@@ -40,8 +40,8 @@ User ──Natural Language──▶ AI ──Semantic Query DSL──▶ Semant
 ### Docker One-Click Launch
 
 ```bash
-git clone https://github.com/pf4cloud/java-data-mcp-bridge.git
-cd java-data-mcp-bridge/docker/demo
+git clone https://github.com/pf4cloud/foggy-data-mcp-bridge.git
+cd foggy-data-mcp-bridge/docker/demo
 
 cp .env.example .env
 # Edit .env to set OPENAI_API_KEY
@@ -123,7 +123,7 @@ LIMIT 10
 ## Module Structure
 
 ```
-java-data-mcp-bridge/
+foggy-data-mcp-bridge/
 ├── foggy-dataset-model     # Core: Semantic Layer Engine
 ├── foggy-dataset-mcp       # MCP Server
 ├── foggy-dataset-demo      # Sample Data Models

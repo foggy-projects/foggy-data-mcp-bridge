@@ -35,20 +35,20 @@ docker compose ps
 
 #### IntelliJ IDEA
 
-1. `File` → `Open` → 选择 `java-data-mcp-bridge` 根目录
+1. `File` → `Open` → 选择 `foggy-data-mcp-bridge` 根目录
 2. 等待 Maven 索引完成
 3. 确认 JDK 版本为 17+：`File` → `Project Structure` → `Project SDK`
 
 #### Eclipse
 
 1. `File` → `Import` → `Maven` → `Existing Maven Projects`
-2. 选择 `java-data-mcp-bridge` 根目录
+2. 选择 `foggy-data-mcp-bridge` 根目录
 3. 选中所有模块，点击 `Finish`
 
 #### VS Code
 
 1. 安装 `Extension Pack for Java` 扩展
-2. `File` → `Open Folder` → 选择 `java-data-mcp-bridge` 根目录
+2. `File` → `Open Folder` → 选择 `foggy-data-mcp-bridge` 根目录
 3. 等待 Java 项目加载完成
 
 ### 3. 配置环境变量

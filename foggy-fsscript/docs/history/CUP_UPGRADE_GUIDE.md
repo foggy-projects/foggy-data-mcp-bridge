@@ -63,7 +63,7 @@ A ::= B:b {:
 
 ### 步骤 1: 编译测试类
 ```bash
-cd D:\foggy-projects\java-data-mcp-bridge\foggy-fsscript
+cd D:\foggy-projects\foggy-data-mcp-bridge\foggy-fsscript
 mvn test-compile
 ```
 

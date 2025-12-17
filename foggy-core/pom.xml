@@ -7,7 +7,7 @@
     <url>http://maven.apache.org</url>
     <parent>
         <groupId>com.foggysource</groupId>
-        <artifactId>java-data-mcp-bridge</artifactId>
+        <artifactId>foggy-data-mcp-bridge</artifactId>
         <version>8.0.0-beta</version>
     </parent>
 

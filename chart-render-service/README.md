@@ -195,7 +195,7 @@ Authorization: your-auth-token
 version: '3.8'
 services:
   chart-render:
-    image: harbor.qlfloor.com/java-data-mcp-bridge/chart-render-service:latest
+    image: harbor.qlfloor.com/foggy-data-mcp-bridge/chart-render-service:latest
     ports:
       - "3000:3000"
     environment:
@@ -221,7 +221,7 @@ export HARBOR_PASSWORD=your-password
 ./scripts/docker-deploy.sh deploy -t v1.0.0
 
 # 在目标服务器拉取
-docker pull harbor.qlfloor.com/java-data-mcp-bridge/chart-render-service:v1.0.0
+docker pull harbor.qlfloor.com/foggy-data-mcp-bridge/chart-render-service:v1.0.0
 ```
 
 ## 监控与运维

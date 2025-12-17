@@ -6,12 +6,12 @@
 
     <parent>
         <groupId>com.foggysource</groupId>
-        <artifactId>java-data-mcp-bridge</artifactId>
+        <artifactId>foggy-data-mcp-bridge</artifactId>
         <version>8.0.0-beta</version>
     </parent>
 
     <artifactId>foggy-dataset-demo</artifactId>
-    <name>java-data-mcp-bridge-dataset-demo</name>
+    <name>foggy-data-mcp-bridge-dataset-demo</name>
     <description>
         Foggy Dataset Demo - 电商数据集演示模块
 

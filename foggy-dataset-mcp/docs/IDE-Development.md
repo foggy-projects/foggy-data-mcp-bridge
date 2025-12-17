@@ -35,20 +35,20 @@ docker compose ps
 
 #### IntelliJ IDEA
 
-1. `File` → `Open` → Select `java-data-mcp-bridge` root directory
+1. `File` → `Open` → Select `foggy-data-mcp-bridge` root directory
 2. Wait for Maven indexing to complete
 3. Confirm JDK version is 17+: `File` → `Project Structure` → `Project SDK`
 
 #### Eclipse
 
 1. `File` → `Import` → `Maven` → `Existing Maven Projects`
-2. Select `java-data-mcp-bridge` root directory
+2. Select `foggy-data-mcp-bridge` root directory
 3. Select all modules, click `Finish`
 
 #### VS Code
 
 1. Install `Extension Pack for Java` extension
-2. `File` → `Open Folder` → Select `java-data-mcp-bridge` root directory
+2. `File` → `Open Folder` → Select `foggy-data-mcp-bridge` root directory
 3. Wait for Java project to load
 
 ### 3. Configure Environment Variables

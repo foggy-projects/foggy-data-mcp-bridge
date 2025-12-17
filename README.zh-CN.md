@@ -38,8 +38,8 @@
 ### Docker 一键启动
 
 ```bash
-git clone https://github.com/pf4cloud/java-data-mcp-bridge.git
-cd java-data-mcp-bridge/docker/demo
+git clone https://github.com/pf4cloud/foggy-data-mcp-bridge.git
+cd foggy-data-mcp-bridge/docker/demo
 
 cp .env.example .env
 # 编辑 .env 设置 OPENAI_API_KEY
@@ -121,7 +121,7 @@ LIMIT 10
 ## 模块结构
 
 ```
-java-data-mcp-bridge/
+foggy-data-mcp-bridge/
 ├── foggy-dataset-model     # 核心：语义层引擎
 ├── foggy-dataset-mcp       # MCP 服务端
 ├── foggy-dataset-demo      # 示例数据模型

@@ -17,7 +17,7 @@ import java.util.stream.Stream;
 /**
  * Spider2 JM/QM 模型生成器
  *
- * 从 Spider2 元数据生成 java-data-mcp-bridge 的 JM 和 QM 模型文件
+ * 从 Spider2 元数据生成 foggy-data-mcp-bridge 的 JM 和 QM 模型文件
  * 每个表生成独立的 .jm 文件，每个事实表生成独立的 .qm 文件
  *
  * 使用方法：直接运行 main 方法
@@ -26,7 +26,7 @@ public class Spider2ModelGenerator {
 
     // 默认路径，可通过环境变量 SPIDER2_BASE_PATH 覆盖
     private static final String SPIDER2_METADATA_PATH = System.getenv().getOrDefault("SPIDER2_BASE_PATH", "./spider2-data") + "/spider2-lite/resource/databases/sqlite";
-    private static final String OUTPUT_PATH = "java-data-mcp-bridge/foggy-benchmark-spider2/src/main/resources/foggy/templates";
+    private static final String OUTPUT_PATH = "foggy-data-mcp-bridge/foggy-benchmark-spider2/src/main/resources/foggy/templates";
 
     private final ObjectMapper objectMapper;
     private final Path metadataPath;
