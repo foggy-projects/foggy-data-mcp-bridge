@@ -38,7 +38,7 @@
 ### Docker 一键启动
 
 ```bash
-git clone https://github.com/pf4cloud/foggy-data-mcp-bridge.git
+git clone https://github.com/foggy-projects/foggy-data-mcp-bridge.git
 cd foggy-data-mcp-bridge/docker/demo
 
 cp .env.example .env

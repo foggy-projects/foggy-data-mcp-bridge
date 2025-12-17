@@ -40,7 +40,7 @@ User ──Natural Language──▶ AI ──Semantic Query DSL──▶ Semant
 ### Docker One-Click Launch
 
 ```bash
-git clone https://github.com/pf4cloud/foggy-data-mcp-bridge.git
+git clone https://github.com/foggy-projects/foggy-data-mcp-bridge.git
 cd foggy-data-mcp-bridge/docker/demo
 
 cp .env.example .env

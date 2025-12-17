@@ -16,7 +16,7 @@
     <name>Java Data MCP Bridge</name>
     <description>嵌入式语义层框架 - 声明式维度建模、动态查询和 AI 驱动的数据分析</description>
     <packaging>pom</packaging>
-    <url>https://github.com/pf4cloud/foggy-data-mcp-bridge</url>
+    <url>https://github.com/foggy-projects/foggy-data-mcp-bridge</url>
 
     <licenses>
         <license>
