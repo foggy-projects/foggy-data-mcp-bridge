@@ -1,0 +1,88 @@
+-- ============================================
+-- Foggy Dataset Model SQLite 字典数据初始化
+-- 文件: 02-dict-data.sql
+-- ============================================
+
+-- 1. 状态字典数据
+INSERT INTO dict_status (status_type, status_code, status_name, sort_order) VALUES
+('ORDER_STATUS', 'PENDING', '待处理', 1),
+('ORDER_STATUS', 'PAID', '已支付', 2),
+('ORDER_STATUS', 'SHIPPED', '已发货', 3),
+('ORDER_STATUS', 'COMPLETED', '已完成', 4),
+('ORDER_STATUS', 'CANCELLED', '已取消', 5),
+('PAYMENT_STATUS', 'UNPAID', '未支付', 1),
+('PAYMENT_STATUS', 'PAID', '已支付', 2),
+('PAYMENT_STATUS', 'REFUNDED', '已退款', 3),
+('PAY_METHOD', 'ALIPAY', '支付宝', 1),
+('PAY_METHOD', 'WECHAT', '微信支付', 2),
+('PAY_METHOD', 'CARD', '银行卡', 3),
+('PAY_METHOD', 'CASH', '现金', 4),
+('PAY_STATUS', 'SUCCESS', '成功', 1),
+('PAY_STATUS', 'FAILED', '失败', 2),
+('PAY_STATUS', 'REFUNDING', '退款中', 3),
+('PAY_STATUS', 'REFUNDED', '已退款', 4),
+('RETURN_TYPE', 'REFUND_ONLY', '仅退款', 1),
+('RETURN_TYPE', 'RETURN_REFUND', '退货退款', 2),
+('RETURN_STATUS', 'PENDING', '待审核', 1),
+('RETURN_STATUS', 'APPROVED', '已批准', 2),
+('RETURN_STATUS', 'COMPLETED', '已完成', 3),
+('RETURN_STATUS', 'REJECTED', '已拒绝', 4),
+('CUSTOMER_TYPE', 'NEW', '新客户', 1),
+('CUSTOMER_TYPE', 'NORMAL', '普通客户', 2),
+('CUSTOMER_TYPE', 'VIP', 'VIP客户', 3),
+('MEMBER_LEVEL', 'BRONZE', '铜卡', 1),
+('MEMBER_LEVEL', 'SILVER', '银卡', 2),
+('MEMBER_LEVEL', 'GOLD', '金卡', 3),
+('MEMBER_LEVEL', 'PLATINUM', '白金卡', 4),
+('MEMBER_LEVEL', 'DIAMOND', '钻石卡', 5),
+('STORE_TYPE', 'DIRECT', '直营店', 1),
+('STORE_TYPE', 'FRANCHISE', '加盟店', 2),
+('CHANNEL_TYPE', 'ONLINE', '线上', 1),
+('CHANNEL_TYPE', 'OFFLINE', '线下', 2),
+('PROMOTION_TYPE', 'DISCOUNT', '折扣', 1),
+('PROMOTION_TYPE', 'FULL_REDUCE', '满减', 2),
+('PROMOTION_TYPE', 'GIFT', '赠品', 3),
+('PROMOTION_TYPE', 'COUPON', '优惠券', 4),
+('GENDER', 'M', '男', 1),
+('GENDER', 'F', '女', 2),
+('GENDER', 'U', '未知', 3),
+('AGE_GROUP', '18-24', '18-24岁', 1),
+('AGE_GROUP', '25-34', '25-34岁', 2),
+('AGE_GROUP', '35-44', '35-44岁', 3),
+('AGE_GROUP', '45-54', '45-54岁', 4),
+('AGE_GROUP', '55+', '55岁以上', 5),
+('COMMON_STATUS', 'ACTIVE', '启用', 1),
+('COMMON_STATUS', 'INACTIVE', '停用', 2);
+
+-- 2. 商品品类字典数据
+INSERT INTO dict_category (category_id, category_name, parent_id, category_level, sort_order) VALUES
+('CAT001', '数码电器', NULL, 1, 1),
+('CAT002', '服装配饰', NULL, 1, 2),
+('CAT003', '食品饮料', NULL, 1, 3),
+('CAT004', '家居日用', NULL, 1, 4),
+('CAT005', '美妆个护', NULL, 1, 5),
+('CAT001001', '手机通讯', 'CAT001', 2, 1),
+('CAT001002', '电脑办公', 'CAT001', 2, 2),
+('CAT001003', '家用电器', 'CAT001', 2, 3),
+('CAT002001', '男装', 'CAT002', 2, 1),
+('CAT002002', '女装', 'CAT002', 2, 2),
+('CAT002003', '鞋靴', 'CAT002', 2, 3),
+('CAT003001', '休闲零食', 'CAT003', 2, 1),
+('CAT004001', '家具', 'CAT004', 2, 1),
+('CAT005001', '护肤', 'CAT005', 2, 1);
+
+-- 3. 地区字典数据
+INSERT INTO dict_region (region_id, region_name, parent_id, region_level, region_code, sort_order) VALUES
+('110000', '北京市', NULL, 1, '110000', 1),
+('310000', '上海市', NULL, 1, '310000', 2),
+('330000', '浙江省', NULL, 1, '330000', 3),
+('320000', '江苏省', NULL, 1, '320000', 4),
+('440000', '广东省', NULL, 1, '440000', 5),
+('110105', '朝阳区', '110000', 2, '110105', 1),
+('310115', '浦东新区', '310000', 2, '310115', 1),
+('330100', '杭州市', '330000', 2, '330100', 1),
+('330106', '西湖区', '330100', 3, '330106', 1),
+('320100', '南京市', '320000', 2, '320100', 1),
+('320102', '玄武区', '320100', 3, '320102', 1),
+('440100', '广州市', '440000', 2, '440100', 1),
+('440106', '天河区', '440100', 3, '440106', 1);

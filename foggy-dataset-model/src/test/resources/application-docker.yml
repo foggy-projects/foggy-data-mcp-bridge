@@ -1,0 +1,104 @@
+# ============================================
+# Foggy Dataset Model - Docker 测试环境配置
+# 文件: application-docker.yml
+# 使用方法: --spring.profiles.active=docker
+# ============================================
+
+spring:
+  application:
+    name: foggy-dataset-model-test
+
+  # ==========================================
+  # MySQL 数据源配置
+  # ==========================================
+  datasource:
+    url: jdbc:mysql://localhost:13306/foggy_test?useUnicode=true&characterEncoding=UTF-8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
+    username: foggy
+    password: foggy_test_123
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    # HikariCP 连接池配置
+    hikari:
+      pool-name: FoggyTestHikariCP
+      minimum-idle: 5
+      maximum-pool-size: 20
+      idle-timeout: 30000
+      max-lifetime: 1800000
+      connection-timeout: 30000
+      connection-test-query: SELECT 1
+
+  # ==========================================
+  # JPA 配置
+  # ==========================================
+  jpa:
+    hibernate:
+      ddl-auto: none  # 使用 Docker 初始化脚本创建表
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: Asia/Shanghai
+        dialect: org.hibernate.dialect.MySQL57Dialect
+    show-sql: true
+    open-in-view: false
+
+  # ==========================================
+  # Redis 配置
+  # ==========================================
+  redis:
+    host: localhost
+    port: 16379
+    timeout: 3000ms
+    lettuce:
+      pool:
+        max-active: 8
+        max-idle: 8
+        min-idle: 0
+        max-wait: -1ms
+
+  # ==========================================
+  # MongoDB 配置
+  # ==========================================
+  data:
+    mongodb:
+      uri: mongodb://localhost:17017/foggy_test
+      auto-index-creation: true
+
+# ==========================================
+# 日志配置
+# ==========================================
+logging:
+  level:
+    root: INFO
+    org.springframework.jdbc: DEBUG
+    org.springframework.jdbc.core.JdbcTemplate: DEBUG
+    org.springframework.jdbc.core.StatementCreatorUtils: TRACE
+    com.foggyframework: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+# ==========================================
+# Foggy Dataset 配置
+# ==========================================
+foggy:
+  dataset:
+    # 模型定义文件路径
+    templates-path: classpath:/foggy/templates/
+    # 缓存配置
+    cache:
+      enabled: true
+      ttl: 3600
+    # 查询限制
+    query:
+      max-rows: 10000
+      timeout: 30000
+
+# ==========================================
+# 测试专用配置
+# ==========================================
+test:
+  data:
+    # 测试数据生成配置
+    generate-on-startup: false
+    # 每次测试后清理数据
+    cleanup-after-test: false

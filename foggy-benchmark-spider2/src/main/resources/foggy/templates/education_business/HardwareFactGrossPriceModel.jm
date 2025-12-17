@@ -1,0 +1,25 @@
+import '@educationBusinessDataSource';
+/**
+ * hardware_fact_gross_price 事实表模型
+ * 
+ * 数据库: education_business
+ * 数据源: educationBusinessDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'HardwareFactGrossPriceModel',
+    caption: 'Hardware Fact Gross Price',
+    tableName: 'hardware_fact_gross_price',
+    dataSource: educationBusinessDataSource,
+    idColumn: 'product_code',
+
+    properties: [
+        { column: 'product_code', caption: 'Product Code', type: 'STRING' },
+        { column: 'fiscal_year', caption: 'Fiscal Year', type: 'INTEGER' },
+    ],
+
+    measures: [
+        { column: 'gross_price', caption: 'Gross Price', type: 'DECIMAL', aggregation: 'sum' },
+    ]
+};

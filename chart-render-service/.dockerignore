@@ -1,0 +1,57 @@
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 环境文件
+.env
+.env.local
+.env.*.local
+
+# 日志文件
+logs/
+*.log
+
+# 运行时文件
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# 覆盖率报告
+coverage/
+.nyc_output
+
+# 依赖目录
+.npm
+.eslintcache
+
+# 编辑器配置
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+
+# Docker
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# 测试文件
+test/
+*.test.js
+__tests__/
+
+# 文档
+README.md
+docs/
+
+# 临时文件
+temp/
+tmp/
+*.tmp

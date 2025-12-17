@@ -1,0 +1,55 @@
+/**
+ * 客户维度查询模型
+ *
+ * @caption 客户维度查询
+ * @description 查询客户基础信息，包括客户类型、性别、年龄段、地区、会员等级等属性
+ */
+export const queryModel = {
+    name: 'DimCustomerQueryModel',
+    caption: '客户维度查询',
+    description: '查询客户基础信息，包括客户类型、性别、年龄段、地区、会员等级等属性',
+    model: 'DimCustomerModel',
+
+    // 列组定义
+    columnGroups: [
+        {
+            caption: '客户基本信息',
+            items: [
+                { name: 'customerName' },
+                { name: 'customerId' },
+                { name: 'customerType' },
+                { name: 'memberLevel' },
+                { name: 'status' }
+            ]
+        },
+        {
+            caption: '人口统计信息',
+            items: [
+                { name: 'gender' },
+                { name: 'ageGroup' }
+            ]
+        },
+        {
+            caption: '地区信息',
+            items: [
+                { name: 'province' },
+                { name: 'city' },
+                { name: 'district' }
+            ]
+        },
+        {
+            caption: '时间信息',
+            items: [
+                { name: 'registerDate' },
+                { name: 'createdAt' }
+            ]
+        }
+    ],
+
+    // 默认排序
+    orders: [
+        { name: 'customerName', order: 'asc' }
+    ],
+
+    accesses: []
+};

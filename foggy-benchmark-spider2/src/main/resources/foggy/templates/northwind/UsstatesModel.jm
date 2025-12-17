@@ -1,0 +1,23 @@
+import '@northwindDataSource';
+/**
+ * usstates 维度表模型
+ * 
+ * 数据库: northwind
+ * 数据源: northwindDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'UsstatesModel',
+    caption: 'Usstates',
+    tableName: 'usstates',
+    dataSource: northwindDataSource,
+    idColumn: 'stateid',
+
+    properties: [
+        { column: 'stateid', caption: 'Stateid', type: 'INTEGER' },
+        { column: 'statename', caption: 'Statename', type: 'STRING' },
+        { column: 'stateabbr', caption: 'Stateabbr', type: 'STRING' },
+        { column: 'stateregion', caption: 'Stateregion', type: 'STRING' },
+    ],
+};

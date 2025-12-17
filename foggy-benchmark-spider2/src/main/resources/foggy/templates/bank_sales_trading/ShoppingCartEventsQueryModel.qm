@@ -1,0 +1,33 @@
+/**
+ * shopping_cart_events 查询模型
+ * 
+ * 数据库: bank_sales_trading
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'ShoppingCartEventsQueryModel',
+    model: 'ShoppingCartEventsModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'visit_id' },
+                { name: 'cookie_id' },
+                { name: 'page_id' },
+                { name: 'event_type' },
+                { name: 'event_time' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'sequence_number' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

@@ -1,0 +1,32 @@
+import '@adventureworksDataSource';
+/**
+ * salesterritory 事实表模型
+ * 
+ * 数据库: AdventureWorks
+ * 数据源: adventureworksDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'SalesterritoryModel',
+    caption: 'Salesterritory',
+    tableName: 'salesterritory',
+    dataSource: adventureworksDataSource,
+    idColumn: 'territoryid',
+
+    properties: [
+        { column: 'territoryid', caption: 'Territoryid', type: 'INTEGER' },
+        { column: 'name', caption: 'Name', type: 'STRING' },
+        { column: 'countryregioncode', caption: 'Countryregioncode', type: 'STRING' },
+        { column: 'group', caption: 'Group', type: 'STRING' },
+        { column: 'rowguid', caption: 'Rowguid', type: 'STRING' },
+        { column: 'modifieddate', caption: 'Modifieddate', type: 'DAY' },
+    ],
+
+    measures: [
+        { column: 'salesytd', caption: 'Salesytd', type: 'DECIMAL', aggregation: 'sum' },
+        { column: 'saleslastyear', caption: 'Saleslastyear', type: 'DECIMAL', aggregation: 'sum' },
+        { column: 'costytd', caption: 'Costytd', type: 'DECIMAL', aggregation: 'sum' },
+        { column: 'costlastyear', caption: 'Costlastyear', type: 'DECIMAL', aggregation: 'sum' },
+    ]
+};

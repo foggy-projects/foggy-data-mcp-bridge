@@ -1,0 +1,37 @@
+import '@northwindDataSource';
+/**
+ * employees 维度表模型
+ * 
+ * 数据库: northwind
+ * 数据源: northwindDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'EmployeesModel',
+    caption: 'Employees',
+    tableName: 'employees',
+    dataSource: northwindDataSource,
+    idColumn: 'employeeid',
+
+    properties: [
+        { column: 'employeeid', caption: 'Employeeid', type: 'INTEGER' },
+        { column: 'lastname', caption: 'Lastname', type: 'STRING' },
+        { column: 'firstname', caption: 'Firstname', type: 'STRING' },
+        { column: 'title', caption: 'Title', type: 'STRING' },
+        { column: 'titleofcourtesy', caption: 'Titleofcourtesy', type: 'STRING' },
+        { column: 'birthdate', caption: 'Birthdate', type: 'DAY' },
+        { column: 'hiredate', caption: 'Hiredate', type: 'DAY' },
+        { column: 'address', caption: 'Address', type: 'STRING' },
+        { column: 'city', caption: 'City', type: 'STRING' },
+        { column: 'region', caption: 'Region', type: 'STRING' },
+        { column: 'postalcode', caption: 'Postalcode', type: 'STRING' },
+        { column: 'country', caption: 'Country', type: 'STRING' },
+        { column: 'homephone', caption: 'Homephone', type: 'STRING' },
+        { column: 'extension', caption: 'Extension', type: 'STRING' },
+        { column: 'photo', caption: 'Photo', type: 'STRING' },
+        { column: 'notes', caption: 'Notes', type: 'STRING' },
+        { column: 'reportsto', caption: 'Reportsto', type: 'INTEGER' },
+        { column: 'photopath', caption: 'Photopath', type: 'STRING' },
+    ],
+};

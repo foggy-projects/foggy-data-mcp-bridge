@@ -1,0 +1,10 @@
+import {b} from "./bug_fix_import3.fsscript";
+
+import {a,b} from "./bug_fix_import2.fsscript";
+
+
+export const bb=b;
+
+export const test = () => {
+  return b;
+};

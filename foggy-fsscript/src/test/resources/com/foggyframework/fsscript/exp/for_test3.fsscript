@@ -1,0 +1,12 @@
+let j = 0;
+for (let k = 0; k < 2; k++) {
+    for (let i = 0; i < 4; i++) {
+        let b = 1;
+        if (i == 2) {
+            continue;
+        }
+        j++;
+    }
+}
+
+export const v=j;

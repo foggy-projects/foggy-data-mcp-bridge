@@ -1,0 +1,46 @@
+/**
+ * film 查询模型
+ * 
+ * 数据库: SQLITE_SAKILA
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'FilmQueryModel',
+    model: 'FilmModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'film_id' },
+                { name: 'title' },
+                { name: 'description' },
+                { name: 'release_year' },
+                { name: 'language$id' },
+                { name: 'original_language_id' },
+                { name: 'rental_duration' },
+                { name: 'rental_rate' },
+                { name: 'length' },
+                { name: 'rating' },
+                { name: 'special_features' },
+                { name: 'last_update' },
+            ]
+        },
+        {
+            caption: '关联维度',
+            items: [
+                { name: 'language$caption' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'replacement_cost' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

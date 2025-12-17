@@ -1,0 +1,1 @@
+var b= 1;var c= 1;for(var i=0;i<10;i++){ b ='b'; var d = 12 ; var c = 2 ; export var ee = 2;} export {b,c,d,i}

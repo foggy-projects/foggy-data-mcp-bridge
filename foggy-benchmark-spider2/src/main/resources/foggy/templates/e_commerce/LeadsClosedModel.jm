@@ -1,0 +1,52 @@
+import '@eCommerceDataSource';
+/**
+ * leads_closed 事实表模型
+ * 
+ * 数据库: E_commerce
+ * 数据源: eCommerceDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'LeadsClosedModel',
+    caption: 'Leads Closed',
+    tableName: 'leads_closed',
+    dataSource: eCommerceDataSource,
+    idColumn: 'mql_id',
+
+    dimensions: [
+        {
+            name: 'sellers',
+            tableName: 'sellers',
+            foreignKey: 'seller_id',
+            primaryKey: 'seller_id',
+            captionColumn: 'seller_zip_code_prefix',
+            caption: '卖家',
+            properties: [
+                { column: 'seller_id', caption: 'Seller Id', type: 'STRING' },
+                { column: 'seller_zip_code_prefix', caption: 'Seller Zip Code Prefix', type: 'INTEGER' },
+                { column: 'seller_city', caption: 'Seller City', type: 'STRING' },
+                { column: 'seller_state', caption: 'Seller State', type: 'STRING' },
+            ]
+        },
+    ],
+
+    properties: [
+        { column: 'mql_id', caption: 'Mql Id', type: 'STRING' },
+        { column: 'sdr_id', caption: 'Sdr Id', type: 'STRING' },
+        { column: 'sr_id', caption: 'Sr Id', type: 'STRING' },
+        { column: 'won_date', caption: 'Won Date', type: 'STRING' },
+        { column: 'business_segment', caption: 'Business Segment', type: 'STRING' },
+        { column: 'lead_type', caption: 'Lead Type', type: 'STRING' },
+        { column: 'lead_behaviour_profile', caption: 'Lead Behaviour Profile', type: 'STRING' },
+        { column: 'has_company', caption: 'Has Company', type: 'INTEGER' },
+        { column: 'has_gtin', caption: 'Has Gtin', type: 'INTEGER' },
+        { column: 'average_stock', caption: 'Average Stock', type: 'STRING' },
+        { column: 'business_type', caption: 'Business Type', type: 'STRING' },
+        { column: 'declared_product_catalog_size', caption: 'Declared Product Catalog Size', type: 'DECIMAL' },
+    ],
+
+    measures: [
+        { column: 'declared_monthly_revenue', caption: 'Declared Monthly Revenue', type: 'DECIMAL', aggregation: 'sum' },
+    ]
+};

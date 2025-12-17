@@ -1,0 +1,31 @@
+/**
+ * mst_products_20161201 查询模型
+ * 
+ * 数据库: log
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'MstProducts20161201QueryModel',
+    model: 'MstProducts20161201Model',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'product_id' },
+                { name: 'name' },
+                { name: 'updated_at' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'price' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

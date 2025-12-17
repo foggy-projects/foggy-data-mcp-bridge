@@ -1,0 +1,22 @@
+import '@sqliteSakilaDataSource';
+/**
+ * category 维度表模型
+ * 
+ * 数据库: SQLITE_SAKILA
+ * 数据源: sqliteSakilaDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'CategoryModel',
+    caption: '分类',
+    tableName: 'category',
+    dataSource: sqliteSakilaDataSource,
+    idColumn: 'category_id',
+
+    properties: [
+        { column: 'category_id', caption: 'Category Id', type: 'INTEGER' },
+        { column: 'name', caption: 'Name', type: 'STRING' },
+        { column: 'last_update', caption: 'Last Update', type: 'DATETIME' },
+    ],
+};

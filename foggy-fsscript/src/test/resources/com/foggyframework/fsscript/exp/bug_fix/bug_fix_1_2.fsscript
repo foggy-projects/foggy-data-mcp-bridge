@@ -1,0 +1,80 @@
+export const build = (view) => {
+
+    const columns = view.plugins.columnsView;
+    const dataRows = [];
+    let r = buildHeaderTableRow(columns, dataRows);
+
+    r = r + buildDataRow(dataRows);
+    let importStr = '${' + `
+        import {numberToLetter} from '@numberUtils';
+        import {getDictCaption} from 'java:com.foggyframework.ui.code.gen.common.utils.GenCommonUtils';
+        import {forName} from 'java:java.lang.Class';
+    ` + '}';
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<Views test="hasRole('DOMAIN_ROOT')" xmlns="http://www.foggysource.com/excel"
+       fileName="">
+    <sheet>
+       ${importStr}
+       ${r}
+    </sheet>
+</views>
+    `;
+};
+
+const buildHeaderTableRow = (columns, dataRows) => {
+    let r = '<table_row>';
+
+    const nextHeaderTableRow = [];
+    for (let i = 0; i < columns.length; i++) {
+        let c = columns[i];
+        if (c.plugins.tableColumnType != 2) {
+            //非数据列，跳过~
+            continue;
+        }
+        let children = c.plugins.children;
+        if (!children || children.length == 0) {
+            //如果没有子节点，则表示它可以加入dataRows
+            dataRows.push(c);
+        } else {
+            for (let j = 0; j < children.length; j++) {
+                nextHeaderTableRow.push(children[j]);
+            }
+
+        }
+        r = r + `
+            <table_cell rowspan="${c.plugins.rowspan || 1}" colspan="${c.plugins.colspan || 1}" width="5"><text>${c.label || c.plugins.prop}</text></table_cell>
+        `;
+
+    }
+    r = r + '</table_row>';
+
+    if (nextHeaderTableRow.length > 0) {
+        r = r + buildHeaderTableRow(nextHeaderTableRow, dataRows);
+    }
+    return r;
+};
+
+const buildDataRow = (dataRows) => {
+    let r = '<table_row>';
+    for (let i = 0; i < dataRows.length; i++) {
+        let d = dataRows[i];
+        let inputType = d.plugins.inputType;
+        let path = d.plugins.safePath || view.plugins.prop;
+        let tpl = '';
+        if (inputType == 'date') {
+            tpl = '<text>${dateTimeFormat(toDate(' + path + '))}</text>';
+        } else if (inputType == 'dict') {
+            tpl = '<text>${dateTimeFormat(toDate(' + path + '))}</text>';
+        } else if (inputType == 'money') {
+            tpl = '<text>${' + path + '/100}</text>';
+        } else {
+            tpl = '<text>${' + path + '}</text>';
+        }
+        let cell = `
+                <table_cell>${tpl}</table_cell>
+            `;
+        r = r + cell;
+    }
+    r = r + '</table_row>';
+    return r;
+}

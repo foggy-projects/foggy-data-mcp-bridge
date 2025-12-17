@@ -1,0 +1,42 @@
+/**
+ * payment 查询模型
+ * 
+ * 数据库: SQLITE_SAKILA
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'PaymentQueryModel',
+    model: 'PaymentModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'payment_id' },
+                { name: 'customer$id' },
+                { name: 'staff$id' },
+                { name: 'rental$id' },
+                { name: 'payment_date' },
+                { name: 'last_update' },
+            ]
+        },
+        {
+            caption: '关联维度',
+            items: [
+                { name: 'customer$caption' },
+                { name: 'staff$caption' },
+                { name: 'rental$caption' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'amount' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

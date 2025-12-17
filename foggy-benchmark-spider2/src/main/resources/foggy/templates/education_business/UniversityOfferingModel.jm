@@ -1,0 +1,27 @@
+import '@educationBusinessDataSource';
+/**
+ * university_offering 维度表模型
+ * 
+ * 数据库: education_business
+ * 数据源: educationBusinessDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'UniversityOfferingModel',
+    caption: 'University Offering',
+    tableName: 'university_offering',
+    dataSource: educationBusinessDataSource,
+    idColumn: 'OfferNo',
+
+    properties: [
+        { column: 'OfferNo', caption: 'Offerno', type: 'INTEGER' },
+        { column: 'CourseNo', caption: 'Courseno', type: 'STRING' },
+        { column: 'OffTerm', caption: 'Offterm', type: 'STRING' },
+        { column: 'OffYear', caption: 'Offyear', type: 'INTEGER' },
+        { column: 'OffLocation', caption: 'Offlocation', type: 'STRING' },
+        { column: 'OffTime', caption: 'Offtime', type: 'STRING' },
+        { column: 'FacNo', caption: 'Facno', type: 'DECIMAL' },
+        { column: 'OffDays', caption: 'Offdays', type: 'STRING' },
+    ],
+};

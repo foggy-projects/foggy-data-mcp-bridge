@@ -1,0 +1,31 @@
+/**
+ * Categories 查询模型
+ * 
+ * 数据库: school_scheduling
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'CategoriesQueryModel',
+    model: 'CategoriesModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'CategoryID' },
+                { name: 'CategoryDescription' },
+                { name: 'departments$id' },
+            ]
+        },
+        {
+            caption: '关联维度',
+            items: [
+                { name: 'departments$caption' },
+            ]
+        },
+    ],
+
+    orders: [],
+    accesses: []
+};

@@ -1,0 +1,84 @@
+/**
+ * 嵌套维度销售查询模型
+ *
+ * @caption 嵌套维度销售查询
+ * @description 演示嵌套维度（雪花模型）的查询模型，支持使用别名访问嵌套维度
+ */
+export const queryModel = {
+    name: 'FactSalesNestedDimQueryModel',
+    caption: '嵌套维度销售查询',
+    description: '演示嵌套维度（雪花模型）的查询模型，支持使用别名访问嵌套维度',
+    model: 'FactSalesNestedDimModel',
+
+    // 列组定义
+    columnGroups: [
+        {
+            caption: '日期维度',
+            items: [
+                { name: 'salesDate' },
+                { name: 'salesDate$year' },
+                { name: 'salesDate$quarter' },
+                { name: 'salesDate$month' }
+            ]
+        },
+        {
+            caption: '商品维度（一级）',
+            items: [
+                { name: 'product' },
+                { name: 'product$brand' },
+                { name: 'product$unitPrice' }
+            ]
+        },
+        {
+            caption: '品类维度（二级，通过别名访问）',
+            items: [
+                // 使用别名 productCategory 访问嵌套维度
+                // 注意：$id 会在 $caption 加载时自动注册，无需重复定义
+                { name: 'productCategory' },
+                { name: 'productCategory$categoryId' },
+                { name: 'productCategory$categoryLevel' }
+            ]
+        },
+        {
+            caption: '品类组维度（三级，通过别名访问）',
+            items: [
+                // 使用别名 categoryGroup 访问嵌套维度
+                { name: 'categoryGroup' },
+                { name: 'categoryGroup$groupId' },
+                { name: 'categoryGroup$groupType' }
+            ]
+        },
+        {
+            caption: '门店维度（一级）',
+            items: [
+                { name: 'store' },
+                { name: 'store$storeType' }
+            ]
+        },
+        {
+            caption: '区域维度（二级，通过别名访问）',
+            items: [
+                // 使用别名 storeRegion 访问嵌套维度
+                { name: 'storeRegion' },
+                { name: 'storeRegion$regionId' },
+                { name: 'storeRegion$province' },
+                { name: 'storeRegion$city' }
+            ]
+        },
+        {
+            caption: '度量',
+            items: [
+                { name: 'quantity' },
+                { name: 'salesAmount' },
+                { name: 'costAmount' }
+            ]
+        }
+    ],
+
+    // 默认排序
+    orders: [
+        { name: 'salesDate$caption', order: 'desc' }
+    ],
+
+    accesses: []
+};

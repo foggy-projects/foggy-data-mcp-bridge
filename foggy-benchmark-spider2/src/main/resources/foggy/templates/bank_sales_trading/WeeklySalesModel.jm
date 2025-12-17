@@ -1,0 +1,29 @@
+import '@bankSalesTradingDataSource';
+/**
+ * weekly_sales 事实表模型
+ * 
+ * 数据库: bank_sales_trading
+ * 数据源: bankSalesTradingDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'WeeklySalesModel',
+    caption: 'Weekly Sales',
+    tableName: 'weekly_sales',
+    dataSource: bankSalesTradingDataSource,
+    idColumn: 'week_date',
+
+    properties: [
+        { column: 'week_date', caption: 'Week Date', type: 'STRING' },
+        { column: 'region', caption: 'Region', type: 'STRING' },
+        { column: 'platform', caption: 'Platform', type: 'STRING' },
+        { column: 'segment', caption: 'Segment', type: 'STRING' },
+        { column: 'customer_type', caption: 'Customer Type', type: 'STRING' },
+        { column: 'transactions', caption: 'Transactions', type: 'INTEGER' },
+    ],
+
+    measures: [
+        { column: 'sales', caption: 'Sales', type: 'INTEGER', aggregation: 'sum' },
+    ]
+};

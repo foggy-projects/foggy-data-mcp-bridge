@@ -1,0 +1,47 @@
+/**
+ * Bowlers 查询模型
+ * 
+ * 数据库: BowlingLeague
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'BowlersQueryModel',
+    model: 'BowlersModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'BowlerID' },
+                { name: 'BowlerLastName' },
+                { name: 'BowlerFirstName' },
+                { name: 'BowlerMiddleInit' },
+                { name: 'BowlerAddress' },
+                { name: 'BowlerCity' },
+                { name: 'BowlerState' },
+                { name: 'BowlerZip' },
+                { name: 'BowlerPhoneNumber' },
+                { name: 'teams$id' },
+                { name: 'BowlerGamesBowled' },
+                { name: 'BowlerCurrentAverage' },
+                { name: 'BowlerCurrentHcp' },
+            ]
+        },
+        {
+            caption: '关联维度',
+            items: [
+                { name: 'teams$caption' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'BowlerTotalPins' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

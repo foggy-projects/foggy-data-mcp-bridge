@@ -1,0 +1,25 @@
+import '@logDataSource';
+/**
+ * product_sales 事实表模型
+ * 
+ * 数据库: log
+ * 数据源: logDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'ProductSalesModel',
+    caption: 'Product Sales',
+    tableName: 'product_sales',
+    dataSource: logDataSource,
+    idColumn: 'product_id',
+
+    properties: [
+        { column: 'category_name', caption: 'Category Name', type: 'STRING' },
+        { column: 'product_id', caption: 'Product Id', type: 'STRING' },
+    ],
+
+    measures: [
+        { column: 'sales', caption: 'Sales', type: 'INTEGER', aggregation: 'sum' },
+    ]
+};

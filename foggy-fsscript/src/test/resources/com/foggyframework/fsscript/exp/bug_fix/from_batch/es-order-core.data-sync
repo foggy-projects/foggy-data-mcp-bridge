@@ -1,0 +1,30 @@
+
+import {buildEsOrderCore2Card, buildEsOrderInfo2Card} from "./es-order-build.fsscript";
+
+
+
+export const beforeLoad = () => {
+
+    export const remove = (object) => {
+       // set.deleteOne({_id: object.teamId});
+    }
+    export const update = (object) => {
+
+     return  buildEsOrderCore2Card(object);
+
+    }
+    export const create = (object) => {
+        update(object);
+
+
+    };
+
+    export const bindQueue = {
+        entityName: 'EsOrderCoreEntity',
+        serviceName: SERVICE_NAME,
+        remove, update, create
+    };
+
+
+}
+

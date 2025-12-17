@@ -1,0 +1,22 @@
+import '@schoolSchedulingDataSource';
+/**
+ * Class_Rooms 维度表模型
+ * 
+ * 数据库: school_scheduling
+ * 数据源: schoolSchedulingDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'ClassRoomsModel',
+    caption: 'Class Rooms',
+    tableName: 'Class_Rooms',
+    dataSource: schoolSchedulingDataSource,
+    idColumn: 'ClassRoomID',
+
+    properties: [
+        { column: 'ClassRoomID', caption: 'Classroomid', type: 'INTEGER' },
+        { column: 'BuildingCode', caption: 'Buildingcode', type: 'STRING' },
+        { column: 'PhoneAvailable', caption: 'Phoneavailable', type: 'STRING' },
+    ],
+};

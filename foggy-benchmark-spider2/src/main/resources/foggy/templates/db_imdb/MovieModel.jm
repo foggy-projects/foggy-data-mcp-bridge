@@ -1,0 +1,25 @@
+import '@dbImdbDataSource';
+/**
+ * Movie 维度表模型
+ * 
+ * 数据库: DB_IMDB
+ * 数据源: dbImdbDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'MovieModel',
+    caption: 'Movie',
+    tableName: 'Movie',
+    dataSource: dbImdbDataSource,
+    idColumn: 'index',
+
+    properties: [
+        { column: 'index', caption: 'Index', type: 'INTEGER' },
+        { column: 'MID', caption: 'Mid', type: 'STRING' },
+        { column: 'title', caption: 'Title', type: 'STRING' },
+        { column: 'year', caption: 'Year', type: 'STRING' },
+        { column: 'rating', caption: 'Rating', type: 'DECIMAL' },
+        { column: 'num_votes', caption: 'Num Votes', type: 'INTEGER' },
+    ],
+};

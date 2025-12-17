@@ -1,0 +1,39 @@
+/**
+ * purchases 查询模型
+ * 
+ * 数据库: oracle_sql
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'PurchasesQueryModel',
+    model: 'PurchasesModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'id' },
+                { name: 'purchased' },
+                { name: 'brewery_id' },
+                { name: 'products$id' },
+            ]
+        },
+        {
+            caption: '关联维度',
+            items: [
+                { name: 'products$caption' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'qty' },
+                { name: 'cost' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

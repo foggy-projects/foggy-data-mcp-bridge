@@ -1,0 +1,64 @@
+import '@wweDataSource';
+/**
+ * Cards 事实表模型
+ * 
+ * 数据库: WWE
+ * 数据源: wweDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'CardsModel',
+    caption: 'Cards',
+    tableName: 'Cards',
+    dataSource: wweDataSource,
+    idColumn: 'table_id',
+
+    dimensions: [
+        {
+            name: 'locations',
+            tableName: 'Locations',
+            foreignKey: 'location_id',
+            primaryKey: 'id',
+            captionColumn: 'name',
+            caption: 'Locations',
+            properties: [
+                { column: 'id', caption: 'Id', type: 'INTEGER' },
+                { column: 'name', caption: 'Name', type: 'STRING' },
+            ]
+        },
+        {
+            name: 'promotions',
+            tableName: 'Promotions',
+            foreignKey: 'promotion_id',
+            primaryKey: 'id',
+            captionColumn: 'name',
+            caption: 'Promotions',
+            properties: [
+                { column: 'id', caption: 'Id', type: 'INTEGER' },
+                { column: 'name', caption: 'Name', type: 'STRING' },
+            ]
+        },
+        {
+            name: 'events',
+            tableName: 'Events',
+            foreignKey: 'event_id',
+            primaryKey: 'id',
+            captionColumn: 'name',
+            caption: 'Events',
+            properties: [
+                { column: 'id', caption: 'Id', type: 'INTEGER' },
+                { column: 'name', caption: 'Name', type: 'STRING' },
+            ]
+        },
+    ],
+
+    properties: [
+        { column: 'id', caption: 'Id', type: 'INTEGER' },
+        { column: 'table_id', caption: 'Table Id', type: 'INTEGER' },
+        { column: 'event_date', caption: 'Event Date', type: 'STRING' },
+        { column: 'url', caption: 'Url', type: 'STRING' },
+        { column: 'info_html', caption: 'Info Html', type: 'STRING' },
+        { column: 'match_html', caption: 'Match Html', type: 'STRING' },
+    ],
+};

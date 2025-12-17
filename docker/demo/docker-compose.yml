@@ -1,0 +1,160 @@
+# ============================================
+# Foggy Framework MCP Demo - Docker Compose
+# 一键启动演示环境
+# ============================================
+#
+# 快速开始:
+#   1. 复制环境变量: cp .env.example .env
+#   2. 编辑 .env 设置 OPENAI_API_KEY
+#   3. 启动服务: docker-compose up -d
+#   4. 验证: curl http://localhost:7108/actuator/health
+#
+# 服务端口:
+#   - MCP 服务: http://localhost:7108
+#   - 数据库管理: http://localhost:18080 (Adminer)
+#
+# 自定义模型:
+#   1. 创建模型目录: mkdir -p ./custom-models/model ./custom-models/query
+#   2. 编辑 .env 启用外部模型: EXTERNAL_MODELS_ENABLED=true
+#   3. 将 JM/QM 文件放入对应目录
+#   4. 重启服务: docker-compose restart mcp
+#
+# ============================================
+
+services:
+  # ==========================================
+  # MySQL 数据库 (预置电商演示数据)
+  # ==========================================
+  mysql:
+    build:
+      context: ./mysql
+      dockerfile: Dockerfile
+    image: foggy-mcp-mysql:${FOGGY_VERSION:-8.0.0-beta}
+    container_name: foggy-mcp-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-foggy_root_123}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-foggy_test}
+      MYSQL_USER: ${MYSQL_USER:-foggy}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-foggy_test_123}
+      TZ: Asia/Shanghai
+    ports:
+      - "${MYSQL_PORT:-13306}:3306"
+    volumes:
+      # 数据持久化（初始化脚本已内置于镜像中）
+      - mysql-demo-data:/var/lib/mysql
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --default-time-zone='+08:00'
+      --lower-case-table-names=1
+      --max-connections=500
+      --innodb-buffer-pool-size=256M
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pfoggy_root_123"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    networks:
+      - foggy-mcp-net
+
+  # ==========================================
+  # Foggy MCP 服务 (语义查询 + AI 对接)
+  # ==========================================
+  mcp:
+    build:
+      context: ../..
+      dockerfile: foggy-dataset-mcp/Dockerfile
+    image: foggy-mcp:${FOGGY_VERSION:-8.0.0-beta}
+    container_name: foggy-mcp-service
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "${MCP_PORT:-7108}:7108"
+      - "${MCP_M2_PORT:-7109}:7109"
+    volumes:
+      # 外部自定义模型目录挂载
+      - ${EXTERNAL_MODELS_PATH:-./custom-models}:/app/external-models:ro
+    environment:
+      # 服务配置
+      SERVER_PORT: 7108
+      SPRING_PROFILES_ACTIVE: docker
+
+      # 数据库连接 (连接到同一网络中的 mysql 容器)
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-foggy_test}?useUnicode=true&characterEncoding=UTF-8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
+      SPRING_DATASOURCE_USERNAME: ${MYSQL_USER:-foggy}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD:-foggy_test_123}
+
+      # AI 配置 (必填)
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?请在 .env 文件中设置 OPENAI_API_KEY}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+
+      # MCP 服务配置
+      MCP_LAYER: ${MCP_LAYER:-both}
+      DATASET_ACCESS_MODE: local
+
+      # 可用的查询模型列表 (逗号分隔)
+      MCP_SEMANTIC_MODEL_LIST: ${MCP_MODEL_LIST:-FactSalesQueryModel,FactOrderQueryModel,FactPaymentQueryModel,FactReturnQueryModel,FactInventorySnapshotQueryModel}
+
+      # 外部模型配置
+      FOGGY_BUNDLE_EXTERNAL_ENABLED: ${EXTERNAL_MODELS_ENABLED:-false}
+      FOGGY_BUNDLE_EXTERNAL_BUNDLES_0_NAME: custom-models
+      FOGGY_BUNDLE_EXTERNAL_BUNDLES_0_PATH: /app/external-models
+
+      # 用户自定义数据库连接 (供外部模型使用)
+      # 在 datasource.fsscript 中通过 dataSourceFactory.env('CUSTOM_DB_URL') 获取
+      CUSTOM_DB_URL: ${CUSTOM_DB_URL:-}
+      CUSTOM_DB_USER: ${CUSTOM_DB_USER:-}
+      CUSTOM_DB_PASS: ${CUSTOM_DB_PASS:-}
+
+      # 日志级别
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+      # JVM 内存配置
+      JAVA_OPTS: ${JAVA_OPTS:--Xms256m -Xmx512m -XX:+UseG1GC}
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:7108/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    networks:
+      - foggy-mcp-net
+
+  # ==========================================
+  # Adminer - 数据库管理工具 (可选)
+  # ==========================================
+  adminer:
+    image: adminer:latest
+    container_name: foggy-mcp-adminer
+    restart: unless-stopped
+    ports:
+      - "${ADMINER_PORT:-18080}:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: mysql
+    depends_on:
+      mysql:
+        condition: service_healthy
+    profiles:
+      - tools
+    networks:
+      - foggy-mcp-net
+
+# ==========================================
+# 数据卷
+# ==========================================
+volumes:
+  mysql-demo-data:
+    name: foggy-mcp-mysql-data
+
+# ==========================================
+# 网络
+# ==========================================
+networks:
+  foggy-mcp-net:
+    name: foggy-mcp-network
+    driver: bridge

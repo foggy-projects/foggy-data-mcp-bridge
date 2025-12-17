@@ -1,0 +1,21 @@
+import '@schoolSchedulingDataSource';
+/**
+ * sqlite_sequence 维度表模型
+ * 
+ * 数据库: school_scheduling
+ * 数据源: schoolSchedulingDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'SqliteSequenceModel',
+    caption: 'Sqlite Sequence',
+    tableName: 'sqlite_sequence',
+    dataSource: schoolSchedulingDataSource,
+    idColumn: 'name',
+
+    properties: [
+        { column: 'name', caption: 'Name', type: 'STRING' },
+        { column: 'seq', caption: 'Seq', type: 'STRING' },
+    ],
+};

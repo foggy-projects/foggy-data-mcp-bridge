@@ -1,0 +1,56 @@
+<project>
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.foggysource</groupId>
+    <artifactId>foggy-fsscript</artifactId>
+    <packaging>jar</packaging>
+    <url>http://maven.apache.org</url>
+    <version>8.0.0-beta</version>
+    <parent>
+        <groupId>com.foggysource</groupId>
+        <artifactId>java-data-mcp-bridge</artifactId>
+        <version>8.0.0-beta</version>
+    </parent>
+
+    <developers>
+        <developer>
+            <name>FengJianguang</name>
+            <id>FengJianguang</id>
+            <email>foggysource@gmail.com</email>
+            <roles>
+                <role>Architect</role>
+                <role>Java Developer</role>
+            </roles>
+            <timezone>+8</timezone>
+        </developer>
+    </developers>
+
+    <build>
+        <finalName>${project.artifactId}-${project.version}</finalName>
+        <plugins>
+
+        </plugins>
+
+
+    </build>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.foggysource</groupId>
+            <artifactId>foggy-bean-copy</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Parser generator tool (test only) -->
+        <dependency>
+            <groupId>com.github.vbmacher</groupId>
+            <artifactId>java-cup</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+
+</project>

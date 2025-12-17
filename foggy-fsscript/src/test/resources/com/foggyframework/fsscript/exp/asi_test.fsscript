@@ -1,0 +1,76 @@
+// ASI (Automatic Semicolon Insertion) 测试
+
+// 测试1: 基本变量声明，无分号
+let a = 1
+let b = 2
+let c = a + b
+
+// 测试2: 多行表达式（运算符在行尾应该继续）
+let d = 1 +
+    2 +
+    3
+
+// 测试3: 函数声明后跟变量声明
+function add(x, y) {
+    return x + y
+}
+let sum = add(1, 2)
+
+// 测试4: 箭头函数
+const multiply = (x, y) => {
+    return x * y
+}
+let product = multiply(3, 4)
+
+// 测试5: 对象字面量
+let obj = {
+    name: 'test',
+    value: 100
+}
+let objName = obj.name
+
+// 测试6: 数组
+let arr = [1, 2, 3]
+let first = arr[0]
+
+// 测试7: if 语句后跟变量
+let condition = true
+if (condition) {
+    a = 10
+}
+let afterIf = a
+
+// 测试8: for 循环后跟变量
+let total = 0
+for (let i = 0; i < 3; i++) {
+    total = total + i
+}
+let afterFor = total
+
+// 测试9: return 语句 (在函数内)
+function getResult() {
+    let x = 42
+    return x
+}
+let result = getResult()
+
+// 测试10: break 和 continue
+let breakTest = 0
+for (let i = 0; i < 10; i++) {
+    if (i == 5) {
+        break
+    }
+    breakTest = i
+}
+
+// 导出测试结果
+export let testC = c
+export let testD = d
+export let testSum = sum
+export let testProduct = product
+export let testObjName = objName
+export let testFirst = first
+export let testAfterIf = afterIf
+export let testAfterFor = afterFor
+export let testResult = result
+export let testBreak = breakTest

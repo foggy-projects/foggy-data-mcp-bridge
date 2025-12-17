@@ -1,0 +1,22 @@
+import '@entertainmentagencyDataSource';
+/**
+ * Entertainer_Styles 维度表模型
+ * 
+ * 数据库: EntertainmentAgency
+ * 数据源: entertainmentagencyDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'EntertainerStylesModel',
+    caption: 'Entertainer Styles',
+    tableName: 'Entertainer_Styles',
+    dataSource: entertainmentagencyDataSource,
+    idColumn: 'EntertainerID',
+
+    properties: [
+        { column: 'EntertainerID', caption: 'Entertainerid', type: 'INTEGER' },
+        { column: 'StyleID', caption: 'Styleid', type: 'INTEGER' },
+        { column: 'StyleStrength', caption: 'Stylestrength', type: 'INTEGER' },
+    ],
+};

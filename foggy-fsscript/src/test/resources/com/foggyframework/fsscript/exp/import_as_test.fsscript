@@ -1,0 +1,3 @@
+import {b as bb} from 'export_test.fsscript';
+
+import T from 'export_test.fsscript';

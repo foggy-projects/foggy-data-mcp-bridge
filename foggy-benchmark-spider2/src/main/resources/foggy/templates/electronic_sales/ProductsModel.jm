@@ -1,0 +1,32 @@
+import '@electronicSalesDataSource';
+/**
+ * products 事实表模型
+ * 
+ * 数据库: electronic_sales
+ * 数据源: electronicSalesDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'ProductsModel',
+    caption: '产品',
+    tableName: 'products',
+    dataSource: electronicSalesDataSource,
+    idColumn: 'product_id',
+
+    properties: [
+        { column: 'index', caption: 'Index', type: 'INTEGER' },
+        { column: 'product_id', caption: 'Product Id', type: 'STRING' },
+        { column: 'product_category_name', caption: 'Product Category Name', type: 'STRING' },
+        { column: 'product_name_lenght', caption: 'Product Name Lenght', type: 'DECIMAL' },
+        { column: 'product_description_lenght', caption: 'Product Description Lenght', type: 'DECIMAL' },
+        { column: 'product_weight_g', caption: 'Product Weight G', type: 'DECIMAL' },
+        { column: 'product_length_cm', caption: 'Product Length Cm', type: 'DECIMAL' },
+        { column: 'product_height_cm', caption: 'Product Height Cm', type: 'DECIMAL' },
+        { column: 'product_width_cm', caption: 'Product Width Cm', type: 'DECIMAL' },
+    ],
+
+    measures: [
+        { column: 'product_photos_qty', caption: 'Product Photos Qty', type: 'DECIMAL', aggregation: 'sum' },
+    ]
+};

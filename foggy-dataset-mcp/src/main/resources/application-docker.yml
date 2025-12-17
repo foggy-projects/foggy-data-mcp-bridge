@@ -1,0 +1,120 @@
+# ============================================
+# Foggy MCP Service - Docker Profile
+# 用于 Docker 容器部署
+# ============================================
+
+spring:
+  application:
+    name: foggy-mcp-service
+
+  # ==========================================
+  # 数据源配置 (通过环境变量注入)
+  # ==========================================
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:13306/foggy_test}
+    username: ${SPRING_DATASOURCE_USERNAME:foggy}
+    password: ${SPRING_DATASOURCE_PASSWORD:foggy_test_123}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      pool-name: FoggyMcpHikariCP
+      minimum-idle: 2
+      maximum-pool-size: 10
+      idle-timeout: 30000
+      max-lifetime: 1800000
+      connection-timeout: 30000
+
+  # ==========================================
+  # JPA 配置
+  # ==========================================
+  jpa:
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: Asia/Shanghai
+    show-sql: false
+    open-in-view: false
+
+  # ==========================================
+  # Jackson 配置
+  # ==========================================
+  jackson:
+    default-property-inclusion: non_null
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Shanghai
+    serialization:
+      write-dates-as-timestamps: false
+
+# ==========================================
+# MCP 服务配置
+# ==========================================
+mcp:
+  dataset:
+    access-mode: ${DATASET_ACCESS_MODE:local}
+
+  semantic:
+    # 可用模型列表 (通过环境变量配置)
+    model-list: ${MCP_SEMANTIC_MODEL_LIST:FactSalesQueryModel,FactOrderQueryModel}
+    metadata-version: v3
+    query-version: v3
+
+  service:
+    m1-port: ${MCP_M1_PORT:7108}
+    m2-port: ${MCP_M2_PORT:7109}
+    enabled-layer: ${MCP_LAYER:both}
+    current-layer: default
+
+  external:
+    dataset-query:
+      base-url: ${DATASET_QUERY_URL:http://localhost:8080}
+      timeout-seconds: 30
+    chart-render:
+      base-url: ${CHART_RENDER_URL:http://localhost:3000}
+      auth-token: ${CHART_RENDER_TOKEN:default-render-token}
+      timeout-seconds: 60
+
+  audit:
+    enabled: false
+
+# ==========================================
+# Foggy Dataset 配置
+# ==========================================
+foggy:
+  dataset:
+    templates-path: classpath:/foggy/templates/
+    cache:
+      enabled: true
+      ttl: 3600
+    query:
+      max-rows: 10000
+      timeout: 30000
+
+# ==========================================
+# Actuator 健康检查
+# ==========================================
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+  # 禁用可选服务的健康检查 (Redis, MongoDB)
+  health:
+    redis:
+      enabled: false
+    mongo:
+      enabled: false
+
+# ==========================================
+# 日志配置
+# ==========================================
+logging:
+  level:
+    root: ${LOG_LEVEL:INFO}
+    com.foggyframework: ${LOG_LEVEL:INFO}
+    org.springframework.ai: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"

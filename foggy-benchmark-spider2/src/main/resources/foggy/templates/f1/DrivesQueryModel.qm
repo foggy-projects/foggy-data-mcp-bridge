@@ -1,0 +1,37 @@
+/**
+ * drives 查询模型
+ * 
+ * 数据库: f1
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'DrivesQueryModel',
+    model: 'DrivesModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'year' },
+                { name: 'driver_id' },
+                { name: 'drives$id' },
+                { name: 'constructors$id' },
+                { name: 'first_round' },
+                { name: 'last_round' },
+                { name: 'is_first_drive_of_season' },
+                { name: 'is_final_drive_of_season' },
+            ]
+        },
+        {
+            caption: '关联维度',
+            items: [
+                { name: 'drives$caption' },
+                { name: 'constructors$caption' },
+            ]
+        },
+    ],
+
+    orders: [],
+    accesses: []
+};

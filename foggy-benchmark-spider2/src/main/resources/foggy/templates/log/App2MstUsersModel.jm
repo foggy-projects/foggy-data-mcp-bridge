@@ -1,0 +1,22 @@
+import '@logDataSource';
+/**
+ * app2_mst_users 维度表模型
+ * 
+ * 数据库: log
+ * 数据源: logDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'App2MstUsersModel',
+    caption: 'App2 Mst Users',
+    tableName: 'app2_mst_users',
+    dataSource: logDataSource,
+    idColumn: 'user_id',
+
+    properties: [
+        { column: 'user_id', caption: 'User Id', type: 'STRING' },
+        { column: 'name', caption: 'Name', type: 'STRING' },
+        { column: 'phone', caption: 'Phone', type: 'STRING' },
+    ],
+};

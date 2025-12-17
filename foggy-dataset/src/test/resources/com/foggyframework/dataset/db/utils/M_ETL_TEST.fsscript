@@ -1,0 +1,26 @@
+export default {
+  table:{
+    tableName: 'M_ETL_TEST',						//表名
+    idColumn: {								//定义一个ID列
+      name: 'test_id',
+      type: 'VARCHAR'
+    },
+    columns:[
+      'c1',									//定义一个名为c1的简单列，默认varchar(190)
+      'c2',
+      {
+        name: 'c3',							//定义一个名为c3的简单列，默认类型int
+        type: 'INTEGER',
+        index: true							//创建索引，命名规则为idx_M_TEST_c3
+      },
+     {
+       name: 'c4',							//
+       length: 88							//
+     },
+      {
+        name: 'c5',
+        defaultValue:`'2'`
+      }
+    ]
+  }
+}

@@ -1,0 +1,25 @@
+/**
+ * Country 查询模型
+ * 
+ * 数据库: DB_IMDB
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'CountryQueryModel',
+    model: 'CountryModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'index' },
+                { name: 'Name' },
+                { name: 'CID' },
+            ]
+        },
+    ],
+
+    orders: [],
+    accesses: []
+};

@@ -1,0 +1,23 @@
+import '@complexOracleDataSource';
+/**
+ * currency 维度表模型
+ * 
+ * 数据库: complex_oracle
+ * 数据源: complexOracleDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'CurrencyModel',
+    caption: 'Currency',
+    tableName: 'currency',
+    dataSource: complexOracleDataSource,
+    idColumn: 'country',
+
+    properties: [
+        { column: 'country', caption: 'Country', type: 'STRING' },
+        { column: 'year', caption: 'Year', type: 'INTEGER' },
+        { column: 'month', caption: 'Month', type: 'INTEGER' },
+        { column: 'to_us', caption: 'To Us', type: 'DECIMAL' },
+    ],
+};

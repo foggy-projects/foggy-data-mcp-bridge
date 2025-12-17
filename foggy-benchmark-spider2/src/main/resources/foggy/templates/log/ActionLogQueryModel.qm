@@ -1,0 +1,34 @@
+/**
+ * action_log 查询模型
+ * 
+ * 数据库: log
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'ActionLogQueryModel',
+    model: 'ActionLogModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'session' },
+                { name: 'user_id' },
+                { name: 'action' },
+                { name: 'category' },
+                { name: 'products' },
+                { name: 'stamp' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'amount' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

@@ -1,0 +1,28 @@
+import '@deliveryCenterDataSource';
+/**
+ * payments 事实表模型
+ * 
+ * 数据库: delivery_center
+ * 数据源: deliveryCenterDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'PaymentsModel',
+    caption: '支付',
+    tableName: 'payments',
+    dataSource: deliveryCenterDataSource,
+    idColumn: 'payment_id',
+
+    properties: [
+        { column: 'payment_id', caption: 'Payment Id', type: 'INTEGER' },
+        { column: 'payment_order_id', caption: 'Payment Order Id', type: 'INTEGER' },
+        { column: 'payment_method', caption: 'Payment Method', type: 'STRING' },
+        { column: 'payment_status', caption: 'Payment Status', type: 'STRING' },
+    ],
+
+    measures: [
+        { column: 'payment_amount', caption: 'Payment Amount', type: 'STRING', aggregation: 'sum' },
+        { column: 'payment_fee', caption: 'Payment Fee', type: 'STRING', aggregation: 'sum' },
+    ]
+};

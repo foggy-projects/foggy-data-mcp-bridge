@@ -1,0 +1,80 @@
+import '@pagilaDataSource';
+/**
+ * rental 事实表模型
+ * 
+ * 数据库: Pagila
+ * 数据源: pagilaDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'RentalModel',
+    caption: 'Rental',
+    tableName: 'rental',
+    dataSource: pagilaDataSource,
+    idColumn: 'rental_id',
+
+    dimensions: [
+        {
+            name: 'inventory',
+            tableName: 'inventory',
+            foreignKey: 'inventory_id',
+            primaryKey: 'inventory_id',
+            captionColumn: 'film_id',
+            caption: 'Inventory',
+            properties: [
+                { column: 'inventory_id', caption: 'Inventory Id', type: 'INTEGER' },
+                { column: 'film_id', caption: 'Film Id', type: 'INTEGER' },
+                { column: 'store_id', caption: 'Store Id', type: 'INTEGER' },
+                { column: 'last_update', caption: 'Last Update', type: 'DATETIME' },
+            ]
+        },
+        {
+            name: 'customer',
+            tableName: 'customer',
+            foreignKey: 'customer_id',
+            primaryKey: 'customer_id',
+            captionColumn: 'first_name',
+            caption: '客户',
+            properties: [
+                { column: 'customer_id', caption: 'Customer Id', type: 'INTEGER' },
+                { column: 'store_id', caption: 'Store Id', type: 'INTEGER' },
+                { column: 'first_name', caption: 'First Name', type: 'STRING' },
+                { column: 'last_name', caption: 'Last Name', type: 'STRING' },
+                { column: 'email', caption: 'Email', type: 'STRING' },
+                { column: 'address_id', caption: 'Address Id', type: 'INTEGER' },
+                { column: 'active', caption: 'Active', type: 'STRING' },
+                { column: 'create_date', caption: 'Create Date', type: 'DATETIME' },
+                { column: 'last_update', caption: 'Last Update', type: 'DATETIME' },
+            ]
+        },
+        {
+            name: 'staff',
+            tableName: 'staff',
+            foreignKey: 'staff_id',
+            primaryKey: 'staff_id',
+            captionColumn: 'first_name',
+            caption: 'Staff',
+            properties: [
+                { column: 'staff_id', caption: 'Staff Id', type: 'INTEGER' },
+                { column: 'first_name', caption: 'First Name', type: 'STRING' },
+                { column: 'last_name', caption: 'Last Name', type: 'STRING' },
+                { column: 'address_id', caption: 'Address Id', type: 'INTEGER' },
+                { column: 'picture', caption: 'Picture', type: 'STRING' },
+                { column: 'email', caption: 'Email', type: 'STRING' },
+                { column: 'store_id', caption: 'Store Id', type: 'INTEGER' },
+                { column: 'active', caption: 'Active', type: 'INTEGER' },
+                { column: 'username', caption: 'Username', type: 'STRING' },
+                { column: 'password', caption: 'Password', type: 'STRING' },
+                { column: 'last_update', caption: 'Last Update', type: 'DATETIME' },
+            ]
+        },
+    ],
+
+    properties: [
+        { column: 'rental_id', caption: 'Rental Id', type: 'INTEGER' },
+        { column: 'rental_date', caption: 'Rental Date', type: 'DATETIME' },
+        { column: 'return_date', caption: 'Return Date', type: 'DATETIME' },
+        { column: 'last_update', caption: 'Last Update', type: 'DATETIME' },
+    ],
+};

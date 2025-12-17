@@ -1,0 +1,22 @@
+import '@educationBusinessDataSource';
+/**
+ * university_enrollment 维度表模型
+ * 
+ * 数据库: education_business
+ * 数据源: educationBusinessDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'UniversityEnrollmentModel',
+    caption: 'University Enrollment',
+    tableName: 'university_enrollment',
+    dataSource: educationBusinessDataSource,
+    idColumn: 'OfferNo',
+
+    properties: [
+        { column: 'OfferNo', caption: 'Offerno', type: 'INTEGER' },
+        { column: 'StdNo', caption: 'Stdno', type: 'INTEGER' },
+        { column: 'EnrGrade', caption: 'Enrgrade', type: 'DECIMAL' },
+    ],
+};

@@ -1,0 +1,42 @@
+import '@cityLegislationDataSource';
+/**
+ * legislators_terms 事实表模型
+ * 
+ * 数据库: city_legislation
+ * 数据源: cityLegislationDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'LegislatorsTermsModel',
+    caption: 'Legislators Terms',
+    tableName: 'legislators_terms',
+    dataSource: cityLegislationDataSource,
+    idColumn: 'term_id',
+
+    properties: [
+        { column: 'id_bioguide', caption: 'Id Bioguide', type: 'STRING' },
+        { column: 'term_id', caption: 'Term Id', type: 'STRING' },
+        { column: 'term_type', caption: 'Term Type', type: 'STRING' },
+        { column: 'term_start', caption: 'Term Start', type: 'STRING' },
+        { column: 'term_end', caption: 'Term End', type: 'STRING' },
+        { column: 'state', caption: 'State', type: 'STRING' },
+        { column: 'district', caption: 'District', type: 'DECIMAL' },
+        { column: 'class', caption: 'Class', type: 'DECIMAL' },
+        { column: 'party', caption: 'Party', type: 'STRING' },
+        { column: 'how', caption: 'How', type: 'STRING' },
+        { column: 'url', caption: 'Url', type: 'STRING' },
+        { column: 'address', caption: 'Address', type: 'STRING' },
+        { column: 'phone', caption: 'Phone', type: 'STRING' },
+        { column: 'fax', caption: 'Fax', type: 'STRING' },
+        { column: 'contact_form', caption: 'Contact Form', type: 'STRING' },
+        { column: 'office', caption: 'Office', type: 'STRING' },
+        { column: 'state_rank', caption: 'State Rank', type: 'STRING' },
+        { column: 'rss_url', caption: 'Rss Url', type: 'STRING' },
+        { column: 'caucus', caption: 'Caucus', type: 'STRING' },
+    ],
+
+    measures: [
+        { column: 'term_number', caption: 'Term Number', type: 'INTEGER', aggregation: 'sum' },
+    ]
+};

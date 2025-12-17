@@ -1,0 +1,28 @@
+import '@complexOracleDataSource';
+/**
+ * countries 维度表模型
+ * 
+ * 数据库: complex_oracle
+ * 数据源: complexOracleDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'CountriesModel',
+    caption: 'Countries',
+    tableName: 'countries',
+    dataSource: complexOracleDataSource,
+    idColumn: 'country_id',
+
+    properties: [
+        { column: 'country_id', caption: 'Country Id', type: 'INTEGER' },
+        { column: 'country_iso_code', caption: 'Country Iso Code', type: 'STRING' },
+        { column: 'country_name', caption: 'Country Name', type: 'STRING' },
+        { column: 'country_subregion', caption: 'Country Subregion', type: 'STRING' },
+        { column: 'country_subregion_id', caption: 'Country Subregion Id', type: 'INTEGER' },
+        { column: 'country_region', caption: 'Country Region', type: 'STRING' },
+        { column: 'country_region_id', caption: 'Country Region Id', type: 'INTEGER' },
+        { column: 'country_total', caption: 'Country Total', type: 'STRING' },
+        { column: 'country_total_id', caption: 'Country Total Id', type: 'INTEGER' },
+    ],
+};

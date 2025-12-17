@@ -1,0 +1,22 @@
+import '@chinookDataSource';
+/**
+ * sqlite_stat1 维度表模型
+ * 
+ * 数据库: chinook
+ * 数据源: chinookDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'SqliteStat1Model',
+    caption: 'Sqlite Stat1',
+    tableName: 'sqlite_stat1',
+    dataSource: chinookDataSource,
+    idColumn: 'tbl',
+
+    properties: [
+        { column: 'tbl', caption: 'Tbl', type: 'STRING' },
+        { column: 'idx', caption: 'Idx', type: 'STRING' },
+        { column: 'stat', caption: 'Stat', type: 'STRING' },
+    ],
+};

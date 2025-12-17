@@ -1,0 +1,22 @@
+import '@northwindDataSource';
+/**
+ * territories 维度表模型
+ * 
+ * 数据库: northwind
+ * 数据源: northwindDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'TerritoriesModel',
+    caption: 'Territories',
+    tableName: 'territories',
+    dataSource: northwindDataSource,
+    idColumn: 'territoryid',
+
+    properties: [
+        { column: 'territoryid', caption: 'Territoryid', type: 'STRING' },
+        { column: 'territorydescription', caption: 'Territorydescription', type: 'STRING' },
+        { column: 'regionid', caption: 'Regionid', type: 'INTEGER' },
+    ],
+};

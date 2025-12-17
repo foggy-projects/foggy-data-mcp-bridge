@@ -1,0 +1,24 @@
+import '@stackingDataSource';
+/**
+ * stack_ok_score 维度表模型
+ * 
+ * 数据库: stacking
+ * 数据源: stackingDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'StackOkScoreModel',
+    caption: 'Stack Ok Score',
+    tableName: 'stack_ok_score',
+    dataSource: stackingDataSource,
+    idColumn: 'name',
+
+    properties: [
+        { column: 'name', caption: 'Name', type: 'STRING' },
+        { column: 'version', caption: 'Version', type: 'INTEGER' },
+        { column: 'score_1', caption: 'Score 1', type: 'STRING' },
+        { column: 'score_2', caption: 'Score 2', type: 'STRING' },
+        { column: 'score_3', caption: 'Score 3', type: 'STRING' },
+    ],
+};

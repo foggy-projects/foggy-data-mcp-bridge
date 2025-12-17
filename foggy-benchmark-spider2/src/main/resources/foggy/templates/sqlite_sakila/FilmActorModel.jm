@@ -1,0 +1,22 @@
+import '@sqliteSakilaDataSource';
+/**
+ * film_actor 维度表模型
+ * 
+ * 数据库: SQLITE_SAKILA
+ * 数据源: sqliteSakilaDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'FilmActorModel',
+    caption: 'Film Actor',
+    tableName: 'film_actor',
+    dataSource: sqliteSakilaDataSource,
+    idColumn: 'actor_id',
+
+    properties: [
+        { column: 'actor_id', caption: 'Actor Id', type: 'INTEGER' },
+        { column: 'film_id', caption: 'Film Id', type: 'INTEGER' },
+        { column: 'last_update', caption: 'Last Update', type: 'DATETIME' },
+    ],
+};

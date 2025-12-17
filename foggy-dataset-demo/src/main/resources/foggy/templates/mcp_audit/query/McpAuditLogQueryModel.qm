@@ -1,0 +1,61 @@
+/**
+ * MCP 审计日志查询模型
+ *
+ * @caption MCP工具调用日志查询
+ * @description 查询和分析MCP工具调用记录，支持按工具、角色、时间等维度分析
+ */
+export const queryModel = {
+    name: 'McpAuditLogQueryModel',
+    caption: 'MCP工具调用日志查询',
+    description: '查询和分析MCP工具调用记录，支持按工具、角色、时间等维度统计分析',
+    model: 'McpAuditLogModel',
+
+    columnGroups: [
+        {
+            caption: '追踪信息',
+            items: [
+                { name: 'id' },
+                { name: 'traceId' },
+                { name: 'requestId' }
+            ]
+        },
+        {
+            caption: '调用信息',
+            items: [
+                { name: 'toolName' },
+                { name: 'userRole' },
+                { name: 'timestamp' },
+                { name: 'requestPath' },
+                { name: 'clientIp' }
+            ]
+        },
+        {
+            caption: '执行结果',
+            items: [
+                { name: 'success' },
+                { name: 'durationMs' },
+                { name: 'resultSummary' }
+            ]
+        },
+        {
+            caption: '错误信息',
+            items: [
+                { name: 'errorType' },
+                { name: 'errorMessage' }
+            ]
+        },
+        {
+            caption: '统计度量',
+            items: [
+                { name: 'avgDuration' },
+                { name: 'maxDuration' },
+                { name: 'minDuration' }
+            ]
+        }
+    ],
+
+    orders: [
+    ],
+
+    accesses: []
+};

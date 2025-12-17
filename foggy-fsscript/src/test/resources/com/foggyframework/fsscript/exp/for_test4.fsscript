@@ -1,0 +1,11 @@
+let j = 0;
+const x = () => {
+    for (let k = 0; k < 2; k++) {
+        for (let i = 0; i < 4; i++) {
+           return 2;
+        }
+    }
+
+    return 1;
+}
+export const v=x();

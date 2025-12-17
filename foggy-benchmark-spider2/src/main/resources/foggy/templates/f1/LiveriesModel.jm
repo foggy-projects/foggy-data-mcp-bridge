@@ -1,0 +1,23 @@
+import '@f1DataSource';
+/**
+ * liveries 维度表模型
+ * 
+ * 数据库: f1
+ * 数据源: f1DataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'LiveriesModel',
+    caption: 'Liveries',
+    tableName: 'liveries',
+    dataSource: f1DataSource,
+    idColumn: 'constructor_ref',
+
+    properties: [
+        { column: 'constructor_ref', caption: 'Constructor Ref', type: 'STRING' },
+        { column: 'start_year', caption: 'Start Year', type: 'INTEGER' },
+        { column: 'end_year', caption: 'End Year', type: 'INTEGER' },
+        { column: 'primary_hex_code', caption: 'Primary Hex Code', type: 'STRING' },
+    ],
+};

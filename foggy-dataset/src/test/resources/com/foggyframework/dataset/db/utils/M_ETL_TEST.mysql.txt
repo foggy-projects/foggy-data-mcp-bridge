@@ -1,0 +1,1 @@
+create table M_ETL_TEST (test_id varchar(190), c1 varchar(190), c2 varchar(190), c3 integer, c4 varchar(88), c5 varchar(190) default '2', primary key (test_id))

@@ -1,0 +1,43 @@
+# Spider2 Benchmark 配置
+
+server:
+  port: 7200
+
+spring:
+  application:
+    name: foggy-benchmark-spider2
+
+  # AI 模型配置
+  # 支持 OpenAI 兼容接口（OpenAI、阿里云通义千问、DeepSeek 等）
+  ai:
+    openai:
+      base-url: ${OPENAI_BASE_URL:https://api.openai.com}
+      api-key: ${OPENAI_API_KEY:sk-your-api-key}
+      chat:
+        options:
+          model: ${OPENAI_MODEL:gpt-4o-mini}
+          temperature: 0.1
+
+# Spider2 配置
+spider2:
+  # Spider2-Lite JSONL 文件路径
+  jsonl-path: ${SPIDER2_JSONL_PATH:./data/spider2-lite.jsonl}
+  # SQLite 数据库基础路径（.db 文件）
+  database-base-path: ${SPIDER2_DB_PATH:./data/databases}
+  # 元数据基础路径（表描述 JSON 文件）
+  metadata-base-path: ${SPIDER2_METADATA_PATH:./data/metadata}
+  # 启用的数据库列表（空表示全部）
+  enabled-databases: []
+  # 只加载有模型定义的测试用例
+  only-with-models: false
+  # 最大测试用例数量（0 表示不限制）
+  max-test-cases: 0
+  # AI 配置
+  ai:
+    timeout-seconds: 60
+    max-retries: 3
+
+# 日志配置
+logging:
+  level:
+    com.foggyframework.benchmark.spider2: DEBUG

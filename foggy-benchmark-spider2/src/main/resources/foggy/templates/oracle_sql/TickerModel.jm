@@ -1,0 +1,25 @@
+import '@oracleSqlDataSource';
+/**
+ * ticker 事实表模型
+ * 
+ * 数据库: oracle_sql
+ * 数据源: oracleSqlDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'TickerModel',
+    caption: 'Ticker',
+    tableName: 'ticker',
+    dataSource: oracleSqlDataSource,
+    idColumn: 'symbol',
+
+    properties: [
+        { column: 'symbol', caption: 'Symbol', type: 'STRING' },
+        { column: 'day', caption: 'Day', type: 'STRING' },
+    ],
+
+    measures: [
+        { column: 'price', caption: 'Price', type: 'DECIMAL', aggregation: 'sum' },
+    ]
+};

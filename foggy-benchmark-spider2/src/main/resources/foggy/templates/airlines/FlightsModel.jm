@@ -1,0 +1,29 @@
+import '@airlinesDataSource';
+/**
+ * flights 维度表模型
+ * 
+ * 数据库: Airlines
+ * 数据源: airlinesDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'FlightsModel',
+    caption: 'Flights',
+    tableName: 'flights',
+    dataSource: airlinesDataSource,
+    idColumn: 'flight_id',
+
+    properties: [
+        { column: 'flight_id', caption: 'Flight Id', type: 'INTEGER' },
+        { column: 'flight_no', caption: 'Flight No', type: 'STRING' },
+        { column: 'scheduled_departure', caption: 'Scheduled Departure', type: 'DATETIME' },
+        { column: 'scheduled_arrival', caption: 'Scheduled Arrival', type: 'DATETIME' },
+        { column: 'departure_airport', caption: 'Departure Airport', type: 'STRING' },
+        { column: 'arrival_airport', caption: 'Arrival Airport', type: 'STRING' },
+        { column: 'status', caption: 'Status', type: 'STRING' },
+        { column: 'aircraft_code', caption: 'Aircraft Code', type: 'STRING' },
+        { column: 'actual_departure', caption: 'Actual Departure', type: 'DATETIME' },
+        { column: 'actual_arrival', caption: 'Actual Arrival', type: 'DATETIME' },
+    ],
+};

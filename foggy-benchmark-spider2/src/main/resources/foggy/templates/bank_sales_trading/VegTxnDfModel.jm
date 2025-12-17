@@ -1,0 +1,31 @@
+import '@bankSalesTradingDataSource';
+/**
+ * veg_txn_df 事实表模型
+ * 
+ * 数据库: bank_sales_trading
+ * 数据源: bankSalesTradingDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'VegTxnDfModel',
+    caption: 'Veg Txn Df',
+    tableName: 'veg_txn_df',
+    dataSource: bankSalesTradingDataSource,
+    idColumn: 'index',
+
+    properties: [
+        { column: 'index', caption: 'Index', type: 'INTEGER' },
+        { column: 'txn_date', caption: 'Txn Date', type: 'STRING' },
+        { column: 'txn_time', caption: 'Txn Time', type: 'STRING' },
+        { column: 'item_code', caption: 'Item Code', type: 'INTEGER' },
+        { column: 'qty_sold(kg)', caption: 'Qty Sold(kg)', type: 'DECIMAL' },
+        { column: 'unit_selling_px_rmb/kg', caption: 'Unit Selling Px Rmb/kg', type: 'DECIMAL' },
+        { column: 'sale/return', caption: 'Sale/return', type: 'STRING' },
+        { column: 'day_of_week', caption: 'Day Of Week', type: 'STRING' },
+    ],
+
+    measures: [
+        { column: 'discount(%)', caption: 'Discount(%)', type: 'INTEGER', aggregation: 'sum' },
+    ]
+};

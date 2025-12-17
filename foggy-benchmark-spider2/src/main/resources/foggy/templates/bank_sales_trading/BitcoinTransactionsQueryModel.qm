@@ -1,0 +1,41 @@
+/**
+ * bitcoin_transactions 查询模型
+ * 
+ * 数据库: bank_sales_trading
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'BitcoinTransactionsQueryModel',
+    model: 'BitcoinTransactionsModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'txn_id' },
+                { name: 'bitcoinMembers$id' },
+                { name: 'ticker' },
+                { name: 'txn_date' },
+                { name: 'txn_type' },
+                { name: 'txn_time' },
+            ]
+        },
+        {
+            caption: '关联维度',
+            items: [
+                { name: 'bitcoinMembers$caption' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'quantity' },
+                { name: 'percentage_fee' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

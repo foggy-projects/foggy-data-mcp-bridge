@@ -1,0 +1,61 @@
+import '@f1DataSource';
+/**
+ * drives 事实表模型
+ * 
+ * 数据库: f1
+ * 数据源: f1DataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'DrivesModel',
+    caption: 'Drives',
+    tableName: 'drives',
+    dataSource: f1DataSource,
+    idColumn: 'driver_id',
+
+    dimensions: [
+        {
+            name: 'drives',
+            tableName: 'drives',
+            foreignKey: 'drive_id',
+            primaryKey: 'driver_id',
+            captionColumn: 'driver_id',
+            caption: 'Drives',
+            properties: [
+                { column: 'year', caption: 'Year', type: 'INTEGER' },
+                { column: 'driver_id', caption: 'Driver Id', type: 'INTEGER' },
+                { column: 'drive_id', caption: 'Drive Id', type: 'STRING' },
+                { column: 'constructor_id', caption: 'Constructor Id', type: 'INTEGER' },
+                { column: 'first_round', caption: 'First Round', type: 'INTEGER' },
+                { column: 'last_round', caption: 'Last Round', type: 'INTEGER' },
+                { column: 'is_first_drive_of_season', caption: 'Is First Drive Of Season', type: 'STRING' },
+                { column: 'is_final_drive_of_season', caption: 'Is Final Drive Of Season', type: 'STRING' },
+            ]
+        },
+        {
+            name: 'constructors',
+            tableName: 'constructors',
+            foreignKey: 'constructor_id',
+            primaryKey: 'constructor_id',
+            captionColumn: 'name',
+            caption: 'Constructors',
+            properties: [
+                { column: 'constructor_id', caption: 'Constructor Id', type: 'INTEGER' },
+                { column: 'constructor_ref', caption: 'Constructor Ref', type: 'STRING' },
+                { column: 'name', caption: 'Name', type: 'STRING' },
+                { column: 'nationality', caption: 'Nationality', type: 'STRING' },
+                { column: 'url', caption: 'Url', type: 'STRING' },
+            ]
+        },
+    ],
+
+    properties: [
+        { column: 'year', caption: 'Year', type: 'INTEGER' },
+        { column: 'driver_id', caption: 'Driver Id', type: 'INTEGER' },
+        { column: 'first_round', caption: 'First Round', type: 'INTEGER' },
+        { column: 'last_round', caption: 'Last Round', type: 'INTEGER' },
+        { column: 'is_first_drive_of_season', caption: 'Is First Drive Of Season', type: 'STRING' },
+        { column: 'is_final_drive_of_season', caption: 'Is Final Drive Of Season', type: 'STRING' },
+    ],
+};

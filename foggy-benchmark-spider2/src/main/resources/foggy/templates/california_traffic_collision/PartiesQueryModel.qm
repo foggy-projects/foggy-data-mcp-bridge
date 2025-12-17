@@ -1,0 +1,59 @@
+/**
+ * parties 查询模型
+ * 
+ * 数据库: California_Traffic_Collision
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'PartiesQueryModel',
+    model: 'PartiesModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'id' },
+                { name: 'case_id' },
+                { name: 'party_type' },
+                { name: 'at_fault' },
+                { name: 'party_sex' },
+                { name: 'party_age' },
+                { name: 'party_sobriety' },
+                { name: 'party_drug_physical' },
+                { name: 'direction_of_travel' },
+                { name: 'party_safety_equipment_1' },
+                { name: 'party_safety_equipment_2' },
+                { name: 'financial_responsibility' },
+                { name: 'hazardous_materials' },
+                { name: 'cellphone_in_use' },
+                { name: 'cellphone_use_type' },
+                { name: 'school_bus_related' },
+                { name: 'oaf_violation_code' },
+                { name: 'oaf_violation_category' },
+                { name: 'oaf_violation_section' },
+                { name: 'oaf_violation_suffix' },
+                { name: 'other_associate_factor_1' },
+                { name: 'other_associate_factor_2' },
+                { name: 'movement_preceding_collision' },
+                { name: 'vehicle_year' },
+                { name: 'vehicle_make' },
+                { name: 'statewide_vehicle_type' },
+                { name: 'chp_vehicle_type_towing' },
+                { name: 'chp_vehicle_type_towed' },
+                { name: 'party_race' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'party_number' },
+                { name: 'party_number_killed' },
+                { name: 'party_number_injured' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

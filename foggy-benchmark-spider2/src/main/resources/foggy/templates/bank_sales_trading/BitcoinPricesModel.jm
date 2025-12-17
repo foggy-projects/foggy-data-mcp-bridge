@@ -1,0 +1,30 @@
+import '@bankSalesTradingDataSource';
+/**
+ * bitcoin_prices 事实表模型
+ * 
+ * 数据库: bank_sales_trading
+ * 数据源: bankSalesTradingDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'BitcoinPricesModel',
+    caption: 'Bitcoin Prices',
+    tableName: 'bitcoin_prices',
+    dataSource: bankSalesTradingDataSource,
+    idColumn: 'ticker',
+
+    properties: [
+        { column: 'ticker', caption: 'Ticker', type: 'STRING' },
+        { column: 'market_date', caption: 'Market Date', type: 'STRING' },
+        { column: 'open', caption: 'Open', type: 'DECIMAL' },
+        { column: 'high', caption: 'High', type: 'DECIMAL' },
+        { column: 'low', caption: 'Low', type: 'DECIMAL' },
+        { column: 'volume', caption: 'Volume', type: 'STRING' },
+        { column: 'change', caption: 'Change', type: 'STRING' },
+    ],
+
+    measures: [
+        { column: 'price', caption: 'Price', type: 'DECIMAL', aggregation: 'sum' },
+    ]
+};

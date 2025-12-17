@@ -1,0 +1,22 @@
+import '@sqliteSakilaDataSource';
+/**
+ * language 维度表模型
+ * 
+ * 数据库: SQLITE_SAKILA
+ * 数据源: sqliteSakilaDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'LanguageModel',
+    caption: 'Language',
+    tableName: 'language',
+    dataSource: sqliteSakilaDataSource,
+    idColumn: 'language_id',
+
+    properties: [
+        { column: 'language_id', caption: 'Language Id', type: 'INTEGER' },
+        { column: 'name', caption: 'Name', type: 'STRING' },
+        { column: 'last_update', caption: 'Last Update', type: 'DATETIME' },
+    ],
+};

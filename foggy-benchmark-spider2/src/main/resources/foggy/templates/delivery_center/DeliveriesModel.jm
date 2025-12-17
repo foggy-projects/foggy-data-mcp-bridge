@@ -1,0 +1,24 @@
+import '@deliveryCenterDataSource';
+/**
+ * deliveries 维度表模型
+ * 
+ * 数据库: delivery_center
+ * 数据源: deliveryCenterDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'DeliveriesModel',
+    caption: 'Deliveries',
+    tableName: 'deliveries',
+    dataSource: deliveryCenterDataSource,
+    idColumn: 'delivery_id',
+
+    properties: [
+        { column: 'delivery_id', caption: 'Delivery Id', type: 'INTEGER' },
+        { column: 'delivery_order_id', caption: 'Delivery Order Id', type: 'INTEGER' },
+        { column: 'driver_id', caption: 'Driver Id', type: 'INTEGER' },
+        { column: 'delivery_distance_meters', caption: 'Delivery Distance Meters', type: 'STRING' },
+        { column: 'delivery_status', caption: 'Delivery Status', type: 'STRING' },
+    ],
+};

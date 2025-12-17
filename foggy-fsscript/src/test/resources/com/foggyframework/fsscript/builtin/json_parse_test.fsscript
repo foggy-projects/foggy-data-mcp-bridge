@@ -1,0 +1,13 @@
+// JSON.parse 测试
+
+// 解析对象
+export const parsedObj = JSON.parse('{"name":"test","value":100}');
+
+// 解析数组
+export const parsedArray = JSON.parse('[1, 2, 3]');
+
+// 解析嵌套对象
+export const parsedNested = JSON.parse('{"outer":"value","inner":{"key":"nested"}}');
+
+// null 处理
+export const parsedNull = JSON.parse(null);

@@ -1,0 +1,24 @@
+import '@f1DataSource';
+/**
+ * constructors 维度表模型
+ * 
+ * 数据库: f1
+ * 数据源: f1DataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'ConstructorsModel',
+    caption: 'Constructors',
+    tableName: 'constructors',
+    dataSource: f1DataSource,
+    idColumn: 'constructor_id',
+
+    properties: [
+        { column: 'constructor_id', caption: 'Constructor Id', type: 'INTEGER' },
+        { column: 'constructor_ref', caption: 'Constructor Ref', type: 'STRING' },
+        { column: 'name', caption: 'Name', type: 'STRING' },
+        { column: 'nationality', caption: 'Nationality', type: 'STRING' },
+        { column: 'url', caption: 'Url', type: 'STRING' },
+    ],
+};

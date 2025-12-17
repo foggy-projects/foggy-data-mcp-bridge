@@ -1,0 +1,30 @@
+/*
+ * ====================================================================
+ * This software is subject to the terms of the Common Public License
+ * Agreement, available at the following URL:
+ *   http://www.opensource.org/licenses/cpl.html .
+ * Copyright (C) 2003-2004 TONBELLER AG.
+ * All Rights Reserved.
+ * You must accept the terms of that agreement to use this software.
+ * ====================================================================
+ *
+ * 
+ */
+
+package com.foggyframework.core.common;
+
+import java.util.List;
+
+/**
+ * handle call back for position tree
+ */
+public interface TreeNodeChildrenProvider<T> {
+
+
+	/**
+	 * @param node the current node to handle
+	 * @return 0 continue tree walk 1 break this node (continue sibling) 2 break
+	 * this level (continue parent level) 3 break tree walk
+	 */
+	List<T> getChildren(T node);
+}

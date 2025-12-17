@@ -1,0 +1,41 @@
+/**
+ * picking_line 查询模型
+ * 
+ * 数据库: oracle_sql
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'PickingLineQueryModel',
+    model: 'PickingLineModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'picklist_id' },
+                { name: 'line_no' },
+                { name: 'locations$id' },
+                { name: 'orders$id' },
+                { name: 'products$id' },
+            ]
+        },
+        {
+            caption: '关联维度',
+            items: [
+                { name: 'locations$caption' },
+                { name: 'orders$caption' },
+                { name: 'products$caption' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'qty' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

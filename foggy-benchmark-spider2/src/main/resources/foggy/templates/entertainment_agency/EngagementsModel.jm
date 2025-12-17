@@ -1,0 +1,91 @@
+import '@entertainmentagencyDataSource';
+/**
+ * Engagements 事实表模型
+ * 
+ * 数据库: EntertainmentAgency
+ * 数据源: entertainmentagencyDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'EngagementsModel',
+    caption: 'Engagements',
+    tableName: 'Engagements',
+    dataSource: entertainmentagencyDataSource,
+    idColumn: 'EngagementNumber',
+
+    dimensions: [
+        {
+            name: 'customers',
+            tableName: 'Customers',
+            foreignKey: 'CustomerID',
+            primaryKey: 'CustomerID',
+            captionColumn: 'CustFirstName',
+            caption: '客户',
+            properties: [
+                { column: 'CustomerID', caption: 'Customerid', type: 'INTEGER' },
+                { column: 'CustFirstName', caption: 'Custfirstname', type: 'STRING' },
+                { column: 'CustLastName', caption: 'Custlastname', type: 'STRING' },
+                { column: 'CustStreetAddress', caption: 'Custstreetaddress', type: 'STRING' },
+                { column: 'CustCity', caption: 'Custcity', type: 'STRING' },
+                { column: 'CustState', caption: 'Custstate', type: 'STRING' },
+                { column: 'CustZipCode', caption: 'Custzipcode', type: 'STRING' },
+                { column: 'CustPhoneNumber', caption: 'Custphonenumber', type: 'STRING' },
+            ]
+        },
+        {
+            name: 'agents',
+            tableName: 'Agents',
+            foreignKey: 'AgentID',
+            primaryKey: 'AgentID',
+            captionColumn: 'AgtFirstName',
+            caption: 'Agents',
+            properties: [
+                { column: 'AgentID', caption: 'Agentid', type: 'INTEGER' },
+                { column: 'AgtFirstName', caption: 'Agtfirstname', type: 'STRING' },
+                { column: 'AgtLastName', caption: 'Agtlastname', type: 'STRING' },
+                { column: 'AgtStreetAddress', caption: 'Agtstreetaddress', type: 'STRING' },
+                { column: 'AgtCity', caption: 'Agtcity', type: 'STRING' },
+                { column: 'AgtState', caption: 'Agtstate', type: 'STRING' },
+                { column: 'AgtZipCode', caption: 'Agtzipcode', type: 'STRING' },
+                { column: 'AgtPhoneNumber', caption: 'Agtphonenumber', type: 'STRING' },
+                { column: 'DateHired', caption: 'Datehired', type: 'DAY' },
+                { column: 'Salary', caption: 'Salary', type: 'STRING' },
+                { column: 'CommissionRate', caption: 'Commissionrate', type: 'DECIMAL' },
+            ]
+        },
+        {
+            name: 'entertainers',
+            tableName: 'Entertainers',
+            foreignKey: 'EntertainerID',
+            primaryKey: 'EntertainerID',
+            captionColumn: 'EntStageName',
+            caption: 'Entertainers',
+            properties: [
+                { column: 'EntertainerID', caption: 'Entertainerid', type: 'INTEGER' },
+                { column: 'EntStageName', caption: 'Entstagename', type: 'STRING' },
+                { column: 'EntSSN', caption: 'Entssn', type: 'STRING' },
+                { column: 'EntStreetAddress', caption: 'Entstreetaddress', type: 'STRING' },
+                { column: 'EntCity', caption: 'Entcity', type: 'STRING' },
+                { column: 'EntState', caption: 'Entstate', type: 'STRING' },
+                { column: 'EntZipCode', caption: 'Entzipcode', type: 'STRING' },
+                { column: 'EntPhoneNumber', caption: 'Entphonenumber', type: 'STRING' },
+                { column: 'EntWebPage', caption: 'Entwebpage', type: 'STRING' },
+                { column: 'EntEMailAddress', caption: 'Entemailaddress', type: 'STRING' },
+                { column: 'DateEntered', caption: 'Dateentered', type: 'DAY' },
+            ]
+        },
+    ],
+
+    properties: [
+        { column: 'EngagementNumber', caption: 'Engagementnumber', type: 'INTEGER' },
+        { column: 'StartDate', caption: 'Startdate', type: 'DAY' },
+        { column: 'EndDate', caption: 'Enddate', type: 'DAY' },
+        { column: 'StartTime', caption: 'Starttime', type: 'DATETIME' },
+        { column: 'StopTime', caption: 'Stoptime', type: 'DATETIME' },
+    ],
+
+    measures: [
+        { column: 'ContractPrice', caption: 'Contractprice', type: 'STRING', aggregation: 'sum' },
+    ]
+};

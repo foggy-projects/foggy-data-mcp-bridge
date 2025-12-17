@@ -1,0 +1,36 @@
+/**
+ * web_demographics 查询模型
+ * 
+ * 数据库: oracle_sql
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'WebDemographicsQueryModel',
+    model: 'WebDemographicsModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'day' },
+                { name: 'm_tw_cnt' },
+                { name: 'm_fb_cnt' },
+                { name: 'f_tw_cnt' },
+                { name: 'f_fb_cnt' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'm_tw_qty' },
+                { name: 'm_fb_qty' },
+                { name: 'f_tw_qty' },
+                { name: 'f_fb_qty' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

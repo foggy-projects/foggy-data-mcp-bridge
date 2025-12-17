@@ -1,0 +1,26 @@
+import '@bankSalesTradingDataSource';
+/**
+ * customer_transactions 事实表模型
+ * 
+ * 数据库: bank_sales_trading
+ * 数据源: bankSalesTradingDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'CustomerTransactionsModel',
+    caption: 'Customer Transactions',
+    tableName: 'customer_transactions',
+    dataSource: bankSalesTradingDataSource,
+    idColumn: 'customer_id',
+
+    properties: [
+        { column: 'customer_id', caption: 'Customer Id', type: 'INTEGER' },
+        { column: 'txn_date', caption: 'Txn Date', type: 'STRING' },
+        { column: 'txn_type', caption: 'Txn Type', type: 'STRING' },
+    ],
+
+    measures: [
+        { column: 'txn_amount', caption: 'Txn Amount', type: 'INTEGER', aggregation: 'sum' },
+    ]
+};

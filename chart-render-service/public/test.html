@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chart Render Service - 功能测试</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; padding: 20px; }
+    .container { max-width: 1200px; margin: 0 auto; }
+    h1 { text-align: center; margin-bottom: 20px; color: #333; }
+    .config-section { background: #fff; padding: 15px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .config-section label { display: block; margin-bottom: 5px; font-weight: 500; }
+    .config-section input { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+    .test-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 20px; }
+    .test-card { background: #fff; border-radius: 8px; padding: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .test-card h3 { margin-bottom: 10px; color: #333; font-size: 16px; }
+    .test-card .desc { color: #666; font-size: 13px; margin-bottom: 10px; }
+    .test-card button { background: #4CAF50; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 14px; }
+    .test-card button:hover { background: #45a049; }
+    .test-card button:disabled { background: #ccc; cursor: not-allowed; }
+    .result { margin-top: 10px; min-height: 200px; border: 1px solid #eee; border-radius: 4px; display: flex; align-items: center; justify-content: center; background: #fafafa; }
+    .result img { max-width: 100%; max-height: 300px; }
+    .result .placeholder { color: #999; font-size: 14px; }
+    .result .error { color: #f44336; font-size: 13px; padding: 10px; text-align: center; }
+    .result .loading { color: #2196F3; }
+    .status { font-size: 12px; margin-top: 8px; padding: 5px 10px; border-radius: 4px; }
+    .status.success { background: #e8f5e9; color: #2e7d32; }
+    .status.error { background: #ffebee; color: #c62828; }
+    .status.info { background: #e3f2fd; color: #1565c0; }
+    .all-tests { text-align: center; margin-bottom: 20px; }
+    .all-tests button { background: #2196F3; color: white; border: none; padding: 12px 24px; border-radius: 4px; cursor: pointer; font-size: 16px; }
+    .all-tests button:hover { background: #1976D2; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Chart Render Service 功能测试</h1>
+
+    <div class="config-section">
+      <label for="authToken">Auth Token (如服务启用了认证)</label>
+      <input type="text" id="authToken" value="default-render-token" placeholder="默认: default-render-token">
+    </div>
+
+    <div class="all-tests">
+      <button onclick="runAllTests()">运行所有测试</button>
+    </div>
+
+    <div class="test-grid">
+      <!-- 健康检查 -->
+      <div class="test-card">
+        <h3>1. 健康检查</h3>
+        <p class="desc">验证服务是否正常运行</p>
+        <button onclick="testHealth()">测试</button>
+        <div class="result" id="result-health"><span class="placeholder">点击测试</span></div>
+      </div>
+
+      <!-- 中文渲染测试 -->
+      <div class="test-card">
+        <h3>2. 中文字体渲染</h3>
+        <p class="desc">验证中文是否正常显示（无乱码/方块）</p>
+        <button onclick="testChinese()">测试</button>
+        <div class="result" id="result-chinese"><span class="placeholder">点击测试</span></div>
+        <div class="status info" id="status-chinese"></div>
+      </div>
+
+      <!-- 柱状图 -->
+      <div class="test-card">
+        <h3>3. 柱状图 (Bar Chart)</h3>
+        <p class="desc">测试基础柱状图渲染</p>
+        <button onclick="testBar()">测试</button>
+        <div class="result" id="result-bar"><span class="placeholder">点击测试</span></div>
+        <div class="status" id="status-bar"></div>
+      </div>
+
+      <!-- 折线图 -->
+      <div class="test-card">
+        <h3>4. 折线图 (Line Chart)</h3>
+        <p class="desc">测试折线图渲染</p>
+        <button onclick="testLine()">测试</button>
+        <div class="result" id="result-line"><span class="placeholder">点击测试</span></div>
+        <div class="status" id="status-line"></div>
+      </div>
+
+      <!-- 饼图 -->
+      <div class="test-card">
+        <h3>5. 饼图 (Pie Chart)</h3>
+        <p class="desc">测试饼图渲染</p>
+        <button onclick="testPie()">测试</button>
+        <div class="result" id="result-pie"><span class="placeholder">点击测试</span></div>
+        <div class="status" id="status-pie"></div>
+      </div>
+
+      <!-- 统一语义接口 -->
+      <div class="test-card">
+        <h3>6. 统一语义接口 (Unified)</h3>
+        <p class="desc">测试 /render/unified 接口</p>
+        <button onclick="testUnified()">测试</button>
+        <div class="result" id="result-unified"><span class="placeholder">点击测试</span></div>
+        <div class="status" id="status-unified"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const BASE_URL = window.location.origin;
+
+    function getAuthHeaders() {
+      const token = document.getElementById('authToken').value.trim();
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      return headers;
+    }
+
+    function setResult(id, content, isError = false) {
+      const el = document.getElementById(id);
+      if (isError) {
+        el.innerHTML = `<div class="error">${content}</div>`;
+      } else if (content.startsWith('<')) {
+        el.innerHTML = content;
+      } else {
+        el.innerHTML = `<img src="${content}" alt="chart">`;
+      }
+    }
+
+    function setStatus(id, text, type) {
+      const el = document.getElementById(id);
+      if (el) {
+        el.textContent = text;
+        el.className = `status ${type}`;
+      }
+    }
+
+    function setLoading(id) {
+      document.getElementById(id).innerHTML = '<span class="loading">渲染中...</span>';
+    }
+
+    // 1. 健康检查
+    async function testHealth() {
+      setLoading('result-health');
+      try {
+        const res = await fetch(`${BASE_URL}/healthz/detailed`);
+        const data = await res.json();
+        const html = `<pre style="text-align:left;padding:10px;font-size:12px;overflow:auto;max-height:250px">${JSON.stringify(data, null, 2)}</pre>`;
+        setResult('result-health', html);
+      } catch (e) {
+        setResult('result-health', `请求失败: ${e.message}`, true);
+      }
+    }
+
+    // 2. 中文字体测试
+    async function testChinese() {
+      setLoading('result-chinese');
+      const startTime = Date.now();
+      try {
+        const res = await fetch(`${BASE_URL}/render/native`, {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({
+            engine_spec: {
+              title: { text: '中文标题测试', subtext: '副标题：验证字体渲染' },
+              tooltip: {},
+              legend: { data: ['北京', '上海', '广州', '深圳', '杭州'] },
+              xAxis: { type: 'category', data: ['一月', '二月', '三月', '四月', '五月', '六月'] },
+              yAxis: { type: 'value', name: '销售额（万元）' },
+              series: [
+                { name: '北京', type: 'bar', data: [120, 132, 101, 134, 90, 230] },
+                { name: '上海', type: 'bar', data: [220, 182, 191, 234, 290, 330] },
+                { name: '广州', type: 'bar', data: [150, 232, 201, 154, 190, 330] }
+              ]
+            },
+            image: { format: 'png', width: 700, height: 400 }
+          })
+        });
+        const data = await res.json();
+        const renderTime = Date.now() - startTime;
+        if (data.success && data.image) {
+          setResult('result-chinese', `data:${data.mimeType};base64,${data.image}`);
+          setStatus('status-chinese', `渲染成功，耗时 ${renderTime}ms`, 'success');
+        } else {
+          setResult('result-chinese', data.error || '渲染失败', true);
+          setStatus('status-chinese', '渲染失败', 'error');
+        }
+      } catch (e) {
+        setResult('result-chinese', `请求失败: ${e.message}`, true);
+        setStatus('status-chinese', '请求异常', 'error');
+      }
+    }
+
+    // 3. 柱状图
+    async function testBar() {
+      setLoading('result-bar');
+      const startTime = Date.now();
+      try {
+        const res = await fetch(`${BASE_URL}/render/native`, {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({
+            engine_spec: {
+              title: { text: 'Bar Chart Test' },
+              xAxis: { type: 'category', data: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] },
+              yAxis: { type: 'value' },
+              series: [{ type: 'bar', data: [120, 200, 150, 80, 70, 110, 130] }]
+            },
+            image: { format: 'png', width: 600, height: 350 }
+          })
+        });
+        const data = await res.json();
+        const renderTime = Date.now() - startTime;
+        if (data.success && data.image) {
+          setResult('result-bar', `data:${data.mimeType};base64,${data.image}`);
+          setStatus('status-bar', `渲染成功，耗时 ${renderTime}ms`, 'success');
+        } else {
+          setResult('result-bar', data.error || '渲染失败', true);
+          setStatus('status-bar', '渲染失败', 'error');
+        }
+      } catch (e) {
+        setResult('result-bar', `请求失败: ${e.message}`, true);
+        setStatus('status-bar', '请求异常', 'error');
+      }
+    }
+
+    // 4. 折线图
+    async function testLine() {
+      setLoading('result-line');
+      const startTime = Date.now();
+      try {
+        const res = await fetch(`${BASE_URL}/render/native`, {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({
+            engine_spec: {
+              title: { text: 'Line Chart Test' },
+              xAxis: { type: 'category', data: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] },
+              yAxis: { type: 'value' },
+              series: [
+                { type: 'line', data: [150, 230, 224, 218, 135, 147, 260], smooth: true },
+                { type: 'line', data: [80, 120, 180, 140, 200, 160, 190], smooth: true }
+              ]
+            },
+            image: { format: 'png', width: 600, height: 350 }
+          })
+        });
+        const data = await res.json();
+        const renderTime = Date.now() - startTime;
+        if (data.success && data.image) {
+          setResult('result-line', `data:${data.mimeType};base64,${data.image}`);
+          setStatus('status-line', `渲染成功，耗时 ${renderTime}ms`, 'success');
+        } else {
+          setResult('result-line', data.error || '渲染失败', true);
+          setStatus('status-line', '渲染失败', 'error');
+        }
+      } catch (e) {
+        setResult('result-line', `请求失败: ${e.message}`, true);
+        setStatus('status-line', '请求异常', 'error');
+      }
+    }
+
+    // 5. 饼图
+    async function testPie() {
+      setLoading('result-pie');
+      const startTime = Date.now();
+      try {
+        const res = await fetch(`${BASE_URL}/render/native`, {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({
+            engine_spec: {
+              title: { text: '访问来源', subtext: '示例数据', left: 'center' },
+              tooltip: { trigger: 'item' },
+              legend: { orient: 'vertical', left: 'left' },
+              series: [{
+                name: '访问来源',
+                type: 'pie',
+                radius: '50%',
+                data: [
+                  { value: 1048, name: '搜索引擎' },
+                  { value: 735, name: '直接访问' },
+                  { value: 580, name: '邮件营销' },
+                  { value: 484, name: '联盟广告' },
+                  { value: 300, name: '视频广告' }
+                ]
+              }]
+            },
+            image: { format: 'png', width: 600, height: 400 }
+          })
+        });
+        const data = await res.json();
+        const renderTime = Date.now() - startTime;
+        if (data.success && data.image) {
+          setResult('result-pie', `data:${data.mimeType};base64,${data.image}`);
+          setStatus('status-pie', `渲染成功，耗时 ${renderTime}ms`, 'success');
+        } else {
+          setResult('result-pie', data.error || '渲染失败', true);
+          setStatus('status-pie', '渲染失败', 'error');
+        }
+      } catch (e) {
+        setResult('result-pie', `请求失败: ${e.message}`, true);
+        setStatus('status-pie', '请求异常', 'error');
+      }
+    }
+
+    // 6. 统一语义接口
+    async function testUnified() {
+      setLoading('result-unified');
+      const startTime = Date.now();
+      try {
+        const res = await fetch(`${BASE_URL}/render/unified`, {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({
+            unified: {
+              type: 'bar',
+              title: '季度销售统计',
+              xField: 'quarter',
+              yField: 'sales'
+            },
+            data: [
+              { quarter: 'Q1', sales: 350 },
+              { quarter: 'Q2', sales: 480 },
+              { quarter: 'Q3', sales: 520 },
+              { quarter: 'Q4', sales: 680 }
+            ],
+            image: { format: 'png', width: 600, height: 350 }
+          })
+        });
+        const data = await res.json();
+        const renderTime = Date.now() - startTime;
+        if (data.success && data.image) {
+          setResult('result-unified', `data:${data.mimeType};base64,${data.image}`);
+          setStatus('status-unified', `渲染成功，耗时 ${renderTime}ms`, 'success');
+        } else {
+          setResult('result-unified', data.error || data.message || '渲染失败', true);
+          setStatus('status-unified', '渲染失败', 'error');
+        }
+      } catch (e) {
+        setResult('result-unified', `请求失败: ${e.message}`, true);
+        setStatus('status-unified', '请求异常', 'error');
+      }
+    }
+
+    // 运行所有测试
+    async function runAllTests() {
+      await testHealth();
+      await testChinese();
+      await testBar();
+      await testLine();
+      await testPie();
+      await testUnified();
+    }
+  </script>
+</body>
+</html>

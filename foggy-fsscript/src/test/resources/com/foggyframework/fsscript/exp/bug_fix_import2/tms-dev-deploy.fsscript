@@ -1,0 +1,5 @@
+import {tmsDeployNodeConfigs} from './config.fsscript';
+
+export const deployAllTmsDev = () => {
+  
+}

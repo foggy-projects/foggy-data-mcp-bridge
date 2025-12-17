@@ -1,0 +1,32 @@
+export var table = {
+    tableName: 'M_ETL_TEST_V2',						//表名
+    idColumn: {											//定义一个ID列
+        name: 'test_id',
+        type: 'VARCHAR'
+    },
+    columns:[
+        'c1',												//定义一个名为c1的简单列，默认varchar(190)
+        'c2',
+        'c3',
+        'c4',
+        'c5',
+        'c6',
+        'c7',
+        'c8',
+    ],
+    types: [{
+        type: 'INTEGER',
+        columns: ['c3']
+    },{
+        type: 'VARCHAR',
+        length: 1888,
+        columns: ['c4','c5']
+    },{
+         type: 'DATE',
+         columns: ['c7']
+    },{
+         type: 'TIME',
+         columns: ['c8']
+    }],
+    indexes: ['c3']
+}

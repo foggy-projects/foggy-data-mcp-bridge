@@ -1,0 +1,268 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.4.5</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>com.foggysource</groupId>
+    <artifactId>java-data-mcp-bridge</artifactId>
+    <version>8.0.0-beta</version>
+    <name>Java Data MCP Bridge</name>
+    <description>嵌入式语义层框架 - 声明式维度建模、动态查询和 AI 驱动的数据分析</description>
+    <packaging>pom</packaging>
+    <url>https://github.com/pf4cloud/java-data-mcp-bridge</url>
+
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0</url>
+        </license>
+    </licenses>
+
+    <modules>
+        <module>foggy-bean-copy</module>
+        <module>foggy-core</module>
+        <module>foggy-dataset</module>
+        <module>foggy-dataset-demo</module>
+        <module>foggy-dataset-mcp</module>
+        <module>foggy-dataset-model</module>
+        <module>foggy-fsscript</module>
+        <module>foggy-fsscript-client</module>
+        <!-- WIP: 基准测试模块，暂未完成 -->
+        <module>foggy-benchmark-spider2</module>
+    </modules>
+
+    <properties>
+        <java.version>17</java.version>
+        <argLine>-Dfile.encoding=UTF-8</argLine>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+
+        <!-- Spring 版本 -->
+        <spring.version>6.2.0</spring.version>
+        <spring-boot.version>3.4.5</spring-boot.version>
+
+        <!-- 框架内部版本 -->
+        <foggy-framework.version>8.0.0-beta</foggy-framework.version>
+
+        <!-- 第三方依赖版本 -->
+        <alibaba-fastjson.version>2.0.57</alibaba-fastjson.version>
+        <lombok.version>1.18.36</lombok.version>
+        <swagger-annotations.version>1.5.20</swagger-annotations.version>
+        <java-cup-runtime.version>11b-20160615</java-cup-runtime.version>
+        <java-cup.version>11b-20160615</java-cup.version>
+        <dateparser.version>1.0.11</dateparser.version>
+        <mysql-connector-java.version>8.0.28</mysql-connector-java.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <!-- ==================== 框架内部模块 ==================== -->
+            <dependency>
+                <groupId>com.foggysource</groupId>
+                <artifactId>foggy-core</artifactId>
+                <version>${foggy-framework.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.foggysource</groupId>
+                <artifactId>foggy-bean-copy</artifactId>
+                <version>${foggy-framework.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.foggysource</groupId>
+                <artifactId>foggy-fsscript</artifactId>
+                <version>${foggy-framework.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.foggysource</groupId>
+                <artifactId>foggy-fsscript-client</artifactId>
+                <version>${foggy-framework.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.foggysource</groupId>
+                <artifactId>foggy-dataset</artifactId>
+                <version>${foggy-framework.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.foggysource</groupId>
+                <artifactId>foggy-dataset-model</artifactId>
+                <version>${foggy-framework.version}</version>
+            </dependency>
+
+            <!-- ==================== 数据库驱动 ==================== -->
+            <dependency>
+                <groupId>mysql</groupId>
+                <artifactId>mysql-connector-java</artifactId>
+                <version>${mysql-connector-java.version}</version>
+            </dependency>
+
+            <!-- ==================== Spring Boot ==================== -->
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-starter</artifactId>
+                <version>${spring-boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- ==================== JSON 处理 ==================== -->
+            <dependency>
+                <groupId>com.alibaba</groupId>
+                <artifactId>fastjson</artifactId>
+                <version>${alibaba-fastjson.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-databind</artifactId>
+                <version>2.18.2</version>
+            </dependency>
+
+            <!-- ==================== 工具类 ==================== -->
+            <dependency>
+                <groupId>org.projectlombok</groupId>
+                <artifactId>lombok</artifactId>
+                <version>${lombok.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.swagger</groupId>
+                <artifactId>swagger-annotations</artifactId>
+                <version>${swagger-annotations.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.github.vbmacher</groupId>
+                <artifactId>java-cup-runtime</artifactId>
+                <version>${java-cup-runtime.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.github.vbmacher</groupId>
+                <artifactId>java-cup</artifactId>
+                <version>${java-cup.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.google.code.findbugs</groupId>
+                <artifactId>jsr305</artifactId>
+                <version>3.0.2</version>
+            </dependency>
+            <dependency>
+                <groupId>cglib</groupId>
+                <artifactId>cglib-nodep</artifactId>
+                <version>3.3.0</version>
+            </dependency>
+            <dependency>
+                <groupId>com.github.sisyphsu</groupId>
+                <artifactId>dateparser</artifactId>
+                <version>${dateparser.version}</version>
+            </dependency>
+
+            <!-- ==================== 测试 ==================== -->
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-starter-test</artifactId>
+                <version>${spring-boot.version}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>junit</groupId>
+                        <artifactId>junit</artifactId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
+            <dependency>
+                <groupId>junit</groupId>
+                <artifactId>junit</artifactId>
+                <version>${junit.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.junit.jupiter</groupId>
+                <artifactId>junit-jupiter</artifactId>
+                <version>${junit-jupiter.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.swagger</groupId>
+            <artifactId>swagger-annotations</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.github.vbmacher</groupId>
+            <artifactId>java-cup-runtime</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.google.code.findbugs</groupId>
+            <artifactId>jsr305</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
+        </dependency>
+
+        <!-- 测试依赖 -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <source>${java.version}</source>
+                    <target>${java.version}</target>
+                    <encoding>UTF-8</encoding>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>attach-sources</id>
+                        <goals>
+                            <goal>jar-no-fork</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

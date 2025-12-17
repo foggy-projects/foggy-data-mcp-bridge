@@ -1,0 +1,21 @@
+import '@brazilianECommerceDataSource';
+/**
+ * product_category_name_translation 维度表模型
+ * 
+ * 数据库: Brazilian_E_Commerce
+ * 数据源: brazilianECommerceDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'ProductCategoryNameTranslationModel',
+    caption: 'Product Category Name Translation',
+    tableName: 'product_category_name_translation',
+    dataSource: brazilianECommerceDataSource,
+    idColumn: 'product_category_name',
+
+    properties: [
+        { column: 'product_category_name', caption: 'Product Category Name', type: 'STRING' },
+        { column: 'product_category_name_english', caption: 'Product Category Name English', type: 'STRING' },
+    ],
+};

@@ -1,0 +1,59 @@
+/**
+ * salesorderheader 查询模型
+ * 
+ * 数据库: AdventureWorks
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'SalesorderheaderQueryModel',
+    model: 'SalesorderheaderModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'salesorderid' },
+                { name: 'revisionnumber' },
+                { name: 'orderdate' },
+                { name: 'duedate' },
+                { name: 'shipdate' },
+                { name: 'STATUS' },
+                { name: 'onlineorderflag' },
+                { name: 'purchaseordernumber' },
+                { name: 'accountnumber' },
+                { name: 'customerid' },
+                { name: 'salesperson$id' },
+                { name: 'territoryid' },
+                { name: 'billtoaddressid' },
+                { name: 'shiptoaddressid' },
+                { name: 'shipmethodid' },
+                { name: 'creditcardid' },
+                { name: 'creditcardapprovalcode' },
+                { name: 'currencyrate$id' },
+                { name: 'comment' },
+                { name: 'rowguid' },
+                { name: 'modifieddate' },
+            ]
+        },
+        {
+            caption: '关联维度',
+            items: [
+                { name: 'salesperson$caption' },
+                { name: 'currencyrate$caption' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'subtotal' },
+                { name: 'taxamt' },
+                { name: 'freight' },
+                { name: 'totaldue' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

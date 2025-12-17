@@ -1,0 +1,21 @@
+import '@northwindDataSource';
+/**
+ * customerdemographics 维度表模型
+ * 
+ * 数据库: northwind
+ * 数据源: northwindDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'CustomerdemographicsModel',
+    caption: 'Customerdemographics',
+    tableName: 'customerdemographics',
+    dataSource: northwindDataSource,
+    idColumn: 'customertypeid',
+
+    properties: [
+        { column: 'customertypeid', caption: 'Customertypeid', type: 'STRING' },
+        { column: 'customerdesc', caption: 'Customerdesc', type: 'STRING' },
+    ],
+};

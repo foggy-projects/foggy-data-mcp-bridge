@@ -1,0 +1,34 @@
+/**
+ * constructor_results 查询模型
+ * 
+ * 数据库: f1
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'ConstructorResultsQueryModel',
+    model: 'ConstructorResultsModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'constructor_results_id' },
+                { name: 'races$id' },
+                { name: 'constructors$id' },
+                { name: 'points' },
+                { name: 'status' },
+            ]
+        },
+        {
+            caption: '关联维度',
+            items: [
+                { name: 'races$caption' },
+                { name: 'constructors$caption' },
+            ]
+        },
+    ],
+
+    orders: [],
+    accesses: []
+};

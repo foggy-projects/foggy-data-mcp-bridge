@@ -1,0 +1,30 @@
+/**
+ * bookings 查询模型
+ * 
+ * 数据库: Airlines
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'BookingsQueryModel',
+    model: 'BookingsModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'book_ref' },
+                { name: 'book_date' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'total_amount' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

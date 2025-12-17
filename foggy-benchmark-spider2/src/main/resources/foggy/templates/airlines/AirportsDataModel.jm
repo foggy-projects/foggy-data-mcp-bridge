@@ -1,0 +1,24 @@
+import '@airlinesDataSource';
+/**
+ * airports_data 维度表模型
+ * 
+ * 数据库: Airlines
+ * 数据源: airlinesDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'AirportsDataModel',
+    caption: 'Airports Data',
+    tableName: 'airports_data',
+    dataSource: airlinesDataSource,
+    idColumn: 'airport_code',
+
+    properties: [
+        { column: 'airport_code', caption: 'Airport Code', type: 'STRING' },
+        { column: 'airport_name', caption: 'Airport Name', type: 'STRING' },
+        { column: 'city', caption: 'City', type: 'STRING' },
+        { column: 'coordinates', caption: 'Coordinates', type: 'INTEGER' },
+        { column: 'timezone', caption: 'Timezone', type: 'STRING' },
+    ],
+};

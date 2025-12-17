@@ -1,0 +1,21 @@
+import '@bankSalesTradingDataSource';
+/**
+ * shopping_cart_event_identifier 维度表模型
+ * 
+ * 数据库: bank_sales_trading
+ * 数据源: bankSalesTradingDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'ShoppingCartEventIdentifierModel',
+    caption: 'Shopping Cart Event Identifier',
+    tableName: 'shopping_cart_event_identifier',
+    dataSource: bankSalesTradingDataSource,
+    idColumn: 'event_type',
+
+    properties: [
+        { column: 'event_type', caption: 'Event Type', type: 'INTEGER' },
+        { column: 'event_name', caption: 'Event Name', type: 'STRING' },
+    ],
+};

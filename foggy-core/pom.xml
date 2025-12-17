@@ -1,0 +1,60 @@
+<project>
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.foggysource</groupId>
+    <artifactId>foggy-core</artifactId>
+    <packaging>jar</packaging>
+    <version>8.0.0-beta</version>
+    <url>http://maven.apache.org</url>
+    <parent>
+        <groupId>com.foggysource</groupId>
+        <artifactId>java-data-mcp-bridge</artifactId>
+        <version>8.0.0-beta</version>
+    </parent>
+
+    <developers>
+        <developer>
+            <name>_feng_jianguang</name>
+            <id>_feng_jianguang</id>
+            <email>foggysource@gmail.com</email>
+            <roles>
+                <role>_architect</role>
+                <role>_java_developer</role>
+            </roles>
+            <timezone>+8</timezone>
+        </developer>
+    </developers>
+
+    <build>
+        <finalName>${project.artifactId}-${project.version}</finalName>
+        <plugins>
+        </plugins>
+    </build>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- 日期处理 -->
+        <dependency>
+            <groupId>com.github.sisyphsu</groupId>
+            <artifactId>dateparser</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.data</groupId>
+            <artifactId>spring-data-commons</artifactId>
+        </dependency>
+    </dependencies>
+
+</project>

@@ -1,0 +1,56 @@
+import '@chinookDataSource';
+/**
+ * invoices 事实表模型
+ * 
+ * 数据库: chinook
+ * 数据源: chinookDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'InvoicesModel',
+    caption: 'Invoices',
+    tableName: 'invoices',
+    dataSource: chinookDataSource,
+    idColumn: 'InvoiceId',
+
+    dimensions: [
+        {
+            name: 'customers',
+            tableName: 'customers',
+            foreignKey: 'CustomerId',
+            primaryKey: 'CustomerId',
+            captionColumn: 'FirstName',
+            caption: '客户',
+            properties: [
+                { column: 'CustomerId', caption: 'Customerid', type: 'INTEGER' },
+                { column: 'FirstName', caption: 'Firstname', type: 'STRING' },
+                { column: 'LastName', caption: 'Lastname', type: 'STRING' },
+                { column: 'Company', caption: 'Company', type: 'STRING' },
+                { column: 'Address', caption: 'Address', type: 'STRING' },
+                { column: 'City', caption: 'City', type: 'STRING' },
+                { column: 'State', caption: 'State', type: 'STRING' },
+                { column: 'Country', caption: 'Country', type: 'STRING' },
+                { column: 'PostalCode', caption: 'Postalcode', type: 'STRING' },
+                { column: 'Phone', caption: 'Phone', type: 'STRING' },
+                { column: 'Fax', caption: 'Fax', type: 'STRING' },
+                { column: 'Email', caption: 'Email', type: 'STRING' },
+                { column: 'SupportRepId', caption: 'Supportrepid', type: 'INTEGER' },
+            ]
+        },
+    ],
+
+    properties: [
+        { column: 'InvoiceId', caption: 'Invoiceid', type: 'INTEGER' },
+        { column: 'InvoiceDate', caption: 'Invoicedate', type: 'DATETIME' },
+        { column: 'BillingAddress', caption: 'Billingaddress', type: 'STRING' },
+        { column: 'BillingCity', caption: 'Billingcity', type: 'STRING' },
+        { column: 'BillingState', caption: 'Billingstate', type: 'STRING' },
+        { column: 'BillingCountry', caption: 'Billingcountry', type: 'STRING' },
+        { column: 'BillingPostalCode', caption: 'Billingpostalcode', type: 'STRING' },
+    ],
+
+    measures: [
+        { column: 'Total', caption: 'Total', type: 'STRING', aggregation: 'sum' },
+    ]
+};

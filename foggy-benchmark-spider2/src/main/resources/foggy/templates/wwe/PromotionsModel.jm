@@ -1,0 +1,21 @@
+import '@wweDataSource';
+/**
+ * Promotions 维度表模型
+ * 
+ * 数据库: WWE
+ * 数据源: wweDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'PromotionsModel',
+    caption: 'Promotions',
+    tableName: 'Promotions',
+    dataSource: wweDataSource,
+    idColumn: 'id',
+
+    properties: [
+        { column: 'id', caption: 'Id', type: 'INTEGER' },
+        { column: 'name', caption: 'Name', type: 'STRING' },
+    ],
+};

@@ -1,0 +1,30 @@
+/**
+ * product_sales 查询模型
+ * 
+ * 数据库: log
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'ProductSalesQueryModel',
+    model: 'ProductSalesModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'category_name' },
+                { name: 'product_id' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'sales' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

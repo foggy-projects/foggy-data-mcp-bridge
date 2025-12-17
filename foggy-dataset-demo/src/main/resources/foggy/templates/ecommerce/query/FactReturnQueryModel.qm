@@ -1,0 +1,76 @@
+/**
+ * 退货查询模型
+ *
+ * @caption 退货查询
+ * @description 退货事实表查询模型，支持按退货日期、商品、客户、门店等维度查询退货记录
+ */
+export const queryModel = {
+    name: 'FactReturnQueryModel',
+    caption: '退货查询',
+    description: '退货事实表查询模型，支持按退货日期、商品、客户、门店等维度查询退货记录',
+    model: 'FactReturnModel',
+
+    columnGroups: [
+        {
+            caption: '退货信息',
+            items: [
+                { name: 'returnId', ui: { fixed: 'left', width: 150 } },
+                { name: 'orderId' },
+                { name: 'orderLineNo' },
+                { name: 'returnReason' },
+                { name: 'returnType' },
+                { name: 'returnStatus' },
+                { name: 'returnTime' }
+            ]
+        },
+        {
+            caption: '日期维度',
+            items: [
+                { name: 'returnDate' },
+                { name: 'returnDate$year' },
+                { name: 'returnDate$month' },
+                { name: 'returnDate$monthName' },
+                { name: 'returnDate$dayOfWeek' }
+            ]
+        },
+        {
+            caption: '商品维度',
+            items: [
+                { name: 'product' },
+                { name: 'product$categoryName' },
+                { name: 'product$brand' }
+            ]
+        },
+        {
+            caption: '客户维度',
+            items: [
+                { name: 'customer' },
+                { name: 'customer$customerType' },
+                { name: 'customer$province' },
+                { name: 'customer$city' }
+            ]
+        },
+        {
+            caption: '门店维度',
+            items: [
+                { name: 'store' },
+                { name: 'store$storeType' },
+                { name: 'store$province' },
+                { name: 'store$city' }
+            ]
+        },
+        {
+            caption: '度量',
+            items: [
+                { name: 'returnQuantity' },
+                { name: 'returnAmount' }
+            ]
+        }
+    ],
+
+    orders: [
+        { name: 'returnTime', order: 'desc' }
+    ],
+
+    accesses: []
+};

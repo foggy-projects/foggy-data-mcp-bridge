@@ -1,0 +1,39 @@
+/**
+ * invoice_items 查询模型
+ * 
+ * 数据库: chinook
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'InvoiceItemsQueryModel',
+    model: 'InvoiceItemsModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'InvoiceLineId' },
+                { name: 'invoices$id' },
+                { name: 'playlistTrack$id' },
+            ]
+        },
+        {
+            caption: '关联维度',
+            items: [
+                { name: 'invoices$caption' },
+                { name: 'playlistTrack$caption' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'UnitPrice' },
+                { name: 'Quantity' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

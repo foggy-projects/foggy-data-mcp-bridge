@@ -1,0 +1,24 @@
+import '@imdbMoviesDataSource';
+/**
+ * names 维度表模型
+ * 
+ * 数据库: imdb_movies
+ * 数据源: imdbMoviesDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'NamesModel',
+    caption: 'Names',
+    tableName: 'names',
+    dataSource: imdbMoviesDataSource,
+    idColumn: 'id',
+
+    properties: [
+        { column: 'id', caption: 'Id', type: 'STRING' },
+        { column: 'name', caption: 'Name', type: 'STRING' },
+        { column: 'height', caption: 'Height', type: 'DECIMAL' },
+        { column: 'date_of_birth', caption: 'Date Of Birth', type: 'STRING' },
+        { column: 'known_for_movies', caption: 'Known For Movies', type: 'STRING' },
+    ],
+};

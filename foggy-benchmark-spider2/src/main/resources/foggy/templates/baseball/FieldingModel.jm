@@ -1,0 +1,37 @@
+import '@baseballDataSource';
+/**
+ * fielding 维度表模型
+ * 
+ * 数据库: Baseball
+ * 数据源: baseballDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'FieldingModel',
+    caption: 'Fielding',
+    tableName: 'fielding',
+    dataSource: baseballDataSource,
+    idColumn: 'player_id',
+
+    properties: [
+        { column: 'player_id', caption: 'Player Id', type: 'STRING' },
+        { column: 'year', caption: 'Year', type: 'INTEGER' },
+        { column: 'stint', caption: 'Stint', type: 'INTEGER' },
+        { column: 'team_id', caption: 'Team Id', type: 'STRING' },
+        { column: 'league_id', caption: 'League Id', type: 'STRING' },
+        { column: 'pos', caption: 'Pos', type: 'STRING' },
+        { column: 'g', caption: 'G', type: 'INTEGER' },
+        { column: 'gs', caption: 'Gs', type: 'STRING' },
+        { column: 'inn_outs', caption: 'Inn Outs', type: 'STRING' },
+        { column: 'po', caption: 'Po', type: 'STRING' },
+        { column: 'a', caption: 'A', type: 'STRING' },
+        { column: 'e', caption: 'E', type: 'STRING' },
+        { column: 'dp', caption: 'Dp', type: 'STRING' },
+        { column: 'pb', caption: 'Pb', type: 'STRING' },
+        { column: 'wp', caption: 'Wp', type: 'STRING' },
+        { column: 'sb', caption: 'Sb', type: 'STRING' },
+        { column: 'cs', caption: 'Cs', type: 'STRING' },
+        { column: 'zr', caption: 'Zr', type: 'STRING' },
+    ],
+};

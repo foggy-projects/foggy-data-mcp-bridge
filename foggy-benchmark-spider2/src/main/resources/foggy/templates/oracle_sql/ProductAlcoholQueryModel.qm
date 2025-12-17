@@ -1,0 +1,30 @@
+/**
+ * product_alcohol 查询模型
+ * 
+ * 数据库: oracle_sql
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'ProductAlcoholQueryModel',
+    model: 'ProductAlcoholModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'product_id' },
+                { name: 'abv' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'sales_volume' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

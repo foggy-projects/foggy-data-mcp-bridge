@@ -1,0 +1,48 @@
+/**
+ * orders 查询模型
+ * 
+ * 数据库: northwind
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'OrdersQueryModel',
+    model: 'OrdersModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'orderid' },
+                { name: 'customers$id' },
+                { name: 'employees$id' },
+                { name: 'orderdate' },
+                { name: 'requireddate' },
+                { name: 'shippeddate' },
+                { name: 'shipvia' },
+                { name: 'shipname' },
+                { name: 'shipaddress' },
+                { name: 'shipcity' },
+                { name: 'shipregion' },
+                { name: 'shippostalcode' },
+                { name: 'shipcountry' },
+            ]
+        },
+        {
+            caption: '关联维度',
+            items: [
+                { name: 'customers$caption' },
+                { name: 'employees$caption' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'freight' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

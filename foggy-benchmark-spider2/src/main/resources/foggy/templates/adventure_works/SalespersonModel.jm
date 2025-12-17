@@ -1,0 +1,31 @@
+import '@adventureworksDataSource';
+/**
+ * salesperson 事实表模型
+ * 
+ * 数据库: AdventureWorks
+ * 数据源: adventureworksDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'SalespersonModel',
+    caption: 'Salesperson',
+    tableName: 'salesperson',
+    dataSource: adventureworksDataSource,
+    idColumn: 'businessentityid',
+
+    properties: [
+        { column: 'businessentityid', caption: 'Businessentityid', type: 'INTEGER' },
+        { column: 'territoryid', caption: 'Territoryid', type: 'INTEGER' },
+        { column: 'bonus', caption: 'Bonus', type: 'INTEGER' },
+        { column: 'commissionpct', caption: 'Commissionpct', type: 'DECIMAL' },
+        { column: 'rowguid', caption: 'Rowguid', type: 'STRING' },
+        { column: 'modifieddate', caption: 'Modifieddate', type: 'DAY' },
+    ],
+
+    measures: [
+        { column: 'salesquota', caption: 'Salesquota', type: 'INTEGER', aggregation: 'sum' },
+        { column: 'salesytd', caption: 'Salesytd', type: 'DECIMAL', aggregation: 'sum' },
+        { column: 'saleslastyear', caption: 'Saleslastyear', type: 'DECIMAL', aggregation: 'sum' },
+    ]
+};

@@ -1,0 +1,28 @@
+import '@bankSalesTradingDataSource';
+/**
+ * shopping_cart_events 事实表模型
+ * 
+ * 数据库: bank_sales_trading
+ * 数据源: bankSalesTradingDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'ShoppingCartEventsModel',
+    caption: 'Shopping Cart Events',
+    tableName: 'shopping_cart_events',
+    dataSource: bankSalesTradingDataSource,
+    idColumn: 'visit_id',
+
+    properties: [
+        { column: 'visit_id', caption: 'Visit Id', type: 'STRING' },
+        { column: 'cookie_id', caption: 'Cookie Id', type: 'STRING' },
+        { column: 'page_id', caption: 'Page Id', type: 'INTEGER' },
+        { column: 'event_type', caption: 'Event Type', type: 'INTEGER' },
+        { column: 'event_time', caption: 'Event Time', type: 'STRING' },
+    ],
+
+    measures: [
+        { column: 'sequence_number', caption: 'Sequence Number', type: 'INTEGER', aggregation: 'sum' },
+    ]
+};

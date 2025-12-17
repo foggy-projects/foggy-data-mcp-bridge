@@ -1,0 +1,28 @@
+import '@imdbMoviesDataSource';
+/**
+ * movies 维度表模型
+ * 
+ * 数据库: imdb_movies
+ * 数据源: imdbMoviesDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'MoviesModel',
+    caption: 'Movies',
+    tableName: 'movies',
+    dataSource: imdbMoviesDataSource,
+    idColumn: 'id',
+
+    properties: [
+        { column: 'id', caption: 'Id', type: 'STRING' },
+        { column: 'title', caption: 'Title', type: 'STRING' },
+        { column: 'year', caption: 'Year', type: 'INTEGER' },
+        { column: 'date_published', caption: 'Date Published', type: 'DATETIME' },
+        { column: 'duration', caption: 'Duration', type: 'INTEGER' },
+        { column: 'country', caption: 'Country', type: 'STRING' },
+        { column: 'worlwide_gross_income', caption: 'Worlwide Gross Income', type: 'STRING' },
+        { column: 'languages', caption: 'Languages', type: 'STRING' },
+        { column: 'production_company', caption: 'Production Company', type: 'STRING' },
+    ],
+};

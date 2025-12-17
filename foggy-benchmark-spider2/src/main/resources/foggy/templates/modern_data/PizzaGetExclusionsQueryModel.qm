@@ -1,0 +1,37 @@
+/**
+ * pizza_get_exclusions 查询模型
+ * 
+ * 数据库: modern_data
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'PizzaGetExclusionsQueryModel',
+    model: 'PizzaGetExclusionsModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'row_id' },
+                { name: 'pizzaCleanCustomerOrders$id' },
+                { name: 'exclusions' },
+            ]
+        },
+        {
+            caption: '关联维度',
+            items: [
+                { name: 'pizzaCleanCustomerOrders$caption' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'total_exclusions' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

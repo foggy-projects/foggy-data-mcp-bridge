@@ -1,0 +1,24 @@
+import '@logDataSource';
+/**
+ * action_log_with_ip 维度表模型
+ * 
+ * 数据库: log
+ * 数据源: logDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'ActionLogWithIpModel',
+    caption: 'Action Log With Ip',
+    tableName: 'action_log_with_ip',
+    dataSource: logDataSource,
+    idColumn: 'user_id',
+
+    properties: [
+        { column: 'session', caption: 'Session', type: 'STRING' },
+        { column: 'user_id', caption: 'User Id', type: 'STRING' },
+        { column: 'action', caption: 'Action', type: 'STRING' },
+        { column: 'ip', caption: 'Ip', type: 'STRING' },
+        { column: 'stamp', caption: 'Stamp', type: 'STRING' },
+    ],
+};

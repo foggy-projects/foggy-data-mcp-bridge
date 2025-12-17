@@ -1,0 +1,28 @@
+import '@wweDataSource';
+/**
+ * Matches 维度表模型
+ * 
+ * 数据库: WWE
+ * 数据源: wweDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'MatchesModel',
+    caption: 'Matches',
+    tableName: 'Matches',
+    dataSource: wweDataSource,
+    idColumn: 'card_id',
+
+    properties: [
+        { column: 'id', caption: 'Id', type: 'INTEGER' },
+        { column: 'card_id', caption: 'Card Id', type: 'INTEGER' },
+        { column: 'winner_id', caption: 'Winner Id', type: 'STRING' },
+        { column: 'win_type', caption: 'Win Type', type: 'STRING' },
+        { column: 'loser_id', caption: 'Loser Id', type: 'STRING' },
+        { column: 'match_type_id', caption: 'Match Type Id', type: 'STRING' },
+        { column: 'duration', caption: 'Duration', type: 'STRING' },
+        { column: 'title_id', caption: 'Title Id', type: 'STRING' },
+        { column: 'title_change', caption: 'Title Change', type: 'INTEGER' },
+    ],
+};

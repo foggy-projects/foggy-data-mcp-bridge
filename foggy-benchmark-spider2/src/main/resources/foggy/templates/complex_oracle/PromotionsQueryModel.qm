@@ -1,0 +1,38 @@
+/**
+ * promotions 查询模型
+ * 
+ * 数据库: complex_oracle
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'PromotionsQueryModel',
+    model: 'PromotionsModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'promo_id' },
+                { name: 'promo_name' },
+                { name: 'promo_subcategory' },
+                { name: 'promo_subcategory_id' },
+                { name: 'promo_category' },
+                { name: 'promo_category_id' },
+                { name: 'promo_begin_date' },
+                { name: 'promo_end_date' },
+                { name: 'promo_total' },
+                { name: 'promo_total_id' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'promo_cost' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

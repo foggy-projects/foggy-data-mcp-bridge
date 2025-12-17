@@ -1,0 +1,24 @@
+import '@bankSalesTradingDataSource';
+/**
+ * interest_map 维度表模型
+ * 
+ * 数据库: bank_sales_trading
+ * 数据源: bankSalesTradingDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'InterestMapModel',
+    caption: 'Interest Map',
+    tableName: 'interest_map',
+    dataSource: bankSalesTradingDataSource,
+    idColumn: 'id',
+
+    properties: [
+        { column: 'id', caption: 'Id', type: 'INTEGER' },
+        { column: 'interest_name', caption: 'Interest Name', type: 'STRING' },
+        { column: 'interest_summary', caption: 'Interest Summary', type: 'STRING' },
+        { column: 'created_at', caption: 'Created At', type: 'STRING' },
+        { column: 'last_modified', caption: 'Last Modified', type: 'STRING' },
+    ],
+};

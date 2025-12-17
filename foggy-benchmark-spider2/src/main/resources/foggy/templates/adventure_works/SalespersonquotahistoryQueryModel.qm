@@ -1,0 +1,32 @@
+/**
+ * SalesPersonQuotaHistory 查询模型
+ * 
+ * 数据库: AdventureWorks
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'SalespersonquotahistoryQueryModel',
+    model: 'SalespersonquotahistoryModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'BusinessEntityID' },
+                { name: 'QuotaDate' },
+                { name: 'rowguid' },
+                { name: 'ModifiedDate' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'SalesQuota' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

@@ -1,0 +1,69 @@
+import '@oracleSqlDataSource';
+/**
+ * picking_line 事实表模型
+ * 
+ * 数据库: oracle_sql
+ * 数据源: oracleSqlDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'PickingLineModel',
+    caption: 'Picking Line',
+    tableName: 'picking_line',
+    dataSource: oracleSqlDataSource,
+    idColumn: 'picklist_id',
+
+    dimensions: [
+        {
+            name: 'locations',
+            tableName: 'locations',
+            foreignKey: 'location_id',
+            primaryKey: 'id',
+            captionColumn: 'warehouse',
+            caption: 'Locations',
+            properties: [
+                { column: 'id', caption: 'Id', type: 'INTEGER' },
+                { column: 'warehouse', caption: 'Warehouse', type: 'INTEGER' },
+                { column: 'aisle', caption: 'Aisle', type: 'STRING' },
+                { column: 'position', caption: 'Position', type: 'INTEGER' },
+            ]
+        },
+        {
+            name: 'orders',
+            tableName: 'orders',
+            foreignKey: 'order_id',
+            primaryKey: 'customer_id',
+            captionColumn: 'customer_id',
+            caption: '订单',
+            properties: [
+                { column: 'id', caption: 'Id', type: 'INTEGER' },
+                { column: 'customer_id', caption: 'Customer Id', type: 'INTEGER' },
+                { column: 'ordered', caption: 'Ordered', type: 'STRING' },
+                { column: 'delivery', caption: 'Delivery', type: 'STRING' },
+            ]
+        },
+        {
+            name: 'products',
+            tableName: 'products',
+            foreignKey: 'product_id',
+            primaryKey: 'group_id',
+            captionColumn: 'name',
+            caption: '产品',
+            properties: [
+                { column: 'id', caption: 'Id', type: 'INTEGER' },
+                { column: 'name', caption: 'Name', type: 'STRING' },
+                { column: 'group_id', caption: 'Group Id', type: 'INTEGER' },
+            ]
+        },
+    ],
+
+    properties: [
+        { column: 'picklist_id', caption: 'Picklist Id', type: 'INTEGER' },
+        { column: 'line_no', caption: 'Line No', type: 'INTEGER' },
+    ],
+
+    measures: [
+        { column: 'qty', caption: 'Qty', type: 'DECIMAL', aggregation: 'sum' },
+    ]
+};

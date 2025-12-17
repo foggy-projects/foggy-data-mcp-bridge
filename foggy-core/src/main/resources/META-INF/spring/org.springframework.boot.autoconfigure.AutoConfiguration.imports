@@ -1,0 +1,2 @@
+com.foggyframework.core.FoggyFrameworkAutoConfiguration
+com.foggyframework.core.spring.SpringFoggyFrameworkAutoConfiguration

@@ -1,0 +1,23 @@
+import '@sqliteSakilaDataSource';
+/**
+ * store 维度表模型
+ * 
+ * 数据库: SQLITE_SAKILA
+ * 数据源: sqliteSakilaDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'StoreModel',
+    caption: 'Store',
+    tableName: 'store',
+    dataSource: sqliteSakilaDataSource,
+    idColumn: 'store_id',
+
+    properties: [
+        { column: 'store_id', caption: 'Store Id', type: 'INTEGER' },
+        { column: 'manager_staff_id', caption: 'Manager Staff Id', type: 'INTEGER' },
+        { column: 'address_id', caption: 'Address Id', type: 'INTEGER' },
+        { column: 'last_update', caption: 'Last Update', type: 'DATETIME' },
+    ],
+};

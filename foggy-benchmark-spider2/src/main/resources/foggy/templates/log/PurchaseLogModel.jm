@@ -1,0 +1,41 @@
+import '@logDataSource';
+/**
+ * purchase_log 事实表模型
+ * 
+ * 数据库: log
+ * 数据源: logDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'PurchaseLogModel',
+    caption: 'Purchase Log',
+    tableName: 'purchase_log',
+    dataSource: logDataSource,
+    idColumn: 'purchase_id',
+
+    dimensions: [
+        {
+            name: 'app1MstUsers',
+            tableName: 'app1_mst_users',
+            foreignKey: 'user_id',
+            primaryKey: 'user_id',
+            captionColumn: 'name',
+            caption: 'App1 Mst Users',
+            properties: [
+                { column: 'user_id', caption: 'User Id', type: 'STRING' },
+                { column: 'name', caption: 'Name', type: 'STRING' },
+                { column: 'email', caption: 'Email', type: 'STRING' },
+            ]
+        },
+    ],
+
+    properties: [
+        { column: 'purchase_id', caption: 'Purchase Id', type: 'INTEGER' },
+        { column: 'stamp', caption: 'Stamp', type: 'STRING' },
+    ],
+
+    measures: [
+        { column: 'amount', caption: 'Amount', type: 'INTEGER', aggregation: 'sum' },
+    ]
+};

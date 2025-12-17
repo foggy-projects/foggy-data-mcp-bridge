@@ -1,0 +1,60 @@
+# Spider2 Benchmark 测试配置
+
+spring:
+  # MySQL 数据源配置（主数据源）
+  datasource:
+    url: jdbc:mysql://localhost:13306/foggy_test?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true
+    username: foggy
+    password: foggy_test_123
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  ai:
+    openai:
+      base-url: ${OPENAI_BASE_URL:https://api.openai.com}
+      api-key: ${OPENAI_API_KEY:sk-your-api-key}
+      chat:
+        options:
+          model: ${OPENAI_MODEL:gpt-4o-mini}
+          temperature: 0.7
+# MCP Service Configuration
+mcp:
+  # 数据访问模式: local (直接调用SemanticService) 或 remote (HTTP调用)
+  dataset:
+    access-mode: ${DATASET_ACCESS_MODE:local}
+  tools:
+    - name: "dataset_nl.query"
+      descriptionFile: "classpath:/schemas/descriptions/dataset_nl_query.md"
+      schemaFile: "classpath:/schemas/dataset_nl_query_schema.json"
+      category: NATURAL_LANGUAGE
+    - name: "dataset.get_metadata"
+      descriptionFile: "classpath:/schemas/descriptions/get_metadata.md"
+      schemaFile: "classpath:/schemas/get_metadata_schema.json"
+      category: METADATA
+    - name: "dataset.describe_model_internal"
+      descriptionFile: "classpath:/schemas/descriptions/describe_model_internal.md"
+      schemaFile: "classpath:/schemas/describe_model_internal_schema.json"
+      category: METADATA
+    - name: "dataset.query_model_v2"
+      descriptionFile: "classpath:/schemas/descriptions/query_model_v3.md"
+      schemaFile: "classpath:/schemas/query_model_v3_schema.json"
+      category: QUERY
+    - name: "chart.generate"
+      descriptionFile: "classpath:/schemas/descriptions/generate_chart.md"
+      schemaFile: "classpath:/schemas/generate_chart_schema.json"
+      category: VISUALIZATION
+    - name: "dataset.export_with_chart"
+      descriptionFile: "classpath:/schemas/descriptions/export_with_chart.md"
+      schemaFile: "classpath:/schemas/export_with_chart_schema.json"
+      category: EXPORT
+# Spider2 测试配置
+spider2:
+  jsonl-path: ${SPIDER2_JSONL_PATH:./data/spider2-lite.jsonl}
+  database-base-path: ${SPIDER2_DB_PATH:./data/databases}
+  metadata-base-path: ${SPIDER2_METADATA_PATH:./data/metadata}
+  # 测试时限制数量
+  max-test-cases: 10
+  enabled-databases: []
+
+logging:
+  level:
+    com.foggyframework.benchmark.spider2: DEBUG

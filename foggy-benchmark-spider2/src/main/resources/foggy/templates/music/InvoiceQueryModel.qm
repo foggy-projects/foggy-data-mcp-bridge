@@ -1,0 +1,42 @@
+/**
+ * Invoice 查询模型
+ * 
+ * 数据库: music
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'InvoiceQueryModel',
+    model: 'InvoiceModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'InvoiceId' },
+                { name: 'customer$id' },
+                { name: 'InvoiceDate' },
+                { name: 'BillingAddress' },
+                { name: 'BillingCity' },
+                { name: 'BillingState' },
+                { name: 'BillingCountry' },
+                { name: 'BillingPostalCode' },
+            ]
+        },
+        {
+            caption: '关联维度',
+            items: [
+                { name: 'customer$caption' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'Total' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

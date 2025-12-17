@@ -1,0 +1,23 @@
+import '@adventureworksDataSource';
+/**
+ * productmodelproductdescriptionculture 维度表模型
+ * 
+ * 数据库: AdventureWorks
+ * 数据源: adventureworksDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'ProductmodelproductdescriptioncultureModel',
+    caption: 'Productmodelproductdescriptionculture',
+    tableName: 'productmodelproductdescriptionculture',
+    dataSource: adventureworksDataSource,
+    idColumn: 'productmodelid',
+
+    properties: [
+        { column: 'productmodelid', caption: 'Productmodelid', type: 'INTEGER' },
+        { column: 'productdescriptionid', caption: 'Productdescriptionid', type: 'INTEGER' },
+        { column: 'cultureid', caption: 'Cultureid', type: 'STRING' },
+        { column: 'modifieddate', caption: 'Modifieddate', type: 'DAY' },
+    ],
+};

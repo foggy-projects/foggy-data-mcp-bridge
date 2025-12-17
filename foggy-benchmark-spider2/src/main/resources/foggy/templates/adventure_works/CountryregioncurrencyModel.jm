@@ -1,0 +1,22 @@
+import '@adventureworksDataSource';
+/**
+ * countryregioncurrency 维度表模型
+ * 
+ * 数据库: AdventureWorks
+ * 数据源: adventureworksDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'CountryregioncurrencyModel',
+    caption: 'Countryregioncurrency',
+    tableName: 'countryregioncurrency',
+    dataSource: adventureworksDataSource,
+    idColumn: 'countryregioncode',
+
+    properties: [
+        { column: 'countryregioncode', caption: 'Countryregioncode', type: 'STRING' },
+        { column: 'currencycode', caption: 'Currencycode', type: 'STRING' },
+        { column: 'modifieddate', caption: 'Modifieddate', type: 'DAY' },
+    ],
+};

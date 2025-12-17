@@ -1,0 +1,47 @@
+/**
+ * leads_closed 查询模型
+ * 
+ * 数据库: E_commerce
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'LeadsClosedQueryModel',
+    model: 'LeadsClosedModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'mql_id' },
+                { name: 'sellers$id' },
+                { name: 'sdr_id' },
+                { name: 'sr_id' },
+                { name: 'won_date' },
+                { name: 'business_segment' },
+                { name: 'lead_type' },
+                { name: 'lead_behaviour_profile' },
+                { name: 'has_company' },
+                { name: 'has_gtin' },
+                { name: 'average_stock' },
+                { name: 'business_type' },
+                { name: 'declared_product_catalog_size' },
+            ]
+        },
+        {
+            caption: '关联维度',
+            items: [
+                { name: 'sellers$caption' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'declared_monthly_revenue' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

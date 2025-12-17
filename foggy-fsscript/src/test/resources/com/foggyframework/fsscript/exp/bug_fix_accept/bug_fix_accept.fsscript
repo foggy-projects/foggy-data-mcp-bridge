@@ -1,0 +1,7 @@
+export const bugFixAccept = (i) => {
+  return i;
+}
+
+export const bugFixAccept2 = (i) => {
+  return bugFixAccept(i);
+}

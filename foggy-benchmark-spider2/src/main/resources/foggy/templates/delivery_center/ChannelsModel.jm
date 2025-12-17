@@ -1,0 +1,22 @@
+import '@deliveryCenterDataSource';
+/**
+ * channels 维度表模型
+ * 
+ * 数据库: delivery_center
+ * 数据源: deliveryCenterDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'ChannelsModel',
+    caption: 'Channels',
+    tableName: 'channels',
+    dataSource: deliveryCenterDataSource,
+    idColumn: 'channel_id',
+
+    properties: [
+        { column: 'channel_id', caption: 'Channel Id', type: 'INTEGER' },
+        { column: 'channel_name', caption: 'Channel Name', type: 'STRING' },
+        { column: 'channel_type', caption: 'Channel Type', type: 'STRING' },
+    ],
+};

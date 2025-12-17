@@ -1,0 +1,23 @@
+import '@stackingDataSource';
+/**
+ * problem 维度表模型
+ * 
+ * 数据库: stacking
+ * 数据源: stackingDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'ProblemModel',
+    caption: 'Problem',
+    tableName: 'problem',
+    dataSource: stackingDataSource,
+    idColumn: 'name',
+
+    properties: [
+        { column: 'name', caption: 'Name', type: 'STRING' },
+        { column: 'path', caption: 'Path', type: 'STRING' },
+        { column: 'type', caption: 'Type', type: 'STRING' },
+        { column: 'target', caption: 'Target', type: 'STRING' },
+    ],
+};

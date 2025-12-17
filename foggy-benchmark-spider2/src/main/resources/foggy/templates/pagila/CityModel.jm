@@ -1,0 +1,23 @@
+import '@pagilaDataSource';
+/**
+ * city 维度表模型
+ * 
+ * 数据库: Pagila
+ * 数据源: pagilaDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'CityModel',
+    caption: 'City',
+    tableName: 'city',
+    dataSource: pagilaDataSource,
+    idColumn: 'city_id',
+
+    properties: [
+        { column: 'city_id', caption: 'City Id', type: 'INTEGER' },
+        { column: 'city', caption: 'City', type: 'STRING' },
+        { column: 'country_id', caption: 'Country Id', type: 'INTEGER' },
+        { column: 'last_update', caption: 'Last Update', type: 'DATETIME' },
+    ],
+};

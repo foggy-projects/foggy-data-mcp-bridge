@@ -1,0 +1,20 @@
+import '@modernDataDataSource';
+/**
+ * word_list 维度表模型
+ * 
+ * 数据库: modern_data
+ * 数据源: modernDataDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'WordListModel',
+    caption: 'Word List',
+    tableName: 'word_list',
+    dataSource: modernDataDataSource,
+    idColumn: 'words',
+
+    properties: [
+        { column: 'words', caption: 'Words', type: 'STRING' },
+    ],
+};

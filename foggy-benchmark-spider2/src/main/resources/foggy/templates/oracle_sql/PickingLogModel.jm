@@ -1,0 +1,24 @@
+import '@oracleSqlDataSource';
+/**
+ * picking_log 维度表模型
+ * 
+ * 数据库: oracle_sql
+ * 数据源: oracleSqlDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'PickingLogModel',
+    caption: 'Picking Log',
+    tableName: 'picking_log',
+    dataSource: oracleSqlDataSource,
+    idColumn: 'picklist_id',
+
+    properties: [
+        { column: 'picklist_id', caption: 'Picklist Id', type: 'INTEGER' },
+        { column: 'log_time', caption: 'Log Time', type: 'STRING' },
+        { column: 'activity', caption: 'Activity', type: 'STRING' },
+        { column: 'location_id', caption: 'Location Id', type: 'INTEGER' },
+        { column: 'pickline_no', caption: 'Pickline No', type: 'INTEGER' },
+    ],
+};

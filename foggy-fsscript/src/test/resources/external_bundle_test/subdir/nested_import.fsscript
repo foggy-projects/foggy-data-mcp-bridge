@@ -1,0 +1,8 @@
+// 子目录中的脚本，测试跨目录 import
+import {add} from '../utils.fsscript';
+
+export var result = add(100, 200);
+
+export default {
+    result: result
+};

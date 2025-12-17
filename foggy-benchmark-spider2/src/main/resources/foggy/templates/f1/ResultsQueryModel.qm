@@ -1,0 +1,49 @@
+/**
+ * results 查询模型
+ * 
+ * 数据库: f1
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'ResultsQueryModel',
+    model: 'ResultsModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'result_id' },
+                { name: 'races$id' },
+                { name: 'drivers$id' },
+                { name: 'constructors$id' },
+                { name: 'number' },
+                { name: 'grid' },
+                { name: 'position' },
+                { name: 'position_text' },
+                { name: 'position_order' },
+                { name: 'points' },
+                { name: 'laps' },
+                { name: 'time' },
+                { name: 'milliseconds' },
+                { name: 'fastest_lap' },
+                { name: 'rank' },
+                { name: 'fastest_lap_time' },
+                { name: 'fastest_lap_speed' },
+                { name: 'status$id' },
+            ]
+        },
+        {
+            caption: '关联维度',
+            items: [
+                { name: 'races$caption' },
+                { name: 'drivers$caption' },
+                { name: 'constructors$caption' },
+                { name: 'status$caption' },
+            ]
+        },
+    ],
+
+    orders: [],
+    accesses: []
+};

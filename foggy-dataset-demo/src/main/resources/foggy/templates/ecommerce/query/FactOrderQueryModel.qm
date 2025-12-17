@@ -1,0 +1,94 @@
+/**
+ * 订单查询模型
+ *
+ * @caption 订单查询
+ * @description 订单事实表查询模型，支持按日期、客户、门店、渠道、促销等维度查询
+ */
+export const queryModel = {
+    name: 'FactOrderQueryModel',
+    caption: '订单查询',
+    description: '订单事实表查询模型，支持按日期、客户、门店、渠道、促销等维度查询',
+    model: 'FactOrderModel',
+
+    // 列组定义
+    columnGroups: [
+        {
+            caption: '订单信息',
+            items: [
+                { name: 'orderId', ui: { fixed: 'left', width: 150 } },
+                { name: 'orderStatus' },
+                { name: 'paymentStatus' },
+                { name: 'orderTime' }
+            ]
+        },
+        {
+            caption: '日期维度',
+            items: [
+                { name: 'orderDate' },
+                { name: 'orderDate$year' },
+                { name: 'orderDate$quarter' },
+                { name: 'orderDate$month' },
+                { name: 'orderDate$monthName' },
+                { name: 'orderDate$dayOfWeek' },
+                { name: 'orderDate$dayName' },
+                { name: 'orderDate$isWeekend' }
+            ]
+        },
+        {
+            caption: '客户维度',
+            items: [
+                { name: 'customer' },
+                { name: 'customer$customerType' },
+                { name: 'customer$gender' },
+                { name: 'customer$ageGroup' },
+                { name: 'customer$province' },
+                { name: 'customer$city' },
+                { name: 'customer$memberLevel' }
+            ]
+        },
+        {
+            caption: '门店维度',
+            items: [
+                { name: 'store' },
+                { name: 'store$storeType' },
+                { name: 'store$province' },
+                { name: 'store$city' },
+                { name: 'store$managerName' }
+            ]
+        },
+        {
+            caption: '渠道维度',
+            items: [
+                { name: 'channel' },
+                { name: 'channel$channelType' },
+                { name: 'channel$platform' }
+            ]
+        },
+        {
+            caption: '促销维度',
+            items: [
+                { name: 'promotion' },
+                { name: 'promotion$promotionType' },
+                { name: 'promotion$discountRate' }
+            ]
+        },
+        {
+            caption: '度量',
+            items: [
+                { name: 'totalQuantity' },
+                { name: 'totalAmount' },
+                { name: 'discountAmount' },
+                { name: 'freightAmount' },
+                { name: 'orderPayAmount' }
+            ]
+        }
+    ],
+
+    // 默认排序
+    orders: [
+        { name: 'orderTime', order: 'desc' }
+    ],
+
+    // 权限控制（测试环境无权限控制）
+    accesses: []
+};

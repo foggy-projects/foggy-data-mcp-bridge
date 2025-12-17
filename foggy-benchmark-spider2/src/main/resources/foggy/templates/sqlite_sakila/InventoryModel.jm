@@ -1,0 +1,61 @@
+import '@sqliteSakilaDataSource';
+/**
+ * inventory 事实表模型
+ * 
+ * 数据库: SQLITE_SAKILA
+ * 数据源: sqliteSakilaDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'InventoryModel',
+    caption: 'Inventory',
+    tableName: 'inventory',
+    dataSource: sqliteSakilaDataSource,
+    idColumn: 'inventory_id',
+
+    dimensions: [
+        {
+            name: 'film',
+            tableName: 'film',
+            foreignKey: 'film_id',
+            primaryKey: 'film_id',
+            captionColumn: 'title',
+            caption: 'Film',
+            properties: [
+                { column: 'film_id', caption: 'Film Id', type: 'INTEGER' },
+                { column: 'title', caption: 'Title', type: 'STRING' },
+                { column: 'description', caption: 'Description', type: 'STRING' },
+                { column: 'release_year', caption: 'Release Year', type: 'STRING' },
+                { column: 'language_id', caption: 'Language Id', type: 'INTEGER' },
+                { column: 'original_language_id', caption: 'Original Language Id', type: 'INTEGER' },
+                { column: 'rental_duration', caption: 'Rental Duration', type: 'INTEGER' },
+                { column: 'rental_rate', caption: 'Rental Rate', type: 'STRING' },
+                { column: 'length', caption: 'Length', type: 'INTEGER' },
+                { column: 'replacement_cost', caption: 'Replacement Cost', type: 'STRING' },
+                { column: 'rating', caption: 'Rating', type: 'STRING' },
+                { column: 'special_features', caption: 'Special Features', type: 'STRING' },
+                { column: 'last_update', caption: 'Last Update', type: 'DATETIME' },
+            ]
+        },
+        {
+            name: 'salesByStore',
+            tableName: 'sales_by_store',
+            foreignKey: 'store_id',
+            primaryKey: 'store_id',
+            captionColumn: 'store',
+            caption: 'Sales By Store',
+            properties: [
+                { column: 'store_id', caption: 'Store Id', type: 'INTEGER' },
+                { column: 'store', caption: 'Store', type: 'STRING' },
+                { column: 'manager', caption: 'Manager', type: 'STRING' },
+                { column: 'total_sales', caption: 'Total Sales', type: 'STRING' },
+            ]
+        },
+    ],
+
+    properties: [
+        { column: 'inventory_id', caption: 'Inventory Id', type: 'INTEGER' },
+        { column: 'last_update', caption: 'Last Update', type: 'DATETIME' },
+    ],
+};

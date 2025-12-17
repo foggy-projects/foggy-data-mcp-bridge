@@ -1,0 +1,45 @@
+import '@bankSalesTradingDataSource';
+/**
+ * bitcoin_transactions 事实表模型
+ * 
+ * 数据库: bank_sales_trading
+ * 数据源: bankSalesTradingDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'BitcoinTransactionsModel',
+    caption: 'Bitcoin Transactions',
+    tableName: 'bitcoin_transactions',
+    dataSource: bankSalesTradingDataSource,
+    idColumn: 'txn_id',
+
+    dimensions: [
+        {
+            name: 'bitcoinMembers',
+            tableName: 'bitcoin_members',
+            foreignKey: 'member_id',
+            primaryKey: 'member_id',
+            captionColumn: 'first_name',
+            caption: 'Bitcoin Members',
+            properties: [
+                { column: 'member_id', caption: 'Member Id', type: 'STRING' },
+                { column: 'first_name', caption: 'First Name', type: 'STRING' },
+                { column: 'region', caption: 'Region', type: 'STRING' },
+            ]
+        },
+    ],
+
+    properties: [
+        { column: 'txn_id', caption: 'Txn Id', type: 'INTEGER' },
+        { column: 'ticker', caption: 'Ticker', type: 'STRING' },
+        { column: 'txn_date', caption: 'Txn Date', type: 'STRING' },
+        { column: 'txn_type', caption: 'Txn Type', type: 'STRING' },
+        { column: 'txn_time', caption: 'Txn Time', type: 'STRING' },
+    ],
+
+    measures: [
+        { column: 'quantity', caption: 'Quantity', type: 'DECIMAL', aggregation: 'sum' },
+        { column: 'percentage_fee', caption: 'Percentage Fee', type: 'DECIMAL', aggregation: 'sum' },
+    ]
+};

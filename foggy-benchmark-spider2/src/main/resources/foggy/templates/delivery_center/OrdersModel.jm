@@ -1,0 +1,82 @@
+import '@deliveryCenterDataSource';
+/**
+ * orders 事实表模型
+ * 
+ * 数据库: delivery_center
+ * 数据源: deliveryCenterDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'OrdersModel',
+    caption: '订单',
+    tableName: 'orders',
+    dataSource: deliveryCenterDataSource,
+    idColumn: 'order_id',
+
+    dimensions: [
+        {
+            name: 'stores',
+            tableName: 'stores',
+            foreignKey: 'store_id',
+            primaryKey: 'store_id',
+            captionColumn: 'store_name',
+            caption: 'Stores',
+            properties: [
+                { column: 'store_id', caption: 'Store Id', type: 'INTEGER' },
+                { column: 'hub_id', caption: 'Hub Id', type: 'INTEGER' },
+                { column: 'store_name', caption: 'Store Name', type: 'STRING' },
+                { column: 'store_segment', caption: 'Store Segment', type: 'STRING' },
+                { column: 'store_plan_price', caption: 'Store Plan Price', type: 'STRING' },
+                { column: 'store_latitude', caption: 'Store Latitude', type: 'STRING' },
+                { column: 'store_longitude', caption: 'Store Longitude', type: 'STRING' },
+            ]
+        },
+        {
+            name: 'channels',
+            tableName: 'channels',
+            foreignKey: 'channel_id',
+            primaryKey: 'channel_id',
+            captionColumn: 'channel_name',
+            caption: 'Channels',
+            properties: [
+                { column: 'channel_id', caption: 'Channel Id', type: 'INTEGER' },
+                { column: 'channel_name', caption: 'Channel Name', type: 'STRING' },
+                { column: 'channel_type', caption: 'Channel Type', type: 'STRING' },
+            ]
+        },
+    ],
+
+    properties: [
+        { column: 'order_id', caption: 'Order Id', type: 'INTEGER' },
+        { column: 'payment_order_id', caption: 'Payment Order Id', type: 'INTEGER' },
+        { column: 'delivery_order_id', caption: 'Delivery Order Id', type: 'INTEGER' },
+        { column: 'order_status', caption: 'Order Status', type: 'STRING' },
+        { column: 'order_created_hour', caption: 'Order Created Hour', type: 'INTEGER' },
+        { column: 'order_created_minute', caption: 'Order Created Minute', type: 'INTEGER' },
+        { column: 'order_created_day', caption: 'Order Created Day', type: 'INTEGER' },
+        { column: 'order_created_month', caption: 'Order Created Month', type: 'INTEGER' },
+        { column: 'order_created_year', caption: 'Order Created Year', type: 'INTEGER' },
+        { column: 'order_moment_created', caption: 'Order Moment Created', type: 'DATETIME' },
+        { column: 'order_moment_accepted', caption: 'Order Moment Accepted', type: 'DATETIME' },
+        { column: 'order_moment_ready', caption: 'Order Moment Ready', type: 'DATETIME' },
+        { column: 'order_moment_collected', caption: 'Order Moment Collected', type: 'DATETIME' },
+        { column: 'order_moment_in_expedition', caption: 'Order Moment In Expedition', type: 'DATETIME' },
+        { column: 'order_moment_delivering', caption: 'Order Moment Delivering', type: 'DATETIME' },
+        { column: 'order_moment_delivered', caption: 'Order Moment Delivered', type: 'DATETIME' },
+        { column: 'order_moment_finished', caption: 'Order Moment Finished', type: 'DATETIME' },
+        { column: 'order_metric_collected_time', caption: 'Order Metric Collected Time', type: 'STRING' },
+        { column: 'order_metric_paused_time', caption: 'Order Metric Paused Time', type: 'STRING' },
+        { column: 'order_metric_production_time', caption: 'Order Metric Production Time', type: 'STRING' },
+        { column: 'order_metric_walking_time', caption: 'Order Metric Walking Time', type: 'STRING' },
+        { column: 'order_metric_expediton_speed_time', caption: 'Order Metric Expediton Speed Time', type: 'STRING' },
+        { column: 'order_metric_transit_time', caption: 'Order Metric Transit Time', type: 'STRING' },
+        { column: 'order_metric_cycle_time', caption: 'Order Metric Cycle Time', type: 'STRING' },
+    ],
+
+    measures: [
+        { column: 'order_amount', caption: 'Order Amount', type: 'STRING', aggregation: 'sum' },
+        { column: 'order_delivery_fee', caption: 'Order Delivery Fee', type: 'STRING', aggregation: 'sum' },
+        { column: 'order_delivery_cost', caption: 'Order Delivery Cost', type: 'STRING', aggregation: 'sum' },
+    ]
+};

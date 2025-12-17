@@ -1,0 +1,21 @@
+import '@northwindDataSource';
+/**
+ * employeeterritories 维度表模型
+ * 
+ * 数据库: northwind
+ * 数据源: northwindDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'EmployeeterritoriesModel',
+    caption: 'Employeeterritories',
+    tableName: 'employeeterritories',
+    dataSource: northwindDataSource,
+    idColumn: 'employeeid',
+
+    properties: [
+        { column: 'employeeid', caption: 'Employeeid', type: 'INTEGER' },
+        { column: 'territoryid', caption: 'Territoryid', type: 'STRING' },
+    ],
+};

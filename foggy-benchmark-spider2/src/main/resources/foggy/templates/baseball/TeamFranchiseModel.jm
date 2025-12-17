@@ -1,0 +1,23 @@
+import '@baseballDataSource';
+/**
+ * team_franchise 维度表模型
+ * 
+ * 数据库: Baseball
+ * 数据源: baseballDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'TeamFranchiseModel',
+    caption: 'Team Franchise',
+    tableName: 'team_franchise',
+    dataSource: baseballDataSource,
+    idColumn: 'franchise_id',
+
+    properties: [
+        { column: 'franchise_id', caption: 'Franchise Id', type: 'STRING' },
+        { column: 'franchise_name', caption: 'Franchise Name', type: 'STRING' },
+        { column: 'active', caption: 'Active', type: 'STRING' },
+        { column: 'na_assoc', caption: 'Na Assoc', type: 'STRING' },
+    ],
+};

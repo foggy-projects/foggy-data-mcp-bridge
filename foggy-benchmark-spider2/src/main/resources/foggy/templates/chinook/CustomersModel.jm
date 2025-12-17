@@ -1,0 +1,32 @@
+import '@chinookDataSource';
+/**
+ * customers 维度表模型
+ * 
+ * 数据库: chinook
+ * 数据源: chinookDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'CustomersModel',
+    caption: '客户',
+    tableName: 'customers',
+    dataSource: chinookDataSource,
+    idColumn: 'CustomerId',
+
+    properties: [
+        { column: 'CustomerId', caption: 'Customerid', type: 'INTEGER' },
+        { column: 'FirstName', caption: 'Firstname', type: 'STRING' },
+        { column: 'LastName', caption: 'Lastname', type: 'STRING' },
+        { column: 'Company', caption: 'Company', type: 'STRING' },
+        { column: 'Address', caption: 'Address', type: 'STRING' },
+        { column: 'City', caption: 'City', type: 'STRING' },
+        { column: 'State', caption: 'State', type: 'STRING' },
+        { column: 'Country', caption: 'Country', type: 'STRING' },
+        { column: 'PostalCode', caption: 'Postalcode', type: 'STRING' },
+        { column: 'Phone', caption: 'Phone', type: 'STRING' },
+        { column: 'Fax', caption: 'Fax', type: 'STRING' },
+        { column: 'Email', caption: 'Email', type: 'STRING' },
+        { column: 'SupportRepId', caption: 'Supportrepid', type: 'INTEGER' },
+    ],
+};

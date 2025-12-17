@@ -1,0 +1,28 @@
+import '@educationBusinessDataSource';
+/**
+ * university_student 维度表模型
+ * 
+ * 数据库: education_business
+ * 数据源: educationBusinessDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'UniversityStudentModel',
+    caption: 'University Student',
+    tableName: 'university_student',
+    dataSource: educationBusinessDataSource,
+    idColumn: 'StdNo',
+
+    properties: [
+        { column: 'StdNo', caption: 'Stdno', type: 'INTEGER' },
+        { column: 'StdFirstName', caption: 'Stdfirstname', type: 'STRING' },
+        { column: 'StdLastName', caption: 'Stdlastname', type: 'STRING' },
+        { column: 'StdCity', caption: 'Stdcity', type: 'STRING' },
+        { column: 'StdState', caption: 'Stdstate', type: 'STRING' },
+        { column: 'StdZip', caption: 'Stdzip', type: 'STRING' },
+        { column: 'StdMajor', caption: 'Stdmajor', type: 'STRING' },
+        { column: 'StdClass', caption: 'Stdclass', type: 'STRING' },
+        { column: 'StdGPA', caption: 'Stdgpa', type: 'DECIMAL' },
+    ],
+};

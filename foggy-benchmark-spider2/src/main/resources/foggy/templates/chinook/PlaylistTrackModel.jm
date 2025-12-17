@@ -1,0 +1,21 @@
+import '@chinookDataSource';
+/**
+ * playlist_track 维度表模型
+ * 
+ * 数据库: chinook
+ * 数据源: chinookDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'PlaylistTrackModel',
+    caption: 'Playlist Track',
+    tableName: 'playlist_track',
+    dataSource: chinookDataSource,
+    idColumn: 'PlaylistId',
+
+    properties: [
+        { column: 'PlaylistId', caption: 'Playlistid', type: 'INTEGER' },
+        { column: 'TrackId', caption: 'Trackid', type: 'INTEGER' },
+    ],
+};

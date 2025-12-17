@@ -1,0 +1,28 @@
+import '@baseballDataSource';
+/**
+ * hall_of_fame 维度表模型
+ * 
+ * 数据库: Baseball
+ * 数据源: baseballDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'HallOfFameModel',
+    caption: 'Hall Of Fame',
+    tableName: 'hall_of_fame',
+    dataSource: baseballDataSource,
+    idColumn: 'player_id',
+
+    properties: [
+        { column: 'player_id', caption: 'Player Id', type: 'STRING' },
+        { column: 'yearid', caption: 'Yearid', type: 'INTEGER' },
+        { column: 'votedby', caption: 'Votedby', type: 'STRING' },
+        { column: 'ballots', caption: 'Ballots', type: 'STRING' },
+        { column: 'needed', caption: 'Needed', type: 'STRING' },
+        { column: 'votes', caption: 'Votes', type: 'STRING' },
+        { column: 'inducted', caption: 'Inducted', type: 'STRING' },
+        { column: 'category', caption: 'Category', type: 'STRING' },
+        { column: 'needed_note', caption: 'Needed Note', type: 'STRING' },
+    ],
+};

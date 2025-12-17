@@ -1,0 +1,40 @@
+/**
+ * stores 查询模型
+ * 
+ * 数据库: delivery_center
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'StoresQueryModel',
+    model: 'StoresModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'store_id' },
+                { name: 'hubs$id' },
+                { name: 'store_name' },
+                { name: 'store_segment' },
+                { name: 'store_latitude' },
+                { name: 'store_longitude' },
+            ]
+        },
+        {
+            caption: '关联维度',
+            items: [
+                { name: 'hubs$caption' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'store_plan_price' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

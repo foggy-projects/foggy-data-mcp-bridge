@@ -1,0 +1,25 @@
+import '@educationBusinessDataSource';
+/**
+ * hardware_fact_manufacturing_cost 事实表模型
+ * 
+ * 数据库: education_business
+ * 数据源: educationBusinessDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'HardwareFactManufacturingCostModel',
+    caption: 'Hardware Fact Manufacturing Cost',
+    tableName: 'hardware_fact_manufacturing_cost',
+    dataSource: educationBusinessDataSource,
+    idColumn: 'product_code',
+
+    properties: [
+        { column: 'product_code', caption: 'Product Code', type: 'STRING' },
+    ],
+
+    measures: [
+        { column: 'cost_year', caption: 'Cost Year', type: 'INTEGER', aggregation: 'sum' },
+        { column: 'manufacturing_cost', caption: 'Manufacturing Cost', type: 'DECIMAL', aggregation: 'sum' },
+    ]
+};

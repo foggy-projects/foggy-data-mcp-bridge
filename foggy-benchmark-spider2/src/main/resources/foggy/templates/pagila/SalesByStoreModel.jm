@@ -1,0 +1,23 @@
+import '@pagilaDataSource';
+/**
+ * sales_by_store 维度表模型
+ * 
+ * 数据库: Pagila
+ * 数据源: pagilaDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'SalesByStoreModel',
+    caption: 'Sales By Store',
+    tableName: 'sales_by_store',
+    dataSource: pagilaDataSource,
+    idColumn: 'store_id',
+
+    properties: [
+        { column: 'store_id', caption: 'Store Id', type: 'INTEGER' },
+        { column: 'store', caption: 'Store', type: 'STRING' },
+        { column: 'manager', caption: 'Manager', type: 'STRING' },
+        { column: 'total_sales', caption: 'Total Sales', type: 'STRING' },
+    ],
+};

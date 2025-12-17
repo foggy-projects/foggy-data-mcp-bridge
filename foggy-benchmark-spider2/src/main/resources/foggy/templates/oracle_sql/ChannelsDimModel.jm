@@ -1,0 +1,22 @@
+import '@oracleSqlDataSource';
+/**
+ * channels_dim 维度表模型
+ * 
+ * 数据库: oracle_sql
+ * 数据源: oracleSqlDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'ChannelsDimModel',
+    caption: 'Channels Dim',
+    tableName: 'channels_dim',
+    dataSource: oracleSqlDataSource,
+    idColumn: 'id',
+
+    properties: [
+        { column: 'id', caption: 'Id', type: 'INTEGER' },
+        { column: 'name', caption: 'Name', type: 'STRING' },
+        { column: 'shortcut', caption: 'Shortcut', type: 'STRING' },
+    ],
+};

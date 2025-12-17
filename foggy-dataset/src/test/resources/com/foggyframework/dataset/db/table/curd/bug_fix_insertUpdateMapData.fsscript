@@ -1,0 +1,112 @@
+import {newSqlTableRowEditor} from '@dataSetFsscriptUtils';
+import '@dataSource';
+
+const testData = {
+    "orderType": 10,
+    "targetTeamCaption": "盈合万货城",
+    "latestMessageItem": {
+        "orderType": 0,
+        "replyTime": 1677386657401,
+        "replierTeamId": "T00111322922",
+        "messageId": "5eb1ef76d86d4177b04bb5074f45fbe8",
+        "replier": {
+            "replierName": "梁守鑫",
+            "workonId": "WOR111461498",
+            "teamId": "T00111322922",
+            "teamCaption": "盈合万货城",
+            "tel": "18203640018",
+            "time": 1677386655000,
+            "ctVipId": "CV0113392489"
+        },
+        "messageContent": {"msg": "不发了", "imgs": []}
+    },
+    "lastModifiedDate": "2023-02-26T04:44:17.361713Z",
+    "orderId": "3511597",
+    "targetTeamId": "T00111322922",
+    "clearingTeamId": "T00111000679",
+    "type": 202,
+    "arbitration": false,
+    "version": 1,
+    "ownerTeamId": "T00111322922",
+    "cgVipTel": "18203640018",
+    "createdDate": "2023-02-26T04:44:17.361713Z",
+    "extData": {
+        "goodsInfoContentForm": {},
+        "messageItemForm": {"messageId": "", "messageContent": {"msg": "不发了", "imgs": []}}
+    },
+    "teamId": "T00111322922",
+    "applyCgVipId": "CV0113392489",
+    "targetTeams": ["T00111322922"],
+    "teamCaption": "盈合万货城",
+    "subType": 99,
+    "applyAction": {"$ref": "$.latestMessageItem"},
+    "id": "FMD11120",
+    "state": 100,
+    "order": 0
+};
+
+/**
+ * 构建申请，如改单申请、原返申请、移库等
+ * @param formData
+ */
+export const buildApply = (formData) => {
+    const orderType = formData.orderType;
+    const type = formData.type;
+
+    if (orderType == 10) {
+        const mm = {};
+        let key = '';
+        let row = null;
+        switch (type) {
+            case 200:
+                //TMS运单修改申请
+                key = 'updateApplyCard';
+                row={};
+                row.es_order_id = formData.orderId;
+                row.update_apply_form_id = formData.id;
+                row.update_apply_state = formData.state;
+                row.update_apply_time = toDate(formData.createdDate);
+                break;
+            case 203:
+                //TMS运单原返申请
+                key = 'returnApplyCard';
+                row={};
+                row.es_order_id = formData.orderId;
+                row.return_apply_form_id = formData.id;
+                row.return_apply_state = formData.state;
+                row.return_apply_time = toDate(formData.createdDate);
+                break;
+            case 201:
+                //TMS移库申请
+                key = 'movingApplyCard';
+                break;
+
+            default:
+                return {};
+        }
+        mm[key] = {
+            type,
+            orderType,
+            version: formData.version,
+            formDataId: formData.id,
+            latestMessageItem: formData.latestMessageItem,
+            processType: formData.processType,
+            processState: formData.processState,
+            applyAction: formData.applyAction
+        };
+        return {
+            key,
+            mongo: mm,
+            row
+        };
+    }
+
+    return {};
+};
+
+let rowEditor = newSqlTableRowEditor(dataSource, 'ES_ORDER_APPLY');
+const apply = buildApply(testData);
+if(apply.row){
+    rowEditor.insertUpdateMapData(dataSource, key, apply.row, null, true);
+}
+

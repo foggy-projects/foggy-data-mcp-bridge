@@ -1,0 +1,27 @@
+import '@sqliteSakilaDataSource';
+/**
+ * address 维度表模型
+ * 
+ * 数据库: SQLITE_SAKILA
+ * 数据源: sqliteSakilaDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'AddressModel',
+    caption: 'Address',
+    tableName: 'address',
+    dataSource: sqliteSakilaDataSource,
+    idColumn: 'address_id',
+
+    properties: [
+        { column: 'address_id', caption: 'Address Id', type: 'INTEGER' },
+        { column: 'address', caption: 'Address', type: 'STRING' },
+        { column: 'address2', caption: 'Address2', type: 'STRING' },
+        { column: 'district', caption: 'District', type: 'STRING' },
+        { column: 'city_id', caption: 'City Id', type: 'INTEGER' },
+        { column: 'postal_code', caption: 'Postal Code', type: 'STRING' },
+        { column: 'phone', caption: 'Phone', type: 'STRING' },
+        { column: 'last_update', caption: 'Last Update', type: 'DATETIME' },
+    ],
+};

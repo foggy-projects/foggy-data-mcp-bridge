@@ -1,0 +1,21 @@
+import '@oracleSqlDataSource';
+/**
+ * server_heartbeat 维度表模型
+ * 
+ * 数据库: oracle_sql
+ * 数据源: oracleSqlDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'ServerHeartbeatModel',
+    caption: 'Server Heartbeat',
+    tableName: 'server_heartbeat',
+    dataSource: oracleSqlDataSource,
+    idColumn: 'server',
+
+    properties: [
+        { column: 'server', caption: 'Server', type: 'STRING' },
+        { column: 'beat_time', caption: 'Beat Time', type: 'STRING' },
+    ],
+};

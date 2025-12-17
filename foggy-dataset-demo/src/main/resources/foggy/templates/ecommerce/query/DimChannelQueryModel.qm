@@ -1,0 +1,39 @@
+/**
+ * 渠道维度查询模型
+ *
+ * @caption 渠道维度查询
+ * @description 查询电商销售渠道信息，包括渠道类型、平台、状态等属性
+ */
+export const queryModel = {
+    name: 'DimChannelQueryModel',
+    caption: '渠道维度查询',
+    description: '查询电商销售渠道信息，包括渠道类型、平台、状态等属性',
+    model: 'DimChannelModel',
+
+    // 列组定义
+    columnGroups: [
+        {
+            caption: '渠道基本信息',
+            items: [
+                { name: 'channelName' },
+                { name: 'channelId' },
+                { name: 'channelType' },
+                { name: 'platform' },
+                { name: 'status' }
+            ]
+        },
+        {
+            caption: '时间信息',
+            items: [
+                { name: 'createdAt' }
+            ]
+        }
+    ],
+
+    // 默认排序
+    orders: [
+        { name: 'channelName', order: 'asc' }
+    ],
+
+    accesses: []
+};

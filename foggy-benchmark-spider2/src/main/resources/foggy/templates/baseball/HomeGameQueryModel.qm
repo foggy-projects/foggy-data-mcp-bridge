@@ -1,0 +1,38 @@
+/**
+ * home_game 查询模型
+ * 
+ * 数据库: Baseball
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'HomeGameQueryModel',
+    model: 'HomeGameModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'year' },
+                { name: 'league_id' },
+                { name: 'team$id' },
+                { name: 'park$id' },
+                { name: 'span_first' },
+                { name: 'span_last' },
+                { name: 'games' },
+                { name: 'openings' },
+                { name: 'attendance' },
+            ]
+        },
+        {
+            caption: '关联维度',
+            items: [
+                { name: 'team$caption' },
+                { name: 'park$caption' },
+            ]
+        },
+    ],
+
+    orders: [],
+    accesses: []
+};

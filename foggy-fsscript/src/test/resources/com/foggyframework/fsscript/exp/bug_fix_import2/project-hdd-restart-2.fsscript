@@ -1,0 +1,9 @@
+import {tmsDeployNodeConfigs} from "./config-2.fsscript";
+
+
+export const restartAllHdd = (config) => {
+
+
+    return tmsDeployNodeConfigs;
+
+}

@@ -1,0 +1,21 @@
+import '@wweDataSource';
+/**
+ * Wrestlers 维度表模型
+ * 
+ * 数据库: WWE
+ * 数据源: wweDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'WrestlersModel',
+    caption: 'Wrestlers',
+    tableName: 'Wrestlers',
+    dataSource: wweDataSource,
+    idColumn: 'id',
+
+    properties: [
+        { column: 'id', caption: 'Id', type: 'INTEGER' },
+        { column: 'name', caption: 'Name', type: 'STRING' },
+    ],
+};

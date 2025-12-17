@@ -1,0 +1,35 @@
+import '@modernDataDataSource';
+/**
+ * trees 维度表模型
+ * 
+ * 数据库: modern_data
+ * 数据源: modernDataDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'TreesModel',
+    caption: 'Trees',
+    tableName: 'trees',
+    dataSource: modernDataDataSource,
+    idColumn: 'tree_id',
+
+    properties: [
+        { column: 'idx', caption: 'Idx', type: 'INTEGER' },
+        { column: 'tree_id', caption: 'Tree Id', type: 'INTEGER' },
+        { column: 'tree_dbh', caption: 'Tree Dbh', type: 'INTEGER' },
+        { column: 'stump_diam', caption: 'Stump Diam', type: 'INTEGER' },
+        { column: 'status', caption: 'Status', type: 'STRING' },
+        { column: 'health', caption: 'Health', type: 'STRING' },
+        { column: 'spc_latin', caption: 'Spc Latin', type: 'STRING' },
+        { column: 'spc_common', caption: 'Spc Common', type: 'STRING' },
+        { column: 'address', caption: 'Address', type: 'STRING' },
+        { column: 'zipcode', caption: 'Zipcode', type: 'INTEGER' },
+        { column: 'borocode', caption: 'Borocode', type: 'INTEGER' },
+        { column: 'boroname', caption: 'Boroname', type: 'STRING' },
+        { column: 'nta_name', caption: 'Nta Name', type: 'STRING' },
+        { column: 'state', caption: 'State', type: 'STRING' },
+        { column: 'latitude', caption: 'Latitude', type: 'DECIMAL' },
+        { column: 'longitude', caption: 'Longitude', type: 'DECIMAL' },
+    ],
+};

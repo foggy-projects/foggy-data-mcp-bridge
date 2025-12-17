@@ -1,0 +1,24 @@
+import '@adventureworksDataSource';
+/**
+ * productsubcategory 维度表模型
+ * 
+ * 数据库: AdventureWorks
+ * 数据源: adventureworksDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'ProductsubcategoryModel',
+    caption: 'Productsubcategory',
+    tableName: 'productsubcategory',
+    dataSource: adventureworksDataSource,
+    idColumn: 'productsubcategoryid',
+
+    properties: [
+        { column: 'productsubcategoryid', caption: 'Productsubcategoryid', type: 'INTEGER' },
+        { column: 'productcategoryid', caption: 'Productcategoryid', type: 'INTEGER' },
+        { column: 'name', caption: 'Name', type: 'STRING' },
+        { column: 'rowguid', caption: 'Rowguid', type: 'STRING' },
+        { column: 'modifieddate', caption: 'Modifieddate', type: 'DAY' },
+    ],
+};

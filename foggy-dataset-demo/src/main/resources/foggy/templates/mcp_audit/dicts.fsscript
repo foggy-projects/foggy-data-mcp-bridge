@@ -1,0 +1,49 @@
+/**
+ * MCP 审计日志字典定义
+ */
+import { registerDict } from '@jdbcModelDictService';
+
+export const dicts = {
+    /**
+     * 用户角色
+     */
+    user_role: registerDict({
+        id: 'mcp_user_role',
+        caption: '用户角色',
+        items: [
+            { value: 'ADMIN', label: '管理员' },
+            { value: 'ANALYST', label: '数据分析师' },
+            { value: 'BUSINESS', label: '业务人员' }
+        ]
+    }),
+
+    /**
+     * 工具名称
+     */
+    tool_name: registerDict({
+        id: 'mcp_tool_name',
+        caption: '工具名称',
+        items: [
+            { value: 'dataset.get_metadata', label: '获取元数据' },
+            { value: 'dataset.describe_model_internal', label: '模型详情' },
+            { value: 'dataset.query_model_v2', label: '数据查询' },
+            { value: 'dataset.export_with_chart', label: '导出图表' },
+            { value: 'chart.generate', label: '生成图表' },
+            { value: 'dataset_nl.query', label: '自然语言查询' }
+        ]
+    }),
+
+    /**
+     * 错误类型
+     */
+    error_type: registerDict({
+        id: 'mcp_error_type',
+        caption: '错误类型',
+        items: [
+            { value: 'JSON_PARSE_ERROR', label: 'JSON解析错误' },
+            { value: 'EXECUTION_ERROR', label: '执行错误' },
+            { value: 'TIMEOUT_ERROR', label: '超时错误' },
+            { value: 'AUTH_ERROR', label: '认证错误' }
+        ]
+    })
+}

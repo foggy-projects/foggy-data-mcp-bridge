@@ -1,0 +1,38 @@
+/**
+ * customer 查询模型
+ * 
+ * 数据库: Pagila
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'CustomerQueryModel',
+    model: 'CustomerModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'customer_id' },
+                { name: 'salesByStore$id' },
+                { name: 'first_name' },
+                { name: 'last_name' },
+                { name: 'email' },
+                { name: 'address$id' },
+                { name: 'active' },
+                { name: 'create_date' },
+                { name: 'last_update' },
+            ]
+        },
+        {
+            caption: '关联维度',
+            items: [
+                { name: 'salesByStore$caption' },
+                { name: 'address$caption' },
+            ]
+        },
+    ],
+
+    orders: [],
+    accesses: []
+};

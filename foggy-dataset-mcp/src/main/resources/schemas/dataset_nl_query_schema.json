@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "description": "自然语言数据查询",
+  "properties": {
+    "query": {
+      "type": "string",
+      "description": "自然语言查询内容，使用中文描述查询需求"
+    },
+    "session_id": {
+      "type": "string",
+      "description": "会话ID，用于保持上下文连续性"
+    },
+    "cursor": {
+      "type": "string",
+      "description": "分页游标，用于获取下一页数据"
+    },
+    "format": {
+      "type": "string",
+      "enum": ["table", "json", "summary"],
+      "default": "table",
+      "description": "输出格式：table(表格)/json(结构化)/summary(摘要)"
+    },
+    "hints": {
+      "type": "object",
+      "description": "查询优化提示",
+      "properties": {
+        "prefer_model": {
+          "type": "string",
+          "description": "优先使用的数据模型名称"
+        },
+        "prefer_fields": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "优先返回的字段列表"
+        },
+        "time_range": {
+          "type": "string",
+          "description": "时间范围提示，如 last_7_days"
+        }
+      }
+    },
+    "stream": {
+      "type": "boolean",
+      "default": true,
+      "description": "启用流式响应"
+    }
+  },
+  "required": ["query"]
+}

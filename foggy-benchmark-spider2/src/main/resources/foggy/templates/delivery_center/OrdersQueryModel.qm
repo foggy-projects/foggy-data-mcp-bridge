@@ -1,0 +1,63 @@
+/**
+ * orders 查询模型
+ * 
+ * 数据库: delivery_center
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'OrdersQueryModel',
+    model: 'OrdersModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'order_id' },
+                { name: 'stores$id' },
+                { name: 'channels$id' },
+                { name: 'payment_order_id' },
+                { name: 'delivery_order_id' },
+                { name: 'order_status' },
+                { name: 'order_created_hour' },
+                { name: 'order_created_minute' },
+                { name: 'order_created_day' },
+                { name: 'order_created_month' },
+                { name: 'order_created_year' },
+                { name: 'order_moment_created' },
+                { name: 'order_moment_accepted' },
+                { name: 'order_moment_ready' },
+                { name: 'order_moment_collected' },
+                { name: 'order_moment_in_expedition' },
+                { name: 'order_moment_delivering' },
+                { name: 'order_moment_delivered' },
+                { name: 'order_moment_finished' },
+                { name: 'order_metric_collected_time' },
+                { name: 'order_metric_paused_time' },
+                { name: 'order_metric_production_time' },
+                { name: 'order_metric_walking_time' },
+                { name: 'order_metric_expediton_speed_time' },
+                { name: 'order_metric_transit_time' },
+                { name: 'order_metric_cycle_time' },
+            ]
+        },
+        {
+            caption: '关联维度',
+            items: [
+                { name: 'stores$caption' },
+                { name: 'channels$caption' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'order_amount' },
+                { name: 'order_delivery_fee' },
+                { name: 'order_delivery_cost' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

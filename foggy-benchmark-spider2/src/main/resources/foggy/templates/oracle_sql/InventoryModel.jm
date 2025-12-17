@@ -1,0 +1,57 @@
+import '@oracleSqlDataSource';
+/**
+ * inventory 事实表模型
+ * 
+ * 数据库: oracle_sql
+ * 数据源: oracleSqlDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'InventoryModel',
+    caption: 'Inventory',
+    tableName: 'inventory',
+    dataSource: oracleSqlDataSource,
+    idColumn: 'location_id',
+
+    dimensions: [
+        {
+            name: 'products',
+            tableName: 'products',
+            foreignKey: 'product_id',
+            primaryKey: 'group_id',
+            captionColumn: 'name',
+            caption: '产品',
+            properties: [
+                { column: 'id', caption: 'Id', type: 'INTEGER' },
+                { column: 'name', caption: 'Name', type: 'STRING' },
+                { column: 'group_id', caption: 'Group Id', type: 'INTEGER' },
+            ]
+        },
+        {
+            name: 'purchases',
+            tableName: 'purchases',
+            foreignKey: 'purchase_id',
+            primaryKey: 'brewery_id',
+            captionColumn: 'purchased',
+            caption: 'Purchases',
+            properties: [
+                { column: 'id', caption: 'Id', type: 'INTEGER' },
+                { column: 'purchased', caption: 'Purchased', type: 'STRING' },
+                { column: 'brewery_id', caption: 'Brewery Id', type: 'INTEGER' },
+                { column: 'product_id', caption: 'Product Id', type: 'INTEGER' },
+                { column: 'qty', caption: 'Qty', type: 'INTEGER' },
+                { column: 'cost', caption: 'Cost', type: 'DECIMAL' },
+            ]
+        },
+    ],
+
+    properties: [
+        { column: 'id', caption: 'Id', type: 'INTEGER' },
+        { column: 'location_id', caption: 'Location Id', type: 'INTEGER' },
+    ],
+
+    measures: [
+        { column: 'qty', caption: 'Qty', type: 'DECIMAL', aggregation: 'sum' },
+    ]
+};

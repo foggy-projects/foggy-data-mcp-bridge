@@ -1,0 +1,33 @@
+/**
+ * player_match 查询模型
+ * 
+ * 数据库: IPL
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'PlayerMatchQueryModel',
+    model: 'PlayerMatchModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'match_id' },
+                { name: 'player$id' },
+                { name: 'role' },
+                { name: 'team$id' },
+            ]
+        },
+        {
+            caption: '关联维度',
+            items: [
+                { name: 'player$caption' },
+                { name: 'team$caption' },
+            ]
+        },
+    ],
+
+    orders: [],
+    accesses: []
+};

@@ -1,0 +1,51 @@
+import '@euSoccerDataSource';
+/**
+ * match_view 维度表模型
+ * 
+ * 数据库: EU_soccer
+ * 数据源: euSoccerDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'MatchViewModel',
+    caption: 'Match View',
+    tableName: 'match_view',
+    dataSource: euSoccerDataSource,
+    idColumn: 'match_api_id',
+
+    properties: [
+        { column: 'id', caption: 'Id', type: 'INTEGER' },
+        { column: 'league', caption: 'League', type: 'STRING' },
+        { column: 'season', caption: 'Season', type: 'STRING' },
+        { column: 'match_api_id', caption: 'Match Api Id', type: 'INTEGER' },
+        { column: 'home_team', caption: 'Home Team', type: 'STRING' },
+        { column: 'away_team', caption: 'Away Team', type: 'STRING' },
+        { column: 'home_team_goal', caption: 'Home Team Goal', type: 'INTEGER' },
+        { column: 'away_team_goal', caption: 'Away Team Goal', type: 'INTEGER' },
+        { column: 'home_gk', caption: 'Home Gk', type: 'STRING' },
+        { column: 'home_center_back_1', caption: 'Home Center Back 1', type: 'STRING' },
+        { column: 'home_center_back_2', caption: 'Home Center Back 2', type: 'STRING' },
+        { column: 'home_right_back', caption: 'Home Right Back', type: 'STRING' },
+        { column: 'home_left_back', caption: 'Home Left Back', type: 'STRING' },
+        { column: 'home_midfield_1', caption: 'Home Midfield 1', type: 'STRING' },
+        { column: 'home_midfield_2', caption: 'Home Midfield 2', type: 'STRING' },
+        { column: 'home_midfield_3', caption: 'Home Midfield 3', type: 'STRING' },
+        { column: 'home_midfield_4', caption: 'Home Midfield 4', type: 'STRING' },
+        { column: 'home_second_forward', caption: 'Home Second Forward', type: 'STRING' },
+        { column: 'home_center_forward', caption: 'Home Center Forward', type: 'STRING' },
+        { column: 'away_gk', caption: 'Away Gk', type: 'STRING' },
+        { column: 'away_center_back_1', caption: 'Away Center Back 1', type: 'STRING' },
+        { column: 'away_center_back_2', caption: 'Away Center Back 2', type: 'STRING' },
+        { column: 'away_right_back', caption: 'Away Right Back', type: 'STRING' },
+        { column: 'away_left_back', caption: 'Away Left Back', type: 'STRING' },
+        { column: 'away_midfield_1', caption: 'Away Midfield 1', type: 'STRING' },
+        { column: 'away_midfield_2', caption: 'Away Midfield 2', type: 'STRING' },
+        { column: 'away_midfield_3', caption: 'Away Midfield 3', type: 'STRING' },
+        { column: 'away_midfield_4', caption: 'Away Midfield 4', type: 'STRING' },
+        { column: 'away_second_forward', caption: 'Away Second Forward', type: 'STRING' },
+        { column: 'away_center_forward', caption: 'Away Center Forward', type: 'STRING' },
+        { column: 'goal', caption: 'Goal', type: 'STRING' },
+        { column: 'card', caption: 'Card', type: 'STRING' },
+    ],
+};

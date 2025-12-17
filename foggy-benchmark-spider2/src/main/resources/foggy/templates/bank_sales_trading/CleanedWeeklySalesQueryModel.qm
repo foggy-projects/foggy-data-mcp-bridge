@@ -1,0 +1,41 @@
+/**
+ * cleaned_weekly_sales 查询模型
+ * 
+ * 数据库: bank_sales_trading
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'CleanedWeeklySalesQueryModel',
+    model: 'CleanedWeeklySalesModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'week_date_formatted' },
+                { name: 'week_date' },
+                { name: 'region' },
+                { name: 'platform' },
+                { name: 'segment' },
+                { name: 'customer_type' },
+                { name: 'transactions' },
+                { name: 'calendar_year' },
+                { name: 'age_band' },
+                { name: 'demographic' },
+                { name: 'avg_transaction' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'sales' },
+                { name: 'week_number' },
+                { name: 'month_number' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

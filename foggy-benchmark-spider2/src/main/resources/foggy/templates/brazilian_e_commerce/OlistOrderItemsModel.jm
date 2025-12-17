@@ -1,0 +1,79 @@
+import '@brazilianECommerceDataSource';
+/**
+ * olist_order_items 事实表模型
+ * 
+ * 数据库: Brazilian_E_Commerce
+ * 数据源: brazilianECommerceDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'OlistOrderItemsModel',
+    caption: 'Olist Order Items',
+    tableName: 'olist_order_items',
+    dataSource: brazilianECommerceDataSource,
+    idColumn: 'order_id',
+
+    dimensions: [
+        {
+            name: 'olistOrderItems',
+            tableName: 'olist_order_items',
+            foreignKey: 'order_item_id',
+            primaryKey: 'order_id',
+            captionColumn: 'order_item_id',
+            caption: 'Olist Order Items',
+            properties: [
+                { column: 'order_id', caption: 'Order Id', type: 'STRING' },
+                { column: 'order_item_id', caption: 'Order Item Id', type: 'INTEGER' },
+                { column: 'product_id', caption: 'Product Id', type: 'STRING' },
+                { column: 'seller_id', caption: 'Seller Id', type: 'STRING' },
+                { column: 'shipping_limit_date', caption: 'Shipping Limit Date', type: 'STRING' },
+                { column: 'price', caption: 'Price', type: 'DECIMAL' },
+                { column: 'freight_value', caption: 'Freight Value', type: 'DECIMAL' },
+            ]
+        },
+        {
+            name: 'olistProducts',
+            tableName: 'olist_products',
+            foreignKey: 'product_id',
+            primaryKey: 'product_id',
+            captionColumn: 'product_category_name',
+            caption: 'Olist Products',
+            properties: [
+                { column: 'product_id', caption: 'Product Id', type: 'STRING' },
+                { column: 'product_category_name', caption: 'Product Category Name', type: 'STRING' },
+                { column: 'product_name_lenght', caption: 'Product Name Lenght', type: 'DECIMAL' },
+                { column: 'product_description_lenght', caption: 'Product Description Lenght', type: 'DECIMAL' },
+                { column: 'product_photos_qty', caption: 'Product Photos Qty', type: 'DECIMAL' },
+                { column: 'product_weight_g', caption: 'Product Weight G', type: 'DECIMAL' },
+                { column: 'product_length_cm', caption: 'Product Length Cm', type: 'DECIMAL' },
+                { column: 'product_height_cm', caption: 'Product Height Cm', type: 'DECIMAL' },
+                { column: 'product_width_cm', caption: 'Product Width Cm', type: 'DECIMAL' },
+            ]
+        },
+        {
+            name: 'olistSellers',
+            tableName: 'olist_sellers',
+            foreignKey: 'seller_id',
+            primaryKey: 'seller_id',
+            captionColumn: 'seller_zip_code_prefix',
+            caption: 'Olist Sellers',
+            properties: [
+                { column: 'seller_id', caption: 'Seller Id', type: 'STRING' },
+                { column: 'seller_zip_code_prefix', caption: 'Seller Zip Code Prefix', type: 'INTEGER' },
+                { column: 'seller_city', caption: 'Seller City', type: 'STRING' },
+                { column: 'seller_state', caption: 'Seller State', type: 'STRING' },
+            ]
+        },
+    ],
+
+    properties: [
+        { column: 'order_id', caption: 'Order Id', type: 'STRING' },
+        { column: 'shipping_limit_date', caption: 'Shipping Limit Date', type: 'STRING' },
+    ],
+
+    measures: [
+        { column: 'price', caption: 'Price', type: 'DECIMAL', aggregation: 'sum' },
+        { column: 'freight_value', caption: 'Freight Value', type: 'DECIMAL', aggregation: 'sum' },
+    ]
+};

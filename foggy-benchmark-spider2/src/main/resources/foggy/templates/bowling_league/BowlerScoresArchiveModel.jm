@@ -1,0 +1,25 @@
+import '@bowlingleagueDataSource';
+/**
+ * Bowler_Scores_Archive 维度表模型
+ * 
+ * 数据库: BowlingLeague
+ * 数据源: bowlingleagueDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'BowlerScoresArchiveModel',
+    caption: 'Bowler Scores Archive',
+    tableName: 'Bowler_Scores_Archive',
+    dataSource: bowlingleagueDataSource,
+    idColumn: 'MatchID',
+
+    properties: [
+        { column: 'MatchID', caption: 'Matchid', type: 'INTEGER' },
+        { column: 'GameNumber', caption: 'Gamenumber', type: 'INTEGER' },
+        { column: 'BowlerID', caption: 'Bowlerid', type: 'INTEGER' },
+        { column: 'RawScore', caption: 'Rawscore', type: 'INTEGER' },
+        { column: 'HandiCapScore', caption: 'Handicapscore', type: 'INTEGER' },
+        { column: 'WonGame', caption: 'Wongame', type: 'STRING' },
+    ],
+};

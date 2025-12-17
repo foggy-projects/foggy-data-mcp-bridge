@@ -1,0 +1,22 @@
+import '@bankSalesTradingDataSource';
+/**
+ * shopping_cart_users 维度表模型
+ * 
+ * 数据库: bank_sales_trading
+ * 数据源: bankSalesTradingDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'ShoppingCartUsersModel',
+    caption: 'Shopping Cart Users',
+    tableName: 'shopping_cart_users',
+    dataSource: bankSalesTradingDataSource,
+    idColumn: 'user_id',
+
+    properties: [
+        { column: 'user_id', caption: 'User Id', type: 'INTEGER' },
+        { column: 'cookie_id', caption: 'Cookie Id', type: 'STRING' },
+        { column: 'start_date', caption: 'Start Date', type: 'STRING' },
+    ],
+};

@@ -1,0 +1,26 @@
+import '@educationBusinessDataSource';
+/**
+ * hardware_dim_customer 维度表模型
+ * 
+ * 数据库: education_business
+ * 数据源: educationBusinessDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'HardwareDimCustomerModel',
+    caption: 'Hardware Dim Customer',
+    tableName: 'hardware_dim_customer',
+    dataSource: educationBusinessDataSource,
+    idColumn: 'customer_code',
+
+    properties: [
+        { column: 'customer_code', caption: 'Customer Code', type: 'INTEGER' },
+        { column: 'customer', caption: 'Customer', type: 'STRING' },
+        { column: 'platform', caption: 'Platform', type: 'STRING' },
+        { column: 'channel', caption: 'Channel', type: 'STRING' },
+        { column: 'market', caption: 'Market', type: 'STRING' },
+        { column: 'sub_zone', caption: 'Sub Zone', type: 'STRING' },
+        { column: 'region', caption: 'Region', type: 'STRING' },
+    ],
+};

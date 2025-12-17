@@ -1,0 +1,22 @@
+import '@deliveryCenterDataSource';
+/**
+ * drivers 维度表模型
+ * 
+ * 数据库: delivery_center
+ * 数据源: deliveryCenterDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'DriversModel',
+    caption: 'Drivers',
+    tableName: 'drivers',
+    dataSource: deliveryCenterDataSource,
+    idColumn: 'driver_id',
+
+    properties: [
+        { column: 'driver_id', caption: 'Driver Id', type: 'INTEGER' },
+        { column: 'driver_modal', caption: 'Driver Modal', type: 'STRING' },
+        { column: 'driver_type', caption: 'Driver Type', type: 'STRING' },
+    ],
+};

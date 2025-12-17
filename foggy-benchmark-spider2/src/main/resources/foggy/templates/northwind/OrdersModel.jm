@@ -1,0 +1,86 @@
+import '@northwindDataSource';
+/**
+ * orders 事实表模型
+ * 
+ * 数据库: northwind
+ * 数据源: northwindDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'OrdersModel',
+    caption: '订单',
+    tableName: 'orders',
+    dataSource: northwindDataSource,
+    idColumn: 'orderid',
+
+    dimensions: [
+        {
+            name: 'customers',
+            tableName: 'customers',
+            foreignKey: 'customerid',
+            primaryKey: 'customerid',
+            captionColumn: 'companyname',
+            caption: '客户',
+            properties: [
+                { column: 'customerid', caption: 'Customerid', type: 'STRING' },
+                { column: 'companyname', caption: 'Companyname', type: 'STRING' },
+                { column: 'contactname', caption: 'Contactname', type: 'STRING' },
+                { column: 'contacttitle', caption: 'Contacttitle', type: 'STRING' },
+                { column: 'address', caption: 'Address', type: 'STRING' },
+                { column: 'city', caption: 'City', type: 'STRING' },
+                { column: 'region', caption: 'Region', type: 'STRING' },
+                { column: 'postalcode', caption: 'Postalcode', type: 'STRING' },
+                { column: 'country', caption: 'Country', type: 'STRING' },
+                { column: 'phone', caption: 'Phone', type: 'STRING' },
+                { column: 'fax', caption: 'Fax', type: 'STRING' },
+            ]
+        },
+        {
+            name: 'employees',
+            tableName: 'employees',
+            foreignKey: 'employeeid',
+            primaryKey: 'employeeid',
+            captionColumn: 'title',
+            caption: 'Employees',
+            properties: [
+                { column: 'employeeid', caption: 'Employeeid', type: 'INTEGER' },
+                { column: 'lastname', caption: 'Lastname', type: 'STRING' },
+                { column: 'firstname', caption: 'Firstname', type: 'STRING' },
+                { column: 'title', caption: 'Title', type: 'STRING' },
+                { column: 'titleofcourtesy', caption: 'Titleofcourtesy', type: 'STRING' },
+                { column: 'birthdate', caption: 'Birthdate', type: 'DAY' },
+                { column: 'hiredate', caption: 'Hiredate', type: 'DAY' },
+                { column: 'address', caption: 'Address', type: 'STRING' },
+                { column: 'city', caption: 'City', type: 'STRING' },
+                { column: 'region', caption: 'Region', type: 'STRING' },
+                { column: 'postalcode', caption: 'Postalcode', type: 'STRING' },
+                { column: 'country', caption: 'Country', type: 'STRING' },
+                { column: 'homephone', caption: 'Homephone', type: 'STRING' },
+                { column: 'extension', caption: 'Extension', type: 'STRING' },
+                { column: 'photo', caption: 'Photo', type: 'STRING' },
+                { column: 'notes', caption: 'Notes', type: 'STRING' },
+                { column: 'reportsto', caption: 'Reportsto', type: 'INTEGER' },
+                { column: 'photopath', caption: 'Photopath', type: 'STRING' },
+            ]
+        },
+    ],
+
+    properties: [
+        { column: 'orderid', caption: 'Orderid', type: 'INTEGER' },
+        { column: 'orderdate', caption: 'Orderdate', type: 'DAY' },
+        { column: 'requireddate', caption: 'Requireddate', type: 'DAY' },
+        { column: 'shippeddate', caption: 'Shippeddate', type: 'DAY' },
+        { column: 'shipvia', caption: 'Shipvia', type: 'INTEGER' },
+        { column: 'shipname', caption: 'Shipname', type: 'STRING' },
+        { column: 'shipaddress', caption: 'Shipaddress', type: 'STRING' },
+        { column: 'shipcity', caption: 'Shipcity', type: 'STRING' },
+        { column: 'shipregion', caption: 'Shipregion', type: 'STRING' },
+        { column: 'shippostalcode', caption: 'Shippostalcode', type: 'STRING' },
+        { column: 'shipcountry', caption: 'Shipcountry', type: 'STRING' },
+    ],
+
+    measures: [
+        { column: 'freight', caption: 'Freight', type: 'DECIMAL', aggregation: 'sum' },
+    ]
+};

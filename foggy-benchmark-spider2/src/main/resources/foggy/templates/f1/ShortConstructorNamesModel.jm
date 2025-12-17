@@ -1,0 +1,21 @@
+import '@f1DataSource';
+/**
+ * short_constructor_names 维度表模型
+ * 
+ * 数据库: f1
+ * 数据源: f1DataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'ShortConstructorNamesModel',
+    caption: 'Short Constructor Names',
+    tableName: 'short_constructor_names',
+    dataSource: f1DataSource,
+    idColumn: 'constructor_ref',
+
+    properties: [
+        { column: 'constructor_ref', caption: 'Constructor Ref', type: 'STRING' },
+        { column: 'short_name', caption: 'Short Name', type: 'STRING' },
+    ],
+};

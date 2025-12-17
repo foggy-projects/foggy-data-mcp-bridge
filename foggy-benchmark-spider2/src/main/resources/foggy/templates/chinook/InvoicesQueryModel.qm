@@ -1,0 +1,42 @@
+/**
+ * invoices 查询模型
+ * 
+ * 数据库: chinook
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'InvoicesQueryModel',
+    model: 'InvoicesModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'InvoiceId' },
+                { name: 'customers$id' },
+                { name: 'InvoiceDate' },
+                { name: 'BillingAddress' },
+                { name: 'BillingCity' },
+                { name: 'BillingState' },
+                { name: 'BillingCountry' },
+                { name: 'BillingPostalCode' },
+            ]
+        },
+        {
+            caption: '关联维度',
+            items: [
+                { name: 'customers$caption' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'Total' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

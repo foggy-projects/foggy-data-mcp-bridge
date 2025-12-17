@@ -1,0 +1,26 @@
+import '@brazilianECommerceDataSource';
+/**
+ * olist_order_reviews 维度表模型
+ * 
+ * 数据库: Brazilian_E_Commerce
+ * 数据源: brazilianECommerceDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'OlistOrderReviewsModel',
+    caption: 'Olist Order Reviews',
+    tableName: 'olist_order_reviews',
+    dataSource: brazilianECommerceDataSource,
+    idColumn: 'review_id',
+
+    properties: [
+        { column: 'review_id', caption: 'Review Id', type: 'STRING' },
+        { column: 'order_id', caption: 'Order Id', type: 'STRING' },
+        { column: 'review_score', caption: 'Review Score', type: 'INTEGER' },
+        { column: 'review_comment_title', caption: 'Review Comment Title', type: 'STRING' },
+        { column: 'review_comment_message', caption: 'Review Comment Message', type: 'STRING' },
+        { column: 'review_creation_date', caption: 'Review Creation Date', type: 'STRING' },
+        { column: 'review_answer_timestamp', caption: 'Review Answer Timestamp', type: 'STRING' },
+    ],
+};

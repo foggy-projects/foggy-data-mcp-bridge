@@ -1,0 +1,23 @@
+import '@eCommerceDataSource';
+/**
+ * leads_qualified 维度表模型
+ * 
+ * 数据库: E_commerce
+ * 数据源: eCommerceDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'LeadsQualifiedModel',
+    caption: 'Leads Qualified',
+    tableName: 'leads_qualified',
+    dataSource: eCommerceDataSource,
+    idColumn: 'mql_id',
+
+    properties: [
+        { column: 'mql_id', caption: 'Mql Id', type: 'STRING' },
+        { column: 'first_contact_date', caption: 'First Contact Date', type: 'STRING' },
+        { column: 'landing_page_id', caption: 'Landing Page Id', type: 'STRING' },
+        { column: 'origin', caption: 'Origin', type: 'STRING' },
+    ],
+};

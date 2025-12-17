@@ -1,0 +1,26 @@
+import '@imdbMoviesDataSource';
+/**
+ * ratings 事实表模型
+ * 
+ * 数据库: imdb_movies
+ * 数据源: imdbMoviesDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'RatingsModel',
+    caption: 'Ratings',
+    tableName: 'ratings',
+    dataSource: imdbMoviesDataSource,
+    idColumn: 'movie_id',
+
+    properties: [
+        { column: 'movie_id', caption: 'Movie Id', type: 'STRING' },
+        { column: 'avg_rating', caption: 'Avg Rating', type: 'DECIMAL' },
+        { column: 'median_rating', caption: 'Median Rating', type: 'DECIMAL' },
+    ],
+
+    measures: [
+        { column: 'total_votes', caption: 'Total Votes', type: 'INTEGER', aggregation: 'sum' },
+    ]
+};

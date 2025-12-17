@@ -1,0 +1,22 @@
+import '@bowlingleagueDataSource';
+/**
+ * WAZips 维度表模型
+ * 
+ * 数据库: BowlingLeague
+ * 数据源: bowlingleagueDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'WazipsModel',
+    caption: 'Wazips',
+    tableName: 'WAZips',
+    dataSource: bowlingleagueDataSource,
+    idColumn: 'ZIP',
+
+    properties: [
+        { column: 'ZIP', caption: 'Zip', type: 'STRING' },
+        { column: 'City', caption: 'City', type: 'STRING' },
+        { column: 'State', caption: 'State', type: 'STRING' },
+    ],
+};

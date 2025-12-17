@@ -1,0 +1,23 @@
+import '@eCommerceDataSource';
+/**
+ * sellers 维度表模型
+ * 
+ * 数据库: E_commerce
+ * 数据源: eCommerceDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'SellersModel',
+    caption: '卖家',
+    tableName: 'sellers',
+    dataSource: eCommerceDataSource,
+    idColumn: 'seller_id',
+
+    properties: [
+        { column: 'seller_id', caption: 'Seller Id', type: 'STRING' },
+        { column: 'seller_zip_code_prefix', caption: 'Seller Zip Code Prefix', type: 'INTEGER' },
+        { column: 'seller_city', caption: 'Seller City', type: 'STRING' },
+        { column: 'seller_state', caption: 'Seller State', type: 'STRING' },
+    ],
+};

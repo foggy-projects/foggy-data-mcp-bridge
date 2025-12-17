@@ -1,0 +1,47 @@
+import '@deliveryCenterDataSource';
+/**
+ * stores 事实表模型
+ * 
+ * 数据库: delivery_center
+ * 数据源: deliveryCenterDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'StoresModel',
+    caption: 'Stores',
+    tableName: 'stores',
+    dataSource: deliveryCenterDataSource,
+    idColumn: 'store_id',
+
+    dimensions: [
+        {
+            name: 'hubs',
+            tableName: 'hubs',
+            foreignKey: 'hub_id',
+            primaryKey: 'hub_id',
+            captionColumn: 'hub_name',
+            caption: 'Hubs',
+            properties: [
+                { column: 'hub_id', caption: 'Hub Id', type: 'INTEGER' },
+                { column: 'hub_name', caption: 'Hub Name', type: 'STRING' },
+                { column: 'hub_city', caption: 'Hub City', type: 'STRING' },
+                { column: 'hub_state', caption: 'Hub State', type: 'STRING' },
+                { column: 'hub_latitude', caption: 'Hub Latitude', type: 'STRING' },
+                { column: 'hub_longitude', caption: 'Hub Longitude', type: 'STRING' },
+            ]
+        },
+    ],
+
+    properties: [
+        { column: 'store_id', caption: 'Store Id', type: 'INTEGER' },
+        { column: 'store_name', caption: 'Store Name', type: 'STRING' },
+        { column: 'store_segment', caption: 'Store Segment', type: 'STRING' },
+        { column: 'store_latitude', caption: 'Store Latitude', type: 'STRING' },
+        { column: 'store_longitude', caption: 'Store Longitude', type: 'STRING' },
+    ],
+
+    measures: [
+        { column: 'store_plan_price', caption: 'Store Plan Price', type: 'STRING', aggregation: 'sum' },
+    ]
+};

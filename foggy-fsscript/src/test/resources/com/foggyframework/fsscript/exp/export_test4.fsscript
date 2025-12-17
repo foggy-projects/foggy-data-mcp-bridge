@@ -1,0 +1,6 @@
+
+export var exportFunction = function(a,b){
+
+    export {a,b}
+
+}

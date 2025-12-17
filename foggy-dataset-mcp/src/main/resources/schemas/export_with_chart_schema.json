@@ -1,0 +1,55 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "description": "执行数据查询并自动生成可视化图表",
+  "properties": {
+    "model": {
+      "type": "string",
+      "description": "模型名称，如 TmsOrderModel"
+    },
+    "payload": {
+      "type": "object",
+      "description": "查询参数（同query_model_v2的payload）",
+      "properties": {
+        "columns": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "要查询的列"
+        },
+        "slice": {
+          "type": "array",
+          "description": "过滤条件数组"
+        },
+        "orderBy": {
+          "type": "array",
+          "description": "排序规则数组"
+        },
+        "groupBy": {
+          "type": "array",
+          "description": "分组聚合配置"
+        },
+        "limit": {
+          "type": "integer",
+          "description": "返回记录数限制"
+        }
+      }
+    },
+    "chart": {
+      "type": "object",
+      "description": "图表配置（同chart.generate的chart参数）",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["LINE", "BAR", "PIE", "SCATTER"],
+          "description": "图表类型"
+        },
+        "title": { "type": "string", "description": "图表标题" },
+        "xField": { "type": "string", "description": "X轴字段" },
+        "yField": { "type": "string", "description": "Y轴字段" },
+        "width": { "type": "integer", "default": 800 },
+        "height": { "type": "integer", "default": 600 }
+      }
+    }
+  },
+  "required": ["model", "payload"]
+}

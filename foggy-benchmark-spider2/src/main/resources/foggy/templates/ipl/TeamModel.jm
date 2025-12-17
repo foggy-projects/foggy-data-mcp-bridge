@@ -1,0 +1,21 @@
+import '@iplDataSource';
+/**
+ * team 维度表模型
+ * 
+ * 数据库: IPL
+ * 数据源: iplDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'TeamModel',
+    caption: 'Team',
+    tableName: 'team',
+    dataSource: iplDataSource,
+    idColumn: 'team_id',
+
+    properties: [
+        { column: 'team_id', caption: 'Team Id', type: 'INTEGER' },
+        { column: 'name', caption: 'Name', type: 'STRING' },
+    ],
+};

@@ -1,0 +1,25 @@
+import '@logDataSource';
+/**
+ * activity_log 维度表模型
+ * 
+ * 数据库: log
+ * 数据源: logDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'ActivityLogModel',
+    caption: 'Activity Log',
+    tableName: 'activity_log',
+    dataSource: logDataSource,
+    idColumn: 'stamp',
+
+    properties: [
+        { column: 'stamp', caption: 'Stamp', type: 'STRING' },
+        { column: 'session', caption: 'Session', type: 'STRING' },
+        { column: 'action', caption: 'Action', type: 'STRING' },
+        { column: 'option', caption: 'Option', type: 'STRING' },
+        { column: 'path', caption: 'Path', type: 'STRING' },
+        { column: 'search_type', caption: 'Search Type', type: 'STRING' },
+    ],
+};

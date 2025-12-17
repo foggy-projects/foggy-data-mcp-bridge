@@ -1,0 +1,25 @@
+import '@iplDataSource';
+/**
+ * extra_runs 维度表模型
+ * 
+ * 数据库: IPL
+ * 数据源: iplDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'ExtraRunsModel',
+    caption: 'Extra Runs',
+    tableName: 'extra_runs',
+    dataSource: iplDataSource,
+    idColumn: 'match_id',
+
+    properties: [
+        { column: 'match_id', caption: 'Match Id', type: 'INTEGER' },
+        { column: 'over_id', caption: 'Over Id', type: 'INTEGER' },
+        { column: 'ball_id', caption: 'Ball Id', type: 'INTEGER' },
+        { column: 'extra_type', caption: 'Extra Type', type: 'STRING' },
+        { column: 'extra_runs', caption: 'Extra Runs', type: 'INTEGER' },
+        { column: 'innings_no', caption: 'Innings No', type: 'INTEGER' },
+    ],
+};

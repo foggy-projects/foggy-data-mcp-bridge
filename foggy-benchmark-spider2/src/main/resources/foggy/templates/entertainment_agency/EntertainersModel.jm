@@ -1,0 +1,30 @@
+import '@entertainmentagencyDataSource';
+/**
+ * Entertainers 维度表模型
+ * 
+ * 数据库: EntertainmentAgency
+ * 数据源: entertainmentagencyDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'EntertainersModel',
+    caption: 'Entertainers',
+    tableName: 'Entertainers',
+    dataSource: entertainmentagencyDataSource,
+    idColumn: 'EntertainerID',
+
+    properties: [
+        { column: 'EntertainerID', caption: 'Entertainerid', type: 'INTEGER' },
+        { column: 'EntStageName', caption: 'Entstagename', type: 'STRING' },
+        { column: 'EntSSN', caption: 'Entssn', type: 'STRING' },
+        { column: 'EntStreetAddress', caption: 'Entstreetaddress', type: 'STRING' },
+        { column: 'EntCity', caption: 'Entcity', type: 'STRING' },
+        { column: 'EntState', caption: 'Entstate', type: 'STRING' },
+        { column: 'EntZipCode', caption: 'Entzipcode', type: 'STRING' },
+        { column: 'EntPhoneNumber', caption: 'Entphonenumber', type: 'STRING' },
+        { column: 'EntWebPage', caption: 'Entwebpage', type: 'STRING' },
+        { column: 'EntEMailAddress', caption: 'Entemailaddress', type: 'STRING' },
+        { column: 'DateEntered', caption: 'Dateentered', type: 'DAY' },
+    ],
+};

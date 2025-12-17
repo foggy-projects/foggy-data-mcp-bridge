@@ -1,0 +1,22 @@
+import '@sqliteSakilaDataSource';
+/**
+ * country 维度表模型
+ * 
+ * 数据库: SQLITE_SAKILA
+ * 数据源: sqliteSakilaDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'CountryModel',
+    caption: 'Country',
+    tableName: 'country',
+    dataSource: sqliteSakilaDataSource,
+    idColumn: 'country_id',
+
+    properties: [
+        { column: 'country_id', caption: 'Country Id', type: 'INTEGER' },
+        { column: 'country', caption: 'Country', type: 'STRING' },
+        { column: 'last_update', caption: 'Last Update', type: 'DATETIME' },
+    ],
+};

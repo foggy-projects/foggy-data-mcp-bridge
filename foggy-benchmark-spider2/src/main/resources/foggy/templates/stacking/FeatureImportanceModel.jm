@@ -1,0 +1,24 @@
+import '@stackingDataSource';
+/**
+ * feature_importance 维度表模型
+ * 
+ * 数据库: stacking
+ * 数据源: stackingDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'FeatureImportanceModel',
+    caption: 'Feature Importance',
+    tableName: 'feature_importance',
+    dataSource: stackingDataSource,
+    idColumn: 'name',
+
+    properties: [
+        { column: 'name', caption: 'Name', type: 'STRING' },
+        { column: 'version', caption: 'Version', type: 'INTEGER' },
+        { column: 'step', caption: 'Step', type: 'INTEGER' },
+        { column: 'feature', caption: 'Feature', type: 'STRING' },
+        { column: 'importance', caption: 'Importance', type: 'STRING' },
+    ],
+};

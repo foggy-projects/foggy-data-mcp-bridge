@@ -1,0 +1,28 @@
+import '@baseballDataSource';
+/**
+ * postseason 维度表模型
+ * 
+ * 数据库: Baseball
+ * 数据源: baseballDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'PostseasonModel',
+    caption: 'Postseason',
+    tableName: 'postseason',
+    dataSource: baseballDataSource,
+    idColumn: 'year',
+
+    properties: [
+        { column: 'year', caption: 'Year', type: 'INTEGER' },
+        { column: 'round', caption: 'Round', type: 'STRING' },
+        { column: 'team_id_winner', caption: 'Team Id Winner', type: 'STRING' },
+        { column: 'league_id_winner', caption: 'League Id Winner', type: 'STRING' },
+        { column: 'team_id_loser', caption: 'Team Id Loser', type: 'STRING' },
+        { column: 'league_id_loser', caption: 'League Id Loser', type: 'STRING' },
+        { column: 'wins', caption: 'Wins', type: 'INTEGER' },
+        { column: 'losses', caption: 'Losses', type: 'INTEGER' },
+        { column: 'ties', caption: 'Ties', type: 'INTEGER' },
+    ],
+};

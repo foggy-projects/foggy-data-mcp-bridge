@@ -1,0 +1,34 @@
+/**
+ * income_trees 查询模型
+ * 
+ * 数据库: modern_data
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'IncomeTreesQueryModel',
+    model: 'IncomeTreesModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'zipcode' },
+                { name: 'Estimate_Median_income' },
+                { name: 'Margin_of_Error_Median_income' },
+                { name: 'Estimate_Mean_income' },
+                { name: 'Margin_of_Error_Mean_income' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'Estimate_Total' },
+                { name: 'Margin_of_Error_Total' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

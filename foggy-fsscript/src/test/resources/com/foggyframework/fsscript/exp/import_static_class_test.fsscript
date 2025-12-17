@@ -1,0 +1,13 @@
+import {test} from 'java:com.foggyframework.fsscript.support.ImportStaticClassTest';
+import  'java:com.foggyframework.fsscript.support.ImportStaticClassTest';
+import cc from 'java:com.foggyframework.fsscript.support.ImportStaticClassTest';
+
+export let result = test('abc');
+
+export let result1 = ImportStaticClassTest.test('abc1');
+
+export let result2 = cc.test('abc2');
+
+export let aa = new cc('a4','a5');
+
+export let aa2 = new cc();

@@ -1,0 +1,21 @@
+import '@eCommerceDataSource';
+/**
+ * product_category_name_translation 维度表模型
+ * 
+ * 数据库: E_commerce
+ * 数据源: eCommerceDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'ProductCategoryNameTranslationModel',
+    caption: 'Product Category Name Translation',
+    tableName: 'product_category_name_translation',
+    dataSource: eCommerceDataSource,
+    idColumn: 'product_category_name',
+
+    properties: [
+        { column: 'product_category_name', caption: 'Product Category Name', type: 'STRING' },
+        { column: 'product_category_name_english', caption: 'Product Category Name English', type: 'STRING' },
+    ],
+};

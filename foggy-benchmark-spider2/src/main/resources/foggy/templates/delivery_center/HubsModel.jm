@@ -1,0 +1,25 @@
+import '@deliveryCenterDataSource';
+/**
+ * hubs 维度表模型
+ * 
+ * 数据库: delivery_center
+ * 数据源: deliveryCenterDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'HubsModel',
+    caption: 'Hubs',
+    tableName: 'hubs',
+    dataSource: deliveryCenterDataSource,
+    idColumn: 'hub_id',
+
+    properties: [
+        { column: 'hub_id', caption: 'Hub Id', type: 'INTEGER' },
+        { column: 'hub_name', caption: 'Hub Name', type: 'STRING' },
+        { column: 'hub_city', caption: 'Hub City', type: 'STRING' },
+        { column: 'hub_state', caption: 'Hub State', type: 'STRING' },
+        { column: 'hub_latitude', caption: 'Hub Latitude', type: 'STRING' },
+        { column: 'hub_longitude', caption: 'Hub Longitude', type: 'STRING' },
+    ],
+};

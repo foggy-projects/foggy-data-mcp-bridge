@@ -1,0 +1,36 @@
+/**
+ * veg_txn_df 查询模型
+ * 
+ * 数据库: bank_sales_trading
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'VegTxnDfQueryModel',
+    model: 'VegTxnDfModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'index' },
+                { name: 'txn_date' },
+                { name: 'txn_time' },
+                { name: 'item_code' },
+                { name: 'qty_sold(kg)' },
+                { name: 'unit_selling_px_rmb/kg' },
+                { name: 'sale/return' },
+                { name: 'day_of_week' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'discount(%)' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

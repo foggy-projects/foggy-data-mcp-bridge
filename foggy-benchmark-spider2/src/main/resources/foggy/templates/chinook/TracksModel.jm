@@ -1,0 +1,57 @@
+import '@chinookDataSource';
+/**
+ * tracks 事实表模型
+ * 
+ * 数据库: chinook
+ * 数据源: chinookDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'TracksModel',
+    caption: 'Tracks',
+    tableName: 'tracks',
+    dataSource: chinookDataSource,
+    idColumn: 'TrackId',
+
+    dimensions: [
+        {
+            name: 'albums',
+            tableName: 'albums',
+            foreignKey: 'AlbumId',
+            primaryKey: 'AlbumId',
+            captionColumn: 'Title',
+            caption: 'Albums',
+            properties: [
+                { column: 'AlbumId', caption: 'Albumid', type: 'INTEGER' },
+                { column: 'Title', caption: 'Title', type: 'STRING' },
+                { column: 'ArtistId', caption: 'Artistid', type: 'INTEGER' },
+            ]
+        },
+        {
+            name: 'genres',
+            tableName: 'genres',
+            foreignKey: 'GenreId',
+            primaryKey: 'GenreId',
+            captionColumn: 'Name',
+            caption: 'Genres',
+            properties: [
+                { column: 'GenreId', caption: 'Genreid', type: 'INTEGER' },
+                { column: 'Name', caption: 'Name', type: 'STRING' },
+            ]
+        },
+    ],
+
+    properties: [
+        { column: 'TrackId', caption: 'Trackid', type: 'INTEGER' },
+        { column: 'Name', caption: 'Name', type: 'STRING' },
+        { column: 'MediaTypeId', caption: 'Mediatypeid', type: 'INTEGER' },
+        { column: 'Composer', caption: 'Composer', type: 'STRING' },
+        { column: 'Milliseconds', caption: 'Milliseconds', type: 'INTEGER' },
+        { column: 'Bytes', caption: 'Bytes', type: 'INTEGER' },
+    ],
+
+    measures: [
+        { column: 'UnitPrice', caption: 'Unitprice', type: 'STRING', aggregation: 'sum' },
+    ]
+};

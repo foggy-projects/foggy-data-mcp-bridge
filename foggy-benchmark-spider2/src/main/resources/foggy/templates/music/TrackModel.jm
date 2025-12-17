@@ -1,0 +1,68 @@
+import '@musicDataSource';
+/**
+ * Track 事实表模型
+ * 
+ * 数据库: music
+ * 数据源: musicDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'TrackModel',
+    caption: 'Track',
+    tableName: 'Track',
+    dataSource: musicDataSource,
+    idColumn: 'TrackId',
+
+    dimensions: [
+        {
+            name: 'album',
+            tableName: 'Album',
+            foreignKey: 'AlbumId',
+            primaryKey: 'AlbumId',
+            captionColumn: 'Title',
+            caption: 'Album',
+            properties: [
+                { column: 'AlbumId', caption: 'Albumid', type: 'INTEGER' },
+                { column: 'Title', caption: 'Title', type: 'STRING' },
+                { column: 'ArtistId', caption: 'Artistid', type: 'INTEGER' },
+            ]
+        },
+        {
+            name: 'mediatype',
+            tableName: 'MediaType',
+            foreignKey: 'MediaTypeId',
+            primaryKey: 'MediaTypeId',
+            captionColumn: 'Name',
+            caption: 'Mediatype',
+            properties: [
+                { column: 'MediaTypeId', caption: 'Mediatypeid', type: 'INTEGER' },
+                { column: 'Name', caption: 'Name', type: 'STRING' },
+            ]
+        },
+        {
+            name: 'genre',
+            tableName: 'Genre',
+            foreignKey: 'GenreId',
+            primaryKey: 'GenreId',
+            captionColumn: 'Name',
+            caption: 'Genre',
+            properties: [
+                { column: 'GenreId', caption: 'Genreid', type: 'INTEGER' },
+                { column: 'Name', caption: 'Name', type: 'STRING' },
+            ]
+        },
+    ],
+
+    properties: [
+        { column: 'TrackId', caption: 'Trackid', type: 'INTEGER' },
+        { column: 'Name', caption: 'Name', type: 'STRING' },
+        { column: 'Composer', caption: 'Composer', type: 'STRING' },
+        { column: 'Milliseconds', caption: 'Milliseconds', type: 'INTEGER' },
+        { column: 'Bytes', caption: 'Bytes', type: 'INTEGER' },
+    ],
+
+    measures: [
+        { column: 'UnitPrice', caption: 'Unitprice', type: 'STRING', aggregation: 'sum' },
+    ]
+};

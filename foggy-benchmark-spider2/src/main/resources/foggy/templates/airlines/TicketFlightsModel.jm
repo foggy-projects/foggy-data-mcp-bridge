@@ -1,0 +1,26 @@
+import '@airlinesDataSource';
+/**
+ * ticket_flights 事实表模型
+ * 
+ * 数据库: Airlines
+ * 数据源: airlinesDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'TicketFlightsModel',
+    caption: 'Ticket Flights',
+    tableName: 'ticket_flights',
+    dataSource: airlinesDataSource,
+    idColumn: 'flight_id',
+
+    properties: [
+        { column: 'ticket_no', caption: 'Ticket No', type: 'STRING' },
+        { column: 'flight_id', caption: 'Flight Id', type: 'INTEGER' },
+        { column: 'fare_conditions', caption: 'Fare Conditions', type: 'STRING' },
+    ],
+
+    measures: [
+        { column: 'amount', caption: 'Amount', type: 'STRING', aggregation: 'sum' },
+    ]
+};

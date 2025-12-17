@@ -1,0 +1,38 @@
+/**
+ * orderlines 查询模型
+ * 
+ * 数据库: oracle_sql
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'OrderlinesQueryModel',
+    model: 'OrderlinesModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'id' },
+                { name: 'order_id' },
+                { name: 'products$id' },
+            ]
+        },
+        {
+            caption: '关联维度',
+            items: [
+                { name: 'products$caption' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'qty' },
+                { name: 'amount' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

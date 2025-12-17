@@ -1,0 +1,64 @@
+import '@adventureworksDataSource';
+/**
+ * product 事实表模型
+ * 
+ * 数据库: AdventureWorks
+ * 数据源: adventureworksDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'ProductModel',
+    caption: '产品',
+    tableName: 'product',
+    dataSource: adventureworksDataSource,
+    idColumn: 'productid',
+
+    dimensions: [
+        {
+            name: 'productsubcategory',
+            tableName: 'productsubcategory',
+            foreignKey: 'productsubcategoryid',
+            primaryKey: 'productsubcategoryid',
+            captionColumn: 'name',
+            caption: 'Productsubcategory',
+            properties: [
+                { column: 'productsubcategoryid', caption: 'Productsubcategoryid', type: 'INTEGER' },
+                { column: 'productcategoryid', caption: 'Productcategoryid', type: 'INTEGER' },
+                { column: 'name', caption: 'Name', type: 'STRING' },
+                { column: 'rowguid', caption: 'Rowguid', type: 'STRING' },
+                { column: 'modifieddate', caption: 'Modifieddate', type: 'DAY' },
+            ]
+        },
+    ],
+
+    properties: [
+        { column: 'productid', caption: 'Productid', type: 'INTEGER' },
+        { column: 'NAME', caption: 'Name', type: 'STRING' },
+        { column: 'productnumber', caption: 'Productnumber', type: 'STRING' },
+        { column: 'makeflag', caption: 'Makeflag', type: 'STRING' },
+        { column: 'finishedgoodsflag', caption: 'Finishedgoodsflag', type: 'STRING' },
+        { column: 'color', caption: 'Color', type: 'STRING' },
+        { column: 'safetystocklevel', caption: 'Safetystocklevel', type: 'INTEGER' },
+        { column: 'reorderpoint', caption: 'Reorderpoint', type: 'INTEGER' },
+        { column: 'size', caption: 'Size', type: 'STRING' },
+        { column: 'sizeunitmeasurecode', caption: 'Sizeunitmeasurecode', type: 'STRING' },
+        { column: 'weightunitmeasurecode', caption: 'Weightunitmeasurecode', type: 'STRING' },
+        { column: 'weight', caption: 'Weight', type: 'DECIMAL' },
+        { column: 'daystomanufacture', caption: 'Daystomanufacture', type: 'INTEGER' },
+        { column: 'productline', caption: 'Productline', type: 'STRING' },
+        { column: 'class', caption: 'Class', type: 'STRING' },
+        { column: 'style', caption: 'Style', type: 'STRING' },
+        { column: 'productmodelid', caption: 'Productmodelid', type: 'INTEGER' },
+        { column: 'sellstartdate', caption: 'Sellstartdate', type: 'DAY' },
+        { column: 'sellenddate', caption: 'Sellenddate', type: 'DAY' },
+        { column: 'discontinueddate', caption: 'Discontinueddate', type: 'DAY' },
+        { column: 'rowguid', caption: 'Rowguid', type: 'STRING' },
+        { column: 'modifieddate', caption: 'Modifieddate', type: 'DAY' },
+    ],
+
+    measures: [
+        { column: 'standardcost', caption: 'Standardcost', type: 'DECIMAL', aggregation: 'sum' },
+        { column: 'listprice', caption: 'Listprice', type: 'DECIMAL', aggregation: 'sum' },
+    ]
+};

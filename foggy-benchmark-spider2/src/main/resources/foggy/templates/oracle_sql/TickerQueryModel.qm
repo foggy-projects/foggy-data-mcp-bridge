@@ -1,0 +1,30 @@
+/**
+ * ticker 查询模型
+ * 
+ * 数据库: oracle_sql
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'TickerQueryModel',
+    model: 'TickerModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'symbol' },
+                { name: 'day' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'price' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

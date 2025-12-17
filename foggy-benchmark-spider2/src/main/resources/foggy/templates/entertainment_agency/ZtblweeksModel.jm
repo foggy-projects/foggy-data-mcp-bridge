@@ -1,0 +1,21 @@
+import '@entertainmentagencyDataSource';
+/**
+ * ztblWeeks 维度表模型
+ * 
+ * 数据库: EntertainmentAgency
+ * 数据源: entertainmentagencyDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'ZtblweeksModel',
+    caption: 'Ztblweeks',
+    tableName: 'ztblWeeks',
+    dataSource: entertainmentagencyDataSource,
+    idColumn: 'WeekStart',
+
+    properties: [
+        { column: 'WeekStart', caption: 'Weekstart', type: 'DAY' },
+        { column: 'WeekEnd', caption: 'Weekend', type: 'DAY' },
+    ],
+};

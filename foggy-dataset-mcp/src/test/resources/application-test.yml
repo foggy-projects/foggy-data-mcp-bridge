@@ -1,0 +1,86 @@
+# Test configuration for foggy-dataset-mcp
+spring:
+  main:
+    allow-bean-definition-overriding: true
+
+  # Disable AI in unit tests
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY:sk-your-api-key-here}
+      base-url: ${OPENAI_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode}
+      chat:
+        options:
+#          model: ${OPENAI_MODEL:qwen3-max}
+#          model: ${OPENAI_MODEL:qwen-plus-2025-12-01}
+#          model: ${OPENAI_MODEL:qwen-plus}qwen-plus-2025-12-01
+          model: ${OPENAI_MODEL:qwen-plus-2025-09-11}
+          temperature: 0.7
+          max-tokens: 4096
+# Logging
+logging:
+  level:
+    com.foggyframework: DEBUG
+    org.springframework.web: DEBUG
+    org.springframework.test: DEBUG
+
+# MCP Test Configuration
+mcp:
+  # 测试环境使用本地模式
+  dataset:
+    access-mode: local
+
+
+  # 语义模型配置
+  # 测试环境的可用模型列表
+  semantic:
+    metadata-version: v3  # or v3
+    query-version: v3     # or v3
+    model-list:
+      # 事实表查询模型
+      - FactSalesQueryModel
+      - FactOrderQueryModel
+      - FactPaymentQueryModel
+      - FactReturnQueryModel
+      - FactInventorySnapshotQueryModel
+      - FactTeamSalesQueryModel
+      - FactSalesNestedDimQueryModel
+      # 联合查询模型
+      - OrderPaymentJoinQueryModel
+      - SalesReturnJoinQueryModel
+      # 维度查询模型
+      - DimChannelQueryModel
+      - DimProductQueryModel
+      - DimCustomerQueryModel
+      - DimDateQueryModel
+      - DimStoreQueryModel
+      - DimPromotionQueryModel
+    # 测试环境返回所有字段以便完整验证
+    metadata:
+      default-levels:
+#        - 1
+      force-levels:
+#        - 9
+    internal:
+      default-levels:
+#        - 1
+      force-levels:
+#        - 9
+
+  service:
+    dataset-query-url: http://localhost:8080
+    chart-render-url: http://localhost:3000
+    chart-render-token: test-token
+
+# Spider2 Test Configuration
+# 需要设置环境变量 SPIDER2_BASE_PATH 指向 Spider2 仓库路径
+spider2:
+  database:
+    base-path: ${SPIDER2_BASE_PATH:./spider2-data}/spider2-lite/resource/databases/spider2-localdb
+  questions:
+    path: ${SPIDER2_BASE_PATH:./spider2-data}/spider2-lite/spider2-lite.jsonl
+  metadata:
+    path: ${SPIDER2_BASE_PATH:./spider2-data}/spider2-lite/resource/databases/sqlite
+  gold-sql:
+    path: ${SPIDER2_BASE_PATH:./spider2-data}/spider2-lite/evaluation_suite/gold/sql
+  documents:
+    path: ${SPIDER2_BASE_PATH:./spider2-data}/spider2-lite/resource/documents

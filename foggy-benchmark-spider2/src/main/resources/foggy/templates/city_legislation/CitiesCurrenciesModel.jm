@@ -1,0 +1,23 @@
+import '@cityLegislationDataSource';
+/**
+ * cities_currencies 维度表模型
+ * 
+ * 数据库: city_legislation
+ * 数据源: cityLegislationDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'CitiesCurrenciesModel',
+    caption: 'Cities Currencies',
+    tableName: 'cities_currencies',
+    dataSource: cityLegislationDataSource,
+    idColumn: 'currency_id',
+
+    properties: [
+        { column: 'currency_id', caption: 'Currency Id', type: 'INTEGER' },
+        { column: 'country_code_2', caption: 'Country Code 2', type: 'STRING' },
+        { column: 'currency_name', caption: 'Currency Name', type: 'STRING' },
+        { column: 'currency_code', caption: 'Currency Code', type: 'STRING' },
+    ],
+};

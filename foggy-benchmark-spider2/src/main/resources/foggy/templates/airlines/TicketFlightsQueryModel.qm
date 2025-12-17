@@ -1,0 +1,31 @@
+/**
+ * ticket_flights 查询模型
+ * 
+ * 数据库: Airlines
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'TicketFlightsQueryModel',
+    model: 'TicketFlightsModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'ticket_no' },
+                { name: 'flight_id' },
+                { name: 'fare_conditions' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'amount' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

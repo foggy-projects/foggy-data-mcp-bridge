@@ -1,0 +1,21 @@
+import '@entertainmentagencyDataSource';
+/**
+ * Musical_Styles 维度表模型
+ * 
+ * 数据库: EntertainmentAgency
+ * 数据源: entertainmentagencyDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'MusicalStylesModel',
+    caption: 'Musical Styles',
+    tableName: 'Musical_Styles',
+    dataSource: entertainmentagencyDataSource,
+    idColumn: 'StyleID',
+
+    properties: [
+        { column: 'StyleID', caption: 'Styleid', type: 'INTEGER' },
+        { column: 'StyleName', caption: 'Stylename', type: 'STRING' },
+    ],
+};

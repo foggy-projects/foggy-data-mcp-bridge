@@ -1,0 +1,57 @@
+import '@f1DataSource';
+/**
+ * retirements 事实表模型
+ * 
+ * 数据库: f1
+ * 数据源: f1DataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'RetirementsModel',
+    caption: 'Retirements',
+    tableName: 'retirements',
+    dataSource: f1DataSource,
+    idColumn: 'race_id',
+
+    dimensions: [
+        {
+            name: 'drivers',
+            tableName: 'drivers',
+            foreignKey: 'driver_id',
+            primaryKey: 'driver_id',
+            captionColumn: 'driver_ref',
+            caption: 'Drivers',
+            properties: [
+                { column: 'driver_id', caption: 'Driver Id', type: 'INTEGER' },
+                { column: 'driver_ref', caption: 'Driver Ref', type: 'STRING' },
+                { column: 'number', caption: 'Number', type: 'INTEGER' },
+                { column: 'code', caption: 'Code', type: 'STRING' },
+                { column: 'forename', caption: 'Forename', type: 'STRING' },
+                { column: 'surname', caption: 'Surname', type: 'STRING' },
+                { column: 'dob', caption: 'Dob', type: 'DAY' },
+                { column: 'nationality', caption: 'Nationality', type: 'STRING' },
+                { column: 'url', caption: 'Url', type: 'STRING' },
+            ]
+        },
+        {
+            name: 'status',
+            tableName: 'status',
+            foreignKey: 'status_id',
+            primaryKey: 'status_id',
+            captionColumn: 'status',
+            caption: 'Status',
+            properties: [
+                { column: 'status_id', caption: 'Status Id', type: 'INTEGER' },
+                { column: 'status', caption: 'Status', type: 'STRING' },
+            ]
+        },
+    ],
+
+    properties: [
+        { column: 'race_id', caption: 'Race Id', type: 'INTEGER' },
+        { column: 'lap', caption: 'Lap', type: 'STRING' },
+        { column: 'position_order', caption: 'Position Order', type: 'INTEGER' },
+        { column: 'retirement_type', caption: 'Retirement Type', type: 'STRING' },
+    ],
+};

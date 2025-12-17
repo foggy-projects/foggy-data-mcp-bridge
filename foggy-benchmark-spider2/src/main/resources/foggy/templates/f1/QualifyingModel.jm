@@ -1,0 +1,90 @@
+import '@f1DataSource';
+/**
+ * qualifying 事实表模型
+ * 
+ * 数据库: f1
+ * 数据源: f1DataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'QualifyingModel',
+    caption: 'Qualifying',
+    tableName: 'qualifying',
+    dataSource: f1DataSource,
+    idColumn: 'qualify_id',
+
+    dimensions: [
+        {
+            name: 'races',
+            tableName: 'races',
+            foreignKey: 'race_id',
+            primaryKey: 'race_id',
+            captionColumn: 'name',
+            caption: 'Races',
+            properties: [
+                { column: 'race_id', caption: 'Race Id', type: 'INTEGER' },
+                { column: 'year', caption: 'Year', type: 'INTEGER' },
+                { column: 'round', caption: 'Round', type: 'INTEGER' },
+                { column: 'circuit_id', caption: 'Circuit Id', type: 'INTEGER' },
+                { column: 'name', caption: 'Name', type: 'STRING' },
+                { column: 'date', caption: 'Date', type: 'DAY' },
+                { column: 'time', caption: 'Time', type: 'DATETIME' },
+                { column: 'url', caption: 'Url', type: 'STRING' },
+                { column: 'fp1_date', caption: 'Fp1 Date', type: 'STRING' },
+                { column: 'fp1_time', caption: 'Fp1 Time', type: 'STRING' },
+                { column: 'fp2_date', caption: 'Fp2 Date', type: 'STRING' },
+                { column: 'fp2_time', caption: 'Fp2 Time', type: 'STRING' },
+                { column: 'fp3_date', caption: 'Fp3 Date', type: 'STRING' },
+                { column: 'fp3_time', caption: 'Fp3 Time', type: 'STRING' },
+                { column: 'quali_date', caption: 'Quali Date', type: 'STRING' },
+                { column: 'quali_time', caption: 'Quali Time', type: 'STRING' },
+                { column: 'sprint_date', caption: 'Sprint Date', type: 'STRING' },
+                { column: 'sprint_time', caption: 'Sprint Time', type: 'STRING' },
+            ]
+        },
+        {
+            name: 'drivers',
+            tableName: 'drivers',
+            foreignKey: 'driver_id',
+            primaryKey: 'driver_id',
+            captionColumn: 'driver_ref',
+            caption: 'Drivers',
+            properties: [
+                { column: 'driver_id', caption: 'Driver Id', type: 'INTEGER' },
+                { column: 'driver_ref', caption: 'Driver Ref', type: 'STRING' },
+                { column: 'number', caption: 'Number', type: 'INTEGER' },
+                { column: 'code', caption: 'Code', type: 'STRING' },
+                { column: 'forename', caption: 'Forename', type: 'STRING' },
+                { column: 'surname', caption: 'Surname', type: 'STRING' },
+                { column: 'dob', caption: 'Dob', type: 'DAY' },
+                { column: 'nationality', caption: 'Nationality', type: 'STRING' },
+                { column: 'url', caption: 'Url', type: 'STRING' },
+            ]
+        },
+        {
+            name: 'constructors',
+            tableName: 'constructors',
+            foreignKey: 'constructor_id',
+            primaryKey: 'constructor_id',
+            captionColumn: 'name',
+            caption: 'Constructors',
+            properties: [
+                { column: 'constructor_id', caption: 'Constructor Id', type: 'INTEGER' },
+                { column: 'constructor_ref', caption: 'Constructor Ref', type: 'STRING' },
+                { column: 'name', caption: 'Name', type: 'STRING' },
+                { column: 'nationality', caption: 'Nationality', type: 'STRING' },
+                { column: 'url', caption: 'Url', type: 'STRING' },
+            ]
+        },
+    ],
+
+    properties: [
+        { column: 'qualify_id', caption: 'Qualify Id', type: 'INTEGER' },
+        { column: 'number', caption: 'Number', type: 'INTEGER' },
+        { column: 'position', caption: 'Position', type: 'INTEGER' },
+        { column: 'q1', caption: 'Q1', type: 'STRING' },
+        { column: 'q2', caption: 'Q2', type: 'STRING' },
+        { column: 'q3', caption: 'Q3', type: 'STRING' },
+    ],
+};

@@ -1,0 +1,22 @@
+import '@oracleSqlDataSource';
+/**
+ * conway_gen_zero 维度表模型
+ * 
+ * 数据库: oracle_sql
+ * 数据源: oracleSqlDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'ConwayGenZeroModel',
+    caption: 'Conway Gen Zero',
+    tableName: 'conway_gen_zero',
+    dataSource: oracleSqlDataSource,
+    idColumn: 'x',
+
+    properties: [
+        { column: 'x', caption: 'X', type: 'INTEGER' },
+        { column: 'y', caption: 'Y', type: 'INTEGER' },
+        { column: 'alive', caption: 'Alive', type: 'INTEGER' },
+    ],
+};

@@ -1,0 +1,42 @@
+/**
+ * all_star 查询模型
+ * 
+ * 数据库: Baseball
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'AllStarQueryModel',
+    model: 'AllStarModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'player_id' },
+                { name: 'year' },
+                { name: 'homeGame$id' },
+                { name: 'team$id' },
+                { name: 'league_id' },
+                { name: 'gp' },
+                { name: 'starting_pos' },
+            ]
+        },
+        {
+            caption: '关联维度',
+            items: [
+                { name: 'homeGame$caption' },
+                { name: 'team$caption' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'game_num' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

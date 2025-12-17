@@ -1,0 +1,23 @@
+import '@bankSalesTradingDataSource';
+/**
+ * shopping_cart_page_hierarchy 维度表模型
+ * 
+ * 数据库: bank_sales_trading
+ * 数据源: bankSalesTradingDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'ShoppingCartPageHierarchyModel',
+    caption: 'Shopping Cart Page Hierarchy',
+    tableName: 'shopping_cart_page_hierarchy',
+    dataSource: bankSalesTradingDataSource,
+    idColumn: 'page_id',
+
+    properties: [
+        { column: 'page_id', caption: 'Page Id', type: 'INTEGER' },
+        { column: 'page_name', caption: 'Page Name', type: 'STRING' },
+        { column: 'product_category', caption: 'Product Category', type: 'STRING' },
+        { column: 'product_id', caption: 'Product Id', type: 'DECIMAL' },
+    ],
+};

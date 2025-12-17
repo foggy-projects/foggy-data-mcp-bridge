@@ -1,0 +1,51 @@
+import '@bowlingleagueDataSource';
+/**
+ * Bowlers 事实表模型
+ * 
+ * 数据库: BowlingLeague
+ * 数据源: bowlingleagueDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'BowlersModel',
+    caption: 'Bowlers',
+    tableName: 'Bowlers',
+    dataSource: bowlingleagueDataSource,
+    idColumn: 'BowlerID',
+
+    dimensions: [
+        {
+            name: 'teams',
+            tableName: 'Teams',
+            foreignKey: 'TeamID',
+            primaryKey: 'TeamID',
+            captionColumn: 'TeamName',
+            caption: 'Teams',
+            properties: [
+                { column: 'TeamID', caption: 'Teamid', type: 'INTEGER' },
+                { column: 'TeamName', caption: 'Teamname', type: 'STRING' },
+                { column: 'CaptainID', caption: 'Captainid', type: 'INTEGER' },
+            ]
+        },
+    ],
+
+    properties: [
+        { column: 'BowlerID', caption: 'Bowlerid', type: 'INTEGER' },
+        { column: 'BowlerLastName', caption: 'Bowlerlastname', type: 'STRING' },
+        { column: 'BowlerFirstName', caption: 'Bowlerfirstname', type: 'STRING' },
+        { column: 'BowlerMiddleInit', caption: 'Bowlermiddleinit', type: 'STRING' },
+        { column: 'BowlerAddress', caption: 'Bowleraddress', type: 'STRING' },
+        { column: 'BowlerCity', caption: 'Bowlercity', type: 'STRING' },
+        { column: 'BowlerState', caption: 'Bowlerstate', type: 'STRING' },
+        { column: 'BowlerZip', caption: 'Bowlerzip', type: 'STRING' },
+        { column: 'BowlerPhoneNumber', caption: 'Bowlerphonenumber', type: 'STRING' },
+        { column: 'BowlerGamesBowled', caption: 'Bowlergamesbowled', type: 'INTEGER' },
+        { column: 'BowlerCurrentAverage', caption: 'Bowlercurrentaverage', type: 'INTEGER' },
+        { column: 'BowlerCurrentHcp', caption: 'Bowlercurrenthcp', type: 'INTEGER' },
+    ],
+
+    measures: [
+        { column: 'BowlerTotalPins', caption: 'Bowlertotalpins', type: 'INTEGER', aggregation: 'sum' },
+    ]
+};

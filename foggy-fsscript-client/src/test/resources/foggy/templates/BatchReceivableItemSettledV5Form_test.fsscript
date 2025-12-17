@@ -1,0 +1,30 @@
+import {current} from 'java:java.util.concurrent.ThreadLocalRandom';
+import '@fsscriptTestService';
+export const build = ({orderLength,a}) => {
+    return {
+        orderLength,a
+    };
+};
+
+export const build2 = (aa,{orderLength,a}) => {
+
+    return {
+        orderLength,a,aa
+    };
+};
+
+export const build3 = (aa,{orderLength,a},cc,{d4}) => {
+
+    return {
+        orderLength,a,aa,cc,d4
+    };
+};
+
+let i4=0;
+
+export const build4 = (aa,{orderLength,a},cc,{d4}) => {
+    i4++;
+    return {
+        orderLength,a,aa,cc,d4,i4
+    };
+};

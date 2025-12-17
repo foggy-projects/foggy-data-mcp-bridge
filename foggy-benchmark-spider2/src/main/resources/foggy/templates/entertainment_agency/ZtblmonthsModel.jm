@@ -1,0 +1,36 @@
+import '@entertainmentagencyDataSource';
+/**
+ * ztblMonths 维度表模型
+ * 
+ * 数据库: EntertainmentAgency
+ * 数据源: entertainmentagencyDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'ZtblmonthsModel',
+    caption: 'Ztblmonths',
+    tableName: 'ztblMonths',
+    dataSource: entertainmentagencyDataSource,
+    idColumn: 'MonthYear',
+
+    properties: [
+        { column: 'MonthYear', caption: 'Monthyear', type: 'STRING' },
+        { column: 'YearNumber', caption: 'Yearnumber', type: 'INTEGER' },
+        { column: 'MonthNumber', caption: 'Monthnumber', type: 'INTEGER' },
+        { column: 'MonthStart', caption: 'Monthstart', type: 'DAY' },
+        { column: 'MonthEnd', caption: 'Monthend', type: 'DAY' },
+        { column: 'January', caption: 'January', type: 'INTEGER' },
+        { column: 'February', caption: 'February', type: 'INTEGER' },
+        { column: 'March', caption: 'March', type: 'INTEGER' },
+        { column: 'April', caption: 'April', type: 'INTEGER' },
+        { column: 'May', caption: 'May', type: 'INTEGER' },
+        { column: 'June', caption: 'June', type: 'INTEGER' },
+        { column: 'July', caption: 'July', type: 'INTEGER' },
+        { column: 'August', caption: 'August', type: 'INTEGER' },
+        { column: 'September', caption: 'September', type: 'INTEGER' },
+        { column: 'October', caption: 'October', type: 'INTEGER' },
+        { column: 'November', caption: 'November', type: 'INTEGER' },
+        { column: 'December', caption: 'December', type: 'INTEGER' },
+    ],
+};

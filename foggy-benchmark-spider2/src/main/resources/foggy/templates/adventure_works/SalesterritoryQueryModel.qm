@@ -1,0 +1,37 @@
+/**
+ * salesterritory 查询模型
+ * 
+ * 数据库: AdventureWorks
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'SalesterritoryQueryModel',
+    model: 'SalesterritoryModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'territoryid' },
+                { name: 'name' },
+                { name: 'countryregioncode' },
+                { name: 'group' },
+                { name: 'rowguid' },
+                { name: 'modifieddate' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'salesytd' },
+                { name: 'saleslastyear' },
+                { name: 'costytd' },
+                { name: 'costlastyear' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

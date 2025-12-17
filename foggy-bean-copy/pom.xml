@@ -1,0 +1,57 @@
+<project>
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.foggysource</groupId>
+    <artifactId>foggy-bean-copy</artifactId>
+    <packaging>jar</packaging>
+    <version>8.0.0-beta</version>
+    <url>http://maven.apache.org</url>
+    <parent>
+        <groupId>com.foggysource</groupId>
+        <artifactId>java-data-mcp-bridge</artifactId>
+        <version>8.0.0-beta</version>
+    </parent>
+
+    <developers>
+        <developer>
+            <name>FengJianguang</name>
+            <id>FengJianguang</id>
+            <email>foggysource@gmail.com</email>
+            <roles>
+                <role>Architect</role>
+                <role>Java Developer</role>
+            </roles>
+            <timezone>+8</timezone>
+        </developer>
+    </developers>
+
+    <build>
+        <finalName>${project.artifactId}-${project.version}</finalName>
+        <plugins>
+
+        </plugins>
+
+
+    </build>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.foggysource</groupId>
+            <artifactId>foggy-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-web</artifactId>
+        </dependency>
+        <!--        <dependency>-->
+        <!--            <groupId>com.foggysource</groupId>-->
+        <!--            <artifactId>foggy-framework-ui-code-gen-common</artifactId>-->
+        <!--        </dependency>-->
+        <!--        <dependency>-->
+        <!--            <groupId>com.foggysource</groupId>-->
+        <!--            <artifactId>foggy-fsscript</artifactId>-->
+        <!--            <scope>test</scope>-->
+        <!--        </dependency>-->
+    </dependencies>
+
+
+</project>

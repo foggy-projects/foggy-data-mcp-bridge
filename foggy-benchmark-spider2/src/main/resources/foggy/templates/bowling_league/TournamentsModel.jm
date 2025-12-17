@@ -1,0 +1,22 @@
+import '@bowlingleagueDataSource';
+/**
+ * Tournaments 维度表模型
+ * 
+ * 数据库: BowlingLeague
+ * 数据源: bowlingleagueDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'TournamentsModel',
+    caption: 'Tournaments',
+    tableName: 'Tournaments',
+    dataSource: bowlingleagueDataSource,
+    idColumn: 'TourneyID',
+
+    properties: [
+        { column: 'TourneyID', caption: 'Tourneyid', type: 'INTEGER' },
+        { column: 'TourneyDate', caption: 'Tourneydate', type: 'DAY' },
+        { column: 'TourneyLocation', caption: 'Tourneylocation', type: 'STRING' },
+    ],
+};

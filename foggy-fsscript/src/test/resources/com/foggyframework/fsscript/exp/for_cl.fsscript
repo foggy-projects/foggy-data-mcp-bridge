@@ -1,0 +1,24 @@
+
+
+var a
+var b
+var closures = [];
+
+for (let i = 0; i < 2; i++) {
+    if (i == 0) {
+        a = () => {
+            return i;
+        };
+    }else {
+        b = () => {
+            return i;
+        };
+    }
+    closures.push(() => i);
+}
+
+
+export const aa = a();
+export const bb = b();
+export const cc1 = closures[0]();
+export const cc2 = closures[1]();

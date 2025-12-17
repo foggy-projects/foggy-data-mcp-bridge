@@ -1,0 +1,10 @@
+
+export var functionTest = function(a,b,c,d){
+    return [a,b,c,d];
+};
+
+export var result = functionTest(1,2,,3,4,);
+
+
+if(a== null){
+}

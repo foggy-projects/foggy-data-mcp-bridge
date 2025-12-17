@@ -1,0 +1,23 @@
+import '@dbImdbDataSource';
+/**
+ * M_Location 维度表模型
+ * 
+ * 数据库: DB_IMDB
+ * 数据源: dbImdbDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'MLocationModel',
+    caption: 'M Location',
+    tableName: 'M_Location',
+    dataSource: dbImdbDataSource,
+    idColumn: 'ID',
+
+    properties: [
+        { column: 'index', caption: 'Index', type: 'INTEGER' },
+        { column: 'MID', caption: 'Mid', type: 'STRING' },
+        { column: 'LID', caption: 'Lid', type: 'DECIMAL' },
+        { column: 'ID', caption: 'Id', type: 'INTEGER' },
+    ],
+};

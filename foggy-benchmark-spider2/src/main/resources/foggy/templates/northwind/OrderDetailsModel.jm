@@ -1,0 +1,49 @@
+import '@northwindDataSource';
+/**
+ * order_details 事实表模型
+ * 
+ * 数据库: northwind
+ * 数据源: northwindDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'OrderDetailsModel',
+    caption: 'Order Details',
+    tableName: 'order_details',
+    dataSource: northwindDataSource,
+    idColumn: 'orderid',
+
+    dimensions: [
+        {
+            name: 'products',
+            tableName: 'products',
+            foreignKey: 'productid',
+            primaryKey: 'productid',
+            captionColumn: 'productname',
+            caption: '产品',
+            properties: [
+                { column: 'productid', caption: 'Productid', type: 'INTEGER' },
+                { column: 'productname', caption: 'Productname', type: 'STRING' },
+                { column: 'supplierid', caption: 'Supplierid', type: 'INTEGER' },
+                { column: 'categoryid', caption: 'Categoryid', type: 'INTEGER' },
+                { column: 'quantityperunit', caption: 'Quantityperunit', type: 'STRING' },
+                { column: 'unitprice', caption: 'Unitprice', type: 'DECIMAL' },
+                { column: 'unitsinstock', caption: 'Unitsinstock', type: 'INTEGER' },
+                { column: 'unitsonorder', caption: 'Unitsonorder', type: 'INTEGER' },
+                { column: 'reorderlevel', caption: 'Reorderlevel', type: 'INTEGER' },
+                { column: 'discontinued', caption: 'Discontinued', type: 'INTEGER' },
+            ]
+        },
+    ],
+
+    properties: [
+        { column: 'orderid', caption: 'Orderid', type: 'INTEGER' },
+    ],
+
+    measures: [
+        { column: 'unitprice', caption: 'Unitprice', type: 'DECIMAL', aggregation: 'sum' },
+        { column: 'quantity', caption: 'Quantity', type: 'INTEGER', aggregation: 'sum' },
+        { column: 'discount', caption: 'Discount', type: 'DECIMAL', aggregation: 'sum' },
+    ]
+};

@@ -1,0 +1,15 @@
+// JSON 往返转换测试
+
+// 原始对象
+let original = { name: "测试数据", count: 42, items: ["a", "b", "c"] };
+export const originalName = original.name;
+
+// 序列化
+let jsonStr = JSON.stringify(original);
+
+// 反序列化
+let parsed = JSON.parse(jsonStr);
+export const parsedName = parsed.name;
+
+// 验证往返转换是否成功
+export const roundTripSuccess = (original.name == parsed.name && original.count == parsed.count);

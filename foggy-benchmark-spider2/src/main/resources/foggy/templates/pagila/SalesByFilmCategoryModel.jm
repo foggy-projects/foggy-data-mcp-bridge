@@ -1,0 +1,21 @@
+import '@pagilaDataSource';
+/**
+ * sales_by_film_category 维度表模型
+ * 
+ * 数据库: Pagila
+ * 数据源: pagilaDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'SalesByFilmCategoryModel',
+    caption: 'Sales By Film Category',
+    tableName: 'sales_by_film_category',
+    dataSource: pagilaDataSource,
+    idColumn: 'category',
+
+    properties: [
+        { column: 'category', caption: 'Category', type: 'STRING' },
+        { column: 'total_sales', caption: 'Total Sales', type: 'STRING' },
+    ],
+};

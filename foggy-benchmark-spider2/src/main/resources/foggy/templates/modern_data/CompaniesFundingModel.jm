@@ -1,0 +1,23 @@
+import '@modernDataDataSource';
+/**
+ * companies_funding 维度表模型
+ * 
+ * 数据库: modern_data
+ * 数据源: modernDataDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'CompaniesFundingModel',
+    caption: 'Companies Funding',
+    tableName: 'companies_funding',
+    dataSource: modernDataDataSource,
+    idColumn: 'company_id',
+
+    properties: [
+        { column: 'company_id', caption: 'Company Id', type: 'INTEGER' },
+        { column: 'valuation', caption: 'Valuation', type: 'INTEGER' },
+        { column: 'funding', caption: 'Funding', type: 'INTEGER' },
+        { column: 'select_investors', caption: 'Select Investors', type: 'STRING' },
+    ],
+};

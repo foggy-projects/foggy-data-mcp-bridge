@@ -1,0 +1,11 @@
+import {tmsDeployNodeConfigs} from './config-2.fsscript';
+
+import {deployAllTmsDev} from "./tms-dev-deploy.fsscript";
+import {restartAllHdd} from "./project-hdd-restart-2.fsscript";
+
+
+
+
+export const restartAllServices = restartAllHdd;
+
+restartAllHdd();

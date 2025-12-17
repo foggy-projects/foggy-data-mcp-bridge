@@ -1,0 +1,21 @@
+import '@f1DataSource';
+/**
+ * status 维度表模型
+ * 
+ * 数据库: f1
+ * 数据源: f1DataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'StatusModel',
+    caption: 'Status',
+    tableName: 'status',
+    dataSource: f1DataSource,
+    idColumn: 'status_id',
+
+    properties: [
+        { column: 'status_id', caption: 'Status Id', type: 'INTEGER' },
+        { column: 'status', caption: 'Status', type: 'STRING' },
+    ],
+};

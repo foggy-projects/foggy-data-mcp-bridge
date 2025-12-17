@@ -1,0 +1,28 @@
+import '@adventureworksDataSource';
+/**
+ * productreview 维度表模型
+ * 
+ * 数据库: AdventureWorks
+ * 数据源: adventureworksDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'ProductreviewModel',
+    caption: 'Productreview',
+    tableName: 'productreview',
+    dataSource: adventureworksDataSource,
+    idColumn: 'productreviewid',
+
+    properties: [
+        { column: 'productreviewid', caption: 'Productreviewid', type: 'INTEGER' },
+        { column: 'productid', caption: 'Productid', type: 'INTEGER' },
+        { column: 'reviewername', caption: 'Reviewername', type: 'STRING' },
+        { column: 'reviewdate', caption: 'Reviewdate', type: 'DAY' },
+        { column: 'emailaddress', caption: 'Emailaddress', type: 'STRING' },
+        { column: 'rating', caption: 'Rating', type: 'INTEGER' },
+        { column: 'comments', caption: 'Comments', type: 'STRING' },
+        { column: 'modifeddate', caption: 'Modifeddate', type: 'DAY' },
+        { column: 'modifieddate', caption: 'Modifieddate', type: 'STRING' },
+    ],
+};

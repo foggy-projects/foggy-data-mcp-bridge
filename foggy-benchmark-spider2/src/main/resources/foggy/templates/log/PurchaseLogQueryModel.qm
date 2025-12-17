@@ -1,0 +1,37 @@
+/**
+ * purchase_log 查询模型
+ * 
+ * 数据库: log
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'PurchaseLogQueryModel',
+    model: 'PurchaseLogModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'purchase_id' },
+                { name: 'app1MstUsers$id' },
+                { name: 'stamp' },
+            ]
+        },
+        {
+            caption: '关联维度',
+            items: [
+                { name: 'app1MstUsers$caption' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'amount' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

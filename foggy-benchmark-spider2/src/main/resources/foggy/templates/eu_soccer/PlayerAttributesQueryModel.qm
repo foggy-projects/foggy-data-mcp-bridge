@@ -1,0 +1,69 @@
+/**
+ * Player_Attributes 查询模型
+ * 
+ * 数据库: EU_soccer
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'PlayerAttributesQueryModel',
+    model: 'PlayerAttributesModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'id' },
+                { name: 'player_fifa_api_id' },
+                { name: 'player_api_id' },
+                { name: 'date' },
+                { name: 'overall_rating' },
+                { name: 'potential' },
+                { name: 'preferred_foot' },
+                { name: 'attacking_work_rate' },
+                { name: 'defensive_work_rate' },
+                { name: 'crossing' },
+                { name: 'finishing' },
+                { name: 'heading_accuracy' },
+                { name: 'short_passing' },
+                { name: 'volleys' },
+                { name: 'dribbling' },
+                { name: 'curve' },
+                { name: 'free_kick_accuracy' },
+                { name: 'long_passing' },
+                { name: 'ball_control' },
+                { name: 'acceleration' },
+                { name: 'sprint_speed' },
+                { name: 'agility' },
+                { name: 'reactions' },
+                { name: 'shot_power' },
+                { name: 'jumping' },
+                { name: 'stamina' },
+                { name: 'strength' },
+                { name: 'long_shots' },
+                { name: 'aggression' },
+                { name: 'interceptions' },
+                { name: 'positioning' },
+                { name: 'vision' },
+                { name: 'penalties' },
+                { name: 'marking' },
+                { name: 'standing_tackle' },
+                { name: 'sliding_tackle' },
+                { name: 'gk_diving' },
+                { name: 'gk_handling' },
+                { name: 'gk_kicking' },
+                { name: 'gk_positioning' },
+                { name: 'gk_reflexes' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'balance' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

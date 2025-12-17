@@ -1,0 +1,49 @@
+export const x = () => {
+    return 1;
+}
+
+export const x1 = () => {
+    return 2;
+}
+
+export const x2 = () => {
+    //测试对for是否有影响
+    let j = 0;
+    for (let i = 0; i < 2; i++) {
+        j = i;
+    }
+
+    return j;
+}
+
+export const x3 = () => {
+    //测试对json是否有影响
+    let b = 11;
+    return {
+        b
+    }
+
+
+};
+
+export const x4 = () => {
+    //测试对if else的影响
+    let b = 11;
+    if(b==12){
+
+    }
+
+    else if(c){
+
+    }
+
+    else{
+        return 'c';
+    }
+
+
+}
+
+export const aa = 'b'
+export const cc='c';
+export const dd='d';

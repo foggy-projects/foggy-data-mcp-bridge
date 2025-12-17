@@ -1,0 +1,10 @@
+// 测试 import default
+import Utils from 'utils.fsscript';
+
+export var utilsName = Utils.name;
+export var utilsVersion = Utils.version;
+
+export default {
+    utilsName: utilsName,
+    utilsVersion: utilsVersion
+};

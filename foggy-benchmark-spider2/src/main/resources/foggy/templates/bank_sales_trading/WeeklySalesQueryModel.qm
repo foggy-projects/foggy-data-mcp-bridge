@@ -1,0 +1,34 @@
+/**
+ * weekly_sales 查询模型
+ * 
+ * 数据库: bank_sales_trading
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'WeeklySalesQueryModel',
+    model: 'WeeklySalesModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'week_date' },
+                { name: 'region' },
+                { name: 'platform' },
+                { name: 'segment' },
+                { name: 'customer_type' },
+                { name: 'transactions' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'sales' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

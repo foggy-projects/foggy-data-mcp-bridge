@@ -1,0 +1,9 @@
+import {checkDaysRange as c} from 'FSS';
+import {checkDaysRange} from 'FSS';
+export const checkDaysRangeTest = (d1,d2,maxTimes,msg) => {
+    return c(d1,d2,maxTimes,msg);
+}
+
+export const checkDaysRangeTest2 = (d1,d2,maxTimes,msg) => {
+    return checkDaysRange(d1,d2,maxTimes,msg);
+}

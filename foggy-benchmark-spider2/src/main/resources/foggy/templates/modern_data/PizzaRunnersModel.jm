@@ -1,0 +1,21 @@
+import '@modernDataDataSource';
+/**
+ * pizza_runners 维度表模型
+ * 
+ * 数据库: modern_data
+ * 数据源: modernDataDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'PizzaRunnersModel',
+    caption: 'Pizza Runners',
+    tableName: 'pizza_runners',
+    dataSource: modernDataDataSource,
+    idColumn: 'runner_id',
+
+    properties: [
+        { column: 'runner_id', caption: 'Runner Id', type: 'INTEGER' },
+        { column: 'registration_date', caption: 'Registration Date', type: 'STRING' },
+    ],
+};

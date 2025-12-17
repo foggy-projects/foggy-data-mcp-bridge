@@ -1,0 +1,2 @@
+com.foggyframework.dataset.jdbc.model.JdbcModelAutoConfiguration
+com.foggyframework.semantic.impl.SemanticAutoConfiguration

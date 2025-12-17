@@ -1,0 +1,21 @@
+import '@musicDataSource';
+/**
+ * Genre 维度表模型
+ * 
+ * 数据库: music
+ * 数据源: musicDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'GenreModel',
+    caption: 'Genre',
+    tableName: 'Genre',
+    dataSource: musicDataSource,
+    idColumn: 'GenreId',
+
+    properties: [
+        { column: 'GenreId', caption: 'Genreid', type: 'INTEGER' },
+        { column: 'Name', caption: 'Name', type: 'STRING' },
+    ],
+};

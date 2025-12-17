@@ -1,0 +1,24 @@
+import '@bowlingleagueDataSource';
+/**
+ * Tourney_Matches_Archive 维度表模型
+ * 
+ * 数据库: BowlingLeague
+ * 数据源: bowlingleagueDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'TourneyMatchesArchiveModel',
+    caption: 'Tourney Matches Archive',
+    tableName: 'Tourney_Matches_Archive',
+    dataSource: bowlingleagueDataSource,
+    idColumn: 'MatchID',
+
+    properties: [
+        { column: 'MatchID', caption: 'Matchid', type: 'INTEGER' },
+        { column: 'TourneyID', caption: 'Tourneyid', type: 'INTEGER' },
+        { column: 'Lanes', caption: 'Lanes', type: 'STRING' },
+        { column: 'OddLaneTeamID', caption: 'Oddlaneteamid', type: 'INTEGER' },
+        { column: 'EvenLaneTeamID', caption: 'Evenlaneteamid', type: 'INTEGER' },
+    ],
+};

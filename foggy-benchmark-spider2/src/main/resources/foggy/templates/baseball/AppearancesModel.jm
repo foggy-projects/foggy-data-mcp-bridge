@@ -1,0 +1,40 @@
+import '@baseballDataSource';
+/**
+ * appearances 维度表模型
+ * 
+ * 数据库: Baseball
+ * 数据源: baseballDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'AppearancesModel',
+    caption: 'Appearances',
+    tableName: 'appearances',
+    dataSource: baseballDataSource,
+    idColumn: 'team_id',
+
+    properties: [
+        { column: 'year', caption: 'Year', type: 'INTEGER' },
+        { column: 'team_id', caption: 'Team Id', type: 'STRING' },
+        { column: 'league_id', caption: 'League Id', type: 'STRING' },
+        { column: 'player_id', caption: 'Player Id', type: 'STRING' },
+        { column: 'g_all', caption: 'G All', type: 'STRING' },
+        { column: 'gs', caption: 'Gs', type: 'STRING' },
+        { column: 'g_batting', caption: 'G Batting', type: 'INTEGER' },
+        { column: 'g_defense', caption: 'G Defense', type: 'STRING' },
+        { column: 'g_p', caption: 'G P', type: 'INTEGER' },
+        { column: 'g_c', caption: 'G C', type: 'INTEGER' },
+        { column: 'g_1b', caption: 'G 1b', type: 'INTEGER' },
+        { column: 'g_2b', caption: 'G 2b', type: 'INTEGER' },
+        { column: 'g_3b', caption: 'G 3b', type: 'INTEGER' },
+        { column: 'g_ss', caption: 'G Ss', type: 'INTEGER' },
+        { column: 'g_lf', caption: 'G Lf', type: 'INTEGER' },
+        { column: 'g_cf', caption: 'G Cf', type: 'INTEGER' },
+        { column: 'g_rf', caption: 'G Rf', type: 'INTEGER' },
+        { column: 'g_of', caption: 'G Of', type: 'INTEGER' },
+        { column: 'g_dh', caption: 'G Dh', type: 'STRING' },
+        { column: 'g_ph', caption: 'G Ph', type: 'STRING' },
+        { column: 'g_pr', caption: 'G Pr', type: 'STRING' },
+    ],
+};

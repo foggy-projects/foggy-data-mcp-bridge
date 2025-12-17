@@ -1,0 +1,26 @@
+import '@educationBusinessDataSource';
+/**
+ * web_accounts 维度表模型
+ * 
+ * 数据库: education_business
+ * 数据源: educationBusinessDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'WebAccountsModel',
+    caption: 'Web Accounts',
+    tableName: 'web_accounts',
+    dataSource: educationBusinessDataSource,
+    idColumn: 'sales_rep_id',
+
+    properties: [
+        { column: 'id', caption: 'Id', type: 'INTEGER' },
+        { column: 'name', caption: 'Name', type: 'STRING' },
+        { column: 'website', caption: 'Website', type: 'STRING' },
+        { column: 'lat', caption: 'Lat', type: 'DECIMAL' },
+        { column: 'long', caption: 'Long', type: 'DECIMAL' },
+        { column: 'primary_poc', caption: 'Primary Poc', type: 'STRING' },
+        { column: 'sales_rep_id', caption: 'Sales Rep Id', type: 'INTEGER' },
+    ],
+};

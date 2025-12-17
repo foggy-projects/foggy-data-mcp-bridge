@@ -1,0 +1,24 @@
+import '@iplDataSource';
+/**
+ * batsman_scored 维度表模型
+ * 
+ * 数据库: IPL
+ * 数据源: iplDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'BatsmanScoredModel',
+    caption: 'Batsman Scored',
+    tableName: 'batsman_scored',
+    dataSource: iplDataSource,
+    idColumn: 'match_id',
+
+    properties: [
+        { column: 'match_id', caption: 'Match Id', type: 'INTEGER' },
+        { column: 'over_id', caption: 'Over Id', type: 'INTEGER' },
+        { column: 'ball_id', caption: 'Ball Id', type: 'INTEGER' },
+        { column: 'runs_scored', caption: 'Runs Scored', type: 'INTEGER' },
+        { column: 'innings_no', caption: 'Innings No', type: 'INTEGER' },
+    ],
+};

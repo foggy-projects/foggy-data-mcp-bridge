@@ -1,0 +1,30 @@
+import '@entertainmentagencyDataSource';
+/**
+ * Agents 维度表模型
+ * 
+ * 数据库: EntertainmentAgency
+ * 数据源: entertainmentagencyDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'AgentsModel',
+    caption: 'Agents',
+    tableName: 'Agents',
+    dataSource: entertainmentagencyDataSource,
+    idColumn: 'AgentID',
+
+    properties: [
+        { column: 'AgentID', caption: 'Agentid', type: 'INTEGER' },
+        { column: 'AgtFirstName', caption: 'Agtfirstname', type: 'STRING' },
+        { column: 'AgtLastName', caption: 'Agtlastname', type: 'STRING' },
+        { column: 'AgtStreetAddress', caption: 'Agtstreetaddress', type: 'STRING' },
+        { column: 'AgtCity', caption: 'Agtcity', type: 'STRING' },
+        { column: 'AgtState', caption: 'Agtstate', type: 'STRING' },
+        { column: 'AgtZipCode', caption: 'Agtzipcode', type: 'STRING' },
+        { column: 'AgtPhoneNumber', caption: 'Agtphonenumber', type: 'STRING' },
+        { column: 'DateHired', caption: 'Datehired', type: 'DAY' },
+        { column: 'Salary', caption: 'Salary', type: 'STRING' },
+        { column: 'CommissionRate', caption: 'Commissionrate', type: 'DECIMAL' },
+    ],
+};

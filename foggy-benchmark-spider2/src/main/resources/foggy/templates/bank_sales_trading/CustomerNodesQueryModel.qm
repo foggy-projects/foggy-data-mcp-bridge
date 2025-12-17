@@ -1,0 +1,34 @@
+/**
+ * customer_nodes 查询模型
+ * 
+ * 数据库: bank_sales_trading
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'CustomerNodesQueryModel',
+    model: 'CustomerNodesModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'customer_id' },
+                { name: 'customerRegions$id' },
+                { name: 'customerNodes$id' },
+                { name: 'start_date' },
+                { name: 'end_date' },
+            ]
+        },
+        {
+            caption: '关联维度',
+            items: [
+                { name: 'customerRegions$caption' },
+                { name: 'customerNodes$caption' },
+            ]
+        },
+    ],
+
+    orders: [],
+    accesses: []
+};

@@ -1,0 +1,23 @@
+import '@modernDataDataSource';
+/**
+ * pizza_get_extras 维度表模型
+ * 
+ * 数据库: modern_data
+ * 数据源: modernDataDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'PizzaGetExtrasModel',
+    caption: 'Pizza Get Extras',
+    tableName: 'pizza_get_extras',
+    dataSource: modernDataDataSource,
+    idColumn: 'row_id',
+
+    properties: [
+        { column: 'row_id', caption: 'Row Id', type: 'INTEGER' },
+        { column: 'order_id', caption: 'Order Id', type: 'INTEGER' },
+        { column: 'extras', caption: 'Extras', type: 'INTEGER' },
+        { column: 'extras_count', caption: 'Extras Count', type: 'INTEGER' },
+    ],
+};

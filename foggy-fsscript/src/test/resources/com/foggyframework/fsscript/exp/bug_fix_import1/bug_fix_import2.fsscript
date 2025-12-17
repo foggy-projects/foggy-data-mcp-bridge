@@ -1,0 +1,5 @@
+import {b as c} from "./bug_fix_import4.fsscript";
+
+export const a=2;
+
+export const b=c;

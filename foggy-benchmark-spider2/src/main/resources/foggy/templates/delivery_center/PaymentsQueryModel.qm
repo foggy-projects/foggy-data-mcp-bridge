@@ -1,0 +1,33 @@
+/**
+ * payments 查询模型
+ * 
+ * 数据库: delivery_center
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'PaymentsQueryModel',
+    model: 'PaymentsModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'payment_id' },
+                { name: 'payment_order_id' },
+                { name: 'payment_method' },
+                { name: 'payment_status' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'payment_amount' },
+                { name: 'payment_fee' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

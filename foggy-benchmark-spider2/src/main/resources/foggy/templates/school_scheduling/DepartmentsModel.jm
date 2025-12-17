@@ -1,0 +1,22 @@
+import '@schoolSchedulingDataSource';
+/**
+ * Departments 维度表模型
+ * 
+ * 数据库: school_scheduling
+ * 数据源: schoolSchedulingDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'DepartmentsModel',
+    caption: 'Departments',
+    tableName: 'Departments',
+    dataSource: schoolSchedulingDataSource,
+    idColumn: 'DepartmentID',
+
+    properties: [
+        { column: 'DepartmentID', caption: 'Departmentid', type: 'INTEGER' },
+        { column: 'DeptName', caption: 'Deptname', type: 'STRING' },
+        { column: 'DeptChair', caption: 'Deptchair', type: 'INTEGER' },
+    ],
+};

@@ -1,0 +1,21 @@
+import '@chinookDataSource';
+/**
+ * artists 维度表模型
+ * 
+ * 数据库: chinook
+ * 数据源: chinookDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'ArtistsModel',
+    caption: 'Artists',
+    tableName: 'artists',
+    dataSource: chinookDataSource,
+    idColumn: 'ArtistId',
+
+    properties: [
+        { column: 'ArtistId', caption: 'Artistid', type: 'INTEGER' },
+        { column: 'Name', caption: 'Name', type: 'STRING' },
+    ],
+};

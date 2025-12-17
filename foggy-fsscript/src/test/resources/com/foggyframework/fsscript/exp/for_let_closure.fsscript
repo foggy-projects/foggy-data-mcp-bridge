@@ -1,0 +1,17 @@
+var a = null;
+var b = null;
+
+for (let i = 0; i < 2; i++) {
+    if (i == 0) {
+        a = () => {
+            return i;
+        };
+    } else {
+        b = () => {
+            return i;
+        };
+    }
+}
+
+export const aa = a();
+export const bb = b();

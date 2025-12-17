@@ -1,0 +1,12 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "description": "获取指定数据模型的完整元数据定义",
+  "properties": {
+    "model": {
+      "type": "string",
+      "description": "模型名称，如 TmsCustomerModel"
+    }
+  },
+  "required": ["model"]
+}

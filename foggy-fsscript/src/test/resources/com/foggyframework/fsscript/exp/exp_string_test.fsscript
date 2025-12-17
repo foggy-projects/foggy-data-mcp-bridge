@@ -1,0 +1,19 @@
+
+export const x = `
+1234
+`
+
+export const d = `
+1234` + `aaa`+'b'+`dd`;
+
+export const bb = `
+    123${x.trim()}123
+`;
+
+let a = 1;
+let c = '';
+for (let i = 0; i < 2; i++) {
+    c = c+`${a}`;
+}
+
+export const cc=c;

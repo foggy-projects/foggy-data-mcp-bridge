@@ -1,0 +1,109 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "description": "对指定模型执行数据查询（V3版本：维度字段展开为独立的 $id/$caption 字段）",
+  "properties": {
+    "model": {
+      "type": "string",
+      "description": "模型名称，如 TmsCustomerModel"
+    },
+    "payload": {
+      "type": "object",
+      "description": "查询参数",
+      "properties": {
+        "calculatedFields": {
+          "type": "array",
+          "description": "计算字段定义列表，支持动态创建基于表达式的虚拟字段",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "计算字段名称，不能与模型中已有字段重复"
+              },
+              "caption": {
+                "type": "string",
+                "description": "计算字段显示名称"
+              },
+              "expression": {
+                "type": "string",
+                "description": "计算表达式，支持：算术运算(+,-,*,/,%)、函数(ABS,ROUND,CEIL,FLOOR,COALESCE,IF)、字段引用、链式引用前面定义的计算字段"
+              }
+            },
+            "required": ["name", "expression"]
+          }
+        },
+        "columns": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "查询列，直接使用字段名（维度字段已展开为 xxx$id 和 xxx$caption 两个独立字段）"
+        },
+        "slice": {
+          "type": "array",
+          "description": "过滤条件数组，支持嵌套的 AND/OR 逻辑组合",
+          "items": {
+            "type": "object",
+            "properties": {
+              "field": { "type": "string", "description": "字段名（直接使用，无需后缀判断）" },
+              "op": { "type": "string", "description": "操作符：=, !=, >, <, like, in, not in, [], [), is null, is not null 等" },
+              "value": { "description": "过滤值，is null/is not null 时不需要" },
+              "link": { "type": "integer", "description": "逻辑连接符：1=AND(默认), 2=OR，用于连接本条件与前一条件或 children 内的条件" },
+              "children": {
+                "type": "array",
+                "description": "嵌套的子条件数组，可实现复杂的 OR 逻辑分组。子条件的结构与父级相同，支持递归嵌套",
+                "items": { "$ref": "#/properties/payload/properties/slice/items" }
+              }
+            },
+            "required": ["field", "op"]
+          }
+        },
+        "orderBy": {
+          "type": "array",
+          "description": "排序规则数组",
+          "items": {
+            "type": "object",
+            "properties": {
+              "field": { "type": "string", "description": "排序字段（直接使用字段名）" },
+              "dir": { "type": "string", "enum": ["ASC", "DESC"], "description": "排序方向" }
+            },
+            "required": ["field"]
+          }
+        },
+        "groupBy": {
+          "type": "array",
+          "description": "分组与聚合配置",
+          "items": {
+            "type": "object",
+            "properties": {
+              "field": { "type": "string", "description": "分组字段或聚合字段（直接使用字段名）" },
+              "agg": { "type": "string", "enum": ["MAX", "MIN", "SUM", "AVG", "COUNT", "PK"], "description": "聚合类型，度量字段可使用默认值" }
+            },
+            "required": ["field"]
+          }
+        },
+        "start": {
+          "type": "integer",
+          "default": 0,
+          "description": "起始行号，从0开始"
+        },
+        "limit": {
+          "type": "integer",
+          "default": 20,
+          "description": "每页记录数，建议 columns*limit 控制在 200-300 以内"
+        },
+        "returnTotal": {
+          "type": "boolean",
+          "default": false,
+          "description": "是否返回总记录数。当用户询问'共有多少条'、'总数是多少'、需要分页显示总页数时，应设为 true"
+        }
+      }
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["execute", "validate"],
+      "default": "execute",
+      "description": "执行模式：execute(执行查询), validate(仅验证)"
+    }
+  },
+  "required": ["model", "payload"]
+}

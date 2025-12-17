@@ -1,0 +1,24 @@
+import '@logDataSource';
+/**
+ * dup_action_log 维度表模型
+ * 
+ * 数据库: log
+ * 数据源: logDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'DupActionLogModel',
+    caption: 'Dup Action Log',
+    tableName: 'dup_action_log',
+    dataSource: logDataSource,
+    idColumn: 'user_id',
+
+    properties: [
+        { column: 'stamp', caption: 'Stamp', type: 'STRING' },
+        { column: 'session', caption: 'Session', type: 'STRING' },
+        { column: 'user_id', caption: 'User Id', type: 'STRING' },
+        { column: 'action', caption: 'Action', type: 'STRING' },
+        { column: 'products', caption: 'Products', type: 'STRING' },
+    ],
+};

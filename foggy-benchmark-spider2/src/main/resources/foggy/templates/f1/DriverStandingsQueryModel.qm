@@ -1,0 +1,36 @@
+/**
+ * driver_standings 查询模型
+ * 
+ * 数据库: f1
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'DriverStandingsQueryModel',
+    model: 'DriverStandingsModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'driver_standings_id' },
+                { name: 'races$id' },
+                { name: 'drivers$id' },
+                { name: 'points' },
+                { name: 'position' },
+                { name: 'position_text' },
+                { name: 'wins' },
+            ]
+        },
+        {
+            caption: '关联维度',
+            items: [
+                { name: 'races$caption' },
+                { name: 'drivers$caption' },
+            ]
+        },
+    ],
+
+    orders: [],
+    accesses: []
+};

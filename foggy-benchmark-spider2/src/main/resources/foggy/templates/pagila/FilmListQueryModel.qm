@@ -1,0 +1,35 @@
+/**
+ * film_list 查询模型
+ * 
+ * 数据库: Pagila
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'FilmListQueryModel',
+    model: 'FilmListModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'FID' },
+                { name: 'title' },
+                { name: 'description' },
+                { name: 'category' },
+                { name: 'length' },
+                { name: 'rating' },
+                { name: 'actors' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'price' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

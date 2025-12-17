@@ -1,0 +1,6 @@
+export var array = [1,2,3,];
+
+export var array2 = [,1,2,3];
+
+export var array3 = [,1,,2,3];
+

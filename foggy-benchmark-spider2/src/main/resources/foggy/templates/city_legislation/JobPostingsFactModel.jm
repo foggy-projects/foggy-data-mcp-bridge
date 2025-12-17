@@ -1,0 +1,35 @@
+import '@cityLegislationDataSource';
+/**
+ * job_postings_fact 维度表模型
+ * 
+ * 数据库: city_legislation
+ * 数据源: cityLegislationDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'JobPostingsFactModel',
+    caption: 'Job Postings Fact',
+    tableName: 'job_postings_fact',
+    dataSource: cityLegislationDataSource,
+    idColumn: 'job_id',
+
+    properties: [
+        { column: 'job_id', caption: 'Job Id', type: 'INTEGER' },
+        { column: 'company_id', caption: 'Company Id', type: 'INTEGER' },
+        { column: 'job_title_short', caption: 'Job Title Short', type: 'STRING' },
+        { column: 'job_title', caption: 'Job Title', type: 'STRING' },
+        { column: 'job_location', caption: 'Job Location', type: 'STRING' },
+        { column: 'job_via', caption: 'Job Via', type: 'STRING' },
+        { column: 'job_schedule_type', caption: 'Job Schedule Type', type: 'STRING' },
+        { column: 'job_work_from_home', caption: 'Job Work From Home', type: 'INTEGER' },
+        { column: 'search_location', caption: 'Search Location', type: 'STRING' },
+        { column: 'job_posted_date', caption: 'Job Posted Date', type: 'STRING' },
+        { column: 'job_no_degree_mention', caption: 'Job No Degree Mention', type: 'INTEGER' },
+        { column: 'job_health_insurance', caption: 'Job Health Insurance', type: 'INTEGER' },
+        { column: 'job_country', caption: 'Job Country', type: 'STRING' },
+        { column: 'salary_rate', caption: 'Salary Rate', type: 'STRING' },
+        { column: 'salary_year_avg', caption: 'Salary Year Avg', type: 'DECIMAL' },
+        { column: 'salary_hour_avg', caption: 'Salary Hour Avg', type: 'DECIMAL' },
+    ],
+};

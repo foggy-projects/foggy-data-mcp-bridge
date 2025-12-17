@@ -1,0 +1,30 @@
+import '@f1DataSource';
+/**
+ * circuits_ext 维度表模型
+ * 
+ * 数据库: f1
+ * 数据源: f1DataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'CircuitsExtModel',
+    caption: 'Circuits Ext',
+    tableName: 'circuits_ext',
+    dataSource: f1DataSource,
+    idColumn: 'circuit_id',
+
+    properties: [
+        { column: 'circuit_id', caption: 'Circuit Id', type: 'INTEGER' },
+        { column: 'circuit_ref', caption: 'Circuit Ref', type: 'STRING' },
+        { column: 'name', caption: 'Name', type: 'STRING' },
+        { column: 'location', caption: 'Location', type: 'STRING' },
+        { column: 'country', caption: 'Country', type: 'STRING' },
+        { column: 'lat', caption: 'Lat', type: 'DECIMAL' },
+        { column: 'lng', caption: 'Lng', type: 'DECIMAL' },
+        { column: 'alt', caption: 'Alt', type: 'INTEGER' },
+        { column: 'url', caption: 'Url', type: 'STRING' },
+        { column: 'last_race_year', caption: 'Last Race Year', type: 'STRING' },
+        { column: 'number_of_races', caption: 'Number Of Races', type: 'STRING' },
+    ],
+};

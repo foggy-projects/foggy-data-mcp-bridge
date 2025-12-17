@@ -1,0 +1,28 @@
+import '@sqliteSakilaDataSource';
+/**
+ * customer_list 维度表模型
+ * 
+ * 数据库: SQLITE_SAKILA
+ * 数据源: sqliteSakilaDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'CustomerListModel',
+    caption: 'Customer List',
+    tableName: 'customer_list',
+    dataSource: sqliteSakilaDataSource,
+    idColumn: 'ID',
+
+    properties: [
+        { column: 'ID', caption: 'Id', type: 'INTEGER' },
+        { column: 'name', caption: 'Name', type: 'STRING' },
+        { column: 'address', caption: 'Address', type: 'STRING' },
+        { column: 'zip_code', caption: 'Zip Code', type: 'STRING' },
+        { column: 'phone', caption: 'Phone', type: 'STRING' },
+        { column: 'city', caption: 'City', type: 'STRING' },
+        { column: 'country', caption: 'Country', type: 'STRING' },
+        { column: 'notes', caption: 'Notes', type: 'STRING' },
+        { column: 'SID', caption: 'Sid', type: 'INTEGER' },
+    ],
+};

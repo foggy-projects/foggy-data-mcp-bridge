@@ -1,0 +1,23 @@
+import '@northwindDataSource';
+/**
+ * categories 维度表模型
+ * 
+ * 数据库: northwind
+ * 数据源: northwindDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'CategoriesModel',
+    caption: '分类',
+    tableName: 'categories',
+    dataSource: northwindDataSource,
+    idColumn: 'categoryid',
+
+    properties: [
+        { column: 'categoryid', caption: 'Categoryid', type: 'INTEGER' },
+        { column: 'categoryname', caption: 'Categoryname', type: 'STRING' },
+        { column: 'description', caption: 'Description', type: 'STRING' },
+        { column: 'picture', caption: 'Picture', type: 'STRING' },
+    ],
+};

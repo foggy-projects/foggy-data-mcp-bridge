@@ -1,0 +1,35 @@
+/**
+ * bitcoin_prices 查询模型
+ * 
+ * 数据库: bank_sales_trading
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'BitcoinPricesQueryModel',
+    model: 'BitcoinPricesModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'ticker' },
+                { name: 'market_date' },
+                { name: 'open' },
+                { name: 'high' },
+                { name: 'low' },
+                { name: 'volume' },
+                { name: 'change' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'price' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

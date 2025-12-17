@@ -1,0 +1,22 @@
+import '@musicDataSource';
+/**
+ * Album 维度表模型
+ * 
+ * 数据库: music
+ * 数据源: musicDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'AlbumModel',
+    caption: 'Album',
+    tableName: 'Album',
+    dataSource: musicDataSource,
+    idColumn: 'AlbumId',
+
+    properties: [
+        { column: 'AlbumId', caption: 'Albumid', type: 'INTEGER' },
+        { column: 'Title', caption: 'Title', type: 'STRING' },
+        { column: 'ArtistId', caption: 'Artistid', type: 'INTEGER' },
+    ],
+};

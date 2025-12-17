@@ -1,0 +1,25 @@
+import '@iplDataSource';
+/**
+ * player 维度表模型
+ * 
+ * 数据库: IPL
+ * 数据源: iplDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'PlayerModel',
+    caption: 'Player',
+    tableName: 'player',
+    dataSource: iplDataSource,
+    idColumn: 'player_id',
+
+    properties: [
+        { column: 'player_id', caption: 'Player Id', type: 'INTEGER' },
+        { column: 'player_name', caption: 'Player Name', type: 'STRING' },
+        { column: 'dob', caption: 'Dob', type: 'DAY' },
+        { column: 'batting_hand', caption: 'Batting Hand', type: 'STRING' },
+        { column: 'bowling_skill', caption: 'Bowling Skill', type: 'STRING' },
+        { column: 'country_name', caption: 'Country Name', type: 'STRING' },
+    ],
+};

@@ -1,0 +1,22 @@
+import '@educationBusinessDataSource';
+/**
+ * university_course 维度表模型
+ * 
+ * 数据库: education_business
+ * 数据源: educationBusinessDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'UniversityCourseModel',
+    caption: 'University Course',
+    tableName: 'university_course',
+    dataSource: educationBusinessDataSource,
+    idColumn: 'CourseNo',
+
+    properties: [
+        { column: 'CourseNo', caption: 'Courseno', type: 'STRING' },
+        { column: 'CrsDesc', caption: 'Crsdesc', type: 'STRING' },
+        { column: 'CrsUnits', caption: 'Crsunits', type: 'INTEGER' },
+    ],
+};

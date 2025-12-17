@@ -1,0 +1,24 @@
+import '@bankSalesTradingDataSource';
+/**
+ * veg_cat 维度表模型
+ * 
+ * 数据库: bank_sales_trading
+ * 数据源: bankSalesTradingDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'VegCatModel',
+    caption: 'Veg Cat',
+    tableName: 'veg_cat',
+    dataSource: bankSalesTradingDataSource,
+    idColumn: 'index',
+
+    properties: [
+        { column: 'index', caption: 'Index', type: 'INTEGER' },
+        { column: 'item_code', caption: 'Item Code', type: 'INTEGER' },
+        { column: 'item_name', caption: 'Item Name', type: 'STRING' },
+        { column: 'category_code', caption: 'Category Code', type: 'INTEGER' },
+        { column: 'category_name', caption: 'Category Name', type: 'STRING' },
+    ],
+};

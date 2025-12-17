@@ -1,0 +1,22 @@
+import '@dbImdbDataSource';
+/**
+ * Country 事实表模型
+ * 
+ * 数据库: DB_IMDB
+ * 数据源: dbImdbDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'CountryModel',
+    caption: 'Country',
+    tableName: 'Country',
+    dataSource: dbImdbDataSource,
+    idColumn: 'index',
+
+    properties: [
+        { column: 'index', caption: 'Index', type: 'INTEGER' },
+        { column: 'Name', caption: 'Name', type: 'STRING' },
+        { column: 'CID', caption: 'Cid', type: 'INTEGER' },
+    ],
+};

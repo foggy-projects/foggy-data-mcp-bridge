@@ -1,0 +1,37 @@
+/**
+ * olist_products_dataset 查询模型
+ * 
+ * 数据库: Brazilian_E_Commerce
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'OlistProductsDatasetQueryModel',
+    model: 'OlistProductsDatasetModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'index' },
+                { name: 'product_id' },
+                { name: 'product_category_name' },
+                { name: 'product_name_lenght' },
+                { name: 'product_description_lenght' },
+                { name: 'product_weight_g' },
+                { name: 'product_length_cm' },
+                { name: 'product_height_cm' },
+                { name: 'product_width_cm' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'product_photos_qty' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

@@ -1,0 +1,22 @@
+import '@northwindDataSource';
+/**
+ * shippers 维度表模型
+ * 
+ * 数据库: northwind
+ * 数据源: northwindDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'ShippersModel',
+    caption: 'Shippers',
+    tableName: 'shippers',
+    dataSource: northwindDataSource,
+    idColumn: 'shipperid',
+
+    properties: [
+        { column: 'shipperid', caption: 'Shipperid', type: 'INTEGER' },
+        { column: 'companyname', caption: 'Companyname', type: 'STRING' },
+        { column: 'phone', caption: 'Phone', type: 'STRING' },
+    ],
+};

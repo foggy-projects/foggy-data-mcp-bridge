@@ -1,0 +1,27 @@
+import '@educationBusinessDataSource';
+/**
+ * hardware_fact_sales_monthly 事实表模型
+ * 
+ * 数据库: education_business
+ * 数据源: educationBusinessDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'HardwareFactSalesMonthlyModel',
+    caption: 'Hardware Fact Sales Monthly',
+    tableName: 'hardware_fact_sales_monthly',
+    dataSource: educationBusinessDataSource,
+    idColumn: 'date',
+
+    properties: [
+        { column: 'date', caption: 'Date', type: 'STRING' },
+        { column: 'product_code', caption: 'Product Code', type: 'STRING' },
+        { column: 'customer_code', caption: 'Customer Code', type: 'INTEGER' },
+        { column: 'fiscal_year', caption: 'Fiscal Year', type: 'INTEGER' },
+    ],
+
+    measures: [
+        { column: 'sold_quantity', caption: 'Sold Quantity', type: 'INTEGER', aggregation: 'sum' },
+    ]
+};

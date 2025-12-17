@@ -1,0 +1,38 @@
+/**
+ * web_orders 查询模型
+ * 
+ * 数据库: education_business
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'WebOrdersQueryModel',
+    model: 'WebOrdersModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'id' },
+                { name: 'account_id' },
+                { name: 'occurred_at' },
+                { name: 'standard_amt_usd' },
+                { name: 'gloss_amt_usd' },
+                { name: 'poster_amt_usd' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'standard_qty' },
+                { name: 'gloss_qty' },
+                { name: 'poster_qty' },
+                { name: 'total' },
+                { name: 'total_amt_usd' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

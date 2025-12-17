@@ -1,0 +1,27 @@
+import '@bankSalesTradingDataSource';
+/**
+ * interest_metrics 维度表模型
+ * 
+ * 数据库: bank_sales_trading
+ * 数据源: bankSalesTradingDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'InterestMetricsModel',
+    caption: 'Interest Metrics',
+    tableName: 'interest_metrics',
+    dataSource: bankSalesTradingDataSource,
+    idColumn: 'interest_id',
+
+    properties: [
+        { column: '_month', caption: ' Month', type: 'DECIMAL' },
+        { column: '_year', caption: ' Year', type: 'DECIMAL' },
+        { column: 'month_year', caption: 'Month Year', type: 'STRING' },
+        { column: 'interest_id', caption: 'Interest Id', type: 'DECIMAL' },
+        { column: 'composition', caption: 'Composition', type: 'DECIMAL' },
+        { column: 'index_value', caption: 'Index Value', type: 'DECIMAL' },
+        { column: 'ranking', caption: 'Ranking', type: 'INTEGER' },
+        { column: 'percentile_ranking', caption: 'Percentile Ranking', type: 'DECIMAL' },
+    ],
+};

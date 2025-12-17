@@ -1,0 +1,119 @@
+//用于将传入的数据中，vehicle_type格式转换为java的vehicleType格式
+import {getTeamCaption, getWorkonCaption,getTeamType} from '@testBugFixService';
+import {toList} from 'java:com.foggyframework.core.utils.JsonUtils';
+
+
+export const buildEsOrderCore2Card = (esOrderCore) => {
+
+    const bean = esOrderCore;//先转换格式成java的
+    return {
+        version: bean.version,
+        state: bean.state,
+        yunda: bean.yunda,
+        returnBack:bean.returnBack,
+        discountCard: bean.couponId ? {
+            referrerVipId: bean.referrerVipId,
+            couponId: bean.couponId,
+            calDiscountValue: bean.calDiscountValue,
+            discountValue: bean.discountValue
+        } : null,
+        placeOperCard: bean.placeTeamId ? {
+            operType: 60,
+            teamId: bean.placeTeamId,
+            teamCaption: getTeamCaption(bean.placeTeamId),
+            teamType:getTeamType(bean.placeTeamId),
+            workonId: bean.placeWorkonId,
+            workonCaption: getWorkonCaption(bean.placeWorkonId),
+            operTime: toDate(bean.placeTime)
+        } : null,
+        pickUpOperCard: bean.pickUpTeamId ? {
+            operType: 60,
+            teamId: bean.pickUpTeamId,
+            teamCaption: getTeamCaption(bean.pickUpTeamId),
+            teamType:getTeamType(bean.pickUpTeamId),
+            workonId: bean.pickUpWorkonId,
+            workonCaption: getWorkonCaption(bean.pickUpWorkonId),
+            operTime: toDate(bean.pickUpTime)
+        } : null,
+        takingOperCard: bean.takingTeamId ? {
+            operType: 60,
+            teamId: bean.takingTeamId,
+            teamCaption: getTeamCaption(bean.takingTeamId),
+            teamType:getTeamType(bean.takingTeamId),
+            workonId: bean.takingWorkonId,
+            workonCaption: getWorkonCaption(bean.takingWorkonId),
+            operTime: toDate(bean.takingTime)
+        } : null,
+        loadingOperCard: bean.loadingTeamId ? {
+            operType: 60,
+            teamId: bean.loadingTeamId,
+            teamCaption: getTeamCaption(bean.loadingTeamId),
+            teamType:getTeamType(bean.loadingTeamId),
+            workonId: bean.loadingWorkonId,
+            workonCaption: getWorkonCaption(bean.loadingWorkonId),
+            operTime: toDate(bean.loadingTime)
+        } : null,
+        deliveryOperCard: bean.deliveringTeamId ? {
+            operType: 60,
+            teamId: bean.deliveringTeamId,
+            teamCaption: getTeamCaption(bean.deliveringTeamId),
+            teamType:getTeamType(bean.deliveringTeamId),
+            workonId: bean.deliveryWorkonId,
+            workonCaption: getWorkonCaption(bean.deliveryWorkonId),
+            operTime: toDate(bean.deliveryTime)
+        } : null,
+        signOperCard: bean.signTeamId ? {
+            operType: 60,
+            teamId: bean.signTeamId,
+            teamCaption: getTeamCaption(bean.signTeamId),
+            teamType:getTeamType(bean.signTeamId),
+            workonId: bean.signWorkonId,
+            workonCaption: getWorkonCaption(bean.signWorkonId),
+            operTime: toDate(bean.signTime)
+        } : null,
+        arrivingOperCard: bean.loadingTeamId ? {
+            operType: 60,
+            teamId: bean.arrivingTeamId,
+            teamCaption: getTeamCaption(bean.arrivingTeamId),
+            teamType:getTeamType(bean.arrivingTeamId),
+            workonId: bean.arrivingWorkonId,
+            workonCaption: getWorkonCaption(bean.arrivingWorkonId),
+            operTime: toDate(bean.arrivingTime)
+        } : null,
+        spotPayCard: bean.orderPayState ? {
+            //提付时支付的信息
+            payTime: toDate(bean.orderPayTime),
+            payState: bean.orderPayState,
+            payBillId: bean.orderPayBillId,
+            tranType: bean.orderPayTranType
+        } : null,
+        receivePayCard: bean.signPayState ? {
+            //提付时支付的信息
+            payTime: toDate(bean.signPayTime),
+            payState: bean.signPayState,
+            payBillId: bean.signPayBillId,
+            tranType: bean.signPayTranType
+        } : null,
+        monthPayCard: bean.monthPayState ? {
+            //提付时支付的信息
+            payTime: toDate(bean.monthPayTime),
+            payState: bean.monthPayState,
+            payBillId: bean.monthPayBillId,
+            tranType: bean.monthPayTranType
+        } : null,
+        receiptPayCard: bean.receiptPayState ? {
+            //提付时支付的信息
+            payTime: toDate(bean.receiptPayTime),
+            payState: bean.receiptPayState,
+            payBillId: bean.receiptPayBillId,
+            tranType: bean.receiptPayTranType
+        } : null,
+        goodsValuePayableCard: bean.goodsValuePayState ? {
+            //提付时支付的信息
+            payState: bean.goodsValuePayState,
+            payType: bean.goodsValuePayType,
+            payTime: toDate(bean.goodsValuePayTime)
+        } : null
+    }
+
+}

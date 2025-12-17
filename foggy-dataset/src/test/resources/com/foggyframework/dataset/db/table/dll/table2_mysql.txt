@@ -1,0 +1,1 @@
+create table test2 (c1 varchar(64), c2 integer, primary key (c1))

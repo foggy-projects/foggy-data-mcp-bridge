@@ -1,0 +1,65 @@
+/**
+ * times 查询模型
+ * 
+ * 数据库: complex_oracle
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'TimesQueryModel',
+    model: 'TimesModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'time_id' },
+                { name: 'day_name' },
+                { name: 'week_ending_day' },
+                { name: 'week_ending_day_id' },
+                { name: 'calendar_month_desc' },
+                { name: 'calendar_month_id' },
+                { name: 'fiscal_month_desc' },
+                { name: 'fiscal_month_id' },
+                { name: 'days_in_cal_month' },
+                { name: 'days_in_fis_month' },
+                { name: 'end_of_cal_month' },
+                { name: 'end_of_fis_month' },
+                { name: 'calendar_month_name' },
+                { name: 'fiscal_month_name' },
+                { name: 'calendar_quarter_desc' },
+                { name: 'calendar_quarter_id' },
+                { name: 'fiscal_quarter_desc' },
+                { name: 'fiscal_quarter_id' },
+                { name: 'days_in_cal_quarter' },
+                { name: 'days_in_fis_quarter' },
+                { name: 'end_of_cal_quarter' },
+                { name: 'end_of_fis_quarter' },
+                { name: 'calendar_year' },
+                { name: 'calendar_year_id' },
+                { name: 'fiscal_year' },
+                { name: 'fiscal_year_id' },
+                { name: 'days_in_cal_year' },
+                { name: 'days_in_fis_year' },
+                { name: 'end_of_cal_year' },
+                { name: 'end_of_fis_year' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'day_number_in_week' },
+                { name: 'day_number_in_month' },
+                { name: 'calendar_week_number' },
+                { name: 'fiscal_week_number' },
+                { name: 'calendar_month_number' },
+                { name: 'fiscal_month_number' },
+                { name: 'calendar_quarter_number' },
+                { name: 'fiscal_quarter_number' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

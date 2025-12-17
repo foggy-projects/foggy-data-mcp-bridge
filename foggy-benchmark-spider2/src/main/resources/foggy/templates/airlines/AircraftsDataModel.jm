@@ -1,0 +1,22 @@
+import '@airlinesDataSource';
+/**
+ * aircrafts_data 维度表模型
+ * 
+ * 数据库: Airlines
+ * 数据源: airlinesDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'AircraftsDataModel',
+    caption: 'Aircrafts Data',
+    tableName: 'aircrafts_data',
+    dataSource: airlinesDataSource,
+    idColumn: 'aircraft_code',
+
+    properties: [
+        { column: 'aircraft_code', caption: 'Aircraft Code', type: 'STRING' },
+        { column: 'model', caption: 'Model', type: 'STRING' },
+        { column: 'range', caption: 'Range', type: 'INTEGER' },
+    ],
+};

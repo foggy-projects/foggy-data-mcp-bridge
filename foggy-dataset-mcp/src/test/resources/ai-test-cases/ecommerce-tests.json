@@ -1,0 +1,229 @@
+{
+  "version": "1.0",
+  "description": "电商场景 AI 集成测试用例集",
+  "testCases": [
+    {
+      "id": "META-001",
+      "category": "METADATA",
+      "question": "有哪些可用的数据模型？",
+      "expected_tool": "dataset.get_metadata",
+      "description": "获取元数据 - 模型列表",
+      "difficulty": "EASY",
+      "expected": {
+        "success_only": false,
+        "rules": [
+          {
+            "type": "NOT_EMPTY"
+          }
+        ]
+      }
+    },
+    {
+      "id": "META-002",
+      "category": "DESCRIBE",
+      "question": "FactSalesQueryModel 有哪些字段？",
+      "expected_tool": "dataset.describe_model_internal",
+      "target_model": "FactSalesQueryModel",
+      "description": "获取销售模型的字段定义",
+      "difficulty": "EASY",
+      "expected": {
+        "success_only": false,
+        "rules": [
+          {
+            "type": "NOT_EMPTY"
+          }
+        ]
+      }
+    },
+    {
+      "id": "QUERY-001",
+      "category": "SIMPLE_QUERY",
+      "question": "查询前5条销售记录，显示商品名称和销售金额",
+      "expected_tool": "dataset.query_model_v2",
+      "target_model": "FactSalesQueryModel",
+      "description": "简单查询 - 选择列并限制行数",
+      "difficulty": "EASY",
+      "expected": {
+        "required_columns": ["product$caption", "salesAmount"],
+        "max_rows": 5,
+        "rules": [
+          {
+            "type": "ROW_COUNT_RANGE",
+            "params": {"min": 1, "max": 5}
+          }
+        ]
+      }
+    },
+    {
+      "id": "QUERY-002",
+      "category": "SIMPLE_QUERY",
+      "question": "列出所有商品的信息",
+      "expected_tool": "dataset.query_model_v2",
+      "target_model": "FactSalesQueryModel",
+      "description": "简单查询 - 商品维度",
+      "difficulty": "EASY",
+      "expected": {
+        "min_rows": 1,
+        "rules": [
+          {
+            "type": "NOT_EMPTY"
+          }
+        ]
+      }
+    },
+    {
+      "id": "FILTER-001",
+      "category": "FILTER_QUERY",
+      "question": "查询销售金额大于1000的记录",
+      "expected_tool": "dataset.query_model_v2",
+      "target_model": "FactSalesQueryModel",
+      "description": "过滤查询 - 数值条件",
+      "difficulty": "MEDIUM",
+      "expected": {
+        "required_columns": ["salesAmount"],
+        "rules": [
+          {
+            "type": "VALUE_IN_RANGE",
+            "column": "salesAmount",
+            "params": {"min": 1000}
+          }
+        ]
+      }
+    },
+    {
+      "id": "FILTER-002",
+      "category": "FILTER_QUERY",
+      "question": "查询客户'张三'的所有购买记录",
+      "expected_tool": "dataset.query_model_v2",
+      "target_model": "FactSalesQueryModel",
+      "description": "过滤查询 - 文本精确匹配",
+      "difficulty": "MEDIUM",
+      "expected": {
+        "required_columns": ["customer$caption"],
+        "rules": [
+          {
+            "type": "VALUE_CONTAINS",
+            "column": "customer$caption",
+            "value": "张三"
+          }
+        ]
+      }
+    },
+    {
+      "id": "AGG-001",
+      "category": "AGGREGATION",
+      "question": "按商品统计销售总额，显示商品名称和总销售额",
+      "expected_tool": "dataset.query_model_v2",
+      "target_model": "FactSalesQueryModel",
+      "description": "聚合查询 - 分组求和",
+      "difficulty": "MEDIUM",
+      "expected": {
+        "required_columns": ["product$caption", "salesAmount"],
+        "min_rows": 1,
+        "rules": [
+          {
+            "type": "NOT_EMPTY"
+          }
+        ]
+      }
+    },
+    {
+      "id": "AGG-002",
+      "category": "AGGREGATION",
+      "question": "统计每个门店的销售数量和销售总额",
+      "expected_tool": "dataset.query_model_v2",
+      "target_model": "FactSalesQueryModel",
+      "description": "聚合查询 - 多指标分组",
+      "difficulty": "MEDIUM",
+      "expected": {
+        "required_columns": ["store$caption"],
+        "min_rows": 1,
+        "rules": [
+          {
+            "type": "NOT_EMPTY"
+          }
+        ]
+      }
+    },
+    {
+      "id": "DIM-001",
+      "category": "MULTI_DIMENSION",
+      "question": "按商品类别和门店统计销售额",
+      "expected_tool": "dataset.query_model_v2",
+      "target_model": "FactSalesQueryModel",
+      "description": "多维分析 - 双维度分组",
+      "difficulty": "HARD",
+      "expected": {
+        "min_rows": 1,
+        "rules": [
+          {
+            "type": "NOT_EMPTY"
+          }
+        ]
+      }
+    },
+    {
+      "id": "SORT-001",
+      "category": "SORT_PAGINATION",
+      "question": "查询销售额最高的5个商品",
+      "expected_tool": "dataset.query_model_v2",
+      "target_model": "FactSalesQueryModel",
+      "description": "排序查询 - 降序 Top N",
+      "difficulty": "MEDIUM",
+      "expected": {
+        "required_columns": ["product$caption", "salesAmount"],
+        "max_rows": 5,
+        "rules": [
+          {
+            "type": "ROW_COUNT_RANGE",
+            "params": {"min": 1, "max": 5}
+          },
+          {
+            "type": "ORDER_BY",
+            "column": "salesAmount",
+            "params": {"direction": "DESC"}
+          }
+        ]
+      }
+    },
+    {
+      "id": "SORT-002",
+      "category": "SORT_PAGINATION",
+      "question": "按销售数量升序显示前10条销售记录",
+      "expected_tool": "dataset.query_model_v2",
+      "target_model": "FactSalesQueryModel",
+      "description": "排序查询 - 升序分页",
+      "difficulty": "MEDIUM",
+      "expected": {
+        "required_columns": ["quantity"],
+        "max_rows": 10,
+        "rules": [
+          {
+            "type": "ORDER_BY",
+            "column": "quantity",
+            "params": {"direction": "ASC"}
+          }
+        ]
+      }
+    },
+    {
+      "id": "COMPLEX-001",
+      "category": "COMPLEX",
+      "question": "查询2024、2025年销售金额超过500的记录，按门店、年分组统计总销售额，结果按销售额降序排列，只显示前3名",
+      "expected_tool": "dataset.query_model_v2",
+      "target_model": "FactSalesQueryModel",
+      "description": "复杂查询 - 过滤+分组+排序+限制",
+      "difficulty": "HARD",
+      "expected": {
+        "required_columns": ["store$caption", "salesAmount"],
+        "max_rows": 3,
+        "rules": [
+          {
+            "type": "ROW_COUNT_RANGE",
+            "params": {"min": 1, "max": 3}
+          }
+        ]
+      }
+    }
+  ]
+}

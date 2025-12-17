@@ -1,0 +1,56 @@
+import '@northwindDataSource';
+/**
+ * products 事实表模型
+ * 
+ * 数据库: northwind
+ * 数据源: northwindDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'ProductsModel',
+    caption: '产品',
+    tableName: 'products',
+    dataSource: northwindDataSource,
+    idColumn: 'productid',
+
+    dimensions: [
+        {
+            name: 'suppliers',
+            tableName: 'suppliers',
+            foreignKey: 'supplierid',
+            primaryKey: 'supplierid',
+            captionColumn: 'companyname',
+            caption: 'Suppliers',
+            properties: [
+                { column: 'supplierid', caption: 'Supplierid', type: 'INTEGER' },
+                { column: 'companyname', caption: 'Companyname', type: 'STRING' },
+                { column: 'contactname', caption: 'Contactname', type: 'STRING' },
+                { column: 'contacttitle', caption: 'Contacttitle', type: 'STRING' },
+                { column: 'address', caption: 'Address', type: 'STRING' },
+                { column: 'city', caption: 'City', type: 'STRING' },
+                { column: 'region', caption: 'Region', type: 'STRING' },
+                { column: 'postalcode', caption: 'Postalcode', type: 'STRING' },
+                { column: 'country', caption: 'Country', type: 'STRING' },
+                { column: 'phone', caption: 'Phone', type: 'STRING' },
+                { column: 'fax', caption: 'Fax', type: 'STRING' },
+                { column: 'homepage', caption: 'Homepage', type: 'STRING' },
+            ]
+        },
+    ],
+
+    properties: [
+        { column: 'productid', caption: 'Productid', type: 'INTEGER' },
+        { column: 'productname', caption: 'Productname', type: 'STRING' },
+        { column: 'categoryid', caption: 'Categoryid', type: 'INTEGER' },
+        { column: 'quantityperunit', caption: 'Quantityperunit', type: 'STRING' },
+        { column: 'unitsinstock', caption: 'Unitsinstock', type: 'INTEGER' },
+        { column: 'unitsonorder', caption: 'Unitsonorder', type: 'INTEGER' },
+        { column: 'reorderlevel', caption: 'Reorderlevel', type: 'INTEGER' },
+        { column: 'discontinued', caption: 'Discontinued', type: 'INTEGER' },
+    ],
+
+    measures: [
+        { column: 'unitprice', caption: 'Unitprice', type: 'DECIMAL', aggregation: 'sum' },
+    ]
+};

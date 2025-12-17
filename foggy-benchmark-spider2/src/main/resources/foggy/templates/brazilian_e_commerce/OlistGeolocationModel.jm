@@ -1,0 +1,24 @@
+import '@brazilianECommerceDataSource';
+/**
+ * olist_geolocation 维度表模型
+ * 
+ * 数据库: Brazilian_E_Commerce
+ * 数据源: brazilianECommerceDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'OlistGeolocationModel',
+    caption: 'Olist Geolocation',
+    tableName: 'olist_geolocation',
+    dataSource: brazilianECommerceDataSource,
+    idColumn: 'geolocation_zip_code_prefix',
+
+    properties: [
+        { column: 'geolocation_zip_code_prefix', caption: 'Geolocation Zip Code Prefix', type: 'INTEGER' },
+        { column: 'geolocation_lat', caption: 'Geolocation Lat', type: 'DECIMAL' },
+        { column: 'geolocation_lng', caption: 'Geolocation Lng', type: 'DECIMAL' },
+        { column: 'geolocation_city', caption: 'Geolocation City', type: 'STRING' },
+        { column: 'geolocation_state', caption: 'Geolocation State', type: 'STRING' },
+    ],
+};

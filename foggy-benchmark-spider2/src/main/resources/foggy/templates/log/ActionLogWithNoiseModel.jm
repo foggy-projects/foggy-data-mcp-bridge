@@ -1,0 +1,26 @@
+import '@logDataSource';
+/**
+ * action_log_with_noise 维度表模型
+ * 
+ * 数据库: log
+ * 数据源: logDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'ActionLogWithNoiseModel',
+    caption: 'Action Log With Noise',
+    tableName: 'action_log_with_noise',
+    dataSource: logDataSource,
+    idColumn: 'stamp',
+
+    properties: [
+        { column: 'stamp', caption: 'Stamp', type: 'STRING' },
+        { column: 'session', caption: 'Session', type: 'STRING' },
+        { column: 'action', caption: 'Action', type: 'STRING' },
+        { column: 'products', caption: 'Products', type: 'STRING' },
+        { column: 'url', caption: 'Url', type: 'STRING' },
+        { column: 'ip', caption: 'Ip', type: 'STRING' },
+        { column: 'user_agent', caption: 'User Agent', type: 'STRING' },
+    ],
+};

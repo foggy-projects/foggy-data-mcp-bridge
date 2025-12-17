@@ -1,0 +1,21 @@
+import '@oracleSqlDataSource';
+/**
+ * customer_reviews 维度表模型
+ * 
+ * 数据库: oracle_sql
+ * 数据源: oracleSqlDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'CustomerReviewsModel',
+    caption: 'Customer Reviews',
+    tableName: 'customer_reviews',
+    dataSource: oracleSqlDataSource,
+    idColumn: 'customer_id',
+
+    properties: [
+        { column: 'customer_id', caption: 'Customer Id', type: 'INTEGER' },
+        { column: 'review_list', caption: 'Review List', type: 'STRING' },
+    ],
+};

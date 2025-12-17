@@ -1,0 +1,25 @@
+import '@educationBusinessDataSource';
+/**
+ * SalaryDataset 维度表模型
+ * 
+ * 数据库: education_business
+ * 数据源: educationBusinessDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'SalarydatasetModel',
+    caption: 'Salarydataset',
+    tableName: 'SalaryDataset',
+    dataSource: educationBusinessDataSource,
+    idColumn: 'index',
+
+    properties: [
+        { column: 'index', caption: 'Index', type: 'INTEGER' },
+        { column: 'CompanyName', caption: 'Companyname', type: 'STRING' },
+        { column: 'JobTitle', caption: 'Jobtitle', type: 'STRING' },
+        { column: 'SalariesReported', caption: 'Salariesreported', type: 'DECIMAL' },
+        { column: 'Location', caption: 'Location', type: 'STRING' },
+        { column: 'Salary', caption: 'Salary', type: 'STRING' },
+    ],
+};

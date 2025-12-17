@@ -1,0 +1,17 @@
+import {test,test2,test3,test4,testArg} from '@importBeanTest';
+
+export var result1 = test();
+
+export var result2 = test2("testR");
+
+export var result3 = test3;
+
+export var result3 = test3;
+
+export var result4_1 = test4.abc("aaaaa");
+
+
+export var result4_2 = test4.a;
+
+
+export var resultTestArg = testArg({a:"aa",b: 2});

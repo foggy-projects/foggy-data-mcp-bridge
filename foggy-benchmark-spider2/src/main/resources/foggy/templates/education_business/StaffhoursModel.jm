@@ -1,0 +1,23 @@
+import '@educationBusinessDataSource';
+/**
+ * StaffHours 维度表模型
+ * 
+ * 数据库: education_business
+ * 数据源: educationBusinessDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'StaffhoursModel',
+    caption: 'Staffhours',
+    tableName: 'StaffHours',
+    dataSource: educationBusinessDataSource,
+    idColumn: 'StaffMember',
+
+    properties: [
+        { column: 'StaffMember', caption: 'Staffmember', type: 'STRING' },
+        { column: 'EventDate', caption: 'Eventdate', type: 'STRING' },
+        { column: 'EventTime', caption: 'Eventtime', type: 'STRING' },
+        { column: 'EventType', caption: 'Eventtype', type: 'STRING' },
+    ],
+};

@@ -1,0 +1,58 @@
+package com.foggyframework.dataset.jdbc.model.spi.support;
+
+import com.foggyframework.core.AbstractDecorate;
+import com.foggyframework.dataset.db.table.SqlColumn;
+import com.foggyframework.dataset.jdbc.model.impl.AiObject;
+import com.foggyframework.dataset.jdbc.model.spi.JdbcColumn;
+import com.foggyframework.dataset.jdbc.model.spi.JdbcColumnType;
+import com.foggyframework.dataset.jdbc.model.spi.QueryObject;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class SimpleSqlJdbcColumn extends AbstractDecorate implements JdbcColumn {
+
+    QueryObject queryObject;
+
+    SqlColumn sqlColumn;
+
+    String alias;
+
+    String name;
+
+    String caption;
+
+//    String description;
+
+    @Override
+    public JdbcColumnType getType() {
+        return null;
+    }
+
+    @Override
+    public String getDescription() {
+        return null;
+    }
+
+    @Override
+    public boolean _isDeprecated() {
+        return false;
+    }
+
+
+    @Override
+    public Object getExtData() {
+        return null;
+    }
+
+    @Override
+    public AiObject getAi() {
+        return null;
+    }
+
+
+    
+}

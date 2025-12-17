@@ -1,0 +1,59 @@
+/**
+ * 支付查询模型
+ *
+ * @caption 支付查询
+ * @description 支付事实表查询模型，支持按支付日期、客户等维度查询支付记录
+ */
+export const queryModel = {
+    name: 'FactPaymentQueryModel',
+    caption: '支付查询',
+    description: '支付事实表查询模型，支持按支付日期、客户等维度查询支付记录',
+    model: 'FactPaymentModel',
+
+    columnGroups: [
+        {
+            caption: '支付信息',
+            items: [
+                { name: 'paymentId', ui: { fixed: 'left', width: 150 } },
+                { name: 'orderId' },
+                { name: 'payMethod' },
+                { name: 'payChannel' },
+                { name: 'payStatus' },
+                { name: 'payTime' }
+            ]
+        },
+        {
+            caption: '日期维度',
+            items: [
+                { name: 'payDate' },
+                { name: 'payDate$year' },
+                { name: 'payDate$month' },
+                { name: 'payDate$monthName' },
+                { name: 'payDate$dayOfWeek' },
+                { name: 'payDate$isWeekend' }
+            ]
+        },
+        {
+            caption: '客户维度',
+            items: [
+                { name: 'customer' },
+                { name: 'customer$customerType' },
+                { name: 'customer$province' },
+                { name: 'customer$city' },
+                { name: 'customer$memberLevel' }
+            ]
+        },
+        {
+            caption: '度量',
+            items: [
+                { name: 'payAmount' }
+            ]
+        }
+    ],
+
+    orders: [
+        { name: 'payTime', order: 'desc' }
+    ],
+
+    accesses: []
+};

@@ -1,0 +1,22 @@
+import '@cityLegislationDataSource';
+/**
+ * skills_dim 维度表模型
+ * 
+ * 数据库: city_legislation
+ * 数据源: cityLegislationDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'SkillsDimModel',
+    caption: 'Skills Dim',
+    tableName: 'skills_dim',
+    dataSource: cityLegislationDataSource,
+    idColumn: 'skill_id',
+
+    properties: [
+        { column: 'skill_id', caption: 'Skill Id', type: 'INTEGER' },
+        { column: 'skills', caption: 'Skills', type: 'STRING' },
+        { column: 'type', caption: 'Type', type: 'STRING' },
+    ],
+};

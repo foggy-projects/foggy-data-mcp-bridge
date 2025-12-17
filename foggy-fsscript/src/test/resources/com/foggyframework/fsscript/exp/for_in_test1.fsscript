@@ -1,0 +1,9 @@
+const x = () => {
+    const v = [];
+    for (let k in [0, 1]) {
+        v.push(k);
+    }
+
+    return v;
+}
+export const v = x();

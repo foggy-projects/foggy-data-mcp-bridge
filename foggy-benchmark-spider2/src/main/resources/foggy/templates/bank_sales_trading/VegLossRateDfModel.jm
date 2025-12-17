@@ -1,0 +1,23 @@
+import '@bankSalesTradingDataSource';
+/**
+ * veg_loss_rate_df 维度表模型
+ * 
+ * 数据库: bank_sales_trading
+ * 数据源: bankSalesTradingDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'VegLossRateDfModel',
+    caption: 'Veg Loss Rate Df',
+    tableName: 'veg_loss_rate_df',
+    dataSource: bankSalesTradingDataSource,
+    idColumn: 'index',
+
+    properties: [
+        { column: 'index', caption: 'Index', type: 'INTEGER' },
+        { column: 'item_code', caption: 'Item Code', type: 'INTEGER' },
+        { column: 'item_name', caption: 'Item Name', type: 'STRING' },
+        { column: 'loss_rate_%', caption: 'Loss Rate %', type: 'DECIMAL' },
+    ],
+};

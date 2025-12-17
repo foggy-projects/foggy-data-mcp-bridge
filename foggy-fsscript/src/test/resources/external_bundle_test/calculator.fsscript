@@ -1,0 +1,12 @@
+// 测试 import 功能
+import {add, multiply, version} from 'utils.fsscript';
+
+export var sum = add(10, 20);
+export var product = multiply(5, 6);
+export var utilsVersion = version;
+
+export default {
+    sum: sum,
+    product: product,
+    version: utilsVersion
+};

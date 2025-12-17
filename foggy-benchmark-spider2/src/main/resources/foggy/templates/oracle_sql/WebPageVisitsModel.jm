@@ -1,0 +1,23 @@
+import '@oracleSqlDataSource';
+/**
+ * web_page_visits 维度表模型
+ * 
+ * 数据库: oracle_sql
+ * 数据源: oracleSqlDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'WebPageVisitsModel',
+    caption: 'Web Page Visits',
+    tableName: 'web_page_visits',
+    dataSource: oracleSqlDataSource,
+    idColumn: 'app_id',
+
+    properties: [
+        { column: 'client_ip', caption: 'Client Ip', type: 'STRING' },
+        { column: 'visit_time', caption: 'Visit Time', type: 'STRING' },
+        { column: 'app_id', caption: 'App Id', type: 'INTEGER' },
+        { column: 'page_no', caption: 'Page No', type: 'INTEGER' },
+    ],
+};

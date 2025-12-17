@@ -1,0 +1,22 @@
+import '@airlinesDataSource';
+/**
+ * seats 维度表模型
+ * 
+ * 数据库: Airlines
+ * 数据源: airlinesDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'SeatsModel',
+    caption: 'Seats',
+    tableName: 'seats',
+    dataSource: airlinesDataSource,
+    idColumn: 'aircraft_code',
+
+    properties: [
+        { column: 'aircraft_code', caption: 'Aircraft Code', type: 'STRING' },
+        { column: 'seat_no', caption: 'Seat No', type: 'STRING' },
+        { column: 'fare_conditions', caption: 'Fare Conditions', type: 'STRING' },
+    ],
+};

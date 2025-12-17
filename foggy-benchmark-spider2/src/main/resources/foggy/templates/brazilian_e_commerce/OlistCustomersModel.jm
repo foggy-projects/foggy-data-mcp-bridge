@@ -1,0 +1,24 @@
+import '@brazilianECommerceDataSource';
+/**
+ * olist_customers 维度表模型
+ * 
+ * 数据库: Brazilian_E_Commerce
+ * 数据源: brazilianECommerceDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'OlistCustomersModel',
+    caption: 'Olist Customers',
+    tableName: 'olist_customers',
+    dataSource: brazilianECommerceDataSource,
+    idColumn: 'customer_id',
+
+    properties: [
+        { column: 'customer_id', caption: 'Customer Id', type: 'STRING' },
+        { column: 'customer_unique_id', caption: 'Customer Unique Id', type: 'STRING' },
+        { column: 'customer_zip_code_prefix', caption: 'Customer Zip Code Prefix', type: 'INTEGER' },
+        { column: 'customer_city', caption: 'Customer City', type: 'STRING' },
+        { column: 'customer_state', caption: 'Customer State', type: 'STRING' },
+    ],
+};

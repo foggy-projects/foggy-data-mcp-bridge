@@ -1,0 +1,47 @@
+/**
+ * legislators_terms 查询模型
+ * 
+ * 数据库: city_legislation
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'LegislatorsTermsQueryModel',
+    model: 'LegislatorsTermsModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'id_bioguide' },
+                { name: 'term_id' },
+                { name: 'term_type' },
+                { name: 'term_start' },
+                { name: 'term_end' },
+                { name: 'state' },
+                { name: 'district' },
+                { name: 'class' },
+                { name: 'party' },
+                { name: 'how' },
+                { name: 'url' },
+                { name: 'address' },
+                { name: 'phone' },
+                { name: 'fax' },
+                { name: 'contact_form' },
+                { name: 'office' },
+                { name: 'state_rank' },
+                { name: 'rss_url' },
+                { name: 'caucus' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'term_number' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

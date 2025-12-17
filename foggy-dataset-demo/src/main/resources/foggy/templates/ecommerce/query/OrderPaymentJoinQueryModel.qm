@@ -1,0 +1,85 @@
+/**
+ * 订单-支付联合查询模型
+ *
+ * @caption 订单支付联合查询
+ * @description 多事实表JOIN场景 - 订单表与支付表联合查询，用于测试同粒度事实表JOIN
+ */
+export const queryModel = {
+    name: 'OrderPaymentJoinQueryModel',
+    caption: '订单支付联合查询',
+    description: '多事实表JOIN场景 - 订单表与支付表联合查询，用于测试同粒度事实表JOIN',
+
+    // 多模型关联配置
+    model: [
+        {
+            name: 'FactOrderModel',
+            alias: 'fo'
+        },
+        {
+            name: 'FactPaymentModel',
+            alias: 'fp',
+            onBuilder: () => {
+                return 'fo.order_id = fp.order_id';
+            }
+        }
+    ],
+
+    columnGroups: [
+        {
+            caption: '订单信息',
+            items: [
+                { name: 'orderId', ui: { fixed: 'left', width: 150 } },
+                { name: 'orderStatus' },
+                { name: 'paymentStatus' },
+                { name: 'orderTime' }
+            ]
+        },
+        {
+            caption: '支付信息',
+            items: [
+                { name: 'paymentId' },
+                { name: 'payMethod' },
+                { name: 'payChannel' },
+                { name: 'payStatus' },
+                { name: 'payTime' }
+            ]
+        },
+        {
+            caption: '订单日期',
+            items: [
+                { name: 'orderDate' },
+                { name: 'orderDate$year' },
+                { name: 'orderDate$month' }
+            ]
+        },
+        {
+            caption: '客户信息',
+            items: [
+                { name: 'customer' },
+                { name: 'customer$customerType' },
+                { name: 'customer$memberLevel' }
+            ]
+        },
+        {
+            caption: '订单度量',
+            items: [
+                { name: 'totalQuantity' },
+                { name: 'totalAmount' },
+                { name: 'discountAmount' },
+                { name: 'orderPayAmount' }
+            ]
+        },
+        {
+            caption: '支付度量',
+            items: [
+                { name: 'payAmount' }
+            ]
+        }
+    ],
+
+    orders: [
+        { name: 'orderTime', order: 'desc' }
+    ],
+
+    accesses: []
+};

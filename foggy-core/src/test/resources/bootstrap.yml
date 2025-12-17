@@ -1,0 +1,37 @@
+logging:
+  root: error
+  com.foggyframework.core: info
+
+spring:
+  #filter
+  main:
+    allow-bean-definition-overriding: true
+  devtools:
+    remote:
+      restart:
+        enabled: false
+    restart:
+      enabled: false
+  http:
+    encoding:
+      charset: UTF-8
+      force: true
+      enabled: true
+  application:
+        name: foggy-core
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 20MB
+
+  cloud:
+    nacos:
+      #服务发现地址
+      discovery:
+        server-addr: nacos.foggysource.com:8848
+        service: foggy-frame-core
+        namespace: dev-G3
+      config:
+        server-addr: nacos.foggysource.com:8848
+        file-extension: yaml
+        namespace: dev-G3

@@ -1,0 +1,38 @@
+/**
+ * victims 查询模型
+ * 
+ * 数据库: California_Traffic_Collision
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'VictimsQueryModel',
+    model: 'VictimsModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'id' },
+                { name: 'case_id' },
+                { name: 'victim_role' },
+                { name: 'victim_sex' },
+                { name: 'victim_age' },
+                { name: 'victim_degree_of_injury' },
+                { name: 'victim_seating_position' },
+                { name: 'victim_safety_equipment_1' },
+                { name: 'victim_safety_equipment_2' },
+                { name: 'victim_ejected' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'party_number' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

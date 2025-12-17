@@ -1,0 +1,22 @@
+import '@electronicSalesDataSource';
+/**
+ * product_category_name_translation 维度表模型
+ * 
+ * 数据库: electronic_sales
+ * 数据源: electronicSalesDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'ProductCategoryNameTranslationModel',
+    caption: 'Product Category Name Translation',
+    tableName: 'product_category_name_translation',
+    dataSource: electronicSalesDataSource,
+    idColumn: 'index',
+
+    properties: [
+        { column: 'index', caption: 'Index', type: 'INTEGER' },
+        { column: 'product_category_name', caption: 'Product Category Name', type: 'STRING' },
+        { column: 'product_category_name_english', caption: 'Product Category Name English', type: 'STRING' },
+    ],
+};

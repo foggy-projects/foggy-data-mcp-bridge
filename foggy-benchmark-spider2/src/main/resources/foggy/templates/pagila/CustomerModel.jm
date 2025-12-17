@@ -1,0 +1,61 @@
+import '@pagilaDataSource';
+/**
+ * customer 事实表模型
+ * 
+ * 数据库: Pagila
+ * 数据源: pagilaDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'CustomerModel',
+    caption: '客户',
+    tableName: 'customer',
+    dataSource: pagilaDataSource,
+    idColumn: 'customer_id',
+
+    dimensions: [
+        {
+            name: 'salesByStore',
+            tableName: 'sales_by_store',
+            foreignKey: 'store_id',
+            primaryKey: 'store_id',
+            captionColumn: 'store',
+            caption: 'Sales By Store',
+            properties: [
+                { column: 'store_id', caption: 'Store Id', type: 'INTEGER' },
+                { column: 'store', caption: 'Store', type: 'STRING' },
+                { column: 'manager', caption: 'Manager', type: 'STRING' },
+                { column: 'total_sales', caption: 'Total Sales', type: 'STRING' },
+            ]
+        },
+        {
+            name: 'address',
+            tableName: 'address',
+            foreignKey: 'address_id',
+            primaryKey: 'address_id',
+            captionColumn: 'address',
+            caption: 'Address',
+            properties: [
+                { column: 'address_id', caption: 'Address Id', type: 'INTEGER' },
+                { column: 'address', caption: 'Address', type: 'STRING' },
+                { column: 'address2', caption: 'Address2', type: 'STRING' },
+                { column: 'district', caption: 'District', type: 'STRING' },
+                { column: 'city_id', caption: 'City Id', type: 'INTEGER' },
+                { column: 'postal_code', caption: 'Postal Code', type: 'STRING' },
+                { column: 'phone', caption: 'Phone', type: 'STRING' },
+                { column: 'last_update', caption: 'Last Update', type: 'DATETIME' },
+            ]
+        },
+    ],
+
+    properties: [
+        { column: 'customer_id', caption: 'Customer Id', type: 'INTEGER' },
+        { column: 'first_name', caption: 'First Name', type: 'STRING' },
+        { column: 'last_name', caption: 'Last Name', type: 'STRING' },
+        { column: 'email', caption: 'Email', type: 'STRING' },
+        { column: 'active', caption: 'Active', type: 'STRING' },
+        { column: 'create_date', caption: 'Create Date', type: 'DATETIME' },
+        { column: 'last_update', caption: 'Last Update', type: 'DATETIME' },
+    ],
+};

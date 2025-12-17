@@ -1,0 +1,25 @@
+import '@electronicSalesDataSource';
+/**
+ * customers 维度表模型
+ * 
+ * 数据库: electronic_sales
+ * 数据源: electronicSalesDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'CustomersModel',
+    caption: '客户',
+    tableName: 'customers',
+    dataSource: electronicSalesDataSource,
+    idColumn: 'customer_id',
+
+    properties: [
+        { column: 'index', caption: 'Index', type: 'INTEGER' },
+        { column: 'customer_id', caption: 'Customer Id', type: 'STRING' },
+        { column: 'customer_unique_id', caption: 'Customer Unique Id', type: 'STRING' },
+        { column: 'customer_zip_code_prefix', caption: 'Customer Zip Code Prefix', type: 'INTEGER' },
+        { column: 'customer_city', caption: 'Customer City', type: 'STRING' },
+        { column: 'customer_state', caption: 'Customer State', type: 'STRING' },
+    ],
+};

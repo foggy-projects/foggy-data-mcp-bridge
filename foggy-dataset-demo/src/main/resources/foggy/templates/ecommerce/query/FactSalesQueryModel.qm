@@ -1,0 +1,110 @@
+/**
+ * 销售查询模型
+ *
+ * @caption 销售明细查询
+ * @description 销售事实表查询模型，支持按日期、商品、客户、门店、渠道、促销等维度查询
+ */
+export const queryModel = {
+    name: 'FactSalesQueryModel',
+    caption: '销售明细查询',
+    description: '销售事实表查询模型，支持按日期、商品、客户、门店、渠道、促销等维度查询',
+    model: 'FactSalesModel',
+
+    // 列组定义
+    columnGroups: [
+        {
+            caption: '订单明细信息',
+            items: [
+                { name: 'orderId', ui: { fixed: 'left', width: 150 } },
+                { name: 'orderLineNo' },
+                { name: 'orderStatus' },
+                { name: 'paymentMethod' }
+            ]
+        },
+        {
+            caption: '日期维度',
+            items: [
+                { name: 'salesDate' },
+                { name: 'salesDate$year' },
+                { name: 'salesDate$quarter' },
+                { name: 'salesDate$month' },
+                { name: 'salesDate$monthName' },
+                { name: 'salesDate$dayOfWeek' },
+                { name: 'salesDate$isWeekend' }
+            ]
+        },
+        {
+            caption: '商品维度',
+            items: [
+                { name: 'product' },
+                { name: 'product$categoryId' },
+                { name: 'product$categoryName' },
+                { name: 'product$subCategoryId' },
+                { name: 'product$subCategoryName' },
+                { name: 'product$brand' },
+                { name: 'product$unitPrice' },
+                { name: 'product$unitCost' }
+            ]
+        },
+        {
+            caption: '客户维度',
+            items: [
+                { name: 'customer' },
+                { name: 'customer$customerType' },
+                { name: 'customer$gender' },
+                { name: 'customer$ageGroup' },
+                { name: 'customer$province' },
+                { name: 'customer$city' },
+                { name: 'customer$memberLevel' }
+            ]
+        },
+        {
+            caption: '门店维度',
+            items: [
+                { name: 'store' },
+                { name: 'store$storeType' },
+                { name: 'store$province' },
+                { name: 'store$city' }
+            ]
+        },
+        {
+            caption: '渠道维度',
+            items: [
+                { name: 'channel' },
+                { name: 'channel$channelType' },
+                { name: 'channel$platform' }
+            ]
+        },
+        {
+            caption: '促销维度',
+            items: [
+                { name: 'promotion' },
+                { name: 'promotion$promotionType' },
+                { name: 'promotion$discountRate' }
+            ]
+        },
+        {
+            caption: '度量',
+            items: [
+                { name: 'quantity' },
+                { name: 'unitPrice' },
+                { name: 'unitCost' },
+                { name: 'discountAmount' },
+                { name: 'salesAmount' },
+                { name: 'costAmount' },
+                { name: 'profitAmount' },
+                { name: 'taxAmount' },
+                { name: 'taxAmount2' }
+            ]
+        }
+    ],
+
+    // 默认排序
+    orders: [
+        { name: 'salesDate$caption', order: 'desc' },
+        { name: 'orderId', order: 'asc' },
+        { name: 'orderLineNo', order: 'asc' }
+    ],
+
+    accesses: []
+};

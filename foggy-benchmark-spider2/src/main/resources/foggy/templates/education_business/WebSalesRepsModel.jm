@@ -1,0 +1,22 @@
+import '@educationBusinessDataSource';
+/**
+ * web_sales_reps 维度表模型
+ * 
+ * 数据库: education_business
+ * 数据源: educationBusinessDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'WebSalesRepsModel',
+    caption: 'Web Sales Reps',
+    tableName: 'web_sales_reps',
+    dataSource: educationBusinessDataSource,
+    idColumn: 'region_id',
+
+    properties: [
+        { column: 'id', caption: 'Id', type: 'INTEGER' },
+        { column: 'name', caption: 'Name', type: 'STRING' },
+        { column: 'region_id', caption: 'Region Id', type: 'INTEGER' },
+    ],
+};

@@ -1,0 +1,15 @@
+// 基础工具函数
+export var version = "1.0.0";
+
+export function add(a, b) {
+    return a + b;
+}
+
+export function multiply(a, b) {
+    return a * b;
+}
+
+export default {
+    name: "utils",
+    version: version
+};

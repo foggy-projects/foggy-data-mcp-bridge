@@ -1,0 +1,30 @@
+/**
+ * 示例查询模型
+ *
+ * 基于 ExampleViewModel 创建查询模型，暴露给 AI 使用
+ */
+export const queryModel = {
+    name: 'ExampleViewQueryModel',
+    model: 'ExampleViewModel',
+    caption: '示例视图查询',
+
+    // 定义 AI 可以查询的字段分组
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'id' },
+                { name: 'name' },
+                { name: 'category' },
+                { name: 'createdAt' }
+            ]
+        },
+        {
+            caption: '数值统计',
+            items: [
+                { name: 'price' },
+                { name: 'quantity' }
+            ]
+        }
+    ]
+};

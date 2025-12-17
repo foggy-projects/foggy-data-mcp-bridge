@@ -1,0 +1,37 @@
+/**
+ * rental 查询模型
+ * 
+ * 数据库: Pagila
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'RentalQueryModel',
+    model: 'RentalModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'rental_id' },
+                { name: 'rental_date' },
+                { name: 'inventory$id' },
+                { name: 'customer$id' },
+                { name: 'return_date' },
+                { name: 'staff$id' },
+                { name: 'last_update' },
+            ]
+        },
+        {
+            caption: '关联维度',
+            items: [
+                { name: 'inventory$caption' },
+                { name: 'customer$caption' },
+                { name: 'staff$caption' },
+            ]
+        },
+    ],
+
+    orders: [],
+    accesses: []
+};

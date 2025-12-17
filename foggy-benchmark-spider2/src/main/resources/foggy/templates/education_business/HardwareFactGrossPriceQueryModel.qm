@@ -1,0 +1,30 @@
+/**
+ * hardware_fact_gross_price 查询模型
+ * 
+ * 数据库: education_business
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'HardwareFactGrossPriceQueryModel',
+    model: 'HardwareFactGrossPriceModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'product_code' },
+                { name: 'fiscal_year' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'gross_price' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

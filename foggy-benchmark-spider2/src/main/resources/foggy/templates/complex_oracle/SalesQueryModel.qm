@@ -1,0 +1,41 @@
+/**
+ * sales 查询模型
+ * 
+ * 数据库: complex_oracle
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'SalesQueryModel',
+    model: 'SalesModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'prod_id' },
+                { name: 'cust_id' },
+                { name: 'times$id' },
+                { name: 'channels$id' },
+                { name: 'promo_id' },
+            ]
+        },
+        {
+            caption: '关联维度',
+            items: [
+                { name: 'times$caption' },
+                { name: 'channels$caption' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'quantity_sold' },
+                { name: 'amount_sold' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

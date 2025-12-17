@@ -1,0 +1,21 @@
+Java Data MCP Bridge
+Copyright 2024-2025 FoggySource (https://foggysource.com)
+
+This product includes software developed at
+https://github.com/pf4cloud/java-data-mcp-bridge
+
+=========================================================================
+
+This product includes software from the following projects:
+
+- Spring Framework & Spring Boot (https://spring.io)
+  Copyright (c) 2002-2025 Pivotal, Inc.
+  Licensed under Apache License 2.0
+
+- Jackson JSON processor (https://github.com/FasterXML/jackson)
+  Copyright (c) 2007-2025 FasterXML
+  Licensed under Apache License 2.0
+
+- Fastjson2 (https://github.com/alibaba/fastjson2)
+  Copyright (c) 2022-2025 Alibaba Group Holding Ltd.
+  Licensed under Apache License 2.0

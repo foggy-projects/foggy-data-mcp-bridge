@@ -1,0 +1,24 @@
+import '@bankSalesTradingDataSource';
+/**
+ * shopping_cart_campaign_identifier 维度表模型
+ * 
+ * 数据库: bank_sales_trading
+ * 数据源: bankSalesTradingDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'ShoppingCartCampaignIdentifierModel',
+    caption: 'Shopping Cart Campaign Identifier',
+    tableName: 'shopping_cart_campaign_identifier',
+    dataSource: bankSalesTradingDataSource,
+    idColumn: 'campaign_id',
+
+    properties: [
+        { column: 'campaign_id', caption: 'Campaign Id', type: 'INTEGER' },
+        { column: 'products', caption: 'Products', type: 'STRING' },
+        { column: 'campaign_name', caption: 'Campaign Name', type: 'STRING' },
+        { column: 'start_date', caption: 'Start Date', type: 'STRING' },
+        { column: 'end_date', caption: 'End Date', type: 'STRING' },
+    ],
+};

@@ -1,0 +1,23 @@
+import '@oracleSqlDataSource';
+/**
+ * web_devices 维度表模型
+ * 
+ * 数据库: oracle_sql
+ * 数据源: oracleSqlDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'WebDevicesModel',
+    caption: 'Web Devices',
+    tableName: 'web_devices',
+    dataSource: oracleSqlDataSource,
+    idColumn: 'day',
+
+    properties: [
+        { column: 'day', caption: 'Day', type: 'STRING' },
+        { column: 'pc', caption: 'Pc', type: 'INTEGER' },
+        { column: 'tablet', caption: 'Tablet', type: 'INTEGER' },
+        { column: 'phone', caption: 'Phone', type: 'INTEGER' },
+    ],
+};

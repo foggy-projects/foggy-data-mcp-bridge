@@ -1,0 +1,42 @@
+/**
+ * olist_order_items 查询模型
+ * 
+ * 数据库: Brazilian_E_Commerce
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'OlistOrderItemsQueryModel',
+    model: 'OlistOrderItemsModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'order_id' },
+                { name: 'olistOrderItems$id' },
+                { name: 'olistProducts$id' },
+                { name: 'olistSellers$id' },
+                { name: 'shipping_limit_date' },
+            ]
+        },
+        {
+            caption: '关联维度',
+            items: [
+                { name: 'olistOrderItems$caption' },
+                { name: 'olistProducts$caption' },
+                { name: 'olistSellers$caption' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'price' },
+                { name: 'freight_value' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

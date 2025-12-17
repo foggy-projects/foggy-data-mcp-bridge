@@ -1,0 +1,94 @@
+import '@complexOracleDataSource';
+/**
+ * sales 事实表模型
+ * 
+ * 数据库: complex_oracle
+ * 数据源: complexOracleDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'SalesModel',
+    caption: 'Sales',
+    tableName: 'sales',
+    dataSource: complexOracleDataSource,
+    idColumn: 'prod_id',
+
+    dimensions: [
+        {
+            name: 'times',
+            tableName: 'times',
+            foreignKey: 'time_id',
+            primaryKey: 'time_id',
+            captionColumn: 'day_name',
+            caption: 'Times',
+            properties: [
+                { column: 'time_id', caption: 'Time Id', type: 'DAY' },
+                { column: 'day_name', caption: 'Day Name', type: 'STRING' },
+                { column: 'day_number_in_week', caption: 'Day Number In Week', type: 'INTEGER' },
+                { column: 'day_number_in_month', caption: 'Day Number In Month', type: 'INTEGER' },
+                { column: 'calendar_week_number', caption: 'Calendar Week Number', type: 'INTEGER' },
+                { column: 'fiscal_week_number', caption: 'Fiscal Week Number', type: 'INTEGER' },
+                { column: 'week_ending_day', caption: 'Week Ending Day', type: 'DAY' },
+                { column: 'week_ending_day_id', caption: 'Week Ending Day Id', type: 'INTEGER' },
+                { column: 'calendar_month_number', caption: 'Calendar Month Number', type: 'INTEGER' },
+                { column: 'fiscal_month_number', caption: 'Fiscal Month Number', type: 'INTEGER' },
+                { column: 'calendar_month_desc', caption: 'Calendar Month Desc', type: 'STRING' },
+                { column: 'calendar_month_id', caption: 'Calendar Month Id', type: 'INTEGER' },
+                { column: 'fiscal_month_desc', caption: 'Fiscal Month Desc', type: 'STRING' },
+                { column: 'fiscal_month_id', caption: 'Fiscal Month Id', type: 'INTEGER' },
+                { column: 'days_in_cal_month', caption: 'Days In Cal Month', type: 'INTEGER' },
+                { column: 'days_in_fis_month', caption: 'Days In Fis Month', type: 'INTEGER' },
+                { column: 'end_of_cal_month', caption: 'End Of Cal Month', type: 'DAY' },
+                { column: 'end_of_fis_month', caption: 'End Of Fis Month', type: 'DAY' },
+                { column: 'calendar_month_name', caption: 'Calendar Month Name', type: 'STRING' },
+                { column: 'fiscal_month_name', caption: 'Fiscal Month Name', type: 'STRING' },
+                { column: 'calendar_quarter_desc', caption: 'Calendar Quarter Desc', type: 'STRING' },
+                { column: 'calendar_quarter_id', caption: 'Calendar Quarter Id', type: 'INTEGER' },
+                { column: 'fiscal_quarter_desc', caption: 'Fiscal Quarter Desc', type: 'STRING' },
+                { column: 'fiscal_quarter_id', caption: 'Fiscal Quarter Id', type: 'INTEGER' },
+                { column: 'days_in_cal_quarter', caption: 'Days In Cal Quarter', type: 'INTEGER' },
+                { column: 'days_in_fis_quarter', caption: 'Days In Fis Quarter', type: 'INTEGER' },
+                { column: 'end_of_cal_quarter', caption: 'End Of Cal Quarter', type: 'DAY' },
+                { column: 'end_of_fis_quarter', caption: 'End Of Fis Quarter', type: 'DAY' },
+                { column: 'calendar_quarter_number', caption: 'Calendar Quarter Number', type: 'INTEGER' },
+                { column: 'fiscal_quarter_number', caption: 'Fiscal Quarter Number', type: 'INTEGER' },
+                { column: 'calendar_year', caption: 'Calendar Year', type: 'INTEGER' },
+                { column: 'calendar_year_id', caption: 'Calendar Year Id', type: 'INTEGER' },
+                { column: 'fiscal_year', caption: 'Fiscal Year', type: 'INTEGER' },
+                { column: 'fiscal_year_id', caption: 'Fiscal Year Id', type: 'INTEGER' },
+                { column: 'days_in_cal_year', caption: 'Days In Cal Year', type: 'INTEGER' },
+                { column: 'days_in_fis_year', caption: 'Days In Fis Year', type: 'INTEGER' },
+                { column: 'end_of_cal_year', caption: 'End Of Cal Year', type: 'DAY' },
+                { column: 'end_of_fis_year', caption: 'End Of Fis Year', type: 'DAY' },
+            ]
+        },
+        {
+            name: 'channels',
+            tableName: 'channels',
+            foreignKey: 'channel_id',
+            primaryKey: 'channel_id',
+            captionColumn: 'channel_desc',
+            caption: 'Channels',
+            properties: [
+                { column: 'channel_id', caption: 'Channel Id', type: 'INTEGER' },
+                { column: 'channel_desc', caption: 'Channel Desc', type: 'STRING' },
+                { column: 'channel_class', caption: 'Channel Class', type: 'STRING' },
+                { column: 'channel_class_id', caption: 'Channel Class Id', type: 'INTEGER' },
+                { column: 'channel_total', caption: 'Channel Total', type: 'STRING' },
+                { column: 'channel_total_id', caption: 'Channel Total Id', type: 'INTEGER' },
+            ]
+        },
+    ],
+
+    properties: [
+        { column: 'prod_id', caption: 'Prod Id', type: 'INTEGER' },
+        { column: 'cust_id', caption: 'Cust Id', type: 'INTEGER' },
+        { column: 'promo_id', caption: 'Promo Id', type: 'INTEGER' },
+    ],
+
+    measures: [
+        { column: 'quantity_sold', caption: 'Quantity Sold', type: 'INTEGER', aggregation: 'sum' },
+        { column: 'amount_sold', caption: 'Amount Sold', type: 'DECIMAL', aggregation: 'sum' },
+    ]
+};

@@ -1,0 +1,22 @@
+import '@cityLegislationDataSource';
+/**
+ * legislation_date_dim 维度表模型
+ * 
+ * 数据库: city_legislation
+ * 数据源: cityLegislationDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'LegislationDateDimModel',
+    caption: 'Legislation Date Dim',
+    tableName: 'legislation_date_dim',
+    dataSource: cityLegislationDataSource,
+    idColumn: 'date',
+
+    properties: [
+        { column: 'date', caption: 'Date', type: 'STRING' },
+        { column: 'month_name', caption: 'Month Name', type: 'STRING' },
+        { column: 'day_of_month', caption: 'Day Of Month', type: 'INTEGER' },
+    ],
+};

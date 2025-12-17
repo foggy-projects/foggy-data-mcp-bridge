@@ -1,0 +1,64 @@
+import '@euSoccerDataSource';
+/**
+ * Player_Attributes 事实表模型
+ * 
+ * 数据库: EU_soccer
+ * 数据源: euSoccerDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'PlayerAttributesModel',
+    caption: 'Player Attributes',
+    tableName: 'Player_Attributes',
+    dataSource: euSoccerDataSource,
+    idColumn: 'player_fifa_api_id',
+
+    properties: [
+        { column: 'id', caption: 'Id', type: 'INTEGER' },
+        { column: 'player_fifa_api_id', caption: 'Player Fifa Api Id', type: 'INTEGER' },
+        { column: 'player_api_id', caption: 'Player Api Id', type: 'INTEGER' },
+        { column: 'date', caption: 'Date', type: 'STRING' },
+        { column: 'overall_rating', caption: 'Overall Rating', type: 'INTEGER' },
+        { column: 'potential', caption: 'Potential', type: 'INTEGER' },
+        { column: 'preferred_foot', caption: 'Preferred Foot', type: 'STRING' },
+        { column: 'attacking_work_rate', caption: 'Attacking Work Rate', type: 'STRING' },
+        { column: 'defensive_work_rate', caption: 'Defensive Work Rate', type: 'STRING' },
+        { column: 'crossing', caption: 'Crossing', type: 'INTEGER' },
+        { column: 'finishing', caption: 'Finishing', type: 'INTEGER' },
+        { column: 'heading_accuracy', caption: 'Heading Accuracy', type: 'INTEGER' },
+        { column: 'short_passing', caption: 'Short Passing', type: 'INTEGER' },
+        { column: 'volleys', caption: 'Volleys', type: 'INTEGER' },
+        { column: 'dribbling', caption: 'Dribbling', type: 'INTEGER' },
+        { column: 'curve', caption: 'Curve', type: 'INTEGER' },
+        { column: 'free_kick_accuracy', caption: 'Free Kick Accuracy', type: 'INTEGER' },
+        { column: 'long_passing', caption: 'Long Passing', type: 'INTEGER' },
+        { column: 'ball_control', caption: 'Ball Control', type: 'INTEGER' },
+        { column: 'acceleration', caption: 'Acceleration', type: 'INTEGER' },
+        { column: 'sprint_speed', caption: 'Sprint Speed', type: 'INTEGER' },
+        { column: 'agility', caption: 'Agility', type: 'INTEGER' },
+        { column: 'reactions', caption: 'Reactions', type: 'INTEGER' },
+        { column: 'shot_power', caption: 'Shot Power', type: 'INTEGER' },
+        { column: 'jumping', caption: 'Jumping', type: 'INTEGER' },
+        { column: 'stamina', caption: 'Stamina', type: 'INTEGER' },
+        { column: 'strength', caption: 'Strength', type: 'INTEGER' },
+        { column: 'long_shots', caption: 'Long Shots', type: 'INTEGER' },
+        { column: 'aggression', caption: 'Aggression', type: 'INTEGER' },
+        { column: 'interceptions', caption: 'Interceptions', type: 'INTEGER' },
+        { column: 'positioning', caption: 'Positioning', type: 'INTEGER' },
+        { column: 'vision', caption: 'Vision', type: 'INTEGER' },
+        { column: 'penalties', caption: 'Penalties', type: 'INTEGER' },
+        { column: 'marking', caption: 'Marking', type: 'INTEGER' },
+        { column: 'standing_tackle', caption: 'Standing Tackle', type: 'INTEGER' },
+        { column: 'sliding_tackle', caption: 'Sliding Tackle', type: 'INTEGER' },
+        { column: 'gk_diving', caption: 'Gk Diving', type: 'INTEGER' },
+        { column: 'gk_handling', caption: 'Gk Handling', type: 'INTEGER' },
+        { column: 'gk_kicking', caption: 'Gk Kicking', type: 'INTEGER' },
+        { column: 'gk_positioning', caption: 'Gk Positioning', type: 'INTEGER' },
+        { column: 'gk_reflexes', caption: 'Gk Reflexes', type: 'INTEGER' },
+    ],
+
+    measures: [
+        { column: 'balance', caption: 'Balance', type: 'INTEGER', aggregation: 'sum' },
+    ]
+};

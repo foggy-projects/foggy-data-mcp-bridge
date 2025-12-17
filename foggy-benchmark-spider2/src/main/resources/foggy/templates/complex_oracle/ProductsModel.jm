@@ -1,0 +1,44 @@
+import '@complexOracleDataSource';
+/**
+ * products 事实表模型
+ * 
+ * 数据库: complex_oracle
+ * 数据源: complexOracleDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'ProductsModel',
+    caption: '产品',
+    tableName: 'products',
+    dataSource: complexOracleDataSource,
+    idColumn: 'prod_id',
+
+    properties: [
+        { column: 'prod_id', caption: 'Prod Id', type: 'INTEGER' },
+        { column: 'prod_name', caption: 'Prod Name', type: 'STRING' },
+        { column: 'prod_desc', caption: 'Prod Desc', type: 'STRING' },
+        { column: 'prod_subcategory', caption: 'Prod Subcategory', type: 'STRING' },
+        { column: 'prod_subcategory_id', caption: 'Prod Subcategory Id', type: 'INTEGER' },
+        { column: 'prod_subcategory_desc', caption: 'Prod Subcategory Desc', type: 'STRING' },
+        { column: 'prod_category', caption: 'Prod Category', type: 'STRING' },
+        { column: 'prod_category_id', caption: 'Prod Category Id', type: 'INTEGER' },
+        { column: 'prod_category_desc', caption: 'Prod Category Desc', type: 'STRING' },
+        { column: 'prod_weight_class', caption: 'Prod Weight Class', type: 'INTEGER' },
+        { column: 'prod_unit_of_measure', caption: 'Prod Unit Of Measure', type: 'STRING' },
+        { column: 'prod_pack_size', caption: 'Prod Pack Size', type: 'STRING' },
+        { column: 'supplier_id', caption: 'Supplier Id', type: 'INTEGER' },
+        { column: 'prod_status', caption: 'Prod Status', type: 'STRING' },
+        { column: 'prod_total', caption: 'Prod Total', type: 'STRING' },
+        { column: 'prod_total_id', caption: 'Prod Total Id', type: 'INTEGER' },
+        { column: 'prod_src_id', caption: 'Prod Src Id', type: 'INTEGER' },
+        { column: 'prod_eff_from', caption: 'Prod Eff From', type: 'DAY' },
+        { column: 'prod_eff_to', caption: 'Prod Eff To', type: 'DAY' },
+        { column: 'prod_valid', caption: 'Prod Valid', type: 'STRING' },
+    ],
+
+    measures: [
+        { column: 'prod_list_price', caption: 'Prod List Price', type: 'DECIMAL', aggregation: 'sum' },
+        { column: 'prod_min_price', caption: 'Prod Min Price', type: 'DECIMAL', aggregation: 'sum' },
+    ]
+};

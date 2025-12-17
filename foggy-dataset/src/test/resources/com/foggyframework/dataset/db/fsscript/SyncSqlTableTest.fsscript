@@ -1,0 +1,6 @@
+import test from '../utils/M_ETL_TEST.fsscript';
+import '@dataSource';
+
+export var sqlTable = synSqlTable(dataSource,test.default.table);
+
+export var sqlTable2 = synSqlTable(dataSource,'M_ETL_TEST');

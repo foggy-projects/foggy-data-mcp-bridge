@@ -1,0 +1,49 @@
+/**
+ * products 查询模型
+ * 
+ * 数据库: complex_oracle
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'ProductsQueryModel',
+    model: 'ProductsModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'prod_id' },
+                { name: 'prod_name' },
+                { name: 'prod_desc' },
+                { name: 'prod_subcategory' },
+                { name: 'prod_subcategory_id' },
+                { name: 'prod_subcategory_desc' },
+                { name: 'prod_category' },
+                { name: 'prod_category_id' },
+                { name: 'prod_category_desc' },
+                { name: 'prod_weight_class' },
+                { name: 'prod_unit_of_measure' },
+                { name: 'prod_pack_size' },
+                { name: 'supplier_id' },
+                { name: 'prod_status' },
+                { name: 'prod_total' },
+                { name: 'prod_total_id' },
+                { name: 'prod_src_id' },
+                { name: 'prod_eff_from' },
+                { name: 'prod_eff_to' },
+                { name: 'prod_valid' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'prod_list_price' },
+                { name: 'prod_min_price' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

@@ -1,0 +1,29 @@
+import '@baseballDataSource';
+/**
+ * manager_half 维度表模型
+ * 
+ * 数据库: Baseball
+ * 数据源: baseballDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'ManagerHalfModel',
+    caption: 'Manager Half',
+    tableName: 'manager_half',
+    dataSource: baseballDataSource,
+    idColumn: 'player_id',
+
+    properties: [
+        { column: 'player_id', caption: 'Player Id', type: 'STRING' },
+        { column: 'year', caption: 'Year', type: 'INTEGER' },
+        { column: 'team_id', caption: 'Team Id', type: 'STRING' },
+        { column: 'league_id', caption: 'League Id', type: 'STRING' },
+        { column: 'inseason', caption: 'Inseason', type: 'INTEGER' },
+        { column: 'half', caption: 'Half', type: 'INTEGER' },
+        { column: 'g', caption: 'G', type: 'INTEGER' },
+        { column: 'w', caption: 'W', type: 'INTEGER' },
+        { column: 'l', caption: 'L', type: 'INTEGER' },
+        { column: 'rank', caption: 'Rank', type: 'INTEGER' },
+    ],
+};

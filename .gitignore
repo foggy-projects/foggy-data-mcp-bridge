@@ -1,0 +1,119 @@
+# ====================
+# Maven
+# ====================
+target/
+*.jar
+*.war
+*.class
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# ====================
+# IDE
+# ====================
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+*.swp
+*.swo
+.project
+.classpath
+.settings/
+.factorypath
+*.launch
+.springBeans
+
+# ====================
+# OS
+# ====================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ====================
+# Logs
+# ====================
+*.log
+logs/
+
+# ====================
+# Environment & Secrets
+# ====================
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+application-local.yml
+application-local.properties
+
+# ====================
+# Temporary Files
+# ====================
+tmp/
+temp/
+*.tmp
+*.bak
+*.backup
+*~
+
+# ====================
+# Build Output
+# ====================
+build/
+out/
+bin/
+dist/
+
+# ====================
+# Test Output
+# ====================
+test-output/
+surefire-reports/
+failsafe-reports/
+coverage/
+jacoco.exec
+.coverage
+
+# ====================
+# Node.js (if used in frontend)
+# ====================
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# ====================
+# Service Files
+# ====================
+.service.pid
+*.pid
+
+# ====================
+# Database Files
+# ====================
+*.db
+*.sqlite
+*.sqlite3
+h2*.mv.db
+h2*.trace.db
+
+# ====================
+# Generated Files
+# ====================
+generated/
+generated-sources/
+generated-test-sources/

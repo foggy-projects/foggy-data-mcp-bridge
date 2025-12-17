@@ -1,0 +1,15 @@
+// JSON.stringify 测试
+
+// 基本对象序列化
+let obj = { name: "张三", age: 30, active: true };
+export const simpleResult = JSON.stringify(obj);
+
+// 格式化输出
+export const prettyResult = JSON.stringify(obj, null, 2);
+
+// null 值处理
+export const nullResult = JSON.stringify(null);
+
+// 数组序列化
+let arr = [1, 2, 3, "test", { key: "value" }];
+export const arrayResult = JSON.stringify(arr);

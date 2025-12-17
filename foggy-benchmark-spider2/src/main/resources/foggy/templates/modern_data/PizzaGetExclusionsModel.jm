@@ -1,0 +1,44 @@
+import '@modernDataDataSource';
+/**
+ * pizza_get_exclusions 事实表模型
+ * 
+ * 数据库: modern_data
+ * 数据源: modernDataDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'PizzaGetExclusionsModel',
+    caption: 'Pizza Get Exclusions',
+    tableName: 'pizza_get_exclusions',
+    dataSource: modernDataDataSource,
+    idColumn: 'row_id',
+
+    dimensions: [
+        {
+            name: 'pizzaCleanCustomerOrders',
+            tableName: 'pizza_clean_customer_orders',
+            foreignKey: 'order_id',
+            primaryKey: 'order_id',
+            captionColumn: 'customer_id',
+            caption: 'Pizza Clean Customer Orders',
+            properties: [
+                { column: 'order_id', caption: 'Order Id', type: 'INTEGER' },
+                { column: 'customer_id', caption: 'Customer Id', type: 'INTEGER' },
+                { column: 'pizza_id', caption: 'Pizza Id', type: 'INTEGER' },
+                { column: 'exclusions', caption: 'Exclusions', type: 'STRING' },
+                { column: 'extras', caption: 'Extras', type: 'STRING' },
+                { column: 'order_time', caption: 'Order Time', type: 'STRING' },
+            ]
+        },
+    ],
+
+    properties: [
+        { column: 'row_id', caption: 'Row Id', type: 'INTEGER' },
+        { column: 'exclusions', caption: 'Exclusions', type: 'INTEGER' },
+    ],
+
+    measures: [
+        { column: 'total_exclusions', caption: 'Total Exclusions', type: 'INTEGER', aggregation: 'sum' },
+    ]
+};

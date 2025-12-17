@@ -1,0 +1,30 @@
+import '@educationBusinessDataSource';
+/**
+ * university_faculty 维度表模型
+ * 
+ * 数据库: education_business
+ * 数据源: educationBusinessDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'UniversityFacultyModel',
+    caption: 'University Faculty',
+    tableName: 'university_faculty',
+    dataSource: educationBusinessDataSource,
+    idColumn: 'FacNo',
+
+    properties: [
+        { column: 'FacNo', caption: 'Facno', type: 'INTEGER' },
+        { column: 'FacFirstName', caption: 'Facfirstname', type: 'STRING' },
+        { column: 'FacLastName', caption: 'Faclastname', type: 'STRING' },
+        { column: 'FacCity', caption: 'Faccity', type: 'STRING' },
+        { column: 'FacState', caption: 'Facstate', type: 'STRING' },
+        { column: 'FacDept', caption: 'Facdept', type: 'STRING' },
+        { column: 'FacRank', caption: 'Facrank', type: 'STRING' },
+        { column: 'FacSalary', caption: 'Facsalary', type: 'INTEGER' },
+        { column: 'FacSupervisor', caption: 'Facsupervisor', type: 'DECIMAL' },
+        { column: 'FacHireDate', caption: 'Fachiredate', type: 'STRING' },
+        { column: 'FacZipCode', caption: 'Faczipcode', type: 'STRING' },
+    ],
+};

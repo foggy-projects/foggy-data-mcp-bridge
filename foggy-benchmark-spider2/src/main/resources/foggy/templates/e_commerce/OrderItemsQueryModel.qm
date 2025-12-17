@@ -1,0 +1,42 @@
+/**
+ * order_items 查询模型
+ * 
+ * 数据库: E_commerce
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'OrderItemsQueryModel',
+    model: 'OrderItemsModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'order_id' },
+                { name: 'orderItems$id' },
+                { name: 'products$id' },
+                { name: 'sellers$id' },
+                { name: 'shipping_limit_date' },
+            ]
+        },
+        {
+            caption: '关联维度',
+            items: [
+                { name: 'orderItems$caption' },
+                { name: 'products$caption' },
+                { name: 'sellers$caption' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'price' },
+                { name: 'freight_value' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

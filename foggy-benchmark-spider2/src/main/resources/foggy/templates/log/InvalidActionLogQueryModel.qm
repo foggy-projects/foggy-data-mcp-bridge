@@ -1,0 +1,34 @@
+/**
+ * invalid_action_log 查询模型
+ * 
+ * 数据库: log
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'InvalidActionLogQueryModel',
+    model: 'InvalidActionLogModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'stamp' },
+                { name: 'session' },
+                { name: 'user_id' },
+                { name: 'action' },
+                { name: 'category' },
+                { name: 'products' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'amount' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

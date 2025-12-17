@@ -1,0 +1,39 @@
+/**
+ * Cards 查询模型
+ * 
+ * 数据库: WWE
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'CardsQueryModel',
+    model: 'CardsModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'id' },
+                { name: 'table_id' },
+                { name: 'locations$id' },
+                { name: 'promotions$id' },
+                { name: 'event_date' },
+                { name: 'events$id' },
+                { name: 'url' },
+                { name: 'info_html' },
+                { name: 'match_html' },
+            ]
+        },
+        {
+            caption: '关联维度',
+            items: [
+                { name: 'locations$caption' },
+                { name: 'promotions$caption' },
+                { name: 'events$caption' },
+            ]
+        },
+    ],
+
+    orders: [],
+    accesses: []
+};

@@ -1,0 +1,27 @@
+import '@cityLegislationDataSource';
+/**
+ * cities 维度表模型
+ * 
+ * 数据库: city_legislation
+ * 数据源: cityLegislationDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'CitiesModel',
+    caption: 'Cities',
+    tableName: 'cities',
+    dataSource: cityLegislationDataSource,
+    idColumn: 'city_id',
+
+    properties: [
+        { column: 'city_id', caption: 'City Id', type: 'INTEGER' },
+        { column: 'city_name', caption: 'City Name', type: 'STRING' },
+        { column: 'latitude', caption: 'Latitude', type: 'DECIMAL' },
+        { column: 'longitude', caption: 'Longitude', type: 'DECIMAL' },
+        { column: 'country_code_2', caption: 'Country Code 2', type: 'STRING' },
+        { column: 'capital', caption: 'Capital', type: 'INTEGER' },
+        { column: 'population', caption: 'Population', type: 'DECIMAL' },
+        { column: 'insert_date', caption: 'Insert Date', type: 'STRING' },
+    ],
+};

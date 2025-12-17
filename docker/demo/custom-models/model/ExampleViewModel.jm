@@ -1,0 +1,75 @@
+/**
+ * 示例外部模型 - 使用 viewSql 直接查询用户数据
+ *
+ * 这是一个简单的示例，展示如何：
+ * 1. 使用 viewSql 替代 tableName（无需建表）
+ * 2. 连接用户自己的 MySQL 数据库
+ *
+ * 用户只需：
+ * 1. 修改 viewSql 为自己的 SQL 查询
+ * 2. 在 .env 中配置数据库连接
+ * 3. 启用外部模型并重启服务
+ */
+import {customDb} from '../datasource.fsscript';
+
+export const model = {
+    name: 'ExampleViewModel',
+    caption: '示例视图模型',
+    // 使用自定义数据源
+    dataSource: customDb,
+    // 使用 viewSql 替代 tableName
+    // 用户可以修改这个 SQL 为任意查询语句
+    viewSql: `
+        SELECT 1 as id, '苹果' as name, '水果' as category, 5.50 as price, 100 as quantity, '2024-01-15' as created_at FROM dual
+        UNION ALL SELECT 2, '香蕉', '水果', 3.20, 150, '2024-01-16' FROM dual
+        UNION ALL SELECT 3, '牛奶', '饮品', 8.00, 80, '2024-01-17' FROM dual
+        UNION ALL SELECT 4, '面包', '烘焙', 12.00, 50, '2024-01-18' FROM dual
+        UNION ALL SELECT 5, '橙子', '水果', 6.80, 120, '2024-01-19' FROM dual
+    `,
+
+    // 主键列（用于分组和去重）
+    idColumn: 'id',
+
+    // 维度：用于分组和筛选的字段
+    dimensions: [],
+
+    // 属性：普通展示字段
+    properties: [
+        {
+            column: 'id',
+            caption: 'ID',
+            type: 'INTEGER'
+        },
+        {
+            column: 'name',
+            caption: '名称',
+            type: 'STRING'
+        },
+        {
+            column: 'category',
+            caption: '分类',
+            type: 'STRING'
+        },
+        {
+            column: 'created_at',
+            caption: '创建时间',
+            type: 'DATETIME'
+        }
+    ],
+
+    // 度量：可聚合的数值字段
+    measures: [
+        {
+            column: 'price',
+            caption: '单价',
+            type: 'MONEY',
+            aggregation: 'avg'
+        },
+        {
+            column: 'quantity',
+            caption: '数量',
+            type: 'INTEGER',
+            aggregation: 'sum'
+        }
+    ]
+};

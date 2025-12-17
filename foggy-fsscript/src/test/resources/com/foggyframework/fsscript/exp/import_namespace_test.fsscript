@@ -1,0 +1,13 @@
+// 测试 import * as 命名空间导入语法
+import * as utils from 'export_test.fsscript';
+
+// 访问导出的变量
+export var testD = utils.d;
+export var testB = utils.b;
+export var testCC = utils.cc;
+
+// 调用导出的函数
+export var testXxx = utils.xxx();
+
+// 访问默认导出
+export var testDefault = utils.default;

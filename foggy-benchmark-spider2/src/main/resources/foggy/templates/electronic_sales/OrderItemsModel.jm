@@ -1,0 +1,83 @@
+import '@electronicSalesDataSource';
+/**
+ * order_items 事实表模型
+ * 
+ * 数据库: electronic_sales
+ * 数据源: electronicSalesDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'OrderItemsModel',
+    caption: '订单明细',
+    tableName: 'order_items',
+    dataSource: electronicSalesDataSource,
+    idColumn: 'order_id',
+
+    dimensions: [
+        {
+            name: 'orderItems',
+            tableName: 'order_items',
+            foreignKey: 'order_item_id',
+            primaryKey: 'order_id',
+            captionColumn: 'order_id',
+            caption: '订单明细',
+            properties: [
+                { column: 'index', caption: 'Index', type: 'INTEGER' },
+                { column: 'order_id', caption: 'Order Id', type: 'STRING' },
+                { column: 'order_item_id', caption: 'Order Item Id', type: 'INTEGER' },
+                { column: 'product_id', caption: 'Product Id', type: 'STRING' },
+                { column: 'seller_id', caption: 'Seller Id', type: 'STRING' },
+                { column: 'shipping_limit_date', caption: 'Shipping Limit Date', type: 'STRING' },
+                { column: 'price', caption: 'Price', type: 'DECIMAL' },
+                { column: 'freight_value', caption: 'Freight Value', type: 'DECIMAL' },
+            ]
+        },
+        {
+            name: 'products',
+            tableName: 'products',
+            foreignKey: 'product_id',
+            primaryKey: 'product_id',
+            captionColumn: 'product_category_name',
+            caption: '产品',
+            properties: [
+                { column: 'index', caption: 'Index', type: 'INTEGER' },
+                { column: 'product_id', caption: 'Product Id', type: 'STRING' },
+                { column: 'product_category_name', caption: 'Product Category Name', type: 'STRING' },
+                { column: 'product_name_lenght', caption: 'Product Name Lenght', type: 'DECIMAL' },
+                { column: 'product_description_lenght', caption: 'Product Description Lenght', type: 'DECIMAL' },
+                { column: 'product_photos_qty', caption: 'Product Photos Qty', type: 'DECIMAL' },
+                { column: 'product_weight_g', caption: 'Product Weight G', type: 'DECIMAL' },
+                { column: 'product_length_cm', caption: 'Product Length Cm', type: 'DECIMAL' },
+                { column: 'product_height_cm', caption: 'Product Height Cm', type: 'DECIMAL' },
+                { column: 'product_width_cm', caption: 'Product Width Cm', type: 'DECIMAL' },
+            ]
+        },
+        {
+            name: 'sellers',
+            tableName: 'sellers',
+            foreignKey: 'seller_id',
+            primaryKey: 'seller_id',
+            captionColumn: 'seller_id',
+            caption: '卖家',
+            properties: [
+                { column: 'index', caption: 'Index', type: 'INTEGER' },
+                { column: 'seller_id', caption: 'Seller Id', type: 'STRING' },
+                { column: 'seller_zip_code_prefix', caption: 'Seller Zip Code Prefix', type: 'INTEGER' },
+                { column: 'seller_city', caption: 'Seller City', type: 'STRING' },
+                { column: 'seller_state', caption: 'Seller State', type: 'STRING' },
+            ]
+        },
+    ],
+
+    properties: [
+        { column: 'index', caption: 'Index', type: 'INTEGER' },
+        { column: 'order_id', caption: 'Order Id', type: 'STRING' },
+        { column: 'shipping_limit_date', caption: 'Shipping Limit Date', type: 'STRING' },
+    ],
+
+    measures: [
+        { column: 'price', caption: 'Price', type: 'DECIMAL', aggregation: 'sum' },
+        { column: 'freight_value', caption: 'Freight Value', type: 'DECIMAL', aggregation: 'sum' },
+    ]
+};

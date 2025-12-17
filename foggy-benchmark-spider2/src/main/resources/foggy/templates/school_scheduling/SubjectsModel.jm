@@ -1,0 +1,25 @@
+import '@schoolSchedulingDataSource';
+/**
+ * Subjects 维度表模型
+ * 
+ * 数据库: school_scheduling
+ * 数据源: schoolSchedulingDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'SubjectsModel',
+    caption: 'Subjects',
+    tableName: 'Subjects',
+    dataSource: schoolSchedulingDataSource,
+    idColumn: 'SubjectID',
+
+    properties: [
+        { column: 'SubjectID', caption: 'Subjectid', type: 'INTEGER' },
+        { column: 'CategoryID', caption: 'Categoryid', type: 'STRING' },
+        { column: 'SubjectCode', caption: 'Subjectcode', type: 'STRING' },
+        { column: 'SubjectName', caption: 'Subjectname', type: 'STRING' },
+        { column: 'SubjectPreReq', caption: 'Subjectprereq', type: 'STRING' },
+        { column: 'SubjectDescription', caption: 'Subjectdescription', type: 'STRING' },
+    ],
+};

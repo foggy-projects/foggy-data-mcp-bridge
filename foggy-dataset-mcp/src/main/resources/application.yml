@@ -1,0 +1,231 @@
+server:
+  port: ${SERVER_PORT:7108}
+
+spring:
+  application:
+    name: mcp-data-model-java
+
+  # Spring AI OpenAI Configuration (compatible with Aliyun Bailian)
+  # 注意：base-url 不要包含 /v1，Spring AI 会自动追加
+  # OpenAI: https://api.openai.com
+  # 阿里云通义千问: https://dashscope.aliyuncs.com/compatible-mode
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY:sk-xxx}
+      base-url: ${OPENAI_BASE_URL:https://api.openai.com}
+      chat:
+        options:
+          model: ${OPENAI_MODEL:gpt-4o-mini}
+          temperature: 0.7
+          max-tokens: 4096
+
+  # Jackson Configuration
+  jackson:
+    default-property-inclusion: non_null
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Shanghai
+    serialization:
+      write-dates-as-timestamps: false
+
+# MCP Service Configuration
+mcp:
+  # 数据访问模式: local (直接调用SemanticService) 或 remote (HTTP调用)
+  dataset:
+    access-mode: ${DATASET_ACCESS_MODE:local}
+
+  # 语义模型配置
+  # 控制 AI 可以访问的数据模型和返回字段的级别
+  semantic:
+    # 可用的查询模型列表
+    # AI 只能查询这里列出的模型，用于安全控制
+    model-list:
+      - FactSalesQueryModel
+      - FactOrderQueryModel
+      - FactPaymentQueryModel
+      - FactReturnQueryModel
+      - FactInventorySnapshotQueryModel
+
+    # 元数据服务版本（v2/v3）
+    # v2: 原版服务，维度不展开
+    # v3: 维度展开为独立的 $id/$caption 字段
+    metadata-version: ${SEMANTIC_METADATA_VERSION:v3}
+
+    # 查询服务版本（v2/v3）
+    # v2: 自动补全后缀
+    # v3: 直接透传字段名
+    query-version: ${SEMANTIC_QUERY_VERSION:v3}
+
+    # 元数据查询的字段级别配置 (dataset.get_metadata)
+    # 用于返回可用模型列表时，控制字段信息深度
+    metadata:
+      # 默认级别：用户未指定时使用 [1] 表示只返回核心字段
+      default-levels:
+#        - 1
+      # 强制级别：如果设置，将忽略用户请求强制使用此级别
+      # 设置为 [9] 表示强制返回所有级别的字段
+      # force-levels:
+      #   - 9
+
+    # 模型内部描述的字段级别配置 (dataset.describe_model_internal)
+    # 用于查看单个模型详情时，控制返回的字段信息深度
+    internal:
+      # 默认返回核心字段
+      default-levels:
+#        - 1
+      # 在集成测试中，强制返回所有字段以便完整测试
+      force-levels:
+#        - 9
+
+  service:
+    # M1 智能Agent接口端口
+    m1-port: ${MCP_M1_PORT:7108}
+    # M2 数据分析师接口端口
+    m2-port: ${MCP_M2_PORT:7109}
+    # 启用的服务层 (m1, m2, both)
+    enabled-layer: ${MCP_LAYER:both}
+    # 当前服务层标识
+    current-layer: default
+
+  # AI Agent Configuration
+  agent:
+    m2-query-expert:
+      max-iterations: ${M2_MAX_ITERATIONS:10}
+      max-consecutive-errors: ${M2_MAX_CONSECUTIVE_ERRORS:3}
+      timeout-seconds: ${M2_TIMEOUT_SECONDS:120}
+
+  # External Services
+  external:
+    # 数据查询层服务
+    dataset-query:
+      base-url: ${DATASET_QUERY_URL:http://localhost:8080}
+      timeout-seconds: 30
+    # 图表渲染服务
+    chart-render:
+      base-url: ${CHART_RENDER_URL:http://localhost:3000}
+      auth-token: ${CHART_RENDER_TOKEN:default-render-token}
+      timeout-seconds: 60
+  # MCP Tools Configuration
+  # 工具描述从md文件加载，参数schema从json文件加载
+  tools:
+    - name: "dataset_nl.query"
+      descriptionFile: "classpath:/schemas/descriptions/dataset_nl_query.md"
+      schemaFile: "classpath:/schemas/dataset_nl_query_schema.json"
+      category: NATURAL_LANGUAGE
+    - name: "dataset.get_metadata"
+      descriptionFile: "classpath:/schemas/descriptions/get_metadata.md"
+      schemaFile: "classpath:/schemas/get_metadata_schema.json"
+      category: METADATA
+    - name: "dataset.describe_model_internal"
+      descriptionFile: "classpath:/schemas/descriptions/describe_model_internal.md"
+      schemaFile: "classpath:/schemas/describe_model_internal_schema.json"
+      category: METADATA
+    - name: "dataset.query_model_v2"
+      descriptionFile: "classpath:/schemas/descriptions/query_model_v3.md"
+      schemaFile: "classpath:/schemas/query_model_v3_schema.json"
+      category: QUERY
+    - name: "chart.generate"
+      enabled: false
+      descriptionFile: "classpath:/schemas/descriptions/generate_chart.md"
+      schemaFile: "classpath:/schemas/generate_chart_schema.json"
+      category: VISUALIZATION
+    - name: "dataset.export_with_chart"
+      enabled: false
+      descriptionFile: "classpath:/schemas/descriptions/export_with_chart.md"
+      schemaFile: "classpath:/schemas/export_with_chart_schema.json"
+      category: EXPORT
+
+  # 审计日志配置
+  # 记录工具调用日志到 MongoDB，用于追踪和分析 AI 工具使用情况
+  audit:
+    # 是否启用审计日志（默认关闭）
+    enabled: ${MCP_AUDIT_ENABLED:false}
+    # 是否对 authorization 进行脱敏处理（默认开启）
+    mask-authorization: ${MCP_AUDIT_MASK_AUTH:true}
+    # 需要记录审计日志的工具列表（为空则记录所有）
+    tools:
+      - dataset.query_model_v2
+      - dataset.export_with_chart
+    # MongoDB 配置
+    mongodb:
+      collection: ${MCP_AUDIT_COLLECTION:mcp_tool_audit_log}
+
+# Actuator Endpoints
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+
+# Logging Configuration
+logging:
+  level:
+    root: INFO
+    com.foggy.mcp: ${LOG_LEVEL:DEBUG}
+    org.springframework.ai: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+---
+# M1 Profile - 智能 Agent 接口 (端口 7108)
+spring:
+  config:
+    activate:
+      on-profile: m1
+  application:
+    name: mcp-data-model-m1
+
+server:
+  port: ${MCP_M1_PORT:7108}
+
+mcp:
+  service:
+    current-layer: m1
+
+logging:
+  level:
+    com.foggy.mcp: DEBUG
+
+---
+# M2 Profile - 数据分析师接口 (端口 7109)
+spring:
+  config:
+    activate:
+      on-profile: m2
+  application:
+    name: mcp-data-model
+
+server:
+  port: ${MCP_M2_PORT:7109}
+
+mcp:
+  service:
+    current-layer: m2
+
+logging:
+  level:
+    com.foggy.mcp: DEBUG
+
+---
+# Development Profile
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+logging:
+  level:
+    com.foggy.mcp: DEBUG
+
+---
+# Production Profile
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+logging:
+  level:
+    com.foggy.mcp: INFO

@@ -1,0 +1,32 @@
+import '@schoolSchedulingDataSource';
+/**
+ * Classes 维度表模型
+ * 
+ * 数据库: school_scheduling
+ * 数据源: schoolSchedulingDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'ClassesModel',
+    caption: 'Classes',
+    tableName: 'Classes',
+    dataSource: schoolSchedulingDataSource,
+    idColumn: 'ClassID',
+
+    properties: [
+        { column: 'ClassID', caption: 'Classid', type: 'INTEGER' },
+        { column: 'SubjectID', caption: 'Subjectid', type: 'INTEGER' },
+        { column: 'ClassRoomID', caption: 'Classroomid', type: 'INTEGER' },
+        { column: 'Credits', caption: 'Credits', type: 'INTEGER' },
+        { column: 'StartDate', caption: 'Startdate', type: 'DAY' },
+        { column: 'StartTime', caption: 'Starttime', type: 'DATETIME' },
+        { column: 'Duration', caption: 'Duration', type: 'INTEGER' },
+        { column: 'MondaySchedule', caption: 'Mondayschedule', type: 'STRING' },
+        { column: 'TuesdaySchedule', caption: 'Tuesdayschedule', type: 'STRING' },
+        { column: 'WednesdaySchedule', caption: 'Wednesdayschedule', type: 'STRING' },
+        { column: 'ThursdaySchedule', caption: 'Thursdayschedule', type: 'STRING' },
+        { column: 'FridaySchedule', caption: 'Fridayschedule', type: 'STRING' },
+        { column: 'SaturdaySchedule', caption: 'Saturdayschedule', type: 'STRING' },
+    ],
+};

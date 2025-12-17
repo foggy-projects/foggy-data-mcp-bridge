@@ -1,0 +1,43 @@
+import '@baseballDataSource';
+/**
+ * player 维度表模型
+ * 
+ * 数据库: Baseball
+ * 数据源: baseballDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'PlayerModel',
+    caption: 'Player',
+    tableName: 'player',
+    dataSource: baseballDataSource,
+    idColumn: 'player_id',
+
+    properties: [
+        { column: 'player_id', caption: 'Player Id', type: 'STRING' },
+        { column: 'birth_year', caption: 'Birth Year', type: 'STRING' },
+        { column: 'birth_month', caption: 'Birth Month', type: 'STRING' },
+        { column: 'birth_day', caption: 'Birth Day', type: 'STRING' },
+        { column: 'birth_country', caption: 'Birth Country', type: 'STRING' },
+        { column: 'birth_state', caption: 'Birth State', type: 'STRING' },
+        { column: 'birth_city', caption: 'Birth City', type: 'STRING' },
+        { column: 'death_year', caption: 'Death Year', type: 'STRING' },
+        { column: 'death_month', caption: 'Death Month', type: 'STRING' },
+        { column: 'death_day', caption: 'Death Day', type: 'STRING' },
+        { column: 'death_country', caption: 'Death Country', type: 'STRING' },
+        { column: 'death_state', caption: 'Death State', type: 'STRING' },
+        { column: 'death_city', caption: 'Death City', type: 'STRING' },
+        { column: 'name_first', caption: 'Name First', type: 'STRING' },
+        { column: 'name_last', caption: 'Name Last', type: 'STRING' },
+        { column: 'name_given', caption: 'Name Given', type: 'STRING' },
+        { column: 'weight', caption: 'Weight', type: 'STRING' },
+        { column: 'height', caption: 'Height', type: 'STRING' },
+        { column: 'bats', caption: 'Bats', type: 'STRING' },
+        { column: 'throws', caption: 'Throws', type: 'STRING' },
+        { column: 'debut', caption: 'Debut', type: 'STRING' },
+        { column: 'final_game', caption: 'Final Game', type: 'STRING' },
+        { column: 'retro_id', caption: 'Retro Id', type: 'STRING' },
+        { column: 'bbref_id', caption: 'Bbref Id', type: 'STRING' },
+    ],
+};

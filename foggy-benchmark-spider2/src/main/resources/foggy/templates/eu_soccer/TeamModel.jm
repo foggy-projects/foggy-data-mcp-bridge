@@ -1,0 +1,24 @@
+import '@euSoccerDataSource';
+/**
+ * Team 维度表模型
+ * 
+ * 数据库: EU_soccer
+ * 数据源: euSoccerDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'TeamModel',
+    caption: 'Team',
+    tableName: 'Team',
+    dataSource: euSoccerDataSource,
+    idColumn: 'team_api_id',
+
+    properties: [
+        { column: 'id', caption: 'Id', type: 'INTEGER' },
+        { column: 'team_api_id', caption: 'Team Api Id', type: 'INTEGER' },
+        { column: 'team_fifa_api_id', caption: 'Team Fifa Api Id', type: 'INTEGER' },
+        { column: 'team_long_name', caption: 'Team Long Name', type: 'STRING' },
+        { column: 'team_short_name', caption: 'Team Short Name', type: 'STRING' },
+    ],
+};

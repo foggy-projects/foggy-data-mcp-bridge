@@ -1,0 +1,33 @@
+import '@californiaTrafficCollisionDataSource';
+/**
+ * victims 事实表模型
+ * 
+ * 数据库: California_Traffic_Collision
+ * 数据源: californiaTrafficCollisionDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'VictimsModel',
+    caption: 'Victims',
+    tableName: 'victims',
+    dataSource: californiaTrafficCollisionDataSource,
+    idColumn: 'case_id',
+
+    properties: [
+        { column: 'id', caption: 'Id', type: 'INTEGER' },
+        { column: 'case_id', caption: 'Case Id', type: 'DECIMAL' },
+        { column: 'victim_role', caption: 'Victim Role', type: 'STRING' },
+        { column: 'victim_sex', caption: 'Victim Sex', type: 'STRING' },
+        { column: 'victim_age', caption: 'Victim Age', type: 'DECIMAL' },
+        { column: 'victim_degree_of_injury', caption: 'Victim Degree Of Injury', type: 'STRING' },
+        { column: 'victim_seating_position', caption: 'Victim Seating Position', type: 'STRING' },
+        { column: 'victim_safety_equipment_1', caption: 'Victim Safety Equipment 1', type: 'STRING' },
+        { column: 'victim_safety_equipment_2', caption: 'Victim Safety Equipment 2', type: 'STRING' },
+        { column: 'victim_ejected', caption: 'Victim Ejected', type: 'STRING' },
+    ],
+
+    measures: [
+        { column: 'party_number', caption: 'Party Number', type: 'INTEGER', aggregation: 'sum' },
+    ]
+};

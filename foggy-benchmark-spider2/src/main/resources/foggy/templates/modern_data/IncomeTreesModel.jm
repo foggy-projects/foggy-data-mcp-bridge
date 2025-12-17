@@ -1,0 +1,29 @@
+import '@modernDataDataSource';
+/**
+ * income_trees 事实表模型
+ * 
+ * 数据库: modern_data
+ * 数据源: modernDataDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'IncomeTreesModel',
+    caption: 'Income Trees',
+    tableName: 'income_trees',
+    dataSource: modernDataDataSource,
+    idColumn: 'zipcode',
+
+    properties: [
+        { column: 'zipcode', caption: 'Zipcode', type: 'INTEGER' },
+        { column: 'Estimate_Median_income', caption: 'Estimate Median Income', type: 'INTEGER' },
+        { column: 'Margin_of_Error_Median_income', caption: 'Margin Of Error Median Income', type: 'INTEGER' },
+        { column: 'Estimate_Mean_income', caption: 'Estimate Mean Income', type: 'INTEGER' },
+        { column: 'Margin_of_Error_Mean_income', caption: 'Margin Of Error Mean Income', type: 'INTEGER' },
+    ],
+
+    measures: [
+        { column: 'Estimate_Total', caption: 'Estimate Total', type: 'INTEGER', aggregation: 'sum' },
+        { column: 'Margin_of_Error_Total', caption: 'Margin Of Error Total', type: 'INTEGER', aggregation: 'sum' },
+    ]
+};

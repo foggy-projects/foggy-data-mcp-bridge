@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.foggysource</groupId>
+        <artifactId>java-data-mcp-bridge</artifactId>
+        <version>8.0.0-beta</version>
+    </parent>
+
+    <artifactId>foggy-dataset-demo</artifactId>
+    <name>java-data-mcp-bridge-dataset-demo</name>
+    <description>
+        Foggy Dataset Demo - 电商数据集演示模块
+
+        包含：
+        - 电商领域的 JM/QM 模型定义（维度表、事实表）
+        - 示例数据和初始化脚本（待添加）
+
+        其他模块可以通过 test scope 依赖此模块来复用测试数据。
+    </description>
+
+    <dependencies>
+        <!-- 无运行时依赖，仅提供资源文件 -->
+        <dependency>
+            <groupId>com.foggysource</groupId>
+            <artifactId>foggy-core</artifactId>
+        </dependency>
+    </dependencies>
+
+<!--    <build>-->
+<!--        <resources>-->
+<!--            <resource>-->
+<!--                <directory>src/main/resources</directory>-->
+<!--                <includes>-->
+<!--                    <include>**/*.jm</include>-->
+<!--                    <include>**/*.qm</include>-->
+<!--                    <include>**/*.sql</include>-->
+<!--                    <include>**/*.yml</include>-->
+<!--                    <include>**/*.yaml</include>-->
+<!--                    <include>**/*.json</include>-->
+<!--                </includes>-->
+<!--            </resource>-->
+<!--        </resources>-->
+<!--    </build>-->
+
+</project>

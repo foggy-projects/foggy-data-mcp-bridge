@@ -1,0 +1,21 @@
+import '@f1DataSource';
+/**
+ * seasons 维度表模型
+ * 
+ * 数据库: f1
+ * 数据源: f1DataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'SeasonsModel',
+    caption: 'Seasons',
+    tableName: 'seasons',
+    dataSource: f1DataSource,
+    idColumn: 'year',
+
+    properties: [
+        { column: 'year', caption: 'Year', type: 'INTEGER' },
+        { column: 'url', caption: 'Url', type: 'STRING' },
+    ],
+};

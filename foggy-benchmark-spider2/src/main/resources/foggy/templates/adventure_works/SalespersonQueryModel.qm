@@ -1,0 +1,36 @@
+/**
+ * salesperson 查询模型
+ * 
+ * 数据库: AdventureWorks
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'SalespersonQueryModel',
+    model: 'SalespersonModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'businessentityid' },
+                { name: 'territoryid' },
+                { name: 'bonus' },
+                { name: 'commissionpct' },
+                { name: 'rowguid' },
+                { name: 'modifieddate' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'salesquota' },
+                { name: 'salesytd' },
+                { name: 'saleslastyear' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

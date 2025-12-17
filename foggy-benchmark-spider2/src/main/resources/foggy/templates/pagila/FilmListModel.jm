@@ -1,0 +1,30 @@
+import '@pagilaDataSource';
+/**
+ * film_list 事实表模型
+ * 
+ * 数据库: Pagila
+ * 数据源: pagilaDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'FilmListModel',
+    caption: 'Film List',
+    tableName: 'film_list',
+    dataSource: pagilaDataSource,
+    idColumn: 'FID',
+
+    properties: [
+        { column: 'FID', caption: 'Fid', type: 'INTEGER' },
+        { column: 'title', caption: 'Title', type: 'STRING' },
+        { column: 'description', caption: 'Description', type: 'STRING' },
+        { column: 'category', caption: 'Category', type: 'STRING' },
+        { column: 'length', caption: 'Length', type: 'INTEGER' },
+        { column: 'rating', caption: 'Rating', type: 'STRING' },
+        { column: 'actors', caption: 'Actors', type: 'STRING' },
+    ],
+
+    measures: [
+        { column: 'price', caption: 'Price', type: 'STRING', aggregation: 'sum' },
+    ]
+};

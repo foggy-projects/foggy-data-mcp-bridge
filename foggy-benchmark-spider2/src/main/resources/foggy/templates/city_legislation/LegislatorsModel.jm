@@ -1,0 +1,48 @@
+import '@cityLegislationDataSource';
+/**
+ * legislators 维度表模型
+ * 
+ * 数据库: city_legislation
+ * 数据源: cityLegislationDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'LegislatorsModel',
+    caption: 'Legislators',
+    tableName: 'legislators',
+    dataSource: cityLegislationDataSource,
+    idColumn: 'id_google_entity_id',
+
+    properties: [
+        { column: 'full_name', caption: 'Full Name', type: 'STRING' },
+        { column: 'first_name', caption: 'First Name', type: 'STRING' },
+        { column: 'last_name', caption: 'Last Name', type: 'STRING' },
+        { column: 'middle_name', caption: 'Middle Name', type: 'STRING' },
+        { column: 'nickname', caption: 'Nickname', type: 'STRING' },
+        { column: 'suffix', caption: 'Suffix', type: 'STRING' },
+        { column: 'other_names_end', caption: 'Other Names End', type: 'STRING' },
+        { column: 'other_names_middle', caption: 'Other Names Middle', type: 'DECIMAL' },
+        { column: 'other_names_last', caption: 'Other Names Last', type: 'STRING' },
+        { column: 'birthday', caption: 'Birthday', type: 'STRING' },
+        { column: 'gender', caption: 'Gender', type: 'STRING' },
+        { column: 'id_bioguide', caption: 'Id Bioguide', type: 'STRING' },
+        { column: 'id_bioguide_previous_0', caption: 'Id Bioguide Previous 0', type: 'STRING' },
+        { column: 'id_govtrack', caption: 'Id Govtrack', type: 'INTEGER' },
+        { column: 'id_icpsr', caption: 'Id Icpsr', type: 'DECIMAL' },
+        { column: 'id_wikipedia', caption: 'Id Wikipedia', type: 'STRING' },
+        { column: 'id_wikidata', caption: 'Id Wikidata', type: 'STRING' },
+        { column: 'id_google_entity_id', caption: 'Id Google Entity Id', type: 'STRING' },
+        { column: 'id_house_history', caption: 'Id House History', type: 'DECIMAL' },
+        { column: 'id_house_history_alternate', caption: 'Id House History Alternate', type: 'DECIMAL' },
+        { column: 'id_thomas', caption: 'Id Thomas', type: 'DECIMAL' },
+        { column: 'id_cspan', caption: 'Id Cspan', type: 'DECIMAL' },
+        { column: 'id_votesmart', caption: 'Id Votesmart', type: 'DECIMAL' },
+        { column: 'id_lis', caption: 'Id Lis', type: 'STRING' },
+        { column: 'id_ballotpedia', caption: 'Id Ballotpedia', type: 'STRING' },
+        { column: 'id_opensecrets', caption: 'Id Opensecrets', type: 'STRING' },
+        { column: 'id_fec_0', caption: 'Id Fec 0', type: 'STRING' },
+        { column: 'id_fec_1', caption: 'Id Fec 1', type: 'STRING' },
+        { column: 'id_fec_2', caption: 'Id Fec 2', type: 'STRING' },
+    ],
+};

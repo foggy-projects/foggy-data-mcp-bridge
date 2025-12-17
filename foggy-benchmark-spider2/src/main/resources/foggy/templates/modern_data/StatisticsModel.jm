@@ -1,0 +1,26 @@
+import '@modernDataDataSource';
+/**
+ * statistics 事实表模型
+ * 
+ * 数据库: modern_data
+ * 数据源: modernDataDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'StatisticsModel',
+    caption: 'Statistics',
+    tableName: 'statistics',
+    dataSource: modernDataDataSource,
+    idColumn: 'date',
+
+    properties: [
+        { column: 'date', caption: 'Date', type: 'STRING' },
+        { column: 'state', caption: 'State', type: 'STRING' },
+    ],
+
+    measures: [
+        { column: 'total_cases', caption: 'Total Cases', type: 'INTEGER', aggregation: 'sum' },
+        { column: 'total_deaths', caption: 'Total Deaths', type: 'INTEGER', aggregation: 'sum' },
+    ]
+};

@@ -1,0 +1,27 @@
+import '@stackingDataSource';
+/**
+ * solution 维度表模型
+ * 
+ * 数据库: stacking
+ * 数据源: stackingDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'SolutionModel',
+    caption: 'Solution',
+    tableName: 'solution',
+    dataSource: stackingDataSource,
+    idColumn: 'name',
+
+    properties: [
+        { column: 'name', caption: 'Name', type: 'STRING' },
+        { column: 'version', caption: 'Version', type: 'INTEGER' },
+        { column: 'correlation', caption: 'Correlation', type: 'STRING' },
+        { column: 'nb_model', caption: 'Nb Model', type: 'INTEGER' },
+        { column: 'nb_feature', caption: 'Nb Feature', type: 'INTEGER' },
+        { column: 'score', caption: 'Score', type: 'STRING' },
+        { column: 'test_size', caption: 'Test Size', type: 'STRING' },
+        { column: 'resampling', caption: 'Resampling', type: 'INTEGER' },
+    ],
+};

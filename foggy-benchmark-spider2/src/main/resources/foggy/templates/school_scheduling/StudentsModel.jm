@@ -1,0 +1,30 @@
+import '@schoolSchedulingDataSource';
+/**
+ * Students 维度表模型
+ * 
+ * 数据库: school_scheduling
+ * 数据源: schoolSchedulingDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'StudentsModel',
+    caption: 'Students',
+    tableName: 'Students',
+    dataSource: schoolSchedulingDataSource,
+    idColumn: 'StudentID',
+
+    properties: [
+        { column: 'StudentID', caption: 'Studentid', type: 'INTEGER' },
+        { column: 'StudFirstName', caption: 'Studfirstname', type: 'STRING' },
+        { column: 'StudLastName', caption: 'Studlastname', type: 'STRING' },
+        { column: 'StudStreetAddress', caption: 'Studstreetaddress', type: 'STRING' },
+        { column: 'StudCity', caption: 'Studcity', type: 'STRING' },
+        { column: 'StudState', caption: 'Studstate', type: 'STRING' },
+        { column: 'StudZipCode', caption: 'Studzipcode', type: 'STRING' },
+        { column: 'StudAreaCode', caption: 'Studareacode', type: 'STRING' },
+        { column: 'StudPhoneNumber', caption: 'Studphonenumber', type: 'STRING' },
+        { column: 'StudGPA', caption: 'Studgpa', type: 'DECIMAL' },
+        { column: 'StudMajor', caption: 'Studmajor', type: 'INTEGER' },
+    ],
+};

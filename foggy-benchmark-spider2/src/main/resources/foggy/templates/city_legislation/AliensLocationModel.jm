@@ -1,0 +1,24 @@
+import '@cityLegislationDataSource';
+/**
+ * aliens_location 维度表模型
+ * 
+ * 数据库: city_legislation
+ * 数据源: cityLegislationDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'AliensLocationModel',
+    caption: 'Aliens Location',
+    tableName: 'aliens_location',
+    dataSource: cityLegislationDataSource,
+    idColumn: 'loc_id',
+
+    properties: [
+        { column: 'loc_id', caption: 'Loc Id', type: 'INTEGER' },
+        { column: 'current_location', caption: 'Current Location', type: 'STRING' },
+        { column: 'state', caption: 'State', type: 'STRING' },
+        { column: 'country', caption: 'Country', type: 'STRING' },
+        { column: 'occupation', caption: 'Occupation', type: 'STRING' },
+    ],
+};

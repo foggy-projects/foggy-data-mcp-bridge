@@ -1,0 +1,20 @@
+import '@oracleSqlDataSource';
+/**
+ * id_name_coll_type 维度表模型
+ * 
+ * 数据库: oracle_sql
+ * 数据源: oracleSqlDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'IdNameCollTypeModel',
+    caption: 'Id Name Coll Type',
+    tableName: 'id_name_coll_type',
+    dataSource: oracleSqlDataSource,
+    idColumn: 'collection_id',
+
+    properties: [
+        { column: 'collection_id', caption: 'Collection Id', type: 'INTEGER' },
+    ],
+};

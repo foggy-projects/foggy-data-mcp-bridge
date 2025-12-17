@@ -1,0 +1,54 @@
+import '@californiaTrafficCollisionDataSource';
+/**
+ * parties 事实表模型
+ * 
+ * 数据库: California_Traffic_Collision
+ * 数据源: californiaTrafficCollisionDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'PartiesModel',
+    caption: 'Parties',
+    tableName: 'parties',
+    dataSource: californiaTrafficCollisionDataSource,
+    idColumn: 'case_id',
+
+    properties: [
+        { column: 'id', caption: 'Id', type: 'INTEGER' },
+        { column: 'case_id', caption: 'Case Id', type: 'DECIMAL' },
+        { column: 'party_type', caption: 'Party Type', type: 'STRING' },
+        { column: 'at_fault', caption: 'At Fault', type: 'INTEGER' },
+        { column: 'party_sex', caption: 'Party Sex', type: 'STRING' },
+        { column: 'party_age', caption: 'Party Age', type: 'DECIMAL' },
+        { column: 'party_sobriety', caption: 'Party Sobriety', type: 'STRING' },
+        { column: 'party_drug_physical', caption: 'Party Drug Physical', type: 'STRING' },
+        { column: 'direction_of_travel', caption: 'Direction Of Travel', type: 'STRING' },
+        { column: 'party_safety_equipment_1', caption: 'Party Safety Equipment 1', type: 'STRING' },
+        { column: 'party_safety_equipment_2', caption: 'Party Safety Equipment 2', type: 'STRING' },
+        { column: 'financial_responsibility', caption: 'Financial Responsibility', type: 'STRING' },
+        { column: 'hazardous_materials', caption: 'Hazardous Materials', type: 'DECIMAL' },
+        { column: 'cellphone_in_use', caption: 'Cellphone In Use', type: 'DECIMAL' },
+        { column: 'cellphone_use_type', caption: 'Cellphone Use Type', type: 'STRING' },
+        { column: 'school_bus_related', caption: 'School Bus Related', type: 'DECIMAL' },
+        { column: 'oaf_violation_code', caption: 'Oaf Violation Code', type: 'STRING' },
+        { column: 'oaf_violation_category', caption: 'Oaf Violation Category', type: 'STRING' },
+        { column: 'oaf_violation_section', caption: 'Oaf Violation Section', type: 'DECIMAL' },
+        { column: 'oaf_violation_suffix', caption: 'Oaf Violation Suffix', type: 'STRING' },
+        { column: 'other_associate_factor_1', caption: 'Other Associate Factor 1', type: 'STRING' },
+        { column: 'other_associate_factor_2', caption: 'Other Associate Factor 2', type: 'STRING' },
+        { column: 'movement_preceding_collision', caption: 'Movement Preceding Collision', type: 'STRING' },
+        { column: 'vehicle_year', caption: 'Vehicle Year', type: 'DECIMAL' },
+        { column: 'vehicle_make', caption: 'Vehicle Make', type: 'STRING' },
+        { column: 'statewide_vehicle_type', caption: 'Statewide Vehicle Type', type: 'STRING' },
+        { column: 'chp_vehicle_type_towing', caption: 'Chp Vehicle Type Towing', type: 'STRING' },
+        { column: 'chp_vehicle_type_towed', caption: 'Chp Vehicle Type Towed', type: 'STRING' },
+        { column: 'party_race', caption: 'Party Race', type: 'STRING' },
+    ],
+
+    measures: [
+        { column: 'party_number', caption: 'Party Number', type: 'INTEGER', aggregation: 'sum' },
+        { column: 'party_number_killed', caption: 'Party Number Killed', type: 'INTEGER', aggregation: 'sum' },
+        { column: 'party_number_injured', caption: 'Party Number Injured', type: 'INTEGER', aggregation: 'sum' },
+    ]
+};

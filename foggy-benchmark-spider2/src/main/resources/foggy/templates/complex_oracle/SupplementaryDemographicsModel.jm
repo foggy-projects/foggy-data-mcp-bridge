@@ -1,0 +1,33 @@
+import '@complexOracleDataSource';
+/**
+ * supplementary_demographics 维度表模型
+ * 
+ * 数据库: complex_oracle
+ * 数据源: complexOracleDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'SupplementaryDemographicsModel',
+    caption: 'Supplementary Demographics',
+    tableName: 'supplementary_demographics',
+    dataSource: complexOracleDataSource,
+    idColumn: 'cust_id',
+
+    properties: [
+        { column: 'cust_id', caption: 'Cust Id', type: 'INTEGER' },
+        { column: 'education', caption: 'Education', type: 'STRING' },
+        { column: 'occupation', caption: 'Occupation', type: 'STRING' },
+        { column: 'household_size', caption: 'Household Size', type: 'STRING' },
+        { column: 'yrs_residence', caption: 'Yrs Residence', type: 'INTEGER' },
+        { column: 'affinity_card', caption: 'Affinity Card', type: 'INTEGER' },
+        { column: 'cricket', caption: 'Cricket', type: 'INTEGER' },
+        { column: 'baseball', caption: 'Baseball', type: 'INTEGER' },
+        { column: 'tennis', caption: 'Tennis', type: 'INTEGER' },
+        { column: 'soccer', caption: 'Soccer', type: 'INTEGER' },
+        { column: 'golf', caption: 'Golf', type: 'INTEGER' },
+        { column: 'unknown', caption: 'Unknown', type: 'INTEGER' },
+        { column: 'misc', caption: 'Misc', type: 'INTEGER' },
+        { column: 'comments', caption: 'Comments', type: 'STRING' },
+    ],
+};

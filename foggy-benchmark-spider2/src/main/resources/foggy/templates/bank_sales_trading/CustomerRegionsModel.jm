@@ -1,0 +1,21 @@
+import '@bankSalesTradingDataSource';
+/**
+ * customer_regions 维度表模型
+ * 
+ * 数据库: bank_sales_trading
+ * 数据源: bankSalesTradingDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'CustomerRegionsModel',
+    caption: 'Customer Regions',
+    tableName: 'customer_regions',
+    dataSource: bankSalesTradingDataSource,
+    idColumn: 'region_id',
+
+    properties: [
+        { column: 'region_id', caption: 'Region Id', type: 'INTEGER' },
+        { column: 'region_name', caption: 'Region Name', type: 'STRING' },
+    ],
+};

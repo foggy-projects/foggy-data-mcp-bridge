@@ -1,0 +1,44 @@
+import '@euSoccerDataSource';
+/**
+ * Team_Attributes 维度表模型
+ * 
+ * 数据库: EU_soccer
+ * 数据源: euSoccerDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'TeamAttributesModel',
+    caption: 'Team Attributes',
+    tableName: 'Team_Attributes',
+    dataSource: euSoccerDataSource,
+    idColumn: 'team_fifa_api_id',
+
+    properties: [
+        { column: 'id', caption: 'Id', type: 'INTEGER' },
+        { column: 'team_fifa_api_id', caption: 'Team Fifa Api Id', type: 'INTEGER' },
+        { column: 'team_api_id', caption: 'Team Api Id', type: 'INTEGER' },
+        { column: 'date', caption: 'Date', type: 'STRING' },
+        { column: 'buildUpPlaySpeed', caption: 'Buildupplayspeed', type: 'INTEGER' },
+        { column: 'buildUpPlaySpeedClass', caption: 'Buildupplayspeedclass', type: 'STRING' },
+        { column: 'buildUpPlayDribbling', caption: 'Buildupplaydribbling', type: 'INTEGER' },
+        { column: 'buildUpPlayDribblingClass', caption: 'Buildupplaydribblingclass', type: 'STRING' },
+        { column: 'buildUpPlayPassing', caption: 'Buildupplaypassing', type: 'INTEGER' },
+        { column: 'buildUpPlayPassingClass', caption: 'Buildupplaypassingclass', type: 'STRING' },
+        { column: 'buildUpPlayPositioningClass', caption: 'Buildupplaypositioningclass', type: 'STRING' },
+        { column: 'chanceCreationPassing', caption: 'Chancecreationpassing', type: 'INTEGER' },
+        { column: 'chanceCreationPassingClass', caption: 'Chancecreationpassingclass', type: 'STRING' },
+        { column: 'chanceCreationCrossing', caption: 'Chancecreationcrossing', type: 'INTEGER' },
+        { column: 'chanceCreationCrossingClass', caption: 'Chancecreationcrossingclass', type: 'STRING' },
+        { column: 'chanceCreationShooting', caption: 'Chancecreationshooting', type: 'INTEGER' },
+        { column: 'chanceCreationShootingClass', caption: 'Chancecreationshootingclass', type: 'STRING' },
+        { column: 'chanceCreationPositioningClass', caption: 'Chancecreationpositioningclass', type: 'STRING' },
+        { column: 'defencePressure', caption: 'Defencepressure', type: 'INTEGER' },
+        { column: 'defencePressureClass', caption: 'Defencepressureclass', type: 'STRING' },
+        { column: 'defenceAggression', caption: 'Defenceaggression', type: 'INTEGER' },
+        { column: 'defenceAggressionClass', caption: 'Defenceaggressionclass', type: 'STRING' },
+        { column: 'defenceTeamWidth', caption: 'Defenceteamwidth', type: 'INTEGER' },
+        { column: 'defenceTeamWidthClass', caption: 'Defenceteamwidthclass', type: 'STRING' },
+        { column: 'defenceDefenderLineClass', caption: 'Defencedefenderlineclass', type: 'STRING' },
+    ],
+};

@@ -1,0 +1,26 @@
+import '@adventureworksDataSource';
+/**
+ * currencyrate 维度表模型
+ * 
+ * 数据库: AdventureWorks
+ * 数据源: adventureworksDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'CurrencyrateModel',
+    caption: 'Currencyrate',
+    tableName: 'currencyrate',
+    dataSource: adventureworksDataSource,
+    idColumn: 'currencyrateid',
+
+    properties: [
+        { column: 'currencyrateid', caption: 'Currencyrateid', type: 'INTEGER' },
+        { column: 'currencyratedate', caption: 'Currencyratedate', type: 'DAY' },
+        { column: 'fromcurrencycode', caption: 'Fromcurrencycode', type: 'STRING' },
+        { column: 'tocurrencycode', caption: 'Tocurrencycode', type: 'STRING' },
+        { column: 'averagerate', caption: 'Averagerate', type: 'DECIMAL' },
+        { column: 'endofdayrate', caption: 'Endofdayrate', type: 'DECIMAL' },
+        { column: 'modifieddate', caption: 'Modifieddate', type: 'DAY' },
+    ],
+};

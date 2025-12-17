@@ -1,0 +1,25 @@
+import '@modernDataDataSource';
+/**
+ * pizza_clean_runner_orders 维度表模型
+ * 
+ * 数据库: modern_data
+ * 数据源: modernDataDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'PizzaCleanRunnerOrdersModel',
+    caption: 'Pizza Clean Runner Orders',
+    tableName: 'pizza_clean_runner_orders',
+    dataSource: modernDataDataSource,
+    idColumn: 'order_id',
+
+    properties: [
+        { column: 'order_id', caption: 'Order Id', type: 'INTEGER' },
+        { column: 'runner_id', caption: 'Runner Id', type: 'INTEGER' },
+        { column: 'pickup_time', caption: 'Pickup Time', type: 'STRING' },
+        { column: 'distance', caption: 'Distance', type: 'DECIMAL' },
+        { column: 'duration', caption: 'Duration', type: 'DECIMAL' },
+        { column: 'cancellation', caption: 'Cancellation', type: 'STRING' },
+    ],
+};

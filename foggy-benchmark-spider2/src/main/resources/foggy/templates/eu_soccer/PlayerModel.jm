@@ -1,0 +1,26 @@
+import '@euSoccerDataSource';
+/**
+ * Player 维度表模型
+ * 
+ * 数据库: EU_soccer
+ * 数据源: euSoccerDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'PlayerModel',
+    caption: 'Player',
+    tableName: 'Player',
+    dataSource: euSoccerDataSource,
+    idColumn: 'player_api_id',
+
+    properties: [
+        { column: 'id', caption: 'Id', type: 'INTEGER' },
+        { column: 'player_api_id', caption: 'Player Api Id', type: 'INTEGER' },
+        { column: 'player_name', caption: 'Player Name', type: 'STRING' },
+        { column: 'player_fifa_api_id', caption: 'Player Fifa Api Id', type: 'INTEGER' },
+        { column: 'birthday', caption: 'Birthday', type: 'STRING' },
+        { column: 'height', caption: 'Height', type: 'INTEGER' },
+        { column: 'weight', caption: 'Weight', type: 'INTEGER' },
+    ],
+};

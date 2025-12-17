@@ -1,0 +1,35 @@
+/**
+ * retirements 查询模型
+ * 
+ * 数据库: f1
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'RetirementsQueryModel',
+    model: 'RetirementsModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'race_id' },
+                { name: 'drivers$id' },
+                { name: 'lap' },
+                { name: 'position_order' },
+                { name: 'status$id' },
+                { name: 'retirement_type' },
+            ]
+        },
+        {
+            caption: '关联维度',
+            items: [
+                { name: 'drivers$caption' },
+                { name: 'status$caption' },
+            ]
+        },
+    ],
+
+    orders: [],
+    accesses: []
+};

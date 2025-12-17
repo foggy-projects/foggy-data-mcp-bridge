@@ -1,0 +1,25 @@
+import '@iplDataSource';
+/**
+ * wicket_taken 维度表模型
+ * 
+ * 数据库: IPL
+ * 数据源: iplDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'WicketTakenModel',
+    caption: 'Wicket Taken',
+    tableName: 'wicket_taken',
+    dataSource: iplDataSource,
+    idColumn: 'match_id',
+
+    properties: [
+        { column: 'match_id', caption: 'Match Id', type: 'INTEGER' },
+        { column: 'over_id', caption: 'Over Id', type: 'INTEGER' },
+        { column: 'ball_id', caption: 'Ball Id', type: 'INTEGER' },
+        { column: 'player_out', caption: 'Player Out', type: 'INTEGER' },
+        { column: 'kind_out', caption: 'Kind Out', type: 'STRING' },
+        { column: 'innings_no', caption: 'Innings No', type: 'INTEGER' },
+    ],
+};

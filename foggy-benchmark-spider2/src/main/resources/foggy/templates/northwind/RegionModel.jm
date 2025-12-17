@@ -1,0 +1,21 @@
+import '@northwindDataSource';
+/**
+ * region 维度表模型
+ * 
+ * 数据库: northwind
+ * 数据源: northwindDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'RegionModel',
+    caption: 'Region',
+    tableName: 'region',
+    dataSource: northwindDataSource,
+    idColumn: 'regionid',
+
+    properties: [
+        { column: 'regionid', caption: 'Regionid', type: 'INTEGER' },
+        { column: 'regiondescription', caption: 'Regiondescription', type: 'STRING' },
+    ],
+};

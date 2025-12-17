@@ -1,0 +1,64 @@
+# ============================================
+# AI Integration Test Configuration
+# Extends integration profile with AI model settings
+# ============================================
+
+spring:
+  application:
+    name: foggy-dataset-mcp-ai-test
+
+  # ==========================================
+  # AI Configuration - Use dummy values for autoconfiguration
+  # Actual AI calls use manually created clients with real keys from env
+  # ==========================================
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY:sk-test-placeholder-key}
+      base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+      chat:
+        options:
+          model: ${OPENAI_MODEL:gpt-4o-mini}
+          temperature: 0.1
+          max-tokens: 4096
+
+# ==========================================
+# AI Test Configuration
+# ==========================================
+ai-test:
+  # 模型配置
+  models:
+    openai:
+      enabled: ${OPENAI_API_KEY:false}
+      model: ${OPENAI_MODEL:gpt-4o-mini}
+      base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+
+    aliyun:
+      enabled: ${ALIYUN_API_KEY:false}
+      model: qwen-plus
+      base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
+
+    deepseek:
+      enabled: ${DEEPSEEK_API_KEY:false}
+      model: deepseek-chat
+      base-url: https://api.deepseek.com/v1
+
+  # 执行配置
+  execution:
+    parallel: false
+    timeout-seconds: 60
+    max-retries: 2
+    delay-between-calls-ms: 1000
+
+  # 验证配置
+  validation:
+    strict-mode: false
+    allow-extra-columns: true
+    row-tolerance: 0
+
+# ==========================================
+# Logging for AI Tests
+# ==========================================
+logging:
+  level:
+    com.foggyframework.dataset.mcp.ai: DEBUG
+    org.springframework.ai: INFO

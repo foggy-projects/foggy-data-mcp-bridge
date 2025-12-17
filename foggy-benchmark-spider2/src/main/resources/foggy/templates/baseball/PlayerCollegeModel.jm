@@ -1,0 +1,22 @@
+import '@baseballDataSource';
+/**
+ * player_college 维度表模型
+ * 
+ * 数据库: Baseball
+ * 数据源: baseballDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'PlayerCollegeModel',
+    caption: 'Player College',
+    tableName: 'player_college',
+    dataSource: baseballDataSource,
+    idColumn: 'player_id',
+
+    properties: [
+        { column: 'player_id', caption: 'Player Id', type: 'STRING' },
+        { column: 'college_id', caption: 'College Id', type: 'STRING' },
+        { column: 'year', caption: 'Year', type: 'INTEGER' },
+    ],
+};

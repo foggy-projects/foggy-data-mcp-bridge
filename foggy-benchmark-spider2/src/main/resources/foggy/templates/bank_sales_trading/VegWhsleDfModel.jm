@@ -1,0 +1,23 @@
+import '@bankSalesTradingDataSource';
+/**
+ * veg_whsle_df 维度表模型
+ * 
+ * 数据库: bank_sales_trading
+ * 数据源: bankSalesTradingDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'VegWhsleDfModel',
+    caption: 'Veg Whsle Df',
+    tableName: 'veg_whsle_df',
+    dataSource: bankSalesTradingDataSource,
+    idColumn: 'index',
+
+    properties: [
+        { column: 'index', caption: 'Index', type: 'INTEGER' },
+        { column: 'whsle_date', caption: 'Whsle Date', type: 'STRING' },
+        { column: 'item_code', caption: 'Item Code', type: 'INTEGER' },
+        { column: 'whsle_px_rmb-kg', caption: 'Whsle Px Rmb-kg', type: 'DECIMAL' },
+    ],
+};

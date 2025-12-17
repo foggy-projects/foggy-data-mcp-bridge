@@ -1,0 +1,25 @@
+import '@complexOracleDataSource';
+/**
+ * channels 维度表模型
+ * 
+ * 数据库: complex_oracle
+ * 数据源: complexOracleDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'ChannelsModel',
+    caption: 'Channels',
+    tableName: 'channels',
+    dataSource: complexOracleDataSource,
+    idColumn: 'channel_id',
+
+    properties: [
+        { column: 'channel_id', caption: 'Channel Id', type: 'INTEGER' },
+        { column: 'channel_desc', caption: 'Channel Desc', type: 'STRING' },
+        { column: 'channel_class', caption: 'Channel Class', type: 'STRING' },
+        { column: 'channel_class_id', caption: 'Channel Class Id', type: 'INTEGER' },
+        { column: 'channel_total', caption: 'Channel Total', type: 'STRING' },
+        { column: 'channel_total_id', caption: 'Channel Total Id', type: 'INTEGER' },
+    ],
+};

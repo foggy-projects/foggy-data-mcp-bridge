@@ -1,0 +1,33 @@
+import '@complexOracleDataSource';
+/**
+ * promotions 事实表模型
+ * 
+ * 数据库: complex_oracle
+ * 数据源: complexOracleDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'PromotionsModel',
+    caption: 'Promotions',
+    tableName: 'promotions',
+    dataSource: complexOracleDataSource,
+    idColumn: 'promo_id',
+
+    properties: [
+        { column: 'promo_id', caption: 'Promo Id', type: 'INTEGER' },
+        { column: 'promo_name', caption: 'Promo Name', type: 'STRING' },
+        { column: 'promo_subcategory', caption: 'Promo Subcategory', type: 'STRING' },
+        { column: 'promo_subcategory_id', caption: 'Promo Subcategory Id', type: 'INTEGER' },
+        { column: 'promo_category', caption: 'Promo Category', type: 'STRING' },
+        { column: 'promo_category_id', caption: 'Promo Category Id', type: 'INTEGER' },
+        { column: 'promo_begin_date', caption: 'Promo Begin Date', type: 'DAY' },
+        { column: 'promo_end_date', caption: 'Promo End Date', type: 'DAY' },
+        { column: 'promo_total', caption: 'Promo Total', type: 'STRING' },
+        { column: 'promo_total_id', caption: 'Promo Total Id', type: 'INTEGER' },
+    ],
+
+    measures: [
+        { column: 'promo_cost', caption: 'Promo Cost', type: 'DECIMAL', aggregation: 'sum' },
+    ]
+};

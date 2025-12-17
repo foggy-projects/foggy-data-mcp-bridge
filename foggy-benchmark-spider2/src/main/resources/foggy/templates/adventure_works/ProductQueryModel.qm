@@ -1,0 +1,58 @@
+/**
+ * product 查询模型
+ * 
+ * 数据库: AdventureWorks
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'ProductQueryModel',
+    model: 'ProductModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'productid' },
+                { name: 'NAME' },
+                { name: 'productnumber' },
+                { name: 'makeflag' },
+                { name: 'finishedgoodsflag' },
+                { name: 'color' },
+                { name: 'safetystocklevel' },
+                { name: 'reorderpoint' },
+                { name: 'size' },
+                { name: 'sizeunitmeasurecode' },
+                { name: 'weightunitmeasurecode' },
+                { name: 'weight' },
+                { name: 'daystomanufacture' },
+                { name: 'productline' },
+                { name: 'class' },
+                { name: 'style' },
+                { name: 'productsubcategory$id' },
+                { name: 'productmodelid' },
+                { name: 'sellstartdate' },
+                { name: 'sellenddate' },
+                { name: 'discontinueddate' },
+                { name: 'rowguid' },
+                { name: 'modifieddate' },
+            ]
+        },
+        {
+            caption: '关联维度',
+            items: [
+                { name: 'productsubcategory$caption' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'standardcost' },
+                { name: 'listprice' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

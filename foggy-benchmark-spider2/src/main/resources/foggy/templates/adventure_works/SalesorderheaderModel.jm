@@ -1,0 +1,84 @@
+import '@adventureworksDataSource';
+/**
+ * salesorderheader 事实表模型
+ * 
+ * 数据库: AdventureWorks
+ * 数据源: adventureworksDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'SalesorderheaderModel',
+    caption: 'Salesorderheader',
+    tableName: 'salesorderheader',
+    dataSource: adventureworksDataSource,
+    idColumn: 'salesorderid',
+
+    dimensions: [
+        {
+            name: 'salesperson',
+            tableName: 'salesperson',
+            foreignKey: 'salespersonid',
+            primaryKey: 'businessentityid',
+            captionColumn: 'territoryid',
+            caption: 'Salesperson',
+            properties: [
+                { column: 'businessentityid', caption: 'Businessentityid', type: 'INTEGER' },
+                { column: 'territoryid', caption: 'Territoryid', type: 'INTEGER' },
+                { column: 'salesquota', caption: 'Salesquota', type: 'INTEGER' },
+                { column: 'bonus', caption: 'Bonus', type: 'INTEGER' },
+                { column: 'commissionpct', caption: 'Commissionpct', type: 'DECIMAL' },
+                { column: 'salesytd', caption: 'Salesytd', type: 'DECIMAL' },
+                { column: 'saleslastyear', caption: 'Saleslastyear', type: 'DECIMAL' },
+                { column: 'rowguid', caption: 'Rowguid', type: 'STRING' },
+                { column: 'modifieddate', caption: 'Modifieddate', type: 'DAY' },
+            ]
+        },
+        {
+            name: 'currencyrate',
+            tableName: 'currencyrate',
+            foreignKey: 'currencyrateid',
+            primaryKey: 'currencyrateid',
+            captionColumn: 'currencyratedate',
+            caption: 'Currencyrate',
+            properties: [
+                { column: 'currencyrateid', caption: 'Currencyrateid', type: 'INTEGER' },
+                { column: 'currencyratedate', caption: 'Currencyratedate', type: 'DAY' },
+                { column: 'fromcurrencycode', caption: 'Fromcurrencycode', type: 'STRING' },
+                { column: 'tocurrencycode', caption: 'Tocurrencycode', type: 'STRING' },
+                { column: 'averagerate', caption: 'Averagerate', type: 'DECIMAL' },
+                { column: 'endofdayrate', caption: 'Endofdayrate', type: 'DECIMAL' },
+                { column: 'modifieddate', caption: 'Modifieddate', type: 'DAY' },
+            ]
+        },
+    ],
+
+    properties: [
+        { column: 'salesorderid', caption: 'Salesorderid', type: 'INTEGER' },
+        { column: 'revisionnumber', caption: 'Revisionnumber', type: 'INTEGER' },
+        { column: 'orderdate', caption: 'Orderdate', type: 'DAY' },
+        { column: 'duedate', caption: 'Duedate', type: 'DAY' },
+        { column: 'shipdate', caption: 'Shipdate', type: 'DAY' },
+        { column: 'STATUS', caption: 'Status', type: 'STRING' },
+        { column: 'onlineorderflag', caption: 'Onlineorderflag', type: 'STRING' },
+        { column: 'purchaseordernumber', caption: 'Purchaseordernumber', type: 'STRING' },
+        { column: 'accountnumber', caption: 'Accountnumber', type: 'STRING' },
+        { column: 'customerid', caption: 'Customerid', type: 'INTEGER' },
+        { column: 'territoryid', caption: 'Territoryid', type: 'INTEGER' },
+        { column: 'billtoaddressid', caption: 'Billtoaddressid', type: 'INTEGER' },
+        { column: 'shiptoaddressid', caption: 'Shiptoaddressid', type: 'INTEGER' },
+        { column: 'shipmethodid', caption: 'Shipmethodid', type: 'INTEGER' },
+        { column: 'creditcardid', caption: 'Creditcardid', type: 'INTEGER' },
+        { column: 'creditcardapprovalcode', caption: 'Creditcardapprovalcode', type: 'STRING' },
+        { column: 'comment', caption: 'Comment', type: 'STRING' },
+        { column: 'rowguid', caption: 'Rowguid', type: 'STRING' },
+        { column: 'modifieddate', caption: 'Modifieddate', type: 'DAY' },
+    ],
+
+    measures: [
+        { column: 'subtotal', caption: 'Subtotal', type: 'DECIMAL', aggregation: 'sum' },
+        { column: 'taxamt', caption: 'Taxamt', type: 'DECIMAL', aggregation: 'sum' },
+        { column: 'freight', caption: 'Freight', type: 'DECIMAL', aggregation: 'sum' },
+        { column: 'totaldue', caption: 'Totaldue', type: 'DECIMAL', aggregation: 'sum' },
+    ]
+};

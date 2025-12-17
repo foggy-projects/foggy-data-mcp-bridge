@@ -1,0 +1,1146 @@
+
+
+import com.foggyframework.fsscript.parser.spi.*;
+import com.foggyframework.fsscript.exp.*;
+import java_cup.runtime.Symbol;
+import java_cup.runtime.lr_parser;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Stack;
+
+/* Note: When regenerating the parser, use -expect 2 to allow 2 shift/reduce conflicts:
+   1. AT ID vs AT ID LPAREN - resolved by shifting (prefer function call)
+   2. FUNCTION vs FUNCTION LPAREN - resolved by shifting (prefer function definition)
+
+   Example: java -jar java-cup.jar -expect 2 datasetexp.cup
+*/
+
+parser code {:
+	private BaseScanner scanner;
+	ExpFactory factory =DefaultExpFactory.DEFAULT ;
+	FsscriptClosureDefinition fcDefinition;
+
+	public final FsscriptClosureDefinition getFcDefinition(){
+		return fcDefinition;
+	}
+	public final void setFcDefinition(FsscriptClosureDefinition fcDefinition){
+		this.fcDefinition= fcDefinition;
+	}
+	public ExpParser(ExpFactory factory){
+		super(null, new java_cup.runtime.DefaultSymbolFactory());
+		this.factory = factory==null?DefaultExpFactory.DEFAULT : factory;
+	}
+	/**
+	public Object  parseInternal(String str) throws Exception{
+		scanner = new ExpScanner(str);
+		return this.parse().value;
+	}
+	*/
+	public Exp compile(String str) throws CompileException {
+		scanner = new ExpScanner(str);
+		try {
+			Object obj = this.parse().value;
+			return obj instanceof Exp ? (Exp) obj : new ObjectExp(obj);
+		} catch (SecurityException e) {
+			throw e;
+		} catch (Exception e) {
+			throw new CompileException(e);
+		}
+	}
+	
+	public Exp compileEl(String str) throws CompileException {
+		scanner = new ElExpScanner(str);
+		try {
+			Object obj = this.parse().value;
+			return obj instanceof Exp ? (Exp) obj : new ObjectExp(obj);
+		} catch (SecurityException e) {
+			throw e;
+		} catch (Exception e) {
+			throw new CompileException(e);
+		}
+	}
+	
+	public void setExpFactory(ExpFactory expFactory) {
+		this.factory = expFactory;
+	}
+	
+	public ExpFactory getExpFactory() {
+		return factory;
+	}
+	
+	public void syntax_error(Symbol cur_token) {
+		String s = cur_token.value.toString();
+		if (cur_token.left != -1) {
+			final ParseRegion region = scanner.createRegion(cur_token.left,
+					cur_token.right);
+			throw new FoggyParseException(scanner.getExpession(),region, "Syntax error at " + region
+					+ ", token '" + s + "'");
+		} else {
+			throw new RuntimeException("Syntax error at token '" + s + "'");
+		}
+	}
+
+	public void unrecovered_syntax_error(Symbol cur_token)
+			throws java.lang.Exception {
+		report_fatal_error("Couldn't repair and continue parse", cur_token);
+	}
+:}
+/**//* Preliminaries to set up and use the scanner.  */
+init with {: scanner.init();              :};
+scan with {: return scanner.next_token(); :};
+
+// Terminals (tokens returned by the scanner).
+// a. Keywords.
+terminal
+    AND,					//&
+    AA,						//&&
+    NEW,
+    NOT,					//~
+    LIKE,
+    IN,
+    OF,
+    OR,						//|
+    ORR,					//or
+    XOR,						//^
+    TRUE,					//true
+    FALSE,					//false
+    THIS,
+    REQUEST,
+    _EVALUATOR,
+    _EE,
+    IMPORT,					//import
+    CIMPORT,					//import
+    EXPORT,
+    DEFAULT,
+    DEFAULT_COLON,           //default:
+    CONTINUE,
+    SWITCH,
+    CASE,
+    NULL;
+
+// b. Symbols
+terminal
+	PLUS,                       // +
+    MULTI,                		// *
+    DIVISION,					// /
+    MINUS,						// -
+    PERCENT,					// %
+    
+    COMMA,						// ,
+    SQM,						// '
+    BACKQUOTE,                  // `
+    
+    EQ,							// =
+    EQ2,						// ==
+    GE,							// >=
+    GT,							// >
+    LE,							// <=
+    LT,							// <
+    NE,							// <>
+    NF,							// =>
+    BANG,						// !
+    
+    LPAREN,					// (
+    RPAREN,					// )
+    LBRACE,					// {
+    RBRACE,					// }
+    LSBRACE,					// [
+    RSBRACE,					// ]
+    
+    DOT,					// .
+    DDDOT,					// ...
+    NO,						// #
+    COLON,					// :
+    NCOUNT,					//	;
+	BREAK,    
+    
+    
+    FUNCTION,				// functionDef
+    VAR,					// var def
+    LET,					// let def
+    CONST,                  //  const def
+    RETURN,					// return 
+    QMARK,					//?
+    QMARK_DOT,              //?.
+
+    CONCAT,					// ||
+    	
+	IF,
+	AS,
+	ELSE,
+	FOR,
+	WHILE,
+	
+	TRY,
+	CATCH,
+	FINALLY,
+	THROW,
+	AT,						//@
+	DOLLAR_LBRACE,			//${
+    FROM,
+    DELETE,                 //delete
+    DOLLAR;					//$
+
+// c. Typed terminals
+terminal String ID;
+terminal String STRING;
+terminal String EXP_STRING;
+terminal Number NUMBER;
+terminal Long LONG;
+
+// Non terminals
+non terminal String
+    comp_op,
+    property_identifier;
+
+non terminal MapEntry
+	map_item;
+	
+non terminal Exp
+	no_identifier,
+	no_identifier1,
+	no_identifier2,
+	unquoted_identifier,
+	as_identifier,
+	expression_or_empty,
+	expression_return,
+	expression_result,
+    export_expression,
+
+	factor0,
+	factor,
+	term0,
+    term,
+    term2,
+    term3,
+    term4,
+    /**
+     * e-> 1+1
+     */
+    nf_line_def,
+    term5,
+    term6,
+    map,
+    array,
+    bit,
+	dot_expression,
+	value_expression,
+	dollar_expression,
+	string_expression,
+	var_expression,
+	return_expression,
+	import_expression,
+	/**
+	 *	function(){
+	 *		... ...
+	 *	}
+	 */
+	function_def,
+	/**
+     * 匿名函数定义
+     */
+	nf_def,
+
+	/**
+     * e-> {return 1+1;}
+     */
+	nf_body_def,
+
+	try_def,
+	
+	ifelse,
+	if,
+	else,
+	elseif,
+	
+	for,
+	while,
+	switch,
+	case,
+	ncount_fragment_list,
+	
+	value_expression_primary;
+
+non terminal List
+	ncount_list,
+	caseList,
+	map_items;
+
+non terminal ListExp
+	arg_list;
+
+/** The grammar */
+
+	
+
+expression_result ::= 
+		ncount_list:l {:
+			RESULT = parser.factory.createNCountExp(l);
+		:}
+	;
+
+
+ncount_list ::=
+		expression_return:e {:
+			RESULT = new ListExp();
+            if(e!=null)
+				RESULT.add(e);
+		:}
+	|	ncount_list:list ifelse:i expression_return:e{:
+			list.add(i);
+			if(e!=null)
+				list.add(e); 
+			RESULT = list;
+		:}
+	|	ncount_list:list for:i expression_return:e{:
+			list.add(i);
+			if(e!=null)
+				list.add(e); 
+			RESULT = list;
+		:}
+	|	ncount_list:list while:i expression_return:e{:
+			list.add(i);
+			if(e!=null)
+				list.add(e); 
+			RESULT = list;
+		:}
+	|	ncount_list:list switch:i expression_return:e{:
+            list.add(i);
+            if(e!=null)
+                list.add(e);
+            RESULT = list;
+        :}
+	|	ncount_list:list try_def:i expression_return:e{:
+			list.add(i);
+			if(e!=null)
+				list.add(e); 
+			RESULT = list;
+		:}
+	|	ncount_list:list NCOUNT expression_return:e {:
+			if(e!=null)
+				list.add(e); 
+			RESULT = list;
+		:}
+	|	ncount_list:list import_expression:e {:
+            if(e!=null)
+                list.add(e);
+            RESULT = list;
+        :}
+
+	|	string_expression:i {:
+			RESULT = new ListExp();
+			if(i!=null)
+				RESULT.add(i);
+		:}
+	;
+
+/**********************************************************/
+
+string_expression ::=
+		STRING:d1 dollar_expression:d2 {:
+		    if(d1==null||d1.length()==0){
+		        RESULT = d2;
+		    }else{
+		        ListExp list = new ListExp(2);
+                list.add(parser.factory.createString(d1));
+                list.add(d2);
+                RESULT = parser.factory.createUnresolvedFunCall("+",list,false);
+		    }
+
+		:}
+	|	dollar_expression:d1 STRING:d2 {:
+			ListExp list = new ListExp(2);
+    		list.add(d1);
+    		list.add(parser.factory.createString(d2));
+			RESULT = parser.factory.createUnresolvedFunCall("+",list,false);
+		:}
+	|	string_expression:d1 dollar_expression:d2 {:
+			ListExp list = new ListExp(2);
+    		list.add(d1);
+    		list.add(d2);
+			RESULT = parser.factory.createUnresolvedFunCall("+",list,false);
+		:}
+	|	string_expression:d1 STRING:d2 {:
+			ListExp list = new ListExp(2);
+    		list.add(d1);
+    		list.add(parser.factory.createString(d2));
+			RESULT = parser.factory.createUnresolvedFunCall("+",list,false);
+		:}
+	
+	;
+
+dollar_expression ::=
+		DOLLAR_LBRACE expression_result:e RBRACE {:
+    		RESULT = parser.factory.createDollar(e);
+    	:}
+	;
+/**********************************************************/
+
+for ::=
+	FOR LPAREN expression_or_empty:e1 NCOUNT expression_or_empty:e2 NCOUNT expression_or_empty:e3 RPAREN  ncount_fragment_list:l2  {:
+		RESULT = parser.factory.createFor(e1,e2,e3,l2);
+	:}
+	|	FOR LPAREN var_expression:e1 NCOUNT expression_or_empty:e2 NCOUNT var_expression:e3 RPAREN  ncount_fragment_list:l2  {:
+		RESULT = parser.factory.createFor(e1,e2,e3,l2);
+	:}
+	|	FOR LPAREN var_expression:e1 NCOUNT expression_or_empty:e2 NCOUNT expression_or_empty:e3 RPAREN  ncount_fragment_list:l2  {:
+		RESULT = parser.factory.createFor(e1,e2,e3,l2);
+	:}
+	|	FOR LPAREN VAR ID:l COLON expression_or_empty:ll RPAREN ncount_fragment_list:l2{:
+		RESULT = parser.factory.createFor(l,ll,l2);
+	:}
+	|	FOR LPAREN LET ID:l COLON expression_or_empty:ll RPAREN ncount_fragment_list:l2{:
+    		RESULT = parser.factory.createFor(l,ll,l2);
+    	:}
+    |	FOR LPAREN CONST ID:l COLON expression_or_empty:ll RPAREN ncount_fragment_list:l2{:
+        		RESULT = parser.factory.createFor(l,ll,l2);
+        	:}
+
+    |	FOR LPAREN VAR ID:l IN expression_or_empty:ll RPAREN ncount_fragment_list:l2{:
+    		RESULT = parser.factory.createFor(l,ll,l2);
+    	:}
+    |	FOR LPAREN LET ID:l IN expression_or_empty:ll RPAREN ncount_fragment_list:l2{:
+            RESULT = parser.factory.createFor(l,ll,l2);
+        :}
+    |	FOR LPAREN CONST ID:l IN expression_or_empty:ll RPAREN ncount_fragment_list:l2{:
+                RESULT = parser.factory.createFor(l,ll,l2);
+            :}
+    |	FOR LPAREN CONST ID:l OF expression_or_empty:ll RPAREN ncount_fragment_list:l2{:
+                RESULT = parser.factory.createFor(l,ll,l2);
+            :}
+	;
+while ::=
+	WHILE LPAREN expression_or_empty:e1  RPAREN  ncount_fragment_list:l2  {:
+		RESULT = parser.factory.createFor(null,e1,null,l2);
+	:}
+	;
+
+switch ::=
+    SWITCH LPAREN expression_or_empty:e RPAREN LBRACE caseList:list RBRACE {:
+        RESULT = parser.factory.createSwitch(e,list);
+    :}
+    ;
+
+caseList ::=
+        case:e1 {:
+            RESULT = new ListExp();
+            if(e1!=null)
+            	RESULT.add(e1);
+        :}
+    |   caseList:list case:e1{:
+            if(e1!=null)
+                list.add(e1);
+            RESULT = list;
+        :}
+    ;
+
+case ::=
+        CASE expression_or_empty:x COLON ncount_list:x1 {:
+            RESULT = parser.factory.createSwitchCase(x,x1);
+        :}
+    |   DEFAULT_COLON ncount_list:xx {:
+            RESULT = parser.factory.createSwitchDefault(xx);
+        :}
+    ;
+
+
+ifelse ::=
+		if:i {:
+		    RESULT = i;
+		:}
+	|
+		if:i ELSE ncount_fragment_list:l2{:
+			ListExp args = new ListExp(2);
+			args.add(i);
+			args.add(l2);
+			RESULT = parser.factory.createUnresolvedFunCall("else",args,false);
+		:}
+	;
+
+if ::=
+		IF LPAREN expression_or_empty:e RPAREN ncount_fragment_list:l {:
+			ListExp args = new ListExp(2);
+			args.add(e);
+			args.add(l);
+			RESULT = parser.factory.createUnresolvedFunCall("iif",args,false);
+		:}
+	|	if:i elseif:ei {:
+			ListExp args = new ListExp(2);
+			args.add(i);
+			args.add(ei);
+			RESULT = parser.factory.createUnresolvedFunCall("elseif",args,false);
+		:}
+	;
+
+elseif ::=
+		ELSE IF LPAREN expression_or_empty:e RPAREN ncount_fragment_list:l {:
+			ListExp args = new ListExp(2);
+			args.add(e);
+			args.add(l);
+			RESULT = parser.factory.createUnresolvedFunCall("iif",args,false);
+		:}
+	;
+function_def ::=
+		FUNCTION LPAREN arg_list:a RPAREN ncount_fragment_list:l {:
+			RESULT = parser.factory.createFunctionDef(parser.getFcDefinition(),l,a);
+		:}
+	|	FUNCTION ID:s LPAREN arg_list:a RPAREN ncount_fragment_list:l {:
+			RESULT = parser.factory.createFunctionDef(parser.getFcDefinition(),s,l,a);
+		:}
+
+    |   LPAREN arg_list:e RPAREN NF ncount_fragment_list:l {:
+            RESULT = parser.factory.createFunctionDef(parser.getFcDefinition(),l,e);
+        :}
+
+    |	LPAREN arg_list:e RPAREN {:
+            RESULT = parser.factory.createUnresolvedFunCall("()",e,true);
+        :}
+	;
+
+
+
+try_def ::= 
+		TRY ncount_fragment_list:t {:
+			RESULT = parser.factory.createTryDef(t,null,null,null);
+		:}
+	|	TRY ncount_fragment_list:t CATCH LPAREN ID:argName RPAREN ncount_fragment_list:c {:
+			RESULT = parser.factory.createTryDef(t,null,c,argName);
+		:}
+	|	TRY ncount_fragment_list:t FINALLY ncount_fragment_list:f {:
+			RESULT = parser.factory.createTryDef(t,f,null,null);
+		:}
+	|	TRY ncount_fragment_list:t CATCH LPAREN ID:argName RPAREN ncount_fragment_list:c FINALLY ncount_fragment_list:f {:
+			RESULT = parser.factory.createTryDef(t,f,c,argName);
+		:}
+	;
+/**
+ *
+ *
+ */
+ncount_fragment_list ::=
+	LBRACE ncount_list:l RBRACE {:
+
+		RESULT = parser.factory.createNCountExp(l);
+	:}
+	;
+
+
+
+expression_return ::=
+        expression_or_empty:e {:
+            RESULT = e;
+        :}
+	|	var_expression:v {:
+	        RESULT = v;
+	    :}
+	|	return_expression:r {:
+	        RESULT = r;
+	    :}
+	|	THROW expression_or_empty:e {:
+			RESULT = parser.factory.createThrowDef(e);
+		:}
+	|   export_expression:ex {:
+	        RESULT = ex;
+	    :}
+	;
+
+import_expression ::=
+    	IMPORT STRING:i {:
+    			RESULT = parser.factory.createImport(i);
+        :}
+    |	IMPORT ID:v STRING:i {:
+            RESULT = parser.factory.createImport(v,i);
+        :}
+    |	IMPORT as_identifier:v STRING:i {:
+            RESULT = parser.factory.createImport(v,i);
+        :}
+
+    |	IMPORT LBRACE arg_list:v RBRACE STRING:i {:
+            RESULT = parser.factory.createImport(v,i);
+        :}
+    |	IMPORT ID:v FROM STRING:i {:
+            RESULT = parser.factory.createImport(v,i);
+        :}
+    |	IMPORT as_identifier:v FROM STRING:i {:
+
+            RESULT = parser.factory.createImport(v,i);
+        :}
+    |	IMPORT LBRACE arg_list:v RBRACE FROM STRING:i {:
+            RESULT = parser.factory.createImport(v,i);
+        :}
+    |	IMPORT MULTI AS ID:v FROM STRING:i {:
+            RESULT = parser.factory.createImport(v,i);
+        :}
+    |	IMPORT LBRACE arg_list:v RBRACE FROM AT ID:i {:
+           RESULT = parser.factory.createAtImport(v,i);
+        :}
+    ;
+
+var_expression ::=
+		VAR factor0:id EQ expression_or_empty:e{:
+			RESULT = parser.factory.createVarDef(id,e);
+		:}
+	|	LET factor0:id EQ expression_or_empty:e{:
+        			RESULT = parser.factory.createLetDef(id,e);
+        		:}
+	|   VAR factor0:id {:
+			RESULT = parser.factory.createVarDef(id,null);
+		:}
+	|	LET factor0:id {:
+        	RESULT = parser.factory.createLetDef(id,null);
+        :}
+     |	CONST factor0:id EQ expression_or_empty:e{:
+             			RESULT = parser.factory.createVarDef(id,e);
+        :}
+	|	factor0:id EQ expression_or_empty:e{:
+			RESULT = parser.factory.createEqDef(id,e);
+		:}
+	
+	;
+
+export_expression ::=
+		EXPORT expression_or_empty:e{:
+			RESULT = parser.factory.createExportDef(e);
+		:}
+    |   EXPORT DEFAULT expression_or_empty:e{:
+            RESULT = parser.factory.createExportDefaultDef(e);
+        :}
+    |   EXPORT var_expression:e{:
+            RESULT = parser.factory.createExportDef(e);
+        :}
+	;
+return_expression ::=
+		RETURN expression_or_empty:e{:
+			RESULT = parser.factory.createReturnDef(e);
+		:}
+
+	;
+
+arg_list ::=
+        expression_or_empty:e {:
+            RESULT = parser.factory.createListExp();
+            if(e==null){
+                e = parser.factory.createEmpty();
+			}
+			RESULT.add(e);
+        :}
+    |   DDDOT value_expression:r {:
+            RESULT = parser.factory.createListExp();
+            RESULT.add(parser.factory.createDDDotListEl(r));
+        :}
+    |   arg_list:list COMMA expression_or_empty:e {:
+            if(e==null){
+                e = parser.factory.createEmpty();
+            }
+            list.add(e);
+            RESULT = list;
+		:}
+    |   arg_list:list COMMA DDDOT value_expression:r {:
+            if(r==null){
+                r = parser.factory.createEmpty();
+            }else{
+                r = parser.factory.createDDDotListEl(r);
+            }
+            list.add(r);
+            RESULT = list;
+        :}
+    ;
+    
+expression_or_empty ::=
+        value_expression:e {:
+            RESULT = e;
+        :}
+
+    |	{:
+            RESULT = null;
+		:}
+	;
+array ::=
+		LSBRACE arg_list:list RSBRACE {:
+			RESULT = parser.factory.createArray(list);
+		:}
+	;
+
+map ::=
+		LBRACE map_items:is RBRACE {:
+			RESULT = parser.factory.createMap(is);
+		:}
+	;
+map_items ::=
+		expression_or_empty:e {:
+            RESULT = new ListExp();
+            if(e!=null)
+				RESULT.add(MapExp.toMapEntry(e));
+        :}
+	|	map_item:i {:
+			RESULT = new ListExp();
+			RESULT.add(i);
+		:}
+	 |   map_items:list COMMA map_item:e {:
+            list.add(e); RESULT = list;
+		:}
+	 |   map_items:list COMMA ID:e {:
+	        KeyValueMapEntry m = new KeyValueMapEntry(e);
+            list.add(m); RESULT = list;
+		:}
+     |   map_items:list COMMA {:
+            RESULT = list;
+        :}
+
+	;
+map_item ::=
+		ID:i COLON value_expression:v {:
+			MapEntry e = new KeyValueMapEntry(i,v);
+			RESULT = e;
+		:}
+	|	STRING:i COLON value_expression:v {:
+			KeyValueMapEntry e = new KeyValueMapEntry(i,v);
+			RESULT = e;
+		:}
+	|	DOLLAR ID:i COLON value_expression:v {:
+			KeyValueMapEntry e = new KeyValueMapEntry("$"+i,v);
+			RESULT = e;
+		:}
+    |   DDDOT value_expression:r {:
+            RESULT = parser.factory.createDDDotMapEl(r);
+        :}
+	;
+
+value_expression ::=
+        term5:t {:
+            RESULT = t;
+        :}
+
+    ;
+
+term5 ::=
+        term4:t {:
+            RESULT = t;
+        :}
+
+    ;
+
+term4 ::=
+        term3:t {:
+            RESULT = t;
+        :}
+
+		|	value_expression:l CONCAT term3:r {:
+			ListExp list = new ListExp(2);
+			list.add(l);
+			list.add(r);
+			RESULT = parser.factory.createUnresolvedFunCall("||", list,false);
+		:}
+		|	value_expression:l AA term3:r{:
+        			ListExp list = new ListExp(2);
+        			list.add(l);
+        			list.add(r);
+        			RESULT = parser.factory.createUnresolvedFunCall("&&", list,false);
+        		:}
+		|	value_expression:x QMARK term4:y COLON term3:z {:
+    		ListExp list = new ListExp(3);
+    		list.add(x);
+    		list.add(y);
+    		list.add(z);
+            RESULT = parser.factory.createUnresolvedFunCall("IIF",list,false);
+	
+		:}
+
+        |   unquoted_identifier:s NF ncount_fragment_list:l {:
+                List args = new ListExp(1);
+                args.add(s);
+                RESULT = parser.factory.createFunctionDef(parser.getFcDefinition(),l,args);
+            :}
+
+    ;
+
+
+term3 ::=
+        term2:t {:
+            RESULT = t;
+        :}
+    |   term3:x comp_op:op term2:y {: // e.g. "1 < 5"
+    		ListExp list = new ListExp(2);
+    		list.add(x);
+    		list.add(y);
+            RESULT = parser.factory.createUnresolvedFunCall(op,list,false);
+        :}
+    |   term3:x LIKE:op term2:y {: // e.g. "1 < 5"
+    		ListExp list = new ListExp(2);
+    		list.add(x);
+    		list.add(y);
+            RESULT = parser.factory.createUnresolvedFunCall("LIKE",list,false);
+        :}
+    |   term3:x IN:op term2:y {:
+    		ListExp list = new ListExp(2);
+    		list.add(x);
+    		list.add(y);
+            RESULT = parser.factory.createUnresolvedFunCall("IN",list,false);
+        :}
+	;
+term2 ::=
+        term:t {:
+            RESULT = t;
+        :}
+    |   term2:x PLUS term:y {:
+    		ListExp list = new ListExp(2);
+    		list.add(x);
+    		list.add(y);
+            RESULT = parser.factory.createUnresolvedFunCall("+",list,false);
+        :}
+    |   term2:x MINUS term:y {:
+    		ListExp list = new ListExp(2);
+    		list.add(x);
+    		list.add(y);
+            RESULT = parser.factory.createUnresolvedFunCall("-",list,false);
+        :}
+    |	term2:x PERCENT term:y{:
+    		ListExp list = new ListExp(2);
+    		list.add(x);
+    		list.add(y);
+            RESULT = parser.factory.createUnresolvedFunCall("%",list,false);
+    	:}
+    |	term2:x PLUS PLUS{:
+    		ListExp list = new ListExp(1);
+    		list.add(x);
+            RESULT = parser.factory.createUnresolvedFunCall("P_IJJ",list,false);
+    	:}
+    |	PLUS PLUS term:y{:
+    		ListExp list = new ListExp(1);
+    		list.add(y);
+            RESULT = parser.factory.createUnresolvedFunCall("P_JJI",list,false);
+    	:}
+    |	term2:x MINUS MINUS{:
+    		ListExp list = new ListExp(1);
+    		list.add(x);
+            RESULT = parser.factory.createUnresolvedFunCall("M_IJJ",list,false);
+    	:}
+    |	MINUS MINUS term:y{:
+    		ListExp list = new ListExp(1);
+    		list.add(y);
+            RESULT = parser.factory.createUnresolvedFunCall("M_JJI",list,false);
+    	:}
+	;
+	
+term ::=
+        term0:t {:
+            RESULT = t;
+        :}
+    |   term:x MULTI term0:y {:
+    		ListExp list = new ListExp(2);
+    		list.add(x);
+    		list.add(y);
+            RESULT = parser.factory.createUnresolvedFunCall("*",list,false);
+        :}
+    |   term:x DIVISION term0:y {:
+			ListExp list = new ListExp(2);
+    		list.add(x);
+    		list.add(y);
+			RESULT = parser.factory.createUnresolvedFunCall("/",list,false);
+        :}
+    |   term:x ORR term0:y {:
+			ListExp list = new ListExp(2);
+    		list.add(x);
+    		list.add(y);
+			RESULT = parser.factory.createUnresolvedFunCall("or",list,false);
+        :}
+    ;
+term0 ::=
+		factor:f {:
+		    RESULT = f;
+		:}
+
+	; 
+factor ::=
+        factor0:f {:
+            RESULT = f;
+        :}
+
+	|	MINUS factor0:p {:
+			ListExp list = new ListExp(1);
+			list.add(p);
+            RESULT = parser.factory.createUnresolvedFunCall("-", list,false);
+        :}
+    |	BANG factor0:e {:
+			ListExp list = new ListExp(1);
+			list.add(e);
+            RESULT = parser.factory.createUnresolvedFunCall("!", list,false);
+		:}
+
+    |   DELETE factor0:id {:
+            RESULT = parser.factory.createDelete(id);
+        :}
+    ;
+
+factor0 ::=
+		bit:b {:
+		    RESULT = b;
+		:}
+    |   factor0:l DOT bit:r {:
+            RESULT = parser.factory.createEl(l,r);
+        :}
+    |   factor0:l DOT property_identifier:r {:
+            RESULT = parser.factory.createEl(l, parser.factory.createId(r));
+        :}
+
+    |   factor0:l QMARK_DOT bit:r {:
+            RESULT = parser.factory.createEl(l,r,true);
+        :}
+    |   factor0:l QMARK_DOT property_identifier:r {:
+            RESULT = parser.factory.createEl(l, parser.factory.createId(r), true);
+        :}
+
+	|	factor0:l LSBRACE bit:v RSBRACE {:
+     		 RESULT = parser.factory.createGetCollectionValueExp(l, v);
+     	:}
+    |   factor0:l LPAREN arg_list:v RPAREN {:
+            RESULT = parser.factory.createExpFunCall(l,v);
+        :}
+    ;
+bit ::=
+		value_expression_primary:v {:
+		    RESULT = v;
+		:}
+	|	bit:l AND value_expression_primary:r{:
+			ListExp list = new ListExp(2);
+			list.add(l);
+			list.add(r);
+			RESULT = parser.factory.createUnresolvedFunCall("&", list,false);
+		:}
+	|	NOT value_expression_primary:i{:
+			ListExp list = new ListExp(1);
+			list.add(i);
+			RESULT = parser.factory.createUnresolvedFunCall("~", list,false);
+		:}
+	|	bit:l OR value_expression_primary:r{:
+			ListExp list = new ListExp(2);
+			list.add(l);
+			list.add(r);
+		 	RESULT = parser.factory.createUnresolvedFunCall("|", list,false);
+		:}
+	|	bit:l XOR value_expression_primary:r{:
+			ListExp list = new ListExp(2);
+			list.add(l);
+			list.add(r);
+			RESULT = parser.factory.createUnresolvedFunCall("^", list,false);
+		:}
+	|	bit:l NO property_identifier:r{:
+			RESULT = parser.factory.createNOExp(l,r);
+		:}
+	;
+value_expression_primary ::=
+	
+		STRING:s{:
+			RESULT = parser.factory.createString(s);
+		:}
+    |   EXP_STRING:s{:
+            RESULT = parser.factory.createExpString(parser.getFcDefinition(),s);
+        :}
+	|	NEW ID:i LPAREN arg_list:v RPAREN{:
+    		RESULT = parser.factory.createNewExp(i,v);
+    	:}
+
+	|	DOLLAR ID:i {:
+	        RESULT = parser.factory.createRequestParameterExp(i);
+		:}
+	|	NO ID:i {:
+	        RESULT = parser.factory.createRequestAttributeExp(i);
+		:}
+	|   AT ID:i LPAREN arg_list:list RPAREN {:
+            RESULT = parser.factory.createAtUnresolvedFunCall(i,list,true);
+        :}
+	|	AT ID:i {:
+	        RESULT = parser.factory.createContextObjectExp(i);
+		:}
+	|	DOLLAR DOT ID:i {:
+	        RESULT = parser.factory.createArgmentsExp(i);
+		:}
+	|	NUMBER:n{:
+			RESULT = parser.factory.createNumber(n);
+		:}
+	|	LONG:n{:
+			RESULT = parser.factory.createLong(n);
+		:}
+	|	unquoted_identifier:u {:
+	        RESULT = u;
+	    :}
+	|   as_identifier:a {:
+	        RESULT = a;
+	    :}
+	|	function_def:f {:
+	        RESULT = f;
+	    :}
+	|	map:m {:
+	        RESULT = m;
+	    :}
+	|	array:a {:
+	        RESULT = a;
+	    :}
+	;
+
+as_identifier ::=
+	ID:i AS ID:i2{:
+	        RESULT = parser.factory.createAsExp(i,i2);
+		:}
+	;
+
+unquoted_identifier ::=
+	ID:i {:
+	        RESULT = parser.factory.createId(i);
+		:}
+	|	TRUE {:
+	        RESULT = parser.factory.createBooleanTrue();
+		:}
+	|	FALSE {:
+	        RESULT = parser.factory.createBooleanFalse();
+		:}
+	|	REQUEST {:
+	        RESULT = parser.factory.createGetRequestExp();
+		:}
+	|	_EVALUATOR {:
+	        RESULT = parser.factory.createGetExpEvaluatorExp();
+		:}
+	|	_EE {:
+	        RESULT = parser.factory.createGetExpEvaluatorExp();
+		:}
+	|	THIS {:
+	        RESULT = parser.factory.createGetThisExp();
+		:}
+	|	NULL:i {:
+			RESULT= parser.factory.createNull();
+		:}
+	|	BREAK {:
+			RESULT= parser.factory.createBreak();
+		:}
+	|	BREAK ID:i{:
+            RESULT= parser.factory.createBreak(i);
+        :}
+	|   CONTINUE {:
+            RESULT= parser.factory.createContinue();
+        :}
+    |   CONTINUE ID:i{:
+            RESULT= parser.factory.createContinue(i);
+        :}
+	;
+/**
+no_identifier2 ::=
+		no_identifier1
+	|	no_identifier1:l NO no_identifier:r{:
+			
+			RESULT = parser.factory.createNOExp(l,r);
+		:}
+	;
+	
+no_identifier1 ::=
+		no_identifier
+	|	no_identifier:l NO ID:r{:
+			
+			RESULT = parser.factory.createNOExp(l,r);
+		:}
+	;
+
+no_identifier ::={
+		
+	;
+*/
+comp_op ::=
+        EQ2 {:
+            RESULT = "==";
+        :}
+    |   NE {:
+            RESULT = "<>";
+        :}
+    |   LT {:
+            RESULT = "<";
+        :}
+    |   GT {:
+            RESULT = ">";
+        :}
+    |   LE {:
+            RESULT = "<=";
+        :}
+    |   GE {:
+            RESULT = ">=";
+        :}
+    ;
+
+/**
+ * 属性标识符：允许关键字作为对象属性名
+ * 例如：obj.default, obj.import, obj.export
+ * 注意：不包含 ID 和 unquoted_identifier 中已有的 token
+ */
+property_identifier ::=
+        DEFAULT {:
+            RESULT = "default";
+        :}
+    |   IMPORT {:
+            RESULT = "import";
+        :}
+    |   EXPORT {:
+            RESULT = "export";
+        :}
+    |   RETURN {:
+            RESULT = "return";
+        :}
+    |   VAR {:
+            RESULT = "var";
+        :}
+    |   LET {:
+            RESULT = "let";
+        :}
+    |   CONST {:
+            RESULT = "const";
+        :}
+    |   FUNCTION {:
+            RESULT = "function";
+        :}
+    |   IF {:
+            RESULT = "if";
+        :}
+    |   ELSE {:
+            RESULT = "else";
+        :}
+    |   FOR {:
+            RESULT = "for";
+        :}
+    |   WHILE {:
+            RESULT = "while";
+        :}
+    |   SWITCH {:
+            RESULT = "switch";
+        :}
+    |   CASE {:
+            RESULT = "case";
+        :}
+    |   TRY {:
+            RESULT = "try";
+        :}
+    |   CATCH {:
+            RESULT = "catch";
+        :}
+    |   FINALLY {:
+            RESULT = "finally";
+        :}
+    |   THROW {:
+            RESULT = "throw";
+        :}
+    |   NEW {:
+            RESULT = "new";
+        :}
+    |   DELETE {:
+            RESULT = "delete";
+        :}
+    |   IN {:
+            RESULT = "in";
+        :}
+    |   OF {:
+            RESULT = "of";
+        :}
+    |   AS {:
+            RESULT = "as";
+        :}
+    |   FROM {:
+            RESULT = "from";
+        :}
+    ;

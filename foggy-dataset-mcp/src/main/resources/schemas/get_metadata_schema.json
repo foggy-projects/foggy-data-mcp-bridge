@@ -1,0 +1,7 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "description": "获取用户级元数据包，无需参数",
+  "properties": {},
+  "required": []
+}

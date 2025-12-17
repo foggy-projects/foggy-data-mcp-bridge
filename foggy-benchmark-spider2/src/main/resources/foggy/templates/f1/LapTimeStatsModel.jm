@@ -1,0 +1,25 @@
+import '@f1DataSource';
+/**
+ * lap_time_stats 维度表模型
+ * 
+ * 数据库: f1
+ * 数据源: f1DataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'LapTimeStatsModel',
+    caption: 'Lap Time Stats',
+    tableName: 'lap_time_stats',
+    dataSource: f1DataSource,
+    idColumn: 'race_id',
+
+    properties: [
+        { column: 'race_id', caption: 'Race Id', type: 'INTEGER' },
+        { column: 'driver_id', caption: 'Driver Id', type: 'INTEGER' },
+        { column: 'avg_milliseconds', caption: 'Avg Milliseconds', type: 'STRING' },
+        { column: 'avg_seconds', caption: 'Avg Seconds', type: 'STRING' },
+        { column: 'stdev_milliseconds', caption: 'Stdev Milliseconds', type: 'STRING' },
+        { column: 'stdev_seconds', caption: 'Stdev Seconds', type: 'STRING' },
+    ],
+};

@@ -1,0 +1,22 @@
+import '@airlinesDataSource';
+/**
+ * tickets 维度表模型
+ * 
+ * 数据库: Airlines
+ * 数据源: airlinesDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'TicketsModel',
+    caption: 'Tickets',
+    tableName: 'tickets',
+    dataSource: airlinesDataSource,
+    idColumn: 'passenger_id',
+
+    properties: [
+        { column: 'ticket_no', caption: 'Ticket No', type: 'STRING' },
+        { column: 'book_ref', caption: 'Book Ref', type: 'STRING' },
+        { column: 'passenger_id', caption: 'Passenger Id', type: 'STRING' },
+    ],
+};

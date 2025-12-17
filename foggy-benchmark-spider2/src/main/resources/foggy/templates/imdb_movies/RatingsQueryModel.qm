@@ -1,0 +1,31 @@
+/**
+ * ratings 查询模型
+ * 
+ * 数据库: imdb_movies
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'RatingsQueryModel',
+    model: 'RatingsModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'movie_id' },
+                { name: 'avg_rating' },
+                { name: 'median_rating' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'total_votes' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

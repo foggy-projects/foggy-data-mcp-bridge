@@ -1,0 +1,37 @@
+import '@schoolSchedulingDataSource';
+/**
+ * Categories 事实表模型
+ * 
+ * 数据库: school_scheduling
+ * 数据源: schoolSchedulingDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'CategoriesModel',
+    caption: '分类',
+    tableName: 'Categories',
+    dataSource: schoolSchedulingDataSource,
+    idColumn: 'CategoryID',
+
+    dimensions: [
+        {
+            name: 'departments',
+            tableName: 'Departments',
+            foreignKey: 'DepartmentID',
+            primaryKey: 'DepartmentID',
+            captionColumn: 'DeptName',
+            caption: 'Departments',
+            properties: [
+                { column: 'DepartmentID', caption: 'Departmentid', type: 'INTEGER' },
+                { column: 'DeptName', caption: 'Deptname', type: 'STRING' },
+                { column: 'DeptChair', caption: 'Deptchair', type: 'INTEGER' },
+            ]
+        },
+    ],
+
+    properties: [
+        { column: 'CategoryID', caption: 'Categoryid', type: 'STRING' },
+        { column: 'CategoryDescription', caption: 'Categorydescription', type: 'STRING' },
+    ],
+};

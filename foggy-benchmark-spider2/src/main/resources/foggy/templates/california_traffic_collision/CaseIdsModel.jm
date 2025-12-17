@@ -1,0 +1,21 @@
+import '@californiaTrafficCollisionDataSource';
+/**
+ * case_ids 维度表模型
+ * 
+ * 数据库: California_Traffic_Collision
+ * 数据源: californiaTrafficCollisionDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'CaseIdsModel',
+    caption: 'Case Ids',
+    tableName: 'case_ids',
+    dataSource: californiaTrafficCollisionDataSource,
+    idColumn: 'case_id',
+
+    properties: [
+        { column: 'case_id', caption: 'Case Id', type: 'DECIMAL' },
+        { column: 'db_year', caption: 'Db Year', type: 'INTEGER' },
+    ],
+};

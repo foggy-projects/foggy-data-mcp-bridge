@@ -1,0 +1,23 @@
+import '@schoolSchedulingDataSource';
+/**
+ * Faculty 维度表模型
+ * 
+ * 数据库: school_scheduling
+ * 数据源: schoolSchedulingDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'FacultyModel',
+    caption: 'Faculty',
+    tableName: 'Faculty',
+    dataSource: schoolSchedulingDataSource,
+    idColumn: 'StaffID',
+
+    properties: [
+        { column: 'StaffID', caption: 'Staffid', type: 'INTEGER' },
+        { column: 'Title', caption: 'Title', type: 'STRING' },
+        { column: 'Status', caption: 'Status', type: 'STRING' },
+        { column: 'Tenured', caption: 'Tenured', type: 'STRING' },
+    ],
+};

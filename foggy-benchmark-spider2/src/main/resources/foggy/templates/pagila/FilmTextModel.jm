@@ -1,0 +1,22 @@
+import '@pagilaDataSource';
+/**
+ * film_text 维度表模型
+ * 
+ * 数据库: Pagila
+ * 数据源: pagilaDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'FilmTextModel',
+    caption: 'Film Text',
+    tableName: 'film_text',
+    dataSource: pagilaDataSource,
+    idColumn: 'film_id',
+
+    properties: [
+        { column: 'film_id', caption: 'Film Id', type: 'INTEGER' },
+        { column: 'title', caption: 'Title', type: 'STRING' },
+        { column: 'description', caption: 'Description', type: 'STRING' },
+    ],
+};

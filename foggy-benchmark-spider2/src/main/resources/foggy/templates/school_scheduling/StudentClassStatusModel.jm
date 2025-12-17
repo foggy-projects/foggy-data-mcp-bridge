@@ -1,0 +1,21 @@
+import '@schoolSchedulingDataSource';
+/**
+ * Student_Class_Status 维度表模型
+ * 
+ * 数据库: school_scheduling
+ * 数据源: schoolSchedulingDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'StudentClassStatusModel',
+    caption: 'Student Class Status',
+    tableName: 'Student_Class_Status',
+    dataSource: schoolSchedulingDataSource,
+    idColumn: 'ClassStatus',
+
+    properties: [
+        { column: 'ClassStatus', caption: 'Classstatus', type: 'INTEGER' },
+        { column: 'ClassStatusDescription', caption: 'Classstatusdescription', type: 'STRING' },
+    ],
+};

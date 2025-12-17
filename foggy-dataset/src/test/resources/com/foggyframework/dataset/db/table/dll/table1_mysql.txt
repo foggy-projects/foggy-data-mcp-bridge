@@ -1,0 +1,1 @@
+create table test1 (c1 varchar(64), c2 integer, c3 datetime, c4 varchar(128), c5 double precision, c6 date)

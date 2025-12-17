@@ -1,0 +1,41 @@
+import '@baseballDataSource';
+/**
+ * batting_postseason 维度表模型
+ * 
+ * 数据库: Baseball
+ * 数据源: baseballDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'BattingPostseasonModel',
+    caption: 'Batting Postseason',
+    tableName: 'batting_postseason',
+    dataSource: baseballDataSource,
+    idColumn: 'player_id',
+
+    properties: [
+        { column: 'year', caption: 'Year', type: 'INTEGER' },
+        { column: 'round', caption: 'Round', type: 'STRING' },
+        { column: 'player_id', caption: 'Player Id', type: 'STRING' },
+        { column: 'team_id', caption: 'Team Id', type: 'STRING' },
+        { column: 'league_id', caption: 'League Id', type: 'STRING' },
+        { column: 'g', caption: 'G', type: 'INTEGER' },
+        { column: 'ab', caption: 'Ab', type: 'INTEGER' },
+        { column: 'r', caption: 'R', type: 'INTEGER' },
+        { column: 'h', caption: 'H', type: 'INTEGER' },
+        { column: 'double', caption: 'Double', type: 'INTEGER' },
+        { column: 'triple', caption: 'Triple', type: 'INTEGER' },
+        { column: 'hr', caption: 'Hr', type: 'INTEGER' },
+        { column: 'rbi', caption: 'Rbi', type: 'INTEGER' },
+        { column: 'sb', caption: 'Sb', type: 'INTEGER' },
+        { column: 'cs', caption: 'Cs', type: 'STRING' },
+        { column: 'bb', caption: 'Bb', type: 'INTEGER' },
+        { column: 'so', caption: 'So', type: 'INTEGER' },
+        { column: 'ibb', caption: 'Ibb', type: 'STRING' },
+        { column: 'hbp', caption: 'Hbp', type: 'STRING' },
+        { column: 'sh', caption: 'Sh', type: 'STRING' },
+        { column: 'sf', caption: 'Sf', type: 'STRING' },
+        { column: 'g_idp', caption: 'G Idp', type: 'STRING' },
+    ],
+};

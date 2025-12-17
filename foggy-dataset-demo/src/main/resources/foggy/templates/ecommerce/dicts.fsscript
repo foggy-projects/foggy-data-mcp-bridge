@@ -1,0 +1,155 @@
+/**
+ * 电商系统字典定义
+ *
+ * 通过 registerDict 函数注册字典到全局服务中，
+ * 模型文件可以通过 dictRef 引用这些字典。
+ *
+ * 使用示例：
+ * import { dicts } from './dicts.fsscript';
+ *
+ * export const model = {
+ *     properties: [
+ *         {
+ *             column: 'payment_method',
+ *             caption: '支付方式',
+ *             dictRef: dicts.payment_method
+ *         }
+ *     ]
+ * }
+ */
+import { registerDict } from '@jdbcModelDictService';
+
+export const dicts = {
+    /**
+     * 支付方式
+     */
+    payment_method: registerDict({
+        id: 'payment_method',
+        caption: '支付方式',
+        items: [
+            { value: '1', label: '现付' },
+            { value: '2', label: '到付' },
+            { value: '3', label: '货到付款' }
+        ]
+    }),
+
+    /**
+     * 订单状态
+     */
+    order_status: registerDict({
+        id: 'order_status',
+        caption: '订单状态',
+        items: [
+            { value: 'PENDING', label: '待处理' },
+            { value: 'CONFIRMED', label: '已确认' },
+            { value: 'PROCESSING', label: '处理中' },
+            { value: 'SHIPPED', label: '已发货' },
+            { value: 'DELIVERED', label: '已送达' },
+            { value: 'COMPLETED', label: '已完成' },
+            { value: 'CANCELLED', label: '已取消' },
+            { value: 'REFUNDED', label: '已退款' }
+        ]
+    }),
+
+    /**
+     * 支付状态
+     */
+    payment_status: registerDict({
+        id: 'payment_status',
+        caption: '支付状态',
+        items: [
+            { value: 'UNPAID', label: '未支付' },
+            { value: 'PAID', label: '已支付' },
+            { value: 'PARTIAL', label: '部分支付' },
+            { value: 'REFUNDING', label: '退款中' },
+            { value: 'REFUNDED', label: '已退款' }
+        ]
+    }),
+
+    /**
+     * 退货原因
+     */
+    return_reason: registerDict({
+        id: 'return_reason',
+        caption: '退货原因',
+        items: [
+            { value: 'QUALITY', label: '质量问题' },
+            { value: 'WRONG_ITEM', label: '发错商品' },
+            { value: 'NOT_MATCH', label: '与描述不符' },
+            { value: 'NO_NEED', label: '不需要了' },
+            { value: 'OTHER', label: '其他' }
+        ]
+    }),
+
+    /**
+     * 退货类型
+     */
+    return_type: registerDict({
+        id: 'return_type',
+        caption: '退货类型',
+        items: [
+            { value: 'RETURN', label: '退货退款' },
+            { value: 'REFUND_ONLY', label: '仅退款' },
+            { value: 'EXCHANGE', label: '换货' }
+        ]
+    }),
+
+    /**
+     * 退货状态
+     */
+    return_status: registerDict({
+        id: 'return_status',
+        caption: '退货状态',
+        items: [
+            { value: 'PENDING', label: '待审核' },
+            { value: 'APPROVED', label: '已批准' },
+            { value: 'REJECTED', label: '已拒绝' },
+            { value: 'RETURNING', label: '退货中' },
+            { value: 'RECEIVED', label: '已收货' },
+            { value: 'COMPLETED', label: '已完成' }
+        ]
+    }),
+
+    /**
+     * 支付渠道
+     */
+    pay_channel: registerDict({
+        id: 'pay_channel',
+        caption: '支付渠道',
+        items: [
+            { value: 'ALIPAY', label: '支付宝' },
+            { value: 'WECHAT', label: '微信支付' },
+            { value: 'UNIONPAY', label: '银联' },
+            { value: 'CASH', label: '现金' },
+            { value: 'CREDIT', label: '信用卡' }
+        ]
+    }),
+
+    /**
+     * 支付方式（详细）
+     */
+    pay_method: registerDict({
+        id: 'pay_method',
+        caption: '支付方式',
+        items: [
+            { value: 'ONLINE', label: '在线支付' },
+            { value: 'COD', label: '货到付款' },
+            { value: 'TRANSFER', label: '银行转账' },
+            { value: 'BALANCE', label: '余额支付' }
+        ]
+    }),
+
+    /**
+     * 支付状态（支付记录）
+     */
+    pay_status: registerDict({
+        id: 'pay_status',
+        caption: '支付状态',
+        items: [
+            { value: 'PENDING', label: '待支付' },
+            { value: 'SUCCESS', label: '支付成功' },
+            { value: 'FAILED', label: '支付失败' },
+            { value: 'CANCELLED', label: '已取消' }
+        ]
+    })
+}

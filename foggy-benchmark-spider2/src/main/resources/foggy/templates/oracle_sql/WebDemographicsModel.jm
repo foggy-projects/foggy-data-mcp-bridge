@@ -1,0 +1,31 @@
+import '@oracleSqlDataSource';
+/**
+ * web_demographics 事实表模型
+ * 
+ * 数据库: oracle_sql
+ * 数据源: oracleSqlDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'WebDemographicsModel',
+    caption: 'Web Demographics',
+    tableName: 'web_demographics',
+    dataSource: oracleSqlDataSource,
+    idColumn: 'day',
+
+    properties: [
+        { column: 'day', caption: 'Day', type: 'STRING' },
+        { column: 'm_tw_cnt', caption: 'M Tw Cnt', type: 'INTEGER' },
+        { column: 'm_fb_cnt', caption: 'M Fb Cnt', type: 'INTEGER' },
+        { column: 'f_tw_cnt', caption: 'F Tw Cnt', type: 'INTEGER' },
+        { column: 'f_fb_cnt', caption: 'F Fb Cnt', type: 'INTEGER' },
+    ],
+
+    measures: [
+        { column: 'm_tw_qty', caption: 'M Tw Qty', type: 'INTEGER', aggregation: 'sum' },
+        { column: 'm_fb_qty', caption: 'M Fb Qty', type: 'INTEGER', aggregation: 'sum' },
+        { column: 'f_tw_qty', caption: 'F Tw Qty', type: 'INTEGER', aggregation: 'sum' },
+        { column: 'f_fb_qty', caption: 'F Fb Qty', type: 'INTEGER', aggregation: 'sum' },
+    ]
+};

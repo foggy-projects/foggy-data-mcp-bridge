@@ -1,0 +1,25 @@
+import '@airlinesDataSource';
+/**
+ * bookings 事实表模型
+ * 
+ * 数据库: Airlines
+ * 数据源: airlinesDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'BookingsModel',
+    caption: 'Bookings',
+    tableName: 'bookings',
+    dataSource: airlinesDataSource,
+    idColumn: 'book_ref',
+
+    properties: [
+        { column: 'book_ref', caption: 'Book Ref', type: 'STRING' },
+        { column: 'book_date', caption: 'Book Date', type: 'DATETIME' },
+    ],
+
+    measures: [
+        { column: 'total_amount', caption: 'Total Amount', type: 'STRING', aggregation: 'sum' },
+    ]
+};

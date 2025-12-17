@@ -1,0 +1,26 @@
+import '@eCommerceDataSource';
+/**
+ * order_reviews 维度表模型
+ * 
+ * 数据库: E_commerce
+ * 数据源: eCommerceDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'OrderReviewsModel',
+    caption: '订单评价',
+    tableName: 'order_reviews',
+    dataSource: eCommerceDataSource,
+    idColumn: 'review_id',
+
+    properties: [
+        { column: 'review_id', caption: 'Review Id', type: 'STRING' },
+        { column: 'order_id', caption: 'Order Id', type: 'STRING' },
+        { column: 'review_score', caption: 'Review Score', type: 'INTEGER' },
+        { column: 'review_comment_title', caption: 'Review Comment Title', type: 'STRING' },
+        { column: 'review_comment_message', caption: 'Review Comment Message', type: 'STRING' },
+        { column: 'review_creation_date', caption: 'Review Creation Date', type: 'STRING' },
+        { column: 'review_answer_timestamp', caption: 'Review Answer Timestamp', type: 'STRING' },
+    ],
+};

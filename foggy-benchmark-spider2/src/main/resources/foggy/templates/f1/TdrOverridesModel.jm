@@ -1,0 +1,23 @@
+import '@f1DataSource';
+/**
+ * tdr_overrides 维度表模型
+ * 
+ * 数据库: f1
+ * 数据源: f1DataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'TdrOverridesModel',
+    caption: 'Tdr Overrides',
+    tableName: 'tdr_overrides',
+    dataSource: f1DataSource,
+    idColumn: 'year',
+
+    properties: [
+        { column: 'year', caption: 'Year', type: 'INTEGER' },
+        { column: 'constructor_ref', caption: 'Constructor Ref', type: 'STRING' },
+        { column: 'driver_ref', caption: 'Driver Ref', type: 'STRING' },
+        { column: 'team_driver_rank', caption: 'Team Driver Rank', type: 'INTEGER' },
+    ],
+};

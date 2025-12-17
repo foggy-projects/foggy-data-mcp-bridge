@@ -1,0 +1,22 @@
+import '@wweDataSource';
+/**
+ * Tables 维度表模型
+ * 
+ * 数据库: WWE
+ * 数据源: wweDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'TablesModel',
+    caption: 'Tables',
+    tableName: 'Tables',
+    dataSource: wweDataSource,
+    idColumn: 'id',
+
+    properties: [
+        { column: 'id', caption: 'Id', type: 'INTEGER' },
+        { column: 'html', caption: 'Html', type: 'STRING' },
+        { column: 'url', caption: 'Url', type: 'STRING' },
+    ],
+};

@@ -1,0 +1,31 @@
+import '@schoolSchedulingDataSource';
+/**
+ * Staff 维度表模型
+ * 
+ * 数据库: school_scheduling
+ * 数据源: schoolSchedulingDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'StaffModel',
+    caption: 'Staff',
+    tableName: 'Staff',
+    dataSource: schoolSchedulingDataSource,
+    idColumn: 'StaffID',
+
+    properties: [
+        { column: 'StaffID', caption: 'Staffid', type: 'INTEGER' },
+        { column: 'StfFirstName', caption: 'Stffirstname', type: 'STRING' },
+        { column: 'StfLastname', caption: 'Stflastname', type: 'STRING' },
+        { column: 'StfStreetAddress', caption: 'Stfstreetaddress', type: 'STRING' },
+        { column: 'StfCity', caption: 'Stfcity', type: 'STRING' },
+        { column: 'StfState', caption: 'Stfstate', type: 'STRING' },
+        { column: 'StfZipCode', caption: 'Stfzipcode', type: 'STRING' },
+        { column: 'StfAreaCode', caption: 'Stfareacode', type: 'STRING' },
+        { column: 'StfPhoneNumber', caption: 'Stfphonenumber', type: 'STRING' },
+        { column: 'Salary', caption: 'Salary', type: 'DECIMAL' },
+        { column: 'DateHired', caption: 'Datehired', type: 'DAY' },
+        { column: 'Position', caption: 'Position', type: 'STRING' },
+    ],
+};

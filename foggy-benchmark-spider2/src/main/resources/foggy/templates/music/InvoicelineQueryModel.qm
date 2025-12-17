@@ -1,0 +1,39 @@
+/**
+ * InvoiceLine 查询模型
+ * 
+ * 数据库: music
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'InvoicelineQueryModel',
+    model: 'InvoicelineModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'InvoiceLineId' },
+                { name: 'invoice$id' },
+                { name: 'track$id' },
+            ]
+        },
+        {
+            caption: '关联维度',
+            items: [
+                { name: 'invoice$caption' },
+                { name: 'track$caption' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'UnitPrice' },
+                { name: 'Quantity' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

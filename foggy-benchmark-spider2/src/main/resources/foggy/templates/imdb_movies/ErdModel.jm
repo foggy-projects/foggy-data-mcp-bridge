@@ -1,0 +1,32 @@
+import '@imdbMoviesDataSource';
+/**
+ * ERD 维度表模型
+ * 
+ * 数据库: imdb_movies
+ * 数据源: imdbMoviesDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'ErdModel',
+    caption: 'Erd',
+    tableName: 'ERD',
+    dataSource: imdbMoviesDataSource,
+    idColumn: 'table',
+
+    properties: [
+        { column: 'table', caption: 'Table', type: 'STRING' },
+        { column: 'column', caption: 'Column', type: 'STRING' },
+        { column: 'Unnamed: 2', caption: 'Unnamed: 2', type: 'DECIMAL' },
+        { column: 'Unnamed: 3', caption: 'Unnamed: 3', type: 'DECIMAL' },
+        { column: 'Unnamed: 4', caption: 'Unnamed: 4', type: 'DECIMAL' },
+        { column: 'Unnamed: 5', caption: 'Unnamed: 5', type: 'DECIMAL' },
+        { column: 'Unnamed: 6', caption: 'Unnamed: 6', type: 'STRING' },
+        { column: 'Unnamed: 7', caption: 'Unnamed: 7', type: 'DECIMAL' },
+        { column: 'Unnamed: 8', caption: 'Unnamed: 8', type: 'DECIMAL' },
+        { column: 'Unnamed: 9', caption: 'Unnamed: 9', type: 'STRING' },
+        { column: 'Unnamed: 10', caption: 'Unnamed: 10', type: 'DECIMAL' },
+        { column: 'Unnamed: 11', caption: 'Unnamed: 11', type: 'DECIMAL' },
+        { column: 'Unnamed: 12', caption: 'Unnamed: 12', type: 'STRING' },
+    ],
+};

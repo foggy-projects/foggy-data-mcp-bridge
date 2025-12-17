@@ -1,0 +1,31 @@
+/**
+ * statistics 查询模型
+ * 
+ * 数据库: modern_data
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'StatisticsQueryModel',
+    model: 'StatisticsModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'date' },
+                { name: 'state' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'total_cases' },
+                { name: 'total_deaths' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

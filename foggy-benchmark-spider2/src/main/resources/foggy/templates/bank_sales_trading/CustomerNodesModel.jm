@@ -1,0 +1,52 @@
+import '@bankSalesTradingDataSource';
+/**
+ * customer_nodes 事实表模型
+ * 
+ * 数据库: bank_sales_trading
+ * 数据源: bankSalesTradingDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'CustomerNodesModel',
+    caption: 'Customer Nodes',
+    tableName: 'customer_nodes',
+    dataSource: bankSalesTradingDataSource,
+    idColumn: 'customer_id',
+
+    dimensions: [
+        {
+            name: 'customerRegions',
+            tableName: 'customer_regions',
+            foreignKey: 'region_id',
+            primaryKey: 'region_id',
+            captionColumn: 'region_name',
+            caption: 'Customer Regions',
+            properties: [
+                { column: 'region_id', caption: 'Region Id', type: 'INTEGER' },
+                { column: 'region_name', caption: 'Region Name', type: 'STRING' },
+            ]
+        },
+        {
+            name: 'customerNodes',
+            tableName: 'customer_nodes',
+            foreignKey: 'node_id',
+            primaryKey: 'customer_id',
+            captionColumn: 'region_id',
+            caption: 'Customer Nodes',
+            properties: [
+                { column: 'customer_id', caption: 'Customer Id', type: 'INTEGER' },
+                { column: 'region_id', caption: 'Region Id', type: 'INTEGER' },
+                { column: 'node_id', caption: 'Node Id', type: 'INTEGER' },
+                { column: 'start_date', caption: 'Start Date', type: 'STRING' },
+                { column: 'end_date', caption: 'End Date', type: 'STRING' },
+            ]
+        },
+    ],
+
+    properties: [
+        { column: 'customer_id', caption: 'Customer Id', type: 'INTEGER' },
+        { column: 'start_date', caption: 'Start Date', type: 'STRING' },
+        { column: 'end_date', caption: 'End Date', type: 'STRING' },
+    ],
+};

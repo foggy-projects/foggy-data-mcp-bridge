@@ -1,0 +1,20 @@
+import '@entertainmentagencyDataSource';
+/**
+ * ztblDays 维度表模型
+ * 
+ * 数据库: EntertainmentAgency
+ * 数据源: entertainmentagencyDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'ZtbldaysModel',
+    caption: 'Ztbldays',
+    tableName: 'ztblDays',
+    dataSource: entertainmentagencyDataSource,
+    idColumn: 'DateField',
+
+    properties: [
+        { column: 'DateField', caption: 'Datefield', type: 'DAY' },
+    ],
+};

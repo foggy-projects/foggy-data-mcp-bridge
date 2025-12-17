@@ -1,0 +1,27 @@
+import '@entertainmentagencyDataSource';
+/**
+ * Customers 维度表模型
+ * 
+ * 数据库: EntertainmentAgency
+ * 数据源: entertainmentagencyDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'CustomersModel',
+    caption: '客户',
+    tableName: 'Customers',
+    dataSource: entertainmentagencyDataSource,
+    idColumn: 'CustomerID',
+
+    properties: [
+        { column: 'CustomerID', caption: 'Customerid', type: 'INTEGER' },
+        { column: 'CustFirstName', caption: 'Custfirstname', type: 'STRING' },
+        { column: 'CustLastName', caption: 'Custlastname', type: 'STRING' },
+        { column: 'CustStreetAddress', caption: 'Custstreetaddress', type: 'STRING' },
+        { column: 'CustCity', caption: 'Custcity', type: 'STRING' },
+        { column: 'CustState', caption: 'Custstate', type: 'STRING' },
+        { column: 'CustZipCode', caption: 'Custzipcode', type: 'STRING' },
+        { column: 'CustPhoneNumber', caption: 'Custphonenumber', type: 'STRING' },
+    ],
+};

@@ -1,0 +1,21 @@
+import '@chinookDataSource';
+/**
+ * genres 维度表模型
+ * 
+ * 数据库: chinook
+ * 数据源: chinookDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'GenresModel',
+    caption: 'Genres',
+    tableName: 'genres',
+    dataSource: chinookDataSource,
+    idColumn: 'GenreId',
+
+    properties: [
+        { column: 'GenreId', caption: 'Genreid', type: 'INTEGER' },
+        { column: 'Name', caption: 'Name', type: 'STRING' },
+    ],
+};

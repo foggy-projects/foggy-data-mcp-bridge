@@ -1,0 +1,199 @@
+# ============================================
+# Foggy Dataset Demo - Docker Compose
+# ============================================
+#
+# 使用方法:
+#   启动全部:    docker-compose up -d
+#   停止全部:    docker-compose down
+#   查看日志:    docker-compose logs -f
+#   重建:        docker-compose up -d --build --force-recreate
+#
+# 单独启动某个数据库:
+#   启动 MySQL:      docker-compose up -d mysql
+#   启动 PostgreSQL: docker-compose up -d postgres
+#   启动 SQL Server: docker-compose up -d sqlserver
+#
+# 数据初始化:
+#   MySQL/PostgreSQL: 首次启动时自动执行 init 目录下的 SQL 脚本
+#   SQL Server: 需要手动执行，运行 ./init-sqlserver.sh
+#
+# ============================================
+
+version: '3.8'
+
+services:
+  # ==========================================
+  # MySQL 5.7 测试数据库
+  # ==========================================
+  mysql:
+    image: mysql:5.7
+    container_name: foggy-demo-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: foggy_root_123
+      MYSQL_DATABASE: foggy_test
+      MYSQL_USER: foggy
+      MYSQL_PASSWORD: foggy_test_123
+      TZ: Asia/Shanghai
+    ports:
+      - "13306:3306"
+    volumes:
+      # 初始化脚本（按文件名顺序执行）
+      - ./mysql/init:/docker-entrypoint-initdb.d:ro
+      # MySQL 配置
+      - ./mysql/conf/my.cnf:/etc/mysql/conf.d/custom.cnf:ro
+      # 数据持久化
+      - mysql-demo-data:/var/lib/mysql
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --default-time-zone='+08:00'
+      --lower-case-table-names=1
+      --max-connections=500
+      --innodb-buffer-pool-size=256M
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pfoggy_root_123"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - foggy-demo-net
+
+  # ==========================================
+  # PostgreSQL 15 测试数据库
+  # ==========================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: foggy-demo-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: foggy_test
+      POSTGRES_USER: foggy
+      POSTGRES_PASSWORD: foggy_test_123
+      TZ: Asia/Shanghai
+      PGTZ: Asia/Shanghai
+    ports:
+      - "15432:5432"
+    volumes:
+      # 初始化脚本
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+      # 数据持久化
+      - postgres-demo-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U foggy -d foggy_test"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - foggy-demo-net
+
+  # ==========================================
+  # SQL Server 2022 测试数据库
+  # ==========================================
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: foggy-demo-sqlserver
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: Y
+      MSSQL_SA_PASSWORD: Foggy_Test_123!
+      MSSQL_PID: Developer
+      TZ: Asia/Shanghai
+    ports:
+      - "11433:1433"
+    volumes:
+      # 初始化脚本需要手动执行，SQL Server 容器不支持自动执行
+      - ./sqlserver/init:/scripts:ro
+      # 数据持久化
+      - sqlserver-demo-data:/var/opt/mssql
+    healthcheck:
+      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "Foggy_Test_123!" -Q "SELECT 1" -C || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    networks:
+      - foggy-demo-net
+
+  # ==========================================
+  # Redis 测试实例
+  # ==========================================
+  redis:
+    image: redis:7-alpine
+    container_name: foggy-demo-redis
+    restart: unless-stopped
+    ports:
+      - "16379:6379"
+    volumes:
+      - redis-demo-data:/data
+    command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - foggy-demo-net
+
+  # ==========================================
+  # MongoDB 测试实例
+  # ==========================================
+  mongo:
+    image: mongo:6.0
+    container_name: foggy-demo-mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_DATABASE: foggy_test
+    ports:
+      - "17017:27017"
+    volumes:
+      - mongo-demo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - foggy-demo-net
+
+  # ==========================================
+  # Adminer - 数据库管理工具（可选）
+  # ==========================================
+  adminer:
+    image: adminer:latest
+    container_name: foggy-demo-adminer
+    restart: unless-stopped
+    ports:
+      - "18080:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: mysql
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - foggy-demo-net
+
+# ==========================================
+# 数据卷
+# ==========================================
+volumes:
+  mysql-demo-data:
+    name: foggy-demo-mysql-data
+  postgres-demo-data:
+    name: foggy-demo-postgres-data
+  sqlserver-demo-data:
+    name: foggy-demo-sqlserver-data
+  redis-demo-data:
+    name: foggy-demo-redis-data
+  mongo-demo-data:
+    name: foggy-demo-mongo-data
+
+# ==========================================
+# 网络
+# ==========================================
+networks:
+  foggy-demo-net:
+    name: foggy-demo-network
+    driver: bridge

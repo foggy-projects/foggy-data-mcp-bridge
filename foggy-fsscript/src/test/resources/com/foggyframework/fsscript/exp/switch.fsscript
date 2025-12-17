@@ -1,0 +1,25 @@
+let data = 0;
+
+switch (test) {
+    case 1:
+        data = 11;
+        break;
+    case '2':
+        data = '22';
+        break;
+    case (1 + 1):
+        data = 22;
+        break;
+    case 4:
+    case 5:
+        data = 44;
+        break;
+    case 6:
+        data = 48;
+        data = 66;
+        break;
+    default:
+        data = 999;
+}
+
+export const result = data;

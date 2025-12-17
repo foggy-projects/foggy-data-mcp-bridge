@@ -1,0 +1,42 @@
+import '@complexOracleDataSource';
+/**
+ * customers 维度表模型
+ * 
+ * 数据库: complex_oracle
+ * 数据源: complexOracleDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'CustomersModel',
+    caption: '客户',
+    tableName: 'customers',
+    dataSource: complexOracleDataSource,
+    idColumn: 'cust_id',
+
+    properties: [
+        { column: 'cust_id', caption: 'Cust Id', type: 'INTEGER' },
+        { column: 'cust_first_name', caption: 'Cust First Name', type: 'STRING' },
+        { column: 'cust_last_name', caption: 'Cust Last Name', type: 'STRING' },
+        { column: 'cust_gender', caption: 'Cust Gender', type: 'STRING' },
+        { column: 'cust_year_of_birth', caption: 'Cust Year Of Birth', type: 'INTEGER' },
+        { column: 'cust_marital_status', caption: 'Cust Marital Status', type: 'STRING' },
+        { column: 'cust_street_address', caption: 'Cust Street Address', type: 'STRING' },
+        { column: 'cust_postal_code', caption: 'Cust Postal Code', type: 'STRING' },
+        { column: 'cust_city', caption: 'Cust City', type: 'STRING' },
+        { column: 'cust_city_id', caption: 'Cust City Id', type: 'INTEGER' },
+        { column: 'cust_state_province', caption: 'Cust State Province', type: 'STRING' },
+        { column: 'cust_state_province_id', caption: 'Cust State Province Id', type: 'INTEGER' },
+        { column: 'country_id', caption: 'Country Id', type: 'INTEGER' },
+        { column: 'cust_main_phone_number', caption: 'Cust Main Phone Number', type: 'STRING' },
+        { column: 'cust_income_level', caption: 'Cust Income Level', type: 'STRING' },
+        { column: 'cust_credit_limit', caption: 'Cust Credit Limit', type: 'DECIMAL' },
+        { column: 'cust_email', caption: 'Cust Email', type: 'STRING' },
+        { column: 'cust_total', caption: 'Cust Total', type: 'STRING' },
+        { column: 'cust_total_id', caption: 'Cust Total Id', type: 'INTEGER' },
+        { column: 'cust_src_id', caption: 'Cust Src Id', type: 'INTEGER' },
+        { column: 'cust_eff_from', caption: 'Cust Eff From', type: 'DAY' },
+        { column: 'cust_eff_to', caption: 'Cust Eff To', type: 'DAY' },
+        { column: 'cust_valid', caption: 'Cust Valid', type: 'STRING' },
+    ],
+};

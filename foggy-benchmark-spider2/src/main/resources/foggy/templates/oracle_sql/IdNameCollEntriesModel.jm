@@ -1,0 +1,22 @@
+import '@oracleSqlDataSource';
+/**
+ * id_name_coll_entries 维度表模型
+ * 
+ * 数据库: oracle_sql
+ * 数据源: oracleSqlDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'IdNameCollEntriesModel',
+    caption: 'Id Name Coll Entries',
+    tableName: 'id_name_coll_entries',
+    dataSource: oracleSqlDataSource,
+    idColumn: 'collection_id',
+
+    properties: [
+        { column: 'collection_id', caption: 'Collection Id', type: 'INTEGER' },
+        { column: 'id', caption: 'Id', type: 'INTEGER' },
+        { column: 'name', caption: 'Name', type: 'STRING' },
+    ],
+};

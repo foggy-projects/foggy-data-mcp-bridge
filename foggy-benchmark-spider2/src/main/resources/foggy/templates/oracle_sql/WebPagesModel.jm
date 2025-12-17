@@ -1,0 +1,22 @@
+import '@oracleSqlDataSource';
+/**
+ * web_pages 维度表模型
+ * 
+ * 数据库: oracle_sql
+ * 数据源: oracleSqlDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'WebPagesModel',
+    caption: 'Web Pages',
+    tableName: 'web_pages',
+    dataSource: oracleSqlDataSource,
+    idColumn: 'app_id',
+
+    properties: [
+        { column: 'app_id', caption: 'App Id', type: 'INTEGER' },
+        { column: 'page_no', caption: 'Page No', type: 'INTEGER' },
+        { column: 'friendly_url', caption: 'Friendly Url', type: 'STRING' },
+    ],
+};

@@ -1,0 +1,22 @@
+import '@northwindDataSource';
+/**
+ * customergroupthreshold 维度表模型
+ * 
+ * 数据库: northwind
+ * 数据源: northwindDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'CustomergroupthresholdModel',
+    caption: 'Customergroupthreshold',
+    tableName: 'customergroupthreshold',
+    dataSource: northwindDataSource,
+    idColumn: 'groupname',
+
+    properties: [
+        { column: 'groupname', caption: 'Groupname', type: 'STRING' },
+        { column: 'rangebottom', caption: 'Rangebottom', type: 'STRING' },
+        { column: 'rangetop', caption: 'Rangetop', type: 'STRING' },
+    ],
+};

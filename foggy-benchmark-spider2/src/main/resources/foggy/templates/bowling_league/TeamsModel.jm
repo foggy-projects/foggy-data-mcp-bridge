@@ -1,0 +1,22 @@
+import '@bowlingleagueDataSource';
+/**
+ * Teams 维度表模型
+ * 
+ * 数据库: BowlingLeague
+ * 数据源: bowlingleagueDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'TeamsModel',
+    caption: 'Teams',
+    tableName: 'Teams',
+    dataSource: bowlingleagueDataSource,
+    idColumn: 'TeamID',
+
+    properties: [
+        { column: 'TeamID', caption: 'Teamid', type: 'INTEGER' },
+        { column: 'TeamName', caption: 'Teamname', type: 'STRING' },
+        { column: 'CaptainID', caption: 'Captainid', type: 'INTEGER' },
+    ],
+};

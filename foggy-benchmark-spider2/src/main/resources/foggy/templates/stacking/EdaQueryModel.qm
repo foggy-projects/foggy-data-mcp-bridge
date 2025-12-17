@@ -1,0 +1,30 @@
+/**
+ * eda 查询模型
+ * 
+ * 数据库: stacking
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'EdaQueryModel',
+    model: 'EdaModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'name' },
+                { name: 'version' },
+                { name: 'feature' },
+                { name: 'type' },
+                { name: 'range' },
+                { name: 'drop_user' },
+                { name: 'drop_correlation' },
+                { name: 'target' },
+            ]
+        },
+    ],
+
+    orders: [],
+    accesses: []
+};

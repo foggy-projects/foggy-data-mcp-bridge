@@ -1,0 +1,26 @@
+import '@f1DataSource';
+/**
+ * pit_stops 维度表模型
+ * 
+ * 数据库: f1
+ * 数据源: f1DataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'PitStopsModel',
+    caption: 'Pit Stops',
+    tableName: 'pit_stops',
+    dataSource: f1DataSource,
+    idColumn: 'race_id',
+
+    properties: [
+        { column: 'race_id', caption: 'Race Id', type: 'INTEGER' },
+        { column: 'driver_id', caption: 'Driver Id', type: 'INTEGER' },
+        { column: 'stop', caption: 'Stop', type: 'INTEGER' },
+        { column: 'lap', caption: 'Lap', type: 'INTEGER' },
+        { column: 'time', caption: 'Time', type: 'DATETIME' },
+        { column: 'duration', caption: 'Duration', type: 'STRING' },
+        { column: 'milliseconds', caption: 'Milliseconds', type: 'INTEGER' },
+    ],
+};

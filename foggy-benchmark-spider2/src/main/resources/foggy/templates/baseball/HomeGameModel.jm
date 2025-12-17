@@ -1,0 +1,103 @@
+import '@baseballDataSource';
+/**
+ * home_game 事实表模型
+ * 
+ * 数据库: Baseball
+ * 数据源: baseballDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'HomeGameModel',
+    caption: 'Home Game',
+    tableName: 'home_game',
+    dataSource: baseballDataSource,
+    idColumn: 'league_id',
+
+    dimensions: [
+        {
+            name: 'team',
+            tableName: 'team',
+            foreignKey: 'team_id',
+            primaryKey: 'team_id',
+            captionColumn: 'name',
+            caption: 'Team',
+            properties: [
+                { column: 'year', caption: 'Year', type: 'INTEGER' },
+                { column: 'league_id', caption: 'League Id', type: 'STRING' },
+                { column: 'team_id', caption: 'Team Id', type: 'STRING' },
+                { column: 'franchise_id', caption: 'Franchise Id', type: 'STRING' },
+                { column: 'div_id', caption: 'Div Id', type: 'STRING' },
+                { column: 'rank', caption: 'Rank', type: 'INTEGER' },
+                { column: 'g', caption: 'G', type: 'INTEGER' },
+                { column: 'ghome', caption: 'Ghome', type: 'STRING' },
+                { column: 'w', caption: 'W', type: 'INTEGER' },
+                { column: 'l', caption: 'L', type: 'INTEGER' },
+                { column: 'div_win', caption: 'Div Win', type: 'STRING' },
+                { column: 'wc_win', caption: 'Wc Win', type: 'STRING' },
+                { column: 'lg_win', caption: 'Lg Win', type: 'STRING' },
+                { column: 'ws_win', caption: 'Ws Win', type: 'STRING' },
+                { column: 'r', caption: 'R', type: 'INTEGER' },
+                { column: 'ab', caption: 'Ab', type: 'INTEGER' },
+                { column: 'h', caption: 'H', type: 'INTEGER' },
+                { column: 'double', caption: 'Double', type: 'INTEGER' },
+                { column: 'triple', caption: 'Triple', type: 'INTEGER' },
+                { column: 'hr', caption: 'Hr', type: 'INTEGER' },
+                { column: 'bb', caption: 'Bb', type: 'INTEGER' },
+                { column: 'so', caption: 'So', type: 'STRING' },
+                { column: 'sb', caption: 'Sb', type: 'STRING' },
+                { column: 'cs', caption: 'Cs', type: 'STRING' },
+                { column: 'hbp', caption: 'Hbp', type: 'STRING' },
+                { column: 'sf', caption: 'Sf', type: 'STRING' },
+                { column: 'ra', caption: 'Ra', type: 'INTEGER' },
+                { column: 'er', caption: 'Er', type: 'INTEGER' },
+                { column: 'era', caption: 'Era', type: 'STRING' },
+                { column: 'cg', caption: 'Cg', type: 'INTEGER' },
+                { column: 'sho', caption: 'Sho', type: 'INTEGER' },
+                { column: 'sv', caption: 'Sv', type: 'INTEGER' },
+                { column: 'ipouts', caption: 'Ipouts', type: 'INTEGER' },
+                { column: 'ha', caption: 'Ha', type: 'INTEGER' },
+                { column: 'hra', caption: 'Hra', type: 'INTEGER' },
+                { column: 'bba', caption: 'Bba', type: 'INTEGER' },
+                { column: 'soa', caption: 'Soa', type: 'INTEGER' },
+                { column: 'e', caption: 'E', type: 'INTEGER' },
+                { column: 'dp', caption: 'Dp', type: 'STRING' },
+                { column: 'fp', caption: 'Fp', type: 'STRING' },
+                { column: 'name', caption: 'Name', type: 'STRING' },
+                { column: 'park', caption: 'Park', type: 'STRING' },
+                { column: 'attendance', caption: 'Attendance', type: 'STRING' },
+                { column: 'bpf', caption: 'Bpf', type: 'INTEGER' },
+                { column: 'ppf', caption: 'Ppf', type: 'INTEGER' },
+                { column: 'team_id_br', caption: 'Team Id Br', type: 'STRING' },
+                { column: 'team_id_lahman45', caption: 'Team Id Lahman45', type: 'STRING' },
+                { column: 'team_id_retro', caption: 'Team Id Retro', type: 'STRING' },
+            ]
+        },
+        {
+            name: 'park',
+            tableName: 'park',
+            foreignKey: 'park_id',
+            primaryKey: 'park_id',
+            captionColumn: 'park_name',
+            caption: 'Park',
+            properties: [
+                { column: 'park_id', caption: 'Park Id', type: 'STRING' },
+                { column: 'park_name', caption: 'Park Name', type: 'STRING' },
+                { column: 'park_alias', caption: 'Park Alias', type: 'STRING' },
+                { column: 'city', caption: 'City', type: 'STRING' },
+                { column: 'state', caption: 'State', type: 'STRING' },
+                { column: 'country', caption: 'Country', type: 'STRING' },
+            ]
+        },
+    ],
+
+    properties: [
+        { column: 'year', caption: 'Year', type: 'INTEGER' },
+        { column: 'league_id', caption: 'League Id', type: 'STRING' },
+        { column: 'span_first', caption: 'Span First', type: 'STRING' },
+        { column: 'span_last', caption: 'Span Last', type: 'STRING' },
+        { column: 'games', caption: 'Games', type: 'INTEGER' },
+        { column: 'openings', caption: 'Openings', type: 'INTEGER' },
+        { column: 'attendance', caption: 'Attendance', type: 'INTEGER' },
+    ],
+};

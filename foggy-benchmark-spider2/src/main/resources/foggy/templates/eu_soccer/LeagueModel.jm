@@ -1,0 +1,22 @@
+import '@euSoccerDataSource';
+/**
+ * League 维度表模型
+ * 
+ * 数据库: EU_soccer
+ * 数据源: euSoccerDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'LeagueModel',
+    caption: 'League',
+    tableName: 'League',
+    dataSource: euSoccerDataSource,
+    idColumn: 'country_id',
+
+    properties: [
+        { column: 'id', caption: 'Id', type: 'INTEGER' },
+        { column: 'country_id', caption: 'Country Id', type: 'INTEGER' },
+        { column: 'name', caption: 'Name', type: 'STRING' },
+    ],
+};

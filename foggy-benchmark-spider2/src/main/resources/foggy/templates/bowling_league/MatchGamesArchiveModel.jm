@@ -1,0 +1,22 @@
+import '@bowlingleagueDataSource';
+/**
+ * Match_Games_Archive 维度表模型
+ * 
+ * 数据库: BowlingLeague
+ * 数据源: bowlingleagueDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'MatchGamesArchiveModel',
+    caption: 'Match Games Archive',
+    tableName: 'Match_Games_Archive',
+    dataSource: bowlingleagueDataSource,
+    idColumn: 'MatchID',
+
+    properties: [
+        { column: 'MatchID', caption: 'Matchid', type: 'INTEGER' },
+        { column: 'GameNumber', caption: 'Gamenumber', type: 'INTEGER' },
+        { column: 'WinningTeamID', caption: 'Winningteamid', type: 'INTEGER' },
+    ],
+};

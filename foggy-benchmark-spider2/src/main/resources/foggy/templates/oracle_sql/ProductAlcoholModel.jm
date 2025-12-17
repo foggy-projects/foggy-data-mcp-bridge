@@ -1,0 +1,25 @@
+import '@oracleSqlDataSource';
+/**
+ * product_alcohol 事实表模型
+ * 
+ * 数据库: oracle_sql
+ * 数据源: oracleSqlDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'ProductAlcoholModel',
+    caption: 'Product Alcohol',
+    tableName: 'product_alcohol',
+    dataSource: oracleSqlDataSource,
+    idColumn: 'product_id',
+
+    properties: [
+        { column: 'product_id', caption: 'Product Id', type: 'INTEGER' },
+        { column: 'abv', caption: 'Abv', type: 'DECIMAL' },
+    ],
+
+    measures: [
+        { column: 'sales_volume', caption: 'Sales Volume', type: 'DECIMAL', aggregation: 'sum' },
+    ]
+};

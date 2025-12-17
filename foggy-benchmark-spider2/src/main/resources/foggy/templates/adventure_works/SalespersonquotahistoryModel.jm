@@ -1,0 +1,27 @@
+import '@adventureworksDataSource';
+/**
+ * SalesPersonQuotaHistory 事实表模型
+ * 
+ * 数据库: AdventureWorks
+ * 数据源: adventureworksDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'SalespersonquotahistoryModel',
+    caption: 'Salespersonquotahistory',
+    tableName: 'SalesPersonQuotaHistory',
+    dataSource: adventureworksDataSource,
+    idColumn: 'BusinessEntityID',
+
+    properties: [
+        { column: 'BusinessEntityID', caption: 'Businessentityid', type: 'INTEGER' },
+        { column: 'QuotaDate', caption: 'Quotadate', type: 'STRING' },
+        { column: 'rowguid', caption: 'Rowguid', type: 'STRING' },
+        { column: 'ModifiedDate', caption: 'Modifieddate', type: 'STRING' },
+    ],
+
+    measures: [
+        { column: 'SalesQuota', caption: 'Salesquota', type: 'DECIMAL', aggregation: 'sum' },
+    ]
+};

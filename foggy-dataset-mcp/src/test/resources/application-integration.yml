@@ -1,0 +1,123 @@
+# ============================================
+# MCP Integration Test Configuration
+# Uses real database (MySQL) and foggy-dataset-model services
+# ============================================
+
+spring:
+  application:
+    name: foggy-dataset-mcp-integration-test
+
+  main:
+    allow-bean-definition-overriding: true
+
+  # ==========================================
+  # MySQL 数据源配置 (Docker)
+  # ==========================================
+  datasource:
+    url: jdbc:mysql://localhost:13306/foggy_test?useUnicode=true&characterEncoding=UTF-8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
+    username: foggy
+    password: foggy_test_123
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      pool-name: McpTestHikariCP
+      minimum-idle: 2
+      maximum-pool-size: 10
+      idle-timeout: 30000
+      connection-timeout: 20000
+
+  # ==========================================
+  # JPA 配置
+  # ==========================================
+  jpa:
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: Asia/Shanghai
+    show-sql: true
+    open-in-view: false
+
+  # ==========================================
+  # MongoDB 配置
+  # ==========================================
+  data:
+    mongodb:
+      uri: mongodb://localhost:17017/foggy_test
+      auto-index-creation: true
+
+  # ==========================================
+  # Disable AI in integration tests
+  # ==========================================
+  ai:
+    openai:
+      api-key: test-api-key-disabled
+      base-url: https://localhost:9999
+      chat:
+        options:
+          model: test-model-disabled
+
+# ==========================================
+# Logging
+# ==========================================
+logging:
+  level:
+    root: INFO
+    com.foggyframework: DEBUG
+    org.springframework.web: INFO
+    org.springframework.jdbc: DEBUG
+    org.springframework.jdbc.core.JdbcTemplate: DEBUG
+
+# ==========================================
+# MCP Configuration
+# ==========================================
+mcp:
+  # 使用本地模式 - 直接调用 SemanticService，无需 HTTP
+  dataset:
+    access-mode: local
+
+  service:
+    m1-port: 7108
+    m2-port: 7109
+    enabled-layer: both
+    current-layer: default
+
+  external:
+    dataset-query:
+      base-url: http://localhost:8080
+      timeout-seconds: 30
+    chart-render:
+      base-url: http://localhost:3000
+      auth-token: test-token
+      timeout-seconds: 60
+
+# ==========================================
+# Foggy Dataset 配置
+# ==========================================
+foggy:
+  dataset:
+    # 模型定义文件路径 - 使用 foggy-dataset-model 的测试资源
+    templates-path: classpath:/foggy/templates/
+    cache:
+      enabled: true
+      ttl: 3600
+    query:
+      max-rows: 10000
+      timeout: 30000
+
+# ==========================================
+# 语义服务配置
+# ==========================================
+semantic:
+  metadata:
+    levels: [1]
+  description:
+    levels: [1, 2, 3]
+    include-examples: true
+
+# ==========================================
+# 测试配置
+# ==========================================
+test:
+  database:
+    type: docker  # docker=MySQL

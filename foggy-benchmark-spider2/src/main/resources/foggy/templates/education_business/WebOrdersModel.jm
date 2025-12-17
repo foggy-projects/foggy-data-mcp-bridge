@@ -1,0 +1,33 @@
+import '@educationBusinessDataSource';
+/**
+ * web_orders 事实表模型
+ * 
+ * 数据库: education_business
+ * 数据源: educationBusinessDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'WebOrdersModel',
+    caption: 'Web Orders',
+    tableName: 'web_orders',
+    dataSource: educationBusinessDataSource,
+    idColumn: 'account_id',
+
+    properties: [
+        { column: 'id', caption: 'Id', type: 'INTEGER' },
+        { column: 'account_id', caption: 'Account Id', type: 'INTEGER' },
+        { column: 'occurred_at', caption: 'Occurred At', type: 'STRING' },
+        { column: 'standard_amt_usd', caption: 'Standard Amt Usd', type: 'DECIMAL' },
+        { column: 'gloss_amt_usd', caption: 'Gloss Amt Usd', type: 'DECIMAL' },
+        { column: 'poster_amt_usd', caption: 'Poster Amt Usd', type: 'DECIMAL' },
+    ],
+
+    measures: [
+        { column: 'standard_qty', caption: 'Standard Qty', type: 'INTEGER', aggregation: 'sum' },
+        { column: 'gloss_qty', caption: 'Gloss Qty', type: 'INTEGER', aggregation: 'sum' },
+        { column: 'poster_qty', caption: 'Poster Qty', type: 'INTEGER', aggregation: 'sum' },
+        { column: 'total', caption: 'Total', type: 'INTEGER', aggregation: 'sum' },
+        { column: 'total_amt_usd', caption: 'Total Amt Usd', type: 'DECIMAL', aggregation: 'sum' },
+    ]
+};

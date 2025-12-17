@@ -1,0 +1,25 @@
+import '@educationBusinessDataSource';
+/**
+ * hardware_dim_product 维度表模型
+ * 
+ * 数据库: education_business
+ * 数据源: educationBusinessDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'HardwareDimProductModel',
+    caption: 'Hardware Dim Product',
+    tableName: 'hardware_dim_product',
+    dataSource: educationBusinessDataSource,
+    idColumn: 'product_code',
+
+    properties: [
+        { column: 'product_code', caption: 'Product Code', type: 'STRING' },
+        { column: 'division', caption: 'Division', type: 'STRING' },
+        { column: 'segment', caption: 'Segment', type: 'STRING' },
+        { column: 'category', caption: 'Category', type: 'STRING' },
+        { column: 'product', caption: 'Product', type: 'STRING' },
+        { column: 'variant', caption: 'Variant', type: 'STRING' },
+    ],
+};

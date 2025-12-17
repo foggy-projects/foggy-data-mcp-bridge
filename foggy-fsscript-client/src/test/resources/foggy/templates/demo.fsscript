@@ -1,0 +1,9 @@
+
+export const test = (cc) => {
+    return {
+        aa: cc
+    }
+};
+return {
+    aa: aa
+};

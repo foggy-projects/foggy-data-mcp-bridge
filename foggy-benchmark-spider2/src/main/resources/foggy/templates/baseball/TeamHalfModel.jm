@@ -1,0 +1,29 @@
+import '@baseballDataSource';
+/**
+ * team_half 维度表模型
+ * 
+ * 数据库: Baseball
+ * 数据源: baseballDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'TeamHalfModel',
+    caption: 'Team Half',
+    tableName: 'team_half',
+    dataSource: baseballDataSource,
+    idColumn: 'league_id',
+
+    properties: [
+        { column: 'year', caption: 'Year', type: 'INTEGER' },
+        { column: 'league_id', caption: 'League Id', type: 'STRING' },
+        { column: 'team_id', caption: 'Team Id', type: 'STRING' },
+        { column: 'half', caption: 'Half', type: 'INTEGER' },
+        { column: 'div_id', caption: 'Div Id', type: 'STRING' },
+        { column: 'div_win', caption: 'Div Win', type: 'STRING' },
+        { column: 'rank', caption: 'Rank', type: 'INTEGER' },
+        { column: 'g', caption: 'G', type: 'INTEGER' },
+        { column: 'w', caption: 'W', type: 'INTEGER' },
+        { column: 'l', caption: 'L', type: 'INTEGER' },
+    ],
+};

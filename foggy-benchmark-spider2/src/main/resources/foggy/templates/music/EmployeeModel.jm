@@ -1,0 +1,34 @@
+import '@musicDataSource';
+/**
+ * Employee 维度表模型
+ * 
+ * 数据库: music
+ * 数据源: musicDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'EmployeeModel',
+    caption: 'Employee',
+    tableName: 'Employee',
+    dataSource: musicDataSource,
+    idColumn: 'EmployeeId',
+
+    properties: [
+        { column: 'EmployeeId', caption: 'Employeeid', type: 'INTEGER' },
+        { column: 'LastName', caption: 'Lastname', type: 'STRING' },
+        { column: 'FirstName', caption: 'Firstname', type: 'STRING' },
+        { column: 'Title', caption: 'Title', type: 'STRING' },
+        { column: 'ReportsTo', caption: 'Reportsto', type: 'INTEGER' },
+        { column: 'BirthDate', caption: 'Birthdate', type: 'DATETIME' },
+        { column: 'HireDate', caption: 'Hiredate', type: 'DATETIME' },
+        { column: 'Address', caption: 'Address', type: 'STRING' },
+        { column: 'City', caption: 'City', type: 'STRING' },
+        { column: 'State', caption: 'State', type: 'STRING' },
+        { column: 'Country', caption: 'Country', type: 'STRING' },
+        { column: 'PostalCode', caption: 'Postalcode', type: 'STRING' },
+        { column: 'Phone', caption: 'Phone', type: 'STRING' },
+        { column: 'Fax', caption: 'Fax', type: 'STRING' },
+        { column: 'Email', caption: 'Email', type: 'STRING' },
+    ],
+};

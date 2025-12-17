@@ -1,0 +1,40 @@
+/**
+ * staff 查询模型
+ * 
+ * 数据库: SQLITE_SAKILA
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'StaffQueryModel',
+    model: 'StaffModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'staff_id' },
+                { name: 'first_name' },
+                { name: 'last_name' },
+                { name: 'address$id' },
+                { name: 'picture' },
+                { name: 'email' },
+                { name: 'salesByStore$id' },
+                { name: 'active' },
+                { name: 'username' },
+                { name: 'password' },
+                { name: 'last_update' },
+            ]
+        },
+        {
+            caption: '关联维度',
+            items: [
+                { name: 'address$caption' },
+                { name: 'salesByStore$caption' },
+            ]
+        },
+    ],
+
+    orders: [],
+    accesses: []
+};

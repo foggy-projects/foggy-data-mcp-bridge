@@ -1,0 +1,18 @@
+var i = 0;
+export var mm = {
+    _id: record?.teamCaption,
+    order: i++,
+    team_caption: record?.teamCaption,
+    area: record?.area,
+    piece_area: record?.pieceArea
+};
+
+
+export var mm2 = {
+    id,
+};
+
+export var mm3 = {
+    id: 1,
+    c: 2,
+};

@@ -1,0 +1,32 @@
+import '@iplDataSource';
+/**
+ * match 维度表模型
+ * 
+ * 数据库: IPL
+ * 数据源: iplDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'MatchModel',
+    caption: 'Match',
+    tableName: 'match',
+    dataSource: iplDataSource,
+    idColumn: 'match_id',
+
+    properties: [
+        { column: 'match_id', caption: 'Match Id', type: 'INTEGER' },
+        { column: 'team_1', caption: 'Team 1', type: 'INTEGER' },
+        { column: 'team_2', caption: 'Team 2', type: 'INTEGER' },
+        { column: 'match_date', caption: 'Match Date', type: 'DAY' },
+        { column: 'season_id', caption: 'Season Id', type: 'INTEGER' },
+        { column: 'venue', caption: 'Venue', type: 'STRING' },
+        { column: 'toss_winner', caption: 'Toss Winner', type: 'INTEGER' },
+        { column: 'toss_decision', caption: 'Toss Decision', type: 'STRING' },
+        { column: 'win_type', caption: 'Win Type', type: 'STRING' },
+        { column: 'win_margin', caption: 'Win Margin', type: 'INTEGER' },
+        { column: 'outcome_type', caption: 'Outcome Type', type: 'STRING' },
+        { column: 'match_winner', caption: 'Match Winner', type: 'INTEGER' },
+        { column: 'man_of_the_match', caption: 'Man Of The Match', type: 'INTEGER' },
+    ],
+};

@@ -1,0 +1,28 @@
+import '@electronicSalesDataSource';
+/**
+ * orders 维度表模型
+ * 
+ * 数据库: electronic_sales
+ * 数据源: electronicSalesDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'OrdersModel',
+    caption: '订单',
+    tableName: 'orders',
+    dataSource: electronicSalesDataSource,
+    idColumn: 'order_id',
+
+    properties: [
+        { column: 'index', caption: 'Index', type: 'INTEGER' },
+        { column: 'order_id', caption: 'Order Id', type: 'STRING' },
+        { column: 'customer_id', caption: 'Customer Id', type: 'STRING' },
+        { column: 'order_status', caption: 'Order Status', type: 'STRING' },
+        { column: 'order_purchase_timestamp', caption: 'Order Purchase Timestamp', type: 'STRING' },
+        { column: 'order_approved_at', caption: 'Order Approved At', type: 'STRING' },
+        { column: 'order_delivered_carrier_date', caption: 'Order Delivered Carrier Date', type: 'STRING' },
+        { column: 'order_delivered_customer_date', caption: 'Order Delivered Customer Date', type: 'STRING' },
+        { column: 'order_estimated_delivery_date', caption: 'Order Estimated Delivery Date', type: 'STRING' },
+    ],
+};

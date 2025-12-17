@@ -1,0 +1,23 @@
+import '@airlinesDataSource';
+/**
+ * boarding_passes 维度表模型
+ * 
+ * 数据库: Airlines
+ * 数据源: airlinesDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'BoardingPassesModel',
+    caption: 'Boarding Passes',
+    tableName: 'boarding_passes',
+    dataSource: airlinesDataSource,
+    idColumn: 'flight_id',
+
+    properties: [
+        { column: 'ticket_no', caption: 'Ticket No', type: 'STRING' },
+        { column: 'flight_id', caption: 'Flight Id', type: 'INTEGER' },
+        { column: 'boarding_no', caption: 'Boarding No', type: 'INTEGER' },
+        { column: 'seat_no', caption: 'Seat No', type: 'STRING' },
+    ],
+};

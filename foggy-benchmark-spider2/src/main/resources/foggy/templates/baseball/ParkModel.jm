@@ -1,0 +1,25 @@
+import '@baseballDataSource';
+/**
+ * park 维度表模型
+ * 
+ * 数据库: Baseball
+ * 数据源: baseballDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'ParkModel',
+    caption: 'Park',
+    tableName: 'park',
+    dataSource: baseballDataSource,
+    idColumn: 'park_id',
+
+    properties: [
+        { column: 'park_id', caption: 'Park Id', type: 'STRING' },
+        { column: 'park_name', caption: 'Park Name', type: 'STRING' },
+        { column: 'park_alias', caption: 'Park Alias', type: 'STRING' },
+        { column: 'city', caption: 'City', type: 'STRING' },
+        { column: 'state', caption: 'State', type: 'STRING' },
+        { column: 'country', caption: 'Country', type: 'STRING' },
+    ],
+};

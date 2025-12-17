@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  chart-render:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: chart-render-service
+    ports:
+      - "3000:3000"
+    environment:
+      # 服务配置
+      - NODE_ENV=production
+      - PORT=3000
+      - LOG_LEVEL=info
+
+      # 认证配置 (与MCP服务对接)
+      - AUTH_TOKEN=${RENDER_AUTH_TOKEN:-default-render-token}
+
+      # 渲染配置
+      - MAX_WIDTH=4000
+      - MAX_HEIGHT=4000
+      - DEFAULT_WIDTH=800
+      - DEFAULT_HEIGHT=600
+      - RENDER_TIMEOUT=15000
+      - MAX_CONCURRENT_RENDERS=10
+
+      # 安全配置
+      - PUPPETEER_ARGS=--no-sandbox,--disable-setuid-sandbox,--disable-dev-shm-usage
+
+      # 资源限制
+      - MAX_MEMORY_MB=512
+
+    volumes:
+      # 字体文件挂载 (可选)
+      - /usr/share/fonts:/usr/share/fonts:ro
+
+    restart: unless-stopped
+
+    # 资源限制
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
+        reservations:
+          memory: 256M
+          cpus: '0.5'
+
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    # 安全配置
+    security_opt:
+      - no-new-privileges:true
+
+    # 网络配置
+    networks:
+      - chart-network
+
+networks:
+  chart-network:
+    driver: bridge
+    name: chart-render-network

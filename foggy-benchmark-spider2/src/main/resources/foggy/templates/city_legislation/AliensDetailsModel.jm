@@ -1,0 +1,23 @@
+import '@cityLegislationDataSource';
+/**
+ * aliens_details 维度表模型
+ * 
+ * 数据库: city_legislation
+ * 数据源: cityLegislationDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'AliensDetailsModel',
+    caption: 'Aliens Details',
+    tableName: 'aliens_details',
+    dataSource: cityLegislationDataSource,
+    idColumn: 'detail_id',
+
+    properties: [
+        { column: 'detail_id', caption: 'Detail Id', type: 'INTEGER' },
+        { column: 'favorite_food', caption: 'Favorite Food', type: 'STRING' },
+        { column: 'feeding_frequency', caption: 'Feeding Frequency', type: 'STRING' },
+        { column: 'aggressive', caption: 'Aggressive', type: 'INTEGER' },
+    ],
+};

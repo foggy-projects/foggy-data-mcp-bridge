@@ -1,0 +1,53 @@
+/**
+ * 团队销售查询模型
+ *
+ * @caption 团队销售查询
+ * @description 团队销售事实表查询模型，支持按团队层级结构进行汇总查询
+ */
+export const queryModel = {
+    name: 'FactTeamSalesQueryModel',
+    caption: '团队销售查询',
+    description: '团队销售事实表查询模型，支持按团队层级结构进行汇总查询',
+    model: 'FactTeamSalesModel',
+
+    // 列组定义
+    columnGroups: [
+        {
+            caption: '团队维度（父子层级）',
+            items: [
+                { name: 'team' },
+                { name: 'team$parentId' },
+                { name: 'team$teamLevel' },
+                { name: 'team$managerName' },
+                { name: 'team$status' }
+            ]
+        },
+        {
+            caption: '日期维度',
+            items: [
+                { name: 'date' },
+                { name: 'date$year' },
+                { name: 'date$quarter' },
+                { name: 'date$month' },
+                { name: 'date$monthName' }
+            ]
+        },
+        {
+            caption: '度量',
+            items: [
+                { name: 'totalSalesAmount' },
+                { name: 'totalSalesCount' },
+                { name: 'avgSalesAmount' },
+                { name: 'recordCount' }
+            ]
+        }
+    ],
+
+    // 默认排序
+    orders: [
+        { name: 'team$teamLevel', order: 'asc' },
+        { name: 'team$caption', order: 'asc' }
+    ],
+
+    accesses: []
+};

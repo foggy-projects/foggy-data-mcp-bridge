@@ -1,0 +1,23 @@
+import '@oracleSqlDataSource';
+/**
+ * emp_hire_periods 维度表模型
+ * 
+ * 数据库: oracle_sql
+ * 数据源: oracleSqlDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'EmpHirePeriodsModel',
+    caption: 'Emp Hire Periods',
+    tableName: 'emp_hire_periods',
+    dataSource: oracleSqlDataSource,
+    idColumn: 'emp_id',
+
+    properties: [
+        { column: 'emp_id', caption: 'Emp Id', type: 'INTEGER' },
+        { column: 'start_', caption: 'Start', type: 'STRING' },
+        { column: 'end_', caption: 'End', type: 'STRING' },
+        { column: 'title', caption: 'Title', type: 'STRING' },
+    ],
+};

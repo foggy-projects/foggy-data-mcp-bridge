@@ -1,0 +1,65 @@
+/**
+ * 库存快照查询模型
+ *
+ * @caption 库存快照查询
+ * @description 库存快照事实表查询模型，支持按快照日期、商品、门店等维度查询库存状态
+ */
+export const queryModel = {
+    name: 'FactInventorySnapshotQueryModel',
+    caption: '库存快照查询',
+    description: '库存快照事实表查询模型，支持按快照日期、商品、门店等维度查询库存状态',
+    model: 'FactInventorySnapshotModel',
+
+    columnGroups: [
+        {
+            caption: '快照信息',
+            items: [
+                { name: 'snapshotKey', ui: { fixed: 'left', width: 100 } },
+                { name: 'createdAt' }
+            ]
+        },
+        {
+            caption: '日期维度',
+            items: [
+                { name: 'snapshotDate' },
+                { name: 'snapshotDate$year' },
+                { name: 'snapshotDate$month' },
+                { name: 'snapshotDate$monthName' }
+            ]
+        },
+        {
+            caption: '商品维度',
+            items: [
+                { name: 'product' },
+                { name: 'product$categoryName' },
+                { name: 'product$subCategoryName' },
+                { name: 'product$brand' }
+            ]
+        },
+        {
+            caption: '门店维度',
+            items: [
+                { name: 'store' },
+                { name: 'store$storeType' },
+                { name: 'store$province' },
+                { name: 'store$city' }
+            ]
+        },
+        {
+            caption: '度量',
+            items: [
+                { name: 'quantityOnHand' },
+                { name: 'quantityReserved' },
+                { name: 'quantityAvailable' },
+                { name: 'unitCost' },
+                { name: 'inventoryValue' }
+            ]
+        }
+    ],
+
+    orders: [
+        { name: 'snapshotDate$caption', order: 'desc' }
+    ],
+
+    accesses: []
+};

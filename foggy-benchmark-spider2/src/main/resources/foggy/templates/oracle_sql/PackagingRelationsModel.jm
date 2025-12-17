@@ -1,0 +1,25 @@
+import '@oracleSqlDataSource';
+/**
+ * packaging_relations 事实表模型
+ * 
+ * 数据库: oracle_sql
+ * 数据源: oracleSqlDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'PackagingRelationsModel',
+    caption: 'Packaging Relations',
+    tableName: 'packaging_relations',
+    dataSource: oracleSqlDataSource,
+    idColumn: 'packaging_id',
+
+    properties: [
+        { column: 'packaging_id', caption: 'Packaging Id', type: 'INTEGER' },
+        { column: 'contains_id', caption: 'Contains Id', type: 'INTEGER' },
+    ],
+
+    measures: [
+        { column: 'qty', caption: 'Qty', type: 'INTEGER', aggregation: 'sum' },
+    ]
+};

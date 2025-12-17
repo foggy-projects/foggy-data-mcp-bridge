@@ -1,0 +1,26 @@
+import '@baseballDataSource';
+/**
+ * manager_award_vote 维度表模型
+ * 
+ * 数据库: Baseball
+ * 数据源: baseballDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'ManagerAwardVoteModel',
+    caption: 'Manager Award Vote',
+    tableName: 'manager_award_vote',
+    dataSource: baseballDataSource,
+    idColumn: 'award_id',
+
+    properties: [
+        { column: 'award_id', caption: 'Award Id', type: 'STRING' },
+        { column: 'year', caption: 'Year', type: 'INTEGER' },
+        { column: 'league_id', caption: 'League Id', type: 'STRING' },
+        { column: 'player_id', caption: 'Player Id', type: 'STRING' },
+        { column: 'points_won', caption: 'Points Won', type: 'INTEGER' },
+        { column: 'points_max', caption: 'Points Max', type: 'INTEGER' },
+        { column: 'votes_first', caption: 'Votes First', type: 'INTEGER' },
+    ],
+};

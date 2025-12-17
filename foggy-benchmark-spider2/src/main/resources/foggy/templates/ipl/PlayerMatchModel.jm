@@ -1,0 +1,52 @@
+import '@iplDataSource';
+/**
+ * player_match 事实表模型
+ * 
+ * 数据库: IPL
+ * 数据源: iplDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'PlayerMatchModel',
+    caption: 'Player Match',
+    tableName: 'player_match',
+    dataSource: iplDataSource,
+    idColumn: 'match_id',
+
+    dimensions: [
+        {
+            name: 'player',
+            tableName: 'player',
+            foreignKey: 'player_id',
+            primaryKey: 'player_id',
+            captionColumn: 'player_name',
+            caption: 'Player',
+            properties: [
+                { column: 'player_id', caption: 'Player Id', type: 'INTEGER' },
+                { column: 'player_name', caption: 'Player Name', type: 'STRING' },
+                { column: 'dob', caption: 'Dob', type: 'DAY' },
+                { column: 'batting_hand', caption: 'Batting Hand', type: 'STRING' },
+                { column: 'bowling_skill', caption: 'Bowling Skill', type: 'STRING' },
+                { column: 'country_name', caption: 'Country Name', type: 'STRING' },
+            ]
+        },
+        {
+            name: 'team',
+            tableName: 'team',
+            foreignKey: 'team_id',
+            primaryKey: 'team_id',
+            captionColumn: 'name',
+            caption: 'Team',
+            properties: [
+                { column: 'team_id', caption: 'Team Id', type: 'INTEGER' },
+                { column: 'name', caption: 'Name', type: 'STRING' },
+            ]
+        },
+    ],
+
+    properties: [
+        { column: 'match_id', caption: 'Match Id', type: 'INTEGER' },
+        { column: 'role', caption: 'Role', type: 'STRING' },
+    ],
+};

@@ -1,0 +1,22 @@
+import '@dbImdbDataSource';
+/**
+ * Location 维度表模型
+ * 
+ * 数据库: DB_IMDB
+ * 数据源: dbImdbDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'LocationModel',
+    caption: 'Location',
+    tableName: 'Location',
+    dataSource: dbImdbDataSource,
+    idColumn: 'index',
+
+    properties: [
+        { column: 'index', caption: 'Index', type: 'INTEGER' },
+        { column: 'Name', caption: 'Name', type: 'STRING' },
+        { column: 'LID', caption: 'Lid', type: 'INTEGER' },
+    ],
+};

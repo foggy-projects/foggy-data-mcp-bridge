@@ -1,0 +1,20 @@
+import '@entertainmentagencyDataSource';
+/**
+ * ztblSkipLabels 维度表模型
+ * 
+ * 数据库: EntertainmentAgency
+ * 数据源: entertainmentagencyDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'ZtblskiplabelsModel',
+    caption: 'Ztblskiplabels',
+    tableName: 'ztblSkipLabels',
+    dataSource: entertainmentagencyDataSource,
+    idColumn: 'LabelCount',
+
+    properties: [
+        { column: 'LabelCount', caption: 'Labelcount', type: 'INTEGER' },
+    ],
+};

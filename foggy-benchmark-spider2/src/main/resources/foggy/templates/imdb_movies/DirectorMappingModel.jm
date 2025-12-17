@@ -1,0 +1,21 @@
+import '@imdbMoviesDataSource';
+/**
+ * director_mapping 维度表模型
+ * 
+ * 数据库: imdb_movies
+ * 数据源: imdbMoviesDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'DirectorMappingModel',
+    caption: 'Director Mapping',
+    tableName: 'director_mapping',
+    dataSource: imdbMoviesDataSource,
+    idColumn: 'movie_id',
+
+    properties: [
+        { column: 'movie_id', caption: 'Movie Id', type: 'STRING' },
+        { column: 'name_id', caption: 'Name Id', type: 'STRING' },
+    ],
+};

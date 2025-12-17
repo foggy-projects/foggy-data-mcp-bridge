@@ -1,0 +1,21 @@
+import '@f1DataSource';
+/**
+ * short_grand_prix_names 维度表模型
+ * 
+ * 数据库: f1
+ * 数据源: f1DataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'ShortGrandPrixNamesModel',
+    caption: 'Short Grand Prix Names',
+    tableName: 'short_grand_prix_names',
+    dataSource: f1DataSource,
+    idColumn: 'full_name',
+
+    properties: [
+        { column: 'full_name', caption: 'Full Name', type: 'STRING' },
+        { column: 'short_name', caption: 'Short Name', type: 'STRING' },
+    ],
+};

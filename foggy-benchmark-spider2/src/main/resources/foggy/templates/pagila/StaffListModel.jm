@@ -1,0 +1,27 @@
+import '@pagilaDataSource';
+/**
+ * staff_list 维度表模型
+ * 
+ * 数据库: Pagila
+ * 数据源: pagilaDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'StaffListModel',
+    caption: 'Staff List',
+    tableName: 'staff_list',
+    dataSource: pagilaDataSource,
+    idColumn: 'ID',
+
+    properties: [
+        { column: 'ID', caption: 'Id', type: 'INTEGER' },
+        { column: 'name', caption: 'Name', type: 'STRING' },
+        { column: 'address', caption: 'Address', type: 'STRING' },
+        { column: 'zip_code', caption: 'Zip Code', type: 'STRING' },
+        { column: 'phone', caption: 'Phone', type: 'STRING' },
+        { column: 'city', caption: 'City', type: 'STRING' },
+        { column: 'country', caption: 'Country', type: 'STRING' },
+        { column: 'SID', caption: 'Sid', type: 'INTEGER' },
+    ],
+};

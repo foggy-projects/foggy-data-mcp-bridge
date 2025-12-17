@@ -1,0 +1,83 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "description": "从数据直接生成图表",
+  "properties": {
+    "data": {
+      "type": "array",
+      "description": "数据数组，每个元素是一个对象",
+      "items": { "type": "object" }
+    },
+    "chart": {
+      "type": "object",
+      "description": "图表配置",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["LINE", "BAR", "PIE", "SCATTER"],
+          "description": "图表类型"
+        },
+        "title": {
+          "type": "string",
+          "description": "图表标题"
+        },
+        "xField": {
+          "type": "string",
+          "description": "X轴字段名（或饼图的分类字段）"
+        },
+        "yField": {
+          "type": "string",
+          "description": "Y轴字段名（或饼图的数值字段）"
+        },
+        "xAxis": {
+          "type": "object",
+          "description": "X轴配置",
+          "properties": {
+            "field": { "type": "string" },
+            "label": { "type": "string" }
+          }
+        },
+        "yAxis": {
+          "type": "object",
+          "description": "Y轴配置",
+          "properties": {
+            "field": { "type": "string" },
+            "label": { "type": "string" }
+          }
+        },
+        "width": {
+          "type": "integer",
+          "default": 800,
+          "description": "图片宽度"
+        },
+        "height": {
+          "type": "integer",
+          "default": 600,
+          "description": "图片高度"
+        },
+        "format": {
+          "type": "string",
+          "enum": ["png", "jpg", "svg"],
+          "default": "png",
+          "description": "图片格式"
+        },
+        "showLabel": {
+          "type": "boolean",
+          "description": "显示标签"
+        },
+        "showLegend": {
+          "type": "boolean",
+          "description": "显示图例"
+        }
+      },
+      "required": ["type"]
+    },
+    "returnFormat": {
+      "type": "string",
+      "enum": ["URL", "BASE64", "BINARY"],
+      "default": "URL",
+      "description": "返回格式"
+    }
+  },
+  "required": ["data", "chart"]
+}

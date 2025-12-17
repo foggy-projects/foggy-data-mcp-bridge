@@ -1,0 +1,26 @@
+import '@logDataSource';
+/**
+ * mst_products_20161201 事实表模型
+ * 
+ * 数据库: log
+ * 数据源: logDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'MstProducts20161201Model',
+    caption: 'Mst Products 20161201',
+    tableName: 'mst_products_20161201',
+    dataSource: logDataSource,
+    idColumn: 'product_id',
+
+    properties: [
+        { column: 'product_id', caption: 'Product Id', type: 'STRING' },
+        { column: 'name', caption: 'Name', type: 'STRING' },
+        { column: 'updated_at', caption: 'Updated At', type: 'STRING' },
+    ],
+
+    measures: [
+        { column: 'price', caption: 'Price', type: 'INTEGER', aggregation: 'sum' },
+    ]
+};

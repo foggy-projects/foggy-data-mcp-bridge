@@ -1,0 +1,43 @@
+/**
+ * tracks 查询模型
+ * 
+ * 数据库: chinook
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'TracksQueryModel',
+    model: 'TracksModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'TrackId' },
+                { name: 'Name' },
+                { name: 'albums$id' },
+                { name: 'MediaTypeId' },
+                { name: 'genres$id' },
+                { name: 'Composer' },
+                { name: 'Milliseconds' },
+                { name: 'Bytes' },
+            ]
+        },
+        {
+            caption: '关联维度',
+            items: [
+                { name: 'albums$caption' },
+                { name: 'genres$caption' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'UnitPrice' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

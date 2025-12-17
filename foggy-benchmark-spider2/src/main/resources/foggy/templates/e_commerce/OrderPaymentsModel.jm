@@ -1,0 +1,24 @@
+import '@eCommerceDataSource';
+/**
+ * order_payments 维度表模型
+ * 
+ * 数据库: E_commerce
+ * 数据源: eCommerceDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'OrderPaymentsModel',
+    caption: '订单支付',
+    tableName: 'order_payments',
+    dataSource: eCommerceDataSource,
+    idColumn: 'order_id',
+
+    properties: [
+        { column: 'order_id', caption: 'Order Id', type: 'STRING' },
+        { column: 'payment_sequential', caption: 'Payment Sequential', type: 'INTEGER' },
+        { column: 'payment_type', caption: 'Payment Type', type: 'STRING' },
+        { column: 'payment_installments', caption: 'Payment Installments', type: 'INTEGER' },
+        { column: 'payment_value', caption: 'Payment Value', type: 'DECIMAL' },
+    ],
+};

@@ -1,0 +1,24 @@
+import '@entertainmentagencyDataSource';
+/**
+ * Members 维度表模型
+ * 
+ * 数据库: EntertainmentAgency
+ * 数据源: entertainmentagencyDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'MembersModel',
+    caption: 'Members',
+    tableName: 'Members',
+    dataSource: entertainmentagencyDataSource,
+    idColumn: 'MemberID',
+
+    properties: [
+        { column: 'MemberID', caption: 'Memberid', type: 'INTEGER' },
+        { column: 'MbrFirstName', caption: 'Mbrfirstname', type: 'STRING' },
+        { column: 'MbrLastName', caption: 'Mbrlastname', type: 'STRING' },
+        { column: 'MbrPhoneNumber', caption: 'Mbrphonenumber', type: 'STRING' },
+        { column: 'Gender', caption: 'Gender', type: 'STRING' },
+    ],
+};

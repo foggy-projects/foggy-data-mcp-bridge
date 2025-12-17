@@ -1,0 +1,23 @@
+import '@oracleSqlDataSource';
+/**
+ * web_counter_hist 维度表模型
+ * 
+ * 数据库: oracle_sql
+ * 数据源: oracleSqlDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'WebCounterHistModel',
+    caption: 'Web Counter Hist',
+    tableName: 'web_counter_hist',
+    dataSource: oracleSqlDataSource,
+    idColumn: 'app_id',
+
+    properties: [
+        { column: 'app_id', caption: 'App Id', type: 'INTEGER' },
+        { column: 'page_no', caption: 'Page No', type: 'INTEGER' },
+        { column: 'day', caption: 'Day', type: 'STRING' },
+        { column: 'counter', caption: 'Counter', type: 'INTEGER' },
+    ],
+};

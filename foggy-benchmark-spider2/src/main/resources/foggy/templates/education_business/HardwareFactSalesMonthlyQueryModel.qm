@@ -1,0 +1,32 @@
+/**
+ * hardware_fact_sales_monthly 查询模型
+ * 
+ * 数据库: education_business
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const queryModel = {
+    name: 'HardwareFactSalesMonthlyQueryModel',
+    model: 'HardwareFactSalesMonthlyModel',
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { name: 'date' },
+                { name: 'product_code' },
+                { name: 'customer_code' },
+                { name: 'fiscal_year' },
+            ]
+        },
+        {
+            caption: '度量指标',
+            items: [
+                { name: 'sold_quantity' },
+            ]
+        }
+    ],
+
+    orders: [],
+    accesses: []
+};

@@ -1,0 +1,23 @@
+import '@logDataSource';
+/**
+ * access_log 维度表模型
+ * 
+ * 数据库: log
+ * 数据源: logDataSource
+ * 基于 Spider2 元数据自动生成
+ */
+
+export const model = {
+    name: 'AccessLogModel',
+    caption: 'Access Log',
+    tableName: 'access_log',
+    dataSource: logDataSource,
+    idColumn: 'user_id',
+
+    properties: [
+        { column: 'session', caption: 'Session', type: 'STRING' },
+        { column: 'user_id', caption: 'User Id', type: 'STRING' },
+        { column: 'action', caption: 'Action', type: 'STRING' },
+        { column: 'stamp', caption: 'Stamp', type: 'STRING' },
+    ],
+};
