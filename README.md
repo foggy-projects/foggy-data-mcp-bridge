@@ -2,195 +2,141 @@
 
 [中文文档](README.zh-CN.md)
 
-**Embedded Semantic Layer Framework** - Provides declarative dimensional modeling, dynamic querying, and AI-driven data analysis capabilities for Java applications.
+**MCP Data Query Bridge Layer** - Enable AI to query business data safely and accurately through a semantic layer.
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Java](https://img.shields.io/badge/Java-17+-green.svg)](https://openjdk.org/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.x-brightgreen.svg)](https://spring.io/projects/spring-boot)
 
-## Overview
+## Why Not Let AI Write SQL Directly?
 
-Foggy Framework is an embeddable data modeling and query framework designed for OLAP analytics scenarios. Through declarative **JM (Data Model)** and **QM (Query Model)** definitions, it automatically handles complex logic such as multi-table JOINs, aggregate calculations, and dimension filtering, and supports natural language queries by connecting to AI assistants via the MCP protocol.
+Having LLMs generate SQL directly has several core problems:
 
-### Core Features
+| Problem | Description |
+|---------|-------------|
+| **Security Risk** | AI might generate DELETE, UPDATE, or access sensitive tables, difficult to constrain effectively |
+| **Schema Exposure** | Complete table structure must be provided to AI, leaking internal design details |
+| **Missing Business Semantics** | What does `order_status=3` mean? AI doesn't know, and users don't want to care |
+| **Complex JOINs Error-Prone** | Multi-table joins and aggregation logic are easy to get wrong, high debugging cost |
+| **Database Dialect Differences** | MySQL, SQL Server, MongoDB have different syntax, AI needs separate adaptation for each |
 
-- **Declarative Dimensional Modeling** - Define star/snowflake schemas using JavaScript syntax, auto-generate SQL
-- **Nested Dimensions (Snowflake Schema)** - Support multi-level dimension associations with concise nested syntax
-- **Parent-Child Dimensions (Hierarchical Data)** - Automatically handle hierarchical queries like organization structures using closure tables
-- **Multi-Database Support** - MySQL, PostgreSQL, SQL Server, SQLite, MongoDB
-- **MCP Protocol Integration** - Connect to AI assistants like Claude and ChatGPT for natural language data queries
-- **Embeddable Design** - Integrate as a Spring Boot Starter with no additional operational overhead
+**This project's solution**: Add a **semantic layer** between AI and the database. AI only needs to select "which fields to query" and "how to filter", and the semantic layer handles generating correct SQL.
+
+```
+User ──Natural Language──▶ AI ──Semantic Query DSL──▶ Semantic Layer ──SQL──▶ Database
+                              (select fields, add filters)  (generate JOINs, aggregations)
+```
+
+## Core Features
+
+- **Declarative Data Models** - Define business semantics with JM/QM files, AI can only access authorized fields
+- **Automatic SQL Generation** - Framework handles multi-table JOINs, aggregations, pagination; AI doesn't need to understand complex schemas
+- **MCP Protocol Integration** - Out-of-box integration with Claude Desktop, Cursor, and other AI clients
+- **Multi-Database Support** - MySQL, PostgreSQL, SQL Server, SQLite
+- **Access Control** - Restrict queryable models and fields by role
+
+## Quick Start
+
+### Docker One-Click Launch
+
+```bash
+git clone https://github.com/pf4cloud/java-data-mcp-bridge.git
+cd java-data-mcp-bridge/docker/demo
+
+cp .env.example .env
+# Edit .env to set OPENAI_API_KEY
+
+docker compose up -d
+```
+
+Configure in Claude Desktop:
+
+```json
+{
+  "mcpServers": {
+    "foggy-dataset": {
+      "url": "http://localhost:7108/mcp/analyst/rpc"
+    }
+  }
+}
+```
+
+Then query directly with natural language:
+- "Query sales data for the last week, summarized by brand"
+- "What products had the highest return rate last month"
+
+## How It Works
+
+### 1. Define Data Model (JM)
+
+```javascript
+// FactSalesModel.jm
+export const model = {
+    name: 'FactSalesModel',
+    caption: 'Sales Data',
+    tableName: 'fact_sales',
+
+    dimensions: [{
+        name: 'product',
+        tableName: 'dim_product',
+        foreignKey: 'product_key',
+        caption: 'Product',
+        properties: [
+            { column: 'brand', caption: 'Brand' },
+            { column: 'category_name', caption: 'Category' }
+        ]
+    }],
+
+    measures: [
+        { column: 'quantity', caption: 'Quantity', aggregation: 'sum' },
+        { column: 'sales_amount', caption: 'Sales Amount', aggregation: 'sum' }
+    ]
+};
+```
+
+### 2. AI Initiates Semantic Query
+
+AI doesn't need to know the table structure, just send a request like this:
+
+```json
+{
+  "queryModel": "FactSalesQueryModel",
+  "columns": ["product$brand", "salesAmount"],
+  "filters": [{ "column": "orderDate", "op": ">=", "value": "2024-01-01" }],
+  "orders": [{ "column": "salesAmount", "desc": true }],
+  "limit": 10
+}
+```
+
+### 3. Framework Generates and Executes SQL
+
+```sql
+SELECT p.brand, SUM(f.sales_amount) as salesAmount
+FROM fact_sales f
+LEFT JOIN dim_product p ON f.product_key = p.product_key
+WHERE f.order_date >= '2024-01-01'
+GROUP BY p.brand
+ORDER BY salesAmount DESC
+LIMIT 10
+```
 
 ## Module Structure
 
 ```
 java-data-mcp-bridge/
-├── foggy-core              # Core utility library
-├── foggy-dataset           # Database foundation layer (dialects, connection pools)
-├── foggy-dataset-model     # Core: Data model engine (JM/QM)
-├── foggy-dataset-mcp       # MCP server (AI integration)
-├── foggy-dataset-demo      # Demo project
-├── foggy-fsscript          # Script engine (JM/QM file parsing)
-├── foggy-fsscript-client   # Script engine client
-└── foggy-bean-copy         # Bean copy utility
+├── foggy-dataset-model     # Core: Semantic Layer Engine
+├── foggy-dataset-mcp       # MCP Server
+├── foggy-dataset-demo      # Sample Data Models
+├── foggy-dataset           # Multi-Database Adapter
+├── foggy-fsscript          # JM/QM Parser
+└── foggy-core              # Base Utilities
 ```
-
-## Quick Start
-
-### 1. Add Dependencies
-
-```xml
-<dependency>
-    <groupId>com.foggysource</groupId>
-    <artifactId>foggy-dataset-model</artifactId>
-    <version>8.0.0-beta</version>
-</dependency>
-
-<!-- For MCP/AI features -->
-<dependency>
-    <groupId>com.foggysource</groupId>
-    <artifactId>foggy-dataset-mcp</artifactId>
-    <version>8.0.0-beta</version>
-</dependency>
-```
-
-### 2. Define Data Model (JM)
-
-Create `FactSalesModel.jm`:
-
-```javascript
-export const model = {
-    name: 'FactSalesModel',
-    caption: 'Sales Fact Table',
-    tableName: 'fact_sales',
-    idColumn: 'sales_key',
-
-    dimensions: [
-        {
-            name: 'product',
-            tableName: 'dim_product',
-            foreignKey: 'product_key',
-            primaryKey: 'product_key',
-            captionColumn: 'product_name',
-            caption: 'Product',
-            properties: [
-                { column: 'brand', caption: 'Brand' },
-                { column: 'category_name', caption: 'Category' }
-            ]
-        }
-    ],
-
-    measures: [
-        { column: 'quantity', caption: 'Sales Quantity', aggregation: 'sum' },
-        { column: 'sales_amount', caption: 'Sales Amount', type: 'MONEY', aggregation: 'sum' }
-    ]
-};
-```
-
-### 3. Define Query Model (QM)
-
-Create `FactSalesQueryModel.qm`:
-
-```javascript
-export const queryModel = {
-    name: 'FactSalesQueryModel',
-    model: 'FactSalesModel',
-
-    columnGroups: [
-        {
-            caption: 'Product Dimensions',
-            items: [
-                { name: 'product$caption' },
-                { name: 'product$brand' }
-            ]
-        },
-        {
-            caption: 'Measures',
-            items: [
-                { name: 'quantity' },
-                { name: 'salesAmount' }
-            ]
-        }
-    ]
-};
-```
-
-### 4. Execute Query
-
-```java
-@Autowired
-private JdbcService jdbcService;
-
-public void querySales() {
-    JdbcQueryRequestDef request = new JdbcQueryRequestDef();
-    request.setQueryModel("FactSalesQueryModel");
-    request.setColumns(Arrays.asList("product$caption", "salesAmount"));
-
-    PagingRequest<JdbcQueryRequestDef> form = PagingRequest.buildPagingRequest(request, 20);
-    PagingResultImpl result = jdbcService.queryModelData(form);
-
-    // Auto-generated SQL:
-    // SELECT p.product_name, SUM(f.sales_amount)
-    // FROM fact_sales f
-    // LEFT JOIN dim_product p ON f.product_key = p.product_key
-    // GROUP BY p.product_name
-    // LIMIT 20
-}
-```
-
-## AI-Driven Data Queries
-
-Connect to AI assistants via MCP protocol for natural language queries:
-
-```
-User: What are the top 5 brands by sales last month?
-
-AI: Querying... [Auto-generates query request]
-
-Results:
-| Brand   | Sales Amount |
-|---------|-------------|
-| Brand A | $1,234,567  |
-| Brand B | $987,654    |
-| ...     | ...         |
-```
-
-See [foggy-dataset-mcp](foggy-dataset-mcp/) module for details.
-
-## Supported Databases
-
-| Database | Version | Status |
-|----------|---------|--------|
-| MySQL | 5.7+ | ✅ Full support |
-| PostgreSQL | 12+ | ✅ Full support |
-| SQL Server | 2012+ | ✅ Full support |
-| SQLite | 3.30+ | ✅ Full support |
-| MongoDB | 4.0+ | ✅ Basic support |
 
 ## Documentation
 
-- [Quick Start](foggy-dataset-model/docs/quick-start.md)
-- [JM/QM Syntax Manual](foggy-dataset-model/docs/JM-QM-Syntax-Manual.md)
-- [API Reference](foggy-dataset-model/docs/API-Reference.md)
-- [Multi-Database Adapter](foggy-dataset-model/docs/MULTI_DATABASE_ADAPTER.md)
-- [Parent-Child Dimensions](foggy-dataset-model/docs/Parent-Child-Dimension.md)
-
-## Use Cases
-
-- **SaaS Product Reporting** - Generate analytical queries directly in the backend without introducing heavy BI tools
-- **Enterprise Data Platform** - Unified data model layer supporting frontend self-service queries
-- **Low-Code Platforms** - Configure data models declaratively, generate queries dynamically
-- **AI Data Assistants** - Enable AI to understand and query business data via MCP protocol
-
-## Requirements
-
-- Java 17+
-- Spring Boot 3.x
-- Maven 3.6+
-
-## Contributing
-
-Issues and Pull Requests are welcome.
+- [JM/QM Syntax Manual](foggy-dataset-model/docs/guide/JM-QM-Syntax-Manual.md)
+- [IDE Local Development](foggy-dataset-mcp/docs/IDE-Development.md)
+- [Access Control](foggy-dataset-model/docs/security/Authorization-Control.md)
 
 ## License
 
