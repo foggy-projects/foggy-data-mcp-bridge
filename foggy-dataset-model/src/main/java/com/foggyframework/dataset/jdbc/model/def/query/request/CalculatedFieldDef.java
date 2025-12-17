@@ -78,6 +78,16 @@ public class CalculatedFieldDef {
     private String description;
 
     /**
+     * 聚合类型
+     * <p>
+     * 当计算字段表达式包含聚合函数时，可以指定聚合类型。
+     * 支持的值: SUM, AVG, COUNT, MAX, MIN
+     * </p>
+     */
+    @ApiModelProperty(value = "聚合类型", notes = "如 SUM, AVG, COUNT, MAX, MIN，用于autoGroupBy场景")
+    private String agg;
+
+    /**
      * 编译后的 AST，运行时使用
      */
     @JsonIgnore

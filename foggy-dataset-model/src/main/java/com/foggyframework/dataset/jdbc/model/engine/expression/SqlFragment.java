@@ -39,6 +39,24 @@ public class SqlFragment {
     private JdbcColumnType inferredType = JdbcColumnType.UNKNOWN;
 
     /**
+     * 是否包含聚合函数
+     * <p>
+     * 当表达式中包含 SUM, AVG, COUNT, MAX, MIN 等聚合函数时为 true。
+     * 用于 autoGroupBy 判断。
+     * </p>
+     */
+    private boolean hasAggregate = false;
+
+    /**
+     * 聚合函数类型（如果是单一顶层聚合）
+     * <p>
+     * 例如 "sum(a)" → "SUM"
+     * 复合表达式如 "sum(a) + count(*)" 时为 null
+     * </p>
+     */
+    private String aggregationType;
+
+    /**
      * 创建字面量片段（数字、字符串等）
      */
     public static SqlFragment ofLiteral(String literal) {
@@ -87,6 +105,9 @@ public class SqlFragment {
         f.referencedColumns.addAll(right.referencedColumns);
         // 推断二元运算结果类型
         f.inferredType = inferBinaryType(left.inferredType, operator, right.inferredType);
+        // 继承聚合状态
+        f.hasAggregate = left.hasAggregate || right.hasAggregate;
+        // 复合聚合表达式不设置单一聚合类型
         return f;
     }
 
@@ -102,6 +123,9 @@ public class SqlFragment {
         f.referencedColumns.addAll(operand.referencedColumns);
         // 一元运算通常保持操作数类型，NOT 除外返回布尔
         f.inferredType = "NOT".equalsIgnoreCase(operator) ? JdbcColumnType.BOOL : operand.inferredType;
+        // 继承聚合状态
+        f.hasAggregate = operand.hasAggregate;
+        f.aggregationType = operand.aggregationType;
         return f;
     }
 
@@ -120,6 +144,18 @@ public class SqlFragment {
         args.forEach(arg -> f.referencedColumns.addAll(arg.referencedColumns));
         // 推断函数返回类型
         f.inferredType = inferFunctionType(funcName, args);
+
+        // 检测聚合函数
+        String upperFuncName = funcName.toUpperCase();
+        if (AllowedFunctions.isAggregateFunction(upperFuncName)) {
+            f.hasAggregate = true;
+            f.aggregationType = upperFuncName;
+        } else {
+            // 继承子表达式的聚合状态
+            f.hasAggregate = args.stream().anyMatch(SqlFragment::isHasAggregate);
+            // 复合聚合时不设置单一类型
+        }
+
         return f;
     }
 
@@ -139,6 +175,8 @@ public class SqlFragment {
         args.forEach(arg -> f.referencedColumns.addAll(arg.referencedColumns));
         // 模板类型默认继承第一个参数的类型
         f.inferredType = args.isEmpty() ? JdbcColumnType.UNKNOWN : args.get(0).inferredType;
+        // 继承聚合状态
+        f.hasAggregate = args.stream().anyMatch(SqlFragment::isHasAggregate);
         return f;
     }
 

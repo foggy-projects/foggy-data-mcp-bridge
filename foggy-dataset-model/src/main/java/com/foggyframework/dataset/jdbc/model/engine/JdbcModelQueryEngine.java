@@ -7,6 +7,8 @@ import com.foggyframework.dataset.jdbc.model.common.query.CondType;
 import com.foggyframework.dataset.jdbc.model.def.query.request.*;
 import com.foggyframework.dataset.jdbc.model.engine.expression.CalculatedFieldService;
 import com.foggyframework.dataset.jdbc.model.engine.expression.InlineExpressionParser;
+import com.foggyframework.dataset.jdbc.model.engine.expression.SqlExpContext;
+import com.foggyframework.dataset.jdbc.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.jdbc.model.engine.formula.JdbcLink;
 import com.foggyframework.dataset.jdbc.model.engine.formula.SqlFormulaService;
 import com.foggyframework.dataset.jdbc.model.engine.query.JdbcQuery;
@@ -23,6 +25,7 @@ import com.foggyframework.fsscript.DefaultExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationContext;
 
 import java.sql.Types;
 import java.util.ArrayList;
@@ -42,9 +45,9 @@ public class JdbcModelQueryEngine {
     SqlFormulaService sqlFormulaService;
 
     /**
-     * 计算字段服务
+     * SQL 表达式上下文（用于计算字段）
      */
-    CalculatedFieldService calculatedFieldService;
+    SqlExpContext sqlExpContext;
 
     /**
      * 处理后的计算字段列表
@@ -79,7 +82,33 @@ public class JdbcModelQueryEngine {
         this.sqlFormulaService = sqlFormulaService;
     }
 
+    /**
+     * 分析查询请求（兼容旧版本调用）
+     *
+     * @param systemBundlesContext 系统上下文
+     * @param queryRequest         查询请求
+     * @deprecated 建议使用 {@link #analysisQueryRequest(SystemBundlesContext, ModelResultContext)} 方法
+     */
+    @Deprecated
     public void analysisQueryRequest(SystemBundlesContext systemBundlesContext, JdbcQueryRequestDef queryRequest) {
+        // 创建临时 Context 以兼容旧调用
+        ModelResultContext context = new ModelResultContext();
+        context.setRequest(new com.foggyframework.dataset.client.domain.PagingRequest<>());
+        context.getRequest().setParam(queryRequest);
+        analysisQueryRequest(systemBundlesContext, context);
+    }
+
+    /**
+     * 分析查询请求（新版本，接受 ModelResultContext）
+     * <p>
+     * 如果 context 中已有预处理结果（parsedInlineExpressions），则跳过重复解析。
+     * </p>
+     *
+     * @param systemBundlesContext 系统上下文
+     * @param context              查询生命周期上下文
+     */
+    public void analysisQueryRequest(SystemBundlesContext systemBundlesContext, ModelResultContext context) {
+        JdbcQueryRequestDef queryRequest = context.getRequest().getParam();
         RX.notNull(queryRequest, "查询请求不得为空");
 
         JdbcQuery jdbcQuery = new JdbcQuery();
@@ -101,10 +130,11 @@ public class JdbcModelQueryEngine {
         }
 
         // 0. 预处理 columns 中的内联表达式，转换为 calculatedFields
-        preprocessInlineExpressions(queryRequest);
+        // 如果 context 中已有预处理结果，则跳过
+        preprocessInlineExpressions(queryRequest, context);
 
         // 0.1 处理动态计算字段
-        processCalculatedFields(systemBundlesContext, queryRequest);
+        processCalculatedFields(systemBundlesContext, queryRequest, context);
 
         //1.加入需要查询的列
         List<JdbcColumn> selectColumns = null;
@@ -471,10 +501,28 @@ public class JdbcModelQueryEngine {
      * 检测 columns 中的内联表达式（如 "YEAR(orderdate) AS orderYear"），
      * 将其转换为 calculatedFields 定义，并将 columns 中的项替换为别名。
      * </p>
+     * <p>
+     * 如果 context 中已有预处理结果（parsedInlineExpressions），则跳过重复解析。
+     * </p>
      *
      * @param queryRequest 查询请求
+     * @param context      查询生命周期上下文（可选）
      */
-    private void preprocessInlineExpressions(JdbcQueryRequestDef queryRequest) {
+    private void preprocessInlineExpressions(JdbcQueryRequestDef queryRequest, ModelResultContext context) {
+        // 检查是否已在 InlineExpressionPreprocessStep 中预处理
+        ModelResultContext.ParsedInlineExpressions parsed =
+                context != null ? context.getParsedInlineExpressions() : null;
+
+        if (parsed != null && parsed.isProcessed()) {
+            // 已预处理，直接使用结果
+            if (log.isDebugEnabled()) {
+                log.debug("Using preprocessed inline expressions from context, skipping redundant parsing");
+            }
+            // columns 和 calculatedFields 已经在 InlineExpressionPreprocessStep 中更新到 queryRequest
+            return;
+        }
+
+        // 未预处理，执行原有逻辑
         List<String> columns = queryRequest.getColumns();
         if (columns == null || columns.isEmpty()) {
             return;
@@ -534,26 +582,41 @@ public class JdbcModelQueryEngine {
      * 处理动态计算字段
      * <p>
      * 编译 calculatedFields 中的表达式，生成 CalculatedJdbcColumn 对象。
+     * 结果同时存储在 engine 实例和 ModelResultContext 中。
      * </p>
      *
      * @param systemBundlesContext 系统上下文
      * @param queryRequest         查询请求
+     * @param context              查询生命周期上下文（可选）
      */
-    private void processCalculatedFields(SystemBundlesContext systemBundlesContext, JdbcQueryRequestDef queryRequest) {
+    private void processCalculatedFields(SystemBundlesContext systemBundlesContext, JdbcQueryRequestDef queryRequest, ModelResultContext context) {
         if (queryRequest.getCalculatedFields() == null || queryRequest.getCalculatedFields().isEmpty()) {
             this.calculatedColumns = new ArrayList<>();
+            if (context != null) {
+                context.setCalculatedColumns(this.calculatedColumns);
+            }
             return;
         }
 
-        // 创建计算字段服务
-        this.calculatedFieldService = new CalculatedFieldService(
+        // 创建 SQL 表达式上下文
+        ApplicationContext appCtx = systemBundlesContext.getApplicationContext();
+        this.sqlExpContext = new SqlExpContext(
                 jdbcQueryModel,
                 jdbcQueryModel.getDialect(),
-                systemBundlesContext.getApplicationContext()
+                appCtx
         );
 
         // 处理所有计算字段
-        this.calculatedColumns = calculatedFieldService.processCalculatedFields(queryRequest.getCalculatedFields());
+        this.calculatedColumns = CalculatedFieldService.processCalculatedFields(
+                queryRequest.getCalculatedFields(),
+                sqlExpContext,
+                appCtx
+        );
+
+        // 将结果存入 ModelResultContext
+        if (context != null) {
+            context.setCalculatedColumns(this.calculatedColumns);
+        }
 
         if (log.isDebugEnabled()) {
             log.debug("Processed {} calculated fields", calculatedColumns.size());

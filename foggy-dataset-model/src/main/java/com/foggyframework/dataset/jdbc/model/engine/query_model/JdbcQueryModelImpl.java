@@ -18,6 +18,7 @@ import com.foggyframework.dataset.jdbc.model.impl.JdbcObjectSupport;
 import com.foggyframework.dataset.jdbc.model.impl.dimension.JdbcDimensionSupport;
 import com.foggyframework.dataset.jdbc.model.impl.model.JdbcModelSupport;
 import com.foggyframework.dataset.jdbc.model.impl.query.*;
+import com.foggyframework.dataset.jdbc.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.jdbc.model.impl.utils.QueryObjectDelegate;
 import com.foggyframework.dataset.jdbc.model.spi.*;
 import com.foggyframework.dataset.jdbc.model.spi.support.JdbcColumnGroup;
@@ -438,12 +439,15 @@ public class JdbcQueryModelImpl extends JdbcObjectSupport implements JdbcQueryMo
     public JdbcQueryResult queryJdbc(SystemBundlesContext systemBundlesContext, PagingRequest<JdbcQueryRequestDef> form) {
         JdbcQueryRequestDef queryRequest = form.getParam();
 
+        // 创建查询生命周期上下文
+        ModelResultContext context = new ModelResultContext(form, null);
+
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(this, sqlFormulaService);
 
         /**
          * 构建 查询语句
          */
-        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+        queryEngine.analysisQueryRequest(systemBundlesContext, context);
 
         String pagingSql = DbUtils.getDialect(defaultDataSource).generatePagingSql(queryEngine.getSql(), form.getStart(), form.getLimit());
 

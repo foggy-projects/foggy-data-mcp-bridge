@@ -190,6 +190,31 @@ public class CalculatedJdbcColumn extends AbstractDecorate implements JdbcQueryC
         return true;
     }
 
+    /**
+     * 是否包含聚合函数
+     * <p>
+     * 从 SqlFragment 获取聚合信息。
+     * </p>
+     *
+     * @return 如果表达式包含 SUM, AVG, COUNT 等聚合函数，返回 true
+     */
+    public boolean hasAggregate() {
+        return sqlFragment != null && sqlFragment.isHasAggregate();
+    }
+
+    /**
+     * 获取聚合函数类型
+     * <p>
+     * 仅当表达式是单一顶层聚合时返回类型（如 "SUM", "AVG"）。
+     * 复合聚合表达式如 "sum(a) + count(*)" 返回 null。
+     * </p>
+     *
+     * @return 聚合类型，或 null
+     */
+    public String getAggregationType() {
+        return sqlFragment != null ? sqlFragment.getAggregationType() : null;
+    }
+
     @Override
     public String toString() {
         return "CalculatedJdbcColumn{" +

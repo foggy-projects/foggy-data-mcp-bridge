@@ -1230,4 +1230,213 @@ class CalculatedFieldTest extends EcommerceTestSupport {
         }
         return Integer.parseInt(value.toString());
     }
+
+    // ==========================================
+    // 内联聚合表达式 + 同名条件过滤测试
+    // ==========================================
+
+    /**
+     * 测试场景：内联表达式 sum(salesAmount) as salesAmount，条件 salesAmount > 100
+     *
+     * <p>验证当用户通过内联表达式定义聚合计算字段，且别名与模型中已有字段同名时，
+     * 系统应该报错：计算字段名称已存在。
+     * <br>
+     * 这是一个保护机制，防止字段名冲突导致歧义。
+     * </p>
+     */
+    @Test
+    @Order(80)
+    @DisplayName("内联聚合表达式 - sum(salesAmount) as salesAmount 应报错(别名冲突)")
+    void testInlineAggregateExpressionWithSameNameCondition() {
+        JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        queryRequest.setQueryModel("FactSalesQueryModel");
+
+        // 使用内联表达式定义聚合字段：sum(salesAmount) as salesAmount
+        // 注意：别名与模型中已有的度量字段同名，应该报错
+        List<String> columns = Arrays.asList(
+            "product$categoryName",
+            "sum(salesAmount) as salesAmount"  // 内联聚合表达式，别名与原字段同名
+        );
+        queryRequest.setColumns(columns);
+
+        // 添加条件：salesAmount > 100
+        List<SliceRequestDef> slices = new ArrayList<>();
+        SliceRequestDef slice = new SliceRequestDef();
+        slice.setField("salesAmount");
+        slice.setOp(">");
+        slice.setValue(100);
+        slices.add(slice);
+        queryRequest.setSlice(slices);
+
+        // 设置分组
+        List<GroupRequestDef> groups = new ArrayList<>();
+        GroupRequestDef group = new GroupRequestDef();
+        group.setField("product$categoryName");
+        groups.add(group);
+        queryRequest.setGroupBy(groups);
+
+        // 期望抛出异常：计算字段名称已存在
+        Exception exception = assertThrows(Exception.class, () -> {
+            queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+        });
+
+        String errorMessage = exception.getMessage();
+        log.info("捕获到预期异常: {}", errorMessage);
+        assertTrue(errorMessage.contains("计算字段名称已存在") || errorMessage.contains("salesAmount"),
+            "异常信息应包含字段名冲突提示");
+    }
+
+    /**
+     * 测试场景：内联表达式 sum(quantity) as quantity，条件 quantity = 10
+     *
+     * <p>与上一个测试类似，验证别名冲突会报错</p>
+     */
+    @Test
+    @Order(81)
+    @DisplayName("内联聚合表达式 - sum(quantity) as quantity 应报错(别名冲突)")
+    void testInlineAggregateExpressionWithEqualCondition() {
+        JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        queryRequest.setQueryModel("FactSalesQueryModel");
+
+        // 使用内联表达式，别名与原字段同名，应该报错
+        List<String> columns = Arrays.asList(
+            "customer$memberLevel",
+            "sum(quantity) as quantity"  // 内联聚合表达式，别名冲突
+        );
+        queryRequest.setColumns(columns);
+
+        // 添加条件：quantity = 10
+        List<SliceRequestDef> slices = new ArrayList<>();
+        SliceRequestDef slice = new SliceRequestDef();
+        slice.setField("quantity");
+        slice.setOp("=");
+        slice.setValue(10);
+        slices.add(slice);
+        queryRequest.setSlice(slices);
+
+        // 设置分组
+        List<GroupRequestDef> groups = new ArrayList<>();
+        GroupRequestDef group = new GroupRequestDef();
+        group.setField("customer$memberLevel");
+        groups.add(group);
+        queryRequest.setGroupBy(groups);
+
+        // 期望抛出异常
+        Exception exception = assertThrows(Exception.class, () -> {
+            queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+        });
+
+        log.info("捕获到预期异常: {}", exception.getMessage());
+        assertTrue(exception.getMessage().contains("计算字段名称已存在") || exception.getMessage().contains("quantity"),
+            "异常信息应包含字段名冲突提示");
+    }
+
+    /**
+     * 测试场景：内联表达式使用不同别名 sum(salesAmount) as totalSales，条件 salesAmount > 100
+     *
+     * <p>验证：别名不冲突时，聚合表达式可以正常工作。</p>
+     */
+    @Test
+    @Order(82)
+    @DisplayName("内联聚合表达式 - 不同别名正常工作")
+    void testInlineAggregateExpressionWithDifferentAlias() {
+        JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        queryRequest.setQueryModel("FactSalesQueryModel");
+
+        // 使用内联表达式，别名与原字段不同，应该正常工作
+        List<String> columns = Arrays.asList(
+            "product$categoryName",
+            "sum(salesAmount) as totalSales"  // 别名为 totalSales，不冲突
+        );
+        queryRequest.setColumns(columns);
+
+        // 添加条件
+        List<SliceRequestDef> slices = new ArrayList<>();
+        SliceRequestDef slice = new SliceRequestDef();
+        slice.setField("salesAmount");
+        slice.setOp(">");
+        slice.setValue(100);
+        slices.add(slice);
+        queryRequest.setSlice(slices);
+
+        // 设置分组
+        List<GroupRequestDef> groups = new ArrayList<>();
+        GroupRequestDef group = new GroupRequestDef();
+        group.setField("product$categoryName");
+        groups.add(group);
+        queryRequest.setGroupBy(groups);
+
+        // 现在应该正常工作
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+
+        String sql = queryEngine.getSql();
+        assertNotNull(sql, "SQL生成失败");
+
+        // 验证 SQL 包含 SUM 函数
+        assertTrue(sql.toUpperCase().contains("SUM"), "SQL应包含SUM函数");
+
+        printSql(sql, "内联聚合表达式(不同别名) - 正常工作");
+        log.info("参数值: {}", queryEngine.getValues());
+
+        // 执行SQL验证
+        try {
+            List<Object> values = queryEngine.getValues();
+            List<Map<String, Object>> results = jdbcTemplate.queryForList(sql, values.toArray());
+            log.info("查询结果数量: {}", results.size());
+            printResults(results);
+        } catch (Exception e) {
+            log.error("SQL执行失败: {}", e.getMessage(), e);
+            fail("SQL应能正确执行，但出现错误: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 测试场景：无分组情况下的内联聚合表达式
+     *
+     * <p>验证不带 GROUP BY 时内联聚合表达式的处理</p>
+     */
+    @Test
+    @Order(83)
+    @DisplayName("内联聚合表达式 - 无分组情况")
+    void testInlineAggregateExpressionWithoutGroupBy() {
+        JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        queryRequest.setQueryModel("FactSalesQueryModel");
+
+        // 使用内联表达式（不分组时作为计算字段处理）
+        List<String> columns = Arrays.asList(
+            "orderId",
+            "salesAmount * 1.1 as adjustedAmount"  // 非聚合的内联表达式
+        );
+        queryRequest.setColumns(columns);
+
+        // 添加条件
+        List<SliceRequestDef> slices = new ArrayList<>();
+        SliceRequestDef slice = new SliceRequestDef();
+        slice.setField("salesAmount");
+        slice.setOp(">");
+        slice.setValue(50);
+        slices.add(slice);
+        queryRequest.setSlice(slices);
+
+        // 不设置分组
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+
+        String innerSql = queryEngine.getInnerSql();
+        assertNotNull(innerSql, "内层SQL生成失败");
+
+        printSql(innerSql, "内联表达式(无分组) - 明细查询");
+        log.info("参数值: {}", queryEngine.getValues());
+    }
 }

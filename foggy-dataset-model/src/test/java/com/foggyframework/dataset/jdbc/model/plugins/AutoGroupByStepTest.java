@@ -1,0 +1,304 @@
+package com.foggyframework.dataset.jdbc.model.plugins;
+
+import com.foggyframework.dataset.client.domain.PagingRequest;
+import com.foggyframework.dataset.jdbc.model.def.query.request.CalculatedFieldDef;
+import com.foggyframework.dataset.jdbc.model.def.query.request.GroupRequestDef;
+import com.foggyframework.dataset.jdbc.model.def.query.request.JdbcQueryRequestDef;
+import com.foggyframework.dataset.jdbc.model.plugins.result_set_filter.AutoGroupByStep;
+import com.foggyframework.dataset.jdbc.model.plugins.result_set_filter.InlineExpressionPreprocessStep;
+import com.foggyframework.dataset.jdbc.model.plugins.result_set_filter.ModelResultContext;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.jupiter.api.*;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ * AutoGroupByStep 单元测试
+ * <p>
+ * 注意：AutoGroupByStep 依赖 InlineExpressionPreprocessStep 先执行，
+ * 以解析内联表达式并设置 CalculatedFieldDef.agg 字段。
+ * </p>
+ */
+@Slf4j
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+@DisplayName("AutoGroupByStep 测试")
+class AutoGroupByStepTest {
+
+    private InlineExpressionPreprocessStep inlineExpressionPreprocessStep;
+    private AutoGroupByStep autoGroupByStep;
+
+    @BeforeEach
+    void setUp() {
+        inlineExpressionPreprocessStep = new InlineExpressionPreprocessStep();
+        autoGroupByStep = new AutoGroupByStep();
+    }
+
+    /**
+     * 执行预处理和 AutoGroupBy 步骤
+     */
+    private void executeSteps(ModelResultContext ctx) {
+        inlineExpressionPreprocessStep.beforeQuery(ctx);
+        autoGroupByStep.beforeQuery(ctx);
+    }
+
+    @Test
+    @Order(1)
+    @DisplayName("autoGroupBy=false 时不处理")
+    void testAutoGroupByDisabled() {
+        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        queryRequest.setAutoGroupBy(false);
+        queryRequest.setColumns(Arrays.asList(
+            "product$categoryName",
+            "sum(salesAmount) as totalSales"
+        ));
+
+        ModelResultContext ctx = createContext(queryRequest);
+        executeSteps(ctx);
+
+        // groupBy 应该为空（未自动处理）
+        assertNull(queryRequest.getGroupBy());
+    }
+
+    @Test
+    @Order(2)
+    @DisplayName("检测内联聚合表达式 - sum(salesAmount) as totalSales")
+    void testDetectInlineAggregateExpression() {
+        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        queryRequest.setAutoGroupBy(true);
+        queryRequest.setColumns(Arrays.asList(
+            "product$categoryName",
+            "sum(salesAmount) as totalSales"
+        ));
+
+        ModelResultContext ctx = createContext(queryRequest);
+        executeSteps(ctx);
+
+        List<GroupRequestDef> groupBy = queryRequest.getGroupBy();
+        assertNotNull(groupBy);
+        assertEquals(2, groupBy.size());
+
+        // 第一个：非聚合列
+        assertEquals("product$categoryName", groupBy.get(0).getField());
+        assertNull(groupBy.get(0).getAgg());
+
+        // 第二个：聚合列
+        assertEquals("totalSales", groupBy.get(1).getField());
+        assertEquals("SUM", groupBy.get(1).getAgg());
+
+        log.info("自动生成的 groupBy: {}", groupBy);
+    }
+
+    @Test
+    @Order(3)
+    @DisplayName("混合场景 - 多个列和聚合")
+    void testMixedColumns() {
+        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        queryRequest.setAutoGroupBy(true);
+        queryRequest.setColumns(Arrays.asList(
+            "product$categoryName",
+            "date",
+            "sum(salesAmount) as salesAmount2",
+            "orderCount"
+        ));
+
+        // 用户已指定部分 groupBy
+        List<GroupRequestDef> existingGroupBy = new ArrayList<>();
+        GroupRequestDef g = new GroupRequestDef();
+        g.setField("product$categoryName");
+        existingGroupBy.add(g);
+        queryRequest.setGroupBy(existingGroupBy);
+
+        ModelResultContext ctx = createContext(queryRequest);
+        executeSteps(ctx);
+
+        List<GroupRequestDef> groupBy = queryRequest.getGroupBy();
+        assertNotNull(groupBy);
+        assertEquals(4, groupBy.size());
+
+        // 验证各列
+        assertEquals("product$categoryName", groupBy.get(0).getField());
+        assertNull(groupBy.get(0).getAgg());
+
+        assertEquals("date", groupBy.get(1).getField());
+        assertNull(groupBy.get(1).getAgg());
+
+        assertEquals("orderCount", groupBy.get(2).getField());
+        assertNull(groupBy.get(2).getAgg());
+
+        assertEquals("salesAmount2", groupBy.get(3).getField());
+        assertEquals("SUM", groupBy.get(3).getAgg());
+
+        log.info("混合场景 groupBy: {}", groupBy);
+    }
+
+    @Test
+    @Order(4)
+    @DisplayName("多种聚合函数 - AVG, COUNT, MAX, MIN")
+    void testVariousAggFunctions() {
+        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        queryRequest.setAutoGroupBy(true);
+        queryRequest.setColumns(Arrays.asList(
+            "product$categoryName",
+            "avg(unitPrice) as avgPrice",
+            "count(orderId) as orderCount",
+            "max(salesAmount) as maxSales",
+            "min(salesAmount) as minSales"
+        ));
+
+        ModelResultContext ctx = createContext(queryRequest);
+        executeSteps(ctx);
+
+        List<GroupRequestDef> groupBy = queryRequest.getGroupBy();
+        assertNotNull(groupBy);
+        assertEquals(5, groupBy.size());
+
+        // 验证聚合类型
+        assertEquals("AVG", groupBy.get(1).getAgg());
+        assertEquals("COUNT", groupBy.get(2).getAgg());
+        assertEquals("MAX", groupBy.get(3).getAgg());
+        assertEquals("MIN", groupBy.get(4).getAgg());
+
+        log.info("多聚合函数 groupBy: {}", groupBy);
+    }
+
+    @Test
+    @Order(5)
+    @DisplayName("没有聚合表达式时不处理")
+    void testNoAggregation() {
+        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        queryRequest.setAutoGroupBy(true);
+        queryRequest.setColumns(Arrays.asList(
+            "product$categoryName",
+            "salesAmount",
+            "orderCount"
+        ));
+
+        ModelResultContext ctx = createContext(queryRequest);
+        executeSteps(ctx);
+
+        // 没有聚合表达式，groupBy 保持为空
+        assertNull(queryRequest.getGroupBy());
+    }
+
+    @Test
+    @Order(6)
+    @DisplayName("calculatedField 带 agg 属性")
+    void testCalculatedFieldWithAgg() {
+        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        queryRequest.setAutoGroupBy(true);
+
+        // 定义带 agg 的计算字段
+        List<CalculatedFieldDef> calcFields = new ArrayList<>();
+        CalculatedFieldDef calcField = new CalculatedFieldDef();
+        calcField.setName("totalSales");
+        calcField.setExpression("salesAmount");  // 表达式不含聚合函数
+        calcField.setAgg("SUM");  // 但通过 agg 属性指定聚合
+        calcFields.add(calcField);
+        queryRequest.setCalculatedFields(calcFields);
+
+        queryRequest.setColumns(Arrays.asList(
+            "product$categoryName",
+            "totalSales"
+        ));
+
+        ModelResultContext ctx = createContext(queryRequest);
+        executeSteps(ctx);
+
+        List<GroupRequestDef> groupBy = queryRequest.getGroupBy();
+        assertNotNull(groupBy);
+        assertEquals(2, groupBy.size());
+
+        assertEquals("product$categoryName", groupBy.get(0).getField());
+        assertNull(groupBy.get(0).getAgg());
+
+        assertEquals("totalSales", groupBy.get(1).getField());
+        assertEquals("SUM", groupBy.get(1).getAgg());
+
+        log.info("calculatedField带agg groupBy: {}", groupBy);
+    }
+
+    @Test
+    @Order(7)
+    @DisplayName("不重复添加已存在的 groupBy 字段")
+    void testNoDuplicateGroupBy() {
+        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        queryRequest.setAutoGroupBy(true);
+        queryRequest.setColumns(Arrays.asList(
+            "product$categoryName",
+            "date",
+            "sum(salesAmount) as totalSales"
+        ));
+
+        // 用户已指定所有非聚合列
+        List<GroupRequestDef> existingGroupBy = new ArrayList<>();
+        GroupRequestDef g1 = new GroupRequestDef();
+        g1.setField("product$categoryName");
+        existingGroupBy.add(g1);
+        GroupRequestDef g2 = new GroupRequestDef();
+        g2.setField("date");
+        existingGroupBy.add(g2);
+        queryRequest.setGroupBy(existingGroupBy);
+
+        ModelResultContext ctx = createContext(queryRequest);
+        executeSteps(ctx);
+
+        List<GroupRequestDef> groupBy = queryRequest.getGroupBy();
+        assertNotNull(groupBy);
+        assertEquals(3, groupBy.size());  // 原有2个 + 1个聚合
+
+        // 验证没有重复
+        long distinctCount = groupBy.stream().map(GroupRequestDef::getField).distinct().count();
+        assertEquals(3, distinctCount);
+
+        log.info("无重复 groupBy: {}", groupBy);
+    }
+
+    @Test
+    @Order(8)
+    @DisplayName("大小写不敏感 - SUM/sum/Sum")
+    void testCaseInsensitive() {
+        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        queryRequest.setAutoGroupBy(true);
+        queryRequest.setColumns(Arrays.asList(
+            "product$categoryName",
+            "SUM(salesAmount) as total1",
+            "sum(quantity) as total2",
+            "Sum(profit) as total3"
+        ));
+
+        ModelResultContext ctx = createContext(queryRequest);
+        executeSteps(ctx);
+
+        List<GroupRequestDef> groupBy = queryRequest.getGroupBy();
+        assertNotNull(groupBy);
+
+        // 所有聚合都应该被识别
+        long aggCount = groupBy.stream()
+            .filter(g -> g.getAgg() != null)
+            .count();
+        assertEquals(3, aggCount);
+
+        // agg 应该统一为大写
+        groupBy.stream()
+            .filter(g -> g.getAgg() != null)
+            .forEach(g -> assertEquals("SUM", g.getAgg()));
+
+        log.info("大小写不敏感 groupBy: {}", groupBy);
+    }
+
+    /**
+     * 创建测试用的 ModelResultContext
+     */
+    private ModelResultContext createContext(JdbcQueryRequestDef queryRequest) {
+        PagingRequest<JdbcQueryRequestDef> pagingRequest = new PagingRequest<>();
+        pagingRequest.setParam(queryRequest);
+
+        ModelResultContext ctx = new ModelResultContext();
+        ctx.setRequest(pagingRequest);
+        return ctx;
+    }
+}

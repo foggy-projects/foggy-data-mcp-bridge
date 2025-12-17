@@ -2,9 +2,7 @@ package com.foggyframework.dataset.jdbc.model.engine.expression;
 
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.StringUtils;
-import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.jdbc.model.def.query.request.CalculatedFieldDef;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryModel;
 import com.foggyframework.dataset.jdbc.model.spi.support.CalculatedJdbcColumn;
 import com.foggyframework.fsscript.DefaultExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.Exp;
@@ -18,45 +16,38 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 计算字段服务
+ * 计算字段服务（工具类）
  * <p>
  * 负责编译和处理动态计算字段，将表达式转换为 SQL 片段。
+ * 使用静态方法提供服务，无需实例化。
  * </p>
  *
  * <h3>使用示例</h3>
  * <pre>
- * CalculatedFieldService service = new CalculatedFieldService(queryModel, dialect, appCtx);
- * List&lt;CalculatedJdbcColumn&gt; columns = service.processCalculatedFields(calculatedFields);
+ * SqlExpContext context = new SqlExpContext(queryModel, dialect, appCtx);
+ * List&lt;CalculatedJdbcColumn&gt; columns = CalculatedFieldService.processCalculatedFields(calculatedFields, context, appCtx);
  * </pre>
  *
  * @author Foggy
  * @since 1.0
  */
 @Slf4j
-public class CalculatedFieldService {
-
-    private final JdbcQueryModel queryModel;
-    private final FDialect dialect;
-    private final ApplicationContext appCtx;
-    private final Parser parser;
-    private final SqlExpContext context;
+public final class CalculatedFieldService {
 
     /**
-     * 创建计算字段服务
-     *
-     * @param queryModel 查询模型
-     * @param dialect    数据库方言
-     * @param appCtx     Spring 上下文
+     * 共享的表达式解析器（线程安全）
      */
-    public CalculatedFieldService(JdbcQueryModel queryModel, FDialect dialect, ApplicationContext appCtx) {
-        this.queryModel = queryModel;
-        this.dialect = dialect;
-        this.appCtx = appCtx;
-        this.context = new SqlExpContext(queryModel, dialect, appCtx);
+    private static final Parser SHARED_PARSER;
 
-        // 创建使用 SqlExpFactory 的解析器
+    static {
         SqlExpFactory expFactory = new SqlExpFactory();
-        this.parser = ParserFactory.newInstance().newExpParser(expFactory);
+        SHARED_PARSER = ParserFactory.newInstance().newExpParser(expFactory);
+    }
+
+    /**
+     * 私有构造函数，防止实例化
+     */
+    private CalculatedFieldService() {
     }
 
     /**
@@ -66,9 +57,14 @@ public class CalculatedFieldService {
      * </p>
      *
      * @param calculatedFields 计算字段定义列表
+     * @param context          SQL 表达式上下文
+     * @param appCtx           Spring 上下文
      * @return 计算字段列列表
      */
-    public List<CalculatedJdbcColumn> processCalculatedFields(List<CalculatedFieldDef> calculatedFields) {
+    public static List<CalculatedJdbcColumn> processCalculatedFields(
+            List<CalculatedFieldDef> calculatedFields,
+            SqlExpContext context,
+            ApplicationContext appCtx) {
         if (calculatedFields == null || calculatedFields.isEmpty()) {
             return new ArrayList<>();
         }
@@ -76,7 +72,7 @@ public class CalculatedFieldService {
         List<CalculatedJdbcColumn> result = new ArrayList<>(calculatedFields.size());
 
         for (CalculatedFieldDef fieldDef : calculatedFields) {
-            CalculatedJdbcColumn column = processCalculatedField(fieldDef);
+            CalculatedJdbcColumn column = processCalculatedField(fieldDef, context, appCtx);
             result.add(column);
         }
 
@@ -87,9 +83,14 @@ public class CalculatedFieldService {
      * 处理单个计算字段
      *
      * @param fieldDef 计算字段定义
+     * @param context  SQL 表达式上下文
+     * @param appCtx   Spring 上下文
      * @return 计算字段列
      */
-    public CalculatedJdbcColumn processCalculatedField(CalculatedFieldDef fieldDef) {
+    public static CalculatedJdbcColumn processCalculatedField(
+            CalculatedFieldDef fieldDef,
+            SqlExpContext context,
+            ApplicationContext appCtx) {
         // 验证必填字段
         RX.hasText(fieldDef.getName(), "计算字段名称不能为空");
         RX.hasText(fieldDef.getExpression(), "计算字段表达式不能为空: " + fieldDef.getName());
@@ -100,12 +101,18 @@ public class CalculatedFieldService {
         }
 
         try {
-            // 1. 编译表达式
-            Exp compiledExp = compileExpression(fieldDef.getExpression());
-            fieldDef.setCompiledExp(compiledExp);
+            // 1. 获取或编译表达式 AST
+            // 如果 InlineExpressionPreprocessStep 已经预编译，则复用
+            Exp compiledExp = fieldDef.getCompiledExp();
+            if (compiledExp == null) {
+                compiledExp = compileExpression(fieldDef.getExpression());
+                fieldDef.setCompiledExp(compiledExp);
+            } else if (log.isDebugEnabled()) {
+                log.debug("Reusing pre-compiled AST for field: {}", fieldDef.getName());
+            }
 
             // 2. 执行表达式得到 SQL 片段
-            SqlFragment sqlFragment = evaluateExpression(compiledExp);
+            SqlFragment sqlFragment = evaluateExpression(compiledExp, context, appCtx);
 
             // 3. 创建 CalculatedJdbcColumn
             String caption = StringUtils.isNotEmpty(fieldDef.getCaption()) ? fieldDef.getCaption() : fieldDef.getName();
@@ -120,7 +127,8 @@ public class CalculatedFieldService {
             context.registerCalculatedColumn(fieldDef.getName(), column);
 
             if (log.isDebugEnabled()) {
-                log.debug("Processed calculated field: {} = {}", fieldDef.getName(), sqlFragment.getSql());
+                log.debug("Processed calculated field: {} = {} (hasAggregate={})",
+                        fieldDef.getName(), sqlFragment.getSql(), sqlFragment.isHasAggregate());
             }
 
             return column;
@@ -136,15 +144,19 @@ public class CalculatedFieldService {
 
     /**
      * 编译表达式字符串
+     * <p>
+     * 使用共享的 Parser 实例编译表达式，可被其他类复用。
+     * </p>
      *
      * @param expression 表达式字符串
      * @return 编译后的 AST
+     * @throws RuntimeException 如果表达式语法错误
      */
-    private Exp compileExpression(String expression) {
+    public static Exp compileExpression(String expression) {
         try {
             // 使用 compileEl 解析纯 fsscript 表达式
             // compile 是为 SQL 模板语法设计的（如 select ... where ${expr}），会把标识符当作字面量
-            Exp exp = parser.compileEl(null, expression);
+            Exp exp = SHARED_PARSER.compileEl(null, expression);
             if (log.isDebugEnabled()) {
                 log.debug("Compiled expression '{}' -> AST type: {}, AST: {}",
                         expression, exp.getClass().getName(), exp);
@@ -160,10 +172,12 @@ public class CalculatedFieldService {
     /**
      * 执行表达式得到 SQL 片段
      *
-     * @param exp 编译后的表达式
+     * @param exp     编译后的表达式
+     * @param context SQL 表达式上下文
+     * @param appCtx  Spring 上下文
      * @return SQL 片段
      */
-    private SqlFragment evaluateExpression(Exp exp) {
+    private static SqlFragment evaluateExpression(Exp exp, SqlExpContext context, ApplicationContext appCtx) {
         ExpEvaluator evaluator = DefaultExpEvaluator.newInstance(appCtx);
         evaluator.setVar(SqlExpContext.CONTEXT_KEY, context);
 
@@ -185,14 +199,5 @@ public class CalculatedFieldService {
 
         throw new RuntimeException("表达式执行结果不是 SqlFragment: " + result +
                 " (type: " + (result != null ? result.getClass().getName() : "null") + ")");
-    }
-
-    /**
-     * 获取上下文（用于后续处理）
-     *
-     * @return SQL 表达式上下文
-     */
-    public SqlExpContext getContext() {
-        return context;
     }
 }

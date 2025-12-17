@@ -56,9 +56,19 @@ public final class AllowedFunctions {
     public static final Set<String> OTHER_FUNCTIONS;
 
     /**
-     * 所有允许的函数（合集）
+     * 聚合函数（需要配合 groupBy 使用）
+     */
+    public static final Set<String> AGGREGATE_FUNCTIONS;
+
+    /**
+     * 所有允许的函数（包含聚合函数）
      */
     public static final Set<String> ALL_ALLOWED;
+
+    /**
+     * 所有允许的函数（包含聚合函数，兼容旧名称）
+     */
+    public static final Set<String> ALL_ALLOWED_WITH_AGGREGATE;
 
     static {
         Set<String> operators = new HashSet<>();
@@ -159,7 +169,7 @@ public final class AllowedFunctions {
         other.add("CONVERT");
         OTHER_FUNCTIONS = Collections.unmodifiableSet(other);
 
-        // 合并所有允许的函数
+        // 合并所有允许的函数（包含聚合函数）
         Set<String> all = new HashSet<>();
         all.addAll(OPERATORS);
         all.addAll(COMPARISON_OPERATORS);
@@ -168,7 +178,22 @@ public final class AllowedFunctions {
         all.addAll(DATE_FUNCTIONS);
         all.addAll(STRING_FUNCTIONS);
         all.addAll(OTHER_FUNCTIONS);
+
+        // 聚合函数（需要配合 groupBy/autoGroupBy 使用）
+        Set<String> aggregate = new HashSet<>();
+        aggregate.add("SUM");
+        aggregate.add("AVG");
+        aggregate.add("COUNT");
+        aggregate.add("MAX");
+        aggregate.add("MIN");
+        aggregate.add("GROUP_CONCAT");
+        AGGREGATE_FUNCTIONS = Collections.unmodifiableSet(aggregate);
+
+        // 直接加入聚合函数
+        all.addAll(AGGREGATE_FUNCTIONS);
         ALL_ALLOWED = Collections.unmodifiableSet(all);
+
+        ALL_ALLOWED_WITH_AGGREGATE = ALL_ALLOWED;  // 保持兼容
     }
 
     /**
@@ -199,6 +224,19 @@ public final class AllowedFunctions {
             return false;
         }
         return LOGICAL_OPERATORS.contains(name.toUpperCase());
+    }
+
+    /**
+     * 检查是否是聚合函数
+     *
+     * @param funcName 函数名（不区分大小写）
+     * @return 是否是聚合函数
+     */
+    public static boolean isAggregateFunction(String funcName) {
+        if (funcName == null) {
+            return false;
+        }
+        return AGGREGATE_FUNCTIONS.contains(funcName.toUpperCase());
     }
 
     /**

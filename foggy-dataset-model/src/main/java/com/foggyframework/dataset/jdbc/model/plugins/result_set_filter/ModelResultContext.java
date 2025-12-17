@@ -1,9 +1,12 @@
 package com.foggyframework.dataset.jdbc.model.plugins.result_set_filter;
 
 import com.foggyframework.dataset.client.domain.PagingRequest;
+import com.foggyframework.dataset.jdbc.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.jdbc.model.def.query.request.JdbcQueryRequestDef;
+import com.foggyframework.dataset.jdbc.model.engine.expression.InlineExpressionParser;
 import com.foggyframework.dataset.jdbc.model.engine.query.JdbcQuery;
 import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryModel;
+import com.foggyframework.dataset.jdbc.model.spi.support.CalculatedJdbcColumn;
 import com.foggyframework.dataset.model.PagingResultImpl;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -45,6 +48,57 @@ public class ModelResultContext {
      * 安全上下文，用于权限控制
      */
     SecurityContext securityContext;
+
+    // ==========================================
+    // 内联表达式预处理结果
+    // ==========================================
+
+    /**
+     * 内联表达式预处理结果
+     * <p>
+     * 由 InlineExpressionPreprocessStep 填充，供后续 Step 和 QueryEngine 使用。
+     * 避免多次解析相同的内联表达式。
+     * </p>
+     */
+    ParsedInlineExpressions parsedInlineExpressions;
+
+    /**
+     * 处理后的计算字段列表
+     * <p>
+     * 由 QueryEngine 填充，包含编译后的计算字段 SQL 表达式。
+     * </p>
+     */
+    List<CalculatedJdbcColumn> calculatedColumns;
+
+    /**
+     * 内联表达式预处理结果
+     */
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ParsedInlineExpressions {
+        /**
+         * 转换后的 columns（内联表达式替换为别名）
+         */
+        List<String> columns;
+
+        /**
+         * 从内联表达式提取的 calculatedFields
+         */
+        List<CalculatedFieldDef> calculatedFields;
+
+        /**
+         * 别名 -> 解析结果映射（供 AutoGroupBy 使用）
+         */
+        Map<String, InlineExpressionParser.InlineExpression> aliasToExpression;
+
+        /**
+         * 是否已预处理
+         */
+        public boolean isProcessed() {
+            return columns != null;
+        }
+    }
 
     /**
      * 查询类型枚举

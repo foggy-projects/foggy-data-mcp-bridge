@@ -62,6 +62,8 @@ docs/
 
 别名支持：BigDecimal→NUMBER, Long→BIGINT, Integer→INTEGER, String→TEXT, Boolean→BOOL
 
+## 不需要运行单元测试
+
 ## i18n
 - 资源文件：`foggy-dataset-model/src/main/resources/i18n/messages*.properties`
 - 工具类：`DatasetMessages.java`

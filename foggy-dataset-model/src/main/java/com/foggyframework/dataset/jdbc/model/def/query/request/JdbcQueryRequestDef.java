@@ -34,6 +34,9 @@ public class JdbcQueryRequestDef implements JdbcQueryRequest {
     @ApiModelProperty("是否返回总数及合计")
     boolean returnTotal;
 
+    @ApiModelProperty(value = "自动补充groupBy", notes = "当columns包含聚合表达式时，自动将非聚合列加入groupBy")
+    boolean autoGroupBy;
+
     @ApiModelProperty("查询扩展数据，前后端约定后，由前端传入")
     Object extData;
 
