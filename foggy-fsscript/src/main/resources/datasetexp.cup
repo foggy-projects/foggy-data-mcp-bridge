@@ -215,6 +215,7 @@ non terminal Exp
     term2,
     term3,
     term4,
+    term4_logical,
     /**
      * e-> 1+1
      */
@@ -721,30 +722,18 @@ term5 ::=
 
     ;
 
+// 三元运算符（最低优先级，右结合）
 term4 ::=
-        term3:t {:
+        term4_logical:t {:
             RESULT = t;
         :}
-
-		|	value_expression:l CONCAT term3:r {:
-			ListExp list = new ListExp(2);
-			list.add(l);
-			list.add(r);
-			RESULT = parser.factory.createUnresolvedFunCall("||", list,false);
-		:}
-		|	value_expression:l AA term3:r{:
-        			ListExp list = new ListExp(2);
-        			list.add(l);
-        			list.add(r);
-        			RESULT = parser.factory.createUnresolvedFunCall("&&", list,false);
-        		:}
-		|	value_expression:x QMARK term4:y COLON term3:z {:
+        |	term4_logical:x QMARK term4:y COLON term4:z {:
     		ListExp list = new ListExp(3);
     		list.add(x);
     		list.add(y);
     		list.add(z);
             RESULT = parser.factory.createUnresolvedFunCall("IIF",list,false);
-	
+
 		:}
 
         |   unquoted_identifier:s NF ncount_fragment_list:l {:
@@ -753,6 +742,26 @@ term4 ::=
                 RESULT = parser.factory.createFunctionDef(parser.getFcDefinition(),l,args);
             :}
 
+    ;
+
+// 逻辑运算符 || 和 && （优先级高于三元运算符）
+term4_logical ::=
+        term3:t {:
+            RESULT = t;
+        :}
+
+		|	term4_logical:l CONCAT term3:r {:
+			ListExp list = new ListExp(2);
+			list.add(l);
+			list.add(r);
+			RESULT = parser.factory.createUnresolvedFunCall("||", list,false);
+		:}
+		|	term4_logical:l AA term3:r{:
+        			ListExp list = new ListExp(2);
+        			list.add(l);
+        			list.add(r);
+        			RESULT = parser.factory.createUnresolvedFunCall("&&", list,false);
+        		:}
     ;
 
 
