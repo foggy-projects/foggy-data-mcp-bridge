@@ -792,8 +792,11 @@ public class JdbcModelQueryEngine {
                 if (selectColumn != null) {
                     // 检查是否已添加（避免重复）
                     final JdbcColumn finalSelectColumn = selectColumn;
-                    boolean alreadyAdded = jdbcQuery.getOrder().getOrders().stream()
-                            .anyMatch(o -> o.getSelectColumn() == finalSelectColumn);
+                    boolean alreadyAdded = false;
+                    if (jdbcQuery.getOrder() != null && jdbcQuery.getOrder().getOrders() != null) {
+                        alreadyAdded = jdbcQuery.getOrder().getOrders().stream()
+                                .anyMatch(o -> o.getSelectColumn() == finalSelectColumn);
+                    }
 
                     if (!alreadyAdded) {
                         jdbcQuery.addOrder(new JdbcQueryOrderColumnImpl(
