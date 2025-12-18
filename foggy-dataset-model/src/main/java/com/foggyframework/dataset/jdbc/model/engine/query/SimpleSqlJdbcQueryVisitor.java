@@ -231,6 +231,7 @@ public class SimpleSqlJdbcQueryVisitor implements JdbcQueryVisitor {
      * @return 不含排序的SQL
      */
     public String getSqlWithoutOrder() {
+
         if (orderByStartIndex < 0) {
             // 没有 ORDER BY，直接返回完整SQL
             return sb.toString();

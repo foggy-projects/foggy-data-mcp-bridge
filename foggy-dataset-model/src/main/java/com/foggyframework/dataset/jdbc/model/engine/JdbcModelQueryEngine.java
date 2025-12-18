@@ -201,7 +201,7 @@ public class JdbcModelQueryEngine {
             for (OrderRequestDef orderRequestDef : queryRequest.getOrderBy()) {
 
                 validate(orderRequestDef.getOrder());
-                JdbcColumn jdbcColumn = jdbcQueryModel.findJdbcColumnForCond(orderRequestDef.getField(),true);
+                JdbcColumn jdbcColumn = jdbcQueryModel.findJdbcColumnForCond(orderRequestDef.getField(), true);
                 jdbcQuery.addOrder(new JdbcQueryOrderColumnImpl(jdbcColumn, orderRequestDef.getOrder(), orderRequestDef.isNullLast(), orderRequestDef.isNullFirst()));
 
             }
@@ -231,13 +231,43 @@ public class JdbcModelQueryEngine {
         this.jdbcQuery = jdbcQuery;
 
         SimpleSqlJdbcQueryVisitor v = new SimpleSqlJdbcQueryVisitor(systemBundlesContext.getApplicationContext(), jdbcQueryModel, queryRequest);
+
+        if (queryRequest.hasGroupBy()) {
+            //当有分组时，我们直接在jdbcQuery加入groupBy
+            int idx=0;
+            for (JdbcColumn column : jdbcQuery.getSelect().getColumns()) {
+                if (column instanceof CalculatedJdbcColumn c) {
+                    // hasAggregate=true: 表达式本身已包含聚合函数（如 SUM(totalAmount)），跳过
+                    if (!c.hasAggregate()) {
+                        // aggregationType!=null: 推断的聚合类型（如 totalAmount+2 推断为 SUM），用聚合函数包裹
+                        // aggregationType==null: 无聚合，加入 groupBy
+                        JdbcAggregation agg = c.getAggregationType() != null
+                                ? JdbcAggregation.valueOf(c.getAggregationType())
+                                : column.getAggregation();
+                        AggregationJdbcColumn aggColumn = buildAggColumn1(column.getQueryObject(), column.getDeclare(), column, agg);
+                        if (c.getAggregationType() == null) {
+                            jdbcQuery.addGroupBy(aggColumn, column);
+                        }
+                        jdbcQuery.getSelect().getColumns().set(idx, aggColumn);
+                    }
+                } else {
+                    String declare = column.getDeclare(systemBundlesContext.getApplicationContext(), jdbcQueryModel.getAlias(column.getQueryObject()));
+                    AggregationJdbcColumn aggColumn = buildAggColumn1(column.getQueryObject(), declare, column, column.getAggregation());
+                    jdbcQuery.addGroupBy(aggColumn, column);
+
+                    //需要覆盖select列，确保会自动补上聚合函数
+                    jdbcQuery.getSelect().getColumns().set(idx, aggColumn);
+                }
+
+                idx++;
+            }
+        }
         jdbcQuery.accept(v);
         values = v.getValues();
         this.innerSql = v.getSql();
         this.innerSqlWithoutOrder = v.getSqlWithoutOrder();
         this.sql = this.innerSql;
         if (queryRequest.hasGroupBy()) {
-            this.sql = buildGroupBy(systemBundlesContext, queryRequest);
             // 基于明细查询语句，生成聚合查询语句
             this.aggSql = buildAggSql(systemBundlesContext, null, null, false, true);
         } else {
@@ -261,37 +291,63 @@ public class JdbcModelQueryEngine {
         return groupBySql;
     }
 
-    private AggregationJdbcColumn buildAggColumn(SqlQueryObject sqlQueryObject, JdbcColumn column, GroupRequestDef def) {
+    private AggregationJdbcColumn buildAggColumn(QueryObject sqlQueryObject, JdbcColumn column, JdbcAggregation agg) {
         String declare = sqlQueryObject.getAlias() + "." + column.getAlias();
+        return buildAggColumn1(sqlQueryObject, declare, column, agg);
+    }
+
+    private AggregationJdbcColumn buildAggColumn1(QueryObject sqlQueryObject, String declare, JdbcColumn column, JdbcAggregation agg) {
+
         AggregationJdbcColumn aggColumn = new AggregationJdbcColumn(sqlQueryObject, column.getAlias(), declare, column.getType());
-        if (StringUtils.equals("GROUP_CONCAT", def.getAgg())) {
-            aggColumn.setDeclare("GROUP_CONCAT(" + declare + " SEPARATOR ',')");
-            aggColumn.setGroupByName(null);
-        } else if (StringUtils.equals("MAX", def.getAgg())) {
-            aggColumn.setDeclare("MAX(" + declare + ")");
-            aggColumn.setGroupByName(null);
-        } else if (StringUtils.equals("PK", def.getAgg())) {
-            aggColumn.setDeclare("MAX(" + declare + ")");
-        } else if (column.getType() == JdbcColumnType.DATETIME) {
-            // 使用方言提供的日期格式化函数，支持多数据库
-            aggColumn.setDeclare(jdbcQueryModel.getDialect().buildDateFormatFunction(declare));
-        } else if (StringUtils.equals("CUSTOM", def.getAgg())) {
-            String aggregationFormula = column.getAggregationFormula();
-            RX.hasText(aggregationFormula, "传了groupBy为CUSTOM , 但没有定义aggregationFormula，列:" + column.getName());
-            aggColumn.setDeclare(aggregationFormula);
-            //不用放到group by了
-            aggColumn.setGroupByName(null);
-        } else if (StringUtils.equals("COUNT", def.getAgg())) {
-            aggColumn.setDeclare("COUNT(*)");
-            aggColumn.setGroupByName(null);
-        } else if (StringUtils.equals("SUM", def.getAgg())) {
-            aggColumn.setDeclare("SUM(" + declare + ")");
-            aggColumn.setGroupByName(null);
+        if (agg == null) {
+            agg = JdbcAggregation.NONE;
+        }
+        switch (agg) {
+            case GROUP_CONCAT:
+                aggColumn.setDeclare("GROUP_CONCAT(" + declare + " SEPARATOR ',')");
+                aggColumn.setGroupByName(null);
+                break;
+            case MAX:
+                aggColumn.setDeclare("MAX(" + declare + ")");
+                aggColumn.setGroupByName(null);
+                break;
+            case MIN:
+                aggColumn.setDeclare("MIN(" + declare + ")");
+                aggColumn.setGroupByName(null);
+                break;
+            case PK:
+                aggColumn.setDeclare("MAX(" + declare + ")");
+                break;
+            case COUNT:
+                aggColumn.setDeclare("COUNT(*)");
+                aggColumn.setGroupByName(null);
+                break;
+            case SUM:
+                aggColumn.setDeclare("SUM(" + declare + ")");
+                aggColumn.setGroupByName(null);
+                break;
+            case AVG:
+                aggColumn.setDeclare("AVG(" + declare + ")");
+                aggColumn.setGroupByName(null);
+                break;
+            case CUSTOM:
+                String aggregationFormula = column.getAggregationFormula();
+                RX.hasText(aggregationFormula, "传了groupBy为CUSTOM , 但没有定义aggregationFormula，列:" + column.getName());
+                aggColumn.setDeclare(aggregationFormula);
+                aggColumn.setGroupByName(null);
+                break;
+            case NONE:
+            default:
+                if (column.getType() == JdbcColumnType.DATETIME) {
+                    // 使用方言提供的日期格式化函数，支持多数据库
+                    aggColumn.setDeclare(jdbcQueryModel.getDialect().buildDateFormatFunction(declare));
+                }
+                break;
         }
 
         return aggColumn;
-
     }
+
 
     private String buildAggSql(SystemBundlesContext systemBundlesContext, Map<String, GroupRequestDef> groupByMap, JdbcQueryRequestDef queryRequest, boolean addOrder, boolean countToSum) {
         JdbcQuery aggJdbcQuery = new JdbcQuery();
@@ -302,73 +358,62 @@ public class JdbcModelQueryEngine {
 //            jdbcQueryModel.get
             AggregationJdbcColumn aggColumn = null;
             JdbcAggregation c = column.getAggregation();
+
+            if (groupByMap != null) {
+                GroupRequestDef def = groupByMap.get(column.getName());
+                if (def != null && StringUtils.isNotEmpty(def.getAgg())) {
+                    //调用者传了自定义的聚合 方式，我们使用它来处理
+                    c = JdbcAggregation.valueOf(def.getAgg());
+                }
+            }
             if (c == null) {
-                if (groupByMap != null) {
-                    GroupRequestDef def = groupByMap.get(column.getName());
-                    if (def == null) {
-                        //修复esSettledTeam.esSettledTeamCaption提交为esSettledTeamCaption的问题
-                        def = groupByMap.get(column.getAlias());
-                    }
-                    if (def != null) {
-                        aggColumn = buildAggColumn(sqlQueryObject, column, def);
-                        aggJdbcQuery.addGroupBy(aggColumn, column);
-                    }
-                }
-            } else {
-                if (groupByMap != null) {
-                    GroupRequestDef def = groupByMap.get(column.getName());
-                    if (def != null && StringUtils.isNotEmpty(def.getAgg())) {
-                        c = JdbcAggregation.valueOf(def.getAgg());
-                    }
-                }
-                switch (c) {
-                    case AVG:
+                c = JdbcAggregation.NONE;
+            }
+            switch (c) {
+                case AVG:
 //                    aggJdbcQuery.getSelect().select()
-                        aggColumn = new AggregationJdbcColumn(sqlQueryObject, column.getAlias(), "avg" + "(" + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + ")", column.getType());
-                        break;
-                    case SUM:
-                        String declare = "";
-                        switch (column.getSqlColumn().getJdbcType()) {
-                            case Types.DOUBLE:
-                            case Types.FLOAT:
-                                //需要格式化,不再格式化,会引起外部聚合时的问题,这个格式化交给前端处理好了
+                    aggColumn = new AggregationJdbcColumn(sqlQueryObject, column.getAlias(), "avg" + "(" + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + ")", column.getType());
+                    break;
+                case SUM:
+                    String declare = "";
+                    switch (column.getSqlColumn().getJdbcType()) {
+                        case Types.DOUBLE:
+                        case Types.FLOAT:
+                            //需要格式化,不再格式化,会引起外部聚合时的问题,这个格式化交给前端处理好了
 //                                declare = "format(sum" + "(" + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + "),2)";
 //                                break;
-                            default:
-                                declare = "sum" + "(" + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + ")";
-                        }
-                        aggColumn = new AggregationJdbcColumn(sqlQueryObject, column.getAlias(), declare, column.getType());
-                        break;
-                    case COUNT:
-                        if (countToSum) {
-                            //解决前端聚合维度或属性时的BUG
+                        default:
                             declare = "sum" + "(" + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + ")";
-                            aggColumn = new AggregationJdbcColumn(sqlQueryObject, column.getAlias(), declare, column.getType());
-                        } else {
-                            aggColumn = new AggregationJdbcColumn(sqlQueryObject, column.getAlias(), "count" + "(*)");
-                        }
+                    }
+                    aggColumn = new AggregationJdbcColumn(sqlQueryObject, column.getAlias(), declare, column.getType());
+                    break;
+                case COUNT:
+                    if (countToSum) {
+                        //解决前端聚合维度或属性时的BUG
+                        declare = "sum" + "(" + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + ")";
+                        aggColumn = new AggregationJdbcColumn(sqlQueryObject, column.getAlias(), declare, column.getType());
+                    } else {
+                        aggColumn = new AggregationJdbcColumn(sqlQueryObject, column.getAlias(), "count" + "(*)");
+                    }
 
-                        break;
-                    case MAX:
-                        declare = "max" + "(" + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + ")";
-                        aggColumn = new AggregationJdbcColumn(sqlQueryObject, column.getAlias(), declare, column.getType());
-                        break;
-                    case MIN:
-                        declare = "min" + "(" + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + ")";
-                        aggColumn = new AggregationJdbcColumn(sqlQueryObject, column.getAlias(), declare, column.getType());
-                        break;
-                    case NONE:
-                        //意思是不做聚合
-                        declare = "null";
-                        aggColumn = new AggregationJdbcColumn(sqlQueryObject, column.getAlias(), declare, column.getType());
-                        break;
-                    default:
-                        throw new UnsupportedOperationException();
-                }
+                    break;
+                case MAX:
+                    declare = "max" + "(" + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + ")";
+                    aggColumn = new AggregationJdbcColumn(sqlQueryObject, column.getAlias(), declare, column.getType());
+                    break;
+                case MIN:
+                    declare = "min" + "(" + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + ")";
+                    aggColumn = new AggregationJdbcColumn(sqlQueryObject, column.getAlias(), declare, column.getType());
+                    break;
+                case NONE:
+                    //意思是不做聚合
+                    declare = "null";
+                    aggColumn = new AggregationJdbcColumn(sqlQueryObject, column.getAlias(), declare, column.getType());
+                    break;
+                default:
+                    throw new UnsupportedOperationException();
             }
-            if (aggColumn != null) {
-                aggColumns.add(aggColumn);
-            }
+            aggColumns.add(aggColumn);
 
         }
         aggColumns.add(new AggregationJdbcColumn(sqlQueryObject, "total", "count(*)"));

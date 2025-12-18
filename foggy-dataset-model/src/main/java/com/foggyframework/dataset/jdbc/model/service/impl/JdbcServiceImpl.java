@@ -2,12 +2,9 @@ package com.foggyframework.dataset.jdbc.model.service.impl;
 
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.core.ex.RX;
-import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.jdbc.model.common.query.DimensionDataQueryForm;
 import com.foggyframework.dataset.jdbc.model.common.result.JdbcDataItem;
-import com.foggyframework.dataset.jdbc.model.common.result.KpiItem;
-import com.foggyframework.dataset.jdbc.model.common.result.KpiResultImpl;
 import com.foggyframework.dataset.jdbc.model.def.query.request.JdbcQueryRequestDef;
 import com.foggyframework.dataset.jdbc.model.engine.query.JdbcQueryResult;
 import com.foggyframework.dataset.jdbc.model.service.JdbcService;
@@ -20,6 +17,16 @@ import com.foggyframework.semantic.impl.facade.SemanticFacade;
 import jakarta.annotation.Resource;
 import java.util.List;
 
+/**
+ * JDBC 查询服务实现
+ * <p>
+ * 纯查询服务，不包含 Step 处理逻辑。
+ * 如需完整的查询生命周期（beforeQuery -> query -> process），
+ * 请使用 {@link QueryFacade}。
+ * </p>
+ *
+ * @see QueryFacade
+ */
 public class JdbcServiceImpl implements JdbcService {
 
     @Resource
@@ -65,7 +72,5 @@ public class JdbcServiceImpl implements JdbcService {
         JdbcQueryResult p = jdbcQueryModel.query(systemBundlesContext, form);
         return p;
     }
-
-
 
 }

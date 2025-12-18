@@ -369,12 +369,19 @@ public class JdbcQueryModelImpl extends JdbcObjectSupport implements JdbcQueryMo
 //    }
     @Override
     public JdbcQueryResult query(SystemBundlesContext systemBundlesContext, PagingRequest<JdbcQueryRequestDef> form) {
+        // 创建新的上下文
+        ModelResultContext context = new ModelResultContext(form, null);
+        return query(systemBundlesContext, context);
+    }
+
+    @Override
+    public JdbcQueryResult query(SystemBundlesContext systemBundlesContext, ModelResultContext context) {
         switch (this.jdbcModel.getModelType()) {
             case mongo:
-                return queryMongo(systemBundlesContext, form);
+                return queryMongo(systemBundlesContext, context.getRequest());
             case jdbc:
             default:
-                return queryJdbc(systemBundlesContext, form);
+                return queryJdbc(systemBundlesContext, context);
         }
     }
 
@@ -436,11 +443,16 @@ public class JdbcQueryModelImpl extends JdbcObjectSupport implements JdbcQueryMo
         return JdbcQueryResult.of(PagingResultImpl.of(results.getMappedResults(), form.getStart(), form.getLimit(), totalData, total), null);
     }
 
-    public JdbcQueryResult queryJdbc(SystemBundlesContext systemBundlesContext, PagingRequest<JdbcQueryRequestDef> form) {
+    /**
+     * 执行 JDBC 查询
+     *
+     * @param systemBundlesContext 系统上下文
+     * @param context              查询上下文（可能已预处理）
+     * @return 查询结果
+     */
+    public JdbcQueryResult queryJdbc(SystemBundlesContext systemBundlesContext, ModelResultContext context) {
+        PagingRequest<JdbcQueryRequestDef> form = context.getRequest();
         JdbcQueryRequestDef queryRequest = form.getParam();
-
-        // 创建查询生命周期上下文
-        ModelResultContext context = new ModelResultContext(form, null);
 
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(this, sqlFormulaService);
 

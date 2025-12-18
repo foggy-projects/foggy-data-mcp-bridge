@@ -7,6 +7,7 @@ import com.foggyframework.dataset.jdbc.model.common.result.KpiResultImpl;
 import com.foggyframework.dataset.jdbc.model.def.query.request.JdbcQueryRequestDef;
 import com.foggyframework.dataset.jdbc.model.engine.query.JdbcQueryResult;
 import com.foggyframework.dataset.jdbc.model.impl.query.JdbcQueryOrderColumnImpl;
+import com.foggyframework.dataset.jdbc.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.jdbc.model.spi.support.JdbcColumnGroup;
 
 import jakarta.annotation.Nullable;
@@ -35,6 +36,22 @@ public interface JdbcQueryModel extends JdbcObject,QueryModel{
     JdbcQueryColumn getIdJdbcQueryColumn();
 
     JdbcQueryResult query(SystemBundlesContext systemBundlesContext, PagingRequest<JdbcQueryRequestDef> form);
+
+    /**
+     * 执行查询（带预处理上下文）
+     * <p>
+     * 使用已预处理的 ModelResultContext 执行查询，
+     * 适用于已通过 DataSetResultStep 处理的场景。
+     * </p>
+     *
+     * @param systemBundlesContext 系统上下文
+     * @param context              已预处理的查询上下文
+     * @return 查询结果
+     */
+    default JdbcQueryResult query(SystemBundlesContext systemBundlesContext, ModelResultContext context) {
+        // 默认实现：忽略 context，使用原有方法
+        return query(systemBundlesContext, context.getRequest());
+    }
 
     QueryObject getQueryObject();
 

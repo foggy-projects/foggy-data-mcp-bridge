@@ -114,6 +114,17 @@ public final class CalculatedFieldService {
             // 2. 执行表达式得到 SQL 片段
             SqlFragment sqlFragment = evaluateExpression(compiledExp, context, appCtx);
 
+            // 2.1 如果 InlineExpressionPreprocessStep 推断了聚合类型，传递到 SqlFragment
+            //     注意：不设置 hasAggregate，因为表达式本身没有聚合函数
+            //     Engine 层会根据 aggregationType 来包裹聚合函数
+            if (fieldDef.getAgg() != null && sqlFragment.getAggregationType() == null) {
+                sqlFragment.setAggregationType(fieldDef.getAgg().toUpperCase());
+                if (log.isDebugEnabled()) {
+                    log.debug("Applied inferred aggregation from CalculatedFieldDef: {} -> agg={}",
+                            fieldDef.getName(), fieldDef.getAgg());
+                }
+            }
+
             // 3. 创建 CalculatedJdbcColumn
             String caption = StringUtils.isNotEmpty(fieldDef.getCaption()) ? fieldDef.getCaption() : fieldDef.getName();
             CalculatedJdbcColumn column = new CalculatedJdbcColumn(

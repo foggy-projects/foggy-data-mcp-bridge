@@ -34,8 +34,25 @@ public class JdbcQueryRequestDef implements JdbcQueryRequest {
     @ApiModelProperty("是否返回总数及合计")
     boolean returnTotal;
 
-    @ApiModelProperty(value = "自动补充groupBy", notes = "当columns包含聚合表达式时，自动将非聚合列加入groupBy")
+    /**
+     * @deprecated 已废弃，系统始终自动处理 groupBy。此字段保留仅为 API 兼容性。
+     */
+    @ApiModelProperty(value = "自动补充groupBy（已废弃）", notes = "此参数已废弃，系统始终自动处理 groupBy")
+    @Deprecated
     boolean autoGroupBy;
+
+    /**
+     * 是否启用自动 GroupBy 处理
+     * <p>
+     * 始终返回 true。系统会自动分析 columns 中的聚合表达式，
+     * 并将非聚合列自动加入 groupBy。
+     * </p>
+     *
+     * @return 始终为 true
+     */
+    public boolean isAutoGroupBy() {
+        return true;
+    }
 
     @ApiModelProperty("查询扩展数据，前后端约定后，由前端传入")
     Object extData;

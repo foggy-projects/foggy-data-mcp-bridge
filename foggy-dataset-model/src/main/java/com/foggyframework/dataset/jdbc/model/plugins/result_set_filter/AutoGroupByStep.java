@@ -14,15 +14,13 @@ import java.util.*;
 /**
  * 自动 GroupBy 处理步骤
  * <p>
- * 当 {@code autoGroupBy=true} 时，自动分析 columns 中的聚合表达式，
- * 并将非聚合列自动加入 groupBy。
+ * 自动分析 columns 中的聚合表达式，并将非聚合列自动加入 groupBy。
+ * 此功能始终启用（autoGroupBy 参数已废弃）。
  * </p>
  *
  * <h3>处理规则</h3>
  * <ol>
- *   <li>只有当用户主动传递的计算字段表达式包含聚合函数时才启用</li>
- *   <li>JM 中定义的 aggType 不触发自动处理</li>
- *   <li>自动识别 columns 中的聚合表达式（如 sum(salesAmount) as totalSales）</li>
+ *   <li>分析 columns 中的内联聚合表达式（如 sum(salesAmount) as totalSales）</li>
  *   <li>非聚合列自动加入 groupBy</li>
  *   <li>聚合列加入 groupBy 并带上 agg 标记</li>
  * </ol>
@@ -38,7 +36,6 @@ import java.util.*;
  * 输入:
  * columns: ["product$categoryName", "date", "sum(salesAmount) as salesAmount2", "orderCount"]
  * groupBy: [{"field": "product$categoryName"}]
- * autoGroupBy: true
  *
  * 输出:
  * groupBy: [
@@ -60,11 +57,6 @@ public class AutoGroupByStep implements DataSetResultStep {
     @Override
     public int beforeQuery(ModelResultContext ctx) {
         JdbcQueryRequestDef queryRequest = ctx.getRequest().getParam();
-
-        // 检查是否启用 autoGroupBy
-        if (!queryRequest.isAutoGroupBy()) {
-            return CONTINUE;
-        }
 
         List<String> columns = queryRequest.getColumns();
         if (columns == null || columns.isEmpty()) {

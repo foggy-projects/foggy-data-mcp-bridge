@@ -5,17 +5,15 @@ import com.foggyframework.dataset.jdbc.model.def.query.request.JdbcQueryRequestD
 import com.foggyframework.dataset.jdbc.model.engine.expression.AllowedFunctions;
 import com.foggyframework.dataset.jdbc.model.engine.expression.CalculatedFieldService;
 import com.foggyframework.dataset.jdbc.model.engine.expression.InlineExpressionParser;
+import com.foggyframework.dataset.jdbc.model.engine.expression.SqlExpHolder;
 import com.foggyframework.dataset.jdbc.model.engine.expression.sql.SqlBinaryExp;
 import com.foggyframework.dataset.jdbc.model.engine.expression.sql.SqlFunctionExp;
 import com.foggyframework.dataset.jdbc.model.engine.expression.sql.SqlUnaryExp;
-import com.foggyframework.fsscript.exp.AbstractExp;
-import com.foggyframework.fsscript.exp.UnresolvedFunCall;
 import com.foggyframework.fsscript.parser.spi.Exp;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
-import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -96,7 +94,9 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
         result.setAliasToExpression(new LinkedHashMap<>());
 
         int autoAliasCounter = 1;
+        boolean hasAnyAggregate = false;
 
+        // 第一遍：解析所有内联表达式，检测是否有聚合函数
         for (String columnDef : columns) {
             InlineExpressionParser.InlineExpression inlineExp = InlineExpressionParser.parse(columnDef);
 
@@ -111,12 +111,15 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
                 // 创建 CalculatedFieldDef
                 CalculatedFieldDef calcFieldDef = new CalculatedFieldDef();
                 calcFieldDef.setName(alias);
-                calcFieldDef.setExpression(inlineExp.getExpression());
 
                 // 通过 AST 分析检测聚合函数，填充 agg 字段，并存储编译后的 AST
                 AggregateAnalysisResult aggResult = analyzeAggregateByAst(inlineExp.getExpression(), calcFieldDef);
+
+                // 保持表达式原样
+                calcFieldDef.setExpression(inlineExp.getExpression());
                 if (aggResult.hasAggregate) {
                     calcFieldDef.setAgg(aggResult.aggregationType);
+                    hasAnyAggregate = true;
                 }
 
                 result.getCalculatedFields().add(calcFieldDef);
@@ -127,7 +130,7 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
 
                 if (log.isDebugEnabled()) {
                     log.debug("解析内联表达式: '{}' -> alias='{}', expression='{}', agg='{}', compiledExp={}",
-                            columnDef, alias, inlineExp.getExpression(), aggResult.aggregationType,
+                            columnDef, alias, calcFieldDef.getExpression(), calcFieldDef.getAgg(),
                             calcFieldDef.getCompiledExp() != null ? "已编译" : "未编译");
                 }
             } else {
@@ -136,7 +139,76 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
             }
         }
 
+        // 第二遍：如果存在聚合表达式，为没有聚合函数的内联表达式自动推断聚合类型
+        if (hasAnyAggregate) {
+            for (CalculatedFieldDef calcFieldDef : result.getCalculatedFields()) {
+                if (calcFieldDef.getAgg() == null && calcFieldDef.getCompiledExp() != null) {
+                    // 根据 AST 顶层节点类型推断聚合类型
+                    String inferredAgg = inferAggregationFromAst(calcFieldDef.getCompiledExp());
+                    if (inferredAgg != null) {
+                        calcFieldDef.setAgg(inferredAgg);
+                        if (log.isDebugEnabled()) {
+                            log.debug("自动推断聚合类型: '{}' -> agg='{}'", calcFieldDef.getName(), inferredAgg);
+                        }
+                    }
+                }
+            }
+        }
+
         return result;
+    }
+
+    /**
+     * 根据 AST 顶层节点类型推断聚合类型
+     * <p>
+     * 推断规则：
+     * <ul>
+     *     <li>四则运算（+、-、*、/） → SUM</li>
+     *     <li>字符串函数 → null（无聚合，需加入 groupBy）</li>
+     *     <li>其他情况 → null</li>
+     * </ul>
+     * </p>
+     *
+     * @param exp AST 顶层节点
+     * @return 推断的聚合类型，null 表示无法推断或不需要聚合
+     */
+    private String inferAggregationFromAst(Exp exp) {
+        if (exp == null) {
+            return null;
+        }
+
+        // 解包 SqlExpHolder
+        Exp innerExp = exp;
+        if (exp instanceof SqlExpHolder) {
+            innerExp = ((SqlExpHolder) exp).getInnerSqlExp();
+        }
+
+        // 顶层是四则运算 → 默认 SUM
+        if (innerExp instanceof SqlBinaryExp) {
+            SqlBinaryExp binaryExp = (SqlBinaryExp) innerExp;
+            String op = binaryExp.getOperator();
+            if ("+".equals(op) || "-".equals(op) || "*".equals(op) || "/".equals(op)) {
+                return "SUM";
+            }
+        }
+
+        // 顶层是函数调用
+        if (innerExp instanceof SqlFunctionExp) {
+            SqlFunctionExp funcExp = (SqlFunctionExp) innerExp;
+            String funcName = funcExp.getFunctionName().toUpperCase();
+
+            // 字符串函数 → 无聚合
+            if (AllowedFunctions.STRING_FUNCTIONS.contains(funcName)) {
+                return null;
+            }
+
+            // 数学函数 → SUM（因为结果是数值）
+            if (AllowedFunctions.MATH_FUNCTIONS.contains(funcName)) {
+                return "SUM";
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -166,10 +238,7 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
             AggregateVisitor visitor = new AggregateVisitor();
             visitExp(exp, visitor);
 
-            return new AggregateAnalysisResult(
-                    visitor.hasAggregate,
-                    visitor.aggregateCount == 1 ? visitor.firstAggregateType : null
-            );
+            return visitor.toResult();
         } catch (Exception e) {
             // 解析失败时回退到简单检测（不存储 AST，后续会重新编译）
             if (log.isDebugEnabled()) {
@@ -180,25 +249,20 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
     }
 
     /**
-     * 遍历 AST 节点
+     * 遍历 AST 节点检测聚合函数
      * <p>
      * 处理各种 AST 类型：
      * <ul>
      *     <li>SqlFunctionExp - 直接的函数表达式</li>
      *     <li>SqlBinaryExp - 二元运算表达式</li>
      *     <li>SqlUnaryExp - 一元运算表达式</li>
-     *     <li>SqlExpWrapper (UnresolvedFunCall) - 包装的函数调用</li>
-     *     <li>SqlExpFunCallWrapper (AbstractExp) - 包装的函数表达式</li>
+     *     <li>SqlExpHolder - 包装类（SqlExpWrapper、SqlExpFunCallWrapper）</li>
      * </ul>
      * </p>
      */
     private void visitExp(Exp exp, AggregateVisitor visitor) {
         if (exp == null) {
             return;
-        }
-
-        if (log.isDebugEnabled()) {
-            log.debug("visitExp: type={}", exp.getClass().getName());
         }
 
         // 检查是否是 SqlFunctionExp
@@ -238,45 +302,10 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
             return;
         }
 
-        // 检查 SqlExpWrapper (UnresolvedFunCall 的子类)
-        // 通过反射获取内部的 sqlExp 字段
-        if (exp instanceof UnresolvedFunCall) {
-            Exp innerExp = extractInnerExp(exp, "sqlExp");
-            if (innerExp != null) {
-                visitExp(innerExp, visitor);
-            }
-            return;
+        // 检查 SqlExpHolder (SqlExpWrapper, SqlExpFunCallWrapper)
+        if (exp instanceof SqlExpHolder) {
+            visitExp(((SqlExpHolder) exp).getInnerSqlExp(), visitor);
         }
-
-        // 检查 SqlExpFunCallWrapper (AbstractExp 的子类)
-        // 通过 value 字段获取内部表达式
-        if (exp instanceof AbstractExp) {
-            Object value = ((AbstractExp<?>) exp).getValue();
-            if (value instanceof Exp) {
-                visitExp((Exp) value, visitor);
-            }
-            return;
-        }
-    }
-
-    /**
-     * 通过反射提取内部表达式
-     */
-    private Exp extractInnerExp(Object obj, String fieldName) {
-        try {
-            Field field = obj.getClass().getDeclaredField(fieldName);
-            field.setAccessible(true);
-            Object value = field.get(obj);
-            if (value instanceof Exp) {
-                return (Exp) value;
-            }
-        } catch (NoSuchFieldException | IllegalAccessException e) {
-            // 字段不存在或无法访问，忽略
-            if (log.isDebugEnabled()) {
-                log.debug("Cannot extract field '{}' from {}: {}", fieldName, obj.getClass().getName(), e.getMessage());
-            }
-        }
-        return null;
     }
 
     /**
@@ -306,16 +335,30 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
     }
 
     /**
-     * 聚合函数访问器
+     * 聚合函数访问器（用于 AST 遍历时收集聚合信息）
      */
     private static class AggregateVisitor {
-        boolean hasAggregate = false;
-        int aggregateCount = 0;
-        String firstAggregateType = null;
+        boolean hasAggregate;
+        int aggregateCount;
+        String firstAggregateType;
+
+        /**
+         * 转换为分析结果
+         * @return 聚合分析结果，如果有多个聚合函数则 aggregationType 为 null
+         */
+        AggregateAnalysisResult toResult() {
+            if (!hasAggregate) {
+                return AggregateAnalysisResult.NONE;
+            }
+            return new AggregateAnalysisResult(
+                    true,
+                    aggregateCount == 1 ? firstAggregateType : null
+            );
+        }
     }
 
     /**
-     * 聚合分析结果
+     * 聚合分析结果（不可变）
      */
     private static class AggregateAnalysisResult {
         static final AggregateAnalysisResult NONE = new AggregateAnalysisResult(false, null);

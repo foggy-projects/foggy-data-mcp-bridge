@@ -256,7 +256,7 @@ public class SqlExpFactory extends DefaultExpFactory {
      * 在 evalValue 时委托给内部的 sqlExp。
      * </p>
      */
-    private static class SqlExpWrapper extends UnresolvedFunCall {
+    static class SqlExpWrapper extends UnresolvedFunCall implements SqlExpHolder {
 
         private final Exp sqlExp;
 
@@ -271,17 +271,13 @@ public class SqlExpFactory extends DefaultExpFactory {
         }
 
         @Override
+        public Exp getInnerSqlExp() {
+            return sqlExp;
+        }
+
+        @Override
         public Object evalValue(com.foggyframework.fsscript.parser.spi.ExpEvaluator context) {
-            if (log.isDebugEnabled()) {
-                log.debug("SqlExpWrapper.evalValue: delegating to sqlExp type={}", sqlExp.getClass().getName());
-            }
-            // 委托给 sqlExp
-            Object result = sqlExp.evalValue(context);
-            if (log.isDebugEnabled()) {
-                log.debug("SqlExpWrapper.evalValue: result type={}, result={}",
-                        result != null ? result.getClass().getName() : "null", result);
-            }
-            return result;
+            return sqlExp.evalValue(context);
         }
 
         @Override
@@ -302,7 +298,7 @@ public class SqlExpFactory extends DefaultExpFactory {
      * 在 evalValue 时委托给内部的 sqlExp。
      * </p>
      */
-    private static class SqlExpFunCallWrapper extends com.foggyframework.fsscript.exp.AbstractExp<Exp> {
+    static class SqlExpFunCallWrapper extends com.foggyframework.fsscript.exp.AbstractExp<Exp> implements SqlExpHolder {
         private static final long serialVersionUID = 1L;
 
         public SqlExpFunCallWrapper(Exp sqlExp) {
@@ -310,17 +306,13 @@ public class SqlExpFactory extends DefaultExpFactory {
         }
 
         @Override
+        public Exp getInnerSqlExp() {
+            return value;
+        }
+
+        @Override
         public Object evalValue(com.foggyframework.fsscript.parser.spi.ExpEvaluator context) {
-            if (log.isDebugEnabled()) {
-                log.debug("SqlExpFunCallWrapper.evalValue: delegating to sqlExp type={}", value.getClass().getName());
-            }
-            // 委托给内部的 sqlExp
-            Object result = value.evalValue(context);
-            if (log.isDebugEnabled()) {
-                log.debug("SqlExpFunCallWrapper.evalValue: result type={}, result={}",
-                        result != null ? result.getClass().getName() : "null", result);
-            }
-            return result;
+            return value.evalValue(context);
         }
 
         @Override

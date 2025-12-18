@@ -9,13 +9,12 @@ import com.foggyframework.dataset.jdbc.model.def.query.request.JdbcQueryRequestD
 import com.foggyframework.dataset.jdbc.model.def.query.request.OrderRequestDef;
 import com.foggyframework.dataset.jdbc.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.jdbc.model.engine.query.JdbcQueryResult;
-import com.foggyframework.dataset.jdbc.model.plugins.result_set_filter.DataSetResultFilterManager;
 import com.foggyframework.dataset.jdbc.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.jdbc.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.jdbc.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.jdbc.model.semantic.service.DimensionMemberLoader;
 import com.foggyframework.dataset.jdbc.model.semantic.service.SemanticQueryServiceV3;
-import com.foggyframework.dataset.jdbc.model.service.JdbcService;
+import com.foggyframework.dataset.jdbc.model.service.QueryFacade;
 import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryColumn;
 import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryModel;
 import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryModelLoader;
@@ -53,16 +52,13 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
     private static final Logger logger = LoggerFactory.getLogger(SemanticQueryServiceV3Impl.class);
 
     @Resource
-    private JdbcService jdbcService;
+    private QueryFacade queryFacade;
 
     @Resource
     private JdbcQueryModelLoader jdbcQueryModelLoader;
 
     @Resource
     private DimensionMemberLoader dimensionMemberLoader;
-
-    @Resource
-    private DataSetResultFilterManager dataSetResultFilterManager;
 
     @Override
     public SemanticQueryResponse queryModel(String model, SemanticQueryRequest request, String mode) {
@@ -90,34 +86,25 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         // 2. 构建初始JDBC请求
         PagingRequest<JdbcQueryRequestDef> jdbcRequest = buildJdbcRequest(model, request, context);
 
-        // 3. 创建ModelResultContext，标记为语义查询，设置SecurityContext
-        ModelResultContext resultContext = new ModelResultContext();
-        resultContext.setRequest(jdbcRequest);
-        resultContext.setQueryType(ModelResultContext.QueryType.SEMANTIC);
-        resultContext.setSecurityContext(securityContext);
-
-        // 4. 调用filter的beforeQuery
-        dataSetResultFilterManager.beforeQuery(resultContext);
-        context.extData = resultContext.getExtData();
-
-        // 5. 处理 slice 中的 $caption 值转换（如果需要）
+        // 3. 处理 slice 中的 $caption 值转换（如果需要）
+        // 注意：这里在 beforeQuery 之前处理，因为需要先转换好 slice
         if (request.getSlice() != null) {
             List<SliceRequestDef> processedSlice = processSliceValues(model, request.getSlice(), request, context);
             jdbcRequest.getParam().setSlice(processedSlice);
         }
 
-        // 6. 执行查询
-        JdbcQueryResult jdbcQueryResult = jdbcService.queryModelResult(jdbcRequest);
-        PagingResultImpl queryResult = jdbcQueryResult.getPagingResult();
-        resultContext.setPagingResult(queryResult);
-        resultContext.setJdbcQuery(jdbcQueryResult.getQueryEngine().getJdbcQuery());
-        resultContext.setJdbcQueryModel(jdbcQueryResult.getQueryEngine().getJdbcQueryModel());
+        // 4. 创建ModelResultContext，标记为语义查询，设置SecurityContext
+        ModelResultContext resultContext = new ModelResultContext();
+        resultContext.setRequest(jdbcRequest);
+        resultContext.setQueryType(ModelResultContext.QueryType.SEMANTIC);
+        resultContext.setSecurityContext(securityContext);
 
-        // 7. 调用filter的process处理结果
-        dataSetResultFilterManager.process(resultContext);
-        queryResult = resultContext.getPagingResult();
+        // 5. 使用 QueryFacade 执行完整查询生命周期（beforeQuery -> query -> process）
+        JdbcQueryResult jdbcQueryResult = queryFacade.queryModelResult(resultContext);
+        PagingResultImpl queryResult = resultContext.getPagingResult();
+        context.extData = resultContext.getExtData();
 
-        // 8. 构建响应
+        // 6. 构建响应
         SemanticQueryResponse response = buildResponse(
                 jdbcRequest.getParam(),
                 queryResult,
@@ -125,7 +112,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                 jdbcQueryResult.getQueryEngine().getJdbcQueryModel()
         );
 
-        // 9. 添加调试信息
+        // 7. 添加调试信息
         if (logger.isDebugEnabled()) {
             addDebugInfo(response, context, startTime);
         }

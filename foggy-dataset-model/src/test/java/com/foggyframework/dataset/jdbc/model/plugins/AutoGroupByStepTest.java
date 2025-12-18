@@ -22,6 +22,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * 注意：AutoGroupByStep 依赖 InlineExpressionPreprocessStep 先执行，
  * 以解析内联表达式并设置 CalculatedFieldDef.agg 字段。
  * </p>
+ * <p>
+ * autoGroupBy 参数已废弃，系统始终自动处理 groupBy。
+ * </p>
  */
 @Slf4j
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -47,10 +50,11 @@ class AutoGroupByStepTest {
 
     @Test
     @Order(1)
-    @DisplayName("autoGroupBy=false 时不处理")
-    void testAutoGroupByDisabled() {
+    @DisplayName("autoGroupBy 参数已废弃 - 始终启用自动处理")
+    void testAutoGroupByAlwaysEnabled() {
+        // 即使设置 autoGroupBy=false，系统仍会自动处理
         JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
-        queryRequest.setAutoGroupBy(false);
+        queryRequest.setAutoGroupBy(false);  // 设置为 false 不再生效
         queryRequest.setColumns(Arrays.asList(
             "product$categoryName",
             "sum(salesAmount) as totalSales"
@@ -59,8 +63,12 @@ class AutoGroupByStepTest {
         ModelResultContext ctx = createContext(queryRequest);
         executeSteps(ctx);
 
-        // groupBy 应该为空（未自动处理）
-        assertNull(queryRequest.getGroupBy());
+        // groupBy 应该被自动处理（因为 isAutoGroupBy() 始终返回 true）
+        List<GroupRequestDef> groupBy = queryRequest.getGroupBy();
+        assertNotNull(groupBy, "groupBy 应被自动处理");
+        assertEquals(2, groupBy.size(), "应有2个 groupBy 字段");
+
+        log.info("autoGroupBy=false 仍触发自动处理: {}", groupBy);
     }
 
     @Test
