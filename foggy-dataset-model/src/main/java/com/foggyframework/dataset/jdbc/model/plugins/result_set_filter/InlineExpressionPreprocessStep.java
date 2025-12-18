@@ -9,6 +9,10 @@ import com.foggyframework.dataset.jdbc.model.engine.expression.SqlExpHolder;
 import com.foggyframework.dataset.jdbc.model.engine.expression.sql.SqlBinaryExp;
 import com.foggyframework.dataset.jdbc.model.engine.expression.sql.SqlFunctionExp;
 import com.foggyframework.dataset.jdbc.model.engine.expression.sql.SqlUnaryExp;
+import com.foggyframework.dataset.jdbc.model.spi.JdbcAggregation;
+import com.foggyframework.dataset.jdbc.model.spi.JdbcColumn;
+import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryColumn;
+import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryModel;
 import com.foggyframework.fsscript.parser.spi.Exp;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.annotation.Order;
@@ -22,17 +26,19 @@ import java.util.Map;
 /**
  * 内联表达式预处理步骤
  * <p>
- * 在所有其他 Step 之前执行，解析 columns 中的内联表达式，
- * 转换为 CalculatedFieldDef，避免后续重复解析。
+ * 在所有其他 Step 之前执行，负责：
+ * <ol>
+ *   <li>解析 columns 中的内联表达式，转换为 CalculatedFieldDef</li>
+ *   <li>识别所有列的聚合类型（内联表达式 AST 分析 + QueryModel 字段定义）</li>
+ *   <li>将结果存入 ModelResultContext.parsedInlineExpressions</li>
+ * </ol>
  * </p>
  *
- * <h3>处理流程</h3>
+ * <h3>聚合类型识别来源</h3>
  * <ol>
- *   <li>遍历 columns，使用 InlineExpressionParser 解析每个列定义</li>
- *   <li>将内联表达式转换为 CalculatedFieldDef</li>
- *   <li>通过 AST 分析识别聚合函数，填充 agg 字段</li>
- *   <li>将结果存入 ModelResultContext.parsedInlineExpressions</li>
- *   <li>更新 queryRequest.columns 和 queryRequest.calculatedFields</li>
+ *   <li>内联表达式 AST 分析（如 sum(totalAmount) → SUM）</li>
+ *   <li>内联表达式聚合推断（如 totalAmount+2 在有其他聚合时 → SUM）</li>
+ *   <li>QueryModel 字段定义（如 formulaDef 字段的 aggregation）</li>
  * </ol>
  *
  * @author foggy-framework
@@ -52,8 +58,11 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
             return CONTINUE;
         }
 
+        // 获取 QueryModel（用于查询字段定义）
+        JdbcQueryModel queryModel = ctx.getJdbcQueryModel();
+
         // 解析并转换
-        ModelResultContext.ParsedInlineExpressions result = parseAndConvert(columns, queryRequest);
+        ModelResultContext.ParsedInlineExpressions result = parseAndConvert(columns, queryRequest, queryModel);
 
         // 存入 Context
         ctx.setParsedInlineExpressions(result);
@@ -74,8 +83,9 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
         }
 
         if (log.isDebugEnabled() && result.isProcessed()) {
-            log.debug("InlineExpressionPreprocess: 解析了 {} 个内联表达式",
-                    result.getAliasToExpression() != null ? result.getAliasToExpression().size() : 0);
+            log.debug("InlineExpressionPreprocess: 解析了 {} 个内联表达式, 识别了 {} 个聚合列",
+                    result.getAliasToExpression() != null ? result.getAliasToExpression().size() : 0,
+                    result.getColumnAggregations() != null ? result.getColumnAggregations().size() : 0);
         }
 
         return CONTINUE;
@@ -86,12 +96,14 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
      */
     private ModelResultContext.ParsedInlineExpressions parseAndConvert(
             List<String> columns,
-            JdbcQueryRequestDef queryRequest) {
+            JdbcQueryRequestDef queryRequest,
+            JdbcQueryModel queryModel) {
 
         ModelResultContext.ParsedInlineExpressions result = new ModelResultContext.ParsedInlineExpressions();
         result.setColumns(new ArrayList<>(columns.size()));
         result.setCalculatedFields(new ArrayList<>());
         result.setAliasToExpression(new LinkedHashMap<>());
+        result.setColumnAggregations(new LinkedHashMap<>());
 
         int autoAliasCounter = 1;
         boolean hasAnyAggregate = false;
@@ -149,6 +161,59 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
                         calcFieldDef.setAgg(inferredAgg);
                         if (log.isDebugEnabled()) {
                             log.debug("自动推断聚合类型: '{}' -> agg='{}'", calcFieldDef.getName(), inferredAgg);
+                        }
+                    }
+                }
+            }
+        }
+
+        // 第三遍：构建 columnAggregations 映射（统一聚合识别结果）
+        // 1. 收集内联表达式的聚合类型
+        for (CalculatedFieldDef calcFieldDef : result.getCalculatedFields()) {
+            if (calcFieldDef.getAgg() != null) {
+                result.getColumnAggregations().put(calcFieldDef.getName(), calcFieldDef.getAgg().toUpperCase());
+            }
+        }
+
+        // 2. 收集预定义 calculatedFields 的聚合类型（非内联表达式）
+        List<CalculatedFieldDef> existingCalcFields = queryRequest.getCalculatedFields();
+        if (existingCalcFields != null) {
+            for (CalculatedFieldDef calcFieldDef : existingCalcFields) {
+                // 跳过已识别的（来自内联表达式）
+                if (result.getColumnAggregations().containsKey(calcFieldDef.getName())) {
+                    continue;
+                }
+                if (calcFieldDef.getAgg() != null) {
+                    result.getColumnAggregations().put(calcFieldDef.getName(), calcFieldDef.getAgg().toUpperCase());
+                    if (log.isDebugEnabled()) {
+                        log.debug("从预定义 calculatedField 识别聚合列: '{}' -> agg='{}'",
+                                calcFieldDef.getName(), calcFieldDef.getAgg());
+                    }
+                }
+            }
+        }
+
+        // 3. 检查普通列（非内联表达式）在 QueryModel 中的聚合定义
+        if (queryModel != null) {
+            for (String columnName : result.getColumns()) {
+                // 跳过已识别的聚合列（来自内联表达式）
+                if (result.getColumnAggregations().containsKey(columnName)) {
+                    continue;
+                }
+
+                // 从 QueryModel 获取字段聚合类型
+                JdbcQueryColumn queryColumn = queryModel.findJdbcQueryColumnByName(columnName, false);
+                if (queryColumn != null) {
+                    JdbcColumn selectColumn = queryColumn.getSelectColumn();
+                    if (selectColumn != null) {
+                        JdbcAggregation agg = selectColumn.getAggregation();
+                        if (agg != null) {
+                            result.getColumnAggregations().put(columnName, agg.name());
+                            // 如果之前没检测到聚合，但 QueryModel 有聚合定义，更新标记
+                            hasAnyAggregate = true;
+                            if (log.isDebugEnabled()) {
+                                log.debug("从 QueryModel 识别聚合列: '{}' -> agg='{}'", columnName, agg.name());
+                            }
                         }
                     }
                 }

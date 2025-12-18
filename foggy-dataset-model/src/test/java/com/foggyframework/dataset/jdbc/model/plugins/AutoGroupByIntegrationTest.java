@@ -385,12 +385,13 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
     @Order(6)
     @DisplayName("无聚合表达式时返回明细数据")
     void testNoAggregation_ReturnsDetailData() {
-        // 不含聚合表达式时，应返回明细数据
+        // 不含聚合表达式或聚合字段时，应返回明细数据
+        // 注意：使用 orderId（属性，无聚合）而非 totalAmount（度量，有聚合）
         JdbcQueryRequestDef request = new JdbcQueryRequestDef();
         request.setQueryModel("FactOrderQueryModel");
         request.setColumns(Arrays.asList(
                 "customer$customerType",
-                "totalAmount"
+                "orderId"  // 属性字段，无聚合定义
         ));
 
         PagingResultImpl result = queryFacade.queryModelData(
@@ -519,6 +520,128 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
                     "plusAmount (表达式+SUM) 应一致: " + customerType);
             assertDecimalEquals(nativeRow.get("min_amount"), autoRow.get("minAmount"),
                     "MIN 应一致: " + customerType);
+        }
+    }
+
+    // ==========================================
+    // formulaDef 字段测试（JM 中定义的计算字段）
+    // ==========================================
+
+    @Test
+    @Order(9)
+    @DisplayName("formulaDef 字段 - 无计算字段的 groupBy 查询")
+    void testFormulaDef_GroupByWithoutCalculatedField() {
+        // 测试场景：使用 FactSalesQueryModel 中的 taxAmount2（带 formulaDef）
+        // taxAmount2 定义: tax_amount+1，聚合类型 sum
+        // 这个测试验证 formulaDef 字段在普通 groupBy 查询中的行为
+
+        // 1. 原生 SQL 查询
+        String nativeSql = """
+                SELECT
+                    dp.category_name as category_name,
+                    SUM(fs.tax_amount + 1) as tax_amount2
+                FROM fact_sales fs
+                LEFT JOIN dim_product dp ON fs.product_key = dp.product_key
+                GROUP BY dp.category_name
+                ORDER BY dp.category_name
+                """;
+        List<Map<String, Object>> nativeResults = executeQuery(nativeSql);
+        log.info("原生 SQL 结果 (formulaDef groupBy): {} 条", nativeResults.size());
+
+        // 2. 使用 QueryModel 查询（无内联计算字段）
+        JdbcQueryRequestDef request = new JdbcQueryRequestDef();
+        request.setQueryModel("FactSalesQueryModel");
+        request.setColumns(Arrays.asList(
+                "product$categoryName",
+                "taxAmount2"  // formulaDef 字段
+        ));
+        request.setOrderBy(createOrderList("product$categoryName", "ASC"));
+
+        PagingResultImpl result = queryFacade.queryModelData(
+                PagingRequest.buildPagingRequest(request, 100));
+        List<Map<String, Object>> items = result.getItems();
+
+        log.info("QueryModel 查询结果 (formulaDef groupBy): {} 条", items.size());
+
+        // 3. 验证结果
+        assertEquals(nativeResults.size(), items.size(), "结果行数应一致");
+
+        for (int i = 0; i < nativeResults.size(); i++) {
+            Map<String, Object> nativeRow = nativeResults.get(i);
+            Map<String, Object> row = items.get(i);
+
+            String categoryName = (String) nativeRow.get("category_name");
+            log.info("行 {}: categoryName={}, taxAmount2={}",
+                    i, categoryName, row.get("taxAmount2"));
+
+            assertEquals(categoryName, row.get("product$categoryName"),
+                    "品类名称应一致: 行 " + i);
+            assertDecimalEquals(nativeRow.get("tax_amount2"), row.get("taxAmount2"),
+                    "taxAmount2 (formulaDef) 应一致: " + categoryName);
+        }
+    }
+
+    @Test
+    @Order(10)
+    @DisplayName("formulaDef 字段 - 作为内联计算字段使用")
+    void testFormulaDef_AsCalculatedField() {
+        // 测试场景：在 columns 中同时使用 formulaDef 字段和内联计算字段
+        // 验证 formulaDef 字段与内联表达式的兼容性
+
+        // 1. 原生 SQL 查询
+        String nativeSql = """
+                SELECT
+                    dp.category_name as category_name,
+                    SUM(fs.quantity) as total_quantity,
+                    SUM(fs.tax_amount + 1) as tax_amount2,
+                    SUM(fs.sales_amount) as total_sales
+                FROM fact_sales fs
+                LEFT JOIN dim_product dp ON fs.product_key = dp.product_key
+                GROUP BY dp.category_name
+                ORDER BY dp.category_name
+                """;
+        List<Map<String, Object>> nativeResults = executeQuery(nativeSql);
+        log.info("原生 SQL 结果 (formulaDef + 聚合): {} 条", nativeResults.size());
+
+        // 2. 使用 QueryModel 查询（混合 formulaDef 和聚合函数）
+        JdbcQueryRequestDef request = new JdbcQueryRequestDef();
+        request.setQueryModel("FactSalesQueryModel");
+        request.setColumns(Arrays.asList(
+                "product$categoryName",
+                "sum(quantity) as totalQuantity",  // 内联聚合表达式
+                "taxAmount2",                       // formulaDef 字段
+                "salesAmount"                       // 普通度量（有默认聚合）
+        ));
+        request.setOrderBy(createOrderList("product$categoryName", "ASC"));
+
+        PagingResultImpl result = queryFacade.queryModelData(
+                PagingRequest.buildPagingRequest(request, 100));
+        List<Map<String, Object>> items = result.getItems();
+
+        log.info("QueryModel 查询结果 (formulaDef + 聚合): {} 条", items.size());
+
+        // 3. 验证结果
+        assertEquals(nativeResults.size(), items.size(), "结果行数应一致");
+
+        for (int i = 0; i < nativeResults.size(); i++) {
+            Map<String, Object> nativeRow = nativeResults.get(i);
+            Map<String, Object> row = items.get(i);
+
+            String categoryName = (String) nativeRow.get("category_name");
+            log.info("行 {}: categoryName={}, totalQuantity={}, taxAmount2={}, salesAmount={}",
+                    i, categoryName,
+                    row.get("totalQuantity"),
+                    row.get("taxAmount2"),
+                    row.get("salesAmount"));
+
+            assertEquals(categoryName, row.get("product$categoryName"),
+                    "品类名称应一致: 行 " + i);
+            assertEquals(toLong(nativeRow.get("total_quantity")), toLong(row.get("totalQuantity")),
+                    "totalQuantity 应一致: " + categoryName);
+            assertDecimalEquals(nativeRow.get("tax_amount2"), row.get("taxAmount2"),
+                    "taxAmount2 (formulaDef) 应一致: " + categoryName);
+            assertDecimalEquals(nativeRow.get("total_sales"), row.get("salesAmount"),
+                    "salesAmount 应一致: " + categoryName);
         }
     }
 

@@ -83,6 +83,9 @@ public class QueryFacadeImpl implements QueryFacade {
         String queryModelName = queryRequest.getQueryModel();
         JdbcQueryModel jdbcQueryModel = jdbcQueryModelLoader.getJdbcQueryModel(queryModelName);
 
+        // 1.1 提前设置 jdbcQueryModel，供 beforeQuery Step 使用（如 AutoGroupByStep 需要查询列定义）
+        context.setJdbcQueryModel(jdbcQueryModel);
+
         // 2. beforeQuery: 执行预处理 Step（AutoGroupBy、InlineExpression、Authorization 等）
         dataSetResultFilterManager.beforeQuery(context);
 

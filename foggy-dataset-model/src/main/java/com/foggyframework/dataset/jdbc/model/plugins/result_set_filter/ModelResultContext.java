@@ -93,10 +93,31 @@ public class ModelResultContext {
         Map<String, InlineExpressionParser.InlineExpression> aliasToExpression;
 
         /**
+         * 所有列的聚合类型映射（列名/别名 -> 聚合类型）
+         * <p>
+         * 聚合类型来源：
+         * <ol>
+         *   <li>内联表达式 AST 分析（如 sum(totalAmount) → SUM）</li>
+         *   <li>内联表达式聚合推断（如 totalAmount+2 → SUM）</li>
+         *   <li>QueryModel 字段定义（如 formulaDef 字段的 aggregation）</li>
+         * </ol>
+         * 只包含有聚合类型的列，不在此 Map 中的列视为非聚合列。
+         * </p>
+         */
+        Map<String, String> columnAggregations;
+
+        /**
          * 是否已预处理
          */
         public boolean isProcessed() {
             return columns != null;
+        }
+
+        /**
+         * 是否存在聚合列
+         */
+        public boolean hasAggregation() {
+            return columnAggregations != null && !columnAggregations.isEmpty();
         }
     }
 

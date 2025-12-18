@@ -4,6 +4,7 @@ import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.jdbc.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.jdbc.model.def.query.request.GroupRequestDef;
 import com.foggyframework.dataset.jdbc.model.def.query.request.JdbcQueryRequestDef;
+import com.foggyframework.dataset.jdbc.model.def.query.request.OrderRequestDef;
 import com.foggyframework.dataset.jdbc.model.plugins.result_set_filter.AutoGroupByStep;
 import com.foggyframework.dataset.jdbc.model.plugins.result_set_filter.InlineExpressionPreprocessStep;
 import com.foggyframework.dataset.jdbc.model.plugins.result_set_filter.ModelResultContext;
@@ -127,18 +128,18 @@ class AutoGroupByStepTest {
         assertNotNull(groupBy);
         assertEquals(4, groupBy.size());
 
-        // 验证各列
+        // 验证各列（按 columns 顺序）
         assertEquals("product$categoryName", groupBy.get(0).getField());
         assertNull(groupBy.get(0).getAgg());
 
         assertEquals("date", groupBy.get(1).getField());
         assertNull(groupBy.get(1).getAgg());
 
-        assertEquals("orderCount", groupBy.get(2).getField());
-        assertNull(groupBy.get(2).getAgg());
+        assertEquals("salesAmount2", groupBy.get(2).getField());  // 内联表达式转换后的别名
+        assertEquals("SUM", groupBy.get(2).getAgg());
 
-        assertEquals("salesAmount2", groupBy.get(3).getField());
-        assertEquals("SUM", groupBy.get(3).getAgg());
+        assertEquals("orderCount", groupBy.get(3).getField());
+        assertNull(groupBy.get(3).getAgg());
 
         log.info("混合场景 groupBy: {}", groupBy);
     }
@@ -296,6 +297,107 @@ class AutoGroupByStepTest {
             .forEach(g -> assertEquals("SUM", g.getAgg()));
 
         log.info("大小写不敏感 groupBy: {}", groupBy);
+    }
+
+    @Test
+    @Order(9)
+    @DisplayName("orderBy 字段不在 SELECT 中时警告并忽略")
+    void testOrderByNotInSelect_WarnAndRemove() {
+        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        queryRequest.setAutoGroupBy(true);
+        queryRequest.setColumns(Arrays.asList(
+            "product$categoryName",
+            "sum(salesAmount) as totalSales"
+        ));
+
+        // 设置 orderBy，其中 salesDate 不在 columns 中
+        List<OrderRequestDef> orderBy = new ArrayList<>();
+        OrderRequestDef o1 = new OrderRequestDef();
+        o1.setField("product$categoryName");
+        o1.setOrder("ASC");
+        orderBy.add(o1);
+        OrderRequestDef o2 = new OrderRequestDef();
+        o2.setField("salesDate");  // 不在 SELECT 中
+        o2.setOrder("DESC");
+        orderBy.add(o2);
+        queryRequest.setOrderBy(orderBy);
+
+        ModelResultContext ctx = createContext(queryRequest);
+        executeSteps(ctx);
+
+        // orderBy 应该只保留 product$categoryName
+        List<OrderRequestDef> resultOrderBy = queryRequest.getOrderBy();
+        assertNotNull(resultOrderBy);
+        assertEquals(1, resultOrderBy.size());
+        assertEquals("product$categoryName", resultOrderBy.get(0).getField());
+
+        log.info("清理后的 orderBy: {}", resultOrderBy);
+    }
+
+    @Test
+    @Order(10)
+    @DisplayName("orderBy 字段全部不在 SELECT 中时设为 null")
+    void testOrderByAllInvalid_SetNull() {
+        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        queryRequest.setAutoGroupBy(true);
+        queryRequest.setColumns(Arrays.asList(
+            "product$categoryName",
+            "sum(salesAmount) as totalSales"
+        ));
+
+        // 设置 orderBy，所有字段都不在 columns 中
+        List<OrderRequestDef> orderBy = new ArrayList<>();
+        OrderRequestDef o1 = new OrderRequestDef();
+        o1.setField("salesDate");
+        orderBy.add(o1);
+        OrderRequestDef o2 = new OrderRequestDef();
+        o2.setField("customerId");
+        orderBy.add(o2);
+        queryRequest.setOrderBy(orderBy);
+
+        ModelResultContext ctx = createContext(queryRequest);
+        executeSteps(ctx);
+
+        // orderBy 应该被设为 null
+        assertNull(queryRequest.getOrderBy());
+
+        log.info("所有 orderBy 字段无效，已清空");
+    }
+
+    @Test
+    @Order(11)
+    @DisplayName("orderBy 字段全部在 SELECT 中时保留")
+    void testOrderByAllValid_Keep() {
+        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        queryRequest.setAutoGroupBy(true);
+        queryRequest.setColumns(Arrays.asList(
+            "product$categoryName",
+            "sum(salesAmount) as totalSales"
+        ));
+
+        // 设置 orderBy，所有字段都在 columns 中
+        List<OrderRequestDef> orderBy = new ArrayList<>();
+        OrderRequestDef o1 = new OrderRequestDef();
+        o1.setField("product$categoryName");
+        o1.setOrder("ASC");
+        orderBy.add(o1);
+        OrderRequestDef o2 = new OrderRequestDef();
+        o2.setField("totalSales");
+        o2.setOrder("DESC");
+        orderBy.add(o2);
+        queryRequest.setOrderBy(orderBy);
+
+        ModelResultContext ctx = createContext(queryRequest);
+        executeSteps(ctx);
+
+        // orderBy 应该保持不变
+        List<OrderRequestDef> resultOrderBy = queryRequest.getOrderBy();
+        assertNotNull(resultOrderBy);
+        assertEquals(2, resultOrderBy.size());
+        assertEquals("product$categoryName", resultOrderBy.get(0).getField());
+        assertEquals("totalSales", resultOrderBy.get(1).getField());
+
+        log.info("有效的 orderBy 保持不变: {}", resultOrderBy);
     }
 
     /**
