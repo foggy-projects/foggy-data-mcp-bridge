@@ -227,10 +227,6 @@ public class JdbcModelQueryEngine {
             }
         }
 
-        // 4.生成明细查询语句
-        this.jdbcQuery = jdbcQuery;
-
-        SimpleSqlJdbcQueryVisitor v = new SimpleSqlJdbcQueryVisitor(systemBundlesContext.getApplicationContext(), jdbcQueryModel, queryRequest);
 
         if (queryRequest.hasGroupBy()) {
             //当有分组时，我们直接在jdbcQuery加入groupBy
@@ -262,6 +258,14 @@ public class JdbcModelQueryEngine {
                 idx++;
             }
         }
+
+
+        // 4.生成明细查询语句
+        this.jdbcQuery = jdbcQuery;
+
+        SimpleSqlJdbcQueryVisitor v = new SimpleSqlJdbcQueryVisitor(systemBundlesContext.getApplicationContext(), jdbcQueryModel, queryRequest);
+
+
         jdbcQuery.accept(v);
         values = v.getValues();
         this.innerSql = v.getSql();
