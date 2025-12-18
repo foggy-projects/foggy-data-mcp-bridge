@@ -646,6 +646,439 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
     }
 
     // ==========================================
+    // Engine 层 orderBy 处理测试
+    // 测试 addOrderByForGroupBy 方法
+    // ==========================================
+
+    @Test
+    @Order(11)
+    @DisplayName("Engine层orderBy - 普通维度字段排序")
+    void testEngineOrderBy_DimensionField() {
+        // 测试：普通维度字段在 GROUP BY 场景下的排序
+        // 验证 Engine 层 addOrderByForGroupBy 正确处理维度字段
+
+        // 1. 原生 SQL 查询（按品类名称降序）
+        String nativeSql = """
+                SELECT
+                    dp.category_name as category_name,
+                    SUM(fs.sales_amount) as total_sales
+                FROM fact_sales fs
+                LEFT JOIN dim_product dp ON fs.product_key = dp.product_key
+                GROUP BY dp.category_name
+                ORDER BY dp.category_name DESC
+                """;
+        List<Map<String, Object>> nativeResults = executeQuery(nativeSql);
+        log.info("原生 SQL 结果 (维度字段排序 DESC): {} 条", nativeResults.size());
+
+        // 2. QueryModel 查询
+        JdbcQueryRequestDef request = new JdbcQueryRequestDef();
+        request.setQueryModel("FactSalesQueryModel");
+        request.setColumns(Arrays.asList(
+                "product$categoryName",
+                "salesAmount"
+        ));
+        request.setOrderBy(createOrderList("product$categoryName", "DESC"));
+
+        PagingResultImpl result = queryFacade.queryModelData(
+                PagingRequest.buildPagingRequest(request, 100));
+        List<Map<String, Object>> items = result.getItems();
+
+        log.info("QueryModel 查询结果 (维度字段排序 DESC): {} 条", items.size());
+
+        // 3. 验证结果顺序一致
+        assertEquals(nativeResults.size(), items.size(), "结果行数应一致");
+
+        for (int i = 0; i < nativeResults.size(); i++) {
+            Map<String, Object> nativeRow = nativeResults.get(i);
+            Map<String, Object> row = items.get(i);
+
+            String categoryName = (String) nativeRow.get("category_name");
+            log.info("行 {}: categoryName={}, salesAmount={}",
+                    i, categoryName, row.get("salesAmount"));
+
+            assertEquals(categoryName, row.get("product$categoryName"),
+                    "品类名称应一致（顺序验证）: 行 " + i);
+            assertDecimalEquals(nativeRow.get("total_sales"), row.get("salesAmount"),
+                    "salesAmount 应一致: " + categoryName);
+        }
+    }
+
+    @Test
+    @Order(12)
+    @DisplayName("Engine层orderBy - 聚合字段排序")
+    void testEngineOrderBy_AggregateField() {
+        // 测试：聚合字段在 GROUP BY 场景下的排序
+        // 验证 Engine 层 addOrderByForGroupBy 正确处理聚合字段
+
+        // 1. 原生 SQL 查询（按销售额降序）
+        String nativeSql = """
+                SELECT
+                    dp.category_name as category_name,
+                    SUM(fs.sales_amount) as total_sales
+                FROM fact_sales fs
+                LEFT JOIN dim_product dp ON fs.product_key = dp.product_key
+                GROUP BY dp.category_name
+                ORDER BY total_sales DESC
+                """;
+        List<Map<String, Object>> nativeResults = executeQuery(nativeSql);
+        log.info("原生 SQL 结果 (聚合字段排序 DESC): {} 条", nativeResults.size());
+
+        // 2. QueryModel 查询
+        JdbcQueryRequestDef request = new JdbcQueryRequestDef();
+        request.setQueryModel("FactSalesQueryModel");
+        request.setColumns(Arrays.asList(
+                "product$categoryName",
+                "salesAmount"
+        ));
+        request.setOrderBy(createOrderList("salesAmount", "DESC"));
+
+        PagingResultImpl result = queryFacade.queryModelData(
+                PagingRequest.buildPagingRequest(request, 100));
+        List<Map<String, Object>> items = result.getItems();
+
+        log.info("QueryModel 查询结果 (聚合字段排序 DESC): {} 条", items.size());
+
+        // 3. 验证结果顺序一致（按销售额降序）
+        assertEquals(nativeResults.size(), items.size(), "结果行数应一致");
+
+        for (int i = 0; i < nativeResults.size(); i++) {
+            Map<String, Object> nativeRow = nativeResults.get(i);
+            Map<String, Object> row = items.get(i);
+
+            String categoryName = (String) nativeRow.get("category_name");
+            log.info("行 {}: categoryName={}, salesAmount={}",
+                    i, categoryName, row.get("salesAmount"));
+
+            assertEquals(categoryName, row.get("product$categoryName"),
+                    "品类名称应一致（按销售额排序后）: 行 " + i);
+            assertDecimalEquals(nativeRow.get("total_sales"), row.get("salesAmount"),
+                    "salesAmount 应一致: " + categoryName);
+        }
+
+        // 4. 额外验证：结果确实是按销售额降序
+        if (items.size() >= 2) {
+            BigDecimal first = toBigDecimal(items.get(0).get("salesAmount"));
+            BigDecimal second = toBigDecimal(items.get(1).get("salesAmount"));
+            assertTrue(first.compareTo(second) >= 0,
+                    "第一行销售额应 >= 第二行（降序）");
+        }
+    }
+
+    @Test
+    @Order(13)
+    @DisplayName("Engine层orderBy - formulaDef计算字段排序")
+    void testEngineOrderBy_FormulaDefField() {
+        // 测试：formulaDef 字段在 GROUP BY 场景下的排序
+        // taxAmount2 定义: tax_amount+1，聚合类型 sum
+
+        // 1. 原生 SQL 查询（按 taxAmount2 降序）
+        String nativeSql = """
+                SELECT
+                    dp.category_name as category_name,
+                    SUM(fs.tax_amount + 1) as tax_amount2,
+                    SUM(fs.sales_amount) as total_sales
+                FROM fact_sales fs
+                LEFT JOIN dim_product dp ON fs.product_key = dp.product_key
+                GROUP BY dp.category_name
+                ORDER BY tax_amount2 DESC
+                """;
+        List<Map<String, Object>> nativeResults = executeQuery(nativeSql);
+        log.info("原生 SQL 结果 (formulaDef字段排序 DESC): {} 条", nativeResults.size());
+
+        // 2. QueryModel 查询
+        JdbcQueryRequestDef request = new JdbcQueryRequestDef();
+        request.setQueryModel("FactSalesQueryModel");
+        request.setColumns(Arrays.asList(
+                "product$categoryName",
+                "taxAmount2",   // formulaDef 字段
+                "salesAmount"
+        ));
+        request.setOrderBy(createOrderList("taxAmount2", "DESC"));
+
+        PagingResultImpl result = queryFacade.queryModelData(
+                PagingRequest.buildPagingRequest(request, 100));
+        List<Map<String, Object>> items = result.getItems();
+
+        log.info("QueryModel 查询结果 (formulaDef字段排序 DESC): {} 条", items.size());
+
+        // 3. 验证结果顺序一致（按 taxAmount2 降序）
+        assertEquals(nativeResults.size(), items.size(), "结果行数应一致");
+
+        for (int i = 0; i < nativeResults.size(); i++) {
+            Map<String, Object> nativeRow = nativeResults.get(i);
+            Map<String, Object> row = items.get(i);
+
+            String categoryName = (String) nativeRow.get("category_name");
+            log.info("行 {}: categoryName={}, taxAmount2={}, salesAmount={}",
+                    i, categoryName, row.get("taxAmount2"), row.get("salesAmount"));
+
+            assertEquals(categoryName, row.get("product$categoryName"),
+                    "品类名称应一致（按taxAmount2排序后）: 行 " + i);
+            assertDecimalEquals(nativeRow.get("tax_amount2"), row.get("taxAmount2"),
+                    "taxAmount2 (formulaDef) 应一致: " + categoryName);
+            assertDecimalEquals(nativeRow.get("total_sales"), row.get("salesAmount"),
+                    "salesAmount 应一致: " + categoryName);
+        }
+
+        // 4. 额外验证：结果确实是按 taxAmount2 降序
+        if (items.size() >= 2) {
+            BigDecimal first = toBigDecimal(items.get(0).get("taxAmount2"));
+            BigDecimal second = toBigDecimal(items.get(1).get("taxAmount2"));
+            assertTrue(first.compareTo(second) >= 0,
+                    "第一行 taxAmount2 应 >= 第二行（降序）");
+        }
+    }
+
+    @Test
+    @Order(14)
+    @DisplayName("Engine层orderBy - 内联聚合表达式排序")
+    void testEngineOrderBy_InlineAggregateExpression() {
+        // 测试：内联聚合表达式在 GROUP BY 场景下的排序
+        // 例如：sum(quantity) as totalQuantity
+
+        // 1. 原生 SQL 查询（按总数量升序）
+        String nativeSql = """
+                SELECT
+                    dp.category_name as category_name,
+                    SUM(fs.quantity) as total_quantity,
+                    SUM(fs.sales_amount) as total_sales
+                FROM fact_sales fs
+                LEFT JOIN dim_product dp ON fs.product_key = dp.product_key
+                GROUP BY dp.category_name
+                ORDER BY total_quantity ASC
+                """;
+        List<Map<String, Object>> nativeResults = executeQuery(nativeSql);
+        log.info("原生 SQL 结果 (内联聚合表达式排序 ASC): {} 条", nativeResults.size());
+
+        // 2. QueryModel 查询
+        JdbcQueryRequestDef request = new JdbcQueryRequestDef();
+        request.setQueryModel("FactSalesQueryModel");
+        request.setColumns(Arrays.asList(
+                "product$categoryName",
+                "sum(quantity) as totalQuantity",  // 内联聚合表达式
+                "salesAmount"
+        ));
+        request.setOrderBy(createOrderList("totalQuantity", "ASC"));
+
+        PagingResultImpl result = queryFacade.queryModelData(
+                PagingRequest.buildPagingRequest(request, 100));
+        List<Map<String, Object>> items = result.getItems();
+
+        log.info("QueryModel 查询结果 (内联聚合表达式排序 ASC): {} 条", items.size());
+
+        // 3. 验证结果顺序一致（按 totalQuantity 升序）
+        assertEquals(nativeResults.size(), items.size(), "结果行数应一致");
+
+        for (int i = 0; i < nativeResults.size(); i++) {
+            Map<String, Object> nativeRow = nativeResults.get(i);
+            Map<String, Object> row = items.get(i);
+
+            String categoryName = (String) nativeRow.get("category_name");
+            log.info("行 {}: categoryName={}, totalQuantity={}, salesAmount={}",
+                    i, categoryName, row.get("totalQuantity"), row.get("salesAmount"));
+
+            assertEquals(categoryName, row.get("product$categoryName"),
+                    "品类名称应一致（按totalQuantity排序后）: 行 " + i);
+            assertEquals(toLong(nativeRow.get("total_quantity")), toLong(row.get("totalQuantity")),
+                    "totalQuantity 应一致: " + categoryName);
+            assertDecimalEquals(nativeRow.get("total_sales"), row.get("salesAmount"),
+                    "salesAmount 应一致: " + categoryName);
+        }
+
+        // 4. 额外验证：结果确实是按 totalQuantity 升序
+        if (items.size() >= 2) {
+            Long first = toLong(items.get(0).get("totalQuantity"));
+            Long second = toLong(items.get(1).get("totalQuantity"));
+            assertTrue(first <= second,
+                    "第一行 totalQuantity 应 <= 第二行（升序）");
+        }
+    }
+
+    @Test
+    @Order(15)
+    @DisplayName("Engine层orderBy - 多字段排序")
+    void testEngineOrderBy_MultipleFields() {
+        // 测试：多字段排序在 GROUP BY 场景下的处理
+        // 先按品类名称升序，再按销售额降序
+
+        // 1. 原生 SQL 查询
+        String nativeSql = """
+                SELECT
+                    dp.category_name as category_name,
+                    dp.brand as brand,
+                    SUM(fs.sales_amount) as total_sales
+                FROM fact_sales fs
+                LEFT JOIN dim_product dp ON fs.product_key = dp.product_key
+                GROUP BY dp.category_name, dp.brand
+                ORDER BY dp.category_name ASC, total_sales DESC
+                """;
+        List<Map<String, Object>> nativeResults = executeQuery(nativeSql);
+        log.info("原生 SQL 结果 (多字段排序): {} 条", nativeResults.size());
+
+        // 2. QueryModel 查询
+        JdbcQueryRequestDef request = new JdbcQueryRequestDef();
+        request.setQueryModel("FactSalesQueryModel");
+        request.setColumns(Arrays.asList(
+                "product$categoryName",
+                "product$brand",
+                "salesAmount"
+        ));
+
+        List<OrderRequestDef> orders = new ArrayList<>();
+        orders.add(createOrder("product$categoryName", "ASC"));
+        orders.add(createOrder("salesAmount", "DESC"));
+        request.setOrderBy(orders);
+
+        PagingResultImpl result = queryFacade.queryModelData(
+                PagingRequest.buildPagingRequest(request, 100));
+        List<Map<String, Object>> items = result.getItems();
+
+        log.info("QueryModel 查询结果 (多字段排序): {} 条", items.size());
+
+        // 3. 验证结果顺序一致
+        assertEquals(nativeResults.size(), items.size(), "结果行数应一致");
+
+        for (int i = 0; i < nativeResults.size(); i++) {
+            Map<String, Object> nativeRow = nativeResults.get(i);
+            Map<String, Object> row = items.get(i);
+
+            String categoryName = (String) nativeRow.get("category_name");
+            String brand = (String) nativeRow.get("brand");
+            log.info("行 {}: categoryName={}, brand={}, salesAmount={}",
+                    i, categoryName, brand, row.get("salesAmount"));
+
+            assertEquals(categoryName, row.get("product$categoryName"),
+                    "品类名称应一致: 行 " + i);
+            assertEquals(brand, row.get("product$brand"),
+                    "品牌应一致: 行 " + i);
+            assertDecimalEquals(nativeRow.get("total_sales"), row.get("salesAmount"),
+                    "salesAmount 应一致: 行 " + i);
+        }
+    }
+
+    @Test
+    @Order(16)
+    @DisplayName("Engine层orderBy - 不在SELECT中的字段被忽略")
+    void testEngineOrderBy_FieldNotInSelect_Ignored() {
+        // 测试：orderBy 字段不在 SELECT 中时应被忽略
+        // 这验证了 Engine 层的最后一道防线
+
+        // 1. 原生 SQL 查询（只按品类名称排序，因为 orderId 不在 SELECT 中）
+        String nativeSql = """
+                SELECT
+                    dp.category_name as category_name,
+                    SUM(fs.sales_amount) as total_sales
+                FROM fact_sales fs
+                LEFT JOIN dim_product dp ON fs.product_key = dp.product_key
+                GROUP BY dp.category_name
+                ORDER BY dp.category_name ASC
+                """;
+        List<Map<String, Object>> nativeResults = executeQuery(nativeSql);
+        log.info("原生 SQL 结果: {} 条", nativeResults.size());
+
+        // 2. QueryModel 查询 - 请求按 orderId 排序（不在 SELECT 中）
+        JdbcQueryRequestDef request = new JdbcQueryRequestDef();
+        request.setQueryModel("FactSalesQueryModel");
+        request.setColumns(Arrays.asList(
+                "product$categoryName",
+                "salesAmount"
+        ));
+
+        // 故意添加一个不在 SELECT 中的排序字段
+        List<OrderRequestDef> orders = new ArrayList<>();
+        orders.add(createOrder("product$categoryName", "ASC"));
+        orders.add(createOrder("orderId", "DESC"));  // orderId 不在 SELECT 中
+        request.setOrderBy(orders);
+
+        PagingResultImpl result = queryFacade.queryModelData(
+                PagingRequest.buildPagingRequest(request, 100));
+        List<Map<String, Object>> items = result.getItems();
+
+        log.info("QueryModel 查询结果 (含无效排序字段): {} 条", items.size());
+
+        // 3. 验证结果：应该成功执行，只是 orderId 排序被忽略
+        assertEquals(nativeResults.size(), items.size(), "结果行数应一致");
+
+        for (int i = 0; i < nativeResults.size(); i++) {
+            Map<String, Object> nativeRow = nativeResults.get(i);
+            Map<String, Object> row = items.get(i);
+
+            String categoryName = (String) nativeRow.get("category_name");
+            log.info("行 {}: categoryName={}, salesAmount={}",
+                    i, categoryName, row.get("salesAmount"));
+
+            assertEquals(categoryName, row.get("product$categoryName"),
+                    "品类名称应一致: 行 " + i);
+            assertDecimalEquals(nativeRow.get("total_sales"), row.get("salesAmount"),
+                    "salesAmount 应一致: " + categoryName);
+        }
+    }
+
+    @Test
+    @Order(17)
+    @DisplayName("Engine层orderBy - 混合场景：维度+聚合+formulaDef排序")
+    void testEngineOrderBy_MixedScenario() {
+        // 测试：混合使用维度字段、聚合字段、formulaDef 字段进行排序
+
+        // 1. 原生 SQL 查询
+        String nativeSql = """
+                SELECT
+                    dp.category_name as category_name,
+                    SUM(fs.quantity) as total_quantity,
+                    SUM(fs.tax_amount + 1) as tax_amount2,
+                    SUM(fs.sales_amount) as total_sales
+                FROM fact_sales fs
+                LEFT JOIN dim_product dp ON fs.product_key = dp.product_key
+                GROUP BY dp.category_name
+                ORDER BY dp.category_name ASC, tax_amount2 DESC
+                """;
+        List<Map<String, Object>> nativeResults = executeQuery(nativeSql);
+        log.info("原生 SQL 结果 (混合排序): {} 条", nativeResults.size());
+
+        // 2. QueryModel 查询
+        JdbcQueryRequestDef request = new JdbcQueryRequestDef();
+        request.setQueryModel("FactSalesQueryModel");
+        request.setColumns(Arrays.asList(
+                "product$categoryName",
+                "sum(quantity) as totalQuantity",
+                "taxAmount2",
+                "salesAmount"
+        ));
+
+        List<OrderRequestDef> orders = new ArrayList<>();
+        orders.add(createOrder("product$categoryName", "ASC"));
+        orders.add(createOrder("taxAmount2", "DESC"));
+        request.setOrderBy(orders);
+
+        PagingResultImpl result = queryFacade.queryModelData(
+                PagingRequest.buildPagingRequest(request, 100));
+        List<Map<String, Object>> items = result.getItems();
+
+        log.info("QueryModel 查询结果 (混合排序): {} 条", items.size());
+
+        // 3. 验证结果
+        assertEquals(nativeResults.size(), items.size(), "结果行数应一致");
+
+        for (int i = 0; i < nativeResults.size(); i++) {
+            Map<String, Object> nativeRow = nativeResults.get(i);
+            Map<String, Object> row = items.get(i);
+
+            String categoryName = (String) nativeRow.get("category_name");
+            log.info("行 {}: categoryName={}, totalQuantity={}, taxAmount2={}, salesAmount={}",
+                    i, categoryName, row.get("totalQuantity"), row.get("taxAmount2"), row.get("salesAmount"));
+
+            assertEquals(categoryName, row.get("product$categoryName"),
+                    "品类名称应一致: 行 " + i);
+            assertEquals(toLong(nativeRow.get("total_quantity")), toLong(row.get("totalQuantity")),
+                    "totalQuantity 应一致: " + categoryName);
+            assertDecimalEquals(nativeRow.get("tax_amount2"), row.get("taxAmount2"),
+                    "taxAmount2 应一致: " + categoryName);
+            assertDecimalEquals(nativeRow.get("total_sales"), row.get("salesAmount"),
+                    "salesAmount 应一致: " + categoryName);
+        }
+    }
+
+    // ==========================================
     // 辅助方法
     // ==========================================
 
