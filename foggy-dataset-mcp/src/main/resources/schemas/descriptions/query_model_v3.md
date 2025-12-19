@@ -6,19 +6,17 @@
 
 ## 核心概念
 
-### 🎯 字段分类
+### 🎯 字段使用规则（V3版本）
 
-**V3版本的核心简化**：所有字段直接使用字段名，无需拼接后缀。
+**直接使用 `description_model` 返回的字段名**，无需额外处理。
 
-#### 1. 维度字段 (Dimension)
-- **xxx$id**: 维度的ID/值字段（用于精确查询）
-- **xxx$caption**: 维度的显示名称字段（用于展示）
+#### 维度字段 (Dimension)
+维度字段会返回两个变体，按用途选择：
+- **xxx$id**: 用于精确查询/过滤
+- **xxx$caption**: 用于展示名称
 
-#### 2. 属性字段 (Attribute)
-普通字段，直接使用字段名。
-
-#### 3. 度量字段 (Measure)
-数值字段，直接使用字段名。每个度量字段都有默认的聚合方式。
+#### 属性字段 (Attribute) / 度量字段 (Measure)
+直接使用返回的字段名。
 
 ## 工具描述
 
@@ -26,7 +24,7 @@ Query a specific dataset model with advanced filtering, sorting, grouping and ag
 
 🔍 **API能力概览**:
 - 支持复杂查询条件、分页、排序、分组聚合等功能
-- **所有字段直接使用字段名**，无需判断和拼接后缀
+- **直接使用 `description_model` 返回的字段名**
 - 丰富的过滤操作符：=、!=、>、<、like、in、not in、区间查询[)、[]等
 - 聚合函数：SUM、AVG、MAX、MIN、COUNT等
 - **内联聚合表达式**：在 columns 中直接写聚合，系统自动处理 groupBy

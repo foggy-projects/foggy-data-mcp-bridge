@@ -22,9 +22,20 @@ Having LLMs generate SQL directly has several core problems:
 
 **This project's solution**: Add a **semantic layer** between AI and the database. AI only needs to select "which fields to query" and "how to filter", and the semantic layer handles generating correct SQL.
 
-```
-User ──Natural Language──▶ AI ──Semantic Query DSL──▶ Semantic Layer ──SQL──▶ Database
-                              (select fields, add filters)  (generate JOINs, aggregations)
+## Architecture
+
+```mermaid
+graph LR
+    User[User] -->|Natural Language| AI[AI Client<br/>Claude/Cursor]
+    AI -->|MCP Protocol<br/>Semantic Query DSL| Bridge[Java MCP Bridge]
+    subgraph Semantic["Semantic Layer"]
+        Bridge --> Parse[Parse .jm/.qm]
+        Parse --> SQL[Generate SQL]
+    end
+    SQL -->|Execute| DB[(Database)]
+    DB --> Bridge
+    Bridge -->|JSON/Charts| AI
+    AI -->|Display Results| User
 ```
 
 ## Core Features

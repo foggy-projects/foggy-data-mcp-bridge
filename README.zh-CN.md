@@ -20,14 +20,26 @@
 
 **本项目的解决方案**：在 AI 和数据库之间增加一个**语义层**，AI 只需要选择「查哪些字段」「怎么过滤」，由语义层负责生成正确的 SQL。
 
-```
-用户 ──自然语言──▶ AI ──语义查询DSL──▶ 语义层 ──SQL──▶ 数据库
-                        (选字段、加过滤)    (生成JOIN、聚合)
+## 架构原理
+
+```mermaid
+graph LR
+    User[用户] -->|自然语言| AI[AI 客户端<br/>Claude/Cursor]
+    AI -->|MCP 协议<br/>语义查询 DSL| Bridge[Java MCP Bridge]
+    subgraph Semantic["语义层"]
+        Bridge --> Parse[解析 .jm/.qm]
+        Parse --> SQL[生成 SQL]
+    end
+    SQL -->|执行| DB[(数据库)]
+    DB --> Bridge
+    Bridge -->|JSON/图表| AI
+    AI -->|结果展示| User
 ```
 
 ## 核心特性
 
 - **声明式数据模型** - 用 JM/QM 文件定义业务语义，AI 只能访问已授权的字段
+- **Model-as-Code (模型即代码)** - 使用 JavaScript 定义数据模型，支持函数复用、动态权限控制和复杂的计算逻辑，远比静态的 JSON/YAML 灵活。
 - **自动 SQL 生成** - 框架处理多表 JOIN、聚合、分页，无需 AI 理解复杂 Schema
 - **MCP 协议集成** - 开箱即用对接 Claude Desktop、Cursor 等 AI 客户端
 - **多数据库支持** - MySQL、PostgreSQL、SQL Server、SQLite

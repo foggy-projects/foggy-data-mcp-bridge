@@ -27,7 +27,7 @@
         "columns": {
           "type": "array",
           "items": { "type": "string" },
-          "description": "查询列。支持内联聚合如 'sum(amount) as total'，系统自动处理 groupBy"
+          "description": "查询字段列表。\uD83D\uDCA1 提示：支持内联聚合，例如 'sum(amount)' 或 'count(orderId) as cnt'，无需单独写 groupBy。"
         },
         "slice": {
           "type": "array",
