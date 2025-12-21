@@ -11,16 +11,8 @@
     </parent>
 
     <artifactId>foggy-benchmark-spider2</artifactId>
-    <name>foggy-benchmark-spider2</name>
-    <description>
-        Spider2 Benchmark - 基于 Spider2-Lite 数据集的 MCP 工具基准测试
-
-        功能：
-        - 使用 Spider2 SQLite 数据库进行 JM/QM 建模
-        - 使用 Spider2 自然语言问题测试 MCP 工具
-        - 支持多 AI 模型对比评估
-        - 生成标准化测试报告
-    </description>
+    <name>Foggy Benchmark Spider2</name>
+    <description>Spider2 benchmark for MCP tool evaluation using Spider2-Lite dataset</description>
 
     <properties>
         <spring-ai.version>1.0.1</spring-ai.version>
@@ -46,7 +38,7 @@
 
         <!-- MCP 工具模块 -->
         <dependency>
-            <groupId>com.foggy</groupId>
+            <groupId>com.foggysource</groupId>
             <artifactId>foggy-dataset-mcp</artifactId>
             <version>${project.version}</version>
         </dependency>

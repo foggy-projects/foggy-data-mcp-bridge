@@ -25,6 +25,19 @@
         </license>
     </licenses>
 
+    <developers>
+        <developer>
+            <name>JianguangFeng</name>
+            <email>oldseasoul@163.com</email>
+        </developer>
+    </developers>
+
+    <scm>
+        <connection>scm:git:git://github.com/foggy-projects/foggy-data-mcp-bridge.git</connection>
+        <developerConnection>scm:git:ssh://github.com:foggy-projects/foggy-data-mcp-bridge.git</developerConnection>
+        <url>https://github.com/foggy-projects/foggy-data-mcp-bridge</url>
+    </scm>
+
     <modules>
         <module>foggy-bean-copy</module>
         <module>foggy-core</module>
@@ -35,7 +48,7 @@
         <module>foggy-fsscript</module>
         <module>foggy-fsscript-client</module>
         <!-- WIP: 基准测试模块，暂未完成 -->
-        <module>foggy-benchmark-spider2</module>
+<!--        <module>foggy-benchmark-spider2</module>-->
     </modules>
 
     <properties>
@@ -264,5 +277,90 @@
             </plugin>
         </plugins>
     </build>
+
+    <!-- 发布到 Maven Central 的配置 -->
+    <profiles>
+        <profile>
+            <id>release</id>
+            <build>
+                <plugins>
+                    <!-- Flatten POM - 将父 POM 元数据合并到子模块 -->
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>flatten-maven-plugin</artifactId>
+                        <version>1.6.0</version>
+                        <configuration>
+                            <updatePomFile>true</updatePomFile>
+                            <flattenMode>ossrh</flattenMode>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>flatten</id>
+                                <phase>process-resources</phase>
+                                <goals>
+                                    <goal>flatten</goal>
+                                </goals>
+                            </execution>
+                            <execution>
+                                <id>flatten.clean</id>
+                                <phase>clean</phase>
+                                <goals>
+                                    <goal>clean</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <!-- Javadoc -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-javadoc-plugin</artifactId>
+                        <version>3.11.2</version>
+                        <configuration>
+                            <encoding>UTF-8</encoding>
+                            <charset>UTF-8</charset>
+                            <docencoding>UTF-8</docencoding>
+                            <!-- 忽略 Javadoc 错误，避免因注释问题导致构建失败 -->
+                            <doclint>none</doclint>
+                            <failOnError>false</failOnError>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>attach-javadocs</id>
+                                <goals>
+                                    <goal>jar</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <!-- GPG 签名 -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-gpg-plugin</artifactId>
+                        <version>3.2.7</version>
+                        <executions>
+                            <execution>
+                                <id>sign-artifacts</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>sign</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <!-- Central Publishing (Sonatype) -->
+                    <plugin>
+                        <groupId>org.sonatype.central</groupId>
+                        <artifactId>central-publishing-maven-plugin</artifactId>
+                        <version>0.6.0</version>
+                        <extensions>true</extensions>
+                        <configuration>
+                            <publishingServerId>central</publishingServerId>
+                            <autoPublish>true</autoPublish>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 
 </project>

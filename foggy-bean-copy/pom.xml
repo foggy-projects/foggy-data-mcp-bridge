@@ -1,28 +1,17 @@
-<project>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
-    <groupId>com.foggysource</groupId>
-    <artifactId>foggy-bean-copy</artifactId>
-    <packaging>jar</packaging>
-    <version>8.0.0-beta</version>
-    <url>http://maven.apache.org</url>
     <parent>
         <groupId>com.foggysource</groupId>
         <artifactId>foggy-data-mcp-bridge</artifactId>
         <version>8.0.0-beta</version>
     </parent>
 
-    <developers>
-        <developer>
-            <name>FengJianguang</name>
-            <id>FengJianguang</id>
-            <email>foggysource@gmail.com</email>
-            <roles>
-                <role>Architect</role>
-                <role>Java Developer</role>
-            </roles>
-            <timezone>+8</timezone>
-        </developer>
-    </developers>
+    <artifactId>foggy-bean-copy</artifactId>
+    <packaging>jar</packaging>
+    <name>Foggy Bean Copy</name>
+    <description>High-performance bean copy utility based on CGLib</description>
 
     <build>
         <finalName>${project.artifactId}-${project.version}</finalName>

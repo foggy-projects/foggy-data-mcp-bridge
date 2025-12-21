@@ -11,16 +11,8 @@
     </parent>
 
     <artifactId>foggy-dataset-demo</artifactId>
-    <name>foggy-data-mcp-bridge-dataset-demo</name>
-    <description>
-        Foggy Dataset Demo - 电商数据集演示模块
-
-        包含：
-        - 电商领域的 JM/QM 模型定义（维度表、事实表）
-        - 示例数据和初始化脚本（待添加）
-
-        其他模块可以通过 test scope 依赖此模块来复用测试数据。
-    </description>
+    <name>Foggy Dataset Demo</name>
+    <description>E-commerce demo dataset with JM/QM model definitions</description>
 
     <dependencies>
         <!-- 无运行时依赖，仅提供资源文件 -->

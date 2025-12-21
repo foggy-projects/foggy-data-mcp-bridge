@@ -117,3 +117,10 @@ h2*.trace.db
 generated/
 generated-sources/
 generated-test-sources/
+.flattened-pom.xml
+
+# ====================
+# VitePress (docs-site)
+# ====================
+docs-site/.vitepress/cache/
+docs-site/.vitepress/dist/
