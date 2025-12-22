@@ -15,17 +15,31 @@ export default defineConfig({
       link: '/zh/',
       themeConfig: {
         nav: [
+          { text: '快速开始', link: '/zh/quick-start/introduction' },
           {
-            text: '文档',
+            text: '技术文档',
             items: [
               { text: 'FSScript 脚本引擎', link: '/zh/fsscript/guide/introduction' },
-              { text: 'Dataset 数据建模', link: '/zh/dataset/guide/introduction' },
+              { text: '数据查询', link: '/zh/dataset-query/guide/introduction' },
+              { text: '数据建模', link: '/zh/dataset-model/guide/introduction' },
               { text: 'MCP 服务', link: '/zh/mcp/guide/introduction' }
             ]
           },
           { text: 'GitHub', link: 'https://github.com/foggy-projects/foggy-data-mcp-bridge' }
         ],
         sidebar: {
+          '/zh/quick-start/': [
+            {
+              text: '快速开始',
+              items: [
+                { text: '什么是 Foggy MCP', link: '/zh/quick-start/introduction' },
+                { text: 'Docker 快速部署', link: '/zh/quick-start/docker-setup' },
+                { text: '配置 Claude Desktop', link: '/zh/quick-start/claude-desktop' },
+                { text: '配置 Cursor', link: '/zh/quick-start/cursor' },
+                { text: '第一次查询', link: '/zh/quick-start/first-query' }
+              ]
+            }
+          ],
           '/zh/fsscript/': [
             {
               text: '开始',
@@ -63,29 +77,46 @@ export default defineConfig({
               ]
             }
           ],
-          '/zh/dataset/': [
+          '/zh/dataset-query/': [
             {
               text: '开始',
               items: [
-                { text: '简介', link: '/zh/dataset/guide/introduction' },
-                { text: '快速开始', link: '/zh/dataset/guide/quick-start' },
-                { text: '核心概念', link: '/zh/dataset/guide/concepts' }
-              ]
-            },
-            {
-              text: 'JM/QM 建模',
-              items: [
-                { text: 'JM 语法手册', link: '/zh/dataset/jm-qm/jm-syntax' },
-                { text: 'QM 语法手册', link: '/zh/dataset/jm-qm/qm-syntax' },
-                { text: '计算字段', link: '/zh/dataset/jm-qm/calculated-fields' },
-                { text: '父子维度', link: '/zh/dataset/jm-qm/parent-child' }
+                { text: '简介', link: '/zh/dataset-query/guide/introduction' },
+                { text: '快速开始', link: '/zh/dataset-query/guide/quick-start' },
+                { text: '多数据库支持', link: '/zh/dataset-query/guide/multi-database' }
               ]
             },
             {
               text: 'API 参考',
               items: [
-                { text: '查询 API', link: '/zh/dataset/api/query-api' },
-                { text: '权限控制', link: '/zh/dataset/api/authorization' }
+                { text: '查询 API', link: '/zh/dataset-query/api/query-api' },
+                { text: '方言扩展', link: '/zh/dataset-query/api/dialect' }
+              ]
+            }
+          ],
+          '/zh/dataset-model/': [
+            {
+              text: '开始',
+              items: [
+                { text: '简介', link: '/zh/dataset-model/guide/introduction' },
+                { text: '快速开始', link: '/zh/dataset-model/guide/quick-start' },
+                { text: '核心概念', link: '/zh/dataset-model/guide/concepts' }
+              ]
+            },
+            {
+              text: 'JM/QM 建模',
+              items: [
+                { text: 'JM 语法手册', link: '/zh/dataset-model/jm-qm/jm-syntax' },
+                { text: 'QM 语法手册', link: '/zh/dataset-model/jm-qm/qm-syntax' },
+                { text: '计算字段', link: '/zh/dataset-model/jm-qm/calculated-fields' },
+                { text: '父子维度', link: '/zh/dataset-model/jm-qm/parent-child' }
+              ]
+            },
+            {
+              text: 'API 参考',
+              items: [
+                { text: '查询 API', link: '/zh/dataset-model/api/query-api' },
+                { text: '权限控制', link: '/zh/dataset-model/api/authorization' }
               ]
             }
           ],
