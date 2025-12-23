@@ -5,7 +5,7 @@
     <parent>
         <groupId>com.foggysource</groupId>
         <artifactId>foggy-data-mcp-bridge</artifactId>
-        <version>8.0.0-beta</version>
+        <version>8.0.1-beta</version>
     </parent>
 
     <artifactId>foggy-fsscript</artifactId>
@@ -26,6 +26,10 @@
         <dependency>
             <groupId>com.foggysource</groupId>
             <artifactId>foggy-bean-copy</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.github.vbmacher</groupId>
+            <artifactId>java-cup-runtime</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>

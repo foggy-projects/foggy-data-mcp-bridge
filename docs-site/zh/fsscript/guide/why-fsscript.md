@@ -24,7 +24,16 @@ export const sql = `
     ORDER BY t.create_time DESC
 `;
 ```
-
+```SQL
+/**
+ * 输出语句(sqlExp),sqlExp会将
+ */
+SELECT t.id, t.name, t.amount, t.create_time
+FROM orders t
+WHERE t.tenant_id = '${token.tenantId}'
+  AND t.team_id = ? AND t.status IN (?,?)
+ORDER BY t.create_time DESC
+```
 ### 2. 导入 Spring Bean
 
 ```javascript

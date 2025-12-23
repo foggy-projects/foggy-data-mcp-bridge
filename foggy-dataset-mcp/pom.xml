@@ -6,12 +6,12 @@
 
     <groupId>com.foggysource</groupId>
     <artifactId>foggy-dataset-mcp</artifactId>
-    <version>8.0.0-beta</version>
+    <version>8.0.1-beta</version>
     <packaging>jar</packaging>
     <parent>
         <groupId>com.foggysource</groupId>
         <artifactId>foggy-data-mcp-bridge</artifactId>
-        <version>8.0.0-beta</version>
+        <version>8.0.1-beta</version>
     </parent>
 
     <name>MCP Data Model Java</name>

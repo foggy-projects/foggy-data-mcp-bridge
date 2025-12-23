@@ -1,13 +1,62 @@
 # 快速开始
 
+## 环境要求
+
+- **JDK**: 17 及以上版本
+- **Spring Boot**: 3.x
+
 ## Maven 依赖
 
 ```xml
 <dependency>
     <groupId>com.foggysource</groupId>
     <artifactId>foggy-fsscript</artifactId>
-    <version>${foggy.version}</version>
+    <version>8.0.1-beta</version>
 </dependency>
+```
+
+## Spring Boot 配置
+
+在 Spring Boot 项目中，需要添加 `@EnableFoggyFramework` 注解来启用 Foggy 框架。
+
+**方式一：在配置类上添加（推荐用于多模块项目）**
+
+```java
+@Configuration
+@EnableFoggyFramework(bundleName = "your-bundle-name")
+public class FoggyConfiguration {
+
+}
+```
+
+**方式二：在启动类上添加（适用于单模块项目）**
+
+```java
+@SpringBootApplication
+@EnableFoggyFramework(bundleName = "your-bundle-name")
+public class MyApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(MyApplication.class, args);
+    }
+}
+```
+
+## 脚本文件存放位置
+
+建议将 FSScript 脚本文件统一存放在以下目录：
+
+```
+src/main/resources/foggy/templates/
+```
+
+例如：
+```
+src/main/resources/
+└── foggy/
+    └── templates/
+        ├── my-script.fsscript
+        └── another-script.fsscript
 ```
 
 ## 基本使用
@@ -16,7 +65,7 @@
 
 ```java
 Fsscript script = FileFsscriptLoader.getInstance()
-    .findLoadFsscript("classpath:/scripts/my-script.fsscript");
+    .findLoadFsscript("classpath:/foggy/templates/my-script.fsscript");
 
 ExpEvaluator evaluator = script.newInstance(applicationContext);
 script.eval(evaluator);
