@@ -11,7 +11,7 @@
     <artifactId>foggy-dataset-model</artifactId>
     <packaging>jar</packaging>
     <name>Foggy Dataset Model</name>
-    <description>Core data model engine for JM/QM declarative dimension modeling and dynamic query</description>
+    <description>Core data model engine for TM/QM declarative dimension modeling and dynamic query</description>
 
     <build>
         <finalName>${project.artifactId}-${project.version}</finalName>
@@ -96,7 +96,7 @@
             <scope>test</scope>
         </dependency>
 
-        <!-- Demo 数据模型（JM/QM 定义）- 测试用 -->
+        <!-- Demo 数据模型（TM/QM 定义）- 测试用 -->
         <dependency>
             <groupId>com.foggysource</groupId>
             <artifactId>foggy-dataset-demo</artifactId>

@@ -171,7 +171,7 @@
             <scope>runtime</scope>
         </dependency>
 
-        <!-- Demo 数据模型（JM/QM 定义）- Docker 演示环境需要 -->
+        <!-- Demo 数据模型（TM/QM 定义）- Docker 演示环境需要 -->
         <dependency>
             <groupId>com.foggysource</groupId>
             <artifactId>foggy-dataset-demo</artifactId>

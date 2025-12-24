@@ -1,17 +1,17 @@
-# JM/QM 语法手册
+# TM/QM 语法手册
 
-Foggy Dataset Model 使用 **JM (Jdbc Model)** 和 **QM (Query Model)** 两种模型文件来定义数据模型和查询模型。
+Foggy Dataset Model 使用 **TM (Jdbc Model)** 和 **QM (Query Model)** 两种模型文件来定义数据模型和查询模型。
 
 ## 概述
 
 | 文件类型 | 扩展名 | 用途 |
 |---------|-------|------|
-| JM | `.jm` | 定义数据模型（表结构、维度、度量） |
-| QM | `.qm` | 定义查询模型（基于JM，定义可查询的字段和UI配置） |
+| TM | `.tm` | 定义数据模型（表结构、维度、度量） |
+| QM | `.qm` | 定义查询模型（基于TM，定义可查询的字段和UI配置） |
 
-## 一、JM 模型定义
+## 一、TM 模型定义
 
-JM 文件使用 JavaScript 语法导出一个 `model` 对象。
+TM 文件使用 JavaScript 语法导出一个 `model` 对象。
 
 ### 1.1 基本结构
 
@@ -297,14 +297,14 @@ measures: [
 
 ## 二、QM 查询模型定义
 
-QM 文件定义基于 JM 的查询视图，包含可查询的列、分组、排序等配置。
+QM 文件定义基于 TM 的查询视图，包含可查询的列、分组、排序等配置。
 
 ### 2.1 基本结构（单模型）
 
 ```javascript
 export const queryModel = {
     name: 'FactSalesQueryModel',    // 查询模型名称（必填）
-    model: 'FactSalesModel',        // 关联的 JM 模型名称（必填）
+    model: 'FactSalesModel',        // 关联的 TM 模型名称（必填）
 
     columnGroups: [...],            // 列组定义
     orders: [...],                  // 默认排序
@@ -424,7 +424,7 @@ accesses: [
 
 ## 三、完整示例
 
-### 3.1 事实表模型 (FactOrderModel.jm)
+### 3.1 事实表模型 (FactOrderModel.tm)
 
 ```javascript
 export const model = {
@@ -475,7 +475,7 @@ export const model = {
 };
 ```
 
-### 3.2 维度表模型 (DimCustomerModel.jm)
+### 3.2 维度表模型 (DimCustomerModel.tm)
 
 ```javascript
 export const model = {
@@ -555,7 +555,7 @@ export const queryModel = {
 ## 四、命名约定
 
 ### 4.1 文件命名
-- JM 文件：`{模型名}Model.jm`，如 `FactOrderModel.jm`
+- TM 文件：`{模型名}Model.tm`，如 `FactOrderModel.tm`
 - QM 文件：`{模型名}QueryModel.qm`，如 `FactOrderQueryModel.qm`
 
 ### 4.2 字段命名
@@ -566,4 +566,4 @@ export const queryModel = {
 ### 4.3 模型命名
 - 事实表模型：`Fact{业务名}Model`，如 `FactOrderModel`
 - 维度表模型：`Dim{业务名}Model`，如 `DimCustomerModel`
-- 查询模型：`{JM模型名}QueryModel`，如 `FactOrderQueryModel`
+- 查询模型：`{TM模型名}QueryModel`，如 `FactOrderQueryModel`

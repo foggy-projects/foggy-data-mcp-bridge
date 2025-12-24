@@ -29,7 +29,7 @@ graph LR
     User[User] -->|Natural Language| AI[AI Client<br/>Claude/Cursor]
     AI -->|MCP Protocol<br/>Semantic Query DSL| Bridge[Java MCP Bridge]
     subgraph Semantic["Semantic Layer"]
-        Bridge --> Parse[Parse .jm/.qm]
+        Bridge --> Parse[Parse .tm/.qm]
         Parse --> SQL[Generate SQL]
     end
     SQL -->|Execute| DB[(Database)]
@@ -40,7 +40,7 @@ graph LR
 
 ## Core Features
 
-- **Declarative Data Models** - Define business semantics with JM/QM files, AI can only access authorized fields
+- **Declarative Data Models** - Define business semantics with TM/QM files, AI can only access authorized fields
 - **Automatic SQL Generation** - Framework handles multi-table JOINs, aggregations, pagination; AI doesn't need to understand complex schemas
 - **MCP Protocol Integration** - Out-of-box integration with Claude Desktop, Cursor, and other AI clients
 - **Multi-Database Support** - MySQL, PostgreSQL, SQL Server, SQLite
@@ -78,10 +78,10 @@ Then query directly with natural language:
 
 ## How It Works
 
-### 1. Define Data Model (JM)
+### 1. Define Data Model (TM)
 
 ```javascript
-// FactSalesModel.jm
+// FactSalesModel.tm
 export const model = {
     name: 'FactSalesModel',
     caption: 'Sales Data',
@@ -139,13 +139,13 @@ foggy-data-mcp-bridge/
 ├── foggy-dataset-mcp       # MCP Server
 ├── foggy-dataset-demo      # Sample Data Models
 ├── foggy-dataset           # Multi-Database Adapter
-├── foggy-fsscript          # JM/QM Parser
+├── foggy-fsscript          # TM/QM Parser
 └── foggy-core              # Base Utilities
 ```
 
 ## Documentation
 
-- [JM/QM Syntax Manual](foggy-dataset-model/docs/guide/JM-QM-Syntax-Manual.md)
+- [TM/QM Syntax Manual](foggy-dataset-model/docs/guide/TM-QM-Syntax-Manual.md)
 - [IDE Local Development](foggy-dataset-mcp/docs/IDE-Development.md)
 - [Access Control](foggy-dataset-model/docs/security/Authorization-Control.md)
 

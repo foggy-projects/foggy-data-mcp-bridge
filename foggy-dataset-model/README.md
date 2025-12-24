@@ -10,7 +10,7 @@
 
 ## Overview
 
-Foggy Dataset Model is an embeddable data modeling and query engine designed for OLAP analytics scenarios. Through declarative **JM (Data Model)** and **QM (Query Model)** definitions, it automatically handles complex logic such as multi-table JOINs, aggregate calculations, and dimension filtering.
+Foggy Dataset Model is an embeddable data modeling and query engine designed for OLAP analytics scenarios. Through declarative **TM (Data Model)** and **QM (Query Model)** definitions, it automatically handles complex logic such as multi-table JOINs, aggregate calculations, and dimension filtering.
 
 ### Core Features
 
@@ -18,7 +18,7 @@ Foggy Dataset Model is an embeddable data modeling and query engine designed for
 - **Nested Dimensions (Snowflake Schema)** - Support multi-level dimension associations with concise nested syntax
 - **Parent-Child Dimensions (Hierarchical Data)** - Automatically handle hierarchical queries like organization structures using closure tables
 - **Multi-Database Support** - MySQL, PostgreSQL, SQL Server, SQLite, MongoDB
-- **Model-Query Separation** - JM defines data structure, QM defines queryable fields with clear responsibilities
+- **Model-Query Separation** - TM defines data structure, QM defines queryable fields with clear responsibilities
 - **Embeddable Design** - Integrate as a Spring Boot Starter with no additional operational overhead
 
 ## Quick Start
@@ -33,9 +33,9 @@ Foggy Dataset Model is an embeddable data modeling and query engine designed for
 </dependency>
 ```
 
-### 2. Define Data Model (JM)
+### 2. Define Data Model (TM)
 
-Create file `FactSalesModel.jm`:
+Create file `FactSalesModel.tm`:
 
 ```javascript
 export const model = {
@@ -273,7 +273,7 @@ Supported databases:
 │                 JdbcService (Query Entry)                │
 ├─────────────────────────────────────────────────────────┤
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────┐  │
-│  │ JM Loader   │  │ QM Loader   │  │ SQL Generator   │  │
+│  │ TM Loader   │  │ QM Loader   │  │ SQL Generator   │  │
 │  │ (JdbcModel) │  │(QueryModel) │  │ (JdbcQuery)     │  │
 │  └─────────────┘  └─────────────┘  └─────────────────┘  │
 ├─────────────────────────────────────────────────────────┤
@@ -285,7 +285,7 @@ Supported databases:
 
 ## Documentation
 
-- [JM/QM Syntax Manual](docs/JM-QM-Syntax-Manual.md)
+- [TM/QM Syntax Manual](docs/TM-QM-Syntax-Manual.md)
 - [Quick Start Guide](docs/quick-start.md)
 - [API Reference](docs/API-Reference.md)
 - [Multi-Database Adapter](docs/MULTI_DATABASE_ADAPTER.md)

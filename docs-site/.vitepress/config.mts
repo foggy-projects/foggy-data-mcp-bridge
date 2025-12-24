@@ -104,12 +104,12 @@ export default defineConfig({
               ]
             },
             {
-              text: 'JM/QM 建模',
+              text: 'TM/QM 建模',
               items: [
-                { text: 'JM 语法手册', link: '/zh/dataset-model/jm-qm/jm-syntax' },
-                { text: 'QM 语法手册', link: '/zh/dataset-model/jm-qm/qm-syntax' },
-                { text: '计算字段', link: '/zh/dataset-model/jm-qm/calculated-fields' },
-                { text: '父子维度', link: '/zh/dataset-model/jm-qm/parent-child' }
+                { text: 'TM 语法手册', link: '/zh/dataset-model/tm-qm/tm-syntax' },
+                { text: 'QM 语法手册', link: '/zh/dataset-model/tm-qm/qm-syntax' },
+                { text: '计算字段', link: '/zh/dataset-model/tm-qm/calculated-fields' },
+                { text: '父子维度', link: '/zh/dataset-model/tm-qm/parent-child' }
               ]
             },
             {
@@ -221,12 +221,12 @@ export default defineConfig({
               ]
             },
             {
-              text: 'JM/QM Modeling',
+              text: 'TM/QM Modeling',
               items: [
-                { text: 'JM Syntax Manual', link: '/en/dataset/jm-qm/jm-syntax' },
-                { text: 'QM Syntax Manual', link: '/en/dataset/jm-qm/qm-syntax' },
-                { text: 'Calculated Fields', link: '/en/dataset/jm-qm/calculated-fields' },
-                { text: 'Parent-Child Dimension', link: '/en/dataset/jm-qm/parent-child' }
+                { text: 'TM Syntax Manual', link: '/en/dataset/tm-qm/tm-syntax' },
+                { text: 'QM Syntax Manual', link: '/en/dataset/tm-qm/qm-syntax' },
+                { text: 'Calculated Fields', link: '/en/dataset/tm-qm/calculated-fields' },
+                { text: 'Parent-Child Dimension', link: '/en/dataset/tm-qm/parent-child' }
               ]
             },
             {

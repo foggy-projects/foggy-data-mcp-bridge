@@ -524,7 +524,7 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
     }
 
     // ==========================================
-    // formulaDef 字段测试（JM 中定义的计算字段）
+    // formulaDef 字段测试（TM 中定义的计算字段）
     // ==========================================
 
     @Test

@@ -16,7 +16,7 @@
 # 自定义模型:
 #   1. 创建模型目录: mkdir -p ./custom-models/model ./custom-models/query
 #   2. 编辑 .env 启用外部模型: EXTERNAL_MODELS_ENABLED=true
-#   3. 将 JM/QM 文件放入对应目录
+#   3. 将 TM/QM 文件放入对应目录
 #   4. 重启服务: docker-compose restart mcp
 #
 # ============================================

@@ -11,7 +11,7 @@
     <artifactId>foggy-fsscript</artifactId>
     <packaging>jar</packaging>
     <name>Foggy FSScript</name>
-    <description>FSScript engine for parsing JM/QM declarative data models</description>
+    <description>FSScript engine for parsing TM/QM declarative data models</description>
 
     <build>
         <finalName>${project.artifactId}-${project.version}</finalName>

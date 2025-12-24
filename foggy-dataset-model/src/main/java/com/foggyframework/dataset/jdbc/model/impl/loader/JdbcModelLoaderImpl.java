@@ -81,11 +81,11 @@ public class JdbcModelLoaderImpl extends LoaderSupport implements JdbcModelLoade
 
     @Override
     synchronized public JdbcModel load(String name) {
-        JdbcModel jm = name2JdbcModel.get(name);
-        if (jm != null) {
-            return jm;
+        JdbcModel tm = name2JdbcModel.get(name);
+        if (tm != null) {
+            return tm;
         }
-        Fsscript fScript = this.findFsscript(name, "jm");
+        Fsscript fScript = this.findFsscript(name, "tm");
         ExpEvaluator ee = fScript.eval(systemBundlesContext.getApplicationContext());
 //        fScript.get
         Object model = ee.getExportObject("model");
@@ -97,14 +97,14 @@ public class JdbcModelLoaderImpl extends LoaderSupport implements JdbcModelLoade
         fix(def);
         if (StringUtils.equals(def.getType(), "mongo")) {
             RX.notNull(mongoModelLoader, "使用 MongoDB 模型需要在项目中配置 MongoDB 连接（确保存在 MongoClient Bean）");
-            jm = mongoModelLoader.load(fScript, def, bundle);
+            tm = mongoModelLoader.load(fScript, def, bundle);
         } else {
-            jm = load(def.getDataSource() == null ? dataSource : def.getDataSource(), fScript, def, bundle, null);
+            tm = load(def.getDataSource() == null ? dataSource : def.getDataSource(), fScript, def, bundle, null);
         }
 
 
-        name2JdbcModel.put(name, jm);
-        return jm;
+        name2JdbcModel.put(name, tm);
+        return tm;
     }
 
     private void fix(JdbcModelDef def) {

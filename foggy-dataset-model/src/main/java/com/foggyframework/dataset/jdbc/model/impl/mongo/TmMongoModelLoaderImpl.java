@@ -31,7 +31,7 @@ import java.util.Set;
  */
 @Service
 @Slf4j
-public class JmMongoModelLoaderImpl implements MongoModelLoader {
+public class TmMongoModelLoaderImpl implements MongoModelLoader {
 
     @Resource
     @Lazy

@@ -4,7 +4,7 @@
 
 即将推出...
 
-## JM (Join Model)
+## TM (Join Model)
 
 即将推出...
 

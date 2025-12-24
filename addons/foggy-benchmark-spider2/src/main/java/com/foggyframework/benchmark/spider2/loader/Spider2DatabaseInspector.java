@@ -26,7 +26,7 @@ import java.util.stream.Stream;
 /**
  * Spider2 数据库结构探测器
  *
- * 探测 SQLite 数据库结构，结合 Spider2 元数据生成 JM/QM 模型
+ * 探测 SQLite 数据库结构，结合 Spider2 元数据生成 TM/QM 模型
  */
 @Slf4j
 @Component
@@ -276,9 +276,9 @@ public class Spider2DatabaseInspector {
     }
 
     /**
-     * 生成 JM 模型（利用元数据中的描述和样本）
+     * 生成 TM 模型（利用元数据中的描述和样本）
      */
-    public String generateJmModel(DatabaseSchema schema) {
+    public String generateTmModel(DatabaseSchema schema) {
         StringBuilder sb = new StringBuilder();
         sb.append("/**\n");
         sb.append(" * ").append(schema.getDatabaseName()).append(" 数据模型\n");

@@ -30,7 +30,7 @@ public class JdbcModelTestApplication {
 
     /**
      * MCP 审计日志使用的 MongoTemplate
-     * 对应 JM 模型中的 import '@mcpMongoTemplate'
+     * 对应 TM 模型中的 import '@mcpMongoTemplate'
      */
     @Bean
     @ConditionalOnMissingBean(name = "mcpMongoTemplate")

@@ -14,7 +14,7 @@ hero:
 
 features:
   - title: Dataset Modeling
-    details: Declarative JM/QM syntax for dimension modeling, automatic SQL generation
+    details: Declarative TM/QM syntax for dimension modeling, automatic SQL generation
   - title: MCP Integration
     details: Connect AI assistants (Claude, Cursor) to your database via MCP protocol
   - title: FSScript Engine

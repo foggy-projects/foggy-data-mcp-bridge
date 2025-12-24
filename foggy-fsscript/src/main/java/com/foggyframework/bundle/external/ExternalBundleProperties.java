@@ -72,8 +72,8 @@ public class ExternalBundleProperties {
          * <pre>
          * {path}/
          *   ├── model/
-         *   │   ├── XxxModel.jm
-         *   │   └── YyyModel.jm
+         *   │   ├── XxxModel.tm
+         *   │   └── YyyModel.tm
          *   ├── query/
          *   │   ├── XxxQueryModel.qm
          *   │   └── YyyQueryModel.qm

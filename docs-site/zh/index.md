@@ -17,7 +17,7 @@ features:
     details: 通过 MCP 协议连接 AI 助手到你的数据库
     link: /zh/mcp/guide/introduction
   - title: 数据建模
-    details: foggy-dataset-model 模块，声明式 JM/QM 维度建模
+    details: foggy-dataset-model 模块，声明式 TM/QM 维度建模
     link: /zh/dataset-model/guide/introduction
   - title: FSScript 脚本引擎
     details: 轻量级类 JavaScript 脚本引擎，用于动态 SQL 模板

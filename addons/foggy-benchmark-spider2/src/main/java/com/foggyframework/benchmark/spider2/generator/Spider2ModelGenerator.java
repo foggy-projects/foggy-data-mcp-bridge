@@ -15,10 +15,10 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * Spider2 JM/QM 模型生成器
+ * Spider2 TM/QM 模型生成器
  *
- * 从 Spider2 元数据生成 foggy-data-mcp-bridge 的 JM 和 QM 模型文件
- * 每个表生成独立的 .jm 文件，每个事实表生成独立的 .qm 文件
+ * 从 Spider2 元数据生成 foggy-data-mcp-bridge 的 TM 和 QM 模型文件
+ * 每个表生成独立的 .tm 文件，每个事实表生成独立的 .qm 文件
  *
  * 使用方法：直接运行 main 方法
  */
@@ -47,7 +47,7 @@ public class Spider2ModelGenerator {
 
     public static void main(String[] args) throws IOException {
         System.out.println("===========================================");
-        System.out.println("  Spider2 JM/QM Model Generator");
+        System.out.println("  Spider2 TM/QM Model Generator");
         System.out.println("===========================================\n");
 
         Spider2ModelGenerator generator = new Spider2ModelGenerator();
@@ -55,7 +55,7 @@ public class Spider2ModelGenerator {
     }
 
     /**
-     * 生成所有数据库的 JM/QM 模型
+     * 生成所有数据库的 TM/QM 模型
      */
     public void generateAll() throws IOException {
         System.out.println("Starting Spider2 Model Generation...");
@@ -123,26 +123,26 @@ public class Spider2ModelGenerator {
         Path dbOutputDir = outputPath.resolve(toSnakeCase(dbName));
         Files.createDirectories(dbOutputDir);
 
-        int jmCount = 0;
+        int tmCount = 0;
         int qmCount = 0;
 
-        // 为每个维度表生成独立的 JM 文件
+        // 为每个维度表生成独立的 TM 文件
         for (TableAnalysis dimTable : analysis.getDimensionTables()) {
-            String jmContent = generateSingleJmFile(dimTable, false, analysis);
-            String fileName = toPascalCase(dimTable.getMetadata().getTableName()) + "Model.jm";
-            Path jmPath = dbOutputDir.resolve(fileName);
-            Files.writeString(jmPath, jmContent, StandardCharsets.UTF_8);
-            jmCount++;
+            String tmContent = generateSingleTmFile(dimTable, false, analysis);
+            String fileName = toPascalCase(dimTable.getMetadata().getTableName()) + "Model.tm";
+            Path tmPath = dbOutputDir.resolve(fileName);
+            Files.writeString(tmPath, tmContent, StandardCharsets.UTF_8);
+            tmCount++;
         }
 
-        // 为每个事实表生成独立的 JM 文件和 QM 文件
+        // 为每个事实表生成独立的 TM 文件和 QM 文件
         for (TableAnalysis factTable : analysis.getFactTables()) {
-            // 生成 JM
-            String jmContent = generateSingleJmFile(factTable, true, analysis);
-            String jmFileName = toPascalCase(factTable.getMetadata().getTableName()) + "Model.jm";
-            Path jmPath = dbOutputDir.resolve(jmFileName);
-            Files.writeString(jmPath, jmContent, StandardCharsets.UTF_8);
-            jmCount++;
+            // 生成 TM
+            String tmContent = generateSingleTmFile(factTable, true, analysis);
+            String tmFileName = toPascalCase(factTable.getMetadata().getTableName()) + "Model.tm";
+            Path tmPath = dbOutputDir.resolve(tmFileName);
+            Files.writeString(tmPath, tmContent, StandardCharsets.UTF_8);
+            tmCount++;
 
             // 生成 QM
             String qmContent = generateSingleQmFile(factTable, analysis);
@@ -152,7 +152,7 @@ public class Spider2ModelGenerator {
             qmCount++;
         }
 
-        System.out.println("Generated " + jmCount + " JM files, " + qmCount + " QM files");
+        System.out.println("Generated " + tmCount + " TM files, " + qmCount + " QM files");
     }
 
     /**
@@ -281,9 +281,9 @@ public class Spider2ModelGenerator {
     }
 
     /**
-     * 生成单个表的 JM 文件内容
+     * 生成单个表的 TM 文件内容
      */
-    private String generateSingleJmFile(TableAnalysis table, boolean isFact, DatabaseAnalysis analysis) {
+    private String generateSingleTmFile(TableAnalysis table, boolean isFact, DatabaseAnalysis analysis) {
         StringBuilder sb = new StringBuilder();
         TableMetadata meta = table.getMetadata();
         String modelName = toPascalCase(meta.getTableName()) + "Model";
@@ -340,7 +340,7 @@ public class Spider2ModelGenerator {
                         String colType = i < dimMeta.getColumnTypes().size() ? dimMeta.getColumnTypes().get(i) : "TEXT";
                         sb.append("                { column: '").append(colName).append("'");
                         sb.append(", caption: '").append(inferColumnCaption(colName, "")).append("'");
-                        sb.append(", type: '").append(mapToJmType(colType)).append("' },\n");
+                        sb.append(", type: '").append(mapToTmType(colType)).append("' },\n");
                     }
                     sb.append("            ]\n");
                 }
@@ -384,7 +384,7 @@ public class Spider2ModelGenerator {
 
             sb.append("        { column: '").append(colName).append("'");
             sb.append(", caption: '").append(inferColumnCaption(colName, description)).append("'");
-            sb.append(", type: '").append(mapToJmType(colType)).append("'");
+            sb.append(", type: '").append(mapToTmType(colType)).append("'");
             sb.append(" },\n");
         }
         sb.append("    ],\n");
@@ -398,7 +398,7 @@ public class Spider2ModelGenerator {
 
                 sb.append("        { column: '").append(colName).append("'");
                 sb.append(", caption: '").append(inferColumnCaption(colName, "")).append("'");
-                sb.append(", type: '").append(mapToJmType(colType)).append("'");
+                sb.append(", type: '").append(mapToTmType(colType)).append("'");
                 sb.append(", aggregation: '").append(inferAggregation(colName)).append("' },\n");
             }
             sb.append("    ]\n");
@@ -487,7 +487,7 @@ public class Spider2ModelGenerator {
             sb.append("            caption: '度量指标',\n");
             sb.append("            items: [\n");
             for (String colName : measures) {
-                // QM 中的 name 使用原始列名（与 JM 中的 column 保持一致）
+                // QM 中的 name 使用原始列名（与 TM 中的 column 保持一致）
                 sb.append("                { name: '").append(colName).append("' },\n");
             }
             sb.append("            ]\n");
@@ -656,7 +656,7 @@ public class Spider2ModelGenerator {
                 .orElse(colName);
     }
 
-    private String mapToJmType(String sqliteType) {
+    private String mapToTmType(String sqliteType) {
         if (sqliteType == null) return "STRING";
         String upper = sqliteType.toUpperCase();
         if (upper.contains("INT")) return "INTEGER";

@@ -39,7 +39,7 @@ public class Spider2Properties {
     private List<String> enabledDatabases = new ArrayList<>();
 
     /**
-     * 是否只加载有 JM/QM 模型的测试用例
+     * 是否只加载有 TM/QM 模型的测试用例
      */
     private boolean onlyWithModels = true;
 

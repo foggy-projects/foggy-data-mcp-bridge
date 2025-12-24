@@ -4,7 +4,7 @@
 
 Coming soon...
 
-## JM (Join Model)
+## TM (Join Model)
 
 Coming soon...
 

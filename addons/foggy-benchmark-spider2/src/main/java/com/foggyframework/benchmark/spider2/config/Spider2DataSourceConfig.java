@@ -24,7 +24,7 @@ import java.util.stream.Stream;
  * Spider2 SQLite 数据源配置
  *
  * 功能：
- * 1. 启动时自动扫描并注册所有 SQLite 数据库的 DataSource Bean（用于 JM 模型引用）
+ * 1. 启动时自动扫描并注册所有 SQLite 数据库的 DataSource Bean（用于 TM 模型引用）
  * 2. 提供动态创建和缓存数据源的方法（用于测试代码）
  */
 @Slf4j

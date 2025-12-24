@@ -1,12 +1,12 @@
 # Foggy Dataset Model 文档
 
-Foggy Dataset Model 是一个声明式数据模型定义框架，通过 `.jm`（JDBC Model）和 `.qm`（Query Model）文件定义数据模型，自动生成 SQL 查询，支持多维度分析、聚合计算等复杂场景。
+Foggy Dataset Model 是一个声明式数据模型定义框架，通过 `.tm`（JDBC Model）和 `.qm`（Query Model）文件定义数据模型，自动生成 SQL 查询，支持多维度分析、聚合计算等复杂场景。
 
 ## 核心概念
 
 | 概念 | 说明 |
 |------|------|
-| **JM (JDBC Model)** | 数据模型定义，描述表结构、维度、度量 |
+| **TM (JDBC Model)** | 数据模型定义，描述表结构、维度、度量 |
 | **QM (Query Model)** | 查询模型定义，描述可查询的列和列组 |
 | **维度 (Dimension)** | 分析的角度，如时间、商品、客户 |
 | **度量 (Measure)** | 可聚合的数值，如金额、数量 |
@@ -25,7 +25,7 @@ Foggy Dataset Model 是一个声明式数据模型定义框架，通过 `.jm`（
 - [快速入门](quick-start.md) - 5 分钟创建第一个数据模型
 
 ### 核心指南 (`guide/`)
-- [JM/QM 语法手册](guide/JM-QM-Syntax-Manual.md) - 完整的模型定义语法参考
+- [TM/QM 语法手册](guide/TM-QM-Syntax-Manual.md) - 完整的模型定义语法参考
 - [API 参考](guide/API-Reference.md) - HTTP API 接口文档
 - [父子维度](guide/Parent-Child-Dimension.md) - 层级结构维度（组织架构、商品分类等）
 
@@ -45,7 +45,7 @@ docs/
 ├── quick-start.md         # 快速入门
 │
 ├── guide/                 # 核心指南
-│   ├── JM-QM-Syntax-Manual.md
+│   ├── TM-QM-Syntax-Manual.md
 │   ├── API-Reference.md
 │   └── Parent-Child-Dimension.md
 │
@@ -64,11 +64,11 @@ docs/
 
 ```
 src/test/resources/foggy/templates/ecommerce/
-├── model/           # JM 模型文件
-│   ├── DimDateModel.jm
-│   ├── DimProductModel.jm
-│   ├── DimCustomerModel.jm
-│   ├── FactSalesModel.jm
+├── model/           # TM 模型文件
+│   ├── DimDateModel.tm
+│   ├── DimProductModel.tm
+│   ├── DimCustomerModel.tm
+│   ├── FactSalesModel.tm
 │   └── ...
 └── query/           # QM 查询模型文件
     ├── FactSalesQueryModel.qm
@@ -87,8 +87,8 @@ src/test/resources/foggy/templates/ecommerce/
 ┌─────────────────────────────────────────────────────────┐
 │                  查询引擎 (QueryEngine)                   │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────┐  │
-│  │ QM 查询模型  │  │ JM 数据模型  │  │  公式服务        │  │
-│  │ (.qm 文件)  │  │ (.jm 文件)  │  │ (FormulaService)│  │
+│  │ QM 查询模型  │  │ TM 数据模型  │  │  公式服务        │  │
+│  │ (.qm 文件)  │  │ (.tm 文件)  │  │ (FormulaService)│  │
 │  └─────────────┘  └─────────────┘  └─────────────────┘  │
 └─────────────────────────────────────────────────────────┘
                             │

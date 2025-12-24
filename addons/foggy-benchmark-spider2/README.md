@@ -10,13 +10,13 @@ MCP tool benchmark module based on the [Spider2-Lite](https://github.com/xlang-a
 
 This module is for validating Foggy Framework's AI query capabilities, but is incomplete due to:
 
-- Spider2 databases require manual understanding of business semantics to build accurate JM/QM models
+- Spider2 databases require manual understanding of business semantics to build accurate TM/QM models
 - Auto-generated models lack sufficient business semantic descriptions
 - More time needed for data analysis and model optimization
 
 ## Features (Planned)
 
-- Use Spider2 SQLite databases for JM/QM modeling
+- Use Spider2 SQLite databases for TM/QM modeling
 - Test MCP tools with Spider2 natural language questions
 - Support multi-AI model comparison evaluation
 - Generate standardized test reports
@@ -127,7 +127,7 @@ This module only tests with SQLite databases.
 
 ## Future Plans
 
-- [ ] Create JM/QM models for common databases
+- [ ] Create TM/QM models for common databases
 - [ ] Integrate MCP tool calls (instead of direct AI calls)
 - [ ] Add result accuracy evaluation
 - [ ] Support parallel multi-model testing

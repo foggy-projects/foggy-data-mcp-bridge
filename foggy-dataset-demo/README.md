@@ -8,7 +8,7 @@ E-commerce dataset demo module providing unified test data and model definitions
 
 This module contains:
 
-- **JM Model Definitions** - Dimension and fact table models for the e-commerce domain
+- **TM Model Definitions** - Dimension and fact table models for the e-commerce domain
 - **QM Query Models** - Query model definitions supporting multi-dimensional queries and multi-table JOINs
 - **Docker Environment** - Multi-database test environment (MySQL, PostgreSQL, SQL Server)
 - **Sample Data** - Complete e-commerce test dataset
@@ -142,12 +142,12 @@ UNION ALL SELECT 'dim_customer', COUNT(*) FROM dim_customer;
 ### Load Models
 
 Model files are located in classpath:
-- JM models: `foggy/templates/ecommerce/model/`
+- TM models: `foggy/templates/ecommerce/model/`
 - QM query models: `foggy/templates/ecommerce/query/`
 
 ```java
 // Example: Load sales fact table model
-String modelPath = "foggy/templates/ecommerce/model/FactSalesModel.jm";
+String modelPath = "foggy/templates/ecommerce/model/FactSalesModel.tm";
 InputStream is = getClass().getClassLoader().getResourceAsStream(modelPath);
 
 // Example: Load sales query model
@@ -163,20 +163,20 @@ foggy-dataset-demo/
 ├── README.md
 ├── src/main/resources/
 │   └── foggy/templates/ecommerce/
-│       ├── model/                    # JM model definitions
-│       │   ├── DimChannelModel.jm
-│       │   ├── DimCustomerModel.jm
-│       │   ├── DimDateModel.jm
-│       │   ├── DimProductModel.jm
-│       │   ├── DimPromotionModel.jm
-│       │   ├── DimStoreModel.jm
-│       │   ├── FactInventorySnapshotModel.jm
-│       │   ├── FactOrderModel.jm
-│       │   ├── FactPaymentModel.jm
-│       │   ├── FactReturnModel.jm
-│       │   ├── FactSalesModel.jm
-│       │   ├── FactSalesNestedDimModel.jm
-│       │   └── FactTeamSalesModel.jm
+│       ├── model/                    # TM model definitions
+│       │   ├── DimChannelModel.tm
+│       │   ├── DimCustomerModel.tm
+│       │   ├── DimDateModel.tm
+│       │   ├── DimProductModel.tm
+│       │   ├── DimPromotionModel.tm
+│       │   ├── DimStoreModel.tm
+│       │   ├── FactInventorySnapshotModel.tm
+│       │   ├── FactOrderModel.tm
+│       │   ├── FactPaymentModel.tm
+│       │   ├── FactReturnModel.tm
+│       │   ├── FactSalesModel.tm
+│       │   ├── FactSalesNestedDimModel.tm
+│       │   └── FactTeamSalesModel.tm
 │       └── query/                    # QM query models
 │           ├── FactSalesQueryModel.qm
 │           ├── FactOrderQueryModel.qm

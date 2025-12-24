@@ -1,3 +1,3 @@
-# JM Syntax Manual
+# TM Syntax Manual
 
 Coming soon...

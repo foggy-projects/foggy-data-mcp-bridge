@@ -26,7 +26,7 @@ import java.util.Map;
 /**
  * 外部文件系统Bundle实现
  *
- * <p>支持从外部文件系统目录加载数据模型文件（.jm, .qm, .fsscript等）。
+ * <p>支持从外部文件系统目录加载数据模型文件（.tm, .qm, .fsscript等）。
  * 与 {@link com.foggyframework.bundle.BundleImpl} 不同，此实现直接操作文件系统，
  * 而不是通过Spring的Resource抽象访问classpath资源。
  *
@@ -34,8 +34,8 @@ import java.util.Map;
  * <pre>
  * {basePath}/
  *   ├── model/
- *   │   ├── XxxModel.jm
- *   │   └── YyyModel.jm
+ *   │   ├── XxxModel.tm
+ *   │   └── YyyModel.tm
  *   ├── query/
  *   │   ├── XxxQueryModel.qm
  *   │   └── YyyQueryModel.qm

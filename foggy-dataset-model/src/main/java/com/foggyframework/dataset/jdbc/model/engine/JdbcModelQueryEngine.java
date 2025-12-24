@@ -118,8 +118,8 @@ public class JdbcModelQueryEngine {
         //补上必要的模型
         if (jdbcQueryModel.getJdbcModelList().size() > 1) {
             for (int i = 1; i < jdbcQueryModel.getJdbcModelList().size(); i++) {
-                JdbcModel jm = jdbcQueryModel.getJdbcModelList().get(i);
-                JdbcQueryModelImpl.JdbcModelDx dx = jm.getDecorate(JdbcQueryModelImpl.JdbcModelDx.class);
+                JdbcModel tm = jdbcQueryModel.getJdbcModelList().get(i);
+                JdbcQueryModelImpl.JdbcModelDx dx = tm.getDecorate(JdbcQueryModelImpl.JdbcModelDx.class);
 
                 if (dx.getOnBuilder() != null) {
                     jdbcQuery.preJoin(dx.getQueryObject(), dx.getOnBuilder(), dx.getJoinType());

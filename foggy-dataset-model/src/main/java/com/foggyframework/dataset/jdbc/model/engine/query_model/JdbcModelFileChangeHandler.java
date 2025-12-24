@@ -76,33 +76,33 @@ public class JdbcModelFileChangeHandler implements ApplicationListener<FsscriptR
         }
         Map<String, JdbcModel> mm = new HashMap<>(jdbcModelLoader.getName2JdbcModel());
         Map<String, JdbcQueryModel> qmm = new HashMap<>(jdbcQueryModelLoader.getName2JdbcQueryModel());
-        List<JdbcModelImpl> removedJm = new ArrayList<>();
+        List<JdbcModelImpl> removedTm = new ArrayList<>();
         for (Fsscript removedFsscript : fsscriptRemoveEvent.getRemovedFsscripts()) {
             for (Map.Entry<String, JdbcModel> stringJdbcModelEntry : mm.entrySet()) {
-                JdbcModelImpl jm = stringJdbcModelEntry.getValue().getDecorate(JdbcModelImpl.class);
-                if (jm != null && jm.getFScript().getPath().equals(removedFsscript.getPath())) {
+                JdbcModelImpl tm = stringJdbcModelEntry.getValue().getDecorate(JdbcModelImpl.class);
+                if (tm != null && tm.getFScript().getPath().equals(removedFsscript.getPath())) {
                     if (log.isDebugEnabled()) {
-                        log.debug("移除模型" + jm.getName());
+                        log.debug("移除模型" + tm.getName());
                     }
-                    removedJm.add(jm);
+                    removedTm.add(tm);
                     mm.remove(stringJdbcModelEntry.getKey());
 
                 }
             }
 
             for (Map.Entry<String, JdbcQueryModel> stringJdbcQueryModelEntry : qmm.entrySet()) {
-                JdbcQueryModelImpl qjm = stringJdbcQueryModelEntry.getValue().getDecorate(JdbcQueryModelImpl.class);
-                if (qjm != null && qjm.getFsscript().getPath().equals(removedFsscript.getPath())) {
+                JdbcQueryModelImpl qtm = stringJdbcQueryModelEntry.getValue().getDecorate(JdbcQueryModelImpl.class);
+                if (qtm != null && qtm.getFsscript().getPath().equals(removedFsscript.getPath())) {
                     if (log.isDebugEnabled()) {
-                        log.debug("s1.移除查询模型" + qjm.getName());
+                        log.debug("s1.移除查询模型" + qtm.getName());
                     }
                     qmm.remove(stringJdbcQueryModelEntry.getKey());
                 }
 
-                for (JdbcModelImpl jdbcModel : removedJm) {
-                    if(qjm.getJdbcModel().getName().equals(jdbcModel.getName())){
+                for (JdbcModelImpl jdbcModel : removedTm) {
+                    if(qtm.getJdbcModel().getName().equals(jdbcModel.getName())){
                         if (log.isDebugEnabled()) {
-                            log.debug("s2.移除查询模型" + qjm.getName());
+                            log.debug("s2.移除查询模型" + qtm.getName());
                         }
                     }
                 }

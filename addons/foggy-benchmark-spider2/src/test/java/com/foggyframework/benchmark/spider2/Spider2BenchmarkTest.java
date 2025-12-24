@@ -127,8 +127,8 @@ class Spider2BenchmarkTest {
 
     @Test
     @Order(6)
-    @DisplayName("生成 JM 模型（基于元数据）")
-    void generateJmModelFromMetadata() {
+    @DisplayName("生成 TM 模型（基于元数据）")
+    void generateTmModelFromMetadata() {
         Assumptions.assumeTrue(testCaseLoader.isSpider2Configured(), "Spider2 not configured");
 
         String testDb = "E_commerce";
@@ -136,12 +136,12 @@ class Spider2BenchmarkTest {
 
         Assumptions.assumeTrue(schema != null, "Metadata not available for " + testDb);
 
-        String jmModel = databaseInspector.generateJmModel(schema);
-        log.info("\n========== Generated JM Model ==========\n{}", jmModel);
+        String tmModel = databaseInspector.generateTmModel(schema);
+        log.info("\n========== Generated TM Model ==========\n{}", tmModel);
 
-        assertNotNull(jmModel);
-        assertTrue(jmModel.contains("export const"), "Should contain JM model definition");
-        assertTrue(jmModel.contains("properties:"), "Should contain properties array");
+        assertNotNull(tmModel);
+        assertTrue(tmModel.contains("export const"), "Should contain TM model definition");
+        assertTrue(tmModel.contains("properties:"), "Should contain properties array");
     }
 
     // ==================== 数据库探测 ====================
@@ -177,8 +177,8 @@ class Spider2BenchmarkTest {
 
     @Test
     @Order(11)
-    @DisplayName("生成 JM 模型（从数据库直接探测）")
-    void generateJmModelFromDatabase() throws IOException {
+    @DisplayName("生成 TM 模型（从数据库直接探测）")
+    void generateTmModelFromDatabase() throws IOException {
         Assumptions.assumeTrue(testCaseLoader.isSpider2Configured(), "Spider2 not configured");
 
         List<String> databases = testCaseLoader.getUniqueDatabases();
@@ -187,9 +187,9 @@ class Spider2BenchmarkTest {
         for (String db : databases) {
             if (dataSourceConfig.isDatabaseAvailable(db)) {
                 Spider2DatabaseInspector.DatabaseSchema schema = databaseInspector.inspectSchemaFromDatabase(db);
-                String jmModel = databaseInspector.generateJmModel(schema);
+                String tmModel = databaseInspector.generateTmModel(schema);
 
-                log.info("\n========== JM Model for {} (from DB) ==========\n{}", db, jmModel);
+                log.info("\n========== TM Model for {} (from DB) ==========\n{}", db, tmModel);
                 break;
             }
         }

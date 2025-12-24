@@ -24,7 +24,7 @@ MCP_MODEL_LIST=FactSalesQueryModel,ExampleViewQueryModel
 
 ### 2. 修改 viewSql
 
-编辑 `model/ExampleViewModel.jm`，将 `viewSql` 修改为你的查询语句：
+编辑 `model/ExampleViewModel.tm`，将 `viewSql` 修改为你的查询语句：
 
 ```javascript
 viewSql: `
@@ -59,7 +59,7 @@ custom-models/
 ├── README.md                 # 本文档
 ├── datasource.fsscript       # 数据源配置（从环境变量读取）
 ├── model/
-│   └── ExampleViewModel.jm   # 数据模型定义（使用 viewSql）
+│   └── ExampleViewModel.tm   # 数据模型定义（使用 viewSql）
 └── query/
     └── ExampleViewQueryModel.qm  # 查询模型定义
 ```
