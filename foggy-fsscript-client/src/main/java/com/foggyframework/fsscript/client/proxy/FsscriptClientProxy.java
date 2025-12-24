@@ -4,7 +4,6 @@ import com.foggyframework.bundle.Bundle;
 import com.foggyframework.bundle.BundleResource;
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.core.ex.RX;
-import com.foggyframework.core.spring.bean.IMethodInterceptor;
 import com.foggyframework.core.utils.FoggyBeanUtils;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.fsscript.client.annotates.FsscriptClientMethod;
@@ -15,19 +14,19 @@ import com.foggyframework.fsscript.loadder.FileTxtFsscriptLoader;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
 import lombok.Getter;
-import org.springframework.cglib.proxy.MethodInterceptor;
 import org.springframework.util.Assert;
 
+import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import org.springframework.cglib.proxy.MethodProxy;
 
+/**
+ * FsscriptClient 代理类
+ * 通过 JDK 动态代理实现接口方法的动态拦截和脚本执行
+ */
 @Getter
-public class FsscriptClientProxy implements MethodInterceptor {
+public class FsscriptClientProxy implements InvocationHandler {
 
     FsscriptReturnConverterManager fsscriptReturnConverterManager;
 
@@ -64,23 +63,10 @@ public class FsscriptClientProxy implements MethodInterceptor {
 
 
     @Override
-    public Object intercept(Object o, Method method, Object[] objects, MethodProxy methodProxy) {
-        if (method.getName().equals("hashCode")) {
-            return this.hashCode();
-        }
-        if (method.getName().equals("toString")) {
-            return this.toString();
-        }
-        if (method.getName().equals("equals")) {
-            return this.equals(objects[0]);
-        }
-        if (method.getName().equals("notify")) {
-            this.notify();
-            return null;
-        }
-        if (method.getName().equals("notifyAll")) {
-            this.notifyAll();
-            return null;
+    public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+        // 处理 Object 类的基本方法
+        if (method.getDeclaringClass() == Object.class) {
+            return method.invoke(this, args);
         }
 
         String name = null;
@@ -142,7 +128,7 @@ public class FsscriptClientProxy implements MethodInterceptor {
 
         String[] methodArgs = FoggyBeanUtils.getParameterNames(method);
         for (int i = 0; i < methodArgs.length; i++) {
-            expEvaluator.setVar(methodArgs[i], objects[i]);
+            expEvaluator.setVar(methodArgs[i], args[i]);
         }
 
         if (cacheScript) {
@@ -159,7 +145,7 @@ public class FsscriptClientProxy implements MethodInterceptor {
                         //当用来缓存时，我们需要新的ExpEvaluator
                         ExpEvaluator cachExpEvaluator = fsscript.newInstance(systemBundlesContext.getApplicationContext());
                         for (int i = 0; i < methodArgs.length; i++) {
-                            cachExpEvaluator.setVar(methodArgs[i], objects[i]);
+                            cachExpEvaluator.setVar(methodArgs[i], args[i]);
                         }
 
                         fsscript.evalResult(cachExpEvaluator);
@@ -178,7 +164,7 @@ public class FsscriptClientProxy implements MethodInterceptor {
                 fsscript.evalResult(expEvaluator);
                 fsscriptFunction = getFsscriptFunction(expEvaluator, name, functionName);
             }
-            expEvaluator.setVar(ExpEvaluator._argumentsKey, objects);
+            expEvaluator.setVar(ExpEvaluator._argumentsKey, args);
 
 //            synchronized (fsscriptFunction) {
             result = fsscriptFunction.autoApply(expEvaluator);

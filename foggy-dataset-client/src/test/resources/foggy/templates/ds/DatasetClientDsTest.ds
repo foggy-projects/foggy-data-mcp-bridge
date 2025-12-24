@@ -1,0 +1,4 @@
+
+export const sql=`
+    select 1 test_ab , now() create_date,'abc' xxTest, 'ddd' xxx_abc
+`;

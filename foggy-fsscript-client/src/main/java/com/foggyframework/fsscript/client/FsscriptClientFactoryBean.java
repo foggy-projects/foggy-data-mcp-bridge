@@ -10,18 +10,17 @@ import org.springframework.beans.factory.FactoryBean;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
-import com.foggyframework.core.spring.proxy.SpringCGLibProxy;
+
+import java.lang.reflect.Proxy;
 import java.util.Map;
 
 @Getter
 @Setter
-public class FsscriptClientFactoryBean implements FactoryBean<Object>, InitializingBean,  BeanFactoryAware {
-
-//    private ApplicationContext applicationContext;
+public class FsscriptClientFactoryBean implements FactoryBean<Object>, InitializingBean, BeanFactoryAware {
 
     private BeanFactory beanFactory;
     String contextId;
-    //目前只支持接口
+    // 目前只支持接口
     Class type;
 
     Object proxy;
@@ -31,11 +30,13 @@ public class FsscriptClientFactoryBean implements FactoryBean<Object>, Initializ
     @Nullable
     @Override
     public Object getObject() {
-
-        //构造代理对象
-
-        proxy = SpringCGLibProxy.createProxyObject(new FsscriptClientProxy(beanFactory.getBean(SystemBundlesContext.class),type), type);
-
+        // 使用 JDK 动态代理创建接口代理对象
+        FsscriptClientProxy handler = new FsscriptClientProxy(beanFactory.getBean(SystemBundlesContext.class), type);
+        proxy = Proxy.newProxyInstance(
+                type.getClassLoader(),
+                new Class<?>[]{type},
+                handler
+        );
         return proxy;
     }
 
@@ -47,12 +48,9 @@ public class FsscriptClientFactoryBean implements FactoryBean<Object>, Initializ
 
     @Override
     public void afterPropertiesSet() {
-
     }
 
     public void validate(Map<String, Object> attributes) {
-        Assert.isTrue(type.isInterface(), "目前DatasetClient只支持定义在接口上！" + type + "，不是一个接口");
+        Assert.isTrue(type.isInterface(), "目前FsscriptClient只支持定义在接口上！" + type + "，不是一个接口");
     }
-
-
 }

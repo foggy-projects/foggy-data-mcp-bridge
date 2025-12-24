@@ -29,7 +29,7 @@ services:
     build:
       context: ./mysql
       dockerfile: Dockerfile
-    image: foggy-mcp-mysql:${FOGGY_VERSION:-8.0.0-beta}
+    image: foggy-mcp-mysql:${FOGGY_VERSION:-8.0.1-beta}
     container_name: foggy-mcp-mysql
     restart: unless-stopped
     environment:
@@ -66,7 +66,7 @@ services:
     build:
       context: ../..
       dockerfile: foggy-dataset-mcp/Dockerfile
-    image: foggy-mcp:${FOGGY_VERSION:-8.0.0-beta}
+    image: foggy-mcp:${FOGGY_VERSION:-8.0.1-beta}
     container_name: foggy-mcp-service
     restart: unless-stopped
     depends_on:

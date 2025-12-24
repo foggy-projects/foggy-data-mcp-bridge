@@ -47,6 +47,7 @@
         <module>foggy-dataset-model</module>
         <module>foggy-fsscript</module>
         <module>foggy-fsscript-client</module>
+        <module>foggy-dataset-client</module>
         <!-- WIP: 基准测试模块，暂未完成 -->
 <!--        <module>foggy-benchmark-spider2</module>-->
     </modules>
@@ -105,6 +106,11 @@
             <dependency>
                 <groupId>com.foggysource</groupId>
                 <artifactId>foggy-dataset-model</artifactId>
+                <version>${foggy-framework.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.foggysource</groupId>
+                <artifactId>foggy-dataset-client</artifactId>
                 <version>${foggy-framework.version}</version>
             </dependency>
 

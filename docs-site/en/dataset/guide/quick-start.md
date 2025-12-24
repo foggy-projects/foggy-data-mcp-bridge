@@ -8,7 +8,7 @@ Add the dependency to your `pom.xml`:
 <dependency>
     <groupId>com.foggysource</groupId>
     <artifactId>foggy-dataset-model</artifactId>
-    <version>8.0.0-beta</version>
+    <version>8.0.1-beta</version>
 </dependency>
 ```
 

@@ -64,14 +64,28 @@ src/main/resources/
 ### 方式一：直接加载脚本文件
 
 ```java
-Fsscript script = FileFsscriptLoader.getInstance()
-    .findLoadFsscript("classpath:/foggy/templates/my-script.fsscript");
+@Service
+public class BasicUserFsscript implements InitializingBean {
 
-ExpEvaluator evaluator = script.newInstance(applicationContext);
-script.eval(evaluator);
+    @Resource
+    ApplicationContext applicationContext;
+    @Resource
+    FileFsscriptLoader fsscriptLoader;
 
-// 获取导出的变量
-Object result = evaluator.getExportObject("result");
+    @Override
+    public void afterPropertiesSet() throws Exception {
+        Fsscript script = fsscriptLoader.findLoadFsscript("classpath:/foggy/templates/hello-world.fsscript");
+
+        ExpEvaluator evaluator = script.newInstance(applicationContext);
+        script.eval(evaluator);
+
+        // 获取导出的变量
+        Object result = evaluator.getExportObject("result");
+
+        System.out.println("export: " + result);
+    }
+
+}
 ```
 
 ### 方式二：JSR-223 标准接口（推荐）
