@@ -6,6 +6,7 @@
         <groupId>com.foggysource</groupId>
         <artifactId>foggy-data-mcp-bridge</artifactId>
         <version>8.0.1-beta</version>
+        <relativePath>../../pom.xml</relativePath>
     </parent>
 
     <artifactId>foggy-fsscript-client</artifactId>

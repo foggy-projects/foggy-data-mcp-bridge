@@ -46,8 +46,10 @@
         <module>foggy-dataset-mcp</module>
         <module>foggy-dataset-model</module>
         <module>foggy-fsscript</module>
-        <module>foggy-fsscript-client</module>
-        <module>foggy-dataset-client</module>
+        <!-- Addons: 可选扩展模块 -->
+        <module>addons/foggy-fsscript-client</module>
+        <module>addons/foggy-dataset-client</module>
+        <module>addons/foggy-dataset-mongo</module>
         <!-- WIP: 基准测试模块，暂未完成 -->
 <!--        <module>foggy-benchmark-spider2</module>-->
     </modules>
@@ -111,6 +113,11 @@
             <dependency>
                 <groupId>com.foggysource</groupId>
                 <artifactId>foggy-dataset-client</artifactId>
+                <version>${foggy-framework.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.foggysource</groupId>
+                <artifactId>foggy-dataset-mongo</artifactId>
                 <version>${foggy-framework.version}</version>
             </dependency>
 
