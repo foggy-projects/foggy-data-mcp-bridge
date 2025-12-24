@@ -12,66 +12,10 @@
 </dependency>
 ```
 
-## 2. 基础查询
-
-### 2.1 使用 DatasetTemplate
-
-`DatasetTemplate` 是基础查询工具类，封装了 `JdbcTemplate` 和数据库方言：
-
-```java
-@Autowired
-DataSource dataSource;
-
-// 获取 DatasetTemplate（自动检测数据库类型）
-DatasetTemplate template = DataSourceQueryUtils.getDatasetTemplate(dataSource);
-
-// 查询 Map 列表
-List<Map<String, Object>> users = template.queryMapList(
-    "SELECT * FROM users WHERE status = ?",
-    new Object[]{1}
-);
-
-// 查询对象列表
-List<User> userList = template.queryObjectList(
-    User.class,
-    "SELECT * FROM users WHERE age > ?",
-    18
-);
-
-// 查询单个对象（不会因空结果抛异常）
-User user = template.queryForObject(
-    User.class,
-    "SELECT * FROM users WHERE user_id = ?",
-    "U001"
-);
-
-// 查询总数
-Long count = template.queryCount(
-    "SELECT * FROM users WHERE status = ?",
-    new Object[]{1}
-);
-```
-
-### 2.2 多数据库支持
-
-`foggy-dataset` 自动检测数据库类型，生成适配的 SQL：
-
-```java
-// 自动检测数据库方言
-FDialect dialect = DbUtils.getDialect(dataSource);
-log.info("数据库类型: {}", dialect.getProductName());
-
-// 生成分页 SQL（自动适配不同数据库）
-String sql = "SELECT * FROM users";
-String pageSql = dialect.generatePagingSql(sql, 0, 20);
-// MySQL: SELECT * FROM users LIMIT 0, 20
-// PostgreSQL: SELECT * FROM users LIMIT 20 OFFSET 0
-// SQL Server: SELECT * FROM users OFFSET 0 ROWS FETCH NEXT 20 ROWS ONLY
-```
 
 ---
 
-## 3. 使用 FSScript 构建动态 SQL（核心）
+## 2. 使用 FSScript 构建动态 SQL（核心）
 
 在实际业务中，查询条件往往是动态的。传统的字符串拼接方式存在 **SQL 注入风险**：
 
@@ -85,14 +29,14 @@ let sql = `SELECT * FROM users WHERE name = '${userName}'`;
 
 ### 3.1 核心函数
 
-| 函数 | 功能 | 用途 |
-|------|------|------|
-| `sqlExp(value, sql)` | 条件参数 | 单值条件查询 |
-| `sqlInExp(array, sql)` | IN 查询 | 多值 IN 查询 |
-| `toLikeStr(str)` | 两端模糊 | `LIKE '%value%'` |
-| `toLikeStrL(str)` | 左侧模糊 | `LIKE '%value'` |
-| `toLikeStrR(str)` | 右侧模糊 | `LIKE 'value%'` |
-| `iif(cond, true, false)` | 条件表达式 | 复杂条件拼接 |
+| 函数                           | 功能 | 用途 |
+|------------------------------|------|------|
+| `sqlExp(value, sql,force)`   | 条件参数 | 单值条件查询 |
+| `sqlInExp(array, sql,force)` | IN 查询 | 多值 IN 查询 |
+| `toLikeStr(str)`             | 两端模糊 | `LIKE '%value%'` |
+| `toLikeStrL(str)`            | 左侧模糊 | `LIKE '%value'` |
+| `toLikeStrR(str)`            | 右侧模糊 | `LIKE 'value%'` |
+| `iif(cond, true, false)`     | 条件表达式 | 复杂条件拼接 |
 
 ### 3.2 sqlExp - 条件参数
 
@@ -108,7 +52,7 @@ export const sql = `
     FROM users
     WHERE 1=1
         ${sqlExp(form.param.teamId, 'AND team_id = ?')}
-        ${sqlExp(form.param.status, 'AND status = ?')}
+        ${sqlExp(form.param.status, 'AND status = ?',true)}
         ${sqlExp(form.param.startTime, 'AND create_time >= ?')}
         ${sqlExp(form.param.endTime, 'AND create_time < ?')}
     ORDER BY create_time DESC
@@ -118,6 +62,7 @@ export const sql = `
 **执行结果**：
 - 如果 `form.param.teamId = "T001"`，生成：`AND team_id = ?`，参数列表添加 `"T001"`
 - 如果 `form.param.teamId = null`，生成：空字符串（条件被忽略）
+- 如果 `form.param.status = null或''`，生成：`AND status = ?`，参数列表添加 `null或''`
 
 ### 3.3 sqlInExp - IN 查询
 
@@ -162,9 +107,12 @@ export const sql = `
 用于复杂的条件拼接：
 
 ```javascript
+//导入构建权限的函数
+import {buildAuth} from './auth-utils.fsscript';
+//  import {buildAuth} from '@authHelper';
 export const sql = `
     SELECT * FROM orders
-    WHERE 1=1
+    WHERE 1=1 ${buildAuth()}
         ${iif(
             form.param.includeDeleted,
             '',
