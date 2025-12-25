@@ -2,7 +2,7 @@ package com.foggyframework.dataset.jdbc.model.ecommerce;
 
 import com.foggyframework.conversion.FsscriptConversionService;
 import com.foggyframework.core.ex.RX;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcModelLoader;
+import com.foggyframework.dataset.jdbc.model.spi.TableModelLoaderManager;
 import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryModel;
 import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryModelLoader;
 import com.foggyframework.dataset.jdbc.model.test.JdbcModelTestApplication;
@@ -55,7 +55,7 @@ public abstract class EcommerceTestSupport {
     }
 
     @Resource
-    protected JdbcModelLoader jdbcModelLoader;
+    protected TableModelLoaderManager tableModelLoaderManager;
 
     @Resource
     protected JdbcQueryModelLoader jdbcQueryModelLoader;

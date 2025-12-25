@@ -36,7 +36,6 @@ import com.foggyframework.fsscript.parser.spi.Fsscript;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
 
@@ -51,7 +50,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @Setter
 @Getter
-public class JdbcModelLoaderImpl extends LoaderSupport implements JdbcModelLoader {
+public class TableModelLoaderManagerImpl extends LoaderSupport implements TableModelLoaderManager {
     @Resource
     DataSource dataSource;
 
@@ -66,12 +65,14 @@ public class JdbcModelLoaderImpl extends LoaderSupport implements JdbcModelLoade
     List<JdbcModelLoadProcessor> processors;
 
     Map<String, JdbcModel> name2JdbcModel = new HashMap<>();
+    Map<String, TableModelLoader> typeName2Loader = new HashMap<>();
     int dimIdx;
     int modelIdx;
 
-    public JdbcModelLoaderImpl(SystemBundlesContext systemBundlesContext, FileFsscriptLoader fileFsscriptLoader, List<JdbcModelLoadProcessor> processors) {
+    public TableModelLoaderManagerImpl(SystemBundlesContext systemBundlesContext, FileFsscriptLoader fileFsscriptLoader, List<JdbcModelLoadProcessor> processors, List<TableModelLoader> loaders) {
         super(systemBundlesContext, fileFsscriptLoader);
         this.processors = processors;
+        loaders.forEach(loader -> typeName2Loader.put(loader.getTypeName(), loader));
     }
 
     @Override
@@ -95,12 +96,16 @@ public class JdbcModelLoaderImpl extends LoaderSupport implements JdbcModelLoade
         Bundle bundle = fScript.getFsscriptClosureDefinition().getFsscriptClosureDefinitionSpace().getBundle();
         JdbcModelDef def = FsscriptConversionService.getSharedInstance().convert(model, JdbcModelDef.class);
         fix(def);
-        if (StringUtils.equals(def.getType(), "mongo")) {
-            RX.notNull(mongoModelLoader, "使用 MongoDB 模型需要在项目中配置 MongoDB 连接（确保存在 MongoClient Bean）");
-            tm = mongoModelLoader.load(fScript, def, bundle);
-        } else {
-            tm = load(def.getDataSource() == null ? dataSource : def.getDataSource(), fScript, def, bundle, null);
-        }
+
+        TableModelLoader tableModelLoader = typeName2Loader.get(def.getType());
+        tm = tableModelLoader.load(fScript, def, bundle);
+        tm = initialization(tm, def, bundle);
+//        if (StringUtils.equals(def.getType(), "mongo")) {
+//            RX.notNull(mongoModelLoader, "使用 MongoDB 模型需要在项目中配置 MongoDB 连接（确保存在 MongoClient Bean）");
+//            tm = mongoModelLoader.load(fScript, def, bundle);
+//        } else {
+//            tm = load(def.getDataSource() == null ? dataSource : def.getDataSource(), fScript, def, bundle, null);
+//        }
 
 
         name2JdbcModel.put(name, tm);
@@ -129,22 +134,24 @@ public class JdbcModelLoaderImpl extends LoaderSupport implements JdbcModelLoade
             }
         }
 
+        if (StringUtils.isEmpty(def.getType())) {
+            def.setType("jdbc");
+        }
 
     }
 
-    @Override
-    public JdbcModel load(DataSource dataSource, Fsscript fScript, JdbcModelDef def, Bundle bundle, MongoTemplate defMongoTemplate) {
+    public JdbcModel initialization(JdbcModel jm, JdbcModelDef def, Bundle bundle) {
         RX.notNull(dataSource, "加载模型时的数据源不得为空");
         RX.notNull(dataSource, "加载模型时的def不得为空");
 
         String tableName = def.getTableName();
         String viewSql = def.getViewSql();
+        JdbcModelImpl jdbcModel = jm.getDecorate(JdbcModelImpl.class);
+//        JdbcModelImpl jdbcModel = new JdbcModelImpl(dataSource,fScript);
+//        def.apply(jdbcModel);
+//        jdbcModel.setMongoTemplate(defMongoTemplate);
 
-        JdbcModelImpl jdbcModel = new JdbcModelImpl(dataSource,fScript);
-        def.apply(jdbcModel);
-        jdbcModel.setMongoTemplate(defMongoTemplate);
-
-        jdbcModel.setQueryObject(loadQueryObject(dataSource, jdbcModel.getModelType() == JdbcModelType.mongo ? null : tableName, viewSql, def.getSchema()));
+//        jdbcModel.setQueryObject(loadQueryObject(dataSource, jdbcModel.getModelType() == JdbcModelType.mongo ? null : tableName, viewSql, def.getSchema()));
         /**
          * 加入JSON列的支持,目前先让属性和度量支持
          */
@@ -163,7 +170,7 @@ public class JdbcModelLoaderImpl extends LoaderSupport implements JdbcModelLoade
             }
         }
 
-        JdbcModelLoadContext context = new JdbcModelLoadContext(dataSource,def, jdbcModel, bundle);
+        JdbcModelLoadContext context = new JdbcModelLoadContext(dataSource, def, jdbcModel, bundle);
         //加载维度定义
         loadDimensions(context);
 
@@ -201,35 +208,6 @@ public class JdbcModelLoaderImpl extends LoaderSupport implements JdbcModelLoade
             }
 
         }
-    }
-
-    private QueryObject loadQueryObject(DataSource dataSource, String tableName, String viewSql, String schema) {
-        if (StringUtils.isTrimEmpty(viewSql) && StringUtils.isTrimEmpty(tableName)) {
-            throw RX.throwAUserTip(DatasetMessages.modelTablenameRequired());
-        }
-
-        FDialect dialect = DbUtils.getDialect(dataSource);
-
-        SqlTable sqlTable = null;
-        QueryObject queryObject = null;
-        if (StringUtils.isNotTrimEmpty(tableName)) {
-            //优先根据表名读取
-            sqlTable = dialect.getTableByNameWithSchema(dataSource, tableName, true, schema);
-
-            queryObject = new TableQueryObject(sqlTable, schema);
-        } else {
-            //使用SQL
-            List<SqlColumn> sqlColumnList = dialect.getColumnsBySql(dataSource, viewSql);
-
-            sqlTable = new SqlTable();
-            sqlTable.setSqlColumns(sqlColumnList);
-            queryObject = new ViewSqlQueryObject(viewSql, sqlTable);
-
-        }
-
-
-        return queryObject;
-
     }
 
     private void loadDimensions(JdbcModelLoadContext context) {

@@ -143,7 +143,7 @@ class ParentChildDimensionTest extends EcommerceTestSupport {
     @DisplayName("验证父子维度模型加载")
     void testParentChildDimensionModelLoad() {
         // 获取模型
-        JdbcModel model = jdbcModelLoader.getJdbcModel("FactTeamSalesModel");
+        JdbcModel model = tableModelLoaderManager.getJdbcModel("FactTeamSalesModel");
         assertNotNull(model, "模型应成功加载");
         log.info("加载模型: {}", model.getName());
 

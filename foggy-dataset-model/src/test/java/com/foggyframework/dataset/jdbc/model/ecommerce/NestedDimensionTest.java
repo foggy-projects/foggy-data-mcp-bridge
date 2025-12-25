@@ -130,7 +130,7 @@ class NestedDimensionTest extends EcommerceTestSupport {
     @Order(10)
     @DisplayName("模型加载 - 验证嵌套维度结构")
     void testModelLoading_NestedDimensionStructure() {
-        JdbcModel model = jdbcModelLoader.load("FactSalesNestedDimModel");
+        JdbcModel model = tableModelLoaderManager.load("FactSalesNestedDimModel");
 
         assertNotNull(model, "模型应能正确加载");
         assertEquals("FactSalesNestedDimModel", model.getName());

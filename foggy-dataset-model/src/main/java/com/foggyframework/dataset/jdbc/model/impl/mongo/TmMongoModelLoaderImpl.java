@@ -1,18 +1,22 @@
 package com.foggyframework.dataset.jdbc.model.impl.mongo;
 
 import com.foggyframework.bundle.Bundle;
+import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.jdbc.model.def.JdbcModelDef;
 import com.foggyframework.dataset.jdbc.model.def.measure.JdbcMeasureDef;
 import com.foggyframework.dataset.jdbc.model.def.property.JdbcPropertyDef;
 import com.foggyframework.dataset.jdbc.model.engine.mongo.MongoModelLoader;
+import com.foggyframework.dataset.jdbc.model.impl.LoaderSupport;
+import com.foggyframework.dataset.jdbc.model.impl.model.JdbcModelImpl;
 import com.foggyframework.dataset.jdbc.model.spi.JdbcModel;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcModelLoader;
+import com.foggyframework.dataset.jdbc.model.spi.TableModelLoader;
+import com.foggyframework.dataset.jdbc.model.spi.TableModelLoaderManager;
+import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
 import com.mongodb.client.MongoClient;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.stereotype.Service;
@@ -31,20 +35,20 @@ import java.util.Set;
  */
 @Service
 @Slf4j
-public class TmMongoModelLoaderImpl implements MongoModelLoader {
+public class TmMongoModelLoaderImpl extends LoaderSupport implements TableModelLoader {
 
     @Resource
-    @Lazy
-    JdbcModelLoader jdbcModelLoader;
+    DataSource defaultDataSource;
 
     @Resource
-    DataSource dataSource;
+    MongoTemplate defaultMongoTemplate;
 
     @Resource
-    MongoTemplate mongoTemplate;
+    MongoClient defaultMongoClient;
 
-    @Resource
-    MongoClient mongoClient;
+    public TmMongoModelLoaderImpl(SystemBundlesContext systemBundlesContext, FileFsscriptLoader fileFsscriptLoader) {
+        super(systemBundlesContext, fileFsscriptLoader);
+    }
 
     @Override
     public JdbcModel load(Fsscript fScript, JdbcModelDef def, Bundle bundle) {
@@ -102,17 +106,25 @@ public class TmMongoModelLoaderImpl implements MongoModelLoader {
             def.setViewSql(sb.toString());
             log.debug("为mongo模型" + def.getName() + "构建了viewSql:" + def.getViewSql());
         }
-        MongoTemplate defMongoTemplate = mongoTemplate;
+        MongoTemplate defMongoTemplate = defaultMongoTemplate;
         if (!StringUtils.isEmpty(def.getSchema())) {
-            defMongoTemplate = new MongoTemplate(mongoClient, def.getSchema());
+            defMongoTemplate = new MongoTemplate(defaultMongoClient, def.getSchema());
         }
         //TODO 呃，如果自定义了def，那就用自定义的~但这里有个问题，不支持切schema，后续再说吧
         if (def.getMongoTemplate() != null) {
             defMongoTemplate = def.getMongoTemplate();
         }
-        JdbcModel model = jdbcModelLoader.load(dataSource, fScript, def, bundle, defMongoTemplate);
+        JdbcModelImpl jdbcModel = new JdbcModelImpl(defaultDataSource,fScript);
+        def.apply(jdbcModel);
 
-        return model;
+        jdbcModel.setQueryObject(loadQueryObject(defaultDataSource, null, def.getViewSql(), def.getSchema()));
+        jdbcModel.setMongoTemplate(defMongoTemplate);
+        return jdbcModel;
+    }
+
+    @Override
+    public String getTypeName() {
+        return "mongo";
     }
 
     private String fixName(String column, String name) {

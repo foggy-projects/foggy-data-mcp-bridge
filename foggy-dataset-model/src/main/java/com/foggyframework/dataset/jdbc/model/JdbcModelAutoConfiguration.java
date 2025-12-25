@@ -6,14 +6,16 @@ import com.foggyframework.dataset.jdbc.model.config.SemanticProperties;
 import com.foggyframework.dataset.jdbc.model.engine.formula.*;
 import com.foggyframework.dataset.jdbc.model.engine.query_model.JdbcModelFileChangeHandler;
 import com.foggyframework.dataset.jdbc.model.engine.query_model.JdbcQueryModelLoaderImpl;
-import com.foggyframework.dataset.jdbc.model.impl.loader.JdbcModelLoaderImpl;
+import com.foggyframework.dataset.jdbc.model.impl.loader.JdbcTableModelLoaderImpl;
+import com.foggyframework.dataset.jdbc.model.impl.loader.TableModelLoaderManagerImpl;
 import com.foggyframework.dataset.jdbc.model.plugins.result_set_filter.DataSetResultFilterManager;
 import com.foggyframework.dataset.jdbc.model.plugins.result_set_filter.DataSetResultStep;
 import com.foggyframework.dataset.jdbc.model.plugins.result_set_filter.DefaultDataSetResultFilterManagerImpl;
 import com.foggyframework.dataset.jdbc.model.plugins.result_set_filter.SemanticMoneyStep;
 import com.foggyframework.dataset.jdbc.model.service.impl.JdbcServiceImpl;
 import com.foggyframework.dataset.jdbc.model.spi.JdbcModelLoadProcessor;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcModelLoader;
+import com.foggyframework.dataset.jdbc.model.spi.TableModelLoader;
+import com.foggyframework.dataset.jdbc.model.spi.TableModelLoaderManager;
 import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -30,20 +32,23 @@ import java.util.List;
 public class JdbcModelAutoConfiguration {
 
     @Bean
-    public JdbcModelLoaderImpl jdbcModelLoader(SystemBundlesContext systemBundlesContext, FileFsscriptLoader fileFsscriptLoader, List<JdbcModelLoadProcessor> processors) {
-        return new JdbcModelLoaderImpl(systemBundlesContext, fileFsscriptLoader, processors);
+    public JdbcTableModelLoaderImpl jdbcTableModelLoader(SystemBundlesContext systemBundlesContext, FileFsscriptLoader fileFsscriptLoader) {
+        return new JdbcTableModelLoaderImpl(systemBundlesContext, fileFsscriptLoader );
     }
-
     @Bean
-    public JdbcQueryModelLoaderImpl jdbcQueryModelLoader(JdbcModelLoader jdbcModelLoader,
+    public TableModelLoaderManagerImpl tableModelLoaderManager(SystemBundlesContext systemBundlesContext, FileFsscriptLoader fileFsscriptLoader, List<JdbcModelLoadProcessor> processors, List<TableModelLoader> loaders) {
+        return new TableModelLoaderManagerImpl(systemBundlesContext, fileFsscriptLoader, processors,loaders);
+    }
+    @Bean
+    public JdbcQueryModelLoaderImpl jdbcQueryModelLoader(TableModelLoaderManager tableModelLoaderManager,
                                                          SqlFormulaService sqlFormulaService,
                                                          SystemBundlesContext systemBundlesContext,
                                                          FileFsscriptLoader fileFsscriptLoader) {
-        return new JdbcQueryModelLoaderImpl(jdbcModelLoader, sqlFormulaService, systemBundlesContext, fileFsscriptLoader);
+        return new JdbcQueryModelLoaderImpl(tableModelLoaderManager, sqlFormulaService, systemBundlesContext, fileFsscriptLoader);
     }
 
     @Bean
-    public JdbcModelFileChangeHandler jdbcModelFileChangeHandler(JdbcQueryModelLoaderImpl jdbcQueryModelLoader, JdbcModelLoaderImpl jdbcModelLoader) {
+    public JdbcModelFileChangeHandler jdbcModelFileChangeHandler(JdbcQueryModelLoaderImpl jdbcQueryModelLoader, TableModelLoaderManagerImpl jdbcModelLoader) {
         return new JdbcModelFileChangeHandler(jdbcQueryModelLoader, jdbcModelLoader);
     }
 

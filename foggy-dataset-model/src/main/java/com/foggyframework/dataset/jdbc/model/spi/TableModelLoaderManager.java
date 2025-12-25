@@ -7,12 +7,11 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 
 import javax.sql.DataSource;
 
-public interface JdbcModelLoader {
+public interface TableModelLoaderManager {
     void clearAll();
 
     JdbcModel load(String s);
 
-    JdbcModel load(DataSource dataSource, Fsscript fScript, JdbcModelDef def, Bundle bundle, MongoTemplate defMongoTemplate);
 
     /**
      * 呃，加这个是因为ai经常直接使用getJdbcModel来获取模型，而不是找load

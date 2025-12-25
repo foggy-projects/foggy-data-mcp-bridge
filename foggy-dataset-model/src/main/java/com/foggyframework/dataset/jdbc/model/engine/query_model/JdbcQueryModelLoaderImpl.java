@@ -45,7 +45,7 @@ import java.util.regex.Pattern;
 @Getter
 public class JdbcQueryModelLoaderImpl extends LoaderSupport implements JdbcQueryModelLoader {
 
-    JdbcModelLoader jdbcModelLoader;
+    TableModelLoaderManager tableModelLoaderManager;
 
     SqlFormulaService sqlFormulaService;
 
@@ -90,11 +90,11 @@ public class JdbcQueryModelLoaderImpl extends LoaderSupport implements JdbcQuery
      */
     private static final Pattern CAMEL_CASE_PATTERN = Pattern.compile("[A-Z][a-z]*");
 
-    public JdbcQueryModelLoaderImpl(JdbcModelLoader jdbcModelLoader, SqlFormulaService sqlFormulaService,
+    public JdbcQueryModelLoaderImpl(TableModelLoaderManager tableModelLoaderManager, SqlFormulaService sqlFormulaService,
                                     SystemBundlesContext systemBundlesContext,
                                     FileFsscriptLoader fileFsscriptLoader) {
         super(systemBundlesContext, fileFsscriptLoader);
-        this.jdbcModelLoader = jdbcModelLoader;
+        this.tableModelLoaderManager = tableModelLoaderManager;
         this.sqlFormulaService = sqlFormulaService;
     }
 
@@ -175,10 +175,10 @@ public class JdbcQueryModelLoaderImpl extends LoaderSupport implements JdbcQuery
             Map<String, JdbcModel> aliasToJdbcModel = new HashMap<>();
             for (Object s : ll) {
                 if (s instanceof String) {
-                    JdbcModel jdbcModel = jdbcModelLoader.load((String) s);
+                    JdbcModel jdbcModel = tableModelLoaderManager.load((String) s);
                     jdbcModelDxList.add(new JdbcQueryModelImpl.JdbcModelDx(jdbcModel, jdbcModel.getIdColumn(), null, null));
                 } else if (s instanceof Map) {
-                    JdbcModel jdbcModel = jdbcModelLoader.load((String) ((Map<?, ?>) s).get("name"));
+                    JdbcModel jdbcModel = tableModelLoaderManager.load((String) ((Map<?, ?>) s).get("name"));
                     String foreignKey = (String) ((Map<?, ?>) s).get("foreignKey");
                     if (StringUtils.isEmpty(foreignKey)) {
                         foreignKey = jdbcModel.getIdColumn();
@@ -211,7 +211,7 @@ public class JdbcQueryModelLoaderImpl extends LoaderSupport implements JdbcQuery
 
 
         } else if (queryModelDef.getModel() instanceof String) {
-            JdbcModel jdbcModel = jdbcModelLoader.load((String) queryModelDef.getModel());
+            JdbcModel jdbcModel = tableModelLoaderManager.load((String) queryModelDef.getModel());
             modelMongoTemplate = jdbcModel.getMongoTemplate();
             jdbcModelDxList = new ArrayList<>(1);
             jdbcModelDxList.add(new JdbcQueryModelImpl.JdbcModelDx(jdbcModel, jdbcModel.getIdColumn(), null, null, JoinType.LEFT));

@@ -1,6 +1,6 @@
 package com.foggyframework.dataset.jdbc.model.engine.query_model;
 
-import com.foggyframework.dataset.jdbc.model.impl.loader.JdbcModelLoaderImpl;
+import com.foggyframework.dataset.jdbc.model.impl.loader.TableModelLoaderManagerImpl;
 import com.foggyframework.dataset.jdbc.model.impl.model.JdbcModelImpl;
 import com.foggyframework.dataset.jdbc.model.spi.JdbcModel;
 import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryModel;
@@ -19,9 +19,9 @@ import java.util.Map;
 public class JdbcModelFileChangeHandler implements ApplicationListener<FsscriptRemoveEvent> {
 
     JdbcQueryModelLoaderImpl jdbcQueryModelLoader;
-    JdbcModelLoaderImpl jdbcModelLoader;
+    TableModelLoaderManagerImpl jdbcModelLoader;
 
-    public JdbcModelFileChangeHandler(JdbcQueryModelLoaderImpl jdbcQueryModelLoader, JdbcModelLoaderImpl jdbcModelLoader) {
+    public JdbcModelFileChangeHandler(JdbcQueryModelLoaderImpl jdbcQueryModelLoader, TableModelLoaderManagerImpl jdbcModelLoader) {
         this.jdbcQueryModelLoader = jdbcQueryModelLoader;
         this.jdbcModelLoader = jdbcModelLoader;
         jdbcQueryModelLoader.setFileChangeHandler(this);
