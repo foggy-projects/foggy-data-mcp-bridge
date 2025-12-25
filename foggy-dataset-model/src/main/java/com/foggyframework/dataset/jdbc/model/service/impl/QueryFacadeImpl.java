@@ -9,6 +9,7 @@ import com.foggyframework.dataset.jdbc.model.plugins.result_set_filter.ModelResu
 import com.foggyframework.dataset.jdbc.model.service.QueryFacade;
 import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryModel;
 import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryModelLoader;
+import com.foggyframework.dataset.jdbc.model.spi.QueryModel;
 import com.foggyframework.dataset.model.PagingResultImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -81,7 +82,7 @@ public class QueryFacadeImpl implements QueryFacade {
 
         // 1. 获取查询模型
         String queryModelName = queryRequest.getQueryModel();
-        JdbcQueryModel jdbcQueryModel = jdbcQueryModelLoader.getJdbcQueryModel(queryModelName);
+        QueryModel jdbcQueryModel = jdbcQueryModelLoader.getJdbcQueryModel(queryModelName);
 
         // 1.1 提前设置 jdbcQueryModel，供 beforeQuery Step 使用（如 AutoGroupByStep 需要查询列定义）
         context.setJdbcQueryModel(jdbcQueryModel);

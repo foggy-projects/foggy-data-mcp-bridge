@@ -18,6 +18,7 @@ import com.foggyframework.dataset.jdbc.model.service.QueryFacade;
 import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryColumn;
 import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryModel;
 import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryModelLoader;
+import com.foggyframework.dataset.jdbc.model.spi.QueryModel;
 import com.foggyframework.dataset.model.PagingResultImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -125,7 +126,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         SemanticQueryResponse response = new SemanticQueryResponse();
 
         // V3 的验证主要检查字段是否存在
-        JdbcQueryModel queryModel = jdbcQueryModelLoader.getJdbcQueryModel(model);
+        QueryModel queryModel = jdbcQueryModelLoader.getJdbcQueryModel(model);
         if (queryModel == null) {
             throw RX.throwB("模型不存在: " + model);
         }
@@ -175,7 +176,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         queryDef.setStrictColumns(true);
 
         // 获取模型定义用于字段校验
-        JdbcQueryModel queryModel = jdbcQueryModelLoader.getJdbcQueryModel(model);
+        QueryModel queryModel = jdbcQueryModelLoader.getJdbcQueryModel(model);
 
         // 复制 columns 和 groupBy 以便修改
         List<String> columns = new ArrayList<>(request.getColumns());
@@ -521,7 +522,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
      * @param context      查询上下文（用于记录警告）
      */
     private void alignColumnsAndGroupBy(List<String> columns, List<SemanticQueryRequest.GroupByItem> groupByItems,
-                                        JdbcQueryModel queryModel, QueryContextV3 context) {
+                                        QueryModel queryModel, QueryContextV3 context) {
         // 收集 columns 中的维度字段（按基础名分组）
         Map<String, Set<String>> columnDimensions = new HashMap<>();
         for (String col : columns) {
@@ -658,7 +659,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
      * @param context    查询上下文（用于记录警告）
      * @return 规范化后的字段名
      */
-    private String normalizeOrderByField(String field, JdbcQueryModel queryModel, QueryContextV3 context) {
+    private String normalizeOrderByField(String field, QueryModel queryModel, QueryContextV3 context) {
         // 如果字段已有后缀，直接返回
         if (field.contains("$")) {
             return field;

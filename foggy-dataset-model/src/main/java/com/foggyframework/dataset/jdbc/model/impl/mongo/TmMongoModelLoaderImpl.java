@@ -7,17 +7,16 @@ import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.jdbc.model.def.JdbcModelDef;
 import com.foggyframework.dataset.jdbc.model.def.measure.JdbcMeasureDef;
 import com.foggyframework.dataset.jdbc.model.def.property.JdbcPropertyDef;
-import com.foggyframework.dataset.jdbc.model.engine.mongo.MongoModelLoader;
+import com.foggyframework.dataset.jdbc.model.def.query.JdbcQueryModelDef;
+import com.foggyframework.dataset.jdbc.model.engine.query_model.QueryModelSupport;
 import com.foggyframework.dataset.jdbc.model.impl.LoaderSupport;
-import com.foggyframework.dataset.jdbc.model.impl.model.JdbcModelImpl;
 import com.foggyframework.dataset.jdbc.model.spi.JdbcModel;
+import com.foggyframework.dataset.jdbc.model.spi.QueryModelBuilder;
 import com.foggyframework.dataset.jdbc.model.spi.TableModelLoader;
-import com.foggyframework.dataset.jdbc.model.spi.TableModelLoaderManager;
 import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
 import com.mongodb.client.MongoClient;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.stereotype.Service;
 
@@ -25,6 +24,7 @@ import jakarta.annotation.Resource;
 
 import javax.sql.DataSource;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -35,7 +35,7 @@ import java.util.Set;
  */
 @Service
 @Slf4j
-public class TmMongoModelLoaderImpl extends LoaderSupport implements TableModelLoader {
+public class TmMongoModelLoaderImpl extends LoaderSupport implements TableModelLoader , QueryModelBuilder {
 
     @Resource
     DataSource defaultDataSource;
@@ -114,11 +114,11 @@ public class TmMongoModelLoaderImpl extends LoaderSupport implements TableModelL
         if (def.getMongoTemplate() != null) {
             defMongoTemplate = def.getMongoTemplate();
         }
-        JdbcModelImpl jdbcModel = new JdbcModelImpl(defaultDataSource,fScript);
+        MongoTableModelImpl jdbcModel = new MongoTableModelImpl(defMongoTemplate,fScript);
         def.apply(jdbcModel);
 
         jdbcModel.setQueryObject(loadQueryObject(defaultDataSource, null, def.getViewSql(), def.getSchema()));
-        jdbcModel.setMongoTemplate(defMongoTemplate);
+//        jdbcModel.setMongoTemplate(defMongoTemplate);
         return jdbcModel;
     }
 
@@ -142,4 +142,22 @@ public class TmMongoModelLoaderImpl extends LoaderSupport implements TableModelL
         sb.append(0).append(" `").append(column).append("`,");
     }
 
+    @Override
+    public QueryModelSupport build(JdbcQueryModelDef queryModelDef, Fsscript fsscript, List<JdbcModel> jdbcModelDxList) {
+        MongoTableModelImpl mainTm = jdbcModelDxList.get(0).getDecorate(MongoTableModelImpl.class);
+        if (mainTm == null) {
+            //非mongo模型，不做处理
+            return null;
+        }
+        /**
+         * 检查，必须都是jdbc模型
+         */
+        if(jdbcModelDxList.size()>1){
+            throw RX.throwB("mongo模型不支持join");
+        }
+
+        MongoQueryModelImpl qm = new MongoQueryModelImpl(jdbcModelDxList,fsscript,mainTm.getMongoTemplate());
+        queryModelDef.apply(qm);
+        return qm;
+    }
 }

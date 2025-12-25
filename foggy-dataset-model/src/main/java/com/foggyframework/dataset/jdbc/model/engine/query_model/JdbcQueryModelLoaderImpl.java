@@ -12,7 +12,6 @@ import com.foggyframework.dataset.jdbc.model.def.order.OrderDef;
 import com.foggyframework.dataset.jdbc.model.def.query.JdbcQueryModelDef;
 import com.foggyframework.dataset.jdbc.model.def.query.QueryConditionDef;
 import com.foggyframework.dataset.jdbc.model.def.query.SelectColumnDef;
-import com.foggyframework.dataset.jdbc.model.engine.formula.SqlFormulaService;
 import com.foggyframework.dataset.jdbc.model.engine.mongo.MongoModelLoader;
 import com.foggyframework.dataset.jdbc.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.jdbc.model.impl.LoaderSupport;
@@ -46,8 +45,8 @@ import java.util.regex.Pattern;
 public class JdbcQueryModelLoaderImpl extends LoaderSupport implements JdbcQueryModelLoader {
 
     TableModelLoaderManager tableModelLoaderManager;
-
-    SqlFormulaService sqlFormulaService;
+//
+//    SqlFormulaService sqlFormulaService;
 
     @Resource
     DataSource defaultDataSource;
@@ -73,7 +72,7 @@ public class JdbcQueryModelLoaderImpl extends LoaderSupport implements JdbcQuery
 
     JdbcModelFileChangeHandler fileChangeHandler;
 
-    Map<String, JdbcQueryModel> name2JdbcQueryModel = new HashMap<>();
+    Map<String, QueryModel> name2JdbcQueryModel = new HashMap<>();
 
     /**
      * 简称到模型名称的映射，用于通过简称查询模型
@@ -85,17 +84,20 @@ public class JdbcQueryModelLoaderImpl extends LoaderSupport implements JdbcQuery
      */
     Set<String> usedAliases = new HashSet<>();
 
+
+    List<QueryModelBuilder> queryModelBuilders ;
     /**
      * 驼峰命名模式，用于提取大写字母
      */
     private static final Pattern CAMEL_CASE_PATTERN = Pattern.compile("[A-Z][a-z]*");
 
-    public JdbcQueryModelLoaderImpl(TableModelLoaderManager tableModelLoaderManager, SqlFormulaService sqlFormulaService,
+    public JdbcQueryModelLoaderImpl(TableModelLoaderManager tableModelLoaderManager,
                                     SystemBundlesContext systemBundlesContext,
-                                    FileFsscriptLoader fileFsscriptLoader) {
+                                    FileFsscriptLoader fileFsscriptLoader,
+                                    List<QueryModelBuilder> queryModelBuilders) {
         super(systemBundlesContext, fileFsscriptLoader);
         this.tableModelLoaderManager = tableModelLoaderManager;
-        this.sqlFormulaService = sqlFormulaService;
+        this.queryModelBuilders = queryModelBuilders;
     }
 
     @Override
@@ -114,9 +116,9 @@ public class JdbcQueryModelLoaderImpl extends LoaderSupport implements JdbcQuery
      * @return 查询模型
      */
     @Override
-    public JdbcQueryModel getJdbcQueryModel(String queryModelNameOrAlias) {
+    public QueryModel getJdbcQueryModel(String queryModelNameOrAlias) {
         // 1. 先尝试通过全名查找
-        JdbcQueryModel tm = name2JdbcQueryModel.get(queryModelNameOrAlias);
+        QueryModel tm = name2JdbcQueryModel.get(queryModelNameOrAlias);
         if (tm != null) {
             return tm;
         }
@@ -139,13 +141,13 @@ public class JdbcQueryModelLoaderImpl extends LoaderSupport implements JdbcQuery
     }
 
     @Override
-    public JdbcQueryModel loadJdbcQueryModel(BundleResource bundleResource) {
+    public QueryModel loadJdbcQueryModel(BundleResource bundleResource) {
         Fsscript fsscript = fileFsscriptLoader.findLoadFsscript(bundleResource);
         ExpEvaluator ee = fsscript.eval(systemBundlesContext.getApplicationContext());
         Object queryModel = ee.getExportObject("queryModel");
         JdbcQueryModelDef queryModelDef = FsscriptConversionService.getSharedInstance().convert(queryModel, JdbcQueryModelDef.class);
         try {
-            JdbcQueryModelImpl qm = loadJdbcQueryModel(ee, fsscript, queryModelDef);
+            QueryModelSupport qm = loadJdbcQueryModel(ee, fsscript, queryModelDef);
             // 注册模型并分配简称
             String modelName = qm.getName();
             if (!name2JdbcQueryModel.containsKey(modelName)) {
@@ -158,7 +160,7 @@ public class JdbcQueryModelLoaderImpl extends LoaderSupport implements JdbcQuery
         }
     }
 
-    private JdbcQueryModelImpl loadJdbcQueryModel(ExpEvaluator ee, Fsscript fsscript, JdbcQueryModelDef queryModelDef) {
+    private QueryModelSupport loadJdbcQueryModel(ExpEvaluator ee, Fsscript fsscript, JdbcQueryModelDef queryModelDef) {
         if (queryModelDef == null) {
             throw RX.throwAUserTip(DatasetMessages.querymodelExportMissing(fsscript.getPath()));
         }
@@ -166,7 +168,7 @@ public class JdbcQueryModelLoaderImpl extends LoaderSupport implements JdbcQuery
         if (StringUtils.isEmpty(queryModelDef.getModel())) {
             throw RX.throwAUserTip(DatasetMessages.querymodelModelMissing(queryModelDef.getName()));
         }
-        MongoTemplate modelMongoTemplate = null;
+//        MongoTemplate modelMongoTemplate = null;
 
         List<JdbcModel> jdbcModelDxList = null;
         if (queryModelDef.getModel() instanceof List) {
@@ -212,33 +214,47 @@ public class JdbcQueryModelLoaderImpl extends LoaderSupport implements JdbcQuery
 
         } else if (queryModelDef.getModel() instanceof String) {
             JdbcModel jdbcModel = tableModelLoaderManager.load((String) queryModelDef.getModel());
-            modelMongoTemplate = jdbcModel.getMongoTemplate();
+//            modelMongoTemplate = jdbcModel.getMongoTemplate();
             jdbcModelDxList = new ArrayList<>(1);
             jdbcModelDxList.add(new JdbcQueryModelImpl.JdbcModelDx(jdbcModel, jdbcModel.getIdColumn(), null, null, JoinType.LEFT));
         } else {
             throw new UnsupportedOperationException();
         }
 
-        if (modelMongoTemplate == null) {
-            modelMongoTemplate = mongoTemplate;
+        /**
+         * 构建JdbcQueryModelImpl
+         */
+        QueryModelSupport qm=null;
+        for (QueryModelBuilder queryModelBuilder : queryModelBuilders) {
+             qm = queryModelBuilder.build( queryModelDef,fsscript, jdbcModelDxList);
+             if(qm!=null){
+                 break;
+             }
         }
-        DataSource ds = queryModelDef.getDataSource();
-        //从tm文件中提取数据源
-        if (ds == null) {
-            for (JdbcModel jdbcModel : jdbcModelDxList) {
-                if (jdbcModel.getDataSource() != null) {
-                    if (ds == null) {
-                        ds = jdbcModel.getDataSource();
-                    } else if (ds != jdbcModel.getDataSource()) {
-                        throw RX.throwAUserTip("不同数据源的TM不能配置在一起");
-                    }
-                }
-            }
+        if(qm == null){
+            throw RX.throwAUserTip("无法找到对应的QueryModelBuilder");
         }
 
-        JdbcQueryModelImpl qm = new JdbcQueryModelImpl(jdbcModelDxList, fsscript, sqlFormulaService,
-                ds == null ? defaultDataSource : ds,
-                modelMongoTemplate);
+//        if (modelMongoTemplate == null) {
+//            modelMongoTemplate = mongoTemplate;
+//        }
+//        DataSource ds = queryModelDef.getDataSource();
+//        //从tm文件中提取数据源
+//        if (ds == null) {
+//            for (JdbcModel jdbcModel : jdbcModelDxList) {
+//                if (jdbcModel.getDataSource() != null) {
+//                    if (ds == null) {
+//                        ds = jdbcModel.getDataSource();
+//                    } else if (ds != jdbcModel.getDataSource()) {
+//                        throw RX.throwAUserTip("不同数据源的TM不能配置在一起");
+//                    }
+//                }
+//            }
+//        }
+
+//        JdbcQueryModelImpl qm = new JdbcQueryModelImpl(jdbcModelDxList, fsscript, sqlFormulaService,
+//                ds == null ? defaultDataSource : ds,
+//                modelMongoTemplate);
         queryModelDef.apply(qm);
 
         /**
@@ -350,11 +366,11 @@ public class JdbcQueryModelLoaderImpl extends LoaderSupport implements JdbcQuery
                 qm.addOrder(idQueryColumn.getSelectColumn(), "desc");
             }
         }
-        qm.init();
+
         return qm;
     }
 
-    private void loadOrders(JdbcQueryModelImpl qm, List<OrderDef> orders) {
+    private void loadOrders(QueryModelSupport qm, List<OrderDef> orders) {
         if (orders != null) {
             for (int i = 0; i < orders.size(); i++) {
                 OrderDef d = orders.get(i);
@@ -377,7 +393,7 @@ public class JdbcQueryModelLoaderImpl extends LoaderSupport implements JdbcQuery
      * @param qm
      * @param queryModelDef
      */
-    private void loadColumnGroups(JdbcQueryModelImpl qm, JdbcQueryModelDef queryModelDef) {
+    private void loadColumnGroups(QueryModelSupport qm, JdbcQueryModelDef queryModelDef) {
         if (queryModelDef.getColumnGroups() != null && !queryModelDef.getColumnGroups().isEmpty()) {
             List<JdbcColumnGroup> columnGroups = new ArrayList<>();
             for (JdbcColumnGroupDef columnGroupDef : queryModelDef.getColumnGroups()) {
@@ -411,7 +427,7 @@ public class JdbcQueryModelLoaderImpl extends LoaderSupport implements JdbcQuery
         }
     }
 
-    private void addColumn(JdbcQueryModelImpl qm, JdbcColumnGroup group, String name, SelectColumnDef item, boolean hasRef) {
+    private void addColumn(QueryModelSupport qm, JdbcColumnGroup group, String name, SelectColumnDef item, boolean hasRef) {
 
         JdbcColumn jdbcColumn = qm.findJdbcColumnForCond(name, true);
 
@@ -423,7 +439,7 @@ public class JdbcQueryModelLoaderImpl extends LoaderSupport implements JdbcQuery
         group.addJdbcColumn(jdbcQueryColumn);
     }
 
-    private void fixJdbcQueryCond(JdbcQueryModelImpl qm, JdbcQueryConditionImpl jdbcQueryCond, JdbcColumn selectColumn) {
+    private void fixJdbcQueryCond(QueryModelSupport qm, JdbcQueryConditionImpl jdbcQueryCond, JdbcColumn selectColumn) {
         if (selectColumn == null) {
             return;
         }
@@ -506,7 +522,7 @@ public class JdbcQueryModelLoaderImpl extends LoaderSupport implements JdbcQuery
         return new Tuple2<>(autoQueryType, autoType);
     }
 
-    private JdbcQueryConditionImpl autoCreateJdbcQueryCond(JdbcQueryModelImpl qm, JdbcQueryColumn jdbcQueryColumn, JdbcColumn selectColumn) {
+    private JdbcQueryConditionImpl autoCreateJdbcQueryCond(QueryModelSupport qm, JdbcQueryColumn jdbcQueryColumn, JdbcColumn selectColumn) {
 
 
         JdbcQueryConditionImpl jdbcQueryCond = new JdbcQueryConditionImpl();
@@ -526,7 +542,7 @@ public class JdbcQueryModelLoaderImpl extends LoaderSupport implements JdbcQuery
         return jdbcQueryCond;
     }
 
-    private void loadAccesses(JdbcQueryModelImpl qm, List<JdbcAccessDef> accessDefs) {
+    private void loadAccesses(QueryModelSupport qm, List<JdbcAccessDef> accessDefs) {
         if (accessDefs == null) {
             return;
         }
@@ -574,7 +590,7 @@ public class JdbcQueryModelLoaderImpl extends LoaderSupport implements JdbcQuery
      * @param modelName 模型全名
      * @param qm        查询模型实例
      */
-    private void registerQueryModel(String modelName, JdbcQueryModelImpl qm) {
+    private void registerQueryModel(String modelName, QueryModelSupport qm) {
         // 先将模型全名加入已使用集合，防止简称与全名冲突
         usedAliases.add(modelName);
 

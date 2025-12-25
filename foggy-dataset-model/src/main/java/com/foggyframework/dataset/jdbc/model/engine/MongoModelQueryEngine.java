@@ -7,6 +7,7 @@ import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.jdbc.model.def.query.request.*;
 import com.foggyframework.dataset.jdbc.model.engine.query.JdbcQuery;
 import com.foggyframework.dataset.jdbc.model.i18n.DatasetMessages;
+import com.foggyframework.dataset.jdbc.model.impl.mongo.MongoQueryModel;
 import com.foggyframework.dataset.jdbc.model.impl.query.JdbcQueryOrderColumnImpl;
 import com.foggyframework.dataset.jdbc.model.impl.utils.SqlQueryObject;
 import com.foggyframework.dataset.jdbc.model.spi.JdbcAggregation;
@@ -34,7 +35,7 @@ import java.util.regex.Pattern;
 @Slf4j
 @Data
 public class MongoModelQueryEngine {
-    JdbcQueryModel jdbcQueryModel;
+    MongoQueryModel jdbcQueryModel;
 
     JdbcQuery jdbcQuery;
 
@@ -57,7 +58,7 @@ public class MongoModelQueryEngine {
         }
     }
 
-    public MongoModelQueryEngine(JdbcQueryModel jdbcQueryModel) {
+    public MongoModelQueryEngine(MongoQueryModel jdbcQueryModel) {
         this.jdbcQueryModel = jdbcQueryModel;
     }
 
@@ -309,13 +310,13 @@ public class MongoModelQueryEngine {
     }
 
 
-    private void buildSlice(JdbcQueryModel jdbcQueryModel, JdbcQuery jdbcQuery, SliceRequestDef sliceDef) {
+    private void buildSlice(MongoQueryModel jdbcQueryModel, JdbcQuery jdbcQuery, SliceRequestDef sliceDef) {
 
         buildSlice(jdbcQueryModel, jdbcQuery, jdbcQuery.getWhere(), sliceDef);
 
     }
 
-    private void buildSlice(JdbcQueryModel jdbcQueryModel, JdbcQuery jdbcQuery, JdbcQuery.JdbcListCond listCond, CondRequestDef sliceDef) {
+    private void buildSlice(MongoQueryModel jdbcQueryModel, JdbcQuery jdbcQuery, JdbcQuery.JdbcListCond listCond, CondRequestDef sliceDef) {
         if (sliceDef._hasChildren()) {
             //有子项~
             JdbcQuery.JdbcGroupCond gc = jdbcQuery.getWhere().newGroupCond("");

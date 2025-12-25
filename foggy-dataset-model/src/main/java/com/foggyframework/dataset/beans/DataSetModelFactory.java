@@ -2,6 +2,7 @@ package com.foggyframework.dataset.beans;
 
 import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryModel;
 import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryModelLoader;
+import com.foggyframework.dataset.jdbc.model.spi.QueryModel;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -15,11 +16,11 @@ public class DataSetModelFactory {
 
     private final JdbcQueryModelLoader jdbcQueryModelLoader;
 
-    public JdbcQueryModel getDataSetModel(String name) {
+    public QueryModel getDataSetModel(String name) {
         return getDataSetModel(name, true);
     }
 
-    public JdbcQueryModel getDataSetModel(String name, boolean errorIfNotFound) {
+    public QueryModel getDataSetModel(String name, boolean errorIfNotFound) {
         try {
             return jdbcQueryModelLoader.getJdbcQueryModel(name);
         } catch (Exception e) {

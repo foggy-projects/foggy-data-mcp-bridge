@@ -45,9 +45,9 @@ public interface JdbcModel extends JdbcObject {
 
     boolean isDeprecated(String jdbcColumName);
 
-    MongoTemplate getMongoTemplate();
+//    MongoTemplate getMongoTemplate();
 
-    DataSource getDataSource();
+//    DataSource getDataSource();
 
 //    default boolean isImportant() {
 //        return false;

@@ -5,7 +5,7 @@ import com.foggyframework.bundle.BundleResource;
 public interface JdbcQueryModelLoader {
     void clearAll();
 
-    JdbcQueryModel getJdbcQueryModel(String queryModelName);
+    QueryModel getJdbcQueryModel(String queryModelName);
 
-    JdbcQueryModel loadJdbcQueryModel(BundleResource bundleResource);
+    QueryModel loadJdbcQueryModel(BundleResource bundleResource);
 }

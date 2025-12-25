@@ -24,6 +24,7 @@ import com.foggyframework.dataset.jdbc.model.impl.dimension.JdbcModelTimeDimensi
 import com.foggyframework.dataset.jdbc.model.impl.measure.JdbcMeasureSupport;
 import com.foggyframework.dataset.jdbc.model.impl.measure.JdbcModelMeasureImpl;
 import com.foggyframework.dataset.jdbc.model.impl.model.JdbcModelImpl;
+import com.foggyframework.dataset.jdbc.model.impl.model.JdbcModelSupport;
 import com.foggyframework.dataset.jdbc.model.impl.property.JdbcPropertyImpl;
 import com.foggyframework.dataset.jdbc.model.impl.utils.QueryObjectSupport;
 import com.foggyframework.dataset.jdbc.model.impl.utils.TableQueryObject;
@@ -146,7 +147,7 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
 
         String tableName = def.getTableName();
         String viewSql = def.getViewSql();
-        JdbcModelImpl jdbcModel = jm.getDecorate(JdbcModelImpl.class);
+        JdbcModelSupport jdbcModel = jm.getDecorate(JdbcModelSupport.class);
 //        JdbcModelImpl jdbcModel = new JdbcModelImpl(dataSource,fScript);
 //        def.apply(jdbcModel);
 //        jdbcModel.setMongoTemplate(defMongoTemplate);

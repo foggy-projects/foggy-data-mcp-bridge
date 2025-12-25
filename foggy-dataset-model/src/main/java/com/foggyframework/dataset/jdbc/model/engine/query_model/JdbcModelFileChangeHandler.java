@@ -4,6 +4,7 @@ import com.foggyframework.dataset.jdbc.model.impl.loader.TableModelLoaderManager
 import com.foggyframework.dataset.jdbc.model.impl.model.JdbcModelImpl;
 import com.foggyframework.dataset.jdbc.model.spi.JdbcModel;
 import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryModel;
+import com.foggyframework.dataset.jdbc.model.spi.QueryModel;
 import com.foggyframework.fsscript.loadder.FsscriptRemoveEvent;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
 import lombok.extern.slf4j.Slf4j;
@@ -75,7 +76,7 @@ public class JdbcModelFileChangeHandler implements ApplicationListener<FsscriptR
             return;
         }
         Map<String, JdbcModel> mm = new HashMap<>(jdbcModelLoader.getName2JdbcModel());
-        Map<String, JdbcQueryModel> qmm = new HashMap<>(jdbcQueryModelLoader.getName2JdbcQueryModel());
+        Map<String, QueryModel> qmm = new HashMap<>(jdbcQueryModelLoader.getName2JdbcQueryModel());
         List<JdbcModelImpl> removedTm = new ArrayList<>();
         for (Fsscript removedFsscript : fsscriptRemoveEvent.getRemovedFsscripts()) {
             for (Map.Entry<String, JdbcModel> stringJdbcModelEntry : mm.entrySet()) {
@@ -90,7 +91,7 @@ public class JdbcModelFileChangeHandler implements ApplicationListener<FsscriptR
                 }
             }
 
-            for (Map.Entry<String, JdbcQueryModel> stringJdbcQueryModelEntry : qmm.entrySet()) {
+            for (Map.Entry<String, QueryModel> stringJdbcQueryModelEntry : qmm.entrySet()) {
                 JdbcQueryModelImpl qtm = stringJdbcQueryModelEntry.getValue().getDecorate(JdbcQueryModelImpl.class);
                 if (qtm != null && qtm.getFsscript().getPath().equals(removedFsscript.getPath())) {
                     if (log.isDebugEnabled()) {

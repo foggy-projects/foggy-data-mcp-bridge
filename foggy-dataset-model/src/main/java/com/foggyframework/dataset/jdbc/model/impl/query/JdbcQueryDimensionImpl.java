@@ -7,6 +7,7 @@ import com.foggyframework.dataset.jdbc.model.impl.JdbcObjectSupport;
 import com.foggyframework.dataset.jdbc.model.spi.JdbcDimension;
 import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryDimension;
 import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryModel;
+import com.foggyframework.dataset.jdbc.model.spi.QueryModel;
 import com.foggyframework.dataset.utils.DataSourceQueryUtils;
 import com.foggyframework.dataset.utils.RowMapperUtils;
 import com.foggyframework.fsscript.DefaultExpEvaluator;
@@ -28,11 +29,11 @@ public class JdbcQueryDimensionImpl extends JdbcObjectSupport implements JdbcQue
 
     JdbcQueryAccessImpl queryAccess;
 
-    JdbcQueryModel jdbcQueryModel;
+    QueryModel queryModel;
 
-    public JdbcQueryDimensionImpl(JdbcQueryModel jdbcQueryModel,JdbcDimension dimension) {
+    public JdbcQueryDimensionImpl(QueryModel queryModel, JdbcDimension dimension) {
         this.dimension = dimension;
-        this.jdbcQueryModel = jdbcQueryModel;
+        this.queryModel = queryModel;
     }
 
     @Override

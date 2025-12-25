@@ -6,6 +6,7 @@ import com.foggyframework.dataset.jdbc.model.def.query.request.JdbcQueryRequestD
 import com.foggyframework.dataset.jdbc.model.engine.expression.InlineExpressionParser;
 import com.foggyframework.dataset.jdbc.model.engine.query.JdbcQuery;
 import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryModel;
+import com.foggyframework.dataset.jdbc.model.spi.QueryModel;
 import com.foggyframework.dataset.jdbc.model.spi.support.CalculatedJdbcColumn;
 import com.foggyframework.dataset.model.PagingResultImpl;
 import lombok.AllArgsConstructor;
@@ -28,7 +29,7 @@ public class ModelResultContext {
     /**
      * 本次查询用到的模型
      */
-    JdbcQueryModel jdbcQueryModel;
+    QueryModel jdbcQueryModel;
     /**
      * 本次查询生成的查询对象
      */

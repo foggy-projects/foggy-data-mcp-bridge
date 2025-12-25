@@ -9,10 +9,7 @@ import com.foggyframework.dataset.jdbc.model.engine.expression.SqlExpHolder;
 import com.foggyframework.dataset.jdbc.model.engine.expression.sql.SqlBinaryExp;
 import com.foggyframework.dataset.jdbc.model.engine.expression.sql.SqlFunctionExp;
 import com.foggyframework.dataset.jdbc.model.engine.expression.sql.SqlUnaryExp;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcAggregation;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcColumn;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryColumn;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryModel;
+import com.foggyframework.dataset.jdbc.model.spi.*;
 import com.foggyframework.fsscript.parser.spi.Exp;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.annotation.Order;
@@ -59,7 +56,7 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
         }
 
         // 获取 QueryModel（用于查询字段定义）
-        JdbcQueryModel queryModel = ctx.getJdbcQueryModel();
+        QueryModel queryModel = ctx.getJdbcQueryModel();
 
         // 解析并转换
         ModelResultContext.ParsedInlineExpressions result = parseAndConvert(columns, queryRequest, queryModel);
@@ -97,7 +94,7 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
     private ModelResultContext.ParsedInlineExpressions parseAndConvert(
             List<String> columns,
             JdbcQueryRequestDef queryRequest,
-            JdbcQueryModel queryModel) {
+            QueryModel queryModel) {
 
         ModelResultContext.ParsedInlineExpressions result = new ModelResultContext.ParsedInlineExpressions();
         result.setColumns(new ArrayList<>(columns.size()));

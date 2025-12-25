@@ -78,7 +78,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         Map<String, Object> models = new LinkedHashMap<>();
 
         for (String qmModelName : request.getQmModels()) {
-            JdbcQueryModel queryModel = jdbcQueryModelLoader.getJdbcQueryModel(qmModelName);
+            QueryModel queryModel = jdbcQueryModelLoader.getJdbcQueryModel(qmModelName);
             if (queryModel == null) {
                 continue;
             }
@@ -139,7 +139,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
      * </ul>
      */
     private String buildSingleModelMarkdown(String modelName, SemanticMetadataRequest request) {
-        JdbcQueryModel queryModel = jdbcQueryModelLoader.getJdbcQueryModel(modelName);
+        QueryModel queryModel = jdbcQueryModelLoader.getJdbcQueryModel(modelName);
         if (queryModel == null) {
             return "# 错误\n\n模型不存在: " + modelName;
         }
@@ -373,13 +373,13 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
 
         // 收集字段信息
         Map<String, FieldInfoV3> allFields = new LinkedHashMap<>();
-        Map<String, JdbcQueryModel> modelMap = new LinkedHashMap<>();
+        Map<String, QueryModel> modelMap = new LinkedHashMap<>();
         // 收集被引用的字典（包括 fsscript 字典和 Java 类字典）
         Set<String> referencedDictIds = new LinkedHashSet<>();
         Set<DictInfo> referencedDictClasses = new LinkedHashSet<>();
 
         for (String qmModelName : request.getQmModels()) {
-            JdbcQueryModel queryModel = jdbcQueryModelLoader.getJdbcQueryModel(qmModelName);
+            QueryModel queryModel = jdbcQueryModelLoader.getJdbcQueryModel(qmModelName);
             if (queryModel == null) {
                 continue;
             }
@@ -390,9 +390,9 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
 
         // 构建模型简称映射（使用 JdbcQueryModel 的 shortAlias）
         Map<String, String> modelAliasMap = new LinkedHashMap<>();
-        for (Map.Entry<String, JdbcQueryModel> entry : modelMap.entrySet()) {
+        for (Map.Entry<String, QueryModel> entry : modelMap.entrySet()) {
             String modelName = entry.getKey();
-            JdbcQueryModel queryModel = entry.getValue();
+            QueryModel queryModel = entry.getValue();
             String shortAlias = queryModel.getShortAlias();
             // 如果没有简称（可能是老版本），使用模型名前缀作为fallback
             if (shortAlias == null || shortAlias.isEmpty()) {
@@ -406,7 +406,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         for (Map.Entry<String, String> entry : modelAliasMap.entrySet()) {
             String modelName = entry.getKey();
             String alias = entry.getValue();
-            JdbcQueryModel queryModel = modelMap.get(modelName);
+            QueryModel queryModel = modelMap.get(modelName);
             String caption = queryModel.getCaption() != null ? queryModel.getCaption() : modelName;
             // 格式: 简称(模型名): 说明
             md.append("- ").append(alias).append("(").append(modelName).append("): ").append(caption).append("\n");
@@ -632,7 +632,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
     /**
      * 处理模型字段（V3版本：展开维度）
      */
-    private void processModelFieldsV3(JdbcQueryModel queryModel, Map<String, Object> fields,
+    private void processModelFieldsV3(QueryModel queryModel, Map<String, Object> fields,
                                       List<String> fieldFilter, List<Integer> levels) {
         JdbcModel jdbcModel = queryModel.getJdbcModel();
 
@@ -894,7 +894,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
      * @param referencedDictIds 收集被引用的 fsscript 字典ID
      * @param referencedDictClasses 收集被引用的 Java 类字典
      */
-    private void collectFieldsInfoV3(JdbcQueryModel queryModel, Map<String, FieldInfoV3> allFields,
+    private void collectFieldsInfoV3(QueryModel queryModel, Map<String, FieldInfoV3> allFields,
                                      List<String> fieldFilter, List<Integer> levels,
                                      Set<String> referencedDictIds, Set<DictInfo> referencedDictClasses) {
         JdbcModel jdbcModel = queryModel.getJdbcModel();
@@ -998,7 +998,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         return false;
     }
 
-    private void processModelInfo(JdbcQueryModel queryModel, Map<String, Object> models) {
+    private void processModelInfo(QueryModel queryModel, Map<String, Object> models) {
         Map<String, Object> modelInfo = new LinkedHashMap<>();
         modelInfo.put("name", queryModel.getCaption() != null ? queryModel.getCaption() : queryModel.getName());
         modelInfo.put("purpose", "数据查询和分析");

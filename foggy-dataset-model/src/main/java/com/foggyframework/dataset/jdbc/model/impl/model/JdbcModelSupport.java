@@ -51,7 +51,7 @@ public abstract class JdbcModelSupport extends JdbcObjectSupport implements Jdbc
 
     List<JdbcDefSupport> deprecatedList = new ArrayList<>();
 
-    MongoTemplate mongoTemplate;
+//    MongoTemplate mongoTemplate;
 
     @Override
     public String getAlias() {

@@ -14,6 +14,7 @@ import com.foggyframework.dataset.jdbc.model.plugins.result_set_filter.DefaultDa
 import com.foggyframework.dataset.jdbc.model.plugins.result_set_filter.SemanticMoneyStep;
 import com.foggyframework.dataset.jdbc.model.service.impl.JdbcServiceImpl;
 import com.foggyframework.dataset.jdbc.model.spi.JdbcModelLoadProcessor;
+import com.foggyframework.dataset.jdbc.model.spi.QueryModelBuilder;
 import com.foggyframework.dataset.jdbc.model.spi.TableModelLoader;
 import com.foggyframework.dataset.jdbc.model.spi.TableModelLoaderManager;
 import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
@@ -41,10 +42,10 @@ public class JdbcModelAutoConfiguration {
     }
     @Bean
     public JdbcQueryModelLoaderImpl jdbcQueryModelLoader(TableModelLoaderManager tableModelLoaderManager,
-                                                         SqlFormulaService sqlFormulaService,
                                                          SystemBundlesContext systemBundlesContext,
-                                                         FileFsscriptLoader fileFsscriptLoader) {
-        return new JdbcQueryModelLoaderImpl(tableModelLoaderManager, sqlFormulaService, systemBundlesContext, fileFsscriptLoader);
+                                                         FileFsscriptLoader fileFsscriptLoader,
+                                                         List<QueryModelBuilder> queryModelBuilders) {
+        return new JdbcQueryModelLoaderImpl(tableModelLoaderManager,  systemBundlesContext, fileFsscriptLoader,queryModelBuilders);
     }
 
     @Bean

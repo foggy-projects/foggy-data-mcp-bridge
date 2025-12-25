@@ -10,11 +10,7 @@ import com.foggyframework.dataset.jdbc.model.def.dict.JdbcDictItemDef;
 import com.foggyframework.dataset.jdbc.model.impl.utils.TableQueryObject;
 import com.foggyframework.dataset.jdbc.model.semantic.service.DimensionMemberLoader;
 import com.foggyframework.dataset.jdbc.model.service.JdbcService;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcModelDictService;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryDimension;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryModel;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryModelLoader;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryProperty;
+import com.foggyframework.dataset.jdbc.model.spi.*;
 import com.foggyframework.dataset.model.PagingResultImpl;
 import io.swagger.annotations.ApiModelProperty;
 import org.slf4j.Logger;
@@ -56,7 +52,7 @@ public class DimensionMemberLoaderImpl implements DimensionMemberLoader {
      * @param jdbcQueryModel
      * @param jdbcDimension
      */
-    private List<JdbcDataItem> loadDimDataItem(JdbcQueryModel jdbcQueryModel, JdbcQueryDimension jdbcDimension) {
+    private List<JdbcDataItem> loadDimDataItem(QueryModel jdbcQueryModel, JdbcQueryDimension jdbcDimension) {
 
 
 //构建查询维度用的查询条件
@@ -101,7 +97,7 @@ public class DimensionMemberLoaderImpl implements DimensionMemberLoader {
     }
 
 
-    private List<JdbcDataItem> loadPropertyDataItem(JdbcQueryModel jdbcQueryModel, JdbcQueryProperty jdbcProperty) {
+    private List<JdbcDataItem> loadPropertyDataItem(QueryModel jdbcQueryModel, JdbcQueryProperty jdbcProperty) {
         // 优先检查 dictRef（新的 fsscript 字典引用方式）
         String dictRef = jdbcProperty.getJdbcProperty().getDictRef();
         if (!StringUtils.isEmpty(dictRef)) {
@@ -170,7 +166,7 @@ public class DimensionMemberLoaderImpl implements DimensionMemberLoader {
         /**
          * 首先，我们要判断fieldName是维度还是属性,注意这里的fieldName是不带$caption 或$id后缀的~
          */
-        JdbcQueryModel jdbcQueryModel = jdbcQueryModelLoader.getJdbcQueryModel(model);
+        QueryModel jdbcQueryModel = jdbcQueryModelLoader.getJdbcQueryModel(model);
         String cacheKey = null;
         JdbcQueryDimension jdbcDimension = jdbcQueryModel.findQueryDimension(fieldName, false);
         if (jdbcDimension != null) {
