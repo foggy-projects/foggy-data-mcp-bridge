@@ -136,7 +136,7 @@ public class JdbcQueryModelLoaderImpl extends LoaderSupport implements JdbcQuery
         JdbcQueryModelDef queryModelDef = FsscriptConversionService.getSharedInstance().convert(queryModel, JdbcQueryModelDef.class);
 
         tm = loadJdbcQueryModel(ee, fsscript, queryModelDef);
-        registerQueryModel(queryModelNameOrAlias, (JdbcQueryModelImpl) tm);
+        registerQueryModel(queryModelNameOrAlias,  (QueryModelSupport)tm);
         return tm;
     }
 

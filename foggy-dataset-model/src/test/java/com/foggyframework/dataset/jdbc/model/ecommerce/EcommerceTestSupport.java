@@ -2,6 +2,7 @@ package com.foggyframework.dataset.jdbc.model.ecommerce;
 
 import com.foggyframework.conversion.FsscriptConversionService;
 import com.foggyframework.core.ex.RX;
+import com.foggyframework.dataset.jdbc.model.spi.QueryModel;
 import com.foggyframework.dataset.jdbc.model.spi.TableModelLoaderManager;
 import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryModel;
 import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryModelLoader;
@@ -104,7 +105,7 @@ public abstract class EcommerceTestSupport {
      * @return JdbcQueryModel
      */
     protected JdbcQueryModel getQueryModel(String queryModelName) {
-        return jdbcQueryModelLoader.getJdbcQueryModel(queryModelName);
+        return (JdbcQueryModel) jdbcQueryModelLoader.getJdbcQueryModel(queryModelName);
     }
 
     /**
