@@ -6,25 +6,27 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
 
 /**
  * List 类型转换器单元测试
  */
 public class ListConverterTest {
 
+    /**
+     * 测试 convertList - 实际使用中 RowMapper 已将数据转换为目标类型
+     * convertList 接收的是已经转换好的 List<T>，而非 List<Map>
+     */
     @Test
     void testListStringReturnConverter() {
         ListStringReturnConverter converter = new ListStringReturnConverter();
 
-        List<Map<String, Object>> items = new ArrayList<>();
-        Map<String, Object> item1 = new HashMap<>();
-        item1.put("name", "Alice");
-        items.add(item1);
-
-        Map<String, Object> item2 = new HashMap<>();
-        item2.put("name", "Bob");
-        items.add(item2);
+        // 模拟 RowMapper 已转换后的结果
+        List<String> items = new ArrayList<>();
+        items.add("Alice");
+        items.add("Bob");
 
         List<String> result = (List<String>) converter.convertList(0, 10, items);
 
@@ -38,14 +40,9 @@ public class ListConverterTest {
     void testListIntegerReturnConverter() {
         ListIntegerReturnConverter converter = new ListIntegerReturnConverter();
 
-        List<Map<String, Object>> items = new ArrayList<>();
-        Map<String, Object> item1 = new HashMap<>();
-        item1.put("count", 100);
-        items.add(item1);
-
-        Map<String, Object> item2 = new HashMap<>();
-        item2.put("count", 200);
-        items.add(item2);
+        List<Integer> items = new ArrayList<>();
+        items.add(100);
+        items.add(200);
 
         List<Integer> result = (List<Integer>) converter.convertList(0, 10, items);
 
@@ -59,14 +56,9 @@ public class ListConverterTest {
     void testListLongReturnConverter() {
         ListLongReturnConverter converter = new ListLongReturnConverter();
 
-        List<Map<String, Object>> items = new ArrayList<>();
-        Map<String, Object> item1 = new HashMap<>();
-        item1.put("id", 1000L);
-        items.add(item1);
-
-        Map<String, Object> item2 = new HashMap<>();
-        item2.put("id", 2000L);
-        items.add(item2);
+        List<Long> items = new ArrayList<>();
+        items.add(1000L);
+        items.add(2000L);
 
         List<Long> result = (List<Long>) converter.convertList(0, 10, items);
 
@@ -80,10 +72,8 @@ public class ListConverterTest {
     void testListDoubleReturnConverter() {
         ListDoubleReturnConverter converter = new ListDoubleReturnConverter();
 
-        List<Map<String, Object>> items = new ArrayList<>();
-        Map<String, Object> item1 = new HashMap<>();
-        item1.put("value", 3.14);
-        items.add(item1);
+        List<Double> items = new ArrayList<>();
+        items.add(3.14);
 
         List<Double> result = (List<Double>) converter.convertList(0, 10, items);
 
@@ -96,10 +86,8 @@ public class ListConverterTest {
     void testListBigDecimalReturnConverter() {
         ListBigDecimalReturnConverter converter = new ListBigDecimalReturnConverter();
 
-        List<Map<String, Object>> items = new ArrayList<>();
-        Map<String, Object> item1 = new HashMap<>();
-        item1.put("amount", new BigDecimal("100.50"));
-        items.add(item1);
+        List<BigDecimal> items = new ArrayList<>();
+        items.add(new BigDecimal("100.50"));
 
         List<BigDecimal> result = (List<BigDecimal>) converter.convertList(0, 10, items);
 
@@ -112,14 +100,9 @@ public class ListConverterTest {
     void testListBooleanReturnConverter() {
         ListBooleanReturnConverter converter = new ListBooleanReturnConverter();
 
-        List<Map<String, Object>> items = new ArrayList<>();
-        Map<String, Object> item1 = new HashMap<>();
-        item1.put("enabled", true);
-        items.add(item1);
-
-        Map<String, Object> item2 = new HashMap<>();
-        item2.put("enabled", false);
-        items.add(item2);
+        List<Boolean> items = new ArrayList<>();
+        items.add(true);
+        items.add(false);
 
         List<Boolean> result = (List<Boolean>) converter.convertList(0, 10, items);
 
@@ -134,10 +117,8 @@ public class ListConverterTest {
         ListDateReturnConverter converter = new ListDateReturnConverter();
 
         Date now = new Date();
-        List<Map<String, Object>> items = new ArrayList<>();
-        Map<String, Object> item1 = new HashMap<>();
-        item1.put("createTime", now);
-        items.add(item1);
+        List<Date> items = new ArrayList<>();
+        items.add(now);
 
         List<Date> result = (List<Date>) converter.convertList(0, 10, items);
 
@@ -150,7 +131,7 @@ public class ListConverterTest {
     void testListConverter_EmptyList() {
         ListStringReturnConverter converter = new ListStringReturnConverter();
 
-        List<Map<String, Object>> items = new ArrayList<>();
+        List<String> items = new ArrayList<>();
         List<String> result = (List<String>) converter.convertList(0, 10, items);
 
         Assertions.assertNotNull(result);
@@ -161,12 +142,10 @@ public class ListConverterTest {
     void testListConverter_ConvertPagingResult() {
         ListStringReturnConverter converter = new ListStringReturnConverter();
 
-        List<Map<String, Object>> items = new ArrayList<>();
-        Map<String, Object> item1 = new HashMap<>();
-        item1.put("name", "Test");
-        items.add(item1);
+        List<String> items = new ArrayList<>();
+        items.add("Test");
 
-        PagingResultImpl<Map<String, Object>> pagingResult = new PagingResultImpl<>();
+        PagingResultImpl<String> pagingResult = new PagingResultImpl<>();
         pagingResult.setItems(items);
         pagingResult.setTotal(100L);
         pagingResult.setStart(0);

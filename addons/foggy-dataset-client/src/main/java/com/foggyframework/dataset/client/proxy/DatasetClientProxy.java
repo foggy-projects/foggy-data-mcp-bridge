@@ -115,6 +115,16 @@ public class DatasetClientProxy implements InvocationHandler {
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
         // 处理 Object 类的基本方法
         if (method.getDeclaringClass() == Object.class) {
+            String methodName = method.getName();
+            if ("equals".equals(methodName)) {
+                return proxy == args[0];
+            }
+            if ("hashCode".equals(methodName)) {
+                return System.identityHashCode(proxy);
+            }
+            if ("toString".equals(methodName)) {
+                return type.getName() + "@" + Integer.toHexString(System.identityHashCode(proxy));
+            }
             return method.invoke(this, args);
         }
 

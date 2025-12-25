@@ -188,6 +188,18 @@ public class DatasetClientProxyTest {
         public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
             // 处理 Object 类的基本方法
             if (method.getDeclaringClass() == Object.class) {
+                String methodName = method.getName();
+                // equals 需要特殊处理：比较代理对象本身
+                if ("equals".equals(methodName)) {
+                    return proxy == args[0];
+                }
+                // hashCode 和 toString 委托给 handler
+                if ("hashCode".equals(methodName)) {
+                    return System.identityHashCode(proxy);
+                }
+                if ("toString".equals(methodName)) {
+                    return proxy.getClass().getName() + "@" + Integer.toHexString(System.identityHashCode(proxy));
+                }
                 return method.invoke(this, args);
             }
 
