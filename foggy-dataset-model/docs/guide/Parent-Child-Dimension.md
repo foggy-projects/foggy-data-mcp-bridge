@@ -83,9 +83,9 @@ CREATE INDEX idx_team_closure_team_id ON team_closure (team_id);
 
 ## 模型定义
 
-### JM文件配置
+### TM文件配置
 
-在JM模型文件中定义父子维度：
+在TM模型文件中定义父子维度：
 
 ```javascript
 export const model = {
@@ -280,7 +280,7 @@ JdbcDimensionSupport (基类)
 
 ### 加载过程
 
-1. `JdbcModelLoaderImpl` 解析JM文件中的维度定义
+1. `JdbcModelLoaderImpl` 解析TM文件中的维度定义
 2. 检测到`parentKey`不为空时，创建`JdbcModelParentChildDimensionImpl`实例
 3. 加载闭包表作为独立的`QueryObject`
 4. 设置闭包表的`childKey`为主键，用于与事实表关联
@@ -313,5 +313,5 @@ JdbcDimensionSupport (基类)
 
 ## 相关文档
 
-- [JM/QM 语法手册](./JM-QM-Syntax-Manual.md)
+- [TM/QM 语法手册](./TM-QM-Syntax-Manual.md)
 - [API 参考文档](./API-Reference.md)

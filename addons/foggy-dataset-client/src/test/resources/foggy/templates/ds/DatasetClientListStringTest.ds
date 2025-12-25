@@ -1,0 +1,4 @@
+
+export const sql=`
+    select 'ddd' xxx_abc
+`;

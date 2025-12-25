@@ -6,6 +6,9 @@
 
 FSScript 的核心用途是优雅地组装复杂的动态 SQL 查询：
 
+> **注意**：`sqlExp`、`sqlInExp` 等 SQL 生成函数需要配合 `foggy-dataset` 模块使用。
+> 详见 [Foggy Dataset 快速开始](../../dataset-query/guide/quick-start.md)
+
 ```javascript
 import {workonSessionTokenUsingCache as token} from '@saasBasicWebUtils';
 
@@ -24,7 +27,16 @@ export const sql = `
     ORDER BY t.create_time DESC
 `;
 ```
-
+```SQL
+/**
+ * 输出语句(sqlExp),sqlExp会将参数写入上下文，生成的SQL语句如下：
+ */
+SELECT t.id, t.name, t.amount, t.create_time
+FROM orders t
+WHERE t.tenant_id = '${token.tenantId}'
+  AND t.team_id = ? AND t.status IN (?,?)
+ORDER BY t.create_time DESC
+```
 ### 2. 导入 Spring Bean
 
 ```javascript

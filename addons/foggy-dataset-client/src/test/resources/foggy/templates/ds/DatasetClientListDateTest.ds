@@ -1,0 +1,4 @@
+
+export const sql=`
+    select now() xxx_abc
+`;

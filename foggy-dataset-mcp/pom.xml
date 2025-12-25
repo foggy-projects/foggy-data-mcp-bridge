@@ -6,12 +6,12 @@
 
     <groupId>com.foggysource</groupId>
     <artifactId>foggy-dataset-mcp</artifactId>
-    <version>8.0.0-beta</version>
+    <version>8.0.1-beta</version>
     <packaging>jar</packaging>
     <parent>
         <groupId>com.foggysource</groupId>
         <artifactId>foggy-data-mcp-bridge</artifactId>
-        <version>8.0.0-beta</version>
+        <version>8.0.1-beta</version>
     </parent>
 
     <name>MCP Data Model Java</name>
@@ -171,7 +171,7 @@
             <scope>runtime</scope>
         </dependency>
 
-        <!-- Demo 数据模型（JM/QM 定义）- Docker 演示环境需要 -->
+        <!-- Demo 数据模型（TM/QM 定义）- Docker 演示环境需要 -->
         <dependency>
             <groupId>com.foggysource</groupId>
             <artifactId>foggy-dataset-demo</artifactId>

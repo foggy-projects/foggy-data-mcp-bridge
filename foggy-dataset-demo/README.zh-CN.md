@@ -6,7 +6,7 @@
 
 本模块包含：
 
-- **JM 模型定义** - 电商领域的维度表和事实表模型
+- **TM 模型定义** - 电商领域的维度表和事实表模型
 - **QM 查询模型** - 查询模型定义，支持多维度查询和多表JOIN
 - **Docker 环境** - 多数据库测试环境（MySQL、PostgreSQL、SQL Server）
 - **示例数据** - 完整的电商测试数据集
@@ -140,12 +140,12 @@ UNION ALL SELECT 'dim_customer', COUNT(*) FROM dim_customer;
 ### 加载模型
 
 模型文件位于 classpath:
-- JM 模型: `foggy/templates/ecommerce/model/`
+- TM 模型: `foggy/templates/ecommerce/model/`
 - QM 查询模型: `foggy/templates/ecommerce/query/`
 
 ```java
 // 示例：加载销售事实表模型
-String modelPath = "foggy/templates/ecommerce/model/FactSalesModel.jm";
+String modelPath = "foggy/templates/ecommerce/model/FactSalesModel.tm";
 InputStream is = getClass().getClassLoader().getResourceAsStream(modelPath);
 
 // 示例：加载销售查询模型
@@ -161,20 +161,20 @@ foggy-dataset-demo/
 ├── README.md
 ├── src/main/resources/
 │   └── foggy/templates/ecommerce/
-│       ├── model/                    # JM 模型定义
-│       │   ├── DimChannelModel.jm
-│       │   ├── DimCustomerModel.jm
-│       │   ├── DimDateModel.jm
-│       │   ├── DimProductModel.jm
-│       │   ├── DimPromotionModel.jm
-│       │   ├── DimStoreModel.jm
-│       │   ├── FactInventorySnapshotModel.jm
-│       │   ├── FactOrderModel.jm
-│       │   ├── FactPaymentModel.jm
-│       │   ├── FactReturnModel.jm
-│       │   ├── FactSalesModel.jm
-│       │   ├── FactSalesNestedDimModel.jm
-│       │   └── FactTeamSalesModel.jm
+│       ├── model/                    # TM 模型定义
+│       │   ├── DimChannelModel.tm
+│       │   ├── DimCustomerModel.tm
+│       │   ├── DimDateModel.tm
+│       │   ├── DimProductModel.tm
+│       │   ├── DimPromotionModel.tm
+│       │   ├── DimStoreModel.tm
+│       │   ├── FactInventorySnapshotModel.tm
+│       │   ├── FactOrderModel.tm
+│       │   ├── FactPaymentModel.tm
+│       │   ├── FactReturnModel.tm
+│       │   ├── FactSalesModel.tm
+│       │   ├── FactSalesNestedDimModel.tm
+│       │   └── FactTeamSalesModel.tm
 │       └── query/                    # QM 查询模型
 │           ├── FactSalesQueryModel.qm
 │           ├── FactOrderQueryModel.qm

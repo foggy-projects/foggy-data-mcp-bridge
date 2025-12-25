@@ -8,7 +8,7 @@
 
 ## 概述
 
-Foggy Dataset Model 是一个可嵌入的数据建模和查询引擎，专为 OLAP 分析场景设计。通过声明式的 **JM（数据模型）** 和 **QM（查询模型）** 定义，自动处理多表 JOIN、聚合计算、维度过滤等复杂逻辑。
+Foggy Dataset Model 是一个可嵌入的数据建模和查询引擎，专为 OLAP 分析场景设计。通过声明式的 **TM（数据模型）** 和 **QM（查询模型）** 定义，自动处理多表 JOIN、聚合计算、维度过滤等复杂逻辑。
 
 ### 核心特性
 
@@ -16,7 +16,7 @@ Foggy Dataset Model 是一个可嵌入的数据建模和查询引擎，专为 OL
 - **嵌套维度（雪花模型）** - 支持多层维度关联，简洁的嵌套语法
 - **父子维度（层级数据）** - 基于闭包表自动处理组织架构等层级查询
 - **多数据库支持** - MySQL、PostgreSQL、SQL Server、SQLite、MongoDB
-- **模型与查询分离** - JM 定义数据结构，QM 定义可查询字段，职责清晰
+- **模型与查询分离** - TM 定义数据结构，QM 定义可查询字段，职责清晰
 - **可嵌入设计** - 作为 Spring Boot Starter 引入，无额外运维成本
 
 ## 快速开始
@@ -31,9 +31,9 @@ Foggy Dataset Model 是一个可嵌入的数据建模和查询引擎，专为 OL
 </dependency>
 ```
 
-### 2. 定义数据模型（JM）
+### 2. 定义数据模型（TM）
 
-创建文件 `FactSalesModel.jm`：
+创建文件 `FactSalesModel.tm`：
 
 ```javascript
 export const model = {
@@ -271,7 +271,7 @@ spring:
 │                  JdbcService (查询入口)                  │
 ├─────────────────────────────────────────────────────────┤
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────┐  │
-│  │ JM 模型加载  │  │ QM 模型加载  │  │ SQL 生成引擎    │  │
+│  │ TM 模型加载  │  │ QM 模型加载  │  │ SQL 生成引擎    │  │
 │  │ (JdbcModel) │  │(QueryModel) │  │ (JdbcQuery)     │  │
 │  └─────────────┘  └─────────────┘  └─────────────────┘  │
 ├─────────────────────────────────────────────────────────┤
@@ -283,7 +283,7 @@ spring:
 
 ## 文档
 
-- [JM/QM 语法手册](docs/JM-QM-Syntax-Manual.md)
+- [TM/QM 语法手册](docs/TM-QM-Syntax-Manual.md)
 - [快速入门指南](docs/quick-start.md)
 - [API 参考](docs/API-Reference.md)
 - [多数据库适配](docs/MULTI_DATABASE_ADAPTER.md)

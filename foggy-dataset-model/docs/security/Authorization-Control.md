@@ -276,7 +276,7 @@ public int order() {
 ## 注意事项
 
 1. **SecurityContext 可能为空**：始终检查 `ctx.getSecurityContext() != null`
-2. **字段名需匹配模型**：添加的过滤条件字段名必须在 JM 模型中定义
+2. **字段名需匹配模型**：添加的过滤条件字段名必须在 TM 模型中定义
 3. **性能考虑**：避免在 `beforeQuery` 中执行耗时操作
 4. **中止查询**：返回 `ABORT` 可以中止整个查询流程
 

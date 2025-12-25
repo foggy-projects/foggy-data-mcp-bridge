@@ -16,7 +16,7 @@
 # 自定义模型:
 #   1. 创建模型目录: mkdir -p ./custom-models/model ./custom-models/query
 #   2. 编辑 .env 启用外部模型: EXTERNAL_MODELS_ENABLED=true
-#   3. 将 JM/QM 文件放入对应目录
+#   3. 将 TM/QM 文件放入对应目录
 #   4. 重启服务: docker-compose restart mcp
 #
 # ============================================
@@ -29,7 +29,7 @@ services:
     build:
       context: ./mysql
       dockerfile: Dockerfile
-    image: foggy-mcp-mysql:${FOGGY_VERSION:-8.0.0-beta}
+    image: foggy-mcp-mysql:${FOGGY_VERSION:-8.0.1-beta}
     container_name: foggy-mcp-mysql
     restart: unless-stopped
     environment:
@@ -66,7 +66,7 @@ services:
     build:
       context: ../..
       dockerfile: foggy-dataset-mcp/Dockerfile
-    image: foggy-mcp:${FOGGY_VERSION:-8.0.0-beta}
+    image: foggy-mcp:${FOGGY_VERSION:-8.0.1-beta}
     container_name: foggy-mcp-service
     restart: unless-stopped
     depends_on:

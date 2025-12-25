@@ -147,7 +147,7 @@ docker/demo/
 ├── docker-compose.yml   # 服务编排
 ├── .env.example         # 环境变量模板
 ├── custom-models/       # 自定义模型目录（需手动创建）
-│   ├── model/           # JM 数据模型
+│   ├── model/           # TM 数据模型
 │   ├── query/           # QM 查询模型
 │   └── datasource.fsscript  # 数据源配置（可选）
 └── README.md            # 本文档
@@ -186,9 +186,9 @@ export const myDataSource = dataSourceFactory.create({
 // });
 ```
 
-### 3. 创建数据模型 (JM)
+### 3. 创建数据模型 (TM)
 
-创建 `./custom-models/model/MyModel.jm`：
+创建 `./custom-models/model/MyModel.tm`：
 
 ```javascript
 // 引入自定义数据源

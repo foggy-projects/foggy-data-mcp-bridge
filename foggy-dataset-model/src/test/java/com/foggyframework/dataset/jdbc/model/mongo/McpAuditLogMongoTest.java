@@ -25,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * 通过 JdbcService.queryModelData 查询，并与 MongoTemplate 直接查询的结果进行比对</p>
  *
  * <p>对应模型:
- * - JM: foggy-dataset-demo/src/main/resources/foggy/templates/mcp_audit/model/McpAuditLogModel.jm
+ * - TM: foggy-dataset-demo/src/main/resources/foggy/templates/mcp_audit/model/McpAuditLogModel.tm
  * - QM: foggy-dataset-demo/src/main/resources/foggy/templates/mcp_audit/query/McpAuditLogQueryModel.qm
  * </p>
  *

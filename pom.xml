@@ -12,7 +12,7 @@
 
     <groupId>com.foggysource</groupId>
     <artifactId>foggy-data-mcp-bridge</artifactId>
-    <version>8.0.0-beta</version>
+    <version>8.0.1-beta</version>
     <name>Java Data MCP Bridge</name>
     <description>嵌入式语义层框架 - 声明式维度建模、动态查询和 AI 驱动的数据分析</description>
     <packaging>pom</packaging>
@@ -46,7 +46,10 @@
         <module>foggy-dataset-mcp</module>
         <module>foggy-dataset-model</module>
         <module>foggy-fsscript</module>
-        <module>foggy-fsscript-client</module>
+        <!-- Addons: 可选扩展模块 -->
+        <module>addons/foggy-fsscript-client</module>
+        <module>addons/foggy-dataset-client</module>
+        <module>addons/foggy-dataset-mongo</module>
         <!-- WIP: 基准测试模块，暂未完成 -->
 <!--        <module>foggy-benchmark-spider2</module>-->
     </modules>
@@ -62,7 +65,7 @@
         <spring-boot.version>3.4.5</spring-boot.version>
 
         <!-- 框架内部版本 -->
-        <foggy-framework.version>8.0.0-beta</foggy-framework.version>
+        <foggy-framework.version>8.0.1-beta</foggy-framework.version>
 
         <!-- 第三方依赖版本 -->
         <alibaba-fastjson.version>2.0.57</alibaba-fastjson.version>
@@ -105,6 +108,16 @@
             <dependency>
                 <groupId>com.foggysource</groupId>
                 <artifactId>foggy-dataset-model</artifactId>
+                <version>${foggy-framework.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.foggysource</groupId>
+                <artifactId>foggy-dataset-client</artifactId>
+                <version>${foggy-framework.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.foggysource</groupId>
+                <artifactId>foggy-dataset-mongo</artifactId>
                 <version>${foggy-framework.version}</version>
             </dependency>
 

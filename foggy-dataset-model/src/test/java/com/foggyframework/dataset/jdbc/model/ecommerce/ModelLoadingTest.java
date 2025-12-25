@@ -10,7 +10,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * 模型加载测试
  *
- * <p>验证JM和QM模型文件能正确加载</p>
+ * <p>验证TM和QM模型文件能正确加载</p>
  *
  * @author foggy-dataset
  * @since 1.0.0
@@ -21,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class ModelLoadingTest extends EcommerceTestSupport {
 
     // ==========================================
-    // JM 模型加载测试
+    // TM 模型加载测试
     // ==========================================
 
     @Test

@@ -54,7 +54,7 @@ public class JdbcQueryModelLoaderImpl extends LoaderSupport implements JdbcQuery
 
     /**
      * MongoDB 模板（可选）
-     * <p>仅在配置了 MongoDB 数据源时注入，用于支持 MongoDB 类型的 JM 模型
+     * <p>仅在配置了 MongoDB 数据源时注入，用于支持 MongoDB 类型的 TM 模型
      */
     @Autowired(required = false)
     MongoTemplate mongoTemplate;
@@ -116,9 +116,9 @@ public class JdbcQueryModelLoaderImpl extends LoaderSupport implements JdbcQuery
     @Override
     public JdbcQueryModel getJdbcQueryModel(String queryModelNameOrAlias) {
         // 1. 先尝试通过全名查找
-        JdbcQueryModel jm = name2JdbcQueryModel.get(queryModelNameOrAlias);
-        if (jm != null) {
-            return jm;
+        JdbcQueryModel tm = name2JdbcQueryModel.get(queryModelNameOrAlias);
+        if (tm != null) {
+            return tm;
         }
 
         // 2. 尝试通过简称查找
@@ -133,9 +133,9 @@ public class JdbcQueryModelLoaderImpl extends LoaderSupport implements JdbcQuery
         Object queryModel = ee.getExportObject("queryModel");
         JdbcQueryModelDef queryModelDef = FsscriptConversionService.getSharedInstance().convert(queryModel, JdbcQueryModelDef.class);
 
-        jm = loadJdbcQueryModel(ee, fsscript, queryModelDef);
-        registerQueryModel(queryModelNameOrAlias, (JdbcQueryModelImpl) jm);
-        return jm;
+        tm = loadJdbcQueryModel(ee, fsscript, queryModelDef);
+        registerQueryModel(queryModelNameOrAlias, (JdbcQueryModelImpl) tm);
+        return tm;
     }
 
     @Override
@@ -195,7 +195,7 @@ public class JdbcQueryModelLoaderImpl extends LoaderSupport implements JdbcQuery
                     String d = (String) ((Map<?, ?>) s).get("dependsOn");
                     if (StringUtils.isNotTrimEmpty(d)) {
                         JdbcModel dm = aliasToJdbcModel.get(d);
-                        RX.notNull(dm, String.format("未能根据alias:[%s]在当前查询模型:[%s]中找到JM,请确保在:[%s]前定义",
+                        RX.notNull(dm, String.format("未能根据alias:[%s]在当前查询模型:[%s]中找到TM,请确保在:[%s]前定义",
                                 d, queryModelDef.getName(), alias
                         ));
                         dx.addDependsOn(dm);
@@ -223,14 +223,14 @@ public class JdbcQueryModelLoaderImpl extends LoaderSupport implements JdbcQuery
             modelMongoTemplate = mongoTemplate;
         }
         DataSource ds = queryModelDef.getDataSource();
-        //从jm文件中提取数据源
+        //从tm文件中提取数据源
         if (ds == null) {
             for (JdbcModel jdbcModel : jdbcModelDxList) {
                 if (jdbcModel.getDataSource() != null) {
                     if (ds == null) {
                         ds = jdbcModel.getDataSource();
                     } else if (ds != jdbcModel.getDataSource()) {
-                        throw RX.throwAUserTip("不同数据源的JM不能配置在一起");
+                        throw RX.throwAUserTip("不同数据源的TM不能配置在一起");
                     }
                 }
             }

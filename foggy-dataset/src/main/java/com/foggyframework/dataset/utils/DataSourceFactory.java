@@ -28,9 +28,9 @@ import java.util.Map;
  * });
  * </pre>
  *
- * <h3>JM 模型中引用：</h3>
+ * <h3>TM 模型中引用：</h3>
  * <pre>
- * // MyModel.jm
+ * // MyModel.tm
  * import '../datasource.fsscript' as ds;
  *
  * export const model = {

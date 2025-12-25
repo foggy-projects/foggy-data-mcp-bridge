@@ -41,7 +41,7 @@ FROM eclipse-temurin:17-jre-alpine
 
 LABEL maintainer="Foggy Framework <contact@foggysource.com>"
 LABEL description="Foggy MCP Data Model Service - AI-powered semantic data query"
-LABEL version="8.0.0-beta"
+LABEL version="8.0.1-beta"
 
 WORKDIR /app
 

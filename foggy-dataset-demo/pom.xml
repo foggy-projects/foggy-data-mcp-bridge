@@ -7,12 +7,12 @@
     <parent>
         <groupId>com.foggysource</groupId>
         <artifactId>foggy-data-mcp-bridge</artifactId>
-        <version>8.0.0-beta</version>
+        <version>8.0.1-beta</version>
     </parent>
 
     <artifactId>foggy-dataset-demo</artifactId>
     <name>Foggy Dataset Demo</name>
-    <description>E-commerce demo dataset with JM/QM model definitions</description>
+    <description>E-commerce demo dataset with TM/QM model definitions</description>
 
     <dependencies>
         <!-- 无运行时依赖，仅提供资源文件 -->
@@ -27,7 +27,7 @@
 <!--            <resource>-->
 <!--                <directory>src/main/resources</directory>-->
 <!--                <includes>-->
-<!--                    <include>**/*.jm</include>-->
+<!--                    <include>**/*.tm</include>-->
 <!--                    <include>**/*.qm</include>-->
 <!--                    <include>**/*.sql</include>-->
 <!--                    <include>**/*.yml</include>-->

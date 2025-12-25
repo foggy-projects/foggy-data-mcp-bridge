@@ -27,7 +27,7 @@ graph LR
     User[用户] -->|自然语言| AI[AI 客户端<br/>Claude/Cursor]
     AI -->|MCP 协议<br/>语义查询 DSL| Bridge[Java MCP Bridge]
     subgraph Semantic["语义层"]
-        Bridge --> Parse[解析 .jm/.qm]
+        Bridge --> Parse[解析 .tm/.qm]
         Parse --> SQL[生成 SQL]
     end
     SQL -->|执行| DB[(数据库)]
@@ -38,7 +38,7 @@ graph LR
 
 ## 核心特性
 
-- **声明式数据模型** - 用 JM/QM 文件定义业务语义，AI 只能访问已授权的字段
+- **声明式数据模型** - 用 TM/QM 文件定义业务语义，AI 只能访问已授权的字段
 - **Model-as-Code (模型即代码)** - 使用 JavaScript 定义数据模型，支持函数复用、动态权限控制和复杂的计算逻辑，远比静态的 JSON/YAML 灵活。
 - **自动 SQL 生成** - 框架处理多表 JOIN、聚合、分页，无需 AI 理解复杂 Schema
 - **MCP 协议集成** - 开箱即用对接 Claude Desktop、Cursor 等 AI 客户端
@@ -77,10 +77,10 @@ docker compose up -d
 
 ## 工作原理
 
-### 1. 定义数据模型（JM）
+### 1. 定义数据模型（TM）
 
 ```javascript
-// FactSalesModel.jm
+// FactSalesModel.tm
 export const model = {
     name: 'FactSalesModel',
     caption: '销售数据',
@@ -138,13 +138,13 @@ foggy-data-mcp-bridge/
 ├── foggy-dataset-mcp       # MCP 服务端
 ├── foggy-dataset-demo      # 示例数据模型
 ├── foggy-dataset           # 多数据库适配
-├── foggy-fsscript          # JM/QM 解析器
+├── foggy-fsscript          # TM/QM 解析器
 └── foggy-core              # 基础工具
 ```
 
 ## 文档
 
-- [JM/QM 语法手册](foggy-dataset-model/docs/guide/JM-QM-Syntax-Manual.md)
+- [TM/QM 语法手册](foggy-dataset-model/docs/guide/TM-QM-Syntax-Manual.md)
 - [IDE 本地开发](foggy-dataset-mcp/docs/IDE-Development.zh-CN.md)
 - [权限控制](foggy-dataset-model/docs/security/Authorization-Control.md)
 

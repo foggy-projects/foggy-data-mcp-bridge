@@ -5,10 +5,10 @@
 ## 项目结构
 - `foggy-core/` - 核心工具类库
 - `foggy-dataset/` - 数据库基础层（Dialect、DbUtils）
-- `foggy-dataset-model/` - 核心数据模型模块（JM/QM引擎）
+- `foggy-dataset-model/` - 核心数据模型模块（TM/QM引擎）
 - `foggy-dataset-mcp/` - MCP服务模块（AI对接）
 - `foggy-dataset-demo/` - 示例项目（电商演示数据）
-- `foggy-fsscript/` - 脚本引擎（解析JM/QM文件）
+- `foggy-fsscript/` - 脚本引擎（解析TM/QM文件）
 - `foggy-fsscript-client/` - 脚本引擎客户端
 - `foggy-bean-copy/` - Bean拷贝工具
 - `foggy-benchmark-spider2/` - Spider2基准测试
@@ -38,7 +38,7 @@ docs/
 ├── README.md              # 文档导航
 ├── quick-start.md         # 快速入门
 ├── guide/                 # 核心指南
-│   ├── JM-QM-Syntax-Manual.md
+│   ├── TM-QM-Syntax-Manual.md
 │   ├── API-Reference.md
 │   └── Parent-Child-Dimension.md
 ├── security/              # 权限控制
@@ -50,7 +50,7 @@ docs/
 ```
 
 ## JdbcColumnType 类型映射
-支持的类型及别名（在JM文件中使用）：
+支持的类型及别名（在TM文件中使用）：
 - `MONEY` / `NUMBER` - BigDecimal（金额、数值）
 - `TEXT` / `STRING` - String（文本）
 - `INTEGER` - Integer（整数）

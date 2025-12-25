@@ -8,9 +8,9 @@
 - 商品表 `dim_product`
 - 销售记录表 `fact_sales`
 
-## 第一步：创建维度模型 (JM)
+## 第一步：创建维度模型 (TM)
 
-创建文件 `DimProductModel.jm`：
+创建文件 `DimProductModel.tm`：
 
 ```javascript
 // 商品维度模型
@@ -32,12 +32,12 @@ def DimProductModel = {
 export { DimProductModel }
 ```
 
-## 第二步：创建事实表模型 (JM)
+## 第二步：创建事实表模型 (TM)
 
-创建文件 `FactSalesModel.jm`：
+创建文件 `FactSalesModel.tm`：
 
 ```javascript
-import { DimProductModel } from "./DimProductModel.jm"
+import { DimProductModel } from "./DimProductModel.tm"
 
 // 销售事实表模型
 def FactSalesModel = {
@@ -80,7 +80,7 @@ export { FactSalesModel }
 创建文件 `FactSalesQueryModel.qm`：
 
 ```javascript
-import { FactSalesModel } from "../model/FactSalesModel.jm"
+import { FactSalesModel } from "../model/FactSalesModel.tm"
 
 def FactSalesQueryModel = {
     name: "FactSalesQueryModel",
@@ -158,6 +158,6 @@ WHERE t1.category = ?
 
 ## 下一步
 
-- [JM/QM 语法手册](guide/JM-QM-Syntax-Manual.md) - 学习完整的模型定义语法
+- [TM/QM 语法手册](guide/TM-QM-Syntax-Manual.md) - 学习完整的模型定义语法
 - [API 参考](guide/API-Reference.md) - HTTP API 接口文档
 - [父子维度](guide/Parent-Child-Dimension.md) - 层级结构维度
