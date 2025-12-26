@@ -14,7 +14,6 @@ import com.foggyframework.dataset.jdbc.model.spi.*;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.mongodb.core.MongoTemplate;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -24,7 +23,7 @@ import java.util.Map;
 @Getter
 @Setter
 @Slf4j
-public abstract class JdbcModelSupport extends JdbcObjectSupport implements JdbcModel {
+public abstract class TableModelSupport extends JdbcObjectSupport implements JdbcModel {
 
     String idColumn;
 

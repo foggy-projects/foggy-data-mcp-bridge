@@ -144,7 +144,7 @@ public class MongoQueryModelImpl extends QueryModelSupport implements MongoQuery
                 totalData.put("total", total);
             }
         }
-        return JdbcQueryResult.of(PagingResultImpl.of(results.getMappedResults(), form.getStart(), form.getLimit(), totalData, total), null);
+        return JdbcQueryResult.of(PagingResultImpl.of(results.getMappedResults(), form.getStart(), form.getLimit(), totalData, total), queryEngine);
     }
 
 }

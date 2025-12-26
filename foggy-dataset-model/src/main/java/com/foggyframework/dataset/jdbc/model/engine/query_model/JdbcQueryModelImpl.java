@@ -9,7 +9,7 @@ import com.foggyframework.dataset.jdbc.model.engine.JdbcModelQueryEngine;
 import com.foggyframework.dataset.jdbc.model.engine.expression.SqlCalculatedFieldProcessor;
 import com.foggyframework.dataset.jdbc.model.engine.formula.SqlFormulaService;
 import com.foggyframework.dataset.jdbc.model.engine.query.JdbcQueryResult;
-import com.foggyframework.dataset.jdbc.model.impl.model.JdbcModelSupport;
+import com.foggyframework.dataset.jdbc.model.impl.model.TableModelSupport;
 import com.foggyframework.dataset.jdbc.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.jdbc.model.spi.*;
 import com.foggyframework.dataset.model.PagingResultImpl;
@@ -52,7 +52,7 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
 //            }
             //呃,临时 方案,确保下面的public String getAlias(QueryObject queryObject)能够得到正确的alias
             name2Alias.put(key, model.getAlias());
-            name2Alias.put(model.getQueryObject().getDecorate(JdbcModelSupport.ModelQueryObject.class), model.getAlias());
+            name2Alias.put(model.getQueryObject().getDecorate(TableModelSupport.ModelQueryObject.class), model.getAlias());
         }
     }
 

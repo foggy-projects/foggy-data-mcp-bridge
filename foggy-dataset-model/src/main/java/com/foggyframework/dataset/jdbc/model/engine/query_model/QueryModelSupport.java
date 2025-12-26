@@ -11,7 +11,7 @@ import com.foggyframework.dataset.jdbc.model.engine.query.JdbcQueryResult;
 import com.foggyframework.dataset.jdbc.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.jdbc.model.impl.JdbcObjectSupport;
 import com.foggyframework.dataset.jdbc.model.impl.dimension.JdbcDimensionSupport;
-import com.foggyframework.dataset.jdbc.model.impl.model.JdbcModelSupport;
+import com.foggyframework.dataset.jdbc.model.impl.model.TableModelSupport;
 import com.foggyframework.dataset.jdbc.model.impl.query.*;
 import com.foggyframework.dataset.jdbc.model.impl.utils.QueryObjectDelegate;
 import com.foggyframework.dataset.jdbc.model.plugins.result_set_filter.ModelResultContext;
@@ -176,7 +176,7 @@ public  abstract class QueryModelSupport extends JdbcObjectSupport implements Qu
 //            }
             //呃,临时 方案,确保下面的public String getAlias(QueryObject queryObject)能够得到正确的alias
             name2Alias.put(key, model.getAlias());
-            name2Alias.put(model.getQueryObject().getDecorate(JdbcModelSupport.ModelQueryObject.class), model.getAlias());
+            name2Alias.put(model.getQueryObject().getDecorate(TableModelSupport.ModelQueryObject.class), model.getAlias());
         }
     }
 

@@ -6,16 +6,16 @@ import lombok.Getter;
 import javax.sql.DataSource;
 
 @Getter
-public class JdbcModelImpl extends JdbcModelSupport {
+public class JdbcTableModelImpl extends TableModelSupport {
     Fsscript fScript;
 
     DataSource dataSource;
 
-    public JdbcModelImpl() {
+    public JdbcTableModelImpl() {
 
     }
 
-    public JdbcModelImpl(DataSource dataSource,Fsscript fScript) {
+    public JdbcTableModelImpl(DataSource dataSource, Fsscript fScript) {
         this.dataSource = dataSource;
         this.fScript = fScript;
     }

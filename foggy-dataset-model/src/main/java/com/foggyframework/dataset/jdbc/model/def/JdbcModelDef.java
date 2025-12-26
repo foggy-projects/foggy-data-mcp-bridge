@@ -4,7 +4,7 @@ import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.jdbc.model.def.dimension.JdbcDimensionDef;
 import com.foggyframework.dataset.jdbc.model.def.measure.JdbcMeasureDef;
 import com.foggyframework.dataset.jdbc.model.def.property.JdbcPropertyDef;
-import com.foggyframework.dataset.jdbc.model.impl.model.JdbcModelSupport;
+import com.foggyframework.dataset.jdbc.model.impl.model.TableModelSupport;
 import com.foggyframework.dataset.jdbc.model.spi.JdbcModelType;
 import lombok.Data;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -43,7 +43,7 @@ public class JdbcModelDef extends JdbcDefSupport{
 
     MongoTemplate mongoTemplate;
 
-    public void apply(JdbcModelSupport jdbcObjectSupport) {
+    public void apply(TableModelSupport jdbcObjectSupport) {
         super.apply(jdbcObjectSupport);
         jdbcObjectSupport.setIdColumn(this.idColumn);
         jdbcObjectSupport.setTableName(tableName);

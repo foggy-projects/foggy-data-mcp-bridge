@@ -6,9 +6,6 @@ import com.foggyframework.conversion.FsscriptConversionService;
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.ErrorUtils;
 import com.foggyframework.core.utils.StringUtils;
-import com.foggyframework.dataset.db.dialect.FDialect;
-import com.foggyframework.dataset.db.table.SqlColumn;
-import com.foggyframework.dataset.db.table.SqlTable;
 import com.foggyframework.dataset.jdbc.model.def.JdbcModelDef;
 import com.foggyframework.dataset.jdbc.model.def.dimension.JdbcDimensionDef;
 import com.foggyframework.dataset.jdbc.model.def.measure.JdbcMeasureDef;
@@ -23,14 +20,10 @@ import com.foggyframework.dataset.jdbc.model.impl.dimension.JdbcModelParentChild
 import com.foggyframework.dataset.jdbc.model.impl.dimension.JdbcModelTimeDimensionImpl;
 import com.foggyframework.dataset.jdbc.model.impl.measure.JdbcMeasureSupport;
 import com.foggyframework.dataset.jdbc.model.impl.measure.JdbcModelMeasureImpl;
-import com.foggyframework.dataset.jdbc.model.impl.model.JdbcModelImpl;
-import com.foggyframework.dataset.jdbc.model.impl.model.JdbcModelSupport;
+import com.foggyframework.dataset.jdbc.model.impl.model.TableModelSupport;
 import com.foggyframework.dataset.jdbc.model.impl.property.JdbcPropertyImpl;
 import com.foggyframework.dataset.jdbc.model.impl.utils.QueryObjectSupport;
-import com.foggyframework.dataset.jdbc.model.impl.utils.TableQueryObject;
-import com.foggyframework.dataset.jdbc.model.impl.utils.ViewSqlQueryObject;
 import com.foggyframework.dataset.jdbc.model.spi.*;
-import com.foggyframework.dataset.utils.DbUtils;
 import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
@@ -38,7 +31,6 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.mongodb.core.MongoTemplate;
 
 import jakarta.annotation.Resource;
 
@@ -147,7 +139,7 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
 
         String tableName = def.getTableName();
         String viewSql = def.getViewSql();
-        JdbcModelSupport jdbcModel = jm.getDecorate(JdbcModelSupport.class);
+        TableModelSupport jdbcModel = jm.getDecorate(TableModelSupport.class);
 //        JdbcModelImpl jdbcModel = new JdbcModelImpl(dataSource,fScript);
 //        def.apply(jdbcModel);
 //        jdbcModel.setMongoTemplate(defMongoTemplate);

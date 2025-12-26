@@ -13,10 +13,7 @@ import com.foggyframework.dataset.jdbc.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.jdbc.model.impl.mongo.MongoQueryModel;
 import com.foggyframework.dataset.jdbc.model.impl.query.JdbcQueryOrderColumnImpl;
 import com.foggyframework.dataset.jdbc.model.impl.utils.SqlQueryObject;
-import com.foggyframework.dataset.jdbc.model.spi.CalculatedFieldProcessor;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcAggregation;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcColumn;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryProperty;
+import com.foggyframework.dataset.jdbc.model.spi.*;
 import com.foggyframework.dataset.jdbc.model.spi.support.AggregationJdbcColumn;
 import com.foggyframework.dataset.jdbc.model.spi.support.CalculatedJdbcColumn;
 import com.foggyframework.fsscript.DefaultExpEvaluator;
@@ -40,7 +37,7 @@ import java.util.regex.Pattern;
 
 @Slf4j
 @Data
-public class MongoModelQueryEngine {
+public class MongoModelQueryEngine implements QueryEngine {
     MongoQueryModel jdbcQueryModel;
 
     JdbcQuery jdbcQuery;

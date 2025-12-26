@@ -1,9 +1,8 @@
 package com.foggyframework.dataset.jdbc.model.engine.query_model;
 
 import com.foggyframework.dataset.jdbc.model.impl.loader.TableModelLoaderManagerImpl;
-import com.foggyframework.dataset.jdbc.model.impl.model.JdbcModelImpl;
+import com.foggyframework.dataset.jdbc.model.impl.model.JdbcTableModelImpl;
 import com.foggyframework.dataset.jdbc.model.spi.JdbcModel;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryModel;
 import com.foggyframework.dataset.jdbc.model.spi.QueryModel;
 import com.foggyframework.fsscript.loadder.FsscriptRemoveEvent;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
@@ -77,10 +76,10 @@ public class JdbcModelFileChangeHandler implements ApplicationListener<FsscriptR
         }
         Map<String, JdbcModel> mm = new HashMap<>(jdbcModelLoader.getName2JdbcModel());
         Map<String, QueryModel> qmm = new HashMap<>(jdbcQueryModelLoader.getName2JdbcQueryModel());
-        List<JdbcModelImpl> removedTm = new ArrayList<>();
+        List<JdbcTableModelImpl> removedTm = new ArrayList<>();
         for (Fsscript removedFsscript : fsscriptRemoveEvent.getRemovedFsscripts()) {
             for (Map.Entry<String, JdbcModel> stringJdbcModelEntry : mm.entrySet()) {
-                JdbcModelImpl tm = stringJdbcModelEntry.getValue().getDecorate(JdbcModelImpl.class);
+                JdbcTableModelImpl tm = stringJdbcModelEntry.getValue().getDecorate(JdbcTableModelImpl.class);
                 if (tm != null && tm.getFScript().getPath().equals(removedFsscript.getPath())) {
                     if (log.isDebugEnabled()) {
                         log.debug("移除模型" + tm.getName());
@@ -100,7 +99,7 @@ public class JdbcModelFileChangeHandler implements ApplicationListener<FsscriptR
                     qmm.remove(stringJdbcQueryModelEntry.getKey());
                 }
 
-                for (JdbcModelImpl jdbcModel : removedTm) {
+                for (JdbcTableModelImpl jdbcModel : removedTm) {
                     if(qtm.getJdbcModel().getName().equals(jdbcModel.getName())){
                         if (log.isDebugEnabled()) {
                             log.debug("s2.移除查询模型" + qtm.getName());

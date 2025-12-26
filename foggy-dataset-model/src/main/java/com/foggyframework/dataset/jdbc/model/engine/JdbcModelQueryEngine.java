@@ -37,7 +37,7 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Data
-public class JdbcModelQueryEngine {
+public class JdbcModelQueryEngine implements QueryEngine{
     JdbcQueryModel jdbcQueryModel;
 
     JdbcQuery jdbcQuery;

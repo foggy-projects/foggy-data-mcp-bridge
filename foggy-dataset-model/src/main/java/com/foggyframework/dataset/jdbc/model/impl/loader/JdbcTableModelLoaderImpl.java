@@ -9,7 +9,7 @@ import com.foggyframework.dataset.jdbc.model.engine.formula.SqlFormulaService;
 import com.foggyframework.dataset.jdbc.model.engine.query_model.JdbcQueryModelImpl;
 import com.foggyframework.dataset.jdbc.model.engine.query_model.QueryModelSupport;
 import com.foggyframework.dataset.jdbc.model.impl.LoaderSupport;
-import com.foggyframework.dataset.jdbc.model.impl.model.JdbcModelImpl;
+import com.foggyframework.dataset.jdbc.model.impl.model.JdbcTableModelImpl;
 import com.foggyframework.dataset.jdbc.model.spi.*;
 import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
@@ -43,7 +43,7 @@ public class JdbcTableModelLoaderImpl extends LoaderSupport implements TableMode
         String tableName = def.getTableName();
         String viewSql = def.getViewSql();
 
-        JdbcModelImpl jdbcModel = new JdbcModelImpl(dataSource, fScript);
+        JdbcTableModelImpl jdbcModel = new JdbcTableModelImpl(dataSource, fScript);
         def.apply(jdbcModel);
 
         jdbcModel.setQueryObject(loadQueryObject(dataSource, tableName, viewSql, def.getSchema()));
@@ -60,7 +60,7 @@ public class JdbcTableModelLoaderImpl extends LoaderSupport implements TableMode
 
     @Override
     public QueryModelSupport build(JdbcQueryModelDef queryModelDef, Fsscript fsscript, List<JdbcModel> jdbcModelDxList) {
-        JdbcModelImpl mainTm = jdbcModelDxList.get(0).getDecorate(JdbcModelImpl.class);
+        JdbcTableModelImpl mainTm = jdbcModelDxList.get(0).getDecorate(JdbcTableModelImpl.class);
         if (mainTm == null) {
             //非mysql模型，不做处理
             return null;
@@ -69,7 +69,7 @@ public class JdbcTableModelLoaderImpl extends LoaderSupport implements TableMode
          * 检查，必须都是jdbc模型
          */
         for (JdbcModel jdbcModel : jdbcModelDxList) {
-            JdbcModelImpl tm = jdbcModel.getDecorate(JdbcModelImpl.class);
+            JdbcTableModelImpl tm = jdbcModel.getDecorate(JdbcTableModelImpl.class);
             if (tm == null) {
                 throw RX.throwB("查询模型%s中只能引用jdbc模型，但%s不是".formatted(queryModelDef.getName(), jdbcModel.getName()));
             }
@@ -79,7 +79,7 @@ public class JdbcTableModelLoaderImpl extends LoaderSupport implements TableMode
 
         if(ds == null) {
             for (JdbcModel jdbcModel : jdbcModelDxList) {
-                JdbcModelImpl tm = jdbcModel.getDecorate(JdbcModelImpl.class);
+                JdbcTableModelImpl tm = jdbcModel.getDecorate(JdbcTableModelImpl.class);
                 if (tm.getDataSource() != null) {
                     if (ds == null) {
                         ds = tm.getDataSource();

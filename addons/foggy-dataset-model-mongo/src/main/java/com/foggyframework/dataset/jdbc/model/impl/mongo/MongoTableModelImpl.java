@@ -1,12 +1,12 @@
 package com.foggyframework.dataset.jdbc.model.impl.mongo;
 
-import com.foggyframework.dataset.jdbc.model.impl.model.JdbcModelSupport;
+import com.foggyframework.dataset.jdbc.model.impl.model.TableModelSupport;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
 import lombok.Getter;
 import org.springframework.data.mongodb.core.MongoTemplate;
 
 @Getter
-public class MongoTableModelImpl extends JdbcModelSupport {
+public class MongoTableModelImpl extends TableModelSupport {
     Fsscript fScript;
 
     MongoTemplate mongoTemplate;
