@@ -4,10 +4,10 @@ import com.foggyframework.bundle.Bundle;
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.StringUtils;
-import com.foggyframework.dataset.jdbc.model.def.JdbcModelDef;
-import com.foggyframework.dataset.jdbc.model.def.measure.JdbcMeasureDef;
-import com.foggyframework.dataset.jdbc.model.def.property.JdbcPropertyDef;
-import com.foggyframework.dataset.jdbc.model.def.query.JdbcQueryModelDef;
+import com.foggyframework.dataset.jdbc.model.def.DbModelDef;
+import com.foggyframework.dataset.jdbc.model.def.measure.DbMeasureDef;
+import com.foggyframework.dataset.jdbc.model.def.property.DbPropertyDef;
+import com.foggyframework.dataset.jdbc.model.def.query.DbQueryModelDef;
 import com.foggyframework.dataset.jdbc.model.engine.query_model.QueryModelSupport;
 import com.foggyframework.dataset.jdbc.model.impl.LoaderSupport;
 import com.foggyframework.dataset.jdbc.model.spi.TableModel;
@@ -51,7 +51,7 @@ public class TmMongoModelLoaderImpl extends LoaderSupport implements TableModelL
     }
 
     @Override
-    public TableModel load(Fsscript fScript, JdbcModelDef def, Bundle bundle) {
+    public TableModel load(Fsscript fScript, DbModelDef def, Bundle bundle) {
         if (def.getDimensions() != null && def.getDimensions().size() > 0) {
             throw new RuntimeException("mongo model not support dimension");
         }
@@ -65,7 +65,7 @@ public class TmMongoModelLoaderImpl extends LoaderSupport implements TableModelL
             StringBuilder sb = new StringBuilder("select ");
             Set<String> columns = new HashSet<>();
             if (def.getProperties() != null) {
-                for (JdbcPropertyDef property : def.getProperties()) {
+                for (DbPropertyDef property : def.getProperties()) {
                     RX.hasText(property.getColumn(), "Property列名不能为空:" + def.getName());
                     if(!columns.contains(property.getColumn())) {
                         appendColumn(sb, property.getColumn(), property.getType());
@@ -83,7 +83,7 @@ public class TmMongoModelLoaderImpl extends LoaderSupport implements TableModelL
                 }
             }
             if (def.getMeasures() != null) {
-                for (JdbcMeasureDef measure : def.getMeasures()) {
+                for (DbMeasureDef measure : def.getMeasures()) {
                     RX.hasText(measure.getColumn(), "Measure列名不能为空:" + def.getName());
                     if(!columns.contains(measure.getColumn())) {
                         appendColumn(sb, measure.getColumn(), measure.getType());
@@ -143,7 +143,7 @@ public class TmMongoModelLoaderImpl extends LoaderSupport implements TableModelL
     }
 
     @Override
-    public QueryModelSupport build(JdbcQueryModelDef queryModelDef, Fsscript fsscript, List<TableModel> jdbcModelDxList) {
+    public QueryModelSupport build(DbQueryModelDef queryModelDef, Fsscript fsscript, List<TableModel> jdbcModelDxList) {
         MongoTableModelImpl mainTm = jdbcModelDxList.get(0).getDecorate(MongoTableModelImpl.class);
         if (mainTm == null) {
             //非mongo模型，不做处理

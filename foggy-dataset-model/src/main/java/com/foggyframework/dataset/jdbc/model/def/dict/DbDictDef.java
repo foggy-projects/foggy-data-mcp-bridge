@@ -33,7 +33,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class JdbcDictDef {
+public class DbDictDef {
 
     /**
      * 字典唯一标识，用于缓存和元数据去重
@@ -57,7 +57,7 @@ public class JdbcDictDef {
      * 字典项列表
      */
     @ApiModelProperty("字典项列表")
-    List<JdbcDictItemDef> items;
+    List<DbDictItemDef> items;
 
     // ========== 运行时缓存 ==========
 
@@ -78,7 +78,7 @@ public class JdbcDictDef {
         if (valueToLabelMap == null) {
             valueToLabelMap = new ConcurrentHashMap<>();
             if (items != null) {
-                for (JdbcDictItemDef item : items) {
+                for (DbDictItemDef item : items) {
                     valueToLabelMap.put(item.getValue(), item.getLabel());
                 }
             }
@@ -93,7 +93,7 @@ public class JdbcDictDef {
         if (labelToValueMap == null) {
             labelToValueMap = new ConcurrentHashMap<>();
             if (items != null) {
-                for (JdbcDictItemDef item : items) {
+                for (DbDictItemDef item : items) {
                     labelToValueMap.put(item.getLabel(), item.getValue());
                 }
             }
@@ -134,7 +134,7 @@ public class JdbcDictDef {
             if (i > 0) {
                 sb.append(", ");
             }
-            JdbcDictItemDef item = items.get(i);
+            DbDictItemDef item = items.get(i);
             sb.append(item.getValue()).append("=").append(item.getLabel());
         }
         return sb.toString();

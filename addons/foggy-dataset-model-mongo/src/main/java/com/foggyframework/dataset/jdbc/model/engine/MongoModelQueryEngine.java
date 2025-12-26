@@ -10,7 +10,7 @@ import com.foggyframework.dataset.jdbc.model.engine.expression.MongoCalculatedCo
 import com.foggyframework.dataset.jdbc.model.engine.query.JdbcQuery;
 import com.foggyframework.dataset.jdbc.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.jdbc.model.impl.mongo.MongoQueryModel;
-import com.foggyframework.dataset.jdbc.model.impl.query.JdbcQueryOrderColumnImpl;
+import com.foggyframework.dataset.jdbc.model.impl.query.DbQueryOrderColumnImpl;
 import com.foggyframework.dataset.jdbc.model.impl.utils.SqlQueryObject;
 import com.foggyframework.dataset.jdbc.model.spi.*;
 import com.foggyframework.dataset.jdbc.model.spi.support.AggregationJdbcColumn;
@@ -138,7 +138,7 @@ public class MongoModelQueryEngine implements QueryEngine {
 
                 validate(orderRequestDef.getOrder());
 
-                jdbcQuery.addOrder(new JdbcQueryOrderColumnImpl(jdbcQueryModel.findJdbcColumn(orderRequestDef.getField()), orderRequestDef.getOrder(), orderRequestDef.isNullLast(), orderRequestDef.isNullFirst()));
+                jdbcQuery.addOrder(new DbQueryOrderColumnImpl(jdbcQueryModel.findJdbcColumn(orderRequestDef.getField()), orderRequestDef.getOrder(), orderRequestDef.isNullLast(), orderRequestDef.isNullFirst()));
 
             }
         }else{
@@ -251,7 +251,7 @@ public class MongoModelQueryEngine implements QueryEngine {
         List<Sort.Order> orders = null;
         if (jdbcQuery.getOrder() != null) {
             orders = new ArrayList<>(jdbcQuery.getOrder().size());
-            for (JdbcQueryOrderColumnImpl order : jdbcQuery.getOrder().getOrders()) {
+            for (DbQueryOrderColumnImpl order : jdbcQuery.getOrder().getOrders()) {
                 if (StringUtils.equalsIgnoreCase("desc", order.getOrder())) {
                     orders.add(new Sort.Order(Sort.Direction.DESC, order.getSelectColumn().getName()));
                 } else {

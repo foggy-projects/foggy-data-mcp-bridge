@@ -10,7 +10,7 @@ import lombok.Setter;
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
-public class JdbcQueryGroupColumnImpl {
+public class DbQueryGroupColumnImpl {
 
     AggregationJdbcColumn aggColumn;
 

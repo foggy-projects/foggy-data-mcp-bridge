@@ -3,8 +3,8 @@ package com.foggyframework.dataset.jdbc.model.impl.property;
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.jdbc.model.impl.AiObject;
-import com.foggyframework.dataset.jdbc.model.impl.JdbcColumnSupport;
-import com.foggyframework.dataset.jdbc.model.impl.JdbcObjectSupport;
+import com.foggyframework.dataset.jdbc.model.impl.DbColumnSupport;
+import com.foggyframework.dataset.jdbc.model.impl.DbObjectSupport;
 import com.foggyframework.dataset.jdbc.model.spi.*;
 import com.foggyframework.dataset.jdbc.model.utils.JdbcModelNamedUtils;
 import com.foggyframework.fsscript.DefaultExpEvaluator;
@@ -18,7 +18,7 @@ import java.util.Map;
 
 @Getter
 @Setter
-public class DbPropertyImpl extends JdbcObjectSupport implements DbProperty, DbDataProvider {
+public class DbPropertyImpl extends DbObjectSupport implements DbProperty, DbDataProvider {
 
     TableModel jdbcModel;
 
@@ -108,7 +108,7 @@ public class DbPropertyImpl extends JdbcObjectSupport implements DbProperty, DbD
 //        return Arrays.asList(propertyJdbcColumn);
 //    }
 
-    public class PropertyDbColumn extends JdbcColumnSupport implements DbPropertyColumn {
+    public class PropertyDbColumn extends DbColumnSupport implements DbPropertyColumn {
         public PropertyDbColumn() {
             super(dbDimension == null ?
                     jdbcModel.getQueryObject().getSqlColumn(column, true)

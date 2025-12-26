@@ -2,13 +2,13 @@ package com.foggyframework.dataset.jdbc.model.spi.support;
 
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.db.table.SqlColumn;
-import com.foggyframework.dataset.jdbc.model.impl.JdbcObjectSupport;
+import com.foggyframework.dataset.jdbc.model.impl.DbObjectSupport;
 import com.foggyframework.dataset.jdbc.model.spi.QueryObject;
 import com.foggyframework.fsscript.exp.FsscriptFunction;
 import lombok.Data;
 
 @Data
-public class SimpleQueryObject extends JdbcObjectSupport implements QueryObject {
+public class SimpleQueryObject extends DbObjectSupport implements QueryObject {
 
     String alias;
 

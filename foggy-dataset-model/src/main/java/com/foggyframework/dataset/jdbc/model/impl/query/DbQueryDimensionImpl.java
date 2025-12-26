@@ -2,8 +2,8 @@ package com.foggyframework.dataset.jdbc.model.impl.query;
 
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.core.utils.StringUtils;
-import com.foggyframework.dataset.jdbc.model.common.result.JdbcDataItem;
-import com.foggyframework.dataset.jdbc.model.impl.JdbcObjectSupport;
+import com.foggyframework.dataset.jdbc.model.common.result.DbDataItem;
+import com.foggyframework.dataset.jdbc.model.impl.DbObjectSupport;
 import com.foggyframework.dataset.jdbc.model.spi.DbDimension;
 import com.foggyframework.dataset.jdbc.model.spi.DbQueryDimension;
 import com.foggyframework.dataset.jdbc.model.spi.QueryModel;
@@ -22,7 +22,7 @@ import java.util.List;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class DbQueryDimensionImpl extends JdbcObjectSupport implements DbQueryDimension {
+public class DbQueryDimensionImpl extends DbObjectSupport implements DbQueryDimension {
 
     DbDimension dimension;
 
@@ -47,14 +47,14 @@ public class DbQueryDimensionImpl extends JdbcObjectSupport implements DbQueryDi
 
 
     @Override
-    public List<JdbcDataItem> queryDimensionDataByHierarchy(SystemBundlesContext systemBundlesContext, DataSource dataSource, DbQueryDimension jdbcDimension, String hierarchy) {
+    public List<DbDataItem> queryDimensionDataByHierarchy(SystemBundlesContext systemBundlesContext, DataSource dataSource, DbQueryDimension jdbcDimension, String hierarchy) {
         if (queryAccess != null && queryAccess.getDimensionDataSql() != null) {
             Object sql = queryAccess.getDimensionDataSql().autoApply(DefaultExpEvaluator.newInstance(systemBundlesContext.getApplicationContext()));
             if (sql instanceof String) {
-                List<JdbcDataItem> ll = DataSourceQueryUtils.getDatasetTemplate(dataSource).getTemplate().query((String) sql,  RowMapperUtils.getRowMapper(JdbcDataItem.class));
+                List<DbDataItem> ll = DataSourceQueryUtils.getDatasetTemplate(dataSource).getTemplate().query((String) sql,  RowMapperUtils.getRowMapper(DbDataItem.class));
                 return ll;
             } else {
-                return (List<JdbcDataItem>) sql;
+                return (List<DbDataItem>) sql;
 //                throw new UnsupportedOperationException();
             }
         }

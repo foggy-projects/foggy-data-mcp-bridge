@@ -4,8 +4,8 @@ import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.core.Decorate;
 import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.jdbc.model.def.query.request.DbQueryRequestDef;
-import com.foggyframework.dataset.jdbc.model.engine.query.JdbcQueryResult;
-import com.foggyframework.dataset.jdbc.model.impl.query.JdbcQueryOrderColumnImpl;
+import com.foggyframework.dataset.jdbc.model.engine.query.DbQueryResult;
+import com.foggyframework.dataset.jdbc.model.impl.query.DbQueryOrderColumnImpl;
 import com.foggyframework.dataset.jdbc.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.jdbc.model.spi.support.QueryColumnGroup;
 import jakarta.annotation.Nullable;
@@ -43,14 +43,14 @@ public interface QueryModel extends Decorate, DbObject {
 
     TableModel getJdbcModelByQueryObject(QueryObject queryObject);
 
-    List<JdbcQueryOrderColumnImpl> getOrders();
+    List<DbQueryOrderColumnImpl> getOrders();
 
     List<DbQueryProperty> getQueryProperties();
 
 
     DbQueryColumn getIdJdbcQueryColumn();
 
-    JdbcQueryResult query(SystemBundlesContext systemBundlesContext, PagingRequest<DbQueryRequestDef> form);
+    DbQueryResult query(SystemBundlesContext systemBundlesContext, PagingRequest<DbQueryRequestDef> form);
 
     /**
      * 执行查询（带预处理上下文）
@@ -63,7 +63,7 @@ public interface QueryModel extends Decorate, DbObject {
      * @param context              已预处理的查询上下文
      * @return 查询结果
      */
-    default JdbcQueryResult query(SystemBundlesContext systemBundlesContext, ModelResultContext context) {
+    default DbQueryResult query(SystemBundlesContext systemBundlesContext, ModelResultContext context) {
         // 默认实现：忽略 context，使用原有方法
         return query(systemBundlesContext, context.getRequest());
     }

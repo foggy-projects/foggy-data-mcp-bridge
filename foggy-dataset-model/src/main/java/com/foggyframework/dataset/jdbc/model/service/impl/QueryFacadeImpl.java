@@ -3,7 +3,7 @@ package com.foggyframework.dataset.jdbc.model.service.impl;
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.jdbc.model.def.query.request.DbQueryRequestDef;
-import com.foggyframework.dataset.jdbc.model.engine.query.JdbcQueryResult;
+import com.foggyframework.dataset.jdbc.model.engine.query.DbQueryResult;
 import com.foggyframework.dataset.jdbc.model.plugins.result_set_filter.DataSetResultFilterManager;
 import com.foggyframework.dataset.jdbc.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.jdbc.model.service.QueryFacade;
@@ -50,13 +50,13 @@ public class QueryFacadeImpl implements QueryFacade {
         context.setQueryType(queryType);
 
         // 执行完整查询流程
-        JdbcQueryResult result = doQuery(context);
+        DbQueryResult result = doQuery(context);
 
         return result.getPagingResult();
     }
 
     @Override
-    public JdbcQueryResult queryModelResult(PagingRequest<DbQueryRequestDef> form) {
+    public DbQueryResult queryModelResult(PagingRequest<DbQueryRequestDef> form) {
         // 创建上下文
         ModelResultContext context = new ModelResultContext(form, null);
         context.setQueryType(ModelResultContext.QueryType.NORMAL);
@@ -65,7 +65,7 @@ public class QueryFacadeImpl implements QueryFacade {
     }
 
     @Override
-    public JdbcQueryResult queryModelResult(ModelResultContext context) {
+    public DbQueryResult queryModelResult(ModelResultContext context) {
         return doQuery(context);
     }
 
@@ -75,7 +75,7 @@ public class QueryFacadeImpl implements QueryFacade {
      * 生命周期：beforeQuery -> query -> process
      * </p>
      */
-    private JdbcQueryResult doQuery(ModelResultContext context) {
+    private DbQueryResult doQuery(ModelResultContext context) {
         PagingRequest<DbQueryRequestDef> form = context.getRequest();
         DbQueryRequestDef queryRequest = form.getParam();
 
@@ -95,13 +95,13 @@ public class QueryFacadeImpl implements QueryFacade {
         }
 
         // 3. 执行查询（使用带 context 的方法，以便复用预处理结果）
-        JdbcQueryResult jdbcQueryResult = jdbcQueryModel.query(systemBundlesContext, context);
+        DbQueryResult dbQueryResult = jdbcQueryModel.query(systemBundlesContext, context);
 
         // 4. 设置查询结果到上下文
-        context.setPagingResult(jdbcQueryResult.getPagingResult());
-        if (jdbcQueryResult.getQueryEngine() != null) {
-            context.setJdbcQuery(jdbcQueryResult.getQueryEngine().getJdbcQuery());
-            context.setJdbcQueryModel(jdbcQueryResult.getQueryEngine().getJdbcQueryModel());
+        context.setPagingResult(dbQueryResult.getPagingResult());
+        if (dbQueryResult.getQueryEngine() != null) {
+            context.setJdbcQuery(dbQueryResult.getQueryEngine().getJdbcQuery());
+            context.setJdbcQueryModel(dbQueryResult.getQueryEngine().getJdbcQueryModel());
         }
 
         // 5. process: 执行结果处理 Step
@@ -110,6 +110,6 @@ public class QueryFacadeImpl implements QueryFacade {
         // 6. 更新结果（process 可能修改了 pagingResult）
         PagingResultImpl processedResult = context.getPagingResult();
 
-        return JdbcQueryResult.of(processedResult, jdbcQueryResult.getQueryEngine());
+        return DbQueryResult.of(processedResult, dbQueryResult.getQueryEngine());
     }
 }

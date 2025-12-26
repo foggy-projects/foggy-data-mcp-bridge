@@ -1,7 +1,7 @@
 package com.foggyframework.dataset.jdbc.model.spi;
 
 import com.foggyframework.bundle.SystemBundlesContext;
-import com.foggyframework.dataset.jdbc.model.common.result.JdbcDataItem;
+import com.foggyframework.dataset.jdbc.model.common.result.DbDataItem;
 
 import javax.sql.DataSource;
 import java.util.List;
@@ -22,7 +22,7 @@ public interface DbDimension extends DbObject {
 
     DbColumn getForeignKeyJdbcColumn();
 
-    List<JdbcDataItem> queryDimensionDataByHierarchy(SystemBundlesContext systemBundlesContext, DataSource dataSource, DbDimension dbDimension, String hierarchy);
+    List<DbDataItem> queryDimensionDataByHierarchy(SystemBundlesContext systemBundlesContext, DataSource dataSource, DbDimension dbDimension, String hierarchy);
 
     List<DbColumn> getAllJdbcColumns();
 

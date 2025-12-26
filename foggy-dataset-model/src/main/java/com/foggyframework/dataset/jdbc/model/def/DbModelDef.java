@@ -1,9 +1,9 @@
 package com.foggyframework.dataset.jdbc.model.def;
 
 import com.foggyframework.core.utils.StringUtils;
-import com.foggyframework.dataset.jdbc.model.def.dimension.JdbcDimensionDef;
-import com.foggyframework.dataset.jdbc.model.def.measure.JdbcMeasureDef;
-import com.foggyframework.dataset.jdbc.model.def.property.JdbcPropertyDef;
+import com.foggyframework.dataset.jdbc.model.def.dimension.DbDimensionDef;
+import com.foggyframework.dataset.jdbc.model.def.measure.DbMeasureDef;
+import com.foggyframework.dataset.jdbc.model.def.property.DbPropertyDef;
 import com.foggyframework.dataset.jdbc.model.impl.model.TableModelSupport;
 import com.foggyframework.dataset.jdbc.model.spi.DbModelType;
 import lombok.Data;
@@ -13,7 +13,7 @@ import javax.sql.DataSource;
 import java.util.List;
 
 @Data
-public class JdbcModelDef extends JdbcDefSupport{
+public class DbModelDef extends DbDefSupport {
 
     String idColumn;
 
@@ -27,11 +27,11 @@ public class JdbcModelDef extends JdbcDefSupport{
 
     Object importMeasures;
 
-    List<JdbcDimensionDef> dimensions;
+    List<DbDimensionDef> dimensions;
 
-    List<JdbcPropertyDef> properties;
+    List<DbPropertyDef> properties;
 
-    List<JdbcMeasureDef> measures;
+    List<DbMeasureDef> measures;
 
     String tableName;
 

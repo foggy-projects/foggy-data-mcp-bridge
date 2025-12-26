@@ -4,10 +4,10 @@ import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.jdbc.model.common.query.DimensionDataQueryForm;
-import com.foggyframework.dataset.jdbc.model.common.result.JdbcDataItem;
+import com.foggyframework.dataset.jdbc.model.common.result.DbDataItem;
 import com.foggyframework.dataset.jdbc.model.def.query.request.DbQueryRequestDef;
-import com.foggyframework.dataset.jdbc.model.engine.query.JdbcQueryResult;
-import com.foggyframework.dataset.jdbc.model.engine.query_model.JdbcQueryModelImpl;
+import com.foggyframework.dataset.jdbc.model.engine.query.DbQueryResult;
+import com.foggyframework.dataset.jdbc.model.engine.query_model.DbQueryModelImpl;
 import com.foggyframework.dataset.jdbc.model.service.JdbcService;
 import com.foggyframework.dataset.jdbc.model.spi.DbQueryDimension;
 import com.foggyframework.dataset.jdbc.model.spi.QueryModelLoader;
@@ -35,11 +35,8 @@ public class JdbcServiceImpl implements JdbcService {
     @Resource
     SystemBundlesContext systemBundlesContext;
 
-    @Resource
-    SemanticFacade semanticFacade;
-
     @Override
-    public PagingResultImpl<JdbcDataItem> queryDimensionData(PagingRequest<DimensionDataQueryForm> form) {
+    public PagingResultImpl<DbDataItem> queryDimensionData(PagingRequest<DimensionDataQueryForm> form) {
         DimensionDataQueryForm qf = form.getParam();
         String queryModelName = qf.getQueryModel();
         String dimensionName = qf.getDimension();
@@ -48,11 +45,11 @@ public class JdbcServiceImpl implements JdbcService {
         RX.notNull(jdbcQueryModel, "未能找到查询模型:" + dimensionName);
 
         DbQueryDimension jdbcDimension = jdbcQueryModel.findQueryDimension(dimensionName, true);
-        JdbcQueryModelImpl jdbcQueryModelImpl = jdbcQueryModel.getDecorate(JdbcQueryModelImpl.class);
+        DbQueryModelImpl jdbcQueryModelImpl = jdbcQueryModel.getDecorate(DbQueryModelImpl.class);
         if(jdbcQueryModelImpl == null){
             throw new RuntimeException("目前只有jdbc模型才支持维度数据查询" );
         }
-        List<JdbcDataItem> ll = jdbcDimension.queryDimensionDataByHierarchy(systemBundlesContext, jdbcQueryModelImpl.getDataSource(), jdbcDimension, qf.getHierarchy());
+        List<DbDataItem> ll = jdbcDimension.queryDimensionDataByHierarchy(systemBundlesContext, jdbcQueryModelImpl.getDataSource(), jdbcDimension, qf.getHierarchy());
 
         return PagingResultImpl.of(ll,ll.size());
     }
@@ -68,12 +65,12 @@ public class JdbcServiceImpl implements JdbcService {
     }
 
     @Override
-    public JdbcQueryResult queryModelResult(PagingRequest<DbQueryRequestDef> form) {
+    public DbQueryResult queryModelResult(PagingRequest<DbQueryRequestDef> form) {
         DbQueryRequestDef qf = form.getParam();
         String queryModelName = qf.getQueryModel();
         QueryModel jdbcQueryModel = queryModelLoader.getJdbcQueryModel(queryModelName);
 
-        JdbcQueryResult p = jdbcQueryModel.query(systemBundlesContext, form);
+        DbQueryResult p = jdbcQueryModel.query(systemBundlesContext, form);
         return p;
     }
 

@@ -2,7 +2,7 @@ package com.foggyframework.dataset.jdbc.model.impl.utils;
 
 import com.foggyframework.dataset.db.table.SqlColumn;
 import com.foggyframework.dataset.db.table.SqlTable;
-import com.foggyframework.dataset.jdbc.model.impl.JdbcObjectSupport;
+import com.foggyframework.dataset.jdbc.model.impl.DbObjectSupport;
 import com.foggyframework.dataset.jdbc.model.spi.QueryObject;
 import com.foggyframework.fsscript.exp.FsscriptFunction;
 import lombok.Data;
@@ -13,7 +13,7 @@ import java.util.Map;
 
 @Data
 @NoArgsConstructor
-public abstract class QueryObjectSupport extends JdbcObjectSupport implements QueryObject {
+public abstract class QueryObjectSupport extends DbObjectSupport implements QueryObject {
 
     protected SqlTable sqlTable;
 

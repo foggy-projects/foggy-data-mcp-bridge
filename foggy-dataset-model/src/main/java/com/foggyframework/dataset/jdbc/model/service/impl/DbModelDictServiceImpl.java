@@ -3,7 +3,7 @@ package com.foggyframework.dataset.jdbc.model.service.impl;
 import com.foggyframework.conversion.FsscriptConversionService;
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.StringUtils;
-import com.foggyframework.dataset.jdbc.model.def.dict.JdbcDictDef;
+import com.foggyframework.dataset.jdbc.model.def.dict.DbDictDef;
 import com.foggyframework.dataset.jdbc.model.spi.DbModelDictService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -40,7 +40,7 @@ public class DbModelDictServiceImpl implements DbModelDictService {
     /**
      * 字典注册表：dictId -> JdbcDictDef
      */
-    private final Map<String, JdbcDictDef> dictRegistry = new ConcurrentHashMap<>();
+    private final Map<String, DbDictDef> dictRegistry = new ConcurrentHashMap<>();
 
     /**
      * 注册字典（供 fsscript 调用）
@@ -52,12 +52,12 @@ public class DbModelDictServiceImpl implements DbModelDictService {
      * @return 字典ID
      */
     public String registerDict(Map<String, Object> dictDefMap) {
-        JdbcDictDef dictDef = FsscriptConversionService.getSharedInstance().convert(dictDefMap, JdbcDictDef.class);
+        DbDictDef dictDef = FsscriptConversionService.getSharedInstance().convert(dictDefMap, DbDictDef.class);
         return registerDict(dictDef);
     }
 
     @Override
-    public String registerDict(JdbcDictDef dictDef) {
+    public String registerDict(DbDictDef dictDef) {
         RX.notNull(dictDef, "字典定义不能为空");
         RX.hasText(dictDef.getId(), "字典ID不能为空");
 
@@ -65,7 +65,7 @@ public class DbModelDictServiceImpl implements DbModelDictService {
 
         // 检查ID是否重复
         if (dictRegistry.containsKey(dictId)) {
-            JdbcDictDef existing = dictRegistry.get(dictId);
+            DbDictDef existing = dictRegistry.get(dictId);
             // 如果是同一个对象，直接返回（支持重复加载同一个 fsscript 文件）
             if (existing == dictDef) {
                 return dictId;
@@ -83,7 +83,7 @@ public class DbModelDictServiceImpl implements DbModelDictService {
     }
 
     @Override
-    public JdbcDictDef getDictById(String dictId) {
+    public DbDictDef getDictById(String dictId) {
         if (StringUtils.isEmpty(dictId)) {
             return null;
         }
@@ -96,7 +96,7 @@ public class DbModelDictServiceImpl implements DbModelDictService {
     }
 
     @Override
-    public Collection<JdbcDictDef> getAllDicts() {
+    public Collection<DbDictDef> getAllDicts() {
         return dictRegistry.values();
     }
 

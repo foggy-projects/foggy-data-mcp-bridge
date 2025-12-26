@@ -1,7 +1,6 @@
 package com.foggyframework.dataset.jdbc.model.ecommerce;
 
 import com.foggyframework.dataset.client.domain.PagingRequest;
-import com.foggyframework.dataset.jdbc.model.common.result.KpiItem;
 import com.foggyframework.dataset.jdbc.model.def.query.request.*;
 import com.foggyframework.dataset.jdbc.model.service.JdbcService;
 import com.foggyframework.dataset.model.PagingResultImpl;
@@ -449,17 +448,6 @@ class ServiceIntegrationTest extends EcommerceTestSupport {
     // ==========================================
     // 辅助方法
     // ==========================================
-
-    /**
-     * 将KpiItems列表转换为Map便于对比
-     */
-    private Map<String, Object> kpiItemsToMap(List<KpiItem> kpiItems) {
-        Map<String, Object> map = new HashMap<>();
-        for (KpiItem item : kpiItems) {
-            map.put(item.getName(), item.getValue());
-        }
-        return map;
-    }
 
     /**
      * 比较两个数值是否相等（支持不同数值类型）

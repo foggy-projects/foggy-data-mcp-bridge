@@ -4,8 +4,8 @@ import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.db.table.SqlColumn;
 import com.foggyframework.dataset.jdbc.model.engine.formula.JdbcLink;
-import com.foggyframework.dataset.jdbc.model.impl.query.JdbcQueryGroupColumnImpl;
-import com.foggyframework.dataset.jdbc.model.impl.query.JdbcQueryOrderColumnImpl;
+import com.foggyframework.dataset.jdbc.model.impl.query.DbQueryGroupColumnImpl;
+import com.foggyframework.dataset.jdbc.model.impl.query.DbQueryOrderColumnImpl;
 import com.foggyframework.dataset.jdbc.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.jdbc.model.spi.DbColumn;
 import com.foggyframework.dataset.jdbc.model.spi.DbQueryRequest;
@@ -141,7 +141,7 @@ public class JdbcQuery {
         select(new SimpleSqlJdbcColumn(getFrom().getFromObject(), sqlColumn, alias, sqlColumn.getName(), sqlColumn.getName()));
     }
 
-    public void addOrders(List<JdbcQueryOrderColumnImpl> orders) {
+    public void addOrders(List<DbQueryOrderColumnImpl> orders) {
         if (order == null) {
             order = new JdbcOrder(orders);
         } else {
@@ -150,7 +150,7 @@ public class JdbcQuery {
 
     }
 
-    public void addOrder(JdbcQueryOrderColumnImpl column) {
+    public void addOrder(DbQueryOrderColumnImpl column) {
         if (order == null) {
             order = new JdbcOrder(column);
         } else {
@@ -172,7 +172,7 @@ public class JdbcQuery {
         if (group == null) {
             group = new JdbcGroupBy(1);
         }
-        group.groups.add(new JdbcQueryGroupColumnImpl(aggColumn));
+        group.groups.add(new DbQueryGroupColumnImpl(aggColumn));
     }
 
     @Data
@@ -648,9 +648,9 @@ public class JdbcQuery {
 
     @Data
     public class JdbcOrder {
-        List<JdbcQueryOrderColumnImpl> orders;
+        List<DbQueryOrderColumnImpl> orders;
 
-        public JdbcOrder(JdbcQueryOrderColumnImpl column) {
+        public JdbcOrder(DbQueryOrderColumnImpl column) {
             this.orders = new ArrayList<>(1);
             orders.add(column);
         }
@@ -663,16 +663,16 @@ public class JdbcQuery {
             this.orders = new ArrayList<>(size);
         }
 
-        public JdbcOrder(List<JdbcQueryOrderColumnImpl> orders) {
+        public JdbcOrder(List<DbQueryOrderColumnImpl> orders) {
             this.orders = new ArrayList<>(orders);
         }
     }
 
     @Data
     public class JdbcGroupBy {
-        List<JdbcQueryGroupColumnImpl> groups;
+        List<DbQueryGroupColumnImpl> groups;
 
-        public JdbcGroupBy(JdbcQueryGroupColumnImpl column) {
+        public JdbcGroupBy(DbQueryGroupColumnImpl column) {
             this.groups = new ArrayList<>(1);
             groups.add(column);
         }
@@ -681,7 +681,7 @@ public class JdbcQuery {
             this.groups = new ArrayList<>(size);
         }
 
-        public JdbcGroupBy(List<JdbcQueryGroupColumnImpl> orders) {
+        public JdbcGroupBy(List<DbQueryGroupColumnImpl> orders) {
             this.groups = new ArrayList<>(orders);
         }
 

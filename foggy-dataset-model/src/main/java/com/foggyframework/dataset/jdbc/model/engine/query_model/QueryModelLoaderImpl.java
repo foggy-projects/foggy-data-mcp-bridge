@@ -6,10 +6,10 @@ import com.foggyframework.conversion.FsscriptConversionService;
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.ErrorUtils;
 import com.foggyframework.core.utils.StringUtils;
-import com.foggyframework.dataset.jdbc.model.def.access.JdbcAccessDef;
-import com.foggyframework.dataset.jdbc.model.def.column.JdbcColumnGroupDef;
+import com.foggyframework.dataset.jdbc.model.def.access.DbAccessDef;
+import com.foggyframework.dataset.jdbc.model.def.column.DbColumnGroupDef;
 import com.foggyframework.dataset.jdbc.model.def.order.OrderDef;
-import com.foggyframework.dataset.jdbc.model.def.query.JdbcQueryModelDef;
+import com.foggyframework.dataset.jdbc.model.def.query.DbQueryModelDef;
 import com.foggyframework.dataset.jdbc.model.def.query.QueryConditionDef;
 import com.foggyframework.dataset.jdbc.model.def.query.SelectColumnDef;
 import com.foggyframework.dataset.jdbc.model.i18n.DatasetMessages;
@@ -110,7 +110,7 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
         Fsscript fsscript = findFsscript(queryModelNameOrAlias, "qm");
         ExpEvaluator ee = fsscript.eval(systemBundlesContext.getApplicationContext());
         Object queryModel = ee.getExportObject("queryModel");
-        JdbcQueryModelDef queryModelDef = FsscriptConversionService.getSharedInstance().convert(queryModel, JdbcQueryModelDef.class);
+        DbQueryModelDef queryModelDef = FsscriptConversionService.getSharedInstance().convert(queryModel, DbQueryModelDef.class);
 
         tm = loadJdbcQueryModel(ee, fsscript, queryModelDef);
         registerQueryModel(queryModelNameOrAlias, (QueryModelSupport) tm);
@@ -122,7 +122,7 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
         Fsscript fsscript = fileFsscriptLoader.findLoadFsscript(bundleResource);
         ExpEvaluator ee = fsscript.eval(systemBundlesContext.getApplicationContext());
         Object queryModel = ee.getExportObject("queryModel");
-        JdbcQueryModelDef queryModelDef = FsscriptConversionService.getSharedInstance().convert(queryModel, JdbcQueryModelDef.class);
+        DbQueryModelDef queryModelDef = FsscriptConversionService.getSharedInstance().convert(queryModel, DbQueryModelDef.class);
         try {
             QueryModelSupport qm = loadJdbcQueryModel(ee, fsscript, queryModelDef);
             // 注册模型并分配简称
@@ -137,7 +137,7 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
         }
     }
 
-    private QueryModelSupport loadJdbcQueryModel(ExpEvaluator ee, Fsscript fsscript, JdbcQueryModelDef queryModelDef) {
+    private QueryModelSupport loadJdbcQueryModel(ExpEvaluator ee, Fsscript fsscript, DbQueryModelDef queryModelDef) {
         if (queryModelDef == null) {
             throw RX.throwAUserTip(DatasetMessages.querymodelExportMissing(fsscript.getPath()));
         }
@@ -155,7 +155,7 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
             for (Object s : ll) {
                 if (s instanceof String) {
                     TableModel jdbcModel = tableModelLoaderManager.load((String) s);
-                    jdbcModelDxList.add(new JdbcQueryModelImpl.JdbcModelDx(jdbcModel, jdbcModel.getIdColumn(), null, null));
+                    jdbcModelDxList.add(new DbQueryModelImpl.JdbcModelDx(jdbcModel, jdbcModel.getIdColumn(), null, null));
                 } else if (s instanceof Map) {
                     TableModel jdbcModel = tableModelLoaderManager.load((String) ((Map<?, ?>) s).get("name"));
                     String foreignKey = (String) ((Map<?, ?>) s).get("foreignKey");
@@ -166,7 +166,7 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
                     String join = (String) ((Map<?, ?>) s).get("join");
 
                     FsscriptFunction onBuilder = (FsscriptFunction) ((Map<?, ?>) s).get("onBuilder");
-                    JdbcQueryModelImpl.JdbcModelDx dx = new JdbcQueryModelImpl.JdbcModelDx(jdbcModel, foreignKey, onBuilder, alias,
+                    DbQueryModelImpl.JdbcModelDx dx = new DbQueryModelImpl.JdbcModelDx(jdbcModel, foreignKey, onBuilder, alias,
                             StringUtils.isEmpty(join) ? JoinType.LEFT : JoinType.valueOf(join.toUpperCase()));
                     jdbcModelDxList.add(dx);
 
@@ -193,7 +193,7 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
             TableModel jdbcModel = tableModelLoaderManager.load((String) queryModelDef.getModel());
 //            modelMongoTemplate = jdbcModel.getMongoTemplate();
             jdbcModelDxList = new ArrayList<>(1);
-            jdbcModelDxList.add(new JdbcQueryModelImpl.JdbcModelDx(jdbcModel, jdbcModel.getIdColumn(), null, null, JoinType.LEFT));
+            jdbcModelDxList.add(new DbQueryModelImpl.JdbcModelDx(jdbcModel, jdbcModel.getIdColumn(), null, null, JoinType.LEFT));
         } else {
             throw new UnsupportedOperationException();
         }
@@ -256,7 +256,7 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
                 DbQueryConditionImpl jdbcQueryCond = new DbQueryConditionImpl();
                 cond.apply(jdbcQueryCond);
                 jdbcQueryCond.setQueryModel(qm);
-                jdbcQueryCond.setJdbcColumn(jdbcColumn);
+                jdbcQueryCond.setColumn(jdbcColumn);
                 if (StringUtils.isEmpty(jdbcQueryCond.getName())) {
                     //如果条件没有定义 name,则默认同它的jdbcColumn
                     jdbcQueryCond.setName(jdbcColumn.getName());
@@ -309,7 +309,7 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
                 qm.addJdbcQueryCond(dbQueryCondition);
             }
 //            jdbcQueryColumn.getDecorate(JdbcQueryColumnImpl.class).setd(jdbcQueryCond);
-            dbQueryColumn.getDecorate(JdbcQueryColumnImpl.class).setDbQueryCondition(dbQueryCondition);
+            dbQueryColumn.getDecorate(DbQueryColumnImpl.class).setDbQueryCondition(dbQueryCondition);
         }
         /**
          * step35.加载orders
@@ -334,7 +334,7 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
         DbQueryColumn idQueryColumn = qm.getIdJdbcQueryColumn();
         if (idQueryColumn != null) {
             boolean inOrder = false;
-            for (JdbcQueryOrderColumnImpl order : qm.getOrders()) {
+            for (DbQueryOrderColumnImpl order : qm.getOrders()) {
                 if (order.getSelectColumn() == idQueryColumn.getSelectColumn()) {
                     inOrder = true;
                 }
@@ -360,7 +360,7 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
         }
     }
 
-    private void loadDimension(JdbcQueryModelImpl qm, JdbcQueryModelDef queryModelDef) {
+    private void loadDimension(DbQueryModelImpl qm, DbQueryModelDef queryModelDef) {
 //        qm.setQueryDimensions(qm.getJdbcModel().getDimensions().stream().map(e -> new JdbcQueryDimensionImpl(e)).collect(Collectors.toList()));
     }
 
@@ -370,10 +370,10 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
      * @param qm
      * @param queryModelDef
      */
-    private void loadColumnGroups(QueryModelSupport qm, JdbcQueryModelDef queryModelDef) {
+    private void loadColumnGroups(QueryModelSupport qm, DbQueryModelDef queryModelDef) {
         if (queryModelDef.getColumnGroups() != null && !queryModelDef.getColumnGroups().isEmpty()) {
             List<QueryColumnGroup> columnGroups = new ArrayList<>();
-            for (JdbcColumnGroupDef columnGroupDef : queryModelDef.getColumnGroups()) {
+            for (DbColumnGroupDef columnGroupDef : queryModelDef.getColumnGroups()) {
                 if (columnGroupDef.getItems() == null || columnGroupDef.getItems().isEmpty()) {
                     continue;
                 }
@@ -408,9 +408,9 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
 
         DbColumn jdbcColumn = qm.findJdbcColumnForCond(name, true);
 
-        DbQueryColumn dbQueryColumn = new JdbcQueryColumnImpl(jdbcColumn, item.getName(), item.getCaption(), item.getAlias(), item.getField());
+        DbQueryColumn dbQueryColumn = new DbQueryColumnImpl(jdbcColumn, item.getName(), item.getCaption(), item.getAlias(), item.getField());
         dbQueryColumn.setHasRef(hasRef);
-        dbQueryColumn.getDecorate(JdbcQueryColumnImpl.class).setUi(item.getUi());
+        dbQueryColumn.getDecorate(DbQueryColumnImpl.class).setUi(item.getUi());
 
         qm.addJdbcQueryColumn(dbQueryColumn);
         group.addJdbcColumn(dbQueryColumn);
@@ -504,7 +504,7 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
 
         DbQueryConditionImpl jdbcQueryCond = new DbQueryConditionImpl();
         jdbcQueryCond.setQueryModel(qm);
-        jdbcQueryCond.setJdbcColumn(selectColumn);
+        jdbcQueryCond.setColumn(selectColumn);
         if (dbQueryColumn.isHasRef()) {
             jdbcQueryCond.setField(dbQueryColumn.getField());
             jdbcQueryCond.setName(dbQueryColumn.getName());
@@ -519,11 +519,11 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
         return jdbcQueryCond;
     }
 
-    private void loadAccesses(QueryModelSupport qm, List<JdbcAccessDef> accessDefs) {
+    private void loadAccesses(QueryModelSupport qm, List<DbAccessDef> accessDefs) {
         if (accessDefs == null) {
             return;
         }
-        for (JdbcAccessDef accessDef : accessDefs) {
+        for (DbAccessDef accessDef : accessDefs) {
             String dimension = accessDef.getDimension();
             String property = accessDef.getProperty();
             if (StringUtils.isNotEmpty(dimension)) {

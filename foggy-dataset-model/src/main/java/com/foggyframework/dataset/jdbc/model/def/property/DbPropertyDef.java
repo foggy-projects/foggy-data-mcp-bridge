@@ -1,7 +1,7 @@
 package com.foggyframework.dataset.jdbc.model.def.property;
 
 import com.foggyframework.core.utils.StringUtils;
-import com.foggyframework.dataset.jdbc.model.def.JdbcDefSupport;
+import com.foggyframework.dataset.jdbc.model.def.DbDefSupport;
 import com.foggyframework.dataset.jdbc.model.def.measure.DbFormulaDef;
 import com.foggyframework.dataset.jdbc.model.impl.property.DbPropertyImpl;
 import com.foggyframework.dataset.jdbc.model.spi.DbColumnType;
@@ -10,7 +10,7 @@ import lombok.Data;
 import org.springframework.beans.BeanUtils;
 
 @Data
-public class JdbcPropertyDef extends JdbcDefSupport {
+public class DbPropertyDef extends DbDefSupport {
 
     String alias;
 

@@ -1,6 +1,6 @@
 package com.foggyframework.dataset.jdbc.model.spi;
 
-import com.foggyframework.dataset.jdbc.model.def.dict.JdbcDictDef;
+import com.foggyframework.dataset.jdbc.model.def.dict.DbDictDef;
 
 import java.util.Collection;
 
@@ -18,7 +18,7 @@ public interface DbModelDictService {
      * @return 字典ID
      * @throws IllegalArgumentException 如果字典ID已存在
      */
-    String registerDict(JdbcDictDef dictDef);
+    String registerDict(DbDictDef dictDef);
 
     /**
      * 根据ID获取字典定义
@@ -26,7 +26,7 @@ public interface DbModelDictService {
      * @param dictId 字典ID
      * @return 字典定义，如果不存在返回null
      */
-    JdbcDictDef getDictById(String dictId);
+    DbDictDef getDictById(String dictId);
 
     /**
      * 检查字典是否存在
@@ -41,7 +41,7 @@ public interface DbModelDictService {
      *
      * @return 所有字典定义
      */
-    Collection<JdbcDictDef> getAllDicts();
+    Collection<DbDictDef> getAllDicts();
 
     /**
      * 清除所有字典（用于测试或重新加载）
@@ -56,7 +56,7 @@ public interface DbModelDictService {
      * @return label，如果字典或值不存在返回null
      */
     default String getLabelByValue(String dictId, Object value) {
-        JdbcDictDef dict = getDictById(dictId);
+        DbDictDef dict = getDictById(dictId);
         return dict != null ? dict.getLabelByValue(value) : null;
     }
 
@@ -68,7 +68,7 @@ public interface DbModelDictService {
      * @return value，如果字典或标签不存在返回null
      */
     default Object getValueByLabel(String dictId, String label) {
-        JdbcDictDef dict = getDictById(dictId);
+        DbDictDef dict = getDictById(dictId);
         return dict != null ? dict.getValueByLabel(label) : null;
     }
 }

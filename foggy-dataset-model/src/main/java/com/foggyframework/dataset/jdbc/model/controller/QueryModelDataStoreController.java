@@ -19,7 +19,7 @@ import jakarta.annotation.Resource;
  */
 @RestController
 @RequestMapping("jdbc-model/query-model")
-public class JdbcQueryModelDataStoreController {
+public class QueryModelDataStoreController {
 
     @Resource
     QueryFacade queryFacade;

@@ -4,7 +4,7 @@ import com.foggyframework.core.trans.ObjectTransFormatter;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.db.table.SqlColumn;
 import com.foggyframework.dataset.jdbc.model.impl.AiObject;
-import com.foggyframework.dataset.jdbc.model.impl.JdbcObjectSupport;
+import com.foggyframework.dataset.jdbc.model.impl.DbObjectSupport;
 import com.foggyframework.dataset.jdbc.model.spi.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -18,7 +18,7 @@ import java.util.Map;
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
-public class JdbcQueryColumnImpl extends JdbcObjectSupport implements DbQueryColumn {
+public class DbQueryColumnImpl extends DbObjectSupport implements DbQueryColumn {
 
     @Delegate(excludes = {DbObject.class})
     DbColumn selectColumn;
@@ -58,7 +58,7 @@ public class JdbcQueryColumnImpl extends JdbcObjectSupport implements DbQueryCol
 //        this.selectColumn = selectColumn;
 //    }
 
-    public JdbcQueryColumnImpl(DbColumn selectColumn, String name, String caption, String alias, String field) {
+    public DbQueryColumnImpl(DbColumn selectColumn, String name, String caption, String alias, String field) {
         this.selectColumn = selectColumn;
         this.name = name;
         this.caption = caption;

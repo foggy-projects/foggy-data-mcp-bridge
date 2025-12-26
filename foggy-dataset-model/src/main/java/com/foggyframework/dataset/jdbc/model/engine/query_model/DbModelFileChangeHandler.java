@@ -1,7 +1,7 @@
 package com.foggyframework.dataset.jdbc.model.engine.query_model;
 
 import com.foggyframework.dataset.jdbc.model.impl.loader.TableModelLoaderManagerImpl;
-import com.foggyframework.dataset.jdbc.model.impl.model.JdbcTableModelImpl;
+import com.foggyframework.dataset.jdbc.model.impl.model.DbTableModelImpl;
 import com.foggyframework.dataset.jdbc.model.spi.TableModel;
 import com.foggyframework.dataset.jdbc.model.spi.QueryModel;
 import com.foggyframework.fsscript.loadder.FsscriptRemoveEvent;
@@ -43,10 +43,10 @@ public class DbModelFileChangeHandler implements ApplicationListener<FsscriptRem
         }
         Map<String, TableModel> mm = new HashMap<>(jdbcModelLoader.getName2JdbcModel());
         Map<String, QueryModel> qmm = new HashMap<>(jdbcQueryModelLoader.getName2JdbcQueryModel());
-        List<JdbcTableModelImpl> removedTm = new ArrayList<>();
+        List<DbTableModelImpl> removedTm = new ArrayList<>();
         for (Fsscript removedFsscript : fsscriptRemoveEvent.getRemovedFsscripts()) {
             for (Map.Entry<String, TableModel> stringJdbcModelEntry : mm.entrySet()) {
-                JdbcTableModelImpl tm = stringJdbcModelEntry.getValue().getDecorate(JdbcTableModelImpl.class);
+                DbTableModelImpl tm = stringJdbcModelEntry.getValue().getDecorate(DbTableModelImpl.class);
                 if (tm != null && tm.getFScript().getPath().equals(removedFsscript.getPath())) {
                     if (log.isDebugEnabled()) {
                         log.debug("移除模型" + tm.getName());
@@ -58,7 +58,7 @@ public class DbModelFileChangeHandler implements ApplicationListener<FsscriptRem
             }
 
             for (Map.Entry<String, QueryModel> stringJdbcQueryModelEntry : qmm.entrySet()) {
-                JdbcQueryModelImpl qtm = stringJdbcQueryModelEntry.getValue().getDecorate(JdbcQueryModelImpl.class);
+                DbQueryModelImpl qtm = stringJdbcQueryModelEntry.getValue().getDecorate(DbQueryModelImpl.class);
                 if (qtm != null && qtm.getFsscript().getPath().equals(removedFsscript.getPath())) {
                     if (log.isDebugEnabled()) {
                         log.debug("s1.移除查询模型" + qtm.getName());
@@ -66,7 +66,7 @@ public class DbModelFileChangeHandler implements ApplicationListener<FsscriptRem
                     qmm.remove(stringJdbcQueryModelEntry.getKey());
                 }
 
-                for (JdbcTableModelImpl jdbcModel : removedTm) {
+                for (DbTableModelImpl jdbcModel : removedTm) {
                     if(qtm.getJdbcModel().getName().equals(jdbcModel.getName())){
                         if (log.isDebugEnabled()) {
                             log.debug("s2.移除查询模型" + qtm.getName());

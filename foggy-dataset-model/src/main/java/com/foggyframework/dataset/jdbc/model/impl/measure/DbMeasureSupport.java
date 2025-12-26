@@ -4,10 +4,10 @@ import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.db.table.SqlColumn;
 import com.foggyframework.dataset.jdbc.model.def.measure.DbFormulaDef;
-import com.foggyframework.dataset.jdbc.model.def.measure.JdbcMeasureDef;
+import com.foggyframework.dataset.jdbc.model.def.measure.DbMeasureDef;
 import com.foggyframework.dataset.jdbc.model.impl.AiObject;
-import com.foggyframework.dataset.jdbc.model.impl.JdbcColumnSupport;
-import com.foggyframework.dataset.jdbc.model.impl.JdbcObjectSupport;
+import com.foggyframework.dataset.jdbc.model.impl.DbColumnSupport;
+import com.foggyframework.dataset.jdbc.model.impl.DbObjectSupport;
 import com.foggyframework.dataset.jdbc.model.spi.*;
 import com.foggyframework.dataset.jdbc.model.utils.JdbcModelNamedUtils;
 import com.foggyframework.fsscript.DefaultExpEvaluator;
@@ -17,7 +17,7 @@ import lombok.Data;
 import org.springframework.context.ApplicationContext;
 
 @Data
-public abstract class JdbcMeasureSupport extends JdbcObjectSupport implements DbMeasure {
+public abstract class DbMeasureSupport extends DbObjectSupport implements DbMeasure {
 
     String column;
     //默认聚合方式为sum
@@ -39,7 +39,7 @@ public abstract class JdbcMeasureSupport extends JdbcObjectSupport implements Db
 
     FsscriptFunction formulaBuilder;
 
-    public void init(TableModel jdbcModel, JdbcMeasureDef measureDef) {
+    public void init(TableModel jdbcModel, DbMeasureDef measureDef) {
         this.jdbcModel = jdbcModel;
         if (StringUtils.isEmpty(column) && StringUtils.equalsIgnoreCase(measureDef.getAggregation(), "COUNT")) {
             //呃，COUNT下可以不用指定列名，但简单起见，我们使用id吧
@@ -54,11 +54,11 @@ public abstract class JdbcMeasureSupport extends JdbcObjectSupport implements Db
             name = JdbcModelNamedUtils.toAliasName(column);
         }
 
-        jdbcColumn = new MeasureJdbcColumn(jdbcModel.getQueryObject().getSqlColumn(column, true));
+        jdbcColumn = new MeasureDbColumn(jdbcModel.getQueryObject().getSqlColumn(column, true));
     }
 
-    public abstract class MeasureJdbcColumnSupport extends JdbcColumnSupport implements DbColumn, DbMeasureColumn {
-        public MeasureJdbcColumnSupport(SqlColumn sqlColumn) {
+    public abstract class MeasureDbColumnSupport extends DbColumnSupport implements DbColumn, DbMeasureColumn {
+        public MeasureDbColumnSupport(SqlColumn sqlColumn) {
             super(sqlColumn);
         }
 
@@ -94,7 +94,7 @@ public abstract class JdbcMeasureSupport extends JdbcObjectSupport implements Db
 
         @Override
         public DbMeasure getJdbcMeasure() {
-            return JdbcMeasureSupport.this;
+            return DbMeasureSupport.this;
         }
 
         public boolean isMeasure() {
@@ -112,9 +112,9 @@ public abstract class JdbcMeasureSupport extends JdbcObjectSupport implements Db
         }
     }
 
-    public class MeasureJdbcColumn extends MeasureJdbcColumnSupport implements DbColumn {
+    public class MeasureDbColumn extends MeasureDbColumnSupport implements DbColumn {
 
-        public MeasureJdbcColumn(SqlColumn sqlColumn) {
+        public MeasureDbColumn(SqlColumn sqlColumn) {
             super(sqlColumn);
         }
 
@@ -165,7 +165,7 @@ public abstract class JdbcMeasureSupport extends JdbcObjectSupport implements Db
 
         @Override
         public boolean _isDeprecated() {
-            return JdbcMeasureSupport.this._isDeprecated();
+            return DbMeasureSupport.this._isDeprecated();
         }
 
 

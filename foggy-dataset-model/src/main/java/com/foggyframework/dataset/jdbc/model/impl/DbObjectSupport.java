@@ -7,7 +7,7 @@ import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 
 @Data
-public abstract class JdbcObjectSupport extends AbstractDecorate implements DbObject {
+public abstract class DbObjectSupport extends AbstractDecorate implements DbObject {
 
     protected String name;
 

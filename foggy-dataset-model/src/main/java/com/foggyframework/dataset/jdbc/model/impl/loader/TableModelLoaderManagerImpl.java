@@ -6,10 +6,10 @@ import com.foggyframework.conversion.FsscriptConversionService;
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.ErrorUtils;
 import com.foggyframework.core.utils.StringUtils;
-import com.foggyframework.dataset.jdbc.model.def.JdbcModelDef;
-import com.foggyframework.dataset.jdbc.model.def.dimension.JdbcDimensionDef;
-import com.foggyframework.dataset.jdbc.model.def.measure.JdbcMeasureDef;
-import com.foggyframework.dataset.jdbc.model.def.property.JdbcPropertyDef;
+import com.foggyframework.dataset.jdbc.model.def.DbModelDef;
+import com.foggyframework.dataset.jdbc.model.def.dimension.DbDimensionDef;
+import com.foggyframework.dataset.jdbc.model.def.measure.DbMeasureDef;
+import com.foggyframework.dataset.jdbc.model.def.property.DbPropertyDef;
 import com.foggyframework.dataset.jdbc.model.engine.mongo.MongoModelLoader;
 import com.foggyframework.dataset.jdbc.model.engine.query_model.DbModelFileChangeHandler;
 import com.foggyframework.dataset.jdbc.model.i18n.DatasetMessages;
@@ -18,8 +18,8 @@ import com.foggyframework.dataset.jdbc.model.impl.dimension.DbDimensionSupport;
 import com.foggyframework.dataset.jdbc.model.impl.dimension.DbModelDimensionImpl;
 import com.foggyframework.dataset.jdbc.model.impl.dimension.DbModelParentChildDimensionImpl;
 import com.foggyframework.dataset.jdbc.model.impl.dimension.DbModelTimeDimensionImpl;
-import com.foggyframework.dataset.jdbc.model.impl.measure.JdbcMeasureSupport;
-import com.foggyframework.dataset.jdbc.model.impl.measure.JdbcModelMeasureImpl;
+import com.foggyframework.dataset.jdbc.model.impl.measure.DbMeasureSupport;
+import com.foggyframework.dataset.jdbc.model.impl.measure.DbModelMeasureImpl;
 import com.foggyframework.dataset.jdbc.model.impl.model.TableModelSupport;
 import com.foggyframework.dataset.jdbc.model.impl.property.DbPropertyImpl;
 import com.foggyframework.dataset.jdbc.model.impl.utils.QueryObjectSupport;
@@ -87,7 +87,7 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
             throw RX.throwAUserTip(DatasetMessages.modelNotFound(name));
         }
         Bundle bundle = fScript.getFsscriptClosureDefinition().getFsscriptClosureDefinitionSpace().getBundle();
-        JdbcModelDef def = FsscriptConversionService.getSharedInstance().convert(model, JdbcModelDef.class);
+        DbModelDef def = FsscriptConversionService.getSharedInstance().convert(model, DbModelDef.class);
         fix(def);
 
         TableModelLoader tableModelLoader = typeName2Loader.get(def.getType());
@@ -105,9 +105,9 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
         return tm;
     }
 
-    private void fix(JdbcModelDef def) {
+    private void fix(DbModelDef def) {
         if (def.getProperties() != null) {
-            for (JdbcPropertyDef property : def.getProperties()) {
+            for (DbPropertyDef property : def.getProperties()) {
                 if (property == null) {
                     continue;
                 }
@@ -117,7 +117,7 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
             }
         }
         if (def.getMeasures() != null) {
-            for (JdbcMeasureDef measure : def.getMeasures()) {
+            for (DbMeasureDef measure : def.getMeasures()) {
                 if (measure == null) {
                     continue;
                 }
@@ -133,7 +133,7 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
 
     }
 
-    public TableModel initialization(TableModel jm, JdbcModelDef def, Bundle bundle) {
+    public TableModel initialization(TableModel jm, DbModelDef def, Bundle bundle) {
         RX.notNull(dataSource, "加载模型时的数据源不得为空");
         RX.notNull(dataSource, "加载模型时的def不得为空");
 
@@ -149,14 +149,14 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
          * 加入JSON列的支持,目前先让属性和度量支持
          */
         if (def.getMeasures() != null) {
-            for (JdbcMeasureDef measure : def.getMeasures()) {
+            for (DbMeasureDef measure : def.getMeasures()) {
                 if (measure != null && StringUtils.isNotEmpty(measure.getColumn()) && measure.getColumn().indexOf("->") > 0) {
                     jdbcModel.getQueryObject().appendSqlColumn(measure.getColumn(), "OBJECT", 0);
                 }
             }
         }
         if (def.getProperties() != null) {
-            for (JdbcPropertyDef measure : def.getProperties()) {
+            for (DbPropertyDef measure : def.getProperties()) {
                 if (measure != null && StringUtils.isNotEmpty(measure.getColumn()) && measure.getColumn().indexOf("->") > 0) {
                     jdbcModel.getQueryObject().appendSqlColumn(measure.getColumn(), "OBJECT", 0);
                 }
@@ -204,12 +204,12 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
     }
 
     private void loadDimensions(JdbcModelLoadContext context) {
-        JdbcModelDef def = context.getDef();
-        List<JdbcDimensionDef> dimensionDefList = def.getDimensions();
+        DbModelDef def = context.getDef();
+        List<DbDimensionDef> dimensionDefList = def.getDimensions();
         if (dimensionDefList != null) {
             //加载在Model上定义的维度
             dimensionDefList = dimensionDefList.stream().filter(e -> e != null).collect(Collectors.toList());
-            for (JdbcDimensionDef dimensionDef : dimensionDefList) {
+            for (DbDimensionDef dimensionDef : dimensionDefList) {
                 DbDimension dbDimension = loadDimension(context, dimensionDef, true);
             }
         }
@@ -233,11 +233,11 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
 
 
     private void loadProperties(JdbcModelLoadContext context) {
-        JdbcModelDef def = context.getDef();
-        List<JdbcPropertyDef> jdbcPropertyDefList = def.getProperties();
+        DbModelDef def = context.getDef();
+        List<DbPropertyDef> jdbcPropertyDefList = def.getProperties();
         if (jdbcPropertyDefList != null) {
             jdbcPropertyDefList = jdbcPropertyDefList.stream().filter(e -> e != null).collect(Collectors.toList());
-            for (JdbcPropertyDef propertyDef : jdbcPropertyDefList) {
+            for (DbPropertyDef propertyDef : jdbcPropertyDefList) {
                 try {
                     DbProperty dbProperty = loadProperty(context, null, propertyDef);
                     context.getJdbcModel().addJdbcProperty(dbProperty);
@@ -256,12 +256,12 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
 
 
     private void loadMeasures(JdbcModelLoadContext context) {
-        JdbcModelDef def = context.getDef();
-        List<JdbcMeasureDef> measureDefList = def.getMeasures();
+        DbModelDef def = context.getDef();
+        List<DbMeasureDef> measureDefList = def.getMeasures();
         if (measureDefList != null) {
             //加载在Model上定义的维度
             measureDefList = measureDefList.stream().filter(e -> e != null).collect(Collectors.toList());
-            for (JdbcMeasureDef measureDef : measureDefList) {
+            for (DbMeasureDef measureDef : measureDefList) {
                 try {
                     loadMeasure(context, measureDef);
                 } catch (Throwable t) {
@@ -283,7 +283,7 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
 
     }
 
-    private DbDimension loadDimension(JdbcModelLoadContext context, JdbcDimensionDef dimensionDef, boolean modelDim) {
+    private DbDimension loadDimension(JdbcModelLoadContext context, DbDimensionDef dimensionDef, boolean modelDim) {
         return loadDimension(context, dimensionDef, modelDim, null);
     }
 
@@ -296,7 +296,7 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
      * @param parentDimension 父维度（如果是嵌套维度）
      * @return 加载后的维度
      */
-    private DbDimension loadDimension(JdbcModelLoadContext context, JdbcDimensionDef dimensionDef, boolean modelDim, DbDimension parentDimension) {
+    private DbDimension loadDimension(JdbcModelLoadContext context, DbDimensionDef dimensionDef, boolean modelDim, DbDimension parentDimension) {
 
         /**
          * 检查数据
@@ -345,7 +345,7 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
         }
 
         if (dimensionDef.getProperties() != null) {
-            for (JdbcPropertyDef propertyDef : dimensionDef.getProperties()) {
+            for (DbPropertyDef propertyDef : dimensionDef.getProperties()) {
                 DbProperty dbProperty = loadProperty(context, dimension, propertyDef);
                 dimension.addJdbcProperty(dbProperty);
             }
@@ -363,7 +363,7 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
 
         // 递归加载嵌套子维度
         if (dimensionDef.getDimensions() != null && !dimensionDef.getDimensions().isEmpty()) {
-            for (JdbcDimensionDef childDef : dimensionDef.getDimensions()) {
+            for (DbDimensionDef childDef : dimensionDef.getDimensions()) {
                 DbDimension childDimension = loadDimension(context, childDef, true, dbDimension);
                 dbDimension.addChildDimension(childDimension);
             }
@@ -384,7 +384,7 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
         }
     }
 
-    private DbProperty loadProperty(JdbcModelLoadContext context, DbDimensionSupport dimension, JdbcPropertyDef propertyDef) {
+    private DbProperty loadProperty(JdbcModelLoadContext context, DbDimensionSupport dimension, DbPropertyDef propertyDef) {
 
 
         DbPropertyImpl property = new DbPropertyImpl();
@@ -425,7 +425,7 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
         return dbProperty;
     }
 
-    private void loadMeasure(JdbcModelLoadContext context, JdbcMeasureDef measureDef) {
+    private void loadMeasure(JdbcModelLoadContext context, DbMeasureDef measureDef) {
 
         /**
          * 检查数据
@@ -437,7 +437,7 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
         /**
          * 开始加载维度
          */
-        JdbcModelMeasureImpl measure = new JdbcModelMeasureImpl();
+        DbModelMeasureImpl measure = new DbModelMeasureImpl();
         measureDef.apply(measure);
 //        if (StringUtils.isNotEmpty(measure.getType())) {
 //            measure.setType(measure.getType().toUpperCase());
@@ -447,14 +447,14 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
             measureDef.setAggregation("sum");
         }
         if (StringUtils.isNotEmpty(measureDef.getAggregation())) {
-            measure.getDecorate(JdbcMeasureSupport.class).setAggregation(DbAggregation.valueOf(measureDef.getAggregation().toUpperCase()));
+            measure.getDecorate(DbMeasureSupport.class).setAggregation(DbAggregation.valueOf(measureDef.getAggregation().toUpperCase()));
         }
 
         if (measureDef.getFormulaDef() != null && measureDef.getFormulaDef().getBuilder() != null) {
-            measure.getDecorate(JdbcMeasureSupport.class).setFormulaBuilder(measureDef.getFormulaDef().getBuilder());
+            measure.getDecorate(DbMeasureSupport.class).setFormulaBuilder(measureDef.getFormulaDef().getBuilder());
         }
 
-        measure.getDecorate(JdbcMeasureSupport.class).init(context.getJdbcModel(), measureDef);
+        measure.getDecorate(DbMeasureSupport.class).init(context.getJdbcModel(), measureDef);
 
         DbMeasure jdbcMeasure = measure;
         for (DbModelLoadProcessor processor : processors) {

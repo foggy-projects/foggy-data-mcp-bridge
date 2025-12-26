@@ -1,6 +1,6 @@
 package com.foggyframework.dataset.jdbc.model.semantic.service;
 
-import com.foggyframework.dataset.jdbc.model.common.result.JdbcDataItem;
+import com.foggyframework.dataset.jdbc.model.common.result.DbDataItem;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -91,8 +91,8 @@ public interface DimensionMemberLoader {
             return members;
         }
 
-        public void merge(List<JdbcDataItem> loadDimDataItem) {
-            for (JdbcDataItem item : loadDimDataItem) {
+        public void merge(List<DbDataItem> loadDimDataItem) {
+            for (DbDataItem item : loadDimDataItem) {
                 Object id = item.getId();
                 Object caption = item.getCaption();
                 

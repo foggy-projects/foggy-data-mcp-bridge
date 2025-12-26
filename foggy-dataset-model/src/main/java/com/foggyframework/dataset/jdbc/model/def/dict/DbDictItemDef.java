@@ -10,7 +10,7 @@ import lombok.AllArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class JdbcDictItemDef {
+public class DbDictItemDef {
 
     /**
      * 字典项的值（存储在数据库中的值）
@@ -27,7 +27,7 @@ public class JdbcDictItemDef {
      */
     String description;
 
-    public JdbcDictItemDef(Object value, String label) {
+    public DbDictItemDef(Object value, String label) {
         this.value = value;
         this.label = label;
     }

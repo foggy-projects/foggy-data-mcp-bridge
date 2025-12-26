@@ -11,7 +11,7 @@ public class DbQueryConditionImpl extends DbQueryConditionSupport {
 
     QueryModel queryModel;
 
-    DbColumn jdbcColumn;
+    DbColumn column;
 
     DbDimension dimension;
 
@@ -19,7 +19,7 @@ public class DbQueryConditionImpl extends DbQueryConditionSupport {
 
     @Override
     public String getField() {
-        return StringUtils.isEmpty(field) ? jdbcColumn.getField() : field;
+        return StringUtils.isEmpty(field) ? column.getField() : field;
     }
 
     @Override
@@ -31,5 +31,7 @@ public class DbQueryConditionImpl extends DbQueryConditionSupport {
         return property==null?null:property.getFormat();
     }
 
-    
+
+
+
 }

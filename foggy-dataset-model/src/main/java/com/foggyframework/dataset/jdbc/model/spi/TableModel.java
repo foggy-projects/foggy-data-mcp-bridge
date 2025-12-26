@@ -1,6 +1,6 @@
 package com.foggyframework.dataset.jdbc.model.spi;
 
-import com.foggyframework.dataset.jdbc.model.def.JdbcDefSupport;
+import com.foggyframework.dataset.jdbc.model.def.DbDefSupport;
 
 import java.util.List;
 
@@ -39,7 +39,7 @@ public interface TableModel extends DbObject {
 
     String getTableName();
 
-    void addDeprecated(JdbcDefSupport def);
+    void addDeprecated(DbDefSupport def);
 
     boolean isDeprecated(String jdbcColumName);
 

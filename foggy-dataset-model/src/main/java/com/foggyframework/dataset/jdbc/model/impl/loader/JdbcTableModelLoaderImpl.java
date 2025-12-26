@@ -3,13 +3,13 @@ package com.foggyframework.dataset.jdbc.model.impl.loader;
 import com.foggyframework.bundle.Bundle;
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.core.ex.RX;
-import com.foggyframework.dataset.jdbc.model.def.JdbcModelDef;
-import com.foggyframework.dataset.jdbc.model.def.query.JdbcQueryModelDef;
+import com.foggyframework.dataset.jdbc.model.def.DbModelDef;
+import com.foggyframework.dataset.jdbc.model.def.query.DbQueryModelDef;
 import com.foggyframework.dataset.jdbc.model.engine.formula.SqlFormulaService;
-import com.foggyframework.dataset.jdbc.model.engine.query_model.JdbcQueryModelImpl;
+import com.foggyframework.dataset.jdbc.model.engine.query_model.DbQueryModelImpl;
 import com.foggyframework.dataset.jdbc.model.engine.query_model.QueryModelSupport;
 import com.foggyframework.dataset.jdbc.model.impl.LoaderSupport;
-import com.foggyframework.dataset.jdbc.model.impl.model.JdbcTableModelImpl;
+import com.foggyframework.dataset.jdbc.model.impl.model.DbTableModelImpl;
 import com.foggyframework.dataset.jdbc.model.spi.*;
 import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
@@ -34,7 +34,7 @@ public class JdbcTableModelLoaderImpl extends LoaderSupport implements TableMode
 
 
     @Override
-    public TableModel load(Fsscript fScript, JdbcModelDef def, Bundle bundle) {
+    public TableModel load(Fsscript fScript, DbModelDef def, Bundle bundle) {
         DataSource dataSource = def.getDataSource() == null ? this.defaultDataSource : def.getDataSource();
 
         RX.notNull(dataSource, "加载模型时的数据源不得为空");
@@ -43,7 +43,7 @@ public class JdbcTableModelLoaderImpl extends LoaderSupport implements TableMode
         String tableName = def.getTableName();
         String viewSql = def.getViewSql();
 
-        JdbcTableModelImpl jdbcModel = new JdbcTableModelImpl(dataSource, fScript);
+        DbTableModelImpl jdbcModel = new DbTableModelImpl(dataSource, fScript);
         def.apply(jdbcModel);
 
         jdbcModel.setQueryObject(loadQueryObject(dataSource, tableName, viewSql, def.getSchema()));
@@ -59,8 +59,8 @@ public class JdbcTableModelLoaderImpl extends LoaderSupport implements TableMode
 
 
     @Override
-    public QueryModelSupport build(JdbcQueryModelDef queryModelDef, Fsscript fsscript, List<TableModel> jdbcModelDxList) {
-        JdbcTableModelImpl mainTm = jdbcModelDxList.get(0).getDecorate(JdbcTableModelImpl.class);
+    public QueryModelSupport build(DbQueryModelDef queryModelDef, Fsscript fsscript, List<TableModel> jdbcModelDxList) {
+        DbTableModelImpl mainTm = jdbcModelDxList.get(0).getDecorate(DbTableModelImpl.class);
         if (mainTm == null) {
             //非mysql模型，不做处理
             return null;
@@ -69,7 +69,7 @@ public class JdbcTableModelLoaderImpl extends LoaderSupport implements TableMode
          * 检查，必须都是jdbc模型
          */
         for (TableModel jdbcModel : jdbcModelDxList) {
-            JdbcTableModelImpl tm = jdbcModel.getDecorate(JdbcTableModelImpl.class);
+            DbTableModelImpl tm = jdbcModel.getDecorate(DbTableModelImpl.class);
             if (tm == null) {
                 throw RX.throwB("查询模型%s中只能引用jdbc模型，但%s不是".formatted(queryModelDef.getName(), jdbcModel.getName()));
             }
@@ -79,7 +79,7 @@ public class JdbcTableModelLoaderImpl extends LoaderSupport implements TableMode
 
         if(ds == null) {
             for (TableModel jdbcModel : jdbcModelDxList) {
-                JdbcTableModelImpl tm = jdbcModel.getDecorate(JdbcTableModelImpl.class);
+                DbTableModelImpl tm = jdbcModel.getDecorate(DbTableModelImpl.class);
                 if (tm.getDataSource() != null) {
                     if (ds == null) {
                         ds = tm.getDataSource();
@@ -90,7 +90,7 @@ public class JdbcTableModelLoaderImpl extends LoaderSupport implements TableMode
             }
         }
 
-        JdbcQueryModelImpl qm = new JdbcQueryModelImpl(jdbcModelDxList,fsscript,sqlFormulaService,ds);
+        DbQueryModelImpl qm = new DbQueryModelImpl(jdbcModelDxList,fsscript,sqlFormulaService,ds);
         queryModelDef.apply(qm);
         return qm;
     }

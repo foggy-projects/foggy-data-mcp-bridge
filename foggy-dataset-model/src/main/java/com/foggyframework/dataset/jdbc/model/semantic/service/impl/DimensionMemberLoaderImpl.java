@@ -4,9 +4,9 @@ import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.beanhelper.BeanInfoHelper;
 import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.jdbc.model.common.query.DimensionDataQueryForm;
-import com.foggyframework.dataset.jdbc.model.common.result.JdbcDataItem;
-import com.foggyframework.dataset.jdbc.model.def.dict.JdbcDictDef;
-import com.foggyframework.dataset.jdbc.model.def.dict.JdbcDictItemDef;
+import com.foggyframework.dataset.jdbc.model.common.result.DbDataItem;
+import com.foggyframework.dataset.jdbc.model.def.dict.DbDictDef;
+import com.foggyframework.dataset.jdbc.model.def.dict.DbDictItemDef;
 import com.foggyframework.dataset.jdbc.model.impl.utils.TableQueryObject;
 import com.foggyframework.dataset.jdbc.model.semantic.service.DimensionMemberLoader;
 import com.foggyframework.dataset.jdbc.model.service.JdbcService;
@@ -52,14 +52,14 @@ public class DimensionMemberLoaderImpl implements DimensionMemberLoader {
      * @param jdbcQueryModel
      * @param jdbcDimension
      */
-    private List<JdbcDataItem> loadDimDataItem(QueryModel jdbcQueryModel, DbQueryDimension jdbcDimension) {
+    private List<DbDataItem> loadDimDataItem(QueryModel jdbcQueryModel, DbQueryDimension jdbcDimension) {
 
 
 //构建查询维度用的查询条件
         PagingRequest<DimensionDataQueryForm> queryRequest = PagingRequest.buildPagingRequest(new DimensionDataQueryForm(jdbcQueryModel.getName(), jdbcDimension.getName()));
         queryRequest.setLimit(99999);
         //查询维度数据
-        PagingResultImpl<JdbcDataItem> v = jdbcService.queryDimensionData(queryRequest);
+        PagingResultImpl<DbDataItem> v = jdbcService.queryDimensionData(queryRequest);
 
 
         return v.getItems();
@@ -97,7 +97,7 @@ public class DimensionMemberLoaderImpl implements DimensionMemberLoader {
     }
 
 
-    private List<JdbcDataItem> loadPropertyDataItem(QueryModel jdbcQueryModel, DbQueryProperty jdbcProperty) {
+    private List<DbDataItem> loadPropertyDataItem(QueryModel jdbcQueryModel, DbQueryProperty jdbcProperty) {
         // 优先检查 dictRef（新的 fsscript 字典引用方式）
         String dictRef = jdbcProperty.getJdbcProperty().getDictRef();
         if (!StringUtils.isEmpty(dictRef)) {
@@ -112,20 +112,20 @@ public class DimensionMemberLoaderImpl implements DimensionMemberLoader {
     /**
      * 从 fsscript 字典引用加载字典项
      */
-    private List<JdbcDataItem> loadPropertyDataItemFromDictRef(String dictRef) {
+    private List<DbDataItem> loadPropertyDataItemFromDictRef(String dictRef) {
         if (dbModelDictService == null) {
             throw RX.throwA("JdbcModelDictService 未注入，无法加载字典引用: " + dictRef);
         }
 
-        JdbcDictDef dictDef = dbModelDictService.getDictById(dictRef);
+        DbDictDef dictDef = dbModelDictService.getDictById(dictRef);
         if (dictDef == null) {
             throw RX.throwA("字典未找到: " + dictRef + "，请确保已通过 registerDict 注册");
         }
 
-        List<JdbcDataItem> result = new ArrayList<>();
+        List<DbDataItem> result = new ArrayList<>();
         if (dictDef.getItems() != null) {
-            for (JdbcDictItemDef item : dictDef.getItems()) {
-                result.add(new JdbcDataItem(item.getValue(), item.getLabel()));
+            for (DbDictItemDef item : dictDef.getItems()) {
+                result.add(new DbDataItem(item.getValue(), item.getLabel()));
             }
         }
         return result;
@@ -134,17 +134,17 @@ public class DimensionMemberLoaderImpl implements DimensionMemberLoader {
     /**
      * 从 Java 类加载字典项（兼容旧方式）
      */
-    private List<JdbcDataItem> loadPropertyDataItemFromDictClass(String dictClass) {
+    private List<DbDataItem> loadPropertyDataItemFromDictClass(String dictClass) {
         try {
             Class<?> cls = Class.forName(dictClass);
-            List<JdbcDataItem> sb = new ArrayList<>();
+            List<DbDataItem> sb = new ArrayList<>();
             for (Field field : cls.getFields()) {
                 if (BeanInfoHelper.isStaticField(field)) {
                     ApiModelProperty amp = field.getAnnotation(ApiModelProperty.class);
                     if (amp != null) {
                         Object v = field.get(null);
                         String caption = com.foggyframework.core.utils.StringUtils.isNotEmpty(amp.name()) ? amp.name() : amp.value();
-                        sb.add(new JdbcDataItem(v, caption));
+                        sb.add(new DbDataItem(v, caption));
                     }
                 }
             }
@@ -194,11 +194,11 @@ public class DimensionMemberLoaderImpl implements DimensionMemberLoader {
         }
 
         if (jdbcDimension != null) {
-            List<JdbcDataItem> loadDimDataItem = loadDimDataItem(jdbcQueryModel, jdbcDimension);
+            List<DbDataItem> loadDimDataItem = loadDimDataItem(jdbcQueryModel, jdbcDimension);
             //俣计
             cached.merge(loadDimDataItem);
         } else if (jdbcProperty != null) {
-            List<JdbcDataItem> loadDimDataItem = loadPropertyDataItem(jdbcQueryModel, jdbcProperty);
+            List<DbDataItem> loadDimDataItem = loadPropertyDataItem(jdbcQueryModel, jdbcProperty);
             cached.merge(loadDimDataItem);
         }
         //写入缓存时间

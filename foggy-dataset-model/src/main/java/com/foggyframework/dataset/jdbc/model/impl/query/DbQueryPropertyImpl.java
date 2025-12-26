@@ -2,7 +2,7 @@ package com.foggyframework.dataset.jdbc.model.impl.query;
 
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.jdbc.model.impl.AiObject;
-import com.foggyframework.dataset.jdbc.model.impl.JdbcObjectSupport;
+import com.foggyframework.dataset.jdbc.model.impl.DbObjectSupport;
 import com.foggyframework.dataset.jdbc.model.spi.DbProperty;
 import com.foggyframework.dataset.jdbc.model.spi.DbQueryProperty;
 import lombok.AllArgsConstructor;
@@ -14,7 +14,7 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class DbQueryPropertyImpl extends JdbcObjectSupport implements DbQueryProperty {
+public class DbQueryPropertyImpl extends DbObjectSupport implements DbQueryProperty {
 
     DbProperty dbProperty;
 
@@ -38,5 +38,9 @@ public class DbQueryPropertyImpl extends JdbcObjectSupport implements DbQueryPro
         return StringUtils.isEmpty(super.getCaption())? dbProperty.getCaption() : super.getCaption();
     }
 
-    
+
+    @Override
+    public DbProperty getJdbcProperty() {
+        return dbProperty;
+    }
 }

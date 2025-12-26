@@ -7,9 +7,9 @@ import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.jdbc.model.def.order.OrderDef;
 import com.foggyframework.dataset.jdbc.model.def.query.request.DbQueryRequestDef;
-import com.foggyframework.dataset.jdbc.model.engine.query.JdbcQueryResult;
+import com.foggyframework.dataset.jdbc.model.engine.query.DbQueryResult;
 import com.foggyframework.dataset.jdbc.model.i18n.DatasetMessages;
-import com.foggyframework.dataset.jdbc.model.impl.JdbcObjectSupport;
+import com.foggyframework.dataset.jdbc.model.impl.DbObjectSupport;
 import com.foggyframework.dataset.jdbc.model.impl.dimension.DbDimensionSupport;
 import com.foggyframework.dataset.jdbc.model.impl.model.TableModelSupport;
 import com.foggyframework.dataset.jdbc.model.impl.query.*;
@@ -31,10 +31,14 @@ import java.util.stream.Collectors;
 
 @Data
 @Slf4j
-public  abstract class QueryModelSupport extends JdbcObjectSupport implements QueryModel {
+public  abstract class QueryModelSupport extends DbObjectSupport implements QueryModel {
     /**
      * selectQueryColumns、或columnGroups
      */
+    @Override
+    public List<DbQueryColumn> getJdbcQueryColumns() {
+        return dbQueryColumns;
+    }
 
     /**
      * 模型短简称，由 JdbcQueryModelLoader 在加载时分配
@@ -67,7 +71,7 @@ public  abstract class QueryModelSupport extends JdbcObjectSupport implements Qu
 
     protected  Fsscript fsscript;
 
-    protected   List<JdbcQueryOrderColumnImpl> orders = new ArrayList<>();
+    protected   List<DbQueryOrderColumnImpl> orders = new ArrayList<>();
 
     protected  List<TableModel> jdbcModelList;
 
@@ -192,21 +196,21 @@ public  abstract class QueryModelSupport extends JdbcObjectSupport implements Qu
         return null;
     }
 
-    public JdbcQueryOrderColumnImpl addOrder(DbColumn jdbcColumn, String order) {
-        JdbcQueryOrderColumnImpl c = new JdbcQueryOrderColumnImpl(jdbcColumn, order);
+    public DbQueryOrderColumnImpl addOrder(DbColumn jdbcColumn, String order) {
+        DbQueryOrderColumnImpl c = new DbQueryOrderColumnImpl(jdbcColumn, order);
         orders.add(c);
         return c;
     }
 
-    public JdbcQueryOrderColumnImpl addOrder(DbColumn jdbcColumn, OrderDef d) {
-        JdbcQueryOrderColumnImpl c = new JdbcQueryOrderColumnImpl(jdbcColumn, d);
+    public DbQueryOrderColumnImpl addOrder(DbColumn jdbcColumn, OrderDef d) {
+        DbQueryOrderColumnImpl c = new DbQueryOrderColumnImpl(jdbcColumn, d);
         orders.add(c);
         return c;
     }
 
 
     @Override
-    public List<JdbcQueryOrderColumnImpl> getOrders() {
+    public List<DbQueryOrderColumnImpl> getOrders() {
         return orders;
     }
 
@@ -311,12 +315,12 @@ public  abstract class QueryModelSupport extends JdbcObjectSupport implements Qu
             String aliasIdName = alias + "$id";
             String aliasCaptionName = alias + "$caption";
             if (!nameToJdbcQueryColumn.containsKey(aliasIdName)) {
-                DbQueryColumn aliasIdColumn = new JdbcQueryColumnImpl(foreignKeyJdbcColumn, aliasIdName, foreignKeyJdbcColumn.getCaption(), aliasIdName, aliasIdName);
+                DbQueryColumn aliasIdColumn = new DbQueryColumnImpl(foreignKeyJdbcColumn, aliasIdName, foreignKeyJdbcColumn.getCaption(), aliasIdName, aliasIdName);
                 nameToJdbcQueryColumn.put(aliasIdName, aliasIdColumn);
                 dbQueryColumns.add(aliasIdColumn);
             }
             if (!nameToJdbcQueryColumn.containsKey(aliasCaptionName)) {
-                DbQueryColumn aliasCaptionColumn = new JdbcQueryColumnImpl(captionJdbcColumn, aliasCaptionName, caption, aliasCaptionName, aliasCaptionName);
+                DbQueryColumn aliasCaptionColumn = new DbQueryColumnImpl(captionJdbcColumn, aliasCaptionName, caption, aliasCaptionName, aliasCaptionName);
                 nameToJdbcQueryColumn.put(aliasCaptionName, aliasCaptionColumn);
                 dbQueryColumns.add(aliasCaptionColumn);
             }
@@ -328,11 +332,11 @@ public  abstract class QueryModelSupport extends JdbcObjectSupport implements Qu
             String fullPathIdName = fullPath + "$id";
             String fullPathCaptionName = fullPath + "$caption";
             if (!nameToJdbcQueryColumn.containsKey(fullPathIdName)) {
-                DbQueryColumn fullPathIdColumn = new JdbcQueryColumnImpl(foreignKeyJdbcColumn, fullPathIdName, foreignKeyJdbcColumn.getCaption(), fullPathIdName, fullPathIdName);
+                DbQueryColumn fullPathIdColumn = new DbQueryColumnImpl(foreignKeyJdbcColumn, fullPathIdName, foreignKeyJdbcColumn.getCaption(), fullPathIdName, fullPathIdName);
                 nameToJdbcQueryColumn.put(fullPathIdName, fullPathIdColumn);
             }
             if (!nameToJdbcQueryColumn.containsKey(fullPathCaptionName)) {
-                DbQueryColumn fullPathCaptionColumn = new JdbcQueryColumnImpl(captionJdbcColumn, fullPathCaptionName, caption, fullPathCaptionName, fullPathCaptionName);
+                DbQueryColumn fullPathCaptionColumn = new DbQueryColumnImpl(captionJdbcColumn, fullPathCaptionName, caption, fullPathCaptionName, fullPathCaptionName);
                 nameToJdbcQueryColumn.put(fullPathCaptionName, fullPathCaptionColumn);
             }
         }
@@ -342,7 +346,7 @@ public  abstract class QueryModelSupport extends JdbcObjectSupport implements Qu
 //        selectColumns.add(jdbcColumn);
 //    }
     @Override
-    public JdbcQueryResult query(SystemBundlesContext systemBundlesContext, PagingRequest<DbQueryRequestDef> form) {
+    public DbQueryResult query(SystemBundlesContext systemBundlesContext, PagingRequest<DbQueryRequestDef> form) {
         // 创建新的上下文
         ModelResultContext context = new ModelResultContext(form, null);
         return query(systemBundlesContext, context);
@@ -404,47 +408,6 @@ public  abstract class QueryModelSupport extends JdbcObjectSupport implements Qu
                 return qc.getSelectColumn();
             }
 
-
-            //还没有找到？启动从维度Caption搜索~
-//            for (JdbcQueryColumn jdbcQueryColumn : jdbcQueryColumns) {
-//                /**
-//                 * 当维度nextTeam.nextTeamCaption，用户传入nextTeamId，找不到而抛错的情况~
-//                 * 注意，jdbcQueryColumn必须是DimensionCaptionJdbcColumn列才行~~
-//                 */
-//                if (jdbcQueryColumn.getSelectColumn() != null && jdbcQueryColumn.getSelectColumn().isDimension()) {
-//                    JdbcDimensionSupport.DimensionCaptionJdbcColumn support = jdbcQueryColumn.getSelectColumn().getDecorate(JdbcDimensionSupport.DimensionCaptionJdbcColumn.class);
-//                    if (support != null && StringUtils.equals(support.getJdbcDimension().getForeignKeyAlias(), condColumnName)) {
-//                        return jdbcQueryColumn;
-//                    }
-//
-//                }
-//            }
-//            if (jdbcQueryConds != null) {
-//                for (JdbcQueryCond jdbcQueryColumn : jdbcQueryConds) {
-//                    /**
-//                     * 当维度nextTeam.nextTeamCaption，用户传入nextTeamId，找不到而抛错的情况~
-//                     * 注意，jdbcQueryColumn必须是DimensionCaptionJdbcColumn列才行~~
-//                     */
-//                    if (jdbcQueryColumn.getJdbcColumn() != null && jdbcQueryColumn.getJdbcColumn().isDimension()) {
-//                        JdbcDimensionSupport.DimensionCaptionJdbcColumn support = jdbcQueryColumn.getJdbcColumn().getDecorate(JdbcDimensionSupport.DimensionCaptionJdbcColumn.class);
-//                        if (support != null && StringUtils.equals(support.getJdbcDimension().getCaptionAlias(), condColumnName)) {
-//                            return jdbcQueryColumn.getJdbcColumn();
-//                        }
-//                        JdbcDimensionSupport.DimensionJdbcColumn support2 = jdbcQueryColumn.getJdbcColumn().getDecorate(JdbcDimensionSupport.DimensionJdbcColumn.class);
-//                        if (support2 != null) {
-//                            if (StringUtils.equals(support2.getJdbcDimension().getForeignKeyAlias(), condColumnName)) {
-//                                return jdbcQueryColumn.getJdbcColumn();
-//                            } else if (StringUtils.equals(support2.getJdbcDimension().getCaptionAlias(), condColumnName)) {
-//                                return support2.getJdbcDimension().getCaptionJdbcColumn();
-//                            }
-//                        }
-//
-//                    }
-//                }
-//            } else {
-//                log.warn("jdbcQueryConds is null");
-//            }
-
             if (errorIfNotFound) {
                 throw RX.throwAUserTip(DatasetMessages.querymodelColumnNotfound(getName(), toJdbcModelListName(), condColumnName, findDimension(condColumnName)));
             }
@@ -476,32 +439,6 @@ public  abstract class QueryModelSupport extends JdbcObjectSupport implements Qu
         }
 
 
-//        /**
-//         * 下面的两个循环，考虑在jdbcQueryColumns时就初始化好一个附加列名映射nameToJdbcQueryColumn，例如
-//         * nextTeam.nextTeamCaption/nextTeam.nextTeamId
-//         * 事先就维护好nextTeamCaption、nextTeamId的map表~，在上面的循环找不到时使用（需要检查这两个必须是在同一个维度~）
-//         */
-//        for (JdbcQueryColumn jdbcQueryColumn : jdbcQueryColumns) {
-//            //用于兼容nextTeam.nextTeamCaption/nextTeam.nextTeamId这样的
-//            //这里加是比较安全的，因为找不到，下面就是抛异常了~
-//            if (jdbcQueryColumn.getSelectColumn() != null && StringUtils.equals(jdbcQueryColumn.getSelectColumn().getAlias(), jdbcColumName)) {
-//                return jdbcQueryColumn;
-//            }
-//        }
-//        //还没有找到？启动从维度Caption搜索~
-//        for (JdbcQueryColumn jdbcQueryColumn : jdbcQueryColumns) {
-//            /**
-//             * 当维度nextTeam.nextTeamCaption，用户传入nextTeamId，找不到而抛错的情况~
-//             * 注意，jdbcQueryColumn必须是DimensionCaptionJdbcColumn列才行~~
-//             */
-//            if (jdbcQueryColumn.getSelectColumn() != null && jdbcQueryColumn.getSelectColumn().isDimension()) {
-//                JdbcDimensionSupport.DimensionCaptionJdbcColumn support = jdbcQueryColumn.getSelectColumn().getDecorate(JdbcDimensionSupport.DimensionCaptionJdbcColumn.class);
-//                if (support != null && StringUtils.equals(support.getJdbcDimension().getForeignKeyAlias(), jdbcColumName)) {
-//                    return jdbcQueryColumn;
-//                }
-//
-//            }
-//        }
         /**
          * end ***************************
          */
@@ -605,15 +542,6 @@ public  abstract class QueryModelSupport extends JdbcObjectSupport implements Qu
         return null;
     }
 
-//    @Override
-//    public DataSource getDataSource() {
-//        return defaultDataSource;
-//    }
-//
-//    @Override
-//    public FDialect getDialect() {
-//        return DbUtils.getDialect(defaultDataSource);
-//    }
 
 
     public void addJdbcQueryConds(List<DbQueryCondition> values) {

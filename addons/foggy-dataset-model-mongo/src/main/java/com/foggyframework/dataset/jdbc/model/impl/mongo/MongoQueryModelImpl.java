@@ -6,7 +6,7 @@ import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.jdbc.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.jdbc.model.engine.MongoModelQueryEngine;
 import com.foggyframework.dataset.jdbc.model.engine.expression.MongoCalculatedFieldProcessor;
-import com.foggyframework.dataset.jdbc.model.engine.query.JdbcQueryResult;
+import com.foggyframework.dataset.jdbc.model.engine.query.DbQueryResult;
 import com.foggyframework.dataset.jdbc.model.engine.query_model.QueryModelSupport;
 import com.foggyframework.dataset.jdbc.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.jdbc.model.spi.*;
@@ -61,19 +61,19 @@ public class MongoQueryModelImpl extends QueryModelSupport implements MongoQuery
 //        selectColumns.add(jdbcColumn);
 //    }
     @Override
-    public JdbcQueryResult query(SystemBundlesContext systemBundlesContext, PagingRequest<DbQueryRequestDef> form) {
+    public DbQueryResult query(SystemBundlesContext systemBundlesContext, PagingRequest<DbQueryRequestDef> form) {
         // 创建新的上下文
         ModelResultContext context = new ModelResultContext(form, null);
         return query(systemBundlesContext, context);
     }
 
     @Override
-    public JdbcQueryResult query(SystemBundlesContext systemBundlesContext, ModelResultContext context) {
+    public DbQueryResult query(SystemBundlesContext systemBundlesContext, ModelResultContext context) {
         return queryMongo(systemBundlesContext, context.getRequest());
 
     }
 
-    public JdbcQueryResult queryMongo(SystemBundlesContext systemBundlesContext, PagingRequest<DbQueryRequestDef> form) {
+    public DbQueryResult queryMongo(SystemBundlesContext systemBundlesContext, PagingRequest<DbQueryRequestDef> form) {
         DbQueryRequestDef queryRequest = form.getParam();
 
         MongoModelQueryEngine queryEngine = new MongoModelQueryEngine(this);
@@ -144,7 +144,7 @@ public class MongoQueryModelImpl extends QueryModelSupport implements MongoQuery
                 totalData.put("total", total);
             }
         }
-        return JdbcQueryResult.of(PagingResultImpl.of(results.getMappedResults(), form.getStart(), form.getLimit(), totalData, total), queryEngine);
+        return DbQueryResult.of(PagingResultImpl.of(results.getMappedResults(), form.getStart(), form.getLimit(), totalData, total), queryEngine);
     }
 
 }

@@ -4,13 +4,13 @@ import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.db.table.SqlColumn;
-import com.foggyframework.dataset.jdbc.model.common.result.JdbcDataItem;
+import com.foggyframework.dataset.jdbc.model.common.result.DbDataItem;
 import com.foggyframework.dataset.jdbc.model.engine.query.JdbcQuery;
 import com.foggyframework.dataset.jdbc.model.engine.query.SimpleSqlJdbcQueryVisitor;
 import com.foggyframework.dataset.jdbc.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.jdbc.model.impl.AiObject;
-import com.foggyframework.dataset.jdbc.model.impl.JdbcColumnSupport;
-import com.foggyframework.dataset.jdbc.model.impl.JdbcObjectSupport;
+import com.foggyframework.dataset.jdbc.model.impl.DbColumnSupport;
+import com.foggyframework.dataset.jdbc.model.impl.DbObjectSupport;
 import com.foggyframework.dataset.jdbc.model.impl.property.DbPropertyImpl;
 import com.foggyframework.dataset.jdbc.model.spi.*;
 import com.foggyframework.dataset.jdbc.model.spi.support.DbDataProviderDelegate;
@@ -29,7 +29,7 @@ import java.util.*;
 
 @Getter
 @Setter
-public abstract class DbDimensionSupport extends JdbcObjectSupport implements DbDimension, DbDataProvider {
+public abstract class DbDimensionSupport extends DbObjectSupport implements DbDimension, DbDataProvider {
 
     TableModel jdbcModel;
 
@@ -361,7 +361,7 @@ public abstract class DbDimensionSupport extends JdbcObjectSupport implements Db
     }
 
     @ToString
-    public abstract class DimensionDbColumnSupport extends JdbcColumnSupport implements DbColumn, DbDimensionColumn {
+    public abstract class DimensionDbColumnSupport extends DbColumnSupport implements DbColumn, DbDimensionColumn {
         public DimensionDbColumnSupport(SqlColumn sqlColumn) {
             super(sqlColumn);
         }
@@ -509,7 +509,7 @@ public abstract class DbDimensionSupport extends JdbcObjectSupport implements Db
     }
 
     @Override
-    public List<JdbcDataItem> queryDimensionDataByHierarchy(SystemBundlesContext systemBundlesContext, DataSource dataSource, DbDimension dbDimension, String hierarchy) {
+    public List<DbDataItem> queryDimensionDataByHierarchy(SystemBundlesContext systemBundlesContext, DataSource dataSource, DbDimension dbDimension, String hierarchy) {
 
         //生成维表的查询语句
 
@@ -517,10 +517,10 @@ public abstract class DbDimensionSupport extends JdbcObjectSupport implements Db
             QueryExpEvaluator qee = QueryExpEvaluator.newInstance(systemBundlesContext.getApplicationContext());
             Object sql = dimensionDataSql.autoApply(qee);
             if (sql instanceof String) {
-                List<JdbcDataItem> ll = DataSourceQueryUtils.getDatasetTemplate(dataSource).getTemplate().query((String) sql, qee.getArgs().toArray(), RowMapperUtils.getRowMapper(JdbcDataItem.class));
+                List<DbDataItem> ll = DataSourceQueryUtils.getDatasetTemplate(dataSource).getTemplate().query((String) sql, qee.getArgs().toArray(), RowMapperUtils.getRowMapper(DbDataItem.class));
                 return ll;
             } else {
-                return (List<JdbcDataItem>) sql;
+                return (List<DbDataItem>) sql;
 //                throw new UnsupportedOperationException();
             }
         }
@@ -533,7 +533,7 @@ public abstract class DbDimensionSupport extends JdbcObjectSupport implements Db
         query.accept(visitor);
         String sql = visitor.getSql();
 
-        List<JdbcDataItem> ll = DataSourceQueryUtils.getDatasetTemplate(dataSource).getTemplate().query(sql, visitor.getValues().toArray(new Object[0]), RowMapperUtils.getRowMapper(JdbcDataItem.class));
+        List<DbDataItem> ll = DataSourceQueryUtils.getDatasetTemplate(dataSource).getTemplate().query(sql, visitor.getValues().toArray(new Object[0]), RowMapperUtils.getRowMapper(DbDataItem.class));
 
         return ll;
     }

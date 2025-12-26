@@ -3,7 +3,7 @@ package com.foggyframework.dataset.jdbc.model.controller;
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.jdbc.model.common.query.DimensionDataQueryForm;
-import com.foggyframework.dataset.jdbc.model.common.result.JdbcDataItem;
+import com.foggyframework.dataset.jdbc.model.common.result.DbDataItem;
 import com.foggyframework.dataset.jdbc.model.service.JdbcService;
 import com.foggyframework.dataset.model.PagingResultImpl;
 import io.swagger.annotations.ApiModelProperty;
@@ -17,7 +17,7 @@ import jakarta.annotation.Resource;
  */
 @RestController
 @RequestMapping("jdbc-model/dimension")
-public class JdbcDimensionDataStoreController {
+public class DimensionDataStoreController {
 
     @Resource
     JdbcService jdbcService;
@@ -25,20 +25,20 @@ public class JdbcDimensionDataStoreController {
     @PostMapping("queryDimensionData")
     @ApiModelProperty("建议使用queryDimensionDataV2替代,URL上带上模型名称,更有利于缓存,第一层权限过滤等")
     @Deprecated
-    public RX<PagingResultImpl<JdbcDataItem>> queryDimensionData(@RequestBody PagingRequest<DimensionDataQueryForm> form) {
-        PagingResultImpl<JdbcDataItem> v = jdbcService.queryDimensionData(form);
+    public RX<PagingResultImpl<DbDataItem>> queryDimensionData(@RequestBody PagingRequest<DimensionDataQueryForm> form) {
+        PagingResultImpl<DbDataItem> v = jdbcService.queryDimensionData(form);
 
         return RX.success(v);
     }
 
     @PostMapping("v2/{model}/{dimension}")
-    public RX<PagingResultImpl<JdbcDataItem>> queryDimensionDataV2(
+    public RX<PagingResultImpl<DbDataItem>> queryDimensionDataV2(
 //            @RequestBody PagingRequest<DimensionDataQueryForm> form,
             @ApiParam(value = "模型", required = true) @PathVariable String model,
             @ApiParam(value = "维度", required = true) @PathVariable String dimension) {
 
         PagingRequest<DimensionDataQueryForm> form = PagingRequest.buildPagingRequest(new DimensionDataQueryForm(model, dimension));
-        PagingResultImpl<JdbcDataItem> v = jdbcService.queryDimensionData(form);
+        PagingResultImpl<DbDataItem> v = jdbcService.queryDimensionData(form);
 
         return RX.success(v);
     }

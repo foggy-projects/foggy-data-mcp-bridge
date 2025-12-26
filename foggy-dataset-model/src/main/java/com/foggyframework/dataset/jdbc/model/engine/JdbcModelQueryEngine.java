@@ -13,10 +13,10 @@ import com.foggyframework.dataset.jdbc.model.engine.formula.JdbcLink;
 import com.foggyframework.dataset.jdbc.model.engine.formula.SqlFormulaService;
 import com.foggyframework.dataset.jdbc.model.engine.query.JdbcQuery;
 import com.foggyframework.dataset.jdbc.model.engine.query.SimpleSqlJdbcQueryVisitor;
-import com.foggyframework.dataset.jdbc.model.engine.query_model.JdbcQueryModelImpl;
+import com.foggyframework.dataset.jdbc.model.engine.query_model.DbQueryModelImpl;
 import com.foggyframework.dataset.jdbc.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.jdbc.model.impl.dimension.DbModelParentChildDimensionImpl;
-import com.foggyframework.dataset.jdbc.model.impl.query.JdbcQueryOrderColumnImpl;
+import com.foggyframework.dataset.jdbc.model.impl.query.DbQueryOrderColumnImpl;
 import com.foggyframework.dataset.jdbc.model.impl.utils.SqlQueryObject;
 import com.foggyframework.dataset.jdbc.model.spi.*;
 import com.foggyframework.dataset.jdbc.model.spi.support.AggregationJdbcColumn;
@@ -119,7 +119,7 @@ public class JdbcModelQueryEngine implements QueryEngine{
         if (jdbcQueryModel.getJdbcModelList().size() > 1) {
             for (int i = 1; i < jdbcQueryModel.getJdbcModelList().size(); i++) {
                 TableModel tm = jdbcQueryModel.getJdbcModelList().get(i);
-                JdbcQueryModelImpl.JdbcModelDx dx = tm.getDecorate(JdbcQueryModelImpl.JdbcModelDx.class);
+                DbQueryModelImpl.JdbcModelDx dx = tm.getDecorate(DbQueryModelImpl.JdbcModelDx.class);
 
                 if (dx.getOnBuilder() != null) {
                     jdbcQuery.preJoin(dx.getQueryObject(), dx.getOnBuilder(), dx.getJoinType());
@@ -201,7 +201,7 @@ public class JdbcModelQueryEngine implements QueryEngine{
 
         //bug fix: 如果启用了distinct,出现在orderBy中的列，必须加入到select
         if (jdbcQuery.getSelect().isDistinct()) {
-            for (JdbcQueryOrderColumnImpl order : jdbcQuery.getOrder().getOrders()) {
+            for (DbQueryOrderColumnImpl order : jdbcQuery.getOrder().getOrders()) {
                 if (!jdbcQuery.containSelect(order.getSelectColumn())) {
                     jdbcQuery.getSelect().select(order.getSelectColumn());
                 }
@@ -249,7 +249,7 @@ public class JdbcModelQueryEngine implements QueryEngine{
 
                     validate(orderRequestDef.getOrder());
                     DbColumn jdbcColumn = jdbcQueryModel.findJdbcColumnForCond(orderRequestDef.getField(), true);
-                    jdbcQuery.addOrder(new JdbcQueryOrderColumnImpl(jdbcColumn, orderRequestDef.getOrder(), orderRequestDef.isNullLast(), orderRequestDef.isNullFirst()));
+                    jdbcQuery.addOrder(new DbQueryOrderColumnImpl(jdbcColumn, orderRequestDef.getOrder(), orderRequestDef.isNullLast(), orderRequestDef.isNullFirst()));
 
                 }
             }
@@ -257,7 +257,7 @@ public class JdbcModelQueryEngine implements QueryEngine{
             //加排序
             if (jdbcQueryModel.getOrders() != null && !jdbcQueryModel.getOrders().isEmpty()) {
                 jdbcQuery.addOrders(jdbcQueryModel.getOrders());
-                for (JdbcQueryOrderColumnImpl order : jdbcQuery.getOrder().getOrders()) {
+                for (DbQueryOrderColumnImpl order : jdbcQuery.getOrder().getOrders()) {
                     if (jdbcQuery.containSelect(order.getSelectColumn())) {
                         continue;
                     }
@@ -435,12 +435,12 @@ public class JdbcModelQueryEngine implements QueryEngine{
 
         if (addOrder && this.jdbcQuery.getOrder() != null) {
             //group by之后，需要重新搞下排序
-            for (JdbcQueryOrderColumnImpl orderRequestDef : jdbcQuery.getOrder().getOrders()) {
+            for (DbQueryOrderColumnImpl orderRequestDef : jdbcQuery.getOrder().getOrders()) {
 
                 for (DbColumn aggColumn : aggColumns) {
                     //需要检查传入的列是否在聚合查询中
                     if (StringUtils.equals(aggColumn.getAlias(), orderRequestDef.getSelectColumn().getAlias())) {
-                        aggJdbcQuery.addOrder(new JdbcQueryOrderColumnImpl(aggColumn, orderRequestDef.getOrder(), false, false));
+                        aggJdbcQuery.addOrder(new DbQueryOrderColumnImpl(aggColumn, orderRequestDef.getOrder(), false, false));
                         break;
                     }
                 }
@@ -770,7 +770,7 @@ public class JdbcModelQueryEngine implements QueryEngine{
                 if (selectColumn != null) {
                     // 字段在 SELECT 中，添加排序
                     validate(orderRequestDef.getOrder());
-                    jdbcQuery.addOrder(new JdbcQueryOrderColumnImpl(
+                    jdbcQuery.addOrder(new DbQueryOrderColumnImpl(
                             selectColumn,
                             orderRequestDef.getOrder(),
                             orderRequestDef.isNullLast(),
@@ -785,9 +785,9 @@ public class JdbcModelQueryEngine implements QueryEngine{
 
         // 2. 处理 QueryModel 默认排序
         // 注意：默认排序使用的是模型定义的字段名/alias，需要匹配
-        List<JdbcQueryOrderColumnImpl> modelOrders = jdbcQueryModel.getOrders();
+        List<DbQueryOrderColumnImpl> modelOrders = jdbcQueryModel.getOrders();
         if (modelOrders != null && !modelOrders.isEmpty()) {
-            for (JdbcQueryOrderColumnImpl modelOrder : modelOrders) {
+            for (DbQueryOrderColumnImpl modelOrder : modelOrders) {
                 DbColumn orderColumn = modelOrder.getSelectColumn();
                 String fieldName = orderColumn.getName();
                 String fieldAlias = orderColumn.getAlias();
@@ -808,7 +808,7 @@ public class JdbcModelQueryEngine implements QueryEngine{
                     }
 
                     if (!alreadyAdded) {
-                        jdbcQuery.addOrder(new JdbcQueryOrderColumnImpl(
+                        jdbcQuery.addOrder(new DbQueryOrderColumnImpl(
                                 selectColumn,
                                 modelOrder.getOrder(),
                                 modelOrder.isNullLast(),

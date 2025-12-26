@@ -8,7 +8,7 @@ import com.foggyframework.dataset.jdbc.model.def.query.request.DbQueryRequestDef
 import com.foggyframework.dataset.jdbc.model.engine.JdbcModelQueryEngine;
 import com.foggyframework.dataset.jdbc.model.engine.expression.SqlCalculatedFieldProcessor;
 import com.foggyframework.dataset.jdbc.model.engine.formula.SqlFormulaService;
-import com.foggyframework.dataset.jdbc.model.engine.query.JdbcQueryResult;
+import com.foggyframework.dataset.jdbc.model.engine.query.DbQueryResult;
 import com.foggyframework.dataset.jdbc.model.impl.model.TableModelSupport;
 import com.foggyframework.dataset.jdbc.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.jdbc.model.spi.*;
@@ -26,7 +26,7 @@ import java.util.*;
 @Getter
 @Setter
 @Slf4j
-public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryModel {
+public class DbQueryModelImpl extends QueryModelSupport implements JdbcQueryModel {
 
 
     DataSource dataSource;
@@ -38,7 +38,7 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
      */
     private CalculatedFieldProcessor calculatedFieldProcessor;
 
-    public JdbcQueryModelImpl(List<TableModel> jdbcModelList, Fsscript fsscript, SqlFormulaService sqlFormulaService, DataSource dataSource) {
+    public DbQueryModelImpl(List<TableModel> jdbcModelList, Fsscript fsscript, SqlFormulaService sqlFormulaService, DataSource dataSource) {
         super(jdbcModelList, fsscript);
         this.jdbcModel = jdbcModelList.get(0);
         this.sqlFormulaService = sqlFormulaService;
@@ -66,17 +66,19 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
 
 
     @Override
-    public JdbcQueryResult query(SystemBundlesContext systemBundlesContext, PagingRequest<DbQueryRequestDef> form) {
+    public DbQueryResult query(SystemBundlesContext systemBundlesContext, PagingRequest<DbQueryRequestDef> form) {
         // 创建新的上下文
         ModelResultContext context = new ModelResultContext(form, null);
         return query(systemBundlesContext, context);
     }
 
     @Override
-    public JdbcQueryResult query(SystemBundlesContext systemBundlesContext, ModelResultContext context) {
+    public DbQueryResult query(SystemBundlesContext systemBundlesContext, ModelResultContext context) {
 
         return queryJdbc(systemBundlesContext, context);
     }
+
+
 
     /**
      * 执行 JDBC 查询
@@ -85,7 +87,7 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
      * @param context              查询上下文（可能已预处理）
      * @return 查询结果
      */
-    public JdbcQueryResult queryJdbc(SystemBundlesContext systemBundlesContext, ModelResultContext context) {
+    public DbQueryResult queryJdbc(SystemBundlesContext systemBundlesContext, ModelResultContext context) {
         PagingRequest<DbQueryRequestDef> form = context.getRequest();
         DbQueryRequestDef queryRequest = form.getParam();
 
@@ -137,7 +139,7 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
                 totalData.put("total", total);
             }
         }
-        return JdbcQueryResult.of(PagingResultImpl.of(items, form.getStart(), form.getLimit(), totalData, total), queryEngine);
+        return DbQueryResult.of(PagingResultImpl.of(items, form.getStart(), form.getLimit(), totalData, total), queryEngine);
     }
 
 

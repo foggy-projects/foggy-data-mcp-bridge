@@ -2,7 +2,7 @@ package com.foggyframework.dataset.jdbc.model.semantic.service.impl;
 
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.core.utils.beanhelper.BeanInfoHelper;
-import com.foggyframework.dataset.jdbc.model.def.dict.JdbcDictDef;
+import com.foggyframework.dataset.jdbc.model.def.dict.DbDictDef;
 import com.foggyframework.dataset.jdbc.model.impl.AiObject;
 import com.foggyframework.dataset.jdbc.model.impl.dimension.DbDimensionSupport;
 import com.foggyframework.dataset.jdbc.model.semantic.domain.SemanticMetadataRequest;
@@ -319,7 +319,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
 
             for (String dictId : referencedDictIds) {
                 if (dbModelDictService != null) {
-                    JdbcDictDef dictDef = dbModelDictService.getDictById(dictId);
+                    DbDictDef dictDef = dbModelDictService.getDictById(dictId);
                     if (dictDef != null) {
                         String dictCaption = dictDef.getCaption() != null ? dictDef.getCaption() : dictId;
                         String itemsSummary = dictDef.getItemsSummary();
@@ -420,7 +420,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             // 输出 fsscript 字典
             for (String dictId : referencedDictIds) {
                 if (dbModelDictService != null) {
-                    JdbcDictDef dictDef = dbModelDictService.getDictById(dictId);
+                    DbDictDef dictDef = dbModelDictService.getDictById(dictId);
                     if (dictDef != null) {
                         String caption = dictDef.getCaption() != null ? dictDef.getCaption() : dictId;
                         String itemsSummary = dictDef.getItemsSummary();

@@ -6,7 +6,7 @@ import lombok.Data;
 import java.util.List;
 
 @Data
-public class JdbcColumnGroupDef {
+public class DbColumnGroupDef {
     String caption;
 
     List<SelectColumnDef> items;

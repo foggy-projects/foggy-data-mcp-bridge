@@ -4,8 +4,8 @@ import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.jdbc.model.def.query.request.DbQueryRequestDef;
-import com.foggyframework.dataset.jdbc.model.impl.query.JdbcQueryGroupColumnImpl;
-import com.foggyframework.dataset.jdbc.model.impl.query.JdbcQueryOrderColumnImpl;
+import com.foggyframework.dataset.jdbc.model.impl.query.DbQueryGroupColumnImpl;
+import com.foggyframework.dataset.jdbc.model.impl.query.DbQueryOrderColumnImpl;
 import com.foggyframework.dataset.jdbc.model.spi.DbColumn;
 import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryModel;
 import com.foggyframework.dataset.jdbc.model.spi.QueryObject;
@@ -144,7 +144,7 @@ public class SimpleSqlJdbcQueryVisitor implements JdbcQueryVisitor {
         sb.append(" order by ");
 
         int i = 0;
-        for (JdbcQueryOrderColumnImpl orderOrder : order.getOrders()) {
+        for (DbQueryOrderColumnImpl orderOrder : order.getOrders()) {
             if (i != 0) {
                 sb.append(",\t");
             }
@@ -202,7 +202,7 @@ public class SimpleSqlJdbcQueryVisitor implements JdbcQueryVisitor {
         if (group == null || group.isEmpty()) {
             return;
         }
-        List<JdbcQueryGroupColumnImpl> ll = group.getGroups().stream().filter(e -> e.getAggColumn().getGroupByName() != null).collect(Collectors.toList());
+        List<DbQueryGroupColumnImpl> ll = group.getGroups().stream().filter(e -> e.getAggColumn().getGroupByName() != null).collect(Collectors.toList());
         if (ll.isEmpty()) {
             return;
         }
@@ -210,7 +210,7 @@ public class SimpleSqlJdbcQueryVisitor implements JdbcQueryVisitor {
         sb.append("\t").append("group by ");
 
         int i = 0;
-        for (JdbcQueryGroupColumnImpl orderOrder : ll) {
+        for (DbQueryGroupColumnImpl orderOrder : ll) {
             if (i != 0) {
                 sb.append(",\t");
             }

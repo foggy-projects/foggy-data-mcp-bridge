@@ -8,7 +8,7 @@ import com.foggyframework.dataset.jdbc.model.def.query.request.GroupRequestDef;
 import com.foggyframework.dataset.jdbc.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.jdbc.model.def.query.request.OrderRequestDef;
 import com.foggyframework.dataset.jdbc.model.def.query.request.SliceRequestDef;
-import com.foggyframework.dataset.jdbc.model.engine.query.JdbcQueryResult;
+import com.foggyframework.dataset.jdbc.model.engine.query.DbQueryResult;
 import com.foggyframework.dataset.jdbc.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.jdbc.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.jdbc.model.semantic.domain.SemanticQueryResponse;
@@ -100,7 +100,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         resultContext.setSecurityContext(securityContext);
 
         // 5. 使用 QueryFacade 执行完整查询生命周期（beforeQuery -> query -> process）
-        JdbcQueryResult jdbcQueryResult = queryFacade.queryModelResult(resultContext);
+        DbQueryResult dbQueryResult = queryFacade.queryModelResult(resultContext);
         PagingResultImpl queryResult = resultContext.getPagingResult();
         context.extData = resultContext.getExtData();
 
@@ -109,7 +109,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                 jdbcRequest.getParam(),
                 queryResult,
                 context,
-                jdbcQueryResult.getQueryEngine().getJdbcQueryModel()
+                dbQueryResult.getQueryEngine().getJdbcQueryModel()
         );
 
         // 7. 添加调试信息

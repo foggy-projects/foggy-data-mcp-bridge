@@ -1,8 +1,8 @@
 package com.foggyframework.dataset.jdbc.model.def.dimension;
 
 import com.foggyframework.core.utils.StringUtils;
-import com.foggyframework.dataset.jdbc.model.def.JdbcDefSupport;
-import com.foggyframework.dataset.jdbc.model.def.property.JdbcPropertyDef;
+import com.foggyframework.dataset.jdbc.model.def.DbDefSupport;
+import com.foggyframework.dataset.jdbc.model.def.property.DbPropertyDef;
 import com.foggyframework.dataset.jdbc.model.impl.dimension.DbDimensionSupport;
 import com.foggyframework.dataset.jdbc.model.spi.DbDimensionType;
 import com.foggyframework.fsscript.exp.FsscriptFunction;
@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.Map;
 
 @Data
-public class JdbcDimensionDef extends JdbcDefSupport {
+public class DbDimensionDef extends DbDefSupport {
     @ApiModelProperty("维表")
     String tableName;
     @ApiModelProperty(value = "视图SQL", notes = "视图sql，和维表，只取一个，优先使用tableName")
@@ -44,7 +44,7 @@ public class JdbcDimensionDef extends JdbcDefSupport {
     String schema;
     Map<String, Object> extData;
 
-    List<JdbcPropertyDef> properties;
+    List<DbPropertyDef> properties;
 
     FsscriptFunction dimensionDataSql;
 
@@ -54,7 +54,7 @@ public class JdbcDimensionDef extends JdbcDefSupport {
     String alias;
 
     @ApiModelProperty("嵌套子维度列表，形成雪花结构。子维度的foreignKey指向父维度表上的列")
-    List<JdbcDimensionDef> dimensions;
+    List<DbDimensionDef> dimensions;
 
     @Deprecated
     @ApiModelProperty("已废弃，请使用嵌套维度方式。使某个维度与其他维度关联，形成多级结构")

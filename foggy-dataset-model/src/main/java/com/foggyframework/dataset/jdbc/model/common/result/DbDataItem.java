@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode
-public class JdbcDataItem {
+public class DbDataItem {
     Object id;
 
     String caption;

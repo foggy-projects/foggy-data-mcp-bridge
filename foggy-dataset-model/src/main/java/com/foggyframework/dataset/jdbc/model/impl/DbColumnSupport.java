@@ -7,11 +7,11 @@ import com.foggyframework.dataset.jdbc.model.spi.DbObject;
 import lombok.Data;
 
 @Data
-public abstract class JdbcColumnSupport extends AbstractDecorate implements DbColumn, DbObject {
+public abstract class DbColumnSupport extends AbstractDecorate implements DbColumn, DbObject {
 
     protected SqlColumn sqlColumn;
 
-    public JdbcColumnSupport(SqlColumn sqlColumn) {
+    public DbColumnSupport(SqlColumn sqlColumn) {
         this.sqlColumn = sqlColumn;
     }
 

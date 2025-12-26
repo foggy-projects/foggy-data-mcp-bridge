@@ -11,7 +11,7 @@ import lombok.Setter;
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
-public class JdbcQueryOrderColumnImpl  {
+public class DbQueryOrderColumnImpl {
 
     DbColumn selectColumn;
 
@@ -21,11 +21,11 @@ public class JdbcQueryOrderColumnImpl  {
 
     boolean nullFirst;
 
-    public JdbcQueryOrderColumnImpl(DbColumn selectColumn, String order) {
+    public DbQueryOrderColumnImpl(DbColumn selectColumn, String order) {
         this.selectColumn = selectColumn;
         this.order = order;
     }
-    public JdbcQueryOrderColumnImpl(DbColumn selectColumn, OrderDef def) {
+    public DbQueryOrderColumnImpl(DbColumn selectColumn, OrderDef def) {
         this.selectColumn = selectColumn;
         this.order = def.getOrder();
         this.nullFirst = def.isNullFirst();

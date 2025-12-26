@@ -2,11 +2,11 @@ package com.foggyframework.dataset.jdbc.model.impl.model;
 
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.StringUtils;
-import com.foggyframework.dataset.jdbc.model.def.JdbcDefSupport;
-import com.foggyframework.dataset.jdbc.model.def.measure.JdbcMeasureDef;
-import com.foggyframework.dataset.jdbc.model.def.property.JdbcPropertyDef;
+import com.foggyframework.dataset.jdbc.model.def.DbDefSupport;
+import com.foggyframework.dataset.jdbc.model.def.measure.DbMeasureDef;
+import com.foggyframework.dataset.jdbc.model.def.property.DbPropertyDef;
 import com.foggyframework.dataset.jdbc.model.i18n.DatasetMessages;
-import com.foggyframework.dataset.jdbc.model.impl.JdbcObjectSupport;
+import com.foggyframework.dataset.jdbc.model.impl.DbObjectSupport;
 import com.foggyframework.dataset.jdbc.model.impl.dimension.DbDimensionSupport;
 import com.foggyframework.dataset.jdbc.model.impl.property.DbPropertyImpl;
 import com.foggyframework.dataset.jdbc.model.impl.utils.QueryObjectDelegate;
@@ -23,7 +23,7 @@ import java.util.Map;
 @Getter
 @Setter
 @Slf4j
-public abstract class TableModelSupport extends JdbcObjectSupport implements TableModel {
+public abstract class TableModelSupport extends DbObjectSupport implements TableModel {
 
     String idColumn;
 
@@ -48,7 +48,7 @@ public abstract class TableModelSupport extends JdbcObjectSupport implements Tab
     @Deprecated
     Map<String, DbColumn> field2JdbcColumn = new HashMap<>();
 
-    List<JdbcDefSupport> deprecatedList = new ArrayList<>();
+    List<DbDefSupport> deprecatedList = new ArrayList<>();
 
 //    MongoTemplate mongoTemplate;
 
@@ -209,7 +209,7 @@ public abstract class TableModelSupport extends JdbcObjectSupport implements Tab
 
 
     @Override
-    public void addDeprecated(JdbcDefSupport def) {
+    public void addDeprecated(DbDefSupport def) {
         if (deprecatedList == null) {
             deprecatedList = new ArrayList<>();
         }
@@ -221,20 +221,20 @@ public abstract class TableModelSupport extends JdbcObjectSupport implements Tab
         if (deprecatedList == null) {
             return false;
         }
-        for (JdbcDefSupport def : deprecatedList) {
-            if (def instanceof JdbcMeasureDef) {
-                if (StringUtils.equalsIgnoreCase(((JdbcMeasureDef) def).getColumn(), jdbcColumName)) {
+        for (DbDefSupport def : deprecatedList) {
+            if (def instanceof DbMeasureDef) {
+                if (StringUtils.equalsIgnoreCase(((DbMeasureDef) def).getColumn(), jdbcColumName)) {
                     return true;
                 }
-                if (StringUtils.equalsIgnoreCase(((JdbcMeasureDef) def).getColumn(), StringUtils.to_sm_string(jdbcColumName))) {
+                if (StringUtils.equalsIgnoreCase(((DbMeasureDef) def).getColumn(), StringUtils.to_sm_string(jdbcColumName))) {
                     return true;
                 }
             }
-            if(def instanceof JdbcPropertyDef){
-                if (StringUtils.equalsIgnoreCase(((JdbcPropertyDef) def).getColumn(), jdbcColumName)) {
+            if(def instanceof DbPropertyDef){
+                if (StringUtils.equalsIgnoreCase(((DbPropertyDef) def).getColumn(), jdbcColumName)) {
                     return true;
                 }
-                if (StringUtils.equalsIgnoreCase(((JdbcPropertyDef) def).getColumn(), StringUtils.to_sm_string(jdbcColumName))) {
+                if (StringUtils.equalsIgnoreCase(((DbPropertyDef) def).getColumn(), StringUtils.to_sm_string(jdbcColumName))) {
                     return true;
                 }
             }
