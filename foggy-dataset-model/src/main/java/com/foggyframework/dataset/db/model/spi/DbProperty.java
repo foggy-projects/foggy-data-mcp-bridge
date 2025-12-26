@@ -4,9 +4,9 @@ import com.foggyframework.fsscript.exp.FsscriptFunction;
 
 public interface DbProperty extends DbObject {
 
-    DbColumn getPropertyJdbcColumn();
+    DbColumn getPropertyDbColumn();
 
-    TableModel getJdbcModel();
+    TableModel getTableModel();
 
     DbColumnType getType();
 

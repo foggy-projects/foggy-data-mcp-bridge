@@ -144,7 +144,7 @@ public class MongoCalculatedColumn extends AbstractDecorate implements DbQueryCo
     }
 
     @Override
-    public DbQueryCondition getJdbcQueryCond() {
+    public DbQueryCondition getDbQueryCond() {
         return null;
     }
 

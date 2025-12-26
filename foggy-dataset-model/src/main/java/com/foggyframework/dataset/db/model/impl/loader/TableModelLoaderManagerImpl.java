@@ -344,7 +344,7 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
         if (dimensionDef.getProperties() != null) {
             for (DbPropertyDef propertyDef : dimensionDef.getProperties()) {
                 DbProperty dbProperty = loadProperty(context, dimension, propertyDef);
-                dimension.addJdbcProperty(dbProperty);
+                dimension.addProperty(dbProperty);
             }
         }
 
@@ -352,7 +352,7 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
 
         DbDimension dbDimension = dimension;
         for (DbModelLoadProcessor processor : processors) {
-            dbDimension = processor.processJdbcDimension(context, dbDimension);
+            dbDimension = processor.processDimension(context, dbDimension);
         }
         if (modelDim) {
             context.getJdbcModel().addDimension(dbDimension);
@@ -395,7 +395,7 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
             }
         }
 
-        property.setJdbcModel(context.getJdbcModel());
+        property.setTableModel(context.getJdbcModel());
         property.setDbDimension(dimension);
         property.init();
 
@@ -416,7 +416,7 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
 
 
         for (DbModelLoadProcessor processor : processors) {
-            dbProperty = processor.processJdbcProperty(context, dbProperty);
+            dbProperty = processor.processProperty(context, dbProperty);
         }
 
         return dbProperty;
@@ -455,7 +455,7 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
 
         DbMeasure jdbcMeasure = measure;
         for (DbModelLoadProcessor processor : processors) {
-            jdbcMeasure = processor.processJdbcMeasure(context, jdbcMeasure);
+            jdbcMeasure = processor.processMeasure(context, jdbcMeasure);
         }
 
         context.getJdbcModel().addMeasure(jdbcMeasure);

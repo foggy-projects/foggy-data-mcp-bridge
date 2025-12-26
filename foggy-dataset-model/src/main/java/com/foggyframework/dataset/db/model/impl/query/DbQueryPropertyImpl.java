@@ -40,7 +40,7 @@ public class DbQueryPropertyImpl extends DbObjectSupport implements DbQueryPrope
 
 
     @Override
-    public DbProperty getJdbcProperty() {
+    public DbProperty getProperty() {
         return dbProperty;
     }
 }

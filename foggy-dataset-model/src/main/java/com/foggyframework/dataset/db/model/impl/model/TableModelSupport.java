@@ -37,7 +37,7 @@ public abstract class TableModelSupport extends DbObjectSupport implements Table
 
     List<DbMeasure> measures = new ArrayList<>();
 
-    List<DbColumn> jdbcColumns = new ArrayList<>();
+    List<DbColumn> columns = new ArrayList<>();
 
     DbModelType modelType;
 
@@ -103,7 +103,7 @@ public abstract class TableModelSupport extends DbObjectSupport implements Table
             throw RX.throwAUserTip(DatasetMessages.modelDuplicateProperty(property.getName()));
         }
 
-        property.getDecorate(DbPropertyImpl.class).setJdbcModel(this);
+        property.getDecorate(DbPropertyImpl.class).setTableModel(this);
         properties.add(property);
         return property;
     }
@@ -143,7 +143,7 @@ public abstract class TableModelSupport extends DbObjectSupport implements Table
          * 建立 name2JdbcColumn映射关系
          */
         for (DbDimension dimension : dimensions) {
-            List<DbColumn> ll = dimension.getAllJdbcColumns();
+            List<DbColumn> ll = dimension.getAllDbColumns();
             for (DbColumn jdbcColumn : ll) {
                 addJdbcColumn(jdbcColumn);
             }
@@ -153,14 +153,14 @@ public abstract class TableModelSupport extends DbObjectSupport implements Table
         }
         if (properties != null) {
             for (DbProperty property : properties) {
-                addJdbcColumn(property.getPropertyJdbcColumn());
+                addJdbcColumn(property.getPropertyDbColumn());
             }
         }
 
 
         if (log.isDebugEnabled()) {
             log.debug(String.format("模型%s包含如下列", name));
-            for (DbColumn jdbcColumn : jdbcColumns) {
+            for (DbColumn jdbcColumn : columns) {
                 log.debug(String.format("name[%s],caption:[%s]", jdbcColumn.getName(), jdbcColumn.getCaption()));
             }
         }
@@ -171,7 +171,7 @@ public abstract class TableModelSupport extends DbObjectSupport implements Table
         if (name2JdbcColumn.containsKey(jdbcColumn.getName())) {
             throw RX.throwAUserTip(DatasetMessages.modelDuplicateColumn(jdbcColumn.getName()));
         }
-        jdbcColumns.add(jdbcColumn);
+        columns.add(jdbcColumn);
         name2JdbcColumn.put(jdbcColumn.getName(), jdbcColumn);
 //        field2JdbcColumn.put(jdbcColumn.getField(), jdbcColumn);
     }

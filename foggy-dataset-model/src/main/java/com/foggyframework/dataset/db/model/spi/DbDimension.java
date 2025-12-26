@@ -16,21 +16,21 @@ public interface DbDimension extends DbObject {
 
     String getForeignKey();
 
-    DbColumn getPrimaryKeyJdbcColumn();
+    DbColumn getPrimaryKeyDbColumn();
 
-    DbColumn getCaptionJdbcColumn();
+    DbColumn getCaptionDbColumn();
 
-    DbColumn getForeignKeyJdbcColumn();
+    DbColumn getForeignKeyDbColumn();
 
     List<DbDataItem> queryDimensionDataByHierarchy(SystemBundlesContext systemBundlesContext, DataSource dataSource, DbDimension dbDimension, String hierarchy);
 
-    List<DbColumn> getAllJdbcColumns();
+    List<DbColumn> getAllDbColumns();
 
     DbDimensionType getType();
 
-    DbProperty addJdbcProperty(DbProperty property);
+    DbProperty addProperty(DbProperty property);
 
-    DbProperty findJdbcPropertyByName(String name);
+    DbProperty findPropertyByName(String name);
 
     <T>T getExtDataValue(String key);
 

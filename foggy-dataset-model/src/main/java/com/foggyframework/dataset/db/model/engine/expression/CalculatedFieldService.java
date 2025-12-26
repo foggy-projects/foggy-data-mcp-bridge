@@ -3,7 +3,7 @@ package com.foggyframework.dataset.db.model.engine.expression;
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
-import com.foggyframework.dataset.db.model.spi.support.CalculatedJdbcColumn;
+import com.foggyframework.dataset.db.model.spi.support.CalculatedDbColumn;
 import com.foggyframework.fsscript.DefaultExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.Exp;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
@@ -61,7 +61,7 @@ public final class CalculatedFieldService {
      * @param appCtx           Spring 上下文
      * @return 计算字段列列表
      */
-    public static List<CalculatedJdbcColumn> processCalculatedFields(
+    public static List<CalculatedDbColumn> processCalculatedFields(
             List<CalculatedFieldDef> calculatedFields,
             SqlExpContext context,
             ApplicationContext appCtx) {
@@ -69,10 +69,10 @@ public final class CalculatedFieldService {
             return new ArrayList<>();
         }
 
-        List<CalculatedJdbcColumn> result = new ArrayList<>(calculatedFields.size());
+        List<CalculatedDbColumn> result = new ArrayList<>(calculatedFields.size());
 
         for (CalculatedFieldDef fieldDef : calculatedFields) {
-            CalculatedJdbcColumn column = processCalculatedField(fieldDef, context, appCtx);
+            CalculatedDbColumn column = processCalculatedField(fieldDef, context, appCtx);
             result.add(column);
         }
 
@@ -87,7 +87,7 @@ public final class CalculatedFieldService {
      * @param appCtx   Spring 上下文
      * @return 计算字段列
      */
-    public static CalculatedJdbcColumn processCalculatedField(
+    public static CalculatedDbColumn processCalculatedField(
             CalculatedFieldDef fieldDef,
             SqlExpContext context,
             ApplicationContext appCtx) {
@@ -127,7 +127,7 @@ public final class CalculatedFieldService {
 
             // 3. 创建 CalculatedJdbcColumn
             String caption = StringUtils.isNotEmpty(fieldDef.getCaption()) ? fieldDef.getCaption() : fieldDef.getName();
-            CalculatedJdbcColumn column = new CalculatedJdbcColumn(
+            CalculatedDbColumn column = new CalculatedDbColumn(
                     fieldDef.getName(),
                     caption,
                     sqlFragment,

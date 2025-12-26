@@ -73,7 +73,7 @@ public interface QueryModel extends Decorate, DbObject {
     //    List<JdbcColumn> getSelectColumns();
     List<DbQueryColumn> getJdbcQueryColumns();
 
-    List<DbQueryCondition> getJdbcQueryConds();
+    List<DbQueryCondition> getDbQueryConds();
 
     TableModel getJdbcModel();
 

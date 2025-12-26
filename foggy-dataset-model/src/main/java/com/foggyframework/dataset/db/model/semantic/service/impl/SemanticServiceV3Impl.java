@@ -203,7 +203,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                         String propFieldName = dimName + "$" + prop.getName();
                         dimensionFieldNames.add(propFieldName);
                         String propCaption = prop.getCaption() != null ? prop.getCaption() : prop.getName();
-                        String propType = getDataTypeDescription(prop.getPropertyJdbcColumn().getType());
+                        String propType = getDataTypeDescription(prop.getPropertyDbColumn().getType());
                         String propDesc = prop.getDescription() != null ? prop.getDescription() : "";
 
                         // 处理字典引用
@@ -211,7 +211,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                         if (StringUtils.isNotEmpty(dictRef)) {
                             referencedDictIds.add(dictRef);
                             propDesc = propDesc + " (字典:" + dictRef + ")";
-                        } else if (StringUtils.equals(prop.getPropertyJdbcColumn().getType(), "DICT")) {
+                        } else if (StringUtils.equals(prop.getPropertyDbColumn().getType(), "DICT")) {
                             String dictClass = prop.getExtDataValue("dictClass");
                             if (StringUtils.isNotEmpty(dictClass)) {
                                 String[] names = dictClass.split("\\.");
@@ -237,7 +237,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         if (queryProperties != null && !queryProperties.isEmpty()) {
             // 过滤掉已在维度字段中输出的属性
             List<DbQueryProperty> filteredProperties = queryProperties.stream()
-                    .filter(qp -> !dimensionFieldNames.contains(qp.getJdbcProperty().getName()))
+                    .filter(qp -> !dimensionFieldNames.contains(qp.getProperty().getName()))
                     .toList();
 
             if (!filteredProperties.isEmpty()) {
@@ -249,10 +249,10 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                     if (!isFieldInLevels(queryProperty.getAi(), request.getLevels())) {
                         continue;
                     }
-                    DbProperty property = queryProperty.getJdbcProperty();
+                    DbProperty property = queryProperty.getProperty();
                     String fieldName = property.getName();
                     String fieldCaption = property.getCaption() != null ? property.getCaption() : fieldName;
-                    String fieldType = getDataTypeDescription(property.getPropertyJdbcColumn().getType());
+                    String fieldType = getDataTypeDescription(property.getPropertyDbColumn().getType());
                     String fieldDesc = property.getDescription() != null ? property.getDescription() : "";
 
                     // 处理字典引用
@@ -260,7 +260,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                     if (StringUtils.isNotEmpty(dictRef)) {
                         referencedDictIds.add(dictRef);
                         fieldDesc = fieldDesc + " (字典:" + dictRef + ")";
-                    } else if (StringUtils.equals(property.getPropertyJdbcColumn().getType(), "DICT")) {
+                    } else if (StringUtils.equals(property.getPropertyDbColumn().getType(), "DICT")) {
                         String dictClass = property.getExtDataValue("dictClass");
                         if (StringUtils.isNotEmpty(dictClass)) {
                             String[] names = dictClass.split("\\.");
@@ -671,7 +671,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                 continue;
             }
 
-            DbProperty property = queryProperty.getJdbcProperty();
+            DbProperty property = queryProperty.getProperty();
             String fieldName = property.getName();
             if (fieldFilter != null && !fieldFilter.contains(fieldName)) {
                 continue;
@@ -759,7 +759,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         fieldInfo.put("name", (prop.getCaption() != null ? prop.getCaption() : prop.getName()));
         fieldInfo.put("fieldName", propName);
 
-        String dataType = getDataTypeDescription(prop.getPropertyJdbcColumn().getType());
+        String dataType = getDataTypeDescription(prop.getPropertyDbColumn().getType());
         fieldInfo.put("meta", "维度属性 | " + dataType);
 
         Map<String, Object> modelInfo = new LinkedHashMap<>();
@@ -934,7 +934,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                 continue;
             }
 
-            DbProperty property = queryProperty.getJdbcProperty();
+            DbProperty property = queryProperty.getProperty();
             String fieldName = property.getName();
             if (fieldFilter != null && !fieldFilter.contains(fieldName)) {
                 continue;
@@ -1005,7 +1005,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         fieldInfo.put("name", property.getCaption() != null ? property.getCaption() : property.getName());
         fieldInfo.put("fieldName", property.getName());
 
-        String dataType = getDataTypeDescription(property.getPropertyJdbcColumn().getType());
+        String dataType = getDataTypeDescription(property.getPropertyDbColumn().getType());
         fieldInfo.put("meta", "属性 | " + dataType);
 
         Map<String, Object> modelInfo = new LinkedHashMap<>();
@@ -1139,7 +1139,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                                          Set<String> referencedDictIds, Set<DictInfo> referencedDictClasses) {
             this.displayName = prop.getCaption() != null ? prop.getCaption() : prop.getName();
 
-            String dataType = service.getDataTypeDescription(prop.getPropertyJdbcColumn().getType());
+            String dataType = service.getDataTypeDescription(prop.getPropertyDbColumn().getType());
             this.meta = "维度属性 | " + dataType;
             this.fieldType = "dimension_property";
 
@@ -1154,7 +1154,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                 this.meta += " (字典:" + dictRef + ")";
             }
             // 处理 Java 类字典（兼容旧方式）
-            else if (StringUtils.equals(prop.getPropertyJdbcColumn().getType(), "DICT")) {
+            else if (StringUtils.equals(prop.getPropertyDbColumn().getType(), "DICT")) {
                 String dictClass = prop.getExtDataValue("dictClass");
                 if (StringUtils.isNotEmpty(dictClass)) {
                     String[] names = dictClass.split("\\.");
@@ -1171,10 +1171,10 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
 
         public void addProperty(DbQueryProperty queryProperty, String modelName, SemanticServiceV3Impl service,
                                 Set<String> referencedDictIds, Set<DictInfo> referencedDictClasses) {
-            DbProperty property = queryProperty.getJdbcProperty();
+            DbProperty property = queryProperty.getProperty();
             this.displayName = service.getCaption(property);
 
-            String dataType = service.getDataTypeDescription(property.getPropertyJdbcColumn().getType());
+            String dataType = service.getDataTypeDescription(property.getPropertyDbColumn().getType());
             this.meta = "属性 | " + dataType;
             this.fieldType = "property";
 
@@ -1189,7 +1189,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                 this.meta += " (字典:" + dictRef + ")";
             }
             // 处理 Java 类字典（兼容旧方式）
-            else if (StringUtils.equals(property.getPropertyJdbcColumn().getType(), "DICT")) {
+            else if (StringUtils.equals(property.getPropertyDbColumn().getType(), "DICT")) {
                 String dictClass = property.getExtDataValue("dictClass");
                 if (StringUtils.isNotEmpty(dictClass)) {
                     String[] names = dictClass.split("\\.");

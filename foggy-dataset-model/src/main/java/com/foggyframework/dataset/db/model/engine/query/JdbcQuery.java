@@ -9,7 +9,7 @@ import com.foggyframework.dataset.db.model.impl.query.DbQueryOrderColumnImpl;
 import com.foggyframework.dataset.db.model.spi.DbColumn;
 import com.foggyframework.dataset.db.model.spi.DbQueryRequest;
 import com.foggyframework.dataset.db.model.spi.QueryObject;
-import com.foggyframework.dataset.db.model.spi.support.AggregationJdbcColumn;
+import com.foggyframework.dataset.db.model.spi.support.AggregationDbColumn;
 import com.foggyframework.dataset.db.model.spi.support.SimpleQueryObject;
 import com.foggyframework.dataset.db.model.spi.support.SimpleSqlJdbcColumn;
 import com.foggyframework.dataset.db.table.SqlColumn;
@@ -168,7 +168,7 @@ public class JdbcQuery {
         return false;
     }
 
-    public void addGroupBy(AggregationJdbcColumn aggColumn, DbColumn column) {
+    public void addGroupBy(AggregationDbColumn aggColumn, DbColumn column) {
         if (group == null) {
             group = new JdbcGroupBy(1);
         }

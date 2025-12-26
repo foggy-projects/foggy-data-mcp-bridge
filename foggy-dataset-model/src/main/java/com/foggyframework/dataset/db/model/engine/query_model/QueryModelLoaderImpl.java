@@ -288,7 +288,7 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
                 //这里比较特殊,如果是维度的标题列，则应当用id列来查，但是，如果条件中已经定义了condColumnName这个查询条件，则以查询条件中定义的为准！
                 DbQueryCondition dbQueryCondition = qm.findJdbcQueryCondByName(condColumnName);
                 if (dbQueryCondition == null) {
-                    condColumnName = dimensionColumn.getDimension().getForeignKeyJdbcColumn().getName();
+                    condColumnName = dimensionColumn.getDimension().getForeignKeyDbColumn().getName();
                 }
 
             }

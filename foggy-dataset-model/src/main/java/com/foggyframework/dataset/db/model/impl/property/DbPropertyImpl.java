@@ -19,7 +19,7 @@ import java.util.Map;
 @Setter
 public class DbPropertyImpl extends DbObjectSupport implements DbProperty, DbDataProvider {
 
-    TableModel jdbcModel;
+    TableModel tableModel;
 
     DbDimension dbDimension;
 
@@ -38,7 +38,7 @@ public class DbPropertyImpl extends DbObjectSupport implements DbProperty, DbDat
 
     String column;
 
-    PropertyDbColumn propertyJdbcColumn;
+    PropertyDbColumn propertyDbColumn;
 
     boolean bit;
 
@@ -86,7 +86,7 @@ public class DbPropertyImpl extends DbObjectSupport implements DbProperty, DbDat
     }
 
     public void init() {
-        RX.hasText(column, "属性的column不能为空," + ("模型：" + jdbcModel));
+        RX.hasText(column, "属性的column不能为空," + ("模型：" + tableModel));
 
         if (StringUtils.isEmpty(alias)) {
             alias = JdbcModelNamedUtils.toAliasName(column);
@@ -95,7 +95,7 @@ public class DbPropertyImpl extends DbObjectSupport implements DbProperty, DbDat
             name = alias;
         }
 
-        propertyJdbcColumn = new PropertyDbColumn();
+        propertyDbColumn = new PropertyDbColumn();
         if (extData != null && extData.get("bit") instanceof Boolean) {
             bit = (Boolean) extData.get("bit");
         }
@@ -110,7 +110,7 @@ public class DbPropertyImpl extends DbObjectSupport implements DbProperty, DbDat
     public class PropertyDbColumn extends DbColumnSupport implements DbPropertyColumn {
         public PropertyDbColumn() {
             super(dbDimension == null ?
-                    jdbcModel.getQueryObject().getSqlColumn(column, true)
+                    tableModel.getQueryObject().getSqlColumn(column, true)
                     : dbDimension.getQueryObject().getSqlColumn(column, true));
         }
         @Override
@@ -153,7 +153,7 @@ public class DbPropertyImpl extends DbObjectSupport implements DbProperty, DbDat
 
         @Override
         public QueryObject getQueryObject() {
-            return jdbcModel.getQueryObject();
+            return tableModel.getQueryObject();
         }
 
         @Override

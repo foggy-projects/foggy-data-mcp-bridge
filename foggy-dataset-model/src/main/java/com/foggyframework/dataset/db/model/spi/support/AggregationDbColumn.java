@@ -15,7 +15,7 @@ import org.springframework.context.ApplicationContext;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class AggregationJdbcColumn extends AbstractDecorate implements DbColumn {
+public class AggregationDbColumn extends AbstractDecorate implements DbColumn {
 
     QueryObject queryObject;
 
@@ -41,14 +41,14 @@ public class AggregationJdbcColumn extends AbstractDecorate implements DbColumn 
         return null;
     }
 
-    public AggregationJdbcColumn(QueryObject queryObject, String alias, String declare) {
+    public AggregationDbColumn(QueryObject queryObject, String alias, String declare) {
         this.queryObject = queryObject;
         this.alias = alias;
         this.declare = declare;
         this.groupByName = declare;
     }
 
-    public AggregationJdbcColumn(QueryObject queryObject, String alias, String declare, DbColumnType type) {
+    public AggregationDbColumn(QueryObject queryObject, String alias, String declare, DbColumnType type) {
         this.queryObject = queryObject;
         this.alias = alias;
         this.declare = declare;

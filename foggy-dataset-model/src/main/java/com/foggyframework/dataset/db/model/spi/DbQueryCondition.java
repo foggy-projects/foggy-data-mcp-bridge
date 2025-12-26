@@ -30,7 +30,7 @@ public interface DbQueryCondition extends DbObject {
 
     default String getEditField(){
         if (getDimension() != null) {
-            return getDimension().getForeignKeyJdbcColumn().getField();
+            return getDimension().getForeignKeyDbColumn().getField();
         }
         return getField();
     }

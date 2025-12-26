@@ -139,7 +139,7 @@ public class DbQueryColumnImpl extends DbObjectSupport implements DbQueryColumn 
     }
 
     @Override
-    public DbQueryCondition getJdbcQueryCond() {
+    public DbQueryCondition getDbQueryCond() {
         return dbQueryCondition;
     }
 

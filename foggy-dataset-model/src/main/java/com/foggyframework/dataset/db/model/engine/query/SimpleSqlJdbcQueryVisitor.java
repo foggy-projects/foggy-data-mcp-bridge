@@ -9,7 +9,7 @@ import com.foggyframework.dataset.db.model.impl.query.DbQueryOrderColumnImpl;
 import com.foggyframework.dataset.db.model.spi.DbColumn;
 import com.foggyframework.dataset.db.model.spi.JdbcQueryModel;
 import com.foggyframework.dataset.db.model.spi.QueryObject;
-import com.foggyframework.dataset.db.model.spi.support.AggregationJdbcColumn;
+import com.foggyframework.dataset.db.model.spi.support.AggregationDbColumn;
 import com.foggyframework.fsscript.DefaultExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import lombok.Getter;
@@ -214,7 +214,7 @@ public class SimpleSqlJdbcQueryVisitor implements JdbcQueryVisitor {
             if (i != 0) {
                 sb.append(",\t");
             }
-            AggregationJdbcColumn column = orderOrder.getAggColumn();
+            AggregationDbColumn column = orderOrder.getAggColumn();
             sb.append(column.getGroupByName());
             i++;
         }

@@ -244,8 +244,8 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
                 return;
             }
             DbDimension dbDimension = support.getDimension();
-            DbColumn foreignKeyJdbcColumn = support.getDimension().getForeignKeyJdbcColumn();
-            DbColumn captionJdbcColumn = support.getDimension().getCaptionJdbcColumn();
+            DbColumn foreignKeyJdbcColumn = support.getDimension().getForeignKeyDbColumn();
+            DbColumn captionJdbcColumn = support.getDimension().getCaptionDbColumn();
             registerNestedDimensionAliases(dbDimension, foreignKeyJdbcColumn, captionJdbcColumn, dbQueryColumn.getCaption());
         } else {
             for (DbQueryColumn selectQueryColumn : dbQueryColumns) {
@@ -639,7 +639,7 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
     }
 
     @Override
-    public List<DbQueryCondition> getJdbcQueryConds() {
+    public List<DbQueryCondition> getDbQueryConds() {
         return dbQueryConditions;
     }
 

@@ -5,7 +5,7 @@ import com.foggyframework.dataset.db.model.def.query.request.*;
 import com.foggyframework.dataset.db.model.engine.JdbcModelQueryEngine;
 import com.foggyframework.dataset.db.model.engine.formula.SqlFormulaService;
 import com.foggyframework.dataset.db.model.spi.JdbcQueryModel;
-import com.foggyframework.dataset.db.model.spi.support.CalculatedJdbcColumn;
+import com.foggyframework.dataset.db.model.spi.support.CalculatedDbColumn;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.*;
@@ -75,7 +75,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
 
         // 验证计算字段被处理
-        List<CalculatedJdbcColumn> calcColumns = queryEngine.getCalculatedColumns();
+        List<CalculatedDbColumn> calcColumns = queryEngine.getCalculatedColumns();
         assertNotNull(calcColumns, "计算字段列表不应为空");
         assertEquals(1, calcColumns.size(), "应有1个计算字段");
         assertEquals("netAmount", calcColumns.get(0).getName(), "计算字段名应为netAmount");
@@ -126,7 +126,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
 
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
 
-        List<CalculatedJdbcColumn> calcColumns = queryEngine.getCalculatedColumns();
+        List<CalculatedDbColumn> calcColumns = queryEngine.getCalculatedColumns();
         assertEquals(2, calcColumns.size(), "应有2个计算字段");
 
         String sql = queryEngine.getSql();
@@ -385,7 +385,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
 
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
 
-        List<CalculatedJdbcColumn> calcColumns = queryEngine.getCalculatedColumns();
+        List<CalculatedDbColumn> calcColumns = queryEngine.getCalculatedColumns();
         assertEquals(2, calcColumns.size(), "应有2个计算字段");
 
         String sql = queryEngine.getSql();

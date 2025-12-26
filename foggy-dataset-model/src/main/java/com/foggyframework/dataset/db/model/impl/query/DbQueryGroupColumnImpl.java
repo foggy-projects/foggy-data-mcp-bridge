@@ -1,6 +1,6 @@
 package com.foggyframework.dataset.db.model.impl.query;
 
-import com.foggyframework.dataset.db.model.spi.support.AggregationJdbcColumn;
+import com.foggyframework.dataset.db.model.spi.support.AggregationDbColumn;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -12,6 +12,6 @@ import lombok.Setter;
 @AllArgsConstructor
 public class DbQueryGroupColumnImpl {
 
-    AggregationJdbcColumn aggColumn;
+    AggregationDbColumn aggColumn;
 
 }
