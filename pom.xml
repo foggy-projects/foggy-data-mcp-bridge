@@ -50,6 +50,7 @@
         <module>addons/foggy-fsscript-client</module>
         <module>addons/foggy-dataset-client</module>
         <module>addons/foggy-dataset-mongo</module>
+        <module>addons/foggy-dataset-model-mongo</module>
         <!-- WIP: 基准测试模块，暂未完成 -->
 <!--        <module>foggy-benchmark-spider2</module>-->
     </modules>

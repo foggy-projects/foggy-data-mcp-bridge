@@ -5,8 +5,6 @@ import com.foggyframework.fsscript.parser.spi.Fsscript;
 import lombok.Getter;
 import org.springframework.data.mongodb.core.MongoTemplate;
 
-import javax.sql.DataSource;
-
 @Getter
 public class MongoTableModelImpl extends JdbcModelSupport {
     Fsscript fScript;

@@ -1,6 +1,5 @@
 package com.foggyframework.dataset.jdbc.model.impl.mongo;
 
-import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.jdbc.model.spi.JdbcObject;
 import com.foggyframework.dataset.jdbc.model.spi.QueryModel;
 

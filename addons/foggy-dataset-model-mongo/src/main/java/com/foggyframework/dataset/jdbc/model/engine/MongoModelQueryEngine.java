@@ -12,7 +12,6 @@ import com.foggyframework.dataset.jdbc.model.impl.query.JdbcQueryOrderColumnImpl
 import com.foggyframework.dataset.jdbc.model.impl.utils.SqlQueryObject;
 import com.foggyframework.dataset.jdbc.model.spi.JdbcAggregation;
 import com.foggyframework.dataset.jdbc.model.spi.JdbcColumn;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryModel;
 import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryProperty;
 import com.foggyframework.dataset.jdbc.model.spi.support.AggregationJdbcColumn;
 import com.foggyframework.fsscript.DefaultExpEvaluator;
