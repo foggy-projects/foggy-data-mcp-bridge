@@ -5,6 +5,7 @@ import com.foggyframework.core.tuple.Tuple3;
 import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.jdbc.model.def.query.request.JdbcQueryRequestDef;
 import com.foggyframework.dataset.jdbc.model.engine.MongoModelQueryEngine;
+import com.foggyframework.dataset.jdbc.model.engine.expression.MongoCalculatedFieldProcessor;
 import com.foggyframework.dataset.jdbc.model.engine.query.JdbcQueryResult;
 import com.foggyframework.dataset.jdbc.model.engine.query_model.QueryModelSupport;
 import com.foggyframework.dataset.jdbc.model.plugins.result_set_filter.ModelResultContext;
@@ -35,10 +36,23 @@ public class MongoQueryModelImpl extends QueryModelSupport implements MongoQuery
 
     MongoTemplate defaultMongoTemplate;
 
+    /**
+     * 计算字段处理器（延迟初始化）
+     */
+    private CalculatedFieldProcessor calculatedFieldProcessor;
+
 
     public MongoQueryModelImpl(List<JdbcModel> jdbcModelList, Fsscript fsscript, MongoTemplate defaultMongoTemplate) {
         super(jdbcModelList, fsscript);
         this.defaultMongoTemplate = defaultMongoTemplate;
+    }
+
+    @Override
+    public CalculatedFieldProcessor getCalculatedFieldProcessor() {
+        if (calculatedFieldProcessor == null) {
+            calculatedFieldProcessor = new MongoCalculatedFieldProcessor(this);
+        }
+        return calculatedFieldProcessor;
     }
 
 

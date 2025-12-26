@@ -5,8 +5,8 @@ import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.jdbc.model.common.query.CondType;
 import com.foggyframework.dataset.jdbc.model.def.query.request.*;
-import com.foggyframework.dataset.jdbc.model.engine.expression.CalculatedFieldService;
 import com.foggyframework.dataset.jdbc.model.engine.expression.InlineExpressionParser;
+import com.foggyframework.dataset.jdbc.model.engine.expression.SqlCalculatedFieldProcessor;
 import com.foggyframework.dataset.jdbc.model.engine.expression.SqlExpContext;
 import com.foggyframework.dataset.jdbc.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.jdbc.model.engine.formula.JdbcLink;
@@ -654,20 +654,29 @@ public class JdbcModelQueryEngine {
             return;
         }
 
-        // 创建 SQL 表达式上下文
+        // 使用 QueryModel 提供的计算字段处理器
         ApplicationContext appCtx = systemBundlesContext.getApplicationContext();
-        this.sqlExpContext = new SqlExpContext(
-                jdbcQueryModel,
-                jdbcQueryModel.getDialect(),
+        CalculatedFieldProcessor processor = jdbcQueryModel.getCalculatedFieldProcessor();
+
+        if (processor == null) {
+            log.warn("QueryModel does not support calculated fields: {}", jdbcQueryModel.getName());
+            this.calculatedColumns = new ArrayList<>();
+            if (context != null) {
+                context.setCalculatedColumns(this.calculatedColumns);
+            }
+            return;
+        }
+
+        // 处理所有计算字段
+        this.calculatedColumns = processor.processCalculatedFields(
+                queryRequest.getCalculatedFields(),
                 appCtx
         );
 
-        // 处理所有计算字段
-        this.calculatedColumns = CalculatedFieldService.processCalculatedFields(
-                queryRequest.getCalculatedFields(),
-                sqlExpContext,
-                appCtx
-        );
+        // 获取 SQL 表达式上下文（用于后续列解析）
+        if (processor instanceof SqlCalculatedFieldProcessor) {
+            this.sqlExpContext = ((SqlCalculatedFieldProcessor) processor).getContext();
+        }
 
         // 将结果存入 ModelResultContext
         if (context != null) {

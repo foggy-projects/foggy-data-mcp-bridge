@@ -5,6 +5,12 @@ import com.foggyframework.dataset.jdbc.model.def.JdbcModelDef;
 import com.foggyframework.dataset.jdbc.model.spi.JdbcModel;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
 
+/**
+ * MongoDB 模型加载器接口
+ * <p>
+ * 作为 SPI 定义在核心模块中，由 foggy-dataset-model-mongo 模块实现。
+ * </p>
+ */
 public interface MongoModelLoader {
     JdbcModel load(Fsscript fScript, JdbcModelDef def, Bundle bundle);
 }

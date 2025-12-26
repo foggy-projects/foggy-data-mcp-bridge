@@ -15,6 +15,23 @@ import java.util.List;
 public interface QueryModel extends Decorate,JdbcObject {
 
     /**
+     * 获取计算字段处理器
+     * <p>
+     * 不同类型的 QueryModel 返回对应的处理器实现：
+     * <ul>
+     *     <li>JdbcQueryModel: 返回 SqlCalculatedFieldProcessor</li>
+     *     <li>MongoQueryModel: 返回 MongoCalculatedFieldProcessor</li>
+     * </ul>
+     * 默认返回 null 表示不支持计算字段。
+     * </p>
+     *
+     * @return 计算字段处理器，或 null
+     */
+    default CalculatedFieldProcessor getCalculatedFieldProcessor() {
+        return null;
+    }
+
+    /**
      * 获取模型的短简称
      *
      * <p>简称由 JdbcQueryModelLoader 在加载时自动分配，用于减少 AI 元数据的 token 消耗。

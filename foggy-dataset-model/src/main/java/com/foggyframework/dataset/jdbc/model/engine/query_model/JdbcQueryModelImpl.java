@@ -6,6 +6,7 @@ import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.jdbc.model.def.query.request.JdbcQueryRequestDef;
 import com.foggyframework.dataset.jdbc.model.engine.JdbcModelQueryEngine;
+import com.foggyframework.dataset.jdbc.model.engine.expression.SqlCalculatedFieldProcessor;
 import com.foggyframework.dataset.jdbc.model.engine.formula.SqlFormulaService;
 import com.foggyframework.dataset.jdbc.model.engine.query.JdbcQueryResult;
 import com.foggyframework.dataset.jdbc.model.impl.model.JdbcModelSupport;
@@ -32,6 +33,11 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
 
     SqlFormulaService sqlFormulaService;
 
+    /**
+     * 计算字段处理器（延迟初始化）
+     */
+    private CalculatedFieldProcessor calculatedFieldProcessor;
+
     public JdbcQueryModelImpl(List<JdbcModel> jdbcModelList, Fsscript fsscript, SqlFormulaService sqlFormulaService, DataSource dataSource) {
         super(jdbcModelList, fsscript);
         this.jdbcModel = jdbcModelList.get(0);
@@ -48,6 +54,14 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
             name2Alias.put(key, model.getAlias());
             name2Alias.put(model.getQueryObject().getDecorate(JdbcModelSupport.ModelQueryObject.class), model.getAlias());
         }
+    }
+
+    @Override
+    public CalculatedFieldProcessor getCalculatedFieldProcessor() {
+        if (calculatedFieldProcessor == null) {
+            calculatedFieldProcessor = new SqlCalculatedFieldProcessor(this, getDialect());
+        }
+        return calculatedFieldProcessor;
     }
 
 

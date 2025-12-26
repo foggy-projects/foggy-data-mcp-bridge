@@ -5,20 +5,27 @@ import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.trans.DateTransFormatter;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.jdbc.model.def.query.request.*;
+import com.foggyframework.dataset.jdbc.model.engine.expression.MongoCalculatedColumn;
+import com.foggyframework.dataset.jdbc.model.engine.expression.MongoCalculatedColumnAdapter;
+import com.foggyframework.dataset.jdbc.model.engine.expression.MongoCalculatedFieldProcessor;
 import com.foggyframework.dataset.jdbc.model.engine.query.JdbcQuery;
 import com.foggyframework.dataset.jdbc.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.jdbc.model.impl.mongo.MongoQueryModel;
 import com.foggyframework.dataset.jdbc.model.impl.query.JdbcQueryOrderColumnImpl;
 import com.foggyframework.dataset.jdbc.model.impl.utils.SqlQueryObject;
+import com.foggyframework.dataset.jdbc.model.spi.CalculatedFieldProcessor;
 import com.foggyframework.dataset.jdbc.model.spi.JdbcAggregation;
 import com.foggyframework.dataset.jdbc.model.spi.JdbcColumn;
 import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryProperty;
 import com.foggyframework.dataset.jdbc.model.spi.support.AggregationJdbcColumn;
+import com.foggyframework.dataset.jdbc.model.spi.support.CalculatedJdbcColumn;
 import com.foggyframework.fsscript.DefaultExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import com.foggyframework.core.tuple.Tuple3;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
+import org.bson.Document;
+import org.springframework.context.ApplicationContext;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.aggregation.Aggregation;
 import org.springframework.data.mongodb.core.aggregation.GroupOperation;
@@ -43,6 +50,12 @@ public class MongoModelQueryEngine {
     String aggSql;
 
     List values;
+
+    /**
+     * 处理后的计算字段列表
+     */
+    List<CalculatedJdbcColumn> calculatedColumns;
+
     private static final String PATTERN = "^[a-zA-Z\\s]+$";
     private static final Pattern PATTERN_OBJECT = Pattern.compile(PATTERN);
 
@@ -91,6 +104,9 @@ public class MongoModelQueryEngine {
             }
         }
         jdbcQuery.select(selectColumns);
+
+        // 处理计算字段
+        processCalculatedFields(queryRequest, systemBundlesContext.getApplicationContext());
 
 //        //id列是必须返回的
 //        if (jdbcQueryModel.getJdbcModel().getIdColumn() != null) {
@@ -150,6 +166,14 @@ public class MongoModelQueryEngine {
         for (JdbcColumn column : jdbcQuery.getSelect().getColumns()) {
             project = project.and(column.getSqlColumnName()).as(column.getAlias());
 //            project = project.and(column.getAlias()).as("$"+column.getSqlColumnName());
+        }
+
+        // 将计算字段也加入到 projection（计算字段通过 $addFields 已经添加到文档中）
+        if (calculatedColumns != null && !calculatedColumns.isEmpty()) {
+            for (CalculatedJdbcColumn calcColumn : calculatedColumns) {
+                // 计算字段在 $addFields 阶段已经被计算出来，这里只需要投影
+                project = project.and(calcColumn.getAlias()).as(calcColumn.getAlias());
+            }
         }
 
         //构建match
@@ -333,5 +357,97 @@ public class MongoModelQueryEngine {
 
         }
 
+    }
+
+    /**
+     * 处理计算字段
+     *
+     * @param queryRequest 查询请求
+     * @param appCtx       Spring 应用上下文
+     */
+    private void processCalculatedFields(JdbcQueryRequestDef queryRequest, ApplicationContext appCtx) {
+        if (queryRequest.getCalculatedFields() == null || queryRequest.getCalculatedFields().isEmpty()) {
+            this.calculatedColumns = new ArrayList<>();
+            return;
+        }
+
+        CalculatedFieldProcessor processor = jdbcQueryModel.getCalculatedFieldProcessor();
+        if (processor == null) {
+            log.warn("QueryModel does not support calculated fields: {}", jdbcQueryModel.getName());
+            this.calculatedColumns = new ArrayList<>();
+            return;
+        }
+
+        this.calculatedColumns = processor.processCalculatedFields(
+                queryRequest.getCalculatedFields(), appCtx);
+
+        if (log.isDebugEnabled()) {
+            log.debug("Processed {} MongoDB calculated fields", calculatedColumns.size());
+        }
+    }
+
+    /**
+     * 构建 $addFields 聚合阶段（用于计算字段）
+     * <p>
+     * 返回一个可以添加到聚合管道的 AggregationOperation
+     *
+     * @return AggregationOperation，如果没有计算字段则返回 null
+     */
+    public org.springframework.data.mongodb.core.aggregation.AggregationOperation buildAddFieldsOperation() {
+        Document addFieldsDoc = buildAddFieldsDocument();
+        if (addFieldsDoc == null) {
+            return null;
+        }
+
+        // 使用原生 Document 构建 $addFields 阶段
+        return aggregationOperationContext -> new Document("$addFields", addFieldsDoc);
+    }
+
+    /**
+     * 构建 $addFields 聚合阶段的 Document（用于直接构建聚合管道）
+     *
+     * @return 包含计算字段表达式的 Document，如果没有计算字段则返回 null
+     */
+    public Document buildAddFieldsDocument() {
+        if (calculatedColumns == null || calculatedColumns.isEmpty()) {
+            return null;
+        }
+
+        Document addFieldsDoc = new Document();
+
+        for (CalculatedJdbcColumn column : calculatedColumns) {
+            if (column instanceof MongoCalculatedColumnAdapter) {
+                MongoCalculatedColumn mongoColumn = ((MongoCalculatedColumnAdapter) column).getMongoColumn();
+                Object mongoExpr = mongoColumn.getMongoExpression();
+                addFieldsDoc.put(column.getAlias(), mongoExpr);
+
+                if (log.isDebugEnabled()) {
+                    log.debug("AddFields: {} = {}", column.getAlias(), mongoExpr);
+                }
+            } else {
+                log.warn("Calculated column {} is not a MongoCalculatedColumnAdapter, skipping",
+                        column.getName());
+            }
+        }
+
+        return addFieldsDoc.isEmpty() ? null : addFieldsDoc;
+    }
+
+    /**
+     * 获取计算字段列表
+     *
+     * @return 计算字段列表
+     */
+    public List<CalculatedJdbcColumn> getCalculatedColumns() {
+        return calculatedColumns;
+    }
+
+    /**
+     * 检查是否有计算字段
+     *
+     * @return true 如果有计算字段
+     */
+    public boolean hasCalculatedFields() {
+        return calculatedColumns != null && !calculatedColumns.isEmpty();
     }
 }
