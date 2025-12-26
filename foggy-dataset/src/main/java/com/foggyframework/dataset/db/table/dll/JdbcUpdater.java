@@ -2,7 +2,7 @@ package com.foggyframework.dataset.db.table.dll;
 
 
 import com.foggyframework.core.ex.RX;
-import com.foggyframework.dataset.db.DbObject;
+import com.foggyframework.dataset.db.SqlObject;
 import com.foggyframework.dataset.db.DbUpdater;
 import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.db.table.SqlColumn;
@@ -41,7 +41,7 @@ public class JdbcUpdater implements DbUpdater {
      * 根据数据库中是否已经存在该对象，判断是更新还是创建
      */
     @Override
-    public void addDbObject(DbObject dbObject) {
+    public void addDbObject(SqlObject dbObject) {
         SqlTable tableFromDb = dialect.getTableByName(dataSource, dbObject.getName());
         if (tableFromDb == null) {
             addCreateScript(dbObject);
@@ -54,7 +54,7 @@ public class JdbcUpdater implements DbUpdater {
     }
 
     @Override
-    public void addModifyScript(DbObject dbObject) {
+    public void addModifyScript(SqlObject dbObject) {
         SqlTable tableFromDb = dialect.getTableByName(dataSource, dbObject.getName());
         if (tableFromDb == null) {
             throw RX.throwB("");
@@ -65,7 +65,7 @@ public class JdbcUpdater implements DbUpdater {
     }
 
     @Override
-    public void addCreateScript(DbObject dbObject) {
+    public void addCreateScript(SqlObject dbObject) {
         scripts.add(DbUtils.generateCreateSql(dialect, dbObject));
     }
 

@@ -6,7 +6,7 @@ import com.foggyframework.core.trans.ObjectTransFormatter;
 import com.foggyframework.core.utils.JsonUtils;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.core.utils.beanhelper.RequestBeanInjecter;
-import com.foggyframework.dataset.db.DbObject;
+import com.foggyframework.dataset.db.SqlObject;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.ColumnMapRowMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -20,7 +20,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public abstract class SqlTableSupport extends DbObject {
+public abstract class SqlTableSupport extends SqlObject {
 
     protected Map<String, SqlColumn> name2SqlColumn = new HashMap<String, SqlColumn>();
 

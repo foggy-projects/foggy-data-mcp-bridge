@@ -11,11 +11,11 @@ public interface DbUpdater {
 
     int MODE_SKIP_ERROR = 2;
 
-    void addDbObject(DbObject dbObject);
+    void addDbObject(SqlObject dbObject);
 
-    void addCreateScript(DbObject dbObject);
+    void addCreateScript(SqlObject dbObject);
 
-    void addModifyScript(DbObject dbObject);
+    void addModifyScript(SqlObject dbObject);
 
     void clear();
 

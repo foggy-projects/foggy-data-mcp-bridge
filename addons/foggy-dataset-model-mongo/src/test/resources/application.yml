@@ -1,0 +1,39 @@
+# ============================================
+# Foggy Dataset Model - 测试环境配置
+# 默认使用 SQLite (无需 Docker)
+# 可选 profile: docker (MySQL), postgres, sqlserver
+# ============================================
+spring:
+  profiles:
+    active: sqlite
+
+  application:
+    name: foggy-framework-dataset-jdbc-model-test
+
+# ==========================================
+# 日志配置
+# ==========================================
+logging:
+  level:
+    root: INFO
+    org.springframework.jdbc: DEBUG
+    org.springframework.jdbc.core.JdbcTemplate: DEBUG
+    com.foggyframework: DEBUG
+    org.hibernate.SQL: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+# ==========================================
+# Foggy Dataset 配置
+# ==========================================
+foggy:
+  dataset:
+    templates-path: classpath:/foggy/templates/
+    cache:
+      enabled: true
+      ttl: 3600
+    query:
+      max-rows: 10000
+      timeout: 30000
+server:
+  port: 15546

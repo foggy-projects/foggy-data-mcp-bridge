@@ -11,7 +11,7 @@ package com.foggyframework.dataset.utils;
 
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.StringUtils;
-import com.foggyframework.dataset.db.DbObject;
+import com.foggyframework.dataset.db.SqlObject;
 import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.db.table.SqlColumn;
 import com.foggyframework.dataset.db.table.SqlTable;
@@ -87,7 +87,7 @@ public final class DbUtils {
 		}
 	}
 
-	public static String generateCreateSql(FDialect dialect, DbObject dbObject) {
+	public static String generateCreateSql(FDialect dialect, SqlObject dbObject) {
 		switch (dbObject.getDbObjectType()) {
 		case TABLE:
 			return new TableGenerator((SqlTable) dbObject, dialect).generatorCreate();
@@ -113,7 +113,7 @@ public final class DbUtils {
 		return sb.toString();
 	}
 
-	public static List<String> generateAlertSql(FDialect dialect, DbObject dbObject, SqlTable tableFromDb) {
+	public static List<String> generateAlertSql(FDialect dialect, SqlObject dbObject, SqlTable tableFromDb) {
 		switch (dbObject.getDbObjectType()) {
 		case TABLE:
 			return new TableGenerator((SqlTable) dbObject, dialect).sqlAlterStrings(tableFromDb);

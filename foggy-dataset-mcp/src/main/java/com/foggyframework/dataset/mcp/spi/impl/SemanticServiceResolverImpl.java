@@ -1,12 +1,12 @@
 package com.foggyframework.dataset.mcp.spi.impl;
 
-import com.foggyframework.dataset.jdbc.model.plugins.result_set_filter.ModelResultContext;
-import com.foggyframework.dataset.jdbc.model.semantic.domain.SemanticMetadataRequest;
-import com.foggyframework.dataset.jdbc.model.semantic.domain.SemanticMetadataResponse;
-import com.foggyframework.dataset.jdbc.model.semantic.domain.SemanticQueryRequest;
-import com.foggyframework.dataset.jdbc.model.semantic.domain.SemanticQueryResponse;
-import com.foggyframework.dataset.jdbc.model.semantic.service.SemanticQueryServiceV3;
-import com.foggyframework.dataset.jdbc.model.semantic.service.SemanticServiceV3;
+import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataRequest;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
+import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
+import com.foggyframework.dataset.db.model.semantic.service.SemanticServiceV3;
 import com.foggyframework.dataset.mcp.spi.SemanticServiceResolver;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;

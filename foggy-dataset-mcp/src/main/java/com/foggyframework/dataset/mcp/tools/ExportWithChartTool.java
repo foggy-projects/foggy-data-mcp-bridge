@@ -2,7 +2,7 @@ package com.foggyframework.dataset.mcp.tools;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.core.ex.RX;
-import com.foggyframework.dataset.jdbc.model.semantic.domain.SemanticQueryResponse;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.mcp.enums.ToolCategory;
 import com.foggyframework.dataset.mcp.service.ProgressEvent;
 import lombok.RequiredArgsConstructor;

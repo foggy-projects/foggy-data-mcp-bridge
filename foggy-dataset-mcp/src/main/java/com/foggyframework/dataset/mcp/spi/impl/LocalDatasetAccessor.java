@@ -1,9 +1,12 @@
 package com.foggyframework.dataset.mcp.spi.impl;
 
 import com.foggyframework.core.ex.RX;
-import com.foggyframework.dataset.jdbc.model.def.query.request.CalculatedFieldDef;
-import com.foggyframework.dataset.jdbc.model.plugins.result_set_filter.ModelResultContext;
-import com.foggyframework.dataset.jdbc.model.semantic.domain.*;
+import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
+import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataRequest;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.mcp.config.McpProperties;
 import com.foggyframework.dataset.mcp.spi.DatasetAccessor;
 import com.foggyframework.dataset.mcp.spi.SemanticServiceResolver;
@@ -161,7 +164,7 @@ public class LocalDatasetAccessor implements DatasetAccessor {
     @Override
     @SuppressWarnings("unchecked")
     public RX<SemanticQueryResponse> queryModel(String model, Map<String, Object> payload, String mode,
-                             String traceId, String authorization) {
+                                                String traceId, String authorization) {
         log.debug("[Local] Querying model: {}, mode={}, traceId={}",
                 model, mode, traceId);
 

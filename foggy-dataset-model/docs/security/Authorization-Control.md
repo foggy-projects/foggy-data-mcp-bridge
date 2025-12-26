@@ -60,8 +60,9 @@ public interface DataSetResultStep {
 ```java
 package com.example.security;
 
-import com.foggyframework.dataset.jdbc.model.plugins.result_set_filter.*;
-import com.foggyframework.dataset.jdbc.model.def.query.request.SliceRequestDef;
+import com.foggyframework.dataset.db.model.plugins.result_set_filter.DataSetResultStep;
+import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
+import request.query.def.com.foggyframework.dataset.db.model.SliceRequestDef;
 import org.springframework.stereotype.Component;
 
 @Component
