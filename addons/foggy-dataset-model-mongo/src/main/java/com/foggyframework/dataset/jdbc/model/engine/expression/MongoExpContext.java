@@ -1,10 +1,8 @@
 package com.foggyframework.dataset.jdbc.model.engine.expression;
 
-import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.jdbc.model.impl.mongo.MongoQueryModel;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcColumn;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryColumn;
-import com.foggyframework.dataset.jdbc.model.spi.support.CalculatedJdbcColumn;
+import com.foggyframework.dataset.jdbc.model.spi.DbColumn;
+import com.foggyframework.dataset.jdbc.model.spi.DbQueryColumn;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
@@ -71,9 +69,9 @@ public class MongoExpContext {
         }
 
         // 2. 从查询模型中查找
-        JdbcQueryColumn queryColumn = queryModel.findJdbcColumnForSelectByName(columnName, false);
+        DbQueryColumn queryColumn = queryModel.findJdbcColumnForSelectByName(columnName, false);
         if (queryColumn != null) {
-            JdbcColumn selectColumn = queryColumn.getSelectColumn();
+            DbColumn selectColumn = queryColumn.getSelectColumn();
             if (selectColumn != null && selectColumn.getSqlColumn() != null) {
                 return selectColumn.getSqlColumn().getName();
             }
@@ -81,7 +79,7 @@ public class MongoExpContext {
         }
 
         // 3. 尝试从模型中直接查找
-        JdbcColumn jdbcColumn = queryModel.findJdbcColumn(columnName);
+        DbColumn jdbcColumn = queryModel.findJdbcColumn(columnName);
         if (jdbcColumn != null) {
             if (jdbcColumn.getSqlColumn() != null) {
                 return jdbcColumn.getSqlColumn().getName();
@@ -98,7 +96,7 @@ public class MongoExpContext {
      * @param columnName 列名
      * @return JdbcQueryColumn，如果不存在返回 null
      */
-    public JdbcQueryColumn tryResolveColumn(String columnName) {
+    public DbQueryColumn tryResolveColumn(String columnName) {
         // 1. 先查找计算字段
         MongoCalculatedColumn calculatedColumn = calculatedColumns.get(columnName);
         if (calculatedColumn != null) {
@@ -116,8 +114,8 @@ public class MongoExpContext {
      * @return JdbcQueryColumn
      * @throws RuntimeException 如果列不存在
      */
-    public JdbcQueryColumn resolveColumn(String columnName) {
-        JdbcQueryColumn column = tryResolveColumn(columnName);
+    public DbQueryColumn resolveColumn(String columnName) {
+        DbQueryColumn column = tryResolveColumn(columnName);
         if (column == null) {
             throw new RuntimeException("列不存在: " + columnName);
         }

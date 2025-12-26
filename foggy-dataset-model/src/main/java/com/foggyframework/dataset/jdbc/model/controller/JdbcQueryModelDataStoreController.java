@@ -2,7 +2,7 @@ package com.foggyframework.dataset.jdbc.model.controller;
 
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.dataset.client.domain.PagingRequest;
-import com.foggyframework.dataset.jdbc.model.def.query.request.JdbcQueryRequestDef;
+import com.foggyframework.dataset.jdbc.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.jdbc.model.service.QueryFacade;
 import com.foggyframework.dataset.model.PagingResultImpl;
 import io.swagger.annotations.ApiModelProperty;
@@ -26,7 +26,7 @@ public class JdbcQueryModelDataStoreController {
 
     @PostMapping("queryModelData")
     @ApiModelProperty("建议使用queryModelDataV2替代,URL上带上模型名称,更有利于缓存,第一层权限过滤等")
-    public RX<PagingResultImpl> queryModelData(@RequestBody PagingRequest<JdbcQueryRequestDef> form) {
+    public RX<PagingResultImpl> queryModelData(@RequestBody PagingRequest<DbQueryRequestDef> form) {
         PagingResultImpl v = queryFacade.queryModelData(form);
         return RX.success(v);
     }
@@ -34,7 +34,7 @@ public class JdbcQueryModelDataStoreController {
     @PostMapping("v2/{model}")
     public RX<PagingResultImpl> queryModelDataV2(
             @ApiParam(value = "模型", required = true) @PathVariable String model,
-            @RequestBody PagingRequest<JdbcQueryRequestDef> form) {
+            @RequestBody PagingRequest<DbQueryRequestDef> form) {
 
         form.getParam().setQueryModel(model);
         PagingResultImpl v = queryFacade.queryModelData(form);

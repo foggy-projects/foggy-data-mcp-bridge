@@ -1,7 +1,7 @@
 package com.foggyframework.dataset.jdbc.model.engine.expression;
 
 import com.foggyframework.dataset.db.dialect.FDialect;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryColumn;
+import com.foggyframework.dataset.jdbc.model.spi.DbQueryColumn;
 import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryModel;
 import com.foggyframework.dataset.jdbc.model.spi.support.CalculatedJdbcColumn;
 import lombok.Data;
@@ -72,7 +72,7 @@ public class SqlExpContext {
      * @return 对应的 JdbcQueryColumn
      * @throws RuntimeException 如果列不存在
      */
-    public JdbcQueryColumn resolveColumn(String columnName) {
+    public DbQueryColumn resolveColumn(String columnName) {
         // 1. 先查找计算字段
         CalculatedJdbcColumn calculated = calculatedColumns.get(columnName);
         if (calculated != null) {
@@ -89,7 +89,7 @@ public class SqlExpContext {
      * @param columnName 列名
      * @return 对应的 JdbcQueryColumn，如果不存在返回 null
      */
-    public JdbcQueryColumn tryResolveColumn(String columnName) {
+    public DbQueryColumn tryResolveColumn(String columnName) {
         // 1. 先查找计算字段
         CalculatedJdbcColumn calculated = calculatedColumns.get(columnName);
         if (calculated != null) {
@@ -126,7 +126,7 @@ public class SqlExpContext {
      * @param column 列对象
      * @return 表别名
      */
-    public String getAlias(JdbcQueryColumn column) {
+    public String getAlias(DbQueryColumn column) {
         if (column == null || column.getQueryObject() == null) {
             return null;
         }

@@ -3,8 +3,8 @@ package com.foggyframework.dataset.jdbc.model.spi.support;
 import com.foggyframework.core.AbstractDecorate;
 import com.foggyframework.dataset.db.table.SqlColumn;
 import com.foggyframework.dataset.jdbc.model.impl.AiObject;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcColumn;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcColumnType;
+import com.foggyframework.dataset.jdbc.model.spi.DbColumn;
+import com.foggyframework.dataset.jdbc.model.spi.DbColumnType;
 import com.foggyframework.dataset.jdbc.model.spi.QueryObject;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -13,7 +13,7 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class SimpleSqlJdbcColumn extends AbstractDecorate implements JdbcColumn {
+public class SimpleSqlJdbcColumn extends AbstractDecorate implements DbColumn {
 
     QueryObject queryObject;
 
@@ -28,7 +28,7 @@ public class SimpleSqlJdbcColumn extends AbstractDecorate implements JdbcColumn 
 //    String description;
 
     @Override
-    public JdbcColumnType getType() {
+    public DbColumnType getType() {
         return null;
     }
 

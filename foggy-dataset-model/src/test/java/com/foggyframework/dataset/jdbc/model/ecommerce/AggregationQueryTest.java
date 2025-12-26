@@ -46,7 +46,7 @@ class AggregationQueryTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactOrderQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactOrderQueryModel");
 
         // 设置查询列：日期维度 + 度量
@@ -90,7 +90,7 @@ class AggregationQueryTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesQueryModel");
 
         // 设置查询列：年、月 + 度量
@@ -144,7 +144,7 @@ class AggregationQueryTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesQueryModel");
 
         // 设置查询列：品类 + 度量
@@ -186,7 +186,7 @@ class AggregationQueryTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactOrderQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactOrderQueryModel");
 
         // 设置查询列
@@ -232,7 +232,7 @@ class AggregationQueryTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesQueryModel");
 
         // 设置查询列
@@ -278,7 +278,7 @@ class AggregationQueryTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactOrderQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactOrderQueryModel");
 
         // 设置查询列
@@ -327,7 +327,7 @@ class AggregationQueryTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesQueryModel");
 
         // 设置查询列
@@ -373,7 +373,7 @@ class AggregationQueryTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactOrderQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactOrderQueryModel");
 
         // 设置查询列
@@ -427,7 +427,7 @@ class AggregationQueryTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactInventorySnapshotQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactInventorySnapshotQueryModel");
 
         // 设置查询列
@@ -461,7 +461,7 @@ class AggregationQueryTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactInventorySnapshotQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactInventorySnapshotQueryModel");
 
         // 设置查询列
@@ -500,7 +500,7 @@ class AggregationQueryTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactReturnQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactReturnQueryModel");
 
         // 设置查询列
@@ -540,7 +540,7 @@ class AggregationQueryTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactReturnQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactReturnQueryModel");
 
         // 设置查询列
@@ -602,7 +602,7 @@ class AggregationQueryTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesQueryModel");
 
         // 设置查询列：包含聚合度量 quantity (sum(quantity) as quantity)
@@ -668,7 +668,7 @@ class AggregationQueryTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesQueryModel");
 
         // 设置查询列
@@ -717,7 +717,7 @@ class AggregationQueryTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesQueryModel");
 
         // 设置查询列
@@ -785,7 +785,7 @@ class AggregationQueryTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesQueryModel");
 
         // 设置查询列
@@ -834,7 +834,7 @@ class AggregationQueryTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesQueryModel");
 
         // 设置查询列
@@ -883,7 +883,7 @@ class AggregationQueryTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesQueryModel");
 
         // 设置查询列（明细查询）

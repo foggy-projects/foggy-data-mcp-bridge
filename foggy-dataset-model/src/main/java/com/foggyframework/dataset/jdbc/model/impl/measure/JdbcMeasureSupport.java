@@ -3,7 +3,7 @@ package com.foggyframework.dataset.jdbc.model.impl.measure;
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.db.table.SqlColumn;
-import com.foggyframework.dataset.jdbc.model.def.measure.JdbcFormulaDef;
+import com.foggyframework.dataset.jdbc.model.def.measure.DbFormulaDef;
 import com.foggyframework.dataset.jdbc.model.def.measure.JdbcMeasureDef;
 import com.foggyframework.dataset.jdbc.model.impl.AiObject;
 import com.foggyframework.dataset.jdbc.model.impl.JdbcColumnSupport;
@@ -17,29 +17,29 @@ import lombok.Data;
 import org.springframework.context.ApplicationContext;
 
 @Data
-public abstract class JdbcMeasureSupport extends JdbcObjectSupport implements JdbcMeasure {
+public abstract class JdbcMeasureSupport extends JdbcObjectSupport implements DbMeasure {
 
     String column;
     //默认聚合方式为sum
-    JdbcAggregation aggregation;
+    DbAggregation aggregation;
 
-    JdbcColumn jdbcColumn;
+    DbColumn jdbcColumn;
 
-    JdbcModel jdbcModel;
+    TableModel jdbcModel;
 
     /**
      * JdbcColumnType
      */
-    JdbcColumnType type;
+    DbColumnType type;
 
     String alias;
 
     @ApiModelProperty("公式描述")
-    JdbcFormulaDef formulaDef;
+    DbFormulaDef formulaDef;
 
     FsscriptFunction formulaBuilder;
 
-    public void init(JdbcModel jdbcModel, JdbcMeasureDef measureDef) {
+    public void init(TableModel jdbcModel, JdbcMeasureDef measureDef) {
         this.jdbcModel = jdbcModel;
         if (StringUtils.isEmpty(column) && StringUtils.equalsIgnoreCase(measureDef.getAggregation(), "COUNT")) {
             //呃，COUNT下可以不用指定列名，但简单起见，我们使用id吧
@@ -57,7 +57,7 @@ public abstract class JdbcMeasureSupport extends JdbcObjectSupport implements Jd
         jdbcColumn = new MeasureJdbcColumn(jdbcModel.getQueryObject().getSqlColumn(column, true));
     }
 
-    public abstract class MeasureJdbcColumnSupport extends JdbcColumnSupport implements JdbcColumn, JdbcMeasureColumn {
+    public abstract class MeasureJdbcColumnSupport extends JdbcColumnSupport implements DbColumn, DbMeasureColumn {
         public MeasureJdbcColumnSupport(SqlColumn sqlColumn) {
             super(sqlColumn);
         }
@@ -68,7 +68,7 @@ public abstract class JdbcMeasureSupport extends JdbcObjectSupport implements Jd
         }
 
         @Override
-        public JdbcFormulaDef getFormulaDef() {
+        public DbFormulaDef getFormulaDef() {
             return formulaDef;
         }
 
@@ -83,17 +83,17 @@ public abstract class JdbcMeasureSupport extends JdbcObjectSupport implements Jd
         }
 
         @Override
-        public JdbcAggregation getAggregation() {
+        public DbAggregation getAggregation() {
             return aggregation;
         }
 
         @Override
-        public JdbcColumnType getType() {
+        public DbColumnType getType() {
             return type;
         }
 
         @Override
-        public JdbcMeasure getJdbcMeasure() {
+        public DbMeasure getJdbcMeasure() {
             return JdbcMeasureSupport.this;
         }
 
@@ -103,7 +103,7 @@ public abstract class JdbcMeasureSupport extends JdbcObjectSupport implements Jd
 
         @Override
         public boolean isCountColumn() {
-            return (aggregation != null) && (aggregation == JdbcAggregation.COUNT);
+            return (aggregation != null) && (aggregation == DbAggregation.COUNT);
         }
 
         @Override
@@ -112,7 +112,7 @@ public abstract class JdbcMeasureSupport extends JdbcObjectSupport implements Jd
         }
     }
 
-    public class MeasureJdbcColumn extends MeasureJdbcColumnSupport implements JdbcColumn {
+    public class MeasureJdbcColumn extends MeasureJdbcColumnSupport implements DbColumn {
 
         public MeasureJdbcColumn(SqlColumn sqlColumn) {
             super(sqlColumn);

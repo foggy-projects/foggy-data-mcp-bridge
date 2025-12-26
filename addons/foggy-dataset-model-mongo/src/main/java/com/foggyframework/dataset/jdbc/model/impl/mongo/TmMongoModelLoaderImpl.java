@@ -10,7 +10,7 @@ import com.foggyframework.dataset.jdbc.model.def.property.JdbcPropertyDef;
 import com.foggyframework.dataset.jdbc.model.def.query.JdbcQueryModelDef;
 import com.foggyframework.dataset.jdbc.model.engine.query_model.QueryModelSupport;
 import com.foggyframework.dataset.jdbc.model.impl.LoaderSupport;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcModel;
+import com.foggyframework.dataset.jdbc.model.spi.TableModel;
 import com.foggyframework.dataset.jdbc.model.spi.QueryModelBuilder;
 import com.foggyframework.dataset.jdbc.model.spi.TableModelLoader;
 import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
@@ -51,7 +51,7 @@ public class TmMongoModelLoaderImpl extends LoaderSupport implements TableModelL
     }
 
     @Override
-    public JdbcModel load(Fsscript fScript, JdbcModelDef def, Bundle bundle) {
+    public TableModel load(Fsscript fScript, JdbcModelDef def, Bundle bundle) {
         if (def.getDimensions() != null && def.getDimensions().size() > 0) {
             throw new RuntimeException("mongo model not support dimension");
         }
@@ -143,7 +143,7 @@ public class TmMongoModelLoaderImpl extends LoaderSupport implements TableModelL
     }
 
     @Override
-    public QueryModelSupport build(JdbcQueryModelDef queryModelDef, Fsscript fsscript, List<JdbcModel> jdbcModelDxList) {
+    public QueryModelSupport build(JdbcQueryModelDef queryModelDef, Fsscript fsscript, List<TableModel> jdbcModelDxList) {
         MongoTableModelImpl mainTm = jdbcModelDxList.get(0).getDecorate(MongoTableModelImpl.class);
         if (mainTm == null) {
             //非mongo模型，不做处理

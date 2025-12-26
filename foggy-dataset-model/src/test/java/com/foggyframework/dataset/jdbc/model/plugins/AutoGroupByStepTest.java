@@ -3,7 +3,7 @@ package com.foggyframework.dataset.jdbc.model.plugins;
 import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.jdbc.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.jdbc.model.def.query.request.GroupRequestDef;
-import com.foggyframework.dataset.jdbc.model.def.query.request.JdbcQueryRequestDef;
+import com.foggyframework.dataset.jdbc.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.jdbc.model.def.query.request.OrderRequestDef;
 import com.foggyframework.dataset.jdbc.model.plugins.result_set_filter.AutoGroupByStep;
 import com.foggyframework.dataset.jdbc.model.plugins.result_set_filter.InlineExpressionPreprocessStep;
@@ -54,7 +54,7 @@ class AutoGroupByStepTest {
     @DisplayName("autoGroupBy 参数已废弃 - 始终启用自动处理")
     void testAutoGroupByAlwaysEnabled() {
         // 即使设置 autoGroupBy=false，系统仍会自动处理
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setAutoGroupBy(false);  // 设置为 false 不再生效
         queryRequest.setColumns(Arrays.asList(
             "product$categoryName",
@@ -76,7 +76,7 @@ class AutoGroupByStepTest {
     @Order(2)
     @DisplayName("检测内联聚合表达式 - sum(salesAmount) as totalSales")
     void testDetectInlineAggregateExpression() {
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setAutoGroupBy(true);
         queryRequest.setColumns(Arrays.asList(
             "product$categoryName",
@@ -105,7 +105,7 @@ class AutoGroupByStepTest {
     @Order(3)
     @DisplayName("混合场景 - 多个列和聚合")
     void testMixedColumns() {
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setAutoGroupBy(true);
         queryRequest.setColumns(Arrays.asList(
             "product$categoryName",
@@ -148,7 +148,7 @@ class AutoGroupByStepTest {
     @Order(4)
     @DisplayName("多种聚合函数 - AVG, COUNT, MAX, MIN")
     void testVariousAggFunctions() {
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setAutoGroupBy(true);
         queryRequest.setColumns(Arrays.asList(
             "product$categoryName",
@@ -178,7 +178,7 @@ class AutoGroupByStepTest {
     @Order(5)
     @DisplayName("没有聚合表达式时不处理")
     void testNoAggregation() {
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setAutoGroupBy(true);
         queryRequest.setColumns(Arrays.asList(
             "product$categoryName",
@@ -197,7 +197,7 @@ class AutoGroupByStepTest {
     @Order(6)
     @DisplayName("calculatedField 带 agg 属性")
     void testCalculatedFieldWithAgg() {
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setAutoGroupBy(true);
 
         // 定义带 agg 的计算字段
@@ -234,7 +234,7 @@ class AutoGroupByStepTest {
     @Order(7)
     @DisplayName("不重复添加已存在的 groupBy 字段")
     void testNoDuplicateGroupBy() {
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setAutoGroupBy(true);
         queryRequest.setColumns(Arrays.asList(
             "product$categoryName",
@@ -270,7 +270,7 @@ class AutoGroupByStepTest {
     @Order(8)
     @DisplayName("大小写不敏感 - SUM/sum/Sum")
     void testCaseInsensitive() {
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setAutoGroupBy(true);
         queryRequest.setColumns(Arrays.asList(
             "product$categoryName",
@@ -303,7 +303,7 @@ class AutoGroupByStepTest {
     @Order(9)
     @DisplayName("orderBy 字段不在 SELECT 中时警告并忽略")
     void testOrderByNotInSelect_WarnAndRemove() {
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setAutoGroupBy(true);
         queryRequest.setColumns(Arrays.asList(
             "product$categoryName",
@@ -338,7 +338,7 @@ class AutoGroupByStepTest {
     @Order(10)
     @DisplayName("orderBy 字段全部不在 SELECT 中时设为 null")
     void testOrderByAllInvalid_SetNull() {
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setAutoGroupBy(true);
         queryRequest.setColumns(Arrays.asList(
             "product$categoryName",
@@ -368,7 +368,7 @@ class AutoGroupByStepTest {
     @Order(11)
     @DisplayName("orderBy 字段全部在 SELECT 中时保留")
     void testOrderByAllValid_Keep() {
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setAutoGroupBy(true);
         queryRequest.setColumns(Arrays.asList(
             "product$categoryName",
@@ -403,8 +403,8 @@ class AutoGroupByStepTest {
     /**
      * 创建测试用的 ModelResultContext
      */
-    private ModelResultContext createContext(JdbcQueryRequestDef queryRequest) {
-        PagingRequest<JdbcQueryRequestDef> pagingRequest = new PagingRequest<>();
+    private ModelResultContext createContext(DbQueryRequestDef queryRequest) {
+        PagingRequest<DbQueryRequestDef> pagingRequest = new PagingRequest<>();
         pagingRequest.setParam(queryRequest);
 
         ModelResultContext ctx = new ModelResultContext();

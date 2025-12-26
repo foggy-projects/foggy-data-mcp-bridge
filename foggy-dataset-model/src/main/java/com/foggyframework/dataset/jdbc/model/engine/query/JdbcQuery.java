@@ -7,8 +7,8 @@ import com.foggyframework.dataset.jdbc.model.engine.formula.JdbcLink;
 import com.foggyframework.dataset.jdbc.model.impl.query.JdbcQueryGroupColumnImpl;
 import com.foggyframework.dataset.jdbc.model.impl.query.JdbcQueryOrderColumnImpl;
 import com.foggyframework.dataset.jdbc.model.i18n.DatasetMessages;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcColumn;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryRequest;
+import com.foggyframework.dataset.jdbc.model.spi.DbColumn;
+import com.foggyframework.dataset.jdbc.model.spi.DbQueryRequest;
 import com.foggyframework.dataset.jdbc.model.spi.QueryObject;
 import com.foggyframework.dataset.jdbc.model.spi.support.AggregationJdbcColumn;
 import com.foggyframework.dataset.jdbc.model.spi.support.SimpleQueryObject;
@@ -33,7 +33,7 @@ public class JdbcQuery {
 
     JdbcGroupBy group;
 
-    JdbcQueryRequest queryRequest;
+    DbQueryRequest queryRequest;
 
     public void accept(JdbcQueryVisitor visitor) {
         visitor.acceptSelect(select);
@@ -114,16 +114,16 @@ public class JdbcQuery {
         return this;
     }
 
-    public JdbcQuery select(List<JdbcColumn> selectColumns) {
+    public JdbcQuery select(List<DbColumn> selectColumns) {
         RX.notNull(selectColumns, "参数selectColumns不得为空");
-        for (JdbcColumn selectColumn : selectColumns) {
+        for (DbColumn selectColumn : selectColumns) {
             select(selectColumn);
         }
         return this;
     }
 
 
-    public JdbcQuery select(JdbcColumn selectColumn) {
+    public JdbcQuery select(DbColumn selectColumn) {
         if (select == null) {
             select = new JdbcSelect();
         }
@@ -159,8 +159,8 @@ public class JdbcQuery {
 
     }
 
-    public boolean containSelect(JdbcColumn jdbcColumn) {
-        for (JdbcColumn column : select.columns) {
+    public boolean containSelect(DbColumn jdbcColumn) {
+        for (DbColumn column : select.columns) {
             if (StringUtils.equals(column.getAlias(), jdbcColumn.getAlias())) {
                 return true;
             }
@@ -168,7 +168,7 @@ public class JdbcQuery {
         return false;
     }
 
-    public void addGroupBy(AggregationJdbcColumn aggColumn, JdbcColumn column) {
+    public void addGroupBy(AggregationJdbcColumn aggColumn, DbColumn column) {
         if (group == null) {
             group = new JdbcGroupBy(1);
         }
@@ -178,18 +178,18 @@ public class JdbcQuery {
     @Data
     public class JdbcSelect {
 
-        List<JdbcColumn> columns;
+        List<DbColumn> columns;
 
         boolean distinct;
 
-        public JdbcSelect select(JdbcColumn selectColumn) {
+        public JdbcSelect select(DbColumn selectColumn) {
 
             RX.notNull(from, "调用select之前，需要先调用from");
 
             if (columns == null) {
                 columns = new ArrayList<>();
             }
-            for (JdbcColumn column : columns) {
+            for (DbColumn column : columns) {
                 if (column == selectColumn) {
 //                    throw RX.throwAUserTip("列[" + column + "]已经存在，请不要重复添加", "系统异常");
                     return this;

@@ -34,7 +34,7 @@ public class JdbcTableModelLoaderImpl extends LoaderSupport implements TableMode
 
 
     @Override
-    public JdbcModel load(Fsscript fScript, JdbcModelDef def, Bundle bundle) {
+    public TableModel load(Fsscript fScript, JdbcModelDef def, Bundle bundle) {
         DataSource dataSource = def.getDataSource() == null ? this.defaultDataSource : def.getDataSource();
 
         RX.notNull(dataSource, "加载模型时的数据源不得为空");
@@ -59,7 +59,7 @@ public class JdbcTableModelLoaderImpl extends LoaderSupport implements TableMode
 
 
     @Override
-    public QueryModelSupport build(JdbcQueryModelDef queryModelDef, Fsscript fsscript, List<JdbcModel> jdbcModelDxList) {
+    public QueryModelSupport build(JdbcQueryModelDef queryModelDef, Fsscript fsscript, List<TableModel> jdbcModelDxList) {
         JdbcTableModelImpl mainTm = jdbcModelDxList.get(0).getDecorate(JdbcTableModelImpl.class);
         if (mainTm == null) {
             //非mysql模型，不做处理
@@ -68,7 +68,7 @@ public class JdbcTableModelLoaderImpl extends LoaderSupport implements TableMode
         /**
          * 检查，必须都是jdbc模型
          */
-        for (JdbcModel jdbcModel : jdbcModelDxList) {
+        for (TableModel jdbcModel : jdbcModelDxList) {
             JdbcTableModelImpl tm = jdbcModel.getDecorate(JdbcTableModelImpl.class);
             if (tm == null) {
                 throw RX.throwB("查询模型%s中只能引用jdbc模型，但%s不是".formatted(queryModelDef.getName(), jdbcModel.getName()));
@@ -78,7 +78,7 @@ public class JdbcTableModelLoaderImpl extends LoaderSupport implements TableMode
         DataSource ds = queryModelDef.getDataSource();
 
         if(ds == null) {
-            for (JdbcModel jdbcModel : jdbcModelDxList) {
+            for (TableModel jdbcModel : jdbcModelDxList) {
                 JdbcTableModelImpl tm = jdbcModel.getDecorate(JdbcTableModelImpl.class);
                 if (tm.getDataSource() != null) {
                     if (ds == null) {

@@ -2,10 +2,9 @@ package com.foggyframework.dataset.jdbc.model.plugins.result_set_filter;
 
 import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.jdbc.model.def.query.request.CalculatedFieldDef;
-import com.foggyframework.dataset.jdbc.model.def.query.request.JdbcQueryRequestDef;
+import com.foggyframework.dataset.jdbc.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.jdbc.model.engine.expression.InlineExpressionParser;
 import com.foggyframework.dataset.jdbc.model.engine.query.JdbcQuery;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryModel;
 import com.foggyframework.dataset.jdbc.model.spi.QueryModel;
 import com.foggyframework.dataset.jdbc.model.spi.support.CalculatedJdbcColumn;
 import com.foggyframework.dataset.model.PagingResultImpl;
@@ -22,7 +21,7 @@ import java.util.Map;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ModelResultContext {
-    PagingRequest<JdbcQueryRequestDef> request;
+    PagingRequest<DbQueryRequestDef> request;
 
     PagingResultImpl pagingResult;
 
@@ -208,7 +207,7 @@ public class ModelResultContext {
         }
     }
 
-    public ModelResultContext(PagingRequest<JdbcQueryRequestDef> request, PagingResultImpl pagingResult) {
+    public ModelResultContext(PagingRequest<DbQueryRequestDef> request, PagingResultImpl pagingResult) {
         this.request = request;
         this.pagingResult = pagingResult;
     }
@@ -216,7 +215,7 @@ public class ModelResultContext {
     /**
      * 带安全上下文的构造函数
      */
-    public ModelResultContext(PagingRequest<JdbcQueryRequestDef> request, PagingResultImpl pagingResult,
+    public ModelResultContext(PagingRequest<DbQueryRequestDef> request, PagingResultImpl pagingResult,
                               SecurityContext securityContext) {
         this.request = request;
         this.pagingResult = pagingResult;

@@ -50,7 +50,7 @@ class BasicQueryTest extends EcommerceTestSupport {
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
         // 创建查询请求
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactOrderQueryModel");
 
         // 设置查询列
@@ -86,7 +86,7 @@ class BasicQueryTest extends EcommerceTestSupport {
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
         // 创建查询请求
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesQueryModel");
 
         // 设置查询列，包含维度属性
@@ -120,7 +120,7 @@ class BasicQueryTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactOrderQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactOrderQueryModel");
 
         // 设置多个维度的列
@@ -158,7 +158,7 @@ class BasicQueryTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactOrderQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactOrderQueryModel");
         queryRequest.setColumns(Arrays.asList("orderId", "orderStatus", "totalAmount"));
 
@@ -188,7 +188,7 @@ class BasicQueryTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesQueryModel");
         queryRequest.setColumns(Arrays.asList("orderId", "orderLineNo", "salesAmount", "salesDate$caption"));
 
@@ -217,7 +217,7 @@ class BasicQueryTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactOrderQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactOrderQueryModel");
         queryRequest.setColumns(Arrays.asList("orderId", "orderStatus", "totalAmount"));
 
@@ -247,7 +247,7 @@ class BasicQueryTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesQueryModel");
         queryRequest.setColumns(Arrays.asList(
             "orderId",
@@ -295,7 +295,7 @@ class BasicQueryTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactOrderQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactOrderQueryModel");
         queryRequest.setColumns(Arrays.asList("orderId", "orderTime", "totalAmount"));
 
@@ -324,7 +324,7 @@ class BasicQueryTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesQueryModel");
         queryRequest.setColumns(Arrays.asList("orderId", "orderLineNo", "salesDate$caption", "salesAmount"));
 
@@ -359,7 +359,7 @@ class BasicQueryTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactOrderQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactOrderQueryModel");
         queryRequest.setColumns(Arrays.asList("orderId", "promotion$caption", "discountAmount"));
 
@@ -387,7 +387,7 @@ class BasicQueryTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactOrderQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactOrderQueryModel");
         queryRequest.setColumns(Arrays.asList("orderId", "orderTime", "totalAmount"));
 

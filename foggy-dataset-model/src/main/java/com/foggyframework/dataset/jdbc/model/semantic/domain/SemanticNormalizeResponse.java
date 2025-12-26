@@ -1,6 +1,6 @@
 package com.foggyframework.dataset.jdbc.model.semantic.domain;
 
-import com.foggyframework.dataset.jdbc.model.def.query.request.JdbcQueryRequestDef;
+import com.foggyframework.dataset.jdbc.model.def.query.request.DbQueryRequestDef;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
@@ -20,7 +20,7 @@ public class SemanticNormalizeResponse {
     private SemanticQueryRequest originalRequest;
     
     @ApiModelProperty(value = "归一化后的JDBC请求")
-    private JdbcQueryRequestDef normalizedJdbcRequest;
+    private DbQueryRequestDef normalizedJdbcRequest;
     
     @ApiModelProperty(value = "字段映射关系")
     private FieldMappings fieldMappings;

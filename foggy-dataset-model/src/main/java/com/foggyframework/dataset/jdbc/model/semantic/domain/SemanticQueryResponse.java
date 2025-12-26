@@ -1,6 +1,6 @@
 package com.foggyframework.dataset.jdbc.model.semantic.domain;
 
-import com.foggyframework.dataset.jdbc.model.spi.JdbcColumnType;
+import com.foggyframework.dataset.jdbc.model.spi.DbColumnType;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
@@ -94,7 +94,7 @@ public class SemanticQueryResponse {
             private String name;
 
             @ApiModelProperty(value = "数据类型", example = "STRING")
-            private JdbcColumnType dataType;
+            private DbColumnType dataType;
 
             @ApiModelProperty(value = "列标题", example = "团队")
             private String title;

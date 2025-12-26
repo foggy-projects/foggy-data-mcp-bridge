@@ -4,7 +4,7 @@ import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.core.utils.beanhelper.BeanInfoHelper;
 import com.foggyframework.dataset.jdbc.model.def.dict.JdbcDictDef;
 import com.foggyframework.dataset.jdbc.model.impl.AiObject;
-import com.foggyframework.dataset.jdbc.model.impl.dimension.JdbcDimensionSupport;
+import com.foggyframework.dataset.jdbc.model.impl.dimension.DbDimensionSupport;
 import com.foggyframework.dataset.jdbc.model.semantic.domain.SemanticMetadataRequest;
 import com.foggyframework.dataset.jdbc.model.semantic.domain.SemanticMetadataResponse;
 import com.foggyframework.dataset.jdbc.model.semantic.service.SemanticServiceV3;
@@ -37,13 +37,13 @@ import java.util.*;
 public class SemanticServiceV3Impl implements SemanticServiceV3 {
 
     @Resource
-    private JdbcQueryModelLoader jdbcQueryModelLoader;
+    private QueryModelLoader queryModelLoader;
 
     @Resource
     private SemanticFacade semanticFacade;
 
     @Autowired(required = false)
-    private JdbcModelDictService jdbcModelDictService;
+    private DbModelDictService dbModelDictService;
 
     @Override
     public SemanticMetadataResponse getMetadata(SemanticMetadataRequest request, String format) {
@@ -76,7 +76,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         Map<String, Object> models = new LinkedHashMap<>();
 
         for (String qmModelName : request.getQmModels()) {
-            QueryModel queryModel = jdbcQueryModelLoader.getJdbcQueryModel(qmModelName);
+            QueryModel queryModel = queryModelLoader.getJdbcQueryModel(qmModelName);
             if (queryModel == null) {
                 continue;
             }
@@ -137,12 +137,12 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
      * </ul>
      */
     private String buildSingleModelMarkdown(String modelName, SemanticMetadataRequest request) {
-        QueryModel queryModel = jdbcQueryModelLoader.getJdbcQueryModel(modelName);
+        QueryModel queryModel = queryModelLoader.getJdbcQueryModel(modelName);
         if (queryModel == null) {
             return "# 错误\n\n模型不存在: " + modelName;
         }
 
-        JdbcModel jdbcModel = queryModel.getJdbcModel();
+        TableModel jdbcModel = queryModel.getJdbcModel();
         StringBuilder md = new StringBuilder();
 
         // 收集字典引用
@@ -166,13 +166,13 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         md.append("\n");
 
         // ========== 维度字段 ==========
-        List<JdbcDimension> dimensions = jdbcModel.getDimensions();
+        List<DbDimension> dimensions = jdbcModel.getDimensions();
         if (dimensions != null && !dimensions.isEmpty()) {
             md.append("## 维度字段\n");
             md.append("| 字段名 | 名称 | 类型 | 说明 |\n");
             md.append("|--------|------|------|------|\n");
 
-            for (JdbcDimension dimension : dimensions) {
+            for (DbDimension dimension : dimensions) {
                 if (!isFieldInLevels(dimension.getAi(), request.getLevels())) {
                     continue;
                 }
@@ -199,8 +199,8 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                         .append(" |\n");
 
                 // 维度属性
-                if (dimension instanceof JdbcDimensionSupport) {
-                    for (JdbcProperty prop : ((JdbcDimensionSupport) dimension).getJdbcProperties()) {
+                if (dimension instanceof DbDimensionSupport) {
+                    for (DbProperty prop : ((DbDimensionSupport) dimension).getJdbcProperties()) {
                         if (!isFieldInLevels(prop.getAi(), request.getLevels())) {
                             continue;
                         }
@@ -237,10 +237,10 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         }
 
         // ========== 属性字段 ==========
-        List<JdbcQueryProperty> queryProperties = queryModel.getQueryProperties();
+        List<DbQueryProperty> queryProperties = queryModel.getQueryProperties();
         if (queryProperties != null && !queryProperties.isEmpty()) {
             // 过滤掉已在维度字段中输出的属性
-            List<JdbcQueryProperty> filteredProperties = queryProperties.stream()
+            List<DbQueryProperty> filteredProperties = queryProperties.stream()
                     .filter(qp -> !dimensionFieldNames.contains(qp.getJdbcProperty().getName()))
                     .toList();
 
@@ -249,11 +249,11 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                 md.append("| 字段名 | 名称 | 类型 | 说明 |\n");
                 md.append("|--------|------|------|------|\n");
 
-                for (JdbcQueryProperty queryProperty : filteredProperties) {
+                for (DbQueryProperty queryProperty : filteredProperties) {
                     if (!isFieldInLevels(queryProperty.getAi(), request.getLevels())) {
                         continue;
                     }
-                    JdbcProperty property = queryProperty.getJdbcProperty();
+                    DbProperty property = queryProperty.getJdbcProperty();
                     String fieldName = property.getName();
                     String fieldCaption = property.getCaption() != null ? property.getCaption() : fieldName;
                     String fieldType = getDataTypeDescription(property.getPropertyJdbcColumn().getType());
@@ -285,13 +285,13 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         }
 
         // ========== 度量字段 ==========
-        List<JdbcMeasure> measures = jdbcModel.getMeasures();
+        List<DbMeasure> measures = jdbcModel.getMeasures();
         if (measures != null && !measures.isEmpty()) {
             md.append("## 度量字段\n");
             md.append("| 字段名 | 名称 | 类型 | 聚合 | 说明 |\n");
             md.append("|--------|------|------|------|------|\n");
 
-            for (JdbcMeasure measure : measures) {
+            for (DbMeasure measure : measures) {
                 if (!isFieldInLevels(measure.getAi(), request.getLevels())) {
                     continue;
                 }
@@ -318,8 +318,8 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             md.append("|----|------|------|\n");
 
             for (String dictId : referencedDictIds) {
-                if (jdbcModelDictService != null) {
-                    JdbcDictDef dictDef = jdbcModelDictService.getDictById(dictId);
+                if (dbModelDictService != null) {
+                    JdbcDictDef dictDef = dbModelDictService.getDictById(dictId);
                     if (dictDef != null) {
                         String dictCaption = dictDef.getCaption() != null ? dictDef.getCaption() : dictId;
                         String itemsSummary = dictDef.getItemsSummary();
@@ -377,7 +377,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         Set<DictInfo> referencedDictClasses = new LinkedHashSet<>();
 
         for (String qmModelName : request.getQmModels()) {
-            QueryModel queryModel = jdbcQueryModelLoader.getJdbcQueryModel(qmModelName);
+            QueryModel queryModel = queryModelLoader.getJdbcQueryModel(qmModelName);
             if (queryModel == null) {
                 continue;
             }
@@ -419,8 +419,8 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
 
             // 输出 fsscript 字典
             for (String dictId : referencedDictIds) {
-                if (jdbcModelDictService != null) {
-                    JdbcDictDef dictDef = jdbcModelDictService.getDictById(dictId);
+                if (dbModelDictService != null) {
+                    JdbcDictDef dictDef = dbModelDictService.getDictById(dictId);
                     if (dictDef != null) {
                         String caption = dictDef.getCaption() != null ? dictDef.getCaption() : dictId;
                         String itemsSummary = dictDef.getItemsSummary();
@@ -632,10 +632,10 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
      */
     private void processModelFieldsV3(QueryModel queryModel, Map<String, Object> fields,
                                       List<String> fieldFilter, List<Integer> levels) {
-        JdbcModel jdbcModel = queryModel.getJdbcModel();
+        TableModel jdbcModel = queryModel.getJdbcModel();
 
         // 处理维度（展开为 $id 和 $caption）
-        for (JdbcDimension dimension : jdbcModel.getDimensions()) {
+        for (DbDimension dimension : jdbcModel.getDimensions()) {
             if (!isFieldInLevels(dimension.getAi(), levels)) {
                 continue;
             }
@@ -659,7 +659,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             fields.put(captionFieldName, captionFieldInfo);
 
             // 3. 处理维度属性
-            for (JdbcProperty prop : ((JdbcDimensionSupport) dimension).getJdbcProperties()) {
+            for (DbProperty prop : ((DbDimensionSupport) dimension).getJdbcProperties()) {
                 if (!isFieldInLevels(prop.getAi(), levels)) {
                     continue;
                 }
@@ -670,12 +670,12 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         }
 
         // 处理属性
-        for (JdbcQueryProperty queryProperty : queryModel.getQueryProperties()) {
+        for (DbQueryProperty queryProperty : queryModel.getQueryProperties()) {
             if (!isFieldInLevels(queryProperty.getAi(), levels)) {
                 continue;
             }
 
-            JdbcProperty property = queryProperty.getJdbcProperty();
+            DbProperty property = queryProperty.getJdbcProperty();
             String fieldName = property.getName();
             if (fieldFilter != null && !fieldFilter.contains(fieldName)) {
                 continue;
@@ -686,7 +686,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         }
 
         // 处理度量
-        for (JdbcMeasure measure : jdbcModel.getMeasures()) {
+        for (DbMeasure measure : jdbcModel.getMeasures()) {
             if (!isFieldInLevels(measure.getAi(), levels)) {
                 continue;
             }
@@ -704,7 +704,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
     /**
      * 创建维度 $id 字段信息
      */
-    private Map<String, Object> createDimensionIdFieldInfo(JdbcDimension dimension, String modelName) {
+    private Map<String, Object> createDimensionIdFieldInfo(DbDimension dimension, String modelName) {
         Map<String, Object> fieldInfo = new LinkedHashMap<>();
         String baseName = dimension.getEffectiveName();
 
@@ -731,7 +731,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
     /**
      * 创建维度 $caption 字段信息
      */
-    private Map<String, Object> createDimensionCaptionFieldInfo(JdbcDimension dimension, String modelName) {
+    private Map<String, Object> createDimensionCaptionFieldInfo(DbDimension dimension, String modelName) {
         Map<String, Object> fieldInfo = new LinkedHashMap<>();
         String baseName = dimension.getEffectiveName();
 
@@ -755,7 +755,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
     /**
      * 创建维度属性字段信息
      */
-    private Map<String, Object> createDimensionPropertyFieldInfo(JdbcDimension dimension, JdbcProperty prop, String modelName) {
+    private Map<String, Object> createDimensionPropertyFieldInfo(DbDimension dimension, DbProperty prop, String modelName) {
         Map<String, Object> fieldInfo = new LinkedHashMap<>();
         String baseName = dimension.getEffectiveName();
         String propName = baseName + "$" + prop.getName();
@@ -779,9 +779,9 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
     /**
      * 获取 $id 的类型描述
      */
-    private String getIdTypeDescription(JdbcDimension dimension) {
-        JdbcDimensionType type = dimension.getType();
-        if (JdbcDimensionType.DATETIME == type || JdbcDimensionType.DAY == type) {
+    private String getIdTypeDescription(DbDimension dimension) {
+        DbDimensionType type = dimension.getType();
+        if (DbDimensionType.DATETIME == type || DbDimensionType.DAY == type) {
             return "日期";
         }
         return "数值/文本";
@@ -790,7 +790,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
     /**
      * 获取 $id 的格式提示（从 AI 配置或 keyDescription 获取）
      */
-    private String getIdFormatHint(JdbcDimension dimension) {
+    private String getIdFormatHint(DbDimension dimension) {
         // 优先从 keyDescription 获取
         String keyDesc = dimension.getKeyDescription();
         if (StringUtils.isNotEmpty(keyDesc)) {
@@ -808,10 +808,10 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         }
 
         // 基于维度类型推断（仅类型，不基于名称）
-        JdbcDimensionType type = dimension.getType();
-        if (JdbcDimensionType.DATETIME == type) {
+        DbDimensionType type = dimension.getType();
+        if (DbDimensionType.DATETIME == type) {
             return "格式: yyyyMMddHHmmss";
-        } else if (JdbcDimensionType.DAY == type) {
+        } else if (DbDimensionType.DAY == type) {
             return "格式: yyyyMMdd";
         }
 
@@ -822,20 +822,20 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
     /**
      * 获取 $caption 的格式提示
      */
-    private String getCaptionFormatHint(JdbcDimension dimension) {
+    private String getCaptionFormatHint(DbDimension dimension) {
         // 检查是否有 keyCaption 配置
-        if (dimension instanceof JdbcDimensionSupport) {
-            String keyCaption = ((JdbcDimensionSupport) dimension).getKeyCaption();
+        if (dimension instanceof DbDimensionSupport) {
+            String keyCaption = ((DbDimensionSupport) dimension).getKeyCaption();
             if (StringUtils.isNotEmpty(keyCaption)) {
                 return keyCaption;
             }
         }
 
         // 基于维度类型推断
-        JdbcDimensionType type = dimension.getType();
-        if (JdbcDimensionType.DATETIME == type) {
+        DbDimensionType type = dimension.getType();
+        if (DbDimensionType.DATETIME == type) {
             return "格式: yyyy-MM-dd HH:mm:ss";
-        } else if (JdbcDimensionType.DAY == type) {
+        } else if (DbDimensionType.DAY == type) {
             return "格式: yyyy年MM月dd日 或 yyyy-MM-dd";
         }
 
@@ -845,7 +845,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
     /**
      * 构建 $id 字段描述
      */
-    private String buildIdDescription(JdbcDimension dimension) {
+    private String buildIdDescription(DbDimension dimension) {
         StringBuilder sb = new StringBuilder();
         sb.append(dimension.getEffectiveName()).append("$id");
 
@@ -865,7 +865,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
     /**
      * 构建 $caption 字段描述
      */
-    private String buildCaptionDescription(JdbcDimension dimension) {
+    private String buildCaptionDescription(DbDimension dimension) {
         StringBuilder sb = new StringBuilder();
         sb.append(dimension.getEffectiveName()).append("$caption");
 
@@ -895,10 +895,10 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
     private void collectFieldsInfoV3(QueryModel queryModel, Map<String, FieldInfoV3> allFields,
                                      List<String> fieldFilter, List<Integer> levels,
                                      Set<String> referencedDictIds, Set<DictInfo> referencedDictClasses) {
-        JdbcModel jdbcModel = queryModel.getJdbcModel();
+        TableModel jdbcModel = queryModel.getJdbcModel();
 
         // 收集维度信息（展开为 $id 和 $caption）
-        for (JdbcDimension dimension : jdbcModel.getDimensions()) {
+        for (DbDimension dimension : jdbcModel.getDimensions()) {
             if (!isFieldInLevels(dimension.getAi(), levels)) {
                 continue;
             }
@@ -921,7 +921,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             captionFieldInfo.addDimensionCaption(dimension, queryModel.getName(), this);
 
             // 维度属性
-            for (JdbcProperty prop : ((JdbcDimensionSupport) dimension).getJdbcProperties()) {
+            for (DbProperty prop : ((DbDimensionSupport) dimension).getJdbcProperties()) {
                 if (!isFieldInLevels(prop.getAi(), levels)) {
                     continue;
                 }
@@ -933,12 +933,12 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         }
 
         // 收集属性信息
-        for (JdbcQueryProperty queryProperty : queryModel.getQueryProperties()) {
+        for (DbQueryProperty queryProperty : queryModel.getQueryProperties()) {
             if (!isFieldInLevels(queryProperty.getAi(), levels)) {
                 continue;
             }
 
-            JdbcProperty property = queryProperty.getJdbcProperty();
+            DbProperty property = queryProperty.getJdbcProperty();
             String fieldName = property.getName();
             if (fieldFilter != null && !fieldFilter.contains(fieldName)) {
                 continue;
@@ -950,7 +950,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         }
 
         // 收集度量信息
-        for (JdbcQueryColumn queryColumn : queryModel.getJdbcQueryColumns()) {
+        for (DbQueryColumn queryColumn : queryModel.getJdbcQueryColumns()) {
             if (queryColumn.isMeasure()) {
                 if (!isFieldInLevels(queryColumn.getAi(), levels)) {
                     continue;
@@ -1004,7 +1004,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         models.put(queryModel.getName(), modelInfo);
     }
 
-    private Map<String, Object> createPropertyFieldInfo(JdbcProperty property, String modelName) {
+    private Map<String, Object> createPropertyFieldInfo(DbProperty property, String modelName) {
         Map<String, Object> fieldInfo = new LinkedHashMap<>();
         fieldInfo.put("name", property.getCaption() != null ? property.getCaption() : property.getName());
         fieldInfo.put("fieldName", property.getName());
@@ -1022,7 +1022,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         return fieldInfo;
     }
 
-    private Map<String, Object> createMeasureFieldInfo(JdbcMeasure measure, String modelName) {
+    private Map<String, Object> createMeasureFieldInfo(DbMeasure measure, String modelName) {
         Map<String, Object> fieldInfo = new LinkedHashMap<>();
         fieldInfo.put("name", measure.getCaption() != null ? measure.getCaption() : measure.getName());
         fieldInfo.put("fieldName", measure.getName());
@@ -1040,10 +1040,10 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         return fieldInfo;
     }
 
-    private String getDataTypeDescription(JdbcColumnType jdbcColumnType) {
-        if (jdbcColumnType == null) return "文本";
+    private String getDataTypeDescription(DbColumnType dbColumnType) {
+        if (dbColumnType == null) return "文本";
 
-        switch (jdbcColumnType) {
+        switch (dbColumnType) {
             case DICT:
                 return "字典";
             case MONEY:
@@ -1121,7 +1121,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         private String fieldType;
         private Map<String, ModelUsage> modelUsages = new LinkedHashMap<>();
 
-        public void addDimensionId(JdbcDimension dimension, String modelName, SemanticServiceV3Impl service) {
+        public void addDimensionId(DbDimension dimension, String modelName, SemanticServiceV3Impl service) {
             String baseName = dimension.getEffectiveName();
             this.displayName = service.getCaption(dimension) + "(ID)";
 
@@ -1135,7 +1135,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             modelUsages.put(modelName, usage);
         }
 
-        public void addDimensionCaption(JdbcDimension dimension, String modelName, SemanticServiceV3Impl service) {
+        public void addDimensionCaption(DbDimension dimension, String modelName, SemanticServiceV3Impl service) {
             String baseName = dimension.getEffectiveName();
             this.displayName = service.getCaption(dimension) + "(名称)";
 
@@ -1148,9 +1148,9 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             modelUsages.put(modelName, usage);
         }
 
-        public void addDimensionProperty(JdbcDimension dimension, JdbcProperty prop, String modelName,
-                                           SemanticServiceV3Impl service,
-                                           Set<String> referencedDictIds, Set<DictInfo> referencedDictClasses) {
+        public void addDimensionProperty(DbDimension dimension, DbProperty prop, String modelName,
+                                         SemanticServiceV3Impl service,
+                                         Set<String> referencedDictIds, Set<DictInfo> referencedDictClasses) {
             this.displayName = prop.getCaption() != null ? prop.getCaption() : prop.getName();
 
             String dataType = service.getDataTypeDescription(prop.getPropertyJdbcColumn().getType());
@@ -1183,9 +1183,9 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             modelUsages.put(modelName, usage);
         }
 
-        public void addProperty(JdbcQueryProperty queryProperty, String modelName, SemanticServiceV3Impl service,
+        public void addProperty(DbQueryProperty queryProperty, String modelName, SemanticServiceV3Impl service,
                                 Set<String> referencedDictIds, Set<DictInfo> referencedDictClasses) {
-            JdbcProperty property = queryProperty.getJdbcProperty();
+            DbProperty property = queryProperty.getJdbcProperty();
             this.displayName = service.getCaption(property);
 
             String dataType = service.getDataTypeDescription(property.getPropertyJdbcColumn().getType());
@@ -1218,7 +1218,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             modelUsages.put(modelName, usage);
         }
 
-        public void addMeasure(JdbcQueryColumn measure, String modelName, SemanticServiceV3Impl service) {
+        public void addMeasure(DbQueryColumn measure, String modelName, SemanticServiceV3Impl service) {
             this.displayName = service.getCaption(measure);
             this.meta = "度量 | 数值" + (measure.getAggregation() != null ? " | 默认聚合:" + measure.getAggregation() : "");
             this.fieldType = "measure";
@@ -1232,7 +1232,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         @Data
         public static class ModelUsage {
             private String description;
-            private JdbcAggregation aggregation;
+            private DbAggregation aggregation;
             /** fsscript 字典引用ID */
             private String dictRef;
             /** Java类字典信息（兼容旧方式） */

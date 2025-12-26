@@ -4,10 +4,10 @@ import com.foggyframework.core.AbstractDecorate;
 import com.foggyframework.core.trans.ObjectTransFormatter;
 import com.foggyframework.dataset.db.table.SqlColumn;
 import com.foggyframework.dataset.jdbc.model.impl.AiObject;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcColumn;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcColumnType;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryColumn;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryCondition;
+import com.foggyframework.dataset.jdbc.model.spi.DbColumn;
+import com.foggyframework.dataset.jdbc.model.spi.DbColumnType;
+import com.foggyframework.dataset.jdbc.model.spi.DbQueryColumn;
+import com.foggyframework.dataset.jdbc.model.spi.DbQueryCondition;
 import com.foggyframework.dataset.jdbc.model.spi.QueryObject;
 import lombok.Data;
 import org.bson.Document;
@@ -27,7 +27,7 @@ import java.util.Set;
  * @since 1.0
  */
 @Data
-public class MongoCalculatedColumn extends AbstractDecorate implements JdbcQueryColumn {
+public class MongoCalculatedColumn extends AbstractDecorate implements DbQueryColumn {
 
     /**
      * 字段名（在 columns 中引用的名称）
@@ -52,7 +52,7 @@ public class MongoCalculatedColumn extends AbstractDecorate implements JdbcQuery
     /**
      * 数据类型
      */
-    private JdbcColumnType type;
+    private DbColumnType type;
 
     /**
      * 是否已被引用
@@ -79,7 +79,7 @@ public class MongoCalculatedColumn extends AbstractDecorate implements JdbcQuery
      * 获取数据类型
      */
     @Override
-    public JdbcColumnType getType() {
+    public DbColumnType getType() {
         if (type != null) {
             return type;
         }
@@ -98,7 +98,7 @@ public class MongoCalculatedColumn extends AbstractDecorate implements JdbcQuery
     /**
      * 获取依赖的列
      */
-    public Set<JdbcQueryColumn> getReferencedColumns() {
+    public Set<DbQueryColumn> getReferencedColumns() {
         return mongoFragment.getReferencedColumns();
     }
 
@@ -139,12 +139,12 @@ public class MongoCalculatedColumn extends AbstractDecorate implements JdbcQuery
     }
 
     @Override
-    public JdbcColumn getSelectColumn() {
+    public DbColumn getSelectColumn() {
         return this;
     }
 
     @Override
-    public JdbcQueryCondition getJdbcQueryCond() {
+    public DbQueryCondition getJdbcQueryCond() {
         return null;
     }
 
@@ -160,7 +160,7 @@ public class MongoCalculatedColumn extends AbstractDecorate implements JdbcQuery
 
     @Override
     public ObjectTransFormatter<?> getFormatter() {
-        JdbcColumnType inferredType = mongoFragment.getInferredType();
+        DbColumnType inferredType = mongoFragment.getInferredType();
         return inferredType.getFormatter();
     }
 

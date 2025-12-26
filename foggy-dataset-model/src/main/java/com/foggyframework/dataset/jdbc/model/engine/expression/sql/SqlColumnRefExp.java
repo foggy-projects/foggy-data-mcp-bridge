@@ -2,7 +2,7 @@ package com.foggyframework.dataset.jdbc.model.engine.expression.sql;
 
 import com.foggyframework.dataset.jdbc.model.engine.expression.SqlExpContext;
 import com.foggyframework.dataset.jdbc.model.engine.expression.SqlFragment;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryColumn;
+import com.foggyframework.dataset.jdbc.model.spi.DbQueryColumn;
 import com.foggyframework.dataset.jdbc.model.spi.support.CalculatedJdbcColumn;
 import com.foggyframework.fsscript.exp.AbstractExp;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
@@ -47,7 +47,7 @@ public class SqlColumnRefExp extends AbstractExp<String> {
         }
 
         // 解析列名 → JdbcQueryColumn
-        JdbcQueryColumn column = ctx.resolveColumn(value);
+        DbQueryColumn column = ctx.resolveColumn(value);
         if (log.isDebugEnabled()) {
             log.debug("SqlColumnRefExp.evalValue: resolved column type={}", column.getClass().getName());
         }

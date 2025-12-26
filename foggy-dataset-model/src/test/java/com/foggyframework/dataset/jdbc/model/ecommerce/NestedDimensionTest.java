@@ -4,8 +4,8 @@ import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.jdbc.model.common.query.CondType;
 import com.foggyframework.dataset.jdbc.model.def.query.request.*;
 import com.foggyframework.dataset.jdbc.model.service.JdbcService;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcDimension;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcModel;
+import com.foggyframework.dataset.jdbc.model.spi.DbDimension;
+import com.foggyframework.dataset.jdbc.model.spi.TableModel;
 import com.foggyframework.dataset.model.PagingResultImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.*;
@@ -130,15 +130,15 @@ class NestedDimensionTest extends EcommerceTestSupport {
     @Order(10)
     @DisplayName("模型加载 - 验证嵌套维度结构")
     void testModelLoading_NestedDimensionStructure() {
-        JdbcModel model = tableModelLoaderManager.load("FactSalesNestedDimModel");
+        TableModel model = tableModelLoaderManager.load("FactSalesNestedDimModel");
 
         assertNotNull(model, "模型应能正确加载");
         assertEquals("FactSalesNestedDimModel", model.getName());
 
         // 验证维度数量（包括嵌套维度，共应有7个维度：salesDate, product, category, group, store, region）
-        List<JdbcDimension> dimensions = model.getDimensions();
+        List<DbDimension> dimensions = model.getDimensions();
         log.info("模型维度数量: {}", dimensions.size());
-        for (JdbcDimension dim : dimensions) {
+        for (DbDimension dim : dimensions) {
             log.info("  维度: {}, 别名: {}, 是否嵌套: {}, 父维度: {}",
                     dim.getName(),
                     dim.getAlias(),
@@ -147,20 +147,20 @@ class NestedDimensionTest extends EcommerceTestSupport {
         }
 
         // 验证顶层维度
-        JdbcDimension productDim = model.findJdbcDimensionByName("product");
+        DbDimension productDim = model.findJdbcDimensionByName("product");
         assertNotNull(productDim, "应有 product 维度");
         assertFalse(productDim.isNestedDimension(), "product 应是顶层维度");
         assertTrue(productDim.hasChildDimensions(), "product 应有子维度");
 
         // 验证嵌套维度 - 品类
-        JdbcDimension categoryDim = model.findJdbcDimensionByName("category");
+        DbDimension categoryDim = model.findJdbcDimensionByName("category");
         assertNotNull(categoryDim, "应有 category 维度");
         assertTrue(categoryDim.isNestedDimension(), "category 应是嵌套维度");
         assertEquals("productCategory", categoryDim.getAlias(), "category 的别名应是 productCategory");
         assertEquals("product", categoryDim.getParentDimension().getName(), "category 的父维度应是 product");
 
         // 验证嵌套维度 - 品类组
-        JdbcDimension groupDim = model.findJdbcDimensionByName("group");
+        DbDimension groupDim = model.findJdbcDimensionByName("group");
         assertNotNull(groupDim, "应有 group 维度");
         assertTrue(groupDim.isNestedDimension(), "group 应是嵌套维度");
         assertEquals("categoryGroup", groupDim.getAlias(), "group 的别名应是 categoryGroup");
@@ -179,7 +179,7 @@ class NestedDimensionTest extends EcommerceTestSupport {
     @Order(20)
     @DisplayName("查询测试 - 通过别名访问嵌套维度")
     void testQuery_AccessByAlias() {
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesNestedDimQueryModel");
 
         // 使用别名访问嵌套维度列
@@ -190,7 +190,7 @@ class NestedDimensionTest extends EcommerceTestSupport {
                 "salesAmount"
         ));
 
-        PagingRequest<JdbcQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 20);
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 20);
         PagingResultImpl result = jdbcService.queryModelData(form);
 
         assertNotNull(result, "查询结果不应为空");
@@ -218,7 +218,7 @@ class NestedDimensionTest extends EcommerceTestSupport {
     @Order(21)
     @DisplayName("查询测试 - 门店区域嵌套维度")
     void testQuery_StoreRegionNestedDimension() {
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesNestedDimQueryModel");
 
         // 使用别名访问门店和区域维度
@@ -230,7 +230,7 @@ class NestedDimensionTest extends EcommerceTestSupport {
                 "salesAmount"
         ));
 
-        PagingRequest<JdbcQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 20);
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 20);
         PagingResultImpl result = jdbcService.queryModelData(form);
 
         assertNotNull(result, "查询结果不应为空");
@@ -262,7 +262,7 @@ class NestedDimensionTest extends EcommerceTestSupport {
     @Order(30)
     @DisplayName("切片查询 - 按嵌套维度过滤")
     void testQuery_SliceByNestedDimension() {
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesNestedDimQueryModel");
         queryRequest.setColumns(Arrays.asList(
                 "product$caption",
@@ -278,7 +278,7 @@ class NestedDimensionTest extends EcommerceTestSupport {
         slice.setValue(1);  // 电子产品组的 group_key
         queryRequest.setSlice(Collections.singletonList(slice));
 
-        PagingRequest<JdbcQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 20);
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 20);
         PagingResultImpl result = jdbcService.queryModelData(form);
 
         assertNotNull(result, "查询结果不应为空");
@@ -321,7 +321,7 @@ class NestedDimensionTest extends EcommerceTestSupport {
         List<Map<String, Object>> expectedResults = executeQuery(expectedSql);
         log.info("预期按品类组汇总结果: {}", expectedResults);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesNestedDimQueryModel");
         queryRequest.setColumns(Arrays.asList(
                 "categoryGroup$caption",
@@ -334,7 +334,7 @@ class NestedDimensionTest extends EcommerceTestSupport {
         groupBy.setField("categoryGroup$caption");
         queryRequest.setGroupBy(Collections.singletonList(groupBy));
 
-        PagingRequest<JdbcQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 20);
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 20);
         PagingResultImpl result = jdbcService.queryModelData(form);
 
         assertNotNull(result, "查询结果不应为空");

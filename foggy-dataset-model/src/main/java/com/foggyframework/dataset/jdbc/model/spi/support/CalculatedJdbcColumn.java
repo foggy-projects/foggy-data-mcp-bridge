@@ -5,10 +5,10 @@ import com.foggyframework.core.trans.ObjectTransFormatter;
 import com.foggyframework.dataset.db.table.SqlColumn;
 import com.foggyframework.dataset.jdbc.model.engine.expression.SqlFragment;
 import com.foggyframework.dataset.jdbc.model.impl.AiObject;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcColumn;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcColumnType;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryColumn;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryCondition;
+import com.foggyframework.dataset.jdbc.model.spi.DbColumn;
+import com.foggyframework.dataset.jdbc.model.spi.DbColumnType;
+import com.foggyframework.dataset.jdbc.model.spi.DbQueryColumn;
+import com.foggyframework.dataset.jdbc.model.spi.DbQueryCondition;
 import com.foggyframework.dataset.jdbc.model.spi.QueryObject;
 
 import lombok.Data;
@@ -28,7 +28,7 @@ import java.util.Set;
  * @since 1.0
  */
 @Data
-public class CalculatedJdbcColumn extends AbstractDecorate implements JdbcQueryColumn {
+public class CalculatedJdbcColumn extends AbstractDecorate implements DbQueryColumn {
 
     /**
      * 字段名（在 columns 中引用的名称）
@@ -57,7 +57,7 @@ public class CalculatedJdbcColumn extends AbstractDecorate implements JdbcQueryC
      * </p>
      * JdbcDimensionType
      */
-    private JdbcColumnType type;
+    private DbColumnType type;
 
     /**
      * 获取数据类型
@@ -67,7 +67,7 @@ public class CalculatedJdbcColumn extends AbstractDecorate implements JdbcQueryC
      *
      * @return 类型代码字符串
      */
-    public JdbcColumnType getType() {
+    public DbColumnType getType() {
         if (type != null) {
             return type;
         }
@@ -117,7 +117,7 @@ public class CalculatedJdbcColumn extends AbstractDecorate implements JdbcQueryC
      * 用于自动 JOIN 分析和依赖追踪。
      * </p>
      */
-    public Set<JdbcQueryColumn> getReferencedColumns() {
+    public Set<DbQueryColumn> getReferencedColumns() {
         return sqlFragment.getReferencedColumns();
     }
 
@@ -138,12 +138,12 @@ public class CalculatedJdbcColumn extends AbstractDecorate implements JdbcQueryC
     }
 
     @Override
-    public JdbcColumn getSelectColumn() {
+    public DbColumn getSelectColumn() {
         return this;
     }
 
     @Override
-    public JdbcQueryCondition getJdbcQueryCond() {
+    public DbQueryCondition getJdbcQueryCond() {
         // 计算字段作为过滤条件时，直接使用 SQL 表达式
         return null;
     }
@@ -161,7 +161,7 @@ public class CalculatedJdbcColumn extends AbstractDecorate implements JdbcQueryC
     @Override
     public ObjectTransFormatter<?> getFormatter() {
         // 从 SqlFragment 的推断类型获取格式化器
-        JdbcColumnType inferredType = sqlFragment.getInferredType();
+        DbColumnType inferredType = sqlFragment.getInferredType();
         return inferredType.getFormatter();
     }
 

@@ -5,7 +5,7 @@ import com.foggyframework.core.utils.JsonUtils;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.jdbc.model.def.query.request.GroupRequestDef;
-import com.foggyframework.dataset.jdbc.model.def.query.request.JdbcQueryRequestDef;
+import com.foggyframework.dataset.jdbc.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.jdbc.model.def.query.request.OrderRequestDef;
 import com.foggyframework.dataset.jdbc.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.jdbc.model.engine.query.JdbcQueryResult;
@@ -15,9 +15,8 @@ import com.foggyframework.dataset.jdbc.model.semantic.domain.SemanticQueryRespon
 import com.foggyframework.dataset.jdbc.model.semantic.service.DimensionMemberLoader;
 import com.foggyframework.dataset.jdbc.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.dataset.jdbc.model.service.QueryFacade;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryColumn;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryModel;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryModelLoader;
+import com.foggyframework.dataset.jdbc.model.spi.DbQueryColumn;
+import com.foggyframework.dataset.jdbc.model.spi.QueryModelLoader;
 import com.foggyframework.dataset.jdbc.model.spi.QueryModel;
 import com.foggyframework.dataset.model.PagingResultImpl;
 import org.slf4j.Logger;
@@ -56,7 +55,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
     private QueryFacade queryFacade;
 
     @Resource
-    private JdbcQueryModelLoader jdbcQueryModelLoader;
+    private QueryModelLoader queryModelLoader;
 
     @Resource
     private DimensionMemberLoader dimensionMemberLoader;
@@ -85,7 +84,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         context.originalRequest = request;
 
         // 2. 构建初始JDBC请求
-        PagingRequest<JdbcQueryRequestDef> jdbcRequest = buildJdbcRequest(model, request, context);
+        PagingRequest<DbQueryRequestDef> jdbcRequest = buildJdbcRequest(model, request, context);
 
         // 3. 处理 slice 中的 $caption 值转换（如果需要）
         // 注意：这里在 beforeQuery 之前处理，因为需要先转换好 slice
@@ -126,7 +125,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         SemanticQueryResponse response = new SemanticQueryResponse();
 
         // V3 的验证主要检查字段是否存在
-        QueryModel queryModel = jdbcQueryModelLoader.getJdbcQueryModel(model);
+        QueryModel queryModel = queryModelLoader.getJdbcQueryModel(model);
         if (queryModel == null) {
             throw RX.throwB("模型不存在: " + model);
         }
@@ -136,7 +135,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         // 检查 columns 中的字段
         if (request.getColumns() != null) {
             for (String col : request.getColumns()) {
-                JdbcQueryColumn queryColumn = queryModel.findJdbcQueryColumnByName(col, false);
+                DbQueryColumn queryColumn = queryModel.findJdbcQueryColumnByName(col, false);
                 if (queryColumn == null) {
                     warnings.add("字段不存在: " + col);
                 }
@@ -169,14 +168,14 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
     /**
      * 构建JDBC查询请求（V3版本：直接透传字段名）
      */
-    private PagingRequest<JdbcQueryRequestDef> buildJdbcRequest(String model, SemanticQueryRequest request, QueryContextV3 context) {
-        JdbcQueryRequestDef queryDef = new JdbcQueryRequestDef();
+    private PagingRequest<DbQueryRequestDef> buildJdbcRequest(String model, SemanticQueryRequest request, QueryContextV3 context) {
+        DbQueryRequestDef queryDef = new DbQueryRequestDef();
         queryDef.setQueryModel(model);
         queryDef.setReturnTotal(request.getReturnTotal());
         queryDef.setStrictColumns(true);
 
         // 获取模型定义用于字段校验
-        QueryModel queryModel = jdbcQueryModelLoader.getJdbcQueryModel(model);
+        QueryModel queryModel = queryModelLoader.getJdbcQueryModel(model);
 
         // 复制 columns 和 groupBy 以便修改
         List<String> columns = new ArrayList<>(request.getColumns());
@@ -229,7 +228,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
             queryDef.setOrderBy(jdbcOrderBy);
         }
 
-        PagingRequest<JdbcQueryRequestDef> pagingRequest = new PagingRequest<>();
+        PagingRequest<DbQueryRequestDef> pagingRequest = new PagingRequest<>();
         pagingRequest.setParam(queryDef);
 
         if (request.getStart() != null) {
@@ -290,7 +289,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
     /**
      * 构建响应
      */
-    private SemanticQueryResponse buildResponse(JdbcQueryRequestDef request, PagingResultImpl queryResult,
+    private SemanticQueryResponse buildResponse(DbQueryRequestDef request, PagingResultImpl queryResult,
                                                 QueryContextV3 context, QueryModel queryModel) {
         SemanticQueryResponse response = new SemanticQueryResponse();
 
@@ -379,7 +378,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
      * 构建结果集 Schema 信息（含 Markdown summary）
      */
     private SemanticQueryResponse.SchemaInfo buildSchemaInfo(QueryModel queryModel,
-                                                             JdbcQueryRequestDef request,
+                                                             DbQueryRequestDef request,
                                                              PagingResultImpl queryResult) {
         SemanticQueryResponse.SchemaInfo schemaInfo = new SemanticQueryResponse.SchemaInfo();
         List<SemanticQueryResponse.SchemaInfo.ColumnDef> columnDefs = new ArrayList<>();
@@ -387,7 +386,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         List<String> columns = request.getColumns();
         if (columns != null && queryModel != null) {
             for (String columnName : columns) {
-                JdbcQueryColumn queryColumn = queryModel.findJdbcQueryColumnByName(columnName, false);
+                DbQueryColumn queryColumn = queryModel.findJdbcQueryColumnByName(columnName, false);
 
                 SemanticQueryResponse.SchemaInfo.ColumnDef columnDef =
                         new SemanticQueryResponse.SchemaInfo.ColumnDef();
@@ -414,7 +413,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
      * 生成 Markdown 格式的结果摘要（仅聚合查询时生成）
      */
     private String buildSchemaSummary(List<SemanticQueryResponse.SchemaInfo.ColumnDef> columnDefs,
-                                      JdbcQueryRequestDef request,
+                                      DbQueryRequestDef request,
                                       PagingResultImpl queryResult) {
         List<GroupRequestDef> groupBy = request.getGroupBy();
 
@@ -666,7 +665,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         }
 
         // 检查是否是度量字段（直接存在于模型中）
-        JdbcQueryColumn directColumn = queryModel.findJdbcQueryColumnByName(field, false);
+        DbQueryColumn directColumn = queryModel.findJdbcQueryColumnByName(field, false);
         if (directColumn != null) {
             // 是度量字段，直接返回
             return field;
@@ -674,7 +673,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
 
         // 尝试补充 $id 后缀
         String fieldWithId = field + "$id";
-        JdbcQueryColumn columnWithId = queryModel.findJdbcQueryColumnByName(fieldWithId, false);
+        DbQueryColumn columnWithId = queryModel.findJdbcQueryColumnByName(fieldWithId, false);
         if (columnWithId != null) {
             context.warnings.add("orderBy 字段 " + field + " 自动补充为 " + fieldWithId);
             return fieldWithId;
@@ -682,7 +681,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
 
         // 尝试补充 $caption 后缀
         String fieldWithCaption = field + "$caption";
-        JdbcQueryColumn columnWithCaption = queryModel.findJdbcQueryColumnByName(fieldWithCaption, false);
+        DbQueryColumn columnWithCaption = queryModel.findJdbcQueryColumnByName(fieldWithCaption, false);
         if (columnWithCaption != null) {
             context.warnings.add("orderBy 字段 " + field + " 自动补充为 " + fieldWithCaption);
             return fieldWithCaption;

@@ -2,10 +2,10 @@ package com.foggyframework.dataset.jdbc.model.ecommerce;
 
 import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.jdbc.model.def.query.request.*;
-import com.foggyframework.dataset.jdbc.model.impl.dimension.JdbcModelParentChildDimensionImpl;
+import com.foggyframework.dataset.jdbc.model.impl.dimension.DbModelParentChildDimensionImpl;
 import com.foggyframework.dataset.jdbc.model.service.JdbcService;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcDimension;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcModel;
+import com.foggyframework.dataset.jdbc.model.spi.DbDimension;
+import com.foggyframework.dataset.jdbc.model.spi.TableModel;
 import com.foggyframework.dataset.model.PagingResultImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.*;
@@ -143,15 +143,15 @@ class ParentChildDimensionTest extends EcommerceTestSupport {
     @DisplayName("验证父子维度模型加载")
     void testParentChildDimensionModelLoad() {
         // 获取模型
-        JdbcModel model = tableModelLoaderManager.getJdbcModel("FactTeamSalesModel");
+        TableModel model = tableModelLoaderManager.getJdbcModel("FactTeamSalesModel");
         assertNotNull(model, "模型应成功加载");
         log.info("加载模型: {}", model.getName());
 
         // 验证team维度是父子维度
-        JdbcDimension teamDimension = model.findJdbcDimensionByName("team");
+        DbDimension teamDimension = model.findJdbcDimensionByName("team");
         assertNotNull(teamDimension, "应存在team维度");
 
-        JdbcModelParentChildDimensionImpl parentChildDim = teamDimension.getDecorate(JdbcModelParentChildDimensionImpl.class);
+        DbModelParentChildDimensionImpl parentChildDim = teamDimension.getDecorate(DbModelParentChildDimensionImpl.class);
         assertNotNull(parentChildDim, "team维度应为父子维度类型");
 
         // 验证父子维度配置
@@ -172,7 +172,7 @@ class ParentChildDimensionTest extends EcommerceTestSupport {
     @Order(20)
     @DisplayName("明细查询 - 全部团队销售")
     void testDetailQuery_AllTeamSales() {
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactTeamSalesQueryModel");
         queryRequest.setColumns(Arrays.asList(
                 "team$caption",
@@ -187,7 +187,7 @@ class ParentChildDimensionTest extends EcommerceTestSupport {
         orders.add(createOrder("team$caption", "ASC"));
         queryRequest.setOrderBy(orders);
 
-        PagingRequest<JdbcQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 50);
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 50);
         PagingResultImpl result = jdbcService.queryModelData(form);
 
         assertNotNull(result, "查询结果不应为空");
@@ -219,7 +219,7 @@ class ParentChildDimensionTest extends EcommerceTestSupport {
         // 2. 通过服务查询（带父子维度过滤）
         // 注意：queryModelData查询必须有limit，getItems返回的是明细数据
         // 要获取聚合数据，需设置totalColumn=true，然后从getTotalData()获取
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactTeamSalesQueryModel");
         queryRequest.setColumns(Arrays.asList("totalSalesAmount", "totalSalesCount"));
         queryRequest.setReturnTotal(true);  // 启用汇总数据返回
@@ -233,7 +233,7 @@ class ParentChildDimensionTest extends EcommerceTestSupport {
         slices.add(slice);
         queryRequest.setSlice(slices);
 
-        PagingRequest<JdbcQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 10);
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 10);
         PagingResultImpl result = jdbcService.queryModelData(form);
 
         assertNotNull(result, "查询结果不应为空");
@@ -268,7 +268,7 @@ class ParentChildDimensionTest extends EcommerceTestSupport {
 
         // 2. 通过服务查询
         // 注意：queryModelData查询必须有limit，需通过totalData获取聚合数据
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactTeamSalesQueryModel");
         queryRequest.setColumns(Arrays.asList("totalSalesAmount"));
         queryRequest.setReturnTotal(true);  // 启用汇总数据返回
@@ -281,7 +281,7 @@ class ParentChildDimensionTest extends EcommerceTestSupport {
         slices.add(slice);
         queryRequest.setSlice(slices);
 
-        PagingRequest<JdbcQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 10);
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 10);
         PagingResultImpl result = jdbcService.queryModelData(form);
 
         // 从totalData获取聚合数据
@@ -318,7 +318,7 @@ class ParentChildDimensionTest extends EcommerceTestSupport {
 
         // 2. 通过服务查询
         // 注意：queryModelData查询必须有limit，需通过totalData获取聚合数据
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactTeamSalesQueryModel");
         queryRequest.setColumns(Arrays.asList("totalSalesAmount"));
         queryRequest.setReturnTotal(true);  // 启用汇总数据返回
@@ -331,7 +331,7 @@ class ParentChildDimensionTest extends EcommerceTestSupport {
         slices.add(slice);
         queryRequest.setSlice(slices);
 
-        PagingRequest<JdbcQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 10);
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 10);
         PagingResultImpl result = jdbcService.queryModelData(form);
 
         // 从totalData获取聚合数据
@@ -366,7 +366,7 @@ class ParentChildDimensionTest extends EcommerceTestSupport {
 
         // 2. 通过服务查询
         // 注意：queryModelData查询必须有limit，需通过totalData获取聚合数据
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactTeamSalesQueryModel");
         queryRequest.setColumns(Arrays.asList("totalSalesAmount"));
         queryRequest.setReturnTotal(true);  // 启用汇总数据返回
@@ -379,7 +379,7 @@ class ParentChildDimensionTest extends EcommerceTestSupport {
         slices.add(slice);
         queryRequest.setSlice(slices);
 
-        PagingRequest<JdbcQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 10);
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 10);
         PagingResultImpl result = jdbcService.queryModelData(form);
 
         // 从totalData获取聚合数据
@@ -414,7 +414,7 @@ class ParentChildDimensionTest extends EcommerceTestSupport {
         log.info("原生SQL按层级分组: {} 组", nativeResults.size());
 
         // 2. 通过服务查询
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactTeamSalesQueryModel");
         queryRequest.setColumns(Arrays.asList("team$teamLevel", "totalSalesAmount", "recordCount"));
 
@@ -426,7 +426,7 @@ class ParentChildDimensionTest extends EcommerceTestSupport {
         orders.add(createOrder("team$teamLevel", "ASC"));
         queryRequest.setOrderBy(orders);
 
-        PagingRequest<JdbcQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 10);
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 10);
         PagingResultImpl result = jdbcService.queryModelData(form);
         List<Map<String, Object>> items = (List<Map<String, Object>>) result.getItems();
 
@@ -469,7 +469,7 @@ class ParentChildDimensionTest extends EcommerceTestSupport {
         log.info("原生SQL技术部下各子部门: {} 个", nativeResults.size());
 
         // 2. 通过服务查询
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactTeamSalesQueryModel");
         queryRequest.setColumns(Arrays.asList("team$id", "team$caption", "totalSalesAmount"));
 
@@ -493,7 +493,7 @@ class ParentChildDimensionTest extends EcommerceTestSupport {
         orders.add(createOrder("team$caption", "ASC"));
         queryRequest.setOrderBy(orders);
 
-        PagingRequest<JdbcQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 20);
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 20);
         PagingResultImpl result = jdbcService.queryModelData(form);
         List<Map<String, Object>> items = (List<Map<String, Object>>) result.getItems();
 
@@ -528,7 +528,7 @@ class ParentChildDimensionTest extends EcommerceTestSupport {
         log.info("原生SQL多维分组: {} 组", nativeResults.size());
 
         // 2. 通过服务查询
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactTeamSalesQueryModel");
         queryRequest.setColumns(Arrays.asList("date$caption", "team$teamLevel", "totalSalesAmount"));
 
@@ -542,7 +542,7 @@ class ParentChildDimensionTest extends EcommerceTestSupport {
         orders.add(createOrder("team$teamLevel", "ASC"));
         queryRequest.setOrderBy(orders);
 
-        PagingRequest<JdbcQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 20);
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 20);
         PagingResultImpl result = jdbcService.queryModelData(form);
         List<Map<String, Object>> items = (List<Map<String, Object>>) result.getItems();
 

@@ -2,7 +2,7 @@ package com.foggyframework.dataset.jdbc.model.plugins;
 
 import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.jdbc.model.def.query.request.GroupRequestDef;
-import com.foggyframework.dataset.jdbc.model.def.query.request.JdbcQueryRequestDef;
+import com.foggyframework.dataset.jdbc.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.jdbc.model.def.query.request.OrderRequestDef;
 import com.foggyframework.dataset.jdbc.model.ecommerce.EcommerceTestSupport;
 import com.foggyframework.dataset.jdbc.model.plugins.result_set_filter.DataSetResultFilterManager;
@@ -96,7 +96,7 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
     @DisplayName("autoGroupBy 与手动 groupBy 对比 - 单维度 SUM")
     void testAutoGroupBy_vs_ManualGroupBy_SingleDimension_Sum() {
         // 1. autoGroupBy=true 的查询
-        JdbcQueryRequestDef autoRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef autoRequest = new DbQueryRequestDef();
         autoRequest.setQueryModel("FactOrderQueryModel");
         autoRequest.setAutoGroupBy(true);
         autoRequest.setColumns(Arrays.asList(
@@ -112,7 +112,7 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
         log.info("autoGroupBy 查询结果: {} 条", autoItems.size());
 
         // 2. 手动指定 groupBy 的查询
-        JdbcQueryRequestDef manualRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef manualRequest = new DbQueryRequestDef();
         manualRequest.setQueryModel("FactOrderQueryModel");
         manualRequest.setAutoGroupBy(false);
         manualRequest.setColumns(Arrays.asList("customer$customerType", "totalAmount"));
@@ -165,7 +165,7 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
         log.info("原生 SQL 结果: {} 条", nativeResults.size());
 
         // 2. autoGroupBy 查询
-        JdbcQueryRequestDef autoRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef autoRequest = new DbQueryRequestDef();
         autoRequest.setQueryModel("FactOrderQueryModel");
         autoRequest.setAutoGroupBy(true);
         autoRequest.setColumns(Arrays.asList(
@@ -215,7 +215,7 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
         log.info("原生 SQL 结果: {} 条", nativeResults.size());
 
         // 2. autoGroupBy 查询（多个聚合）
-        JdbcQueryRequestDef autoRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef autoRequest = new DbQueryRequestDef();
         autoRequest.setQueryModel("FactOrderQueryModel");
         autoRequest.setAutoGroupBy(true);
         autoRequest.setColumns(Arrays.asList(
@@ -285,7 +285,7 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
         log.info("原生 SQL 多维度结果: {} 条", nativeResults.size());
 
         // 2. autoGroupBy 多维度查询
-        JdbcQueryRequestDef autoRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef autoRequest = new DbQueryRequestDef();
         autoRequest.setQueryModel("FactOrderQueryModel");
         autoRequest.setAutoGroupBy(true);
         autoRequest.setColumns(Arrays.asList(
@@ -342,7 +342,7 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
         log.info("原生 SQL 混合场景结果: {} 条", nativeResults.size());
 
         // 2. autoGroupBy 混合查询
-        JdbcQueryRequestDef autoRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef autoRequest = new DbQueryRequestDef();
         autoRequest.setQueryModel("FactOrderQueryModel");
         autoRequest.setAutoGroupBy(true);
         autoRequest.setColumns(Arrays.asList(
@@ -387,7 +387,7 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
     void testNoAggregation_ReturnsDetailData() {
         // 不含聚合表达式或聚合字段时，应返回明细数据
         // 注意：使用 orderId（属性，无聚合）而非 totalAmount（度量，有聚合）
-        JdbcQueryRequestDef request = new JdbcQueryRequestDef();
+        DbQueryRequestDef request = new DbQueryRequestDef();
         request.setQueryModel("FactOrderQueryModel");
         request.setColumns(Arrays.asList(
                 "customer$customerType",
@@ -419,7 +419,7 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
         List<Map<String, Object>> previousResult = null;
 
         for (String aggCase : cases) {
-            JdbcQueryRequestDef request = new JdbcQueryRequestDef();
+            DbQueryRequestDef request = new DbQueryRequestDef();
             request.setQueryModel("FactOrderQueryModel");
             request.setAutoGroupBy(true);
             request.setColumns(Arrays.asList(
@@ -480,7 +480,7 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
         log.info("原生 SQL 结果: {} 条", nativeResults.size());
 
         // 2. 自动 groupBy 查询
-        JdbcQueryRequestDef autoRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef autoRequest = new DbQueryRequestDef();
         autoRequest.setQueryModel("FactOrderQueryModel");
         autoRequest.setColumns(Arrays.asList(
                 "customer$customerType",
@@ -549,7 +549,7 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
         log.info("原生 SQL 结果 (formulaDef groupBy): {} 条", nativeResults.size());
 
         // 2. 使用 QueryModel 查询（无内联计算字段）
-        JdbcQueryRequestDef request = new JdbcQueryRequestDef();
+        DbQueryRequestDef request = new DbQueryRequestDef();
         request.setQueryModel("FactSalesQueryModel");
         request.setColumns(Arrays.asList(
                 "product$categoryName",
@@ -604,7 +604,7 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
         log.info("原生 SQL 结果 (formulaDef + 聚合): {} 条", nativeResults.size());
 
         // 2. 使用 QueryModel 查询（混合 formulaDef 和聚合函数）
-        JdbcQueryRequestDef request = new JdbcQueryRequestDef();
+        DbQueryRequestDef request = new DbQueryRequestDef();
         request.setQueryModel("FactSalesQueryModel");
         request.setColumns(Arrays.asList(
                 "product$categoryName",
@@ -671,7 +671,7 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
         log.info("原生 SQL 结果 (维度字段排序 DESC): {} 条", nativeResults.size());
 
         // 2. QueryModel 查询
-        JdbcQueryRequestDef request = new JdbcQueryRequestDef();
+        DbQueryRequestDef request = new DbQueryRequestDef();
         request.setQueryModel("FactSalesQueryModel");
         request.setColumns(Arrays.asList(
                 "product$categoryName",
@@ -724,7 +724,7 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
         log.info("原生 SQL 结果 (聚合字段排序 DESC): {} 条", nativeResults.size());
 
         // 2. QueryModel 查询
-        JdbcQueryRequestDef request = new JdbcQueryRequestDef();
+        DbQueryRequestDef request = new DbQueryRequestDef();
         request.setQueryModel("FactSalesQueryModel");
         request.setColumns(Arrays.asList(
                 "product$categoryName",
@@ -786,7 +786,7 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
         log.info("原生 SQL 结果 (formulaDef字段排序 DESC): {} 条", nativeResults.size());
 
         // 2. QueryModel 查询
-        JdbcQueryRequestDef request = new JdbcQueryRequestDef();
+        DbQueryRequestDef request = new DbQueryRequestDef();
         request.setQueryModel("FactSalesQueryModel");
         request.setColumns(Arrays.asList(
                 "product$categoryName",
@@ -851,7 +851,7 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
         log.info("原生 SQL 结果 (内联聚合表达式排序 ASC): {} 条", nativeResults.size());
 
         // 2. QueryModel 查询
-        JdbcQueryRequestDef request = new JdbcQueryRequestDef();
+        DbQueryRequestDef request = new DbQueryRequestDef();
         request.setQueryModel("FactSalesQueryModel");
         request.setColumns(Arrays.asList(
                 "product$categoryName",
@@ -916,7 +916,7 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
         log.info("原生 SQL 结果 (多字段排序): {} 条", nativeResults.size());
 
         // 2. QueryModel 查询
-        JdbcQueryRequestDef request = new JdbcQueryRequestDef();
+        DbQueryRequestDef request = new DbQueryRequestDef();
         request.setQueryModel("FactSalesQueryModel");
         request.setColumns(Arrays.asList(
                 "product$categoryName",
@@ -977,7 +977,7 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
         log.info("原生 SQL 结果: {} 条", nativeResults.size());
 
         // 2. QueryModel 查询 - 请求按 orderId 排序（不在 SELECT 中）
-        JdbcQueryRequestDef request = new JdbcQueryRequestDef();
+        DbQueryRequestDef request = new DbQueryRequestDef();
         request.setQueryModel("FactSalesQueryModel");
         request.setColumns(Arrays.asList(
                 "product$categoryName",
@@ -1036,7 +1036,7 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
         log.info("原生 SQL 结果 (混合排序): {} 条", nativeResults.size());
 
         // 2. QueryModel 查询
-        JdbcQueryRequestDef request = new JdbcQueryRequestDef();
+        DbQueryRequestDef request = new DbQueryRequestDef();
         request.setQueryModel("FactSalesQueryModel");
         request.setColumns(Arrays.asList(
                 "product$categoryName",

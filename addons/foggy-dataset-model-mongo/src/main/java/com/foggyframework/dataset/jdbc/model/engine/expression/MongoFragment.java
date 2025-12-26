@@ -1,7 +1,7 @@
 package com.foggyframework.dataset.jdbc.model.engine.expression;
 
-import com.foggyframework.dataset.jdbc.model.spi.JdbcColumnType;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryColumn;
+import com.foggyframework.dataset.jdbc.model.spi.DbColumnType;
+import com.foggyframework.dataset.jdbc.model.spi.DbQueryColumn;
 import lombok.Data;
 import org.bson.Document;
 
@@ -43,12 +43,12 @@ public class MongoFragment {
     /**
      * 引用的列（包括普通列、计算字段）
      */
-    private Set<JdbcQueryColumn> referencedColumns = new LinkedHashSet<>();
+    private Set<DbQueryColumn> referencedColumns = new LinkedHashSet<>();
 
     /**
      * 推断的列类型
      */
-    private JdbcColumnType inferredType = JdbcColumnType.UNKNOWN;
+    private DbColumnType inferredType = DbColumnType.UNKNOWN;
 
     /**
      * 是否包含聚合函数
@@ -66,7 +66,7 @@ public class MongoFragment {
      * @param column    列对象
      * @param fieldName MongoDB 字段名
      */
-    public static MongoFragment ofColumn(JdbcQueryColumn column, String fieldName) {
+    public static MongoFragment ofColumn(DbQueryColumn column, String fieldName) {
         MongoFragment f = new MongoFragment();
         f.expression = "$" + fieldName;
         f.referencedColumns.add(column);
@@ -87,7 +87,7 @@ public class MongoFragment {
     /**
      * 创建带类型的字面量片段
      */
-    public static MongoFragment ofLiteral(Object value, JdbcColumnType type) {
+    public static MongoFragment ofLiteral(Object value, DbColumnType type) {
         MongoFragment f = new MongoFragment();
         f.expression = value;
         f.inferredType = type;
@@ -123,7 +123,7 @@ public class MongoFragment {
         f.expression = new Document(operator, Arrays.asList(left.expression, right.expression));
         f.referencedColumns.addAll(left.referencedColumns);
         f.referencedColumns.addAll(right.referencedColumns);
-        f.inferredType = JdbcColumnType.BOOL;
+        f.inferredType = DbColumnType.BOOL;
         f.hasAggregate = left.hasAggregate || right.hasAggregate;
         return f;
     }
@@ -143,7 +143,7 @@ public class MongoFragment {
             if (op.hasAggregate) f.hasAggregate = true;
         }
         f.expression = new Document(operator, exprs);
-        f.inferredType = JdbcColumnType.BOOL;
+        f.inferredType = DbColumnType.BOOL;
         return f;
     }
 
@@ -157,7 +157,7 @@ public class MongoFragment {
         MongoFragment f = new MongoFragment();
         f.expression = new Document(operator, operand.expression);
         f.referencedColumns.addAll(operand.referencedColumns);
-        f.inferredType = "$not".equals(operator) ? JdbcColumnType.BOOL : operand.inferredType;
+        f.inferredType = "$not".equals(operator) ? DbColumnType.BOOL : operand.inferredType;
         f.hasAggregate = operand.hasAggregate;
         f.aggregationType = operand.aggregationType;
         return f;
@@ -258,101 +258,101 @@ public class MongoFragment {
     // 类型推断辅助方法
     // ==========================================
 
-    private static JdbcColumnType inferLiteralType(Object value) {
+    private static DbColumnType inferLiteralType(Object value) {
         if (value == null) {
-            return JdbcColumnType.UNKNOWN;
+            return DbColumnType.UNKNOWN;
         }
         if (value instanceof String) {
-            return JdbcColumnType.TEXT;
+            return DbColumnType.TEXT;
         }
         if (value instanceof Boolean) {
-            return JdbcColumnType.BOOL;
+            return DbColumnType.BOOL;
         }
         if (value instanceof Double || value instanceof Float) {
-            return JdbcColumnType.NUMBER;
+            return DbColumnType.NUMBER;
         }
         if (value instanceof Number) {
-            return JdbcColumnType.INTEGER;
+            return DbColumnType.INTEGER;
         }
         if (value instanceof Date) {
-            return JdbcColumnType.DATETIME;
+            return DbColumnType.DATETIME;
         }
-        return JdbcColumnType.UNKNOWN;
+        return DbColumnType.UNKNOWN;
     }
 
-    private static JdbcColumnType inferColumnType(JdbcQueryColumn column) {
+    private static DbColumnType inferColumnType(DbQueryColumn column) {
         if (column == null) {
-            return JdbcColumnType.UNKNOWN;
+            return DbColumnType.UNKNOWN;
         }
-        JdbcColumnType type = column.getSelectColumn() != null ? column.getSelectColumn().getType() : null;
-        return type != null ? type : JdbcColumnType.UNKNOWN;
+        DbColumnType type = column.getSelectColumn() != null ? column.getSelectColumn().getType() : null;
+        return type != null ? type : DbColumnType.UNKNOWN;
     }
 
-    private static JdbcColumnType inferBinaryType(JdbcColumnType left, String operator, JdbcColumnType right) {
+    private static DbColumnType inferBinaryType(DbColumnType left, String operator, DbColumnType right) {
         // 比较运算符返回布尔
         if (operator.startsWith("$eq") || operator.startsWith("$ne") ||
             operator.startsWith("$gt") || operator.startsWith("$lt") ||
             operator.equals("$gte") || operator.equals("$lte")) {
-            return JdbcColumnType.BOOL;
+            return DbColumnType.BOOL;
         }
         // 逻辑运算符返回布尔
         if ("$and".equals(operator) || "$or".equals(operator)) {
-            return JdbcColumnType.BOOL;
+            return DbColumnType.BOOL;
         }
         // 算术运算符
         if ("$add".equals(operator) || "$subtract".equals(operator) ||
             "$multiply".equals(operator) || "$divide".equals(operator) || "$mod".equals(operator)) {
-            if (left == JdbcColumnType.NUMBER || right == JdbcColumnType.NUMBER ||
-                left == JdbcColumnType.MONEY || right == JdbcColumnType.MONEY) {
-                return JdbcColumnType.NUMBER;
+            if (left == DbColumnType.NUMBER || right == DbColumnType.NUMBER ||
+                left == DbColumnType.MONEY || right == DbColumnType.MONEY) {
+                return DbColumnType.NUMBER;
             }
-            if (left == JdbcColumnType.INTEGER && right == JdbcColumnType.INTEGER) {
-                return "$divide".equals(operator) ? JdbcColumnType.NUMBER : JdbcColumnType.INTEGER;
+            if (left == DbColumnType.INTEGER && right == DbColumnType.INTEGER) {
+                return "$divide".equals(operator) ? DbColumnType.NUMBER : DbColumnType.INTEGER;
             }
-            return JdbcColumnType.NUMBER;
+            return DbColumnType.NUMBER;
         }
         // 字符串连接
         if ("$concat".equals(operator)) {
-            return JdbcColumnType.TEXT;
+            return DbColumnType.TEXT;
         }
-        return JdbcColumnType.UNKNOWN;
+        return DbColumnType.UNKNOWN;
     }
 
-    private static JdbcColumnType inferFunctionType(String funcName, List<MongoFragment> args) {
+    private static DbColumnType inferFunctionType(String funcName, List<MongoFragment> args) {
         // 日期提取函数 -> INTEGER
         if ("$year".equals(funcName) || "$month".equals(funcName) || "$dayOfMonth".equals(funcName) ||
             "$hour".equals(funcName) || "$minute".equals(funcName) || "$second".equals(funcName)) {
-            return JdbcColumnType.INTEGER;
+            return DbColumnType.INTEGER;
         }
         // 字符串函数 -> TEXT
         if ("$concat".equals(funcName) || "$substr".equals(funcName) || "$substrCP".equals(funcName) ||
             "$toLower".equals(funcName) || "$toUpper".equals(funcName) || "$trim".equals(funcName)) {
-            return JdbcColumnType.TEXT;
+            return DbColumnType.TEXT;
         }
         // 字符串长度 -> INTEGER
         if ("$strLenCP".equals(funcName) || "$strLenBytes".equals(funcName)) {
-            return JdbcColumnType.INTEGER;
+            return DbColumnType.INTEGER;
         }
         // 数学函数 -> NUMBER
         if ("$abs".equals(funcName) || "$ceil".equals(funcName) || "$floor".equals(funcName) ||
             "$round".equals(funcName) || "$sqrt".equals(funcName) || "$pow".equals(funcName)) {
-            return JdbcColumnType.NUMBER;
+            return DbColumnType.NUMBER;
         }
         // 聚合函数
         if ("$sum".equals(funcName) || "$avg".equals(funcName)) {
-            return JdbcColumnType.NUMBER;
+            return DbColumnType.NUMBER;
         }
         if ("$count".equals(funcName)) {
-            return JdbcColumnType.INTEGER;
+            return DbColumnType.INTEGER;
         }
         if ("$min".equals(funcName) || "$max".equals(funcName)) {
-            return args.isEmpty() ? JdbcColumnType.UNKNOWN : args.get(0).inferredType;
+            return args.isEmpty() ? DbColumnType.UNKNOWN : args.get(0).inferredType;
         }
         // 空值处理 -> 继承第一个参数类型
         if ("$ifNull".equals(funcName)) {
-            return args.isEmpty() ? JdbcColumnType.UNKNOWN : args.get(0).inferredType;
+            return args.isEmpty() ? DbColumnType.UNKNOWN : args.get(0).inferredType;
         }
-        return JdbcColumnType.UNKNOWN;
+        return DbColumnType.UNKNOWN;
     }
 
     @Override

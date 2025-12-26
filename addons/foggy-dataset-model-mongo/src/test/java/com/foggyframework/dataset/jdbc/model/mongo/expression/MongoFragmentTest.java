@@ -1,7 +1,7 @@
 package com.foggyframework.dataset.jdbc.model.mongo.expression;
 
 import com.foggyframework.dataset.jdbc.model.engine.expression.MongoFragment;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcColumnType;
+import com.foggyframework.dataset.jdbc.model.spi.DbColumnType;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
 import org.junit.jupiter.api.*;
@@ -41,7 +41,7 @@ class MongoFragmentTest {
     void testLiteral_Integer() {
         MongoFragment fragment = MongoFragment.ofLiteral(42);
         assertEquals(42, fragment.getExpression());
-        assertEquals(JdbcColumnType.INTEGER, fragment.getInferredType());
+        assertEquals(DbColumnType.INTEGER, fragment.getInferredType());
         assertFalse(fragment.isHasAggregate());
 
         log.info("整数字面量: {}", fragment);
@@ -53,7 +53,7 @@ class MongoFragmentTest {
     void testLiteral_Double() {
         MongoFragment fragment = MongoFragment.ofLiteral(3.14);
         assertEquals(3.14, fragment.getExpression());
-        assertEquals(JdbcColumnType.NUMBER, fragment.getInferredType());
+        assertEquals(DbColumnType.NUMBER, fragment.getInferredType());
 
         log.info("浮点数字面量: {}", fragment);
     }
@@ -64,7 +64,7 @@ class MongoFragmentTest {
     void testLiteral_String() {
         MongoFragment fragment = MongoFragment.ofLiteral("hello world");
         assertEquals("hello world", fragment.getExpression());
-        assertEquals(JdbcColumnType.TEXT, fragment.getInferredType());
+        assertEquals(DbColumnType.TEXT, fragment.getInferredType());
         assertFalse(fragment.isHasAggregate());
 
         log.info("字符串字面量: {}", fragment);
@@ -76,11 +76,11 @@ class MongoFragmentTest {
     void testLiteral_Boolean() {
         MongoFragment trueFragment = MongoFragment.ofLiteral(true);
         assertEquals(true, trueFragment.getExpression());
-        assertEquals(JdbcColumnType.BOOL, trueFragment.getInferredType());
+        assertEquals(DbColumnType.BOOL, trueFragment.getInferredType());
 
         MongoFragment falseFragment = MongoFragment.ofLiteral(false);
         assertEquals(false, falseFragment.getExpression());
-        assertEquals(JdbcColumnType.BOOL, falseFragment.getInferredType());
+        assertEquals(DbColumnType.BOOL, falseFragment.getInferredType());
 
         log.info("布尔字面量: true={}, false={}", trueFragment, falseFragment);
     }
@@ -91,7 +91,7 @@ class MongoFragmentTest {
     void testLiteral_Null() {
         MongoFragment fragment = MongoFragment.ofLiteral(null);
         assertNull(fragment.getExpression());
-        assertEquals(JdbcColumnType.UNKNOWN, fragment.getInferredType());
+        assertEquals(DbColumnType.UNKNOWN, fragment.getInferredType());
 
         log.info("null字面量: {}", fragment);
     }
@@ -100,9 +100,9 @@ class MongoFragmentTest {
     @Order(6)
     @DisplayName("字面量 - 带类型指定")
     void testLiteral_WithType() {
-        MongoFragment fragment = MongoFragment.ofLiteral(100, JdbcColumnType.MONEY);
+        MongoFragment fragment = MongoFragment.ofLiteral(100, DbColumnType.MONEY);
         assertEquals(100, fragment.getExpression());
-        assertEquals(JdbcColumnType.MONEY, fragment.getInferredType());
+        assertEquals(DbColumnType.MONEY, fragment.getInferredType());
 
         log.info("带类型字面量: {}", fragment);
     }
@@ -170,7 +170,7 @@ class MongoFragmentTest {
 
         Document doc = (Document) result.getExpression();
         assertTrue(doc.containsKey("$divide"));
-        assertEquals(JdbcColumnType.NUMBER, result.getInferredType());
+        assertEquals(DbColumnType.NUMBER, result.getInferredType());
 
         log.info("除法运算: 100 / 4 -> {}", result);
     }
@@ -203,7 +203,7 @@ class MongoFragmentTest {
 
         Document doc = (Document) result.getExpression();
         assertTrue(doc.containsKey("$gt"));
-        assertEquals(JdbcColumnType.BOOL, result.getInferredType());
+        assertEquals(DbColumnType.BOOL, result.getInferredType());
 
         log.info("大于比较: 100 > 50 -> {}", result);
     }
@@ -218,7 +218,7 @@ class MongoFragmentTest {
 
         Document doc = (Document) result.getExpression();
         assertTrue(doc.containsKey("$eq"));
-        assertEquals(JdbcColumnType.BOOL, result.getInferredType());
+        assertEquals(DbColumnType.BOOL, result.getInferredType());
 
         log.info("等于比较: 42 == 42 -> {}", result);
     }
@@ -237,7 +237,7 @@ class MongoFragmentTest {
 
         Document doc = (Document) result.getExpression();
         assertTrue(doc.containsKey("$and"));
-        assertEquals(JdbcColumnType.BOOL, result.getInferredType());
+        assertEquals(DbColumnType.BOOL, result.getInferredType());
 
         log.info("AND运算: true && false -> {}", result);
     }
@@ -252,7 +252,7 @@ class MongoFragmentTest {
 
         Document doc = (Document) result.getExpression();
         assertTrue(doc.containsKey("$or"));
-        assertEquals(JdbcColumnType.BOOL, result.getInferredType());
+        assertEquals(DbColumnType.BOOL, result.getInferredType());
 
         log.info("OR运算: true || false -> {}", result);
     }
@@ -270,7 +270,7 @@ class MongoFragmentTest {
 
         Document doc = (Document) result.getExpression();
         assertTrue(doc.containsKey("$not"));
-        assertEquals(JdbcColumnType.BOOL, result.getInferredType());
+        assertEquals(DbColumnType.BOOL, result.getInferredType());
 
         log.info("NOT运算: !true -> {}", result);
     }
@@ -301,7 +301,7 @@ class MongoFragmentTest {
 
         Document doc = (Document) result.getExpression();
         assertTrue(doc.containsKey("$round"));
-        assertEquals(JdbcColumnType.NUMBER, result.getInferredType());
+        assertEquals(DbColumnType.NUMBER, result.getInferredType());
 
         log.info("ROUND函数(单参数): round(3.14159) -> {}", result);
     }
@@ -334,7 +334,7 @@ class MongoFragmentTest {
 
         Document doc = (Document) result.getExpression();
         assertTrue(doc.containsKey("$concat"));
-        assertEquals(JdbcColumnType.TEXT, result.getInferredType());
+        assertEquals(DbColumnType.TEXT, result.getInferredType());
 
         List<?> args = (List<?>) doc.get("$concat");
         assertEquals(3, args.size());
@@ -351,7 +351,7 @@ class MongoFragmentTest {
 
         assertTrue(result.isHasAggregate());
         assertEquals("SUM", result.getAggregationType());
-        assertEquals(JdbcColumnType.NUMBER, result.getInferredType());
+        assertEquals(DbColumnType.NUMBER, result.getInferredType());
 
         log.info("SUM函数: sum(100) -> {} (hasAggregate={})", result, result.isHasAggregate());
     }
@@ -365,7 +365,7 @@ class MongoFragmentTest {
 
         assertTrue(result.isHasAggregate());
         assertEquals("AVG", result.getAggregationType());
-        assertEquals(JdbcColumnType.NUMBER, result.getInferredType());
+        assertEquals(DbColumnType.NUMBER, result.getInferredType());
 
         log.info("AVG函数: avg(50) -> {} (hasAggregate={})", result, result.isHasAggregate());
     }

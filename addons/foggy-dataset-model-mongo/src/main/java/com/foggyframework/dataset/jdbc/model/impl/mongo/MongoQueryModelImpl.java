@@ -3,7 +3,7 @@ package com.foggyframework.dataset.jdbc.model.impl.mongo;
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.core.tuple.Tuple3;
 import com.foggyframework.dataset.client.domain.PagingRequest;
-import com.foggyframework.dataset.jdbc.model.def.query.request.JdbcQueryRequestDef;
+import com.foggyframework.dataset.jdbc.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.jdbc.model.engine.MongoModelQueryEngine;
 import com.foggyframework.dataset.jdbc.model.engine.expression.MongoCalculatedFieldProcessor;
 import com.foggyframework.dataset.jdbc.model.engine.query.JdbcQueryResult;
@@ -43,7 +43,7 @@ public class MongoQueryModelImpl extends QueryModelSupport implements MongoQuery
     private CalculatedFieldProcessor calculatedFieldProcessor;
 
 
-    public MongoQueryModelImpl(List<JdbcModel> jdbcModelList, Fsscript fsscript, MongoTemplate defaultMongoTemplate) {
+    public MongoQueryModelImpl(List<TableModel> jdbcModelList, Fsscript fsscript, MongoTemplate defaultMongoTemplate) {
         super(jdbcModelList, fsscript);
         this.defaultMongoTemplate = defaultMongoTemplate;
     }
@@ -61,7 +61,7 @@ public class MongoQueryModelImpl extends QueryModelSupport implements MongoQuery
 //        selectColumns.add(jdbcColumn);
 //    }
     @Override
-    public JdbcQueryResult query(SystemBundlesContext systemBundlesContext, PagingRequest<JdbcQueryRequestDef> form) {
+    public JdbcQueryResult query(SystemBundlesContext systemBundlesContext, PagingRequest<DbQueryRequestDef> form) {
         // 创建新的上下文
         ModelResultContext context = new ModelResultContext(form, null);
         return query(systemBundlesContext, context);
@@ -73,8 +73,8 @@ public class MongoQueryModelImpl extends QueryModelSupport implements MongoQuery
 
     }
 
-    public JdbcQueryResult queryMongo(SystemBundlesContext systemBundlesContext, PagingRequest<JdbcQueryRequestDef> form) {
-        JdbcQueryRequestDef queryRequest = form.getParam();
+    public JdbcQueryResult queryMongo(SystemBundlesContext systemBundlesContext, PagingRequest<DbQueryRequestDef> form) {
+        DbQueryRequestDef queryRequest = form.getParam();
 
         MongoModelQueryEngine queryEngine = new MongoModelQueryEngine(this);
 

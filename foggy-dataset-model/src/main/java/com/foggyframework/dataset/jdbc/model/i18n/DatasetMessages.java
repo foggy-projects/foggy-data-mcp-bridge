@@ -1,6 +1,6 @@
 package com.foggyframework.dataset.jdbc.model.i18n;
 
-import com.foggyframework.dataset.jdbc.model.spi.JdbcDimension;
+import com.foggyframework.dataset.jdbc.model.spi.DbDimension;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.context.support.ResourceBundleMessageSource;
@@ -92,11 +92,11 @@ public class DatasetMessages {
         return getMessage("error.querymodel.access.invalid");
     }
 
-    public static String querymodelColumnNotfound(String qmName, String modelName, String columnName,JdbcDimension dimension) {
+    public static String querymodelColumnNotfound(String qmName, String modelName, String columnName, DbDimension dimension) {
         return getMessage("error.querymodel.column.notfound", qmName, modelName, columnName, dimension == null ? "" : "，该列是维度，请加入$id或$caption");
     }
 
-    public static String querymodelColumnNotfoundSimple(String qmName, String columnName,JdbcDimension dimension) {
+    public static String querymodelColumnNotfoundSimple(String qmName, String columnName, DbDimension dimension) {
         return getMessage("error.querymodel.column.notfound.simple", qmName, columnName,dimension == null ? "" : "，该列是维度，请加入$id或$caption");
     }
 
@@ -124,7 +124,7 @@ public class DatasetMessages {
     // Query Engine Error Messages
     // ==========================================
 
-    public static String queryColumnNotfound(String columnName, JdbcDimension dim) {
+    public static String queryColumnNotfound(String columnName, DbDimension dim) {
         return getMessage("error.query.column.notfound", columnName, dim == null ? "" : "，该列是维度，请加入$id或$caption");
     }
 

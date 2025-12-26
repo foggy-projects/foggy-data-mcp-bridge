@@ -1,16 +1,9 @@
 package com.foggyframework.dataset.jdbc.model.spi;
 
-import com.foggyframework.bundle.Bundle;
-import com.foggyframework.dataset.jdbc.model.def.JdbcModelDef;
-import com.foggyframework.fsscript.parser.spi.Fsscript;
-import org.springframework.data.mongodb.core.MongoTemplate;
-
-import javax.sql.DataSource;
-
 public interface TableModelLoaderManager {
     void clearAll();
 
-    JdbcModel load(String s);
+    TableModel load(String s);
 
 
     /**
@@ -19,7 +12,7 @@ public interface TableModelLoaderManager {
      * @param s
      * @return
      */
-    default JdbcModel getJdbcModel(String s) {
+    default TableModel getJdbcModel(String s) {
         return load(s);
     }
 }

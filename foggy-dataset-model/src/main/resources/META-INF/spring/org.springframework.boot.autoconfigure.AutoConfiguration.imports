@@ -1,2 +1,2 @@
-com.foggyframework.dataset.jdbc.model.JdbcModelAutoConfiguration
+com.foggyframework.dataset.jdbc.model.DbModelAutoConfiguration
 com.foggyframework.semantic.impl.SemanticAutoConfiguration

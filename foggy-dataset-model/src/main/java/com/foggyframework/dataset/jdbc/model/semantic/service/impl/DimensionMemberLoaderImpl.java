@@ -40,9 +40,9 @@ public class DimensionMemberLoaderImpl implements DimensionMemberLoader {
     @Resource
     JdbcService jdbcService;
     @Resource
-    JdbcQueryModelLoader jdbcQueryModelLoader;
+    QueryModelLoader queryModelLoader;
     @Autowired(required = false)
-    JdbcModelDictService jdbcModelDictService;
+    DbModelDictService dbModelDictService;
 
 
     /**
@@ -52,7 +52,7 @@ public class DimensionMemberLoaderImpl implements DimensionMemberLoader {
      * @param jdbcQueryModel
      * @param jdbcDimension
      */
-    private List<JdbcDataItem> loadDimDataItem(QueryModel jdbcQueryModel, JdbcQueryDimension jdbcDimension) {
+    private List<JdbcDataItem> loadDimDataItem(QueryModel jdbcQueryModel, DbQueryDimension jdbcDimension) {
 
 
 //构建查询维度用的查询条件
@@ -72,7 +72,7 @@ public class DimensionMemberLoaderImpl implements DimensionMemberLoader {
      * @param cachePrefix
      * @return
      */
-    private String buildCacheKey(JdbcQueryDimension jdbcDimension, String cachePrefix) {
+    private String buildCacheKey(DbQueryDimension jdbcDimension, String cachePrefix) {
         //搞到维度的表名
         TableQueryObject tableQueryObject = jdbcDimension.getDimension().getQueryObject().getDecorate(TableQueryObject.class);
         if (tableQueryObject == null) {
@@ -81,23 +81,23 @@ public class DimensionMemberLoaderImpl implements DimensionMemberLoader {
         return cachePrefix + "-" + tableQueryObject.getTableName().toUpperCase();
     }
 
-    private String buildCacheKey(JdbcQueryProperty jdbcQueryProperty, String cachePrefix) {
+    private String buildCacheKey(DbQueryProperty dbQueryProperty, String cachePrefix) {
         // 优先检查 dictRef（新的 fsscript 字典引用方式）
-        String dictRef = jdbcQueryProperty.getJdbcProperty().getDictRef();
+        String dictRef = dbQueryProperty.getJdbcProperty().getDictRef();
         if (!StringUtils.isEmpty(dictRef)) {
             return cachePrefix + "-dict-" + dictRef;
         }
 
         // 兼容旧的 dictClass 方式
-        String dictClass = jdbcQueryProperty.getJdbcProperty().getExtDataValue("dictClass");
+        String dictClass = dbQueryProperty.getJdbcProperty().getExtDataValue("dictClass");
         if (StringUtils.isEmpty(dictClass)) {
-            throw RX.throwA(String.format("只有字典类的属性，才能构建缓存,但%s不是", jdbcQueryProperty.getName()));
+            throw RX.throwA(String.format("只有字典类的属性，才能构建缓存,但%s不是", dbQueryProperty.getName()));
         }
         return cachePrefix + "-" + dictClass;
     }
 
 
-    private List<JdbcDataItem> loadPropertyDataItem(QueryModel jdbcQueryModel, JdbcQueryProperty jdbcProperty) {
+    private List<JdbcDataItem> loadPropertyDataItem(QueryModel jdbcQueryModel, DbQueryProperty jdbcProperty) {
         // 优先检查 dictRef（新的 fsscript 字典引用方式）
         String dictRef = jdbcProperty.getJdbcProperty().getDictRef();
         if (!StringUtils.isEmpty(dictRef)) {
@@ -113,11 +113,11 @@ public class DimensionMemberLoaderImpl implements DimensionMemberLoader {
      * 从 fsscript 字典引用加载字典项
      */
     private List<JdbcDataItem> loadPropertyDataItemFromDictRef(String dictRef) {
-        if (jdbcModelDictService == null) {
+        if (dbModelDictService == null) {
             throw RX.throwA("JdbcModelDictService 未注入，无法加载字典引用: " + dictRef);
         }
 
-        JdbcDictDef dictDef = jdbcModelDictService.getDictById(dictRef);
+        JdbcDictDef dictDef = dbModelDictService.getDictById(dictRef);
         if (dictDef == null) {
             throw RX.throwA("字典未找到: " + dictRef + "，请确保已通过 registerDict 注册");
         }
@@ -166,14 +166,14 @@ public class DimensionMemberLoaderImpl implements DimensionMemberLoader {
         /**
          * 首先，我们要判断fieldName是维度还是属性,注意这里的fieldName是不带$caption 或$id后缀的~
          */
-        QueryModel jdbcQueryModel = jdbcQueryModelLoader.getJdbcQueryModel(model);
+        QueryModel jdbcQueryModel = queryModelLoader.getJdbcQueryModel(model);
         String cacheKey = null;
-        JdbcQueryDimension jdbcDimension = jdbcQueryModel.findQueryDimension(fieldName, false);
+        DbQueryDimension jdbcDimension = jdbcQueryModel.findQueryDimension(fieldName, false);
         if (jdbcDimension != null) {
             //进入给度处理逻辑
             cacheKey = buildCacheKey(jdbcDimension, cachePrefix);
         }
-        JdbcQueryProperty jdbcProperty = jdbcQueryModel.findQueryProperty(fieldName, false);
+        DbQueryProperty jdbcProperty = jdbcQueryModel.findQueryProperty(fieldName, false);
         if (jdbcProperty != null) {
             cacheKey = buildCacheKey(jdbcProperty, cachePrefix);
         }

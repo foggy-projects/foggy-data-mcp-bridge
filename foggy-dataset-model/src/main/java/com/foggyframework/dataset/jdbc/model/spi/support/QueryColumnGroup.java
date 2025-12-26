@@ -1,6 +1,6 @@
 package com.foggyframework.dataset.jdbc.model.spi.support;
 
-import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryColumn;
+import com.foggyframework.dataset.jdbc.model.spi.DbQueryColumn;
 import lombok.Data;
 
 import java.util.ArrayList;
@@ -11,9 +11,9 @@ public class QueryColumnGroup {
 
     String caption;
 
-    List<JdbcQueryColumn> items=new ArrayList<>();
+    List<DbQueryColumn> items=new ArrayList<>();
 
-    public void addJdbcColumn(JdbcQueryColumn jdbcColumn) {
+    public void addJdbcColumn(DbQueryColumn jdbcColumn) {
         items.add(jdbcColumn);
     }
 }

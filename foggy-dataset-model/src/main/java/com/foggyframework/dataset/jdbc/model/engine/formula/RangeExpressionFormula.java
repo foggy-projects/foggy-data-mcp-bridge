@@ -2,7 +2,7 @@ package com.foggyframework.dataset.jdbc.model.engine.formula;
 
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.jdbc.model.engine.query.JdbcQuery;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcColumn;
+import com.foggyframework.dataset.jdbc.model.spi.DbColumn;
 import org.springframework.context.ApplicationContext;
 
 import java.util.List;
@@ -19,7 +19,7 @@ public class RangeExpressionFormula extends SqlFormulaSupport implements SqlForm
 
 
     @Override
-    protected Object buildAndAddListSqlToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, JdbcColumn jdbcColumn, String alias, List<Object> values, int link) {
+    protected Object buildAndAddListSqlToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, DbColumn jdbcColumn, String alias, List<Object> values, int link) {
 
         int f = type.charAt(0);
         int e = type.charAt(1);
@@ -53,12 +53,12 @@ public class RangeExpressionFormula extends SqlFormulaSupport implements SqlForm
     }
 
     @Override
-    protected Object buildAndAddEmptyToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, JdbcColumn sqlColumn, String alias, Object value, int link) {
+    protected Object buildAndAddEmptyToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, DbColumn sqlColumn, String alias, Object value, int link) {
         return null;
     }
 
     @Override
-    protected Object buildAndAddObjectToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, JdbcColumn sqlColumn, String alias, Object value, int link) {
+    protected Object buildAndAddObjectToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, DbColumn sqlColumn, String alias, Object value, int link) {
         throwOnlySupportListError();
         return null;
     }

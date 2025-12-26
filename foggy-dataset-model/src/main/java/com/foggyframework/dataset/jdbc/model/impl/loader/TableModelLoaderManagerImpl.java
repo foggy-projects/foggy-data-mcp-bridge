@@ -11,17 +11,17 @@ import com.foggyframework.dataset.jdbc.model.def.dimension.JdbcDimensionDef;
 import com.foggyframework.dataset.jdbc.model.def.measure.JdbcMeasureDef;
 import com.foggyframework.dataset.jdbc.model.def.property.JdbcPropertyDef;
 import com.foggyframework.dataset.jdbc.model.engine.mongo.MongoModelLoader;
-import com.foggyframework.dataset.jdbc.model.engine.query_model.JdbcModelFileChangeHandler;
+import com.foggyframework.dataset.jdbc.model.engine.query_model.DbModelFileChangeHandler;
 import com.foggyframework.dataset.jdbc.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.jdbc.model.impl.LoaderSupport;
-import com.foggyframework.dataset.jdbc.model.impl.dimension.JdbcDimensionSupport;
-import com.foggyframework.dataset.jdbc.model.impl.dimension.JdbcModelDimensionImpl;
-import com.foggyframework.dataset.jdbc.model.impl.dimension.JdbcModelParentChildDimensionImpl;
-import com.foggyframework.dataset.jdbc.model.impl.dimension.JdbcModelTimeDimensionImpl;
+import com.foggyframework.dataset.jdbc.model.impl.dimension.DbDimensionSupport;
+import com.foggyframework.dataset.jdbc.model.impl.dimension.DbModelDimensionImpl;
+import com.foggyframework.dataset.jdbc.model.impl.dimension.DbModelParentChildDimensionImpl;
+import com.foggyframework.dataset.jdbc.model.impl.dimension.DbModelTimeDimensionImpl;
 import com.foggyframework.dataset.jdbc.model.impl.measure.JdbcMeasureSupport;
 import com.foggyframework.dataset.jdbc.model.impl.measure.JdbcModelMeasureImpl;
 import com.foggyframework.dataset.jdbc.model.impl.model.TableModelSupport;
-import com.foggyframework.dataset.jdbc.model.impl.property.JdbcPropertyImpl;
+import com.foggyframework.dataset.jdbc.model.impl.property.DbPropertyImpl;
 import com.foggyframework.dataset.jdbc.model.impl.utils.QueryObjectSupport;
 import com.foggyframework.dataset.jdbc.model.spi.*;
 import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
@@ -54,15 +54,15 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
     @Autowired(required = false)
     MongoModelLoader mongoModelLoader;
 
-    JdbcModelFileChangeHandler fileChangeHandler;
-    List<JdbcModelLoadProcessor> processors;
+    DbModelFileChangeHandler fileChangeHandler;
+    List<DbModelLoadProcessor> processors;
 
-    Map<String, JdbcModel> name2JdbcModel = new HashMap<>();
+    Map<String, TableModel> name2JdbcModel = new HashMap<>();
     Map<String, TableModelLoader> typeName2Loader = new HashMap<>();
     int dimIdx;
     int modelIdx;
 
-    public TableModelLoaderManagerImpl(SystemBundlesContext systemBundlesContext, FileFsscriptLoader fileFsscriptLoader, List<JdbcModelLoadProcessor> processors, List<TableModelLoader> loaders) {
+    public TableModelLoaderManagerImpl(SystemBundlesContext systemBundlesContext, FileFsscriptLoader fileFsscriptLoader, List<DbModelLoadProcessor> processors, List<TableModelLoader> loaders) {
         super(systemBundlesContext, fileFsscriptLoader);
         this.processors = processors;
         loaders.forEach(loader -> typeName2Loader.put(loader.getTypeName(), loader));
@@ -74,8 +74,8 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
     }
 
     @Override
-    synchronized public JdbcModel load(String name) {
-        JdbcModel tm = name2JdbcModel.get(name);
+    synchronized public TableModel load(String name) {
+        TableModel tm = name2JdbcModel.get(name);
         if (tm != null) {
             return tm;
         }
@@ -133,7 +133,7 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
 
     }
 
-    public JdbcModel initialization(JdbcModel jm, JdbcModelDef def, Bundle bundle) {
+    public TableModel initialization(TableModel jm, JdbcModelDef def, Bundle bundle) {
         RX.notNull(dataSource, "加载模型时的数据源不得为空");
         RX.notNull(dataSource, "加载模型时的def不得为空");
 
@@ -190,14 +190,14 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
         QueryObject qo = context.getJdbcModel().getQueryObject();
         qo.getDecorate(QueryObjectSupport.class).setAlias(m + (++modelIdx));
 
-        for (JdbcDimension dimension : context.getJdbcModel().getDimensions()) {
+        for (DbDimension dimension : context.getJdbcModel().getDimensions()) {
             QueryObject dqo = dimension.getQueryObject();
             if (dqo == null) {
                 continue;
             }
             dqo.getDecorate(QueryObjectSupport.class).setAlias(d + (++dimIdx));
-            if (dimension.getDecorate(JdbcModelParentChildDimensionImpl.class) != null) {
-                dimension.getDecorate(JdbcModelParentChildDimensionImpl.class).getClosureQueryObject().getDecorate(QueryObjectSupport.class).setAlias(d + (++dimIdx));
+            if (dimension.getDecorate(DbModelParentChildDimensionImpl.class) != null) {
+                dimension.getDecorate(DbModelParentChildDimensionImpl.class).getClosureQueryObject().getDecorate(QueryObjectSupport.class).setAlias(d + (++dimIdx));
             }
 
         }
@@ -210,7 +210,7 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
             //加载在Model上定义的维度
             dimensionDefList = dimensionDefList.stream().filter(e -> e != null).collect(Collectors.toList());
             for (JdbcDimensionDef dimensionDef : dimensionDefList) {
-                JdbcDimension jdbcDimension = loadDimension(context, dimensionDef, true);
+                DbDimension dbDimension = loadDimension(context, dimensionDef, true);
             }
         }
 
@@ -221,9 +221,9 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
         /**
          * 初始化维度的相关列
          */
-        for (JdbcDimension dimension : context.getJdbcModel().getDimensions()) {
+        for (DbDimension dimension : context.getJdbcModel().getDimensions()) {
 
-            JdbcDimensionSupport ds = dimension.getDecorate(JdbcDimensionSupport.class);
+            DbDimensionSupport ds = dimension.getDecorate(DbDimensionSupport.class);
 
             //初始化维度的相关列
             ds.init();
@@ -239,8 +239,8 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
             jdbcPropertyDefList = jdbcPropertyDefList.stream().filter(e -> e != null).collect(Collectors.toList());
             for (JdbcPropertyDef propertyDef : jdbcPropertyDefList) {
                 try {
-                    JdbcProperty jdbcProperty = loadProperty(context, null, propertyDef);
-                    context.getJdbcModel().addJdbcProperty(jdbcProperty);
+                    DbProperty dbProperty = loadProperty(context, null, propertyDef);
+                    context.getJdbcModel().addJdbcProperty(dbProperty);
                 } catch (Throwable t) {
                     log.error("加载属性发生错误", t);
                     if (propertyDef.isDeprecated()) {
@@ -283,7 +283,7 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
 
     }
 
-    private JdbcDimension loadDimension(JdbcModelLoadContext context, JdbcDimensionDef dimensionDef, boolean modelDim) {
+    private DbDimension loadDimension(JdbcModelLoadContext context, JdbcDimensionDef dimensionDef, boolean modelDim) {
         return loadDimension(context, dimensionDef, modelDim, null);
     }
 
@@ -296,7 +296,7 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
      * @param parentDimension 父维度（如果是嵌套维度）
      * @return 加载后的维度
      */
-    private JdbcDimension loadDimension(JdbcModelLoadContext context, JdbcDimensionDef dimensionDef, boolean modelDim, JdbcDimension parentDimension) {
+    private DbDimension loadDimension(JdbcModelLoadContext context, JdbcDimensionDef dimensionDef, boolean modelDim, DbDimension parentDimension) {
 
         /**
          * 检查数据
@@ -308,19 +308,19 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
         /**
          * 开始加载维度
          */
-        JdbcDimensionSupport dimension = null;
-        if (JdbcDimensionType.DATETIME == JdbcDimensionType.fromString(dimensionDef.getType())) {
+        DbDimensionSupport dimension = null;
+        if (DbDimensionType.DATETIME == DbDimensionType.fromString(dimensionDef.getType())) {
             //时间维
-            dimension = new JdbcModelTimeDimensionImpl();
+            dimension = new DbModelTimeDimensionImpl();
         } else if (StringUtils.isNotEmpty(dimensionDef.getParentKey())) {
             //父子结构~
-            JdbcModelParentChildDimensionImpl parentChildDimension = new JdbcModelParentChildDimensionImpl(dimensionDef.getParentKey(), dimensionDef.getChildKey(), dimensionDef.getClosureTableName());
+            DbModelParentChildDimensionImpl parentChildDimension = new DbModelParentChildDimensionImpl(dimensionDef.getParentKey(), dimensionDef.getChildKey(), dimensionDef.getClosureTableName());
             dimension = parentChildDimension;
             parentChildDimension.setClosureQueryObject(loadQueryObject(dimensionDef.getDataSource() == null ? dataSource : dimensionDef.getDataSource(), dimensionDef.getClosureTableName(), null, dimensionDef.getClosureTableSchema()));
             //childKey用来作为ClosureQueryObject的primaryKey与主表进行关联，注意，childKey实际上可不是主键
             parentChildDimension.getClosureQueryObject().getDecorate(QueryObjectSupport.class).setPrimaryKey(dimensionDef.getChildKey());
         } else {
-            dimension = new JdbcModelDimensionImpl();
+            dimension = new DbModelDimensionImpl();
         }
 
 //        BeanUtils.copyProperties(dimensionDef, dimension);
@@ -346,34 +346,34 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
 
         if (dimensionDef.getProperties() != null) {
             for (JdbcPropertyDef propertyDef : dimensionDef.getProperties()) {
-                JdbcProperty jdbcProperty = loadProperty(context, dimension, propertyDef);
-                dimension.addJdbcProperty(jdbcProperty);
+                DbProperty dbProperty = loadProperty(context, dimension, propertyDef);
+                dimension.addJdbcProperty(dbProperty);
             }
         }
 
         processJdbcDataProvider(dimension.getDataProvider());
 
-        JdbcDimension jdbcDimension = dimension;
-        for (JdbcModelLoadProcessor processor : processors) {
-            jdbcDimension = processor.processJdbcDimension(context, jdbcDimension);
+        DbDimension dbDimension = dimension;
+        for (DbModelLoadProcessor processor : processors) {
+            dbDimension = processor.processJdbcDimension(context, dbDimension);
         }
         if (modelDim) {
-            context.getJdbcModel().addDimension(jdbcDimension);
+            context.getJdbcModel().addDimension(dbDimension);
         }
 
         // 递归加载嵌套子维度
         if (dimensionDef.getDimensions() != null && !dimensionDef.getDimensions().isEmpty()) {
             for (JdbcDimensionDef childDef : dimensionDef.getDimensions()) {
-                JdbcDimension childDimension = loadDimension(context, childDef, true, jdbcDimension);
-                jdbcDimension.addChildDimension(childDimension);
+                DbDimension childDimension = loadDimension(context, childDef, true, dbDimension);
+                dbDimension.addChildDimension(childDimension);
             }
         }
 
-        return jdbcDimension;
+        return dbDimension;
     }
 
-    private void processJdbcDataProvider(JdbcDataProvider dataProvider) {
-        if (JdbcDimensionType.DICT == dataProvider.getDimensionType()) {
+    private void processJdbcDataProvider(DbDataProvider dataProvider) {
+        if (DbDimensionType.DICT == dataProvider.getDimensionType()) {
             RX.notNull(dataProvider.getExtData(), String.format("字典类型的维%s，必须有extData", dataProvider.getName()));
 
             String dictClass = dataProvider.getExtDataValue("dictClass");
@@ -384,30 +384,30 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
         }
     }
 
-    private JdbcProperty loadProperty(JdbcModelLoadContext context, JdbcDimensionSupport dimension, JdbcPropertyDef propertyDef) {
+    private DbProperty loadProperty(JdbcModelLoadContext context, DbDimensionSupport dimension, JdbcPropertyDef propertyDef) {
 
 
-        JdbcPropertyImpl property = new JdbcPropertyImpl();
+        DbPropertyImpl property = new DbPropertyImpl();
         propertyDef.apply(property);
 //        if (StringUtils.isNotEmpty(property.getType())) {
 //            property.setType(property.getType());
 //        }
-        if (JdbcColumnType.DAY == property.getType()) {
+        if (DbColumnType.DAY == property.getType()) {
             if (StringUtils.isEmpty(property.getFormat())) {
                 property.setFormat("YYYY-MM-DD");
             }
         }
 
         property.setJdbcModel(context.getJdbcModel());
-        property.setJdbcDimension(dimension);
+        property.setDbDimension(dimension);
         property.init();
 
         processJdbcDataProvider(property.getDataProvider());
 
-        JdbcProperty jdbcProperty = property;
+        DbProperty dbProperty = property;
 
         if (propertyDef.getFormulaDef() != null && propertyDef.getFormulaDef().getBuilder() != null) {
-            jdbcProperty.setFormulaBuilder(propertyDef.getFormulaDef().getBuilder());
+            dbProperty.setFormulaBuilder(propertyDef.getFormulaDef().getBuilder());
         }
 //        /**
 //         * 加入维度支持
@@ -418,11 +418,11 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
 //        }
 
 
-        for (JdbcModelLoadProcessor processor : processors) {
-            jdbcProperty = processor.processJdbcProperty(context, jdbcProperty);
+        for (DbModelLoadProcessor processor : processors) {
+            dbProperty = processor.processJdbcProperty(context, dbProperty);
         }
 
-        return jdbcProperty;
+        return dbProperty;
     }
 
     private void loadMeasure(JdbcModelLoadContext context, JdbcMeasureDef measureDef) {
@@ -447,7 +447,7 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
             measureDef.setAggregation("sum");
         }
         if (StringUtils.isNotEmpty(measureDef.getAggregation())) {
-            measure.getDecorate(JdbcMeasureSupport.class).setAggregation(JdbcAggregation.valueOf(measureDef.getAggregation().toUpperCase()));
+            measure.getDecorate(JdbcMeasureSupport.class).setAggregation(DbAggregation.valueOf(measureDef.getAggregation().toUpperCase()));
         }
 
         if (measureDef.getFormulaDef() != null && measureDef.getFormulaDef().getBuilder() != null) {
@@ -456,8 +456,8 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
 
         measure.getDecorate(JdbcMeasureSupport.class).init(context.getJdbcModel(), measureDef);
 
-        JdbcMeasure jdbcMeasure = measure;
-        for (JdbcModelLoadProcessor processor : processors) {
+        DbMeasure jdbcMeasure = measure;
+        for (DbModelLoadProcessor processor : processors) {
             jdbcMeasure = processor.processJdbcMeasure(context, jdbcMeasure);
         }
 

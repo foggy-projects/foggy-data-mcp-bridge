@@ -1,7 +1,7 @@
 package com.foggyframework.dataset.jdbc.model.authorization;
 
 import com.foggyframework.dataset.client.domain.PagingRequest;
-import com.foggyframework.dataset.jdbc.model.def.query.request.JdbcQueryRequestDef;
+import com.foggyframework.dataset.jdbc.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.jdbc.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.jdbc.model.plugins.result_set_filter.*;
 import org.junit.jupiter.api.*;
@@ -368,8 +368,8 @@ class AuthorizationStepTest {
     // ==========================================
 
     private ModelResultContext createMockContext(ModelResultContext.SecurityContext securityContext) {
-        JdbcQueryRequestDef param = new JdbcQueryRequestDef();
-        PagingRequest<JdbcQueryRequestDef> request = new PagingRequest<>();
+        DbQueryRequestDef param = new DbQueryRequestDef();
+        PagingRequest<DbQueryRequestDef> request = new PagingRequest<>();
         request.setParam(param);
 
         ModelResultContext ctx = new ModelResultContext(request, null, securityContext);

@@ -15,7 +15,7 @@ import com.foggyframework.dataset.jdbc.model.engine.query.JdbcQuery;
 import com.foggyframework.dataset.jdbc.model.engine.query.SimpleSqlJdbcQueryVisitor;
 import com.foggyframework.dataset.jdbc.model.engine.query_model.JdbcQueryModelImpl;
 import com.foggyframework.dataset.jdbc.model.i18n.DatasetMessages;
-import com.foggyframework.dataset.jdbc.model.impl.dimension.JdbcModelParentChildDimensionImpl;
+import com.foggyframework.dataset.jdbc.model.impl.dimension.DbModelParentChildDimensionImpl;
 import com.foggyframework.dataset.jdbc.model.impl.query.JdbcQueryOrderColumnImpl;
 import com.foggyframework.dataset.jdbc.model.impl.utils.SqlQueryObject;
 import com.foggyframework.dataset.jdbc.model.spi.*;
@@ -90,7 +90,7 @@ public class JdbcModelQueryEngine implements QueryEngine{
      * @deprecated 建议使用 {@link #analysisQueryRequest(SystemBundlesContext, ModelResultContext)} 方法
      */
     @Deprecated
-    public void analysisQueryRequest(SystemBundlesContext systemBundlesContext, JdbcQueryRequestDef queryRequest) {
+    public void analysisQueryRequest(SystemBundlesContext systemBundlesContext, DbQueryRequestDef queryRequest) {
         // 创建临时 Context 以兼容旧调用
         ModelResultContext context = new ModelResultContext();
         context.setRequest(new com.foggyframework.dataset.client.domain.PagingRequest<>());
@@ -108,7 +108,7 @@ public class JdbcModelQueryEngine implements QueryEngine{
      * @param context              查询生命周期上下文
      */
     public void analysisQueryRequest(SystemBundlesContext systemBundlesContext, ModelResultContext context) {
-        JdbcQueryRequestDef queryRequest = context.getRequest().getParam();
+        DbQueryRequestDef queryRequest = context.getRequest().getParam();
         RX.notNull(queryRequest, "查询请求不得为空");
 
         JdbcQuery jdbcQuery = new JdbcQuery();
@@ -118,7 +118,7 @@ public class JdbcModelQueryEngine implements QueryEngine{
         //补上必要的模型
         if (jdbcQueryModel.getJdbcModelList().size() > 1) {
             for (int i = 1; i < jdbcQueryModel.getJdbcModelList().size(); i++) {
-                JdbcModel tm = jdbcQueryModel.getJdbcModelList().get(i);
+                TableModel tm = jdbcQueryModel.getJdbcModelList().get(i);
                 JdbcQueryModelImpl.JdbcModelDx dx = tm.getDecorate(JdbcQueryModelImpl.JdbcModelDx.class);
 
                 if (dx.getOnBuilder() != null) {
@@ -137,7 +137,7 @@ public class JdbcModelQueryEngine implements QueryEngine{
         processCalculatedFields(systemBundlesContext, queryRequest, context);
 
         //1.加入需要查询的列
-        List<JdbcColumn> selectColumns = null;
+        List<DbColumn> selectColumns = null;
         if (queryRequest.getColumns() == null || queryRequest.getColumns().isEmpty()) {
             log.debug("查询请求中未定义列，我们直接从查询模型中取相关的列");
 
@@ -148,7 +148,7 @@ public class JdbcModelQueryEngine implements QueryEngine{
             selectColumns = new ArrayList<>(queryRequest.getColumns().size());
             for (String columnName : queryRequest.getColumns()) {
                 // 先查找计算字段
-                JdbcColumn calcColumn = findCalculatedColumn(columnName);
+                DbColumn calcColumn = findCalculatedColumn(columnName);
                 if (calcColumn != null) {
                     selectColumns.add(calcColumn);
                 } else {
@@ -160,7 +160,7 @@ public class JdbcModelQueryEngine implements QueryEngine{
         if (queryRequest.getExColumns() != null) {
             for (String columnName : queryRequest.getExColumns()) {
 //                selectColumns.f
-                JdbcQueryColumn qc = jdbcQueryModel.findJdbcColumnForSelectByName(columnName, false);
+                DbQueryColumn qc = jdbcQueryModel.findJdbcColumnForSelectByName(columnName, false);
                 if (qc != null) {
 //                    JdbcColumn c = qc.getSelectColumn();
                     selectColumns.remove(qc);
@@ -179,7 +179,7 @@ public class JdbcModelQueryEngine implements QueryEngine{
 
 
         // 3.加权限语句
-        for (JdbcQueryDimension queryDimension : jdbcQueryModel.getQueryDimensions()) {
+        for (DbQueryDimension queryDimension : jdbcQueryModel.getQueryDimensions()) {
             if (queryDimension.getQueryAccess() != null && queryDimension.getQueryAccess().getQueryBuilder() != null) {
                 ExpEvaluator ee = DefaultExpEvaluator.newInstance(systemBundlesContext.getApplicationContext());
                 ee.setVar("query", jdbcQuery);
@@ -188,7 +188,7 @@ public class JdbcModelQueryEngine implements QueryEngine{
                 queryDimension.getQueryAccess().getQueryBuilder().autoApply(ee);
             }
         }
-        for (JdbcQueryProperty queryProperty : jdbcQueryModel.getQueryProperties()) {
+        for (DbQueryProperty queryProperty : jdbcQueryModel.getQueryProperties()) {
             if (queryProperty.getQueryAccess() != null && queryProperty.getQueryAccess().getQueryBuilder() != null) {
                 ExpEvaluator ee = DefaultExpEvaluator.newInstance(systemBundlesContext.getApplicationContext());
                 ee.setVar("query", jdbcQuery);
@@ -212,14 +212,14 @@ public class JdbcModelQueryEngine implements QueryEngine{
         if (queryRequest.hasGroupBy()) {
             //当有分组时，我们直接在jdbcQuery加入groupBy
             int idx=0;
-            for (JdbcColumn column : jdbcQuery.getSelect().getColumns()) {
+            for (DbColumn column : jdbcQuery.getSelect().getColumns()) {
                 if (column instanceof CalculatedJdbcColumn c) {
                     // hasAggregate=true: 表达式本身已包含聚合函数（如 SUM(totalAmount)），跳过
                     if (!c.hasAggregate()) {
                         // aggregationType!=null: 推断的聚合类型（如 totalAmount+2 推断为 SUM），用聚合函数包裹
                         // aggregationType==null: 无聚合，加入 groupBy
-                        JdbcAggregation agg = c.getAggregationType() != null
-                                ? JdbcAggregation.valueOf(c.getAggregationType())
+                        DbAggregation agg = c.getAggregationType() != null
+                                ? DbAggregation.valueOf(c.getAggregationType())
                                 : column.getAggregation();
                         AggregationJdbcColumn aggColumn = buildAggColumn1(column.getQueryObject(), column.getDeclare(), column, agg);
                         if (c.getAggregationType() == null) {
@@ -248,7 +248,7 @@ public class JdbcModelQueryEngine implements QueryEngine{
                 for (OrderRequestDef orderRequestDef : queryRequest.getOrderBy()) {
 
                     validate(orderRequestDef.getOrder());
-                    JdbcColumn jdbcColumn = jdbcQueryModel.findJdbcColumnForCond(orderRequestDef.getField(), true);
+                    DbColumn jdbcColumn = jdbcQueryModel.findJdbcColumnForCond(orderRequestDef.getField(), true);
                     jdbcQuery.addOrder(new JdbcQueryOrderColumnImpl(jdbcColumn, orderRequestDef.getOrder(), orderRequestDef.isNullLast(), orderRequestDef.isNullFirst()));
 
                 }
@@ -297,21 +297,21 @@ public class JdbcModelQueryEngine implements QueryEngine{
 
     }
 
-    private String buildGroupBy(SystemBundlesContext systemBundlesContext, JdbcQueryRequestDef queryRequest) {
+    private String buildGroupBy(SystemBundlesContext systemBundlesContext, DbQueryRequestDef queryRequest) {
         String groupBySql = buildAggSql(systemBundlesContext, queryRequest.getGroupBy().stream().collect(Collectors.toMap(GroupRequestDef::getField, e -> e)), queryRequest, true, false);
         return groupBySql;
     }
 
-    private AggregationJdbcColumn buildAggColumn(QueryObject sqlQueryObject, JdbcColumn column, JdbcAggregation agg) {
+    private AggregationJdbcColumn buildAggColumn(QueryObject sqlQueryObject, DbColumn column, DbAggregation agg) {
         String declare = sqlQueryObject.getAlias() + "." + column.getAlias();
         return buildAggColumn1(sqlQueryObject, declare, column, agg);
     }
 
-    private AggregationJdbcColumn buildAggColumn1(QueryObject sqlQueryObject, String declare, JdbcColumn column, JdbcAggregation agg) {
+    private AggregationJdbcColumn buildAggColumn1(QueryObject sqlQueryObject, String declare, DbColumn column, DbAggregation agg) {
 
         AggregationJdbcColumn aggColumn = new AggregationJdbcColumn(sqlQueryObject, column.getAlias(), declare, column.getType());
         if (agg == null) {
-            agg = JdbcAggregation.NONE;
+            agg = DbAggregation.NONE;
         }
         switch (agg) {
             case GROUP_CONCAT:
@@ -349,7 +349,7 @@ public class JdbcModelQueryEngine implements QueryEngine{
                 break;
             case NONE:
             default:
-                if (column.getType() == JdbcColumnType.DATETIME) {
+                if (column.getType() == DbColumnType.DATETIME) {
                     // 使用方言提供的日期格式化函数，支持多数据库
                     aggColumn.setDeclare(jdbcQueryModel.getDialect().buildDateFormatFunction(declare));
                 }
@@ -360,25 +360,25 @@ public class JdbcModelQueryEngine implements QueryEngine{
     }
 
 
-    private String buildAggSql(SystemBundlesContext systemBundlesContext, Map<String, GroupRequestDef> groupByMap, JdbcQueryRequestDef queryRequest, boolean addOrder, boolean countToSum) {
+    private String buildAggSql(SystemBundlesContext systemBundlesContext, Map<String, GroupRequestDef> groupByMap, DbQueryRequestDef queryRequest, boolean addOrder, boolean countToSum) {
         JdbcQuery aggJdbcQuery = new JdbcQuery();
         // 使用不含 ORDER BY 的SQL作为子查询，避免生成无意义的排序语句
         SqlQueryObject sqlQueryObject = new SqlQueryObject(this.innerSqlWithoutOrder, "tx");
-        List<JdbcColumn> aggColumns = new ArrayList<>();
-        for (JdbcColumn column : jdbcQuery.getSelect().getColumns()) {
+        List<DbColumn> aggColumns = new ArrayList<>();
+        for (DbColumn column : jdbcQuery.getSelect().getColumns()) {
 //            jdbcQueryModel.get
             AggregationJdbcColumn aggColumn = null;
-            JdbcAggregation c = column.getAggregation();
+            DbAggregation c = column.getAggregation();
 
             if (groupByMap != null) {
                 GroupRequestDef def = groupByMap.get(column.getName());
                 if (def != null && StringUtils.isNotEmpty(def.getAgg())) {
                     //调用者传了自定义的聚合 方式，我们使用它来处理
-                    c = JdbcAggregation.valueOf(def.getAgg());
+                    c = DbAggregation.valueOf(def.getAgg());
                 }
             }
             if (c == null) {
-                c = JdbcAggregation.NONE;
+                c = DbAggregation.NONE;
             }
             switch (c) {
                 case AVG:
@@ -437,7 +437,7 @@ public class JdbcModelQueryEngine implements QueryEngine{
             //group by之后，需要重新搞下排序
             for (JdbcQueryOrderColumnImpl orderRequestDef : jdbcQuery.getOrder().getOrders()) {
 
-                for (JdbcColumn aggColumn : aggColumns) {
+                for (DbColumn aggColumn : aggColumns) {
                     //需要检查传入的列是否在聚合查询中
                     if (StringUtils.equals(aggColumn.getAlias(), orderRequestDef.getSelectColumn().getAlias())) {
                         aggJdbcQuery.addOrder(new JdbcQueryOrderColumnImpl(aggColumn, orderRequestDef.getOrder(), false, false));
@@ -509,7 +509,7 @@ public class JdbcModelQueryEngine implements QueryEngine{
 
             listCond.addCond(gc);
         } else {
-            JdbcColumn jdbcColumn = jdbcQueryModel.findJdbcColumnForCond(sliceDef.getField(), false, true);
+            DbColumn jdbcColumn = jdbcQueryModel.findJdbcColumnForCond(sliceDef.getField(), false, true);
 
             // 如果在模型中找不到，尝试从计算字段中查找
             if (jdbcColumn == null) {
@@ -533,7 +533,7 @@ public class JdbcModelQueryEngine implements QueryEngine{
             String alias = jdbcQueryModel.getAlias(jdbcColumn.getQueryObject());
 
             if (jdbcColumn.isDimension()) {
-                JdbcModelParentChildDimensionImpl pp = jdbcColumn.getDecorate(JdbcDimensionColumn.class).getJdbcDimension().getDecorate(JdbcModelParentChildDimensionImpl.class);
+                DbModelParentChildDimensionImpl pp = jdbcColumn.getDecorate(DbDimensionColumn.class).getDimension().getDecorate(DbModelParentChildDimensionImpl.class);
                 if (pp != null) {
                     //这是一个parentChild维~条件要重写，转成closure表
                     jdbcQuery.join(pp.getClosureQueryObject(), pp.getForeignKey());
@@ -542,7 +542,7 @@ public class JdbcModelQueryEngine implements QueryEngine{
                     jdbcColumn = pp.getParentKeyJdbcColumn();
                 }
             }
-            if (jdbcColumn.isProperty() && jdbcColumn.getDecorate(JdbcPropertyColumn.class).getJdbcProperty().isBit()) {
+            if (jdbcColumn.isProperty() && jdbcColumn.getDecorate(DbPropertyColumn.class).getProperty().isBit()) {
                 //是位图列,重写为bitIn
                 sliceDef.setOp(CondType.BIT_IN.getCode());
             }
@@ -564,7 +564,7 @@ public class JdbcModelQueryEngine implements QueryEngine{
      * @param queryRequest 查询请求
      * @param context      查询生命周期上下文（可选）
      */
-    private void preprocessInlineExpressions(JdbcQueryRequestDef queryRequest, ModelResultContext context) {
+    private void preprocessInlineExpressions(DbQueryRequestDef queryRequest, ModelResultContext context) {
         // 检查是否已在 InlineExpressionPreprocessStep 中预处理
         ModelResultContext.ParsedInlineExpressions parsed =
                 context != null ? context.getParsedInlineExpressions() : null;
@@ -645,7 +645,7 @@ public class JdbcModelQueryEngine implements QueryEngine{
      * @param queryRequest         查询请求
      * @param context              查询生命周期上下文（可选）
      */
-    private void processCalculatedFields(SystemBundlesContext systemBundlesContext, JdbcQueryRequestDef queryRequest, ModelResultContext context) {
+    private void processCalculatedFields(SystemBundlesContext systemBundlesContext, DbQueryRequestDef queryRequest, ModelResultContext context) {
         if (queryRequest.getCalculatedFields() == null || queryRequest.getCalculatedFields().isEmpty()) {
             this.calculatedColumns = new ArrayList<>();
             if (context != null) {
@@ -737,12 +737,12 @@ public class JdbcModelQueryEngine implements QueryEngine{
      * @param jdbcQueryModel 查询模型
      * @param queryRequest   查询请求
      */
-    private void addOrderByForGroupBy(JdbcQuery jdbcQuery, JdbcQueryModel jdbcQueryModel, JdbcQueryRequestDef queryRequest) {
+    private void addOrderByForGroupBy(JdbcQuery jdbcQuery, JdbcQueryModel jdbcQueryModel, DbQueryRequestDef queryRequest) {
         // 构建业务名 -> SELECT 列的映射
         // queryRequest.getColumns() 中的名称与 jdbcQuery.getSelect().getColumns() 一一对应
-        List<JdbcColumn> selectColumns = jdbcQuery.getSelect().getColumns();
+        List<DbColumn> selectColumns = jdbcQuery.getSelect().getColumns();
         List<String> requestColumns = queryRequest.getColumns();
-        Map<String, JdbcColumn> columnNameMap = new java.util.HashMap<>();
+        Map<String, DbColumn> columnNameMap = new java.util.HashMap<>();
 
         if (requestColumns != null && requestColumns.size() == selectColumns.size()) {
             for (int i = 0; i < requestColumns.size(); i++) {
@@ -750,7 +750,7 @@ public class JdbcModelQueryEngine implements QueryEngine{
             }
         } else {
             // 回退：使用 alias 作为 key
-            for (JdbcColumn col : selectColumns) {
+            for (DbColumn col : selectColumns) {
                 if (col.getAlias() != null) {
                     columnNameMap.put(col.getAlias(), col);
                 }
@@ -765,7 +765,7 @@ public class JdbcModelQueryEngine implements QueryEngine{
                 String fieldName = orderRequestDef.getField();
 
                 // 查找匹配的 SELECT 列
-                JdbcColumn selectColumn = columnNameMap.get(fieldName);
+                DbColumn selectColumn = columnNameMap.get(fieldName);
 
                 if (selectColumn != null) {
                     // 字段在 SELECT 中，添加排序
@@ -788,19 +788,19 @@ public class JdbcModelQueryEngine implements QueryEngine{
         List<JdbcQueryOrderColumnImpl> modelOrders = jdbcQueryModel.getOrders();
         if (modelOrders != null && !modelOrders.isEmpty()) {
             for (JdbcQueryOrderColumnImpl modelOrder : modelOrders) {
-                JdbcColumn orderColumn = modelOrder.getSelectColumn();
+                DbColumn orderColumn = modelOrder.getSelectColumn();
                 String fieldName = orderColumn.getName();
                 String fieldAlias = orderColumn.getAlias();
 
                 // 尝试用 name 和 alias 查找
-                JdbcColumn selectColumn = columnNameMap.get(fieldName);
+                DbColumn selectColumn = columnNameMap.get(fieldName);
                 if (selectColumn == null && fieldAlias != null) {
                     selectColumn = columnNameMap.get(fieldAlias);
                 }
 
                 if (selectColumn != null) {
                     // 检查是否已添加（避免重复）
-                    final JdbcColumn finalSelectColumn = selectColumn;
+                    final DbColumn finalSelectColumn = selectColumn;
                     boolean alreadyAdded = false;
                     if (jdbcQuery.getOrder() != null && jdbcQuery.getOrder().getOrders() != null) {
                         alreadyAdded = jdbcQuery.getOrder().getOrders().stream()

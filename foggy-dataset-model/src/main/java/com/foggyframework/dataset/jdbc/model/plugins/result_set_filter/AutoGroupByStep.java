@@ -1,7 +1,7 @@
 package com.foggyframework.dataset.jdbc.model.plugins.result_set_filter;
 
 import com.foggyframework.dataset.jdbc.model.def.query.request.GroupRequestDef;
-import com.foggyframework.dataset.jdbc.model.def.query.request.JdbcQueryRequestDef;
+import com.foggyframework.dataset.jdbc.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.jdbc.model.def.query.request.OrderRequestDef;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.annotation.Order;
@@ -40,7 +40,7 @@ public class AutoGroupByStep implements DataSetResultStep {
 
     @Override
     public int beforeQuery(ModelResultContext ctx) {
-        JdbcQueryRequestDef queryRequest = ctx.getRequest().getParam();
+        DbQueryRequestDef queryRequest = ctx.getRequest().getParam();
 
         List<String> columns = queryRequest.getColumns();
         if (columns == null || columns.isEmpty()) {
@@ -138,7 +138,7 @@ public class AutoGroupByStep implements DataSetResultStep {
      * @param queryRequest 查询请求
      * @param columns      SELECT 列名列表
      */
-    private void validateAndCleanOrderBy(JdbcQueryRequestDef queryRequest, List<String> columns) {
+    private void validateAndCleanOrderBy(DbQueryRequestDef queryRequest, List<String> columns) {
         List<OrderRequestDef> orderBy = queryRequest.getOrderBy();
         if (orderBy == null || orderBy.isEmpty()) {
             return;

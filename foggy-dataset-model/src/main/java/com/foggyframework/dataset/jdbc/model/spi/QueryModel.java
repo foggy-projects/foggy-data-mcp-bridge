@@ -3,7 +3,7 @@ package com.foggyframework.dataset.jdbc.model.spi;
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.core.Decorate;
 import com.foggyframework.dataset.client.domain.PagingRequest;
-import com.foggyframework.dataset.jdbc.model.def.query.request.JdbcQueryRequestDef;
+import com.foggyframework.dataset.jdbc.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.jdbc.model.engine.query.JdbcQueryResult;
 import com.foggyframework.dataset.jdbc.model.impl.query.JdbcQueryOrderColumnImpl;
 import com.foggyframework.dataset.jdbc.model.plugins.result_set_filter.ModelResultContext;
@@ -41,16 +41,16 @@ public interface QueryModel extends Decorate, DbObject {
      */
     String getShortAlias();
 
-    JdbcModel getJdbcModelByQueryObject(QueryObject queryObject);
+    TableModel getJdbcModelByQueryObject(QueryObject queryObject);
 
     List<JdbcQueryOrderColumnImpl> getOrders();
 
-    List<JdbcQueryProperty> getQueryProperties();
+    List<DbQueryProperty> getQueryProperties();
 
 
-    JdbcQueryColumn getIdJdbcQueryColumn();
+    DbQueryColumn getIdJdbcQueryColumn();
 
-    JdbcQueryResult query(SystemBundlesContext systemBundlesContext, PagingRequest<JdbcQueryRequestDef> form);
+    JdbcQueryResult query(SystemBundlesContext systemBundlesContext, PagingRequest<DbQueryRequestDef> form);
 
     /**
      * 执行查询（带预处理上下文）
@@ -71,26 +71,26 @@ public interface QueryModel extends Decorate, DbObject {
     QueryObject getQueryObject();
 
     //    List<JdbcColumn> getSelectColumns();
-    List<JdbcQueryColumn> getJdbcQueryColumns();
+    List<DbQueryColumn> getJdbcQueryColumns();
 
-    List<JdbcQueryCondition> getJdbcQueryConds();
+    List<DbQueryCondition> getJdbcQueryConds();
 
-    JdbcModel getJdbcModel();
+    TableModel getJdbcModel();
 
 
-    JdbcColumn findJdbcColumnForCond(String jdbcColumName, boolean errorIfNotFound);
+    DbColumn findJdbcColumnForCond(String jdbcColumName, boolean errorIfNotFound);
 
-    JdbcQueryColumn findJdbcQueryColumnByName(String jdbcColumName, boolean errorIfNotFound);
+    DbQueryColumn findJdbcQueryColumnByName(String jdbcColumName, boolean errorIfNotFound);
 
-    JdbcColumn findJdbcColumn(String name);
+    DbColumn findJdbcColumn(String name);
 
-    JdbcDimension findDimension(String name);
+    DbDimension findDimension(String name);
 
-    JdbcProperty findProperty(String name, boolean b);
+    DbProperty findProperty(String name, boolean b);
 
-    JdbcQueryDimension findQueryDimension(String dimensionName, boolean errorIfNotFound);
+    DbQueryDimension findQueryDimension(String dimensionName, boolean errorIfNotFound);
 
-    JdbcQueryProperty findQueryProperty(String name, boolean errorIfNotFound);
+    DbQueryProperty findQueryProperty(String name, boolean errorIfNotFound);
 
 //    DataSource getDataSource();
 //
@@ -100,22 +100,22 @@ public interface QueryModel extends Decorate, DbObject {
 //     */
 //    FDialect getDialect();
 
-    JdbcColumn findJdbcColumnForCond(String condColumnName, boolean errorIfNotFound, boolean extSearch);
+    DbColumn findJdbcColumnForCond(String condColumnName, boolean errorIfNotFound, boolean extSearch);
 
-    JdbcQueryColumn findJdbcColumnForSelectByName(String columnName, boolean errorIfNotFound);
+    DbQueryColumn findJdbcColumnForSelectByName(String columnName, boolean errorIfNotFound);
 
-    JdbcQueryCondition findJdbcQueryCondByField(String name);
+    DbQueryCondition findJdbcQueryCondByField(String name);
 
-    List<JdbcQueryDimension> getQueryDimensions();
+    List<DbQueryDimension> getQueryDimensions();
 
     List<QueryColumnGroup> getColumnGroups();
 
     @Nullable
-    JdbcQueryCondition findJdbcQueryCondByName(String name);
+    DbQueryCondition findJdbcQueryCondByName(String name);
 
-    List<JdbcColumn> getSelectColumns(boolean newList);
+    List<DbColumn> getSelectColumns(boolean newList);
 
-    List<JdbcModel> getJdbcModelList();
+    List<TableModel> getJdbcModelList();
 
     String getAlias(QueryObject queryObject);
 }

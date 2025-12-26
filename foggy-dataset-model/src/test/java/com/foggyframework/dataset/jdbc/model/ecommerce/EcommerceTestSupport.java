@@ -2,10 +2,9 @@ package com.foggyframework.dataset.jdbc.model.ecommerce;
 
 import com.foggyframework.conversion.FsscriptConversionService;
 import com.foggyframework.core.ex.RX;
-import com.foggyframework.dataset.jdbc.model.spi.QueryModel;
 import com.foggyframework.dataset.jdbc.model.spi.TableModelLoaderManager;
 import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryModel;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryModelLoader;
+import com.foggyframework.dataset.jdbc.model.spi.QueryModelLoader;
 import com.foggyframework.dataset.jdbc.model.test.JdbcModelTestApplication;
 import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
@@ -59,7 +58,7 @@ public abstract class EcommerceTestSupport {
     protected TableModelLoaderManager tableModelLoaderManager;
 
     @Resource
-    protected JdbcQueryModelLoader jdbcQueryModelLoader;
+    protected QueryModelLoader queryModelLoader;
 
     @Resource
     protected FileFsscriptLoader fileFsscriptLoader;
@@ -105,7 +104,7 @@ public abstract class EcommerceTestSupport {
      * @return JdbcQueryModel
      */
     protected JdbcQueryModel getQueryModel(String queryModelName) {
-        return (JdbcQueryModel) jdbcQueryModelLoader.getJdbcQueryModel(queryModelName);
+        return (JdbcQueryModel) queryModelLoader.getJdbcQueryModel(queryModelName);
     }
 
     /**

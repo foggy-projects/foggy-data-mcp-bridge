@@ -3,7 +3,7 @@ package com.foggyframework.dataset.jdbc.model.impl.utils;
 import com.foggyframework.core.AbstractDecorate;
 import com.foggyframework.dataset.db.table.SqlColumn;
 import com.foggyframework.dataset.jdbc.model.impl.AiObject;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcColumn;
+import com.foggyframework.dataset.jdbc.model.spi.DbColumn;
 import com.foggyframework.dataset.jdbc.model.spi.QueryObject;
 import com.foggyframework.fsscript.exp.FsscriptFunction;
 import lombok.Getter;
@@ -21,7 +21,7 @@ public class SqlQueryObject extends AbstractDecorate implements QueryObject {
 
     String description;
 
-    List<JdbcColumn> columns;
+    List<DbColumn> columns;
 
     public SqlQueryObject(String sql, String alias) {
         this.sql = sql;

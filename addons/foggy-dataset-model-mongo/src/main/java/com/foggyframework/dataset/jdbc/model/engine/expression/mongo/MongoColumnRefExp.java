@@ -3,7 +3,7 @@ package com.foggyframework.dataset.jdbc.model.engine.expression.mongo;
 import com.foggyframework.dataset.jdbc.model.engine.expression.MongoExpContext;
 import com.foggyframework.dataset.jdbc.model.engine.expression.MongoFragment;
 import com.foggyframework.dataset.jdbc.model.engine.expression.MongoCalculatedColumn;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryColumn;
+import com.foggyframework.dataset.jdbc.model.spi.DbQueryColumn;
 import com.foggyframework.fsscript.exp.AbstractExp;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import lombok.Getter;
@@ -54,7 +54,7 @@ public class MongoColumnRefExp extends AbstractExp<String> {
         }
 
         // 解析普通列
-        JdbcQueryColumn column = expContext.tryResolveColumn(columnName);
+        DbQueryColumn column = expContext.tryResolveColumn(columnName);
         if (column != null) {
             String fieldName = expContext.resolveFieldName(columnName);
             return MongoFragment.ofColumn(column, fieldName);

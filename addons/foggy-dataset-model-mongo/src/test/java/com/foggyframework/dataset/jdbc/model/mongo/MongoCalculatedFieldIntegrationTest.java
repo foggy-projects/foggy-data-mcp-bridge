@@ -12,8 +12,7 @@ import org.springframework.data.mongodb.core.aggregation.AggregationOperation;
 import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 
 import jakarta.annotation.Resource;
-import java.math.BigDecimal;
-import java.math.RoundingMode;
+
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -192,7 +191,7 @@ class MongoCalculatedFieldIntegrationTest extends MongoTestSupport {
         }
 
         // 2. 使用 QM 模型 + calculatedFields 查询
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel(QUERY_MODEL_NAME);
         queryRequest.setColumns(Arrays.asList("orderNo", "price", "quantity"));
 
@@ -201,7 +200,7 @@ class MongoCalculatedFieldIntegrationTest extends MongoTestSupport {
         calcFields.add(new CalculatedFieldDef("totalAmount", "总金额", "price * quantity"));
         queryRequest.setCalculatedFields(calcFields);
 
-        PagingRequest<JdbcQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 10);
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 10);
         PagingResultImpl result = jdbcService.queryModelData(form);
 
         log.info("QM模型计算结果 (前3条):");
@@ -270,7 +269,7 @@ class MongoCalculatedFieldIntegrationTest extends MongoTestSupport {
         }
 
         // 2. QM 模型 + calculatedFields
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel(QUERY_MODEL_NAME);
         queryRequest.setColumns(Arrays.asList("orderNo", "price", "quantity", "discount"));
 
@@ -279,7 +278,7 @@ class MongoCalculatedFieldIntegrationTest extends MongoTestSupport {
                 "price * quantity * (1 - discount / 100)"));
         queryRequest.setCalculatedFields(calcFields);
 
-        PagingRequest<JdbcQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 10);
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 10);
         PagingResultImpl result = jdbcService.queryModelData(form);
 
         log.info("QM模型折扣计算结果 (前3条):");
@@ -350,7 +349,7 @@ class MongoCalculatedFieldIntegrationTest extends MongoTestSupport {
         }
 
         // 2. QM 模型 + calculatedFields
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel(QUERY_MODEL_NAME);
         queryRequest.setColumns(Arrays.asList("orderNo", "price", "quantity"));
 
@@ -359,7 +358,7 @@ class MongoCalculatedFieldIntegrationTest extends MongoTestSupport {
                 "ROUND(price * quantity / 100, 2)"));
         queryRequest.setCalculatedFields(calcFields);
 
-        PagingRequest<JdbcQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 10);
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 10);
         PagingResultImpl result = jdbcService.queryModelData(form);
 
         log.info("QM模型ROUND计算结果 (前3条):");
@@ -420,7 +419,7 @@ class MongoCalculatedFieldIntegrationTest extends MongoTestSupport {
         }
 
         // 2. QM 模型 + calculatedFields
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel(QUERY_MODEL_NAME);
         queryRequest.setColumns(Arrays.asList("orderNo", "price"));
 
@@ -428,7 +427,7 @@ class MongoCalculatedFieldIntegrationTest extends MongoTestSupport {
         calcFields.add(new CalculatedFieldDef("priceDiff", "价格差异", "ABS(price - 5000)"));
         queryRequest.setCalculatedFields(calcFields);
 
-        PagingRequest<JdbcQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 10);
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 10);
         PagingResultImpl result = jdbcService.queryModelData(form);
 
         log.info("QM模型ABS计算结果 (前3条):");
@@ -511,7 +510,7 @@ class MongoCalculatedFieldIntegrationTest extends MongoTestSupport {
         }
 
         // 2. QM 模型 + calculatedFields
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel(QUERY_MODEL_NAME);
         queryRequest.setColumns(Arrays.asList("orderNo", "price", "quantity", "discount"));
 
@@ -521,7 +520,7 @@ class MongoCalculatedFieldIntegrationTest extends MongoTestSupport {
         calcFields.add(new CalculatedFieldDef("finalAmount", "实付金额", "price * quantity * (1 - discount / 100)"));
         queryRequest.setCalculatedFields(calcFields);
 
-        PagingRequest<JdbcQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 10);
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 10);
         PagingResultImpl result = jdbcService.queryModelData(form);
 
         log.info("QM模型多字段计算结果 (前3条):");
@@ -594,7 +593,7 @@ class MongoCalculatedFieldIntegrationTest extends MongoTestSupport {
         log.info("MongoTemplate 带过滤的计算结果: {} 条", mongoList.size());
 
         // 2. QM 模型 + calculatedFields + slice
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel(QUERY_MODEL_NAME);
         queryRequest.setColumns(Arrays.asList("orderNo", "productName", "category", "price", "quantity"));
 
@@ -612,7 +611,7 @@ class MongoCalculatedFieldIntegrationTest extends MongoTestSupport {
         calcFields.add(new CalculatedFieldDef("totalAmount", "总金额", "price * quantity"));
         queryRequest.setCalculatedFields(calcFields);
 
-        PagingRequest<JdbcQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 100);
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 100);
         PagingResultImpl result = jdbcService.queryModelData(form);
 
         log.info("QM模型带过滤的计算结果: {} 条", result.getItems().size());
@@ -666,7 +665,7 @@ class MongoCalculatedFieldIntegrationTest extends MongoTestSupport {
         }
 
         // 2. QM 模型 (目前可能不支持按计算字段排序，这里按price排序作为对比)
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel(QUERY_MODEL_NAME);
         queryRequest.setColumns(Arrays.asList("orderNo", "price", "quantity"));
 
@@ -682,7 +681,7 @@ class MongoCalculatedFieldIntegrationTest extends MongoTestSupport {
         orders.add(order);
         queryRequest.setOrderBy(orders);
 
-        PagingRequest<JdbcQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 5);
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 5);
         PagingResultImpl result = jdbcService.queryModelData(form);
 
         log.info("QM模型按price排序结果 (包含totalAmount计算字段):");

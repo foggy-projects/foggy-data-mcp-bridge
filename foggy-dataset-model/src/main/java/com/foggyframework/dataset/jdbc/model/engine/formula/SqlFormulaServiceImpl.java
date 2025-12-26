@@ -3,7 +3,7 @@ package com.foggyframework.dataset.jdbc.model.engine.formula;
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.dataset.jdbc.model.engine.query.JdbcQuery;
 import com.foggyframework.dataset.jdbc.model.i18n.DatasetMessages;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcColumn;
+import com.foggyframework.dataset.jdbc.model.spi.DbColumn;
 
 import java.util.HashMap;
 import java.util.List;
@@ -40,7 +40,7 @@ public class SqlFormulaServiceImpl implements SqlFormulaService {
 
 
 @Override
-    public void buildAndAddToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, JdbcColumn jdbcColumn, String alias, Object value, int link){
+    public void buildAndAddToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, DbColumn jdbcColumn, String alias, Object value, int link){
         SqlFormula sqlFormula = name2SqlFormula.get(type);
         if(sqlFormula==null){
             throw RX.throwAUserTip(DatasetMessages.formulaNotfound(type));

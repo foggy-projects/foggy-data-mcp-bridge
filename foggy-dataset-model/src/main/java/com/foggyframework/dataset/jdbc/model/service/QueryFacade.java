@@ -1,7 +1,7 @@
 package com.foggyframework.dataset.jdbc.model.service;
 
 import com.foggyframework.dataset.client.domain.PagingRequest;
-import com.foggyframework.dataset.jdbc.model.def.query.request.JdbcQueryRequestDef;
+import com.foggyframework.dataset.jdbc.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.jdbc.model.engine.query.JdbcQueryResult;
 import com.foggyframework.dataset.jdbc.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.model.PagingResultImpl;
@@ -35,7 +35,7 @@ public interface QueryFacade {
      * @param form 查询请求
      * @return 查询结果
      */
-    PagingResultImpl queryModelData(PagingRequest<JdbcQueryRequestDef> form);
+    PagingResultImpl queryModelData(PagingRequest<DbQueryRequestDef> form);
 
     /**
      * 执行查询（带查询类型）
@@ -44,7 +44,7 @@ public interface QueryFacade {
      * @param queryType 查询类型（NORMAL、SEMANTIC）
      * @return 查询结果
      */
-    PagingResultImpl queryModelData(PagingRequest<JdbcQueryRequestDef> form,
+    PagingResultImpl queryModelData(PagingRequest<DbQueryRequestDef> form,
                                     ModelResultContext.QueryType queryType);
 
     /**
@@ -56,7 +56,7 @@ public interface QueryFacade {
      * @param form 查询请求
      * @return 查询结果（包含查询引擎信息）
      */
-    JdbcQueryResult queryModelResult(PagingRequest<JdbcQueryRequestDef> form);
+    JdbcQueryResult queryModelResult(PagingRequest<DbQueryRequestDef> form);
 
     /**
      * 执行查询（完整版，带上下文）

@@ -4,7 +4,7 @@ import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.core.trans.ObjectTransFormatter;
 import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.db.dialect.FDialect;
-import com.foggyframework.dataset.jdbc.model.def.query.request.JdbcQueryRequestDef;
+import com.foggyframework.dataset.jdbc.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.jdbc.model.engine.JdbcModelQueryEngine;
 import com.foggyframework.dataset.jdbc.model.engine.expression.SqlCalculatedFieldProcessor;
 import com.foggyframework.dataset.jdbc.model.engine.formula.SqlFormulaService;
@@ -38,14 +38,14 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
      */
     private CalculatedFieldProcessor calculatedFieldProcessor;
 
-    public JdbcQueryModelImpl(List<JdbcModel> jdbcModelList, Fsscript fsscript, SqlFormulaService sqlFormulaService, DataSource dataSource) {
+    public JdbcQueryModelImpl(List<TableModel> jdbcModelList, Fsscript fsscript, SqlFormulaService sqlFormulaService, DataSource dataSource) {
         super(jdbcModelList, fsscript);
         this.jdbcModel = jdbcModelList.get(0);
         this.sqlFormulaService = sqlFormulaService;
         this.dataSource = dataSource;
         this.fsscript = fsscript;
         this.jdbcModelList = jdbcModelList;
-        for (JdbcModel model : jdbcModelList) {
+        for (TableModel model : jdbcModelList) {
             Object key = model.getQueryObject();
 //            if(name2Alias.containsKey(key)){
 //                throw new UnsupportedOperationException();
@@ -66,7 +66,7 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
 
 
     @Override
-    public JdbcQueryResult query(SystemBundlesContext systemBundlesContext, PagingRequest<JdbcQueryRequestDef> form) {
+    public JdbcQueryResult query(SystemBundlesContext systemBundlesContext, PagingRequest<DbQueryRequestDef> form) {
         // 创建新的上下文
         ModelResultContext context = new ModelResultContext(form, null);
         return query(systemBundlesContext, context);
@@ -86,8 +86,8 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
      * @return 查询结果
      */
     public JdbcQueryResult queryJdbc(SystemBundlesContext systemBundlesContext, ModelResultContext context) {
-        PagingRequest<JdbcQueryRequestDef> form = context.getRequest();
-        JdbcQueryRequestDef queryRequest = form.getParam();
+        PagingRequest<DbQueryRequestDef> form = context.getRequest();
+        DbQueryRequestDef queryRequest = form.getParam();
 
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(this, sqlFormulaService);
 
@@ -107,10 +107,10 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
         }
 
         //对items中的数据进行格式化
-        for (JdbcColumn column : queryEngine.getJdbcQuery().getSelect().getColumns()) {
+        for (DbColumn column : queryEngine.getJdbcQuery().getSelect().getColumns()) {
 //            log.warn("1");
-            if (column instanceof JdbcQueryColumn) {
-                ObjectTransFormatter<?> ff = ((JdbcQueryColumn) column).getValueFormatter();
+            if (column instanceof DbQueryColumn) {
+                ObjectTransFormatter<?> ff = ((DbQueryColumn) column).getValueFormatter();
                 if (ff != null) {
                     String name = column.getName();
                     for (Object item : items) {

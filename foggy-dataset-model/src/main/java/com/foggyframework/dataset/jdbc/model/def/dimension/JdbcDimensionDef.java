@@ -3,8 +3,8 @@ package com.foggyframework.dataset.jdbc.model.def.dimension;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.jdbc.model.def.JdbcDefSupport;
 import com.foggyframework.dataset.jdbc.model.def.property.JdbcPropertyDef;
-import com.foggyframework.dataset.jdbc.model.impl.JdbcObjectSupport;
-import com.foggyframework.dataset.jdbc.model.impl.dimension.JdbcDimensionSupport;
+import com.foggyframework.dataset.jdbc.model.impl.dimension.DbDimensionSupport;
+import com.foggyframework.dataset.jdbc.model.spi.DbDimensionType;
 import com.foggyframework.fsscript.exp.FsscriptFunction;
 import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
@@ -62,13 +62,13 @@ public class JdbcDimensionDef extends JdbcDefSupport {
 
     DataSource dataSource;
 
-    public void apply(JdbcDimensionSupport dimension) {
+    public void apply(DbDimensionSupport dimension) {
         super.apply(dimension);
         BeanUtils.copyProperties(this, dimension, "type"); // 排除 type，因为类型不同
         dimension.setAlias(alias);
         // 手动转换 type
         if (StringUtils.isNotEmpty(type)) {
-            dimension.setType(com.foggyframework.dataset.jdbc.model.spi.JdbcDimensionType.fromString(type));
+            dimension.setType(DbDimensionType.fromString(type));
         }
     }
 }

@@ -1,7 +1,7 @@
 package com.foggyframework.dataset.jdbc.model.plugins.result_set_filter;
 
 import com.foggyframework.dataset.client.domain.PagingRequest;
-import com.foggyframework.dataset.jdbc.model.def.query.request.JdbcQueryRequestDef;
+import com.foggyframework.dataset.jdbc.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.model.PagingResultImpl;
 import lombok.extern.slf4j.Slf4j;
 
@@ -30,14 +30,14 @@ public class DefaultDataSetResultFilterManagerImpl implements DataSetResultFilte
     }
 
     @Override
-    public PagingResultImpl process(PagingRequest<JdbcQueryRequestDef> form, PagingResultImpl pagingResult) {
+    public PagingResultImpl process(PagingRequest<DbQueryRequestDef> form, PagingResultImpl pagingResult) {
         ModelResultContext ctx = new ModelResultContext(form, pagingResult);
         process(ctx);
         return ctx.getPagingResult();
     }
 
     @Override
-    public PagingRequest<JdbcQueryRequestDef> beforeQuery(PagingRequest<JdbcQueryRequestDef> form) {
+    public PagingRequest<DbQueryRequestDef> beforeQuery(PagingRequest<DbQueryRequestDef> form) {
         ModelResultContext ctx = new ModelResultContext(form, null);
         beforeQuery(ctx);
         return form;

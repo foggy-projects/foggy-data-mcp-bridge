@@ -1,7 +1,7 @@
 package com.foggyframework.dataset.jdbc.model.engine.formula;
 
 import com.foggyframework.dataset.jdbc.model.engine.query.JdbcQuery;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcColumn;
+import com.foggyframework.dataset.jdbc.model.spi.DbColumn;
 import org.springframework.context.ApplicationContext;
 
 import java.util.Arrays;
@@ -19,7 +19,7 @@ public class InExpressionFormula extends SqlFormulaSupport implements SqlFormula
 
 
     @Override
-    protected Object buildAndAddListSqlToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, JdbcColumn jdbcColumn, String alias, List<Object> values, int link) {
+    protected Object buildAndAddListSqlToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, DbColumn jdbcColumn, String alias, List<Object> values, int link) {
         if(values.isEmpty()){
             return null;
         }
@@ -39,13 +39,13 @@ public class InExpressionFormula extends SqlFormulaSupport implements SqlFormula
     }
 
     @Override
-    protected Object buildAndAddEmptyToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, JdbcColumn sqlColumn, String alias, Object value, int link) {
+    protected Object buildAndAddEmptyToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, DbColumn sqlColumn, String alias, Object value, int link) {
 
         return null;
     }
 
     @Override
-    protected Object buildAndAddObjectToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, JdbcColumn sqlColumn, String alias, Object value, int link) {
+    protected Object buildAndAddObjectToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, DbColumn sqlColumn, String alias, Object value, int link) {
 
 
         return buildAndAddListSqlToJdbcCond(listCond, type, sqlColumn, alias, Arrays.asList(value), link);

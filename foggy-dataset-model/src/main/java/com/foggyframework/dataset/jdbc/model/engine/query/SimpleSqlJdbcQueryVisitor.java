@@ -3,10 +3,10 @@ package com.foggyframework.dataset.jdbc.model.engine.query;
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.db.dialect.FDialect;
-import com.foggyframework.dataset.jdbc.model.def.query.request.JdbcQueryRequestDef;
+import com.foggyframework.dataset.jdbc.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.jdbc.model.impl.query.JdbcQueryGroupColumnImpl;
 import com.foggyframework.dataset.jdbc.model.impl.query.JdbcQueryOrderColumnImpl;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcColumn;
+import com.foggyframework.dataset.jdbc.model.spi.DbColumn;
 import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryModel;
 import com.foggyframework.dataset.jdbc.model.spi.QueryObject;
 import com.foggyframework.dataset.jdbc.model.spi.support.AggregationJdbcColumn;
@@ -30,7 +30,7 @@ public class SimpleSqlJdbcQueryVisitor implements JdbcQueryVisitor {
     List<Object> values = new ArrayList<>();
 
     JdbcQueryModel jdbcQueryModel;
-    JdbcQueryRequestDef queryRequest;
+    DbQueryRequestDef queryRequest;
 
     /**
      * 数据库方言，用于处理不同数据库的语法差异
@@ -42,7 +42,7 @@ public class SimpleSqlJdbcQueryVisitor implements JdbcQueryVisitor {
      */
     private int orderByStartIndex = -1;
 
-    public SimpleSqlJdbcQueryVisitor(ApplicationContext appCtx, JdbcQueryModel jdbcQueryModel, JdbcQueryRequestDef queryRequest) {
+    public SimpleSqlJdbcQueryVisitor(ApplicationContext appCtx, JdbcQueryModel jdbcQueryModel, DbQueryRequestDef queryRequest) {
         this.appCtx = appCtx;
         this.jdbcQueryModel = jdbcQueryModel;
         this.queryRequest = queryRequest;
@@ -64,7 +64,7 @@ public class SimpleSqlJdbcQueryVisitor implements JdbcQueryVisitor {
             sb.append(" distinct \t");
         }
         int i = 0;
-        for (JdbcColumn column : select.getColumns()) {
+        for (DbColumn column : select.getColumns()) {
             if (i != 0) {
                 sb.append(",\t");
             }
@@ -148,7 +148,7 @@ public class SimpleSqlJdbcQueryVisitor implements JdbcQueryVisitor {
             if (i != 0) {
                 sb.append(",\t");
             }
-            JdbcColumn column = orderOrder.getSelectColumn();
+            DbColumn column = orderOrder.getSelectColumn();
             String cn = column.getDeclareOrder(appCtx, getAlias(column.getQueryObject()));
 
             // 使用 dialect.buildNullOrderClause() 处理 NULL 排序

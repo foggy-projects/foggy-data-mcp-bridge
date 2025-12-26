@@ -48,13 +48,13 @@ class ServiceIntegrationTest extends EcommerceTestSupport {
         log.info("原生SQL订单总数: {}", nativeCount);
 
         // 2. 通过服务查询
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactOrderQueryModel");
         queryRequest.setColumns(Arrays.asList("orderId", "orderStatus", "totalAmount", "orderPayAmount"));
         queryRequest.setReturnTotal(true);
         // SQLite轻量测试数据只有10条，动态调整期望值
         int expectedSize = isLightweightMode() ? nativeCount.intValue() : 100;
-        PagingRequest<JdbcQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, expectedSize);
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, expectedSize);
 
         PagingResultImpl result = jdbcService.queryModelData(form);
 
@@ -94,7 +94,7 @@ class ServiceIntegrationTest extends EcommerceTestSupport {
         List<Map<String, Object>> nativeResults = executeQuery(nativeSql);
 
         // 2. 通过服务查询
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactOrderQueryModel");
         queryRequest.setColumns(Arrays.asList(
             "orderId",
@@ -111,7 +111,7 @@ class ServiceIntegrationTest extends EcommerceTestSupport {
         orders.add(order);
         queryRequest.setOrderBy(orders);
 
-        PagingRequest<JdbcQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 10);
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 10);
 
         PagingResultImpl result = jdbcService.queryModelData(form);
         List<Map<String, Object>> items = result.getItems();
@@ -152,7 +152,7 @@ class ServiceIntegrationTest extends EcommerceTestSupport {
         log.info("原生SQL COMPLETED订单数: {}", nativeCount);
 
         // 2. 通过服务查询
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactOrderQueryModel");
         queryRequest.setColumns(Arrays.asList("orderId", "orderStatus", "totalAmount"));
         queryRequest.setReturnTotal(true);
@@ -165,7 +165,7 @@ class ServiceIntegrationTest extends EcommerceTestSupport {
         slices.add(slice);
         queryRequest.setSlice(slices);
 
-        PagingRequest<JdbcQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 10);
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 10);
 
         PagingResultImpl result = jdbcService.queryModelData(form);
 
@@ -205,7 +205,7 @@ class ServiceIntegrationTest extends EcommerceTestSupport {
         log.info("原生SQL结果: {} 组", nativeResults.size());
 
         // 2. 通过服务查询
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactOrderQueryModel");
         queryRequest.setColumns(Arrays.asList("customer$customerType", "totalAmount", "orderPayAmount"));
 
@@ -222,7 +222,7 @@ class ServiceIntegrationTest extends EcommerceTestSupport {
         orders.add(order);
         queryRequest.setOrderBy(orders);
 
-        PagingRequest<JdbcQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 100);
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 100);
 
         PagingResultImpl result = jdbcService.queryModelData(form);
         List<Map<String, Object>> items = result.getItems();
@@ -266,7 +266,7 @@ class ServiceIntegrationTest extends EcommerceTestSupport {
         log.info("原生SQL结果: {} 组", nativeResults.size());
 
         // 2. 通过服务查询
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactOrderQueryModel");
         queryRequest.setColumns(Arrays.asList("orderDate$year", "customer$customerType", "totalAmount"));
 
@@ -280,7 +280,7 @@ class ServiceIntegrationTest extends EcommerceTestSupport {
         orders.add(createOrder("customer$customerType", "ASC"));
         queryRequest.setOrderBy(orders);
 
-        PagingRequest<JdbcQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 100);
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 100);
 
         PagingResultImpl result = jdbcService.queryModelData(form);
         List<Map<String, Object>> items = result.getItems();
@@ -324,7 +324,7 @@ class ServiceIntegrationTest extends EcommerceTestSupport {
         log.info("原生SQL结果: {} 组", nativeResults.size());
 
         // 2. 通过服务查询
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactOrderQueryModel");
         queryRequest.setColumns(Arrays.asList("customer$customerType", "totalAmount"));
 
@@ -344,7 +344,7 @@ class ServiceIntegrationTest extends EcommerceTestSupport {
         orders.add(createOrder("customer$customerType", "ASC"));
         queryRequest.setOrderBy(orders);
 
-        PagingRequest<JdbcQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 100);
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 100);
 
         PagingResultImpl result = jdbcService.queryModelData(form);
         List<Map<String, Object>> items = result.getItems();
@@ -378,7 +378,7 @@ class ServiceIntegrationTest extends EcommerceTestSupport {
         int pageSize = isLightweightMode() ? 3 : 10;
 
         // 1. 查询第一页
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactOrderQueryModel");
         queryRequest.setColumns(Arrays.asList("orderId", "totalAmount"));
         queryRequest.setReturnTotal(true);
@@ -387,11 +387,11 @@ class ServiceIntegrationTest extends EcommerceTestSupport {
         orders.add(createOrder("orderId", "ASC"));
         queryRequest.setOrderBy(orders);
 
-        PagingRequest<JdbcQueryRequestDef> form1 = new PagingRequest<>(1, pageSize, 0, pageSize, queryRequest);
+        PagingRequest<DbQueryRequestDef> form1 = new PagingRequest<>(1, pageSize, 0, pageSize, queryRequest);
         PagingResultImpl result1 = jdbcService.queryModelData(form1);
 
         // 2. 查询第二页
-        PagingRequest<JdbcQueryRequestDef> form2 = new PagingRequest<>(2, pageSize, pageSize, pageSize, queryRequest);
+        PagingRequest<DbQueryRequestDef> form2 = new PagingRequest<>(2, pageSize, pageSize, pageSize, queryRequest);
         PagingResultImpl result2 = jdbcService.queryModelData(form2);
 
         log.info("第一页: {} 条, 第二页: {} 条, 总数: {}, pageSize: {}",
@@ -426,12 +426,12 @@ class ServiceIntegrationTest extends EcommerceTestSupport {
         Map<String, Object> nativeSummary = jdbcTemplate.queryForMap(nativeSql);
 
         // 2. 通过服务查询（启用totalColumn）
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactOrderQueryModel");
         queryRequest.setColumns(Arrays.asList("orderId", "totalAmount"));
         queryRequest.setReturnTotal(true);
 
-        PagingRequest<JdbcQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 10);
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 10);
 
         PagingResultImpl result = jdbcService.queryModelData(form);
 

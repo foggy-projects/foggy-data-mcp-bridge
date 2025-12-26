@@ -18,12 +18,12 @@ import java.util.Map;
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
-public class JdbcQueryColumnImpl extends JdbcObjectSupport implements JdbcQueryColumn {
+public class JdbcQueryColumnImpl extends JdbcObjectSupport implements DbQueryColumn {
 
     @Delegate(excludes = {DbObject.class})
-    JdbcColumn selectColumn;
+    DbColumn selectColumn;
 
-    JdbcQueryCondition jdbcQueryCondition;
+    DbQueryCondition dbQueryCondition;
 
     /**
      * UI配置
@@ -58,7 +58,7 @@ public class JdbcQueryColumnImpl extends JdbcObjectSupport implements JdbcQueryC
 //        this.selectColumn = selectColumn;
 //    }
 
-    public JdbcQueryColumnImpl(JdbcColumn selectColumn, String name, String caption, String alias, String field) {
+    public JdbcQueryColumnImpl(DbColumn selectColumn, String name, String caption, String alias, String field) {
         this.selectColumn = selectColumn;
         this.name = name;
         this.caption = caption;
@@ -139,8 +139,8 @@ public class JdbcQueryColumnImpl extends JdbcObjectSupport implements JdbcQueryC
     }
 
     @Override
-    public JdbcQueryCondition getJdbcQueryCond() {
-        return jdbcQueryCondition;
+    public DbQueryCondition getJdbcQueryCond() {
+        return dbQueryCondition;
     }
 
 //    @Override

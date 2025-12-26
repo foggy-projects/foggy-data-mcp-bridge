@@ -2,7 +2,7 @@ package com.foggyframework.dataset.jdbc.model.impl.loader;
 
 import com.foggyframework.bundle.Bundle;
 import com.foggyframework.dataset.jdbc.model.def.JdbcModelDef;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcModel;
+import com.foggyframework.dataset.jdbc.model.spi.TableModel;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -15,11 +15,11 @@ public class JdbcModelLoadContext {
 
     JdbcModelDef def;
 
-    JdbcModel jdbcModel;
+    TableModel jdbcModel;
 
     Bundle bundle;
 
-    public JdbcModelLoadContext(DataSource dataSource, JdbcModelDef def, JdbcModel jdbcModel, Bundle bundle) {
+    public JdbcModelLoadContext(DataSource dataSource, JdbcModelDef def, TableModel jdbcModel, Bundle bundle) {
         this.dataSource = dataSource;
         this.def = def;
         this.jdbcModel = jdbcModel;

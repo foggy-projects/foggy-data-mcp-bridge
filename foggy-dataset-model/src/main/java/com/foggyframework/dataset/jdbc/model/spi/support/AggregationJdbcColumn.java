@@ -4,8 +4,8 @@ import com.foggyframework.core.AbstractDecorate;
 import com.foggyframework.core.trans.ObjectTransFormatter;
 import com.foggyframework.dataset.db.table.SqlColumn;
 import com.foggyframework.dataset.jdbc.model.impl.AiObject;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcColumn;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcColumnType;
+import com.foggyframework.dataset.jdbc.model.spi.DbColumn;
+import com.foggyframework.dataset.jdbc.model.spi.DbColumnType;
 import com.foggyframework.dataset.jdbc.model.spi.QueryObject;
 
 import lombok.AllArgsConstructor;
@@ -16,7 +16,7 @@ import org.springframework.context.ApplicationContext;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class AggregationJdbcColumn extends AbstractDecorate implements JdbcColumn {
+public class AggregationJdbcColumn extends AbstractDecorate implements DbColumn {
 
     QueryObject queryObject;
 
@@ -26,7 +26,7 @@ public class AggregationJdbcColumn extends AbstractDecorate implements JdbcColum
     /**
      * JdbcColumnType
      */
-    JdbcColumnType type;
+    DbColumnType type;
 
     String groupByName;
 
@@ -49,7 +49,7 @@ public class AggregationJdbcColumn extends AbstractDecorate implements JdbcColum
         this.groupByName = declare;
     }
 
-    public AggregationJdbcColumn(QueryObject queryObject, String alias, String declare, JdbcColumnType type) {
+    public AggregationJdbcColumn(QueryObject queryObject, String alias, String declare, DbColumnType type) {
         this.queryObject = queryObject;
         this.alias = alias;
         this.declare = declare;
@@ -86,7 +86,7 @@ public class AggregationJdbcColumn extends AbstractDecorate implements JdbcColum
     }
 
     @Override
-    public JdbcColumnType getType() {
+    public DbColumnType getType() {
         return type;
     }
 }

@@ -1,6 +1,6 @@
 package com.foggyframework.dataset.jdbc.model.ecommerce;
 
-import com.foggyframework.dataset.jdbc.model.spi.JdbcModel;
+import com.foggyframework.dataset.jdbc.model.spi.TableModel;
 import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryModel;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.*;
@@ -28,7 +28,7 @@ class ModelLoadingTest extends EcommerceTestSupport {
     @Order(1)
     @DisplayName("加载日期维度模型")
     void testLoadDimDateModel() {
-        JdbcModel model = tableModelLoaderManager.load("DimDateModel");
+        TableModel model = tableModelLoaderManager.load("DimDateModel");
         assertNotNull(model, "DimDateModel 加载失败");
         assertEquals("DimDateModel", model.getName());
         assertEquals("dim_date", model.getTableName());
@@ -40,7 +40,7 @@ class ModelLoadingTest extends EcommerceTestSupport {
     @Order(2)
     @DisplayName("加载商品维度模型")
     void testLoadDimProductModel() {
-        JdbcModel model = tableModelLoaderManager.load("DimProductModel");
+        TableModel model = tableModelLoaderManager.load("DimProductModel");
         assertNotNull(model, "DimProductModel 加载失败");
         assertEquals("DimProductModel", model.getName());
         assertEquals("dim_product", model.getTableName());
@@ -51,7 +51,7 @@ class ModelLoadingTest extends EcommerceTestSupport {
     @Order(3)
     @DisplayName("加载客户维度模型")
     void testLoadDimCustomerModel() {
-        JdbcModel model = tableModelLoaderManager.load("DimCustomerModel");
+        TableModel model = tableModelLoaderManager.load("DimCustomerModel");
         assertNotNull(model, "DimCustomerModel 加载失败");
         assertEquals("DimCustomerModel", model.getName());
         assertEquals("dim_customer", model.getTableName());
@@ -62,7 +62,7 @@ class ModelLoadingTest extends EcommerceTestSupport {
     @Order(4)
     @DisplayName("加载门店维度模型")
     void testLoadDimStoreModel() {
-        JdbcModel model = tableModelLoaderManager.load("DimStoreModel");
+        TableModel model = tableModelLoaderManager.load("DimStoreModel");
         assertNotNull(model, "DimStoreModel 加载失败");
         assertEquals("DimStoreModel", model.getName());
         assertEquals("dim_store", model.getTableName());
@@ -73,7 +73,7 @@ class ModelLoadingTest extends EcommerceTestSupport {
     @Order(5)
     @DisplayName("加载渠道维度模型")
     void testLoadDimChannelModel() {
-        JdbcModel model = tableModelLoaderManager.load("DimChannelModel");
+        TableModel model = tableModelLoaderManager.load("DimChannelModel");
         assertNotNull(model, "DimChannelModel 加载失败");
         assertEquals("DimChannelModel", model.getName());
         assertEquals("dim_channel", model.getTableName());
@@ -84,7 +84,7 @@ class ModelLoadingTest extends EcommerceTestSupport {
     @Order(6)
     @DisplayName("加载促销维度模型")
     void testLoadDimPromotionModel() {
-        JdbcModel model = tableModelLoaderManager.load("DimPromotionModel");
+        TableModel model = tableModelLoaderManager.load("DimPromotionModel");
         assertNotNull(model, "DimPromotionModel 加载失败");
         assertEquals("DimPromotionModel", model.getName());
         assertEquals("dim_promotion", model.getTableName());
@@ -95,7 +95,7 @@ class ModelLoadingTest extends EcommerceTestSupport {
     @Order(10)
     @DisplayName("加载订单事实表模型")
     void testLoadFactOrderModel() {
-        JdbcModel model = tableModelLoaderManager.load("FactOrderModel");
+        TableModel model = tableModelLoaderManager.load("FactOrderModel");
         assertNotNull(model, "FactOrderModel 加载失败");
         assertEquals("FactOrderModel", model.getName());
         assertEquals("fact_order", model.getTableName());
@@ -113,7 +113,7 @@ class ModelLoadingTest extends EcommerceTestSupport {
     @Order(11)
     @DisplayName("加载销售事实表模型")
     void testLoadFactSalesModel() {
-        JdbcModel model = tableModelLoaderManager.load("FactSalesModel");
+        TableModel model = tableModelLoaderManager.load("FactSalesModel");
         assertNotNull(model, "FactSalesModel 加载失败");
         assertEquals("FactSalesModel", model.getName());
         assertEquals("fact_sales", model.getTableName());
@@ -135,7 +135,7 @@ class ModelLoadingTest extends EcommerceTestSupport {
     @Order(12)
     @DisplayName("加载支付事实表模型")
     void testLoadFactPaymentModel() {
-        JdbcModel model = tableModelLoaderManager.load("FactPaymentModel");
+        TableModel model = tableModelLoaderManager.load("FactPaymentModel");
         assertNotNull(model, "FactPaymentModel 加载失败");
         assertEquals("FactPaymentModel", model.getName());
         assertEquals("fact_payment", model.getTableName());
@@ -148,7 +148,7 @@ class ModelLoadingTest extends EcommerceTestSupport {
     @Order(13)
     @DisplayName("加载退货事实表模型")
     void testLoadFactReturnModel() {
-        JdbcModel model = tableModelLoaderManager.load("FactReturnModel");
+        TableModel model = tableModelLoaderManager.load("FactReturnModel");
         assertNotNull(model, "FactReturnModel 加载失败");
         assertEquals("FactReturnModel", model.getName());
         assertEquals("fact_return", model.getTableName());
@@ -161,7 +161,7 @@ class ModelLoadingTest extends EcommerceTestSupport {
     @Order(14)
     @DisplayName("加载库存快照事实表模型")
     void testLoadFactInventorySnapshotModel() {
-        JdbcModel model = tableModelLoaderManager.load("FactInventorySnapshotModel");
+        TableModel model = tableModelLoaderManager.load("FactInventorySnapshotModel");
         assertNotNull(model, "FactInventorySnapshotModel 加载失败");
         assertEquals("FactInventorySnapshotModel", model.getName());
         assertEquals("fact_inventory_snapshot", model.getTableName());
@@ -255,7 +255,7 @@ class ModelLoadingTest extends EcommerceTestSupport {
     @Order(40)
     @DisplayName("验证订单模型维度配置")
     void testFactOrderModelDimensions() {
-        JdbcModel model = tableModelLoaderManager.load("FactOrderModel");
+        TableModel model = tableModelLoaderManager.load("FactOrderModel");
         assertNotNull(model, "FactOrderModel 加载失败");
 
         // 验证各维度配置
@@ -280,7 +280,7 @@ class ModelLoadingTest extends EcommerceTestSupport {
     @Order(41)
     @DisplayName("验证销售模型度量配置")
     void testFactSalesModelMeasures() {
-        JdbcModel model = tableModelLoaderManager.load("FactSalesModel");
+        TableModel model = tableModelLoaderManager.load("FactSalesModel");
         assertNotNull(model, "FactSalesModel 加载失败");
 
         // 验证度量配置

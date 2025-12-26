@@ -1,7 +1,7 @@
 package com.foggyframework.dataset.jdbc.model.plugins.result_set_filter;
 
 import com.foggyframework.dataset.jdbc.model.def.query.request.CalculatedFieldDef;
-import com.foggyframework.dataset.jdbc.model.def.query.request.JdbcQueryRequestDef;
+import com.foggyframework.dataset.jdbc.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.jdbc.model.engine.expression.AllowedFunctions;
 import com.foggyframework.dataset.jdbc.model.engine.expression.CalculatedFieldService;
 import com.foggyframework.dataset.jdbc.model.engine.expression.InlineExpressionParser;
@@ -18,7 +18,6 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * 内联表达式预处理步骤
@@ -48,7 +47,7 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
 
     @Override
     public int beforeQuery(ModelResultContext ctx) {
-        JdbcQueryRequestDef queryRequest = ctx.getRequest().getParam();
+        DbQueryRequestDef queryRequest = ctx.getRequest().getParam();
         List<String> columns = queryRequest.getColumns();
 
         if (columns == null || columns.isEmpty()) {
@@ -93,7 +92,7 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
      */
     private ModelResultContext.ParsedInlineExpressions parseAndConvert(
             List<String> columns,
-            JdbcQueryRequestDef queryRequest,
+            DbQueryRequestDef queryRequest,
             QueryModel queryModel) {
 
         ModelResultContext.ParsedInlineExpressions result = new ModelResultContext.ParsedInlineExpressions();
@@ -199,11 +198,11 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
                 }
 
                 // 从 QueryModel 获取字段聚合类型
-                JdbcQueryColumn queryColumn = queryModel.findJdbcQueryColumnByName(columnName, false);
+                DbQueryColumn queryColumn = queryModel.findJdbcQueryColumnByName(columnName, false);
                 if (queryColumn != null) {
-                    JdbcColumn selectColumn = queryColumn.getSelectColumn();
+                    DbColumn selectColumn = queryColumn.getSelectColumn();
                     if (selectColumn != null) {
-                        JdbcAggregation agg = selectColumn.getAggregation();
+                        DbAggregation agg = selectColumn.getAggregation();
                         if (agg != null) {
                             result.getColumnAggregations().put(columnName, agg.name());
                             // 如果之前没检测到聚合，但 QueryModel 有聚合定义，更新标记

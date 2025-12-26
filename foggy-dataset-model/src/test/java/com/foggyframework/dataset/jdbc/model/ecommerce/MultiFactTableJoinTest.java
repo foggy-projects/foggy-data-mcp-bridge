@@ -47,7 +47,7 @@ class MultiFactTableJoinTest extends EcommerceTestSupport {
 
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("OrderPaymentJoinQueryModel");
 
         // 设置查询列：订单信息 + 支付信息
@@ -80,7 +80,7 @@ class MultiFactTableJoinTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("OrderPaymentJoinQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("OrderPaymentJoinQueryModel");
 
         // 设置查询列：包含维度
@@ -113,7 +113,7 @@ class MultiFactTableJoinTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("OrderPaymentJoinQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("OrderPaymentJoinQueryModel");
 
         List<String> columns = Arrays.asList(
@@ -162,7 +162,7 @@ class MultiFactTableJoinTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("OrderPaymentJoinQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("OrderPaymentJoinQueryModel");
 
         List<String> columns = Arrays.asList(
@@ -213,7 +213,7 @@ class MultiFactTableJoinTest extends EcommerceTestSupport {
 
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("SalesReturnJoinQueryModel");
 
         // 设置查询列
@@ -247,7 +247,7 @@ class MultiFactTableJoinTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("SalesReturnJoinQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("SalesReturnJoinQueryModel");
 
         List<String> columns = Arrays.asList(
@@ -278,7 +278,7 @@ class MultiFactTableJoinTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("SalesReturnJoinQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("SalesReturnJoinQueryModel");
 
         List<String> columns = Arrays.asList(
@@ -317,7 +317,7 @@ class MultiFactTableJoinTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("SalesReturnJoinQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("SalesReturnJoinQueryModel");
 
         List<String> columns = Arrays.asList(
@@ -357,7 +357,7 @@ class MultiFactTableJoinTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("OrderPaymentJoinQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("OrderPaymentJoinQueryModel");
 
         List<String> columns = Arrays.asList(
@@ -403,7 +403,7 @@ class MultiFactTableJoinTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("OrderPaymentJoinQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("OrderPaymentJoinQueryModel");
 
         List<String> columns = Arrays.asList(
@@ -449,7 +449,7 @@ class MultiFactTableJoinTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("SalesReturnJoinQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("SalesReturnJoinQueryModel");
 
         List<String> columns = Arrays.asList(

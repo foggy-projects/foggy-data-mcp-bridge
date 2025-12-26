@@ -287,12 +287,12 @@ class McpAuditLogMongoTest extends MongoTestSupport {
         log.info("MongoTemplate 查询结果: {} 条, 总数: {}", mongoResults.size(), mongoTotal);
 
         // 2. 通过 JdbcService 使用 QM 模型查询
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel(QUERY_MODEL_NAME);
         queryRequest.setColumns(Arrays.asList("traceId", "requestId", "toolName", "userRole", "timestamp", "success"));
         queryRequest.setReturnTotal(true);
 
-        PagingRequest<JdbcQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 10);
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 10);
         PagingResultImpl result = jdbcService.queryModelData(form);
 
         log.info("QM模型查询结果: {} 条, 总数: {}", result.getItems().size(), result.getTotal());
@@ -323,7 +323,7 @@ class McpAuditLogMongoTest extends MongoTestSupport {
         log.info("MongoTemplate 按traceId查询: {} 条", mongoResults.size());
 
         // 2. 通过 QM 模型查询
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel(QUERY_MODEL_NAME);
         queryRequest.setColumns(Arrays.asList("traceId", "toolName", "timestamp", "success", "durationMs"));
 
@@ -335,7 +335,7 @@ class McpAuditLogMongoTest extends MongoTestSupport {
         slices.add(slice);
         queryRequest.setSlice(slices);
 
-        PagingRequest<JdbcQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 100);
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 100);
         PagingResultImpl result = jdbcService.queryModelData(form);
 
         log.info("QM模型按traceId查询: {} 条", result.getItems().size());
@@ -363,7 +363,7 @@ class McpAuditLogMongoTest extends MongoTestSupport {
         log.info("MongoTemplate 按toolName查询: {} 条", mongoResults.size());
 
         // 2. 通过 QM 模型查询
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel(QUERY_MODEL_NAME);
         queryRequest.setColumns(Arrays.asList("toolName", "userRole", "durationMs", "success"));
 
@@ -375,7 +375,7 @@ class McpAuditLogMongoTest extends MongoTestSupport {
         slices.add(slice);
         queryRequest.setSlice(slices);
 
-        PagingRequest<JdbcQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 100);
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 100);
         PagingResultImpl result = jdbcService.queryModelData(form);
 
         log.info("QM模型按toolName查询: {} 条", result.getItems().size());
@@ -400,7 +400,7 @@ class McpAuditLogMongoTest extends MongoTestSupport {
         log.info("MongoTemplate 查询失败记录: {} 条", mongoResults.size());
 
         // 2. 通过 QM 模型查询
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel(QUERY_MODEL_NAME);
         queryRequest.setColumns(Arrays.asList("toolName", "errorType", "errorMessage", "durationMs"));
 
@@ -412,7 +412,7 @@ class McpAuditLogMongoTest extends MongoTestSupport {
         slices.add(slice);
         queryRequest.setSlice(slices);
 
-        PagingRequest<JdbcQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 100);
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 100);
         PagingResultImpl result = jdbcService.queryModelData(form);
 
         log.info("QM模型查询失败记录: {} 条", result.getItems().size());
@@ -441,7 +441,7 @@ class McpAuditLogMongoTest extends MongoTestSupport {
         log.info("MongoTemplate IN条件查询: {} 条", mongoResults.size());
 
         // 2. 通过 QM 模型查询
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel(QUERY_MODEL_NAME);
         queryRequest.setColumns(Arrays.asList("userRole", "toolName", "success"));
 
@@ -453,7 +453,7 @@ class McpAuditLogMongoTest extends MongoTestSupport {
         slices.add(slice);
         queryRequest.setSlice(slices);
 
-        PagingRequest<JdbcQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 100);
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 100);
         PagingResultImpl result = jdbcService.queryModelData(form);
 
         log.info("QM模型IN条件查询: {} 条", result.getItems().size());
@@ -483,7 +483,7 @@ class McpAuditLogMongoTest extends MongoTestSupport {
         log.info("MongoTemplate 组合条件查询: {} 条", mongoResults.size());
 
         // 2. 通过 QM 模型查询
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel(QUERY_MODEL_NAME);
         queryRequest.setColumns(Arrays.asList("userRole", "toolName", "success", "durationMs"));
 
@@ -503,7 +503,7 @@ class McpAuditLogMongoTest extends MongoTestSupport {
 
         queryRequest.setSlice(slices);
 
-        PagingRequest<JdbcQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 100);
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 100);
         PagingResultImpl result = jdbcService.queryModelData(form);
 
         log.info("QM模型组合条件查询: {} 条", result.getItems().size());
@@ -535,7 +535,7 @@ class McpAuditLogMongoTest extends MongoTestSupport {
         log.info("MongoTemplate 时间倒序查询: {} 条", mongoResults.size());
 
         // 2. 通过 QM 模型查询
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel(QUERY_MODEL_NAME);
         queryRequest.setColumns(Arrays.asList("timestamp", "toolName", "success"));
 
@@ -546,7 +546,7 @@ class McpAuditLogMongoTest extends MongoTestSupport {
         orders.add(order);
         queryRequest.setOrderBy(orders);
 
-        PagingRequest<JdbcQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 10);
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 10);
         PagingResultImpl result = jdbcService.queryModelData(form);
 
         log.info("QM模型时间倒序查询: {} 条", result.getItems().size());
@@ -582,7 +582,7 @@ class McpAuditLogMongoTest extends MongoTestSupport {
         }
 
         // 2. 通过 QM 模型查询
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel(QUERY_MODEL_NAME);
         queryRequest.setColumns(Arrays.asList("toolName", "durationMs", "success"));
 
@@ -593,7 +593,7 @@ class McpAuditLogMongoTest extends MongoTestSupport {
         orders.add(order);
         queryRequest.setOrderBy(orders);
 
-        PagingRequest<JdbcQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 5);
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 5);
         PagingResultImpl result = jdbcService.queryModelData(form);
 
         log.info("QM模型耗时倒序查询:");
@@ -636,7 +636,7 @@ class McpAuditLogMongoTest extends MongoTestSupport {
         int pageSize = 5;
 
         // 1. 查询第一页
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel(QUERY_MODEL_NAME);
         queryRequest.setColumns(Arrays.asList("toolName", "timestamp", "success"));
         queryRequest.setReturnTotal(true);
@@ -648,11 +648,11 @@ class McpAuditLogMongoTest extends MongoTestSupport {
         orders.add(order);
         queryRequest.setOrderBy(orders);
 
-        PagingRequest<JdbcQueryRequestDef> form1 = new PagingRequest<>(1, pageSize, 0, pageSize, queryRequest);
+        PagingRequest<DbQueryRequestDef> form1 = new PagingRequest<>(1, pageSize, 0, pageSize, queryRequest);
         PagingResultImpl result1 = jdbcService.queryModelData(form1);
 
         // 2. 查询第二页
-        PagingRequest<JdbcQueryRequestDef> form2 = new PagingRequest<>(2, pageSize, pageSize, pageSize, queryRequest);
+        PagingRequest<DbQueryRequestDef> form2 = new PagingRequest<>(2, pageSize, pageSize, pageSize, queryRequest);
         PagingResultImpl result2 = jdbcService.queryModelData(form2);
 
         log.info("分页查询: 第一页 {} 条, 第二页 {} 条, 总数: {}",
@@ -689,7 +689,7 @@ class McpAuditLogMongoTest extends MongoTestSupport {
         List<Document> mongoResults = find(MCP_AUDIT_COLLECTION, mongoQuery);
 
         // 2. 通过 QM 模型查询
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel(QUERY_MODEL_NAME);
         queryRequest.setColumns(Arrays.asList(
                 "traceId", "requestId", "toolName", "userRole",
@@ -711,7 +711,7 @@ class McpAuditLogMongoTest extends MongoTestSupport {
         orders.add(order);
         queryRequest.setOrderBy(orders);
 
-        PagingRequest<JdbcQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 100);
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 100);
         PagingResultImpl result = jdbcService.queryModelData(form);
 
         log.info("字段值对比: MongoTemplate {} 条, QM模型 {} 条",

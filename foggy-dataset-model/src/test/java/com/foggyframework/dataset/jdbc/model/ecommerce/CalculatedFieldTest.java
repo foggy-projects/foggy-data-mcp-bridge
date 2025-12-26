@@ -50,7 +50,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
 
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesQueryModel");
 
         // 设置计算字段: salesAmount - discountAmount
@@ -95,7 +95,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesQueryModel");
 
         // 设置计算字段
@@ -142,7 +142,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesQueryModel");
 
         // 复合表达式: (salesAmount - discountAmount) * 0.9
@@ -180,7 +180,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesQueryModel");
 
         // 使用YEAR函数
@@ -214,7 +214,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesQueryModel");
 
         // 使用ABS函数
@@ -248,7 +248,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesQueryModel");
 
         // 使用ROUND函数
@@ -282,7 +282,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesQueryModel");
 
         // 使用CONCAT函数
@@ -316,7 +316,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesQueryModel");
 
         // 使用COALESCE函数
@@ -354,7 +354,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesQueryModel");
 
         // 定义有依赖关系的计算字段
@@ -407,7 +407,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesQueryModel");
 
         // 使用不允许的函数
@@ -437,7 +437,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesQueryModel");
 
         // 使用未知函数
@@ -487,7 +487,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesQueryModel");
 
         // 引用不存在的列
@@ -513,7 +513,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesQueryModel");
 
         // 重复的计算字段名
@@ -540,7 +540,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesQueryModel");
 
         // 使用维度列的计算字段
@@ -593,7 +593,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesQueryModel");
 
         List<CalculatedFieldDef> calculatedFields = new ArrayList<>();
@@ -665,7 +665,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesQueryModel");
 
         List<CalculatedFieldDef> calculatedFields = new ArrayList<>();
@@ -732,7 +732,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesQueryModel");
 
         List<CalculatedFieldDef> calculatedFields = new ArrayList<>();
@@ -798,7 +798,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesQueryModel");
 
         List<CalculatedFieldDef> calculatedFields = new ArrayList<>();
@@ -864,7 +864,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesQueryModel");
 
         List<CalculatedFieldDef> calculatedFields = new ArrayList<>();
@@ -932,7 +932,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesQueryModel");
 
         List<CalculatedFieldDef> calculatedFields = new ArrayList<>();
@@ -1018,7 +1018,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesQueryModel");
 
         // 定义计算字段：利润率
@@ -1117,7 +1117,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesQueryModel");
 
         List<CalculatedFieldDef> calculatedFields = new ArrayList<>();
@@ -1251,7 +1251,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesQueryModel");
 
         // 使用内联表达式定义聚合字段：sum(salesAmount) as salesAmount
@@ -1301,7 +1301,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesQueryModel");
 
         // 使用内联表达式，别名与原字段同名，应该报错
@@ -1349,7 +1349,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesQueryModel");
 
         // 使用内联表达式，别名与原字段不同，应该正常工作
@@ -1411,7 +1411,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
-        JdbcQueryRequestDef queryRequest = new JdbcQueryRequestDef();
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesQueryModel");
 
         // 使用内联表达式（不分组时作为计算字段处理）

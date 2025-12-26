@@ -2,13 +2,12 @@ package com.foggyframework.dataset.jdbc.model.service.impl;
 
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.dataset.client.domain.PagingRequest;
-import com.foggyframework.dataset.jdbc.model.def.query.request.JdbcQueryRequestDef;
+import com.foggyframework.dataset.jdbc.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.jdbc.model.engine.query.JdbcQueryResult;
 import com.foggyframework.dataset.jdbc.model.plugins.result_set_filter.DataSetResultFilterManager;
 import com.foggyframework.dataset.jdbc.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.jdbc.model.service.QueryFacade;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryModel;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcQueryModelLoader;
+import com.foggyframework.dataset.jdbc.model.spi.QueryModelLoader;
 import com.foggyframework.dataset.jdbc.model.spi.QueryModel;
 import com.foggyframework.dataset.model.PagingResultImpl;
 import lombok.extern.slf4j.Slf4j;
@@ -30,7 +29,7 @@ import jakarta.annotation.Resource;
 public class QueryFacadeImpl implements QueryFacade {
 
     @Resource
-    private JdbcQueryModelLoader jdbcQueryModelLoader;
+    private QueryModelLoader queryModelLoader;
 
     @Resource
     private SystemBundlesContext systemBundlesContext;
@@ -39,12 +38,12 @@ public class QueryFacadeImpl implements QueryFacade {
     private DataSetResultFilterManager dataSetResultFilterManager;
 
     @Override
-    public PagingResultImpl queryModelData(PagingRequest<JdbcQueryRequestDef> form) {
+    public PagingResultImpl queryModelData(PagingRequest<DbQueryRequestDef> form) {
         return queryModelData(form, ModelResultContext.QueryType.NORMAL);
     }
 
     @Override
-    public PagingResultImpl queryModelData(PagingRequest<JdbcQueryRequestDef> form,
+    public PagingResultImpl queryModelData(PagingRequest<DbQueryRequestDef> form,
                                            ModelResultContext.QueryType queryType) {
         // 创建上下文
         ModelResultContext context = new ModelResultContext(form, null);
@@ -57,7 +56,7 @@ public class QueryFacadeImpl implements QueryFacade {
     }
 
     @Override
-    public JdbcQueryResult queryModelResult(PagingRequest<JdbcQueryRequestDef> form) {
+    public JdbcQueryResult queryModelResult(PagingRequest<DbQueryRequestDef> form) {
         // 创建上下文
         ModelResultContext context = new ModelResultContext(form, null);
         context.setQueryType(ModelResultContext.QueryType.NORMAL);
@@ -77,12 +76,12 @@ public class QueryFacadeImpl implements QueryFacade {
      * </p>
      */
     private JdbcQueryResult doQuery(ModelResultContext context) {
-        PagingRequest<JdbcQueryRequestDef> form = context.getRequest();
-        JdbcQueryRequestDef queryRequest = form.getParam();
+        PagingRequest<DbQueryRequestDef> form = context.getRequest();
+        DbQueryRequestDef queryRequest = form.getParam();
 
         // 1. 获取查询模型
         String queryModelName = queryRequest.getQueryModel();
-        QueryModel jdbcQueryModel = jdbcQueryModelLoader.getJdbcQueryModel(queryModelName);
+        QueryModel jdbcQueryModel = queryModelLoader.getJdbcQueryModel(queryModelName);
 
         // 1.1 提前设置 jdbcQueryModel，供 beforeQuery Step 使用（如 AutoGroupByStep 需要查询列定义）
         context.setJdbcQueryModel(jdbcQueryModel);

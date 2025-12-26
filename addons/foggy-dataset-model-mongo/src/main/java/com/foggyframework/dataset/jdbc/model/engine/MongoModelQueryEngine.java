@@ -7,7 +7,6 @@ import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.jdbc.model.def.query.request.*;
 import com.foggyframework.dataset.jdbc.model.engine.expression.MongoCalculatedColumn;
 import com.foggyframework.dataset.jdbc.model.engine.expression.MongoCalculatedColumnAdapter;
-import com.foggyframework.dataset.jdbc.model.engine.expression.MongoCalculatedFieldProcessor;
 import com.foggyframework.dataset.jdbc.model.engine.query.JdbcQuery;
 import com.foggyframework.dataset.jdbc.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.jdbc.model.impl.mongo.MongoQueryModel;
@@ -79,7 +78,7 @@ public class MongoModelQueryEngine implements QueryEngine {
 //        }
 //        return false;
 //    }
-    public void analysisQueryRequest(SystemBundlesContext systemBundlesContext, JdbcQueryRequestDef queryRequest) {
+    public void analysisQueryRequest(SystemBundlesContext systemBundlesContext, DbQueryRequestDef queryRequest) {
         RX.notNull(queryRequest, "查询请求不得为空");
 
         this.jdbcQuery = new JdbcQuery();
@@ -87,7 +86,7 @@ public class MongoModelQueryEngine implements QueryEngine {
         jdbcQuery.from(jdbcQueryModel.getQueryObject());
 
         //1.加入需要查询的列
-        List<JdbcColumn> selectColumns = null;
+        List<DbColumn> selectColumns = null;
         if (queryRequest.getColumns() == null || queryRequest.getColumns().isEmpty()) {
             log.debug("查询请求中未定义列，我们直接从查询模型中取相关的列");
 
@@ -125,7 +124,7 @@ public class MongoModelQueryEngine implements QueryEngine {
 
 
         // 3.加权限语句
-        for (JdbcQueryProperty queryProperty : jdbcQueryModel.getQueryProperties()) {
+        for (DbQueryProperty queryProperty : jdbcQueryModel.getQueryProperties()) {
             if (queryProperty.getQueryAccess() != null && queryProperty.getQueryAccess().getQueryBuilder() != null) {
                 ExpEvaluator ee = DefaultExpEvaluator.newInstance(systemBundlesContext.getApplicationContext());
                 ee.setVar("query", jdbcQuery);
@@ -160,7 +159,7 @@ public class MongoModelQueryEngine implements QueryEngine {
 //        List<String > ll = jdbcQuery.getSelect().getColumns().stream().map(column-> column.getSqlColumnName()).collect(Collectors.toList());
 
         ProjectionOperation project = Aggregation.project();
-        for (JdbcColumn column : jdbcQuery.getSelect().getColumns()) {
+        for (DbColumn column : jdbcQuery.getSelect().getColumns()) {
             project = project.and(column.getSqlColumnName()).as(column.getAlias());
 //            project = project.and(column.getAlias()).as("$"+column.getSqlColumnName());
         }
@@ -177,7 +176,7 @@ public class MongoModelQueryEngine implements QueryEngine {
         Criteria criteria = new Criteria();
         for (JdbcQuery.JdbcCond cond : jdbcQuery.getWhere().getConds()) {
             JdbcQuery.QueryTypeValueCond ql = (JdbcQuery.QueryTypeValueCond) cond;
-            JdbcColumn column = jdbcQueryModel.findJdbcColumn(ql.getName());
+            DbColumn column = jdbcQueryModel.findJdbcColumn(ql.getName());
             String name = column.getSqlColumnName();
             if (StringUtils.equals("=", ql.getQueryType())) {
                 criteria.and(name).is(ql.getValue());
@@ -272,15 +271,15 @@ public class MongoModelQueryEngine implements QueryEngine {
         return new Tuple3<Criteria, ProjectionOperation, Sort>(criteria, project, sort);
     }
 
-    public GroupOperation buildGroupOperation(SystemBundlesContext systemBundlesContext, Map<String, GroupRequestDef> groupByMap, JdbcQueryRequestDef queryRequest) {
+    public GroupOperation buildGroupOperation(SystemBundlesContext systemBundlesContext, Map<String, GroupRequestDef> groupByMap, DbQueryRequestDef queryRequest) {
 //        JdbcQuery aggJdbcQuery = new JdbcQuery();
         GroupOperation groupOperation = Aggregation.group();
 
         SqlQueryObject sqlQueryObject = new SqlQueryObject(this.sql, "tx");
-        List<JdbcColumn> aggColumns = new ArrayList<>();
-        for (JdbcColumn column : jdbcQuery.getSelect().getColumns()) {
+        List<DbColumn> aggColumns = new ArrayList<>();
+        for (DbColumn column : jdbcQuery.getSelect().getColumns()) {
             AggregationJdbcColumn aggColumn = null;
-            JdbcAggregation c = column.getAggregation();
+            DbAggregation c = column.getAggregation();
             if (c == null) {
                 if (groupByMap != null) {
                     GroupRequestDef def = groupByMap.get(column.getName());
@@ -292,7 +291,7 @@ public class MongoModelQueryEngine implements QueryEngine {
                 if (groupByMap != null) {
                     GroupRequestDef def = groupByMap.get(column.getName());
                     if (def != null && StringUtils.isNotEmpty(def.getAgg())) {
-                        c = JdbcAggregation.valueOf(def.getAgg());
+                        c = DbAggregation.valueOf(def.getAgg());
                     }
                 }
                 switch (c) {
@@ -346,7 +345,7 @@ public class MongoModelQueryEngine implements QueryEngine {
 
             listCond.addCond(gc);
         } else {
-            JdbcColumn jdbcColumn = jdbcQueryModel.findJdbcColumnForCond(sliceDef.getField(), true);
+            DbColumn jdbcColumn = jdbcQueryModel.findJdbcColumnForCond(sliceDef.getField(), true);
             if (jdbcColumn == null) {
                 throw RX.throwAUserTip(DatasetMessages.queryColumnNotfound(sliceDef.getField(), jdbcQueryModel.findDimension(sliceDef.getField())));
             }
@@ -362,7 +361,7 @@ public class MongoModelQueryEngine implements QueryEngine {
      * @param queryRequest 查询请求
      * @param appCtx       Spring 应用上下文
      */
-    private void processCalculatedFields(JdbcQueryRequestDef queryRequest, ApplicationContext appCtx) {
+    private void processCalculatedFields(DbQueryRequestDef queryRequest, ApplicationContext appCtx) {
         if (queryRequest.getCalculatedFields() == null || queryRequest.getCalculatedFields().isEmpty()) {
             this.calculatedColumns = new ArrayList<>();
             return;

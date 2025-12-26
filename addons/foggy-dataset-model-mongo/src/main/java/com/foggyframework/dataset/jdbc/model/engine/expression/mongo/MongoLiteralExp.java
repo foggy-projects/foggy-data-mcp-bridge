@@ -1,7 +1,7 @@
 package com.foggyframework.dataset.jdbc.model.engine.expression.mongo;
 
 import com.foggyframework.dataset.jdbc.model.engine.expression.MongoFragment;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcColumnType;
+import com.foggyframework.dataset.jdbc.model.spi.DbColumnType;
 import com.foggyframework.fsscript.exp.AbstractExp;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import lombok.Getter;
@@ -21,7 +21,7 @@ public class MongoLiteralExp extends AbstractExp<Object> {
     private static final long serialVersionUID = 1L;
 
     private final Object literalValue;
-    private final JdbcColumnType type;
+    private final DbColumnType type;
 
     public MongoLiteralExp(Object value) {
         super(value);
@@ -29,7 +29,7 @@ public class MongoLiteralExp extends AbstractExp<Object> {
         this.type = inferType(value);
     }
 
-    public MongoLiteralExp(Object value, JdbcColumnType type) {
+    public MongoLiteralExp(Object value, DbColumnType type) {
         super(value);
         this.literalValue = value;
         this.type = type;
@@ -40,23 +40,23 @@ public class MongoLiteralExp extends AbstractExp<Object> {
         return MongoFragment.ofLiteral(literalValue, type);
     }
 
-    private JdbcColumnType inferType(Object value) {
+    private DbColumnType inferType(Object value) {
         if (value == null) {
-            return JdbcColumnType.UNKNOWN;
+            return DbColumnType.UNKNOWN;
         }
         if (value instanceof String) {
-            return JdbcColumnType.TEXT;
+            return DbColumnType.TEXT;
         }
         if (value instanceof Boolean) {
-            return JdbcColumnType.BOOL;
+            return DbColumnType.BOOL;
         }
         if (value instanceof Double || value instanceof Float) {
-            return JdbcColumnType.NUMBER;
+            return DbColumnType.NUMBER;
         }
         if (value instanceof Number) {
-            return JdbcColumnType.INTEGER;
+            return DbColumnType.INTEGER;
         }
-        return JdbcColumnType.UNKNOWN;
+        return DbColumnType.UNKNOWN;
     }
 
     @Override

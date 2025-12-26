@@ -7,8 +7,8 @@ import com.foggyframework.dataset.jdbc.model.def.measure.JdbcMeasureDef;
 import com.foggyframework.dataset.jdbc.model.def.property.JdbcPropertyDef;
 import com.foggyframework.dataset.jdbc.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.jdbc.model.impl.JdbcObjectSupport;
-import com.foggyframework.dataset.jdbc.model.impl.dimension.JdbcDimensionSupport;
-import com.foggyframework.dataset.jdbc.model.impl.property.JdbcPropertyImpl;
+import com.foggyframework.dataset.jdbc.model.impl.dimension.DbDimensionSupport;
+import com.foggyframework.dataset.jdbc.model.impl.property.DbPropertyImpl;
 import com.foggyframework.dataset.jdbc.model.impl.utils.QueryObjectDelegate;
 import com.foggyframework.dataset.jdbc.model.spi.*;
 import lombok.Getter;
@@ -23,7 +23,7 @@ import java.util.Map;
 @Getter
 @Setter
 @Slf4j
-public abstract class TableModelSupport extends JdbcObjectSupport implements JdbcModel {
+public abstract class TableModelSupport extends JdbcObjectSupport implements TableModel {
 
     String idColumn;
 
@@ -31,22 +31,22 @@ public abstract class TableModelSupport extends JdbcObjectSupport implements Jdb
 
     QueryObject queryObject;
 
-    List<JdbcDimension> dimensions = new ArrayList<>();
+    List<DbDimension> dimensions = new ArrayList<>();
 
-    List<JdbcProperty> properties = new ArrayList<>();
+    List<DbProperty> properties = new ArrayList<>();
 
-    List<JdbcMeasure> measures = new ArrayList<>();
+    List<DbMeasure> measures = new ArrayList<>();
 
-    List<JdbcColumn> jdbcColumns = new ArrayList<>();
+    List<DbColumn> jdbcColumns = new ArrayList<>();
 
-    JdbcModelType modelType;
+    DbModelType modelType;
 
-    Map<String, JdbcColumn> name2JdbcColumn = new HashMap<>();
+    Map<String, DbColumn> name2JdbcColumn = new HashMap<>();
 
     //呃，用于存放startTeam.startTeamId -> startTeamId的
     //但又会引起其他问题，比如维度caption重复的情况下
     @Deprecated
-    Map<String, JdbcColumn> field2JdbcColumn = new HashMap<>();
+    Map<String, DbColumn> field2JdbcColumn = new HashMap<>();
 
     List<JdbcDefSupport> deprecatedList = new ArrayList<>();
 
@@ -58,8 +58,8 @@ public abstract class TableModelSupport extends JdbcObjectSupport implements Jdb
     }
 
     @Override
-    public JdbcDimension findJdbcDimensionByName(String name) {
-        for (JdbcDimension dimension : dimensions) {
+    public DbDimension findJdbcDimensionByName(String name) {
+        for (DbDimension dimension : dimensions) {
             if (StringUtils.equals(dimension.getName(), name) || StringUtils.equals(dimension.getAlias(), name)) {
                 return dimension;
             }
@@ -68,8 +68,8 @@ public abstract class TableModelSupport extends JdbcObjectSupport implements Jdb
     }
 
     @Override
-    public JdbcProperty findJdbcPropertyByName(String name) {
-        for (JdbcProperty property : properties) {
+    public DbProperty findJdbcPropertyByName(String name) {
+        for (DbProperty property : properties) {
             if (StringUtils.equals(property.getName(), name)) {
                 return property;
             }
@@ -78,8 +78,8 @@ public abstract class TableModelSupport extends JdbcObjectSupport implements Jdb
     }
 
     @Override
-    public JdbcMeasure findJdbcMeasureByName(String name) {
-        for (JdbcMeasure measure : measures) {
+    public DbMeasure findJdbcMeasureByName(String name) {
+        for (DbMeasure measure : measures) {
             if (StringUtils.equals(measure.getName(), name)) {
                 return measure;
             }
@@ -88,14 +88,14 @@ public abstract class TableModelSupport extends JdbcObjectSupport implements Jdb
     }
 
     @Override
-    public JdbcDimension addDimension(JdbcDimension dimension) {
-        dimension.getDecorate(JdbcDimensionSupport.class).setJdbcModel(this);
+    public DbDimension addDimension(DbDimension dimension) {
+        dimension.getDecorate(DbDimensionSupport.class).setJdbcModel(this);
         dimensions.add(dimension);
         return dimension;
     }
 
     @Override
-    public JdbcProperty addJdbcProperty(JdbcProperty property) {
+    public DbProperty addJdbcProperty(DbProperty property) {
         /**
          * 检查数据
          */
@@ -103,26 +103,26 @@ public abstract class TableModelSupport extends JdbcObjectSupport implements Jdb
             throw RX.throwAUserTip(DatasetMessages.modelDuplicateProperty(property.getName()));
         }
 
-        property.getDecorate(JdbcPropertyImpl.class).setJdbcModel(this);
+        property.getDecorate(DbPropertyImpl.class).setJdbcModel(this);
         properties.add(property);
         return property;
     }
 
     @Override
-    public JdbcMeasure addMeasure(JdbcMeasure measure) {
+    public DbMeasure addMeasure(DbMeasure measure) {
         measures.add(measure);
         return measure;
     }
 
     @Override
-    public List<JdbcColumn> getVisibleSelectColumns() {
-        List<JdbcColumn> visibleSelectColumns = new ArrayList<>();
+    public List<DbColumn> getVisibleSelectColumns() {
+        List<DbColumn> visibleSelectColumns = new ArrayList<>();
 
-        for (JdbcDimension dimension : dimensions) {
+        for (DbDimension dimension : dimensions) {
             visibleSelectColumns.addAll(dimension.getVisibleSelectColumns());
         }
 
-        for (JdbcMeasure measure : measures) {
+        for (DbMeasure measure : measures) {
             visibleSelectColumns.add(measure.getJdbcColumn());
         }
 
@@ -130,7 +130,7 @@ public abstract class TableModelSupport extends JdbcObjectSupport implements Jdb
     }
 
     @Override
-    public JdbcColumn findJdbcColumnByName(String jdbcColumName) {
+    public DbColumn findJdbcColumnByName(String jdbcColumName) {
 
         return name2JdbcColumn.get(jdbcColumName);
     }
@@ -142,17 +142,17 @@ public abstract class TableModelSupport extends JdbcObjectSupport implements Jdb
         /**
          * 建立 name2JdbcColumn映射关系
          */
-        for (JdbcDimension dimension : dimensions) {
-            List<JdbcColumn> ll = dimension.getAllJdbcColumns();
-            for (JdbcColumn jdbcColumn : ll) {
+        for (DbDimension dimension : dimensions) {
+            List<DbColumn> ll = dimension.getAllJdbcColumns();
+            for (DbColumn jdbcColumn : ll) {
                 addJdbcColumn(jdbcColumn);
             }
         }
-        for (JdbcMeasure measure : measures) {
+        for (DbMeasure measure : measures) {
             addJdbcColumn(measure.getJdbcColumn());
         }
         if (properties != null) {
-            for (JdbcProperty property : properties) {
+            for (DbProperty property : properties) {
                 addJdbcColumn(property.getPropertyJdbcColumn());
             }
         }
@@ -160,14 +160,14 @@ public abstract class TableModelSupport extends JdbcObjectSupport implements Jdb
 
         if (log.isDebugEnabled()) {
             log.debug(String.format("模型%s包含如下列", name));
-            for (JdbcColumn jdbcColumn : jdbcColumns) {
+            for (DbColumn jdbcColumn : jdbcColumns) {
                 log.debug(String.format("name[%s],caption:[%s]", jdbcColumn.getName(), jdbcColumn.getCaption()));
             }
         }
 
     }
 
-    private void addJdbcColumn(JdbcColumn jdbcColumn) {
+    private void addJdbcColumn(DbColumn jdbcColumn) {
         if (name2JdbcColumn.containsKey(jdbcColumn.getName())) {
             throw RX.throwAUserTip(DatasetMessages.modelDuplicateColumn(jdbcColumn.getName()));
         }
@@ -185,7 +185,7 @@ public abstract class TableModelSupport extends JdbcObjectSupport implements Jdb
         @Override
         public String getForeignKey(QueryObject joinObject) {
 
-            for (JdbcDimension dimension : dimensions) {
+            for (DbDimension dimension : dimensions) {
                 if (dimension.isQueryObject(joinObject)) {
                     // 嵌套维度的外键不在事实表上，应该返回 null
                     // 让 JdbcQuery.join 从已加入的表中查找外键
