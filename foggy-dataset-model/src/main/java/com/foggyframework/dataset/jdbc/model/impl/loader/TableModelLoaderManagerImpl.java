@@ -10,7 +10,6 @@ import com.foggyframework.dataset.jdbc.model.def.DbModelDef;
 import com.foggyframework.dataset.jdbc.model.def.dimension.DbDimensionDef;
 import com.foggyframework.dataset.jdbc.model.def.measure.DbMeasureDef;
 import com.foggyframework.dataset.jdbc.model.def.property.DbPropertyDef;
-import com.foggyframework.dataset.jdbc.model.engine.mongo.MongoModelLoader;
 import com.foggyframework.dataset.jdbc.model.engine.query_model.DbModelFileChangeHandler;
 import com.foggyframework.dataset.jdbc.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.jdbc.model.impl.LoaderSupport;
@@ -47,12 +46,12 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
     @Resource
     DataSource dataSource;
 
-    /**
-     * MongoDB 模型加载器（可选）
-     * <p>仅当项目配置了 MongoDB（存在 MongoClient Bean）时自动注入
-     */
-    @Autowired(required = false)
-    MongoModelLoader mongoModelLoader;
+//    /**
+//     * MongoDB 模型加载器（可选）
+//     * <p>仅当项目配置了 MongoDB（存在 MongoClient Bean）时自动注入
+//     */
+//    @Autowired(required = false)
+//    MongoModelLoader mongoModelLoader;
 
     DbModelFileChangeHandler fileChangeHandler;
     List<DbModelLoadProcessor> processors;
