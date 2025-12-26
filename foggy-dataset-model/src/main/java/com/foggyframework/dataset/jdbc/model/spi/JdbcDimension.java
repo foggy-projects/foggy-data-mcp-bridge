@@ -6,7 +6,7 @@ import com.foggyframework.dataset.jdbc.model.common.result.JdbcDataItem;
 import javax.sql.DataSource;
 import java.util.List;
 
-public interface JdbcDimension extends JdbcObject {
+public interface JdbcDimension extends DbObject {
 
     List<JdbcColumn> getVisibleSelectColumns();
 

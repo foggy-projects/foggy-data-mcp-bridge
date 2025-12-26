@@ -16,7 +16,7 @@ import com.foggyframework.dataset.jdbc.model.impl.query.*;
 import com.foggyframework.dataset.jdbc.model.impl.utils.QueryObjectDelegate;
 import com.foggyframework.dataset.jdbc.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.jdbc.model.spi.*;
-import com.foggyframework.dataset.jdbc.model.spi.support.JdbcColumnGroup;
+import com.foggyframework.dataset.jdbc.model.spi.support.QueryColumnGroup;
 import com.foggyframework.fsscript.exp.FsscriptFunction;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
 import jakarta.annotation.Nullable;
@@ -61,7 +61,7 @@ public  abstract class QueryModelSupport extends JdbcObjectSupport implements Qu
     protected  List<JdbcQueryCondition> jdbcQueryConditions;
     protected  Map<String, JdbcQueryCondition> name2JdbcQueryCond = new HashMap<>();
 
-    protected  List<JdbcColumnGroup> columnGroups;
+    protected  List<QueryColumnGroup> columnGroups;
 
     protected  Map<String, JdbcQueryAccessImpl> dimToJdbcQueryAccess = new HashMap<>();
 

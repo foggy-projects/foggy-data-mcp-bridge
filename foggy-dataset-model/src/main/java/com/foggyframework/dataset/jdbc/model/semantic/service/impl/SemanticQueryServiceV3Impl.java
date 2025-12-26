@@ -291,7 +291,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
      * 构建响应
      */
     private SemanticQueryResponse buildResponse(JdbcQueryRequestDef request, PagingResultImpl queryResult,
-                                                QueryContextV3 context, JdbcQueryModel jdbcQueryModel) {
+                                                QueryContextV3 context, QueryModel queryModel) {
         SemanticQueryResponse response = new SemanticQueryResponse();
 
         // 转换数据项
@@ -347,7 +347,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         response.setWarnings(context.warnings.isEmpty() ? null : context.warnings);
 
         // 构建 Schema 信息（包含 summary）
-        response.setSchema(buildSchemaInfo(jdbcQueryModel, request, queryResult));
+        response.setSchema(buildSchemaInfo(queryModel, request, queryResult));
 
         return response;
     }
@@ -378,16 +378,16 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
     /**
      * 构建结果集 Schema 信息（含 Markdown summary）
      */
-    private SemanticQueryResponse.SchemaInfo buildSchemaInfo(JdbcQueryModel jdbcQueryModel,
+    private SemanticQueryResponse.SchemaInfo buildSchemaInfo(QueryModel queryModel,
                                                              JdbcQueryRequestDef request,
                                                              PagingResultImpl queryResult) {
         SemanticQueryResponse.SchemaInfo schemaInfo = new SemanticQueryResponse.SchemaInfo();
         List<SemanticQueryResponse.SchemaInfo.ColumnDef> columnDefs = new ArrayList<>();
 
         List<String> columns = request.getColumns();
-        if (columns != null && jdbcQueryModel != null) {
+        if (columns != null && queryModel != null) {
             for (String columnName : columns) {
-                JdbcQueryColumn queryColumn = jdbcQueryModel.findJdbcQueryColumnByName(columnName, false);
+                JdbcQueryColumn queryColumn = queryModel.findJdbcQueryColumnByName(columnName, false);
 
                 SemanticQueryResponse.SchemaInfo.ColumnDef columnDef =
                         new SemanticQueryResponse.SchemaInfo.ColumnDef();

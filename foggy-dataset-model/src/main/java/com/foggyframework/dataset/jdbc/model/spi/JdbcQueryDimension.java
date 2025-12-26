@@ -8,7 +8,7 @@ import javax.sql.DataSource;
 import java.util.List;
 
 
-public interface JdbcQueryDimension extends JdbcObject{
+public interface JdbcQueryDimension extends DbObject {
     JdbcDimension getDimension();
 
     JdbcQueryAccessImpl getQueryAccess();

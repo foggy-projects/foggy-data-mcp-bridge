@@ -11,7 +11,7 @@ import java.util.Map;
  * <p>
  * select tx.aaa b
  */
-public interface JdbcQueryColumn extends JdbcObject,JdbcColumn {
+public interface JdbcQueryColumn extends DbObject,JdbcColumn {
     JdbcColumn getSelectColumn();
 
     JdbcQueryCondition getJdbcQueryCond();

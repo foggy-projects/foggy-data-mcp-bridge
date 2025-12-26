@@ -20,7 +20,7 @@ import java.util.Map;
 @AllArgsConstructor
 public class JdbcQueryColumnImpl extends JdbcObjectSupport implements JdbcQueryColumn {
 
-    @Delegate(excludes = {JdbcObject.class})
+    @Delegate(excludes = {DbObject.class})
     JdbcColumn selectColumn;
 
     JdbcQueryCondition jdbcQueryCondition;

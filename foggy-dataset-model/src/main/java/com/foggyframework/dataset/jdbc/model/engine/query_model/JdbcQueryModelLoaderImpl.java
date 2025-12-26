@@ -17,7 +17,7 @@ import com.foggyframework.dataset.jdbc.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.jdbc.model.impl.LoaderSupport;
 import com.foggyframework.dataset.jdbc.model.impl.query.*;
 import com.foggyframework.dataset.jdbc.model.spi.*;
-import com.foggyframework.dataset.jdbc.model.spi.support.JdbcColumnGroup;
+import com.foggyframework.dataset.jdbc.model.spi.support.QueryColumnGroup;
 import com.foggyframework.fsscript.exp.FsscriptFunction;
 import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
@@ -395,12 +395,12 @@ public class JdbcQueryModelLoaderImpl extends LoaderSupport implements JdbcQuery
      */
     private void loadColumnGroups(QueryModelSupport qm, JdbcQueryModelDef queryModelDef) {
         if (queryModelDef.getColumnGroups() != null && !queryModelDef.getColumnGroups().isEmpty()) {
-            List<JdbcColumnGroup> columnGroups = new ArrayList<>();
+            List<QueryColumnGroup> columnGroups = new ArrayList<>();
             for (JdbcColumnGroupDef columnGroupDef : queryModelDef.getColumnGroups()) {
                 if (columnGroupDef.getItems() == null || columnGroupDef.getItems().isEmpty()) {
                     continue;
                 }
-                JdbcColumnGroup group = new JdbcColumnGroup();
+                QueryColumnGroup group = new QueryColumnGroup();
                 group.setCaption(columnGroupDef.getCaption());
                 for (SelectColumnDef item : columnGroupDef.getItems()) {
                     if (item == null) {
@@ -427,7 +427,7 @@ public class JdbcQueryModelLoaderImpl extends LoaderSupport implements JdbcQuery
         }
     }
 
-    private void addColumn(QueryModelSupport qm, JdbcColumnGroup group, String name, SelectColumnDef item, boolean hasRef) {
+    private void addColumn(QueryModelSupport qm, QueryColumnGroup group, String name, SelectColumnDef item, boolean hasRef) {
 
         JdbcColumn jdbcColumn = qm.findJdbcColumnForCond(name, true);
 

@@ -6,7 +6,7 @@ import com.foggyframework.core.trans.ObjectTransFormatter;
 import com.foggyframework.core.utils.JsonUtils;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.core.utils.beanhelper.RequestBeanInjecter;
-import com.foggyframework.dataset.db.DbObject;
+import com.foggyframework.dataset.db.SqlObject;
 import com.foggyframework.dataset.db.DbObjectType;
 import com.foggyframework.dataset.db.dialect.FDialect;
 import lombok.Data;
@@ -19,7 +19,7 @@ import java.util.Map;
 
 @EqualsAndHashCode(callSuper = true)
 @Data
-public class SqlColumn extends DbObject {
+public class SqlColumn extends SqlObject {
     public static String TYPE_VARCHAR = "VARCHAR";
 
     public static final int DEFAULT_PRECISION = 19;

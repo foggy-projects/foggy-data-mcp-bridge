@@ -13,7 +13,7 @@ import org.springframework.context.ApplicationContext;
  * <p>
  * select tx.aaa b
  */
-public interface JdbcColumn extends JdbcObject {
+public interface JdbcColumn extends DbObject {
 
     default String getDeclare() {
         return getQueryObject().getAlias() + "." + getSqlColumnName();

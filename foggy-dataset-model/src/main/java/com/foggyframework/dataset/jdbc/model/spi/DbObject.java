@@ -3,7 +3,7 @@ package com.foggyframework.dataset.jdbc.model.spi;
 import com.foggyframework.core.Decorate;
 import com.foggyframework.dataset.jdbc.model.impl.AiObject;
 
-public interface JdbcObject extends Decorate {
+public interface DbObject extends Decorate {
     String getCaption();
 
     String getName();

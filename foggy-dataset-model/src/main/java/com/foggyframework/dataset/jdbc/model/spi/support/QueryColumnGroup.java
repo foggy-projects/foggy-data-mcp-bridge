@@ -7,7 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Data
-public class JdbcColumnGroup {
+public class QueryColumnGroup {
 
     String caption;
 

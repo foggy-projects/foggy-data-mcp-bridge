@@ -6,7 +6,7 @@ import com.foggyframework.dataset.db.table.SqlColumn;
 import com.foggyframework.dataset.jdbc.model.spi.*;
 import org.springframework.context.ApplicationContext;
 
-public abstract class JdbcColumnDelegate extends AbstractDelegateDecorate<JdbcColumn> implements JdbcColumn, JdbcObject {
+public abstract class JdbcColumnDelegate extends AbstractDelegateDecorate<JdbcColumn> implements JdbcColumn, DbObject {
 
 
     public JdbcColumnDelegate(JdbcColumn delegate) {

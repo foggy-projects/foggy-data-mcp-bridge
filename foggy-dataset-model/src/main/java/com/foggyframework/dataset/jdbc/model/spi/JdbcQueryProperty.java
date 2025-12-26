@@ -3,7 +3,7 @@ package com.foggyframework.dataset.jdbc.model.spi;
 import com.foggyframework.dataset.jdbc.model.impl.query.JdbcQueryAccessImpl;
 
 
-public interface JdbcQueryProperty extends JdbcObject{
+public interface JdbcQueryProperty extends DbObject {
     JdbcProperty getJdbcProperty();
 
     JdbcQueryAccessImpl getQueryAccess();

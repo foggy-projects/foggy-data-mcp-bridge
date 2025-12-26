@@ -4,9 +4,7 @@ import com.foggyframework.core.Decorate;
 import com.foggyframework.dataset.db.table.SqlColumn;
 import com.foggyframework.fsscript.exp.FsscriptFunction;
 
-import java.util.ArrayList;
-
-public interface QueryObject extends Decorate, JdbcObject {
+public interface QueryObject extends Decorate, DbObject {
     String getAlias();
 
     String getPrimaryKey();

@@ -7,12 +7,12 @@ import com.foggyframework.dataset.jdbc.model.def.query.request.JdbcQueryRequestD
 import com.foggyframework.dataset.jdbc.model.engine.query.JdbcQueryResult;
 import com.foggyframework.dataset.jdbc.model.impl.query.JdbcQueryOrderColumnImpl;
 import com.foggyframework.dataset.jdbc.model.plugins.result_set_filter.ModelResultContext;
-import com.foggyframework.dataset.jdbc.model.spi.support.JdbcColumnGroup;
+import com.foggyframework.dataset.jdbc.model.spi.support.QueryColumnGroup;
 import jakarta.annotation.Nullable;
 
 import java.util.List;
 
-public interface QueryModel extends Decorate,JdbcObject {
+public interface QueryModel extends Decorate, DbObject {
 
     /**
      * 获取计算字段处理器
@@ -108,7 +108,7 @@ public interface QueryModel extends Decorate,JdbcObject {
 
     List<JdbcQueryDimension> getQueryDimensions();
 
-    List<JdbcColumnGroup> getColumnGroups();
+    List<QueryColumnGroup> getColumnGroups();
 
     @Nullable
     JdbcQueryCondition findJdbcQueryCondByName(String name);

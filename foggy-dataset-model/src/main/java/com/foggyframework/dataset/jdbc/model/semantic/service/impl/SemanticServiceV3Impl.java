@@ -5,12 +5,10 @@ import com.foggyframework.core.utils.beanhelper.BeanInfoHelper;
 import com.foggyframework.dataset.jdbc.model.def.dict.JdbcDictDef;
 import com.foggyframework.dataset.jdbc.model.impl.AiObject;
 import com.foggyframework.dataset.jdbc.model.impl.dimension.JdbcDimensionSupport;
-import com.foggyframework.dataset.jdbc.model.impl.property.JdbcPropertyImpl;
 import com.foggyframework.dataset.jdbc.model.semantic.domain.SemanticMetadataRequest;
 import com.foggyframework.dataset.jdbc.model.semantic.domain.SemanticMetadataResponse;
 import com.foggyframework.dataset.jdbc.model.semantic.service.SemanticServiceV3;
 import com.foggyframework.dataset.jdbc.model.spi.*;
-import com.foggyframework.semantic.common.TermItem;
 import com.foggyframework.semantic.impl.facade.SemanticFacade;
 import io.swagger.annotations.ApiModelProperty;
 import lombok.AllArgsConstructor;
@@ -1090,16 +1088,16 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         }
     }
 
-    String getCaption(JdbcObject jdbcObject) {
-        if (jdbcObject.getCaption() != null) {
-            return jdbcObject.getCaption();
+    String getCaption(DbObject dbObject) {
+        if (dbObject.getCaption() != null) {
+            return dbObject.getCaption();
         }
-        String str = semanticFacade.getTermItemCaption("", jdbcObject.getName());
+        String str = semanticFacade.getTermItemCaption("", dbObject.getName());
         if (StringUtils.isEmpty(str)) {
-            str = semanticFacade.getTermItemCaption("", jdbcObject.getName().split("\\.")[0]);
+            str = semanticFacade.getTermItemCaption("", dbObject.getName().split("\\.")[0]);
         }
         if (StringUtils.isEmpty(str)) {
-            return jdbcObject.getName();
+            return dbObject.getName();
         }
         return str;
     }

@@ -2,12 +2,12 @@ package com.foggyframework.dataset.jdbc.model.impl;
 
 import com.foggyframework.core.AbstractDecorate;
 import com.foggyframework.core.utils.NumberUtils;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcObject;
+import com.foggyframework.dataset.jdbc.model.spi.DbObject;
 import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 
 @Data
-public abstract class JdbcObjectSupport extends AbstractDecorate implements JdbcObject {
+public abstract class JdbcObjectSupport extends AbstractDecorate implements DbObject {
 
     protected String name;
 
@@ -24,7 +24,7 @@ public abstract class JdbcObjectSupport extends AbstractDecorate implements Jdbc
 
     @Override
     public boolean _isDeprecated() {
-        return NumberUtils.hasFlag(flag, JdbcObject.FLAG_DEPRECATED);
+        return NumberUtils.hasFlag(flag, DbObject.FLAG_DEPRECATED);
     }
 
 //    @Override

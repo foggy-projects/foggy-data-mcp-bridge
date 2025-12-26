@@ -4,7 +4,7 @@ import com.foggyframework.dataset.jdbc.model.def.measure.JdbcFormulaDef;
 
 import io.swagger.annotations.ApiModelProperty;
 
-public interface JdbcMeasure extends JdbcObject{
+public interface JdbcMeasure extends DbObject {
     JdbcColumn getJdbcColumn();
 
     /**

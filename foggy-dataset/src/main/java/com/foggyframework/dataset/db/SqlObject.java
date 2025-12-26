@@ -5,7 +5,7 @@ import com.foggyframework.dataset.db.dialect.FDialect;
 import lombok.Data;
 
 @Data
-public abstract class DbObject {
+public abstract class SqlObject {
 
 	protected String name;
 
@@ -15,16 +15,16 @@ public abstract class DbObject {
 
 	protected boolean quoted = false;
 
-	public DbObject() {
+	public SqlObject() {
 		super();
 	}
 
-	public DbObject(String name) {
+	public SqlObject(String name) {
 		super();
 		this.name = name;
 	}
 
-	public DbObject(String name, String caption) {
+	public SqlObject(String name, String caption) {
 		super();
 		this.name = name;
 		this.caption = caption;
@@ -38,7 +38,7 @@ public abstract class DbObject {
 			return false;
 		if (getClass() != obj.getClass())
 			return false;
-		DbObject other = (DbObject) obj;
+		SqlObject other = (SqlObject) obj;
 		if (name == null) {
 			if (other.name != null)
 				return false;

@@ -1,9 +1,8 @@
 package com.foggyframework.dataset.jdbc.model.def;
 
 import com.foggyframework.core.utils.NumberUtils;
-import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.jdbc.model.impl.JdbcObjectSupport;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcObject;
+import com.foggyframework.dataset.jdbc.model.spi.DbObject;
 import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 import com.foggyframework.dataset.jdbc.model.impl.AiObject;
@@ -33,7 +32,7 @@ public abstract class JdbcDefSupport {
         jdbcObjectSupport.setCaption(caption);
         jdbcObjectSupport.setDescription(description);
         if (deprecated) {
-            jdbcObjectSupport.setFlag(NumberUtils.addFlag(jdbcObjectSupport.getFlag(), JdbcObject.FLAG_DEPRECATED));
+            jdbcObjectSupport.setFlag(NumberUtils.addFlag(jdbcObjectSupport.getFlag(), DbObject.FLAG_DEPRECATED));
         }
 
         if(ai!=null){

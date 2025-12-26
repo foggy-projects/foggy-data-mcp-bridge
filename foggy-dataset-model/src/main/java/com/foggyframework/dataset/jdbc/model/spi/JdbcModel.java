@@ -1,12 +1,10 @@
 package com.foggyframework.dataset.jdbc.model.spi;
 
 import com.foggyframework.dataset.jdbc.model.def.JdbcDefSupport;
-import org.springframework.data.mongodb.core.MongoTemplate;
 
-import javax.sql.DataSource;
 import java.util.List;
 
-public interface JdbcModel extends JdbcObject {
+public interface JdbcModel extends DbObject {
 
     String getIdColumn();
 

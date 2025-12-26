@@ -1,6 +1,6 @@
 package com.foggyframework.dataset.jdbc.model.spi;
 
-public interface JdbcQueryCondition extends JdbcObject {
+public interface JdbcQueryCondition extends DbObject {
 
     String getField();
 

@@ -2,7 +2,7 @@ package com.foggyframework.dataset.jdbc.model.spi;
 
 import com.foggyframework.fsscript.exp.FsscriptFunction;
 
-public interface JdbcProperty extends JdbcObject {
+public interface JdbcProperty extends DbObject {
 
     JdbcColumn getPropertyJdbcColumn();
 

@@ -1,9 +1,6 @@
 package com.foggyframework.dataset.jdbc.model.impl;
 
-import com.foggyframework.core.AbstractDecorate;
-import com.foggyframework.core.utils.NumberUtils;
 import com.foggyframework.dataset.jdbc.model.def.AiDef;
-import com.foggyframework.dataset.jdbc.model.spi.JdbcObject;
 import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 

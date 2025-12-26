@@ -1,9 +1,9 @@
 package com.foggyframework.dataset.db.table.dll;
 
-import com.foggyframework.dataset.db.DbObject;
+import com.foggyframework.dataset.db.SqlObject;
 import com.foggyframework.dataset.db.dialect.FDialect;
 
-public class DbObjectGenerator<T extends DbObject> {
+public class DbObjectGenerator<T extends SqlObject> {
 
 	protected T dbObject;
 	protected FDialect dialect;
