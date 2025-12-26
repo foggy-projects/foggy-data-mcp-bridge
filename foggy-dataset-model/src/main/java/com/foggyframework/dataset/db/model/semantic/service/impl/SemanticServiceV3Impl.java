@@ -9,9 +9,8 @@ import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataReque
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticServiceV3;
 import com.foggyframework.dataset.db.model.spi.*;
-import com.foggyframework.dataset.jdbc.model.spi.*;
-import com.foggyframework.semantic.impl.facade.SemanticFacade;
 import io.swagger.annotations.ApiModelProperty;
+import jakarta.annotation.Resource;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -19,7 +18,6 @@ import lombok.NoArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import jakarta.annotation.Resource;
 import java.lang.reflect.Field;
 import java.util.*;
 
@@ -39,9 +37,6 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
 
     @Resource
     private QueryModelLoader queryModelLoader;
-
-    @Resource
-    private SemanticFacade semanticFacade;
 
     @Autowired(required = false)
     private DbModelDictService dbModelDictService;
@@ -1090,17 +1085,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
     }
 
     String getCaption(DbObject dbObject) {
-        if (dbObject.getCaption() != null) {
-            return dbObject.getCaption();
-        }
-        String str = semanticFacade.getTermItemCaption("", dbObject.getName());
-        if (StringUtils.isEmpty(str)) {
-            str = semanticFacade.getTermItemCaption("", dbObject.getName().split("\\.")[0]);
-        }
-        if (StringUtils.isEmpty(str)) {
-            return dbObject.getName();
-        }
-        return str;
+        return dbObject.getCaption();
     }
 
     @Data

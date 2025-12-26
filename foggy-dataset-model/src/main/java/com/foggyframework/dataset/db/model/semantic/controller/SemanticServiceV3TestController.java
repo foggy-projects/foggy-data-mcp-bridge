@@ -9,9 +9,9 @@ import com.foggyframework.dataset.db.model.semantic.service.SemanticServiceV3;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
+import jakarta.annotation.Resource;
 import org.springframework.web.bind.annotation.*;
 
-import jakarta.annotation.Resource;
 import java.util.Collections;
 
 /**

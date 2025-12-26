@@ -6,11 +6,9 @@ import com.foggyframework.dataset.db.model.impl.AiObject;
 import com.foggyframework.dataset.db.model.impl.DbColumnSupport;
 import com.foggyframework.dataset.db.model.impl.DbObjectSupport;
 import com.foggyframework.dataset.db.model.spi.*;
-import com.foggyframework.dataset.jdbc.model.spi.*;
 import com.foggyframework.dataset.db.model.utils.JdbcModelNamedUtils;
 import com.foggyframework.fsscript.DefaultExpEvaluator;
 import com.foggyframework.fsscript.exp.FsscriptFunction;
-
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.context.ApplicationContext;

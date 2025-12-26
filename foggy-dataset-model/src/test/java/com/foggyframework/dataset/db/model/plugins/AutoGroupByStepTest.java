@@ -2,8 +2,8 @@ package com.foggyframework.dataset.db.model.plugins;
 
 import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
-import com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
+import com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.AutoGroupByStep;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.InlineExpressionPreprocessStep;

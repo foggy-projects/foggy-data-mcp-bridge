@@ -1,9 +1,8 @@
 package com.foggyframework.dataset.db.model.impl.query;
 
 import com.foggyframework.dataset.db.model.impl.DbObjectSupport;
-import com.foggyframework.dataset.db.model.spi.DbQueryCondition;
 import com.foggyframework.dataset.db.model.spi.DbQueryCondType;
-
+import com.foggyframework.dataset.db.model.spi.DbQueryCondition;
 import lombok.Data;
 
 @Data

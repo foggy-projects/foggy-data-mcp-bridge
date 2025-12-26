@@ -1,9 +1,9 @@
 package com.foggyframework.dataset.db.model.impl;
 
 import com.foggyframework.core.AbstractDecorate;
-import com.foggyframework.dataset.db.table.SqlColumn;
 import com.foggyframework.dataset.db.model.spi.DbColumn;
 import com.foggyframework.dataset.db.model.spi.DbObject;
+import com.foggyframework.dataset.db.table.SqlColumn;
 import lombok.Data;
 
 @Data

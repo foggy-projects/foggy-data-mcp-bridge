@@ -13,11 +13,9 @@ import com.foggyframework.dataset.db.model.impl.DbObjectSupport;
 import com.foggyframework.dataset.db.model.impl.dimension.DbDimensionSupport;
 import com.foggyframework.dataset.db.model.impl.model.TableModelSupport;
 import com.foggyframework.dataset.db.model.impl.query.*;
-import com.foggyframework.dataset.db.model.spi.*;
-import com.foggyframework.dataset.jdbc.model.impl.query.*;
 import com.foggyframework.dataset.db.model.impl.utils.QueryObjectDelegate;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
-import com.foggyframework.dataset.jdbc.model.spi.*;
+import com.foggyframework.dataset.db.model.spi.*;
 import com.foggyframework.dataset.db.model.spi.support.QueryColumnGroup;
 import com.foggyframework.fsscript.exp.FsscriptFunction;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
@@ -28,7 +26,10 @@ import lombok.Getter;
 import lombok.experimental.Delegate;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Data

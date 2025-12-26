@@ -3,9 +3,9 @@ package com.foggyframework.dataset.db.model.multidb;
 import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.db.model.test.JdbcModelTestApplication;
 import com.foggyframework.dataset.utils.DbUtils;
+import jakarta.annotation.Resource;
 import org.springframework.boot.test.context.SpringBootTest;
 
-import jakarta.annotation.Resource;
 import javax.sql.DataSource;
 
 /**

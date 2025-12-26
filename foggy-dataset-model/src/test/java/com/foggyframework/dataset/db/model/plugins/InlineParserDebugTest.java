@@ -2,6 +2,7 @@ package com.foggyframework.dataset.db.model.plugins;
 
 import com.foggyframework.dataset.db.model.engine.expression.InlineExpressionParser;
 import org.junit.jupiter.api.Test;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 class InlineParserDebugTest {

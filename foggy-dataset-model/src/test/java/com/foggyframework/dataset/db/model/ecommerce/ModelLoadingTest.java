@@ -1,7 +1,7 @@
 package com.foggyframework.dataset.db.model.ecommerce;
 
-import com.foggyframework.dataset.db.model.spi.TableModel;
 import com.foggyframework.dataset.db.model.spi.JdbcQueryModel;
+import com.foggyframework.dataset.db.model.spi.TableModel;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.*;
 

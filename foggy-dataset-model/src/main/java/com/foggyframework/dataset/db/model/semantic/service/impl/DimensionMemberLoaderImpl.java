@@ -11,18 +11,20 @@ import com.foggyframework.dataset.db.model.impl.utils.TableQueryObject;
 import com.foggyframework.dataset.db.model.semantic.service.DimensionMemberLoader;
 import com.foggyframework.dataset.db.model.service.JdbcService;
 import com.foggyframework.dataset.db.model.spi.*;
-import com.foggyframework.dataset.jdbc.model.spi.*;
 import com.foggyframework.dataset.model.PagingResultImpl;
 import io.swagger.annotations.ApiModelProperty;
+import jakarta.annotation.Resource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import jakarta.annotation.Resource;
 import java.lang.reflect.Field;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 

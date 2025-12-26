@@ -23,15 +23,13 @@ import com.foggyframework.dataset.db.model.impl.model.TableModelSupport;
 import com.foggyframework.dataset.db.model.impl.property.DbPropertyImpl;
 import com.foggyframework.dataset.db.model.impl.utils.QueryObjectSupport;
 import com.foggyframework.dataset.db.model.spi.*;
-import com.foggyframework.dataset.jdbc.model.spi.*;
 import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
+import jakarta.annotation.Resource;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-
-import jakarta.annotation.Resource;
 
 import javax.sql.DataSource;
 import java.util.HashMap;

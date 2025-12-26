@@ -4,7 +4,6 @@ package com.foggyframework.dataset.db.model;
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.dataset.db.model.config.SemanticProperties;
 import com.foggyframework.dataset.db.model.engine.formula.*;
-import com.foggyframework.dataset.jdbc.model.engine.formula.*;
 import com.foggyframework.dataset.db.model.engine.query_model.DbModelFileChangeHandler;
 import com.foggyframework.dataset.db.model.engine.query_model.QueryModelLoaderImpl;
 import com.foggyframework.dataset.db.model.impl.loader.JdbcTableModelLoaderImpl;
@@ -30,7 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Configuration
-@ComponentScan("com.foggyframework.dataset.jdbc.model")
+@ComponentScan("com.foggyframework.dataset.db.model")
 public class DbModelAutoConfiguration {
 
     @Bean

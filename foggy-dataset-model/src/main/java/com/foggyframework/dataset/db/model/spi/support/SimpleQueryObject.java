@@ -1,9 +1,9 @@
 package com.foggyframework.dataset.db.model.spi.support;
 
 import com.foggyframework.core.utils.StringUtils;
-import com.foggyframework.dataset.db.table.SqlColumn;
 import com.foggyframework.dataset.db.model.impl.DbObjectSupport;
 import com.foggyframework.dataset.db.model.spi.QueryObject;
+import com.foggyframework.dataset.db.table.SqlColumn;
 import com.foggyframework.fsscript.exp.FsscriptFunction;
 import lombok.Data;
 

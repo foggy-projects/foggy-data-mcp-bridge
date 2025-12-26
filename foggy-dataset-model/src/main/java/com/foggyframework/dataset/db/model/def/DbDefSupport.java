@@ -1,11 +1,11 @@
 package com.foggyframework.dataset.db.model.def;
 
 import com.foggyframework.core.utils.NumberUtils;
+import com.foggyframework.dataset.db.model.impl.AiObject;
 import com.foggyframework.dataset.db.model.impl.DbObjectSupport;
 import com.foggyframework.dataset.db.model.spi.DbObject;
 import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
-import com.foggyframework.dataset.db.model.impl.AiObject;
 
 import java.util.Map;
 

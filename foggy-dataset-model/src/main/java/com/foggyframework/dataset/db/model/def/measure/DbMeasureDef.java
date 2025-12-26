@@ -4,7 +4,6 @@ import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.db.model.def.DbDefSupport;
 import com.foggyframework.dataset.db.model.impl.measure.DbMeasureSupport;
 import com.foggyframework.dataset.db.model.spi.DbColumnType;
-
 import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 import org.springframework.beans.BeanUtils;

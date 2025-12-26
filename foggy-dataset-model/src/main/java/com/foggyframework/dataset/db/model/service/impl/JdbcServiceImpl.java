@@ -10,11 +10,11 @@ import com.foggyframework.dataset.db.model.engine.query.DbQueryResult;
 import com.foggyframework.dataset.db.model.engine.query_model.DbQueryModelImpl;
 import com.foggyframework.dataset.db.model.service.JdbcService;
 import com.foggyframework.dataset.db.model.spi.DbQueryDimension;
-import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
+import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
 import com.foggyframework.dataset.model.PagingResultImpl;
-
 import jakarta.annotation.Resource;
+
 import java.util.List;
 
 /**

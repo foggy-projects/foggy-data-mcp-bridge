@@ -2,6 +2,7 @@ package com.foggyframework.dataset.db.model.def;
 
 import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
+
 import java.util.List;
 
 @Data

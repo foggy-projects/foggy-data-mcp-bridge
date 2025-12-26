@@ -5,7 +5,6 @@ import com.foggyframework.dataset.db.model.spi.DbColumn;
 import com.foggyframework.dataset.db.model.spi.DbDimension;
 import com.foggyframework.dataset.db.model.spi.DbProperty;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
-import com.foggyframework.dataset.jdbc.model.spi.*;
 import lombok.Getter;
 import lombok.Setter;
 

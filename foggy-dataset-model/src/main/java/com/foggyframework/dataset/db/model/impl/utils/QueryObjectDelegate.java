@@ -1,9 +1,9 @@
 package com.foggyframework.dataset.db.model.impl.utils;
 
 import com.foggyframework.core.AbstractDelegateDecorate;
-import com.foggyframework.dataset.db.table.SqlColumn;
 import com.foggyframework.dataset.db.model.impl.AiObject;
 import com.foggyframework.dataset.db.model.spi.QueryObject;
+import com.foggyframework.dataset.db.table.SqlColumn;
 import com.foggyframework.fsscript.exp.FsscriptFunction;
 
 //interval expression

@@ -2,15 +2,10 @@ package com.foggyframework.dataset.db.model.spi.support;
 
 import com.foggyframework.core.AbstractDecorate;
 import com.foggyframework.core.trans.ObjectTransFormatter;
-import com.foggyframework.dataset.db.table.SqlColumn;
 import com.foggyframework.dataset.db.model.engine.expression.SqlFragment;
 import com.foggyframework.dataset.db.model.impl.AiObject;
-import com.foggyframework.dataset.db.model.spi.DbColumn;
-import com.foggyframework.dataset.db.model.spi.DbColumnType;
-import com.foggyframework.dataset.db.model.spi.DbQueryColumn;
-import com.foggyframework.dataset.db.model.spi.DbQueryCondition;
-import com.foggyframework.dataset.db.model.spi.QueryObject;
-
+import com.foggyframework.dataset.db.model.spi.*;
+import com.foggyframework.dataset.db.table.SqlColumn;
 import lombok.Data;
 import org.springframework.context.ApplicationContext;
 

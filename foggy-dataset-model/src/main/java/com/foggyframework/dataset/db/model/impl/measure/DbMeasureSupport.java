@@ -2,15 +2,14 @@ package com.foggyframework.dataset.db.model.impl.measure;
 
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.StringUtils;
-import com.foggyframework.dataset.db.model.spi.*;
-import com.foggyframework.dataset.db.table.SqlColumn;
 import com.foggyframework.dataset.db.model.def.measure.DbFormulaDef;
 import com.foggyframework.dataset.db.model.def.measure.DbMeasureDef;
 import com.foggyframework.dataset.db.model.impl.AiObject;
 import com.foggyframework.dataset.db.model.impl.DbColumnSupport;
 import com.foggyframework.dataset.db.model.impl.DbObjectSupport;
-import com.foggyframework.dataset.jdbc.model.spi.*;
+import com.foggyframework.dataset.db.model.spi.*;
 import com.foggyframework.dataset.db.model.utils.JdbcModelNamedUtils;
+import com.foggyframework.dataset.db.table.SqlColumn;
 import com.foggyframework.fsscript.DefaultExpEvaluator;
 import com.foggyframework.fsscript.exp.FsscriptFunction;
 import io.swagger.annotations.ApiModelProperty;

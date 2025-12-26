@@ -2,11 +2,10 @@ package com.foggyframework.dataset.db.model.impl.query;
 
 import com.foggyframework.core.trans.ObjectTransFormatter;
 import com.foggyframework.core.utils.StringUtils;
-import com.foggyframework.dataset.db.model.spi.*;
-import com.foggyframework.dataset.db.table.SqlColumn;
 import com.foggyframework.dataset.db.model.impl.AiObject;
 import com.foggyframework.dataset.db.model.impl.DbObjectSupport;
-import com.foggyframework.dataset.jdbc.model.spi.*;
+import com.foggyframework.dataset.db.model.spi.*;
+import com.foggyframework.dataset.db.table.SqlColumn;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;

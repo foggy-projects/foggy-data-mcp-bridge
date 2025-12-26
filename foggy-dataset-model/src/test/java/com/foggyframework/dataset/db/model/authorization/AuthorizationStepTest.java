@@ -7,7 +7,6 @@ import com.foggyframework.dataset.db.model.plugins.result_set_filter.Authorizati
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.DataSetResultStep;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.DataSetResultStepExecutor;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
-import com.foggyframework.dataset.jdbc.model.plugins.result_set_filter.*;
 import org.junit.jupiter.api.*;
 
 import java.util.*;

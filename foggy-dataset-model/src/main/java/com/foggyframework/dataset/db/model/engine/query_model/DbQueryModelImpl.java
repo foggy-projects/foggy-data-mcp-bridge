@@ -12,7 +12,6 @@ import com.foggyframework.dataset.db.model.engine.query.DbQueryResult;
 import com.foggyframework.dataset.db.model.impl.model.TableModelSupport;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.spi.*;
-import com.foggyframework.dataset.jdbc.model.spi.*;
 import com.foggyframework.dataset.model.PagingResultImpl;
 import com.foggyframework.dataset.utils.DataSourceQueryUtils;
 import com.foggyframework.dataset.utils.DbUtils;
@@ -22,7 +21,9 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.sql.DataSource;
-import java.util.*;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 @Getter
 @Setter

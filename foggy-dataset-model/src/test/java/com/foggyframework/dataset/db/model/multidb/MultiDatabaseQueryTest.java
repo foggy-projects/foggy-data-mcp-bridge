@@ -1,9 +1,9 @@
 package com.foggyframework.dataset.db.model.multidb;
 
 import com.foggyframework.dataset.db.dialect.FDialect;
+import com.foggyframework.dataset.db.model.test.JdbcModelTestApplication;
 import com.foggyframework.dataset.db.table.SqlColumn;
 import com.foggyframework.dataset.db.table.SqlTable;
-import com.foggyframework.dataset.db.model.test.JdbcModelTestApplication;
 import com.foggyframework.dataset.utils.DbUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

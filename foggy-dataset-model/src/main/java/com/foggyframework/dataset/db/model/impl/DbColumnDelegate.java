@@ -4,7 +4,6 @@ import com.foggyframework.core.AbstractDelegateDecorate;
 import com.foggyframework.core.trans.ObjectTransFormatter;
 import com.foggyframework.dataset.db.model.spi.*;
 import com.foggyframework.dataset.db.table.SqlColumn;
-import com.foggyframework.dataset.jdbc.model.spi.*;
 import org.springframework.context.ApplicationContext;
 
 public abstract class DbColumnDelegate extends AbstractDelegateDecorate<DbColumn> implements DbColumn, DbObject {

@@ -3,7 +3,6 @@ package com.foggyframework.dataset.db.model.spi;
 import com.foggyframework.core.trans.ObjectTransFormatter;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.db.table.SqlColumn;
-
 import org.springframework.context.ApplicationContext;
 
 /**

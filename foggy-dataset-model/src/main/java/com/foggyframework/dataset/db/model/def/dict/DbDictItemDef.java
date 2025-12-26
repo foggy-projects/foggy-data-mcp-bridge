@@ -1,8 +1,8 @@
 package com.foggyframework.dataset.db.model.def.dict;
 
+import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.AllArgsConstructor;
 
 /**
  * 字典项定义
