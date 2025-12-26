@@ -21,6 +21,7 @@ import org.bson.types.ObjectId;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.AggregationOperation;
 import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 import org.springframework.data.mongodb.core.aggregation.GroupOperation;
 import org.springframework.data.mongodb.core.aggregation.ProjectionOperation;
@@ -83,16 +84,33 @@ public class MongoQueryModelImpl extends QueryModelSupport implements MongoQuery
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
         Tuple3<Criteria, ProjectionOperation, Sort> options = queryEngine.buildOptions();
 
+        // 构建 $addFields 操作（用于计算字段）
+        AggregationOperation addFieldsOp = queryEngine.buildAddFieldsOperation();
+
         if (log.isDebugEnabled()) {
             log.debug("生成查询对象");
             log.debug(JdbcModelNamedUtils.criteriaToString(options.getT1()));
+            if (addFieldsOp != null) {
+                log.debug("计算字段 $addFields: {}", queryEngine.buildAddFieldsDocument());
+            }
             log.debug(JdbcModelNamedUtils.projectionOperationToString(options.getT2()));
             if (options.getT3() != null) {
                 log.debug(JdbcModelNamedUtils.formatSort(options.getT3()));
             }
         }
 
-        Aggregation queryAgg = Aggregation.newAggregation(Aggregation.match(options.getT1()), options.getT2());
+        // 构建聚合管道：$match -> [$addFields] -> $project -> [$sort] -> $skip -> $limit
+        List<AggregationOperation> pipeline = new ArrayList<>();
+        pipeline.add(Aggregation.match(options.getT1()));
+
+        // 如果有计算字段，添加 $addFields 阶段
+        if (addFieldsOp != null) {
+            pipeline.add(addFieldsOp);
+        }
+
+        pipeline.add(options.getT2()); // $project
+
+        Aggregation queryAgg = Aggregation.newAggregation(pipeline);
         if (options.getT3() != null) {
             queryAgg.getPipeline().add(Aggregation.sort(options.getT3()));
         }

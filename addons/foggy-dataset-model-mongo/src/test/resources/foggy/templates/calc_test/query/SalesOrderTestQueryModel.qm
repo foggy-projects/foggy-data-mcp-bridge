@@ -53,7 +53,7 @@ export const queryModel = {
     ],
 
     orders: [
-        { field: 'orderDate', order: 'DESC' }
+        { name: 'orderDate', order: 'desc' }
     ],
 
     accesses: []
