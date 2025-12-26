@@ -12,7 +12,7 @@ Foggy Dataset Model 是一个**嵌入式语义层框架**，基于类 JavaScript
 export const model = {
     name: 'FactOrderModel',
     tableName: 'fact_order',
-
+    idColumn: 'order_id',
     dimensions: [
         {
             name: 'customer',
@@ -22,6 +22,13 @@ export const model = {
             captionColumn: 'customer_name'
         }
     ],
+    properties: [{
+        column: 'order_id',
+        caption: '订单ID'
+    },{
+        column: 'date_key',
+        caption: '下单时间'
+    }],
 
     measures: [
         { column: 'amount', caption: '订单金额', aggregation: 'sum' }
@@ -31,7 +38,7 @@ export const model = {
 
 ### QM (Query Model) - 查询模型
 
-基于 TM 定义查询视图，控制可查询的字段和权限：
+基于 TM 定义查询视图，控制可查询的权限：
 
 ```javascript
 export const queryModel = {
@@ -43,6 +50,7 @@ export const queryModel = {
             caption: '订单信息',
             items: [
                 { name: 'orderId' },
+                { name: 'dateKey' },
                 { name: 'customer$caption' },
                 { name: 'totalAmount' }
             ]
@@ -62,10 +70,10 @@ export const queryModel = {
     "param": {
         "columns": ["orderId", "customer$caption", "totalAmount"],
         "slice": [
-            { "name": "orderStatus", "type": "=", "value": "COMPLETED" }
+            { "field": "orderStatus", "type": "=", "value": "COMPLETED" }
         ],
         "groupBy": [
-            { "name": "customer$customerType" }
+            { "field": "customer$customerType" }
         ]
     }
 }
@@ -77,7 +85,6 @@ export const queryModel = {
 |------|------|
 | **自动 JOIN** | 根据维度定义自动生成 JOIN 语句 |
 | **安全查询** | DSL 参数化查询，防止 SQL 注入 |
-| **权限控制** | 基于角色的字段级权限控制 |
 | **多数据库支持** | MySQL、PostgreSQL、SQL Server、SQLite、MongoDB |
 | **声明式建模** | 使用 FSScript 语法，简洁易维护 |
 
