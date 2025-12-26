@@ -68,7 +68,7 @@ export const queryModel = {
     "page": 1,
     "pageSize": 20,
     "param": {
-        "columns": ["orderId", "customer$caption", "totalAmount"],
+        "columns": [ "customer$caption", "totalAmount"],
         "slice": [
             { "field": "orderStatus", "type": "=", "value": "COMPLETED" }
         ],
