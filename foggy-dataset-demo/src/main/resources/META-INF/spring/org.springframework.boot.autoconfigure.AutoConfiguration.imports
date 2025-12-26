@@ -1,1 +1,1 @@
-com.foggyframework.dataset.jdbc.model.demo.JdbcModelDemoAutoConfiguration
+com.foggyframework.dataset.db.model.demo.JdbcModelDemoAutoConfiguration

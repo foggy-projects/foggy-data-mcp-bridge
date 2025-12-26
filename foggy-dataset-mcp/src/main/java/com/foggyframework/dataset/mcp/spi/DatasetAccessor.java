@@ -1,8 +1,8 @@
 package com.foggyframework.dataset.mcp.spi;
 
 import com.foggyframework.core.ex.RX;
-import com.foggyframework.dataset.jdbc.model.semantic.domain.SemanticMetadataResponse;
-import com.foggyframework.dataset.jdbc.model.semantic.domain.SemanticQueryResponse;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 
 import java.util.Map;
 

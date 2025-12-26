@@ -1,7 +1,7 @@
 package com.foggyframework.dataset.mcp.tools;
 
 import com.foggyframework.core.ex.RX;
-import com.foggyframework.dataset.jdbc.model.semantic.domain.SemanticMetadataResponse;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
 import com.foggyframework.dataset.mcp.enums.ToolCategory;
 import com.foggyframework.dataset.mcp.spi.DatasetAccessor;
 import org.junit.jupiter.api.*;

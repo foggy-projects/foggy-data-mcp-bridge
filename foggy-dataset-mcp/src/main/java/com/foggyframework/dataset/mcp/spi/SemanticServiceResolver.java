@@ -1,10 +1,10 @@
 package com.foggyframework.dataset.mcp.spi;
 
-import com.foggyframework.dataset.jdbc.model.plugins.result_set_filter.ModelResultContext;
-import com.foggyframework.dataset.jdbc.model.semantic.domain.SemanticMetadataRequest;
-import com.foggyframework.dataset.jdbc.model.semantic.domain.SemanticMetadataResponse;
-import com.foggyframework.dataset.jdbc.model.semantic.domain.SemanticQueryRequest;
-import com.foggyframework.dataset.jdbc.model.semantic.domain.SemanticQueryResponse;
+import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataRequest;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 
 /**
  * 语义服务解析器
