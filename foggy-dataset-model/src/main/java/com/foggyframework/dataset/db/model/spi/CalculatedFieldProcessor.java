@@ -1,7 +1,7 @@
 package com.foggyframework.dataset.db.model.spi;
 
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
-import com.foggyframework.dataset.db.model.spi.support.CalculatedJdbcColumn;
+import com.foggyframework.dataset.db.model.spi.support.CalculatedDbColumn;
 import org.springframework.context.ApplicationContext;
 
 import java.util.List;
@@ -25,7 +25,7 @@ public interface CalculatedFieldProcessor {
      * @param appCtx           Spring 应用上下文
      * @return 计算字段列列表
      */
-    List<CalculatedJdbcColumn> processCalculatedFields(
+    List<CalculatedDbColumn> processCalculatedFields(
             List<CalculatedFieldDef> calculatedFields,
             ApplicationContext appCtx
     );
@@ -37,7 +37,7 @@ public interface CalculatedFieldProcessor {
      * @param appCtx   Spring 应用上下文
      * @return 计算字段列
      */
-    CalculatedJdbcColumn processCalculatedField(
+    CalculatedDbColumn processCalculatedField(
             CalculatedFieldDef fieldDef,
             ApplicationContext appCtx
     );

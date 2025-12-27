@@ -6,7 +6,7 @@ import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.engine.expression.InlineExpressionParser;
 import com.foggyframework.dataset.db.model.engine.query.JdbcQuery;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
-import com.foggyframework.dataset.db.model.spi.support.CalculatedJdbcColumn;
+import com.foggyframework.dataset.db.model.spi.support.CalculatedDbColumn;
 import com.foggyframework.dataset.model.PagingResultImpl;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -68,7 +68,7 @@ public class ModelResultContext {
      * 由 QueryEngine 填充，包含编译后的计算字段 SQL 表达式。
      * </p>
      */
-    List<CalculatedJdbcColumn> calculatedColumns;
+    List<CalculatedDbColumn> calculatedColumns;
 
     /**
      * 内联表达式预处理结果

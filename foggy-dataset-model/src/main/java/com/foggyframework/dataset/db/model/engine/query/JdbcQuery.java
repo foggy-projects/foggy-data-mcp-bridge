@@ -3,13 +3,15 @@ package com.foggyframework.dataset.db.model.engine.query;
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.db.model.engine.formula.JdbcLink;
+import com.foggyframework.dataset.db.model.engine.join.JoinEdge;
+import com.foggyframework.dataset.db.model.engine.join.JoinGraph;
 import com.foggyframework.dataset.db.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.db.model.impl.query.DbQueryGroupColumnImpl;
 import com.foggyframework.dataset.db.model.impl.query.DbQueryOrderColumnImpl;
 import com.foggyframework.dataset.db.model.spi.DbColumn;
 import com.foggyframework.dataset.db.model.spi.DbQueryRequest;
 import com.foggyframework.dataset.db.model.spi.QueryObject;
-import com.foggyframework.dataset.db.model.spi.support.AggregationJdbcColumn;
+import com.foggyframework.dataset.db.model.spi.support.AggregationDbColumn;
 import com.foggyframework.dataset.db.model.spi.support.SimpleQueryObject;
 import com.foggyframework.dataset.db.model.spi.support.SimpleSqlJdbcColumn;
 import com.foggyframework.dataset.db.table.SqlColumn;
@@ -20,7 +22,9 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Data
 public class JdbcQuery {
@@ -34,6 +38,12 @@ public class JdbcQuery {
     JdbcGroupBy group;
 
     DbQueryRequest queryRequest;
+
+    /**
+     * JOIN 依赖图（可选）
+     * <p>如果设置，join() 方法将使用图查询路径，否则使用传统的搜索逻辑</p>
+     */
+    JoinGraph joinGraph;
 
     public void accept(JdbcQueryVisitor visitor) {
         visitor.acceptSelect(select);
@@ -55,12 +65,6 @@ public class JdbcQuery {
         return this;
     }
 
-    public JdbcQuery preJoin(QueryObject queryObject, String foreignKey) {
-        RX.notNull(from, "调用preJoin之前，需要先设置from");
-        from.preJoin(queryObject, foreignKey);
-        return this;
-    }
-
     public JdbcQuery join(QueryObject queryObject, FsscriptFunction onBuilder) {
         RX.notNull(from, "调用join之前，需要先设置from");
         from.join(queryObject, onBuilder, JoinType.LEFT);
@@ -70,12 +74,6 @@ public class JdbcQuery {
     public JdbcQuery join(QueryObject queryObject, FsscriptFunction onBuilder, JoinType joinType) {
         RX.notNull(from, "调用join之前，需要先设置from");
         from.join(queryObject, onBuilder, joinType);
-        return this;
-    }
-
-    public JdbcQuery preJoin(QueryObject queryObject, FsscriptFunction onBuilder, JoinType joinType) {
-        RX.notNull(from, "调用join之前，需要先设置from");
-        from.preJoin(queryObject, onBuilder, joinType);
         return this;
     }
 
@@ -106,10 +104,22 @@ public class JdbcQuery {
     }
 
     public JdbcQuery from(QueryObject queryObject) {
+        return from(queryObject, null);
+    }
+
+    /**
+     * 设置 FROM 子句并关联 JoinGraph
+     *
+     * @param queryObject 主表
+     * @param joinGraph   JOIN 依赖图（可选，如果提供则 join() 使用图查询）
+     * @return this
+     */
+    public JdbcQuery from(QueryObject queryObject, JoinGraph joinGraph) {
         if (from != null) {
             throw RX.throwAUserTip(DatasetMessages.queryFromDuplicate());
         }
 
+        this.joinGraph = joinGraph;
         from = new JdbcFrom(queryObject);
         return this;
     }
@@ -168,7 +178,7 @@ public class JdbcQuery {
         return false;
     }
 
-    public void addGroupBy(AggregationJdbcColumn aggColumn, DbColumn column) {
+    public void addGroupBy(AggregationDbColumn aggColumn, DbColumn column) {
         if (group == null) {
             group = new JdbcGroupBy(1);
         }
@@ -214,9 +224,6 @@ public class JdbcQuery {
     public class JdbcFrom {
         QueryObject fromObject;
 
-
-        List<JdbcJoin> preJoins;
-
         List<JdbcJoin> joins;
 
         public JdbcFrom(QueryObject fromObject) {
@@ -240,86 +247,69 @@ public class JdbcQuery {
             if (queryObject.isRootEqual(this.fromObject)) {
                 return this;
             }
-            if (queryObject.getLinkQueryObject() != null) {
-                join(queryObject.getLinkQueryObject(), joinType);
-            }
 
             if (joins == null) {
                 joins = new ArrayList<>();
             }
+
+            // 检查是否已加入
             for (JdbcJoin join : joins) {
                 if (join.contain(queryObject)) {
                     return this;
                 }
             }
-            if (queryObject.getOnBuilder() != null) {
-                for (JdbcJoin join : preJoins) {
-                    //需要先从preJoins检查,确保 join.getJoinType()正确
-                    if (join.contain(queryObject)) {
-                        joins.add(join);
-                        return this;
-                    }
-                }
-                return join(queryObject, queryObject.getOnBuilder(), joinType);
+
+            // 必须使用 JoinGraph
+            if (joinGraph == null) {
+                throw RX.throwAUserTip("JoinGraph 未设置，无法执行 JOIN: " + queryObject.getAlias());
             }
 
-            if (preJoins != null) {
-                for (JdbcJoin join : preJoins) {
-                    if (join.contain(queryObject)) {
-                        addJoin1(join);
-                        return this;
+            return joinWithGraph(queryObject, joinType);
+        }
+
+        /**
+         * 使用 JoinGraph 进行 JOIN
+         * <p>从图中查找路径，按拓扑顺序添加所有需要的边</p>
+         */
+        private JdbcFrom joinWithGraph(QueryObject queryObject, JoinType joinType) {
+            // 收集需要到达的目标
+            Set<QueryObject> targets = new HashSet<>();
+            targets.add(queryObject);
+
+            // 从图中获取路径（如果目标不在图中会抛出异常）
+            List<JoinEdge> path = joinGraph.getPath(targets);
+
+            // 按拓扑顺序添加所有边
+            for (JoinEdge edge : path) {
+                // 检查是否已存在
+                boolean exists = false;
+                for (JdbcJoin existingJoin : joins) {
+                    if (existingJoin.contain(edge.getTo())) {
+                        exists = true;
+                        break;
                     }
                 }
+                if (exists) {
+                    continue;
+                }
+
+                // 创建新的 JdbcJoin
+                JdbcJoin jdbcJoin;
+                if (edge.hasOnBuilder()) {
+                    jdbcJoin = new JdbcJoin(edge.getTo(), edge.getOnBuilder(),
+                            joinType != null ? joinType : edge.getJoinType());
+                } else {
+                    jdbcJoin = new JdbcJoin(edge.getFrom(), edge.getTo(), edge.getForeignKey(),
+                            joinType != null ? joinType : edge.getJoinType());
+                }
+
+                // 如果边有缓存的 onCondition，也复制过来
+                if (edge.hasOnCondition()) {
+                    jdbcJoin.setOnCondition(edge.getOnCondition());
+                }
+
+                joins.add(jdbcJoin);
             }
-
-            // 先检查是否有 LinkQueryObject（嵌套维度场景）
-            QueryObject linkQueryObject = queryObject.getLinkQueryObject();
-            if (linkQueryObject != null) {
-                // 嵌套维度：从 LinkQueryObject 获取外键
-                String fk = linkQueryObject.getForeignKey(queryObject);
-                if (fk != null) {
-                    joins.add(new JdbcJoinLeft(linkQueryObject, queryObject, fk, null));
-                    return this;
-                }
-                // 尝试从已加入的表中找 linkQueryObject 并获取外键
-                for (JdbcJoin join : joins) {
-                    if (join.contain(linkQueryObject)) {
-                        // linkQueryObject 已加入，使用它的外键
-                        fk = join.getRight().getForeignKey(queryObject);
-                        if (fk != null) {
-                            joins.add(new JdbcJoinLeft(join.getRight(), queryObject, fk, null));
-                            return this;
-                        }
-                    }
-                }
-            }
-
-            String fk = fromObject.getForeignKey(queryObject);
-            if (fk == null) {
-                for (JdbcJoin join : joins) {
-                    fk = join.getRight().getForeignKey(queryObject);
-                    if (fk != null) {
-                        joins.add(new JdbcJoinLeft(join.getRight(), queryObject, fk, null));
-                        return this;
-                    }
-                }
-
-                if (preJoins != null) {
-                    for (JdbcJoin join : preJoins) {
-                        fk = join.getRight().getForeignKey(queryObject);
-                        if (fk != null) {
-                            addJoin1(join);
-                            joins.add(new JdbcJoinLeft(join.getRight(), queryObject, fk, null));
-                            return this;
-                        }
-                    }
-                }
-                throw RX.throwAUserTip(DatasetMessages.queryJoinFieldNotfound(queryObject));
-
-            } else {
-                joins.add(new JdbcJoin(queryObject, fk, joinType));
-            }
-
 
             return this;
         }
@@ -339,21 +329,6 @@ public class JdbcQuery {
             return this;
         }
 
-        public JdbcFrom preJoin(QueryObject queryObject, String foreignKey) {
-            if (preJoins == null) {
-                preJoins = new ArrayList<>();
-            }
-            for (JdbcJoin join : preJoins) {
-                if (join.contain(queryObject)) {
-                    return this;
-                }
-            }
-
-            preJoins.add(new JdbcJoin(queryObject, foreignKey, null));
-
-            return this;
-        }
-
         public JdbcFrom join(QueryObject queryObject, FsscriptFunction onBuilder, JoinType joinType) {
             if (joins == null) {
                 joins = new ArrayList<>();
@@ -368,19 +343,6 @@ public class JdbcQuery {
             return this;
         }
 
-        public JdbcFrom preJoin(QueryObject queryObject, FsscriptFunction onBuilder, JoinType joinType) {
-            if (preJoins == null) {
-                preJoins = new ArrayList<>();
-            }
-            for (JdbcJoin join : preJoins) {
-                if (join.contain(queryObject)) {
-                    return this;
-                }
-            }
-
-            preJoins.add(new JdbcJoinOnBuilder(queryObject, onBuilder, joinType));
-            return this;
-        }
 //        public JdbcFrom customJoin(Map mm) {
 //            if (joins == null) {
 //                joins = new ArrayList<>();
@@ -420,16 +382,52 @@ public class JdbcQuery {
 
             JoinType joinType;
 
+            /**
+             * 显式的 LEFT 表（用于嵌套维度等场景）
+             * 如果为 null，则默认使用 fromObject（主表）
+             */
+            QueryObject left;
+
+            /**
+             * 自定义 ON 条件构建器
+             */
+            FsscriptFunction onBuilder;
+
+            /**
+             * 预计算的 ON 条件字符串
+             * 在 SQL 生成时延迟计算，计算后缓存
+             */
+            String onCondition;
+
             public JdbcJoin(QueryObject queryObject, String foreignKey, JoinType joinType) {
                 RX.notNull(queryObject, "queryObject不得为空");
-//                RX.notNull(foreignKey, "foreignKey不得为空");
                 this.queryObject = queryObject;
                 this.foreignKey = foreignKey;
                 this.joinType = joinType == null ? JoinType.LEFT : joinType;
             }
 
+            /**
+             * 带 LEFT 表的构造器（用于嵌套维度）
+             */
+            public JdbcJoin(QueryObject left, QueryObject right, String foreignKey, JoinType joinType) {
+                this(right, foreignKey, joinType);
+                this.left = left;
+            }
+
+            /**
+             * 带 OnBuilder 的构造器
+             */
+            public JdbcJoin(QueryObject right, FsscriptFunction onBuilder, JoinType joinType) {
+                this(right, (String) null, joinType);
+                this.onBuilder = onBuilder;
+            }
+
+            /**
+             * 获取 LEFT 表
+             * 如果显式设置了 left，返回 left；否则返回主表 fromObject
+             */
             public QueryObject getLeft() {
-                return fromObject;
+                return left != null ? left : fromObject;
             }
 
             public QueryObject getRight() {
@@ -437,22 +435,15 @@ public class JdbcQuery {
             }
 
             public FsscriptFunction getOnBuilder() {
-                return null;
+                return onBuilder;
             }
 
             public boolean contain(QueryObject queryObject) {
-//                return this.queryObject == queryObject;
                 boolean v = this.queryObject.isRootEqual(queryObject);
-//                if(StringUtils.equalsIgnoreCase(((TableQueryObject)queryObject.getRoot()).getTableName() , "tms_customer" )
-//                &&StringUtils.equalsIgnoreCase(((TableQueryObject)this.queryObject.getRoot()).getTableName() , "tms_customer" )
-//                ){
-//                    System.out.println(" model contain debug");
-//                }
                 return v;
             }
 
             public String getJoinTypeString() {
-
                 switch (joinType == null ? JoinType.LEFT : joinType) {
                     case RIGHT:
                         return " right join ";
@@ -463,27 +454,45 @@ public class JdbcQuery {
                         return " left join ";
                 }
             }
+
+            /**
+             * 获取 ON 条件（延迟计算）
+             * 如果已有 onCondition 缓存，直接返回；否则返回 null 表示需要动态计算
+             */
+            public String getOnCondition() {
+                return onCondition;
+            }
+
+            /**
+             * 设置预计算的 ON 条件
+             */
+            public void setOnCondition(String onCondition) {
+                this.onCondition = onCondition;
+            }
         }
 
+        /**
+         * @deprecated 使用 JdbcJoin 的带 left 参数的构造器代替
+         */
+        @Deprecated
         @Data
         public class JdbcJoinLeft extends JdbcJoin {
-            QueryObject left;
-
+            // left 已移到父类，这里为兼容保留
             public JdbcJoinLeft(QueryObject left, QueryObject right, String foreignKey, JoinType joinType) {
-                super(right, foreignKey, joinType);
-                this.left = left;
+                super(left, right, foreignKey, joinType);
             }
         }
 
+        /**
+         * @deprecated 使用 JdbcJoin 的带 onBuilder 参数的构造器代替
+         */
+        @Deprecated
         @Data
         public class JdbcJoinOnBuilder extends JdbcJoin {
-            FsscriptFunction onBuilder;
-
+            // onBuilder 已移到父类，这里为兼容保留
             public JdbcJoinOnBuilder(QueryObject right, FsscriptFunction onBuilder, JoinType joinType) {
-                super(right, null, joinType);
-                this.onBuilder = onBuilder;
+                super(right, onBuilder, joinType);
             }
-
         }
 
     }

@@ -6,7 +6,7 @@ import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.spi.CalculatedFieldProcessor;
 import com.foggyframework.dataset.db.model.spi.JdbcQueryModel;
-import com.foggyframework.dataset.db.model.spi.support.CalculatedJdbcColumn;
+import com.foggyframework.dataset.db.model.spi.support.CalculatedDbColumn;
 import com.foggyframework.fsscript.DefaultExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.Exp;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
@@ -50,7 +50,7 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
     }
 
     @Override
-    public List<CalculatedJdbcColumn> processCalculatedFields(
+    public List<CalculatedDbColumn> processCalculatedFields(
             List<CalculatedFieldDef> calculatedFields,
             ApplicationContext appCtx) {
         if (calculatedFields == null || calculatedFields.isEmpty()) {
@@ -60,10 +60,10 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
         // 创建 SQL 表达式上下文
         this.context = new SqlExpContext(queryModel, dialect, appCtx);
 
-        List<CalculatedJdbcColumn> result = new ArrayList<>(calculatedFields.size());
+        List<CalculatedDbColumn> result = new ArrayList<>(calculatedFields.size());
 
         for (CalculatedFieldDef fieldDef : calculatedFields) {
-            CalculatedJdbcColumn column = doProcessCalculatedField(fieldDef, appCtx);
+            CalculatedDbColumn column = doProcessCalculatedField(fieldDef, appCtx);
             result.add(column);
         }
 
@@ -71,7 +71,7 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
     }
 
     @Override
-    public CalculatedJdbcColumn processCalculatedField(
+    public CalculatedDbColumn processCalculatedField(
             CalculatedFieldDef fieldDef,
             ApplicationContext appCtx) {
         // 如果上下文不存在，创建一个新的
@@ -84,7 +84,7 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
     /**
      * 处理单个计算字段的内部实现
      */
-    private CalculatedJdbcColumn doProcessCalculatedField(
+    private CalculatedDbColumn doProcessCalculatedField(
             CalculatedFieldDef fieldDef,
             ApplicationContext appCtx) {
         // 验证必填字段
@@ -120,7 +120,7 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
 
             // 3. 创建 CalculatedJdbcColumn
             String caption = StringUtils.isNotEmpty(fieldDef.getCaption()) ? fieldDef.getCaption() : fieldDef.getName();
-            CalculatedJdbcColumn column = new CalculatedJdbcColumn(
+            CalculatedDbColumn column = new CalculatedDbColumn(
                     fieldDef.getName(),
                     caption,
                     sqlFragment,

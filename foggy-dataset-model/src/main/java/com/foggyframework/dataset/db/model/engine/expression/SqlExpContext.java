@@ -3,7 +3,7 @@ package com.foggyframework.dataset.db.model.engine.expression;
 import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.db.model.spi.DbQueryColumn;
 import com.foggyframework.dataset.db.model.spi.JdbcQueryModel;
-import com.foggyframework.dataset.db.model.spi.support.CalculatedJdbcColumn;
+import com.foggyframework.dataset.db.model.spi.support.CalculatedDbColumn;
 import lombok.Data;
 import org.springframework.context.ApplicationContext;
 
@@ -48,7 +48,7 @@ public class SqlExpContext {
      * 使用 LinkedHashMap 保持插入顺序，支持后面的计算字段引用前面的。
      * </p>
      */
-    private final Map<String, CalculatedJdbcColumn> calculatedColumns = new LinkedHashMap<>();
+    private final Map<String, CalculatedDbColumn> calculatedColumns = new LinkedHashMap<>();
 
     public SqlExpContext(JdbcQueryModel queryModel, FDialect dialect, ApplicationContext appCtx) {
         this.queryModel = queryModel;
@@ -74,7 +74,7 @@ public class SqlExpContext {
      */
     public DbQueryColumn resolveColumn(String columnName) {
         // 1. 先查找计算字段
-        CalculatedJdbcColumn calculated = calculatedColumns.get(columnName);
+        CalculatedDbColumn calculated = calculatedColumns.get(columnName);
         if (calculated != null) {
             return calculated;
         }
@@ -91,7 +91,7 @@ public class SqlExpContext {
      */
     public DbQueryColumn tryResolveColumn(String columnName) {
         // 1. 先查找计算字段
-        CalculatedJdbcColumn calculated = calculatedColumns.get(columnName);
+        CalculatedDbColumn calculated = calculatedColumns.get(columnName);
         if (calculated != null) {
             return calculated;
         }
@@ -116,7 +116,7 @@ public class SqlExpContext {
      * @param name   字段名
      * @param column 计算字段列
      */
-    public void registerCalculatedColumn(String name, CalculatedJdbcColumn column) {
+    public void registerCalculatedColumn(String name, CalculatedDbColumn column) {
         calculatedColumns.put(name, column);
     }
 

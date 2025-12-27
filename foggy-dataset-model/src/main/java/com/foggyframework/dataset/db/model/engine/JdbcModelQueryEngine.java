@@ -10,17 +10,18 @@ import com.foggyframework.dataset.db.model.engine.expression.SqlCalculatedFieldP
 import com.foggyframework.dataset.db.model.engine.expression.SqlExpContext;
 import com.foggyframework.dataset.db.model.engine.formula.JdbcLink;
 import com.foggyframework.dataset.db.model.engine.formula.SqlFormulaService;
+import com.foggyframework.dataset.db.model.engine.join.JoinGraph;
 import com.foggyframework.dataset.db.model.engine.query.JdbcQuery;
 import com.foggyframework.dataset.db.model.engine.query.SimpleSqlJdbcQueryVisitor;
-import com.foggyframework.dataset.db.model.engine.query_model.DbQueryModelImpl;
+import com.foggyframework.dataset.db.model.engine.query_model.JdbcQueryModelImpl;
 import com.foggyframework.dataset.db.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.db.model.impl.dimension.DbModelParentChildDimensionImpl;
 import com.foggyframework.dataset.db.model.impl.query.DbQueryOrderColumnImpl;
 import com.foggyframework.dataset.db.model.impl.utils.SqlQueryObject;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.spi.*;
-import com.foggyframework.dataset.db.model.spi.support.AggregationJdbcColumn;
-import com.foggyframework.dataset.db.model.spi.support.CalculatedJdbcColumn;
+import com.foggyframework.dataset.db.model.spi.support.AggregationDbColumn;
+import com.foggyframework.dataset.db.model.spi.support.CalculatedDbColumn;
 import com.foggyframework.fsscript.DefaultExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import lombok.Data;
@@ -52,7 +53,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
     /**
      * 处理后的计算字段列表
      */
-    List<CalculatedJdbcColumn> calculatedColumns;
+    List<CalculatedDbColumn> calculatedColumns;
 
     /**
      * 不含 ORDER BY 的基础SQL，用于聚合查询的子查询
@@ -61,6 +62,11 @@ public class JdbcModelQueryEngine implements QueryEngine {
     String innerSql;
     String sql;
     String aggSql;
+
+    /**
+     * 聚合SQL优化结果（用于调试和测试）
+     */
+    AggSqlOptimizer.OptimizationResult aggSqlOptimizationResult;
 
     List values;
     private static final String PATTERN = "^[a-zA-Z\\s]+$";
@@ -113,21 +119,10 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
         JdbcQuery jdbcQuery = new JdbcQuery();
         jdbcQuery.setQueryRequest(queryRequest);
-        jdbcQuery.from(jdbcQueryModel.getQueryObject());
 
-        //补上必要的模型
-        if (jdbcQueryModel.getJdbcModelList().size() > 1) {
-            for (int i = 1; i < jdbcQueryModel.getJdbcModelList().size(); i++) {
-                TableModel tm = jdbcQueryModel.getJdbcModelList().get(i);
-                DbQueryModelImpl.JdbcModelDx dx = tm.getDecorate(DbQueryModelImpl.JdbcModelDx.class);
-
-                if (dx.getOnBuilder() != null) {
-                    jdbcQuery.preJoin(dx.getQueryObject(), dx.getOnBuilder(), dx.getJoinType());
-                } else {
-                    jdbcQuery.preJoin(dx.getQueryObject(), dx.getForeignKey());
-                }
-            }
-        }
+        // 使用 QueryModel 缓存的 JoinGraph
+        JoinGraph joinGraph = jdbcQueryModel.getMergedJoinGraph();
+        jdbcQuery.from(jdbcQueryModel.getQueryObject(), joinGraph);
 
         // 0. 预处理 columns 中的内联表达式，转换为 calculatedFields
         // 如果 context 中已有预处理结果，则跳过
@@ -181,6 +176,8 @@ public class JdbcModelQueryEngine implements QueryEngine {
         // 3.加权限语句
         for (DbQueryDimension queryDimension : jdbcQueryModel.getQueryDimensions()) {
             if (queryDimension.getQueryAccess() != null && queryDimension.getQueryAccess().getQueryBuilder() != null) {
+
+                jdbcQuery.join(queryDimension.getDimension().getQueryObject());
                 ExpEvaluator ee = DefaultExpEvaluator.newInstance(systemBundlesContext.getApplicationContext());
                 ee.setVar("query", jdbcQuery);
                 ee.setVar("dim", queryDimension.getDimension());
@@ -190,9 +187,12 @@ public class JdbcModelQueryEngine implements QueryEngine {
         }
         for (DbQueryProperty queryProperty : jdbcQueryModel.getQueryProperties()) {
             if (queryProperty.getQueryAccess() != null && queryProperty.getQueryAccess().getQueryBuilder() != null) {
+                if(queryProperty.getProperty()!=null){
+                    jdbcQuery.join(queryProperty.getProperty().getPropertyDbColumn().getQueryObject());
+                }
                 ExpEvaluator ee = DefaultExpEvaluator.newInstance(systemBundlesContext.getApplicationContext());
                 ee.setVar("query", jdbcQuery);
-                ee.setVar("property", queryProperty.getJdbcProperty());
+                ee.setVar("property", queryProperty.getProperty());
                 queryProperty.getQueryAccess().getQueryBuilder().autoApply(ee);
             }
         }
@@ -213,7 +213,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
             //当有分组时，我们直接在jdbcQuery加入groupBy
             int idx=0;
             for (DbColumn column : jdbcQuery.getSelect().getColumns()) {
-                if (column instanceof CalculatedJdbcColumn c) {
+                if (column instanceof CalculatedDbColumn c) {
                     // hasAggregate=true: 表达式本身已包含聚合函数（如 SUM(totalAmount)），跳过
                     if (!c.hasAggregate()) {
                         // aggregationType!=null: 推断的聚合类型（如 totalAmount+2 推断为 SUM），用聚合函数包裹
@@ -221,7 +221,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
                         DbAggregation agg = c.getAggregationType() != null
                                 ? DbAggregation.valueOf(c.getAggregationType())
                                 : column.getAggregation();
-                        AggregationJdbcColumn aggColumn = buildAggColumn1(column.getQueryObject(), column.getDeclare(), column, agg);
+                        AggregationDbColumn aggColumn = buildAggColumn1(column.getQueryObject(), column.getDeclare(), column, agg);
                         if (c.getAggregationType() == null) {
                             jdbcQuery.addGroupBy(aggColumn, column);
                         }
@@ -229,7 +229,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
                     }
                 } else {
                     String declare = column.getDeclare(systemBundlesContext.getApplicationContext(), jdbcQueryModel.getAlias(column.getQueryObject()));
-                    AggregationJdbcColumn aggColumn = buildAggColumn1(column.getQueryObject(), declare, column, column.getAggregation());
+                    AggregationDbColumn aggColumn = buildAggColumn1(column.getQueryObject(), declare, column, column.getAggregation());
                     jdbcQuery.addGroupBy(aggColumn, column);
 
                     //需要覆盖select列，确保会自动补上聚合函数
@@ -278,12 +278,22 @@ public class JdbcModelQueryEngine implements QueryEngine {
         this.innerSql = v.getSql();
         this.innerSqlWithoutOrder = v.getSqlWithoutOrder();
         this.sql = this.innerSql;
-        if (queryRequest.hasGroupBy()) {
-            // 基于明细查询语句，生成聚合查询语句
-            this.aggSql = buildAggSql(systemBundlesContext, null, null, false, true);
+
+        // 构建聚合SQL（支持优化）
+        boolean countToSum = queryRequest.hasGroupBy();
+        if (queryRequest.isOptimizeAggSqlEnabled()) {
+            // 使用优化器构建精简的聚合SQL
+            AggSqlOptimizer optimizer = new AggSqlOptimizer(jdbcQueryModel, jdbcQuery, systemBundlesContext, queryRequest);
+            this.aggSqlOptimizationResult = optimizer.buildOptimizedAggSql(this.innerSqlWithoutOrder, countToSum);
+            this.aggSql = this.aggSqlOptimizationResult.getOptimizedSql();
+
+            if (log.isDebugEnabled() && this.aggSqlOptimizationResult.isOptimizationApplied()) {
+                log.debug("聚合SQL优化: {}", this.aggSqlOptimizationResult.getSummary());
+            }
         } else {
-            // 基于明细查询语句，生成聚合查询语句
-            this.aggSql = buildAggSql(systemBundlesContext, null, null, false, false);
+            // 使用原始方式构建聚合SQL
+            this.aggSql = buildAggSql(systemBundlesContext, null, null, false, countToSum);
+            this.aggSqlOptimizationResult = null;
         }
 
         if (log.isDebugEnabled()) {
@@ -302,14 +312,14 @@ public class JdbcModelQueryEngine implements QueryEngine {
         return groupBySql;
     }
 
-    private AggregationJdbcColumn buildAggColumn(QueryObject sqlQueryObject, DbColumn column, DbAggregation agg) {
+    private AggregationDbColumn buildAggColumn(QueryObject sqlQueryObject, DbColumn column, DbAggregation agg) {
         String declare = sqlQueryObject.getAlias() + "." + column.getAlias();
         return buildAggColumn1(sqlQueryObject, declare, column, agg);
     }
 
-    private AggregationJdbcColumn buildAggColumn1(QueryObject sqlQueryObject, String declare, DbColumn column, DbAggregation agg) {
+    private AggregationDbColumn buildAggColumn1(QueryObject sqlQueryObject, String declare, DbColumn column, DbAggregation agg) {
 
-        AggregationJdbcColumn aggColumn = new AggregationJdbcColumn(sqlQueryObject, column.getAlias(), declare, column.getType());
+        AggregationDbColumn aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), declare, column.getType());
         if (agg == null) {
             agg = DbAggregation.NONE;
         }
@@ -367,7 +377,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
         List<DbColumn> aggColumns = new ArrayList<>();
         for (DbColumn column : jdbcQuery.getSelect().getColumns()) {
 //            jdbcQueryModel.get
-            AggregationJdbcColumn aggColumn = null;
+            AggregationDbColumn aggColumn = null;
             DbAggregation c = column.getAggregation();
 
             if (groupByMap != null) {
@@ -383,7 +393,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
             switch (c) {
                 case AVG:
 //                    aggJdbcQuery.getSelect().select()
-                    aggColumn = new AggregationJdbcColumn(sqlQueryObject, column.getAlias(), "avg" + "(" + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + ")", column.getType());
+                    aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), "avg" + "(" + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + ")", column.getType());
                     break;
                 case SUM:
                     String declare = "";
@@ -396,30 +406,30 @@ public class JdbcModelQueryEngine implements QueryEngine {
                         default:
                             declare = "sum" + "(" + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + ")";
                     }
-                    aggColumn = new AggregationJdbcColumn(sqlQueryObject, column.getAlias(), declare, column.getType());
+                    aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), declare, column.getType());
                     break;
                 case COUNT:
                     if (countToSum) {
                         //解决前端聚合维度或属性时的BUG
                         declare = "sum" + "(" + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + ")";
-                        aggColumn = new AggregationJdbcColumn(sqlQueryObject, column.getAlias(), declare, column.getType());
+                        aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), declare, column.getType());
                     } else {
-                        aggColumn = new AggregationJdbcColumn(sqlQueryObject, column.getAlias(), "count" + "(*)");
+                        aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), "count" + "(*)");
                     }
 
                     break;
                 case MAX:
                     declare = "max" + "(" + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + ")";
-                    aggColumn = new AggregationJdbcColumn(sqlQueryObject, column.getAlias(), declare, column.getType());
+                    aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), declare, column.getType());
                     break;
                 case MIN:
                     declare = "min" + "(" + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + ")";
-                    aggColumn = new AggregationJdbcColumn(sqlQueryObject, column.getAlias(), declare, column.getType());
+                    aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), declare, column.getType());
                     break;
                 case NONE:
                     //意思是不做聚合
                     declare = "null";
-                    aggColumn = new AggregationJdbcColumn(sqlQueryObject, column.getAlias(), declare, column.getType());
+                    aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), declare, column.getType());
                     break;
                 default:
                     throw new UnsupportedOperationException();
@@ -427,7 +437,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
             aggColumns.add(aggColumn);
 
         }
-        aggColumns.add(new AggregationJdbcColumn(sqlQueryObject, "total", "count(*)"));
+        aggColumns.add(new AggregationDbColumn(sqlQueryObject, "total", "count(*)"));
         sqlQueryObject.setColumns(aggColumns);
 
         aggJdbcQuery.from(sqlQueryObject);
@@ -685,7 +695,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
         if (log.isDebugEnabled()) {
             log.debug("Processed {} calculated fields", calculatedColumns.size());
-            for (CalculatedJdbcColumn column : calculatedColumns) {
+            for (CalculatedDbColumn column : calculatedColumns) {
                 log.debug("  {} = {}", column.getName(), column.getDeclare());
             }
         }
@@ -697,11 +707,11 @@ public class JdbcModelQueryEngine implements QueryEngine {
      * @param columnName 列名
      * @return 计算字段列，如果不存在返回 null
      */
-    private CalculatedJdbcColumn findCalculatedColumn(String columnName) {
+    private CalculatedDbColumn findCalculatedColumn(String columnName) {
         if (calculatedColumns == null || calculatedColumns.isEmpty()) {
             return null;
         }
-        for (CalculatedJdbcColumn column : calculatedColumns) {
+        for (CalculatedDbColumn column : calculatedColumns) {
             if (StringUtils.equals(column.getName(), columnName)) {
                 return column;
             }
@@ -714,7 +724,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
      *
      * @return 计算字段列列表
      */
-    public List<CalculatedJdbcColumn> getCalculatedColumns() {
+    public List<CalculatedDbColumn> getCalculatedColumns() {
         return calculatedColumns;
     }
 

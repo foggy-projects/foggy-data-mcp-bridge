@@ -2,7 +2,7 @@ package com.foggyframework.dataset.db.model.engine.expression;
 
 import com.foggyframework.dataset.db.model.spi.DbColumnType;
 import com.foggyframework.dataset.db.model.spi.DbQueryColumn;
-import com.foggyframework.dataset.db.model.spi.support.CalculatedJdbcColumn;
+import com.foggyframework.dataset.db.model.spi.support.CalculatedDbColumn;
 
 import java.util.Set;
 
@@ -16,7 +16,7 @@ import java.util.Set;
  * @author Foggy
  * @since 1.0
  */
-public class MongoCalculatedColumnAdapter extends CalculatedJdbcColumn {
+public class MongoCalculatedColumnAdapter extends CalculatedDbColumn {
 
     private final MongoCalculatedColumn mongoColumn;
 

@@ -9,7 +9,7 @@ import com.foggyframework.dataset.db.model.impl.query.DbQueryOrderColumnImpl;
 import com.foggyframework.dataset.db.model.spi.DbColumn;
 import com.foggyframework.dataset.db.model.spi.JdbcQueryModel;
 import com.foggyframework.dataset.db.model.spi.QueryObject;
-import com.foggyframework.dataset.db.model.spi.support.AggregationJdbcColumn;
+import com.foggyframework.dataset.db.model.spi.support.AggregationDbColumn;
 import com.foggyframework.fsscript.DefaultExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import lombok.Getter;
@@ -96,26 +96,34 @@ public class SimpleSqlJdbcQueryVisitor implements JdbcQueryVisitor {
 
             for (JdbcQuery.JdbcFrom.JdbcJoin join : from.getJoins()) {
                 sb
-//                        .append(" left join ")
-
                         .append(join.getJoinTypeString())
                         .append(join.getRight().getBody()).append(" ")
                         .append(getAlias(join.getRight())).append(" ")
                         .append(join.getRight().getForceIndex() == null ? "" : join.getRight().getForceIndex())
                         .append(" on ");
 
-                if (join.getOnBuilder() != null) {
+                // 优先使用预计算的 onCondition（方案 C：延迟计算后缓存）
+                String onCondition = join.getOnCondition();
+                if (onCondition != null) {
+                    // 已有缓存，直接使用
+                    sb.append(onCondition);
+                } else if (join.getOnBuilder() != null) {
+                    // 使用 OnBuilder 动态计算
                     ExpEvaluator ee = DefaultExpEvaluator.newInstance(appCtx);
                     ee.setVar("jdbcFrom", from);
                     ee.setVar("join", join.getQueryObject());
                     ee.setVar("queryRequest", queryRequest);
                     ee.setVar("queryModel", jdbcQueryModel);
 
-                    sb.append(join.getOnBuilder().autoApply(ee)).append("\t");
+                    onCondition = String.valueOf(join.getOnBuilder().autoApply(ee));
+                    join.setOnCondition(onCondition);  // 缓存
+                    sb.append(onCondition).append("\t");
                 } else {
-                    sb.append(getAlias(join.getLeft())).append(".")
-                            .append(join.getForeignKey()).append("=").append(getAlias(join.getRight()))
-                            .append(".").append(join.getRight().getPrimaryKey());
+                    // 从 left/foreignKey/right/primaryKey 构建 ON 条件并缓存
+                    onCondition = getAlias(join.getLeft()) + "." + join.getForeignKey() + "="
+                            + getAlias(join.getRight()) + "." + join.getRight().getPrimaryKey();
+                    join.setOnCondition(onCondition);  // 缓存
+                    sb.append(onCondition);
                 }
 
             }
@@ -214,7 +222,7 @@ public class SimpleSqlJdbcQueryVisitor implements JdbcQueryVisitor {
             if (i != 0) {
                 sb.append(",\t");
             }
-            AggregationJdbcColumn column = orderOrder.getAggColumn();
+            AggregationDbColumn column = orderOrder.getAggColumn();
             sb.append(column.getGroupByName());
             i++;
         }

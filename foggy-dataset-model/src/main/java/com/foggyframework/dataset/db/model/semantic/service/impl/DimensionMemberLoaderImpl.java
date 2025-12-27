@@ -86,13 +86,13 @@ public class DimensionMemberLoaderImpl implements DimensionMemberLoader {
 
     private String buildCacheKey(DbQueryProperty dbQueryProperty, String cachePrefix) {
         // 优先检查 dictRef（新的 fsscript 字典引用方式）
-        String dictRef = dbQueryProperty.getJdbcProperty().getDictRef();
+        String dictRef = dbQueryProperty.getProperty().getDictRef();
         if (!StringUtils.isEmpty(dictRef)) {
             return cachePrefix + "-dict-" + dictRef;
         }
 
         // 兼容旧的 dictClass 方式
-        String dictClass = dbQueryProperty.getJdbcProperty().getExtDataValue("dictClass");
+        String dictClass = dbQueryProperty.getProperty().getExtDataValue("dictClass");
         if (StringUtils.isEmpty(dictClass)) {
             throw RX.throwA(String.format("只有字典类的属性，才能构建缓存,但%s不是", dbQueryProperty.getName()));
         }
@@ -102,13 +102,13 @@ public class DimensionMemberLoaderImpl implements DimensionMemberLoader {
 
     private List<DbDataItem> loadPropertyDataItem(QueryModel jdbcQueryModel, DbQueryProperty jdbcProperty) {
         // 优先检查 dictRef（新的 fsscript 字典引用方式）
-        String dictRef = jdbcProperty.getJdbcProperty().getDictRef();
+        String dictRef = jdbcProperty.getProperty().getDictRef();
         if (!StringUtils.isEmpty(dictRef)) {
             return loadPropertyDataItemFromDictRef(dictRef);
         }
 
         // 兼容旧的 dictClass 方式
-        String dictClass = jdbcProperty.getJdbcProperty().getExtDataValue("dictClass");
+        String dictClass = jdbcProperty.getProperty().getExtDataValue("dictClass");
         return loadPropertyDataItemFromDictClass(dictClass);
     }
 

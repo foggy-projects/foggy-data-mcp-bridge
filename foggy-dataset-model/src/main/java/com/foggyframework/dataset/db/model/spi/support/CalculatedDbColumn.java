@@ -23,7 +23,7 @@ import java.util.Set;
  * @since 1.0
  */
 @Data
-public class CalculatedJdbcColumn extends AbstractDecorate implements DbQueryColumn {
+public class CalculatedDbColumn extends AbstractDecorate implements DbQueryColumn {
 
     /**
      * 字段名（在 columns 中引用的名称）
@@ -79,13 +79,13 @@ public class CalculatedJdbcColumn extends AbstractDecorate implements DbQueryCol
      */
     private QueryObject queryObject;
 
-    public CalculatedJdbcColumn(String name, String caption, SqlFragment sqlFragment) {
+    public CalculatedDbColumn(String name, String caption, SqlFragment sqlFragment) {
         this.name = name;
         this.caption = caption != null ? caption : name;
         this.sqlFragment = sqlFragment;
     }
 
-    public CalculatedJdbcColumn(String name, String caption, SqlFragment sqlFragment, String description) {
+    public CalculatedDbColumn(String name, String caption, SqlFragment sqlFragment, String description) {
         this(name, caption, sqlFragment);
         this.description = description;
     }
@@ -138,7 +138,7 @@ public class CalculatedJdbcColumn extends AbstractDecorate implements DbQueryCol
     }
 
     @Override
-    public DbQueryCondition getJdbcQueryCond() {
+    public DbQueryCondition getDbQueryCond() {
         // 计算字段作为过滤条件时，直接使用 SQL 表达式
         return null;
     }

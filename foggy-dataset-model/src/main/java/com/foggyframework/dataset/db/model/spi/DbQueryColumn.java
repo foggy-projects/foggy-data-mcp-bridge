@@ -14,13 +14,13 @@ import java.util.Map;
 public interface DbQueryColumn extends DbObject, DbColumn {
     DbColumn getSelectColumn();
 
-    DbQueryCondition getJdbcQueryCond();
+    DbQueryCondition getDbQueryCond();
 
 
     Map<String, Object> getUi();
 
     default String getField() {
-        return getJdbcQueryCond() == null ? null : getJdbcQueryCond().getField();
+        return getDbQueryCond() == null ? null : getDbQueryCond().getField();
     }
 
     void setHasRef(boolean hasRef);

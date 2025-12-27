@@ -266,7 +266,7 @@ class ModelLoadingTest extends EcommerceTestSupport {
             // 获取维度表名（如果有独立维表）
             String tableName = dim.getQueryObject() != null ? dim.getQueryObject().getName() : "(内嵌维度)";
             // 获取主键列（如果有）
-            String primaryKey = dim.getPrimaryKeyJdbcColumn() != null ? dim.getPrimaryKeyJdbcColumn().getName() : "(无主键)";
+            String primaryKey = dim.getPrimaryKeyDbColumn() != null ? dim.getPrimaryKeyDbColumn().getName() : "(无主键)";
 
             log.info("维度 {}: 表={}, 外键={}, 主键={}",
                 dim.getName(),

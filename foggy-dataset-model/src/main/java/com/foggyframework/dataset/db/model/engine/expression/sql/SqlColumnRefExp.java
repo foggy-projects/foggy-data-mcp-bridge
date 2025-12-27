@@ -3,7 +3,7 @@ package com.foggyframework.dataset.db.model.engine.expression.sql;
 import com.foggyframework.dataset.db.model.engine.expression.SqlExpContext;
 import com.foggyframework.dataset.db.model.engine.expression.SqlFragment;
 import com.foggyframework.dataset.db.model.spi.DbQueryColumn;
-import com.foggyframework.dataset.db.model.spi.support.CalculatedJdbcColumn;
+import com.foggyframework.dataset.db.model.spi.support.CalculatedDbColumn;
 import com.foggyframework.fsscript.exp.AbstractExp;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import lombok.extern.slf4j.Slf4j;
@@ -65,8 +65,8 @@ public class SqlColumnRefExp extends AbstractExp<String> {
         SqlFragment fragment = SqlFragment.ofColumn(column, sqlDeclare);
 
         // 如果是计算字段，需要合并其依赖的列
-        if (column instanceof CalculatedJdbcColumn) {
-            CalculatedJdbcColumn calcColumn = (CalculatedJdbcColumn) column;
+        if (column instanceof CalculatedDbColumn) {
+            CalculatedDbColumn calcColumn = (CalculatedDbColumn) column;
             fragment.getReferencedColumns().addAll(calcColumn.getReferencedColumns());
         }
 

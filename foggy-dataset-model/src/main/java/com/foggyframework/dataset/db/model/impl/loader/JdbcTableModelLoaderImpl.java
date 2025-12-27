@@ -6,7 +6,7 @@ import com.foggyframework.core.ex.RX;
 import com.foggyframework.dataset.db.model.def.DbModelDef;
 import com.foggyframework.dataset.db.model.def.query.DbQueryModelDef;
 import com.foggyframework.dataset.db.model.engine.formula.SqlFormulaService;
-import com.foggyframework.dataset.db.model.engine.query_model.DbQueryModelImpl;
+import com.foggyframework.dataset.db.model.engine.query_model.JdbcQueryModelImpl;
 import com.foggyframework.dataset.db.model.engine.query_model.QueryModelSupport;
 import com.foggyframework.dataset.db.model.impl.LoaderSupport;
 import com.foggyframework.dataset.db.model.impl.model.DbTableModelImpl;
@@ -92,7 +92,7 @@ public class JdbcTableModelLoaderImpl extends LoaderSupport implements TableMode
             }
         }
 
-        DbQueryModelImpl qm = new DbQueryModelImpl(jdbcModelDxList,fsscript,sqlFormulaService,ds);
+        JdbcQueryModelImpl qm = new JdbcQueryModelImpl(jdbcModelDxList,fsscript,sqlFormulaService,ds);
         queryModelDef.apply(qm);
         return qm;
     }

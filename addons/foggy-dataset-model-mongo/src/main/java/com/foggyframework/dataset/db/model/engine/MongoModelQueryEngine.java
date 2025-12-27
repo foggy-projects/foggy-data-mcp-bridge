@@ -13,8 +13,8 @@ import com.foggyframework.dataset.db.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.db.model.impl.mongo.MongoQueryModel;
 import com.foggyframework.dataset.db.model.impl.query.DbQueryOrderColumnImpl;
 import com.foggyframework.dataset.db.model.impl.utils.SqlQueryObject;
-import com.foggyframework.dataset.db.model.spi.support.AggregationJdbcColumn;
-import com.foggyframework.dataset.db.model.spi.support.CalculatedJdbcColumn;
+import com.foggyframework.dataset.db.model.spi.support.AggregationDbColumn;
+import com.foggyframework.dataset.db.model.spi.support.CalculatedDbColumn;
 import com.foggyframework.fsscript.DefaultExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import com.foggyframework.core.tuple.Tuple3;
@@ -50,7 +50,7 @@ public class MongoModelQueryEngine implements QueryEngine {
     /**
      * 处理后的计算字段列表
      */
-    List<CalculatedJdbcColumn> calculatedColumns;
+    List<CalculatedDbColumn> calculatedColumns;
 
     private static final String PATTERN = "^[a-zA-Z\\s]+$";
     private static final Pattern PATTERN_OBJECT = Pattern.compile(PATTERN);
@@ -128,7 +128,7 @@ public class MongoModelQueryEngine implements QueryEngine {
             if (queryProperty.getQueryAccess() != null && queryProperty.getQueryAccess().getQueryBuilder() != null) {
                 ExpEvaluator ee = DefaultExpEvaluator.newInstance(systemBundlesContext.getApplicationContext());
                 ee.setVar("query", jdbcQuery);
-                ee.setVar("property", queryProperty.getJdbcProperty());
+                ee.setVar("property", queryProperty.getProperty());
                 queryProperty.getQueryAccess().getQueryBuilder().autoApply(ee);
             }
         }
@@ -166,7 +166,7 @@ public class MongoModelQueryEngine implements QueryEngine {
 
         // 将计算字段也加入到 projection（计算字段通过 $addFields 已经添加到文档中）
         if (calculatedColumns != null && !calculatedColumns.isEmpty()) {
-            for (CalculatedJdbcColumn calcColumn : calculatedColumns) {
+            for (CalculatedDbColumn calcColumn : calculatedColumns) {
                 // 计算字段在 $addFields 阶段已经被计算出来，这里只需要投影
                 project = project.and(calcColumn.getAlias()).as(calcColumn.getAlias());
             }
@@ -278,7 +278,7 @@ public class MongoModelQueryEngine implements QueryEngine {
         SqlQueryObject sqlQueryObject = new SqlQueryObject(this.sql, "tx");
         List<DbColumn> aggColumns = new ArrayList<>();
         for (DbColumn column : jdbcQuery.getSelect().getColumns()) {
-            AggregationJdbcColumn aggColumn = null;
+            AggregationDbColumn aggColumn = null;
             DbAggregation c = column.getAggregation();
             if (c == null) {
                 if (groupByMap != null) {
@@ -411,7 +411,7 @@ public class MongoModelQueryEngine implements QueryEngine {
 
         Document addFieldsDoc = new Document();
 
-        for (CalculatedJdbcColumn column : calculatedColumns) {
+        for (CalculatedDbColumn column : calculatedColumns) {
             if (column instanceof MongoCalculatedColumnAdapter) {
                 MongoCalculatedColumn mongoColumn = ((MongoCalculatedColumnAdapter) column).getMongoColumn();
                 Object mongoExpr = mongoColumn.getMongoExpression();
@@ -434,7 +434,7 @@ public class MongoModelQueryEngine implements QueryEngine {
      *
      * @return 计算字段列表
      */
-    public List<CalculatedJdbcColumn> getCalculatedColumns() {
+    public List<CalculatedDbColumn> getCalculatedColumns() {
         return calculatedColumns;
     }
 

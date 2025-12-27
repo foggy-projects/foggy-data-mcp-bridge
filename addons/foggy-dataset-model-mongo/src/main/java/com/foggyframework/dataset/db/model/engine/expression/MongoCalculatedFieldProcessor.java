@@ -5,7 +5,7 @@ import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.impl.mongo.MongoQueryModel;
 import com.foggyframework.dataset.db.model.spi.CalculatedFieldProcessor;
-import com.foggyframework.dataset.db.model.spi.support.CalculatedJdbcColumn;
+import com.foggyframework.dataset.db.model.spi.support.CalculatedDbColumn;
 import com.foggyframework.fsscript.DefaultExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.Exp;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
@@ -49,7 +49,7 @@ public class MongoCalculatedFieldProcessor implements CalculatedFieldProcessor {
     }
 
     @Override
-    public List<CalculatedJdbcColumn> processCalculatedFields(
+    public List<CalculatedDbColumn> processCalculatedFields(
             List<CalculatedFieldDef> calculatedFields,
             ApplicationContext appCtx) {
         if (calculatedFields == null || calculatedFields.isEmpty()) {
@@ -59,10 +59,10 @@ public class MongoCalculatedFieldProcessor implements CalculatedFieldProcessor {
         // 创建 MongoDB 表达式上下文
         this.context = new MongoExpContext(queryModel, appCtx);
 
-        List<CalculatedJdbcColumn> result = new ArrayList<>(calculatedFields.size());
+        List<CalculatedDbColumn> result = new ArrayList<>(calculatedFields.size());
 
         for (CalculatedFieldDef fieldDef : calculatedFields) {
-            CalculatedJdbcColumn column = doProcessCalculatedField(fieldDef, appCtx);
+            CalculatedDbColumn column = doProcessCalculatedField(fieldDef, appCtx);
             result.add(column);
         }
 
@@ -70,7 +70,7 @@ public class MongoCalculatedFieldProcessor implements CalculatedFieldProcessor {
     }
 
     @Override
-    public CalculatedJdbcColumn processCalculatedField(
+    public CalculatedDbColumn processCalculatedField(
             CalculatedFieldDef fieldDef,
             ApplicationContext appCtx) {
         if (this.context == null) {
@@ -82,7 +82,7 @@ public class MongoCalculatedFieldProcessor implements CalculatedFieldProcessor {
     /**
      * 处理单个计算字段的内部实现
      */
-    private CalculatedJdbcColumn doProcessCalculatedField(
+    private CalculatedDbColumn doProcessCalculatedField(
             CalculatedFieldDef fieldDef,
             ApplicationContext appCtx) {
         // 验证必填字段

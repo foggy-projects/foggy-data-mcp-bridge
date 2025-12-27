@@ -55,19 +55,19 @@ public abstract class DbDimensionSupport extends DbObjectSupport implements DbDi
      */
     DbDimensionType type;
 
-    DbColumn primaryKeyJdbcColumn;
+    DbColumn primaryKeyDbColumn;
 
 
-    DbColumn foreignKeyJdbcColumn;
+    DbColumn foreignKeyDbColumn;
 
 
-    DbColumn captionJdbcColumn;
+    DbColumn captionDbColumn;
 
     Map<String, Object> extData;
 
     List<DbProperty> jdbcProperties = new ArrayList<>();
 
-    List<DimensionPropertyDbColumn> propertyJdbcColumns = new ArrayList<>();
+    List<DimensionPropertyDbColumn> propertyDbColumns = new ArrayList<>();
 
     FsscriptFunction dimensionDataSql;
 
@@ -108,11 +108,11 @@ public abstract class DbDimensionSupport extends DbObjectSupport implements DbDi
     }
 
     @Override
-    public DbProperty addJdbcProperty(DbProperty property) {
+    public DbProperty addProperty(DbProperty property) {
         /**
          * 检查数据
          */
-        if (findJdbcPropertyByName(property.getName()) != null) {
+        if (findPropertyByName(property.getName()) != null) {
             throw RX.throwAUserTip(DatasetMessages.modelDuplicateProperty(property.getName()));
         }
 
@@ -122,7 +122,7 @@ public abstract class DbDimensionSupport extends DbObjectSupport implements DbDi
     }
 
     @Override
-    public DbProperty findJdbcPropertyByName(String name) {
+    public DbProperty findPropertyByName(String name) {
         for (DbProperty property : jdbcProperties) {
             if (StringUtils.equals(property.getName(), name)) {
                 return property;
@@ -143,9 +143,9 @@ public abstract class DbDimensionSupport extends DbObjectSupport implements DbDi
         if (queryObject != null) {
             //有独立的维表
             //从维表取captionJdbcColumn
-            captionJdbcColumn = new DimensionCaptionDbColumn(queryObject, queryObject.getSqlColumn(captionColumn, true));
+            captionDbColumn = new DimensionCaptionDbColumn(queryObject, queryObject.getSqlColumn(captionColumn, true));
             RX.hasText(primaryKey, String.format("维度%s没有定义主键", name));
-            primaryKeyJdbcColumn = new DimensionPrimaryKeyDbColumn(queryObject.getSqlColumn(primaryKey, true));
+            primaryKeyDbColumn = new DimensionPrimaryKeyDbColumn(queryObject.getSqlColumn(primaryKey, true));
             if (StringUtils.isEmpty(type)) {
                 type = DbDimensionType.NORMAL;
             }
@@ -161,7 +161,7 @@ public abstract class DbDimensionSupport extends DbObjectSupport implements DbDi
             }
             if (StringUtils.isNotEmpty(captionColumn)) {
                 //从主表取captionJdbcColumn
-                captionJdbcColumn = new DimensionCaptionDbColumn(jdbcModel.getQueryObject(), jdbcModel.getQueryObject().getSqlColumn(captionColumn, true));
+                captionDbColumn = new DimensionCaptionDbColumn(jdbcModel.getQueryObject(), jdbcModel.getQueryObject().getSqlColumn(captionColumn, true));
             }
         }
 
@@ -174,7 +174,7 @@ public abstract class DbDimensionSupport extends DbObjectSupport implements DbDi
 
         if (StringUtils.isEmpty(joinTo)) {
             // 顶层维度：外键在主表上
-            foreignKeyJdbcColumn = new DimensionDbColumn(jdbcModel.getQueryObject().getSqlColumn(foreignKey, true));
+            foreignKeyDbColumn = new DimensionDbColumn(jdbcModel.getQueryObject().getSqlColumn(foreignKey, true));
 
         } else if (queryObject != null) {
             // 嵌套维度或 joinTo 维度：外键在父维度表上
@@ -189,14 +189,14 @@ public abstract class DbDimensionSupport extends DbObjectSupport implements DbDi
             queryObject.setLinkQueryObject(parentQueryObject);
             // 在父 QueryObject 上注册子 QueryObject 的外键，用于 JOIN 条件生成
             parentQueryObject.registerChildForeignKey(queryObject, foreignKey);
-            foreignKeyJdbcColumn = new JoinToDimensionDbColumn(parentQueryObject, parentQueryObject.getSqlColumn(foreignKey, true));
+            foreignKeyDbColumn = new JoinToDimensionDbColumn(parentQueryObject, parentQueryObject.getSqlColumn(foreignKey, true));
         }
 
 
         for (DbProperty property : jdbcProperties) {
-            SqlColumn sqlColumn = property.getPropertyJdbcColumn().getSqlColumn();
+            SqlColumn sqlColumn = property.getPropertyDbColumn().getSqlColumn();
             DimensionPropertyDbColumn pc = new DimensionPropertyDbColumn(sqlColumn, property);
-            propertyJdbcColumns.add(pc);
+            propertyDbColumns.add(pc);
         }
 
     }
@@ -234,7 +234,7 @@ public abstract class DbDimensionSupport extends DbObjectSupport implements DbDi
             if (alias == null) {
                 // 使用维度的有效名称（优先别名）来构建属性列名
                 String effectiveDimName = getEffectiveName();
-                alias = effectiveDimName + "$" + property.getPropertyJdbcColumn().getAlias();
+                alias = effectiveDimName + "$" + property.getPropertyDbColumn().getAlias();
             }
             return alias;
         }
@@ -271,12 +271,12 @@ public abstract class DbDimensionSupport extends DbObjectSupport implements DbDi
          * @return
          */
         @Override
-        public DbColumn getPropertyJdbcColumn() {
+        public DbColumn getPropertyDbColumn() {
             return this;
         }
 
         @Override
-        public TableModel getJdbcModel() {
+        public TableModel getTableModel() {
             return jdbcModel;
         }
 
@@ -313,10 +313,10 @@ public abstract class DbDimensionSupport extends DbObjectSupport implements DbDi
 
     @Override
     public List<DbColumn> getVisibleSelectColumns() {
-        if (captionJdbcColumn == null) {
+        if (captionDbColumn == null) {
             return Collections.EMPTY_LIST;
         }
-        return Arrays.asList(captionJdbcColumn);
+        return Arrays.asList(captionDbColumn);
     }
 
     public class DimensionPrimaryKeyDbColumn extends DimensionDbColumnSupport implements DbColumn {
@@ -526,8 +526,8 @@ public abstract class DbDimensionSupport extends DbObjectSupport implements DbDi
 
         JdbcQuery query = new JdbcQuery();
         query.from(queryObject);
-        query.select(primaryKeyJdbcColumn.getSqlColumn().getName(), "id");
-        query.select(captionJdbcColumn.getSqlColumn().getName(), "caption");
+        query.select(primaryKeyDbColumn.getSqlColumn().getName(), "id");
+        query.select(captionDbColumn.getSqlColumn().getName(), "caption");
         SimpleSqlJdbcQueryVisitor visitor = new SimpleSqlJdbcQueryVisitor();
         query.accept(visitor);
         String sql = visitor.getSql();
@@ -538,15 +538,15 @@ public abstract class DbDimensionSupport extends DbObjectSupport implements DbDi
     }
 
     @Override
-    public List<DbColumn> getAllJdbcColumns() {
+    public List<DbColumn> getAllDbColumns() {
         List<DbColumn> ll = new ArrayList<>();
-        ll.add(this.foreignKeyJdbcColumn);
+        ll.add(this.foreignKeyDbColumn);
 
-        if (this.captionJdbcColumn != null && this.foreignKeyJdbcColumn.getSqlColumn() != this.captionJdbcColumn.getSqlColumn()) {
-            ll.add(this.captionJdbcColumn);
+        if (this.captionDbColumn != null && this.foreignKeyDbColumn.getSqlColumn() != this.captionDbColumn.getSqlColumn()) {
+            ll.add(this.captionDbColumn);
         }
 
-        ll.addAll(propertyJdbcColumns);
+        ll.addAll(propertyDbColumns);
         return ll;
     }
 
