@@ -75,11 +75,11 @@ export const queryModel = {
         {
             caption: '度量',
             items: [
-                { name: 'totalQuantity' },
-                { name: 'totalAmount' },
+                { name: 'quantity' },
+                { name: 'amount' },
                 { name: 'discountAmount' },
                 { name: 'freightAmount' },
-                { name: 'orderPayAmount' }
+                { name: 'payAmount' }
             ]
         }
     ],

@@ -7,7 +7,6 @@ import com.foggyframework.dataset.db.model.def.property.DbPropertyDef;
 import com.foggyframework.dataset.db.model.impl.model.TableModelSupport;
 import com.foggyframework.dataset.db.model.spi.DbModelType;
 import lombok.Data;
-import org.springframework.data.mongodb.core.MongoTemplate;
 
 import javax.sql.DataSource;
 import java.util.List;
@@ -41,7 +40,7 @@ public class DbModelDef extends DbDefSupport {
 
     String type;
 
-    MongoTemplate mongoTemplate;
+    Object mongoTemplate;
 
     public void apply(TableModelSupport jdbcObjectSupport) {
         super.apply(jdbcObjectSupport);

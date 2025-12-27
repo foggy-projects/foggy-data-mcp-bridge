@@ -14,7 +14,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
-import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
@@ -37,8 +36,6 @@ public abstract class EcommerceTestSupport {
     @Resource
     protected ApplicationContext appCtx;
 
-    @Resource
-    protected MongoTemplate mongoTemplate;
 
     /**
      * 数据库类型配置，用于区分SQLite（轻量测试）和MySQL/Docker（完整测试）

@@ -55,9 +55,9 @@ class AggregationQueryTest extends EcommerceTestSupport {
         // 设置查询列：日期维度 + 度量
         List<String> columns = Arrays.asList(
             "orderDate$caption",
-            "totalQuantity",
-            "totalAmount",
-            "orderPayAmount"
+            "quantity",
+            "amount",
+            "payAmount"
         );
         queryRequest.setColumns(columns);
 
@@ -196,10 +196,10 @@ class AggregationQueryTest extends EcommerceTestSupport {
         List<String> columns = Arrays.asList(
             "customer$customerType",
             "customer$memberLevel",
-            "totalQuantity",
-            "totalAmount",
+            "quantity",
+            "amount",
             "discountAmount",
-            "orderPayAmount"
+            "payAmount"
         );
         queryRequest.setColumns(columns);
 
@@ -289,8 +289,8 @@ class AggregationQueryTest extends EcommerceTestSupport {
             "store$province",
             "store$city",
             "channel$channelType",
-            "totalQuantity",
-            "totalAmount"
+            "quantity",
+            "amount"
         );
         queryRequest.setColumns(columns);
 
@@ -383,8 +383,8 @@ class AggregationQueryTest extends EcommerceTestSupport {
         List<String> columns = Arrays.asList(
             "orderDate$month",
             "customer$customerType",
-            "totalAmount",
-            "orderPayAmount"
+            "amount",
+            "payAmount"
         );
         queryRequest.setColumns(columns);
 

@@ -20,11 +20,7 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
             </plugin>
-
-
         </plugins>
-
-
     </build>
 
     <dependencies>
@@ -34,28 +30,9 @@
             <artifactId>foggy-dataset</artifactId>
         </dependency>
 
-<!--        <dependency>-->
-<!--            <groupId>com.foggysource</groupId>-->
-<!--            <artifactId>foggy-framework-beans</artifactId>-->
-<!--        </dependency>-->
-<!--        <dependency>-->
-<!--            <groupId>com.foggysource</groupId>-->
-<!--            <artifactId>foggy-framework-dataset-common</artifactId>-->
-<!--        </dependency>-->
-<!--        <dependency>-->
-<!--            <groupId>com.foggysource</groupId>-->
-<!--            <artifactId>foggy-framework-dataset-beans</artifactId>-->
-<!--        </dependency>-->
-
-<!--        <dependency>-->
-<!--            <groupId>org.springframework.boot</groupId>-->
-<!--            <artifactId>spring-boot-starter-data-mongodb</artifactId>-->
-<!--&lt;!&ndash;            <scope>provided</scope>&ndash;&gt;-->
-<!--        </dependency>-->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
-            <!--            <scope>provided</scope>-->
         </dependency>
         <dependency>
             <groupId>jakarta.persistence</groupId>
@@ -103,39 +80,6 @@
             <version>${project.version}</version>
             <scope>test</scope>
         </dependency>
-        <!--        <dependency>-->
-<!--            <groupId>com.foggysource</groupId>-->
-<!--            <artifactId>saas-common-default</artifactId>-->
-<!--        </dependency>-->
-<!--        <dependency>-->
-<!--            <groupId>com.foggysource</groupId>-->
-<!--            <artifactId>foggy-framework-ui-code-gen-common</artifactId>-->
-<!--        </dependency>-->
-<!--        <dependency>-->
-<!--            <groupId>com.foggysource</groupId>-->
-<!--            <artifactId>foggy-framework-semantic-impl</artifactId>-->
-<!--        </dependency>-->
-
-        <!--        <dependency>-->
-        <!--            <groupId>commons-beanutils</groupId>-->
-        <!--            <artifactId>commons-beanutils</artifactId>-->
-        <!--            <version>1.9.4</version>-->
-        <!--        </dependency>-->
     </dependencies>
-
-    <!--    <properties>-->
-    <!--        <javacup.version>10k</javacup.version>-->
-
-
-    <!--        <eigenbase-xom.version>1.3.0.11999</eigenbase-xom.version>-->
-    <!--        <eigenbase-resgen.version>1.3.0.11873</eigenbase-resgen.version>-->
-    <!--        <eigenbase-properties.version>1.1.0.10924-->
-    <!--        </eigenbase-properties.version>-->
-
-    <!--        <com.google.code.gson.version>2.8.7</com.google.code.gson.version>-->
-    <!--        <maven.compiler.source>8</maven.compiler.source>-->
-    <!--        <maven.compiler.target>8</maven.compiler.target>-->
-    <!--        <spring-boot-starter-parent.version>2.1.18.RELEASE</spring-boot-starter-parent.version>-->
-    <!--    </properties>-->
 
 </project>

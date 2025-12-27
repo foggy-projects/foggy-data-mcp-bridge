@@ -2,9 +2,23 @@
 
 本指南帮助你在 10 分钟内创建 TM/QM 模型并使用 DSL 进行查询。
 
-## 1. 添加依赖
+## 1. 环境准备
 
-在 `pom.xml` 中添加依赖：
+如果您不是java 开发者，建议使用docker的方式进行体验，详见（TODO）
+
+如果您是java 开发者，建议使用idea等开发工具，通过maven引入foggy-dataset-model进行体验，
+- 任意IDE
+- JDK 17+
+- Maven
+- mysql、PostgreSQL或sqlite等关系数据库
+
+如果您不想手动操作如下步骤，您可以将我们准备的文档（TODO）交付给目前的AI编程工具，如trae、claude code等，让其帮您构建基础示例，或引入依赖等
+
+## 2. 添加依赖
+
+### 2.1 核心依赖（必需）
+
+在 `pom.xml` 中添加 Foggy Dataset Model 依赖：
 
 ```xml
 <dependency>
@@ -14,9 +28,141 @@
 </dependency>
 ```
 
+### 2.2 新建项目完整配置
+
+如果你正在创建一个新项目，需要添加以下依赖：
+
+```xml
+<parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>3.2.0</version>
+</parent>
+
+<dependencies>
+    <!-- Spring Boot Web -->
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+
+    <!-- Spring Boot JDBC -->
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-jdbc</artifactId>
+    </dependency>
+
+    <!-- Foggy Dataset Model -->
+    <dependency>
+        <groupId>com.foggysource</groupId>
+        <artifactId>foggy-dataset-model</artifactId>
+        <version>8.0.1-beta</version>
+    </dependency>
+
+    <!-- 数据库驱动（根据实际情况选择一个） -->
+    <!-- MySQL -->
+    <dependency>
+        <groupId>com.mysql</groupId>
+        <artifactId>mysql-connector-j</artifactId>
+        <scope>runtime</scope>
+    </dependency>
+
+    <!-- 或 PostgreSQL -->
+    <!--
+    <dependency>
+        <groupId>org.postgresql</groupId>
+        <artifactId>postgresql</artifactId>
+        <scope>runtime</scope>
+    </dependency>
+    -->
+
+    <!-- 或 SQLite（适合快速测试） -->
+    <!--
+    <dependency>
+        <groupId>org.xerial</groupId>
+        <artifactId>sqlite-jdbc</artifactId>
+        <version>3.44.1.0</version>
+    </dependency>
+    -->
+</dependencies>
+```
+
+### 2.3 已有项目引入
+
+如果你的项目已经有Spring Boot和数据源配置，只需：
+
+1. 添加 `foggy-dataset-model` 核心依赖（见 2.1）
+2. 确保项目中有 JDBC 相关依赖（`spring-boot-starter-jdbc` 或 `spring-boot-starter-data-jpa`）
+3. 确保已配置数据源
+
+> **提示**：Foggy Dataset Model 可以与现有的 MyBatis、JPA 等持久层框架共存。
+## 3. 配置主应用类
+
+在Spring Boot主应用类上添加 `@EnableFoggyFramework` 注解：
+
+```java
+@SpringBootApplication
+@EnableFoggyFramework(bundleName = "my-foggy-demo")
+public class MyApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(MyApplication.class, args);
+    }
+}
+```
+
+> **说明**：`bundleName` 是模块的唯一标识，用于区分不同的业务模块。
+
 ---
 
-## 2. 场景说明
+## 4. 配置数据源和项目结构
+
+### 4.1 配置数据源
+
+**新建项目**：创建 `src/main/resources/application.yml`：
+
+```yaml
+spring:
+  datasource:
+    # MySQL 示例
+    url: jdbc:mysql://localhost:3306/your_database?useUnicode=true&characterEncoding=utf8
+    username: root
+    password: your_password
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+    # 或 PostgreSQL 示例
+    # url: jdbc:postgresql://localhost:5432/your_database
+    # username: postgres
+    # password: your_password
+    # driver-class-name: org.postgresql.Driver
+
+    # 或 SQLite 示例（快速测试）
+    # url: jdbc:sqlite:./data/demo.db
+    # driver-class-name: org.sqlite.JDBC
+
+# Foggy 配置（可选）
+foggy:
+  dataset:
+    show-sql: true  # 开启 SQL 日志，方便调试
+```
+
+**已有项目**：如果你的项目已经配置了数据源，无需修改，Foggy 会自动使用现有数据源。
+
+### 4.2 创建模型文件目录
+
+创建 TM/QM 模型文件的存放目录：
+
+```
+src/main/resources/
+└── foggy/
+    └── templates/     # TM 和 QM 文件存放位置
+```
+
+**已有项目**：只需在 `src/main/resources` 下创建 `foggy/templates/` 目录即可。
+
+---
+
+## 5. 场景说明
 
 假设我们有一个简单的电商系统，包含：
 - 订单事实表 `fact_order`
@@ -51,15 +197,80 @@ CREATE TABLE fact_order (
     amount DECIMAL(10,2),
     order_time DATETIME
 );
+
+-- 插入客户数据
+INSERT INTO dim_customer (customer_id, customer_name, customer_type, province, city) VALUES
+('CUST001', '张三', 'VIP', '广东省', '深圳市'),
+('CUST002', '李四', '普通', '广东省', '广州市'),
+('CUST003', '王五', 'VIP', '北京市', '北京市'),
+('CUST004', '赵六', '普通', '上海市', '上海市'),
+('CUST005', '钱七', 'VIP', '浙江省', '杭州市');
+
+-- 插入商品数据
+INSERT INTO dim_product (product_id, product_name, category, unit_price) VALUES
+('PROD001', 'iPhone 15', '数码电器', 6999.00),
+('PROD002', 'MacBook Pro', '数码电器', 12999.00),
+('PROD003', '小米手机', '数码电器', 2999.00),
+('PROD004', '耐克运动鞋', '服装鞋帽', 599.00),
+('PROD005', '阿迪达斯外套', '服装鞋帽', 899.00);
+
+-- 插入订单数据
+INSERT INTO fact_order (order_id, customer_id, product_id, order_status, quantity, amount, order_time) VALUES
+('ORD20240101001', 'CUST001', 'PROD001', 'COMPLETED', 1, 6999.00, '2024-01-15 10:30:00'),
+('ORD20240101002', 'CUST001', 'PROD002', 'COMPLETED', 1, 12999.00, '2024-02-20 14:20:00'),
+('ORD20240101003', 'CUST002', 'PROD003', 'SHIPPED', 2, 5998.00, '2024-03-10 09:15:00'),
+('ORD20240101004', 'CUST003', 'PROD001', 'COMPLETED', 1, 6999.00, '2024-04-05 16:45:00'),
+('ORD20240101005', 'CUST004', 'PROD004', 'PAID', 3, 1797.00, '2024-05-12 11:20:00'),
+('ORD20240101006', 'CUST005', 'PROD005', 'COMPLETED', 2, 1798.00, '2024-06-08 13:30:00'),
+('ORD20240101007', 'CUST002', 'PROD001', 'CANCELLED', 1, 6999.00, '2024-07-15 15:10:00'),
+('ORD20240101008', 'CUST003', 'PROD002', 'COMPLETED', 1, 12999.00, '2024-08-22 10:00:00'),
+('ORD20240101009', 'CUST001', 'PROD004', 'COMPLETED', 4, 2396.00, '2024-09-03 12:40:00'),
+('ORD20240101010', 'CUST005', 'PROD003', 'SHIPPED', 1, 2999.00, '2024-10-18 14:55:00')
 ```
+
+### 5.1 SQL 执行方式
+
+以上 SQL 可以通过以下任一方式执行：
+
+**方式1：自动执行（推荐新建项目）**
+
+创建 SQL 文件并配置自动执行：
+
+1. 创建文件：
+   - `src/main/resources/db/schema.sql` - 存放表结构
+   - `src/main/resources/db/data.sql` - 存放测试数据
+
+2. 在 `application.yml` 中配置：
+
+```yaml
+spring:
+  sql:
+    init:
+      mode: always  # 或 embedded（仅嵌入式数据库）
+      schema-locations: classpath:db/schema.sql
+      data-locations: classpath:db/data.sql
+      encoding: UTF-8
+```
+
+**方式2：手动执行（推荐已有项目）**
+
+使用数据库客户端工具直接执行上述 SQL：
+- MySQL Workbench、Navicat、DBeaver 等
+- 或使用命令行客户端：`mysql -u root -p < schema.sql`
+
+**方式3：使用数据库迁移工具**
+
+如果项目使用 Flyway 或 Liquibase，可以将 SQL 添加到相应的迁移脚本中。
+
+> **注意**：生产环境建议使用方式2或方式3，避免数据被重复初始化。
 
 ---
 
-## 3. 创建 TM 模型
+## 6. 创建 TM 模型
 
-### 3.1 创建事实表模型
+### 6.1 创建事实表模型
 
-创建文件 `FactOrderModel.tm`：
+创建文件 `src/main/resources/foggy/templates/FactOrderModel.tm`：
 
 ```javascript
 // FactOrderModel.tm - 订单事实表模型
@@ -114,14 +325,12 @@ export const model = {
     measures: [
         {
             column: 'quantity',
-            name: 'totalQuantity',
             caption: '订单数量',
             type: 'INTEGER',
             aggregation: 'sum'
         },
         {
             column: 'amount',
-            name: 'totalAmount',
             caption: '订单金额',
             type: 'MONEY',
             aggregation: 'sum'
@@ -130,7 +339,7 @@ export const model = {
 };
 ```
 
-### 3.2 TM 模型要点
+### 6.2 TM 模型要点
 
 | 配置项 | 说明 |
 |--------|------|
@@ -142,9 +351,9 @@ export const model = {
 
 ---
 
-## 4. 创建 QM 模型
+## 7. 创建 QM 模型
 
-创建文件 `FactOrderQueryModel.qm`：
+创建文件 `src/main/resources/foggy/templates/FactOrderQueryModel.qm`：
 
 ```javascript
 // FactOrderQueryModel.qm - 订单查询模型
@@ -183,8 +392,8 @@ export const queryModel = {
         {
             caption: '度量',
             items: [
-                { name: 'totalQuantity' },
-                { name: 'totalAmount' }
+                { name: 'quantity' },
+                { name: 'amount' }
             ]
         }
     ],
@@ -199,25 +408,71 @@ export const queryModel = {
 };
 ```
 
-### 4.1 QM 字段引用格式
+### 7.1 QM 字段引用格式
 
 | 格式 | 说明 | 示例 |
 |------|------|------|
 | `属性名` | 事实表属性 | `orderId`, `orderStatus` |
-| `度量名` | 度量字段 | `totalAmount`, `totalQuantity` |
+| `度量名` | 度量字段 | `amount`, `quantity` |
 | `维度名$caption` | 维度显示值 | `customer$caption` |
 | `维度名$属性名` | 维度其他属性 | `customer$customerType` |
 
 ---
 
-## 5. 使用 DSL 查询
+## 8. 启动和测试
 
-### 5.1 基本查询
+### 8.1 启动项目
+
+使用 Maven 启动 Spring Boot 项目：
+
+```bash
+# 在项目根目录执行
+mvn spring-boot:run
+```
+
+或者在 IDE 中直接运行主应用类（带有 `@SpringBootApplication` 注解的类）。
+
+### 8.2 验证启动成功
+
+启动成功后，可以看到类似以下日志：
+
+```
+Started MyApplication in 3.5 seconds (JVM running for 4.2)
+```
+
+### 8.3 测试查询接口
+
+使用 curl 或 Postman 测试查询接口：
+
+```bash
+curl -X POST http://localhost:8080/jdbc-model/query-model/v2/FactOrderQueryModel \
+  -H "Content-Type: application/json" \
+  -d '{
+    "page": 1,
+    "pageSize": 10,
+    "param": {
+      "columns": ["orderId", "customer$caption", "amount"]
+    }
+  }'
+```
+
+如果返回数据，说明配置成功！
+
+> **提示**：
+> - 默认端口是 8080，可在 `application.yml` 中修改：`server.port: 8081`
+> - 查询接口路径格式：`/jdbc-model/query-model/v2/{QueryModelName}`
+> - 如果启用了 `show-sql: true`，可以在控制台看到生成的 SQL 语句
+
+---
+
+## 9. 使用 DSL 查询
+
+### 9.1 基本查询
 
 通过 HTTP API 发送 DSL 查询：
 
 ```http
-POST /jdbc-model/query-model/v2/FactOrderQueryModel
+POST http://localhost:8080/jdbc-model/query-model/v2/FactOrderQueryModel
 Content-Type: application/json
 
 {
@@ -229,7 +484,7 @@ Content-Type: application/json
             "orderStatus",
             "customer$caption",
             "product$caption",
-            "totalAmount"
+            "amount"
         ]
     }
 }
@@ -247,7 +502,7 @@ Content-Type: application/json
                 "orderStatus": "COMPLETED",
                 "customer$caption": "张三",
                 "product$caption": "iPhone 15",
-                "totalAmount": 6999.00
+                "amount": 6999.00
             }
         ],
         "total": 100
@@ -255,7 +510,7 @@ Content-Type: application/json
 }
 ```
 
-### 5.2 条件查询
+### 9.2 条件查询
 
 使用 `slice` 添加过滤条件：
 
@@ -264,11 +519,11 @@ Content-Type: application/json
     "page": 1,
     "pageSize": 20,
     "param": {
-        "columns": ["orderId", "customer$caption", "totalAmount"],
+        "columns": ["orderId", "customer$caption", "amount"],
         "slice": [
-            { "name": "orderStatus", "type": "=", "value": "COMPLETED" },
-            { "name": "totalAmount", "type": ">=", "value": 100 },
-            { "name": "customer$province", "type": "=", "value": "广东省" }
+            { "field": "orderStatus", "op": "=", "value": "COMPLETED" },
+            { "field": "amount", "op": ">=", "value": 100 },
+            { "field": "customer$province", "op": "=", "value": "广东省" }
         ]
     }
 }
@@ -280,7 +535,7 @@ Content-Type: application/json
 SELECT
     t0.order_id AS orderId,
     t1.customer_name AS "customer$caption",
-    t0.amount AS totalAmount
+    t0.amount AS amount
 FROM fact_order t0
 LEFT JOIN dim_customer t1 ON t0.customer_id = t1.customer_id
 WHERE t0.order_status = 'COMPLETED'
@@ -288,7 +543,7 @@ WHERE t0.order_status = 'COMPLETED'
   AND t1.province = '广东省'
 ```
 
-### 5.3 分组汇总
+### 9.3 分组汇总
 
 使用 `groupBy` 进行分组聚合：
 
@@ -300,15 +555,15 @@ WHERE t0.order_status = 'COMPLETED'
         "columns": [
             "customer$customerType",
             "product$category",
-            "totalQuantity",
-            "totalAmount"
+            "quantity",
+            "amount"
         ],
         "groupBy": [
-            { "name": "customer$customerType" },
-            { "name": "product$category" }
+            { "field": "customer$customerType" },
+            { "field": "product$category" }
         ],
         "orderBy": [
-            { "name": "totalAmount", "order": "desc" }
+            { "field": "amount", "order": "desc" }
         ]
     }
 }
@@ -324,14 +579,14 @@ WHERE t0.order_status = 'COMPLETED'
             {
                 "customer$customerType": "VIP",
                 "product$category": "数码电器",
-                "totalQuantity": 150,
-                "totalAmount": 89900.00
+                "quantity": 150,
+                "amount": 89900.00
             },
             {
                 "customer$customerType": "普通",
                 "product$category": "数码电器",
-                "totalQuantity": 80,
-                "totalAmount": 45600.00
+                "quantity": 80,
+                "amount": 45600.00
             }
         ],
         "total": 10
@@ -339,23 +594,23 @@ WHERE t0.order_status = 'COMPLETED'
 }
 ```
 
-### 5.4 范围查询
+### 9.4 范围查询
 
 使用区间操作符进行范围查询：
 
 ```json
 {
     "param": {
-        "columns": ["orderId", "orderTime", "totalAmount"],
+        "columns": ["orderId", "orderTime", "amount"],
         "slice": [
             {
-                "name": "orderTime",
-                "type": "[)",
+                "field": "orderTime",
+                "op": "[)",
                 "value": ["2024-01-01", "2024-07-01"]
             },
             {
-                "name": "totalAmount",
-                "type": "[]",
+                "field": "amount",
+                "op": "[]",
                 "value": [100, 1000]
             }
         ]
@@ -372,15 +627,15 @@ WHERE t0.order_status = 'COMPLETED'
 | `(]` | 左开右闭 | `> AND <=` |
 | `()` | 开区间 | `> AND <` |
 
-### 5.5 IN 查询
+### 9.5 IN 查询
 
 ```json
 {
     "param": {
-        "columns": ["orderId", "orderStatus", "totalAmount"],
+        "columns": ["orderId", "orderStatus", "amount"],
         "slice": [
             {
-                "name": "orderStatus",
+                "field": "orderStatus",
                 "type": "in",
                 "value": ["COMPLETED", "SHIPPED", "PAID"]
             }
@@ -389,7 +644,7 @@ WHERE t0.order_status = 'COMPLETED'
 }
 ```
 
-### 5.6 模糊查询
+### 9.6 模糊查询
 
 ```json
 {
@@ -397,7 +652,7 @@ WHERE t0.order_status = 'COMPLETED'
         "columns": ["orderId", "customer$caption"],
         "slice": [
             {
-                "name": "customer$caption",
+                "field": "customer$caption",
                 "type": "like",
                 "value": "%张%"
             }
@@ -408,7 +663,7 @@ WHERE t0.order_status = 'COMPLETED'
 
 ---
 
-## 6. Java 调用示例
+## 10. Java 调用示例
 
 ```java
 @Service
@@ -428,7 +683,7 @@ public class OrderQueryService {
             "orderStatus",
             "customer$caption",
             "product$caption",
-            "totalAmount"
+            "amount"
         ));
 
         // 设置过滤条件
@@ -454,7 +709,7 @@ public class OrderQueryService {
 
 ---
 
-## 7. 常用操作符速查
+## 11. 常用操作符速查
 
 | 操作符 | 说明 | 示例值 |
 |--------|------|--------|
@@ -474,7 +729,7 @@ public class OrderQueryService {
 
 ---
 
-## 下一步
+## 12. 下一步
 
 - [TM 语法手册](../jm-qm/jm-syntax.md) - 完整的 TM 定义语法
 - [QM 语法手册](../jm-qm/qm-syntax.md) - 完整的 QM 定义语法

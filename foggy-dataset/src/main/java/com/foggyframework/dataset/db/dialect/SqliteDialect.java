@@ -15,11 +15,19 @@ import com.foggyframework.dataset.utils.DbUtils;
 
 import javax.sql.DataSource;
 import java.sql.Types;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 
 /**
  * SQLite 3.30+ 方言实现
  */
 public class SqliteDialect extends FDialect {
+
+    /**
+     * SQLite日期时间格式化器（线程安全）
+     */
+    private static final ThreadLocal<SimpleDateFormat> DATETIME_FORMAT =
+            ThreadLocal.withInitial(() -> new SimpleDateFormat("yyyy-MM-dd HH:mm:ss"));
 
     public SqliteDialect() {
         super();
@@ -174,5 +182,24 @@ public class SqliteDialect extends FDialect {
             System.err.println(t.getMessage());
             return null;
         }
+    }
+
+    /**
+     * SQLite 特殊处理：将 Date 类型转换为 TEXT 格式字符串
+     * <p>
+     * SQLite 没有原生的 DATE/DATETIME 类型，日期存储为 TEXT。
+     * 当使用参数化查询时，必须将 Java Date 对象转换为 SQLite 能识别的文本格式。
+     * </p>
+     *
+     * @param value 原始参数值
+     * @return 转换后的参数值（Date -> "yyyy-MM-dd HH:mm:ss" 字符串）
+     */
+    @Override
+    public Object convertParameterValue(Object value) {
+        if (value instanceof Date) {
+            // 将 Date 对象转换为 SQLite TEXT 格式
+            return DATETIME_FORMAT.get().format((Date) value);
+        }
+        return value;
     }
 }

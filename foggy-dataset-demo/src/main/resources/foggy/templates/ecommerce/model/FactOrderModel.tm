@@ -144,38 +144,37 @@ export const model = {
         }
     ],
 
-    // 度量定义
+    // 度量定义（不预设聚合方式，需显式使用 sum()、avg() 等函数）
     measures: [
         {
             column: 'total_quantity',
+            name: 'quantity',
             caption: '订单总数量',
-            type: 'INTEGER',
-            aggregation: 'sum'
+            type: 'INTEGER'
         },
         {
             column: 'total_amount',
+            name: 'amount',
             caption: '订单总额',
-            type: 'MONEY',
-            aggregation: 'sum'
+            type: 'MONEY'
         },
         {
             column: 'discount_amount',
+            name: 'discountAmount',
             caption: '折扣金额',
-            type: 'MONEY',
-            aggregation: 'sum'
+            type: 'MONEY'
         },
         {
             column: 'freight_amount',
+            name: 'freightAmount',
             caption: '运费',
-            type: 'MONEY',
-            aggregation: 'sum'
+            type: 'MONEY'
         },
         {
-            name: 'orderPayAmount',
             column: 'pay_amount',
+            name: 'payAmount',
             caption: '订单应付金额',
-            type: 'MONEY',
-            aggregation: 'sum'
+            type: 'MONEY'
         }
     ]
 };

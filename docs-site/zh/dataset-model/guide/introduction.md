@@ -38,7 +38,7 @@ export const model = {
 
 ### QM (Query Model) - 查询模型
 
-基于 TM 定义查询视图，控制可查询的权限：
+基于 TM 定义查询视图，控制模型可见字段等：
 
 ```javascript
 export const queryModel = {
@@ -52,7 +52,7 @@ export const queryModel = {
                 { name: 'orderId' },
                 { name: 'dateKey' },
                 { name: 'customer$caption' },
-                { name: 'totalAmount' }
+                { name: 'amount' }
             ]
         }
     ]
@@ -68,7 +68,7 @@ export const queryModel = {
     "page": 1,
     "pageSize": 20,
     "param": {
-        "columns": [ "customer$caption", "totalAmount"],
+        "columns": [ "customer$caption", "amount"],
         "slice": [
             { "field": "orderStatus", "type": "=", "value": "COMPLETED" }
         ],

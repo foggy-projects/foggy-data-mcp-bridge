@@ -147,7 +147,7 @@ class SemanticServiceV3Test extends EcommerceTestSupport {
     void testQuery_DirectlyUseExpandedFieldNames() {
         SemanticQueryRequest request = new SemanticQueryRequest();
         // V3: 直接使用 $id 和 $caption，无需 AI 判断
-        request.setColumns(Arrays.asList("orderId", "customer$caption", "customer$id", "totalAmount"));
+        request.setColumns(Arrays.asList("orderId", "customer$caption", "customer$id", "amount"));
         request.setLimit(10);
 
         SemanticQueryResponse response = semanticQueryServiceV3.queryModel(TEST_MODEL, request, "execute");
@@ -161,7 +161,7 @@ class SemanticServiceV3Test extends EcommerceTestSupport {
         assertTrue(firstRow.containsKey("orderId"), "应包含 orderId");
         assertTrue(firstRow.containsKey("customer$caption"), "应包含 customer$caption");
         assertTrue(firstRow.containsKey("customer$id"), "应包含 customer$id");
-        assertTrue(firstRow.containsKey("totalAmount"), "应包含 totalAmount");
+        assertTrue(firstRow.containsKey("amount"), "应包含 amount");
 
         log.info("V3查询返回 {} 条数据", response.getItems().size());
         log.info("第一行数据: {}", firstRow);
@@ -172,7 +172,7 @@ class SemanticServiceV3Test extends EcommerceTestSupport {
     @DisplayName("V3查询 - 使用展开字段进行过滤")
     void testQuery_FilterWithExpandedFields() {
         SemanticQueryRequest request = new SemanticQueryRequest();
-        request.setColumns(Arrays.asList("orderId", "customer$caption", "totalAmount"));
+        request.setColumns(Arrays.asList("orderId", "customer$caption", "amount"));
 
         // 使用 $caption 字段进行模糊查询
         SemanticQueryRequest.SliceItem slice = new SemanticQueryRequest.SliceItem();
@@ -194,7 +194,7 @@ class SemanticServiceV3Test extends EcommerceTestSupport {
     @DisplayName("V3查询 - 使用展开字段进行分组")
     void testQuery_GroupByWithExpandedFields() {
         SemanticQueryRequest request = new SemanticQueryRequest();
-        request.setColumns(Arrays.asList("customer$caption", "customer$id", "totalAmount"));
+        request.setColumns(Arrays.asList("customer$caption", "customer$id", "amount"));
 
         List<SemanticQueryRequest.GroupByItem> groupByItems = new ArrayList<>();
 
@@ -207,7 +207,7 @@ class SemanticServiceV3Test extends EcommerceTestSupport {
         groupByItems.add(captionGroup);
 
         SemanticQueryRequest.GroupByItem sumGroup = new SemanticQueryRequest.GroupByItem();
-        sumGroup.setField("totalAmount");
+        sumGroup.setField("amount");
         sumGroup.setAgg("SUM");
         groupByItems.add(sumGroup);
 
@@ -230,7 +230,7 @@ class SemanticServiceV3Test extends EcommerceTestSupport {
     @DisplayName("V3查询 - 使用展开字段进行排序")
     void testQuery_OrderByWithExpandedFields() {
         SemanticQueryRequest request = new SemanticQueryRequest();
-        request.setColumns(Arrays.asList("orderId", "customer$caption", "totalAmount"));
+        request.setColumns(Arrays.asList("orderId", "customer$caption", "amount"));
 
         // 使用 $id 字段排序
         SemanticQueryRequest.OrderItem orderItem = new SemanticQueryRequest.OrderItem();
@@ -256,7 +256,7 @@ class SemanticServiceV3Test extends EcommerceTestSupport {
     @DisplayName("V3验证 - 检测不存在的字段")
     void testValidate_DetectNonExistentFields() {
         SemanticQueryRequest request = new SemanticQueryRequest();
-        request.setColumns(Arrays.asList("totalAmount", "nonExistentField$id"));
+        request.setColumns(Arrays.asList("amount", "nonExistentField$id"));
         request.setLimit(10);
 
         SemanticQueryResponse response = semanticQueryServiceV3.validateQuery(TEST_MODEL, request);
@@ -275,7 +275,7 @@ class SemanticServiceV3Test extends EcommerceTestSupport {
     @DisplayName("V3验证 - 检测 groupBy 字段未在 columns 中")
     void testValidate_DetectGroupByFieldMissingInColumns() {
         SemanticQueryRequest request = new SemanticQueryRequest();
-        request.setColumns(Arrays.asList("totalAmount"));  // 缺少 customer$id
+        request.setColumns(Arrays.asList("amount"));  // 缺少 customer$id
 
         SemanticQueryRequest.GroupByItem groupByItem = new SemanticQueryRequest.GroupByItem();
         groupByItem.setField("customer$id");
@@ -307,7 +307,7 @@ class SemanticServiceV3Test extends EcommerceTestSupport {
 
         SemanticQueryRequest request = new SemanticQueryRequest();
         // 直接混用 $id 和 $caption，V3 不会自动补全或转换
-        request.setColumns(Arrays.asList("customer$caption", "totalAmount"));
+        request.setColumns(Arrays.asList("customer$caption", "amount"));
         // 只在 columns 中有 $caption，没有 $id，V3 不会强制对齐
         request.setLimit(10);
 

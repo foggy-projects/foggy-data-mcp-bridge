@@ -137,8 +137,8 @@ class BasicQueryTest extends EcommerceTestSupport {
             "store$caption",          // 门店维度
             "store$storeType",
             "channel$caption",      // 渠道维度
-            "totalAmount",
-            "orderPayAmount"
+            "amount",
+            "payAmount"
         );
         queryRequest.setColumns(columns);
 
@@ -163,7 +163,7 @@ class BasicQueryTest extends EcommerceTestSupport {
 
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactOrderQueryModel");
-        queryRequest.setColumns(Arrays.asList("orderId", "orderStatus", "totalAmount"));
+        queryRequest.setColumns(Arrays.asList("orderId", "orderStatus", "amount"));
 
         // 添加等值条件
         List<SliceRequestDef> slices = new ArrayList<>();
@@ -222,7 +222,7 @@ class BasicQueryTest extends EcommerceTestSupport {
 
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactOrderQueryModel");
-        queryRequest.setColumns(Arrays.asList("orderId", "orderStatus", "totalAmount"));
+        queryRequest.setColumns(Arrays.asList("orderId", "orderStatus", "amount"));
 
         // 添加IN条件
         List<SliceRequestDef> slices = new ArrayList<>();
@@ -300,12 +300,12 @@ class BasicQueryTest extends EcommerceTestSupport {
 
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactOrderQueryModel");
-        queryRequest.setColumns(Arrays.asList("orderId", "orderTime", "totalAmount"));
+        queryRequest.setColumns(Arrays.asList("orderId", "orderTime", "amount"));
 
         // 添加排序
         List<OrderRequestDef> orders = new ArrayList<>();
         OrderRequestDef order = new OrderRequestDef();
-        order.setField("totalAmount");
+        order.setField("amount");
         order.setOrder("DESC");
         orders.add(order);
         queryRequest.setOrderBy(orders);
@@ -392,7 +392,7 @@ class BasicQueryTest extends EcommerceTestSupport {
 
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactOrderQueryModel");
-        queryRequest.setColumns(Arrays.asList("orderId", "orderTime", "totalAmount"));
+        queryRequest.setColumns(Arrays.asList("orderId", "orderTime", "amount"));
 
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
 
