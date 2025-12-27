@@ -76,14 +76,41 @@ CREATE TABLE fact_order (
     order_time DATETIME
 );
 
-TODO 自动创建数据语句
+-- 插入客户数据
+INSERT INTO dim_customer (customer_id, customer_name, customer_type, province, city) VALUES
+('CUST001', '张三', 'VIP', '广东省', '深圳市'),
+('CUST002', '李四', '普通', '广东省', '广州市'),
+('CUST003', '王五', 'VIP', '北京市', '北京市'),
+('CUST004', '赵六', '普通', '上海市', '上海市'),
+('CUST005', '钱七', 'VIP', '浙江省', '杭州市');
+
+-- 插入商品数据
+INSERT INTO dim_product (product_id, product_name, category, unit_price) VALUES
+('PROD001', 'iPhone 15', '数码电器', 6999.00),
+('PROD002', 'MacBook Pro', '数码电器', 12999.00),
+('PROD003', '小米手机', '数码电器', 2999.00),
+('PROD004', '耐克运动鞋', '服装鞋帽', 599.00),
+('PROD005', '阿迪达斯外套', '服装鞋帽', 899.00);
+
+-- 插入订单数据
+INSERT INTO fact_order (order_id, customer_id, product_id, order_status, quantity, amount, order_time) VALUES
+('ORD20240101001', 'CUST001', 'PROD001', 'COMPLETED', 1, 6999.00, '2024-01-15 10:30:00'),
+('ORD20240101002', 'CUST001', 'PROD002', 'COMPLETED', 1, 12999.00, '2024-02-20 14:20:00'),
+('ORD20240101003', 'CUST002', 'PROD003', 'SHIPPED', 2, 5998.00, '2024-03-10 09:15:00'),
+('ORD20240101004', 'CUST003', 'PROD001', 'COMPLETED', 1, 6999.00, '2024-04-05 16:45:00'),
+('ORD20240101005', 'CUST004', 'PROD004', 'PAID', 3, 1797.00, '2024-05-12 11:20:00'),
+('ORD20240101006', 'CUST005', 'PROD005', 'COMPLETED', 2, 1798.00, '2024-06-08 13:30:00'),
+('ORD20240101007', 'CUST002', 'PROD001', 'CANCELLED', 1, 6999.00, '2024-07-15 15:10:00'),
+('ORD20240101008', 'CUST003', 'PROD002', 'COMPLETED', 1, 12999.00, '2024-08-22 10:00:00'),
+('ORD20240101009', 'CUST001', 'PROD004', 'COMPLETED', 4, 2396.00, '2024-09-03 12:40:00'),
+('ORD20240101010', 'CUST005', 'PROD003', 'SHIPPED', 1, 2999.00, '2024-10-18 14:55:00')
 ```
 
 ---
 
-## 3. 创建 TM 模型
+## 5. 创建 TM 模型
 
-### 3.1 创建事实表模型
+### 5.1 创建事实表模型
 
 创建文件 `src/main/resources/foggy/templates/FactOrderModel.tm`：
 
@@ -156,7 +183,7 @@ export const model = {
 };
 ```
 
-### 3.2 TM 模型要点
+### 5.2 TM 模型要点
 
 | 配置项 | 说明 |
 |--------|------|
@@ -168,7 +195,7 @@ export const model = {
 
 ---
 
-## 4. 创建 QM 模型
+## 6. 创建 QM 模型
 
 创建文件 `src/main/resources/foggy/templates/FactOrderQueryModel.qm`：
 
@@ -225,7 +252,7 @@ export const queryModel = {
 };
 ```
 
-### 4.1 QM 字段引用格式
+### 6.1 QM 字段引用格式
 
 | 格式 | 说明 | 示例 |
 |------|------|------|
@@ -236,9 +263,9 @@ export const queryModel = {
 
 ---
 
-## 5. 使用 DSL 查询
+## 7. 使用 DSL 查询
 
-### 5.1 基本查询
+### 7.1 基本查询
 
 通过 HTTP API 发送 DSL 查询：
 
@@ -281,7 +308,7 @@ Content-Type: application/json
 }
 ```
 
-### 5.2 条件查询
+### 7.2 条件查询
 
 使用 `slice` 添加过滤条件：
 
@@ -314,7 +341,7 @@ WHERE t0.order_status = 'COMPLETED'
   AND t1.province = '广东省'
 ```
 
-### 5.3 分组汇总
+### 7.3 分组汇总
 
 使用 `groupBy` 进行分组聚合：
 
@@ -365,7 +392,7 @@ WHERE t0.order_status = 'COMPLETED'
 }
 ```
 
-### 5.4 范围查询
+### 7.4 范围查询
 
 使用区间操作符进行范围查询：
 
@@ -398,7 +425,7 @@ WHERE t0.order_status = 'COMPLETED'
 | `(]` | 左开右闭 | `> AND <=` |
 | `()` | 开区间 | `> AND <` |
 
-### 5.5 IN 查询
+### 7.5 IN 查询
 
 ```json
 {
@@ -415,7 +442,7 @@ WHERE t0.order_status = 'COMPLETED'
 }
 ```
 
-### 5.6 模糊查询
+### 7.6 模糊查询
 
 ```json
 {
@@ -434,7 +461,7 @@ WHERE t0.order_status = 'COMPLETED'
 
 ---
 
-## 6. Java 调用示例
+## 8. Java 调用示例
 
 ```java
 @Service
@@ -480,7 +507,7 @@ public class OrderQueryService {
 
 ---
 
-## 7. 常用操作符速查
+## 9. 常用操作符速查
 
 | 操作符 | 说明 | 示例值 |
 |--------|------|--------|
@@ -500,7 +527,7 @@ public class OrderQueryService {
 
 ---
 
-## 下一步
+## 10. 下一步
 
 - [TM 语法手册](../jm-qm/jm-syntax.md) - 完整的 TM 定义语法
 - [QM 语法手册](../jm-qm/qm-syntax.md) - 完整的 QM 定义语法
