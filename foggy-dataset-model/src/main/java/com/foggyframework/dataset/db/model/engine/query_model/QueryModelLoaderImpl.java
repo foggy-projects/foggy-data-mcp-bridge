@@ -154,7 +154,7 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
             for (Object s : ll) {
                 if (s instanceof String) {
                     TableModel jdbcModel = tableModelLoaderManager.load((String) s);
-                    jdbcModelDxList.add(new DbQueryModelImpl.JdbcModelDx(jdbcModel, jdbcModel.getIdColumn(), null, null));
+                    jdbcModelDxList.add(new JdbcQueryModelImpl.JdbcModelDx(jdbcModel, jdbcModel.getIdColumn(), null, null));
                 } else if (s instanceof Map) {
                     TableModel jdbcModel = tableModelLoaderManager.load((String) ((Map<?, ?>) s).get("name"));
                     String foreignKey = (String) ((Map<?, ?>) s).get("foreignKey");
@@ -165,7 +165,7 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
                     String join = (String) ((Map<?, ?>) s).get("join");
 
                     FsscriptFunction onBuilder = (FsscriptFunction) ((Map<?, ?>) s).get("onBuilder");
-                    DbQueryModelImpl.JdbcModelDx dx = new DbQueryModelImpl.JdbcModelDx(jdbcModel, foreignKey, onBuilder, alias,
+                    JdbcQueryModelImpl.JdbcModelDx dx = new JdbcQueryModelImpl.JdbcModelDx(jdbcModel, foreignKey, onBuilder, alias,
                             StringUtils.isEmpty(join) ? JoinType.LEFT : JoinType.valueOf(join.toUpperCase()));
                     jdbcModelDxList.add(dx);
 
@@ -192,7 +192,7 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
             TableModel jdbcModel = tableModelLoaderManager.load((String) queryModelDef.getModel());
 //            modelMongoTemplate = jdbcModel.getMongoTemplate();
             jdbcModelDxList = new ArrayList<>(1);
-            jdbcModelDxList.add(new DbQueryModelImpl.JdbcModelDx(jdbcModel, jdbcModel.getIdColumn(), null, null, JoinType.LEFT));
+            jdbcModelDxList.add(new JdbcQueryModelImpl.JdbcModelDx(jdbcModel, jdbcModel.getIdColumn(), null, null, JoinType.LEFT));
         } else {
             throw new UnsupportedOperationException();
         }
@@ -359,7 +359,7 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
         }
     }
 
-    private void loadDimension(DbQueryModelImpl qm, DbQueryModelDef queryModelDef) {
+    private void loadDimension(JdbcQueryModelImpl qm, DbQueryModelDef queryModelDef) {
 //        qm.setQueryDimensions(qm.getJdbcModel().getDimensions().stream().map(e -> new JdbcQueryDimensionImpl(e)).collect(Collectors.toList()));
     }
 

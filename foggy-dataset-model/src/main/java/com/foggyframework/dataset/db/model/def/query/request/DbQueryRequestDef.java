@@ -67,6 +67,22 @@ public class DbQueryRequestDef implements DbQueryRequest {
     @Deprecated
     boolean autoFixDimCaption;
 
+    @ApiModelProperty(value = "是否优化聚合SQL", notes = "null或true表示启用优化（精简聚合子查询），false表示使用原始完整子查询")
+    Boolean optimizeAggSql;
+
+    /**
+     * 是否启用聚合SQL优化
+     * <p>
+     * 当启用时，系统会分析聚合查询只需要哪些字段和表关联，
+     * 生成精简的子查询而非使用完整的明细查询SQL。
+     * </p>
+     *
+     * @return true 表示启用优化（默认），false 表示禁用
+     */
+    public boolean isOptimizeAggSqlEnabled() {
+        return optimizeAggSql == null || optimizeAggSql;
+    }
+
     public boolean hasGroupBy() {
         return groupBy != null && !groupBy.isEmpty();
     }

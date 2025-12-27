@@ -7,7 +7,7 @@ import com.foggyframework.dataset.db.model.common.query.DimensionDataQueryForm;
 import com.foggyframework.dataset.db.model.common.result.DbDataItem;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.engine.query.DbQueryResult;
-import com.foggyframework.dataset.db.model.engine.query_model.DbQueryModelImpl;
+import com.foggyframework.dataset.db.model.engine.query_model.JdbcQueryModelImpl;
 import com.foggyframework.dataset.db.model.service.JdbcService;
 import com.foggyframework.dataset.db.model.spi.DbQueryDimension;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
@@ -44,7 +44,7 @@ public class JdbcServiceImpl implements JdbcService {
         RX.notNull(jdbcQueryModel, "未能找到查询模型:" + dimensionName);
 
         DbQueryDimension jdbcDimension = jdbcQueryModel.findQueryDimension(dimensionName, true);
-        DbQueryModelImpl jdbcQueryModelImpl = jdbcQueryModel.getDecorate(DbQueryModelImpl.class);
+        JdbcQueryModelImpl jdbcQueryModelImpl = jdbcQueryModel.getDecorate(JdbcQueryModelImpl.class);
         if(jdbcQueryModelImpl == null){
             throw new RuntimeException("目前只有jdbc模型才支持维度数据查询" );
         }

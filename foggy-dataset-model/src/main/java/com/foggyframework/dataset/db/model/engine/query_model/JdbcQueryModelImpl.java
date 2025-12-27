@@ -28,7 +28,7 @@ import java.util.Map;
 @Getter
 @Setter
 @Slf4j
-public class DbQueryModelImpl extends QueryModelSupport implements JdbcQueryModel {
+public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryModel {
 
 
     DataSource dataSource;
@@ -40,7 +40,7 @@ public class DbQueryModelImpl extends QueryModelSupport implements JdbcQueryMode
      */
     private CalculatedFieldProcessor calculatedFieldProcessor;
 
-    public DbQueryModelImpl(List<TableModel> jdbcModelList, Fsscript fsscript, SqlFormulaService sqlFormulaService, DataSource dataSource) {
+    public JdbcQueryModelImpl(List<TableModel> jdbcModelList, Fsscript fsscript, SqlFormulaService sqlFormulaService, DataSource dataSource) {
         super(jdbcModelList, fsscript);
         this.jdbcModel = jdbcModelList.get(0);
         this.sqlFormulaService = sqlFormulaService;

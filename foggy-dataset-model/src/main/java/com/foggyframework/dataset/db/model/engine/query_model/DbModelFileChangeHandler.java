@@ -58,7 +58,7 @@ public class DbModelFileChangeHandler implements ApplicationListener<FsscriptRem
             }
 
             for (Map.Entry<String, QueryModel> stringJdbcQueryModelEntry : qmm.entrySet()) {
-                DbQueryModelImpl qtm = stringJdbcQueryModelEntry.getValue().getDecorate(DbQueryModelImpl.class);
+                JdbcQueryModelImpl qtm = stringJdbcQueryModelEntry.getValue().getDecorate(JdbcQueryModelImpl.class);
                 if (qtm != null && qtm.getFsscript().getPath().equals(removedFsscript.getPath())) {
                     if (log.isDebugEnabled()) {
                         log.debug("s1.移除查询模型" + qtm.getName());

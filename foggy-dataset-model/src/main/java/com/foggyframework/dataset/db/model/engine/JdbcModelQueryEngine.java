@@ -12,7 +12,7 @@ import com.foggyframework.dataset.db.model.engine.formula.JdbcLink;
 import com.foggyframework.dataset.db.model.engine.formula.SqlFormulaService;
 import com.foggyframework.dataset.db.model.engine.query.JdbcQuery;
 import com.foggyframework.dataset.db.model.engine.query.SimpleSqlJdbcQueryVisitor;
-import com.foggyframework.dataset.db.model.engine.query_model.DbQueryModelImpl;
+import com.foggyframework.dataset.db.model.engine.query_model.JdbcQueryModelImpl;
 import com.foggyframework.dataset.db.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.db.model.impl.dimension.DbModelParentChildDimensionImpl;
 import com.foggyframework.dataset.db.model.impl.query.DbQueryOrderColumnImpl;
@@ -61,6 +61,11 @@ public class JdbcModelQueryEngine implements QueryEngine {
     String innerSql;
     String sql;
     String aggSql;
+
+    /**
+     * 聚合SQL优化结果（用于调试和测试）
+     */
+    AggSqlOptimizer.OptimizationResult aggSqlOptimizationResult;
 
     List values;
     private static final String PATTERN = "^[a-zA-Z\\s]+$";
@@ -119,7 +124,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
         if (jdbcQueryModel.getJdbcModelList().size() > 1) {
             for (int i = 1; i < jdbcQueryModel.getJdbcModelList().size(); i++) {
                 TableModel tm = jdbcQueryModel.getJdbcModelList().get(i);
-                DbQueryModelImpl.JdbcModelDx dx = tm.getDecorate(DbQueryModelImpl.JdbcModelDx.class);
+                JdbcQueryModelImpl.JdbcModelDx dx = tm.getDecorate(JdbcQueryModelImpl.JdbcModelDx.class);
 
                 if (dx.getOnBuilder() != null) {
                     jdbcQuery.preJoin(dx.getQueryObject(), dx.getOnBuilder(), dx.getJoinType());
@@ -283,12 +288,22 @@ public class JdbcModelQueryEngine implements QueryEngine {
         this.innerSql = v.getSql();
         this.innerSqlWithoutOrder = v.getSqlWithoutOrder();
         this.sql = this.innerSql;
-        if (queryRequest.hasGroupBy()) {
-            // 基于明细查询语句，生成聚合查询语句
-            this.aggSql = buildAggSql(systemBundlesContext, null, null, false, true);
+
+        // 构建聚合SQL（支持优化）
+        boolean countToSum = queryRequest.hasGroupBy();
+        if (queryRequest.isOptimizeAggSqlEnabled()) {
+            // 使用优化器构建精简的聚合SQL
+            AggSqlOptimizer optimizer = new AggSqlOptimizer(jdbcQueryModel, jdbcQuery, systemBundlesContext, queryRequest);
+            this.aggSqlOptimizationResult = optimizer.buildOptimizedAggSql(this.innerSqlWithoutOrder, countToSum);
+            this.aggSql = this.aggSqlOptimizationResult.getOptimizedSql();
+
+            if (log.isDebugEnabled() && this.aggSqlOptimizationResult.isOptimizationApplied()) {
+                log.debug("聚合SQL优化: {}", this.aggSqlOptimizationResult.getSummary());
+            }
         } else {
-            // 基于明细查询语句，生成聚合查询语句
-            this.aggSql = buildAggSql(systemBundlesContext, null, null, false, false);
+            // 使用原始方式构建聚合SQL
+            this.aggSql = buildAggSql(systemBundlesContext, null, null, false, countToSum);
+            this.aggSqlOptimizationResult = null;
         }
 
         if (log.isDebugEnabled()) {
