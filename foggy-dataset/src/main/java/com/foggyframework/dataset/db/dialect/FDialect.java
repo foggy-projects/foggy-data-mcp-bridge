@@ -338,4 +338,25 @@ public abstract class FDialect {
      * @return 日期格式化函数表达式
      */
     public abstract String buildDateFormatFunction(String column);
+
+    /**
+     * 转换参数值以适配不同数据库的参数绑定需求
+     * <p>
+     * 默认实现：直接返回原值（适用于MySQL、PostgreSQL、SQL Server等）
+     * </p>
+     * <p>
+     * 子类可重写此方法处理特殊情况，例如：
+     * <ul>
+     *   <li>SQLite: Date类型需转换为TEXT格式字符串（'yyyy-MM-dd HH:mm:ss'）</li>
+     *   <li>其他数据库的特殊类型转换需求</li>
+     * </ul>
+     * </p>
+     *
+     * @param value 原始参数值
+     * @return 转换后的参数值
+     */
+    public Object convertParameterValue(Object value) {
+        // 默认实现：直接返回原值
+        return value;
+    }
 }

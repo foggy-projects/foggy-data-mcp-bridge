@@ -192,10 +192,16 @@ public class SimpleSqlJdbcQueryVisitor implements JdbcQueryVisitor {
                 sb.append(")");
             } else if (cond instanceof JdbcQuery.ValueCond) {
                 sb.append(((JdbcQuery.ValueCond) cond).getSqlFragment());
-                values.add(((JdbcQuery.ValueCond) cond).getValue());
+                // 使用方言转换参数值（特别是SQLite的Date类型）
+                Object rawValue = ((JdbcQuery.ValueCond) cond).getValue();
+                values.add(dialect.convertParameterValue(rawValue));
             } else if (cond instanceof JdbcQuery.ListValueCond) {
                 sb.append(((JdbcQuery.ListValueCond) cond).getSqlFragment());
-                values.addAll(((JdbcQuery.ListValueCond) cond).getValue());
+                // 对列表中的每个值应用方言转换
+                List<Object> rawValues = ((JdbcQuery.ListValueCond) cond).getValue();
+                for (Object rawValue : rawValues) {
+                    values.add(dialect.convertParameterValue(rawValue));
+                }
             } else if (cond instanceof JdbcQuery.SqlFragmentCond) {
                 sb.append(((JdbcQuery.SqlFragmentCond) cond).getSqlFragment());
             } else {
