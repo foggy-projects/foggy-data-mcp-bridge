@@ -38,7 +38,7 @@ export const model = {
 
 ### QM (Query Model) - 查询模型
 
-基于 TM 定义查询视图，控制可查询的权限：
+基于 TM 定义查询视图，控制模型可见字段等：
 
 ```javascript
 export const queryModel = {

@@ -2,7 +2,19 @@
 
 本指南帮助你在 10 分钟内创建 TM/QM 模型并使用 DSL 进行查询。
 
-## 1. 添加依赖
+## 1. 环境准备
+
+如果您不是java 开发者，建议使用docker的方式进行体验，详见（TODO）
+
+如果您是java 开发者，建议使用idea等开发工具，通过maven引入foggy-dataset-model进行体验，
+- 任意IDE
+- JDK 17+
+- Maven
+- mysql、PostgreSQL或sqlite等关系数据库
+
+如果您不想手动操作如下步骤，您可以将我们准备的文档（TODO）交付给目前的AI编程工具，如trae、claude code等，让其帮您构建基础示例，或引入依赖等
+
+## 2. 添加依赖
 
 在 `pom.xml` 中添加依赖：
 
@@ -13,10 +25,22 @@
     <version>8.0.1-beta</version>
 </dependency>
 ```
+## 3. 添加foggy模块注释
 
+```java
+@SpringBootApplication()
+@EnableFoggyFramework(bundleName = "my-foggy-demo")
+public class MyApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(JdbcModelTestApplication.class, args);
+    }
+}
+
+```
 ---
 
-## 2. 场景说明
+## 4. 场景说明
 
 假设我们有一个简单的电商系统，包含：
 - 订单事实表 `fact_order`
@@ -51,6 +75,8 @@ CREATE TABLE fact_order (
     amount DECIMAL(10,2),
     order_time DATETIME
 );
+
+TODO 自动创建数据语句
 ```
 
 ---
@@ -59,7 +85,7 @@ CREATE TABLE fact_order (
 
 ### 3.1 创建事实表模型
 
-创建文件 `FactOrderModel.tm`：
+创建文件 `src/main/resources/foggy/templates/FactOrderModel.tm`：
 
 ```javascript
 // FactOrderModel.tm - 订单事实表模型
@@ -144,7 +170,7 @@ export const model = {
 
 ## 4. 创建 QM 模型
 
-创建文件 `FactOrderQueryModel.qm`：
+创建文件 `src/main/resources/foggy/templates/FactOrderQueryModel.qm`：
 
 ```javascript
 // FactOrderQueryModel.qm - 订单查询模型
@@ -266,9 +292,9 @@ Content-Type: application/json
     "param": {
         "columns": ["orderId", "customer$caption", "totalAmount"],
         "slice": [
-            { "name": "orderStatus", "type": "=", "value": "COMPLETED" },
-            { "name": "totalAmount", "type": ">=", "value": 100 },
-            { "name": "customer$province", "type": "=", "value": "广东省" }
+            { "field": "orderStatus", "op": "=", "value": "COMPLETED" },
+            { "field": "totalAmount", "op": ">=", "value": 100 },
+            { "field": "customer$province", "op": "=", "value": "广东省" }
         ]
     }
 }
@@ -304,11 +330,11 @@ WHERE t0.order_status = 'COMPLETED'
             "totalAmount"
         ],
         "groupBy": [
-            { "name": "customer$customerType" },
-            { "name": "product$category" }
+            { "field": "customer$customerType" },
+            { "field": "product$category" }
         ],
         "orderBy": [
-            { "name": "totalAmount", "order": "desc" }
+            { "field": "totalAmount", "order": "desc" }
         ]
     }
 }
@@ -349,13 +375,13 @@ WHERE t0.order_status = 'COMPLETED'
         "columns": ["orderId", "orderTime", "totalAmount"],
         "slice": [
             {
-                "name": "orderTime",
-                "type": "[)",
+                "field": "orderTime",
+                "op": "[)",
                 "value": ["2024-01-01", "2024-07-01"]
             },
             {
-                "name": "totalAmount",
-                "type": "[]",
+                "field": "totalAmount",
+                "op": "[]",
                 "value": [100, 1000]
             }
         ]
@@ -380,7 +406,7 @@ WHERE t0.order_status = 'COMPLETED'
         "columns": ["orderId", "orderStatus", "totalAmount"],
         "slice": [
             {
-                "name": "orderStatus",
+                "field": "orderStatus",
                 "type": "in",
                 "value": ["COMPLETED", "SHIPPED", "PAID"]
             }
@@ -397,7 +423,7 @@ WHERE t0.order_status = 'COMPLETED'
         "columns": ["orderId", "customer$caption"],
         "slice": [
             {
-                "name": "customer$caption",
+                "field": "customer$caption",
                 "type": "like",
                 "value": "%张%"
             }
