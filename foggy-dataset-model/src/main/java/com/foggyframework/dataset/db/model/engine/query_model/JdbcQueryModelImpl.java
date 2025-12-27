@@ -47,15 +47,7 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
         this.dataSource = dataSource;
         this.fsscript = fsscript;
         this.jdbcModelList = jdbcModelList;
-        for (TableModel model : jdbcModelList) {
-            Object key = model.getQueryObject();
-//            if(name2Alias.containsKey(key)){
-//                throw new UnsupportedOperationException();
-//            }
-            //呃,临时 方案,确保下面的public String getAlias(QueryObject queryObject)能够得到正确的alias
-            name2Alias.put(key, model.getAlias());
-            name2Alias.put(model.getQueryObject().getDecorate(TableModelSupport.ModelQueryObject.class), model.getAlias());
-        }
+        // name2Alias 已在父类 QueryModelSupport 构造函数中统一注册
     }
 
     @Override

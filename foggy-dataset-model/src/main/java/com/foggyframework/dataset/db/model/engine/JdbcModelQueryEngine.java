@@ -10,6 +10,7 @@ import com.foggyframework.dataset.db.model.engine.expression.SqlCalculatedFieldP
 import com.foggyframework.dataset.db.model.engine.expression.SqlExpContext;
 import com.foggyframework.dataset.db.model.engine.formula.JdbcLink;
 import com.foggyframework.dataset.db.model.engine.formula.SqlFormulaService;
+import com.foggyframework.dataset.db.model.engine.join.JoinGraph;
 import com.foggyframework.dataset.db.model.engine.query.JdbcQuery;
 import com.foggyframework.dataset.db.model.engine.query.SimpleSqlJdbcQueryVisitor;
 import com.foggyframework.dataset.db.model.engine.query_model.JdbcQueryModelImpl;
@@ -118,21 +119,10 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
         JdbcQuery jdbcQuery = new JdbcQuery();
         jdbcQuery.setQueryRequest(queryRequest);
-        jdbcQuery.from(jdbcQueryModel.getQueryObject());
 
-        //补上必要的模型
-        if (jdbcQueryModel.getJdbcModelList().size() > 1) {
-            for (int i = 1; i < jdbcQueryModel.getJdbcModelList().size(); i++) {
-                TableModel tm = jdbcQueryModel.getJdbcModelList().get(i);
-                JdbcQueryModelImpl.JdbcModelDx dx = tm.getDecorate(JdbcQueryModelImpl.JdbcModelDx.class);
-
-                if (dx.getOnBuilder() != null) {
-                    jdbcQuery.preJoin(dx.getQueryObject(), dx.getOnBuilder(), dx.getJoinType());
-                } else {
-                    jdbcQuery.preJoin(dx.getQueryObject(), dx.getForeignKey());
-                }
-            }
-        }
+        // 使用 QueryModel 缓存的 JoinGraph
+        JoinGraph joinGraph = jdbcQueryModel.getMergedJoinGraph();
+        jdbcQuery.from(jdbcQueryModel.getQueryObject(), joinGraph);
 
         // 0. 预处理 columns 中的内联表达式，转换为 calculatedFields
         // 如果 context 中已有预处理结果，则跳过

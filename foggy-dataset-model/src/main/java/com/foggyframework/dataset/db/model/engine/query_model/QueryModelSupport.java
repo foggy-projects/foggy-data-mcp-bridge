@@ -7,6 +7,8 @@ import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.db.model.def.order.OrderDef;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
+import com.foggyframework.dataset.db.model.engine.join.JoinEdge;
+import com.foggyframework.dataset.db.model.engine.join.JoinGraph;
 import com.foggyframework.dataset.db.model.engine.query.DbQueryResult;
 import com.foggyframework.dataset.db.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.db.model.impl.DbObjectSupport;
@@ -79,6 +81,15 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
     protected  List<TableModel> jdbcModelList;
 
     protected   Map<Object, String> name2Alias = new HashMap<>();
+
+    /**
+     * 合并后的 JoinGraph（延迟初始化，线程安全）
+     * <p>
+     * 对于单模型：直接引用主模型的 JoinGraph
+     * 对于多模型：合并所有模型的 JoinGraph
+     * </p>
+     */
+    private volatile JoinGraph mergedJoinGraph;
 
     @Getter
     public abstract static class AbstractJdbcModelSupport extends AbstractDelegateDecorate<TableModel> implements TableModel {
@@ -177,14 +188,83 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
         this.fsscript = fsscript;
         this.jdbcModelList = jdbcModelList;
         for (TableModel model : jdbcModelList) {
-            Object key = model.getQueryObject();
-//            if(name2Alias.containsKey(key)){
-//                throw new UnsupportedOperationException();
-//            }
-            //呃,临时 方案,确保下面的public String getAlias(QueryObject queryObject)能够得到正确的alias
-            name2Alias.put(key, model.getAlias());
-            name2Alias.put(model.getQueryObject().getDecorate(TableModelSupport.ModelQueryObject.class), model.getAlias());
+            // 使用 getRoot() 作为规范的 key，所有包装器（如 JdbcModelDx）都会解析到同一个 root
+            name2Alias.put(model.getQueryObject().getRoot(), model.getAlias());
         }
+    }
+
+    /**
+     * 获取合并后的 JoinGraph
+     * <p>
+     * 线程安全的延迟初始化。对于单模型直接返回主模型的 JoinGraph，
+     * 对于多模型则合并所有模型的 JoinGraph 并缓存。
+     * </p>
+     *
+     * @return 合并后的 JoinGraph
+     */
+    public JoinGraph getMergedJoinGraph() {
+        if (mergedJoinGraph == null) {
+            synchronized (this) {
+                if (mergedJoinGraph == null) {
+                    mergedJoinGraph = buildMergedJoinGraph();
+                }
+            }
+        }
+        return mergedJoinGraph;
+    }
+
+    /**
+     * 构建合并后的 JoinGraph
+     */
+    private JoinGraph buildMergedJoinGraph() {
+        JoinGraph baseGraph = jdbcModel.getJoinGraph();
+
+        // 单模型：直接返回（不复制，节省内存）
+        if (jdbcModelList == null || jdbcModelList.size() <= 1) {
+            return baseGraph;
+        }
+
+        // 多模型：复制并合并
+        JoinGraph merged = baseGraph.copy();
+
+        for (int i = 1; i < jdbcModelList.size(); i++) {
+            TableModel tm = jdbcModelList.get(i);
+            JdbcModelDx dx = tm.getDecorate(JdbcModelDx.class);
+
+            // 使用原始 delegate 的 QueryObject（与度量列的 QueryObject 的 alias 匹配）
+            QueryObject targetQueryObject = dx.getDelegate().getQueryObject();
+
+            // 确定 FROM 表：优先使用 dependsOn，否则使用主模型的 root
+            QueryObject fromQueryObject = (dx.getDependsOn() != null)
+                    ? dx.getDependsOn().getQueryObject()
+                    : baseGraph.getRoot();
+
+            // 添加主边
+            if (dx.getOnBuilder() != null) {
+                merged.addEdge(fromQueryObject, targetQueryObject,
+                        dx.getOnBuilder(), dx.getJoinType());
+            } else if (StringUtils.isNotEmpty(dx.getForeignKey())) {
+                merged.addEdge(fromQueryObject, targetQueryObject,
+                        dx.getForeignKey());
+            }
+
+            // 添加次模型的维度边
+            JoinGraph secondaryGraph = tm.getJoinGraph();
+            if (secondaryGraph != null) {
+                for (JoinEdge edge : secondaryGraph.getAllEdges()) {
+                    merged.addEdge(edge.getFrom(), edge.getTo(),
+                            edge.getForeignKey(), edge.getOnBuilder(),
+                            edge.getJoinType());
+                }
+            }
+        }
+
+        if (log.isDebugEnabled()) {
+            log.debug("QueryModel [{}] JoinGraph 构建完成: 节点={}, 边={}",
+                    name, merged.getNodeCount(), merged.getEdgeCount());
+        }
+
+        return merged;
     }
 
 
@@ -624,18 +704,15 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
 
     @Override
     public String getAlias(QueryObject queryObject) {
-        String name = null;
-        if (name2Alias == null) {
-            return queryObject.getAlias();
-        }
         if (queryObject == null) {
             return null;
         }
-        name = name2Alias.get(queryObject);
-        if (StringUtils.isEmpty(name)) {
+        if (name2Alias == null) {
             return queryObject.getAlias();
         }
-        return name;
+        // 使用 getRoot() 作为 key 查找，与注册时保持一致
+        String alias = name2Alias.get(queryObject.getRoot());
+        return StringUtils.isNotEmpty(alias) ? alias : queryObject.getAlias();
     }
 
     @Override

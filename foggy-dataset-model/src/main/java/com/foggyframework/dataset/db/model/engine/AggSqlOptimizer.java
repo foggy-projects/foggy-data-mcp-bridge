@@ -319,9 +319,6 @@ public class AggSqlOptimizer {
         int count = 0;
         JdbcQuery.JdbcFrom from = query.getFrom();
         if (from != null) {
-            if (from.getPreJoins() != null) {
-                count += from.getPreJoins().size();
-            }
             if (from.getJoins() != null) {
                 count += from.getJoins().size();
             }

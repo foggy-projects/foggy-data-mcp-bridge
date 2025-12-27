@@ -5,12 +5,14 @@ import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.db.model.def.DbDefSupport;
 import com.foggyframework.dataset.db.model.def.measure.DbMeasureDef;
 import com.foggyframework.dataset.db.model.def.property.DbPropertyDef;
+import com.foggyframework.dataset.db.model.engine.join.JoinGraph;
 import com.foggyframework.dataset.db.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.db.model.impl.DbObjectSupport;
 import com.foggyframework.dataset.db.model.impl.dimension.DbDimensionSupport;
 import com.foggyframework.dataset.db.model.impl.property.DbPropertyImpl;
 import com.foggyframework.dataset.db.model.impl.utils.QueryObjectDelegate;
 import com.foggyframework.dataset.db.model.spi.*;
+import com.foggyframework.fsscript.exp.FsscriptFunction;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -49,6 +51,12 @@ public abstract class TableModelSupport extends DbObjectSupport implements Table
     Map<String, DbColumn> field2JdbcColumn = new HashMap<>();
 
     List<DbDefSupport> deprecatedList = new ArrayList<>();
+
+    /**
+     * JOIN 依赖图
+     * <p>在模型初始化时构建，包含所有维度和主表之间的关联关系</p>
+     */
+    JoinGraph joinGraph;
 
 //    MongoTemplate mongoTemplate;
 
@@ -157,6 +165,8 @@ public abstract class TableModelSupport extends DbObjectSupport implements Table
             }
         }
 
+        // 构建 JOIN 依赖图
+        buildJoinGraph();
 
         if (log.isDebugEnabled()) {
             log.debug(String.format("模型%s包含如下列", name));
@@ -165,6 +175,77 @@ public abstract class TableModelSupport extends DbObjectSupport implements Table
             }
         }
 
+    }
+
+    /**
+     * 构建 JOIN 依赖图
+     * <p>
+     * 遍历所有维度，建立主表与维表之间的关联关系。
+     * 支持嵌套维度（雪花结构）。
+     * </p>
+     */
+    private void buildJoinGraph() {
+        this.joinGraph = new JoinGraph(queryObject);
+
+        for (DbDimension dimension : dimensions) {
+            addDimensionToGraph(dimension);
+        }
+
+        // 验证图的有效性
+        joinGraph.validate();
+
+        if (log.isDebugEnabled()) {
+            log.debug("模型 {} 的 JoinGraph: {}", name, joinGraph);
+        }
+    }
+
+    /**
+     * 将维度添加到 JOIN 图
+     * <p>递归处理嵌套维度</p>
+     */
+    private void addDimensionToGraph(DbDimension dimension) {
+        QueryObject dimQueryObject = dimension.getQueryObject();
+        if (dimQueryObject == null) {
+            // 没有维表的维度（如时间维度的某些属性）跳过
+            return;
+        }
+
+        // 确定 LEFT 表
+        QueryObject leftTable;
+        if (dimension.isNestedDimension()) {
+            // 嵌套维度：LEFT 表是父维度的表
+            DbDimension parentDim = dimension.getParentDimension();
+            if (parentDim != null && parentDim.getQueryObject() != null) {
+                leftTable = parentDim.getQueryObject();
+            } else {
+                // 如果没有父维度的 QueryObject，使用主表
+                leftTable = queryObject;
+            }
+        } else {
+            // 普通维度：LEFT 表是主表
+            leftTable = queryObject;
+        }
+
+        String foreignKey = dimension.getForeignKey();
+
+        // 获取 onBuilder（需要通过 decorate 访问）
+        DbDimensionSupport dimSupport = dimension.getDecorate(DbDimensionSupport.class);
+        FsscriptFunction onBuilder = dimSupport != null ? dimSupport.getOnBuilder() : null;
+
+        // 如果有 onBuilder，使用 onBuilder
+        if (onBuilder != null) {
+            joinGraph.addEdge(leftTable, dimQueryObject, onBuilder, null);
+        } else if (StringUtils.isNotEmpty(foreignKey)) {
+            // 使用 foreignKey
+            joinGraph.addEdge(leftTable, dimQueryObject, foreignKey);
+        }
+
+        // 递归处理子维度
+        if (dimension.getChildDimensions() != null) {
+            for (DbDimension child : dimension.getChildDimensions()) {
+                addDimensionToGraph(child);
+            }
+        }
     }
 
     private void addJdbcColumn(DbColumn jdbcColumn) {

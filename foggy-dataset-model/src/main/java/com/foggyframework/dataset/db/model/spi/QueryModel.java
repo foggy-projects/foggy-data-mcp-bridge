@@ -4,6 +4,7 @@ import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.core.Decorate;
 import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
+import com.foggyframework.dataset.db.model.engine.join.JoinGraph;
 import com.foggyframework.dataset.db.model.engine.query.DbQueryResult;
 import com.foggyframework.dataset.db.model.impl.query.DbQueryOrderColumnImpl;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
@@ -76,6 +77,18 @@ public interface QueryModel extends Decorate, DbObject {
     List<DbQueryCondition> getDbQueryConds();
 
     TableModel getJdbcModel();
+
+    /**
+     * 获取合并后的 JoinGraph
+     * <p>
+     * 对于单模型查询，返回主模型的 JoinGraph。
+     * 对于多模型查询，返回合并后的 JoinGraph（包含所有模型的关联边）。
+     * 结果会被缓存，多次调用不会重复构建。
+     * </p>
+     *
+     * @return 合并后的 JoinGraph
+     */
+    JoinGraph getMergedJoinGraph();
 
 
     DbColumn findJdbcColumnForCond(String jdbcColumName, boolean errorIfNotFound);
