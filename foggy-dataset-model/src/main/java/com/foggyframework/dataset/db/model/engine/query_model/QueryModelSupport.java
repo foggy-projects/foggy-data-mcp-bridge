@@ -188,13 +188,8 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
         this.fsscript = fsscript;
         this.jdbcModelList = jdbcModelList;
         for (TableModel model : jdbcModelList) {
-            Object key = model.getQueryObject();
-//            if(name2Alias.containsKey(key)){
-//                throw new UnsupportedOperationException();
-//            }
-            //呃,临时 方案,确保下面的public String getAlias(QueryObject queryObject)能够得到正确的alias
-            name2Alias.put(key, model.getAlias());
-            name2Alias.put(model.getQueryObject().getDecorate(TableModelSupport.ModelQueryObject.class), model.getAlias());
+            // 使用 getRoot() 作为规范的 key，所有包装器（如 JdbcModelDx）都会解析到同一个 root
+            name2Alias.put(model.getQueryObject().getRoot(), model.getAlias());
         }
     }
 
@@ -709,18 +704,15 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
 
     @Override
     public String getAlias(QueryObject queryObject) {
-        String name = null;
-        if (name2Alias == null) {
-            return queryObject.getAlias();
-        }
         if (queryObject == null) {
             return null;
         }
-        name = name2Alias.get(queryObject);
-        if (StringUtils.isEmpty(name)) {
+        if (name2Alias == null) {
             return queryObject.getAlias();
         }
-        return name;
+        // 使用 getRoot() 作为 key 查找，与注册时保持一致
+        String alias = name2Alias.get(queryObject.getRoot());
+        return StringUtils.isNotEmpty(alias) ? alias : queryObject.getAlias();
     }
 
     @Override

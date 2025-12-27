@@ -259,33 +259,25 @@ public class JdbcQuery {
                 }
             }
 
-            // 优先使用 JoinGraph（如果可用）
-            if (joinGraph != null) {
-                return joinWithGraph(queryObject, joinType);
+            // 必须使用 JoinGraph
+            if (joinGraph == null) {
+                throw RX.throwAUserTip("JoinGraph 未设置，无法执行 JOIN: " + queryObject.getAlias());
             }
 
-            // 回退到传统逻辑
-            return joinLegacy(queryObject, joinType);
+            return joinWithGraph(queryObject, joinType);
         }
 
         /**
          * 使用 JoinGraph 进行 JOIN
          * <p>从图中查找路径，按拓扑顺序添加所有需要的边</p>
-         * <p>如果目标不在图中，回退到传统逻辑</p>
          */
         private JdbcFrom joinWithGraph(QueryObject queryObject, JoinType joinType) {
             // 收集需要到达的目标
             Set<QueryObject> targets = new HashSet<>();
             targets.add(queryObject);
 
-            // 从图中获取路径
-            List<JoinEdge> path;
-            try {
-                path = joinGraph.getPath(targets);
-            } catch (Exception e) {
-                // 目标不在图中，回退到传统逻辑
-                return joinLegacy(queryObject, joinType);
-            }
+            // 从图中获取路径（如果目标不在图中会抛出异常）
+            List<JoinEdge> path = joinGraph.getPath(targets);
 
             // 按拓扑顺序添加所有边
             for (JoinEdge edge : path) {
@@ -318,68 +310,6 @@ public class JdbcQuery {
 
                 joins.add(jdbcJoin);
             }
-
-            return this;
-        }
-
-        /**
-         * 传统的 JOIN 逻辑（回退方案）
-         */
-        private JdbcFrom joinLegacy(QueryObject queryObject, JoinType joinType) {
-            if (queryObject.getLinkQueryObject() != null) {
-                join(queryObject.getLinkQueryObject(), joinType);
-            }
-
-            // 再次检查是否已加入（递归调用可能已添加）
-            for (JdbcJoin join : joins) {
-                if (join.contain(queryObject)) {
-                    return this;
-                }
-            }
-
-            if (queryObject.getOnBuilder() != null) {
-
-                return join(queryObject, queryObject.getOnBuilder(), joinType);
-            }
-
-            // 先检查是否有 LinkQueryObject（嵌套维度场景）
-            QueryObject linkQueryObject = queryObject.getLinkQueryObject();
-            if (linkQueryObject != null) {
-                // 嵌套维度：从 LinkQueryObject 获取外键
-                String fk = linkQueryObject.getForeignKey(queryObject);
-                if (fk != null) {
-                    joins.add(new JdbcJoinLeft(linkQueryObject, queryObject, fk, null));
-                    return this;
-                }
-                // 尝试从已加入的表中找 linkQueryObject 并获取外键
-                for (JdbcJoin join : joins) {
-                    if (join.contain(linkQueryObject)) {
-                        // linkQueryObject 已加入，使用它的外键
-                        fk = join.getRight().getForeignKey(queryObject);
-                        if (fk != null) {
-                            joins.add(new JdbcJoinLeft(join.getRight(), queryObject, fk, null));
-                            return this;
-                        }
-                    }
-                }
-            }
-
-            String fk = fromObject.getForeignKey(queryObject);
-            if (fk == null) {
-                for (JdbcJoin join : joins) {
-                    fk = join.getRight().getForeignKey(queryObject);
-                    if (fk != null) {
-                        joins.add(new JdbcJoinLeft(join.getRight(), queryObject, fk, null));
-                        return this;
-                    }
-                }
-
-                throw RX.throwAUserTip(DatasetMessages.queryJoinFieldNotfound(queryObject));
-
-            } else {
-                joins.add(new JdbcJoin(queryObject, fk, joinType));
-            }
-
 
             return this;
         }
