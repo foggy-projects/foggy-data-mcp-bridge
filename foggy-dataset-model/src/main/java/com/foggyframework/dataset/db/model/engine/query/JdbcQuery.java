@@ -65,12 +65,6 @@ public class JdbcQuery {
         return this;
     }
 
-    public JdbcQuery preJoin(QueryObject queryObject, String foreignKey) {
-        RX.notNull(from, "调用preJoin之前，需要先设置from");
-        from.preJoin(queryObject, foreignKey);
-        return this;
-    }
-
     public JdbcQuery join(QueryObject queryObject, FsscriptFunction onBuilder) {
         RX.notNull(from, "调用join之前，需要先设置from");
         from.join(queryObject, onBuilder, JoinType.LEFT);
@@ -80,12 +74,6 @@ public class JdbcQuery {
     public JdbcQuery join(QueryObject queryObject, FsscriptFunction onBuilder, JoinType joinType) {
         RX.notNull(from, "调用join之前，需要先设置from");
         from.join(queryObject, onBuilder, joinType);
-        return this;
-    }
-
-    public JdbcQuery preJoin(QueryObject queryObject, FsscriptFunction onBuilder, JoinType joinType) {
-        RX.notNull(from, "调用join之前，需要先设置from");
-        from.preJoin(queryObject, onBuilder, joinType);
         return this;
     }
 
@@ -236,9 +224,6 @@ public class JdbcQuery {
     public class JdbcFrom {
         QueryObject fromObject;
 
-
-        List<JdbcJoin> preJoins;
-
         List<JdbcJoin> joins;
 
         public JdbcFrom(QueryObject fromObject) {
@@ -353,25 +338,8 @@ public class JdbcQuery {
             }
 
             if (queryObject.getOnBuilder() != null) {
-                if (preJoins != null) {
-                    for (JdbcJoin join : preJoins) {
-                        //需要先从preJoins检查,确保 join.getJoinType()正确
-                        if (join.contain(queryObject)) {
-                            joins.add(join);
-                            return this;
-                        }
-                    }
-                }
-                return join(queryObject, queryObject.getOnBuilder(), joinType);
-            }
 
-            if (preJoins != null) {
-                for (JdbcJoin join : preJoins) {
-                    if (join.contain(queryObject)) {
-                        addJoin1(join);
-                        return this;
-                    }
-                }
+                return join(queryObject, queryObject.getOnBuilder(), joinType);
             }
 
             // 先检查是否有 LinkQueryObject（嵌套维度场景）
@@ -406,16 +374,6 @@ public class JdbcQuery {
                     }
                 }
 
-                if (preJoins != null) {
-                    for (JdbcJoin join : preJoins) {
-                        fk = join.getRight().getForeignKey(queryObject);
-                        if (fk != null) {
-                            addJoin1(join);
-                            joins.add(new JdbcJoinLeft(join.getRight(), queryObject, fk, null));
-                            return this;
-                        }
-                    }
-                }
                 throw RX.throwAUserTip(DatasetMessages.queryJoinFieldNotfound(queryObject));
 
             } else {
@@ -441,21 +399,6 @@ public class JdbcQuery {
             return this;
         }
 
-        public JdbcFrom preJoin(QueryObject queryObject, String foreignKey) {
-            if (preJoins == null) {
-                preJoins = new ArrayList<>();
-            }
-            for (JdbcJoin join : preJoins) {
-                if (join.contain(queryObject)) {
-                    return this;
-                }
-            }
-
-            preJoins.add(new JdbcJoin(queryObject, foreignKey, null));
-
-            return this;
-        }
-
         public JdbcFrom join(QueryObject queryObject, FsscriptFunction onBuilder, JoinType joinType) {
             if (joins == null) {
                 joins = new ArrayList<>();
@@ -470,19 +413,6 @@ public class JdbcQuery {
             return this;
         }
 
-        public JdbcFrom preJoin(QueryObject queryObject, FsscriptFunction onBuilder, JoinType joinType) {
-            if (preJoins == null) {
-                preJoins = new ArrayList<>();
-            }
-            for (JdbcJoin join : preJoins) {
-                if (join.contain(queryObject)) {
-                    return this;
-                }
-            }
-
-            preJoins.add(new JdbcJoinOnBuilder(queryObject, onBuilder, joinType));
-            return this;
-        }
 //        public JdbcFrom customJoin(Map mm) {
 //            if (joins == null) {
 //                joins = new ArrayList<>();

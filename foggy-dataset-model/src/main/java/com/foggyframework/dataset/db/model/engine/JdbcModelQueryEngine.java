@@ -120,12 +120,9 @@ public class JdbcModelQueryEngine implements QueryEngine {
         JdbcQuery jdbcQuery = new JdbcQuery();
         jdbcQuery.setQueryRequest(queryRequest);
 
-        // 构建 JoinGraph（支持多模型合并）
-        JoinGraph joinGraph = buildMergedJoinGraph();
+        // 使用 QueryModel 缓存的 JoinGraph
+        JoinGraph joinGraph = jdbcQueryModel.getMergedJoinGraph();
         jdbcQuery.from(jdbcQueryModel.getQueryObject(), joinGraph);
-
-        // 多模型查询：将次模型的边添加到 JoinGraph 后，不再需要 preJoin
-        // 原有的 preJoin 逻辑已整合到 buildMergedJoinGraph() 中
 
         // 0. 预处理 columns 中的内联表达式，转换为 calculatedFields
         // 如果 context 中已有预处理结果，则跳过
@@ -370,94 +367,6 @@ public class JdbcModelQueryEngine implements QueryEngine {
         }
 
         return aggColumn;
-    }
-
-    /**
-     * 构建合并后的 JoinGraph
-     * <p>
-     * 对于单模型查询，直接返回模型的 JoinGraph。
-     * 对于多模型查询，复制主模型的 JoinGraph 并添加次模型的关联边。
-     * </p>
-     *
-     * @return 合并后的 JoinGraph
-     */
-    private JoinGraph buildMergedJoinGraph() {
-        JoinGraph baseGraph = jdbcQueryModel.getJdbcModel().getJoinGraph();
-
-        // 单模型查询，直接使用原始图
-        if (jdbcQueryModel.getJdbcModelList().size() <= 1) {
-            return baseGraph;
-        }
-
-        // 多模型查询，复制图并添加次模型的边
-        JoinGraph mergedGraph = baseGraph.copy();
-
-        if (log.isDebugEnabled()) {
-            log.debug("多模型 JoinGraph 合并开始: baseRoot={}, jdbcQueryModel.getQueryObject()={}",
-                    baseGraph.getRoot().getAlias(), jdbcQueryModel.getQueryObject().getAlias());
-        }
-
-        for (int i = 1; i < jdbcQueryModel.getJdbcModelList().size(); i++) {
-            TableModel tm = jdbcQueryModel.getJdbcModelList().get(i);
-            JdbcQueryModelImpl.JdbcModelDx dx = tm.getDecorate(JdbcQueryModelImpl.JdbcModelDx.class);
-
-            // 使用原始 delegate 的 QueryObject（与度量列的 QueryObject 的 alias 匹配）
-            QueryObject targetQueryObject = dx.getDelegate().getQueryObject();
-
-            // 确定 FROM 表：优先使用 dependsOn，否则使用主模型的 root
-            QueryObject fromQueryObject;
-            if (dx.getDependsOn() != null) {
-                fromQueryObject = dx.getDependsOn().getQueryObject();
-            } else {
-                // 使用 baseGraph 的 root 确保 alias 匹配
-                fromQueryObject = baseGraph.getRoot();
-            }
-
-            if (log.isDebugEnabled()) {
-                log.debug("添加次模型边: from={}, to={}, hasOnBuilder={}, foreignKey={}",
-                        fromQueryObject.getAlias(), targetQueryObject.getAlias(),
-                        dx.getOnBuilder() != null, dx.getForeignKey());
-            }
-
-            if (dx.getOnBuilder() != null) {
-                // 使用 onBuilder 的边
-                mergedGraph.addEdge(
-                        fromQueryObject,
-                        targetQueryObject,
-                        dx.getOnBuilder(),
-                        dx.getJoinType()
-                );
-            } else if (StringUtils.isNotEmpty(dx.getForeignKey())) {
-                // 使用 foreignKey 的边
-                mergedGraph.addEdge(
-                        fromQueryObject,
-                        targetQueryObject,
-                        dx.getForeignKey()
-                );
-            }
-
-            // 同时添加次模型自身的维度边
-            JoinGraph secondaryGraph = tm.getJoinGraph();
-            if (secondaryGraph != null) {
-                for (var edge : secondaryGraph.getAllEdges()) {
-                    mergedGraph.addEdge(
-                            edge.getFrom(),
-                            edge.getTo(),
-                            edge.getForeignKey(),
-                            edge.getOnBuilder(),
-                            edge.getJoinType()
-                    );
-                }
-            }
-        }
-
-        if (log.isDebugEnabled()) {
-            log.debug("多模型查询 JoinGraph 合并完成: 节点数={}, 边数={}, 节点={}",
-                    mergedGraph.getNodeCount(), mergedGraph.getEdgeCount(),
-                    mergedGraph.getNodes().stream().map(n -> n.getAlias()).toList());
-        }
-
-        return mergedGraph;
     }
 
 
