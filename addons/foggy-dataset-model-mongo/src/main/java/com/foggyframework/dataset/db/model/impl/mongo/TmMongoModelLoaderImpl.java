@@ -112,7 +112,7 @@ public class TmMongoModelLoaderImpl extends LoaderSupport implements TableModelL
         }
         //TODO 呃，如果自定义了def，那就用自定义的~但这里有个问题，不支持切schema，后续再说吧
         if (def.getMongoTemplate() != null) {
-            defMongoTemplate = def.getMongoTemplate();
+            defMongoTemplate = (MongoTemplate) def.getMongoTemplate();
         }
         MongoTableModelImpl jdbcModel = new MongoTableModelImpl(defMongoTemplate,fScript);
         def.apply(jdbcModel);

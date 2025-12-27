@@ -11,7 +11,7 @@ import com.foggyframework.dataset.db.model.engine.query_model.QueryModelSupport;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.spi.CalculatedFieldProcessor;
 import com.foggyframework.dataset.db.model.spi.TableModel;
-import com.foggyframework.dataset.db.model.utils.JdbcModelNamedUtils;
+import com.foggyframework.dataset.db.model.utils.MongoModelNamedUtils;
 import com.foggyframework.dataset.model.PagingResultImpl;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
 import lombok.Getter;
@@ -90,13 +90,13 @@ public class MongoQueryModelImpl extends QueryModelSupport implements MongoQuery
 
         if (log.isDebugEnabled()) {
             log.debug("生成查询对象");
-            log.debug(JdbcModelNamedUtils.criteriaToString(options.getT1()));
+            log.debug(MongoModelNamedUtils.criteriaToString(options.getT1()));
             if (addFieldsOp != null) {
                 log.debug("计算字段 $addFields: {}", queryEngine.buildAddFieldsDocument());
             }
-            log.debug(JdbcModelNamedUtils.projectionOperationToString(options.getT2()));
+            log.debug(MongoModelNamedUtils.projectionOperationToString(options.getT2()));
             if (options.getT3() != null) {
-                log.debug(JdbcModelNamedUtils.formatSort(options.getT3()));
+                log.debug(MongoModelNamedUtils.formatSort(options.getT3()));
             }
         }
 

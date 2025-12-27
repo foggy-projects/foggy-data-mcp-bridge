@@ -16,7 +16,9 @@
 
 ## 2. 添加依赖
 
-在 `pom.xml` 中添加依赖：
+### 2.1 核心依赖（必需）
+
+在 `pom.xml` 中添加 Foggy Dataset Model 依赖：
 
 ```xml
 <dependency>
@@ -25,22 +27,142 @@
     <version>8.0.1-beta</version>
 </dependency>
 ```
-## 3. 添加foggy模块注释
+
+### 2.2 新建项目完整配置
+
+如果你正在创建一个新项目，需要添加以下依赖：
+
+```xml
+<parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>3.2.0</version>
+</parent>
+
+<dependencies>
+    <!-- Spring Boot Web -->
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+
+    <!-- Spring Boot JDBC -->
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-jdbc</artifactId>
+    </dependency>
+
+    <!-- Foggy Dataset Model -->
+    <dependency>
+        <groupId>com.foggysource</groupId>
+        <artifactId>foggy-dataset-model</artifactId>
+        <version>8.0.1-beta</version>
+    </dependency>
+
+    <!-- 数据库驱动（根据实际情况选择一个） -->
+    <!-- MySQL -->
+    <dependency>
+        <groupId>com.mysql</groupId>
+        <artifactId>mysql-connector-j</artifactId>
+        <scope>runtime</scope>
+    </dependency>
+
+    <!-- 或 PostgreSQL -->
+    <!--
+    <dependency>
+        <groupId>org.postgresql</groupId>
+        <artifactId>postgresql</artifactId>
+        <scope>runtime</scope>
+    </dependency>
+    -->
+
+    <!-- 或 SQLite（适合快速测试） -->
+    <!--
+    <dependency>
+        <groupId>org.xerial</groupId>
+        <artifactId>sqlite-jdbc</artifactId>
+        <version>3.44.1.0</version>
+    </dependency>
+    -->
+</dependencies>
+```
+
+### 2.3 已有项目引入
+
+如果你的项目已经有Spring Boot和数据源配置，只需：
+
+1. 添加 `foggy-dataset-model` 核心依赖（见 2.1）
+2. 确保项目中有 JDBC 相关依赖（`spring-boot-starter-jdbc` 或 `spring-boot-starter-data-jpa`）
+3. 确保已配置数据源
+
+> **提示**：Foggy Dataset Model 可以与现有的 MyBatis、JPA 等持久层框架共存。
+## 3. 配置主应用类
+
+在Spring Boot主应用类上添加 `@EnableFoggyFramework` 注解：
 
 ```java
-@SpringBootApplication()
+@SpringBootApplication
 @EnableFoggyFramework(bundleName = "my-foggy-demo")
 public class MyApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(JdbcModelTestApplication.class, args);
+        SpringApplication.run(MyApplication.class, args);
     }
 }
-
 ```
+
+> **说明**：`bundleName` 是模块的唯一标识，用于区分不同的业务模块。
+
 ---
 
-## 4. 场景说明
+## 4. 配置数据源和项目结构
+
+### 4.1 配置数据源
+
+**新建项目**：创建 `src/main/resources/application.yml`：
+
+```yaml
+spring:
+  datasource:
+    # MySQL 示例
+    url: jdbc:mysql://localhost:3306/your_database?useUnicode=true&characterEncoding=utf8
+    username: root
+    password: your_password
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+    # 或 PostgreSQL 示例
+    # url: jdbc:postgresql://localhost:5432/your_database
+    # username: postgres
+    # password: your_password
+    # driver-class-name: org.postgresql.Driver
+
+    # 或 SQLite 示例（快速测试）
+    # url: jdbc:sqlite:./data/demo.db
+    # driver-class-name: org.sqlite.JDBC
+
+# Foggy 配置（可选）
+foggy:
+  dataset:
+    show-sql: true  # 开启 SQL 日志，方便调试
+```
+
+**已有项目**：如果你的项目已经配置了数据源，无需修改，Foggy 会自动使用现有数据源。
+
+### 4.2 创建模型文件目录
+
+创建 TM/QM 模型文件的存放目录：
+
+```
+src/main/resources/
+└── foggy/
+    └── templates/     # TM 和 QM 文件存放位置
+```
+
+**已有项目**：只需在 `src/main/resources` 下创建 `foggy/templates/` 目录即可。
+
+---
+
+## 5. 场景说明
 
 假设我们有一个简单的电商系统，包含：
 - 订单事实表 `fact_order`
@@ -106,11 +228,47 @@ INSERT INTO fact_order (order_id, customer_id, product_id, order_status, quantit
 ('ORD20240101010', 'CUST005', 'PROD003', 'SHIPPED', 1, 2999.00, '2024-10-18 14:55:00')
 ```
 
+### 5.1 SQL 执行方式
+
+以上 SQL 可以通过以下任一方式执行：
+
+**方式1：自动执行（推荐新建项目）**
+
+创建 SQL 文件并配置自动执行：
+
+1. 创建文件：
+   - `src/main/resources/db/schema.sql` - 存放表结构
+   - `src/main/resources/db/data.sql` - 存放测试数据
+
+2. 在 `application.yml` 中配置：
+
+```yaml
+spring:
+  sql:
+    init:
+      mode: always  # 或 embedded（仅嵌入式数据库）
+      schema-locations: classpath:db/schema.sql
+      data-locations: classpath:db/data.sql
+      encoding: UTF-8
+```
+
+**方式2：手动执行（推荐已有项目）**
+
+使用数据库客户端工具直接执行上述 SQL：
+- MySQL Workbench、Navicat、DBeaver 等
+- 或使用命令行客户端：`mysql -u root -p < schema.sql`
+
+**方式3：使用数据库迁移工具**
+
+如果项目使用 Flyway 或 Liquibase，可以将 SQL 添加到相应的迁移脚本中。
+
+> **注意**：生产环境建议使用方式2或方式3，避免数据被重复初始化。
+
 ---
 
-## 5. 创建 TM 模型
+## 6. 创建 TM 模型
 
-### 5.1 创建事实表模型
+### 6.1 创建事实表模型
 
 创建文件 `src/main/resources/foggy/templates/FactOrderModel.tm`：
 
@@ -183,7 +341,7 @@ export const model = {
 };
 ```
 
-### 5.2 TM 模型要点
+### 6.2 TM 模型要点
 
 | 配置项 | 说明 |
 |--------|------|
@@ -195,7 +353,7 @@ export const model = {
 
 ---
 
-## 6. 创建 QM 模型
+## 7. 创建 QM 模型
 
 创建文件 `src/main/resources/foggy/templates/FactOrderQueryModel.qm`：
 
@@ -252,7 +410,7 @@ export const queryModel = {
 };
 ```
 
-### 6.1 QM 字段引用格式
+### 7.1 QM 字段引用格式
 
 | 格式 | 说明 | 示例 |
 |------|------|------|
@@ -263,14 +421,60 @@ export const queryModel = {
 
 ---
 
-## 7. 使用 DSL 查询
+## 8. 启动和测试
 
-### 7.1 基本查询
+### 8.1 启动项目
+
+使用 Maven 启动 Spring Boot 项目：
+
+```bash
+# 在项目根目录执行
+mvn spring-boot:run
+```
+
+或者在 IDE 中直接运行主应用类（带有 `@SpringBootApplication` 注解的类）。
+
+### 8.2 验证启动成功
+
+启动成功后，可以看到类似以下日志：
+
+```
+Started MyApplication in 3.5 seconds (JVM running for 4.2)
+```
+
+### 8.3 测试查询接口
+
+使用 curl 或 Postman 测试查询接口：
+
+```bash
+curl -X POST http://localhost:8080/jdbc-model/query-model/v2/FactOrderQueryModel \
+  -H "Content-Type: application/json" \
+  -d '{
+    "page": 1,
+    "pageSize": 10,
+    "param": {
+      "columns": ["orderId", "customer$caption", "totalAmount"]
+    }
+  }'
+```
+
+如果返回数据，说明配置成功！
+
+> **提示**：
+> - 默认端口是 8080，可在 `application.yml` 中修改：`server.port: 8081`
+> - 查询接口路径格式：`/jdbc-model/query-model/v2/{QueryModelName}`
+> - 如果启用了 `show-sql: true`，可以在控制台看到生成的 SQL 语句
+
+---
+
+## 9. 使用 DSL 查询
+
+### 9.1 基本查询
 
 通过 HTTP API 发送 DSL 查询：
 
 ```http
-POST /jdbc-model/query-model/v2/FactOrderQueryModel
+POST http://localhost:8080/jdbc-model/query-model/v2/FactOrderQueryModel
 Content-Type: application/json
 
 {
@@ -308,7 +512,7 @@ Content-Type: application/json
 }
 ```
 
-### 7.2 条件查询
+### 9.2 条件查询
 
 使用 `slice` 添加过滤条件：
 
@@ -341,7 +545,7 @@ WHERE t0.order_status = 'COMPLETED'
   AND t1.province = '广东省'
 ```
 
-### 7.3 分组汇总
+### 9.3 分组汇总
 
 使用 `groupBy` 进行分组聚合：
 
@@ -392,7 +596,7 @@ WHERE t0.order_status = 'COMPLETED'
 }
 ```
 
-### 7.4 范围查询
+### 9.4 范围查询
 
 使用区间操作符进行范围查询：
 
@@ -425,7 +629,7 @@ WHERE t0.order_status = 'COMPLETED'
 | `(]` | 左开右闭 | `> AND <=` |
 | `()` | 开区间 | `> AND <` |
 
-### 7.5 IN 查询
+### 9.5 IN 查询
 
 ```json
 {
@@ -442,7 +646,7 @@ WHERE t0.order_status = 'COMPLETED'
 }
 ```
 
-### 7.6 模糊查询
+### 9.6 模糊查询
 
 ```json
 {
@@ -461,7 +665,7 @@ WHERE t0.order_status = 'COMPLETED'
 
 ---
 
-## 8. Java 调用示例
+## 10. Java 调用示例
 
 ```java
 @Service
@@ -507,7 +711,7 @@ public class OrderQueryService {
 
 ---
 
-## 9. 常用操作符速查
+## 11. 常用操作符速查
 
 | 操作符 | 说明 | 示例值 |
 |--------|------|--------|
@@ -527,7 +731,7 @@ public class OrderQueryService {
 
 ---
 
-## 10. 下一步
+## 12. 下一步
 
 - [TM 语法手册](../jm-qm/jm-syntax.md) - 完整的 TM 定义语法
 - [QM 语法手册](../jm-qm/qm-syntax.md) - 完整的 QM 定义语法
