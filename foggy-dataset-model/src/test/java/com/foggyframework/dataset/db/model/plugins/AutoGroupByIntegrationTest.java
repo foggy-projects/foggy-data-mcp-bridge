@@ -87,7 +87,7 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
         log.info("DataSetResultFilterManager 实现类: {}", dataSetResultFilterManager.getClass().getName());
 
         // 3. 测试内联表达式解析
-        String testExpr = "sum(totalAmount) as sumTotalAmount";
+        String testExpr = "sum(amount) as sumAmount";
         InlineExpressionParser.InlineExpression parsed =
                 InlineExpressionParser.parse(testExpr);
         log.info("测试解析 '{}': {}", testExpr, parsed);
@@ -104,7 +104,7 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
         autoRequest.setAutoGroupBy(true);
         autoRequest.setColumns(Arrays.asList(
                 "customer$customerType",
-                "sum(totalAmount) as sumTotalAmount"
+                "sum(amount) as sumAmount"
         ));
         autoRequest.setOrderBy(createOrderList("customer$customerType", "ASC"));
 
@@ -118,11 +118,11 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
         DbQueryRequestDef manualRequest = new DbQueryRequestDef();
         manualRequest.setQueryModel("FactOrderQueryModel");
         manualRequest.setAutoGroupBy(false);
-        manualRequest.setColumns(Arrays.asList("customer$customerType", "totalAmount"));
+        manualRequest.setColumns(Arrays.asList("customer$customerType", "amount"));
 
         List<GroupRequestDef> groups = new ArrayList<>();
         groups.add(createGroup("customer$customerType", null));
-        groups.add(createGroup("totalAmount", "SUM"));
+        groups.add(createGroup("amount", "SUM"));
         manualRequest.setGroupBy(groups);
         manualRequest.setOrderBy(createOrderList("customer$customerType", "ASC"));
 
@@ -141,12 +141,12 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
 
             assertEquals(manualRow.get("customer$customerType"), autoRow.get("customer$customerType"),
                     "客户类型应一致: 行 " + i);
-            assertDecimalEquals(manualRow.get("totalAmount"), autoRow.get("sumTotalAmount"),
-                    "SUM(totalAmount) 应一致: 行 " + i);
+            assertDecimalEquals(manualRow.get("amount"), autoRow.get("sumAmount"),
+                    "SUM(amount) 应一致: 行 " + i);
 
             log.info("行 {}: customerType={}, autoSum={}, manualSum={}",
                     i, autoRow.get("customer$customerType"),
-                    autoRow.get("sumTotalAmount"), manualRow.get("totalAmount"));
+                    autoRow.get("sumAmount"), manualRow.get("amount"));
         }
     }
 
@@ -173,7 +173,7 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
         autoRequest.setAutoGroupBy(true);
         autoRequest.setColumns(Arrays.asList(
                 "customer$customerType",
-                "sum(totalAmount) as sumTotalAmount"
+                "sum(amount) as sumAmount"
         ));
         autoRequest.setOrderBy(createOrderList("customer$customerType", "ASC"));
 
@@ -192,8 +192,8 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
 
             assertEquals(nativeRow.get("customer_type"), autoRow.get("customer$customerType"),
                     "客户类型应一致: 行 " + i);
-            assertDecimalEquals(nativeRow.get("sum_total_amount"), autoRow.get("sumTotalAmount"),
-                    "SUM(totalAmount) 应一致: 行 " + i);
+            assertDecimalEquals(nativeRow.get("sum_total_amount"), autoRow.get("sumAmount"),
+                    "SUM(amount) 应一致: 行 " + i);
         }
     }
 
@@ -223,10 +223,10 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
         autoRequest.setAutoGroupBy(true);
         autoRequest.setColumns(Arrays.asList(
                 "customer$customerType",
-                "avg(totalAmount) as avgAmount",
+                "avg(amount) as avgAmount",
                 "count(orderId) as orderCount",
-                "max(totalAmount) as maxAmount",
-                "min(totalAmount) as minAmount"
+                "max(amount) as maxAmount",
+                "min(amount) as minAmount"
         ));
         autoRequest.setOrderBy(createOrderList("customer$customerType", "ASC"));
 
@@ -249,7 +249,7 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
 
             // AVG 对比（允许小数精度差异）
             assertDecimalEquals(nativeRow.get("avg_amount"), autoRow.get("avgAmount"),
-                    "AVG(totalAmount) 应一致: " + customerType);
+                    "AVG(amount) 应一致: " + customerType);
 
             // COUNT 对比
             assertEquals(toLong(nativeRow.get("order_count")), toLong(autoRow.get("orderCount")),
@@ -257,9 +257,9 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
 
             // MAX/MIN 对比
             assertDecimalEquals(nativeRow.get("max_amount"), autoRow.get("maxAmount"),
-                    "MAX(totalAmount) 应一致: " + customerType);
+                    "MAX(amount) 应一致: " + customerType);
             assertDecimalEquals(nativeRow.get("min_amount"), autoRow.get("minAmount"),
-                    "MIN(totalAmount) 应一致: " + customerType);
+                    "MIN(amount) 应一致: " + customerType);
 
             log.info("行 {}: customerType={}, avg={}, count={}, max={}, min={}",
                     i, customerType,
@@ -294,7 +294,7 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
         autoRequest.setColumns(Arrays.asList(
                 "orderDate$year",
                 "customer$customerType",
-                "sum(totalAmount) as sumAmount"
+                "sum(amount) as sumAmount"
         ));
 
         List<OrderRequestDef> orders = new ArrayList<>();
@@ -320,7 +320,7 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
             assertEquals(nativeRow.get("customer_type"), autoRow.get("customer$customerType"),
                     "客户类型应一致: 行 " + i);
             assertDecimalEquals(nativeRow.get("sum_amount"), autoRow.get("sumAmount"),
-                    "SUM(totalAmount) 应一致: 行 " + i);
+                    "SUM(amount) 应一致: 行 " + i);
         }
     }
 
@@ -351,7 +351,7 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
         autoRequest.setColumns(Arrays.asList(
                 "customer$customerType",
                 "channel$caption",
-                "sum(totalAmount) as sumAmount",
+                "sum(amount) as sumAmount",
                 "count(orderId) as orderCount"
         ));
 
@@ -389,7 +389,7 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
     @DisplayName("无聚合表达式时返回明细数据")
     void testNoAggregation_ReturnsDetailData() {
         // 不含聚合表达式或聚合字段时，应返回明细数据
-        // 注意：使用 orderId（属性，无聚合）而非 totalAmount（度量，有聚合）
+        // 注意：使用 orderId（属性，无聚合）而非 amount（度量，有聚合）
         DbQueryRequestDef request = new DbQueryRequestDef();
         request.setQueryModel("FactOrderQueryModel");
         request.setColumns(Arrays.asList(
@@ -427,7 +427,7 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
             request.setAutoGroupBy(true);
             request.setColumns(Arrays.asList(
                     "customer$customerType",
-                    aggCase + "(totalAmount) as sumAmount"
+                    aggCase + "(amount) as sumAmount"
             ));
             request.setOrderBy(createOrderList("customer$customerType", "ASC"));
 
@@ -461,8 +461,8 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
          * 这个测试验证当查询包含混合列时的处理：
          * - 普通维度列（customer$customerType）
          * - 带聚合函数的计算列（count(orderId) as orderCount）
-         * - 带表达式的计算列（totalAmount+2 as plusAmount）- 无聚合函数，应自动推断 SUM
-         * - 带聚合函数的计算列（min(totalAmount) as minAmount）
+         * - 带表达式的计算列（amount+2 as plusAmount）- 无聚合函数，应自动推断 SUM
+         * - 带聚合函数的计算列（min(amount) as minAmount）
          *
          * 当存在聚合表达式时，没有显式聚合函数的内联表达式应自动推断为 SUM。
          */
@@ -488,8 +488,8 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
         autoRequest.setColumns(Arrays.asList(
                 "customer$customerType",
                 "count(orderId) as orderCount",
-                "totalAmount+2 as plusAmount",      // 无聚合函数的表达式，应自动推断 SUM
-                "min(totalAmount) as minAmount"
+                "amount+2 as plusAmount",      // 无聚合函数的表达式，应自动推断 SUM
+                "min(amount) as minAmount"
         ));
         autoRequest.setOrderBy(createOrderList("customer$customerType", "ASC"));
 
@@ -556,7 +556,7 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
         request.setQueryModel("FactSalesQueryModel");
         request.setColumns(Arrays.asList(
                 "product$categoryName",
-                "taxAmount2"  // formulaDef 字段
+                "sum(taxAmount2) as taxAmount3"  // formulaDef 字段，需要显式聚合
         ));
         request.setOrderBy(createOrderList("product$categoryName", "ASC"));
 
@@ -574,13 +574,13 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
             Map<String, Object> row = items.get(i);
 
             String categoryName = (String) nativeRow.get("category_name");
-            log.info("行 {}: categoryName={}, taxAmount2={}",
-                    i, categoryName, row.get("taxAmount2"));
+            log.info("行 {}: categoryName={}, taxAmount3={}",
+                    i, categoryName, row.get("taxAmount3"));
 
             assertEquals(categoryName, row.get("product$categoryName"),
                     "品类名称应一致: 行 " + i);
-            assertDecimalEquals(nativeRow.get("tax_amount2"), row.get("taxAmount2"),
-                    "taxAmount2 (formulaDef) 应一致: " + categoryName);
+            assertDecimalEquals(nativeRow.get("tax_amount2"), row.get("taxAmount3"),
+                    "taxAmount3 (formulaDef) 应一致: " + categoryName);
         }
     }
 
@@ -611,9 +611,9 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
         request.setQueryModel("FactSalesQueryModel");
         request.setColumns(Arrays.asList(
                 "product$categoryName",
-                "sum(quantity) as totalQuantity",  // 内联聚合表达式
-                "taxAmount2",                       // formulaDef 字段
-                "salesAmount"                       // 普通度量（有默认聚合）
+                "sum(quantity) as quantity2",  // 内联聚合表达式
+                "sum(taxAmount2) as taxAmount3",   // formulaDef 字段，显式聚合
+                "sum(salesAmount) as salesAmount2"  // 度量字段，显式聚合
         ));
         request.setOrderBy(createOrderList("product$categoryName", "ASC"));
 
@@ -631,19 +631,19 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
             Map<String, Object> row = items.get(i);
 
             String categoryName = (String) nativeRow.get("category_name");
-            log.info("行 {}: categoryName={}, totalQuantity={}, taxAmount2={}, salesAmount={}",
+            log.info("行 {}: categoryName={}, quantity={}, taxAmount2={}, salesAmount={}",
                     i, categoryName,
-                    row.get("totalQuantity"),
-                    row.get("taxAmount2"),
-                    row.get("salesAmount"));
+                    row.get("quantity2"),
+                    row.get("taxAmount3"),
+                    row.get("salesAmount2"));
 
             assertEquals(categoryName, row.get("product$categoryName"),
                     "品类名称应一致: 行 " + i);
-            assertEquals(toLong(nativeRow.get("total_quantity")), toLong(row.get("totalQuantity")),
-                    "totalQuantity 应一致: " + categoryName);
-            assertDecimalEquals(nativeRow.get("tax_amount2"), row.get("taxAmount2"),
+            assertEquals(toLong(nativeRow.get("total_quantity")), toLong(row.get("quantity2")),
+                    "quantity 应一致: " + categoryName);
+            assertDecimalEquals(nativeRow.get("tax_amount2"), row.get("taxAmount3"),
                     "taxAmount2 (formulaDef) 应一致: " + categoryName);
-            assertDecimalEquals(nativeRow.get("total_sales"), row.get("salesAmount"),
+            assertDecimalEquals(nativeRow.get("total_sales"), row.get("salesAmount2"),
                     "salesAmount 应一致: " + categoryName);
         }
     }
@@ -678,7 +678,7 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
         request.setQueryModel("FactSalesQueryModel");
         request.setColumns(Arrays.asList(
                 "product$categoryName",
-                "salesAmount"
+                "sum(salesAmount) as salesAmount2"
         ));
         request.setOrderBy(createOrderList("product$categoryName", "DESC"));
 
@@ -697,11 +697,11 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
 
             String categoryName = (String) nativeRow.get("category_name");
             log.info("行 {}: categoryName={}, salesAmount={}",
-                    i, categoryName, row.get("salesAmount"));
+                    i, categoryName, row.get("salesAmount2"));
 
             assertEquals(categoryName, row.get("product$categoryName"),
                     "品类名称应一致（顺序验证）: 行 " + i);
-            assertDecimalEquals(nativeRow.get("total_sales"), row.get("salesAmount"),
+            assertDecimalEquals(nativeRow.get("total_sales"), row.get("salesAmount2"),
                     "salesAmount 应一致: " + categoryName);
         }
     }
@@ -731,9 +731,9 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
         request.setQueryModel("FactSalesQueryModel");
         request.setColumns(Arrays.asList(
                 "product$categoryName",
-                "salesAmount"
+                "sum(salesAmount) as salesAmount2"
         ));
-        request.setOrderBy(createOrderList("salesAmount", "DESC"));
+        request.setOrderBy(createOrderList("salesAmount2", "DESC"));
 
         PagingResultImpl result = queryFacade.queryModelData(
                 PagingRequest.buildPagingRequest(request, 100));
@@ -750,18 +750,18 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
 
             String categoryName = (String) nativeRow.get("category_name");
             log.info("行 {}: categoryName={}, salesAmount={}",
-                    i, categoryName, row.get("salesAmount"));
+                    i, categoryName, row.get("salesAmount2"));
 
             assertEquals(categoryName, row.get("product$categoryName"),
                     "品类名称应一致（按销售额排序后）: 行 " + i);
-            assertDecimalEquals(nativeRow.get("total_sales"), row.get("salesAmount"),
+            assertDecimalEquals(nativeRow.get("total_sales"), row.get("salesAmount2"),
                     "salesAmount 应一致: " + categoryName);
         }
 
         // 4. 额外验证：结果确实是按销售额降序
         if (items.size() >= 2) {
-            BigDecimal first = toBigDecimal(items.get(0).get("salesAmount"));
-            BigDecimal second = toBigDecimal(items.get(1).get("salesAmount"));
+            BigDecimal first = toBigDecimal(items.get(0).get("salesAmount2"));
+            BigDecimal second = toBigDecimal(items.get(1).get("salesAmount2"));
             assertTrue(first.compareTo(second) >= 0,
                     "第一行销售额应 >= 第二行（降序）");
         }
@@ -793,10 +793,10 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
         request.setQueryModel("FactSalesQueryModel");
         request.setColumns(Arrays.asList(
                 "product$categoryName",
-                "taxAmount2",   // formulaDef 字段
-                "salesAmount"
+                "sum(taxAmount2) as taxAmount3",   // formulaDef 字段
+                "sum(salesAmount) as salesAmount2"
         ));
-        request.setOrderBy(createOrderList("taxAmount2", "DESC"));
+        request.setOrderBy(createOrderList("taxAmount3", "DESC"));
 
         PagingResultImpl result = queryFacade.queryModelData(
                 PagingRequest.buildPagingRequest(request, 100));
@@ -812,23 +812,23 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
             Map<String, Object> row = items.get(i);
 
             String categoryName = (String) nativeRow.get("category_name");
-            log.info("行 {}: categoryName={}, taxAmount2={}, salesAmount={}",
-                    i, categoryName, row.get("taxAmount2"), row.get("salesAmount"));
+            log.info("行 {}: categoryName={}, taxAmount3={}, salesAmount={}",
+                    i, categoryName, row.get("taxAmount3"), row.get("salesAmount2"));
 
             assertEquals(categoryName, row.get("product$categoryName"),
-                    "品类名称应一致（按taxAmount2排序后）: 行 " + i);
-            assertDecimalEquals(nativeRow.get("tax_amount2"), row.get("taxAmount2"),
-                    "taxAmount2 (formulaDef) 应一致: " + categoryName);
-            assertDecimalEquals(nativeRow.get("total_sales"), row.get("salesAmount"),
-                    "salesAmount 应一致: " + categoryName);
+                    "品类名称应一致（按taxAmount3排序后）: 行 " + i);
+            assertDecimalEquals(nativeRow.get("tax_amount2"), row.get("taxAmount3"),
+                    "taxAmount3 (formulaDef) 应一致: " + categoryName);
+            assertDecimalEquals(nativeRow.get("total_sales"), row.get("salesAmount2"),
+                    "salesAmount2 应一致: " + categoryName);
         }
 
         // 4. 额外验证：结果确实是按 taxAmount2 降序
         if (items.size() >= 2) {
-            BigDecimal first = toBigDecimal(items.get(0).get("taxAmount2"));
-            BigDecimal second = toBigDecimal(items.get(1).get("taxAmount2"));
+            BigDecimal first = toBigDecimal(items.get(0).get("taxAmount3"));
+            BigDecimal second = toBigDecimal(items.get(1).get("taxAmount3"));
             assertTrue(first.compareTo(second) >= 0,
-                    "第一行 taxAmount2 应 >= 第二行（降序）");
+                    "第一行 taxAmount3 应 >= 第二行（降序）");
         }
     }
 
@@ -837,7 +837,7 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
     @DisplayName("Engine层orderBy - 内联聚合表达式排序")
     void testEngineOrderBy_InlineAggregateExpression() {
         // 测试：内联聚合表达式在 GROUP BY 场景下的排序
-        // 例如：sum(quantity) as totalQuantity
+        // 例如：sum(quantity) as quantity
 
         // 1. 原生 SQL 查询（按总数量升序）
         String nativeSql = """
@@ -858,10 +858,10 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
         request.setQueryModel("FactSalesQueryModel");
         request.setColumns(Arrays.asList(
                 "product$categoryName",
-                "sum(quantity) as totalQuantity",  // 内联聚合表达式
-                "salesAmount"
+                "sum(quantity) as quantity2",  // 内联聚合表达式
+                "sum(salesAmount) as salesAmount2"
         ));
-        request.setOrderBy(createOrderList("totalQuantity", "ASC"));
+        request.setOrderBy(createOrderList("quantity2", "ASC"));
 
         PagingResultImpl result = queryFacade.queryModelData(
                 PagingRequest.buildPagingRequest(request, 100));
@@ -869,7 +869,7 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
 
         log.info("QueryModel 查询结果 (内联聚合表达式排序 ASC): {} 条", items.size());
 
-        // 3. 验证结果顺序一致（按 totalQuantity 升序）
+        // 3. 验证结果顺序一致（按 quantity 升序）
         assertEquals(nativeResults.size(), items.size(), "结果行数应一致");
 
         for (int i = 0; i < nativeResults.size(); i++) {
@@ -877,23 +877,23 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
             Map<String, Object> row = items.get(i);
 
             String categoryName = (String) nativeRow.get("category_name");
-            log.info("行 {}: categoryName={}, totalQuantity={}, salesAmount={}",
-                    i, categoryName, row.get("totalQuantity"), row.get("salesAmount"));
+            log.info("行 {}: categoryName={}, quantity={}, salesAmount={}",
+                    i, categoryName, row.get("quantity2"), row.get("salesAmount2"));
 
             assertEquals(categoryName, row.get("product$categoryName"),
-                    "品类名称应一致（按totalQuantity排序后）: 行 " + i);
-            assertEquals(toLong(nativeRow.get("total_quantity")), toLong(row.get("totalQuantity")),
-                    "totalQuantity 应一致: " + categoryName);
-            assertDecimalEquals(nativeRow.get("total_sales"), row.get("salesAmount"),
-                    "salesAmount 应一致: " + categoryName);
+                    "品类名称应一致（按quantity排序后）: 行 " + i);
+            assertEquals(toLong(nativeRow.get("total_quantity")), toLong(row.get("quantity2")),
+                    "quantity2 应一致: " + categoryName);
+            assertDecimalEquals(nativeRow.get("total_sales"), row.get("salesAmount2"),
+                    "salesAmount2 应一致: " + categoryName);
         }
 
-        // 4. 额外验证：结果确实是按 totalQuantity 升序
+        // 4. 额外验证：结果确实是按 quantity 升序
         if (items.size() >= 2) {
-            Long first = toLong(items.get(0).get("totalQuantity"));
-            Long second = toLong(items.get(1).get("totalQuantity"));
+            Long first = toLong(items.get(0).get("quantity2"));
+            Long second = toLong(items.get(1).get("quantity2"));
             assertTrue(first <= second,
-                    "第一行 totalQuantity 应 <= 第二行（升序）");
+                    "第一行 quantity 应 <= 第二行（升序）");
         }
     }
 
@@ -924,12 +924,12 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
         request.setColumns(Arrays.asList(
                 "product$categoryName",
                 "product$brand",
-                "salesAmount"
+                "sum(salesAmount) as salesAmount2"
         ));
 
         List<OrderRequestDef> orders = new ArrayList<>();
         orders.add(createOrder("product$categoryName", "ASC"));
-        orders.add(createOrder("salesAmount", "DESC"));
+        orders.add(createOrder("salesAmount2", "DESC"));
         request.setOrderBy(orders);
 
         PagingResultImpl result = queryFacade.queryModelData(
@@ -947,14 +947,14 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
 
             String categoryName = (String) nativeRow.get("category_name");
             String brand = (String) nativeRow.get("brand");
-            log.info("行 {}: categoryName={}, brand={}, salesAmount={}",
-                    i, categoryName, brand, row.get("salesAmount"));
+            log.info("行 {}: categoryName={}, brand={}, salesAmount2={}",
+                    i, categoryName, brand, row.get("salesAmount2"));
 
             assertEquals(categoryName, row.get("product$categoryName"),
                     "品类名称应一致: 行 " + i);
             assertEquals(brand, row.get("product$brand"),
                     "品牌应一致: 行 " + i);
-            assertDecimalEquals(nativeRow.get("total_sales"), row.get("salesAmount"),
+            assertDecimalEquals(nativeRow.get("total_sales"), row.get("salesAmount2"),
                     "salesAmount 应一致: 行 " + i);
         }
     }
@@ -984,7 +984,7 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
         request.setQueryModel("FactSalesQueryModel");
         request.setColumns(Arrays.asList(
                 "product$categoryName",
-                "salesAmount"
+                "sum(salesAmount) as salesAmount2"
         ));
 
         // 故意添加一个不在 SELECT 中的排序字段
@@ -1007,13 +1007,13 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
             Map<String, Object> row = items.get(i);
 
             String categoryName = (String) nativeRow.get("category_name");
-            log.info("行 {}: categoryName={}, salesAmount={}",
-                    i, categoryName, row.get("salesAmount"));
+            log.info("行 {}: categoryName={}, salesAmount2={}",
+                    i, categoryName, row.get("salesAmount2"));
 
             assertEquals(categoryName, row.get("product$categoryName"),
                     "品类名称应一致: 行 " + i);
-            assertDecimalEquals(nativeRow.get("total_sales"), row.get("salesAmount"),
-                    "salesAmount 应一致: " + categoryName);
+            assertDecimalEquals(nativeRow.get("total_sales"), row.get("salesAmount2"),
+                    "salesAmount2 应一致: " + categoryName);
         }
     }
 
@@ -1043,14 +1043,14 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
         request.setQueryModel("FactSalesQueryModel");
         request.setColumns(Arrays.asList(
                 "product$categoryName",
-                "sum(quantity) as totalQuantity",
-                "taxAmount2",
-                "salesAmount"
+                "sum(quantity) as quantity2",
+                "sum(taxAmount2) as taxAmount3",
+                "sum(salesAmount) as salesAmount2"
         ));
 
         List<OrderRequestDef> orders = new ArrayList<>();
         orders.add(createOrder("product$categoryName", "ASC"));
-        orders.add(createOrder("taxAmount2", "DESC"));
+        orders.add(createOrder("taxAmount3", "DESC"));
         request.setOrderBy(orders);
 
         PagingResultImpl result = queryFacade.queryModelData(
@@ -1067,17 +1067,17 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
             Map<String, Object> row = items.get(i);
 
             String categoryName = (String) nativeRow.get("category_name");
-            log.info("行 {}: categoryName={}, totalQuantity={}, taxAmount2={}, salesAmount={}",
-                    i, categoryName, row.get("totalQuantity"), row.get("taxAmount2"), row.get("salesAmount"));
+            log.info("行 {}: categoryName={}, quantity2={}, taxAmount3={}, salesAmount2={}",
+                    i, categoryName, row.get("quantity2"), row.get("taxAmount3"), row.get("salesAmount2"));
 
             assertEquals(categoryName, row.get("product$categoryName"),
                     "品类名称应一致: 行 " + i);
-            assertEquals(toLong(nativeRow.get("total_quantity")), toLong(row.get("totalQuantity")),
-                    "totalQuantity 应一致: " + categoryName);
-            assertDecimalEquals(nativeRow.get("tax_amount2"), row.get("taxAmount2"),
-                    "taxAmount2 应一致: " + categoryName);
-            assertDecimalEquals(nativeRow.get("total_sales"), row.get("salesAmount"),
-                    "salesAmount 应一致: " + categoryName);
+            assertEquals(toLong(nativeRow.get("total_quantity")), toLong(row.get("quantity2")),
+                    "quantity2 应一致: " + categoryName);
+            assertDecimalEquals(nativeRow.get("tax_amount2"), row.get("taxAmount3"),
+                    "taxAmount3 应一致: " + categoryName);
+            assertDecimalEquals(nativeRow.get("total_sales"), row.get("salesAmount2"),
+                    "salesAmount2 应一致: " + categoryName);
         }
     }
 

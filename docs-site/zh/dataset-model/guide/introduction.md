@@ -52,7 +52,7 @@ export const queryModel = {
                 { name: 'orderId' },
                 { name: 'dateKey' },
                 { name: 'customer$caption' },
-                { name: 'totalAmount' }
+                { name: 'amount' }
             ]
         }
     ]
@@ -68,7 +68,7 @@ export const queryModel = {
     "page": 1,
     "pageSize": 20,
     "param": {
-        "columns": [ "customer$caption", "totalAmount"],
+        "columns": [ "customer$caption", "amount"],
         "slice": [
             { "field": "orderStatus", "type": "=", "value": "COMPLETED" }
         ],

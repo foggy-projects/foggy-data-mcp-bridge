@@ -45,14 +45,14 @@ class SemanticQueryValidationTest extends EcommerceTestSupport {
     @Order(1)
     @DisplayName("自动补全 - columns有$caption，groupBy有$id，应自动对齐")
     void testAutoAlign_ColumnsCaptionGroupById() {
-        // columns: ["customer$caption", "totalAmount"]
+        // columns: ["customer$caption", "amount"]
         // groupBy: [{name:"customer$id"}]
         // 期望补全后：
-        // columns: ["customer$caption", "totalAmount", "customer$id"]
+        // columns: ["customer$caption", "amount", "customer$id"]
         // groupBy: [{name:"customer$id"}, {name:"customer$caption"}]
 
         SemanticQueryRequest request = new SemanticQueryRequest();
-        request.setColumns(Arrays.asList("customer$caption", "totalAmount"));
+        request.setColumns(Arrays.asList("customer$caption", "amount"));
 
         SemanticQueryRequest.GroupByItem groupByItem = new SemanticQueryRequest.GroupByItem();
         groupByItem.setField("customer$id");
@@ -75,7 +75,7 @@ class SemanticQueryValidationTest extends EcommerceTestSupport {
     @Order(2)
     @DisplayName("自动补全 - columns有$id，groupBy有$caption，应双向补全")
     void testAutoAlign_ColumnsIdGroupByCaption() {
-        // columns: ["customer$id", "totalAmount"]
+        // columns: ["customer$id", "amount"]
         // groupBy: [{name:"customer$caption"}]
         //
         // V3 实现逻辑：
@@ -84,7 +84,7 @@ class SemanticQueryValidationTest extends EcommerceTestSupport {
         // - 应该补全 customer$caption 到 columns，customer$id 到 groupBy
 
         SemanticQueryRequest request = new SemanticQueryRequest();
-        request.setColumns(Arrays.asList("customer$id", "totalAmount"));
+        request.setColumns(Arrays.asList("customer$id", "amount"));
 
         SemanticQueryRequest.GroupByItem groupByItem = new SemanticQueryRequest.GroupByItem();
         groupByItem.setField("customer$caption");
@@ -115,7 +115,7 @@ class SemanticQueryValidationTest extends EcommerceTestSupport {
     @Order(3)
     @DisplayName("自动补全 - columns有$caption，groupBy有$id，应触发双向补全")
     void testAutoAlign_RealAlignment() {
-        // columns: ["customer$caption", "totalAmount"]
+        // columns: ["customer$caption", "amount"]
         // groupBy: [{name:"customer$id"}]  (注意：不是 $caption，所以 normalizeGroupBy 不会自动添加)
         //
         // 这个场景会真正触发 alignColumnsAndGroupBy：
@@ -126,7 +126,7 @@ class SemanticQueryValidationTest extends EcommerceTestSupport {
         // - customer$caption 到 groupBy
 
         SemanticQueryRequest request = new SemanticQueryRequest();
-        request.setColumns(Arrays.asList("customer$caption", "totalAmount"));
+        request.setColumns(Arrays.asList("customer$caption", "amount"));
 
         SemanticQueryRequest.GroupByItem groupByItem = new SemanticQueryRequest.GroupByItem();
         groupByItem.setField("customer$id");
@@ -153,8 +153,8 @@ class SemanticQueryValidationTest extends EcommerceTestSupport {
     @DisplayName("自动补全 - 度量字段不需要出现在columns中")
     void testAutoAlign_MeasureFieldNotRequired() {
         // columns: ["customer$caption"]
-        // groupBy: [{name:"customer$id"}, {name:"totalAmount", type:"SUM"}]
-        // 度量字段 totalAmount 有聚合类型，不需要出现在 columns 中
+        // groupBy: [{name:"customer$id"}, {name:"amount", type:"SUM"}]
+        // 度量字段 amount 有聚合类型，不需要出现在 columns 中
 
         SemanticQueryRequest request = new SemanticQueryRequest();
         request.setColumns(Arrays.asList("customer$caption"));
@@ -166,7 +166,7 @@ class SemanticQueryValidationTest extends EcommerceTestSupport {
         groupByItems.add(dimensionItem);
 
         SemanticQueryRequest.GroupByItem measureItem = new SemanticQueryRequest.GroupByItem();
-        measureItem.setField("totalAmount");
+        measureItem.setField("amount");
         measureItem.setAgg("SUM");
         groupByItems.add(measureItem);
 
@@ -184,12 +184,12 @@ class SemanticQueryValidationTest extends EcommerceTestSupport {
     @Order(5)
     @DisplayName("自动补全 - 已对齐的字段不应重复补全")
     void testAutoAlign_AlreadyAligned() {
-        // columns: ["customer$caption", "customer$id", "totalAmount"]
+        // columns: ["customer$caption", "customer$id", "amount"]
         // groupBy: [{name:"customer$id"}, {name:"customer$caption"}]
         // 已经对齐，不应有补全警告
 
         SemanticQueryRequest request = new SemanticQueryRequest();
-        request.setColumns(Arrays.asList("customer$caption", "customer$id", "totalAmount"));
+        request.setColumns(Arrays.asList("customer$caption", "customer$id", "amount"));
 
         List<SemanticQueryRequest.GroupByItem> groupByItems = new ArrayList<>();
 
@@ -224,12 +224,12 @@ class SemanticQueryValidationTest extends EcommerceTestSupport {
     @Order(10)
     @DisplayName("校验失败 - groupBy字段不在columns中")
     void testValidation_GroupByFieldMissingInColumns() {
-        // columns: ["totalAmount"]  (没有 product 字段)
+        // columns: ["amount"]  (没有 product 字段)
         // groupBy: [{name:"product$id"}]
         // 应抛出异常
 
         SemanticQueryRequest request = new SemanticQueryRequest();
-        request.setColumns(Arrays.asList("totalAmount"));
+        request.setColumns(Arrays.asList("amount"));
 
         SemanticQueryRequest.GroupByItem groupByItem = new SemanticQueryRequest.GroupByItem();
         groupByItem.setField("product$id");
@@ -259,7 +259,7 @@ class SemanticQueryValidationTest extends EcommerceTestSupport {
         // columns 中包含不存在的列名
 
         SemanticQueryRequest request = new SemanticQueryRequest();
-        request.setColumns(Arrays.asList("totalAmount", "nonExistentColumn"));
+        request.setColumns(Arrays.asList("amount", "nonExistentColumn"));
         request.setLimit(10);
 
         RuntimeException exception = assertThrows(RuntimeException.class, () -> {
@@ -281,7 +281,7 @@ class SemanticQueryValidationTest extends EcommerceTestSupport {
         // groupBy 中包含不存在的列名
 
         SemanticQueryRequest request = new SemanticQueryRequest();
-        request.setColumns(Arrays.asList("totalAmount", "invalidField$id"));
+        request.setColumns(Arrays.asList("amount", "invalidField$id"));
 
         SemanticQueryRequest.GroupByItem groupByItem = new SemanticQueryRequest.GroupByItem();
         groupByItem.setField("invalidField$id");
@@ -307,7 +307,7 @@ class SemanticQueryValidationTest extends EcommerceTestSupport {
         // slice 中包含不存在的列名
 
         SemanticQueryRequest request = new SemanticQueryRequest();
-        request.setColumns(Arrays.asList("totalAmount"));
+        request.setColumns(Arrays.asList("amount"));
 
         SemanticQueryRequest.SliceItem sliceItem = new SemanticQueryRequest.SliceItem();
         sliceItem.setField("nonExistentField");
@@ -339,7 +339,7 @@ class SemanticQueryValidationTest extends EcommerceTestSupport {
         // orderBy 中维度字段没有后缀，应自动补充 $id
 
         SemanticQueryRequest request = new SemanticQueryRequest();
-        request.setColumns(Arrays.asList("customer$caption", "totalAmount"));
+        request.setColumns(Arrays.asList("customer$caption", "amount"));
 
         SemanticQueryRequest.OrderItem orderItem = new SemanticQueryRequest.OrderItem();
         orderItem.setField("customer");  // 没有 $id 或 $caption 后缀
@@ -367,10 +367,10 @@ class SemanticQueryValidationTest extends EcommerceTestSupport {
         // orderBy 中度量字段没有后缀，应保持原样（度量不需要后缀）
 
         SemanticQueryRequest request = new SemanticQueryRequest();
-        request.setColumns(Arrays.asList("customer$caption", "totalAmount"));
+        request.setColumns(Arrays.asList("customer$caption", "amount"));
 
         SemanticQueryRequest.OrderItem orderItem = new SemanticQueryRequest.OrderItem();
-        orderItem.setField("totalAmount");  // 度量字段，不需要后缀
+        orderItem.setField("amount");  // 度量字段，不需要后缀
         orderItem.setDir("DESC");
         request.setOrderBy(Collections.singletonList(orderItem));
         request.setLimit(10);
@@ -383,7 +383,7 @@ class SemanticQueryValidationTest extends EcommerceTestSupport {
         if (response.getWarnings() != null) {
             String warningsStr = String.join(", ", response.getWarnings());
             log.info("警告信息: {}", warningsStr);
-            assertFalse(warningsStr.contains("totalAmount") && warningsStr.contains("自动补充"),
+            assertFalse(warningsStr.contains("amount") && warningsStr.contains("自动补充"),
                     "度量字段不应被自动补充后缀");
         }
     }
@@ -397,7 +397,7 @@ class SemanticQueryValidationTest extends EcommerceTestSupport {
     @DisplayName("正常查询 - 简单明细查询")
     void testNormalQuery_SimpleDetail() {
         SemanticQueryRequest request = new SemanticQueryRequest();
-        request.setColumns(Arrays.asList("orderId", "customer$caption", "totalAmount"));
+        request.setColumns(Arrays.asList("orderId", "customer$caption", "amount"));
         request.setLimit(10);
 
         SemanticQueryResponse response = semanticQueryService.queryModel(TEST_MODEL, request, "execute");
@@ -427,7 +427,7 @@ class SemanticQueryValidationTest extends EcommerceTestSupport {
         groupByItems.add(dimCaptionItem);
 
         SemanticQueryRequest.GroupByItem measureItem = new SemanticQueryRequest.GroupByItem();
-        measureItem.setField("totalAmount");
+        measureItem.setField("amount");
         measureItem.setAgg("SUM");
         groupByItems.add(measureItem);
 

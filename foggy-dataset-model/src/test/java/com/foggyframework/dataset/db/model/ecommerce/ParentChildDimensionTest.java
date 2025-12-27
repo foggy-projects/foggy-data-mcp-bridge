@@ -135,9 +135,9 @@ class ParentChildDimensionTest extends EcommerceTestSupport {
 
         // 验证销售总额
         String totalSql = "SELECT SUM(sales_amount) as total FROM fact_team_sales";
-        BigDecimal totalAmount = executeQueryForObject(totalSql, BigDecimal.class);
-        log.info("销售总额: {}", totalAmount);
-        assertTrue(totalAmount.compareTo(BigDecimal.ZERO) > 0, "销售总额应大于0");
+        BigDecimal amount = executeQueryForObject(totalSql, BigDecimal.class);
+        log.info("销售总额: {}", amount);
+        assertTrue(amount.compareTo(BigDecimal.ZERO) > 0, "销售总额应大于0");
     }
 
     // ==========================================

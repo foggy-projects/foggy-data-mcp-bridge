@@ -419,9 +419,9 @@ class AggSqlOptimizerTest extends EcommerceTestSupport {
             "store$city",
             "channel$channelType",
             "customer$customerType",
-            "totalQuantity",
-            "totalAmount",
-            "orderPayAmount"
+            "quantity",
+            "amount",
+            "payAmount"
         );
         queryRequest.setColumns(columns);
 
@@ -478,8 +478,8 @@ class AggSqlOptimizerTest extends EcommerceTestSupport {
 
         List<String> columns = Arrays.asList(
             "orderDate$month",
-            "totalAmount",
-            "orderPayAmount"
+            "amount",
+            "payAmount"
         );
         queryRequest.setColumns(columns);
 

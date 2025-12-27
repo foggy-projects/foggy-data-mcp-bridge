@@ -63,10 +63,9 @@ export const queryModel = {
         {
             caption: '订单度量',
             items: [
-                { name: 'totalQuantity' },
-                { name: 'totalAmount' },
-                { name: 'discountAmount' },
-                { name: 'orderPayAmount' }
+                { name: 'quantity' },
+                { name: 'amount' },
+                { name: 'discountAmount' }
             ]
         },
         {

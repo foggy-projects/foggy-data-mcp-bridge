@@ -161,7 +161,7 @@ export const model = {
         }
     ],
 
-    // 度量定义
+    // 度量定义（不预设聚合方式，需显式使用 sum()、avg() 等函数）
     measures: [
         {
             column: 'quantity',
@@ -172,44 +172,41 @@ export const model = {
         {
             column: 'unit_price',
             caption: '单价',
-            type: 'MONEY',
-            aggregation: 'avg'
+            type: 'MONEY'
         },
         {
             column: 'unit_cost',
             caption: '单位成本',
-            type: 'MONEY',
-            aggregation: 'avg'
+            type: 'MONEY'
         },
         {
             column: 'discount_amount',
             caption: '折扣金额',
-            type: 'MONEY',
-            aggregation: 'sum'
+            type: 'MONEY'
         },
         {
             column: 'sales_amount',
+            name: 'salesAmount',
             caption: '销售金额',
-            type: 'MONEY',
-            aggregation: 'sum'
+            type: 'MONEY'
         },
         {
             column: 'cost_amount',
+            name: 'costAmount',
             caption: '成本金额',
-            type: 'MONEY',
-            aggregation: 'sum'
+            type: 'MONEY'
         },
         {
             column: 'profit_amount',
+            name: 'profitAmount',
             caption: '利润金额',
-            type: 'MONEY',
-            aggregation: 'sum'
+            type: 'MONEY'
         },
         {
             column: 'tax_amount',
+            name: 'taxAmount',
             caption: '税额',
-            type: 'MONEY',
-            aggregation: 'sum'
+            type: 'MONEY'
         },
         {
             column: 'tax_amount',
@@ -217,7 +214,6 @@ export const model = {
             caption: '税额*2',
             description: '用于测试计算字段',
             type: 'MONEY',
-            aggregation: 'sum',
             "formulaDef": {
                 builder: (alias) => {
                     return `${alias}.tax_amount+1`;

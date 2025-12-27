@@ -61,7 +61,7 @@ class MultiFactTableJoinTest extends EcommerceTestSupport {
             "paymentId",
             "payMethod",
             "payStatus",
-            "totalAmount",
+            "amount",
             "payAmount"
         );
         queryRequest.setColumns(columns);
@@ -97,7 +97,7 @@ class MultiFactTableJoinTest extends EcommerceTestSupport {
             "customer$customerType",
             "payMethod",
             "payStatus",
-            "totalAmount",
+            "amount",
             "payAmount"
         );
         queryRequest.setColumns(columns);
@@ -125,7 +125,7 @@ class MultiFactTableJoinTest extends EcommerceTestSupport {
             "orderStatus",
             "payMethod",
             "payStatus",
-            "totalAmount",
+            "amount",
             "payAmount"
         );
         queryRequest.setColumns(columns);
@@ -173,7 +173,7 @@ class MultiFactTableJoinTest extends EcommerceTestSupport {
             "orderDate$year",
             "orderDate$month",
             "payMethod",
-            "totalAmount",
+            "amount",
             "payAmount"
         );
         queryRequest.setColumns(columns);
@@ -369,7 +369,7 @@ class MultiFactTableJoinTest extends EcommerceTestSupport {
             "orderTime",
             "payTime",
             "customer$caption",
-            "totalAmount",
+            "amount",
             "payAmount"
         );
         queryRequest.setColumns(columns);
@@ -414,9 +414,8 @@ class MultiFactTableJoinTest extends EcommerceTestSupport {
             "customer$customerType",
             "customer$memberLevel",
             "payMethod",
-            "totalAmount",
+            "amount",
             "discountAmount",
-            "orderPayAmount",
             "payAmount"
         );
         queryRequest.setColumns(columns);

@@ -13,6 +13,7 @@ import com.foggyframework.dataset.db.model.spi.DbAggregation;
 import com.foggyframework.dataset.db.model.spi.DbColumn;
 import com.foggyframework.dataset.db.model.spi.DbQueryColumn;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
+import com.foggyframework.dataset.db.model.spi.TableModel;
 import com.foggyframework.fsscript.parser.spi.Exp;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.annotation.Order;
@@ -35,10 +36,14 @@ import java.util.List;
  *
  * <h3>聚合类型识别来源</h3>
  * <ol>
- *   <li>内联表达式 AST 分析（如 sum(totalAmount) → SUM）</li>
- *   <li>内联表达式聚合推断（如 totalAmount+2 在有其他聚合时 → SUM）</li>
- *   <li>QueryModel 字段定义（如 formulaDef 字段的 aggregation）</li>
+ *   <li>内联表达式 AST 分析（如 sum(amount) → SUM）</li>
+ *   <li>内联表达式聚合推断（如 amount+2 在有其他聚合时 → SUM）</li>
+ *   <li>预定义 calculatedFields 的 agg 属性</li>
  * </ol>
+ * <p>
+ * 注意：不再从 QueryModel 的 aggregation 属性读取默认聚合，
+ * 聚合必须由用户显式指定（如使用 sum()、avg() 等函数）。
+ * </p>
  *
  * @author foggy-framework
  * @since 8.0.0
@@ -192,34 +197,67 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
             }
         }
 
-        // 3. 检查普通列（非内联表达式）在 QueryModel 中的聚合定义
-        if (queryModel != null) {
-            for (String columnName : result.getColumns()) {
-                // 跳过已识别的聚合列（来自内联表达式）
-                if (result.getColumnAggregations().containsKey(columnName)) {
-                    continue;
-                }
+        // 3. [已移除] 不再从 QueryModel 读取默认 aggregation 属性
+        // 聚合必须由用户在查询中显式指定（使用 sum()、avg() 等函数）
+        // 这样可以避免隐式聚合行为，使查询逻辑更加明确
 
-                // 从 QueryModel 获取字段聚合类型
-                DbQueryColumn queryColumn = queryModel.findJdbcQueryColumnByName(columnName, false);
-                if (queryColumn != null) {
-                    DbColumn selectColumn = queryColumn.getSelectColumn();
-                    if (selectColumn != null) {
-                        DbAggregation agg = selectColumn.getAggregation();
-                        if (agg != null) {
-                            result.getColumnAggregations().put(columnName, agg.name());
-                            // 如果之前没检测到聚合，但 QueryModel 有聚合定义，更新标记
-                            hasAnyAggregate = true;
-                            if (log.isDebugEnabled()) {
-                                log.debug("从 QueryModel 识别聚合列: '{}' -> agg='{}'", columnName, agg.name());
-                            }
-                        }
-                    }
-                }
-            }
+        // 4. 验证混合聚合查询：如果查询中包含聚合表达式，所有度量字段必须显式指定聚合函数
+        if (hasAnyAggregate && queryModel != null) {
+            validateMixedAggregation(result, queryModel);
         }
 
         return result;
+    }
+
+    /**
+     * 验证混合聚合查询的合法性
+     * <p>
+     * 当查询中包含聚合表达式时，所有度量字段必须显式指定聚合函数。
+     * 否则会导致语义不明确：度量字段应该如何处理（SUM/AVG/MAX/MIN）？
+     * </p>
+     *
+     * @param result      解析结果
+     * @param queryModel  查询模型
+     * @throws IllegalArgumentException 如果检测到未聚合的度量字段
+     */
+    private void validateMixedAggregation(
+            ModelResultContext.ParsedInlineExpressions result,
+            QueryModel queryModel) {
+
+        List<String> unaggregatedMeasures = new ArrayList<>();
+
+        for (String columnName : result.getColumns()) {
+            // 跳过已识别的聚合列
+            if (result.getColumnAggregations().containsKey(columnName)) {
+                continue;
+            }
+
+            // 检查是否是度量字段
+            boolean isMeasure = false;
+            for (TableModel tableModel : queryModel.getJdbcModelList()) {
+                if (tableModel.findJdbcMeasureByName(columnName) != null) {
+                    isMeasure = true;
+                    break;
+                }
+            }
+
+            if (isMeasure) {
+                unaggregatedMeasures.add(columnName);
+            }
+        }
+
+        // 如果存在未聚合的度量字段，抛出异常
+        if (!unaggregatedMeasures.isEmpty()) {
+            String measures = String.join("', '", unaggregatedMeasures);
+            throw new IllegalArgumentException(
+                    "检测到聚合查询中包含未聚合的度量字段: ['" + measures + "']。" +
+                            "度量字段在聚合查询中必须显式指定聚合函数，例如: " +
+                            "sum(" + unaggregatedMeasures.get(0) + "), " +
+                            "avg(" + unaggregatedMeasures.get(0) + "), " +
+                            "max(" + unaggregatedMeasures.get(0) + "), " +
+                            "min(" + unaggregatedMeasures.get(0) + ") 等。"
+            );
+        }
     }
 
     /**

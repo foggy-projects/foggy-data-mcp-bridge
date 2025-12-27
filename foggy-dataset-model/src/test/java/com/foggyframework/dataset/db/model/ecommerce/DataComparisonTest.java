@@ -97,7 +97,7 @@ class DataComparisonTest extends EcommerceTestSupport {
 
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactOrderQueryModel");
-        queryRequest.setColumns(Arrays.asList("totalAmount", "discountAmount", "orderPayAmount"));
+        queryRequest.setColumns(Arrays.asList("amount", "discountAmount", "payAmount"));
         queryRequest.setReturnTotal(true);  // 启用汇总
 
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
@@ -111,9 +111,9 @@ class DataComparisonTest extends EcommerceTestSupport {
 
         // 3. 对比（使用BigDecimal精确比较）
         assertDecimalEquals(nativeResult.get("total"), modelResult.get("total"), "总记录数");
-        assertDecimalEquals(nativeResult.get("total_amount"), modelResult.get("totalAmount"), "订单总额");
+        assertDecimalEquals(nativeResult.get("total_amount"), modelResult.get("amount"), "订单总额");
         assertDecimalEquals(nativeResult.get("discount_amount"), modelResult.get("discountAmount"), "折扣金额");
-        assertDecimalEquals(nativeResult.get("pay_amount"), modelResult.get("orderPayAmount"), "应付金额");
+        assertDecimalEquals(nativeResult.get("pay_amount"), modelResult.get("payAmount"), "应付金额");
     }
 
     @Test
@@ -186,7 +186,7 @@ class DataComparisonTest extends EcommerceTestSupport {
 
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactOrderQueryModel");
-        queryRequest.setColumns(Arrays.asList("customer$customerType", "totalAmount", "orderPayAmount"));
+        queryRequest.setColumns(Arrays.asList("customer$customerType", "amount", "payAmount"));
 
         List<GroupRequestDef> groups = new ArrayList<>();
         GroupRequestDef group = new GroupRequestDef();
@@ -217,9 +217,9 @@ class DataComparisonTest extends EcommerceTestSupport {
 
             assertEquals(nativeRow.get("customer_type"), modelRow.get("customer$customerType"),
                 "客户类型应一致: 行 " + i);
-            assertDecimalEquals(nativeRow.get("total_amount"), modelRow.get("totalAmount"),
+            assertDecimalEquals(nativeRow.get("total_amount"), modelRow.get("amount"),
                 "订单总额应一致: " + nativeRow.get("customer_type"));
-            assertDecimalEquals(nativeRow.get("pay_amount"), modelRow.get("orderPayAmount"),
+            assertDecimalEquals(nativeRow.get("pay_amount"), modelRow.get("payAmount"),
                 "应付金额应一致: " + nativeRow.get("customer_type"));
         }
     }
@@ -315,7 +315,7 @@ class DataComparisonTest extends EcommerceTestSupport {
 
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactOrderQueryModel");
-        queryRequest.setColumns(Arrays.asList("orderDate$year", "orderDate$month", "totalAmount", "orderPayAmount"));
+        queryRequest.setColumns(Arrays.asList("orderDate$year", "orderDate$month", "amount", "payAmount"));
 
         List<GroupRequestDef> groups = new ArrayList<>();
         GroupRequestDef group1 = new GroupRequestDef();
@@ -355,9 +355,9 @@ class DataComparisonTest extends EcommerceTestSupport {
                 "年份应一致: 行 " + i);
             assertEquals(toInt(nativeRow.get("month")), toInt(modelRow.get("orderDate$month")),
                 "月份应一致: 行 " + i);
-            assertDecimalEquals(nativeRow.get("total_amount"), modelRow.get("totalAmount"),
+            assertDecimalEquals(nativeRow.get("total_amount"), modelRow.get("amount"),
                 "订单总额应一致: " + nativeRow.get("year") + "-" + nativeRow.get("month"));
-            assertDecimalEquals(nativeRow.get("pay_amount"), modelRow.get("orderPayAmount"),
+            assertDecimalEquals(nativeRow.get("pay_amount"), modelRow.get("payAmount"),
                 "应付金额应一致: " + nativeRow.get("year") + "-" + nativeRow.get("month"));
         }
     }
@@ -390,7 +390,7 @@ class DataComparisonTest extends EcommerceTestSupport {
 
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactOrderQueryModel");
-        queryRequest.setColumns(Arrays.asList("totalAmount", "orderPayAmount"));
+        queryRequest.setColumns(Arrays.asList("amount", "payAmount"));
         queryRequest.setReturnTotal(true);
 
         List<SliceRequestDef> slices = new ArrayList<>();
@@ -412,8 +412,8 @@ class DataComparisonTest extends EcommerceTestSupport {
 
         // 3. 对比
         assertDecimalEquals(nativeResult.get("total"), modelResult.get("total"), "总记录数");
-        assertDecimalEquals(nativeResult.get("total_amount"), modelResult.get("totalAmount"), "订单总额");
-        assertDecimalEquals(nativeResult.get("pay_amount"), modelResult.get("orderPayAmount"), "应付金额");
+        assertDecimalEquals(nativeResult.get("total_amount"), modelResult.get("amount"), "订单总额");
+        assertDecimalEquals(nativeResult.get("pay_amount"), modelResult.get("payAmount"), "应付金额");
     }
 
     @Test
@@ -439,7 +439,7 @@ class DataComparisonTest extends EcommerceTestSupport {
 
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactOrderQueryModel");
-        queryRequest.setColumns(Arrays.asList("totalAmount"));
+        queryRequest.setColumns(Arrays.asList("amount"));
         queryRequest.setReturnTotal(true);
 
         List<SliceRequestDef> slices = new ArrayList<>();
@@ -461,7 +461,7 @@ class DataComparisonTest extends EcommerceTestSupport {
 
         // 3. 对比
         assertDecimalEquals(nativeResult.get("total"), modelResult.get("total"), "总记录数");
-        assertDecimalEquals(nativeResult.get("total_amount"), modelResult.get("totalAmount"), "订单总额");
+        assertDecimalEquals(nativeResult.get("total_amount"), modelResult.get("amount"), "订单总额");
     }
 
     @Test
@@ -538,7 +538,7 @@ class DataComparisonTest extends EcommerceTestSupport {
 
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactOrderQueryModel");
-        queryRequest.setColumns(Arrays.asList("totalAmount"));
+        queryRequest.setColumns(Arrays.asList("amount"));
         queryRequest.setReturnTotal(true);
 
         List<SliceRequestDef> slices = new ArrayList<>();
@@ -560,7 +560,7 @@ class DataComparisonTest extends EcommerceTestSupport {
 
         // 3. 对比
         assertDecimalEquals(nativeResult.get("total"), modelResult.get("total"), "总记录数");
-        assertDecimalEquals(nativeResult.get("total_amount"), modelResult.get("totalAmount"), "订单总额");
+        assertDecimalEquals(nativeResult.get("total_amount"), modelResult.get("amount"), "订单总额");
     }
 
     // ==========================================
@@ -671,7 +671,7 @@ class DataComparisonTest extends EcommerceTestSupport {
         queryRequest.setQueryModel("FactOrderQueryModel");
         queryRequest.setColumns(Arrays.asList(
             "customer$customerType", "channel$channelType",
-            "totalAmount", "orderPayAmount"
+            "amount", "payAmount"
         ));
 
         List<SliceRequestDef> slices = new ArrayList<>();
@@ -712,9 +712,9 @@ class DataComparisonTest extends EcommerceTestSupport {
                 "客户类型应一致: 行 " + i);
             assertEquals(nativeRow.get("channel_type"), modelRow.get("channel$channelType"),
                 "渠道类型应一致: 行 " + i);
-            assertDecimalEquals(nativeRow.get("total_amount"), modelRow.get("totalAmount"),
+            assertDecimalEquals(nativeRow.get("total_amount"), modelRow.get("amount"),
                 "订单总额应一致: 行 " + i);
-            assertDecimalEquals(nativeRow.get("pay_amount"), modelRow.get("orderPayAmount"),
+            assertDecimalEquals(nativeRow.get("pay_amount"), modelRow.get("payAmount"),
                 "应付金额应一致: 行 " + i);
         }
     }

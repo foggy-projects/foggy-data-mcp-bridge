@@ -55,7 +55,7 @@ class ServiceIntegrationTest extends EcommerceTestSupport {
         // 2. 通过服务查询
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactOrderQueryModel");
-        queryRequest.setColumns(Arrays.asList("orderId", "orderStatus", "totalAmount", "orderPayAmount"));
+        queryRequest.setColumns(Arrays.asList("orderId", "orderStatus", "amount", "payAmount"));
         queryRequest.setReturnTotal(true);
         // SQLite轻量测试数据只有10条，动态调整期望值
         int expectedSize = isLightweightMode() ? nativeCount.intValue() : 100;
@@ -74,8 +74,8 @@ class ServiceIntegrationTest extends EcommerceTestSupport {
         Map<String, Object> firstRow = (Map<String, Object>) result.getItems().get(0);
         assertTrue(firstRow.containsKey("orderId"), "应包含orderId字段");
         assertTrue(firstRow.containsKey("orderStatus"), "应包含orderStatus字段");
-        assertTrue(firstRow.containsKey("totalAmount"), "应包含totalAmount字段");
-        assertTrue(firstRow.containsKey("orderPayAmount"), "应包含orderPayAmount字段");
+        assertTrue(firstRow.containsKey("amount"), "应包含amount字段");
+        assertTrue(firstRow.containsKey("payAmount"), "应包含payAmount字段");
     }
 
     @Test
@@ -106,7 +106,7 @@ class ServiceIntegrationTest extends EcommerceTestSupport {
             "customer$caption",
             "customer$customerType",
             "channel$caption",
-            "totalAmount"
+            "amount"
         ));
 
         List<OrderRequestDef> orders = new ArrayList<>();
@@ -159,7 +159,7 @@ class ServiceIntegrationTest extends EcommerceTestSupport {
         // 2. 通过服务查询
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactOrderQueryModel");
-        queryRequest.setColumns(Arrays.asList("orderId", "orderStatus", "totalAmount"));
+        queryRequest.setColumns(Arrays.asList("orderId", "orderStatus", "amount"));
         queryRequest.setReturnTotal(true);
 
         List<SliceRequestDef> slices = new ArrayList<>();
@@ -212,7 +212,7 @@ class ServiceIntegrationTest extends EcommerceTestSupport {
         // 2. 通过服务查询
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactOrderQueryModel");
-        queryRequest.setColumns(Arrays.asList("customer$customerType", "totalAmount", "orderPayAmount"));
+        queryRequest.setColumns(Arrays.asList("customer$customerType", "amount", "payAmount"));
 
         List<GroupRequestDef> groups = new ArrayList<>();
         GroupRequestDef group = new GroupRequestDef();
@@ -243,9 +243,9 @@ class ServiceIntegrationTest extends EcommerceTestSupport {
 
             assertEquals(nativeRow.get("customer_type"), serviceRow.get("customer$customerType"),
                 "客户类型应一致: 行 " + i);
-            assertDecimalEquals(nativeRow.get("total_amount"), serviceRow.get("totalAmount"),
+            assertDecimalEquals(nativeRow.get("total_amount"), serviceRow.get("amount"),
                 "订单总额应一致: " + nativeRow.get("customer_type"));
-            assertDecimalEquals(nativeRow.get("pay_amount"), serviceRow.get("orderPayAmount"),
+            assertDecimalEquals(nativeRow.get("pay_amount"), serviceRow.get("payAmount"),
                 "应付金额应一致: " + nativeRow.get("customer_type"));
         }
     }
@@ -273,7 +273,7 @@ class ServiceIntegrationTest extends EcommerceTestSupport {
         // 2. 通过服务查询
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactOrderQueryModel");
-        queryRequest.setColumns(Arrays.asList("orderDate$year", "customer$customerType", "totalAmount"));
+        queryRequest.setColumns(Arrays.asList("orderDate$year", "customer$customerType", "amount"));
 
         List<GroupRequestDef> groups = new ArrayList<>();
         groups.add(createGroup("orderDate$year"));
@@ -303,7 +303,7 @@ class ServiceIntegrationTest extends EcommerceTestSupport {
                 "年份应一致: 行 " + i);
             assertEquals(nativeRow.get("customer_type"), serviceRow.get("customer$customerType"),
                 "客户类型应一致: 行 " + i);
-            assertDecimalEquals(nativeRow.get("total_amount"), serviceRow.get("totalAmount"),
+            assertDecimalEquals(nativeRow.get("total_amount"), serviceRow.get("amount"),
                 "订单总额应一致: 行 " + i);
         }
     }
@@ -331,7 +331,7 @@ class ServiceIntegrationTest extends EcommerceTestSupport {
         // 2. 通过服务查询
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactOrderQueryModel");
-        queryRequest.setColumns(Arrays.asList("customer$customerType", "totalAmount"));
+        queryRequest.setColumns(Arrays.asList("customer$customerType", "amount"));
 
         List<SliceRequestDef> slices = new ArrayList<>();
         SliceRequestDef slice = new SliceRequestDef();
@@ -365,7 +365,7 @@ class ServiceIntegrationTest extends EcommerceTestSupport {
 
             assertEquals(nativeRow.get("customer_type"), serviceRow.get("customer$customerType"),
                 "客户类型应一致: 行 " + i);
-            assertDecimalEquals(nativeRow.get("total_amount"), serviceRow.get("totalAmount"),
+            assertDecimalEquals(nativeRow.get("total_amount"), serviceRow.get("amount"),
                 "订单总额应一致: " + nativeRow.get("customer_type"));
         }
     }
@@ -385,7 +385,7 @@ class ServiceIntegrationTest extends EcommerceTestSupport {
         // 1. 查询第一页
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactOrderQueryModel");
-        queryRequest.setColumns(Arrays.asList("orderId", "totalAmount"));
+        queryRequest.setColumns(Arrays.asList("orderId", "amount"));
         queryRequest.setReturnTotal(true);
 
         List<OrderRequestDef> orders = new ArrayList<>();
@@ -433,7 +433,7 @@ class ServiceIntegrationTest extends EcommerceTestSupport {
         // 2. 通过服务查询（启用totalColumn）
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactOrderQueryModel");
-        queryRequest.setColumns(Arrays.asList("orderId", "totalAmount"));
+        queryRequest.setColumns(Arrays.asList("orderId", "amount"));
         queryRequest.setReturnTotal(true);
 
         PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 10);
@@ -448,7 +448,7 @@ class ServiceIntegrationTest extends EcommerceTestSupport {
         assertTrue(result.getTotalData() instanceof Map, "汇总数据应为Map类型");
 
         Map<String, Object> totalData = (Map<String, Object>) result.getTotalData();
-        assertDecimalEquals(nativeSummary.get("total_amount"), totalData.get("totalAmount"), "汇总金额应一致");
+        assertDecimalEquals(nativeSummary.get("total_amount"), totalData.get("amount"), "汇总金额应一致");
     }
 
     // ==========================================

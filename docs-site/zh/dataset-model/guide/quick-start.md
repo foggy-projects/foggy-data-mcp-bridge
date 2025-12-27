@@ -325,14 +325,12 @@ export const model = {
     measures: [
         {
             column: 'quantity',
-            name: 'totalQuantity',
             caption: '订单数量',
             type: 'INTEGER',
             aggregation: 'sum'
         },
         {
             column: 'amount',
-            name: 'totalAmount',
             caption: '订单金额',
             type: 'MONEY',
             aggregation: 'sum'
@@ -394,8 +392,8 @@ export const queryModel = {
         {
             caption: '度量',
             items: [
-                { name: 'totalQuantity' },
-                { name: 'totalAmount' }
+                { name: 'quantity' },
+                { name: 'amount' }
             ]
         }
     ],
@@ -415,7 +413,7 @@ export const queryModel = {
 | 格式 | 说明 | 示例 |
 |------|------|------|
 | `属性名` | 事实表属性 | `orderId`, `orderStatus` |
-| `度量名` | 度量字段 | `totalAmount`, `totalQuantity` |
+| `度量名` | 度量字段 | `amount`, `quantity` |
 | `维度名$caption` | 维度显示值 | `customer$caption` |
 | `维度名$属性名` | 维度其他属性 | `customer$customerType` |
 
@@ -453,7 +451,7 @@ curl -X POST http://localhost:8080/jdbc-model/query-model/v2/FactOrderQueryModel
     "page": 1,
     "pageSize": 10,
     "param": {
-      "columns": ["orderId", "customer$caption", "totalAmount"]
+      "columns": ["orderId", "customer$caption", "amount"]
     }
   }'
 ```
@@ -486,7 +484,7 @@ Content-Type: application/json
             "orderStatus",
             "customer$caption",
             "product$caption",
-            "totalAmount"
+            "amount"
         ]
     }
 }
@@ -504,7 +502,7 @@ Content-Type: application/json
                 "orderStatus": "COMPLETED",
                 "customer$caption": "张三",
                 "product$caption": "iPhone 15",
-                "totalAmount": 6999.00
+                "amount": 6999.00
             }
         ],
         "total": 100
@@ -521,10 +519,10 @@ Content-Type: application/json
     "page": 1,
     "pageSize": 20,
     "param": {
-        "columns": ["orderId", "customer$caption", "totalAmount"],
+        "columns": ["orderId", "customer$caption", "amount"],
         "slice": [
             { "field": "orderStatus", "op": "=", "value": "COMPLETED" },
-            { "field": "totalAmount", "op": ">=", "value": 100 },
+            { "field": "amount", "op": ">=", "value": 100 },
             { "field": "customer$province", "op": "=", "value": "广东省" }
         ]
     }
@@ -537,7 +535,7 @@ Content-Type: application/json
 SELECT
     t0.order_id AS orderId,
     t1.customer_name AS "customer$caption",
-    t0.amount AS totalAmount
+    t0.amount AS amount
 FROM fact_order t0
 LEFT JOIN dim_customer t1 ON t0.customer_id = t1.customer_id
 WHERE t0.order_status = 'COMPLETED'
@@ -557,15 +555,15 @@ WHERE t0.order_status = 'COMPLETED'
         "columns": [
             "customer$customerType",
             "product$category",
-            "totalQuantity",
-            "totalAmount"
+            "quantity",
+            "amount"
         ],
         "groupBy": [
             { "field": "customer$customerType" },
             { "field": "product$category" }
         ],
         "orderBy": [
-            { "field": "totalAmount", "order": "desc" }
+            { "field": "amount", "order": "desc" }
         ]
     }
 }
@@ -581,14 +579,14 @@ WHERE t0.order_status = 'COMPLETED'
             {
                 "customer$customerType": "VIP",
                 "product$category": "数码电器",
-                "totalQuantity": 150,
-                "totalAmount": 89900.00
+                "quantity": 150,
+                "amount": 89900.00
             },
             {
                 "customer$customerType": "普通",
                 "product$category": "数码电器",
-                "totalQuantity": 80,
-                "totalAmount": 45600.00
+                "quantity": 80,
+                "amount": 45600.00
             }
         ],
         "total": 10
@@ -603,7 +601,7 @@ WHERE t0.order_status = 'COMPLETED'
 ```json
 {
     "param": {
-        "columns": ["orderId", "orderTime", "totalAmount"],
+        "columns": ["orderId", "orderTime", "amount"],
         "slice": [
             {
                 "field": "orderTime",
@@ -611,7 +609,7 @@ WHERE t0.order_status = 'COMPLETED'
                 "value": ["2024-01-01", "2024-07-01"]
             },
             {
-                "field": "totalAmount",
+                "field": "amount",
                 "op": "[]",
                 "value": [100, 1000]
             }
@@ -634,7 +632,7 @@ WHERE t0.order_status = 'COMPLETED'
 ```json
 {
     "param": {
-        "columns": ["orderId", "orderStatus", "totalAmount"],
+        "columns": ["orderId", "orderStatus", "amount"],
         "slice": [
             {
                 "field": "orderStatus",
@@ -685,7 +683,7 @@ public class OrderQueryService {
             "orderStatus",
             "customer$caption",
             "product$caption",
-            "totalAmount"
+            "amount"
         ));
 
         // 设置过滤条件
