@@ -1,6 +1,7 @@
 package com.foggyframework.dataset.db.model.plugins;
 
 import com.foggyframework.dataset.client.domain.PagingRequest;
+import com.foggyframework.dataset.db.model.def.query.request.CondRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.db.model.ecommerce.EcommerceTestSupport;
@@ -274,6 +275,66 @@ class HavingClauseIntegrationTest extends EcommerceTestSupport {
             assertEquals(0, nativeAmount.compareTo(queryAmount),
                     "总金额应该一致: native=" + nativeAmount + ", query=" + queryAmount);
         }
+    }
+
+    @Test
+    @Order(6)
+    @DisplayName("OR混合条件应该抛出明确错误")
+    void testOrMixedConditionShouldFail() {
+        // 测试：OR 连接聚合字段和普通字段应该抛出清晰的错误
+
+        DbQueryRequestDef request = new DbQueryRequestDef();
+        request.setQueryModel("FactOrderQueryModel");
+        request.setAutoGroupBy(true);
+        request.setColumns(List.of(
+                "customer$customerType",
+                "sum(amount) as totalAmount"
+        ));
+
+        // 尝试使用 OR 连接聚合字段和普通字段
+        List<SliceRequestDef> slices = new ArrayList<>();
+        SliceRequestDef orGroup = new SliceRequestDef();
+        orGroup.setField("_group_"); // 组合条件需要一个field（校验要求，虽然不会被使用）
+        orGroup.setLink(2); // 2 = OR
+
+        List<CondRequestDef> children = new ArrayList<>();
+
+        // 普通字段条件
+        CondRequestDef normalCond = new CondRequestDef();
+        normalCond.setField("customer$customerType");
+        normalCond.setOp("=");
+        normalCond.setValue("VIP");
+        children.add(normalCond);
+
+        // 聚合字段条件
+        CondRequestDef aggCond = new CondRequestDef();
+        aggCond.setField("totalAmount");
+        aggCond.setOp(">");
+        aggCond.setValue(1000);
+        children.add(aggCond);
+
+        orGroup.setChildren(children);
+        slices.add(orGroup);
+        request.setSlice(slices);
+
+        // 执行查询，应该抛出异常
+        Exception exception = assertThrows(Exception.class, () -> {
+            queryFacade.queryModelData(PagingRequest.buildPagingRequest(request, 100));
+        }, "OR 连接聚合字段和普通字段应该抛出异常");
+
+        // 验证错误消息包含关键信息
+        String errorMessage = exception.getMessage();
+        log.info("捕获到错误消息:\n{}", errorMessage);
+
+        assertTrue(errorMessage.contains("OR") || errorMessage.contains("or"),
+                "错误消息应该包含 'OR'，实际消息：" + errorMessage);
+        assertTrue(errorMessage.contains("totalAmount"),
+                "错误消息应该包含聚合字段名，实际消息：" + errorMessage);
+        assertTrue(errorMessage.contains("customer$customerType") || errorMessage.contains("customerType"),
+                "错误消息应该包含普通字段名，实际消息：" + errorMessage);
+        assertTrue(errorMessage.contains("HAVING") || errorMessage.contains("WHERE") ||
+                   errorMessage.contains("聚合") || errorMessage.contains("普通"),
+                "错误消息应该说明 WHERE/HAVING 的区别，实际消息：" + errorMessage);
     }
 
     // ==========================================

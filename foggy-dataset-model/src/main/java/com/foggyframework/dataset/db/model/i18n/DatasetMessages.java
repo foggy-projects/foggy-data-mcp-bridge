@@ -144,6 +144,10 @@ public class DatasetMessages {
         return getMessage("error.query.fields.required");
     }
 
+    public static String queryMixedConditionNotAllowed(String link, String aggregateFields, String normalFields) {
+        return getMessage("error.query.mixed.condition.not.allowed", link, aggregateFields, normalFields);
+    }
+
     // ==========================================
     // Formula Error Messages
     // ==========================================

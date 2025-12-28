@@ -515,6 +515,12 @@ public class JdbcModelQueryEngine implements QueryEngine {
     private void buildSlice(JdbcQueryModel jdbcQueryModel, JdbcQuery jdbcQuery, JdbcQuery.JdbcListCond listCond, CondRequestDef sliceDef, int idx, int level) {
         if (sliceDef._hasChildren()) {
             //有子项~
+
+            // 校验：如果是OR连接，不能混合聚合字段和普通字段
+            if ("OR".equalsIgnoreCase(JdbcLink.getLinkStr(sliceDef.getLink()))) {
+                validateOrConditionGroup(sliceDef);
+            }
+
             int i = 0;
             //第一层不加,全部用and
             JdbcQuery.JdbcGroupCond gc = jdbcQuery.getWhere().newGroupCond(level > 0 ? JdbcLink.getLinkStr(sliceDef.getLink()) : "");
@@ -596,6 +602,70 @@ public class JdbcModelQueryEngine implements QueryEngine {
             return false;
         }
         return parsedInlineExpressions.getColumnAggregations().containsKey(fieldName);
+    }
+
+    /**
+     * 校验 OR 连接的条件组
+     * <p>
+     * OR 连接的条件组中不能同时包含聚合字段和普通字段，因为：
+     * <ul>
+     *   <li>聚合字段的条件必须放在 HAVING 子句</li>
+     *   <li>普通字段的条件必须放在 WHERE 子句</li>
+     *   <li>WHERE 和 HAVING 子句不能用 OR 连接</li>
+     * </ul>
+     * 例如：{@code (customer_type='VIP' OR totalAmount>1000)} 在 SQL 中无法表达，
+     * 因为无法写成 {@code WHERE customer_type='VIP' OR HAVING SUM(amount)>1000}
+     * </p>
+     *
+     * @param condGroup OR 连接的条件组
+     * @throws IllegalArgumentException 如果检测到混合使用聚合字段和普通字段
+     */
+    private void validateOrConditionGroup(CondRequestDef condGroup) {
+        if (condGroup.getChildren() == null || condGroup.getChildren().isEmpty()) {
+            return;
+        }
+
+        List<String> aggregateFields = new ArrayList<>();
+        List<String> normalFields = new ArrayList<>();
+
+        // 递归收集所有叶子字段
+        collectFieldsByType(condGroup, aggregateFields, normalFields);
+
+        // 如果同时存在聚合字段和普通字段，抛出错误
+        if (!aggregateFields.isEmpty() && !normalFields.isEmpty()) {
+            String link = JdbcLink.getLinkStr(condGroup.getLink());
+            throw RX.throwAUserTip(DatasetMessages.queryMixedConditionNotAllowed(
+                    link,
+                    String.join(", ", aggregateFields),
+                    String.join(", ", normalFields)
+            ));
+        }
+    }
+
+    /**
+     * 递归收集条件组中的字段，按类型分类
+     *
+     * @param cond            条件定义（可能是组合条件或叶子条件）
+     * @param aggregateFields 聚合字段列表（输出参数）
+     * @param normalFields    普通字段列表（输出参数）
+     */
+    private void collectFieldsByType(CondRequestDef cond, List<String> aggregateFields, List<String> normalFields) {
+        if (cond._hasChildren()) {
+            // 递归处理子条件
+            for (CondRequestDef child : cond.getChildren()) {
+                collectFieldsByType(child, aggregateFields, normalFields);
+            }
+        } else {
+            // 叶子条件，检查字段类型
+            String fieldName = cond.getField();
+            if (fieldName != null && !fieldName.isEmpty()) {
+                if (isAggregateCondition(fieldName)) {
+                    aggregateFields.add(fieldName);
+                } else {
+                    normalFields.add(fieldName);
+                }
+            }
+        }
     }
 
     /**
