@@ -325,43 +325,39 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
     private AggregationDbColumn buildAggColumn1(QueryObject sqlQueryObject, String declare, DbColumn column, DbAggregation agg) {
 
-        AggregationDbColumn aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), declare, column.getType());
         if (agg == null) {
             agg = DbAggregation.NONE;
         }
+
+        AggregationDbColumn aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), declare, column.getType(), agg);
+
         switch (agg) {
             case GROUP_CONCAT:
                 aggColumn.setDeclare("GROUP_CONCAT(" + declare + " SEPARATOR ',')");
-                aggColumn.setGroupByName(null);
                 break;
             case MAX:
                 aggColumn.setDeclare("MAX(" + declare + ")");
-                aggColumn.setGroupByName(null);
                 break;
             case MIN:
                 aggColumn.setDeclare("MIN(" + declare + ")");
-                aggColumn.setGroupByName(null);
                 break;
             case PK:
                 aggColumn.setDeclare("MAX(" + declare + ")");
+                aggColumn.setAggregation(DbAggregation.MAX); // PK 实际使用 MAX 聚合
                 break;
             case COUNT:
                 aggColumn.setDeclare("COUNT(*)");
-                aggColumn.setGroupByName(null);
                 break;
             case SUM:
                 aggColumn.setDeclare("SUM(" + declare + ")");
-                aggColumn.setGroupByName(null);
                 break;
             case AVG:
                 aggColumn.setDeclare("AVG(" + declare + ")");
-                aggColumn.setGroupByName(null);
                 break;
             case CUSTOM:
                 String aggregationFormula = column.getAggregationFormula();
                 RX.hasText(aggregationFormula, "传了groupBy为CUSTOM , 但没有定义aggregationFormula，列:" + column.getName());
                 aggColumn.setDeclare(aggregationFormula);
-                aggColumn.setGroupByName(null);
                 break;
             case NONE:
             default:
@@ -399,43 +395,51 @@ public class JdbcModelQueryEngine implements QueryEngine {
             switch (c) {
                 case AVG:
 //                    aggJdbcQuery.getSelect().select()
-                    aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), "avg" + "(" + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + ")", column.getType());
+                    aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(),
+                            "avg" + "(" + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + ")",
+                            column.getType(), DbAggregation.AVG);
                     break;
                 case SUM:
                     String declare = "";
-                    switch (column.getSqlColumn().getJdbcType()) {
-                        case Types.DOUBLE:
-                        case Types.FLOAT:
-                            //需要格式化,不再格式化,会引起外部聚合时的问题,这个格式化交给前端处理好了
+                    // 注意: AggregationDbColumn.getSqlColumn() 返回 null，需要检查
+                    if (column.getSqlColumn() != null) {
+                        switch (column.getSqlColumn().getJdbcType()) {
+                            case Types.DOUBLE:
+                            case Types.FLOAT:
+                                //需要格式化,不再格式化,会引起外部聚合时的问题,这个格式化交给前端处理好了
 //                                declare = "format(sum" + "(" + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + "),2)";
 //                                break;
-                        default:
-                            declare = "sum" + "(" + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + ")";
+                            default:
+                                declare = "sum" + "(" + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + ")";
+                        }
+                    } else {
+                        // 没有 SqlColumn 时（如 AggregationDbColumn），使用默认逻辑
+                        declare = "sum" + "(" + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + ")";
                     }
-                    aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), declare, column.getType());
+                    aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), declare, column.getType(), DbAggregation.SUM);
                     break;
                 case COUNT:
                     if (countToSum) {
                         //解决前端聚合维度或属性时的BUG
                         declare = "sum" + "(" + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + ")";
-                        aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), declare, column.getType());
+                        aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), declare, column.getType(), DbAggregation.SUM);
                     } else {
-                        aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), "count" + "(*)");
+                        aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), "count" + "(*)", null, DbAggregation.COUNT);
                     }
 
                     break;
                 case MAX:
                     declare = "max" + "(" + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + ")";
-                    aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), declare, column.getType());
+                    aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), declare, column.getType(), DbAggregation.MAX);
                     break;
                 case MIN:
                     declare = "min" + "(" + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + ")";
-                    aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), declare, column.getType());
+                    aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), declare, column.getType(), DbAggregation.MIN);
                     break;
                 case NONE:
                     //意思是不做聚合
                     declare = "null";
-                    aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), declare, column.getType());
+                    aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), declare, column.getType(), DbAggregation.NONE);
                     break;
                 default:
                     throw new UnsupportedOperationException();
@@ -443,7 +447,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
             aggColumns.add(aggColumn);
 
         }
-        aggColumns.add(new AggregationDbColumn(sqlQueryObject, "total", "count(*)"));
+        aggColumns.add(new AggregationDbColumn(sqlQueryObject, "total", "count(*)", null, DbAggregation.COUNT));
         sqlQueryObject.setColumns(aggColumns);
 
         aggJdbcQuery.from(sqlQueryObject);

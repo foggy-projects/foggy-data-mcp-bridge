@@ -218,18 +218,19 @@ public class AggSqlOptimizer {
             String alias = column.getAlias();
             String colRef = "tx." + alias;
 
-            // 对于 AggregationDbColumn，检查 groupByName 来判断是聚合列还是分组列
+            // 对于 AggregationDbColumn，直接使用 getAggregation() 判断
             if (column instanceof AggregationDbColumn) {
                 AggregationDbColumn aggColumn = (AggregationDbColumn) column;
-                if (aggColumn.getGroupByName() == null) {
-                    // 这是一个聚合列，需要从 declare 中提取聚合类型
+                DbAggregation agg = aggColumn.getAggregation();
+
+                // 判断是否是聚合列：检查聚合类型
+                if (agg != null && agg != DbAggregation.NONE) {
+                    // 这是一个聚合列（如 SUM/AVG/COUNT），需要继续聚合
                     String declare = aggColumn.getDeclare();
-                    // declare 格式如: SUM(a1.quantity), AVG(a1.price) 等
-                    // 我们需要替换其中的表别名为 tx
-                    String aggExpr = replaceTableAliasForAgg(declare, colRef, alias);
+                    String aggExpr = replaceTableAliasForAgg(declare, colRef, alias, agg);
                     aggExpressions.add(aggExpr);
                 } else {
-                    // 这是一个分组列，在外层聚合时返回 null
+                    // 这是一个分组列（agg == NONE），在外层聚合时返回 null
                     aggExpressions.add("null `" + alias + "`");
                 }
                 continue;
@@ -283,29 +284,42 @@ public class AggSqlOptimizer {
     /**
      * 为聚合表达式替换表别名
      * <p>
-     * 将 "SUM(a1.quantity)" 转换为 "sum(tx.quantity) `quantity`"
+     * 根据聚合类型生成外层聚合SQL，如将 "SUM(m1.amount)" 转换为 "sum(tx.totalAmount) `totalAmount`"
      * </p>
+     *
+     * @param declare SQL声明（原始的聚合表达式，可能未使用）
+     * @param colRef  列引用（如 "tx.totalAmount"）
+     * @param alias   列别名
+     * @param agg     聚合类型
+     * @return 外层聚合表达式
      */
-    private String replaceTableAliasForAgg(String declare, String colRef, String alias) {
-        String lowerDeclare = declare.toLowerCase();
-
-        // 检测聚合函数类型
-        if (lowerDeclare.startsWith("sum(")) {
-            return "sum(" + colRef + ") `" + alias + "`";
-        } else if (lowerDeclare.startsWith("avg(")) {
-            return "avg(" + colRef + ") `" + alias + "`";
-        } else if (lowerDeclare.startsWith("count(")) {
-            return "sum(" + colRef + ") `" + alias + "`"; // 外层用 SUM 聚合内层的 COUNT
-        } else if (lowerDeclare.startsWith("max(")) {
-            return "max(" + colRef + ") `" + alias + "`";
-        } else if (lowerDeclare.startsWith("min(")) {
-            return "min(" + colRef + ") `" + alias + "`";
-        } else if (lowerDeclare.startsWith("group_concat(")) {
-            return "group_concat(" + colRef + ") `" + alias + "`";
+    private String replaceTableAliasForAgg(String declare, String colRef, String alias, DbAggregation agg) {
+        if (agg == null) {
+            agg = DbAggregation.SUM; // 默认使用 SUM
         }
 
-        // 默认使用 SUM
-        return "sum(" + colRef + ") `" + alias + "`";
+        switch (agg) {
+            case SUM:
+                return "sum(" + colRef + ") `" + alias + "`";
+            case AVG:
+                return "avg(" + colRef + ") `" + alias + "`";
+            case COUNT:
+                // 外层用 SUM 聚合内层的 COUNT
+                return "sum(" + colRef + ") `" + alias + "`";
+            case MAX:
+                return "max(" + colRef + ") `" + alias + "`";
+            case MIN:
+                return "min(" + colRef + ") `" + alias + "`";
+            case GROUP_CONCAT:
+                return "group_concat(" + colRef + ") `" + alias + "`";
+            case CUSTOM:
+                // CUSTOM 聚合：保守处理，使用 SUM
+                return "sum(" + colRef + ") `" + alias + "`";
+            case NONE:
+            default:
+                // 理论上不应该到这里（NONE 不会调用此方法）
+                return "sum(" + colRef + ") `" + alias + "`";
+        }
     }
 
     /**
@@ -329,27 +343,13 @@ public class AggSqlOptimizer {
     /**
      * 判断列是否为聚合列
      * <p>
-     * 判断逻辑：
-     * <ul>
-     *   <li>AggregationDbColumn 且 groupByName == null 表示是聚合列（SUM/AVG/COUNT/MAX/MIN等）</li>
-     *   <li>AggregationDbColumn 且 groupByName != null 表示是分组列</li>
-     *   <li>普通 DbColumn 且 getAggregation() != null && != NONE 表示是聚合列</li>
-     * </ul>
+     * 通过 getAggregation() 方法判断，避免字符串解析。
      * </p>
      *
      * @param column 数据库列
      * @return true 如果是聚合列
      */
     private boolean isAggregateColumn(DbColumn column) {
-        // 检查 AggregationDbColumn
-        if (column instanceof AggregationDbColumn) {
-            AggregationDbColumn aggColumn = (AggregationDbColumn) column;
-            // groupByName == null 表示这是一个聚合列（SUM/AVG/COUNT等）
-            // groupByName != null 表示这是一个分组列
-            return aggColumn.getGroupByName() == null;
-        }
-
-        // 普通列，检查 getAggregation()
         DbAggregation agg = column.getAggregation();
         return agg != null && agg != DbAggregation.NONE;
     }
