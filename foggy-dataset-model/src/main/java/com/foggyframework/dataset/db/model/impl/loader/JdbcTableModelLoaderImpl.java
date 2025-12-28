@@ -10,6 +10,7 @@ import com.foggyframework.dataset.db.model.engine.query_model.JdbcQueryModelImpl
 import com.foggyframework.dataset.db.model.engine.query_model.QueryModelSupport;
 import com.foggyframework.dataset.db.model.impl.LoaderSupport;
 import com.foggyframework.dataset.db.model.impl.model.DbTableModelImpl;
+import com.foggyframework.dataset.db.model.interceptor.SqlLoggingInterceptor;
 import com.foggyframework.dataset.db.model.spi.QueryModelBuilder;
 import com.foggyframework.dataset.db.model.spi.TableModel;
 import com.foggyframework.dataset.db.model.spi.TableModelLoader;
@@ -17,6 +18,7 @@ import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import javax.sql.DataSource;
 import java.util.List;
@@ -29,6 +31,13 @@ public class JdbcTableModelLoaderImpl extends LoaderSupport implements TableMode
 
     @Resource
     SqlFormulaService sqlFormulaService;
+
+    /**
+     * SQL 日志拦截器（可选依赖）
+     * <p>只有当 foggy.dataset.show-sql=true 时才会注入
+     */
+    @Autowired(required = false)
+    SqlLoggingInterceptor sqlLoggingInterceptor;
 
     public JdbcTableModelLoaderImpl(SystemBundlesContext systemBundlesContext, FileFsscriptLoader fileFsscriptLoader) {
         super(systemBundlesContext, fileFsscriptLoader);
@@ -93,6 +102,12 @@ public class JdbcTableModelLoaderImpl extends LoaderSupport implements TableMode
         }
 
         JdbcQueryModelImpl qm = new JdbcQueryModelImpl(jdbcModelDxList,fsscript,sqlFormulaService,ds);
+
+        // 注入 SQL 日志拦截器（如果已启用）
+        if (sqlLoggingInterceptor != null) {
+            qm.setSqlLoggingInterceptor(sqlLoggingInterceptor);
+        }
+
         queryModelDef.apply(qm);
         return qm;
     }

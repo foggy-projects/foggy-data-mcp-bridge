@@ -10,6 +10,7 @@ import com.foggyframework.dataset.db.model.engine.expression.SqlCalculatedFieldP
 import com.foggyframework.dataset.db.model.engine.formula.SqlFormulaService;
 import com.foggyframework.dataset.db.model.engine.query.DbQueryResult;
 import com.foggyframework.dataset.db.model.impl.model.TableModelSupport;
+import com.foggyframework.dataset.db.model.interceptor.SqlLoggingInterceptor;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.spi.*;
 import com.foggyframework.dataset.model.PagingResultImpl;
@@ -40,6 +41,12 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
      */
     private CalculatedFieldProcessor calculatedFieldProcessor;
 
+    /**
+     * SQL 日志拦截器（可选依赖）
+     * <p>只有当 foggy.dataset.show-sql=true 时才会注入
+     */
+    private SqlLoggingInterceptor sqlLoggingInterceptor;
+
     public JdbcQueryModelImpl(List<TableModel> jdbcModelList, Fsscript fsscript, SqlFormulaService sqlFormulaService, DataSource dataSource) {
         super(jdbcModelList, fsscript);
         this.jdbcModel = jdbcModelList.get(0);
@@ -48,6 +55,14 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
         this.fsscript = fsscript;
         this.jdbcModelList = jdbcModelList;
         // name2Alias 已在父类 QueryModelSupport 构造函数中统一注册
+    }
+
+    /**
+     * 设置 SQL 日志拦截器（可选）
+     * <p>由 Spring 容器自动注入（如果已启用）
+     */
+    public void setSqlLoggingInterceptor(SqlLoggingInterceptor sqlLoggingInterceptor) {
+        this.sqlLoggingInterceptor = sqlLoggingInterceptor;
     }
 
     @Override
@@ -94,12 +109,25 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
 
         String pagingSql = DbUtils.getDialect(dataSource).generatePagingSql(queryEngine.getSql(), form.getStart(), form.getLimit());
 
+        // 记录 SQL 日志（明细查询）
+        if (sqlLoggingInterceptor != null) {
+            sqlLoggingInterceptor.logSql(pagingSql, queryEngine.getValues());
+        }
+
+        long startTime = System.currentTimeMillis();
+
         List items;
         if (form.getLimit() < 0) {
             //前端传了小于0的值，意味着不需要查明细~
             items = Collections.EMPTY_LIST;
         } else {
             items = DataSourceQueryUtils.getDatasetTemplate(dataSource).getTemplate().queryForList(pagingSql, queryEngine.getValues().toArray(new Object[0]));
+        }
+
+        // 记录执行时间（明细查询）
+        if (sqlLoggingInterceptor != null && form.getLimit() >= 0) {
+            long duration = System.currentTimeMillis() - startTime;
+            sqlLoggingInterceptor.logExecutionTime(this.getName(), duration);
         }
 
         //对items中的数据进行格式化
@@ -126,7 +154,21 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
         Map<String, Object> totalData = null;
         int total = 0;
         if (form.getParam().isReturnTotal()) {
+            // 记录 SQL 日志（汇总查询）
+            if (sqlLoggingInterceptor != null) {
+                sqlLoggingInterceptor.logSql(queryEngine.getAggSql(), queryEngine.getValues());
+            }
+
+            long aggStartTime = System.currentTimeMillis();
+
             totalData = DataSourceQueryUtils.getDatasetTemplate(dataSource).queryMapObject1(queryEngine.getAggSql(), queryEngine.getValues());
+
+            // 记录执行时间（汇总查询）
+            if (sqlLoggingInterceptor != null) {
+                long aggDuration = System.currentTimeMillis() - aggStartTime;
+                sqlLoggingInterceptor.logExecutionTime(this.getName() + " (COUNT)", aggDuration);
+            }
+
             Number it = (Number) totalData.get("total");
             if (it != null) {
                 total = it.intValue();

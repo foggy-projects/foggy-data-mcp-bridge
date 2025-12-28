@@ -143,7 +143,12 @@ spring:
 # Foggy 配置（可选）
 foggy:
   dataset:
-    show-sql: true  # 开启 SQL 日志，方便调试
+    # SQL 日志配置
+    show-sql: true               # 打印 SQL 语句到控制台（开发调试用）
+    sql-format: false            # 是否格式化 SQL（true=多行，false=单行）
+    sql-log-level: DEBUG         # SQL 日志级别（DEBUG/INFO）
+    show-sql-parameters: true    # 显示 SQL 参数值
+    show-execution-time: true    # 显示 SQL 执行时间
 ```
 
 **已有项目**：如果你的项目已经配置了数据源，无需修改，Foggy 会自动使用现有数据源。
@@ -461,7 +466,7 @@ curl -X POST http://localhost:8080/jdbc-model/query-model/v2/FactOrderQueryModel
 > **提示**：
 > - 默认端口是 8080，可在 `application.yml` 中修改：`server.port: 8081`
 > - 查询接口路径格式：`/jdbc-model/query-model/v2/{QueryModelName}`
-> - 如果启用了 `show-sql: true`，可以在控制台看到生成的 SQL 语句
+> - 如果启用了 `foggy.dataset.show-sql: true`，可以在控制台看到生成的 SQL 语句和执行时间
 
 ---
 

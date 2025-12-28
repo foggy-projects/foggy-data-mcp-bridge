@@ -2,6 +2,7 @@ package com.foggyframework.dataset.db.model;
 
 
 import com.foggyframework.bundle.SystemBundlesContext;
+import com.foggyframework.dataset.db.model.config.DatasetProperties;
 import com.foggyframework.dataset.db.model.config.SemanticProperties;
 import com.foggyframework.dataset.db.model.engine.formula.*;
 import com.foggyframework.dataset.db.model.engine.query_model.DbModelFileChangeHandler;
@@ -68,6 +69,12 @@ public class DbModelAutoConfiguration {
     @ConfigurationProperties(prefix = "semantic")
     public SemanticProperties semanticProperties() {
         return new SemanticProperties();
+    }
+
+    @Bean
+    @ConfigurationProperties(prefix = "foggy.dataset")
+    public DatasetProperties datasetProperties() {
+        return new DatasetProperties();
     }
 
     @Bean

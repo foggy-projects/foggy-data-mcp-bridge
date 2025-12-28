@@ -33,7 +33,6 @@ spring:
       hibernate:
         jdbc:
           time_zone: Asia/Shanghai
-    show-sql: false
     open-in-view: false
 
   # ==========================================
@@ -82,6 +81,9 @@ mcp:
 # ==========================================
 foggy:
   dataset:
+    # SQL 日志配置 (生产环境建议关闭)
+    show-sql: false              # 不打印 SQL 语句
+    # 模型定义文件路径
     templates-path: classpath:/foggy/templates/
     cache:
       enabled: true

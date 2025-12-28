@@ -35,7 +35,6 @@ spring:
       hibernate:
         jdbc:
           time_zone: Asia/Shanghai
-    show-sql: true
     open-in-view: false
 
   # ==========================================
@@ -96,6 +95,12 @@ mcp:
 # ==========================================
 foggy:
   dataset:
+    # SQL 日志配置
+    show-sql: true               # 打印 SQL 语句
+    sql-format: false            # SQL 格式化（单行显示）
+    sql-log-level: DEBUG         # SQL 日志级别
+    show-sql-parameters: true    # 显示 SQL 参数
+    show-execution-time: true    # 显示执行时间
     # 模型定义文件路径 - 使用 foggy-dataset-model 的测试资源
     templates-path: classpath:/foggy/templates/
     cache:
