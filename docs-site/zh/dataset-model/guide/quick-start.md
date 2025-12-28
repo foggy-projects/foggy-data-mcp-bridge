@@ -611,7 +611,7 @@ WHERE t0.order_status = 'COMPLETED'
             {
                 "field": "amount",
                 "op": "[]",
-                "value": [100, 1000]
+                "value": [100, 8000]
             }
         ]
     }
@@ -636,7 +636,7 @@ WHERE t0.order_status = 'COMPLETED'
         "slice": [
             {
                 "field": "orderStatus",
-                "type": "in",
+                "op": "in",
                 "value": ["COMPLETED", "SHIPPED", "PAID"]
             }
         ]
@@ -653,8 +653,8 @@ WHERE t0.order_status = 'COMPLETED'
         "slice": [
             {
                 "field": "customer$caption",
-                "type": "like",
-                "value": "%张%"
+                "op": "like",
+                "value": "张"
             }
         ]
     }
@@ -690,8 +690,8 @@ public class OrderQueryService {
         List<SliceRequestDef> slices = new ArrayList<>();
         if (params.getStatus() != null) {
             SliceRequestDef slice = new SliceRequestDef();
-            slice.setName("orderStatus");
-            slice.setType("=");
+            slice.setField("orderStatus");
+            slice.setOp("=");
             slice.setValue(params.getStatus());
             slices.add(slice);
         }
@@ -721,7 +721,9 @@ public class OrderQueryService {
 | `<=` | 小于等于 | `1000` |
 | `in` | 包含 | `["A", "B", "C"]` |
 | `not in` | 不包含 | `["X", "Y"]` |
-| `like` | 模糊匹配 | `"%关键字%"` |
+| `like` | 模糊匹配 | `字符串左右自动补%，例如查'3',会补成 '%3%'` |
+| `left_like` | 模糊匹配 | `字符串左侧自动补%，例如查'3',会补成 '%3'` |
+| `right_like` | 模糊匹配 | `字符串右侧自动补%，例如查'3',会补成 '3%'` |
 | `is null` | 为空 | 无需 value |
 | `is not null` | 不为空 | 无需 value |
 | `[]` | 闭区间 | `[100, 500]` |
