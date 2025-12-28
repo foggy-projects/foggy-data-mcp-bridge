@@ -476,40 +476,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
 
     private void buildSlice(JdbcQueryModel jdbcQueryModel, JdbcQuery jdbcQuery, SliceRequestDef sliceDef) {
-//        JdbcColumn jdbcColumn = jdbcQueryModel.findJdbcColumnForCond(sliceDef.getName(), true);
-//        if (jdbcColumn == null) {
-//            throw RX.throwAUserTip(String.format("未能找到列[%s]，切片%s", sliceDef.getName(), sliceDef));
-//        }
-//
-//        if (jdbcColumn.getQueryObject() != null && (jdbcQuery.getFrom().getFromObject() != jdbcColumn.getQueryObject())) {
-//            //需要加入left join
-//            jdbcQuery.join(jdbcColumn.getQueryObject());
-//        }
-////        jdbcColumn.gets
-//        String alias = jdbcQueryModel.getAlias(jdbcColumn.getQueryObject());
-//
-//        if (jdbcColumn.isDimension()) {
-//            JdbcModelParentChildDimensionImpl pp = jdbcColumn.getDecorate(JdbcDimensionColumn.class).getJdbcDimension().getDecorate(JdbcModelParentChildDimensionImpl.class);
-//            if (pp != null) {
-//                //这是一个parentChild维~条件要重写，转成closure表
-//                jdbcQuery.join(pp.getClosureQueryObject(), pp.getForeignKey());
-//                alias = jdbcQueryModel.getAlias(pp.getClosureQueryObject());
-//                //查询列换成closure表的parentId
-//                jdbcColumn = pp.getParentKeyJdbcColumn();
-//            }
-//        }
-//
-//        if (sliceDef._hasChildren()) {
-//            //有子项~
-//            JdbcQuery.JdbcGroupCond gc = jdbcQuery.getWhere().newGroupCond();
-//
-//
-//        } else {
-//            sqlFormulaService.buildAndAddToJdbcCond(jdbcQuery.getWhere(), sliceDef.getType(), jdbcColumn, alias, sliceDef.getValue());
-//        }
-
         buildSlice(jdbcQueryModel, jdbcQuery, jdbcQuery.getWhere(), sliceDef, 0);
-
     }
 
     private void buildSlice(JdbcQueryModel jdbcQueryModel, JdbcQuery jdbcQuery, JdbcQuery.JdbcListCond listCond, CondRequestDef sliceDef, int level) {
