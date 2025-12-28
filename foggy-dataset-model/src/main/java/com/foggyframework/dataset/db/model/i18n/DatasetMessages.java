@@ -191,4 +191,52 @@ public class DatasetMessages {
     public static String systemException() {
         return getMessage("error.system.exception");
     }
+
+    // ==========================================
+    // Query Request Validation Error Messages
+    // ==========================================
+
+    public static String validationSliceFieldRequired(int index) {
+        return getMessage("error.validation.slice.field.required", index + 1);
+    }
+
+    public static String validationSliceOpRequired(int index, String field) {
+        return getMessage("error.validation.slice.op.required", index + 1, field);
+    }
+
+    public static String validationSliceOpInvalid(int index, String field, String op, String supportedOps) {
+        return getMessage("error.validation.slice.op.invalid", index + 1, field, op, supportedOps);
+    }
+
+    public static String validationSliceValueRequired(int index, String field, String op) {
+        return getMessage("error.validation.slice.value.required", index + 1, field, op);
+    }
+
+    public static String validationSliceChildrenEmpty(int index, String field) {
+        return getMessage("error.validation.slice.children.empty", index + 1, field);
+    }
+
+    public static String validationGroupByFieldRequired(int index) {
+        return getMessage("error.validation.groupby.field.required", index + 1);
+    }
+
+    public static String validationGroupByAggRequired(int index, String field) {
+        return getMessage("error.validation.groupby.agg.required", index + 1, field);
+    }
+
+    public static String validationGroupByAggInvalid(int index, String field, String agg, String supportedAggs) {
+        return getMessage("error.validation.groupby.agg.invalid", index + 1, field, agg, supportedAggs);
+    }
+
+    public static String validationOrderByFieldRequired(int index) {
+        return getMessage("error.validation.orderby.field.required", index + 1);
+    }
+
+    public static String validationOrderByDirRequired(int index, String field) {
+        return getMessage("error.validation.orderby.dir.required", index + 1, field);
+    }
+
+    public static String validationOrderByDirInvalid(int index, String field, String dir) {
+        return getMessage("error.validation.orderby.dir.invalid", index + 1, field, dir);
+    }
 }

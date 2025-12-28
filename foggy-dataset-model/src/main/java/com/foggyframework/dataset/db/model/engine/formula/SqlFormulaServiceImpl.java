@@ -49,6 +49,11 @@ public class SqlFormulaServiceImpl implements SqlFormulaService {
 
 //        sqlFormula.
     }
+
+    @Override
+    public boolean supports(String operator) {
+        return operator != null && name2SqlFormula.containsKey(operator);
+    }
 //    public JdbcQuery.JdbcCond buildC
 
 
