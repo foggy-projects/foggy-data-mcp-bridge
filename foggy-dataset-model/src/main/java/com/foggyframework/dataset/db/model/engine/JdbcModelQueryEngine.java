@@ -56,6 +56,12 @@ public class JdbcModelQueryEngine implements QueryEngine {
     List<CalculatedDbColumn> calculatedColumns;
 
     /**
+     * 内联表达式解析结果（包含聚合信息）
+     * 用于判断slice条件是否为聚合条件（需要放入HAVING而非WHERE）
+     */
+    ModelResultContext.ParsedInlineExpressions parsedInlineExpressions;
+
+    /**
      * 不含 ORDER BY 的基础SQL，用于聚合查询的子查询
      */
     String innerSqlWithoutOrder;
@@ -530,9 +536,17 @@ public class JdbcModelQueryEngine implements QueryEngine {
                 throw RX.throwAUserTip(DatasetMessages.queryColumnNotfound(sliceDef.getField(), jdbcQueryModel.findDimension(sliceDef.getField())));
             }
 
+            // 判断是否为聚合条件
+            boolean isAggregateCondition = isAggregateCondition(sliceDef.getField());
+
             // 计算字段直接使用 SQL 表达式，不需要 JOIN 和特殊处理
             if (jdbcColumn.isCalculatedField()) {
-                sqlFormulaService.buildAndAddToJdbcCond(listCond, sliceDef.getOp(), jdbcColumn, null, sliceDef.getValue(), sliceDef.getLink());
+                // 聚合条件需要添加到HAVING，否则添加到WHERE
+                if (isAggregateCondition) {
+                    sqlFormulaService.buildAndAddToJdbcCond(jdbcQuery.getHaving(), sliceDef.getOp(), jdbcColumn, null, sliceDef.getValue(), sliceDef.getLink());
+                } else {
+                    sqlFormulaService.buildAndAddToJdbcCond(listCond, sliceDef.getOp(), jdbcColumn, null, sliceDef.getValue(), sliceDef.getLink());
+                }
                 return;
             }
 
@@ -556,9 +570,32 @@ public class JdbcModelQueryEngine implements QueryEngine {
                 //是位图列,重写为bitIn
                 sliceDef.setOp(CondType.BIT_IN.getCode());
             }
-            sqlFormulaService.buildAndAddToJdbcCond(listCond, sliceDef.getOp(), jdbcColumn, alias, sliceDef.getValue(), sliceDef.getLink());
+
+            // 聚合条件需要添加到HAVING，否则添加到WHERE
+            if (isAggregateCondition) {
+                sqlFormulaService.buildAndAddToJdbcCond(jdbcQuery.getHaving(), sliceDef.getOp(), jdbcColumn, alias, sliceDef.getValue(), sliceDef.getLink());
+            } else {
+                sqlFormulaService.buildAndAddToJdbcCond(listCond, sliceDef.getOp(), jdbcColumn, alias, sliceDef.getValue(), sliceDef.getLink());
+            }
         }
 
+    }
+
+    /**
+     * 判断指定字段是否为聚合条件
+     * <p>
+     * 聚合条件指的是对聚合字段（如SUM、AVG等）的过滤，这类条件应该放在HAVING子句中。
+     * 判断依据：检查字段名是否在 parsedInlineExpressions 的聚合列映射中。
+     * </p>
+     *
+     * @param fieldName 字段名
+     * @return true 如果是聚合条件，需要放入HAVING；false 如果是普通条件，放入WHERE
+     */
+    private boolean isAggregateCondition(String fieldName) {
+        if (parsedInlineExpressions == null || parsedInlineExpressions.getColumnAggregations() == null) {
+            return false;
+        }
+        return parsedInlineExpressions.getColumnAggregations().containsKey(fieldName);
     }
 
     /**
@@ -580,7 +617,8 @@ public class JdbcModelQueryEngine implements QueryEngine {
                 context != null ? context.getParsedInlineExpressions() : null;
 
         if (parsed != null && parsed.isProcessed()) {
-            // 已预处理，直接使用结果
+            // 已预处理，直接使用结果并保存到成员变量
+            this.parsedInlineExpressions = parsed;
             if (log.isDebugEnabled()) {
                 log.debug("Using preprocessed inline expressions from context, skipping redundant parsing");
             }

@@ -33,6 +33,8 @@ public class JdbcQuery {
 
     JdbcWhere where = new JdbcWhere();
 
+    JdbcHaving having = new JdbcHaving();
+
     JdbcOrder order;
 
     JdbcGroupBy group;
@@ -50,6 +52,7 @@ public class JdbcQuery {
         visitor.acceptFrom(from);
         visitor.acceptWhere(where);
         visitor.acceptGroup(group);
+        visitor.acceptHaving(having);
         visitor.acceptOrder(order);
     }
 
@@ -644,6 +647,19 @@ public class JdbcQuery {
 
     @Data
     public class JdbcWhere extends JdbcListCond {
+
+
+    }
+
+    /**
+     * HAVING 子句（用于聚合条件过滤）
+     * <p>
+     * 结构与 JdbcWhere 相同，但在 SQL 生成时使用 "HAVING" 关键字。
+     * 用于过滤聚合后的结果，如：HAVING SUM(amount) > 1000
+     * </p>
+     */
+    @Data
+    public class JdbcHaving extends JdbcListCond {
 
 
     }
