@@ -19,11 +19,5 @@ public class SelectColumnDef {
     String field;
     String caption;
 
-//    String type;
-//    Object value;
-    /**
-     * UI配置
-     */
-    Map<String,Object> ui;
 
 }

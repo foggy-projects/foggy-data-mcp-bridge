@@ -79,6 +79,14 @@ export const queryModel = {
     orders: [
         { name: 'orderTime', order: 'desc' }
     ],
-
-    accesses: []
+    // accesses 用于权限控制，示例不启动
+    // accesses: [{
+    //     dimension: 'customer',
+    //     //构建对事实表查询的语句时，加入权限用
+    //     queryBuilder: (query, property) => {
+    //         const token = getWorkonSessionTokenUsingCache();
+    //         query.and(' fo.customer_key = ?', "1");
+    //
+    //     }
+    // }]
 };

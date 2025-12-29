@@ -409,7 +409,6 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
 
         DbQueryColumn dbQueryColumn = new DbQueryColumnImpl(jdbcColumn, item.getName(), item.getCaption(), item.getAlias(), item.getField());
         dbQueryColumn.setHasRef(hasRef);
-        dbQueryColumn.getDecorate(DbQueryColumnImpl.class).setUi(item.getUi());
 
         qm.addJdbcQueryColumn(dbQueryColumn);
         group.addJdbcColumn(dbQueryColumn);
