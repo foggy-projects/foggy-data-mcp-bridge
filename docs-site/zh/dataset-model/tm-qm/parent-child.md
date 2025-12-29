@@ -141,7 +141,7 @@ export const model = {
     "param": {
         "columns": ["team$caption", "totalAmount"],
         "slice": [
-            { "name": "team$id", "type": "=", "value": "T002" }
+            { "field": "team$id", "op": "=", "value": "T002" }
         ]
     }
 }
@@ -172,10 +172,10 @@ GROUP BY d1.team_name
     "param": {
         "columns": ["team$caption", "salesAmount"],
         "slice": [
-            { "name": "team$id", "type": "=", "value": "T001" }
+            { "field": "team$id", "op": "=", "value": "T001" }
         ],
         "groupBy": [
-            { "name": "team$caption" }
+            { "field": "team$caption" }
         ]
     }
 }

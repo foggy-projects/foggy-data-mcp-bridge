@@ -395,7 +395,7 @@ properties: [
 | `alias` | string | 否 | 属性别名                      |
 | `caption` | string | 否 | 显示名称                      |
 | `description` | string | 否 | 详细描述，若字段含义复杂，建议填写，有助于AI推断 |
-| `type` | string | 否 | 数据类型（见 5. 数据类型）           |
+| `type` | string | 否 | 数据类型（见 [5. 数据类型](#5-数据类型)）           |
 | `format` | string | 否 | 格式化模板（用于日期等）              |
 | `dictRef` | string | 否 | 字典引用，用于值到标签的转换            |
 | `formulaDef` | object | 否 | 公式定义（见 3.5）               |
@@ -490,7 +490,7 @@ measures: [
 | `alias` | string | 否 | 度量别名 |
 | `caption` | string | 否 | 显示名称 |
 | `description` | string | 否 | 详细描述 |
-| `type` | string | 否 | 数据类型（见 5. 数据类型） |
+| `type` | string | 否 | 数据类型（见 [5. 数据类型](#5-数据类型)） |
 | `aggregation` | string | 是 | 聚合方式（见 4.5） |
 | `formulaDef` | object | 否 | 公式定义（见 3.5） |
 
