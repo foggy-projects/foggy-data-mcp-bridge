@@ -15,6 +15,13 @@
 - **xxx$id**: 用于精确查询/过滤
 - **xxx$caption**: 用于展示名称
 
+#### 父子维度 (Parent-Child Dimension)
+层级结构维度（如组织架构）额外支持 `$hierarchy$` 视角：
+- **xxx$id**: 精确匹配该节点
+- **xxx$hierarchy$id**: 匹配该节点及所有后代（用于层级汇总）
+
+示例：`team$hierarchy$id = 'T001'` 查询总公司及所有子部门
+
 #### 属性字段 (Attribute) / 度量字段 (Measure)
 直接使用返回的字段名。
 
