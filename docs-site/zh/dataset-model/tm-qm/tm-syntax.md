@@ -22,17 +22,17 @@ export const model = {
 
 ### 1.1 模型基础字段
 
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `name` | string | 是 | 模型唯一标识，QM 中通过此名称引用 |
-| `caption` | string | 否 | 模型显示名称 |
-| `description` | string | 否 | 模型详细描述 |
-| `tableName` | string | 是¹ | 对应的数据库表名 |
-| `viewSql` | string | 否¹ | 视图SQL，与 tableName 二选一 |
+| 字段 | 类型 | 必填 | 说明                         |
+|------|------|------|----------------------------|
+| `name` | string | 是 | 模型唯一标识，QM 中通过此名称引用         |
+| `caption` | string | 否 | 模型显示名称，建议填写，使用mcp时会传递给AI   |
+| `description` | string | 否 | 模型详细描述                     |
+| `tableName` | string | 是¹ | 对应的数据库表名                   |
+| `viewSql` | string | 否¹ | 视图SQL，与 tableName 二选一      |
 | `schema` | string | 否 | 数据库 Schema（跨 Schema 访问时使用） |
-| `idColumn` | string | 否 | 主键列名 |
-| `type` | string | 否 | 模型类型，默认 `jdbc` |
-| `deprecated` | boolean | 否 | 标记为废弃，默认 false |
+| `idColumn` | string | 否 | 主键列名                       |
+| `type` | string | 否 | 模型类型，默认 `jdbc`             |
+| `deprecated` | boolean | 否 | 标记为废弃，默认 false             |
 
 > ¹ `tableName` 和 `viewSql` 二选一，优先使用 `tableName`
 

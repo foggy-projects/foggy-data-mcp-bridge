@@ -88,16 +88,19 @@ public class MongoQueryModelImpl extends QueryModelSupport implements MongoQuery
         // 构建 $addFields 操作（用于计算字段）
         AggregationOperation addFieldsOp = queryEngine.buildAddFieldsOperation();
 
+        // 调试输出 - MongoDB 聚合管道
         if (log.isDebugEnabled()) {
-            log.debug("生成查询对象");
-            log.debug(MongoModelNamedUtils.criteriaToString(options.getT1()));
+            log.debug("生成 MongoDB 聚合查询");
+            log.debug("集合: {}", this.jdbcModel.getTableName());
+            log.debug("$match: {}", MongoModelNamedUtils.criteriaToString(options.getT1()));
             if (addFieldsOp != null) {
-                log.debug("计算字段 $addFields: {}", queryEngine.buildAddFieldsDocument());
+                log.debug("$addFields: {}", queryEngine.buildAddFieldsDocument());
             }
-            log.debug(MongoModelNamedUtils.projectionOperationToString(options.getT2()));
+            log.debug("$project: {}", MongoModelNamedUtils.projectionOperationToString(options.getT2()));
             if (options.getT3() != null) {
-                log.debug(MongoModelNamedUtils.formatSort(options.getT3()));
+                log.debug("$sort: {}", MongoModelNamedUtils.formatSort(options.getT3()));
             }
+            log.debug("$skip: {}, $limit: {}", form.getStart(), form.getLimit());
         }
 
         // 构建聚合管道：$match -> [$addFields] -> $project -> [$sort] -> $skip -> $limit

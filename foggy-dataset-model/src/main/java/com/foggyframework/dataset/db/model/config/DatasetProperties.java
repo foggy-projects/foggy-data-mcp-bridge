@@ -25,7 +25,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @since 8.0.1-beta
  */
 @Data
-@ConfigurationProperties(prefix = "foggy.dataset")
 public class DatasetProperties {
 
     /**

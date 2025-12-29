@@ -1,59 +1,61 @@
 /**
- * 销售订单测试查询模型
+ * 销售订单测试查询模型 (V2 格式)
  *
  * @caption 销售订单测试查询
  * @description 用于测试MongoDB计算字段功能的查询模型
  */
+const fr = loadTableModel('SalesOrderTestModel');
+
 export const queryModel = {
     name: 'SalesOrderTestQueryModel',
     caption: '销售订单测试查询',
     description: '测试MongoDB计算字段功能，支持动态计算总金额、折扣金额、税额等',
-    model: 'SalesOrderTestModel',
+    model: fr,
 
     columnGroups: [
         {
             caption: '订单信息',
             items: [
-                { name: 'id' },
-                { name: 'orderNo' },
-                { name: 'orderDate' },
-                { name: 'status' }
+                { ref: fr.id },
+                { ref: fr.orderNo },
+                { ref: fr.orderDate },
+                { ref: fr.status }
             ]
         },
         {
             caption: '商品信息',
             items: [
-                { name: 'productName' },
-                { name: 'category' },
-                { name: 'price' },
-                { name: 'quantity' }
+                { ref: fr.productName },
+                { ref: fr.category },
+                { ref: fr.price },
+                { ref: fr.quantity }
             ]
         },
         {
             caption: '价格信息',
             items: [
-                { name: 'discount' },
-                { name: 'taxRate' }
+                { ref: fr.discount },
+                { ref: fr.taxRate }
             ]
         },
         {
             caption: '客户信息',
             items: [
-                { name: 'customerId' },
-                { name: 'customerName' }
+                { ref: fr.customerId },
+                { ref: fr.customerName }
             ]
         },
         {
             caption: '统计度量',
             items: [
-                { name: 'avgPrice' },
-                { name: 'totalQuantity' }
+                { ref: fr.avgPrice },
+                { ref: fr.totalQuantity }
             ]
         }
     ],
 
     orders: [
-        { name: 'orderDate', order: 'desc' }
+        { ref: fr.orderDate, order: 'desc' }
     ],
 
     accesses: []

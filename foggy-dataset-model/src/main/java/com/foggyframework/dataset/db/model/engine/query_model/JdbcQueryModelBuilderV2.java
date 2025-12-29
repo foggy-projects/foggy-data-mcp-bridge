@@ -1,14 +1,13 @@
 package com.foggyframework.dataset.db.model.engine.query_model;
 
 import com.foggyframework.core.ex.RX;
-import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.db.model.def.query.DbQueryModelDef;
 import com.foggyframework.dataset.db.model.engine.formula.SqlFormulaService;
-import com.foggyframework.dataset.db.model.engine.join.JoinGraph;
 import com.foggyframework.dataset.db.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.db.model.impl.model.DbTableModelImpl;
 import com.foggyframework.dataset.db.model.interceptor.SqlLoggingInterceptor;
 import com.foggyframework.dataset.db.model.proxy.*;
+import com.foggyframework.dataset.db.model.spi.DbModelType;
 import com.foggyframework.dataset.db.model.spi.QueryModelBuilder;
 import com.foggyframework.dataset.db.model.spi.TableModel;
 import com.foggyframework.dataset.db.model.spi.TableModelLoaderManager;
@@ -49,7 +48,7 @@ import java.util.*;
 @Slf4j
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE) // V2 优先处理
-public class QueryModelBuilderV2 implements QueryModelBuilder {
+public class JdbcQueryModelBuilderV2 implements QueryModelBuilder {
 
     @Resource
     private TableModelLoaderManager tableModelLoaderManager;
@@ -79,37 +78,48 @@ public class QueryModelBuilderV2 implements QueryModelBuilder {
     private final ThreadLocal<List<String>> errorsLocal = ThreadLocal.withInitial(ArrayList::new);
 
     @Override
-    public QueryModelSupport build(DbQueryModelDef queryModelDef, Fsscript fsscript, List<TableModel> jdbcModelDxList) {
-        // 只处理 V2 格式
-        if (!"v2".equalsIgnoreCase(queryModelDef.getLoader())) {
-            return null;
-        }
-
-        log.debug("使用 V2 构建器构建 QM: {}", queryModelDef.getName());
+    public QueryModelSupport build(DbQueryModelDef queryModelDef, Fsscript fsscript) {
+        log.debug("V2 构建器尝试构建 QM: {}", queryModelDef.getName());
+        TableModelProxy model = queryModelDef.getModel();
 
         try {
-            return buildV2(queryModelDef, fsscript);
+            // 1. 解析 model 和 joins，获取模型列表
+            List<TableModel> parsedModels = parseModelAndJoins(queryModelDef);
+
+            if (parsedModels.isEmpty()) {
+                throwIfHasErrors(queryModelDef.getName());
+                throw RX.throwAUserTip(DatasetMessages.querymodelModelMissing(queryModelDef.getName()));
+            }
+
+            // 2. 检查主表模型类型，非 JDBC 模型则退出，交由其他 Builder 处理
+            TableModel firstModel = parsedModels.get(0);
+            if (firstModel instanceof QueryModelSupport.JdbcModelDx dx) {
+                firstModel = dx.getDelegate();
+            }
+            if (!isJdbcModel(firstModel)) {
+                log.debug("QM [{}] 非 JDBC 模型 (modelType={}), 交由其他 Builder 处理",
+                        queryModelDef.getName(),
+                        firstModel.getModelType());
+                // 将解析好的模型列表存储到 queryModelDef 中，供其他 Builder 使用
+                queryModelDef.setParsedModels(parsedModels);
+                return null;
+            }
+
+            // 3. 构建 JDBC QueryModel
+            return buildJdbcQueryModel(queryModelDef, fsscript, parsedModels);
         } finally {
             clearThreadLocalData();
         }
     }
 
     /**
-     * 构建 V2 格式的 QueryModel
+     * 构建 JDBC QueryModel
      */
-    private QueryModelSupport buildV2(DbQueryModelDef queryModelDef, Fsscript fsscript) {
-        // 1. 解析 model 和 joins
-        List<TableModel> jdbcModelDxList = parseModelAndJoins(queryModelDef);
-
-        if (jdbcModelDxList.isEmpty()) {
-            throwIfHasErrors(queryModelDef.getName());
-            throw RX.throwAUserTip(DatasetMessages.querymodelModelMissing(queryModelDef.getName()));
-        }
-
-        // 2. 验证数据源一致性
+    private QueryModelSupport buildJdbcQueryModel(DbQueryModelDef queryModelDef, Fsscript fsscript, List<TableModel> jdbcModelDxList) {
+        // 验证数据源一致性
         DataSource ds = resolveDataSource(queryModelDef, jdbcModelDxList);
 
-        // 3. 创建 QueryModel
+        // 创建 QueryModel
         JdbcQueryModelImpl qm = new JdbcQueryModelImpl(jdbcModelDxList, fsscript, sqlFormulaService, ds);
 
         if (sqlLoggingInterceptor != null) {
@@ -118,43 +128,32 @@ public class QueryModelBuilderV2 implements QueryModelBuilder {
 
         queryModelDef.apply(qm);
 
-        log.debug("V2 构建器成功构建 QM: {}", queryModelDef.getName());
+        log.debug("V2 构建器成功构建 JDBC QM: {}", queryModelDef.getName());
         return qm;
     }
 
     /**
      * 解析 model 和 joins 配置
      *
-     * <p>V2 格式要求：
+     * <p>V2 格式：
      * <pre>
-     * model: fo,                              // 主表（TableModelProxy）
-     * joins: [fo.leftJoin(fp).on(...), ...]   // JOIN 关系数组
-     * </pre>
+     * const fo = loadTableModel('FactOrder');
+     * const fp = loadTableModel('FactPayment');
      *
-     * <p>此结构直接映射到 JoinGraph：
-     * <ul>
-     *   <li>model → JoinGraph.root</li>
-     *   <li>joins[i] → JoinGraph.addEdge()</li>
-     * </ul>
+     * model: fo,                              // 主表（TableModelProxy）
+     * joins: [fo.leftJoin(fp).on(...), ...]   // JOIN 关系数组（可选）
+     * </pre>
      */
     private List<TableModel> parseModelAndJoins(DbQueryModelDef queryModelDef) {
-        Object model = queryModelDef.getModel();
+        TableModelProxy model = queryModelDef.getModel();
         List<Object> joins = queryModelDef.getJoins();
         String qmName = queryModelDef.getName();
 
         List<TableModel> result = new ArrayList<>();
         int aliasCounter = 1;
 
-        // model 必须是 TableModelProxy（主表）
-        if (!(model instanceof TableModelProxy rootProxy)) {
-            addError(qmName, "model",
-                    "V2 格式要求 model 为 TableModelProxy（通过 loadTableModel() 创建），" +
-                    "当前类型: " + (model == null ? "null" : model.getClass().getSimpleName()));
-            return result;
-        }
-
         // 解析主表
-        aliasCounter = parseTableModelProxy(rootProxy, result, aliasCounter, qmName, true);
+        aliasCounter = parseTableModelProxy(model, result, aliasCounter, qmName, true);
 
         // 解析 joins 数组
         if (joins != null) {
@@ -312,5 +311,20 @@ public class QueryModelBuilderV2 implements QueryModelBuilder {
      */
     public Map<String, TableModelProxy> getModelProxiesSnapshot() {
         return new HashMap<>(getModelProxies());
+    }
+
+    /**
+     * 检查 TableModel 是否是 JDBC 模型
+     *
+     * <p>通过 modelType 判断，JDBC 模型的 modelType 为 null 或 jdbc
+     *
+     * @param model TableModel
+     * @return true 如果是 JDBC 模型
+     */
+    private boolean isJdbcModel(TableModel model) {
+        if (model == null) return false;
+        DbModelType modelType = model.getModelType();
+        // modelType 为 null 或 jdbc 表示 JDBC 模型
+        return modelType == null || modelType == DbModelType.jdbc;
     }
 }

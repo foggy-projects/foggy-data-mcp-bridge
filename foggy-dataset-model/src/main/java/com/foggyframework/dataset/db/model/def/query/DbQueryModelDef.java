@@ -4,6 +4,8 @@ import com.foggyframework.dataset.db.model.def.DbDefSupport;
 import com.foggyframework.dataset.db.model.def.access.DbAccessDef;
 import com.foggyframework.dataset.db.model.def.column.DbColumnGroupDef;
 import com.foggyframework.dataset.db.model.def.order.OrderDef;
+import com.foggyframework.dataset.db.model.proxy.TableModelProxy;
+import com.foggyframework.dataset.db.model.spi.TableModel;
 import lombok.Data;
 
 import javax.sql.DataSource;
@@ -23,7 +25,7 @@ public class DbQueryModelDef extends DbDefSupport {
      */
     String loader;
 
-    Object model;
+    TableModelProxy model;
 
     /**
      * JOIN 关系定义（V2 格式）
@@ -31,6 +33,12 @@ public class DbQueryModelDef extends DbDefSupport {
      * <p>每个元素应为 JoinBuilder，如: fo.leftJoin(fp).on(fo.orderId, fp.orderId)
      */
     List<Object> joins;
+
+    /**
+     * V2 构建器解析后的模型列表
+     * <p>由 QueryModelBuilderV2 解析并设置，供后续 Builder（如 MongoDB Builder）使用
+     */
+    List<TableModel> parsedModels;
 
     List<OrderDef> orders;
 

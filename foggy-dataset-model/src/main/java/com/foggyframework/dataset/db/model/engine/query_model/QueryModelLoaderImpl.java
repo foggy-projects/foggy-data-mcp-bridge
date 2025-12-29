@@ -157,19 +157,24 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
             throw RX.throwAUserTip(DatasetMessages.querymodelModelMissing(queryModelDef.getName()));
         }
 
-        // V2 格式由 QueryModelBuilderV2 处理
-        if (!"v2".equalsIgnoreCase(queryModelDef.getLoader())) {
-            throw RX.throwAUserTip(DatasetMessages.querymodelLoaderRequired(queryModelDef.getName()));
-        }
+//        // V2 格式由 QueryModelBuilderV2 处理
+//        if (!"v2".equalsIgnoreCase(queryModelDef.getLoader())) {
+//            throw RX.throwAUserTip(DatasetMessages.querymodelLoaderRequired(queryModelDef.getName()));
+//        }
 
         /**
          * 构建JdbcQueryModelImpl
          */
         QueryModelSupport qm = null;
+        log.debug("开始遍历 QueryModelBuilder，共 {} 个", queryModelBuilders.size());
         for (QueryModelBuilder queryModelBuilder : queryModelBuilders) {
-            qm = queryModelBuilder.build(queryModelDef, fsscript, null);
+            log.debug("尝试 Builder: {}", queryModelBuilder.getClass().getName());
+            qm = queryModelBuilder.build(queryModelDef, fsscript);
             if (qm != null) {
+                log.debug("Builder {} 成功构建 QM: {}", queryModelBuilder.getClass().getSimpleName(), qm.getClass().getName());
                 break;
+            } else {
+                log.debug("Builder {} 返回 null", queryModelBuilder.getClass().getSimpleName());
             }
         }
         if (qm == null) {
