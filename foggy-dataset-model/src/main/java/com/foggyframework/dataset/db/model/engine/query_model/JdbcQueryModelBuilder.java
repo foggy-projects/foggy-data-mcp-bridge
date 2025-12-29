@@ -7,10 +7,7 @@ import com.foggyframework.dataset.db.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.db.model.impl.model.DbTableModelImpl;
 import com.foggyframework.dataset.db.model.interceptor.SqlLoggingInterceptor;
 import com.foggyframework.dataset.db.model.proxy.*;
-import com.foggyframework.dataset.db.model.spi.DbModelType;
-import com.foggyframework.dataset.db.model.spi.QueryModelBuilder;
-import com.foggyframework.dataset.db.model.spi.TableModel;
-import com.foggyframework.dataset.db.model.spi.TableModelLoaderManager;
+import com.foggyframework.dataset.db.model.spi.*;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
 import jakarta.annotation.Resource;
 import jakarta.persistence.criteria.JoinType;
@@ -47,8 +44,8 @@ import java.util.*;
  */
 @Slf4j
 @Component
-@Order(Ordered.HIGHEST_PRECEDENCE) // V2 优先处理
-public class JdbcQueryModelBuilderV2 implements QueryModelBuilder {
+@Order(Ordered.HIGHEST_PRECEDENCE)
+public class JdbcQueryModelBuilder implements QueryModelBuilder {
 
     @Resource
     private TableModelLoaderManager tableModelLoaderManager;
@@ -66,11 +63,6 @@ public class JdbcQueryModelBuilderV2 implements QueryModelBuilder {
      * 模型名称到 TableModelProxy 的映射
      */
     private final ThreadLocal<Map<String, TableModelProxy>> modelProxiesLocal = ThreadLocal.withInitial(HashMap::new);
-
-    /**
-     * 模型名称到加载后的 TableModel 的映射
-     */
-    private final ThreadLocal<Map<String, TableModel>> loadedModelsLocal = ThreadLocal.withInitial(HashMap::new);
 
     /**
      * 错误收集器
@@ -258,18 +250,14 @@ public class JdbcQueryModelBuilderV2 implements QueryModelBuilder {
      * 加载表模型
      */
     private TableModel loadTableModel(String modelName, String qmName) {
-        Map<String, TableModel> loadedModels = getLoadedModels();
-        if (loadedModels.containsKey(modelName)) {
-            return loadedModels.get(modelName);
-        }
 
         try {
             TableModel tm = tableModelLoaderManager.load(modelName);
-            loadedModels.put(modelName, tm);
             return tm;
         } catch (Exception e) {
             addError(qmName, "loadTableModel('" + modelName + "')",
                     String.format("表模型 '%s' 加载失败: %s", modelName, e.getMessage()));
+            e.printStackTrace();
             return null;
         }
     }
@@ -278,10 +266,6 @@ public class JdbcQueryModelBuilderV2 implements QueryModelBuilder {
 
     private Map<String, TableModelProxy> getModelProxies() {
         return modelProxiesLocal.get();
-    }
-
-    private Map<String, TableModel> getLoadedModels() {
-        return loadedModelsLocal.get();
     }
 
     private List<String> getErrors() {
@@ -302,7 +286,6 @@ public class JdbcQueryModelBuilderV2 implements QueryModelBuilder {
 
     private void clearThreadLocalData() {
         modelProxiesLocal.remove();
-        loadedModelsLocal.remove();
         errorsLocal.remove();
     }
 

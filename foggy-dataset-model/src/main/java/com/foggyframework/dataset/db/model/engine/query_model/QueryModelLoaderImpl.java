@@ -38,8 +38,6 @@ import java.util.regex.Pattern;
 public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoader {
 
     private TableModelLoaderManager tableModelLoaderManager;
-//
-//    SqlFormulaService sqlFormulaService;
 
     @Resource
     private DataSource defaultDataSource;
@@ -157,11 +155,6 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
             throw RX.throwAUserTip(DatasetMessages.querymodelModelMissing(queryModelDef.getName()));
         }
 
-//        // V2 格式由 QueryModelBuilderV2 处理
-//        if (!"v2".equalsIgnoreCase(queryModelDef.getLoader())) {
-//            throw RX.throwAUserTip(DatasetMessages.querymodelLoaderRequired(queryModelDef.getName()));
-//        }
-
         /**
          * 构建JdbcQueryModelImpl
          */
@@ -181,26 +174,6 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
             throw RX.throwAUserTip("无法找到对应的QueryModelBuilder");
         }
 
-//        if (modelMongoTemplate == null) {
-//            modelMongoTemplate = mongoTemplate;
-//        }
-//        DataSource ds = queryModelDef.getDataSource();
-//        //从tm文件中提取数据源
-//        if (ds == null) {
-//            for (JdbcModel jdbcModel : jdbcModelDxList) {
-//                if (jdbcModel.getDataSource() != null) {
-//                    if (ds == null) {
-//                        ds = jdbcModel.getDataSource();
-//                    } else if (ds != jdbcModel.getDataSource()) {
-//                        throw RX.throwAUserTip("不同数据源的TM不能配置在一起");
-//                    }
-//                }
-//            }
-//        }
-
-//        JdbcQueryModelImpl qm = new JdbcQueryModelImpl(jdbcModelDxList, fsscript, sqlFormulaService,
-//                ds == null ? defaultDataSource : ds,
-//                modelMongoTemplate);
         queryModelDef.apply(qm);
 
         /**
@@ -320,17 +293,9 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
         if (orders != null) {
             for (int i = 0; i < orders.size(); i++) {
                 OrderDef d = orders.get(i);
-//                qm.addOrder(qm.findJdbcQueryColumnByName(d.getName(), true).getSelectColumn(), d.getOrder());
                 qm.addOrder(qm.findJdbcQueryColumnByName(d.getName(), true).getSelectColumn(), d);
             }
-//            for (int i = orders.size() - 1; i >= 0; i--) {
-//
-//            }
         }
-    }
-
-    private void loadDimension(JdbcQueryModelImpl qm, DbQueryModelDef queryModelDef) {
-//        qm.setQueryDimensions(qm.getJdbcModel().getDimensions().stream().map(e -> new JdbcQueryDimensionImpl(e)).collect(Collectors.toList()));
     }
 
     /**

@@ -7,6 +7,7 @@ import com.foggyframework.dataset.db.model.config.SemanticProperties;
 import com.foggyframework.dataset.db.model.engine.formula.*;
 import com.foggyframework.dataset.db.model.engine.query_model.DbModelFileChangeHandler;
 import com.foggyframework.dataset.db.model.engine.query_model.QueryModelLoaderImpl;
+import com.foggyframework.dataset.db.model.impl.loader.JdbcTableModelLoaderImpl;
 import com.foggyframework.dataset.db.model.impl.loader.TableModelLoaderManagerImpl;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.DataSetResultFilterManager;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.DataSetResultStep;
@@ -32,10 +33,10 @@ import java.util.List;
 @ComponentScan("com.foggyframework.dataset.db.model")
 public class DbModelAutoConfiguration {
 
-//    @Bean
-//    public JdbcTableModelLoaderImpl jdbcTableModelLoader(SystemBundlesContext systemBundlesContext, FileFsscriptLoader fileFsscriptLoader) {
-//        return new JdbcTableModelLoaderImpl(systemBundlesContext, fileFsscriptLoader );
-//    }
+    @Bean
+    public JdbcTableModelLoaderImpl jdbcTableModelLoader(SystemBundlesContext systemBundlesContext, FileFsscriptLoader fileFsscriptLoader) {
+        return new JdbcTableModelLoaderImpl(systemBundlesContext, fileFsscriptLoader );
+    }
     @Bean
     public TableModelLoaderManagerImpl tableModelLoaderManager(SystemBundlesContext systemBundlesContext, FileFsscriptLoader fileFsscriptLoader, List<DbModelLoadProcessor> processors, List<TableModelLoader> loaders) {
         return new TableModelLoaderManagerImpl(systemBundlesContext, fileFsscriptLoader, processors,loaders);

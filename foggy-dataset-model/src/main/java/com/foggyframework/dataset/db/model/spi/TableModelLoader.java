@@ -6,7 +6,6 @@ import com.foggyframework.fsscript.parser.spi.Fsscript;
 
 public interface TableModelLoader {
 
-
     TableModel load(Fsscript fScript, DbModelDef def, Bundle bundle);
 
     String getTypeName();

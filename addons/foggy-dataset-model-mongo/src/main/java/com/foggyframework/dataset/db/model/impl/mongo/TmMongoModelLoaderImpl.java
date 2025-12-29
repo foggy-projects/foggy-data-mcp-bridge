@@ -120,7 +120,6 @@ public class TmMongoModelLoaderImpl extends LoaderSupport implements TableModelL
         jdbcModel.setModelType(com.foggyframework.dataset.db.model.spi.DbModelType.mongo);
 
         jdbcModel.setQueryObject(loadQueryObject(defaultDataSource, null, def.getViewSql(), def.getSchema()));
-//        jdbcModel.setMongoTemplate(defMongoTemplate);
         return jdbcModel;
     }
 
