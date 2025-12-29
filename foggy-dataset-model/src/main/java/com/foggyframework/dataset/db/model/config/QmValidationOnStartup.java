@@ -58,14 +58,15 @@ public class QmValidationOnStartup implements ApplicationRunner {
         int successCount = 0;
 
         for (BundleResource qmFile : qmFiles) {
+            String path = qmFile.getResource().getDescription();
             try {
                 queryModelLoader.loadJdbcQueryModel(qmFile);
                 successCount++;
-                log.debug("QM 校验通过: {}", qmFile.getPath());
+                log.debug("QM 校验通过: {}", path);
             } catch (Exception e) {
-                String errorMsg = String.format("QM [%s]: %s", qmFile.getPath(), e.getMessage());
+                String errorMsg = String.format("QM [%s]: %s", path, e.getMessage());
                 errors.add(errorMsg);
-                log.error("QM 校验失败: {}", qmFile.getPath(), e);
+                log.error("QM 校验失败: {}", path, e);
             }
         }
 
@@ -94,11 +95,11 @@ public class QmValidationOnStartup implements ApplicationRunner {
 
         try {
             // 从所有 bundle 中查找 .qm 文件
-            systemBundlesContext.getBundles().forEach(bundle -> {
+            systemBundlesContext.getBundleList().forEach(bundle -> {
                 try {
-                    List<BundleResource> resources = bundle.findResources("**/*.qm");
+                    BundleResource[] resources = bundle.findBundleResources("**/*.qm");
                     if (resources != null) {
-                        result.addAll(resources);
+                        result.addAll(java.util.Arrays.asList(resources));
                     }
                 } catch (Exception e) {
                     log.warn("从 bundle {} 查找 QM 文件时出错: {}", bundle.getName(), e.getMessage());

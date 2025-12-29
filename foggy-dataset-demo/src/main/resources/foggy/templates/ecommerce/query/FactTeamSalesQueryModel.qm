@@ -1,52 +1,54 @@
 /**
- * 团队销售查询模型
+ * 团队销售查询模型 
  *
  * @caption 团队销售查询
  * @description 团队销售事实表查询模型，支持按团队层级结构进行汇总查询
  */
+const fts = loadTableModel('FactTeamSalesModel');
+
 export const queryModel = {
     name: 'FactTeamSalesQueryModel',
     caption: '团队销售查询',
     description: '团队销售事实表查询模型，支持按团队层级结构进行汇总查询',
-    model: 'FactTeamSalesModel',
+    loader: 'v2',
 
-    // 列组定义
+    model: fts,
+
     columnGroups: [
         {
             caption: '团队维度（父子层级）',
             items: [
-                { name: 'team' },
-                { name: 'team$parentId' },
-                { name: 'team$teamLevel' },
-                { name: 'team$managerName' },
-                { name: 'team$status' }
+                { ref: fts.team },
+                { ref: fts.team$parentId },
+                { ref: fts.team$teamLevel },
+                { ref: fts.team$managerName },
+                { ref: fts.team$status }
             ]
         },
         {
             caption: '日期维度',
             items: [
-                { name: 'date' },
-                { name: 'date$year' },
-                { name: 'date$quarter' },
-                { name: 'date$month' },
-                { name: 'date$monthName' }
+                { ref: fts.date },
+                { ref: fts.date$year },
+                { ref: fts.date$quarter },
+                { ref: fts.date$month },
+                { ref: fts.date$monthName }
             ]
         },
         {
             caption: '度量',
             items: [
-                { name: 'totalSalesAmount' },
-                { name: 'totalSalesCount' },
-                { name: 'avgSalesAmount' },
-                { name: 'recordCount' }
+                { ref: fts.totalSalesAmount },
+                { ref: fts.totalSalesCount },
+                { ref: fts.avgSalesAmount },
+                { ref: fts.recordCount }
             ]
         }
     ],
 
-    // 默认排序
     orders: [
-        { name: 'team$teamLevel', order: 'asc' },
-        { name: 'team$caption', order: 'asc' }
+        { ref: fts.team$teamLevel, order: 'asc' },
+        { ref: fts.team$caption, order: 'asc' }
     ],
 
     accesses: []

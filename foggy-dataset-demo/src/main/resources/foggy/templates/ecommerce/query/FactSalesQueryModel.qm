@@ -1,109 +1,111 @@
 /**
- * 销售查询模型
+ * 销售查询模型 
  *
  * @caption 销售明细查询
  * @description 销售事实表查询模型，支持按日期、商品、客户、门店、渠道、促销等维度查询
  */
+const fs = loadTableModel('FactSalesModel');
+
 export const queryModel = {
     name: 'FactSalesQueryModel',
     caption: '销售明细查询',
     description: '销售事实表查询模型，支持按日期、商品、客户、门店、渠道、促销等维度查询',
-    model: 'FactSalesModel',
+    loader: 'v2',
 
-    // 列组定义
+    model: fs,
+
     columnGroups: [
         {
             caption: '订单明细信息',
             items: [
-                { name: 'orderId', ui: { fixed: 'left', width: 150 } },
-                { name: 'orderLineNo' },
-                { name: 'orderStatus' },
-                { name: 'paymentMethod' }
+                { ref: fs.orderId, ui: { fixed: 'left', width: 150 } },
+                { ref: fs.orderLineNo },
+                { ref: fs.orderStatus },
+                { ref: fs.paymentMethod }
             ]
         },
         {
             caption: '日期维度',
             items: [
-                { name: 'salesDate' },
-                { name: 'salesDate$year' },
-                { name: 'salesDate$quarter' },
-                { name: 'salesDate$month' },
-                { name: 'salesDate$monthName' },
-                { name: 'salesDate$dayOfWeek' },
-                { name: 'salesDate$isWeekend' }
+                { ref: fs.salesDate },
+                { ref: fs.salesDate$year },
+                { ref: fs.salesDate$quarter },
+                { ref: fs.salesDate$month },
+                { ref: fs.salesDate$monthName },
+                { ref: fs.salesDate$dayOfWeek },
+                { ref: fs.salesDate$isWeekend }
             ]
         },
         {
             caption: '商品维度',
             items: [
-                { name: 'product' },
-                { name: 'product$categoryId' },
-                { name: 'product$categoryName' },
-                { name: 'product$subCategoryId' },
-                { name: 'product$subCategoryName' },
-                { name: 'product$brand' },
-                { name: 'product$unitPrice' },
-                { name: 'product$unitCost' }
+                { ref: fs.product },
+                { ref: fs.product$categoryId },
+                { ref: fs.product$categoryName },
+                { ref: fs.product$subCategoryId },
+                { ref: fs.product$subCategoryName },
+                { ref: fs.product$brand },
+                { ref: fs.product$unitPrice },
+                { ref: fs.product$unitCost }
             ]
         },
         {
             caption: '客户维度',
             items: [
-                { name: 'customer' },
-                { name: 'customer$customerType' },
-                { name: 'customer$gender' },
-                { name: 'customer$ageGroup' },
-                { name: 'customer$province' },
-                { name: 'customer$city' },
-                { name: 'customer$memberLevel' }
+                { ref: fs.customer },
+                { ref: fs.customer$customerType },
+                { ref: fs.customer$gender },
+                { ref: fs.customer$ageGroup },
+                { ref: fs.customer$province },
+                { ref: fs.customer$city },
+                { ref: fs.customer$memberLevel }
             ]
         },
         {
             caption: '门店维度',
             items: [
-                { name: 'store' },
-                { name: 'store$storeType' },
-                { name: 'store$province' },
-                { name: 'store$city' }
+                { ref: fs.store },
+                { ref: fs.store$storeType },
+                { ref: fs.store$province },
+                { ref: fs.store$city }
             ]
         },
         {
             caption: '渠道维度',
             items: [
-                { name: 'channel' },
-                { name: 'channel$channelType' },
-                { name: 'channel$platform' }
+                { ref: fs.channel },
+                { ref: fs.channel$channelType },
+                { ref: fs.channel$platform }
             ]
         },
         {
             caption: '促销维度',
             items: [
-                { name: 'promotion' },
-                { name: 'promotion$promotionType' },
-                { name: 'promotion$discountRate' }
+                { ref: fs.promotion },
+                { ref: fs.promotion$promotionType },
+                { ref: fs.promotion$discountRate }
             ]
         },
         {
             caption: '度量',
             items: [
-                { name: 'quantity' },
-                { name: 'unitPrice' },
-                { name: 'unitCost' },
-                { name: 'discountAmount' },
-                { name: 'salesAmount' },
-                { name: 'costAmount' },
-                { name: 'profitAmount' },
-                { name: 'taxAmount' },
-                { name: 'taxAmount2' }
+                { ref: fs.quantity },
+                { ref: fs.unitPrice },
+                { ref: fs.unitCost },
+                { ref: fs.discountAmount },
+                { ref: fs.salesAmount },
+                { ref: fs.costAmount },
+                { ref: fs.profitAmount },
+                { ref: fs.taxAmount },
+                { ref: fs.taxAmount2 }
             ]
         }
     ],
 
-    // 默认排序
     orders: [
-        { name: 'salesDate$caption', order: 'desc' },
-        { name: 'orderId', order: 'asc' },
-        { name: 'orderLineNo', order: 'asc' }
+        { ref: fs.salesDate$caption, order: 'desc' },
+        { ref: fs.orderId, order: 'asc' },
+        { ref: fs.orderLineNo, order: 'asc' }
     ],
 
     accesses: []

@@ -1,56 +1,58 @@
 /**
- * 日期维度查询模型
+ * 日期维度查询模型 
  *
  * @caption 日期维度查询
  * @description 查询日期维度信息，包括年、季度、月、周、日等时间层级属性
  */
+const dd = loadTableModel('DimDateModel');
+
 export const queryModel = {
     name: 'DimDateQueryModel',
     caption: '日期维度查询',
     description: '查询日期维度信息，包括年、季度、月、周、日等时间层级属性',
-    model: 'DimDateModel',
+    loader: 'v2',
 
-    // 列组定义
+    model: dd,
+
     columnGroups: [
         {
             caption: '日期基本信息',
             items: [
-                { name: 'dateKey' },
-                { name: 'fullDate' }
+                { ref: dd.dateKey },
+                { ref: dd.fullDate }
             ]
         },
         {
             caption: '时间层级',
             items: [
-                { name: 'year' },
-                { name: 'quarter' },
-                { name: 'month' },
-                { name: 'monthName' },
-                { name: 'weekOfYear' }
+                { ref: dd.year },
+                { ref: dd.quarter },
+                { ref: dd.month },
+                { ref: dd.monthName },
+                { ref: dd.weekOfYear }
             ]
         },
         {
             caption: '日期详情',
             items: [
-                { name: 'dayOfMonth' },
-                { name: 'dayOfWeek' },
-                { name: 'dayName' },
-                { name: 'isWeekend' },
-                { name: 'isHoliday' }
+                { ref: dd.dayOfMonth },
+                { ref: dd.dayOfWeek },
+                { ref: dd.dayName },
+                { ref: dd.isWeekend },
+                { ref: dd.isHoliday }
             ]
         },
         {
             caption: '财务日期',
             items: [
-                { name: 'fiscalYear' },
-                { name: 'fiscalQuarter' }
+                { ref: dd.fiscalYear },
+                { ref: dd.fiscalQuarter }
             ]
         }
     ],
 
-    // 默认排序
     orders: [
-        { name: 'fullDate', order: 'desc' }
+        { ref: dd.fullDate, order: 'desc' }
     ],
 
     accesses: []

@@ -1,92 +1,92 @@
 /**
- * 订单-支付联合查询模型
+ * 订单-支付联合查询模型 (V2 格式示例)
  *
  * @caption 订单支付联合查询
  * @description 多事实表JOIN场景 - 订单表与支付表联合查询，用于测试同粒度事实表JOIN
+ *
+ * V2 格式特点：
+ * - loadTableModel 是内置函数，无需 import
+ * - model 指定主表，joins 定义关联关系（直接映射到 JoinGraph）
+ * - 使用 { ref: fo.orderId } 引用字段
  */
+const fo = loadTableModel('FactOrderModel');
+const fp = loadTableModel('FactPaymentModel');
+
 export const queryModel = {
     name: 'OrderPaymentJoinQueryModel',
     caption: '订单支付联合查询',
-    description: '多事实表JOIN场景 - 订单表与支付表联合查询，用于测试同粒度事实表JOIN',
+    description: '多事实表JOIN场景 - 订单表与支付表联合查询，使用V2格式',
+    loader: 'v2',  // 声明使用 V2 加载器
 
-    // 多模型关联配置
-    model: [
-        {
-            name: 'FactOrderModel',
-            alias: 'fo'
-        },
-        {
-            name: 'FactPaymentModel',
-            alias: 'fp',
-            onBuilder: () => {
-                return 'fo.order_id = fp.order_id';
-            }
-        }
+    // 主表（对应 JoinGraph.root）
+    model: fo,
+
+    // JOIN 关系定义（每项对应 JoinGraph.addEdge()）
+    joins: [
+        fo.leftJoin(fp).on(fo.orderId, fp.orderId)
     ],
 
     columnGroups: [
         {
             caption: '订单信息',
             items: [
-                { name: 'orderId', ui: { fixed: 'left', width: 150 } },
-                { name: 'orderStatus' },
-                { name: 'paymentStatus' },
-                { name: 'orderTime' }
+                { ref: fo.orderId, ui: { fixed: 'left', width: 150 } },
+                { ref: fo.orderStatus },
+                { ref: fo.paymentStatus },
+                { ref: fo.orderTime }
             ]
         },
         {
             caption: '支付信息',
             items: [
-                { name: 'paymentId' },
-                { name: 'payMethod' },
-                { name: 'payChannel' },
-                { name: 'payStatus' },
-                { name: 'payTime' }
+                { ref: fp.paymentId },
+                { ref: fp.payMethod },
+                { ref: fp.payChannel },
+                { ref: fp.payStatus },
+                { ref: fp.payTime }
             ]
         },
         {
             caption: '订单日期',
             items: [
-                { name: 'orderDate' },
-                { name: 'orderDate$year' },
-                { name: 'orderDate$month' }
+                { ref: fo.orderDate },
+                { ref: fo.orderDate$year },
+                { ref: fo.orderDate$month }
             ]
         },
         {
             caption: '客户信息',
             items: [
-                { name: 'customer' },
-                { name: 'customer$customerType' },
-                { name: 'customer$memberLevel' }
+                { ref: fo.customer },
+                { ref: fo.customer$customerType },
+                { ref: fo.customer$memberLevel }
             ]
         },
         {
             caption: '订单度量',
             items: [
-                { name: 'quantity' },
-                { name: 'amount' },
-                { name: 'discountAmount' }
+                { ref: fo.quantity },
+                { ref: fo.amount },
+                { ref: fo.discountAmount }
             ]
         },
         {
             caption: '支付度量',
             items: [
-                { name: 'payAmount' }
+                { ref: fp.payAmount }
             ]
         }
     ],
 
     orders: [
-        { name: 'orderTime', order: 'desc' }
-    ],
-    // accesses 用于权限控制，示例不启动
+        { ref: fo.orderTime, order: 'desc' }
+    ]
+
+    // accesses 权限控制示例（注释）
     // accesses: [{
     //     dimension: 'customer',
-    //     //构建对事实表查询的语句时，加入权限用
     //     queryBuilder: (query, property) => {
-    //         const token = getWorkonSessionTokenUsingCache();
-    //         query.and(' fo.customer_key = ?', "1");
-    //
+    //         query.and(fo.customer$id, "1");
     //     }
     // }]
 };

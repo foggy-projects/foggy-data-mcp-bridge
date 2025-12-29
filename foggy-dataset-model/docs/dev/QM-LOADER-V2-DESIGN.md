@@ -4,7 +4,7 @@
 
 ### 1.1 当前问题
 
-现有 QM 文件配置方式存在以下痛点：
+旧版 QM 文件配置方式存在以下痛点：
 - JOIN 条件用字符串定义（如 `'fo.order_id = fp.order_id'`），无类型检查
 - 字段引用用字符串（如 `name: 'orderId'`），重构时易遗漏
 - IDE 无法提供智能提示和错误检测
@@ -15,6 +15,12 @@
 - 支持链式 API 定义 JOIN 关系
 - 保持配置的简洁性和可读性
 - QM 加载时进行字段存在性校验
+
+### 1.3 格式支持说明
+
+> **注意**: 自 2025-01 起，V1 格式已被移除。所有 QM 文件必须使用 V2 格式（`loader: 'v2'`）。
+>
+> 如需可视化 IDE 配置，请参考 [QM-JSON-FORMAT-SPEC.md](./QM-JSON-FORMAT-SPEC.md)。
 
 ## 2. V2 格式规范
 
@@ -28,7 +34,7 @@ const fp = loadTableModel('FactPaymentModel');
 export const queryModel = {
     name: 'OrderPaymentJoinQueryModel',
     caption: '订单支付联合查询',
-    loader: 'v2',  // 声明使用 V2 加载器
+    loader: 'v2',  // 必须声明使用 V2 加载器
 
     // 主表（对应 JoinGraph.root）
     model: fo,
@@ -63,14 +69,18 @@ export const queryModel = {
 };
 ```
 
-### 2.2 结构说明（IDE 可视化友好）
+### 2.2 结构说明
 
-| 字段 | 类型 | JoinGraph 映射 | IDE 可视化 |
-|------|------|----------------|------------|
-| `model` | `TableModelProxy` | `new JoinGraph(root)` | 主表选择器 |
-| `joins` | `JoinBuilder[]` | 每项 → `addEdge()` | 关联关系列表 |
-| `columnGroups` | 分组配置 | - | 字段配置面板 |
-| `orders` | 排序配置 | - | 排序规则列表 |
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `name` | `string` | 是 | QueryModel 唯一标识 |
+| `caption` | `string` | 是 | 显示名称 |
+| `loader` | `string` | 是 | 必须为 `'v2'` |
+| `model` | `TableModelProxy` | 是 | 主表（对应 `JoinGraph.root`） |
+| `joins` | `JoinBuilder[]` | 否 | 关联关系（对应 `JoinGraph.addEdge()`） |
+| `columnGroups` | `array` | 是 | 字段分组配置 |
+| `orders` | `array` | 否 | 默认排序规则 |
+| `accesses` | `array` | 否 | 权限控制配置 |
 
 ### 2.3 IDE 配置界面示意
 
@@ -150,11 +160,11 @@ com.foggyframework.dataset.db.model
 │   ├── JoinCondition.java          # JOIN 条件
 │   └── LoadTableModelFunction.java # loadTableModel 内置函数
 ├── def/query/
-│   ├── DbQueryModelDef.java        # 添加 loader 和 joins 字段
+│   ├── DbQueryModelDef.java        # loader 和 joins 字段
 │   └── SelectColumnDef.java        # ref 支持 ColumnRef 类型
 ├── engine/query_model/
-│   ├── QueryModelLoaderImpl.java   # 移除 V2 分支，统一流程
-│   ├── QueryModelBuilderV2.java    # V2 格式专用构建器（实现 QueryModelBuilder）
+│   ├── QueryModelLoaderImpl.java   # 统一入口（仅支持 V2）
+│   ├── QueryModelBuilderV2.java    # V2 格式构建器（实现 QueryModelBuilder）
 │   └── QueryModelLoaderV2.java     # 辅助类（解析和校验）
 ├── spi/
 │   └── QueryModelBuilder.java      # 策略接口
@@ -169,17 +179,12 @@ V2 采用 **策略模式**，通过 `QueryModelBuilder` 接口扩展：
 ```
 QueryModelLoaderImpl（统一入口）
     │
-    ├── parseV1Model()  → 解析 V1 格式
-    │
     └── for each QueryModelBuilder:
             │
-            ├── QueryModelBuilderV2 (优先级最高)
-            │   ├── 检查 loader == 'v2'
-            │   ├── 解析 model + joins
-            │   └── 创建 QueryModel
-            │
-            └── JdbcTableModelLoaderImpl
-                └── 处理 V1 格式
+            └── QueryModelBuilderV2
+                ├── 检查 loader == 'v2'
+                ├── 解析 model + joins
+                └── 创建 QueryModel
 ```
 
 ## 4. 详细设计
@@ -306,7 +311,7 @@ public class JoinCondition {
 
 ## 5. 加载流程
 
-### 5.1 V2 加载器流程
+### 5.1 V2 加载流程
 
 ```
 ┌────────────────────────────────────────────────────────────────┐
@@ -318,18 +323,19 @@ public class JoinCondition {
                               ↓
 ┌────────────────────────────────────────────────────────────────┐
 │  2. QueryModelLoaderImpl 检测 loader 字段                       │
-│     - loader == null || 'v1' → 走原有逻辑                       │
-│     - loader == 'v2' → 调用 QueryModelLoaderV2                 │
+│     - loader != 'v2' → 抛出错误（必须使用 V2 加载器）            │
+│     - loader == 'v2' → 调用 QueryModelBuilderV2                │
 └────────────────────────────────────────────────────────────────┘
                               ↓
 ┌────────────────────────────────────────────────────────────────┐
-│  3. QueryModelLoaderV2 解析                                     │
-│     a. 解析 model 数组                                          │
-│        - TableModelProxy → 加载 TableModel，创建 JdbcModelDx   │
-│        - JoinBuilder → 提取 JOIN 信息，创建 JdbcModelDx        │
-│     b. 解析 columnGroups                                        │
+│  3. QueryModelBuilderV2 解析                                    │
+│     a. 解析 model（主表）                                       │
+│        - TableModelProxy → 加载 TableModel，设为 JoinGraph.root│
+│     b. 解析 joins 数组                                          │
+│        - JoinBuilder → 提取 JOIN 信息，调用 JoinGraph.addEdge() │
+│     c. 解析 columnGroups                                        │
 │        - ColumnRef → 校验字段存在性，创建 DbQueryColumn         │
-│     c. 解析 orders                                              │
+│     d. 解析 orders                                              │
 │        - ColumnRef → 校验字段存在性，创建 OrderDef              │
 └────────────────────────────────────────────────────────────────┘
                               ↓
@@ -390,7 +396,14 @@ public class DatasetFsscriptConfig {
 
 ## 7. 错误提示设计
 
-### 7.1 字段不存在
+### 7.1 loader 未指定
+
+```
+QM加载失败: OrderPaymentJoinQueryModel
+  错误: 查询模型必须使用V2加载器，请设置 loader: 'v2'
+```
+
+### 7.2 字段不存在
 
 ```
 QM加载失败: OrderPaymentJoinQueryModel
@@ -399,7 +412,7 @@ QM加载失败: OrderPaymentJoinQueryModel
   建议: 可用字段包括 orderId, orderStatus, orderTime, ...
 ```
 
-### 7.2 模型不存在
+### 7.3 模型不存在
 
 ```
 QM加载失败: OrderPaymentJoinQueryModel
@@ -408,24 +421,15 @@ QM加载失败: OrderPaymentJoinQueryModel
   建议: 请检查模型名称是否正确
 ```
 
-## 8. 实现计划
+## 8. 相关文档
 
-| 阶段 | 任务 | 文件 |
+- [QM-JSON-FORMAT-SPEC.md](./QM-JSON-FORMAT-SPEC.md) - 可视化 IDE 的 JSON 格式规范（未来实现）
+- [TM-QM-Syntax-Manual.md](../guide/TM-QM-Syntax-Manual.md) - TM/QM 语法手册
+- [Authorization-Control.md](../security/Authorization-Control.md) - 权限控制文档
+
+## 9. 版本历史
+
+| 版本 | 日期 | 说明 |
 |------|------|------|
-| 1 | 创建 ColumnRef 类 | `proxy/ColumnRef.java` |
-| 2 | 创建 JoinCondition 类 | `proxy/JoinCondition.java` |
-| 3 | 创建 JoinBuilder 类 | `proxy/JoinBuilder.java` |
-| 4 | 创建 TableModelProxy 类 | `proxy/TableModelProxy.java` |
-| 5 | 修改 DbQueryModelDef | `def/query/DbQueryModelDef.java` |
-| 6 | 创建 QueryModelLoaderV2 | `engine/query_model/QueryModelLoaderV2.java` |
-| 7 | 修改 QueryModelLoaderImpl | `engine/query_model/QueryModelLoaderImpl.java` |
-| 8 | 注册内置函数 | `config/DatasetFsscriptConfig.java` |
-| 9 | 更新 Demo QM 文件 | `demo/.../OrderPaymentJoinQueryModel.qm` |
-| 10 | 添加启动校验 | `config/QmValidationOnStartup.java` |
-
-## 9. 向后兼容
-
-- 通过 `loader` 字段区分版本
-- `loader` 为空或 `'v1'` 时使用原有逻辑
-- `loader: 'v2'` 时使用新加载器
-- 同一项目可混用两种格式的 QM 文件
+| 1.0 | 2024-01 | 初始设计，支持 V1/V2 并存 |
+| 2.0 | 2025-01 | 移除 V1 支持，仅支持 V2 格式 |

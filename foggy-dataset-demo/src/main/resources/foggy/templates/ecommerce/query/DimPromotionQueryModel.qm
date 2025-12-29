@@ -1,50 +1,52 @@
 /**
- * 促销活动维度查询模型
+ * 促销活动维度查询模型 
  *
  * @caption 促销活动维度查询
  * @description 查询促销活动信息，包括促销类型、折扣率、有效期等属性
  */
+const dp = loadTableModel('DimPromotionModel');
+
 export const queryModel = {
     name: 'DimPromotionQueryModel',
     caption: '促销活动维度查询',
     description: '查询促销活动信息，包括促销类型、折扣率、有效期等属性',
-    model: 'DimPromotionModel',
+    loader: 'v2',
 
-    // 列组定义
+    model: dp,
+
     columnGroups: [
         {
             caption: '促销基本信息',
             items: [
-                { name: 'promotionName' },
-                { name: 'promotionId' },
-                { name: 'promotionType' },
-                { name: 'status' }
+                { ref: dp.promotionName },
+                { ref: dp.promotionId },
+                { ref: dp.promotionType },
+                { ref: dp.status }
             ]
         },
         {
             caption: '折扣信息',
             items: [
-                { name: 'discountRate' }
+                { ref: dp.discountRate }
             ]
         },
         {
             caption: '有效期',
             items: [
-                { name: 'startDate' },
-                { name: 'endDate' }
+                { ref: dp.startDate },
+                { ref: dp.endDate }
             ]
         },
         {
             caption: '时间信息',
             items: [
-                { name: 'createdAt' }
+                { ref: dp.createdAt }
             ]
         }
     ],
 
-    // 默认排序
     orders: [
-        { name: 'promotionName', order: 'asc' }
+        { ref: dp.promotionName, order: 'asc' }
     ],
 
     accesses: []
