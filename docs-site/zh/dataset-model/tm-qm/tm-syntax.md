@@ -26,12 +26,12 @@ export const model = {
 |------|------|------|----------------------------|
 | `name` | string | 是 | 模型唯一标识，QM 中通过此名称引用         |
 | `caption` | string | 否 | 模型显示名称，建议填写，使用mcp时会传递给AI   |
-| `description` | string | 否 | 模型详细描述                     |
-| `tableName` | string | 是¹ | 对应的数据库表名                   |
+| `description` | string | 否 | 模型详细描述，建议填写，使用mcp时会传递给AI   |
+| `tableName` | string | 是¹ | 对应的数据库表名、mongo集合名          |
 | `viewSql` | string | 否¹ | 视图SQL，与 tableName 二选一      |
 | `schema` | string | 否 | 数据库 Schema（跨 Schema 访问时使用） |
 | `idColumn` | string | 否 | 主键列名                       |
-| `type` | string | 否 | 模型类型，默认 `jdbc`             |
+| `type` | string | 否 | 模型类型，默认 `jdbc`、`mongo`     |
 | `deprecated` | boolean | 否 | 标记为废弃，默认 false             |
 
 > ¹ `tableName` 和 `viewSql` 二选一，优先使用 `tableName`
@@ -354,21 +354,33 @@ export const dicts = {
 
 ### 3.3 计算属性
 
-使用 `formulaDef` 定义计算字段：
+使用 `formulaDef` 定义计算字段。常见场景包括 JSON 字段提取、字符串拼接等：
 
 ```javascript
 properties: [
     {
-        column: 'tax_amount',
-        name: 'doubleTax',
-        caption: '双倍税额',
-        description: '用于测试计算字段',
-        type: 'MONEY',
+        column: 'send_addr_info',  // JSON 类型字段
+        name: 'sendStreet',
+        caption: '收货街道',
+        description: '从地址 JSON 中提取街道信息',
+        type: 'STRING',
         formulaDef: {
             builder: (alias) => {
-                return `${alias}.tax_amount * 2`;
+                return `${alias}.send_addr_info ->> '$.send_street'`;
             },
-            description: '税额的两倍'
+            description: '提取收货地址中的街道字段'
+        }
+    },
+    {
+        column: 'customer_name',
+        name: 'fullName',
+        caption: '客户全名',
+        type: 'STRING',
+        formulaDef: {
+            builder: (alias) => {
+                return `CONCAT(${alias}.first_name, ' ', ${alias}.last_name)`;
+            },
+            description: '拼接姓和名'
         }
     }
 ]
@@ -376,17 +388,17 @@ properties: [
 
 ### 3.4 属性字段说明
 
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `column` | string | 是 | 数据库列名 |
-| `name` | string | 否 | 属性名称，默认为 column 的驼峰形式 |
-| `alias` | string | 否 | 属性别名 |
-| `caption` | string | 否 | 显示名称 |
-| `description` | string | 否 | 详细描述 |
-| `type` | string | 否 | 数据类型（见 5. 数据类型） |
-| `format` | string | 否 | 格式化模板（用于日期等） |
-| `dictRef` | string | 否 | 字典引用，用于值到标签的转换 |
-| `formulaDef` | object | 否 | 公式定义（见 3.5） |
+| 字段 | 类型 | 必填 | 说明                        |
+|------|------|------|---------------------------|
+| `column` | string | 是 | 数据库列名                     |
+| `name` | string | 否 | 属性名称，默认为 column 的驼峰形式     |
+| `alias` | string | 否 | 属性别名                      |
+| `caption` | string | 否 | 显示名称                      |
+| `description` | string | 否 | 详细描述，若字段含义复杂，建议填写，有助于AI推断 |
+| `type` | string | 否 | 数据类型（见 5. 数据类型）           |
+| `format` | string | 否 | 格式化模板（用于日期等）              |
+| `dictRef` | string | 否 | 字典引用，用于值到标签的转换            |
+| `formulaDef` | object | 否 | 公式定义（见 3.5）               |
 
 ### 3.5 公式定义 (formulaDef)
 

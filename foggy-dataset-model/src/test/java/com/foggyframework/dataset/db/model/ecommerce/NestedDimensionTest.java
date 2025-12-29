@@ -360,6 +360,139 @@ class NestedDimensionTest extends EcommerceTestSupport {
     }
 
     // ==========================================
+    // 别名测试 - alias 特性
+    // ==========================================
+
+    @Test
+    @Order(50)
+    @DisplayName("模型加载 - 验证嵌套维度别名")
+    void testModelLoading_NestedDimensionAlias() {
+        TableModel model = tableModelLoaderManager.load("FactSalesNestedDimModel");
+
+        // 验证可以通过别名查找维度
+        DbDimension productCategory = model.findJdbcDimensionByName("productCategory");
+        assertNotNull(productCategory, "应能通过别名 productCategory 找到维度");
+        assertEquals("category", productCategory.getName(), "维度名称应是 category");
+        assertEquals("productCategory", productCategory.getAlias(), "维度别名应是 productCategory");
+
+        DbDimension categoryGroup = model.findJdbcDimensionByName("categoryGroup");
+        assertNotNull(categoryGroup, "应能通过别名 categoryGroup 找到维度");
+        assertEquals("group", categoryGroup.getName(), "维度名称应是 group");
+        assertEquals("categoryGroup", categoryGroup.getAlias(), "维度别名应是 categoryGroup");
+
+        DbDimension storeRegion = model.findJdbcDimensionByName("storeRegion");
+        assertNotNull(storeRegion, "应能通过别名 storeRegion 找到维度");
+        assertEquals("region", storeRegion.getName(), "维度名称应是 region");
+        assertEquals("storeRegion", storeRegion.getAlias(), "维度别名应是 storeRegion");
+
+        log.info("别名查找测试通过：productCategory={}, categoryGroup={}, storeRegion={}",
+                productCategory.getFullPath(), categoryGroup.getFullPath(), storeRegion.getFullPath());
+    }
+
+    @Test
+    @Order(51)
+    @DisplayName("查询测试 - 通过别名访问嵌套维度")
+    void testQuery_AccessByAlias() {
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("FactSalesNestedDimQueryModel");
+
+        // 使用别名访问嵌套维度（文档推荐方式）
+        queryRequest.setColumns(Arrays.asList(
+                "product$caption",           // 一级维度
+                "productCategory$caption",   // 二级维度（通过 alias）
+                "categoryGroup$caption",     // 三级维度（通过 alias）
+                "salesAmount"
+        ));
+
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 20);
+        PagingResultImpl result = jdbcService.queryModelData(form);
+
+        assertNotNull(result, "查询结果不应为空");
+        assertNotNull(result.getItems(), "明细数据不应为空");
+        assertTrue(result.getItems().size() > 0, "应有查询结果");
+
+        log.info("通过别名访问查询结果数量: {}", result.getItems().size());
+        for (int i = 0; i < Math.min(5, result.getItems().size()); i++) {
+            Map<String, Object> row = (Map<String, Object>) result.getItems().get(i);
+            log.info("Row {}: 产品={}, 品类={}, 品类组={}, 销售额={}",
+                    i + 1,
+                    row.get("product$caption"),
+                    row.get("productCategory$caption"),
+                    row.get("categoryGroup$caption"),
+                    row.get("salesAmount"));
+        }
+
+        // 验证返回的列名使用别名格式
+        Map<String, Object> firstRow = (Map<String, Object>) result.getItems().get(0);
+        assertTrue(firstRow.containsKey("productCategory$caption"), "结果应包含 productCategory$caption 列");
+        assertTrue(firstRow.containsKey("categoryGroup$caption"), "结果应包含 categoryGroup$caption 列");
+    }
+
+    @Test
+    @Order(52)
+    @DisplayName("切片查询 - 通过别名过滤")
+    void testQuery_SliceByAlias() {
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("FactSalesNestedDimQueryModel");
+        queryRequest.setColumns(Arrays.asList(
+                "product$caption",
+                "productCategory$caption",
+                "salesAmount"
+        ));
+        queryRequest.setReturnTotal(true);
+
+        // 使用别名过滤 - 只查询电子产品组
+        SliceRequestDef slice = new SliceRequestDef();
+        slice.setField("categoryGroup$id");  // 使用别名
+        slice.setOp(CondType.EQ.getCode());
+        slice.setValue(1);  // 电子产品组的 group_key
+        queryRequest.setSlice(Collections.singletonList(slice));
+
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 20);
+        PagingResultImpl result = jdbcService.queryModelData(form);
+
+        assertNotNull(result, "查询结果不应为空");
+        log.info("通过别名过滤电子产品组销售记录数: {}", result.getItems().size());
+
+        // 验证结果数量与使用路径格式一致
+        assertTrue(result.getItems().size() > 0, "应有查询结果");
+    }
+
+    @Test
+    @Order(53)
+    @DisplayName("汇总查询 - 通过别名分组")
+    void testQuery_GroupByAlias() {
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("FactSalesNestedDimQueryModel");
+        queryRequest.setColumns(Arrays.asList(
+                "categoryGroup$caption",  // 使用别名
+                "salesAmount"
+        ));
+        queryRequest.setReturnTotal(true);
+
+        // 使用别名分组
+        GroupRequestDef groupBy = new GroupRequestDef();
+        groupBy.setField("categoryGroup$caption");  // 使用别名
+        queryRequest.setGroupBy(Collections.singletonList(groupBy));
+
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 20);
+        PagingResultImpl result = jdbcService.queryModelData(form);
+
+        assertNotNull(result, "查询结果不应为空");
+        log.info("通过别名分组查询结果数量: {}", result.getItems().size());
+
+        for (Object item : result.getItems()) {
+            Map<String, Object> row = (Map<String, Object>) item;
+            log.info("品类组={}, 销售总额={}",
+                    row.get("categoryGroup$caption"),
+                    row.get("salesAmount"));
+        }
+
+        // 验证分组数量应该等于品类组数量（3个）
+        assertEquals(3, result.getItems().size(), "应有3个品类组的分组结果");
+    }
+
+    // ==========================================
     // 辅助方法
     // ==========================================
 
