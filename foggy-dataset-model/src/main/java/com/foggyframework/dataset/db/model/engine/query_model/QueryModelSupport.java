@@ -443,92 +443,12 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
             }
         }
 
-        // 为父子维度注册 self 视角的列（team$self$id, team$self$caption, team$self$xxx）
-        registerParentChildSelfColumns(dbDimension, path, aliasPath, alias, caption);
-
         // 为父子维度注册 hierarchy 视角的列（team$hierarchy$id, team$hierarchy$caption, team$hierarchy$xxx）
         registerParentChildHierarchyColumns(dbDimension, path, aliasPath, alias, caption);
     }
 
     /**
-     * 为父子维度注册明细视角（self）的列
-     *
-     * <p>明细视角的列通过 fact.team_id 直接关联维度表，用于查看后代明细
-     *
-     * @param dbDimension 维度
-     * @param path        DOT 格式路径
-     * @param aliasPath   UNDERSCORE 格式路径
-     * @param alias       维度别名
-     * @param caption     标题
-     */
-    private void registerParentChildSelfColumns(DbDimension dbDimension, String path, String aliasPath, String alias, String caption) {
-        DbModelParentChildDimensionImpl pcDim = dbDimension.getDecorate(DbModelParentChildDimensionImpl.class);
-        if (pcDim == null || pcDim.getSelfQueryObject() == null) {
-            return;
-        }
-
-        DbColumn selfIdColumn = pcDim.getSelfPrimaryKeyDbColumn();
-        DbColumn selfCaptionColumn = pcDim.getSelfCaptionDbColumn();
-
-        if (selfIdColumn == null || selfCaptionColumn == null) {
-            return;
-        }
-
-        // 使用 DOT 格式注册 self 列
-        String selfIdName = path + "$self$id";
-        String selfCaptionName = path + "$self$caption";
-
-        if (!nameToJdbcQueryColumn.containsKey(selfIdName)) {
-            DbQueryColumn idCol = new DbQueryColumnImpl(selfIdColumn, selfIdName, selfIdColumn.getCaption(), selfIdName, selfIdName);
-            nameToJdbcQueryColumn.put(selfIdName, idCol);
-            dbQueryColumns.add(idCol);
-        }
-        if (!nameToJdbcQueryColumn.containsKey(selfCaptionName)) {
-            DbQueryColumn captionCol = new DbQueryColumnImpl(selfCaptionColumn, selfCaptionName, caption + "(明细)", selfCaptionName, selfCaptionName);
-            nameToJdbcQueryColumn.put(selfCaptionName, captionCol);
-            dbQueryColumns.add(captionCol);
-        }
-
-        // 同时用 UNDERSCORE 格式注册
-        String aliasSelfIdName = aliasPath + "$self$id";
-        String aliasSelfCaptionName = aliasPath + "$self$caption";
-
-        if (!nameToJdbcQueryColumn.containsKey(aliasSelfIdName)) {
-            DbQueryColumn aliasIdCol = new DbQueryColumnImpl(selfIdColumn, aliasSelfIdName, selfIdColumn.getCaption(), aliasSelfIdName, aliasSelfIdName);
-            nameToJdbcQueryColumn.put(aliasSelfIdName, aliasIdCol);
-        }
-        if (!nameToJdbcQueryColumn.containsKey(aliasSelfCaptionName)) {
-            DbQueryColumn aliasCaptionCol = new DbQueryColumnImpl(selfCaptionColumn, aliasSelfCaptionName, caption + "(明细)", aliasSelfCaptionName, aliasSelfCaptionName);
-            nameToJdbcQueryColumn.put(aliasSelfCaptionName, aliasCaptionCol);
-        }
-
-        // 如果有别名，也用别名注册
-        if (StringUtils.isNotEmpty(alias) && !alias.equals(path) && !alias.equals(aliasPath)) {
-            String aliasBasedSelfIdName = alias + "$self$id";
-            String aliasBasedSelfCaptionName = alias + "$self$caption";
-            if (!nameToJdbcQueryColumn.containsKey(aliasBasedSelfIdName)) {
-                DbQueryColumn aliasIdCol = new DbQueryColumnImpl(selfIdColumn, aliasBasedSelfIdName, selfIdColumn.getCaption(), aliasBasedSelfIdName, aliasBasedSelfIdName);
-                nameToJdbcQueryColumn.put(aliasBasedSelfIdName, aliasIdCol);
-            }
-            if (!nameToJdbcQueryColumn.containsKey(aliasBasedSelfCaptionName)) {
-                DbQueryColumn aliasCaptionCol = new DbQueryColumnImpl(selfCaptionColumn, aliasBasedSelfCaptionName, caption + "(明细)", aliasBasedSelfCaptionName, aliasBasedSelfCaptionName);
-                nameToJdbcQueryColumn.put(aliasBasedSelfCaptionName, aliasCaptionCol);
-            }
-        }
-
-        // 注册 self 视角的属性列（team$self$xxx）
-        for (DbDimensionSupport.DimensionPropertyDbColumn propCol : pcDim.getSelfPropertyDbColumns()) {
-            String propName = propCol.getName(); // 已经是 team$self$xxx 格式
-            if (!nameToJdbcQueryColumn.containsKey(propName)) {
-                DbQueryColumn propQueryCol = new DbQueryColumnImpl(propCol, propName, propCol.getCaption(), propName, propName);
-                nameToJdbcQueryColumn.put(propName, propQueryCol);
-                dbQueryColumns.add(propQueryCol);
-            }
-        }
-    }
-
-    /**
-     * 为父子维度注册层级汇总视角（hierarchy）的列
+     * 为父子维度注册层级视角（hierarchy）的列
      *
      * <p>层级汇总视角的列通过 closure.parent_id 关联维度表，用于层级汇总查询
      *

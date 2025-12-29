@@ -233,7 +233,7 @@ class ParentChildDimensionTest extends EcommerceTestSupport {
         // 过滤条件：团队 = T001（总公司）
         List<SliceRequestDef> slices = new ArrayList<>();
         SliceRequestDef slice = new SliceRequestDef();
-        slice.setField("team$id");
+        slice.setField("team$hierarchy$id");
         slice.setOp("in");
         slice.setValue(Arrays.asList("T001"));
         slices.add(slice);
@@ -281,7 +281,7 @@ class ParentChildDimensionTest extends EcommerceTestSupport {
 
         List<SliceRequestDef> slices = new ArrayList<>();
         SliceRequestDef slice = new SliceRequestDef();
-        slice.setField("team$id");
+        slice.setField("team$hierarchy$id");
         slice.setOp("in");
         slice.setValue(Arrays.asList("T002"));
         slices.add(slice);
@@ -379,7 +379,7 @@ class ParentChildDimensionTest extends EcommerceTestSupport {
 
         List<SliceRequestDef> slices = new ArrayList<>();
         SliceRequestDef slice = new SliceRequestDef();
-        slice.setField("team$id");
+        slice.setField("team$hierarchy$id");
         slice.setOp("in");
         slice.setValue(Arrays.asList("T002", "T005"));
         slices.add(slice);
@@ -482,7 +482,7 @@ class ParentChildDimensionTest extends EcommerceTestSupport {
         // 过滤条件
         List<SliceRequestDef> slices = new ArrayList<>();
         SliceRequestDef slice = new SliceRequestDef();
-        slice.setField("team$id");
+        slice.setField("team$hierarchy$id");
         slice.setOp("in");
         slice.setValue(Arrays.asList("T002"));
         slices.add(slice);
@@ -496,7 +496,7 @@ class ParentChildDimensionTest extends EcommerceTestSupport {
 
         // 排序
         List<OrderRequestDef> orders = new ArrayList<>();
-        orders.add(createOrder("team$caption", "ASC"));
+        orders.add(createOrder("team$hierarchy$caption", "ASC"));
         queryRequest.setOrderBy(orders);
 
         PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 20);

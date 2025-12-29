@@ -139,21 +139,26 @@ export const model = {
 
 ---
 
-## 5. 三种访问视角
+## 5. 两种访问视角
 
-父子维度提供**三种访问视角**，满足不同的查询需求：
+父子维度提供**两种访问视角**，语义清晰，行为一致：
 
-| 视角 | 列名格式 | JOIN 路径 | 用途 |
-|------|----------|-----------|------|
-| **默认视角** | `team$id`, `team$caption` | `fact.team_id → dim_team` | 直接关联，保持原有行为 |
-| **层级汇总视角** | `team$hierarchy$id`, `team$hierarchy$caption` | `closure.parent_id → dim_team` | 层级汇总查询 |
-| **明细视角** | `team$self$id`, `team$self$caption` | `fact.team_id → dim_team (别名)` | 后代明细查询 |
+| 视角 | 列名格式 | 行为 | 用途 |
+|------|----------|------|------|
+| **默认视角** | `team$id`, `team$caption` | 与普通维度相同，精确匹配 | 精确查询、明细展示 |
+| **层级视角** | `team$hierarchy$id`, `team$hierarchy$caption` | 使用闭包表，匹配节点及所有后代 | 层级汇总、后代范围筛选 |
 
-### 5.1 默认视角
+**设计原则**：
+- **默认 = 普通维度**：行为与非父子维完全一致，无"魔法"
+- **层级 = 显式请求**：用户明确使用 `$hierarchy$` 才启用闭包表
 
-使用 `team$id`、`team$caption` 等列，通过 `fact.team_id` 直接关联维度表。
+---
 
-**行为**：与普通维度相同，直接匹配。
+### 5.1 默认视角（普通维度行为）
+
+使用 `team$id`、`team$caption` 等列，行为与普通维度完全相同。
+
+**示例**：只查 T001 自身的销售数据
 
 ```json
 {
@@ -172,29 +177,26 @@ export const model = {
 SELECT d1.team_name, SUM(t0.sales_amount)
 FROM fact_team_sales t0
 LEFT JOIN dim_team d1 ON t0.team_id = d1.team_id
-LEFT JOIN team_closure d2 ON t0.team_id = d2.team_id
-WHERE d2.parent_id = 'T001'
+WHERE d1.team_id = 'T001'
 GROUP BY d1.team_name
 ```
 
-**说明**：`slice` 条件使用闭包表过滤，返回 T001 及其所有后代的销售记录。`team$caption` 显示每条记录实际所属团队的名称。
+**结果**：只返回 T001（总公司）自身的销售数据。
 
 ---
 
-### 5.2 层级汇总视角
+### 5.2 层级视角（使用闭包表）
 
-使用 `team$hierarchy$id`、`team$hierarchy$caption` 等列，通过 `closure.parent_id` 关联维度表。
+使用 `team$hierarchy$id`、`team$hierarchy$caption` 等列，启用闭包表进行层级操作。
 
-**用途**：将后代数据汇总到祖先节点显示。
-
-**示例**：查询 T001（总公司）及其所有后代的销售，**汇总显示为总公司**：
+#### 场景 1：层级汇总（汇总到祖先节点）
 
 ```json
 {
     "param": {
         "columns": ["team$hierarchy$caption", "salesAmount"],
         "slice": [
-            { "field": "team$id", "op": "=", "value": "T001" }
+            { "field": "team$hierarchy$id", "op": "=", "value": "T001" }
         ],
         "groupBy": [
             { "field": "team$hierarchy$caption" }
@@ -221,54 +223,19 @@ GROUP BY d4.team_name
 |------------------------|-------------|
 | 总公司                  | 1000000     |
 
-**说明**：所有后代（T002-T009）的销售数据都汇总到 T001（总公司）。
+**说明**：T001 及其所有后代（T002-T009）的销售数据汇总显示为"总公司"。
 
----
-
-### 5.3 明细视角
-
-使用 `team$self$id`、`team$self$caption` 等列，用于精确匹配或查看后代明细。
-
-**用途**：
-1. **精确匹配**：只查某个节点自身，不使用闭包表
-2. **后代明细**：结合闭包表过滤，查看各后代的明细数据
-
-#### 场景 1：精确匹配（只查自身）
+#### 场景 2：后代明细（分别显示各后代）
 
 ```json
 {
     "param": {
-        "columns": ["team$self$caption", "salesAmount"],
+        "columns": ["team$caption", "salesAmount"],
         "slice": [
-            { "field": "team$self$id", "op": "=", "value": "T001" }
-        ]
-    }
-}
-```
-
-**生成的 SQL**：
-
-```sql
-SELECT d3.team_name, SUM(t0.sales_amount)
-FROM fact_team_sales t0
-LEFT JOIN dim_team d3 ON t0.team_id = d3.team_id
-WHERE d3.team_id = 'T001'
-GROUP BY d3.team_name
-```
-
-**结果**：只返回 T001 自身的销售数据，不包含后代。
-
-#### 场景 2：后代明细（分组显示各后代）
-
-```json
-{
-    "param": {
-        "columns": ["team$self$caption", "salesAmount"],
-        "slice": [
-            { "field": "team$id", "op": "=", "value": "T001" }
+            { "field": "team$hierarchy$id", "op": "=", "value": "T001" }
         ],
         "groupBy": [
-            { "field": "team$self$caption" }
+            { "field": "team$caption" }
         ]
     }
 }
@@ -277,40 +244,42 @@ GROUP BY d3.team_name
 **生成的 SQL**：
 
 ```sql
-SELECT d3.team_name AS "team$self$caption",
+SELECT d1.team_name AS "team$caption",
        SUM(t0.sales_amount) AS "salesAmount"
 FROM fact_team_sales t0
-LEFT JOIN dim_team d3 ON t0.team_id = d3.team_id
+LEFT JOIN dim_team d1 ON t0.team_id = d1.team_id
 LEFT JOIN team_closure d2 ON t0.team_id = d2.team_id
 WHERE d2.parent_id = 'T001'
-GROUP BY d3.team_name
+GROUP BY d1.team_name
 ```
 
-**结果**：返回 **N 条记录**（每个后代一条）
+**结果**：返回 **9 条记录**（每个后代一条）
 
-| team$self$caption | salesAmount |
-|-------------------|-------------|
-| 总公司             | 50000       |
-| 技术部             | 120000      |
-| 研发组             | 80000       |
-| 前端小组           | 30000       |
-| 测试组             | 40000       |
-| 销售部             | 200000      |
-| 华东区             | 150000      |
-| 华南区             | 180000      |
-| 深圳办             | 150000      |
+| team$caption | salesAmount |
+|--------------|-------------|
+| 总公司        | 50000       |
+| 技术部        | 120000      |
+| 研发组        | 80000       |
+| 前端小组      | 30000       |
+| 测试组        | 40000       |
+| 销售部        | 200000      |
+| 华东区        | 150000      |
+| 华南区        | 180000      |
+| 深圳办        | 150000      |
+
+**说明**：使用 `team$hierarchy$id` 过滤后代范围，但用默认的 `team$caption` 分组显示各团队明细。
 
 ---
 
-### 5.4 视角对比总结
+### 5.3 视角对比总结
 
 假设 T001（总公司）有 9 个团队（包括自身），各团队都有销售数据：
 
 | 查询方式 | slice | groupBy | 返回记录数 | 说明 |
 |----------|-------|---------|------------|------|
-| 层级汇总 | `team$id = T001` | `team$hierarchy$caption` | 1 条 | 汇总到 T001 |
-| 后代明细 | `team$id = T001` | `team$self$caption` | 9 条 | 各后代分别显示 |
-| 精确匹配 | `team$self$id = T001` | - | 1 条 | 只查 T001 自身 |
+| 精确匹配 | `team$id = T001` | `team$caption` | 1 条 | 只查 T001 自身 |
+| 层级汇总 | `team$hierarchy$id = T001` | `team$hierarchy$caption` | 1 条 | 汇总到 T001 |
+| 后代明细 | `team$hierarchy$id = T001` | `team$caption` | 9 条 | 各后代分别显示 |
 
 ---
 
@@ -347,10 +316,10 @@ DELETE FROM dim_team WHERE team_id = 'T010';
 | 特性 | 普通维度 | 父子维度 |
 |------|----------|----------|
 | 层级支持 | 固定层级（如年-月-日） | 任意深度动态层级 |
-| 关联方式 | 直接外键关联 | 通过闭包表关联 |
-| 查询行为 | 精确匹配 | 支持层级汇总/后代明细/精确匹配 |
+| 关联方式 | 直接外键关联 | 支持闭包表关联 |
+| 查询行为 | 精确匹配 | 默认精确匹配，`$hierarchy$` 启用层级操作 |
 | 数据结构 | 单表 | 维度表 + 闭包表 |
-| 可用列 | `dim$id`, `dim$caption` | 额外支持 `$hierarchy$`、`$self$` 视角 |
+| 可用列 | `dim$id`, `dim$caption` | 额外支持 `$hierarchy$` 视角 |
 | 维护复杂度 | 低 | 中等 |
 
 ---
@@ -362,9 +331,9 @@ DELETE FROM dim_team WHERE team_id = 'T010';
 3. **层级深度**：建议控制层级深度，过深会影响性能
 4. **distance 字段**：虽非必需，但有助于查询特定层级的数据
 5. **视角选择**：
-   - 需要汇总到某节点 → 使用 `$hierarchy$` 视角
-   - 需要查看后代明细 → 使用 `$self$` 视角 + 闭包表过滤
-   - 需要精确匹配某节点 → 使用 `$self$` 视角
+   - 精确匹配某节点 → 使用默认视角 `team$id`
+   - 需要汇总到某节点 → 使用 `team$hierarchy$id` + `team$hierarchy$caption`
+   - 需要查看后代明细 → 使用 `team$hierarchy$id` + `team$caption`
 
 ---
 

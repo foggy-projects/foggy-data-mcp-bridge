@@ -535,10 +535,11 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
             if (jdbcColumn.isDimension()) {
                 DbModelParentChildDimensionImpl pp = jdbcColumn.getDecorate(DbDimensionColumn.class).getDimension().getDecorate(DbModelParentChildDimensionImpl.class);
-                // 检查是否为 self 视角的列（team$self$id），self 视角不使用闭包表
-                boolean isSelfColumn = sliceDef.getField() != null && sliceDef.getField().contains("$self$");
-                if (pp != null && !isSelfColumn) {
-                    //这是一个parentChild维~条件要重写，转成closure表
+                // 只有 hierarchy 视角的列（team$hierarchy$id）才使用闭包表
+                // 默认视角（team$id）按普通维度处理，精确匹配
+                boolean isHierarchyColumn = sliceDef.getField() != null && sliceDef.getField().contains("$hierarchy$");
+                if (pp != null && isHierarchyColumn) {
+                    //这是一个parentChild维的层级查询，条件重写为使用closure表
                     jdbcQuery.join(pp.getClosureQueryObject(), pp.getForeignKey());
                     alias = jdbcQueryModel.getAlias(pp.getClosureQueryObject());
                     //查询列换成closure表的parentId
