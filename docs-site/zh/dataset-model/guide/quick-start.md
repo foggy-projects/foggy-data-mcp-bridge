@@ -738,7 +738,7 @@ public class OrderQueryService {
 
 ## 12. 下一步
 
-- [TM 语法手册](../jm-qm/jm-syntax.md) - 完整的 TM 定义语法
-- [QM 语法手册](../jm-qm/qm-syntax.md) - 完整的 QM 定义语法
+- [TM 语法手册](../tm-qm/tm-syntax.md) - 完整的 TM 定义语法
+- [QM 语法手册](../tm-qm/qm-syntax.md) - 完整的 QM 定义语法
 - [DSL 查询 API](../api/query-api.md) - 完整的查询 API 参考
-- [父子维度](../jm-qm/parent-child.md) - 层级结构维度配置
+- [父子维度](../tm-qm/parent-child.md) - 层级结构维度配置

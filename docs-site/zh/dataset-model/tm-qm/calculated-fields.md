@@ -332,5 +332,5 @@ FROM fact_sales
 ## 下一步
 
 - [DSL 查询 API](../api/query-api.md) - 完整的查询参考
-- [TM 语法手册](./jm-syntax.md) - 表格模型定义
+- [TM 语法手册](./tm-syntax.md) - 表格模型定义
 - [QM 语法手册](./qm-syntax.md) - 查询模型定义

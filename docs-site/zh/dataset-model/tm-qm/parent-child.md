@@ -236,6 +236,6 @@ DELETE FROM dim_team WHERE team_id = 'T005';
 
 ## 下一步
 
-- [TM 语法手册](./jm-syntax.md) - 完整的 TM 定义语法
+- [TM 语法手册](./tm-syntax.md) - 完整的 TM 定义语法
 - [QM 语法手册](./qm-syntax.md) - 查询模型定义
 - [DSL 查询 API](../api/query-api.md) - 查询 API 参考

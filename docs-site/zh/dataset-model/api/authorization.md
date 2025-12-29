@@ -314,6 +314,6 @@ WHERE t0.order_status = 'COMPLETED'
 
 ## 下一步
 
-- [QM 语法手册](../jm-qm/qm-syntax.md) - 完整的 QM 配置
+- [QM 语法手册](../tm-qm/qm-syntax.md) - 完整的 QM 配置
 - [DSL 查询 API](./query-api.md) - 查询接口参考
-- [TM 语法手册](../jm-qm/jm-syntax.md) - 表格模型定义
+- [TM 语法手册](../tm-qm/tm-syntax.md) - 表格模型定义
