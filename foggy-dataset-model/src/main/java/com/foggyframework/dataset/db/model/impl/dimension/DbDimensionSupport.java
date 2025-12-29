@@ -232,9 +232,9 @@ public abstract class DbDimensionSupport extends DbObjectSupport implements DbDi
         @Override
         public String getAlias() {
             if (alias == null) {
-                // 使用维度的有效名称（优先别名）来构建属性列名
-                String effectiveDimName = getEffectiveName();
-                alias = effectiveDimName + "$" + property.getPropertyDbColumn().getAlias();
+                // 使用维度的别名路径（下划线分隔，支持嵌套维度）来构建属性列名
+                String fullPathAlias = getFullPathForAlias();
+                alias = fullPathAlias + "$" + property.getPropertyDbColumn().getAlias();
             }
             return alias;
         }
@@ -339,8 +339,8 @@ public abstract class DbDimensionSupport extends DbObjectSupport implements DbDi
         @Override
         public String getAlias() {
             if (keyAlias == null) {
-                // 使用维度的有效名称（优先别名）
-                keyAlias = getEffectiveName() + "$id";
+                // 使用维度的别名路径（下划线分隔，支持嵌套维度）
+                keyAlias = getFullPathForAlias() + "$id";
             }
             return keyAlias;
         }
@@ -424,8 +424,8 @@ public abstract class DbDimensionSupport extends DbObjectSupport implements DbDi
         @Override
         public String getName() {
             if (aliasName == null) {
-                // 使用维度的有效名称（优先别名）
-                aliasName = getEffectiveName() + "$id";
+                // 使用维度的别名路径（下划线分隔，支持嵌套维度）
+                aliasName = getFullPathForAlias() + "$id";
             }
             return aliasName;
         }
@@ -453,8 +453,8 @@ public abstract class DbDimensionSupport extends DbObjectSupport implements DbDi
         @Override
         public String getName() {
             if (aliasName == null) {
-                // 使用维度的有效名称（优先别名）
-                aliasName = getEffectiveName() + "$id";
+                // 使用维度的别名路径（下划线分隔，支持嵌套维度）
+                aliasName = getFullPathForAlias() + "$id";
             }
             return aliasName;
         }
@@ -481,8 +481,8 @@ public abstract class DbDimensionSupport extends DbObjectSupport implements DbDi
         @Override
         public String getName() {
             if (captionAlias == null) {
-                // 使用维度的有效名称（优先别名）
-                captionAlias = getEffectiveName() + "$caption";
+                // 使用维度的别名路径（下划线分隔，支持嵌套维度）
+                captionAlias = getFullPathForAlias() + "$caption";
             }
             return captionAlias;
         }

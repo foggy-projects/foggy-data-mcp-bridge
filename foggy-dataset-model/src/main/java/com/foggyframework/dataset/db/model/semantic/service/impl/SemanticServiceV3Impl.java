@@ -843,7 +843,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
      */
     private String buildIdDescription(DbDimension dimension) {
         StringBuilder sb = new StringBuilder();
-        sb.append(dimension.getEffectiveName()).append("$id");
+        sb.append(dimension.getFullPathForAlias()).append("$id");
 
         String caption = dimension.getCaption();
         if (StringUtils.isNotEmpty(caption)) {
@@ -863,7 +863,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
      */
     private String buildCaptionDescription(DbDimension dimension) {
         StringBuilder sb = new StringBuilder();
-        sb.append(dimension.getEffectiveName()).append("$caption");
+        sb.append(dimension.getFullPathForAlias()).append("$caption");
 
         String caption = dimension.getCaption();
         if (StringUtils.isNotEmpty(caption)) {

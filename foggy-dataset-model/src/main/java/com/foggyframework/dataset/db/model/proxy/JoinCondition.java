@@ -50,10 +50,10 @@ public class JoinCondition {
     /**
      * 判断右侧是否为字段引用
      *
-     * @return 如果右侧是 ColumnRef 返回 true
+     * @return 如果右侧是 ColumnRef 或 DimensionProxy 返回 true
      */
     public boolean isRightColumnRef() {
-        return right instanceof ColumnRef;
+        return right instanceof ColumnRef || right instanceof DimensionProxy;
     }
 
     /**
@@ -62,7 +62,13 @@ public class JoinCondition {
      * @return 右侧字段引用，如果不是则返回 null
      */
     public ColumnRef getRightAsColumnRef() {
-        return right instanceof ColumnRef ? (ColumnRef) right : null;
+        if (right instanceof ColumnRef columnRef) {
+            return columnRef;
+        }
+        if (right instanceof DimensionProxy dimensionProxy) {
+            return dimensionProxy.toColumnRef();
+        }
+        return null;
     }
 
     /**
@@ -82,6 +88,8 @@ public class JoinCondition {
 
         if (right instanceof ColumnRef rightCol) {
             rightPart = buildColumnSql(rightCol);
+        } else if (right instanceof DimensionProxy rightProxy) {
+            rightPart = buildColumnSql(rightProxy.toColumnRef());
         } else {
             // 常量值使用占位符
             rightPart = "?";

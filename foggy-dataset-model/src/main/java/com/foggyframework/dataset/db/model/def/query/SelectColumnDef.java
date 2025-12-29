@@ -2,6 +2,7 @@ package com.foggyframework.dataset.db.model.def.query;
 
 import com.foggyframework.dataset.db.model.def.AiDef;
 import com.foggyframework.dataset.db.model.proxy.ColumnRef;
+import com.foggyframework.dataset.db.model.proxy.DimensionProxy;
 import lombok.Data;
 
 import java.util.Map;
@@ -17,7 +18,7 @@ public class SelectColumnDef {
      * 字段引用
      * <ul>
      *   <li>V1 格式：String 类型，如 "orderId"</li>
-     *   <li>V2 格式：{@link ColumnRef} 类型，如 fo.orderId</li>
+     *   <li>V2 格式：{@link ColumnRef} 或 {@link DimensionProxy} 类型</li>
      * </ul>
      */
     Object ref;
@@ -28,9 +29,9 @@ public class SelectColumnDef {
     String caption;
 
     /**
-     * 获取字符串形式的 ref
+     * 获取字符串形式的 ref（别名格式，使用 _ 分隔）
      *
-     * @return ref 字符串，如果是 ColumnRef 则返回其 fullRef
+     * @return ref 字符串，如 "product_category$categoryId"
      */
     public String getRefAsString() {
         if (ref == null) {
@@ -40,27 +41,37 @@ public class SelectColumnDef {
             return (String) ref;
         }
         if (ref instanceof ColumnRef columnRef) {
-            return columnRef.getFullRef();
+            return columnRef.getAliasRef();
+        }
+        if (ref instanceof DimensionProxy dimensionProxy) {
+            return dimensionProxy.getAliasPath();
         }
         return ref.toString();
     }
 
     /**
-     * 获取 ColumnRef 类型的 ref（如果是）
+     * 获取 ColumnRef 类型的 ref
+     * <p>如果 ref 是 DimensionProxy，会自动转换为 ColumnRef
      *
      * @return ColumnRef 或 null
      */
     public ColumnRef getRefAsColumnRef() {
-        return ref instanceof ColumnRef ? (ColumnRef) ref : null;
+        if (ref instanceof ColumnRef columnRef) {
+            return columnRef;
+        }
+        if (ref instanceof DimensionProxy dimensionProxy) {
+            return dimensionProxy.toColumnRef();
+        }
+        return null;
     }
 
     /**
-     * 判断 ref 是否为 ColumnRef 类型
+     * 判断 ref 是否为 ColumnRef 或 DimensionProxy 类型
      *
-     * @return 如果是 ColumnRef 返回 true
+     * @return 如果是 ColumnRef 或 DimensionProxy 返回 true
      */
     public boolean isColumnRefType() {
-        return ref instanceof ColumnRef;
+        return ref instanceof ColumnRef || ref instanceof DimensionProxy;
     }
 
     /**

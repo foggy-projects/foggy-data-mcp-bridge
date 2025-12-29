@@ -76,46 +76,63 @@ public class JoinBuilder implements PropertyFunction {
         return switch (methodName) {
             case "on" -> {
                 // on(fo.orderId, fp.orderId) - 主要的 ON 条件
-                addCondition((ColumnRef) args[0], "=", args[1]);
+                addCondition(toColumnRef(args[0]), "=", args[1]);
                 yield this;
             }
             case "and" -> {
                 // and(fo.customerId, fp.customerId) - 额外的 AND 条件
-                addCondition((ColumnRef) args[0], "=", args[1]);
+                addCondition(toColumnRef(args[0]), "=", args[1]);
                 yield this;
             }
             case "eq" -> {
                 // eq(fp.status, 'ACTIVE') - 等值常量条件
-                addCondition((ColumnRef) args[0], "=", args[1]);
+                addCondition(toColumnRef(args[0]), "=", args[1]);
                 yield this;
             }
             case "neq" -> {
                 // neq(fp.status, 'DELETED') - 不等常量条件
-                addCondition((ColumnRef) args[0], "<>", args[1]);
+                addCondition(toColumnRef(args[0]), "<>", args[1]);
                 yield this;
             }
             case "gt" -> {
                 // gt(fo.amount, 0) - 大于条件
-                addCondition((ColumnRef) args[0], ">", args[1]);
+                addCondition(toColumnRef(args[0]), ">", args[1]);
                 yield this;
             }
             case "gte" -> {
                 // gte(fo.amount, 0) - 大于等于条件
-                addCondition((ColumnRef) args[0], ">=", args[1]);
+                addCondition(toColumnRef(args[0]), ">=", args[1]);
                 yield this;
             }
             case "lt" -> {
                 // lt(fo.amount, 1000) - 小于条件
-                addCondition((ColumnRef) args[0], "<", args[1]);
+                addCondition(toColumnRef(args[0]), "<", args[1]);
                 yield this;
             }
             case "lte" -> {
                 // lte(fo.amount, 1000) - 小于等于条件
-                addCondition((ColumnRef) args[0], "<=", args[1]);
+                addCondition(toColumnRef(args[0]), "<=", args[1]);
                 yield this;
             }
             default -> PropertyHolder.NO_MATCH;
         };
+    }
+
+    /**
+     * 将参数转换为 ColumnRef
+     * <p>支持 ColumnRef 和 DimensionProxy 两种类型
+     *
+     * @param arg 参数对象
+     * @return ColumnRef
+     */
+    private ColumnRef toColumnRef(Object arg) {
+        if (arg instanceof ColumnRef columnRef) {
+            return columnRef;
+        }
+        if (arg instanceof DimensionProxy dimensionProxy) {
+            return dimensionProxy.toColumnRef();
+        }
+        throw new IllegalArgumentException("Expected ColumnRef or DimensionProxy, got: " + arg.getClass().getName());
     }
 
     /**

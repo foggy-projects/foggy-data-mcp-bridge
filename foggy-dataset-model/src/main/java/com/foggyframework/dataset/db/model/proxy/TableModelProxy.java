@@ -7,15 +7,14 @@ import jakarta.persistence.criteria.JoinType;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.util.HashMap;
-import java.util.Map;
-
 /**
  * 表模型代理对象
  *
  * <p>用于在 QM V2 格式中代理 TableModel，提供：
  * <ul>
- *   <li>动态字段访问：{@code fo.orderId} 返回 {@link ColumnRef}</li>
+ *   <li>动态字段访问：{@code fo.orderId} 返回 {@link DimensionProxy}</li>
+ *   <li>维度属性访问：{@code fo.customer$memberLevel} 返回 {@link ColumnRef}</li>
+ *   <li>链式维度访问：{@code fo.product.category$categoryId} 返回 {@link ColumnRef}</li>
  *   <li>JOIN 方法：{@code fo.leftJoin(fp)} 返回 {@link JoinBuilder}</li>
  * </ul>
  *
@@ -29,7 +28,10 @@ import java.util.Map;
  *     fo.leftJoin(fp).on(fo.orderId, fp.orderId)
  * ],
  * columnGroups: [
- *     { items: [{ ref: fo.orderId }] }
+ *     { items: [
+ *         { ref: fo.orderId },
+ *         { ref: fo.product.category$categoryId }  // 嵌套维度
+ *     ]}
  * ]
  * }</pre>
  *
@@ -49,11 +51,6 @@ public class TableModelProxy implements PropertyHolder, PropertyFunction {
      */
     @Setter
     private String alias;
-
-    /**
-     * 字段引用缓存
-     */
-    private final Map<String, ColumnRef> columnRefs = new HashMap<>();
 
     /**
      * 创建表模型代理
@@ -78,16 +75,17 @@ public class TableModelProxy implements PropertyHolder, PropertyFunction {
     // ==================== PropertyHolder 实现 ====================
 
     /**
-     * 动态属性访问：支持 fo.orderId、fo.customer$memberLevel 等语法
+     * 动态属性访问：支持 fo.orderId、fo.customer$memberLevel、fo.product.category 等语法
      *
      * <p>处理逻辑：
      * <ul>
-     *   <li>{@code fo.orderId} → {@code new ColumnRef(this, "orderId", null)}</li>
      *   <li>{@code fo.customer$memberLevel} → {@code new ColumnRef(this, "customer", "memberLevel")}</li>
+     *   <li>{@code fo.orderId} → {@code new DimensionProxy(this, "orderId")}（支持链式访问）</li>
+     *   <li>{@code fo.product.category$categoryId} → 链式调用最终返回 ColumnRef</li>
      * </ul>
      *
      * @param name 属性名
-     * @return ColumnRef 对象
+     * @return ColumnRef（带$属性访问）或 DimensionProxy（普通访问，支持链式）
      */
     @Override
     public Object getProperty(String name) {
@@ -96,12 +94,13 @@ public class TableModelProxy implements PropertyHolder, PropertyFunction {
             String[] parts = name.split("\\$", 2);
             String columnName = parts[0];
             String subProperty = parts[1];
-            // 带子属性的引用不缓存，因为可能有多种组合
+            // 带子属性的引用直接返回 ColumnRef
             return new ColumnRef(this, columnName, subProperty);
         }
 
-        // 普通字段引用，使用缓存
-        return columnRefs.computeIfAbsent(name, k -> new ColumnRef(this, k));
+        // 返回 DimensionProxy 支持链式访问
+        // 例如：fs.product 返回 DimensionProxy，可继续访问 .category
+        return new DimensionProxy(this, name);
     }
 
     // ==================== PropertyFunction 实现 ====================
