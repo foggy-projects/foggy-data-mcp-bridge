@@ -95,4 +95,19 @@ public class DatasetProperties {
      * </ul>
      */
     private String templatesPath = "classpath:/foggy/templates/";
+
+    /**
+     * 是否在应用启动时校验所有 QM 文件
+     * <p>默认: false
+     * <p>开启后会在启动时加载并校验所有 .qm 文件，提前发现配置错误
+     * <p>适合开发和测试环境，生产环境可根据需要开启
+     *
+     * <h3>配置示例：</h3>
+     * <pre>
+     * foggy:
+     *   dataset:
+     *     validate-on-startup: true
+     * </pre>
+     */
+    private boolean validateOnStartup = false;
 }

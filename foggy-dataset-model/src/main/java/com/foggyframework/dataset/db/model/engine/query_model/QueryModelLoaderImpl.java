@@ -107,7 +107,7 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
 
         // 3. 加载新模型（此时 queryModelNameOrAlias 应该是全名）
         Fsscript fsscript = findFsscript(queryModelNameOrAlias, "qm");
-        ExpEvaluator ee = fsscript.eval(systemBundlesContext.getApplicationContext());
+        ExpEvaluator ee = evalQmScript(fsscript);
         Object queryModel = ee.getExportObject("queryModel");
         DbQueryModelDef queryModelDef = FsscriptConversionService.getSharedInstance().convert(queryModel, DbQueryModelDef.class);
 
@@ -119,7 +119,7 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
     @Override
     public QueryModel loadJdbcQueryModel(BundleResource bundleResource) {
         Fsscript fsscript = fileFsscriptLoader.findLoadFsscript(bundleResource);
-        ExpEvaluator ee = fsscript.eval(systemBundlesContext.getApplicationContext());
+        ExpEvaluator ee = evalQmScript(fsscript);
         Object queryModel = ee.getExportObject("queryModel");
         DbQueryModelDef queryModelDef = FsscriptConversionService.getSharedInstance().convert(queryModel, DbQueryModelDef.class);
         try {
@@ -136,66 +136,31 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
         }
     }
 
+    /**
+     * 执行 QM 脚本，并注入 V2 内置函数
+     *
+     * @param fsscript QM 脚本
+     * @return 执行后的 ExpEvaluator
+     */
+    private ExpEvaluator evalQmScript(Fsscript fsscript) {
+        ExpEvaluator ee = fsscript.newInstance(systemBundlesContext.getApplicationContext());
+        // 注入 loadTableModel 内置函数（支持 V2 格式）
+        ee.getCurrentFsscriptClosure().setVar("loadTableModel",
+                com.foggyframework.dataset.db.model.proxy.LoadTableModelFunction.getInstance());
+        fsscript.eval(ee);
+        return ee;
+    }
+
     private QueryModelSupport loadJdbcQueryModel(ExpEvaluator ee, Fsscript fsscript, DbQueryModelDef queryModelDef) {
         if (queryModelDef == null) {
             throw RX.throwAUserTip(DatasetMessages.querymodelExportMissing(fsscript.getPath()));
         }
-//        RX.notNull(queryModelDef, "需要有查询模型定义");
         if (StringUtils.isEmpty(queryModelDef.getModel())) {
             throw RX.throwAUserTip(DatasetMessages.querymodelModelMissing(queryModelDef.getName()));
         }
-//        MongoTemplate modelMongoTemplate = null;
 
-        List<TableModel> jdbcModelDxList = null;
-        if (queryModelDef.getModel() instanceof List) {
-            List<Object> ll = (List<Object>) queryModelDef.getModel();
-            jdbcModelDxList = new ArrayList<>(ll.size());
-            Map<String, TableModel> aliasToJdbcModel = new HashMap<>();
-            for (Object s : ll) {
-                if (s instanceof String) {
-                    TableModel jdbcModel = tableModelLoaderManager.load((String) s);
-                    jdbcModelDxList.add(new JdbcQueryModelImpl.JdbcModelDx(jdbcModel, jdbcModel.getIdColumn(), null, null));
-                } else if (s instanceof Map) {
-                    TableModel jdbcModel = tableModelLoaderManager.load((String) ((Map<?, ?>) s).get("name"));
-                    String foreignKey = (String) ((Map<?, ?>) s).get("foreignKey");
-                    if (StringUtils.isEmpty(foreignKey)) {
-                        foreignKey = jdbcModel.getIdColumn();
-                    }
-                    String alias = (String) ((Map<?, ?>) s).get("alias");
-                    String join = (String) ((Map<?, ?>) s).get("join");
-
-                    FsscriptFunction onBuilder = (FsscriptFunction) ((Map<?, ?>) s).get("onBuilder");
-                    JdbcQueryModelImpl.JdbcModelDx dx = new JdbcQueryModelImpl.JdbcModelDx(jdbcModel, foreignKey, onBuilder, alias,
-                            StringUtils.isEmpty(join) ? JoinType.LEFT : JoinType.valueOf(join.toUpperCase()));
-                    jdbcModelDxList.add(dx);
-
-                    //处理dependsOn
-                    String d = (String) ((Map<?, ?>) s).get("dependsOn");
-                    if (StringUtils.isNotTrimEmpty(d)) {
-                        TableModel dm = aliasToJdbcModel.get(d);
-                        RX.notNull(dm, String.format("未能根据alias:[%s]在当前查询模型:[%s]中找到TM,请确保在:[%s]前定义",
-                                d, queryModelDef.getName(), alias
-                        ));
-                        dx.addDependsOn(dm);
-                    }
-
-                    aliasToJdbcModel.put(dx.getAlias(), dx);
-
-                } else {
-                    throw new UnsupportedOperationException();
-                }
-
-            }
-
-
-        } else if (queryModelDef.getModel() instanceof String) {
-            TableModel jdbcModel = tableModelLoaderManager.load((String) queryModelDef.getModel());
-//            modelMongoTemplate = jdbcModel.getMongoTemplate();
-            jdbcModelDxList = new ArrayList<>(1);
-            jdbcModelDxList.add(new JdbcQueryModelImpl.JdbcModelDx(jdbcModel, jdbcModel.getIdColumn(), null, null, JoinType.LEFT));
-        } else {
-            throw new UnsupportedOperationException();
-        }
+        // 解析 model 配置（V1 格式解析，V2 由 QueryModelBuilderV2 处理）
+        List<TableModel> jdbcModelDxList = parseV1Model(queryModelDef);
 
         /**
          * 构建JdbcQueryModelImpl
@@ -641,6 +606,85 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
             initials.append(name.substring(0, Math.min(2, name.length())).toUpperCase());
         }
         return initials.toString();
+    }
+
+    // ==================== Model 解析 ====================
+
+    /**
+     * 解析 V1 格式的 model 配置
+     *
+     * <p>V1 格式支持：
+     * <ul>
+     *   <li>String - 单一模型名称</li>
+     *   <li>List&lt;String&gt; - 模型名称列表</li>
+     *   <li>List&lt;Map&gt; - 包含 name/foreignKey/onBuilder/alias/join 的配置</li>
+     * </ul>
+     *
+     * <p>对于 V2 格式（model 是 TableModelProxy），返回 null，由 QueryModelBuilderV2 处理
+     *
+     * @param queryModelDef QM 定义
+     * @return V1 解析的 jdbcModelDxList，如果是 V2 格式返回 null
+     */
+    private List<TableModel> parseV1Model(DbQueryModelDef queryModelDef) {
+        Object model = queryModelDef.getModel();
+
+        // V2 格式由 QueryModelBuilderV2 处理
+        if ("v2".equalsIgnoreCase(queryModelDef.getLoader())) {
+            return null;
+        }
+
+        if (model instanceof List) {
+            List<Object> ll = (List<Object>) model;
+            List<TableModel> jdbcModelDxList = new ArrayList<>(ll.size());
+            Map<String, TableModel> aliasToJdbcModel = new HashMap<>();
+
+            for (Object s : ll) {
+                if (s instanceof String) {
+                    TableModel jdbcModel = tableModelLoaderManager.load((String) s);
+                    jdbcModelDxList.add(new JdbcQueryModelImpl.JdbcModelDx(jdbcModel, jdbcModel.getIdColumn(), null, null));
+                } else if (s instanceof Map) {
+                    Map<?, ?> m = (Map<?, ?>) s;
+                    TableModel jdbcModel = tableModelLoaderManager.load((String) m.get("name"));
+                    String foreignKey = (String) m.get("foreignKey");
+                    if (StringUtils.isEmpty(foreignKey)) {
+                        foreignKey = jdbcModel.getIdColumn();
+                    }
+                    String alias = (String) m.get("alias");
+                    String join = (String) m.get("join");
+
+                    FsscriptFunction onBuilder = (FsscriptFunction) m.get("onBuilder");
+                    JdbcQueryModelImpl.JdbcModelDx dx = new JdbcQueryModelImpl.JdbcModelDx(
+                            jdbcModel, foreignKey, onBuilder, alias,
+                            StringUtils.isEmpty(join) ? JoinType.LEFT : JoinType.valueOf(join.toUpperCase()));
+                    jdbcModelDxList.add(dx);
+
+                    // 处理 dependsOn
+                    String d = (String) m.get("dependsOn");
+                    if (StringUtils.isNotTrimEmpty(d)) {
+                        TableModel dm = aliasToJdbcModel.get(d);
+                        RX.notNull(dm, String.format("未能根据alias:[%s]在当前查询模型:[%s]中找到TM,请确保在:[%s]前定义",
+                                d, queryModelDef.getName(), alias));
+                        dx.addDependsOn(dm);
+                    }
+
+                    aliasToJdbcModel.put(dx.getAlias(), dx);
+                } else {
+                    // V2 格式中可能包含 TableModelProxy 或 JoinBuilder
+                    // 返回 null 让 QueryModelBuilderV2 处理
+                    return null;
+                }
+            }
+            return jdbcModelDxList;
+
+        } else if (model instanceof String) {
+            TableModel jdbcModel = tableModelLoaderManager.load((String) model);
+            List<TableModel> jdbcModelDxList = new ArrayList<>(1);
+            jdbcModelDxList.add(new JdbcQueryModelImpl.JdbcModelDx(jdbcModel, jdbcModel.getIdColumn(), null, null, JoinType.LEFT));
+            return jdbcModelDxList;
+        }
+
+        // 其他类型（如 TableModelProxy）返回 null
+        return null;
     }
 
 }

@@ -15,10 +15,12 @@ export const queryModel = {
     description: '多事实表JOIN场景 - 订单表与支付表联合查询，用于测试同粒度事实表JOIN',
 
     // 多模型关联配置
+    // model: [fo,
+    //     fo.leftJoin(fp).eq(fo.orderId,fp.orderId)
+    // ],
     model: [fo,
-        fo.leftJoin(fp).eq(fo.orderId,fp.orderId)
+        fo.leftJoin(fp).eq(fo.orderId,fp.orderId),
     ],
-
     columnGroups: [
         {
             caption: '订单信息',
