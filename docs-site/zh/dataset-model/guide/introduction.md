@@ -70,7 +70,7 @@ export const queryModel = {
     "param": {
         "columns": [ "customer$caption", "amount"],
         "slice": [
-            { "field": "orderStatus", "type": "=", "value": "COMPLETED" }
+            { "field": "orderStatus", "op": "=", "value": "COMPLETED" }
         ],
         "groupBy": [
             { "field": "customer$customerType" }

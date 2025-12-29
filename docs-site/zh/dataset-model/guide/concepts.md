@@ -217,7 +217,7 @@ DSL（Domain Specific Language）是用于查询数据的 JSON 格式语言。�
 ```json
 {
     "orderBy": [
-        { "name": "field", "order": "desc" }
+        { "field": "field", "order": "desc" }
     ]
 }
 ```

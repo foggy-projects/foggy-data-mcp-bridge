@@ -78,7 +78,7 @@
             "count(*) as orderCount"
         ],
         "groupBy": [
-            { "name": "product$categoryName" }
+            { "field": "product$categoryName" }
         ]
     }
 }
@@ -206,7 +206,7 @@ FROM fact_sales
         ],
         "columns": ["orderId", "salesAmount", "profitAmount", "profitRate"],
         "slice": [
-            { "name": "salesAmount", "type": ">", "value": 0 }
+            { "field": "salesAmount", "op": ">", "value": 0 }
         ]
     }
 }
@@ -267,8 +267,8 @@ FROM fact_sales
         ],
         "columns": ["orderId", "salesAmount", "profitAmount", "profitRate"],
         "slice": [
-            { "name": "salesAmount", "type": ">", "value": 0 },
-            { "name": "profitRate", "type": ">", "value": 10 }
+            { "field": "salesAmount", "op": ">", "value": 0 },
+            { "field": "profitRate", "op": ">", "value": 10 }
         ]
     }
 }
@@ -286,10 +286,10 @@ FROM fact_sales
             "sum(profitAmount) * 100.0 / sum(salesAmount) as profitRate"
         ],
         "groupBy": [
-            { "name": "product$categoryName" }
+            { "field": "product$categoryName" }
         ],
         "orderBy": [
-            { "name": "totalSales", "order": "desc" }
+            { "field": "totalSales", "order": "desc" }
         ]
     }
 }

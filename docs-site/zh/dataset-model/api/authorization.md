@@ -263,7 +263,7 @@ accesses: [
     "param": {
         "columns": ["orderId", "customer$caption", "totalAmount"],
         "slice": [
-            { "name": "orderStatus", "type": "=", "value": "COMPLETED" }
+            { "field": "orderStatus", "op": "=", "value": "COMPLETED" }
         ]
     }
 }

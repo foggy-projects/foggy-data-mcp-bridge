@@ -44,13 +44,13 @@ POST /jdbc-model/query-model/v2/{model}
     "param": {
         "columns": ["orderId", "customer$caption", "totalAmount"],
         "slice": [
-            { "name": "orderStatus", "type": "=", "value": "COMPLETED" }
+            { "field": "orderStatus", "op": "=", "value": "COMPLETED" }
         ],
         "groupBy": [
-            { "name": "customer$customerType" }
+            { "field": "customer$customerType" }
         ],
         "orderBy": [
-            { "name": "totalAmount", "order": "desc" }
+            { "field": "totalAmount", "order": "desc" }
         ],
         "totalColumn": true
     }
@@ -130,8 +130,8 @@ POST /jdbc-model/query-model/v2/{model}
 
 ```json
 {
-    "name": "字段名",
-    "type": "操作符",
+    "field": "字段名",
+    "op": "操作符",
     "value": "值",
     "link": 1
 }
@@ -141,22 +141,22 @@ POST /jdbc-model/query-model/v2/{model}
 
 | 操作符 | 说明 | value 类型 | 示例 |
 |--------|------|-----------|------|
-| `=` | 等于 | any | `{ "type": "=", "value": "COMPLETED" }` |
-| `!=` | 不等于 | any | `{ "type": "!=", "value": "CANCELLED" }` |
-| `>` | 大于 | number | `{ "type": ">", "value": 100 }` |
-| `>=` | 大于等于 | number | `{ "type": ">=", "value": 100 }` |
-| `<` | 小于 | number | `{ "type": "<", "value": 1000 }` |
-| `<=` | 小于等于 | number | `{ "type": "<=", "value": 1000 }` |
-| `in` | 包含 | array | `{ "type": "in", "value": ["A", "B", "C"] }` |
-| `not in` | 不包含 | array | `{ "type": "not in", "value": ["X", "Y"] }` |
-| `like` | 模糊匹配 | string | `{ "type": "like", "value": "%关键字%" }` |
-| `not like` | 不匹配 | string | `{ "type": "not like", "value": "%排除%" }` |
-| `is null` | 为空 | null | `{ "type": "is null" }` |
-| `is not null` | 不为空 | null | `{ "type": "is not null" }` |
-| `[]` | 闭区间 | array[2] | `{ "type": "[]", "value": [100, 500] }` |
-| `[)` | 左闭右开 | array[2] | `{ "type": "[)", "value": ["2024-01-01", "2024-07-01"] }` |
-| `(]` | 左开右闭 | array[2] | `{ "type": "(]", "value": [0, 100] }` |
-| `()` | 开区间 | array[2] | `{ "type": "()", "value": [0, 100] }` |
+| `=` | 等于 | any | `{ "op": "=", "value": "COMPLETED" }` |
+| `!=` | 不等于 | any | `{ "op": "!=", "value": "CANCELLED" }` |
+| `>` | 大于 | number | `{ "op": ">", "value": 100 }` |
+| `>=` | 大于等于 | number | `{ "op": ">=", "value": 100 }` |
+| `<` | 小于 | number | `{ "op": "<", "value": 1000 }` |
+| `<=` | 小于等于 | number | `{ "op": "<=", "value": 1000 }` |
+| `in` | 包含 | array | `{ "op": "in", "value": ["A", "B", "C"] }` |
+| `not in` | 不包含 | array | `{ "op": "not in", "value": ["X", "Y"] }` |
+| `like` | 模糊匹配 | string | `{ "op": "like", "value": "%关键字%" }` |
+| `not like` | 不匹配 | string | `{ "op": "not like", "value": "%排除%" }` |
+| `is null` | 为空 | null | `{ "op": "is null" }` |
+| `is not null` | 不为空 | null | `{ "op": "is not null" }` |
+| `[]` | 闭区间 | array[2] | `{ "op": "[]", "value": [100, 500] }` |
+| `[)` | 左闭右开 | array[2] | `{ "op": "[)", "value": ["2024-01-01", "2024-07-01"] }` |
+| `(]` | 左开右闭 | array[2] | `{ "op": "(]", "value": [0, 100] }` |
+| `()` | 开区间 | array[2] | `{ "op": "()", "value": [0, 100] }` |
 
 ### 4.3 范围条件示例
 
@@ -165,13 +165,13 @@ POST /jdbc-model/query-model/v2/{model}
     "param": {
         "slice": [
             {
-                "name": "orderTime",
-                "type": "[)",
+                "field": "orderTime",
+                "op": "[)",
                 "value": ["2024-01-01", "2024-07-01"]
             },
             {
-                "name": "totalAmount",
-                "type": "[]",
+                "field": "totalAmount",
+                "op": "[]",
                 "value": [100, 500]
             }
         ]
@@ -199,8 +199,8 @@ WHERE order_time >= '2024-01-01' AND order_time < '2024-07-01'
 {
     "param": {
         "slice": [
-            { "name": "orderStatus", "type": "=", "value": "COMPLETED" },
-            { "name": "orderStatus", "type": "=", "value": "SHIPPED", "link": 2 }
+            { "field": "orderStatus", "op": "=", "value": "COMPLETED" },
+            { "field": "orderStatus", "op": "=", "value": "SHIPPED", "link": 2 }
         ]
     }
 }
@@ -220,12 +220,12 @@ WHERE (order_status = 'COMPLETED' OR order_status = 'SHIPPED')
 {
     "param": {
         "slice": [
-            { "name": "orderStatus", "type": "=", "value": "COMPLETED" },
+            { "field": "orderStatus", "op": "=", "value": "COMPLETED" },
             {
                 "link": 1,
                 "children": [
-                    { "name": "totalAmount", "type": ">=", "value": 1000 },
-                    { "name": "customer$customerType", "type": "=", "value": "VIP", "link": 2 }
+                    { "field": "totalAmount", "op": ">=", "value": 1000 },
+                    { "field": "customer$customerType", "op": "=", "value": "VIP", "link": 2 }
                 ]
             }
         ]
@@ -250,9 +250,9 @@ WHERE order_status = 'COMPLETED'
 {
     "param": {
         "groupBy": [
-            { "name": "customer$customerType" },
-            { "name": "orderDate$year" },
-            { "name": "orderDate$month" }
+            { "field": "customer$customerType" },
+            { "field": "orderDate$year" },
+            { "field": "orderDate$month" }
         ]
     }
 }
@@ -277,9 +277,9 @@ WHERE order_status = 'COMPLETED'
             "totalAmount"
         ],
         "groupBy": [
-            { "name": "orderDate$year" },
-            { "name": "orderDate$month" },
-            { "name": "customer$customerType" }
+            { "field": "orderDate$year" },
+            { "field": "orderDate$month" },
+            { "field": "customer$customerType" }
         ]
     }
 }
@@ -318,8 +318,8 @@ WHERE order_status = 'COMPLETED'
 {
     "param": {
         "orderBy": [
-            { "name": "totalAmount", "order": "desc" },
-            { "name": "orderId", "order": "asc" }
+            { "field": "totalAmount", "order": "desc" },
+            { "field": "orderId", "order": "asc" }
         ]
     }
 }
@@ -329,7 +329,7 @@ WHERE order_status = 'COMPLETED'
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| `name` | string | 是 | 排序字段名 |
+| `field` | string | 是 | 排序字段名 |
 | `order` | string | 是 | `asc`（升序）/ `desc`（降序） |
 | `nullFirst` | boolean | 否 | NULL 值排在最前 |
 | `nullLast` | boolean | 否 | NULL 值排在最后 |
@@ -401,11 +401,11 @@ POST /jdbc-model/query-model/v2/FactOrderQueryModel
             "totalAmount"
         ],
         "slice": [
-            { "name": "orderStatus", "type": "in", "value": ["COMPLETED", "SHIPPED"] },
-            { "name": "totalAmount", "type": ">=", "value": 100 }
+            { "field": "orderStatus", "op": "in", "value": ["COMPLETED", "SHIPPED"] },
+            { "field": "totalAmount", "op": ">=", "value": 100 }
         ],
         "orderBy": [
-            { "name": "orderTime", "order": "desc" }
+            { "field": "orderTime", "order": "desc" }
         ],
         "totalColumn": true
     }
@@ -429,16 +429,16 @@ POST /jdbc-model/query-model/v2/FactOrderQueryModel
             "totalAmount"
         ],
         "slice": [
-            { "name": "orderDate$caption", "type": "[)", "value": ["2024-01-01", "2024-07-01"] }
+            { "field": "orderDate$caption", "op": "[)", "value": ["2024-01-01", "2024-07-01"] }
         ],
         "groupBy": [
-            { "name": "orderDate$year" },
-            { "name": "orderDate$month" },
-            { "name": "customer$customerType" }
+            { "field": "orderDate$year" },
+            { "field": "orderDate$month" },
+            { "field": "customer$customerType" }
         ],
         "orderBy": [
-            { "name": "orderDate$year", "order": "desc" },
-            { "name": "orderDate$month", "order": "asc" }
+            { "field": "orderDate$year", "order": "desc" },
+            { "field": "orderDate$month", "order": "asc" }
         ]
     }
 }
@@ -461,17 +461,17 @@ POST /jdbc-model/query-model/v2/FactOrderQueryModel
             "totalAmount"
         ],
         "slice": [
-            { "name": "orderTime", "type": "[)", "value": ["2024-01-01", "2024-07-01"] },
+            { "field": "orderTime", "op": "[)", "value": ["2024-01-01", "2024-07-01"] },
             {
                 "children": [
-                    { "name": "customer$customerType", "type": "=", "value": "VIP" },
-                    { "name": "totalAmount", "type": ">=", "value": 1000, "link": 2 }
+                    { "field": "customer$customerType", "op": "=", "value": "VIP" },
+                    { "field": "totalAmount", "op": ">=", "value": 1000, "link": 2 }
                 ]
             },
-            { "name": "product$category", "type": "in", "value": ["数码电器", "家居用品"] }
+            { "field": "product$category", "op": "in", "value": ["数码电器", "家居用品"] }
         ],
         "orderBy": [
-            { "name": "totalAmount", "order": "desc" }
+            { "field": "totalAmount", "order": "desc" }
         ]
     }
 }
@@ -495,8 +495,8 @@ POST /jdbc-model/query-model/queryKpi
     "queryModel": "FactSalesQueryModel",
     "columns": ["salesQuantity", "salesAmount", "profitAmount"],
     "slice": [
-        { "name": "salesDate$caption", "type": "[)", "value": ["2024-01-01", "2024-07-01"] },
-        { "name": "product$category", "type": "=", "value": "数码电器" }
+        { "field": "salesDate$caption", "op": "[)", "value": ["2024-01-01", "2024-07-01"] },
+        { "field": "product$category", "op": "=", "value": "数码电器" }
     ]
 }
 ```
