@@ -38,8 +38,8 @@ export const queryModel = {
         {
             caption: '度量',
             items: [
-                { ref: fts.totalSalesAmount },
-                { ref: fts.totalSalesCount },
+                { ref: fts.salesAmount },
+                { ref: fts.salesCount },
                 { ref: fts.avgSalesAmount },
                 { ref: fts.recordCount }
             ]

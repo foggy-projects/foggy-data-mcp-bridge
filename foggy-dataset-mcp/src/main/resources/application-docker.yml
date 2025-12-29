@@ -82,7 +82,7 @@ mcp:
 foggy:
   dataset:
     # SQL 日志配置 (生产环境建议关闭)
-    show-sql: false              # 不打印 SQL 语句
+    show-sql: true              # 不打印 SQL 语句
     # 模型定义文件路径
     templates-path: classpath:/foggy/templates/
     cache:
@@ -115,8 +115,8 @@ management:
 # ==========================================
 logging:
   level:
-    root: ${LOG_LEVEL:INFO}
-    com.foggyframework: ${LOG_LEVEL:INFO}
-    org.springframework.ai: INFO
+    root: ${LOG_LEVEL:DEBUG}
+    com.foggyframework: ${LOG_LEVEL:DEBUG}
+    org.springframework.ai: DEBUG
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
