@@ -9,6 +9,7 @@ import com.foggyframework.dataset.db.model.engine.join.JoinGraph;
 import com.foggyframework.dataset.db.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.db.model.impl.DbObjectSupport;
 import com.foggyframework.dataset.db.model.impl.dimension.DbDimensionSupport;
+import com.foggyframework.dataset.db.model.impl.dimension.DbModelParentChildDimensionImpl;
 import com.foggyframework.dataset.db.model.impl.property.DbPropertyImpl;
 import com.foggyframework.dataset.db.model.impl.utils.QueryObjectDelegate;
 import com.foggyframework.dataset.db.model.path.DimensionPath;
@@ -249,6 +250,9 @@ public abstract class TableModelSupport extends DbObjectSupport implements Table
     /**
      * 将维度添加到 JOIN 图
      * <p>递归处理嵌套维度</p>
+     *
+     * <p>对于父子维度，JoinGraph 保持原有的直接关联方式（主表 -> 维度表）。
+     * 层级汇总视角（通过闭包表）的 JOIN 在查询引擎中动态处理。
      */
     private void addDimensionToGraph(DbDimension dimension) {
         QueryObject dimQueryObject = dimension.getQueryObject();
@@ -257,34 +261,59 @@ public abstract class TableModelSupport extends DbObjectSupport implements Table
             return;
         }
 
-        // 确定 LEFT 表
-        QueryObject leftTable;
-        if (dimension.isNestedDimension()) {
-            // 嵌套维度：LEFT 表是父维度的表
-            DbDimension parentDim = dimension.getParentDimension();
-            if (parentDim != null && parentDim.getQueryObject() != null) {
-                leftTable = parentDim.getQueryObject();
-            } else {
-                // 如果没有父维度的 QueryObject，使用主表
-                leftTable = queryObject;
+        // 检查是否为父子维度
+        DbModelParentChildDimensionImpl pcDim = dimension.getDecorate(DbModelParentChildDimensionImpl.class);
+
+        if (pcDim != null) {
+            // 父子维度：添加多个 JOIN 边
+            // 1. 主表 -> 维度表（直接关联，用于普通查询）
+            joinGraph.addEdge(queryObject, dimQueryObject, pcDim.getForeignKey());
+
+            // 2. 主表 -> selfQueryObject（用于明细视角：team$self$caption）
+            if (pcDim.getSelfQueryObject() != null) {
+                joinGraph.addEdge(queryObject, pcDim.getSelfQueryObject(), pcDim.getForeignKey());
+            }
+
+            // 3. 主表 -> 闭包表（用于 slice 条件时动态添加）
+            joinGraph.addEdge(queryObject, pcDim.getClosureQueryObject(), pcDim.getForeignKey());
+
+            // 4. 闭包表 -> hierarchyQueryObject（用于层级汇总视角：team$hierarchy$caption）
+            // 通过 closure.parent_id -> dim.team_id 关联
+            if (pcDim.getHierarchyQueryObject() != null) {
+                joinGraph.addEdge(pcDim.getClosureQueryObject(), pcDim.getHierarchyQueryObject(), pcDim.getParentKey());
             }
         } else {
-            // 普通维度：LEFT 表是主表
-            leftTable = queryObject;
-        }
+            // 普通维度：原有逻辑
 
-        String foreignKey = dimension.getForeignKey();
+            // 确定 LEFT 表
+            QueryObject leftTable;
+            if (dimension.isNestedDimension()) {
+                // 嵌套维度：LEFT 表是父维度的表
+                DbDimension parentDim = dimension.getParentDimension();
+                if (parentDim != null && parentDim.getQueryObject() != null) {
+                    leftTable = parentDim.getQueryObject();
+                } else {
+                    // 如果没有父维度的 QueryObject，使用主表
+                    leftTable = queryObject;
+                }
+            } else {
+                // 普通维度：LEFT 表是主表
+                leftTable = queryObject;
+            }
 
-        // 获取 onBuilder（需要通过 decorate 访问）
-        DbDimensionSupport dimSupport = dimension.getDecorate(DbDimensionSupport.class);
-        FsscriptFunction onBuilder = dimSupport != null ? dimSupport.getOnBuilder() : null;
+            String foreignKey = dimension.getForeignKey();
 
-        // 如果有 onBuilder，使用 onBuilder
-        if (onBuilder != null) {
-            joinGraph.addEdge(leftTable, dimQueryObject, onBuilder, null);
-        } else if (StringUtils.isNotEmpty(foreignKey)) {
-            // 使用 foreignKey
-            joinGraph.addEdge(leftTable, dimQueryObject, foreignKey);
+            // 获取 onBuilder（需要通过 decorate 访问）
+            DbDimensionSupport dimSupport = dimension.getDecorate(DbDimensionSupport.class);
+            FsscriptFunction onBuilder = dimSupport != null ? dimSupport.getOnBuilder() : null;
+
+            // 如果有 onBuilder，使用 onBuilder
+            if (onBuilder != null) {
+                joinGraph.addEdge(leftTable, dimQueryObject, onBuilder, null);
+            } else if (StringUtils.isNotEmpty(foreignKey)) {
+                // 使用 foreignKey
+                joinGraph.addEdge(leftTable, dimQueryObject, foreignKey);
+            }
         }
 
         // 递归处理子维度

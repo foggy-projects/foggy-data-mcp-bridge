@@ -185,7 +185,7 @@ class ParentChildDimensionTest extends EcommerceTestSupport {
                 "team$teamLevel",
                 "date$caption",
                 "avgSalesAmount",
-                "totalSalesCount"
+                "salesCount"
         ));
 
         List<OrderRequestDef> orders = new ArrayList<>();
@@ -227,7 +227,7 @@ class ParentChildDimensionTest extends EcommerceTestSupport {
         // 要获取聚合数据，需设置totalColumn=true，然后从getTotalData()获取
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactTeamSalesQueryModel");
-        queryRequest.setColumns(Arrays.asList("totalSalesAmount", "totalSalesCount"));
+        queryRequest.setColumns(Arrays.asList("salesAmount", "salesCount"));
         queryRequest.setReturnTotal(true);  // 启用汇总数据返回
 
         // 过滤条件：团队 = T001（总公司）
@@ -251,7 +251,7 @@ class ParentChildDimensionTest extends EcommerceTestSupport {
         assertTrue(result.getTotalData() instanceof Map, "汇总数据应为Map类型");
 
         Map<String, Object> totalData = (Map<String, Object>) result.getTotalData();
-        BigDecimal serviceTotal = toBigDecimal(totalData.get("totalSalesAmount"));
+        BigDecimal serviceTotal = toBigDecimal(totalData.get("salesAmount"));
         log.info("服务查询总公司及子孙销售总额（从totalData获取）: {}", serviceTotal);
 
         // 4. 对比结果
@@ -276,7 +276,7 @@ class ParentChildDimensionTest extends EcommerceTestSupport {
         // 注意：queryModelData查询必须有limit，需通过totalData获取聚合数据
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactTeamSalesQueryModel");
-        queryRequest.setColumns(Arrays.asList("totalSalesAmount"));
+        queryRequest.setColumns(Arrays.asList("salesAmount"));
         queryRequest.setReturnTotal(true);  // 启用汇总数据返回
 
         List<SliceRequestDef> slices = new ArrayList<>();
@@ -293,7 +293,7 @@ class ParentChildDimensionTest extends EcommerceTestSupport {
         // 从totalData获取聚合数据
         assertNotNull(result.getTotalData(), "应返回汇总数据");
         Map<String, Object> totalData = (Map<String, Object>) result.getTotalData();
-        BigDecimal serviceTotal = toBigDecimal(totalData.get("totalSalesAmount"));
+        BigDecimal serviceTotal = toBigDecimal(totalData.get("salesAmount"));
         log.info("服务查询技术部及子部门销售总额（从totalData获取）: {}", serviceTotal);
 
         // 技术部应包含：技术部 + 研发组 + 测试组 + 前端小组 + 后端小组 = 5个部门
@@ -326,7 +326,7 @@ class ParentChildDimensionTest extends EcommerceTestSupport {
         // 注意：queryModelData查询必须有limit，需通过totalData获取聚合数据
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactTeamSalesQueryModel");
-        queryRequest.setColumns(Arrays.asList("totalSalesAmount"));
+        queryRequest.setColumns(Arrays.asList("salesAmount"));
         queryRequest.setReturnTotal(true);  // 启用汇总数据返回
 
         List<SliceRequestDef> slices = new ArrayList<>();
@@ -343,7 +343,7 @@ class ParentChildDimensionTest extends EcommerceTestSupport {
         // 从totalData获取聚合数据
         assertNotNull(result.getTotalData(), "应返回汇总数据");
         Map<String, Object> totalData = (Map<String, Object>) result.getTotalData();
-        BigDecimal serviceTotal = toBigDecimal(totalData.get("totalSalesAmount"));
+        BigDecimal serviceTotal = toBigDecimal(totalData.get("salesAmount"));
         log.info("服务查询前端小组销售总额（从totalData获取）: {}", serviceTotal);
 
         // 叶子节点查询应等于直接查询
@@ -374,7 +374,7 @@ class ParentChildDimensionTest extends EcommerceTestSupport {
         // 注意：queryModelData查询必须有limit，需通过totalData获取聚合数据
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactTeamSalesQueryModel");
-        queryRequest.setColumns(Arrays.asList("totalSalesAmount"));
+        queryRequest.setColumns(Arrays.asList("salesAmount"));
         queryRequest.setReturnTotal(true);  // 启用汇总数据返回
 
         List<SliceRequestDef> slices = new ArrayList<>();
@@ -391,7 +391,7 @@ class ParentChildDimensionTest extends EcommerceTestSupport {
         // 从totalData获取聚合数据
         assertNotNull(result.getTotalData(), "应返回汇总数据");
         Map<String, Object> totalData = (Map<String, Object>) result.getTotalData();
-        BigDecimal serviceTotal = toBigDecimal(totalData.get("totalSalesAmount"));
+        BigDecimal serviceTotal = toBigDecimal(totalData.get("salesAmount"));
         log.info("服务查询技术部+销售部销售总额（从totalData获取）: {}", serviceTotal);
 
         assertDecimalEquals(expectedTotal, serviceTotal, "技术部+销售部销售总额应一致");
@@ -422,7 +422,7 @@ class ParentChildDimensionTest extends EcommerceTestSupport {
         // 2. 通过服务查询
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactTeamSalesQueryModel");
-        queryRequest.setColumns(Arrays.asList("team$teamLevel", "totalSalesAmount", "recordCount"));
+        queryRequest.setColumns(Arrays.asList("team$teamLevel", "salesAmount", "recordCount"));
 
         List<GroupRequestDef> groups = new ArrayList<>();
         groups.add(createGroup("team$teamLevel"));
@@ -447,7 +447,7 @@ class ParentChildDimensionTest extends EcommerceTestSupport {
 
             assertEquals(toInt(nativeRow.get("team_level")), toInt(serviceRow.get("team$teamLevel")),
                     "层级应一致: 行 " + i);
-            assertDecimalEquals(nativeRow.get("total_amount"), serviceRow.get("totalSalesAmount"),
+            assertDecimalEquals(nativeRow.get("total_amount"), serviceRow.get("salesAmount"),
                     "销售总额应一致: 层级 " + nativeRow.get("team_level"));
         }
     }
@@ -477,7 +477,7 @@ class ParentChildDimensionTest extends EcommerceTestSupport {
         // 2. 通过服务查询
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactTeamSalesQueryModel");
-        queryRequest.setColumns(Arrays.asList("team$id", "team$caption", "totalSalesAmount"));
+        queryRequest.setColumns(Arrays.asList("team$id", "team$caption", "salesAmount"));
 
         // 过滤条件
         List<SliceRequestDef> slices = new ArrayList<>();
@@ -536,7 +536,7 @@ class ParentChildDimensionTest extends EcommerceTestSupport {
         // 2. 通过服务查询
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactTeamSalesQueryModel");
-        queryRequest.setColumns(Arrays.asList("date$caption", "team$teamLevel", "totalSalesAmount"));
+        queryRequest.setColumns(Arrays.asList("date$caption", "team$teamLevel", "salesAmount"));
 
         List<GroupRequestDef> groups = new ArrayList<>();
         groups.add(createGroup("date$caption"));

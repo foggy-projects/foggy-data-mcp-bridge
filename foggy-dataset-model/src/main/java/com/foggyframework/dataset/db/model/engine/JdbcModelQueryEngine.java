@@ -535,7 +535,9 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
             if (jdbcColumn.isDimension()) {
                 DbModelParentChildDimensionImpl pp = jdbcColumn.getDecorate(DbDimensionColumn.class).getDimension().getDecorate(DbModelParentChildDimensionImpl.class);
-                if (pp != null) {
+                // 检查是否为 self 视角的列（team$self$id），self 视角不使用闭包表
+                boolean isSelfColumn = sliceDef.getField() != null && sliceDef.getField().contains("$self$");
+                if (pp != null && !isSelfColumn) {
                     //这是一个parentChild维~条件要重写，转成closure表
                     jdbcQuery.join(pp.getClosureQueryObject(), pp.getForeignKey());
                     alias = jdbcQueryModel.getAlias(pp.getClosureQueryObject());

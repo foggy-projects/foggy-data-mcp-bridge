@@ -13,6 +13,7 @@ import com.foggyframework.dataset.db.model.engine.query.DbQueryResult;
 import com.foggyframework.dataset.db.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.db.model.impl.DbObjectSupport;
 import com.foggyframework.dataset.db.model.impl.dimension.DbDimensionSupport;
+import com.foggyframework.dataset.db.model.impl.dimension.DbModelParentChildDimensionImpl;
 import com.foggyframework.dataset.db.model.impl.model.TableModelSupport;
 import com.foggyframework.dataset.db.model.impl.query.*;
 import com.foggyframework.dataset.db.model.impl.utils.QueryObjectDelegate;
@@ -439,6 +440,166 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
             if (!nameToJdbcQueryColumn.containsKey(aliasBasedCaptionName)) {
                 DbQueryColumn aliasCaptionCol = new DbQueryColumnImpl(captionJdbcColumn, aliasBasedCaptionName, caption, aliasBasedCaptionName, aliasBasedCaptionName);
                 nameToJdbcQueryColumn.put(aliasBasedCaptionName, aliasCaptionCol);
+            }
+        }
+
+        // 为父子维度注册 self 视角的列（team$self$id, team$self$caption, team$self$xxx）
+        registerParentChildSelfColumns(dbDimension, path, aliasPath, alias, caption);
+
+        // 为父子维度注册 hierarchy 视角的列（team$hierarchy$id, team$hierarchy$caption, team$hierarchy$xxx）
+        registerParentChildHierarchyColumns(dbDimension, path, aliasPath, alias, caption);
+    }
+
+    /**
+     * 为父子维度注册明细视角（self）的列
+     *
+     * <p>明细视角的列通过 fact.team_id 直接关联维度表，用于查看后代明细
+     *
+     * @param dbDimension 维度
+     * @param path        DOT 格式路径
+     * @param aliasPath   UNDERSCORE 格式路径
+     * @param alias       维度别名
+     * @param caption     标题
+     */
+    private void registerParentChildSelfColumns(DbDimension dbDimension, String path, String aliasPath, String alias, String caption) {
+        DbModelParentChildDimensionImpl pcDim = dbDimension.getDecorate(DbModelParentChildDimensionImpl.class);
+        if (pcDim == null || pcDim.getSelfQueryObject() == null) {
+            return;
+        }
+
+        DbColumn selfIdColumn = pcDim.getSelfPrimaryKeyDbColumn();
+        DbColumn selfCaptionColumn = pcDim.getSelfCaptionDbColumn();
+
+        if (selfIdColumn == null || selfCaptionColumn == null) {
+            return;
+        }
+
+        // 使用 DOT 格式注册 self 列
+        String selfIdName = path + "$self$id";
+        String selfCaptionName = path + "$self$caption";
+
+        if (!nameToJdbcQueryColumn.containsKey(selfIdName)) {
+            DbQueryColumn idCol = new DbQueryColumnImpl(selfIdColumn, selfIdName, selfIdColumn.getCaption(), selfIdName, selfIdName);
+            nameToJdbcQueryColumn.put(selfIdName, idCol);
+            dbQueryColumns.add(idCol);
+        }
+        if (!nameToJdbcQueryColumn.containsKey(selfCaptionName)) {
+            DbQueryColumn captionCol = new DbQueryColumnImpl(selfCaptionColumn, selfCaptionName, caption + "(明细)", selfCaptionName, selfCaptionName);
+            nameToJdbcQueryColumn.put(selfCaptionName, captionCol);
+            dbQueryColumns.add(captionCol);
+        }
+
+        // 同时用 UNDERSCORE 格式注册
+        String aliasSelfIdName = aliasPath + "$self$id";
+        String aliasSelfCaptionName = aliasPath + "$self$caption";
+
+        if (!nameToJdbcQueryColumn.containsKey(aliasSelfIdName)) {
+            DbQueryColumn aliasIdCol = new DbQueryColumnImpl(selfIdColumn, aliasSelfIdName, selfIdColumn.getCaption(), aliasSelfIdName, aliasSelfIdName);
+            nameToJdbcQueryColumn.put(aliasSelfIdName, aliasIdCol);
+        }
+        if (!nameToJdbcQueryColumn.containsKey(aliasSelfCaptionName)) {
+            DbQueryColumn aliasCaptionCol = new DbQueryColumnImpl(selfCaptionColumn, aliasSelfCaptionName, caption + "(明细)", aliasSelfCaptionName, aliasSelfCaptionName);
+            nameToJdbcQueryColumn.put(aliasSelfCaptionName, aliasCaptionCol);
+        }
+
+        // 如果有别名，也用别名注册
+        if (StringUtils.isNotEmpty(alias) && !alias.equals(path) && !alias.equals(aliasPath)) {
+            String aliasBasedSelfIdName = alias + "$self$id";
+            String aliasBasedSelfCaptionName = alias + "$self$caption";
+            if (!nameToJdbcQueryColumn.containsKey(aliasBasedSelfIdName)) {
+                DbQueryColumn aliasIdCol = new DbQueryColumnImpl(selfIdColumn, aliasBasedSelfIdName, selfIdColumn.getCaption(), aliasBasedSelfIdName, aliasBasedSelfIdName);
+                nameToJdbcQueryColumn.put(aliasBasedSelfIdName, aliasIdCol);
+            }
+            if (!nameToJdbcQueryColumn.containsKey(aliasBasedSelfCaptionName)) {
+                DbQueryColumn aliasCaptionCol = new DbQueryColumnImpl(selfCaptionColumn, aliasBasedSelfCaptionName, caption + "(明细)", aliasBasedSelfCaptionName, aliasBasedSelfCaptionName);
+                nameToJdbcQueryColumn.put(aliasBasedSelfCaptionName, aliasCaptionCol);
+            }
+        }
+
+        // 注册 self 视角的属性列（team$self$xxx）
+        for (DbDimensionSupport.DimensionPropertyDbColumn propCol : pcDim.getSelfPropertyDbColumns()) {
+            String propName = propCol.getName(); // 已经是 team$self$xxx 格式
+            if (!nameToJdbcQueryColumn.containsKey(propName)) {
+                DbQueryColumn propQueryCol = new DbQueryColumnImpl(propCol, propName, propCol.getCaption(), propName, propName);
+                nameToJdbcQueryColumn.put(propName, propQueryCol);
+                dbQueryColumns.add(propQueryCol);
+            }
+        }
+    }
+
+    /**
+     * 为父子维度注册层级汇总视角（hierarchy）的列
+     *
+     * <p>层级汇总视角的列通过 closure.parent_id 关联维度表，用于层级汇总查询
+     *
+     * @param dbDimension 维度
+     * @param path        DOT 格式路径
+     * @param aliasPath   UNDERSCORE 格式路径
+     * @param alias       维度别名
+     * @param caption     标题
+     */
+    private void registerParentChildHierarchyColumns(DbDimension dbDimension, String path, String aliasPath, String alias, String caption) {
+        DbModelParentChildDimensionImpl pcDim = dbDimension.getDecorate(DbModelParentChildDimensionImpl.class);
+        if (pcDim == null || pcDim.getHierarchyQueryObject() == null) {
+            return;
+        }
+
+        DbColumn hierarchyIdColumn = pcDim.getHierarchyPrimaryKeyDbColumn();
+        DbColumn hierarchyCaptionColumn = pcDim.getHierarchyCaptionDbColumn();
+
+        if (hierarchyIdColumn == null || hierarchyCaptionColumn == null) {
+            return;
+        }
+
+        // 使用 DOT 格式注册 hierarchy 列
+        String hierarchyIdName = path + "$hierarchy$id";
+        String hierarchyCaptionName = path + "$hierarchy$caption";
+
+        if (!nameToJdbcQueryColumn.containsKey(hierarchyIdName)) {
+            DbQueryColumn idCol = new DbQueryColumnImpl(hierarchyIdColumn, hierarchyIdName, hierarchyIdColumn.getCaption(), hierarchyIdName, hierarchyIdName);
+            nameToJdbcQueryColumn.put(hierarchyIdName, idCol);
+            dbQueryColumns.add(idCol);
+        }
+        if (!nameToJdbcQueryColumn.containsKey(hierarchyCaptionName)) {
+            DbQueryColumn captionCol = new DbQueryColumnImpl(hierarchyCaptionColumn, hierarchyCaptionName, caption + "(层级)", hierarchyCaptionName, hierarchyCaptionName);
+            nameToJdbcQueryColumn.put(hierarchyCaptionName, captionCol);
+            dbQueryColumns.add(captionCol);
+        }
+
+        // 同时用 UNDERSCORE 格式注册
+        String aliasHierarchyIdName = aliasPath + "$hierarchy$id";
+        String aliasHierarchyCaptionName = aliasPath + "$hierarchy$caption";
+
+        if (!nameToJdbcQueryColumn.containsKey(aliasHierarchyIdName)) {
+            DbQueryColumn aliasIdCol = new DbQueryColumnImpl(hierarchyIdColumn, aliasHierarchyIdName, hierarchyIdColumn.getCaption(), aliasHierarchyIdName, aliasHierarchyIdName);
+            nameToJdbcQueryColumn.put(aliasHierarchyIdName, aliasIdCol);
+        }
+        if (!nameToJdbcQueryColumn.containsKey(aliasHierarchyCaptionName)) {
+            DbQueryColumn aliasCaptionCol = new DbQueryColumnImpl(hierarchyCaptionColumn, aliasHierarchyCaptionName, caption + "(层级)", aliasHierarchyCaptionName, aliasHierarchyCaptionName);
+            nameToJdbcQueryColumn.put(aliasHierarchyCaptionName, aliasCaptionCol);
+        }
+
+        // 如果有别名，也用别名注册
+        if (StringUtils.isNotEmpty(alias) && !alias.equals(path) && !alias.equals(aliasPath)) {
+            String aliasBasedHierarchyIdName = alias + "$hierarchy$id";
+            String aliasBasedHierarchyCaptionName = alias + "$hierarchy$caption";
+            if (!nameToJdbcQueryColumn.containsKey(aliasBasedHierarchyIdName)) {
+                DbQueryColumn aliasIdCol = new DbQueryColumnImpl(hierarchyIdColumn, aliasBasedHierarchyIdName, hierarchyIdColumn.getCaption(), aliasBasedHierarchyIdName, aliasBasedHierarchyIdName);
+                nameToJdbcQueryColumn.put(aliasBasedHierarchyIdName, aliasIdCol);
+            }
+            if (!nameToJdbcQueryColumn.containsKey(aliasBasedHierarchyCaptionName)) {
+                DbQueryColumn aliasCaptionCol = new DbQueryColumnImpl(hierarchyCaptionColumn, aliasBasedHierarchyCaptionName, caption + "(层级)", aliasBasedHierarchyCaptionName, aliasBasedHierarchyCaptionName);
+                nameToJdbcQueryColumn.put(aliasBasedHierarchyCaptionName, aliasCaptionCol);
+            }
+        }
+
+        // 注册 hierarchy 视角的属性列（team$hierarchy$xxx）
+        for (DbDimensionSupport.DimensionPropertyDbColumn propCol : pcDim.getHierarchyPropertyDbColumns()) {
+            String propName = propCol.getName(); // 已经是 team$hierarchy$xxx 格式
+            if (!nameToJdbcQueryColumn.containsKey(propName)) {
+                DbQueryColumn propQueryCol = new DbQueryColumnImpl(propCol, propName, propCol.getCaption(), propName, propName);
+                nameToJdbcQueryColumn.put(propName, propQueryCol);
+                dbQueryColumns.add(propQueryCol);
             }
         }
     }

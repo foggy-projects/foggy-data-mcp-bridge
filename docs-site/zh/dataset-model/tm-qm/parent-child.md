@@ -63,8 +63,13 @@ CREATE INDEX idx_team_closure_child ON team_closure (team_id);
 组织结构：
 总公司 (T001)
 ├── 技术部 (T002)
-│   └── 研发组 (T003)
+│   ├── 研发组 (T003)
+│   │   └── 前端小组 (T005)
+│   └── 测试组 (T006)
 └── 销售部 (T004)
+    ├── 华东区 (T007)
+    └── 华南区 (T008)
+        └── 深圳办 (T009)
 ```
 
 | parent_id | team_id | distance |
@@ -73,10 +78,16 @@ CREATE INDEX idx_team_closure_child ON team_closure (team_id);
 | T001      | T002    | 1        |
 | T001      | T003    | 2        |
 | T001      | T004    | 1        |
+| T001      | T005    | 3        |
+| T001      | T006    | 2        |
+| T001      | T007    | 2        |
+| T001      | T008    | 2        |
+| T001      | T009    | 3        |
 | T002      | T002    | 0        |
 | T002      | T003    | 1        |
-| T003      | T003    | 0        |
-| T004      | T004    | 0        |
+| T002      | T005    | 2        |
+| T002      | T006    | 1        |
+| ...       | ...     | ...      |
 
 ---
 
@@ -107,7 +118,7 @@ export const model = {
                 { column: 'team_id', caption: '团队ID' },
                 { column: 'team_name', caption: '团队名称' },
                 { column: 'parent_id', caption: '上级团队' },
-                { column: 'level', caption: '层级' }
+                { column: 'level', caption: '层级', alias: 'teamLevel' }
             ]
         }
     ],
@@ -128,20 +139,28 @@ export const model = {
 
 ---
 
-## 5. 查询行为
+## 5. 三种访问视角
 
-### 5.1 自动查询重写
+父子维度提供**三种访问视角**，满足不同的查询需求：
 
-当对父子维度进行过滤时，系统自动将条件重写为使用闭包表，查询该节点及其**所有后代**的数据。
+| 视角 | 列名格式 | JOIN 路径 | 用途 |
+|------|----------|-----------|------|
+| **默认视角** | `team$id`, `team$caption` | `fact.team_id → dim_team` | 直接关联，保持原有行为 |
+| **层级汇总视角** | `team$hierarchy$id`, `team$hierarchy$caption` | `closure.parent_id → dim_team` | 层级汇总查询 |
+| **明细视角** | `team$self$id`, `team$self$caption` | `fact.team_id → dim_team (别名)` | 后代明细查询 |
 
-**DSL 查询**：
+### 5.1 默认视角
+
+使用 `team$id`、`team$caption` 等列，通过 `fact.team_id` 直接关联维度表。
+
+**行为**：与普通维度相同，直接匹配。
 
 ```json
 {
     "param": {
-        "columns": ["team$caption", "totalAmount"],
+        "columns": ["team$caption", "salesAmount"],
         "slice": [
-            { "field": "team$id", "op": "=", "value": "T002" }
+            { "field": "team$id", "op": "=", "value": "T001" }
         ]
     }
 }
@@ -154,34 +173,144 @@ SELECT d1.team_name, SUM(t0.sales_amount)
 FROM fact_team_sales t0
 LEFT JOIN dim_team d1 ON t0.team_id = d1.team_id
 LEFT JOIN team_closure d2 ON t0.team_id = d2.team_id
-WHERE d2.parent_id = 'T002'
+WHERE d2.parent_id = 'T001'
 GROUP BY d1.team_name
 ```
 
-**查询结果**：
-- 包含 T002（技术部）的数据
-- 包含 T003（研发组）的数据
-- 包含 T002 所有后代节点的数据
+**说明**：`slice` 条件使用闭包表过滤，返回 T001 及其所有后代的销售记录。`team$caption` 显示每条记录实际所属团队的名称。
 
-### 5.2 查询示例
+---
 
-**汇总某部门及所有子部门的销售**：
+### 5.2 层级汇总视角
+
+使用 `team$hierarchy$id`、`team$hierarchy$caption` 等列，通过 `closure.parent_id` 关联维度表。
+
+**用途**：将后代数据汇总到祖先节点显示。
+
+**示例**：查询 T001（总公司）及其所有后代的销售，**汇总显示为总公司**：
 
 ```json
 {
     "param": {
-        "columns": ["team$caption", "salesAmount"],
+        "columns": ["team$hierarchy$caption", "salesAmount"],
         "slice": [
             { "field": "team$id", "op": "=", "value": "T001" }
         ],
         "groupBy": [
-            { "field": "team$caption" }
+            { "field": "team$hierarchy$caption" }
         ]
     }
 }
 ```
 
-结果将包含 T001（总公司）下所有部门的销售数据。
+**生成的 SQL**：
+
+```sql
+SELECT d4.team_name AS "team$hierarchy$caption",
+       SUM(t0.sales_amount) AS "salesAmount"
+FROM fact_team_sales t0
+LEFT JOIN team_closure d2 ON t0.team_id = d2.team_id
+LEFT JOIN dim_team d4 ON d2.parent_id = d4.team_id
+WHERE d2.parent_id = 'T001'
+GROUP BY d4.team_name
+```
+
+**结果**：返回 **1 条记录**
+
+| team$hierarchy$caption | salesAmount |
+|------------------------|-------------|
+| 总公司                  | 1000000     |
+
+**说明**：所有后代（T002-T009）的销售数据都汇总到 T001（总公司）。
+
+---
+
+### 5.3 明细视角
+
+使用 `team$self$id`、`team$self$caption` 等列，用于精确匹配或查看后代明细。
+
+**用途**：
+1. **精确匹配**：只查某个节点自身，不使用闭包表
+2. **后代明细**：结合闭包表过滤，查看各后代的明细数据
+
+#### 场景 1：精确匹配（只查自身）
+
+```json
+{
+    "param": {
+        "columns": ["team$self$caption", "salesAmount"],
+        "slice": [
+            { "field": "team$self$id", "op": "=", "value": "T001" }
+        ]
+    }
+}
+```
+
+**生成的 SQL**：
+
+```sql
+SELECT d3.team_name, SUM(t0.sales_amount)
+FROM fact_team_sales t0
+LEFT JOIN dim_team d3 ON t0.team_id = d3.team_id
+WHERE d3.team_id = 'T001'
+GROUP BY d3.team_name
+```
+
+**结果**：只返回 T001 自身的销售数据，不包含后代。
+
+#### 场景 2：后代明细（分组显示各后代）
+
+```json
+{
+    "param": {
+        "columns": ["team$self$caption", "salesAmount"],
+        "slice": [
+            { "field": "team$id", "op": "=", "value": "T001" }
+        ],
+        "groupBy": [
+            { "field": "team$self$caption" }
+        ]
+    }
+}
+```
+
+**生成的 SQL**：
+
+```sql
+SELECT d3.team_name AS "team$self$caption",
+       SUM(t0.sales_amount) AS "salesAmount"
+FROM fact_team_sales t0
+LEFT JOIN dim_team d3 ON t0.team_id = d3.team_id
+LEFT JOIN team_closure d2 ON t0.team_id = d2.team_id
+WHERE d2.parent_id = 'T001'
+GROUP BY d3.team_name
+```
+
+**结果**：返回 **N 条记录**（每个后代一条）
+
+| team$self$caption | salesAmount |
+|-------------------|-------------|
+| 总公司             | 50000       |
+| 技术部             | 120000      |
+| 研发组             | 80000       |
+| 前端小组           | 30000       |
+| 测试组             | 40000       |
+| 销售部             | 200000      |
+| 华东区             | 150000      |
+| 华南区             | 180000      |
+| 深圳办             | 150000      |
+
+---
+
+### 5.4 视角对比总结
+
+假设 T001（总公司）有 9 个团队（包括自身），各团队都有销售数据：
+
+| 查询方式 | slice | groupBy | 返回记录数 | 说明 |
+|----------|-------|---------|------------|------|
+| 层级汇总 | `team$id = T001` | `team$hierarchy$caption` | 1 条 | 汇总到 T001 |
+| 后代明细 | `team$id = T001` | `team$self$caption` | 9 条 | 各后代分别显示 |
+| 精确匹配 | `team$self$id = T001` | - | 1 条 | 只查 T001 自身 |
 
 ---
 
@@ -190,16 +319,16 @@ GROUP BY d1.team_name
 ### 6.1 新增节点
 
 ```sql
--- 添加新团队 T005（隶属于研发组 T003）
-INSERT INTO dim_team VALUES ('T005', '前端小组', 'T003', 4, 'ACTIVE');
+-- 添加新团队 T010（隶属于研发组 T003）
+INSERT INTO dim_team VALUES ('T010', '后端小组', 'T003', 4, 'ACTIVE');
 
 -- 插入自身关系
 INSERT INTO team_closure (parent_id, team_id, distance)
-VALUES ('T005', 'T005', 0);
+VALUES ('T010', 'T010', 0);
 
 -- 插入所有祖先到新节点的关系
 INSERT INTO team_closure (parent_id, team_id, distance)
-SELECT parent_id, 'T005', distance + 1
+SELECT parent_id, 'T010', distance + 1
 FROM team_closure
 WHERE team_id = 'T003';
 ```
@@ -207,8 +336,8 @@ WHERE team_id = 'T003';
 ### 6.2 删除节点
 
 ```sql
-DELETE FROM team_closure WHERE team_id = 'T005' OR parent_id = 'T005';
-DELETE FROM dim_team WHERE team_id = 'T005';
+DELETE FROM team_closure WHERE team_id = 'T010' OR parent_id = 'T010';
+DELETE FROM dim_team WHERE team_id = 'T010';
 ```
 
 ---
@@ -219,8 +348,9 @@ DELETE FROM dim_team WHERE team_id = 'T005';
 |------|----------|----------|
 | 层级支持 | 固定层级（如年-月-日） | 任意深度动态层级 |
 | 关联方式 | 直接外键关联 | 通过闭包表关联 |
-| 查询行为 | 精确匹配 | 包含所有后代 |
+| 查询行为 | 精确匹配 | 支持层级汇总/后代明细/精确匹配 |
 | 数据结构 | 单表 | 维度表 + 闭包表 |
+| 可用列 | `dim$id`, `dim$caption` | 额外支持 `$hierarchy$`、`$self$` 视角 |
 | 维护复杂度 | 低 | 中等 |
 
 ---
@@ -231,6 +361,10 @@ DELETE FROM dim_team WHERE team_id = 'T005';
 2. **数据一致性**：使用事务确保维度表和闭包表的一致性
 3. **层级深度**：建议控制层级深度，过深会影响性能
 4. **distance 字段**：虽非必需，但有助于查询特定层级的数据
+5. **视角选择**：
+   - 需要汇总到某节点 → 使用 `$hierarchy$` 视角
+   - 需要查看后代明细 → 使用 `$self$` 视角 + 闭包表过滤
+   - 需要精确匹配某节点 → 使用 `$self$` 视角
 
 ---
 
