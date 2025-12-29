@@ -1,6 +1,7 @@
 package com.foggyframework.dataset.db.model.def.query;
 
 import com.foggyframework.dataset.db.model.def.AiDef;
+import com.foggyframework.dataset.db.model.path.DimensionPath;
 import com.foggyframework.dataset.db.model.proxy.ColumnRef;
 import com.foggyframework.dataset.db.model.proxy.DimensionProxy;
 import lombok.Data;
@@ -41,10 +42,32 @@ public class SelectColumnDef {
             return (String) ref;
         }
         if (ref instanceof ColumnRef columnRef) {
-            return columnRef.getAliasRef();
+            return columnRef.getDimensionPath().toColumnAlias();
         }
         if (ref instanceof DimensionProxy dimensionProxy) {
-            return dimensionProxy.getAliasPath();
+            return dimensionProxy.getDimensionPath().toUnderscoreFormat();
+        }
+        return ref.toString();
+    }
+
+    /**
+     * 获取用于查找的 ref（使用 . 分隔路径）
+     * <p>用于在 TableModel 中查找列/维度
+     *
+     * @return ref 字符串，如 "product.category$categoryId"
+     */
+    public String getRefForLookup() {
+        if (ref == null) {
+            return null;
+        }
+        if (ref instanceof String) {
+            return (String) ref;
+        }
+        if (ref instanceof ColumnRef columnRef) {
+            return columnRef.getDimensionPath().toColumnRef();
+        }
+        if (ref instanceof DimensionProxy dimensionProxy) {
+            return dimensionProxy.getDimensionPath().toDotFormat();
         }
         return ref.toString();
     }
@@ -61,6 +84,25 @@ public class SelectColumnDef {
         }
         if (ref instanceof DimensionProxy dimensionProxy) {
             return dimensionProxy.toColumnRef();
+        }
+        return null;
+    }
+
+    /**
+     * 获取 DimensionPath
+     * <p>从 ColumnRef 或 DimensionProxy 提取 DimensionPath
+     *
+     * @return DimensionPath 或 null
+     */
+    public DimensionPath getRefAsDimensionPath() {
+        if (ref instanceof ColumnRef columnRef) {
+            return columnRef.getDimensionPath();
+        }
+        if (ref instanceof DimensionProxy dimensionProxy) {
+            return dimensionProxy.getDimensionPath();
+        }
+        if (ref instanceof String str) {
+            return DimensionPath.parse(str);
         }
         return null;
     }

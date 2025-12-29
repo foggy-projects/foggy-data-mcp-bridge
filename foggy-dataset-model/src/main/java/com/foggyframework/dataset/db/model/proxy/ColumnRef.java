@@ -1,9 +1,8 @@
 package com.foggyframework.dataset.db.model.proxy;
 
+import com.foggyframework.dataset.db.model.path.DimensionPath;
 import lombok.Getter;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -39,20 +38,9 @@ public class ColumnRef {
 
     /**
      * 维度路径
-     * <p>支持多层嵌套维度：
-     * <ul>
-     *   <li>普通字段：["orderId"]</li>
-     *   <li>一级维度：["customer"]</li>
-     *   <li>嵌套维度：["product", "category"]</li>
-     * </ul>
+     * <p>封装路径段和列名，支持多种格式转换
      */
-    private final List<String> dimensionPath;
-
-    /**
-     * 属性名称（用于维度属性，如 customer$memberLevel 中的 memberLevel）
-     * <p>如果为 null，表示访问维度的 caption
-     */
-    private final String property;
+    private final DimensionPath dimensionPath;
 
     // ==================== 构造方法 ====================
 
@@ -75,21 +63,30 @@ public class ColumnRef {
      */
     public ColumnRef(TableModelProxy tableModelProxy, String columnName, String property) {
         this.tableModelProxy = tableModelProxy;
-        this.dimensionPath = List.of(columnName);
-        this.property = property;
+        this.dimensionPath = DimensionPath.of(List.of(columnName), property);
     }
 
     /**
      * 创建嵌套维度引用（多层路径）
      *
      * @param tableModelProxy 表模型代理
-     * @param dimensionPath   维度路径
+     * @param pathSegments    维度路径段
      * @param property        属性名称（可为 null）
      */
-    public ColumnRef(TableModelProxy tableModelProxy, List<String> dimensionPath, String property) {
+    public ColumnRef(TableModelProxy tableModelProxy, List<String> pathSegments, String property) {
         this.tableModelProxy = tableModelProxy;
-        this.dimensionPath = Collections.unmodifiableList(new ArrayList<>(dimensionPath));
-        this.property = property;
+        this.dimensionPath = DimensionPath.of(pathSegments, property);
+    }
+
+    /**
+     * 创建使用 DimensionPath 的引用
+     *
+     * @param tableModelProxy 表模型代理
+     * @param dimensionPath   维度路径
+     */
+    public ColumnRef(TableModelProxy tableModelProxy, DimensionPath dimensionPath) {
+        this.tableModelProxy = tableModelProxy;
+        this.dimensionPath = dimensionPath;
     }
 
     // ==================== 路径访问方法 ====================
@@ -107,12 +104,7 @@ public class ColumnRef {
      * @return 完整引用路径（用于 QM ref 语法）
      */
     public String getFullRef() {
-        StringBuilder sb = new StringBuilder();
-        sb.append(String.join(".", dimensionPath));
-        if (property != null && !property.isEmpty()) {
-            sb.append("$").append(property);
-        }
-        return sb.toString();
+        return dimensionPath.toColumnRef();
     }
 
     /**
@@ -128,12 +120,7 @@ public class ColumnRef {
      * @return 别名格式引用路径（用于列名/alias，避免前端 JS 处理带 . 的属性名）
      */
     public String getAliasRef() {
-        StringBuilder sb = new StringBuilder();
-        sb.append(String.join("_", dimensionPath));
-        if (property != null && !property.isEmpty()) {
-            sb.append("$").append(property);
-        }
-        return sb.toString();
+        return dimensionPath.toColumnAlias();
     }
 
     /**
@@ -142,7 +129,7 @@ public class ColumnRef {
      * @return 第一层名称
      */
     public String getColumnName() {
-        return dimensionPath.isEmpty() ? null : dimensionPath.get(0);
+        return dimensionPath.first();
     }
 
     /**
@@ -151,7 +138,7 @@ public class ColumnRef {
      * @return 最后一层维度名称
      */
     public String getLeafDimensionName() {
-        return dimensionPath.isEmpty() ? null : dimensionPath.get(dimensionPath.size() - 1);
+        return dimensionPath.last();
     }
 
     /**
@@ -160,7 +147,7 @@ public class ColumnRef {
      * @return 路径深度
      */
     public int getPathDepth() {
-        return dimensionPath.size();
+        return dimensionPath.depth();
     }
 
     /**
@@ -169,10 +156,19 @@ public class ColumnRef {
      * @return 如果路径深度 > 1 返回 true
      */
     public boolean isNestedDimension() {
-        return dimensionPath.size() > 1;
+        return dimensionPath.isNested();
     }
 
     // ==================== 属性访问方法（向后兼容）====================
+
+    /**
+     * 获取属性名称
+     *
+     * @return 属性名称
+     */
+    public String getProperty() {
+        return dimensionPath.getColumnName();
+    }
 
     /**
      * 获取子属性名称（向后兼容）
@@ -180,7 +176,7 @@ public class ColumnRef {
      * @return 属性名称
      */
     public String getSubProperty() {
-        return property;
+        return dimensionPath.getColumnName();
     }
 
     /**
@@ -189,7 +185,7 @@ public class ColumnRef {
      * @return 如果有属性返回 true
      */
     public boolean hasSubProperty() {
-        return property != null && !property.isEmpty();
+        return dimensionPath.hasColumnName();
     }
 
     // ==================== 其他方法 ====================

@@ -348,28 +348,34 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
                         continue;
                     }
                     // V2 格式：ref 可能是 ColumnRef 对象
-                    String refString = item.getRefAsString();
-                    boolean hasRef = StringUtils.isNotEmpty(refString);
+                    // aliasRef: 使用 _ 分隔，用于列名/别名和列查找
+                    String aliasRef = item.getRefAsString();
+                    // lookupRef: 使用 . 分隔，用于在 TableModel 中查找维度
+                    String lookupRef = item.getRefForLookup();
+                    boolean hasRef = StringUtils.isNotEmpty(aliasRef);
 
-                    // 如果有 ref 且没有显式指定 name/alias，使用 ref 作为默认值
+                    // 如果有 ref 且没有显式指定 name/alias，使用 aliasRef 作为默认值
                     if (hasRef) {
                         if (StringUtils.isEmpty(item.getName())) {
-                            item.setName(refString);
+                            item.setName(aliasRef);
                         }
                         if (StringUtils.isEmpty(item.getAlias())) {
-                            item.setAlias(refString);
+                            item.setAlias(aliasRef);
                         }
                     }
 
-                    String ref = hasRef ? refString : item.getName();
+                    // 使用 lookupRef 进行维度查找（dot格式支持嵌套路径）
+                    String dimRef = hasRef ? lookupRef : item.getName();
+                    // 使用 aliasRef 作为列名和列查找（使用 _ 分隔，因为列索引用alias格式）
+                    String columnName = hasRef ? aliasRef : item.getName();
 
-                    DbDimension dimension = qm.findDimension(ref);
+                    DbDimension dimension = qm.findDimension(dimRef);
                     if (dimension != null) {
                         //维度，自动拆解成$id及$caption两列
-                        addColumn(qm, group, ref + "$id", item, hasRef);
-                        addColumn(qm, group, ref + "$caption", item, hasRef);
+                        addColumn(qm, group, columnName + "$id", item, hasRef);
+                        addColumn(qm, group, columnName + "$caption", item, hasRef);
                     } else {
-                        addColumn(qm, group, ref, item, hasRef);
+                        addColumn(qm, group, columnName, item, hasRef);
                     }
                 }
                 columnGroups.add(group);
@@ -378,11 +384,11 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
         }
     }
 
-    private void addColumn(QueryModelSupport qm, QueryColumnGroup group, String name, SelectColumnDef item, boolean hasRef) {
+    private void addColumn(QueryModelSupport qm, QueryColumnGroup group, String columnName, SelectColumnDef item, boolean hasRef) {
+        // columnName 使用 alias 格式（_ 分隔），因为列在 TableModel 中以 alias 格式索引
+        DbColumn jdbcColumn = qm.findJdbcColumnForCond(columnName, true);
 
-        DbColumn jdbcColumn = qm.findJdbcColumnForCond(name, true);
-
-        DbQueryColumn dbQueryColumn = new DbQueryColumnImpl(jdbcColumn, item.getName(), item.getCaption(), item.getAlias(), item.getField());
+        DbQueryColumn dbQueryColumn = new DbQueryColumnImpl(jdbcColumn, columnName, item.getCaption(), item.getAlias(), item.getField());
         dbQueryColumn.setHasRef(hasRef);
 
         qm.addJdbcQueryColumn(dbQueryColumn);

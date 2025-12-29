@@ -1,10 +1,10 @@
 package com.foggyframework.dataset.db.model.proxy;
 
+import com.foggyframework.dataset.db.model.path.DimensionPath;
 import com.foggyframework.fsscript.parser.spi.PropertyHolder;
 import lombok.Getter;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -39,9 +39,8 @@ public class DimensionProxy implements PropertyHolder {
 
     /**
      * 当前维度路径
-     * <p>例如：["product"] 或 ["product", "category"]
      */
-    private final List<String> dimensionPath;
+    private final DimensionPath dimensionPath;
 
     /**
      * 创建维度代理（单层）
@@ -51,21 +50,32 @@ public class DimensionProxy implements PropertyHolder {
      */
     public DimensionProxy(TableModelProxy rootProxy, String dimensionName) {
         this.rootProxy = rootProxy;
-        this.dimensionPath = List.of(dimensionName);
+        this.dimensionPath = DimensionPath.of(dimensionName);
     }
 
     /**
      * 创建维度代理（从父路径扩展）
      *
      * @param rootProxy     根表模型代理
-     * @param parentPath    父路径
+     * @param parentPath    父路径段
      * @param dimensionName 新维度名称
      */
     public DimensionProxy(TableModelProxy rootProxy, List<String> parentPath, String dimensionName) {
         this.rootProxy = rootProxy;
         List<String> path = new ArrayList<>(parentPath);
         path.add(dimensionName);
-        this.dimensionPath = Collections.unmodifiableList(path);
+        this.dimensionPath = DimensionPath.of(path);
+    }
+
+    /**
+     * 创建维度代理（使用 DimensionPath）
+     *
+     * @param rootProxy     根表模型代理
+     * @param dimensionPath 维度路径
+     */
+    public DimensionProxy(TableModelProxy rootProxy, DimensionPath dimensionPath) {
+        this.rootProxy = rootProxy;
+        this.dimensionPath = dimensionPath;
     }
 
     /**
@@ -88,15 +98,13 @@ public class DimensionProxy implements PropertyHolder {
             String subDimension = parts[0];
             String property = parts[1];
 
-            // 创建新路径
-            List<String> newPath = new ArrayList<>(dimensionPath);
-            newPath.add(subDimension);
-
-            return new ColumnRef(rootProxy, newPath, property);
+            // 创建新路径并附加列名
+            DimensionPath newPath = dimensionPath.append(subDimension, property);
+            return new ColumnRef(rootProxy, newPath);
         }
 
         // 链式维度访问：返回新的 DimensionProxy
-        return new DimensionProxy(rootProxy, dimensionPath, name);
+        return new DimensionProxy(rootProxy, dimensionPath.append(name));
     }
 
     /**
@@ -105,7 +113,7 @@ public class DimensionProxy implements PropertyHolder {
      * @return ColumnRef
      */
     public ColumnRef toColumnRef() {
-        return new ColumnRef(rootProxy, dimensionPath, null);
+        return new ColumnRef(rootProxy, dimensionPath);
     }
 
     /**
@@ -115,7 +123,7 @@ public class DimensionProxy implements PropertyHolder {
      * @return ColumnRef
      */
     public ColumnRef toColumnRef(String property) {
-        return new ColumnRef(rootProxy, dimensionPath, property);
+        return new ColumnRef(rootProxy, dimensionPath.withColumnName(property));
     }
 
     /**
@@ -124,7 +132,7 @@ public class DimensionProxy implements PropertyHolder {
      * @return 路径字符串，如 "product.category"（用于 QM ref 语法）
      */
     public String getFullPath() {
-        return String.join(".", dimensionPath);
+        return dimensionPath.toDotFormat();
     }
 
     /**
@@ -133,7 +141,7 @@ public class DimensionProxy implements PropertyHolder {
      * @return 路径字符串，如 "product_category"（用于列名/alias）
      */
     public String getAliasPath() {
-        return String.join("_", dimensionPath);
+        return dimensionPath.toUnderscoreFormat();
     }
 
     @Override

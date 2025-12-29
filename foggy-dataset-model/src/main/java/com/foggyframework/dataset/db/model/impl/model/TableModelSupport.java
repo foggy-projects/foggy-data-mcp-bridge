@@ -11,6 +11,7 @@ import com.foggyframework.dataset.db.model.impl.DbObjectSupport;
 import com.foggyframework.dataset.db.model.impl.dimension.DbDimensionSupport;
 import com.foggyframework.dataset.db.model.impl.property.DbPropertyImpl;
 import com.foggyframework.dataset.db.model.impl.utils.QueryObjectDelegate;
+import com.foggyframework.dataset.db.model.path.DimensionPath;
 import com.foggyframework.dataset.db.model.spi.*;
 import com.foggyframework.fsscript.exp.FsscriptFunction;
 import lombok.Getter;
@@ -58,6 +59,12 @@ public abstract class TableModelSupport extends DbObjectSupport implements Table
      */
     JoinGraph joinGraph;
 
+    /**
+     * 维度路径索引（DOT 格式 -> 维度）
+     * <p>支持通过路径快速查找维度，如 "product.category" -> DbDimension</p>
+     */
+    Map<String, DbDimension> pathToDimension = new HashMap<>();
+
 //    MongoTemplate mongoTemplate;
 
     @Override
@@ -67,11 +74,33 @@ public abstract class TableModelSupport extends DbObjectSupport implements Table
 
     @Override
     public DbDimension findJdbcDimensionByName(String name) {
+        if (name == null) {
+            return null;
+        }
+
+        // 1. 优先从路径索引查找（DOT 格式）
+        DbDimension dim = pathToDimension.get(name);
+        if (dim != null) {
+            return dim;
+        }
+
+        // 2. 如果是下划线格式，转换为 DOT 格式后查找
+        if (name.contains("_") && !name.contains(".")) {
+            String dotPath = DimensionPath.parseUnderscore(name).toDotFormat();
+            dim = pathToDimension.get(dotPath);
+            if (dim != null) {
+                return dim;
+            }
+        }
+
+        // 3. 回退到简单名称匹配（兼容旧代码）
         for (DbDimension dimension : dimensions) {
-            if (StringUtils.equals(dimension.getName(), name) || StringUtils.equals(dimension.getAlias(), name)) {
+            if (StringUtils.equals(dimension.getName(), name)
+                    || StringUtils.equals(dimension.getAlias(), name)) {
                 return dimension;
             }
         }
+
         return null;
     }
 
@@ -168,6 +197,9 @@ public abstract class TableModelSupport extends DbObjectSupport implements Table
         // 构建 JOIN 依赖图
         buildJoinGraph();
 
+        // 构建维度路径索引
+        buildDimensionIndex();
+
         if (log.isDebugEnabled()) {
             log.debug(String.format("模型%s包含如下列", name));
             for (DbColumn jdbcColumn : columns) {
@@ -196,6 +228,21 @@ public abstract class TableModelSupport extends DbObjectSupport implements Table
 
         if (log.isDebugEnabled()) {
             log.debug("模型 {} 的 JoinGraph: {}", name, joinGraph);
+        }
+    }
+
+    /**
+     * 构建维度路径索引
+     * <p>遍历所有维度，建立路径（DOT 格式）到维度的映射关系</p>
+     */
+    private void buildDimensionIndex() {
+        for (DbDimension dimension : dimensions) {
+            String path = dimension.getDimensionPath().toDotFormat();
+            pathToDimension.put(path, dimension);
+        }
+
+        if (log.isDebugEnabled()) {
+            log.debug("模型 {} 的维度索引: {}", name, pathToDimension.keySet());
         }
     }
 

@@ -11,6 +11,7 @@ import com.foggyframework.dataset.db.model.impl.AiObject;
 import com.foggyframework.dataset.db.model.impl.DbColumnSupport;
 import com.foggyframework.dataset.db.model.impl.DbObjectSupport;
 import com.foggyframework.dataset.db.model.impl.property.DbPropertyImpl;
+import com.foggyframework.dataset.db.model.path.DimensionPath;
 import com.foggyframework.dataset.db.model.spi.*;
 import com.foggyframework.dataset.db.model.spi.support.DbDataProviderDelegate;
 import com.foggyframework.dataset.db.model.utils.JdbcModelNamedUtils;
@@ -98,6 +99,29 @@ public abstract class DbDimensionSupport extends DbObjectSupport implements DbDi
      * 维表主键字段的 description，用于描述 $id 字段的详细说明
      */
     String keyDescription;
+
+    /**
+     * 维度路径（懒加载）
+     */
+    private transient DimensionPath dimensionPath;
+
+    @Override
+    public DimensionPath getDimensionPath() {
+        if (dimensionPath == null) {
+            dimensionPath = buildDimensionPath();
+        }
+        return dimensionPath;
+    }
+
+    /**
+     * 构建维度路径
+     */
+    private DimensionPath buildDimensionPath() {
+        if (parentDimension == null) {
+            return DimensionPath.of(name);
+        }
+        return parentDimension.getDimensionPath().append(name);
+    }
 
     @Override
     public void addChildDimension(DbDimension child) {
