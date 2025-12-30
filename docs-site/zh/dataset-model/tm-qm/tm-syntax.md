@@ -924,6 +924,7 @@ export const model = {
 ## 下一步
 
 - [QM 语法手册](./qm-syntax.md) - 查询模型定义
+- [JSON 查询 DSL](./query-dsl.md) - 查询 DSL 完整语法
 - [父子维度](./parent-child.md) - 层级结构维度详解
 - [计算字段](./calculated-fields.md) - 复杂计算逻辑
-- [查询 API](../api/query-api.md) - 使用 DSL 查询数据
+- [查询 API](../api/query-api.md) - HTTP API 接口

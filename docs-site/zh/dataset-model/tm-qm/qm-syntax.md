@@ -524,6 +524,8 @@ export const queryModel = {
 ## 下一步
 
 - [TM 语法手册](./tm-syntax.md) - 表格模型定义
-- [DSL 查询 API](../api/query-api.md) - 使用 DSL 查询数据
+- [JSON 查询 DSL](./query-dsl.md) - 查询 DSL 完整语法（推荐阅读）
 - [父子维度](./parent-child.md) - 层级结构维度
+- [计算字段](./calculated-fields.md) - 计算字段详解
+- [查询 API](../api/query-api.md) - HTTP API 接口
 - [权限控制](../api/authorization.md) - 详细的权限配置

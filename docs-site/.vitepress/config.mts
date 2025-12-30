@@ -108,6 +108,7 @@ export default defineConfig({
               items: [
                 { text: 'TM 语法手册', link: '/zh/dataset-model/tm-qm/tm-syntax' },
                 { text: 'QM 语法手册', link: '/zh/dataset-model/tm-qm/qm-syntax' },
+                { text: 'JSON 查询 DSL', link: '/zh/dataset-model/tm-qm/query-dsl' },
                 { text: '计算字段', link: '/zh/dataset-model/tm-qm/calculated-fields' },
                 { text: '父子维度', link: '/zh/dataset-model/tm-qm/parent-child' }
               ]

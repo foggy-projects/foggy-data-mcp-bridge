@@ -52,7 +52,7 @@ POST /jdbc-model/query-model/v2/{model}
         "orderBy": [
             { "field": "totalAmount", "order": "desc" }
         ],
-        "totalColumn": true
+        "returnTotal": true
     }
 }
 ```
@@ -75,7 +75,7 @@ POST /jdbc-model/query-model/v2/{model}
 | `slice` | SliceRequestDef[] | 否 | 过滤条件 |
 | `groupBy` | GroupRequestDef[] | 否 | 分组字段 |
 | `orderBy` | OrderRequestDef[] | 否 | 排序字段 |
-| `totalColumn` | boolean | 否 | 是否返回总数及汇总数据 |
+| `returnTotal` | boolean | 否 | 是否返回总数及汇总数据 |
 
 ---
 
@@ -369,14 +369,14 @@ WHERE order_status = 'COMPLETED'
 | `code` | integer | 状态码，0 表示成功 |
 | `data.items` | array | 明细数据列表（分页后的数据） |
 | `data.total` | integer | 符合条件的总记录数 |
-| `data.totalData` | object | 汇总数据（仅当 `totalColumn=true` 时返回） |
+| `data.totalData` | object | 汇总数据（仅当 `returnTotal=true` 时返回） |
 | `msg` | string | 消息 |
 
 ### 7.3 totalData 说明
 
 - `totalData` 包含 `columns` 中指定的度量字段的聚合值
 - 这是对**所有符合条件的数据**进行聚合，不受分页影响
-- 只有设置 `totalColumn=true` 时才返回
+- 只有设置 `returnTotal=true` 时才返回
 
 ---
 
@@ -407,7 +407,7 @@ POST /jdbc-model/query-model/v2/FactOrderQueryModel
         "orderBy": [
             { "field": "orderTime", "order": "desc" }
         ],
-        "totalColumn": true
+        "returnTotal": true
     }
 }
 ```
@@ -564,6 +564,7 @@ POST /jdbc-model/query-model/queryKpi
 
 ## 下一步
 
+- [JSON 查询 DSL](../tm-qm/query-dsl.md) - 查询 DSL 完整语法（推荐阅读）
 - [TM 语法手册](../tm-qm/tm-syntax.md) - 表格模型定义
 - [QM 语法手册](../tm-qm/qm-syntax.md) - 查询模型定义
 - [权限控制](./authorization.md) - 详细的权限配置

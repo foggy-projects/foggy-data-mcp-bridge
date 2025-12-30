@@ -683,6 +683,7 @@ DELETE FROM dim_team WHERE team_id = 'T010';
 
 ## 下一步
 
+- [JSON 查询 DSL](./query-dsl.md) - 查询 DSL 完整语法（推荐阅读）
 - [TM 语法手册](./tm-syntax.md) - 完整的 TM 定义语法
 - [QM 语法手册](./qm-syntax.md) - 查询模型定义
-- [DSL 查询 API](../api/query-api.md) - 查询 API 参考
+- [查询 API](../api/query-api.md) - HTTP API 接口
