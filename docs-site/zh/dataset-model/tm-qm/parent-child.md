@@ -240,7 +240,7 @@ export const model = {
 **生成的 SQL**：
 
 ```sql
-SELECT d1.team_name, SUM(t0.sales_amount)
+SELECT d1.team_name, t0.sales_amount
 FROM fact_team_sales t0
 LEFT JOIN dim_team d1 ON t0.team_id = d1.team_id
 WHERE d1.team_id = 'T001'
@@ -251,8 +251,8 @@ GROUP BY d1.team_name
 
 | team$caption | salesAmount |
 |--------------|-------------|
-| 总公司        | 110,000     |
-
+| 总公司        | 50,000      |
+| 总公司        | 60,000      |
 ---
 
 ### 5.2 层级视角（使用闭包表）
@@ -289,7 +289,7 @@ GROUP BY d4.team_name
 
 **返回数据**：
 
-| team$hierarchy$caption | salesAmount |
+| team$hierarchy$caption | totalSalesAmount |
 |------------------------|-------------|
 | 总公司                  | 648,000     |
 
@@ -379,7 +379,10 @@ GROUP BY d1.team_name
         "columns": ["team$caption", "salesAmount"],
         "slice": [
             { "field": "team$id", "op": "childrenOf", "value": "T001" }
-        ]
+        ],
+       "groupBy": [
+          { "field": "team$caption" }
+       ]
     }
 }
 ```
@@ -417,7 +420,10 @@ GROUP BY d1.team_name
         "columns": ["team$caption", "salesAmount"],
         "slice": [
             { "field": "team$id", "op": "descendantsOf", "value": "T001" }
-        ]
+        ],
+       "groupBy": [
+          { "field": "team$caption" }
+       ]
     }
 }
 ```
@@ -461,7 +467,10 @@ GROUP BY d1.team_name
         "columns": ["team$caption", "salesAmount"],
         "slice": [
             { "field": "team$id", "op": "selfAndDescendantsOf", "value": "T001" }
-        ]
+        ],
+       "groupBy": [
+          { "field": "team$caption" }
+       ]
     }
 }
 ```
@@ -506,7 +515,10 @@ GROUP BY d1.team_name
         "columns": ["team$caption", "salesAmount"],
         "slice": [
             { "field": "team$id", "op": "descendantsOf", "value": "T001", "maxDepth": 2 }
-        ]
+        ],
+       "groupBy": [
+          { "field": "team$caption" }
+       ]
     }
 }
 ```
@@ -546,7 +558,10 @@ GROUP BY d1.team_name
         "columns": ["team$caption", "salesAmount"],
         "slice": [
             { "field": "team$id", "op": "childrenOf", "value": "T002", "maxDepth": 2 }
-        ]
+        ],
+       "groupBy": [
+          { "field": "team$caption" }
+       ]
     }
 }
 ```
@@ -586,7 +601,10 @@ GROUP BY d1.team_name
         "columns": ["team$caption", "salesAmount"],
         "slice": [
             { "field": "team$id", "op": "childrenOf", "value": ["T002", "T005"] }
-        ]
+        ],
+       "groupBy": [
+          { "field": "team$caption" }
+       ]
     }
 }
 ```

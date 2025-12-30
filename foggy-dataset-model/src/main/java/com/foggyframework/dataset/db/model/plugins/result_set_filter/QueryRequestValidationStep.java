@@ -54,6 +54,13 @@ public class QueryRequestValidationStep implements DataSetResultStep {
      */
     private static final Set<String> SUPPORTED_SORT_DIRECTIONS = Set.of("asc", "desc");
 
+    /**
+     * 支持的层级操作符（父子维度查询）
+     */
+    private static final Set<String> HIERARCHY_OPERATORS = Set.of(
+            "childrenof", "descendantsof", "selfanddescendantsof"
+    );
+
     @Override
     public int beforeQuery(ModelResultContext ctx) {
         DbQueryRequestDef queryRequest = ctx.getRequest().getParam();
@@ -238,17 +245,25 @@ public class QueryRequestValidationStep implements DataSetResultStep {
     // ==========================================
 
     /**
-     * 检查操作符是否合法（通过 SqlFormulaService）
+     * 检查操作符是否合法（通过 SqlFormulaService 或层级操作符集合）
      */
     private boolean isValidOperator(String op) {
-        return sqlFormulaService.supports(op);
+        if (op == null) {
+            return false;
+        }
+        // 检查标准 SQL 操作符
+        if (sqlFormulaService.supports(op)) {
+            return true;
+        }
+        // 检查层级操作符（父子维度查询）
+        return HIERARCHY_OPERATORS.contains(op.toLowerCase());
     }
 
     /**
      * 获取所有支持的操作符列表（用于错误提示）
      */
     private String getSupportedOperators() {
-        return "=, !=, ===, >, >=, <, <=, in, !in, like, !like, [], [), (], (), null, !null, null|empty, !null&!empty, bit_in";
+        return "=, !=, ===, >, >=, <, <=, in, !in, like, !like, [], [), (], (), null, !null, null|empty, !null&!empty, bit_in, childrenOf, descendantsOf, selfAndDescendantsOf";
     }
 
     /**
