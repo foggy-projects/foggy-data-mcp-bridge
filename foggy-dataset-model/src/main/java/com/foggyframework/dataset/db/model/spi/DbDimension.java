@@ -2,6 +2,7 @@ package com.foggyframework.dataset.db.model.spi;
 
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.dataset.db.model.common.result.DbDataItem;
+import com.foggyframework.dataset.db.model.path.DimensionPath;
 
 import javax.sql.DataSource;
 import java.util.List;
@@ -78,15 +79,29 @@ public interface DbDimension extends DbObject {
     void addChildDimension(DbDimension child);
 
     /**
+     * 获取维度路径
+     * <p>返回 DimensionPath 对象，用于统一的路径表示和格式转换
+     *
+     * @return 维度路径
+     */
+    DimensionPath getDimensionPath();
+
+    /**
      * 获取完整路径名（如 product.category.group）
+     * <p>用于 QM 中的 ref 语法
      * @return 完整路径名
      */
     default String getFullPath() {
-        DbDimension parent = getParentDimension();
-        if (parent == null) {
-            return getName();
-        }
-        return parent.getFullPath() + "." + getName();
+        return getDimensionPath().toDotFormat();
+    }
+
+    /**
+     * 获取用于别名的完整路径名（如 product_category_group）
+     * <p>用于列的 alias/name，避免前端 JS 处理带 . 的属性名
+     * @return 下划线分隔的路径名
+     */
+    default String getFullPathForAlias() {
+        return getDimensionPath().toUnderscoreFormat();
     }
 
     /**

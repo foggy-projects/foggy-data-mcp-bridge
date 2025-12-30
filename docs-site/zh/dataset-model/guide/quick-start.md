@@ -143,7 +143,12 @@ spring:
 # Foggy 配置（可选）
 foggy:
   dataset:
-    show-sql: true  # 开启 SQL 日志，方便调试
+    # SQL 日志配置
+    show-sql: true               # 打印 SQL 语句到控制台（开发调试用）
+    sql-format: false            # 是否格式化 SQL（true=多行，false=单行）
+    sql-log-level: DEBUG         # SQL 日志级别（DEBUG/INFO）
+    show-sql-parameters: true    # 显示 SQL 参数值
+    show-execution-time: true    # 显示 SQL 执行时间
 ```
 
 **已有项目**：如果你的项目已经配置了数据源，无需修改，Foggy 会自动使用现有数据源。
@@ -461,7 +466,7 @@ curl -X POST http://localhost:8080/jdbc-model/query-model/v2/FactOrderQueryModel
 > **提示**：
 > - 默认端口是 8080，可在 `application.yml` 中修改：`server.port: 8081`
 > - 查询接口路径格式：`/jdbc-model/query-model/v2/{QueryModelName}`
-> - 如果启用了 `show-sql: true`，可以在控制台看到生成的 SQL 语句
+> - 如果启用了 `foggy.dataset.show-sql: true`，可以在控制台看到生成的 SQL 语句和执行时间
 
 ---
 
@@ -611,7 +616,7 @@ WHERE t0.order_status = 'COMPLETED'
             {
                 "field": "amount",
                 "op": "[]",
-                "value": [100, 1000]
+                "value": [100, 8000]
             }
         ]
     }
@@ -636,7 +641,7 @@ WHERE t0.order_status = 'COMPLETED'
         "slice": [
             {
                 "field": "orderStatus",
-                "type": "in",
+                "op": "in",
                 "value": ["COMPLETED", "SHIPPED", "PAID"]
             }
         ]
@@ -653,8 +658,8 @@ WHERE t0.order_status = 'COMPLETED'
         "slice": [
             {
                 "field": "customer$caption",
-                "type": "like",
-                "value": "%张%"
+                "op": "like",
+                "value": "张"
             }
         ]
     }
@@ -690,8 +695,8 @@ public class OrderQueryService {
         List<SliceRequestDef> slices = new ArrayList<>();
         if (params.getStatus() != null) {
             SliceRequestDef slice = new SliceRequestDef();
-            slice.setName("orderStatus");
-            slice.setType("=");
+            slice.setField("orderStatus");
+            slice.setOp("=");
             slice.setValue(params.getStatus());
             slices.add(slice);
         }
@@ -721,7 +726,9 @@ public class OrderQueryService {
 | `<=` | 小于等于 | `1000` |
 | `in` | 包含 | `["A", "B", "C"]` |
 | `not in` | 不包含 | `["X", "Y"]` |
-| `like` | 模糊匹配 | `"%关键字%"` |
+| `like` | 模糊匹配 | `字符串左右自动补%，例如查'3',会补成 '%3%'` |
+| `left_like` | 模糊匹配 | `字符串左侧自动补%，例如查'3',会补成 '%3'` |
+| `right_like` | 模糊匹配 | `字符串右侧自动补%，例如查'3',会补成 '3%'` |
 | `is null` | 为空 | 无需 value |
 | `is not null` | 不为空 | 无需 value |
 | `[]` | 闭区间 | `[100, 500]` |
@@ -731,7 +738,7 @@ public class OrderQueryService {
 
 ## 12. 下一步
 
-- [TM 语法手册](../jm-qm/jm-syntax.md) - 完整的 TM 定义语法
-- [QM 语法手册](../jm-qm/qm-syntax.md) - 完整的 QM 定义语法
+- [TM 语法手册](../tm-qm/tm-syntax.md) - 完整的 TM 定义语法
+- [QM 语法手册](../tm-qm/qm-syntax.md) - 完整的 QM 定义语法
 - [DSL 查询 API](../api/query-api.md) - 完整的查询 API 参考
-- [父子维度](../jm-qm/parent-child.md) - 层级结构维度配置
+- [父子维度](../tm-qm/parent-child.md) - 层级结构维度配置

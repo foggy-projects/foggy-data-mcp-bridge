@@ -1,55 +1,57 @@
 /**
- * 商品维度查询模型
+ * 商品维度查询模型 
  *
  * @caption 商品维度查询
  * @description 查询商品基础信息，包括品类、品牌、价格、成本等属性
  */
+const dp = loadTableModel('DimProductModel');
+
 export const queryModel = {
     name: 'DimProductQueryModel',
     caption: '商品维度查询',
     description: '查询商品基础信息，包括品类、品牌、价格、成本等属性',
-    model: 'DimProductModel',
+    loader: 'v2',
 
-    // 列组定义
+    model: dp,
+
     columnGroups: [
         {
             caption: '商品基本信息',
             items: [
-                { name: 'productName' },
-                { name: 'productId' },
-                { name: 'brand' },
-                { name: 'status' }
+                { ref: dp.productName },
+                { ref: dp.productId },
+                { ref: dp.brand },
+                { ref: dp.status }
             ]
         },
         {
             caption: '品类信息',
             items: [
-                { name: 'categoryId' },
-                { name: 'categoryName' },
-                { name: 'subCategoryId' },
-                { name: 'subCategoryName' }
+                { ref: dp.categoryId },
+                { ref: dp.categoryName },
+                { ref: dp.subCategoryId },
+                { ref: dp.subCategoryName }
             ]
         },
         {
             caption: '价格信息',
             items: [
-                { name: 'unitPrice' },
-                { name: 'unitCost' }
+                { ref: dp.unitPrice },
+                { ref: dp.unitCost }
             ]
         },
         {
             caption: '其他信息',
             items: [
-                { name: 'supplierId' },
-                { name: 'createdAt' },
-                { name: 'updatedAt' }
+                { ref: dp.supplierId },
+                { ref: dp.createdAt },
+                { ref: dp.updatedAt }
             ]
         }
     ],
 
-    // 默认排序
     orders: [
-        { name: 'productName', order: 'asc' }
+        { ref: dp.productName, order: 'asc' }
     ],
 
     accesses: []

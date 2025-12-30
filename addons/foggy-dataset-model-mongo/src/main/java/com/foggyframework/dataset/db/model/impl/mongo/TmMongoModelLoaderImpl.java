@@ -35,7 +35,7 @@ import java.util.Set;
  */
 @Service
 @Slf4j
-public class TmMongoModelLoaderImpl extends LoaderSupport implements TableModelLoader , QueryModelBuilder {
+public class TmMongoModelLoaderImpl extends LoaderSupport implements TableModelLoader, QueryModelBuilder {
 
     @Resource
     DataSource defaultDataSource;
@@ -67,7 +67,7 @@ public class TmMongoModelLoaderImpl extends LoaderSupport implements TableModelL
             if (def.getProperties() != null) {
                 for (DbPropertyDef property : def.getProperties()) {
                     RX.hasText(property.getColumn(), "Property列名不能为空:" + def.getName());
-                    if(!columns.contains(property.getColumn())) {
+                    if (!columns.contains(property.getColumn())) {
                         appendColumn(sb, property.getColumn(), property.getType());
                         columns.add(property.getColumn());
                     }
@@ -85,7 +85,7 @@ public class TmMongoModelLoaderImpl extends LoaderSupport implements TableModelL
             if (def.getMeasures() != null) {
                 for (DbMeasureDef measure : def.getMeasures()) {
                     RX.hasText(measure.getColumn(), "Measure列名不能为空:" + def.getName());
-                    if(!columns.contains(measure.getColumn())) {
+                    if (!columns.contains(measure.getColumn())) {
                         appendColumn(sb, measure.getColumn(), measure.getType());
                         columns.add(measure.getColumn());
                     }
@@ -114,11 +114,12 @@ public class TmMongoModelLoaderImpl extends LoaderSupport implements TableModelL
         if (def.getMongoTemplate() != null) {
             defMongoTemplate = (MongoTemplate) def.getMongoTemplate();
         }
-        MongoTableModelImpl jdbcModel = new MongoTableModelImpl(defMongoTemplate,fScript);
+        MongoTableModelImpl jdbcModel = new MongoTableModelImpl(defMongoTemplate, fScript);
         def.apply(jdbcModel);
+        // 设置模型类型为 mongo，用于 QueryModelBuilder 识别
+        jdbcModel.setModelType(com.foggyframework.dataset.db.model.spi.DbModelType.mongo);
 
         jdbcModel.setQueryObject(loadQueryObject(defaultDataSource, null, def.getViewSql(), def.getSchema()));
-//        jdbcModel.setMongoTemplate(defMongoTemplate);
         return jdbcModel;
     }
 
@@ -143,21 +144,44 @@ public class TmMongoModelLoaderImpl extends LoaderSupport implements TableModelL
     }
 
     @Override
-    public QueryModelSupport build(DbQueryModelDef queryModelDef, Fsscript fsscript, List<TableModel> jdbcModelDxList) {
-        MongoTableModelImpl mainTm = jdbcModelDxList.get(0).getDecorate(MongoTableModelImpl.class);
-        if (mainTm == null) {
-            //非mongo模型，不做处理
+    public QueryModelSupport build(DbQueryModelDef queryModelDef, Fsscript fsscript) {
+        log.debug("TmMongoModelLoaderImpl.build() 被调用, QM: {}", queryModelDef.getName());
+
+        // 优先使用 V2 构建器解析的模型列表
+        List<TableModel> jdbcModelDxList = queryModelDef.getParsedModels();
+
+        if (jdbcModelDxList == null || jdbcModelDxList.isEmpty()) {
+            // 没有模型列表，不做处理
+            log.debug("模型列表为空，跳过");
             return null;
         }
+
+        // 获取主表模型，检查是否为 Mongo 模型
+        TableModel firstModel = jdbcModelDxList.get(0);
+        log.debug("第一个模型类型: {}", firstModel.getClass().getName());
+        if (firstModel instanceof QueryModelSupport.JdbcModelDx dx) {
+            firstModel = dx.getDelegate();
+            log.debug("解包后模型类型: {}", firstModel.getClass().getName());
+        }
+        MongoTableModelImpl mainTm = firstModel.getDecorate(MongoTableModelImpl.class);
+        if (mainTm == null) {
+            // 非 mongo 模型，不做处理
+            log.debug("非 MongoDB 模型，跳过");
+            return null;
+        }
+
+        log.debug("检测到 MongoDB 模型，开始构建 MongoQueryModelImpl");
+
         /**
-         * 检查，必须都是jdbc模型
+         * 检查，必须都是 Mongo 模型，且不支持 join
          */
-        if(jdbcModelDxList.size()>1){
+        if (jdbcModelDxList.size() > 1) {
             throw RX.throwB("mongo模型不支持join");
         }
 
-        MongoQueryModelImpl qm = new MongoQueryModelImpl(jdbcModelDxList,fsscript,mainTm.getMongoTemplate());
+        MongoQueryModelImpl qm = new MongoQueryModelImpl(jdbcModelDxList, fsscript, mainTm.getMongoTemplate());
         queryModelDef.apply(qm);
+        log.debug("MongoDB QueryModel 构建成功: {}", qm.getName());
         return qm;
     }
 }

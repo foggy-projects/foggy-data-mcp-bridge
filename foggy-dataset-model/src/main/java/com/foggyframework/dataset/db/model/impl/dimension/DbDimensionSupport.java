@@ -11,6 +11,7 @@ import com.foggyframework.dataset.db.model.impl.AiObject;
 import com.foggyframework.dataset.db.model.impl.DbColumnSupport;
 import com.foggyframework.dataset.db.model.impl.DbObjectSupport;
 import com.foggyframework.dataset.db.model.impl.property.DbPropertyImpl;
+import com.foggyframework.dataset.db.model.path.DimensionPath;
 import com.foggyframework.dataset.db.model.spi.*;
 import com.foggyframework.dataset.db.model.spi.support.DbDataProviderDelegate;
 import com.foggyframework.dataset.db.model.utils.JdbcModelNamedUtils;
@@ -98,6 +99,29 @@ public abstract class DbDimensionSupport extends DbObjectSupport implements DbDi
      * 维表主键字段的 description，用于描述 $id 字段的详细说明
      */
     String keyDescription;
+
+    /**
+     * 维度路径（懒加载）
+     */
+    private transient DimensionPath dimensionPath;
+
+    @Override
+    public DimensionPath getDimensionPath() {
+        if (dimensionPath == null) {
+            dimensionPath = buildDimensionPath();
+        }
+        return dimensionPath;
+    }
+
+    /**
+     * 构建维度路径
+     */
+    private DimensionPath buildDimensionPath() {
+        if (parentDimension == null) {
+            return DimensionPath.of(name);
+        }
+        return parentDimension.getDimensionPath().append(name);
+    }
 
     @Override
     public void addChildDimension(DbDimension child) {
@@ -232,9 +256,9 @@ public abstract class DbDimensionSupport extends DbObjectSupport implements DbDi
         @Override
         public String getAlias() {
             if (alias == null) {
-                // 使用维度的有效名称（优先别名）来构建属性列名
-                String effectiveDimName = getEffectiveName();
-                alias = effectiveDimName + "$" + property.getPropertyDbColumn().getAlias();
+                // 使用维度的别名路径（下划线分隔，支持嵌套维度）来构建属性列名
+                String fullPathAlias = getFullPathForAlias();
+                alias = fullPathAlias + "$" + property.getPropertyDbColumn().getAlias();
             }
             return alias;
         }
@@ -339,8 +363,8 @@ public abstract class DbDimensionSupport extends DbObjectSupport implements DbDi
         @Override
         public String getAlias() {
             if (keyAlias == null) {
-                // 使用维度的有效名称（优先别名）
-                keyAlias = getEffectiveName() + "$id";
+                // 使用维度的别名路径（下划线分隔，支持嵌套维度）
+                keyAlias = getFullPathForAlias() + "$id";
             }
             return keyAlias;
         }
@@ -424,8 +448,8 @@ public abstract class DbDimensionSupport extends DbObjectSupport implements DbDi
         @Override
         public String getName() {
             if (aliasName == null) {
-                // 使用维度的有效名称（优先别名）
-                aliasName = getEffectiveName() + "$id";
+                // 使用维度的别名路径（下划线分隔，支持嵌套维度）
+                aliasName = getFullPathForAlias() + "$id";
             }
             return aliasName;
         }
@@ -453,8 +477,8 @@ public abstract class DbDimensionSupport extends DbObjectSupport implements DbDi
         @Override
         public String getName() {
             if (aliasName == null) {
-                // 使用维度的有效名称（优先别名）
-                aliasName = getEffectiveName() + "$id";
+                // 使用维度的别名路径（下划线分隔，支持嵌套维度）
+                aliasName = getFullPathForAlias() + "$id";
             }
             return aliasName;
         }
@@ -481,8 +505,8 @@ public abstract class DbDimensionSupport extends DbObjectSupport implements DbDi
         @Override
         public String getName() {
             if (captionAlias == null) {
-                // 使用维度的有效名称（优先别名）
-                captionAlias = getEffectiveName() + "$caption";
+                // 使用维度的别名路径（下划线分隔，支持嵌套维度）
+                captionAlias = getFullPathForAlias() + "$caption";
             }
             return captionAlias;
         }

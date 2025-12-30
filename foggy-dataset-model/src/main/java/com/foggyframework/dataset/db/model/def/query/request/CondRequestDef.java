@@ -19,6 +19,9 @@ public class CondRequestDef {
     @ApiModelProperty("查询值")
     Object value;
 
+    @ApiModelProperty(value = "最大层级深度", notes = "用于父子维度的 childrenOf/descendantsOf 操作，限制查询的层级深度")
+    Integer maxDepth;
+
     @ApiModelProperty("默认或1为and,2为or")
     int link;
 

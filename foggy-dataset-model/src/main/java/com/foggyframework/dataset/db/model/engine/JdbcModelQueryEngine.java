@@ -10,6 +10,8 @@ import com.foggyframework.dataset.db.model.engine.expression.SqlCalculatedFieldP
 import com.foggyframework.dataset.db.model.engine.expression.SqlExpContext;
 import com.foggyframework.dataset.db.model.engine.formula.JdbcLink;
 import com.foggyframework.dataset.db.model.engine.formula.SqlFormulaService;
+import com.foggyframework.dataset.db.model.engine.formula.hierarchy.HierarchyOperator;
+import com.foggyframework.dataset.db.model.engine.formula.hierarchy.HierarchyOperatorService;
 import com.foggyframework.dataset.db.model.engine.join.JoinGraph;
 import com.foggyframework.dataset.db.model.engine.query.JdbcQuery;
 import com.foggyframework.dataset.db.model.engine.query.SimpleSqlJdbcQueryVisitor;
@@ -46,6 +48,11 @@ public class JdbcModelQueryEngine implements QueryEngine {
     SqlFormulaService sqlFormulaService;
 
     /**
+     * 层级操作符服务（用于父子维度）
+     */
+    HierarchyOperatorService hierarchyOperatorService = new HierarchyOperatorService();
+
+    /**
      * SQL 表达式上下文（用于计算字段）
      */
     SqlExpContext sqlExpContext;
@@ -54,6 +61,12 @@ public class JdbcModelQueryEngine implements QueryEngine {
      * 处理后的计算字段列表
      */
     List<CalculatedDbColumn> calculatedColumns;
+
+    /**
+     * 内联表达式解析结果（包含聚合信息）
+     * 用于判断slice条件是否为聚合条件（需要放入HAVING而非WHERE）
+     */
+    ModelResultContext.ParsedInlineExpressions parsedInlineExpressions;
 
     /**
      * 不含 ORDER BY 的基础SQL，用于聚合查询的子查询
@@ -119,6 +132,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
         JdbcQuery jdbcQuery = new JdbcQuery();
         jdbcQuery.setQueryRequest(queryRequest);
+        jdbcQuery.setQueryModel(jdbcQueryModel);
 
         // 使用 QueryModel 缓存的 JoinGraph
         JoinGraph joinGraph = jdbcQueryModel.getMergedJoinGraph();
@@ -180,6 +194,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
                 jdbcQuery.join(queryDimension.getDimension().getQueryObject());
                 ExpEvaluator ee = DefaultExpEvaluator.newInstance(systemBundlesContext.getApplicationContext());
                 ee.setVar("query", jdbcQuery);
+                ee.setVar("queryModel", jdbcQueryModel);
                 ee.setVar("dim", queryDimension.getDimension());
                 ee.setVar("dimension", queryDimension.getDimension());
                 queryDimension.getQueryAccess().getQueryBuilder().autoApply(ee);
@@ -192,6 +207,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
                 }
                 ExpEvaluator ee = DefaultExpEvaluator.newInstance(systemBundlesContext.getApplicationContext());
                 ee.setVar("query", jdbcQuery);
+                ee.setVar("queryModel", jdbcQueryModel);
                 ee.setVar("property", queryProperty.getProperty());
                 queryProperty.getQueryAccess().getQueryBuilder().autoApply(ee);
             }
@@ -319,43 +335,39 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
     private AggregationDbColumn buildAggColumn1(QueryObject sqlQueryObject, String declare, DbColumn column, DbAggregation agg) {
 
-        AggregationDbColumn aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), declare, column.getType());
         if (agg == null) {
             agg = DbAggregation.NONE;
         }
+
+        AggregationDbColumn aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), declare, column.getType(), agg);
+
         switch (agg) {
             case GROUP_CONCAT:
                 aggColumn.setDeclare("GROUP_CONCAT(" + declare + " SEPARATOR ',')");
-                aggColumn.setGroupByName(null);
                 break;
             case MAX:
                 aggColumn.setDeclare("MAX(" + declare + ")");
-                aggColumn.setGroupByName(null);
                 break;
             case MIN:
                 aggColumn.setDeclare("MIN(" + declare + ")");
-                aggColumn.setGroupByName(null);
                 break;
             case PK:
                 aggColumn.setDeclare("MAX(" + declare + ")");
+                aggColumn.setAggregation(DbAggregation.MAX); // PK 实际使用 MAX 聚合
                 break;
             case COUNT:
                 aggColumn.setDeclare("COUNT(*)");
-                aggColumn.setGroupByName(null);
                 break;
             case SUM:
                 aggColumn.setDeclare("SUM(" + declare + ")");
-                aggColumn.setGroupByName(null);
                 break;
             case AVG:
                 aggColumn.setDeclare("AVG(" + declare + ")");
-                aggColumn.setGroupByName(null);
                 break;
             case CUSTOM:
                 String aggregationFormula = column.getAggregationFormula();
                 RX.hasText(aggregationFormula, "传了groupBy为CUSTOM , 但没有定义aggregationFormula，列:" + column.getName());
                 aggColumn.setDeclare(aggregationFormula);
-                aggColumn.setGroupByName(null);
                 break;
             case NONE:
             default:
@@ -393,43 +405,51 @@ public class JdbcModelQueryEngine implements QueryEngine {
             switch (c) {
                 case AVG:
 //                    aggJdbcQuery.getSelect().select()
-                    aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), "avg" + "(" + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + ")", column.getType());
+                    aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(),
+                            "avg" + "(" + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + ")",
+                            column.getType(), DbAggregation.AVG);
                     break;
                 case SUM:
                     String declare = "";
-                    switch (column.getSqlColumn().getJdbcType()) {
-                        case Types.DOUBLE:
-                        case Types.FLOAT:
-                            //需要格式化,不再格式化,会引起外部聚合时的问题,这个格式化交给前端处理好了
+                    // 注意: AggregationDbColumn.getSqlColumn() 返回 null，需要检查
+                    if (column.getSqlColumn() != null) {
+                        switch (column.getSqlColumn().getJdbcType()) {
+                            case Types.DOUBLE:
+                            case Types.FLOAT:
+                                //需要格式化,不再格式化,会引起外部聚合时的问题,这个格式化交给前端处理好了
 //                                declare = "format(sum" + "(" + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + "),2)";
 //                                break;
-                        default:
-                            declare = "sum" + "(" + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + ")";
+                            default:
+                                declare = "sum" + "(" + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + ")";
+                        }
+                    } else {
+                        // 没有 SqlColumn 时（如 AggregationDbColumn），使用默认逻辑
+                        declare = "sum" + "(" + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + ")";
                     }
-                    aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), declare, column.getType());
+                    aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), declare, column.getType(), DbAggregation.SUM);
                     break;
                 case COUNT:
                     if (countToSum) {
                         //解决前端聚合维度或属性时的BUG
                         declare = "sum" + "(" + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + ")";
-                        aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), declare, column.getType());
+                        aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), declare, column.getType(), DbAggregation.SUM);
                     } else {
-                        aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), "count" + "(*)");
+                        aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), "count" + "(*)", null, DbAggregation.COUNT);
                     }
 
                     break;
                 case MAX:
                     declare = "max" + "(" + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + ")";
-                    aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), declare, column.getType());
+                    aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), declare, column.getType(), DbAggregation.MAX);
                     break;
                 case MIN:
                     declare = "min" + "(" + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + ")";
-                    aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), declare, column.getType());
+                    aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), declare, column.getType(), DbAggregation.MIN);
                     break;
                 case NONE:
                     //意思是不做聚合
                     declare = "null";
-                    aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), declare, column.getType());
+                    aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), declare, column.getType(), DbAggregation.NONE);
                     break;
                 default:
                     throw new UnsupportedOperationException();
@@ -437,7 +457,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
             aggColumns.add(aggColumn);
 
         }
-        aggColumns.add(new AggregationDbColumn(sqlQueryObject, "total", "count(*)"));
+        aggColumns.add(new AggregationDbColumn(sqlQueryObject, "total", "count(*)", null, DbAggregation.COUNT));
         sqlQueryObject.setColumns(aggColumns);
 
         aggJdbcQuery.from(sqlQueryObject);
@@ -466,40 +486,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
 
     private void buildSlice(JdbcQueryModel jdbcQueryModel, JdbcQuery jdbcQuery, SliceRequestDef sliceDef) {
-//        JdbcColumn jdbcColumn = jdbcQueryModel.findJdbcColumnForCond(sliceDef.getName(), true);
-//        if (jdbcColumn == null) {
-//            throw RX.throwAUserTip(String.format("未能找到列[%s]，切片%s", sliceDef.getName(), sliceDef));
-//        }
-//
-//        if (jdbcColumn.getQueryObject() != null && (jdbcQuery.getFrom().getFromObject() != jdbcColumn.getQueryObject())) {
-//            //需要加入left join
-//            jdbcQuery.join(jdbcColumn.getQueryObject());
-//        }
-////        jdbcColumn.gets
-//        String alias = jdbcQueryModel.getAlias(jdbcColumn.getQueryObject());
-//
-//        if (jdbcColumn.isDimension()) {
-//            JdbcModelParentChildDimensionImpl pp = jdbcColumn.getDecorate(JdbcDimensionColumn.class).getJdbcDimension().getDecorate(JdbcModelParentChildDimensionImpl.class);
-//            if (pp != null) {
-//                //这是一个parentChild维~条件要重写，转成closure表
-//                jdbcQuery.join(pp.getClosureQueryObject(), pp.getForeignKey());
-//                alias = jdbcQueryModel.getAlias(pp.getClosureQueryObject());
-//                //查询列换成closure表的parentId
-//                jdbcColumn = pp.getParentKeyJdbcColumn();
-//            }
-//        }
-//
-//        if (sliceDef._hasChildren()) {
-//            //有子项~
-//            JdbcQuery.JdbcGroupCond gc = jdbcQuery.getWhere().newGroupCond();
-//
-//
-//        } else {
-//            sqlFormulaService.buildAndAddToJdbcCond(jdbcQuery.getWhere(), sliceDef.getType(), jdbcColumn, alias, sliceDef.getValue());
-//        }
-
         buildSlice(jdbcQueryModel, jdbcQuery, jdbcQuery.getWhere(), sliceDef, 0);
-
     }
 
     private void buildSlice(JdbcQueryModel jdbcQueryModel, JdbcQuery jdbcQuery, JdbcQuery.JdbcListCond listCond, CondRequestDef sliceDef, int level) {
@@ -509,6 +496,12 @@ public class JdbcModelQueryEngine implements QueryEngine {
     private void buildSlice(JdbcQueryModel jdbcQueryModel, JdbcQuery jdbcQuery, JdbcQuery.JdbcListCond listCond, CondRequestDef sliceDef, int idx, int level) {
         if (sliceDef._hasChildren()) {
             //有子项~
+
+            // 校验：如果是OR连接，不能混合聚合字段和普通字段
+            if ("OR".equalsIgnoreCase(JdbcLink.getLinkStr(sliceDef.getLink()))) {
+                validateOrConditionGroup(sliceDef);
+            }
+
             int i = 0;
             //第一层不加,全部用and
             JdbcQuery.JdbcGroupCond gc = jdbcQuery.getWhere().newGroupCond(level > 0 ? JdbcLink.getLinkStr(sliceDef.getLink()) : "");
@@ -530,9 +523,17 @@ public class JdbcModelQueryEngine implements QueryEngine {
                 throw RX.throwAUserTip(DatasetMessages.queryColumnNotfound(sliceDef.getField(), jdbcQueryModel.findDimension(sliceDef.getField())));
             }
 
+            // 判断是否为聚合条件
+            boolean isAggregateCondition = isAggregateCondition(sliceDef.getField());
+
             // 计算字段直接使用 SQL 表达式，不需要 JOIN 和特殊处理
             if (jdbcColumn.isCalculatedField()) {
-                sqlFormulaService.buildAndAddToJdbcCond(listCond, sliceDef.getOp(), jdbcColumn, null, sliceDef.getValue(), sliceDef.getLink());
+                // 聚合条件需要添加到HAVING，否则添加到WHERE
+                if (isAggregateCondition) {
+                    sqlFormulaService.buildAndAddToJdbcCond(jdbcQuery.getHaving(), sliceDef.getOp(), jdbcColumn, null, sliceDef.getValue(), sliceDef.getLink());
+                } else {
+                    sqlFormulaService.buildAndAddToJdbcCond(listCond, sliceDef.getOp(), jdbcColumn, null, sliceDef.getValue(), sliceDef.getLink());
+                }
                 return;
             }
 
@@ -544,21 +545,121 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
             if (jdbcColumn.isDimension()) {
                 DbModelParentChildDimensionImpl pp = jdbcColumn.getDecorate(DbDimensionColumn.class).getDimension().getDecorate(DbModelParentChildDimensionImpl.class);
-                if (pp != null) {
-                    //这是一个parentChild维~条件要重写，转成closure表
+                // 只有 hierarchy 视角的列（team$hierarchy$id）或层级操作符才使用闭包表
+                // 默认视角（team$id）按普通维度处理，精确匹配
+                boolean isHierarchyColumn = sliceDef.getField() != null && sliceDef.getField().contains("$hierarchy$");
+                String op = sliceDef.getOp();
+                HierarchyOperator hierarchyOp = hierarchyOperatorService.get(op);
+
+                if (pp != null && (isHierarchyColumn || hierarchyOp != null)) {
+                    //这是一个parentChild维的层级查询，条件重写为使用closure表
                     jdbcQuery.join(pp.getClosureQueryObject(), pp.getForeignKey());
                     alias = jdbcQueryModel.getAlias(pp.getClosureQueryObject());
                     //查询列换成closure表的parentId
                     jdbcColumn = pp.getParentKeyJdbcColumn();
+
+                    // 处理层级操作符的 distance 条件
+                    if (hierarchyOp != null) {
+                        hierarchyOp.buildDistanceCondition(listCond, alias, sliceDef.getMaxDepth());
+                        // 将 op 转换为标准操作符（in 或 =）
+                        sliceDef.setOp(sliceDef.getValue() instanceof List ? "in" : "=");
+                    }
                 }
             }
             if (jdbcColumn.isProperty() && jdbcColumn.getDecorate(DbPropertyColumn.class).getProperty().isBit()) {
                 //是位图列,重写为bitIn
                 sliceDef.setOp(CondType.BIT_IN.getCode());
             }
-            sqlFormulaService.buildAndAddToJdbcCond(listCond, sliceDef.getOp(), jdbcColumn, alias, sliceDef.getValue(), sliceDef.getLink());
+
+            // 聚合条件需要添加到HAVING，否则添加到WHERE
+            if (isAggregateCondition) {
+                sqlFormulaService.buildAndAddToJdbcCond(jdbcQuery.getHaving(), sliceDef.getOp(), jdbcColumn, alias, sliceDef.getValue(), sliceDef.getLink());
+            } else {
+                sqlFormulaService.buildAndAddToJdbcCond(listCond, sliceDef.getOp(), jdbcColumn, alias, sliceDef.getValue(), sliceDef.getLink());
+            }
         }
 
+    }
+
+    /**
+     * 判断指定字段是否为聚合条件
+     * <p>
+     * 聚合条件指的是对聚合字段（如SUM、AVG等）的过滤，这类条件应该放在HAVING子句中。
+     * 判断依据：检查字段名是否在 parsedInlineExpressions 的聚合列映射中。
+     * </p>
+     *
+     * @param fieldName 字段名
+     * @return true 如果是聚合条件，需要放入HAVING；false 如果是普通条件，放入WHERE
+     */
+    private boolean isAggregateCondition(String fieldName) {
+        if (parsedInlineExpressions == null || parsedInlineExpressions.getColumnAggregations() == null) {
+            return false;
+        }
+        return parsedInlineExpressions.getColumnAggregations().containsKey(fieldName);
+    }
+
+    /**
+     * 校验 OR 连接的条件组
+     * <p>
+     * OR 连接的条件组中不能同时包含聚合字段和普通字段，因为：
+     * <ul>
+     *   <li>聚合字段的条件必须放在 HAVING 子句</li>
+     *   <li>普通字段的条件必须放在 WHERE 子句</li>
+     *   <li>WHERE 和 HAVING 子句不能用 OR 连接</li>
+     * </ul>
+     * 例如：{@code (customer_type='VIP' OR totalAmount>1000)} 在 SQL 中无法表达，
+     * 因为无法写成 {@code WHERE customer_type='VIP' OR HAVING SUM(amount)>1000}
+     * </p>
+     *
+     * @param condGroup OR 连接的条件组
+     * @throws IllegalArgumentException 如果检测到混合使用聚合字段和普通字段
+     */
+    private void validateOrConditionGroup(CondRequestDef condGroup) {
+        if (condGroup.getChildren() == null || condGroup.getChildren().isEmpty()) {
+            return;
+        }
+
+        List<String> aggregateFields = new ArrayList<>();
+        List<String> normalFields = new ArrayList<>();
+
+        // 递归收集所有叶子字段
+        collectFieldsByType(condGroup, aggregateFields, normalFields);
+
+        // 如果同时存在聚合字段和普通字段，抛出错误
+        if (!aggregateFields.isEmpty() && !normalFields.isEmpty()) {
+            String link = JdbcLink.getLinkStr(condGroup.getLink());
+            throw RX.throwAUserTip(DatasetMessages.queryMixedConditionNotAllowed(
+                    link,
+                    String.join(", ", aggregateFields),
+                    String.join(", ", normalFields)
+            ));
+        }
+    }
+
+    /**
+     * 递归收集条件组中的字段，按类型分类
+     *
+     * @param cond            条件定义（可能是组合条件或叶子条件）
+     * @param aggregateFields 聚合字段列表（输出参数）
+     * @param normalFields    普通字段列表（输出参数）
+     */
+    private void collectFieldsByType(CondRequestDef cond, List<String> aggregateFields, List<String> normalFields) {
+        if (cond._hasChildren()) {
+            // 递归处理子条件
+            for (CondRequestDef child : cond.getChildren()) {
+                collectFieldsByType(child, aggregateFields, normalFields);
+            }
+        } else {
+            // 叶子条件，检查字段类型
+            String fieldName = cond.getField();
+            if (fieldName != null && !fieldName.isEmpty()) {
+                if (isAggregateCondition(fieldName)) {
+                    aggregateFields.add(fieldName);
+                } else {
+                    normalFields.add(fieldName);
+                }
+            }
+        }
     }
 
     /**
@@ -580,7 +681,8 @@ public class JdbcModelQueryEngine implements QueryEngine {
                 context != null ? context.getParsedInlineExpressions() : null;
 
         if (parsed != null && parsed.isProcessed()) {
-            // 已预处理，直接使用结果
+            // 已预处理，直接使用结果并保存到成员变量
+            this.parsedInlineExpressions = parsed;
             if (log.isDebugEnabled()) {
                 log.debug("Using preprocessed inline expressions from context, skipping redundant parsing");
             }

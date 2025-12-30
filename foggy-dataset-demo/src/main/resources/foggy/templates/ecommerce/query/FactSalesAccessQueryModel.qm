@@ -1,0 +1,89 @@
+/**
+ * 销售查询模型（带权限控制）
+ *
+ * @caption 销售明细查询（权限测试）
+ * @description 测试行级权限控制的销售事实表查询模型
+ */
+const fs = loadTableModel('FactSalesModel');
+
+export const queryModel = {
+    name: 'FactSalesAccessQueryModel',
+    caption: '销售明细查询（权限测试）',
+    description: '测试行级权限控制的销售事实表查询模型',
+    loader: 'v2',
+
+    model: fs,
+
+    columnGroups: [
+        {
+            caption: '订单明细信息',
+            items: [
+                { ref: fs.orderId },
+                { ref: fs.orderLineNo },
+                { ref: fs.orderStatus }
+            ]
+        },
+        {
+            caption: '商品维度',
+            items: [
+                { ref: fs.product },
+                { ref: fs.product$categoryName }
+            ]
+        },
+        {
+            caption: '客户维度',
+            items: [
+                { ref: fs.customer },
+                { ref: fs.customer$customerType }
+            ]
+        },
+        {
+            caption: '门店维度',
+            items: [
+                { ref: fs.store },
+                { ref: fs.store$storeType }
+            ]
+        },
+        {
+            caption: '度量',
+            items: [
+                { ref: fs.salesAmount },
+                { ref: fs.profitAmount }
+            ]
+        }
+    ],
+
+    orders: [
+        { ref: fs.orderId, order: 'asc' }
+    ],
+
+    accesses: [
+        // 测试1: 基于属性的权限控制（使用字段引用）
+        {
+            property: 'orderStatus',
+            queryBuilder: (query) => {
+                // 使用字段引用 API，只显示已完成的订单
+                query.and(fs.orderStatus, 'COMPLETED');
+            }
+        },
+        // 测试2: 基于属性的权限控制（使用原生 SQL）
+        {
+            property: 'orderId',
+            queryBuilder: (query) => {
+                const t = fs.$alias;
+                // 使用原生 SQL，订单号以 'ORD' 开头
+                query.andSql(t + ".order_id like 'ORD%'");
+            }
+        },
+        // 测试3: 基于维度的权限控制
+        {
+            dimension: 'store',
+            queryBuilder: (query, dimension) => {
+                // 获取维度表别名（通过 query.queryModel 访问 Java QueryModel）
+                const d = query.queryModel.getAlias(dimension.queryObject);
+                // 只显示直营店数据
+                query.andSql(d + ".store_type = ?", '直营店');
+            }
+        }
+    ]
+};

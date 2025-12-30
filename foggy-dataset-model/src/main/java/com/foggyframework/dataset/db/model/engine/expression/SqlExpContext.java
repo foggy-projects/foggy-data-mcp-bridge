@@ -122,6 +122,10 @@ public class SqlExpContext {
 
     /**
      * 获取列的表别名
+     * <p>
+     * 从 JdbcQueryModel 的 JoinGraph 中获取正确的别名，而不是 TableModel 本身的别名。
+     * 这在 V2 格式中尤其重要，因为 JoinGraph 会重新分配表别名。
+     * </p>
      *
      * @param column 列对象
      * @return 表别名
@@ -130,7 +134,8 @@ public class SqlExpContext {
         if (column == null || column.getQueryObject() == null) {
             return null;
         }
-        return column.getQueryObject().getAlias();
+        // 从 JdbcQueryModel 获取正确的别名（JoinGraph 分配的别名）
+        return queryModel.getAlias(column.getQueryObject());
     }
 
     /**

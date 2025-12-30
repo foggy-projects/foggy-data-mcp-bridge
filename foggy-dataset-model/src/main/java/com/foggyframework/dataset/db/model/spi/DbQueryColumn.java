@@ -16,9 +16,6 @@ public interface DbQueryColumn extends DbObject, DbColumn {
 
     DbQueryCondition getDbQueryCond();
 
-
-    Map<String, Object> getUi();
-
     default String getField() {
         return getDbQueryCond() == null ? null : getDbQueryCond().getField();
     }

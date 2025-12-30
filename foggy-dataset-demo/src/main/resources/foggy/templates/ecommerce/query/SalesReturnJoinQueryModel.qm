@@ -1,85 +1,79 @@
 /**
- * 销售-退货联合查询模型
+ * 销售-退货联合查询模型 
  *
  * @caption 销售退货联合查询
  * @description 多事实表JOIN场景 - 销售表与退货表联合查询，用于测试不同粒度事实表JOIN
  */
+const fs = loadTableModel('FactSalesModel');
+const fr = loadTableModel('FactReturnModel');
+
 export const queryModel = {
     name: 'SalesReturnJoinQueryModel',
     caption: '销售退货联合查询',
     description: '多事实表JOIN场景 - 销售表与退货表联合查询，用于测试不同粒度事实表JOIN',
+    loader: 'v2',
 
-    // 多模型关联配置
-    model: [
-        {
-            name: 'FactSalesModel',
-            alias: 'fs'
-        },
-        {
-            name: 'FactReturnModel',
-            alias: 'fr',
-            joinType: 'LEFT',
-            onBuilder: () => {
-                return 'fs.order_id = fr.order_id AND fs.order_line_no = fr.order_line_no';
-            }
-        }
+    model: fs,
+
+    joins: [
+        fs.leftJoin(fr).on(fs.orderId, fr.orderId).and(fs.orderLineNo, fr.orderLineNo)
     ],
 
     columnGroups: [
         {
             caption: '销售明细',
             items: [
-                { name: 'orderId', ui: { fixed: 'left', width: 150 } },
-                { name: 'orderLineNo' },
-                { name: 'orderStatus' },
-                { name: 'paymentMethod' }
+                { ref: fs.orderId, ui: { fixed: 'left', width: 150 } },
+                { ref: fs.orderLineNo },
+                { ref: fs.orderStatus },
+                { ref: fs.paymentMethod }
             ]
         },
         {
             caption: '退货信息',
             items: [
-                { name: 'returnId' },
-                { name: 'returnReason' },
-                { name: 'returnType' },
-                { name: 'returnStatus' },
-                { name: 'returnTime' }
+                { ref: fr.returnId },
+                { ref: fr.returnReason },
+                { ref: fr.returnType },
+                { ref: fr.returnStatus },
+                { ref: fr.returnTime }
             ]
         },
         {
             caption: '商品维度',
             items: [
-                { name: 'product' },
-                { name: 'product$categoryName' },
-                { name: 'product$brand' }
+                { ref: fs.product },
+                { ref: fs.product$categoryName },
+                { ref: fs.product$brand }
             ]
         },
         {
             caption: '客户维度',
             items: [
-                { name: 'customer' },
-                { name: 'customer$customerType' }
+                { ref: fs.customer },
+                { ref: fs.customer$customerType }
             ]
         },
         {
             caption: '销售度量',
             items: [
-                { name: 'quantity' },
-                { name: 'salesAmount' },
-                { name: 'profitAmount' }
+                { ref: fs.quantity },
+                { ref: fs.salesAmount },
+                { ref: fs.profitAmount }
             ]
         },
         {
             caption: '退货度量',
             items: [
-                { name: 'returnQuantity' },
-                { name: 'returnAmount' }
+                { ref: fr.returnQuantity },
+                { ref: fr.returnAmount }
             ]
         }
     ],
 
     orders: [
-        { name: 'orderId', order: 'asc' },
-        { name: 'orderLineNo', order: 'asc' }
+        { ref: fs.orderId, order: 'asc' },
+        { ref: fs.orderLineNo, order: 'asc' }
     ],
 
     accesses: []

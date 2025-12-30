@@ -1,54 +1,56 @@
 /**
- * 门店维度查询模型
+ * 门店维度查询模型 
  *
  * @caption 门店维度查询
  * @description 查询门店基础信息，包括门店类型、地区、店长、面积等属性
  */
+const ds = loadTableModel('DimStoreModel');
+
 export const queryModel = {
     name: 'DimStoreQueryModel',
     caption: '门店维度查询',
     description: '查询门店基础信息，包括门店类型、地区、店长、面积等属性',
-    model: 'DimStoreModel',
+    loader: 'v2',
 
-    // 列组定义
+    model: ds,
+
     columnGroups: [
         {
             caption: '门店基本信息',
             items: [
-                { name: 'storeName' },
-                { name: 'storeId' },
-                { name: 'storeType' },
-                { name: 'status' }
+                { ref: ds.storeName },
+                { ref: ds.storeId },
+                { ref: ds.storeType },
+                { ref: ds.status }
             ]
         },
         {
             caption: '地区信息',
             items: [
-                { name: 'province' },
-                { name: 'city' },
-                { name: 'district' },
-                { name: 'address' }
+                { ref: ds.province },
+                { ref: ds.city },
+                { ref: ds.district },
+                { ref: ds.address }
             ]
         },
         {
             caption: '运营信息',
             items: [
-                { name: 'managerName' },
-                { name: 'openDate' },
-                { name: 'areaSqm' }
+                { ref: ds.managerName },
+                { ref: ds.openDate },
+                { ref: ds.areaSqm }
             ]
         },
         {
             caption: '时间信息',
             items: [
-                { name: 'createdAt' }
+                { ref: ds.createdAt }
             ]
         }
     ],
 
-    // 默认排序
     orders: [
-        { name: 'storeName', order: 'asc' }
+        { ref: ds.storeName, order: 'asc' }
     ],
 
     accesses: []

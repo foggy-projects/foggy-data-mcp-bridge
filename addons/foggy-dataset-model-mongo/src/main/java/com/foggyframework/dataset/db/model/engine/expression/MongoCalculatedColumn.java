@@ -149,11 +149,6 @@ public class MongoCalculatedColumn extends AbstractDecorate implements DbQueryCo
     }
 
     @Override
-    public Map<String, Object> getUi() {
-        return null;
-    }
-
-    @Override
     public ObjectTransFormatter<?> getValueFormatter() {
         return null;
     }

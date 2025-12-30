@@ -1,30 +1,24 @@
-# 权限控制
+# 行级权限控制
 
-Foggy Dataset Model 提供行级数据访问控制（Row-Level Security），通过 QM 中的 `accesses` 配置实现。
+Foggy Dataset Model 通过 `queryBuilder` 在 SQL 生成阶段动态添加过滤条件，实现行级数据隔离（Row-Level Security）。
 
-## 1. 概述
-
-权限控制通过 QM（查询模型）中的 `accesses` 配置，使用 `queryBuilder` 动态添加过滤条件，实现行级数据隔离。
-
----
-
-## 2. 行级权限（Row-Level Security）
-
-### 2.1 基于属性的行级过滤
-
-通过 `accesses` 配置 `queryBuilder`，在查询时动态添加过滤条件：
+## 1. 基本语法
 
 ```javascript
+const fo = loadTableModel('FactOrderModel');
+import { getSessionToken } from '@sessionTokenService';
+
 export const queryModel = {
-    name: 'FactSalesQueryModel',
-    model: 'FactSalesModel',
+    name: 'FactOrderQueryModel',
+    model: fo,
 
     accesses: [
         {
-            property: 'teamId',
-            queryBuilder: (query, property) => {
+            property: 'salesTeamId',
+            queryBuilder: (query) => {
                 const token = getSessionToken();
-                query.and('t0.team_id = ?', token.teamId);
+                // 使用字段引用（推荐）
+                query.and(fo.salesTeamId, token.teamId);
             }
         }
     ],
@@ -33,147 +27,261 @@ export const queryModel = {
 };
 ```
 
-### 2.2 queryBuilder 参数
+## 2. queryBuilder API
 
-| 参数 | 类型 | 说明 |
+### 2.1 函数签名与参数
+
+`queryBuilder` 函数的参数根据配置方式不同：
+
+**基于属性过滤**：
+```javascript
+queryBuilder: (query) => { ... }
+```
+
+**基于维度过滤**：
+```javascript
+queryBuilder: (query, dimension) => { ... }
+```
+
+**可用的上下文变量**：
+
+| 变量 | 类型 | 说明 |
 |------|------|------|
-| `query` | QueryBuilder | 查询构建器，用于添加条件 |
-| `property` | string | 当前属性名 |
-
-### 2.3 QueryBuilder 方法
+| `query` | JdbcQuery | 查询构建器（参数传入） |
+| `query.queryModel` | QueryModel | 查询模型（通过 query 访问） |
+| `dimension` | DbDimension | 关联的维度（参数传入，仅维度过滤时） |
+| `property` | DbProperty | 关联的属性（参数传入，仅属性过滤时） |
 
 ```javascript
-query.and(sql, ...params)    // 添加 AND 条件
-query.or(sql, ...params)     // 添加 OR 条件
+// 访问查询请求
+query.queryRequest          // 当前查询请求对象
+query.queryRequest.extData  // 前端传入的扩展数据
 ```
+
+### 2.2 字段引用方法（推荐）
+
+使用字段引用可以避免手写 SQL 和表别名：
+
+| 方法 | 说明 | 示例 |
+|------|------|------|
+| `and(ref, value)` | 等于条件 | `query.and(fo.teamId, 'T001')` |
+| `andIn(ref, values)` | IN 条件 | `query.andIn(fo.status, ['A', 'B'])` |
+| `andNe(ref, value)` | 不等于条件 | `query.andNe(fo.status, 'DELETED')` |
+| `andNotNull(ref)` | 非空条件 | `query.andNotNull(fo.teamId)` |
+| `andNull(ref)` | 为空条件 | `query.andNull(fo.deletedAt)` |
 
 **示例**：
 
 ```javascript
-// 添加单个条件
-query.and('t0.team_id = ?', token.teamId);
+const fo = loadTableModel('FactOrderModel');
 
-// 添加多个条件
-query.and('t0.status = ? AND t0.region_id = ?', 'ACTIVE', token.regionId);
+queryBuilder: (query) => {
+    const token = getSessionToken();
 
-// 添加复杂条件
-query.and('t0.amount > 0 AND t0.team_id = ?', token.teamId);
+    // 等于条件：自动生成 t0.team_id = ?
+    query.and(fo.teamId, token.teamId);
+
+    // IN 条件：自动生成 t0.status in (?, ?)
+    query.andIn(fo.status, ['ACTIVE', 'PENDING']);
+
+    // 不等于条件
+    query.andNe(fo.orderStatus, 'CANCELLED');
+}
+```
+
+### 2.3 原生 SQL 方法
+
+需要复杂条件时，使用原生 SQL 方法：
+
+| 方法 | 说明 |
+|------|------|
+| `andSql(sql)` | 原生 SQL 片段 |
+| `andSql(sql, value)` | SQL + 单个参数 |
+| `andSqlList(sql, values)` | SQL + 参数数组 |
+
+**获取表别名**：使用 `fo.$alias` 获取表别名（如 `"t0"`）
+
+```javascript
+queryBuilder: (query) => {
+    const t = fo.$alias;
+
+    // 原生 SQL（无参数）
+    query.andSql(t + '.state not in (60, 70)');
+
+    // 原生 SQL（单参数）
+    query.andSql(t + '.team_id = ?', token.teamId);
+
+    // 原生 SQL（多参数）
+    query.andSqlList(t + '.region_id = ? and ' + t + '.status = ?', [regionId, 'ACTIVE']);
+}
+```
+
+> **注意**：原生 SQL 中使用的是**数据库列名**（如 `team_id`），不是模型字段名（如 `teamId`）。
+
+---
+
+### 2.4 复杂子查询示例
+
+```javascript
+accesses: [
+    {
+        property: 'customerId',
+        queryBuilder: (query) => {
+            const token = getSessionToken();
+            const extData = query?.queryRequest?.extData;
+            const t = fo.$alias;
+
+            // 基础条件（使用字段引用）
+            query.and(fo.clearingTeamId, token.clearingTeamId);
+
+            // 动态子查询（使用原生 SQL）
+            if (extData?.userName || extData?.userTel) {
+                let subQuery = t + `.tms_customer_id in (
+                    select tms_customer_id from basic.tms_user
+                    where clearing_team_id = ?`;
+                const params = [token.clearingTeamId];
+
+                if (extData.userName) {
+                    subQuery += ' and tms_user_name = ?';
+                    params.push(extData.userName);
+                }
+                if (extData.userTel) {
+                    subQuery += ' and tms_user_tel = ?';
+                    params.push(extData.userTel);
+                }
+                subQuery += ')';
+
+                query.andSqlList(subQuery, params);
+            }
+        }
+    }
+]
 ```
 
 ---
 
-## 3. 基于维度的行级过滤
+## 3. 配置方式
 
-### 3.1 配置方式
+### 3.1 基于属性过滤
 
-除了 `property`，也可以基于维度进行过滤：
+通过 `property` 指定关联的属性字段：
 
 ```javascript
+const fo = loadTableModel('FactOrderModel');
+
 accesses: [
     {
-        dimension: 'team',
-        queryBuilder: (query, dimension) => {
+        property: 'salesTeamId',
+        queryBuilder: (query) => {
             const token = getSessionToken();
-            // 使用维度别名（如 d1）
-            query.and('d1.team_id = ?', token.teamId);
+            query.and(fo.teamId, token.teamId);
         }
     }
 ]
 ```
 
-### 3.2 父子维度权限
+### 3.2 基于维度过滤
 
-对于父子维度，可以利用闭包表实现层级权限：
+通过 `dimension` 指定关联的维度。此时 `dimension` 需要作为参数显式传入：
 
 ```javascript
 accesses: [
     {
-        dimension: 'team',
+        dimension: 'customer',
         queryBuilder: (query, dimension) => {
             const token = getSessionToken();
-            // 查询用户所属团队及所有下级团队的数据
-            query.and(`
-                EXISTS (
-                    SELECT 1 FROM team_closure tc
-                    WHERE tc.team_id = d1.team_id
-                    AND tc.parent_id = ?
-                )
-            `, token.teamId);
+            // 获取维度表别名（通过 query.queryModel 访问）
+            const d = query.queryModel.getAlias(dimension.queryObject);
+            query.andSql(d + '.customer_id = ?', token.customerId);
         }
     }
 ]
 ```
+
+### 3.3 字段说明
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `dimension` | string | 二选一 | 关联的维度名称 |
+| `property` | string | 二选一 | 关联的属性名称 |
+| `queryBuilder` | function | 是 | 构建权限过滤条件的函数 |
+
+> **注意**：`dimension` 和 `property` 必须二选一。
 
 ---
 
 ## 4. 获取用户上下文
 
-### 4.1 通过 Spring Bean 注入
+### 4.1 通过 import 语法获取
 
-`queryBuilder` 中可以调用 Spring Bean 获取当前用户信息：
+使用 ES6 风格的 import 语法从 Spring Bean 获取当前用户信息：
 
 ```javascript
-accesses: [
-    {
-        property: 'clearingTeamId',
-        queryBuilder: (query, property) => {
-            // 通过 Spring Bean 获取用户 Token
-            const token = getWorkonSessionTokenUsingCache();
+const fo = loadTableModel('FactOrderModel');
+import { getSessionToken } from '@sessionTokenService';
 
-            query.and(
-                'a1.effective_number > 0 AND a1.clearing_team_id = ?',
-                token.loginClearingTeamId
-            );
+export const queryModel = {
+    name: 'FactOrderQueryModel',
+    model: fo,
+
+    accesses: [
+        {
+            property: 'salesTeamId',
+            queryBuilder: (query) => {
+                const token = getSessionToken();
+                query.and(fo.teamId, token.teamId);
+            }
         }
-    }
-]
+    ],
+
+    columnGroups: [...]
+};
 ```
 
-### 4.2 Spring Bean 注册
+### 4.2 Spring Bean 配置
 
-在 Spring 配置中注册可供 FSScript 调用的 Bean：
+确保 Spring Bean 提供了可调用的方法：
 
 ```java
-@Configuration
-public class FsscriptConfig {
+@Service
+public class SessionTokenService {
 
-    @Bean
-    public FsscriptGlobalBeanRegistry fsscriptGlobalBeanRegistry(
-            SessionTokenService sessionTokenService) {
-
-        FsscriptGlobalBeanRegistry registry = new FsscriptGlobalBeanRegistry();
-
-        // 注册获取 Token 的函数
-        registry.register("getSessionToken", () -> {
-            return sessionTokenService.getCurrentToken();
-        });
-
-        registry.register("getWorkonSessionTokenUsingCache", () -> {
-            return sessionTokenService.getTokenFromCache();
-        });
-
-        return registry;
+    public SessionToken getSessionToken() {
+        // 从 SecurityContext 或其他来源获取当前用户信息
+        return SecurityContextHolder.getContext().getSessionToken();
     }
 }
 ```
+
+**import 语法说明**：
+
+| 语法 | 说明 |
+|------|------|
+| `import { methodName } from '@beanName'` | 从 Spring Bean 导入方法 |
+| `@beanName` | Bean 名称（首字母小写的类名） |
+
+> **注意**：`@beanName` 对应 Spring 容器中的 Bean 名称，默认为首字母小写的类名（如 `SessionTokenService` → `@sessionTokenService`）。
 
 ---
 
 ## 5. 完整示例
 
-### 5.1 销售数据权限控制
+### 5.1 按角色分级权限
 
-**场景**：销售人员只能查看自己团队的销售数据
+**场景**：管理员无限制，经理可查看下属团队，员工只能查看自己的数据
 
 ```javascript
+const fo = loadTableModel('FactSalesModel');
+import { getSessionToken } from '@sessionTokenService';
+
 export const queryModel = {
     name: 'FactSalesQueryModel',
-    model: 'FactSalesModel',
+    model: fo,
 
     accesses: [
         {
             property: 'salesTeamId',
-            queryBuilder: (query, property) => {
+            queryBuilder: (query) => {
                 const token = getSessionToken();
 
                 if (token.role === 'ADMIN') {
@@ -182,16 +290,11 @@ export const queryModel = {
                 }
 
                 if (token.role === 'MANAGER') {
-                    // 经理可查看下属团队
-                    query.and(`
-                        t0.team_id IN (
-                            SELECT team_id FROM team_closure
-                            WHERE parent_id = ?
-                        )
-                    `, token.teamId);
+                    // 经理可查看自己团队的数据
+                    query.and(fo.teamId, token.teamId);
                 } else {
                     // 普通员工只能查看自己的数据
-                    query.and('t0.salesperson_id = ?', token.userId);
+                    query.and(fo.salespersonId, token.userId);
                 }
             }
         }
@@ -201,41 +304,82 @@ export const queryModel = {
         {
             caption: '销售信息',
             items: [
-                { name: 'salesId' },
-                { name: 'customer$caption' },
-                { name: 'salesAmount' }
-            ]
-        },
-        {
-            caption: '利润数据',
-            items: [
-                { name: 'profitAmount' },
-                { name: 'costAmount' }
+                { ref: fo.salesId },
+                { ref: fo.customer },
+                { ref: fo.salesAmount }
             ]
         }
     ]
 };
 ```
 
-### 5.2 多条件权限
+### 5.2 多条件组合
 
 ```javascript
+const fo = loadTableModel('FactOrderModel');
+
 accesses: [
     {
         property: 'regionId',
-        queryBuilder: (query, property) => {
+        queryBuilder: (query) => {
             const token = getSessionToken();
-            query.and('t0.region_id = ?', token.regionId);
+            query.and(fo.regionId, token.regionId);
         }
     },
     {
         property: 'status',
-        queryBuilder: (query, property) => {
+        queryBuilder: (query) => {
             // 只显示有效数据
-            query.and('t0.status = ?', 'ACTIVE');
+            query.andNe(fo.status, 'DELETED');
         }
     }
 ]
+```
+
+### 5.3 基于维度的权限控制
+
+```javascript
+accesses: [
+    {
+        dimension: 'customer',
+        queryBuilder: (query, dimension) => {
+            const token = getSessionToken();
+            // 使用 query.queryModel 获取维度表别名
+            const d = query.queryModel.getAlias(dimension.queryObject);
+            // 只能查看自己负责的客户数据
+            query.andSql(d + '.customer_id = ?', token.customerId);
+        }
+    }
+]
+```
+
+### 5.4 多表关联查询
+
+```javascript
+const fs = loadTableModel('FactSalesModel');
+const fr = loadTableModel('FactReturnModel');
+
+export const queryModel = {
+    name: 'SalesReturnJoinQueryModel',
+    model: fs,
+    joins: [
+        fs.leftJoin(fr).on(fs.orderId, fr.orderId)
+    ],
+
+    accesses: [
+        {
+            property: 'salesTeamId',
+            queryBuilder: (query) => {
+                const token = getSessionToken();
+                // 使用字段引用（自动解析表别名）
+                query.and(fs.teamId, token.teamId);
+                query.andNe(fr.returnStatus, 'REJECTED');
+            }
+        }
+    ],
+
+    columnGroups: [...]
+};
 ```
 
 ---
@@ -245,12 +389,14 @@ accesses: [
 **QM 配置**：
 
 ```javascript
+const fo = loadTableModel('FactOrderModel');
+
 accesses: [
     {
         property: 'teamId',
-        queryBuilder: (query, property) => {
+        queryBuilder: (query) => {
             const token = getSessionToken();
-            query.and('t0.team_id = ?', token.teamId);
+            query.and(fo.teamId, token.teamId);
         }
     }
 ]
@@ -263,7 +409,7 @@ accesses: [
     "param": {
         "columns": ["orderId", "customer$caption", "totalAmount"],
         "slice": [
-            { "name": "orderStatus", "type": "=", "value": "COMPLETED" }
+            { "field": "orderStatus", "op": "=", "value": "COMPLETED" }
         ]
     }
 }
@@ -279,7 +425,7 @@ SELECT
 FROM fact_order t0
 LEFT JOIN dim_customer d1 ON t0.customer_id = d1.customer_id
 WHERE t0.order_status = 'COMPLETED'
-  AND t0.team_id = '用户所属团队ID'  -- 权限条件自动注入
+  AND t0.team_id = ?  -- 权限条件自动注入（参数化）
 ```
 
 ---
@@ -288,32 +434,29 @@ WHERE t0.order_status = 'COMPLETED'
 
 ### 7.1 安全性
 
-- `queryBuilder` 中的参数使用 `?` 占位符，自动参数化防止 SQL 注入
-- 不要在 `queryBuilder` 中拼接用户输入的字符串
+- 使用 `?` 占位符进行参数化查询，自动防止 SQL 注入
+- 不要在 SQL 中直接拼接用户输入的字符串
+- 字段引用方法自动处理参数化
 
 ### 7.2 性能
 
 - 权限条件会添加到每个查询中，确保相关列有索引
-- 复杂的子查询可能影响性能，建议优化或使用物化视图
+- 避免在 `queryBuilder` 中执行耗时操作
 
-### 7.3 表别名
+### 7.3 API 选择指南
 
-| 别名 | 说明 |
-|------|------|
-| `t0` | 事实表 |
-| `d1`, `d2`, ... | 维度表（按定义顺序） |
-| `a1`, `a2`, ... | 其他关联表 |
-
----
-
-## 8. 使用 Java 控制权限
-
-> 本节内容即将推出...
+| 场景 | 推荐方法 | 示例 |
+|------|---------|------|
+| 简单相等条件 | `and(ref, value)` | `query.and(fo.teamId, value)` |
+| IN 条件 | `andIn(ref, values)` | `query.andIn(fo.status, list)` |
+| 不等于条件 | `andNe(ref, value)` | `query.andNe(fo.status, 'X')` |
+| 复杂条件/子查询 | `andSql()` | `query.andSql(sql, value)` |
+| 需要表别名 | `fo.$alias` | `fo.$alias + '.column'` |
 
 ---
 
 ## 下一步
 
-- [QM 语法手册](../jm-qm/qm-syntax.md) - 完整的 QM 配置
+- [QM 语法手册](../tm-qm/qm-syntax.md) - 完整的 QM 配置
 - [DSL 查询 API](./query-api.md) - 查询接口参考
-- [TM 语法手册](../jm-qm/jm-syntax.md) - 表格模型定义
+- [JSON 查询 DSL](../tm-qm/query-dsl.md) - DSL 完整语法

@@ -194,7 +194,13 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
             }
             dqo.getDecorate(QueryObjectSupport.class).setAlias(d + (++dimIdx));
             if (dimension.getDecorate(DbModelParentChildDimensionImpl.class) != null) {
-                dimension.getDecorate(DbModelParentChildDimensionImpl.class).getClosureQueryObject().getDecorate(QueryObjectSupport.class).setAlias(d + (++dimIdx));
+                DbModelParentChildDimensionImpl pcDim = dimension.getDecorate(DbModelParentChildDimensionImpl.class);
+                // 为闭包表分配别名
+                pcDim.getClosureQueryObject().getDecorate(QueryObjectSupport.class).setAlias(d + (++dimIdx));
+                // 为层级视角维度表分配别名
+                if (pcDim.getHierarchyQueryObject() != null) {
+                    pcDim.getHierarchyQueryObject().getDecorate(QueryObjectSupport.class).setAlias(d + (++dimIdx));
+                }
             }
 
         }
@@ -313,9 +319,17 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
             //父子结构~
             DbModelParentChildDimensionImpl parentChildDimension = new DbModelParentChildDimensionImpl(dimensionDef.getParentKey(), dimensionDef.getChildKey(), dimensionDef.getClosureTableName());
             dimension = parentChildDimension;
+            // 加载闭包表
             parentChildDimension.setClosureQueryObject(loadQueryObject(dimensionDef.getDataSource() == null ? dataSource : dimensionDef.getDataSource(), dimensionDef.getClosureTableName(), null, dimensionDef.getClosureTableSchema()));
             //childKey用来作为ClosureQueryObject的primaryKey与主表进行关联，注意，childKey实际上可不是主键
             parentChildDimension.getClosureQueryObject().getDecorate(QueryObjectSupport.class).setPrimaryKey(dimensionDef.getChildKey());
+            // 加载层级视角的维度表（hierarchyQueryObject），用于 team$hierarchy$xxx 列
+            // hierarchyQueryObject 与 queryObject 是同一个表，但通过 closure.parent_id 关联
+            if (StringUtils.isNotEmpty(dimensionDef.getTableName()) || StringUtils.isNotEmpty(dimensionDef.getViewSql())) {
+                QueryObject hierarchyQo = loadQueryObject(dimensionDef.getDataSource() == null ? context.getDataSource() : dimensionDef.getDataSource(), dimensionDef.getTableName(), dimensionDef.getViewSql(), dimensionDef.getSchema());
+                hierarchyQo.getDecorate(QueryObjectSupport.class).setPrimaryKey(dimensionDef.getPrimaryKey());
+                parentChildDimension.setHierarchyQueryObject(hierarchyQo);
+            }
         } else {
             dimension = new DbModelDimensionImpl();
         }

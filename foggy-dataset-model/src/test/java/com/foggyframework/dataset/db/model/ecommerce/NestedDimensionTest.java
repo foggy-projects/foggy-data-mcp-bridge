@@ -28,8 +28,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * <p>测试嵌套维度功能，包括：
  * <ul>
  *   <li>模型加载：验证嵌套维度结构正确解析</li>
- *   <li>别名访问：验证通过 alias 访问嵌套维度</li>
- *   <li>完整路径访问：验证通过 parent.child 路径访问</li>
+ *   <li>路径访问：验证通过 product.category 路径语法访问嵌套维度</li>
+ *   <li>别名格式：验证列名使用下划线分隔（如 product_category$id）</li>
  *   <li>多层级 JOIN：验证三层雪花结构的 SQL 生成</li>
  * </ul>
  *
@@ -39,13 +39,13 @@ import static org.junit.jupiter.api.Assertions.*;
  *   │
  *   ├── 产品维度: dim_product_nested (一级)
  *   │       │
- *   │       └── 品类维度: dim_category_nested (二级, alias: productCategory)
+ *   │       └── 品类维度: dim_category_nested (二级, 路径: product.category)
  *   │               │
- *   │               └── 品类组维度: dim_category_group (三级, alias: categoryGroup)
+ *   │               └── 品类组维度: dim_category_group (三级, 路径: product.category.group)
  *   │
  *   └── 门店维度: dim_store_nested (一级)
  *           │
- *           └── 区域维度: dim_region_nested (二级, alias: storeRegion)
+ *           └── 区域维度: dim_region_nested (二级, 路径: store.region)
  * </pre>
  *
  * @author foggy-dataset
@@ -144,9 +144,10 @@ class NestedDimensionTest extends EcommerceTestSupport {
         List<DbDimension> dimensions = model.getDimensions();
         log.info("模型维度数量: {}", dimensions.size());
         for (DbDimension dim : dimensions) {
-            log.info("  维度: {}, 别名: {}, 是否嵌套: {}, 父维度: {}",
+            log.info("  维度: {}, 完整路径: {}, 别名路径: {}, 是否嵌套: {}, 父维度: {}",
                     dim.getName(),
-                    dim.getAlias(),
+                    dim.getFullPath(),
+                    dim.getFullPathForAlias(),
                     dim.isNestedDimension(),
                     dim.getParentDimension() != null ? dim.getParentDimension().getName() : "无");
         }
@@ -161,37 +162,39 @@ class NestedDimensionTest extends EcommerceTestSupport {
         DbDimension categoryDim = model.findJdbcDimensionByName("category");
         assertNotNull(categoryDim, "应有 category 维度");
         assertTrue(categoryDim.isNestedDimension(), "category 应是嵌套维度");
-        assertEquals("productCategory", categoryDim.getAlias(), "category 的别名应是 productCategory");
         assertEquals("product", categoryDim.getParentDimension().getName(), "category 的父维度应是 product");
 
         // 验证嵌套维度 - 品类组
         DbDimension groupDim = model.findJdbcDimensionByName("group");
         assertNotNull(groupDim, "应有 group 维度");
         assertTrue(groupDim.isNestedDimension(), "group 应是嵌套维度");
-        assertEquals("categoryGroup", groupDim.getAlias(), "group 的别名应是 categoryGroup");
         assertEquals("category", groupDim.getParentDimension().getName(), "group 的父维度应是 category");
 
-        // 验证完整路径
+        // 验证完整路径（使用 . 分隔，用于 QM ref 语法）
         assertEquals("product.category", categoryDim.getFullPath(), "category 的完整路径应是 product.category");
         assertEquals("product.category.group", groupDim.getFullPath(), "group 的完整路径应是 product.category.group");
+
+        // 验证别名路径（使用 _ 分隔，用于列名）
+        assertEquals("product_category", categoryDim.getFullPathForAlias(), "category 的别名路径应是 product_category");
+        assertEquals("product_category_group", groupDim.getFullPathForAlias(), "group 的别名路径应是 product_category_group");
     }
 
     // ==========================================
-    // 查询测试 - 别名访问
+    // 查询测试 - 路径访问
     // ==========================================
 
     @Test
     @Order(20)
-    @DisplayName("查询测试 - 通过别名访问嵌套维度")
-    void testQuery_AccessByAlias() {
+    @DisplayName("查询测试 - 通过路径访问嵌套维度")
+    void testQuery_AccessByPath() {
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesNestedDimQueryModel");
 
-        // 使用别名访问嵌套维度列
+        // 使用下划线分隔的列名（对应 QM 中的 fs.product.category 语法）
         queryRequest.setColumns(Arrays.asList(
-                "product$caption",           // 一级维度
-                "productCategory$caption",   // 二级维度（通过别名）
-                "categoryGroup$caption",     // 三级维度（通过别名）
+                "product$caption",              // 一级维度
+                "product_category$caption",     // 二级维度（路径：product.category）
+                "product_category_group$caption", // 三级维度（路径：product.category.group）
                 "salesAmount"
         ));
 
@@ -208,15 +211,15 @@ class NestedDimensionTest extends EcommerceTestSupport {
             log.info("Row {}: 产品={}, 品类={}, 品类组={}, 销售额={}",
                     i + 1,
                     row.get("product$caption"),
-                    row.get("productCategory$caption"),
-                    row.get("categoryGroup$caption"),
+                    row.get("product_category$caption"),
+                    row.get("product_category_group$caption"),
                     row.get("salesAmount"));
         }
 
-        // 验证返回的列名包含别名
+        // 验证返回的列名包含下划线分隔的路径
         Map<String, Object> firstRow = (Map<String, Object>) result.getItems().get(0);
-        assertTrue(firstRow.containsKey("productCategory$caption"), "结果应包含 productCategory$caption 列");
-        assertTrue(firstRow.containsKey("categoryGroup$caption"), "结果应包含 categoryGroup$caption 列");
+        assertTrue(firstRow.containsKey("product_category$caption"), "结果应包含 product_category$caption 列");
+        assertTrue(firstRow.containsKey("product_category_group$caption"), "结果应包含 product_category_group$caption 列");
     }
 
     @Test
@@ -226,12 +229,12 @@ class NestedDimensionTest extends EcommerceTestSupport {
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesNestedDimQueryModel");
 
-        // 使用别名访问门店和区域维度
+        // 使用下划线分隔的列名
         queryRequest.setColumns(Arrays.asList(
-                "store$caption",         // 一级维度
-                "storeRegion$caption",   // 二级维度（通过别名）
-                "storeRegion$province",  // 二级维度属性
-                "storeRegion$city",      // 二级维度属性
+                "store$caption",          // 一级维度
+                "store_region$caption",   // 二级维度（路径：store.region）
+                "store_region$province",  // 二级维度属性
+                "store_region$city",      // 二级维度属性
                 "salesAmount"
         ));
 
@@ -247,16 +250,16 @@ class NestedDimensionTest extends EcommerceTestSupport {
             log.info("Row {}: 门店={}, 区域={}, 省份={}, 城市={}, 销售额={}",
                     i + 1,
                     row.get("store$caption"),
-                    row.get("storeRegion$caption"),
-                    row.get("storeRegion$province"),
-                    row.get("storeRegion$city"),
+                    row.get("store_region$caption"),
+                    row.get("store_region$province"),
+                    row.get("store_region$city"),
                     row.get("salesAmount"));
         }
 
-        // 验证返回的列名包含别名
+        // 验证返回的列名包含下划线分隔的路径
         Map<String, Object> firstRow = (Map<String, Object>) result.getItems().get(0);
-        assertTrue(firstRow.containsKey("storeRegion$caption"), "结果应包含 storeRegion$caption 列");
-        assertTrue(firstRow.containsKey("storeRegion$province"), "结果应包含 storeRegion$province 列");
+        assertTrue(firstRow.containsKey("store_region$caption"), "结果应包含 store_region$caption 列");
+        assertTrue(firstRow.containsKey("store_region$province"), "结果应包含 store_region$province 列");
     }
 
     // ==========================================
@@ -271,14 +274,14 @@ class NestedDimensionTest extends EcommerceTestSupport {
         queryRequest.setQueryModel("FactSalesNestedDimQueryModel");
         queryRequest.setColumns(Arrays.asList(
                 "product$caption",
-                "productCategory$caption",
+                "product_category$caption",
                 "salesAmount"
         ));
         queryRequest.setReturnTotal(true);
 
-        // 按品类组过滤（通过别名）- 只查询电子产品组
+        // 按品类组过滤（使用下划线分隔的路径）- 只查询电子产品组
         SliceRequestDef slice = new SliceRequestDef();
-        slice.setField("categoryGroup$id");
+        slice.setField("product_category_group$id");
         slice.setOp(CondType.EQ.getCode());
         slice.setValue(1);  // 电子产品组的 group_key
         queryRequest.setSlice(Collections.singletonList(slice));
@@ -292,7 +295,7 @@ class NestedDimensionTest extends EcommerceTestSupport {
         // 验证所有结果都是电子产品组的
         for (Object item : result.getItems()) {
             Map<String, Object> row = (Map<String, Object>) item;
-            String categoryCaption = (String) row.get("productCategory$caption");
+            String categoryCaption = (String) row.get("product_category$caption");
             log.info("产品={}, 品类={}, 销售额={}",
                     row.get("product$caption"),
                     categoryCaption,
@@ -329,14 +332,14 @@ class NestedDimensionTest extends EcommerceTestSupport {
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesNestedDimQueryModel");
         queryRequest.setColumns(Arrays.asList(
-                "categoryGroup$caption",
+                "product_category_group$caption",
                 "salesAmount"
         ));
         queryRequest.setReturnTotal(true);
 
-        // 按品类组分组
+        // 按品类组分组（使用下划线分隔的路径）
         GroupRequestDef groupBy = new GroupRequestDef();
-        groupBy.setField("categoryGroup$caption");
+        groupBy.setField("product_category_group$caption");
         queryRequest.setGroupBy(Collections.singletonList(groupBy));
 
         PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 20);
@@ -344,6 +347,139 @@ class NestedDimensionTest extends EcommerceTestSupport {
 
         assertNotNull(result, "查询结果不应为空");
         log.info("按品类组分组查询结果数量: {}", result.getItems().size());
+
+        for (Object item : result.getItems()) {
+            Map<String, Object> row = (Map<String, Object>) item;
+            log.info("品类组={}, 销售总额={}",
+                    row.get("product_category_group$caption"),
+                    row.get("salesAmount"));
+        }
+
+        // 验证分组数量应该等于品类组数量（3个）
+        assertEquals(3, result.getItems().size(), "应有3个品类组的分组结果");
+    }
+
+    // ==========================================
+    // 别名测试 - alias 特性
+    // ==========================================
+
+    @Test
+    @Order(50)
+    @DisplayName("模型加载 - 验证嵌套维度别名")
+    void testModelLoading_NestedDimensionAlias() {
+        TableModel model = tableModelLoaderManager.load("FactSalesNestedDimModel");
+
+        // 验证可以通过别名查找维度
+        DbDimension productCategory = model.findJdbcDimensionByName("productCategory");
+        assertNotNull(productCategory, "应能通过别名 productCategory 找到维度");
+        assertEquals("category", productCategory.getName(), "维度名称应是 category");
+        assertEquals("productCategory", productCategory.getAlias(), "维度别名应是 productCategory");
+
+        DbDimension categoryGroup = model.findJdbcDimensionByName("categoryGroup");
+        assertNotNull(categoryGroup, "应能通过别名 categoryGroup 找到维度");
+        assertEquals("group", categoryGroup.getName(), "维度名称应是 group");
+        assertEquals("categoryGroup", categoryGroup.getAlias(), "维度别名应是 categoryGroup");
+
+        DbDimension storeRegion = model.findJdbcDimensionByName("storeRegion");
+        assertNotNull(storeRegion, "应能通过别名 storeRegion 找到维度");
+        assertEquals("region", storeRegion.getName(), "维度名称应是 region");
+        assertEquals("storeRegion", storeRegion.getAlias(), "维度别名应是 storeRegion");
+
+        log.info("别名查找测试通过：productCategory={}, categoryGroup={}, storeRegion={}",
+                productCategory.getFullPath(), categoryGroup.getFullPath(), storeRegion.getFullPath());
+    }
+
+    @Test
+    @Order(51)
+    @DisplayName("查询测试 - 通过别名访问嵌套维度")
+    void testQuery_AccessByAlias() {
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("FactSalesNestedDimQueryModel");
+
+        // 使用别名访问嵌套维度（文档推荐方式）
+        queryRequest.setColumns(Arrays.asList(
+                "product$caption",           // 一级维度
+                "productCategory$caption",   // 二级维度（通过 alias）
+                "categoryGroup$caption",     // 三级维度（通过 alias）
+                "salesAmount"
+        ));
+
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 20);
+        PagingResultImpl result = jdbcService.queryModelData(form);
+
+        assertNotNull(result, "查询结果不应为空");
+        assertNotNull(result.getItems(), "明细数据不应为空");
+        assertTrue(result.getItems().size() > 0, "应有查询结果");
+
+        log.info("通过别名访问查询结果数量: {}", result.getItems().size());
+        for (int i = 0; i < Math.min(5, result.getItems().size()); i++) {
+            Map<String, Object> row = (Map<String, Object>) result.getItems().get(i);
+            log.info("Row {}: 产品={}, 品类={}, 品类组={}, 销售额={}",
+                    i + 1,
+                    row.get("product$caption"),
+                    row.get("productCategory$caption"),
+                    row.get("categoryGroup$caption"),
+                    row.get("salesAmount"));
+        }
+
+        // 验证返回的列名使用别名格式
+        Map<String, Object> firstRow = (Map<String, Object>) result.getItems().get(0);
+        assertTrue(firstRow.containsKey("productCategory$caption"), "结果应包含 productCategory$caption 列");
+        assertTrue(firstRow.containsKey("categoryGroup$caption"), "结果应包含 categoryGroup$caption 列");
+    }
+
+    @Test
+    @Order(52)
+    @DisplayName("切片查询 - 通过别名过滤")
+    void testQuery_SliceByAlias() {
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("FactSalesNestedDimQueryModel");
+        queryRequest.setColumns(Arrays.asList(
+                "product$caption",
+                "productCategory$caption",
+                "salesAmount"
+        ));
+        queryRequest.setReturnTotal(true);
+
+        // 使用别名过滤 - 只查询电子产品组
+        SliceRequestDef slice = new SliceRequestDef();
+        slice.setField("categoryGroup$id");  // 使用别名
+        slice.setOp(CondType.EQ.getCode());
+        slice.setValue(1);  // 电子产品组的 group_key
+        queryRequest.setSlice(Collections.singletonList(slice));
+
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 20);
+        PagingResultImpl result = jdbcService.queryModelData(form);
+
+        assertNotNull(result, "查询结果不应为空");
+        log.info("通过别名过滤电子产品组销售记录数: {}", result.getItems().size());
+
+        // 验证结果数量与使用路径格式一致
+        assertTrue(result.getItems().size() > 0, "应有查询结果");
+    }
+
+    @Test
+    @Order(53)
+    @DisplayName("汇总查询 - 通过别名分组")
+    void testQuery_GroupByAlias() {
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("FactSalesNestedDimQueryModel");
+        queryRequest.setColumns(Arrays.asList(
+                "categoryGroup$caption",  // 使用别名
+                "salesAmount"
+        ));
+        queryRequest.setReturnTotal(true);
+
+        // 使用别名分组
+        GroupRequestDef groupBy = new GroupRequestDef();
+        groupBy.setField("categoryGroup$caption");  // 使用别名
+        queryRequest.setGroupBy(Collections.singletonList(groupBy));
+
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 20);
+        PagingResultImpl result = jdbcService.queryModelData(form);
+
+        assertNotNull(result, "查询结果不应为空");
+        log.info("通过别名分组查询结果数量: {}", result.getItems().size());
 
         for (Object item : result.getItems()) {
             Map<String, Object> row = (Map<String, Object>) item;

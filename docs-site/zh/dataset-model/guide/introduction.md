@@ -70,7 +70,7 @@ export const queryModel = {
     "param": {
         "columns": [ "customer$caption", "amount"],
         "slice": [
-            { "field": "orderStatus", "type": "=", "value": "COMPLETED" }
+            { "field": "orderStatus", "op": "=", "value": "COMPLETED" }
         ],
         "groupBy": [
             { "field": "customer$customerType" }
@@ -122,6 +122,6 @@ export const queryModel = {
 
 - [快速开始](./quick-start.md) - 10 分钟创建 TM/QM 并使用 DSL 查询
 - [核心概念](./concepts.md) - 理解 TM、QM、DSL 的关系
-- [TM 语法手册](../jm-qm/jm-syntax.md) - 完整的 TM 定义语法
-- [QM 语法手册](../jm-qm/qm-syntax.md) - 完整的 QM 定义语法
+- [TM 语法手册](../tm-qm/tm-syntax.md) - 完整的 TM 定义语法
+- [QM 语法手册](../tm-qm/qm-syntax.md) - 完整的 QM 定义语法
 - [DSL 查询 API](../api/query-api.md) - 完整的 DSL 查询参考

@@ -10,6 +10,7 @@ import com.foggyframework.dataset.db.model.engine.query_model.JdbcQueryModelImpl
 import com.foggyframework.dataset.db.model.engine.query_model.QueryModelSupport;
 import com.foggyframework.dataset.db.model.impl.LoaderSupport;
 import com.foggyframework.dataset.db.model.impl.model.DbTableModelImpl;
+import com.foggyframework.dataset.db.model.interceptor.SqlLoggingInterceptor;
 import com.foggyframework.dataset.db.model.spi.QueryModelBuilder;
 import com.foggyframework.dataset.db.model.spi.TableModel;
 import com.foggyframework.dataset.db.model.spi.TableModelLoader;
@@ -17,18 +18,16 @@ import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import javax.sql.DataSource;
 import java.util.List;
 
 @Slf4j
-public class JdbcTableModelLoaderImpl extends LoaderSupport implements TableModelLoader, QueryModelBuilder {
+public class JdbcTableModelLoaderImpl extends LoaderSupport implements TableModelLoader{
 
     @Resource
     DataSource defaultDataSource;
-
-    @Resource
-    SqlFormulaService sqlFormulaService;
 
     public JdbcTableModelLoaderImpl(SystemBundlesContext systemBundlesContext, FileFsscriptLoader fileFsscriptLoader) {
         super(systemBundlesContext, fileFsscriptLoader);
@@ -59,41 +58,4 @@ public class JdbcTableModelLoaderImpl extends LoaderSupport implements TableMode
         return "jdbc";
     }
 
-
-    @Override
-    public QueryModelSupport build(DbQueryModelDef queryModelDef, Fsscript fsscript, List<TableModel> jdbcModelDxList) {
-        DbTableModelImpl mainTm = jdbcModelDxList.get(0).getDecorate(DbTableModelImpl.class);
-        if (mainTm == null) {
-            //非mysql模型，不做处理
-            return null;
-        }
-        /**
-         * 检查，必须都是jdbc模型
-         */
-        for (TableModel jdbcModel : jdbcModelDxList) {
-            DbTableModelImpl tm = jdbcModel.getDecorate(DbTableModelImpl.class);
-            if (tm == null) {
-                throw RX.throwB("查询模型%s中只能引用jdbc模型，但%s不是".formatted(queryModelDef.getName(), jdbcModel.getName()));
-            }
-        }
-
-        DataSource ds = queryModelDef.getDataSource();
-
-        if(ds == null) {
-            for (TableModel jdbcModel : jdbcModelDxList) {
-                DbTableModelImpl tm = jdbcModel.getDecorate(DbTableModelImpl.class);
-                if (tm.getDataSource() != null) {
-                    if (ds == null) {
-                        ds = tm.getDataSource();
-                    } else if (ds != tm.getDataSource()) {
-                        throw RX.throwAUserTip("不同数据源的TM不能配置在一起");
-                    }
-                }
-            }
-        }
-
-        JdbcQueryModelImpl qm = new JdbcQueryModelImpl(jdbcModelDxList,fsscript,sqlFormulaService,ds);
-        queryModelDef.apply(qm);
-        return qm;
-    }
 }

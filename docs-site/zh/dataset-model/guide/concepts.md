@@ -22,7 +22,7 @@ Foggy Dataset Model 是一个**嵌入式语义层框架**，它在数据库和�
                            ↓ SQL
 ┌─────────────────────────────────────────────────────────┐
 │                       数据库                             │
-│            MySQL / PostgreSQL / SQL Server              │
+│         MySQL / PostgreSQL / SQL Server / mongo         │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -93,6 +93,7 @@ dimensions: [
 #### 度量（Measure）
 
 度量是可聚合的数值字段，如销售金额、订单数量等。
+注意，虽然这里配置聚合方式为sum，但DSL查询时，还是要加入groupBy或sum函数才可以
 
 ```javascript
 measures: [
@@ -100,7 +101,7 @@ measures: [
         column: 'amount',
         caption: '销售金额',
         type: 'MONEY',
-        aggregation: 'sum'    // 求和聚合
+        aggregation: 'sum'    // 默认求和聚合
     }
 ]
 ```
@@ -128,7 +129,7 @@ QM 是查询视图的定义文件（`.qm`），基于一个或多个 TM 定义�
 ### QM 的作用
 
 1. **字段暴露**：控制哪些字段可以被查询
-2. **权限控制**：定义不同角色可访问的字段
+2. **权限控制**：控制可以查询的数据
 3. **UI 配置**：定义字段的显示方式
 4. **默认排序**：定义查询的默认排序
 
@@ -157,19 +158,6 @@ columnGroups: [
 ]
 ```
 
-#### 权限控制（Accesses）
-
-控制不同角色可访问的字段。
-
-```javascript
-accesses: [
-    { role: 'admin', columns: ['*'] },           // 管理员可访问所有
-    { role: 'user', columns: ['orderId', 'orderStatus'] }  // 普通用户受限
-]
-```
-
----
-
 ## DSL 查询
 
 DSL（Domain Specific Language）是用于查询数据的 JSON 格式语言。前端通过 DSL 向 QM 发起查询请求。
@@ -193,7 +181,7 @@ DSL（Domain Specific Language）是用于查询数据的 JSON 格式语言。�
 
 ```json
 {
-    "columns": ["orderId", "customer$caption", "totalAmount"]
+    "columns": ["orderId", "customer$caption", "amount"]
 }
 ```
 
@@ -204,8 +192,8 @@ DSL（Domain Specific Language）是用于查询数据的 JSON 格式语言。�
 ```json
 {
     "slice": [
-        { "name": "orderStatus", "type": "=", "value": "COMPLETED" },
-        { "name": "totalAmount", "type": ">=", "value": 100 }
+        { "field": "orderStatus", "op": "=", "value": "COMPLETED" },
+        { "field": "amount", "op": ">=", "value": 100 }
     ]
 }
 ```
@@ -217,7 +205,7 @@ DSL（Domain Specific Language）是用于查询数据的 JSON 格式语言。�
 ```json
 {
     "groupBy": [
-        { "name": "customer$customerType" }
+        { "field": "customer$customerType" }
     ]
 }
 ```
@@ -229,7 +217,7 @@ DSL（Domain Specific Language）是用于查询数据的 JSON 格式语言。�
 ```json
 {
     "orderBy": [
-        { "name": "totalAmount", "order": "desc" }
+        { "field": "field", "order": "desc" }
     ]
 }
 ```
@@ -243,7 +231,7 @@ DSL（Domain Specific Language）是用于查询数据的 JSON 格式语言。�
 | 格式 | 说明 | 示例 |
 |------|------|------|
 | `属性名` | 事实表属性 | `orderId`, `orderStatus` |
-| `度量名` | 度量字段 | `totalAmount`, `quantity` |
+| `度量名` | 度量字段 | `amount`, `quantity` |
 | `维度名$caption` | 维度显示值 | `customer$caption` |
 | `维度名$id` | 维度 ID | `customer$id` |
 | `维度名$属性名` | 维度属性 | `customer$customerType` |
@@ -254,7 +242,7 @@ DSL（Domain Specific Language）是用于查询数据的 JSON 格式语言。�
 {
     "columns": [
         "orderId",              // 事实表属性
-        "totalAmount",          // 度量
+        "amount",          // 度量
         "customer$caption",     // 客户名称
         "customer$province",    // 客户省份
         "orderDate$year"        // 订单年份
@@ -336,6 +324,6 @@ DSL（Domain Specific Language）是用于查询数据的 JSON 格式语言。�
 ## 下一步
 
 - [快速开始](./quick-start.md) - 创建第一个 TM/QM 并使用 DSL 查询
-- [TM 语法手册](../jm-qm/jm-syntax.md) - 完整的 TM 定义语法
-- [QM 语法手册](../jm-qm/qm-syntax.md) - 完整的 QM 定义语法
+- [TM 语法手册](../tm-qm/tm-syntax.md) - 完整的 TM 定义语法
+- [QM 语法手册](../tm-qm/qm-syntax.md) - 完整的 QM 定义语法
 - [DSL 查询 API](../api/query-api.md) - 完整的 DSL 查询语法

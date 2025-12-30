@@ -75,16 +75,6 @@ export const model = {
             type: 'INTEGER'
         },
         {
-            column: 'sales_amount',
-            caption: '销售金额',
-            type: 'MONEY'
-        },
-        {
-            column: 'sales_count',
-            caption: '销售笔数',
-            type: 'INTEGER'
-        },
-        {
             column: 'created_at',
             caption: '创建时间',
             type: 'DATETIME'
@@ -93,14 +83,12 @@ export const model = {
 
     measures: [
         {
-            name: 'totalSalesAmount',
             caption: '销售总额',
             column: 'sales_amount',
             aggregation: 'sum',
             type: 'MONEY'
         },
         {
-            name: 'totalSalesCount',
             caption: '销售笔数',
             column: 'sales_count',
             aggregation: 'sum',

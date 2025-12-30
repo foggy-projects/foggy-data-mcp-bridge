@@ -45,7 +45,7 @@ export const model = {
             dimensions: [
                 {
                     name: 'category',
-                    alias: 'productCategory',   // QM 中使用 productCategory$xxx
+                    alias: 'productCategory',  // 别名，简化访问
                     tableName: 'dim_category_nested',
                     foreignKey: 'category_key', // 在 dim_product_nested 表上的外键
                     primaryKey: 'category_key',
@@ -61,7 +61,7 @@ export const model = {
                     dimensions: [
                         {
                             name: 'group',
-                            alias: 'categoryGroup',  // QM 中使用 categoryGroup$xxx
+                            alias: 'categoryGroup',  // 别名，简化访问
                             tableName: 'dim_category_group',
                             foreignKey: 'group_key',  // 在 dim_category 表上的外键
                             primaryKey: 'group_key',
@@ -95,7 +95,7 @@ export const model = {
             dimensions: [
                 {
                     name: 'region',
-                    alias: 'storeRegion',
+                    alias: 'storeRegion',  // 别名，简化访问
                     tableName: 'dim_region_nested',
                     foreignKey: 'region_key',  // 在 dim_store_nested 表上的外键
                     primaryKey: 'region_key',

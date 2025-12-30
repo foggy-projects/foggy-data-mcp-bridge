@@ -144,11 +144,6 @@ public class CalculatedDbColumn extends AbstractDecorate implements DbQueryColum
     }
 
     @Override
-    public Map<String, Object> getUi() {
-        return null;
-    }
-
-    @Override
     public ObjectTransFormatter<?> getValueFormatter() {
         return null;
     }

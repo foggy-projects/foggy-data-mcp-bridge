@@ -4,58 +4,61 @@
  * @caption MCP工具调用日志查询
  * @description 查询和分析MCP工具调用记录，支持按工具、角色、时间等维度分析
  */
+const mal = loadTableModel('McpAuditLogModel');
+
 export const queryModel = {
     name: 'McpAuditLogQueryModel',
     caption: 'MCP工具调用日志查询',
     description: '查询和分析MCP工具调用记录，支持按工具、角色、时间等维度统计分析',
-    model: 'McpAuditLogModel',
+    loader: 'v2',
+
+    model: mal,
 
     columnGroups: [
         {
             caption: '追踪信息',
             items: [
-                { name: 'id' },
-                { name: 'traceId' },
-                { name: 'requestId' }
+                { ref: mal.id },
+                { ref: mal.traceId },
+                { ref: mal.requestId }
             ]
         },
         {
             caption: '调用信息',
             items: [
-                { name: 'toolName' },
-                { name: 'userRole' },
-                { name: 'timestamp' },
-                { name: 'requestPath' },
-                { name: 'clientIp' }
+                { ref: mal.toolName },
+                { ref: mal.userRole },
+                { ref: mal.timestamp },
+                { ref: mal.requestPath },
+                { ref: mal.clientIp }
             ]
         },
         {
             caption: '执行结果',
             items: [
-                { name: 'success' },
-                { name: 'durationMs' },
-                { name: 'resultSummary' }
+                { ref: mal.success },
+                { ref: mal.durationMs },
+                { ref: mal.resultSummary }
             ]
         },
         {
             caption: '错误信息',
             items: [
-                { name: 'errorType' },
-                { name: 'errorMessage' }
+                { ref: mal.errorType },
+                { ref: mal.errorMessage }
             ]
         },
         {
             caption: '统计度量',
             items: [
-                { name: 'avgDuration' },
-                { name: 'maxDuration' },
-                { name: 'minDuration' }
+                { ref: mal.avgDuration },
+                { ref: mal.maxDuration },
+                { ref: mal.minDuration }
             ]
         }
     ],
 
-    orders: [
-    ],
+    orders: [],
 
     accesses: []
 };

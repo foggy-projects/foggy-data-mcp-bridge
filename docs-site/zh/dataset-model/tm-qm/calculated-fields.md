@@ -78,7 +78,7 @@
             "count(*) as orderCount"
         ],
         "groupBy": [
-            { "name": "product$categoryName" }
+            { "field": "product$categoryName" }
         ]
     }
 }
@@ -206,7 +206,7 @@ FROM fact_sales
         ],
         "columns": ["orderId", "salesAmount", "profitAmount", "profitRate"],
         "slice": [
-            { "name": "salesAmount", "type": ">", "value": 0 }
+            { "field": "salesAmount", "op": ">", "value": 0 }
         ]
     }
 }
@@ -267,8 +267,8 @@ FROM fact_sales
         ],
         "columns": ["orderId", "salesAmount", "profitAmount", "profitRate"],
         "slice": [
-            { "name": "salesAmount", "type": ">", "value": 0 },
-            { "name": "profitRate", "type": ">", "value": 10 }
+            { "field": "salesAmount", "op": ">", "value": 0 },
+            { "field": "profitRate", "op": ">", "value": 10 }
         ]
     }
 }
@@ -286,10 +286,10 @@ FROM fact_sales
             "sum(profitAmount) * 100.0 / sum(salesAmount) as profitRate"
         ],
         "groupBy": [
-            { "name": "product$categoryName" }
+            { "field": "product$categoryName" }
         ],
         "orderBy": [
-            { "name": "totalSales", "order": "desc" }
+            { "field": "totalSales", "order": "desc" }
         ]
     }
 }
@@ -331,6 +331,7 @@ FROM fact_sales
 
 ## 下一步
 
-- [DSL 查询 API](../api/query-api.md) - 完整的查询参考
-- [TM 语法手册](./jm-syntax.md) - 表格模型定义
+- [JSON 查询 DSL](./query-dsl.md) - 查询 DSL 完整语法（推荐阅读）
+- [查询 API](../api/query-api.md) - HTTP API 接口
+- [TM 语法手册](./tm-syntax.md) - 表格模型定义
 - [QM 语法手册](./qm-syntax.md) - 查询模型定义

@@ -234,6 +234,15 @@ public class SimpleSqlJdbcQueryVisitor implements JdbcQueryVisitor {
         }
     }
 
+    @Override
+    public void acceptHaving(JdbcQuery.JdbcHaving having) {
+        if (having == null || having.isEmpty()) {
+            return;
+        }
+        sb.append(" having ");
+        acceptListCond(having);
+    }
+
     public String getSql() {
         return sb.toString();
     }

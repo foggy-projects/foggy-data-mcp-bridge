@@ -25,11 +25,6 @@ public class DbQueryColumnImpl extends DbObjectSupport implements DbQueryColumn 
 
     DbQueryCondition dbQueryCondition;
 
-    /**
-     * UI配置
-     */
-    Map<String, Object> ui;
-
     String alias;
 
     String field;
