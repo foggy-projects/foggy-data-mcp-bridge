@@ -132,6 +132,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
         JdbcQuery jdbcQuery = new JdbcQuery();
         jdbcQuery.setQueryRequest(queryRequest);
+        jdbcQuery.setQueryModel(jdbcQueryModel);
 
         // 使用 QueryModel 缓存的 JoinGraph
         JoinGraph joinGraph = jdbcQueryModel.getMergedJoinGraph();
@@ -193,6 +194,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
                 jdbcQuery.join(queryDimension.getDimension().getQueryObject());
                 ExpEvaluator ee = DefaultExpEvaluator.newInstance(systemBundlesContext.getApplicationContext());
                 ee.setVar("query", jdbcQuery);
+                ee.setVar("queryModel", jdbcQueryModel);
                 ee.setVar("dim", queryDimension.getDimension());
                 ee.setVar("dimension", queryDimension.getDimension());
                 queryDimension.getQueryAccess().getQueryBuilder().autoApply(ee);
@@ -205,6 +207,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
                 }
                 ExpEvaluator ee = DefaultExpEvaluator.newInstance(systemBundlesContext.getApplicationContext());
                 ee.setVar("query", jdbcQuery);
+                ee.setVar("queryModel", jdbcQueryModel);
                 ee.setVar("property", queryProperty.getProperty());
                 queryProperty.getQueryAccess().getQueryBuilder().autoApply(ee);
             }

@@ -79,16 +79,23 @@ public class TableModelProxy implements PropertyHolder, PropertyFunction {
      *
      * <p>处理逻辑：
      * <ul>
+     *   <li>{@code fo.$alias} → 返回表别名字符串（用于 queryBuilder 中构建 SQL）</li>
      *   <li>{@code fo.customer$memberLevel} → {@code new ColumnRef(this, "customer", "memberLevel")}</li>
      *   <li>{@code fo.orderId} → {@code new DimensionProxy(this, "orderId")}（支持链式访问）</li>
      *   <li>{@code fo.product.category$categoryId} → 链式调用最终返回 ColumnRef</li>
      * </ul>
      *
      * @param name 属性名
-     * @return ColumnRef（带$属性访问）或 DimensionProxy（普通访问，支持链式）
+     * @return ColumnRef（带$属性访问）或 DimensionProxy（普通访问，支持链式）或字符串（内置属性）
      */
     @Override
     public Object getProperty(String name) {
+        // 支持访问内置属性（用于 queryBuilder 中构建 SQL）
+        // 使用 $alias 避免与字段名冲突
+        if ("$alias".equals(name)) {
+            return getEffectiveAlias();
+        }
+
         // 处理维度属性语法：customer$memberLevel
         if (name.contains("$")) {
             String[] parts = name.split("\\$", 2);

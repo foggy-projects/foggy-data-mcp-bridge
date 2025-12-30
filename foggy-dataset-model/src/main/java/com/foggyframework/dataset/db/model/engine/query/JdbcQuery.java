@@ -8,8 +8,11 @@ import com.foggyframework.dataset.db.model.engine.join.JoinGraph;
 import com.foggyframework.dataset.db.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.db.model.impl.query.DbQueryGroupColumnImpl;
 import com.foggyframework.dataset.db.model.impl.query.DbQueryOrderColumnImpl;
+import com.foggyframework.dataset.db.model.proxy.ColumnRef;
+import com.foggyframework.dataset.db.model.proxy.DimensionProxy;
 import com.foggyframework.dataset.db.model.spi.DbColumn;
 import com.foggyframework.dataset.db.model.spi.DbQueryRequest;
+import com.foggyframework.dataset.db.model.spi.QueryModel;
 import com.foggyframework.dataset.db.model.spi.QueryObject;
 import com.foggyframework.dataset.db.model.spi.support.AggregationDbColumn;
 import com.foggyframework.dataset.db.model.spi.support.SimpleQueryObject;
@@ -40,6 +43,11 @@ public class JdbcQuery {
     JdbcGroupBy group;
 
     DbQueryRequest queryRequest;
+
+    /**
+     * 查询模型引用（用于字段引用解析）
+     */
+    QueryModel queryModel;
 
     /**
      * JOIN 依赖图（可选）
@@ -86,9 +94,165 @@ public class JdbcQuery {
         return this;
     }
 
-    public JdbcQuery and(String sqlFragment, Object value) {
+    // ==================== 字段引用条件方法（推荐）====================
+
+    /**
+     * 添加字段相等条件
+     * <p>使用字段引用，自动解析为 SQL: {@code alias.column_name = ?}
+     *
+     * @param fieldRef 字段引用（如 fo.salesTeamId），支持 ColumnRef 或 DimensionProxy
+     * @param value     条件值
+     * @return this
+     */
+    public JdbcQuery and(Object fieldRef, Object value) {
+        ColumnRef columnRef = toColumnRef(fieldRef);
+        String sqlFragment = resolveColumnRef(columnRef) + " = ?";
         getWhere().and(sqlFragment, value);
         return this;
+    }
+
+    /**
+     * 添加字段 IN 条件
+     * <p>使用字段引用，自动解析为 SQL: {@code alias.column_name in (?, ?, ...)}
+     *
+     * @param fieldRef 字段引用
+     * @param values    值列表
+     * @return this
+     */
+    public JdbcQuery andIn(Object fieldRef, List<Object> values) {
+        if (values == null || values.isEmpty()) {
+            return this;
+        }
+        ColumnRef columnRef = toColumnRef(fieldRef);
+        String placeholders = String.join(", ", values.stream().map(v -> "?").toList());
+        String sqlFragment = resolveColumnRef(columnRef) + " in (" + placeholders + ")";
+        getWhere().andList(sqlFragment, values);
+        return this;
+    }
+
+    /**
+     * 添加字段不等于条件
+     *
+     * @param fieldRef 字段引用
+     * @param value     条件值
+     * @return this
+     */
+    public JdbcQuery andNe(Object fieldRef, Object value) {
+        ColumnRef columnRef = toColumnRef(fieldRef);
+        String sqlFragment = resolveColumnRef(columnRef) + " != ?";
+        getWhere().and(sqlFragment, value);
+        return this;
+    }
+
+    /**
+     * 添加字段非空条件
+     *
+     * @param fieldRef 字段引用
+     * @return this
+     */
+    public JdbcQuery andNotNull(Object fieldRef) {
+        ColumnRef columnRef = toColumnRef(fieldRef);
+        String sqlFragment = resolveColumnRef(columnRef) + " is not null";
+        getWhere().and(sqlFragment);
+        return this;
+    }
+
+    /**
+     * 添加字段为空条件
+     *
+     * @param fieldRef 字段引用
+     * @return this
+     */
+    public JdbcQuery andNull(Object fieldRef) {
+        ColumnRef columnRef = toColumnRef(fieldRef);
+        String sqlFragment = resolveColumnRef(columnRef) + " is null";
+        getWhere().and(sqlFragment);
+        return this;
+    }
+
+    /**
+     * 将字段引用转换为 ColumnRef
+     *
+     * @param fieldRef 字段引用（ColumnRef 或 DimensionProxy）
+     * @return ColumnRef
+     */
+    private ColumnRef toColumnRef(Object fieldRef) {
+        if (fieldRef instanceof ColumnRef columnRef) {
+            return columnRef;
+        }
+        if (fieldRef instanceof DimensionProxy dimensionProxy) {
+            return dimensionProxy.toColumnRef();
+        }
+        throw RX.throwAUserTip("不支持的字段引用类型: " + (fieldRef == null ? "null" : fieldRef.getClass().getName()));
+    }
+
+    /**
+     * 解析字段引用为 SQL 表达式（alias.column_name）
+     */
+    private String resolveColumnRef(ColumnRef columnRef) {
+        RX.notNull(queryModel, "使用字段引用需要先设置 queryModel");
+
+        // 获取字段的完整引用名（如 salesTeamId 或 customer$memberLevel）
+        String fieldName = columnRef.getFullRef();
+
+        // 通过 QueryModel 查找对应的 DbColumn
+        DbColumn dbColumn = queryModel.findJdbcColumn(fieldName);
+        if (dbColumn == null) {
+            throw RX.throwAUserTip("字段 [" + fieldName + "] 在 QueryModel [" + queryModel.getName() + "] 中不存在");
+        }
+
+        // 获取表别名
+        String alias = queryModel.getAlias(dbColumn.getQueryObject());
+
+        // 返回 alias.column_name
+        return alias + "." + dbColumn.getSqlColumnName();
+    }
+
+    // ==================== 原生 SQL 条件方法 ====================
+
+    /**
+     * 添加原生 SQL 条件（带参数）
+     *
+     * @param sqlFragment SQL 片段（如 "t0.team_id = ?"）
+     * @param value       参数值
+     * @return this
+     */
+    public JdbcQuery andSql(String sqlFragment, Object value) {
+        getWhere().and(sqlFragment, value);
+        return this;
+    }
+
+    /**
+     * 添加原生 SQL 条件（无参数）
+     *
+     * @param sqlFragment SQL 片段（如 "t0.status = 1"）
+     * @return this
+     */
+    public JdbcQuery andSql(String sqlFragment) {
+        getWhere().and(sqlFragment);
+        return this;
+    }
+
+    /**
+     * 添加原生 SQL 条件（多参数）
+     *
+     * @param sqlFragment SQL 片段（如 "t0.region_id = ? and t0.status = ?"）
+     * @param values      参数值列表
+     * @return this
+     */
+    public JdbcQuery andSqlList(String sqlFragment, List<Object> values) {
+        getWhere().andList(sqlFragment, values);
+        return this;
+    }
+
+    // ==================== 兼容旧 API（标记为 @Deprecated）====================
+
+    /**
+     * @deprecated 使用 {@link #andSql(String, Object)} 代替
+     */
+    @Deprecated
+    public JdbcQuery and(String sqlFragment, Object value) {
+        return andSql(sqlFragment, value);
     }
 
     public JdbcQuery andQueryTypeValueCond(String name, String queryType, Object value) {
@@ -96,15 +260,23 @@ public class JdbcQuery {
         return this;
     }
 
+    /**
+     * @deprecated 使用 {@link #andSql(String)} 代替
+     */
+    @Deprecated
     public JdbcQuery and(String sqlFragment) {
-        getWhere().and(sqlFragment);
-        return this;
+        return andSql(sqlFragment);
     }
 
+    /**
+     * @deprecated 使用 {@link #andSqlList(String, List)} 代替
+     */
+    @Deprecated
     public JdbcQuery andList(String sqlFragment, List<Object> value) {
-        getWhere().andList(sqlFragment, value);
-        return this;
+        return andSqlList(sqlFragment, value);
     }
+
+    // ==================== FROM / JOIN 方法 ====================
 
     public JdbcQuery from(QueryObject queryObject) {
         return from(queryObject, null);
