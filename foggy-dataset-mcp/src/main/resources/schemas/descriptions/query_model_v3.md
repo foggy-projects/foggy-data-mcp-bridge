@@ -79,6 +79,7 @@ Query a specific dataset model with advanced filtering, sorting, grouping and ag
 - **集合**: `in`, `not in`
 - **空值**: `is null`, `is not null` (无需value)
 - **区间**: `[]`, `[)`, `()`, `(]`
+- **层级**: `childrenOf`, `descendantsOf`, `selfAndDescendantsOf` (父子维度专用，可选 maxDepth)
 
 **排序(orderBy)**:
 ```json

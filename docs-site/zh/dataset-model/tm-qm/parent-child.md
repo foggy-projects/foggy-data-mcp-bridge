@@ -283,6 +283,31 @@ GROUP BY d1.team_name
 
 ---
 
+### 5.4 层级操作符（扩展）
+
+除了 `$hierarchy$` 视角，还支持通过 `op` 操作符进行细粒度层级查询：
+
+| op | 含义 | SQL 条件 |
+|----|------|----------|
+| `childrenOf` | 直接子节点 | `distance = 1` |
+| `descendantsOf` | 所有后代（不含自身） | `distance > 0` |
+| `selfAndDescendantsOf` | 自身及所有后代 | 无 distance 限制 |
+
+**示例**：
+
+```json
+// 查询 T001 的直接子部门
+{ "field": "team$id", "op": "childrenOf", "value": "T001" }
+
+// 查询 T001 的所有后代（不含 T001 自身）
+{ "field": "team$id", "op": "descendantsOf", "value": "T001" }
+
+// 查询 T001 的 2 级以内后代
+{ "field": "team$id", "op": "descendantsOf", "value": "T001", "maxDepth": 2 }
+```
+
+---
+
 ## 6. 闭包表维护
 
 ### 6.1 新增节点

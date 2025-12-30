@@ -612,4 +612,362 @@ class ParentChildDimensionTest extends EcommerceTestSupport {
         assertEquals(0, expectedDecimal.compareTo(actualDecimal),
                 message + " - 期望: " + expectedDecimal + ", 实际: " + actualDecimal);
     }
+
+    // ==========================================
+    // 层级操作符测试（childrenOf, descendantsOf, selfAndDescendantsOf）
+    // ==========================================
+
+    @Test
+    @Order(50)
+    @DisplayName("层级操作符 - childrenOf 查询直接子节点")
+    void testHierarchyOp_ChildrenOf() {
+        // 查询技术部(T002)的直接子部门：研发组(T003)、测试组(T004)
+
+        // 1. 原生SQL：distance = 1 表示直接子节点
+        String nativeSql = """
+            SELECT dt.team_id, dt.team_name, SUM(fs.sales_amount) as total_amount
+            FROM fact_team_sales fs
+            INNER JOIN team_closure tc ON fs.team_id = tc.team_id
+            LEFT JOIN dim_team dt ON fs.team_id = dt.team_id
+            WHERE tc.parent_id = 'T002' AND tc.distance = 1
+            GROUP BY dt.team_id, dt.team_name
+            ORDER BY dt.team_name
+            """;
+        List<Map<String, Object>> nativeResults = executeQuery(nativeSql);
+        log.info("原生SQL技术部直接子部门: {} 个", nativeResults.size());
+
+        // 2. 通过服务查询（使用 childrenOf 操作符）
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("FactTeamSalesQueryModel");
+        queryRequest.setColumns(Arrays.asList("team$id", "team$caption", "salesAmount"));
+
+        List<SliceRequestDef> slices = new ArrayList<>();
+        SliceRequestDef slice = new SliceRequestDef();
+        slice.setField("team$id");
+        slice.setOp("childrenOf");
+        slice.setValue("T002");
+        slices.add(slice);
+        queryRequest.setSlice(slices);
+
+        List<GroupRequestDef> groups = new ArrayList<>();
+        groups.add(createGroup("team$id"));
+        groups.add(createGroup("team$caption"));
+        queryRequest.setGroupBy(groups);
+
+        List<OrderRequestDef> orders = new ArrayList<>();
+        orders.add(createOrder("team$caption", "ASC"));
+        queryRequest.setOrderBy(orders);
+
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 20);
+        PagingResultImpl result = jdbcService.queryModelData(form);
+        List<Map<String, Object>> items = (List<Map<String, Object>>) result.getItems();
+
+        log.info("childrenOf 查询结果: {} 个", items.size());
+        printResults(items, 10);
+
+        // 3. 验证
+        // 技术部的直接子部门应有2个：研发组、测试组
+        assertEquals(2, items.size(), "技术部直接子部门应有2个");
+        assertEquals(nativeResults.size(), items.size(), "结果数量应一致");
+
+        // 比对金额
+        for (int i = 0; i < nativeResults.size(); i++) {
+            assertDecimalEquals(nativeResults.get(i).get("total_amount"), items.get(i).get("salesAmount"),
+                    "销售额应一致: " + nativeResults.get(i).get("team_name"));
+        }
+    }
+
+    @Test
+    @Order(51)
+    @DisplayName("层级操作符 - descendantsOf 查询所有后代（不含自身）")
+    void testHierarchyOp_DescendantsOf() {
+        // 查询技术部(T002)的所有后代（不含技术部自身）
+
+        // 1. 原生SQL：distance > 0 表示不含自身
+        String nativeSql = """
+            SELECT dt.team_id, dt.team_name, SUM(fs.sales_amount) as total_amount
+            FROM fact_team_sales fs
+            INNER JOIN team_closure tc ON fs.team_id = tc.team_id
+            LEFT JOIN dim_team dt ON fs.team_id = dt.team_id
+            WHERE tc.parent_id = 'T002' AND tc.distance > 0
+            GROUP BY dt.team_id, dt.team_name
+            ORDER BY dt.team_name
+            """;
+        List<Map<String, Object>> nativeResults = executeQuery(nativeSql);
+        log.info("原生SQL技术部后代（不含自身）: {} 个", nativeResults.size());
+
+        // 2. 通过服务查询（使用 descendantsOf 操作符）
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("FactTeamSalesQueryModel");
+        queryRequest.setColumns(Arrays.asList("team$id", "team$caption", "salesAmount"));
+
+        List<SliceRequestDef> slices = new ArrayList<>();
+        SliceRequestDef slice = new SliceRequestDef();
+        slice.setField("team$id");
+        slice.setOp("descendantsOf");
+        slice.setValue("T002");
+        slices.add(slice);
+        queryRequest.setSlice(slices);
+
+        List<GroupRequestDef> groups = new ArrayList<>();
+        groups.add(createGroup("team$id"));
+        groups.add(createGroup("team$caption"));
+        queryRequest.setGroupBy(groups);
+
+        List<OrderRequestDef> orders = new ArrayList<>();
+        orders.add(createOrder("team$caption", "ASC"));
+        queryRequest.setOrderBy(orders);
+
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 20);
+        PagingResultImpl result = jdbcService.queryModelData(form);
+        List<Map<String, Object>> items = (List<Map<String, Object>>) result.getItems();
+
+        log.info("descendantsOf 查询结果: {} 个", items.size());
+        printResults(items, 10);
+
+        // 3. 验证
+        // 技术部后代（不含自身）应有4个：研发组、测试组、前端小组、后端小组
+        assertEquals(4, items.size(), "技术部后代（不含自身）应有4个");
+        assertEquals(nativeResults.size(), items.size(), "结果数量应一致");
+
+        // 确保不包含技术部自身
+        boolean containsSelf = items.stream().anyMatch(item -> "T002".equals(item.get("team$id")));
+        assertFalse(containsSelf, "descendantsOf 结果不应包含节点自身");
+    }
+
+    @Test
+    @Order(52)
+    @DisplayName("层级操作符 - selfAndDescendantsOf 查询自身及所有后代")
+    void testHierarchyOp_SelfAndDescendantsOf() {
+        // 查询技术部(T002)及其所有后代
+
+        // 1. 原生SQL：无 distance 限制
+        String nativeSql = """
+            SELECT dt.team_id, dt.team_name, SUM(fs.sales_amount) as total_amount
+            FROM fact_team_sales fs
+            INNER JOIN team_closure tc ON fs.team_id = tc.team_id
+            LEFT JOIN dim_team dt ON fs.team_id = dt.team_id
+            WHERE tc.parent_id = 'T002'
+            GROUP BY dt.team_id, dt.team_name
+            ORDER BY dt.team_name
+            """;
+        List<Map<String, Object>> nativeResults = executeQuery(nativeSql);
+        log.info("原生SQL技术部及后代: {} 个", nativeResults.size());
+
+        // 2. 通过服务查询（使用 selfAndDescendantsOf 操作符）
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("FactTeamSalesQueryModel");
+        queryRequest.setColumns(Arrays.asList("team$id", "team$caption", "salesAmount"));
+
+        List<SliceRequestDef> slices = new ArrayList<>();
+        SliceRequestDef slice = new SliceRequestDef();
+        slice.setField("team$id");
+        slice.setOp("selfAndDescendantsOf");
+        slice.setValue("T002");
+        slices.add(slice);
+        queryRequest.setSlice(slices);
+
+        List<GroupRequestDef> groups = new ArrayList<>();
+        groups.add(createGroup("team$id"));
+        groups.add(createGroup("team$caption"));
+        queryRequest.setGroupBy(groups);
+
+        List<OrderRequestDef> orders = new ArrayList<>();
+        orders.add(createOrder("team$caption", "ASC"));
+        queryRequest.setOrderBy(orders);
+
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 20);
+        PagingResultImpl result = jdbcService.queryModelData(form);
+        List<Map<String, Object>> items = (List<Map<String, Object>>) result.getItems();
+
+        log.info("selfAndDescendantsOf 查询结果: {} 个", items.size());
+        printResults(items, 10);
+
+        // 3. 验证
+        // 技术部及后代应有5个：技术部、研发组、测试组、前端小组、后端小组
+        assertEquals(5, items.size(), "技术部及后代应有5个");
+        assertEquals(nativeResults.size(), items.size(), "结果数量应一致");
+
+        // 确保包含技术部自身
+        boolean containsSelf = items.stream().anyMatch(item -> "T002".equals(item.get("team$id")));
+        assertTrue(containsSelf, "selfAndDescendantsOf 结果应包含节点自身");
+    }
+
+    @Test
+    @Order(53)
+    @DisplayName("层级操作符 - descendantsOf 带 maxDepth 限制")
+    void testHierarchyOp_DescendantsOf_WithMaxDepth() {
+        // 查询总公司(T001)的2级以内后代
+
+        // 1. 原生SQL：distance BETWEEN 1 AND 2
+        String nativeSql = """
+            SELECT dt.team_id, dt.team_name, SUM(fs.sales_amount) as total_amount
+            FROM fact_team_sales fs
+            INNER JOIN team_closure tc ON fs.team_id = tc.team_id
+            LEFT JOIN dim_team dt ON fs.team_id = dt.team_id
+            WHERE tc.parent_id = 'T001' AND tc.distance BETWEEN 1 AND 2
+            GROUP BY dt.team_id, dt.team_name
+            ORDER BY dt.team_name
+            """;
+        List<Map<String, Object>> nativeResults = executeQuery(nativeSql);
+        log.info("原生SQL总公司2级以内后代: {} 个", nativeResults.size());
+
+        // 2. 通过服务查询（使用 descendantsOf + maxDepth）
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("FactTeamSalesQueryModel");
+        queryRequest.setColumns(Arrays.asList("team$id", "team$caption", "salesAmount"));
+
+        List<SliceRequestDef> slices = new ArrayList<>();
+        SliceRequestDef slice = new SliceRequestDef();
+        slice.setField("team$id");
+        slice.setOp("descendantsOf");
+        slice.setValue("T001");
+        slice.setMaxDepth(2);
+        slices.add(slice);
+        queryRequest.setSlice(slices);
+
+        List<GroupRequestDef> groups = new ArrayList<>();
+        groups.add(createGroup("team$id"));
+        groups.add(createGroup("team$caption"));
+        queryRequest.setGroupBy(groups);
+
+        List<OrderRequestDef> orders = new ArrayList<>();
+        orders.add(createOrder("team$caption", "ASC"));
+        queryRequest.setOrderBy(orders);
+
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 20);
+        PagingResultImpl result = jdbcService.queryModelData(form);
+        List<Map<String, Object>> items = (List<Map<String, Object>>) result.getItems();
+
+        log.info("descendantsOf + maxDepth=2 查询结果: {} 个", items.size());
+        printResults(items, 10);
+
+        // 3. 验证
+        // 总公司2级以内后代：
+        // Level 1: 技术部、销售部 (2个)
+        // Level 2: 研发组、测试组、华东区、华北区 (4个)
+        // 共6个
+        assertEquals(6, items.size(), "总公司2级以内后代应有6个");
+        assertEquals(nativeResults.size(), items.size(), "结果数量应一致");
+
+        // 确保不包含总公司自身
+        boolean containsSelf = items.stream().anyMatch(item -> "T001".equals(item.get("team$id")));
+        assertFalse(containsSelf, "descendantsOf 结果不应包含节点自身");
+
+        // 确保不包含3级节点（前端小组T006、后端小组T007）
+        boolean containsLevel3 = items.stream().anyMatch(item ->
+                "T006".equals(item.get("team$id")) || "T007".equals(item.get("team$id")));
+        assertFalse(containsLevel3, "maxDepth=2 不应包含3级节点");
+    }
+
+    @Test
+    @Order(54)
+    @DisplayName("层级操作符 - childrenOf 带 maxDepth 扩展")
+    void testHierarchyOp_ChildrenOf_WithMaxDepth() {
+        // childrenOf 默认是 distance=1，maxDepth 可扩展范围
+        // 查询总公司(T001)的1-2级子节点
+
+        // 1. 原生SQL
+        String nativeSql = """
+            SELECT dt.team_id, dt.team_name, SUM(fs.sales_amount) as total_amount
+            FROM fact_team_sales fs
+            INNER JOIN team_closure tc ON fs.team_id = tc.team_id
+            LEFT JOIN dim_team dt ON fs.team_id = dt.team_id
+            WHERE tc.parent_id = 'T001' AND tc.distance BETWEEN 1 AND 2
+            GROUP BY dt.team_id, dt.team_name
+            ORDER BY dt.team_name
+            """;
+        List<Map<String, Object>> nativeResults = executeQuery(nativeSql);
+        log.info("原生SQL总公司1-2级子节点: {} 个", nativeResults.size());
+
+        // 2. 通过服务查询
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("FactTeamSalesQueryModel");
+        queryRequest.setColumns(Arrays.asList("team$id", "team$caption", "salesAmount"));
+
+        List<SliceRequestDef> slices = new ArrayList<>();
+        SliceRequestDef slice = new SliceRequestDef();
+        slice.setField("team$id");
+        slice.setOp("childrenOf");
+        slice.setValue("T001");
+        slice.setMaxDepth(2);
+        slices.add(slice);
+        queryRequest.setSlice(slices);
+
+        List<GroupRequestDef> groups = new ArrayList<>();
+        groups.add(createGroup("team$id"));
+        groups.add(createGroup("team$caption"));
+        queryRequest.setGroupBy(groups);
+
+        List<OrderRequestDef> orders = new ArrayList<>();
+        orders.add(createOrder("team$caption", "ASC"));
+        queryRequest.setOrderBy(orders);
+
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 20);
+        PagingResultImpl result = jdbcService.queryModelData(form);
+        List<Map<String, Object>> items = (List<Map<String, Object>>) result.getItems();
+
+        log.info("childrenOf + maxDepth=2 查询结果: {} 个", items.size());
+        printResults(items, 10);
+
+        // 3. 验证
+        assertEquals(nativeResults.size(), items.size(), "结果数量应一致");
+        assertEquals(6, items.size(), "总公司1-2级子节点应有6个");
+    }
+
+    @Test
+    @Order(55)
+    @DisplayName("层级操作符 - childrenOf 多值查询")
+    void testHierarchyOp_ChildrenOf_MultipleValues() {
+        // 查询技术部(T002)和销售部(T005)的直接子部门
+
+        // 1. 原生SQL
+        String nativeSql = """
+            SELECT dt.team_id, dt.team_name, SUM(fs.sales_amount) as total_amount
+            FROM fact_team_sales fs
+            INNER JOIN team_closure tc ON fs.team_id = tc.team_id
+            LEFT JOIN dim_team dt ON fs.team_id = dt.team_id
+            WHERE tc.parent_id IN ('T002', 'T005') AND tc.distance = 1
+            GROUP BY dt.team_id, dt.team_name
+            ORDER BY dt.team_name
+            """;
+        List<Map<String, Object>> nativeResults = executeQuery(nativeSql);
+        log.info("原生SQL技术部+销售部直接子部门: {} 个", nativeResults.size());
+
+        // 2. 通过服务查询
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("FactTeamSalesQueryModel");
+        queryRequest.setColumns(Arrays.asList("team$id", "team$caption", "salesAmount"));
+
+        List<SliceRequestDef> slices = new ArrayList<>();
+        SliceRequestDef slice = new SliceRequestDef();
+        slice.setField("team$id");
+        slice.setOp("childrenOf");
+        slice.setValue(Arrays.asList("T002", "T005"));
+        slices.add(slice);
+        queryRequest.setSlice(slices);
+
+        List<GroupRequestDef> groups = new ArrayList<>();
+        groups.add(createGroup("team$id"));
+        groups.add(createGroup("team$caption"));
+        queryRequest.setGroupBy(groups);
+
+        List<OrderRequestDef> orders = new ArrayList<>();
+        orders.add(createOrder("team$caption", "ASC"));
+        queryRequest.setOrderBy(orders);
+
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 20);
+        PagingResultImpl result = jdbcService.queryModelData(form);
+        List<Map<String, Object>> items = (List<Map<String, Object>>) result.getItems();
+
+        log.info("childrenOf 多值查询结果: {} 个", items.size());
+        printResults(items, 10);
+
+        // 3. 验证
+        // 技术部子部门：研发组、测试组 (2个)
+        // 销售部子部门：华东区、华北区 (2个)
+        // 共4个
+        assertEquals(4, items.size(), "技术部+销售部直接子部门应有4个");
+        assertEquals(nativeResults.size(), items.size(), "结果数量应一致");
+    }
 }

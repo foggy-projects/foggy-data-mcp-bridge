@@ -10,6 +10,8 @@ import com.foggyframework.dataset.db.model.engine.expression.SqlCalculatedFieldP
 import com.foggyframework.dataset.db.model.engine.expression.SqlExpContext;
 import com.foggyframework.dataset.db.model.engine.formula.JdbcLink;
 import com.foggyframework.dataset.db.model.engine.formula.SqlFormulaService;
+import com.foggyframework.dataset.db.model.engine.formula.hierarchy.HierarchyOperator;
+import com.foggyframework.dataset.db.model.engine.formula.hierarchy.HierarchyOperatorService;
 import com.foggyframework.dataset.db.model.engine.join.JoinGraph;
 import com.foggyframework.dataset.db.model.engine.query.JdbcQuery;
 import com.foggyframework.dataset.db.model.engine.query.SimpleSqlJdbcQueryVisitor;
@@ -44,6 +46,11 @@ public class JdbcModelQueryEngine implements QueryEngine {
     JdbcQuery jdbcQuery;
 
     SqlFormulaService sqlFormulaService;
+
+    /**
+     * 层级操作符服务（用于父子维度）
+     */
+    HierarchyOperatorService hierarchyOperatorService = new HierarchyOperatorService();
 
     /**
      * SQL 表达式上下文（用于计算字段）
@@ -535,15 +542,25 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
             if (jdbcColumn.isDimension()) {
                 DbModelParentChildDimensionImpl pp = jdbcColumn.getDecorate(DbDimensionColumn.class).getDimension().getDecorate(DbModelParentChildDimensionImpl.class);
-                // 只有 hierarchy 视角的列（team$hierarchy$id）才使用闭包表
+                // 只有 hierarchy 视角的列（team$hierarchy$id）或层级操作符才使用闭包表
                 // 默认视角（team$id）按普通维度处理，精确匹配
                 boolean isHierarchyColumn = sliceDef.getField() != null && sliceDef.getField().contains("$hierarchy$");
-                if (pp != null && isHierarchyColumn) {
+                String op = sliceDef.getOp();
+                HierarchyOperator hierarchyOp = hierarchyOperatorService.get(op);
+
+                if (pp != null && (isHierarchyColumn || hierarchyOp != null)) {
                     //这是一个parentChild维的层级查询，条件重写为使用closure表
                     jdbcQuery.join(pp.getClosureQueryObject(), pp.getForeignKey());
                     alias = jdbcQueryModel.getAlias(pp.getClosureQueryObject());
                     //查询列换成closure表的parentId
                     jdbcColumn = pp.getParentKeyJdbcColumn();
+
+                    // 处理层级操作符的 distance 条件
+                    if (hierarchyOp != null) {
+                        hierarchyOp.buildDistanceCondition(listCond, alias, sliceDef.getMaxDepth());
+                        // 将 op 转换为标准操作符（in 或 =）
+                        sliceDef.setOp(sliceDef.getValue() instanceof List ? "in" : "=");
+                    }
                 }
             }
             if (jdbcColumn.isProperty() && jdbcColumn.getDecorate(DbPropertyColumn.class).getProperty().isBit()) {
