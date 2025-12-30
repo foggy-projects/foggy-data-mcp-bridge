@@ -4,14 +4,20 @@
 
 ## 项目结构
 - `foggy-core/` - 核心工具类库
-- `foggy-dataset/` - 数据库基础层（Dialect、DbUtils）
+- `foggy-dataset/` - 数据库查询层（Dialect、DbUtils）
 - `foggy-dataset-model/` - 核心数据模型模块（TM/QM引擎）
 - `foggy-dataset-mcp/` - MCP服务模块（AI对接）
 - `foggy-dataset-demo/` - 示例项目（电商演示数据）
 - `foggy-fsscript/` - 脚本引擎（解析TM/QM文件）
-- `foggy-fsscript-client/` - 脚本引擎客户端
 - `foggy-bean-copy/` - Bean拷贝工具
-- `foggy-benchmark-spider2/` - Spider2基准测试
+- `docs-site/` - 帮助手册（VitePress，中英双语）
+- `addons/` - 扩展模块
+  - `chart-render-service/` - 图表渲染服务
+  - `foggy-benchmark-spider2/` - Spider2基准测试
+  - `foggy-dataset-client/` - 数据集客户端
+  - `foggy-dataset-model-mongo/` - MongoDB模型支持
+  - `foggy-dataset-mongo/` - MongoDB数据层
+  - `foggy-fsscript-client/` - FSScript客户端
 
 ## 多数据库支持 (foggy-dataset)
 已实现方言：
@@ -32,22 +38,43 @@
 - `/mcp/admin/rpc` - 管理员（全部工具权限）
 - `/mcp/business/rpc` - 业务用户（仅自然语言查询）
 
-## 文档 (foggy-dataset-model/docs/)
+## 帮助手册 (docs-site/)
+基于 VitePress 构建的帮助手册，支持中英双语。
 ```
-docs/
-├── README.md              # 文档导航
-├── quick-start.md         # 快速入门
-├── guide/                 # 核心指南
-│   ├── TM-QM-Syntax-Manual.md
-│   ├── API-Reference.md
-│   └── Parent-Child-Dimension.md
-├── security/              # 权限控制
-│   ├── Authorization-Control.md
-│   └── QueryModel-Accesses-Control.md
-└── dev/                   # 开发者文档
-    ├── TEST_DATA_MODEL.md
-    └── MULTI_DATABASE_TESTING.md
+docs-site/
+├── zh/                           # 中文文档
+│   ├── dataset-model/            # 数据模型（TM/QM）
+│   │   ├── guide/                # 入门指南
+│   │   │   ├── introduction.md
+│   │   │   ├── quick-start.md
+│   │   │   └── concepts.md
+│   │   ├── tm-qm/                # TM/QM 语法
+│   │   │   ├── tm-syntax.md
+│   │   │   ├── qm-syntax.md
+│   │   │   ├── query-dsl.md
+│   │   │   ├── calculated-fields.md
+│   │   │   └── parent-child.md
+│   │   └── api/                  # API 参考
+│   │       ├── query-api.md
+│   │       └── authorization.md
+│   ├── dataset-query/            # 数据库查询层
+│   │   ├── guide/
+│   │   └── api/
+│   ├── fsscript/                 # FSScript 脚本引擎
+│   │   ├── guide/
+│   │   ├── syntax/
+│   │   └── java/
+│   └── mcp/                      # MCP 服务
+│       ├── guide/
+│       └── integration/
+└── en/                           # English docs (same structure)
 ```
+
+## TM/QM 模型文件
+- 位置：`foggy-dataset-demo/src/main/resources/foggy/templates/`
+- TM 文件：`.tm` 后缀，定义表模型（维度、属性、度量）
+- QM 文件：`.qm` 后缀，定义查询模型（列组、权限、排序）
+- 使用 FSScript 语法（类 ES6/JavaScript）
 
 ## JdbcColumnType 类型映射
 支持的类型及别名（在TM文件中使用）：
