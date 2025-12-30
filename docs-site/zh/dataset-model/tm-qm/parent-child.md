@@ -181,7 +181,11 @@ WHERE d1.team_id = 'T001'
 GROUP BY d1.team_name
 ```
 
-**结果**：只返回 T001（总公司）自身的销售数据。
+**返回数据**（只包含 T001 自身的销售）：
+
+| team$caption | salesAmount |
+|--------------|-------------|
+| 总公司        | 50000       |
 
 ---
 
@@ -283,28 +287,276 @@ GROUP BY d1.team_name
 
 ---
 
-### 5.4 层级操作符（扩展）
+### 5.4 层级操作符
 
-除了 `$hierarchy$` 视角，还支持通过 `op` 操作符进行细粒度层级查询：
+除了 `$hierarchy$` 视角，还支持通过 `op` 操作符进行细粒度层级查询，无需使用 `$hierarchy$` 列名：
 
-| op | 含义 | SQL 条件 |
-|----|------|----------|
-| `childrenOf` | 直接子节点 | `distance = 1` |
-| `descendantsOf` | 所有后代（不含自身） | `distance > 0` |
-| `selfAndDescendantsOf` | 自身及所有后代 | 无 distance 限制 |
+| op | 含义 | SQL 条件 | 包含自身 |
+|----|------|----------|----------|
+| `childrenOf` | 直接子节点 | `distance = 1` | 否 |
+| `descendantsOf` | 所有后代 | `distance > 0` | 否 |
+| `selfAndDescendantsOf` | 自身及所有后代 | 无限制 | 是 |
 
-**示例**：
+支持 `maxDepth` 参数限制查询深度。
+
+---
+
+#### 5.4.1 childrenOf - 查询直接子节点
+
+查询指定节点的直接子节点（distance = 1）。
+
+**请求**：
 
 ```json
-// 查询 T001 的直接子部门
-{ "field": "team$id", "op": "childrenOf", "value": "T001" }
-
-// 查询 T001 的所有后代（不含 T001 自身）
-{ "field": "team$id", "op": "descendantsOf", "value": "T001" }
-
-// 查询 T001 的 2 级以内后代
-{ "field": "team$id", "op": "descendantsOf", "value": "T001", "maxDepth": 2 }
+{
+    "param": {
+        "columns": ["team$caption", "salesAmount"],
+        "slice": [
+            { "field": "team$id", "op": "childrenOf", "value": "T001" }
+        ]
+    }
+}
 ```
+
+**生成的 SQL**：
+
+```sql
+SELECT d1.team_name AS "team$caption",
+       SUM(t0.sales_amount) AS "salesAmount"
+FROM fact_team_sales t0
+LEFT JOIN dim_team d1 ON t0.team_id = d1.team_id
+LEFT JOIN team_closure d2 ON t0.team_id = d2.team_id
+WHERE d2.parent_id = 'T001' AND d2.distance = 1
+GROUP BY d1.team_name
+```
+
+**返回数据**（T001 的直接子部门）：
+
+| team$caption | salesAmount |
+|--------------|-------------|
+| 技术部        | 270000      |
+| 销售部        | 680000      |
+
+---
+
+#### 5.4.2 descendantsOf - 查询所有后代
+
+查询指定节点的所有后代，不包含自身（distance > 0）。
+
+**请求**：
+
+```json
+{
+    "param": {
+        "columns": ["team$caption", "salesAmount"],
+        "slice": [
+            { "field": "team$id", "op": "descendantsOf", "value": "T001" }
+        ]
+    }
+}
+```
+
+**生成的 SQL**：
+
+```sql
+SELECT d1.team_name AS "team$caption",
+       SUM(t0.sales_amount) AS "salesAmount"
+FROM fact_team_sales t0
+LEFT JOIN dim_team d1 ON t0.team_id = d1.team_id
+LEFT JOIN team_closure d2 ON t0.team_id = d2.team_id
+WHERE d2.parent_id = 'T001' AND d2.distance > 0
+GROUP BY d1.team_name
+```
+
+**返回数据**（T001 的所有后代，不含 T001）：
+
+| team$caption | salesAmount |
+|--------------|-------------|
+| 技术部        | 120000      |
+| 研发组        | 80000       |
+| 前端小组      | 30000       |
+| 测试组        | 40000       |
+| 销售部        | 200000      |
+| 华东区        | 150000      |
+| 华南区        | 180000      |
+| 深圳办        | 150000      |
+
+---
+
+#### 5.4.3 selfAndDescendantsOf - 查询自身及所有后代
+
+查询指定节点及其所有后代（等效于 `$hierarchy$` 视角）。
+
+**请求**：
+
+```json
+{
+    "param": {
+        "columns": ["team$caption", "salesAmount"],
+        "slice": [
+            { "field": "team$id", "op": "selfAndDescendantsOf", "value": "T001" }
+        ]
+    }
+}
+```
+
+**生成的 SQL**：
+
+```sql
+SELECT d1.team_name AS "team$caption",
+       SUM(t0.sales_amount) AS "salesAmount"
+FROM fact_team_sales t0
+LEFT JOIN dim_team d1 ON t0.team_id = d1.team_id
+LEFT JOIN team_closure d2 ON t0.team_id = d2.team_id
+WHERE d2.parent_id = 'T001'
+GROUP BY d1.team_name
+```
+
+**返回数据**（T001 及所有后代）：
+
+| team$caption | salesAmount |
+|--------------|-------------|
+| 总公司        | 50000       |
+| 技术部        | 120000      |
+| 研发组        | 80000       |
+| 前端小组      | 30000       |
+| 测试组        | 40000       |
+| 销售部        | 200000      |
+| 华东区        | 150000      |
+| 华南区        | 180000      |
+| 深圳办        | 150000      |
+
+---
+
+#### 5.4.4 maxDepth - 限制查询深度
+
+使用 `maxDepth` 参数限制层级查询的深度。
+
+**示例 1**：查询 T001 的 2 级以内后代
+
+```json
+{
+    "param": {
+        "columns": ["team$caption", "salesAmount"],
+        "slice": [
+            { "field": "team$id", "op": "descendantsOf", "value": "T001", "maxDepth": 2 }
+        ]
+    }
+}
+```
+
+**生成的 SQL**：
+
+```sql
+SELECT d1.team_name AS "team$caption",
+       SUM(t0.sales_amount) AS "salesAmount"
+FROM fact_team_sales t0
+LEFT JOIN dim_team d1 ON t0.team_id = d1.team_id
+LEFT JOIN team_closure d2 ON t0.team_id = d2.team_id
+WHERE d2.parent_id = 'T001' AND d2.distance BETWEEN 1 AND 2
+GROUP BY d1.team_name
+```
+
+**返回数据**（T001 的 2 级以内后代，即子和孙）：
+
+| team$caption | salesAmount |
+|--------------|-------------|
+| 技术部        | 120000      |
+| 研发组        | 80000       |
+| 测试组        | 40000       |
+| 销售部        | 200000      |
+| 华东区        | 150000      |
+| 华南区        | 180000      |
+
+> 注：不包含 T005（前端小组）和 T009（深圳办），因为它们距离 T001 是 3 级。
+
+---
+
+**示例 2**：childrenOf + maxDepth（扩展子节点范围）
+
+```json
+{
+    "param": {
+        "columns": ["team$caption", "salesAmount"],
+        "slice": [
+            { "field": "team$id", "op": "childrenOf", "value": "T002", "maxDepth": 2 }
+        ]
+    }
+}
+```
+
+**生成的 SQL**：
+
+```sql
+SELECT d1.team_name AS "team$caption",
+       SUM(t0.sales_amount) AS "salesAmount"
+FROM fact_team_sales t0
+LEFT JOIN dim_team d1 ON t0.team_id = d1.team_id
+LEFT JOIN team_closure d2 ON t0.team_id = d2.team_id
+WHERE d2.parent_id = 'T002' AND d2.distance BETWEEN 1 AND 2
+GROUP BY d1.team_name
+```
+
+**返回数据**（T002 的 2 级以内子节点）：
+
+| team$caption | salesAmount |
+|--------------|-------------|
+| 研发组        | 80000       |
+| 前端小组      | 30000       |
+| 测试组        | 40000       |
+
+---
+
+#### 5.4.5 多值查询
+
+层级操作符支持传入多个值，查询多个节点的后代。
+
+**请求**：
+
+```json
+{
+    "param": {
+        "columns": ["team$caption", "salesAmount"],
+        "slice": [
+            { "field": "team$id", "op": "childrenOf", "value": ["T002", "T004"] }
+        ]
+    }
+}
+```
+
+**生成的 SQL**：
+
+```sql
+SELECT d1.team_name AS "team$caption",
+       SUM(t0.sales_amount) AS "salesAmount"
+FROM fact_team_sales t0
+LEFT JOIN dim_team d1 ON t0.team_id = d1.team_id
+LEFT JOIN team_closure d2 ON t0.team_id = d2.team_id
+WHERE d2.parent_id IN ('T002', 'T004') AND d2.distance = 1
+GROUP BY d1.team_name
+```
+
+**返回数据**（T002 和 T004 的直接子节点）：
+
+| team$caption | salesAmount |
+|--------------|-------------|
+| 研发组        | 80000       |
+| 测试组        | 40000       |
+| 华东区        | 150000      |
+| 华南区        | 180000      |
+
+---
+
+#### 5.4.6 操作符对比表
+
+| 查询需求 | 推荐方式 | 说明 |
+|----------|----------|------|
+| 精确匹配某节点 | `team$id = 'T001'` | 默认视角 |
+| 汇总到某节点 | `team$hierarchy$id` + `team$hierarchy$caption` | 层级视角 |
+| 各后代明细 | `team$hierarchy$id` + `team$caption` | 混合视角 |
+| 直接子节点 | `op: childrenOf` | 层级操作符 |
+| 所有后代（不含自身） | `op: descendantsOf` | 层级操作符 |
+| 限定深度查询 | `op` + `maxDepth` | 层级操作符 |
 
 ---
 
