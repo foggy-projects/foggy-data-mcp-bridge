@@ -245,4 +245,4 @@ POST /jdbc-model/query-model/v2/FactOrderQueryModel
 - [JSON 查询 DSL](../tm-qm/query-dsl.md) - **DSL 完整语法（推荐阅读）**
 - [TM 语法手册](../tm-qm/tm-syntax.md) - 表格模型定义
 - [QM 语法手册](../tm-qm/qm-syntax.md) - 查询模型定义
-- [权限控制](./authorization.md) - 详细的权限配置
+- [行级权限控制](./authorization.md) - 行级数据隔离

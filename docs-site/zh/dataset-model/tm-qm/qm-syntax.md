@@ -1,6 +1,6 @@
 # QM 语法手册
 
-QM（Query Model，查询模型）用于定义基于 TM 的查询视图，包含可查询的字段、权限控制和 UI 配置。
+QM（Query Model，查询模型）用于定义基于 TM 的查询视图，包含可查询的字段和 UI 配置。
 
 ## 1. 基本结构
 
@@ -13,8 +13,7 @@ export const queryModel = {
     model: 'FactOrderModel',        // 关联的 TM 模型名称（必填）
 
     columnGroups: [...],            // 列组定义
-    orders: [...],                  // 默认排序
-    accesses: [...]                 // 权限控制
+    orders: [...]                   // 默认排序
 };
 ```
 
@@ -27,7 +26,6 @@ export const queryModel = {
 | `model` | string/array | 是 | 关联的 TM 模型（单个或多个） |
 | `columnGroups` | array | 否 | 列组定义 |
 | `orders` | array | 否 | 默认排序 |
-| `accesses` | array | 否 | 权限控制 |
 
 ---
 
@@ -247,49 +245,7 @@ orders: [
 
 ---
 
-## 7. 权限控制 (accesses)
-
-控制不同角色可访问的字段：
-
-```javascript
-accesses: [
-    {
-        role: 'admin',
-        columns: ['*']              // 可访问所有列
-    },
-    {
-        role: 'manager',
-        columns: [
-            'orderId',
-            'orderStatus',
-            'customer$caption',
-            'totalAmount'
-        ]
-    },
-    {
-        role: 'user',
-        columns: ['orderId', 'orderStatus']  // 限制可访问列
-    }
-]
-```
-
-### 7.1 权限字段
-
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `role` | string | 是 | 角色标识 |
-| `columns` | array | 是 | 可访问的列，`['*']` 表示所有列 |
-
-### 7.2 权限匹配规则
-
-1. 系统根据当前用户的角色匹配 accesses 配置
-2. 如果找到匹配的角色，只返回 columns 中指定的字段
-3. 如果没有匹配的角色，默认返回所有字段
-4. `['*']` 表示可访问所有字段
-
----
-
-## 8. 计算字段
+## 7. 计算字段
 
 可以在 QM 中定义计算字段：
 
@@ -326,9 +282,9 @@ columnGroups: [
 
 ---
 
-## 9. 完整示例
+## 8. 完整示例
 
-### 9.1 基础查询模型
+### 8.1 基础查询模型
 
 ```javascript
 // FactOrderQueryModel.qm
@@ -377,21 +333,11 @@ export const queryModel = {
 
     orders: [
         { name: 'orderTime', order: 'desc' }
-    ],
-
-    accesses: [
-        { role: 'admin', columns: ['*'] },
-        { role: 'sales', columns: [
-            'orderId', 'orderStatus', 'orderTime',
-            'customer$caption', 'customer$customerType',
-            'product$caption',
-            'totalQuantity', 'totalAmount'
-        ]}
     ]
 };
 ```
 
-### 9.2 多事实表关联
+### 8.2 多事实表关联
 
 ```javascript
 // OrderPaymentQueryModel.qm
@@ -448,7 +394,7 @@ export const queryModel = {
 };
 ```
 
-### 9.3 带计算字段的查询模型
+### 8.3 带计算字段的查询模型
 
 ```javascript
 // SalesAnalysisQueryModel.qm
@@ -507,14 +453,14 @@ export const queryModel = {
 
 ---
 
-## 10. 命名约定
+## 9. 命名约定
 
-### 10.1 文件命名
+### 9.1 文件命名
 
 - QM 文件：`{TM模型名}QueryModel.qm`
 - 示例：`FactOrderQueryModel.qm`
 
-### 10.2 模型命名
+### 9.2 模型命名
 
 - 查询模型名：`{TM模型名}QueryModel`
 - 示例：`FactOrderQueryModel`
@@ -528,4 +474,4 @@ export const queryModel = {
 - [父子维度](./parent-child.md) - 层级结构维度
 - [计算字段](./calculated-fields.md) - 计算字段详解
 - [查询 API](../api/query-api.md) - HTTP API 接口
-- [权限控制](../api/authorization.md) - 详细的权限配置
+- [行级权限控制](../api/authorization.md) - 行级数据隔离
