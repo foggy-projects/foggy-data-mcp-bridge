@@ -6,7 +6,7 @@
 
 - Docker 20.10+
 - Docker Compose 2.0+
-- AI 服务 API Key（OpenAI / 阿里云百炼 / Ollama）
+- AI 服务 API Key (可选)（OpenAI / 阿里云百炼 / Ollama）
 
 ## Docker 快速启动
 

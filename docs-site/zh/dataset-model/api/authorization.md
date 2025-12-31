@@ -1,6 +1,8 @@
-# 行级权限控制
+# 行级权限控制（QM 文件）
 
 Foggy Dataset Model 通过 `queryBuilder` 在 SQL 生成阶段动态添加过滤条件，实现行级数据隔离（Row-Level Security）。
+
+> **提示**：本文档介绍在 QM 文件中声明式定义权限。如需更灵活的权限控制（如列级权限、数据脱敏、复杂业务逻辑），请参考 [Java 编程式权限控制](./java-authorization.md)。
 
 ## 1. 基本语法
 
@@ -457,6 +459,7 @@ WHERE t0.order_status = 'COMPLETED'
 
 ## 下一步
 
+- [Java 编程式权限控制](./java-authorization.md) - 通过 Java 代码动态控制权限
 - [QM 语法手册](../tm-qm/qm-syntax.md) - 完整的 QM 配置
 - [DSL 查询 API](./query-api.md) - 查询接口参考
 - [JSON 查询 DSL](../tm-qm/query-dsl.md) - DSL 完整语法

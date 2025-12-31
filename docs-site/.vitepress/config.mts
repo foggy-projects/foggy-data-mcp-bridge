@@ -117,7 +117,8 @@ export default defineConfig({
               text: 'API 参考',
               items: [
                 { text: '查询 API', link: '/zh/dataset-model/api/query-api' },
-                { text: '权限控制', link: '/zh/dataset-model/api/authorization' }
+                { text: '权限控制（QM）', link: '/zh/dataset-model/api/authorization' },
+                { text: 'Java 权限控制', link: '/zh/dataset-model/api/java-authorization' }
               ]
             }
           ],
@@ -234,7 +235,8 @@ export default defineConfig({
               text: 'API Reference',
               items: [
                 { text: 'Query API', link: '/en/dataset/api/query-api' },
-                { text: 'Authorization', link: '/en/dataset/api/authorization' }
+                { text: 'Authorization (QM)', link: '/en/dataset/api/authorization' },
+                { text: 'Java Authorization', link: '/en/dataset/api/java-authorization' }
               ]
             }
           ],
