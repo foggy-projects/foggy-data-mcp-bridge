@@ -65,7 +65,7 @@ The framework automatically generates optimized, safe SQL with proper JOINs and 
 - **Runtime Permission Injection** - Intercept and modify queries before execution
 
 ### 🎯 **Model-as-Code**
-- **JavaScript-Based Modeling** - Define data models using [FSScript](docs-site/en/fsscript/guide/introduction.md) (JavaScript-like syntax)
+- **JavaScript-Based Modeling** - Define data models using [FSScript](https://foggy-projects.github.io/foggy-data-mcp-bridge/en/fsscript/guide/introduction) (JavaScript-like syntax)
 - **Function Reusability** - Unlike static YAML/JSON, supports functions, imports, and dynamic logic
 - **TM/QM Files** - Table Models (TM) + Query Models (QM) create a semantic layer
 - **Calculated Fields** - Define complex business metrics in models, not in queries
@@ -134,7 +134,7 @@ curl http://localhost:7108/actuator/health
 }
 ```
 
-**Cursor IDE** - [See integration guide](docs-site/en/mcp/integration/cursor.md)
+**Cursor IDE** - [See integration guide](https://foggy-projects.github.io/foggy-data-mcp-bridge/en/mcp/integration/cursor)
 
 ### 4. Start Querying!
 
@@ -250,26 +250,26 @@ foggy-data-mcp-bridge/
 ## 📚 Documentation
 
 ### 📘 Getting Started
-- [MCP Introduction](docs-site/en/mcp/guide/introduction.md) - What is Foggy MCP
-- [Quick Start](docs-site/en/mcp/guide/quick-start.md) - Get up and running
-- [Architecture](docs-site/en/mcp/guide/architecture.md) - System architecture overview
+- [MCP Introduction](https://foggy-projects.github.io/foggy-data-mcp-bridge/en/mcp/guide/introduction) - What is Foggy MCP
+- [Quick Start](https://foggy-projects.github.io/foggy-data-mcp-bridge/en/mcp/guide/quick-start) - Get up and running
+- [Architecture](https://foggy-projects.github.io/foggy-data-mcp-bridge/en/mcp/guide/architecture) - System architecture overview
 
 ### 📗 Core Concepts
-- [TM/QM Modeling](docs-site/en/dataset/guide/introduction.md) - Build semantic layer
-- [TM Syntax Manual](docs-site/en/dataset/jm-qm/jm-syntax.md) - Table model reference
-- [QM Syntax Manual](docs-site/en/dataset/jm-qm/qm-syntax.md) - Query model reference
-- [Query DSL API](docs-site/en/dataset/api/query-api.md) - JSON query reference
+- [TM/QM Modeling](https://foggy-projects.github.io/foggy-data-mcp-bridge/en/dataset/guide/introduction) - Build semantic layer
+- [TM Syntax Manual](https://foggy-projects.github.io/foggy-data-mcp-bridge/en/dataset/jm-qm/jm-syntax) - Table model reference
+- [QM Syntax Manual](https://foggy-projects.github.io/foggy-data-mcp-bridge/en/dataset/jm-qm/qm-syntax) - Query model reference
+- [Query DSL API](https://foggy-projects.github.io/foggy-data-mcp-bridge/en/dataset/api/query-api) - JSON query reference
 
 ### 📙 FSScript Engine
-- [Why FSScript](docs-site/en/fsscript/guide/why-fsscript.md) - Use cases
-- [Syntax Guide](docs-site/en/fsscript/syntax/variables.md) - Language reference
-- [Spring Boot Integration](docs-site/en/fsscript/java/spring-boot.md) - Java integration
+- [Why FSScript](https://foggy-projects.github.io/foggy-data-mcp-bridge/en/fsscript/guide/why-fsscript) - Use cases
+- [Syntax Guide](https://foggy-projects.github.io/foggy-data-mcp-bridge/en/fsscript/syntax/variables) - Language reference
+- [Spring Boot Integration](https://foggy-projects.github.io/foggy-data-mcp-bridge/en/fsscript/java/spring-boot) - Java integration
 
 ### 📕 MCP Integration
-- [Claude Desktop Setup](docs-site/en/mcp/integration/claude-desktop.md)
-- [Cursor Integration](docs-site/en/mcp/integration/cursor.md)
-- [MCP Tools Reference](docs-site/en/mcp/tools/overview.md)
-- [API Usage](docs-site/en/mcp/integration/api.md)
+- [Claude Desktop Setup](https://foggy-projects.github.io/foggy-data-mcp-bridge/en/mcp/integration/claude-desktop)
+- [Cursor Integration](https://foggy-projects.github.io/foggy-data-mcp-bridge/en/mcp/integration/cursor)
+- [MCP Tools Reference](https://foggy-projects.github.io/foggy-data-mcp-bridge/en/mcp/tools/overview)
+- [API Usage](https://foggy-projects.github.io/foggy-data-mcp-bridge/en/mcp/integration/api)
 
 ### 🌐 Full Documentation Site
 **Visit: [https://foggy-projects.github.io/foggy-data-mcp-bridge/](https://foggy-projects.github.io/foggy-data-mcp-bridge/)**
@@ -319,7 +319,7 @@ mvn spring-boot:run
 ```
 
 ### IDE Setup
-See [IDE Development Guide](docs-site/en/mcp/guide/quick-start.md) for IntelliJ IDEA / VS Code configuration.
+See [IDE Development Guide](https://foggy-projects.github.io/foggy-data-mcp-bridge/en/mcp/guide/quick-start) for IntelliJ IDEA / VS Code configuration.
 
 ---
 
