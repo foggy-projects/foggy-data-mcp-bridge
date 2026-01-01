@@ -42,7 +42,7 @@ This document describes the design for handling large dataset queries in the MCP
 │  ┌─────────────────────────────────────────────────────────────────────────┐│
 │  │          Vue.js + vxe-table Frontend (in resources/static)             ││
 │  │  ┌───────────┐ ┌──────────────┐ ┌────────────┐ ┌──────────────────┐   ││
-│  │  │ Filtering │ │ Aggregation  │ │ Pagination │ │ Export (CSV/XLS) │   ││
+│  │  │ Filtering │ │ Aggregation  │ │ Pagination │ │   Sorting        │   ││
 │  │  └───────────┘ └──────────────┘ └────────────┘ └──────────────────┘   ││
 │  └─────────────────────────────────────────────────────────────────────────┘│
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -67,7 +67,7 @@ A single new tool that converts query parameters into a viewable link.
 ```json
 {
   "type": "object",
-  "required": ["model", "columns"],
+  "required": ["model", "columns", "slice"],
   "properties": {
     "model": {
       "type": "string",
@@ -80,7 +80,8 @@ A single new tool that converts query parameters into a viewable link.
     },
     "slice": {
       "type": "array",
-      "description": "Filter conditions (same format as query_model)"
+      "minItems": 1,
+      "description": "Filter conditions (REQUIRED). At least one filter must be provided to limit query scope (e.g., date range, customer, status). This prevents unbounded queries on large tables."
     },
     "groupBy": {
       "type": "array",
@@ -122,6 +123,18 @@ Generate a shareable link to view large datasets in an interactive browser.
 - Aggregated queries with groupBy (returns summary, small result set)
 - Queries with explicit small limit (≤100 rows)
 - When AI needs to analyze/interpret the data directly
+
+**IMPORTANT - Filter Requirement:**
+You MUST provide at least one filter condition in the `slice` parameter to limit the
+query scope. This is mandatory to prevent unbounded queries on large tables.
+
+Examples of valid scope-limiting filters:
+- Date range: `{"field": "orderDate", "op": ">=", "value": "2025-01-01"}`
+- Status: `{"field": "status", "op": "=", "value": "completed"}`
+- Customer: `{"field": "customer$id", "op": "=", "value": "C001"}`
+
+If the user's request doesn't specify a scope, ask them to clarify the time range
+or other filtering criteria before creating the viewer link.
 
 **Tip:** Use dataset.query_model_v2 with returnTotal=true and limit=1 to estimate
 row count before deciding which tool to use.
@@ -184,8 +197,7 @@ addons/foggy-data-viewer/
 │   │   ├── components/
 │   │   │   ├── DataTable.vue                  # vxe-table wrapper
 │   │   │   ├── ColumnFilter.vue               # Per-column filter
-│   │   │   ├── AggregationPanel.vue           # Aggregation controls
-│   │   │   └── ExportButton.vue               # Export functionality
+│   │   │   └── AggregationPanel.vue           # Aggregation controls (Phase 4)
 │   │   ├── views/
 │   │   │   ├── DataViewer.vue                 # Main viewer page
 │   │   │   └── ExpiredLink.vue                # Expired/invalid link page
@@ -370,15 +382,8 @@ public class ViewerApiController {
         ));
     }
 
-    /**
-     * Export data as CSV
-     */
-    @GetMapping("/query/{queryId}/export")
-    public ResponseEntity<Resource> exportCsv(
-            @PathVariable String queryId,
-            @RequestParam(defaultValue = "csv") String format) {
-        // Implementation for CSV/Excel export
-    }
+    // Note: Export endpoint will be added in Future Phases
+    // @GetMapping("/query/{queryId}/export") - streaming CSV/Excel export
 }
 ```
 
@@ -427,10 +432,11 @@ public class ViewerDataResponse {
     <div class="viewer-header">
       <h1>{{ queryMeta?.title || 'Data Viewer' }}</h1>
       <div class="header-actions">
-        <button @click="toggleAggregation">
+        <!-- Aggregation toggle (Phase 4) -->
+        <button v-if="aggregationEnabled" @click="toggleAggregation">
           {{ aggregationMode ? 'Exit Aggregation' : 'Aggregate' }}
         </button>
-        <ExportButton :queryId="queryId" />
+        <!-- Export button will be added in Future Phases -->
       </div>
     </div>
 
@@ -710,9 +716,126 @@ foggy:
     # Security
     security:
       require-auth: false       # Whether viewer requires same auth as original query
+
+    # Query scope constraints (secondary safeguard)
+    # Even if AI provides filters, the system will enforce additional constraints
+    scope-constraints:
+      enabled: true
+      default-max-duration-days: 31    # Default max query range if not specified per model
+
+      # Per-model scope constraints
+      models:
+        FactOrderQueryModel:
+          scope-field: orderDate       # Field used to limit query scope
+          max-duration-days: 31        # Max allowed duration (e.g., 1 month)
+        FactSalesQueryModel:
+          scope-field: salesDate
+          max-duration-days: 31
 ```
 
-#### 6.2 Auto Configuration
+#### 6.2 Query Scope Constraint Service
+
+The system enforces a **double safeguard** for query scope:
+
+1. **AI-level**: Tool description instructs AI to always include scope-limiting filters
+2. **Code-level**: `QueryScopeConstraintService` validates and enforces constraints
+
+```java
+@Service
+public class QueryScopeConstraintService {
+
+    @Autowired
+    private DataViewerProperties properties;
+
+    /**
+     * Validate and enforce scope constraints on the query.
+     * This is the secondary safeguard - even if AI provides filters,
+     * we ensure the query is within allowed bounds.
+     *
+     * @param model The query model name
+     * @param slice The filter conditions from AI
+     * @return Validated/adjusted slice with enforced constraints
+     * @throws IllegalArgumentException if no valid scope filter is provided
+     */
+    public List<Map<String, Object>> enforceConstraints(String model, List<Map<String, Object>> slice) {
+        ModelScopeConstraint constraint = properties.getScopeConstraints().getModels().get(model);
+
+        if (constraint == null) {
+            // No specific constraint for this model, just validate slice is not empty
+            if (slice == null || slice.isEmpty()) {
+                throw new IllegalArgumentException(
+                    "At least one filter condition is required to limit query scope"
+                );
+            }
+            return slice;
+        }
+
+        // Find scope field filter in slice
+        String scopeField = constraint.getScopeField();
+        Optional<Map<String, Object>> scopeFilter = findScopeFilter(slice, scopeField);
+
+        if (scopeFilter.isEmpty()) {
+            throw new IllegalArgumentException(String.format(
+                "Query must include a filter on '%s' to limit scope. " +
+                "For example: {\"field\": \"%s\", \"op\": \">=\", \"value\": \"2025-01-01\"}",
+                scopeField, scopeField
+            ));
+        }
+
+        // Validate duration is within allowed range
+        int maxDays = constraint.getMaxDurationDays();
+        validateDuration(slice, scopeField, maxDays);
+
+        return slice;
+    }
+
+    /**
+     * If only start date is provided, automatically add end date constraint.
+     */
+    private void validateDuration(List<Map<String, Object>> slice, String scopeField, int maxDays) {
+        LocalDate startDate = extractStartDate(slice, scopeField);
+        LocalDate endDate = extractEndDate(slice, scopeField);
+
+        if (startDate != null && endDate == null) {
+            // Add end date constraint: startDate + maxDays
+            LocalDate autoEndDate = startDate.plusDays(maxDays);
+            slice.add(Map.of(
+                "field", scopeField,
+                "op", "<",
+                "value", autoEndDate.toString()
+            ));
+        } else if (startDate != null && endDate != null) {
+            // Validate range doesn't exceed max
+            long daysBetween = ChronoUnit.DAYS.between(startDate, endDate);
+            if (daysBetween > maxDays) {
+                throw new IllegalArgumentException(String.format(
+                    "Query range exceeds maximum allowed duration of %d days. " +
+                    "Please narrow your date range.", maxDays
+                ));
+            }
+        }
+    }
+}
+```
+
+```java
+@Data
+@ConfigurationProperties(prefix = "foggy.data-viewer.scope-constraints")
+public class ScopeConstraintProperties {
+
+    private boolean enabled = true;
+    private int defaultMaxDurationDays = 31;
+    private Map<String, ModelScopeConstraint> models = new HashMap<>();
+
+    @Data
+    public static class ModelScopeConstraint {
+        private String scopeField;        // e.g., "orderDate"
+        private int maxDurationDays = 31; // e.g., 31 days
+    }
+}
+```
+
+#### 6.3 Auto Configuration
 
 ```java
 @AutoConfiguration
@@ -809,7 +932,7 @@ mcp:
 #### Phase 1: Core Infrastructure
 1. Create `addons/foggy-data-viewer` module structure
 2. Implement MongoDB entity and repository
-3. Implement `QueryCacheService`
+3. Implement `QueryCacheService` with scope constraint validation
 4. Create `OpenInViewerTool` MCP tool
 5. Add auto-configuration for embedding
 
@@ -817,7 +940,7 @@ mcp:
 1. Implement `ViewerApiController` with data query endpoint
 2. Leverage existing `QueryFacade` for query execution
 3. Add filter/sort override support
-4. Implement CSV export endpoint
+4. Implement `QueryScopeConstraintService` (double safeguard)
 
 #### Phase 3: Frontend
 1. Set up Vue.js + vxe-table project in `frontend/`
@@ -826,17 +949,21 @@ mcp:
 4. Add column sorting
 5. Build and output to `resources/static`
 
+> **Note**: Frontend build is manual (`npm run build` then Maven).
+> Build automation will be added once the project stabilizes.
+
 #### Phase 4: Advanced Features
 1. Implement aggregation mode (groupBy + aggregations)
-2. Add Excel export support
-3. Handle expired link gracefully
-4. Internationalization (i18n) support
+2. Handle expired link gracefully
+3. Internationalization (i18n) support
 
 #### Future Phases
+- **Data Export**: CSV/Excel export with streaming support for large datasets
 - Secondary AI query capability (ask follow-up questions in viewer)
 - Query history / bookmarks
 - Share viewer link with others
 - Real-time data refresh
+- Build automation (frontend-maven-plugin)
 
 ### 10. Example User Flows
 
@@ -865,8 +992,7 @@ I've created an interactive data viewer for you:
 In the viewer you can:
 - Filter by any column (customer, product, amount, etc.)
 - Sort the data
-- Aggregate by dimensions
-- Export to CSV/Excel
+- Navigate through pages
 
 The link expires in 1 hour."
 ```
@@ -909,13 +1035,13 @@ AI Response: "Here are your top 10 customers by sales in 2025:
         <artifactId>foggy-dataset-model</artifactId>
     </dependency>
 
-    <!-- Export -->
-    <dependency>
+    <!-- Export (Future Phase) -->
+    <!-- <dependency>
         <groupId>org.apache.poi</groupId>
         <artifactId>poi-ooxml</artifactId>
         <version>5.2.5</version>
         <optional>true</optional>
-    </dependency>
+    </dependency> -->
 </dependencies>
 ```
 
