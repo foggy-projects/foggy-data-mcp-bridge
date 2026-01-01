@@ -3,6 +3,10 @@ import { defineConfig } from 'vitepress'
 export default defineConfig({
   title: 'Foggy Data MCP Bridge',
   description: 'Embedded semantic layer framework for AI-driven data analysis',
+  base: '/foggy-data-mcp-bridge/',
+  ignoreDeadLinks: [
+    /^https?:\/\/localhost/
+  ],
 
   head: [
     ['link', { rel: 'icon', href: '/logo.svg' }]
@@ -100,7 +104,8 @@ export default defineConfig({
               items: [
                 { text: '简介', link: '/zh/dataset-model/guide/introduction' },
                 { text: '快速开始', link: '/zh/dataset-model/guide/quick-start' },
-                { text: '核心概念', link: '/zh/dataset-model/guide/concepts' }
+                { text: '核心概念', link: '/zh/dataset-model/guide/concepts' },
+                { text: 'Claude Skills', link: '/zh/dataset-model/guide/claude-skills' }
               ]
             },
             {
@@ -219,7 +224,8 @@ export default defineConfig({
               items: [
                 { text: 'Introduction', link: '/en/dataset/guide/introduction' },
                 { text: 'Quick Start', link: '/en/dataset/guide/quick-start' },
-                { text: 'Core Concepts', link: '/en/dataset/guide/concepts' }
+                { text: 'Core Concepts', link: '/en/dataset/guide/concepts' },
+                { text: 'Claude Skills', link: '/en/dataset/guide/claude-skills' }
               ]
             },
             {

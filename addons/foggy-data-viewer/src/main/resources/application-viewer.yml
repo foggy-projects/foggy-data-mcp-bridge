@@ -1,0 +1,27 @@
+# Data Viewer 默认配置
+foggy:
+  data-viewer:
+    enabled: true
+    base-url: http://localhost:8080/data-viewer
+
+    cache:
+      ttl-minutes: 60
+      cleanup-interval: 300000
+
+    thresholds:
+      large-dataset-min: 500
+
+    security:
+      require-auth: false
+
+    scope-constraints:
+      enabled: true
+      default-max-duration-days: 31
+      models: {}
+
+# 静态资源配置
+spring:
+  web:
+    resources:
+      static-locations:
+        - classpath:/static/

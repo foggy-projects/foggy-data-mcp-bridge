@@ -1,8 +1,8 @@
-package com.foggyframework.dataset.mcp.enums;
+package com.foggyframework.mcp.spi;
 
 /**
  * 工具分类枚举
- *
+ * <p>
  * 用于对 MCP 工具进行分类，方便按角色过滤
  */
 public enum ToolCategory {
@@ -37,13 +37,7 @@ public enum ToolCategory {
     /**
      * 系统工具 - 系统级别的工具（如健康检查等）
      */
-    SYSTEM("系统工具", "系统级别的管理和监控工具"),
-
-    /**
-     * 管理员专属工具 - 仅管理员可访问的高级工具
-     * 包括数据库结构检查、配置管理等敏感操作
-     */
-    ADMIN("管理员工具", "仅限管理员访问的高级管理工具");
+    SYSTEM("系统工具", "系统级别的管理和监控工具");
 
     private final String displayName;
     private final String description;
