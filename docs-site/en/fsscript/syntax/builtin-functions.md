@@ -50,24 +50,24 @@
 // Parse JSON
 let obj = JSON.parse('{"name": "test"}');
 
-// Stringify to JSON
+// Serialize to JSON
 let str = JSON.stringify({ name: 'test' });
 ```
 
 ## Array Methods
 
 ```javascript
-// Transform
+// Iteration and transformation
 [1, 2, 3].map(e => e * 2);         // [2, 4, 6]
 [1, 2, 3].filter(e => e > 1);      // [2, 3]
 [1, 2, 3].reduce((a, b) => a + b); // 6
 
-// Find
+// Search
 [1, 2, 3].find(e => e > 1);        // 2
 [1, 2, 3].includes(2);             // true
 [1, 2, 3].indexOf(2);              // 1
 
-// Other
+// Others
 [1, 2, 3].join(',');               // "1,2,3"
 [1, 2, 3].reverse();               // [3, 2, 1]
 [3, 1, 2].sort();                  // [1, 2, 3]

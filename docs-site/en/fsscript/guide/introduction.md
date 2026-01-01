@@ -1,39 +1,32 @@
 # Introduction
 
-FSScript is a lightweight scripting language for Java applications, using JavaScript-like syntax, focused on simplifying configuration and template development.
+FSScript is a lightweight scripting language for Java applications, featuring JavaScript-like syntax and focusing on simplifying configuration, format conversion, template development, and AST syntax tree parsing.
 
 ## Design Philosophy
 
-FSScript's design goal is **not about execution performance**, but rather:
+FSScript is **not designed for execution performance**. If you need extreme performance, you should use GraalJS or Groovy. It's also not suitable for writing complex business logic. Its typical scenarios include:
 
 - **Simplify Configuration** - An alternative when YAML or XML becomes too complex
 - **Template Generation** - Generate templates as flexibly as JavaScript
-- **Lower Barrier** - JSON-based + JavaScript assistance, easy to learn
+- **Lower Barriers** - JSON body + JavaScript assistance, easy to learn
+- **Syntax Parsing** - For function permission control, etc.
 - **Deep Spring Integration** - Directly call Spring Beans or integrate Java interfaces
-- **Enterprise-focused** - Designed for backend tasks, reports, data processing in enterprise applications
+- **B2B Scenarios** - Designed for enterprise application backend tasks, reports, data processing, etc.
 
-## Comparison with Other Solutions
+## Origin
 
-| Feature | FSScript | GraalJS | SpEL | Groovy |
-|---------|----------|---------|------|--------|
-| Learning Curve | Low (JS subset) | Low | Medium | Medium |
-| Spring Bean Import | `import '@bean'` | Manual binding | `#bean` | Requires config |
-| Java Class Import | `import 'java:...'` | `Java.type()` | Limited | Native support |
-| Script Modularization | ES6 import/export | DIY | Not supported | Supported |
-| Out-of-box | Yes | No (needs integration) | Yes | Yes |
-| Execution | Interpreted | JIT compiled | Compiled | Compiled |
-| Use Case | Config/Template/Rules | General scripting | Expression evaluation | General scripting |
+It was originally derived from the MDX syntax compilation of the Mondrian project, used for dynamically assembling MDX statements. Later it was used for assembling SQL statements, templates, and JSON format data processing (native Java handling of these is quite challenging).
 
-## When to Choose FSScript
+## Use Cases
 
-- Need scripts for SQL templates and dynamic queries
-- Need flexible business rules without heavyweight engines
-- Team is familiar with JavaScript and wants quick onboarding
+- Need scripts to define SQL templates and dynamic queries
+- Need flexible business rule configuration without introducing heavyweight engines
+- Team is familiar with JavaScript and wants to get started quickly
 
 ## Core Features
 
-- **JavaScript-like Syntax** - Supports let/const/var, arrow functions, template strings
+- **JavaScript-like Syntax** - Supports let/const/var, arrow functions, template strings, etc.
 - **Deep Spring Integration** - Import Spring Beans via `@beanName`
 - **Java Interop** - Import Java classes via `java:` prefix
-- **ES6 Modules** - import/export syntax for modular scripts
-- **IDE Friendly** - JavaScript syntax recognized by mainstream IDEs
+- **ES6 Modules** - import/export syntax, supports script modularization
+- **IDE Friendly** - JavaScript syntax is recognized by mainstream IDEs

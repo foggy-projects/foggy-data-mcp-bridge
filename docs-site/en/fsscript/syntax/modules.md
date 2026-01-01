@@ -1,4 +1,4 @@
-# Modules
+# Module System
 
 FSScript supports ES6-style module import/export.
 
@@ -10,13 +10,13 @@ FSScript supports ES6-style module import/export.
 // Import entire script
 import 'path/to/script.fsscript'
 
-// Named imports
+// Named import
 import { func1, func2 } from 'module.fsscript'
 
 // Default import
 import ModuleName from 'module.fsscript'
 
-// Renamed import
+// Rename import
 import originalName as alias from 'module.fsscript'
 ```
 
@@ -74,7 +74,7 @@ export default value;
 export { a, b, c };
 ```
 
-## Module Example
+## Modular Example
 
 ```javascript
 // utils.fsscript

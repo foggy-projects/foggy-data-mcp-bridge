@@ -1,10 +1,10 @@
 # Spring Boot Integration
 
-FSScript provides full Spring Boot auto-configuration support.
+FSScript provides complete Spring Boot auto-configuration support.
 
-## Auto-configuration
+## Auto Configuration
 
-After adding the dependency, these beans are automatically registered:
+After importing the dependency, the following Beans are automatically registered:
 
 | Bean Name | Type | Description |
 |-----------|------|-------------|
@@ -28,7 +28,7 @@ public class MyService {
 }
 ```
 
-## Accessing Spring Beans
+## Access Spring Beans
 
 Access Spring Beans in scripts via `@beanName` syntax:
 
@@ -68,7 +68,7 @@ public class ReportService {
 
 ## Pre-compiled Scripts
 
-For scripts that need repeated execution, pre-compilation improves performance:
+For scripts that need repeated execution, pre-compilation can improve performance:
 
 ```java
 @Service

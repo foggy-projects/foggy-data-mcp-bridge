@@ -4,7 +4,7 @@
 
 ### Exp
 
-Base interface for expressions.
+Base expression interface.
 
 ```java
 public interface Exp {
@@ -87,7 +87,7 @@ public class FileFsscriptLoader {
 }
 ```
 
-## Exceptions
+## Exception Classes
 
 | Exception | Description |
 |-----------|-------------|
@@ -97,15 +97,15 @@ public class FileFsscriptLoader {
 ## Compilation Flow
 
 ```
-FSScript string
+FSScript String
        ↓
-  ExpScanner (lexical analysis)
+  ExpScanner (Lexical Analysis)
        ↓
-  ExpParser (syntax analysis - CUP generated)
+  ExpParser (Syntax Analysis - CUP Generated)
        ↓
-  Exp object tree (AST)
+  Exp Object Tree (AST)
        ↓
-  DefaultExpEvaluator (execution)
+  DefaultExpEvaluator (Execution)
        ↓
-  Result value (Object)
+  Result Value (Object)
 ```
