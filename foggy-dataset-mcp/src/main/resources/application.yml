@@ -133,6 +133,11 @@ mcp:
       descriptionFile: "classpath:/schemas/descriptions/export_with_chart.md"
       schemaFile: "classpath:/schemas/export_with_chart_schema.json"
       category: EXPORT
+    - name: "dataset.inspect_table"
+      enabled: true
+      descriptionFile: "classpath:/schemas/descriptions/inspect_table.md"
+      schemaFile: "classpath:/schemas/inspect_table_schema.json"
+      category: METADATA
 
   # 审计日志配置
   # 记录工具调用日志到 MongoDB，用于追踪和分析 AI 工具使用情况
