@@ -55,6 +55,214 @@ This document describes the design for handling large dataset queries in the MCP
                     └───────────────────────────────────────┘
 ```
 
+## Module Dependency Architecture
+
+To avoid circular dependencies between `foggy-dataset-mcp` and addon modules like `foggy-data-viewer`, we extract common interfaces into an SPI (Service Provider Interface) module.
+
+### Module Dependency Diagram
+
+```
+                    ┌─────────────────────────────────────┐
+                    │         foggy-mcp-spi               │
+                    │  (Interfaces only, ~5 files)        │
+                    │  ┌───────────────────────────────┐  │
+                    │  │ McpTool.java                  │  │
+                    │  │ ToolCategory.java             │  │
+                    │  │ DatasetAccessor.java          │  │
+                    │  │ McpToolDescriptor.java        │  │
+                    │  └───────────────────────────────┘  │
+                    └─────────────────────────────────────┘
+                           ▲                    ▲
+                           │                    │
+            ┌──────────────┘                    └──────────────┐
+            │                                                  │
+┌───────────────────────────────┐          ┌───────────────────────────────┐
+│     foggy-dataset-mcp         │          │     foggy-data-viewer         │
+│  (MCP Server implementation)  │          │  (Data viewer addon)          │
+│                               │          │                               │
+│  - McpToolDispatcher          │          │  - OpenInViewerTool           │
+│  - AnalystMcpController       │          │  - ViewerApiController        │
+│  - Built-in tools             │          │  - QueryCacheService          │
+│                               │          │                               │
+│  depends on:                  │          │  depends on:                  │
+│  - foggy-mcp-spi              │          │  - foggy-mcp-spi              │
+│  - foggy-dataset-model        │          │  - foggy-dataset-model        │
+└───────────────────────────────┘          └───────────────────────────────┘
+            │                                          │
+            │                                          │
+            └──────────────┬───────────────────────────┘
+                           │
+                           ▼
+              ┌─────────────────────────────────────┐
+              │       foggy-mcp-starter             │
+              │  (Optional integration module)      │
+              │                                     │
+              │  depends on:                        │
+              │  - foggy-dataset-mcp                │
+              │  - foggy-data-viewer                │
+              │  - (other future addons)            │
+              │                                     │
+              │  Single dependency for users who    │
+              │  want all MCP features              │
+              └─────────────────────────────────────┘
+```
+
+### New Module: foggy-mcp-spi
+
+Location: `foggy-mcp-spi/`
+
+```
+foggy-mcp-spi/
+├── pom.xml
+└── src/main/java/com/foggyframework/mcp/spi/
+    ├── McpTool.java              # Tool interface
+    ├── ToolCategory.java         # Tool category enum
+    ├── DatasetAccessor.java      # Data access abstraction
+    ├── McpToolDescriptor.java    # Tool metadata descriptor
+    └── ToolExecutionContext.java # Execution context (traceId, auth, etc.)
+```
+
+**pom.xml:**
+```xml
+<project>
+    <artifactId>foggy-mcp-spi</artifactId>
+    <packaging>jar</packaging>
+
+    <dependencies>
+        <!-- Minimal dependencies - interfaces only -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+    </dependencies>
+</project>
+```
+
+**McpTool.java:**
+```java
+package com.foggyframework.mcp.spi;
+
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * Interface for MCP tools that can be discovered and executed by the MCP server.
+ * Implement this interface in addon modules to provide custom tools.
+ */
+public interface McpTool {
+
+    /**
+     * Unique tool name, e.g., "dataset.open_in_viewer"
+     */
+    String getName();
+
+    /**
+     * Categories this tool belongs to, for role-based filtering
+     */
+    Set<ToolCategory> getCategories();
+
+    /**
+     * Execute the tool with given arguments
+     *
+     * @param arguments Tool arguments from AI
+     * @param context Execution context (traceId, authorization, etc.)
+     * @return Tool result (will be serialized to JSON)
+     */
+    Object execute(Map<String, Object> arguments, ToolExecutionContext context);
+
+    /**
+     * Tool description (can be loaded from external file)
+     */
+    default String getDescription() {
+        return "";
+    }
+
+    /**
+     * JSON Schema for input validation
+     */
+    default Map<String, Object> getInputSchema() {
+        return Map.of();
+    }
+
+    /**
+     * Whether this tool supports streaming responses
+     */
+    default boolean supportsStreaming() {
+        return false;
+    }
+}
+```
+
+### Optional Module: foggy-mcp-starter
+
+Location: `foggy-mcp-starter/`
+
+For users who want a single dependency to include all MCP features:
+
+```
+foggy-mcp-starter/
+├── pom.xml
+└── src/main/resources/
+    └── META-INF/
+        └── spring/
+            └── org.springframework.boot.autoconfigure.AutoConfiguration.imports
+```
+
+**pom.xml:**
+```xml
+<project>
+    <artifactId>foggy-mcp-starter</artifactId>
+    <packaging>jar</packaging>
+
+    <dependencies>
+        <!-- Core MCP server -->
+        <dependency>
+            <groupId>com.foggyframework</groupId>
+            <artifactId>foggy-dataset-mcp</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- Data viewer addon -->
+        <dependency>
+            <groupId>com.foggyframework</groupId>
+            <artifactId>foggy-data-viewer</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- Future addons can be added here -->
+    </dependencies>
+</project>
+```
+
+### Usage Patterns
+
+**Pattern 1: Include specific modules**
+```xml
+<!-- User's pom.xml -->
+<dependencies>
+    <dependency>
+        <groupId>com.foggyframework</groupId>
+        <artifactId>foggy-dataset-mcp</artifactId>
+    </dependency>
+    <dependency>
+        <groupId>com.foggyframework</groupId>
+        <artifactId>foggy-data-viewer</artifactId>
+    </dependency>
+</dependencies>
+```
+
+**Pattern 2: Use starter for all features**
+```xml
+<!-- User's pom.xml -->
+<dependencies>
+    <dependency>
+        <groupId>com.foggyframework</groupId>
+        <artifactId>foggy-mcp-starter</artifactId>
+    </dependency>
+</dependencies>
+```
+
 ## Component Design
 
 ### 1. New MCP Tool: `dataset.open_in_viewer`
@@ -903,21 +1111,15 @@ public class OpenInViewerTool implements McpTool {
 }
 ```
 
-### 8. Integration with foggy-dataset-mcp
+### 8. Integration
 
-To enable the tool in the MCP server, add dependency and configuration:
+With the SPI architecture, integration is straightforward:
 
-**pom.xml (foggy-dataset-mcp):**
-```xml
-<dependency>
-    <groupId>com.foggyframework</groupId>
-    <artifactId>foggy-data-viewer</artifactId>
-    <version>${project.version}</version>
-    <optional>true</optional>
-</dependency>
-```
+1. **No circular dependency**: `foggy-dataset-mcp` does NOT depend on `foggy-data-viewer`
+2. **Auto-discovery**: Spring Boot auto-configuration discovers `OpenInViewerTool` bean
+3. **User includes both**: Either individually or via `foggy-mcp-starter`
 
-**application.yml:**
+**Tool Configuration (application.yml):**
 ```yaml
 mcp:
   tools:
@@ -927,13 +1129,38 @@ mcp:
       schemaFile: classpath:/schemas/open_in_viewer_schema.json
 ```
 
+**How Tool Discovery Works:**
+
+```java
+// In foggy-dataset-mcp: McpToolDispatcher
+@Component
+public class McpToolDispatcher {
+
+    // Spring auto-injects all McpTool beans from classpath
+    // This includes tools from foggy-data-viewer if it's on classpath
+    @Autowired
+    private List<McpTool> tools;
+
+    @PostConstruct
+    public void init() {
+        tools.forEach(tool -> register(tool));
+    }
+}
+```
+
 ### 9. Implementation Phases
+
+#### Phase 0: SPI Module (Prerequisite)
+1. Create `foggy-mcp-spi` module with interfaces
+2. Refactor `foggy-dataset-mcp` to depend on `foggy-mcp-spi`
+3. Move `McpTool`, `ToolCategory` interfaces to SPI module
+4. Create `foggy-mcp-starter` integration module
 
 #### Phase 1: Core Infrastructure
 1. Create `addons/foggy-data-viewer` module structure
 2. Implement MongoDB entity and repository
 3. Implement `QueryCacheService` with scope constraint validation
-4. Create `OpenInViewerTool` MCP tool
+4. Create `OpenInViewerTool` MCP tool (implements `McpTool` from SPI)
 5. Add auto-configuration for embedding
 
 #### Phase 2: Backend API
@@ -1016,9 +1243,15 @@ AI Response: "Here are your top 10 customers by sales in 2025:
 
 ### 11. Dependencies
 
-#### Backend (pom.xml)
+#### Backend (foggy-data-viewer/pom.xml)
 ```xml
 <dependencies>
+    <!-- MCP SPI - for McpTool interface (NO circular dependency) -->
+    <dependency>
+        <groupId>com.foggyframework</groupId>
+        <artifactId>foggy-mcp-spi</artifactId>
+    </dependency>
+
     <!-- Spring Boot -->
     <dependency>
         <groupId>org.springframework.boot</groupId>
