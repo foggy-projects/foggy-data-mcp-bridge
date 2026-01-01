@@ -3,6 +3,7 @@ import { defineConfig } from 'vitepress'
 export default defineConfig({
   title: 'Foggy Data MCP Bridge',
   description: 'Embedded semantic layer framework for AI-driven data analysis',
+  base: '/foggy-data-mcp-bridge/',
 
   head: [
     ['link', { rel: 'icon', href: '/logo.svg' }]
