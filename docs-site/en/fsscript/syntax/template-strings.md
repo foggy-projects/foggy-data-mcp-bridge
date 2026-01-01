@@ -37,11 +37,11 @@ let list = `Items: ${items.map(i => `<li>${i}</li>`).join('')}`;
 ## Escaping
 
 ```javascript
-`Using backtick: \``   // Using backtick: `
-`Dollar sign: \${}`    // Dollar sign: ${}
+`Use backtick: \``   // Use backtick: `
+`Dollar sign: \${}`   // Dollar sign: ${}
 ```
 
-## Practical Use: Dynamic SQL
+## Practical Application: Dynamic SQL
 
 ```javascript
 import {workonSessionTokenUsingCache as token} from '@saasBasicWebUtils';

@@ -64,9 +64,9 @@ From highest to lowest:
 
 1. Parentheses `()`
 2. Member access `.` `[]` `?.`
-3. Unary `-` `!` `~` `++` `--` `delete`
-4. Multiplicative `*` `/` `%`
-5. Additive `+` `-`
+3. Unary operators `-` `!` `~` `++` `--` `delete`
+4. Multiplication/Division/Modulo `*` `/` `%`
+5. Addition/Subtraction `+` `-`
 6. Comparison `<` `>` `<=` `>=`
 7. Equality `==` `<>`
 8. Logical AND `&&`

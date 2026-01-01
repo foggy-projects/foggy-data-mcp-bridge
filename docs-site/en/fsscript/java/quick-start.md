@@ -1,6 +1,6 @@
 # Quick Start
 
-This document explains how to use FSScript in Java, including compiling strings into `Exp` expression objects and executing them.
+This document introduces how to use FSScript in Java, including compiling strings into `Exp` expression objects and executing them.
 
 ## Maven Dependency
 

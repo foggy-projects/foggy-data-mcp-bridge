@@ -1,16 +1,19 @@
 # Why FSScript
 
-## Core Use Cases
+## Core Scenarios
 
 ### 1. Dynamic SQL Templates
 
-The primary use of FSScript is elegantly assembling complex dynamic SQL queries:
+The core use case of FSScript is elegantly assembling complex dynamic SQL queries:
+
+> **Note**: SQL generation functions like `sqlExp`, `sqlInExp` require the `foggy-dataset` module.
+> See [Foggy Dataset Quick Start](../../dataset/guide/quick-start.md)
 
 ```javascript
 import {workonSessionTokenUsingCache as token} from '@saasBasicWebUtils';
 
 /**
- * Dynamic SQL query
+ * Dynamic SQL Query
  * sqlExp, sqlInExp functions prevent SQL injection
  */
 export const sql = `
@@ -24,21 +27,31 @@ export const sql = `
     ORDER BY t.create_time DESC
 `;
 ```
+```SQL
+/**
+ * Output statement (sqlExp). sqlExp writes parameters to context, generating:
+ */
+SELECT t.id, t.name, t.amount, t.create_time
+FROM orders t
+WHERE t.tenant_id = '${token.tenantId}'
+  AND t.team_id = ? AND t.status IN (?,?)
+ORDER BY t.create_time DESC
+```
 
 ### 2. Import Spring Beans
 
 ```javascript
-// Import single Bean
+// Import a single Bean
 import myService from '@myServiceBean';
 
-// Import multiple methods from Bean
+// Import multiple methods from a Bean
 import {
     getUserById,
     saveUser as save,
     deleteUser
 } from '@userService';
 
-// Call
+// Call methods
 export var user = getUserById(1001);
 export var result = save(user);
 ```
@@ -53,7 +66,7 @@ import {now} from 'java:java.time.LocalDateTime';
 // Import entire class
 import DateUtils from 'java:com.example.utils.DateUtils';
 
-// Use
+// Usage
 export let formatted = format("Hello %s", "World");
 export let today = DateUtils.today();
 
@@ -82,12 +95,12 @@ export let display = formatMoney(price + tax);
 
 ### 5. Closures and Scope
 
-FSScript supports JavaScript-compliant `let` block scope:
+FSScript fully supports JavaScript closure features:
 
 ```javascript
 var closures = [];
 
-// let creates new binding for each iteration in for loop
+// let creates a new binding for each iteration in for loops
 for (let i = 0; i < 3; i++) {
     closures.push(() => i);
 }
@@ -98,8 +111,8 @@ export var result1 = closures[1]();  // 1
 export var result2 = closures[2]();  // 2
 ```
 
-## When NOT to Use
+## Not Suitable For
 
 - **High-performance Computing** - FSScript is interpreted, not suitable for CPU-intensive tasks
-- **Full JavaScript Compatibility** - This is not a complete JS implementation
-- **Frontend Runtime** - This is a Java backend scripting engine
+- **Complete JavaScript Compatibility** - This is not a full JS implementation, some advanced features are not supported
+- **Frontend Execution** - This is a Java backend scripting engine

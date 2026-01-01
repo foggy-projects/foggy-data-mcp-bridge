@@ -26,7 +26,7 @@
 // Double quotes
 "hello world"
 
-// Template literals (with interpolation)
+// Template strings (with interpolation)
 `Hello ${name}`
 `Value is ${1 + 2}`
 

@@ -51,12 +51,12 @@ export var r3 = counter();  // 3
 
 ## Block Scope
 
-`let` behavior in loops:
+Behavior of `let` in loops:
 
 ```javascript
 var closures = [];
 
-// let creates new binding for each iteration
+// let creates a new binding for each iteration in for loops
 for (let i = 0; i < 3; i++) {
     closures.push(() => i);
 }
@@ -72,7 +72,7 @@ Compare with `var` behavior:
 ```javascript
 var closures = [];
 
-// var is function-scoped, all closures share same i
+// var has function scope, all closures share the same i
 for (var i = 0; i < 3; i++) {
     closures.push(() => i);
 }

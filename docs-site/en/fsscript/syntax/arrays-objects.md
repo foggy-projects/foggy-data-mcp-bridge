@@ -7,7 +7,7 @@
 ```javascript
 let arr = [1, 2, 3];
 
-// Sparse arrays
+// Sparse array
 let sparse = [, 1, 2, 3];
 
 // Spread operator
@@ -32,7 +32,7 @@ let obj = { key1: value1, key2: value2 };
 
 // Property shorthand
 let a = 1, b = 2;
-let obj = { a, b };  // Same as { a: a, b: b }
+let obj = { a, b };  // Equivalent to { a: a, b: b }
 
 // Spread operator
 let merged = { ...obj1, ...obj2, extra: 'value' };
