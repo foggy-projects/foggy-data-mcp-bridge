@@ -3,12 +3,16 @@ package com.foggyframework.dataviewer.controller;
 import com.foggyframework.dataviewer.domain.CachedQueryContext;
 import com.foggyframework.dataviewer.domain.ViewerQueryRequest;
 import com.foggyframework.dataviewer.service.QueryCacheService;
+import com.foggyframework.dataset.client.domain.PagingRequest;
+import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
+import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
+import com.foggyframework.dataset.db.model.service.QueryFacade;
+import com.foggyframework.dataset.model.PagingResultImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
@@ -16,15 +20,20 @@ import org.springframework.http.ResponseEntity;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 /**
  * ViewerApiController 单元测试
+ * <p>
+ * 使用类型安全的请求类和 QueryFacade
  */
 @ExtendWith(MockitoExtension.class)
 class ViewerApiControllerTest {
@@ -32,26 +41,34 @@ class ViewerApiControllerTest {
     @Mock
     private QueryCacheService cacheService;
 
-    @InjectMocks
+    @Mock
+    private QueryFacade queryFacade;
+
     private ViewerApiController controller;
 
     private CachedQueryContext validContext;
 
     @BeforeEach
     void setUp() {
-        validContext = new CachedQueryContext();
-        validContext.setQueryId("test-query-id");
-        validContext.setModel("orders");
-        validContext.setTitle("订单查询");
-        validContext.setColumns(List.of("orderId", "customerId", "amount"));
-        validContext.setSchema(List.of(
-                new CachedQueryContext.ColumnSchema("orderId", "TEXT", "订单ID"),
-                new CachedQueryContext.ColumnSchema("customerId", "TEXT", "客户ID"),
-                new CachedQueryContext.ColumnSchema("amount", "MONEY", "金额")
-        ));
-        validContext.setDsl(Map.of("slice", Map.of("status", "pending")));
-        validContext.setExpiresAt(Instant.now().plus(30, ChronoUnit.MINUTES));
-        validContext.setEstimatedRowCount(1000L);
+        controller = new ViewerApiController(cacheService, queryFacade);
+
+        validContext = CachedQueryContext.builder()
+                .queryId("test-query-id")
+                .model("orders")
+                .title("订单查询")
+                .columns(List.of("orderId", "customerId", "amount"))
+                .slice(List.of(new SliceRequestDef("status", "=", "pending")))
+                .schema(List.of(
+                        CachedQueryContext.ColumnSchema.builder()
+                                .name("orderId").type("TEXT").title("订单ID").build(),
+                        CachedQueryContext.ColumnSchema.builder()
+                                .name("customerId").type("TEXT").title("客户ID").build(),
+                        CachedQueryContext.ColumnSchema.builder()
+                                .name("amount").type("MONEY").title("金额").build()
+                ))
+                .expiresAt(Instant.now().plus(30, ChronoUnit.MINUTES))
+                .estimatedRowCount(1000L)
+                .build();
     }
 
     @Nested
@@ -99,6 +116,13 @@ class ViewerApiControllerTest {
             when(cacheService.getQuery("test-query-id"))
                     .thenReturn(Optional.of(validContext));
 
+            // 模拟 QueryFacade 返回数据
+            PagingResultImpl mockResult = new PagingResultImpl();
+            mockResult.setItems(generateMockItems(10));
+            mockResult.setTotal(100);
+            when(queryFacade.queryModelData(any(PagingRequest.class)))
+                    .thenReturn(mockResult);
+
             ViewerQueryRequest request = new ViewerQueryRequest();
             request.setStart(0);
             request.setLimit(10);
@@ -124,7 +148,7 @@ class ViewerApiControllerTest {
 
             assertEquals(HttpStatus.GONE, response.getStatusCode());
             assertNotNull(response.getBody());
-            assertTrue(response.getBody().isExpired());
+            assertFalse(response.getBody().isSuccess());
         }
 
         @Test
@@ -132,6 +156,12 @@ class ViewerApiControllerTest {
         void shouldHandlePaginationCorrectly() {
             when(cacheService.getQuery("test-query-id"))
                     .thenReturn(Optional.of(validContext));
+
+            PagingResultImpl mockResult = new PagingResultImpl();
+            mockResult.setItems(generateMockItems(5));
+            mockResult.setTotal(100);
+            when(queryFacade.queryModelData(any(PagingRequest.class)))
+                    .thenReturn(mockResult);
 
             ViewerQueryRequest request = new ViewerQueryRequest();
             request.setStart(20);
@@ -152,6 +182,12 @@ class ViewerApiControllerTest {
             when(cacheService.getQuery("test-query-id"))
                     .thenReturn(Optional.of(validContext));
 
+            PagingResultImpl mockResult = new PagingResultImpl();
+            mockResult.setItems(generateMockItems(50));
+            mockResult.setTotal(100);
+            when(queryFacade.queryModelData(any(PagingRequest.class)))
+                    .thenReturn(mockResult);
+
             ViewerQueryRequest request = new ViewerQueryRequest();
             // 不设置分页参数
 
@@ -161,48 +197,39 @@ class ViewerApiControllerTest {
             assertNotNull(response.getBody());
             assertEquals(50, response.getBody().getItems().size()); // 默认50条
         }
-    }
-
-    @Nested
-    @DisplayName("Mock数据生成测试")
-    class MockDataGenerationTests {
 
         @Test
-        @DisplayName("应根据列类型生成对应格式的数据")
-        void shouldGenerateDataBasedOnColumnType() {
-            validContext.setColumns(List.of("orderId", "orderDate", "amount", "customerName"));
+        @DisplayName("应处理查询错误")
+        void shouldHandleQueryError() {
             when(cacheService.getQuery("test-query-id"))
                     .thenReturn(Optional.of(validContext));
 
+            when(queryFacade.queryModelData(any(PagingRequest.class)))
+                    .thenThrow(new RuntimeException("Database connection failed"));
+
             ViewerQueryRequest request = new ViewerQueryRequest();
-            request.setStart(0);
-            request.setLimit(5);
 
             var response = controller.queryData("test-query-id", request);
 
             assertEquals(HttpStatus.OK, response.getStatusCode());
             assertNotNull(response.getBody());
-
-            var items = response.getBody().getItems();
-            assertFalse(items.isEmpty());
-
-            var firstItem = items.get(0);
-            assertTrue(firstItem.containsKey("orderId"));
-            assertTrue(firstItem.containsKey("orderDate"));
-            assertTrue(firstItem.containsKey("amount"));
-            assertTrue(firstItem.containsKey("customerName"));
-
-            // 验证ID格式
-            assertTrue(firstItem.get("orderId").toString().startsWith("ID-"));
-
-            // 验证日期格式
-            assertTrue(firstItem.get("orderDate").toString().matches("\\d{4}-\\d{2}-\\d{2}"));
-
-            // 验证金额是数字
-            assertTrue(firstItem.get("amount") instanceof Number);
-
-            // 验证名称格式
-            assertTrue(firstItem.get("customerName").toString().startsWith("Item "));
+            assertFalse(response.getBody().isSuccess());
+            assertTrue(response.getBody().getError().contains("Database connection failed"));
         }
+    }
+
+    /**
+     * 生成模拟数据
+     */
+    private List<Map<String, Object>> generateMockItems(int count) {
+        List<Map<String, Object>> items = new ArrayList<>();
+        for (int i = 1; i <= count; i++) {
+            Map<String, Object> item = new HashMap<>();
+            item.put("orderId", "ORD-" + i);
+            item.put("customerId", "CUST-" + i);
+            item.put("amount", i * 100.0);
+            items.add(item);
+        }
+        return items;
     }
 }

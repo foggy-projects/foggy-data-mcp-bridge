@@ -3,12 +3,12 @@ package com.foggyframework.dataviewer.service;
 import com.foggyframework.dataviewer.config.DataViewerProperties;
 import com.foggyframework.dataviewer.domain.CachedQueryContext;
 import com.foggyframework.dataviewer.repository.CachedQueryRepository;
+import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -18,10 +18,14 @@ import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /**
  * QueryCacheService 单元测试
+ * <p>
+ * 使用类型安全的 SliceRequestDef
  */
 @ExtendWith(MockitoExtension.class)
 class QueryCacheServiceTest {
@@ -237,13 +241,9 @@ class QueryCacheServiceTest {
         }
     }
 
-    private List<Map<String, Object>> createSlice(String field, String op, String value) {
-        List<Map<String, Object>> slice = new ArrayList<>();
-        Map<String, Object> filter = new HashMap<>();
-        filter.put("field", field);
-        filter.put("op", op);
-        filter.put("value", value);
-        slice.add(filter);
+    private List<SliceRequestDef> createSlice(String field, String op, String value) {
+        List<SliceRequestDef> slice = new ArrayList<>();
+        slice.add(new SliceRequestDef(field, op, value));
         return slice;
     }
 }

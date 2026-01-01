@@ -1,6 +1,7 @@
 package com.foggyframework.dataviewer.service;
 
 import com.foggyframework.dataviewer.config.DataViewerProperties;
+import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -13,6 +14,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * QueryScopeConstraintService 单元测试
+ * <p>
+ * 使用类型安全的 SliceRequestDef
  */
 class QueryScopeConstraintServiceTest {
 
@@ -39,17 +42,17 @@ class QueryScopeConstraintServiceTest {
         void shouldNotValidateWhenDisabled() {
             properties.getScopeConstraints().setEnabled(false);
 
-            List<Map<String, Object>> slice = new ArrayList<>();
+            List<SliceRequestDef> slice = new ArrayList<>();
             // 空的过滤条件也不应抛异常
 
-            List<Map<String, Object>> result = service.enforceConstraints("testModel", slice);
+            List<SliceRequestDef> result = service.enforceConstraints("testModel", slice);
             assertNotNull(result);
         }
 
         @Test
         @DisplayName("当约束启用但没有slice参数时，应抛出异常")
         void shouldThrowWhenNoSliceAndEnabled() {
-            List<Map<String, Object>> slice = new ArrayList<>();
+            List<SliceRequestDef> slice = new ArrayList<>();
 
             IllegalArgumentException exception = assertThrows(
                     IllegalArgumentException.class,
@@ -78,7 +81,7 @@ class QueryScopeConstraintServiceTest {
         @Test
         @DisplayName("当slice为空List时，应抛出异常")
         void shouldThrowWhenSliceIsEmpty() {
-            List<Map<String, Object>> slice = new ArrayList<>();
+            List<SliceRequestDef> slice = new ArrayList<>();
 
             IllegalArgumentException exception = assertThrows(
                     IllegalArgumentException.class,
@@ -91,12 +94,8 @@ class QueryScopeConstraintServiceTest {
         @Test
         @DisplayName("当slice包含有效过滤条件时，应通过验证")
         void shouldPassWhenSliceHasValidFilters() {
-            List<Map<String, Object>> slice = new ArrayList<>();
-            Map<String, Object> filter = new HashMap<>();
-            filter.put("field", "customerId");
-            filter.put("op", "=");
-            filter.put("value", "C001");
-            slice.add(filter);
+            List<SliceRequestDef> slice = new ArrayList<>();
+            slice.add(new SliceRequestDef("customerId", "=", "C001"));
 
             assertDoesNotThrow(() -> service.enforceConstraints("testModel", slice));
         }
@@ -115,12 +114,8 @@ class QueryScopeConstraintServiceTest {
             modelConfig.setMaxDurationDays(7);
             properties.getScopeConstraints().getModels().put("orders", modelConfig);
 
-            List<Map<String, Object>> slice = new ArrayList<>();
-            Map<String, Object> filter = new HashMap<>();
-            filter.put("field", "customerId");
-            filter.put("op", "=");
-            filter.put("value", "C001");
-            slice.add(filter);
+            List<SliceRequestDef> slice = new ArrayList<>();
+            slice.add(new SliceRequestDef("customerId", "=", "C001"));
 
             // 没有orderDate过滤条件，应抛异常
             IllegalArgumentException exception = assertThrows(
@@ -140,14 +135,10 @@ class QueryScopeConstraintServiceTest {
             modelConfig.setMaxDurationDays(30);
             properties.getScopeConstraints().getModels().put("orders", modelConfig);
 
-            List<Map<String, Object>> slice = new ArrayList<>();
-            Map<String, Object> filter = new HashMap<>();
-            filter.put("field", "orderDate");
-            filter.put("op", ">=");
-            filter.put("value", LocalDate.now().minusDays(7).toString());
-            slice.add(filter);
+            List<SliceRequestDef> slice = new ArrayList<>();
+            slice.add(new SliceRequestDef("orderDate", ">=", LocalDate.now().minusDays(7).toString()));
 
-            List<Map<String, Object>> result = service.enforceConstraints("orders", slice);
+            List<SliceRequestDef> result = service.enforceConstraints("orders", slice);
             assertNotNull(result);
         }
     }
@@ -165,21 +156,9 @@ class QueryScopeConstraintServiceTest {
             modelConfig.setMaxDurationDays(7);
             properties.getScopeConstraints().getModels().put("orders", modelConfig);
 
-            List<Map<String, Object>> slice = new ArrayList<>();
-
-            // 开始日期
-            Map<String, Object> startFilter = new HashMap<>();
-            startFilter.put("field", "orderDate");
-            startFilter.put("op", ">=");
-            startFilter.put("value", LocalDate.now().minusDays(30).toString());
-            slice.add(startFilter);
-
-            // 结束日期
-            Map<String, Object> endFilter = new HashMap<>();
-            endFilter.put("field", "orderDate");
-            endFilter.put("op", "<=");
-            endFilter.put("value", LocalDate.now().toString());
-            slice.add(endFilter);
+            List<SliceRequestDef> slice = new ArrayList<>();
+            slice.add(new SliceRequestDef("orderDate", ">=", LocalDate.now().minusDays(30).toString()));
+            slice.add(new SliceRequestDef("orderDate", "<=", LocalDate.now().toString()));
 
             IllegalArgumentException exception = assertThrows(
                     IllegalArgumentException.class,
@@ -198,23 +177,18 @@ class QueryScopeConstraintServiceTest {
             modelConfig.setMaxDurationDays(7);
             properties.getScopeConstraints().getModels().put("orders", modelConfig);
 
-            List<Map<String, Object>> slice = new ArrayList<>();
+            List<SliceRequestDef> slice = new ArrayList<>();
+            slice.add(new SliceRequestDef("orderDate", ">=", LocalDate.now().minusDays(3).toString()));
 
-            Map<String, Object> startFilter = new HashMap<>();
-            startFilter.put("field", "orderDate");
-            startFilter.put("op", ">=");
-            startFilter.put("value", LocalDate.now().minusDays(3).toString());
-            slice.add(startFilter);
-
-            List<Map<String, Object>> result = service.enforceConstraints("orders", slice);
+            List<SliceRequestDef> result = service.enforceConstraints("orders", slice);
 
             // 应该添加了结束日期过滤条件
             assertEquals(2, result.size());
 
             // 验证第二个过滤条件是结束日期
-            Map<String, Object> addedFilter = result.get(1);
-            assertEquals("orderDate", addedFilter.get("field"));
-            assertEquals("<", addedFilter.get("op"));
+            SliceRequestDef addedFilter = result.get(1);
+            assertEquals("orderDate", addedFilter.getField());
+            assertEquals("<", addedFilter.getOp());
         }
 
         @Test
@@ -229,21 +203,11 @@ class QueryScopeConstraintServiceTest {
             LocalDate startDate = LocalDate.now().minusDays(15);
             LocalDate endDate = LocalDate.now();
 
-            List<Map<String, Object>> slice = new ArrayList<>();
+            List<SliceRequestDef> slice = new ArrayList<>();
+            slice.add(new SliceRequestDef("orderDate", ">=", startDate.toString()));
+            slice.add(new SliceRequestDef("orderDate", "<=", endDate.toString()));
 
-            Map<String, Object> startFilter = new HashMap<>();
-            startFilter.put("field", "orderDate");
-            startFilter.put("op", ">=");
-            startFilter.put("value", startDate.toString());
-            slice.add(startFilter);
-
-            Map<String, Object> endFilter = new HashMap<>();
-            endFilter.put("field", "orderDate");
-            endFilter.put("op", "<=");
-            endFilter.put("value", endDate.toString());
-            slice.add(endFilter);
-
-            List<Map<String, Object>> result = service.enforceConstraints("orders", slice);
+            List<SliceRequestDef> result = service.enforceConstraints("orders", slice);
 
             // 应该保持原样，不添加新的过滤条件
             assertEquals(2, result.size());

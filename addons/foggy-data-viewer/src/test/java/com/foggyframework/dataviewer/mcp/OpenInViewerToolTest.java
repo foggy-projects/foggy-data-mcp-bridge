@@ -1,9 +1,11 @@
 package com.foggyframework.dataviewer.mcp;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.dataviewer.config.DataViewerProperties;
 import com.foggyframework.dataviewer.domain.CachedQueryContext;
 import com.foggyframework.dataviewer.service.QueryCacheService;
 import com.foggyframework.dataviewer.service.QueryScopeConstraintService;
+import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import com.foggyframework.mcp.spi.ToolCategory;
 import com.foggyframework.mcp.spi.ToolExecutionContext;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,6 +28,8 @@ import static org.mockito.Mockito.when;
 
 /**
  * OpenInViewerTool 单元测试
+ * <p>
+ * 使用类型安全的 SliceRequestDef
  */
 @ExtendWith(MockitoExtension.class)
 class OpenInViewerToolTest {
@@ -37,6 +41,7 @@ class OpenInViewerToolTest {
     private QueryScopeConstraintService constraintService;
 
     private DataViewerProperties properties;
+    private ObjectMapper objectMapper;
     private OpenInViewerTool tool;
     private ToolExecutionContext context;
 
@@ -44,8 +49,9 @@ class OpenInViewerToolTest {
     void setUp() {
         properties = new DataViewerProperties();
         properties.setBaseUrl("http://localhost:8080/data-viewer");
+        objectMapper = new ObjectMapper();
 
-        tool = new OpenInViewerTool(cacheService, constraintService, properties);
+        tool = new OpenInViewerTool(cacheService, constraintService, properties, objectMapper);
         context = ToolExecutionContext.builder()
                 .traceId("test-trace-id")
                 .authorization("Bearer test-token")
@@ -112,13 +118,13 @@ class OpenInViewerToolTest {
         @Test
         @DisplayName("应成功执行并返回URL")
         void shouldExecuteSuccessfully() {
-            List<Map<String, Object>> slice = createSlice("customerId", "=", "C001");
+            List<SliceRequestDef> slice = createSlice("customerId", "=", "C001");
 
             Map<String, Object> arguments = new HashMap<>();
             arguments.put("model", "orders");
             arguments.put("title", "客户订单");
             arguments.put("columns", List.of("orderId", "customerId", "amount"));
-            arguments.put("slice", slice);
+            arguments.put("slice", List.of(Map.of("field", "customerId", "op", "=", "value", "C001")));
 
             CachedQueryContext cachedContext = CachedQueryContext.builder()
                     .queryId("test-query-id")
@@ -150,9 +156,7 @@ class OpenInViewerToolTest {
             arguments.put("columns", List.of("orderId"));
             arguments.put("slice", new ArrayList<>());
 
-            when(constraintService.enforceConstraints(anyString(), anyList()))
-                    .thenThrow(new IllegalArgumentException("At least one filter condition is required"));
-
+            // 空的 slice 会在 parseRequest 中被拒绝
             assertThrows(IllegalArgumentException.class, () -> tool.execute(arguments, context));
         }
 
@@ -161,7 +165,7 @@ class OpenInViewerToolTest {
         void shouldThrowWhenMissingModel() {
             Map<String, Object> arguments = new HashMap<>();
             arguments.put("columns", List.of("orderId"));
-            arguments.put("slice", createSlice("id", "=", "1"));
+            arguments.put("slice", List.of(Map.of("field", "id", "op", "=", "value", "1")));
 
             assertThrows(IllegalArgumentException.class, () -> tool.execute(arguments, context));
         }
@@ -171,7 +175,7 @@ class OpenInViewerToolTest {
         void shouldThrowWhenMissingColumns() {
             Map<String, Object> arguments = new HashMap<>();
             arguments.put("model", "orders");
-            arguments.put("slice", createSlice("id", "=", "1"));
+            arguments.put("slice", List.of(Map.of("field", "id", "op", "=", "value", "1")));
 
             assertThrows(IllegalArgumentException.class, () -> tool.execute(arguments, context));
         }
@@ -209,13 +213,9 @@ class OpenInViewerToolTest {
         }
     }
 
-    private List<Map<String, Object>> createSlice(String field, String op, String value) {
-        List<Map<String, Object>> slice = new ArrayList<>();
-        Map<String, Object> filter = new HashMap<>();
-        filter.put("field", field);
-        filter.put("op", op);
-        filter.put("value", value);
-        slice.add(filter);
+    private List<SliceRequestDef> createSlice(String field, String op, String value) {
+        List<SliceRequestDef> slice = new ArrayList<>();
+        slice.add(new SliceRequestDef(field, op, value));
         return slice;
     }
 }

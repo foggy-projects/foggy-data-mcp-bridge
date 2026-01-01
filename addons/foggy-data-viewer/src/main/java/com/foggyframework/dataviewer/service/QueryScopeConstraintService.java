@@ -2,6 +2,7 @@ package com.foggyframework.dataviewer.service;
 
 import com.foggyframework.dataviewer.config.DataViewerProperties;
 import com.foggyframework.dataviewer.config.DataViewerProperties.ModelScopeConstraint;
+import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -16,7 +17,8 @@ import java.util.*;
  * 查询范围约束服务
  * <p>
  * 作为第二层安全保障，即使AI提供了过滤条件，
- * 也要验证查询范围是否在允许的范围内
+ * 也要验证查询范围是否在允许的范围内。
+ * 使用类型安全的 SliceRequestDef。
  */
 @Slf4j
 @Service
@@ -39,7 +41,7 @@ public class QueryScopeConstraintService {
      * @return 验证/调整后的过滤条件
      * @throws IllegalArgumentException 如果没有提供有效的范围过滤条件
      */
-    public List<Map<String, Object>> enforceConstraints(String model, List<Map<String, Object>> slice) {
+    public List<SliceRequestDef> enforceConstraints(String model, List<SliceRequestDef> slice) {
         if (!properties.getScopeConstraints().isEnabled()) {
             return slice;
         }
@@ -57,11 +59,11 @@ public class QueryScopeConstraintService {
         }
 
         // 确保slice是可变的
-        List<Map<String, Object>> mutableSlice = new ArrayList<>(slice != null ? slice : List.of());
+        List<SliceRequestDef> mutableSlice = new ArrayList<>(slice != null ? slice : List.of());
 
         // 查找范围字段过滤条件
         String scopeField = constraint.getScopeField();
-        Optional<Map<String, Object>> scopeFilter = findScopeFilter(mutableSlice, scopeField);
+        Optional<SliceRequestDef> scopeFilter = findScopeFilter(mutableSlice, scopeField);
 
         if (scopeFilter.isEmpty()) {
             throw new IllegalArgumentException(String.format(
@@ -81,26 +83,23 @@ public class QueryScopeConstraintService {
     /**
      * 查找指定字段的过滤条件
      */
-    private Optional<Map<String, Object>> findScopeFilter(List<Map<String, Object>> slice, String scopeField) {
+    private Optional<SliceRequestDef> findScopeFilter(List<SliceRequestDef> slice, String scopeField) {
         return slice.stream()
-                .filter(item -> scopeField.equals(item.get("field")))
+                .filter(item -> scopeField.equals(item.getField()))
                 .findFirst();
     }
 
     /**
      * 验证并调整时间范围
      */
-    private void validateAndAdjustDuration(List<Map<String, Object>> slice, String scopeField, int maxDays) {
+    private void validateAndAdjustDuration(List<SliceRequestDef> slice, String scopeField, int maxDays) {
         LocalDate startDate = extractStartDate(slice, scopeField);
         LocalDate endDate = extractEndDate(slice, scopeField);
 
         if (startDate != null && endDate == null) {
             // 只有开始日期，自动添加结束日期约束
             LocalDate autoEndDate = startDate.plusDays(maxDays);
-            Map<String, Object> endFilter = new HashMap<>();
-            endFilter.put("field", scopeField);
-            endFilter.put("op", "<");
-            endFilter.put("value", autoEndDate.toString());
+            SliceRequestDef endFilter = new SliceRequestDef(scopeField, "<", autoEndDate.toString());
             slice.add(endFilter);
             log.info("Auto-added end date constraint: {} < {}", scopeField, autoEndDate);
         } else if (startDate != null && endDate != null) {
@@ -118,14 +117,14 @@ public class QueryScopeConstraintService {
     /**
      * 提取开始日期
      */
-    private LocalDate extractStartDate(List<Map<String, Object>> slice, String scopeField) {
+    private LocalDate extractStartDate(List<SliceRequestDef> slice, String scopeField) {
         return slice.stream()
-                .filter(item -> scopeField.equals(item.get("field")))
+                .filter(item -> scopeField.equals(item.getField()))
                 .filter(item -> {
-                    String op = String.valueOf(item.get("op"));
+                    String op = item.getOp();
                     return ">=".equals(op) || ">".equals(op);
                 })
-                .map(item -> parseDate(item.get("value")))
+                .map(item -> parseDate(item.getValue()))
                 .filter(Objects::nonNull)
                 .findFirst()
                 .orElse(null);
@@ -134,14 +133,14 @@ public class QueryScopeConstraintService {
     /**
      * 提取结束日期
      */
-    private LocalDate extractEndDate(List<Map<String, Object>> slice, String scopeField) {
+    private LocalDate extractEndDate(List<SliceRequestDef> slice, String scopeField) {
         return slice.stream()
-                .filter(item -> scopeField.equals(item.get("field")))
+                .filter(item -> scopeField.equals(item.getField()))
                 .filter(item -> {
-                    String op = String.valueOf(item.get("op"));
+                    String op = item.getOp();
                     return "<=".equals(op) || "<".equals(op);
                 })
-                .map(item -> parseDate(item.get("value")))
+                .map(item -> parseDate(item.getValue()))
                 .filter(Objects::nonNull)
                 .findFirst()
                 .orElse(null);

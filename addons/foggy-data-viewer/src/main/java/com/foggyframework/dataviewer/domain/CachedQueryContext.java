@@ -1,5 +1,10 @@
 package com.foggyframework.dataviewer.domain;
 
+import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
+import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
+import com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef;
+import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
+import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -10,12 +15,12 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 
 /**
  * 缓存的查询上下文
  * <p>
- * 存储在MongoDB中，用于数据浏览器根据queryId获取查询参数
+ * 存储在MongoDB中，用于数据浏览器根据queryId获取查询参数。
+ * 复用 foggy-dataset-model 中的请求定义类实现类型安全。
  */
 @Data
 @Builder
@@ -43,17 +48,22 @@ public class CachedQueryContext {
     /**
      * 过滤条件
      */
-    private List<Map<String, Object>> slice;
+    private List<SliceRequestDef> slice;
 
     /**
      * 分组条件
      */
-    private List<Map<String, Object>> groupBy;
+    private List<GroupRequestDef> groupBy;
 
     /**
      * 排序条件
      */
-    private List<Map<String, Object>> orderBy;
+    private List<OrderRequestDef> orderBy;
+
+    /**
+     * 动态计算字段
+     */
+    private List<CalculatedFieldDef> calculatedFields;
 
     /**
      * 数据视图标题
@@ -118,5 +128,24 @@ public class CachedQueryContext {
          * 是否可聚合
          */
         private boolean aggregatable;
+    }
+
+    /**
+     * 构建 DbQueryRequestDef
+     * <p>
+     * 将缓存的查询上下文转换为 QueryFacade 可执行的请求对象
+     *
+     * @return DbQueryRequestDef 实例
+     */
+    public DbQueryRequestDef toDbQueryRequestDef() {
+        DbQueryRequestDef def = new DbQueryRequestDef();
+        def.setQueryModel(this.model);
+        def.setColumns(this.columns);
+        def.setSlice(this.slice);
+        def.setGroupBy(this.groupBy);
+        def.setOrderBy(this.orderBy);
+        def.setCalculatedFields(this.calculatedFields);
+        def.setReturnTotal(true);
+        return def;
     }
 }

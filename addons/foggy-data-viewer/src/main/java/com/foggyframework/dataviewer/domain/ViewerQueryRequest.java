@@ -1,14 +1,17 @@
 package com.foggyframework.dataviewer.domain;
 
+import com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef;
+import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
+import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import lombok.Data;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * 前端查询请求
  * <p>
- * 用于数据浏览器前端发起的数据查询请求
+ * 用于数据浏览器前端发起的数据查询请求。
+ * 复用 foggy-dataset-model 中的请求定义类实现类型安全。
  */
 @Data
 public class ViewerQueryRequest {
@@ -26,17 +29,17 @@ public class ViewerQueryRequest {
     /**
      * 用户在浏览器中添加的额外过滤条件
      */
-    private List<Map<String, Object>> additionalFilters;
+    private List<SliceRequestDef> additionalFilters;
 
     /**
      * 覆盖排序条件
      */
-    private List<Map<String, Object>> orderBy;
+    private List<OrderRequestDef> orderBy;
 
     /**
      * 动态分组字段（聚合模式）
      */
-    private List<String> groupByFields;
+    private List<GroupRequestDef> groupBy;
 
     /**
      * 聚合项

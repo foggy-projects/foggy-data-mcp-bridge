@@ -4,6 +4,12 @@ import com.foggyframework.dataviewer.domain.CachedQueryContext;
 import com.foggyframework.dataviewer.domain.ViewerDataResponse;
 import com.foggyframework.dataviewer.domain.ViewerQueryRequest;
 import com.foggyframework.dataviewer.service.QueryCacheService;
+import com.foggyframework.dataset.client.domain.PagingRequest;
+import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
+import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
+import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
+import com.foggyframework.dataset.db.model.service.QueryFacade;
+import com.foggyframework.dataset.model.PagingResultImpl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -13,6 +19,8 @@ import java.util.*;
 
 /**
  * 数据浏览器API控制器
+ * <p>
+ * 集成 QueryFacade 执行真实查询，使用类型安全的请求类
  */
 @Slf4j
 @RestController
@@ -21,6 +29,7 @@ import java.util.*;
 public class ViewerApiController {
 
     private final QueryCacheService cacheService;
+    private final QueryFacade queryFacade;
 
     /**
      * 获取查询元数据（用于初始页面加载）
@@ -57,14 +66,21 @@ public class ViewerApiController {
         CachedQueryContext ctx = ctxOpt.get();
 
         try {
-            // TODO: 使用现有的QueryFacade执行查询
-            // 目前返回模拟数据
-            List<Map<String, Object>> mockItems = generateMockData(ctx, request);
-            long mockTotal = 100L;
+            // 构建查询请求，合并缓存参数与用户覆盖
+            DbQueryRequestDef queryDef = buildQueryDef(ctx, request);
+
+            // 构建分页请求
+            PagingRequest<DbQueryRequestDef> pagingRequest = new PagingRequest<>();
+            pagingRequest.setParam(queryDef);
+            pagingRequest.setStart(request.getStart());
+            pagingRequest.setLimit(request.getLimit());
+
+            // 使用 QueryFacade 执行查询
+            PagingResultImpl result = queryFacade.queryModelData(pagingRequest);
 
             return ResponseEntity.ok(ViewerDataResponse.success(
-                    mockItems,
-                    mockTotal,
+                    result.getItems(),
+                    result.getTotal(),
                     request.getStart(),
                     request.getLimit()
             ));
@@ -75,37 +91,30 @@ public class ViewerApiController {
     }
 
     /**
-     * 生成模拟数据（用于测试）
+     * 构建查询请求，合并缓存参数与用户覆盖
      */
-    private List<Map<String, Object>> generateMockData(CachedQueryContext ctx, ViewerQueryRequest request) {
-        List<Map<String, Object>> items = new ArrayList<>();
-        int start = request.getStart() != null ? request.getStart() : 0;
-        int limit = request.getLimit() != null ? request.getLimit() : 50;
+    private DbQueryRequestDef buildQueryDef(CachedQueryContext ctx, ViewerQueryRequest request) {
+        DbQueryRequestDef def = ctx.toDbQueryRequestDef();
 
-        for (int i = 0; i < limit; i++) {
-            Map<String, Object> item = new LinkedHashMap<>();
-            int rowNum = start + i + 1;
-
-            if (ctx.getColumns() != null) {
-                for (String col : ctx.getColumns()) {
-                    if (col.toLowerCase().contains("id")) {
-                        item.put(col, "ID-" + rowNum);
-                    } else if (col.toLowerCase().contains("date")) {
-                        item.put(col, "2025-01-" + String.format("%02d", (rowNum % 28) + 1));
-                    } else if (col.toLowerCase().contains("amount") || col.toLowerCase().contains("price")) {
-                        item.put(col, Math.round(Math.random() * 10000 * 100.0) / 100.0);
-                    } else if (col.toLowerCase().contains("name")) {
-                        item.put(col, "Item " + rowNum);
-                    } else {
-                        item.put(col, "Value " + rowNum);
-                    }
-                }
-            }
-
-            items.add(item);
+        // 合并额外的过滤条件
+        if (request.getAdditionalFilters() != null && !request.getAdditionalFilters().isEmpty()) {
+            List<SliceRequestDef> mergedSlice = new ArrayList<>(ctx.getSlice());
+            mergedSlice.addAll(request.getAdditionalFilters());
+            def.setSlice(mergedSlice);
         }
 
-        return items;
+        // 覆盖排序条件（如果用户指定）
+        if (request.getOrderBy() != null && !request.getOrderBy().isEmpty()) {
+            def.setOrderBy(request.getOrderBy());
+        }
+
+        // 覆盖分组条件（如果用户指定，用于聚合模式）
+        if (request.getGroupBy() != null && !request.getGroupBy().isEmpty()) {
+            def.setGroupBy(request.getGroupBy());
+        }
+
+        def.setReturnTotal(true);
+        return def;
     }
 
     /**

@@ -1,11 +1,13 @@
 package com.foggyframework.dataviewer.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.dataviewer.controller.ViewerApiController;
 import com.foggyframework.dataviewer.controller.ViewerPageController;
 import com.foggyframework.dataviewer.mcp.OpenInViewerTool;
 import com.foggyframework.dataviewer.repository.CachedQueryRepository;
 import com.foggyframework.dataviewer.service.QueryCacheService;
 import com.foggyframework.dataviewer.service.QueryScopeConstraintService;
+import com.foggyframework.dataset.db.model.service.QueryFacade;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -16,6 +18,8 @@ import org.springframework.data.mongodb.repository.config.EnableMongoRepositorie
 
 /**
  * 数据浏览器自动配置
+ * <p>
+ * 集成 QueryFacade 和使用类型安全的请求类
  */
 @AutoConfiguration
 @ConditionalOnProperty(prefix = "foggy.data-viewer", name = "enabled", havingValue = "true", matchIfMissing = true)
@@ -41,14 +45,16 @@ public class DataViewerAutoConfiguration {
     @ConditionalOnMissingBean
     public OpenInViewerTool openInViewerTool(QueryCacheService cacheService,
                                               QueryScopeConstraintService constraintService,
-                                              DataViewerProperties properties) {
-        return new OpenInViewerTool(cacheService, constraintService, properties);
+                                              DataViewerProperties properties,
+                                              ObjectMapper objectMapper) {
+        return new OpenInViewerTool(cacheService, constraintService, properties, objectMapper);
     }
 
     @Bean
     @ConditionalOnMissingBean
-    public ViewerApiController viewerApiController(QueryCacheService cacheService) {
-        return new ViewerApiController(cacheService);
+    public ViewerApiController viewerApiController(QueryCacheService cacheService,
+                                                    QueryFacade queryFacade) {
+        return new ViewerApiController(cacheService, queryFacade);
     }
 
     @Bean

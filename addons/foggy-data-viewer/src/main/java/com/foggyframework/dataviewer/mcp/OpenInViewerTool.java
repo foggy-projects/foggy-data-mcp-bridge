@@ -1,10 +1,16 @@
 package com.foggyframework.dataviewer.mcp;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.dataviewer.config.DataViewerProperties;
 import com.foggyframework.dataviewer.domain.CachedQueryContext;
 import com.foggyframework.dataviewer.service.QueryCacheService;
 import com.foggyframework.dataviewer.service.QueryCacheService.OpenInViewerRequest;
 import com.foggyframework.dataviewer.service.QueryScopeConstraintService;
+import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
+import com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef;
+import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
+import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import com.foggyframework.mcp.spi.McpTool;
 import com.foggyframework.mcp.spi.ToolCategory;
 import com.foggyframework.mcp.spi.ToolExecutionContext;
@@ -28,6 +34,7 @@ public class OpenInViewerTool implements McpTool {
     private final QueryCacheService cacheService;
     private final QueryScopeConstraintService constraintService;
     private final DataViewerProperties properties;
+    private final ObjectMapper objectMapper;
 
     @Override
     public String getName() {
@@ -48,7 +55,7 @@ public class OpenInViewerTool implements McpTool {
         OpenInViewerRequest request = parseRequest(arguments);
 
         // 验证并强制执行范围约束
-        List<Map<String, Object>> constrainedSlice = constraintService.enforceConstraints(
+        List<SliceRequestDef> constrainedSlice = constraintService.enforceConstraints(
                 request.getModel(),
                 request.getSlice()
         );
@@ -152,10 +159,32 @@ public class OpenInViewerTool implements McpTool {
         OpenInViewerRequest request = new OpenInViewerRequest();
         request.setModel((String) arguments.get("model"));
         request.setColumns((List<String>) arguments.get("columns"));
-        request.setSlice((List<Map<String, Object>>) arguments.get("slice"));
-        request.setGroupBy((List<Map<String, Object>>) arguments.get("groupBy"));
-        request.setOrderBy((List<Map<String, Object>>) arguments.get("orderBy"));
         request.setTitle((String) arguments.get("title"));
+
+        // 使用 ObjectMapper 转换类型安全的请求对象
+        Object sliceArg = arguments.get("slice");
+        if (sliceArg != null) {
+            request.setSlice(objectMapper.convertValue(sliceArg,
+                    new TypeReference<List<SliceRequestDef>>() {}));
+        }
+
+        Object groupByArg = arguments.get("groupBy");
+        if (groupByArg != null) {
+            request.setGroupBy(objectMapper.convertValue(groupByArg,
+                    new TypeReference<List<GroupRequestDef>>() {}));
+        }
+
+        Object orderByArg = arguments.get("orderBy");
+        if (orderByArg != null) {
+            request.setOrderBy(objectMapper.convertValue(orderByArg,
+                    new TypeReference<List<OrderRequestDef>>() {}));
+        }
+
+        Object calculatedFieldsArg = arguments.get("calculatedFields");
+        if (calculatedFieldsArg != null) {
+            request.setCalculatedFields(objectMapper.convertValue(calculatedFieldsArg,
+                    new TypeReference<List<CalculatedFieldDef>>() {}));
+        }
 
         // 验证必需参数
         if (request.getModel() == null || request.getModel().isBlank()) {

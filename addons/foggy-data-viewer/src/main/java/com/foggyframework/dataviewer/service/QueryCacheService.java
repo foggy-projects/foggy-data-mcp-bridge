@@ -4,6 +4,10 @@ import com.foggyframework.dataviewer.config.DataViewerProperties;
 import com.foggyframework.dataviewer.domain.CachedQueryContext;
 import com.foggyframework.dataviewer.domain.CachedQueryContext.ColumnSchema;
 import com.foggyframework.dataviewer.repository.CachedQueryRepository;
+import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
+import com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef;
+import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
+import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -11,7 +15,6 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -45,6 +48,7 @@ public class QueryCacheService {
                 .slice(request.getSlice())
                 .groupBy(request.getGroupBy())
                 .orderBy(request.getOrderBy())
+                .calculatedFields(request.getCalculatedFields())
                 .title(request.getTitle())
                 .authorization(authorization)
                 .createdAt(Instant.now())
@@ -108,14 +112,17 @@ public class QueryCacheService {
 
     /**
      * 查询请求DTO
+     * <p>
+     * 使用类型安全的请求定义类，复用 foggy-dataset-model 中的结构
      */
     @lombok.Data
     public static class OpenInViewerRequest {
         private String model;
         private List<String> columns;
-        private List<Map<String, Object>> slice;
-        private List<Map<String, Object>> groupBy;
-        private List<Map<String, Object>> orderBy;
+        private List<SliceRequestDef> slice;
+        private List<GroupRequestDef> groupBy;
+        private List<OrderRequestDef> orderBy;
+        private List<CalculatedFieldDef> calculatedFields;
         private String title;
     }
 }
