@@ -13,4 +13,4 @@ Foggy Dataset is an embedded semantic layer framework for declarative dimension 
 
 - [Quick Start](./quick-start.md)
 - [Core Concepts](./concepts.md)
-- [TM Syntax Manual](../tm-qm/tm-syntax.md)
+- [TM Syntax Manual](../jm-qm/jm-syntax.md)
