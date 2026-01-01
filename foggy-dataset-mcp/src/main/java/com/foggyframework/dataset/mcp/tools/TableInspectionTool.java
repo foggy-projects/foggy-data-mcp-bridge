@@ -6,6 +6,7 @@ import com.foggyframework.dataset.utils.DbUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
 
 import javax.sql.DataSource;
@@ -26,6 +27,7 @@ import java.util.*;
 public class TableInspectionTool implements McpTool {
 
     private final DataSource dataSource;
+    private final ApplicationContext applicationContext;
 
     @Override
     public String getName() {
@@ -34,21 +36,45 @@ public class TableInspectionTool implements McpTool {
 
     @Override
     public Set<ToolCategory> getCategories() {
-        return EnumSet.of(ToolCategory.METADATA);
+        return EnumSet.of(ToolCategory.ADMIN);
     }
 
     @Override
     public Object execute(Map<String, Object> arguments, String traceId, String authorization) {
         String tableName = (String) arguments.get("table_name");
         String schema = (String) arguments.get("schema");
+        String dataSourceName = (String) arguments.get("data_source");
+        String databaseType = (String) arguments.get("database_type");
         boolean includeIndexes = Boolean.TRUE.equals(arguments.get("include_indexes"));
         boolean includeForeignKeys = arguments.get("include_foreign_keys") == null
                 || Boolean.TRUE.equals(arguments.get("include_foreign_keys"));
 
-        log.info("Inspecting table: {}, schema: {}, traceId={}", tableName, schema, traceId);
+        // 默认数据库类型为 jdbc
+        if (databaseType == null || databaseType.isEmpty()) {
+            databaseType = "jdbc";
+        }
+
+        log.info("Inspecting table: {}, schema: {}, dataSource: {}, dbType: {}, traceId={}",
+                tableName, schema, dataSourceName, databaseType, traceId);
+
+        // 非 JDBC 类型暂不支持
+        if (!"jdbc".equalsIgnoreCase(databaseType)) {
+            return Map.of(
+                    "error", true,
+                    "message", "Unsupported database type: " + databaseType + ". Currently only 'jdbc' is supported.",
+                    "supported_types", List.of("jdbc")
+            );
+        }
 
         try {
-            return inspectTable(tableName, schema, includeIndexes, includeForeignKeys);
+            DataSource targetDataSource = resolveDataSource(dataSourceName);
+            return inspectTable(targetDataSource, tableName, schema, includeIndexes, includeForeignKeys);
+        } catch (IllegalArgumentException e) {
+            log.error("Failed to resolve data source: {}", dataSourceName, e);
+            return Map.of(
+                    "error", true,
+                    "message", "Failed to resolve data source: " + e.getMessage()
+            );
         } catch (SQLException e) {
             log.error("Failed to inspect table: {}", tableName, e);
             return Map.of(
@@ -59,11 +85,29 @@ public class TableInspectionTool implements McpTool {
         }
     }
 
-    private Map<String, Object> inspectTable(String tableName, String schema,
+    /**
+     * 解析数据源
+     *
+     * @param dataSourceName 数据源 Bean 名称（可为空，为空时使用默认数据源）
+     * @return 对应的 DataSource 实例
+     */
+    private DataSource resolveDataSource(String dataSourceName) {
+        if (dataSourceName == null || dataSourceName.isEmpty()) {
+            return dataSource;
+        }
+
+        try {
+            return applicationContext.getBean(dataSourceName, DataSource.class);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("DataSource not found: " + dataSourceName, e);
+        }
+    }
+
+    private Map<String, Object> inspectTable(DataSource targetDataSource, String tableName, String schema,
                                               boolean includeIndexes, boolean includeForeignKeys) throws SQLException {
         Map<String, Object> result = new LinkedHashMap<>();
 
-        try (Connection conn = dataSource.getConnection()) {
+        try (Connection conn = targetDataSource.getConnection()) {
             DatabaseMetaData meta = conn.getMetaData();
 
             // 确定 schema

@@ -26,6 +26,8 @@ AI:   [调用 dataset.inspect_table 获取表结构]
 |------|------|------|------|
 | `table_name` | string | 是 | 要检查的表名 |
 | `schema` | string | 否 | 数据库 Schema（可选，默认使用连接的默认 Schema） |
+| `data_source` | string | 否 | Spring Bean 名称（可选，为空时使用默认数据源） |
+| `database_type` | string | 否 | 数据库类型：`jdbc` 或 `mongo`（可选，默认 `jdbc`） |
 | `include_indexes` | boolean | 否 | 是否包含索引信息（默认 false） |
 | `include_foreign_keys` | boolean | 否 | 是否包含外键关系（默认 true） |
 | `include_sample_data` | boolean | 否 | 是否包含样例数据用于推断字典（默认 false，最多10条） |
@@ -144,10 +146,12 @@ AI:   [调用 dataset.inspect_table 获取表结构]
 
 ## 权限控制
 
-该工具属于 `METADATA` 类别：
-- **ANALYST** 角色：可访问
-- **ADMIN** 角色：可访问
+该工具属于 `ADMIN` 类别：
+- **ADMIN** 角色：可访问（仅限 `/mcp/admin/rpc` 端点）
+- **ANALYST** 角色：不可访问
 - **BUSINESS** 角色：不可访问
+
+> 注意：由于该工具可直接访问数据库元数据，出于安全考虑仅对管理员开放。
 
 ## 安全考虑
 
@@ -164,7 +168,7 @@ mcp:
       enabled: true
       descriptionFile: "classpath:/schemas/descriptions/inspect_table.md"
       schemaFile: "classpath:/schemas/inspect_table_schema.json"
-      category: METADATA
+      category: ADMIN  # 仅管理员可访问
 
   # 表检查工具安全配置
   inspect:
