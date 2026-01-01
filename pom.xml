@@ -41,6 +41,7 @@
     <modules>
         <module>foggy-bean-copy</module>
         <module>foggy-core</module>
+        <module>foggy-mcp-spi</module>
         <module>foggy-dataset</module>
         <module>foggy-dataset-demo</module>
         <module>foggy-dataset-mcp</module>
@@ -51,6 +52,7 @@
         <module>addons/foggy-dataset-client</module>
         <module>addons/foggy-dataset-mongo</module>
         <module>addons/foggy-dataset-model-mongo</module>
+        <module>addons/foggy-data-viewer</module>
         <!-- WIP: 基准测试模块，暂未完成 -->
 <!--        <module>foggy-benchmark-spider2</module>-->
     </modules>
@@ -119,6 +121,16 @@
             <dependency>
                 <groupId>com.foggysource</groupId>
                 <artifactId>foggy-dataset-mongo</artifactId>
+                <version>${foggy-framework.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.foggysource</groupId>
+                <artifactId>foggy-mcp-spi</artifactId>
+                <version>${foggy-framework.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.foggysource</groupId>
+                <artifactId>foggy-data-viewer</artifactId>
                 <version>${foggy-framework.version}</version>
             </dependency>
 

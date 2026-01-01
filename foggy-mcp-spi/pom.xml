@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.foggysource</groupId>
+        <artifactId>foggy-data-mcp-bridge</artifactId>
+        <version>8.0.1-beta</version>
+    </parent>
+
+    <artifactId>foggy-mcp-spi</artifactId>
+    <name>Foggy MCP SPI</name>
+    <description>MCP Service Provider Interface - 工具接口和通用类型定义</description>
+
+    <dependencies>
+        <!-- Minimal dependencies - interfaces only -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Reactor for streaming support (optional) -->
+        <dependency>
+            <groupId>io.projectreactor</groupId>
+            <artifactId>reactor-core</artifactId>
+            <optional>true</optional>
+        </dependency>
+    </dependencies>
+</project>
