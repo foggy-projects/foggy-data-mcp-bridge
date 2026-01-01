@@ -65,7 +65,7 @@ AI → JSON DSL 查询 → 语义层 → 安全 SQL → 数据库
 - **运行时权限注入** - 在查询执行前拦截并修改查询
 
 ### 🎯 **模型即代码**
-- **基于 JavaScript 的建模** - 使用 [FSScript](docs-site/zh/fsscript/guide/introduction.md)（类 JavaScript 语法）定义数据模型
+- **基于 JavaScript 的建模** - 使用 [FSScript](https://foggy-projects.github.io/foggy-data-mcp-bridge/zh/fsscript/guide/introduction)（类 JavaScript 语法）定义数据模型
 - **函数复用** - 不同于静态的 YAML/JSON，支持函数、导入和动态逻辑
 - **TM/QM 文件** - 表模型（TM）+ 查询模型（QM）构建语义层
 - **计算字段** - 在模型中定义复杂业务指标，而非在查询中
@@ -134,7 +134,7 @@ curl http://localhost:7108/actuator/health
 }
 ```
 
-**Cursor IDE** - [查看集成指南](docs-site/zh/mcp/integration/cursor.md)
+**Cursor IDE** - [查看集成指南](https://foggy-projects.github.io/foggy-data-mcp-bridge/zh/mcp/integration/cursor)
 
 ### 4. 开始查询！
 
@@ -250,26 +250,26 @@ foggy-data-mcp-bridge/
 ## 📚 文档
 
 ### 📘 快速开始指南
-- [简介](docs-site/zh/mcp/guide/introduction.md) - 什么是 Foggy MCP
-- [Docker 部署](docs-site/zh/quick-start/docker-setup.md) - 一键部署
-- [第一次查询](docs-site/zh/quick-start/first-query.md) - 运行第一个 AI 查询
+- [简介](https://foggy-projects.github.io/foggy-data-mcp-bridge/zh/mcp/guide/introduction) - 什么是 Foggy MCP
+- [Docker 部署](https://foggy-projects.github.io/foggy-data-mcp-bridge/zh/quick-start/docker-setup) - 一键部署
+- [第一次查询](https://foggy-projects.github.io/foggy-data-mcp-bridge/zh/quick-start/first-query) - 运行第一个 AI 查询
 
 ### 📗 核心概念
-- [TM/QM 建模](docs-site/zh/dataset-model/guide/introduction.md) - 构建语义层
-- [TM 语法手册](docs-site/zh/dataset-model/tm-qm/tm-syntax.md) - 表模型参考
-- [QM 语法手册](docs-site/zh/dataset-model/tm-qm/qm-syntax.md) - 查询模型参考
-- [DSL 查询 API](docs-site/zh/dataset-model/api/query-api.md) - JSON 查询参考
+- [TM/QM 建模](https://foggy-projects.github.io/foggy-data-mcp-bridge/zh/dataset-model/guide/introduction) - 构建语义层
+- [TM 语法手册](https://foggy-projects.github.io/foggy-data-mcp-bridge/zh/dataset-model/tm-qm/tm-syntax) - 表模型参考
+- [QM 语法手册](https://foggy-projects.github.io/foggy-data-mcp-bridge/zh/dataset-model/tm-qm/qm-syntax) - 查询模型参考
+- [DSL 查询 API](https://foggy-projects.github.io/foggy-data-mcp-bridge/zh/dataset-model/api/query-api) - JSON 查询参考
 
 ### 📙 FSScript 引擎
-- [为什么用 FSScript](docs-site/zh/fsscript/guide/why-fsscript.md) - 使用场景
-- [语法指南](docs-site/zh/fsscript/syntax/variables.md) - 语言参考
-- [Spring Boot 集成](docs-site/zh/fsscript/java/spring-boot.md) - Java 集成
+- [为什么用 FSScript](https://foggy-projects.github.io/foggy-data-mcp-bridge/zh/fsscript/guide/why-fsscript) - 使用场景
+- [语法指南](https://foggy-projects.github.io/foggy-data-mcp-bridge/zh/fsscript/syntax/variables) - 语言参考
+- [Spring Boot 集成](https://foggy-projects.github.io/foggy-data-mcp-bridge/zh/fsscript/java/spring-boot) - Java 集成
 
 ### 📕 MCP 集成
-- [Claude Desktop 配置](docs-site/zh/mcp/integration/claude-desktop.md)
-- [Cursor 集成](docs-site/zh/mcp/integration/cursor.md)
-- [MCP 工具参考](docs-site/zh/mcp/tools/overview.md)
-- [API 使用](docs-site/zh/mcp/integration/api.md)
+- [Claude Desktop 配置](https://foggy-projects.github.io/foggy-data-mcp-bridge/zh/mcp/integration/claude-desktop)
+- [Cursor 集成](https://foggy-projects.github.io/foggy-data-mcp-bridge/zh/mcp/integration/cursor)
+- [MCP 工具参考](https://foggy-projects.github.io/foggy-data-mcp-bridge/zh/mcp/tools/overview)
+- [API 使用](https://foggy-projects.github.io/foggy-data-mcp-bridge/zh/mcp/integration/api)
 
 ### 🌐 完整文档站点
 **访问：[https://foggy-projects.github.io/foggy-data-mcp-bridge/zh/](https://foggy-projects.github.io/foggy-data-mcp-bridge/zh/)**
@@ -319,7 +319,7 @@ mvn spring-boot:run
 ```
 
 ### IDE 配置
-查看 [IDE 开发指南](docs-site/zh/mcp/guide/quick-start.md) 了解 IntelliJ IDEA / VS Code 配置。
+查看 [IDE 开发指南](https://foggy-projects.github.io/foggy-data-mcp-bridge/zh/mcp/guide/quick-start) 了解 IntelliJ IDEA / VS Code 配置。
 
 ---
 
