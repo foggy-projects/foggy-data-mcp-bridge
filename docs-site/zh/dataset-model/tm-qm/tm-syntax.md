@@ -851,16 +851,462 @@ export const model = {
 
 ---
 
-## 7. 命名约定
+## 7. 维度复用最佳实践
 
-### 7.1 文件命名
+在实际项目中，同一个维度表（如日期维度、客户维度）往往被多个事实表引用。TM 文件使用 FSScript（类 JavaScript）语法，支持函数封装和模块导入，可以将通用维度配置抽取为工厂函数，实现维度定义的复用。
+
+### 7.1 创建维度构建器
+
+将常用维度封装为函数，存放在独立文件中：
+
+```javascript
+// dimensions/common-dims.fsscript
+/**
+ * 通用维度构建器
+ * 提供可复用的维度定义工厂函数
+ */
+
+/**
+ * 构建日期维度
+ * @param {object} options - 配置选项
+ * @param {string} options.name - 维度名称，默认 'salesDate'
+ * @param {string} options.foreignKey - 外键列名，默认 'date_key'
+ * @param {string} options.caption - 显示名称，默认 '日期'
+ * @returns {object} 维度配置对象
+ */
+export function buildDateDim(options = {}) {
+    const {
+        name = 'salesDate',
+        foreignKey = 'date_key',
+        caption = '日期',
+        description = '业务发生的日期'
+    } = options;
+
+    return {
+        name,
+        tableName: 'dim_date',
+        foreignKey,
+        primaryKey: 'date_key',
+        captionColumn: 'full_date',
+        caption,
+        description,
+        keyDescription: '日期主键，格式yyyyMMdd，如20240101',
+        type: 'DATETIME',
+
+        properties: [
+            { column: 'year', caption: '年', type: 'INTEGER', description: '年份' },
+            { column: 'quarter', caption: '季度', type: 'INTEGER', description: '季度（1-4）' },
+            { column: 'month', caption: '月', type: 'INTEGER', description: '月份（1-12）' },
+            { column: 'month_name', caption: '月份名称', type: 'STRING' },
+            { column: 'week_of_year', caption: '年度周数', type: 'INTEGER' },
+            { column: 'day_of_week', caption: '周几', type: 'INTEGER' },
+            { column: 'is_weekend', caption: '是否周末', type: 'BOOL' },
+            { column: 'is_holiday', caption: '是否节假日', type: 'BOOL' }
+        ]
+    };
+}
+
+/**
+ * 构建客户维度
+ * @param {object} options - 配置选项
+ */
+export function buildCustomerDim(options = {}) {
+    const {
+        name = 'customer',
+        foreignKey = 'customer_key',
+        caption = '客户',
+        description = '客户信息'
+    } = options;
+
+    return {
+        name,
+        tableName: 'dim_customer',
+        foreignKey,
+        primaryKey: 'customer_key',
+        captionColumn: 'customer_name',
+        caption,
+        description,
+        keyDescription: '客户代理键，自增整数',
+
+        properties: [
+            { column: 'customer_id', caption: '客户ID', description: '客户唯一标识' },
+            { column: 'customer_type', caption: '客户类型', description: '个人/企业' },
+            { column: 'gender', caption: '性别' },
+            { column: 'age_group', caption: '年龄段' },
+            { column: 'province', caption: '省份' },
+            { column: 'city', caption: '城市' },
+            { column: 'member_level', caption: '会员等级' }
+        ]
+    };
+}
+
+/**
+ * 构建商品维度
+ * @param {object} options - 配置选项
+ */
+export function buildProductDim(options = {}) {
+    const {
+        name = 'product',
+        foreignKey = 'product_key',
+        caption = '商品',
+        description = '商品信息'
+    } = options;
+
+    return {
+        name,
+        tableName: 'dim_product',
+        foreignKey,
+        primaryKey: 'product_key',
+        captionColumn: 'product_name',
+        caption,
+        description,
+        keyDescription: '商品代理键，自增整数',
+
+        properties: [
+            { column: 'product_id', caption: '商品ID' },
+            { column: 'category_name', caption: '一级品类名称' },
+            { column: 'sub_category_name', caption: '二级品类名称' },
+            { column: 'brand', caption: '品牌' },
+            { column: 'unit_price', caption: '商品售价', type: 'MONEY' },
+            { column: 'unit_cost', caption: '商品成本', type: 'MONEY' }
+        ]
+    };
+}
+
+/**
+ * 构建门店维度
+ */
+export function buildStoreDim(options = {}) {
+    const {
+        name = 'store',
+        foreignKey = 'store_key',
+        caption = '门店',
+        description = '门店信息'
+    } = options;
+
+    return {
+        name,
+        tableName: 'dim_store',
+        foreignKey,
+        primaryKey: 'store_key',
+        captionColumn: 'store_name',
+        caption,
+        description,
+
+        properties: [
+            { column: 'store_id', caption: '门店ID' },
+            { column: 'store_type', caption: '门店类型' },
+            { column: 'province', caption: '省份' },
+            { column: 'city', caption: '城市' }
+        ]
+    };
+}
+```
+
+### 7.2 在 TM 文件中使用维度构建器
+
+```javascript
+// model/FactSalesModel.tm
+import { dicts } from '../dicts.fsscript';
+import {
+    buildDateDim,
+    buildCustomerDim,
+    buildProductDim,
+    buildStoreDim
+} from '../dimensions/common-dims.fsscript';
+
+export const model = {
+    name: 'FactSalesModel',
+    caption: '销售事实表',
+    tableName: 'fact_sales',
+    idColumn: 'sales_key',
+
+    dimensions: [
+        // 使用构建器，自定义名称和描述
+        buildDateDim({
+            name: 'salesDate',
+            caption: '销售日期',
+            description: '订单发生的日期'
+        }),
+
+        // 使用默认配置
+        buildCustomerDim(),
+        buildProductDim(),
+        buildStoreDim(),
+
+        // 混合使用：构建器 + 内联维度
+        {
+            name: 'channel',
+            tableName: 'dim_channel',
+            foreignKey: 'channel_key',
+            primaryKey: 'channel_key',
+            captionColumn: 'channel_name',
+            caption: '渠道',
+            properties: [
+                { column: 'channel_id', caption: '渠道ID' },
+                { column: 'channel_type', caption: '渠道类型' }
+            ]
+        }
+    ],
+
+    properties: [
+        // ... 属性定义
+    ],
+
+    measures: [
+        // ... 度量定义
+    ]
+};
+```
+
+```javascript
+// model/FactOrderModel.tm
+import { buildDateDim, buildCustomerDim } from '../dimensions/common-dims.fsscript';
+
+export const model = {
+    name: 'FactOrderModel',
+    caption: '订单事实表',
+    tableName: 'fact_order',
+    idColumn: 'order_key',
+
+    dimensions: [
+        // 订单模型使用不同的维度名称
+        buildDateDim({
+            name: 'orderDate',
+            foreignKey: 'order_date_key',
+            caption: '订单日期'
+        }),
+        buildCustomerDim(),
+
+        // 订单可能有多个日期维度
+        buildDateDim({
+            name: 'shipDate',
+            foreignKey: 'ship_date_key',
+            caption: '发货日期',
+            description: '订单发货的日期'
+        })
+    ],
+
+    properties: [...],
+    measures: [...]
+};
+```
+
+### 7.3 高级技巧：属性扩展与覆盖
+
+构建器返回的对象可以通过展开运算符进行扩展或覆盖：
+
+```javascript
+import { buildCustomerDim } from '../dimensions/common-dims.fsscript';
+
+export const model = {
+    name: 'FactVIPSalesModel',
+    caption: 'VIP销售事实表',
+    tableName: 'fact_vip_sales',
+
+    dimensions: [
+        // 扩展客户维度，添加额外属性
+        {
+            ...buildCustomerDim({ caption: 'VIP客户' }),
+            // 添加 VIP 特有属性
+            properties: [
+                ...buildCustomerDim().properties,
+                { column: 'vip_level', caption: 'VIP等级' },
+                { column: 'vip_points', caption: '积分余额', type: 'INTEGER' },
+                { column: 'vip_expire_date', caption: '会员到期日', type: 'DAY' }
+            ]
+        }
+    ],
+
+    // ...
+};
+```
+
+### 7.4 嵌套维度的复用
+
+对于雪花模型的嵌套维度，可以构建包含子维度的完整层级：
+
+```javascript
+// dimensions/product-hierarchy.fsscript
+/**
+ * 构建带品类层级的商品维度（雪花模型）
+ */
+export function buildProductWithCategoryDim(options = {}) {
+    const {
+        name = 'product',
+        foreignKey = 'product_key',
+        caption = '商品'
+    } = options;
+
+    return {
+        name,
+        tableName: 'dim_product',
+        foreignKey,
+        primaryKey: 'product_key',
+        captionColumn: 'product_name',
+        caption,
+
+        properties: [
+            { column: 'product_id', caption: '商品ID' },
+            { column: 'brand', caption: '品牌' },
+            { column: 'unit_price', caption: '售价', type: 'MONEY' }
+        ],
+
+        // 嵌套品类维度
+        dimensions: [
+            {
+                name: 'category',
+                alias: 'productCategory',
+                tableName: 'dim_category',
+                foreignKey: 'category_key',
+                primaryKey: 'category_key',
+                captionColumn: 'category_name',
+                caption: '品类',
+
+                properties: [
+                    { column: 'category_id', caption: '品类ID' },
+                    { column: 'category_level', caption: '品类层级' }
+                ],
+
+                // 继续嵌套品类组
+                dimensions: [
+                    {
+                        name: 'group',
+                        alias: 'categoryGroup',
+                        tableName: 'dim_category_group',
+                        foreignKey: 'group_key',
+                        primaryKey: 'group_key',
+                        captionColumn: 'group_name',
+                        caption: '品类组',
+
+                        properties: [
+                            { column: 'group_id', caption: '品类组ID' },
+                            { column: 'group_type', caption: '组类型' }
+                        ]
+                    }
+                ]
+            }
+        ]
+    };
+}
+```
+
+### 7.5 父子维度的复用
+
+对于组织架构等父子维度，可以参数化闭包表配置：
+
+```javascript
+// dimensions/hierarchy-dims.fsscript
+/**
+ * 构建组织/团队父子维度
+ */
+export function buildOrgDim(options = {}) {
+    const {
+        name = 'team',
+        tableName = 'dim_team',
+        foreignKey = 'team_id',
+        closureTableName = 'team_closure',
+        caption = '团队',
+        description = '组织团队'
+    } = options;
+
+    return {
+        name,
+        tableName,
+        foreignKey,
+        primaryKey: 'team_id',
+        captionColumn: 'team_name',
+        caption,
+        description,
+
+        // 父子维度配置
+        closureTableName,
+        parentKey: 'parent_id',
+        childKey: 'team_id',
+
+        properties: [
+            { column: 'team_id', caption: '团队ID', type: 'STRING' },
+            { column: 'team_name', caption: '团队名称', type: 'STRING' },
+            { column: 'parent_id', caption: '上级团队', type: 'STRING' },
+            { column: 'team_level', caption: '层级', type: 'INTEGER' },
+            { column: 'manager_name', caption: '负责人', type: 'STRING' }
+        ]
+    };
+}
+
+/**
+ * 构建区域父子维度
+ */
+export function buildRegionDim(options = {}) {
+    const {
+        name = 'region',
+        foreignKey = 'region_id',
+        caption = '区域'
+    } = options;
+
+    return {
+        name,
+        tableName: 'dim_region',
+        foreignKey,
+        primaryKey: 'region_id',
+        captionColumn: 'region_name',
+        caption,
+
+        closureTableName: 'region_closure',
+        parentKey: 'parent_id',
+        childKey: 'region_id',
+
+        properties: [
+            { column: 'region_id', caption: '区域ID', type: 'STRING' },
+            { column: 'region_name', caption: '区域名称', type: 'STRING' },
+            { column: 'region_type', caption: '区域类型', type: 'STRING' },
+            { column: 'region_level', caption: '层级', type: 'INTEGER' }
+        ]
+    };
+}
+```
+
+### 7.6 项目推荐结构
+
+```
+templates/
+├── dimensions/                    # 维度构建器目录
+│   ├── common-dims.fsscript       # 通用维度（日期、客户、商品等）
+│   ├── hierarchy-dims.fsscript    # 父子维度（组织、区域等）
+│   └── product-hierarchy.fsscript # 商品雪花维度
+├── model/                         # TM 模型目录
+│   ├── FactSalesModel.tm
+│   ├── FactOrderModel.tm
+│   └── ...
+├── query/                         # QM 查询模型目录
+│   └── ...
+└── dicts.fsscript                 # 字典定义
+```
+
+### 7.7 维度复用最佳实践总结
+
+| 实践 | 说明 |
+|------|------|
+| **函数封装** | 将重复使用的维度定义封装为工厂函数 |
+| **参数化配置** | 通过参数支持不同场景的定制需求 |
+| **默认值** | 为常用参数提供合理的默认值 |
+| **模块化组织** | 按维度类型组织到不同的 `.fsscript` 文件 |
+| **属性扩展** | 使用展开运算符 `...` 扩展或覆盖属性 |
+| **统一维护** | 修改维度定义时只需改一处，全局生效 |
+| **文档注释** | 为构建器函数添加 JSDoc 注释，便于使用 |
+
+---
+
+## 8. 命名约定
+
+### 8.1 文件命名
 
 - TM 文件：`{模型名}Model.tm`
 - 事实表：`Fact{业务名}Model.tm`，如 `FactSalesModel.tm`
 - 维度表：`Dim{业务名}Model.tm`，如 `DimCustomerModel.tm`
 - 字典文件：`dicts.fsscript`
 
-### 7.2 字段命名
+### 8.2 字段命名
 
 | 位置 | 规范 | 示例 |
 |------|------|------|
@@ -869,7 +1315,7 @@ export const model = {
 | 数据库 `column` | 蛇形 snake_case | `order_id`, `sales_amount`, `customer_type` |
 | 维度属性引用 | `$` 分隔 | `customer$caption`, `salesDate$year` |
 
-### 7.3 模型设计建议
+### 8.3 模型设计建议
 
 1. **事实表**：
    - 包含业务事实度量（销售额、数量等）
@@ -887,9 +1333,9 @@ export const model = {
 
 ---
 
-## 8. 高级特性
+## 9. 高级特性
 
-### 8.1 扩展数据
+### 9.1 扩展数据
 
 使用 `extData` 存储自定义元数据：
 
@@ -905,7 +1351,7 @@ export const model = {
 }
 ```
 
-### 8.2 废弃标记
+### 9.2 废弃标记
 
 标记过时的模型或字段：
 
