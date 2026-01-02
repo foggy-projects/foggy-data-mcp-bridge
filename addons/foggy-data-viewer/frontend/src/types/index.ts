@@ -100,6 +100,8 @@ export interface ViewerDataResponse {
   limit: number
   errorMessage?: string
   expired?: boolean
+  /** 全量数据汇总（包含总记录数和度量合计） */
+  totalData?: Record<string, unknown>
 }
 
 /**

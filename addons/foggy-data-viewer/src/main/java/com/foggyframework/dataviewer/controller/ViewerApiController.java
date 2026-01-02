@@ -88,6 +88,7 @@ public class ViewerApiController {
             return ResponseEntity.ok(ViewerDataResponse.success(
                     result.getItems(),
                     result.getTotal(),
+                    result.getTotalData(),
                     request.getStart(),
                     request.getLimit()
             ));

@@ -15,6 +15,7 @@ const expired = ref(false)
 const meta = ref<QueryMetaResponse | null>(null)
 const data = ref<Record<string, unknown>[]>([])
 const total = ref(0)
+const serverSummary = ref<Record<string, unknown> | null>(null)
 
 // 查询参数 (DSL 格式)
 const queryParams = ref<ViewerQueryRequest>({
@@ -69,6 +70,8 @@ async function loadData() {
 
     data.value = response.items
     total.value = response.total
+    // 提取汇总数据
+    serverSummary.value = response.totalData ?? null
   } catch (e) {
     error.value = e instanceof Error ? e.message : '加载数据失败'
   } finally {
@@ -172,6 +175,7 @@ onMounted(async () => {
         :loading="loading"
         :initial-slice="meta?.initialSlice"
         :filter-options-loader="loadFilterOptions"
+        :server-summary="serverSummary"
         @page-change="handlePageChange"
         @sort-change="handleSortChange"
         @filter-change="handleFilterChange"

@@ -3,6 +3,7 @@ import { ref, computed, watch, provide, h } from 'vue'
 import type { VxeGridInstance, VxeGridProps, VxeGridListeners } from 'vxe-table'
 import type { ColumnSchema, PaginationState, SortState, SliceRequestDef, FilterOption } from '@/types'
 import { TextFilter, NumberRangeFilter, DateRangeFilter, SelectFilter, BoolFilter } from './filters'
+import { useTableSelection, useTableSummary } from './composables'
 
 /**
  * DataTable 组件属性
@@ -29,6 +30,8 @@ interface Props {
   showFilters?: boolean
   /** 初始过滤条件（来自后端缓存） */
   initialSlice?: SliceRequestDef[]
+  /** 后端返回的全量汇总数据 */
+  serverSummary?: Record<string, unknown> | null
   /** 过滤选项加载器（用于维度列） */
   filterOptionsLoader?: (columnName: string) => Promise<FilterOption[]>
   /** 自定义过滤器组件映射 */
@@ -86,6 +89,27 @@ const filterValues = ref<Record<string, SliceRequestDef[] | null>>({})
 // 维度选项缓存
 const dimensionOptionsCache = ref<Record<string, FilterOption[]>>({})
 const dimensionOptionsLoading = ref<Record<string, boolean>>({})
+
+// 使用 composables
+const columnsRef = computed(() => props.columns)
+const { selectedRows, onCheckboxChange, onCheckboxAll, clearSelection } = useTableSelection()
+const { serverSummary, calculateSelectedSummary, generateFooterData, setServerSummary } = useTableSummary(columnsRef)
+
+// 监听 serverSummary prop 变化
+watch(() => props.serverSummary, (newVal) => {
+  setServerSummary(newVal ?? null)
+}, { immediate: true })
+
+// 计算 footer 数据
+const footerData = computed(() => {
+  const selectedSummary = calculateSelectedSummary(selectedRows.value as Record<string, unknown>[])
+  // 需要获取实际的列配置（包含 checkbox 列）
+  const visibleCols = tableColumns.value?.map(col => ({
+    field: col.field as string | undefined,
+    type: props.columns.find(c => c.name === col.field)?.type
+  })) || []
+  return generateFooterData(visibleCols, selectedSummary)
+})
 
 // 监听 total 变化
 watch(() => props.total, (newTotal) => {
@@ -330,7 +354,14 @@ const tableColumns = computed<VxeGridProps['columns']>(() => {
   // 依赖 sortState 确保排序变化时重新计算
   const currentSort = sortState.value
 
-  return props.columns.map(col => {
+  // checkbox 列
+  const checkboxColumn = {
+    type: 'checkbox',
+    width: 50,
+    fixed: 'left'
+  }
+
+  const dataColumns = props.columns.map(col => {
     const colConfig: Record<string, unknown> = {
       field: col.name,
       title: col.title || col.name,
@@ -373,6 +404,9 @@ const tableColumns = computed<VxeGridProps['columns']>(() => {
 
     return colConfig
   })
+
+  // 返回 checkbox 列 + 数据列
+  return [checkboxColumn, ...dataColumns]
 })
 
 // 渲染过滤器组件
@@ -407,6 +441,14 @@ const gridOptions = computed<VxeGridProps>(() => ({
   rowConfig: {
     isHover: true
   },
+  // checkbox 配置
+  checkboxConfig: {
+    highlight: true,
+    trigger: 'cell'
+  },
+  // footer 配置
+  showFooter: true,
+  footerData: footerData.value,
   // 表头行高需要容纳过滤器
   headerRowClassName: props.showFilters ? 'header-with-filter' : '',
   pagerConfig: {
@@ -443,7 +485,10 @@ const gridEvents: VxeGridListeners = {
     if (col) {
       emit('row-dblclick', row, col)
     }
-  }
+  },
+  // checkbox 事件
+  checkboxChange: onCheckboxChange,
+  checkboxAll: onCheckboxAll
 }
 
 // 重置分页

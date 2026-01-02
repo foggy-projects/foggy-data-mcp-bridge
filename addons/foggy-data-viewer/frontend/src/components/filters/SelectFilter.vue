@@ -296,12 +296,13 @@ onUnmounted(() => {
 }
 
 .toggle-multi {
-  padding: 2px 6px;
-  font-size: 10px;
+  padding: 1px 4px;
+  font-size: 9px;
   color: white;
   background: #409eff;
-  border-radius: 3px;
+  border-radius: 2px;
   cursor: pointer;
+  line-height: 1.2;
 }
 
 .toggle-multi:hover {
@@ -311,7 +312,7 @@ onUnmounted(() => {
 .clear-btn {
   color: #c0c4cc;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 12px;
 }
 
 .clear-btn:hover {
