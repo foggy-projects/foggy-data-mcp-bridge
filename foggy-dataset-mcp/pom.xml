@@ -52,6 +52,12 @@
             <artifactId>foggy-dataset-model</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>com.foggysource</groupId>
+            <artifactId>foggy-data-viewer</artifactId>
+        </dependency>
+
+
         <!-- Spring Boot WebFlux (for reactive/SSE support) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

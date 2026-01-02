@@ -10,6 +10,36 @@ const apiClient = axios.create({
 })
 
 /**
+ * 创建查询请求类型
+ */
+export interface CreateQueryRequest {
+  model: string
+  columns: string[]
+  slice: Array<{ field: string; op: string; value: string | number | boolean }>
+  title?: string
+  groupBy?: Array<{ field: string }>
+  orderBy?: Array<{ field: string; order: 'asc' | 'desc' }>
+}
+
+/**
+ * 创建查询响应类型
+ */
+export interface CreateQueryResponse {
+  success: boolean
+  queryId: string | null
+  viewerUrl: string | null
+  error: string | null
+}
+
+/**
+ * 创建查询（从 DSL 输入）
+ */
+export async function createQuery(request: CreateQueryRequest): Promise<CreateQueryResponse> {
+  const response = await apiClient.post<CreateQueryResponse>('/query/create', request)
+  return response.data
+}
+
+/**
  * 获取查询元数据
  */
 export async function fetchQueryMeta(queryId: string): Promise<QueryMetaResponse> {

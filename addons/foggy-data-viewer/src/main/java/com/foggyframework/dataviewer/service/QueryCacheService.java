@@ -8,12 +8,16 @@ import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
+import com.foggyframework.dataset.db.model.spi.DbQueryColumn;
+import com.foggyframework.dataset.db.model.spi.QueryModel;
+import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -30,6 +34,7 @@ public class QueryCacheService {
 
     private final CachedQueryRepository repository;
     private final DataViewerProperties properties;
+    private final QueryModelLoader queryModelLoader;
 
     /**
      * 缓存查询并生成唯一ID
@@ -55,8 +60,8 @@ public class QueryCacheService {
                 .expiresAt(Instant.now().plus(properties.getCache().getTtlMinutes(), ChronoUnit.MINUTES))
                 .build();
 
-        // TODO: Fetch schema from model metadata
-        ctx.setSchema(buildDefaultSchema(request.getColumns()));
+        // 从 QueryModel 获取真实的 schema
+        ctx.setSchema(buildSchemaFromModel(request.getModel(), request.getColumns()));
 
         log.info("Cached query with ID: {} for model: {}", queryId, request.getModel());
         return repository.save(ctx);
@@ -90,6 +95,64 @@ public class QueryCacheService {
      */
     private String generateSecureId() {
         return UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+    }
+
+    /**
+     * 从 QueryModel 构建列元数据
+     */
+    private List<ColumnSchema> buildSchemaFromModel(String modelName, List<String> columns) {
+        if (columns == null || columns.isEmpty()) {
+            return List.of();
+        }
+
+        try {
+            QueryModel queryModel = queryModelLoader.getJdbcQueryModel(modelName);
+            if (queryModel == null) {
+                log.warn("QueryModel not found: {}, using default schema", modelName);
+                return buildDefaultSchema(columns);
+            }
+
+            List<ColumnSchema> schemas = new ArrayList<>();
+            for (String columnName : columns) {
+                ColumnSchema schema = buildColumnSchema(queryModel, columnName);
+                schemas.add(schema);
+            }
+            return schemas;
+        } catch (Exception e) {
+            log.warn("Failed to load QueryModel: {}, using default schema. Error: {}",
+                    modelName, e.getMessage());
+            return buildDefaultSchema(columns);
+        }
+    }
+
+    /**
+     * 构建单个列的 schema
+     */
+    private ColumnSchema buildColumnSchema(QueryModel queryModel, String columnName) {
+        try {
+            DbQueryColumn queryColumn = queryModel.findJdbcQueryColumnByName(columnName, false);
+            if (queryColumn != null) {
+                return ColumnSchema.builder()
+                        .name(columnName)
+                        .title(queryColumn.getCaption() != null ? queryColumn.getCaption() : columnName)
+                        .type(queryColumn.getType() != null ?
+                                queryColumn.getType().name() : "TEXT")
+                        .filterable(true)
+                        .aggregatable(false)
+                        .build();
+            }
+        } catch (Exception e) {
+            log.debug("Column {} not found in QueryModel, using default", columnName);
+        }
+
+        // 默认 schema
+        return ColumnSchema.builder()
+                .name(columnName)
+                .title(columnName)
+                .type("TEXT")
+                .filterable(true)
+                .aggregatable(false)
+                .build();
     }
 
     /**

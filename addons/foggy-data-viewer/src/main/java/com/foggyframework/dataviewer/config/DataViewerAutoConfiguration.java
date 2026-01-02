@@ -8,6 +8,7 @@ import com.foggyframework.dataviewer.repository.CachedQueryRepository;
 import com.foggyframework.dataviewer.service.QueryCacheService;
 import com.foggyframework.dataviewer.service.QueryScopeConstraintService;
 import com.foggyframework.dataset.db.model.service.QueryFacade;
+import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -31,8 +32,9 @@ public class DataViewerAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public QueryCacheService queryCacheService(CachedQueryRepository repository,
-                                                DataViewerProperties properties) {
-        return new QueryCacheService(repository, properties);
+                                                DataViewerProperties properties,
+                                                QueryModelLoader queryModelLoader) {
+        return new QueryCacheService(repository, properties, queryModelLoader);
     }
 
     @Bean

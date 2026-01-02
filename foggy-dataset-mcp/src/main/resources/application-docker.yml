@@ -45,6 +45,28 @@ spring:
     serialization:
       write-dates-as-timestamps: false
 
+
+
+  data:
+  # ==========================================
+  # MongoDB 配置
+  # ==========================================
+    mongodb:
+      uri: mongodb://localhost:17017/foggy_test
+      auto-index-creation: true
+  # ==========================================
+  # Redis 配置
+  # ==========================================
+    redis:
+      host: localhost
+      port: 16379
+      timeout: 3000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+          max-wait: -1ms
 # ==========================================
 # MCP 服务配置
 # ==========================================

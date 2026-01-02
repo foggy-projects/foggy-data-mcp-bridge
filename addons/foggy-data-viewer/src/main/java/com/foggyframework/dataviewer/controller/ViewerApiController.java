@@ -91,6 +91,53 @@ public class ViewerApiController {
     }
 
     /**
+     * 从前端直接创建查询（用于 DSL 输入）
+     */
+    @PostMapping("/query/create")
+    public ResponseEntity<CreateQueryResponse> createQuery(
+            @RequestBody QueryCacheService.OpenInViewerRequest request) {
+        try {
+            // 验证必要参数
+            if (request.getModel() == null || request.getModel().isBlank()) {
+                return ResponseEntity.badRequest().body(
+                        new CreateQueryResponse(false, null, null, "model 不能为空"));
+            }
+            if (request.getColumns() == null || request.getColumns().isEmpty()) {
+                return ResponseEntity.badRequest().body(
+                        new CreateQueryResponse(false, null, null, "columns 不能为空"));
+            }
+            if (request.getSlice() == null || request.getSlice().isEmpty()) {
+                return ResponseEntity.badRequest().body(
+                        new CreateQueryResponse(false, null, null, "slice 不能为空，请提供至少一个过滤条件"));
+            }
+
+            // 缓存查询
+            CachedQueryContext ctx = cacheService.cacheQuery(request, null);
+
+            return ResponseEntity.ok(new CreateQueryResponse(
+                    true,
+                    ctx.getQueryId(),
+                    "/data-viewer/view/" + ctx.getQueryId(),
+                    null
+            ));
+        } catch (Exception e) {
+            log.error("Error creating query", e);
+            return ResponseEntity.ok(new CreateQueryResponse(
+                    false, null, null, e.getMessage()));
+        }
+    }
+
+    /**
+     * 创建查询响应
+     */
+    public record CreateQueryResponse(
+            boolean success,
+            String queryId,
+            String viewerUrl,
+            String error
+    ) {}
+
+    /**
      * 构建查询请求，合并缓存参数与用户覆盖
      */
     private DbQueryRequestDef buildQueryDef(CachedQueryContext ctx, ViewerQueryRequest request) {
