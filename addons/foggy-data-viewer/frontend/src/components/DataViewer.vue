@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import DataTable from './DataTable.vue'
-import { fetchQueryMeta, fetchQueryData } from '@/api/viewer'
-import type { QueryMetaResponse, ViewerQueryRequest, FilterValue } from '@/types'
+import { fetchQueryMeta, fetchQueryData, fetchFilterOptions } from '@/api/viewer'
+import type { QueryMetaResponse, ViewerQueryRequest, SliceRequestDef, OrderRequestDef, FilterOption } from '@/types'
 
 const props = defineProps<{
   queryId: string
@@ -16,13 +16,12 @@ const meta = ref<QueryMetaResponse | null>(null)
 const data = ref<Record<string, unknown>[]>([])
 const total = ref(0)
 
-// 查询参数
+// 查询参数 (DSL 格式)
 const queryParams = ref<ViewerQueryRequest>({
   start: 0,
   limit: 50,
-  filters: {},
-  sortField: undefined,
-  sortOrder: undefined
+  slice: [],
+  orderBy: []
 })
 
 const dataTableRef = ref<InstanceType<typeof DataTable>>()
@@ -85,16 +84,30 @@ function handlePageChange(page: number, size: number) {
 }
 
 function handleSortChange(field: string | null, order: 'asc' | 'desc' | null) {
-  queryParams.value.sortField = field ?? undefined
-  queryParams.value.sortOrder = order ?? undefined
+  if (field && order) {
+    queryParams.value.orderBy = [{ field, order }]
+  } else {
+    queryParams.value.orderBy = []
+  }
   loadData()
 }
 
-function handleFilterChange(filters: Record<string, FilterValue>) {
-  queryParams.value.filters = filters
+function handleFilterChange(slices: SliceRequestDef[]) {
+  queryParams.value.slice = slices
   queryParams.value.start = 0
   dataTableRef.value?.resetPagination()
   loadData()
+}
+
+// 加载维度选项
+async function loadFilterOptions(columnName: string): Promise<FilterOption[]> {
+  try {
+    const response = await fetchFilterOptions(props.queryId, columnName)
+    return response.options || []
+  } catch (e) {
+    console.error('Failed to load filter options:', e)
+    return []
+  }
 }
 
 // 刷新数据
@@ -106,6 +119,10 @@ function refresh() {
 onMounted(async () => {
   await loadMeta()
   if (meta.value) {
+    // 应用初始过滤条件（如果有）
+    if (meta.value.initialSlice && meta.value.initialSlice.length > 0) {
+      queryParams.value.slice = meta.value.initialSlice
+    }
     await loadData()
   }
 })
@@ -153,6 +170,8 @@ onMounted(async () => {
         :data="data"
         :total="total"
         :loading="loading"
+        :initial-slice="meta?.initialSlice"
+        :filter-options-loader="loadFilterOptions"
         @page-change="handlePageChange"
         @sort-change="handleSortChange"
         @filter-change="handleFilterChange"

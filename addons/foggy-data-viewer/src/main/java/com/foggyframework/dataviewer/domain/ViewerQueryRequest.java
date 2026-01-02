@@ -11,7 +11,7 @@ import java.util.List;
  * 前端查询请求
  * <p>
  * 用于数据浏览器前端发起的数据查询请求。
- * 复用 foggy-dataset-model 中的请求定义类实现类型安全。
+ * 直接使用 DSL 格式 (SliceRequestDef, OrderRequestDef)，无需转换。
  */
 @Data
 public class ViewerQueryRequest {
@@ -27,12 +27,13 @@ public class ViewerQueryRequest {
     private Integer limit = 50;
 
     /**
-     * 用户在浏览器中添加的额外过滤条件
+     * 用户过滤条件 (DSL slice 格式)
+     * 直接传入 SliceRequestDef 数组
      */
-    private List<SliceRequestDef> additionalFilters;
+    private List<SliceRequestDef> slice;
 
     /**
-     * 覆盖排序条件
+     * 排序条件 (DSL orderBy 格式)
      */
     private List<OrderRequestDef> orderBy;
 

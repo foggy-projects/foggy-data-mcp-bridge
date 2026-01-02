@@ -20,28 +20,28 @@ const errorMessage = ref('')
 const examples = [
   {
     name: '销售明细查询',
-    description: '查询最近30天的销售订单明细',
+    description: '查询2024年12月的销售订单明细',
     dsl: {
       model: 'FactSalesQueryModel',
       title: '销售明细查询',
       columns: ['orderId', 'salesDate$caption', 'product$caption', 'customer$caption', 'quantity', 'salesAmount', 'profitAmount'],
       slice: [
-        { field: 'salesDate$caption', op: '>=', value: getDateOffset(-30) },
-        { field: 'salesDate$caption', op: '<', value: getDateOffset(0) }
+        { field: 'salesDate$caption', op: '>=', value: '2024-12-01' },
+        { field: 'salesDate$caption', op: '<', value: '2024-12-31' }
       ],
       orderBy: [{ field: 'salesDate$caption', order: 'desc' }]
     }
   },
   {
     name: '订单查询',
-    description: '查询最近7天的订单信息',
+    description: '查询2024年12月的订单信息',
     dsl: {
       model: 'FactOrderQueryModel',
       title: '订单查询',
       columns: ['orderId', 'orderStatus', 'paymentStatus', 'orderTime', 'customer$caption', 'amount', 'payAmount'],
       slice: [
-        { field: 'orderDate$caption', op: '>=', value: getDateOffset(-7) },
-        { field: 'orderDate$caption', op: '<', value: getDateOffset(1) }
+        { field: 'orderDate$caption', op: '>=', value: '2024-12-01' },
+        { field: 'orderDate$caption', op: '<', value: '2024-12-31' }
       ],
       orderBy: [{ field: 'orderTime', order: 'desc' }]
     }
@@ -74,14 +74,14 @@ const examples = [
   },
   {
     name: '门店业绩',
-    description: '按门店汇总销售业绩',
+    description: '2024年Q4按门店汇总销售业绩',
     dsl: {
       model: 'FactSalesQueryModel',
       title: '门店业绩汇总',
       columns: ['store$caption', 'store$storeType', 'store$province', 'store$city', 'quantity', 'salesAmount', 'profitAmount'],
       slice: [
-        { field: 'salesDate$caption', op: '>=', value: getDateOffset(-30) },
-        { field: 'salesDate$caption', op: '<', value: getDateOffset(0) }
+        { field: 'salesDate$caption', op: '>=', value: '2024-10-01' },
+        { field: 'salesDate$caption', op: '<', value: '2024-12-31' }
       ],
       groupBy: [{ field: 'store$id' }],
       orderBy: [{ field: 'salesAmount', order: 'desc' }]

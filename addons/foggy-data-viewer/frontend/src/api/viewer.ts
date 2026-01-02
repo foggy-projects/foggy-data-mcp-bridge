@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { QueryMetaResponse, ViewerQueryRequest, ViewerDataResponse } from '@/types'
+import type { QueryMetaResponse, ViewerQueryRequest, ViewerDataResponse, FilterOptionsResponse } from '@/types'
 
 const apiClient = axios.create({
   baseURL: '/data-viewer/api',
@@ -55,6 +55,19 @@ export async function fetchQueryData(
   request: ViewerQueryRequest
 ): Promise<ViewerDataResponse> {
   const response = await apiClient.post<ViewerDataResponse>(`/query/${queryId}/data`, request)
+  return response.data
+}
+
+/**
+ * 获取过滤选项（维度成员或字典项）
+ */
+export async function fetchFilterOptions(
+  queryId: string,
+  columnName: string
+): Promise<FilterOptionsResponse> {
+  const response = await apiClient.get<FilterOptionsResponse>(
+    `/query/${queryId}/filter-options/${encodeURIComponent(columnName)}`
+  )
   return response.data
 }
 

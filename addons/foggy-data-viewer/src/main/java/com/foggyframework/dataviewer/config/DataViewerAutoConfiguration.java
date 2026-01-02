@@ -7,6 +7,7 @@ import com.foggyframework.dataviewer.mcp.OpenInViewerTool;
 import com.foggyframework.dataviewer.repository.CachedQueryRepository;
 import com.foggyframework.dataviewer.service.QueryCacheService;
 import com.foggyframework.dataviewer.service.QueryScopeConstraintService;
+import com.foggyframework.dataset.db.model.service.JdbcService;
 import com.foggyframework.dataset.db.model.service.QueryFacade;
 import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -55,8 +56,9 @@ public class DataViewerAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public ViewerApiController viewerApiController(QueryCacheService cacheService,
-                                                    QueryFacade queryFacade) {
-        return new ViewerApiController(cacheService, queryFacade);
+                                                    QueryFacade queryFacade,
+                                                    JdbcService jdbcService) {
+        return new ViewerApiController(cacheService, queryFacade, jdbcService);
     }
 
     @Bean
