@@ -58,6 +58,12 @@ public class ViewerDataResponse {
     private Map<String, Object> aggregationSummary;
 
     /**
+     * 全量数据汇总（包含总记录数和度量合计）
+     * 由后端 returnTotal=true 时返回
+     */
+    private Object totalData;
+
+    /**
      * 创建成功响应
      */
     public static ViewerDataResponse success(List<Map<String, Object>> items, Long total,
@@ -66,6 +72,22 @@ public class ViewerDataResponse {
                 .success(true)
                 .items(items)
                 .total(total)
+                .start(start)
+                .limit(limit)
+                .hasMore(total != null && (start + items.size()) < total)
+                .build();
+    }
+
+    /**
+     * 创建成功响应（包含汇总数据）
+     */
+    public static ViewerDataResponse success(List<Map<String, Object>> items, Long total,
+                                              Object totalData, Integer start, Integer limit) {
+        return ViewerDataResponse.builder()
+                .success(true)
+                .items(items)
+                .total(total)
+                .totalData(totalData)
                 .start(start)
                 .limit(limit)
                 .hasMore(total != null && (start + items.size()) < total)

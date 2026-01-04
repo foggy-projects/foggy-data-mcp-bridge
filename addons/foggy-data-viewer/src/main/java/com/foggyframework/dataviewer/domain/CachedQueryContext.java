@@ -15,6 +15,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 缓存的查询上下文
@@ -128,6 +129,56 @@ public class CachedQueryContext {
          * 是否可聚合
          */
         private boolean aggregatable;
+
+        // ========== 过滤器元数据 ==========
+
+        /**
+         * 过滤器类型
+         * text, number, date, datetime, dict, dimension, bool, custom
+         */
+        private String filterType;
+
+        /**
+         * 字典ID（当 filterType=dict 时有效）
+         */
+        private String dictId;
+
+        /**
+         * 字典项列表（当 filterType=dict 时填充）
+         */
+        private List<DictItem> dictItems;
+
+        /**
+         * 维度引用路径（当 filterType=dimension 时有效）
+         */
+        private String dimensionRef;
+
+        /**
+         * 日期格式（当 filterType=date/datetime 时有效）
+         */
+        private String format;
+
+        /**
+         * 是否为度量字段（度量支持范围过滤）
+         */
+        private boolean measure;
+
+        /**
+         * 前端扩展配置（从 extData.ui 透传）
+         */
+        private Map<String, Object> uiConfig;
+    }
+
+    /**
+     * 字典项
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class DictItem {
+        private Object value;
+        private String label;
     }
 
     /**

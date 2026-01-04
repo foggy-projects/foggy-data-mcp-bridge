@@ -4,6 +4,7 @@ import com.foggyframework.dataviewer.config.DataViewerProperties;
 import com.foggyframework.dataviewer.domain.CachedQueryContext;
 import com.foggyframework.dataviewer.repository.CachedQueryRepository;
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
+import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -33,6 +34,9 @@ class QueryCacheServiceTest {
     @Mock
     private CachedQueryRepository repository;
 
+    @Mock
+    private QueryModelLoader queryModelLoader;
+
     private DataViewerProperties properties;
     private QueryCacheService service;
 
@@ -43,7 +47,7 @@ class QueryCacheServiceTest {
         properties.setCache(new DataViewerProperties.CacheProperties());
         properties.getCache().setTtlMinutes(60);
 
-        service = new QueryCacheService(repository, properties);
+        service = new QueryCacheService(repository, properties, queryModelLoader);
     }
 
     @Nested
