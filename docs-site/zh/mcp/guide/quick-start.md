@@ -93,6 +93,32 @@ curl -X POST http://localhost:7108/mcp/analyst/rpc \
 - 任意 IDE（IntelliJ IDEA、VS Code 等）
 - MySQL / PostgreSQL / SQLite 数据库
 
+### 快速体验 Demo（可选）
+
+如果你只想快速体验功能，可以直接运行内置的演示模块：
+
+```bash
+# 克隆项目
+git clone https://github.com/foggy-projects/foggy-data-mcp-bridge.git
+cd foggy-data-mcp-bridge
+
+# 启动演示数据库（MySQL + 预置电商数据）
+cd foggy-dataset-demo/docker
+docker-compose up -d mysql
+
+# 回到项目根目录，运行启动器
+cd ../..
+mvn spring-boot:run -pl foggy-mcp-launcher
+```
+
+启动后访问 http://localhost:7108/actuator/health 验证服务状态，然后跳转到 [连接 AI 客户端](#connect-ai-clients)。
+
+> **提示**：Demo 模块默认启用。如需禁用，添加启动参数 `--foggy.demo.enabled=false`。
+
+---
+
+如果你需要将 MCP 服务集成到自己的项目中，请继续下面的步骤：
+
 ### 1. 添加依赖
 
 #### 1.1 新建项目
@@ -140,6 +166,38 @@ curl -X POST http://localhost:7108/mcp/analyst/rpc \
     <version>8.0.1-beta</version>
 </dependency>
 ```
+
+#### 1.3 使用演示模型（可选）
+
+如果暂时没有自己的数据模型，可以添加演示模块快速体验：
+
+```xml
+<!-- 演示数据模型（电商场景） -->
+<dependency>
+    <groupId>com.foggysource</groupId>
+    <artifactId>foggy-dataset-demo</artifactId>
+    <version>8.0.1-beta</version>
+</dependency>
+```
+
+演示模块需要配合 `foggy-dataset-demo/docker` 中的 MySQL 数据库使用：
+
+```bash
+# 启动演示数据库
+cd foggy-dataset-demo/docker
+docker-compose up -d mysql
+```
+
+数据源配置：
+```yaml
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:13306/foggy_test
+    username: foggy
+    password: foggy_test_123
+```
+
+> **提示**：演示模块默认启用。生产环境可通过 `foggy.demo.enabled=false` 禁用。
 
 ### 2. 配置主应用类
 

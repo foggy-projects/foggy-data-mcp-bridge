@@ -93,6 +93,32 @@ Best for: Java developers, existing project integration, production deployment, 
 - Any IDE (IntelliJ IDEA, VS Code, etc.)
 - MySQL / PostgreSQL / SQLite database
 
+### Quick Demo Experience (Optional)
+
+If you just want to quickly experience the features, run the built-in demo module directly:
+
+```bash
+# Clone project
+git clone https://github.com/foggy-projects/foggy-data-mcp-bridge.git
+cd foggy-data-mcp-bridge
+
+# Start demo database (MySQL + pre-populated e-commerce data)
+cd foggy-dataset-demo/docker
+docker-compose up -d mysql
+
+# Return to project root, run launcher
+cd ../..
+mvn spring-boot:run -pl foggy-mcp-launcher
+```
+
+After startup, visit http://localhost:7108/actuator/health to verify service status, then jump to [Connect AI Clients](#connect-ai-clients).
+
+> **Tip**: Demo module is enabled by default. To disable, add startup argument `--foggy.demo.enabled=false`.
+
+---
+
+If you need to integrate MCP service into your own project, continue with the steps below:
+
 ### 1. Add Dependencies
 
 #### 1.1 New Project
@@ -140,6 +166,38 @@ For existing Spring Boot projects with datasource configured, just add:
     <version>8.0.1-beta</version>
 </dependency>
 ```
+
+#### 1.3 Using Demo Models (Optional)
+
+If you don't have your own data models yet, add the demo module for a quick experience:
+
+```xml
+<!-- Demo Data Models (E-commerce Scenario) -->
+<dependency>
+    <groupId>com.foggysource</groupId>
+    <artifactId>foggy-dataset-demo</artifactId>
+    <version>8.0.1-beta</version>
+</dependency>
+```
+
+Demo module requires the MySQL database from `foggy-dataset-demo/docker`:
+
+```bash
+# Start demo database
+cd foggy-dataset-demo/docker
+docker-compose up -d mysql
+```
+
+Datasource configuration:
+```yaml
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:13306/foggy_test
+    username: foggy
+    password: foggy_test_123
+```
+
+> **Tip**: Demo module is enabled by default. For production, disable with `foggy.demo.enabled=false`.
 
 ### 2. Configure Main Application Class
 
