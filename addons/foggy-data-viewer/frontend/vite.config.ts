@@ -18,9 +18,10 @@ export default defineConfig({
     }
   },
   server: {
+    port: 5193,
     proxy: {
       '/data-viewer/api': {
-        target: 'http://localhost:8080',
+        target: 'http://localhost:7108',
         changeOrigin: true
       }
     }

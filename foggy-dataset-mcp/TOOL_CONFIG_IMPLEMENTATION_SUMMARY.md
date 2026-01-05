@@ -10,7 +10,7 @@ config/tools/
 │   ├── dataset_nl_query.md      # ✅ 已清理Excel内容
 │   ├── get_metadata.md          # ✅ 已复制
 │   ├── description_model_internal.md # ✅ 已复制
-│   ├── query_model_v2.md        # ✅ 已复制
+│   ├── query_model.md        # ✅ 已复制
 │   ├── generate_chart.md        # ✅ 已复制
 │   └── export_with_chart.md     # ✅ 已复制
 └── schemas/                      # JSON Schema目录（待创建）
@@ -110,7 +110,7 @@ public class YourTool implements McpTool {
 ```
 config/tools/schemas/
 ├── dataset_nl_query_schema.json
-├── query_model_v2_schema.json
+├── query_model_schema.json
 └── ...
 ```
 

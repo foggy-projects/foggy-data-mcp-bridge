@@ -338,7 +338,7 @@ AI会根据查询内容自动生成有意义的图表标题：
 ## 与其他工具的关系
 
 - **M1层工具**: `dataset_nl.query` 是唯一的M1层入口工具
-- **M2层工具**: 内部会调用 `query_model_v2`、`export_with_chart` 等M2工具
+- **M2层工具**: 内部会调用 `query_model`、`export_with_chart` 等M2工具
 - **工具链**: 外部Agent → M1 (dataset_nl.query) → M2 (多个专业工具) → 返回结果
 
 ## 注意事项

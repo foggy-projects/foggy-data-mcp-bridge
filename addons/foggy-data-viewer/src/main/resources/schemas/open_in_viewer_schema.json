@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "description": "生成可分享的浏览器链接，用于交互式浏览大数据集",
+  "properties": {
+    "model": {
+      "type": "string",
+      "description": "查询模型名称，如 FactOrderQueryModel"
+    },
+    "payload": {
+      "type": "object",
+      "description": "查询参数（与 dataset.query_model 格式完全一致）",
+      "properties": {
+        "columns": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "要显示的列列表"
+        },
+        "slice": {
+          "type": "array",
+          "minItems": 1,
+          "description": "过滤条件（必需）。至少需要一个过滤条件来限制查询范围"
+        },
+        "orderBy": {
+          "type": "array",
+          "description": "排序配置"
+        },
+        "groupBy": {
+          "type": "array",
+          "description": "分组/聚合字段"
+        },
+        "calculatedFields": {
+          "type": "array",
+          "description": "计算字段定义"
+        }
+      },
+      "required": ["columns", "slice"]
+    },
+    "title": {
+      "type": "string",
+      "description": "数据视图的标题（可选）"
+    }
+  },
+  "required": ["model", "payload"]
+}

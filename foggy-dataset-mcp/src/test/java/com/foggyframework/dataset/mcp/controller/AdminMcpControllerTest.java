@@ -102,7 +102,7 @@ class AdminMcpControllerTest {
             McpResponse mockResponse = McpResponse.success("1", Map.of(
                     "tools", List.of(
                             Map.of("name", "dataset.get_metadata", "description", "Get metadata"),
-                            Map.of("name", "dataset.query_model_v2", "description", "Query model"),
+                            Map.of("name", "dataset.query_model", "description", "Query model"),
                             Map.of("name", "dataset_nl.query", "description", "NL Query")
                     )
             ));
@@ -119,7 +119,7 @@ class AdminMcpControllerTest {
                     .andExpect(jsonPath("$.result.tools").isArray())
                     .andExpect(jsonPath("$.result.tools", hasSize(3)))
                     .andExpect(jsonPath("$.result.tools[*].name",
-                            containsInAnyOrder("dataset.get_metadata", "dataset.query_model_v2", "dataset_nl.query")));
+                            containsInAnyOrder("dataset.get_metadata", "dataset.query_model", "dataset_nl.query")));
         }
     }
 

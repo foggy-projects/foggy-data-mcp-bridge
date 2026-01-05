@@ -24,7 +24,7 @@
 |------|------|----------|
 | **NATURAL_LANGUAGE** | 自然语言查询 | dataset_nl.query |
 | **METADATA** | 元数据管理 | dataset.get_metadata, dataset.description_model_internal |
-| **QUERY** | 数据查询 | dataset.query_model_v2 |
+| **QUERY** | 数据查询 | dataset.query_model |
 | **VISUALIZATION** | 数据可视化 | chart.generate |
 | **EXPORT** | 数据导出 | dataset.export_with_chart |
 | **SYSTEM** | 系统工具 | 健康检查等 |
@@ -91,7 +91,7 @@ curl -X POST http://localhost:8080/mcp/business/rpc \
 **可用工具**:
 - `dataset.get_metadata` - 获取元数据
 - `dataset.description_model_internal` - 获取模型详细信息
-- `dataset.query_model_v2` - 执行结构化查询
+- `dataset.query_model` - 执行结构化查询
 - `chart.generate` - 生成图表
 - `dataset.export_with_chart` - 查询并生成图表
 
@@ -104,7 +104,7 @@ curl -X POST http://localhost:8080/mcp/analyst/rpc \
     "id": 1,
     "method": "tools/call",
     "params": {
-      "name": "dataset.query_model_v2",
+      "name": "dataset.query_model",
       "arguments": {
         "model": "TmsCustomerModel",
         "payload": {

@@ -104,7 +104,7 @@ curl -X POST http://localhost:7108/mcp/analyst/rpc \
         }
       },
       {
-        "name": "dataset.query_model_v2",
+        "name": "dataset.query_model",
         "description": "Execute data query",
         "inputSchema": {
           "type": "object",
@@ -215,7 +215,7 @@ curl -X POST http://localhost:7108/mcp/analyst/rpc \
     "id": "3",
     "method": "tools/call",
     "params": {
-      "name": "dataset.query_model_v2",
+      "name": "dataset.query_model",
       "arguments": {
         "model": "FactSalesQueryModel",
         "payload": {

@@ -8,7 +8,7 @@ Foggy MCP provides a series of data query and analysis tools for AI assistants t
 |------|-------------|----------|
 | [`dataset.get_metadata`](./metadata.md#get_metadata) | Get user-accessible model list | Metadata |
 | [`dataset.describe_model_internal`](./metadata.md#describe_model_internal) | Get model field details | Metadata |
-| [`dataset.query_model_v2`](./query.md) | Execute structured data query | Query |
+| [`dataset.query_model`](./query.md) | Execute structured data query | Query |
 | [`dataset_nl.query`](./nl-query.md) | Natural language data query | Natural Language |
 | `chart.generate` | Generate data charts | Visualization |
 | `dataset.export_with_chart` | Export data and charts | Export |
@@ -28,7 +28,7 @@ Suitable for understanding data structure before querying.
 
 Used to execute structured data queries:
 
-- **query_model_v2** - Supports complex filtering, sorting, grouping, aggregation
+- **query_model** - Supports complex filtering, sorting, grouping, aggregation
 
 Requires understanding of data models and query syntax, provides precise query control.
 
@@ -62,7 +62,7 @@ Different endpoints provide different tool sets:
 |------|:-----:|:-------:|:--------:|
 | `dataset.get_metadata` | ✅ | ✅ | ❌ |
 | `dataset.describe_model_internal` | ✅ | ✅ | ❌ |
-| `dataset.query_model_v2` | ✅ | ✅ | ❌ |
+| `dataset.query_model` | ✅ | ✅ | ❌ |
 | `chart.generate` | ✅ | ✅ | ❌ |
 | `dataset.export_with_chart` | ✅ | ✅ | ❌ |
 | `dataset_nl.query` | ✅ | ❌ | ✅ |
@@ -82,7 +82,7 @@ Different endpoints provide different tool sets:
 ```
 1. get_metadata          → Get available model list
 2. describe_model_internal → View model field details
-3. query_model_v2        → Execute data query
+3. query_model        → Execute data query
 4. chart.generate        → Generate chart (optional)
 ```
 

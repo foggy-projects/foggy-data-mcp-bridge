@@ -71,8 +71,8 @@ public class ToolCallCollector {
     /**
      * 记录工具调用
      *
-     * @param toolName      工具名称（原始名称，如 dataset.query_model_v2）
-     * @param springToolName Spring AI 使用的名称（如 dataset_query_model_v2）
+     * @param toolName      工具名称（原始名称，如 dataset.query_model）
+     * @param springToolName Spring AI 使用的名称（如 dataset_query_model）
      * @param arguments     调用参数
      * @param result        执行结果（成功时）
      * @param error         错误信息（失败时）
@@ -227,12 +227,12 @@ public class ToolCallCollector {
     @Builder
     public static class ToolCallRecord {
         /**
-         * 工具原始名称（如 dataset.query_model_v2）
+         * 工具原始名称（如 dataset.query_model）
          */
         private String toolName;
 
         /**
-         * Spring AI 使用的名称（如 dataset_query_model_v2）
+         * Spring AI 使用的名称（如 dataset_query_model）
          */
         private String springToolName;
 

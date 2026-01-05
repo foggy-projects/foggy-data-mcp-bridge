@@ -45,7 +45,7 @@ class QueryModelToolTest {
         @Test
         @DisplayName("getName 应返回正确的工具名称")
         void getName_shouldReturnCorrectName() {
-            assertEquals("dataset.query_model_v2", queryModelTool.getName());
+            assertEquals("dataset.query_model", queryModelTool.getName());
         }
 
         @Test

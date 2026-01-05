@@ -49,7 +49,7 @@ public class QueryExpertService {
         1. 首先调用 dataset_get_metadata 获取可用的数据模型列表
         2. 根据用户查询意图，选择合适的数据模型
         3. 如需详细字段信息，调用 dataset_describe_model_internal 获取模型详情
-        4. 构建查询参数，调用 dataset_query_model_v2 执行查询
+        4. 构建查询参数，调用 dataset_query_model 执行查询
         5. 整理结果，返回给用户
 
         ## 查询参数说明
@@ -250,7 +250,7 @@ public class QueryExpertService {
         String[] toolNames = {
                 "dataset.get_metadata",
                 "dataset.describe_model_internal",
-                "dataset.query_model_v2"
+                "dataset.query_model"
         };
 
         for (String name : toolNames) {

@@ -352,7 +352,7 @@ public class McpProperties {
      *     enabled: true
      *     mask-authorization: true
      *     tools:
-     *       - dataset.query_model_v2
+     *       - dataset.query_model
      *       - dataset.export_with_chart
      *     mongodb:
      *       collection: mcp_tool_audit_log
@@ -376,7 +376,7 @@ public class McpProperties {
          * <p>如果为空，则记录所有工具调用
          */
         private List<String> tools = List.of(
-                "dataset.query_model_v2",
+                "dataset.query_model",
                 "dataset.export_with_chart"
         );
 

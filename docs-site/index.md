@@ -2,8 +2,8 @@
 layout: home
 hero:
   name: Foggy Data MCP Bridge
-  text: AI-Driven Data Analysis
-  tagline: Embedded semantic layer framework with declarative dimension modeling
+  text: AI-Native Semantic Layer Framework
+  tagline: Enable AI assistants to query business data safely and accurately through MCP protocol
   actions:
     - theme: brand
       text: 中文文档
@@ -11,12 +11,56 @@ hero:
     - theme: alt
       text: English Docs
       link: /en/
+    - theme: alt
+      text: GitHub
+      link: https://github.com/foggy-projects/foggy-data-mcp-bridge
 
 features:
-  - title: Dataset Modeling
-    details: Declarative TM/QM syntax for dimension modeling, automatic SQL generation
-  - title: MCP Integration
-    details: Connect AI assistants (Claude, Cursor) to your database via MCP protocol
-  - title: FSScript Engine
-    details: Lightweight JavaScript-like scripting engine for dynamic SQL templating
+  - icon: 🔒
+    title: Security First
+    details: DSL-based queries eliminate SQL injection risks. Field-level access control with read-only design.
+  - icon: 🎯
+    title: Model-as-Code
+    details: Define data models using FSScript (JavaScript-like syntax). Functions, imports, and dynamic logic.
+  - icon: 🌐
+    title: Multi-Database
+    details: MySQL, PostgreSQL, SQL Server, SQLite, MongoDB - same DSL works everywhere.
+  - icon: 🤖
+    title: AI-Native MCP
+    details: Native MCP protocol support. Out-of-box integration with Claude Desktop & Cursor.
+  - icon: 📊
+    title: Auto Visualization
+    details: Automatic chart generation - trend charts, bar charts, pie charts, and more.
+  - icon: 🚀
+    title: Production Ready
+    details: Spring Boot based, Docker support, bilingual docs, extensible addon system.
 ---
+
+<style>
+:root {
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: -webkit-linear-gradient(120deg, #bd34fe 30%, #41d1ff);
+}
+</style>
+
+## Why This Project?
+
+### ❌ The Problem: Letting AI Write SQL Directly is Dangerous
+
+| Problem | Impact |
+|---------|--------|
+| **Security Risks** | AI may generate `DELETE`, `UPDATE`, or access sensitive tables |
+| **Schema Exposure** | Must share complete database schema with AI |
+| **No Business Semantics** | What does `order_status=3` mean? AI doesn't know |
+| **Complex JOINs** | Multi-table relationships and aggregations are fragile |
+
+### ✅ Our Solution: Semantic Layer with DSL Query Language
+
+```
+AI → JSON DSL Query → Semantic Layer → Safe SQL → Database
+                            ↓
+                    • Prevents SQL injection
+                    • Enforces access control
+                    • Handles multi-table JOINs
+                    • Abstracts database dialects
+```

@@ -1,10 +1,10 @@
 # 查询工具
 
-`dataset.query_model_v2` 是核心数据查询工具，支持复杂的过滤、排序、分组和聚合操作。
+`dataset.query_model` 是核心数据查询工具，支持复杂的过滤、排序、分组和聚合操作。
 
 ## 基本信息
 
-- **工具名称**: `dataset.query_model_v2`
+- **工具名称**: `dataset.query_model`
 - **分类**: 数据查询
 - **权限**: Admin, Analyst
 
@@ -212,7 +212,7 @@
   "id": "1",
   "method": "tools/call",
   "params": {
-    "name": "dataset.query_model_v2",
+    "name": "dataset.query_model",
     "arguments": {
       "model": "FactSalesQueryModel",
       "payload": {

@@ -37,7 +37,7 @@ public class SpringAiTestExecutor {
 
         1. 先使用 dataset_get_metadata 工具获取可用模型列表
         2. 使用 dataset_describe_model_internal 工具了解模型的字段定义(可选)
-        3. 使用 dataset_query_model_v2 工具执行数据查询
+        3. 使用 dataset_query_model 工具执行数据查询
 
         ## 注意事项
 
@@ -292,7 +292,7 @@ public class SpringAiTestExecutor {
             case "dataset.describe_model_internal" -> {
                 args.put("model", testCase.getTargetModel());
             }
-            case "dataset.query_model_v2" -> {
+            case "dataset.query_model" -> {
                 args.put("model", testCase.getTargetModel());
                 args.put("mode", "execute");
 

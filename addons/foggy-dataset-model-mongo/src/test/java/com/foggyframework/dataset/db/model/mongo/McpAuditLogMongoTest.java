@@ -58,7 +58,7 @@ class McpAuditLogMongoTest extends MongoTestSupport {
     private static final String[] TOOL_NAMES = {
             "dataset.get_metadata",
             "dataset.describe_model_internal",
-            "dataset.query_model_v2",
+            "dataset.query_model",
             "dataset.export_with_chart",
             "chart.generate",
             "dataset_nl.query"
@@ -226,7 +226,7 @@ class McpAuditLogMongoTest extends MongoTestSupport {
         return switch (toolName) {
             case "dataset.get_metadata" -> "返回 " + (3 + random.nextInt(5)) + " 个可用模型";
             case "dataset.describe_model_internal" -> "模型包含 " + (5 + random.nextInt(15)) + " 个字段";
-            case "dataset.query_model_v2" -> "查询返回 " + (10 + random.nextInt(990)) + " 条数据";
+            case "dataset.query_model" -> "查询返回 " + (10 + random.nextInt(990)) + " 条数据";
             case "dataset.export_with_chart" -> "导出成功，文件大小 " + (100 + random.nextInt(900)) + "KB";
             case "chart.generate" -> "图表生成成功，类型: " + (random.nextBoolean() ? "bar" : "line");
             case "dataset_nl.query" -> "自然语言查询解析成功";
@@ -255,7 +255,7 @@ class McpAuditLogMongoTest extends MongoTestSupport {
         switch (toolName) {
             case "dataset.get_metadata" -> args.put("levels", Arrays.asList(1, 2));
             case "dataset.describe_model_internal" -> args.put("modelName", "FactSalesQueryModel");
-            case "dataset.query_model_v2" -> {
+            case "dataset.query_model" -> {
                 args.put("modelName", "FactSalesQueryModel");
                 args.put("columns", Arrays.asList("product$caption", "salesAmount"));
                 args.put("limit", 100);
@@ -356,7 +356,7 @@ class McpAuditLogMongoTest extends MongoTestSupport {
     @Order(12)
     @DisplayName("条件查询对比 - 按工具名称过滤")
     void testFilterQuery_ByToolName() {
-        String toolName = "dataset.query_model_v2";
+        String toolName = "dataset.query_model";
 
         // 1. MongoTemplate 直接查询
         Query mongoQuery = new Query(Criteria.where("toolName").is(toolName));

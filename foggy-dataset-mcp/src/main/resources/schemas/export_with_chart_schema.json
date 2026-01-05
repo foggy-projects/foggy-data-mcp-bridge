@@ -9,7 +9,7 @@
     },
     "payload": {
       "type": "object",
-      "description": "查询参数（同query_model_v2的payload）",
+      "description": "查询参数（同query_model的payload）",
       "properties": {
         "columns": {
           "type": "array",
