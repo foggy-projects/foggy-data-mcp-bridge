@@ -101,7 +101,7 @@ public abstract class BaseMcpTest {
     protected List<McpTool> createMixedCategoryTools() {
         return List.of(
                 createMockTool("dataset.get_metadata", "Get metadata", ToolCategory.METADATA),
-                createMockTool("dataset.query_model_v2", "Query model", ToolCategory.QUERY),
+                createMockTool("dataset.query_model", "Query model", ToolCategory.QUERY),
                 createMockTool("dataset_nl.query", "NL Query", ToolCategory.NATURAL_LANGUAGE),
                 createMockTool("chart.generate", "Generate chart", ToolCategory.VISUALIZATION),
                 createMockTool("dataset.export_with_chart", "Export with chart",

@@ -40,7 +40,7 @@ public class EcommerceTestCase {
 
     /**
      * 期望使用的工具名称
-     * 例如: dataset.get_metadata, dataset.query_model_v2
+     * 例如: dataset.get_metadata, dataset.query_model
      */
     @JsonProperty("expected_tool")
     private String expectedTool;

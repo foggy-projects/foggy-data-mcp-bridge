@@ -63,7 +63,7 @@ class AnalystMcpControllerTest {
                     "tools", List.of(
                             Map.of("name", "dataset.get_metadata", "description", "获取元数据"),
                             Map.of("name", "dataset.description_model_internal", "description", "模型描述"),
-                            Map.of("name", "dataset.query_model_v2", "description", "查询模型"),
+                            Map.of("name", "dataset.query_model", "description", "查询模型"),
                             Map.of("name", "chart.generate", "description", "生成图表"),
                             Map.of("name", "dataset.export_with_chart", "description", "导出图表")
                     )
@@ -145,7 +145,7 @@ class AnalystMcpControllerTest {
                                       "id":"1",
                                       "method":"tools/call",
                                       "params":{
-                                        "name":"dataset.query_model_v2",
+                                        "name":"dataset.query_model",
                                         "arguments":{
                                           "model":"FactSalesModel",
                                           "payload":{"columns":["product$caption"]}

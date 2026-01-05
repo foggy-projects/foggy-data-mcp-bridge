@@ -222,7 +222,7 @@
 2. describe_model_internal
    → 选择目标模型，获取详细字段
 
-3. query_model_v2
+3. query_model
    → 使用正确的字段名执行查询
 ```
 

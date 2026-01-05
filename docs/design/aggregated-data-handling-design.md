@@ -269,7 +269,7 @@ foggy-mcp-starter/
 
 A single new tool that converts query parameters into a viewable link.
 
-> **Note**: The existing `dataset.query_model_v2` tool already supports `returnTotal`, `limit`, and `columns` parameters, which provides sufficient preview/estimation functionality. No separate preview tool is needed.
+> **Note**: The existing `dataset.query_model` tool already supports `returnTotal`, `limit`, and `columns` parameters, which provides sufficient preview/estimation functionality. No separate preview tool is needed.
 
 **Input Schema:**
 ```json
@@ -327,7 +327,7 @@ Generate a shareable link to view large datasets in an interactive browser.
 - When user asks for "all", "list", "export" type queries
 - When data exploration (filtering, sorting, pagination) would be valuable
 
-**When NOT to use (use dataset.query_model_v2 instead):**
+**When NOT to use (use dataset.query_model instead):**
 - Aggregated queries with groupBy (returns summary, small result set)
 - Queries with explicit small limit (≤100 rows)
 - When AI needs to analyze/interpret the data directly
@@ -344,7 +344,7 @@ Examples of valid scope-limiting filters:
 If the user's request doesn't specify a scope, ask them to clarify the time range
 or other filtering criteria before creating the viewer link.
 
-**Tip:** Use dataset.query_model_v2 with returnTotal=true and limit=1 to estimate
+**Tip:** Use dataset.query_model with returnTotal=true and limit=1 to estimate
 row count before deciding which tool to use.
 ```
 
@@ -1199,7 +1199,7 @@ public class McpToolDispatcher {
 ```
 User: "Show me all orders from 2025"
      ↓
-AI: Uses dataset.query_model_v2 with limit=1, returnTotal=true
+AI: Uses dataset.query_model with limit=1, returnTotal=true
      → Response: { total: 15000, items: [...] }
      ↓
 AI: Recognizes 15000 rows is too large, uses dataset.open_in_viewer
@@ -1229,7 +1229,7 @@ The link expires in 1 hour."
 ```
 User: "What are the top 10 customers by sales in 2025?"
      ↓
-AI: Uses dataset.query_model_v2 with groupBy + limit=10
+AI: Uses dataset.query_model with groupBy + limit=10
      → Response: { items: [...10 rows...], total: 10 }
      ↓
 AI Response: "Here are your top 10 customers by sales in 2025:

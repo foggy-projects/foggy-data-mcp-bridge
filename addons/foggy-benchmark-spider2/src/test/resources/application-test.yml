@@ -34,7 +34,7 @@ mcp:
       descriptionFile: "classpath:/schemas/descriptions/describe_model_internal.md"
       schemaFile: "classpath:/schemas/describe_model_internal_schema.json"
       category: METADATA
-    - name: "dataset.query_model_v2"
+    - name: "dataset.query_model"
       descriptionFile: "classpath:/schemas/descriptions/query_model_v3.md"
       schemaFile: "classpath:/schemas/query_model_v3_schema.json"
       category: QUERY

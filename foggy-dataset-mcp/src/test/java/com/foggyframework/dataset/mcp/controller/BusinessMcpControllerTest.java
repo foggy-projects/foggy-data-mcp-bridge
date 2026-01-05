@@ -126,7 +126,7 @@ class BusinessMcpControllerTest {
         void business_shouldNotAccessQueryTool() throws Exception {
             // 模拟权限被拒绝
             McpResponse mockResponse = McpResponse.error("1", McpError.METHOD_NOT_FOUND,
-                    "Tool not found or access denied: dataset.query_model_v2");
+                    "Tool not found or access denied: dataset.query_model");
 
             when(mcpService.handleToolsCall(any(McpRequest.class), eq(UserRole.BUSINESS), any(), any(), any()))
                     .thenReturn(mockResponse);
@@ -139,7 +139,7 @@ class BusinessMcpControllerTest {
                                       "id":"1",
                                       "method":"tools/call",
                                       "params":{
-                                        "name":"dataset.query_model_v2",
+                                        "name":"dataset.query_model",
                                         "arguments":{}
                                       }
                                     }

@@ -86,101 +86,46 @@ public class OpenInViewerTool implements McpTool {
         return result;
     }
 
-    @Override
-    public String getDescription() {
-        return """
-                Generate a shareable link to view large datasets in an interactive browser.
-
-                **When to use:**
-                - Detailed data queries expecting many rows (500+)
-                - When user asks for "all", "list", "export" type queries
-                - When data exploration (filtering, sorting, pagination) would be valuable
-
-                **When NOT to use (use dataset.query_model_v2 instead):**
-                - Aggregated queries with groupBy (returns summary, small result set)
-                - Queries with explicit small limit (≤100 rows)
-                - When AI needs to analyze/interpret the data directly
-
-                **IMPORTANT - Filter Requirement:**
-                You MUST provide at least one filter condition in the `slice` parameter to limit the
-                query scope. This is mandatory to prevent unbounded queries on large tables.
-
-                **Tip:** Use dataset.query_model_v2 with returnTotal=true and limit=1 to estimate
-                row count before deciding which tool to use.
-                """;
-    }
-
-    @Override
-    public Map<String, Object> getInputSchema() {
-        Map<String, Object> schema = new LinkedHashMap<>();
-        schema.put("type", "object");
-        schema.put("required", List.of("model", "columns", "slice"));
-
-        Map<String, Object> properties = new LinkedHashMap<>();
-
-        properties.put("model", Map.of(
-                "type", "string",
-                "description", "The query model name (e.g., FactOrderQueryModel)"
-        ));
-
-        properties.put("columns", Map.of(
-                "type", "array",
-                "items", Map.of("type", "string"),
-                "description", "Columns to display"
-        ));
-
-        properties.put("slice", Map.of(
-                "type", "array",
-                "minItems", 1,
-                "description", "Filter conditions (REQUIRED). At least one filter must be provided to limit query scope."
-        ));
-
-        properties.put("groupBy", Map.of(
-                "type", "array",
-                "description", "Grouping/aggregation fields"
-        ));
-
-        properties.put("orderBy", Map.of(
-                "type", "array",
-                "description", "Sort order"
-        ));
-
-        properties.put("title", Map.of(
-                "type", "string",
-                "description", "Optional title for the data view"
-        ));
-
-        schema.put("properties", properties);
-        return schema;
-    }
+    // 注意：getDescription() 和 getInputSchema() 从配置文件加载，不再硬编码
+    // 描述文件: classpath:/schemas/descriptions/open_in_viewer.md
+    // Schema文件: classpath:/schemas/open_in_viewer_schema.json
 
     @SuppressWarnings("unchecked")
     private OpenInViewerRequest parseRequest(Map<String, Object> arguments) {
         OpenInViewerRequest request = new OpenInViewerRequest();
+
+        // 顶层参数
         request.setModel((String) arguments.get("model"));
-        request.setColumns((List<String>) arguments.get("columns"));
         request.setTitle((String) arguments.get("title"));
 
+        // 从 payload 中提取查询参数（与 query_model 格式一致）
+        Map<String, Object> payload = (Map<String, Object>) arguments.get("payload");
+        if (payload == null) {
+            throw new IllegalArgumentException("payload is required");
+        }
+
+        request.setColumns((List<String>) payload.get("columns"));
+
         // 使用 ObjectMapper 转换类型安全的请求对象
-        Object sliceArg = arguments.get("slice");
+        Object sliceArg = payload.get("slice");
         if (sliceArg != null) {
             request.setSlice(objectMapper.convertValue(sliceArg,
                     new TypeReference<List<SliceRequestDef>>() {}));
         }
 
-        Object groupByArg = arguments.get("groupBy");
+        Object groupByArg = payload.get("groupBy");
         if (groupByArg != null) {
             request.setGroupBy(objectMapper.convertValue(groupByArg,
                     new TypeReference<List<GroupRequestDef>>() {}));
         }
 
-        Object orderByArg = arguments.get("orderBy");
+        Object orderByArg = payload.get("orderBy");
         if (orderByArg != null) {
             request.setOrderBy(objectMapper.convertValue(orderByArg,
                     new TypeReference<List<OrderRequestDef>>() {}));
         }
 
-        Object calculatedFieldsArg = arguments.get("calculatedFields");
+        Object calculatedFieldsArg = payload.get("calculatedFields");
         if (calculatedFieldsArg != null) {
             request.setCalculatedFields(objectMapper.convertValue(calculatedFieldsArg,
                     new TypeReference<List<CalculatedFieldDef>>() {}));
@@ -191,10 +136,10 @@ public class OpenInViewerTool implements McpTool {
             throw new IllegalArgumentException("model is required");
         }
         if (request.getColumns() == null || request.getColumns().isEmpty()) {
-            throw new IllegalArgumentException("columns is required");
+            throw new IllegalArgumentException("payload.columns is required");
         }
         if (request.getSlice() == null || request.getSlice().isEmpty()) {
-            throw new IllegalArgumentException("slice is required - at least one filter condition must be provided");
+            throw new IllegalArgumentException("payload.slice is required - at least one filter condition must be provided");
         }
 
         return request;

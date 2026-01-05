@@ -152,7 +152,7 @@ CHART_RENDER_TOKEN=default-render-token
 |----------|------|
 | `dataset.get_metadata` | 获取用户级元数据包 |
 | `dataset.description_model_internal` | 获取模型详细字段信息 |
-| `dataset.query_model_v2` | 执行数据查询 |
+| `dataset.query_model` | 执行数据查询 |
 | `dataset_nl.query` | 智能自然语言查询 |
 
 ## 开发指南

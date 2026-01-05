@@ -222,7 +222,7 @@ Hierarchical dimensions additionally support `$hierarchy$` perspective:
 2. describe_model_internal
    → Select target model, get detailed fields
 
-3. query_model_v2
+3. query_model
    → Execute query using correct field names
 ```
 

@@ -115,7 +115,7 @@ MCP 工具按功能分为以下类别：
 | 类别 | 说明 | 包含工具 |
 |------|------|----------|
 | **元数据管理** | 查询数据模型元数据 | `get_metadata`, `description_model_internal` |
-| **数据查询** | 结构化数据查询 | `query_model_v2` |
+| **数据查询** | 结构化数据查询 | `query_model` |
 | **自然语言** | AI 驱动的智能查询 | `dataset_nl.query` |
 | **数据可视化** | 图表生成 | `generate_chart` |
 | **数据导出** | 数据导出功能 | `export_with_chart` |
@@ -126,7 +126,7 @@ MCP 工具按功能分为以下类别：
 |------|:-----:|:-------:|:--------:|
 | `dataset.get_metadata` | ✅ | ✅ | ❌ |
 | `dataset.description_model_internal` | ✅ | ✅ | ❌ |
-| `dataset.query_model_v2` | ✅ | ✅ | ❌ |
+| `dataset.query_model` | ✅ | ✅ | ❌ |
 | `dataset.generate_chart` | ✅ | ✅ | ❌ |
 | `dataset.export_with_chart` | ✅ | ✅ | ❌ |
 | `dataset_nl.query` | ✅ | ❌ | ✅ |

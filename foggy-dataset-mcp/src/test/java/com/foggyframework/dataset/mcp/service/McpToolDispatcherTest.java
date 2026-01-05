@@ -67,7 +67,7 @@ class McpToolDispatcherTest extends BaseMcpTest {
         @DisplayName("init 后所有工具应被注册")
         void init_shouldRegisterAllTools() {
             assertTrue(dispatcher.hasTool("dataset.get_metadata"));
-            assertTrue(dispatcher.hasTool("dataset.query_model_v2"));
+            assertTrue(dispatcher.hasTool("dataset.query_model"));
             assertTrue(dispatcher.hasTool("dataset_nl.query"));
         }
 
@@ -124,7 +124,7 @@ class McpToolDispatcherTest extends BaseMcpTest {
             boolean foundMetadata = definitions.stream()
                     .anyMatch(d -> "dataset.get_metadata".equals(d.get("name")));
             boolean foundQuery = definitions.stream()
-                    .anyMatch(d -> "dataset.query_model_v2".equals(d.get("name")));
+                    .anyMatch(d -> "dataset.query_model".equals(d.get("name")));
 
             assertTrue(foundMetadata, "Should contain metadata tool");
             assertTrue(foundQuery, "Should contain query tool");
@@ -224,7 +224,7 @@ class McpToolDispatcherTest extends BaseMcpTest {
 
             when(queryTool.execute(args, "trace-2", "Bearer token")).thenReturn(Map.of("success", true));
 
-            dispatcher.executeTool("dataset.query_model_v2", args, "trace-2", "Bearer token");
+            dispatcher.executeTool("dataset.query_model", args, "trace-2", "Bearer token");
 
             // 验证参数传递（通过 Mock 的 when 配置隐式验证）
         }

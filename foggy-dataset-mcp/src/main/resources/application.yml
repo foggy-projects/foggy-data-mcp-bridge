@@ -119,7 +119,7 @@ mcp:
       descriptionFile: "classpath:/schemas/descriptions/describe_model_internal.md"
       schemaFile: "classpath:/schemas/describe_model_internal_schema.json"
       category: METADATA
-    - name: "dataset.query_model_v2"
+    - name: "dataset.query_model"
       descriptionFile: "classpath:/schemas/descriptions/query_model_v3.md"
       schemaFile: "classpath:/schemas/query_model_v3_schema.json"
       category: QUERY
@@ -138,6 +138,12 @@ mcp:
       descriptionFile: "classpath:/schemas/descriptions/inspect_table.md"
       schemaFile: "classpath:/schemas/inspect_table_schema.json"
       category: ADMIN
+    # Data Viewer 工具（需要 foggy-data-viewer 模块）
+    - name: "dataset.open_in_viewer"
+      enabled: true
+      descriptionFile: "classpath:/schemas/descriptions/open_in_viewer.md"
+      schemaFile: "classpath:/schemas/open_in_viewer_schema.json"
+      category: EXPORT
 
   # 审计日志配置
   # 记录工具调用日志到 MongoDB，用于追踪和分析 AI 工具使用情况
@@ -148,7 +154,7 @@ mcp:
     mask-authorization: ${MCP_AUDIT_MASK_AUTH:true}
     # 需要记录审计日志的工具列表（为空则记录所有）
     tools:
-      - dataset.query_model_v2
+      - dataset.query_model
       - dataset.export_with_chart
     # MongoDB 配置
     mongodb:

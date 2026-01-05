@@ -1,10 +1,10 @@
 # Query Tools
 
-`dataset.query_model_v2` is the core tool for executing structured data queries.
+`dataset.query_model` is the core tool for executing structured data queries.
 
 ## Basic Information
 
-- **Tool Name**: `dataset.query_model_v2`
+- **Tool Name**: `dataset.query_model`
 - **Category**: Query
 - **Permission**: Admin, Analyst
 
@@ -118,7 +118,7 @@
   "id": "1",
   "method": "tools/call",
   "params": {
-    "name": "dataset.query_model_v2",
+    "name": "dataset.query_model",
     "arguments": {
       "model": "FactSalesQueryModel",
       "payload": {

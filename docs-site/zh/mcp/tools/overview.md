@@ -8,7 +8,7 @@ Foggy MCP 提供一系列数据查询和分析工具，供 AI 助手调用。
 |------|------|------|
 | [`dataset.get_metadata`](./metadata.md#get_metadata) | 获取用户可访问的模型列表 | 元数据 |
 | [`dataset.describe_model_internal`](./metadata.md#describe_model_internal) | 获取模型详细字段信息 | 元数据 |
-| [`dataset.query_model_v2`](./query.md) | 执行结构化数据查询 | 查询 |
+| [`dataset.query_model`](./query.md) | 执行结构化数据查询 | 查询 |
 | [`dataset_nl.query`](./nl-query.md) | 自然语言数据查询 | 自然语言 |
 | `chart.generate` | 生成数据图表 | 可视化 |
 | `dataset.export_with_chart` | 导出数据和图表 | 导出 |
@@ -28,7 +28,7 @@ Foggy MCP 提供一系列数据查询和分析工具，供 AI 助手调用。
 
 用于执行结构化数据查询：
 
-- **query_model_v2** - 支持复杂过滤、排序、分组、聚合
+- **query_model** - 支持复杂过滤、排序、分组、聚合
 
 需要了解数据模型和查询语法，提供精确的查询控制。
 
@@ -62,7 +62,7 @@ Foggy MCP 提供一系列数据查询和分析工具，供 AI 助手调用。
 |------|:-----:|:-------:|:--------:|
 | `dataset.get_metadata` | ✅ | ✅ | ❌ |
 | `dataset.describe_model_internal` | ✅ | ✅ | ❌ |
-| `dataset.query_model_v2` | ✅ | ✅ | ❌ |
+| `dataset.query_model` | ✅ | ✅ | ❌ |
 | `chart.generate` | ✅ | ✅ | ❌ |
 | `dataset.export_with_chart` | ✅ | ✅ | ❌ |
 | `dataset_nl.query` | ✅ | ❌ | ✅ |
@@ -82,7 +82,7 @@ Foggy MCP 提供一系列数据查询和分析工具，供 AI 助手调用。
 ```
 1. get_metadata          → 获取可用模型列表
 2. describe_model_internal → 查看模型字段详情
-3. query_model_v2        → 执行数据查询
+3. query_model        → 执行数据查询
 4. chart.generate        → 生成图表（可选）
 ```
 

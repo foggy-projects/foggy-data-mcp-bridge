@@ -46,7 +46,7 @@
 
 ---
 
-### 3. QueryModelTool (dataset.query_model_v2)
+### 3. QueryModelTool (dataset.query_model)
 
 **原Python配置** (324行超详细文档):
 - ✅ 核心概念与名词解释（数据模型、维度、属性、度量）
@@ -154,13 +154,13 @@ config/
     ├── descriptions/                     # 详细描述目录（Markdown）
     │   ├── dataset_nl_query.md
     │   ├── get_metadata.md
-    │   ├── query_model_v2.md
+    │   ├── query_model.md
     │   ├── description_model_internal.md
     │   ├── generate_chart.md
     │   └── export_with_chart.md
     └── schemas/                          # 参数Schema定义（JSON Schema）
         ├── dataset_nl_query_schema.json
-        ├── query_model_v2_schema.json
+        ├── query_model_schema.json
         └── ...
 ```
 
@@ -219,15 +219,15 @@ tools:
       maxDataPoints: 10000
       paginationRecommended: true
 
-  - name: "dataset.query_model_v2"
+  - name: "dataset.query_model"
     displayName: "模型结构化查询"
     category: QUERY
     version: "2.0"
 
     summary: "执行指定模型的数据查询，支持复杂查询条件、分页、排序、分组聚合等"
 
-    descriptionFile: "descriptions/query_model_v2.md"
-    schemaFile: "schemas/query_model_v2_schema.json"
+    descriptionFile: "descriptions/query_model.md"
+    schemaFile: "schemas/query_model_schema.json"
 
     parameters:
       - name: "model"

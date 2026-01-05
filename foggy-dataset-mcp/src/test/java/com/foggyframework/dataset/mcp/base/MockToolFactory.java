@@ -57,7 +57,7 @@ public class MockToolFactory {
      */
     public static McpTool createQueryModelTool() {
         McpTool tool = mock(McpTool.class);
-        when(tool.getName()).thenReturn("dataset.query_model_v2");
+        when(tool.getName()).thenReturn("dataset.query_model");
         when(tool.getDescription()).thenReturn("执行数据查询");
         when(tool.getCategories()).thenReturn(EnumSet.of(ToolCategory.QUERY));
         when(tool.getInputSchema()).thenReturn(Map.of(

@@ -129,7 +129,7 @@
 
 ## 与其他工具配合
 
-1. 使用 `query_model_v2()` 查询数据
+1. 使用 `query_model()` 查询数据
 2. 使用 `generate_chart()` 生成图表
 3. 使用 `generate_excel()` 同时导出Excel
 

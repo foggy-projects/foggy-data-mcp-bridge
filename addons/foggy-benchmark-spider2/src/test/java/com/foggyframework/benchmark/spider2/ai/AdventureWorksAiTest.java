@@ -50,7 +50,7 @@ import java.util.*;
 class AdventureWorksAiTest {
 
     private static final String DATABASE_NAME = "AdventureWorks";
-    private static final String QUERY_MODEL_TOOL_NAME = "dataset.query_model_v2";
+    private static final String QUERY_MODEL_TOOL_NAME = "dataset.query_model";
 
     @Autowired
     private Spider2Properties properties;
@@ -218,7 +218,7 @@ class AdventureWorksAiTest {
         // 验证 AI 调用了工具
         Assertions.assertFalse(toolCalls.isEmpty(), "AI should call QueryModelTool");
         Assertions.assertEquals(QUERY_MODEL_TOOL_NAME, toolCalls.get(0).getToolName(),
-                "AI should call dataset.query_model_v2");
+                "AI should call dataset.query_model");
     }
 
     @Test
@@ -345,7 +345,7 @@ class AdventureWorksAiTest {
 
             ## 使用说明
 
-            1. 使用 dataset_query_model_v2 工具执行数据查询
+            1. 使用 dataset_query_model 工具执行数据查询
             2. 根据问题选择合适的模型和字段
 
             ## 可用模型

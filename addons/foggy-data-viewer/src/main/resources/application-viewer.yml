@@ -5,8 +5,8 @@ foggy:
     base-url: http://localhost:8080/data-viewer
 
     cache:
-      ttl-minutes: 60
-      cleanup-interval: 300000
+      ttl-minutes: 120
+      cleanup-interval: 3000000
 
     thresholds:
       large-dataset-min: 500
@@ -25,3 +25,20 @@ spring:
     resources:
       static-locations:
         - classpath:/static/
+
+# ============================================================
+# MCP 工具配置
+# ============================================================
+# 以下配置需要添加到主应用的 application.yml 中的 mcp.tools 列表：
+#
+# mcp:
+#   tools:
+#     - name: "dataset.open_in_viewer"
+#       enabled: true
+#       descriptionFile: "classpath:/schemas/descriptions/open_in_viewer.md"
+#       schemaFile: "classpath:/schemas/open_in_viewer_schema.json"
+#       category: EXPORT
+#
+# 描述文件和 Schema 文件位于本模块的 resources/schemas/ 目录下，
+# 会被打包到 jar 中，主应用可以通过 classpath 访问。
+# ============================================================

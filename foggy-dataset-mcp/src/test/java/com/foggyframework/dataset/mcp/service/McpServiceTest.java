@@ -127,12 +127,12 @@ class McpServiceTest extends BaseMcpTest {
             List<Map<String, Object>> allDefs = List.of(
                     Map.of("name", "dataset.get_metadata"),
                     Map.of("name", "dataset_nl.query"),
-                    Map.of("name", "dataset.query_model_v2")
+                    Map.of("name", "dataset.query_model")
             );
             List<McpTool> allTools = MockToolFactory.createAllStandardTools();
             List<Map<String, Object>> filteredDefs = List.of(
                     Map.of("name", "dataset.get_metadata"),
-                    Map.of("name", "dataset.query_model_v2")
+                    Map.of("name", "dataset.query_model")
             );
 
             when(toolDispatcher.getToolDefinitions()).thenReturn(allDefs);
@@ -257,11 +257,11 @@ class McpServiceTest extends BaseMcpTest {
         @Test
         @DisplayName("权限不足应返回 METHOD_NOT_FOUND 错误")
         void accessDenied_shouldReturnMethodNotFoundError() {
-            McpRequest request = createToolsCallRequest("dataset.query_model_v2", Map.of());
+            McpRequest request = createToolsCallRequest("dataset.query_model", Map.of());
 
             McpTool mockTool = MockToolFactory.createQueryModelTool();
-            when(toolDispatcher.hasTool("dataset.query_model_v2")).thenReturn(true);
-            when(toolDispatcher.getTool("dataset.query_model_v2")).thenReturn(mockTool);
+            when(toolDispatcher.hasTool("dataset.query_model")).thenReturn(true);
+            when(toolDispatcher.getTool("dataset.query_model")).thenReturn(mockTool);
             when(toolFilterService.canAccessTool(mockTool, UserRole.BUSINESS)).thenReturn(false);
 
             McpResponse response = mcpService.handleToolsCall(request, UserRole.BUSINESS, "trace-1", null);
@@ -337,17 +337,17 @@ class McpServiceTest extends BaseMcpTest {
         @DisplayName("应正确传递 arguments")
         void shouldPassArgumentsCorrectly() {
             Map<String, Object> arguments = Map.of("model", "TestModel", "limit", 10);
-            McpRequest request = createToolsCallRequest("dataset.query_model_v2", arguments);
+            McpRequest request = createToolsCallRequest("dataset.query_model", arguments);
 
             McpTool mockTool = MockToolFactory.createQueryModelTool();
-            when(toolDispatcher.hasTool("dataset.query_model_v2")).thenReturn(true);
-            when(toolDispatcher.getTool("dataset.query_model_v2")).thenReturn(mockTool);
-            when(toolDispatcher.executeTool(eq("dataset.query_model_v2"), eq(arguments), any(), any(), any(), any()))
+            when(toolDispatcher.hasTool("dataset.query_model")).thenReturn(true);
+            when(toolDispatcher.getTool("dataset.query_model")).thenReturn(mockTool);
+            when(toolDispatcher.executeTool(eq("dataset.query_model"), eq(arguments), any(), any(), any(), any()))
                     .thenReturn(Map.of("success", true));
 
             mcpService.handleToolsCall(request, UserRole.ADMIN, "trace-1", null);
 
-            verify(toolDispatcher).executeTool(eq("dataset.query_model_v2"), eq(arguments), any(), any(), any(), any());
+            verify(toolDispatcher).executeTool(eq("dataset.query_model"), eq(arguments), any(), any(), any(), any());
         }
     }
 
@@ -382,13 +382,13 @@ class McpServiceTest extends BaseMcpTest {
         void accessDenied_shouldReturnError() {
             McpRequest request = McpRequest.builder()
                     .id("1")
-                    .method("dataset.query_model_v2")
+                    .method("dataset.query_model")
                     .params(Map.of())
                     .build();
 
             McpTool mockTool = MockToolFactory.createQueryModelTool();
-            when(toolDispatcher.hasTool("dataset.query_model_v2")).thenReturn(true);
-            when(toolDispatcher.getTool("dataset.query_model_v2")).thenReturn(mockTool);
+            when(toolDispatcher.hasTool("dataset.query_model")).thenReturn(true);
+            when(toolDispatcher.getTool("dataset.query_model")).thenReturn(mockTool);
             when(toolFilterService.canAccessTool(mockTool, UserRole.BUSINESS)).thenReturn(false);
 
             McpResponse response = mcpService.handleDirectToolCall(request, UserRole.BUSINESS, "trace-1", null);

@@ -13,7 +13,7 @@ import java.util.*;
 /**
  * 模型查询工具 - 执行数据查询
  *
- * 对应 Python 版的 dataset.query_model_v2
+ * 对应 Python 版的 dataset.query_model
  */
 @Slf4j
 @Component
@@ -24,7 +24,7 @@ public class QueryModelTool implements McpTool {
 
     @Override
     public String getName() {
-        return "dataset.query_model_v2";
+        return "dataset.query_model";
     }
 
     @Override
