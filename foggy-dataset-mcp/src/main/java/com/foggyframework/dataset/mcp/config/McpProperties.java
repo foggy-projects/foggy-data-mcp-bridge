@@ -25,7 +25,7 @@ import java.util.List;
  */
 @Data
 @Configuration
-@ConfigurationProperties(prefix = "mcp")
+@ConfigurationProperties(prefix = "foggy.mcp")
 public class McpProperties {
 
     /**
