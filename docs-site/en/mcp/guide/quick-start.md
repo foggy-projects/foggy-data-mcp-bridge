@@ -341,6 +341,31 @@ curl -X POST http://localhost:7108/mcp/analyst/rpc \
 
 ## Connect AI Clients
 
+After service starts successfully, configure your preferred AI tool:
+
+| AI Tool | Configuration | Guide |
+|---------|---------------|-------|
+| Trae CN | JSON config | [Trae Integration](../integration/trae.md) |
+| Cursor | Settings UI / JSON | [Cursor Integration](../integration/cursor.md) |
+| Claude Desktop | Config file | [Claude Desktop Integration](../integration/claude-desktop.md) |
+
+### Trae CN
+
+1. Open Trae IDE → **Settings** → **MCP** → **Raw Configuration (JSON)**
+2. Add configuration:
+
+```json
+{
+  "mcpServers": {
+    "foggy-dataset": {
+      "url": "http://localhost:7108/mcp/analyst/sse"
+    }
+  }
+}
+```
+
+> **Note**: Trae uses SSE transport, endpoint is `/sse`.
+
 ### Claude Desktop
 
 Edit Claude Desktop configuration file:

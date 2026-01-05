@@ -341,6 +341,31 @@ curl -X POST http://localhost:7108/mcp/analyst/rpc \
 
 ## 连接 AI 客户端 {#connect-ai-clients}
 
+服务启动成功后，选择你常用的 AI 工具进行配置：
+
+| AI 工具 | 配置方式 | 详细指南 |
+|---------|----------|----------|
+| Trae CN | JSON 配置 | [Trae 集成指南](../integration/trae.md) |
+| Cursor | 设置界面 / JSON | [Cursor 集成指南](../integration/cursor.md) |
+| Claude Desktop | 配置文件 | [Claude Desktop 集成指南](../integration/claude-desktop.md) |
+
+### Trae CN（推荐国内用户）
+
+1. 打开 Trae IDE → **设置** → **MCP** → **原始配置（JSON）**
+2. 添加配置：
+
+```json
+{
+  "mcpServers": {
+    "foggy-dataset": {
+      "url": "http://localhost:7108/mcp/analyst/sse"
+    }
+  }
+}
+```
+
+> **注意**：Trae 使用 SSE 传输，端点为 `/sse`。
+
 ### Claude Desktop
 
 编辑 Claude Desktop 配置文件：
