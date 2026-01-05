@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.foggysource</groupId>
+        <artifactId>foggy-data-mcp-bridge</artifactId>
+        <version>8.0.1-beta</version>
+    </parent>
+
+    <artifactId>foggy-mcp-launcher</artifactId>
+    <packaging>jar</packaging>
+
+    <name>Foggy MCP Launcher</name>
+    <description>MCP 服务启动器 - 包含演示数据模型，可通过配置禁用</description>
+
+    <dependencies>
+        <!-- MCP 核心服务 -->
+        <dependency>
+            <groupId>com.foggysource</groupId>
+            <artifactId>foggy-dataset-mcp</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- Demo 数据模型（可通过 foggy.demo.enabled=false 禁用） -->
+        <dependency>
+            <groupId>com.foggysource</groupId>
+            <artifactId>foggy-dataset-demo</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <mainClass>com.foggyframework.mcp.launcher.McpLauncherApplication</mainClass>
+                    <excludes>
+                        <exclude>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </exclude>
+                    </excludes>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

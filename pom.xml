@@ -47,6 +47,7 @@
         <module>foggy-dataset-mcp</module>
         <module>foggy-dataset-model</module>
         <module>foggy-fsscript</module>
+        <module>foggy-mcp-launcher</module>
         <!-- Addons: 可选扩展模块 -->
         <module>addons/foggy-fsscript-client</module>
         <module>addons/foggy-dataset-client</module>

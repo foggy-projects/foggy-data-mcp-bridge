@@ -182,11 +182,12 @@
             <scope>runtime</scope>
         </dependency>
 
-        <!-- Demo 数据模型（TM/QM 定义）- Docker 演示环境需要 -->
+        <!-- Demo 数据模型（仅用于测试） -->
         <dependency>
             <groupId>com.foggysource</groupId>
             <artifactId>foggy-dataset-demo</artifactId>
             <version>${project.version}</version>
+            <scope>test</scope>
         </dependency>
 
         <!-- https://mvnrepository.com/artifact/io.modelcontextprotocol.sdk/mcp-spring-webflux -->
@@ -211,18 +212,8 @@
 
     <build>
         <plugins>
-            <plugin>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-maven-plugin</artifactId>
-                <configuration>
-                    <excludes>
-                        <exclude>
-                            <groupId>org.projectlombok</groupId>
-                            <artifactId>lombok</artifactId>
-                        </exclude>
-                    </excludes>
-                </configuration>
-            </plugin>
+            <!-- MCP 模块作为库使用，不需要打成可执行 jar -->
+            <!-- 可执行 jar 由 foggy-mcp-launcher 模块构建 -->
         </plugins>
     </build>
 
