@@ -24,13 +24,11 @@ This document describes how to integrate Foggy MCP service with ByteDance's Trae
 {
   "mcpServers": {
     "foggy-dataset": {
-      "url": "http://localhost:7108/mcp/analyst/sse"
+      "url": "http://localhost:7108/mcp/analyst/rpc"
     }
   }
 }
 ```
-
-> **Note**: Trae uses SSE transport, so the endpoint path is `/sse` instead of `/rpc`.
 
 ### Method 2: MCP Market
 
@@ -44,9 +42,9 @@ If Foggy MCP is published to Trae MCP Market:
 
 | Endpoint | Use Case | Description |
 |----------|----------|-------------|
-| `/mcp/analyst/sse` | Data Analysis | Structured queries, recommended |
-| `/mcp/admin/sse` | Full Access | All tool permissions |
-| `/mcp/business/sse` | Simple Queries | Natural language only |
+| `/mcp/analyst/rpc` | Data Analysis | Structured queries, recommended |
+| `/mcp/admin/rpc` | Full Access | All tool permissions |
+| `/mcp/business/rpc` | Simple Queries | Natural language only |
 
 ## Verify Configuration
 
@@ -115,7 +113,7 @@ If MCP service requires authentication:
 {
   "mcpServers": {
     "foggy-dataset": {
-      "url": "http://localhost:7108/mcp/analyst/sse",
+      "url": "http://localhost:7108/mcp/analyst/rpc",
       "headers": {
         "Authorization": "Bearer your-token"
       }
@@ -132,10 +130,10 @@ Configure multiple MCP services:
 {
   "mcpServers": {
     "sales-data": {
-      "url": "http://sales-server:7108/mcp/analyst/sse"
+      "url": "http://sales-server:7108/mcp/analyst/rpc"
     },
     "inventory-data": {
-      "url": "http://inventory-server:7108/mcp/analyst/sse"
+      "url": "http://inventory-server:7108/mcp/analyst/rpc"
     }
   }
 }
@@ -150,7 +148,7 @@ Configure multiple MCP services:
    curl http://localhost:7108/actuator/health
    ```
 
-2. Verify endpoint path is correct (use `/sse` not `/rpc`)
+2. Verify endpoint path is correct (use `/rpc`)
 
 3. Check Trae logs for detailed error
 
@@ -172,7 +170,7 @@ Configure multiple MCP services:
 |---------|---------|--------|----------------|
 | Free to Use | ✅ | Partially | Subscription |
 | Built-in Models | Deepseek/Doubao | Claude | Claude |
-| MCP Support | ✅ SSE | ✅ | ✅ |
+| MCP Support | ✅ | ✅ | ✅ |
 | Agents | ✅ Built-in | ✅ | ❌ |
 | Code Integration | ✅ | ✅ | ❌ |
 

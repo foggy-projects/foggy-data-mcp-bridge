@@ -6,7 +6,7 @@ import com.foggyframework.dataset.mcp.enums.UserRole;
 import com.foggyframework.dataset.mcp.schema.McpError;
 import com.foggyframework.dataset.mcp.schema.McpRequest;
 import com.foggyframework.dataset.mcp.schema.McpResponse;
-import com.foggyframework.dataset.mcp.tools.McpTool;
+import com.foggyframework.mcp.spi.McpTool;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;

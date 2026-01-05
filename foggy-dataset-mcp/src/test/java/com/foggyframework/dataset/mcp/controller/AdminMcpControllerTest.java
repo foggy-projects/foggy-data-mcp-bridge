@@ -7,7 +7,7 @@ import com.foggyframework.dataset.mcp.schema.McpRequest;
 import com.foggyframework.dataset.mcp.schema.McpResponse;
 import com.foggyframework.dataset.mcp.service.McpService;
 import com.foggyframework.dataset.mcp.service.McpToolDispatcher;
-import com.foggyframework.dataset.mcp.service.ProgressEvent;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;

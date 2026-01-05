@@ -1,8 +1,8 @@
 package com.foggyframework.dataset.mcp.service;
 
-import com.foggyframework.dataset.mcp.enums.ToolCategory;
 import com.foggyframework.dataset.mcp.enums.UserRole;
-import com.foggyframework.dataset.mcp.tools.McpTool;
+import com.foggyframework.mcp.spi.McpTool;
+import com.foggyframework.mcp.spi.ToolCategory;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 

@@ -3,7 +3,8 @@ package com.foggyframework.dataset.mcp.service;
 import com.foggyframework.dataset.mcp.base.BaseMcpTest;
 import com.foggyframework.dataset.mcp.base.MockToolFactory;
 import com.foggyframework.dataset.mcp.schema.McpRequest;
-import com.foggyframework.dataset.mcp.tools.McpTool;
+import com.foggyframework.mcp.spi.McpTool;
+import com.foggyframework.mcp.spi.ProgressEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -191,7 +192,7 @@ class McpToolDispatcherTest extends BaseMcpTest {
             Map<String, Object> args = Map.of("key", "value");
             Map<String, Object> expectedResult = Map.of("models", List.of());
 
-            when(metadataTool.execute(args, "trace-1", "Bearer token")).thenReturn(expectedResult);
+            when(metadataTool.execute(any(), any())).thenReturn(expectedResult);
 
             Object result = dispatcher.executeTool("dataset.get_metadata", args, "trace-1", "Bearer token");
 
@@ -208,7 +209,7 @@ class McpToolDispatcherTest extends BaseMcpTest {
         @Test
         @DisplayName("工具执行异常应向上传播")
         void toolException_shouldPropagate() {
-            when(metadataTool.execute(any(), any(), any()))
+            when(metadataTool.execute(any(), any()))
                     .thenThrow(new RuntimeException("Service error"));
 
             RuntimeException ex = assertThrows(RuntimeException.class, () ->
@@ -222,7 +223,7 @@ class McpToolDispatcherTest extends BaseMcpTest {
         void shouldPassArgumentsCorrectly() {
             Map<String, Object> args = Map.of("model", "TestModel", "limit", 100);
 
-            when(queryTool.execute(args, "trace-2", "Bearer token")).thenReturn(Map.of("success", true));
+            when(queryTool.execute(any(), any())).thenReturn(Map.of("success", true));
 
             dispatcher.executeTool("dataset.query_model", args, "trace-2", "Bearer token");
 
@@ -240,7 +241,7 @@ class McpToolDispatcherTest extends BaseMcpTest {
         @DisplayName("非流式工具应包装为进度事件")
         void nonStreamingTool_shouldWrapAsProgressEvents() {
             when(metadataTool.supportsStreaming()).thenReturn(false);
-            when(metadataTool.execute(any(), any(), any())).thenReturn(Map.of("data", "value"));
+            when(metadataTool.execute(any(), any())).thenReturn(Map.of("data", "value"));
 
             McpRequest request = McpRequest.builder()
                     .method("tools/call")
@@ -259,7 +260,7 @@ class McpToolDispatcherTest extends BaseMcpTest {
         @DisplayName("流式工具应委托给工具实现")
         void streamingTool_shouldDelegateToTool() {
             when(nlTool.supportsStreaming()).thenReturn(true);
-            when(nlTool.executeWithProgress(any(), any(), any()))
+            when(nlTool.executeWithProgress(any(), any()))
                     .thenReturn(Flux.just(
                             ProgressEvent.progress("processing", 50),
                             ProgressEvent.complete(Map.of("result", "ok"))
@@ -314,7 +315,7 @@ class McpToolDispatcherTest extends BaseMcpTest {
         @DisplayName("直接调用格式应正常工作")
         void directCallFormat_shouldWork() {
             when(metadataTool.supportsStreaming()).thenReturn(false);
-            when(metadataTool.execute(any(), any(), any())).thenReturn(Map.of("ok", true));
+            when(metadataTool.execute(any(), any())).thenReturn(Map.of("ok", true));
 
             // 直接调用格式：method 是工具名，params 是参数
             McpRequest request = McpRequest.builder()
@@ -334,7 +335,7 @@ class McpToolDispatcherTest extends BaseMcpTest {
         @DisplayName("工具执行异常应返回错误事件")
         void executionError_shouldReturnErrorEvent() {
             when(metadataTool.supportsStreaming()).thenReturn(false);
-            when(metadataTool.execute(any(), any(), any()))
+            when(metadataTool.execute(any(), any()))
                     .thenThrow(new RuntimeException("Execution failed"));
 
             McpRequest request = McpRequest.builder()

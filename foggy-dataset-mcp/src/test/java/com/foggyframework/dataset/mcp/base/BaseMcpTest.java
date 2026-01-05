@@ -1,11 +1,12 @@
 package com.foggyframework.dataset.mcp.base;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.foggyframework.dataset.mcp.enums.ToolCategory;
 import com.foggyframework.dataset.mcp.enums.UserRole;
 import com.foggyframework.dataset.mcp.schema.McpRequest;
 import com.foggyframework.dataset.mcp.schema.McpResponse;
-import com.foggyframework.dataset.mcp.tools.McpTool;
+import com.foggyframework.mcp.spi.McpTool;
+import com.foggyframework.mcp.spi.ToolCategory;
+import com.foggyframework.mcp.spi.ToolExecutionContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ActiveProfiles;
@@ -233,7 +234,7 @@ public abstract class BaseMcpTest {
         }
 
         @Override
-        public Object execute(Map<String, Object> arguments, String traceId, String authorization) {
+        public Object execute(Map<String, Object> arguments, ToolExecutionContext context) {
             if (executeException != null) {
                 throw executeException;
             }

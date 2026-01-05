@@ -142,12 +142,14 @@ export default defineConfig({
                 { text: '工具列表', link: '/zh/mcp/tools/overview' },
                 { text: '元数据工具', link: '/zh/mcp/tools/metadata' },
                 { text: '查询工具', link: '/zh/mcp/tools/query' },
-                { text: '自然语言查询', link: '/zh/mcp/tools/nl-query' }
+                { text: '自然语言查询', link: '/zh/mcp/tools/nl-query' },
+                { text: '扩展工具', link: '/zh/mcp/tools/extensions' }
               ]
             },
             {
               text: '集成指南',
               items: [
+                { text: 'Trae CN', link: '/zh/mcp/integration/trae' },
                 { text: 'Claude Desktop', link: '/zh/mcp/integration/claude-desktop' },
                 { text: 'Cursor', link: '/zh/mcp/integration/cursor' },
                 { text: 'API 调用', link: '/zh/mcp/integration/api' }
@@ -261,12 +263,14 @@ export default defineConfig({
                 { text: 'Tools Overview', link: '/en/mcp/tools/overview' },
                 { text: 'Metadata Tool', link: '/en/mcp/tools/metadata' },
                 { text: 'Query Tool', link: '/en/mcp/tools/query' },
-                { text: 'NL Query', link: '/en/mcp/tools/nl-query' }
+                { text: 'NL Query', link: '/en/mcp/tools/nl-query' },
+                { text: 'Extensions', link: '/en/mcp/tools/extensions' }
               ]
             },
             {
               text: 'Integration',
               items: [
+                { text: 'Trae CN', link: '/en/mcp/integration/trae' },
                 { text: 'Claude Desktop', link: '/en/mcp/integration/claude-desktop' },
                 { text: 'Cursor', link: '/en/mcp/integration/cursor' },
                 { text: 'API Usage', link: '/en/mcp/integration/api' }

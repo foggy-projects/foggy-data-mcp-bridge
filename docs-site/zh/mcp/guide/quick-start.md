@@ -358,13 +358,11 @@ curl -X POST http://localhost:7108/mcp/analyst/rpc \
 {
   "mcpServers": {
     "foggy-dataset": {
-      "url": "http://localhost:7108/mcp/analyst/sse"
+      "url": "http://localhost:7108/mcp/analyst/rpc"
     }
   }
 }
 ```
-
-> **注意**：Trae 使用 SSE 传输，端点为 `/sse`。
 
 ### Claude Desktop
 

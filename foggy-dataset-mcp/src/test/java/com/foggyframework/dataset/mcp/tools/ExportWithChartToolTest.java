@@ -3,8 +3,10 @@ package com.foggyframework.dataset.mcp.tools;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
-import com.foggyframework.dataset.mcp.enums.ToolCategory;
-import com.foggyframework.dataset.mcp.service.ProgressEvent;
+
+import com.foggyframework.mcp.spi.ProgressEvent;
+import com.foggyframework.mcp.spi.ToolCategory;
+import com.foggyframework.mcp.spi.ToolExecutionContext;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -103,7 +105,7 @@ class ExportWithChartToolTest {
 
             when(queryModelTool.executeQuery(anyString(), any(), anyString(), anyString(), any()))
                     .thenReturn(RX.success(queryResponse));
-            when(chartTool.execute(any(), any(), any())).thenReturn(chartResult);
+            when(chartTool.execute(any(), any())).thenReturn(chartResult);
 
             Map<String, Object> args = Map.of(
                     "model", "SalesModel",
@@ -113,7 +115,7 @@ class ExportWithChartToolTest {
                     )
             );
 
-            Object result = exportWithChartTool.execute(args, "trace-1", null);
+            Object result = exportWithChartTool.execute(args, ToolExecutionContext.of("trace-1", null));
 
             assertNotNull(result);
             @SuppressWarnings("unchecked")
@@ -141,7 +143,7 @@ class ExportWithChartToolTest {
 
             when(queryModelTool.executeQuery(anyString(), any(), anyString(), anyString(), any()))
                     .thenReturn(RX.success(queryResponse));
-            when(chartTool.execute(any(), any(), any())).thenReturn(chartResult);
+            when(chartTool.execute(any(), any())).thenReturn(chartResult);
 
             Map<String, Object> payload = Map.of(
                     "columns", List.of("name", "value"),
@@ -155,7 +157,7 @@ class ExportWithChartToolTest {
                     "payload", payload
             );
 
-            exportWithChartTool.execute(args, "trace-2", null);
+            exportWithChartTool.execute(args, ToolExecutionContext.of("trace-2", null));
 
             verify(queryModelTool).executeQuery(
                     eq("TestModel"),
@@ -176,7 +178,7 @@ class ExportWithChartToolTest {
 
             when(queryModelTool.executeQuery(anyString(), any(), anyString(), anyString(), any()))
                     .thenReturn(RX.success(queryResponse));
-            when(chartTool.execute(any(), any(), any())).thenReturn(chartResult);
+            when(chartTool.execute(any(), any())).thenReturn(chartResult);
 
             Map<String, Object> chartConfig = Map.of(
                     "type", "line",
@@ -193,7 +195,7 @@ class ExportWithChartToolTest {
                     "chart", chartConfig
             );
 
-            exportWithChartTool.execute(args, "trace-3", null);
+            exportWithChartTool.execute(args, ToolExecutionContext.of("trace-3", null));
 
             verify(chartTool).execute(argThat(chartArgs -> {
                 assertEquals("line", chartArgs.get("type"));
@@ -203,7 +205,7 @@ class ExportWithChartToolTest {
                 assertEquals(1000, chartArgs.get("width"));
                 assertEquals(700, chartArgs.get("height"));
                 return true;
-            }), eq("trace-3"), any());
+            }), any());
         }
 
         @Test
@@ -221,7 +223,7 @@ class ExportWithChartToolTest {
 
             when(queryModelTool.executeQuery(anyString(), any(), anyString(), anyString(), any()))
                     .thenReturn(RX.success(queryResponse));
-            when(chartTool.execute(any(), any(), any())).thenReturn(chartResult);
+            when(chartTool.execute(any(), any())).thenReturn(chartResult);
 
             Map<String, Object> args = Map.of(
                     "model", "TestModel",
@@ -232,13 +234,13 @@ class ExportWithChartToolTest {
                     "chart", Map.of("type", "auto")
             );
 
-            exportWithChartTool.execute(args, "trace-4", null);
+            exportWithChartTool.execute(args, ToolExecutionContext.of("trace-4", null));
 
             verify(chartTool).execute(argThat(chartArgs -> {
                 // 少于8个分类应推断为饼图
                 assertEquals("pie", chartArgs.get("type"));
                 return true;
-            }), any(), any());
+            }), any());
         }
 
         @Test
@@ -254,7 +256,7 @@ class ExportWithChartToolTest {
 
             when(queryModelTool.executeQuery(anyString(), any(), anyString(), anyString(), any()))
                     .thenReturn(RX.success(queryResponse));
-            when(chartTool.execute(any(), any(), any())).thenReturn(chartResult);
+            when(chartTool.execute(any(), any())).thenReturn(chartResult);
 
             Map<String, Object> args = Map.of(
                     "model", "TestModel",
@@ -262,12 +264,12 @@ class ExportWithChartToolTest {
                     "chart", Map.of("type", "auto")
             );
 
-            exportWithChartTool.execute(args, "trace-5", null);
+            exportWithChartTool.execute(args, ToolExecutionContext.of("trace-5", null));
 
             verify(chartTool).execute(argThat(chartArgs -> {
                 assertEquals("line", chartArgs.get("type"));
                 return true;
-            }), any(), any());
+            }), any());
         }
 
         @Test
@@ -283,7 +285,7 @@ class ExportWithChartToolTest {
 
             when(queryModelTool.executeQuery(anyString(), any(), anyString(), anyString(), any()))
                     .thenReturn(RX.success(queryResponse));
-            when(chartTool.execute(any(), any(), any())).thenReturn(chartResult);
+            when(chartTool.execute(any(), any())).thenReturn(chartResult);
 
             Map<String, Object> args = Map.of(
                     "model", "TestModel",
@@ -294,7 +296,7 @@ class ExportWithChartToolTest {
                     // 不指定 xField, yField
             );
 
-            exportWithChartTool.execute(args, "trace-6", null);
+            exportWithChartTool.execute(args, ToolExecutionContext.of("trace-6", null));
 
             verify(chartTool).execute(argThat(chartArgs -> {
                 // xField 应从 groupBy 推断
@@ -302,7 +304,7 @@ class ExportWithChartToolTest {
                 // yField 应从数值字段推断
                 assertEquals("amount", chartArgs.get("yField"));
                 return true;
-            }), any(), any());
+            }), any());
         }
     }
 
@@ -325,7 +327,7 @@ class ExportWithChartToolTest {
                     "payload", Map.of("columns", List.of("field1"))
             );
 
-            Object result = exportWithChartTool.execute(args, "trace-error-1", null);
+            Object result = exportWithChartTool.execute(args, ToolExecutionContext.of("trace-error-1", null));
 
             // 应直接返回查询错误 RX
             assertInstanceOf(RX.class, result);
@@ -334,7 +336,7 @@ class ExportWithChartToolTest {
             assertNotEquals(200, rxResult.getCode());
 
             // 图表生成不应被调用
-            verify(chartTool, never()).execute(any(), any(), any());
+            verify(chartTool, never()).execute(any(), any());
         }
 
         @Test
@@ -352,14 +354,15 @@ class ExportWithChartToolTest {
                     "payload", Map.of("columns", List.of("field1"))
             );
 
-            Object result = exportWithChartTool.execute(args, "trace-empty", null);
+            ToolExecutionContext context = ToolExecutionContext.of("trace-empty", null);
+            Object result = exportWithChartTool.execute(args, context);
 
             @SuppressWarnings("unchecked")
             Map<String, Object> resultMap = (Map<String, Object>) result;
             assertTrue(resultMap.get("summary").toString().contains("查询结果为空"));
 
             // 图表生成不应被调用
-            verify(chartTool, never()).execute(any(), any(), any());
+            verify(chartTool, never()).execute(any(), any());
         }
 
         @Test
@@ -376,14 +379,15 @@ class ExportWithChartToolTest {
 
             when(queryModelTool.executeQuery(anyString(), any(), anyString(), anyString(), any()))
                     .thenReturn(RX.success(queryResponse));
-            when(chartTool.execute(any(), any(), any())).thenReturn(chartError);
+            when(chartTool.execute(any(), any())).thenReturn(chartError);
 
             Map<String, Object> args = Map.of(
                     "model", "TestModel",
                     "payload", Map.of("columns", List.of("x", "y"))
             );
 
-            Object result = exportWithChartTool.execute(args, "trace-chart-error", null);
+            ToolExecutionContext context = ToolExecutionContext.of("trace-chart-error", null);
+            Object result = exportWithChartTool.execute(args, context);
 
             @SuppressWarnings("unchecked")
             Map<String, Object> resultMap = (Map<String, Object>) result;
@@ -410,7 +414,8 @@ class ExportWithChartToolTest {
                     "payload", Map.of("columns", List.of("field1"))
             );
 
-            Object result = exportWithChartTool.execute(args, "trace-exception", null);
+            ToolExecutionContext context = ToolExecutionContext.of("trace-exception", null);
+            Object result = exportWithChartTool.execute(args, context);
 
             // 异常情况返回 RX 错误
             assertInstanceOf(RX.class, result);
@@ -440,14 +445,15 @@ class ExportWithChartToolTest {
 
             when(queryModelTool.executeQuery(anyString(), any(), anyString(), anyString(), any()))
                     .thenReturn(RX.success(queryResponse));
-            when(chartTool.execute(any(), any(), any())).thenReturn(chartResult);
+            when(chartTool.execute(any(), any())).thenReturn(chartResult);
 
             Map<String, Object> args = Map.of(
                     "model", "TestModel",
                     "payload", Map.of("columns", List.of("x", "y"))
             );
 
-            Flux<ProgressEvent> flux = exportWithChartTool.executeWithProgress(args, "trace-stream", null);
+            ToolExecutionContext context = ToolExecutionContext.of("trace-stream", null);
+            Flux<ProgressEvent> flux = exportWithChartTool.executeWithProgress(args, context);
 
             StepVerifier.create(flux)
                     .expectNextMatches(e -> "progress".equals(e.getEventType()) && hasPercent(e, 20))
@@ -471,7 +477,8 @@ class ExportWithChartToolTest {
                     "payload", Map.of("columns", List.of("x"))
             );
 
-            Flux<ProgressEvent> flux = exportWithChartTool.executeWithProgress(args, "trace-error-stream", null);
+            ToolExecutionContext context = ToolExecutionContext.of("trace-error-stream", null);
+            Flux<ProgressEvent> flux = exportWithChartTool.executeWithProgress(args, context);
 
             StepVerifier.create(flux)
                     .expectNextMatches(e -> "progress".equals(e.getEventType()) && hasPercent(e, 20))
@@ -497,14 +504,15 @@ class ExportWithChartToolTest {
 
             when(queryModelTool.executeQuery(anyString(), any(), anyString(), anyString(), any()))
                     .thenReturn(RX.success(queryResponse));
-            when(chartTool.execute(any(), any(), any())).thenReturn(chartResult);
+            when(chartTool.execute(any(), any())).thenReturn(chartResult);
 
             Map<String, Object> args = Map.of(
                     "model", "TestModel",
                     "payload", Map.of("columns", List.of("x"))
             );
 
-            Object result = exportWithChartTool.execute(args, "trace-extract", null);
+            ToolExecutionContext context = ToolExecutionContext.of("trace-extract", null);
+            Object result = exportWithChartTool.execute(args, context);
 
             @SuppressWarnings("unchecked")
             Map<String, Object> resultMap = (Map<String, Object>) result;

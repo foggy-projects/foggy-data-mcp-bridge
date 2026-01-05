@@ -2,8 +2,9 @@ package com.foggyframework.dataset.mcp.tools;
 
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
-import com.foggyframework.dataset.mcp.enums.ToolCategory;
 import com.foggyframework.dataset.mcp.spi.DatasetAccessor;
+import com.foggyframework.mcp.spi.ToolCategory;
+import com.foggyframework.mcp.spi.ToolExecutionContext;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -85,7 +86,7 @@ class MetadataToolTest {
                     .thenReturn(RX.success(response));
 
             // 执行
-            Object result = metadataTool.execute(Map.of(), "trace-123", null);
+            Object result = metadataTool.execute(Map.of(), ToolExecutionContext.of("trace-123", null));
 
             // 验证
             assertNotNull(result);
@@ -112,7 +113,7 @@ class MetadataToolTest {
             when(datasetAccessor.getMetadata(anyString(), any()))
                     .thenReturn(RX.success(response));
 
-            metadataTool.execute(Map.of(), "custom-trace-id-456", null);
+            metadataTool.execute(Map.of(), ToolExecutionContext.of("custom-trace-id-456", null));
 
             verify(datasetAccessor).getMetadata(eq("custom-trace-id-456"), isNull());
         }
@@ -125,7 +126,7 @@ class MetadataToolTest {
             when(datasetAccessor.getMetadata(anyString(), anyString()))
                     .thenReturn(RX.success(response));
 
-            metadataTool.execute(Map.of(), "trace-789", "Bearer token123");
+            metadataTool.execute(Map.of(), ToolExecutionContext.of("trace-789", "Bearer token123"));
 
             verify(datasetAccessor).getMetadata(eq("trace-789"), eq("Bearer token123"));
         }
@@ -141,8 +142,7 @@ class MetadataToolTest {
             // 即使传入参数也应正常执行
             Object result = metadataTool.execute(
                     Map.of("some", "argument", "another", 123),
-                    "trace-ignored",
-                    null
+                    ToolExecutionContext.of("trace-ignored", null)
             );
 
             assertNotNull(result);
@@ -164,7 +164,7 @@ class MetadataToolTest {
             when(datasetAccessor.getMetadata(anyString(), any()))
                     .thenReturn(errorResponse);
 
-            Object result = metadataTool.execute(Map.of(), "trace-error-1", null);
+            Object result = metadataTool.execute(Map.of(), ToolExecutionContext.of("trace-error-1", null));
 
             assertNotNull(result);
             assertInstanceOf(RX.class, result);
@@ -183,7 +183,7 @@ class MetadataToolTest {
             // 工具层不捕获异常，异常由调用者处理
             // 在实际使用中，DatasetAccessor 的实现会捕获异常并返回错误响应
             RuntimeException exception = assertThrows(RuntimeException.class, () -> {
-                metadataTool.execute(Map.of(), "trace-exception", null);
+                metadataTool.execute(Map.of(), ToolExecutionContext.of("trace-exception", null));
             });
 
             assertEquals("Connection failed", exception.getMessage());
@@ -223,7 +223,7 @@ class MetadataToolTest {
             when(datasetAccessor.getMetadata(anyString(), any()))
                     .thenReturn(RX.success(response));
 
-            Object result = metadataTool.execute(Map.of(), "trace-complex", null);
+            Object result = metadataTool.execute(Map.of(), ToolExecutionContext.of("trace-complex", null));
 
             assertNotNull(result);
             @SuppressWarnings("unchecked")
@@ -242,7 +242,7 @@ class MetadataToolTest {
             when(datasetAccessor.getMetadata(anyString(), any()))
                     .thenReturn(RX.success(response));
 
-            Object result = metadataTool.execute(Map.of(), "trace-empty", null);
+            Object result = metadataTool.execute(Map.of(), ToolExecutionContext.of("trace-empty", null));
 
             assertNotNull(result);
             @SuppressWarnings("unchecked")
@@ -268,7 +268,7 @@ class MetadataToolTest {
             when(datasetAccessor.getMetadata(anyString(), any()))
                     .thenReturn(RX.success(response));
 
-            metadataTool.execute(Map.of(), "trace-mode", null);
+            metadataTool.execute(Map.of(), ToolExecutionContext.of("trace-mode", null));
 
             verify(datasetAccessor).getAccessMode();
         }

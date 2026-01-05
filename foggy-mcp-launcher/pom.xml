@@ -30,6 +30,13 @@
             <artifactId>foggy-dataset-demo</artifactId>
             <version>${project.version}</version>
         </dependency>
+
+        <!-- Data Viewer（可通过 foggy.data-viewer.enabled=false 禁用） -->
+        <dependency>
+            <groupId>com.foggysource</groupId>
+            <artifactId>foggy-data-viewer</artifactId>
+            <version>${project.version}</version>
+        </dependency>
     </dependencies>
 
     <build>

@@ -1,8 +1,9 @@
 package com.foggyframework.dataset.mcp.tools;
 
 import com.foggyframework.dataset.db.dialect.FDialect;
-import com.foggyframework.dataset.mcp.enums.ToolCategory;
-import com.foggyframework.dataset.utils.DbUtils;
+import com.foggyframework.mcp.spi.McpTool;
+import com.foggyframework.mcp.spi.ToolCategory;
+import com.foggyframework.mcp.spi.ToolExecutionContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -40,7 +41,9 @@ public class TableInspectionTool implements McpTool {
     }
 
     @Override
-    public Object execute(Map<String, Object> arguments, String traceId, String authorization) {
+    public Object execute(Map<String, Object> arguments, ToolExecutionContext context) {
+        String traceId = context.getTraceId();
+
         String tableName = (String) arguments.get("table_name");
         String schema = (String) arguments.get("schema");
         String dataSourceName = (String) arguments.get("data_source");

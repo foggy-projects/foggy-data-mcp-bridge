@@ -358,13 +358,11 @@ After service starts successfully, configure your preferred AI tool:
 {
   "mcpServers": {
     "foggy-dataset": {
-      "url": "http://localhost:7108/mcp/analyst/sse"
+      "url": "http://localhost:7108/mcp/analyst/rpc"
     }
   }
 }
 ```
-
-> **Note**: Trae uses SSE transport, endpoint is `/sse`.
 
 ### Claude Desktop
 

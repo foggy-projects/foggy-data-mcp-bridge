@@ -161,3 +161,4 @@ Foggy MCP 提供一系列数据查询和分析工具，供 AI 助手调用。
 - [元数据工具](./metadata.md) - 获取模型和字段信息
 - [查询工具](./query.md) - 执行结构化查询
 - [自然语言查询](./nl-query.md) - 智能数据查询
+- [扩展工具](./extensions.md) - Data Viewer 等可选扩展

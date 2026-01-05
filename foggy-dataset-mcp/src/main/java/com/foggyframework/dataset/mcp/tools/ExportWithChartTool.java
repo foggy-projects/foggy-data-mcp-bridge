@@ -3,8 +3,10 @@ package com.foggyframework.dataset.mcp.tools;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
-import com.foggyframework.dataset.mcp.enums.ToolCategory;
-import com.foggyframework.dataset.mcp.service.ProgressEvent;
+import com.foggyframework.mcp.spi.McpTool;
+import com.foggyframework.mcp.spi.ProgressEvent;
+import com.foggyframework.mcp.spi.ToolCategory;
+import com.foggyframework.mcp.spi.ToolExecutionContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -46,7 +48,10 @@ public class ExportWithChartTool implements McpTool {
 
     @Override
     @SuppressWarnings("unchecked")
-    public Object execute(Map<String, Object> arguments, String traceId, String authorization) {
+    public Object execute(Map<String, Object> arguments, ToolExecutionContext context) {
+        String traceId = context.getTraceId();
+        String authorization = context.getAuthorization();
+
         String model = (String) arguments.get("model");
         Map<String, Object> payload = (Map<String, Object>) arguments.get("payload");
         Map<String, Object> chartConfig = (Map<String, Object>) arguments.getOrDefault("chart", new HashMap<>());
@@ -102,7 +107,7 @@ public class ExportWithChartTool implements McpTool {
             chartArgs.put("width", width);
             chartArgs.put("height", height);
 
-            Object chartResult = chartTool.execute(chartArgs, traceId, authorization);
+            Object chartResult = chartTool.execute(chartArgs, context);
 
             // 5. 组装返回结果
             return buildResponse(queryResponse, chartResult, "查询和图表生成完成");
@@ -114,7 +119,10 @@ public class ExportWithChartTool implements McpTool {
     }
 
     @Override
-    public Flux<ProgressEvent> executeWithProgress(Map<String, Object> arguments, String traceId, String authorization) {
+    public Flux<ProgressEvent> executeWithProgress(Map<String, Object> arguments, ToolExecutionContext context) {
+        String traceId = context.getTraceId();
+        String authorization = context.getAuthorization();
+
         return Flux.create(sink -> {
             try {
                 sink.next(ProgressEvent.progress("querying", 20));
@@ -137,7 +145,7 @@ public class ExportWithChartTool implements McpTool {
                 sink.next(ProgressEvent.progress("rendering_chart", 50));
 
                 // 执行完整逻辑
-                Object result = execute(arguments, traceId, authorization);
+                Object result = execute(arguments, context);
 
                 sink.next(ProgressEvent.progress("finalizing", 90));
                 sink.next(ProgressEvent.complete(result));

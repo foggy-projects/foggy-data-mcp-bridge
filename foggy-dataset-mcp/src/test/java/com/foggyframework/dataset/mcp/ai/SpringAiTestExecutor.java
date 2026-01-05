@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.dataset.mcp.service.McpToolCallbackFactory;
 import com.foggyframework.dataset.mcp.service.McpToolDispatcher;
 import com.foggyframework.dataset.mcp.service.ToolCallCollector;
-import com.foggyframework.dataset.mcp.tools.McpTool;
+import com.foggyframework.mcp.spi.McpTool;
 import lombok.Builder;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;

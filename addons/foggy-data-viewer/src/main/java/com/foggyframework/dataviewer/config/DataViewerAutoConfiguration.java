@@ -11,11 +11,14 @@ import com.foggyframework.dataset.db.model.service.JdbcService;
 import com.foggyframework.dataset.db.model.service.QueryFacade;
 import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration;
+import org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.ComponentScan;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.repository.config.EnableMongoRepositories;
 
 /**
@@ -23,11 +26,11 @@ import org.springframework.data.mongodb.repository.config.EnableMongoRepositorie
  * <p>
  * 集成 QueryFacade 和使用类型安全的请求类
  */
-@AutoConfiguration
+@AutoConfiguration(after = {MongoAutoConfiguration.class, MongoDataAutoConfiguration.class})
+@ConditionalOnClass(MongoTemplate.class)
 @ConditionalOnProperty(prefix = "foggy.data-viewer", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties(DataViewerProperties.class)
 @EnableMongoRepositories(basePackages = "com.foggyframework.dataviewer.repository")
-@ComponentScan(basePackages = "com.foggyframework.dataviewer")
 public class DataViewerAutoConfiguration {
 
     @Bean

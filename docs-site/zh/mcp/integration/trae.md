@@ -24,13 +24,11 @@
 {
   "mcpServers": {
     "foggy-dataset": {
-      "url": "http://localhost:7108/mcp/analyst/sse"
+      "url": "http://localhost:7108/mcp/analyst/rpc"
     }
   }
 }
 ```
-
-> **注意**：Trae 使用 SSE 传输方式，端点路径为 `/sse` 而非 `/rpc`。
 
 ### 方式二：MCP 市场
 
@@ -44,9 +42,9 @@
 
 | 端点 | 适用场景 | 说明 |
 |------|----------|------|
-| `/mcp/analyst/sse` | 数据分析 | 结构化查询，推荐使用 |
-| `/mcp/admin/sse` | 完全访问 | 包含所有工具权限 |
-| `/mcp/business/sse` | 简单查询 | 仅自然语言查询 |
+| `/mcp/analyst/rpc` | 数据分析 | 结构化查询，推荐使用 |
+| `/mcp/admin/rpc` | 完全访问 | 包含所有工具权限 |
+| `/mcp/business/rpc` | 简单查询 | 仅自然语言查询 |
 
 ## 验证配置
 
@@ -115,7 +113,7 @@ Trae 的 **Builder with MCP** 是内置智能体，配置的 MCP 服务会自动
 {
   "mcpServers": {
     "foggy-dataset": {
-      "url": "http://localhost:7108/mcp/analyst/sse",
+      "url": "http://localhost:7108/mcp/analyst/rpc",
       "headers": {
         "Authorization": "Bearer your-token"
       }
@@ -132,10 +130,10 @@ Trae 的 **Builder with MCP** 是内置智能体，配置的 MCP 服务会自动
 {
   "mcpServers": {
     "sales-data": {
-      "url": "http://sales-server:7108/mcp/analyst/sse"
+      "url": "http://sales-server:7108/mcp/analyst/rpc"
     },
     "inventory-data": {
-      "url": "http://inventory-server:7108/mcp/analyst/sse"
+      "url": "http://inventory-server:7108/mcp/analyst/rpc"
     }
   }
 }
@@ -150,7 +148,7 @@ Trae 的 **Builder with MCP** 是内置智能体，配置的 MCP 服务会自动
    curl http://localhost:7108/actuator/health
    ```
 
-2. 确认端点路径是否正确（使用 `/sse` 而非 `/rpc`）
+2. 确认端点路径是否正确（使用 `/rpc`）
 
 3. 检查 Trae 日志获取详细错误信息
 
@@ -172,7 +170,7 @@ Trae 的 **Builder with MCP** 是内置智能体，配置的 MCP 服务会自动
 |------|---------|--------|----------------|
 | 免费使用 | ✅ | 部分免费 | 订阅制 |
 | 内置模型 | Deepseek/Doubao | Claude | Claude |
-| MCP 支持 | ✅ SSE | ✅ | ✅ |
+| MCP 支持 | ✅ | ✅ | ✅ |
 | 智能体 | ✅ 内置 | ✅ | ❌ |
 | 代码集成 | ✅ | ✅ | ❌ |
 

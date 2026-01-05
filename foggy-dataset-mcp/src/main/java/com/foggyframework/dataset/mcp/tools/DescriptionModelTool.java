@@ -1,7 +1,9 @@
 package com.foggyframework.dataset.mcp.tools;
 
-import com.foggyframework.dataset.mcp.enums.ToolCategory;
 import com.foggyframework.dataset.mcp.spi.DatasetAccessor;
+import com.foggyframework.mcp.spi.McpTool;
+import com.foggyframework.mcp.spi.ToolCategory;
+import com.foggyframework.mcp.spi.ToolExecutionContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -34,7 +36,10 @@ public class DescriptionModelTool implements McpTool {
     // 注意：getDescription() 和 getInputSchema() 从配置文件加载，不再硬编码
 
     @Override
-    public Object execute(Map<String, Object> arguments, String traceId, String authorization) {
+    public Object execute(Map<String, Object> arguments, ToolExecutionContext context) {
+        String traceId = context.getTraceId();
+        String authorization = context.getAuthorization();
+
         String model = (String) arguments.get("model");
         String format = (String) arguments.getOrDefault("format", "markdown");
 
