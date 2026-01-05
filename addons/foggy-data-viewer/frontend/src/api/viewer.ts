@@ -10,15 +10,23 @@ const apiClient = axios.create({
 })
 
 /**
+ * 查询 payload（与 dataset.query_model 格式一致）
+ */
+export interface QueryPayload {
+  columns: string[]
+  slice: Array<{ field: string; op: string; value?: unknown }>
+  groupBy?: Array<{ field: string; agg?: string }>
+  orderBy?: Array<{ field: string; order: 'asc' | 'desc' }>
+  calculatedFields?: Array<{ name: string; expression: string; agg?: string }>
+}
+
+/**
  * 创建查询请求类型
  */
 export interface CreateQueryRequest {
   model: string
-  columns: string[]
-  slice: Array<{ field: string; op: string; value: string | number | boolean }>
+  payload: QueryPayload
   title?: string
-  groupBy?: Array<{ field: string }>
-  orderBy?: Array<{ field: string; order: 'asc' | 'desc' }>
 }
 
 /**
