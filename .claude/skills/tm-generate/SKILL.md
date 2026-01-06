@@ -21,7 +21,80 @@ description: 根据 DDL 语句、表描述或表名生成 TM（表模型）文�
 
 1. **DDL 语句**：`CREATE TABLE` SQL 语句
 2. **表描述**：表及其列的自然语言描述
-3. **现有表名**：引用现有数据库表（需要推断结构）
+3. **现有表名**：引用现有数据库表（需要从本地服务获取结构）
+
+## 获取数据库表结构
+
+开发人员编写 TM/QM 时，通常已在本机启动服务。可通过以下 HTTP API 获取表结构：
+
+### API 端点
+
+| 端点 | 方法 | 描述 |
+|------|------|------|
+| `GET /dev/tables` | GET | 列出所有表 |
+| `GET /dev/tables/{tableName}` | GET | 获取表详细结构 |
+
+### 列出所有表
+
+```bash
+# 默认端口 7108（MCP 服务端口）
+curl http://localhost:7108/dev/tables
+```
+
+返回示例：
+```json
+{
+    "database": "MySQL",
+    "schema": "demo_db",
+    "count": 5,
+    "tables": [
+        {"name": "fact_order", "type": "TABLE"},
+        {"name": "dim_customer", "type": "TABLE"},
+        {"name": "dim_product", "type": "TABLE"}
+    ]
+}
+```
+
+### 获取表详细结构
+
+```bash
+curl http://localhost:7108/dev/tables/fact_order
+```
+
+返回包含：
+- **columns**: 所有列信息（名称、类型、注释、是否主键/外键）
+- **primary_key**: 主键信息
+- **foreign_keys**: 外键信息及建议的维度名称
+- **suggested_model_type**: 建议的模型类型（fact/dimension）
+- **suggested_model_name**: 建议的模型名称
+- **tm_template**: 自动生成的 TM 模板（可直接使用或调整）
+
+### 可选参数
+
+| 参数 | 类型 | 默认值 | 描述 |
+|------|------|--------|------|
+| `datasource` | string | defaultDataSource | 数据源 Bean 名称 |
+| `schema` | string | 当前连接 schema | 指定数据库 schema |
+| `includeIndexes` | boolean | false | 是否包含索引信息 |
+| `includeForeignKeys` | boolean | true | 是否包含外键信息 |
+
+### 使用 WebFetch 工具获取
+
+当用户提供表名时，使用 WebFetch 工具获取表结构：
+
+```
+WebFetch URL: http://localhost:7108/dev/tables/{tableName}
+Prompt: 提取表结构信息，包括列名、类型、主键、外键和 TM 模板
+```
+
+### 禁用开发工具 API
+
+生产环境可通过配置禁用：
+```yaml
+foggy:
+  dev-tools:
+    enabled: false
+```
 
 ## 输出要求
 
@@ -238,10 +311,32 @@ export const model = {
 ## 操作步骤
 
 1. **分析用户输入**：确定是 DDL、表描述还是表名
-2. **识别表类型**：判断是事实表还是维度表
-3. **提取列信息**：列出所有列及其类型
+2. **获取表结构**（如果用户提供表名）：
+   - 使用 WebFetch 工具访问 `http://localhost:7108/dev/tables/{tableName}`
+   - 从返回的 JSON 中提取列信息、主键、外键等
+   - 参考 `tm_template` 字段作为生成基础
+3. **识别表类型**：判断是事实表还是维度表
 4. **分类字段**：区分维度、属性和度量
 5. **生成 TM 文件**：按照模板结构输出完整的 .tm 文件
 6. **验证输出**：对照检查清单确保完整性
+
+### 示例：用户提供表名
+
+```
+用户：为 fact_order 表生成 TM 文件
+
+1. 使用 WebFetch 获取表结构：
+   URL: http://localhost:7108/dev/tables/fact_order
+
+2. 从返回结果提取信息：
+   - columns: 所有列及类型
+   - foreign_keys: 外键关系 → 生成 dimensions
+   - tm_template: 参考模板
+
+3. 优化生成的 TM：
+   - 添加有意义的 caption 和 description
+   - 调整维度命名
+   - 补充字典引用
+```
 
 根据用户输入，生成相应的 TM 文件。
