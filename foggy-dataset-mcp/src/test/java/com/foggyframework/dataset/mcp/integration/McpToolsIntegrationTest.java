@@ -90,7 +90,10 @@ class McpToolsIntegrationTest extends McpIntegrationTestSupport {
 
             // 结果应该是 RX 包装的响应
             if (result instanceof RX<?> rx) {
-                assertTrue(rx._isSuccess(), "请求应成功");
+                if (!rx._isSuccess()) {
+                    log.error("请求失败: code={}, msg={}", rx.getCode(), rx.getMsg());
+                }
+                assertTrue(rx._isSuccess(), "请求应成功, msg=" + rx.getMsg());
                 assertNotNull(rx.getData(), "数据不应为空");
             }
         }

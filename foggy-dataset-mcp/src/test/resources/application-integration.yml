@@ -75,6 +75,12 @@ mcp:
   dataset:
     access-mode: local
 
+  # 语义层配置
+  semantic:
+    model-list:
+      - FactSalesQueryModel
+      - FactOrderQueryModel
+
   service:
     m1-port: 7108
     m2-port: 7109
