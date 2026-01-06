@@ -118,7 +118,7 @@ Provides different MCP toolsets and permissions based on user roles:
 
 ### Rich Query Tools
 
-- **Metadata Query** - Get available data models and field definitions
+- **Metadata Query** - Get available semantic layer models and field definitions
 - **DSL Structured Query** - Secure, precise, controllable data queries
 - **Natural Language Query** - AI-driven intelligent queries (internally converted to DSL)
 - **Chart Generation** - Automatically generate trend charts, comparison charts, pie charts

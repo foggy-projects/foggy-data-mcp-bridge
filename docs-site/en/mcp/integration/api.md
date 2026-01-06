@@ -97,7 +97,7 @@ curl -X POST http://localhost:7108/mcp/analyst/rpc \
     "tools": [
       {
         "name": "dataset.get_metadata",
-        "description": "Get user-accessible data model list",
+        "description": "Get user-accessible semantic layer model list",
         "inputSchema": {
           "type": "object",
           "properties": {}

@@ -219,7 +219,7 @@
 | 错误码 | 说明 | 解决方案 |
 |--------|------|----------|
 | QUERY_PARSE_ERROR | 无法理解查询 | 使用更明确的描述 |
-| MODEL_NOT_FOUND | 无法识别数据模型 | 在 hints 中指定 prefer_model |
+| MODEL_NOT_FOUND | 无法识别语义层模型 | 在 hints 中指定 prefer_model |
 | FIELD_NOT_FOUND | 字段不存在 | 检查字段名或用更通用的描述 |
 | QUERY_TIMEOUT | 查询超时 | 缩小查询范围 |
 

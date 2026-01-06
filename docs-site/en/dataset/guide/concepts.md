@@ -36,7 +36,7 @@ Foggy Dataset Model is an **embedded semantic layer framework** that provides an
 
 ## TM - Table Model
 
-TM is the data model definition file (`.tm`), used to describe the structure and relationships of database tables.
+TM is the semantic layer definition file (`.tm`), used to describe the structure and relationships of database tables.
 
 ### TM Purpose
 

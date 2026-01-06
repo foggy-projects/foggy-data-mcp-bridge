@@ -126,7 +126,7 @@ After configuration:
 
 1. Restart Cursor
 2. Open AI Chat (Cmd/Ctrl + L)
-3. Input: `List available data models`
+3. Input: `List available semantic layer models`
 4. Confirm Claude can call `dataset.get_metadata` tool
 
 ## Troubleshooting

@@ -143,7 +143,7 @@ For new projects, add to `pom.xml`:
     <dependency>
         <groupId>com.foggysource</groupId>
         <artifactId>foggy-dataset-mcp</artifactId>
-        <version>8.0.1-beta</version>
+        <version>8.1.0-beta</version>
     </dependency>
 
     <!-- Database Driver (choose based on your needs) -->
@@ -163,7 +163,7 @@ For existing Spring Boot projects with datasource configured, just add:
 <dependency>
     <groupId>com.foggysource</groupId>
     <artifactId>foggy-dataset-mcp</artifactId>
-    <version>8.0.1-beta</version>
+    <version>8.1.0-beta</version>
 </dependency>
 ```
 
@@ -176,7 +176,7 @@ If you don't have your own semantic layer yet, add the demo module for a quick e
 <dependency>
     <groupId>com.foggysource</groupId>
     <artifactId>foggy-dataset-demo</artifactId>
-    <version>8.0.1-beta</version>
+    <version>8.1.0-beta</version>
 </dependency>
 ```
 

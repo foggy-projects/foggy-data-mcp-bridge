@@ -19,7 +19,7 @@ export default defineConfig({
       link: '/zh/',
       themeConfig: {
         nav: [
-          { text: '快速开始', link: '/zh/quick-start/introduction' },
+          { text: '快速开始', link: '/zh/mcp/guide/quick-start' },
           {
             text: '技术文档',
             items: [
@@ -32,18 +32,6 @@ export default defineConfig({
           { text: 'GitHub', link: 'https://github.com/foggy-projects/foggy-data-mcp-bridge' }
         ],
         sidebar: {
-          '/zh/quick-start/': [
-            {
-              text: '快速开始',
-              items: [
-                { text: '什么是 Foggy MCP', link: '/zh/quick-start/introduction' },
-                { text: 'Docker 快速部署', link: '/zh/quick-start/docker-setup' },
-                { text: '配置 Claude Desktop', link: '/zh/quick-start/claude-desktop' },
-                { text: '配置 Cursor', link: '/zh/quick-start/cursor' },
-                { text: '第一次查询', link: '/zh/quick-start/first-query' }
-              ]
-            }
-          ],
           '/zh/fsscript/': [
             {
               text: '开始',

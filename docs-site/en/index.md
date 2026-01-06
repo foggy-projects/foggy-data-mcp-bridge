@@ -23,7 +23,7 @@ features:
     linkText: Access Control
   - icon: 🎯
     title: Model-as-Code
-    details: Define data models using FSScript (JavaScript-like syntax). Functions, imports, and dynamic logic.
+    details: Define semantic layer using FSScript (JavaScript-like syntax). Functions, imports, and dynamic logic.
     link: /en/dataset/jm-qm/jm-syntax
     linkText: TM/QM Syntax
   - icon: 🌐
