@@ -167,12 +167,12 @@ For existing Spring Boot projects with datasource configured, just add:
 </dependency>
 ```
 
-#### 1.3 Using Demo Models (Optional)
+#### 1.3 Using Demo Semantic Layer (Optional)
 
-If you don't have your own data models yet, add the demo module for a quick experience:
+If you don't have your own semantic layer yet, add the demo module for a quick experience:
 
 ```xml
-<!-- Demo Data Models (E-commerce Scenario) -->
+<!-- Demo Semantic Layer (E-commerce Scenario) -->
 <dependency>
     <groupId>com.foggysource</groupId>
     <artifactId>foggy-dataset-demo</artifactId>
@@ -243,7 +243,7 @@ foggy:
       model: ${OPENAI_MODEL:gpt-4o-mini}
 ```
 
-### 4. Create Data Models
+### 4. Define Semantic Layer
 
 Create TM/QM model file directory:
 
@@ -314,7 +314,7 @@ export const queryModel = {
 
 > **Tip**: For complete TM/QM syntax, see [TM Syntax Manual](/en/dataset/jm-qm/jm-syntax) and [QM Syntax Manual](/en/dataset/jm-qm/qm-syntax).
 >
-> For detailed data model creation guide, see [Dataset Model Quick Start](/en/dataset/guide/quick-start).
+> For detailed semantic layer creation guide, see [Dataset Model Quick Start](/en/dataset/guide/quick-start).
 
 ### 5. Start Service
 
@@ -414,9 +414,9 @@ After successful connection, try in AI client:
 
 ---
 
-## Pre-built Data Models (Docker)
+## Pre-built Semantic Layer (Docker)
 
-Docker demo environment includes e-commerce scenario data models:
+Docker demo environment includes e-commerce scenario semantic layer models:
 
 | Query Model | Description | Main Fields |
 |-------------|-------------|-------------|
@@ -510,4 +510,4 @@ docker-compose logs mcp
 - [Architecture Overview](./architecture.md) - Understand MCP service architecture
 - [Tools List](../tools/overview.md) - View all available tools
 - [Claude Desktop Integration](../integration/claude-desktop.md) - Detailed configuration guide
-- [TM/QM Modeling](/en/dataset/guide/quick-start) - Create custom data models
+- [TM/QM Modeling](/en/dataset/guide/quick-start) - Create custom semantic layer
