@@ -7,7 +7,7 @@ hero:
   actions:
     - theme: brand
       text: 快速开始
-      link: /zh/quick-start/introduction
+      link: /zh/mcp/guide/quick-start
     - theme: alt
       text: MCP 集成指南
       link: /zh/mcp/guide/introduction
@@ -23,7 +23,7 @@ features:
     linkText: 了解权限控制
   - icon: 🎯
     title: 模型即代码
-    details: 使用 FSScript（类 JavaScript 语法）定义数据模型。支持函数、导入和动态逻辑。
+    details: 使用 FSScript（类 JavaScript 语法）定义语义层。支持函数、导入和动态逻辑。
     link: /zh/dataset-model/tm-qm/tm-syntax
     linkText: TM/QM 语法
   - icon: 🌐

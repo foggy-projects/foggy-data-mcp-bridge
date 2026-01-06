@@ -167,12 +167,12 @@ mvn spring-boot:run -pl foggy-mcp-launcher
 </dependency>
 ```
 
-#### 1.3 使用演示模型（可选）
+#### 1.3 使用演示语义层（可选）
 
-如果暂时没有自己的数据模型，可以添加演示模块快速体验：
+如果暂时没有自己的语义层定义，可以添加演示模块快速体验：
 
 ```xml
-<!-- 演示数据模型（电商场景） -->
+<!-- 演示语义层（电商场景） -->
 <dependency>
     <groupId>com.foggysource</groupId>
     <artifactId>foggy-dataset-demo</artifactId>
@@ -243,78 +243,18 @@ foggy:
       model: ${OPENAI_MODEL:gpt-4o-mini}
 ```
 
-### 4. 创建数据模型
+### 4. 定义语义层
 
-创建 TM/QM 模型文件目录：
+Foggy 使用 TM（Table Model）和 QM（Query Model）文件定义语义层，让 AI 理解业务含义而非底层表结构：
 
-```
-src/main/resources/
-└── foggy/
-    └── templates/
-        ├── FactOrderModel.tm      # 表模型
-        └── FactOrderQueryModel.qm # 查询模型
-```
+- **TM 文件**：定义维度、属性和度量，将数据库字段映射为业务概念（如"客户"、"销售额"）
+- **QM 文件**：定义查询视图、可用字段和访问权限
 
-**示例 TM 文件** `FactOrderModel.tm`：
+语义层文件放置在 `src/main/resources/foggy/templates/` 目录下。
 
-```javascript
-export const model = {
-    name: 'FactOrderModel',
-    caption: '订单事实表',
-    tableName: 'fact_order',
-    idColumn: 'order_id',
-
-    dimensions: [
-        {
-            name: 'customer',
-            caption: '客户',
-            tableName: 'dim_customer',
-            foreignKey: 'customer_id',
-            primaryKey: 'customer_id',
-            captionColumn: 'customer_name',
-            properties: [
-                { column: 'customer_id', caption: '客户ID' },
-                { column: 'customer_name', caption: '客户名称' }
-            ]
-        }
-    ],
-
-    properties: [
-        { column: 'order_id', caption: '订单ID', type: 'STRING' },
-        { column: 'order_status', caption: '订单状态', type: 'STRING' }
-    ],
-
-    measures: [
-        { column: 'amount', caption: '订单金额', type: 'MONEY', aggregation: 'sum' }
-    ]
-};
-```
-
-**示例 QM 文件** `FactOrderQueryModel.qm`：
-
-```javascript
-export const queryModel = {
-    name: 'FactOrderQueryModel',
-    caption: '订单查询',
-    model: 'FactOrderModel',
-
-    columnGroups: [
-        {
-            caption: '订单信息',
-            items: [
-                { name: 'orderId' },
-                { name: 'orderStatus' },
-                { name: 'customer$caption' },
-                { name: 'amount' }
-            ]
-        }
-    ]
-};
-```
-
-> **提示**：完整的 TM/QM 语法请参考 [TM 语法手册](/zh/dataset-model/tm-qm/tm-syntax) 和 [QM 语法手册](/zh/dataset-model/tm-qm/qm-syntax)。
+> **提示**：如果你只想快速体验，可以先使用演示模块（见上文 1.3 节），无需自己定义语义层。
 >
-> 如果你需要更详细的数据模型创建指南，请参考 [Dataset Model 快速开始](/zh/dataset-model/guide/quick-start)。
+> 需要创建自定义语义层时，请参考 [TM 语法手册](/zh/dataset-model/tm-qm/tm-syntax) 和 [QM 语法手册](/zh/dataset-model/tm-qm/qm-syntax)。
 
 ### 5. 启动服务
 
@@ -406,17 +346,17 @@ curl -X POST http://localhost:7108/mcp/analyst/rpc \
 连接成功后，可以在 AI 客户端中尝试：
 
 ```
-"查询最近一周的销售数据"
-"按商品分类统计销售额"
-"上个月销售额前 10 的商品"
+"2024年12月各品类的销售额"
+"2024年Q4销售额前10的商品"
 "各门店的订单数量对比"
+"查看2024年12月的订单明细,并提供数据预览链接"
 ```
 
 ---
 
-## 预置数据模型（Docker 环境）
+## 预置语义层（Docker 环境）
 
-Docker 演示环境包含电商场景的数据模型：
+Docker 演示环境包含电商场景的语义层模型：
 
 | 查询模型 | 说明 | 主要字段 |
 |---------|------|----------|
@@ -510,4 +450,4 @@ docker-compose logs mcp
 - [架构概述](./architecture.md) - 了解 MCP 服务架构
 - [工具列表](../tools/overview.md) - 查看所有可用工具
 - [Claude Desktop 集成](../integration/claude-desktop.md) - 详细配置指南
-- [TM/QM 建模](/zh/dataset-model/guide/quick-start) - 创建自定义数据模型
+- [TM/QM 建模](/zh/dataset-model/guide/quick-start) - 创建自定义语义层
