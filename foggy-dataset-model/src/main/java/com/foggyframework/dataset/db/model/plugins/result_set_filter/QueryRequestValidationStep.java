@@ -226,16 +226,14 @@ public class QueryRequestValidationStep implements DataSetResultStep {
 
             String field = item.getField();
 
-            // 2. 校验 order 不为空
-            if (StringUtils.isEmpty(item.getOrder())) {
-                throw RX.throwAUserTip(DatasetMessages.validationOrderByDirRequired(i, field));
-            }
 
-            String order = item.getOrder().toLowerCase();
 
-            // 3. 校验 order 只能是 asc 或 desc
-            if (!SUPPORTED_SORT_DIRECTIONS.contains(order)) {
-                throw RX.throwAUserTip(DatasetMessages.validationOrderByDirInvalid(i, field, order));
+            // 2. 校验 order 只能是 asc 或 desc
+            if(StringUtils.isNotEmpty(item.getOrder())) {
+                String order = item.getOrder().toLowerCase();
+                if (!SUPPORTED_SORT_DIRECTIONS.contains(order)) {
+                    throw RX.throwAUserTip(DatasetMessages.validationOrderByDirInvalid(i, field, order));
+                }
             }
         }
     }

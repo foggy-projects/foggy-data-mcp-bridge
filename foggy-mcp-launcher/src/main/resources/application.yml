@@ -166,7 +166,7 @@ foggy:
     base-url: http://localhost:7108/data-viewer
 
     cache:
-      ttl-minutes: 120
+      ttl-minutes: 240
       cleanup-interval: 3000000
 
     thresholds:
