@@ -24,7 +24,7 @@ features:
   - icon: 🎯
     title: Model-as-Code
     details: Define semantic layer using FSScript (JavaScript-like syntax). Functions, imports, and dynamic logic.
-    link: /en/dataset/jm-qm/jm-syntax
+    link: /en/dataset/tm-qm/tm-syntax
     linkText: TM/QM Syntax
   - icon: 🌐
     title: Multi-Database
@@ -151,10 +151,10 @@ Then query data using natural language:
 </div>
 
 ### 📘 TM/QM Modeling
-- [TM Syntax Manual](/en/dataset/jm-qm/jm-syntax) - Table model definition
-- [QM Syntax Manual](/en/dataset/jm-qm/qm-syntax) - Query model definition
+- [TM Syntax Manual](/en/dataset/tm-qm/tm-syntax) - Table model definition
+- [QM Syntax Manual](/en/dataset/tm-qm/qm-syntax) - Query model definition
 - [Query DSL API](/en/dataset/api/query-api) - JSON query reference
-- [Calculated Fields](/en/dataset/jm-qm/calculated-fields) - Derived metrics
+- [Calculated Fields](/en/dataset/tm-qm/calculated-fields) - Derived metrics
 
 ### 📗 FSScript Engine
 - [Why FSScript](/en/fsscript/guide/why-fsscript) - Design philosophy

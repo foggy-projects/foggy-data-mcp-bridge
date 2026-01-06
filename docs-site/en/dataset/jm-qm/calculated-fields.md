@@ -1,3 +1,0 @@
-# Calculated Fields
-
-Coming soon...

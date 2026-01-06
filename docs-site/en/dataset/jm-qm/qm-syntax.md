@@ -1,3 +1,0 @@
-# QM Syntax Manual
-
-Coming soon...

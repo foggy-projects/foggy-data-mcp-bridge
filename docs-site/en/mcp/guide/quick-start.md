@@ -312,7 +312,7 @@ export const queryModel = {
 };
 ```
 
-> **Tip**: For complete TM/QM syntax, see [TM Syntax Manual](/en/dataset/jm-qm/jm-syntax) and [QM Syntax Manual](/en/dataset/jm-qm/qm-syntax).
+> **Tip**: For complete TM/QM syntax, see [TM Syntax Manual](/en/dataset/tm-qm/tm-syntax) and [QM Syntax Manual](/en/dataset/tm-qm/qm-syntax).
 >
 > For detailed semantic layer creation guide, see [Dataset Model Quick Start](/en/dataset/guide/quick-start).
 

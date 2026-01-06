@@ -276,7 +276,7 @@ Yes. Create a new `.md` file in `.claude/commands/` directory. The filename beco
 
 ## Related Documentation
 
-- [TM Syntax Reference](/en/dataset/jm-qm/jm-syntax)
-- [QM Syntax Reference](/en/dataset/jm-qm/qm-syntax)
-- [Dimension Reuse Best Practices](/en/dataset/jm-qm/jm-syntax#_7-dimension-reuse-best-practices)
-- [Parent-Child Dimension Configuration](/en/dataset/jm-qm/parent-child)
+- [TM Syntax Reference](/en/dataset/tm-qm/tm-syntax)
+- [QM Syntax Reference](/en/dataset/tm-qm/qm-syntax)
+- [Dimension Reuse Best Practices](/en/dataset/tm-qm/tm-syntax#_7-dimension-reuse-best-practices)
+- [Parent-Child Dimension Configuration](/en/dataset/tm-qm/parent-child)
