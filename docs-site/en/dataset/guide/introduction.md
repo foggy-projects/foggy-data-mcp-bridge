@@ -6,7 +6,7 @@ Foggy Dataset Model is an **embedded semantic layer framework** that implements 
 
 ### TM (Table Model) - Table Model
 
-Maps database tables to semantic data models, defining dimensions, measures, and properties:
+Maps database tables to semantic layer models, defining dimensions, measures, and properties:
 
 ```javascript
 export const model = {

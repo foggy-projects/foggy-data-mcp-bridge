@@ -91,7 +91,7 @@ Suitable for non-technical users who only need to describe requirements in natur
 
 After starting Claude Desktop, verify with:
 
-1. Type in chat: `What data models are available?`
+1. Type in chat: `What semantic layer models are available?`
 2. Claude should call the `dataset.get_metadata` tool and return model list
 
 If Claude cannot recognize MCP tools, check:
@@ -104,7 +104,7 @@ If Claude cannot recognize MCP tools, check:
 ### Query Metadata
 
 ```
-List all available data models and fields
+List all available semantic layer models and fields
 ```
 
 ### Execute Query

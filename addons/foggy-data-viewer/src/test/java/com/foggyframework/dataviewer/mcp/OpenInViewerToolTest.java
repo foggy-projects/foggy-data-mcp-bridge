@@ -78,36 +78,21 @@ class OpenInViewerToolTest {
         }
 
         @Test
-        @DisplayName("应返回非空的描述")
-        void shouldReturnNonEmptyDescription() {
+        @DisplayName("描述从配置文件加载 - 单元测试中为空")
+        void shouldReturnNullDescriptionWithoutConfig() {
+            // 注意：getDescription() 从配置文件加载
+            // 单元测试中没有加载配置，返回 null
             String description = tool.getDescription();
-
-            assertNotNull(description);
-            assertFalse(description.isEmpty());
-            assertTrue(description.contains("filter"));
+            assertNull(description, "在没有配置加载的情况下，描述应为 null");
         }
 
         @Test
-        @DisplayName("应返回正确的输入Schema")
-        void shouldReturnCorrectInputSchema() {
+        @DisplayName("Schema从配置文件加载 - 单元测试中为空")
+        void shouldReturnNullInputSchemaWithoutConfig() {
+            // 注意：getInputSchema() 从配置文件加载
+            // 单元测试中没有加载配置，返回 null
             Map<String, Object> schema = tool.getInputSchema();
-
-            assertNotNull(schema);
-            assertEquals("object", schema.get("type"));
-
-            @SuppressWarnings("unchecked")
-            Map<String, Object> schemaProps = (Map<String, Object>) schema.get("properties");
-            assertNotNull(schemaProps);
-            assertTrue(schemaProps.containsKey("model"));
-            assertTrue(schemaProps.containsKey("columns"));
-            assertTrue(schemaProps.containsKey("slice"));
-
-            @SuppressWarnings("unchecked")
-            List<String> required = (List<String>) schema.get("required");
-            assertNotNull(required);
-            assertTrue(required.contains("model"));
-            assertTrue(required.contains("columns"));
-            assertTrue(required.contains("slice"));
+            assertNull(schema, "在没有配置加载的情况下，Schema 应为 null");
         }
     }
 
@@ -120,11 +105,14 @@ class OpenInViewerToolTest {
         void shouldExecuteSuccessfully() {
             List<SliceRequestDef> slice = createSlice("customerId", "=", "C001");
 
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("columns", List.of("orderId", "customerId", "amount"));
+            payload.put("slice", List.of(Map.of("field", "customerId", "op", "=", "value", "C001")));
+
             Map<String, Object> arguments = new HashMap<>();
             arguments.put("model", "orders");
             arguments.put("title", "客户订单");
-            arguments.put("columns", List.of("orderId", "customerId", "amount"));
-            arguments.put("slice", List.of(Map.of("field", "customerId", "op", "=", "value", "C001")));
+            arguments.put("payload", payload);
 
             CachedQueryContext cachedContext = CachedQueryContext.builder()
                     .queryId("test-query-id")
@@ -150,11 +138,14 @@ class OpenInViewerToolTest {
         @Test
         @DisplayName("应处理约束验证失败")
         void shouldHandleConstraintValidationFailure() {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("columns", List.of("orderId"));
+            payload.put("slice", new ArrayList<>());
+
             Map<String, Object> arguments = new HashMap<>();
             arguments.put("model", "orders");
             arguments.put("title", "无效查询");
-            arguments.put("columns", List.of("orderId"));
-            arguments.put("slice", new ArrayList<>());
+            arguments.put("payload", payload);
 
             // 空的 slice 会在 parseRequest 中被拒绝
             assertThrows(IllegalArgumentException.class, () -> tool.execute(arguments, context));
@@ -163,9 +154,12 @@ class OpenInViewerToolTest {
         @Test
         @DisplayName("应处理缺少必需参数model")
         void shouldThrowWhenMissingModel() {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("columns", List.of("orderId"));
+            payload.put("slice", List.of(Map.of("field", "id", "op", "=", "value", "1")));
+
             Map<String, Object> arguments = new HashMap<>();
-            arguments.put("columns", List.of("orderId"));
-            arguments.put("slice", List.of(Map.of("field", "id", "op", "=", "value", "1")));
+            arguments.put("payload", payload);
 
             assertThrows(IllegalArgumentException.class, () -> tool.execute(arguments, context));
         }
@@ -173,9 +167,12 @@ class OpenInViewerToolTest {
         @Test
         @DisplayName("应处理缺少必需参数columns")
         void shouldThrowWhenMissingColumns() {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("slice", List.of(Map.of("field", "id", "op", "=", "value", "1")));
+
             Map<String, Object> arguments = new HashMap<>();
             arguments.put("model", "orders");
-            arguments.put("slice", List.of(Map.of("field", "id", "op", "=", "value", "1")));
+            arguments.put("payload", payload);
 
             assertThrows(IllegalArgumentException.class, () -> tool.execute(arguments, context));
         }
@@ -183,9 +180,12 @@ class OpenInViewerToolTest {
         @Test
         @DisplayName("应处理缺少必需参数slice")
         void shouldThrowWhenMissingSlice() {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("columns", List.of("orderId"));
+
             Map<String, Object> arguments = new HashMap<>();
             arguments.put("model", "orders");
-            arguments.put("columns", List.of("orderId"));
+            arguments.put("payload", payload);
 
             assertThrows(IllegalArgumentException.class, () -> tool.execute(arguments, context));
         }
@@ -193,10 +193,13 @@ class OpenInViewerToolTest {
         @Test
         @DisplayName("应处理空slice")
         void shouldThrowWhenSliceIsEmpty() {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("columns", List.of("orderId"));
+            payload.put("slice", new ArrayList<>());
+
             Map<String, Object> arguments = new HashMap<>();
             arguments.put("model", "orders");
-            arguments.put("columns", List.of("orderId"));
-            arguments.put("slice", new ArrayList<>());
+            arguments.put("payload", payload);
 
             assertThrows(IllegalArgumentException.class, () -> tool.execute(arguments, context));
         }

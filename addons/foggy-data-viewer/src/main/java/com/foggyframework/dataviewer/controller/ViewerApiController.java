@@ -7,7 +7,9 @@ import com.foggyframework.dataviewer.service.QueryCacheService;
 import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.db.model.common.query.DimensionDataQueryForm;
 import com.foggyframework.dataset.db.model.common.result.DbDataItem;
+import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
+import com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.db.model.service.JdbcService;
@@ -100,24 +102,42 @@ public class ViewerApiController {
 
     /**
      * 从前端直接创建查询（用于 DSL 输入）
+     * <p>
+     * 接收 payload 结构（与 dataset.query_model 格式一致）
      */
     @PostMapping("/query/create")
     public ResponseEntity<CreateQueryResponse> createQuery(
-            @RequestBody QueryCacheService.OpenInViewerRequest request) {
+            @RequestBody CreateQueryFromFrontendRequest frontendRequest) {
         try {
             // 验证必要参数
-            if (request.getModel() == null || request.getModel().isBlank()) {
+            if (frontendRequest.getModel() == null || frontendRequest.getModel().isBlank()) {
                 return ResponseEntity.badRequest().body(
                         new CreateQueryResponse(false, null, null, "model 不能为空"));
             }
-            if (request.getColumns() == null || request.getColumns().isEmpty()) {
+            if (frontendRequest.getPayload() == null) {
                 return ResponseEntity.badRequest().body(
-                        new CreateQueryResponse(false, null, null, "columns 不能为空"));
+                        new CreateQueryResponse(false, null, null, "payload 不能为空"));
             }
-            if (request.getSlice() == null || request.getSlice().isEmpty()) {
+
+            CreateQueryPayload payload = frontendRequest.getPayload();
+            if (payload.getColumns() == null || payload.getColumns().isEmpty()) {
                 return ResponseEntity.badRequest().body(
-                        new CreateQueryResponse(false, null, null, "slice 不能为空，请提供至少一个过滤条件"));
+                        new CreateQueryResponse(false, null, null, "payload.columns 不能为空"));
             }
+            if (payload.getSlice() == null || payload.getSlice().isEmpty()) {
+                return ResponseEntity.badRequest().body(
+                        new CreateQueryResponse(false, null, null, "payload.slice 不能为空，请提供至少一个过滤条件"));
+            }
+
+            // 转换为内部请求格式
+            QueryCacheService.OpenInViewerRequest request = new QueryCacheService.OpenInViewerRequest();
+            request.setModel(frontendRequest.getModel());
+            request.setTitle(frontendRequest.getTitle());
+            request.setColumns(payload.getColumns());
+            request.setSlice(payload.getSlice());
+            request.setGroupBy(payload.getGroupBy());
+            request.setOrderBy(payload.getOrderBy());
+            request.setCalculatedFields(payload.getCalculatedFields());
 
             // 缓存查询
             CachedQueryContext ctx = cacheService.cacheQuery(request, null);
@@ -133,6 +153,28 @@ public class ViewerApiController {
             return ResponseEntity.ok(new CreateQueryResponse(
                     false, null, null, e.getMessage()));
         }
+    }
+
+    /**
+     * 前端创建查询请求（payload 结构）
+     */
+    @lombok.Data
+    public static class CreateQueryFromFrontendRequest {
+        private String model;
+        private CreateQueryPayload payload;
+        private String title;
+    }
+
+    /**
+     * 查询 payload（与 dataset.query_model 格式一致）
+     */
+    @lombok.Data
+    public static class CreateQueryPayload {
+        private List<String> columns;
+        private List<SliceRequestDef> slice;
+        private List<GroupRequestDef> groupBy;
+        private List<OrderRequestDef> orderBy;
+        private List<CalculatedFieldDef> calculatedFields;
     }
 
     /**

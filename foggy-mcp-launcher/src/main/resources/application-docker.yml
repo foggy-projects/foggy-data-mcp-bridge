@@ -68,40 +68,40 @@ spring:
           min-idle: 0
           max-wait: -1ms
 # ==========================================
-# MCP 服务配置
-# ==========================================
-mcp:
-  dataset:
-    access-mode: ${DATASET_ACCESS_MODE:local}
-
-  semantic:
-    # 可用模型列表 (通过环境变量配置)
-    model-list: ${MCP_SEMANTIC_MODEL_LIST:FactSalesQueryModel,FactOrderQueryModel}
-    metadata-version: v3
-    query-version: v3
-
-  service:
-    m1-port: ${MCP_M1_PORT:7108}
-    m2-port: ${MCP_M2_PORT:7109}
-    enabled-layer: ${MCP_LAYER:both}
-    current-layer: default
-
-  external:
-    dataset-query:
-      base-url: ${DATASET_QUERY_URL:http://localhost:8080}
-      timeout-seconds: 30
-    chart-render:
-      base-url: ${CHART_RENDER_URL:http://localhost:3000}
-      auth-token: ${CHART_RENDER_TOKEN:default-render-token}
-      timeout-seconds: 60
-
-  audit:
-    enabled: false
-
-# ==========================================
-# Foggy Dataset 配置
+# Foggy MCP 服务配置
 # ==========================================
 foggy:
+  mcp:
+    dataset:
+      access-mode: ${DATASET_ACCESS_MODE:local}
+
+    semantic:
+      # 可用模型列表 (通过环境变量配置)
+      model-list: ${MCP_SEMANTIC_MODEL_LIST:FactSalesQueryModel,FactOrderQueryModel}
+      metadata-version: v3
+      query-version: v3
+
+    service:
+      m1-port: ${MCP_M1_PORT:7108}
+      m2-port: ${MCP_M2_PORT:7109}
+      enabled-layer: ${MCP_LAYER:both}
+      current-layer: default
+
+    external:
+      dataset-query:
+        base-url: ${DATASET_QUERY_URL:http://localhost:8080}
+        timeout-seconds: 30
+      chart-render:
+        base-url: ${CHART_RENDER_URL:http://localhost:3000}
+        auth-token: ${CHART_RENDER_TOKEN:default-render-token}
+        timeout-seconds: 60
+
+    audit:
+      enabled: false
+
+  # ==========================================
+  # Foggy Dataset 配置
+  # ==========================================
   dataset:
     # SQL 日志配置 (生产环境建议关闭)
     show-sql: true              # 不打印 SQL 语句

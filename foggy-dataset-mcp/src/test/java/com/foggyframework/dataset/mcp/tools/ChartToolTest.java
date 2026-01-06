@@ -2,8 +2,10 @@ package com.foggyframework.dataset.mcp.tools;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.dataset.mcp.config.McpProperties;
-import com.foggyframework.dataset.mcp.enums.ToolCategory;
-import com.foggyframework.dataset.mcp.service.ProgressEvent;
+
+import com.foggyframework.mcp.spi.ProgressEvent;
+import com.foggyframework.mcp.spi.ToolCategory;
+import com.foggyframework.mcp.spi.ToolExecutionContext;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.client.WireMock;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
@@ -102,7 +104,7 @@ class ChartToolTest {
                     "data", List.of()
             );
 
-            Object result = chartTool.execute(args, "trace-1", null);
+            Object result = chartTool.execute(args, ToolExecutionContext.of("trace-1", null));
 
             assertIsError(result, "数据不能为空");
         }
@@ -114,7 +116,7 @@ class ChartToolTest {
             args.put("type", "bar");
             args.put("data", null);
 
-            Object result = chartTool.execute(args, "trace-2", null);
+            Object result = chartTool.execute(args, ToolExecutionContext.of("trace-2", null));
 
             assertIsError(result, "数据不能为空");
         }
@@ -150,7 +152,7 @@ class ChartToolTest {
                     "yField", "sales"
             );
 
-            Object result = chartTool.execute(args, "trace-bar", null);
+            Object result = chartTool.execute(args, ToolExecutionContext.of("trace-bar", null));
 
             assertNotNull(result);
             @SuppressWarnings("unchecked")
@@ -187,7 +189,7 @@ class ChartToolTest {
                     "yField", "sales"
             );
 
-            Object result = chartTool.execute(args, "trace-line", null);
+            Object result = chartTool.execute(args, ToolExecutionContext.of("trace-line", null));
 
             @SuppressWarnings("unchecked")
             Map<String, Object> resultMap = (Map<String, Object>) result;
@@ -220,7 +222,7 @@ class ChartToolTest {
                     "yField", "value"
             );
 
-            chartTool.execute(args, "trace-pie", null);
+            chartTool.execute(args, ToolExecutionContext.of("trace-pie", null));
 
             // 验证饼图使用了正确的字段映射 (valueField/nameField)
             verify(postRequestedFor(urlEqualTo("/render/unified/stream"))
@@ -249,7 +251,7 @@ class ChartToolTest {
                     "format", "svg"
             );
 
-            Object result = chartTool.execute(args, "trace-size", null);
+            Object result = chartTool.execute(args, ToolExecutionContext.of("trace-size", null));
 
             @SuppressWarnings("unchecked")
             Map<String, Object> resultMap = (Map<String, Object>) result;
@@ -289,7 +291,7 @@ class ChartToolTest {
                     "seriesField", "region"
             );
 
-            chartTool.execute(args, "trace-multi-series", null);
+            chartTool.execute(args, ToolExecutionContext.of("trace-multi-series", null));
 
             verify(postRequestedFor(urlEqualTo("/render/unified/stream"))
                     .withRequestBody(matchingJsonPath("$.unified.seriesField", equalTo("region"))));
@@ -311,7 +313,7 @@ class ChartToolTest {
                     "data", List.of(Map.of("x", 1, "y", 2))
             );
 
-            Object result = chartTool.execute(args, "trace-defaults", null);
+            Object result = chartTool.execute(args, ToolExecutionContext.of("trace-defaults", null));
 
             @SuppressWarnings("unchecked")
             Map<String, Object> resultMap = (Map<String, Object>) result;
@@ -345,7 +347,7 @@ class ChartToolTest {
                     "data", List.of(Map.of("x", 1, "y", 2))
             );
 
-            Object result = chartTool.execute(args, "trace-500", null);
+            Object result = chartTool.execute(args, ToolExecutionContext.of("trace-500", null));
 
             assertIsError(result, "图表生成失败");
         }
@@ -362,8 +364,8 @@ class ChartToolTest {
                     "type", "bar",
                     "data", List.of(Map.of("x", 1, "y", 2))
             );
-
-            Object result = chartTool.execute(args, "trace-empty", null);
+            ToolExecutionContext context = ToolExecutionContext.of("trace-empty", null);
+            Object result = chartTool.execute(args, context);
 
             assertIsError(result, "图表生成失败");
         }
@@ -390,7 +392,8 @@ class ChartToolTest {
                     "data", List.of(Map.of("x", 1, "y", 2))
             );
 
-            Flux<ProgressEvent> flux = chartTool.executeWithProgress(args, "trace-streaming", null);
+            ToolExecutionContext context = ToolExecutionContext.of("trace-streaming", null);
+            Flux<ProgressEvent> flux = chartTool.executeWithProgress(args, context);
 
             StepVerifier.create(flux)
                     .expectNextMatches(e -> "progress".equals(e.getEventType()) && hasPercent(e, 10))
@@ -413,7 +416,8 @@ class ChartToolTest {
                     "data", List.of(Map.of("x", 1, "y", 2))
             );
 
-            Flux<ProgressEvent> flux = chartTool.executeWithProgress(args, "trace-error-stream", null);
+            ToolExecutionContext context = ToolExecutionContext.of("trace-error-stream", null);
+            Flux<ProgressEvent> flux = chartTool.executeWithProgress(args, context);
 
             // 由于 execute 返回错误而非抛出异常，complete 事件会包含错误响应
             StepVerifier.create(flux)

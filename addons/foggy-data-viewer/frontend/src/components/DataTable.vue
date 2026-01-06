@@ -223,6 +223,22 @@ function getFilterComponent(col: ColumnSchema) {
   }
 }
 
+// 获取维度过滤的正确字段名
+// 维度列选择的是 id 值，所以过滤字段应该用 $id 后缀
+function getDimensionFilterField(columnName: string): string {
+  // 如果已经是 $id 结尾，直接返回
+  if (columnName.endsWith('$id')) {
+    return columnName
+  }
+  // 如果是 $caption 或其他后缀，替换为 $id
+  if (columnName.includes('$')) {
+    const baseName = columnName.substring(0, columnName.indexOf('$'))
+    return `${baseName}$id`
+  }
+  // 没有后缀的维度列，添加 $id
+  return `${columnName}$id`
+}
+
 // 获取过滤器属性
 function getFilterProps(col: ColumnSchema) {
   const filterType = inferFilterType(col)
@@ -243,17 +259,23 @@ function getFilterProps(col: ColumnSchema) {
         options: col.dictItems || [],
         placeholder: col.title || '请选择'
       }
-    case 'dimension':
+    case 'dimension': {
       // 维度需要异步加载选项
       if (!dimensionOptionsCache.value[col.name]) {
         loadDimensionOptions(col.name)
       }
+      // 维度过滤使用 $id 字段
+      const filterField = getDimensionFilterField(col.name)
       return {
         ...baseProps,
+        field: filterField,  // 使用正确的过滤字段（$id）
+        modelValue: filterValues.value[filterField] || filterValues.value[col.name] || null,
+        'onUpdate:modelValue': (val: SliceRequestDef[] | null) => updateFilter(filterField, val),
         options: dimensionOptionsCache.value[col.name] || [],
         loading: dimensionOptionsLoading.value[col.name],
         placeholder: col.title || '请选择'
       }
+    }
     default:
       return baseProps
   }

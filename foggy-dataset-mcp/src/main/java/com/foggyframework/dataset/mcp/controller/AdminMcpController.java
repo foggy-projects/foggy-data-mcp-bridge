@@ -6,7 +6,7 @@ import com.foggyframework.dataset.mcp.schema.McpRequest;
 import com.foggyframework.dataset.mcp.schema.McpResponse;
 import com.foggyframework.dataset.mcp.service.McpService;
 import com.foggyframework.dataset.mcp.service.McpToolDispatcher;
-import com.foggyframework.dataset.mcp.service.ProgressEvent;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;

@@ -24,12 +24,14 @@ const examples = [
     dsl: {
       model: 'FactSalesQueryModel',
       title: '销售明细查询',
-      columns: ['orderId', 'salesDate$caption', 'product$caption', 'customer$caption', 'quantity', 'salesAmount', 'profitAmount'],
-      slice: [
-        { field: 'salesDate$caption', op: '>=', value: '2024-12-01' },
-        { field: 'salesDate$caption', op: '<', value: '2024-12-31' }
-      ],
-      orderBy: [{ field: 'salesDate$caption', order: 'desc' }]
+      payload: {
+        columns: ['orderId', 'salesDate$caption', 'product$caption', 'customer$caption', 'quantity', 'salesAmount', 'profitAmount'],
+        slice: [
+          { field: 'salesDate$caption', op: '>=', value: '2024-12-01' },
+          { field: 'salesDate$caption', op: '<', value: '2024-12-31' }
+        ],
+        orderBy: [{ field: 'salesDate$caption', order: 'desc' }]
+      }
     }
   },
   {
@@ -38,12 +40,14 @@ const examples = [
     dsl: {
       model: 'FactOrderQueryModel',
       title: '订单查询',
-      columns: ['orderId', 'orderStatus', 'paymentStatus', 'orderTime', 'customer$caption', 'amount', 'payAmount'],
-      slice: [
-        { field: 'orderDate$caption', op: '>=', value: '2024-12-01' },
-        { field: 'orderDate$caption', op: '<', value: '2024-12-31' }
-      ],
-      orderBy: [{ field: 'orderTime', order: 'desc' }]
+      payload: {
+        columns: ['orderId', 'orderStatus', 'paymentStatus', 'orderTime', 'customer$caption', 'amount', 'payAmount'],
+        slice: [
+          { field: 'orderDate$caption', op: '>=', value: '2024-12-01' },
+          { field: 'orderDate$caption', op: '<', value: '2024-12-31' }
+        ],
+        orderBy: [{ field: 'orderTime', order: 'desc' }]
+      }
     }
   },
   {
@@ -52,11 +56,13 @@ const examples = [
     dsl: {
       model: 'DimProductQueryModel',
       title: '商品列表',
-      columns: ['productName', 'productId', 'brand', 'categoryName', 'subCategoryName', 'unitPrice', 'unitCost'],
-      slice: [
-        { field: 'status', op: '=', value: '正常' }
-      ],
-      orderBy: [{ field: 'productName', order: 'asc' }]
+      payload: {
+        columns: ['productName', 'productId', 'brand', 'categoryName', 'subCategoryName', 'unitPrice', 'unitCost'],
+        slice: [
+          { field: 'status', op: '=', value: '正常' }
+        ],
+        orderBy: [{ field: 'productName', order: 'asc' }]
+      }
     }
   },
   {
@@ -65,11 +71,13 @@ const examples = [
     dsl: {
       model: 'DimCustomerQueryModel',
       title: 'VIP客户列表',
-      columns: ['customerName', 'customerId', 'customerType', 'memberLevel', 'gender', 'province', 'city'],
-      slice: [
-        { field: 'memberLevel', op: '=', value: 'VIP' }
-      ],
-      orderBy: [{ field: 'customerName', order: 'asc' }]
+      payload: {
+        columns: ['customerName', 'customerId', 'customerType', 'memberLevel', 'gender', 'province', 'city'],
+        slice: [
+          { field: 'memberLevel', op: '=', value: 'VIP' }
+        ],
+        orderBy: [{ field: 'customerName', order: 'asc' }]
+      }
     }
   },
   {
@@ -78,13 +86,15 @@ const examples = [
     dsl: {
       model: 'FactSalesQueryModel',
       title: '门店业绩汇总',
-      columns: ['store$caption', 'store$storeType', 'store$province', 'store$city', 'quantity', 'salesAmount', 'profitAmount'],
-      slice: [
-        { field: 'salesDate$caption', op: '>=', value: '2024-10-01' },
-        { field: 'salesDate$caption', op: '<', value: '2024-12-31' }
-      ],
-      groupBy: [{ field: 'store$id' }],
-      orderBy: [{ field: 'salesAmount', order: 'desc' }]
+      payload: {
+        columns: ['store$caption', 'store$storeType', 'store$province', 'store$city', 'quantity', 'salesAmount', 'profitAmount'],
+        slice: [
+          { field: 'salesDate$caption', op: '>=', value: '2024-10-01' },
+          { field: 'salesDate$caption', op: '<', value: '2024-12-31' }
+        ],
+        groupBy: [{ field: 'store$id' }],
+        orderBy: [{ field: 'salesAmount', order: 'desc' }]
+      }
     }
   }
 ]
@@ -171,10 +181,12 @@ async function submitQuery() {
             placeholder='{
   "model": "FactSalesQueryModel",
   "title": "我的查询",
-  "columns": ["orderId", "salesDate", "salesAmount"],
-  "slice": [
-    { "field": "salesDate", "op": ">=", "value": "2024-01-01" }
-  ]
+  "payload": {
+    "columns": ["orderId", "salesDate", "salesAmount"],
+    "slice": [
+      { "field": "salesDate", "op": ">=", "value": "2024-01-01" }
+    ]
+  }
 }'
             :disabled="isSubmitting"
           ></textarea>
@@ -212,34 +224,40 @@ async function submitQuery() {
               <td>查询模型名称，如 FactSalesQueryModel</td>
             </tr>
             <tr>
-              <td><code>columns</code></td>
+              <td><code>payload</code></td>
+              <td>object</td>
+              <td>是</td>
+              <td>查询参数对象（与 dataset.query_model 格式一致）</td>
+            </tr>
+            <tr>
+              <td><code>payload.columns</code></td>
               <td>string[]</td>
               <td>是</td>
               <td>要查询的列名列表</td>
             </tr>
             <tr>
-              <td><code>slice</code></td>
+              <td><code>payload.slice</code></td>
               <td>object[]</td>
               <td>是</td>
               <td>过滤条件，每项包含 field、op、value</td>
+            </tr>
+            <tr>
+              <td><code>payload.groupBy</code></td>
+              <td>object[]</td>
+              <td>否</td>
+              <td>分组字段，用于聚合查询</td>
+            </tr>
+            <tr>
+              <td><code>payload.orderBy</code></td>
+              <td>object[]</td>
+              <td>否</td>
+              <td>排序字段，包含 field 和 order</td>
             </tr>
             <tr>
               <td><code>title</code></td>
               <td>string</td>
               <td>否</td>
               <td>查询标题</td>
-            </tr>
-            <tr>
-              <td><code>groupBy</code></td>
-              <td>object[]</td>
-              <td>否</td>
-              <td>分组字段，用于聚合查询</td>
-            </tr>
-            <tr>
-              <td><code>orderBy</code></td>
-              <td>object[]</td>
-              <td>否</td>
-              <td>排序字段，包含 field 和 order</td>
             </tr>
           </tbody>
         </table>

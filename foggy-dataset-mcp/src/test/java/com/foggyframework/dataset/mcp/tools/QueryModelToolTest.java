@@ -2,8 +2,9 @@ package com.foggyframework.dataset.mcp.tools;
 
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
-import com.foggyframework.dataset.mcp.enums.ToolCategory;
 import com.foggyframework.dataset.mcp.spi.DatasetAccessor;
+import com.foggyframework.mcp.spi.ToolCategory;
+import com.foggyframework.mcp.spi.ToolExecutionContext;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -71,7 +72,7 @@ class QueryModelToolTest {
             Map<String, Object> args = new HashMap<>();
             args.put("payload", Map.of("columns", List.of("name")));
 
-            Object result = queryModelTool.execute(args, "trace-1", null);
+            Object result = queryModelTool.execute(args, ToolExecutionContext.of("trace-1", null));
 
             assertIsError(result, "缺少必要参数: model");
         }
@@ -83,7 +84,7 @@ class QueryModelToolTest {
             args.put("model", "  ");
             args.put("payload", Map.of("columns", List.of("name")));
 
-            Object result = queryModelTool.execute(args, "trace-2", null);
+            Object result = queryModelTool.execute(args, ToolExecutionContext.of("trace-2", null));
 
             assertIsError(result, "缺少必要参数: model");
         }
@@ -94,7 +95,7 @@ class QueryModelToolTest {
             Map<String, Object> args = new HashMap<>();
             args.put("model", "TestModel");
 
-            Object result = queryModelTool.execute(args, "trace-3", null);
+            Object result = queryModelTool.execute(args, ToolExecutionContext.of("trace-3", null));
 
             assertIsError(result, "缺少必要参数: payload");
         }
@@ -106,7 +107,7 @@ class QueryModelToolTest {
             args.put("model", "TestModel");
             args.put("payload", null);
 
-            Object result = queryModelTool.execute(args, "trace-4", null);
+            Object result = queryModelTool.execute(args, ToolExecutionContext.of("trace-4", null));
 
             assertIsError(result, "缺少必要参数: payload");
         }
@@ -137,7 +138,7 @@ class QueryModelToolTest {
                     "payload", Map.of("columns", List.of("id", "name", "price"))
             );
 
-            Object result = queryModelTool.execute(args, "trace-success-1", null);
+            Object result = queryModelTool.execute(args, ToolExecutionContext.of("trace-success-1", null));
 
             assertNotNull(result);
             assertInstanceOf(RX.class, result);
@@ -179,7 +180,7 @@ class QueryModelToolTest {
                     "payload", payload
             );
 
-            queryModelTool.execute(args, "trace-slice", null);
+            queryModelTool.execute(args, ToolExecutionContext.of("trace-slice", null));
 
             verify(datasetAccessor).queryModel(
                     eq("ProductModel"),
@@ -213,7 +214,7 @@ class QueryModelToolTest {
                     "payload", payload
             );
 
-            Object result = queryModelTool.execute(args, "trace-groupby", null);
+            Object result = queryModelTool.execute(args, ToolExecutionContext.of("trace-groupby", null));
 
             assertNotNull(result);
             @SuppressWarnings("unchecked")
@@ -235,7 +236,7 @@ class QueryModelToolTest {
                     "mode", "validate"
             );
 
-            queryModelTool.execute(args, "trace-validate", null);
+            queryModelTool.execute(args, ToolExecutionContext.of("trace-validate", null));
 
             verify(datasetAccessor).queryModel(
                     eq("TestModel"),
@@ -260,7 +261,7 @@ class QueryModelToolTest {
                     "payload", Map.of("columns", List.of("field1"))
             );
 
-            queryModelTool.execute(args, "trace-default-mode", null);
+            queryModelTool.execute(args, ToolExecutionContext.of("trace-default-mode", null));
 
             verify(datasetAccessor).queryModel(
                     anyString(),
@@ -294,7 +295,7 @@ class QueryModelToolTest {
                     "payload", payload
             );
 
-            Object result = queryModelTool.execute(args, "trace-pagination", null);
+            Object result = queryModelTool.execute(args, ToolExecutionContext.of("trace-pagination", null));
 
             @SuppressWarnings("unchecked")
             RX<SemanticQueryResponse> rxResult = (RX<SemanticQueryResponse>) result;
@@ -316,7 +317,7 @@ class QueryModelToolTest {
                     "payload", Map.of("columns", List.of("field1"))
             );
 
-            queryModelTool.execute(args, "trace-auth", "Bearer token123");
+            queryModelTool.execute(args, ToolExecutionContext.of("trace-auth", "Bearer token123"));
 
             verify(datasetAccessor).queryModel(
                     anyString(),
@@ -348,7 +349,7 @@ class QueryModelToolTest {
                     "payload", Map.of("columns", List.of("field1"))
             );
 
-            Object result = queryModelTool.execute(args, "trace-500", null);
+            Object result = queryModelTool.execute(args, ToolExecutionContext.of("trace-500", null));
 
             assertNotNull(result);
             assertInstanceOf(RX.class, result);
@@ -371,7 +372,7 @@ class QueryModelToolTest {
             // 工具层不捕获异常，异常由调用者处理
             // 在实际使用中，DatasetAccessor 的实现会捕获异常并返回错误响应
             RuntimeException exception = assertThrows(RuntimeException.class, () -> {
-                queryModelTool.execute(args, "trace-exception", null);
+                queryModelTool.execute(args, ToolExecutionContext.of("trace-exception", null));
             });
 
             assertEquals("Connection failed", exception.getMessage());

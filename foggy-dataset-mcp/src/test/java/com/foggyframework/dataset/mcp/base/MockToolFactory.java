@@ -1,7 +1,7 @@
 package com.foggyframework.dataset.mcp.base;
 
-import com.foggyframework.dataset.mcp.enums.ToolCategory;
-import com.foggyframework.dataset.mcp.tools.McpTool;
+import com.foggyframework.mcp.spi.McpTool;
+import com.foggyframework.mcp.spi.ToolCategory;
 
 import java.util.*;
 
@@ -26,7 +26,7 @@ public class MockToolFactory {
                 "type", "object",
                 "properties", Map.of()
         ));
-        when(tool.execute(any(), any(), any())).thenReturn(Map.of(
+        when(tool.execute(any(), any())).thenReturn(Map.of(
                 "models", List.of(
                         Map.of("name", "FactSalesModel", "caption", "销售事实表")
                 )
@@ -176,7 +176,7 @@ public class MockToolFactory {
         when(tool.getName()).thenReturn(name);
         when(tool.getDescription()).thenReturn("Failing tool: " + name);
         when(tool.getCategories()).thenReturn(EnumSet.of(ToolCategory.QUERY));
-        when(tool.execute(any(), any(), any())).thenThrow(exception);
+        when(tool.execute(any(), any())).thenThrow(exception);
         return tool;
     }
 
@@ -189,7 +189,7 @@ public class MockToolFactory {
         when(tool.getDescription()).thenReturn("Tool: " + name);
         when(tool.getCategories()).thenReturn(EnumSet.of(category));
         when(tool.getInputSchema()).thenReturn(Map.of("type", "object"));
-        when(tool.execute(any(), any(), any())).thenReturn(result);
+        when(tool.execute(any(), any())).thenReturn(result);
         return tool;
     }
 

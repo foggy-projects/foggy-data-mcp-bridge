@@ -23,8 +23,8 @@ features:
     linkText: Access Control
   - icon: 🎯
     title: Model-as-Code
-    details: Define data models using FSScript (JavaScript-like syntax). Functions, imports, and dynamic logic.
-    link: /en/dataset/jm-qm/jm-syntax
+    details: Define semantic layer using FSScript (JavaScript-like syntax). Functions, imports, and dynamic logic.
+    link: /en/dataset/tm-qm/tm-syntax
     linkText: TM/QM Syntax
   - icon: 🌐
     title: Multi-Database
@@ -136,3 +136,27 @@ Then query data using natural language:
 - *"Show me sales by brand for the last week"*
 - *"Which products had the highest return rate last month?"*
 - *"Generate a chart comparing revenue by region"*
+
+## 📦 Core Modules
+
+<div class="modules-grid">
+
+| Module | Description | Docs |
+|--------|-------------|------|
+| **foggy-dataset-model** | Semantic layer engine - TM/QM modeling, DSL query execution | [Guide](/en/dataset/guide/introduction) |
+| **foggy-dataset** | Database abstraction - Multi-database dialect support | [Query Layer](/en/dataset/guide/introduction) |
+| **foggy-fsscript** | Script engine - JavaScript-like syntax for TM/QM files | [FSScript Guide](/en/fsscript/guide/introduction) |
+| **foggy-dataset-mcp** | MCP server - AI assistant integration | [MCP Service](/en/mcp/guide/introduction) |
+
+</div>
+
+### 📘 TM/QM Modeling
+- [TM Syntax Manual](/en/dataset/tm-qm/tm-syntax) - Table model definition
+- [QM Syntax Manual](/en/dataset/tm-qm/qm-syntax) - Query model definition
+- [Query DSL API](/en/dataset/api/query-api) - JSON query reference
+- [Calculated Fields](/en/dataset/tm-qm/calculated-fields) - Derived metrics
+
+### 📗 FSScript Engine
+- [Why FSScript](/en/fsscript/guide/why-fsscript) - Design philosophy
+- [Syntax Guide](/en/fsscript/syntax/variables) - Language reference
+- [Spring Boot Integration](/en/fsscript/java/spring-boot) - Java integration

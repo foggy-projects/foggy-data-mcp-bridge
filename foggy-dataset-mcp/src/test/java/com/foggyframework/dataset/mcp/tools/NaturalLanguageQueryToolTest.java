@@ -1,10 +1,12 @@
 package com.foggyframework.dataset.mcp.tools;
 
-import com.foggyframework.dataset.mcp.enums.ToolCategory;
 import com.foggyframework.dataset.mcp.schema.DatasetNLQueryRequest;
 import com.foggyframework.dataset.mcp.schema.DatasetNLQueryResponse;
-import com.foggyframework.dataset.mcp.service.ProgressEvent;
+
 import com.foggyframework.dataset.mcp.service.QueryExpertService;
+import com.foggyframework.mcp.spi.ProgressEvent;
+import com.foggyframework.mcp.spi.ToolCategory;
+import com.foggyframework.mcp.spi.ToolExecutionContext;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -89,7 +91,7 @@ class NaturalLanguageQueryToolTest {
 
             Map<String, Object> args = Map.of("query", "每个团队的销售额");
 
-            Object result = nlQueryTool.execute(args, "trace-1", null);
+            Object result = nlQueryTool.execute(args, ToolExecutionContext.of("trace-1", null));
 
             assertNotNull(result);
             assertInstanceOf(DatasetNLQueryResponse.class, result);
@@ -114,7 +116,7 @@ class NaturalLanguageQueryToolTest {
                     "session_id", "session-abc-123"
             );
 
-            nlQueryTool.execute(args, "trace-2", null);
+            nlQueryTool.execute(args, ToolExecutionContext.of("trace-2", null));
 
             verify(queryExpertService).processQuery(argThat(req ->
                     "session-abc-123".equals(req.getSessionId())
@@ -132,7 +134,7 @@ class NaturalLanguageQueryToolTest {
                     "format", "summary"
             );
 
-            nlQueryTool.execute(args, "trace-3", null);
+            nlQueryTool.execute(args, ToolExecutionContext.of("trace-3", null));
 
             verify(queryExpertService).processQuery(argThat(req ->
                     "summary".equals(req.getFormat())
@@ -147,7 +149,7 @@ class NaturalLanguageQueryToolTest {
 
             Map<String, Object> args = Map.of("query", "查询数据");
 
-            nlQueryTool.execute(args, "trace-4", null);
+            nlQueryTool.execute(args, ToolExecutionContext.of("trace-4", null));
 
             verify(queryExpertService).processQuery(argThat(req ->
                     "table".equals(req.getFormat())
@@ -175,7 +177,7 @@ class NaturalLanguageQueryToolTest {
                     "hints", hints
             );
 
-            nlQueryTool.execute(args, "trace-5", null);
+            nlQueryTool.execute(args, ToolExecutionContext.of("trace-5", null));
 
             verify(queryExpertService).processQuery(argThat(req -> {
                 DatasetNLQueryRequest.QueryHints h = req.getHints();
@@ -198,7 +200,7 @@ class NaturalLanguageQueryToolTest {
                     "cursor", "cursor_page_2"
             );
 
-            nlQueryTool.execute(args, "trace-6", null);
+            nlQueryTool.execute(args, ToolExecutionContext.of("trace-6", null));
 
             verify(queryExpertService).processQuery(argThat(req ->
                     "cursor_page_2".equals(req.getCursor())
@@ -216,7 +218,7 @@ class NaturalLanguageQueryToolTest {
                     "stream", false
             );
 
-            nlQueryTool.execute(args, "trace-7", null);
+            nlQueryTool.execute(args, ToolExecutionContext.of("trace-7", null));
 
             verify(queryExpertService).processQuery(argThat(req ->
                     !req.getStream()
@@ -238,7 +240,7 @@ class NaturalLanguageQueryToolTest {
 
             Map<String, Object> args = Map.of("query", "测试查询");
 
-            Object result = nlQueryTool.execute(args, "trace-error-1", null);
+            Object result = nlQueryTool.execute(args, ToolExecutionContext.of("trace-error-1", null));
 
             assertNotNull(result);
             assertInstanceOf(DatasetNLQueryResponse.class, result);
@@ -258,7 +260,7 @@ class NaturalLanguageQueryToolTest {
             Map<String, Object> args = new HashMap<>();
             args.put("query", "");
 
-            Object result = nlQueryTool.execute(args, "trace-error-2", null);
+            Object result = nlQueryTool.execute(args, ToolExecutionContext.of("trace-error-2", null));
 
             assertNotNull(result);
             assertInstanceOf(DatasetNLQueryResponse.class, result);
@@ -289,7 +291,7 @@ class NaturalLanguageQueryToolTest {
 
             Map<String, Object> args = Map.of("query", "流式查询测试");
 
-            Flux<ProgressEvent> result = nlQueryTool.executeWithProgress(args, "trace-stream-1", null);
+            Flux<ProgressEvent> result = nlQueryTool.executeWithProgress(args, ToolExecutionContext.of("trace-stream-1", null));
 
             StepVerifier.create(result)
                     .expectNextMatches(e -> "progress".equals(e.getEventType()) && hasPercent(e, 20))
@@ -323,7 +325,7 @@ class NaturalLanguageQueryToolTest {
                     "hints", hints
             );
 
-            nlQueryTool.executeWithProgress(args, "trace-stream-2", null).blockLast();
+            nlQueryTool.executeWithProgress(args, ToolExecutionContext.of("trace-stream-2", null)).blockLast();
 
             verify(queryExpertService).processQueryWithProgress(argThat(req ->
                     "今日销售数据".equals(req.getQuery()) &&
@@ -342,7 +344,7 @@ class NaturalLanguageQueryToolTest {
 
             Map<String, Object> args = Map.of("query", "测试流式错误");
 
-            Flux<ProgressEvent> result = nlQueryTool.executeWithProgress(args, "trace-stream-error", null);
+            Flux<ProgressEvent> result = nlQueryTool.executeWithProgress(args, ToolExecutionContext.of("trace-stream-error", null));
 
             StepVerifier.create(result)
                     .expectError(RuntimeException.class)
@@ -365,7 +367,7 @@ class NaturalLanguageQueryToolTest {
 
             Map<String, Object> args = Map.of("query", "带部分结果的查询");
 
-            Flux<ProgressEvent> result = nlQueryTool.executeWithProgress(args, "trace-partial", null);
+            Flux<ProgressEvent> result = nlQueryTool.executeWithProgress(args, ToolExecutionContext.of("trace-partial", null));
 
             StepVerifier.create(result)
                     .expectNextMatches(e -> hasPercent(e, 10))
@@ -408,7 +410,7 @@ class NaturalLanguageQueryToolTest {
                     "hints", hints
             );
 
-            nlQueryTool.execute(args, "trace-full", null);
+            nlQueryTool.execute(args, ToolExecutionContext.of("trace-full", null));
 
             verify(queryExpertService).processQuery(argThat(req -> {
                 // 验证所有参数都正确设置
@@ -438,7 +440,7 @@ class NaturalLanguageQueryToolTest {
 
             Map<String, Object> args = Map.of("query", "无 hints 查询");
 
-            nlQueryTool.execute(args, "trace-no-hints", null);
+            nlQueryTool.execute(args, ToolExecutionContext.of("trace-no-hints", null));
 
             verify(queryExpertService).processQuery(argThat(req ->
                     req.getHints() == null

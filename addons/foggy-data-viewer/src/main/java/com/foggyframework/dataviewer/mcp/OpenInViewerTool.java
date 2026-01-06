@@ -16,7 +16,6 @@ import com.foggyframework.mcp.spi.ToolCategory;
 import com.foggyframework.mcp.spi.ToolExecutionContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 
 import java.util.*;
 
@@ -25,9 +24,11 @@ import java.util.*;
  * <p>
  * 将查询参数转换为可分享的浏览器链接，
  * 用于处理大数据集的交互式浏览
+ * <p>
+ * 注意：此工具通过 {@link com.foggyframework.dataviewer.config.DataViewerAutoConfiguration}
+ * 自动配置创建，不使用 @Component 注解，以确保只有在 MongoDB 可用时才加载。
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class OpenInViewerTool implements McpTool {
 

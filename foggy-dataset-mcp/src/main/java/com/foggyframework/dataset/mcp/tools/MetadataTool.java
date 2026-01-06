@@ -1,7 +1,9 @@
 package com.foggyframework.dataset.mcp.tools;
 
-import com.foggyframework.dataset.mcp.enums.ToolCategory;
 import com.foggyframework.dataset.mcp.spi.DatasetAccessor;
+import com.foggyframework.mcp.spi.McpTool;
+import com.foggyframework.mcp.spi.ToolCategory;
+import com.foggyframework.mcp.spi.ToolExecutionContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -37,7 +39,9 @@ public class MetadataTool implements McpTool {
     // 不需要在这里硬编码，使用接口的默认实现即可
 
     @Override
-    public Object execute(Map<String, Object> arguments, String traceId, String authorization) {
+    public Object execute(Map<String, Object> arguments, ToolExecutionContext context) {
+        String traceId = context.getTraceId();
+        String authorization = context.getAuthorization();
         log.info("Fetching metadata, traceId={}, accessMode={}", traceId, datasetAccessor.getAccessMode());
         return datasetAccessor.getMetadata(traceId, authorization);
     }

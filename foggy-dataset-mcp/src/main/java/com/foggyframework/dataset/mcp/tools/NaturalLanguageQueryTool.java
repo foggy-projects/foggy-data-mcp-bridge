@@ -1,10 +1,12 @@
 package com.foggyframework.dataset.mcp.tools;
 
-import com.foggyframework.dataset.mcp.enums.ToolCategory;
 import com.foggyframework.dataset.mcp.schema.DatasetNLQueryRequest;
 import com.foggyframework.dataset.mcp.schema.DatasetNLQueryResponse;
-import com.foggyframework.dataset.mcp.service.ProgressEvent;
 import com.foggyframework.dataset.mcp.service.QueryExpertService;
+import com.foggyframework.mcp.spi.McpTool;
+import com.foggyframework.mcp.spi.ProgressEvent;
+import com.foggyframework.mcp.spi.ToolCategory;
+import com.foggyframework.mcp.spi.ToolExecutionContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
@@ -54,7 +56,10 @@ public class NaturalLanguageQueryTool implements McpTool {
 
     @Override
     @SuppressWarnings("unchecked")
-    public Object execute(Map<String, Object> arguments, String traceId, String authorization) {
+    public Object execute(Map<String, Object> arguments, ToolExecutionContext context) {
+        String traceId = context.getTraceId();
+        String authorization = context.getAuthorization();
+
         DatasetNLQueryRequest request = buildRequest(arguments);
 
         log.info("Processing NL query: query={}, traceId={}", request.getQuery(), traceId);
@@ -73,12 +78,28 @@ public class NaturalLanguageQueryTool implements McpTool {
 
     @Override
     @SuppressWarnings("unchecked")
-    public Flux<ProgressEvent> executeWithProgress(Map<String, Object> arguments, String traceId, String authorization) {
+    public Flux<ProgressEvent> executeWithProgress(Map<String, Object> arguments, ToolExecutionContext context) {
+        String traceId = context.getTraceId();
+        String authorization = context.getAuthorization();
+
         DatasetNLQueryRequest request = buildRequest(arguments);
 
         log.info("Processing NL query with progress: query={}, traceId={}", request.getQuery(), traceId);
 
-        return queryExpertService.processQueryWithProgress(request, traceId, authorization);
+        // 将本地 ProgressEvent 转换为 SPI ProgressEvent
+        return queryExpertService.processQueryWithProgress(request, traceId, authorization)
+                .map(this::convertToSpiProgressEvent);
+    }
+
+    /**
+     * 转换本地 ProgressEvent 为 SPI ProgressEvent
+     */
+    private ProgressEvent convertToSpiProgressEvent(ProgressEvent localEvent) {
+        return ProgressEvent.builder()
+                .id(localEvent.getId())
+                .eventType(localEvent.getEventType())
+                .data(localEvent.getData())
+                .build();
     }
 
     @SuppressWarnings("unchecked")

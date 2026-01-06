@@ -67,33 +67,40 @@ logging:
     org.springframework.jdbc: DEBUG
     org.springframework.jdbc.core.JdbcTemplate: DEBUG
 
-# ==========================================
-# MCP Configuration
-# ==========================================
-mcp:
-  # 使用本地模式 - 直接调用 SemanticService，无需 HTTP
-  dataset:
-    access-mode: local
-
-  service:
-    m1-port: 7108
-    m2-port: 7109
-    enabled-layer: both
-    current-layer: default
-
-  external:
-    dataset-query:
-      base-url: http://localhost:8080
-      timeout-seconds: 30
-    chart-render:
-      base-url: http://localhost:3000
-      auth-token: test-token
-      timeout-seconds: 60
 
 # ==========================================
 # Foggy Dataset 配置
 # ==========================================
 foggy:
+  # ==========================================
+  # MCP Configuration
+  # ==========================================
+  mcp:
+    # 使用本地模式 - 直接调用 SemanticService，无需 HTTP
+    dataset:
+      access-mode: local
+
+    # 语义层配置
+    semantic:
+      model-list:
+        - FactSalesQueryModel
+        - FactOrderQueryModel
+
+    service:
+      m1-port: 7108
+      m2-port: 7109
+      enabled-layer: both
+      current-layer: default
+
+    external:
+      dataset-query:
+        base-url: http://localhost:8080
+        timeout-seconds: 30
+      chart-render:
+        base-url: http://localhost:3000
+        auth-token: test-token
+        timeout-seconds: 60
+
   dataset:
     # SQL 日志配置
     show-sql: true               # 打印 SQL 语句
@@ -110,15 +117,15 @@ foggy:
       max-rows: 10000
       timeout: 30000
 
-# ==========================================
-# 语义服务配置
-# ==========================================
-semantic:
-  metadata:
-    levels: [1]
-  description:
-    levels: [1, 2, 3]
-    include-examples: true
+## ==========================================
+## 语义服务配置
+## ==========================================
+#semantic:
+#  metadata:
+#    levels: [1]
+#  description:
+#    levels: [1, 2, 3]
+#    include-examples: true
 
 # ==========================================
 # 测试配置

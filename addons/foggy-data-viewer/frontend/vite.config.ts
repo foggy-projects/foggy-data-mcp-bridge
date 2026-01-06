@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [vue()],
   base: '/data-viewer/',
   build: {
-    outDir: resolve(__dirname, '../src/main/resources/static'),
+    outDir: resolve(__dirname, '../src/main/resources/static/data-viewer'),
     emptyOutDir: true,
     rollupOptions: {
       output: {

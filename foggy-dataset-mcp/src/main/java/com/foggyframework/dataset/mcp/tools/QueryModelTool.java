@@ -2,8 +2,10 @@ package com.foggyframework.dataset.mcp.tools;
 
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
-import com.foggyframework.dataset.mcp.enums.ToolCategory;
 import com.foggyframework.dataset.mcp.spi.DatasetAccessor;
+import com.foggyframework.mcp.spi.McpTool;
+import com.foggyframework.mcp.spi.ToolCategory;
+import com.foggyframework.mcp.spi.ToolExecutionContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -37,7 +39,10 @@ public class QueryModelTool implements McpTool {
 
     @Override
     @SuppressWarnings("unchecked")
-    public Object execute(Map<String, Object> arguments, String traceId, String authorization) {
+    public Object execute(Map<String, Object> arguments, ToolExecutionContext context) {
+        String traceId = context.getTraceId();
+        String authorization = context.getAuthorization();
+
         String model = (String) arguments.get("model");
         Map<String, Object> payload = (Map<String, Object>) arguments.get("payload");
         String mode = (String) arguments.getOrDefault("mode", "execute");

@@ -1,10 +1,10 @@
 #!/bin/bash
-# MCP Data Model Java - Service Management Script
+# Foggy MCP Launcher - Service Management Script
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-JAR_NAME="mcp-data-model-java-1.0.0-SNAPSHOT.jar"
+JAR_NAME="foggy-mcp-launcher-8.1.0-beta.jar"
 JAR_PATH="$SCRIPT_DIR/target/$JAR_NAME"
 LOG_DIR="$SCRIPT_DIR/logs"
 
@@ -49,8 +49,8 @@ get_log_file() {
 
 build() {
     print_title "Building Project"
-    cd "$SCRIPT_DIR"
-    mvn clean package -DskipTests
+    cd "$SCRIPT_DIR/.."
+    mvn clean package -pl foggy-mcp-launcher -am -DskipTests
     print_status "Build completed: $JAR_PATH"
 }
 
@@ -74,7 +74,7 @@ start_service() {
 
     mkdir -p "$LOG_DIR"
 
-    print_status "Starting MCP Data Model [$profile]..."
+    print_status "Starting Foggy MCP Launcher [$profile]..."
 
     local port
     case $profile in
@@ -101,7 +101,7 @@ start_service() {
         print_status "Service [$profile] started with PID $(cat $pid_file)"
         print_status "Port: $port"
         print_status "Logs: $log_file"
-        print_status "Health: curl http://localhost:$port/healthz"
+        print_status "Health: curl http://localhost:$port/actuator/health"
     else
         print_error "Failed to start service [$profile]. Check logs: $log_file"
         rm -f "$pid_file"
@@ -173,7 +173,7 @@ status() {
             if ps -p $pid > /dev/null 2>&1; then
                 echo -e "[$profile] ${GREEN}RUNNING${NC} (PID $pid, Port $port)"
                 # Health check
-                if curl -s "http://localhost:$port/healthz" > /dev/null 2>&1; then
+                if curl -s "http://localhost:$port/actuator/health" > /dev/null 2>&1; then
                     echo -e "        Health: ${GREEN}OK${NC}"
                 else
                     echo -e "        Health: ${YELLOW}PENDING${NC}"
@@ -199,8 +199,8 @@ logs() {
 
 clean() {
     print_status "Cleaning build artifacts..."
-    cd "$SCRIPT_DIR"
-    mvn clean
+    cd "$SCRIPT_DIR/.."
+    mvn clean -pl foggy-mcp-launcher
     rm -rf "$LOG_DIR"
     rm -f "$SCRIPT_DIR"/.service_*.pid
     print_status "Cleaned"

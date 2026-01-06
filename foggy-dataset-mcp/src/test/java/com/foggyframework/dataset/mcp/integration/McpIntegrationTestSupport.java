@@ -2,7 +2,8 @@ package com.foggyframework.dataset.mcp.integration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.dataset.mcp.integration.config.McpIntegrationTestConfig;
-import com.foggyframework.dataset.mcp.tools.McpTool;
+import com.foggyframework.mcp.spi.McpTool;
+import com.foggyframework.mcp.spi.ToolExecutionContext;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -69,7 +70,8 @@ public abstract class McpIntegrationTestSupport {
         McpTool tool = getTool(toolName);
         String traceId = generateTraceId();
         log.info("Executing tool: {} with traceId: {}", toolName, traceId);
-        return tool.execute(arguments, traceId, null);
+        ToolExecutionContext context = ToolExecutionContext.of(traceId, null);
+        return tool.execute(arguments, context);
     }
 
     /**
@@ -79,7 +81,8 @@ public abstract class McpIntegrationTestSupport {
         McpTool tool = getTool(toolName);
         String traceId = generateTraceId();
         log.info("Executing tool: {} with traceId: {} and authorization", toolName, traceId);
-        return tool.execute(arguments, traceId, authorization);
+        ToolExecutionContext context = ToolExecutionContext.of(traceId, authorization);
+        return tool.execute(arguments, context);
     }
 
     // ==================== 数据库辅助方法 ====================

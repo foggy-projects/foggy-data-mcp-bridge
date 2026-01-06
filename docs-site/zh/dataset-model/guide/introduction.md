@@ -6,7 +6,7 @@ Foggy Dataset Model 是一个**嵌入式语义层框架**，基于类 JavaScript
 
 ### TM (Table Model) - 表格模型
 
-将数据库表映射为语义化的数据模型，定义维度、度量和属性：
+将数据库表映射为语义层模型，定义维度、度量和属性：
 
 ```javascript
 export const model = {

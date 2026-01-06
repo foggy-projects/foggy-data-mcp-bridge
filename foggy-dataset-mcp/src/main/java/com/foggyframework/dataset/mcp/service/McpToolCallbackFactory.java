@@ -2,7 +2,8 @@ package com.foggyframework.dataset.mcp.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.foggyframework.dataset.mcp.tools.McpTool;
+import com.foggyframework.mcp.spi.McpTool;
+import com.foggyframework.mcp.spi.ToolExecutionContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.ToolCallback;
@@ -187,7 +188,8 @@ public class McpToolCallbackFactory {
                 arguments = parsedArgs;
 
                 // 调用 MCP 工具
-                result = mcpTool.execute(arguments, traceId, authorization);
+                ToolExecutionContext context = ToolExecutionContext.of(traceId, authorization);
+                result = mcpTool.execute(arguments, context);
 
                 // 转换结果为 JSON
                 String jsonResult = objectMapper.writeValueAsString(result);

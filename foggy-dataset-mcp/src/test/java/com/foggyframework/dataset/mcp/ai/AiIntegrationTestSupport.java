@@ -5,8 +5,9 @@ import com.foggyframework.dataset.mcp.integration.McpIntegrationTestApplication;
 import com.foggyframework.dataset.mcp.integration.config.McpIntegrationTestConfig;
 import com.foggyframework.dataset.mcp.service.McpToolCallbackFactory;
 import com.foggyframework.dataset.mcp.service.McpToolDispatcher;
-import com.foggyframework.dataset.mcp.tools.McpTool;
 import com.foggyframework.dataset.mcp.tools.MetadataTool;
+import com.foggyframework.mcp.spi.McpTool;
+import com.foggyframework.mcp.spi.ToolExecutionContext;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.ai.chat.model.ChatModel;
@@ -141,7 +142,8 @@ public abstract class AiIntegrationTestSupport {
     @SuppressWarnings("unchecked")
     protected String fetchAvailableModels() {
         try {
-            Object metadata = metadataTool.execute(Map.of(), generateTraceId(), null);
+            ToolExecutionContext context = ToolExecutionContext.of(generateTraceId(), null);
+            Object metadata = metadataTool.execute(Map.of(), context);
 
             // 从元数据中提取模型列表
             StringBuilder sb = new StringBuilder();

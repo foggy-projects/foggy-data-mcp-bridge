@@ -17,7 +17,7 @@ Foggy MCP provides a series of data query and analysis tools for AI assistants t
 
 ### Metadata Tools
 
-Used to get meta-information about data models and fields:
+Used to get meta-information about semantic layer models and fields:
 
 - **get_metadata** - Get overview of all available models
 - **describe_model_internal** - Get detailed field definitions of a single model
@@ -30,7 +30,7 @@ Used to execute structured data queries:
 
 - **query_model** - Supports complex filtering, sorting, grouping, aggregation
 
-Requires understanding of data models and query syntax, provides precise query control.
+Requires understanding of semantic layer models and query syntax, provides precise query control.
 
 ### Natural Language Tools
 

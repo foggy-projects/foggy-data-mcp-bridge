@@ -14,7 +14,7 @@ This guide helps you create your first TM/QM and use DSL queries in 10 minutes.
 <dependency>
     <groupId>com.foggysource</groupId>
     <artifactId>foggy-dataset-model</artifactId>
-    <version>8.0.1-beta</version>
+    <version>8.1.0-beta</version>
 </dependency>
 ```
 

@@ -7,7 +7,7 @@ hero:
   actions:
     - theme: brand
       text: 快速开始
-      link: /zh/quick-start/introduction
+      link: /zh/mcp/guide/quick-start
     - theme: alt
       text: MCP 集成指南
       link: /zh/mcp/guide/introduction
@@ -23,7 +23,7 @@ features:
     linkText: 了解权限控制
   - icon: 🎯
     title: 模型即代码
-    details: 使用 FSScript（类 JavaScript 语法）定义数据模型。支持函数、导入和动态逻辑。
+    details: 使用 FSScript（类 JavaScript 语法）定义语义层。支持函数、导入和动态逻辑。
     link: /zh/dataset-model/tm-qm/tm-syntax
     linkText: TM/QM 语法
   - icon: 🌐
@@ -140,3 +140,27 @@ docker compose up -d
 - *"显示上周各品牌的销售额"*
 - *"哪些产品上个月退货率最高？"*
 - *"生成各区域收入对比图表"*
+
+## 📦 核心模块
+
+<div class="modules-grid">
+
+| 模块 | 说明 | 文档 |
+|------|------|------|
+| **foggy-dataset-model** | 语义层引擎 - TM/QM 建模、DSL 查询执行 | [入门指南](/zh/dataset-model/guide/introduction) |
+| **foggy-dataset** | 数据库抽象层 - 多数据库方言支持 | [查询层文档](/zh/dataset-query/guide/introduction) |
+| **foggy-fsscript** | 脚本引擎 - 类 JavaScript 语法解析 TM/QM 文件 | [FSScript 指南](/zh/fsscript/guide/introduction) |
+| **foggy-dataset-mcp** | MCP 服务器 - AI 助手集成 | [MCP 服务](/zh/mcp/guide/introduction) |
+
+</div>
+
+### 📘 TM/QM 建模
+- [TM 语法手册](/zh/dataset-model/tm-qm/tm-syntax) - 表模型定义
+- [QM 语法手册](/zh/dataset-model/tm-qm/qm-syntax) - 查询模型定义
+- [Query DSL API](/zh/dataset-model/api/query-api) - JSON 查询参考
+- [计算字段](/zh/dataset-model/tm-qm/calculated-fields) - 派生指标定义
+
+### 📗 FSScript 脚本引擎
+- [为什么选择 FSScript](/zh/fsscript/guide/why-fsscript) - 设计理念
+- [语法指南](/zh/fsscript/syntax/variables) - 语言参考
+- [Spring Boot 集成](/zh/fsscript/java/spring-boot) - Java 集成

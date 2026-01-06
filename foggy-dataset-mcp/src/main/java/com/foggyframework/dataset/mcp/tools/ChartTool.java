@@ -2,8 +2,10 @@ package com.foggyframework.dataset.mcp.tools;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.dataset.mcp.config.McpProperties;
-import com.foggyframework.dataset.mcp.enums.ToolCategory;
-import com.foggyframework.dataset.mcp.service.ProgressEvent;
+import com.foggyframework.mcp.spi.McpTool;
+import com.foggyframework.mcp.spi.ProgressEvent;
+import com.foggyframework.mcp.spi.ToolCategory;
+import com.foggyframework.mcp.spi.ToolExecutionContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.MediaType;
@@ -60,7 +62,10 @@ public class ChartTool implements McpTool {
 
     @Override
     @SuppressWarnings("unchecked")
-    public Object execute(Map<String, Object> arguments, String traceId, String authorization) {
+    public Object execute(Map<String, Object> arguments, ToolExecutionContext context) {
+        String traceId = context.getTraceId();
+        String authorization = context.getAuthorization();
+
         String chartType = (String) arguments.get("type");
         String title = (String) arguments.getOrDefault("title", "数据图表");
         List<Map<String, Object>> data = (List<Map<String, Object>>) arguments.get("data");
@@ -122,12 +127,12 @@ public class ChartTool implements McpTool {
     }
 
     @Override
-    public Flux<ProgressEvent> executeWithProgress(Map<String, Object> arguments, String traceId, String authorization) {
+    public Flux<ProgressEvent> executeWithProgress(Map<String, Object> arguments, ToolExecutionContext context) {
         return Flux.create(sink -> {
             try {
                 sink.next(ProgressEvent.progress("preparing", 10));
 
-                Object result = execute(arguments, traceId, authorization);
+                Object result = execute(arguments, context);
 
                 sink.next(ProgressEvent.progress("rendering", 50));
                 sink.next(ProgressEvent.progress("saving", 80));

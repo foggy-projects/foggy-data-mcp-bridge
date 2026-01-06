@@ -24,7 +24,7 @@ import java.util.Map;
  * 适用于单体应用/服务集成部署场景。
  *
  * <h3>工作模式说明：</h3>
- * <p>当 {@code mcp.dataset.access-mode=local} 时使用此实现。
+ * <p>当 {@code foggy.mcp.dataset.access-mode=local} 时使用此实现。
  * 相比 RemoteDatasetAccessor（通过 HTTP 调用），本地模式：
  * <ul>
  *   <li>性能更高：无网络开销</li>
@@ -63,7 +63,7 @@ public class LocalDatasetAccessor implements DatasetAccessor {
 
             if (availableModels == null || availableModels.isEmpty()) {
                 log.warn("[Local] No models configured in mcp.semantic.model-list, traceId={}", traceId);
-                return RX.failB("未配置可用的数据模型，请检查 mcp.semantic.model-list 配置");
+                return RX.failB("未配置可用的数据模型，请检查 foggy.mcp.semantic.model-list 配置");
             }
 
             request.setQmModels(availableModels);

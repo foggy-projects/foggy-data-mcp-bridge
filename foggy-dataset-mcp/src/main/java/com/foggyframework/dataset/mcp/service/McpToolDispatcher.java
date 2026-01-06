@@ -2,7 +2,9 @@ package com.foggyframework.dataset.mcp.service;
 
 import com.foggyframework.dataset.mcp.audit.ToolAuditService;
 import com.foggyframework.dataset.mcp.schema.McpRequest;
-import com.foggyframework.dataset.mcp.tools.McpTool;
+import com.foggyframework.mcp.spi.McpTool;
+import com.foggyframework.mcp.spi.ProgressEvent;
+import com.foggyframework.mcp.spi.ToolExecutionContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -132,7 +134,14 @@ public class McpToolDispatcher {
         long startTime = System.currentTimeMillis();
 
         try {
-            Object result = tool.execute(arguments, traceId, authorization);
+            // 创建执行上下文
+            ToolExecutionContext context = ToolExecutionContext.builder()
+                    .traceId(traceId)
+                    .authorization(authorization)
+                    .userRole(userRole)
+                    .build();
+
+            Object result = tool.execute(arguments, context);
             long duration = System.currentTimeMillis() - startTime;
             log.info("Tool executed successfully: name={}, duration={}ms, traceId={}",
                     toolName, duration, traceId);
@@ -231,16 +240,19 @@ public class McpToolDispatcher {
             return Flux.just(ProgressEvent.error("TOOL_NOT_FOUND", "Unknown tool: " + toolName));
         }
 
+        // 创建执行上下文
+        ToolExecutionContext context = ToolExecutionContext.of(traceId, authorization);
+
         // 检查工具是否支持流式执行
         if (tool.supportsStreaming()) {
-            return tool.executeWithProgress(arguments, traceId, authorization);
+            return tool.executeWithProgress(arguments, context);
         }
 
         // 不支持流式的工具，包装为单个完成事件
         return Flux.create(sink -> {
             try {
                 sink.next(ProgressEvent.progress("executing", 50));
-                Object result = tool.execute(arguments, traceId, authorization);
+                Object result = tool.execute(arguments, context);
                 sink.next(ProgressEvent.complete(result));
                 sink.complete();
             } catch (Exception e) {
@@ -276,7 +288,10 @@ public class McpToolDispatcher {
     public List<McpTool> getAllTools() {
         return new ArrayList<>(toolRegistry.values());
     }
+
     public List<McpTool> getDataAnalysisTools() {
-        return toolRegistry.values().stream().filter(tool -> !tool.getName().equals("dataset_nl.query")).collect(Collectors.toList());
+        return toolRegistry.values().stream()
+                .filter(tool -> !tool.getName().equals("dataset_nl.query"))
+                .collect(Collectors.toList());
     }
 }

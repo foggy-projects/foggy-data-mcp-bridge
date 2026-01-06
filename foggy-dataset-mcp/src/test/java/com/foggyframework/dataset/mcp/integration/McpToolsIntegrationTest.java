@@ -4,6 +4,7 @@ import com.foggyframework.core.ex.RX;
 import com.foggyframework.dataset.mcp.tools.MetadataTool;
 import com.foggyframework.dataset.mcp.tools.QueryModelTool;
 import com.foggyframework.dataset.mcp.tools.DescriptionModelTool;
+import com.foggyframework.mcp.spi.ToolExecutionContext;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -80,7 +81,8 @@ class McpToolsIntegrationTest extends McpIntegrationTestSupport {
         @DisplayName("获取元数据 - 应返回模型列表")
         void getMetadata_shouldReturnModelList() {
             // 执行
-            Object result = metadataTool.execute(Map.of(), generateTraceId(), null);
+            ToolExecutionContext context = ToolExecutionContext.of(generateTraceId(), null);
+            Object result = metadataTool.execute(Map.of(), context);
 
             // 验证
             assertNotNull(result, "结果不应为空");
@@ -88,7 +90,10 @@ class McpToolsIntegrationTest extends McpIntegrationTestSupport {
 
             // 结果应该是 RX 包装的响应
             if (result instanceof RX<?> rx) {
-                assertTrue(rx._isSuccess(), "请求应成功");
+                if (!rx._isSuccess()) {
+                    log.error("请求失败: code={}, msg={}", rx.getCode(), rx.getMsg());
+                }
+                assertTrue(rx._isSuccess(), "请求应成功, msg=" + rx.getMsg());
                 assertNotNull(rx.getData(), "数据不应为空");
             }
         }
@@ -98,7 +103,8 @@ class McpToolsIntegrationTest extends McpIntegrationTestSupport {
         @DisplayName("获取元数据 - 应包含电商模型")
         @SuppressWarnings("unchecked")
         void getMetadata_shouldContainEcommerceModels() {
-            Object result = metadataTool.execute(Map.of(), generateTraceId(), null);
+            ToolExecutionContext context = ToolExecutionContext.of(generateTraceId(), null);
+            Object result = metadataTool.execute(Map.of(), context);
 
             // 验证包含预期的模型
             String resultJson = result.toString();
@@ -133,7 +139,8 @@ class McpToolsIntegrationTest extends McpIntegrationTestSupport {
             );
 
             // 执行
-            Object result = queryModelTool.execute(arguments, generateTraceId(), null);
+            ToolExecutionContext context = ToolExecutionContext.of(generateTraceId(), null);
+            Object result = queryModelTool.execute(arguments, context);
 
             // 验证
             assertNotNull(result, "查询结果不应为空");
@@ -163,7 +170,8 @@ class McpToolsIntegrationTest extends McpIntegrationTestSupport {
             );
 
             // 执行
-            Object result = queryModelTool.execute(arguments, generateTraceId(), null);
+            ToolExecutionContext context = ToolExecutionContext.of(generateTraceId(), null);
+            Object result = queryModelTool.execute(arguments, context);
 
             // 验证
             assertNotNull(result, "查询结果不应为空");
@@ -188,7 +196,8 @@ class McpToolsIntegrationTest extends McpIntegrationTestSupport {
             );
 
             // 执行
-            Object result = queryModelTool.execute(arguments, generateTraceId(), null);
+            ToolExecutionContext context = ToolExecutionContext.of(generateTraceId(), null);
+            Object result = queryModelTool.execute(arguments, context);
 
             // 验证
             assertNotNull(result, "查询结果不应为空");
@@ -209,7 +218,8 @@ class McpToolsIntegrationTest extends McpIntegrationTestSupport {
                     "mode", "execute"
             );
 
-            Object result = queryModelTool.execute(arguments, generateTraceId(), null);
+            ToolExecutionContext context = ToolExecutionContext.of(generateTraceId(), null);
+            Object result = queryModelTool.execute(arguments, context);
 
             assertNotNull(result, "订单查询结果不应为空");
             printJson(result, "FactOrder Query Result");
@@ -229,7 +239,8 @@ class McpToolsIntegrationTest extends McpIntegrationTestSupport {
                     "mode", "validate"
             );
 
-            Object result = queryModelTool.execute(arguments, generateTraceId(), null);
+            ToolExecutionContext context = ToolExecutionContext.of(generateTraceId(), null);
+            Object result = queryModelTool.execute(arguments, context);
 
             assertNotNull(result, "验证结果不应为空");
             printJson(result, "Validate Mode Result");
@@ -245,7 +256,8 @@ class McpToolsIntegrationTest extends McpIntegrationTestSupport {
                     "mode", "execute"
             );
 
-            Object result = queryModelTool.execute(arguments, generateTraceId(), null);
+            ToolExecutionContext context = ToolExecutionContext.of(generateTraceId(), null);
+            Object result = queryModelTool.execute(arguments, context);
 
             assertNotNull(result, "结果不应为空");
             printJson(result, "Invalid Model Error");
@@ -268,7 +280,8 @@ class McpToolsIntegrationTest extends McpIntegrationTestSupport {
         void describeFactSalesModel() {
             Map<String, Object> arguments = Map.of("model", "FactSalesQueryModel");
 
-            Object result = descriptionModelTool.execute(arguments, generateTraceId(), null);
+            ToolExecutionContext context = ToolExecutionContext.of(generateTraceId(), null);
+            Object result = descriptionModelTool.execute(arguments, context);
 
             assertNotNull(result, "模型描述不应为空");
             printJson(result, "FactSalesQueryModel Description");
@@ -280,7 +293,8 @@ class McpToolsIntegrationTest extends McpIntegrationTestSupport {
         void describeFactOrderModel() {
             Map<String, Object> arguments = Map.of("model", "FactOrderQueryModel");
 
-            Object result = descriptionModelTool.execute(arguments, generateTraceId(), null);
+            ToolExecutionContext context = ToolExecutionContext.of(generateTraceId(), null);
+            Object result = descriptionModelTool.execute(arguments, context);
 
             assertNotNull(result, "模型描述不应为空");
             printJson(result, "FactOrderQueryModel Description");
@@ -302,15 +316,16 @@ class McpToolsIntegrationTest extends McpIntegrationTestSupport {
 
             // Step 1: 获取元数据
             log.info("Step 1: 获取元数据...");
-            Object metadata = metadataTool.execute(Map.of(), generateTraceId(), null);
+            ToolExecutionContext ctx1 = ToolExecutionContext.of(generateTraceId(), null);
+            Object metadata = metadataTool.execute(Map.of(), ctx1);
             assertNotNull(metadata, "元数据不应为空");
 
             // Step 2: 获取模型描述
             log.info("Step 2: 获取 FactSalesQueryModel 描述...");
+            ToolExecutionContext ctx2 = ToolExecutionContext.of(generateTraceId(), null);
             Object description = descriptionModelTool.execute(
                     Map.of("model", "FactSalesQueryModel"),
-                    generateTraceId(),
-                    null
+                    ctx2
             );
             assertNotNull(description, "模型描述不应为空");
 
@@ -320,10 +335,10 @@ class McpToolsIntegrationTest extends McpIntegrationTestSupport {
             payload.put("columns", List.of("product$caption", "salesAmount", "quantity"));
             payload.put("limit", 10);
 
+            ToolExecutionContext ctx3 = ToolExecutionContext.of(generateTraceId(), null);
             Object queryResult = queryModelTool.execute(
                     Map.of("model", "FactSalesQueryModel", "payload", payload, "mode", "execute"),
-                    generateTraceId(),
-                    null
+                    ctx3
             );
             assertNotNull(queryResult, "查询结果不应为空");
             printJson(queryResult, "端到端查询结果");
@@ -349,10 +364,10 @@ class McpToolsIntegrationTest extends McpIntegrationTestSupport {
             payload.put("orderBy", List.of(Map.of("column", "salesAmount", "direction", "DESC")));
             payload.put("limit", 20);
 
+            ToolExecutionContext context = ToolExecutionContext.of(generateTraceId(), null);
             Object result = queryModelTool.execute(
                     Map.of("model", "FactSalesQueryModel", "payload", payload, "mode", "execute"),
-                    generateTraceId(),
-                    null
+                    context
             );
 
             assertNotNull(result, "多维度分析结果不应为空");

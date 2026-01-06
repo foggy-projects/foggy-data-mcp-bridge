@@ -94,14 +94,15 @@ function toggleDropdown() {
 function toggleMultiMode() {
   isMulti.value = !isMulti.value
   if (!isMulti.value && selectedValues.value.size > 1) {
-    // 切换到单选时，只保留第一个
+    // 切换到单选时，只保留第一个并立即查询
     const first = selectedValues.value.values().next().value
     selectedValues.value.clear()
     if (first !== undefined) {
       selectedValues.value.add(first)
     }
+    emitChange()
   }
-  emitChange()
+  // 切换到多选时不触发查询，等用户点击确定
 }
 
 function isSelected(opt: FilterOption): boolean {
@@ -110,18 +111,26 @@ function isSelected(opt: FilterOption): boolean {
 
 function selectItem(opt: FilterOption) {
   if (isMulti.value) {
+    // 多选模式：只更新选中状态，不触发查询
     if (selectedValues.value.has(opt.value)) {
       selectedValues.value.delete(opt.value)
     } else {
       selectedValues.value.add(opt.value)
     }
-    emitChange()
+    // 不调用 emitChange，等用户点击确定按钮
   } else {
+    // 单选模式：立即触发查询并关闭
     selectedValues.value.clear()
     selectedValues.value.add(opt.value)
     emitChange()
     showDropdown.value = false
   }
+}
+
+// 多选确认
+function confirmMultiSelect() {
+  emitChange()
+  showDropdown.value = false
 }
 
 function emitChange() {
@@ -187,6 +196,10 @@ function onKeydown(e: KeyboardEvent) {
 // 点击外部关闭下拉
 function handleClickOutside(e: MouseEvent) {
   if (containerRef.value && !containerRef.value.contains(e.target as Node)) {
+    if (showDropdown.value && isMulti.value) {
+      // 多选模式下关闭时提交选择
+      emitChange()
+    }
     showDropdown.value = false
   }
 }
@@ -224,36 +237,44 @@ onUnmounted(() => {
         />
       </div>
 
-      <div v-if="loading" class="loading-hint">
-        加载中...
+      <div class="options-container">
+        <div v-if="loading" class="loading-hint">
+          加载中...
+        </div>
+
+        <template v-else>
+          <div
+            v-for="(opt, index) in displayOptions"
+            :key="String(opt.value)"
+            class="filter-option"
+            :class="{ selected: isSelected(opt), highlighted: index === highlightIndex }"
+            @click="selectItem(opt)"
+            @mouseenter="highlightIndex = index"
+          >
+            <input
+              v-if="isMulti"
+              type="checkbox"
+              :checked="isSelected(opt)"
+              @click.stop
+            />
+            <span class="option-label">{{ opt.label }}</span>
+          </div>
+
+          <div v-if="displayOptions.length === 0" class="no-data">
+            无匹配数据
+          </div>
+        </template>
       </div>
 
-      <template v-else>
-        <div
-          v-for="(opt, index) in displayOptions"
-          :key="String(opt.value)"
-          class="filter-option"
-          :class="{ selected: isSelected(opt), highlighted: index === highlightIndex }"
-          @click="selectItem(opt)"
-          @mouseenter="highlightIndex = index"
-        >
-          <input
-            v-if="isMulti"
-            type="checkbox"
-            :checked="isSelected(opt)"
-            @click.stop
-          />
-          <span class="option-label">{{ opt.label }}</span>
-        </div>
+      <div v-if="hasMore" class="more-hint">
+        还有 {{ filteredOptions.length - maxDisplayItems }} 条，请输入关键词搜索
+      </div>
 
-        <div v-if="displayOptions.length === 0" class="no-data">
-          无匹配数据
-        </div>
-
-        <div v-if="hasMore" class="more-hint">
-          还有 {{ filteredOptions.length - maxDisplayItems }} 条，请输入关键词搜索
-        </div>
-      </template>
+      <!-- 多选模式下显示确认按钮 -->
+      <div v-if="isMulti" class="confirm-bar">
+        <span class="selected-count">已选 {{ selectedValues.size }} 项</span>
+        <button class="confirm-btn" @click="confirmMultiSelect">确定</button>
+      </div>
     </div>
   </div>
 </template>
@@ -333,9 +354,11 @@ onUnmounted(() => {
   max-height: 280px;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .search-box {
+  flex-shrink: 0;
   padding: 8px;
   border-bottom: 1px solid #e4e7ed;
 }
@@ -351,6 +374,12 @@ onUnmounted(() => {
 
 .search-box input:focus {
   border-color: #409eff;
+}
+
+.options-container {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .filter-option {
@@ -395,7 +424,41 @@ onUnmounted(() => {
 }
 
 .more-hint {
+  flex-shrink: 0;
+  padding: 8px 12px;
+  text-align: center;
+  font-size: 12px;
+  color: #909399;
   border-top: 1px solid #e4e7ed;
   background: #f5f7fa;
+}
+
+.confirm-bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-top: 1px solid #e4e7ed;
+  background: #fafafa;
+}
+
+.selected-count {
+  font-size: 12px;
+  color: #606266;
+}
+
+.confirm-btn {
+  padding: 4px 12px;
+  font-size: 12px;
+  color: white;
+  background: #409eff;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.confirm-btn:hover {
+  background: #337ecc;
 }
 </style>

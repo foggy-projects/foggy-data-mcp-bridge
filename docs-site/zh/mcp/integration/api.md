@@ -97,7 +97,7 @@ curl -X POST http://localhost:7108/mcp/analyst/rpc \
     "tools": [
       {
         "name": "dataset.get_metadata",
-        "description": "获取用户可访问的数据模型列表",
+        "description": "获取用户可访问的语义层模型列表",
         "inputSchema": {
           "type": "object",
           "properties": {}

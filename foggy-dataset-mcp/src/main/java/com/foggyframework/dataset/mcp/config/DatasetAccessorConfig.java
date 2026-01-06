@@ -16,7 +16,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 /**
  * DatasetAccessor 配置类
  *
- * <p>根据配置 {@code mcp.dataset.access-mode} 选择不同的实现：
+ * <p>根据配置 {@code foggy.mcp.dataset.access-mode} 选择不同的实现：
  * <ul>
  *   <li>local: 使用 LocalDatasetAccessor（直接调用 SemanticServiceV3）</li>
  *   <li>remote: 使用 RemoteDatasetAccessor（通过 WebClient 调用）</li>
@@ -38,7 +38,7 @@ public class DatasetAccessorConfig {
     /**
      * 本地模式 DatasetAccessor
      *
-     * <p>当 {@code mcp.dataset.access-mode=local} 时激活。
+     * <p>当 {@code foggy.mcp.dataset.access-mode=local} 时激活。
      *
      * <p>配置依赖：
      * <ul>
@@ -53,7 +53,7 @@ public class DatasetAccessorConfig {
      */
     @Bean
     @Primary
-    @ConditionalOnProperty(name = "mcp.dataset.access-mode", havingValue = "local")
+    @ConditionalOnProperty(name = "foggy.mcp.dataset.access-mode", havingValue = "local")
     public DatasetAccessor localDatasetAccessor(
             SemanticServiceResolver semanticServiceResolver,
             McpProperties mcpProperties) {
@@ -70,7 +70,7 @@ public class DatasetAccessorConfig {
     /**
      * 远程模式 DatasetAccessor
      *
-     * 当 mcp.dataset.access-mode=remote 或未配置时激活（默认）
+     * 当 foggy.mcp.dataset.access-mode=remote 或未配置时激活（默认）
      */
     @Bean
     @ConditionalOnMissingBean(DatasetAccessor.class)

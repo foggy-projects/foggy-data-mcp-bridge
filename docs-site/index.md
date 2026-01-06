@@ -64,3 +64,12 @@ AI → JSON DSL Query → Semantic Layer → Safe SQL → Database
                     • Handles multi-table JOINs
                     • Abstracts database dialects
 ```
+
+## 📦 Core Modules
+
+| Module | Description |
+|--------|-------------|
+| **foggy-dataset-model** | Semantic layer engine - TM/QM modeling, DSL query execution |
+| **foggy-dataset** | Database abstraction - MySQL, PostgreSQL, SQL Server, SQLite |
+| **foggy-fsscript** | Script engine - JavaScript-like syntax for TM/QM files |
+| **foggy-dataset-mcp** | MCP server - AI assistant integration |

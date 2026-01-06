@@ -1,10 +1,10 @@
 # Metadata Tools
 
-Metadata tools are used to get data model and field definition information, essential tools for understanding data structure before querying.
+Metadata tools are used to get semantic layer model and field definition information, essential tools for understanding data structure before querying.
 
 ## get_metadata
 
-Get all data models accessible by the user.
+Get all semantic layer models accessible by the user.
 
 ### Basic Information
 
@@ -73,7 +73,7 @@ This tool requires no parameters.
 
 ### Use Cases
 
-- User asks "What data models are available"
+- User asks "What semantic layer models are available"
 - Need to understand data scope before querying
 - Explore field relationships across different models
 

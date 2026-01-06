@@ -1,5 +1,6 @@
 package com.foggyframework.dataviewer.controller;
 
+import com.foggyframework.dataset.db.model.service.JdbcService;
 import com.foggyframework.dataviewer.domain.CachedQueryContext;
 import com.foggyframework.dataviewer.domain.ViewerQueryRequest;
 import com.foggyframework.dataviewer.service.QueryCacheService;
@@ -44,13 +45,16 @@ class ViewerApiControllerTest {
     @Mock
     private QueryFacade queryFacade;
 
+    @Mock
+    private JdbcService jdbcService;
+
     private ViewerApiController controller;
 
     private CachedQueryContext validContext;
 
     @BeforeEach
     void setUp() {
-        controller = new ViewerApiController(cacheService, queryFacade);
+        controller = new ViewerApiController(cacheService, queryFacade, jdbcService);
 
         validContext = CachedQueryContext.builder()
                 .queryId("test-query-id")
