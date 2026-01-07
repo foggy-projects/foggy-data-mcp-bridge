@@ -64,6 +64,23 @@ docker-compose up -d
 docker-compose logs -f mcp
 ```
 
+### 3.1 Enable Chart Feature (Optional)
+
+To use the `export_with_chart` tool for generating visual charts, deploy the chart render service:
+
+```bash
+# Enter chart service directory
+cd docker/demo/chart
+
+# Start chart render service
+docker compose up -d
+
+# Verify service
+curl http://localhost:3000/healthz
+```
+
+> For detailed configuration, see [Chart Render Service](./chart-render-service.md)
+
 ### 4. Verify Service
 
 ```bash
@@ -325,6 +342,19 @@ mvn spring-boot:run
 # Or run main application class in IDE
 ```
 
+### 5.1 Enable Chart Feature (Optional)
+
+To use the `export_with_chart` tool, deploy the chart render service:
+
+```bash
+docker run -d --name chart-render \
+  -p 3000:3000 \
+  -e RENDER_TOKEN=default-render-token \
+  foggysource/chart-render-service:latest
+```
+
+> For detailed configuration, see [Chart Render Service](./chart-render-service.md)
+
 ### 6. Verify Service
 
 ```bash
@@ -411,6 +441,10 @@ After successful connection, try in AI client:
 "Top 10 products by sales last month"
 "Compare order quantities across stores"
 ```
+
+::: tip Chart Feature
+To generate visual charts, deploy the [Chart Render Service](./chart-render-service.md) first.
+:::
 
 ---
 
@@ -509,5 +543,6 @@ docker-compose logs mcp
 
 - [Architecture Overview](./architecture.md) - Understand MCP service architecture
 - [Tools List](../tools/overview.md) - View all available tools
+- [Chart Render Service](./chart-render-service.md) - Enable data visualization
 - [Claude Desktop Integration](../integration/claude-desktop.md) - Detailed configuration guide
 - [TM/QM Modeling](/en/dataset/guide/quick-start) - Create custom semantic layer
