@@ -243,7 +243,8 @@ export default defineConfig({
               items: [
                 { text: 'Introduction', link: '/en/mcp/guide/introduction' },
                 { text: 'Quick Start', link: '/en/mcp/guide/quick-start' },
-                { text: 'Architecture', link: '/en/mcp/guide/architecture' }
+                { text: 'Architecture', link: '/en/mcp/guide/architecture' },
+                { text: 'Chart Render Service', link: '/en/mcp/guide/chart-render-service' }
               ]
             },
             {
