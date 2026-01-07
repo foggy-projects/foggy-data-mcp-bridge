@@ -271,39 +271,6 @@ curl -X POST http://localhost:7108/mcp/business/rpc \
 | `-32602` | 无效参数 |
 | `-32603` | 内部错误 |
 
-## 流式响应 (SSE)
-
-对于长时间运行的查询，可以使用 SSE 端点获取实时进度：
-
-```bash
-curl -X POST http://localhost:7108/mcp/analyst/stream \
-  -H "Content-Type: application/json" \
-  -H "Accept: text/event-stream" \
-  -d '{
-    "jsonrpc": "2.0",
-    "id": "1",
-    "method": "tools/call",
-    "params": {
-      "name": "dataset_nl.query",
-      "arguments": {
-        "query": "分析各地区销售趋势"
-      }
-    }
-  }'
-```
-
-**响应流：**
-```
-event: progress
-data: {"step": "analyzing", "message": "正在分析查询意图..."}
-
-event: progress
-data: {"step": "querying", "message": "正在执行查询..."}
-
-event: complete
-data: {"type": "result", "items": [...]}
-```
-
 ## 编程语言示例
 
 ### JavaScript

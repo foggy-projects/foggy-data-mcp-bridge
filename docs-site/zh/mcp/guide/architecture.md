@@ -98,16 +98,6 @@ curl -X POST http://localhost:7108/mcp/analyst/rpc \
 - `tools/call` - 调用指定工具
 - `ping` - 心跳检测
 
-### SSE 流式端点
-
-所有端点同时提供 `/stream` SSE 端点，用于 Web 前端实时获取进度：
-
-| RPC 端点 | 流式端点 |
-|----------|----------|
-| `/mcp/admin/rpc` | `/mcp/admin/stream` |
-| `/mcp/analyst/rpc` | `/mcp/analyst/stream` |
-| `/mcp/business/rpc` | `/mcp/business/stream` |
-
 ## 工具分类
 
 MCP 工具按功能分为以下类别：
