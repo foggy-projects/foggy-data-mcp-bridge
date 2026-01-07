@@ -5,6 +5,10 @@ spring:
   application:
     name: mcp-data-model-java
 
+  # 禁用 JMX 避免 RMI 连接异常
+  jmx:
+    enabled: false
+
   # Spring AI OpenAI Configuration (compatible with Aliyun Bailian)
   # 注意：base-url 不要包含 /v1，Spring AI 会自动追加
   # OpenAI: https://api.openai.com
@@ -131,7 +135,7 @@ foggy:
         schemaFile: "classpath:/schemas/generate_chart_schema.json"
         category: VISUALIZATION
       - name: "dataset.export_with_chart"
-        enabled: false
+        enabled: true
         descriptionFile: "classpath:/schemas/descriptions/export_with_chart.md"
         schemaFile: "classpath:/schemas/export_with_chart_schema.json"
         category: EXPORT
@@ -179,6 +183,59 @@ foggy:
       enabled: true
       default-max-duration-days: 31
       models: {}
+
+  # 图表存储配置
+  chart:
+    storage:
+      # 存储类型: local, aliyun-oss, huawei-obs, tencent-cos, aws-s3
+      type: ${CHART_STORAGE_TYPE:local}
+
+      # 本地存储配置（默认）
+      local:
+        # 存储目录
+        directory: ${CHART_STORAGE_DIR:./chart-images}
+        # 文件保留时间（默认14天）
+        retention: ${CHART_STORAGE_RETENTION:14d}
+        # 清理任务 cron 表达式（每天凌晨3点）
+        cleanup-cron: "0 0 3 * * ?"
+        # 访问 URL 前缀（必须配置，否则 AI 无法访问图片）
+        url-prefix: ${CHART_STORAGE_URL_PREFIX:http://localhost:7108/charts}
+
+      # 阿里云 OSS（需要配置 type: aliyun-oss）
+      aliyun-oss:
+        endpoint: ${ALIYUN_OSS_ENDPOINT:}
+        access-key-id: ${ALIYUN_OSS_ACCESS_KEY_ID:}
+        access-key-secret: ${ALIYUN_OSS_ACCESS_KEY_SECRET:}
+        bucket-name: ${ALIYUN_OSS_BUCKET:}
+        path-prefix: charts/
+        custom-domain: ${ALIYUN_OSS_CUSTOM_DOMAIN:}
+
+      # 华为云 OBS（需要配置 type: huawei-obs）
+      huawei-obs:
+        endpoint: ${HUAWEI_OBS_ENDPOINT:}
+        access-key-id: ${HUAWEI_OBS_ACCESS_KEY_ID:}
+        access-key-secret: ${HUAWEI_OBS_ACCESS_KEY_SECRET:}
+        bucket-name: ${HUAWEI_OBS_BUCKET:}
+        path-prefix: charts/
+        custom-domain: ${HUAWEI_OBS_CUSTOM_DOMAIN:}
+
+      # 腾讯云 COS（需要配置 type: tencent-cos）
+      tencent-cos:
+        region: ${TENCENT_COS_REGION:}
+        secret-id: ${TENCENT_COS_SECRET_ID:}
+        secret-key: ${TENCENT_COS_SECRET_KEY:}
+        bucket-name: ${TENCENT_COS_BUCKET:}
+        path-prefix: charts/
+        custom-domain: ${TENCENT_COS_CUSTOM_DOMAIN:}
+
+      # AWS S3（需要配置 type: aws-s3）
+      aws-s3:
+        region: ${AWS_S3_REGION:}
+        access-key-id: ${AWS_S3_ACCESS_KEY_ID:}
+        secret-access-key: ${AWS_S3_SECRET_ACCESS_KEY:}
+        bucket-name: ${AWS_S3_BUCKET:}
+        path-prefix: charts/
+        custom-domain: ${AWS_S3_CUSTOM_DOMAIN:}
 # Actuator Endpoints
 management:
   endpoints:

@@ -195,7 +195,7 @@ Authorization: your-auth-token
 version: '3.8'
 services:
   chart-render:
-    image: harbor.qlfloor.com/foggy-data-mcp-bridge/chart-render-service:latest
+    image: foggysource/chart-render-service:latest
     ports:
       - "3000:3000"
     environment:
@@ -210,18 +210,14 @@ services:
     restart: unless-stopped
 ```
 
-### Harbor部署
+### Docker Hub 部署
 
 ```bash
-# 设置Harbor凭据
-export HARBOR_USERNAME=your-username
-export HARBOR_PASSWORD=your-password
+# 直接从 Docker Hub 拉取
+docker pull foggysource/chart-render-service:latest
 
-# 构建并推送
-./scripts/docker-deploy.sh deploy -t v1.0.0
-
-# 在目标服务器拉取
-docker pull harbor.qlfloor.com/foggy-data-mcp-bridge/chart-render-service:v1.0.0
+# 使用预配置的 docker-compose
+docker compose -f docker-compose.hub.yml up -d
 ```
 
 ## 监控与运维

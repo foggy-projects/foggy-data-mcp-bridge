@@ -3,6 +3,7 @@ package com.foggyframework.dataset.mcp.tools;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.dataset.mcp.config.McpProperties;
 
+import com.foggyframework.dataset.mcp.storage.ChartStorageAdapter;
 import com.foggyframework.mcp.spi.ProgressEvent;
 import com.foggyframework.mcp.spi.ToolCategory;
 import com.foggyframework.mcp.spi.ToolExecutionContext;
@@ -22,6 +23,7 @@ import java.util.Map;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 /**
  * ChartTool 单元测试
@@ -35,6 +37,7 @@ class ChartToolTest {
     private ChartTool chartTool;
     private ObjectMapper objectMapper;
     private McpProperties mcpProperties;
+    private ChartStorageAdapter storageAdapter;
 
     @BeforeAll
     static void setupWireMock() {
@@ -53,11 +56,17 @@ class ChartToolTest {
         objectMapper = new ObjectMapper();
         mcpProperties = new McpProperties();
 
+        // Mock storage adapter
+        storageAdapter = mock(ChartStorageAdapter.class);
+        when(storageAdapter.getType()).thenReturn("mock");
+        when(storageAdapter.save(any(byte[].class), anyString(), anyString()))
+                .thenAnswer(inv -> "http://mock-storage/charts/chart_" + inv.getArgument(2) + "." + inv.getArgument(1));
+
         WebClient webClient = WebClient.builder()
                 .baseUrl("http://localhost:" + wireMockServer.port())
                 .build();
 
-        chartTool = new ChartTool(webClient, mcpProperties, objectMapper);
+        chartTool = new ChartTool(webClient, mcpProperties, objectMapper, storageAdapter);
         wireMockServer.resetAll();
     }
 

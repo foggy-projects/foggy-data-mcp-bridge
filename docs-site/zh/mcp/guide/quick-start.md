@@ -64,6 +64,23 @@ docker-compose up -d
 docker-compose logs -f mcp
 ```
 
+### 3.1 启用图表功能（可选）
+
+如需使用 `export_with_chart` 工具生成可视化图表，需额外部署图表渲染服务：
+
+```bash
+# 进入图表服务目录
+cd docker/demo/chart
+
+# 启动图表渲染服务
+docker compose up -d
+
+# 验证服务
+curl http://localhost:3000/healthz
+```
+
+> 详细配置请参考 [图表渲染服务](./chart-render-service.md)
+
 ### 4. 验证服务
 
 ```bash
@@ -265,6 +282,19 @@ mvn spring-boot:run
 # 或在 IDE 中运行主应用类
 ```
 
+### 5.1 启用图表功能（可选）
+
+如需使用 `export_with_chart` 工具，需部署图表渲染服务：
+
+```bash
+docker run -d --name chart-render \
+  -p 3000:3000 \
+  -e RENDER_TOKEN=default-render-token \
+  foggysource/chart-render-service:latest
+```
+
+> 详细配置请参考 [图表渲染服务](./chart-render-service.md)
+
 ### 6. 验证服务
 
 ```bash
@@ -351,6 +381,10 @@ curl -X POST http://localhost:7108/mcp/analyst/rpc \
 "各门店的订单数量对比"
 "查看2024年12月的订单明细,并提供数据预览链接"
 ```
+
+::: tip 图表功能
+如需生成可视化图表，请先部署[图表渲染服务](./chart-render-service.md)。
+:::
 
 ---
 
@@ -449,5 +483,6 @@ docker-compose logs mcp
 
 - [架构概述](./architecture.md) - 了解 MCP 服务架构
 - [工具列表](../tools/overview.md) - 查看所有可用工具
+- [图表渲染服务](./chart-render-service.md) - 启用数据可视化功能
 - [Claude Desktop 集成](../integration/claude-desktop.md) - 详细配置指南
 - [TM/QM 建模](/zh/dataset-model/guide/quick-start) - 创建自定义语义层
