@@ -271,39 +271,6 @@ curl -X POST http://localhost:7108/mcp/business/rpc \
 | `-32602` | Invalid params |
 | `-32603` | Internal error |
 
-## Streaming Response (SSE)
-
-For long-running queries, use SSE endpoint for real-time progress:
-
-```bash
-curl -X POST http://localhost:7108/mcp/analyst/stream \
-  -H "Content-Type: application/json" \
-  -H "Accept: text/event-stream" \
-  -d '{
-    "jsonrpc": "2.0",
-    "id": "1",
-    "method": "tools/call",
-    "params": {
-      "name": "dataset_nl.query",
-      "arguments": {
-        "query": "Analyze sales trends by region"
-      }
-    }
-  }'
-```
-
-**Response Stream:**
-```
-event: progress
-data: {"step": "analyzing", "message": "Analyzing query..."}
-
-event: progress
-data: {"step": "querying", "message": "Executing query..."}
-
-event: complete
-data: {"result": {...}}
-```
-
 ## Next Steps
 
 - [Claude Desktop Integration](./claude-desktop.md) - Configure Claude Desktop
