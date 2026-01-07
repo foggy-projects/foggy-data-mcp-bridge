@@ -371,26 +371,33 @@ class UnifiedRenderer extends BaseRenderer {
   buildMultiSeriesBarChart(unified, data, imageSpec) {
     const seriesField = unified.seriesField || unified.groupBy;
     const isHorizontal = unified.type === 'bar';
-    
+
     // 根据seriesField对数据进行分组
+    // 使用数组保持插入顺序（数据已在查询时排序）
     const groupedData = {};
-    const xCategories = new Set();
-    
+    const xCategoriesOrder = [];  // 保持插入顺序
+    const xCategoriesSet = new Set();  // 用于去重
+
     data.forEach(item => {
       const seriesName = this.getFieldValue(item, seriesField) || '其他';
       const xValue = this.getFieldValue(item, unified.xField);
       const yValue = this.getFieldValue(item, unified.yField);
-      
+
       if (!groupedData[seriesName]) {
         groupedData[seriesName] = {};
       }
-      
+
       groupedData[seriesName][xValue] = yValue;
-      xCategories.add(xValue);
+
+      // 保持第一次出现的顺序
+      if (!xCategoriesSet.has(xValue)) {
+        xCategoriesSet.add(xValue);
+        xCategoriesOrder.push(xValue);
+      }
     });
-    
-    // 将Set转换为有序数组
-    const categories = Array.from(xCategories).sort();
+
+    // 使用保持顺序的数组（数据已在查询时通过 orderBy 排序）
+    const categories = xCategoriesOrder;
     
     // 如果有太多系列，限制显示数量
     const maxSeries = 20;
@@ -484,8 +491,10 @@ class UnifiedRenderer extends BaseRenderer {
     const seriesField = unified.seriesField || unified.groupBy;
 
     // 根据seriesField对数据进行分组
+    // 使用数组保持插入顺序（数据已在查询时排序）
     const groupedData = {};
-    const xCategories = new Set();
+    const xCategoriesOrder = [];  // 保持插入顺序
+    const xCategoriesSet = new Set();  // 用于去重
 
     data.forEach((item, index) => {
       const seriesName = this.getFieldValue(item, seriesField) || '其他';
@@ -497,11 +506,16 @@ class UnifiedRenderer extends BaseRenderer {
       }
 
       groupedData[seriesName][xValue] = yValue;
-      xCategories.add(xValue);
+
+      // 保持第一次出现的顺序
+      if (!xCategoriesSet.has(xValue)) {
+        xCategoriesSet.add(xValue);
+        xCategoriesOrder.push(xValue);
+      }
     });
 
-    // 将Set转换为有序数组（特别是日期）
-    const categories = Array.from(xCategories).sort();
+    // 使用保持顺序的数组（数据已在查询时通过 orderBy 排序）
+    const categories = xCategoriesOrder;
 
     // 如果有太多系列，限制显示数量以避免图表过于拥挤
     const maxSeries = 20;  // 最多显示20个系列
