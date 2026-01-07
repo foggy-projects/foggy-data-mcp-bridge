@@ -2,6 +2,8 @@ package com.foggyframework.dataset.mcp.tools;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.dataset.mcp.config.McpProperties;
+import com.foggyframework.dataset.mcp.storage.ChartStorageAdapter;
+import com.foggyframework.dataset.mcp.storage.ChartStorageException;
 import com.foggyframework.mcp.spi.McpTool;
 import com.foggyframework.mcp.spi.ProgressEvent;
 import com.foggyframework.mcp.spi.ToolCategory;
@@ -14,11 +16,6 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Flux;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 /**
@@ -36,15 +33,18 @@ public class ChartTool implements McpTool {
     private final WebClient chartRenderWebClient;
     private final McpProperties mcpProperties;
     private final ObjectMapper objectMapper;
+    private final ChartStorageAdapter storageAdapter;
 
     public ChartTool(
             @Qualifier("chartRenderWebClient") WebClient chartRenderWebClient,
             McpProperties mcpProperties,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            ChartStorageAdapter storageAdapter
     ) {
         this.chartRenderWebClient = chartRenderWebClient;
         this.mcpProperties = mcpProperties;
         this.objectMapper = objectMapper;
+        this.storageAdapter = storageAdapter;
     }
 
     @Override
@@ -226,31 +226,18 @@ public class ChartTool implements McpTool {
 
     /**
      * 保存图表图片
-     *
-     * TODO: 实际项目中应上传到 OSS/OBS
+     * 使用配置的存储适配器（本地/OSS/OBS等）
      */
     private String saveChartImage(byte[] imageBytes, String format, String traceId) {
         try {
-            // 创建临时目录
-            Path tempDir = Path.of(System.getProperty("java.io.tmpdir"), "mcp-charts");
-            Files.createDirectories(tempDir);
+            String url = storageAdapter.save(imageBytes, format, traceId);
+            log.info("Chart saved via {}: url={}, size={}KB",
+                    storageAdapter.getType(), url, imageBytes.length / 1024);
+            return url;
 
-            // 生成文件名
-            String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
-            String fileName = String.format("chart_%s_%s.%s", timestamp, traceId.substring(0, 8), format);
-            Path filePath = tempDir.resolve(fileName);
-
-            // 保存文件
-            Files.write(filePath, imageBytes, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-
-            log.info("Chart saved to: {}", filePath);
-
-            // 返回本地路径（实际应返回 OSS URL）
-            return "file://" + filePath.toAbsolutePath();
-
-        } catch (Exception e) {
+        } catch (ChartStorageException e) {
             log.error("Failed to save chart image: {}", e.getMessage(), e);
-            // 返回 Base64 作为备选
+            // 降级返回 Base64
             return "data:image/" + format + ";base64," +
                    Base64.getEncoder().encodeToString(imageBytes);
         }

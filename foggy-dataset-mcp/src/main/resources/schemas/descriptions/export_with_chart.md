@@ -235,21 +235,35 @@
 成功返回包含以下字段的对象：
 ```json
 {
-  "chartUrl": "https://junda-ai.obs.cn-east-5.myhuaweicloud.com/exports/charts/chart_xxx.png",
-  "rowCount": 100,
-  "durationMs": 1250,
-  "preview": [
+  "type": "result",
+  "items": [
     {"date": "2025-01-01", "amount": 10000},
-    {"date": "2025-01-02", "amount": 12000}
-  ]
+    {"date": "2025-01-02", "amount": 12000},
+    ...
+  ],
+  "total": 100,
+  "summary": "查询和图表生成完成",
+  "exports": {
+    "charts": [
+      {
+        "url": "https://xxx.obs.xxx.myhuaweicloud.com/exports/charts/chart_xxx.png",
+        "type": "LINE",
+        "title": "图表标题"
+      }
+    ]
+  }
 }
 ```
 
 ### 返回字段说明
-- chartUrl: 生成的图表URL（永久有效）
-- rowCount: 数据行数
-- durationMs: 处理耗时（毫秒）
-- preview: 数据预览（前10行）
+- **type**: 响应类型，固定为 "result"
+- **items**: 完整查询数据（所有行，非预览）
+- **total**: 数据总行数
+- **summary**: 执行摘要信息
+- **exports.charts**: 图表信息数组
+  - **url**: 图表图片 URL
+  - **type**: 图表类型
+  - **title**: 图表标题
 
 ## 错误处理
 
@@ -273,7 +287,7 @@
 
 ## 注意事项
 
+- **返回值包含完整数据**：`items` 字段返回所有查询数据，不仅仅是预览
 - 图表类型要与数据结构匹配（如PIE图需要分类数据）
 - Y轴标签会显示在图表上，建议包含单位
 - 导出的文件会自动上传到云存储
-- URL默认24小时有效，之后需要重新生成

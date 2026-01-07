@@ -37,6 +37,13 @@
             <artifactId>foggy-data-viewer</artifactId>
             <version>${project.version}</version>
         </dependency>
+
+        <!-- 云存储支持（阿里云OSS、华为云OBS、腾讯云COS、AWS S3） -->
+        <dependency>
+            <groupId>com.foggysource</groupId>
+            <artifactId>foggy-chart-storage-cloud</artifactId>
+            <version>${project.version}</version>
+        </dependency>
     </dependencies>
 
     <build>

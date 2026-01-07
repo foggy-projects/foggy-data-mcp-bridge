@@ -1,0 +1,81 @@
+# ============================================
+# Chart Render Service - Docker Hub 版本
+# 直接从 Docker Hub 拉取预构建镜像，无需本地构建
+# ============================================
+#
+# 快速开始:
+#   docker compose -f docker-compose.hub.yml up -d
+#
+# 自定义配置:
+#   1. 复制此文件或创建 .env 文件
+#   2. 设置 RENDER_AUTH_TOKEN 为你的认证 token
+#
+# ============================================
+
+services:
+  chart-render:
+    # 从 Docker Hub 拉取预构建镜像
+    # 如果镜像名称不同，请修改下面的 image 配置
+    image: ${CHART_RENDER_IMAGE:-foggysource/chart-render-service}:${CHART_RENDER_VERSION:-latest}
+    container_name: chart-render-service
+    ports:
+      - "${CHART_RENDER_PORT:-3000}:3000"
+    environment:
+      # 服务配置
+      - NODE_ENV=production
+      - PORT=3000
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+
+      # 认证配置 (与MCP服务对接)
+      - AUTH_TOKEN=${RENDER_AUTH_TOKEN:-default-render-token}
+
+      # 渲染配置
+      - MAX_WIDTH=${MAX_WIDTH:-4000}
+      - MAX_HEIGHT=${MAX_HEIGHT:-4000}
+      - DEFAULT_WIDTH=${DEFAULT_WIDTH:-800}
+      - DEFAULT_HEIGHT=${DEFAULT_HEIGHT:-600}
+      - RENDER_TIMEOUT=${RENDER_TIMEOUT:-15000}
+      - MAX_CONCURRENT_RENDERS=${MAX_CONCURRENT_RENDERS:-10}
+
+      # 安全配置
+      - PUPPETEER_ARGS=--no-sandbox,--disable-setuid-sandbox,--disable-dev-shm-usage
+
+      # 资源限制
+      - MAX_MEMORY_MB=${MAX_MEMORY_MB:-512}
+
+    volumes:
+      # 字体文件挂载 (可选，用于支持更多字体)
+      - /usr/share/fonts:/usr/share/fonts:ro
+
+    restart: unless-stopped
+
+    # 资源限制
+    deploy:
+      resources:
+        limits:
+          memory: ${MEMORY_LIMIT:-512M}
+          cpus: '1.0'
+        reservations:
+          memory: 256M
+          cpus: '0.5'
+
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    # 安全配置
+    security_opt:
+      - no-new-privileges:true
+
+    # 网络配置
+    networks:
+      - chart-network
+
+networks:
+  chart-network:
+    driver: bridge
+    name: chart-render-network

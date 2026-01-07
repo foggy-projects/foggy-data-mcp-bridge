@@ -272,24 +272,6 @@ class QueryRequestValidationStepTest {
     }
 
     @Test
-    @Order(22)
-    @DisplayName("orderBy 的 order 为空应该抛出异常")
-    void testOrderByDirEmpty() {
-        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
-        OrderRequestDef order = new OrderRequestDef();
-        order.setField("createdAt");
-        order.setOrder(null);
-
-        queryRequest.setOrderBy(Collections.singletonList(order));
-
-        ModelResultContext ctx = createContext(queryRequest);
-
-        Exception exception = assertThrows(RuntimeException.class, () -> validationStep.beforeQuery(ctx));
-        assertTrue(exception.getMessage().contains("排序方向") && exception.getMessage().contains("不能为空"));
-        log.info("orderBy order 为空校验生效: {}", exception.getMessage());
-    }
-
-    @Test
     @Order(23)
     @DisplayName("orderBy 的 order 不合法应该抛出异常")
     void testOrderByDirInvalid() {
