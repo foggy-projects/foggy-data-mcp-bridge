@@ -89,6 +89,38 @@
 
 ### 使用示例
 
+**🆕 年度同比趋势图（2024 vs 2025 每月对比）**：
+```json
+{
+  "model": "FactSalesQueryModel",
+  "payload": {
+    "columns": ["salesDate$year", "salesDate$month", "salesAmount"],
+    "slice": [
+      {"field": "salesDate$id", "op": "[)", "value": ["20240101", "20260101"]}
+    ],
+    "groupBy": [
+      {"field": "salesDate$year"},
+      {"field": "salesDate$month"},
+      {"field": "salesAmount", "agg": "SUM"}
+    ],
+    "orderBy": [
+      {"field": "salesDate$year", "dir": "ASC"},
+      {"field": "salesDate$month", "dir": "ASC"}
+    ],
+    "limit": 24
+  },
+  "chart": {
+    "type": "LINE",
+    "title": "2024-2025年每月销售额对比趋势",
+    "xAxis": {"field": "salesDate$month", "label": "月份"},
+    "yAxis": {"field": "salesAmount", "label": "销售额(元)"},
+    "seriesField": "salesDate$year",
+    "showLegend": true
+  }
+}
+```
+✨ **效果**：生成两条折线（2024年、2025年），X轴是月份，便于同比分析
+
 **🆕 多网点趋势图（三维数据）**：
 ```json
 {
@@ -221,6 +253,8 @@
   - **LINE/BAR图表字段**:
     - xAxis: X轴配置 {"field": "字段名", "label": "标签"}
     - yAxis: Y轴配置 {"field": "字段名", "label": "标签"}
+    - seriesField: 系列字段，用于多系列对比图（如年度同比、多网点对比）
+    - groupBy: 等同于seriesField（别名，兼容旧配置）
   - **通用可选字段**:
     - showLabel: 是否显示数据标签 (布尔值)
     - showLegend: 是否显示图例 (布尔值)

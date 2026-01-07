@@ -40,14 +40,36 @@
       "properties": {
         "type": {
           "type": "string",
-          "enum": ["LINE", "BAR", "PIE", "SCATTER"],
+          "enum": ["LINE", "BAR", "PIE", "SCATTER", "AREA"],
           "description": "图表类型"
         },
         "title": { "type": "string", "description": "图表标题" },
-        "xField": { "type": "string", "description": "X轴字段" },
-        "yField": { "type": "string", "description": "Y轴字段" },
-        "width": { "type": "integer", "default": 800 },
-        "height": { "type": "integer", "default": 600 }
+        "xField": { "type": "string", "description": "X轴字段（简写形式）" },
+        "yField": { "type": "string", "description": "Y轴字段（简写形式）" },
+        "xAxis": {
+          "type": "object",
+          "description": "X轴配置（完整形式）",
+          "properties": {
+            "field": { "type": "string", "description": "X轴字段名" },
+            "label": { "type": "string", "description": "X轴标签" }
+          }
+        },
+        "yAxis": {
+          "type": "object",
+          "description": "Y轴配置（完整形式）",
+          "properties": {
+            "field": { "type": "string", "description": "Y轴字段名" },
+            "label": { "type": "string", "description": "Y轴标签" }
+          }
+        },
+        "seriesField": { "type": "string", "description": "系列字段，用于多系列图表（如多条折线对比）" },
+        "groupBy": { "type": "string", "description": "分组字段，等同于seriesField（别名）" },
+        "showLegend": { "type": "boolean", "description": "是否显示图例", "default": true },
+        "showLabel": { "type": "boolean", "description": "是否显示数据标签" },
+        "smooth": { "type": "boolean", "description": "折线图是否平滑" },
+        "width": { "type": "integer", "default": 800, "description": "图表宽度" },
+        "height": { "type": "integer", "default": 600, "description": "图表高度" },
+        "format": { "type": "string", "enum": ["png", "svg"], "default": "png", "description": "图片格式" }
       }
     }
   },

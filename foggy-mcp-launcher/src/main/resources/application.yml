@@ -5,6 +5,10 @@ spring:
   application:
     name: mcp-data-model-java
 
+  # 禁用 JMX 避免 RMI 连接异常
+  jmx:
+    enabled: false
+
   # Spring AI OpenAI Configuration (compatible with Aliyun Bailian)
   # 注意：base-url 不要包含 /v1，Spring AI 会自动追加
   # OpenAI: https://api.openai.com

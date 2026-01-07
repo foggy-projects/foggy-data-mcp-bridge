@@ -84,6 +84,24 @@ public class ExportWithChartTool implements McpTool {
 
             String xField = (String) chartConfig.get("xField");
             String yField = (String) chartConfig.get("yField");
+            String seriesField = (String) chartConfig.get("seriesField");
+
+            // 支持 xAxis/yAxis 对象格式
+            if (xField == null) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> xAxis = (Map<String, Object>) chartConfig.get("xAxis");
+                if (xAxis != null) xField = (String) xAxis.get("field");
+            }
+            if (yField == null) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> yAxis = (Map<String, Object>) chartConfig.get("yAxis");
+                if (yAxis != null) yField = (String) yAxis.get("field");
+            }
+
+            // 支持 groupBy 作为 seriesField 的别名
+            if (seriesField == null) {
+                seriesField = (String) chartConfig.get("groupBy");
+            }
 
             // 自动推断字段
             if (xField == null || yField == null) {
@@ -104,6 +122,9 @@ public class ExportWithChartTool implements McpTool {
             chartArgs.put("data", items);
             chartArgs.put("xField", xField);
             chartArgs.put("yField", yField);
+            if (seriesField != null) {
+                chartArgs.put("seriesField", seriesField);
+            }
             chartArgs.put("width", width);
             chartArgs.put("height", height);
 
