@@ -121,7 +121,8 @@ export default defineConfig({
               items: [
                 { text: '简介', link: '/zh/mcp/guide/introduction' },
                 { text: '快速开始', link: '/zh/mcp/guide/quick-start' },
-                { text: '架构概述', link: '/zh/mcp/guide/architecture' }
+                { text: '架构概述', link: '/zh/mcp/guide/architecture' },
+                { text: '图表渲染服务', link: '/zh/mcp/guide/chart-render-service' }
               ]
             },
             {
