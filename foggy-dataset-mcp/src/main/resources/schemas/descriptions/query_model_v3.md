@@ -12,6 +12,12 @@
 | 父子维度 | `xxx$hierarchy$id`(含子节点汇总) |
 | 属性/度量 | 直接使用字段名 |
 
+### 父子维度 (Parent-Child Dimension)
+层级结构维度（如组织架构）额外支持 `$hierarchy$` 视角：
+- **xxx$id**: 精确匹配该节点
+- **xxx$hierarchy$id**: 匹配该节点及所有后代（用于层级汇总）
+示例：`team$hierarchy$id = 'T001'` 查询总公司及所有子部门
+
 ## 参数
 
 ### columns (必填)
