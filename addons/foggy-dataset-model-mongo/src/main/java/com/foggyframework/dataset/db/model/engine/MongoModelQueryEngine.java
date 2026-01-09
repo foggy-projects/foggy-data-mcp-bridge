@@ -136,9 +136,9 @@ public class MongoModelQueryEngine implements QueryEngine {
         if (queryRequest.getOrderBy() != null) {
             for (OrderRequestDef orderRequestDef : queryRequest.getOrderBy()) {
 
-                validate(orderRequestDef.getOrder());
+                validate(orderRequestDef.getDir());
 
-                jdbcQuery.addOrder(new DbQueryOrderColumnImpl(jdbcQueryModel.findJdbcColumn(orderRequestDef.getField()), orderRequestDef.getOrder(), orderRequestDef.isNullLast(), orderRequestDef.isNullFirst()));
+                jdbcQuery.addOrder(new DbQueryOrderColumnImpl(jdbcQueryModel.findJdbcColumn(orderRequestDef.getField()), orderRequestDef.getDir(), orderRequestDef.isNullLast(), orderRequestDef.isNullFirst()));
 
             }
         }else{

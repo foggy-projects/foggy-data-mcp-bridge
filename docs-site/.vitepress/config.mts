@@ -9,7 +9,7 @@ export default defineConfig({
   ],
 
   head: [
-    ['link', { rel: 'icon', href: '/logo.svg' }]
+    ['link', { rel: 'icon', href: '/logo.png' }]
   ],
 
   locales: {
@@ -273,7 +273,7 @@ export default defineConfig({
   },
 
   themeConfig: {
-    logo: '/logo.svg',
+    logo: '/logo.png',
 
     socialLinks: [
       { icon: 'github', link: 'https://github.com/foggy-projects/foggy-data-mcp-bridge' }

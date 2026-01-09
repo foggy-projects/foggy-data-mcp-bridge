@@ -49,9 +49,5 @@ export const queryModel = {
         }
     ],
 
-    orders: [
-        { ref: dc.customerName, order: 'asc' }
-    ],
-
     accesses: []
 };

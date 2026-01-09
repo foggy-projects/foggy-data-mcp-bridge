@@ -53,10 +53,6 @@ export const queryModel = {
         }
     ],
 
-    orders: [
-        { ref: fs.orderId, order: 'asc' }
-    ],
-
     accesses: [
         // 测试1: 基于属性的权限控制（使用字段引用）
         {

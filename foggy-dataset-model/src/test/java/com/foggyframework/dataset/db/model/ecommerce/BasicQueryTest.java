@@ -306,7 +306,7 @@ class BasicQueryTest extends EcommerceTestSupport {
         List<OrderRequestDef> orders = new ArrayList<>();
         OrderRequestDef order = new OrderRequestDef();
         order.setField("amount");
-        order.setOrder("DESC");
+        order.setDir("DESC");
         orders.add(order);
         queryRequest.setOrderBy(orders);
 
@@ -336,12 +336,12 @@ class BasicQueryTest extends EcommerceTestSupport {
 
         OrderRequestDef order1 = new OrderRequestDef();
         order1.setField("salesDate$caption");
-        order1.setOrder("DESC");
+        order1.setDir("DESC");
         orders.add(order1);
 
         OrderRequestDef order2 = new OrderRequestDef();
         order2.setField("orderId");
-        order2.setOrder("ASC");
+        order2.setDir("ASC");
         orders.add(order2);
 
         queryRequest.setOrderBy(orders);
@@ -370,7 +370,7 @@ class BasicQueryTest extends EcommerceTestSupport {
         List<OrderRequestDef> orders = new ArrayList<>();
         OrderRequestDef order = new OrderRequestDef();
         order.setField("discountAmount");
-        order.setOrder("DESC");
+        order.setDir("DESC");
         order.setNullLast(true);  // NULL值放最后
         orders.add(order);
         queryRequest.setOrderBy(orders);

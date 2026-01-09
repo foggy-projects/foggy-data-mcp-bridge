@@ -55,9 +55,5 @@ export const queryModel = {
         }
     ],
 
-    orders: [
-        { ref: fp.payTime, order: 'desc' }
-    ],
-
     accesses: []
 };

@@ -71,10 +71,6 @@ export const queryModel = {
         }
     ],
 
-    orders: [
-        { ref: fs.orderId, order: 'asc' },
-        { ref: fs.orderLineNo, order: 'asc' }
-    ],
 
     accesses: []
 };

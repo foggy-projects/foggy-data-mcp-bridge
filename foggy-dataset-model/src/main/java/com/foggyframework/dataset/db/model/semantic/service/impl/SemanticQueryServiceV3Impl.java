@@ -220,7 +220,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                         OrderRequestDef order = new OrderRequestDef();
                         String field = normalizeOrderByField(item.getField(), queryModel, context);
                         order.setField(field);
-                        order.setOrder(item.getDir());
+                        order.setDir(item.getDir());
                         return order;
                     })
                     .collect(Collectors.toList());
@@ -333,7 +333,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         pagination.setReturned(returnedCount);
         pagination.setTotalCount(totalCount);
         pagination.setHasMore(hasMore);
-        pagination.setRangeDescription(buildRangeDescription(actualStart, returnedCount, totalCount, hasMore));
+        pagination.setRangeDescription(buildRangeDescription(actualStart, returnedCount,actualLimit, totalCount, hasMore));
         response.setPagination(pagination);
 
         // 设置分页信息（保留原有字段以保持兼容性）
@@ -353,7 +353,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
     /**
      * 构建数据范围描述（人类可读）
      */
-    private String buildRangeDescription(int start, int returned, Long totalCount, boolean hasMore) {
+    private String buildRangeDescription(int start, int returned,int actualLimit, Long totalCount, boolean hasMore) {
         if (returned == 0) {
             return "无数据";
         }
@@ -367,7 +367,11 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         if (totalCount != null && totalCount > 0) {
             sb.append("，共 ").append(totalCount).append(" 条");
         } else if (hasMore) {
-            sb.append("，还有更多数据");
+            if(returned == actualLimit) {
+                sb.append("，可能还有更多数据");
+            }else{
+                sb.append("，还有更多数据");
+            }
         }
 
         return sb.toString();

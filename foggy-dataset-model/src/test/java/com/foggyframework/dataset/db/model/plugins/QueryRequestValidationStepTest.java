@@ -239,11 +239,11 @@ class QueryRequestValidationStepTest {
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         OrderRequestDef order1 = new OrderRequestDef();
         order1.setField("createdAt");
-        order1.setOrder("desc");
+        order1.setDir("desc");
 
         OrderRequestDef order2 = new OrderRequestDef();
         order2.setField("amount");
-        order2.setOrder("asc");
+        order2.setDir("asc");
 
         queryRequest.setOrderBy(Arrays.asList(order1, order2));
 
@@ -260,7 +260,7 @@ class QueryRequestValidationStepTest {
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         OrderRequestDef order = new OrderRequestDef();
         order.setField("");
-        order.setOrder("asc");
+        order.setDir("asc");
 
         queryRequest.setOrderBy(Collections.singletonList(order));
 
@@ -278,7 +278,7 @@ class QueryRequestValidationStepTest {
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         OrderRequestDef order = new OrderRequestDef();
         order.setField("createdAt");
-        order.setOrder("invalid");
+        order.setDir("invalid");
 
         queryRequest.setOrderBy(Collections.singletonList(order));
 
@@ -329,7 +329,7 @@ class QueryRequestValidationStepTest {
         // OrderBy
         OrderRequestDef order = new OrderRequestDef();
         order.setField("totalSales");
-        order.setOrder("desc");
+        order.setDir("desc");
         queryRequest.setOrderBy(Collections.singletonList(order));
 
         ModelResultContext ctx = createContext(queryRequest);

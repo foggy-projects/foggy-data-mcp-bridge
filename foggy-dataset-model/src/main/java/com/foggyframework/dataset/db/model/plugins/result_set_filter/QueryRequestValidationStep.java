@@ -229,8 +229,8 @@ public class QueryRequestValidationStep implements DataSetResultStep {
 
 
             // 2. 校验 order 只能是 asc 或 desc
-            if(StringUtils.isNotEmpty(item.getOrder())) {
-                String order = item.getOrder().toLowerCase();
+            if(StringUtils.isNotEmpty(item.getDir())) {
+                String order = item.getDir().toLowerCase();
                 if (!SUPPORTED_SORT_DIRECTIONS.contains(order)) {
                     throw RX.throwAUserTip(DatasetMessages.validationOrderByDirInvalid(i, field, order));
                 }

@@ -680,7 +680,7 @@ class MongoCalculatedFieldIntegrationTest extends MongoTestSupport {
         List<OrderRequestDef> orders = new ArrayList<>();
         OrderRequestDef order = new OrderRequestDef();
         order.setField("price");
-        order.setOrder("DESC");
+        order.setDir("DESC");
         orders.add(order);
         queryRequest.setOrderBy(orders);
 

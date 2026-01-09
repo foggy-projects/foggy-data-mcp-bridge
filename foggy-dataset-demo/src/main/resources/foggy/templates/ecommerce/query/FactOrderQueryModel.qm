@@ -87,9 +87,6 @@ export const queryModel = {
         }
     ],
 
-    orders: [
-        { ref: fo.orderTime, order: 'desc' }
-    ],
 
     accesses: []
 };

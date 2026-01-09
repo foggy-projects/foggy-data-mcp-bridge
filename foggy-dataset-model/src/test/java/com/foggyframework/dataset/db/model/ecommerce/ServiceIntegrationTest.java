@@ -112,7 +112,7 @@ class ServiceIntegrationTest extends EcommerceTestSupport {
         List<OrderRequestDef> orders = new ArrayList<>();
         OrderRequestDef order = new OrderRequestDef();
         order.setField("orderId");
-        order.setOrder("ASC");
+        order.setDir("ASC");
         orders.add(order);
         queryRequest.setOrderBy(orders);
 
@@ -223,7 +223,7 @@ class ServiceIntegrationTest extends EcommerceTestSupport {
         List<OrderRequestDef> orders = new ArrayList<>();
         OrderRequestDef order = new OrderRequestDef();
         order.setField("customer$customerType");
-        order.setOrder("ASC");
+        order.setDir("ASC");
         orders.add(order);
         queryRequest.setOrderBy(orders);
 
@@ -508,7 +508,7 @@ class ServiceIntegrationTest extends EcommerceTestSupport {
     private OrderRequestDef createOrder(String name, String order) {
         OrderRequestDef orderDef = new OrderRequestDef();
         orderDef.setField(name);
-        orderDef.setOrder(order);
+        orderDef.setDir(order);
         return orderDef;
     }
 }

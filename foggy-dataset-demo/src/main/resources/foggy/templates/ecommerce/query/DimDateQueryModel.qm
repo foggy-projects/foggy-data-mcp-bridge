@@ -51,9 +51,5 @@ export const queryModel = {
         }
     ],
 
-    orders: [
-        { ref: dd.fullDate, order: 'desc' }
-    ],
-
     accesses: []
 };

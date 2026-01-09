@@ -1095,7 +1095,7 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
     private OrderRequestDef createOrder(String field, String order) {
         OrderRequestDef orderDef = new OrderRequestDef();
         orderDef.setField(field);
-        orderDef.setOrder(order);
+        orderDef.setDir(order);
         return orderDef;
     }
 

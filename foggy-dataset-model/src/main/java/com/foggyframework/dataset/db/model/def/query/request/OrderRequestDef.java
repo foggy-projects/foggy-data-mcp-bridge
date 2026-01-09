@@ -9,7 +9,7 @@ public class OrderRequestDef  {
     String field;
 
     @ApiModelProperty(value = "排序类型", notes = "asc,desc")
-    String order;
+    String dir;
 
     boolean nullLast;
 

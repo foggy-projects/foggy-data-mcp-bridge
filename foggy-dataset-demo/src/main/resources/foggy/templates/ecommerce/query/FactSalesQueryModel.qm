@@ -102,11 +102,7 @@ export const queryModel = {
         }
     ],
 
-    orders: [
-        { ref: fs.salesDate$caption, order: 'desc' },
-        { ref: fs.orderId, order: 'asc' },
-        { ref: fs.orderLineNo, order: 'asc' }
-    ],
+
 
     accesses: []
 };

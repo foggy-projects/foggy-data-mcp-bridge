@@ -10,7 +10,7 @@
 INSERT INTO dim_date (date_key, full_date, year, quarter, month, month_name, week_of_year, day_of_month, day_of_week, day_name, is_weekend, is_holiday, fiscal_year, fiscal_quarter)
 SELECT
     CAST(TO_CHAR(d, 'YYYYMMDD') AS INT) AS date_key,
-    d AS full_date,
+    TO_CHAR(d, 'YYYY-MM-DD') AS full_date,
     EXTRACT(YEAR FROM d)::SMALLINT AS year,
     EXTRACT(QUARTER FROM d)::SMALLINT AS quarter,
     EXTRACT(MONTH FROM d)::SMALLINT AS month,
