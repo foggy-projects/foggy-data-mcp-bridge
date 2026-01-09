@@ -2,6 +2,7 @@ package com.foggyframework.dataset.db.model.plugins.result_set_filter;
 
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.StringUtils;
+import com.foggyframework.dataset.db.model.config.DatasetProperties;
 import com.foggyframework.dataset.db.model.def.query.request.CondRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef;
@@ -42,6 +43,8 @@ public class QueryRequestValidationStep implements DataSetResultStep {
     @Resource
     private SqlFormulaService sqlFormulaService;
 
+    @Resource
+    DatasetProperties datasetProperties;
     /**
      * 支持的聚合类型（来自 DbAggregation 枚举）
      */
@@ -80,6 +83,13 @@ public class QueryRequestValidationStep implements DataSetResultStep {
 
         if (log.isDebugEnabled()) {
             log.debug("=== Query Request Validation Passed ===");
+        }
+
+        if(ctx.getRequest().getLimit() == null && datasetProperties!=null){
+            ctx.getRequest().setLimit(datasetProperties.getDefaultLimit());
+        }
+        if(ctx.getRequest().getStart() == null){
+            ctx.getRequest().setStart(0);
         }
 
         return CONTINUE;
