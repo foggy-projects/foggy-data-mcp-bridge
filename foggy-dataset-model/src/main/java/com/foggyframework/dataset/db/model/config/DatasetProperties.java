@@ -109,4 +109,8 @@ public class DatasetProperties {
      * </pre>
      */
     private boolean validateOnStartup = false;
+    /**
+     * 当查询请求中，没有指定 limit 时，默认的 limit 值
+     */
+    private int defaultLimit=1000;
 }

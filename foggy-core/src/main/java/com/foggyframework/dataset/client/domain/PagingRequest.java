@@ -91,14 +91,6 @@ public class PagingRequest<T> {
     }
 
     public Integer getStart() {
-        if (start == null) {
-            if (page == null) {
-                return 0;
-            } else {
-                return getStartByPage(page);
-            }
-
-        }
         return start;
     }
 
@@ -107,9 +99,6 @@ public class PagingRequest<T> {
     }
 
     public Integer getLimit() {
-        if (limit == null || limit == 0) {
-            return pageSize == null ? 10 : pageSize;
-        }
         return limit;
     }
 

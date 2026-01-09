@@ -56,8 +56,8 @@ public class PagingQueryExpEvaluatorGenerator implements QueryExpEvaluatorGenera
                 if (obj instanceof PagingRequest) {
                     // PagingRequest 参数特殊处理
                     PagingRequest p = (PagingRequest) obj;
-                    start = p.getStart();
-                    limit = p.getLimit();
+                    start = p.getStart() == null?-1:p.getStart();
+                    limit = p.getLimit()==null?-1:p.getLimit();
 
                     if (p.getParam() instanceof Map) {
                         param.putAll((Map<? extends String, ?>) p.getParam());

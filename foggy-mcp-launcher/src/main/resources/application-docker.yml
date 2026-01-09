@@ -107,6 +107,7 @@ foggy:
     show-sql: true              # 不打印 SQL 语句
     # 模型定义文件路径
     templates-path: classpath:/foggy/templates/
+    defaultLimit: 1000
     cache:
       enabled: true
       ttl: 3600
