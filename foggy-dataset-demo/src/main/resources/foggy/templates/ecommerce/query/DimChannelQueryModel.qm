@@ -33,9 +33,5 @@ export const queryModel = {
         }
     ],
 
-    orders: [
-        { ref: dc.channelName, order: 'asc' }
-    ],
-
     accesses: []
 };

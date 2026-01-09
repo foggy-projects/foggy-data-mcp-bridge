@@ -15,7 +15,6 @@ import com.foggyframework.dataset.db.model.engine.formula.hierarchy.HierarchyOpe
 import com.foggyframework.dataset.db.model.engine.join.JoinGraph;
 import com.foggyframework.dataset.db.model.engine.query.JdbcQuery;
 import com.foggyframework.dataset.db.model.engine.query.SimpleSqlJdbcQueryVisitor;
-import com.foggyframework.dataset.db.model.engine.query_model.JdbcQueryModelImpl;
 import com.foggyframework.dataset.db.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.db.model.impl.dimension.DbModelParentChildDimensionImpl;
 import com.foggyframework.dataset.db.model.impl.query.DbQueryOrderColumnImpl;
@@ -263,9 +262,9 @@ public class JdbcModelQueryEngine implements QueryEngine {
             if (queryRequest.getOrderBy() != null) {
                 for (OrderRequestDef orderRequestDef : queryRequest.getOrderBy()) {
 
-                    validate(orderRequestDef.getOrder());
+                    validate(orderRequestDef.getDir());
                     DbColumn jdbcColumn = jdbcQueryModel.findJdbcColumnForCond(orderRequestDef.getField(), true);
-                    jdbcQuery.addOrder(new DbQueryOrderColumnImpl(jdbcColumn, orderRequestDef.getOrder(), orderRequestDef.isNullLast(), orderRequestDef.isNullFirst()));
+                    jdbcQuery.addOrder(new DbQueryOrderColumnImpl(jdbcColumn, orderRequestDef.getDir(), orderRequestDef.isNullLast(), orderRequestDef.isNullFirst()));
 
                 }
             }
@@ -881,10 +880,10 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
                 if (selectColumn != null) {
                     // 字段在 SELECT 中，添加排序
-                    validate(orderRequestDef.getOrder());
+                    validate(orderRequestDef.getDir());
                     jdbcQuery.addOrder(new DbQueryOrderColumnImpl(
                             selectColumn,
-                            orderRequestDef.getOrder(),
+                            orderRequestDef.getDir(),
                             orderRequestDef.isNullLast(),
                             orderRequestDef.isNullFirst()
                     ));

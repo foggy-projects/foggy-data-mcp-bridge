@@ -29,7 +29,7 @@ GO
 -- ==========================================
 CREATE TABLE dim_date (
     date_key        INT NOT NULL,
-    full_date       DATE NOT NULL,
+    full_date       VARCHAR(10) NOT NULL,
     [year]          SMALLINT NOT NULL,
     [quarter]       SMALLINT NOT NULL,
     [month]         SMALLINT NOT NULL,

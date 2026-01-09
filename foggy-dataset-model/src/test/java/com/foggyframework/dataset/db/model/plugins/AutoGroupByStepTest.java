@@ -314,11 +314,11 @@ class AutoGroupByStepTest {
         List<OrderRequestDef> orderBy = new ArrayList<>();
         OrderRequestDef o1 = new OrderRequestDef();
         o1.setField("product$categoryName");
-        o1.setOrder("ASC");
+        o1.setDir("ASC");
         orderBy.add(o1);
         OrderRequestDef o2 = new OrderRequestDef();
         o2.setField("salesDate");  // 不在 SELECT 中
-        o2.setOrder("DESC");
+        o2.setDir("DESC");
         orderBy.add(o2);
         queryRequest.setOrderBy(orderBy);
 
@@ -379,11 +379,11 @@ class AutoGroupByStepTest {
         List<OrderRequestDef> orderBy = new ArrayList<>();
         OrderRequestDef o1 = new OrderRequestDef();
         o1.setField("product$categoryName");
-        o1.setOrder("ASC");
+        o1.setDir("ASC");
         orderBy.add(o1);
         OrderRequestDef o2 = new OrderRequestDef();
         o2.setField("totalSales");
-        o2.setOrder("DESC");
+        o2.setDir("DESC");
         orderBy.add(o2);
         queryRequest.setOrderBy(orderBy);
 

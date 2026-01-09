@@ -50,9 +50,5 @@ export const queryModel = {
         }
     ],
 
-    orders: [
-        { ref: dp.productName, order: 'asc' }
-    ],
-
     accesses: []
 };

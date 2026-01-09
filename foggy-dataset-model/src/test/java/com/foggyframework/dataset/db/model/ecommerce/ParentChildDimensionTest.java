@@ -588,7 +588,7 @@ class ParentChildDimensionTest extends EcommerceTestSupport {
     private OrderRequestDef createOrder(String name, String order) {
         OrderRequestDef orderDef = new OrderRequestDef();
         orderDef.setField(name);
-        orderDef.setOrder(order);
+        orderDef.setDir(order);
         return orderDef;
     }
 

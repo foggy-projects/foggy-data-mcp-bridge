@@ -77,9 +77,7 @@ export const queryModel = {
         }
     ],
 
-    orders: [
-        { ref: fs.salesDate$caption, order: 'desc' }
-    ],
+
 
     accesses: []
 };

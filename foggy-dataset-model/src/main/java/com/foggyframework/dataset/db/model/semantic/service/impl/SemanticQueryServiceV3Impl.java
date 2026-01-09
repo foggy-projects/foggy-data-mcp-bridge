@@ -220,7 +220,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                         OrderRequestDef order = new OrderRequestDef();
                         String field = normalizeOrderByField(item.getField(), queryModel, context);
                         order.setField(field);
-                        order.setOrder(item.getDir());
+                        order.setDir(item.getDir());
                         return order;
                     })
                     .collect(Collectors.toList());

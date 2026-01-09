@@ -45,9 +45,5 @@ export const queryModel = {
         }
     ],
 
-    orders: [
-        { ref: dp.promotionName, order: 'asc' }
-    ],
-
     accesses: []
 };

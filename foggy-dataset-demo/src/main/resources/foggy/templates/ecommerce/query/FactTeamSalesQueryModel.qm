@@ -46,10 +46,7 @@ export const queryModel = {
         }
     ],
 
-    orders: [
-        { ref: fts.team$teamLevel, order: 'asc' },
-        { ref: fts.team$caption, order: 'asc' }
-    ],
+
 
     accesses: []
 };

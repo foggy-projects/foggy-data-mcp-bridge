@@ -72,9 +72,5 @@ export const queryModel = {
         }
     ],
 
-    orders: [
-        { ref: fr.returnTime, order: 'desc' }
-    ],
-
     accesses: []
 };

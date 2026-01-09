@@ -10,7 +10,7 @@
 DROP TABLE IF EXISTS dim_date CASCADE;
 CREATE TABLE dim_date (
     date_key        INT NOT NULL,
-    full_date       DATE NOT NULL,
+    full_date       VARCHAR(10) NOT NULL,
     year            SMALLINT NOT NULL,
     quarter         SMALLINT NOT NULL,
     month           SMALLINT NOT NULL,
@@ -30,7 +30,7 @@ CREATE INDEX idx_dim_date_year_month ON dim_date (year, month);
 
 COMMENT ON TABLE dim_date IS '日期维度表';
 COMMENT ON COLUMN dim_date.date_key IS '日期键 YYYYMMDD';
-COMMENT ON COLUMN dim_date.full_date IS '完整日期';
+COMMENT ON COLUMN dim_date.full_date IS '完整日期 yyyy-MM-dd';
 
 -- ==========================================
 -- 2. 商品维度表

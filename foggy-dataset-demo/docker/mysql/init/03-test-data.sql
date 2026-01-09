@@ -29,7 +29,7 @@ BEGIN
             is_weekend, is_holiday, fiscal_year, fiscal_quarter
         ) VALUES (
             v_date_key,
-            v_date,
+            DATE_FORMAT(v_date, '%Y-%m-%d'),
             YEAR(v_date),
             QUARTER(v_date),
             MONTH(v_date),

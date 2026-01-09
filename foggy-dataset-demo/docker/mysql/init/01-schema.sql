@@ -13,7 +13,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS `dim_date`;
 CREATE TABLE `dim_date` (
     `date_key`        INT NOT NULL COMMENT '日期键 YYYYMMDD',
-    `full_date`       DATE NOT NULL COMMENT '完整日期',
+    `full_date`       VARCHAR(10) NOT NULL COMMENT '完整日期 yyyy-MM-dd',
     `year`            SMALLINT NOT NULL COMMENT '年',
     `quarter`         TINYINT NOT NULL COMMENT '季度 1-4',
     `month`           TINYINT NOT NULL COMMENT '月 1-12',

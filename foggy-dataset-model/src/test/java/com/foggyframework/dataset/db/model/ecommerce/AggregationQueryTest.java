@@ -72,7 +72,7 @@ class AggregationQueryTest extends EcommerceTestSupport {
         List<OrderRequestDef> orders = new ArrayList<>();
         OrderRequestDef order = new OrderRequestDef();
         order.setField("orderDate$caption");
-        order.setOrder("DESC");
+        order.setDir("DESC");
         orders.add(order);
         queryRequest.setOrderBy(orders);
 
@@ -123,12 +123,12 @@ class AggregationQueryTest extends EcommerceTestSupport {
         List<OrderRequestDef> orders = new ArrayList<>();
         OrderRequestDef order1 = new OrderRequestDef();
         order1.setField("salesDate$year");
-        order1.setOrder("DESC");
+        order1.setDir("DESC");
         orders.add(order1);
 
         OrderRequestDef order2 = new OrderRequestDef();
         order2.setField("salesDate$month");
-        order2.setOrder("ASC");
+        order2.setDir("ASC");
         orders.add(order2);
         queryRequest.setOrderBy(orders);
 

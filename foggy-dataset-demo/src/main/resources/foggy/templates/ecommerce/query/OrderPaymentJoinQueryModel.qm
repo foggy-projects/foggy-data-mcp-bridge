@@ -78,9 +78,6 @@ export const queryModel = {
         }
     ],
 
-    orders: [
-        { ref: fo.orderTime, order: 'desc' }
-    ]
 
     // accesses 权限控制示例（注释）
     // accesses: [{

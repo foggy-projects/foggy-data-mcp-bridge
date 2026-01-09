@@ -544,7 +544,7 @@ class McpAuditLogMongoTest extends MongoTestSupport {
         List<OrderRequestDef> orders = new ArrayList<>();
         OrderRequestDef order = new OrderRequestDef();
         order.setField("timestamp");
-        order.setOrder("DESC");
+        order.setDir("DESC");
         orders.add(order);
         queryRequest.setOrderBy(orders);
 
@@ -591,7 +591,7 @@ class McpAuditLogMongoTest extends MongoTestSupport {
         List<OrderRequestDef> orders = new ArrayList<>();
         OrderRequestDef order = new OrderRequestDef();
         order.setField("durationMs");
-        order.setOrder("DESC");
+        order.setDir("DESC");
         orders.add(order);
         queryRequest.setOrderBy(orders);
 
@@ -646,7 +646,7 @@ class McpAuditLogMongoTest extends MongoTestSupport {
         List<OrderRequestDef> orders = new ArrayList<>();
         OrderRequestDef order = new OrderRequestDef();
         order.setField("timestamp");
-        order.setOrder("ASC");
+        order.setDir("ASC");
         orders.add(order);
         queryRequest.setOrderBy(orders);
 
@@ -709,7 +709,7 @@ class McpAuditLogMongoTest extends MongoTestSupport {
         List<OrderRequestDef> orders = new ArrayList<>();
         OrderRequestDef order = new OrderRequestDef();
         order.setField("timestamp");
-        order.setOrder("ASC");
+        order.setDir("ASC");
         orders.add(order);
         queryRequest.setOrderBy(orders);
 

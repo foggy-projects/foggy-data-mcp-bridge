@@ -24,7 +24,7 @@ DECLARE @EndDate DATE = '2025-12-31';
 INSERT INTO dim_date (date_key, full_date, [year], [quarter], [month], month_name, week_of_year, day_of_month, day_of_week, day_name, is_weekend, is_holiday, fiscal_year, fiscal_quarter)
 SELECT
     CAST(FORMAT(DateValue, 'yyyyMMdd') AS INT) AS date_key,
-    DateValue AS full_date,
+    FORMAT(DateValue, 'yyyy-MM-dd') AS full_date,
     YEAR(DateValue) AS [year],
     DATEPART(QUARTER, DateValue) AS [quarter],
     MONTH(DateValue) AS [month],

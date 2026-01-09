@@ -387,7 +387,7 @@ class MultiFactTableJoinTest extends EcommerceTestSupport {
         List<OrderRequestDef> orders = new ArrayList<>();
         OrderRequestDef order = new OrderRequestDef();
         order.setField("orderTime");
-        order.setOrder("DESC");
+        order.setDir("DESC");
         orders.add(order);
         queryRequest.setOrderBy(orders);
 

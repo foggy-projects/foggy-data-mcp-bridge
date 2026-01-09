@@ -614,7 +614,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
         List<OrderRequestDef> orders = new ArrayList<>();
         OrderRequestDef order = new OrderRequestDef();
         order.setField("orderId");
-        order.setOrder("ASC");
+        order.setDir("ASC");
         orders.add(order);
         queryRequest.setOrderBy(orders);
 
@@ -686,7 +686,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
         List<OrderRequestDef> orders = new ArrayList<>();
         OrderRequestDef order = new OrderRequestDef();
         order.setField("orderId");
-        order.setOrder("ASC");
+        order.setDir("ASC");
         orders.add(order);
         queryRequest.setOrderBy(orders);
 
@@ -752,7 +752,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
         List<OrderRequestDef> orders = new ArrayList<>();
         OrderRequestDef order = new OrderRequestDef();
         order.setField("orderId");
-        order.setOrder("ASC");
+        order.setDir("ASC");
         orders.add(order);
         queryRequest.setOrderBy(orders);
 
@@ -818,7 +818,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
         List<OrderRequestDef> orders = new ArrayList<>();
         OrderRequestDef order = new OrderRequestDef();
         order.setField("orderId");
-        order.setOrder("ASC");
+        order.setDir("ASC");
         orders.add(order);
         queryRequest.setOrderBy(orders);
 
@@ -884,7 +884,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
         List<OrderRequestDef> orders = new ArrayList<>();
         OrderRequestDef order = new OrderRequestDef();
         order.setField("orderId");
-        order.setOrder("ASC");
+        order.setDir("ASC");
         orders.add(order);
         queryRequest.setOrderBy(orders);
 
@@ -963,7 +963,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
         List<OrderRequestDef> orders = new ArrayList<>();
         OrderRequestDef order = new OrderRequestDef();
         order.setField("orderId");
-        order.setOrder("ASC");
+        order.setDir("ASC");
         orders.add(order);
         queryRequest.setOrderBy(orders);
 
@@ -1057,7 +1057,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
         List<OrderRequestDef> orders = new ArrayList<>();
         OrderRequestDef order = new OrderRequestDef();
         order.setField("orderId");
-        order.setOrder("ASC");
+        order.setDir("ASC");
         orders.add(order);
         queryRequest.setOrderBy(orders);
 
@@ -1147,7 +1147,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
         List<OrderRequestDef> orders = new ArrayList<>();
         OrderRequestDef order = new OrderRequestDef();
         order.setField("orderId");
-        order.setOrder("ASC");
+        order.setDir("ASC");
         orders.add(order);
         queryRequest.setOrderBy(orders);
 
