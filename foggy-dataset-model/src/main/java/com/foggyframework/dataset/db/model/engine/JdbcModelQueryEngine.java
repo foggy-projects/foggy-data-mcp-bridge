@@ -938,7 +938,8 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
         // 记录警告日志
         if (!skippedFields.isEmpty()) {
-            log.warn("GroupBy 模式下忽略了不在 SELECT 中的 orderBy 字段: {}", skippedFields);
+//            log.warn("GroupBy 模式下忽略了不在 SELECT 中的 orderBy 字段: {}", skippedFields);
+            throw RX.throwA("GroupBy 模式下 orderBy 字段 必须在columns存在，但: " + skippedFields+" 没有在columns中出现，请根据需求调整groupBy中的字段，或加入field");
         }
     }
 }

@@ -54,8 +54,10 @@ public class ExportWithChartTool implements McpTool {
 
         String model = (String) arguments.get("model");
         Map<String, Object> payload = (Map<String, Object>) arguments.get("payload");
-        Map<String, Object> chartConfig = (Map<String, Object>) arguments.getOrDefault("chart", new HashMap<>());
-
+        Map<String, Object> chartConfig = (Map<String, Object>) arguments.getOrDefault("chart", null);
+        if(chartConfig == null){
+            throw RX.throwB("chart参数不得为空");
+        }
         log.info("Export with chart: model={}, traceId={}", model, traceId);
 
         try {
