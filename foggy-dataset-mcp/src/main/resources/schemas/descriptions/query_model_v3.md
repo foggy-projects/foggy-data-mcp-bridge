@@ -58,7 +58,7 @@
 ```json
 [{"field": "totalSales", "dir": "DESC"}]
 ```
-注意：聚合时orderBy字段必须在columns中
+注意：聚合或计算字段使用了聚合函数时orderBy字段必须在columns中
 
 ### 分页
 - `start`: 起始行(从0开始)
