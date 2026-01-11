@@ -11,7 +11,7 @@
 <dependency>
     <groupId>com.foggysource</groupId>
     <artifactId>foggy-fsscript</artifactId>
-    <version>8.1.0-beta</version>
+    <version>8.1.1-beta</version>
 </dependency>
 ```
 

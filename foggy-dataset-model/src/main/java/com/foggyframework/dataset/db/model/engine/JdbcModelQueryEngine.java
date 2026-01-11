@@ -269,7 +269,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
                 }
             }
 
-            //加排序
+            //加模QM型默认排序
             if (jdbcQueryModel.getOrders() != null && !jdbcQueryModel.getOrders().isEmpty()) {
                 jdbcQuery.addOrders(jdbcQueryModel.getOrders());
                 for (DbQueryOrderColumnImpl order : jdbcQuery.getOrder().getOrders()) {
@@ -925,12 +925,6 @@ public class JdbcModelQueryEngine implements QueryEngine {
                                 modelOrder.isNullLast(),
                                 modelOrder.isNullFirst()
                         ));
-                    }
-                } else {
-                    // 字段不在 SELECT 中，记录并跳过
-                    String displayName = fieldName != null ? fieldName : fieldAlias;
-                    if (displayName != null && !skippedFields.contains(displayName)) {
-                        skippedFields.add(displayName);
                     }
                 }
             }
