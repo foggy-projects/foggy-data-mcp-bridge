@@ -44,15 +44,21 @@
 ```
 
 **操作符**：
-| 类型 | 操作符 |
-|------|--------|
-| 等值 | `=`, `!=`, `<>` |
-| 比较 | `>`, `>=`, `<`, `<=` |
-| 模糊 | `like`, `left_like`, `right_like` |
-| 集合 | `in`, `not in` |
-| 空值 | `is null`, `is not null` (无需value) |
-| 区间 | `[]`, `[)`, `()`, `(]` (value为[start,end]) |
-| 层级 | `childrenOf`, `descendantsOf`, `selfAndDescendantsOf` |
+| 类型 | 操作符 | 适用范围 |
+|------|--------|----------|
+| 等值 | `=`, `!=`, `<>` | 全部 |
+| 比较 | `>`, `>=`, `<`, `<=` | 全部 |
+| 模糊 | `like`, `left_like`, `right_like` | 全部 |
+| 集合 | `in`, `not in` | 全部 |
+| 空值 | `is null`, `is not null` (无需value) | 全部 |
+| 区间 | `[]`, `[)`, `()`, `(]` (value为[start,end]) | 全部 |
+| 层级 | `childrenOf`, `descendantsOf`, `selfAndDescendantsOf` | 全部 |
+| 向量相似 | `similar` (语义相似度检索) | 仅向量模型 |
+
+**向量查询说明**：
+- `similar` 操作符仅适用于向量数据库模型（模型名通常包含 `Vector`）
+- 用于语义相似度检索，value 为查询文本
+- 示例：`{"field": "content", "op": "similar", "value": "销售数据分析"}`
 
 ### orderBy (可选)
 ```json
@@ -83,3 +89,4 @@
 - 展示用`$caption`，查询用`$id`
 - 简单聚合用内联表达式，复杂计算用calculatedFields
 - 聚合或计算字段使用了聚合函数时orderBy字段必须在columns中
+- 向量模型使用`similar`操作符进行语义检索，关系数据库不支持此操作符
