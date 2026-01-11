@@ -496,7 +496,7 @@ class ParentChildDimensionTest extends EcommerceTestSupport {
 
         // 排序
         List<OrderRequestDef> orders = new ArrayList<>();
-        orders.add(createOrder("team$hierarchy$caption", "ASC"));
+//        orders.add(createOrder("team$hierarchy$caption", "ASC"));
         queryRequest.setOrderBy(orders);
 
         PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 20);

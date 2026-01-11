@@ -58,7 +58,7 @@
 ```json
 [{"field": "totalSales", "dir": "DESC"}]
 ```
-注意：聚合时orderBy字段必须在columns中
+注意：聚合或计算字段使用了聚合函数时orderBy字段必须在columns中
 
 ### 分页
 - `start`: 起始行(从0开始)
@@ -82,4 +82,4 @@
 ## 最佳实践
 - 展示用`$caption`，查询用`$id`
 - 简单聚合用内联表达式，复杂计算用calculatedFields
-- 聚合时orderBy字段需在columns中
+- 聚合或计算字段使用了聚合函数时orderBy字段必须在columns中

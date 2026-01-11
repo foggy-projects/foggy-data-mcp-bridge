@@ -112,7 +112,8 @@ class ExportWithChartToolTest {
                     "payload", Map.of(
                             "columns", List.of("category", "sales"),
                             "groupBy", List.of("category")
-                    )
+                    ),
+                    "chart", Map.of()
             );
 
             Object result = exportWithChartTool.execute(args, ToolExecutionContext.of("trace-1", null));
@@ -154,7 +155,8 @@ class ExportWithChartToolTest {
 
             Map<String, Object> args = Map.of(
                     "model", "TestModel",
-                    "payload", payload
+                    "payload", payload,
+                    "chart", Map.of()
             );
 
             exportWithChartTool.execute(args, ToolExecutionContext.of("trace-2", null));
@@ -292,7 +294,8 @@ class ExportWithChartToolTest {
                     "payload", Map.of(
                             "columns", List.of("category", "amount"),
                             "groupBy", List.of("category")
-                    )
+                    ),
+                    "chart", Map.of()
                     // 不指定 xField, yField
             );
 
@@ -324,7 +327,8 @@ class ExportWithChartToolTest {
 
             Map<String, Object> args = Map.of(
                     "model", "NonExistentModel",
-                    "payload", Map.of("columns", List.of("field1"))
+                    "payload", Map.of("columns", List.of("field1")),
+                    "chart", Map.of()
             );
 
             Object result = exportWithChartTool.execute(args, ToolExecutionContext.of("trace-error-1", null));
@@ -351,7 +355,8 @@ class ExportWithChartToolTest {
 
             Map<String, Object> args = Map.of(
                     "model", "TestModel",
-                    "payload", Map.of("columns", List.of("field1"))
+                    "payload", Map.of("columns", List.of("field1")),
+                    "chart", Map.of()
             );
 
             ToolExecutionContext context = ToolExecutionContext.of("trace-empty", null);
@@ -383,7 +388,8 @@ class ExportWithChartToolTest {
 
             Map<String, Object> args = Map.of(
                     "model", "TestModel",
-                    "payload", Map.of("columns", List.of("x", "y"))
+                    "payload", Map.of("columns", List.of("x", "y")),
+                    "chart", Map.of()
             );
 
             ToolExecutionContext context = ToolExecutionContext.of("trace-chart-error", null);
@@ -411,7 +417,8 @@ class ExportWithChartToolTest {
 
             Map<String, Object> args = Map.of(
                     "model", "TestModel",
-                    "payload", Map.of("columns", List.of("field1"))
+                    "payload", Map.of("columns", List.of("field1")),
+                    "chart", Map.of()
             );
 
             ToolExecutionContext context = ToolExecutionContext.of("trace-exception", null);
@@ -449,7 +456,8 @@ class ExportWithChartToolTest {
 
             Map<String, Object> args = Map.of(
                     "model", "TestModel",
-                    "payload", Map.of("columns", List.of("x", "y"))
+                    "payload", Map.of("columns", List.of("x", "y")),
+                    "chart", Map.of()
             );
 
             ToolExecutionContext context = ToolExecutionContext.of("trace-stream", null);
@@ -508,7 +516,8 @@ class ExportWithChartToolTest {
 
             Map<String, Object> args = Map.of(
                     "model", "TestModel",
-                    "payload", Map.of("columns", List.of("x"))
+                    "payload", Map.of("columns", List.of("x")),
+                    "chart", Map.of()
             );
 
             ToolExecutionContext context = ToolExecutionContext.of("trace-extract", null);

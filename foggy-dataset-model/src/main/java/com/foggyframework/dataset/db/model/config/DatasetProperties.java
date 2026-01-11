@@ -22,7 +22,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * </pre>
  *
  * @author foggy-dataset-model
- * @since 8.1.0-beta
+ * @since 8.1.1-beta
  */
 @Data
 public class DatasetProperties {
