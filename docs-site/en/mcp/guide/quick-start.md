@@ -45,15 +45,6 @@ Minimal configuration only requires one variable:
 # .env
 OPENAI_API_KEY=sk-your-api-key-here
 ```
-
-**Supported AI Services:**
-
-| Service | BASE_URL | Model Example |
-|---------|----------|---------------|
-| OpenAI | `https://api.openai.com` | gpt-4o-mini |
-| Alibaba Cloud Bailian | `https://dashscope.aliyuncs.com/compatible-mode/v1` | qwen-plus |
-| Ollama | `http://host.docker.internal:11434/v1` | qwen2:7b |
-
 ### 3. Start Service
 
 ```bash
