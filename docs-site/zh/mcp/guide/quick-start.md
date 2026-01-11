@@ -46,13 +46,6 @@ cp .env.example .env
 OPENAI_API_KEY=sk-your-api-key-here
 ```
 
-**支持的 AI 服务：**
-
-| 服务 | BASE_URL | 模型示例 |
-|------|----------|----------|
-| OpenAI | `https://api.openai.com` | gpt-4o-mini |
-| 阿里云百炼 | `https://dashscope.aliyuncs.com/compatible-mode/v1` | qwen-plus |
-| Ollama | `http://host.docker.internal:11434/v1` | qwen2:7b |
 
 ### 3. 启动服务
 

@@ -106,11 +106,6 @@ docker-compose --profile tools up -d adminer
 | `OPENAI_BASE_URL` | AI 服务地址 | https://api.openai.com |
 | `OPENAI_MODEL` | 模型名称 | gpt-4o-mini |
 
-**支持的 AI 服务：**
-
-- **OpenAI**: `OPENAI_BASE_URL=https://api.openai.com`
-- **阿里云百炼**: `OPENAI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1`
-- **Ollama**: `OPENAI_BASE_URL=http://host.docker.internal:11434/v1`
 
 ### 服务配置
 
