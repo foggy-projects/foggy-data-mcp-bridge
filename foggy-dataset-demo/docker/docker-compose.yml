@@ -12,10 +12,16 @@
 #   启动 MySQL:      docker-compose up -d mysql
 #   启动 PostgreSQL: docker-compose up -d postgres
 #   启动 SQL Server: docker-compose up -d sqlserver
+#   启动 Milvus:     docker-compose up -d milvus
 #
 # 数据初始化:
 #   MySQL/PostgreSQL: 首次启动时自动执行 init 目录下的 SQL 脚本
 #   SQL Server: 需要手动执行，运行 ./init-sqlserver.sh
+#
+# Milvus 向量数据库:
+#   端口: 19530 (gRPC), 19091 (HTTP)
+#   依赖: etcd, minio (会自动启动)
+#   启动命令: docker-compose up -d milvus
 #
 # ============================================
 
@@ -159,6 +165,78 @@ services:
       - foggy-demo-net
 
   # ==========================================
+  # Milvus 向量数据库（Standalone 模式）
+  # ==========================================
+  # Milvus 依赖 etcd 和 minio
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.5
+    container_name: foggy-demo-etcd
+    restart: unless-stopped
+    environment:
+      ETCD_AUTO_COMPACTION_MODE: revision
+      ETCD_AUTO_COMPACTION_RETENTION: "1000"
+      ETCD_QUOTA_BACKEND_BYTES: "4294967296"
+      ETCD_SNAPSHOT_COUNT: "50000"
+    volumes:
+      - etcd-demo-data:/etcd
+    command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - foggy-demo-net
+
+  minio:
+    image: minio/minio:RELEASE.2023-03-20T20-16-18Z
+    container_name: foggy-demo-minio
+    restart: unless-stopped
+    environment:
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+    ports:
+      - "19001:9001"
+    volumes:
+      - minio-demo-data:/minio_data
+    command: minio server /minio_data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - foggy-demo-net
+
+  milvus:
+    image: milvusdb/milvus:v2.4.4
+    container_name: foggy-demo-milvus
+    restart: unless-stopped
+    security_opt:
+      - seccomp:unconfined
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+    ports:
+      - "19530:19530"
+      - "19091:9091"
+    volumes:
+      - milvus-demo-data:/var/lib/milvus
+    command: ["milvus", "run", "standalone"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    depends_on:
+      etcd:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - foggy-demo-net
+
+  # ==========================================
   # Adminer - 数据库管理工具（可选）
   # ==========================================
   adminer:
@@ -189,6 +267,12 @@ volumes:
     name: foggy-demo-redis-data
   mongo-demo-data:
     name: foggy-demo-mongo-data
+  etcd-demo-data:
+    name: foggy-demo-etcd-data
+  minio-demo-data:
+    name: foggy-demo-minio-data
+  milvus-demo-data:
+    name: foggy-demo-milvus-data
 
 # ==========================================
 # 网络

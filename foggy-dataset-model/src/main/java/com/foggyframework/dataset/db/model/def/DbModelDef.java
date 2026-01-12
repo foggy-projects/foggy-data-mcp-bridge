@@ -42,6 +42,11 @@ public class DbModelDef extends DbDefSupport {
 
     Object mongoTemplate;
 
+    /**
+     * 向量数据库配置（用于 vector 类型模型）
+     */
+    Object vectorConfig;
+
     public void apply(TableModelSupport jdbcObjectSupport) {
         super.apply(jdbcObjectSupport);
         jdbcObjectSupport.setIdColumn(this.idColumn);

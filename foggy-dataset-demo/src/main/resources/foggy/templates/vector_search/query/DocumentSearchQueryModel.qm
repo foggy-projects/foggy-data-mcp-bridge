@@ -1,0 +1,38 @@
+/**
+ * 文档搜索查询模型
+ *
+ * @caption 文档语义搜索
+ * @description 基于向量相似度的文档检索模型，支持自然语言查询
+ */
+const doc = loadTableModel('DocumentSearchModel');
+
+export const queryModel = {
+    name: 'DocumentSearchQueryModel',
+    caption: '文档语义搜索',
+    description: '基于向量相似度的文档检索，支持自然语言查询。使用 similar 操作符进行语义搜索。',
+    loader: 'v2',
+
+    model: doc,
+
+    columnGroups: [
+        {
+            caption: '文档信息',
+            items: [
+                { ref: doc.docId, ui: { fixed: 'left', width: 120 } },
+                { ref: doc.title, ui: { width: 300 } },
+                { ref: doc.content, ui: { width: 500 } },
+                { ref: doc.category },
+                { ref: doc.author }
+            ]
+        },
+        {
+            caption: '时间信息',
+            items: [
+                { ref: doc.createdAt },
+                { ref: doc.updatedAt }
+            ]
+        }
+    ],
+
+    accesses: []
+};
