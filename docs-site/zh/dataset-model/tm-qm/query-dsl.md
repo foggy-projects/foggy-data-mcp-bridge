@@ -155,6 +155,81 @@ WHERE order_date >= '2024-01-01' AND order_date < '2024-07-01'
 | `descendantsOf` | 所有后代节点 | 否 | `{ "op": "descendantsOf", "value": "T001" }` |
 | `selfAndDescendantsOf` | 自身及所有后代 | 是 | `{ "op": "selfAndDescendantsOf", "value": "T001" }` |
 
+#### 3.2.7 向量操作符（向量模型专用）
+
+用于向量模型的语义相似度检索，**仅向量字段（type=VECTOR）支持**。
+
+| 操作符 | 说明 | 示例 |
+|--------|------|------|
+| `similar` | 相似度搜索 | `{ "op": "similar", "value": { "text": "..." } }` |
+| `hybrid` | 混合搜索（向量+关键词） | `{ "op": "hybrid", "value": { "text": "...", "keyword": "..." } }` |
+
+**similar 参数**：
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `text` | string | 是* | 搜索文本（自动转向量）|
+| `vector` | float[] | 是* | 直接传向量（与text二选一）|
+| `topK` | int | 否 | 返回条数，默认10 |
+| `minScore` | float | 否 | 最低相似度(0-1) |
+| `groupBy` | string | 否 | 按字段分组去重 |
+| `radius` | float | 否 | 范围搜索最低分数 |
+
+**hybrid 参数**：
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `text` | string | 是 | 搜索文本（自动转向量）|
+| `keyword` | string | 否 | 关键词过滤 |
+| `topK` | int | 否 | 返回条数，默认10 |
+| `vectorWeight` | float | 否 | 向量权重，默认0.7 |
+| `keywordWeight` | float | 否 | 关键词权重，默认0.3 |
+
+**向量搜索示例**：
+
+```json
+{
+    "param": {
+        "columns": ["docId", "title", "content", "_score"],
+        "slice": [
+            {
+                "field": "embedding",
+                "op": "similar",
+                "value": {
+                    "text": "销售业绩分析",
+                    "topK": 10,
+                    "minScore": 0.6
+                }
+            },
+            { "field": "category", "op": "=", "value": "report" }
+        ]
+    }
+}
+```
+
+**混合搜索示例**：
+
+```json
+{
+    "param": {
+        "columns": ["docId", "title", "_score"],
+        "slice": [
+            {
+                "field": "embedding",
+                "op": "hybrid",
+                "value": {
+                    "text": "销售分析",
+                    "keyword": "报告",
+                    "topK": 10
+                }
+            }
+        ]
+    }
+}
+```
+
+> 向量搜索结果按相似度降序排列，`_score` 字段表示相似度(0-1)。
+
 **层级深度限制**：
 
 使用 `maxDepth` 参数限制查询的层级深度：
