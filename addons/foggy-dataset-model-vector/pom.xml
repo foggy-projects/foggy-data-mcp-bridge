@@ -48,6 +48,13 @@
             <optional>true</optional>
         </dependency>
 
+        <!-- Apache Commons Pool2 for Milvus client connection pool -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-pool2</artifactId>
+            <version>2.12.0</version>
+        </dependency>
+
         <!-- Test dependencies -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

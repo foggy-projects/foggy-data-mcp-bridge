@@ -11,7 +11,7 @@
 | 维度 | `xxx$id`(查询/过滤), `xxx$caption`(展示) |
 | 父子维度 | `xxx$hierarchy$id`(含子节点汇总) |
 | 属性/度量 | 直接使用字段名 |
-| 向量字段 | 配合 `similar` 操作符使用 |
+| 向量字段 | 仅支持 `similar`/`hybrid` 操作符 |
 
 ### 父子维度 (Parent-Child Dimension)
 层级结构维度（如组织架构）额外支持 `$hierarchy$` 视角：
@@ -54,42 +54,53 @@
 | 空值 | `is null`, `is not null` (无需value) |
 | 区间 | `[]`, `[)`, `()`, `(]` (value为[start,end]) |
 | 层级 | `childrenOf`, `descendantsOf`, `selfAndDescendantsOf` |
-| 向量 | `similar` (向量相似度检索) |
+| 向量 | `similar`, `hybrid` (向量检索) |
 
-### 向量相似度检索 (similar)
+### 向量检索
 
-用于向量模型的语义相似度搜索。当模型包含向量字段（类型为 `VECTOR`）时，可使用 `similar` 操作符进行相似度检索。
+**仅向量字段（type=VECTOR）支持以下操作符**，普通字段不可使用。
 
-**参数说明**：
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `text` | string | 是* | 搜索文本（自动转换为向量）|
-| `vector` | float[] | 是* | 直接传入向量（与text二选一）|
-| `topK` | int | 否 | 返回最相似的N条记录，默认10 |
-| `minScore` | float | 否 | 最低相似度阈值（0-1），过滤低于此分数的结果 |
-
-**使用示例**：
+#### similar - 相似度搜索
 ```json
 {
   "field": "embedding",
   "op": "similar",
   "value": {
-    "text": "销售额趋势分析",
+    "text": "销售额分析",
     "topK": 10,
-    "minScore": 0.7
+    "minScore": 0.6,
+    "groupBy": "category",
+    "radius": 0.3
   }
 }
 ```
 
-**场景映射**：
-| 用户需求 | 生成的参数 |
-|---------|-----------|
-| "找10条最相关的" | `{ "text": "...", "topK": 10 }` |
-| "找所有相关度大于0.8的" | `{ "text": "...", "minScore": 0.8, "topK": 100 }` |
-| "找5条最相关的，但要足够相关" | `{ "text": "...", "topK": 5, "minScore": 0.7 }` |
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `text` | string | 搜索文本（自动转向量）|
+| `vector` | float[] | 直接传向量（与text二选一）|
+| `topK` | int | 返回条数，默认10 |
+| `minScore` | float | 最低相似度(0-1) |
+| `groupBy` | string | 按字段分组去重 |
+| `radius` | float | 范围搜索最低分数 |
 
-**返回结果**：
-向量搜索结果会包含 `_score` 字段，表示相似度得分（0-1，越高越相似）。
+#### hybrid - 混合搜索
+向量相似度 + 关键词过滤的组合搜索：
+```json
+{
+  "field": "embedding",
+  "op": "hybrid",
+  "value": {
+    "text": "销售分析",
+    "keyword": "报告",
+    "topK": 10,
+    "vectorWeight": 0.7,
+    "keywordWeight": 0.3
+  }
+}
+```
+
+返回结果包含 `_score` 字段表示相似度(0-1)。
 
 ### orderBy (可选)
 ```json
@@ -123,15 +134,7 @@
   "payload": {
     "columns": ["docId", "title", "content", "_score"],
     "slice": [
-      {
-        "field": "embedding",
-        "op": "similar",
-        "value": {
-          "text": "如何提升销售业绩",
-          "topK": 10,
-          "minScore": 0.6
-        }
-      },
+      {"field": "embedding", "op": "similar", "value": {"text": "销售业绩", "topK": 10}},
       {"field": "category", "op": "=", "value": "report"}
     ],
     "limit": 10
@@ -142,6 +145,5 @@
 ## 最佳实践
 - 展示用`$caption`，查询用`$id`
 - 简单聚合用内联表达式，复杂计算用calculatedFields
-- 聚合或计算字段使用了聚合函数时orderBy字段必须在columns中
-- 向量检索时，`similar` 条件可以与普通过滤条件组合使用（先向量召回，再过滤）
-- 向量检索结果按相似度降序排列，`_score` 字段表示相似度
+- 聚合字段排序时orderBy字段必须在columns中
+- 向量检索：`similar`可与普通过滤组合，`hybrid`用于语义+关键词混合搜索

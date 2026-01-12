@@ -60,6 +60,27 @@ public class VectorDbConfig {
     private boolean secure = false;
 
     /**
+     * 是否启用元数据自动发现
+     * <p>
+     * 启用后，向量字段的 dimension、metric、indexType 等信息将从 Milvus 自动获取，
+     * 无需在 TM 文件中手动配置。
+     */
+    @Builder.Default
+    private boolean autoDiscovery = true;
+
+    /**
+     * 连接池大小
+     */
+    @Builder.Default
+    private int poolSize = 5;
+
+    /**
+     * 连接池最大等待时间（毫秒）
+     */
+    @Builder.Default
+    private long poolMaxWaitMs = 5000;
+
+    /**
      * Embedding 服务配置
      */
     private EmbeddingConfig embedding;

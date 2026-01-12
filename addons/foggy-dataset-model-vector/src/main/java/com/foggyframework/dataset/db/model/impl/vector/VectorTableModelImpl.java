@@ -36,6 +36,11 @@ public class VectorTableModelImpl extends TableModelSupport {
     private String vectorFieldName;
 
     /**
+     * 向量字段元数据（从 Milvus 自动发现）
+     */
+    private VectorFieldMetadata vectorFieldMetadata;
+
+    /**
      * 向量维度
      */
     private int vectorDimensions;

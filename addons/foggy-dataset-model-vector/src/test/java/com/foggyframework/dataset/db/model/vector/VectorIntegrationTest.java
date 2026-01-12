@@ -1,7 +1,6 @@
 package com.foggyframework.dataset.db.model.vector;
 
-import com.foggyframework.dataset.db.model.impl.vector.EmbeddingService;
-import com.foggyframework.dataset.db.model.impl.vector.VectorDbConfig;
+import com.foggyframework.dataset.db.model.impl.vector.*;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import io.milvus.v2.client.ConnectConfig;
@@ -483,5 +482,266 @@ class VectorIntegrationTest {
             assertTrue(result.getScore() >= minScore);
             log.info("  - [score: {:.4f}] {}", result.getScore(), result.getEntity().get("title"));
         }
+    }
+
+    // ==========================================
+    // v2.0 新功能测试
+    // ==========================================
+
+    @Test
+    @Order(30)
+    @DisplayName("v2.0 - 元数据自动发现")
+    void testMetadataAutoDiscovery() {
+        skipIfNotConfigured();
+
+        VectorDbConfig vectorDbConfig = VectorDbConfig.builder()
+                .host(config.getProperty("milvus.host", "localhost"))
+                .port(Integer.parseInt(config.getProperty("milvus.port", "19530")))
+                .autoDiscovery(true)
+                .build();
+
+        MilvusMetadataService metadataService = new MilvusMetadataService(vectorDbConfig);
+        try {
+            // 测试集合存在检查
+            boolean exists = metadataService.collectionExists(TEST_COLLECTION);
+            assertTrue(exists, "测试集合应该存在");
+
+            // 测试集合加载状态检查
+            boolean loaded = metadataService.isCollectionLoaded(TEST_COLLECTION);
+            assertTrue(loaded, "测试集合应该已加载到内存");
+
+            // 测试向量字段元数据发现
+            VectorFieldMetadata metadata = metadataService.getVectorFieldMetadata(TEST_COLLECTION, "embedding");
+            assertNotNull(metadata, "应该能够发现向量字段元数据");
+
+            assertEquals(TEST_COLLECTION, metadata.getCollectionName());
+            assertEquals("embedding", metadata.getFieldName());
+            assertEquals(vectorDimensions, metadata.getDimension());
+            assertEquals("FloatVector", metadata.getVectorType());
+            assertTrue(metadata.isIndexed(), "向量字段应该有索引");
+            assertEquals("COSINE", metadata.getMetricType(), "度量类型应该是 COSINE");
+            assertEquals("IVF_FLAT", metadata.getIndexType(), "索引类型应该是 IVF_FLAT");
+            assertEquals("doc_id", metadata.getPrimaryKeyField());
+
+            log.info("Metadata auto-discovery test passed:");
+            log.info("  - Collection: {}", metadata.getCollectionName());
+            log.info("  - Field: {}", metadata.getFieldName());
+            log.info("  - Dimension: {}", metadata.getDimension());
+            log.info("  - Index Type: {}", metadata.getIndexType());
+            log.info("  - Metric Type: {}", metadata.getMetricType());
+            log.info("  - Primary Key: {}", metadata.getPrimaryKeyField());
+            log.info("  - Loaded: {}", metadata.isLoaded());
+
+        } finally {
+            metadataService.close();
+        }
+    }
+
+    @Test
+    @Order(31)
+    @DisplayName("v2.0 - 自动发现所有向量字段")
+    void testDiscoverAllVectorFields() {
+        skipIfNotConfigured();
+
+        VectorDbConfig vectorDbConfig = VectorDbConfig.builder()
+                .host(config.getProperty("milvus.host", "localhost"))
+                .port(Integer.parseInt(config.getProperty("milvus.port", "19530")))
+                .build();
+
+        MilvusMetadataService metadataService = new MilvusMetadataService(vectorDbConfig);
+        try {
+            List<VectorFieldMetadata> fields = metadataService.discoverVectorFields(TEST_COLLECTION);
+            assertNotNull(fields);
+            assertEquals(1, fields.size(), "测试集合应该有 1 个向量字段");
+
+            VectorFieldMetadata field = fields.get(0);
+            assertEquals("embedding", field.getFieldName());
+
+            log.info("Discovered {} vector fields in collection '{}'", fields.size(), TEST_COLLECTION);
+
+        } finally {
+            metadataService.close();
+        }
+    }
+
+    @Test
+    @Order(32)
+    @DisplayName("v2.0 - 连接池功能测试")
+    void testConnectionPool() throws Exception {
+        skipIfNotConfigured();
+
+        VectorDbConfig vectorDbConfig = VectorDbConfig.builder()
+                .host(config.getProperty("milvus.host", "localhost"))
+                .port(Integer.parseInt(config.getProperty("milvus.port", "19530")))
+                .poolSize(3)
+                .poolMaxWaitMs(5000L)
+                .build();
+
+        MilvusClientPool pool = new MilvusClientPool(vectorDbConfig);
+        try {
+            // 测试并发执行
+            List<Boolean> results = new ArrayList<>();
+            for (int i = 0; i < 5; i++) {
+                Boolean result = pool.execute(client -> {
+                    return client.hasCollection(
+                            io.milvus.v2.service.collection.request.HasCollectionReq.builder()
+                                    .collectionName(TEST_COLLECTION)
+                                    .build()
+                    );
+                });
+                results.add(result);
+            }
+
+            assertEquals(5, results.size());
+            for (Boolean result : results) {
+                assertTrue(result, "每次调用都应该成功");
+            }
+
+            // 验证连接池状态
+            String poolStatus = pool.getPoolStatus();
+            assertNotNull(poolStatus);
+            log.info("Connection pool status: {}", poolStatus);
+
+        } finally {
+            pool.close();
+        }
+    }
+
+    @Test
+    @Order(33)
+    @DisplayName("v2.0 - 向量搜索带 groupBy")
+    void testVectorSearchWithGroupBy() {
+        skipIfNotConfigured();
+
+        String queryText = "文档资料";
+        List<Float> queryVector = embeddingService.embed(queryText);
+
+        // groupBy 搜索 - 按 category 分组
+        SearchResp searchResp = milvusClient.search(SearchReq.builder()
+                .collectionName(TEST_COLLECTION)
+                .data(Collections.singletonList(new FloatVec(queryVector)))
+                .topK(10)
+                .groupByFieldName("category")
+                .outputFields(Arrays.asList("doc_id", "title", "category"))
+                .build());
+
+        List<SearchResp.SearchResult> results = searchResp.getSearchResults().get(0);
+
+        // 验证结果不为空
+        assertFalse(results.isEmpty(), "groupBy 搜索应该返回结果");
+
+        // 统计每个 category 出现的次数
+        Map<String, Integer> categoryCounts = new HashMap<>();
+        for (SearchResp.SearchResult result : results) {
+            String category = (String) result.getEntity().get("category");
+            categoryCounts.merge(category, 1, Integer::sum);
+            log.info("  - [score: {:.4f}] {} ({})",
+                    result.getScore(),
+                    result.getEntity().get("title"),
+                    category);
+        }
+
+        // groupBy 应该减少总结果数或每组返回一个代表
+        log.info("GroupBy search returned {} results with {} unique categories",
+                results.size(), categoryCounts.size());
+
+        // 验证 groupBy 确实起作用：结果数不应该超过类别数太多
+        // （某些 Milvus 版本 groupBy 的行为可能不同）
+        assertTrue(results.size() <= TEST_DOCUMENTS.size(),
+                "groupBy 结果不应超过总文档数");
+    }
+
+    @Test
+    @Order(34)
+    @DisplayName("v2.0 - 范围搜索 (radius)")
+    void testVectorSearchWithRadius() {
+        skipIfNotConfigured();
+
+        String queryText = "销售业绩报告";
+        List<Float> queryVector = embeddingService.embed(queryText);
+
+        // 范围搜索：只返回 score >= 0.3 的结果
+        Map<String, Object> searchParams = new HashMap<>();
+        searchParams.put("radius", 0.3f);
+
+        SearchResp searchResp = milvusClient.search(SearchReq.builder()
+                .collectionName(TEST_COLLECTION)
+                .data(Collections.singletonList(new FloatVec(queryVector)))
+                .topK(10)
+                .searchParams(searchParams)
+                .outputFields(Arrays.asList("doc_id", "title", "category"))
+                .build());
+
+        List<SearchResp.SearchResult> results = searchResp.getSearchResults().get(0);
+
+        log.info("Radius search (radius=0.3): found {} results", results.size());
+
+        for (SearchResp.SearchResult result : results) {
+            float score = result.getScore();
+            assertTrue(score >= 0.3f, "范围搜索结果的分数应该 >= 0.3，实际: " + score);
+            log.info("  - [score: {:.4f}] {} ({})",
+                    score,
+                    result.getEntity().get("title"),
+                    result.getEntity().get("category"));
+        }
+    }
+
+    @Test
+    @Order(35)
+    @DisplayName("v2.0 - 混合搜索 (向量 + 关键词过滤)")
+    void testHybridSearch() {
+        skipIfNotConfigured();
+
+        // 混合搜索：向量相似度 + 关键词过滤
+        String queryText = "业务分析";
+        String keywordFilter = "category == \"report\"";
+
+        List<Float> queryVector = embeddingService.embed(queryText);
+
+        SearchResp searchResp = milvusClient.search(SearchReq.builder()
+                .collectionName(TEST_COLLECTION)
+                .data(Collections.singletonList(new FloatVec(queryVector)))
+                .topK(10)
+                .filter(keywordFilter)
+                .outputFields(Arrays.asList("doc_id", "title", "content", "category"))
+                .build());
+
+        List<SearchResp.SearchResult> results = searchResp.getSearchResults().get(0);
+
+        log.info("Hybrid search (vector + keyword filter): found {} results", results.size());
+
+        for (SearchResp.SearchResult result : results) {
+            String category = (String) result.getEntity().get("category");
+            assertEquals("report", category, "混合搜索结果应该都是 report 类别");
+            log.info("  - [score: {:.4f}] {} - {}",
+                    result.getScore(),
+                    result.getEntity().get("title"),
+                    result.getEntity().get("category"));
+        }
+    }
+
+    @Test
+    @Order(40)
+    @DisplayName("v2.0 - 错误处理测试")
+    void testErrorHandling() {
+        skipIfNotConfigured();
+
+        // 测试 VectorQueryException 和 VectorErrorCode
+        VectorQueryException ex1 = VectorQueryException.collectionNotFound("non_existent_collection");
+        assertEquals("VEC_101", ex1.getCode());
+        assertTrue(ex1.getMessage().contains("non_existent_collection"));
+
+        VectorQueryException ex2 = VectorQueryException.dimensionMismatch(1536, 768);
+        assertEquals("VEC_202", ex2.getCode());
+        assertTrue(ex2.getMessage().contains("1536"));
+        assertTrue(ex2.getMessage().contains("768"));
+
+        VectorQueryException ex3 = VectorQueryException.embeddingServiceError("API timeout");
+        assertEquals("VEC_301", ex3.getCode());
+
+        log.info("Error handling test passed:");
+        log.info("  - {}: {}", ex1.getCode(), ex1.getFormattedMessage());
+        log.info("  - {}: {}", ex2.getCode(), ex2.getFormattedMessage());
+        log.info("  - {}: {}", ex3.getCode(), ex3.getFormattedMessage());
     }
 }

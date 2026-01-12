@@ -44,6 +44,11 @@ public class VectorQueryModelImpl extends QueryModelSupport implements VectorQue
     private String collectionName;
 
     /**
+     * 向量字段元数据（从 Milvus 自动发现）
+     */
+    private VectorFieldMetadata vectorFieldMetadata;
+
+    /**
      * Embedding 服务
      */
     private EmbeddingService embeddingService;
