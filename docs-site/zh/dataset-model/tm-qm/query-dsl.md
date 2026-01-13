@@ -155,6 +155,47 @@ WHERE order_date >= '2024-01-01' AND order_date < '2024-07-01'
 | `descendantsOf` | 所有后代节点 | 否 | `{ "op": "descendantsOf", "value": "T001" }` |
 | `selfAndDescendantsOf` | 自身及所有后代 | 是 | `{ "op": "selfAndDescendantsOf", "value": "T001" }` |
 
+**层级深度限制**：
+
+使用 `maxDepth` 参数限制查询的层级深度：
+
+```json
+{
+    "field": "team$id",
+    "op": "descendantsOf",
+    "value": "T001",
+    "maxDepth": 2          // 只查询2层以内的后代
+}
+```
+
+**层级操作符示例**：
+
+```json
+{
+    "param": {
+        "columns": ["team$caption", "salesAmount"],
+        "slice": [
+            {
+                "field": "team$id",
+                "op": "childrenOf",
+                "value": "T001"
+            }
+        ]
+    }
+}
+```
+
+**生成的 SQL**：
+```sql
+SELECT dim_team.caption, SUM(fact.sales_amount)
+FROM fact_team_sales fact
+LEFT JOIN team_closure closure ON fact.team_id = closure.child_id
+LEFT JOIN dim_team ON closure.child_id = dim_team.id
+WHERE closure.parent_id = 'T001'
+  AND closure.distance = 1
+GROUP BY dim_team.caption
+```
+
 #### 3.2.7 向量操作符（向量模型专用）
 
 用于向量模型的语义相似度检索，**仅向量字段（type=VECTOR）支持**。
@@ -229,47 +270,6 @@ WHERE order_date >= '2024-01-01' AND order_date < '2024-07-01'
 ```
 
 > 向量搜索结果按相似度降序排列，`_score` 字段表示相似度(0-1)。
-
-**层级深度限制**：
-
-使用 `maxDepth` 参数限制查询的层级深度：
-
-```json
-{
-    "field": "team$id",
-    "op": "descendantsOf",
-    "value": "T001",
-    "maxDepth": 2          // 只查询2层以内的后代
-}
-```
-
-**层级操作符示例**：
-
-```json
-{
-    "param": {
-        "columns": ["team$caption", "salesAmount"],
-        "slice": [
-            {
-                "field": "team$id",
-                "op": "childrenOf",
-                "value": "T001"
-            }
-        ]
-    }
-}
-```
-
-**生成的 SQL**：
-```sql
-SELECT dim_team.caption, SUM(fact.sales_amount)
-FROM fact_team_sales fact
-LEFT JOIN team_closure closure ON fact.team_id = closure.child_id
-LEFT JOIN dim_team ON closure.child_id = dim_team.id
-WHERE closure.parent_id = 'T001'
-  AND closure.distance = 1
-GROUP BY dim_team.caption
-```
 
 ### 3.3 逻辑连接 (link)
 

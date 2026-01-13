@@ -172,6 +172,29 @@ Dimension tables can further relate to sub-dimension tables, forming multi-level
 
 Used for handling hierarchical structure data, such as organizational structure, product categories, etc. Implements efficient hierarchical queries through closure tables.
 
+### Vector Model
+
+Used for integration with vector databases (e.g., Milvus), supporting semantic similarity search.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      Vector Model Architecture               │
+│                                                              │
+│  ┌──────────────┐    Embedding    ┌──────────────┐          │
+│  │  Search Text  │  ───────────→   │Vector Database│          │
+│  │"sales analysis"│                │   (Milvus)    │          │
+│  └──────────────┘                 └──────────────┘          │
+│                                          ↓                   │
+│                                  Similarity Search Results   │
+│                                  (with _score field)         │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Features**:
+- Automatically converts text to vectors for semantic search
+- Supports `similar` (similarity search) and `hybrid` (hybrid search) operators
+- Vector field metadata automatically retrieved from Milvus
+
 ---
 
 ## Data Flow

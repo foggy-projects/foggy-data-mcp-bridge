@@ -116,11 +116,129 @@ For multi-level nested dimensions, use `.` to separate paths:
 
 #### Hierarchy Operators (Parent-Child Dimensions)
 
+For hierarchical queries on parent-child dimensions. See [Parent-Child Dimensions](./parent-child.md) for details.
+
 | Operator | Description | Includes Self | Example |
 |----------|-------------|---------------|---------|
 | `childrenOf` | Direct children | No | `{ "op": "childrenOf", "value": "T001" }` |
 | `descendantsOf` | All descendants | No | `{ "op": "descendantsOf", "value": "T001" }` |
 | `selfAndDescendantsOf` | Self and descendants | Yes | `{ "op": "selfAndDescendantsOf", "value": "T001" }` |
+
+**Hierarchy Depth Limit**:
+
+Use the `maxDepth` parameter to limit query depth:
+
+```json
+{
+    "field": "team$id",
+    "op": "descendantsOf",
+    "value": "T001",
+    "maxDepth": 2          // Only query descendants within 2 levels
+}
+```
+
+**Hierarchy Operator Example**:
+
+```json
+{
+    "param": {
+        "columns": ["team$caption", "salesAmount"],
+        "slice": [
+            {
+                "field": "team$id",
+                "op": "childrenOf",
+                "value": "T001"
+            }
+        ]
+    }
+}
+```
+
+**Generated SQL**:
+```sql
+SELECT dim_team.caption, SUM(fact.sales_amount)
+FROM fact_team_sales fact
+LEFT JOIN team_closure closure ON fact.team_id = closure.child_id
+LEFT JOIN dim_team ON closure.child_id = dim_team.id
+WHERE closure.parent_id = 'T001'
+  AND closure.distance = 1
+GROUP BY dim_team.caption
+```
+
+#### Vector Operators (Vector Models Only)
+
+For semantic similarity search on vector models. **Only vector fields (type=VECTOR) support these operators**.
+
+| Operator | Description | Example |
+|----------|-------------|---------|
+| `similar` | Similarity search | `{ "op": "similar", "value": { "text": "..." } }` |
+| `hybrid` | Hybrid search (vector + keyword) | `{ "op": "hybrid", "value": { "text": "...", "keyword": "..." } }` |
+
+**similar Parameters**:
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `text` | string | Yes* | Search text (auto-converted to vector) |
+| `vector` | float[] | Yes* | Direct vector input (alternative to text) |
+| `topK` | int | No | Number of results, default 10 |
+| `minScore` | float | No | Minimum similarity score (0-1) |
+| `groupBy` | string | No | Group by field for deduplication |
+| `radius` | float | No | Minimum score for range search |
+
+**hybrid Parameters**:
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `text` | string | Yes | Search text (auto-converted to vector) |
+| `keyword` | string | No | Keyword filter |
+| `topK` | int | No | Number of results, default 10 |
+| `vectorWeight` | float | No | Vector weight, default 0.7 |
+| `keywordWeight` | float | No | Keyword weight, default 0.3 |
+
+**Vector Search Example**:
+
+```json
+{
+    "param": {
+        "columns": ["docId", "title", "content", "_score"],
+        "slice": [
+            {
+                "field": "embedding",
+                "op": "similar",
+                "value": {
+                    "text": "sales performance analysis",
+                    "topK": 10,
+                    "minScore": 0.6
+                }
+            },
+            { "field": "category", "op": "=", "value": "report" }
+        ]
+    }
+}
+```
+
+**Hybrid Search Example**:
+
+```json
+{
+    "param": {
+        "columns": ["docId", "title", "_score"],
+        "slice": [
+            {
+                "field": "embedding",
+                "op": "hybrid",
+                "value": {
+                    "text": "sales analysis",
+                    "keyword": "report",
+                    "topK": 10
+                }
+            }
+        ]
+    }
+}
+```
+
+> Vector search results are sorted by similarity in descending order. The `_score` field indicates similarity (0-1).
 
 ### 3.3 Logical Connection (link)
 
