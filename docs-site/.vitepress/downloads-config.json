@@ -1,0 +1,29 @@
+{
+  "downloads": [
+    {
+      "source": "zh/dataset-model/tm-qm/tm-syntax.md",
+      "filename": "tm-syntax.md",
+      "title": "TM 语法手册"
+    },
+    {
+      "source": "zh/dataset-model/tm-qm/qm-syntax.md",
+      "filename": "qm-syntax.md",
+      "title": "QM 语法手册"
+    },
+    {
+      "source": "zh/dataset-model/tm-qm/query-dsl.md",
+      "filename": "query-dsl.md",
+      "title": "JSON 查询 DSL"
+    },
+    {
+      "source": "zh/dataset-model/tm-qm/calculated-fields.md",
+      "filename": "calculated-fields.md",
+      "title": "计算字段"
+    },
+    {
+      "source": "zh/dataset-model/tm-qm/parent-child.md",
+      "filename": "parent-child.md",
+      "title": "父子维度"
+    }
+  ]
+}

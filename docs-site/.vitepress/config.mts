@@ -5,7 +5,8 @@ export default defineConfig({
   description: 'Embedded semantic layer framework for AI-driven data analysis',
   base: '/foggy-data-mcp-bridge/',
   ignoreDeadLinks: [
-    /^https?:\/\/localhost/
+    /^https?:\/\/localhost/,
+    /api\//
   ],
 
   head: [
