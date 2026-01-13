@@ -68,6 +68,7 @@ curl http://localhost:7108/dev/tables/fact_order
 - **suggested_model_type**: 建议的模型类型（fact/dimension）
 - **suggested_model_name**: 建议的模型名称
 - **tm_template**: 自动生成的 TM 模板（可直接使用或调整）
+- **sample_data**: 表中的第一行数据，例如可以用来推断日期的格式等，写到description中
 
 ### 可选参数
 
@@ -87,15 +88,6 @@ WebFetch URL: http://localhost:7108/dev/tables/{tableName}
 Prompt: 提取表结构信息，包括列名、类型、主键、外键和 TM 模板
 ```
 
-### 禁用开发工具 API
-
-生产环境可通过配置禁用：
-```yaml
-foggy:
-  dev-tools:
-    enabled: false
-```
-
 ## 输出要求
 
 生成遵循以下结构的完整 TM 文件：
@@ -105,7 +97,6 @@ foggy:
  * {模型描述}
  * @description {详细描述}
  */
-import { dicts } from '../dicts.fsscript';
 
 export const model = {
     name: '{模型名称}Model',
@@ -149,6 +140,9 @@ export const model = {
 - **事实表**：以 `Fact` 为前缀（如 `FactSalesModel`）
 - **维度表**：以 `Dim` 为前缀（如 `DimCustomerModel`）
 
+## TM语法规范
+如果需要获取更多的tm语法规范，请参考[Foggy TM 语法规范](https://foggy-projects.github.io/foggy-data-mcp-bridge/zh/dataset-model/tm-qm/tm-syntax.html)
+
 ## 维度检测规则
 
 通过以下方式检测潜在维度：
@@ -163,7 +157,7 @@ export const model = {
 
 ## 维度复用最佳实践
 
-当维度被普遍复用（日期、客户、产品）时，建议使用维度构建器：
+绝大部分维度都是需要复用的，因此判断是维度时，需要构建维度构建器：
 
 ```javascript
 import { buildDateDim, buildCustomerDim, buildProductDim } from '../dimensions/common-dims.fsscript';

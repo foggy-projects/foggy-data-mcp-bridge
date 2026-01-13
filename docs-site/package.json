@@ -1,10 +1,11 @@
 {
   "name": "fsscript-docs",
   "version": "1.0.0",
+  "type": "module",
   "description": "FSScript Documentation Site",
   "scripts": {
     "dev": "vitepress dev",
-    "build": "vitepress build",
+    "build": "node scripts/copy-downloads.js && vitepress build",
     "preview": "vitepress preview"
   },
   "devDependencies": {
