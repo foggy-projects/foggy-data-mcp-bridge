@@ -1,0 +1,33 @@
+/**
+ * 商品语义搜索查询模型
+ *
+ * @caption 商品语义搜索
+ * @description 基于向量相似度的商品检索模型，支持自然语言查询
+ */
+const prod = loadTableModel('ProductSearchModel');
+
+export const queryModel = {
+    name: 'ProductSearchQueryModel',
+    caption: '商品语义搜索',
+    description: '基于向量相似度的商品检索，支持自然语言描述查找相似商品。使用 similar 操作符进行语义搜索。',
+    loader: 'v2',
+
+    model: prod,
+
+    columnGroups: [
+        {
+            caption: '商品信息',
+            items: [
+                { ref: prod.productId, ui: { fixed: 'left', width: 120 } },
+                { ref: prod.productName, ui: { width: 200 } },
+                { ref: prod.description, ui: { width: 400 } },
+                { ref: prod.category },
+                { ref: prod.brand },
+                { ref: prod.price },
+                { ref: prod.tags }
+            ]
+        }
+    ],
+
+    accesses: []
+};

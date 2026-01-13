@@ -1,6 +1,6 @@
 # dataset.query_model
 
-执行数据模型查询，支持过滤、排序、分组聚合、计算字段。
+执行数据模型查询，支持过滤、排序、分组聚合、计算字段，以及向量相似度检索。
 
 ## 字段规则
 
@@ -11,6 +11,7 @@
 | 维度 | `xxx$id`(查询/过滤), `xxx$caption`(展示) |
 | 父子维度 | `xxx$hierarchy$id`(含子节点汇总) |
 | 属性/度量 | 直接使用字段名 |
+| 向量字段 | 仅支持 `similar`/`hybrid` 操作符 |
 
 ### 父子维度 (Parent-Child Dimension)
 层级结构维度（如组织架构）额外支持 `$hierarchy$` 视角：
@@ -53,6 +54,53 @@
 | 空值 | `is null`, `is not null` (无需value) |
 | 区间 | `[]`, `[)`, `()`, `(]` (value为[start,end]) |
 | 层级 | `childrenOf`, `descendantsOf`, `selfAndDescendantsOf` |
+| 向量 | `similar`, `hybrid` (向量检索) |
+
+### 向量检索
+
+**仅向量字段（type=VECTOR）支持以下操作符**，普通字段不可使用。
+
+#### similar - 相似度搜索
+```json
+{
+  "field": "embedding",
+  "op": "similar",
+  "value": {
+    "text": "销售额分析",
+    "topK": 10,
+    "minScore": 0.6,
+    "groupBy": "category",
+    "radius": 0.3
+  }
+}
+```
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `text` | string | 搜索文本（自动转向量）|
+| `vector` | float[] | 直接传向量（与text二选一）|
+| `topK` | int | 返回条数，默认10 |
+| `minScore` | float | 最低相似度(0-1) |
+| `groupBy` | string | 按字段分组去重 |
+| `radius` | float | 范围搜索最低分数 |
+
+#### hybrid - 混合搜索
+向量相似度 + 关键词过滤的组合搜索：
+```json
+{
+  "field": "embedding",
+  "op": "hybrid",
+  "value": {
+    "text": "销售分析",
+    "keyword": "报告",
+    "topK": 10,
+    "vectorWeight": 0.7,
+    "keywordWeight": 0.3
+  }
+}
+```
+
+返回结果包含 `_score` 字段表示相似度(0-1)。
 
 ### orderBy (可选)
 ```json
@@ -79,7 +127,23 @@
 }
 ```
 
+**向量相似度检索**：
+```json
+{
+  "model": "DocumentSearchModel",
+  "payload": {
+    "columns": ["docId", "title", "content", "_score"],
+    "slice": [
+      {"field": "embedding", "op": "similar", "value": {"text": "销售业绩", "topK": 10}},
+      {"field": "category", "op": "=", "value": "report"}
+    ],
+    "limit": 10
+  }
+}
+```
+
 ## 最佳实践
 - 展示用`$caption`，查询用`$id`
 - 简单聚合用内联表达式，复杂计算用calculatedFields
-- 聚合或计算字段使用了聚合函数时orderBy字段必须在columns中
+- 聚合字段排序时orderBy字段必须在columns中
+- 向量检索：`similar`可与普通过滤组合，`hybrid`用于语义+关键词混合搜索

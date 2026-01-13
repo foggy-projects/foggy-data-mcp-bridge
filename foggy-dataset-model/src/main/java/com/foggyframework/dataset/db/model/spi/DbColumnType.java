@@ -70,6 +70,11 @@ public enum DbColumnType {
     BOOL("BOOL", Types.BOOLEAN, Boolean.class),
 
     /**
+     * 向量类型（用于向量数据库的 embedding 字段）
+     */
+    VECTOR("VECTOR", Types.ARRAY, float[].class),
+
+    /**
      * 未知类型（默认）
      */
     UNKNOWN("UNKNOWN", Types.OTHER, Object.class);

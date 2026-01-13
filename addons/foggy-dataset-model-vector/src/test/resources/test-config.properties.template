@@ -1,0 +1,39 @@
+# ============================================
+# Vector Module Integration Test Configuration
+# ============================================
+# Copy this file to test-config.properties and fill in your values.
+# test-config.properties is git-ignored for security.
+#
+# Usage:
+#   cp test-config.properties.template test-config.properties
+#   # Edit test-config.properties with your API keys
+# ============================================
+
+# Milvus Configuration
+# Docker: docker-compose up -d milvus (in foggy-dataset-demo/docker)
+milvus.host=localhost
+milvus.port=19530
+
+# Embedding Service Configuration
+# Supported types: openai, dashscope, ollama
+
+# Option 1: OpenAI
+embedding.type=openai
+embedding.baseUrl=https://api.openai.com/v1
+embedding.apiKey=sk-your-openai-api-key
+embedding.model=text-embedding-3-small
+embedding.dimensions=1536
+
+# Option 2: DashScope (Aliyun)
+#embedding.type=dashscope
+#embedding.baseUrl=https://dashscope.aliyuncs.com/compatible-mode/v1
+#embedding.apiKey=sk-your-dashscope-api-key
+#embedding.model=text-embedding-v3
+#embedding.dimensions=1024
+
+# Option 3: Ollama (Local)
+#embedding.type=ollama
+#embedding.baseUrl=http://localhost:11434/v1
+#embedding.apiKey=ollama
+#embedding.model=nomic-embed-text
+#embedding.dimensions=768
