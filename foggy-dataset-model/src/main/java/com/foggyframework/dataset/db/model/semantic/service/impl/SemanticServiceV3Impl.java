@@ -153,6 +153,11 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         // ========== 模型信息 ==========
         md.append("## 模型信息\n");
         md.append("- 表名: ").append(jdbcModel.getTableName()).append("\n");
+        // 只为非jdbc模型添加类型标识（jdbc是默认类型，不需要标注以节省token）
+        DbModelType modelType = jdbcModel.getModelType();
+        if (modelType != null && modelType != DbModelType.jdbc) {
+            md.append("- 类型: ").append(modelType.name()).append("\n");
+        }
         if (jdbcModel.getIdColumn() != null) {
             md.append("- 主键: ").append(jdbcModel.getIdColumn()).append("\n");
         }
@@ -402,8 +407,13 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             String alias = entry.getValue();
             QueryModel queryModel = modelMap.get(modelName);
             String caption = queryModel.getCaption() != null ? queryModel.getCaption() : modelName;
-            // 格式: 简称(模型名): 说明
-            md.append("- ").append(alias).append("(").append(modelName).append("): ").append(caption).append("\n");
+            // 只为非jdbc模型添加类型标识（jdbc是默认类型，不需要标注以节省token）
+            TableModel jdbcModel = queryModel.getJdbcModel();
+            DbModelType modelType = jdbcModel.getModelType();
+            String typeTag = (modelType != null && modelType != DbModelType.jdbc)
+                    ? " [" + modelType.name() + "]" : "";
+            // 格式: 简称(模型名) [类型]: 说明
+            md.append("- ").append(alias).append("(").append(modelName).append(")").append(typeTag).append(": ").append(caption).append("\n");
         }
         md.append("\n");
 
@@ -995,6 +1005,14 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
     private void processModelInfo(QueryModel queryModel, Map<String, Object> models) {
         Map<String, Object> modelInfo = new LinkedHashMap<>();
         modelInfo.put("name", queryModel.getCaption() != null ? queryModel.getCaption() : queryModel.getName());
+
+        // 只为非jdbc模型添加类型标识（jdbc是默认类型，不需要标注以节省token）
+        TableModel jdbcModel = queryModel.getJdbcModel();
+        DbModelType modelType = jdbcModel.getModelType();
+        if (modelType != null && modelType != DbModelType.jdbc) {
+            modelInfo.put("type", modelType.name());
+        }
+
         modelInfo.put("purpose", "数据查询和分析");
         modelInfo.put("scenarios", Arrays.asList("数据查询", "统计分析", "报表生成"));
         models.put(queryModel.getName(), modelInfo);
