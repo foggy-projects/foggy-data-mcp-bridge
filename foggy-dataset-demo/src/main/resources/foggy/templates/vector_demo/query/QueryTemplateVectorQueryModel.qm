@@ -1,0 +1,45 @@
+/**
+ * 查询模板向量存储 - 查询模型
+ *
+ * @caption 查询模板检索
+ * @description 通过语义相似度检索查询模板和指导文档
+ */
+const tm = loadTableModel('QueryTemplateVectorModel');
+
+export const queryModel = {
+    name: 'QueryTemplateVectorQueryModel',
+    caption: '查询模板检索',
+    description: '通过语义相似度检索查询模板，使用 ~ 操作符进行向量相似度查询',
+    loader: 'v2',
+
+    model: tm,
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { ref: tm.id, ui: { fixed: 'left', width: 100 } },
+                { ref: tm.content },
+                { ref: tm.templateType },
+                { ref: tm.modelName }
+            ]
+        },
+        {
+            caption: '元数据',
+            items: [
+                { ref: tm.tags },
+                { ref: tm.usageCount }
+            ]
+        },
+        {
+            caption: '检索结果',
+            items: [
+                { ref: tm.similarity }
+            ]
+        }
+    ],
+
+    orders: [
+        { name: 'similarity', order: 'desc' }
+    ]
+};

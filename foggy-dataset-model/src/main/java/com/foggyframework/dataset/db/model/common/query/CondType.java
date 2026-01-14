@@ -34,7 +34,10 @@ public enum CondType {
     RANGE_RR("()"),
 
     @ApiModelProperty("范围(]")
-    RANGE_RE("(]");
+    RANGE_RE("(]"),
+
+    @ApiModelProperty(value = "向量相似度查询", notes = "用于向量数据库的语义相似度检索")
+    SIMILAR("similar");
 
     private final String code;
 
