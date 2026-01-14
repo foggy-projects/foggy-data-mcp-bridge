@@ -2,6 +2,10 @@ package com.foggyframework.dataset.mcp.service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.foggyframework.bundle.BundleResource;
+import com.foggyframework.bundle.SystemBundlesContext;
+import com.foggyframework.dataset.db.model.spi.QueryModel;
+import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
 import com.foggyframework.dataset.mcp.config.McpProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.Resource;
@@ -14,7 +18,9 @@ import jakarta.annotation.PostConstruct;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -27,6 +33,8 @@ import java.util.Map;
 @Slf4j
 @Component
 public class ToolConfigLoader {
+    private final SystemBundlesContext systemBundlesContext;
+    private final QueryModelLoader queryModelLoader;
 
     private final McpProperties mcpProperties;
     private final ResourceLoader resourceLoader;
@@ -42,10 +50,12 @@ public class ToolConfigLoader {
      */
     private final Map<String, Map<String, Object>> schemaCache = new LinkedHashMap<>();
 
-    public ToolConfigLoader(McpProperties mcpProperties, ResourceLoader resourceLoader, ObjectMapper objectMapper) {
+    public ToolConfigLoader(McpProperties mcpProperties, ResourceLoader resourceLoader, ObjectMapper objectMapper, SystemBundlesContext systemBundlesContext, QueryModelLoader queryModelLoader) {
         this.mcpProperties = mcpProperties;
         this.resourceLoader = resourceLoader;
         this.objectMapper = objectMapper;
+        this.systemBundlesContext = systemBundlesContext;
+        this.queryModelLoader = queryModelLoader;
     }
 
     @PostConstruct
@@ -60,6 +70,10 @@ public class ToolConfigLoader {
         log.info("Loading tool configurations from classpath...");
         if (mcpProperties.getTools().isEmpty()) {
             loadDefaultConfigurations();
+        }
+        if (mcpProperties.getSemantic().getModelList() == null || mcpProperties.getSemantic().getModelList().isEmpty()) {
+            log.info("No semantic model configured in YAML, try add all models");
+            mcpProperties.getSemantic().setModelList(autoAllQmFiles());
         }
         for (McpProperties.ToolConfigItem item : mcpProperties.getTools()) {
             String toolName = item.getName();
@@ -205,5 +219,43 @@ public class ToolConfigLoader {
         schemaCache.clear();
         loadAllConfigurations();
         log.info("Tool configurations reloaded");
+    }
+
+    /**
+     * 查找所有 QM 文件
+     */
+    private List<String> autoAllQmFiles() {
+        List<BundleResource> result = new ArrayList<>();
+
+        try {
+            // 从所有 bundle 中查找 .qm 文件
+            systemBundlesContext.getBundleList().forEach(bundle -> {
+                try {
+                    BundleResource[] resources = bundle.findBundleResources("**/*.qm");
+                    if (resources != null) {
+                        result.addAll(java.util.Arrays.asList(resources));
+                    }
+                } catch (Exception e) {
+                    log.warn("从 bundle {} 查找 QM 文件时出错: {}", bundle.getName(), e.getMessage());
+                }
+            });
+        } catch (Exception e) {
+            log.warn("查找 QM 文件时出错: {}", e.getMessage());
+        }
+        List<QueryModel> qms = new ArrayList<>();
+        for (BundleResource qmFile : result) {
+            String path = qmFile.getResource().getDescription();
+            try {
+                qms.add(queryModelLoader.loadJdbcQueryModel(qmFile));
+                log.debug("QM 校验通过: {}", path);
+            } catch (Exception e) {
+                String errorMsg = String.format("QM [%s]: %s", path, e.getMessage());
+                log.error("QM 校验失败: {}", path, e);
+                if (log.isDebugEnabled()) {
+                    e.printStackTrace();
+                }
+            }
+        }
+        return qms.stream().map(QueryModel::getName).toList();
     }
 }
