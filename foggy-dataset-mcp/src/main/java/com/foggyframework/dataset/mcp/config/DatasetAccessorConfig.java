@@ -53,7 +53,7 @@ public class DatasetAccessorConfig {
      */
     @Bean
     @Primary
-    @ConditionalOnProperty(name = "foggy.mcp.dataset.access-mode", havingValue = "local")
+    @ConditionalOnProperty(name = "foggy.mcp.dataset.access-mode", havingValue = "local",matchIfMissing = true)
     public DatasetAccessor localDatasetAccessor(
             SemanticServiceResolver semanticServiceResolver,
             McpProperties mcpProperties) {
