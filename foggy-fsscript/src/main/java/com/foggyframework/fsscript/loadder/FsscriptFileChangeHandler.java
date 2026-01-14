@@ -1,7 +1,7 @@
 package com.foggyframework.fsscript.loadder;
 
 import com.foggyframework.core.utils.file.FileChangeListener;
-import com.foggyframework.core.utils.file.FileTracer;
+import com.foggyframework.core.utils.file.WatchServiceFileTracer;
 import com.foggyframework.fsscript.closure.file.ResourceFsscriptClosureDefinitionSpace;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
 import lombok.extern.slf4j.Slf4j;
@@ -13,12 +13,29 @@ import java.util.List;
 @Slf4j
 public class FsscriptFileChangeHandler implements FileChangeListener {
 
-    FileTracer fileTracer = new FileTracer(this);
+    /**
+     * 使用 WatchService 实现的文件监听器（替代轮询方式）
+     */
+    private final WatchServiceFileTracer watchServiceTracer = WatchServiceFileTracer.getInstance();
+
+    /**
+     * 保留旧的 FileTracer 作为回退方案（当 WatchService 不可用时）
+     */
+    private final com.foggyframework.core.utils.file.FileTracer legacyTracer;
 
     RootFsscriptLoader rootFsscriptLoader;
 
     public FsscriptFileChangeHandler(RootFsscriptLoader rootFsscriptLoader) {
         this.rootFsscriptLoader = rootFsscriptLoader;
+        // 只有当 WatchService 不可用时才使用旧的轮询方式
+        this.legacyTracer = watchServiceTracer.isAvailable() ? null
+                : new com.foggyframework.core.utils.file.FileTracer(this);
+
+        if (watchServiceTracer.isAvailable()) {
+            log.info("使用 WatchService 进行文件变化监听");
+        } else {
+            log.warn("WatchService 不可用，回退到轮询模式");
+        }
     }
 
 
@@ -53,6 +70,16 @@ public class FsscriptFileChangeHandler implements FileChangeListener {
     }
 
     public void addFile(File file) {
-        fileTracer.addFile(file);
+        if (file == null || !file.exists()) {
+            return;
+        }
+
+        if (watchServiceTracer.isAvailable()) {
+            // 使用 WatchService
+            watchServiceTracer.watchFile(file, this);
+        } else if (legacyTracer != null) {
+            // 回退到轮询方式
+            legacyTracer.addFile(file);
+        }
     }
 }

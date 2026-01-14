@@ -56,14 +56,36 @@ public class LocalDatasetAccessor implements DatasetAccessor {
         try {
             SemanticMetadataRequest request = new SemanticMetadataRequest();
 
-            // 从配置获取可用模型列表
-            // 这些模型由 mcp.semantic.model-list 配置指定
+            // 从配置获取可用模型列表（三态逻辑）
             McpProperties.SemanticConfig semanticConfig = mcpProperties.getSemantic();
-            List<String> availableModels = semanticConfig.getModelList();
+            List<String> availableModels;
+            Boolean useAllModels = semanticConfig.getUseAllModels();
+
+            if (Boolean.FALSE.equals(useAllModels)) {
+                // 显式禁用：返回空列表
+                log.debug("[Local] Model discovery explicitly disabled, traceId={}", traceId);
+                return RX.failB("模型发现已禁用（useAllModels=false）");
+            } else if (Boolean.TRUE.equals(useAllModels)) {
+                // 强制动态发现
+                availableModels = semanticServiceResolver.getAllModelNames();
+                log.debug("[Local] Dynamic model discovery (forced): found {} models, traceId={}", availableModels.size(), traceId);
+            } else {
+                // null：根据 model-list 自动推断
+                List<String> configuredModels = semanticConfig.getModelList();
+                if (configuredModels == null || configuredModels.isEmpty()) {
+                    // 未配置 model-list，使用动态发现
+                    availableModels = semanticServiceResolver.getAllModelNames();
+                    log.debug("[Local] Dynamic model discovery (auto): found {} models, traceId={}", availableModels.size(), traceId);
+                } else {
+                    // 使用静态配置
+                    availableModels = configuredModels;
+                    log.debug("[Local] Using configured model-list: {} models, traceId={}", availableModels.size(), traceId);
+                }
+            }
 
             if (availableModels == null || availableModels.isEmpty()) {
-                log.warn("[Local] No models configured in mcp.semantic.model-list, traceId={}", traceId);
-                return RX.failB("未配置可用的数据模型，请检查 foggy.mcp.semantic.model-list 配置");
+                log.warn("[Local] No models available, traceId={}", traceId);
+                return RX.failB("未找到可用的数据模型，请检查 foggy.mcp.semantic.model-list 配置或 QM 文件");
             }
 
             request.setQmModels(availableModels);
