@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StreamUtils;
 
 import jakarta.annotation.PostConstruct;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -18,7 +19,7 @@ import java.util.Map;
 
 /**
  * 工具配置加载器
- *
+ * <p>
  * 从classpath加载工具描述和JSON Schema：
  * - 描述文件 (*.md) -> 完整描述内容
  * - Schema文件 (*.json) -> 输入参数定义
@@ -57,7 +58,9 @@ public class ToolConfigLoader {
      */
     private void loadAllConfigurations() {
         log.info("Loading tool configurations from classpath...");
-
+        if (mcpProperties.getTools().isEmpty()) {
+            loadDefaultConfigurations();
+        }
         for (McpProperties.ToolConfigItem item : mcpProperties.getTools()) {
             String toolName = item.getName();
 
@@ -89,6 +92,41 @@ public class ToolConfigLoader {
     }
 
     /**
+     * 加载默认工具配置
+     */
+    private void loadDefaultConfigurations() {
+        log.info("No tools configured in YAML, loading default tools configuration");
+        mcpProperties.getTools().add(createToolConfig("dataset_nl.query", "classpath:/schemas/descriptions/dataset_nl_query.md", "classpath:/schemas/dataset_nl_query_schema.json", "NATURAL_LANGUAGE"));
+        mcpProperties.getTools().add(createToolConfig("dataset.get_metadata", "classpath:/schemas/descriptions/get_metadata.md", "classpath:/schemas/get_metadata_schema.json", "METADATA"));
+        mcpProperties.getTools().add(createToolConfig("dataset.describe_model_internal", "classpath:/schemas/descriptions/describe_model_internal.md", "classpath:/schemas/describe_model_internal_schema.json", "METADATA"));
+        mcpProperties.getTools().add(createToolConfig("dataset.query_model", "classpath:/schemas/descriptions/query_model_v3.md", "classpath:/schemas/query_model_v3_schema.json", "QUERY"));
+        mcpProperties.getTools().add(createToolConfig("chart.generate", "classpath:/schemas/descriptions/generate_chart.md", "classpath:/schemas/generate_chart_schema.json", "VISUALIZATION", false));
+        mcpProperties.getTools().add(createToolConfig("dataset.export_with_chart", "classpath:/schemas/descriptions/export_with_chart.md", "classpath:/schemas/export_with_chart_schema.json", "EXPORT"));
+        mcpProperties.getTools().add(createToolConfig("dataset.inspect_table", "classpath:/schemas/descriptions/inspect_table.md", "classpath:/schemas/inspect_table_schema.json", "ADMIN", false));
+        mcpProperties.getTools().add(createToolConfig("dataset.open_in_viewer", "classpath:/schemas/descriptions/open_in_viewer.md", "classpath:/schemas/open_in_viewer_schema.json", "EXPORT"));
+    }
+
+    /**
+     * 创建工具配置项
+     */
+    private McpProperties.ToolConfigItem createToolConfig(String name, String descriptionFile, String schemaFile, String category) {
+        return createToolConfig(name, descriptionFile, schemaFile, category, true);
+    }
+
+    /**
+     * 创建工具配置项
+     */
+    private McpProperties.ToolConfigItem createToolConfig(String name, String descriptionFile, String schemaFile, String category, boolean enabled) {
+        McpProperties.ToolConfigItem item = new McpProperties.ToolConfigItem();
+        item.setName(name);
+        item.setDescriptionFile(descriptionFile);
+        item.setSchemaFile(schemaFile);
+        item.setCategory(category);
+        item.setEnabled(enabled);
+        return item;
+    }
+
+    /**
      * 从classpath加载资源为字符串
      */
     private String loadResourceAsString(String resourcePath) throws IOException {
@@ -110,7 +148,8 @@ public class ToolConfigLoader {
             throw new IOException("Resource not found: " + resourcePath);
         }
         try (InputStream inputStream = resource.getInputStream()) {
-            return objectMapper.readValue(inputStream, new TypeReference<Map<String, Object>>() {});
+            return objectMapper.readValue(inputStream, new TypeReference<Map<String, Object>>() {
+            });
         }
     }
 
