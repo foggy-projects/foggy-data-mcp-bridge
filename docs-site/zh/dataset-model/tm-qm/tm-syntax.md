@@ -1,5 +1,7 @@
 # TM 语法手册
 
+<DownloadButton filename="tm-syntax.md" title="下载本文档" />
+
 TM（Table Model，表模型）用于定义数据库表的结构和关联关系。本文档详细介绍 TM 的完整语法规范。
 
 ## 1. 基本结构
@@ -31,7 +33,7 @@ export const model = {
 | `viewSql` | string | 否¹ | 视图SQL，与 tableName 二选一      |
 | `schema` | string | 否 | 数据库 Schema（跨 Schema 访问时使用） |
 | `idColumn` | string | 否 | 主键列名                       |
-| `type` | string | 否 | 模型类型，默认 `jdbc`、`mongo`     |
+| `type` | string | 否 | 模型类型，默认 `jdbc`、`mongo`、`vector` |
 | `deprecated` | boolean | 否 | 标记为废弃，默认 false             |
 
 > ¹ `tableName` 和 `viewSql` 二选一，优先使用 `tableName`
@@ -523,6 +525,7 @@ measures: [
 | `DAY` | `DATE` | 日期 | Date | 日期（yyyy-MM-dd） |
 | `BOOL` | `Boolean` | 布尔值 | Boolean | 是/否标志 |
 | `DICT` | - | 字典值 | Integer | 字典编码 |
+| `VECTOR` | - | 向量 | List\<Float\> | 向量检索字段 |
 
 ### 5.2 类型选择建议
 
@@ -1364,6 +1367,52 @@ templates/
     deprecated: true  // 前端配置时会显示废弃提示
 }
 ```
+
+---
+
+## 10. 向量模型
+
+向量模型用于与 Milvus 等向量数据库集成，支持语义相似度检索。
+
+### 10.1 基本结构
+
+```javascript
+export const model = {
+    name: 'DocumentSearchModel',
+    caption: '文档检索模型',
+    type: 'vector',                    // 指定为向量模型
+    tableName: 'documents',            // Milvus 集合名称
+
+    properties: [
+        { column: 'doc_id', caption: '文档ID', type: 'BIGINT' },
+        { column: 'title', caption: '标题', type: 'STRING' },
+        { column: 'content', caption: '内容', type: 'STRING' },
+        { column: 'category', caption: '分类', type: 'STRING' },
+        { column: 'embedding', caption: '向量', type: 'VECTOR' }  // 向量字段
+    ],
+
+    measures: []
+};
+```
+
+### 10.2 关键配置
+
+| 字段 | 说明 |
+|------|------|
+| `type: 'vector'` | 指定模型类型为向量模型 |
+| `tableName` | Milvus 集合名称 |
+| `type: 'VECTOR'` | 属性类型为向量字段 |
+
+### 10.3 向量字段元数据
+
+向量字段的维度（dimension）、索引类型（indexType）、度量类型（metricType）会自动从 Milvus 获取，无需在 TM 中手动配置。
+
+### 10.4 向量模型限制
+
+- 不支持维度关联（dimensions）
+- 不支持 JOIN 操作
+- 仅支持 `similar` 和 `hybrid` 操作符进行检索
+- 查询结果包含 `_score` 字段表示相似度
 
 ---
 

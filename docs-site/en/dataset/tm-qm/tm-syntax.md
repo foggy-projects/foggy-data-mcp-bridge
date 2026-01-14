@@ -31,7 +31,7 @@ export const model = {
 | `viewSql` | string | No¹ | View SQL, alternative to tableName |
 | `schema` | string | No | Database schema (for cross-schema access) |
 | `idColumn` | string | No | Primary key column name |
-| `type` | string | No | Model type, default `jdbc` or `mongo` |
+| `type` | string | No | Model type: `jdbc` (default), `mongo`, or `vector` |
 | `deprecated` | boolean | No | Mark as deprecated, default false |
 
 > ¹ `tableName` and `viewSql` are mutually exclusive, `tableName` takes precedence
@@ -523,6 +523,7 @@ measures: [
 | `DAY` | `DATE` | Date | Date | Date (yyyy-MM-dd) |
 | `BOOL` | `Boolean` | Boolean | Boolean | Yes/No flags |
 | `DICT` | - | Dictionary | Integer | Dictionary codes |
+| `VECTOR` | - | Vector embedding | float[] | Similarity search |
 
 ### 5.2 Type Selection Guidelines
 
@@ -1280,6 +1281,86 @@ Mark obsolete models or fields:
     deprecated: true  // Shows deprecation warning in frontend configuration
 }
 ```
+
+---
+
+## 10. Vector Models
+
+Vector models integrate with vector databases (e.g., Milvus) for semantic similarity search.
+
+### 10.1 Basic Vector Model
+
+```javascript
+// DocumentSearchModel.tm
+export const model = {
+    name: 'DocumentSearchModel',
+    caption: 'Document Search',
+    type: 'vector',                    // Model type must be 'vector'
+    tableName: 'documents',            // Milvus collection name
+
+    properties: [
+        {
+            column: 'doc_id',
+            caption: 'Document ID',
+            type: 'STRING'
+        },
+        {
+            column: 'title',
+            caption: 'Title',
+            type: 'STRING'
+        },
+        {
+            column: 'content',
+            caption: 'Content',
+            type: 'STRING'
+        },
+        {
+            column: 'category',
+            caption: 'Category',
+            type: 'STRING'
+        },
+        {
+            column: 'embedding',
+            caption: 'Vector',
+            type: 'VECTOR'             // Vector field type
+        }
+    ],
+
+    measures: []                       // Vector models typically have no measures
+};
+```
+
+### 10.2 Key Points
+
+| Field | Description |
+|-------|-------------|
+| `type` | Must be set to `vector` |
+| `tableName` | Corresponds to Milvus collection name |
+| `VECTOR` type | Field for vector embeddings, supports `similar` and `hybrid` operators |
+
+### 10.3 Query Example
+
+```json
+{
+    "param": {
+        "columns": ["doc_id", "title", "content", "_score"],
+        "slice": [
+            {
+                "field": "embedding",
+                "op": "similar",
+                "value": {
+                    "text": "sales analysis report",
+                    "topK": 10,
+                    "minScore": 0.6
+                }
+            }
+        ]
+    }
+}
+```
+
+> The `_score` field is automatically included in results, representing similarity (0-1).
+> See [Query DSL - Vector Operators](./query-dsl.md#vector-operators-vector-models-only) for complete syntax.
 
 ---
 

@@ -1,6 +1,6 @@
 # dataset.query_model
 
-执行数据模型查询，支持过滤、排序、分组聚合、计算字段。
+执行数据模型查询，支持过滤、排序、分组聚合、计算字段，以及向量相似度检索。
 
 ## 字段规则
 
@@ -11,6 +11,7 @@
 | 维度 | `xxx$id`(查询/过滤), `xxx$caption`(展示) |
 | 父子维度 | `xxx$hierarchy$id`(含子节点汇总) |
 | 属性/度量 | 直接使用字段名 |
+| 向量字段 | 仅支持 `similar`/`hybrid` 操作符 |
 
 ### 父子维度 (Parent-Child Dimension)
 层级结构维度（如组织架构）额外支持 `$hierarchy$` 视角：
@@ -81,6 +82,21 @@
     "columns": ["salesDate$caption", "sum(totalAmount) as totalSales"],
     "orderBy": [{"field": "totalSales", "dir": "DESC"}],
     "limit": 50
+  }
+}
+```
+
+**向量相似度检索**：
+```json
+{
+  "model": "DocumentSearchModel",
+  "payload": {
+    "columns": ["docId", "title", "content", "_score"],
+    "slice": [
+      {"field": "embedding", "op": "similar", "value": {"text": "销售业绩", "topK": 10}},
+      {"field": "category", "op": "=", "value": "report"}
+    ],
+    "limit": 10
   }
 }
 ```

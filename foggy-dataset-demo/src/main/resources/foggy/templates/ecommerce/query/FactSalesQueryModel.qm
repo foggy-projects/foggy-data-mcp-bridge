@@ -18,7 +18,7 @@ export const queryModel = {
         {
             caption: '订单明细信息',
             items: [
-                { ref: fs.orderId, ui: { fixed: 'left', width: 150 } },
+                { ref: fs.orderId },
                 { ref: fs.orderLineNo },
                 { ref: fs.orderStatus },
                 { ref: fs.paymentMethod }

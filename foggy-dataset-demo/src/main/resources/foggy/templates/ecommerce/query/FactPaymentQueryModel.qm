@@ -18,7 +18,7 @@ export const queryModel = {
         {
             caption: '支付信息',
             items: [
-                { ref: fp.paymentId, ui: { fixed: 'left', width: 150 } },
+                { ref: fp.paymentId },
                 { ref: fp.orderId },
                 { ref: fp.payMethod },
                 { ref: fp.payChannel },

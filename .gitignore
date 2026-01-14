@@ -61,6 +61,10 @@ logs/
 application-local.yml
 application-local.properties
 
+# Vector module test config (contains API keys)
+**/test-config.properties
+!**/test-config.properties.template
+
 # ====================
 # Temporary Files
 # ====================

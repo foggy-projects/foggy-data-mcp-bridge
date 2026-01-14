@@ -29,7 +29,6 @@ import java.util.*;
 @RestController
 @RequestMapping("/dev")
 @RequiredArgsConstructor
-@ConditionalOnBean(DataSource.class)
 @ConditionalOnProperty(name = "foggy.dev-tools.enabled", havingValue = "true", matchIfMissing = true)
 public class DevToolsController {
 
@@ -103,7 +102,8 @@ public class DevToolsController {
      * @param dataSourceName  数据源 Bean 名称（可选，默认 defaultDataSource）
      * @param includeIndexes  是否包含索引信息（默认 false）
      * @param includeForeignKeys 是否包含外键信息（默认 true）
-     * @return 表结构详情，包含 TM 生成建议
+     * @param includeSampleData 是否包含一条示例数据（默认 true）
+     * @return 表结构详情，包含 TM 生成建议和示例数据
      */
     @GetMapping("/tables/{tableName}")
     public ResponseEntity<Map<String, Object>> inspectTable(
@@ -111,14 +111,15 @@ public class DevToolsController {
             @RequestParam(required = false) String schema,
             @RequestParam(required = false, name = "datasource", defaultValue = "defaultDataSource") String dataSourceName,
             @RequestParam(required = false, defaultValue = "false") boolean includeIndexes,
-            @RequestParam(required = false, defaultValue = "true") boolean includeForeignKeys) {
+            @RequestParam(required = false, defaultValue = "true") boolean includeForeignKeys,
+            @RequestParam(required = false, defaultValue = "true") boolean includeSampleData) {
 
         log.info("Inspecting table: {}, schema: {}", tableName, schema);
 
         try {
             DataSource targetDataSource = resolveDataSource(dataSourceName);
             Map<String, Object> result = inspectTableInternal(
-                    targetDataSource, tableName, schema, includeIndexes, includeForeignKeys);
+                    targetDataSource, tableName, schema, includeIndexes, includeForeignKeys, includeSampleData);
             return ResponseEntity.ok(result);
         } catch (SQLException e) {
             log.error("Failed to inspect table: {}", tableName, e);
@@ -148,7 +149,7 @@ public class DevToolsController {
 
     private Map<String, Object> inspectTableInternal(DataSource targetDataSource, String tableName,
                                                       String schema, boolean includeIndexes,
-                                                      boolean includeForeignKeys) throws SQLException {
+                                                      boolean includeForeignKeys, boolean includeSampleData) throws SQLException {
         Map<String, Object> result = new LinkedHashMap<>();
 
         try (Connection conn = targetDataSource.getConnection()) {
@@ -300,6 +301,17 @@ public class DevToolsController {
             String modelType = inferModelType(tableName, foreignKeys.size(), columns);
             result.put("suggested_model_type", modelType);
             result.put("suggested_model_name", suggestModelName(tableName, modelType));
+
+            // 读取一条示例数据
+            if (includeSampleData) {
+                try {
+                    Map<String, Object> sampleData = fetchSampleData(conn, tableName, schema, columns);
+                    result.put("sample_data", sampleData);
+                } catch (SQLException e) {
+                    log.warn("Failed to fetch sample data for table: {}, error: {}", tableName, e.getMessage());
+                    result.put("sample_data_error", "Failed to fetch sample data: " + e.getMessage());
+                }
+            }
 
             // 生成 TM 模板预览
             result.put("tm_template", generateTmTemplate(result, modelType));
@@ -552,5 +564,139 @@ public class DevToolsController {
         sb.append("};\n");
 
         return sb.toString();
+    }
+
+    /**
+     * 读取表的一条示例数据
+     *
+     * @param conn    数据库连接
+     * @param tableName 表名
+     * @param schema  数据库 schema
+     * @param columns 表的列信息
+     * @return 包含一条示例数据的 Map，key 为列名，value 为数据值
+     * @throws SQLException 如果查询失败
+     */
+    private Map<String, Object> fetchSampleData(Connection conn, String tableName, String schema,
+                                                List<Map<String, Object>> columns) throws SQLException {
+        Map<String, Object> sampleData = new LinkedHashMap<>();
+        
+        // 构建查询 SQL，使用 LIMIT 1 确保只返回一条记录
+        String sql = buildSelectQuery(tableName, schema, columns);
+        
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    // 遍历所有列，获取数据值
+                    for (Map<String, Object> column : columns) {
+                        String columnName = (String) column.get("name");
+                        try {
+                            Object value = rs.getObject(columnName);
+                            
+                            // 处理特殊类型的数据
+                            if (value != null) {
+                                int jdbcType = (int) column.get("jdbc_type");
+                                String sqlType = (String) column.get("sql_type");
+                                value = formatValueForDisplay(value, jdbcType, sqlType);
+                            }
+                            
+                            sampleData.put(columnName, value);
+                        } catch (SQLException e) {
+                            // 如果某列无法读取，记录错误但继续处理其他列
+                            log.debug("Failed to read column {}: {}", columnName, e.getMessage());
+                            sampleData.put(columnName, "[读取失败: " + e.getMessage() + "]");
+                        }
+                    }
+                } else {
+                    // 表为空
+                    sampleData.put("message", "表为空，无数据");
+                }
+            }
+        }
+        
+        return sampleData;
+    }
+
+    /**
+     * 构建 SELECT 查询语句
+     */
+    private String buildSelectQuery(String tableName, String schema, List<Map<String, Object>> columns) {
+        StringBuilder sql = new StringBuilder("SELECT ");
+        
+        // 构建列名列表
+        List<String> columnNames = new ArrayList<>();
+        for (Map<String, Object> column : columns) {
+            String columnName = (String) column.get("name");
+            columnNames.add(escapeColumnName(columnName));
+        }
+        sql.append(String.join(", ", columnNames));
+        
+        // 构建表名（包含 schema）
+        sql.append(" FROM ");
+        if (schema != null && !schema.isEmpty()) {
+            sql.append(escapeIdentifier(schema)).append(".");
+        }
+        sql.append(escapeIdentifier(tableName));
+        
+        // 添加 LIMIT 1 限制
+        sql.append(" LIMIT 1");
+        
+        return sql.toString();
+    }
+
+    /**
+     * 转义列名（处理包含特殊字符的列名）
+     */
+    private String escapeColumnName(String columnName) {
+        // 如果列名包含空格、特殊字符或关键字，需要转义
+        if (columnName.matches(".*[ \\-\\+\\*\\/\\=\\(\\)\\[\\]{}<>!@#$%^&|`~].*")) {
+            return "\"" + columnName.replace("\"", "\"\"") + "\"";
+        }
+        return columnName;
+    }
+
+    /**
+     * 转义标识符（表名、schema名）
+     */
+    private String escapeIdentifier(String identifier) {
+        // 简单的转义逻辑，可以根据具体数据库调整
+        if (identifier.matches(".*[ \\-\\+\\*\\/\\=\\(\\)\\[\\]{}<>!@#$%^&|`~].*")) {
+            return "\"" + identifier.replace("\"", "\"\"") + "\"";
+        }
+        return identifier;
+    }
+
+    /**
+     * 格式化数据值以便显示
+     */
+    private Object formatValueForDisplay(Object value, int jdbcType, String sqlType) {
+        if (value == null) {
+            return null;
+        }
+        
+        // 处理大文本字段，截断过长的内容
+        if (value instanceof String) {
+            String strValue = (String) value;
+            if (strValue.length() > 100) {
+                return strValue.substring(0, 100) + "... [截断，原长: " + strValue.length() + " 字符]";
+            }
+        }
+        
+        // 处理二进制数据
+        if (value instanceof byte[]) {
+            byte[] bytes = (byte[]) value;
+            if (bytes.length > 50) {
+                return "[二进制数据，长度: " + bytes.length + " 字节]";
+            } else {
+                return "[二进制数据: " + bytes.length + " 字节]";
+            }
+        }
+        
+        // 处理日期时间类型
+        if (value instanceof java.sql.Date || value instanceof java.sql.Timestamp || 
+            value instanceof java.sql.Time) {
+            return value.toString();
+        }
+        
+        return value;
     }
 }

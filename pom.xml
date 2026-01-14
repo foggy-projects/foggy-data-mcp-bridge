@@ -53,6 +53,7 @@
         <module>addons/foggy-dataset-client</module>
         <module>addons/foggy-dataset-mongo</module>
         <module>addons/foggy-dataset-model-mongo</module>
+        <module>addons/foggy-dataset-model-vector</module>
         <module>addons/foggy-data-viewer</module>
         <module>addons/foggy-chart-storage-cloud</module>
         <module>addons/foggy-dataset-vector</module>

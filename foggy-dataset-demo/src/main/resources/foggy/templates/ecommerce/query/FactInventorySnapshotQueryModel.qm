@@ -18,7 +18,7 @@ export const queryModel = {
         {
             caption: '快照信息',
             items: [
-                { ref: fis.snapshotKey, ui: { fixed: 'left', width: 100 } },
+                { ref: fis.snapshotKey},
                 { ref: fis.createdAt }
             ]
         },

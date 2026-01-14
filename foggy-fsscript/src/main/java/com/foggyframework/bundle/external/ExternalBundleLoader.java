@@ -83,7 +83,7 @@ public class ExternalBundleLoader extends BundleLoader<ExternalBundleDefinition>
 
         File dir = new File(item.getPath());
         if (!dir.exists()) {
-            log.warn("外部Bundle[{}]路径不存在: {}，已跳过", item.getName(), item.getPath());
+            log.warn("外部Bundle[{}]路径不存在: {}，{}，已跳过", item.getName(), item.getPath(),dir.getAbsolutePath());
             return false;
         }
 
