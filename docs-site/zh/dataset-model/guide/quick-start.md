@@ -373,7 +373,7 @@ export const queryModel = {
         {
             caption: '订单信息',
             items: [
-                { name: 'orderId', ui: { fixed: 'left', width: 150 } },
+                { name: 'orderId' },
                 { name: 'orderStatus' },
                 { name: 'orderTime' }
             ]
