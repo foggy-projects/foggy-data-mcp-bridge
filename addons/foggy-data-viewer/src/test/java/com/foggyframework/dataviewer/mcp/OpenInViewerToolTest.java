@@ -51,7 +51,7 @@ class OpenInViewerToolTest {
         properties.setBaseUrl("http://localhost:8080/data-viewer");
         objectMapper = new ObjectMapper();
 
-        tool = new OpenInViewerTool(cacheService, constraintService, properties, objectMapper);
+        tool = new OpenInViewerTool(cacheService, constraintService, properties, objectMapper,8080);
         context = ToolExecutionContext.builder()
                 .traceId("test-trace-id")
                 .authorization("Bearer test-token")
