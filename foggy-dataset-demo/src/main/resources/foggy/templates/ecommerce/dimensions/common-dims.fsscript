@@ -1,0 +1,276 @@
+/**
+ * 通用维度构建函数
+ * 
+ * 用于在多个事实表之间复用维度定义，避免重复代码
+ */
+
+/**
+ * 构建日期维度
+ * @param {Object} options - 配置选项
+ * @param {string} options.name - 维度名称（如：'salesDate', 'orderDate'）
+ * @param {string} options.foreignKey - 外键列名（默认：'date_key'）
+ * @param {string} options.caption - 显示名称（默认：'日期'）
+ * @param {string} options.description - 描述（默认：'日期信息'）
+ * @param {string} options.contextPrefix - 上下文前缀，用于属性描述（如：'销售'、'订单'）
+ * @param {Array<string>} options.includeProperties - 包含的属性列表，默认包含所有常用属性
+ * @returns {Object} 日期维度定义
+ */
+export function buildDateDim(options = {}) {
+    const {
+        name = 'date',
+        foreignKey = 'date_key',
+        caption = '日期',
+        description = '日期信息',
+        contextPrefix = '',
+        includeProperties = ['year', 'quarter', 'month', 'month_name', 'day_of_week', 'is_weekend']
+    } = options;
+
+    const prefix = contextPrefix ? `${contextPrefix}的` : '';
+
+    const allProperties = {
+        year: { column: 'year', caption: '年', description: `${prefix}年份` },
+        quarter: { column: 'quarter', caption: '季度', description: `${prefix}季度（1-4）` },
+        month: { column: 'month', caption: '月', description: `${prefix}月份（1-12）` },
+        month_name: { column: 'month_name', caption: '月份名称', description: `${prefix}月份中文名（一月至十二月）` },
+        week_of_year: { column: 'week_of_year', caption: '年度周数', description: `${prefix}是一年中的第几周（1-53）` },
+        day_of_week: { column: 'day_of_week', caption: '周几', description: `${prefix}在周几（1=周一）` },
+        day_name: { column: 'day_name', caption: '星期名称', description: `${prefix}星期中文名（周一至周日）` },
+        is_weekend: { column: 'is_weekend', caption: '是否周末', description: `${prefix}是否在周末` },
+        is_holiday: { column: 'is_holiday', caption: '是否节假日', description: `${prefix}是否在节假日` }
+    };
+
+    const properties = includeProperties.map(prop => allProperties[prop]).filter(Boolean);
+
+    return {
+        name,
+        tableName: 'dim_date',
+        foreignKey,
+        primaryKey: 'date_key',
+        captionColumn: 'full_date',
+        caption,
+        description,
+        keyDescription: '日期主键，格式yyyyMMdd，如20240101',
+        properties
+    };
+}
+
+/**
+ * 构建客户维度
+ * @param {Object} options - 配置选项
+ * @param {string} options.foreignKey - 外键列名（默认：'customer_key'）
+ * @param {string} options.caption - 显示名称（默认：'客户'）
+ * @param {string} options.description - 描述（默认：'客户信息'）
+ * @param {string} options.contextPrefix - 上下文前缀，用于属性描述（如：'购买'、'下单'）
+ * @param {Array<string>} options.includeProperties - 包含的属性列表，默认包含所有常用属性
+ * @returns {Object} 客户维度定义
+ */
+export function buildCustomerDim(options = {}) {
+    const {
+        foreignKey = 'customer_key',
+        caption = '客户',
+        description = '客户信息',
+        contextPrefix = '',
+        includeProperties = ['customer_id', 'customer_type', 'gender', 'age_group', 'province', 'city', 'member_level']
+    } = options;
+
+    const prefix = contextPrefix ? `${contextPrefix}` : '客户';
+
+    const allProperties = {
+        customer_id: { column: 'customer_id', caption: '客户ID', description: `${prefix}唯一标识` },
+        customer_type: { column: 'customer_type', caption: '客户类型', description: `${prefix}类型：个人/企业` },
+        gender: { column: 'gender', caption: '性别', description: `${prefix}性别：男/女` },
+        age_group: { column: 'age_group', caption: '年龄段', description: `${prefix}年龄段：18-25/26-35/36-45/46+` },
+        province: { column: 'province', caption: '省份', description: `${prefix}所在省份` },
+        city: { column: 'city', caption: '城市', description: `${prefix}所在城市` },
+        member_level: { column: 'member_level', caption: '会员等级', description: `${prefix}会员等级：普通/银卡/金卡/钻石` }
+    };
+
+    const properties = includeProperties.map(prop => allProperties[prop]).filter(Boolean);
+
+    return {
+        name: 'customer',
+        tableName: 'dim_customer',
+        foreignKey,
+        primaryKey: 'customer_key',
+        captionColumn: 'customer_name',
+        caption,
+        description,
+        keyDescription: '客户代理键，自增整数',
+        properties
+    };
+}
+
+/**
+ * 构建商品维度
+ * @param {Object} options - 配置选项
+ * @param {string} options.foreignKey - 外键列名（默认：'product_key'）
+ * @param {string} options.caption - 显示名称（默认：'商品'）
+ * @param {string} options.description - 描述（默认：'商品信息'）
+ * @param {string} options.contextPrefix - 上下文前缀，用于属性描述（如：'销售'、'退货'）
+ * @param {Array<string>} options.includeProperties - 包含的属性列表，默认包含所有常用属性
+ * @returns {Object} 商品维度定义
+ */
+export function buildProductDim(options = {}) {
+    const {
+        foreignKey = 'product_key',
+        caption = '商品',
+        description = '商品信息',
+        contextPrefix = '',
+        includeProperties = ['product_id', 'category_id', 'category_name', 'sub_category_id', 'sub_category_name', 'brand', 'unit_price', 'unit_cost']
+    } = options;
+
+    const prefix = contextPrefix ? `${contextPrefix}` : '商品';
+
+    const allProperties = {
+        product_id: { column: 'product_id', caption: '商品ID', description: `${prefix}唯一标识` },
+        category_id: { column: 'category_id', caption: '一级品类ID', description: `${prefix}一级分类编码` },
+        category_name: { column: 'category_name', caption: '一级品类名称', description: `${prefix}分类名称` },
+        sub_category_id: { column: 'sub_category_id', caption: '二级品类ID', description: `${prefix}二级分类编码` },
+        sub_category_name: { column: 'sub_category_name', caption: '二级品类名称', description: `${prefix}二级分类名称` },
+        brand: { column: 'brand', caption: '品牌', description: `${prefix}品牌名称` },
+        unit_price: { column: 'unit_price', caption: '商品售价', description: `${prefix}标准售价`, type: 'MONEY' },
+        unit_cost: { column: 'unit_cost', caption: '商品成本', description: `${prefix}采购成本`, type: 'MONEY' }
+    };
+
+    const properties = includeProperties.map(prop => allProperties[prop]).filter(Boolean);
+
+    return {
+        name: 'product',
+        tableName: 'dim_product',
+        foreignKey,
+        primaryKey: 'product_key',
+        captionColumn: 'product_name',
+        caption,
+        description,
+        keyDescription: '商品代理键，自增整数',
+        properties
+    };
+}
+
+/**
+ * 构建门店维度
+ * @param {Object} options - 配置选项
+ * @param {string} options.foreignKey - 外键列名（默认：'store_key'）
+ * @param {string} options.caption - 显示名称（默认：'门店'）
+ * @param {string} options.description - 描述（默认：'门店信息'）
+ * @param {string} options.contextPrefix - 上下文前缀，用于属性描述（如：'销售'、'订单'）
+ * @param {Array<string>} options.includeProperties - 包含的属性列表，默认包含所有常用属性
+ * @returns {Object} 门店维度定义
+ */
+export function buildStoreDim(options = {}) {
+    const {
+        foreignKey = 'store_key',
+        caption = '门店',
+        description = '门店信息',
+        contextPrefix = '',
+        includeProperties = ['store_id', 'store_type', 'province', 'city']
+    } = options;
+
+    const prefix = contextPrefix ? `${contextPrefix}` : '门店';
+
+    const allProperties = {
+        store_id: { column: 'store_id', caption: '门店ID', description: `${prefix}唯一标识` },
+        store_type: { column: 'store_type', caption: '门店类型', description: `${prefix}类型：直营店/加盟店/旗舰店` },
+        province: { column: 'province', caption: '省份', description: `${prefix}所在省份` },
+        city: { column: 'city', caption: '城市', description: `${prefix}所在城市` },
+        manager_name: { column: 'manager_name', caption: '店长', description: `${prefix}负责人姓名` }
+    };
+
+    const properties = includeProperties.map(prop => allProperties[prop]).filter(Boolean);
+
+    return {
+        name: 'store',
+        tableName: 'dim_store',
+        foreignKey,
+        primaryKey: 'store_key',
+        captionColumn: 'store_name',
+        caption,
+        description,
+        keyDescription: '门店代理键，自增整数',
+        properties
+    };
+}
+
+/**
+ * 构建渠道维度
+ * @param {Object} options - 配置选项
+ * @param {string} options.foreignKey - 外键列名（默认：'channel_key'）
+ * @param {string} options.caption - 显示名称（默认：'渠道'）
+ * @param {string} options.description - 描述（默认：'渠道信息'）
+ * @param {string} options.contextPrefix - 上下文前缀，用于属性描述（如：'销售'、'订单'）
+ * @param {Array<string>} options.includeProperties - 包含的属性列表，默认包含所有常用属性
+ * @returns {Object} 渠道维度定义
+ */
+export function buildChannelDim(options = {}) {
+    const {
+        foreignKey = 'channel_key',
+        caption = '渠道',
+        description = '渠道信息',
+        contextPrefix = '',
+        includeProperties = ['channel_id', 'channel_type', 'platform']
+    } = options;
+
+    const prefix = contextPrefix ? `${contextPrefix}渠道` : '渠道';
+
+    const allProperties = {
+        channel_id: { column: 'channel_id', caption: '渠道ID', description: `${prefix}唯一标识` },
+        channel_type: { column: 'channel_type', caption: '渠道类型', description: `${prefix}类型：线上/线下` },
+        platform: { column: 'platform', caption: '平台', description: `${prefix}平台：淘宝/京东/线下门店` }
+    };
+
+    const properties = includeProperties.map(prop => allProperties[prop]).filter(Boolean);
+
+    return {
+        name: 'channel',
+        tableName: 'dim_channel',
+        foreignKey,
+        primaryKey: 'channel_key',
+        captionColumn: 'channel_name',
+        caption,
+        description,
+        keyDescription: '渠道代理键，自增整数',
+        properties
+    };
+}
+
+/**
+ * 构建促销维度
+ * @param {Object} options - 配置选项
+ * @param {string} options.foreignKey - 外键列名（默认：'promotion_key'）
+ * @param {string} options.caption - 显示名称（默认：'促销活动'）
+ * @param {string} options.description - 描述（默认：'促销活动信息'）
+ * @param {string} options.contextPrefix - 上下文前缀，用于属性描述（如：'订单'）
+ * @param {Array<string>} options.includeProperties - 包含的属性列表，默认包含所有常用属性
+ * @returns {Object} 促销维度定义
+ */
+export function buildPromotionDim(options = {}) {
+    const {
+        foreignKey = 'promotion_key',
+        caption = '促销活动',
+        description = '促销活动信息',
+        contextPrefix = '',
+        includeProperties = ['promotion_id', 'promotion_type', 'discount_rate']
+    } = options;
+
+    const prefix = contextPrefix ? `${contextPrefix}促销活动` : '促销活动';
+
+    const allProperties = {
+        promotion_id: { column: 'promotion_id', caption: '促销ID', description: `${prefix}唯一标识` },
+        promotion_type: { column: 'promotion_type', caption: '促销类型', description: `${prefix}类型：满减/折扣/赠品` },
+        discount_rate: { column: 'discount_rate', caption: '折扣率', description: `${prefix}折扣率，如0.8表示8折` }
+    };
+
+    const properties = includeProperties.map(prop => allProperties[prop]).filter(Boolean);
+
+    return {
+        name: 'promotion',
+        tableName: 'dim_promotion',
+        foreignKey,
+        primaryKey: 'promotion_key',
+        captionColumn: 'promotion_name',
+        caption,
+        description,
+        keyDescription: '促销活动代理键，自增整数',
+        properties
+    };
+}

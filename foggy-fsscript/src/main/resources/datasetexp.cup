@@ -144,6 +144,7 @@ terminal
     LPAREN,					// (
     RPAREN,					// )
     LBRACE,					// {
+    LBRACE_OBJ,				// { (object literal context - used in default args)
     RBRACE,					// }
     LSBRACE,					// [
     RSBRACE,					// ]
@@ -630,6 +631,10 @@ arg_list ::=
             RESULT = parser.factory.createListExp();
             RESULT.add(parser.factory.createDDDotListEl(r));
         :}
+    |   ID:id EQ value_expression:defaultValue {:
+            RESULT = parser.factory.createListExp();
+            RESULT.add(parser.factory.createDefaultArgExp(id, defaultValue));
+        :}
     |   arg_list:list COMMA expression_or_empty:e {:
             if(e==null){
                 e = parser.factory.createEmpty();
@@ -644,6 +649,10 @@ arg_list ::=
                 r = parser.factory.createDDDotListEl(r);
             }
             list.add(r);
+            RESULT = list;
+        :}
+    |   arg_list:list COMMA ID:id EQ value_expression:defaultValue {:
+            list.add(parser.factory.createDefaultArgExp(id, defaultValue));
             RESULT = list;
         :}
     ;
@@ -665,6 +674,9 @@ array ::=
 
 map ::=
 		LBRACE map_items:is RBRACE {:
+			RESULT = parser.factory.createMap(is);
+		:}
+	|	LBRACE_OBJ map_items:is RBRACE {:
 			RESULT = parser.factory.createMap(is);
 		:}
 	;

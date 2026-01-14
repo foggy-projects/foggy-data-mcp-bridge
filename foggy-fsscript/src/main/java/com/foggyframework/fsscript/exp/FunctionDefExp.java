@@ -122,6 +122,15 @@ public class FunctionDefExp extends AbstractExp<Exp> {
 //                        } else {
 //                            evaluator.setVar(name, null);
 //                        }
+                    }else if(e instanceof DefaultArgExp){
+                        // 处理带默认值的参数
+                        DefaultArgExp defArg = (DefaultArgExp) e;
+                        name = defArg.getParamName();
+                        if (value == null) {
+                            // 参数未传递或为null，使用默认值
+                            value = defArg.getDefaultValue().evalValue(evaluator);
+                        }
+                        evaluator.setVar(name, value);
                     }
                     i++;
                 }
@@ -162,6 +171,16 @@ public class FunctionDefExp extends AbstractExp<Exp> {
                         throw RX.throwB("没有"+ExpEvaluator._argumentsKey+"参数?");
                    }
 
+                }else if(e instanceof DefaultArgExp){
+                    // 处理带默认值的参数
+                    DefaultArgExp defArg = (DefaultArgExp) e;
+                    name = defArg.getParamName();
+                    Object value = evaluator.getVar(name);
+                    if (value == null) {
+                        // 使用默认值
+                        value = defArg.getDefaultValue().evalValue(evaluator);
+                    }
+                    mm.put(name, value);
                 }
                 i++;
             }

@@ -225,4 +225,13 @@ public interface ExpFactory {
      * @return ExpFunCall
      */
     Exp createExpFunCall(Exp funExp, ListExp args);
+
+    /**
+     * 创建带默认值的参数表达式
+     * 用于支持函数参数默认值语法，例如: function foo(options = {})
+     * @param paramName 参数名
+     * @param defaultValue 默认值表达式
+     * @return DefaultArgExp
+     */
+    Exp createDefaultArgExp(String paramName, Exp defaultValue);
 }
