@@ -172,6 +172,5 @@
 ## 最佳实践
 - 展示用`$caption`，查询用`$id`
 - 简单聚合用内联表达式，复杂计算用calculatedFields
-- **不要手动写 groupBy**，系统根据 columns 自动推断分组字段
 - orderBy/groupBy 使用 columns 中定义的别名（如 `year`）而非表达式
 - 向量检索：`similar`可与普通过滤组合，`hybrid`用于语义+关键词混合搜索

@@ -14,7 +14,6 @@ import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import com.foggyframework.mcp.spi.McpTool;
 import com.foggyframework.mcp.spi.ToolCategory;
 import com.foggyframework.mcp.spi.ToolExecutionContext;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.*;
@@ -29,13 +28,25 @@ import java.util.*;
  * 自动配置创建，不使用 @Component 注解，以确保只有在 MongoDB 可用时才加载。
  */
 @Slf4j
-@RequiredArgsConstructor
 public class OpenInViewerTool implements McpTool {
 
     private final QueryCacheService cacheService;
     private final QueryScopeConstraintService constraintService;
     private final DataViewerProperties properties;
     private final ObjectMapper objectMapper;
+    private final int serverPort;
+
+    public OpenInViewerTool(QueryCacheService cacheService,
+                            QueryScopeConstraintService constraintService,
+                            DataViewerProperties properties,
+                            ObjectMapper objectMapper,
+                            int serverPort) {
+        this.cacheService = cacheService;
+        this.constraintService = constraintService;
+        this.properties = properties;
+        this.objectMapper = objectMapper;
+        this.serverPort = serverPort;
+    }
 
     @Override
     public String getName() {
@@ -66,7 +77,7 @@ public class OpenInViewerTool implements McpTool {
         CachedQueryContext ctx = cacheService.cacheQuery(request, context.getAuthorization());
 
         // 构建响应
-        String viewerUrl = properties.getBaseUrl() + "/view/" + ctx.getQueryId();
+        String viewerUrl = getBaseUrl() + "/view/" + ctx.getQueryId();
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("viewerUrl", viewerUrl);
@@ -144,5 +155,16 @@ public class OpenInViewerTool implements McpTool {
         }
 
         return request;
+    }
+
+    /**
+     * 获取基础URL，如果未配置则使用默认值
+     */
+    private String getBaseUrl() {
+        String baseUrl = properties.getBaseUrl();
+        if (baseUrl != null && !baseUrl.isEmpty()) {
+            return baseUrl;
+        }
+        return String.format("http://localhost:%d/data-viewer", serverPort);
     }
 }

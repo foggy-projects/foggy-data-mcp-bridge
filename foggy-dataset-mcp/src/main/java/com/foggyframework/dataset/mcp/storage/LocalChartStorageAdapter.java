@@ -3,6 +3,7 @@ package com.foggyframework.dataset.mcp.storage;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -29,6 +30,9 @@ import java.util.concurrent.atomic.AtomicLong;
 public class LocalChartStorageAdapter implements ChartStorageAdapter {
 
     private final ChartStorageProperties properties;
+
+    @Value("${server.port:8080}")
+    private int serverPort;
 
     private Path storageDir;
 
@@ -155,8 +159,8 @@ public class LocalChartStorageAdapter implements ChartStorageAdapter {
             // 使用配置的 URL 前缀
             return urlPrefix.endsWith("/") ? urlPrefix + fileName : urlPrefix + "/" + fileName;
         }
-        // 默认使用相对路径，由 Controller 提供访问
-        return "/charts/" + fileName;
+        // 默认使用 http://localhost:{port}/charts
+        return String.format("http://localhost:%d/charts/%s", serverPort, fileName);
     }
 
     /**
