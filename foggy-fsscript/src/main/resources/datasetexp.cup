@@ -210,6 +210,7 @@ non terminal Exp
 	expression_return,
 	expression_result,
     export_expression,
+    arrow_body,
 
 	factor0,
 	factor,
@@ -504,6 +505,12 @@ function_def ::=
             RESULT = parser.factory.createFunctionDef(parser.getFcDefinition(),l,e);
         :}
 
+    |   LPAREN arg_list:e RPAREN NF arrow_body:v {:
+            // 箭头函数表达式体: (args) => expr
+            // 使用 arrow_body 避免语法冲突
+            RESULT = parser.factory.createFunctionDef(parser.getFcDefinition(),v,e);
+        :}
+
     |	LPAREN arg_list:e RPAREN {:
             RESULT = parser.factory.createUnresolvedFunCall("()",e,true);
         :}
@@ -629,6 +636,10 @@ export_expression ::=
         :}
     |   EXPORT var_expression:e{:
             RESULT = parser.factory.createExportDef(e);
+        :}
+    |   EXPORT function_def:f{:
+            // 支持 export function foo() {} 语法
+            RESULT = parser.factory.createExportDef(f);
         :}
 	;
 return_expression ::=
@@ -773,6 +784,22 @@ term4 ::=
                 RESULT = parser.factory.createFunctionDef(parser.getFcDefinition(),l,args);
             :}
 
+        |   unquoted_identifier:s NF arrow_body:v {:
+                // 单参数箭头函数表达式体: x => expr
+                // 使用 arrow_body 避免与嵌套箭头函数的冲突
+                List args = new ListExp(1);
+                args.add(s);
+                RESULT = parser.factory.createFunctionDef(parser.getFcDefinition(),v,args);
+            :}
+
+    ;
+
+// 箭头函数表达式体 - 不包含单参数箭头函数，避免解析歧义
+// 例如: x => y * 2 中的 y * 2 应该解析为表达式，而不是尝试匹配 y => ...
+arrow_body ::=
+        term4_logical:t {:
+            RESULT = t;
+        :}
     ;
 
 // 逻辑运算符 || 和 && （优先级高于三元运算符）

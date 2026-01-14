@@ -68,18 +68,51 @@ public abstract class PropertyProxySupport implements PropertyHolder, PropertyFu
                 return invoke1(proxyObject, "add", args);
             } else if (methodName.equals("filter")) {
                 // JavaScript filter() - 过滤数组
-                if (!(args[0] instanceof FsscriptFunction)) {
-                    throw RX.throwB("filter参数必须是函数");
-                }
-                FsscriptFunction predicate = (FsscriptFunction) args[0];
-                List result = new ArrayList();
-                for (Object o : ll) {
-                    Object r = predicate.executeFunction(evaluator, o);
-                    if (Boolean.TRUE.equals(r)) {
-                        result.add(o);
+                // 支持三种形式：
+                // 1. filter(fn) - 自定义函数
+                // 2. filter(Boolean) - 过滤掉 null/undefined/false 等假值
+                // 3. filter(java.util.function.Function) - Java Function 接口
+                Object arg0 = args[0];
+
+                // 处理 Boolean 特殊情况
+                if (arg0 == Boolean.class || "Boolean".equals(String.valueOf(arg0))) {
+                    List result = new ArrayList();
+                    for (Object o : ll) {
+                        if (isTruthy(o)) {
+                            result.add(o);
+                        }
                     }
+                    return new JsCommonInvokeResult(true, result);
                 }
-                return new JsCommonInvokeResult(true, result);
+
+                // 处理 FsscriptFunction（必须在 java.util.function.Function 之前检查，
+                // 因为 FsscriptFunction 也实现了 Function 接口）
+                if (arg0 instanceof FsscriptFunction) {
+                    FsscriptFunction predicate = (FsscriptFunction) arg0;
+                    List result = new ArrayList();
+                    for (Object o : ll) {
+                        Object r = predicate.executeFunction(evaluator, o);
+                        if (Boolean.TRUE.equals(r) || isTruthy(r)) {
+                            result.add(o);
+                        }
+                    }
+                    return new JsCommonInvokeResult(true, result);
+                }
+
+                // 处理 Java Function 接口
+                if (arg0 instanceof java.util.function.Function) {
+                    java.util.function.Function fn = (java.util.function.Function) arg0;
+                    List result = new ArrayList();
+                    for (Object o : ll) {
+                        Object r = fn.apply(o);
+                        if (Boolean.TRUE.equals(r) || isTruthy(r)) {
+                            result.add(o);
+                        }
+                    }
+                    return new JsCommonInvokeResult(true, result);
+                }
+
+                throw RX.throwB("filter参数必须是函数，实际类型: " + (arg0 == null ? "null" : arg0.getClass().getName()));
             } else if (methodName.equals("map")) {
                 if (!(args[0] instanceof FsscriptFunction)) {
                     throw RX.throwB("map参数必须是函数");
@@ -101,6 +134,37 @@ public abstract class PropertyProxySupport implements PropertyHolder, PropertyFu
             }
         }
         return null;
+    }
+
+    /**
+     * 判断值是否为"真值"（JavaScript truthy 语义）
+     * <p>在 JavaScript 中，以下值被视为假值（falsy）：
+     * <ul>
+     *   <li>null</li>
+     *   <li>undefined（在 Java 中对应 null）</li>
+     *   <li>false</li>
+     *   <li>0</li>
+     *   <li>空字符串 ""</li>
+     *   <li>NaN（在 Java 中为 Double.NaN）</li>
+     * </ul>
+     * 其他所有值都是真值（truthy）。
+     */
+    public static boolean isTruthy(Object value) {
+        if (value == null) {
+            return false;
+        }
+        if (value instanceof Boolean) {
+            return (Boolean) value;
+        }
+        if (value instanceof Number) {
+            double d = ((Number) value).doubleValue();
+            return d != 0 && !Double.isNaN(d);
+        }
+        if (value instanceof String) {
+            return !((String) value).isEmpty();
+        }
+        // 其他对象类型都视为 truthy
+        return true;
     }
 
     public static JsCommonInvokeResult invoke1(Object proxyObject, String methodName, Object[] args) {
