@@ -114,7 +114,7 @@ columnGroups: [
     {
         caption: '订单信息',
         items: [
-            { ref: fo.orderId, ui: { fixed: 'left', width: 150 } },
+            { ref: fo.orderId },
             { ref: fo.orderStatus }
         ]
     },
@@ -302,7 +302,7 @@ export const queryModel = {
         {
             caption: '订单信息',
             items: [
-                { ref: fo.orderId, ui: { fixed: 'left', width: 150 } },
+                { ref: fo.orderId },
                 { ref: fo.orderStatus },
                 { ref: fo.orderTime }
             ]
@@ -367,7 +367,7 @@ export const queryModel = {
         {
             caption: '订单信息',
             items: [
-                { ref: order.orderId, ui: { fixed: 'left' } },
+                { ref: order.orderId },
                 { ref: order.orderStatus },
                 { ref: order.totalAmount }
             ]

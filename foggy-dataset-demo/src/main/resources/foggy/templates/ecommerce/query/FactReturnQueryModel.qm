@@ -18,7 +18,7 @@ export const queryModel = {
         {
             caption: '退货信息',
             items: [
-                { ref: fr.returnId, ui: { fixed: 'left', width: 150 } },
+                { ref: fr.returnId },
                 { ref: fr.orderId },
                 { ref: fr.orderLineNo },
                 { ref: fr.returnReason },

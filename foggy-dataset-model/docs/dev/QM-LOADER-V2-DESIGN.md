@@ -48,7 +48,7 @@ export const queryModel = {
         {
             caption: '订单信息',
             items: [
-                { ref: fo.orderId, ui: { fixed: 'left', width: 150 } },
+                { ref: fo.orderId },
                 { ref: fo.orderStatus },
                 { ref: fo.orderTime }
             ]
