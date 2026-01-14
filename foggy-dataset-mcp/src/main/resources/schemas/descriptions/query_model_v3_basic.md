@@ -18,13 +18,24 @@
 ```json
 ["product$categoryName", "sum(salesAmount) as totalSales", "count(orderId) as orderCount"]
 ```
-聚合函数：`sum`、`avg`、`count`、`max`、`min`
+聚合函数：`sum`、`avg`、`count`、`max`、`min`、`group_concat`
 
 ### calculatedFields (可选)
 需要指定agg或复杂表达式时使用：
 ```json
 [{"name": "netAmount", "expression": "salesAmount - discountAmount", "agg": "SUM"}]
 ```
+
+**支持的函数**（函数名不区分大小写）：
+| 类型 | 函数 |
+|------|------|
+| 日期 | `DATE_FORMAT`, `STR_TO_DATE`, `DATE_ADD`, `DATE_SUB`, `DATEDIFF`, `TIMESTAMPDIFF`, `EXTRACT`, `YEAR`, `MONTH`, `DAY` |
+| 字符串 | `CONCAT`, `CONCAT_WS`, `SUBSTRING`, `LEFT`, `RIGHT`, `LPAD`, `RPAD`, `REPLACE`, `LOCATE` |
+| 空值 | `COALESCE`, `IFNULL`, `NVL`, `NULLIF` |
+| 条件 | `IF`, `CASE` |
+| 类型 | `CAST`, `CONVERT` |
+
+*常用数学函数如 ABS、ROUND、FLOOR、CEIL 等均支持*
 
 ### slice (可选)
 过滤条件：
