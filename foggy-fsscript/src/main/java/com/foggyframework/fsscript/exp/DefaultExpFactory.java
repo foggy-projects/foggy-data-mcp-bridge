@@ -507,6 +507,24 @@ public class DefaultExpFactory implements ExpFactory, ApplicationRunner, Disposa
         return new DefaultArgExp(paramName, defaultValue);
     }
 
+    @Override
+    public Exp createDestructureItem(String name, Exp defaultValue) {
+        return new DestructureItemExp(name, defaultValue);
+    }
+
+    @Override
+    public Exp createDestructurePattern(ListExp items, Exp sourceExp, String declarationType) {
+        List<DestructureItemExp> itemList = new ArrayList<>();
+        if (items != null) {
+            for (Object item : items) {
+                if (item instanceof DestructureItemExp) {
+                    itemList.add((DestructureItemExp) item);
+                }
+            }
+        }
+        return new DestructurePatternExp(itemList, sourceExp, declarationType);
+    }
+
 //    @Override
 //    public Exp createContinue() {
 //        return null;

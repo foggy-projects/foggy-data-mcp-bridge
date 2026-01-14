@@ -9,11 +9,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Stack;
 
-/* Note: When regenerating the parser, use -expect 2 to allow 2 shift/reduce conflicts:
+/* Note: When regenerating the parser, use -expect 3 to allow 3 shift/reduce conflicts:
    1. AT ID vs AT ID LPAREN - resolved by shifting (prefer function call)
    2. FUNCTION vs FUNCTION LPAREN - resolved by shifting (prefer function definition)
+   3. expression_or_empty vs destructure_pattern (empty) - resolved by shifting
 
-   Example: java -jar java-cup.jar -expect 2 datasetexp.cup
+   Example: java -jar java-cup.jar -expect 3 datasetexp.cup
 */
 
 parser code {:
@@ -145,6 +146,7 @@ terminal
     RPAREN,					// )
     LBRACE,					// {
     LBRACE_OBJ,				// { (object literal context - used in default args)
+    LBRACE_DESTR,			// { (destructure pattern context - after const/let/var)
     RBRACE,					// }
     LSBRACE,					// [
     RSBRACE,					// ]
@@ -267,7 +269,14 @@ non terminal Exp
 non terminal List
 	ncount_list,
 	caseList,
-	map_items;
+	map_items,
+	destructure_items;
+
+non terminal Exp
+	destructure_item;
+
+non terminal ListExp
+	destructure_pattern;
 
 non terminal ListExp
 	arg_list;
@@ -598,7 +607,17 @@ var_expression ::=
 	|	factor0:id EQ expression_or_empty:e{:
 			RESULT = parser.factory.createEqDef(id,e);
 		:}
-	
+	// 解构赋值支持: const { name, caption = 'default' } = options
+	|	CONST destructure_pattern:p EQ expression_or_empty:e {:
+			RESULT = parser.factory.createDestructurePattern(p, e, "const");
+		:}
+	|	LET destructure_pattern:p EQ expression_or_empty:e {:
+			RESULT = parser.factory.createDestructurePattern(p, e, "let");
+		:}
+	|	VAR destructure_pattern:p EQ expression_or_empty:e {:
+			RESULT = parser.factory.createDestructurePattern(p, e, "var");
+		:}
+
 	;
 
 export_expression ::=
@@ -1165,3 +1184,54 @@ property_identifier ::=
             RESULT = "from";
         :}
     ;
+
+/**
+ * 解构赋值模式: { name, caption = 'default' }
+ * 使用 LBRACE_DESTR 来区分解构模式和对象字面量
+ */
+destructure_pattern ::=
+		LBRACE_DESTR destructure_items:items RBRACE {:
+			ListExp list = parser.factory.createListExp();
+			if (items != null) {
+				for (Object item : items) {
+					list.add((Exp) item);
+				}
+			}
+			RESULT = list;
+		:}
+	|	LBRACE_DESTR RBRACE {:
+			RESULT = parser.factory.createListExp();
+		:}
+	;
+
+/**
+ * 解构项列表: name, caption = 'default', ...
+ * 使用右递归避免 LALR lookahead 冲突
+ */
+destructure_items ::=
+		destructure_item:item {:
+			List<Exp> list = new ArrayList<>();
+			list.add(item);
+			RESULT = list;
+		:}
+	|	destructure_item:item COMMA destructure_items:rest {:
+			List<Exp> list = new ArrayList<>();
+			list.add(item);
+			list.addAll(rest);
+			RESULT = list;
+		:}
+	;
+
+/**
+ * 单个解构项:
+ * - name           (简单解构)
+ * - name = default (带默认值)
+ */
+destructure_item ::=
+		ID:name {:
+			RESULT = parser.factory.createDestructureItem(name, null);
+		:}
+	|	ID:name EQ value_expression:defaultValue {:
+			RESULT = parser.factory.createDestructureItem(name, defaultValue);
+		:}
+	;

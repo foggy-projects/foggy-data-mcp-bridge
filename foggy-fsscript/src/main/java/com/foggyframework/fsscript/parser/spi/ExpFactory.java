@@ -234,4 +234,23 @@ public interface ExpFactory {
      * @return DefaultArgExp
      */
     Exp createDefaultArgExp(String paramName, Exp defaultValue);
+
+    /**
+     * 创建解构赋值项
+     * 用于支持解构语法中的单个项，例如: { name = 'default' } 中的 name = 'default'
+     * @param name 属性名/变量名
+     * @param defaultValue 默认值表达式（可为 null）
+     * @return DestructureItemExp
+     */
+    Exp createDestructureItem(String name, Exp defaultValue);
+
+    /**
+     * 创建解构赋值模式表达式
+     * 用于支持 JavaScript 风格的解构语法：const { name, caption = 'default' } = options
+     * @param items 解构项列表（ListExp 类型）
+     * @param sourceExp 源表达式（= 右边的表达式）
+     * @param declarationType 变量声明类型（var/let/const 或 null）
+     * @return DestructurePatternExp
+     */
+    Exp createDestructurePattern(ListExp items, Exp sourceExp, String declarationType);
 }

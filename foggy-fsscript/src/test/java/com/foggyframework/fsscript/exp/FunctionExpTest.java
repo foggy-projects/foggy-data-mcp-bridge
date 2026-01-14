@@ -189,4 +189,48 @@ public class FunctionExpTest {
         Assert.assertEquals("传递的参数应该覆盖默认值", 42, result9);
     }
 
+    @Test
+    public void destructuringAssignmentTest() {
+        // 测试1：简单解构赋值
+        String expStr1 = "var options = { name: 'test', value: 42 }; const { name, value } = options; export name; export value;";
+        Exp exp1 = new ExpParser().compileEl(expStr1);
+        ExpEvaluator ee1 = DefaultExpEvaluator.newInstance(appCtx);
+        exp1.evalValue(ee1);
+        Assert.assertEquals("test", ee1.getExportMap().get("name"));
+        Assert.assertEquals(42, ee1.getExportMap().get("value"));
+
+        // 测试2：解构赋值带默认值
+        String expStr2 = "var options = { name: 'hello' }; const { name, caption = 'default caption' } = options; export name; export caption;";
+        Exp exp2 = new ExpParser().compileEl(expStr2);
+        ExpEvaluator ee2 = DefaultExpEvaluator.newInstance(appCtx);
+        exp2.evalValue(ee2);
+        Assert.assertEquals("hello", ee2.getExportMap().get("name"));
+        Assert.assertEquals("default caption", ee2.getExportMap().get("caption"));
+
+        // 测试3：多个带默认值的解构
+        String expStr3 = "var options = {}; const { name = 'date', foreignKey = 'date_key', caption = '日期' } = options; export name; export foreignKey; export caption;";
+        Exp exp3 = new ExpParser().compileEl(expStr3);
+        ExpEvaluator ee3 = DefaultExpEvaluator.newInstance(appCtx);
+        exp3.evalValue(ee3);
+        Assert.assertEquals("date", ee3.getExportMap().get("name"));
+        Assert.assertEquals("date_key", ee3.getExportMap().get("foreignKey"));
+        Assert.assertEquals("日期", ee3.getExportMap().get("caption"));
+
+        // 测试4：let 解构赋值
+        String expStr4 = "var obj = { x: 1, y: 2 }; let { x, y } = obj; export x; export y;";
+        Exp exp4 = new ExpParser().compileEl(expStr4);
+        ExpEvaluator ee4 = DefaultExpEvaluator.newInstance(appCtx);
+        exp4.evalValue(ee4);
+        Assert.assertEquals(1, ee4.getExportMap().get("x"));
+        Assert.assertEquals(2, ee4.getExportMap().get("y"));
+
+        // 测试5：var 解构赋值
+        String expStr5 = "var config = { host: 'localhost', port: 8080 }; var { host, port = 3000 } = config; export host; export port;";
+        Exp exp5 = new ExpParser().compileEl(expStr5);
+        ExpEvaluator ee5 = DefaultExpEvaluator.newInstance(appCtx);
+        exp5.evalValue(ee5);
+        Assert.assertEquals("localhost", ee5.getExportMap().get("host"));
+        Assert.assertEquals(8080, ee5.getExportMap().get("port"));
+    }
+
 }

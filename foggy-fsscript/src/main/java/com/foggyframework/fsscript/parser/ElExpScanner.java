@@ -354,6 +354,7 @@ public class ElExpScanner implements BaseScanner {
             case ExpSymbols.THIS:
             case ExpSymbols.LBRACE:      // { 开始新的代码块或对象
             case ExpSymbols.LBRACE_OBJ:  // { 对象字面量（在函数参数默认值中）
+            case ExpSymbols.LBRACE_DESTR: // { 解构模式（在 const/let/var 后）
             case ExpSymbols.LSBRACE:     // [ 开始新的数组（注意：也可能是下标访问）
             case ExpSymbols.AT:          // @ Spring Bean
             case ExpSymbols.NO:          // # 请求属性
@@ -477,6 +478,14 @@ public class ElExpScanner implements BaseScanner {
         // 如果是，发出 LBRACE_OBJ 表示这是一个对象字面量
         if (functionArgListDepth > 0 && previousSymbol == ExpSymbols.EQ) {
             return makeToken(ExpSymbols.LBRACE_OBJ, "{");
+        }
+
+        // 检查是否是解构赋值上下文: const { ... } = / let { ... } = / var { ... } =
+        // 如果前一个 token 是 CONST/LET/VAR，发出 LBRACE_DESTR 表示这是解构模式
+        if (previousSymbol == ExpSymbols.CONST
+                || previousSymbol == ExpSymbols.LET
+                || previousSymbol == ExpSymbols.VAR) {
+            return makeToken(ExpSymbols.LBRACE_DESTR, "{");
         }
 
         return makeToken(ExpSymbols.LBRACE, "{");
