@@ -28,16 +28,20 @@
 ```
 聚合函数：`sum`、`avg`、`count`、`max`、`min`、`group_concat`
 
+**重要**：
+- 当使用聚合表达式后，系统自动推断 groupBy，通常无需手动指定
+- columns 仅支持简单的 `agg(field) as alias`，复杂计算用 calculatedFields
+
 ### calculatedFields (可选)
 需要指定agg或复杂表达式时使用：
 ```json
 [{"name": "netAmount", "expression": "salesAmount - discountAmount", "agg": "SUM"}]
 ```
 
-**支持的函数**（函数名不区分大小写）：
+**支持的函数**（函数名不区分大小写，使用函数调用语法如 `YEAR(date)` 而非 SQL 语法 `EXTRACT(YEAR FROM date)`）：
 | 类型 | 函数 |
 |------|------|
-| 日期 | `DATE_FORMAT`, `STR_TO_DATE`, `DATE_ADD`, `DATE_SUB`, `DATEDIFF`, `TIMESTAMPDIFF`, `EXTRACT`, `YEAR`, `MONTH`, `DAY` |
+| 日期 | `YEAR(date)`, `MONTH(date)`, `DAY(date)`, `DATE_FORMAT`, `STR_TO_DATE`, `DATE_ADD`, `DATE_SUB`, `DATEDIFF`, `TIMESTAMPDIFF` |
 | 字符串 | `CONCAT`, `CONCAT_WS`, `SUBSTRING`, `LEFT`, `RIGHT`, `LPAD`, `RPAD`, `REPLACE`, `LOCATE` |
 | 空值 | `COALESCE`, `IFNULL`, `NVL`, `NULLIF` |
 | 条件 | `IF`, `CASE` |
@@ -117,7 +121,7 @@
 ```json
 [{"field": "totalSales", "dir": "DESC"}]
 ```
-注意：聚合或计算字段使用了聚合函数时orderBy字段必须在columns中
+**使用 columns 中定义的别名**，如 `year` 而非 `YEAR(createdAt)`
 
 ### 分页
 - `start`: 起始行(从0开始)
