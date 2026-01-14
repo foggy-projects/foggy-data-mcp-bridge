@@ -87,7 +87,20 @@
 }
 ```
 
+**按年月统计**：
+```json
+{
+  "model": "ProductModel",
+  "payload": {
+    "columns": ["YEAR(createdAt) as year", "MONTH(createdAt) as month", "count(productKey) as cnt"],
+    "orderBy": [{"field": "year"}, {"field": "month"}],
+    "limit": 100
+  }
+}
+```
+
 ## 最佳实践
 - 展示用`$caption`，查询用`$id`
 - 简单聚合用内联表达式，复杂计算用calculatedFields
-- 聚合字段排序时orderBy字段必须在columns中
+- **不要手动写 groupBy**，系统根据 columns 自动推断分组字段
+- orderBy/groupBy 使用 columns 中定义的别名（如 `year`）而非表达式
