@@ -84,6 +84,12 @@ public class ExpScanner extends ElExpScanner {
 	}
 
 	@Override
+	protected boolean skipASI() {
+		// ExpScanner 用于解析模板字符串内容，不需要 ASI (自动分号插入) 逻辑
+		return true;
+	}
+
+	@Override
 	public Symbol next_token1() throws Exception {
 		StringBuilder id ;
 
@@ -95,7 +101,7 @@ public class ExpScanner extends ElExpScanner {
 			id = new StringBuilder();
 			while (true) {
 				if (nextChar == '$' && next() == '{') {
-					// 鐩村埌鍑虹幇'${'
+					// 直到出现'${'
 					inDollar = true;
 					return makeString(id.toString());
 				}

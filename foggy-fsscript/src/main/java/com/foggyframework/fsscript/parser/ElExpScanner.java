@@ -295,6 +295,15 @@ public class ElExpScanner implements BaseScanner {
     }
 
     /**
+     * 子类可覆盖此方法来禁用 ASI (自动分号插入) 逻辑。
+     * 例如 ExpScanner 用于解析模板字符串内容时不需要 ASI。
+     * @return true 表示跳过 ASI 逻辑，默认返回 false
+     */
+    protected boolean skipASI() {
+        return false;
+    }
+
+    /**
      * 判断前一个 token 是否可以结束语句
      * 这些 token 后面如果遇到换行且下一个 token 不能继续语句，则需要插入分号
      */
@@ -681,6 +690,11 @@ public class ElExpScanner implements BaseScanner {
             return symbol;
         }
 
+        // 允许子类跳过所有 ASI 和 auto-fix 逻辑（如 ExpScanner 用于模板字符串解析）
+        if (skipASI()) {
+            return symbol;
+        }
+
         /**
          * ASI (Automatic Semicolon Insertion) 核心逻辑
          * 条件：
@@ -750,10 +764,20 @@ public class ElExpScanner implements BaseScanner {
             return makeSymbol(ExpSymbols.NCOUNT, "auto fix;");
         } else if (symbol.sym == ExpSymbols.FUNCTION) {
             ncountFixCtx.startFunction();
-        } else if (symbol.sym == ExpSymbols.LBRACE) {
-            ncountFixCtx.add();
+        } else if (symbol.sym == ExpSymbols.LBRACE
+                || symbol.sym == ExpSymbols.LBRACE_OBJ
+                || symbol.sym == ExpSymbols.LBRACE_DESTR) {
+            // 同时追踪所有类型的左花括号：
+            // - LBRACE: 代码块 {}
+            // - LBRACE_OBJ: 对象字面量 {}
+            // - LBRACE_DESTR: 解构赋值 const { ... } =
+            // 但排除函数参数列表中的花括号（如 options = {}）
+            if (functionArgListDepth == 0) {
+                ncountFixCtx.add();
+            }
         } else if (symbol.sym == ExpSymbols.RBRACE) {
-            if (ncountFixCtx.remove() == 0) {
+            // 只有不在函数参数列表内时才检查是否函数结束
+            if (functionArgListDepth == 0 && ncountFixCtx.remove() == 0) {
                 //补下;号
                 tmpSymbol = makeSymbol(ExpSymbols.NCOUNT, "auto fix;");
                 return symbol;

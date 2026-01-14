@@ -21,11 +21,11 @@ import java.util.Map;
 @RunWith(SpringRunner.class)
 @SpringBootTest(classes = FoggyFrameworkFsscriptTestApplication.class)
 @Slf4j
-public class DotExpTest {
+ class DotExpTest {
     @Resource
     ApplicationContext appCtx;
     @Test
-    public void evalValue() {
+     void evalValue() {
         Fsscript fScript = FileFsscriptLoader.getInstance().findLoadFsscript("classpath:/com/foggyframework/fsscript/exp/dot.fsscript");
 
         ExpEvaluator ee = DefaultExpEvaluator.newInstance(appCtx);
