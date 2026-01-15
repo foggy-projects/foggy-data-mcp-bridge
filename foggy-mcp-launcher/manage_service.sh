@@ -4,7 +4,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-JAR_NAME="foggy-mcp-launcher-8.1.1-beta.jar"
+JAR_NAME="foggy-mcp-launcher-8.1.2.beta.jar"
 JAR_PATH="$SCRIPT_DIR/target/$JAR_NAME"
 LOG_DIR="$SCRIPT_DIR/logs"
 
