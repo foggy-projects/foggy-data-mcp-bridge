@@ -26,7 +26,7 @@ import java.util.function.Consumer;
 
 @SpringBootTest(classes = FoggyFrameworkFsscriptTestApplication.class)
 @Slf4j
-class FromBatchBugFix {
+class FromBatchBugFixTest {
 
     @Autowired
     ApplicationContext appCtx;

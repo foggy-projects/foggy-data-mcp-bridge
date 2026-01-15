@@ -17,7 +17,7 @@ import java.util.concurrent.ThreadLocalRandom;
 
 @SpringBootTest(classes = FoggyFrameworkFsscriptTestApplication.class)
 @Slf4j
-public class BugFix1 {
+public class BugFix1Test {
     @Autowired
     ApplicationContext appCtx;
 
