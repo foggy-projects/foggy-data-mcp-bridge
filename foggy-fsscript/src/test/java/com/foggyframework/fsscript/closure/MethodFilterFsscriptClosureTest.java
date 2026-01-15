@@ -1,10 +1,8 @@
 package com.foggyframework.fsscript.closure;
 
 import com.foggyframework.fsscript.DefaultExpEvaluator;
-import org.junit.Assert;
-import org.junit.Test;
-
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 public class MethodFilterFsscriptClosureTest {
 
@@ -19,6 +17,6 @@ public class MethodFilterFsscriptClosureTest {
         ee.pushFsscriptClosure(simple);
 
         MethodFilterFsscriptClosure c=  ee.getContext(MethodFilterFsscriptClosure.class);
-        Assert.assertEquals(c.getArgByName("a"),"a1");
+        Assertions.assertEquals(c.getArgByName("a"),"a1");
     }
 }

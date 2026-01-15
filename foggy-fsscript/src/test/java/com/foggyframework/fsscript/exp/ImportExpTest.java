@@ -5,21 +5,18 @@ import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.Assert;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
-import org.springframework.test.context.junit4.SpringRunner;
 
-import jakarta.annotation.Resource;
 import java.util.Map;
 
-@RunWith(SpringRunner.class)
 @SpringBootTest(classes = FoggyFrameworkFsscriptTestApplication.class)
 public class ImportExpTest {
 
-    @Resource
+    @Autowired
     ApplicationContext appCtx;
 
     @Test
@@ -31,7 +28,7 @@ public class ImportExpTest {
         ExpEvaluator ee = fScript.newInstance(appCtx);
         fScript.eval(ee);
 
-        Assert.assertEquals(2,ee.getCurrentFsscriptClosure().getVar("bb"));
+        Assertions.assertEquals(2,ee.getCurrentFsscriptClosure().getVar("bb"));
 
 //      Map mm = (Map) ee.getCurrentFsscriptClosure().getVar("T");
 //
@@ -52,18 +49,18 @@ public class ImportExpTest {
         fScript.eval(ee);
 
         // 验证通过命名空间访问导出的变量
-        Assert.assertEquals(1, ee.getCurrentFsscriptClosure().getVar("testD"));
-        Assert.assertEquals(2, ee.getCurrentFsscriptClosure().getVar("testB"));
-        Assert.assertEquals(2, ee.getCurrentFsscriptClosure().getVar("testCC"));
+        Assertions.assertEquals(1, ee.getCurrentFsscriptClosure().getVar("testD"));
+        Assertions.assertEquals(2, ee.getCurrentFsscriptClosure().getVar("testB"));
+        Assertions.assertEquals(2, ee.getCurrentFsscriptClosure().getVar("testCC"));
 
         // 验证通过命名空间调用导出的函数
-        Assert.assertEquals(3, ee.getCurrentFsscriptClosure().getVar("testXxx"));
+        Assertions.assertEquals(3, ee.getCurrentFsscriptClosure().getVar("testXxx"));
 
         // 验证通过命名空间访问默认导出
         Map defaultExport = (Map) ee.getCurrentFsscriptClosure().getVar("testDefault");
-        Assert.assertNotNull(defaultExport);
-        Assert.assertEquals(123, defaultExport.get("XX2"));
-        Assert.assertEquals(1111, defaultExport.get("BB2"));
+        Assertions.assertNotNull(defaultExport);
+        Assertions.assertEquals(123, defaultExport.get("XX2"));
+        Assertions.assertEquals(1111, defaultExport.get("BB2"));
     }
 
 

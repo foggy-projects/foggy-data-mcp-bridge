@@ -7,22 +7,19 @@ import com.foggyframework.fsscript.parser.ExpParser;
 import com.foggyframework.fsscript.parser.spi.Exp;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
-import org.junit.Assert;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
-import org.springframework.test.context.junit4.SpringRunner;
 
-import jakarta.annotation.Resource;
 import java.util.List;
 import java.util.Map;
 
-@RunWith(SpringRunner.class)
 @SpringBootTest(classes = FoggyFrameworkFsscriptTestApplication.class)
 public class ForExpTest {
 
-    @Resource
+    @Autowired
     ApplicationContext appCtx;
 
     @Test
@@ -35,11 +32,11 @@ public class ForExpTest {
         fScript.eval(ee);
 
         Map mm = ee.getExportMap();
-        Assert.assertEquals("b",mm.get("b"));
-        Assert.assertEquals(null,mm.get("d"));
-        Assert.assertEquals(1,mm.get("c"));
-        Assert.assertEquals(null,mm.get("i"));
-        Assert.assertEquals(2,mm.get("ee"));
+        Assertions.assertEquals("b",mm.get("b"));
+        Assertions.assertEquals(null,mm.get("d"));
+        Assertions.assertEquals(1,mm.get("c"));
+        Assertions.assertEquals(null,mm.get("i"));
+        Assertions.assertEquals(2,mm.get("ee"));
     }
 
     @Test
@@ -51,11 +48,11 @@ public class ForExpTest {
         exp.evalValue(ee);
         Map mm = ee.getExportMap();
 
-        Assert.assertEquals("b",mm.get("b"));
-        Assert.assertEquals(null,mm.get("d"));
-        Assert.assertEquals(1,mm.get("c"));
-        Assert.assertEquals(null,mm.get("i"));
-        Assert.assertEquals(2,mm.get("ee"));
+        Assertions.assertEquals("b",mm.get("b"));
+        Assertions.assertEquals(null,mm.get("d"));
+        Assertions.assertEquals(1,mm.get("c"));
+        Assertions.assertEquals(null,mm.get("i"));
+        Assertions.assertEquals(2,mm.get("ee"));
     }
 
     @Test
@@ -67,9 +64,9 @@ public class ForExpTest {
         exp.evalValue(ee);
         List mm = (List) ee.getExportMap().get("result");
 
-        Assert.assertEquals(mm.get(0),1);
-        Assert.assertEquals(mm.get(1),2);
-        Assert.assertEquals(mm.get(2),3);
+        Assertions.assertEquals(mm.get(0),1);
+        Assertions.assertEquals(mm.get(1),2);
+        Assertions.assertEquals(mm.get(2),3);
 
     }
 
@@ -82,9 +79,9 @@ public class ForExpTest {
         exp.evalValue(ee);
         List mm = (List) ee.getExportMap().get("result");
 
-        Assert.assertEquals(mm.get(0),1);
-        Assert.assertEquals(mm.get(1),2);
-        Assert.assertEquals(mm.get(2),3);
+        Assertions.assertEquals(mm.get(0),1);
+        Assertions.assertEquals(mm.get(1),2);
+        Assertions.assertEquals(mm.get(2),3);
 
     }
 
@@ -98,7 +95,7 @@ public class ForExpTest {
         fScript.eval(ee);
 
         Map mm = ee.getExportMap();
-        Assert.assertEquals(3,mm.get("v"));
+        Assertions.assertEquals(3,mm.get("v"));
 
     }
     @Test
@@ -111,7 +108,7 @@ public class ForExpTest {
         fScript.eval(ee);
 
         Map mm = ee.getExportMap();
-        Assert.assertEquals(6,mm.get("v"));
+        Assertions.assertEquals(6,mm.get("v"));
 
     }
     @Test
@@ -124,7 +121,7 @@ public class ForExpTest {
         fScript.eval(ee);
 
         Map mm = ee.getExportMap();
-        Assert.assertEquals(2,mm.get("v"));
+        Assertions.assertEquals(2,mm.get("v"));
 
     }
     @Test
@@ -152,7 +149,7 @@ public class ForExpTest {
         fScript.eval(ee);
 
         List<Integer> mm = (List<Integer>)ee.getExportMap().get("v");
-        Assert.assertArrayEquals(new Integer[]{0,1},mm.toArray(new Integer[]{}));
+        Assertions.assertArrayEquals(new Integer[]{0,1},mm.toArray(new Integer[]{}));
 
     }
 }

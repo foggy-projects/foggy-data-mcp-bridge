@@ -8,22 +8,19 @@ import com.foggyframework.fsscript.parser.ExpParser;
 import com.foggyframework.fsscript.parser.spi.Exp;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
-import org.junit.Assert;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
-import org.springframework.test.context.junit4.SpringRunner;
 
-import jakarta.annotation.Resource;
 import java.util.List;
 import java.util.Map;
 
-@RunWith(SpringRunner.class)
 @SpringBootTest(classes = FoggyFrameworkFsscriptTestApplication.class)
 public class ExpStringTest {
 
-    @Resource
+    @Autowired
     ApplicationContext appCtx;
 
     @Test
@@ -36,10 +33,10 @@ public class ExpStringTest {
         fScript.eval(ee);
 
         Map mm = ee.getExportMap();
-        Assert.assertEquals("1234", StringUtils.trim((String) mm.get("x")));
-        Assert.assertEquals("1234aaabdd",StringUtils.trim((String) mm.get("d")));
-        Assert.assertEquals("1231234123",StringUtils.trim((String) mm.get("bb")));
-        Assert.assertEquals("11",mm.get("cc"));
+        Assertions.assertEquals("1234", StringUtils.trim((String) mm.get("x")));
+        Assertions.assertEquals("1234aaabdd",StringUtils.trim((String) mm.get("d")));
+        Assertions.assertEquals("1231234123",StringUtils.trim((String) mm.get("bb")));
+        Assertions.assertEquals("11",mm.get("cc"));
     }
 
     @Test
@@ -47,14 +44,14 @@ public class ExpStringTest {
         String expStr = "1===1 ";
         Exp exp = new ExpParser().compileEl(expStr);
         ExpEvaluator ee = DefaultExpEvaluator.newInstance(appCtx);
-        Assert.assertEquals(true,exp.evalResult(ee));
+        Assertions.assertEquals(true,exp.evalResult(ee));
     }
     @Test
     public void testEq2() {
         String expStr = "1===2 ";
         Exp exp = new ExpParser().compileEl(expStr);
         ExpEvaluator ee = DefaultExpEvaluator.newInstance(appCtx);
-        Assert.assertEquals(false,exp.evalResult(ee));
+        Assertions.assertEquals(false,exp.evalResult(ee));
     }
 
     @Test
@@ -62,7 +59,7 @@ public class ExpStringTest {
         String expStr = "aa$abc";
         Exp exp = new ExpParser().compileEl(expStr);
         ExpEvaluator ee = DefaultExpEvaluator.newInstance(appCtx);
-        Assert.assertEquals(true,exp instanceof IdExp);
+        Assertions.assertEquals(true,exp instanceof IdExp);
     }
 
 }

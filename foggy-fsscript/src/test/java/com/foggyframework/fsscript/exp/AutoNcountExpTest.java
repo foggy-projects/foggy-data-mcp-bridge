@@ -4,21 +4,18 @@ import com.foggyframework.fsscript.FoggyFrameworkFsscriptTestApplication;
 import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
-import org.junit.Assert;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
-import org.springframework.test.context.junit4.SpringRunner;
 
-import jakarta.annotation.Resource;
 import java.util.Map;
 
-@RunWith(SpringRunner.class)
 @SpringBootTest(classes = FoggyFrameworkFsscriptTestApplication.class)
 public class AutoNcountExpTest {
 
-    @Resource
+    @Autowired
     ApplicationContext appCtx;
 
     @Test
@@ -37,17 +34,17 @@ public class AutoNcountExpTest {
         FsscriptFunction x3 = (FsscriptFunction) ee.getExportObject("x3");
         FsscriptFunction x4 = (FsscriptFunction) ee.getExportObject("x4");
 
-        Assert.assertEquals(1,x.autoApply(ee));
-        Assert.assertEquals(2,x1.autoApply(ee));
-        Assert.assertEquals(1,x2.autoApply(ee));
+        Assertions.assertEquals(1,x.autoApply(ee));
+        Assertions.assertEquals(2,x1.autoApply(ee));
+        Assertions.assertEquals(1,x2.autoApply(ee));
 
-        Assert.assertEquals(11,((Map)x3.autoApply(ee)).get("b"));
+        Assertions.assertEquals(11,((Map)x3.autoApply(ee)).get("b"));
 
-        Assert.assertEquals("c",x4.autoApply(ee));
+        Assertions.assertEquals("c",x4.autoApply(ee));
 
-        Assert.assertEquals("b",ee.getExportObject("aa"));
-        Assert.assertEquals("c",ee.getExportObject("cc"));
-        Assert.assertEquals("d",ee.getExportObject("dd"));
+        Assertions.assertEquals("b",ee.getExportObject("aa"));
+        Assertions.assertEquals("c",ee.getExportObject("cc"));
+        Assertions.assertEquals("d",ee.getExportObject("dd"));
     }
 
 

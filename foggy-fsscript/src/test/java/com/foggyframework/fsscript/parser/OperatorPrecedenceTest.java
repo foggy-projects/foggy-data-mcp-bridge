@@ -2,7 +2,7 @@ package com.foggyframework.fsscript.parser;
 
 import com.foggyframework.fsscript.DefaultExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.Exp;
-import org.junit.Assert;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -219,6 +219,6 @@ public class OperatorPrecedenceTest {
         Exp exp = new ExpParser().compileEl(expStr);
         DefaultExpEvaluator ee = DefaultExpEvaluator.newInstance();
         Object obj = exp.evalResult(ee);
-        Assert.assertEquals("Expression: " + expStr, result, obj);
+        Assertions.assertEquals(result, obj, "Expression: " + expStr);
     }
 }
