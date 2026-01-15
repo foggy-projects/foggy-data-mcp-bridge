@@ -2,8 +2,8 @@ package com.foggyframework.bean.copy.utils;
 
 import com.foggyframework.core.common.MapBuilder;
 import lombok.Data;
-import org.junit.Test;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationContext;
 
 import jakarta.annotation.Resource;
@@ -11,7 +11,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-import static org.junit.Assert.*;
 
 public class Map2BeanUtilsTest {
     @Resource
