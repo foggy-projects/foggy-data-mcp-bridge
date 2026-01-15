@@ -5,24 +5,20 @@ import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
 import com.foggyframework.fsscript.loadder.RootFsscriptLoader;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.Assert;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
-import org.springframework.test.context.junit4.SpringRunner;
 
-import jakarta.annotation.Resource;
-
-@RunWith(SpringRunner.class)
 @SpringBootTest(classes = FoggyFrameworkFsscriptTestApplication.class)
 @Slf4j
 public class FsscriptImplTest {
-    @Resource
+    @Autowired
     FileFsscriptLoader fileFsscriptLoader;
-    @Resource
+    @Autowired
     RootFsscriptLoader rootFsscriptLoader;
-    @Resource
+    @Autowired
     ApplicationContext appCtx;
     @Test
     public void hasImport() {
@@ -33,14 +29,14 @@ public class FsscriptImplTest {
         Fsscript export_test = fileFsscriptLoader.findLoadFsscript("classpath:/com/foggyframework/fsscript/exp/export_test.fsscript");
 
         //此时仅加载，还没有执行表达式，所以都是false
-        Assert.assertFalse(import_test.hasImport(export_test));
-        Assert.assertFalse(export_test.hasImport(import_test));
+        Assertions.assertFalse(import_test.hasImport(export_test));
+        Assertions.assertFalse(export_test.hasImport(import_test));
 
         //现在执行下表达式，应当是true了
         import_test.eval(import_test.newInstance(appCtx));
-        Assert.assertTrue(import_test.hasImport(export_test));
+        Assertions.assertTrue(import_test.hasImport(export_test));
         //还是false
-        Assert.assertFalse(export_test.hasImport(import_test));
+        Assertions.assertFalse(export_test.hasImport(import_test));
 
     }
 
@@ -56,9 +52,9 @@ public class FsscriptImplTest {
         //现在执行下表达式，应当是true了
         import_test2.eval(import_test2.newInstance(appCtx));
 
-        Assert.assertTrue(import_test2.hasImport(export_test2));
-        Assert.assertTrue(import_test2.hasImport(export_test));
-        Assert.assertTrue(export_test2.hasImport(export_test));
+        Assertions.assertTrue(import_test2.hasImport(export_test2));
+        Assertions.assertTrue(import_test2.hasImport(export_test));
+        Assertions.assertTrue(export_test2.hasImport(export_test));
 
 
     }

@@ -5,7 +5,6 @@ import com.foggyframework.fsscript.DefaultExpEvaluator;
 import com.foggyframework.fsscript.exp.MapExp;
 import com.foggyframework.fsscript.exp.VarExp;
 import com.foggyframework.fsscript.parser.spi.Exp;
-import org.junit.Assert;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -118,8 +117,8 @@ public class ExpParserTest {
     @Test
     public void testReturn() {
         Object ret = evalValue("return (1+2)*3");
-        Assert.assertTrue(ret instanceof Exp.ReturnExpObject);
-        Assert.assertEquals(((Exp.ReturnExpObject) ret).value, 9.0);
+        Assertions.assertTrue(ret instanceof Exp.ReturnExpObject);
+        Assertions.assertEquals(((Exp.ReturnExpObject) ret).value, 9.0);
     }
 
     /**
@@ -135,20 +134,20 @@ public class ExpParserTest {
     public void testMap() {
         String expStr = "var x = {a:1,b,}";
         Exp exp = new ExpParser().compileEl(expStr);
-        Assert.assertNotNull(exp);
-        Assert.assertTrue(exp instanceof VarExp);
+        Assertions.assertNotNull(exp);
+        Assertions.assertTrue(exp instanceof VarExp);
         MapExp mm = (MapExp) ((VarExp) exp).getExp();
-        Assert.assertEquals(mm.getLl().size(), 2);
+        Assertions.assertEquals(mm.getLl().size(), 2);
     }
 
     @Test
     public void testLet() {
         String expStr = "let x = {a:1,b,}";
         Exp exp = new ExpParser().compileEl(expStr);
-        Assert.assertNotNull(exp);
-        Assert.assertTrue(exp instanceof VarExp);
+        Assertions.assertNotNull(exp);
+        Assertions.assertTrue(exp instanceof VarExp);
         MapExp mm = (MapExp) ((VarExp) exp).getExp();
-        Assert.assertEquals(mm.getLl().size(), 2);
+        Assertions.assertEquals(mm.getLl().size(), 2);
     }
 
     /**
@@ -183,9 +182,9 @@ public class ExpParserTest {
     @Test
     public void testJSON_format2() {
         Map ret = (Map) evalReulst("var a='a';var b='b';return {a,b,c:1}");
-        Assert.assertEquals(ret.get("a"), "a");
-        Assert.assertEquals(ret.get("b"), "b");
-        Assert.assertEquals(ret.get("c"), 1);
+        Assertions.assertEquals(ret.get("a"), "a");
+        Assertions.assertEquals(ret.get("b"), "b");
+        Assertions.assertEquals(ret.get("c"), 1);
     }
 
     @Test
@@ -320,14 +319,14 @@ public class ExpParserTest {
         Exp exp = new ExpParser().compileEl(expStr);
         DefaultExpEvaluator ee = DefaultExpEvaluator.newInstance();
         Object ret = exp.evalValue(ee);
-        Assert.assertTrue(ret instanceof Exp.ReturnExpObject);
-        Assert.assertEquals(((Exp.ReturnExpObject) ret).value, result);
+        Assertions.assertTrue(ret instanceof Exp.ReturnExpObject);
+        Assertions.assertEquals(((Exp.ReturnExpObject) ret).value, result);
     }
 
     private void checkExp(String expStr, Object result) {
         Exp exp = new ExpParser().compileEl(expStr);
         DefaultExpEvaluator ee = DefaultExpEvaluator.newInstance();
         Object obj = exp.evalResult(ee);
-        Assert.assertEquals(obj, result);
+        Assertions.assertEquals(obj, result);
     }
 }
