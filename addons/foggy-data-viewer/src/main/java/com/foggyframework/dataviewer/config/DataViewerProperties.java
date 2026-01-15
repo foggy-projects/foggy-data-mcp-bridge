@@ -19,9 +19,9 @@ public class DataViewerProperties {
     private boolean enabled = true;
 
     /**
-     * 浏览器链接的基础URL
+     * 浏览器链接的基础URL（不配置时自动使用 http://localhost:{server.port}/data-viewer）
      */
-    private String baseUrl = "http://localhost:8080/data-viewer";
+    private String baseUrl;
 
     /**
      * 缓存配置

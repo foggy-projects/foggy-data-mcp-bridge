@@ -6,26 +6,22 @@ import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.Assert;
-import org.junit.Test;
 import org.junit.jupiter.api.Assertions;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
-import org.springframework.test.context.junit4.SpringRunner;
 
-import jakarta.annotation.Resource;
 import java.util.List;
 import java.util.Map;
 
-@RunWith(SpringRunner.class)
 @SpringBootTest(classes = FoggyFrameworkFsscriptTestApplication.class)
 @Slf4j
-public class DotExpTest {
-    @Resource
+ class DotExpTest {
+    @Autowired
     ApplicationContext appCtx;
     @Test
-    public void evalValue() {
+     void evalValue() {
         Fsscript fScript = FileFsscriptLoader.getInstance().findLoadFsscript("classpath:/com/foggyframework/fsscript/exp/dot.fsscript");
 
         ExpEvaluator ee = DefaultExpEvaluator.newInstance(appCtx);

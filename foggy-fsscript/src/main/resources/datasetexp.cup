@@ -9,11 +9,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Stack;
 
-/* Note: When regenerating the parser, use -expect 2 to allow 2 shift/reduce conflicts:
+/* Note: When regenerating the parser, use -expect 3 to allow 3 shift/reduce conflicts:
    1. AT ID vs AT ID LPAREN - resolved by shifting (prefer function call)
    2. FUNCTION vs FUNCTION LPAREN - resolved by shifting (prefer function definition)
+   3. expression_or_empty vs destructure_pattern (empty) - resolved by shifting
 
-   Example: java -jar java-cup.jar -expect 2 datasetexp.cup
+   Example: java -jar java-cup.jar -expect 3 datasetexp.cup
 */
 
 parser code {:
@@ -144,6 +145,8 @@ terminal
     LPAREN,					// (
     RPAREN,					// )
     LBRACE,					// {
+    LBRACE_OBJ,				// { (object literal context - used in default args)
+    LBRACE_DESTR,			// { (destructure pattern context - after const/let/var)
     RBRACE,					// }
     LSBRACE,					// [
     RSBRACE,					// ]
@@ -207,6 +210,7 @@ non terminal Exp
 	expression_return,
 	expression_result,
     export_expression,
+    arrow_body,
 
 	factor0,
 	factor,
@@ -266,7 +270,14 @@ non terminal Exp
 non terminal List
 	ncount_list,
 	caseList,
-	map_items;
+	map_items,
+	destructure_items;
+
+non terminal Exp
+	destructure_item;
+
+non terminal ListExp
+	destructure_pattern;
 
 non terminal ListExp
 	arg_list;
@@ -494,6 +505,12 @@ function_def ::=
             RESULT = parser.factory.createFunctionDef(parser.getFcDefinition(),l,e);
         :}
 
+    |   LPAREN arg_list:e RPAREN NF arrow_body:v {:
+            // 箭头函数表达式体: (args) => expr
+            // 使用 arrow_body 避免语法冲突
+            RESULT = parser.factory.createFunctionDef(parser.getFcDefinition(),v,e);
+        :}
+
     |	LPAREN arg_list:e RPAREN {:
             RESULT = parser.factory.createUnresolvedFunCall("()",e,true);
         :}
@@ -597,7 +614,17 @@ var_expression ::=
 	|	factor0:id EQ expression_or_empty:e{:
 			RESULT = parser.factory.createEqDef(id,e);
 		:}
-	
+	// 解构赋值支持: const { name, caption = 'default' } = options
+	|	CONST destructure_pattern:p EQ expression_or_empty:e {:
+			RESULT = parser.factory.createDestructurePattern(p, e, "const");
+		:}
+	|	LET destructure_pattern:p EQ expression_or_empty:e {:
+			RESULT = parser.factory.createDestructurePattern(p, e, "let");
+		:}
+	|	VAR destructure_pattern:p EQ expression_or_empty:e {:
+			RESULT = parser.factory.createDestructurePattern(p, e, "var");
+		:}
+
 	;
 
 export_expression ::=
@@ -609,6 +636,10 @@ export_expression ::=
         :}
     |   EXPORT var_expression:e{:
             RESULT = parser.factory.createExportDef(e);
+        :}
+    |   EXPORT function_def:f{:
+            // 支持 export function foo() {} 语法
+            RESULT = parser.factory.createExportDef(f);
         :}
 	;
 return_expression ::=
@@ -630,6 +661,10 @@ arg_list ::=
             RESULT = parser.factory.createListExp();
             RESULT.add(parser.factory.createDDDotListEl(r));
         :}
+    |   ID:id EQ value_expression:defaultValue {:
+            RESULT = parser.factory.createListExp();
+            RESULT.add(parser.factory.createDefaultArgExp(id, defaultValue));
+        :}
     |   arg_list:list COMMA expression_or_empty:e {:
             if(e==null){
                 e = parser.factory.createEmpty();
@@ -644,6 +679,10 @@ arg_list ::=
                 r = parser.factory.createDDDotListEl(r);
             }
             list.add(r);
+            RESULT = list;
+        :}
+    |   arg_list:list COMMA ID:id EQ value_expression:defaultValue {:
+            list.add(parser.factory.createDefaultArgExp(id, defaultValue));
             RESULT = list;
         :}
     ;
@@ -665,6 +704,9 @@ array ::=
 
 map ::=
 		LBRACE map_items:is RBRACE {:
+			RESULT = parser.factory.createMap(is);
+		:}
+	|	LBRACE_OBJ map_items:is RBRACE {:
 			RESULT = parser.factory.createMap(is);
 		:}
 	;
@@ -742,6 +784,22 @@ term4 ::=
                 RESULT = parser.factory.createFunctionDef(parser.getFcDefinition(),l,args);
             :}
 
+        |   unquoted_identifier:s NF arrow_body:v {:
+                // 单参数箭头函数表达式体: x => expr
+                // 使用 arrow_body 避免与嵌套箭头函数的冲突
+                List args = new ListExp(1);
+                args.add(s);
+                RESULT = parser.factory.createFunctionDef(parser.getFcDefinition(),v,args);
+            :}
+
+    ;
+
+// 箭头函数表达式体 - 不包含单参数箭头函数，避免解析歧义
+// 例如: x => y * 2 中的 y * 2 应该解析为表达式，而不是尝试匹配 y => ...
+arrow_body ::=
+        term4_logical:t {:
+            RESULT = t;
+        :}
     ;
 
 // 逻辑运算符 || 和 && （优先级高于三元运算符）
@@ -1153,3 +1211,54 @@ property_identifier ::=
             RESULT = "from";
         :}
     ;
+
+/**
+ * 解构赋值模式: { name, caption = 'default' }
+ * 使用 LBRACE_DESTR 来区分解构模式和对象字面量
+ */
+destructure_pattern ::=
+		LBRACE_DESTR destructure_items:items RBRACE {:
+			ListExp list = parser.factory.createListExp();
+			if (items != null) {
+				for (Object item : items) {
+					list.add((Exp) item);
+				}
+			}
+			RESULT = list;
+		:}
+	|	LBRACE_DESTR RBRACE {:
+			RESULT = parser.factory.createListExp();
+		:}
+	;
+
+/**
+ * 解构项列表: name, caption = 'default', ...
+ * 使用右递归避免 LALR lookahead 冲突
+ */
+destructure_items ::=
+		destructure_item:item {:
+			List<Exp> list = new ArrayList<>();
+			list.add(item);
+			RESULT = list;
+		:}
+	|	destructure_item:item COMMA destructure_items:rest {:
+			List<Exp> list = new ArrayList<>();
+			list.add(item);
+			list.addAll(rest);
+			RESULT = list;
+		:}
+	;
+
+/**
+ * 单个解构项:
+ * - name           (简单解构)
+ * - name = default (带默认值)
+ */
+destructure_item ::=
+		ID:name {:
+			RESULT = parser.factory.createDestructureItem(name, null);
+		:}
+	|	ID:name EQ value_expression:defaultValue {:
+			RESULT = parser.factory.createDestructureItem(name, defaultValue);
+		:}
+	;

@@ -11,9 +11,8 @@ import com.foggyframework.fsscript.closure.SimpleFsscriptClosureDefinitionSpace;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.junit.Assert;
-import org.junit.Test;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationContext;
 
 import jakarta.annotation.Resource;

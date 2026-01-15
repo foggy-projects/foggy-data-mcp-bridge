@@ -165,9 +165,13 @@ foggy:
       # MongoDB 配置
       mongodb:
         collection: ${MCP_AUDIT_COLLECTION:mcp_tool_audit_log}
+
+  # 数据浏览器配置（需要 MongoDB）
   data-viewer:
-    enabled: true
-    base-url: http://localhost:7108/data-viewer
+    # 是否启用（默认启用）
+    enabled: ${DATA_VIEWER_ENABLED:true}
+    # 浏览器链接基础URL（可选，不配置时自动使用 http://localhost:{server.port}/data-viewer）
+    base-url: ${DATA_VIEWER_BASE_URL:}
 
     cache:
       ttl-minutes: 240
@@ -198,8 +202,8 @@ foggy:
         retention: ${CHART_STORAGE_RETENTION:14d}
         # 清理任务 cron 表达式（每天凌晨3点）
         cleanup-cron: "0 0 3 * * ?"
-        # 访问 URL 前缀（必须配置，否则 AI 无法访问图片）
-        url-prefix: ${CHART_STORAGE_URL_PREFIX:http://localhost:7108/charts}
+        # 访问 URL 前缀（可选，不配置时自动使用 http://localhost:{server.port}/charts）
+        url-prefix: ${CHART_STORAGE_URL_PREFIX:}
 
       # 阿里云 OSS（需要配置 type: aliyun-oss）
       aliyun-oss:

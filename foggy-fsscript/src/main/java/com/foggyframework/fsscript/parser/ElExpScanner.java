@@ -275,6 +275,16 @@ public class ElExpScanner implements BaseScanner {
     protected NcountFixCtx arrayXFixCtx = new NcountFixCtx();
 
     /**
+     * 函数参数列表上下文追踪
+     * 用于支持 function foo(options = {}) 这样的默认参数语法
+     * 当在函数参数列表内遇到 = 后的 { 时，发出 LBRACE_OBJ 而不是 LBRACE
+     */
+    protected int functionArgListDepth = 0;  // 函数参数列表的嵌套深度
+    protected boolean expectFunctionId = false;  // 上一个 token 是 FUNCTION，期待 ID
+    protected boolean expectFunctionLparen = false;  // 上一个 token 是 FUNCTION 后的 ID，期待 LPAREN
+    protected Stack<Integer> functionArgParenStack = new Stack<>();  // 跟踪函数参数列表中的括号嵌套
+
+    /**
      * ASI (Automatic Semicolon Insertion) 支持
      * 追踪是否遇到换行符
      */
@@ -282,6 +292,15 @@ public class ElExpScanner implements BaseScanner {
 
     public ElExpScanner(final String s) {
         this.s = s;
+    }
+
+    /**
+     * 子类可覆盖此方法来禁用 ASI (自动分号插入) 逻辑。
+     * 例如 ExpScanner 用于解析模板字符串内容时不需要 ASI。
+     * @return true 表示跳过 ASI 逻辑，默认返回 false
+     */
+    protected boolean skipASI() {
+        return false;
     }
 
     /**
@@ -343,6 +362,8 @@ public class ElExpScanner implements BaseScanner {
             case ExpSymbols.NULL:
             case ExpSymbols.THIS:
             case ExpSymbols.LBRACE:      // { 开始新的代码块或对象
+            case ExpSymbols.LBRACE_OBJ:  // { 对象字面量（在函数参数默认值中）
+            case ExpSymbols.LBRACE_DESTR: // { 解构模式（在 const/let/var 后）
             case ExpSymbols.LSBRACE:     // [ 开始新的数组（注意：也可能是下标访问）
             case ExpSymbols.AT:          // @ Spring Bean
             case ExpSymbols.NO:          // # 请求属性
@@ -462,6 +483,20 @@ public class ElExpScanner implements BaseScanner {
     protected Symbol doLBRACE() throws IOException {
         advance();
 
+        // 检查是否在函数参数列表中且前一个 token 是 EQ
+        // 如果是，发出 LBRACE_OBJ 表示这是一个对象字面量
+        if (functionArgListDepth > 0 && previousSymbol == ExpSymbols.EQ) {
+            return makeToken(ExpSymbols.LBRACE_OBJ, "{");
+        }
+
+        // 检查是否是解构赋值上下文: const { ... } = / let { ... } = / var { ... } =
+        // 如果前一个 token 是 CONST/LET/VAR，发出 LBRACE_DESTR 表示这是解构模式
+        if (previousSymbol == ExpSymbols.CONST
+                || previousSymbol == ExpSymbols.LET
+                || previousSymbol == ExpSymbols.VAR) {
+            return makeToken(ExpSymbols.LBRACE_DESTR, "{");
+        }
+
         return makeToken(ExpSymbols.LBRACE, "{");
     }
 
@@ -579,6 +614,48 @@ public class ElExpScanner implements BaseScanner {
     boolean inNf = false;
     int nfLRCount = 0;
 
+    /**
+     * 更新函数参数列表上下文
+     * 追踪是否在 function foo(...) 的参数列表内
+     * 用于在参数默认值 = 后将 { 识别为对象字面量
+     */
+    private void updateFunctionArgListContext(int tokenType) {
+        // 状态机追踪 FUNCTION -> ID -> LPAREN 序列
+        if (tokenType == ExpSymbols.FUNCTION) {
+            expectFunctionId = true;
+            expectFunctionLparen = false;
+        } else if (tokenType == ExpSymbols.ID && expectFunctionId) {
+            expectFunctionId = false;
+            expectFunctionLparen = true;
+        } else if (tokenType == ExpSymbols.LPAREN && expectFunctionLparen) {
+            // 进入函数参数列表
+            expectFunctionLparen = false;
+            functionArgListDepth++;
+            functionArgParenStack.push(1);  // 追踪这一层的括号嵌套
+        } else if (functionArgListDepth > 0) {
+            // 在函数参数列表内追踪括号嵌套
+            if (tokenType == ExpSymbols.LPAREN) {
+                int depth = functionArgParenStack.pop();
+                functionArgParenStack.push(depth + 1);
+            } else if (tokenType == ExpSymbols.RPAREN) {
+                int depth = functionArgParenStack.pop();
+                if (depth == 1) {
+                    // 这是函数参数列表的结束括号
+                    functionArgListDepth--;
+                } else {
+                    functionArgParenStack.push(depth - 1);
+                }
+            }
+            // 重置期望状态
+            expectFunctionId = false;
+            expectFunctionLparen = false;
+        } else {
+            // 不在函数参数列表，重置期望状态
+            expectFunctionId = false;
+            expectFunctionLparen = false;
+        }
+    }
+
     @Override
     public final Symbol next_token() throws Exception {
         /**
@@ -596,6 +673,13 @@ public class ElExpScanner implements BaseScanner {
 
         Symbol symbol = next_token1();
 
+        /**
+         * 函数参数列表上下文追踪
+         * 用于支持 function foo(options = {}) 中 {} 被正确识别为对象字面量
+         */
+        updateFunctionArgListContext(symbol.sym);
+        /** end 函数参数列表追踪 **********************/
+
         // ASI: 检查是否在这次扫描中遇到了换行符（在上一个 token 和当前 token 之间）
         // 必须在 next_token1() 返回后检查，因为换行符是在扫描过程中遇到的
         boolean hadNewline = this.newlineEncountered;
@@ -603,6 +687,11 @@ public class ElExpScanner implements BaseScanner {
         this.newlineEncountered = false;
 
         if (this.previousSymbol == ExpSymbols.NCOUNT) {
+            return symbol;
+        }
+
+        // 允许子类跳过所有 ASI 和 auto-fix 逻辑（如 ExpScanner 用于模板字符串解析）
+        if (skipASI()) {
             return symbol;
         }
 
@@ -630,7 +719,7 @@ public class ElExpScanner implements BaseScanner {
          */
         if (previousTmp == ExpSymbols.NF) {
             //
-            if (symbol.sym != ExpSymbols.LBRACE) {
+            if (symbol.sym != ExpSymbols.LBRACE && symbol.sym != ExpSymbols.LBRACE_OBJ) {
                 tmpSymbol = symbol;
                 inNf = true;
                 nfLRCount++;
@@ -675,10 +764,20 @@ public class ElExpScanner implements BaseScanner {
             return makeSymbol(ExpSymbols.NCOUNT, "auto fix;");
         } else if (symbol.sym == ExpSymbols.FUNCTION) {
             ncountFixCtx.startFunction();
-        } else if (symbol.sym == ExpSymbols.LBRACE) {
-            ncountFixCtx.add();
+        } else if (symbol.sym == ExpSymbols.LBRACE
+                || symbol.sym == ExpSymbols.LBRACE_OBJ
+                || symbol.sym == ExpSymbols.LBRACE_DESTR) {
+            // 同时追踪所有类型的左花括号：
+            // - LBRACE: 代码块 {}
+            // - LBRACE_OBJ: 对象字面量 {}
+            // - LBRACE_DESTR: 解构赋值 const { ... } =
+            // 但排除函数参数列表中的花括号（如 options = {}）
+            if (functionArgListDepth == 0) {
+                ncountFixCtx.add();
+            }
         } else if (symbol.sym == ExpSymbols.RBRACE) {
-            if (ncountFixCtx.remove() == 0) {
+            // 只有不在函数参数列表内时才检查是否函数结束
+            if (functionArgListDepth == 0 && ncountFixCtx.remove() == 0) {
                 //补下;号
                 tmpSymbol = makeSymbol(ExpSymbols.NCOUNT, "auto fix;");
                 return symbol;

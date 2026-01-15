@@ -2,8 +2,8 @@ package com.foggyframework.fsscript;
 
 import com.foggyframework.fsscript.closure.SimpleFsscriptClosureDefinition;
 import com.foggyframework.fsscript.closure.SimpleFsscriptClosureDefinitionSpace;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 public class DefaultExpEvaluatorTest {
 
@@ -11,11 +11,11 @@ public class DefaultExpEvaluatorTest {
     public void getVar() {
         DefaultExpEvaluator ee =  DefaultExpEvaluator.newInstance();
         Object test = ee.getVar("test");
-        Assert.assertNull(test);
+        Assertions.assertNull(test);
 
         ee.setVar("test","test11");
         test = ee.getVar("test");
-        Assert.assertEquals(test,"test11");
+        Assertions.assertEquals(test,"test11");
     }
 
     /**
@@ -30,12 +30,12 @@ public class DefaultExpEvaluatorTest {
         ee.setVar("test","test22");
 
         Object test = ee.getVar("test");
-        Assert.assertEquals(test,"test22");
+        Assertions.assertEquals(test,"test22");
 
         //推出当前闭包，此时应当拿不到test了
         ee.popFsscriptClosure();
         test = ee.getVar("test");
-        Assert.assertNull(test);
+        Assertions.assertNull(test);
     }
 
     /**
@@ -56,12 +56,12 @@ public class DefaultExpEvaluatorTest {
 
         //此时获取的test值应当是空的！
         Object test = ee.getVar("test");
-        Assert.assertNull(test);
+        Assertions.assertNull(test);
 
         //我们现在改变它的值，然后再推出，之前检查test的值是否还是正确的
         ee.setVar("test","test333");
         ee.popFsscriptClosure();
         test = ee.getVar("test");
-        Assert.assertEquals(test,"test22");
+        Assertions.assertEquals(test,"test22");
     }
 }

@@ -10,6 +10,10 @@ public class IdExp extends AbstractExp<String> implements NamedExp {
 
     @Override
     public Object evalValue(ExpEvaluator evaluator) {
+        // 特殊标识符 "Boolean" 返回 Boolean.class，用于支持 arr.filter(Boolean) 语法
+        if ("Boolean".equals(value)) {
+            return Boolean.class;
+        }
 
         Object x = evaluator.getVar(value);
         return (x == EmptyExp.EMPTY || x == NullExp.NULL) ? null : unWarpResult(x);

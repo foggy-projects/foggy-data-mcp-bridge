@@ -7,21 +7,18 @@ import com.foggyframework.fsscript.parser.ExpParser;
 import com.foggyframework.fsscript.parser.spi.Exp;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
-import org.junit.Assert;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
-import org.springframework.test.context.junit4.SpringRunner;
 
-import jakarta.annotation.Resource;
 import java.util.Map;
 
-@RunWith(SpringRunner.class)
 @SpringBootTest(classes = FoggyFrameworkFsscriptTestApplication.class)
 public class IfExpTest {
 
-    @Resource
+    @Autowired
     ApplicationContext appCtx;
 
     @Test
@@ -34,13 +31,13 @@ public class IfExpTest {
         fScript.eval(ee);
 
         Map mm = ee.getExportMap();
-        Assert.assertEquals(1,mm.get("b"));
-        Assert.assertEquals(null,mm.get("d"));
-        Assert.assertEquals(2,mm.get("c"));
-        Assert.assertEquals(null,mm.get("i"));
-        Assert.assertEquals(2,mm.get("ee"));
-        Assert.assertEquals(null,mm.get("cc"));
-        Assert.assertEquals(null,mm.get("dd"));
+        Assertions.assertEquals(1,mm.get("b"));
+        Assertions.assertEquals(null,mm.get("d"));
+        Assertions.assertEquals(2,mm.get("c"));
+        Assertions.assertEquals(null,mm.get("i"));
+        Assertions.assertEquals(2,mm.get("ee"));
+        Assertions.assertEquals(null,mm.get("cc"));
+        Assertions.assertEquals(null,mm.get("dd"));
     }
 
     @Test
@@ -52,12 +49,12 @@ public class IfExpTest {
         exp.evalValue(ee);
         Map mm = ee.getExportMap();
 
-        Assert.assertEquals("b",mm.get("b"));
-        Assert.assertEquals(null,mm.get("d"));
-        Assert.assertEquals(1,mm.get("c"));
-        Assert.assertEquals(null,mm.get("i"));
-        Assert.assertEquals(null,mm.get("ee"));
-        Assert.assertEquals(2,mm.get("cc"));
+        Assertions.assertEquals("b",mm.get("b"));
+        Assertions.assertEquals(null,mm.get("d"));
+        Assertions.assertEquals(1,mm.get("c"));
+        Assertions.assertEquals(null,mm.get("i"));
+        Assertions.assertEquals(null,mm.get("ee"));
+        Assertions.assertEquals(2,mm.get("cc"));
     }
 
 

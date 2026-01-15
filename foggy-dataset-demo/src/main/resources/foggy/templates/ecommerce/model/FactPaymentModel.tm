@@ -5,6 +5,7 @@
  *              包含日期、客户维度关联
  */
 import { dicts } from '../dicts.fsscript';
+import { buildDateDim, buildCustomerDim } from '../dimensions/common-dims.fsscript';
 
 export const model = {
     name: 'FactPaymentModel',
@@ -14,43 +15,14 @@ export const model = {
 
     // 维度定义
     dimensions: [
-        {
-            name: 'payDate',
-            tableName: 'dim_date',
-            foreignKey: 'date_key',
-            primaryKey: 'date_key',
-            captionColumn: 'full_date',
-            caption: '支付日期',
-            description: '支付发生的日期',
-            keyDescription: '日期主键，格式yyyyMMdd，如20240101',
-
-            properties: [
-                { column: 'year', caption: '年', description: '支付年份' },
-                { column: 'quarter', caption: '季度', description: '支付季度（1-4）' },
-                { column: 'month', caption: '月', description: '支付月份（1-12）' },
-                { column: 'month_name', caption: '月份名称', description: '支付月份中文名' },
-                { column: 'day_of_week', caption: '周几', description: '支付在周几（1=周一）' },
-                { column: 'is_weekend', caption: '是否周末', description: '支付是否在周末' }
-            ]
-        },
-        {
-            name: 'customer',
-            tableName: 'dim_customer',
-            foreignKey: 'customer_key',
-            primaryKey: 'customer_key',
-            captionColumn: 'customer_name',
-            caption: '客户',
-            description: '发起支付的客户',
-            keyDescription: '客户代理键，自增整数',
-
-            properties: [
-                { column: 'customer_id', caption: '客户ID', description: '客户唯一标识' },
-                { column: 'customer_type', caption: '客户类型', description: '客户类型：个人/企业' },
-                { column: 'province', caption: '省份', description: '客户所在省份' },
-                { column: 'city', caption: '城市', description: '客户所在城市' },
-                { column: 'member_level', caption: '会员等级', description: '客户会员等级' }
-            ]
-        }
+        buildDateDim({ 
+            name: 'payDate', 
+            caption: '支付日期', 
+            description: '支付发生的日期', 
+            contextPrefix: '支付',
+            includeProperties: ['year', 'quarter', 'month', 'month_name', 'day_of_week', 'is_weekend']
+        }),
+        buildCustomerDim({ caption: '客户', description: '发起支付的客户', contextPrefix: '', includeProperties: ['customer_id', 'customer_type', 'province', 'city', 'member_level'] })
     ],
 
     // 属性定义

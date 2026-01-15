@@ -64,6 +64,17 @@ public class QueryRequestValidationStep implements DataSetResultStep {
             "childrenof", "descendantsof", "selfanddescendantsof"
     );
 
+    /**
+     * 不需要 value 的操作符（空值检查类操作符）
+     */
+    private static final Set<String> NULL_VALUE_OPERATORS = Set.of(
+            // 旧格式
+            "null", "!null", "null|empty", "!null&!empty",
+            // 新格式（SqlFormula 定义的别名）
+            "isnull", "is null", "isnotnull", "is not null",
+            "isnullandempty", "isnotnullandempty"
+    );
+
     @Override
     public int beforeQuery(ModelResultContext ctx) {
         DbQueryRequestDef queryRequest = ctx.getRequest().getParam();
@@ -271,15 +282,19 @@ public class QueryRequestValidationStep implements DataSetResultStep {
      * 获取所有支持的操作符列表（用于错误提示）
      */
     private String getSupportedOperators() {
-        return "=, !=, ===, >, >=, <, <=, in, !in, like, !like, [], [), (], (), null, !null, null|empty, !null&!empty, bit_in, childrenOf, descendantsOf, selfAndDescendantsOf";
+        return "=, !=, >, >=, <, <=, in, not in, like, left_like, right_like, " +
+               "is null, is not null, [], [), (], (), " +
+               "childrenOf, descendantsOf, selfAndDescendantsOf, similar, hybrid";
     }
 
     /**
      * 检查是否为空值操作符（这些操作符不需要 value）
      */
     private boolean isNullValueOperator(String op) {
-        return "null".equals(op) || "!null".equals(op) ||
-               "null|empty".equals(op) || "!null&!empty".equals(op);
+        if (op == null) {
+            return false;
+        }
+        return NULL_VALUE_OPERATORS.contains(op.toLowerCase());
     }
 
     /**

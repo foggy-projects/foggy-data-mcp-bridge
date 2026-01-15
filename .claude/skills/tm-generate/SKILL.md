@@ -118,6 +118,7 @@ export const model = {
     ]
 };
 ```
+文件名要求为 `{模型名称}Model.tm`，与name相同，即${model.name}.tm
 
 ## 类型映射规则
 
@@ -141,7 +142,7 @@ export const model = {
 - **维度表**：以 `Dim` 为前缀（如 `DimCustomerModel`）
 
 ## TM语法规范
-如果需要获取更多的tm语法规范，请参考[Foggy TM 语法规范](https://foggy-projects.github.io/foggy-data-mcp-bridge/zh/dataset-model/tm-qm/tm-syntax.html)
+如果需要获取更多的tm语法规范，请参考[Foggy TM 语法规范](https://foggy-projects.github.io/foggy-data-mcp-bridge/downloads/tm-syntax.md)
 
 ## 维度检测规则
 
@@ -309,6 +310,7 @@ export const model = {
    - 使用 WebFetch 工具访问 `http://localhost:7108/dev/tables/{tableName}`
    - 从返回的 JSON 中提取列信息、主键、外键等
    - 参考 `tm_template` 字段作为生成基础
+   - 在windows系统中不要使用curl -s 否则控制台会卡住(要求输入url)
 3. **识别表类型**：判断是事实表还是维度表
 4. **分类字段**：区分维度、属性和度量
 5. **生成 TM 文件**：按照模板结构输出完整的 .tm 文件

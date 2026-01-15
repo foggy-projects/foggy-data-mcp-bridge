@@ -71,9 +71,18 @@ public class ToolConfigLoader {
         if (mcpProperties.getTools().isEmpty()) {
             loadDefaultConfigurations();
         }
-        if (mcpProperties.getSemantic().getModelList() == null || mcpProperties.getSemantic().getModelList().isEmpty()) {
-            log.info("No semantic model configured in YAML, try add all models");
-            mcpProperties.getSemantic().setModelList(autoAllQmFiles());
+        // useAllModels 为三态逻辑，null 时在运行时根据 model-list 自动推断
+        // 这里仅记录日志，不修改配置值
+        if (mcpProperties.getSemantic().getUseAllModels() == null) {
+            if (mcpProperties.getSemantic().getModelList() == null || mcpProperties.getSemantic().getModelList().isEmpty()) {
+                log.info("No semantic model configured, will use dynamic model discovery at runtime");
+            } else {
+                log.info("Using configured model-list: {}", mcpProperties.getSemantic().getModelList());
+            }
+        } else if (Boolean.TRUE.equals(mcpProperties.getSemantic().getUseAllModels())) {
+            log.info("Dynamic model discovery explicitly enabled (useAllModels=true)");
+        } else {
+            log.info("Model discovery explicitly disabled (useAllModels=false)");
         }
         for (McpProperties.ToolConfigItem item : mcpProperties.getTools()) {
             String toolName = item.getName();

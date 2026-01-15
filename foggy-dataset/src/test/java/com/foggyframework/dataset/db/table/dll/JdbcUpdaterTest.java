@@ -5,22 +5,19 @@ import com.foggyframework.dataset.FoggyFrameworkDataSetTestApplication;
 import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.db.table.SqlColumn;
 import com.foggyframework.dataset.db.table.SqlTable;
-import org.junit.Assert;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.junit4.SpringRunner;
 
-import jakarta.annotation.Resource;
 import javax.sql.DataSource;
 import java.sql.SQLException;
 import java.sql.Types;
 
-@RunWith(SpringRunner.class)
 @SpringBootTest(classes = FoggyFrameworkDataSetTestApplication.class)
-public class JdbcUpdaterTest {
+class JdbcUpdaterTest {
 
-    @Resource
+    @Autowired
     DataSource dataSource;
 
     /**
@@ -29,7 +26,7 @@ public class JdbcUpdaterTest {
      * @throws SQLException SQL异常
      */
     @Test
-    public void testCreateAndDropTable() throws SQLException {
+    void testCreateAndDropTable() throws SQLException {
         JdbcUpdater jdbcUpdater = new JdbcUpdater(dataSource);
 
         SqlTable table = buildTestSqlTable("A" + UuidUtils.newUuid());
@@ -38,7 +35,7 @@ public class JdbcUpdaterTest {
         jdbcUpdater.execute(JdbcUpdater.MODE_NORMAL);
         //检查表是否正确创建
         SqlTable tableFromDb = FDialect.MYSQL_DIALECT.getTableByName(dataSource, table.getName());
-        Assert.assertNotNull(tableFromDb);
+        Assertions.assertNotNull(tableFromDb);
         jdbcUpdater.clear();
 
         jdbcUpdater.addDropScript(table);
@@ -46,11 +43,11 @@ public class JdbcUpdaterTest {
         jdbcUpdater.execute(JdbcUpdater.MODE_NORMAL);
 
         tableFromDb = FDialect.MYSQL_DIALECT.getTableByName(dataSource, table.getName());
-        Assert.assertNull(tableFromDb);
+        Assertions.assertNull(tableFromDb);
     }
 
     @Test
-    public void testModifyTable() throws SQLException {
+    void testModifyTable() throws SQLException {
         JdbcUpdater jdbcUpdater = new JdbcUpdater(dataSource);
 
         SqlTable table = buildTestSqlTable("A" + UuidUtils.newUuid());
@@ -67,7 +64,7 @@ public class JdbcUpdaterTest {
 
         SqlTable tableFromDb = FDialect.MYSQL_DIALECT.getTableByName(dataSource, table.getName());
 
-        Assert.assertNotNull(tableFromDb.getSqlColumn("cxx", true));
+        Assertions.assertNotNull(tableFromDb.getSqlColumn("cxx", true));
 
         //drop表
         jdbcUpdater.clear();

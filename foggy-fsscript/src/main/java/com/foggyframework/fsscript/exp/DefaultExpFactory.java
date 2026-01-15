@@ -76,6 +76,10 @@ public class DefaultExpFactory implements ExpFactory, ApplicationRunner, Disposa
                  */
                 continue;
             }
+            if (i instanceof DefaultArgExp) {
+                // 带默认值的参数，如: options = {}
+                continue;
+            }
             if (!(i instanceof IdExp || i instanceof AsExp)) {
                 throw RX.throwB("参数的定义必须是IdExp/AsExp表达式: " + is + (name == null ? "" : name));
             }
@@ -496,6 +500,29 @@ public class DefaultExpFactory implements ExpFactory, ApplicationRunner, Disposa
     @Override
     public Exp createExpFunCall(Exp funExp, ListExp args) {
         return new ExpFunCall(this, funExp, args);
+    }
+
+    @Override
+    public Exp createDefaultArgExp(String paramName, Exp defaultValue) {
+        return new DefaultArgExp(paramName, defaultValue);
+    }
+
+    @Override
+    public Exp createDestructureItem(String name, Exp defaultValue) {
+        return new DestructureItemExp(name, defaultValue);
+    }
+
+    @Override
+    public Exp createDestructurePattern(ListExp items, Exp sourceExp, String declarationType) {
+        List<DestructureItemExp> itemList = new ArrayList<>();
+        if (items != null) {
+            for (Object item : items) {
+                if (item instanceof DestructureItemExp) {
+                    itemList.add((DestructureItemExp) item);
+                }
+            }
+        }
+        return new DestructurePatternExp(itemList, sourceExp, declarationType);
     }
 
 //    @Override

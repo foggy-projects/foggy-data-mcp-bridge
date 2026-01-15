@@ -97,6 +97,8 @@ public class McpProperties {
          * <p>定义 AI 可以查询的数据模型名称列表。
          * 这些模型名称对应 .qm 文件中定义的语义模型。
          *
+         * <p>如果不配置，将自动使用所有可用的 QM 模型（动态发现）。
+         *
          * <p>示例：
          * <pre>
          * model-list:
@@ -106,6 +108,19 @@ public class McpProperties {
          * </pre>
          */
         private List<String> modelList = new ArrayList<>();
+
+        /**
+         * 是否使用所有可用模型（动态发现模式）
+         *
+         * <p>三态逻辑：
+         * <ul>
+         *   <li>{@code null}（默认）：根据 model-list 是否配置自动推断。
+         *       若 model-list 为空则启用动态发现，否则使用静态列表</li>
+         *   <li>{@code true}：强制启用动态发现，忽略 model-list 配置</li>
+         *   <li>{@code false}：显式禁用，不返回任何模型（即使 model-list 有值也忽略）</li>
+         * </ul>
+         */
+        private Boolean useAllModels;
 
         /**
          * 元数据查询的字段级别配置

@@ -8,87 +8,89 @@ package com.foggyframework.fsscript.parser;
 /** CUP generated class containing symbol constants. */
 public class ExpSymbols {
   /* terminals */
-  public static final int QMARK = 61;
-  public static final int AT = 73;
-  public static final int AS = 65;
-  public static final int FROM = 75;
+  public static final int QMARK = 63;
+  public static final int AT = 75;
+  public static final int AS = 67;
+  public static final int FROM = 77;
   public static final int DIVISION = 29;
-  public static final int QMARK_DOT = 62;
+  public static final int QMARK_DOT = 64;
   public static final int GT = 38;
   public static final int REQUEST = 15;
-  public static final int CONST = 59;
+  public static final int CONST = 61;
   public static final int AA = 3;
   public static final int EXPORT = 20;
   public static final int GE = 37;
-  public static final int EXP_STRING = 80;
+  public static final int EXP_STRING = 82;
+  public static final int LBRACE_DESTR = 48;
   public static final int LIKE = 6;
-  public static final int CATCH = 70;
+  public static final int CATCH = 72;
   public static final int COMMA = 32;
-  public static final int RBRACE = 47;
-  public static final int THROW = 72;
+  public static final int RBRACE = 49;
+  public static final int THROW = 74;
   public static final int RPAREN = 45;
+  public static final int LBRACE_OBJ = 47;
   public static final int LT = 40;
-  public static final int DOLLAR_LBRACE = 74;
+  public static final int DOLLAR_LBRACE = 76;
   public static final int LBRACE = 46;
   public static final int LPAREN = 44;
   public static final int FALSE = 13;
   public static final int NOT = 5;
   public static final int LE = 39;
   public static final int MULTI = 28;
-  public static final int VAR = 57;
+  public static final int VAR = 59;
   public static final int EQ = 35;
-  public static final int DOLLAR = 77;
+  public static final int DOLLAR = 79;
   public static final int EQ2 = 36;
-  public static final int NUMBER = 81;
+  public static final int NUMBER = 83;
   public static final int _EE = 17;
   public static final int TRUE = 12;
-  public static final int LONG = 82;
+  public static final int LONG = 84;
   public static final int PLUS = 27;
   public static final int PERCENT = 31;
-  public static final int WHILE = 68;
-  public static final int DELETE = 76;
+  public static final int WHILE = 70;
+  public static final int DELETE = 78;
   public static final int SWITCH = 24;
-  public static final int FOR = 67;
+  public static final int FOR = 69;
   public static final int BACKQUOTE = 34;
-  public static final int DDDOT = 51;
-  public static final int RETURN = 60;
-  public static final int CONCAT = 63;
-  public static final int ELSE = 66;
-  public static final int TRY = 69;
-  public static final int BREAK = 55;
-  public static final int DOT = 50;
+  public static final int DDDOT = 53;
+  public static final int RETURN = 62;
+  public static final int CONCAT = 65;
+  public static final int TRY = 71;
+  public static final int ELSE = 68;
+  public static final int BREAK = 57;
+  public static final int DOT = 52;
   public static final int DEFAULT_COLON = 22;
   public static final int NULL = 26;
   public static final int EOF = 0;
   public static final int THIS = 14;
   public static final int BANG = 43;
   public static final int DEFAULT = 21;
-  public static final int FUNCTION = 56;
+  public static final int FUNCTION = 58;
   public static final int IMPORT = 18;
-  public static final int RSBRACE = 49;
+  public static final int RSBRACE = 51;
   public static final int MINUS = 30;
   public static final int IN = 7;
   public static final int OR = 9;
   public static final int error = 1;
-  public static final int FINALLY = 71;
+  public static final int FINALLY = 73;
   public static final int ORR = 10;
   public static final int CONTINUE = 23;
-  public static final int IF = 64;
-  public static final int ID = 78;
-  public static final int NCOUNT = 54;
+  public static final int IF = 66;
+  public static final int ID = 80;
+  public static final int NCOUNT = 56;
   public static final int OF = 8;
   public static final int CIMPORT = 19;
-  public static final int COLON = 53;
-  public static final int LSBRACE = 48;
+  public static final int COLON = 55;
+  public static final int LSBRACE = 50;
   public static final int _EVALUATOR = 16;
   public static final int SQM = 33;
   public static final int CASE = 25;
   public static final int NEW = 4;
-  public static final int STRING = 79;
-  public static final int NO = 52;
+  public static final int STRING = 81;
+  public static final int NO = 54;
   public static final int AND = 2;
   public static final int NF = 42;
-  public static final int LET = 58;
+  public static final int LET = 60;
   public static final int NE = 41;
   public static final int XOR = 11;
   public static final String[] terminalNames = new String[] {
@@ -139,6 +141,8 @@ public class ExpSymbols {
   "LPAREN",
   "RPAREN",
   "LBRACE",
+  "LBRACE_OBJ",
+  "LBRACE_DESTR",
   "RBRACE",
   "LSBRACE",
   "RSBRACE",

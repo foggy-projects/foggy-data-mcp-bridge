@@ -7,24 +7,20 @@ import com.foggyframework.fsscript.parser.ExpParser;
 import com.foggyframework.fsscript.parser.spi.Exp;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
-import org.junit.Assert;
-import org.junit.Test;
 import org.junit.jupiter.api.Assertions;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
-import org.springframework.test.context.junit4.SpringRunner;
 
-import jakarta.annotation.Resource;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-@RunWith(SpringRunner.class)
 @SpringBootTest(classes = FoggyFrameworkFsscriptTestApplication.class)
 public class NfFunctionExpTest {
 
-    @Resource
+    @Autowired
     ApplicationContext appCtx;
 
     @Test
@@ -37,14 +33,14 @@ public class NfFunctionExpTest {
         fScript.eval(ee);
 
         Map mm = ee.getExportMap();
-        Assert.assertEquals("b",mm.get("b"));
-        Assert.assertEquals(2,mm.get("cc"));
-        Assert.assertEquals(null,mm.get("d"));
-        Assert.assertEquals(1,mm.get("c"));
-        Assert.assertEquals(2,mm.get("ee"));
+        Assertions.assertEquals("b",mm.get("b"));
+        Assertions.assertEquals(2,mm.get("cc"));
+        Assertions.assertEquals(null,mm.get("d"));
+        Assertions.assertEquals(1,mm.get("c"));
+        Assertions.assertEquals(2,mm.get("ee"));
 
-        Assert.assertEquals(2,mm.get("dd"));
-        Assert.assertEquals("aa",mm.get("ff"));
+        Assertions.assertEquals(2,mm.get("dd"));
+        Assertions.assertEquals("aa",mm.get("ff"));
 
         Function export1 = (Function) mm.get("export1");
         export1.apply(new Object[0]);
@@ -53,11 +49,11 @@ public class NfFunctionExpTest {
         Function export3 = (Function) mm.get("export3");
 
 
-        Assert.assertEquals(3,export2.apply(new Object[0]));
-        Assert.assertEquals(2,export3.apply(new Object[0]));
+        Assertions.assertEquals(3,export2.apply(new Object[0]));
+        Assertions.assertEquals(2,export3.apply(new Object[0]));
 
         Function export4 = (Function) mm.get("export4");
-        Assert.assertEquals(4,export4.apply(new Object[0]));
+        Assertions.assertEquals(4,export4.apply(new Object[0]));
     }
 
 
@@ -69,9 +65,9 @@ public class NfFunctionExpTest {
         ExpEvaluator ee = DefaultExpEvaluator.newInstance(appCtx);
         Object result = exp.evalValue(ee);
 
-        Assert.assertEquals("b",result);
+        Assertions.assertEquals("b",result);
 
-//        Assert.assertEquals(null,mm.get("bb"));
+//        Assertions.assertEquals(null,mm.get("bb"));
     }
 
 

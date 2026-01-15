@@ -6,25 +6,23 @@ import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
 import com.foggyframework.fsscript.parser.spi.FsscriptClosure;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.Assert;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
-import org.junit.runner.RunWith;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
-import org.springframework.test.context.junit4.SpringRunner;
 
-import jakarta.annotation.Resource;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
-@RunWith(SpringRunner.class)
+
 @SpringBootTest(classes = FoggyFrameworkFsscriptTestApplication.class)
 class ImportBeanExpTest {
-    @Resource
+    @Autowired
     ApplicationContext appCtx;
-    @Resource
+    @Autowired
     FoggyFrameworkFsscriptTestApplication.PtTest importBeanTest;
-    @Resource
+    @Autowired
     FoggyFrameworkFsscriptTestApplication.PtTest importBeanTest3;
 
     @Test
@@ -36,16 +34,16 @@ class ImportBeanExpTest {
         ExpEvaluator ee = fScript.newInstance(appCtx);
         fScript.eval(ee);
 
-        Assert.assertEquals("ok",ee.getCurrentFsscriptClosure().getVar("result1"));
-        Assert.assertEquals("testR",ee.getCurrentFsscriptClosure().getVar("result2"));
+        Assertions.assertEquals("ok",ee.getCurrentFsscriptClosure().getVar("result1"));
+        Assertions.assertEquals("testR",ee.getCurrentFsscriptClosure().getVar("result2"));
 
-        Assert.assertEquals("tx3",ee.getCurrentFsscriptClosure().getVar("result3"));
+        Assertions.assertEquals("tx3",ee.getCurrentFsscriptClosure().getVar("result3"));
 
-        Assert.assertEquals("aaaaa",ee.getCurrentFsscriptClosure().getVar("result4_1"));
+        Assertions.assertEquals("aaaaa",ee.getCurrentFsscriptClosure().getVar("result4_1"));
 
-        Assert.assertEquals("1",ee.getCurrentFsscriptClosure().getVar("result4_2"));
+        Assertions.assertEquals("1",ee.getCurrentFsscriptClosure().getVar("result4_2"));
 
-        Assert.assertEquals(2,ee.getCurrentFsscriptClosure().getVar("resultTestArg"));
+        Assertions.assertEquals(2,ee.getCurrentFsscriptClosure().getVar("resultTestArg"));
 
     }
     @Test
@@ -57,21 +55,21 @@ class ImportBeanExpTest {
         ExpEvaluator ee = fScript.newInstance(appCtx);
         fScript.eval(ee);
 
-        Assert.assertEquals("ok",ee.getCurrentFsscriptClosure().getVar("result1"));
-        Assert.assertEquals("testR",ee.getCurrentFsscriptClosure().getVar("result2"));
+        Assertions.assertEquals("ok",ee.getCurrentFsscriptClosure().getVar("result1"));
+        Assertions.assertEquals("testR",ee.getCurrentFsscriptClosure().getVar("result2"));
 
-        Assert.assertEquals("tx3",ee.getCurrentFsscriptClosure().getVar("result3"));
+        Assertions.assertEquals("tx3",ee.getCurrentFsscriptClosure().getVar("result3"));
 
-        Assert.assertEquals("aaaaa",ee.getCurrentFsscriptClosure().getVar("result4_1"));
+        Assertions.assertEquals("aaaaa",ee.getCurrentFsscriptClosure().getVar("result4_1"));
 
-        Assert.assertEquals("1",ee.getCurrentFsscriptClosure().getVar("result4_2"));
+        Assertions.assertEquals("1",ee.getCurrentFsscriptClosure().getVar("result4_2"));
 
-        Assert.assertEquals(2,ee.getCurrentFsscriptClosure().getVar("resultTestArg"));
-        Assert.assertEquals(22,ee.getCurrentFsscriptClosure().getVar("resultTestArg2"));
+        Assertions.assertEquals(2,ee.getCurrentFsscriptClosure().getVar("resultTestArg"));
+        Assertions.assertEquals(22,ee.getCurrentFsscriptClosure().getVar("resultTestArg2"));
 
         FsscriptClosure fc=ee.getCurrentFsscriptClosure();
-        Assert.assertEquals(importBeanTest,fc.getVar("importBeanTest2"));
-        Assert.assertEquals(importBeanTest3,fc.getVar("importBeanTest4"));
+        Assertions.assertEquals(importBeanTest,fc.getVar("importBeanTest2"));
+        Assertions.assertEquals(importBeanTest3,fc.getVar("importBeanTest4"));
     }
 
     @Test
@@ -83,16 +81,16 @@ class ImportBeanExpTest {
         ExpEvaluator ee = fScript.newInstance(appCtx);
         fScript.eval(ee);
 
-        Assert.assertEquals("ok",ee.getCurrentFsscriptClosure().getVar("result1"));
-        Assert.assertEquals("testR",ee.getCurrentFsscriptClosure().getVar("result2"));
+        Assertions.assertEquals("ok",ee.getCurrentFsscriptClosure().getVar("result1"));
+        Assertions.assertEquals("testR",ee.getCurrentFsscriptClosure().getVar("result2"));
 
-        Assert.assertEquals("tx3",ee.getCurrentFsscriptClosure().getVar("result3"));
+        Assertions.assertEquals("tx3",ee.getCurrentFsscriptClosure().getVar("result3"));
 
-        Assert.assertEquals("aaaaa",ee.getCurrentFsscriptClosure().getVar("result4_1"));
+        Assertions.assertEquals("aaaaa",ee.getCurrentFsscriptClosure().getVar("result4_1"));
 
-        Assert.assertEquals("1",ee.getCurrentFsscriptClosure().getVar("result4_2"));
+        Assertions.assertEquals("1",ee.getCurrentFsscriptClosure().getVar("result4_2"));
 
-        Assert.assertEquals(2,ee.getCurrentFsscriptClosure().getVar("resultTestArg"));
+        Assertions.assertEquals(2,ee.getCurrentFsscriptClosure().getVar("resultTestArg"));
 
     }
 }

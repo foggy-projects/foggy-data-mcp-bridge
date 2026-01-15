@@ -10,6 +10,7 @@ import com.foggyframework.dataviewer.service.QueryScopeConstraintService;
 import com.foggyframework.dataset.db.model.service.JdbcService;
 import com.foggyframework.dataset.db.model.service.QueryFacade;
 import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -33,6 +34,9 @@ import org.springframework.data.mongodb.repository.config.EnableMongoRepositorie
 @EnableMongoRepositories(basePackages = "com.foggyframework.dataviewer.repository")
 public class DataViewerAutoConfiguration {
 
+    @Value("${server.port:8080}")
+    private int serverPort;
+
     @Bean
     @ConditionalOnMissingBean
     public QueryCacheService queryCacheService(CachedQueryRepository repository,
@@ -53,7 +57,7 @@ public class DataViewerAutoConfiguration {
                                               QueryScopeConstraintService constraintService,
                                               DataViewerProperties properties,
                                               ObjectMapper objectMapper) {
-        return new OpenInViewerTool(cacheService, constraintService, properties, objectMapper);
+        return new OpenInViewerTool(cacheService, constraintService, properties, objectMapper, serverPort);
     }
 
     @Bean

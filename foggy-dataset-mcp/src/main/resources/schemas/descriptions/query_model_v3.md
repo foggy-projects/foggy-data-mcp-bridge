@@ -26,13 +26,28 @@
 ```json
 ["product$categoryName", "sum(salesAmount) as totalSales", "count(orderId) as orderCount"]
 ```
-聚合函数：`sum`、`avg`、`count`、`max`、`min`
+聚合函数：`sum`、`avg`、`count`、`max`、`min`、`group_concat`
+
+**重要**：
+- 当使用聚合表达式后，系统自动推断 groupBy，通常无需手动指定
+- columns 仅支持简单的 `agg(field) as alias`，复杂计算用 calculatedFields
 
 ### calculatedFields (可选)
 需要指定agg或复杂表达式时使用：
 ```json
 [{"name": "netAmount", "expression": "salesAmount - discountAmount", "agg": "SUM"}]
 ```
+
+**支持的函数**（函数名不区分大小写，使用函数调用语法如 `YEAR(date)` 而非 SQL 语法 `EXTRACT(YEAR FROM date)`）：
+| 类型 | 函数 |
+|------|------|
+| 日期 | `YEAR(date)`, `MONTH(date)`, `DAY(date)`, `DATE_FORMAT`, `STR_TO_DATE`, `DATE_ADD`, `DATE_SUB`, `DATEDIFF`, `TIMESTAMPDIFF` |
+| 字符串 | `CONCAT`, `CONCAT_WS`, `SUBSTRING`, `LEFT`, `RIGHT`, `LPAD`, `RPAD`, `REPLACE`, `LOCATE` |
+| 空值 | `COALESCE`, `IFNULL`, `NVL`, `NULLIF` |
+| 条件 | `IF`, `CASE` |
+| 类型 | `CAST`, `CONVERT` |
+
+*常用数学函数如 ABS、ROUND、FLOOR、CEIL 等均支持*
 
 ### slice (可选)
 过滤条件：
@@ -45,27 +60,68 @@
 ```
 
 **操作符**：
-| 类型 | 操作符 | 适用范围 |
-|------|--------|----------|
-| 等值 | `=`, `!=`, `<>` | 全部 |
-| 比较 | `>`, `>=`, `<`, `<=` | 全部 |
-| 模糊 | `like`, `left_like`, `right_like` | 全部 |
-| 集合 | `in`, `not in` | 全部 |
-| 空值 | `is null`, `is not null` (无需value) | 全部 |
-| 区间 | `[]`, `[)`, `()`, `(]` (value为[start,end]) | 全部 |
-| 层级 | `childrenOf`, `descendantsOf`, `selfAndDescendantsOf` | 全部 |
-| 向量相似 | `similar` (语义相似度检索) | 仅向量模型 |
+| 类型 | 操作符 |
+|------|--------|
+| 等值 | `=`, `!=`, `<>` |
+| 比较 | `>`, `>=`, `<`, `<=` |
+| 模糊 | `like`, `left_like`, `right_like` |
+| 集合 | `in`, `not in` |
+| 空值 | `is null`, `is not null` (无需value) |
+| 区间 | `[]`, `[)`, `()`, `(]` (value为[start,end]) |
+| 层级 | `childrenOf`, `descendantsOf`, `selfAndDescendantsOf` |
+| 向量 | `similar`, `hybrid` (向量检索) |
 
-**向量查询说明**：
-- `similar` 操作符仅适用于向量数据库模型（模型名通常包含 `Vector`）
-- 用于语义相似度检索，value 为查询文本
-- 示例：`{"field": "content", "op": "similar", "value": "销售数据分析"}`
+### 向量检索
+
+**仅向量字段（type=VECTOR）支持以下操作符**，普通字段不可使用。
+
+#### similar - 相似度搜索
+```json
+{
+  "field": "embedding",
+  "op": "similar",
+  "value": {
+    "text": "销售额分析",
+    "topK": 10,
+    "minScore": 0.6,
+    "groupBy": "category",
+    "radius": 0.3
+  }
+}
+```
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `text` | string | 搜索文本（自动转向量）|
+| `vector` | float[] | 直接传向量（与text二选一）|
+| `topK` | int | 返回条数，默认10 |
+| `minScore` | float | 最低相似度(0-1) |
+| `groupBy` | string | 按字段分组去重 |
+| `radius` | float | 范围搜索最低分数 |
+
+#### hybrid - 混合搜索
+向量相似度 + 关键词过滤的组合搜索：
+```json
+{
+  "field": "embedding",
+  "op": "hybrid",
+  "value": {
+    "text": "销售分析",
+    "keyword": "报告",
+    "topK": 10,
+    "vectorWeight": 0.7,
+    "keywordWeight": 0.3
+  }
+}
+```
+
+返回结果包含 `_score` 字段表示相似度(0-1)。
 
 ### orderBy (可选)
 ```json
 [{"field": "totalSales", "dir": "DESC"}]
 ```
-注意：聚合或计算字段使用了聚合函数时orderBy字段必须在columns中
+**使用 columns 中定义的别名**，如 `year` 而非 `YEAR(createdAt)`
 
 ### 分页
 - `start`: 起始行(从0开始)
@@ -101,8 +157,20 @@
 }
 ```
 
+**按年月统计**：
+```json
+{
+  "model": "ProductModel",
+  "payload": {
+    "columns": ["YEAR(createdAt) as year", "MONTH(createdAt) as month", "count(productKey) as cnt"],
+    "orderBy": [{"field": "year"}, {"field": "month"}],
+    "limit": 100
+  }
+}
+```
+
 ## 最佳实践
 - 展示用`$caption`，查询用`$id`
 - 简单聚合用内联表达式，复杂计算用calculatedFields
-- 聚合或计算字段使用了聚合函数时orderBy字段必须在columns中
-- 向量模型使用`similar`操作符进行语义检索，关系数据库不支持此操作符
+- orderBy/groupBy 使用 columns 中定义的别名（如 `year`）而非表达式
+- 向量检索：`similar`可与普通过滤组合，`hybrid`用于语义+关键词混合搜索

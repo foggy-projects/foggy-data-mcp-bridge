@@ -4,7 +4,7 @@ import com.foggyframework.core.common.MapBuilder;
 import com.foggyframework.dataset.db.table.SqlColumn;
 import com.foggyframework.dataset.db.table.SqlTable;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.Assert;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Types;
@@ -29,6 +29,6 @@ class OnDuplicateKeyBuilderTest {
         String str = onDuplicateKeyBuilder.genByConfigs(MapBuilder.builder().put("updates", MapBuilder.builder().put("c2", "c2").build()).build());
 
         log.debug(str);
-        Assert.assertEquals("insert into test1 (c1,c2,c3) values (?,?,?) on duplicate key update c2=c2,c3=values(c3)",str);
+        Assertions.assertEquals("insert into test1 (c1,c2,c3) values (?,?,?) on duplicate key update c2=c2,c3=values(c3)",str);
     }
 }

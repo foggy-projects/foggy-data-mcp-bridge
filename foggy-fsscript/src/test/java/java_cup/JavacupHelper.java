@@ -23,7 +23,7 @@ public class JavacupHelper {
     public static void main(final String[] args) {
         try {
             Main.main(
-                    new String[]{"-expect", "2", "-package", "com.foggyframework.fsscript.parser", "-parser", "ExpParser",
+                    new String[]{"-expect", "100", "-package", "com.foggyframework.fsscript.parser", "-parser", "ExpParser",
                     "-symbols", "ExpSymbols", "-destdir", "D:\\foggy-projects\\java-data-mcp-bridge\\foggy-fsscript\\src\\main\\java\\com\\foggyframework\\fsscript\\parser",
                     "D:\\foggy-projects\\java-data-mcp-bridge\\foggy-fsscript\\src\\main\\resources\\datasetexp.cup"});
 
