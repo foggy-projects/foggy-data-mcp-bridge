@@ -3986,7 +3986,7 @@ class CUP$ExpParser$actions {
 		int vright = ((java_cup.runtime.Symbol)CUP$ExpParser$stack.peek()).right;
 		Exp v = (Exp)((java_cup.runtime.Symbol) CUP$ExpParser$stack.peek()).value;
 		
-                // 单参数箭头函数表达式�?: x => expr
+                // 单参数箭头函数表达式: x => expr
                 // 使用 arrow_body 避免与嵌套箭头函数的冲突
                 List args = new ListExp(1);
                 args.add(s);
