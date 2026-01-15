@@ -4,14 +4,14 @@ import com.foggyframework.core.utils.FileUtils;
 import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.db.table.SqlColumn;
 import com.foggyframework.dataset.db.table.SqlTable;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.net.URL;
 import java.sql.Types;
 
-public class TableGeneratorTest {
+class TableGeneratorTest {
 
     /**
      * 测试生成表语句
@@ -19,7 +19,7 @@ public class TableGeneratorTest {
      * @throws IOException
      */
     @Test
-    public void generatorCreate() throws IOException {
+    void generatorCreate() throws IOException {
 
         TableGenerator tableGenerator = new TableGenerator(buildTest1SqlTable(), getTestFDialect());
 
@@ -27,11 +27,11 @@ public class TableGeneratorTest {
         System.err.println(createSql);
 
         URL url = TableGeneratorTest.class.getResource("table1_mysql.txt");
-        Assert.assertEquals(FileUtils.toString(url.openStream()).trim(), createSql);
+        Assertions.assertEquals(FileUtils.toString(url.openStream()).trim(), createSql);
     }
 
     @Test
-    public void generatorCreate2() throws IOException {
+    void generatorCreate2() throws IOException {
 
         TableGenerator tableGenerator = new TableGenerator(buildTest1SqlTable2(), getTestFDialect());
 
@@ -39,7 +39,7 @@ public class TableGeneratorTest {
         System.err.println(createSql);
 
         URL url = TableGeneratorTest.class.getResource("table2_mysql.txt");
-        Assert.assertEquals(FileUtils.toString(url.openStream()).trim(), createSql);
+        Assertions.assertEquals(FileUtils.toString(url.openStream()).trim(), createSql);
     }
 
     private SqlTable buildTest1SqlTable() {

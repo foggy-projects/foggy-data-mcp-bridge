@@ -1,13 +1,11 @@
 package com.foggyframework.core.utils;
 
-import org.junit.Assert;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.util.Calendar;
 import java.util.Date;
-
-import static org.junit.jupiter.api.Assertions.*;
 
 class DateUtilsTest {
 
@@ -25,12 +23,12 @@ class DateUtilsTest {
                 DateUtils.days(date1, DateUtils.addDays(date1,-2000))
         };
 
-        Assert.assertEquals(0,results[0]);
-        Assert.assertEquals(1,results[1]);
-        Assert.assertEquals(100,results[2]);
+        Assertions.assertEquals(0,results[0]);
+        Assertions.assertEquals(1,results[1]);
+        Assertions.assertEquals(100,results[2]);
 
-        Assert.assertEquals(2000,results[3]);
-        Assert.assertEquals(-2000,results[4]);
+        Assertions.assertEquals(2000,results[3]);
+        Assertions.assertEquals(-2000,results[4]);
     }
 
     @Test
@@ -42,13 +40,10 @@ class DateUtilsTest {
         long xx = end.getTime() - start.getTime();
         System.err.println("toStartMinute: "+xx);
 
-        Assert.assertEquals(xx,60*1000);
+        Assertions.assertEquals(xx,60*1000);
 
-        Assert.assertEquals(start.getSeconds(),0);
-        Assert.assertEquals(end.getSeconds(),0);
-//        Instant.
-//        Assert.assertEquals();
-
+        Assertions.assertEquals(start.getSeconds(),0);
+        Assertions.assertEquals(end.getSeconds(),0);
     }
 
     @Test
@@ -60,16 +55,13 @@ class DateUtilsTest {
         long xx = end.getTime() - start.getTime();
         System.err.println("toStartHour: "+xx);
 
-        Assert.assertEquals(xx,60*1000*60);
+        Assertions.assertEquals(xx,60*1000*60);
 
-        Assert.assertEquals(start.getSeconds(),0);
-        Assert.assertEquals(end.getSeconds(),0);
+        Assertions.assertEquals(start.getSeconds(),0);
+        Assertions.assertEquals(end.getSeconds(),0);
 
-        Assert.assertEquals(start.getMinutes(),0);
-        Assert.assertEquals(end.getMinutes(),0);
-//        Instant.
-//        Assert.assertEquals();
-
+        Assertions.assertEquals(start.getMinutes(),0);
+        Assertions.assertEquals(end.getMinutes(),0);
     }
 
 
@@ -84,17 +76,17 @@ class DateUtilsTest {
 
         // Test for MONTH field
         int monthDiff = DateUtils.subtract(Calendar.MONTH, endDate, startDate);
-        Assert.assertEquals("Month difference should be 12", 12, monthDiff);
+        Assertions.assertEquals(12, monthDiff, "Month difference should be 12");
 
         // Test for YEAR field
         int yearDiff = DateUtils.subtract(Calendar.YEAR, endDate, startDate);
-        Assert.assertEquals("Year difference should be 1", 1, yearDiff);
+        Assertions.assertEquals(1, yearDiff, "Year difference should be 1");
 
         // Test for DAY field
         cal.set(2022, Calendar.JANUARY, 16);
         Date nextDay = cal.getTime();
         int dayDiff = DateUtils.subtract(Calendar.DATE, nextDay, startDate);
-        Assert.assertEquals("Day difference should be 1", 1, dayDiff);
+        Assertions.assertEquals(1, dayDiff, "Day difference should be 1");
     }
 
     @Test
@@ -108,21 +100,21 @@ class DateUtilsTest {
 
         // Test for negative difference when end date is before start date
         int monthDiff = DateUtils.subtract(Calendar.MONTH, endDate, startDate);
-        Assert.assertEquals("Month difference should be negative when end date is before start date", -12, monthDiff);
+        Assertions.assertEquals(-12, monthDiff, "Month difference should be negative when end date is before start date");
     }
 
     @Test
     public void testSubtractWithNullDatesReturnsZero() {
         // Both dates are null
         int result = DateUtils.subtract(Calendar.MONTH, (Date) null, null);
-        Assert.assertEquals("Difference should be 0 when both dates are null", 0, result);
+        Assertions.assertEquals(0, result, "Difference should be 0 when both dates are null");
 
         // Start date is null
         result = DateUtils.subtract(Calendar.MONTH, new Date(), null);
-        Assert.assertEquals("Difference should be 0 when start date is null", 0, result);
+        Assertions.assertEquals(0, result, "Difference should be 0 when start date is null");
 
         // End date is null
         result = DateUtils.subtract(Calendar.MONTH, null, new Date());
-        Assert.assertEquals("Difference should be 0 when end date is null", 0, result);
+        Assertions.assertEquals(0, result, "Difference should be 0 when end date is null");
     }
 }

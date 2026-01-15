@@ -1,14 +1,12 @@
 package com.foggyframework.core.utils.beanhelper;
 
 import lombok.Data;
-import org.junit.Test;
 import org.junit.jupiter.api.Assertions;
-
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
 
  class BeanInfoHelperTest {
 
-     @org.junit.jupiter.api.Test
+     @Test
      void getClassHelper() {
 
         BeanInfoHelper bp =   BeanInfoHelper.getClassHelper(String[].class);
@@ -16,7 +14,7 @@ import static org.junit.Assert.*;
         Assertions.assertEquals(bp.getBeanProperty("length").getBeanValue(new String[]{"a"}),1);
     }
 
-    @org.junit.jupiter.api.Test
+    @Test
     void getComplexBeanProperty() {
         BeanInfoHelper beanInfoHelper =   BeanInfoHelper.getClassHelper(ComplexTestBean.class);
         BeanProperty bp = beanInfoHelper.getComplexBeanProperty("l1.l2.l3.testAbc");
@@ -29,7 +27,7 @@ import static org.junit.Assert.*;
      /**
       * 测试基本对象
       */
-     @org.junit.jupiter.api.Test
+     @Test
      void getComplexBeanProperty2() {
          BeanInfoHelper beanInfoHelper =   BeanInfoHelper.getClassHelper(ComplexTestBean.class);
          BeanProperty bp = beanInfoHelper.getComplexBeanProperty("l1.l2.l3.dd");
@@ -39,7 +37,7 @@ import static org.junit.Assert.*;
          Assertions.assertEquals(2.0, bean.getL1().getL2().l3.dd);
      }
 
-     @org.junit.jupiter.api.Test
+     @Test
      void copyProperties() {
 
          SS ss = new SS();

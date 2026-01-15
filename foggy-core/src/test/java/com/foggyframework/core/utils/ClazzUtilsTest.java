@@ -1,7 +1,7 @@
 package com.foggyframework.core.utils;
 
-import org.junit.Test;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 public class ClazzUtilsTest {
     public static class MyTest{

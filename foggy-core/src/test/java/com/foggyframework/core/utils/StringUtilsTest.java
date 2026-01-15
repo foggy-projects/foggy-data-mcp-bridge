@@ -4,7 +4,6 @@ import com.foggyframework.core.common.MapBuilder;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.junit.Assert;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -14,45 +13,45 @@ import java.util.stream.Collectors;
 class StringUtilsTest {
     @Test
     void countOfChar() {
-        Assert.assertEquals(0, StringUtils.countOfChar("xxxx", '?'));
-        Assert.assertEquals(3, StringUtils.countOfChar("and (t.goods_code = ? or t.paper_express_id = ? or t.bill_id = ?)", '?'));
-        Assert.assertEquals(2, StringUtils.countOfChar("xxx?x?", '?'));
-        Assert.assertEquals(1, StringUtils.countOfChar("?xxxx", '?'));
+        Assertions.assertEquals(0, StringUtils.countOfChar("xxxx", '?'));
+        Assertions.assertEquals(3, StringUtils.countOfChar("and (t.goods_code = ? or t.paper_express_id = ? or t.bill_id = ?)", '?'));
+        Assertions.assertEquals(2, StringUtils.countOfChar("xxx?x?", '?'));
+        Assertions.assertEquals(1, StringUtils.countOfChar("?xxxx", '?'));
     }
 
     @Test
     void to() {
-        Assert.assertEquals("xxxx", StringUtils.to("xxxx"));
-        Assert.assertEquals("Xxxx", StringUtils.to("Xxxx"));
-        Assert.assertEquals("XXxx", StringUtils.to("X_xxx"));
-        Assert.assertEquals("Xxx", StringUtils.to("_xxx"));
-        Assert.assertEquals("getTime", StringUtils.to("get_time"));
-        Assert.assertEquals("getTimeHh", StringUtils.to("get_time_hh"));
+        Assertions.assertEquals("xxxx", StringUtils.to("xxxx"));
+        Assertions.assertEquals("Xxxx", StringUtils.to("Xxxx"));
+        Assertions.assertEquals("XXxx", StringUtils.to("X_xxx"));
+        Assertions.assertEquals("Xxx", StringUtils.to("_xxx"));
+        Assertions.assertEquals("getTime", StringUtils.to("get_time"));
+        Assertions.assertEquals("getTimeHh", StringUtils.to("get_time_hh"));
     }
 
     @Test
     void toLink() {
-        Assert.assertEquals(StringUtils.toLink("xxXx"), "xx-xx");
-        Assert.assertEquals(StringUtils.toLink("我Xxxx"), "我-xxxx");
-        Assert.assertEquals(StringUtils.toLink("XXxx"), "x-xxx");
-        Assert.assertEquals(StringUtils.toLink("Xxx"), "xxx");
-        Assert.assertEquals(StringUtils.toLink("getTime"), "get-time");
-        Assert.assertEquals(StringUtils.toLink("getTimeHh"), "get-time-hh");
+        Assertions.assertEquals(StringUtils.toLink("xxXx"), "xx-xx");
+        Assertions.assertEquals(StringUtils.toLink("我Xxxx"), "我-xxxx");
+        Assertions.assertEquals(StringUtils.toLink("XXxx"), "x-xxx");
+        Assertions.assertEquals(StringUtils.toLink("Xxx"), "xxx");
+        Assertions.assertEquals(StringUtils.toLink("getTime"), "get-time");
+        Assertions.assertEquals(StringUtils.toLink("getTimeHh"), "get-time-hh");
     }
 
     @Test
     void checkEq() {
         boolean v1 = StringUtils.checkEq(new CheckEqTest("a", "b", 1),
                 new CheckEqTest("a", "b", 1), null, "a", "b", "c");
-        Assert.assertTrue(v1);
+        Assertions.assertTrue(v1);
 
         boolean v2 = StringUtils.checkEq(new CheckEqTest("a", "b", 1),
                 new CheckEqTest("a", "b", 2), null, "a", "b", "c");
-        Assert.assertFalse(v2);
+        Assertions.assertFalse(v2);
         try {
             StringUtils.checkEq(new CheckEqTest("a", "b", 1),
                     new CheckEqTest("a", "b", 2), "", "a", "b", "c");
-            Assert.fail();
+            Assertions.fail();
         } catch (Throwable t) {
 
         }
@@ -78,7 +77,7 @@ class StringUtilsTest {
         Assertions.assertEquals(StringUtils.replaceUtf16ToEmpty("幸福11435y"), "幸福11435y");
     }
 
-    @org.junit.jupiter.api.Test
+    @Test
     void txtSplitByLength() {
         Assertions.assertArrayEquals(new String[]{"", "", ""}, StringUtils.txtSplitByLength(null, 1, 3));
         Assertions.assertArrayEquals(new String[]{"测", "试", ""}, StringUtils.txtSplitByLength("测试", 1, 3));
@@ -153,14 +152,14 @@ class StringUtilsTest {
     void testJoinWithSingleElement() {
         List<String> singleElementList = Arrays.asList("Hello");
         String result = StringUtils.join(singleElementList, ",");
-        Assertions.assertEquals("Hello", result, "The result should be the single element without any separator.");
+        Assertions.assertEquals("Hello", result, "The result should be a single element without any separator.");
     }
 
     @Test
     void testJoinWithMultipleElements() {
         List<String> stringList = Arrays.asList("Hello", "World", "FoggyFramework");
         String result = StringUtils.join(stringList, ",");
-        Assertions. assertEquals("Hello,World,FoggyFramework", result, "The result should be a string with elements joined by the specified separator.");
+        Assertions.assertEquals("Hello,World,FoggyFramework", result, "The result should be a string with elements joined by the specified separator.");
     }
 
     @Test
@@ -174,14 +173,14 @@ class StringUtilsTest {
     void testJoinWithEmptyStringElement() {
         List<String> stringList = Arrays.asList("Hello", "", "World");
         String result = StringUtils.join(stringList, ",");
-        Assertions. assertEquals("Hello,,World", result, "The result should contain empty string elements.");
+        Assertions.assertEquals("Hello,,World", result, "The result should contain empty string elements.");
     }
 
     @Test
     void testJoinWithDifferentSeparator() {
         List<String> stringList = Arrays.asList("Java", "C++", "Python");
         String result = StringUtils.join(stringList, " -> ");
-        Assertions. assertEquals("Java -> C++ -> Python", result, "The result should be a string with elements joined by the specified different separator.");
+        Assertions.assertEquals("Java -> C++ -> Python", result, "The result should be a string with elements joined by the specified different separator.");
     }
 
 }

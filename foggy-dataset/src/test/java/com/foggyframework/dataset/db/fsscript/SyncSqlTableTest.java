@@ -5,27 +5,23 @@ import com.foggyframework.dataset.db.table.SqlTable;
 import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
-import org.junit.Assert;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
-import org.springframework.test.context.junit4.SpringRunner;
 
-import jakarta.annotation.Resource;
-
-@RunWith(SpringRunner.class)
 @SpringBootTest(classes = FoggyFrameworkDataSetTestApplication.class)
-public class SyncSqlTableTest {
+class SyncSqlTableTest {
 
-    @Resource
+    @Autowired
     FileFsscriptLoader fileFsscriptLoader;
 
-    @Resource
+    @Autowired
     ApplicationContext appCtx;
 
     @Test
-    public void execute() {
+    void execute() {
 
 //        org.springframework.core.io.Resource res = appCtx.getResource("classpath:/com/foggyframework/dataset/db/fscript/SyncSqlTableTest.fsscript");
 
@@ -36,7 +32,7 @@ public class SyncSqlTableTest {
         Object sqlTable = ee.getExportObjectInDefault("sqlTable");
         Object sqlTable2 = ee.getExportObjectInDefault("sqlTable2");
 
-        Assert.assertTrue(sqlTable instanceof SqlTable);
-        Assert.assertTrue(sqlTable2 instanceof SqlTable);
+        Assertions.assertTrue(sqlTable instanceof SqlTable);
+        Assertions.assertTrue(sqlTable2 instanceof SqlTable);
     }
 }

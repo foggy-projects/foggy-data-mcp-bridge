@@ -4,17 +4,14 @@ import com.foggyframework.core.FoggyFrameworkTestApplication;
 import com.foggyframework.core.ex.ExRuntimeExceptionImpl;
 import com.foggyframework.core.ex.RX;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.Test;
 import org.junit.jupiter.api.Assertions;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
-import org.springframework.test.context.junit4.SpringRunner;
 
 import jakarta.annotation.Resource;
 
 @Slf4j
-@RunWith(SpringRunner.class)
 @SpringBootTest(classes = FoggyFrameworkTestApplication.class)
 public class DefaultResourceFinderTest {
     @Resource

@@ -9,15 +9,12 @@ import com.foggyframework.dataset.utils.SqlTableBuilder;
 import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
-import org.junit.Assert;
-import org.junit.Test;
 import org.junit.jupiter.api.Assertions;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
-import org.springframework.test.context.junit4.SpringRunner;
 
-import jakarta.annotation.Resource;
 import javax.sql.DataSource;
 import java.io.IOException;
 import java.net.URL;
@@ -25,21 +22,20 @@ import java.sql.SQLException;
 import java.sql.Types;
 import java.util.Map;
 
-@RunWith(SpringRunner.class)
 @SpringBootTest(classes = FoggyFrameworkDataSetTestApplication.class)
-public class JdbcTableUtilsTest {
+class JdbcTableUtilsTest {
 
-    @Resource
+    @Autowired
     FileFsscriptLoader fileFsscriptLoader;
 
-    @Resource
+    @Autowired
     ApplicationContext applicationContext;
 
-    @Resource
+    @Autowired
     DataSource dataSource;
 
     @Test
-    public void createOrUpdateTable() throws SQLException {
+    void createOrUpdateTable() throws SQLException {
         URL tableDefFsscript = JdbcTableUtilsTest.class.getResource("M_ETL_TEST.fsscript");
         Fsscript fScript = fileFsscriptLoader.findLoadFsscript(tableDefFsscript);
         ExpEvaluator ee = fScript.newInstance(applicationContext);
@@ -57,7 +53,7 @@ public class JdbcTableUtilsTest {
     }
 
     @Test
-    public void genTableBuilder() throws IOException {
+    void genTableBuilder() throws IOException {
         URL tableDefFsscript = JdbcTableUtilsTest.class.getResource("M_ETL_TEST.fsscript");
 
         Fsscript fScript = fileFsscriptLoader.findLoadFsscript(tableDefFsscript);
@@ -72,11 +68,11 @@ public class JdbcTableUtilsTest {
         String str = DbUtils.generateCreateSql(DbUtils.getDialect(dataSource),table);
 
         URL mysqlOutput = JdbcTableUtilsTest.class.getResource("M_ETL_TEST.mysql.txt");
-        Assert.assertEquals(FileUtils.toString(mysqlOutput.openStream()).trim(),str);
+        Assertions.assertEquals(FileUtils.toString(mysqlOutput.openStream()).trim(),str);
     }
 
     @Test
-    public void createOrUpdateTableV2() throws SQLException {
+    void createOrUpdateTableV2() throws SQLException {
         URL tableDefFsscript = JdbcTableUtilsTest.class.getResource("M_ETL_TEST_V2.fsscript");
         Fsscript fScript = fileFsscriptLoader.findLoadFsscript(tableDefFsscript);
         ExpEvaluator ee = fScript.newInstance(applicationContext);
@@ -99,7 +95,7 @@ public class JdbcTableUtilsTest {
     }
 
     @Test
-    public void genTableBuilderV2() throws IOException {
+    void genTableBuilderV2() throws IOException {
         URL tableDefFsscript = JdbcTableUtilsTest.class.getResource("M_ETL_TEST_V2.fsscript");
 
         Fsscript fScript = fileFsscriptLoader.findLoadFsscript(tableDefFsscript);
@@ -114,6 +110,6 @@ public class JdbcTableUtilsTest {
         String str = DbUtils.generateCreateSql(DbUtils.getDialect(dataSource),table);
 
         URL mysqlOutput = JdbcTableUtilsTest.class.getResource("M_ETL_TEST_V2.mysql.txt");
-        Assert.assertEquals(FileUtils.toString(mysqlOutput.openStream()).trim(),str);
+        Assertions.assertEquals(FileUtils.toString(mysqlOutput.openStream()).trim(),str);
     }
 }

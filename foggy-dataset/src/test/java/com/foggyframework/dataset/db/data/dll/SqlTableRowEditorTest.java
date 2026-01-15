@@ -6,16 +6,16 @@ import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 
-import jakarta.annotation.Resource;
 import java.util.Arrays;
 
 class SqlTableRowEditorTest extends DatasetTestSupport {
-    @Resource
+    @Autowired
     FileFsscriptLoader fileFsscriptLoader;
 
-    @Resource
+    @Autowired
     ApplicationContext appCtx;
     @Test
     void buildGtTimeOnDuplicateInsertSql() {

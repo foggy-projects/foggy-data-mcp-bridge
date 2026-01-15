@@ -6,20 +6,20 @@ import com.foggyframework.fsscript.DefaultExpEvaluator;
 import com.foggyframework.fsscript.exp.ObjectExp;
 import com.foggyframework.fsscript.exp.StringExp;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 import javax.sql.DataSource;
 
 
-public class JdbcResultSetModelTest extends DatasetTestSupport {
+class JdbcResultSetModelTest extends DatasetTestSupport {
 
 
     /**
      * 简单的测试
      */
     @Test
-    public void getSql() {
+    void getSql() {
         JdbcDataSetModel model = _build();
 
         ExpEvaluator ee = DefaultExpEvaluator.newInstance(appCtx);
@@ -27,11 +27,11 @@ public class JdbcResultSetModelTest extends DatasetTestSupport {
 
         SQLKey sqlKey =   model.getSql(queryExpEvaluator);
 
-        Assert.assertNotNull(sqlKey);
+        Assertions.assertNotNull(sqlKey);
     }
 
     @Test
-    public void testQueryListResultSet(){
+    void testQueryListResultSet(){
         ExpEvaluator ee = DefaultExpEvaluator.newInstance(appCtx);
         QueryExpEvaluator queryExpEvaluator = new QueryExpEvaluator(ee);
 
