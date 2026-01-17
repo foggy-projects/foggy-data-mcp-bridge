@@ -215,7 +215,8 @@ public class GraphqlToDslConverterTest {
 
         assertNotNull(result);
         assertEquals("FactOrderQueryModel", result.getParam().getQueryModel());
-        assertEquals(4, result.getParam().getColumns().size());
+        // orderId, orderStatus, totalAmount, customer$caption, customer$customerType = 5
+        assertEquals(5, result.getParam().getColumns().size());
         assertEquals(3, result.getParam().getSlice().size());
         assertEquals(1, result.getParam().getOrderBy().size());
         assertEquals(20, result.getLimit());

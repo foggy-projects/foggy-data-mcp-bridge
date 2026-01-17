@@ -3,6 +3,7 @@ package com.foggyframework.dataset.db.model.def;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.db.model.def.dimension.DbDimensionDef;
 import com.foggyframework.dataset.db.model.def.measure.DbMeasureDef;
+import com.foggyframework.dataset.db.model.def.preagg.PreAggregationDef;
 import com.foggyframework.dataset.db.model.def.property.DbPropertyDef;
 import com.foggyframework.dataset.db.model.impl.model.TableModelSupport;
 import com.foggyframework.dataset.db.model.spi.DbModelType;
@@ -46,6 +47,16 @@ public class DbModelDef extends DbDefSupport {
      * 向量数据库配置（用于 vector 类型模型）
      */
     Object vectorConfig;
+
+    /**
+     * 预聚合配置（P1 预聚合功能）
+     * <p>
+     * 定义预聚合表，用于加速聚合查询。
+     * </p>
+     *
+     * @since 8.2.0
+     */
+    List<PreAggregationDef> preAggregations;
 
     public void apply(TableModelSupport jdbcObjectSupport) {
         super.apply(jdbcObjectSupport);

@@ -8,6 +8,8 @@ import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.engine.JdbcModelQueryEngine;
 import com.foggyframework.dataset.db.model.engine.expression.SqlCalculatedFieldProcessor;
 import com.foggyframework.dataset.db.model.engine.formula.SqlFormulaService;
+import com.foggyframework.dataset.db.model.engine.preagg.PreAggRewriteResult;
+import com.foggyframework.dataset.db.model.engine.preagg.PreAggregationInterceptor;
 import com.foggyframework.dataset.db.model.engine.query.DbQueryResult;
 import com.foggyframework.dataset.db.model.impl.model.TableModelSupport;
 import com.foggyframework.dataset.db.model.interceptor.SqlLoggingInterceptor;
@@ -93,6 +95,7 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
      * 执行 JDBC 查询
      * <p>
      * 支持 L2 缓存（SQL 级别）：在 SQL 生成后、执行前检查缓存。
+     * 支持预聚合：在查询分析后检查是否可以使用预聚合表。
      * </p>
      *
      * @param systemBundlesContext 系统上下文
@@ -110,8 +113,25 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
          */
         queryEngine.analysisQueryRequest(systemBundlesContext, context);
 
-        String sql = queryEngine.getSql();
-        List<?> params = queryEngine.getValues();
+        // ========== 预聚合拦截 ==========
+        String sql;
+        List<?> params;
+        PreAggRewriteResult preAggResult = tryPreAggregation(systemBundlesContext, queryEngine, queryRequest);
+
+        if (preAggResult.isApplied()) {
+            sql = preAggResult.getSql();
+            params = preAggResult.getParams();
+            // 记录预聚合使用信息到上下文
+            context.getExtData().put("preAggUsed", preAggResult.getPreAggName());
+            context.getExtData().put("preAggNeedsRollup", preAggResult.isNeedsRollup());
+            log.info("Query using pre-aggregation '{}' (needsRollup={})",
+                    preAggResult.getPreAggName(), preAggResult.isNeedsRollup());
+        } else {
+            sql = queryEngine.getSql();
+            params = queryEngine.getValues();
+        }
+        // ========== 预聚合拦截结束 ==========
+
         String pagingSql = DbUtils.getDialect(dataSource).generatePagingSql(sql, form.getStart(), form.getLimit());
 
         // 【L2 缓存检查】在 SQL 生成后、执行前
@@ -229,6 +249,34 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
             return (QueryCacheProvider) provider;
         }
         return null;
+    }
+
+    /**
+     * 尝试使用预聚合重写查询
+     * <p>
+     * 检查当前查询是否可以使用预聚合表，如果可以则返回重写后的 SQL。
+     * </p>
+     *
+     * @param systemBundlesContext 系统上下文
+     * @param queryEngine          查询引擎（已完成 analysisQueryRequest）
+     * @param queryRequest         查询请求
+     * @return 预聚合重写结果
+     */
+    private PreAggRewriteResult tryPreAggregation(SystemBundlesContext systemBundlesContext,
+                                                   JdbcModelQueryEngine queryEngine,
+                                                   DbQueryRequestDef queryRequest) {
+        try {
+            PreAggregationInterceptor interceptor = new PreAggregationInterceptor(
+                    systemBundlesContext.getApplicationContext());
+            return interceptor.tryRewrite(queryEngine, this, queryRequest);
+        } catch (Exception e) {
+            log.warn("Pre-aggregation interception failed, falling back to original query: {}",
+                    e.getMessage());
+            if (log.isDebugEnabled()) {
+                log.debug("Pre-aggregation error details", e);
+            }
+            return PreAggRewriteResult.notApplied();
+        }
     }
 
 
