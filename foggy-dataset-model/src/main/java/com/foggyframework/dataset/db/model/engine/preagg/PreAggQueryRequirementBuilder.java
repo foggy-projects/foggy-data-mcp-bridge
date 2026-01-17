@@ -7,6 +7,7 @@ import com.foggyframework.dataset.db.model.spi.preagg.TimeGranularity;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 预聚合查询需求构建器
@@ -142,6 +143,19 @@ public class PreAggQueryRequirementBuilder {
     }
 
     /**
+     * 时间粒度属性映射：属性名 -> TimeGranularity
+     */
+    private static final Map<String, TimeGranularity> TIME_PROPERTY_GRANULARITY = Map.of(
+            "year", TimeGranularity.YEAR,
+            "quarter", TimeGranularity.QUARTER,
+            "month", TimeGranularity.MONTH,
+            "week", TimeGranularity.WEEK,
+            "day", TimeGranularity.DAY,
+            "hour", TimeGranularity.HOUR,
+            "minute", TimeGranularity.MINUTE
+    );
+
+    /**
      * 处理属性列
      * <p>
      * 属性列的处理：从列名中解析维度和属性名。
@@ -150,6 +164,9 @@ public class PreAggQueryRequirementBuilder {
      * </p>
      * <p>
      * 注意：属性列引用了某个维度，因此也需要将维度添加到需求中。
+     * </p>
+     * <p>
+     * 特殊处理：时间粒度属性（如 salesDate$month）会被识别并设置为查询粒度。
      * </p>
      */
     private void processPropertyColumn(DbColumn column, PreAggQueryRequirement requirement,
@@ -178,6 +195,16 @@ public class PreAggQueryRequirementBuilder {
             // 属性列引用了维度，需要同时添加维度和属性
             requirement.addDimension(dimensionName);
             requirement.addDimensionProperty(dimensionName, propertyName);
+
+            // 检查是否是时间粒度属性
+            TimeGranularity granularity = TIME_PROPERTY_GRANULARITY.get(propertyName.toLowerCase());
+            if (granularity != null) {
+                requirement.setTimeGranularity(dimensionName, granularity);
+                if (log.isDebugEnabled()) {
+                    log.debug("Detected time granularity from property: dimension={}, property={}, granularity={}",
+                            dimensionName, propertyName, granularity);
+                }
+            }
         }
     }
 

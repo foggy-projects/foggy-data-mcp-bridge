@@ -107,6 +107,43 @@ public class PreAggQueryRequirement {
     private static final Set<String> IMPLICIT_PROPERTIES = Set.of("caption", "id");
 
     /**
+     * 时间粒度属性：这些属性表示时间粒度，应该通过粒度配置匹配，而不是作为普通属性
+     */
+    private static final Set<String> TIME_GRANULARITY_PROPERTIES = Set.of(
+            "year", "quarter", "month", "week", "day", "hour", "minute"
+    );
+
+    /**
+     * 将属性名标准化为 snake_case 格式
+     * <p>
+     * 例如：categoryName -> category_name
+     * </p>
+     */
+    private static String normalizePropertyName(String name) {
+        if (name == null || name.isEmpty()) {
+            return name;
+        }
+        // 已经是 snake_case 格式
+        if (name.contains("_")) {
+            return name.toLowerCase();
+        }
+        // 转换 camelCase 到 snake_case
+        StringBuilder result = new StringBuilder();
+        for (int i = 0; i < name.length(); i++) {
+            char c = name.charAt(i);
+            if (Character.isUpperCase(c)) {
+                if (i > 0) {
+                    result.append('_');
+                }
+                result.append(Character.toLowerCase(c));
+            } else {
+                result.append(c);
+            }
+        }
+        return result.toString();
+    }
+
+    /**
      * 检查预聚合是否满足此查询需求
      * <p>
      * 匹配规则：
@@ -132,17 +169,30 @@ public class PreAggQueryRequirement {
 
         // 2. 检查维度属性：查询的属性必须都在预聚合中
         // 注意：caption 和 id 是隐式属性，不需要显式配置
+        // 注意：时间粒度属性（year, month, day 等）通过粒度配置匹配，不作为普通属性检查
         for (Map.Entry<String, Set<String>> entry : dimensionProperties.entrySet()) {
             String dimName = entry.getKey();
             Set<String> queryProps = entry.getValue();
             Set<String> preAggProps = preAgg.getDimensionProperties(dimName);
+
+            // 将预聚合属性名规范化为 Set
+            Set<String> normalizedPreAggProps = new HashSet<>();
+            for (String p : preAggProps) {
+                normalizedPreAggProps.add(normalizePropertyName(p));
+            }
 
             for (String prop : queryProps) {
                 // 跳过隐式属性（caption, id）的检查
                 if (IMPLICIT_PROPERTIES.contains(prop)) {
                     continue;
                 }
-                if (!preAggProps.contains(prop)) {
+                // 跳过时间粒度属性的检查（通过粒度配置匹配）
+                if (TIME_GRANULARITY_PROPERTIES.contains(prop.toLowerCase())) {
+                    continue;
+                }
+                // 使用规范化的属性名进行比较
+                String normalizedProp = normalizePropertyName(prop);
+                if (!normalizedPreAggProps.contains(normalizedProp)) {
                     return false;
                 }
             }

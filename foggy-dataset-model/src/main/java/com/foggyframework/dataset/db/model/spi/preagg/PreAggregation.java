@@ -5,6 +5,7 @@ import com.foggyframework.dataset.db.model.def.preagg.PreAggRefreshDef;
 import com.foggyframework.dataset.db.model.spi.DbAggregation;
 import com.foggyframework.dataset.db.model.spi.QueryObject;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -231,12 +232,33 @@ public interface PreAggregation {
     /**
      * 判断预聚合数据是否过期
      * <p>
-     * 根据刷新配置和最后刷新时间判断数据是否需要重新加载。
+     * 根据数据水位线或最后刷新时间判断数据是否需要重新加载。
+     * <ul>
+     *   <li>如果设置了水位线且为日期类型，则根据水位线日期判断</li>
+     *   <li>如果水位线为今天或之后，数据不过期</li>
+     *   <li>如果水位线在今天之前，数据过期</li>
+     *   <li>如果没有水位线，则根据最后刷新时间判断（超过24小时视为过期）</li>
+     * </ul>
      * </p>
      *
      * @return true 如果数据可能过期
      */
     default boolean isDataStale() {
+        // 优先检查数据水位线
+        Object watermark = getDataWatermark();
+        if (watermark != null) {
+            LocalDate today = LocalDate.now();
+            if (watermark instanceof LocalDate watermarkDate) {
+                // 水位线为今天或之后，数据不过期
+                return watermarkDate.isBefore(today);
+            }
+            if (watermark instanceof LocalDateTime watermarkDateTime) {
+                // 水位线为今天或之后，数据不过期
+                return watermarkDateTime.toLocalDate().isBefore(today);
+            }
+        }
+
+        // 没有水位线，根据最后刷新时间判断
         LocalDateTime lastRefresh = getLastRefreshTime();
         if (lastRefresh == null) {
             return true; // 从未刷新，视为过期
