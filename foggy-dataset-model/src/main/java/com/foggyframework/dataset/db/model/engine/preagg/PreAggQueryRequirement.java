@@ -98,12 +98,21 @@ public class PreAggQueryRequirement {
     }
 
     /**
+     * 隐式属性：这些属性在任何维度上都是隐式可用的，不需要显式配置
+     * <ul>
+     *   <li>caption - 维度的显示列（captionColumn）</li>
+     *   <li>id - 维度的主键</li>
+     * </ul>
+     */
+    private static final Set<String> IMPLICIT_PROPERTIES = Set.of("caption", "id");
+
+    /**
      * 检查预聚合是否满足此查询需求
      * <p>
      * 匹配规则：
      * <ul>
      *   <li>查询维度 ⊆ 预聚合维度</li>
-     *   <li>查询属性 ⊆ 预聚合属性</li>
+     *   <li>查询属性 ⊆ 预聚合属性（caption/id 为隐式属性，无需显式配置）</li>
      *   <li>查询粒度 ≥ 预聚合粒度（可向上聚合）</li>
      *   <li>查询度量 ⊆ 预聚合度量</li>
      *   <li>聚合方式兼容</li>
@@ -122,12 +131,17 @@ public class PreAggQueryRequirement {
         }
 
         // 2. 检查维度属性：查询的属性必须都在预聚合中
+        // 注意：caption 和 id 是隐式属性，不需要显式配置
         for (Map.Entry<String, Set<String>> entry : dimensionProperties.entrySet()) {
             String dimName = entry.getKey();
             Set<String> queryProps = entry.getValue();
             Set<String> preAggProps = preAgg.getDimensionProperties(dimName);
 
             for (String prop : queryProps) {
+                // 跳过隐式属性（caption, id）的检查
+                if (IMPLICIT_PROPERTIES.contains(prop)) {
+                    continue;
+                }
                 if (!preAggProps.contains(prop)) {
                     return false;
                 }

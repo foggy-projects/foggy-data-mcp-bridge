@@ -79,7 +79,7 @@ public class PreAggQueryRewriter {
                     log.debug("Hybrid SQL: {}", sql);
                 }
 
-                return PreAggRewriteResult.hybrid(preAgg, sql, params, true, watermark);
+                return PreAggRewriteResult.hybrid(preAgg, sql, params, needsRollup, watermark);
             } else {
                 // 单表模式：仅预聚合表
                 sql = buildPreAggSql(preAgg, jdbcQuery, queryRequest, needsRollup);

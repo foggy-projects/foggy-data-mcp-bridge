@@ -28,16 +28,16 @@ public class PreAggMeasureDef {
     private String aggregation;
 
     /**
-     * 预聚合表中的列别名（默认为 name_aggregation，如 salesAmount_sum）
+     * 预聚合表中的列名（默认为 name_aggregation，如 salesAmount_sum）
      */
-    private String columnAlias;
+    private String columnName;
 
     /**
-     * 获取预聚合表中的列名
+     * 获取预聚合表中的实际列名
      */
-    public String getColumnName() {
-        if (columnAlias != null && !columnAlias.isEmpty()) {
-            return columnAlias;
+    public String getActualColumnName() {
+        if (columnName != null && !columnName.isEmpty()) {
+            return columnName;
         }
         // 默认命名：measureName_aggregation
         String agg = aggregation != null ? aggregation.toLowerCase() : "sum";

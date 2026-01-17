@@ -90,7 +90,7 @@ public class PreAggregationImpl implements PreAggregation {
             for (PreAggMeasureDef measure : def.getMeasures()) {
                 DbAggregation agg = parseAggregation(measure.getAggregation());
                 measureAggregations.put(measure.getName(), agg);
-                measureColumnNames.put(measure.getName(), measure.getColumnName());
+                measureColumnNames.put(measure.getName(), measure.getActualColumnName());
             }
         }
     }

@@ -16,29 +16,20 @@ export const queryModel = {
     // 主模型为销售模型
     model: fs,
 
-    // 关联退货模型
+    // 关联退货模型（使用与现有QM一致的JOIN语法）
     joins: [
-        {
-            model: fr,
-            alias: 'ret',
-            type: 'LEFT',
-            on: [
-                { left: fs.product, right: fr.product },
-                { left: fs.salesDate, right: fr.returnDate }
-            ]
-        }
+        fs.leftJoin(fr).on(fs.orderId, fr.orderId).and(fs.orderLineNo, fr.orderLineNo)
     ],
 
     columnGroups: [
         {
             caption: '日期维度',
-            description: '按日期分析销售和退货数据',
+            description: '按日期分析销售数据',
             items: [
                 { ref: fs.salesDate, description: '销售日期' },
                 { ref: fs.salesDate$year, description: '年份' },
                 { ref: fs.salesDate$quarter, description: '季度' },
-                { ref: fs.salesDate$month, description: '月份' },
-                { ref: fr.returnDate, alias: 'returnDate', description: '退货日期' }
+                { ref: fs.salesDate$month, description: '月份' }
             ]
         },
         {
@@ -68,6 +59,25 @@ export const queryModel = {
             ]
         },
         {
+            caption: '销售信息',
+            description: '销售相关字段',
+            items: [
+                { ref: fs.orderId },
+                { ref: fs.orderLineNo },
+                { ref: fs.orderStatus }
+            ]
+        },
+        {
+            caption: '退货信息',
+            description: '退货相关字段',
+            items: [
+                { ref: fr.returnId },
+                { ref: fr.returnReason },
+                { ref: fr.returnType },
+                { ref: fr.returnStatus }
+            ]
+        },
+        {
             caption: '销售度量',
             description: '销售相关度量',
             items: [
@@ -83,33 +93,6 @@ export const queryModel = {
             items: [
                 { ref: fr.returnQuantity, description: '退货数量' },
                 { ref: fr.returnAmount, description: '退款金额' }
-            ]
-        },
-        {
-            caption: '计算度量',
-            description: '计算字段',
-            items: [
-                {
-                    name: 'returnRate',
-                    caption: '退货率',
-                    description: '退货数量/销售数量',
-                    expression: 'CASE WHEN ${fs.quantity} > 0 THEN ${fr.returnQuantity} * 100.0 / ${fs.quantity} ELSE 0 END',
-                    type: 'NUMBER'
-                },
-                {
-                    name: 'returnAmountRate',
-                    caption: '退款率',
-                    description: '退款金额/销售金额',
-                    expression: 'CASE WHEN ${fs.salesAmount} > 0 THEN ${fr.returnAmount} * 100.0 / ${fs.salesAmount} ELSE 0 END',
-                    type: 'NUMBER'
-                },
-                {
-                    name: 'netSalesAmount',
-                    caption: '净销售额',
-                    description: '销售金额-退款金额',
-                    expression: '${fs.salesAmount} - COALESCE(${fr.returnAmount}, 0)',
-                    type: 'MONEY'
-                }
             ]
         }
     ],

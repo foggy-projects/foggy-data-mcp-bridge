@@ -33,19 +33,39 @@ public class PreAggQueryRequirementBuilder {
                                          JdbcQueryModel queryModel) {
         PreAggQueryRequirement requirement = new PreAggQueryRequirement();
 
-        // 设置是否有分组
-        requirement.setHasGroupBy(queryRequest.hasGroupBy());
-
         // 从 SELECT 列中提取维度和度量
         JdbcQuery.JdbcSelect select = jdbcQuery.getSelect();
         if (select != null && select.getColumns() != null) {
+            if (log.isDebugEnabled()) {
+                log.debug("JdbcQuery has {} columns in select", select.getColumns().size());
+                for (int i = 0; i < select.getColumns().size(); i++) {
+                    DbColumn col = select.getColumns().get(i);
+                    log.debug("  Column[{}]: name={}, class={}, isDimension={}, isMeasure={}, isProperty={}",
+                            i, col != null ? col.getName() : "null",
+                            col != null ? col.getClass().getSimpleName() : "null",
+                            col != null && col.isDimension(),
+                            col != null && col.isMeasure(),
+                            col != null && col.isProperty());
+                }
+            }
             for (DbColumn column : select.getColumns()) {
                 processColumn(column, requirement, queryModel);
             }
+        } else {
+            log.warn("JdbcQuery select is null or has no columns! select={}", select);
         }
 
+        // 判断是否有 GROUP BY：
+        // 1. 显式设置了 groupBy
+        // 2. 隐式 GROUP BY：同时有维度（或维度属性）和度量时，SQL 会自动添加 GROUP BY
+        boolean hasExplicitGroupBy = queryRequest.hasGroupBy();
+        boolean hasImplicitGroupBy = !requirement.getDimensionNames().isEmpty()
+                && !requirement.getMeasureAggregations().isEmpty();
+        requirement.setHasGroupBy(hasExplicitGroupBy || hasImplicitGroupBy);
+
         if (log.isDebugEnabled()) {
-            log.debug("Built query requirement: {}", requirement);
+            log.debug("Built query requirement: {} (explicitGroupBy={}, implicitGroupBy={})",
+                    requirement, hasExplicitGroupBy, hasImplicitGroupBy);
         }
 
         return requirement;
@@ -66,6 +86,12 @@ public class PreAggQueryRequirementBuilder {
                 log.debug("Skipping calculated field: {}", column.getName());
             }
             return;
+        }
+
+        // 记录列的类型以便调试
+        if (log.isDebugEnabled()) {
+            log.debug("Processing column: name={}, isDimension={}, isMeasure={}, isProperty={}",
+                    column.getName(), column.isDimension(), column.isMeasure(), column.isProperty());
         }
 
         // 判断是维度还是度量
@@ -122,6 +148,9 @@ public class PreAggQueryRequirementBuilder {
      * 列名格式通常为：{dimensionName}${propertyName}
      * 例如：customer$memberLevel, product$categoryName
      * </p>
+     * <p>
+     * 注意：属性列引用了某个维度，因此也需要将维度添加到需求中。
+     * </p>
      */
     private void processPropertyColumn(DbColumn column, PreAggQueryRequirement requirement,
                                         JdbcQueryModel queryModel) {
@@ -146,6 +175,8 @@ public class PreAggQueryRequirementBuilder {
         if (dollarIndex > 0 && dollarIndex < columnName.length() - 1) {
             String dimensionName = columnName.substring(0, dollarIndex);
             String propertyName = columnName.substring(dollarIndex + 1);
+            // 属性列引用了维度，需要同时添加维度和属性
+            requirement.addDimension(dimensionName);
             requirement.addDimensionProperty(dimensionName, propertyName);
         }
     }

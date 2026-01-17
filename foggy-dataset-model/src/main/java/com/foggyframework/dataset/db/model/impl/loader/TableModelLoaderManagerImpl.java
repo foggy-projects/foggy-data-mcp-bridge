@@ -9,6 +9,7 @@ import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.db.model.def.DbModelDef;
 import com.foggyframework.dataset.db.model.def.dimension.DbDimensionDef;
 import com.foggyframework.dataset.db.model.def.measure.DbMeasureDef;
+import com.foggyframework.dataset.db.model.def.preagg.PreAggregationDef;
 import com.foggyframework.dataset.db.model.def.property.DbPropertyDef;
 import com.foggyframework.dataset.db.model.engine.query_model.DbModelFileChangeHandler;
 import com.foggyframework.dataset.db.model.i18n.DatasetMessages;
@@ -20,6 +21,7 @@ import com.foggyframework.dataset.db.model.impl.dimension.DbModelTimeDimensionIm
 import com.foggyframework.dataset.db.model.impl.measure.DbMeasureSupport;
 import com.foggyframework.dataset.db.model.impl.measure.DbModelMeasureImpl;
 import com.foggyframework.dataset.db.model.impl.model.TableModelSupport;
+import com.foggyframework.dataset.db.model.impl.preagg.PreAggregationImpl;
 import com.foggyframework.dataset.db.model.impl.property.DbPropertyImpl;
 import com.foggyframework.dataset.db.model.impl.utils.QueryObjectSupport;
 import com.foggyframework.dataset.db.model.spi.*;
@@ -168,6 +170,9 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
         //加载度量
         loadMeasures(context);
 
+        //加载预聚合配置
+        loadPreAggregations(context);
+
         //初始化主表、维表或相关的 alias
         initAlias(context);
 
@@ -284,6 +289,39 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
             //TODO 自动加载维度
         }
 
+    }
+
+    /**
+     * 加载预聚合配置
+     *
+     * @param context 加载上下文
+     */
+    private void loadPreAggregations(JdbcModelLoadContext context) {
+        DbModelDef def = context.getDef();
+        List<PreAggregationDef> preAggDefs = def.getPreAggregations();
+        if (preAggDefs == null || preAggDefs.isEmpty()) {
+            return;
+        }
+
+        TableModelSupport jdbcModel = context.getJdbcModel().getDecorate(TableModelSupport.class);
+        for (PreAggregationDef preAggDef : preAggDefs) {
+            if (preAggDef == null) {
+                continue;
+            }
+            try {
+                PreAggregationImpl preAgg = new PreAggregationImpl(preAggDef, null);
+                jdbcModel.getPreAggregations().add(preAgg);
+                if (log.isDebugEnabled()) {
+                    log.debug("加载预聚合配置: name={}, tableName={}, priority={}",
+                            preAgg.getName(), preAgg.getTableName(), preAgg.getPriority());
+                }
+            } catch (Exception e) {
+                log.error("加载预聚合配置失败: {}", preAggDef.getName(), e);
+                throw ErrorUtils.toRuntimeException(e);
+            }
+        }
+
+        log.info("模型 {} 加载了 {} 个预聚合配置", jdbcModel.getName(), jdbcModel.getPreAggregations().size());
     }
 
     private DbDimension loadDimension(JdbcModelLoadContext context, DbDimensionDef dimensionDef, boolean modelDim) {

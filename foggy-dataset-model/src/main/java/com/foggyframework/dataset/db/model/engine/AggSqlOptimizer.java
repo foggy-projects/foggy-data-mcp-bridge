@@ -189,8 +189,8 @@ public class AggSqlOptimizer {
      * </p>
      */
     private String buildOptimizedInnerSql(List<DbColumn> requiredColumns) {
-        // 保存原始 SELECT
-        JdbcQuery.JdbcSelect originalSelect = originalQuery.getSelect();
+        // 保存原始 SELECT 列的副本（注意：必须是副本，否则恢复时会丢失原始列）
+        List<DbColumn> originalColumns = new ArrayList<>(originalQuery.getSelect().getColumns());
 
         // 替换为精简的 SELECT
         originalQuery.getSelect().setColumns(requiredColumns);
@@ -201,8 +201,8 @@ public class AggSqlOptimizer {
         originalQuery.accept(visitor);
         String optimizedInnerSql = visitor.getSqlWithoutOrder();
 
-        // 恢复原始 SELECT（因为原始 query 可能还会被使用）
-        originalQuery.getSelect().setColumns(originalSelect.getColumns());
+        // 恢复原始 SELECT
+        originalQuery.getSelect().setColumns(originalColumns);
 
         return optimizedInnerSql;
     }

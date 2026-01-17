@@ -113,7 +113,7 @@ public class PreAggRewriteResult {
      * @param preAggregation 使用的预聚合
      * @param sql            重写后的 UNION SQL
      * @param params         SQL 参数
-     * @param needsRollup    是否需要 rollup（混合查询必须为 true）
+     * @param needsRollup    是否需要 rollup（粒度不完全匹配时需要）
      * @param watermark      数据水位线
      * @return 重写结果
      */
