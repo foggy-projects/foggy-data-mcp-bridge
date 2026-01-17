@@ -78,24 +78,24 @@ public class SemanticQueryRequest {
 
         @ApiModelProperty(value = "OR 条件组：子条件用 OR 连接")
         @JsonProperty("$or")
-        private List<SliceItem> $or;
+        private List<SliceItem> or;
 
         @ApiModelProperty(value = "AND 条件组：子条件用 AND 连接")
         @JsonProperty("$and")
-        private List<SliceItem> $and;
+        private List<SliceItem> and;
 
         /**
          * 判断是否为 OR 逻辑组
          */
         public boolean _isOrGroup() {
-            return $or != null && !$or.isEmpty();
+            return or != null && !or.isEmpty();
         }
 
         /**
          * 判断是否为 AND 逻辑组
          */
         public boolean _isAndGroup() {
-            return $and != null && !$and.isEmpty();
+            return and != null && !and.isEmpty();
         }
 
         /**
@@ -110,10 +110,10 @@ public class SemanticQueryRequest {
          */
         public List<SliceItem> _getGroupChildren() {
             if (_isOrGroup()) {
-                return $or;
+                return or;
             }
             if (_isAndGroup()) {
-                return $and;
+                return and;
             }
             return null;
         }
