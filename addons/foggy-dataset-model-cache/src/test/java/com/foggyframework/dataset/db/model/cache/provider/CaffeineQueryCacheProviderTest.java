@@ -370,7 +370,7 @@ class CaffeineQueryCacheProviderTest {
 
         PagingRequest<DbQueryRequestDef> pagingRequest = new PagingRequest<>();
         pagingRequest.setParam(queryRequest);
-        pagingRequest.setPageNo(1);
+        pagingRequest.setPage(1);
         pagingRequest.setPageSize(10);
 
         ModelResultContext context = new ModelResultContext(pagingRequest, null);

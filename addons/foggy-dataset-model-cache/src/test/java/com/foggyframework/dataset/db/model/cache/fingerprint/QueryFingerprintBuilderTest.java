@@ -1,6 +1,7 @@
 package com.foggyframework.dataset.db.model.cache.fingerprint;
 
 import com.foggyframework.dataset.client.domain.PagingRequest;
+import com.foggyframework.dataset.db.model.def.query.request.CondRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
@@ -141,7 +142,7 @@ class QueryFingerprintBuilderTest {
 
         PagingRequest<DbQueryRequestDef> pagingRequest = new PagingRequest<>();
         pagingRequest.setParam(queryRequest);
-        pagingRequest.setPageNo(3);
+        pagingRequest.setPage(3);
         pagingRequest.setPageSize(20);
 
         ModelResultContext context = new ModelResultContext(pagingRequest, null);
@@ -179,21 +180,19 @@ class QueryFingerprintBuilderTest {
         // 创建嵌套条件：(status = 'active' OR status = 'pending')
         List<SliceRequestDef> slices = new ArrayList<>();
         SliceRequestDef parentSlice = new SliceRequestDef();
-        parentSlice.setLink("OR");
+        parentSlice.setLink(2); // 2 = OR
 
-        List<SliceRequestDef> children = new ArrayList<>();
         SliceRequestDef child1 = new SliceRequestDef();
         child1.setField("status");
         child1.setOp("=");
         child1.setValue("active");
-        children.add(child1);
 
         SliceRequestDef child2 = new SliceRequestDef();
         child2.setField("status");
         child2.setOp("=");
         child2.setValue("pending");
-        children.add(child2);
 
+        List<CondRequestDef> children = Arrays.asList(child1, child2);
         parentSlice.setChildren(children);
         slices.add(parentSlice);
         queryRequest.setSlice(slices);
@@ -329,7 +328,7 @@ class QueryFingerprintBuilderTest {
     private ModelResultContext createContext(DbQueryRequestDef queryRequest) {
         PagingRequest<DbQueryRequestDef> pagingRequest = new PagingRequest<>();
         pagingRequest.setParam(queryRequest);
-        pagingRequest.setPageNo(1);
+        pagingRequest.setPage(1);
         pagingRequest.setPageSize(10);
 
         return new ModelResultContext(pagingRequest, null);

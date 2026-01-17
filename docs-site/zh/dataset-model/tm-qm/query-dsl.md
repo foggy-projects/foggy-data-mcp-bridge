@@ -74,9 +74,18 @@ JSON 查询 DSL 是一种声明式的查询语言，通过 JSON 格式描述查�
     "field": "字段名",
     "op": "操作符",
     "value": "值",
-    "link": 1,              // 逻辑连接：1=AND, 2=OR
-    "maxDepth": 2,          // 层级深度限制（仅层级操作符）
-    "children": [...]       // 嵌套条件
+    "maxDepth": 2           // 层级深度限制（仅层级操作符）
+}
+```
+
+**逻辑组合**：使用 `$or` / `$and` 操作符组合多个条件：
+
+```json
+{
+    "$or": [条件1, 条件2, ...]    // 条件用 OR 连接
+}
+{
+    "$and": [条件1, 条件2, ...]   // 条件用 AND 连接
 }
 ```
 
@@ -273,21 +282,24 @@ GROUP BY dim_team.caption
 
 > 向量搜索结果按相似度降序排列，`_score` 字段表示相似度(0-1)。
 
-### 3.3 逻辑连接 (link)
+### 3.3 逻辑组合 ($or / $and)
 
-| 值 | 说明 |
-|----|------|
-| `1` 或不填 | AND 连接（默认） |
-| `2` | OR 连接 |
+slice 数组中的条件默认使用 AND 连接。使用 `$or` 和 `$and` 操作符可以显式控制条件的逻辑组合。
 
-**OR 连接示例**：
+#### 3.3.1 $or 操作符
+
+将多个条件用 OR 连接：
 
 ```json
 {
     "param": {
         "slice": [
-            { "field": "orderStatus", "op": "=", "value": "COMPLETED" },
-            { "field": "orderStatus", "op": "=", "value": "SHIPPED", "link": 2 }
+            {
+                "$or": [
+                    { "field": "orderStatus", "op": "=", "value": "COMPLETED" },
+                    { "field": "orderStatus", "op": "=", "value": "SHIPPED" }
+                ]
+            }
         ]
     }
 }
@@ -298,9 +310,38 @@ GROUP BY dim_team.caption
 WHERE (order_status = 'COMPLETED' OR order_status = 'SHIPPED')
 ```
 
-### 3.4 嵌套条件 (children)
+#### 3.3.2 $and 操作符
 
-支持复杂的嵌套条件组合：
+将多个条件用 AND 连接（用于在 $or 内部显式分组）：
+
+```json
+{
+    "param": {
+        "slice": [
+            {
+                "$or": [
+                    { "field": "customer$customerType", "op": "=", "value": "VIP" },
+                    {
+                        "$and": [
+                            { "field": "totalAmount", "op": ">=", "value": 1000 },
+                            { "field": "orderCount", "op": ">=", "value": 5 }
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+}
+```
+
+**生成的 SQL**：
+```sql
+WHERE (customer_type = 'VIP' OR (total_amount >= 1000 AND order_count >= 5))
+```
+
+#### 3.3.3 混合使用
+
+`$or` 和 `$and` 可以任意嵌套，实现复杂的条件组合：
 
 ```json
 {
@@ -308,10 +349,9 @@ WHERE (order_status = 'COMPLETED' OR order_status = 'SHIPPED')
         "slice": [
             { "field": "orderStatus", "op": "=", "value": "COMPLETED" },
             {
-                "link": 1,
-                "children": [
+                "$or": [
                     { "field": "totalAmount", "op": ">=", "value": 1000 },
-                    { "field": "customer$customerType", "op": "=", "value": "VIP", "link": 2 }
+                    { "field": "customer$customerType", "op": "=", "value": "VIP" }
                 ]
             }
         ]

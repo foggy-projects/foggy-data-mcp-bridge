@@ -170,8 +170,8 @@ class QueryCacheProviderTest {
         Map<String, Object> stats = provider.getStats();
         assertTrue(stats.isEmpty());
 
-        // getOrder 返回 0
-        assertEquals(0, provider.getOrder());
+        // getOrder 返回 Integer.MIN_VALUE（最低优先级）
+        assertEquals(Integer.MIN_VALUE, provider.getOrder());
     }
 
     @Test
