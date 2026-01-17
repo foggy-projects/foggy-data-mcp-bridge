@@ -123,13 +123,13 @@ public class RedisQueryCacheProvider implements QueryCacheProvider {
 
         // 检查空结果
         if (!properties.isCacheEmptyResult() &&
-            (result.getList() == null || result.getList().isEmpty())) {
+            (result.getItems() == null || result.getItems().isEmpty())) {
             log.debug("Skip L1 caching empty result for model={}", modelName);
             return;
         }
 
         // 检查结果大小限制
-        int resultSize = result.getList() != null ? result.getList().size() : 0;
+        int resultSize = result.getItems() != null ? result.getItems().size() : 0;
         if (properties.getMaxResultSize() > 0 && resultSize > properties.getMaxResultSize()) {
             log.debug("Skip L1 caching large result: model={}, size={}", modelName, resultSize);
             return;
@@ -204,13 +204,13 @@ public class RedisQueryCacheProvider implements QueryCacheProvider {
 
         // 检查空结果
         if (!properties.isCacheEmptyResult() &&
-            (result.getList() == null || result.getList().isEmpty())) {
+            (result.getItems() == null || result.getItems().isEmpty())) {
             log.debug("Skip L2 caching empty result for model={}", modelName);
             return;
         }
 
         // 检查结果大小限制
-        int resultSize = result.getList() != null ? result.getList().size() : 0;
+        int resultSize = result.getItems() != null ? result.getItems().size() : 0;
         if (properties.getMaxResultSize() > 0 && resultSize > properties.getMaxResultSize()) {
             log.debug("Skip L2 caching large result: model={}, size={}", modelName, resultSize);
             return;

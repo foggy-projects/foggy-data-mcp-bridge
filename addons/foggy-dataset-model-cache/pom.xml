@@ -65,12 +65,6 @@
             <artifactId>mockito-junit-jupiter</artifactId>
             <scope>test</scope>
         </dependency>
-        <!-- Caffeine for testing CaffeineQueryCacheProvider -->
-        <dependency>
-            <groupId>com.github.ben-manes.caffeine</groupId>
-            <artifactId>caffeine</artifactId>
-            <scope>test</scope>
-        </dependency>
     </dependencies>
 
 </project>

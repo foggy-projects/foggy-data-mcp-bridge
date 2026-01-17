@@ -1,5 +1,6 @@
 package com.foggyframework.dataset.db.model.cache.fingerprint;
 
+import com.foggyframework.dataset.db.model.def.query.request.CondRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
@@ -51,7 +52,7 @@ public class QueryFingerprintBuilder {
 
         QueryFingerprint.QueryFingerprintBuilder builder = QueryFingerprint.builder()
                 .modelName(request.getQueryModel())
-                .pageNo(context.getRequest().getPageNo())
+                .pageNo(context.getRequest().getPage())
                 .pageSize(context.getRequest().getPageSize());
 
         // 提取列
@@ -220,16 +221,16 @@ public class QueryFingerprintBuilder {
     /**
      * 递归提取 slice 条件
      */
-    private void extractSliceRecursive(SliceRequestDef slice, ConditionExtractResult result) {
-        if (slice._hasChildren()) {
-            result.signatures.add("group:" + slice.getLink() + ":(");
-            for (var child : slice.getChildren()) {
+    private void extractSliceRecursive(CondRequestDef cond, ConditionExtractResult result) {
+        if (cond._hasChildren()) {
+            result.signatures.add("group:" + cond.getLink() + ":(");
+            for (CondRequestDef child : cond.getChildren()) {
                 extractSliceRecursive(child, result);
             }
             result.signatures.add(")");
         } else {
-            String valueHash = computeValueHash(slice.getValue());
-            result.signatures.add(slice.getField() + ":" + slice.getOp() + ":" + valueHash);
+            String valueHash = computeValueHash(cond.getValue());
+            result.signatures.add(cond.getField() + ":" + cond.getOp() + ":" + valueHash);
         }
     }
 

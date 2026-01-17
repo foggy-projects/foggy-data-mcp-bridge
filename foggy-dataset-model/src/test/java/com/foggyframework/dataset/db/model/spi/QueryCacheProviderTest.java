@@ -233,7 +233,7 @@ class QueryCacheProviderTest {
         // 读取缓存
         PagingResultImpl cached = customProvider.checkL2Cache("model1", "SELECT * FROM t", Collections.emptyList(), context);
         assertNotNull(cached);
-        assertEquals(1, cached.getList().size());
+        assertEquals(1, cached.getItems().size());
 
         // 不同 key 返回 null
         assertNull(customProvider.checkL2Cache("model2", "SELECT * FROM t", Collections.emptyList(), context));
