@@ -11,6 +11,13 @@ import java.util.List;
  * <p>
  * 包含重写后的 SQL 语句和参数。
  * </p>
+ * <p>
+ * 支持两种模式：
+ * <ul>
+ *   <li>单表模式：仅使用预聚合表</li>
+ *   <li>混合模式：预聚合表 UNION 原始表（需要二次聚合）</li>
+ * </ul>
+ * </p>
  *
  * @author foggy-framework
  * @since 8.2.0
@@ -49,6 +56,16 @@ public class PreAggRewriteResult {
     private boolean needsRollup;
 
     /**
+     * 是否为混合查询模式
+     */
+    private boolean hybridQuery;
+
+    /**
+     * 数据水位线（混合查询模式使用）
+     */
+    private Object watermark;
+
+    /**
      * 创建未应用预聚合的结果
      */
     public static PreAggRewriteResult notApplied() {
@@ -58,7 +75,7 @@ public class PreAggRewriteResult {
     }
 
     /**
-     * 创建应用了预聚合的结果
+     * 创建应用了预聚合的结果（单表模式）
      *
      * @param preAggregation 使用的预聚合
      * @param sql            重写后的 SQL
@@ -75,6 +92,43 @@ public class PreAggRewriteResult {
         result.setSql(sql);
         result.setParams(params != null ? params : new ArrayList<>());
         result.setNeedsRollup(needsRollup);
+        result.setHybridQuery(false);
+        return result;
+    }
+
+    /**
+     * 创建混合查询模式的结果
+     * <p>
+     * 混合查询 SQL 结构：
+     * <pre>
+     * SELECT ... FROM (
+     *   SELECT ... FROM preagg_table WHERE watermark_col <= ?
+     *   UNION ALL
+     *   SELECT ... FROM source_table WHERE watermark_col > ?
+     * ) AS combined
+     * GROUP BY ...
+     * </pre>
+     * </p>
+     *
+     * @param preAggregation 使用的预聚合
+     * @param sql            重写后的 UNION SQL
+     * @param params         SQL 参数
+     * @param needsRollup    是否需要 rollup（混合查询必须为 true）
+     * @param watermark      数据水位线
+     * @return 重写结果
+     */
+    public static PreAggRewriteResult hybrid(PreAggregation preAggregation, String sql,
+                                              List<Object> params, boolean needsRollup,
+                                              Object watermark) {
+        PreAggRewriteResult result = new PreAggRewriteResult();
+        result.setApplied(true);
+        result.setPreAggregation(preAggregation);
+        result.setPreAggName(preAggregation.getName());
+        result.setSql(sql);
+        result.setParams(params != null ? params : new ArrayList<>());
+        result.setNeedsRollup(needsRollup);
+        result.setHybridQuery(true);
+        result.setWatermark(watermark);
         return result;
     }
 
@@ -85,6 +139,8 @@ public class PreAggRewriteResult {
                     "applied=true" +
                     ", preAgg='" + preAggName + '\'' +
                     ", needsRollup=" + needsRollup +
+                    ", hybridQuery=" + hybridQuery +
+                    (watermark != null ? ", watermark=" + watermark : "") +
                     ", sql='" + (sql != null && sql.length() > 100 ? sql.substring(0, 100) + "..." : sql) + '\'' +
                     '}';
         } else {

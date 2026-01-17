@@ -5,6 +5,7 @@ import com.foggyframework.dataset.db.model.def.preagg.PreAggRefreshDef;
 import com.foggyframework.dataset.db.model.spi.DbAggregation;
 import com.foggyframework.dataset.db.model.spi.QueryObject;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -161,5 +162,86 @@ public interface PreAggregation {
     default Set<String> getDimensionProperties(String dimensionName) {
         Map<String, Set<String>> props = getDimensionProperties();
         return props != null ? props.getOrDefault(dimensionName, Set.of()) : Set.of();
+    }
+
+    // ==================== 混合查询支持（Hybrid Query） ====================
+
+    /**
+     * 获取最后一次刷新时间
+     * <p>
+     * 用于混合查询时判断预聚合数据的时效性。
+     * </p>
+     *
+     * @return 最后刷新时间，如果从未刷新返回 null
+     */
+    LocalDateTime getLastRefreshTime();
+
+    /**
+     * 设置最后一次刷新时间
+     *
+     * @param lastRefreshTime 刷新时间
+     */
+    void setLastRefreshTime(LocalDateTime lastRefreshTime);
+
+    /**
+     * 获取数据水位线（最后处理的数据时间）
+     * <p>
+     * 对于增量刷新的预聚合，水位线表示已处理数据的最大时间戳。
+     * 查询时，水位线之后的数据需要从原始表获取。
+     * </p>
+     *
+     * @return 水位线值（通常是日期或时间戳），如果没有水位线返回 null
+     */
+    Object getDataWatermark();
+
+    /**
+     * 设置数据水位线
+     *
+     * @param watermark 水位线值
+     */
+    void setDataWatermark(Object watermark);
+
+    /**
+     * 获取水位线对应的维度列名
+     * <p>
+     * 用于构建混合查询的 WHERE 条件。
+     * 格式：dimensionName$propertyName 或 dimensionName$id
+     * </p>
+     *
+     * @return 水位线列名
+     */
+    default String getWatermarkColumn() {
+        PreAggRefreshDef refreshConfig = getRefreshConfig();
+        return refreshConfig != null ? refreshConfig.getWatermarkColumn() : null;
+    }
+
+    /**
+     * 判断是否支持混合查询
+     * <p>
+     * 只有配置了水位线列的预聚合才支持混合查询。
+     * </p>
+     *
+     * @return true 如果支持混合查询
+     */
+    default boolean supportsHybridQuery() {
+        String watermarkColumn = getWatermarkColumn();
+        return watermarkColumn != null && !watermarkColumn.isEmpty();
+    }
+
+    /**
+     * 判断预聚合数据是否过期
+     * <p>
+     * 根据刷新配置和最后刷新时间判断数据是否需要重新加载。
+     * </p>
+     *
+     * @return true 如果数据可能过期
+     */
+    default boolean isDataStale() {
+        LocalDateTime lastRefresh = getLastRefreshTime();
+        if (lastRefresh == null) {
+            return true; // 从未刷新，视为过期
+        }
+        // 简单判断：超过24小时视为过期（可根据 refresh config 调整）
+        return lastRefresh.plusHours(24).isBefore(LocalDateTime.now());
     }
 }

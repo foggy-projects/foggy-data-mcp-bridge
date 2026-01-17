@@ -9,7 +9,9 @@ import com.foggyframework.dataset.db.model.spi.QueryObject;
 import com.foggyframework.dataset.db.model.spi.preagg.PreAggregation;
 import com.foggyframework.dataset.db.model.spi.preagg.TimeGranularity;
 import lombok.Getter;
+import lombok.Setter;
 
+import java.time.LocalDateTime;
 import java.util.*;
 
 /**
@@ -38,6 +40,20 @@ public class PreAggregationImpl implements PreAggregation {
     private final PreAggRefreshDef refreshConfig;
     private final boolean enabled;
     private final QueryObject queryObject;
+
+    // ==================== 混合查询支持 ====================
+
+    /**
+     * 最后刷新时间
+     */
+    @Setter
+    private LocalDateTime lastRefreshTime;
+
+    /**
+     * 数据水位线（最后处理的数据时间戳）
+     */
+    @Setter
+    private Object dataWatermark;
 
     /**
      * 从定义构建预聚合实例

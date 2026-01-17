@@ -6,6 +6,8 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -25,12 +27,29 @@ import java.util.Map;
  *   <li>粒度最接近查询粒度的优先（减少 rollup 开销）</li>
  * </ol>
  * </p>
+ * <p>
+ * 混合查询支持：
+ * 当预聚合数据不完整时（watermark 不是最新），自动启用混合查询模式，
+ * 将预聚合表和原始表的数据合并查询。
+ * </p>
  *
  * @author foggy-framework
  * @since 8.2.0
  */
 @Slf4j
 public class PreAggregationMatcher {
+
+    /**
+     * 是否启用混合查询
+     */
+    private boolean hybridQueryEnabled = true;
+
+    /**
+     * 设置是否启用混合查询
+     */
+    public void setHybridQueryEnabled(boolean enabled) {
+        this.hybridQueryEnabled = enabled;
+    }
 
     /**
      * 从可用的预聚合列表中选择最佳匹配
@@ -69,11 +88,13 @@ public class PreAggregationMatcher {
             if (requirement.isSatisfiableBy(preAgg)) {
                 int score = calculateScore(preAgg, requirement);
                 boolean needsRollup = checkNeedsRollup(preAgg, requirement);
-                candidates.add(new Candidate(preAgg, score, needsRollup));
+                boolean needsHybrid = checkNeedsHybridQuery(preAgg, requirement);
+                Object watermark = needsHybrid ? preAgg.getDataWatermark() : null;
+                candidates.add(new Candidate(preAgg, score, needsRollup, needsHybrid, watermark));
 
                 if (log.isDebugEnabled()) {
-                    log.debug("Pre-aggregation '{}' is a candidate: score={}, needsRollup={}",
-                            preAgg.getName(), score, needsRollup);
+                    log.debug("Pre-aggregation '{}' is a candidate: score={}, needsRollup={}, needsHybrid={}",
+                            preAgg.getName(), score, needsRollup, needsHybrid);
                 }
             } else {
                 if (log.isDebugEnabled()) {
@@ -93,15 +114,83 @@ public class PreAggregationMatcher {
         Candidate best = candidates.get(0);
 
         if (log.isInfoEnabled()) {
-            log.info("Selected pre-aggregation '{}' with score {} (needsRollup={})",
-                    best.getPreAggregation().getName(), best.getScore(), best.isNeedsRollup());
+            log.info("Selected pre-aggregation '{}' with score {} (needsRollup={}, hybridQuery={})",
+                    best.getPreAggregation().getName(), best.getScore(),
+                    best.isNeedsRollup(), best.isNeedsHybrid());
         }
 
-        return PreAggregationMatchResult.matched(
-                best.getPreAggregation(),
-                best.isNeedsRollup(),
-                best.getScore()
-        );
+        // 根据是否需要混合查询返回不同的结果
+        if (best.isNeedsHybrid()) {
+            return PreAggregationMatchResult.hybrid(
+                    best.getPreAggregation(),
+                    best.isNeedsRollup(),
+                    best.getWatermark(),
+                    best.getScore()
+            );
+        } else {
+            return PreAggregationMatchResult.matched(
+                    best.getPreAggregation(),
+                    best.isNeedsRollup(),
+                    best.getScore()
+            );
+        }
+    }
+
+    /**
+     * 检查是否需要混合查询
+     * <p>
+     * 混合查询条件：
+     * <ol>
+     *   <li>混合查询功能已启用</li>
+     *   <li>预聚合支持混合查询（配置了 watermark 列）</li>
+     *   <li>预聚合数据不是最新的（有 watermark 且不是今天）</li>
+     * </ol>
+     * </p>
+     *
+     * @param preAgg      预聚合
+     * @param requirement 查询需求
+     * @return true 如果需要混合查询
+     */
+    private boolean checkNeedsHybridQuery(PreAggregation preAgg, PreAggQueryRequirement requirement) {
+        // 混合查询未启用
+        if (!hybridQueryEnabled) {
+            return false;
+        }
+
+        // 预聚合不支持混合查询
+        if (!preAgg.supportsHybridQuery()) {
+            return false;
+        }
+
+        // 检查数据是否过期
+        Object watermark = preAgg.getDataWatermark();
+        if (watermark == null) {
+            // 没有 watermark，可能是第一次加载前，需要混合查询
+            return true;
+        }
+
+        // 检查 watermark 是否是今天
+        if (watermark instanceof LocalDate) {
+            LocalDate watermarkDate = (LocalDate) watermark;
+            LocalDate today = LocalDate.now();
+            // 如果 watermark 不是今天，需要混合查询获取最新数据
+            return watermarkDate.isBefore(today);
+        } else if (watermark instanceof LocalDateTime) {
+            LocalDateTime watermarkDateTime = (LocalDateTime) watermark;
+            LocalDate watermarkDate = watermarkDateTime.toLocalDate();
+            LocalDate today = LocalDate.now();
+            return watermarkDate.isBefore(today);
+        } else if (watermark instanceof java.util.Date) {
+            java.util.Date watermarkDate = (java.util.Date) watermark;
+            LocalDate watermarkLocalDate = watermarkDate.toInstant()
+                    .atZone(java.time.ZoneId.systemDefault())
+                    .toLocalDate();
+            LocalDate today = LocalDate.now();
+            return watermarkLocalDate.isBefore(today);
+        }
+
+        // 无法判断，保守起见使用混合查询
+        return true;
     }
 
     /**
@@ -181,5 +270,7 @@ public class PreAggregationMatcher {
         private PreAggregation preAggregation;
         private int score;
         private boolean needsRollup;
+        private boolean needsHybrid;
+        private Object watermark;
     }
 }

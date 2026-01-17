@@ -1,0 +1,64 @@
+/**
+ * 退货预聚合查询模型（单TM场景）
+ *
+ * @caption 退货预聚合查询
+ * @description 用于测试退货数据的预聚合查询
+ */
+const fr = loadTableModel('FactReturnPreAggModel');
+
+export const queryModel = {
+    name: 'FactReturnPreAggQueryModel',
+    caption: '退货预聚合查询',
+    description: '用于测试退货数据的预聚合查询',
+    loader: 'v2',
+
+    model: fr,
+
+    columnGroups: [
+        {
+            caption: '退货日期维度',
+            items: [
+                { ref: fr.returnDate },
+                { ref: fr.returnDate$year },
+                { ref: fr.returnDate$quarter },
+                { ref: fr.returnDate$month },
+                { ref: fr.returnDate$monthName }
+            ]
+        },
+        {
+            caption: '商品维度',
+            items: [
+                { ref: fr.product },
+                { ref: fr.product$categoryName },
+                { ref: fr.product$brand }
+            ]
+        },
+        {
+            caption: '客户维度',
+            items: [
+                { ref: fr.customer },
+                { ref: fr.customer$customerType },
+                { ref: fr.customer$province }
+            ]
+        },
+        {
+            caption: '退货信息',
+            items: [
+                { ref: fr.returnId },
+                { ref: fr.orderId },
+                { ref: fr.returnReason },
+                { ref: fr.returnType },
+                { ref: fr.returnStatus }
+            ]
+        },
+        {
+            caption: '退货度量',
+            items: [
+                { ref: fr.returnQuantity },
+                { ref: fr.returnAmount }
+            ]
+        }
+    ],
+
+    accesses: []
+};
