@@ -1,18 +1,24 @@
 package com.foggyframework.dataset.db.model.cache.config;
 
+import com.foggyframework.dataset.db.model.cache.controller.QueryCacheController;
+import com.foggyframework.dataset.db.model.cache.eviction.CacheEvictionAspect;
 import com.foggyframework.dataset.db.model.cache.fingerprint.QueryFingerprintBuilder;
 import com.foggyframework.dataset.db.model.cache.provider.CaffeineQueryCacheProvider;
 import com.foggyframework.dataset.db.model.cache.provider.RedisQueryCacheProvider;
 import com.foggyframework.dataset.db.model.spi.QueryCacheProvider;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import lombok.extern.slf4j.Slf4j;
+import org.aspectj.lang.annotation.Aspect;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
  * 查询缓存自动配置
@@ -77,6 +83,53 @@ public class QueryCacheAutoConfiguration {
                 QueryCacheProperties properties) {
             log.info("Initializing Caffeine query cache provider");
             return new CaffeineQueryCacheProvider(fingerprintBuilder, properties);
+        }
+    }
+
+    // ==================== REST API 配置 ====================
+
+    /**
+     * 缓存管理 REST API 配置
+     * <p>
+     * 仅在 Web 应用中启用。
+     * </p>
+     */
+    @Configuration
+    @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
+    @ConditionalOnClass(WebMvcConfigurer.class)
+    @ConditionalOnProperty(name = "foggy.query-cache.api.enabled", havingValue = "true", matchIfMissing = true)
+    static class QueryCacheApiConfiguration {
+
+        @Bean
+        @ConditionalOnBean(QueryCacheProvider.class)
+        @ConditionalOnMissingBean(QueryCacheController.class)
+        public QueryCacheController queryCacheController(
+                QueryCacheProvider queryCacheProvider,
+                QueryCacheProperties properties) {
+            log.info("Initializing Query Cache REST API controller");
+            return new QueryCacheController(queryCacheProvider, properties);
+        }
+    }
+
+    // ==================== 缓存自动失效配置 ====================
+
+    /**
+     * 缓存自动失效 AOP 配置
+     * <p>
+     * 仅在 AOP 可用时启用。
+     * </p>
+     */
+    @Configuration
+    @ConditionalOnClass(Aspect.class)
+    @ConditionalOnProperty(name = "foggy.query-cache.eviction.enabled", havingValue = "true", matchIfMissing = true)
+    static class CacheEvictionConfiguration {
+
+        @Bean
+        @ConditionalOnBean(QueryCacheProvider.class)
+        @ConditionalOnMissingBean(CacheEvictionAspect.class)
+        public CacheEvictionAspect cacheEvictionAspect(QueryCacheProvider queryCacheProvider) {
+            log.info("Initializing Cache Eviction AOP aspect");
+            return new CacheEvictionAspect(queryCacheProvider);
         }
     }
 }

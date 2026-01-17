@@ -107,12 +107,54 @@ foggy-dataset-model-cache/     # 缓存模块
 ├── provider/
 │   ├── RedisQueryCacheProvider.java # Redis 双层缓存实现
 │   └── CaffeineQueryCacheProvider.java # Caffeine 双层缓存实现
+├── controller/
+│   └── QueryCacheController.java    # REST API 控制器
+├── eviction/
+│   ├── EvictQueryCache.java         # 缓存自动失效注解
+│   └── CacheEvictionAspect.java     # 缓存失效 AOP 切面
 └── config/
     ├── QueryCacheProperties.java    # 配置属性
     └── QueryCacheAutoConfiguration.java # 自动配置
 ```
 
-### 2.4 SPI 接口
+### 2.4 缓存配置类
+
+缓存配置通过 `ModelResultContext.QueryCacheConfig` 类管理，提供类型安全的配置方式：
+
+```java
+/**
+ * 查询缓存配置（ModelResultContext 的内部类）
+ */
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public static class QueryCacheConfig {
+    @Builder.Default
+    private boolean l1Enabled = false;    // L1 缓存（Token 级别），默认禁用
+    @Builder.Default
+    private boolean l2Enabled = true;     // L2 缓存（SQL 级别），默认启用
+    private boolean l1CacheHit;           // L1 缓存是否命中
+    private boolean l2CacheHit;           // L2 缓存是否命中
+
+    /** 启用 L1 缓存 */
+    public static QueryCacheConfig enableL1() {
+        return QueryCacheConfig.builder().l1Enabled(true).l2Enabled(true).build();
+    }
+
+    /** 禁用所有缓存 */
+    public static QueryCacheConfig disabled() {
+        return QueryCacheConfig.builder().l1Enabled(false).l2Enabled(false).build();
+    }
+
+    /** 默认配置（仅 L2 启用） */
+    public static QueryCacheConfig defaultConfig() {
+        return QueryCacheConfig.builder().l1Enabled(false).l2Enabled(true).build();
+    }
+}
+```
+
+### 2.5 SPI 接口
 
 ```java
 /**
@@ -120,19 +162,10 @@ foggy-dataset-model-cache/     # 缓存模块
  */
 public interface QueryCacheProvider {
 
-    // ==================== Context Keys ====================
-    String EXT_ENABLE_L1_CACHE = "enableL1Cache";
-    String EXT_ENABLE_L2_CACHE = "enableL2Cache";
-    String EXT_AUTHORIZATION = "authorization";
-    String EXT_L1_CACHE_HIT = "l1CacheHit";
-    String EXT_L2_CACHE_HIT = "l2CacheHit";
-
     // ==================== L1 缓存：Token 级别 ====================
 
     /**
      * L1 缓存检查（在 beforeQuery 之后、query 之前）
-     * 基于授权令牌和请求参数判断缓存命中。
-     * 命中时可完全跳过 SQL 构建和执行。
      */
     default PagingResultImpl checkL1Cache(ModelResultContext context, String authorization) {
         return null;
@@ -149,8 +182,6 @@ public interface QueryCacheProvider {
 
     /**
      * L2 缓存检查（在 SQL 生成后、执行前）
-     * 基于最终 SQL（包含权限条件）和参数判断缓存命中。
-     * 命中时可跳过 SQL 执行，但 SQL 构建已完成。
      */
     default PagingResultImpl checkL2Cache(String modelName, String sql, List<?> params,
                                            ModelResultContext context) {
@@ -178,13 +209,42 @@ public interface QueryCacheProvider {
 
     // ==================== 辅助方法 ====================
 
-    static boolean isL1Enabled(ModelResultContext context) { ... }
-    static boolean isL2Enabled(ModelResultContext context) { ... }
-    static String getAuthorization(ModelResultContext context) { ... }
+    static boolean isL1Enabled(ModelResultContext context) {
+        if (context == null) return false;
+        QueryCacheConfig config = context.getCacheConfig();
+        return config != null && config.isL1Enabled();
+    }
+
+    static boolean isL2Enabled(ModelResultContext context) {
+        if (context == null) return true;
+        QueryCacheConfig config = context.getCacheConfig();
+        return config == null || config.isL2Enabled();
+    }
+
+    static void markL1Hit(ModelResultContext context) {
+        if (context != null) {
+            getOrCreateConfig(context).setL1CacheHit(true);
+        }
+    }
+
+    static void markL2Hit(ModelResultContext context) {
+        if (context != null) {
+            getOrCreateConfig(context).setL2CacheHit(true);
+        }
+    }
+
+    static QueryCacheConfig getOrCreateConfig(ModelResultContext context) {
+        QueryCacheConfig config = context.getCacheConfig();
+        if (config == null) {
+            config = QueryCacheConfig.defaultConfig();
+            context.setCacheConfig(config);
+        }
+        return config;
+    }
 }
 ```
 
-### 2.5 使用方式
+### 2.6 使用方式
 
 **配置**:
 ```yaml
@@ -199,19 +259,46 @@ foggy:
       DimCustomer: 1h
     exclude-models:
       - RealtimeDashboard
+    api:
+      enabled: true                # 启用 REST API（默认 true）
+    eviction:
+      enabled: true                # 启用自动失效切面（默认 true）
 ```
 
-**启用 L1 缓存**:
+**启用 L1 缓存**（新 API）:
 ```java
-// L1 需要主动启用
-context.getExtData().put(QueryCacheProvider.EXT_ENABLE_L1_CACHE, true);
+// 方式一：使用 QueryCacheConfig.enableL1()
+context.setCacheConfig(ModelResultContext.QueryCacheConfig.enableL1());
 context.getSecurityContext().setAuthorization(token);
+
+// 方式二：使用 Builder
+context.setCacheConfig(ModelResultContext.QueryCacheConfig.builder()
+    .l1Enabled(true)
+    .l2Enabled(true)
+    .build());
 ```
 
 **禁用 L2 缓存**:
 ```java
-// L2 默认启用，可显式禁用
-context.getExtData().put(QueryCacheProvider.EXT_ENABLE_L2_CACHE, false);
+// 方式一：禁用所有缓存
+context.setCacheConfig(ModelResultContext.QueryCacheConfig.disabled());
+
+// 方式二：仅禁用 L2
+context.setCacheConfig(ModelResultContext.QueryCacheConfig.builder()
+    .l1Enabled(false)
+    .l2Enabled(false)
+    .build());
+```
+
+**检查缓存命中**:
+```java
+// 查询完成后检查缓存命中情况
+QueryCacheConfig config = context.getCacheConfig();
+if (config != null) {
+    boolean l1Hit = config.isL1CacheHit();
+    boolean l2Hit = config.isL2CacheHit();
+    log.info("Cache status: L1={}, L2={}", l1Hit ? "HIT" : "MISS", l2Hit ? "HIT" : "MISS");
+}
 ```
 
 **缓存管理**:
@@ -229,6 +316,138 @@ queryCacheProvider.evictAll();
 Map<String, Object> stats = queryCacheProvider.getStats();
 // { l1Hits: 100, l1Misses: 20, l2Hits: 500, l2Misses: 80, hitRate: "85.71%" }
 ```
+
+### 2.7 缓存管理 REST API
+
+缓存模块提供 REST API 用于管理缓存：
+
+| 端点 | 方法 | 说明 |
+|------|------|------|
+| `/api/query-cache/stats` | GET | 获取缓存配置和统计信息 |
+| `/api/query-cache/evict/{modelName}` | DELETE | 清除指定模型的缓存 |
+| `/api/query-cache/evict-all` | DELETE | 清除所有缓存 |
+| `/api/query-cache/evict-batch` | POST | 批量清除指定模型的缓存 |
+
+**请求示例**:
+
+```bash
+# 获取缓存统计
+curl -X GET http://localhost:8080/api/query-cache/stats
+
+# 清除指定模型缓存
+curl -X DELETE http://localhost:8080/api/query-cache/evict/FactOrders
+
+# 清除所有缓存
+curl -X DELETE http://localhost:8080/api/query-cache/evict-all
+
+# 批量清除
+curl -X POST http://localhost:8080/api/query-cache/evict-batch \
+  -H "Content-Type: application/json" \
+  -d '{"models": ["FactOrders", "DimCustomer"]}'
+```
+
+**响应示例**:
+
+```json
+// GET /api/query-cache/stats
+{
+  "config": {
+    "enabled": true,
+    "type": "redis",
+    "defaultTtl": "PT5M",
+    "maxResultSize": 10000,
+    "cacheEmptyResult": true,
+    "excludeModels": ["RealtimeDashboard"]
+  },
+  "stats": {
+    "l1Hits": 100,
+    "l1Misses": 20,
+    "l2Hits": 500,
+    "l2Misses": 80,
+    "hitRate": "85.71%"
+  }
+}
+```
+
+### 2.8 数据变更自动失效
+
+通过 `@EvictQueryCache` 注解，可以在数据变更操作后自动清除相关缓存：
+
+**注解定义**:
+```java
+@Target({ElementType.METHOD})
+@Retention(RetentionPolicy.RUNTIME)
+public @interface EvictQueryCache {
+    /** 需要清除缓存的模型名称列表 */
+    String[] models() default {};
+
+    /** SpEL 表达式动态获取模型名称 */
+    String modelsExpression() default "";
+
+    /** 是否清除所有缓存 */
+    boolean evictAll() default false;
+
+    /** 是否在方法执行前清除缓存（默认方法成功后清除） */
+    boolean beforeInvocation() default false;
+
+    /** 是否仅在方法无异常时清除缓存（默认 true） */
+    boolean onlyOnSuccess() default true;
+}
+```
+
+**使用示例**:
+
+```java
+// 清除单个模型的缓存
+@EvictQueryCache(models = "FactOrders")
+public void saveOrder(Order order) {
+    orderRepository.save(order);
+}
+
+// 清除多个模型的缓存
+@EvictQueryCache(models = {"FactOrders", "DimCustomer"})
+public void updateOrderWithCustomer(Order order) {
+    orderRepository.save(order);
+    customerRepository.save(order.getCustomer());
+}
+
+// 清除所有缓存（适用于批量导入等场景）
+@EvictQueryCache(evictAll = true)
+public void importData(List<Order> orders) {
+    orderRepository.saveAll(orders);
+}
+
+// 使用 SpEL 表达式动态获取模型名
+@EvictQueryCache(modelsExpression = "#order.modelName")
+public void saveByModel(Order order) {
+    dynamicRepository.save(order);
+}
+
+// 使用 SpEL 访问方法返回值
+@EvictQueryCache(modelsExpression = "#result.affectedModels")
+public SaveResult saveWithAffectedModels(Order order) {
+    return orderRepository.saveAndReturnAffected(order);
+}
+
+// 即使异常也清除缓存
+@EvictQueryCache(models = "FactOrders", onlyOnSuccess = false)
+public void updateOrderWithRollback(Order order) {
+    orderRepository.update(order);
+}
+
+// 在方法执行前清除缓存（适用于需要立即失效的场景）
+@EvictQueryCache(models = "FactOrders", beforeInvocation = true)
+public void deleteOrder(Long orderId) {
+    orderRepository.deleteById(orderId);
+}
+```
+
+**SpEL 表达式支持**:
+- `#参数名` - 访问方法参数
+- `#result` - 访问方法返回值
+- `#root.methodName` - 方法名
+
+表达式应返回 `String` 或 `Collection<String>`。
 
 ---
 
@@ -284,7 +503,7 @@ L2 缓存键基于：
 
 | 风险 | 应对措施 |
 |------|----------|
-| 数据不一致 | 合理设置 TTL，提供手动清除接口 |
+| 数据不一致 | 合理设置 TTL，使用 `@EvictQueryCache` 自动失效，或 REST API 手动清除 |
 | 缓存击穿 | TTL 加随机偏移（防雪崩） |
 | 内存占用 | 限制 maxResultSize，大结果不缓存 |
 | Redis 故障 | 降级为无缓存模式，不影响业务 |
