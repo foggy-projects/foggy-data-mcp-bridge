@@ -5,6 +5,7 @@ import com.foggyframework.dataset.db.model.cache.config.QueryCacheProperties;
 import com.foggyframework.dataset.db.model.cache.fingerprint.QueryFingerprintBuilder;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
+import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext.QueryCacheConfig;
 import com.foggyframework.dataset.db.model.spi.QueryCacheProvider;
 import com.foggyframework.dataset.model.PagingResultImpl;
 import org.junit.jupiter.api.*;
@@ -351,7 +352,7 @@ class CaffeineQueryCacheProviderTest {
     @DisplayName("L1 缓存 - 需要 authorization")
     void testL1Cache_RequiresAuthorization() {
         ModelResultContext context = createContext("TestModel");
-        context.getExtData().put(QueryCacheProvider.EXT_ENABLE_L1_CACHE, true);
+        context.setCacheConfig(QueryCacheConfig.enableL1());
         // 不设置 authorization
 
         PagingResultImpl result = cacheProvider.checkL1Cache(context, null);
@@ -374,7 +375,7 @@ class CaffeineQueryCacheProviderTest {
         pagingRequest.setPageSize(10);
 
         ModelResultContext context = new ModelResultContext(pagingRequest, null);
-        context.getExtData().put(QueryCacheProvider.EXT_ENABLE_L1_CACHE, true);
+        context.setCacheConfig(QueryCacheConfig.enableL1());
 
         String authorization = "Bearer test-token-123";
         PagingResultImpl testResult = createTestResult();

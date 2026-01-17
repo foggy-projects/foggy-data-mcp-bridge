@@ -5,6 +5,7 @@ import com.foggyframework.dataset.db.model.cache.config.QueryCacheProperties;
 import com.foggyframework.dataset.db.model.cache.fingerprint.QueryFingerprintBuilder;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
+import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext.QueryCacheConfig;
 import com.foggyframework.dataset.db.model.spi.QueryCacheProvider;
 import com.foggyframework.dataset.model.PagingResultImpl;
 import org.junit.jupiter.api.*;
@@ -317,7 +318,7 @@ class RedisQueryCacheProviderTest {
     @DisplayName("L1 缓存 - 无 authorization 返回 null")
     void testL1Cache_NoAuth_ReturnsNull() {
         ModelResultContext context = createContext("TestModel");
-        context.getExtData().put(QueryCacheProvider.EXT_ENABLE_L1_CACHE, true);
+        context.setCacheConfig(QueryCacheConfig.enableL1());
 
         PagingResultImpl result = cacheProvider.checkL1Cache(context, null);
 
@@ -330,7 +331,7 @@ class RedisQueryCacheProviderTest {
     @DisplayName("L1 缓存 - 空 authorization 返回 null")
     void testL1Cache_EmptyAuth_ReturnsNull() {
         ModelResultContext context = createContext("TestModel");
-        context.getExtData().put(QueryCacheProvider.EXT_ENABLE_L1_CACHE, true);
+        context.setCacheConfig(QueryCacheConfig.enableL1());
 
         PagingResultImpl result = cacheProvider.checkL1Cache(context, "");
 

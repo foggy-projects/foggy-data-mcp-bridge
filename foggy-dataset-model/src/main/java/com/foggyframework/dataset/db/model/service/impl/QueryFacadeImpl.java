@@ -144,7 +144,7 @@ public class QueryFacadeImpl implements QueryFacade {
                 if (log.isDebugEnabled()) {
                     log.debug("L1 cache HIT for model={}", queryModelName);
                 }
-                context.getExtData().put(QueryCacheProvider.EXT_L1_CACHE_HIT, true);
+                QueryCacheProvider.markL1Hit(context);
                 context.setPagingResult(cached);
 
                 // 执行 process Step（缓存结果也需要经过结果处理）
@@ -169,7 +169,7 @@ public class QueryFacadeImpl implements QueryFacade {
 
         // 6. 【L1 缓存写入】（仅当 L1 启用且未命中时）
         if (l1Enabled && authorization != null) {
-            boolean l1Hit = Boolean.TRUE.equals(context.getExtData().get(QueryCacheProvider.EXT_L1_CACHE_HIT));
+            boolean l1Hit = context.getCacheConfig() != null && context.getCacheConfig().isL1CacheHit();
             if (!l1Hit && dbQueryResult.getPagingResult() != null) {
                 queryCacheProvider.writeL1Cache(context, authorization, dbQueryResult.getPagingResult());
                 if (log.isDebugEnabled()) {

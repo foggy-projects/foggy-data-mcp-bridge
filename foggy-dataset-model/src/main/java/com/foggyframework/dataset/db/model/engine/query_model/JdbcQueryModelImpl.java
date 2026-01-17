@@ -125,7 +125,7 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
                 if (log.isDebugEnabled()) {
                     log.debug("L2 cache HIT for model={}", getName());
                 }
-                context.getExtData().put(QueryCacheProvider.EXT_L2_CACHE_HIT, true);
+                QueryCacheProvider.markL2Hit(context);
                 return DbQueryResult.of(cached, queryEngine);
             } else {
                 if (log.isDebugEnabled()) {
@@ -205,7 +205,7 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
 
         // 【L2 缓存写入】
         if (l2Enabled && cacheProvider != null) {
-            boolean l2Hit = Boolean.TRUE.equals(context.getExtData().get(QueryCacheProvider.EXT_L2_CACHE_HIT));
+            boolean l2Hit = context.getCacheConfig() != null && context.getCacheConfig().isL2CacheHit();
             if (!l2Hit) {
                 cacheProvider.writeL2Cache(getName(), pagingSql, params, result, context);
                 if (log.isDebugEnabled()) {

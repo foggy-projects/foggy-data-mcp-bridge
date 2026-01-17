@@ -49,6 +49,11 @@ public class ModelResultContext {
      */
     SecurityContext securityContext;
 
+    /**
+     * 查询缓存配置
+     */
+    QueryCacheConfig cacheConfig;
+
     // ==========================================
     // 内联表达式预处理结果
     // ==========================================
@@ -204,6 +209,80 @@ public class ModelResultContext {
                 attributes = new HashMap<>();
             }
             attributes.put(key, value);
+        }
+    }
+
+    /**
+     * 查询缓存配置
+     *
+     * <p>控制 L1（Token 级别）和 L2（SQL 级别）缓存的行为。
+     * 可在查询时配置缓存策略，并在查询后获取缓存命中信息。
+     *
+     * @since 8.2.0
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class QueryCacheConfig {
+        /**
+         * 是否启用 L1 缓存（Token 级别）
+         * <p>
+         * L1 缓存基于授权令牌和请求指纹，可完全跳过 SQL 构建。
+         * 默认禁用，需显式启用。
+         * </p>
+         */
+        @Builder.Default
+        private boolean l1Enabled = false;
+
+        /**
+         * 是否启用 L2 缓存（SQL 级别）
+         * <p>
+         * L2 缓存基于最终 SQL（含权限条件）和参数，跳过 SQL 执行。
+         * 默认启用。
+         * </p>
+         */
+        @Builder.Default
+        private boolean l2Enabled = true;
+
+        /**
+         * L1 缓存是否命中（查询后由缓存提供者设置）
+         */
+        private boolean l1CacheHit;
+
+        /**
+         * L2 缓存是否命中（查询后由缓存提供者设置）
+         */
+        private boolean l2CacheHit;
+
+        /**
+         * 便捷方法：创建启用 L1 缓存的配置
+         */
+        public static QueryCacheConfig enableL1() {
+            return QueryCacheConfig.builder()
+                    .l1Enabled(true)
+                    .l2Enabled(true)
+                    .build();
+        }
+
+        /**
+         * 便捷方法：创建禁用所有缓存的配置
+         */
+        public static QueryCacheConfig disabled() {
+            return QueryCacheConfig.builder()
+                    .l1Enabled(false)
+                    .l2Enabled(false)
+                    .build();
+        }
+
+        /**
+         * 便捷方法：创建仅启用 L2 缓存的配置（默认行为）
+         */
+        public static QueryCacheConfig defaultConfig() {
+            return QueryCacheConfig.builder()
+                    .l1Enabled(false)
+                    .l2Enabled(true)
+                    .build();
         }
     }
 

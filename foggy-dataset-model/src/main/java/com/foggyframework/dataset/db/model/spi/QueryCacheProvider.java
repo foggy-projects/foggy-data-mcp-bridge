@@ -1,6 +1,7 @@
 package com.foggyframework.dataset.db.model.spi;
 
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
+import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext.QueryCacheConfig;
 import com.foggyframework.dataset.model.PagingResultImpl;
 
 import java.util.Collections;
@@ -20,28 +21,15 @@ import java.util.Map;
  * 默认使用 {@link NoOpQueryCacheProvider}（无操作）。
  * 引入 foggy-dataset-model-cache 模块后可启用具体实现。
  * </p>
+ * <p>
+ * 缓存配置通过 {@link ModelResultContext#getCacheConfig()} 获取，
+ * 使用 {@link QueryCacheConfig} 类型安全地配置 L1/L2 缓存行为。
+ * </p>
  *
  * @author foggy-framework
  * @since 8.2.0
  */
 public interface QueryCacheProvider {
-
-    // ==================== Context Keys ====================
-
-    /** extData 中启用 L1 缓存的标记 */
-    String EXT_ENABLE_L1_CACHE = "enableL1Cache";
-
-    /** extData 中启用 L2 缓存的标记 */
-    String EXT_ENABLE_L2_CACHE = "enableL2Cache";
-
-    /** extData 中授权令牌的键 */
-    String EXT_AUTHORIZATION = "authorization";
-
-    /** extData 中 L1 缓存命中标记 */
-    String EXT_L1_CACHE_HIT = "l1CacheHit";
-
-    /** extData 中 L2 缓存命中标记 */
-    String EXT_L2_CACHE_HIT = "l2CacheHit";
 
     // ==================== L1 缓存：Token 级别 ====================
 
@@ -55,7 +43,7 @@ public interface QueryCacheProvider {
      * 调用条件：
      * <ul>
      *   <li>authorization 不为空</li>
-     *   <li>context.extData["enableL1Cache"] = true</li>
+     *   <li>context.cacheConfig.l1Enabled = true</li>
      * </ul>
      * </p>
      *
@@ -89,7 +77,7 @@ public interface QueryCacheProvider {
      * <p>
      * 调用条件：
      * <ul>
-     *   <li>context.extData["enableL2Cache"] = true（默认 true）</li>
+     *   <li>context.cacheConfig.l2Enabled = true（默认 true）</li>
      * </ul>
      * </p>
      *
@@ -170,30 +158,31 @@ public interface QueryCacheProvider {
      * @return true 表示启用
      */
     static boolean isL1Enabled(ModelResultContext context) {
-        if (context == null || context.getExtData() == null) {
+        if (context == null) {
             return false;
         }
-        return Boolean.TRUE.equals(context.getExtData().get(EXT_ENABLE_L1_CACHE));
+        QueryCacheConfig config = context.getCacheConfig();
+        return config != null && config.isL1Enabled();
     }
 
     /**
      * 判断是否启用 L2 缓存
      * <p>
-     * 默认启用，除非显式设置为 false。
+     * 默认启用，除非 cacheConfig 显式设置为 false。
      * </p>
      *
      * @param context 查询上下文
      * @return true 表示启用
      */
     static boolean isL2Enabled(ModelResultContext context) {
-        if (context == null || context.getExtData() == null) {
+        if (context == null) {
             return true; // 默认启用
         }
-        Object flag = context.getExtData().get(EXT_ENABLE_L2_CACHE);
-        if (flag == null) {
-            return true; // 未设置时默认启用
+        QueryCacheConfig config = context.getCacheConfig();
+        if (config == null) {
+            return true; // 未配置时默认启用
         }
-        return Boolean.TRUE.equals(flag);
+        return config.isL2Enabled();
     }
 
     /**
@@ -206,14 +195,55 @@ public interface QueryCacheProvider {
         if (context == null) {
             return null;
         }
-        // 优先从 SecurityContext 获取
+        // 从 SecurityContext 获取
         if (context.getSecurityContext() != null && context.getSecurityContext().getAuthorization() != null) {
             return context.getSecurityContext().getAuthorization();
         }
-        // 回退到 extData
-        if (context.getExtData() != null) {
-            return (String) context.getExtData().get(EXT_AUTHORIZATION);
-        }
         return null;
+    }
+
+    /**
+     * 获取或创建缓存配置
+     * <p>
+     * 如果 context 未设置 cacheConfig，返回默认配置（L2 启用）。
+     * </p>
+     *
+     * @param context 查询上下文
+     * @return 缓存配置，不会返回 null
+     */
+    static QueryCacheConfig getOrCreateConfig(ModelResultContext context) {
+        if (context == null) {
+            return QueryCacheConfig.defaultConfig();
+        }
+        QueryCacheConfig config = context.getCacheConfig();
+        if (config == null) {
+            config = QueryCacheConfig.defaultConfig();
+            context.setCacheConfig(config);
+        }
+        return config;
+    }
+
+    /**
+     * 标记 L1 缓存命中
+     *
+     * @param context 查询上下文
+     */
+    static void markL1Hit(ModelResultContext context) {
+        if (context != null) {
+            QueryCacheConfig config = getOrCreateConfig(context);
+            config.setL1CacheHit(true);
+        }
+    }
+
+    /**
+     * 标记 L2 缓存命中
+     *
+     * @param context 查询上下文
+     */
+    static void markL2Hit(ModelResultContext context) {
+        if (context != null) {
+            QueryCacheConfig config = getOrCreateConfig(context);
+            config.setL2CacheHit(true);
+        }
     }
 }

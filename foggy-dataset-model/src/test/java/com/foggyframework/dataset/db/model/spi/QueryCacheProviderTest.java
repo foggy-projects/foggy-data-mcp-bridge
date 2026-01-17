@@ -3,6 +3,8 @@ package com.foggyframework.dataset.db.model.spi;
 import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
+import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext.QueryCacheConfig;
+import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext.SecurityContext;
 import com.foggyframework.dataset.model.PagingResultImpl;
 import org.junit.jupiter.api.*;
 
@@ -16,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * QueryCacheProvider SPI 接口测试
  * <p>
- * 测试双层缓存的辅助方法和上下文标记。
+ * 测试双层缓存的辅助方法和 QueryCacheConfig 使用。
  * </p>
  */
 @DisplayName("QueryCacheProvider SPI 测试")
@@ -25,8 +27,8 @@ class QueryCacheProviderTest {
 
     @Test
     @Order(1)
-    @DisplayName("isL1Enabled - 未设置时返回 false")
-    void testIsL1Enabled_NotSet_ReturnsFalse() {
+    @DisplayName("isL1Enabled - 未设置 cacheConfig 时返回 false")
+    void testIsL1Enabled_NoCacheConfig_ReturnsFalse() {
         ModelResultContext context = createContext();
 
         boolean enabled = QueryCacheProvider.isL1Enabled(context);
@@ -36,10 +38,10 @@ class QueryCacheProviderTest {
 
     @Test
     @Order(2)
-    @DisplayName("isL1Enabled - 设置为 true 时返回 true")
+    @DisplayName("isL1Enabled - cacheConfig.l1Enabled=true 时返回 true")
     void testIsL1Enabled_SetTrue_ReturnsTrue() {
         ModelResultContext context = createContext();
-        context.getExtData().put(QueryCacheProvider.EXT_ENABLE_L1_CACHE, true);
+        context.setCacheConfig(QueryCacheConfig.builder().l1Enabled(true).build());
 
         boolean enabled = QueryCacheProvider.isL1Enabled(context);
 
@@ -48,10 +50,10 @@ class QueryCacheProviderTest {
 
     @Test
     @Order(3)
-    @DisplayName("isL1Enabled - 设置为 false 时返回 false")
+    @DisplayName("isL1Enabled - cacheConfig.l1Enabled=false 时返回 false")
     void testIsL1Enabled_SetFalse_ReturnsFalse() {
         ModelResultContext context = createContext();
-        context.getExtData().put(QueryCacheProvider.EXT_ENABLE_L1_CACHE, false);
+        context.setCacheConfig(QueryCacheConfig.builder().l1Enabled(false).build());
 
         boolean enabled = QueryCacheProvider.isL1Enabled(context);
 
@@ -69,8 +71,8 @@ class QueryCacheProviderTest {
 
     @Test
     @Order(5)
-    @DisplayName("isL2Enabled - 未设置时返回 true（默认启用）")
-    void testIsL2Enabled_NotSet_ReturnsTrue() {
+    @DisplayName("isL2Enabled - 未设置 cacheConfig 时返回 true（默认启用）")
+    void testIsL2Enabled_NoCacheConfig_ReturnsTrue() {
         ModelResultContext context = createContext();
 
         boolean enabled = QueryCacheProvider.isL2Enabled(context);
@@ -80,10 +82,10 @@ class QueryCacheProviderTest {
 
     @Test
     @Order(6)
-    @DisplayName("isL2Enabled - 设置为 false 时返回 false")
+    @DisplayName("isL2Enabled - cacheConfig.l2Enabled=false 时返回 false")
     void testIsL2Enabled_SetFalse_ReturnsFalse() {
         ModelResultContext context = createContext();
-        context.getExtData().put(QueryCacheProvider.EXT_ENABLE_L2_CACHE, false);
+        context.setCacheConfig(QueryCacheConfig.builder().l2Enabled(false).build());
 
         boolean enabled = QueryCacheProvider.isL2Enabled(context);
 
@@ -92,10 +94,10 @@ class QueryCacheProviderTest {
 
     @Test
     @Order(7)
-    @DisplayName("isL2Enabled - 设置为 true 时返回 true")
+    @DisplayName("isL2Enabled - cacheConfig.l2Enabled=true 时返回 true")
     void testIsL2Enabled_SetTrue_ReturnsTrue() {
         ModelResultContext context = createContext();
-        context.getExtData().put(QueryCacheProvider.EXT_ENABLE_L2_CACHE, true);
+        context.setCacheConfig(QueryCacheConfig.builder().l2Enabled(true).build());
 
         boolean enabled = QueryCacheProvider.isL2Enabled(context);
 
@@ -113,10 +115,12 @@ class QueryCacheProviderTest {
 
     @Test
     @Order(9)
-    @DisplayName("getAuthorization - 从 extData 获取")
-    void testGetAuthorization_FromExtData() {
+    @DisplayName("getAuthorization - 从 SecurityContext 获取")
+    void testGetAuthorization_FromSecurityContext() {
         ModelResultContext context = createContext();
-        context.getExtData().put(QueryCacheProvider.EXT_AUTHORIZATION, "Bearer token123");
+        context.setSecurityContext(SecurityContext.builder()
+                .authorization("Bearer token123")
+                .build());
 
         String auth = QueryCacheProvider.getAuthorization(context);
 
@@ -134,7 +138,7 @@ class QueryCacheProviderTest {
 
     @Test
     @Order(11)
-    @DisplayName("getAuthorization - 未设置时返回 null")
+    @DisplayName("getAuthorization - 未设置 SecurityContext 时返回 null")
     void testGetAuthorization_NotSet_ReturnsNull() {
         ModelResultContext context = createContext();
 
@@ -186,17 +190,78 @@ class QueryCacheProviderTest {
 
     @Test
     @Order(14)
-    @DisplayName("Context Keys 常量值正确")
-    void testContextKeysConstants() {
-        assertEquals("enableL1Cache", QueryCacheProvider.EXT_ENABLE_L1_CACHE);
-        assertEquals("enableL2Cache", QueryCacheProvider.EXT_ENABLE_L2_CACHE);
-        assertEquals("authorization", QueryCacheProvider.EXT_AUTHORIZATION);
-        assertEquals("l1CacheHit", QueryCacheProvider.EXT_L1_CACHE_HIT);
-        assertEquals("l2CacheHit", QueryCacheProvider.EXT_L2_CACHE_HIT);
+    @DisplayName("QueryCacheConfig - 静态工厂方法测试")
+    void testQueryCacheConfigFactoryMethods() {
+        // enableL1() 返回 L1 和 L2 都启用
+        QueryCacheConfig l1Config = QueryCacheConfig.enableL1();
+        assertTrue(l1Config.isL1Enabled());
+        assertTrue(l1Config.isL2Enabled());
+
+        // disabled() 返回都禁用
+        QueryCacheConfig disabledConfig = QueryCacheConfig.disabled();
+        assertFalse(disabledConfig.isL1Enabled());
+        assertFalse(disabledConfig.isL2Enabled());
+
+        // defaultConfig() 返回仅 L2 启用
+        QueryCacheConfig defaultConfig = QueryCacheConfig.defaultConfig();
+        assertFalse(defaultConfig.isL1Enabled());
+        assertTrue(defaultConfig.isL2Enabled());
     }
 
     @Test
     @Order(15)
+    @DisplayName("getOrCreateConfig - 自动创建默认配置")
+    void testGetOrCreateConfig_CreatesDefault() {
+        ModelResultContext context = createContext();
+        assertNull(context.getCacheConfig(), "初始应该为 null");
+
+        QueryCacheConfig config = QueryCacheProvider.getOrCreateConfig(context);
+
+        assertNotNull(config);
+        assertFalse(config.isL1Enabled());
+        assertTrue(config.isL2Enabled());
+        assertSame(config, context.getCacheConfig(), "应该设置到 context 中");
+    }
+
+    @Test
+    @Order(16)
+    @DisplayName("getOrCreateConfig - 返回已存在的配置")
+    void testGetOrCreateConfig_ReturnsExisting() {
+        ModelResultContext context = createContext();
+        QueryCacheConfig existingConfig = QueryCacheConfig.enableL1();
+        context.setCacheConfig(existingConfig);
+
+        QueryCacheConfig config = QueryCacheProvider.getOrCreateConfig(context);
+
+        assertSame(existingConfig, config, "应该返回已存在的配置");
+    }
+
+    @Test
+    @Order(17)
+    @DisplayName("markL1Hit - 标记 L1 缓存命中")
+    void testMarkL1Hit() {
+        ModelResultContext context = createContext();
+
+        QueryCacheProvider.markL1Hit(context);
+
+        assertNotNull(context.getCacheConfig());
+        assertTrue(context.getCacheConfig().isL1CacheHit());
+    }
+
+    @Test
+    @Order(18)
+    @DisplayName("markL2Hit - 标记 L2 缓存命中")
+    void testMarkL2Hit() {
+        ModelResultContext context = createContext();
+
+        QueryCacheProvider.markL2Hit(context);
+
+        assertNotNull(context.getCacheConfig());
+        assertTrue(context.getCacheConfig().isL2CacheHit());
+    }
+
+    @Test
+    @Order(19)
     @DisplayName("自定义 QueryCacheProvider 实现测试")
     void testCustomQueryCacheProvider() {
         // 创建自定义实现
