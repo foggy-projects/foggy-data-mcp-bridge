@@ -393,7 +393,7 @@ GROUP BY customer_type
 HAVING SUM(total_amount) >= 10000
 ```
 
-**注意**：OR 条件组中不能同时包含聚合字段和普通字段，因为无法在 WHERE 和 HAVING 间使用 OR。
+**注意**：`$or` 条件组中不能同时包含聚合字段和普通字段，因为无法在 WHERE 和 HAVING 间使用 OR。
 
 ---
 
@@ -835,9 +835,9 @@ POST /jdbc-model/query-model/v2/FactOrderQueryModel
         "slice": [
             { "field": "orderTime", "op": "[)", "value": ["2024-01-01", "2024-07-01"] },
             {
-                "children": [
+                "$or": [
                     { "field": "customer$customerType", "op": "=", "value": "VIP" },
-                    { "field": "totalAmount", "op": ">=", "value": 1000, "link": 2 }
+                    { "field": "totalAmount", "op": ">=", "value": 1000 }
                 ]
             },
             { "field": "product$category", "op": "in", "value": ["数码电器", "家居用品"] }
@@ -933,11 +933,11 @@ ORDER BY totalSales DESC
 }
 ```
 
-#### OR 条件混合聚合字段
+#### $or 条件混合聚合字段
 ```json
 {
     "code": 400,
-    "msg": "OR 条件组中不能同时包含聚合字段(totalSales)和普通字段(orderStatus)",
+    "msg": "$or 条件组中不能同时包含聚合字段(totalSales)和普通字段(orderStatus)",
     "data": null
 }
 ```
