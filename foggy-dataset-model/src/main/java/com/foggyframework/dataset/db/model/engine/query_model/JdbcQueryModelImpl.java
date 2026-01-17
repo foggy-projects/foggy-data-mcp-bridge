@@ -91,6 +91,9 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
 
     /**
      * 执行 JDBC 查询
+     * <p>
+     * 支持 L2 缓存（SQL 级别）：在 SQL 生成后、执行前检查缓存。
+     * </p>
      *
      * @param systemBundlesContext 系统上下文
      * @param context              查询上下文（可能已预处理）
@@ -103,11 +106,33 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(this, sqlFormulaService);
 
         /**
-         * 构建 查询语句
+         * 构建查询语句（包含权限条件注入）
          */
         queryEngine.analysisQueryRequest(systemBundlesContext, context);
 
-        String pagingSql = DbUtils.getDialect(dataSource).generatePagingSql(queryEngine.getSql(), form.getStart(), form.getLimit());
+        String sql = queryEngine.getSql();
+        List<?> params = queryEngine.getValues();
+        String pagingSql = DbUtils.getDialect(dataSource).generatePagingSql(sql, form.getStart(), form.getLimit());
+
+        // 【L2 缓存检查】在 SQL 生成后、执行前
+        QueryCacheProvider cacheProvider = getQueryCacheProvider(context);
+        boolean l2Enabled = QueryCacheProvider.isL2Enabled(context);
+
+        if (l2Enabled && cacheProvider != null) {
+            // 使用完整的分页 SQL 作为缓存键的一部分
+            PagingResultImpl cached = cacheProvider.checkL2Cache(getName(), pagingSql, params, context);
+            if (cached != null) {
+                if (log.isDebugEnabled()) {
+                    log.debug("L2 cache HIT for model={}", getName());
+                }
+                context.getExtData().put(QueryCacheProvider.EXT_L2_CACHE_HIT, true);
+                return DbQueryResult.of(cached, queryEngine);
+            } else {
+                if (log.isDebugEnabled()) {
+                    log.debug("L2 cache MISS for model={}", getName());
+                }
+            }
+        }
 
         // 记录 SQL 日志（明细查询）
         if (sqlLoggingInterceptor != null) {
@@ -175,7 +200,35 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
                 totalData.put("total", total);
             }
         }
-        return DbQueryResult.of(PagingResultImpl.of(items, form.getStart(), form.getLimit(), totalData, total), queryEngine);
+
+        PagingResultImpl result = PagingResultImpl.of(items, form.getStart(), form.getLimit(), totalData, total);
+
+        // 【L2 缓存写入】
+        if (l2Enabled && cacheProvider != null) {
+            boolean l2Hit = Boolean.TRUE.equals(context.getExtData().get(QueryCacheProvider.EXT_L2_CACHE_HIT));
+            if (!l2Hit) {
+                cacheProvider.writeL2Cache(getName(), pagingSql, params, result, context);
+                if (log.isDebugEnabled()) {
+                    log.debug("L2 cache WRITE for model={}", getName());
+                }
+            }
+        }
+
+        return DbQueryResult.of(result, queryEngine);
+    }
+
+    /**
+     * 从上下文获取缓存提供者
+     */
+    private QueryCacheProvider getQueryCacheProvider(ModelResultContext context) {
+        if (context == null || context.getExtData() == null) {
+            return null;
+        }
+        Object provider = context.getExtData().get("queryCacheProvider");
+        if (provider instanceof QueryCacheProvider) {
+            return (QueryCacheProvider) provider;
+        }
+        return null;
     }
 
 
