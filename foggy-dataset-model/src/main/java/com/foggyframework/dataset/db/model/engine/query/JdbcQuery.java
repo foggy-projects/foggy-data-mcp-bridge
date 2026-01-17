@@ -712,32 +712,22 @@ public class JdbcQuery {
             return this;
         }
 
-        public JdbcListCond link(String sqlFragment, Object value, int link) {
-            JdbcLink jdbcLink = JdbcLink.fromCode(link);
-            switch (jdbcLink) {
-                case OR:
-                    return or(sqlFragment, value);
-                case AND:
-                default:
-                    return and(sqlFragment, value);
+        public JdbcListCond link(String sqlFragment, Object value, String link) {
+            if ("OR".equalsIgnoreCase(link)) {
+                return or(sqlFragment, value);
             }
+            return and(sqlFragment, value);
         }
 
-        public JdbcListCond listLink(String sqlFragment, List<Object> value, int link) {
-            String linkStr = "and";
-            JdbcLink jdbcLink = JdbcLink.fromCode(link);
-            switch (jdbcLink) {
-                case OR:
-                    linkStr = "OR";
-            }
-
+        public JdbcListCond listLink(String sqlFragment, List<Object> value, String link) {
+            String linkStr = "OR".equalsIgnoreCase(link) ? "OR" : "and";
             ListValueCond c = new ListValueCond(linkStr, sqlFragment, value);
             conds.add(c);
             return this;
         }
 
         public JdbcListCond andList(String sqlFragment, List<Object> value) {
-            return listLink(sqlFragment, value, 0);
+            return listLink(sqlFragment, value, "AND");
         }
 
         public JdbcListCond or(String sqlFragment, Object value) {

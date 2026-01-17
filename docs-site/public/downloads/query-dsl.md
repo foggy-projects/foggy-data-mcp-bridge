@@ -69,14 +69,33 @@ JSON 查询 DSL 是一种声明式的查询语言，通过 JSON 格式描述查�
 
 ### 3.1 基本结构
 
+**单条件：**
 ```json
 {
     "field": "字段名",
     "op": "操作符",
     "value": "值",
-    "link": 1,              // 逻辑连接：1=AND, 2=OR
-    "maxDepth": 2,          // 层级深度限制（仅层级操作符）
-    "children": [...]       // 嵌套条件
+    "maxDepth": 2           // 层级深度限制（仅层级操作符）
+}
+```
+
+**OR 条件组：**
+```json
+{
+    "$or": [
+        { "field": "field1", "op": "=", "value": "value1" },
+        { "field": "field2", "op": "=", "value": "value2" }
+    ]
+}
+```
+
+**AND 条件组：**
+```json
+{
+    "$and": [
+        { "field": "field1", "op": ">", "value": 100 },
+        { "field": "field2", "op": "<", "value": 1000 }
+    ]
 }
 ```
 
@@ -198,45 +217,27 @@ WHERE closure.parent_id = 'T001'
 GROUP BY dim_team.caption
 ```
 
-### 3.3 逻辑连接 (link)
+### 3.3 逻辑组合 ($or / $and)
 
-| 值 | 说明 |
-|----|------|
-| `1` 或不填 | AND 连接（默认） |
-| `2` | OR 连接 |
+`slice` 数组内的条件默认用 **AND** 连接。使用 `$or` 或 `$and` 操作符可以显式指定逻辑组合。
 
-**OR 连接示例**：
+**MongoDB 风格操作符：**
 
-```json
-{
-    "param": {
-        "slice": [
-            { "field": "orderStatus", "op": "=", "value": "COMPLETED" },
-            { "field": "orderStatus", "op": "=", "value": "SHIPPED", "link": 2 }
-        ]
-    }
-}
-```
+| 操作符 | 说明 | 示例 |
+|--------|------|------|
+| `$or` | OR 逻辑组 | `{ "$or": [cond1, cond2] }` 任一条件满足即匹配 |
+| `$and` | AND 逻辑组 | `{ "$and": [cond1, cond2] }` 所有条件满足才匹配 |
 
-**生成的 SQL**：
-```sql
-WHERE (order_status = 'COMPLETED' OR order_status = 'SHIPPED')
-```
-
-### 3.4 嵌套条件 (children)
-
-支持复杂的嵌套条件组合：
+**示例：查询客户类型为 "VIP" 或 订单金额 > 10000**
 
 ```json
 {
     "param": {
         "slice": [
-            { "field": "orderStatus", "op": "=", "value": "COMPLETED" },
             {
-                "link": 1,
-                "children": [
-                    { "field": "totalAmount", "op": ">=", "value": 1000 },
-                    { "field": "customer$customerType", "op": "=", "value": "VIP", "link": 2 }
+                "$or": [
+                    { "field": "customer$customerType", "op": "=", "value": "VIP" },
+                    { "field": "totalAmount", "op": ">", "value": 10000 }
                 ]
             }
         ]
@@ -244,10 +245,45 @@ WHERE (order_status = 'COMPLETED' OR order_status = 'SHIPPED')
 }
 ```
 
-**生成的 SQL**：
-```sql
-WHERE order_status = 'COMPLETED'
-  AND (total_amount >= 1000 OR customer_type = 'VIP')
+**示例：查询状态为 "COMPLETED" 且 (客户类型为 "VIP" 或 金额 > 10000)**
+
+```json
+{
+    "param": {
+        "slice": [
+            { "field": "orderStatus", "op": "=", "value": "COMPLETED" },
+            {
+                "$or": [
+                    { "field": "customer$customerType", "op": "=", "value": "VIP" },
+                    { "field": "totalAmount", "op": ">", "value": 10000 }
+                ]
+            }
+        ]
+    }
+}
+```
+
+**嵌套条件：**
+
+`$or` 和 `$and` 可以嵌套使用：
+
+```json
+{
+    "$or": [
+        {
+            "$and": [
+                { "field": "region", "op": "=", "value": "华东" },
+                { "field": "totalAmount", "op": ">=", "value": 10000 }
+            ]
+        },
+        {
+            "$and": [
+                { "field": "region", "op": "=", "value": "华南" },
+                { "field": "totalAmount", "op": ">=", "value": 5000 }
+            ]
+        }
+    ]
+}
 ```
 
 ### 3.5 HAVING 条件（聚合过滤）
@@ -720,9 +756,9 @@ POST /jdbc-model/query-model/v2/FactOrderQueryModel
         "slice": [
             { "field": "orderTime", "op": "[)", "value": ["2024-01-01", "2024-07-01"] },
             {
-                "children": [
+                "$or": [
                     { "field": "customer$customerType", "op": "=", "value": "VIP" },
-                    { "field": "totalAmount", "op": ">=", "value": 1000, "link": 2 }
+                    { "field": "totalAmount", "op": ">=", "value": 1000 }
                 ]
             },
             { "field": "product$category", "op": "in", "value": ["数码电器", "家居用品"] }

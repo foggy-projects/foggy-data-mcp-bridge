@@ -50,7 +50,7 @@
 *常用数学函数如 ABS、ROUND、FLOOR、CEIL 等均支持*
 
 ### slice (可选)
-过滤条件：
+过滤条件（数组内条件默认 AND 连接）：
 ```json
 [
   {"field": "customer$caption", "op": "like", "value": "张三"},
@@ -58,6 +58,20 @@
   {"field": "customerLevel", "op": "is not null"}
 ]
 ```
+
+**逻辑组合**：使用 `$or` / `$and` 显式组合条件：
+```json
+[
+  {"field": "orderStatus", "op": "=", "value": "COMPLETED"},
+  {
+    "$or": [
+      {"field": "totalAmount", "op": ">=", "value": 1000},
+      {"field": "customer$customerType", "op": "=", "value": "VIP"}
+    ]
+  }
+]
+```
+生成 SQL：`WHERE order_status = 'COMPLETED' AND (total_amount >= 1000 OR customer_type = 'VIP')`
 
 **操作符**：
 | 类型 | 操作符 |

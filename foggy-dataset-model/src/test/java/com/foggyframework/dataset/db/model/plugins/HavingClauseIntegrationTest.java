@@ -293,27 +293,21 @@ class HavingClauseIntegrationTest extends EcommerceTestSupport {
 
         // 尝试使用 OR 连接聚合字段和普通字段
         List<SliceRequestDef> slices = new ArrayList<>();
-        SliceRequestDef orGroup = new SliceRequestDef();
-        orGroup.setField("_group_"); // 组合条件需要一个field（校验要求，虽然不会被使用）
-        orGroup.setLink(2); // 2 = OR
-
-        List<CondRequestDef> children = new ArrayList<>();
 
         // 普通字段条件
         CondRequestDef normalCond = new CondRequestDef();
         normalCond.setField("customer$customerType");
         normalCond.setOp("=");
         normalCond.setValue("VIP");
-        children.add(normalCond);
 
         // 聚合字段条件
         CondRequestDef aggCond = new CondRequestDef();
         aggCond.setField("totalAmount");
         aggCond.setOp(">");
         aggCond.setValue(1000);
-        children.add(aggCond);
 
-        orGroup.setChildren(children);
+        // 使用 $or 语法创建条件组
+        SliceRequestDef orGroup = SliceRequestDef.or(List.of(normalCond, aggCond));
         slices.add(orGroup);
         request.setSlice(slices);
 

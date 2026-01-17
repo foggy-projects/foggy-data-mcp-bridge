@@ -179,9 +179,8 @@ class QueryFingerprintBuilderTest {
 
         // 创建嵌套条件：(status = 'active' OR status = 'pending')
         List<SliceRequestDef> slices = new ArrayList<>();
-        SliceRequestDef parentSlice = new SliceRequestDef();
-        parentSlice.setLink(2); // 2 = OR
 
+        // 创建 OR 条件组
         SliceRequestDef child1 = new SliceRequestDef();
         child1.setField("status");
         child1.setOp("=");
@@ -192,9 +191,9 @@ class QueryFingerprintBuilderTest {
         child2.setOp("=");
         child2.setValue("pending");
 
-        List<CondRequestDef> children = Arrays.asList(child1, child2);
-        parentSlice.setChildren(children);
-        slices.add(parentSlice);
+        // 使用 $or 语法创建条件组
+        SliceRequestDef orCondition = SliceRequestDef.or(Arrays.asList(child1, child2));
+        slices.add(orCondition);
         queryRequest.setSlice(slices);
 
         ModelResultContext context = createContext(queryRequest);

@@ -6,7 +6,7 @@ import com.foggyframework.dataset.db.model.spi.DbColumn;
 public interface SqlFormula {
     String[] getNameList();
 
-    Object buildAndAddToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, DbColumn sqlColumn, String alias, Object value, int link);
+    Object buildAndAddToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, DbColumn sqlColumn, String alias, Object value, String link);
 
 
 }

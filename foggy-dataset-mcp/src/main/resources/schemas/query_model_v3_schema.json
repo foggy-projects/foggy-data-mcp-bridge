@@ -31,17 +31,36 @@
         },
         "slice": {
           "type": "array",
-          "description": "过滤条件",
+          "description": "过滤条件（数组内条件默认 AND 连接，用 $or/$and 显式组合）",
           "items": {
-            "type": "object",
-            "properties": {
-              "field": { "type": "string", "description": "字段名" },
-              "op": { "type": "string", "description": "操作符：=, !=, >, <, like, in, [], [), is null 等" },
-              "value": { "description": "过滤值，is null/is not null 时不需要" },
-              "link": { "type": "integer", "description": "1=AND(默认), 2=OR" },
-              "children": { "type": "array", "description": "嵌套子条件", "items": { "$ref": "#/properties/payload/properties/slice/items" } }
-            },
-            "required": ["field", "op"]
+            "oneOf": [
+              {
+                "type": "object",
+                "description": "单个过滤条件",
+                "properties": {
+                  "field": { "type": "string", "description": "字段名" },
+                  "op": { "type": "string", "description": "操作符：=, !=, >, <, like, in, [], [), is null 等" },
+                  "value": { "description": "过滤值，is null/is not null 时不需要" }
+                },
+                "required": ["field", "op"]
+              },
+              {
+                "type": "object",
+                "description": "OR 条件组",
+                "properties": {
+                  "$or": { "type": "array", "description": "子条件用 OR 连接", "items": { "$ref": "#/properties/payload/properties/slice/items" } }
+                },
+                "required": ["$or"]
+              },
+              {
+                "type": "object",
+                "description": "AND 条件组",
+                "properties": {
+                  "$and": { "type": "array", "description": "子条件用 AND 连接", "items": { "$ref": "#/properties/payload/properties/slice/items" } }
+                },
+                "required": ["$and"]
+              }
+            ]
           }
         },
         "orderBy": {

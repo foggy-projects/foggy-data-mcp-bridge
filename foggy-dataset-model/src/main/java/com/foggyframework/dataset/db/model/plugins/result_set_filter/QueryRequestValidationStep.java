@@ -123,18 +123,18 @@ public class QueryRequestValidationStep implements DataSetResultStep {
      * 校验单个查询条件项
      */
     private void validateSliceItem(SliceRequestDef item, int index) {
-        // 1. 校验 field 不为空
+        // 1. 如果是逻辑组（$or 或 $and），递归校验子条件
+        if (item._isLogicalGroup()) {
+            validateCondChildren(item._getGroupChildren());
+            return;
+        }
+
+        // 2. 校验 field 不为空
         if (StringUtils.isEmpty(item.getField())) {
             throw RX.throwAUserTip(DatasetMessages.validationSliceFieldRequired(index));
         }
 
         String field = item.getField();
-
-        // 2. 如果有 children，递归校验（OR 逻辑组）
-        if (item.getChildren() != null && !item.getChildren().isEmpty()) {
-            validateCondChildren(item.getChildren());
-            return;  // children 存在时，本级不需要 op 和 value
-        }
 
         // 3. 校验 op 不为空
         if (StringUtils.isEmpty(item.getOp())) {
@@ -166,18 +166,18 @@ public class QueryRequestValidationStep implements DataSetResultStep {
         for (int i = 0; i < children.size(); i++) {
             CondRequestDef item = children.get(i);
 
-            // 1. 校验 field 不为空
+            // 1. 如果是逻辑组（$or 或 $and），递归校验
+            if (item._isLogicalGroup()) {
+                validateCondChildren(item._getGroupChildren());
+                continue;
+            }
+
+            // 2. 校验 field 不为空
             if (StringUtils.isEmpty(item.getField())) {
                 throw RX.throwAUserTip(DatasetMessages.validationSliceFieldRequired(i));
             }
 
             String field = item.getField();
-
-            // 2. 如果有 children，递归校验
-            if (item.getChildren() != null && !item.getChildren().isEmpty()) {
-                validateCondChildren(item.getChildren());
-                continue;
-            }
 
             // 3. 校验 op 不为空
             if (StringUtils.isEmpty(item.getOp())) {

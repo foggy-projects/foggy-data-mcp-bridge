@@ -59,14 +59,33 @@ For multi-level nested dimensions, use `.` to separate paths:
 
 ### 3.1 Basic Structure
 
+**Single Condition:**
 ```json
 {
     "field": "fieldName",
     "op": "operator",
     "value": "value",
-    "link": 1,              // Logical connection: 1=AND, 2=OR
-    "maxDepth": 2,          // Hierarchy depth limit (hierarchy operators only)
-    "children": [...]       // Nested conditions
+    "maxDepth": 2           // Hierarchy depth limit (hierarchy operators only)
+}
+```
+
+**OR Condition Group:**
+```json
+{
+    "$or": [
+        { "field": "field1", "op": "=", "value": "value1" },
+        { "field": "field2", "op": "=", "value": "value2" }
+    ]
+}
+```
+
+**AND Condition Group:**
+```json
+{
+    "$and": [
+        { "field": "field1", "op": ">", "value": 100 },
+        { "field": "field2", "op": "<", "value": 1000 }
+    ]
 }
 ```
 
@@ -240,14 +259,35 @@ For semantic similarity search on vector models. **Only vector fields (type=VECT
 
 > Vector search results are sorted by similarity in descending order. The `_score` field indicates similarity (0-1).
 
-### 3.3 Logical Connection (link)
+### 3.3 Logical Combination ($or / $and)
 
-| Value | Description |
-|-------|-------------|
-| `1` or omit | AND connection (default) |
-| `2` | OR connection |
+Conditions within `slice` array are connected with **AND** by default. Use `$or` or `$and` operators to explicitly specify logical combinations.
 
-### 3.4 Nested Conditions (children)
+**MongoDB-style Operators:**
+
+| Operator | Description | Example |
+|----------|-------------|---------|
+| `$or` | OR logical group | `{ "$or": [cond1, cond2] }` matches when **any** condition is true |
+| `$and` | AND logical group | `{ "$and": [cond1, cond2] }` matches when **all** conditions are true |
+
+**Example: Find orders where customer type is "VIP" OR order amount > 10000**
+
+```json
+{
+    "param": {
+        "slice": [
+            {
+                "$or": [
+                    { "field": "customer$customerType", "op": "=", "value": "VIP" },
+                    { "field": "totalAmount", "op": ">", "value": 10000 }
+                ]
+            }
+        ]
+    }
+}
+```
+
+**Example: Find orders where status is "COMPLETED" AND (customer type is "VIP" OR amount > 10000)**
 
 ```json
 {
@@ -255,14 +295,36 @@ For semantic similarity search on vector models. **Only vector fields (type=VECT
         "slice": [
             { "field": "orderStatus", "op": "=", "value": "COMPLETED" },
             {
-                "link": 1,
-                "children": [
-                    { "field": "totalAmount", "op": ">=", "value": 1000 },
-                    { "field": "customer$customerType", "op": "=", "value": "VIP", "link": 2 }
+                "$or": [
+                    { "field": "customer$customerType", "op": "=", "value": "VIP" },
+                    { "field": "totalAmount", "op": ">", "value": 10000 }
                 ]
             }
         ]
     }
+}
+```
+
+**Nested Conditions:**
+
+`$or` and `$and` can be nested:
+
+```json
+{
+    "$or": [
+        {
+            "$and": [
+                { "field": "region", "op": "=", "value": "East" },
+                { "field": "totalAmount", "op": ">=", "value": 10000 }
+            ]
+        },
+        {
+            "$and": [
+                { "field": "region", "op": "=", "value": "West" },
+                { "field": "totalAmount", "op": ">=", "value": 5000 }
+            ]
+        }
+    ]
 }
 ```
 

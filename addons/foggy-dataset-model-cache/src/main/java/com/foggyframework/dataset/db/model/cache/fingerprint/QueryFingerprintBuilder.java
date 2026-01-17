@@ -222,9 +222,9 @@ public class QueryFingerprintBuilder {
      * 递归提取 slice 条件
      */
     private void extractSliceRecursive(CondRequestDef cond, ConditionExtractResult result) {
-        if (cond._hasChildren()) {
-            result.signatures.add("group:" + cond.getLink() + ":(");
-            for (CondRequestDef child : cond.getChildren()) {
+        if (cond._isLogicalGroup()) {
+            result.signatures.add("group:" + cond._getGroupLink() + ":(");
+            for (CondRequestDef child : cond._getGroupChildren()) {
                 extractSliceRecursive(child, result);
             }
             result.signatures.add(")");

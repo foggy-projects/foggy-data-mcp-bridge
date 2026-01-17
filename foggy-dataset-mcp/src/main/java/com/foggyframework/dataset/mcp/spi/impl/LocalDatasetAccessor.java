@@ -328,23 +328,27 @@ public class LocalDatasetAccessor implements DatasetAccessor {
         item.setOp((String) map.getOrDefault("op", "eq"));
         item.setValue(map.get("value"));
 
-        // 处理 link（逻辑连接符）
-        if (map.containsKey("link")) {
-            Object linkObj = map.get("link");
-            if (linkObj instanceof Number) {
-                item.setLink(((Number) linkObj).intValue());
+        // 处理 $or 条件组
+        if (map.containsKey("$or")) {
+            Object orObj = map.get("$or");
+            if (orObj instanceof List) {
+                List<Map<String, Object>> orList = (List<Map<String, Object>>) orObj;
+                List<SemanticQueryRequest.SliceItem> orItems = orList.stream()
+                        .map(this::convertToSliceItem)
+                        .toList();
+                item.setOr(orItems);
             }
         }
 
-        // 处理 children（嵌套条件组）
-        if (map.containsKey("children")) {
-            Object childrenObj = map.get("children");
-            if (childrenObj instanceof List) {
-                List<Map<String, Object>> childrenList = (List<Map<String, Object>>) childrenObj;
-                List<SemanticQueryRequest.SliceItem> childrenItems = childrenList.stream()
+        // 处理 $and 条件组
+        if (map.containsKey("$and")) {
+            Object andObj = map.get("$and");
+            if (andObj instanceof List) {
+                List<Map<String, Object>> andList = (List<Map<String, Object>>) andObj;
+                List<SemanticQueryRequest.SliceItem> andItems = andList.stream()
                         .map(this::convertToSliceItem)
                         .toList();
-                item.setChildren(childrenItems);
+                item.setAnd(andItems);
             }
         }
 

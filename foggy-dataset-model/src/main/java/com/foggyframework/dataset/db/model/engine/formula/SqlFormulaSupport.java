@@ -19,7 +19,7 @@ public abstract class SqlFormulaSupport implements SqlFormula {
     }
 
     @Override
-    public Object buildAndAddToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, DbColumn sqlColumn, String alias, Object value, int link) {
+    public Object buildAndAddToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, DbColumn sqlColumn, String alias, Object value, String link) {
 //        String name = sqlColumn.getName();
         if (StringUtils.isEmpty(value)) {
             return buildAndAddEmptyToJdbcCond(listCond, type, sqlColumn, alias, value, link);
@@ -36,11 +36,11 @@ public abstract class SqlFormulaSupport implements SqlFormula {
         }
     }
 
-    protected abstract Object buildAndAddListSqlToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, DbColumn sqlColumn, String alias, List<Object> values, int link);
+    protected abstract Object buildAndAddListSqlToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, DbColumn sqlColumn, String alias, List<Object> values, String link);
 
-    protected abstract Object buildAndAddEmptyToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, DbColumn sqlColumn, String alias, Object value, int link);
+    protected abstract Object buildAndAddEmptyToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, DbColumn sqlColumn, String alias, Object value, String link);
 
-    protected abstract Object buildAndAddObjectToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, DbColumn sqlColumn, String alias, Object value, int link);
+    protected abstract Object buildAndAddObjectToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, DbColumn sqlColumn, String alias, Object value, String link);
 
     protected void throwOnlySupportListError() {
         throw RX.throwAUserTip(DatasetMessages.formulaListRequired());
