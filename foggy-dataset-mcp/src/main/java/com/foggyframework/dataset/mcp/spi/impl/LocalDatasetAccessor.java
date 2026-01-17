@@ -14,8 +14,10 @@ import com.foggyframework.fsscript.fun.Iif;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 本地数据集访问实现
@@ -287,10 +289,17 @@ public class LocalDatasetAccessor implements DatasetAccessor {
         if (payload.containsKey("orderBy")) {
             Object orderBy = payload.get("orderBy");
             if (orderBy instanceof List) {
-                List<Map<String, Object>> orderByList = (List<Map<String, Object>>) orderBy;
-                List<SemanticQueryRequest.OrderItem> orderItems = orderByList.stream()
-                        .map(this::convertToOrderItem)
-                        .toList();
+                List<?> orderByList = (List<?>) orderBy;
+                List<SemanticQueryRequest.OrderItem> orderItems = new ArrayList<>();
+                for (Object item : orderByList) {
+                    if (item instanceof String) {
+                        // 简写格式：字符串
+                        orderItems.add(parseOrderByShorthand((String) item));
+                    } else if (item instanceof Map) {
+                        // 完整格式：Map
+                        orderItems.add(convertToOrderItem((Map<String, Object>) item));
+                    }
+                }
                 request.setOrderBy(orderItems);
             }
         }
@@ -321,11 +330,59 @@ public class LocalDatasetAccessor implements DatasetAccessor {
         return request;
     }
 
+    /**
+     * 保留字段名（不作为简写格式的 key）
+     */
+    private static final Set<String> RESERVED_SLICE_KEYS = Set.of(
+            "$or", "$and", "field", "op", "value", "maxDepth"
+    );
+
     @SuppressWarnings("unchecked")
     private SemanticQueryRequest.SliceItem convertToSliceItem(Map<String, Object> map) {
         SemanticQueryRequest.SliceItem item = new SemanticQueryRequest.SliceItem();
+
+        // 判断是否为简写格式：map.size == 1 且 key 不是保留字
+        if (map.size() == 1) {
+            String key = map.keySet().iterator().next();
+
+            // $or 逻辑组
+            if ("$or".equals(key)) {
+                Object orObj = map.get("$or");
+                if (orObj instanceof List) {
+                    List<Map<String, Object>> orList = (List<Map<String, Object>>) orObj;
+                    List<SemanticQueryRequest.SliceItem> orItems = orList.stream()
+                            .map(this::convertToSliceItem)
+                            .toList();
+                    item.setOr(orItems);
+                }
+                return item;
+            }
+
+            // $and 逻辑组
+            if ("$and".equals(key)) {
+                Object andObj = map.get("$and");
+                if (andObj instanceof List) {
+                    List<Map<String, Object>> andList = (List<Map<String, Object>>) andObj;
+                    List<SemanticQueryRequest.SliceItem> andItems = andList.stream()
+                            .map(this::convertToSliceItem)
+                            .toList();
+                    item.setAnd(andItems);
+                }
+                return item;
+            }
+
+            // 简写格式：{ "fieldName": value } → { field, op: "=", value }
+            if (!RESERVED_SLICE_KEYS.contains(key)) {
+                item.setField(key);
+                item.setOp("=");
+                item.setValue(map.get(key));
+                return item;
+            }
+        }
+
+        // 完整格式
         item.setField((String) map.get("field"));
-        item.setOp((String) map.getOrDefault("op", "eq"));
+        item.setOp((String) map.getOrDefault("op", "="));
         item.setValue(map.get("value"));
 
         // 处理 $or 条件组
@@ -386,5 +443,44 @@ public class LocalDatasetAccessor implements DatasetAccessor {
         def.setExpression((String) map.get("expression"));
         def.setDescription((String) map.get("description"));
         return def;
+    }
+
+    /**
+     * 解析 orderBy 简写格式
+     * <ul>
+     *   <li>{@code "fieldName"} → asc（默认）</li>
+     *   <li>{@code "fieldName asc"} → asc</li>
+     *   <li>{@code "fieldName desc"} → desc</li>
+     *   <li>{@code "-fieldName"} → desc（负号前缀）</li>
+     * </ul>
+     */
+    private SemanticQueryRequest.OrderItem parseOrderByShorthand(String text) {
+        SemanticQueryRequest.OrderItem item = new SemanticQueryRequest.OrderItem();
+        text = text.trim();
+
+        // 检查负号前缀（降序）
+        if (text.startsWith("-")) {
+            item.setField(text.substring(1).trim());
+            item.setDir("desc");
+            return item;
+        }
+
+        // 检查空格分隔的格式："field asc" 或 "field desc"
+        int spaceIndex = text.lastIndexOf(' ');
+        if (spaceIndex > 0) {
+            String fieldPart = text.substring(0, spaceIndex).trim();
+            String dirPart = text.substring(spaceIndex + 1).trim().toLowerCase();
+
+            if ("asc".equals(dirPart) || "desc".equals(dirPart)) {
+                item.setField(fieldPart);
+                item.setDir(dirPart);
+                return item;
+            }
+        }
+
+        // 默认：仅字段名，升序
+        item.setField(text);
+        item.setDir("asc");
+        return item;
     }
 }

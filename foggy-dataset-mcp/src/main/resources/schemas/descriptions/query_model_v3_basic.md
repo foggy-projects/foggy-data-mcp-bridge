@@ -51,14 +51,19 @@
 ]
 ```
 
+**等值条件简写**：`{ "fieldName": value }` 等价于 `{ "field": "fieldName", "op": "=", "value": value }`
+```json
+[{"orderStatus": "COMPLETED"}, {"customer$customerType": "VIP"}]
+```
+
 **逻辑组合**：使用 `$or` / `$and` 显式组合条件：
 ```json
 [
-  {"field": "orderStatus", "op": "=", "value": "COMPLETED"},
+  {"orderStatus": "COMPLETED"},
   {
     "$or": [
       {"field": "totalAmount", "op": ">=", "value": 1000},
-      {"field": "customer$customerType", "op": "=", "value": "VIP"}
+      {"customer$customerType": "VIP"}
     ]
   }
 ]
@@ -77,8 +82,14 @@
 | 区间 | `[]`, `[)`, `()`, `(]` (value为[start,end]) |
 
 ### orderBy (可选)
+排序规则，支持简写：
 ```json
-[{"field": "totalSales", "dir": "DESC"}]
+[{"field": "totalSales", "dir": "desc"}]
+```
+
+**简写格式**：`"field"`(升序)、`"field desc"`(降序)、`"-field"`(降序)
+```json
+["-totalSales", "orderId"]
 ```
 **使用 columns 中定义的别名**，如 `year` 而非 `YEAR(createdAt)`
 
@@ -95,7 +106,7 @@
   "model": "TmsOrderModel",
   "payload": {
     "columns": ["salesDate$caption", "sum(totalAmount) as totalSales"],
-    "orderBy": [{"field": "totalSales", "dir": "DESC"}],
+    "orderBy": ["-totalSales"],
     "limit": 50
   }
 }
@@ -107,7 +118,7 @@
   "model": "ProductModel",
   "payload": {
     "columns": ["YEAR(createdAt) as year", "MONTH(createdAt) as month", "count(productKey) as cnt"],
-    "orderBy": [{"field": "year"}, {"field": "month"}],
+    "orderBy": ["year", "month"],
     "limit": 100
   }
 }

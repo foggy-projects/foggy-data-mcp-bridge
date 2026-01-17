@@ -59,14 +59,22 @@
 ]
 ```
 
+**等值条件简写**：`{ "fieldName": value }` 等价于 `{ "field": "fieldName", "op": "=", "value": value }`
+```json
+[
+  {"orderStatus": "COMPLETED"},
+  {"customer$customerType": "VIP"}
+]
+```
+
 **逻辑组合**：使用 `$or` / `$and` 显式组合条件：
 ```json
 [
-  {"field": "orderStatus", "op": "=", "value": "COMPLETED"},
+  {"orderStatus": "COMPLETED"},
   {
     "$or": [
       {"field": "totalAmount", "op": ">=", "value": 1000},
-      {"field": "customer$customerType", "op": "=", "value": "VIP"}
+      {"customer$customerType": "VIP"}
     ]
   }
 ]
@@ -132,9 +140,22 @@
 返回结果包含 `_score` 字段表示相似度(0-1)。
 
 ### orderBy (可选)
+排序规则，支持多种格式：
 ```json
-[{"field": "totalSales", "dir": "DESC"}]
+[{"field": "totalSales", "dir": "desc"}]
 ```
+
+**简写格式**：
+| 格式 | 说明 |
+|------|------|
+| `"field"` | 默认升序 |
+| `"field desc"` | 降序 |
+| `"-field"` | 降序（负号前缀）|
+
+```json
+["-totalSales", "orderId"]
+```
+
 **使用 columns 中定义的别名**，如 `year` 而非 `YEAR(createdAt)`
 
 ### 分页
@@ -150,7 +171,7 @@
   "model": "TmsOrderModel",
   "payload": {
     "columns": ["salesDate$caption", "sum(totalAmount) as totalSales"],
-    "orderBy": [{"field": "totalSales", "dir": "DESC"}],
+    "orderBy": ["-totalSales"],
     "limit": 50
   }
 }
@@ -164,7 +185,7 @@
     "columns": ["docId", "title", "content", "_score"],
     "slice": [
       {"field": "embedding", "op": "similar", "value": {"text": "销售业绩", "topK": 10}},
-      {"field": "category", "op": "=", "value": "report"}
+      {"category": "report"}
     ],
     "limit": 10
   }
@@ -177,7 +198,7 @@
   "model": "ProductModel",
   "payload": {
     "columns": ["YEAR(createdAt) as year", "MONTH(createdAt) as month", "count(productKey) as cnt"],
-    "orderBy": [{"field": "year"}, {"field": "month"}],
+    "orderBy": ["year", "month"],
     "limit": 100
   }
 }

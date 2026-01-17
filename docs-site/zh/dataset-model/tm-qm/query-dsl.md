@@ -365,6 +365,34 @@ WHERE order_status = 'COMPLETED'
   AND (total_amount >= 1000 OR customer_type = 'VIP')
 ```
 
+### 3.4 等值条件简写
+
+对于等值条件（`op: "="`），支持简写格式：
+
+**简写格式**：当对象只有一个键值对，且键不是保留字时，自动解析为等值条件。
+
+```json
+// 简写格式
+{ "orderStatus": "COMPLETED" }
+
+// 等价于完整格式
+{ "field": "orderStatus", "op": "=", "value": "COMPLETED" }
+```
+
+**混合使用示例**：
+
+```json
+{
+    "slice": [
+        { "orderStatus": "COMPLETED" },
+        { "customer$customerType": "VIP" },
+        { "field": "totalAmount", "op": ">=", "value": 1000 }
+    ]
+}
+```
+
+> **注意**：保留字段名（`field`, `op`, `value`, `$or`, `$and`, `maxDepth`）不能作为简写格式的字段名。
+
 ### 3.5 HAVING 条件（聚合过滤）
 
 当查询包含分组（groupBy）时，对聚合字段的过滤会自动识别并放入 HAVING 子句：
@@ -401,6 +429,8 @@ HAVING SUM(total_amount) >= 10000
 
 ### 4.1 基本格式
 
+**完整格式**：
+
 ```json
 {
     "param": {
@@ -408,6 +438,29 @@ HAVING SUM(total_amount) >= 10000
             { "field": "customer$customerType" },
             { "field": "orderDate$year" },
             { "field": "orderDate$month" }
+        ]
+    }
+}
+```
+
+**简写格式**：对于只需指定字段名的分组，可使用字符串数组：
+
+```json
+{
+    "param": {
+        "groupBy": ["customer$customerType", "orderDate$year", "orderDate$month"]
+    }
+}
+```
+
+**混合使用**：简写格式和完整格式可以混合：
+
+```json
+{
+    "param": {
+        "groupBy": [
+            "customer$customerType",
+            { "field": "totalAmount", "agg": "AVG" }
         ]
     }
 }
@@ -446,12 +499,44 @@ HAVING SUM(total_amount) >= 10000
 
 ### 5.1 基本格式
 
+**完整格式**：
+
 ```json
 {
     "param": {
         "orderBy": [
-            { "field": "totalAmount", "order": "desc" },
-            { "field": "orderId", "order": "asc" }
+            { "field": "totalAmount", "dir": "desc" },
+            { "field": "orderId", "dir": "asc" }
+        ]
+    }
+}
+```
+
+**简写格式**：支持多种字符串简写：
+
+| 格式 | 说明 | 示例 |
+|------|------|------|
+| `"fieldName"` | 默认升序 | `"orderId"` → asc |
+| `"fieldName asc"` | 升序 | `"orderId asc"` |
+| `"fieldName desc"` | 降序 | `"totalAmount desc"` |
+| `"-fieldName"` | 降序（负号前缀） | `"-totalAmount"` |
+
+```json
+{
+    "param": {
+        "orderBy": ["-totalAmount", "orderId"]
+    }
+}
+```
+
+**混合使用**：
+
+```json
+{
+    "param": {
+        "orderBy": [
+            "-totalAmount",
+            { "field": "orderId", "dir": "asc", "nullLast": true }
         ]
     }
 }
@@ -462,7 +547,7 @@ HAVING SUM(total_amount) >= 10000
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `field` | string | 是 | 排序字段名 |
-| `order` | string | 是 | `asc`（升序）/ `desc`（降序） |
+| `dir` | string | 否 | `asc`（升序）/ `desc`（降序），默认 `asc` |
 | `nullFirst` | boolean | 否 | NULL 值排在最前 |
 | `nullLast` | boolean | 否 | NULL 值排在最后 |
 
