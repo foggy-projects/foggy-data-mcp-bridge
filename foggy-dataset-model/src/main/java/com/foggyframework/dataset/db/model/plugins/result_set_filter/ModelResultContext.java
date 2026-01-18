@@ -269,6 +269,32 @@ public class ModelResultContext {
         private boolean l2Enabled = true;
 
         /**
+         * 是否启用预聚合查询优化
+         * <p>
+         * 启用后，系统会自动检测查询是否可以使用预聚合表，
+         * 并在匹配时重写 SQL 以使用预聚合表查询。
+         * 默认启用。
+         * </p>
+         *
+         * @since 8.2.0
+         */
+        @Builder.Default
+        private boolean preAggEnabled = true;
+
+        /**
+         * 是否启用混合查询（Lambda 架构）
+         * <p>
+         * 当预聚合数据过期时（watermark < 当前日期），
+         * 系统会生成 UNION ALL SQL，合并预聚合表和原始表的数据。
+         * 默认禁用（因为需要额外配置确保正确性）。
+         * </p>
+         *
+         * @since 8.2.0
+         */
+        @Builder.Default
+        private boolean hybridQueryEnabled = false;
+
+        /**
          * L1 缓存是否命中（查询后由缓存提供者设置）
          */
         private boolean l1CacheHit;
@@ -277,6 +303,19 @@ public class ModelResultContext {
          * L2 缓存是否命中（查询后由缓存提供者设置）
          */
         private boolean l2CacheHit;
+
+        /**
+         * 预聚合是否命中（查询后设置）
+         * <p>
+         * 如果查询使用了预聚合表，此字段为 true。
+         * </p>
+         */
+        private boolean preAggHit;
+
+        /**
+         * 使用的预聚合名称（查询后设置）
+         */
+        private String preAggName;
 
         /**
          * 缓存提供者（由 QueryFacade 注入）
@@ -293,6 +332,7 @@ public class ModelResultContext {
             return QueryCacheConfig.builder()
                     .l1Enabled(true)
                     .l2Enabled(true)
+                    .preAggEnabled(true)
                     .build();
         }
 
@@ -303,6 +343,7 @@ public class ModelResultContext {
             return QueryCacheConfig.builder()
                     .l1Enabled(false)
                     .l2Enabled(false)
+                    .preAggEnabled(true)
                     .build();
         }
 
@@ -313,6 +354,32 @@ public class ModelResultContext {
             return QueryCacheConfig.builder()
                     .l1Enabled(false)
                     .l2Enabled(true)
+                    .preAggEnabled(true)
+                    .build();
+        }
+
+        /**
+         * 便捷方法：创建禁用预聚合的配置
+         * <p>
+         * 用于测试或需要直接查询原始表的场景。
+         * </p>
+         */
+        public static QueryCacheConfig disablePreAgg() {
+            return QueryCacheConfig.builder()
+                    .l1Enabled(false)
+                    .l2Enabled(true)
+                    .preAggEnabled(false)
+                    .build();
+        }
+
+        /**
+         * 便捷方法：创建禁用所有优化的配置（用于测试基准）
+         */
+        public static QueryCacheConfig noOptimization() {
+            return QueryCacheConfig.builder()
+                    .l1Enabled(false)
+                    .l2Enabled(false)
+                    .preAggEnabled(false)
                     .build();
         }
     }

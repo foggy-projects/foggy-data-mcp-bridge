@@ -1,250 +1,321 @@
 # Quick Start
 
-This guide helps you create your first TM/QM and use DSL queries in 10 minutes.
-
-## Prerequisites
-
-- JDK 17+
-- Spring Boot 3.x
-- MySQL 8.0+ (or other supported database)
+This guide introduces how to use the `foggy-dataset` module for SQL queries, focusing on how to safely build dynamic SQL using FSScript.
 
 ## 1. Add Dependencies
 
 ```xml
 <dependency>
-    <groupId>com.foggysource</groupId>
-    <artifactId>foggy-dataset-model</artifactId>
-    <version>8.1.2.beta</version>
+    <groupId>com.foggyframework</groupId>
+    <artifactId>foggy-dataset</artifactId>
+    <version>${foggy.version}</version>
 </dependency>
 ```
 
-## 2. Enable Foggy Framework
+
+---
+
+## 2. Build Dynamic SQL with FSScript (Core)
+
+In actual business, query conditions are often dynamic. Traditional string concatenation has **SQL injection risks**:
+
+```javascript
+// ❌ Unsafe approach
+let sql = `SELECT * FROM users WHERE name = '${userName}'`;
+// If userName = "admin' OR '1'='1", it will cause SQL injection
+```
+
+`foggy-dataset` provides SQL helper functions to solve this problem through **PreparedStatement parameterized queries**.
+
+### 3.1 Core Functions
+
+| Function                           | Function | Purpose |
+|------------------------------|------|------|
+| `sqlExp(value, sql,force)`   | Conditional parameter | Single value condition query |
+| `sqlInExp(array, sql,force)` | IN query | Multi-value IN query |
+| `toLikeStr(str)`             | Both sides fuzzy | `LIKE '%value%'` |
+| `toLikeStrL(str)`            | Left side fuzzy | `LIKE '%value'` |
+| `toLikeStrR(str)`            | Right side fuzzy | `LIKE 'value%'` |
+| `iif(cond, true, false)`     | Conditional expression | Complex condition concatenation |
+
+### 3.2 sqlExp - Conditional Parameter
+
+**Signature**: `sqlExp(value, sqlFragment[, force])`
+
+When `value` is not null, add it to parameter list and return SQL fragment; otherwise return empty string.
+
+```javascript
+// user_query.fsscript
+
+export const sql = `
+    SELECT id, name, email, status, create_time
+    FROM users
+    WHERE 1=1
+        ${sqlExp(form.param.teamId, 'AND team_id = ?')}
+        ${sqlExp(form.param.status, 'AND status = ?',true)}
+        ${sqlExp(form.param.startTime, 'AND create_time >= ?')}
+        ${sqlExp(form.param.endTime, 'AND create_time < ?')}
+    ORDER BY create_time DESC
+`;
+```
+
+**Execution Result**:
+- If `form.param.teamId = "T001"`, generates: `AND team_id = ?`, adds `"T001"` to parameter list
+- If `form.param.teamId = null`, generates: empty string (condition is ignored)
+- If `form.param.status = null or ''`, generates: `AND status = ?`, adds `null or ''` to parameter list
+
+### 3.3 sqlInExp - IN Query
+
+**Signature**: `sqlInExp(array, sqlPrefix[, force])`
+
+Handle IN queries, automatically generate multiple placeholders:
+
+```javascript
+export const sql = `
+    SELECT * FROM orders
+    WHERE 1=1
+        ${sqlInExp(form.param.statusList, 'AND status IN ')}
+        ${sqlInExp(form.param.productIds, 'AND product_id IN ')}
+`;
+```
+
+**Execution Result**:
+- If `statusList = [10, 20, 30]`, generates: `AND status IN (?,?,?)`, adds 3 parameters
+- If `statusList = []` or `null`, generates: empty string
+
+### 3.4 Fuzzy Query
+
+```javascript
+export const sql = `
+    SELECT * FROM users
+    WHERE 1=1
+        ${sqlExp(toLikeStr(form.param.name), 'AND name LIKE ?')}
+        ${sqlExp(toLikeStrR(form.param.mobile), 'AND mobile LIKE ?')}
+        ${sqlExp(toLikeStrL(form.param.email), 'AND email LIKE ?')}
+`;
+```
+
+**Execution Result**:
+- `toLikeStr("张三")` → `"%张三%"` (matches records containing "张三")
+- `toLikeStrR("138")` → `"138%"` (matches mobile numbers starting with "138")
+- `toLikeStrL("gmail.com")` → `"%gmail.com"` (matches emails ending with "gmail.com")
+
+### 3.5 Conditional Expression iif
+
+**Signature**: `iif(condition, trueValue, falseValue)`
+
+Used for complex condition concatenation:
+
+```javascript
+//Import function to build permissions
+import {buildAuth} from './auth-utils.fsscript';
+//  import {buildAuth} from '@authHelper';
+export const sql = `
+    SELECT * FROM orders
+    WHERE 1=1 ${buildAuth()}
+        ${iif(
+            form.param.includeDeleted,
+            '',
+            'AND deleted = 0'
+        )}
+        ${iif(
+            form.param.channel == 'OFFLINE',
+            "AND (channel = 'OFFLINE' OR channel = 'INNER' OR channel IS NULL)",
+            sqlExp(form.param.channel, 'AND channel = ?')
+        )}
+        ${iif(
+            form.param.priceRange?.length == 2,
+            sqlExp(form.param.priceRange[0], 'AND price >= ?') +
+            sqlExp(form.param.priceRange[1], 'AND price <= ?'),
+            ''
+        )}
+`;
+```
+
+---
+
+## 4. Complete Example
+
+### 4.1 FSScript Query Script
+
+```javascript
+// order_query.fsscript
+
+/**
+ * Order query
+ * Supports: team filter, status filter, keyword search, date range, amount range
+ */
+export const sql = `
+    SELECT
+        o.order_id,
+        o.order_no,
+        o.amount,
+        o.status,
+        o.create_time,
+        c.customer_name,
+        t.team_name
+    FROM orders o
+    LEFT JOIN customers c ON o.customer_id = c.id
+    LEFT JOIN teams t ON o.team_id = t.id
+    WHERE o.deleted = 0
+        ${sqlExp(form.param.teamId, 'AND o.team_id = ?')}
+        ${sqlInExp(form.param.statusList, 'AND o.status IN ')}
+        ${sqlExp(toLikeStr(form.param.orderNo), 'AND o.order_no LIKE ?')}
+        ${sqlExp(toLikeStr(form.param.customerName), 'AND c.customer_name LIKE ?')}
+        ${sqlExp(form.param.startTime, 'AND o.create_time >= ?')}
+        ${sqlExp(form.param.endTime, 'AND o.create_time < ?')}
+        ${iif(
+            form.param.amountRange?.length == 2,
+            sqlExp(form.param.amountRange[0], 'AND o.amount >= ?') +
+            sqlExp(form.param.amountRange[1], 'AND o.amount <= ?'),
+            ''
+        )}
+    ORDER BY o.create_time DESC
+`;
+```
+
+### 4.2 Java Calling Code
 
 ```java
-@Configuration
-@EnableFoggyFramework(bundleName = "my-app")
-public class FoggyConfiguration {
+@Service
+public class OrderQueryService {
+
+    @Autowired
+    private ApplicationContext applicationContext;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private FileFsscriptLoader fsscriptLoader;
+
+    public List<Map<String, Object>> queryOrders(Map<String, Object> params) {
+        // 1. Load FSScript
+        Fsscript script = fsscriptLoader.findLoadFsscript(
+            getClass().getResource("order_query.fsscript")
+        );
+
+        // 2. Create QueryExpEvaluator
+        QueryExpEvaluator evaluator = QueryExpEvaluator.newInstance(applicationContext);
+
+        // 3. Set parameters
+        Map<String, Object> form = new HashMap<>();
+        form.put("param", params);
+        evaluator.setVar("form", form);
+
+        // 4. Execute script, generate SQL
+        ExpEvaluator ee = script.newInstance(applicationContext, evaluator);
+        script.eval(ee);
+        String sql = (String) ee.getExportMap().get("sql");
+
+        // 5. Get parameter list
+        List<Object> args = evaluator.getArgs();
+
+        // 6. Execute query
+        return jdbcTemplate.queryForList(sql, args.toArray());
+    }
 }
 ```
 
-## 3. Create Database Tables
+### 4.3 Query with Pagination
 
-```sql
--- Dimension table: Customers
-CREATE TABLE dim_customer (
-    customer_id INT PRIMARY KEY,
-    customer_name VARCHAR(100),
-    customer_type VARCHAR(20),
-    province VARCHAR(50),
-    city VARCHAR(50)
-);
+```java
+public PageResult<Order> queryOrdersWithPaging(QueryParams params) {
+    // Load and execute script...
+    String sql = ...;
+    List<Object> args = evaluator.getArgs();
 
--- Dimension table: Products
-CREATE TABLE dim_product (
-    product_id INT PRIMARY KEY,
-    product_name VARCHAR(100),
-    category VARCHAR(50),
-    unit_price DECIMAL(10, 2)
-);
+    // Query total count
+    String countSql = "SELECT COUNT(*) FROM (" + sql + ") tmp";
+    Long total = jdbcTemplate.queryForObject(countSql, Long.class, args.toArray());
 
--- Fact table: Orders
-CREATE TABLE fact_order (
-    order_id VARCHAR(50) PRIMARY KEY,
-    customer_id INT,
-    product_id INT,
-    order_status VARCHAR(20),
-    order_time DATETIME,
-    quantity INT,
-    amount DECIMAL(10, 2)
-);
+    // Get database dialect, generate pagination SQL
+    FDialect dialect = DbUtils.getDialect(dataSource);
+    String pageSql = dialect.generatePagingSql(sql, params.getStart(), params.getLimit());
 
--- Insert test data
-INSERT INTO dim_customer VALUES 
-(1, 'Customer A', 'Enterprise', 'Beijing', 'Chaoyang'),
-(2, 'Customer B', 'Individual', 'Shanghai', 'Pudong');
+    // Execute paginated query
+    List<Order> data = jdbcTemplate.query(
+        pageSql,
+        new BeanPropertyRowMapper<>(Order.class),
+        args.toArray()
+    );
 
-INSERT INTO dim_product VALUES
-(1, 'Product X', 'Electronics', 99.00),
-(2, 'Product Y', 'Clothing', 199.00);
-
-INSERT INTO fact_order VALUES
-('ORD001', 1, 1, 'COMPLETED', '2024-01-15 10:30:00', 2, 198.00),
-('ORD002', 2, 2, 'COMPLETED', '2024-01-16 14:20:00', 1, 199.00);
+    return new PageResult<>(data, total, params.getStart(), params.getLimit());
+}
 ```
 
-## 4. Create TM Model
+---
 
-Create file `src/main/resources/foggy/templates/FactOrderModel.tm`:
+## 5. How It Works
+
+```
+FSScript template string
+        ↓
+QueryExpEvaluator execution
+        ↓
+SQL helper functions collect parameters
+        ↓
+Generate SQL + parameter list
+        ↓
+PreparedStatement execution
+```
+
+1. When FSScript script executes, use `QueryExpEvaluator` instead of regular `DefaultExpEvaluator`
+2. SQL helper functions (like `sqlExp`) add parameter values to `QueryExpEvaluator`'s parameter list
+3. Return SQL fragment containing `?` placeholders
+4. Final generated SQL and parameter list are passed to JDBC PreparedStatement
+
+---
+
+## 6. Best Practices
+
+### 6.1 Security
 
 ```javascript
-export const model = {
-    name: 'FactOrderModel',
-    caption: 'Order Fact Table',
-    tableName: 'fact_order',
-    idColumn: 'order_id',
+// ✅ Correct: use sqlExp
+${sqlExp(form.param.userId, 'AND user_id = ?')}
 
-    dimensions: [
-        {
-            name: 'customer',
-            caption: 'Customer',
-            tableName: 'dim_customer',
-            foreignKey: 'customer_id',
-            primaryKey: 'customer_id',
-            captionColumn: 'customer_name',
-            properties: [
-                { column: 'customer_id', caption: 'Customer ID' },
-                { column: 'customer_name', caption: 'Customer Name' },
-                { column: 'customer_type', caption: 'Customer Type' },
-                { column: 'province', caption: 'Province' },
-                { column: 'city', caption: 'City' }
-            ]
-        },
-        {
-            name: 'product',
-            caption: 'Product',
-            tableName: 'dim_product',
-            foreignKey: 'product_id',
-            primaryKey: 'product_id',
-            captionColumn: 'product_name',
-            properties: [
-                { column: 'product_id', caption: 'Product ID' },
-                { column: 'product_name', caption: 'Product Name' },
-                { column: 'category', caption: 'Category' },
-                { column: 'unit_price', caption: 'Unit Price', type: 'MONEY' }
-            ]
-        }
-    ],
-
-    properties: [
-        { column: 'order_id', caption: 'Order ID', type: 'STRING' },
-        { column: 'order_status', caption: 'Order Status', type: 'STRING' },
-        { column: 'order_time', caption: 'Order Time', type: 'DATETIME' }
-    ],
-
-    measures: [
-        {
-            column: 'quantity',
-            caption: 'Order Quantity',
-            type: 'INTEGER',
-            aggregation: 'sum'
-        },
-        {
-            column: 'amount',
-            caption: 'Order Amount',
-            type: 'MONEY',
-            aggregation: 'sum'
-        }
-    ]
-};
+// ❌ Wrong: direct variable concatenation (SQL injection risk)
+AND user_id = '${form.param.userId}'
 ```
 
-## 5. Create QM Model
-
-Create file `src/main/resources/foggy/templates/FactOrderQueryModel.qm`:
+### 6.2 Performance Optimization
 
 ```javascript
-export const queryModel = {
-    name: 'FactOrderQueryModel',
-    caption: 'Order Analysis',
-    model: 'FactOrderModel',
+// ✅ Use prefix matching (can use index)
+${sqlExp(toLikeStrR(form.param.mobile), 'AND mobile LIKE ?')}
 
-    columnGroups: [
-        {
-            caption: 'Order Info',
-            items: [
-                { name: 'orderId', caption: 'Order ID' },
-                { name: 'orderStatus', caption: 'Order Status' },
-                { name: 'orderTime', caption: 'Order Time' }
-            ]
-        },
-        {
-            caption: 'Customer Info',
-            items: [
-                { name: 'customer$caption', caption: 'Customer Name' },
-                { name: 'customer$customerType', caption: 'Customer Type' },
-                { name: 'customer$province', caption: 'Province' }
-            ]
-        },
-        {
-            caption: 'Product Info',
-            items: [
-                { name: 'product$caption', caption: 'Product Name' },
-                { name: 'product$category', caption: 'Category' }
-            ]
-        },
-        {
-            caption: 'Metrics',
-            items: [
-                { name: 'quantity', caption: 'Quantity' },
-                { name: 'amount', caption: 'Amount' }
-            ]
-        }
-    ]
-};
+// ⚠️ Left-side fuzzy matching cannot use index
+${sqlExp(toLikeStrL(form.param.email), 'AND email LIKE ?')}
 ```
 
-## 6. DSL Query Examples
+### 6.3 Readability
 
-### Detail Query
+```javascript
+// ✅ Extract complex conditions as variables
+let hasDateRange = form.param.startDate && form.param.endDate;
+let hasPriceRange = form.param.priceRange?.length == 2;
 
-```json
-{
-    "columns": ["orderId", "customer$caption", "product$caption", "amount"],
-    "slice": [
-        {"field": "orderStatus", "op": "=", "value": "COMPLETED"}
-    ],
-    "orderBy": [{"field": "orderTime", "dir": "DESC"}],
-    "limit": 10
-}
+export const sql = `
+    SELECT * FROM products
+    WHERE 1=1
+        ${iif(hasDateRange,
+            sqlExp(form.param.startDate, 'AND create_time >= ?') +
+            sqlExp(form.param.endDate, 'AND create_time <= ?'),
+            ''
+        )}
+        ${iif(hasPriceRange,
+            sqlExp(form.param.priceRange[0], 'AND price >= ?') +
+            sqlExp(form.param.priceRange[1], 'AND price <= ?'),
+            ''
+        )}
+`;
 ```
 
-### Aggregate Query
-
-```json
-{
-    "columns": [
-        "customer$caption",
-        "sum(amount) as totalAmount",
-        "count(*) as orderCount"
-    ],
-    "groupBy": [{"field": "customer$id"}],
-    "orderBy": [{"field": "totalAmount", "dir": "DESC"}]
-}
-```
-
-### Multi-condition Query
-
-```json
-{
-    "columns": ["product$category", "sum(amount) as total"],
-    "slice": [
-        {"field": "orderTime", "op": "[)", "value": ["2024-01-01", "2024-02-01"]},
-        {"field": "customer$customerType", "op": "=", "value": "Enterprise"}
-    ],
-    "groupBy": [{"field": "product$category"}]
-}
-```
-
-## Common Operators Reference
-
-| Operator | Description | Example Value |
-|----------|-------------|---------------|
-| `=` | Equal | `"COMPLETED"` |
-| `!=` | Not equal | `"CANCELLED"` |
-| `>` | Greater than | `100` |
-| `>=` | Greater or equal | `100` |
-| `<` | Less than | `1000` |
-| `<=` | Less or equal | `1000` |
-| `in` | In list | `["A", "B", "C"]` |
-| `not in` | Not in list | `["X", "Y"]` |
-| `like` | Fuzzy match | Auto adds `%` on both sides |
-| `is null` | Is null | No value needed |
-| `[]` | Closed interval | `[100, 500]` |
-| `[)` | Left-closed right-open | `["2024-01-01", "2024-07-01"]` |
+---
 
 ## Next Steps
 
-- [TM Syntax Manual](../tm-qm/tm-syntax.md) - Complete TM definition syntax
-- [QM Syntax Manual](../tm-qm/qm-syntax.md) - Complete QM definition syntax
-- [Query API](../api/query-api.md) - Complete query API reference
-- [Parent-Child Dimension](../tm-qm/parent-child.md) - Hierarchical dimension configuration
+- [SQL Helper Functions Guide](./sql-functions.md) - Complete function reference
+- [Multi-Database Support](./multi-database.md) - MySQL, PostgreSQL, SQL Server, SQLite adaptation
+- [API Reference](../api/query-api.md) - DatasetTemplate, QueryExpEvaluator API

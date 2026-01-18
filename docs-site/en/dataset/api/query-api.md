@@ -1,3 +1,1 @@
 # Query API
-
-Coming soon...
