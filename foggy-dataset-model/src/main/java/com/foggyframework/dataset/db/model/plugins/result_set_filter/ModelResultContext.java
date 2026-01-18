@@ -4,6 +4,7 @@ import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.engine.expression.InlineExpressionParser;
+import com.foggyframework.dataset.db.model.engine.query.DbQueryResult;
 import com.foggyframework.dataset.db.model.engine.query.JdbcQuery;
 import com.foggyframework.dataset.db.model.spi.QueryCacheProvider;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
@@ -54,6 +55,27 @@ public class ModelResultContext {
      * 查询缓存配置
      */
     QueryCacheConfig cacheConfig;
+
+    // ==========================================
+    // 查询流程控制
+    // ==========================================
+
+    /**
+     * 预置查询结果
+     * <p>
+     * 由 Step（如 L1CacheStep）在 beforeQuery 阶段设置。
+     * 当此字段非空且 skipQuery=true 时，QueryFacade 将跳过实际查询。
+     * </p>
+     */
+    DbQueryResult queryResult;
+
+    /**
+     * 是否跳过后续查询
+     * <p>
+     * 由 Step 设置，表示已有查询结果（如缓存命中），无需执行实际查询。
+     * </p>
+     */
+    boolean skipQuery;
 
     // ==========================================
     // 内联表达式预处理结果
