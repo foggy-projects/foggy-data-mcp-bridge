@@ -6,6 +6,7 @@ import com.foggyframework.dataset.db.model.engine.formula.SqlFormulaService;
 import com.foggyframework.dataset.db.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.db.model.impl.model.DbTableModelImpl;
 import com.foggyframework.dataset.db.model.interceptor.SqlLoggingInterceptor;
+import com.foggyframework.dataset.db.model.plugins.query_execution.QueryExecutionStepExecutor;
 import com.foggyframework.dataset.db.model.proxy.*;
 import com.foggyframework.dataset.db.model.spi.*;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
@@ -58,6 +59,9 @@ public class JdbcQueryModelBuilder implements QueryModelBuilder {
 
     @Autowired(required = false)
     private SqlLoggingInterceptor sqlLoggingInterceptor;
+
+    @Resource
+    private QueryExecutionStepExecutor queryExecutionStepExecutor;
 
     /**
      * 模型名称到 TableModelProxy 的映射
@@ -117,6 +121,9 @@ public class JdbcQueryModelBuilder implements QueryModelBuilder {
         if (sqlLoggingInterceptor != null) {
             qm.setSqlLoggingInterceptor(sqlLoggingInterceptor);
         }
+
+        // 注入查询执行步骤执行器
+        qm.setQueryExecutionStepExecutor(queryExecutionStepExecutor);
 
         queryModelDef.apply(qm);
 
