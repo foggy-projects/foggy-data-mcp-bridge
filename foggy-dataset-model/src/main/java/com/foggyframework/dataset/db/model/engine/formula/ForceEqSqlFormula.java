@@ -20,19 +20,19 @@ public class ForceEqSqlFormula extends SqlFormulaSupport implements SqlFormula {
 
 
     @Override
-    protected Object buildAndAddListSqlToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, DbColumn jdbcColumn, String alias, List<Object> values, int link) {
+    protected Object buildAndAddListSqlToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, DbColumn jdbcColumn, String alias, List<Object> values, String link) {
         throwOnlySupportObjectError();
         return null;
     }
 
     @Override
-    protected Object buildAndAddEmptyToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, DbColumn jdbcColumn, String alias, Object value, int link) {
+    protected Object buildAndAddEmptyToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, DbColumn jdbcColumn, String alias, Object value, String link) {
         listCond.link(jdbcColumn.buildSqlFragment(appCtx,alias,"=?"), value,link);
         return null;
     }
 
     @Override
-    protected Object buildAndAddObjectToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, DbColumn jdbcColumn, String alias, Object value, int link) {
+    protected Object buildAndAddObjectToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, DbColumn jdbcColumn, String alias, Object value, String link) {
         listCond.link(jdbcColumn.buildSqlFragment(appCtx,alias,"=?"), value,link);
         return null;
     }

@@ -40,7 +40,7 @@ public class SqlFormulaServiceImpl implements SqlFormulaService {
 
 
 @Override
-    public void buildAndAddToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, DbColumn jdbcColumn, String alias, Object value, int link){
+    public void buildAndAddToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, DbColumn jdbcColumn, String alias, Object value, String link){
         SqlFormula sqlFormula = name2SqlFormula.get(type);
         if(sqlFormula==null){
             throw RX.throwAUserTip(DatasetMessages.formulaNotfound(type));

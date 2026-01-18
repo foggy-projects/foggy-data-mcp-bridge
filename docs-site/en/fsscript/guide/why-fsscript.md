@@ -7,7 +7,7 @@
 The core use case of FSScript is elegantly assembling complex dynamic SQL queries:
 
 > **Note**: SQL generation functions like `sqlExp`, `sqlInExp` require the `foggy-dataset` module.
-> See [Foggy Dataset Quick Start](../../dataset/guide/quick-start.md)
+> See [Foggy Dataset Quick Start](../../dataset-query/guide/quick-start.md)
 
 ```javascript
 import {workonSessionTokenUsingCache as token} from '@saasBasicWebUtils';

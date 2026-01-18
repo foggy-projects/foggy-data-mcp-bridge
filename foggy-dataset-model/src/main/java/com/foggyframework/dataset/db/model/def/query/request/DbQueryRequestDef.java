@@ -1,5 +1,9 @@
 package com.foggyframework.dataset.db.model.def.query.request;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.foggyframework.dataset.db.model.def.query.request.deserializer.GroupRequestDefListDeserializer;
+import com.foggyframework.dataset.db.model.def.query.request.deserializer.OrderRequestDefListDeserializer;
+import com.foggyframework.dataset.db.model.def.query.request.deserializer.SliceRequestDefListDeserializer;
 import com.foggyframework.dataset.db.model.spi.DbQueryRequest;
 import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
@@ -20,12 +24,15 @@ public class DbQueryRequestDef implements DbQueryRequest {
     String queryModel;
 
     @ApiModelProperty(value = "过滤条件", notes = "过滤条件，使用方式见https://sdsh.yuque.com/xl6fiq/mbuyho/pq81w1gpz4k3mysk?singleDoc# 《后端Api》")
+    @JsonDeserialize(using = SliceRequestDefListDeserializer.class)
     List<SliceRequestDef> slice;
 
     @ApiModelProperty(value = "", notes = "排序，使用方式见https://sdsh.yuque.com/xl6fiq/mbuyho/pq81w1gpz4k3mysk?singleDoc# 《后端Api》")
+    @JsonDeserialize(using = OrderRequestDefListDeserializer.class)
     List<OrderRequestDef> orderBy;
 
     @ApiModelProperty(value = "", notes = "分组")
+    @JsonDeserialize(using = GroupRequestDefListDeserializer.class)
     List<GroupRequestDef> groupBy;
 
     @ApiModelProperty(value = "动态计算字段", notes = "在查询时定义的计算字段，可在 columns/groupBy 中引用")

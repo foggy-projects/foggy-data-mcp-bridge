@@ -14,6 +14,7 @@ import com.foggyframework.dataset.db.model.impl.property.DbPropertyImpl;
 import com.foggyframework.dataset.db.model.impl.utils.QueryObjectDelegate;
 import com.foggyframework.dataset.db.model.path.DimensionPath;
 import com.foggyframework.dataset.db.model.spi.*;
+import com.foggyframework.dataset.db.model.spi.preagg.PreAggregation;
 import com.foggyframework.fsscript.exp.FsscriptFunction;
 import lombok.Getter;
 import lombok.Setter;
@@ -65,6 +66,16 @@ public abstract class TableModelSupport extends DbObjectSupport implements Table
      * <p>支持通过路径快速查找维度，如 "product.category" -> DbDimension</p>
      */
     Map<String, DbDimension> pathToDimension = new HashMap<>();
+
+    /**
+     * 预聚合列表（P1 预聚合功能）
+     * <p>
+     * 运行时加载的预聚合配置，用于查询自动匹配和重写。
+     * </p>
+     *
+     * @since 8.2.0
+     */
+    List<PreAggregation> preAggregations = new ArrayList<>();
 
 //    MongoTemplate mongoTemplate;
 

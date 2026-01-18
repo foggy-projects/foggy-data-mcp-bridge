@@ -31,41 +31,83 @@
         },
         "slice": {
           "type": "array",
-          "description": "过滤条件",
+          "description": "过滤条件（数组内条件默认 AND 连接，用 $or/$and 显式组合）。简写：{ \"field\": \"value\" } 等价于 { \"field\": \"field\", \"op\": \"=\", \"value\": \"value\" }",
           "items": {
-            "type": "object",
-            "properties": {
-              "field": { "type": "string", "description": "字段名" },
-              "op": { "type": "string", "description": "操作符：=, !=, >, <, like, in, [], [), is null 等" },
-              "value": { "description": "过滤值，is null/is not null 时不需要" },
-              "link": { "type": "integer", "description": "1=AND(默认), 2=OR" },
-              "children": { "type": "array", "description": "嵌套子条件", "items": { "$ref": "#/properties/payload/properties/slice/items" } }
-            },
-            "required": ["field", "op"]
+            "oneOf": [
+              {
+                "type": "object",
+                "description": "单个过滤条件",
+                "properties": {
+                  "field": { "type": "string", "description": "字段名" },
+                  "op": { "type": "string", "description": "操作符：=, !=, >, <, like, in, [], [), is null 等" },
+                  "value": { "description": "过滤值，is null/is not null 时不需要" }
+                },
+                "required": ["field", "op"]
+              },
+              {
+                "type": "object",
+                "description": "OR 条件组",
+                "properties": {
+                  "$or": { "type": "array", "description": "子条件用 OR 连接", "items": { "$ref": "#/properties/payload/properties/slice/items" } }
+                },
+                "required": ["$or"]
+              },
+              {
+                "type": "object",
+                "description": "AND 条件组",
+                "properties": {
+                  "$and": { "type": "array", "description": "子条件用 AND 连接", "items": { "$ref": "#/properties/payload/properties/slice/items" } }
+                },
+                "required": ["$and"]
+              },
+              {
+                "type": "object",
+                "description": "等值条件简写：{ \"fieldName\": value }，运行时自动转换为 { \"field\": \"fieldName\", \"op\": \"=\", \"value\": value }",
+                "additionalProperties": true
+              }
+            ]
           }
         },
         "orderBy": {
           "type": "array",
-          "description": "排序规则。聚合场景下字段须在 columns 中",
+          "description": "排序规则。支持简写：\"field\"(升序)、\"field desc\"(降序)、\"-field\"(降序)",
           "items": {
-            "type": "object",
-            "properties": {
-              "field": { "type": "string", "description": "排序字段" },
-              "dir": { "type": "string", "enum": ["ASC", "DESC"] }
-            },
-            "required": ["field"]
+            "oneOf": [
+              {
+                "type": "string",
+                "description": "简写格式：\"field\"=升序，\"field desc\"=降序，\"-field\"=降序"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "field": { "type": "string", "description": "排序字段" },
+                  "dir": { "type": "string", "enum": ["asc", "desc", "ASC", "DESC"], "default": "asc" },
+                  "nullFirst": { "type": "boolean" },
+                  "nullLast": { "type": "boolean" }
+                },
+                "required": ["field"]
+              }
+            ]
           }
         },
         "groupBy": {
           "type": "array",
-          "description": "分组配置（推荐用内联聚合，系统自动处理）",
+          "description": "分组配置。支持简写：\"field\" 等价于 { \"field\": \"field\" }",
           "items": {
-            "type": "object",
-            "properties": {
-              "field": { "type": "string" },
-              "agg": { "type": "string", "enum": ["MAX", "MIN", "SUM", "AVG", "COUNT", "PK"] }
-            },
-            "required": ["field"]
+            "oneOf": [
+              {
+                "type": "string",
+                "description": "简写格式：字段名"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "field": { "type": "string" },
+                  "agg": { "type": "string", "enum": ["MAX", "MIN", "SUM", "AVG", "COUNT", "PK"] }
+                },
+                "required": ["field"]
+              }
+            ]
           }
         },
         "start": { "type": "integer", "default": 0, "description": "起始行号" },

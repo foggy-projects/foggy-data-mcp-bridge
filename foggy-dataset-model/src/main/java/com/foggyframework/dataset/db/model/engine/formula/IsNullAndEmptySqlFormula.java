@@ -21,24 +21,24 @@ public class IsNullAndEmptySqlFormula extends SqlFormulaSupport implements SqlFo
 
 
     @Override
-    protected Object buildAndAddListSqlToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, DbColumn sqlColumn, String alias, List<Object> values, int link) {
+    protected Object buildAndAddListSqlToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, DbColumn sqlColumn, String alias, List<Object> values, String link) {
         xx(listCond, sqlColumn, alias, link);
         return null;
     }
 
     @Override
-    protected Object buildAndAddEmptyToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, DbColumn sqlColumn, String alias, Object value, int link) {
+    protected Object buildAndAddEmptyToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, DbColumn sqlColumn, String alias, Object value, String link) {
         xx(listCond, sqlColumn, alias, link);
         return null;
     }
 
     @Override
-    protected Object buildAndAddObjectToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, DbColumn jdbcColumn, String alias, Object value, int link) {
+    protected Object buildAndAddObjectToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, DbColumn jdbcColumn, String alias, Object value, String link) {
         xx(listCond, jdbcColumn, alias, link);
         return null;
     }
 
-    private void xx(JdbcQuery.JdbcListCond listCond, DbColumn jdbcColumn, String alias, int link) {
+    private void xx(JdbcQuery.JdbcListCond listCond, DbColumn jdbcColumn, String alias, String link) {
         listCond.listLink("(" + jdbcColumn.buildSqlFragment(appCtx,alias, "is null") +
                 " or " + jdbcColumn.buildSqlFragment(appCtx,alias, "=''") + ")", Collections.EMPTY_LIST, link);
     }

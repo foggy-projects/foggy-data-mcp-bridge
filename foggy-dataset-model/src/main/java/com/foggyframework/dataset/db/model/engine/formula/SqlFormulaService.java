@@ -4,7 +4,7 @@ import com.foggyframework.dataset.db.model.engine.query.JdbcQuery;
 import com.foggyframework.dataset.db.model.spi.DbColumn;
 
 public interface SqlFormulaService {
-    void buildAndAddToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, DbColumn sqlColumn, String alias, Object value, int link);
+    void buildAndAddToJdbcCond(JdbcQuery.JdbcListCond listCond, String type, DbColumn sqlColumn, String alias, Object value, String link);
 
     /**
      * 检查是否支持指定的操作符

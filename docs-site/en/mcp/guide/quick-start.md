@@ -320,9 +320,9 @@ export const queryModel = {
 };
 ```
 
-> **Tip**: For complete TM/QM syntax, see [TM Syntax Manual](/en/dataset/tm-qm/tm-syntax) and [QM Syntax Manual](/en/dataset/tm-qm/qm-syntax).
+> **Tip**: For complete TM/QM syntax, see [TM Syntax Manual](/en/dataset-model/tm-qm/tm-syntax) and [QM Syntax Manual](/en/dataset-model/tm-qm/qm-syntax).
 >
-> For detailed semantic layer creation guide, see [Dataset Model Quick Start](/en/dataset/guide/quick-start).
+> For detailed semantic layer creation guide, see [Dataset Model Quick Start](/en/dataset-model/guide/quick-start).
 
 ### 5. Start Service
 
@@ -536,4 +536,4 @@ docker-compose logs mcp
 - [Tools List](../tools/overview.md) - View all available tools
 - [Chart Render Service](./chart-render-service.md) - Enable data visualization
 - [Claude Desktop Integration](../integration/claude-desktop.md) - Detailed configuration guide
-- [TM/QM Modeling](/en/dataset/guide/quick-start) - Create custom semantic layer
+- [TM/QM Modeling](/en/dataset-model/guide/quick-start) - Create custom semantic layer

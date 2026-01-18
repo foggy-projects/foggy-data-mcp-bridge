@@ -1,0 +1,101 @@
+/**
+ * 销售退货联合查询模型（多TM场景）
+ *
+ * @caption 销售退货分析
+ * @description 用于测试多TM预聚合查询，JOIN销售和退货两个事实表
+ */
+const fs = loadTableModel('FactSalesPreAggModel');
+const fr = loadTableModel('FactReturnPreAggModel');
+
+export const queryModel = {
+    name: 'SalesReturnPreAggJoinQueryModel',
+    caption: '销售退货分析',
+    description: '用于测试多TM预聚合查询，JOIN销售和退货两个事实表',
+    loader: 'v2',
+
+    // 主模型为销售模型
+    model: fs,
+
+    // 关联退货模型（使用与现有QM一致的JOIN语法）
+    joins: [
+        fs.leftJoin(fr).on(fs.orderId, fr.orderId).and(fs.orderLineNo, fr.orderLineNo)
+    ],
+
+    columnGroups: [
+        {
+            caption: '日期维度',
+            description: '按日期分析销售数据',
+            items: [
+                { ref: fs.salesDate, description: '销售日期' },
+                { ref: fs.salesDate$year, description: '年份' },
+                { ref: fs.salesDate$quarter, description: '季度' },
+                { ref: fs.salesDate$month, description: '月份' }
+            ]
+        },
+        {
+            caption: '商品维度',
+            description: '按商品分析销售和退货',
+            items: [
+                { ref: fs.product, description: '商品' },
+                { ref: fs.product$categoryName, description: '品类名称' },
+                { ref: fs.product$brand, description: '品牌' }
+            ]
+        },
+        {
+            caption: '客户维度',
+            description: '按客户分析',
+            items: [
+                { ref: fs.customer },
+                { ref: fs.customer$customerType },
+                { ref: fs.customer$province }
+            ]
+        },
+        {
+            caption: '渠道维度',
+            description: '按渠道分析',
+            items: [
+                { ref: fs.channel },
+                { ref: fs.channel$channelType }
+            ]
+        },
+        {
+            caption: '销售信息',
+            description: '销售相关字段',
+            items: [
+                { ref: fs.orderId },
+                { ref: fs.orderLineNo },
+                { ref: fs.orderStatus }
+            ]
+        },
+        {
+            caption: '退货信息',
+            description: '退货相关字段',
+            items: [
+                { ref: fr.returnId },
+                { ref: fr.returnReason },
+                { ref: fr.returnType },
+                { ref: fr.returnStatus }
+            ]
+        },
+        {
+            caption: '销售度量',
+            description: '销售相关度量',
+            items: [
+                { ref: fs.quantity, description: '销售数量' },
+                { ref: fs.salesAmount, description: '销售金额' },
+                { ref: fs.costAmount, description: '成本金额' },
+                { ref: fs.profitAmount, description: '利润金额' }
+            ]
+        },
+        {
+            caption: '退货度量',
+            description: '退货相关度量',
+            items: [
+                { ref: fr.returnQuantity, description: '退货数量' },
+                { ref: fr.returnAmount, description: '退款金额' }
+            ]
+        }
+    ],
+
+    accesses: []
+};

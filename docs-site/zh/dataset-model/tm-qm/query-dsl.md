@@ -74,9 +74,18 @@ JSON 查询 DSL 是一种声明式的查询语言，通过 JSON 格式描述查�
     "field": "字段名",
     "op": "操作符",
     "value": "值",
-    "link": 1,              // 逻辑连接：1=AND, 2=OR
-    "maxDepth": 2,          // 层级深度限制（仅层级操作符）
-    "children": [...]       // 嵌套条件
+    "maxDepth": 2           // 层级深度限制（仅层级操作符）
+}
+```
+
+**逻辑组合**：使用 `$or` / `$and` 操作符组合多个条件：
+
+```json
+{
+    "$or": [条件1, 条件2, ...]    // 条件用 OR 连接
+}
+{
+    "$and": [条件1, 条件2, ...]   // 条件用 AND 连接
 }
 ```
 
@@ -273,21 +282,24 @@ GROUP BY dim_team.caption
 
 > 向量搜索结果按相似度降序排列，`_score` 字段表示相似度(0-1)。
 
-### 3.3 逻辑连接 (link)
+### 3.3 逻辑组合 ($or / $and)
 
-| 值 | 说明 |
-|----|------|
-| `1` 或不填 | AND 连接（默认） |
-| `2` | OR 连接 |
+slice 数组中的条件默认使用 AND 连接。使用 `$or` 和 `$and` 操作符可以显式控制条件的逻辑组合。
 
-**OR 连接示例**：
+#### 3.3.1 $or 操作符
+
+将多个条件用 OR 连接：
 
 ```json
 {
     "param": {
         "slice": [
-            { "field": "orderStatus", "op": "=", "value": "COMPLETED" },
-            { "field": "orderStatus", "op": "=", "value": "SHIPPED", "link": 2 }
+            {
+                "$or": [
+                    { "field": "orderStatus", "op": "=", "value": "COMPLETED" },
+                    { "field": "orderStatus", "op": "=", "value": "SHIPPED" }
+                ]
+            }
         ]
     }
 }
@@ -298,9 +310,38 @@ GROUP BY dim_team.caption
 WHERE (order_status = 'COMPLETED' OR order_status = 'SHIPPED')
 ```
 
-### 3.4 嵌套条件 (children)
+#### 3.3.2 $and 操作符
 
-支持复杂的嵌套条件组合：
+将多个条件用 AND 连接（用于在 $or 内部显式分组）：
+
+```json
+{
+    "param": {
+        "slice": [
+            {
+                "$or": [
+                    { "field": "customer$customerType", "op": "=", "value": "VIP" },
+                    {
+                        "$and": [
+                            { "field": "totalAmount", "op": ">=", "value": 1000 },
+                            { "field": "orderCount", "op": ">=", "value": 5 }
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+}
+```
+
+**生成的 SQL**：
+```sql
+WHERE (customer_type = 'VIP' OR (total_amount >= 1000 AND order_count >= 5))
+```
+
+#### 3.3.3 混合使用
+
+`$or` 和 `$and` 可以任意嵌套，实现复杂的条件组合：
 
 ```json
 {
@@ -308,10 +349,9 @@ WHERE (order_status = 'COMPLETED' OR order_status = 'SHIPPED')
         "slice": [
             { "field": "orderStatus", "op": "=", "value": "COMPLETED" },
             {
-                "link": 1,
-                "children": [
+                "$or": [
                     { "field": "totalAmount", "op": ">=", "value": 1000 },
-                    { "field": "customer$customerType", "op": "=", "value": "VIP", "link": 2 }
+                    { "field": "customer$customerType", "op": "=", "value": "VIP" }
                 ]
             }
         ]
@@ -324,6 +364,34 @@ WHERE (order_status = 'COMPLETED' OR order_status = 'SHIPPED')
 WHERE order_status = 'COMPLETED'
   AND (total_amount >= 1000 OR customer_type = 'VIP')
 ```
+
+### 3.4 等值条件简写
+
+对于等值条件（`op: "="`），支持简写格式：
+
+**简写格式**：当对象只有一个键值对，且键不是保留字时，自动解析为等值条件。
+
+```json
+// 简写格式
+{ "orderStatus": "COMPLETED" }
+
+// 等价于完整格式
+{ "field": "orderStatus", "op": "=", "value": "COMPLETED" }
+```
+
+**混合使用示例**：
+
+```json
+{
+    "slice": [
+        { "orderStatus": "COMPLETED" },
+        { "customer$customerType": "VIP" },
+        { "field": "totalAmount", "op": ">=", "value": 1000 }
+    ]
+}
+```
+
+> **注意**：保留字段名（`field`, `op`, `value`, `$or`, `$and`, `maxDepth`）不能作为简写格式的字段名。
 
 ### 3.5 HAVING 条件（聚合过滤）
 
@@ -353,13 +421,15 @@ GROUP BY customer_type
 HAVING SUM(total_amount) >= 10000
 ```
 
-**注意**：OR 条件组中不能同时包含聚合字段和普通字段，因为无法在 WHERE 和 HAVING 间使用 OR。
+**注意**：`$or` 条件组中不能同时包含聚合字段和普通字段，因为无法在 WHERE 和 HAVING 间使用 OR。
 
 ---
 
 ## 4. 分组 (groupBy)
 
 ### 4.1 基本格式
+
+**完整格式**：
 
 ```json
 {
@@ -368,6 +438,29 @@ HAVING SUM(total_amount) >= 10000
             { "field": "customer$customerType" },
             { "field": "orderDate$year" },
             { "field": "orderDate$month" }
+        ]
+    }
+}
+```
+
+**简写格式**：对于只需指定字段名的分组，可使用字符串数组：
+
+```json
+{
+    "param": {
+        "groupBy": ["customer$customerType", "orderDate$year", "orderDate$month"]
+    }
+}
+```
+
+**混合使用**：简写格式和完整格式可以混合：
+
+```json
+{
+    "param": {
+        "groupBy": [
+            "customer$customerType",
+            { "field": "totalAmount", "agg": "AVG" }
         ]
     }
 }
@@ -406,12 +499,44 @@ HAVING SUM(total_amount) >= 10000
 
 ### 5.1 基本格式
 
+**完整格式**：
+
 ```json
 {
     "param": {
         "orderBy": [
-            { "field": "totalAmount", "order": "desc" },
-            { "field": "orderId", "order": "asc" }
+            { "field": "totalAmount", "dir": "desc" },
+            { "field": "orderId", "dir": "asc" }
+        ]
+    }
+}
+```
+
+**简写格式**：支持多种字符串简写：
+
+| 格式 | 说明 | 示例 |
+|------|------|------|
+| `"fieldName"` | 默认升序 | `"orderId"` → asc |
+| `"fieldName asc"` | 升序 | `"orderId asc"` |
+| `"fieldName desc"` | 降序 | `"totalAmount desc"` |
+| `"-fieldName"` | 降序（负号前缀） | `"-totalAmount"` |
+
+```json
+{
+    "param": {
+        "orderBy": ["-totalAmount", "orderId"]
+    }
+}
+```
+
+**混合使用**：
+
+```json
+{
+    "param": {
+        "orderBy": [
+            "-totalAmount",
+            { "field": "orderId", "dir": "asc", "nullLast": true }
         ]
     }
 }
@@ -422,7 +547,7 @@ HAVING SUM(total_amount) >= 10000
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `field` | string | 是 | 排序字段名 |
-| `order` | string | 是 | `asc`（升序）/ `desc`（降序） |
+| `dir` | string | 否 | `asc`（升序）/ `desc`（降序），默认 `asc` |
 | `nullFirst` | boolean | 否 | NULL 值排在最前 |
 | `nullLast` | boolean | 否 | NULL 值排在最后 |
 
@@ -795,9 +920,9 @@ POST /jdbc-model/query-model/v2/FactOrderQueryModel
         "slice": [
             { "field": "orderTime", "op": "[)", "value": ["2024-01-01", "2024-07-01"] },
             {
-                "children": [
+                "$or": [
                     { "field": "customer$customerType", "op": "=", "value": "VIP" },
-                    { "field": "totalAmount", "op": ">=", "value": 1000, "link": 2 }
+                    { "field": "totalAmount", "op": ">=", "value": 1000 }
                 ]
             },
             { "field": "product$category", "op": "in", "value": ["数码电器", "家居用品"] }
@@ -893,11 +1018,11 @@ ORDER BY totalSales DESC
 }
 ```
 
-#### OR 条件混合聚合字段
+#### $or 条件混合聚合字段
 ```json
 {
     "code": 400,
-    "msg": "OR 条件组中不能同时包含聚合字段(totalSales)和普通字段(orderStatus)",
+    "msg": "$or 条件组中不能同时包含聚合字段(totalSales)和普通字段(orderStatus)",
     "data": null
 }
 ```

@@ -336,10 +336,10 @@ public class MongoModelQueryEngine implements QueryEngine {
     }
 
     private void buildSlice(MongoQueryModel jdbcQueryModel, JdbcQuery jdbcQuery, JdbcQuery.JdbcListCond listCond, CondRequestDef sliceDef) {
-        if (sliceDef._hasChildren()) {
-            //有子项~
+        if (sliceDef._isLogicalGroup()) {
+            //有子项~（$or 或 $and）
             JdbcQuery.JdbcGroupCond gc = jdbcQuery.getWhere().newGroupCond("");
-            for (CondRequestDef child : sliceDef.getChildren()) {
+            for (CondRequestDef child : sliceDef._getGroupChildren()) {
                 buildSlice(jdbcQueryModel, jdbcQuery, gc, child);
             }
 

@@ -489,95 +489,104 @@ public class JdbcModelQueryEngine implements QueryEngine {
     }
 
     private void buildSlice(JdbcQueryModel jdbcQueryModel, JdbcQuery jdbcQuery, JdbcQuery.JdbcListCond listCond, CondRequestDef sliceDef, int level) {
-        buildSlice(jdbcQueryModel, jdbcQuery, listCond, sliceDef, 0, level);
+        buildSlice(jdbcQueryModel, jdbcQuery, listCond, sliceDef, level, "AND");
     }
 
-    private void buildSlice(JdbcQueryModel jdbcQueryModel, JdbcQuery jdbcQuery, JdbcQuery.JdbcListCond listCond, CondRequestDef sliceDef, int idx, int level) {
-        if (sliceDef._hasChildren()) {
-            //有子项~
+    private void buildSlice(JdbcQueryModel jdbcQueryModel, JdbcQuery jdbcQuery, JdbcQuery.JdbcListCond listCond, CondRequestDef sliceDef, int level, String parentLink) {
+        if (sliceDef._isLogicalGroup()) {
+            // 这是一个逻辑组合条件（$or 或 $and）
+            String groupLink = sliceDef._getGroupLink();
+            List<CondRequestDef> children = sliceDef._getGroupChildren();
 
             // 校验：如果是OR连接，不能混合聚合字段和普通字段
-            if ("OR".equalsIgnoreCase(JdbcLink.getLinkStr(sliceDef.getLink()))) {
+            if ("OR".equalsIgnoreCase(groupLink)) {
                 validateOrConditionGroup(sliceDef);
             }
 
-            int i = 0;
-            //第一层不加,全部用and
-            JdbcQuery.JdbcGroupCond gc = jdbcQuery.getWhere().newGroupCond(level > 0 ? JdbcLink.getLinkStr(sliceDef.getLink()) : "");
-            for (CondRequestDef child : sliceDef.getChildren()) {
-                buildSlice(jdbcQueryModel, jdbcQuery, gc, child, i, level + 1);
-                i++;
+            // 第一层不加连接符，全部用 AND 连接到父条件
+            JdbcQuery.JdbcGroupCond gc = jdbcQuery.getWhere().newGroupCond(level > 0 ? parentLink : "");
+
+            for (CondRequestDef child : children) {
+                // 递归时传递当前组的连接类型
+                buildSlice(jdbcQueryModel, jdbcQuery, gc, child, level + 1, groupLink);
             }
 
             listCond.addCond(gc);
         } else {
-            DbColumn jdbcColumn = jdbcQueryModel.findJdbcColumnForCond(sliceDef.getField(), false, true);
+            // 这是一个普通条件
+            buildSingleCondition(jdbcQueryModel, jdbcQuery, listCond, sliceDef, level, parentLink);
+        }
+    }
 
-            // 如果在模型中找不到，尝试从计算字段中查找
-            if (jdbcColumn == null) {
-                jdbcColumn = findCalculatedColumn(sliceDef.getField());
-            }
+    /**
+     * 构建单个条件（非逻辑组合）
+     */
+    private void buildSingleCondition(JdbcQueryModel jdbcQueryModel, JdbcQuery jdbcQuery, JdbcQuery.JdbcListCond listCond, CondRequestDef sliceDef, int level, String parentLink) {
+        DbColumn jdbcColumn = jdbcQueryModel.findJdbcColumnForCond(sliceDef.getField(), false, true);
 
-            if (jdbcColumn == null) {
-                throw RX.throwAUserTip(DatasetMessages.queryColumnNotfound(sliceDef.getField(), jdbcQueryModel.findDimension(sliceDef.getField())));
-            }
-
-            // 判断是否为聚合条件
-            boolean isAggregateCondition = isAggregateCondition(sliceDef.getField());
-
-            // 计算字段直接使用 SQL 表达式，不需要 JOIN 和特殊处理
-            if (jdbcColumn.isCalculatedField()) {
-                // 聚合条件需要添加到HAVING，否则添加到WHERE
-                if (isAggregateCondition) {
-                    sqlFormulaService.buildAndAddToJdbcCond(jdbcQuery.getHaving(), sliceDef.getOp(), jdbcColumn, null, sliceDef.getValue(), sliceDef.getLink());
-                } else {
-                    sqlFormulaService.buildAndAddToJdbcCond(listCond, sliceDef.getOp(), jdbcColumn, null, sliceDef.getValue(), sliceDef.getLink());
-                }
-                return;
-            }
-
-            if (jdbcColumn.getQueryObject() != null && !(jdbcQuery.getFrom().getFromObject().isRootEqual(jdbcColumn.getQueryObject()))) {
-                //需要加入left join
-                jdbcQuery.join(jdbcColumn.getQueryObject());
-            }
-            String alias = jdbcQueryModel.getAlias(jdbcColumn.getQueryObject());
-
-            if (jdbcColumn.isDimension()) {
-                DbModelParentChildDimensionImpl pp = jdbcColumn.getDecorate(DbDimensionColumn.class).getDimension().getDecorate(DbModelParentChildDimensionImpl.class);
-                // 只有 hierarchy 视角的列（team$hierarchy$id）或层级操作符才使用闭包表
-                // 默认视角（team$id）按普通维度处理，精确匹配
-                boolean isHierarchyColumn = sliceDef.getField() != null && sliceDef.getField().contains("$hierarchy$");
-                String op = sliceDef.getOp();
-                HierarchyOperator hierarchyOp = hierarchyOperatorService.get(op);
-
-                if (pp != null && (isHierarchyColumn || hierarchyOp != null)) {
-                    //这是一个parentChild维的层级查询，条件重写为使用closure表
-                    jdbcQuery.join(pp.getClosureQueryObject(), pp.getForeignKey());
-                    alias = jdbcQueryModel.getAlias(pp.getClosureQueryObject());
-                    //查询列换成closure表的parentId
-                    jdbcColumn = pp.getParentKeyJdbcColumn();
-
-                    // 处理层级操作符的 distance 条件
-                    if (hierarchyOp != null) {
-                        hierarchyOp.buildDistanceCondition(listCond, alias, sliceDef.getMaxDepth());
-                        // 将 op 转换为标准操作符（in 或 =）
-                        sliceDef.setOp(sliceDef.getValue() instanceof List ? "in" : "=");
-                    }
-                }
-            }
-            if (jdbcColumn.isProperty() && jdbcColumn.getDecorate(DbPropertyColumn.class).getProperty().isBit()) {
-                //是位图列,重写为bitIn
-                sliceDef.setOp(CondType.BIT_IN.getCode());
-            }
-
-            // 聚合条件需要添加到HAVING，否则添加到WHERE
-            if (isAggregateCondition) {
-                sqlFormulaService.buildAndAddToJdbcCond(jdbcQuery.getHaving(), sliceDef.getOp(), jdbcColumn, alias, sliceDef.getValue(), sliceDef.getLink());
-            } else {
-                sqlFormulaService.buildAndAddToJdbcCond(listCond, sliceDef.getOp(), jdbcColumn, alias, sliceDef.getValue(), sliceDef.getLink());
-            }
+        // 如果在模型中找不到，尝试从计算字段中查找
+        if (jdbcColumn == null) {
+            jdbcColumn = findCalculatedColumn(sliceDef.getField());
         }
 
+        if (jdbcColumn == null) {
+            throw RX.throwAUserTip(DatasetMessages.queryColumnNotfound(sliceDef.getField(), jdbcQueryModel.findDimension(sliceDef.getField())));
+        }
+
+        // 判断是否为聚合条件
+        boolean isAggregateCondition = isAggregateCondition(sliceDef.getField());
+
+        // 计算字段直接使用 SQL 表达式，不需要 JOIN 和特殊处理
+        if (jdbcColumn.isCalculatedField()) {
+            // 聚合条件需要添加到HAVING，否则添加到WHERE
+            if (isAggregateCondition) {
+                sqlFormulaService.buildAndAddToJdbcCond(jdbcQuery.getHaving(), sliceDef.getOp(), jdbcColumn, null, sliceDef.getValue(), parentLink);
+            } else {
+                sqlFormulaService.buildAndAddToJdbcCond(listCond, sliceDef.getOp(), jdbcColumn, null, sliceDef.getValue(), parentLink);
+            }
+            return;
+        }
+
+        if (jdbcColumn.getQueryObject() != null && !(jdbcQuery.getFrom().getFromObject().isRootEqual(jdbcColumn.getQueryObject()))) {
+            //需要加入left join
+            jdbcQuery.join(jdbcColumn.getQueryObject());
+        }
+        String alias = jdbcQueryModel.getAlias(jdbcColumn.getQueryObject());
+
+        if (jdbcColumn.isDimension()) {
+            DbModelParentChildDimensionImpl pp = jdbcColumn.getDecorate(DbDimensionColumn.class).getDimension().getDecorate(DbModelParentChildDimensionImpl.class);
+            // 只有 hierarchy 视角的列（team$hierarchy$id）或层级操作符才使用闭包表
+            // 默认视角（team$id）按普通维度处理，精确匹配
+            boolean isHierarchyColumn = sliceDef.getField() != null && sliceDef.getField().contains("$hierarchy$");
+            String op = sliceDef.getOp();
+            HierarchyOperator hierarchyOp = hierarchyOperatorService.get(op);
+
+            if (pp != null && (isHierarchyColumn || hierarchyOp != null)) {
+                //这是一个parentChild维的层级查询，条件重写为使用closure表
+                jdbcQuery.join(pp.getClosureQueryObject(), pp.getForeignKey());
+                alias = jdbcQueryModel.getAlias(pp.getClosureQueryObject());
+                //查询列换成closure表的parentId
+                jdbcColumn = pp.getParentKeyJdbcColumn();
+
+                // 处理层级操作符的 distance 条件
+                if (hierarchyOp != null) {
+                    hierarchyOp.buildDistanceCondition(listCond, alias, sliceDef.getMaxDepth());
+                    // 将 op 转换为标准操作符（in 或 =）
+                    sliceDef.setOp(sliceDef.getValue() instanceof List ? "in" : "=");
+                }
+            }
+        }
+        if (jdbcColumn.isProperty() && jdbcColumn.getDecorate(DbPropertyColumn.class).getProperty().isBit()) {
+            //是位图列,重写为bitIn
+            sliceDef.setOp(CondType.BIT_IN.getCode());
+        }
+
+        // 聚合条件需要添加到HAVING，否则添加到WHERE
+        if (isAggregateCondition) {
+            sqlFormulaService.buildAndAddToJdbcCond(jdbcQuery.getHaving(), sliceDef.getOp(), jdbcColumn, alias, sliceDef.getValue(), parentLink);
+        } else {
+            sqlFormulaService.buildAndAddToJdbcCond(listCond, sliceDef.getOp(), jdbcColumn, alias, sliceDef.getValue(), parentLink);
+        }
     }
 
     /**
@@ -614,7 +623,8 @@ public class JdbcModelQueryEngine implements QueryEngine {
      * @throws IllegalArgumentException 如果检测到混合使用聚合字段和普通字段
      */
     private void validateOrConditionGroup(CondRequestDef condGroup) {
-        if (condGroup.getChildren() == null || condGroup.getChildren().isEmpty()) {
+        List<CondRequestDef> children = condGroup._getGroupChildren();
+        if (children == null || children.isEmpty()) {
             return;
         }
 
@@ -626,7 +636,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
         // 如果同时存在聚合字段和普通字段，抛出错误
         if (!aggregateFields.isEmpty() && !normalFields.isEmpty()) {
-            String link = JdbcLink.getLinkStr(condGroup.getLink());
+            String link = condGroup._getGroupLink();
             throw RX.throwAUserTip(DatasetMessages.queryMixedConditionNotAllowed(
                     link,
                     String.join(", ", aggregateFields),
@@ -643,9 +653,9 @@ public class JdbcModelQueryEngine implements QueryEngine {
      * @param normalFields    普通字段列表（输出参数）
      */
     private void collectFieldsByType(CondRequestDef cond, List<String> aggregateFields, List<String> normalFields) {
-        if (cond._hasChildren()) {
+        if (cond._isLogicalGroup()) {
             // 递归处理子条件
-            for (CondRequestDef child : cond.getChildren()) {
+            for (CondRequestDef child : cond._getGroupChildren()) {
                 collectFieldsByType(child, aggregateFields, normalFields);
             }
         } else {

@@ -13,6 +13,8 @@ import com.foggyframework.dataset.db.model.plugins.result_set_filter.DataSetResu
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.DataSetResultStep;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.DefaultDataSetResultFilterManagerImpl;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.SemanticMoneyStep;
+import com.foggyframework.dataset.db.model.plugins.query_execution.QueryExecutionStep;
+import com.foggyframework.dataset.db.model.plugins.query_execution.QueryExecutionStepExecutor;
 import com.foggyframework.dataset.db.model.service.impl.JdbcServiceImpl;
 import com.foggyframework.dataset.db.model.spi.DbModelLoadProcessor;
 import com.foggyframework.dataset.db.model.spi.QueryModelBuilder;
@@ -63,6 +65,11 @@ public class DbModelAutoConfiguration {
     @Bean
     public SemanticMoneyStep semanticMoneyStep() {
         return new SemanticMoneyStep();
+    }
+
+    @Bean
+    public QueryExecutionStepExecutor queryExecutionStepExecutor(List<QueryExecutionStep> steps) {
+        return new QueryExecutionStepExecutor(steps);
     }
 
     @Bean

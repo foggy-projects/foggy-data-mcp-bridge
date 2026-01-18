@@ -114,6 +114,13 @@ export default defineConfig({
                 { text: '权限控制（QM）', link: '/zh/dataset-model/api/authorization' },
                 { text: 'Java 权限控制', link: '/zh/dataset-model/api/java-authorization' }
               ]
+            },
+            {
+              text: '高级功能',
+              items: [
+                { text: '查询缓存', link: '/zh/dataset-model/advanced/cache' },
+                { text: '预聚合', link: '/zh/dataset-model/advanced/pre-aggregation' }
+              ]
             }
           ],
           '/zh/mcp/': [

@@ -188,9 +188,6 @@ public class ComplexAuthorizationStep implements DataSetResultStep {
         slice.add(dateFilter);
 
         // 示例 3: OR 条件 - 可以查看自己创建的或指派给自己的订单
-        SliceRequestDef orFilter = new SliceRequestDef();
-        orFilter.setField("order");  // 逻辑组的名称可以是任意值
-
         CondRequestDef creatorCond = new CondRequestDef();
         creatorCond.setField("creator_id");
         creatorCond.setOp("eq");
@@ -201,7 +198,8 @@ public class ComplexAuthorizationStep implements DataSetResultStep {
         assigneeCond.setOp("eq");
         assigneeCond.setValue(userId);
 
-        orFilter.setChildren(Arrays.asList(creatorCond, assigneeCond));
+        // 使用 $or 语法创建 OR 条件组
+        SliceRequestDef orFilter = SliceRequestDef.or(Arrays.asList(creatorCond, assigneeCond));
         slice.add(orFilter);
 
         return CONTINUE;

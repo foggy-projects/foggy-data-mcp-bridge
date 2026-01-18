@@ -1,0 +1,103 @@
+/**
+ * 销售预聚合查询模型（单TM场景）
+ *
+ * @caption 销售预聚合查询
+ * @description 用于测试单TM预聚合查询，包含完全匹配、rollup、混合查询等场景
+ */
+const fs = loadTableModel('FactSalesPreAggModel');
+
+export const queryModel = {
+    name: 'FactSalesPreAggQueryModel',
+    caption: '销售预聚合查询',
+    description: '用于测试单TM预聚合查询，包含完全匹配、rollup、混合查询等场景',
+    loader: 'v2',
+
+    model: fs,
+
+    columnGroups: [
+        {
+            caption: '日期维度',
+            description: '按日期分析销售数据，测试时间粒度rollup',
+            items: [
+                { ref: fs.salesDate, description: '销售日期（日粒度预聚合可用）' },
+                { ref: fs.salesDate$year, description: '年份（需要从日粒度rollup到年）' },
+                { ref: fs.salesDate$quarter, description: '季度（需要从日粒度rollup到季度）' },
+                { ref: fs.salesDate$month, description: '月份（需要从日粒度rollup到月）' },
+                { ref: fs.salesDate$monthName },
+                { ref: fs.salesDate$dayOfWeek },
+                { ref: fs.salesDate$isWeekend }
+            ]
+        },
+        {
+            caption: '商品维度',
+            description: '按商品分析销售数据，测试维度属性匹配',
+            items: [
+                { ref: fs.product, description: '商品（预聚合可用）' },
+                { ref: fs.product$categoryName, description: '品类名称（预聚合中包含此属性）' },
+                { ref: fs.product$brand, description: '品牌（预聚合中包含此属性）' },
+                { ref: fs.product$subCategoryName, description: '二级品类（预聚合中不包含，会导致预聚合不可用）' }
+            ]
+        },
+        {
+            caption: '客户维度',
+            description: '按客户分析，测试不同预聚合的选择',
+            items: [
+                { ref: fs.customer },
+                { ref: fs.customer$customerType },
+                { ref: fs.customer$province },
+                { ref: fs.customer$city },
+                { ref: fs.customer$memberLevel }
+            ]
+        },
+        {
+            caption: '渠道维度',
+            description: '按渠道分析',
+            items: [
+                { ref: fs.channel },
+                { ref: fs.channel$channelType },
+                { ref: fs.channel$platform }
+            ]
+        },
+        {
+            caption: '门店维度',
+            description: '按门店分析（无对应预聚合）',
+            items: [
+                { ref: fs.store },
+                { ref: fs.store$storeType },
+                { ref: fs.store$province },
+                { ref: fs.store$city }
+            ]
+        },
+        {
+            caption: '促销维度',
+            description: '按促销分析（无对应预聚合）',
+            items: [
+                { ref: fs.promotion },
+                { ref: fs.promotion$promotionType },
+                { ref: fs.promotion$discountRate }
+            ]
+        },
+        {
+            caption: '核心度量',
+            description: '预聚合中包含的度量',
+            items: [
+                { ref: fs.quantity, description: '销售数量（预聚合可用）' },
+                { ref: fs.salesAmount, description: '销售金额（预聚合可用）' },
+                { ref: fs.costAmount, description: '成本金额（预聚合可用）' },
+                { ref: fs.profitAmount, description: '利润金额（预聚合可用）' }
+            ]
+        },
+        {
+            caption: '其他度量',
+            description: '预聚合中不包含的度量',
+            items: [
+                { ref: fs.unitPrice, description: '单价（预聚合不包含）' },
+                { ref: fs.unitCost, description: '单位成本（预聚合不包含）' },
+                { ref: fs.discountAmount, description: '折扣金额（预聚合不包含）' },
+                { ref: fs.taxAmount, description: '税额（预聚合不包含）' }
+            ]
+        }
+    ],
+
+    accesses: []
+};

@@ -4,7 +4,9 @@ import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.engine.expression.InlineExpressionParser;
+import com.foggyframework.dataset.db.model.engine.query.DbQueryResult;
 import com.foggyframework.dataset.db.model.engine.query.JdbcQuery;
+import com.foggyframework.dataset.db.model.spi.QueryCacheProvider;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
 import com.foggyframework.dataset.db.model.spi.support.CalculatedDbColumn;
 import com.foggyframework.dataset.model.PagingResultImpl;
@@ -48,6 +50,32 @@ public class ModelResultContext {
      * 安全上下文，用于权限控制
      */
     SecurityContext securityContext;
+
+    /**
+     * 查询缓存配置
+     */
+    QueryCacheConfig cacheConfig;
+
+    // ==========================================
+    // 查询流程控制
+    // ==========================================
+
+    /**
+     * 预置查询结果
+     * <p>
+     * 由 Step（如 L1CacheStep）在 beforeQuery 阶段设置。
+     * 当此字段非空且 skipQuery=true 时，QueryFacade 将跳过实际查询。
+     * </p>
+     */
+    DbQueryResult queryResult;
+
+    /**
+     * 是否跳过后续查询
+     * <p>
+     * 由 Step 设置，表示已有查询结果（如缓存命中），无需执行实际查询。
+     * </p>
+     */
+    boolean skipQuery;
 
     // ==========================================
     // 内联表达式预处理结果
@@ -207,6 +235,155 @@ public class ModelResultContext {
         }
     }
 
+    /**
+     * 查询缓存配置
+     *
+     * <p>控制 L1（Token 级别）和 L2（SQL 级别）缓存的行为。
+     * 可在查询时配置缓存策略，并在查询后获取缓存命中信息。
+     *
+     * @since 8.2.0
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class QueryCacheConfig {
+        /**
+         * 是否启用 L1 缓存（Token 级别）
+         * <p>
+         * L1 缓存基于授权令牌和请求指纹，可完全跳过 SQL 构建。
+         * 默认禁用，需显式启用。
+         * </p>
+         */
+        @Builder.Default
+        private boolean l1Enabled = false;
+
+        /**
+         * 是否启用 L2 缓存（SQL 级别）
+         * <p>
+         * L2 缓存基于最终 SQL（含权限条件）和参数，跳过 SQL 执行。
+         * 默认启用。
+         * </p>
+         */
+        @Builder.Default
+        private boolean l2Enabled = true;
+
+        /**
+         * 是否启用预聚合查询优化
+         * <p>
+         * 启用后，系统会自动检测查询是否可以使用预聚合表，
+         * 并在匹配时重写 SQL 以使用预聚合表查询。
+         * 默认启用。
+         * </p>
+         *
+         * @since 8.2.0
+         */
+        @Builder.Default
+        private boolean preAggEnabled = true;
+
+        /**
+         * 是否启用混合查询（Lambda 架构）
+         * <p>
+         * 当预聚合数据过期时（watermark < 当前日期），
+         * 系统会生成 UNION ALL SQL，合并预聚合表和原始表的数据。
+         * 默认禁用（因为需要额外配置确保正确性）。
+         * </p>
+         *
+         * @since 8.2.0
+         */
+        @Builder.Default
+        private boolean hybridQueryEnabled = false;
+
+        /**
+         * L1 缓存是否命中（查询后由缓存提供者设置）
+         */
+        private boolean l1CacheHit;
+
+        /**
+         * L2 缓存是否命中（查询后由缓存提供者设置）
+         */
+        private boolean l2CacheHit;
+
+        /**
+         * 预聚合是否命中（查询后设置）
+         * <p>
+         * 如果查询使用了预聚合表，此字段为 true。
+         * </p>
+         */
+        private boolean preAggHit;
+
+        /**
+         * 使用的预聚合名称（查询后设置）
+         */
+        private String preAggName;
+
+        /**
+         * 缓存提供者（由 QueryFacade 注入）
+         * <p>
+         * 运行时注入的缓存实现，供 QueryModel 使用 L2 缓存。
+         * </p>
+         */
+        private QueryCacheProvider provider;
+
+        /**
+         * 便捷方法：创建启用 L1 缓存的配置
+         */
+        public static QueryCacheConfig enableL1() {
+            return QueryCacheConfig.builder()
+                    .l1Enabled(true)
+                    .l2Enabled(true)
+                    .preAggEnabled(true)
+                    .build();
+        }
+
+        /**
+         * 便捷方法：创建禁用所有缓存的配置
+         */
+        public static QueryCacheConfig disabled() {
+            return QueryCacheConfig.builder()
+                    .l1Enabled(false)
+                    .l2Enabled(false)
+                    .preAggEnabled(true)
+                    .build();
+        }
+
+        /**
+         * 便捷方法：创建仅启用 L2 缓存的配置（默认行为）
+         */
+        public static QueryCacheConfig defaultConfig() {
+            return QueryCacheConfig.builder()
+                    .l1Enabled(false)
+                    .l2Enabled(true)
+                    .preAggEnabled(true)
+                    .build();
+        }
+
+        /**
+         * 便捷方法：创建禁用预聚合的配置
+         * <p>
+         * 用于测试或需要直接查询原始表的场景。
+         * </p>
+         */
+        public static QueryCacheConfig disablePreAgg() {
+            return QueryCacheConfig.builder()
+                    .l1Enabled(false)
+                    .l2Enabled(true)
+                    .preAggEnabled(false)
+                    .build();
+        }
+
+        /**
+         * 便捷方法：创建禁用所有优化的配置（用于测试基准）
+         */
+        public static QueryCacheConfig noOptimization() {
+            return QueryCacheConfig.builder()
+                    .l1Enabled(false)
+                    .l2Enabled(false)
+                    .preAggEnabled(false)
+                    .build();
+        }
+    }
+
     public ModelResultContext(PagingRequest<DbQueryRequestDef> request, PagingResultImpl pagingResult) {
         this.request = request;
         this.pagingResult = pagingResult;
@@ -220,5 +397,19 @@ public class ModelResultContext {
         this.request = request;
         this.pagingResult = pagingResult;
         this.securityContext = securityContext;
+    }
+
+    /**
+     * 获取授权令牌
+     *
+     * @return 授权令牌，或 null
+     */
+    public String getAuthorization() {
+
+        // 从 SecurityContext 获取
+        if (securityContext != null && securityContext.getAuthorization() != null) {
+            return securityContext.getAuthorization();
+        }
+        return null;
     }
 }

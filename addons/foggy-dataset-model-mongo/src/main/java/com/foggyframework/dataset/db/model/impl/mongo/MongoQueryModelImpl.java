@@ -10,6 +10,7 @@ import com.foggyframework.dataset.db.model.engine.query.DbQueryResult;
 import com.foggyframework.dataset.db.model.engine.query_model.QueryModelSupport;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.spi.CalculatedFieldProcessor;
+import com.foggyframework.dataset.db.model.spi.QueryCacheProvider;
 import com.foggyframework.dataset.db.model.spi.TableModel;
 import com.foggyframework.dataset.db.model.utils.MongoModelNamedUtils;
 import com.foggyframework.dataset.model.PagingResultImpl;
@@ -70,23 +71,55 @@ public class MongoQueryModelImpl extends QueryModelSupport implements MongoQuery
 
     @Override
     public DbQueryResult query(SystemBundlesContext systemBundlesContext, ModelResultContext context) {
-        return queryMongo(systemBundlesContext, context.getRequest());
-
+        return queryMongo(systemBundlesContext, context);
     }
 
-    public DbQueryResult queryMongo(SystemBundlesContext systemBundlesContext, PagingRequest<DbQueryRequestDef> form) {
+    /**
+     * 执行 MongoDB 查询
+     * <p>
+     * 支持 L2 缓存（聚合管道级别）：在管道生成后、执行前检查缓存。
+     * </p>
+     *
+     * @param systemBundlesContext 系统上下文
+     * @param context              查询上下文
+     * @return 查询结果
+     */
+    public DbQueryResult queryMongo(SystemBundlesContext systemBundlesContext, ModelResultContext context) {
+        PagingRequest<DbQueryRequestDef> form = context.getRequest();
         DbQueryRequestDef queryRequest = form.getParam();
 
         MongoModelQueryEngine queryEngine = new MongoModelQueryEngine(this);
 
         /**
-         * 构建 查询语句
+         * 构建查询语句（包含权限条件注入）
          */
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
         Tuple3<Criteria, ProjectionOperation, Sort> options = queryEngine.buildOptions();
 
         // 构建 $addFields 操作（用于计算字段）
         AggregationOperation addFieldsOp = queryEngine.buildAddFieldsOperation();
+
+        // 生成聚合管道字符串（用于 L2 缓存键）
+        String pipelineKey = buildPipelineCacheKey(options, addFieldsOp, queryEngine, form);
+
+        // 【L2 缓存检查】在管道生成后、执行前
+        QueryCacheProvider cacheProvider = getQueryCacheProvider(context);
+        boolean l2Enabled = QueryCacheProvider.isL2Enabled(context);
+
+        if (l2Enabled && cacheProvider != null) {
+            PagingResultImpl cached = cacheProvider.checkL2Cache(getName(), pipelineKey, Collections.emptyList(), context);
+            if (cached != null) {
+                if (log.isDebugEnabled()) {
+                    log.debug("L2 cache HIT for mongo model={}", getName());
+                }
+                QueryCacheProvider.markL2Hit(context);
+                return DbQueryResult.of(cached, queryEngine);
+            } else {
+                if (log.isDebugEnabled()) {
+                    log.debug("L2 cache MISS for mongo model={}", getName());
+                }
+            }
+        }
 
         // 调试输出 - MongoDB 聚合管道
         if (log.isDebugEnabled()) {
@@ -131,24 +164,79 @@ public class MongoQueryModelImpl extends QueryModelSupport implements MongoQuery
                 r.put("_id", r.get("_id").toString());
             }
         }
+
         /**
-         * TODO 查询汇总数据
+         * 查询汇总数据
          */
         Map<String, Object> totalData = null;
-
         int total = 0;
         if (form.getParam().isReturnTotal()) {
             GroupOperation groupOperation = queryEngine.buildGroupOperation(systemBundlesContext, null, queryRequest);
             Aggregation groupAgg = Aggregation.newAggregation(Aggregation.match(options.getT1()), options.getT2(), groupOperation);
             totalData = defaultMongoTemplate.aggregate(groupAgg, this.jdbcModel.getTableName(), Document.class).getUniqueMappedResult();
-//            totalData = DataSourceQueryUtils.getDatasetTemplate(defaultDataSource).queryMapObject1(queryEngine.getAggSql(), queryEngine.getValues());
             Number it = totalData == null ? 0 : (Number) totalData.get("total");
             if (it != null && totalData != null) {
                 total = it.intValue();
                 totalData.put("total", total);
             }
         }
-        return DbQueryResult.of(PagingResultImpl.of(results.getMappedResults(), form.getStart(), form.getLimit(), totalData, total), queryEngine);
+
+        PagingResultImpl result = PagingResultImpl.of(results.getMappedResults(), form.getStart(), form.getLimit(), totalData, total);
+
+        // 【L2 缓存写入】
+        if (l2Enabled && cacheProvider != null) {
+            boolean l2Hit = context.getCacheConfig() != null && context.getCacheConfig().isL2CacheHit();
+            if (!l2Hit) {
+                cacheProvider.writeL2Cache(getName(), pipelineKey, Collections.emptyList(), result, context);
+                if (log.isDebugEnabled()) {
+                    log.debug("L2 cache WRITE for mongo model={}", getName());
+                }
+            }
+        }
+
+        return DbQueryResult.of(result, queryEngine);
+    }
+
+    /**
+     * 构建聚合管道的缓存键
+     *
+     * @param options      查询选项（match、project、sort）
+     * @param addFieldsOp  addFields 操作
+     * @param queryEngine  查询引擎
+     * @param form         分页请求
+     * @return 管道字符串表示（用于缓存键）
+     */
+    private String buildPipelineCacheKey(Tuple3<Criteria, ProjectionOperation, Sort> options,
+                                         AggregationOperation addFieldsOp,
+                                         MongoModelQueryEngine queryEngine,
+                                         PagingRequest<DbQueryRequestDef> form) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("collection:").append(this.jdbcModel.getTableName());
+        sb.append("|match:").append(MongoModelNamedUtils.criteriaToString(options.getT1()));
+        if (addFieldsOp != null) {
+            sb.append("|addFields:").append(queryEngine.buildAddFieldsDocument());
+        }
+        sb.append("|project:").append(MongoModelNamedUtils.projectionOperationToString(options.getT2()));
+        if (options.getT3() != null) {
+            sb.append("|sort:").append(MongoModelNamedUtils.formatSort(options.getT3()));
+        }
+        sb.append("|skip:").append(form.getStart());
+        sb.append("|limit:").append(form.getLimit());
+        return sb.toString();
+    }
+
+    /**
+     * 从上下文获取缓存提供者
+     */
+    private QueryCacheProvider getQueryCacheProvider(ModelResultContext context) {
+        if (context == null || context.getExtData() == null) {
+            return null;
+        }
+        Object provider = context.getExtData().get("queryCacheProvider");
+        if (provider instanceof QueryCacheProvider) {
+            return (QueryCacheProvider) provider;
+        }
+        return null;
     }
 
 }

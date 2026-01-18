@@ -11,6 +11,9 @@ import com.foggyframework.dataset.db.model.engine.formula.SqlFormulaService;
 import com.foggyframework.dataset.db.model.engine.query.DbQueryResult;
 import com.foggyframework.dataset.db.model.impl.model.TableModelSupport;
 import com.foggyframework.dataset.db.model.interceptor.SqlLoggingInterceptor;
+import com.foggyframework.dataset.db.model.plugins.query_execution.QueryExecutionContext;
+import com.foggyframework.dataset.db.model.plugins.query_execution.QueryExecutionStep;
+import com.foggyframework.dataset.db.model.plugins.query_execution.QueryExecutionStepExecutor;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.spi.*;
 import com.foggyframework.dataset.model.PagingResultImpl;
@@ -46,6 +49,14 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
      * <p>只有当 foggy.dataset.show-sql=true 时才会注入
      */
     private SqlLoggingInterceptor sqlLoggingInterceptor;
+
+    /**
+     * 查询执行步骤执行器
+     * <p>
+     * 管理预聚合重写、L2 缓存等步骤。
+     * </p>
+     */
+    private QueryExecutionStepExecutor queryExecutionStepExecutor;
 
     public JdbcQueryModelImpl(List<TableModel> jdbcModelList, Fsscript fsscript, SqlFormulaService sqlFormulaService, DataSource dataSource) {
         super(jdbcModelList, fsscript);
@@ -91,6 +102,17 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
 
     /**
      * 执行 JDBC 查询
+     * <p>
+     * 查询流程：
+     * <ol>
+     *   <li>构建 SQL（analysisQueryRequest）</li>
+     *   <li>执行 beforeExecute Steps（预聚合重写、L2 缓存检查等）</li>
+     *   <li>生成分页 SQL</li>
+     *   <li>检查是否跳过执行（缓存命中）</li>
+     *   <li>执行 SQL 并格式化结果</li>
+     *   <li>执行 afterExecute Steps（L2 缓存写入等）</li>
+     * </ol>
+     * </p>
      *
      * @param systemBundlesContext 系统上下文
      * @param context              查询上下文（可能已预处理）
@@ -98,41 +120,127 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
      */
     public DbQueryResult queryJdbc(SystemBundlesContext systemBundlesContext, ModelResultContext context) {
         PagingRequest<DbQueryRequestDef> form = context.getRequest();
-        DbQueryRequestDef queryRequest = form.getParam();
 
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(this, sqlFormulaService);
 
-        /**
-         * 构建 查询语句
-         */
+        // 1. 构建查询语句（包含权限条件注入）
         queryEngine.analysisQueryRequest(systemBundlesContext, context);
 
-        String pagingSql = DbUtils.getDialect(dataSource).generatePagingSql(queryEngine.getSql(), form.getStart(), form.getLimit());
+        // 2. 创建执行上下文
+        QueryExecutionContext execCtx = createExecutionContext(systemBundlesContext, context, queryEngine);
+
+        // 3. 执行 beforeExecute Steps（预聚合重写、L2 缓存检查等）
+        if (queryExecutionStepExecutor != null && queryExecutionStepExecutor.hasSteps()) {
+            queryExecutionStepExecutor.executeBeforeExecute(execCtx);
+        }
+
+        // 4. 检查是否跳过执行（如 L2 缓存命中）
+        if (execCtx.isSkipExecution() && execCtx.getCachedResult() != null) {
+            if (log.isDebugEnabled()) {
+                log.debug("Skipping SQL execution, using cached result for model={}", getName());
+            }
+            return DbQueryResult.of(execCtx.getCachedResult(), queryEngine);
+        }
+
+        // 5. 执行 SQL
+        PagingResultImpl result = executeSql(execCtx, form, queryEngine);
+        execCtx.setExecutionResult(result);
+
+        // 6. 执行 afterExecute Steps（L2 缓存写入等）
+        if (queryExecutionStepExecutor != null && queryExecutionStepExecutor.hasSteps()) {
+            queryExecutionStepExecutor.executeAfterExecute(execCtx);
+        }
+
+        return DbQueryResult.of(result, queryEngine);
+    }
+
+    /**
+     * 创建查询执行上下文
+     */
+    @SuppressWarnings("unchecked")
+    private QueryExecutionContext createExecutionContext(SystemBundlesContext systemBundlesContext,
+                                                          ModelResultContext context,
+                                                          JdbcModelQueryEngine queryEngine) {
+        PagingRequest<DbQueryRequestDef> form = context.getRequest();
+
+        QueryExecutionContext execCtx = new QueryExecutionContext();
+        execCtx.setSystemBundlesContext(systemBundlesContext);
+        execCtx.setModelResultContext(context);
+        execCtx.setQueryEngine(queryEngine);
+        execCtx.setDataSource(dataSource);
+        execCtx.setModelName(getName());
+
+        // 初始 SQL 和参数（可能被 Step 修改）
+        execCtx.setSql(queryEngine.getSql());
+        execCtx.setParams(queryEngine.getValues());
+
+        // 生成分页 SQL
+        String pagingSql = DbUtils.getDialect(dataSource).generatePagingSql(
+                execCtx.getSql(), form.getStart(), form.getLimit());
+        execCtx.setPagingSql(pagingSql);
+
+        return execCtx;
+    }
+
+    /**
+     * 执行 SQL 查询
+     */
+    private PagingResultImpl executeSql(QueryExecutionContext execCtx,
+                                         PagingRequest<DbQueryRequestDef> form,
+                                         JdbcModelQueryEngine queryEngine) {
+        // 重新生成分页 SQL（因为 SQL 可能被 Step 修改）
+        String pagingSql = DbUtils.getDialect(dataSource).generatePagingSql(
+                execCtx.getSql(), form.getStart(), form.getLimit());
+        execCtx.setPagingSql(pagingSql);
 
         // 记录 SQL 日志（明细查询）
         if (sqlLoggingInterceptor != null) {
-            sqlLoggingInterceptor.logSql(pagingSql, queryEngine.getValues());
+            sqlLoggingInterceptor.logSql(pagingSql, execCtx.getParams());
         }
 
         long startTime = System.currentTimeMillis();
 
         List items;
         if (form.getLimit() < 0) {
-            //前端传了小于0的值，意味着不需要查明细~
+            // 前端传了小于0的值，意味着不需要查明细
             items = Collections.EMPTY_LIST;
         } else {
-            items = DataSourceQueryUtils.getDatasetTemplate(dataSource).getTemplate().queryForList(pagingSql, queryEngine.getValues().toArray(new Object[0]));
+            List<Object> params = execCtx.getParams();
+            items = DataSourceQueryUtils.getDatasetTemplate(dataSource).getTemplate()
+                    .queryForList(pagingSql, params.toArray(new Object[0]));
         }
 
-        // 记录执行时间（明细查询）
+        // 记录执行时间
+        long duration = System.currentTimeMillis() - startTime;
+        execCtx.setExecutionTimeMs(duration);
+
         if (sqlLoggingInterceptor != null && form.getLimit() >= 0) {
-            long duration = System.currentTimeMillis() - startTime;
             sqlLoggingInterceptor.logExecutionTime(this.getName(), duration);
         }
 
-        //对items中的数据进行格式化
+        // 对 items 中的数据进行格式化
+        formatItems(items, queryEngine);
+
+        // 查询汇总数据
+        Map<String, Object> totalData = null;
+        int total = 0;
+        if (form.getParam().isReturnTotal()) {
+            totalData = queryTotalData(queryEngine);
+            Number it = (Number) totalData.get("total");
+            if (it != null) {
+                total = it.intValue();
+                totalData.put("total", total);
+            }
+        }
+
+        return PagingResultImpl.of(items, form.getStart(), form.getLimit(), totalData, total);
+    }
+
+    /**
+     * 格式化查询结果
+     */
+    private void formatItems(List items, JdbcModelQueryEngine queryEngine) {
         for (DbColumn column : queryEngine.getJdbcQuery().getSelect().getColumns()) {
-//            log.warn("1");
             if (column instanceof DbQueryColumn) {
                 ObjectTransFormatter<?> ff = ((DbQueryColumn) column).getValueFormatter();
                 if (ff != null) {
@@ -147,35 +255,29 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
                 }
             }
         }
+    }
 
-        /**
-         * 查询汇总数据
-         */
-        Map<String, Object> totalData = null;
-        int total = 0;
-        if (form.getParam().isReturnTotal()) {
-            // 记录 SQL 日志（汇总查询）
-            if (sqlLoggingInterceptor != null) {
-                sqlLoggingInterceptor.logSql(queryEngine.getAggSql(), queryEngine.getValues());
-            }
-
-            long aggStartTime = System.currentTimeMillis();
-
-            totalData = DataSourceQueryUtils.getDatasetTemplate(dataSource).queryMapObject1(queryEngine.getAggSql(), queryEngine.getValues());
-
-            // 记录执行时间（汇总查询）
-            if (sqlLoggingInterceptor != null) {
-                long aggDuration = System.currentTimeMillis() - aggStartTime;
-                sqlLoggingInterceptor.logExecutionTime(this.getName() + " (COUNT)", aggDuration);
-            }
-
-            Number it = (Number) totalData.get("total");
-            if (it != null) {
-                total = it.intValue();
-                totalData.put("total", total);
-            }
+    /**
+     * 查询汇总数据
+     */
+    private Map<String, Object> queryTotalData(JdbcModelQueryEngine queryEngine) {
+        // 记录 SQL 日志（汇总查询）
+        if (sqlLoggingInterceptor != null) {
+            sqlLoggingInterceptor.logSql(queryEngine.getAggSql(), queryEngine.getValues());
         }
-        return DbQueryResult.of(PagingResultImpl.of(items, form.getStart(), form.getLimit(), totalData, total), queryEngine);
+
+        long aggStartTime = System.currentTimeMillis();
+
+        Map<String, Object> totalData = DataSourceQueryUtils.getDatasetTemplate(dataSource)
+                .queryMapObject1(queryEngine.getAggSql(), queryEngine.getValues());
+
+        // 记录执行时间（汇总查询）
+        if (sqlLoggingInterceptor != null) {
+            long aggDuration = System.currentTimeMillis() - aggStartTime;
+            sqlLoggingInterceptor.logExecutionTime(this.getName() + " (COUNT)", aggDuration);
+        }
+
+        return totalData;
     }
 
 

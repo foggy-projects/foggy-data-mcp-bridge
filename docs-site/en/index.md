@@ -143,18 +143,18 @@ Then query data using natural language:
 
 | Module | Description | Docs |
 |--------|-------------|------|
-| **foggy-dataset-model** | Semantic layer engine - TM/QM modeling, DSL query execution | [Guide](/en/dataset/guide/introduction) |
-| **foggy-dataset** | Database abstraction - Multi-database dialect support | [Query Layer](/en/dataset/guide/introduction) |
+| **foggy-dataset-model** | Semantic layer engine - TM/QM modeling, DSL query execution | [Guide](/en/dataset-model/guide/introduction) |
+| **foggy-dataset** | Database abstraction - Multi-database dialect support | [Query Layer](/en/dataset-query/guide/introduction) |
 | **foggy-fsscript** | Script engine - JavaScript-like syntax for TM/QM files | [FSScript Guide](/en/fsscript/guide/introduction) |
 | **foggy-dataset-mcp** | MCP server - AI assistant integration | [MCP Service](/en/mcp/guide/introduction) |
 
 </div>
 
 ### 📘 TM/QM Modeling
-- [TM Syntax Manual](/en/dataset/tm-qm/tm-syntax) - Table model definition
-- [QM Syntax Manual](/en/dataset/tm-qm/qm-syntax) - Query model definition
-- [Query DSL API](/en/dataset/api/query-api) - JSON query reference
-- [Calculated Fields](/en/dataset/tm-qm/calculated-fields) - Derived metrics
+- [TM Syntax Manual](/en/dataset-model/tm-qm/tm-syntax) - Table model definition
+- [QM Syntax Manual](/en/dataset-model/tm-qm/qm-syntax) - Query model definition
+- [Query DSL API](/en/dataset-model/api/query-api) - JSON query reference
+- [Calculated Fields](/en/dataset-model/tm-qm/calculated-fields) - Derived metrics
 
 ### 📗 FSScript Engine
 - [Why FSScript](/en/fsscript/guide/why-fsscript) - Design philosophy

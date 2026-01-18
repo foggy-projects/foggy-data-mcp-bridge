@@ -53,10 +53,13 @@
         <module>addons/foggy-dataset-client</module>
         <module>addons/foggy-dataset-mongo</module>
         <module>addons/foggy-dataset-model-mongo</module>
+        <module>addons/foggy-dataset-model-cache</module>
         <module>addons/foggy-dataset-model-vector</module>
         <module>addons/foggy-data-viewer</module>
         <module>addons/foggy-chart-storage-cloud</module>
         <module>addons/foggy-dataset-vector</module>
+        <module>addons/foggy-dataset-graphql</module>
+        <module>addons/foggy-dataset-model-preagg</module>
 
         <!-- WIP: 基准测试模块，暂未完成 -->
 <!--        <module>foggy-benchmark-spider2</module>-->

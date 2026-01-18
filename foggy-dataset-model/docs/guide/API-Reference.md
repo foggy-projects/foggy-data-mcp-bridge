@@ -120,12 +120,32 @@ POST /jdbc-model/query-model/v2/{model}
 
 ### 4.1 基本格式
 
+**单条件：**
 ```json
 {
     "field": "字段名",
     "op": "操作符",
-    "value": "值",
-    "link": 1
+    "value": "值"
+}
+```
+
+**OR 条件组：**
+```json
+{
+    "$or": [
+        { "field": "field1", "op": "=", "value": "value1" },
+        { "field": "field2", "op": "=", "value": "value2" }
+    ]
+}
+```
+
+**AND 条件组：**
+```json
+{
+    "$and": [
+        { "field": "field1", "op": ">", "value": 100 },
+        { "field": "field2", "op": "<", "value": 1000 }
+    ]
 }
 ```
 
@@ -168,26 +188,27 @@ POST /jdbc-model/query-model/v2/{model}
 }
 ```
 
-### 4.4 逻辑连接 (link)
+### 4.4 逻辑组合 ($or / $and)
 
-| 值 | 说明 |
-|----|------|
-| `1` 或不填 | AND 连接 |
-| `2` | OR 连接 |
+`slice` 数组内的条件默认用 **AND** 连接。使用 `$or` 或 `$and` 操作符可以显式指定逻辑组合。
 
-### 4.5 复合条件 (children)
+| 操作符 | 说明 | 示例 |
+|--------|------|------|
+| `$or` | OR 逻辑组 | `{ "$or": [cond1, cond2] }` 任一条件满足即匹配 |
+| `$and` | AND 逻辑组 | `{ "$and": [cond1, cond2] }` 所有条件满足才匹配 |
 
-支持嵌套条件：
+### 4.5 示例
+
+**OR 条件示例：**
 
 ```json
 {
     "slice": [
         { "field": "orderStatus", "op": "=", "value": "COMPLETED" },
         {
-            "link": 2,
-            "children": [
+            "$or": [
                 { "field": "totalAmount", "op": ">=", "value": 1000 },
-                { "field": "customer$customerType", "op": "=", "value": "VIP", "link": 2 }
+                { "field": "customer$customerType", "op": "=", "value": "VIP" }
             ]
         }
     ]
