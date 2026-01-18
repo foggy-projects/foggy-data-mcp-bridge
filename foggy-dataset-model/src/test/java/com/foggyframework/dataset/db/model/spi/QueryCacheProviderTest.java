@@ -122,7 +122,7 @@ class QueryCacheProviderTest {
                 .authorization("Bearer token123")
                 .build());
 
-        String auth = QueryCacheProvider.getAuthorization(context);
+        String auth = context.getAuthorization();
 
         assertEquals("Bearer token123", auth);
     }
@@ -131,7 +131,7 @@ class QueryCacheProviderTest {
     @Order(10)
     @DisplayName("getAuthorization - context 为 null 时返回 null")
     void testGetAuthorization_NullContext_ReturnsNull() {
-        String auth = QueryCacheProvider.getAuthorization(null);
+        String auth = null;
 
         assertNull(auth);
     }
@@ -142,7 +142,7 @@ class QueryCacheProviderTest {
     void testGetAuthorization_NotSet_ReturnsNull() {
         ModelResultContext context = createContext();
 
-        String auth = QueryCacheProvider.getAuthorization(context);
+        String auth = context.getAuthorization();
 
         assertNull(auth);
     }

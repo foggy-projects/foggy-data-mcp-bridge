@@ -5,6 +5,7 @@ import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.engine.expression.InlineExpressionParser;
 import com.foggyframework.dataset.db.model.engine.query.JdbcQuery;
+import com.foggyframework.dataset.db.model.spi.QueryCacheProvider;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
 import com.foggyframework.dataset.db.model.spi.support.CalculatedDbColumn;
 import com.foggyframework.dataset.model.PagingResultImpl;
@@ -256,6 +257,14 @@ public class ModelResultContext {
         private boolean l2CacheHit;
 
         /**
+         * 缓存提供者（由 QueryFacade 注入）
+         * <p>
+         * 运行时注入的缓存实现，供 QueryModel 使用 L2 缓存。
+         * </p>
+         */
+        private QueryCacheProvider provider;
+
+        /**
          * 便捷方法：创建启用 L1 缓存的配置
          */
         public static QueryCacheConfig enableL1() {
@@ -299,5 +308,19 @@ public class ModelResultContext {
         this.request = request;
         this.pagingResult = pagingResult;
         this.securityContext = securityContext;
+    }
+
+    /**
+     * 获取授权令牌
+     *
+     * @return 授权令牌，或 null
+     */
+    public String getAuthorization() {
+
+        // 从 SecurityContext 获取
+        if (securityContext != null && securityContext.getAuthorization() != null) {
+            return securityContext.getAuthorization();
+        }
+        return null;
     }
 }

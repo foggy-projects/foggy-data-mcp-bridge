@@ -241,14 +241,10 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
      * 从上下文获取缓存提供者
      */
     private QueryCacheProvider getQueryCacheProvider(ModelResultContext context) {
-        if (context == null || context.getExtData() == null) {
+        if (context == null || context.getCacheConfig() == null) {
             return null;
         }
-        Object provider = context.getExtData().get("queryCacheProvider");
-        if (provider instanceof QueryCacheProvider) {
-            return (QueryCacheProvider) provider;
-        }
-        return null;
+        return context.getCacheConfig().getProvider();
     }
 
     /**

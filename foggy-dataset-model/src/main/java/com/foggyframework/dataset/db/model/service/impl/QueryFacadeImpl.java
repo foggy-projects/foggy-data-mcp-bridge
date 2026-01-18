@@ -123,8 +123,11 @@ public class QueryFacadeImpl implements QueryFacade {
         // 1.1 提前设置 jdbcQueryModel，供 beforeQuery Step 使用
         context.setJdbcQueryModel(jdbcQueryModel);
 
-        // 1.2 注入缓存提供者到上下文，供 QueryModel 使用 L2 缓存
-        context.getExtData().put("queryCacheProvider", queryCacheProvider);
+        // 1.2 初始化缓存配置并注入缓存提供者
+        if (context.getCacheConfig() == null) {
+            context.setCacheConfig(ModelResultContext.QueryCacheConfig.defaultConfig());
+        }
+        context.getCacheConfig().setProvider(queryCacheProvider);
 
         // 2. beforeQuery: 执行预处理 Step（AutoGroupBy、InlineExpression、Authorization 等）
         dataSetResultFilterManager.beforeQuery(context);
@@ -135,7 +138,7 @@ public class QueryFacadeImpl implements QueryFacade {
         }
 
         // 3. 【L1 缓存检查】Token 级别（需主动开启）
-        String authorization = QueryCacheProvider.getAuthorization(context);
+        String authorization = context.getAuthorization();
         boolean l1Enabled = QueryCacheProvider.isL1Enabled(context);
 
         if (l1Enabled && authorization != null) {
