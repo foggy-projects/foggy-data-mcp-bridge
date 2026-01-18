@@ -1,12 +1,10 @@
 package com.foggyframework.dataset.db.model.preagg;
 
-import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.engine.query.DbQueryResult;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
-import com.foggyframework.dataset.db.model.spi.JdbcQueryModel;
-import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
+import com.foggyframework.dataset.db.model.service.QueryFacade;
 import com.foggyframework.dataset.db.model.test.JdbcModelTestApplication;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -50,10 +48,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class PreAggregationDataValidationTest {
 
     @Resource
-    private SystemBundlesContext systemBundlesContext;
-
-    @Resource
-    private QueryModelLoader queryModelLoader;
+    private QueryFacade queryFacade;
 
     @Resource
     private DataSource dataSource;
@@ -226,7 +221,7 @@ class PreAggregationDataValidationTest {
 
     @Test
     @Order(10)
-    @DisplayName("故意修改预聚合数据后应检测到差异")
+    @DisplayName("故意修改预聚合数据后，通过QueryFacade检测到预聚合与原始表查询结果差异")
     void testDetectCorruptedPreAggData() {
         // 先备份原始数据
         List<Map<String, Object>> backup = jdbcTemplate.queryForList(
@@ -255,30 +250,64 @@ class PreAggregationDataValidationTest {
             log.info("已修改预聚合数据: date_key={}, product_key={}, 原值={}, 新值={}",
                     dateKey, productKey, originalAmount, corruptedAmount);
 
-            // 验证总金额现在不一致
-            Double originalTotal = jdbcTemplate.queryForObject(
-                    "SELECT SUM(sales_amount) FROM fact_sales",
-                    Double.class
-            );
+            // 构建查询请求（需要包含维度列才能匹配预聚合）
+            DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+            queryRequest.setQueryModel("FactSalesPreAggQueryModel");
+            queryRequest.setColumns(Arrays.asList("product$categoryName", "salesAmount"));
+            queryRequest.setReturnTotal(false);
 
-            Double preAggTotal = jdbcTemplate.queryForObject(
-                    "SELECT SUM(sales_amount_sum) FROM preagg_daily_product_sales",
-                    Double.class
-            );
+            PagingRequest<DbQueryRequestDef> pagingRequest = new PagingRequest<>();
+            pagingRequest.setParam(queryRequest);
+            pagingRequest.setStart(0);
+            pagingRequest.setLimit(1000);
 
-            BigDecimal origBd = BigDecimal.valueOf(originalTotal).setScale(2, RoundingMode.HALF_UP);
-            BigDecimal preAggBd = BigDecimal.valueOf(preAggTotal).setScale(2, RoundingMode.HALF_UP);
+            // 使用 QueryFacade 执行查询（启用预聚合）
+            ModelResultContext contextWithPreAgg = new ModelResultContext(pagingRequest, null);
+            contextWithPreAgg.setCacheConfig(ModelResultContext.QueryCacheConfig.builder()
+                    .l1Enabled(false)
+                    .l2Enabled(false)
+                    .preAggEnabled(true)
+                    .build());
 
-            // 预期：数据应该不一致
-            assertNotEquals(origBd, preAggBd,
-                    "修改预聚合数据后，总金额应该不一致（测试验证错误检测能力）");
+            DbQueryResult resultWithPreAgg = queryFacade.queryModelResult(contextWithPreAgg);
 
-            BigDecimal diff = preAggBd.subtract(origBd).abs();
+            // 使用 QueryFacade 执行查询（禁用预聚合）
+            ModelResultContext contextNoPreAgg = new ModelResultContext(pagingRequest, null);
+            contextNoPreAgg.setCacheConfig(ModelResultContext.QueryCacheConfig.builder()
+                    .l1Enabled(false)
+                    .l2Enabled(false)
+                    .preAggEnabled(false)
+                    .build());
+
+            DbQueryResult resultNoPreAgg = queryFacade.queryModelResult(contextNoPreAgg);
+
+            // 计算两次查询的 salesAmount 总额
+            List<?> itemsWithPreAgg = resultWithPreAgg.getPagingResult().getItems();
+            List<?> itemsNoPreAgg = resultNoPreAgg.getPagingResult().getItems();
+
+            BigDecimal totalWithPreAgg = calculateTotal(itemsWithPreAgg, "salesAmount");
+            BigDecimal totalNoPreAgg = calculateTotal(itemsNoPreAgg, "salesAmount");
+
+            log.info("QueryFacade 查询结果: 预聚合查询总额={}, 原始表查询总额={}",
+                    totalWithPreAgg, totalNoPreAgg);
+
+            // 预期：数据应该不一致（因为我们修改了预聚合表数据）
+            assertNotEquals(totalNoPreAgg, totalWithPreAgg,
+                    "修改预聚合数据后，预聚合查询与原始表查询结果应该不一致（测试验证错误检测能力）");
+
+            // 验证差异正好是 1000
+            BigDecimal diff = totalWithPreAgg.subtract(totalNoPreAgg).abs();
             assertEquals(new BigDecimal("1000.00"), diff,
                     "差异应该正好是 1000.00");
 
-            log.info("错误检测验证通过: 原始表={}, 预聚合表={}, 差异={}",
-                    origBd, preAggBd, diff);
+            // 验证预聚合确实被使用了
+            assertTrue(contextWithPreAgg.getCacheConfig().isPreAggHit(),
+                    "preAggEnabled=true 时应该使用预聚合");
+            assertFalse(contextNoPreAgg.getCacheConfig().isPreAggHit(),
+                    "preAggEnabled=false 时不应使用预聚合");
+
+            log.info("QueryFacade 错误检测验证通过: 预聚合查询={}, 原始查询={}, 差异={}",
+                    totalWithPreAgg, totalNoPreAgg, diff);
 
         } finally {
             // 恢复原始数据
@@ -320,10 +349,8 @@ class PreAggregationDataValidationTest {
 
     @Test
     @Order(20)
-    @DisplayName("验证 preAggEnabled 开关正常工作")
+    @DisplayName("验证 preAggEnabled 开关正常工作（通过 QueryFacade）")
     void testPreAggEnabledSwitch() {
-        JdbcQueryModel queryModel = getQueryModel("FactSalesPreAggQueryModel");
-
         // 构建查询请求
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesPreAggQueryModel");
@@ -335,7 +362,7 @@ class PreAggregationDataValidationTest {
         pagingRequest.setStart(0);
         pagingRequest.setLimit(100);
 
-        // 测试1: preAggEnabled = true
+        // 测试1: preAggEnabled = true（通过 QueryFacade）
         ModelResultContext contextWithPreAgg = new ModelResultContext(pagingRequest, null);
         contextWithPreAgg.setCacheConfig(ModelResultContext.QueryCacheConfig.builder()
                 .l1Enabled(false)
@@ -343,7 +370,7 @@ class PreAggregationDataValidationTest {
                 .preAggEnabled(true)
                 .build());
 
-        DbQueryResult resultWithPreAgg = queryModel.query(systemBundlesContext, contextWithPreAgg);
+        DbQueryResult resultWithPreAgg = queryFacade.queryModelResult(contextWithPreAgg);
 
         // 检查是否使用了预聚合
         ModelResultContext.QueryCacheConfig cacheConfigAfter = contextWithPreAgg.getCacheConfig();
@@ -351,7 +378,7 @@ class PreAggregationDataValidationTest {
                 cacheConfigAfter.isPreAggHit(),
                 cacheConfigAfter.getPreAggName());
 
-        // 测试2: preAggEnabled = false
+        // 测试2: preAggEnabled = false（通过 QueryFacade）
         ModelResultContext contextNoPreAgg = new ModelResultContext(pagingRequest, null);
         contextNoPreAgg.setCacheConfig(ModelResultContext.QueryCacheConfig.builder()
                 .l1Enabled(false)
@@ -359,7 +386,7 @@ class PreAggregationDataValidationTest {
                 .preAggEnabled(false)
                 .build());
 
-        DbQueryResult resultNoPreAgg = queryModel.query(systemBundlesContext, contextNoPreAgg);
+        DbQueryResult resultNoPreAgg = queryFacade.queryModelResult(contextNoPreAgg);
 
         // 检查未使用预聚合
         ModelResultContext.QueryCacheConfig cacheConfigNoPreAgg = contextNoPreAgg.getCacheConfig();
@@ -396,13 +423,11 @@ class PreAggregationDataValidationTest {
     // ==========================================
 
     /**
-     * 执行对比查询
+     * 执行对比查询（使用 QueryFacade）
      */
     private ComparisonResult executeComparisonQuery(String queryModelName,
                                                      List<String> columns,
                                                      List<?> slices) {
-        JdbcQueryModel queryModel = getQueryModel(queryModelName);
-
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel(queryModelName);
         queryRequest.setColumns(columns);
@@ -413,7 +438,7 @@ class PreAggregationDataValidationTest {
         pagingRequest.setStart(0);
         pagingRequest.setLimit(1000);
 
-        // 查询1: 使用预聚合
+        // 查询1: 使用预聚合（通过 QueryFacade）
         ModelResultContext contextPreAgg = new ModelResultContext(pagingRequest, null);
         contextPreAgg.setCacheConfig(ModelResultContext.QueryCacheConfig.builder()
                 .l1Enabled(false)
@@ -421,9 +446,9 @@ class PreAggregationDataValidationTest {
                 .preAggEnabled(true)
                 .build());
 
-        DbQueryResult resultPreAgg = queryModel.query(systemBundlesContext, contextPreAgg);
+        DbQueryResult resultPreAgg = queryFacade.queryModelResult(contextPreAgg);
 
-        // 查询2: 不使用预聚合
+        // 查询2: 不使用预聚合（通过 QueryFacade）
         ModelResultContext contextNoPreAgg = new ModelResultContext(pagingRequest, null);
         contextNoPreAgg.setCacheConfig(ModelResultContext.QueryCacheConfig.builder()
                 .l1Enabled(false)
@@ -431,7 +456,7 @@ class PreAggregationDataValidationTest {
                 .preAggEnabled(false)
                 .build());
 
-        DbQueryResult resultNoPreAgg = queryModel.query(systemBundlesContext, contextNoPreAgg);
+        DbQueryResult resultNoPreAgg = queryFacade.queryModelResult(contextNoPreAgg);
 
         return new ComparisonResult(
                 resultPreAgg,
@@ -527,12 +552,6 @@ class PreAggregationDataValidationTest {
                     .setScale(2, RoundingMode.HALF_UP);
         }
         return BigDecimal.ZERO;
-    }
-
-    private JdbcQueryModel getQueryModel(String queryModelName) {
-        JdbcQueryModel model = (JdbcQueryModel) queryModelLoader.getJdbcQueryModel(queryModelName);
-        assertNotNull(model, "查询模型 " + queryModelName + " 加载失败");
-        return model;
     }
 
     /**
