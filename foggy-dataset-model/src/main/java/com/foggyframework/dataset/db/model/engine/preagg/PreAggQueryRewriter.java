@@ -82,11 +82,14 @@ public class PreAggQueryRewriter {
                 return PreAggRewriteResult.hybrid(preAgg, sql, params, needsRollup, watermark);
             } else {
                 // 单表模式：仅预聚合表
-                sql = buildPreAggSql(preAgg, jdbcQuery, queryRequest, needsRollup);
-                params = queryEngine.getValues();
+                PreAggSqlBuildResult sqlBuildResult = buildPreAggSql(preAgg, jdbcQuery, queryRequest, needsRollup);
+                sql = sqlBuildResult.getSql();
+                // 只有当 WHERE 条件被成功传递时才使用原始参数
+                params = sqlBuildResult.isWhereIncluded() ? queryEngine.getValues() : new ArrayList<>();
 
                 if (log.isInfoEnabled()) {
-                    log.info("Rewrote query to use pre-aggregation '{}', needsRollup={}", preAgg.getName(), needsRollup);
+                    log.info("Rewrote query to use pre-aggregation '{}', needsRollup={}, whereIncluded={}",
+                            preAgg.getName(), needsRollup, sqlBuildResult.isWhereIncluded());
                 }
 
                 if (log.isDebugEnabled()) {
@@ -288,9 +291,19 @@ public class PreAggQueryRewriter {
     // ==================== 单表模式方法（原有实现） ====================
 
     /**
+     * 预聚合 SQL 构建结果
+     */
+    @lombok.Data
+    @lombok.AllArgsConstructor
+    private static class PreAggSqlBuildResult {
+        private String sql;
+        private boolean whereIncluded;
+    }
+
+    /**
      * 构建使用预聚合表的 SQL
      */
-    private String buildPreAggSql(PreAggregation preAgg, JdbcQuery jdbcQuery,
+    private PreAggSqlBuildResult buildPreAggSql(PreAggregation preAgg, JdbcQuery jdbcQuery,
                                    DbQueryRequestDef queryRequest, boolean needsRollup) {
         StringBuilder sql = new StringBuilder();
         String preAggTableName = getFullTableName(preAgg);
@@ -306,7 +319,8 @@ public class PreAggQueryRewriter {
 
         // WHERE 子句（从原始查询中提取适用的条件）
         String whereClause = buildWhereClause(preAgg, jdbcQuery, alias);
-        if (whereClause != null && !whereClause.isEmpty()) {
+        boolean whereIncluded = (whereClause != null && !whereClause.isEmpty());
+        if (whereIncluded) {
             sql.append(" WHERE ").append(whereClause);
         }
 
@@ -324,7 +338,7 @@ public class PreAggQueryRewriter {
             sql.append(" ORDER BY ").append(orderByClause);
         }
 
-        return sql.toString();
+        return new PreAggSqlBuildResult(sql.toString(), whereIncluded);
     }
 
     /**

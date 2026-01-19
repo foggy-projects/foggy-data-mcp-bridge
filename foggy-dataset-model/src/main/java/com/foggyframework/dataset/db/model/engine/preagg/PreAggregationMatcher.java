@@ -73,6 +73,11 @@ public class PreAggregationMatcher {
             return PreAggregationMatchResult.noMatch("Query has no GROUP BY, pre-aggregation not applicable");
         }
 
+        // 暂不支持带 WHERE 条件的查询使用预聚合（WHERE 条件透传功能待实现）
+        if (requirement.isHasWhereConditions()) {
+            return PreAggregationMatchResult.noMatch("Query has WHERE conditions, pre-aggregation WHERE passthrough not yet implemented");
+        }
+
         // 过滤满足条件的预聚合并计算分数
         List<Candidate> candidates = new ArrayList<>();
         for (PreAggregation preAgg : preAggregations) {

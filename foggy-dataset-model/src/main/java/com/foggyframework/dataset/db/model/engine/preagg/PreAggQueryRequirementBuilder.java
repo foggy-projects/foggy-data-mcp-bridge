@@ -64,9 +64,22 @@ public class PreAggQueryRequirementBuilder {
                 && !requirement.getMeasureAggregations().isEmpty();
         requirement.setHasGroupBy(hasExplicitGroupBy || hasImplicitGroupBy);
 
+        // 判断是否有 WHERE 条件
+        // 包括：slices、自定义 WHERE 片段等
+        boolean hasWhereConditions = false;
+        // 检查 slices
+        if (queryRequest.getSlice() != null && !queryRequest.getSlice().isEmpty()) {
+            hasWhereConditions = true;
+        }
+        // 检查 JdbcQuery 中的 WHERE 条件
+        if (jdbcQuery.getWhere() != null && !jdbcQuery.getWhere().isEmpty()) {
+            hasWhereConditions = true;
+        }
+        requirement.setHasWhereConditions(hasWhereConditions);
+
         if (log.isDebugEnabled()) {
-            log.debug("Built query requirement: {} (explicitGroupBy={}, implicitGroupBy={})",
-                    requirement, hasExplicitGroupBy, hasImplicitGroupBy);
+            log.debug("Built query requirement: {} (explicitGroupBy={}, implicitGroupBy={}, hasWhereConditions={})",
+                    requirement, hasExplicitGroupBy, hasImplicitGroupBy, hasWhereConditions);
         }
 
         return requirement;

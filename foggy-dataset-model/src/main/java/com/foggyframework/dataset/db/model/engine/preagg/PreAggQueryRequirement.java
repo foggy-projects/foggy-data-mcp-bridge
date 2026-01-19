@@ -45,6 +45,15 @@ public class PreAggQueryRequirement {
     private boolean hasGroupBy;
 
     /**
+     * 是否有 WHERE 条件（用于判断是否可以使用预聚合）
+     * <p>
+     * 当查询包含 WHERE 条件时，需要检查预聚合是否支持这些条件。
+     * 如果预聚合不支持 WHERE 条件透传，则不应使用预聚合。
+     * </p>
+     */
+    private boolean hasWhereConditions;
+
+    /**
      * 添加维度
      */
     public void addDimension(String dimensionName) {
@@ -290,6 +299,7 @@ public class PreAggQueryRequirement {
                 ", measures=" + measureAggregations.keySet() +
                 ", granularities=" + queryGranularities +
                 ", hasGroupBy=" + hasGroupBy +
+                ", hasWhereConditions=" + hasWhereConditions +
                 '}';
     }
 }
