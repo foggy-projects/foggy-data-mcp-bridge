@@ -549,10 +549,16 @@ public class PreAggQueryRewriter {
      * 将字段名映射到预聚合表的列名
      *
      * @param preAgg 预聚合
-     * @param field  字段名（如 product$categoryName）
+     * @param field  字段名（如 product$categoryName 或 salesDate$caption）
      * @return 预聚合表的列名
      */
     private String mapFieldToPreAggColumn(PreAggregation preAgg, String field) {
+        // 首先检查预聚合的列名映射
+        Map<String, String> columnNames = preAgg.getDimensionPropertyColumnNames();
+        if (columnNames != null && columnNames.containsKey(field)) {
+            return columnNames.get(field);
+        }
+
         int dollarIndex = field.indexOf('$');
         if (dollarIndex <= 0) {
             // 没有 $，可能是维度主键或度量
@@ -567,14 +573,37 @@ public class PreAggQueryRewriter {
             return null;
         }
 
-        // 对于 caption 和 id，直接映射
-        if ("caption".equals(propName) || "id".equals(propName)) {
-            // 使用维度的主键或显示列
-            // 简化处理：直接返回属性名（通常是 dimName 或 date_key 等）
-            return dimName;
+        // 对于 caption 和 id，使用列名映射（如果有）或命名约定
+        if ("caption".equals(propName)) {
+            // 尝试从映射获取，如果没有则使用命名约定
+            String mappedKey = dimName + "$caption";
+            if (columnNames != null && columnNames.containsKey(mappedKey)) {
+                return columnNames.get(mappedKey);
+            }
+            // 命名约定：日期维度用 full_date，其他用 <dimName>_name
+            String snakeCaseDimName = normalizePropertyName(dimName);
+            if (snakeCaseDimName.contains("date") || snakeCaseDimName.contains("time")
+                    || snakeCaseDimName.contains("day")) {
+                return "full_date";
+            }
+            return snakeCaseDimName + "_name";
         }
 
-        // 将 camelCase 转换为 snake_case
+        if ("id".equals(propName)) {
+            String mappedKey = dimName + "$id";
+            if (columnNames != null && columnNames.containsKey(mappedKey)) {
+                return columnNames.get(mappedKey);
+            }
+            // 命名约定：日期维度用 date_key，其他用 <dimName>_key
+            String snakeCaseDimName = normalizePropertyName(dimName);
+            if (snakeCaseDimName.contains("date") || snakeCaseDimName.contains("time")
+                    || snakeCaseDimName.contains("day")) {
+                return "date_key";
+            }
+            return snakeCaseDimName + "_key";
+        }
+
+        // 其他属性：将 camelCase 转换为 snake_case
         return normalizePropertyName(propName);
     }
 

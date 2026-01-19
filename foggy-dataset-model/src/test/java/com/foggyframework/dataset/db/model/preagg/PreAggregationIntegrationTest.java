@@ -574,7 +574,7 @@ class PreAggregationIntegrationTest {
 
     @Test
     @Order(50)
-    @DisplayName("带过滤条件的查询暂不使用预聚合（WHERE透传功能待实现）")
+    @DisplayName("带过滤条件的查询应使用预聚合（WHERE透传已实现）")
     void testPreAggQueryWithFilters() {
         JdbcQueryModel queryModel = getQueryModel("FactSalesPreAggQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
@@ -601,11 +601,19 @@ class PreAggregationIntegrationTest {
         PreAggregationInterceptor interceptor = new PreAggregationInterceptor(applicationContext);
         PreAggRewriteResult result = interceptor.tryRewrite(queryEngine, queryModel, queryRequest);
 
-        // 当前行为：带 WHERE 条件的查询暂不使用预聚合（避免数据不一致）
-        // TODO: 实现 WHERE 透传后，此测试应改为 assertTrue(result.isApplied())
-        assertFalse(result.isApplied(), "带过滤条件的查询暂不使用预聚合（WHERE透传待实现）");
+        // 验证：带 slice 条件的查询应使用预聚合
+        assertTrue(result.isApplied(), "带slice过滤条件的查询应使用预聚合");
+        assertNotNull(result.getPreAggregation(), "应匹配预聚合");
+        assertEquals("daily_product_sales", result.getPreAggregation().getName(),
+                "应匹配daily_product_sales预聚合");
 
-        log.info("带过滤条件查询未匹配，applied={}", result.isApplied());
+        // 验证 SQL 包含 WHERE 条件
+        assertNotNull(result.getSql(), "SQL不应为空");
+        assertTrue(result.getSql().contains("preagg_daily_product_sales"), "SQL应查询预聚合表");
+        assertTrue(result.getSql().toUpperCase().contains("WHERE"), "SQL应包含WHERE子句");
+
+        log.info("带slice过滤条件查询匹配成功: preAgg={}, SQL={}",
+                result.getPreAggregation().getName(), result.getSql());
     }
 
     // ==========================================

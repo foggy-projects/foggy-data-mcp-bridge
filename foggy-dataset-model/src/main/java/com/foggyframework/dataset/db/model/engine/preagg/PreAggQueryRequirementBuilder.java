@@ -77,10 +77,18 @@ public class PreAggQueryRequirementBuilder {
             extractSliceColumns(queryRequest.getSlice(), requirement);
         }
 
-        // 检查 JdbcQuery 中的 WHERE 条件（自定义 SQL，无法透传）
+        // 检查 JdbcQuery 中的 WHERE 条件
+        // 注意：jdbcQuery.getWhere() 在 analysisQueryRequest() 之后会包含 slice 生成的条件
+        // 因此我们需要检查原始 WHERE（来自 QM 文件的 query().andSql() 等）
+        // 暂时通过 queryRequest.getCustomWhere() 或类似机制检测，目前仅当有非 slice 条件时标记
         if (jdbcQuery.getWhere() != null && !jdbcQuery.getWhere().isEmpty()) {
-            hasWhereConditions = true;
-            hasCustomSqlConditions = true; // 自定义 SQL 条件
+            // 如果有 WHERE 但没有 slice，说明是自定义 SQL
+            // 如果有 WHERE 且有 slice，需要检查 WHERE 是否完全来自 slice
+            boolean whereOnlyFromSlices = (queryRequest.getSlice() != null && !queryRequest.getSlice().isEmpty());
+            if (!whereOnlyFromSlices) {
+                hasWhereConditions = true;
+                hasCustomSqlConditions = true; // 自定义 SQL 条件
+            }
         }
 
         requirement.setHasWhereConditions(hasWhereConditions);

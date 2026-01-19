@@ -108,6 +108,21 @@ public class PreAggregationDef {
     private Map<String, List<String>> dimensionProperties;
 
     /**
+     * 维度属性在预聚合表中的列名映射（可选）
+     * <p>
+     * 如果不配置，系统将使用命名约定推断列名：
+     * <ul>
+     *   <li>caption: 时间维度用 full_date，其他维度用 dimName_name</li>
+     *   <li>id: 用 dimName_key</li>
+     *   <li>其他属性: 用 snake_case 转换</li>
+     * </ul>
+     * 配置格式: { dimName: { propName: columnName } }
+     * 例如: { product: { caption: 'product_name', categoryName: 'category_name' } }
+     * </p>
+     */
+    private Map<String, Map<String, String>> dimensionPropertyColumnNames;
+
+    /**
      * 包含的度量定义列表
      */
     private List<PreAggMeasureDef> measures;
