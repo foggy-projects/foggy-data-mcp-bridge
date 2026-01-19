@@ -73,10 +73,12 @@ public class PreAggregationMatcher {
             return PreAggregationMatchResult.noMatch("Query has no GROUP BY, pre-aggregation not applicable");
         }
 
-        // 暂不支持带 WHERE 条件的查询使用预聚合（WHERE 条件透传功能待实现）
-        if (requirement.isHasWhereConditions()) {
-            return PreAggregationMatchResult.noMatch("Query has WHERE conditions, pre-aggregation WHERE passthrough not yet implemented");
+        // 有自定义 SQL 条件（query.andSql() 等）时不使用预聚合，因为无法解析
+        if (requirement.isHasCustomSqlConditions()) {
+            return PreAggregationMatchResult.noMatch("Query has custom SQL conditions, pre-aggregation not supported");
         }
+
+        // 注意：有 slice 条件时可以继续匹配，isSatisfiableBy() 会检查 slice 列是否在预聚合中
 
         // 过滤满足条件的预聚合并计算分数
         List<Candidate> candidates = new ArrayList<>();

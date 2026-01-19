@@ -1,6 +1,8 @@
 package com.foggyframework.dataset.db.model.engine.preagg;
 
+import com.foggyframework.dataset.db.model.def.query.request.CondRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
+import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.db.model.engine.query.JdbcQuery;
 import com.foggyframework.dataset.db.model.spi.*;
 import com.foggyframework.dataset.db.model.spi.preagg.TimeGranularity;
@@ -65,24 +67,72 @@ public class PreAggQueryRequirementBuilder {
         requirement.setHasGroupBy(hasExplicitGroupBy || hasImplicitGroupBy);
 
         // 判断是否有 WHERE 条件
-        // 包括：slices、自定义 WHERE 片段等
         boolean hasWhereConditions = false;
-        // 检查 slices
+        boolean hasCustomSqlConditions = false;
+
+        // 检查 slices（结构化条件，可以透传到预聚合）
         if (queryRequest.getSlice() != null && !queryRequest.getSlice().isEmpty()) {
             hasWhereConditions = true;
+            // 提取 slice 涉及的列
+            extractSliceColumns(queryRequest.getSlice(), requirement);
         }
-        // 检查 JdbcQuery 中的 WHERE 条件
+
+        // 检查 JdbcQuery 中的 WHERE 条件（自定义 SQL，无法透传）
         if (jdbcQuery.getWhere() != null && !jdbcQuery.getWhere().isEmpty()) {
             hasWhereConditions = true;
+            hasCustomSqlConditions = true; // 自定义 SQL 条件
         }
+
         requirement.setHasWhereConditions(hasWhereConditions);
+        requirement.setHasCustomSqlConditions(hasCustomSqlConditions);
 
         if (log.isDebugEnabled()) {
-            log.debug("Built query requirement: {} (explicitGroupBy={}, implicitGroupBy={}, hasWhereConditions={})",
-                    requirement, hasExplicitGroupBy, hasImplicitGroupBy, hasWhereConditions);
+            log.debug("Built query requirement: {} (explicitGroupBy={}, implicitGroupBy={}, hasWhereConditions={}, hasCustomSqlConditions={})",
+                    requirement, hasExplicitGroupBy, hasImplicitGroupBy, hasWhereConditions, hasCustomSqlConditions);
         }
 
         return requirement;
+    }
+
+    /**
+     * 从 Slice 列表中提取涉及的列
+     *
+     * @param slices      Slice 条件列表
+     * @param requirement 查询需求
+     */
+    private void extractSliceColumns(List<SliceRequestDef> slices, PreAggQueryRequirement requirement) {
+        for (SliceRequestDef slice : slices) {
+            extractSliceColumn(slice, requirement);
+        }
+    }
+
+    /**
+     * 从单个 Slice 中提取涉及的列（递归处理 $or/$and 组合）
+     */
+    private void extractSliceColumn(CondRequestDef cond, PreAggQueryRequirement requirement) {
+        if (cond == null) {
+            return;
+        }
+
+        // 处理逻辑组合条件
+        if (cond._isLogicalGroup()) {
+            List<CondRequestDef> children = cond._getGroupChildren();
+            if (children != null) {
+                for (CondRequestDef child : children) {
+                    extractSliceColumn(child, requirement);
+                }
+            }
+            return;
+        }
+
+        // 处理简单条件
+        String field = cond.getField();
+        if (field != null && !field.isEmpty()) {
+            requirement.addSliceColumn(field);
+            if (log.isDebugEnabled()) {
+                log.debug("Extracted slice column: {}", field);
+            }
+        }
     }
 
     /**
