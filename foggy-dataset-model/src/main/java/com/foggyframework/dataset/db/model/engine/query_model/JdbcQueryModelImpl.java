@@ -225,7 +225,7 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
         Map<String, Object> totalData = null;
         int total = 0;
         if (form.getParam().isReturnTotal()) {
-            totalData = queryTotalData(queryEngine);
+            totalData = queryTotalData(execCtx, queryEngine);
             Number it = (Number) totalData.get("total");
             if (it != null) {
                 total = it.intValue();
@@ -259,22 +259,45 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
 
     /**
      * 查询汇总数据
+     * <p>
+     * 优先使用预聚合表查询（如果可用），否则使用原始查询。
+     * </p>
      */
-    private Map<String, Object> queryTotalData(JdbcModelQueryEngine queryEngine) {
+    private Map<String, Object> queryTotalData(QueryExecutionContext execCtx,
+                                                JdbcModelQueryEngine queryEngine) {
+        // 检查是否有预聚合聚合 SQL（用于明细查询 + returnTotal 场景）
+        String aggSql;
+        List<Object> aggParams;
+        boolean usingPreAgg = false;
+
+        if (execCtx.getPreAggAggregateSql() != null) {
+            // 使用预聚合表查询
+            aggSql = execCtx.getPreAggAggregateSql();
+            aggParams = execCtx.getPreAggAggregateParams();
+            usingPreAgg = true;
+            log.info("Using pre-aggregation '{}' for aggregate query (returnTotal)",
+                    execCtx.getPreAggAggregatePreAggName());
+        } else {
+            // 使用原始查询
+            aggSql = queryEngine.getAggSql();
+            aggParams = queryEngine.getValues();
+        }
+
         // 记录 SQL 日志（汇总查询）
         if (sqlLoggingInterceptor != null) {
-            sqlLoggingInterceptor.logSql(queryEngine.getAggSql(), queryEngine.getValues());
+            sqlLoggingInterceptor.logSql(aggSql, aggParams);
         }
 
         long aggStartTime = System.currentTimeMillis();
 
         Map<String, Object> totalData = DataSourceQueryUtils.getDatasetTemplate(dataSource)
-                .queryMapObject1(queryEngine.getAggSql(), queryEngine.getValues());
+                .queryMapObject1(aggSql, aggParams);
 
         // 记录执行时间（汇总查询）
         if (sqlLoggingInterceptor != null) {
             long aggDuration = System.currentTimeMillis() - aggStartTime;
-            sqlLoggingInterceptor.logExecutionTime(this.getName() + " (COUNT)", aggDuration);
+            String suffix = usingPreAgg ? " (COUNT/PreAgg)" : " (COUNT)";
+            sqlLoggingInterceptor.logExecutionTime(this.getName() + suffix, aggDuration);
         }
 
         return totalData;

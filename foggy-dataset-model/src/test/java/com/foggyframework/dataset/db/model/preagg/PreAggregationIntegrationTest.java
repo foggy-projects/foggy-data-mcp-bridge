@@ -617,6 +617,143 @@ class PreAggregationIntegrationTest {
     }
 
     // ==========================================
+    // 聚合查询预聚合优化测试（returnTotal场景）
+    // ==========================================
+
+    @Test
+    @Order(60)
+    @DisplayName("包含不支持维度的查询 + returnTotal 时，主查询不使用预聚合但聚合查询可以使用")
+    void testAggregatePreAggForQueryWithUnsupportedDimension() {
+        JdbcQueryModel queryModel = getQueryModel("FactSalesPreAggQueryModel");
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        // 查询包含门店维度（预聚合不支持），但度量是预聚合支持的
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("FactSalesPreAggQueryModel");
+        queryRequest.setColumns(Arrays.asList(
+                "store$caption",       // 门店名称 - 不在任何预聚合中
+                "store$storeType",     // 门店类型
+                "salesAmount"          // 金额 - 在预聚合中
+        ));
+        queryRequest.setReturnTotal(true);  // 需要返回总数
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+
+        PreAggregationInterceptor interceptor = new PreAggregationInterceptor(applicationContext);
+
+        // 主查询不应匹配预聚合（包含门店维度，无预聚合支持）
+        PreAggRewriteResult mainResult = interceptor.tryRewrite(queryEngine, queryModel, queryRequest);
+        assertFalse(mainResult.isApplied(),
+                "包含门店维度的查询不应匹配主查询预聚合（无预聚合支持门店维度）");
+
+        // 聚合查询应能使用预聚合（只需要 COUNT 和 SUM(salesAmount)，不需要门店维度）
+        PreAggQueryRewriter.PreAggAggregateSqlResult aggResult =
+                interceptor.tryBuildAggregateSql(queryEngine, queryModel, queryRequest);
+
+        assertNotNull(aggResult, "包含不支持维度的查询，其聚合部分仍应能使用预聚合");
+        assertNotNull(aggResult.getSql(), "聚合SQL不应为空");
+        assertNotNull(aggResult.getPreAggName(), "预聚合名称不应为空");
+
+        // 验证SQL使用预聚合表
+        assertTrue(aggResult.getSql().contains("preagg_"),
+                "聚合SQL应查询预聚合表");
+        assertTrue(aggResult.getSql().toUpperCase().contains("COUNT"),
+                "聚合SQL应包含COUNT");
+
+        log.info("包含不支持维度的查询+returnTotal场景: 主查询不使用预聚合, 聚合查询使用预聚合={}",
+                aggResult.getPreAggName());
+        log.info("聚合SQL: {}", aggResult.getSql());
+    }
+
+    @Test
+    @Order(61)
+    @DisplayName("包含不支持维度的查询 + slice条件 + returnTotal 时聚合查询应使用预聚合并包含WHERE")
+    void testAggregatePreAggForQueryWithSliceAndUnsupportedDimension() {
+        JdbcQueryModel queryModel = getQueryModel("FactSalesPreAggQueryModel");
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        // 查询包含门店维度（预聚合不支持）
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("FactSalesPreAggQueryModel");
+        queryRequest.setColumns(Arrays.asList(
+                "store$caption",       // 门店 - 不在预聚合中
+                "salesDate$caption",   // 日期
+                "salesAmount"
+        ));
+        queryRequest.setReturnTotal(true);
+
+        // 添加日期过滤条件（日期在预聚合中）
+        List<SliceRequestDef> slices = new ArrayList<>();
+        SliceRequestDef dateSlice = new SliceRequestDef();
+        dateSlice.setField("salesDate$caption");
+        dateSlice.setOp("[)");
+        dateSlice.setValue(Arrays.asList("2024-01-01", "2024-03-31"));
+        slices.add(dateSlice);
+        queryRequest.setSlice(slices);
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+
+        PreAggregationInterceptor interceptor = new PreAggregationInterceptor(applicationContext);
+
+        // 主查询不应匹配（包含门店维度）
+        PreAggRewriteResult mainResult = interceptor.tryRewrite(queryEngine, queryModel, queryRequest);
+        assertFalse(mainResult.isApplied(), "包含门店维度的查询不应匹配主查询预聚合");
+
+        // 聚合查询应能使用预聚合，并包含WHERE条件
+        PreAggQueryRewriter.PreAggAggregateSqlResult aggResult =
+                interceptor.tryBuildAggregateSql(queryEngine, queryModel, queryRequest);
+
+        assertNotNull(aggResult, "带slice的查询聚合部分应能使用预聚合");
+        assertNotNull(aggResult.getSql());
+
+        // 验证SQL包含WHERE条件
+        assertTrue(aggResult.getSql().toUpperCase().contains("WHERE"),
+                "聚合SQL应包含WHERE子句（透传slice条件）");
+        assertTrue(aggResult.getSql().contains("preagg_"),
+                "聚合SQL应查询预聚合表");
+
+        log.info("带slice的门店查询+returnTotal: 主查询不使用预聚合, 聚合查询使用预聚合={}, SQL={}",
+                aggResult.getPreAggName(), aggResult.getSql());
+    }
+
+    @Test
+    @Order(62)
+    @DisplayName("分组查询 + returnTotal 时主查询和聚合查询都使用预聚合")
+    void testBothMainAndAggregateUsePreAgg() {
+        JdbcQueryModel queryModel = getQueryModel("FactSalesPreAggQueryModel");
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        // 分组查询：有 GROUP BY
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("FactSalesPreAggQueryModel");
+        queryRequest.setColumns(Arrays.asList(
+                "salesDate$caption",
+                "product$caption",
+                "salesAmount"
+        ));
+        queryRequest.setReturnTotal(true);
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+
+        PreAggregationInterceptor interceptor = new PreAggregationInterceptor(applicationContext);
+
+        // 主查询应匹配预聚合
+        PreAggRewriteResult mainResult = interceptor.tryRewrite(queryEngine, queryModel, queryRequest);
+        assertTrue(mainResult.isApplied(), "分组查询应匹配主查询预聚合");
+        assertEquals("daily_product_sales", mainResult.getPreAggregation().getName());
+
+        // 聚合查询也应能使用预聚合
+        PreAggQueryRewriter.PreAggAggregateSqlResult aggResult =
+                interceptor.tryBuildAggregateSql(queryEngine, queryModel, queryRequest);
+
+        assertNotNull(aggResult, "分组查询的聚合部分也应能使用预聚合");
+        assertTrue(aggResult.getSql().contains("preagg_"));
+
+        log.info("分组查询+returnTotal: 主查询预聚合={}, 聚合查询预聚合={}",
+                mainResult.getPreAggregation().getName(), aggResult.getPreAggName());
+    }
+
+    // ==========================================
     // 辅助方法
     // ==========================================
 

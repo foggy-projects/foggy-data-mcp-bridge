@@ -109,6 +109,95 @@ public class PreAggQueryRewriter {
     }
 
     /**
+     * 构建聚合查询 SQL（用于 returnTotal 场景）
+     * <p>
+     * 当主查询是明细查询（无 GROUP BY）时，聚合查询仍然可以使用预聚合表。
+     * 生成的 SQL 只包含 COUNT(*) 和 SUM(度量) 聚合，不包含维度列。
+     * </p>
+     *
+     * @param preAgg       预聚合
+     * @param jdbcQuery    原始 JdbcQuery
+     * @param queryRequest 查询请求
+     * @return 聚合 SQL 构建结果，如果不适用返回 null
+     */
+    public PreAggAggregateSqlResult buildAggregateSql(PreAggregation preAgg,
+                                                       JdbcQuery jdbcQuery,
+                                                       DbQueryRequestDef queryRequest) {
+        if (preAgg == null) {
+            return null;
+        }
+
+        try {
+            StringBuilder sql = new StringBuilder();
+            String preAggTableName = getFullTableName(preAgg);
+            String alias = "pa";
+
+            // SELECT 子句：COUNT(*) as total, SUM(measure) as measureName
+            sql.append("SELECT COUNT(*) AS total");
+
+            // 添加度量聚合
+            Map<String, String> measureColumnNames = preAgg.getMeasureColumnNames();
+            Map<String, DbAggregation> measureAggregations = preAgg.getMeasureAggregations();
+
+            if (jdbcQuery.getSelect() != null && jdbcQuery.getSelect().getColumns() != null) {
+                for (DbColumn column : jdbcQuery.getSelect().getColumns()) {
+                    if (column.isMeasure()) {
+                        String measureName = column.getName();
+                        String columnAlias = column.getAlias();
+
+                        // 获取预聚合表中的列名
+                        String preAggColumnName = measureColumnNames.get(measureName);
+                        if (preAggColumnName == null) {
+                            preAggColumnName = measureName + "_sum";
+                        }
+
+                        // 聚合函数：对预聚合表的度量再次聚合
+                        DbAggregation agg = measureAggregations.get(measureName);
+                        String aggFunc = getAggregationFunction(agg);
+
+                        sql.append(", ").append(aggFunc).append("(")
+                           .append(alias).append(".").append(preAggColumnName)
+                           .append(") AS ").append(columnAlias);
+                    }
+                }
+            }
+
+            // FROM 子句
+            sql.append(" FROM ").append(preAggTableName).append(" ").append(alias);
+
+            // WHERE 子句（从 slices 中生成）
+            WhereClauseResult whereResult = buildWhereClauseFromSlices(preAgg, queryRequest, alias);
+            List<Object> params = new ArrayList<>();
+            if (whereResult.getClause() != null && !whereResult.getClause().isEmpty()) {
+                sql.append(" WHERE ").append(whereResult.getClause());
+                params = whereResult.getParams();
+            }
+
+            if (log.isInfoEnabled()) {
+                log.info("Built aggregate SQL using pre-aggregation '{}': {}", preAgg.getName(), sql);
+            }
+
+            return new PreAggAggregateSqlResult(sql.toString(), params, preAgg.getName());
+
+        } catch (Exception e) {
+            log.warn("Failed to build aggregate SQL for pre-aggregation '{}': {}",
+                    preAgg.getName(), e.getMessage(), e);
+            return null;
+        }
+    }
+
+    /**
+     * 聚合 SQL 构建结果
+     */
+    @lombok.Data
+    @lombok.AllArgsConstructor
+    public static class PreAggAggregateSqlResult {
+        private String sql;
+        private List<Object> params;
+        private String preAggName;
+    }
+
+    /**
      * 构建混合查询 SQL（Lambda 架构）
      * <p>
      * 生成的 SQL 结构：

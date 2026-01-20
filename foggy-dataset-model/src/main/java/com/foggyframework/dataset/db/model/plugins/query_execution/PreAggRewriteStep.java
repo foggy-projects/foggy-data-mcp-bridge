@@ -2,6 +2,7 @@ package com.foggyframework.dataset.db.model.plugins.query_execution;
 
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.engine.JdbcModelQueryEngine;
+import com.foggyframework.dataset.db.model.engine.preagg.PreAggQueryRewriter;
 import com.foggyframework.dataset.db.model.engine.preagg.PreAggRewriteResult;
 import com.foggyframework.dataset.db.model.engine.preagg.PreAggregationInterceptor;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
@@ -14,6 +15,14 @@ import org.springframework.stereotype.Component;
  * 预聚合重写步骤
  * <p>
  * 在 SQL 执行前检查是否可以使用预聚合表，并重写 SQL。
+ * </p>
+ * <p>
+ * 支持两种优化模式：
+ * <ul>
+ *   <li>主查询预聚合：当查询有 GROUP BY 且匹配预聚合时，重写主查询 SQL</li>
+ *   <li>聚合查询预聚合：当 returnTotal=true 时，即使主查询是明细查询，
+ *       聚合查询（COUNT/SUM）也可以使用预聚合表加速</li>
+ * </ul>
  * </p>
  *
  * @author foggy-framework
@@ -62,8 +71,9 @@ public class PreAggRewriteStep implements QueryExecutionStep {
             queryRequest = ctx.getModelResultContext().getRequest().getParam();
         }
 
-        // 尝试预聚合重写
-        PreAggRewriteResult preAggResult = tryPreAggregation(ctx, queryEngine, queryModel, queryRequest);
+        // 尝试预聚合重写（主查询）
+        PreAggregationInterceptor interceptor = createInterceptor(ctx);
+        PreAggRewriteResult preAggResult = tryPreAggregation(interceptor, queryEngine, queryModel, queryRequest);
 
         if (preAggResult.isApplied()) {
             // 使用重写后的 SQL
@@ -91,9 +101,58 @@ public class PreAggRewriteStep implements QueryExecutionStep {
                     preAggResult.getPreAggName(),
                     preAggResult.isHybridQuery() ? "hybrid" :
                             (preAggResult.isNeedsRollup() ? "rollup" : "direct"));
+        } else {
+            // 主查询不使用预聚合，但如果 returnTotal=true，尝试为聚合查询使用预聚合
+            if (queryRequest != null && queryRequest.isReturnTotal()) {
+                tryAggregatePreAggregation(ctx, interceptor, queryEngine, queryModel, queryRequest);
+            }
         }
 
         return CONTINUE;
+    }
+
+    /**
+     * 创建预聚合拦截器
+     */
+    private PreAggregationInterceptor createInterceptor(QueryExecutionContext ctx) {
+        PreAggregationInterceptor interceptor = new PreAggregationInterceptor(applicationContext);
+        boolean hybridEnabled = isHybridQueryEnabled(ctx);
+        interceptor.setHybridQueryEnabled(hybridEnabled);
+        return interceptor;
+    }
+
+    /**
+     * 尝试为聚合查询（returnTotal）使用预聚合
+     * <p>
+     * 当主查询是明细查询（无 GROUP BY）时，聚合查询仍然可以使用预聚合表。
+     * </p>
+     */
+    private void tryAggregatePreAggregation(QueryExecutionContext ctx,
+                                             PreAggregationInterceptor interceptor,
+                                             JdbcModelQueryEngine queryEngine,
+                                             JdbcQueryModel queryModel,
+                                             DbQueryRequestDef queryRequest) {
+        try {
+            PreAggQueryRewriter.PreAggAggregateSqlResult aggResult =
+                    interceptor.tryBuildAggregateSql(queryEngine, queryModel, queryRequest);
+
+            if (aggResult != null) {
+                // 存储聚合查询预聚合 SQL
+                ctx.setPreAggAggregateSql(aggResult.getSql());
+                ctx.setPreAggAggregateParams(aggResult.getParams());
+                ctx.setPreAggAggregatePreAggName(aggResult.getPreAggName());
+
+                // 记录到 extData
+                ctx.setExtData("preAggAggregateUsed", aggResult.getPreAggName());
+
+                log.info("Aggregate query (returnTotal) using pre-aggregation '{}'", aggResult.getPreAggName());
+            }
+        } catch (Exception e) {
+            log.warn("Failed to build aggregate SQL using pre-aggregation: {}", e.getMessage());
+            if (log.isDebugEnabled()) {
+                log.debug("Aggregate pre-aggregation error details", e);
+            }
+        }
     }
 
     /**
@@ -125,17 +184,11 @@ public class PreAggRewriteStep implements QueryExecutionStep {
     /**
      * 尝试使用预聚合重写查询
      */
-    private PreAggRewriteResult tryPreAggregation(QueryExecutionContext ctx,
+    private PreAggRewriteResult tryPreAggregation(PreAggregationInterceptor interceptor,
                                                    JdbcModelQueryEngine queryEngine,
                                                    JdbcQueryModel queryModel,
                                                    DbQueryRequestDef queryRequest) {
         try {
-            PreAggregationInterceptor interceptor = new PreAggregationInterceptor(applicationContext);
-
-            // 读取混合查询配置
-            boolean hybridEnabled = isHybridQueryEnabled(ctx);
-            interceptor.setHybridQueryEnabled(hybridEnabled);
-
             return interceptor.tryRewrite(queryEngine, queryModel, queryRequest);
         } catch (Exception e) {
             log.warn("Pre-aggregation interception failed, falling back to original query: {}",
