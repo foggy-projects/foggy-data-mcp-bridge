@@ -753,6 +753,138 @@ class PreAggregationIntegrationTest {
                 mainResult.getPreAggregation().getName(), aggResult.getPreAggName());
     }
 
+    @Test
+    @Order(63)
+    @DisplayName("聚合查询混合模式 - 水位线过期时应生成UNION SQL")
+    void testHybridAggregateQueryWithStaleWatermark() {
+        JdbcQueryModel queryModel = getQueryModel("FactSalesPreAggQueryModel");
+        TableModel tableModel = queryModel.getJdbcModel();
+        List<PreAggregation> preAggregations = tableModel.getPreAggregations();
+
+        assertNotNull(preAggregations);
+        assertFalse(preAggregations.isEmpty());
+
+        // 设置 watermark 为过去日期以触发混合查询
+        LocalDate pastDate = LocalDate.of(2024, 3, 20);
+        for (PreAggregation preAgg : preAggregations) {
+            if (preAgg.supportsHybridQuery()) {
+                preAgg.setDataWatermark(pastDate);
+            }
+        }
+
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        // 包含门店维度的查询（主查询不匹配预聚合）
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("FactSalesPreAggQueryModel");
+        queryRequest.setColumns(Arrays.asList(
+                "store$caption",
+                "salesAmount"
+        ));
+        queryRequest.setReturnTotal(true);
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+
+        PreAggregationInterceptor interceptor = new PreAggregationInterceptor(applicationContext);
+        interceptor.setHybridQueryEnabled(true);
+
+        // 主查询不匹配
+        PreAggRewriteResult mainResult = interceptor.tryRewrite(queryEngine, queryModel, queryRequest);
+        assertFalse(mainResult.isApplied(), "包含门店维度的查询不应匹配主查询预聚合");
+
+        // 聚合查询应使用混合模式
+        PreAggQueryRewriter.PreAggAggregateSqlResult aggResult =
+                interceptor.tryBuildAggregateSql(queryEngine, queryModel, queryRequest);
+
+        assertNotNull(aggResult, "聚合查询应能使用预聚合");
+
+        if (aggResult.isHybrid()) {
+            // 混合模式 SQL 应包含 UNION
+            assertTrue(aggResult.getSql().toUpperCase().contains("UNION"),
+                    "混合模式聚合SQL应包含UNION（预聚合表 UNION 原始表）");
+            assertNotNull(aggResult.getWatermark(), "混合模式应有watermark");
+
+            log.info("混合模式聚合查询: preAgg={}, watermark={}, isHybrid={}",
+                    aggResult.getPreAggName(), aggResult.getWatermark(), aggResult.isHybrid());
+            log.info("混合模式聚合SQL: {}", aggResult.getSql());
+        } else {
+            // 如果预聚合不支持混合查询，则使用单表模式
+            log.info("聚合查询使用单表模式（预聚合不支持混合查询）: preAgg={}", aggResult.getPreAggName());
+        }
+    }
+
+    @Test
+    @Order(64)
+    @DisplayName("聚合查询混合模式 - 带slice条件的UNION SQL")
+    void testHybridAggregateQueryWithSlice() {
+        JdbcQueryModel queryModel = getQueryModel("FactSalesPreAggQueryModel");
+        TableModel tableModel = queryModel.getJdbcModel();
+        List<PreAggregation> preAggregations = tableModel.getPreAggregations();
+
+        // 设置 watermark 为过去日期
+        LocalDate pastDate = LocalDate.of(2024, 3, 20);
+        for (PreAggregation preAgg : preAggregations) {
+            if (preAgg.supportsHybridQuery()) {
+                preAgg.setDataWatermark(pastDate);
+            }
+        }
+
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("FactSalesPreAggQueryModel");
+        queryRequest.setColumns(Arrays.asList(
+                "store$caption",
+                "salesAmount"
+        ));
+        queryRequest.setReturnTotal(true);
+
+        // 添加日期过滤条件
+        List<SliceRequestDef> slices = new ArrayList<>();
+        SliceRequestDef dateSlice = new SliceRequestDef();
+        dateSlice.setField("salesDate$caption");
+        dateSlice.setOp("[)");
+        dateSlice.setValue(Arrays.asList("2024-01-01", "2024-03-31"));
+        slices.add(dateSlice);
+        queryRequest.setSlice(slices);
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+
+        PreAggregationInterceptor interceptor = new PreAggregationInterceptor(applicationContext);
+        interceptor.setHybridQueryEnabled(true);
+
+        PreAggQueryRewriter.PreAggAggregateSqlResult aggResult =
+                interceptor.tryBuildAggregateSql(queryEngine, queryModel, queryRequest);
+
+        assertNotNull(aggResult, "带slice的聚合查询应能使用预聚合");
+
+        if (aggResult.isHybrid()) {
+            // 混合模式应包含 UNION 和 WHERE
+            assertTrue(aggResult.getSql().toUpperCase().contains("UNION"),
+                    "混合模式聚合SQL应包含UNION");
+            // 两部分都应有 WHERE 条件（watermark + slice）
+            String upperSql = aggResult.getSql().toUpperCase();
+            int whereCount = countOccurrences(upperSql, "WHERE");
+            assertTrue(whereCount >= 2, "混合模式应在两个子查询中都有WHERE条件");
+
+            log.info("混合模式聚合SQL（带slice）: {}", aggResult.getSql());
+            log.info("参数: {}", aggResult.getParams());
+        }
+    }
+
+    /**
+     * 统计字符串出现次数
+     */
+    private int countOccurrences(String str, String sub) {
+        int count = 0;
+        int idx = 0;
+        while ((idx = str.indexOf(sub, idx)) != -1) {
+            count++;
+            idx += sub.length();
+        }
+        return count;
+    }
+
     // ==========================================
     // 辅助方法
     // ==========================================

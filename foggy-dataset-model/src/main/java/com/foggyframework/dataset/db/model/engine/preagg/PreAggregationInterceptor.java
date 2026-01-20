@@ -174,13 +174,19 @@ public class PreAggregationInterceptor {
             return null;
         }
 
-        // 4. 构建聚合 SQL
+        // 4. 构建聚合 SQL（支持混合查询模式）
         PreAggregation preAgg = matchResult.getPreAggregation();
         PreAggQueryRewriter rewriter = new PreAggQueryRewriter(queryModel, applicationContext);
-        PreAggQueryRewriter.PreAggAggregateSqlResult result = rewriter.buildAggregateSql(preAgg, jdbcQuery, queryRequest);
+        PreAggQueryRewriter.PreAggAggregateSqlResult result = rewriter.buildAggregateSql(
+                preAgg, jdbcQuery, queryRequest, matchResult);
 
         if (result != null) {
-            log.info("Using pre-aggregation '{}' for aggregate query (returnTotal)", preAgg.getName());
+            if (result.isHybrid()) {
+                log.info("Using pre-aggregation '{}' for aggregate query (returnTotal) in HYBRID mode, watermark={}",
+                        preAgg.getName(), result.getWatermark());
+            } else {
+                log.info("Using pre-aggregation '{}' for aggregate query (returnTotal)", preAgg.getName());
+            }
         }
 
         return result;

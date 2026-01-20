@@ -114,6 +114,10 @@ public class PreAggQueryRewriter {
      * 当主查询是明细查询（无 GROUP BY）时，聚合查询仍然可以使用预聚合表。
      * 生成的 SQL 只包含 COUNT(*) 和 SUM(度量) 聚合，不包含维度列。
      * </p>
+     * <p>
+     * 此方法不支持混合查询模式，使用 {@link #buildAggregateSql(PreAggregation, JdbcQuery, DbQueryRequestDef, PreAggregationMatchResult)}
+     * 获取完整的混合模式支持。
+     * </p>
      *
      * @param preAgg       预聚合
      * @param jdbcQuery    原始 JdbcQuery
@@ -123,62 +127,66 @@ public class PreAggQueryRewriter {
     public PreAggAggregateSqlResult buildAggregateSql(PreAggregation preAgg,
                                                        JdbcQuery jdbcQuery,
                                                        DbQueryRequestDef queryRequest) {
+        return buildAggregateSqlInternal(preAgg, jdbcQuery, queryRequest, false, null);
+    }
+
+    /**
+     * 构建聚合查询 SQL（支持混合查询模式）
+     * <p>
+     * 当预聚合数据有水位线限制时，使用混合模式：
+     * <pre>
+     * SELECT COUNT(*), SUM(measure) FROM (
+     *   SELECT measure_sum FROM preagg_table WHERE watermark <= ?
+     *   UNION ALL
+     *   SELECT measure FROM source_table WHERE watermark > ?
+     * ) AS combined
+     * </pre>
+     * </p>
+     *
+     * @param preAgg       预聚合
+     * @param jdbcQuery    原始 JdbcQuery
+     * @param queryRequest 查询请求
+     * @param matchResult  匹配结果（包含混合模式和水位线信息）
+     * @return 聚合 SQL 构建结果，如果不适用返回 null
+     */
+    public PreAggAggregateSqlResult buildAggregateSql(PreAggregation preAgg,
+                                                       JdbcQuery jdbcQuery,
+                                                       DbQueryRequestDef queryRequest,
+                                                       PreAggregationMatchResult matchResult) {
+        if (matchResult == null || !matchResult.isMatched()) {
+            return null;
+        }
+        return buildAggregateSqlInternal(preAgg, jdbcQuery, queryRequest,
+                matchResult.isHybridQuery(), matchResult.getWatermark());
+    }
+
+    /**
+     * 构建聚合查询 SQL 的内部实现
+     *
+     * @param preAgg       预聚合
+     * @param jdbcQuery    原始 JdbcQuery
+     * @param queryRequest 查询请求
+     * @param isHybrid     是否使用混合查询模式
+     * @param watermark    水位线（混合模式时使用）
+     * @return 聚合 SQL 构建结果
+     */
+    private PreAggAggregateSqlResult buildAggregateSqlInternal(PreAggregation preAgg,
+                                                                 JdbcQuery jdbcQuery,
+                                                                 DbQueryRequestDef queryRequest,
+                                                                 boolean isHybrid,
+                                                                 Object watermark) {
         if (preAgg == null) {
             return null;
         }
 
         try {
-            StringBuilder sql = new StringBuilder();
-            String preAggTableName = getFullTableName(preAgg);
-            String alias = "pa";
-
-            // SELECT 子句：COUNT(*) as total, SUM(measure) as measureName
-            sql.append("SELECT COUNT(*) AS total");
-
-            // 添加度量聚合
-            Map<String, String> measureColumnNames = preAgg.getMeasureColumnNames();
-            Map<String, DbAggregation> measureAggregations = preAgg.getMeasureAggregations();
-
-            if (jdbcQuery.getSelect() != null && jdbcQuery.getSelect().getColumns() != null) {
-                for (DbColumn column : jdbcQuery.getSelect().getColumns()) {
-                    if (column.isMeasure()) {
-                        String measureName = column.getName();
-                        String columnAlias = column.getAlias();
-
-                        // 获取预聚合表中的列名
-                        String preAggColumnName = measureColumnNames.get(measureName);
-                        if (preAggColumnName == null) {
-                            preAggColumnName = measureName + "_sum";
-                        }
-
-                        // 聚合函数：对预聚合表的度量再次聚合
-                        DbAggregation agg = measureAggregations.get(measureName);
-                        String aggFunc = getAggregationFunction(agg);
-
-                        sql.append(", ").append(aggFunc).append("(")
-                           .append(alias).append(".").append(preAggColumnName)
-                           .append(") AS ").append(columnAlias);
-                    }
-                }
+            if (isHybrid && watermark != null) {
+                // 混合模式：UNION 预聚合表和原始表
+                return buildHybridAggregateSql(preAgg, jdbcQuery, queryRequest, watermark);
+            } else {
+                // 单表模式：仅预聚合表
+                return buildSingleTableAggregateSql(preAgg, jdbcQuery, queryRequest);
             }
-
-            // FROM 子句
-            sql.append(" FROM ").append(preAggTableName).append(" ").append(alias);
-
-            // WHERE 子句（从 slices 中生成）
-            WhereClauseResult whereResult = buildWhereClauseFromSlices(preAgg, queryRequest, alias);
-            List<Object> params = new ArrayList<>();
-            if (whereResult.getClause() != null && !whereResult.getClause().isEmpty()) {
-                sql.append(" WHERE ").append(whereResult.getClause());
-                params = whereResult.getParams();
-            }
-
-            if (log.isInfoEnabled()) {
-                log.info("Built aggregate SQL using pre-aggregation '{}': {}", preAgg.getName(), sql);
-            }
-
-            return new PreAggAggregateSqlResult(sql.toString(), params, preAgg.getName());
-
         } catch (Exception e) {
             log.warn("Failed to build aggregate SQL for pre-aggregation '{}': {}",
                     preAgg.getName(), e.getMessage(), e);
@@ -187,14 +195,267 @@ public class PreAggQueryRewriter {
     }
 
     /**
+     * 构建单表模式的聚合查询 SQL
+     */
+    private PreAggAggregateSqlResult buildSingleTableAggregateSql(PreAggregation preAgg,
+                                                                    JdbcQuery jdbcQuery,
+                                                                    DbQueryRequestDef queryRequest) {
+        StringBuilder sql = new StringBuilder();
+        String preAggTableName = getFullTableName(preAgg);
+        String alias = "pa";
+
+        // SELECT 子句：COUNT(*) as total, SUM(measure) as measureName
+        sql.append("SELECT COUNT(*) AS total");
+        sql.append(buildAggregateMeasureColumns(preAgg, jdbcQuery, alias));
+
+        // FROM 子句
+        sql.append(" FROM ").append(preAggTableName).append(" ").append(alias);
+
+        // WHERE 子句（从 slices 中生成）
+        WhereClauseResult whereResult = buildWhereClauseFromSlices(preAgg, queryRequest, alias);
+        List<Object> params = new ArrayList<>();
+        if (whereResult.getClause() != null && !whereResult.getClause().isEmpty()) {
+            sql.append(" WHERE ").append(whereResult.getClause());
+            params = whereResult.getParams();
+        }
+
+        if (log.isInfoEnabled()) {
+            log.info("Built aggregate SQL using pre-aggregation '{}': {}", preAgg.getName(), sql);
+        }
+
+        return PreAggAggregateSqlResult.single(sql.toString(), params, preAgg.getName());
+    }
+
+    /**
+     * 构建混合模式的聚合查询 SQL（Lambda 架构）
+     * <p>
+     * 生成的 SQL 结构：
+     * <pre>
+     * SELECT COUNT(*) AS total, SUM(combined.measure) AS measure
+     * FROM (
+     *   SELECT measure_sum AS measure FROM preagg_table WHERE watermark <= ?
+     *   UNION ALL
+     *   SELECT measure FROM source_table WHERE watermark > ? [AND slice conditions]
+     * ) AS combined
+     * </pre>
+     * </p>
+     */
+    private PreAggAggregateSqlResult buildHybridAggregateSql(PreAggregation preAgg,
+                                                               JdbcQuery jdbcQuery,
+                                                               DbQueryRequestDef queryRequest,
+                                                               Object watermark) {
+        StringBuilder sql = new StringBuilder();
+        String preAggTableName = getFullTableName(preAgg);
+        String sourceTableName = queryModel.getJdbcModel().getTableName();
+        String watermarkColumn = parseWatermarkColumn(preAgg.getWatermarkColumn());
+
+        // 外层 SELECT：对 UNION 结果做聚合
+        sql.append("SELECT COUNT(*) AS total");
+        sql.append(buildAggregateMeasureColumnsForHybrid(preAgg, jdbcQuery, "combined"));
+
+        sql.append(" FROM (");
+
+        // 内层 UNION 第一部分：预聚合表
+        sql.append("SELECT ");
+        sql.append(buildInnerMeasureColumnsForHybrid(preAgg, jdbcQuery, "pa", true));
+        sql.append(" FROM ").append(preAggTableName).append(" pa");
+        sql.append(" WHERE ").append("pa.").append(watermarkColumn).append(" <= ?");
+
+        // 添加预聚合表的 slice 条件
+        WhereClauseResult preAggWhereResult = buildWhereClauseFromSlices(preAgg, queryRequest, "pa");
+        if (preAggWhereResult.getClause() != null && !preAggWhereResult.getClause().isEmpty()) {
+            sql.append(" AND ").append(preAggWhereResult.getClause());
+        }
+
+        // UNION ALL
+        sql.append(" UNION ALL ");
+
+        // 内层 UNION 第二部分：原始表（新鲜数据）
+        sql.append("SELECT ");
+        sql.append(buildInnerMeasureColumnsForHybrid(preAgg, jdbcQuery, "src", false));
+        sql.append(" FROM ").append(sourceTableName).append(" src");
+        sql.append(" WHERE ").append("src.").append(watermarkColumn).append(" > ?");
+
+        // 添加原始表的 slice 条件（需要映射列名）
+        WhereClauseResult sourceWhereResult = buildSourceWhereClauseFromSlices(preAgg, queryRequest, "src");
+        if (sourceWhereResult.getClause() != null && !sourceWhereResult.getClause().isEmpty()) {
+            sql.append(" AND ").append(sourceWhereResult.getClause());
+        }
+
+        sql.append(") AS combined");
+
+        // 构建参数列表：watermark * 2 + slice params * 2
+        List<Object> params = new ArrayList<>();
+        params.add(watermark);  // 预聚合表 WHERE
+        if (preAggWhereResult.getParams() != null) {
+            params.addAll(preAggWhereResult.getParams());
+        }
+        params.add(watermark);  // 原始表 WHERE
+        if (sourceWhereResult.getParams() != null) {
+            params.addAll(sourceWhereResult.getParams());
+        }
+
+        if (log.isInfoEnabled()) {
+            log.info("Built hybrid aggregate SQL using pre-aggregation '{}', watermark={}: {}",
+                    preAgg.getName(), watermark, sql);
+        }
+
+        return PreAggAggregateSqlResult.hybrid(sql.toString(), params, preAgg.getName(), watermark);
+    }
+
+    /**
+     * 构建聚合查询的度量列（单表模式）
+     * <p>
+     * 生成形如: ", SUM(pa.sales_amount_sum) AS salesAmount"
+     * </p>
+     */
+    private String buildAggregateMeasureColumns(PreAggregation preAgg, JdbcQuery jdbcQuery, String alias) {
+        StringBuilder sb = new StringBuilder();
+        Map<String, String> measureColumnNames = preAgg.getMeasureColumnNames();
+        Map<String, DbAggregation> measureAggregations = preAgg.getMeasureAggregations();
+
+        if (jdbcQuery.getSelect() != null && jdbcQuery.getSelect().getColumns() != null) {
+            for (DbColumn column : jdbcQuery.getSelect().getColumns()) {
+                if (column.isMeasure()) {
+                    String measureName = column.getName();
+                    String columnAlias = column.getAlias();
+
+                    String preAggColumnName = measureColumnNames.get(measureName);
+                    if (preAggColumnName == null) {
+                        preAggColumnName = measureName + "_sum";
+                    }
+
+                    DbAggregation agg = measureAggregations.get(measureName);
+                    String aggFunc = getAggregationFunction(agg);
+
+                    sb.append(", ").append(aggFunc).append("(")
+                      .append(alias).append(".").append(preAggColumnName)
+                      .append(") AS ").append(columnAlias);
+                }
+            }
+        }
+        return sb.toString();
+    }
+
+    /**
+     * 构建混合模式外层的度量聚合列
+     * <p>
+     * 生成形如: ", SUM(combined.measure) AS salesAmount"
+     * </p>
+     */
+    private String buildAggregateMeasureColumnsForHybrid(PreAggregation preAgg, JdbcQuery jdbcQuery, String alias) {
+        StringBuilder sb = new StringBuilder();
+
+        if (jdbcQuery.getSelect() != null && jdbcQuery.getSelect().getColumns() != null) {
+            for (DbColumn column : jdbcQuery.getSelect().getColumns()) {
+                if (column.isMeasure()) {
+                    String measureName = column.getName();
+                    String columnAlias = column.getAlias();
+
+                    // 外层使用统一的别名（内层 UNION 会用同名）
+                    sb.append(", SUM(").append(alias).append(".").append(measureName)
+                      .append(") AS ").append(columnAlias);
+                }
+            }
+        }
+        return sb.toString();
+    }
+
+    /**
+     * 构建混合模式内层的度量列
+     *
+     * @param isPreAggPart true=预聚合表部分，false=原始表部分
+     */
+    private String buildInnerMeasureColumnsForHybrid(PreAggregation preAgg, JdbcQuery jdbcQuery,
+                                                      String alias, boolean isPreAggPart) {
+        StringBuilder sb = new StringBuilder();
+        Map<String, String> measureColumnNames = preAgg.getMeasureColumnNames();
+        boolean first = true;
+
+        if (jdbcQuery.getSelect() != null && jdbcQuery.getSelect().getColumns() != null) {
+            for (DbColumn column : jdbcQuery.getSelect().getColumns()) {
+                if (column.isMeasure()) {
+                    if (!first) {
+                        sb.append(", ");
+                    }
+                    first = false;
+
+                    String measureName = column.getName();
+
+                    if (isPreAggPart) {
+                        // 预聚合表：使用预聚合列名
+                        String preAggColumnName = measureColumnNames.get(measureName);
+                        if (preAggColumnName == null) {
+                            preAggColumnName = measureName + "_sum";
+                        }
+                        sb.append(alias).append(".").append(preAggColumnName)
+                          .append(" AS ").append(measureName);
+                    } else {
+                        // 原始表：使用原始列名
+                        String sourceColumnName = getSourceColumnName(column);
+                        sb.append(alias).append(".").append(sourceColumnName)
+                          .append(" AS ").append(measureName);
+                    }
+                }
+            }
+        }
+        return sb.toString();
+    }
+
+    /**
+     * 获取原始表中的列名
+     */
+    private String getSourceColumnName(DbColumn column) {
+        if (column.getSqlColumn() != null) {
+            return column.getSqlColumn().getName();
+        }
+        return column.getName();
+    }
+
+    /**
+     * 构建原始表的 WHERE 子句（从 slices 中生成，使用原始列名）
+     */
+    private WhereClauseResult buildSourceWhereClauseFromSlices(PreAggregation preAgg,
+                                                                 DbQueryRequestDef queryRequest,
+                                                                 String alias) {
+        // 目前使用与预聚合表相同的逻辑，列名映射在 buildConditionFromSlice 中处理
+        // 如果需要不同的列名映射，可以在这里扩展
+        return buildWhereClauseFromSlices(preAgg, queryRequest, alias);
+    }
+
+    /**
      * 聚合 SQL 构建结果
      */
     @lombok.Data
-    @lombok.AllArgsConstructor
     public static class PreAggAggregateSqlResult {
-        private String sql;
-        private List<Object> params;
-        private String preAggName;
+        private final String sql;
+        private final List<Object> params;
+        private final String preAggName;
+        private final boolean hybrid;
+        private final Object watermark;
+
+        /**
+         * 创建单表模式结果
+         */
+        public static PreAggAggregateSqlResult single(String sql, List<Object> params, String preAggName) {
+            return new PreAggAggregateSqlResult(sql, params, preAggName, false, null);
+        }
+
+        /**
+         * 创建混合模式结果
+         */
+        public static PreAggAggregateSqlResult hybrid(String sql, List<Object> params, String preAggName, Object watermark) {
+            return new PreAggAggregateSqlResult(sql, params, preAggName, true, watermark);
+        }
+
+        private PreAggAggregateSqlResult(String sql, List<Object> params, String preAggName,
+                                          boolean hybrid, Object watermark) {
+            this.sql = sql;
+            this.params = params;
+            this.preAggName = preAggName;
+            this.hybrid = hybrid;
+            this.watermark = watermark;
+        }
     }
 
     /**
