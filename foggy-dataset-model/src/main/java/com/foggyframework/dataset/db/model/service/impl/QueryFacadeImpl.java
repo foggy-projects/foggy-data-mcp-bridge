@@ -91,7 +91,7 @@ public class QueryFacadeImpl implements QueryFacade {
         QueryModel jdbcQueryModel = queryModelLoader.getJdbcQueryModel(queryModelName);
 
         // 1.1 提前设置 jdbcQueryModel，供 beforeQuery Step 使用
-        context.setJdbcQueryModel(jdbcQueryModel);
+        context.setQueryModel(jdbcQueryModel);
 
         // 2. beforeQuery: 执行预处理 Step（L1Cache、Authorization、AutoGroupBy、InlineExpression 等）
         dataSetResultFilterManager.beforeQuery(context);
@@ -115,8 +115,8 @@ public class QueryFacadeImpl implements QueryFacade {
         context.setPagingResult(dbQueryResult.getPagingResult());
         context.setQueryResult(dbQueryResult);
         if (dbQueryResult.getQueryEngine() != null) {
-            context.setJdbcQuery(dbQueryResult.getQueryEngine().getJdbcQuery());
-            context.setJdbcQueryModel(dbQueryResult.getQueryEngine().getJdbcQueryModel());
+            context.setQuery(dbQueryResult.getQueryEngine().getJdbcQuery());
+            context.setQueryModel(dbQueryResult.getQueryEngine().getJdbcQueryModel());
         }
 
         // 6. process: 执行结果处理 Step（包含 L1 缓存写入）

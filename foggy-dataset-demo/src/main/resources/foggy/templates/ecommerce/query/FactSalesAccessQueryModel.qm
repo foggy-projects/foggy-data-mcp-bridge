@@ -56,27 +56,24 @@ export const queryModel = {
     accesses: [
         // 测试1: 基于属性的权限控制（使用字段引用）
         {
-            property: 'orderStatus',
-            queryBuilder: (query) => {
+            queryBuilder: (context) => {
                 // 使用字段引用 API，只显示已完成的订单
-                query.and(fs.orderStatus, 'COMPLETED');
+                context.query.and(fs.orderStatus, 'COMPLETED');
             }
         },
         // 测试2: 基于属性的权限控制（使用原生 SQL）
         {
-            property: 'orderId',
-            queryBuilder: (query) => {
+            queryBuilder: (context) => {
                 const t = fs.$alias;
                 // 使用原生 SQL，订单号以 'ORD' 开头
-                query.andSql(t + ".order_id like 'ORD%'");
+                context.query.andSql(t + ".order_id like 'ORD%'");
             }
         },
         // 测试3: 基于维度的权限控制
         {
-            dimension: 'store',
-            queryBuilder: (query, dimension) => {
+            queryBuilder: (context) => {
                 // 获取维度表别名（通过 query.queryModel 访问 Java QueryModel）
-                const d = query.queryModel.getAlias(dimension.queryObject);
+                const d = context.queryModel.getAlias(dimension.queryObject);
                 // 只显示直营店数据
                 query.andSql(d + ".store_type = ?", '直营店');
             }

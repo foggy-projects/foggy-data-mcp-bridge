@@ -8,7 +8,6 @@ import com.foggyframework.dataset.db.model.def.query.request.*;
 import com.foggyframework.dataset.db.model.engine.expression.InlineExpressionParser;
 import com.foggyframework.dataset.db.model.engine.expression.SqlCalculatedFieldProcessor;
 import com.foggyframework.dataset.db.model.engine.expression.SqlExpContext;
-import com.foggyframework.dataset.db.model.engine.formula.JdbcLink;
 import com.foggyframework.dataset.db.model.engine.formula.SqlFormulaService;
 import com.foggyframework.dataset.db.model.engine.formula.hierarchy.HierarchyOperator;
 import com.foggyframework.dataset.db.model.engine.formula.hierarchy.HierarchyOperatorService;
@@ -189,8 +188,8 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
         // 3.加权限语句
         // 将 queryModel 和 jdbcQuery 存入 context，供脚本访问
-        context.setJdbcQueryModel(jdbcQueryModel);
-        context.setJdbcQuery(jdbcQuery);
+        context.setQueryModel(jdbcQueryModel);
+        context.setQuery(jdbcQuery);
 
         for (FsscriptFunction accessBuilder : jdbcQueryModel.getAccessBuilders()) {
             ExpEvaluator ee = DefaultExpEvaluator.newInstance(systemBundlesContext.getApplicationContext());

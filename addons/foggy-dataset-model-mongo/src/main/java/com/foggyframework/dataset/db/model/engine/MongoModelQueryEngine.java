@@ -128,8 +128,8 @@ public class MongoModelQueryEngine implements QueryEngine {
 
         // 3.加权限语句
         // 将 queryModel 和 jdbcQuery 存入 context，供脚本访问
-        context.setJdbcQueryModel(jdbcQueryModel);
-        context.setJdbcQuery(jdbcQuery);
+        context.setQueryModel(jdbcQueryModel);
+        context.setQuery(jdbcQuery);
 
         for (FsscriptFunction accessBuilder : jdbcQueryModel.getAccessBuilders()) {
             ExpEvaluator ee = DefaultExpEvaluator.newInstance(systemBundlesContext.getApplicationContext());

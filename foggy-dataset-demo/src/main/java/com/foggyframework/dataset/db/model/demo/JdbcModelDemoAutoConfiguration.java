@@ -2,6 +2,7 @@ package com.foggyframework.dataset.db.model.demo;
 
 import com.foggyframework.core.annotates.EnableFoggyFramework;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
@@ -15,5 +16,13 @@ import org.springframework.context.annotation.Configuration;
 @EnableFoggyFramework(bundleName = "foggy-dataset-demo")
 public class JdbcModelDemoAutoConfiguration {
 
+    @Bean
+    public SessionTokenService sessionTokenService() {
+        return new SessionTokenService();
+    }
 
+    @Bean
+    public DemoAuthorizationService demoAuthorizationService() {
+        return new DemoAuthorizationService();
+    }
 }

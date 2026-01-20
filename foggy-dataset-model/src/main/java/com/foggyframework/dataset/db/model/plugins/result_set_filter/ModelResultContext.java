@@ -30,11 +30,11 @@ public class ModelResultContext {
     /**
      * 本次查询用到的模型
      */
-    QueryModel jdbcQueryModel;
+    QueryModel queryModel;
     /**
      * 本次查询生成的查询对象
      */
-    JdbcQuery jdbcQuery;
+    JdbcQuery query;
 
     /**
      * 查询类型标识
