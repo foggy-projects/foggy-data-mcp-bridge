@@ -80,6 +80,11 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
 
     protected   List<DbQueryOrderColumnImpl> orders = new ArrayList<>();
 
+    /**
+     * 权限查询构建器列表（简化后的 accesses）
+     */
+    protected List<FsscriptFunction> accessBuilders = new ArrayList<>();
+
     protected  List<TableModel> jdbcModelList;
 
     protected   Map<Object, String> name2Alias = new HashMap<>();

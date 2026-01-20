@@ -9,6 +9,7 @@ import com.foggyframework.dataset.db.model.engine.query.DbQueryResult;
 import com.foggyframework.dataset.db.model.impl.query.DbQueryOrderColumnImpl;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.spi.support.QueryColumnGroup;
+import com.foggyframework.fsscript.exp.FsscriptFunction;
 import jakarta.annotation.Nullable;
 
 import java.util.List;
@@ -131,4 +132,11 @@ public interface QueryModel extends Decorate, DbObject {
     List<TableModel> getJdbcModelList();
 
     String getAlias(QueryObject queryObject);
+
+    /**
+     * 获取权限查询构建器列表
+     *
+     * @return queryBuilder 函数列表
+     */
+    List<FsscriptFunction> getAccessBuilders();
 }

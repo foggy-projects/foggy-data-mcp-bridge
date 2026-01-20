@@ -24,6 +24,7 @@ import com.foggyframework.dataset.db.model.spi.*;
 import com.foggyframework.dataset.db.model.spi.support.AggregationDbColumn;
 import com.foggyframework.dataset.db.model.spi.support.CalculatedDbColumn;
 import com.foggyframework.fsscript.DefaultExpEvaluator;
+import com.foggyframework.fsscript.exp.FsscriptFunction;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
@@ -187,29 +188,14 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
 
         // 3.加权限语句
-        for (DbQueryDimension queryDimension : jdbcQueryModel.getQueryDimensions()) {
-            if (queryDimension.getQueryAccess() != null && queryDimension.getQueryAccess().getQueryBuilder() != null) {
+        // 将 queryModel 和 jdbcQuery 存入 context，供脚本访问
+        context.setJdbcQueryModel(jdbcQueryModel);
+        context.setJdbcQuery(jdbcQuery);
 
-                jdbcQuery.join(queryDimension.getDimension().getQueryObject());
-                ExpEvaluator ee = DefaultExpEvaluator.newInstance(systemBundlesContext.getApplicationContext());
-                ee.setVar("query", jdbcQuery);
-                ee.setVar("queryModel", jdbcQueryModel);
-                ee.setVar("dim", queryDimension.getDimension());
-                ee.setVar("dimension", queryDimension.getDimension());
-                queryDimension.getQueryAccess().getQueryBuilder().autoApply(ee);
-            }
-        }
-        for (DbQueryProperty queryProperty : jdbcQueryModel.getQueryProperties()) {
-            if (queryProperty.getQueryAccess() != null && queryProperty.getQueryAccess().getQueryBuilder() != null) {
-                if(queryProperty.getProperty()!=null){
-                    jdbcQuery.join(queryProperty.getProperty().getPropertyDbColumn().getQueryObject());
-                }
-                ExpEvaluator ee = DefaultExpEvaluator.newInstance(systemBundlesContext.getApplicationContext());
-                ee.setVar("query", jdbcQuery);
-                ee.setVar("queryModel", jdbcQueryModel);
-                ee.setVar("property", queryProperty.getProperty());
-                queryProperty.getQueryAccess().getQueryBuilder().autoApply(ee);
-            }
+        for (FsscriptFunction accessBuilder : jdbcQueryModel.getAccessBuilders()) {
+            ExpEvaluator ee = DefaultExpEvaluator.newInstance(systemBundlesContext.getApplicationContext());
+            ee.setVar("context", context);
+            accessBuilder.autoApply(ee);
         }
 
 

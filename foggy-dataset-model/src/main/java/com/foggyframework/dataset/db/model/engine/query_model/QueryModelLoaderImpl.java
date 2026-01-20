@@ -473,38 +473,10 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
             return;
         }
         for (DbAccessDef accessDef : accessDefs) {
-            String dimension = accessDef.getDimension();
-            String property = accessDef.getProperty();
-            if (StringUtils.isNotEmpty(dimension)) {
-//                RX.hasText(accessDef.getDimension(), "access必须定义维度");
-
-                DbQueryDimension jdbcDimension = qm.findQueryDimension(dimension, false);
-                if (jdbcDimension == null) {
-                    //把该维度加到列表
-                    jdbcDimension = qm.addQueryDimensionIfNotExist(qm.findDimension(dimension));
-                }
-
-                RX.notNull(jdbcDimension, "未能找到维度" + dimension);
-                DbQueryAccessImpl impl = new DbQueryAccessImpl();
-                BeanUtils.copyProperties(accessDef, impl);
-                jdbcDimension.getDecorate(DbQueryDimensionImpl.class).setQueryAccess(impl);
-            } else if (StringUtils.isNotEmpty(property)) {
-                DbQueryProperty dbQueryProperty = qm.findQueryProperty(property, false);
-                if (dbQueryProperty == null) {
-                    //把该维度加到列表
-                    dbQueryProperty = qm.addQueryPropertyIfNotExist(qm.findProperty(property, true));
-                }
-
-                RX.notNull(dbQueryProperty, "未能找到维度" + dimension);
-                DbQueryAccessImpl impl = new DbQueryAccessImpl();
-                BeanUtils.copyProperties(accessDef, impl);
-                dbQueryProperty.getDecorate(DbQueryPropertyImpl.class).setQueryAccess(impl);
-
-            } else {
-                throw RX.throwAUserTip(DatasetMessages.querymodelAccessInvalid());
+            // 简化后：直接收集 queryBuilder，不再强制绑定到 dimension/property
+            if (accessDef.getQueryBuilder() != null) {
+                qm.getAccessBuilders().add(accessDef.getQueryBuilder());
             }
-
-//            qm.setDimAccess(jdbcDimension,);
         }
     }
 

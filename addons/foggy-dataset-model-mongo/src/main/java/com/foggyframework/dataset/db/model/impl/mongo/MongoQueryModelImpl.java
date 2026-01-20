@@ -93,7 +93,7 @@ public class MongoQueryModelImpl extends QueryModelSupport implements MongoQuery
         /**
          * 构建查询语句（包含权限条件注入）
          */
-        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+        queryEngine.analysisQueryRequest(systemBundlesContext, context);
         Tuple3<Criteria, ProjectionOperation, Sort> options = queryEngine.buildOptions();
 
         // 构建 $addFields 操作（用于计算字段）

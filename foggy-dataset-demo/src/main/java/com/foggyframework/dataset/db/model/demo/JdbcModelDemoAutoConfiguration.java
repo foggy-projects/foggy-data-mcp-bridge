@@ -15,4 +15,5 @@ import org.springframework.context.annotation.Configuration;
 @EnableFoggyFramework(bundleName = "foggy-dataset-demo")
 public class JdbcModelDemoAutoConfiguration {
 
+
 }
