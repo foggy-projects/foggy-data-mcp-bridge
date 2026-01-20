@@ -35,8 +35,8 @@ export const queryModel = {
         {
             caption: '度量',
             items: [
-                { ref: fo.totalAmount },
-                { ref: fo.discountAmount }
+                { ref: fo.quantity },
+                { ref: fo.amount }
             ]
         }
     ],
@@ -44,7 +44,7 @@ export const queryModel = {
     accesses: [
         {
             queryBuilder: (context) => {
-                const query = context.jdbcQuery;
+                const query = context.query;
                 const user = getCurrentUserContext(context);
 
                 if (user.role === 'ADMIN') {

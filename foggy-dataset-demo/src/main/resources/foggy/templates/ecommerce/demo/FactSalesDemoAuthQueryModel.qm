@@ -60,7 +60,7 @@ export const queryModel = {
     accesses: [
         {
             queryBuilder: (context) => {
-                const query = context.jdbcQuery;
+                const query = context.query;
                 const token = getSessionToken(context);
 
                 if (token.role === 'ADMIN') {

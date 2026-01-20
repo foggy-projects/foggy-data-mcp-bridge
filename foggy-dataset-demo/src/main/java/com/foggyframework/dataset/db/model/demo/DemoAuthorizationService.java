@@ -17,16 +17,6 @@ public class DemoAuthorizationService {
         return userContext;
     }
 
-    public boolean hasPermission(String permission) {
-        UserContext context = getCurrentUserContext();
-        for (String p : context.getPermissions()) {
-            if (p.equals(permission)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     public static class UserContext {
         private String userId;
         private String userName;

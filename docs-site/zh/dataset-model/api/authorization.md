@@ -17,7 +17,7 @@ export const queryModel = {
     accesses: [
         {
             queryBuilder: (context) => {
-                const query = context.jdbcQuery;
+                const query = context.query;
                 const token = getSessionToken();
                 // 使用字段引用（推荐）
                 query.and(fo.salesTeamId, token.teamId);
@@ -37,7 +37,7 @@ export const queryModel = {
 
 ```javascript
 queryBuilder: (context) => {
-    const query = context.jdbcQuery;
+    const query = context.query;
     // ...
 }
 ```
@@ -46,8 +46,8 @@ queryBuilder: (context) => {
 
 | 属性 | 类型 | 说明 |
 |------|------|------|
-| `context.jdbcQuery` | JdbcQuery | 查询构建器 |
-| `context.jdbcQueryModel` | QueryModel | 查询模型 |
+| `context.query` | JdbcQuery | 查询构建器 |
+| `context.queryModel` | QueryModel | 查询模型 |
 | `context.securityContext` | SecurityContext | 安全上下文（用户信息） |
 | `context.request` | PagingRequest | 原始请求对象 |
 
@@ -80,7 +80,7 @@ context.securityContext?.roles     // 用户角色列表
 const fo = loadTableModel('FactOrderModel');
 
 queryBuilder: (context) => {
-    const query = context.jdbcQuery;
+    const query = context.query;
     const token = getSessionToken();
 
     // 等于条件：自动生成 t0.team_id = ?
@@ -111,7 +111,7 @@ queryBuilder: (context) => {
 
 ```javascript
 queryBuilder: (context) => {
-    const query = context.jdbcQuery;
+    const query = context.query;
     const token = getSessionToken();
 
     // 获取主表别名
@@ -141,7 +141,7 @@ queryBuilder: (context) => {
 accesses: [
     {
         queryBuilder: (context) => {
-            const query = context.jdbcQuery;
+            const query = context.query;
             const token = getSessionToken();
             const extData = context.request?.param?.extData;
             const t = fo.$alias;
@@ -215,7 +215,7 @@ export const queryModel = {
     accesses: [
         {
             queryBuilder: (context) => {
-                const query = context.jdbcQuery;
+                const query = context.query;
                 const token = getSessionToken();
                 query.and(fo.teamId, token.teamId);
             }
@@ -269,7 +269,7 @@ export const queryModel = {
     accesses: [
         {
             queryBuilder: (context) => {
-                const query = context.jdbcQuery;
+                const query = context.query;
                 const token = getSessionToken();
 
                 if (token.role === 'ADMIN') {
@@ -309,14 +309,14 @@ const fo = loadTableModel('FactOrderModel');
 accesses: [
     {
         queryBuilder: (context) => {
-            const query = context.jdbcQuery;
+            const query = context.query;
             const token = getSessionToken();
             query.and(fo.regionId, token.regionId);
         }
     },
     {
         queryBuilder: (context) => {
-            const query = context.jdbcQuery;
+            const query = context.query;
             // 只显示有效数据
             query.andNe(fo.status, 'DELETED');
         }
@@ -340,7 +340,7 @@ export const queryModel = {
     accesses: [
         {
             queryBuilder: (context) => {
-                const query = context.jdbcQuery;
+                const query = context.query;
                 const token = getSessionToken();
                 // 使用字段引用（自动解析表别名）
                 query.and(fs.teamId, token.teamId);
@@ -365,7 +365,7 @@ const fo = loadTableModel('FactOrderModel');
 accesses: [
     {
         queryBuilder: (context) => {
-            const query = context.jdbcQuery;
+            const query = context.query;
             const token = getSessionToken();
             query.and(fo.teamId, token.teamId);
         }
