@@ -258,13 +258,22 @@ BEGIN
     SET @age_group = CASE @rand3 WHEN 0 THEN '18-24' WHEN 1 THEN '25-34' WHEN 2 THEN '35-44' WHEN 3 THEN '45-54' ELSE '55+' END;
     SET @member_level = CASE @rand4 WHEN 0 THEN 'BRONZE' WHEN 1 THEN 'SILVER' WHEN 2 THEN 'GOLD' WHEN 3 THEN 'PLATINUM' ELSE 'DIAMOND' END;
 
-    INSERT INTO dim_customer (customer_id, customer_name, customer_type, gender, age_group, province, city, district, register_date, member_level, [status])
+    INSERT INTO dim_customer (customer_id, customer_name, customer_type, gender, age_group, id_card, phone, province, city, district, register_date, member_level, [status])
     VALUES (
         'CUS' + RIGHT('000000' + CAST(@k AS VARCHAR), 6),
         N'客户' + CAST(@k AS NVARCHAR),
         @c_type,
         @gender,
         @age_group,
+        CASE @c_idx
+            WHEN 1 THEN '330100'
+            WHEN 2 THEN '320100'
+            WHEN 3 THEN '440100'
+            WHEN 4 THEN '310100'
+            WHEN 5 THEN '110100'
+            ELSE '510100'
+        END + FORMAT(DATEADD(DAY, ABS(CHECKSUM(NEWID())) % 15000, '1970-01-01'), 'yyyyMMdd') + RIGHT('0000' + CAST(ABS(CHECKSUM(NEWID())) % 10000 AS VARCHAR), 4),
+        '1' + CAST((ABS(CHECKSUM(NEWID())) % 9) + 3 AS VARCHAR) + RIGHT('000000000' + CAST(ABS(CHECKSUM(NEWID())) % 100000000 AS VARCHAR), 9),
         @c_province,
         @c_city,
         @c_district,

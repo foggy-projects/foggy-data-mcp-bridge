@@ -188,7 +188,7 @@ FROM generate_series(1, 500) AS i,
 -- ==========================================
 -- 6. 生成客户维度数据 (1000条)
 -- ==========================================
-INSERT INTO dim_customer (customer_id, customer_name, customer_type, gender, age_group, province, city, district, register_date, member_level, status)
+INSERT INTO dim_customer (customer_id, customer_name, customer_type, gender, age_group, id_card, phone, province, city, district, register_date, member_level, status)
 SELECT
     'CUS' || LPAD(i::TEXT, 6, '0'),
     '客户' || i,
@@ -199,6 +199,10 @@ SELECT
     END,
     CASE WHEN RANDOM() < 0.48 THEN '男' WHEN RANDOM() < 0.96 THEN '女' ELSE '未知' END,
     (ARRAY['18-24', '25-34', '35-44', '45-54', '55+'])[1 + (RANDOM() * 5)::INT % 5],
+    (ARRAY['330100', '320100', '440100', '310100', '110100', '510100'])[1 + (i-1) % 6] ||
+        TO_CHAR('1970-01-01'::DATE + (RANDOM() * 15000)::INT, 'YYYYMMDD') ||
+        LPAD((RANDOM() * 10000)::INT::TEXT, 4, '0'),
+    '1' || (3 + (RANDOM() * 9)::INT) || LPAD((RANDOM() * 100000000)::BIGINT::TEXT, 9, '0'),
     provinces[1 + (i-1) % 6],
     cities[1 + (i-1) % 6],
     districts[1 + (i-1) % 6],

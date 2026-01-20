@@ -68,6 +68,8 @@ CREATE TABLE `dim_customer` (
     `customer_type`   VARCHAR(20) COMMENT '客户类型: VIP/NORMAL/NEW',
     `gender`          VARCHAR(10) COMMENT '性别',
     `age_group`       VARCHAR(20) COMMENT '年龄段',
+    `id_card`         VARCHAR(18) COMMENT '身份证号',
+    `phone`           VARCHAR(20) COMMENT '手机号',
     `province`        VARCHAR(50) COMMENT '省份',
     `city`            VARCHAR(50) COMMENT '城市',
     `district`        VARCHAR(50) COMMENT '区县',

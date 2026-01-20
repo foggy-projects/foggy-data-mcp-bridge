@@ -101,11 +101,12 @@ public class PreAggRewriteStep implements QueryExecutionStep {
                     preAggResult.getPreAggName(),
                     preAggResult.isHybridQuery() ? "hybrid" :
                             (preAggResult.isNeedsRollup() ? "rollup" : "direct"));
-        } else {
-            // 主查询不使用预聚合，但如果 returnTotal=true，尝试为聚合查询使用预聚合
-            if (queryRequest != null && queryRequest.isReturnTotal()) {
-                tryAggregatePreAggregation(ctx, interceptor, queryEngine, queryModel, queryRequest);
-            }
+        }
+
+        // 无论主查询是否使用预聚合，都尝试为聚合查询（returnTotal）设置预聚合 SQL
+        // 这样可以确保聚合查询也能受益于预聚合优化
+        if (queryRequest != null && queryRequest.isReturnTotal()) {
+            tryAggregatePreAggregation(ctx, interceptor, queryEngine, queryModel, queryRequest);
         }
 
         return CONTINUE;
@@ -124,7 +125,8 @@ public class PreAggRewriteStep implements QueryExecutionStep {
     /**
      * 尝试为聚合查询（returnTotal）使用预聚合
      * <p>
-     * 当主查询是明细查询（无 GROUP BY）时，聚合查询仍然可以使用预聚合表。
+     * 无论主查询是否使用预聚合，聚合查询都可以独立使用预聚合表优化。
+     * 支持混合模式（水位线 + 新鲜数据 UNION）。
      * </p>
      */
     private void tryAggregatePreAggregation(QueryExecutionContext ctx,
@@ -144,8 +146,14 @@ public class PreAggRewriteStep implements QueryExecutionStep {
 
                 // 记录到 extData
                 ctx.setExtData("preAggAggregateUsed", aggResult.getPreAggName());
+                ctx.setExtData("preAggAggregateHybrid", aggResult.isHybrid());
 
-                log.info("Aggregate query (returnTotal) using pre-aggregation '{}'", aggResult.getPreAggName());
+                if (aggResult.isHybrid()) {
+                    log.info("Aggregate query (returnTotal) using pre-aggregation '{}' (HYBRID mode, watermark={})",
+                            aggResult.getPreAggName(), aggResult.getWatermark());
+                } else {
+                    log.info("Aggregate query (returnTotal) using pre-aggregation '{}'", aggResult.getPreAggName());
+                }
             }
         } catch (Exception e) {
             log.warn("Failed to build aggregate SQL using pre-aggregation: {}", e.getMessage());

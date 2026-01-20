@@ -71,6 +71,8 @@ CREATE TABLE dim_customer (
     customer_type   VARCHAR(20),
     gender          VARCHAR(10),
     age_group       VARCHAR(20),
+    id_card         VARCHAR(18),
+    phone           VARCHAR(20),
     province        VARCHAR(50),
     city            VARCHAR(50),
     district        VARCHAR(50),
