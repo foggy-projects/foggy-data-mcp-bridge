@@ -17,8 +17,8 @@ import org.springframework.context.annotation.Configuration;
 public class JdbcModelDemoAutoConfiguration {
 
     @Bean
-    public SessionTokenService sessionTokenService() {
-        return new SessionTokenService();
+    public DemoSessionTokenService demoSessionTokenService() {
+        return new DemoSessionTokenService();
     }
 
     @Bean

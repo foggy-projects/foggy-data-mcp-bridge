@@ -5,7 +5,7 @@
  * @description 演示声明式权限控制的销售事实表查询模型，展示 queryBuilder 和 and(fo.userId, ...) 的使用
  */
 const fs = loadTableModel('FactSalesModel');
-import { getSessionToken } from '@sessionTokenService';
+import { getSessionToken } from '@demoSessionTokenService';
 
 export const queryModel = {
     name: 'FactSalesDemoAuthQueryModel',
@@ -61,18 +61,17 @@ export const queryModel = {
         {
             queryBuilder: (context) => {
                 const query = context.jdbcQuery;
-                const token = getSessionToken();
-                const t = fs.$alias;
+                const token = getSessionToken(context);
 
                 if (token.role === 'ADMIN') {
                     return;
                 }
 
                 if (token.role === 'MANAGER') {
-                    query.and(t + '.store_key = ?', token.storeKey);
+                    query.and(fs.store, token.storeKey);
                 } else {
-                    query.and(t + '.store_key = ?', token.storeKey);
-                    query.and(t + '.order_status = ?', 'COMPLETED');
+                    query.and(fs.store, token.storeKey);
+                    query.and(fs.orderStatus, 'COMPLETED');
                 }
             }
         }

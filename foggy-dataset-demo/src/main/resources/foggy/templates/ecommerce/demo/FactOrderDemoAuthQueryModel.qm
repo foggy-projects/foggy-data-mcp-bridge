@@ -45,18 +45,17 @@ export const queryModel = {
         {
             queryBuilder: (context) => {
                 const query = context.jdbcQuery;
-                const user = getCurrentUserContext();
-                const t = fo.$alias;
+                const user = getCurrentUserContext(context);
 
                 if (user.role === 'ADMIN') {
                     return;
                 }
 
                 if (user.role === 'MANAGER') {
-                    query.and(t + '.store_key = ?', user.storeKey);
+                    query.and(fo.store, user.storeKey);
                 } else {
-                    query.and(t + '.store_key = ?', user.storeKey);
-                    query.and(t + '.order_status = ?', 'COMPLETED');
+                    query.and(fo.store, user.storeKey);
+                    query.and(fo.orderStatus, 'COMPLETED');
                 }
             }
         }

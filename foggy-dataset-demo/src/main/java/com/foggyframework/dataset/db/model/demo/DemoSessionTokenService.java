@@ -3,9 +3,9 @@ package com.foggyframework.dataset.db.model.demo;
 import org.springframework.stereotype.Service;
 
 @Service
-public class SessionTokenService {
+public class DemoSessionTokenService {
 
-    public SessionToken getSessionToken() {
+    public SessionToken getSessionToken(Object context) {
         SessionToken token = new SessionToken();
         token.setUserId("user_001");
         token.setUserName("张三");

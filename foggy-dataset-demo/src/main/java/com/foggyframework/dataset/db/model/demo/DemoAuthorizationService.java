@@ -5,16 +5,16 @@ import org.springframework.stereotype.Service;
 @Service
 public class DemoAuthorizationService {
 
-    public UserContext getCurrentUserContext() {
-        UserContext context = new UserContext();
-        context.setUserId("user_001");
-        context.setUserName("张三");
-        context.setRole("MANAGER");
-        context.setStoreKey(1);
-        context.setTeamId("TEAM_001");
-        context.setRegionId("REGION_001");
-        context.setPermissions(new String[]{"VIEW_SALES", "VIEW_CUSTOMER", "VIEW_STORE"});
-        return context;
+    public UserContext getCurrentUserContext(Object context) {
+        UserContext userContext = new UserContext();
+        userContext.setUserId("user_001");
+        userContext.setUserName("张三");
+        userContext.setRole("MANAGER");
+        userContext.setStoreKey(1);
+        userContext.setTeamId("TEAM_001");
+        userContext.setRegionId("REGION_001");
+        userContext.setPermissions(new String[]{"VIEW_SALES", "VIEW_CUSTOMER", "VIEW_STORE"});
+        return userContext;
     }
 
     public boolean hasPermission(String permission) {
