@@ -68,9 +68,9 @@ export const queryModel = {
                 }
 
                 if (token.role === 'MANAGER') {
-                    query.and(fs.store, token.storeKey);
+                    query.and(fs.store$id, token.storeKey);
                 } else {
-                    query.and(fs.store, token.storeKey);
+                    query.and(fs.store$id, token.storeKey);
                     query.and(fs.orderStatus, 'COMPLETED');
                 }
             }

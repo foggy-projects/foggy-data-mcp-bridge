@@ -77,7 +77,7 @@ class FactOrderDemoAuthQueryModelTest extends DemoTestSupport {
 
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactOrderDemoAuthQueryModel");
-        queryRequest.setColumns(Arrays.asList("orderId", "orderStatus", "totalAmount"));
+        queryRequest.setColumns(Arrays.asList("orderId", "orderStatus", "amount"));
 
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
 
@@ -112,7 +112,7 @@ class FactOrderDemoAuthQueryModelTest extends DemoTestSupport {
 
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactOrderDemoAuthQueryModel");
-        queryRequest.setColumns(Arrays.asList("orderId", "orderStatus", "customer$customerType", "totalAmount"));
+        queryRequest.setColumns(Arrays.asList("orderId", "orderStatus", "customer$customerType", "amount"));
 
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
 
@@ -144,7 +144,7 @@ class FactOrderDemoAuthQueryModelTest extends DemoTestSupport {
 
         DbQueryRequestDef noAccessRequest = new DbQueryRequestDef();
         noAccessRequest.setQueryModel("FactOrderQueryModel");
-        noAccessRequest.setColumns(Arrays.asList("orderId", "orderStatus", "customer$caption", "totalAmount"));
+        noAccessRequest.setColumns(Arrays.asList("orderId", "orderStatus", "customer$caption", "amount"));
 
         noAccessEngine.analysisQueryRequest(systemBundlesContext, noAccessRequest);
 
@@ -158,7 +158,7 @@ class FactOrderDemoAuthQueryModelTest extends DemoTestSupport {
 
         DbQueryRequestDef withAccessRequest = new DbQueryRequestDef();
         withAccessRequest.setQueryModel("FactOrderDemoAuthQueryModel");
-        withAccessRequest.setColumns(Arrays.asList("orderId", "orderStatus", "customer$caption", "totalAmount"));
+        withAccessRequest.setColumns(Arrays.asList("orderId", "orderStatus", "customer$caption", "amount"));
 
         withAccessEngine.analysisQueryRequest(systemBundlesContext, withAccessRequest);
 
@@ -190,7 +190,7 @@ class FactOrderDemoAuthQueryModelTest extends DemoTestSupport {
 
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactOrderDemoAuthQueryModel");
-        queryRequest.setColumns(Arrays.asList("orderId", "orderStatus", "totalAmount", "customer$caption"));
+        queryRequest.setColumns(Arrays.asList("orderId", "orderStatus", "amount", "customer$caption"));
 
         com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef slice =
                 new com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef();
@@ -227,8 +227,7 @@ class FactOrderDemoAuthQueryModelTest extends DemoTestSupport {
         queryRequest.setColumns(Arrays.asList(
                 "orderId",
                 "customer$caption",
-                "customer$customerType",
-                "store$caption"
+                "customer$customerType"
         ));
 
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);

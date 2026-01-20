@@ -52,9 +52,9 @@ export const queryModel = {
                 }
 
                 if (user.role === 'MANAGER') {
-                    query.and(fo.store, user.storeKey);
+                    query.and(fo.store$id, user.storeKey);
                 } else {
-                    query.and(fo.store, user.storeKey);
+                    query.and(fo.store$id, user.storeKey);
                     query.and(fo.orderStatus, 'COMPLETED');
                 }
             }

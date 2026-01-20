@@ -466,18 +466,22 @@ public class RX<T> implements Serializable {
     }
 
     public static ExRuntimeExceptionImpl throwA(String msg, Object item, Throwable cause) {
+        cause = unwrapCause(cause);
         return new ExRuntimeExceptionImpl(ExDefined.COMMON_ERROR_CODE, A_COMMON, msg, msg, item, cause);
     }
 
     public static ExRuntimeExceptionImpl throwA(int code, String msg, Object item, Throwable cause) {
+        cause = unwrapCause(cause);
         return new ExRuntimeExceptionImpl(code, ExDefined.SRC_TYPE_USER + code, msg, msg, item, cause);
     }
 
     public static ExRuntimeExceptionImpl throwAUserTip(String msg, String userTip, Object item, Throwable cause) {
+        cause = unwrapCause(cause);
         return new ExRuntimeExceptionImpl(ExDefined.COMMON_ERROR_CODE, A_COMMON, msg, msg, item, cause);
     }
 
     public static ExRuntimeExceptionImpl throwAUserTip(int code, String msg, String userTip, Object item, Throwable cause) {
+        cause = unwrapCause(cause);
         return new ExRuntimeExceptionImpl(code, ExDefined.SRC_TYPE_USER + code, msg, msg, item, cause);
     }
 
@@ -496,7 +500,9 @@ public class RX<T> implements Serializable {
     public static ExRuntimeExceptionImpl throwB(String msg, Object item) {
         return new ExRuntimeExceptionImpl(ExDefined.COMMON_ERROR_CODE, B_COMMON, msg, msg, item);
     }
-
+    public static ExRuntimeExceptionImpl throwB(String msg, Throwable e) {
+        return new ExRuntimeExceptionImpl(ExDefined.COMMON_ERROR_CODE, B_COMMON, msg, msg, null,e);
+    }
     public static ExRuntimeExceptionImpl throwB(int code, String msg, Object item) {
         return new ExRuntimeExceptionImpl(code, ExDefined.SRC_TYPE_BUSINESS + code, msg, msg, item);
     }
@@ -515,30 +521,37 @@ public class RX<T> implements Serializable {
 
 
     public static ExRuntimeExceptionImpl throwB(String msg, Object item, Throwable cause) {
+        cause = unwrapCause(cause);
         return new ExRuntimeExceptionImpl(ExDefined.COMMON_ERROR_CODE, B_COMMON, msg, msg, item, cause);
     }
 
     public static ExRuntimeExceptionImpl throwBUserTip(String msg, String userTip, Object item, Throwable cause) {
+        cause = unwrapCause(cause);
         return new ExRuntimeExceptionImpl(ExDefined.COMMON_ERROR_CODE, B_COMMON, msg, userTip, item, cause);
     }
 
     public static ExRuntimeExceptionImpl throwBUserTip(int code, String msg, String userTip, Object item, Throwable cause) {
+        cause = unwrapCause(cause);
         return new ExRuntimeExceptionImpl(code, ExDefined.SRC_TYPE_BUSINESS + code, msg, userTip, item, cause);
     }
 
     public static ExRuntimeExceptionImpl throwB(Throwable cause) {
+        cause = unwrapCause(cause);
         return new ExRuntimeExceptionImpl(ExDefined.COMMON_ERROR_CODE, B_COMMON, cause.getMessage(), SYSTEM_ERROR_MSG, null, cause);
     }
 
     public static ExRuntimeExceptionImpl throwBUserTip(String userTip, Throwable cause) {
+        cause = unwrapCause(cause);
         return new ExRuntimeExceptionImpl(ExDefined.COMMON_ERROR_CODE, B_COMMON, cause.getMessage(), userTip, null, cause);
     }
 
     public static ExRuntimeExceptionImpl throwC(Throwable cause) {
+        cause = unwrapCause(cause);
         return new ExRuntimeExceptionImpl(ExDefined.COMMON_ERROR_CODE, C_COMMON, cause.getMessage(), SYSTEM_ERROR_MSG, null, cause);
     }
 
     public static ExRuntimeExceptionImpl throwCUserTip(String userTip, Throwable cause) {
+        cause = unwrapCause(cause);
         return new ExRuntimeExceptionImpl(ExDefined.COMMON_ERROR_CODE, C_COMMON, cause.getMessage(), userTip, null, cause);
     }
 
@@ -567,10 +580,12 @@ public class RX<T> implements Serializable {
     }
 
     public static ExRuntimeExceptionImpl throwC(String msg, Object item, Throwable cause) {
+        cause = unwrapCause(cause);
         return new ExRuntimeExceptionImpl(ExDefined.COMMON_ERROR_CODE, C_COMMON, msg, msg, item, cause);
     }
 
     public static ExRuntimeExceptionImpl throwCUserTip(String msg, String userTip, Object item, Throwable cause) {
+        cause = unwrapCause(cause);
         return new ExRuntimeExceptionImpl(ExDefined.COMMON_ERROR_CODE, C_COMMON, msg, userTip, item, cause);
     }
 
@@ -685,5 +700,22 @@ public class RX<T> implements Serializable {
         if (!expression) {
             throw RX.throwAUserTip(message);
         }
+    }
+
+    /**
+     * 解包 InvocationTargetException，获取真正的异常
+     * <p>
+     * 反射调用时，真正的异常会被包装在 InvocationTargetException 中，
+     * 此方法用于解包获取原始异常，以便获取正确的错误消息。
+     *
+     * @param cause 原始异常
+     * @return 解包后的异常，如果不是 InvocationTargetException 则返回原异常
+     */
+    private static Throwable unwrapCause(Throwable cause) {
+        if (cause instanceof java.lang.reflect.InvocationTargetException) {
+            Throwable target = cause.getCause();
+            return target != null ? target : cause;
+        }
+        return cause;
     }
 }
