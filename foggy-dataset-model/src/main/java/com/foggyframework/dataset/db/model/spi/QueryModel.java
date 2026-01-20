@@ -134,6 +134,20 @@ public interface QueryModel extends Decorate, DbObject {
     String getAlias(QueryObject queryObject);
 
     /**
+     * 获取维度表的 SQL 别名（便捷方法）
+     *
+     * @param dimensionName 维度名称
+     * @return SQL 表别名，如 "d1"
+     */
+    default String getDimensionAlias(String dimensionName) {
+        DbDimension dimension = findDimension(dimensionName);
+        if (dimension == null) {
+            return null;
+        }
+        return getAlias(dimension.getQueryObject());
+    }
+
+    /**
      * 获取权限查询构建器列表
      *
      * @return queryBuilder 函数列表

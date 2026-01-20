@@ -72,10 +72,10 @@ export const queryModel = {
         // 测试3: 基于维度的权限控制
         {
             queryBuilder: (context) => {
-                // 获取维度表别名（通过 query.queryModel 访问 Java QueryModel）
-                const d = context.queryModel.getAlias(dimension.queryObject);
+                // 获取维度表别名（便捷方法）
+                const d = context.queryModel.getDimensionAlias('store');
                 // 只显示直营店数据
-                query.andSql(d + ".store_type = ?", '直营店');
+                context.query.andSql(d + ".store_type = ?", '直营店');
             }
         }
     ]

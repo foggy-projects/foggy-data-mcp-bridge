@@ -104,13 +104,21 @@ queryBuilder: (context) => {
 | `andSql(sql, value)` | SQL + 单个参数 |
 | `andSqlList(sql, values)` | SQL + 参数数组 |
 
-**获取表别名**：使用 `fo.$alias` 获取表别名（如 `"t0"`）
+**获取表别名**：
+
+- 主表别名：使用 `fo.$alias` 获取（如 `"t0"`）
+- 维度表别名：使用 `context.queryModel.getDimensionAlias('维度名')` 获取（如 `"d1"`）
 
 ```javascript
 queryBuilder: (context) => {
     const query = context.jdbcQuery;
     const token = getSessionToken();
+
+    // 获取主表别名
     const t = fo.$alias;
+
+    // 获取维度表别名（便捷方法）
+    const d = context.queryModel.getDimensionAlias('store');
 
     // 原生 SQL（无参数）
     query.andSql(t + '.state not in (60, 70)');
@@ -118,8 +126,8 @@ queryBuilder: (context) => {
     // 原生 SQL（单参数）
     query.andSql(t + '.team_id = ?', token.teamId);
 
-    // 原生 SQL（多参数）
-    query.andSqlList(t + '.region_id = ? and ' + t + '.status = ?', [regionId, 'ACTIVE']);
+    // 维度表条件
+    query.andSql(d + '.store_type = ?', '直营店');
 }
 ```
 
