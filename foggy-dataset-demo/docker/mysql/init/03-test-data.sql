@@ -289,6 +289,7 @@ BEGIN
 
         INSERT INTO dim_customer (
             customer_id, customer_name, customer_type, gender, age_group,
+            id_card, phone,
             province, city, district, register_date, member_level, status
         ) VALUES (
             CONCAT('CUS', LPAD(i, 6, '0')),
@@ -296,6 +297,19 @@ BEGIN
             v_customer_type,
             v_gender,
             v_age_group,
+            CONCAT(
+                CASE v_idx
+                    WHEN 1 THEN '330100'  -- 杭州
+                    WHEN 2 THEN '320100'  -- 南京
+                    WHEN 3 THEN '440100'  -- 广州
+                    WHEN 4 THEN '310100'  -- 上海
+                    WHEN 5 THEN '110100'  -- 北京
+                    ELSE '510100'         -- 成都
+                END,
+                DATE_FORMAT(DATE_ADD('1970-01-01', INTERVAL FLOOR(RAND() * 15000) DAY), '%Y%m%d'),
+                LPAD(FLOOR(RAND() * 10000), 4, '0')
+            ),
+            CONCAT('1', FLOOR(RAND() * 9) + 3, LPAD(FLOOR(RAND() * 100000000), 9, '0')),
             SUBSTRING_INDEX(SUBSTRING_INDEX(v_provinces, ',', v_idx), ',', -1),
             SUBSTRING_INDEX(SUBSTRING_INDEX(v_cities, ',', v_idx), ',', -1),
             SUBSTRING_INDEX(SUBSTRING_INDEX(v_districts, ',', v_idx), ',', -1),

@@ -2,12 +2,9 @@ package com.foggyframework.dataset.db.model.cache.fingerprint;
 
 import com.foggyframework.dataset.db.model.def.query.request.CondRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
-import com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef;
-import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.db.model.engine.query.JdbcQuery;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
-import com.foggyframework.dataset.db.model.spi.DbColumn;
 import com.foggyframework.dataset.db.model.spi.support.CalculatedDbColumn;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.springframework.stereotype.Component;
@@ -48,7 +45,7 @@ public class QueryFingerprintBuilder {
      */
     public QueryFingerprint build(ModelResultContext context) {
         DbQueryRequestDef request = context.getRequest().getParam();
-        JdbcQuery jdbcQuery = context.getJdbcQuery();
+        JdbcQuery jdbcQuery = context.getQuery();
 
         QueryFingerprint.QueryFingerprintBuilder builder = QueryFingerprint.builder()
                 .modelName(request.getQueryModel())

@@ -94,6 +94,17 @@ public interface PreAggregation {
     Map<String, String> getMeasureColumnNames();
 
     /**
+     * 获取维度属性在预聚合表中的列名映射
+     * <p>
+     * key 格式：dimensionName$propertyName（如 salesDate$caption, product$categoryName）
+     * value: 预聚合表中的实际列名（如 full_date, category_name）
+     * </p>
+     *
+     * @return 维度属性到列名的映射
+     */
+    Map<String, String> getDimensionPropertyColumnNames();
+
+    /**
      * 获取永久过滤条件
      */
     List<PreAggFilterDef> getFilters();

@@ -1,0 +1,63 @@
+/**
+ * 销售查询模型（完整权限演示）
+ *
+ * @caption 销售明细查询（完整权限演示）
+ * @description 完整演示声明式权限控制的销售事实表查询模型，展示多种 queryBuilder API 的使用
+ */
+const fo = loadTableModel('FactOrderModel');
+import { getCurrentUserContext } from '@demoAuthorizationService';
+
+export const queryModel = {
+    name: 'FactOrderDemoAuthQueryModel',
+    caption: '订单明细查询（完整权限演示）',
+    description: '完整演示声明式权限控制的订单事实表查询模型',
+    loader: 'v2',
+
+    model: fo,
+
+    columnGroups: [
+        {
+            caption: '订单信息',
+            items: [
+                { ref: fo.orderId },
+                { ref: fo.orderDate },
+                { ref: fo.orderStatus }
+            ]
+        },
+        {
+            caption: '客户维度',
+            items: [
+                { ref: fo.customer },
+                { ref: fo.customer$customerType },
+                { ref: fo.customer$memberLevel }
+            ]
+        },
+        {
+            caption: '度量',
+            items: [
+                { ref: fo.quantity },
+                { ref: fo.amount }
+            ]
+        }
+    ],
+
+    accesses: [
+        {
+            queryBuilder: (context) => {
+                const query = context.query;
+                const user = getCurrentUserContext(context);
+
+                if (user.role === 'ADMIN') {
+                    return;
+                }
+
+                if (user.role === 'MANAGER') {
+                    query.and(fo.store$id, user.storeKey);
+                } else {
+                    query.and(fo.store$id, user.storeKey);
+                    query.and(fo.orderStatus, 'COMPLETED');
+                }
+            }
+        }
+    ]
+};

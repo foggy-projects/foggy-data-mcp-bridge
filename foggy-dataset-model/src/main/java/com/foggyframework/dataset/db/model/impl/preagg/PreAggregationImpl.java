@@ -36,6 +36,7 @@ public class PreAggregationImpl implements PreAggregation {
     private final Map<String, Set<String>> dimensionProperties;
     private final Map<String, DbAggregation> measureAggregations;
     private final Map<String, String> measureColumnNames;
+    private final Map<String, String> dimensionPropertyColumnNames;
     private final List<PreAggFilterDef> filters;
     private final PreAggRefreshDef refreshConfig;
     private final boolean enabled;
@@ -83,6 +84,9 @@ public class PreAggregationImpl implements PreAggregation {
         // 处理维度属性
         this.dimensionProperties = parseDimensionProperties(def.getDimensionProperties());
 
+        // 构建维度属性列名映射
+        this.dimensionPropertyColumnNames = buildDimensionPropertyColumnNames(def);
+
         // 处理度量
         this.measureAggregations = new LinkedHashMap<>();
         this.measureColumnNames = new LinkedHashMap<>();
@@ -126,6 +130,113 @@ public class PreAggregationImpl implements PreAggregation {
             }
         }
         return result;
+    }
+
+    /**
+     * 构建维度属性列名映射
+     * <p>
+     * 使用命名约定推断列名：
+     * <ul>
+     *   <li>caption: 根据维度名推断（date维度用full_date，其他用dimName_name）</li>
+     *   <li>id: 使用 dimName_key（如 date_key, product_key）</li>
+     *   <li>其他属性: 使用 snake_case 转换</li>
+     * </ul>
+     * </p>
+     */
+    private Map<String, String> buildDimensionPropertyColumnNames(PreAggregationDef def) {
+        Map<String, String> result = new LinkedHashMap<>();
+
+        // 首先尝试从显式配置读取（如果有的话）
+        Map<String, Map<String, String>> dimPropColumns = def.getDimensionPropertyColumnNames();
+        if (dimPropColumns != null) {
+            for (Map.Entry<String, Map<String, String>> dimEntry : dimPropColumns.entrySet()) {
+                String dimName = dimEntry.getKey();
+                Map<String, String> propColumns = dimEntry.getValue();
+                for (Map.Entry<String, String> propEntry : propColumns.entrySet()) {
+                    String key = dimName + "$" + propEntry.getKey();
+                    result.put(key, propEntry.getValue());
+                }
+            }
+        }
+
+        // 使用命名约定填充未配置的属性
+        if (def.getDimensions() != null) {
+            for (String dimName : def.getDimensions()) {
+                String snakeCaseDimName = toSnakeCase(dimName);
+
+                // caption 映射
+                String captionKey = dimName + "$caption";
+                if (!result.containsKey(captionKey)) {
+                    // 根据维度名推断caption列名
+                    // 对于时间维度（包含 date/time/day 等关键字），使用 full_date
+                    // 对于其他维度，使用 <dimName>_name
+                    String captionColumn = inferCaptionColumn(snakeCaseDimName);
+                    result.put(captionKey, captionColumn);
+                }
+
+                // id 映射
+                String idKey = dimName + "$id";
+                if (!result.containsKey(idKey)) {
+                    // 命名约定：日期维度用 date_key，其他用 <dimName>_key
+                    if (snakeCaseDimName.contains("date") || snakeCaseDimName.contains("time")
+                            || snakeCaseDimName.contains("day")) {
+                        result.put(idKey, "date_key");
+                    } else {
+                        result.put(idKey, snakeCaseDimName + "_key");
+                    }
+                }
+
+                // 处理 dimensionProperties 中的其他属性
+                if (def.getDimensionProperties() != null && def.getDimensionProperties().containsKey(dimName)) {
+                    List<String> props = def.getDimensionProperties().get(dimName);
+                    if (props != null) {
+                        for (String propName : props) {
+                            String propKey = dimName + "$" + propName;
+                            if (!result.containsKey(propKey)) {
+                                result.put(propKey, toSnakeCase(propName));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * 根据维度名推断caption列名
+     */
+    private String inferCaptionColumn(String snakeCaseDimName) {
+        // 时间维度使用 full_date
+        if (snakeCaseDimName.contains("date") || snakeCaseDimName.contains("time")
+                || snakeCaseDimName.contains("day") || snakeCaseDimName.equals("sales_date")) {
+            return "full_date";
+        }
+        // 其他维度使用 <dimName>_name
+        return snakeCaseDimName + "_name";
+    }
+
+    /**
+     * 将驼峰命名转换为 snake_case
+     */
+    private String toSnakeCase(String camelCase) {
+        if (camelCase == null || camelCase.isEmpty()) {
+            return camelCase;
+        }
+        StringBuilder result = new StringBuilder();
+        for (int i = 0; i < camelCase.length(); i++) {
+            char c = camelCase.charAt(i);
+            if (Character.isUpperCase(c)) {
+                if (i > 0) {
+                    result.append('_');
+                }
+                result.append(Character.toLowerCase(c));
+            } else {
+                result.append(c);
+            }
+        }
+        return result.toString();
     }
 
     /**

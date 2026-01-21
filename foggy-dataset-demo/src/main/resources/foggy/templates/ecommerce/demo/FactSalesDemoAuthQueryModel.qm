@@ -1,0 +1,79 @@
+/**
+ * 销售查询模型（权限演示）
+ *
+ * @caption 销售明细查询（权限演示）
+ * @description 演示声明式权限控制的销售事实表查询模型，展示 queryBuilder 和 and(fo.userId, ...) 的使用
+ */
+const fs = loadTableModel('FactSalesModel');
+import { getSessionToken } from '@demoSessionTokenService';
+
+export const queryModel = {
+    name: 'FactSalesDemoAuthQueryModel',
+    caption: '销售明细查询（权限演示）',
+    description: '演示声明式权限控制的销售事实表查询模型',
+    loader: 'v2',
+
+    model: fs,
+
+    columnGroups: [
+        {
+            caption: '订单明细信息',
+            items: [
+                { ref: fs.orderId },
+                { ref: fs.orderLineNo },
+                { ref: fs.orderStatus },
+                { ref: fs.paymentMethod }
+            ]
+        },
+        {
+            caption: '商品维度',
+            items: [
+                { ref: fs.product },
+                { ref: fs.product$categoryName },
+                { ref: fs.product$brand }
+            ]
+        },
+        {
+            caption: '客户维度',
+            items: [
+                { ref: fs.customer },
+                { ref: fs.customer$customerType },
+                { ref: fs.customer$memberLevel }
+            ]
+        },
+        {
+            caption: '门店维度',
+            items: [
+                { ref: fs.store },
+                { ref: fs.store$storeType }
+            ]
+        },
+        {
+            caption: '度量',
+            items: [
+                { ref: fs.salesAmount },
+                { ref: fs.profitAmount }
+            ]
+        }
+    ],
+
+    accesses: [
+        {
+            queryBuilder: (context) => {
+                const query = context.query;
+                const token = getSessionToken(context);
+
+                if (token.role === 'ADMIN') {
+                    return;
+                }
+
+                if (token.role === 'MANAGER') {
+                    query.and(fs.store$id, token.storeKey);
+                } else {
+                    query.and(fs.store$id, token.storeKey);
+                    query.and(fs.orderStatus, 'COMPLETED');
+                }
+            }
+        }
+    ]
+};

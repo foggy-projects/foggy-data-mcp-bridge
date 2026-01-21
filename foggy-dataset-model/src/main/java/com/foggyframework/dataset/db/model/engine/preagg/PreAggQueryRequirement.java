@@ -45,6 +45,45 @@ public class PreAggQueryRequirement {
     private boolean hasGroupBy;
 
     /**
+     * 是否有 WHERE 条件（用于判断是否可以使用预聚合）
+     * <p>
+     * 当查询包含 WHERE 条件时，需要检查预聚合是否支持这些条件。
+     * 如果预聚合不支持 WHERE 条件透传，则不应使用预聚合。
+     * </p>
+     */
+    private boolean hasWhereConditions;
+
+    /**
+     * 是否有自定义 SQL 条件（query.andSql() 等）
+     * <p>
+     * 自定义 SQL 条件无法解析，因此不支持预聚合。
+     * </p>
+     */
+    private boolean hasCustomSqlConditions;
+
+    /**
+     * Slice 条件涉及的列（维度名$属性名 -> 原始字段名）
+     * <p>
+     * 用于检查预聚合是否包含这些列。
+     * </p>
+     */
+    private Map<String, SliceColumnInfo> sliceColumns = new LinkedHashMap<>();
+
+    /**
+     * Slice 列信息
+     */
+    @lombok.Data
+    @lombok.AllArgsConstructor
+    public static class SliceColumnInfo {
+        /** 维度名（如 product） */
+        private String dimensionName;
+        /** 属性名（如 categoryName），可能为 null 表示维度主键 */
+        private String propertyName;
+        /** 原始字段名（如 product$categoryName） */
+        private String originalField;
+    }
+
+    /**
      * 添加维度
      */
     public void addDimension(String dimensionName) {
@@ -70,6 +109,29 @@ public class PreAggQueryRequirement {
      */
     public void setTimeGranularity(String dimensionName, TimeGranularity granularity) {
         queryGranularities.put(dimensionName, granularity);
+    }
+
+    /**
+     * 添加 Slice 列信息
+     *
+     * @param field 字段名（如 product$categoryName）
+     */
+    public void addSliceColumn(String field) {
+        if (field == null || field.isEmpty()) {
+            return;
+        }
+        int dollarIndex = field.indexOf('$');
+        String dimensionName;
+        String propertyName;
+        if (dollarIndex > 0) {
+            dimensionName = field.substring(0, dollarIndex);
+            propertyName = field.substring(dollarIndex + 1);
+        } else {
+            // 没有 $，可能是度量或维度主键
+            dimensionName = field;
+            propertyName = null;
+        }
+        sliceColumns.put(field, new SliceColumnInfo(dimensionName, propertyName, field));
     }
 
     /**
@@ -228,6 +290,36 @@ public class PreAggQueryRequirement {
             }
         }
 
+        // 6. 检查 Slice 列：Slice 涉及的列必须都在预聚合中
+        for (SliceColumnInfo sliceCol : sliceColumns.values()) {
+            String dimName = sliceCol.getDimensionName();
+            String propName = sliceCol.getPropertyName();
+
+            // 首先检查维度是否存在
+            if (!preAgg.hasDimension(dimName)) {
+                return false;
+            }
+
+            // 如果有属性名，检查属性是否存在
+            if (propName != null && !propName.isEmpty()) {
+                // 跳过隐式属性（caption, id）的检查
+                if (!IMPLICIT_PROPERTIES.contains(propName)) {
+                    // 跳过时间粒度属性的检查
+                    if (!TIME_GRANULARITY_PROPERTIES.contains(propName.toLowerCase())) {
+                        Set<String> preAggProps = preAgg.getDimensionProperties(dimName);
+                        Set<String> normalizedPreAggProps = new HashSet<>();
+                        for (String p : preAggProps) {
+                            normalizedPreAggProps.add(normalizePropertyName(p));
+                        }
+                        String normalizedProp = normalizePropertyName(propName);
+                        if (!normalizedPreAggProps.contains(normalizedProp)) {
+                            return false;
+                        }
+                    }
+                }
+            }
+        }
+
         return true;
     }
 
@@ -290,6 +382,9 @@ public class PreAggQueryRequirement {
                 ", measures=" + measureAggregations.keySet() +
                 ", granularities=" + queryGranularities +
                 ", hasGroupBy=" + hasGroupBy +
+                ", hasWhereConditions=" + hasWhereConditions +
+                ", hasCustomSqlConditions=" + hasCustomSqlConditions +
+                ", sliceColumns=" + sliceColumns.keySet() +
                 '}';
     }
 }

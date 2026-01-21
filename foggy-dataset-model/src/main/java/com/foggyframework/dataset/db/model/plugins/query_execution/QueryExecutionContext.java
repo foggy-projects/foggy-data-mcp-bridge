@@ -66,6 +66,27 @@ public class QueryExecutionContext {
      */
     private String pagingSql;
 
+    // ==================== 聚合查询预聚合优化 ====================
+
+    /**
+     * 预聚合聚合 SQL（用于 returnTotal 优化）
+     * <p>
+     * 当主查询是明细查询但聚合查询可以使用预聚合时，
+     * 此字段存储优化后的聚合 SQL。
+     * </p>
+     */
+    private String preAggAggregateSql;
+
+    /**
+     * 预聚合聚合 SQL 参数
+     */
+    private List<Object> preAggAggregateParams;
+
+    /**
+     * 预聚合聚合 SQL 使用的预聚合名称
+     */
+    private String preAggAggregatePreAggName;
+
     // ==================== 执行控制 ====================
 
     /**

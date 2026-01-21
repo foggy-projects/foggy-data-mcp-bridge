@@ -76,7 +76,7 @@ public class TenantAuthorizationStep implements DataSetResultStep {
 
         // 2. 创建租户过滤条件
         SliceRequestDef tenantFilter = new SliceRequestDef();
-        tenantFilter.setField("tenant_id");
+        tenantFilter.setField("tenantId");
         tenantFilter.setOp("eq");  // 等于
         tenantFilter.setValue(tenantId);
 
@@ -130,10 +130,10 @@ public class RoleBasedAuthorizationStep implements DataSetResultStep {
 
         if (roles.contains("MANAGER")) {
             // 经理可查看本部门数据
-            addFilter(ctx, "dept_id", security.getDeptId());
+            addFilter(ctx, "deptId", security.getDeptId());
         } else {
             // 普通用户只能查看自己的数据
-            addFilter(ctx, "user_id", userId);
+            addFilter(ctx, "userId", userId);
         }
 
         return CONTINUE;
@@ -175,26 +175,26 @@ public class ComplexAuthorizationStep implements DataSetResultStep {
 
         // 示例 1: IN 条件 - 只能查看指定区域的数据
         SliceRequestDef regionFilter = new SliceRequestDef();
-        regionFilter.setField("region_id");
+        regionFilter.setField("regionId");
         regionFilter.setOp("in");
         regionFilter.setValue(Arrays.asList("R001", "R002", "R003"));
         slice.add(regionFilter);
 
         // 示例 2: 范围条件 - 只能查看最近 30 天的数据
         SliceRequestDef dateFilter = new SliceRequestDef();
-        dateFilter.setField("order_date");
+        dateFilter.setField("orderDate");
         dateFilter.setOp(">=");
         dateFilter.setValue(LocalDate.now().minusDays(30));
         slice.add(dateFilter);
 
         // 示例 3: OR 条件 - 可以查看自己创建的或指派给自己的订单
         CondRequestDef creatorCond = new CondRequestDef();
-        creatorCond.setField("creator_id");
+        creatorCond.setField("creatorId");
         creatorCond.setOp("eq");
         creatorCond.setValue(userId);
 
         CondRequestDef assigneeCond = new CondRequestDef();
-        assigneeCond.setField("assignee_id");
+        assigneeCond.setField("assigneeId");
         assigneeCond.setOp("eq");
         assigneeCond.setValue(userId);
 
@@ -247,9 +247,9 @@ public class ColumnAuthorizationStep implements DataSetResultStep {
             }
 
             // 添加要排除的字段
-            exColumns.add("total_amount");
-            exColumns.add("cost_amount");
-            exColumns.add("profit_amount");
+            exColumns.add("costAmount");
+            exColumns.add("profitAmount");
+            exColumns.add("taxAmount");
         }
 
         // 非管理员不能查看敏感字段
@@ -261,7 +261,7 @@ public class ColumnAuthorizationStep implements DataSetResultStep {
             }
 
             exColumns.add("customer$phone");
-            exColumns.add("customer$id_card");
+            exColumns.add("customer$idCard");
         }
 
         return CONTINUE;
@@ -305,16 +305,16 @@ public class DynamicColumnStep implements DataSetResultStep {
 
         if (roles.contains("ADMIN")) {
             return Arrays.asList(
-                "order_id", "customer$caption", "total_amount",
-                "customer$phone", "customer$id_card"
+                "orderId", "customer$caption", "salesAmount",
+                "customer$phone", "customer$idCard"
             );
         } else if (roles.contains("SALES")) {
             return Arrays.asList(
-                "order_id", "customer$caption", "total_amount"
+                "orderId", "customer$caption", "salesAmount"
             );
         } else {
             return Arrays.asList(
-                "order_id", "customer$caption"
+                "orderId", "customer$caption"
             );
         }
     }
@@ -357,7 +357,7 @@ public class DataMaskingStep implements DataSetResultStep {
         if (!roles.contains("ADMIN")) {
             for (Map<String, Object> row : result.getData()) {
                 maskPhoneNumber(row, "customer$phone");
-                maskIdCard(row, "customer$id_card");
+                maskIdCard(row, "customer$idCard");
             }
         }
 
@@ -406,7 +406,7 @@ public class MoneyConversionStep implements DataSetResultStep {
 
         // 金额字段列表（从配置或元数据获取）
         List<String> moneyFields = Arrays.asList(
-            "total_amount", "cost_amount", "profit_amount"
+            "salesAmount", "costAmount", "profitAmount"
         );
 
         // 将分转换为元
@@ -457,7 +457,7 @@ public class DatasetAuthConfig {
     @Bean
     public DataSetResultStep tenantAuthStep() {
         TenantAuthorizationStep step = new TenantAuthorizationStep();
-        step.setTenantIdColumn("tenant_id");
+        step.setTenantIdColumn("tenantId");
         return step;
     }
 
@@ -576,7 +576,7 @@ public class MultiTenantAuthStep implements DataSetResultStep {
 
     private void addTenantFilter(ModelResultContext ctx, String tenantId) {
         SliceRequestDef filter = new SliceRequestDef();
-        filter.setField("tenant_id");
+        filter.setField("tenantId");
         filter.setOp("eq");
         filter.setValue(tenantId);
         getOrCreateSlice(ctx).add(filter);
@@ -584,7 +584,7 @@ public class MultiTenantAuthStep implements DataSetResultStep {
 
     private void addDepartmentFilter(ModelResultContext ctx, String deptId) {
         SliceRequestDef filter = new SliceRequestDef();
-        filter.setField("dept_id");
+        filter.setField("deptId");
         filter.setOp("eq");
         filter.setValue(deptId);
         getOrCreateSlice(ctx).add(filter);
@@ -592,7 +592,7 @@ public class MultiTenantAuthStep implements DataSetResultStep {
 
     private void addUserFilter(ModelResultContext ctx, String userId) {
         SliceRequestDef filter = new SliceRequestDef();
-        filter.setField("user_id");
+        filter.setField("userId");
         filter.setOp("eq");
         filter.setValue(userId);
         getOrCreateSlice(ctx).add(filter);
@@ -601,14 +601,14 @@ public class MultiTenantAuthStep implements DataSetResultStep {
     private void hideFinanceColumns(ModelResultContext ctx) {
         List<String> exColumns = getOrCreateExColumns(ctx);
         exColumns.addAll(Arrays.asList(
-            "total_amount", "cost_amount", "profit_amount", "tax_amount"
+            "salesAmount", "costAmount", "profitAmount", "taxAmount"
         ));
     }
 
     private void hideSensitiveColumns(ModelResultContext ctx) {
         List<String> exColumns = getOrCreateExColumns(ctx);
         exColumns.addAll(Arrays.asList(
-            "customer$phone", "customer$id_card", "customer$email"
+            "customer$phone", "customer$idCard", "customer$phone"
         ));
     }
 
@@ -619,7 +619,7 @@ public class MultiTenantAuthStep implements DataSetResultStep {
 
         for (Map<String, Object> row : result.getData()) {
             maskPhoneNumber(row, "customer$phone");
-            maskIdCard(row, "customer$id_card");
+            maskIdCard(row, "customer$idCard");
         }
     }
 

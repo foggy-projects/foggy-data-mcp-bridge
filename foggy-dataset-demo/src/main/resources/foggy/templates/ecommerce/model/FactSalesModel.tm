@@ -69,6 +69,8 @@ export const model = {
                 { column: 'customer_type', caption: '客户类型', description: '客户类型：个人/企业' },
                 { column: 'gender', caption: '性别', description: '客户性别：男/女' },
                 { column: 'age_group', caption: '年龄段', description: '客户年龄段：18-25/26-35/36-45/46+' },
+                { column: 'id_card', caption: '身份证号', description: '客户身份证号码' },
+                { column: 'phone', caption: '手机号', description: '客户手机号码' },
                 { column: 'province', caption: '省份', description: '客户所在省份' },
                 { column: 'city', caption: '城市', description: '客户所在城市' },
                 { column: 'member_level', caption: '会员等级', description: '客户会员等级：普通/银卡/金卡/钻石' }

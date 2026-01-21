@@ -16,8 +16,8 @@ export const queryModel = {
 
     accesses: [
         {
-            property: 'salesTeamId',
-            queryBuilder: (query) => {
+            queryBuilder: (context) => {
+                const query = context.query;
                 const token = getSessionToken();
                 // 使用字段引用（推荐）
                 query.and(fo.salesTeamId, token.teamId);
@@ -33,31 +33,33 @@ export const queryModel = {
 
 ### 2.1 函数签名与参数
 
-`queryBuilder` 函数的参数根据配置方式不同：
+`queryBuilder` 函数只接受一个 `context` 参数，包含所有需要的上下文信息：
 
-**基于属性过滤**：
 ```javascript
-queryBuilder: (query) => { ... }
+queryBuilder: (context) => {
+    const query = context.query;
+    // ...
+}
 ```
 
-**基于维度过滤**：
-```javascript
-queryBuilder: (query, dimension) => { ... }
-```
+**context 可用属性**：
 
-**可用的上下文变量**：
-
-| 变量 | 类型 | 说明 |
+| 属性 | 类型 | 说明 |
 |------|------|------|
-| `query` | JdbcQuery | 查询构建器（参数传入） |
-| `query.queryModel` | QueryModel | 查询模型（通过 query 访问） |
-| `dimension` | DbDimension | 关联的维度（参数传入，仅维度过滤时） |
-| `property` | DbProperty | 关联的属性（参数传入，仅属性过滤时） |
+| `context.query` | JdbcQuery | 查询构建器 |
+| `context.queryModel` | QueryModel | 查询模型 |
+| `context.securityContext` | SecurityContext | 安全上下文（用户信息） |
+| `context.request` | PagingRequest | 原始请求对象 |
 
 ```javascript
 // 访问查询请求
-query.queryRequest          // 当前查询请求对象
-query.queryRequest.extData  // 前端传入的扩展数据
+context.request.param          // 当前查询请求对象
+context.request.param.extData  // 前端传入的扩展数据
+
+// 访问安全上下文
+context.securityContext?.userId    // 当前用户ID
+context.securityContext?.tenantId  // 租户ID
+context.securityContext?.roles     // 用户角色列表
 ```
 
 ### 2.2 字段引用方法（推荐）
@@ -77,7 +79,8 @@ query.queryRequest.extData  // 前端传入的扩展数据
 ```javascript
 const fo = loadTableModel('FactOrderModel');
 
-queryBuilder: (query) => {
+queryBuilder: (context) => {
+    const query = context.query;
     const token = getSessionToken();
 
     // 等于条件：自动生成 t0.team_id = ?
@@ -101,11 +104,21 @@ queryBuilder: (query) => {
 | `andSql(sql, value)` | SQL + 单个参数 |
 | `andSqlList(sql, values)` | SQL + 参数数组 |
 
-**获取表别名**：使用 `fo.$alias` 获取表别名（如 `"t0"`）
+**获取表别名**：
+
+- 主表别名：使用 `fo.$alias` 获取（如 `"t0"`）
+- 维度表别名：使用 `context.queryModel.getDimensionAlias('维度名')` 获取（如 `"d1"`）
 
 ```javascript
-queryBuilder: (query) => {
+queryBuilder: (context) => {
+    const query = context.query;
+    const token = getSessionToken();
+
+    // 获取主表别名
     const t = fo.$alias;
+
+    // 获取维度表别名（便捷方法）
+    const d = context.queryModel.getDimensionAlias('store');
 
     // 原生 SQL（无参数）
     query.andSql(t + '.state not in (60, 70)');
@@ -113,8 +126,8 @@ queryBuilder: (query) => {
     // 原生 SQL（单参数）
     query.andSql(t + '.team_id = ?', token.teamId);
 
-    // 原生 SQL（多参数）
-    query.andSqlList(t + '.region_id = ? and ' + t + '.status = ?', [regionId, 'ACTIVE']);
+    // 维度表条件
+    query.andSql(d + '.store_type = ?', '直营店');
 }
 ```
 
@@ -127,10 +140,10 @@ queryBuilder: (query) => {
 ```javascript
 accesses: [
     {
-        property: 'customerId',
-        queryBuilder: (query) => {
+        queryBuilder: (context) => {
+            const query = context.query;
             const token = getSessionToken();
-            const extData = query?.queryRequest?.extData;
+            const extData = context.request?.param?.extData;
             const t = fo.$alias;
 
             // 基础条件（使用字段引用）
@@ -162,53 +175,26 @@ accesses: [
 
 ---
 
-## 3. 配置方式
+## 3. 配置说明
 
-### 3.1 基于属性过滤
-
-通过 `property` 指定关联的属性字段：
+`accesses` 数组中的每个元素只需要包含 `queryBuilder` 函数：
 
 ```javascript
-const fo = loadTableModel('FactOrderModel');
-
 accesses: [
     {
-        property: 'salesTeamId',
-        queryBuilder: (query) => {
-            const token = getSessionToken();
-            query.and(fo.teamId, token.teamId);
+        queryBuilder: (context) => {
+            // 权限过滤逻辑
+        }
+    },
+    {
+        queryBuilder: (context) => {
+            // 另一个权限过滤逻辑
         }
     }
 ]
 ```
 
-### 3.2 基于维度过滤
-
-通过 `dimension` 指定关联的维度。此时 `dimension` 需要作为参数显式传入：
-
-```javascript
-accesses: [
-    {
-        dimension: 'customer',
-        queryBuilder: (query, dimension) => {
-            const token = getSessionToken();
-            // 获取维度表别名（通过 query.queryModel 访问）
-            const d = query.queryModel.getAlias(dimension.queryObject);
-            query.andSql(d + '.customer_id = ?', token.customerId);
-        }
-    }
-]
-```
-
-### 3.3 字段说明
-
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `dimension` | string | 二选一 | 关联的维度名称 |
-| `property` | string | 二选一 | 关联的属性名称 |
-| `queryBuilder` | function | 是 | 构建权限过滤条件的函数 |
-
-> **注意**：`dimension` 和 `property` 必须二选一。
+由于使用了 `loadTableModel` 的字段引用机制（如 `fo.teamId`），不再需要显式指定 `property` 或 `dimension`。字段引用会自动处理表别名和 JOIN 逻辑。
 
 ---
 
@@ -228,8 +214,8 @@ export const queryModel = {
 
     accesses: [
         {
-            property: 'salesTeamId',
-            queryBuilder: (query) => {
+            queryBuilder: (context) => {
+                const query = context.query;
                 const token = getSessionToken();
                 query.and(fo.teamId, token.teamId);
             }
@@ -282,8 +268,8 @@ export const queryModel = {
 
     accesses: [
         {
-            property: 'salesTeamId',
-            queryBuilder: (query) => {
+            queryBuilder: (context) => {
+                const query = context.query;
                 const token = getSessionToken();
 
                 if (token.role === 'ADMIN') {
@@ -322,15 +308,15 @@ const fo = loadTableModel('FactOrderModel');
 
 accesses: [
     {
-        property: 'regionId',
-        queryBuilder: (query) => {
+        queryBuilder: (context) => {
+            const query = context.query;
             const token = getSessionToken();
             query.and(fo.regionId, token.regionId);
         }
     },
     {
-        property: 'status',
-        queryBuilder: (query) => {
+        queryBuilder: (context) => {
+            const query = context.query;
             // 只显示有效数据
             query.andNe(fo.status, 'DELETED');
         }
@@ -338,24 +324,7 @@ accesses: [
 ]
 ```
 
-### 5.3 基于维度的权限控制
-
-```javascript
-accesses: [
-    {
-        dimension: 'customer',
-        queryBuilder: (query, dimension) => {
-            const token = getSessionToken();
-            // 使用 query.queryModel 获取维度表别名
-            const d = query.queryModel.getAlias(dimension.queryObject);
-            // 只能查看自己负责的客户数据
-            query.andSql(d + '.customer_id = ?', token.customerId);
-        }
-    }
-]
-```
-
-### 5.4 多表关联查询
+### 5.3 多表关联查询
 
 ```javascript
 const fs = loadTableModel('FactSalesModel');
@@ -370,8 +339,8 @@ export const queryModel = {
 
     accesses: [
         {
-            property: 'salesTeamId',
-            queryBuilder: (query) => {
+            queryBuilder: (context) => {
+                const query = context.query;
                 const token = getSessionToken();
                 // 使用字段引用（自动解析表别名）
                 query.and(fs.teamId, token.teamId);
@@ -395,8 +364,8 @@ const fo = loadTableModel('FactOrderModel');
 
 accesses: [
     {
-        property: 'teamId',
-        queryBuilder: (query) => {
+        queryBuilder: (context) => {
+            const query = context.query;
             const token = getSessionToken();
             query.and(fo.teamId, token.teamId);
         }

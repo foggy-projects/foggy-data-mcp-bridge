@@ -9,9 +9,6 @@ import com.foggyframework.dataset.db.model.engine.expression.SqlExpHolder;
 import com.foggyframework.dataset.db.model.engine.expression.sql.SqlBinaryExp;
 import com.foggyframework.dataset.db.model.engine.expression.sql.SqlFunctionExp;
 import com.foggyframework.dataset.db.model.engine.expression.sql.SqlUnaryExp;
-import com.foggyframework.dataset.db.model.spi.DbAggregation;
-import com.foggyframework.dataset.db.model.spi.DbColumn;
-import com.foggyframework.dataset.db.model.spi.DbQueryColumn;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
 import com.foggyframework.dataset.db.model.spi.TableModel;
 import com.foggyframework.fsscript.parser.spi.Exp;
@@ -63,7 +60,7 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
         }
 
         // 获取 QueryModel（用于查询字段定义）
-        QueryModel queryModel = ctx.getJdbcQueryModel();
+        QueryModel queryModel = ctx.getQueryModel();
 
         // 解析并转换
         ModelResultContext.ParsedInlineExpressions result = parseAndConvert(columns, queryRequest, queryModel);
