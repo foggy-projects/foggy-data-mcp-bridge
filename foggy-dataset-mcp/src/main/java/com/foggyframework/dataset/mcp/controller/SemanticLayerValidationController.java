@@ -114,13 +114,22 @@ public class SemanticLayerValidationController {
     @Operation(summary = "列出外部Bundle", description = "列出所有已注册的外部Bundle及其详细信息")
     public ResponseEntity<List<Map<String, Object>>> listBundles() {
         try {
-            // 当前版本不支持listExternalBundles方法
-            // 返回所有Bundle的基本信息
-            List<Map<String, Object>> result = systemBundlesContext.getBundleList().stream()
-                    .map(bundle -> {
+            // 获取所有外部Bundle
+            List<Map<String, Object>> result = systemBundlesContext.listExternalBundles().stream()
+                    .map(bundleDef -> {
                         Map<String, Object> info = new HashMap<>();
-                        info.put("name", bundle.getName());
-                        info.put("packageName", bundle.getPackageName());
+                        info.put("name", bundleDef.getName());
+                        info.put("packageName", bundleDef.getPackageName());
+                        info.put("namespace", bundleDef.getNamespace());
+
+                        // 如果是ExternalBundleDefinition，添加额外信息
+                        if (bundleDef instanceof com.foggyframework.bundle.external.ExternalBundleDefinition) {
+                            com.foggyframework.bundle.external.ExternalBundleDefinition extDef =
+                                    (com.foggyframework.bundle.external.ExternalBundleDefinition) bundleDef;
+                            info.put("path", extDef.getPath());
+                            info.put("watch", extDef.isWatch());
+                        }
+
                         return info;
                     })
                     .collect(Collectors.toList());
@@ -146,15 +155,6 @@ public class SemanticLayerValidationController {
     ) {
         log.info("收到移除Bundle请求: bundleName={}", bundleName);
 
-        Map<String, Object> result = new HashMap<>();
-        result.put("success", false);
-        result.put("bundleName", bundleName);
-        result.put("message", "当前版本暂不支持动态移除Bundle功能");
-
-        return ResponseEntity.status(501).body(result); // 501 Not Implemented
-
-        /*
-        // 下面是使用新版本接口的代码（等foggy-fsscript模块更新后启用）
         try {
             boolean removed = systemBundlesContext.removeBundle(bundleName);
 
@@ -180,7 +180,6 @@ public class SemanticLayerValidationController {
 
             return ResponseEntity.status(500).body(result);
         }
-        */
     }
 
     /**

@@ -73,51 +73,13 @@ public class SemanticLayerValidationService {
 
             // 如果已存在同名Bundle，先移除
             if (request.isClearExisting() && systemBundlesContext.containBundle(bundleName)) {
-                log.info("检测到已存在的Bundle: {}，将被新Bundle替换", bundleName);
-                // 注意：当前版本可能不支持动态移除，新Bundle将覆盖旧Bundle
+                log.info("检测到已存在的Bundle: {}，将被移除", bundleName);
+                systemBundlesContext.removeBundle(bundleName);
                 // 清除模型加载器缓存
                 tableModelLoaderManager.clearAll();
             }
 
-            // 注册新Bundle（注意：这里需要手动实现，因为接口方法可能还未在编译版本中）
-            // 暂时使用workaround: 假设系统会自动处理重复注册
-            log.warn("注册外部Bundle功能当前版本可能不支持，请手动配置外部Bundle");
-            log.info("期望配置: name={}, namespace={}, path={}", bundleName, request.getNamespace(), request.getPath());
-
-            // 临时返回错误，提示用户使用配置文件方式
-            return ValidationResult.builder()
-                    .success(false)
-                    .namespace(request.getNamespace())
-                    .totalFiles(0)
-                    .validFiles(0)
-                    .invalidFiles(1)
-                    .errors(List.of(ValidationError.simple(
-                            "system",
-                            "SYSTEM",
-                            "当前版本暂不支持动态注册外部Bundle。请使用配置文件方式：\n" +
-                            "foggy:\n" +
-                            "  bundle:\n" +
-                            "    external:\n" +
-                            "      enabled: true\n" +
-                            "      bundles:\n" +
-                            "        - name: " + bundleName + "\n" +
-                            "          namespace: " + request.getNamespace() + "\n" +
-                            "          path: " + request.getPath() + "\n" +
-                            "          watch: " + request.isWatch() + "\n"
-                    )))
-                    .durationMs(System.currentTimeMillis() - startTime)
-                    .build();
-
-            /*
-            // 下面是使用新版本接口的代码（等foggy-fsscript模块更新后启用）
-            boolean registered = systemBundlesContext.addExternalBundle(
-                    bundleName,
-                    request.getNamespace(),
-                    request.getPath(),
-                    request.isWatch()
-            );
-            /*
-            // 下面是使用新版本接口的代码（等foggy-fsscript模块更新后启用）
+            // 注册新Bundle
             boolean registered = systemBundlesContext.addExternalBundle(
                     bundleName,
                     request.getNamespace(),
@@ -147,7 +109,6 @@ public class SemanticLayerValidationService {
                     request.getNamespace(), result.getTotalFiles(), result.getValidFiles(), result.getErrors().size());
 
             return result;
-            */
 
         } catch (Exception e) {
             log.error("验证过程发生异常: namespace={}, error={}", request.getNamespace(), e.getMessage(), e);
