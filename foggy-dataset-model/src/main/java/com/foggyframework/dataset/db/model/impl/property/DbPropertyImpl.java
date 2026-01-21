@@ -5,8 +5,11 @@ import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.db.model.impl.AiObject;
 import com.foggyframework.dataset.db.model.impl.DbColumnSupport;
 import com.foggyframework.dataset.db.model.impl.DbObjectSupport;
+import com.foggyframework.dataset.db.model.impl.column.InvalidDbColumn;
+import com.foggyframework.dataset.db.model.impl.model.TableModelSupport;
 import com.foggyframework.dataset.db.model.spi.*;
 import com.foggyframework.dataset.db.model.utils.JdbcModelNamedUtils;
+import com.foggyframework.dataset.db.table.SqlColumn;
 import com.foggyframework.fsscript.DefaultExpEvaluator;
 import com.foggyframework.fsscript.exp.FsscriptFunction;
 import lombok.Getter;
@@ -95,7 +98,9 @@ public class DbPropertyImpl extends DbObjectSupport implements DbProperty, DbDat
             name = alias;
         }
 
+        // 使用安全方式创建 PropertyDbColumn，支持错误收集
         propertyDbColumn = new PropertyDbColumn();
+
         if (extData != null && extData.get("bit") instanceof Boolean) {
             bit = (Boolean) extData.get("bit");
         }
@@ -108,11 +113,95 @@ public class DbPropertyImpl extends DbObjectSupport implements DbProperty, DbDat
 //    }
 
     public class PropertyDbColumn extends DbColumnSupport implements DbPropertyColumn {
+        private final QueryObject queryObjRef;
+
         public PropertyDbColumn() {
-            super(dbDimension == null ?
-                    tableModel.getQueryObject().getSqlColumn(column, true)
-                    : dbDimension.getQueryObject().getSqlColumn(column, true));
+            super(initSqlColumn(dbDimension, tableModel, column, name, type));
+            this.queryObjRef = dbDimension == null
+                    ? tableModel.getQueryObject()
+                    : dbDimension.getQueryObject();
         }
+
+        /**
+         * 初始化 SqlColumn，使用错误收集机制
+         */
+        private static SqlColumn initSqlColumn(DbDimension dbDimension, TableModel tableModel,
+                                                String column, String name, DbColumnType type) {
+            try {
+                // 确定查询对象
+                QueryObject queryObject = dbDimension == null
+                        ? tableModel.getQueryObject()
+                        : dbDimension.getQueryObject();
+
+                // 使用安全方式获取 SqlColumn
+                SqlColumn sqlColumn = queryObject.getSqlColumn(column, false);
+
+                if (sqlColumn == null) {
+                    // 字段不存在，记录错误
+                    handleColumnNotFound(queryObject, dbDimension, tableModel, column, name, type);
+                    // 返回占位 SqlColumn
+                    return new SqlColumn(column, "VARCHAR", java.sql.Types.VARCHAR, 255);
+                }
+
+                return sqlColumn;
+
+            } catch (Exception e) {
+                // 捕获其他异常
+                handleInitError(e, tableModel, column, name, type);
+                return new SqlColumn(column, "VARCHAR", java.sql.Types.VARCHAR, 255);
+            }
+        }
+
+        /**
+         * 处理字段不存在的情况
+         */
+        private static void handleColumnNotFound(QueryObject queryObject, DbDimension dbDimension,
+                                                   TableModel tableModel, String column, String name, DbColumnType type) {
+            String location = String.format("property.%s", name);
+            String tableName = queryObject.getName();
+            String dimensionInfo = dbDimension != null
+                    ? String.format(" (from dimension '%s')", dbDimension.getName())
+                    : "";
+
+            ModelLoadError error = ModelLoadError.builder()
+                    .errorType(ModelLoadError.ErrorType.COLUMN_NOT_FOUND)
+                    .errorLevel(ModelLoadError.ErrorLevel.ERROR)
+                    .location(location)
+                    .message(String.format("字段 [%s] 在表 [%s] 中不存在%s",
+                            column, tableName, dimensionInfo))
+                    .details(String.format("Property '%s' references column '%s' which does not exist in table '%s'%s",
+                            name, column, tableName, dimensionInfo))
+                    .build();
+
+            // 添加错误到模型
+            if (tableModel instanceof TableModelSupport) {
+                ((TableModelSupport) tableModel).addLoadError(error);
+            }
+        }
+
+        /**
+         * 处理初始化异常
+         */
+        private static void handleInitError(Exception e, TableModel tableModel,
+                                              String column, String name, DbColumnType type) {
+            String location = String.format("property.%s", name);
+
+            ModelLoadError error = ModelLoadError.builder()
+                    .errorType(ModelLoadError.ErrorType.OTHER)
+                    .errorLevel(ModelLoadError.ErrorLevel.ERROR)
+                    .location(location)
+                    .message(String.format("属性初始化失败: %s", e.getMessage()))
+                    .details(String.format("Property '%s' (column '%s') initialization failed",
+                            name, column))
+                    .cause(e)
+                    .build();
+
+            // 添加错误到模型
+            if (tableModel instanceof TableModelSupport) {
+                ((TableModelSupport) tableModel).addLoadError(error);
+            }
+        }
+
         @Override
         public Object getExtData() {
             return extData;

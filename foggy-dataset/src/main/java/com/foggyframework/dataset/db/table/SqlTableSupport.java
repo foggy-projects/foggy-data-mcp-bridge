@@ -102,10 +102,26 @@ public abstract class SqlTableSupport extends SqlObject {
     public SqlColumn getSqlColumn(String name, boolean errorIfNotFound) {
         SqlColumn c = name2SqlColumn.get(name.toUpperCase());
         if (c == null && errorIfNotFound) {
-            throw new RuntimeException("sql column [" + name + "] not found int table [" + this.name + "]");
+            throw new RuntimeException("sql column [" + name + "] not found in table [" + this.name + "]");
         } else {
             return c;
         }
+    }
+
+    /**
+     * 安全版本：获取 SQL 字段，不抛出异常
+     * <p>
+     * 当字段不存在时返回 {@link java.util.Optional#empty()}，而不是抛出异常。
+     * 适用于需要优雅处理字段缺失的场景，如模型加载时的错误收集。
+     * </p>
+     *
+     * @param name 字段名称（不区分大小写）
+     * @return Optional 包装的 SqlColumn，如果不存在返回 empty
+     * @since 8.3.0
+     */
+    public java.util.Optional<SqlColumn> getSqlColumnSafe(String name) {
+        SqlColumn c = name2SqlColumn.get(name.toUpperCase());
+        return java.util.Optional.ofNullable(c);
     }
 
     public SqlColumn removeSqlColumn(String name) {
