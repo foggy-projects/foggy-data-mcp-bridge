@@ -43,6 +43,16 @@ export const model = {
             type: 'STRING'
         },
         {
+            column: 'id_card',
+            caption: '身份证号',
+            type: 'STRING'
+        },
+        {
+            column: 'phone',
+            caption: '手机号',
+            type: 'STRING'
+        },
+        {
             column: 'province',
             caption: '省份',
             type: 'STRING'
