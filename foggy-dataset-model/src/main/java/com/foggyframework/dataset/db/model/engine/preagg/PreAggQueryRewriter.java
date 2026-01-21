@@ -848,6 +848,16 @@ public class PreAggQueryRewriter {
             return WhereClauseResult.empty();
         }
 
+        // 处理 $expr 表达式条件
+        if (cond._isExpressionCondition()) {
+            return buildExpressionConditionForPreAgg(preAgg, cond.getExpr(), alias);
+        }
+
+        // 处理 $field 字段引用
+        if (cond._isFieldReference()) {
+            return buildFieldReferenceConditionForPreAgg(preAgg, cond, alias);
+        }
+
         // 处理逻辑组合条件
         if (cond._isLogicalGroup()) {
             List<CondRequestDef> children = cond._getGroupChildren();
@@ -893,6 +903,171 @@ public class PreAggQueryRewriter {
 
         // 构建 SQL 条件
         return buildSqlCondition(alias, columnName, op, value);
+    }
+
+    /**
+     * 构建 $expr 表达式条件（预聚合版本）
+     * <p>
+     * 由于预聚合场景不使用复杂的表达式引擎，此方法解析简单的字段间比较表达式。
+     * </p>
+     *
+     * @param preAgg     预聚合
+     * @param expression 表达式字符串
+     * @param alias      表别名
+     * @return WHERE 子句结果
+     * @since 8.3.0
+     */
+    private WhereClauseResult buildExpressionConditionForPreAgg(PreAggregation preAgg,
+                                                                  String expression,
+                                                                  String alias) {
+        // 简单解析：支持基本的字段间比较（field1 op field2）
+        // 例如："actualAmount > budgetAmount"
+        String[] comparisonOps = {" >= ", " <= ", " != ", " <> ", " > ", " < ", " = "};
+
+        for (String compOp : comparisonOps) {
+            int opIndex = expression.indexOf(compOp);
+            if (opIndex > 0) {
+                String leftPart = expression.substring(0, opIndex).trim();
+                String rightPart = expression.substring(opIndex + compOp.length()).trim();
+                String sqlOp = compOp.trim();
+
+                // 尝试映射左右两侧字段名
+                String leftColumn = mapFieldToPreAggColumn(preAgg, leftPart);
+                String rightColumn = mapFieldToPreAggColumn(preAgg, rightPart);
+
+                if (leftColumn != null && rightColumn != null) {
+                    String sql = alias + "." + leftColumn + " " + sqlOp + " " + alias + "." + rightColumn;
+                    if (log.isDebugEnabled()) {
+                        log.debug("PreAgg $expr '{}' -> SQL: {}", expression, sql);
+                    }
+                    return new WhereClauseResult(sql, new ArrayList<>());
+                }
+
+                // 如果右侧不是字段名，可能是数值或表达式
+                if (leftColumn != null) {
+                    // 尝试将右侧作为字面值处理
+                    try {
+                        // 检查是否包含其他字段引用
+                        if (rightPart.matches(".*[a-zA-Z_][a-zA-Z0-9_]*.*")) {
+                            // 可能包含字段名，尝试进行表达式替换
+                            String processedRight = processExpressionPart(preAgg, rightPart, alias);
+                            String sql = alias + "." + leftColumn + " " + sqlOp + " " + processedRight;
+                            if (log.isDebugEnabled()) {
+                                log.debug("PreAgg $expr '{}' -> SQL: {}", expression, sql);
+                            }
+                            return new WhereClauseResult(sql, new ArrayList<>());
+                        }
+                    } catch (Exception e) {
+                        log.warn("Failed to process $expr right part: {}", rightPart, e);
+                    }
+                }
+
+                log.warn("Cannot fully resolve $expr '{}' for pre-aggregation", expression);
+                break;
+            }
+        }
+
+        log.warn("Unsupported $expr expression for pre-aggregation: {}", expression);
+        return WhereClauseResult.empty();
+    }
+
+    /**
+     * 处理表达式中的字段部分
+     */
+    private String processExpressionPart(PreAggregation preAgg, String part, String alias) {
+        // 简单的字段名替换：替换标识符为带别名的列名
+        // 匹配字段名（字母开头，包含字母数字下划线和$）
+        String result = part;
+        java.util.regex.Pattern fieldPattern = java.util.regex.Pattern.compile("([a-zA-Z_][a-zA-Z0-9_$]*)");
+        java.util.regex.Matcher matcher = fieldPattern.matcher(part);
+        StringBuffer sb = new StringBuffer();
+        while (matcher.find()) {
+            String token = matcher.group(1);
+            // 跳过数字和SQL关键字
+            if (token.matches("\\d+") ||
+                    java.util.Set.of("AND", "OR", "NOT", "NULL", "TRUE", "FALSE").contains(token.toUpperCase())) {
+                matcher.appendReplacement(sb, token);
+                continue;
+            }
+            String mapped = mapFieldToPreAggColumn(preAgg, token);
+            if (mapped != null) {
+                matcher.appendReplacement(sb, alias + "." + mapped);
+            } else {
+                // 无法映射，保持原样
+                matcher.appendReplacement(sb, token);
+            }
+        }
+        matcher.appendTail(sb);
+        return sb.toString();
+    }
+
+    /**
+     * 构建 $field 字段引用条件（预聚合版本）
+     *
+     * @param preAgg 预聚合
+     * @param cond   条件定义
+     * @param alias  表别名
+     * @return WHERE 子句结果
+     * @since 8.3.0
+     */
+    private WhereClauseResult buildFieldReferenceConditionForPreAgg(PreAggregation preAgg,
+                                                                      CondRequestDef cond,
+                                                                      String alias) {
+        String leftField = cond.getField();
+        String rightField = cond._getReferencedField();
+        String op = cond.getOp();
+
+        // 映射字段名
+        String leftColumn = mapFieldToPreAggColumn(preAgg, leftField);
+        String rightColumn = mapFieldToPreAggColumn(preAgg, rightField);
+
+        if (leftColumn == null) {
+            log.warn("Cannot map left field '{}' to pre-aggregation column", leftField);
+            return WhereClauseResult.empty();
+        }
+        if (rightColumn == null) {
+            log.warn("Cannot map right field '{}' to pre-aggregation column", rightField);
+            return WhereClauseResult.empty();
+        }
+
+        // 规范化操作符
+        String normalizedOp = normalizeOperatorForPreAgg(op);
+
+        // 构建 SQL
+        String sql = alias + "." + leftColumn + " " + normalizedOp + " " + alias + "." + rightColumn;
+
+        if (log.isDebugEnabled()) {
+            log.debug("PreAgg $field: {} {} ${} -> SQL: {}",
+                    leftField, op, rightField, sql);
+        }
+
+        return new WhereClauseResult(sql, new ArrayList<>());
+    }
+
+    /**
+     * 规范化操作符（预聚合版本）
+     */
+    private String normalizeOperatorForPreAgg(String op) {
+        if (op == null) {
+            return "=";
+        }
+        switch (op.toLowerCase()) {
+            case "eq":
+                return "=";
+            case "ne":
+            case "<>":
+                return "!=";
+            case "gt":
+                return ">";
+            case "gte":
+                return ">=";
+            case "lt":
+                return "<";
+            case "lte":
+                return "<=";
+            default:
+                return op;
+        }
     }
 
     /**

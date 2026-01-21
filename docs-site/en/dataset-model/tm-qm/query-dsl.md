@@ -328,6 +328,118 @@ Conditions within `slice` array are connected with **AND** by default. Use `$or`
 }
 ```
 
+### 3.4 Field-to-Field Comparison ($field / $expr)
+
+Compare values between two fields directly without creating calculated fields. Two syntaxes are provided:
+
+#### $field Reference
+
+Use `{"$field": "fieldName"}` as value to reference another field instead of a literal value:
+
+```json
+{
+    "param": {
+        "slice": [
+            {
+                "field": "salesAmount",
+                "op": ">",
+                "value": { "$field": "costAmount" }
+            }
+        ]
+    }
+}
+```
+
+**Generated SQL**:
+```sql
+WHERE sales_amount > cost_amount
+```
+
+**Supported comparison operators**:
+
+| Operator | Example |
+|----------|---------|
+| `=` | `{"field": "a", "op": "=", "value": {"$field": "b"}}` |
+| `!=` | `{"field": "a", "op": "!=", "value": {"$field": "b"}}` |
+| `>` | `{"field": "a", "op": ">", "value": {"$field": "b"}}` |
+| `>=` | `{"field": "a", "op": ">=", "value": {"$field": "b"}}` |
+| `<` | `{"field": "a", "op": "<", "value": {"$field": "b"}}` |
+| `<=` | `{"field": "a", "op": "<=", "value": {"$field": "b"}}` |
+
+#### $expr Expression
+
+Use `$expr` for more complex field comparison expressions:
+
+```json
+{
+    "param": {
+        "slice": [
+            { "$expr": "salesAmount > costAmount" }
+        ]
+    }
+}
+```
+
+**Supports arithmetic operations**:
+
+```json
+{
+    "param": {
+        "slice": [
+            { "$expr": "salesAmount > costAmount * 1.2" },
+            { "$expr": "profitAmount >= discountAmount + 100" }
+        ]
+    }
+}
+```
+
+**Generated SQL**:
+```sql
+WHERE (sales_amount > (cost_amount * 1.2))
+  AND (profit_amount >= (discount_amount + 100))
+```
+
+#### Combining with Other Conditions
+
+`$field` and `$expr` can be combined with regular conditions and logical groups:
+
+```json
+{
+    "param": {
+        "slice": [
+            { "orderStatus": "COMPLETED" },
+            { "field": "salesAmount", "op": ">", "value": { "$field": "costAmount" } },
+            { "field": "quantity", "op": ">=", "value": 10 }
+        ]
+    }
+}
+```
+
+**Using within $or conditions**:
+
+```json
+{
+    "param": {
+        "slice": [
+            {
+                "$or": [
+                    { "$expr": "salesAmount > costAmount * 1.5" },
+                    { "field": "discountAmount", "op": ">", "value": 100 }
+                ]
+            }
+        ]
+    }
+}
+```
+
+#### Use Cases
+
+| Scenario | Recommended Syntax | Example |
+|----------|-------------------|---------|
+| Simple field comparison | `$field` | Sales amount greater than cost |
+| Comparison with arithmetic | `$expr` | Profit rate over 20% (`salesAmount > costAmount * 1.2`) |
+| Multi-field arithmetic | `$expr` | Net amount greater than cost (`salesAmount - discountAmount > costAmount`) |
+
 ---
 
 ## 4. Grouping (groupBy)

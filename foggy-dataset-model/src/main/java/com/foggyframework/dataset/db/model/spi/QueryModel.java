@@ -153,4 +153,49 @@ public interface QueryModel extends Decorate, DbObject {
      * @return queryBuilder 函数列表
      */
     List<FsscriptFunction> getAccessBuilders();
+
+    /**
+     * 获取模型加载错误列表
+     * <p>
+     * 在查询模型加载过程中收集的所有错误信息。
+     * 即使有错误，模型仍可能成功加载（优雅降级）。
+     * </p>
+     *
+     * @return 错误列表，如果没有错误返回空列表
+     * @since 8.3.0
+     */
+    default List<ModelLoadError> getLoadErrors() {
+        return java.util.Collections.emptyList();
+    }
+
+    /**
+     * 判断模型是否有错误
+     *
+     * @return 如果有错误返回 true
+     * @since 8.3.0
+     */
+    default boolean hasErrors() {
+        return !getLoadErrors().isEmpty();
+    }
+
+    /**
+     * 判断模型是否有致命错误
+     *
+     * @return 如果有致命错误返回 true
+     * @since 8.3.0
+     */
+    default boolean hasFatalErrors() {
+        return getLoadErrors().stream()
+                .anyMatch(e -> e.getErrorLevel() == ModelLoadError.ErrorLevel.FATAL);
+    }
+
+    /**
+     * 获取模型加载状态
+     *
+     * @return 加载状态
+     * @since 8.3.0
+     */
+    default ModelLoadStatus getLoadStatus() {
+        return ModelLoadStatus.SUCCESS;
+    }
 }

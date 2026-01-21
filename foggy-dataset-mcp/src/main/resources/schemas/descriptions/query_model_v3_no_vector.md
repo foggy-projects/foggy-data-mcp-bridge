@@ -84,6 +84,10 @@
 | 区间 | `[]`, `[)`, `()`, `(]` (value为[start,end])         |
 | 层级 | `childrenOf`, `descendantsOf`, `selfAndDescendantsOf` |
 
+**字段间比较**：
+- `$field` 引用：`{"field": "a", "op": ">", "value": {"$field": "b"}}` → `WHERE a > b`
+- `$expr` 表达式：`{"$expr": "salesAmount > costAmount * 1.2"}` → 支持算术运算
+
 ### orderBy (可选)
 ```json
 [{"field": "totalSales", "dir": "DESC"}]

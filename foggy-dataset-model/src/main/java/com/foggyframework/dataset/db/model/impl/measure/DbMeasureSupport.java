@@ -7,6 +7,8 @@ import com.foggyframework.dataset.db.model.def.measure.DbMeasureDef;
 import com.foggyframework.dataset.db.model.impl.AiObject;
 import com.foggyframework.dataset.db.model.impl.DbColumnSupport;
 import com.foggyframework.dataset.db.model.impl.DbObjectSupport;
+import com.foggyframework.dataset.db.model.impl.column.InvalidDbColumn;
+import com.foggyframework.dataset.db.model.impl.model.TableModelSupport;
 import com.foggyframework.dataset.db.model.spi.*;
 import com.foggyframework.dataset.db.model.utils.JdbcModelNamedUtils;
 import com.foggyframework.dataset.db.table.SqlColumn;
@@ -54,7 +56,93 @@ public abstract class DbMeasureSupport extends DbObjectSupport implements DbMeas
             name = JdbcModelNamedUtils.toAliasName(column);
         }
 
-        jdbcColumn = new MeasureDbColumn(jdbcModel.getQueryObject().getSqlColumn(column, true));
+        // 使用安全方式获取 SqlColumn，支持错误收集
+        SqlColumn sqlColumn = initSqlColumn();
+        jdbcColumn = new MeasureDbColumn(sqlColumn);
+    }
+
+    /**
+     * 初始化 SqlColumn，使用错误收集机制
+     */
+    private SqlColumn initSqlColumn() {
+        try {
+            // 使用安全方式获取 SqlColumn
+            SqlColumn sqlColumn = jdbcModel.getQueryObject().getSqlColumn(column, false);
+
+            if (sqlColumn == null) {
+                // 字段不存在，记录错误
+                handleColumnNotFound();
+                // 返回占位 SqlColumn
+                return new SqlColumn(column, "DECIMAL", java.sql.Types.DECIMAL, 18);
+            }
+
+            return sqlColumn;
+
+        } catch (Exception e) {
+            // 捕获其他异常
+            handleInitError(e);
+            return new SqlColumn(column, "DECIMAL", java.sql.Types.DECIMAL, 18);
+        }
+    }
+
+    /**
+     * 处理字段不存在的情况
+     */
+    private void handleColumnNotFound() {
+        String location = String.format("measure.%s", name);
+        String tableName = jdbcModel.getQueryObject().getName();
+
+        ModelLoadError error = ModelLoadError.builder()
+                .errorType(ModelLoadError.ErrorType.COLUMN_NOT_FOUND)
+                .errorLevel(ModelLoadError.ErrorLevel.ERROR)
+                .location(location)
+                .message(String.format("度量字段 [%s] 在表 [%s] 中不存在", column, tableName))
+                .details(String.format("Measure '%s' references column '%s' which does not exist in table '%s'",
+                        name, column, tableName))
+                .build();
+
+        // 添加错误到模型
+        if (jdbcModel instanceof TableModelSupport) {
+            ((TableModelSupport) jdbcModel).addLoadError(error);
+        }
+
+        // 标记 jdbcColumn 为无效
+        this.jdbcColumn = new InvalidDbColumn(
+                column,
+                "Column not found in table " + tableName,
+                jdbcModel.getQueryObject(),
+                type
+        );
+    }
+
+    /**
+     * 处理初始化异常
+     */
+    private void handleInitError(Exception e) {
+        String location = String.format("measure.%s", name);
+
+        ModelLoadError error = ModelLoadError.builder()
+                .errorType(ModelLoadError.ErrorType.OTHER)
+                .errorLevel(ModelLoadError.ErrorLevel.ERROR)
+                .location(location)
+                .message(String.format("度量初始化失败: %s", e.getMessage()))
+                .details(String.format("Measure '%s' (column '%s') initialization failed",
+                        name, column))
+                .cause(e)
+                .build();
+
+        // 添加错误到模型
+        if (jdbcModel instanceof TableModelSupport) {
+            ((TableModelSupport) jdbcModel).addLoadError(error);
+        }
+
+        // 标记 jdbcColumn 为无效
+        this.jdbcColumn = new InvalidDbColumn(
+                column,
+                "Initialization failed: " + e.getMessage(),
+                null,
+                type
+        );
     }
 
     public abstract class MeasureDbColumnSupport extends DbColumnSupport implements DbColumn, DbMeasureColumn {

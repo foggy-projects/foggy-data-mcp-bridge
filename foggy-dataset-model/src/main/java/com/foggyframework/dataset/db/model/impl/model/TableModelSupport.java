@@ -77,6 +77,24 @@ public abstract class TableModelSupport extends DbObjectSupport implements Table
      */
     List<PreAggregation> preAggregations = new ArrayList<>();
 
+    /**
+     * 模型加载错误列表
+     * <p>
+     * 在模型加载过程中收集的所有错误信息。
+     * 使用优雅降级策略，即使有错误也尽可能完成模型加载。
+     * </p>
+     *
+     * @since 8.3.0
+     */
+    List<ModelLoadError> loadErrors = new ArrayList<>();
+
+    /**
+     * 模型加载状态
+     *
+     * @since 8.3.0
+     */
+    ModelLoadStatus loadStatus = ModelLoadStatus.SUCCESS;
+
 //    MongoTemplate mongoTemplate;
 
     @Override
@@ -404,6 +422,111 @@ public abstract class TableModelSupport extends DbObjectSupport implements Table
 
         }
         return false;
+    }
+
+    // ==================== 错误收集相关方法 ====================
+
+    /**
+     * 获取模型加载错误列表（覆盖接口默认方法）
+     *
+     * @return 错误列表的不可修改视图
+     * @since 8.3.0
+     */
+    @Override
+    public List<ModelLoadError> getLoadErrors() {
+        return java.util.Collections.unmodifiableList(loadErrors);
+    }
+
+    /**
+     * 获取模型加载状态（覆盖接口默认方法）
+     *
+     * @return 加载状态
+     * @since 8.3.0
+     */
+    @Override
+    public ModelLoadStatus getLoadStatus() {
+        return loadStatus;
+    }
+
+    /**
+     * 添加加载错误
+     * <p>
+     * 当模型加载过程中发现错误时调用此方法收集错误信息。
+     * 添加错误后会自动更新加载状态。
+     * </p>
+     *
+     * @param error 错误信息
+     * @since 8.3.0
+     */
+    public void addLoadError(ModelLoadError error) {
+        if (error != null) {
+            loadErrors.add(error);
+            updateLoadStatus();
+            log.warn("模型 [{}] 加载错误: {}", getName(), error.getFormattedMessage());
+        }
+    }
+
+    /**
+     * 批量添加加载错误
+     *
+     * @param errors 错误列表
+     * @since 8.3.0
+     */
+    public void addLoadErrors(List<ModelLoadError> errors) {
+        if (errors != null && !errors.isEmpty()) {
+            loadErrors.addAll(errors);
+            updateLoadStatus();
+            errors.forEach(error ->
+                log.warn("模型 [{}] 加载错误: {}", getName(), error.getFormattedMessage())
+            );
+        }
+    }
+
+    /**
+     * 更新加载状态
+     * <p>
+     * 根据错误列表中的错误级别自动更新模型加载状态：
+     * <ul>
+     *   <li>无错误 → SUCCESS</li>
+     *   <li>仅有警告 → SUCCESS_WITH_WARNINGS</li>
+     *   <li>有普通错误 → PARTIAL_SUCCESS</li>
+     *   <li>有致命错误 → FAILED</li>
+     * </ul>
+     * </p>
+     */
+    private void updateLoadStatus() {
+        if (loadErrors.isEmpty()) {
+            loadStatus = ModelLoadStatus.SUCCESS;
+            return;
+        }
+
+        boolean hasFatal = false;
+        boolean hasError = false;
+        boolean hasWarning = false;
+
+        for (ModelLoadError error : loadErrors) {
+            switch (error.getErrorLevel()) {
+                case FATAL:
+                    hasFatal = true;
+                    break;
+                case ERROR:
+                    hasError = true;
+                    break;
+                case WARNING:
+                    hasWarning = true;
+                    break;
+            }
+        }
+
+        if (hasFatal) {
+            loadStatus = ModelLoadStatus.FAILED;
+        } else if (hasError) {
+            loadStatus = ModelLoadStatus.PARTIAL_SUCCESS;
+        } else if (hasWarning) {
+            loadStatus = ModelLoadStatus.SUCCESS_WITH_WARNINGS;
+        } else {
+            loadStatus = ModelLoadStatus.SUCCESS;
+        }
     }
 
     //    @Override

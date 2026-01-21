@@ -6,6 +6,7 @@ import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.db.model.common.query.CondType;
 import com.foggyframework.dataset.db.model.def.query.request.*;
 import com.foggyframework.dataset.db.model.engine.expression.InlineExpressionParser;
+import com.foggyframework.dataset.db.model.engine.expression.SliceExpressionProcessor;
 import com.foggyframework.dataset.db.model.engine.expression.SqlCalculatedFieldProcessor;
 import com.foggyframework.dataset.db.model.engine.expression.SqlExpContext;
 import com.foggyframework.dataset.db.model.engine.formula.SqlFormulaService;
@@ -478,6 +479,18 @@ public class JdbcModelQueryEngine implements QueryEngine {
     }
 
     private void buildSlice(JdbcQueryModel jdbcQueryModel, JdbcQuery jdbcQuery, JdbcQuery.JdbcListCond listCond, CondRequestDef sliceDef, int level, String parentLink) {
+        // 处理 $expr 表达式条件
+        if (sliceDef._isExpressionCondition()) {
+            buildExpressionCondition(jdbcQueryModel, jdbcQuery, listCond, sliceDef, level, parentLink);
+            return;
+        }
+
+        // 处理 $field 字段引用
+        if (sliceDef._isFieldReference()) {
+            buildFieldReferenceCondition(jdbcQueryModel, jdbcQuery, listCond, sliceDef, level, parentLink);
+            return;
+        }
+
         if (sliceDef._isLogicalGroup()) {
             // 这是一个逻辑组合条件（$or 或 $and）
             String groupLink = sliceDef._getGroupLink();
@@ -571,6 +584,152 @@ public class JdbcModelQueryEngine implements QueryEngine {
             sqlFormulaService.buildAndAddToJdbcCond(jdbcQuery.getHaving(), sliceDef.getOp(), jdbcColumn, alias, sliceDef.getValue(), parentLink);
         } else {
             sqlFormulaService.buildAndAddToJdbcCond(listCond, sliceDef.getOp(), jdbcColumn, alias, sliceDef.getValue(), parentLink);
+        }
+    }
+
+    /**
+     * 构建 $expr 表达式条件
+     * <p>
+     * 使用 {@link SliceExpressionProcessor} 将表达式编译为 SQL 条件。
+     * </p>
+     *
+     * @param jdbcQueryModel 查询模型
+     * @param jdbcQuery      JDBC 查询对象
+     * @param listCond       条件列表
+     * @param sliceDef       条件定义
+     * @param level          嵌套层级
+     * @param parentLink     父级连接类型（AND/OR）
+     * @since 8.3.0
+     */
+    private void buildExpressionCondition(JdbcQueryModel jdbcQueryModel, JdbcQuery jdbcQuery,
+                                          JdbcQuery.JdbcListCond listCond, CondRequestDef sliceDef,
+                                          int level, String parentLink) {
+        String expression = sliceDef.getExpr();
+
+        // 使用表达式处理器
+        SliceExpressionProcessor processor = new SliceExpressionProcessor(
+                jdbcQueryModel,
+                jdbcQueryModel.getDialect(),
+                null  // ApplicationContext 可选
+        );
+
+        String sql = processor.processExpression(expression);
+
+        // 添加到条件列表（使用 parentLink 与其他条件保持一致）
+        listCond.addRawSql(parentLink, sql);
+
+        if (log.isDebugEnabled()) {
+            log.debug("Added $expr condition: {} -> SQL: {}", expression, sql);
+        }
+    }
+
+    /**
+     * 构建 $field 字段引用条件
+     * <p>
+     * 将 value 中的字段引用转换为字段间比较条件。
+     * </p>
+     *
+     * @param jdbcQueryModel 查询模型
+     * @param jdbcQuery      JDBC 查询对象
+     * @param listCond       条件列表
+     * @param sliceDef       条件定义
+     * @param level          嵌套层级
+     * @param parentLink     父级连接类型（AND/OR）
+     * @since 8.3.0
+     */
+    private void buildFieldReferenceCondition(JdbcQueryModel jdbcQueryModel, JdbcQuery jdbcQuery,
+                                               JdbcQuery.JdbcListCond listCond, CondRequestDef sliceDef,
+                                               int level, String parentLink) {
+        String leftFieldName = sliceDef.getField();
+        String rightFieldName = sliceDef._getReferencedField();
+        String op = sliceDef.getOp();
+
+        // 解析左侧字段
+        DbColumn leftColumn = jdbcQueryModel.findJdbcColumnForCond(leftFieldName, false, true);
+        if (leftColumn == null) {
+            leftColumn = findCalculatedColumn(leftFieldName);
+        }
+        if (leftColumn == null) {
+            throw RX.throwAUserTip(DatasetMessages.queryColumnNotfound(leftFieldName, jdbcQueryModel.findDimension(leftFieldName)));
+        }
+
+        // 解析右侧字段
+        DbColumn rightColumn = jdbcQueryModel.findJdbcColumnForCond(rightFieldName, false, true);
+        if (rightColumn == null) {
+            rightColumn = findCalculatedColumn(rightFieldName);
+        }
+        if (rightColumn == null) {
+            throw RX.throwAUserTip(DatasetMessages.queryColumnNotfound(rightFieldName, jdbcQueryModel.findDimension(rightFieldName)));
+        }
+
+        // 确保需要的表已 JOIN
+        if (leftColumn.getQueryObject() != null && !jdbcQuery.getFrom().getFromObject().isRootEqual(leftColumn.getQueryObject())) {
+            jdbcQuery.join(leftColumn.getQueryObject());
+        }
+        if (rightColumn.getQueryObject() != null && !jdbcQuery.getFrom().getFromObject().isRootEqual(rightColumn.getQueryObject())) {
+            jdbcQuery.join(rightColumn.getQueryObject());
+        }
+
+        // 获取别名
+        String leftAlias = jdbcQueryModel.getAlias(leftColumn.getQueryObject());
+        String rightAlias = jdbcQueryModel.getAlias(rightColumn.getQueryObject());
+
+        // 构建 SQL 表达式
+        String leftSql = buildColumnSql(leftColumn, leftAlias);
+        String rightSql = buildColumnSql(rightColumn, rightAlias);
+        String normalizedOp = normalizeOperator(op);
+
+        String sql = leftSql + " " + normalizedOp + " " + rightSql;
+
+        // 添加到条件列表（使用 parentLink 与其他条件保持一致）
+        listCond.addRawSql(parentLink, sql);
+
+        if (log.isDebugEnabled()) {
+            log.debug("Added $field condition: {} {} ${} -> SQL: {}",
+                    leftFieldName, op, rightFieldName, sql);
+        }
+    }
+
+    /**
+     * 构建列的 SQL 表达式
+     */
+    private String buildColumnSql(DbColumn column, String alias) {
+        if (column.isCalculatedField()) {
+            // 计算字段直接返回其 declare
+            return column.getDeclare();
+        }
+
+        // 普通列带别名
+        String columnName = column.getSqlColumn() != null ? column.getSqlColumn().getName() : column.getAlias();
+        if (alias != null && !alias.isEmpty()) {
+            return alias + "." + columnName;
+        }
+        return columnName;
+    }
+
+    /**
+     * 规范化操作符
+     */
+    private String normalizeOperator(String op) {
+        if (op == null) {
+            return "=";
+        }
+        switch (op.toLowerCase()) {
+            case "eq":
+                return "=";
+            case "ne":
+            case "<>":
+                return "!=";
+            case "gt":
+                return ">";
+            case "gte":
+                return ">=";
+            case "lt":
+                return "<";
+            case "lte":
+                return "<=";
+            default:
+                return op;
         }
     }
 
