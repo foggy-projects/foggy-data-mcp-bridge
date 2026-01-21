@@ -65,6 +65,15 @@ public class ExternalBundleProperties {
         private String name;
 
         /**
+         * 命名空间（用于模型隔离）
+         *
+         * <p>默认为空字符串表示默认命名空间。
+         * <p>不同命名空间下可以存在同名模型，适用于dev/test环境隔离。
+         * <p>示例：namespace="dev" 则模型全名为 "dev:ModelName"
+         */
+        private String namespace = "";
+
+        /**
          * 外部目录路径
          *
          * <p>指向包含数据模型文件的目录。

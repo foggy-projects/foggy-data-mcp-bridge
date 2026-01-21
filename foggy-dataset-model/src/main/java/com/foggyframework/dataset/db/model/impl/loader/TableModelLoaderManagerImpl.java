@@ -74,16 +74,23 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
 
     @Override
     synchronized public TableModel load(String name) {
-        TableModel tm = name2JdbcModel.get(name);
+        return load(name, null);
+    }
+
+    @Override
+    synchronized public TableModel load(String modelName, String namespace) {
+        String fullName = buildFullName(namespace, modelName);
+
+        TableModel tm = name2JdbcModel.get(fullName);
         if (tm != null) {
             return tm;
         }
-        Fsscript fScript = this.findFsscript(name, "tm");
+
+        Fsscript fScript = this.findFsscript(modelName, "tm", namespace);
         ExpEvaluator ee = fScript.eval(systemBundlesContext.getApplicationContext());
-//        fScript.get
         Object model = ee.getExportObject("model");
         if (model == null) {
-            throw RX.throwAUserTip(DatasetMessages.modelNotFound(name));
+            throw RX.throwAUserTip(DatasetMessages.modelNotFound(modelName));
         }
         Bundle bundle = fScript.getFsscriptClosureDefinition().getFsscriptClosureDefinitionSpace().getBundle();
         DbModelDef def = FsscriptConversionService.getSharedInstance().convert(model, DbModelDef.class);
@@ -92,16 +99,23 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
         TableModelLoader tableModelLoader = typeName2Loader.get(def.getType());
         tm = tableModelLoader.load(fScript, def, bundle);
         tm = initialization(tm, def, bundle);
-//        if (StringUtils.equals(def.getType(), "mongo")) {
-//            RX.notNull(mongoModelLoader, "使用 MongoDB 模型需要在项目中配置 MongoDB 连接（确保存在 MongoClient Bean）");
-//            tm = mongoModelLoader.load(fScript, def, bundle);
-//        } else {
-//            tm = load(def.getDataSource() == null ? dataSource : def.getDataSource(), fScript, def, bundle, null);
-//        }
 
-
-        name2JdbcModel.put(name, tm);
+        name2JdbcModel.put(fullName, tm);
         return tm;
+    }
+
+    /**
+     * 构建完整的模型名称（包含namespace）
+     *
+     * @param namespace 命名空间（空字符串或null表示默认命名空间）
+     * @param modelName 模型名称
+     * @return 完整名称（格式：namespace:modelName 或 modelName）
+     */
+    private String buildFullName(String namespace, String modelName) {
+        if (namespace == null || namespace.trim().isEmpty()) {
+            return modelName;
+        }
+        return namespace.trim() + ":" + modelName;
     }
 
     private void fix(DbModelDef def) {

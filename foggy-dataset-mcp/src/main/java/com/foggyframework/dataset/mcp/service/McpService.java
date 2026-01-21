@@ -81,6 +81,22 @@ public class McpService {
      */
     public McpResponse handleToolsCall(McpRequest request, UserRole userRole, String traceId,
                                         String requestId, String authorization) {
+        return handleToolsCall(request, userRole, traceId, requestId, authorization, null);
+    }
+
+    /**
+     * 处理 tools/call 请求（支持命名空间）
+     *
+     * @param request       MCP请求
+     * @param userRole      用户角色
+     * @param traceId       AI 会话追踪 ID
+     * @param requestId     HTTP 请求 ID
+     * @param authorization 授权令牌
+     * @param namespace     命名空间
+     * @return MCP响应
+     */
+    public McpResponse handleToolsCall(McpRequest request, UserRole userRole, String traceId,
+                                        String requestId, String authorization, String namespace) {
         Map<String, Object> params = request.getParams();
         if (params == null || !params.containsKey("name")) {
             return McpResponse.error(
@@ -104,11 +120,12 @@ public class McpService {
             );
         }
 
-        log.info("Executing tool: name={}, role={}, traceId={}, requestId={}", toolName, userRole, traceId, requestId);
+        log.info("Executing tool: name={}, role={}, traceId={}, requestId={}, namespace={}",
+                toolName, userRole, traceId, requestId, namespace);
 
         try {
             Object result = toolDispatcher.executeTool(toolName, arguments, traceId, requestId,
-                    authorization, userRole.name());
+                    authorization, userRole.name(), namespace);
 
             // MCP 规范要求返回 content 数组
             return McpResponse.success(request.getId(), Map.of(
@@ -129,13 +146,6 @@ public class McpService {
     }
 
     /**
-     * 处理 tools/call 请求（兼容旧接口，无 requestId）
-     */
-    public McpResponse handleToolsCall(McpRequest request, UserRole userRole, String traceId, String authorization) {
-        return handleToolsCall(request, userRole, traceId, null, authorization);
-    }
-
-    /**
      * 处理直接工具调用（方法名即工具名）
      *
      * @param request       MCP请求
@@ -147,6 +157,22 @@ public class McpService {
      */
     public McpResponse handleDirectToolCall(McpRequest request, UserRole userRole, String traceId,
                                              String requestId, String authorization) {
+        return handleDirectToolCall(request, userRole, traceId, requestId, authorization, null);
+    }
+
+    /**
+     * 处理直接工具调用（方法名即工具名，支持命名空间）
+     *
+     * @param request       MCP请求
+     * @param userRole      用户角色
+     * @param traceId       AI 会话追踪 ID
+     * @param requestId     HTTP 请求 ID
+     * @param authorization 授权令牌
+     * @param namespace     命名空间
+     * @return MCP响应
+     */
+    public McpResponse handleDirectToolCall(McpRequest request, UserRole userRole, String traceId,
+                                             String requestId, String authorization, String namespace) {
         String toolName = request.getMethod();
         Map<String, Object> arguments = request.getParams() != null ? request.getParams() : new HashMap<>();
 
@@ -160,11 +186,12 @@ public class McpService {
             );
         }
 
-        log.info("Direct tool call: name={}, role={}, traceId={}, requestId={}", toolName, userRole, traceId, requestId);
+        log.info("Direct tool call: name={}, role={}, traceId={}, requestId={}, namespace={}",
+                toolName, userRole, traceId, requestId, namespace);
 
         try {
             Object result = toolDispatcher.executeTool(toolName, arguments, traceId, requestId,
-                    authorization, userRole.name());
+                    authorization, userRole.name(), namespace);
             return McpResponse.success(request.getId(), result);
         } catch (Exception e) {
             log.error("Direct tool call failed: name={}, role={}, error={}", toolName, userRole, e.getMessage(), e);

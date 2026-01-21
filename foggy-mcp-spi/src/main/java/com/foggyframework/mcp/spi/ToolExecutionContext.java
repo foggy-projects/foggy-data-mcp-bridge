@@ -32,6 +32,12 @@ public class ToolExecutionContext {
     private String userRole;
 
     /**
+     * 命名空间（用于模型隔离）
+     * <p>空字符串或null表示默认命名空间
+     */
+    private String namespace;
+
+    /**
      * 请求来源IP
      */
     private String sourceIp;

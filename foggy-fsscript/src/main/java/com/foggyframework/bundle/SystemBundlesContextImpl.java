@@ -1,6 +1,8 @@
 package com.foggyframework.bundle;
 
 import com.foggyframework.bundle.event.SystemBundlesContextRefreshedEvent;
+import com.foggyframework.bundle.external.ExternalBundleDefinition;
+import com.foggyframework.bundle.external.ExternalFileBundle;
 import com.foggyframework.bundle.loader.BundleLoader;
 import com.foggyframework.core.bundle.BundleDefinition;
 import com.foggyframework.core.ex.RX;
@@ -305,7 +307,143 @@ public class SystemBundlesContextImpl implements SystemBundlesContext, Initializ
     }
 
     @Override
+    public BundleResource findResourceByName(String name, String namespace, boolean errorIfNotFound) {
+        // 标准化namespace（null或空字符串都视为默认命名空间）
+        String normalizedNs = (namespace == null || namespace.trim().isEmpty()) ? "" : namespace.trim();
+
+        List<BundleResource> finds = new ArrayList<>(1);
+        for (Bundle bundle : bundleList) {
+            // 获取bundle的namespace
+            BundleDefinition bundleDef = getBundleDefinitionByName(bundle.getName());
+            if (bundleDef == null) {
+                continue;
+            }
+
+            String bundleNs = bundleDef.getNamespace();
+            if (bundleNs == null) {
+                bundleNs = "";
+            }
+
+            // 只在匹配的namespace中查找
+            if (!normalizedNs.equals(bundleNs)) {
+                continue;
+            }
+
+            org.springframework.core.io.Resource[] resources = bundle.findResources("**/" + name);
+
+            for (org.springframework.core.io.Resource resource : resources) {
+                finds.add(new BundleResource(bundle, resource));
+            }
+        }
+
+        if (finds.isEmpty()) {
+            if (errorIfNotFound) {
+                String nsDesc = normalizedNs.isEmpty() ? "默认命名空间" : "命名空间: " + normalizedNs;
+                throw RX.RESOURCE_NOT_FOUND.throwErrorWithFormatArgs(name + " (在" + nsDesc + "中)");
+            }
+            return null;
+        }
+        if (finds.size() > 1) {
+            log.error(finds.toString());
+            throw RX.throwB("期望只到0个或一个文件，但在命名空间 '" + normalizedNs + "' 中找到多个文件:" + name);
+        }
+
+        return finds.get(0);
+    }
+
+    @Override
     public boolean containBundle(String bundle) {
         return this.bundleList.stream().anyMatch(b -> StringUtils.equals(bundle, b.getName()));
+    }
+
+    @Override
+    public synchronized boolean addExternalBundle(String name, String namespace, String path, boolean watch) {
+        // 检查是否已存在同名Bundle
+        if (containBundle(name)) {
+            log.warn("Bundle [{}] 已存在，无法添加", name);
+            return false;
+        }
+
+        // 验证路径
+        java.io.File dir = new java.io.File(path);
+        if (!dir.exists()) {
+            log.warn("路径不存在: {}", path);
+            return false;
+        }
+        if (!dir.isDirectory()) {
+            log.warn("路径不是目录: {}", path);
+            return false;
+        }
+        if (!dir.canRead()) {
+            log.warn("路径无读取权限: {}", path);
+            return false;
+        }
+
+        try {
+            // 创建ExternalBundleDefinition
+            ExternalBundleDefinition definition = new ExternalBundleDefinition(
+                    name,
+                    namespace != null ? namespace : "",
+                    path,
+                    watch
+            );
+
+            // 创建ExternalFileBundle
+            ExternalFileBundle bundle = new ExternalFileBundle(this);
+            bundle.setName(definition.getName());
+            bundle.setBundleDefinition(definition);
+            bundle.setBasePath(definition.getPath());
+            bundle.setRootPath(definition.getPath());
+
+            // 注册Bundle
+            regBundle(bundle);
+
+            log.info("动态添加外部Bundle成功: {} -> {} (namespace: {})", name, path, namespace);
+            return true;
+
+        } catch (Exception e) {
+            log.error("动态添加外部Bundle失败: {}", name, e);
+            return false;
+        }
+    }
+
+    @Override
+    public synchronized boolean removeBundle(String bundleName) {
+        if (StringUtils.isEmpty(bundleName)) {
+            return false;
+        }
+
+        // 查找Bundle
+        Bundle targetBundle = null;
+        for (Bundle bundle : bundleList) {
+            if (StringUtils.equals(bundle.getName(), bundleName)) {
+                targetBundle = bundle;
+                break;
+            }
+        }
+
+        if (targetBundle == null) {
+            log.warn("Bundle [{}] 不存在，无法移除", bundleName);
+            return false;
+        }
+
+        // 只允许移除外部Bundle
+        if (!(targetBundle instanceof ExternalFileBundle)) {
+            log.warn("Bundle [{}] 不是外部Bundle，无法移除", bundleName);
+            return false;
+        }
+
+        // 移除Bundle
+        bundleList.remove(targetBundle);
+        log.info("移除外部Bundle成功: {}", bundleName);
+        return true;
+    }
+
+    @Override
+    public List<BundleDefinition> listExternalBundles() {
+        return bundleList.stream()
+                .filter(b -> b instanceof ExternalFileBundle)
+                .map(Bundle::getBundleDefinition)
+                .collect(java.util.stream.Collectors.toList());
     }
 }

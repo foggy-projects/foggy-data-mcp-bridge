@@ -74,6 +74,7 @@ class FoggyFrameworkLoader implements ImportBeanDefinitionRegistrar, Environment
 //        LinkedHashSet<BeanDefinition> candidateComponents = new LinkedHashSet<>();
         Map<String, Object> attrs = metadata.getAnnotationAttributes(EnableFoggyFramework.class.getName());
         String bundleName = (String) attrs.get("bundleName");
+        String namespace = (String) attrs.get("namespace");
         if (com.foggyframework.core.utils.StringUtils.isNotEmpty(bundleName)) {
             //注册一个 BundleDefinition
 
@@ -98,6 +99,11 @@ class FoggyFrameworkLoader implements ImportBeanDefinitionRegistrar, Environment
                             @Override
                             public String getName() {
                                 return bundleName;
+                            }
+
+                            @Override
+                            public String getNamespace() {
+                                return namespace != null ? namespace : "";
                             }
 
                             @Override

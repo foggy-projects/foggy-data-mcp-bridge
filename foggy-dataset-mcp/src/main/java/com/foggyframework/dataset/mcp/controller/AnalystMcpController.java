@@ -63,7 +63,8 @@ public class AnalystMcpController {
             @RequestBody McpRequest request,
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestHeader(value = "X-Trace-Id", required = false) String traceId,
-            @RequestHeader(value = "X-Request-Id", required = false) String requestId
+            @RequestHeader(value = "X-Request-Id", required = false) String requestId,
+            @RequestHeader(value = "X-NS", required = false) String namespace
     ) {
         // traceId: AI 会话级，如果没有则生成新的
         if (traceId == null || traceId.isBlank()) {
@@ -74,8 +75,8 @@ public class AnalystMcpController {
             requestId = UUID.randomUUID().toString();
         }
 
-        log.info("Analyst MCP RPC request received: method={}, id={}, traceId={}, requestId={}",
-                request.getMethod(), request.getId(), traceId, requestId);
+        log.info("Analyst MCP RPC request received: method={}, id={}, traceId={}, requestId={}, namespace={}",
+                request.getMethod(), request.getId(), traceId, requestId, namespace);
 
         try {
             // 处理 MCP 内置方法
@@ -86,13 +87,13 @@ public class AnalystMcpController {
                     case "tools/list":
                         return ResponseEntity.ok(mcpService.handleToolsList(request, USER_ROLE));
                     case "tools/call":
-                        return ResponseEntity.ok(mcpService.handleToolsCall(request, USER_ROLE, traceId, requestId, authorization));
+                        return ResponseEntity.ok(mcpService.handleToolsCall(request, USER_ROLE, traceId, requestId, authorization, namespace));
                     case "ping":
                         return ResponseEntity.ok(mcpService.handlePing(request));
                     default:
                         // 尝试作为工具调用处理
                         if (request.getMethod().startsWith("dataset") || request.getMethod().startsWith("olap")) {
-                            return ResponseEntity.ok(mcpService.handleDirectToolCall(request, USER_ROLE, traceId, requestId, authorization));
+                            return ResponseEntity.ok(mcpService.handleDirectToolCall(request, USER_ROLE, traceId, requestId, authorization, namespace));
                         }
                         return ResponseEntity.ok(McpResponse.error(
                                 request.getId(),

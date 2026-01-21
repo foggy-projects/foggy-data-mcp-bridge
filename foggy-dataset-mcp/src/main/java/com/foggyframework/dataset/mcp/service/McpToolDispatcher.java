@@ -124,13 +124,31 @@ public class McpToolDispatcher {
      */
     public Object executeTool(String toolName, Map<String, Object> arguments, String traceId,
                               String requestId, String authorization, String userRole) {
+        return executeTool(toolName, arguments, traceId, requestId, authorization, userRole, null);
+    }
+
+    /**
+     * 执行工具（同步）- 完整版，支持审计和命名空间
+     *
+     * @param toolName      工具名称
+     * @param arguments     工具参数
+     * @param traceId       AI 会话追踪 ID
+     * @param requestId     HTTP 请求 ID
+     * @param authorization 授权令牌
+     * @param userRole      用户角色
+     * @param namespace     命名空间
+     * @return 执行结果
+     */
+    public Object executeTool(String toolName, Map<String, Object> arguments, String traceId,
+                              String requestId, String authorization, String userRole, String namespace) {
         McpTool tool = toolRegistry.get(toolName);
 
         if (tool == null) {
             throw new IllegalArgumentException("Unknown tool: " + toolName);
         }
 
-        log.info("Executing tool: name={}, traceId={}, requestId={}", toolName, traceId, requestId);
+        log.info("Executing tool: name={}, traceId={}, requestId={}, namespace={}",
+                toolName, traceId, requestId, namespace);
         long startTime = System.currentTimeMillis();
 
         try {
@@ -139,6 +157,7 @@ public class McpToolDispatcher {
                     .traceId(traceId)
                     .authorization(authorization)
                     .userRole(userRole)
+                    .namespace(namespace)
                     .build();
 
             Object result = tool.execute(arguments, context);
