@@ -35,50 +35,11 @@ public class DbModelFileChangeHandler implements ApplicationListener<FsscriptRem
             log.debug("收到Fsscript变化事件");
             log.debug(fsscriptRemoveEvent.getRemovedFsscripts().toString());
         }
-        if(true){
-            log.debug("由于目前只会在开发环境发生模型变化 ，因此我们先简单粗暴的全清");
-            jdbcModelLoader.clearAll();
-            jdbcQueryModelLoader.clearAll();
-            return;
-        }
-        Map<String, TableModel> mm = new HashMap<>(jdbcModelLoader.getName2JdbcModel());
-        Map<String, QueryModel> qmm = new HashMap<>(jdbcQueryModelLoader.getName2JdbcQueryModel());
-        List<DbTableModelImpl> removedTm = new ArrayList<>();
-        for (Fsscript removedFsscript : fsscriptRemoveEvent.getRemovedFsscripts()) {
-            for (Map.Entry<String, TableModel> stringJdbcModelEntry : mm.entrySet()) {
-                DbTableModelImpl tm = stringJdbcModelEntry.getValue().getDecorate(DbTableModelImpl.class);
-                if (tm != null && tm.getFScript().getPath().equals(removedFsscript.getPath())) {
-                    if (log.isDebugEnabled()) {
-                        log.debug("移除模型" + tm.getName());
-                    }
-                    removedTm.add(tm);
-                    mm.remove(stringJdbcModelEntry.getKey());
 
-                }
-            }
-
-            for (Map.Entry<String, QueryModel> stringJdbcQueryModelEntry : qmm.entrySet()) {
-                JdbcQueryModelImpl qtm = stringJdbcQueryModelEntry.getValue().getDecorate(JdbcQueryModelImpl.class);
-                if (qtm != null && qtm.getFsscript().getPath().equals(removedFsscript.getPath())) {
-                    if (log.isDebugEnabled()) {
-                        log.debug("s1.移除查询模型" + qtm.getName());
-                    }
-                    qmm.remove(stringJdbcQueryModelEntry.getKey());
-                }
-
-                for (DbTableModelImpl jdbcModel : removedTm) {
-                    if(qtm.getJdbcModel().getName().equals(jdbcModel.getName())){
-                        if (log.isDebugEnabled()) {
-                            log.debug("s2.移除查询模型" + qtm.getName());
-                        }
-                    }
-                }
-            }
-
-        }
-
-        jdbcModelLoader.setName2JdbcModel(mm);
-        jdbcQueryModelLoader.setName2JdbcQueryModel(qmm);
-
+        // 由于目前只会在开发环境发生模型变化，因此我们简单粗暴的全清
+        // 注意：这会清除所有命名空间的缓存
+        log.debug("清除所有模型缓存（包括所有命名空间）");
+        jdbcModelLoader.clearAll();
+        jdbcQueryModelLoader.clearAll();
     }
 }

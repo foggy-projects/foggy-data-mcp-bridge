@@ -1,5 +1,6 @@
 package com.foggyframework.dataset.db.model.engine.query_model;
 
+import com.foggyframework.bundle.Bundle;
 import com.foggyframework.bundle.BundleResource;
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.conversion.FsscriptConversionService;
@@ -44,17 +45,12 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
 
     private DbModelFileChangeHandler fileChangeHandler;
 
-    private Map<String, QueryModel> name2JdbcQueryModel = new HashMap<>();
-
     /**
-     * 简称到模型名称的映射，用于通过简称查询模型
+     * 命名空间级别的缓存结构
+     * Key: namespace (空字符串表示默认命名空间)
+     * Value: NamespaceCache（包含该命名空间下的所有模型缓存）
      */
-    private Map<String, String> shortAlias2Name = new HashMap<>();
-
-    /**
-     * 已使用的简称集合，包括所有模型全名（避免简称与全名冲突）
-     */
-    private Set<String> usedAliases = new HashSet<>();
+    private Map<String, NamespaceCache> namespaceCaches = new HashMap<>();
 
 
     private List<QueryModelBuilder> queryModelBuilders;
@@ -62,6 +58,33 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
      * 驼峰命名模式，用于提取大写字母
      */
     private static final Pattern CAMEL_CASE_PATTERN = Pattern.compile("[A-Z][a-z]*");
+
+    /**
+     * 命名空间缓存内部类
+     * 封装单个命名空间下的所有缓存数据
+     */
+    private static class NamespaceCache {
+        /**
+         * 模型名称到模型实例的映射
+         */
+        Map<String, QueryModel> name2QueryModel = new HashMap<>();
+
+        /**
+         * 简称到模型名称的映射
+         */
+        Map<String, String> shortAlias2Name = new HashMap<>();
+
+        /**
+         * 已使用的简称集合（包括模型全名）
+         */
+        Set<String> usedAliases = new HashSet<>();
+
+        void clear() {
+            name2QueryModel.clear();
+            shortAlias2Name.clear();
+            usedAliases.clear();
+        }
+    }
 
     public QueryModelLoaderImpl(TableModelLoaderManager tableModelLoaderManager,
                                 SystemBundlesContext systemBundlesContext,
@@ -74,62 +97,139 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
 
     @Override
     public void clearAll() {
-        name2JdbcQueryModel = new HashMap<>();
-        shortAlias2Name = new HashMap<>();
-        usedAliases = new HashSet<>();
+        namespaceCaches.clear();
+        log.debug("已清除所有命名空间的QueryModel缓存");
+    }
+
+    @Override
+    public void clearByNamespace(String namespace) {
+        String normalizedNs = normalizeNamespace(namespace);
+        NamespaceCache removed = namespaceCaches.remove(normalizedNs);
+        if (removed != null) {
+            log.info("已清除命名空间 [{}] 的QueryModel缓存，包含 {} 个模型",
+                    normalizedNs.isEmpty() ? "默认" : normalizedNs,
+                    removed.name2QueryModel.size());
+        } else {
+            log.debug("命名空间 [{}] 的缓存不存在，无需清除",
+                    normalizedNs.isEmpty() ? "默认" : normalizedNs);
+        }
+    }
+
+    /**
+     * 标准化命名空间（null或空字符串都视为默认命名空间）
+     */
+    private String normalizeNamespace(String namespace) {
+        return (namespace == null || namespace.trim().isEmpty()) ? "" : namespace.trim();
+    }
+
+    /**
+     * 获取或创建命名空间缓存
+     */
+    private NamespaceCache getOrCreateCache(String namespace) {
+        String normalizedNs = normalizeNamespace(namespace);
+        return namespaceCaches.computeIfAbsent(normalizedNs, k -> new NamespaceCache());
     }
 
     /**
      * 在执行查询前，我们需要先获取查询模型
      *
-     * <p>支持通过模型全名或简称查询
+     * <p>支持通过模型全名或简称查询（从默认命名空间）
      *
      * @param queryModelNameOrAlias 模型名称或简称
      * @return 查询模型
      */
     @Override
     public QueryModel getJdbcQueryModel(String queryModelNameOrAlias) {
+        return getJdbcQueryModel(queryModelNameOrAlias, "");
+    }
+
+    /**
+     * 在执行查询前，我们需要先获取查询模型
+     *
+     * <p>支持通过模型全名或简称查询（从指定命名空间）
+     *
+     * @param queryModelNameOrAlias 模型名称或简称
+     * @param namespace             命名空间（null或空字符串表示默认命名空间）
+     * @return 查询模型
+     */
+    @Override
+    public QueryModel getJdbcQueryModel(String queryModelNameOrAlias, String namespace) {
+        String normalizedNs = normalizeNamespace(namespace);
+        NamespaceCache cache = getOrCreateCache(normalizedNs);
+
         // 1. 先尝试通过全名查找
-        QueryModel tm = name2JdbcQueryModel.get(queryModelNameOrAlias);
+        QueryModel tm = cache.name2QueryModel.get(queryModelNameOrAlias);
         if (tm != null) {
             return tm;
         }
 
         // 2. 尝试通过简称查找
-        String fullName = shortAlias2Name.get(queryModelNameOrAlias);
+        String fullName = cache.shortAlias2Name.get(queryModelNameOrAlias);
         if (fullName != null) {
-            return name2JdbcQueryModel.get(fullName);
+            return cache.name2QueryModel.get(fullName);
         }
 
         // 3. 加载新模型（此时 queryModelNameOrAlias 应该是全名）
-        Fsscript fsscript = findFsscript(queryModelNameOrAlias, "qm");
+        Fsscript fsscript = findFsscriptWithNamespace(queryModelNameOrAlias, normalizedNs, "qm");
         ExpEvaluator ee = evalQmScript(fsscript);
         Object queryModel = ee.getExportObject("queryModel");
         DbQueryModelDef queryModelDef = FsscriptConversionService.getSharedInstance().convert(queryModel, DbQueryModelDef.class);
 
         tm = loadJdbcQueryModel(ee, fsscript, queryModelDef);
-        registerQueryModel(queryModelNameOrAlias, (QueryModelSupport) tm);
+        registerQueryModel(queryModelNameOrAlias, (QueryModelSupport) tm, normalizedNs);
         return tm;
+    }
+
+    /**
+     * 在指定命名空间中查找FSScript
+     */
+    private Fsscript findFsscriptWithNamespace(String modelName, String namespace, String suffix) {
+        String fileName = modelName + "." + suffix;
+        BundleResource resource = systemBundlesContext.findResourceByName(fileName, namespace, true);
+        return fileFsscriptLoader.findLoadFsscript(resource);
     }
 
     @Override
     public QueryModel loadJdbcQueryModel(BundleResource bundleResource) {
+        // 从BundleResource中提取namespace
+        String namespace = getNamespaceFromBundleResource(bundleResource);
+
         Fsscript fsscript = fileFsscriptLoader.findLoadFsscript(bundleResource);
         ExpEvaluator ee = evalQmScript(fsscript);
         Object queryModel = ee.getExportObject("queryModel");
         DbQueryModelDef queryModelDef = FsscriptConversionService.getSharedInstance().convert(queryModel, DbQueryModelDef.class);
         try {
             QueryModelSupport qm = loadJdbcQueryModel(ee, fsscript, queryModelDef);
-            // 注册模型并分配简称
+            // 注册模型并分配简称（使用提取的namespace）
             String modelName = qm.getName();
-            if (!name2JdbcQueryModel.containsKey(modelName)) {
-                registerQueryModel(modelName, qm);
+            NamespaceCache cache = getOrCreateCache(namespace);
+            if (!cache.name2QueryModel.containsKey(modelName)) {
+                registerQueryModel(modelName, qm, namespace);
             }
             return qm;
         } catch (Throwable t) {
             log.error(String.format("加载%s时出现异常", bundleResource));
             throw ErrorUtils.toRuntimeException(t);
         }
+    }
+
+    /**
+     * 从BundleResource中提取namespace
+     */
+    private String getNamespaceFromBundleResource(BundleResource bundleResource) {
+        if (bundleResource == null || bundleResource.getBundle() == null) {
+            return "";
+        }
+
+        Bundle bundle = bundleResource.getBundle();
+        com.foggyframework.core.bundle.BundleDefinition bundleDef = bundle.getDefinition();
+
+        if (bundleDef == null) {
+            return "";
+        }
+
+        String namespace = bundleDef.getNamespace();
+        return namespace != null ? namespace : "";
     }
 
     /**
@@ -483,28 +583,32 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
     // ==================== 简称分配相关方法 ====================
 
     /**
-     * 注册查询模型并分配简称
+     * 注册查询模型并分配简称（在指定命名空间中）
      *
      * @param modelName 模型全名
      * @param qm        查询模型实例
+     * @param namespace 命名空间
      */
-    private void registerQueryModel(String modelName, QueryModelSupport qm) {
-        // 先将模型全名加入已使用集合，防止简称与全名冲突
-        usedAliases.add(modelName);
+    private void registerQueryModel(String modelName, QueryModelSupport qm, String namespace) {
+        NamespaceCache cache = getOrCreateCache(namespace);
 
-        // 分配简称
-        String shortAlias = allocateShortAlias(modelName);
+        // 先将模型全名加入已使用集合，防止简称与全名冲突
+        cache.usedAliases.add(modelName);
+
+        // 分配简称（在namespace范围内）
+        String shortAlias = allocateShortAlias(modelName, cache);
         qm.setShortAlias(shortAlias);
 
         // 注册映射
-        name2JdbcQueryModel.put(modelName, qm);
-        shortAlias2Name.put(shortAlias, modelName);
+        cache.name2QueryModel.put(modelName, qm);
+        cache.shortAlias2Name.put(shortAlias, modelName);
 
-        log.debug("已为模型 {} 分配简称: {}", modelName, shortAlias);
+        log.debug("已为模型 {} 分配简称: {} (namespace: {})", modelName, shortAlias,
+                namespace.isEmpty() ? "默认" : namespace);
     }
 
     /**
-     * 为模型分配唯一简称
+     * 为模型分配唯一简称（在指定命名空间范围内）
      *
      * <p>算法规则：
      * <ol>
@@ -514,9 +618,10 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
      * </ol>
      *
      * @param modelName 模型全名
+     * @param cache     命名空间缓存
      * @return 分配的唯一简称
      */
-    private String allocateShortAlias(String modelName) {
+    private String allocateShortAlias(String modelName, NamespaceCache cache) {
         // 1. 去掉 QueryModel 后缀
         String baseName = modelName;
         if (baseName.endsWith("QueryModel")) {
@@ -528,15 +633,15 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
         // 2. 提取驼峰词首字母
         String baseAlias = extractCamelCaseInitials(baseName);
 
-        // 3. 确保唯一性
+        // 3. 确保唯一性（在namespace范围内）
         String alias = baseAlias;
         int suffix = 2;
-        while (usedAliases.contains(alias)) {
+        while (cache.usedAliases.contains(alias)) {
             alias = baseAlias + suffix;
             suffix++;
         }
 
-        usedAliases.add(alias);
+        cache.usedAliases.add(alias);
         return alias;
     }
 

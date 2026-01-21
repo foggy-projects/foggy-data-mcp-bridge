@@ -74,9 +74,8 @@ public class SemanticLayerValidationService {
             // 如果已存在同名Bundle，先移除
             if (request.isClearExisting() && systemBundlesContext.containBundle(bundleName)) {
                 log.info("检测到已存在的Bundle: {}，将被移除", bundleName);
+                // 移除Bundle（会自动触发BundleRemovedEvent，由BundleLifecycleListener清理缓存）
                 systemBundlesContext.removeBundle(bundleName);
-                // 清除模型加载器缓存
-                tableModelLoaderManager.clearAll();
             }
 
             // 注册新Bundle

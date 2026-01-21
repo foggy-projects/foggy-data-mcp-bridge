@@ -1,5 +1,7 @@
 package com.foggyframework.bundle;
 
+import com.foggyframework.bundle.event.BundleAddedEvent;
+import com.foggyframework.bundle.event.BundleRemovedEvent;
 import com.foggyframework.bundle.event.SystemBundlesContextRefreshedEvent;
 import com.foggyframework.bundle.external.ExternalBundleDefinition;
 import com.foggyframework.bundle.external.ExternalFileBundle;
@@ -399,6 +401,12 @@ public class SystemBundlesContextImpl implements SystemBundlesContext, Initializ
             regBundle(bundle);
 
             log.info("动态添加外部Bundle成功: {} -> {} (namespace: {})", name, path, namespace);
+
+            // 发布Bundle添加事件
+            BundleAddedEvent event = new BundleAddedEvent(this, name, namespace, bundle);
+            appCtx.publishEvent(event);
+            log.debug("发布BundleAddedEvent: bundleName={}, namespace={}", name, namespace);
+
             return true;
 
         } catch (Exception e) {
@@ -432,6 +440,18 @@ public class SystemBundlesContextImpl implements SystemBundlesContext, Initializ
             log.warn("Bundle [{}] 不是外部Bundle，无法移除", bundleName);
             return false;
         }
+
+        // 获取namespace（在移除前）
+        String namespace = "";
+        BundleDefinition bundleDef = targetBundle.getDefinition();
+        if (bundleDef != null && bundleDef.getNamespace() != null) {
+            namespace = bundleDef.getNamespace();
+        }
+
+        // 发布Bundle移除事件（在实际移除之前发布，以便监听器可以访问Bundle信息）
+        BundleRemovedEvent event = new BundleRemovedEvent(this, bundleName, namespace, targetBundle);
+        appCtx.publishEvent(event);
+        log.debug("发布BundleRemovedEvent: bundleName={}, namespace={}", bundleName, namespace);
 
         // 移除Bundle
         bundleList.remove(targetBundle);

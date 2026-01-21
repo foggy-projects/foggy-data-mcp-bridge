@@ -70,6 +70,29 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
     @Override
     public void clearAll() {
         name2JdbcModel = new HashMap<>();
+        log.debug("已清除所有命名空间的TableModel缓存");
+    }
+
+    @Override
+    public void clearByNamespace(String namespace) {
+        String normalizedNs = (namespace == null || namespace.trim().isEmpty()) ? "" : namespace.trim();
+
+        if (normalizedNs.isEmpty()) {
+            // 清除默认命名空间的缓存（不含冒号的key）
+            int removed = (int) name2JdbcModel.keySet().stream()
+                    .filter(key -> !key.contains(":"))
+                    .peek(name2JdbcModel::remove)
+                    .count();
+            log.info("已清除默认命名空间的TableModel缓存，共 {} 个模型", removed);
+        } else {
+            // 清除指定命名空间的缓存（以 "namespace:" 开头的key）
+            String prefix = normalizedNs + ":";
+            int removed = (int) name2JdbcModel.keySet().stream()
+                    .filter(key -> key.startsWith(prefix))
+                    .peek(name2JdbcModel::remove)
+                    .count();
+            log.info("已清除命名空间 [{}] 的TableModel缓存，共 {} 个模型", normalizedNs, removed);
+        }
     }
 
     @Override
