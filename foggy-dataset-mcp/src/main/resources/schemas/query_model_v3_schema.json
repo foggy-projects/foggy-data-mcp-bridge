@@ -40,9 +40,17 @@
                 "properties": {
                   "field": { "type": "string", "description": "字段名" },
                   "op": { "type": "string", "description": "操作符：=, !=, >, <, like, in, [], [), is null 等" },
-                  "value": { "description": "过滤值，is null/is not null 时不需要" }
+                  "value": { "description": "过滤值，is null/is not null 时不需要；字段引用用 {\"$field\": \"fieldName\"}" }
                 },
                 "required": ["field", "op"]
+              },
+              {
+                "type": "object",
+                "description": "$expr 表达式条件：字段间比较，支持算术运算",
+                "properties": {
+                  "$expr": { "type": "string", "description": "表达式如 \"salesAmount > costAmount * 1.2\"" }
+                },
+                "required": ["$expr"]
               },
               {
                 "type": "object",

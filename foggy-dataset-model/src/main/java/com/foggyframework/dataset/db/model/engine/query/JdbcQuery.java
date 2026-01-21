@@ -741,6 +741,24 @@ public class JdbcQuery {
             return this;
         }
 
+        /**
+         * 添加原始 SQL 条件（支持自定义连接符）
+         * <p>
+         * 用于字段间比较等场景，直接添加 SQL 片段。
+         * </p>
+         *
+         * @param link        连接符（AND/OR），空字符串表示无连接符
+         * @param sqlFragment SQL 条件片段（如 "t0.amount > t0.budget"）
+         * @return this
+         * @since 8.3.0
+         */
+        public JdbcListCond addRawSql(String link, String sqlFragment) {
+            // 使用带 link 参数的构造函数，让 SQL visitor 正确处理连接符
+            SqlFragmentCond c = new SqlFragmentCond(link != null ? link : "", sqlFragment);
+            conds.add(c);
+            return this;
+        }
+
 
 //        public JdbcListCond orList(String sqlFragment, List<Object> values) {
 //            throw new UnsupportedOperationException();
@@ -761,6 +779,17 @@ public class JdbcQuery {
     @NoArgsConstructor
     public class SqlFragmentCond extends JdbcCond {
         String sqlFragment;
+
+        /**
+         * 带连接符的构造函数
+         *
+         * @param link        连接符（AND/OR）
+         * @param sqlFragment SQL 片段
+         */
+        public SqlFragmentCond(String link, String sqlFragment) {
+            super(link);
+            this.sqlFragment = sqlFragment;
+        }
     }
 
     @Data

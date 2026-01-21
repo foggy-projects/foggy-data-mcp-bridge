@@ -19,11 +19,13 @@ import java.util.Set;
 /**
  * slice 列表的自定义反序列化器
  * <p>
- * 支持三种格式：
+ * 支持以下格式：
  * <ul>
  *   <li>简写格式（map.size==1 且 key 不是保留字）：{@code {"orderStatus": "COMPLETED"}} → {@code {"field": "orderStatus", "op": "=", "value": "COMPLETED"}}</li>
  *   <li>完整格式：{@code {"field": "amount", "op": ">=", "value": 100}}</li>
  *   <li>逻辑组格式：{@code {"$or": [...]}} 或 {@code {"$and": [...]}}</li>
+ *   <li>表达式格式：{@code {"$expr": "fieldA > fieldB"}}</li>
+ *   <li>字段引用格式：{@code {"field": "a", "op": ">", "value": {"$field": "b"}}}</li>
  * </ul>
  * <p>
  * 可混合使用：{@code [{"orderStatus": "COMPLETED"}, {"field": "amount", "op": ">=", "value": 100}]}
@@ -34,7 +36,7 @@ public class SliceRequestDefListDeserializer extends JsonDeserializer<List<Slice
      * 保留字段名（不作为简写格式的 key）
      */
     private static final Set<String> RESERVED_KEYS = Set.of(
-            "$or", "$and", "field", "op", "value", "maxDepth"
+            "$or", "$and", "$expr", "field", "op", "value", "maxDepth"
     );
 
     @Override
@@ -83,6 +85,13 @@ public class SliceRequestDefListDeserializer extends JsonDeserializer<List<Slice
                 return parseLogicalGroup(node.get("$and"), false, mapper);
             }
 
+            // $expr 表达式条件
+            if ("$expr".equals(key)) {
+                SliceRequestDef def = new SliceRequestDef();
+                def.setExpr(node.get("$expr").asText());
+                return def;
+            }
+
             // 简写格式：{ "fieldName": value } → { field, op: "=", value }
             if (!RESERVED_KEYS.contains(key)) {
                 SliceRequestDef def = new SliceRequestDef();
@@ -114,6 +123,10 @@ public class SliceRequestDefListDeserializer extends JsonDeserializer<List<Slice
         }
         if (node.has("maxDepth")) {
             def.setMaxDepth(node.get("maxDepth").asInt());
+        }
+        // 处理 $expr
+        if (node.has("$expr")) {
+            def.setExpr(node.get("$expr").asText());
         }
 
         // 处理 $or 和 $and
@@ -183,6 +196,10 @@ public class SliceRequestDefListDeserializer extends JsonDeserializer<List<Slice
             if ("$and".equals(key)) {
                 return CondRequestDef.and(parseConditionList(node.get("$and"), mapper));
             }
+            // $expr 表达式条件
+            if ("$expr".equals(key)) {
+                return CondRequestDef.expr(node.get("$expr").asText());
+            }
 
             if (!RESERVED_KEYS.contains(key)) {
                 CondRequestDef def = new CondRequestDef();
@@ -207,6 +224,10 @@ public class SliceRequestDefListDeserializer extends JsonDeserializer<List<Slice
         }
         if (node.has("maxDepth")) {
             def.setMaxDepth(node.get("maxDepth").asInt());
+        }
+        // 处理 $expr
+        if (node.has("$expr")) {
+            def.setExpr(node.get("$expr").asText());
         }
 
         if (node.has("$or")) {

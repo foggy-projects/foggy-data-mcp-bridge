@@ -391,7 +391,7 @@ WHERE order_status = 'COMPLETED'
 }
 ```
 
-> **注意**：保留字段名（`field`, `op`, `value`, `$or`, `$and`, `maxDepth`）不能作为简写格式的字段名。
+> **注意**：保留字段名（`field`, `op`, `value`, `$or`, `$and`, `$expr`, `maxDepth`）不能作为简写格式的字段名。
 
 ### 3.5 HAVING 条件（聚合过滤）
 
@@ -422,6 +422,123 @@ HAVING SUM(total_amount) >= 10000
 ```
 
 **注意**：`$or` 条件组中不能同时包含聚合字段和普通字段，因为无法在 WHERE 和 HAVING 间使用 OR。
+
+### 3.6 字段间比较 ($field / $expr)
+
+支持直接比较两个字段的值，无需创建计算字段。提供两种语法：
+
+#### 3.6.1 $field 引用
+
+使用 `{"$field": "字段名"}` 作为 value，表示引用另一个字段而非字面值：
+
+```json
+{
+    "param": {
+        "slice": [
+            {
+                "field": "salesAmount",
+                "op": ">",
+                "value": { "$field": "costAmount" }
+            }
+        ]
+    }
+}
+```
+
+**生成的 SQL**：
+```sql
+WHERE sales_amount > cost_amount
+```
+
+**支持所有比较操作符**：
+
+| 操作符 | 示例 |
+|--------|------|
+| `=` | `{"field": "a", "op": "=", "value": {"$field": "b"}}` |
+| `!=` | `{"field": "a", "op": "!=", "value": {"$field": "b"}}` |
+| `>` | `{"field": "a", "op": ">", "value": {"$field": "b"}}` |
+| `>=` | `{"field": "a", "op": ">=", "value": {"$field": "b"}}` |
+| `<` | `{"field": "a", "op": "<", "value": {"$field": "b"}}` |
+| `<=` | `{"field": "a", "op": "<=", "value": {"$field": "b"}}` |
+
+#### 3.6.2 $expr 表达式
+
+使用 `$expr` 定义更复杂的字段间比较表达式：
+
+```json
+{
+    "param": {
+        "slice": [
+            { "$expr": "salesAmount > costAmount" }
+        ]
+    }
+}
+```
+
+**支持算术运算**：
+
+```json
+{
+    "param": {
+        "slice": [
+            { "$expr": "salesAmount > costAmount * 1.2" },
+            { "$expr": "profitAmount >= discountAmount + 100" }
+        ]
+    }
+}
+```
+
+**生成的 SQL**：
+```sql
+WHERE (sales_amount > (cost_amount * 1.2))
+  AND (profit_amount >= (discount_amount + 100))
+```
+
+#### 3.6.3 与其他条件组合
+
+`$field` 和 `$expr` 可以与普通条件和逻辑组合一起使用：
+
+```json
+{
+    "param": {
+        "slice": [
+            { "orderStatus": "COMPLETED" },
+            { "field": "salesAmount", "op": ">", "value": { "$field": "costAmount" } },
+            { "field": "quantity", "op": ">=", "value": 10 }
+        ]
+    }
+}
+```
+
+**在 $or 条件中使用**：
+
+```json
+{
+    "param": {
+        "slice": [
+            {
+                "$or": [
+                    { "$expr": "salesAmount > costAmount * 1.5" },
+                    { "field": "discountAmount", "op": ">", "value": 100 }
+                ]
+            }
+        ]
+    }
+}
+```
+
+**生成的 SQL**：
+```sql
+WHERE ((sales_amount > (cost_amount * 1.5)) OR discount_amount > 100)
+```
+
+#### 3.6.4 使用场景
+
+| 场景 | 推荐语法 | 示例 |
+|------|----------|------|
+| 简单字段比较 | `$field` | 销售金额大于成本 |
+| 带运算的比较 | `$expr` | 利润率超过 20%（`salesAmount > costAmount * 1.2`）|
+| 多字段运算 | `$expr` | 净额大于成本（`salesAmount - discountAmount > costAmount`）|
 
 ---
 

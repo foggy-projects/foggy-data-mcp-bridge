@@ -93,6 +93,10 @@
 | 层级 | `childrenOf`, `descendantsOf`, `selfAndDescendantsOf` |
 | 向量 | `similar`, `hybrid` (向量检索) |
 
+**字段间比较**：
+- `$field` 引用：`{"field": "a", "op": ">", "value": {"$field": "b"}}` → `WHERE a > b`
+- `$expr` 表达式：`{"$expr": "salesAmount > costAmount * 1.2"}` → 支持算术运算
+
 ### 向量检索
 
 **仅向量字段（type=VECTOR）支持以下操作符**，普通字段不可使用。
