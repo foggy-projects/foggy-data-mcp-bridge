@@ -3,6 +3,7 @@ package com.foggyframework.dataset.mcp.controller;
 import com.foggyframework.dataset.mcp.enums.UserRole;
 import com.foggyframework.dataset.mcp.schema.McpError;
 import com.foggyframework.dataset.mcp.schema.McpRequest;
+import com.foggyframework.dataset.mcp.schema.McpRequestContext;
 import com.foggyframework.dataset.mcp.schema.McpResponse;
 import com.foggyframework.dataset.mcp.service.McpService;
 import com.foggyframework.dataset.mcp.service.McpToolDispatcher;

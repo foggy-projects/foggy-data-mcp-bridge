@@ -443,7 +443,7 @@ public class SystemBundlesContextImpl implements SystemBundlesContext, Initializ
     public List<BundleDefinition> listExternalBundles() {
         return bundleList.stream()
                 .filter(b -> b instanceof ExternalFileBundle)
-                .map(Bundle::getBundleDefinition)
+                .map(Bundle::getDefinition)
                 .collect(java.util.stream.Collectors.toList());
     }
 }

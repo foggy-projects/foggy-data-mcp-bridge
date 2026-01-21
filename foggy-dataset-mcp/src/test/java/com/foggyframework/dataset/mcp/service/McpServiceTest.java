@@ -218,7 +218,7 @@ class McpServiceTest extends BaseMcpTest {
                     .params(Map.of()) // 没有 name
                     .build();
 
-            McpResponse response = mcpService.handleToolsCall(request, UserRole.ADMIN, "trace-1", null);
+            McpResponse response = mcpService.handleToolsCall(request, UserRole.ADMIN, "trace-1", "req-1", null, null);
 
             assertNotNull(response.getError());
             assertEquals(McpError.INVALID_PARAMS, response.getError().getCode());
@@ -234,7 +234,7 @@ class McpServiceTest extends BaseMcpTest {
                     .params(null)
                     .build();
 
-            McpResponse response = mcpService.handleToolsCall(request, UserRole.ADMIN, "trace-1", null);
+            McpResponse response = mcpService.handleToolsCall(request, UserRole.ADMIN, "trace-1", "req-1", null, null);
 
             assertNotNull(response.getError());
             assertEquals(McpError.INVALID_PARAMS, response.getError().getCode());
@@ -247,7 +247,7 @@ class McpServiceTest extends BaseMcpTest {
 
             when(toolDispatcher.hasTool("unknown.tool")).thenReturn(false);
 
-            McpResponse response = mcpService.handleToolsCall(request, UserRole.ADMIN, "trace-1", null);
+            McpResponse response = mcpService.handleToolsCall(request, UserRole.ADMIN, "trace-1", "req-1", null, null);
 
             assertNotNull(response.getError());
             assertEquals(McpError.METHOD_NOT_FOUND, response.getError().getCode());
@@ -264,7 +264,7 @@ class McpServiceTest extends BaseMcpTest {
             when(toolDispatcher.getTool("dataset.query_model")).thenReturn(mockTool);
             when(toolFilterService.canAccessTool(mockTool, UserRole.BUSINESS)).thenReturn(false);
 
-            McpResponse response = mcpService.handleToolsCall(request, UserRole.BUSINESS, "trace-1", null);
+            McpResponse response = mcpService.handleToolsCall(request, UserRole.BUSINESS, "trace-1", "req-1", null, null);
 
             assertNotNull(response.getError());
             assertEquals(McpError.METHOD_NOT_FOUND, response.getError().getCode());
@@ -282,13 +282,13 @@ class McpServiceTest extends BaseMcpTest {
             when(toolDispatcher.hasTool("dataset.get_metadata")).thenReturn(true);
             when(toolDispatcher.getTool("dataset.get_metadata")).thenReturn(mockTool);
             // Admin 直接跳过 canAccessTool 检查
-            when(toolDispatcher.executeTool(eq("dataset.get_metadata"), any(), eq("trace-1"), any(), any(), any()))
+            when(toolDispatcher.executeTool(eq("dataset.get_metadata"), any(), eq("trace-1"), any(), any(), any(), any()))
                     .thenReturn(expectedResult);
 
-            McpResponse response = mcpService.handleToolsCall(request, UserRole.ADMIN, "trace-1", null);
+            McpResponse response = mcpService.handleToolsCall(request, UserRole.ADMIN, "trace-1", "req-1", null, null);
 
             assertResponseSuccess(response);
-            verify(toolDispatcher).executeTool(eq("dataset.get_metadata"), any(), eq("trace-1"), any(), any(), any());
+            verify(toolDispatcher).executeTool(eq("dataset.get_metadata"), any(), eq("trace-1"), any(), any(), any(), any());
         }
 
         @Test
@@ -301,9 +301,9 @@ class McpServiceTest extends BaseMcpTest {
 
             when(toolDispatcher.hasTool("dataset.get_metadata")).thenReturn(true);
             when(toolDispatcher.getTool("dataset.get_metadata")).thenReturn(mockTool);
-            when(toolDispatcher.executeTool(any(), any(), any(), any(), any(), any())).thenReturn(toolResult);
+            when(toolDispatcher.executeTool(any(), any(), any(), any(), any(), any(), any())).thenReturn(toolResult);
 
-            McpResponse response = mcpService.handleToolsCall(request, UserRole.ADMIN, "trace-1", null);
+            McpResponse response = mcpService.handleToolsCall(request, UserRole.ADMIN, "trace-1", "req-1", null, null);
 
             assertResponseSuccess(response);
             Map<String, Object> result = extractResultMap(response);
@@ -323,10 +323,10 @@ class McpServiceTest extends BaseMcpTest {
             McpTool mockTool = MockToolFactory.createMetadataTool();
             when(toolDispatcher.hasTool("dataset.get_metadata")).thenReturn(true);
             when(toolDispatcher.getTool("dataset.get_metadata")).thenReturn(mockTool);
-            when(toolDispatcher.executeTool(any(), any(), any(), any(), any(), any()))
+            when(toolDispatcher.executeTool(any(), any(), any(), any(), any(), any(), any()))
                     .thenThrow(new RuntimeException("Service unavailable"));
 
-            McpResponse response = mcpService.handleToolsCall(request, UserRole.ADMIN, "trace-1", null);
+            McpResponse response = mcpService.handleToolsCall(request, UserRole.ADMIN, "trace-1", "req-1", null, null);
 
             assertNotNull(response.getError());
             assertEquals(McpError.TOOL_EXECUTION_ERROR, response.getError().getCode());
@@ -342,12 +342,12 @@ class McpServiceTest extends BaseMcpTest {
             McpTool mockTool = MockToolFactory.createQueryModelTool();
             when(toolDispatcher.hasTool("dataset.query_model")).thenReturn(true);
             when(toolDispatcher.getTool("dataset.query_model")).thenReturn(mockTool);
-            when(toolDispatcher.executeTool(eq("dataset.query_model"), eq(arguments), any(), any(), any(), any()))
+            when(toolDispatcher.executeTool(eq("dataset.query_model"), eq(arguments), any(), any(), any(), any(), any()))
                     .thenReturn(Map.of("success", true));
 
-            mcpService.handleToolsCall(request, UserRole.ADMIN, "trace-1", null);
+            mcpService.handleToolsCall(request, UserRole.ADMIN, "trace-1", "req-1", null, null);
 
-            verify(toolDispatcher).executeTool(eq("dataset.query_model"), eq(arguments), any(), any(), any(), any());
+            verify(toolDispatcher).executeTool(eq("dataset.query_model"), eq(arguments), any(), any(), any(), any(), any());
         }
     }
 
@@ -369,7 +369,7 @@ class McpServiceTest extends BaseMcpTest {
             McpTool mockTool = MockToolFactory.createMetadataTool();
             when(toolDispatcher.hasTool("dataset.get_metadata")).thenReturn(true);
             when(toolDispatcher.getTool("dataset.get_metadata")).thenReturn(mockTool);
-            when(toolDispatcher.executeTool(eq("dataset.get_metadata"), any(), any(), any(), any(), any()))
+            when(toolDispatcher.executeTool(eq("dataset.get_metadata"), any(), any(), any(), any(), any(), any()))
                     .thenReturn(Map.of("result", "ok"));
 
             McpResponse response = mcpService.handleDirectToolCall(request, UserRole.ADMIN, "trace-1", null);

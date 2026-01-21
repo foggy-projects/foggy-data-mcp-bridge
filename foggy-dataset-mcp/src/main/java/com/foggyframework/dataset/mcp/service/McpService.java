@@ -3,6 +3,7 @@ package com.foggyframework.dataset.mcp.service;
 import com.foggyframework.dataset.mcp.enums.UserRole;
 import com.foggyframework.dataset.mcp.schema.McpError;
 import com.foggyframework.dataset.mcp.schema.McpRequest;
+import com.foggyframework.dataset.mcp.schema.McpRequestContext;
 import com.foggyframework.dataset.mcp.schema.McpResponse;
 import com.foggyframework.mcp.spi.McpTool;
 import lombok.RequiredArgsConstructor;
@@ -72,31 +73,11 @@ public class McpService {
     /**
      * 处理 tools/call 请求
      *
-     * @param request       MCP请求
-     * @param userRole      用户角色
-     * @param traceId       AI 会话追踪 ID
-     * @param requestId     HTTP 请求 ID
-     * @param authorization 授权令牌
+     * @param request MCP请求
+     * @param context 请求上下文
      * @return MCP响应
      */
-    public McpResponse handleToolsCall(McpRequest request, UserRole userRole, String traceId,
-                                        String requestId, String authorization) {
-        return handleToolsCall(request, userRole, traceId, requestId, authorization, null);
-    }
-
-    /**
-     * 处理 tools/call 请求（支持命名空间）
-     *
-     * @param request       MCP请求
-     * @param userRole      用户角色
-     * @param traceId       AI 会话追踪 ID
-     * @param requestId     HTTP 请求 ID
-     * @param authorization 授权令牌
-     * @param namespace     命名空间
-     * @return MCP响应
-     */
-    public McpResponse handleToolsCall(McpRequest request, UserRole userRole, String traceId,
-                                        String requestId, String authorization, String namespace) {
+    public McpResponse handleToolsCall(McpRequest request, McpRequestContext context) {
         Map<String, Object> params = request.getParams();
         if (params == null || !params.containsKey("name")) {
             return McpResponse.error(
@@ -111,8 +92,8 @@ public class McpService {
         Map<String, Object> arguments = (Map<String, Object>) params.getOrDefault("arguments", new HashMap<>());
 
         // 检查用户是否有权限访问该工具
-        if (!canAccessTool(toolName, userRole)) {
-            log.warn("User role {} attempted to access unauthorized tool: {}", userRole, toolName);
+        if (!canAccessTool(toolName, context.getUserRole())) {
+            log.warn("User role {} attempted to access unauthorized tool: {}", context.getUserRole(), toolName);
             return McpResponse.error(
                     request.getId(),
                     McpError.METHOD_NOT_FOUND,
@@ -121,11 +102,11 @@ public class McpService {
         }
 
         log.info("Executing tool: name={}, role={}, traceId={}, requestId={}, namespace={}",
-                toolName, userRole, traceId, requestId, namespace);
+                toolName, context.getUserRole(), context.getTraceId(), context.getRequestId(), context.getNamespace());
 
         try {
-            Object result = toolDispatcher.executeTool(toolName, arguments, traceId, requestId,
-                    authorization, userRole.name(), namespace);
+            Object result = toolDispatcher.executeTool(toolName, arguments, context.getTraceId(), context.getRequestId(),
+                    context.getAuthorization(), context.getUserRole().name(), context.getNamespace());
 
             // MCP 规范要求返回 content 数组
             return McpResponse.success(request.getId(), Map.of(
@@ -136,7 +117,7 @@ public class McpService {
             ));
 
         } catch (Exception e) {
-            log.error("Tool execution failed: name={}, role={}, error={}", toolName, userRole, e.getMessage(), e);
+            log.error("Tool execution failed: name={}, role={}, error={}", toolName, context.getUserRole(), e.getMessage(), e);
             return McpResponse.error(
                     request.getId(),
                     McpError.TOOL_EXECUTION_ERROR,
@@ -146,39 +127,31 @@ public class McpService {
     }
 
     /**
-     * 处理直接工具调用（方法名即工具名）
+     * 处理 tools/call 请求（兼容旧接口）
      *
-     * @param request       MCP请求
-     * @param userRole      用户角色
-     * @param traceId       AI 会话追踪 ID
-     * @param requestId     HTTP 请求 ID
-     * @param authorization 授权令牌
-     * @return MCP响应
+     * @deprecated 使用 {@link #handleToolsCall(McpRequest, McpRequestContext)} 替代
      */
-    public McpResponse handleDirectToolCall(McpRequest request, UserRole userRole, String traceId,
-                                             String requestId, String authorization) {
-        return handleDirectToolCall(request, userRole, traceId, requestId, authorization, null);
+    @Deprecated
+    public McpResponse handleToolsCall(McpRequest request, UserRole userRole, String traceId,
+                                        String requestId, String authorization, String namespace) {
+        McpRequestContext context = McpRequestContext.of(traceId, requestId, authorization, userRole, namespace);
+        return handleToolsCall(request, context);
     }
 
     /**
-     * 处理直接工具调用（方法名即工具名，支持命名空间）
+     * 处理直接工具调用（方法名即工具名）
      *
-     * @param request       MCP请求
-     * @param userRole      用户角色
-     * @param traceId       AI 会话追踪 ID
-     * @param requestId     HTTP 请求 ID
-     * @param authorization 授权令牌
-     * @param namespace     命名空间
+     * @param request MCP请求
+     * @param context 请求上下文
      * @return MCP响应
      */
-    public McpResponse handleDirectToolCall(McpRequest request, UserRole userRole, String traceId,
-                                             String requestId, String authorization, String namespace) {
+    public McpResponse handleDirectToolCall(McpRequest request, McpRequestContext context) {
         String toolName = request.getMethod();
         Map<String, Object> arguments = request.getParams() != null ? request.getParams() : new HashMap<>();
 
         // 检查用户是否有权限访问该工具
-        if (!canAccessTool(toolName, userRole)) {
-            log.warn("User role {} attempted to access unauthorized tool: {}", userRole, toolName);
+        if (!canAccessTool(toolName, context.getUserRole())) {
+            log.warn("User role {} attempted to access unauthorized tool: {}", context.getUserRole(), toolName);
             return McpResponse.error(
                     request.getId(),
                     McpError.METHOD_NOT_FOUND,
@@ -187,14 +160,14 @@ public class McpService {
         }
 
         log.info("Direct tool call: name={}, role={}, traceId={}, requestId={}, namespace={}",
-                toolName, userRole, traceId, requestId, namespace);
+                toolName, context.getUserRole(), context.getTraceId(), context.getRequestId(), context.getNamespace());
 
         try {
-            Object result = toolDispatcher.executeTool(toolName, arguments, traceId, requestId,
-                    authorization, userRole.name(), namespace);
+            Object result = toolDispatcher.executeTool(toolName, arguments, context.getTraceId(), context.getRequestId(),
+                    context.getAuthorization(), context.getUserRole().name(), context.getNamespace());
             return McpResponse.success(request.getId(), result);
         } catch (Exception e) {
-            log.error("Direct tool call failed: name={}, role={}, error={}", toolName, userRole, e.getMessage(), e);
+            log.error("Direct tool call failed: name={}, role={}, error={}", toolName, context.getUserRole(), e.getMessage(), e);
             return McpResponse.error(
                     request.getId(),
                     McpError.TOOL_EXECUTION_ERROR,
@@ -204,10 +177,25 @@ public class McpService {
     }
 
     /**
-     * 处理直接工具调用（兼容旧接口，无 requestId）
+     * 处理直接工具调用（兼容旧接口）
+     *
+     * @deprecated 使用 {@link #handleDirectToolCall(McpRequest, McpRequestContext)} 替代
      */
+    @Deprecated
+    public McpResponse handleDirectToolCall(McpRequest request, UserRole userRole, String traceId,
+                                             String requestId, String authorization, String namespace) {
+        McpRequestContext context = McpRequestContext.of(traceId, requestId, authorization, userRole, namespace);
+        return handleDirectToolCall(request, context);
+    }
+
+    /**
+     * 处理直接工具调用（兼容旧接口，无 requestId）
+     *
+     * @deprecated 使用 {@link #handleDirectToolCall(McpRequest, McpRequestContext)} 替代
+     */
+    @Deprecated
     public McpResponse handleDirectToolCall(McpRequest request, UserRole userRole, String traceId, String authorization) {
-        return handleDirectToolCall(request, userRole, traceId, null, authorization);
+        return handleDirectToolCall(request, userRole, traceId, null, authorization, null);
     }
 
     /**

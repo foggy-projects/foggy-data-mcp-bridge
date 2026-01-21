@@ -3,6 +3,7 @@ package com.foggyframework.dataset.mcp.controller;
 import com.foggyframework.dataset.mcp.enums.UserRole;
 import com.foggyframework.dataset.mcp.schema.McpError;
 import com.foggyframework.dataset.mcp.schema.McpRequest;
+import com.foggyframework.dataset.mcp.schema.McpRequestContext;
 import com.foggyframework.dataset.mcp.schema.McpResponse;
 import com.foggyframework.dataset.mcp.service.McpService;
 import com.foggyframework.dataset.mcp.service.McpToolDispatcher;
@@ -70,6 +71,9 @@ public class AdminMcpController {
         log.info("Admin MCP RPC request received: method={}, id={}, traceId={}, requestId={}, namespace={}",
                 request.getMethod(), request.getId(), traceId, requestId, namespace);
 
+        // 构建请求上下文
+        McpRequestContext context = McpRequestContext.of(traceId, requestId, authorization, USER_ROLE, namespace);
+
         try {
             // 处理 MCP 内置方法
             if (request.getMethod() != null) {
@@ -79,13 +83,13 @@ public class AdminMcpController {
                     case "tools/list":
                         return ResponseEntity.ok(mcpService.handleToolsList(request, USER_ROLE));
                     case "tools/call":
-                        return ResponseEntity.ok(mcpService.handleToolsCall(request, USER_ROLE, traceId, requestId, authorization, namespace));
+                        return ResponseEntity.ok(mcpService.handleToolsCall(request, context));
                     case "ping":
                         return ResponseEntity.ok(mcpService.handlePing(request));
                     default:
                         // 尝试作为工具调用处理
                         if (request.getMethod().startsWith("dataset") || request.getMethod().startsWith("olap")) {
-                            return ResponseEntity.ok(mcpService.handleDirectToolCall(request, USER_ROLE, traceId, requestId, authorization, namespace));
+                            return ResponseEntity.ok(mcpService.handleDirectToolCall(request, context));
                         }
                         return ResponseEntity.ok(McpResponse.error(
                                 request.getId(),
