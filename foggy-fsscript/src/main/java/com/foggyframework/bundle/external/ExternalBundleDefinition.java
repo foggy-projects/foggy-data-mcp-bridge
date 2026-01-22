@@ -21,6 +21,11 @@ public class ExternalBundleDefinition implements BundleDefinition {
     private final String name;
 
     /**
+     * 命名空间（用于模型隔离）
+     */
+    private final String namespace;
+
+    /**
      * 外部目录路径
      */
     private final String path;
@@ -36,7 +41,12 @@ public class ExternalBundleDefinition implements BundleDefinition {
     private final String packageName;
 
     public ExternalBundleDefinition(String name, String path, boolean watch) {
+        this(name, "", path, watch);
+    }
+
+    public ExternalBundleDefinition(String name, String namespace, String path, boolean watch) {
         this.name = name;
+        this.namespace = namespace != null ? namespace : "";
         this.path = path;
         this.watch = watch;
         // 使用 "external." 前缀作为虚拟包名，避免与实际Java包冲突
@@ -44,7 +54,7 @@ public class ExternalBundleDefinition implements BundleDefinition {
     }
 
     public ExternalBundleDefinition(ExternalBundleProperties.ExternalBundleItem item) {
-        this(item.getName(), item.getPath(), item.isWatch());
+        this(item.getName(), item.getNamespace(), item.getPath(), item.isWatch());
     }
 
     @Override
@@ -58,6 +68,11 @@ public class ExternalBundleDefinition implements BundleDefinition {
     }
 
     @Override
+    public String getNamespace() {
+        return namespace;
+    }
+
+    @Override
     public Class<?> getDefinitionClass() {
         // 外部Bundle没有对应的Java类，返回此定义类本身
         return ExternalBundleDefinition.class;
@@ -65,7 +80,7 @@ public class ExternalBundleDefinition implements BundleDefinition {
 
     @Override
     public String toString() {
-        return String.format("ExternalBundleDefinition{name='%s', path='%s', watch=%s}",
-                name, path, watch);
+        return String.format("ExternalBundleDefinition{name='%s', namespace='%s', path='%s', watch=%s}",
+                name, namespace, path, watch);
     }
 }

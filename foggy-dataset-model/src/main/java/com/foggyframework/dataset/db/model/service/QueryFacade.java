@@ -38,6 +38,15 @@ public interface QueryFacade {
     PagingResultImpl queryModelData(PagingRequest<DbQueryRequestDef> form);
 
     /**
+     * 执行查询（带命名空间）
+     *
+     * @param form      查询请求
+     * @param namespace 命名空间（空字符串或null表示默认命名空间）
+     * @return 查询结果
+     */
+    PagingResultImpl queryModelData(PagingRequest<DbQueryRequestDef> form, String namespace);
+
+    /**
      * 执行查询（带查询类型）
      *
      * @param form      查询请求

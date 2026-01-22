@@ -103,7 +103,7 @@ class AnalystMcpControllerTest {
                     ))
             ));
 
-            when(mcpService.handleToolsCall(any(McpRequest.class), eq(UserRole.ANALYST), any(), any(), any()))
+            when(mcpService.handleToolsCall(any(McpRequest.class), eq(UserRole.ANALYST), any(), any(), any(), any()))
                     .thenReturn(mockResponse);
 
             mockMvc.perform(post("/mcp/analyst/rpc")
@@ -134,7 +134,7 @@ class AnalystMcpControllerTest {
                     ))
             ));
 
-            when(mcpService.handleToolsCall(any(McpRequest.class), eq(UserRole.ANALYST), any(), any(), any()))
+            when(mcpService.handleToolsCall(any(McpRequest.class), eq(UserRole.ANALYST), any(), any(), any(), any()))
                     .thenReturn(mockResponse);
 
             mockMvc.perform(post("/mcp/analyst/rpc")
@@ -168,7 +168,7 @@ class AnalystMcpControllerTest {
                     ))
             ));
 
-            when(mcpService.handleToolsCall(any(McpRequest.class), eq(UserRole.ANALYST), any(), any(), any()))
+            when(mcpService.handleToolsCall(any(McpRequest.class), eq(UserRole.ANALYST), any(), any(), any(), any()))
                     .thenReturn(mockResponse);
 
             mockMvc.perform(post("/mcp/analyst/rpc")
@@ -198,7 +198,7 @@ class AnalystMcpControllerTest {
             McpResponse mockResponse = McpResponse.error("1", McpError.METHOD_NOT_FOUND,
                     "Tool not found or access denied: dataset_nl.query");
 
-            when(mcpService.handleToolsCall(any(McpRequest.class), eq(UserRole.ANALYST), any(), any(), any()))
+            when(mcpService.handleToolsCall(any(McpRequest.class), eq(UserRole.ANALYST), any(), any(), any(), any()))
                     .thenReturn(mockResponse);
 
             mockMvc.perform(post("/mcp/analyst/rpc")
@@ -268,7 +268,7 @@ class AnalystMcpControllerTest {
                     ))
             ));
 
-            when(mcpService.handleToolsCall(any(McpRequest.class), eq(UserRole.ANALYST), any(), any(), any()))
+            when(mcpService.handleToolsCall(any(McpRequest.class), eq(UserRole.ANALYST), any(), any(), any(), any()))
                     .thenReturn(mockResponse);
 
             mockMvc.perform(post("/mcp/analyst/rpc")

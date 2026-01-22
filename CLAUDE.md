@@ -38,6 +38,65 @@
 - `/mcp/admin/rpc` - 管理员（全部工具权限）
 - `/mcp/business/rpc` - 业务用户（仅自然语言查询）
 
+### Namespace支持（命名空间隔离）
+通过HTTP Header `X-NS` 传递命名空间，支持同一服务下多环境模型隔离：
+- 未传或传空字符串：使用默认命名空间
+- 传 `dev`：查询dev命名空间下的模型（如 `dev:OrderModel`）
+- 传 `test`：查询test命名空间下的模型（如 `test:OrderModel`）
+
+配置示例：
+```yaml
+foggy:
+  bundle:
+    external:
+      enabled: true
+      bundles:
+        - name: ecommerce-dev
+          namespace: dev        # 开发环境
+          path: /data/ecommerce-dev
+          watch: true
+
+        - name: ecommerce-test
+          namespace: test       # 测试环境
+          path: /data/ecommerce-test
+          watch: false
+```
+
+Java配置示例：
+```java
+@EnableFoggyFramework(
+    bundleName = "my-models",
+    namespace = "dev"
+)
+public class MyModelsConfig { }
+```
+
+### 动态Bundle管理
+支持运行时动态添加/移除外部Bundle，无需重启服务。
+
+REST API：
+- `GET /api/bundles/list` - 列出所有外部Bundle
+- `POST /api/bundles/add` - 添加外部Bundle
+- `DELETE /api/bundles/remove/{bundleName}` - 移除外部Bundle
+- `GET /api/bundles/exists/{bundleName}` - 检查Bundle是否存在
+
+添加Bundle示例：
+```bash
+curl -X POST http://localhost:8080/api/bundles/add \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "dynamic-models",
+    "namespace": "dev",
+    "path": "/data/dynamic-models",
+    "watch": true
+  }'
+```
+
+移除Bundle示例：
+```bash
+curl -X DELETE http://localhost:8080/api/bundles/remove/dynamic-models
+```
+
 ## 帮助手册 (docs-site/)
 基于 VitePress 构建的帮助手册，支持中英双语。
 ```

@@ -98,7 +98,7 @@ class BusinessMcpControllerTest {
                     ))
             ));
 
-            when(mcpService.handleToolsCall(any(McpRequest.class), eq(UserRole.BUSINESS), any(), any(), any()))
+            when(mcpService.handleToolsCall(any(McpRequest.class), eq(UserRole.BUSINESS), any(), any(), any(), any()))
                     .thenReturn(mockResponse);
 
             mockMvc.perform(post("/mcp/business/rpc")
@@ -118,7 +118,7 @@ class BusinessMcpControllerTest {
                     .andExpect(jsonPath("$.result.content").isArray())
                     .andExpect(jsonPath("$.error").doesNotExist());
 
-            verify(mcpService).handleToolsCall(any(McpRequest.class), eq(UserRole.BUSINESS), any(), any(), any());
+            verify(mcpService).handleToolsCall(any(McpRequest.class), eq(UserRole.BUSINESS), any(), any(), any(), any());
         }
 
         @Test
@@ -128,7 +128,7 @@ class BusinessMcpControllerTest {
             McpResponse mockResponse = McpResponse.error("1", McpError.METHOD_NOT_FOUND,
                     "Tool not found or access denied: dataset.query_model");
 
-            when(mcpService.handleToolsCall(any(McpRequest.class), eq(UserRole.BUSINESS), any(), any(), any()))
+            when(mcpService.handleToolsCall(any(McpRequest.class), eq(UserRole.BUSINESS), any(), any(), any(), any()))
                     .thenReturn(mockResponse);
 
             mockMvc.perform(post("/mcp/business/rpc")
@@ -156,7 +156,7 @@ class BusinessMcpControllerTest {
             McpResponse mockResponse = McpResponse.error("1", McpError.METHOD_NOT_FOUND,
                     "Tool not found or access denied: dataset.get_metadata");
 
-            when(mcpService.handleToolsCall(any(McpRequest.class), eq(UserRole.BUSINESS), any(), any(), any()))
+            when(mcpService.handleToolsCall(any(McpRequest.class), eq(UserRole.BUSINESS), any(), any(), any(), any()))
                     .thenReturn(mockResponse);
 
             mockMvc.perform(post("/mcp/business/rpc")
@@ -183,7 +183,7 @@ class BusinessMcpControllerTest {
             McpResponse mockResponse = McpResponse.error("1", McpError.METHOD_NOT_FOUND,
                     "Tool not found or access denied: chart.generate");
 
-            when(mcpService.handleToolsCall(any(McpRequest.class), eq(UserRole.BUSINESS), any(), any(), any()))
+            when(mcpService.handleToolsCall(any(McpRequest.class), eq(UserRole.BUSINESS), any(), any(), any(), any()))
                     .thenReturn(mockResponse);
 
             mockMvc.perform(post("/mcp/business/rpc")

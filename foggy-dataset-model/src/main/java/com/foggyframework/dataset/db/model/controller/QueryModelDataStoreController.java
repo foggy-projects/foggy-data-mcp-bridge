@@ -25,18 +25,21 @@ public class QueryModelDataStoreController {
 
     @PostMapping("queryModelData")
     @ApiModelProperty("建议使用queryModelDataV2替代,URL上带上模型名称,更有利于缓存,第一层权限过滤等")
-    public RX<PagingResultImpl> queryModelData(@RequestBody PagingRequest<DbQueryRequestDef> form) {
-        PagingResultImpl v = queryFacade.queryModelData(form);
+    public RX<PagingResultImpl> queryModelData(
+            @RequestBody PagingRequest<DbQueryRequestDef> form,
+            @RequestHeader(value = "X-NS", required = false) String namespace) {
+        PagingResultImpl v = queryFacade.queryModelData(form, namespace);
         return RX.success(v);
     }
 
     @PostMapping("v2/{model}")
     public RX<PagingResultImpl> queryModelDataV2(
             @ApiParam(value = "模型", required = true) @PathVariable String model,
-            @RequestBody PagingRequest<DbQueryRequestDef> form) {
+            @RequestBody PagingRequest<DbQueryRequestDef> form,
+            @RequestHeader(value = "X-NS", required = false) String namespace) {
 
         form.getParam().setQueryModel(model);
-        PagingResultImpl v = queryFacade.queryModelData(form);
+        PagingResultImpl v = queryFacade.queryModelData(form, namespace);
         return RX.success(v);
     }
 }

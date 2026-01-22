@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.dataset.mcp.enums.UserRole;
 import com.foggyframework.dataset.mcp.schema.McpError;
 import com.foggyframework.dataset.mcp.schema.McpRequest;
+import com.foggyframework.dataset.mcp.schema.McpRequestContext;
 import com.foggyframework.dataset.mcp.schema.McpResponse;
 import com.foggyframework.dataset.mcp.service.McpService;
 import com.foggyframework.dataset.mcp.service.McpToolDispatcher;
@@ -140,7 +141,7 @@ class AdminMcpControllerTest {
                     ))
             ));
 
-            when(mcpService.handleToolsCall(any(McpRequest.class), eq(UserRole.ADMIN), any(), any(), any()))
+            when(mcpService.handleToolsCall(any(McpRequest.class), any(McpRequestContext.class)))
                     .thenReturn(mockResponse);
 
             mockMvc.perform(post("/mcp/admin/rpc")
@@ -168,7 +169,7 @@ class AdminMcpControllerTest {
             McpResponse mockResponse = McpResponse.error("1", McpError.METHOD_NOT_FOUND,
                     "Tool not found or access denied: unknown.tool");
 
-            when(mcpService.handleToolsCall(any(McpRequest.class), eq(UserRole.ADMIN), any(), any(), any()))
+            when(mcpService.handleToolsCall(any(McpRequest.class), any(McpRequestContext.class)))
                     .thenReturn(mockResponse);
 
             mockMvc.perform(post("/mcp/admin/rpc")
@@ -258,7 +259,7 @@ class AdminMcpControllerTest {
         void datasetMethodPrefix_shouldBeHandledAsToolCall() throws Exception {
             McpResponse mockResponse = McpResponse.success("1", Map.of("data", "result"));
 
-            when(mcpService.handleDirectToolCall(any(McpRequest.class), eq(UserRole.ADMIN), any(), any(), any()))
+            when(mcpService.handleDirectToolCall(any(McpRequest.class), any(McpRequestContext.class)))
                     .thenReturn(mockResponse);
 
             mockMvc.perform(post("/mcp/admin/rpc")
@@ -269,7 +270,7 @@ class AdminMcpControllerTest {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.result.data").value("result"));
 
-            verify(mcpService).handleDirectToolCall(any(McpRequest.class), eq(UserRole.ADMIN), any(), any(), any());
+            verify(mcpService).handleDirectToolCall(any(McpRequest.class), any(McpRequestContext.class));
         }
     }
 

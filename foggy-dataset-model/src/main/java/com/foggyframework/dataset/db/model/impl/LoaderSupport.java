@@ -40,6 +40,23 @@ public abstract class LoaderSupport {
 
     }
 
+    /**
+     * 在指定命名空间下查找FSScript文件
+     *
+     * @param name 文件名
+     * @param pref 后缀（如"tm"、"qm"）
+     * @param namespace 命名空间（空字符串或null表示默认命名空间）
+     * @return Fsscript对象
+     */
+    protected Fsscript findFsscript(String name, String pref, String namespace){
+        if(!name.endsWith(pref)){
+            name = name+"."+pref;
+        }
+        BundleResource br = systemBundlesContext.findResourceByName(name, namespace, true);
+
+        return fileFsscriptLoader.findLoadFsscript(br);
+    }
+
 
     protected QueryObject loadQueryObject(DataSource dataSource, String tableName, String viewSql, String schema) {
         if (StringUtils.isTrimEmpty(viewSql) && StringUtils.isTrimEmpty(tableName)) {

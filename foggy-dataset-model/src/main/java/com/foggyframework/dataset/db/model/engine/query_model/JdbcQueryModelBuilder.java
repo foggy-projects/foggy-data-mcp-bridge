@@ -259,7 +259,9 @@ public class JdbcQueryModelBuilder implements QueryModelBuilder {
     private TableModel loadTableModel(String modelName, String qmName) {
 
         try {
-            TableModel tm = tableModelLoaderManager.load(modelName);
+            // 使用NamespaceContext获取当前线程的namespace
+            String namespace = com.foggyframework.dataset.db.model.spi.NamespaceContext.getNamespace();
+            TableModel tm = tableModelLoaderManager.load(modelName, namespace);
             return tm;
         } catch (Exception e) {
             addError(qmName, "loadTableModel('" + modelName + "')",

@@ -84,7 +84,7 @@ public class CachedQueryContext {
     /**
      * 过期时间（MongoDB TTL索引会自动删除过期文档）
      */
-    @Indexed(expireAfter = "0s")
+    @Indexed(expireAfterSeconds = 0)
     private Instant expiresAt;
 
     /**

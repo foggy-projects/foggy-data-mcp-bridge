@@ -52,6 +52,12 @@ public class ModelResultContext {
     SecurityContext securityContext;
 
     /**
+     * 命名空间（用于模型隔离）
+     * <p>空字符串或null表示默认命名空间
+     */
+    String namespace;
+
+    /**
      * 查询缓存配置
      */
     QueryCacheConfig cacheConfig;

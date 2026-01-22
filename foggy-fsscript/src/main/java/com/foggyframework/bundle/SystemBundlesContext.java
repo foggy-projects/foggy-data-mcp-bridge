@@ -58,5 +58,41 @@ public interface SystemBundlesContext {
      */
     BundleResource findResourceByName(String name, boolean errorIfNotFound);
 
+    /**
+     * 在指定命名空间的Bundle中查找资源
+     *
+     * @param name 资源名称
+     * @param namespace 命名空间（空字符串或null表示默认命名空间）
+     * @param errorIfNotFound 找不到时是否抛出异常
+     * @return BundleResource对象
+     */
+    BundleResource findResourceByName(String name, String namespace, boolean errorIfNotFound);
+
     boolean containBundle(String bundle);
+
+    /**
+     * 动态添加外部Bundle
+     *
+     * @param name      Bundle名称（唯一标识）
+     * @param namespace 命名空间（空字符串表示默认命名空间）
+     * @param path      外部目录路径
+     * @param watch     是否监听文件变化
+     * @return 是否添加成功
+     */
+    boolean addExternalBundle(String name, String namespace, String path, boolean watch);
+
+    /**
+     * 移除指定的Bundle
+     *
+     * @param bundleName Bundle名称
+     * @return 是否移除成功
+     */
+    boolean removeBundle(String bundleName);
+
+    /**
+     * 获取所有外部Bundle的定义
+     *
+     * @return Bundle定义列表
+     */
+    List<BundleDefinition> listExternalBundles();
 }
