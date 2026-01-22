@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, provide, h } from 'vue'
 import type { VxeGridInstance, VxeGridProps, VxeGridListeners } from 'vxe-table'
-import type { ColumnSchema, PaginationState, SortState, SliceRequestDef, FilterOption } from '@/types'
+import type { EnhancedColumnSchema, PaginationState, SortState, SliceRequestDef, FilterOption } from '@/types'
 import { TextFilter, NumberRangeFilter, DateRangeFilter, SelectFilter, BoolFilter } from './filters'
 import { useTableSelection, useTableSummary } from './composables'
 
@@ -16,8 +16,8 @@ import { useTableSelection, useTableSummary } from './composables'
  * - DSL 格式的过滤条件
  */
 interface Props {
-  /** 列配置 */
-  columns: ColumnSchema[]
+  /** 列配置（增强的列配置，包含前端定制） */
+  columns: EnhancedColumnSchema[]
   /** 数据 */
   data: Record<string, unknown>[]
   /** 总行数 */
@@ -49,9 +49,9 @@ const emit = defineEmits<{
   /** 过滤条件变更，使用 DSL slice 格式 */
   (e: 'filter-change', slices: SliceRequestDef[]): void
   /** 行点击事件 */
-  (e: 'row-click', row: Record<string, unknown>, column: ColumnSchema): void
+  (e: 'row-click', row: Record<string, unknown>, column: EnhancedColumnSchema): void
   /** 行双击事件 */
-  (e: 'row-dblclick', row: Record<string, unknown>, column: ColumnSchema): void
+  (e: 'row-dblclick', row: Record<string, unknown>, column: EnhancedColumnSchema): void
 }>()
 
 // 暴露给插槽使用的上下文
@@ -63,9 +63,9 @@ const slots = defineSlots<{
   /** 空数据提示 */
   empty?: () => unknown
   /** 自定义列内容 */
-  [key: `column-${string}`]: (props: { row: Record<string, unknown>; column: ColumnSchema; value: unknown }) => unknown
+  [key: `column-${string}`]: (props: { row: Record<string, unknown>; column: EnhancedColumnSchema; value: unknown }) => unknown
   /** 自定义过滤器 */
-  [key: `filter-${string}`]: (props: { column: ColumnSchema; field: string; modelValue: SliceRequestDef[] | null; onChange: (val: SliceRequestDef[] | null) => void }) => unknown
+  [key: `filter-${string}`]: (props: { column: EnhancedColumnSchema; field: string; modelValue: SliceRequestDef[] | null; onChange: (val: SliceRequestDef[] | null) => void }) => unknown
 }>()
 
 const gridRef = ref<VxeGridInstance>()
@@ -158,7 +158,7 @@ async function loadDimensionOptions(columnName: string): Promise<FilterOption[]>
 }
 
 // 推断过滤器类型（根据 filterType 或 type 回退）
-function inferFilterType(col: ColumnSchema): string {
+function inferFilterType(col: EnhancedColumnSchema): string {
   const type = col.type?.toUpperCase()
 
   // 日期类型优先使用日期组件，即使 filterType 是 dimension
@@ -195,7 +195,12 @@ function inferFilterType(col: ColumnSchema): string {
 }
 
 // 根据列配置获取过滤器组件
-function getFilterComponent(col: ColumnSchema) {
+function getFilterComponent(col: EnhancedColumnSchema) {
+  // 优先使用自定义过滤器组件
+  if (col.customFilterComponent) {
+    return col.customFilterComponent
+  }
+
   const filterType = inferFilterType(col)
 
   // 检查自定义过滤器组件
@@ -240,7 +245,7 @@ function getDimensionFilterField(columnName: string): string {
 }
 
 // 获取过滤器属性
-function getFilterProps(col: ColumnSchema) {
+function getFilterProps(col: EnhancedColumnSchema) {
   const filterType = inferFilterType(col)
   const baseProps: Record<string, unknown> = {
     field: col.name,
@@ -303,8 +308,16 @@ function emitFilterChange() {
 }
 
 // 根据字段类型获取格式化配置
-function getColumnFormatter(type: string): Partial<VxeGridProps['columns']>[number] {
-  switch (type?.toUpperCase()) {
+function getColumnFormatter(col: EnhancedColumnSchema): Partial<VxeGridProps['columns']>[number] {
+  // 优先使用自定义格式化器
+  if (col.customFormatter) {
+    return {
+      formatter: ({ cellValue }) => col.customFormatter!(cellValue)
+    }
+  }
+
+  const type = col.type?.toUpperCase()
+  switch (type) {
     case 'MONEY':
     case 'NUMBER':
     case 'BIGDECIMAL':
@@ -387,9 +400,11 @@ const tableColumns = computed<VxeGridProps['columns']>(() => {
     const colConfig: Record<string, unknown> = {
       field: col.name,
       title: col.title || col.name,
-      minWidth: 120,
+      width: col.width,
+      minWidth: col.minWidth ?? 120,
+      fixed: col.fixed,
       sortable: false, // 禁用 vxe-table 内置排序，我们自己处理
-      ...getColumnFormatter(col.type),
+      ...getColumnFormatter(col),
       // 使用 slots 在表头渲染过滤器
       slots: {
         header: () => {
@@ -422,6 +437,14 @@ const tableColumns = computed<VxeGridProps['columns']>(() => {
           return slots[slotName]!({ row, column: col, value: row[col.name] })
         }
       }
+    } else if (col.customRender) {
+      // 使用自定义渲染函数
+      colConfig.slots = {
+        ...colConfig.slots as object,
+        default: ({ row }: { row: Record<string, unknown> }) => {
+          return col.customRender!({ row, value: row[col.name] })
+        }
+      }
     }
 
     return colConfig
@@ -432,7 +455,7 @@ const tableColumns = computed<VxeGridProps['columns']>(() => {
 })
 
 // 渲染过滤器组件
-function renderFilterComponent(col: ColumnSchema) {
+function renderFilterComponent(col: EnhancedColumnSchema) {
   // 检查自定义过滤器插槽
   const filterSlotName = `filter-${col.name}`
   if (slots[filterSlotName]) {

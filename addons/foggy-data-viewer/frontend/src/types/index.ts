@@ -120,3 +120,40 @@ export interface SortState {
   field: string | null
   order: 'asc' | 'desc' | null
 }
+
+/**
+ * 列定制配置
+ */
+export interface ColumnCustomization {
+  name: string
+  width?: number
+  minWidth?: number
+  fixed?: 'left' | 'right'
+  render?: (params: { row: Record<string, unknown>; value: unknown }) => unknown
+  filterComponent?: unknown
+  formatter?: (value: unknown) => string
+}
+
+/**
+ * 增强的列配置（合并 QM schema 和前端定制）
+ */
+export interface EnhancedColumnSchema extends ColumnSchema {
+  width?: number
+  minWidth?: number
+  fixed?: 'left' | 'right'
+  customRender?: (params: { row: Record<string, unknown>; value: unknown }) => unknown
+  customFilterComponent?: unknown
+  customFormatter?: (value: unknown) => string
+}
+
+/**
+ * 表格配置
+ */
+export interface TableConfig {
+  /** 显式指定显示的列及顺序（必填，除非 showAll=true） */
+  visibleColumns?: string[]
+  /** 显示所有列 */
+  showAll?: boolean
+  /** 列定制配置 */
+  customizations?: ColumnCustomization[]
+}
