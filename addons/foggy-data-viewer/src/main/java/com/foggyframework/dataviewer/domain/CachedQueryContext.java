@@ -93,92 +93,61 @@ public class CachedQueryContext {
     private Long estimatedRowCount;
 
     /**
-     * 列元数据（用于前端渲染）
+     * 表格配置（用于前端统一渲染）
      */
-    private List<ColumnSchema> schema;
+    private TableConfig tableConfig;
 
     /**
-     * 列元数据
+     * 表格配置
      */
     @Data
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class ColumnSchema {
+    public static class TableConfig {
+        /**
+         * QM 模型名称（前端用此获取完整 qmSchema）
+         */
+        private String qmModel;
+
+        /**
+         * 显示的列及顺序
+         */
+        private List<String> visibleColumns;
+
+        /**
+         * 列定制配置（可选）
+         */
+        private List<ColumnCustomization> customizations;
+    }
+
+    /**
+     * 列定制配置
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ColumnCustomization {
         /**
          * 列名
          */
         private String name;
 
         /**
-         * 数据类型（TEXT, NUMBER, DAY等）
+         * 列宽（像素）
          */
-        private String type;
+        private Integer width;
 
         /**
-         * 显示标题
+         * 最小列宽（像素）
          */
-        private String title;
+        private Integer minWidth;
 
         /**
-         * 是否可过滤
+         * 固定列位置："left" | "right"
          */
-        private boolean filterable;
-
-        /**
-         * 是否可聚合
-         */
-        private boolean aggregatable;
-
-        // ========== 过滤器元数据 ==========
-
-        /**
-         * 过滤器类型
-         * text, number, date, datetime, dict, dimension, bool, custom
-         */
-        private String filterType;
-
-        /**
-         * 字典ID（当 filterType=dict 时有效）
-         */
-        private String dictId;
-
-        /**
-         * 字典项列表（当 filterType=dict 时填充）
-         */
-        private List<DictItem> dictItems;
-
-        /**
-         * 维度引用路径（当 filterType=dimension 时有效）
-         */
-        private String dimensionRef;
-
-        /**
-         * 日期格式（当 filterType=date/datetime 时有效）
-         */
-        private String format;
-
-        /**
-         * 是否为度量字段（度量支持范围过滤）
-         */
-        private boolean measure;
-
-        /**
-         * 前端扩展配置（从 extData.ui 透传）
-         */
-        private Map<String, Object> uiConfig;
-    }
-
-    /**
-     * 字典项
-     */
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class DictItem {
-        private Object value;
-        private String label;
+        private String fixed;
     }
 
     /**

@@ -1,7 +1,6 @@
 package com.foggyframework.bundle.dynamic;
 
 import com.foggyframework.bundle.SystemBundlesContextImpl;
-import com.foggyframework.bundle.external.ExternalFileBundle;
 import com.foggyframework.core.bundle.BundleDefinition;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

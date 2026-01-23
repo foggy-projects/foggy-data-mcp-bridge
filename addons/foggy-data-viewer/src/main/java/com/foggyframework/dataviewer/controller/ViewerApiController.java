@@ -1,26 +1,34 @@
 package com.foggyframework.dataviewer.controller;
 
+import com.foggyframework.core.ex.RX;
+import com.foggyframework.core.utils.JsonUtils;
 import com.foggyframework.dataviewer.domain.CachedQueryContext;
 import com.foggyframework.dataviewer.domain.ViewerDataResponse;
 import com.foggyframework.dataviewer.domain.ViewerQueryRequest;
 import com.foggyframework.dataviewer.service.QueryCacheService;
 import com.foggyframework.dataset.client.domain.PagingRequest;
-import com.foggyframework.dataset.db.model.common.query.DimensionDataQueryForm;
-import com.foggyframework.dataset.db.model.common.result.DbDataItem;
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
-import com.foggyframework.dataset.db.model.service.JdbcService;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataRequest;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
+import com.foggyframework.dataset.db.model.semantic.service.SemanticServiceV3;
 import com.foggyframework.dataset.db.model.service.QueryFacade;
 import com.foggyframework.dataset.model.PagingResultImpl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
@@ -37,39 +45,115 @@ public class ViewerApiController {
 
     private final QueryCacheService cacheService;
     private final QueryFacade queryFacade;
-    private final JdbcService jdbcService;
+
+    @Autowired(required = false)
+    private SemanticServiceV3 semanticService;
 
     /**
      * 获取查询元数据（用于初始页面加载）
      */
     @GetMapping("/query/{queryId}/meta")
-    public ResponseEntity<QueryMetaResponse> getQueryMeta(@PathVariable String queryId) {
+    public RX getQueryMeta(@PathVariable String queryId) {
         return cacheService.getQuery(queryId)
-                .map(ctx -> ResponseEntity.ok(new QueryMetaResponse(
+                .map(ctx -> RX.ok(new QueryMetaResponse(
                         ctx.getTitle(),
-                        ctx.getSchema(),
+                        ctx.getTableConfig(),
                         ctx.getEstimatedRowCount(),
                         ctx.getExpiresAt().toString(),
-                        ctx.getModel(),
-                        ctx.getColumns(),
                         ctx.getSlice()  // 返回初始过滤条件
                 )))
-                .orElse(ResponseEntity.notFound().build());
+                .orElse(RX.notFound().build());
+    }
+
+    /**
+     * 下载 QM Schema（供前端离线开发使用）
+     * <p>
+     * 返回完整的 QM 模型字段元数据，可保存为 JSON 文件
+     */
+    @GetMapping("/schema/download/{qmModel}")
+    public ResponseEntity<String> downloadQmSchema(@PathVariable String qmModel) {
+        if (semanticService == null) {
+            return ResponseEntity.status(503)
+                    .body("{\"error\": \"SemanticService not available\"}");
+        }
+
+        try {
+            // 构建请求，获取完整的字段元数据
+            SemanticMetadataRequest request = new SemanticMetadataRequest();
+            request.setQmModels(Arrays.asList(qmModel));
+            request.setLevels(Arrays.asList(1, 2, 3)); // 获取全量字段
+            request.setIncludeExamples(true); // 包含示例数据
+
+            // 获取 JSON 格式的元数据
+            SemanticMetadataResponse response = semanticService.getMetadata(request, "json");
+
+            if (response == null || response.getContent() == null) {
+                return ResponseEntity.notFound().build();
+            }
+
+            // 设置响应头，提示下载文件
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.setContentDispositionFormData("attachment", qmModel + "-schema.json");
+            headers.set(HttpHeaders.CONTENT_TYPE, "application/json; charset=UTF-8");
+
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .body(response.getContent());
+
+        } catch (Exception e) {
+            log.error("Error downloading QM schema for model: {}", qmModel, e);
+            return ResponseEntity.internalServerError()
+                    .body("{\"error\": \"" + e.getMessage() + "\"}");
+        }
+    }
+
+    /**
+     * 获取 QM Schema（供前端运行时使用）
+     * <p>
+     * 返回 QM 模型的字段元数据，用于前端构建列配置
+     */
+    @GetMapping("/schema/{qmModel}")
+    public RX<SemanticMetadataResponse> getQmSchema(@PathVariable String qmModel) {
+        if (semanticService == null) {
+            return RX.status(HttpStatusCode.valueOf(503))
+                    .msg(" SemanticService not available").build();
+        }
+
+        try {
+            // 构建请求，获取字段元数据
+            SemanticMetadataRequest request = new SemanticMetadataRequest();
+            request.setQmModels(Arrays.asList(qmModel));
+            request.setLevels(Arrays.asList(1, 2, 3));
+            request.setIncludeExamples(false); // 不需要示例数据
+
+            // 获取 JSON 格式的元数据
+            SemanticMetadataResponse response = semanticService.getMetadata(request, "json");
+
+            if (response == null || response.getData() == null) {
+                return RX.notFound().build();
+            }
+
+            return RX.ok(response.getData());
+
+        } catch (Exception e) {
+            log.error("Error fetching QM schema for model: {}", qmModel, e);
+            return RX.error("{\"error\": \"" + e.getMessage() + "\"}");
+        }
     }
 
     /**
      * 执行查询并返回数据
      */
     @PostMapping("/query/{queryId}/data")
-    public ResponseEntity<ViewerDataResponse> queryData(
+    public RX<ViewerDataResponse> queryData(
             @PathVariable String queryId,
             @RequestBody ViewerQueryRequest request) {
 
         Optional<CachedQueryContext> ctxOpt = cacheService.getQuery(queryId);
         if (ctxOpt.isEmpty()) {
-            return ResponseEntity.status(410).body(
-                    ViewerDataResponse.expired("Query link has expired")
-            );
+            return new RX<>(410, null, "Query link has expired",
+                    ViewerDataResponse.expired("Query link has expired"));
         }
 
         CachedQueryContext ctx = ctxOpt.get();
@@ -87,7 +171,7 @@ public class ViewerApiController {
             // 使用 QueryFacade 执行查询
             PagingResultImpl result = queryFacade.queryModelData(pagingRequest);
 
-            return ResponseEntity.ok(ViewerDataResponse.success(
+            return RX.ok(ViewerDataResponse.success(
                     result.getItems(),
                     result.getTotal(),
                     result.getTotalData(),
@@ -96,7 +180,7 @@ public class ViewerApiController {
             ));
         } catch (Exception e) {
             log.error("Error executing query for queryId: {}", queryId, e);
-            return ResponseEntity.ok(ViewerDataResponse.error(e.getMessage()));
+            return RX.failB(e.getMessage(), ViewerDataResponse.error(e.getMessage()));
         }
     }
 
@@ -106,26 +190,26 @@ public class ViewerApiController {
      * 接收 payload 结构（与 dataset.query_model 格式一致）
      */
     @PostMapping("/query/create")
-    public ResponseEntity<CreateQueryResponse> createQuery(
+    public RX<CreateQueryResponse> createQuery(
             @RequestBody CreateQueryFromFrontendRequest frontendRequest) {
         try {
             // 验证必要参数
             if (frontendRequest.getModel() == null || frontendRequest.getModel().isBlank()) {
-                return ResponseEntity.badRequest().body(
+                return RX.failB("model 不能为空",
                         new CreateQueryResponse(false, null, null, "model 不能为空"));
             }
             if (frontendRequest.getPayload() == null) {
-                return ResponseEntity.badRequest().body(
+                return RX.failB("payload 不能为空",
                         new CreateQueryResponse(false, null, null, "payload 不能为空"));
             }
 
             CreateQueryPayload payload = frontendRequest.getPayload();
             if (payload.getColumns() == null || payload.getColumns().isEmpty()) {
-                return ResponseEntity.badRequest().body(
+                return RX.failB("payload.columns 不能为空",
                         new CreateQueryResponse(false, null, null, "payload.columns 不能为空"));
             }
             if (payload.getSlice() == null || payload.getSlice().isEmpty()) {
-                return ResponseEntity.badRequest().body(
+                return RX.failB("payload.slice 不能为空，请提供至少一个过滤条件",
                         new CreateQueryResponse(false, null, null, "payload.slice 不能为空，请提供至少一个过滤条件"));
             }
 
@@ -142,7 +226,7 @@ public class ViewerApiController {
             // 缓存查询
             CachedQueryContext ctx = cacheService.cacheQuery(request, null);
 
-            return ResponseEntity.ok(new CreateQueryResponse(
+            return RX.ok(new CreateQueryResponse(
                     true,
                     ctx.getQueryId(),
                     "/data-viewer/view/" + ctx.getQueryId(),
@@ -150,8 +234,8 @@ public class ViewerApiController {
             ));
         } catch (Exception e) {
             log.error("Error creating query", e);
-            return ResponseEntity.ok(new CreateQueryResponse(
-                    false, null, null, e.getMessage()));
+            return RX.failB(e.getMessage(),
+                    new CreateQueryResponse(false, null, null, e.getMessage()));
         }
     }
 
@@ -188,96 +272,6 @@ public class ViewerApiController {
     ) {}
 
     /**
-     * 获取维度成员列表（用于过滤器下拉）
-     */
-    @GetMapping("/query/{queryId}/filter-options/{columnName}")
-    public ResponseEntity<FilterOptionsResponse> getFilterOptions(
-            @PathVariable String queryId,
-            @PathVariable String columnName) {
-
-        Optional<CachedQueryContext> ctxOpt = cacheService.getQuery(queryId);
-        if (ctxOpt.isEmpty()) {
-            return ResponseEntity.notFound().build();
-        }
-
-        CachedQueryContext ctx = ctxOpt.get();
-
-        // 查找列的 schema
-        CachedQueryContext.ColumnSchema columnSchema = null;
-        if (ctx.getSchema() != null) {
-            columnSchema = ctx.getSchema().stream()
-                    .filter(s -> s.getName().equals(columnName))
-                    .findFirst()
-                    .orElse(null);
-        }
-
-        if (columnSchema == null) {
-            return ResponseEntity.badRequest().body(
-                    new FilterOptionsResponse(List.of(), 0, "Column not found: " + columnName));
-        }
-
-        try {
-            List<FilterOption> options = new ArrayList<>();
-
-            if ("dimension".equals(columnSchema.getFilterType()) && columnSchema.getDimensionRef() != null) {
-                // 加载维度成员
-                options = loadDimensionMembers(ctx.getModel(), columnSchema.getDimensionRef());
-            } else if ("dict".equals(columnSchema.getFilterType()) && columnSchema.getDictItems() != null) {
-                // 从 schema 获取字典项
-                options = columnSchema.getDictItems().stream()
-                        .map(item -> new FilterOption(item.getValue(), item.getLabel()))
-                        .toList();
-            }
-
-            return ResponseEntity.ok(new FilterOptionsResponse(options, options.size(), null));
-        } catch (Exception e) {
-            log.error("Error loading filter options for column: {}", columnName, e);
-            return ResponseEntity.ok(new FilterOptionsResponse(List.of(), 0, e.getMessage()));
-        }
-    }
-
-    /**
-     * 加载维度成员
-     */
-    private List<FilterOption> loadDimensionMembers(String modelName, String dimensionRef) {
-        try {
-            DimensionDataQueryForm form = new DimensionDataQueryForm(modelName, dimensionRef);
-            PagingRequest<DimensionDataQueryForm> request = PagingRequest.buildPagingRequest(form);
-            request.setLimit(50000);  // 最多加载5万条
-
-            PagingResultImpl<DbDataItem> result = jdbcService.queryDimensionData(request);
-
-            if (result.getItems() == null) {
-                return List.of();
-            }
-
-            return result.getItems().stream()
-                    .map(item -> new FilterOption(item.getId(), item.getCaption()))
-                    .toList();
-        } catch (Exception e) {
-            log.warn("Failed to load dimension members for {}.{}: {}", modelName, dimensionRef, e.getMessage());
-            return List.of();
-        }
-    }
-
-    /**
-     * 过滤选项响应
-     */
-    public record FilterOptionsResponse(
-            List<FilterOption> options,
-            long total,
-            String error
-    ) {}
-
-    /**
-     * 过滤选项
-     */
-    public record FilterOption(
-            Object value,
-            String label
-    ) {}
-
-    /**
      * 构建查询请求，合并缓存参数与用户覆盖
      */
     private DbQueryRequestDef buildQueryDef(CachedQueryContext ctx, ViewerQueryRequest request) {
@@ -309,11 +303,9 @@ public class ViewerApiController {
      */
     public record QueryMetaResponse(
             String title,
-            List<CachedQueryContext.ColumnSchema> schema,
+            CachedQueryContext.TableConfig tableConfig,
             Long estimatedRowCount,
             String expiresAt,
-            String model,
-            List<String> columns,
             List<SliceRequestDef> initialSlice
     ) {}
 }

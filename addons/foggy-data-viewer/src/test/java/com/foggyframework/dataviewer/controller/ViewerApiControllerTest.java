@@ -1,7 +1,8 @@
 package com.foggyframework.dataviewer.controller;
 
-import com.foggyframework.dataset.db.model.service.JdbcService;
+import com.foggyframework.core.ex.RX;
 import com.foggyframework.dataviewer.domain.CachedQueryContext;
+import com.foggyframework.dataviewer.domain.ViewerDataResponse;
 import com.foggyframework.dataviewer.domain.ViewerQueryRequest;
 import com.foggyframework.dataviewer.service.QueryCacheService;
 import com.foggyframework.dataset.client.domain.PagingRequest;
@@ -16,8 +17,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -45,16 +44,13 @@ class ViewerApiControllerTest {
     @Mock
     private QueryFacade queryFacade;
 
-    @Mock
-    private JdbcService jdbcService;
-
     private ViewerApiController controller;
 
     private CachedQueryContext validContext;
 
     @BeforeEach
     void setUp() {
-        controller = new ViewerApiController(cacheService, queryFacade, jdbcService);
+        controller = new ViewerApiController(cacheService, queryFacade);
 
         validContext = CachedQueryContext.builder()
                 .queryId("test-query-id")
@@ -62,14 +58,10 @@ class ViewerApiControllerTest {
                 .title("订单查询")
                 .columns(List.of("orderId", "customerId", "amount"))
                 .slice(List.of(new SliceRequestDef("status", "=", "pending")))
-                .schema(List.of(
-                        CachedQueryContext.ColumnSchema.builder()
-                                .name("orderId").type("TEXT").title("订单ID").build(),
-                        CachedQueryContext.ColumnSchema.builder()
-                                .name("customerId").type("TEXT").title("客户ID").build(),
-                        CachedQueryContext.ColumnSchema.builder()
-                                .name("amount").type("MONEY").title("金额").build()
-                ))
+                .tableConfig(CachedQueryContext.TableConfig.builder()
+                        .qmModel("orders")
+                        .visibleColumns(List.of("orderId", "customerId", "amount"))
+                        .build())
                 .expiresAt(Instant.now().plus(30, ChronoUnit.MINUTES))
                 .estimatedRowCount(1000L)
                 .build();
@@ -85,16 +77,16 @@ class ViewerApiControllerTest {
             when(cacheService.getQuery("test-query-id"))
                     .thenReturn(Optional.of(validContext));
 
-            ResponseEntity<ViewerApiController.QueryMetaResponse> response =
-                    controller.getQueryMeta("test-query-id");
+            RX response = controller.getQueryMeta("test-query-id");
 
-            assertEquals(HttpStatus.OK, response.getStatusCode());
-            assertNotNull(response.getBody());
-            assertEquals("订单查询", response.getBody().title());
-            assertEquals("orders", response.getBody().model());
-            assertEquals(3, response.getBody().columns().size());
-            assertEquals(3, response.getBody().schema().size());
-            assertEquals(1000L, response.getBody().estimatedRowCount());
+            assertEquals(RX.SUCCESS, response.getCode());
+            assertNotNull(response.getData());
+            ViewerApiController.QueryMetaResponse meta = (ViewerApiController.QueryMetaResponse) response.getData();
+            assertEquals("订单查询", meta.title());
+            assertNotNull(meta.tableConfig());
+            assertEquals("orders", meta.tableConfig().getQmModel());
+            assertEquals(3, meta.tableConfig().getVisibleColumns().size());
+            assertEquals(1000L, meta.estimatedRowCount());
         }
 
         @Test
@@ -103,10 +95,9 @@ class ViewerApiControllerTest {
             when(cacheService.getQuery("non-existent"))
                     .thenReturn(Optional.empty());
 
-            ResponseEntity<ViewerApiController.QueryMetaResponse> response =
-                    controller.getQueryMeta("non-existent");
+            RX response = controller.getQueryMeta("non-existent");
 
-            assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+            assertEquals(404, response.getCode());
         }
     }
 
@@ -131,13 +122,14 @@ class ViewerApiControllerTest {
             request.setStart(0);
             request.setLimit(10);
 
-            var response = controller.queryData("test-query-id", request);
+            RX response = controller.queryData("test-query-id", request);
 
-            assertEquals(HttpStatus.OK, response.getStatusCode());
-            assertNotNull(response.getBody());
-            assertTrue(response.getBody().isSuccess());
-            assertNotNull(response.getBody().getItems());
-            assertEquals(10, response.getBody().getItems().size());
+            assertEquals(RX.SUCCESS, response.getCode());
+            assertNotNull(response.getData());
+            ViewerDataResponse data = (ViewerDataResponse) response.getData();
+            assertTrue(data.isSuccess());
+            assertNotNull(data.getItems());
+            assertEquals(10, data.getItems().size());
         }
 
         @Test
@@ -148,11 +140,12 @@ class ViewerApiControllerTest {
 
             ViewerQueryRequest request = new ViewerQueryRequest();
 
-            var response = controller.queryData("expired-query", request);
+            RX response = controller.queryData("expired-query", request);
 
-            assertEquals(HttpStatus.GONE, response.getStatusCode());
-            assertNotNull(response.getBody());
-            assertFalse(response.getBody().isSuccess());
+            assertEquals(410, response.getCode());
+            assertNotNull(response.getData());
+            ViewerDataResponse data = (ViewerDataResponse) response.getData();
+            assertFalse(data.isSuccess());
         }
 
         @Test
@@ -171,13 +164,14 @@ class ViewerApiControllerTest {
             request.setStart(20);
             request.setLimit(5);
 
-            var response = controller.queryData("test-query-id", request);
+            RX response = controller.queryData("test-query-id", request);
 
-            assertEquals(HttpStatus.OK, response.getStatusCode());
-            assertNotNull(response.getBody());
-            assertEquals(5, response.getBody().getItems().size());
-            assertEquals(20, response.getBody().getStart());
-            assertEquals(5, response.getBody().getLimit());
+            assertEquals(RX.SUCCESS, response.getCode());
+            assertNotNull(response.getData());
+            ViewerDataResponse data = (ViewerDataResponse) response.getData();
+            assertEquals(5, data.getItems().size());
+            assertEquals(20, data.getStart());
+            assertEquals(5, data.getLimit());
         }
 
         @Test
@@ -195,11 +189,12 @@ class ViewerApiControllerTest {
             ViewerQueryRequest request = new ViewerQueryRequest();
             // 不设置分页参数
 
-            var response = controller.queryData("test-query-id", request);
+            RX response = controller.queryData("test-query-id", request);
 
-            assertEquals(HttpStatus.OK, response.getStatusCode());
-            assertNotNull(response.getBody());
-            assertEquals(50, response.getBody().getItems().size()); // 默认50条
+            assertEquals(RX.SUCCESS, response.getCode());
+            assertNotNull(response.getData());
+            ViewerDataResponse data = (ViewerDataResponse) response.getData();
+            assertEquals(50, data.getItems().size()); // 默认50条
         }
 
         @Test
@@ -213,12 +208,13 @@ class ViewerApiControllerTest {
 
             ViewerQueryRequest request = new ViewerQueryRequest();
 
-            var response = controller.queryData("test-query-id", request);
+            RX response = controller.queryData("test-query-id", request);
 
-            assertEquals(HttpStatus.OK, response.getStatusCode());
-            assertNotNull(response.getBody());
-            assertFalse(response.getBody().isSuccess());
-            assertTrue(response.getBody().getError().contains("Database connection failed"));
+            assertEquals(RX.SUCCESS, response.getCode());
+            assertNotNull(response.getData());
+            ViewerDataResponse data = (ViewerDataResponse) response.getData();
+            assertFalse(data.isSuccess());
+            assertTrue(data.getError().contains("Database connection failed"));
         }
     }
 

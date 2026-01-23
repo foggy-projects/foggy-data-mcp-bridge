@@ -100,6 +100,8 @@ public class RX<T> implements Serializable {
         return status(HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
+
+
     public static class DefaultBuilder {
 
         //TODO
@@ -120,6 +122,8 @@ public class RX<T> implements Serializable {
         public <T> RX<T> build() {
             return new RX<>(code, null, msg, null);
         }
+
+
     }
 
 

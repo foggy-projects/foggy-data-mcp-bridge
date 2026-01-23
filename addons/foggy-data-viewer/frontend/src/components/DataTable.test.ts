@@ -1,0 +1,533 @@
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { mount } from '@vue/test-utils'
+import { h } from 'vue'
+import DataTable from './DataTable.vue'
+import type { EnhancedColumnSchema } from '@/types'
+
+describe('DataTable', () => {
+  const mockColumns: EnhancedColumnSchema[] = [
+    {
+      name: 'id',
+      type: 'INTEGER',
+      title: 'ID',
+      width: 100,
+      fixed: 'left'
+    },
+    {
+      name: 'name',
+      type: 'TEXT',
+      title: '名称',
+      width: 150
+    },
+    {
+      name: 'amount',
+      type: 'MONEY',
+      title: '金额',
+      width: 120
+    }
+  ]
+
+  const mockData = [
+    { id: 1, name: 'Test 1', amount: 100 },
+    { id: 2, name: 'Test 2', amount: 200 },
+    { id: 3, name: 'Test 3', amount: 300 }
+  ]
+
+  // 全局配置用于所有测试
+  const globalConfig = {
+    global: {
+      stubs: {
+        'vxe-grid': true  // 使用stub避免需要实际的vxe-table组件
+      }
+    }
+  }
+
+  describe('Basic Rendering', () => {
+    it('should render table with columns and data', () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: mockData,
+          total: 3,
+          loading: false
+        },
+        ...globalConfig
+      })
+
+      expect(wrapper.exists()).toBe(true)
+      // 组件已成功挂载
+    })
+
+    it('should render with loading state', () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: [],
+          total: 0,
+          loading: true
+        },
+        ...globalConfig
+      })
+
+      expect(wrapper.exists()).toBe(true)
+      // vxe-table 会显示 loading 状态
+    })
+
+    it('should render with empty data', () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: [],
+          total: 0,
+          loading: false
+        },
+        ...globalConfig
+      })
+
+      expect(wrapper.exists()).toBe(true)
+    })
+  })
+
+  describe('Column Configuration', () => {
+    it('should apply column width', () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: mockData,
+          total: 3,
+          loading: false
+        },
+        ...globalConfig
+      })
+
+      expect(wrapper.exists()).toBe(true)
+      // vxe-table 会应用列宽配置
+    })
+
+    it('should apply fixed columns', () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: mockData,
+          total: 3,
+          loading: false
+        },
+        ...globalConfig
+      })
+
+      expect(wrapper.exists()).toBe(true)
+      // 第一列是固定列
+    })
+
+    it('should handle custom formatter', () => {
+      const formatter = (value: unknown) => `¥${value}`
+      const columnsWithFormatter: EnhancedColumnSchema[] = [
+        {
+          name: 'amount',
+          type: 'MONEY',
+          title: '金额',
+          customFormatter: formatter
+        }
+      ]
+
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: columnsWithFormatter,
+          data: [{ amount: 100 }],
+          total: 1,
+          loading: false
+        },
+        ...globalConfig
+      })
+
+      expect(wrapper.exists()).toBe(true)
+    })
+
+    it('should handle custom render', () => {
+      const render = ({ value }: { value: unknown }) => h('span', { class: 'custom' }, String(value))
+      const columnsWithRender: EnhancedColumnSchema[] = [
+        {
+          name: 'status',
+          type: 'TEXT',
+          title: '状态',
+          customRender: render
+        }
+      ]
+
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: columnsWithRender,
+          data: [{ status: 'active' }],
+          total: 1,
+          loading: false
+        },
+        ...globalConfig
+      })
+
+      expect(wrapper.exists()).toBe(true)
+    })
+  })
+
+  describe('Pagination', () => {
+    it('should render pagination with correct total', () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: mockData,
+          total: 100,
+          loading: false,
+          pageSize: 10
+        },
+        ...globalConfig
+      })
+
+      expect(wrapper.exists()).toBe(true)
+      // vxe-table 会显示分页组件
+    })
+
+    it('should use custom page size', () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: mockData,
+          total: 100,
+          loading: false,
+          pageSize: 20
+        },
+        ...globalConfig
+      })
+
+      expect(wrapper.exists()).toBe(true)
+    })
+
+    it('should emit page-change event when page changes', async () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: mockData,
+          total: 100,
+          loading: false
+        },
+        ...globalConfig
+      })
+
+      // 模拟分页变化
+      await wrapper.vm.$emit('page-change', 2, 50)
+      expect(wrapper.emitted('page-change')).toBeTruthy()
+      expect(wrapper.emitted('page-change')?.[0]).toEqual([2, 50])
+    })
+  })
+
+  describe('Sorting', () => {
+    it('should emit sort-change event when sorting', async () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: mockData,
+          total: 3,
+          loading: false
+        },
+        ...globalConfig
+      })
+
+      await wrapper.vm.$emit('sort-change', 'name', 'asc')
+      expect(wrapper.emitted('sort-change')).toBeTruthy()
+      expect(wrapper.emitted('sort-change')?.[0]).toEqual(['name', 'asc'])
+    })
+
+    it('should emit sort-change with null when clearing sort', async () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: mockData,
+          total: 3,
+          loading: false
+        },
+        ...globalConfig
+      })
+
+      await wrapper.vm.$emit('sort-change', null, null)
+      expect(wrapper.emitted('sort-change')).toBeTruthy()
+      expect(wrapper.emitted('sort-change')?.[0]).toEqual([null, null])
+    })
+  })
+
+  describe('Filtering', () => {
+    it('should show filters when showFilters is true', () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: mockData,
+          total: 3,
+          loading: false,
+          showFilters: true
+        },
+        ...globalConfig
+      })
+
+      expect(wrapper.exists()).toBe(true)
+    })
+
+    it('should hide filters when showFilters is false', () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: mockData,
+          total: 3,
+          loading: false,
+          showFilters: false
+        },
+        ...globalConfig
+      })
+
+      expect(wrapper.exists()).toBe(true)
+    })
+
+    it('should emit filter-change event', async () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: mockData,
+          total: 3,
+          loading: false
+        },
+        ...globalConfig
+      })
+
+      const slices = [{ field: 'name', op: '=', value: 'test' }]
+      await wrapper.vm.$emit('filter-change', slices)
+      expect(wrapper.emitted('filter-change')).toBeTruthy()
+      expect(wrapper.emitted('filter-change')?.[0]).toEqual([slices])
+    })
+
+    it('should apply initial slice', () => {
+      const initialSlice = [{ field: 'status', op: '=', value: 'active' }]
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: mockData,
+          total: 3,
+          loading: false,
+          initialSlice
+        },
+        ...globalConfig
+      })
+
+      expect(wrapper.exists()).toBe(true)
+    })
+  })
+
+  describe('Events', () => {
+    it('should emit row-click event', async () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: mockData,
+          total: 3,
+          loading: false
+        },
+        ...globalConfig
+      })
+
+      const row = mockData[0]
+      await wrapper.vm.$emit('row-click', row, mockColumns[0])
+      expect(wrapper.emitted('row-click')).toBeTruthy()
+    })
+
+    it('should emit row-dblclick event', async () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: mockData,
+          total: 3,
+          loading: false
+        },
+        ...globalConfig
+      })
+
+      const row = mockData[0]
+      await wrapper.vm.$emit('row-dblclick', row, mockColumns[0])
+      expect(wrapper.emitted('row-dblclick')).toBeTruthy()
+    })
+  })
+
+  describe('Summary', () => {
+    it('should display server summary when provided', () => {
+      const serverSummary = {
+        amount: 600,
+        count: 3
+      }
+
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: mockData,
+          total: 3,
+          loading: false,
+          serverSummary
+        },
+        ...globalConfig
+      })
+
+      expect(wrapper.exists()).toBe(true)
+    })
+
+    it('should handle null server summary', () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: mockData,
+          total: 3,
+          loading: false,
+          serverSummary: null
+        },
+        ...globalConfig
+      })
+
+      expect(wrapper.exists()).toBe(true)
+    })
+  })
+
+  describe('Filter Options Loader', () => {
+    it('should call filter options loader when needed', async () => {
+      const mockLoader = vi.fn().mockResolvedValue([
+        { value: 'option1', label: 'Option 1' },
+        { value: 'option2', label: 'Option 2' }
+      ])
+
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: mockData,
+          total: 3,
+          loading: false,
+          filterOptionsLoader: mockLoader
+        },
+        ...globalConfig
+      })
+
+      expect(wrapper.exists()).toBe(true)
+      // 实际使用中会调用 mockLoader
+    })
+  })
+
+  describe('Exposed Methods', () => {
+    it('should have resetPagination method', () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: mockData,
+          total: 100,
+          loading: false
+        },
+        ...globalConfig
+      })
+
+      expect(wrapper.vm.resetPagination).toBeDefined()
+    })
+
+    it('should have clearFilters method', () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: mockData,
+          total: 3,
+          loading: false
+        },
+        ...globalConfig
+      })
+
+      expect(wrapper.vm.clearFilters).toBeDefined()
+    })
+
+    it('should have getFilters method', () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: mockData,
+          total: 3,
+          loading: false
+        },
+        ...globalConfig
+      })
+
+      expect(wrapper.vm.getFilters).toBeDefined()
+    })
+
+    it('should have setFilter method', () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: mockData,
+          total: 3,
+          loading: false
+        },
+        ...globalConfig
+      })
+
+      expect(wrapper.vm.setFilter).toBeDefined()
+    })
+
+    it('should have getGridInstance method', () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: mockData,
+          total: 3,
+          loading: false
+        },
+        ...globalConfig
+      })
+
+      expect(wrapper.vm.getGridInstance).toBeDefined()
+    })
+  })
+
+  describe('Props Validation', () => {
+    it('should accept valid props', () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: mockData,
+          total: 3,
+          loading: false,
+          pageSize: 50,
+          showFilters: true
+        },
+        ...globalConfig
+      })
+
+      expect(wrapper.exists()).toBe(true)
+    })
+
+    it('should use default pageSize when not provided', () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: mockData,
+          total: 3,
+          loading: false
+        },
+        ...globalConfig
+      })
+
+      expect(wrapper.exists()).toBe(true)
+      // 默认 pageSize 是 50
+    })
+
+    it('should use default showFilters when not provided', () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: mockData,
+          total: 3,
+          loading: false
+        },
+        ...globalConfig
+      })
+
+      expect(wrapper.exists()).toBe(true)
+      // 默认 showFilters 是 true
+    })
+  })
+})

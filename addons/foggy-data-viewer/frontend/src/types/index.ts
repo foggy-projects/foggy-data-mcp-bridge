@@ -47,15 +47,13 @@ export interface OrderRequestDef {
 }
 
 /**
- * 查询元数据响应
+ * 查询元数据响应（重构后的版本）
  */
 export interface QueryMetaResponse {
   title: string
-  schema: ColumnSchema[]
+  tableConfig: TableConfig  // 改为 tableConfig
   estimatedRowCount: number | null
   expiresAt: string
-  model: string
-  columns: string[]
   /** 初始过滤条件（来自缓存） */
   initialSlice?: SliceRequestDef[]
 }
@@ -119,4 +117,43 @@ export interface PaginationState {
 export interface SortState {
   field: string | null
   order: 'asc' | 'desc' | null
+}
+
+/**
+ * 列定制配置
+ */
+export interface ColumnCustomization {
+  name: string
+  width?: number
+  minWidth?: number
+  fixed?: 'left' | 'right'
+  render?: (params: { row: Record<string, unknown>; value: unknown }) => unknown
+  filterComponent?: unknown
+  formatter?: (value: unknown) => string
+}
+
+/**
+ * 增强的列配置（合并 QM schema 和前端定制）
+ */
+export interface EnhancedColumnSchema extends ColumnSchema {
+  width?: number
+  minWidth?: number
+  fixed?: 'left' | 'right'
+  customRender?: (params: { row: Record<string, unknown>; value: unknown }) => unknown
+  customFilterComponent?: unknown
+  customFormatter?: (value: unknown) => string
+}
+
+/**
+ * 表格配置
+ */
+export interface TableConfig {
+  /** QM 模型名称 */
+  qmModel: string
+  /** 显式指定显示的列及顺序（必填，除非 showAll=true） */
+  visibleColumns?: string[]
+  /** 显示所有列 */
+  showAll?: boolean
+  /** 列定制配置 */
+  customizations?: ColumnCustomization[]
 }
