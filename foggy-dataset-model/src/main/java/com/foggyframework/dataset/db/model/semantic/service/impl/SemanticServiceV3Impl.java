@@ -1141,9 +1141,13 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                 return "DATETIME";
             case INTEGER:
                 return "INTEGER";
-            case BIGINT:
-                return "BIGINT";
-            case STRING:
+            case DOUBLE:
+                return "NUMBER";
+            case DICT:
+                return "DICT";
+            case BOOL:
+                return "BOOL";
+            case NORMAL:
             default:
                 return "TEXT";
         }
