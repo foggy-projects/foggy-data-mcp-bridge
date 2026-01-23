@@ -723,6 +723,13 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
 
         fieldInfo.put("meta", "维度ID | " + idType + (idFormatHint != null ? " | " + idFormatHint : ""));
 
+        // 前端需要的字段
+        fieldInfo.put("type", getJdbcColumnType(dimension));
+        fieldInfo.put("filterType", "dimension");
+        fieldInfo.put("filterable", true);
+        fieldInfo.put("measure", false);
+        fieldInfo.put("aggregatable", false);
+
         Map<String, Object> modelInfo = new LinkedHashMap<>();
         modelInfo.put("description", buildIdDescription(dimension));
         modelInfo.put("usage", "用于精确查询、作为外键关联、排序");
@@ -747,6 +754,13 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         String captionFormatHint = getCaptionFormatHint(dimension);
         fieldInfo.put("meta", "维度名称 | 文本" + (captionFormatHint != null ? " | " + captionFormatHint : ""));
 
+        // 前端需要的字段
+        fieldInfo.put("type", "TEXT");
+        fieldInfo.put("filterType", "dimension");
+        fieldInfo.put("filterable", true);
+        fieldInfo.put("measure", false);
+        fieldInfo.put("aggregatable", false);
+
         Map<String, Object> modelInfo = new LinkedHashMap<>();
         modelInfo.put("description", buildCaptionDescription(dimension));
         modelInfo.put("usage", "用于展示、模糊查询");
@@ -769,8 +783,21 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         fieldInfo.put("name", (prop.getCaption() != null ? prop.getCaption() : prop.getName()));
         fieldInfo.put("fieldName", propName);
 
-        String dataType = getDataTypeDescription(prop.getPropertyDbColumn().getType());
+        DbColumnType columnType = prop.getPropertyDbColumn().getType();
+        String dataType = getDataTypeDescription(columnType);
         fieldInfo.put("meta", "维度属性 | " + dataType);
+
+        // 前端需要的字段
+        fieldInfo.put("type", columnType != null ? columnType.name() : "TEXT");
+        fieldInfo.put("filterType", getFilterTypeForProperty(columnType));
+        fieldInfo.put("filterable", true);
+        fieldInfo.put("measure", false);
+        fieldInfo.put("aggregatable", false);
+
+        // 如果是字典类型，添加字典信息
+        if (StringUtils.isNotEmpty(prop.getDictRef())) {
+            fieldInfo.put("dictId", prop.getDictRef());
+        }
 
         Map<String, Object> modelInfo = new LinkedHashMap<>();
         modelInfo.put("description", prop.getDescription() != null ? prop.getDescription() : prop.getCaption());
@@ -1023,8 +1050,21 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         fieldInfo.put("name", property.getCaption() != null ? property.getCaption() : property.getName());
         fieldInfo.put("fieldName", property.getName());
 
-        String dataType = getDataTypeDescription(property.getPropertyDbColumn().getType());
+        DbColumnType columnType = property.getPropertyDbColumn().getType();
+        String dataType = getDataTypeDescription(columnType);
         fieldInfo.put("meta", "属性 | " + dataType);
+
+        // 前端需要的字段
+        fieldInfo.put("type", columnType != null ? columnType.name() : "TEXT");
+        fieldInfo.put("filterType", getFilterTypeForProperty(columnType));
+        fieldInfo.put("filterable", true);
+        fieldInfo.put("measure", false);
+        fieldInfo.put("aggregatable", false);
+
+        // 如果是字典类型，添加字典信息
+        if (StringUtils.isNotEmpty(property.getDictRef())) {
+            fieldInfo.put("dictId", property.getDictRef());
+        }
 
         Map<String, Object> modelInfo = new LinkedHashMap<>();
         modelInfo.put("description", property.getCaption());
@@ -1043,6 +1083,15 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
 
         String aggregation = measure.getAggregation() != null ? measure.getAggregation().name() : "SUM";
         fieldInfo.put("meta", "度量 | 数值 | 默认聚合:" + aggregation);
+
+        // 前端需要的字段
+        DbColumnType columnType = measure.getJdbcColumn().getType();
+        fieldInfo.put("type", columnType != null ? columnType.name() : "NUMBER");
+        fieldInfo.put("filterType", "number");
+        fieldInfo.put("filterable", true);
+        fieldInfo.put("measure", true);
+        fieldInfo.put("aggregatable", true);
+        fieldInfo.put("aggregation", aggregation);
 
         Map<String, Object> modelInfo = new LinkedHashMap<>();
         modelInfo.put("description", measure.getCaption() + " (聚合方式: " + aggregation + ")");
@@ -1073,6 +1122,63 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             case TEXT:
             default:
                 return "文本";
+        }
+    }
+
+    /**
+     * 获取维度的 JDBC 列类型
+     */
+    private String getJdbcColumnType(DbDimension dimension) {
+        DbDimensionType type = dimension.getType();
+        if (type == null) {
+            return "TEXT";
+        }
+
+        switch (type) {
+            case DAY:
+                return "DAY";
+            case DATETIME:
+                return "DATETIME";
+            case INTEGER:
+                return "INTEGER";
+            case BIGINT:
+                return "BIGINT";
+            case STRING:
+            default:
+                return "TEXT";
+        }
+    }
+
+    /**
+     * 根据列类型推断前端过滤器类型
+     */
+    private String getFilterTypeForProperty(DbColumnType columnType) {
+        if (columnType == null) {
+            return "text";
+        }
+
+        switch (columnType) {
+            case MONEY:
+            case NUMBER:
+            case INTEGER:
+            case BIGINT:
+            case LONG:
+            case BIGDECIMAL:
+                return "number";
+            case DAY:
+            case DATE:
+                return "date";
+            case DATETIME:
+                return "date";
+            case BOOL:
+            case BOOLEAN:
+                return "bool";
+            case DICT:
+                return "dict";
+            case TEXT:
+            case STRING:
+            default:
+                return "text";
         }
     }
 

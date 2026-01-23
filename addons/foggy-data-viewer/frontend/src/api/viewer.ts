@@ -119,7 +119,7 @@ export async function fetchQmSchema(qmModel: string): Promise<ColumnSchema[]> {
   const data = response.data.data
 
   // 解析 SemanticMetadataResponse V3 格式
-  // 返回格式：{ "version": "v3", "fields": { "fieldName": { "name": "显示名", "meta": "..." } }, "models": {...} }
+  // 返回格式：{ "version": "v3", "fields": { "fieldName": { "name": "显示名", "type": "TEXT", ... } }, "models": {...} }
   if (!data || !data.fields) {
     return []
   }
@@ -129,52 +129,17 @@ export async function fetchQmSchema(qmModel: string): Promise<ColumnSchema[]> {
   for (const [fieldName, fieldInfo] of Object.entries(data.fields)) {
     const field = fieldInfo as any
 
-    // 解析 meta 字段获取类型信息
-    // meta 格式: "维度ID | 数值/文本 | ..."、"度量 | 数值 | ..."、"属性 | 文本"
-    const meta = field.meta || ''
-    const metaParts = meta.split('|').map((s: string) => s.trim())
-
-    let type = 'TEXT'
-    let filterType: string | undefined
-    let measure = false
-
-    // 从 meta 第二部分提取类型
-    if (metaParts.length >= 2) {
-      const dataType = metaParts[1].toLowerCase()
-      if (dataType.includes('金额')) {
-        type = 'MONEY'
-      } else if (dataType.includes('数值') || dataType.includes('数字')) {
-        type = 'NUMBER'
-      } else if (dataType.includes('日期')) {
-        type = 'DATE'
-      } else if (dataType.includes('时间')) {
-        type = 'DATETIME'
-      } else {
-        type = 'TEXT'
-      }
-    }
-
-    // 从 meta 第一部分判断字段类别
-    if (metaParts.length >= 1) {
-      const category = metaParts[0].toLowerCase()
-      if (category.includes('度量')) {
-        measure = true
-        filterType = 'number'
-      } else if (category.includes('维度id')) {
-        filterType = 'dimension'
-      } else if (category.includes('维度名称') || category.includes('维度属性')) {
-        filterType = 'dimension'
-      }
-    }
-
+    // 直接使用后端返回的字段（不再解析 meta）
     columns.push({
       name: fieldName,
       title: field.name || fieldName,
-      type: type,
-      filterable: true,
-      aggregatable: measure,
-      measure: measure,
-      filterType: filterType as any
+      type: field.type || 'TEXT',
+      filterable: field.filterable !== false,
+      aggregatable: field.aggregatable || false,
+      measure: field.measure || false,
+      filterType: field.filterType,
+      dictId: field.dictId,
+      format: field.format
     })
   }
 
