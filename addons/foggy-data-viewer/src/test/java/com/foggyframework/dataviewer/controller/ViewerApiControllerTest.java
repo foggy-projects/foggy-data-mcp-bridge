@@ -1,6 +1,5 @@
 package com.foggyframework.dataviewer.controller;
 
-import com.foggyframework.dataset.db.model.service.JdbcService;
 import com.foggyframework.dataviewer.domain.CachedQueryContext;
 import com.foggyframework.dataviewer.domain.ViewerQueryRequest;
 import com.foggyframework.dataviewer.service.QueryCacheService;
@@ -45,16 +44,13 @@ class ViewerApiControllerTest {
     @Mock
     private QueryFacade queryFacade;
 
-    @Mock
-    private JdbcService jdbcService;
-
     private ViewerApiController controller;
 
     private CachedQueryContext validContext;
 
     @BeforeEach
     void setUp() {
-        controller = new ViewerApiController(cacheService, queryFacade, jdbcService);
+        controller = new ViewerApiController(cacheService, queryFacade);
 
         validContext = CachedQueryContext.builder()
                 .queryId("test-query-id")
@@ -62,14 +58,10 @@ class ViewerApiControllerTest {
                 .title("订单查询")
                 .columns(List.of("orderId", "customerId", "amount"))
                 .slice(List.of(new SliceRequestDef("status", "=", "pending")))
-                .schema(List.of(
-                        CachedQueryContext.ColumnSchema.builder()
-                                .name("orderId").type("TEXT").title("订单ID").build(),
-                        CachedQueryContext.ColumnSchema.builder()
-                                .name("customerId").type("TEXT").title("客户ID").build(),
-                        CachedQueryContext.ColumnSchema.builder()
-                                .name("amount").type("MONEY").title("金额").build()
-                ))
+                .tableConfig(CachedQueryContext.TableConfig.builder()
+                        .qmModel("orders")
+                        .visibleColumns(List.of("orderId", "customerId", "amount"))
+                        .build())
                 .expiresAt(Instant.now().plus(30, ChronoUnit.MINUTES))
                 .estimatedRowCount(1000L)
                 .build();
@@ -91,9 +83,9 @@ class ViewerApiControllerTest {
             assertEquals(HttpStatus.OK, response.getStatusCode());
             assertNotNull(response.getBody());
             assertEquals("订单查询", response.getBody().title());
-            assertEquals("orders", response.getBody().model());
-            assertEquals(3, response.getBody().columns().size());
-            assertEquals(3, response.getBody().schema().size());
+            assertNotNull(response.getBody().tableConfig());
+            assertEquals("orders", response.getBody().tableConfig().getQmModel());
+            assertEquals(3, response.getBody().tableConfig().getVisibleColumns().size());
             assertEquals(1000L, response.getBody().estimatedRowCount());
         }
 

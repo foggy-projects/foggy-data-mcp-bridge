@@ -4,7 +4,6 @@ import com.foggyframework.dataviewer.config.DataViewerProperties;
 import com.foggyframework.dataviewer.domain.CachedQueryContext;
 import com.foggyframework.dataviewer.repository.CachedQueryRepository;
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
-import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -34,9 +33,6 @@ class QueryCacheServiceTest {
     @Mock
     private CachedQueryRepository repository;
 
-    @Mock
-    private QueryModelLoader queryModelLoader;
-
     private DataViewerProperties properties;
     private QueryCacheService service;
 
@@ -47,7 +43,7 @@ class QueryCacheServiceTest {
         properties.setCache(new DataViewerProperties.CacheProperties());
         properties.getCache().setTtlMinutes(60);
 
-        service = new QueryCacheService(repository, properties, queryModelLoader);
+        service = new QueryCacheService(repository, properties);
     }
 
     @Nested
@@ -158,12 +154,12 @@ class QueryCacheServiceTest {
     }
 
     @Nested
-    @DisplayName("Schema生成测试")
-    class SchemaGenerationTests {
+    @DisplayName("TableConfig生成测试")
+    class TableConfigGenerationTests {
 
         @Test
-        @DisplayName("应为列生成正确的Schema")
-        void shouldGenerateCorrectSchema() {
+        @DisplayName("应为列生成正确的TableConfig")
+        void shouldGenerateCorrectTableConfig() {
             QueryCacheService.OpenInViewerRequest request = new QueryCacheService.OpenInViewerRequest();
             request.setModel("orders");
             request.setTitle("订单查询");
@@ -175,16 +171,15 @@ class QueryCacheServiceTest {
 
             CachedQueryContext result = service.cacheQuery(request, null);
 
-            List<CachedQueryContext.ColumnSchema> schema = result.getSchema();
+            CachedQueryContext.TableConfig tableConfig = result.getTableConfig();
 
-            assertNotNull(schema);
-            assertEquals(4, schema.size());
-
-            // 验证列名
-            assertTrue(schema.stream().anyMatch(s -> s.getName().equals("orderId")));
-            assertTrue(schema.stream().anyMatch(s -> s.getName().equals("orderDate")));
-            assertTrue(schema.stream().anyMatch(s -> s.getName().equals("amount")));
-            assertTrue(schema.stream().anyMatch(s -> s.getName().equals("customerId")));
+            assertNotNull(tableConfig);
+            assertEquals("orders", tableConfig.getQmModel());
+            assertEquals(4, tableConfig.getVisibleColumns().size());
+            assertEquals("orderId", tableConfig.getVisibleColumns().get(0));
+            assertEquals("orderDate", tableConfig.getVisibleColumns().get(1));
+            assertEquals("amount", tableConfig.getVisibleColumns().get(2));
+            assertEquals("customerId", tableConfig.getVisibleColumns().get(3));
         }
     }
 
