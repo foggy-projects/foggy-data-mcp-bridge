@@ -11,6 +11,9 @@ import ElementPlus from 'element-plus'
 import 'element-plus/dist/index.css'
 import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
 
+// 引入 foggy-data-viewer 组件样式
+import 'foggy-data-viewer/style.css'
+
 const app = createApp(App)
 
 // 注册组件库

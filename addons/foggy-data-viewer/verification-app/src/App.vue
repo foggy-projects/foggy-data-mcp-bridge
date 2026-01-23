@@ -217,5 +217,23 @@ function handleRowDblClick(row: any) {
   padding: 20px;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  height: 800px;
+  display: flex;
+  flex-direction: column;
+}
+
+.table-container :deep(.data-table) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.table-container :deep(.table-wrapper) {
+  flex: 1;
+  overflow: auto;
+}
+
+.table-container :deep(.vxe-table) {
+  height: 100% !important;
 }
 </style>
