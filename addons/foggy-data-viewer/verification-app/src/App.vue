@@ -5,13 +5,13 @@ import type { EnhancedColumnSchema } from 'foggy-data-viewer'
 
 // 模拟 QM Schema（从服务器获取）
 const qmSchema = [
-  { name: 'id', type: 'INTEGER', title: 'ID' },
-  { name: 'orderNo', type: 'TEXT', title: '订单号' },
-  { name: 'customerName', type: 'TEXT', title: '客户名称' },
-  { name: 'amount', type: 'MONEY', title: '订单金额' },
-  { name: 'quantity', type: 'INTEGER', title: '数量' },
-  { name: 'status', type: 'TEXT', title: '状态' },
-  { name: 'orderDate', type: 'DAY', title: '下单日期' }
+  { name: 'id', type: 'INTEGER', title: 'ID', filterType: 'number', measure: false, aggregatable: false, filterable: true },
+  { name: 'orderNo', type: 'TEXT', title: '订单号', filterType: 'text', measure: false, aggregatable: false, filterable: true },
+  { name: 'customerName', type: 'TEXT', title: '客户名称', filterType: 'text', measure: false, aggregatable: false, filterable: true },
+  { name: 'amount', type: 'MONEY', title: '订单金额', filterType: 'number', measure: true, aggregatable: true, filterable: true },
+  { name: 'quantity', type: 'INTEGER', title: '数量', filterType: 'number', measure: true, aggregatable: true, filterable: true },
+  { name: 'status', type: 'TEXT', title: '状态', filterType: 'text', measure: false, aggregatable: false, filterable: true },
+  { name: 'orderDate', type: 'DAY', title: '下单日期', filterType: 'date', measure: false, aggregatable: false, filterable: true }
 ]
 
 // 使用 buildTableColumns 构建列配置
