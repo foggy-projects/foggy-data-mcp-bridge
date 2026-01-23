@@ -2,16 +2,12 @@ import { createApp } from 'vue'
 import './style.css'
 import App from './App.vue'
 
-// 引入 vxe-table（和 frontend 保持一致）
+// 引入 vxe-table 和 element-plus（用于全局注册）
 import VXETable from 'vxe-table'
-import 'vxe-table/lib/style.css'
-
-// 引入 element-plus（和 frontend 保持一致）
 import ElementPlus from 'element-plus'
-import 'element-plus/dist/index.css'
 import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
 
-// 引入 foggy-data-viewer 组件样式
+// 引入 foggy-data-viewer 组件（会自动引入所有依赖样式）
 import 'foggy-data-viewer/style.css'
 
 const app = createApp(App)
