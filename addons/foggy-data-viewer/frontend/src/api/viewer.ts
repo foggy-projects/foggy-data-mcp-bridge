@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { QueryMetaResponse, ViewerQueryRequest, ViewerDataResponse, FilterOptionsResponse } from '@/types'
+import type { QueryMetaResponse, ViewerQueryRequest, ViewerDataResponse, FilterOptionsResponse, ColumnSchema } from '@/types'
 
 const apiClient = axios.create({
   baseURL: '/data-viewer/api',
@@ -43,16 +43,32 @@ export interface CreateQueryResponse {
  * 创建查询（从 DSL 输入）
  */
 export async function createQuery(request: CreateQueryRequest): Promise<CreateQueryResponse> {
-  const response = await apiClient.post<CreateQueryResponse>('/query/create', request)
-  return response.data
+  const response = await apiClient.post<any>('/query/create', request)
+
+  // Handle RX response format
+  if (!response.data || !response.data.success) {
+    // Return the error response if available in data
+    if (response.data?.data) {
+      return response.data.data
+    }
+    throw new Error(response.data?.msg || '创建查询失败')
+  }
+
+  return response.data.data
 }
 
 /**
  * 获取查询元数据
  */
 export async function fetchQueryMeta(queryId: string): Promise<QueryMetaResponse> {
-  const response = await apiClient.get<QueryMetaResponse>(`/query/${queryId}/meta`)
-  return response.data
+  const response = await apiClient.get<any>(`/query/${queryId}/meta`)
+
+  // Handle RX response format
+  if (!response.data || !response.data.success) {
+    throw new Error(response.data?.msg || '获取查询元数据失败')
+  }
+
+  return response.data.data
 }
 
 /**
@@ -62,8 +78,18 @@ export async function fetchQueryData(
   queryId: string,
   request: ViewerQueryRequest
 ): Promise<ViewerDataResponse> {
-  const response = await apiClient.post<ViewerDataResponse>(`/query/${queryId}/data`, request)
-  return response.data
+  const response = await apiClient.post<any>(`/query/${queryId}/data`, request)
+
+  // Handle RX response format
+  if (!response.data || !response.data.success) {
+    // If it's an expired query (status 410), return the expired response
+    if (response.data?.data?.expired) {
+      return response.data.data
+    }
+    throw new Error(response.data?.msg || '查询数据失败')
+  }
+
+  return response.data.data
 }
 
 /**
@@ -77,6 +103,35 @@ export async function fetchFilterOptions(
     `/query/${queryId}/filter-options/${encodeURIComponent(columnName)}`
   )
   return response.data
+}
+
+/**
+ * 获取 QM Schema（查询模型的字段元数据）
+ */
+export async function fetchQmSchema(qmModel: string): Promise<ColumnSchema[]> {
+  const response = await apiClient.get<any>(`/schema/${encodeURIComponent(qmModel)}`)
+
+  // 处理 RX 响应格式
+  // RX 格式：{ success: boolean, data: any, msg: string }
+  if (!response.data || !response.data.success) {
+    throw new Error(response.data?.msg || '获取 QM Schema 失败')
+  }
+
+  const data = response.data.data
+
+  // 解析 SemanticMetadataResponse 返回的 JSON 结构
+  // 返回格式类似：{ "models": [{ "name": "XXX", "fields": [...] }] }
+  if (data && data.models && data.models[0]) {
+    const fields = data.models[0].fields || []
+    // 将 field 转换为 ColumnSchema 格式
+    return fields.map((field: any) => ({
+      name: field.name,
+      type: field.jdbcType || field.type || 'TEXT',
+      title: field.caption || field.name
+    }))
+  }
+
+  return []
 }
 
 /**

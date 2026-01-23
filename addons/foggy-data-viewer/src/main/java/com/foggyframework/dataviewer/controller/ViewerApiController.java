@@ -1,5 +1,7 @@
 package com.foggyframework.dataviewer.controller;
 
+import com.foggyframework.core.ex.RX;
+import com.foggyframework.core.utils.JsonUtils;
 import com.foggyframework.dataviewer.domain.CachedQueryContext;
 import com.foggyframework.dataviewer.domain.ViewerDataResponse;
 import com.foggyframework.dataviewer.domain.ViewerQueryRequest;
@@ -19,6 +21,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -50,16 +53,16 @@ public class ViewerApiController {
      * 获取查询元数据（用于初始页面加载）
      */
     @GetMapping("/query/{queryId}/meta")
-    public ResponseEntity<QueryMetaResponse> getQueryMeta(@PathVariable String queryId) {
+    public RX getQueryMeta(@PathVariable String queryId) {
         return cacheService.getQuery(queryId)
-                .map(ctx -> ResponseEntity.ok(new QueryMetaResponse(
+                .map(ctx -> RX.ok(new QueryMetaResponse(
                         ctx.getTitle(),
                         ctx.getTableConfig(),
                         ctx.getEstimatedRowCount(),
                         ctx.getExpiresAt().toString(),
                         ctx.getSlice()  // 返回初始过滤条件
                 )))
-                .orElse(ResponseEntity.notFound().build());
+                .orElse(RX.notFound().build());
     }
 
     /**
@@ -106,18 +109,51 @@ public class ViewerApiController {
     }
 
     /**
+     * 获取 QM Schema（供前端运行时使用）
+     * <p>
+     * 返回 QM 模型的字段元数据，用于前端构建列配置
+     */
+    @GetMapping("/schema/{qmModel}")
+    public RX<SemanticMetadataResponse> getQmSchema(@PathVariable String qmModel) {
+        if (semanticService == null) {
+            return RX.status(HttpStatusCode.valueOf(503))
+                    .msg(" SemanticService not available").build();
+        }
+
+        try {
+            // 构建请求，获取字段元数据
+            SemanticMetadataRequest request = new SemanticMetadataRequest();
+            request.setQmModels(Arrays.asList(qmModel));
+            request.setLevels(Arrays.asList(1, 2, 3));
+            request.setIncludeExamples(false); // 不需要示例数据
+
+            // 获取 JSON 格式的元数据
+            SemanticMetadataResponse response = semanticService.getMetadata(request, "json");
+
+            if (response == null || response.getData() == null) {
+                return RX.notFound().build();
+            }
+
+            return RX.ok(response.getData());
+
+        } catch (Exception e) {
+            log.error("Error fetching QM schema for model: {}", qmModel, e);
+            return RX.error("{\"error\": \"" + e.getMessage() + "\"}");
+        }
+    }
+
+    /**
      * 执行查询并返回数据
      */
     @PostMapping("/query/{queryId}/data")
-    public ResponseEntity<ViewerDataResponse> queryData(
+    public RX<ViewerDataResponse> queryData(
             @PathVariable String queryId,
             @RequestBody ViewerQueryRequest request) {
 
         Optional<CachedQueryContext> ctxOpt = cacheService.getQuery(queryId);
         if (ctxOpt.isEmpty()) {
-            return ResponseEntity.status(410).body(
-                    ViewerDataResponse.expired("Query link has expired")
-            );
+            return new RX<>(410, null, "Query link has expired",
+                    ViewerDataResponse.expired("Query link has expired"));
         }
 
         CachedQueryContext ctx = ctxOpt.get();
@@ -135,7 +171,7 @@ public class ViewerApiController {
             // 使用 QueryFacade 执行查询
             PagingResultImpl result = queryFacade.queryModelData(pagingRequest);
 
-            return ResponseEntity.ok(ViewerDataResponse.success(
+            return RX.ok(ViewerDataResponse.success(
                     result.getItems(),
                     result.getTotal(),
                     result.getTotalData(),
@@ -144,7 +180,7 @@ public class ViewerApiController {
             ));
         } catch (Exception e) {
             log.error("Error executing query for queryId: {}", queryId, e);
-            return ResponseEntity.ok(ViewerDataResponse.error(e.getMessage()));
+            return RX.failB(e.getMessage(), ViewerDataResponse.error(e.getMessage()));
         }
     }
 
@@ -154,26 +190,26 @@ public class ViewerApiController {
      * 接收 payload 结构（与 dataset.query_model 格式一致）
      */
     @PostMapping("/query/create")
-    public ResponseEntity<CreateQueryResponse> createQuery(
+    public RX<CreateQueryResponse> createQuery(
             @RequestBody CreateQueryFromFrontendRequest frontendRequest) {
         try {
             // 验证必要参数
             if (frontendRequest.getModel() == null || frontendRequest.getModel().isBlank()) {
-                return ResponseEntity.badRequest().body(
+                return RX.failB("model 不能为空",
                         new CreateQueryResponse(false, null, null, "model 不能为空"));
             }
             if (frontendRequest.getPayload() == null) {
-                return ResponseEntity.badRequest().body(
+                return RX.failB("payload 不能为空",
                         new CreateQueryResponse(false, null, null, "payload 不能为空"));
             }
 
             CreateQueryPayload payload = frontendRequest.getPayload();
             if (payload.getColumns() == null || payload.getColumns().isEmpty()) {
-                return ResponseEntity.badRequest().body(
+                return RX.failB("payload.columns 不能为空",
                         new CreateQueryResponse(false, null, null, "payload.columns 不能为空"));
             }
             if (payload.getSlice() == null || payload.getSlice().isEmpty()) {
-                return ResponseEntity.badRequest().body(
+                return RX.failB("payload.slice 不能为空，请提供至少一个过滤条件",
                         new CreateQueryResponse(false, null, null, "payload.slice 不能为空，请提供至少一个过滤条件"));
             }
 
@@ -190,7 +226,7 @@ public class ViewerApiController {
             // 缓存查询
             CachedQueryContext ctx = cacheService.cacheQuery(request, null);
 
-            return ResponseEntity.ok(new CreateQueryResponse(
+            return RX.ok(new CreateQueryResponse(
                     true,
                     ctx.getQueryId(),
                     "/data-viewer/view/" + ctx.getQueryId(),
@@ -198,8 +234,8 @@ public class ViewerApiController {
             ));
         } catch (Exception e) {
             log.error("Error creating query", e);
-            return ResponseEntity.ok(new CreateQueryResponse(
-                    false, null, null, e.getMessage()));
+            return RX.failB(e.getMessage(),
+                    new CreateQueryResponse(false, null, null, e.getMessage()));
         }
     }
 

@@ -47,15 +47,13 @@ export interface OrderRequestDef {
 }
 
 /**
- * 查询元数据响应
+ * 查询元数据响应（重构后的版本）
  */
 export interface QueryMetaResponse {
   title: string
-  schema: ColumnSchema[]
+  tableConfig: TableConfig  // 改为 tableConfig
   estimatedRowCount: number | null
   expiresAt: string
-  model: string
-  columns: string[]
   /** 初始过滤条件（来自缓存） */
   initialSlice?: SliceRequestDef[]
 }
@@ -150,6 +148,8 @@ export interface EnhancedColumnSchema extends ColumnSchema {
  * 表格配置
  */
 export interface TableConfig {
+  /** QM 模型名称 */
+  qmModel: string
   /** 显式指定显示的列及顺序（必填，除非 showAll=true） */
   visibleColumns?: string[]
   /** 显示所有列 */

@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import DataTable from './DataTable.vue'
-import { fetchQueryMeta, fetchQueryData, fetchFilterOptions } from '@/api/viewer'
-import type { QueryMetaResponse, ViewerQueryRequest, SliceRequestDef, OrderRequestDef, FilterOption } from '@/types'
+import { fetchQueryMeta, fetchQueryData, fetchFilterOptions, fetchQmSchema } from '@/api/viewer'
+import { buildTableColumns } from '@/utils/schemaHelper'
+import type { QueryMetaResponse, ViewerQueryRequest, SliceRequestDef, OrderRequestDef, FilterOption, EnhancedColumnSchema, ColumnSchema } from '@/types'
 
 const props = defineProps<{
   queryId: string
@@ -13,6 +14,8 @@ const loading = ref(false)
 const error = ref<string | null>(null)
 const expired = ref(false)
 const meta = ref<QueryMetaResponse | null>(null)
+const qmSchema = ref<ColumnSchema[]>([])
+const columns = ref<EnhancedColumnSchema[]>([])
 const data = ref<Record<string, unknown>[]>([])
 const total = ref(0)
 const serverSummary = ref<Record<string, unknown> | null>(null)
@@ -39,7 +42,17 @@ async function loadMeta() {
   try {
     loading.value = true
     error.value = null
+
+    // 1. 获取查询元数据（包含 tableConfig）
     meta.value = await fetchQueryMeta(props.queryId)
+
+    // 2. 获取 QM Schema
+    if (meta.value.tableConfig.qmModel) {
+      qmSchema.value = await fetchQmSchema(meta.value.tableConfig.qmModel)
+
+      // 3. 使用 buildTableColumns 构建列配置
+      columns.value = buildTableColumns(qmSchema.value, meta.value.tableConfig)
+    }
   } catch (e) {
     error.value = e instanceof Error ? e.message : '加载元数据失败'
   } finally {
@@ -136,8 +149,8 @@ onMounted(async () => {
     <header class="viewer-header">
       <h1 class="viewer-title">{{ title }}</h1>
       <div class="viewer-info">
-        <span v-if="meta?.model" class="info-item">
-          模型: <strong>{{ meta.model }}</strong>
+        <span v-if="meta?.tableConfig?.qmModel" class="info-item">
+          模型: <strong>{{ meta.tableConfig.qmModel }}</strong>
         </span>
         <span v-if="meta?.estimatedRowCount" class="info-item">
           预估行数: <strong>{{ meta.estimatedRowCount.toLocaleString() }}</strong>
@@ -169,7 +182,7 @@ onMounted(async () => {
     <main v-else class="viewer-main">
       <DataTable
         ref="dataTableRef"
-        :columns="meta?.schema || []"
+        :columns="columns"
         :data="data"
         :total="total"
         :loading="loading"

@@ -26,7 +26,7 @@ import org.springframework.data.mongodb.repository.config.EnableMongoRepositorie
  * 集成 QueryFacade 和使用类型安全的请求类
  */
 @AutoConfiguration(after = {MongoAutoConfiguration.class, MongoDataAutoConfiguration.class})
-@ConditionalOnClass(MongoTemplate.class)
+//@ConditionalOnClass(MongoTemplate.class)
 @ConditionalOnProperty(prefix = "foggy.data-viewer", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties(DataViewerProperties.class)
 @EnableMongoRepositories(basePackages = "com.foggyframework.dataviewer.repository")
