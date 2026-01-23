@@ -4,25 +4,22 @@ import type { ColumnSchema, EnhancedColumnSchema, TableConfig } from '@/types'
  * 构建表格列配置
  *
  * @param qmSchema - 从后台获取的 QM schema
- * @param config - 表格配置（必须指定 visibleColumns 或 showAll）
+ * @param config - 表格配置（如果 visibleColumns 为空或未指定，默认显示所有列）
  * @returns 增强的列配置数组
  */
 export function buildTableColumns(
   qmSchema: ColumnSchema[],
   config: TableConfig
 ): EnhancedColumnSchema[] {
-  // 验证：必须指定 visibleColumns 或 showAll
-  if (!config.visibleColumns && !config.showAll) {
-    throw new Error('Must specify either visibleColumns or showAll=true')
-  }
-
   const schemaMap = new Map(qmSchema.map(s => [s.name, s]))
   const customMap = new Map(config.customizations?.map(c => [c.name, c]) || [])
 
   // 确定要显示的列及顺序
-  const columnNames = config.showAll
+  // 如果 visibleColumns 为空数组或未定义，且 showAll 未设置，则默认显示所有列
+  const shouldShowAll = config.showAll || !config.visibleColumns || config.visibleColumns.length === 0
+  const columnNames = shouldShowAll
     ? qmSchema.map(s => s.name)
-    : config.visibleColumns!
+    : config.visibleColumns
 
   return columnNames
     .map(name => {
