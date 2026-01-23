@@ -1162,16 +1162,11 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             case NUMBER:
             case INTEGER:
             case BIGINT:
-            case LONG:
-            case BIGDECIMAL:
                 return "number";
             case DAY:
-            case DATE:
-                return "date";
             case DATETIME:
                 return "date";
             case BOOL:
-            case BOOLEAN:
                 return "bool";
             case DICT:
                 return "dict";
