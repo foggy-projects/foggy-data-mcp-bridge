@@ -57,8 +57,9 @@ return RX.ok(data);
 return RX.failB("错误信息", errorData);
 return RX.notFound().build();
 
-// 前端解析
-const data = response.data.data  // response.data 是 RX 对象
+// 前端解析（检查 code === 200）
+if (response.data.code !== 200) throw new Error(response.data.msg)
+const data = response.data.data
 ```
 
 ## 开发约定

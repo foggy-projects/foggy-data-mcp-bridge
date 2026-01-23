@@ -47,8 +47,8 @@ return RX.error("错误信息");
 ```typescript
 const response = await axios.get('/api/endpoint')
 
-// 检查 RX success 标志
-if (!response.data || !response.data.success) {
+// 检查 RX code 状态（200 表示成功）
+if (!response.data || response.data.code !== 200) {
   throw new Error(response.data?.msg || '请求失败')
 }
 

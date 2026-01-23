@@ -45,8 +45,8 @@ export interface CreateQueryResponse {
 export async function createQuery(request: CreateQueryRequest): Promise<CreateQueryResponse> {
   const response = await apiClient.post<any>('/query/create', request)
 
-  // Handle RX response format
-  if (!response.data || !response.data.success) {
+  // Handle RX response format: { code: 200, msg: "", data: {} }
+  if (!response.data || response.data.code !== 200) {
     // Return the error response if available in data
     if (response.data?.data) {
       return response.data.data
@@ -63,8 +63,8 @@ export async function createQuery(request: CreateQueryRequest): Promise<CreateQu
 export async function fetchQueryMeta(queryId: string): Promise<QueryMetaResponse> {
   const response = await apiClient.get<any>(`/query/${queryId}/meta`)
 
-  // Handle RX response format
-  if (!response.data || !response.data.success) {
+  // Handle RX response format: { code: 200, msg: "", data: {} }
+  if (!response.data || response.data.code !== 200) {
     throw new Error(response.data?.msg || '获取查询元数据失败')
   }
 
@@ -80,8 +80,8 @@ export async function fetchQueryData(
 ): Promise<ViewerDataResponse> {
   const response = await apiClient.post<any>(`/query/${queryId}/data`, request)
 
-  // Handle RX response format
-  if (!response.data || !response.data.success) {
+  // Handle RX response format: { code: 200, msg: "", data: {} }
+  if (!response.data || response.data.code !== 200) {
     // If it's an expired query (status 410), return the expired response
     if (response.data?.data?.expired) {
       return response.data.data
@@ -111,9 +111,8 @@ export async function fetchFilterOptions(
 export async function fetchQmSchema(qmModel: string): Promise<ColumnSchema[]> {
   const response = await apiClient.get<any>(`/schema/${encodeURIComponent(qmModel)}`)
 
-  // 处理 RX 响应格式
-  // RX 格式：{ success: boolean, data: any, msg: string }
-  if (!response.data || !response.data.success) {
+  // Handle RX response format: { code: 200, msg: "", data: {} }
+  if (!response.data || response.data.code !== 200) {
     throw new Error(response.data?.msg || '获取 QM Schema 失败')
   }
 
