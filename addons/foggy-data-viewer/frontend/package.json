@@ -1,11 +1,30 @@
 {
-  "name": "foggy-data-viewer-frontend",
+  "name": "foggy-data-viewer",
   "version": "1.0.0",
-  "private": true,
+  "description": "A Vue 3 data table component with advanced features",
+  "author": "Foggy Framework",
+  "license": "Apache-2.0",
+  "private": false,
   "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./style.css": "./dist/style.css"
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && vue-tsc --declaration --emitDeclarationOnly --outDir dist",
+    "build:lib": "vite build --mode lib",
     "preview": "vite preview",
     "test": "vitest",
     "test:ui": "vitest --ui",

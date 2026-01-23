@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { buildTableColumns } from '../schemaHelper'
+import { buildTableColumns } from './schemaHelper'
 import type { ColumnSchema, TableConfig } from '@/types'
 
 describe('schemaHelper', () => {
