@@ -61,6 +61,7 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       port: 5193,
+      host: '0.0.0.0', // 添加这一行
       proxy: {
         '/data-viewer/api': {
           target: 'http://localhost:7108',
