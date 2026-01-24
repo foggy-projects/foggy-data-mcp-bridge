@@ -43,20 +43,38 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
 
     @Override
     public SemanticMetadataResponse getMetadata(SemanticMetadataRequest request, String format) {
-        SemanticMetadataResponse response = new SemanticMetadataResponse();
-        response.setFormat(format);
+        return getMetadata(request, format, null, null);
+    }
 
-        if ("json".equalsIgnoreCase(format)) {
-            Map<String, Object> data = buildJsonMetadata(request);
-            response.setData(data);
-            response.setContent(null);
-        } else {
-            String markdownContent = buildMarkdownMetadata(request);
-            response.setContent(markdownContent);
-            response.setData(null);
+    @Override
+    public SemanticMetadataResponse getMetadata(SemanticMetadataRequest request, String format,
+                                                String authorization, String namespace) {
+        try {
+            // 设置namespace到ThreadLocal（供模型加载使用）
+            if (namespace != null) {
+                NamespaceContext.setNamespace(namespace);
+            }
+
+            SemanticMetadataResponse response = new SemanticMetadataResponse();
+            response.setFormat(format);
+
+            if ("json".equalsIgnoreCase(format)) {
+                Map<String, Object> data = buildJsonMetadata(request);
+                response.setData(data);
+                response.setContent(null);
+            } else {
+                String markdownContent = buildMarkdownMetadata(request);
+                response.setContent(markdownContent);
+                response.setData(null);
+            }
+
+            return response;
+        } finally {
+            // 清理namespace ThreadLocal
+            if (namespace != null) {
+                NamespaceContext.clear();
+            }
         }
-
-        return response;
     }
 
     /**

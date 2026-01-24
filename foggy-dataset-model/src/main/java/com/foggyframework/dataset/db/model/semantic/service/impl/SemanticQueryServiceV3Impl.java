@@ -61,12 +61,34 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
 
     @Override
     public SemanticQueryResponse queryModel(String model, SemanticQueryRequest request, String mode) {
-        return queryModel(model, request, mode, null);
+        return queryModel(model, request, mode, null, null);
+    }
+
+    @Override
+    public SemanticQueryResponse queryModel(String model, SemanticQueryRequest request, String mode,
+                                            String authorization, String namespace) {
+        // 创建SecurityContext
+        ModelResultContext.SecurityContext securityContext = null;
+        if (authorization != null) {
+            securityContext = new ModelResultContext.SecurityContext();
+            securityContext.setAuthorization(authorization);
+        }
+        // Note: namespace 不在 SecurityContext 中，而是在 ModelResultContext.setNamespace() 中设置
+        return queryModelWithNamespace(model, request, mode, securityContext, namespace);
     }
 
     @Override
     public SemanticQueryResponse queryModel(String model, SemanticQueryRequest request, String mode,
                                             ModelResultContext.SecurityContext securityContext) {
+        return queryModelWithNamespace(model, request, mode, securityContext, null);
+    }
+
+    /**
+     * 执行查询（带命名空间和安全上下文）
+     */
+    private SemanticQueryResponse queryModelWithNamespace(String model, SemanticQueryRequest request, String mode,
+                                                          ModelResultContext.SecurityContext securityContext,
+                                                          String namespace) {
         if ("validate".equals(mode)) {
             return validateQuery(model, request);
         }
@@ -92,11 +114,12 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
             jdbcRequest.getParam().setSlice(processedSlice);
         }
 
-        // 4. 创建ModelResultContext，标记为语义查询，设置SecurityContext
+        // 4. 创建ModelResultContext，标记为语义查询，设置SecurityContext和Namespace
         ModelResultContext resultContext = new ModelResultContext();
         resultContext.setRequest(jdbcRequest);
         resultContext.setQueryType(ModelResultContext.QueryType.SEMANTIC);
         resultContext.setSecurityContext(securityContext);
+        resultContext.setNamespace(namespace);
 
         // 5. 使用 QueryFacade 执行完整查询生命周期（beforeQuery -> query -> process）
         DbQueryResult dbQueryResult = queryFacade.queryModelResult(resultContext);

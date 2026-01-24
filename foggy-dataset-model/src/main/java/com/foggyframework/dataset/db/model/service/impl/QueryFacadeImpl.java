@@ -47,7 +47,7 @@ public class QueryFacadeImpl implements QueryFacade {
 
     @Override
     public PagingResultImpl queryModelData(PagingRequest<DbQueryRequestDef> form) {
-        return queryModelData(form, null, ModelResultContext.QueryType.NORMAL);
+        return queryModelData(form, null, null, ModelResultContext.QueryType.NORMAL);
     }
 
     @Override
