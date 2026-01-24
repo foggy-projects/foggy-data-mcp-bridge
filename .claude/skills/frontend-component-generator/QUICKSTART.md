@@ -71,11 +71,16 @@ src/components/models/
   "apiBaseUrl": "http://localhost:8080",        // 后台 API 地址
   "namespace": "default",                        // 命名空间
   "commonComponentPath": "components",           // 组件存放目录
-  "componentAuthor": "Frontend Team"            // 作者
+  "componentAuthor": "Frontend Team",           // 作者
+  "authorization": ""                            // 授权 token（可选，留空则不使用）
 }
 ```
 
 后续使用自动读取，可随时编辑。
+
+**authorization 字段说明**：
+- 留空或不设置 → 不使用授权
+- 设置值（如 `"Bearer xxx"`）→ 在所有 API 请求中添加 Authorization header
 
 ## 决策树
 
@@ -171,14 +176,20 @@ interface QueryResponse {
 
 ## 环境配置
 
-在 `.env` 中配置接口地址：
+在 `.env` 中配置接口地址和授权信息：
 
 ```env
 VUE_APP_API_BASE=http://localhost:8080
 VUE_APP_NAMESPACE=default
+VUE_APP_AUTHORIZATION=                          # 可选，如需要授权填入 token
 ```
 
 生成的 API 层会自动读取这些变量。
+
+**环境变量说明**：
+- `VUE_APP_API_BASE` - SemanticController API 地址
+- `VUE_APP_NAMESPACE` - 命名空间，通过 X-NS header 传递
+- `VUE_APP_AUTHORIZATION` - 授权 token（可选），如果不需要可留空或删除
 
 ## 生成的组件有什么能力？
 

@@ -163,6 +163,7 @@ import type { SliceRequestDef } from 'foggy-data-viewer'
 
 const API_BASE = process.env.VUE_APP_API_BASE || 'http://localhost:8080'
 const NAMESPACE = process.env.VUE_APP_NAMESPACE || 'default'
+const AUTHORIZATION = process.env.VUE_APP_AUTHORIZATION || '' // 可选的授权 token
 
 export interface {ComponentName}QueryRequest {
   page: number
@@ -179,13 +180,23 @@ export interface {ComponentName}QueryResponse {
 export async function fetch{ComponentName}Data(
   request: {ComponentName}QueryRequest
 ): Promise<{ComponentName}QueryResponse> {
-  // 实现
+  // 构建 headers
+  const headers: any = {
+    'X-NS': NAMESPACE
+  }
+
+  // 如果配置了授权信息，添加到 header
+  if (AUTHORIZATION) {
+    headers['Authorization'] = AUTHORIZATION
+  }
+
+  // 实现具体逻辑
 }
 ```
 
 **查询函数需要处理**：
 1. 请求参数构建（page、pageSize、filters、sort）
-2. HTTP Header 设置（X-NS 命名空间）
+2. HTTP Header 设置（X-NS 命名空间、可选的 Authorization）
 3. 响应验证（code === 200）
 4. 错误转换和提示
 5. 数据转换（如需要）
@@ -240,7 +251,8 @@ export async function fetch{ComponentName}Data(
   "apiBaseUrl": "http://localhost:8080",
   "namespace": "default",
   "commonComponentPath": "components",
-  "componentAuthor": "Frontend Team"
+  "componentAuthor": "Frontend Team",
+  "authorization": ""
 }
 ```
 
@@ -252,6 +264,13 @@ export async function fetch{ComponentName}Data(
 | namespace | string | 默认命名空间（HTTP Header X-NS） | `default` |
 | commonComponentPath | string | 业务组件存放目录（相对 src/） | `components` |
 | componentAuthor | string | 组件作者名称 | `Frontend Team` |
+| authorization | string | 授权 token（可选，留空则不使用） | `Bearer xxx` 或 JWT token |
+
+**authorization 字段说明**：
+- 用途：用于后台有权限控制的场景
+- 可选：可以留空（`""`）或完全不设置
+- 格式：支持任意格式，通常为 `Bearer xxx` 或 JWT token
+- 使用：如果设置，会在所有 SemanticController API 请求的 `Authorization` header 中使用
 
 ## 筛选器类型映射
 

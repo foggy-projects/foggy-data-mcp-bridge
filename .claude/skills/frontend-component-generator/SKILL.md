@@ -44,15 +44,24 @@ description: 自动生成基于 foggy-data-viewer 的 Vue 业务组件。根据 
    - 默认值：`Frontend Team`
    - 问题：请提供组件作者名称
 
+5. **Authorization Token（可选）**
+   - 默认值：空（不使用授权）
+   - 问题：如果后台有权限控制，请提供 Authorization Token（例如 `Bearer xxx` 或 JWT token），否则留空
+
 保存格式：
 ```json
 {
   "apiBaseUrl": "http://localhost:8080",
   "namespace": "default",
   "commonComponentPath": "components",
-  "componentAuthor": "Frontend Team"
+  "componentAuthor": "Frontend Team",
+  "authorization": ""
 }
 ```
+
+**注意**：
+- 如果 `authorization` 为空字符串或未设置，则不在 API 请求中添加 Authorization header
+- 如果设置了 authorization，则在所有 SemanticController API 调用中添加 `Authorization: {authorization}` header
 
 ### 第三步：获取模型信息
 
@@ -155,11 +164,12 @@ GET {apiBaseUrl}/mcp/analyst/description-model-internal?model={modelName}&ns={na
 - 公开的方法（刷新数据、重置筛选等）
 - **顶部工具栏区域**（支持插槽，靠左对齐，用户可添加自定义按钮等）
 - **分页控件**（靠右对齐，显示总数和分页选项）
+- **操作列**（checkbox 右边，支持通过插槽自定义操作按钮，可通过 Props 控制显示/隐藏）
 
 示例结构：
 ```vue
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { ElPagination } from 'element-plus'
 import { DataTableWithSearch } from 'foggy-data-viewer'
 import type { EnhancedColumnSchema, SliceRequestDef } from 'foggy-data-viewer'
@@ -174,8 +184,25 @@ const currentPage = ref(1)
 const pageSize = ref(50)
 const currentFilters = ref<SliceRequestDef[]>([])
 
-onMounted(() => {
-  loadData()
+// Props
+const showOperColumn = ref(false) // 是否显示操作列
+
+// 计算操作列配置
+const operColumnSchema: EnhancedColumnSchema = {
+  name: '__oper__',
+  type: 'TEXT',
+  title: '操作',
+  width: 150,
+  fixed: 'right',
+  // render 函数由组件使用者通过插槽控制
+}
+
+// 合并列配置（如果显示操作列）
+const displayColumns = computed(() => {
+  if (showOperColumn.value) {
+    return [...columns, operColumnSchema]
+  }
+  return columns
 })
 
 // 加载数据
@@ -576,6 +603,10 @@ src/{commonComponentPath}/models/
 ```
 GET /mcp/analyst/metadata?q={keywords}&ns={namespace}
 
+HTTP Headers:
+- X-NS: {namespace}
+- Authorization: {authorization} (可选，如配置中有授权信息)
+
 响应：
 {
   "code": 200,
@@ -594,6 +625,10 @@ GET /mcp/analyst/metadata?q={keywords}&ns={namespace}
 #### 2. 模型 Schema 获取（description-model-internal）
 ```
 GET /mcp/analyst/description-model-internal?model={modelName}&ns={namespace}
+
+HTTP Headers:
+- X-NS: {namespace}
+- Authorization: {authorization} (可选，如配置中有授权信息)
 
 响应：
 {
@@ -619,6 +654,10 @@ GET /mcp/analyst/description-model-internal?model={modelName}&ns={namespace}
 ```
 GET /mcp/analyst/query-model/v2?model={modelName}&page={page}&pageSize={pageSize}&slices={filters}&ns={namespace}
 
+HTTP Headers:
+- X-NS: {namespace}
+- Authorization: {authorization} (可选，如配置中有授权信息)
+
 请求体：
 {
   "model": "order_query_model",
@@ -642,6 +681,3 @@ GET /mcp/analyst/query-model/v2?model={modelName}&page={page}&pageSize={pageSize
   }
 }
 ```
-
-HTTP Header：
-- `X-NS: {namespace}` - 命名空间标识

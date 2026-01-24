@@ -295,6 +295,7 @@ import type { SliceRequestDef } from 'foggy-data-viewer'
 
 const API_BASE = process.env.VUE_APP_API_BASE || 'http://localhost:8080'
 const NAMESPACE = process.env.VUE_APP_NAMESPACE || 'default'
+const AUTHORIZATION = process.env.VUE_APP_AUTHORIZATION || '' // 可选的授权 token
 
 export interface OrderQueryTableQueryRequest {
   page: number
@@ -333,13 +334,21 @@ export async function fetchOrderQueryTableData(
       params.sort = JSON.stringify(request.sort)
     }
 
+    // 构建请求 headers
+    const headers: any = {
+      'X-NS': NAMESPACE
+    }
+
+    // 如果配置了授权 token，添加到 header
+    if (AUTHORIZATION) {
+      headers['Authorization'] = AUTHORIZATION
+    }
+
     const response = await axios.get(
       `${API_BASE}/mcp/analyst/query-model/v2`,
       {
         params,
-        headers: {
-          'X-NS': NAMESPACE
-        }
+        headers
       }
     )
 
