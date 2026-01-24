@@ -6,6 +6,23 @@
 2. **处理**: 拉取 schema → 生成代码 → 创建配置 → 生成文档
 3. **输出**: 4 个文件（组件 + schema + API + 文档）
 
+## 生成的组件结构
+
+```
+┌─────────────────────────────────────────────────┐
+│  [toolbar插槽-按钮等]  [共xxx条] [分页组件▶◀]  │  <- 顶部工具栏
+├─────────────────────────────────────────────────┤
+│                                                 │
+│          DataTable + SearchToolbar              │
+│                                                 │
+└─────────────────────────────────────────────────┘
+```
+
+**特点**：
+- ✅ 顶部 toolbar（靠左，支持插槽添加按钮）
+- ✅ 右侧分页控件（显示总数、页码、每页条数）
+- ✅ 中间搜索+表格（支持多条件筛选、排序）
+
 ## 最常见的用法
 
 ### 场景 A：我知道模型名称
@@ -100,7 +117,27 @@ src/components/models/
 用户可以：
 - 调用 ref.refresh() 手动刷新
 - 调用 ref.clearFilters() 清空筛选
+- 通过插槽 #toolbar 添加自定义按钮
 ```
+
+## Toolbar 插槽使用
+
+生成的组件在顶部左侧提供 `toolbar` 插槽，你可以添加自定义操作按钮：
+
+```vue
+<template>
+  <OrderQueryTable>
+    <template #toolbar>
+      <!-- 在这里添加按钮 -->
+      <el-button type="primary" size="small">新增</el-button>
+      <el-button type="default" size="small">编辑</el-button>
+      <el-button type="danger" size="small">删除</el-button>
+    </template>
+  </OrderQueryTable>
+</template>
+```
+
+按钮会自动排列在顶部，分页组件自动靠右。
 
 ## 常见 TypeScript 类型
 

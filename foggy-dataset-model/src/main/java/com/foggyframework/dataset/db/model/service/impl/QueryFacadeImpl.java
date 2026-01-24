@@ -52,30 +52,44 @@ public class QueryFacadeImpl implements QueryFacade {
 
     @Override
     public PagingResultImpl queryModelData(PagingRequest<DbQueryRequestDef> form, String namespace) {
-        return queryModelData(form, namespace, ModelResultContext.QueryType.NORMAL);
+        return queryModelData(form, null, namespace, ModelResultContext.QueryType.NORMAL);
+    }
+
+    @Override
+    public PagingResultImpl queryModelData(PagingRequest<DbQueryRequestDef> form, String authorization, String namespace) {
+        return queryModelData(form, authorization, namespace, ModelResultContext.QueryType.NORMAL);
     }
 
     @Override
     public PagingResultImpl queryModelData(PagingRequest<DbQueryRequestDef> form,
                                            ModelResultContext.QueryType queryType) {
-        return queryModelData(form, null, queryType);
+        return queryModelData(form, null, null, queryType);
     }
 
     /**
      * 执行查询（内部统一方法）
      *
-     * @param form      查询请求
-     * @param namespace 命名空间
-     * @param queryType 查询类型
+     * @param form          查询请求
+     * @param authorization 认证令牌
+     * @param namespace     命名空间
+     * @param queryType     查询类型
      * @return 查询结果
      */
     private PagingResultImpl queryModelData(PagingRequest<DbQueryRequestDef> form,
+                                            String authorization,
                                             String namespace,
                                             ModelResultContext.QueryType queryType) {
         // 创建上下文
         ModelResultContext context = new ModelResultContext(form, null);
         context.setQueryType(queryType);
         context.setNamespace(namespace);
+
+        // 设置认证信息到安全上下文
+        if (authorization != null) {
+            ModelResultContext.SecurityContext securityContext = new ModelResultContext.SecurityContext();
+            securityContext.setAuthorization(authorization);
+            context.setSecurityContext(securityContext);
+        }
 
         // 执行完整查询流程
         DbQueryResult result = doQuery(context);

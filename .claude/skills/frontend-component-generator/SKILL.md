@@ -153,33 +153,39 @@ GET {apiBaseUrl}/mcp/analyst/description-model-internal?model={modelName}&ns={na
 - 实现数据加载逻辑（集成 API 层）
 - 事件处理（分页变化、排序变化、筛选变化、行点击）
 - 公开的方法（刷新数据、重置筛选等）
+- **顶部工具栏区域**（支持插槽，靠左对齐，用户可添加自定义按钮等）
+- **分页控件**（靠右对齐，显示总数和分页选项）
 
 示例结构：
 ```vue
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { ElPagination } from 'element-plus'
 import { DataTableWithSearch } from 'foggy-data-viewer'
 import type { EnhancedColumnSchema, SliceRequestDef } from 'foggy-data-viewer'
 import { columns } from './schemas/{componentName}.schema'
 import { fetchOrderData } from './apis/{componentName}.api'
 
+// 数据状态
 const data = ref([])
 const total = ref(0)
 const loading = ref(false)
 const currentPage = ref(1)
 const pageSize = ref(50)
+const currentFilters = ref<SliceRequestDef[]>([])
 
 onMounted(() => {
   loadData()
 })
 
-async function loadData(filters?: SliceRequestDef[]) {
+// 加载数据
+async function loadData() {
   loading.value = true
   try {
     const response = await fetchOrderData({
       page: currentPage.value,
       pageSize: pageSize.value,
-      filters
+      filters: currentFilters.value
     })
     data.value = response.rows
     total.value = response.total
@@ -188,32 +194,137 @@ async function loadData(filters?: SliceRequestDef[]) {
   }
 }
 
+// 分页变化（来自分页组件）
+function handlePaginationChange() {
+  currentPage.value = 1 // 切换每页条数时重置到第一页
+  loadData()
+}
+
+// 分页变化（来自表格）
 function handlePageChange(page: number, size: number) {
   currentPage.value = page
   pageSize.value = size
   loadData()
 }
 
-// ... 其他事件处理方法
+// 筛选变化
+function handleFilterChange(filters: SliceRequestDef[]) {
+  currentFilters.value = filters
+  currentPage.value = 1 // 筛选时重置到第一页
+  loadData()
+}
+
+// 排序变化
+function handleSortChange(field: string, order: string) {
+  // 如需后台排序，在此实现
+  console.log(`Sorting by ${field} ${order}`)
+}
+
+// 公开方法
+function refresh() {
+  currentPage.value = 1
+  currentFilters.value = []
+  loadData()
+}
+
+function clearFilters() {
+  currentFilters.value = []
+  currentPage.value = 1
+  loadData()
+}
+
+defineExpose({
+  refresh,
+  clearFilters,
+  data,
+  total,
+  loading
+})
 </script>
 
 <template>
   <div class="order-query-table">
-    <DataTableWithSearch
-      :columns="columns"
-      :data="data"
-      :total="total"
-      :loading="loading"
-      :page-size="pageSize"
-      @page-change="handlePageChange"
-      @filter-change="handleFilterChange"
-    />
+    <!-- 工具栏 + 分页栏 -->
+    <div class="table-header-bar">
+      <div class="toolbar-left">
+        <slot name="toolbar">
+          <!-- 用户可通过插槽添加按钮或其他组件 -->
+        </slot>
+      </div>
+      <div class="pagination-right">
+        <span class="total-info">共 {{ total }} 条</span>
+        <el-pagination
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
+          :page-sizes="[10, 20, 50, 100]"
+          :total="total"
+          layout="sizes, prev, pager, next, jumper"
+          @change="handlePaginationChange"
+        />
+      </div>
+    </div>
+
+    <!-- 数据表格 -->
+    <div class="table-content">
+      <DataTableWithSearch
+        :columns="columns"
+        :data="data"
+        :total="total"
+        :loading="loading"
+        :page-size="pageSize"
+        :show-search-toolbar="true"
+        :show-filters="true"
+        @page-change="handlePageChange"
+        @filter-change="handleFilterChange"
+        @sort-change="handleSortChange"
+      />
+    </div>
   </div>
 </template>
 
 <style scoped>
 .order-query-table {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
   padding: 16px;
+  background-color: #fff;
+  border-radius: 4px;
+}
+
+.table-header-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding: 12px;
+  background-color: #f5f7fa;
+  border-radius: 4px;
+  gap: 16px;
+}
+
+.toolbar-left {
+  display: flex;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.pagination-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 0 0 auto;
+}
+
+.total-info {
+  color: #606266;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.table-content {
+  flex: 1;
+  overflow: auto;
 }
 </style>
 ```

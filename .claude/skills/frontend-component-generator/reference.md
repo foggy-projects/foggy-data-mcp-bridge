@@ -17,26 +17,41 @@
 - 事件处理方法
 - 公开的 API 方法（通过 defineExpose）
 - 样式范围隔离（scoped）
+- **顶部工具栏区域**（支持 `toolbar` 命名插槽，靠左对齐）
+- **分页控件**（靠右对齐，显示总数和分页选项）
+
+**组件布局结构**：
+```
+┌─────────────────────────────────────────────────┐
+│  [toolbar插槽 - 靠左]      [总数] [分页组件 - 靠右] │  <- table-header-bar
+├─────────────────────────────────────────────────┤
+│                                                 │
+│              DataTableWithSearch                 │
+│                                                 │
+└─────────────────────────────────────────────────┘
+```
 
 **导入语句示例**：
 ```typescript
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
+import { ElPagination } from 'element-plus'
 import { DataTableWithSearch } from 'foggy-data-viewer'
 import type { EnhancedColumnSchema, SliceRequestDef } from 'foggy-data-viewer'
 import { columns } from './schemas/{componentName}.schema'
-import { fetchOrderData } from './apis/{componentName}.api'
+import { fetch{ComponentName}Data } from './apis/{componentName}.api'
 ```
 
 **必须实现的方法**：
-- `loadData(filters?: SliceRequestDef[])` - 加载数据
-- `handlePageChange(page: number, pageSize: number)` - 分页变化
+- `loadData()` - 加载数据
+- `handlePaginationChange()` - 分页组件变化（页数或每页条数）
+- `handlePageChange(page: number, pageSize: number)` - 表格分页变化
 - `handleFilterChange(filters: SliceRequestDef[])` - 筛选变化
+- `handleSortChange(field: string, order: string)` - 排序变化
 - `refresh()` - 刷新数据
-- `clearFilters()` - 清空筛选（可选）
+- `clearFilters()` - 清空筛选
 
 **可选的方法**：
 - `handleRowClick(row: any, column: any)` - 行点击事件
-- `handleSortChange(field: string, order: string)` - 排序变化
 - `exportData()` - 导出数据（如需要）
 
 ### 2. Schema 配置文件 (schemas/{componentName}.schema.ts)
@@ -337,6 +352,93 @@ import { OrderQueryTable, type OrderQueryTableRow } from '@/{commonComponentPath
 ```
 
 ## 与 foggy-data-viewer 的集成
+
+### Slots（插槽）说明
+
+生成的组件提供以下命名插槽供父组件使用：
+
+#### toolbar 插槽
+
+**位置**：表格顶部左侧，用于放置自定义操作按钮和组件
+
+**使用示例**：
+```vue
+<template>
+  <OrderQueryTable>
+    <template #toolbar>
+      <el-button type="primary" size="small">新增</el-button>
+      <el-button type="default" size="small">编辑</el-button>
+      <el-button type="danger" size="small">删除</el-button>
+      <el-divider direction="vertical" />
+      <el-button type="info" size="small">导出</el-button>
+    </template>
+  </OrderQueryTable>
+</template>
+```
+
+**特性**：
+- 支持任意 Vue 组件
+- 自动布局为 Flex 行，间距 8px
+- 宽度自适应，不会被压缩
+- 与右侧分页控件通过 gap 16px 分离
+
+#### 页面级别使用示例
+
+```vue
+<template>
+  <div class="page-wrapper">
+    <OrderQueryTable ref="tableRef">
+      <!-- toolbar 插槽 - 放在 <template #toolbar> 中 -->
+      <template #toolbar>
+        <el-button-group>
+          <el-button type="primary" size="small" @click="handleAddNew">
+            <el-icon><Plus /></el-icon>新增
+          </el-button>
+          <el-button type="success" size="small" @click="handleEdit">
+            <el-icon><Edit /></el-icon>编辑
+          </el-button>
+          <el-button type="danger" size="small" @click="handleDelete">
+            <el-icon><Delete /></el-icon>删除
+          </el-button>
+        </el-button-group>
+
+        <el-divider direction="vertical" />
+
+        <el-button type="info" size="small" @click="handleExport">
+          <el-icon><Download /></el-icon>导出
+        </el-button>
+      </template>
+    </OrderQueryTable>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref } from 'vue'
+import OrderQueryTable from '@/components/models/OrderQueryTable.vue'
+
+const tableRef = ref()
+
+function handleAddNew() {
+  // 打开新增对话框
+  console.log('新增记录')
+}
+
+function handleEdit() {
+  // 获取选中行，打开编辑对话框
+  console.log('编辑记录')
+}
+
+function handleDelete() {
+  // 删除选中行
+  console.log('删除记录')
+}
+
+function handleExport() {
+  // 调用导出接口
+  tableRef.value?.refresh() // 刷新表格
+}
+</script>
+```
 
 ### DataTableWithSearch Props 说明
 
