@@ -6,10 +6,11 @@
 
 - 🎯 **TypeScript 支持** - 完整的类型定义
 - 📊 **动态列配置** - 基于 QM Schema + TableConfig 的灵活列配置
-- 🔍 **高级筛选** - 支持多种数据类型的筛选器
+- 🔍 **高级筛选** - 支持多种数据类型的筛选器（表头过滤 + 独立搜索工具栏）
 - 📈 **汇总行** - 自动计算选中行和全量汇总
 - 🎨 **自定义渲染** - 支持自定义格式化和渲染函数
-- ✅ **高测试覆盖** - 核心组件覆盖率 98%+
+- 🔧 **组合组件** - 提供 SearchToolbar + DataTable 的组合组件
+- ✅ **高测试覆盖** - 核心组件覆盖率 90%+
 - 📦 **按需引入** - ES Module 支持
 
 ## 安装
@@ -100,6 +101,34 @@ function handlePageChange(page: number, pageSize: number) {
   />
 </template>
 ```
+
+## 组件列表
+
+### 核心组件
+
+| 组件 | 说明 | 文档 |
+|------|------|------|
+| **DataTable** | 基础数据表格组件（表头过滤器、分页、排序、汇总） | [见下方 API](#datatable-props) |
+| **SearchToolbar** | 独立搜索工具栏组件（字段级快速筛选） | [完整文档](./docs/SearchToolbar.md) |
+| **DataTableWithSearch** | 组合组件（SearchToolbar + DataTable + 属性透传） | [完整文档](./docs/SearchToolbar.md#datatablewithsearch-使用) |
+| **DataViewer** | 高层封装组件（集成 API 调用、元数据管理） | 待完善 |
+
+### 工具函数
+
+- **buildTableColumns** - 根据 QM Schema 构建列配置
+
+### Composables
+
+- **useTableSelection** - 表格行选择逻辑
+- **useTableSummary** - 汇总行计算逻辑
+
+### 过滤器组件
+
+- **TextFilter** - 文本筛选（等于、左匹配、批量）
+- **NumberRangeFilter** - 数字范围筛选
+- **DateRangeFilter** - 日期范围筛选（需要 Element Plus）
+- **SelectFilter** - 选择筛选（单选/多选、搜索）
+- **BoolFilter** - 布尔筛选（是/否/全部）
 
 ## API
 
