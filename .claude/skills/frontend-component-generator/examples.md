@@ -22,7 +22,7 @@
 
 ```vue
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { ElPagination } from 'element-plus'
 import { DataTableWithSearch } from 'foggy-data-viewer'
 import type { SliceRequestDef } from 'foggy-data-viewer'
@@ -37,6 +37,26 @@ const loading = ref(false)
 const currentPage = ref(1)
 const pageSize = ref(50)
 const currentFilters = ref<SliceRequestDef[]>([])
+
+// 操作列控制
+const showOperColumn = ref(false) // 默认不显示操作列
+
+// 操作列配置
+const operColumnSchema = {
+  name: '__oper__',
+  type: 'TEXT',
+  title: '操作',
+  width: 150,
+  fixed: 'right',
+}
+
+// 合并列配置
+const displayColumns = computed(() => {
+  if (showOperColumn.value) {
+    return [...columns, operColumnSchema]
+  }
+  return columns
+})
 
 // 初始化
 onMounted(() => {
@@ -134,7 +154,7 @@ defineExpose({
     <!-- 数据表格 -->
     <div class="table-content">
       <DataTableWithSearch
-        :columns="columns"
+        :columns="displayColumns"
         :data="data"
         :total="total"
         :loading="loading"
@@ -144,7 +164,12 @@ defineExpose({
         @page-change="handlePageChange"
         @filter-change="handleFilterChange"
         @sort-change="handleSortChange"
-      />
+      >
+        <!-- 操作列插槽 -->
+        <template #__oper__="{ row }">
+          <slot name="operColumn" :row="row" />
+        </template>
+      </DataTableWithSearch>
     </div>
   </div>
 </template>

@@ -294,7 +294,7 @@ defineExpose({
     <!-- 数据表格 -->
     <div class="table-content">
       <DataTableWithSearch
-        :columns="columns"
+        :columns="displayColumns"
         :data="data"
         :total="total"
         :loading="loading"
@@ -304,7 +304,12 @@ defineExpose({
         @page-change="handlePageChange"
         @filter-change="handleFilterChange"
         @sort-change="handleSortChange"
-      />
+      >
+        <!-- 操作列插槽 -->
+        <template #__oper__="{ row }">
+          <slot name="operColumn" :row="row" />
+        </template>
+      </DataTableWithSearch>
     </div>
   </div>
 </template>

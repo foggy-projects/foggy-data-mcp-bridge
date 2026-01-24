@@ -25,15 +25,20 @@
 ┌─────────────────────────────────────────────────┐
 │  [toolbar插槽 - 靠左]      [总数] [分页组件 - 靠右] │  <- table-header-bar
 ├─────────────────────────────────────────────────┤
-│                                                 │
-│              DataTableWithSearch                 │
-│                                                 │
+│  [checkbox] [列1] [列2] ... [操作列(可选)]      │  <- DataTableWithSearch
+│  [数据行...]                                    │
 └─────────────────────────────────────────────────┘
 ```
 
+**操作列**：
+- 位置：checkbox 右侧，表格最后（fixed: 'right'）
+- 宽度：150px（可自定义）
+- 显示：通过 `showOperColumn` prop 控制（默认 false）
+- 内容：通过 `operColumn` 插槽传递（`:row` 为行数据）
+
 **导入语句示例**：
 ```typescript
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { ElPagination } from 'element-plus'
 import { DataTableWithSearch } from 'foggy-data-viewer'
 import type { EnhancedColumnSchema, SliceRequestDef } from 'foggy-data-viewer'
@@ -401,6 +406,40 @@ import { OrderQueryTable, type OrderQueryTableRow } from '@/{commonComponentPath
 - 宽度自适应，不会被压缩
 - 与右侧分页控件通过 gap 16px 分离
 
+#### operColumn 插槽
+
+**位置**：表格操作列，checkbox 右侧，表格最后（fixed: 'right'）
+
+**启用方式**：在父组件中通过 `v-model:showOperColumn="true"` 或 `:showOperColumn="true"` 启用
+
+**使用示例**：
+```vue
+<template>
+  <OrderQueryTable :show-oper-column="true">
+    <template #operColumn="{ row }">
+      <el-button type="primary" size="small" @click="handleEdit(row)">编辑</el-button>
+      <el-button type="danger" size="small" @click="handleDelete(row)">删除</el-button>
+    </template>
+  </OrderQueryTable>
+</template>
+
+<script setup lang="ts">
+function handleEdit(row: any) {
+  console.log('编辑行:', row)
+}
+
+function handleDelete(row: any) {
+  console.log('删除行:', row)
+}
+</script>
+```
+
+**特性**：
+- `row` 作用域插槽参数包含完整的行数据
+- 宽度：150px（可在组件中修改 operColumnSchema）
+- 固定位置：right（始终显示在右侧）
+- 条件显示：仅当 `showOperColumn` 为 true 时显示
+
 #### 页面级别使用示例
 
 ```vue
@@ -475,6 +514,12 @@ function handleExport() {
   initialSlice: SliceRequestDef[]     // 初始筛选条件
 }
 ```
+
+### 生成的组件 Props 说明
+
+| 属性 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| showOperColumn | `boolean` | `false` | 是否显示操作列 |
 
 ### 必须实现的事件处理
 
