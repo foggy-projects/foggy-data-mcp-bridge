@@ -687,6 +687,7 @@ provide('dataTableContext', {
   flex-direction: column;
   width: 100%;
   padding: 4px 0;
+  min-height: 60px;
 }
 
 .column-title {
@@ -696,6 +697,8 @@ provide('dataTableContext', {
   margin-bottom: 6px;
   cursor: pointer;
   user-select: none;
+  line-height: 1.2;
+  min-height: 18px;
 }
 
 .column-title:hover {
@@ -707,22 +710,28 @@ provide('dataTableContext', {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-size: 13px;
 }
 
 .sort-icon {
   flex-shrink: 0;
-  font-size: 12px;
+  font-size: 11px;
   color: #c0c4cc;
-  margin-left: 4px;
+  margin-left: 2px;
+  width: 12px;
+  text-align: center;
 }
 
 .sort-icon.sort-asc,
 .sort-icon.sort-desc {
   color: #409eff;
+  font-weight: bold;
 }
 
 .column-filter {
   width: 100%;
+  min-height: 26px;
+  overflow: visible;
 }
 
 /* 过滤器组件通用样式 */

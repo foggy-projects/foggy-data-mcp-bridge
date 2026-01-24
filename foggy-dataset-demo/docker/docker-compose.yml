@@ -25,6 +25,8 @@
 #
 # ============================================
 
+name: foggy-dataset-demo
+
 version: '3.8'
 
 services:
