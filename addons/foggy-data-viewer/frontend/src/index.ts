@@ -5,6 +5,8 @@ import 'element-plus/dist/index.css'
 // 导出组件
 export { default as DataTable } from './components/DataTable.vue'
 export { default as DataViewer } from './components/DataViewer.vue'
+export { default as SearchToolbar } from './components/SearchToolbar.vue'
+export { default as DataTableWithSearch } from './components/DataTableWithSearch.vue'
 
 // 导出过滤器组件
 export * from './components/filters'

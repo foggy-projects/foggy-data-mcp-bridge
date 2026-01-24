@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { DataTable, buildTableColumns } from 'foggy-data-viewer'
-import type { EnhancedColumnSchema } from 'foggy-data-viewer'
+import { DataTable, SearchToolbar, buildTableColumns } from 'foggy-data-viewer'
+import type { EnhancedColumnSchema, SliceRequestDef } from 'foggy-data-viewer'
 
 // 模拟 QM Schema（从服务器获取）
 const qmSchema = [
@@ -19,6 +19,9 @@ const columns = ref<EnhancedColumnSchema[]>([])
 const data = ref<any[]>([])
 const total = ref(0)
 const loading = ref(false)
+
+// SearchToolbar 的筛选条件
+const searchSlices = ref<SliceRequestDef[]>([])
 
 // 模拟从服务器获取的汇总数据
 const serverSummary = ref({
@@ -47,7 +50,7 @@ onMounted(() => {
 })
 
 // 模拟加载数据
-function loadData(page: number, pageSize: number) {
+function loadData(page: number, pageSize: number, slices?: SliceRequestDef[]) {
   loading.value = true
 
   // 模拟异步加载
@@ -73,13 +76,18 @@ function loadData(page: number, pageSize: number) {
     data.value = mockData
     total.value = 150
     loading.value = false
+
+    // 这里可以根据 slices 筛选数据
+    if (slices && slices.length > 0) {
+      console.log('应用筛选条件:', slices)
+    }
   }, 500)
 }
 
 // 处理分页变化
 function handlePageChange(page: number, pageSize: number) {
   console.log('分页变化:', page, pageSize)
-  loadData(page, pageSize)
+  loadData(page, pageSize, searchSlices.value)
 }
 
 // 处理排序变化
@@ -88,10 +96,31 @@ function handleSortChange(field: string | null, order: string | null) {
   // 这里可以重新加载数据，传递排序参数到后端
 }
 
-// 处理筛选变化
+// 处理表头筛选变化
 function handleFilterChange(slices: any[]) {
-  console.log('筛选变化:', slices)
+  console.log('表头筛选变化:', slices)
   // 这里可以重新加载数据，传递筛选条件到后端
+}
+
+// 处理搜索工具栏筛选变化
+function handleSearchChange(slices: SliceRequestDef[]) {
+  console.log('搜索工具栏筛选变化:', slices)
+  searchSlices.value = slices
+  // 实时搜索：立即重新加载数据
+  loadData(1, 50, slices)
+}
+
+// 处理搜索按钮点击
+function handleSearch() {
+  console.log('点击搜索按钮')
+  loadData(1, 50, searchSlices.value)
+}
+
+// 处理重置按钮点击
+function handleReset() {
+  console.log('点击重置按钮')
+  searchSlices.value = []
+  loadData(1, 50)
 }
 
 // 处理行点击
@@ -124,7 +153,21 @@ function handleRowDblClick(row: any) {
           <li>✅ 支持筛选（打开筛选面板测试）</li>
           <li>✅ 显示汇总行（选中行查看）</li>
           <li>✅ 行点击/双击事件</li>
+          <li>🆕 独立的 SearchToolbar 组件（快速筛选）</li>
         </ul>
+      </div>
+
+      <!-- SearchToolbar 独立使用示例 -->
+      <div class="search-panel">
+        <h3>搜索工具栏（独立使用）</h3>
+        <SearchToolbar
+          :columns="columns"
+          :searchable-fields="['customerName', 'orderDate', 'amount']"
+          v-model="searchSlices"
+          @update:model-value="handleSearchChange"
+          @search="handleSearch"
+          @reset="handleReset"
+        />
       </div>
 
       <div class="table-container">
@@ -184,6 +227,20 @@ function handleRowDblClick(row: any) {
   border-radius: 8px;
   margin-bottom: 20px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.search-panel {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.search-panel h3 {
+  color: #2c3e50;
+  margin-bottom: 15px;
+  margin-top: 0;
 }
 
 .info-panel h3 {
