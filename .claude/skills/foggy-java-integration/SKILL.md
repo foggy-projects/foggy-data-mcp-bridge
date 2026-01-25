@@ -20,29 +20,70 @@ description: 指导 Java 项目引入 foggy-dataset-model 依赖并完成基础�
 ### 1. 判断项目类型
 
 读取项目根目录的 `pom.xml` 文件，判断：
+- 是否为 Maven 项目
 - 是否为 Spring Boot 项目（检查 parent 或 spring-boot-starter 依赖）
 - 是否已有数据源配置（检查 spring-boot-starter-jdbc 或 spring-boot-starter-data-jpa）
 - 是否已引入 foggy-dataset-model
 
 ### 2. 添加依赖
 
-**已有 Spring Boot 项目**：仅添加核心依赖：
+**在 `<properties>` 中定义版本**：
+
+```xml
+<properties>
+    <foggy-model.version>8.1.2.beta</foggy-model.version>
+</properties>
+```
+
+**添加依赖**：
 
 ```xml
 <dependency>
     <groupId>com.foggysource</groupId>
     <artifactId>foggy-dataset-model</artifactId>
-    <version>8.1.2.beta</version>
+    <version>${foggy-model.version}</version>
 </dependency>
 ```
 
-**新建项目**：添加完整依赖（Spring Boot parent + Web + JDBC + foggy-dataset-model + 数据库驱动）
+**新建项目完整配置**：
+
+```xml
+<parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>3.2.0</version>
+</parent>
+
+<properties>
+    <java.version>17</java.version>
+    <foggy-model.version>8.1.2.beta</foggy-model.version>
+</properties>
+
+<dependencies>
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-jdbc</artifactId>
+    </dependency>
+    <dependency>
+        <groupId>com.foggysource</groupId>
+        <artifactId>foggy-dataset-model</artifactId>
+        <version>${foggy-model.version}</version>
+    </dependency>
+    <!-- 数据库驱动：根据实际选择 -->
+</dependencies>
+```
 
 ### 3. 配置主应用类
 
 在 `@SpringBootApplication` 注解的类上添加 `@EnableFoggyFramework`：
 
 ```java
+import com.foggysource.foggycore.config.EnableFoggyFramework;
+
 @SpringBootApplication
 @EnableFoggyFramework(bundleName = "{项目名称}")
 public class Application {
@@ -62,66 +103,100 @@ public class Application {
 
 创建 `src/main/resources/foggy/templates/` 目录（如不存在）
 
-### 6. 可选：创建示例 TM/QM
+### 6. 验证配置
 
-询问用户是否需要创建示例模型文件
+提示用户启动项目验证配置是否正确
 
 ## 输入要求
 
 用户需提供：
 - 项目路径（如未提供则使用当前工作目录）
 - 数据库类型：MySQL / PostgreSQL / SQLite（如未配置数据源）
-- bundleName（如未提供则从项目名推导）
+- bundleName（如未提供则从 artifactId 推导）
 
 ## 输出格式
 
 完成后输出：
 
 ```
-✓ foggy-dataset-model 集成完成
+foggy-dataset-model 集成完成
 
 已完成配置：
-- [x] 添加 Maven 依赖
-- [x] 配置 @EnableFoggyFramework
-- [x] 配置数据源
-- [x] 创建模型目录
+- 添加 Maven 依赖（版本 ${foggy-model.version}）
+- 配置 @EnableFoggyFramework(bundleName = "xxx")
+- 配置数据源（如适用）
+- 创建模型目录 foggy/templates/
 
 下一步：
-1. 在 foggy/templates/ 下创建 .tm 和 .qm 文件
-2. 启动项目：mvn spring-boot:run
-3. 测试查询：POST /jdbc-model/query-model/v2/{QueryModelName}
+1. 创建 TM 模型：foggy/templates/XxxModel.tm
+2. 创建 QM 模型：foggy/templates/XxxQueryModel.qm
+3. 启动项目：mvn spring-boot:run
+4. 测试查询：POST /jdbc-model/query-model/v2/{QueryModelName}
 ```
 
 ## 约束条件
 
-- 版本固定使用 `8.1.2.beta`
-- bundleName 必须符合 Java 标识符规范
+- 使用 Maven 属性管理版本：`<foggy-model.version>8.1.2.beta</foggy-model.version>`
+- bundleName 使用小写中划线格式（如 `my-project`）
 - 模型文件目录固定为 `src/main/resources/foggy/templates/`
-- 不自动创建数据库表结构，仅提供配置
+- 需要 JDK 17+、Spring Boot 3.x
 
 ## 决策规则
 
-- 如果 pom.xml 已包含 foggy-dataset-model → 提示用户已集成，询问是否需要其他帮助
+- 如果 pom.xml 已包含 foggy-dataset-model → 检查版本，提示用户是否需要升级或其他帮助
+- 如果已有 `<properties>` → 在其中添加 `foggy-model.version`
+- 如果无 `<properties>` → 创建 `<properties>` 节点
 - 如果不是 Maven 项目 → 提示暂不支持 Gradle，建议手动添加依赖
 - 如果无 Spring Boot → 提示需要 Spring Boot 3.x 环境
-- 如果用户选择 SQLite → 额外添加 sqlite-jdbc 依赖并配置文件路径
-- 如果检测到 JPA 依赖 → 提示 Foggy 可与 JPA 共存，无需额外配置
+- 如果用户选择 SQLite → 额外添加 sqlite-jdbc 依赖并使用文件路径配置
+- 如果检测到 JPA/MyBatis → 提示 Foggy 可与其共存，无需额外配置
+- 如果找不到主应用类 → 搜索 `@SpringBootApplication` 注解的类
 
 ## 数据库驱动参考
 
-| 数据库 | 依赖 |
-|--------|------|
-| MySQL | `com.mysql:mysql-connector-j` |
-| PostgreSQL | `org.postgresql:postgresql` |
-| SQLite | `org.xerial:sqlite-jdbc:3.44.1.0` |
+| 数据库 | groupId | artifactId | scope |
+|--------|---------|------------|-------|
+| MySQL | com.mysql | mysql-connector-j | runtime |
+| PostgreSQL | org.postgresql | postgresql | runtime |
+| SQLite | org.xerial | sqlite-jdbc | runtime |
+
+## 数据源配置模板
+
+**MySQL**：
+```yaml
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/your_database?useUnicode=true&characterEncoding=utf8
+    username: root
+    password: your_password
+    driver-class-name: com.mysql.cj.jdbc.Driver
+```
+
+**PostgreSQL**：
+```yaml
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/your_database
+    username: postgres
+    password: your_password
+    driver-class-name: org.postgresql.Driver
+```
+
+**SQLite**：
+```yaml
+spring:
+  datasource:
+    url: jdbc:sqlite:./data/app.db
+    driver-class-name: org.sqlite.JDBC
+```
 
 ## Foggy 可选配置
 
 ```yaml
 foggy:
   dataset:
-    show-sql: true               # 打印 SQL（开发环境）
-    sql-format: false            # SQL 格式化
+    show-sql: true               # 打印 SQL（开发环境建议开启）
+    sql-format: false            # SQL 格式化（true=多行）
     sql-log-level: DEBUG         # 日志级别
     show-sql-parameters: true    # 显示参数值
     show-execution-time: true    # 显示执行时间
