@@ -16,120 +16,56 @@ description: 自动生成基于 foggy-data-viewer 的 Vue 业务组件。根据 
 - 生成 API 接口层和 TypeScript 类型定义
 - 创建组件使用文档和示例
 
+## 依赖技能
+
+- `qm-schema-viewer` - 获取 QM 模型 schema 信息
+- `frontend-dsl-query` - 生成公共 DSL 查询 API
+
 ## 执行流程
 
 ### 第一步：读取或创建配置文件
 
-1. 检查项目配置文件位置：`.claude/config/component-generator.config.json`
-2. 如果不存在，检查用户主目录：`~/.foggy/component-generator.config.json`
-3. 如果仍不存在，执行**配置交互流程**
+1. 检查通用配置：`.claude/config/semantic-api.config.json`（与 qm-schema-viewer 共用）
+2. 检查组件生成器专用配置：`.claude/config/component-generator.config.json`
+3. 如果不存在，执行**配置交互流程**
 
 ### 第二步：配置交互流程（仅当配置不存在时）
 
-询问用户以下信息并保存到项目配置文件 `.claude/config/component-generator.config.json`：
-
-1. **SemanticController API 地址**
-   - 默认值：`http://localhost:8080`
-   - 问题：请提供后台 SemanticController 的 Base URL（例如 `http://localhost:8080`）
-
-2. **命名空间（Namespace）**
-   - 默认值：`default`
-   - 问题：请提供命名空间名称（通过 HTTP Header `X-NS` 传递）
-
-3. **通用组件存放目录**
-   - 默认值：`components`
-   - 问题：请提供通用业务组件的存放目录（相对于 `src/`，例如 `components` 或 `views/components`）
-
-4. **组件作者**
-   - 默认值：`Frontend Team`
-   - 问题：请提供组件作者名称
-
-5. **Authorization Token（可选）**
-   - 默认值：空（不使用授权）
-   - 问题：如果后台有权限控制，请提供 Authorization Token（例如 `Bearer xxx` 或 JWT token），否则留空
-
-保存格式：
+**通用配置** `.claude/config/semantic-api.config.json`（与其他技能共用）：
 ```json
 {
-  "apiBaseUrl": "http://localhost:8080",
+  "apiBaseUrl": "http://localhost:7108",
   "namespace": "default",
-  "commonComponentPath": "components",
-  "componentAuthor": "Frontend Team",
   "authorization": ""
 }
 ```
 
-**注意**：
-- 如果 `authorization` 为空字符串或未设置，则不在 API 请求中添加 Authorization header
-- 如果设置了 authorization，则在所有 SemanticController API 调用中添加 `Authorization: {authorization}` header
-
-### 第三步：获取模型信息
-
-用户提供模型信息的两种方式：
-
-**方式A：已知模型名称**
-- 用户直接提供 QM 模型名称（例如 `order_query_model`）
-- 跳转到**第四步：获取 Schema**
-
-**方式B：未知模型，基于列需求搜索**
-- 用户描述需要的列（例如"订单ID、订单号、金额、状态、创建时间"）
-- 执行**模型推荐流程**
-
-### 模型推荐流程（仅当用户提供列需求时）
-
-1. 调用 SemanticController 的 **metadata** 端点搜索合适的模型：
-   ```
-   GET {apiBaseUrl}/mcp/analyst/metadata?q={columnKeywords}&ns={namespace}
-   ```
-
-2. 从返回结果中筛选包含所有所需列的模型
-
-3. 向用户列出候选模型（最多 5 个）并询问：
-   ```
-   找到以下匹配的模型，请选择：
-   1. order_list_model - 订单列表模型（包含：订单ID、订单号、金额、状态、创建时间）
-   2. order_query_model - 订单查询模型（包含：订单ID、订单号、金额、状态、创建时间、更新时间）
-   3. ...
-
-   请输入模型名称或序号
-   ```
-
-4. 获取用户选择的模型名称，继续**第四步**
-
-### 第四步：获取 Schema
-
-调用 SemanticController 的 **description-model-internal** 端点获取完整模型 schema：
-
-```
-GET {apiBaseUrl}/mcp/analyst/description-model-internal?model={modelName}&ns={namespace}
-```
-
-预期返回结构：
+**组件生成器专用配置** `.claude/config/component-generator.config.json`：
 ```json
 {
-  "code": 200,
-  "data": {
-    "model": "order_query_model",
-    "fields": [
-      {
-        "name": "order_id",
-        "type": "INTEGER",
-        "title": "订单ID",
-        "description": "订单唯一标识"
-      },
-      {
-        "name": "order_no",
-        "type": "TEXT",
-        "title": "订单号",
-        "description": "订单编号"
-      },
-      ...
-    ]
-  }
+  "commonComponentPath": "components",
+  "componentAuthor": "Frontend Team"
 }
 ```
 
-### 第五步：确认生成配置
+询问用户：
+1. **通用组件存放目录**（默认 `components`）
+2. **组件作者**（默认 `Frontend Team`）
+
+### 第三步：获取模型信息
+
+使用 `qm-schema-viewer` 技能获取模型 schema：
+
+**方式A：已知模型名称**
+- 用户直接提供 QM 模型名称
+- 调用 qm-schema-viewer 获取 schema
+
+**方式B：未知模型，基于列需求搜索**
+- 用户描述需要的列
+- 调用 qm-schema-viewer 搜索匹配的模型
+- 向用户展示候选模型列表
+
+### 第四步：确认生成配置
 
 向用户展示以下选项并确认：
 
@@ -145,10 +81,15 @@ GET {apiBaseUrl}/mcp/analyst/description-model-internal?model={modelName}&ns={na
    - 问题：请提供生成的组件名称（PascalCase，例如 `OrderQueryTable`）
    - 验证：不能与现有组件重名
 
-4. **组件描述**
-   - 问题：请提供组件的简短描述（用于文档）
+4. **组件描述**（用于文档）
 
-### 第六步：生成文件
+### 第五步：生成公共 API
+
+使用 `frontend-dsl-query` 技能检查/生成公共 DSL 查询 API：
+- 检查 `src/apis/common/dslQuery.ts` 是否存在
+- 如果不存在则生成
+
+### 第六步：生成组件文件
 
 根据用户确认的配置生成以下文件：
 
@@ -405,50 +346,38 @@ export interface OrderQueryRow {
 **路径**：`src/{commonComponentPath}/models/apis/{componentName}.api.ts`
 
 生成包含：
-- 后台查询接口的 TypeScript 封装
-- 请求/响应类型定义
-- 错误处理和数据转换逻辑
+- 基于公共 dslQuery 的业务封装
+- 类型定义（根据 schema 生成）
 
 示例结构：
 ```typescript
-import axios from 'axios'
-import type { SliceRequestDef } from 'foggy-data-viewer'
+import { query, type SliceRequestDef } from '@/apis/common/dslQuery'
+import type { OrderQueryRow } from '../schemas/{componentName}.schema'
 
-const API_BASE = process.env.VUE_APP_API_BASE || 'http://localhost:8080'
-
-export interface QueryRequest {
-  page: number
-  pageSize: number
+export interface QueryParams {
+  page?: number
+  pageSize?: number
   filters?: SliceRequestDef[]
-  sort?: { field: string; order: 'asc' | 'desc' }
 }
 
-export interface QueryResponse {
-  rows: any[]
+/**
+ * 查询订单数据
+ */
+export async function fetchOrderData(params: QueryParams): Promise<{
+  rows: OrderQueryRow[]
   total: number
-}
-
-export async function fetchOrderData(request: QueryRequest): Promise<QueryResponse> {
-  const response = await axios.get(`${API_BASE}/mcp/analyst/query-model/v2`, {
-    params: {
-      model: 'order_query_model',
-      page: request.page,
-      pageSize: request.pageSize,
-      slices: request.filters ? JSON.stringify(request.filters) : undefined,
-      sort: request.sort ? JSON.stringify(request.sort) : undefined
-    },
-    headers: {
-      'X-NS': 'default'
-    }
+}> {
+  const result = await query<OrderQueryRow>('OrderQueryModel', {
+    columns: ['orderId', 'orderNo', 'amount', 'status', 'createTime'],
+    filters: params.filters,
+    orderBy: ['-createTime'],
+    page: params.page || 1,
+    pageSize: params.pageSize || 50,
   })
 
-  if (response.data.code !== 200) {
-    throw new Error(response.data.msg)
-  }
-
   return {
-    rows: response.data.data?.rows || [],
-    total: response.data.data?.total || 0
+    rows: result.items,
+    total: result.total,
   }
 }
 ```
@@ -600,89 +529,7 @@ src/{commonComponentPath}/models/
 - 如果用户未指定显示列 → 默认显示所有列，但在文档中说明如何自定义
 - 如果组件路径不存在 → 自动创建必要的目录结构（models、schemas、apis）
 
-## 相关接口文档
+## 相关技能
 
-### SemanticController Endpoints
-
-#### 1. 模型搜索（metadata）
-```
-GET /mcp/analyst/metadata?q={keywords}&ns={namespace}
-
-HTTP Headers:
-- X-NS: {namespace}
-- Authorization: {authorization} (可选，如配置中有授权信息)
-
-响应：
-{
-  "code": 200,
-  "data": [
-    {
-      "model": "order_query_model",
-      "title": "订单查询模型",
-      "description": "...",
-      "fields": ["order_id", "order_no", "amount", ...]
-    },
-    ...
-  ]
-}
-```
-
-#### 2. 模型 Schema 获取（description-model-internal）
-```
-GET /mcp/analyst/description-model-internal?model={modelName}&ns={namespace}
-
-HTTP Headers:
-- X-NS: {namespace}
-- Authorization: {authorization} (可选，如配置中有授权信息)
-
-响应：
-{
-  "code": 200,
-  "data": {
-    "model": "order_query_model",
-    "fields": [
-      {
-        "name": "order_id",
-        "type": "INTEGER",
-        "title": "订单ID",
-        "description": "...",
-        "aggregatable": true,
-        "sortable": true
-      },
-      ...
-    ]
-  }
-}
-```
-
-#### 3. 数据查询（query-model/v2）
-```
-GET /mcp/analyst/query-model/v2?model={modelName}&page={page}&pageSize={pageSize}&slices={filters}&ns={namespace}
-
-HTTP Headers:
-- X-NS: {namespace}
-- Authorization: {authorization} (可选，如配置中有授权信息)
-
-请求体：
-{
-  "model": "order_query_model",
-  "page": 1,
-  "pageSize": 50,
-  "slices": [
-    {
-      "field": "status",
-      "op": "=",
-      "value": "completed"
-    }
-  ]
-}
-
-响应：
-{
-  "code": 200,
-  "data": {
-    "rows": [...],
-    "total": 1000
-  }
-}
-```
+- `qm-schema-viewer` - 获取模型 schema，包含 API 端点详细文档
+- `frontend-dsl-query` - 生成公共 DSL 查询 API，包含 DSL 语法参考
