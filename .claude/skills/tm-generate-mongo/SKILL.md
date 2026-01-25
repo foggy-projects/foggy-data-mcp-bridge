@@ -59,7 +59,28 @@ public class McpAuditLog {
 
 ## 输出要求
 
-生成遵循以下结构的完整 TM 文件：
+### 文件存放路径
+
+**默认路径**（用户未指定时）：
+```
+src/main/resources/foggy/templates/model/mongo/{模型名称}Model.tm
+```
+
+**目录结构说明**：
+```
+src/main/resources/foggy/templates/
+├── model/                    # TM 表模型目录
+│   ├── mongo/               # MongoDB 模型
+│   │   └── {Name}Model.tm
+│   └── jdbc/                # JDBC 模型（可选分类）
+│       └── {Name}Model.tm
+├── query/                   # QM 查询模型目录（后续）
+└── dicts.fsscript          # 字典定义
+```
+
+如果用户指定了其他路径，按用户指定的路径生成。
+
+### 文件内容结构
 
 ```javascript
 /**
@@ -90,7 +111,7 @@ export const model = {
 };
 ```
 
-文件名要求为 `{模型名称}Model.tm`，与 name 相同。
+**文件名**：`{模型名称}Model.tm`，与 `model.name` 相同。
 
 ## 类型映射规则
 
