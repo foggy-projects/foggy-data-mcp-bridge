@@ -1,6 +1,6 @@
 {
   "name": "foggy-data-viewer",
-  "version": "1.0.0",
+  "version": "1.0.1-beta.0",
   "description": "A Vue 3 data table component with advanced features",
   "author": "Foggy Framework",
   "license": "Apache-2.0",
@@ -28,7 +28,12 @@
     "preview": "vite preview",
     "test": "vitest",
     "test:ui": "vitest --ui",
-    "test:coverage": "vitest --coverage"
+    "test:coverage": "vitest --coverage",
+    "prepublishOnly": "npm test && npm run build",
+    "release:beta": "npm version prerelease --preid=beta && npm publish --tag beta --access public",
+    "release:patch": "npm version patch && npm publish --access public",
+    "release:minor": "npm version minor && npm publish --access public",
+    "release:major": "npm version major && npm publish --access public"
   },
   "dependencies": {
     "axios": "^1.6.0",
