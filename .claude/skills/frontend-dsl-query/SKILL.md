@@ -10,38 +10,47 @@ description: 引导前端开发使用 DSL 直接查询数据。生成公共查�
 ## 使用场景
 
 当用户需要以下操作时使用：
-- 在前端直接查询语义层数据
-- 生成通用的 DSL 查询工具函数
 - 根据业务需求封装查询 API（如 `getUserById`、`getOrderList`）
 - 了解 DSL 查询语法和使用方式
+
+## 前置条件
+
+使用本技能前，请确保已运行 `foggy-frontend-init` 完成环境初始化：
+- 已安装 `foggy-data-viewer@beta` 和 `axios`
+- 已创建 `.claude/config/semantic-api.config.json`
+- 已生成 `src/apis/common/dslQuery.ts`
+
+如果环境未就绪，请先运行 `/foggy-frontend-init`。
 
 ## 生成的文件结构
 
 ```
-src/
-├── apis/
-│   ├── common/
-│   │   └── dslQuery.ts       # 公共 DSL 查询 API（固定位置，只生成一次）
-│   └── query/                # 业务封装 API 目录（可根据项目规范调整）
-│       ├── userQuery.ts      # 用户相关查询
-│       └── orderQuery.ts     # 订单相关查询
+src/apis/
+├── common/
+│   └── dslQuery.ts       # 公共 DSL 查询 API（由 foggy-frontend-init 生成）
+└── query/                # 业务封装 API 目录（本技能生成）
+    ├── userQuery.ts      # 用户相关查询
+    └── orderQuery.ts     # 订单相关查询
 ```
 
 ## 执行流程
 
-### 第一步：检查项目结构
+### 第一步：检查环境
 
-1. 检查 `src/apis` 目录是否存在，确定 API 目录位置
+快速检查（不安装，仅验证）：
+- 检查 `src/apis/common/dslQuery.ts` 是否存在
+- 检查 `.claude/config/semantic-api.config.json` 是否存在
+
+**如果缺失** → 提示用户先运行 `/foggy-frontend-init`
+
+### 第二步：确定 API 目录
+
+1. 默认使用 `src/apis/query/`
 2. 如果项目使用其他目录结构（如 `src/services`、`src/api`），询问用户确认
-3. 读取配置文件 `.claude/config/semantic-api.config.json`（如无则使用 qm-schema-viewer 技能创建）
 
-### 第二步：生成公共 DSL 查询 API
+## 公共 API 参考
 
-检查 `src/apis/common/dslQuery.ts` 是否存在：
-- **已存在** → 跳过，不重复生成
-- **不存在** → 生成公共 API
-
-#### 公共 API 代码模板
+公共 API 由 `foggy-frontend-init` 生成，位于 `src/apis/common/dslQuery.ts`：
 
 ```typescript
 // src/apis/common/dslQuery.ts
@@ -358,6 +367,7 @@ const result = await dslQuery('UserQueryModel', {
 ## 依赖技能
 
 - `qm-schema-viewer` - 获取模型 schema 信息
+- `dsl-syntax-guide` - DSL 查询语法参考
 
 ## 配置文件
 
