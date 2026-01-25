@@ -21,15 +21,33 @@ description: 自动生成基于 foggy-data-viewer 的 Vue 业务组件。根据 
 - `qm-schema-viewer` - 获取 QM 模型 schema 信息
 - `frontend-dsl-query` - 生成公共 DSL 查询 API
 
+## 前置条件
+
+使用本技能前，请确保已运行 `foggy-frontend-init` 完成环境初始化：
+- 已安装 `foggy-data-viewer@beta` 和 `axios`
+- 已创建 `.claude/config/semantic-api.config.json`
+- 已生成 `src/apis/common/dslQuery.ts`
+
+如果环境未就绪，请先运行 `/foggy-frontend-init`。
+
 ## 执行流程
 
-### 第一步：读取或创建配置文件
+### 第一步：检查环境
 
-1. 检查通用配置：`.claude/config/semantic-api.config.json`（与 qm-schema-viewer 共用）
-2. 检查组件生成器专用配置：`.claude/config/component-generator.config.json`
-3. 如果不存在，执行**配置交互流程**
+快速检查（不安装，仅验证）：
+- 检查 `package.json` 中是否有 `foggy-data-viewer`
+- 检查 `src/apis/common/dslQuery.ts` 是否存在
+- 检查 `.claude/config/semantic-api.config.json` 是否存在
 
-### 第二步：配置交互流程（仅当配置不存在时）
+**如果缺失** → 提示用户先运行 `/foggy-frontend-init`
+
+### 第二步：读取配置文件
+
+1. 读取通用配置：`.claude/config/semantic-api.config.json`
+2. 读取组件生成器专用配置：`.claude/config/component-generator.config.json`
+3. 如果组件配置不存在，询问用户（见下方）
+
+### 第三步：配置交互流程（仅当组件配置不存在时）
 
 **通用配置** `.claude/config/semantic-api.config.json`（与其他技能共用）：
 ```json
@@ -52,7 +70,7 @@ description: 自动生成基于 foggy-data-viewer 的 Vue 业务组件。根据 
 1. **通用组件存放目录**（默认 `components`）
 2. **组件作者**（默认 `Frontend Team`）
 
-### 第三步：获取模型信息
+### 第四步：获取模型信息
 
 使用 `qm-schema-viewer` 技能获取模型 schema：
 
@@ -65,7 +83,7 @@ description: 自动生成基于 foggy-data-viewer 的 Vue 业务组件。根据 
 - 调用 qm-schema-viewer 搜索匹配的模型
 - 向用户展示候选模型列表
 
-### 第四步：确认生成配置
+### 第五步：确认生成配置
 
 向用户展示以下选项并确认：
 
@@ -82,12 +100,6 @@ description: 自动生成基于 foggy-data-viewer 的 Vue 业务组件。根据 
    - 验证：不能与现有组件重名
 
 4. **组件描述**（用于文档）
-
-### 第五步：生成公共 API
-
-使用 `frontend-dsl-query` 技能检查/生成公共 DSL 查询 API：
-- 检查 `src/apis/common/dslQuery.ts` 是否存在
-- 如果不存在则生成
 
 ### 第六步：生成组件文件
 
