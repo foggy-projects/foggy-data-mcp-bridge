@@ -226,6 +226,8 @@
 
 ## 响应格式
 
+### 标准响应
+
 ```json
 {
   "success": true,
@@ -236,9 +238,99 @@
     ],
     "total": 156,
     "start": 0,
-    "limit": 10
+    "limit": 10,
+    "pagination": {
+      "start": 0,
+      "limit": 10,
+      "returned": 10,
+      "totalCount": 156,
+      "hasMore": true,
+      "rangeDescription": "显示第 1-10 条，共 156 条"
+    }
   }
 }
+```
+
+### 大数据自动截断
+
+当 MCP 查询返回的数据量过大时（单元格数超过阈值），系统会**自动截断结果**并提供完整数据的访问链接，避免大量数据占用 LLM 的上下文窗口。
+
+#### 触发条件
+
+- 查询来源：仅对 MCP 工具调用生效
+- 数据量阈值：**单元格数（行数 × 列数）超过 10000**（可配置）
+- 截断行数：保留前 **100 行**返回给 LLM（可配置）
+
+#### 截断响应格式
+
+```json
+{
+  "success": true,
+  "data": {
+    "items": [
+      // ... 截断后的 100 行数据
+    ],
+    "total": 50000,
+    "truncationInfo": {
+      "truncated": true,
+      "originalRowCount": 50000,
+      "truncatedRowCount": 100,
+      "columnCount": 15,
+      "cellCount": 750000,
+      "message": "数据量较大（50000 行 × 15 列 = 750000 单元格），已自动截断为 100 行。",
+      "viewerUrl": "http://localhost:8080/data-viewer/view/abc123def456",
+      "apiUrl": "http://localhost:8080/data-viewer/api/query/abc123def456/data",
+      "hint": "您可以访问上述链接查看完整数据,或通过 API 分页获取（参数：start, limit）"
+    }
+  }
+}
+```
+
+#### 字段说明
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `truncated` | boolean | 是否发生了截断 |
+| `originalRowCount` | number | 原始数据行数 |
+| `truncatedRowCount` | number | 截断后保留的行数 |
+| `columnCount` | number | 列数 |
+| `cellCount` | number | 总单元格数 |
+| `message` | string | 截断说明信息 |
+| `viewerUrl` | string | 完整数据的浏览器查看链接 |
+| `apiUrl` | string | 完整数据的 API 查询链接 |
+| `hint` | string | 使用提示 |
+
+#### LLM 处理建议
+
+当检测到 `truncationInfo.truncated = true` 时，LLM 应该：
+
+1. **告知用户数据被截断**：解释原因（数据量过大）
+2. **展示样本数据**：使用截断后的 100 行作为样本
+3. **提供访问链接**：引导用户通过链接查看完整数据
+4. **说明分页选项**：如需编程访问，可使用 API 分页获取
+
+示例回复：
+
+> 查询返回了 50,000 行数据（共 750,000 个单元格），数据量较大。我这里展示前 100 行样本数据供您参考：
+>
+> [展示表格...]
+>
+> 完整数据请访问：[数据浏览器](http://localhost:8080/data-viewer/view/abc123def456)
+>
+> 如需通过 API 分页获取，可使用：`/data-viewer/api/query/abc123def456/data?start=0&limit=100`
+
+#### 配置阈值
+
+在 `application.yml` 中调整截断参数：
+
+```yaml
+foggy:
+  data-viewer:
+    thresholds:
+      # 单元格阈值（行 × 列）
+      cell-threshold-for-truncation: 10000
+      # 截断后保留的行数
+      truncated-row-limit: 100
 ```
 
 ## 最佳实践

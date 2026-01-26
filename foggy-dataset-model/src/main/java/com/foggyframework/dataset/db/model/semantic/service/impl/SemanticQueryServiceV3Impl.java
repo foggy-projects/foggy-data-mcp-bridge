@@ -121,6 +121,11 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         resultContext.setSecurityContext(securityContext);
         resultContext.setNamespace(namespace);
 
+        // 将请求中的 hints 传递到 extData（用于 DataSetResultStep 插件）
+        if (request.getHints() != null && !request.getHints().isEmpty()) {
+            resultContext.setExtData(new HashMap<>(request.getHints()));
+        }
+
         // 5. 使用 QueryFacade 执行完整查询生命周期（beforeQuery -> query -> process）
         DbQueryResult dbQueryResult = queryFacade.queryModelResult(resultContext);
         PagingResultImpl queryResult = resultContext.getPagingResult();
@@ -369,6 +374,13 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
 
         // 构建 Schema 信息（包含 summary）
         response.setSchema(buildSchemaInfo(queryModel, request, queryResult));
+
+        // 设置数据截断信息（如果存在）
+        if (context.extData != null && context.extData.containsKey("truncationInfo")) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> truncationInfo = (Map<String, Object>) context.extData.get("truncationInfo");
+            response.setTruncationInfo(truncationInfo);
+        }
 
         return response;
     }

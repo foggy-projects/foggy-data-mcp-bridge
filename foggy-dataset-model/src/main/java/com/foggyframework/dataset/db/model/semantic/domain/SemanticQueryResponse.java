@@ -42,6 +42,9 @@ public class SemanticQueryResponse {
     @ApiModelProperty(value = "调试信息")
     private DebugInfo debug;
 
+    @ApiModelProperty(value = "数据截断信息（仅在 MCP 查询且数据量过大时返回）")
+    private Map<String, Object> truncationInfo;
+
     /**
      * 分页信息
      */

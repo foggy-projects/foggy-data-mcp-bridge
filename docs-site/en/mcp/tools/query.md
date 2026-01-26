@@ -172,6 +172,8 @@
 
 ## Response Format
 
+### Standard Response
+
 ```json
 {
   "success": true,
@@ -181,10 +183,100 @@
       {"customer$caption": "Customer B", "total": 89000, "orderCount": 32}
     ],
     "total": 150,
-    "pageSize": 10,
-    "page": 1
+    "start": 0,
+    "limit": 10,
+    "pagination": {
+      "start": 0,
+      "limit": 10,
+      "returned": 10,
+      "totalCount": 150,
+      "hasMore": true,
+      "rangeDescription": "Showing 1-10 of 150 records"
+    }
   }
 }
+```
+
+### Large Data Auto-Truncation
+
+When an MCP query returns excessive data (cells exceed threshold), the system **automatically truncates the result** and provides access links to the complete data, preventing large datasets from consuming the LLM's context window.
+
+#### Trigger Conditions
+
+- Query Source: Only applies to MCP tool calls
+- Data Threshold: **Cell count (rows × columns) exceeds 10,000** (configurable)
+- Truncation Limit: Returns first **100 rows** to LLM (configurable)
+
+#### Truncated Response Format
+
+```json
+{
+  "success": true,
+  "data": {
+    "items": [
+      // ... truncated to 100 rows
+    ],
+    "total": 50000,
+    "truncationInfo": {
+      "truncated": true,
+      "originalRowCount": 50000,
+      "truncatedRowCount": 100,
+      "columnCount": 15,
+      "cellCount": 750000,
+      "message": "Large dataset (50000 rows × 15 columns = 750000 cells) has been truncated to 100 rows.",
+      "viewerUrl": "http://localhost:8080/data-viewer/view/abc123def456",
+      "apiUrl": "http://localhost:8080/data-viewer/api/query/abc123def456/data",
+      "hint": "You can access the complete data via the links above, or use API pagination (params: start, limit)"
+    }
+  }
+}
+```
+
+#### Field Descriptions
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `truncated` | boolean | Whether data was truncated |
+| `originalRowCount` | number | Original row count |
+| `truncatedRowCount` | number | Rows kept after truncation |
+| `columnCount` | number | Number of columns |
+| `cellCount` | number | Total cell count |
+| `message` | string | Truncation explanation |
+| `viewerUrl` | string | Browser link to view complete data |
+| `apiUrl` | string | API endpoint for complete data |
+| `hint` | string | Usage instructions |
+
+#### LLM Handling Guidelines
+
+When `truncationInfo.truncated = true` is detected, the LLM should:
+
+1. **Inform the user** about data truncation and the reason (large dataset)
+2. **Show sample data**: Use the truncated 100 rows as a sample
+3. **Provide access links**: Guide users to view complete data via links
+4. **Explain pagination**: For programmatic access, mention API pagination
+
+Example response:
+
+> The query returned 50,000 rows (750,000 cells total), which is quite large. Here's a sample of the first 100 rows:
+>
+> [Display table...]
+>
+> To view the complete data, please visit: [Data Viewer](http://localhost:8080/data-viewer/view/abc123def456)
+>
+> For API pagination, use: `/data-viewer/api/query/abc123def456/data?start=0&limit=100`
+
+#### Configuration
+
+Adjust truncation parameters in `application.yml`:
+
+```yaml
+foggy:
+  data-viewer:
+    thresholds:
+      # Cell threshold (rows × columns)
+      cell-threshold-for-truncation: 10000
+      # Rows to keep after truncation
+      truncated-row-limit: 100
 ```
 
 ## Notes
