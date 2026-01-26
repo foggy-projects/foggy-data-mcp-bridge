@@ -400,9 +400,9 @@ const tableColumns = computed<VxeGridProps['columns']>(() => {
 
   // checkbox 列
   const checkboxColumn = {
-    type: 'checkbox',
+    type: 'checkbox' as const,
     width: 50,
-    fixed: 'left'
+    fixed: 'left' as const
   }
 
   const dataColumns = props.columns.map(col => {

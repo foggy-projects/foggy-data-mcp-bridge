@@ -74,9 +74,9 @@ export function buildTableColumns(
   // 确定要显示的列及顺序
   // 如果 visibleColumns 为空数组或未定义，且 showAll 未设置，则默认显示所有列
   const shouldShowAll = config.showAll || !config.visibleColumns || config.visibleColumns.length === 0
-  const columnNames = shouldShowAll
+  const columnNames: string[] = shouldShowAll
     ? qmSchema.map(s => s.name)
-    : config.visibleColumns
+    : config.visibleColumns!
 
   return columnNames
     .map(name => {
@@ -91,7 +91,7 @@ export function buildTableColumns(
       // 自动计算列宽度：如果 width 未定义或为 0，使用 calculateColumnWidth 自动计算
       const width = custom?.width || schema.width || calculateColumnWidth(schema.title || schema.name, schema.type)
 
-      return {
+      const result: EnhancedColumnSchema = {
         ...schema,
         width,
         minWidth: custom?.minWidth ?? 120,
@@ -101,6 +101,7 @@ export function buildTableColumns(
         customFilterComponent: custom?.filterComponent,
         customFormatter: custom?.formatter
       }
+      return result
     })
     .filter((col): col is EnhancedColumnSchema => col !== null)
 }
