@@ -36,10 +36,38 @@ description: 自动生成基于 foggy-data-viewer 的 Vue 业务组件。根据 
 
 快速检查（不安装，仅验证）：
 - 检查 `package.json` 中是否有 `foggy-data-viewer`
+- 检查 `package.json` 中是否有 `vxe-table`、`vxe-pc-ui`、`xe-utils`
 - 检查 `src/apis/common/dslQuery.ts` 是否存在
+- ⭐ **检查 `src/main.js` 或 `src/main.ts` 是否包含 VXETable 注册** ⬅️ 关键检查
 - 检查 `.claude/config/semantic-api.config.json` 是否存在
 
-**如果缺失** → 提示用户先运行 `/foggy-frontend-init`
+**检查 VXETable 配置**：
+
+读取 `src/main.js` 或 `src/main.ts`，验证是否包含以下三项：
+1. `import VXETable from 'vxe-table'`
+2. `import 'foggy-data-viewer/style.css'`
+3. `app.use(VXETable)`
+
+**如果基础环境缺失** → 提示用户先运行 `/foggy-frontend-init`
+
+**如果 VXETable 未注册** → 显示警告并提供配置代码：
+
+```
+⚠️ 警告：检测到 VXETable 未全局注册
+
+foggy-data-viewer 依赖 VXETable 表格引擎，必须在 main.js 中注册，否则生成的表格组件无法显示。
+
+请在 src/main.js 中添加以下代码：
+
+import VXETable from 'vxe-table'
+import 'foggy-data-viewer/style.css'
+
+app.use(VXETable)
+
+或运行 /foggy-frontend-init 自动完成配置。
+
+是否继续生成组件？[y/N]
+```
 
 ### 第二步：读取配置文件
 
@@ -589,3 +617,107 @@ src/{commonComponentPath}/models/
 
 - `qm-schema-viewer` - 获取模型 schema，包含 API 端点详细文档
 - `frontend-dsl-query` - 生成公共 DSL 查询 API，包含 DSL 语法参考
+
+## ⚠️ 常见问题
+
+### Q1: 生成的表格组件不显示，但 API 返回数据正常，控制台无报错？
+
+**原因**: VXETable 未全局注册或样式未导入。
+
+**解决方法**:
+
+检查 `src/main.js` 是否包含：
+
+```javascript
+import VXETable from 'vxe-table'
+import 'foggy-data-viewer/style.css'
+
+app.use(VXETable)
+```
+
+如果缺失，请运行 `/foggy-frontend-init` 自动配置，或手动添加上述代码并重启开发服务器。
+
+---
+
+### Q2: 提示 "Cannot find module 'vxe-table'"？
+
+**原因**: 缺少必需依赖包。
+
+**解决方法**:
+
+```bash
+npm install vxe-table vxe-pc-ui xe-utils
+```
+
+或运行 `/foggy-frontend-init` 自动安装所有依赖。
+
+---
+
+### Q3: 表格样式错乱或显示不正常？
+
+**原因**: 缺少样式文件导入。
+
+**解决方法**:
+
+确保 `src/main.js` 中包含：
+
+```javascript
+import 'foggy-data-viewer/style.css'
+```
+
+---
+
+### Q4: API 请求返回 404 错误？
+
+**原因**: API 端点配置错误或后端服务未启动。
+
+**解决方法**:
+
+1. 检查 `.claude/config/semantic-api.config.json` 中的 `apiBaseUrl` 是否正确
+2. 确认后端服务已启动（默认端口 8080）
+3. 检查 Vite 代理配置是否正确：
+
+```javascript
+// vite.config.js
+server: {
+  proxy: {
+    '/jdbc-model': {
+      target: 'http://localhost:8080',
+      changeOrigin: true
+    }
+  }
+}
+```
+
+---
+
+### Q5: 如何修改生成的组件显示的列？
+
+**解决方法**:
+
+编辑 `src/{commonComponentPath}/models/schemas/{componentName}.schema.ts` 文件：
+
+```typescript
+// 添加、删除或修改列配置
+export const columns: EnhancedColumnSchema[] = [
+  {
+    name: 'order_id',
+    type: 'INTEGER',
+    title: '订单ID',
+    width: 100,
+    fixed: 'left'
+  },
+  // ... 其他列
+]
+```
+
+---
+
+### Q6: 组件生成失败，提示无法连接到 API？
+
+**解决方法**:
+
+1. 检查后端服务是否启动
+2. 检查 API 地址配置是否正确
+3. 检查网络连接
+4. 确认命名空间（namespace）配置是否与后端一致

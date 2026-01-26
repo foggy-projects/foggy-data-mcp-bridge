@@ -203,7 +203,92 @@ export async function query<T = any>(
 }
 ```
 
-### 第六步：添加环境变量模板（可选）
+### 第六步：配置应用入口文件（⚠️ 必需）
+
+**重要提示**: foggy-data-viewer 底层依赖 VXETable 表格引擎，必须在应用启动时全局注册，否则表格组件无法显示。
+
+检查并配置 `src/main.js` 或 `src/main.ts`：
+
+#### 检测步骤
+
+1. 读取 `src/main.js` 或 `src/main.ts`
+2. 检查是否包含以下关键配置：
+   - `import VXETable from 'vxe-table'`
+   - `import 'foggy-data-viewer/style.css'`
+   - `app.use(VXETable)`
+
+#### 如果缺失配置，询问用户是否自动添加
+
+**检测结果示例**:
+```
+⚠️ 检测到缺少 VXETable 配置
+
+foggy-data-viewer 依赖 VXETable 作为底层表格引擎，需要在应用启动时全局注册。
+
+当前缺失：
+- ❌ 未导入 VXETable
+- ❌ 未导入 foggy-data-viewer 样式
+- ❌ 未注册 VXETable 插件
+
+建议操作：
+是否自动修改 src/main.js 添加必要配置？[Y/n]
+```
+
+#### Vue 3 + Vite 项目配置模板
+
+```javascript
+import { createApp } from 'vue'
+import ElementPlus from 'element-plus'
+import 'element-plus/dist/index.css'
+import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
+import VXETable from 'vxe-table'                    // ⬅️ 必需
+import 'foggy-data-viewer/style.css'                // ⬅️ 必需
+import App from './App.vue'
+import router from './router'
+
+const app = createApp(App)
+
+// 必需：注册 VXETable（foggy-data-viewer 的底层表格引擎）
+app.use(VXETable)                                   // ⬅️ 必需
+
+app.use(ElementPlus, { locale: zhCn })
+app.use(router)
+app.mount('#app')
+```
+
+#### 必需的依赖包
+
+确保 `package.json` 中包含以下依赖：
+
+```json
+{
+  "dependencies": {
+    "vue": "^3.4.0",
+    "element-plus": "^2.4.0",
+    "foggy-data-viewer": "^1.0.1-beta.0",
+    "vxe-table": "^4.7.0",                          // ⬅️ 必需
+    "vxe-pc-ui": "^4.2.0",                          // ⬅️ 必需
+    "xe-utils": "^3.5.0",                           // ⬅️ 必需
+    "axios": "^1.6.0"
+  }
+}
+```
+
+**如果缺少依赖，自动安装**:
+```bash
+npm install vxe-table vxe-pc-ui xe-utils
+```
+
+#### 配置说明
+
+| 配置项 | 说明 | 是否必需 |
+|-------|------|---------|
+| `import VXETable from 'vxe-table'` | 导入 VXETable | ✅ 必需 |
+| `import 'foggy-data-viewer/style.css'` | 导入组件样式 | ✅ 必需 |
+| `app.use(VXETable)` | 全局注册 VXETable | ✅ 必需 |
+| `locale: zhCn` | Element Plus 中文语言包 | 推荐 |
+
+### 第七步：添加环境变量模板（可选）
 
 如果项目使用 Vite，建议在 `.env.example` 中添加：
 
@@ -213,18 +298,26 @@ VITE_API_BASE_URL=http://localhost:7108
 VITE_NAMESPACE=default
 ```
 
-### 第七步：输出总结
+### 第八步：输出总结
 
 ```
 ✅ Foggy 前端环境初始化完成！
 
 📦 已安装依赖：
   - foggy-data-viewer@beta
+  - vxe-table（表格引擎）
+  - vxe-pc-ui、xe-utils
   - axios
 
-📁 已创建文件：
+📁 已创建/修改文件：
   - .claude/config/semantic-api.config.json
   - src/apis/common/dslQuery.ts
+  - src/main.js（已配置 VXETable）
+
+✅ 已完成配置：
+  - VXETable 全局注册
+  - foggy-data-viewer 样式导入
+  - Element Plus 中文语言包
 
 🚀 下一步：
   1. 使用 /frontend-dsl-query 生成业务查询 API
@@ -268,3 +361,75 @@ VITE_NAMESPACE=default
 - `frontend-dsl-query` - 生成业务查询 API
 - `frontend-component-generator` - 生成数据表格组件
 - `qm-schema-viewer` - 查看模型 schema
+
+## ⚠️ 常见问题
+
+### Q1: 表格不显示，但 API 返回数据正常，控制台无报错？
+
+**原因**: VXETable 未全局注册或样式未导入。
+
+**解决方法**:
+
+检查 `src/main.js` 是否包含：
+
+```javascript
+import VXETable from 'vxe-table'
+import 'foggy-data-viewer/style.css'
+
+app.use(VXETable)
+```
+
+如果缺失，请添加上述代码并重启开发服务器。
+
+---
+
+### Q2: 提示 "Cannot find module 'vxe-table'"？
+
+**原因**: 缺少必需依赖包。
+
+**解决方法**:
+
+```bash
+npm install vxe-table vxe-pc-ui xe-utils
+```
+
+---
+
+### Q3: 表格样式错乱或显示不正常？
+
+**原因**: 缺少样式文件导入。
+
+**解决方法**:
+
+确保 `src/main.js` 中包含：
+
+```javascript
+import 'foggy-data-viewer/style.css'
+```
+
+---
+
+### Q4: Element Plus 组件显示英文？
+
+**原因**: 未配置中文语言包。
+
+**解决方法**:
+
+```javascript
+import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
+
+app.use(ElementPlus, { locale: zhCn })
+```
+
+---
+
+### Q5: 初始化后启动项目报错？
+
+**原因**: 可能是依赖版本冲突或 Node.js 版本过低。
+
+**解决方法**:
+
+1. 确保 Node.js 版本 >= 16
+2. 删除 `node_modules` 和 `package-lock.json`
+3. 重新安装：`npm install`
+4. 如仍有问题，检查控制台具体错误信息
