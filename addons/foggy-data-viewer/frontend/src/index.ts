@@ -15,7 +15,7 @@ export * from './components/filters'
 export * from './components/composables'
 
 // 导出工具函数
-export { buildTableColumns } from './utils/schemaHelper'
+export { buildTableColumns, calculateColumnWidth } from './utils/schemaHelper'
 
 // 导出类型定义
 export type {
