@@ -1,9 +1,17 @@
 <script setup lang="ts">
-import { ref, computed, watch, provide, h } from 'vue'
+import { ref, computed, watch, provide, h, useAttrs } from 'vue'
 import type { VxeGridInstance, VxeGridProps, VxeGridListeners } from 'vxe-table'
 import type { EnhancedColumnSchema, PaginationState, SortState, SliceRequestDef, FilterOption } from '@/types'
 import { TextFilter, NumberRangeFilter, DateRangeFilter, SelectFilter, BoolFilter } from './filters'
 import { useTableSelection, useTableSummary } from './composables'
+
+// 禁用自动继承属性，手动控制透传到 vxe-grid
+defineOptions({
+  inheritAttrs: false
+})
+
+// 获取透传的属性和事件（用于传递给 vxe-grid）
+const attrs = useAttrs()
 
 /**
  * DataTable 组件属性
@@ -14,6 +22,7 @@ import { useTableSelection, useTableSummary } from './composables'
  * - 自定义过滤器
  * - 多种插槽扩展点
  * - DSL 格式的过滤条件
+ * - 透传 vxe-table 的所有属性和事件
  */
 interface Props {
   /** 列配置（增强的列配置，包含前端定制） */
@@ -473,68 +482,113 @@ function renderFilterComponent(col: EnhancedColumnSchema) {
   return h(FilterComponent, filterProps)
 }
 
-// Grid 配置
-const gridOptions = computed<VxeGridProps>(() => ({
-  border: true,
-  stripe: true,
-  showOverflow: true,
-  height: 'auto',
-  loading: props.loading,
-  columnConfig: {
-    resizable: true
-  },
-  rowConfig: {
-    isHover: true
-  },
-  // checkbox 配置
-  checkboxConfig: {
-    highlight: true,
-    trigger: 'cell'
-  },
-  // footer 配置
-  showFooter: true,
-  footerData: footerData.value,
-  // 表头行高需要容纳过滤器
-  headerRowClassName: props.showFilters ? 'header-with-filter' : '',
-  pagerConfig: {
-    enabled: true,
-    currentPage: pagination.value.currentPage,
-    pageSize: pagination.value.pageSize,
-    total: pagination.value.total,
-    pageSizes: [20, 50, 100, 200],
-    layouts: ['PrevPage', 'JumpNumber', 'NextPage', 'Sizes', 'FullJump', 'Total']
-  },
-  // 禁用 vxe-table 内置排序，我们自己处理
-  sortConfig: {
-    remote: true
-  },
-  columns: tableColumns.value,
-  data: props.data
-}))
+// Grid 配置（合并默认配置和用户传入的属性）
+const gridOptions = computed<VxeGridProps>(() => {
+  // 提取事件监听器（on 开头的属性）
+  const userProps = Object.keys(attrs)
+    .filter(key => !key.startsWith('on'))
+    .reduce((acc, key) => ({ ...acc, [key]: attrs[key] }), {})
 
-// 事件处理
-const gridEvents: VxeGridListeners = {
-  pageChange: ({ currentPage, pageSize }) => {
-    pagination.value.currentPage = currentPage
-    pagination.value.pageSize = pageSize
-    emit('page-change', currentPage, pageSize)
-  },
-  cellClick: ({ row, column }) => {
-    const col = props.columns.find(c => c.name === column.field)
-    if (col) {
-      emit('row-click', row, col)
+  // 默认配置
+  const defaultOptions: VxeGridProps = {
+    border: true,
+    stripe: true,
+    showOverflow: true,
+    height: 'auto',
+    loading: props.loading,
+    columnConfig: {
+      resizable: true
+    },
+    rowConfig: {
+      isHover: true
+    },
+    // checkbox 配置
+    checkboxConfig: {
+      highlight: true,
+      trigger: 'cell'
+    },
+    // footer 配置
+    showFooter: true,
+    footerData: footerData.value,
+    // 表头行高需要容纳过滤器
+    headerRowClassName: props.showFilters ? 'header-with-filter' : '',
+    pagerConfig: {
+      enabled: true,
+      currentPage: pagination.value.currentPage,
+      pageSize: pagination.value.pageSize,
+      total: pagination.value.total,
+      pageSizes: [20, 50, 100, 200],
+      layouts: ['PrevPage', 'JumpNumber', 'NextPage', 'Sizes', 'FullJump', 'Total']
+    },
+    // 禁用 vxe-table 内置排序，我们自己处理
+    sortConfig: {
+      remote: true
+    },
+    columns: tableColumns.value,
+    data: props.data
+  }
+
+  // 合并：用户传入的属性覆盖默认值
+  return { ...defaultOptions, ...userProps }
+})
+
+// 事件处理（合并默认事件和用户传入的事件）
+const gridEvents = computed<VxeGridListeners>(() => {
+  // 提取用户传入的事件监听器（on 开头的属性，转换为驼峰）
+  const userEvents: Record<string, Function> = {}
+  Object.keys(attrs).forEach(key => {
+    if (key.startsWith('on')) {
+      // onPageChange -> pageChange
+      const eventName = key.slice(2, 3).toLowerCase() + key.slice(3)
+      userEvents[eventName] = attrs[key] as Function
     }
-  },
-  cellDblclick: ({ row, column }) => {
-    const col = props.columns.find(c => c.name === column.field)
-    if (col) {
-      emit('row-dblclick', row, col)
+  })
+
+  // 创建事件包装函数：先执行默认逻辑，再执行用户监听器
+  const wrapEvent = (defaultHandler: Function, eventName: string) => {
+    return (...args: any[]) => {
+      // 先执行默认逻辑
+      defaultHandler(...args)
+      // 再执行用户传入的监听器
+      if (userEvents[eventName]) {
+        userEvents[eventName](...args)
+      }
     }
-  },
-  // checkbox 事件
-  checkboxChange: onCheckboxChange,
-  checkboxAll: onCheckboxAll
-}
+  }
+
+  // 默认事件处理器
+  const defaultEvents: VxeGridListeners = {
+    pageChange: wrapEvent(({ currentPage, pageSize }) => {
+      pagination.value.currentPage = currentPage
+      pagination.value.pageSize = pageSize
+      emit('page-change', currentPage, pageSize)
+    }, 'pageChange'),
+    cellClick: wrapEvent(({ row, column }) => {
+      const col = props.columns.find(c => c.name === column.field)
+      if (col) {
+        emit('row-click', row, col)
+      }
+    }, 'cellClick'),
+    cellDblclick: wrapEvent(({ row, column }) => {
+      const col = props.columns.find(c => c.name === column.field)
+      if (col) {
+        emit('row-dblclick', row, col)
+      }
+    }, 'cellDblclick'),
+    checkboxChange: wrapEvent(onCheckboxChange, 'checkboxChange'),
+    checkboxAll: wrapEvent(onCheckboxAll, 'checkboxAll')
+  }
+
+  // 合并：添加用户定义但我们没有默认处理的事件
+  const mergedEvents = { ...defaultEvents }
+  Object.keys(userEvents).forEach(eventName => {
+    if (!mergedEvents[eventName as keyof VxeGridListeners]) {
+      mergedEvents[eventName as keyof VxeGridListeners] = userEvents[eventName] as any
+    }
+  })
+
+  return mergedEvents
+})
 
 // 重置分页
 function resetPagination() {
@@ -633,6 +687,7 @@ provide('dataTableContext', {
   flex-direction: column;
   width: 100%;
   padding: 4px 0;
+  min-height: 60px;
 }
 
 .column-title {
@@ -642,6 +697,8 @@ provide('dataTableContext', {
   margin-bottom: 6px;
   cursor: pointer;
   user-select: none;
+  line-height: 1.2;
+  min-height: 18px;
 }
 
 .column-title:hover {
@@ -653,22 +710,28 @@ provide('dataTableContext', {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-size: 13px;
 }
 
 .sort-icon {
   flex-shrink: 0;
-  font-size: 12px;
+  font-size: 11px;
   color: #c0c4cc;
-  margin-left: 4px;
+  margin-left: 2px;
+  width: 12px;
+  text-align: center;
 }
 
 .sort-icon.sort-asc,
 .sort-icon.sort-desc {
   color: #409eff;
+  font-weight: bold;
 }
 
 .column-filter {
   width: 100%;
+  min-height: 26px;
+  overflow: visible;
 }
 
 /* 过滤器组件通用样式 */

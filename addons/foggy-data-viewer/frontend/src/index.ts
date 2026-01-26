@@ -1,6 +1,12 @@
+// 统一引入所有依赖样式（用户只需引入一次）
+import 'vxe-table/lib/style.css'
+import 'element-plus/dist/index.css'
+
 // 导出组件
 export { default as DataTable } from './components/DataTable.vue'
 export { default as DataViewer } from './components/DataViewer.vue'
+export { default as SearchToolbar } from './components/SearchToolbar.vue'
+export { default as DataTableWithSearch } from './components/DataTableWithSearch.vue'
 
 // 导出过滤器组件
 export * from './components/filters'
@@ -17,7 +23,10 @@ export type {
   EnhancedColumnSchema,
   TableConfig,
   ColumnCustomization,
-  QueryMeta,
-  ViewerConfig,
-  SliceCondition
+  QueryMetaResponse,
+  ViewerQueryRequest,
+  ViewerDataResponse,
+  SliceRequestDef,
+  OrderRequestDef,
+  FilterOption
 } from './types'

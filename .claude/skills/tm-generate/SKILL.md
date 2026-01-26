@@ -90,7 +90,29 @@ Prompt: 提取表结构信息，包括列名、类型、主键、外键和 TM �
 
 ## 输出要求
 
-生成遵循以下结构的完整 TM 文件：
+### 文件存放路径
+
+**默认路径**（用户未指定时）：
+```
+src/main/resources/foggy/templates/model/{模型名称}Model.tm
+```
+
+**目录结构说明**：
+```
+src/main/resources/foggy/templates/
+├── model/                    # TM 表模型目录
+│   ├── Fact{Name}Model.tm   # 事实表模型
+│   ├── Dim{Name}Model.tm    # 维度表模型
+│   └── mongo/               # MongoDB 模型（单独子目录）
+├── query/                   # QM 查询模型目录
+├── dimensions/              # 可选：维度构建器
+│   └── common-dims.fsscript
+└── dicts.fsscript          # 字典定义
+```
+
+如果用户指定了其他路径，按用户指定的路径生成。
+
+### 文件内容结构
 
 ```javascript
 /**
@@ -118,7 +140,8 @@ export const model = {
     ]
 };
 ```
-文件名要求为 `{模型名称}Model.tm`，与name相同，即${model.name}.tm
+
+**文件名**：`{模型名称}Model.tm`，与 `model.name` 相同。
 
 ## 类型映射规则
 

@@ -1,6 +1,7 @@
 package com.foggyframework.core.ex;
 
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.swagger.annotations.ApiModelProperty;
@@ -12,8 +13,52 @@ import org.springframework.util.StringUtils;
 
 import java.io.Serializable;
 import java.text.MessageFormat;
+import java.time.LocalDateTime;
 
-@AllArgsConstructor
+/**
+ * 统一 REST API 返回对象
+ * <p>
+ * 用于封装 Spring Controller 的返回结果，提供统一的响应格式。
+ * </p>
+ *
+ * <h3>响应结构</h3>
+ * <pre>{@code
+ * {
+ *   "code": 200,           // 状态码：200=成功, 其他=失败
+ *   "msg": "操作成功",      // 消息描述
+ *   "data": { ... },       // 返回数据（泛型）
+ *   "timestamp": "2026-01-26 10:30:00"  // 响应时间
+ * }
+ * }</pre>
+ *
+ * <h3>使用示例</h3>
+ * <pre>{@code
+ * // 成功返回
+ * return RX.ok(user);
+ * return RX.success();
+ *
+ * // 失败返回
+ * return RX.failB("用户不存在");
+ * return RX.notFound().build();
+ *
+ * // 使用 Builder
+ * return RX.builder()
+ *     .data(result)
+ *     .message("查询成功")
+ *     .build();
+ * }</pre>
+ *
+ * <h3>错误分类</h3>
+ * <ul>
+ *   <li><b>failA / throwA</b>: 用户端异常（A 系列错误码）</li>
+ *   <li><b>failB / throwB</b>: 业务端异常（B 系列错误码）</li>
+ *   <li><b>failC / throwC</b>: 第三方异常（C 系列错误码）</li>
+ * </ul>
+ *
+ * @param <T> 返回数据的类型
+ * @see ExRuntimeExceptionImpl
+ * @see ExDefined
+ */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class RX<T> implements Serializable {
     private static final long serialVersionUID = -6542088717000951967L;
@@ -82,9 +127,34 @@ public class RX<T> implements Serializable {
     T data;
     @ApiModelProperty("错误的对象")
     Object et;
+    /**
+     * 响应时间戳
+     * 格式: yyyy-MM-dd HH:mm:ss
+     */
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    LocalDateTime timestamp;
 
     public static RX error(String msg) {
         return failB(msg);
+    }
+
+    /**
+     * 创建一个通用的构建器
+     * <p>
+     * 使用示例：
+     * <pre>{@code
+     * return RX.<User>builder()
+     *     .data(user)
+     *     .message("查询成功")
+     *     .withTimestamp()
+     *     .build();
+     * }</pre>
+     *
+     * @param <T> 数据类型
+     * @return Builder 实例
+     */
+    public static <T> DefaultBuilder<T> builder() {
+        return new DefaultBuilder<>();
     }
 
     public static RX.DefaultBuilder notFound() {
@@ -102,28 +172,102 @@ public class RX<T> implements Serializable {
 
 
 
-    public static class DefaultBuilder {
+    /**
+     * 构建器模式，用于灵活构造 RX 对象
+     * <p>
+     * 使用示例：
+     * <pre>{@code
+     * return RX.builder()
+     *     .code(200)
+     *     .message("查询成功")
+     *     .data(result)
+     *     .withTimestamp()
+     *     .build();
+     * }</pre>
+     */
+    public static class DefaultBuilder<T> {
 
-        //TODO
-        private int code;
-
+        private int code = SUCCESS;
         private String msg;
+        private String userTip;
+        private T data;
+        private Object et;
+        private LocalDateTime timestamp;
 
-        public DefaultBuilder code(int code) {
+        /**
+         * 设置状态码
+         */
+        public DefaultBuilder<T> code(int code) {
             this.code = code;
             return this;
         }
 
-        public DefaultBuilder msg(String msg) {
+        /**
+         * 设置消息（msg 字段）
+         */
+        public DefaultBuilder<T> msg(String msg) {
             this.msg = msg;
             return this;
         }
 
-        public <T> RX<T> build() {
-            return new RX<>(code, null, msg, null);
+        /**
+         * 设置消息（msg 字段）- message 别名
+         */
+        public DefaultBuilder<T> message(String message) {
+            this.msg = message;
+            return this;
         }
 
+        /**
+         * 设置用户提示（userTip 字段）
+         */
+        public DefaultBuilder<T> userTip(String userTip) {
+            this.userTip = userTip;
+            return this;
+        }
 
+        /**
+         * 设置返回数据
+         */
+        public DefaultBuilder<T> data(T data) {
+            this.data = data;
+            return this;
+        }
+
+        /**
+         * 设置错误详情对象
+         */
+        public DefaultBuilder<T> error(Object et) {
+            this.et = et;
+            return this;
+        }
+
+        /**
+         * 设置时间戳（自动使用当前时间）
+         */
+        public DefaultBuilder<T> withTimestamp() {
+            this.timestamp = LocalDateTime.now();
+            return this;
+        }
+
+        /**
+         * 设置指定的时间戳
+         */
+        public DefaultBuilder<T> timestamp(LocalDateTime timestamp) {
+            this.timestamp = timestamp;
+            return this;
+        }
+
+        /**
+         * 构建 RX 对象
+         */
+        public RX<T> build() {
+            RX<T> rx = new RX<>(code, null, msg, data);
+            rx.userTip = userTip;
+            rx.et = et;
+            rx.timestamp = timestamp;
+            return rx;
+        }
     }
 
 
@@ -635,6 +779,34 @@ public class RX<T> implements Serializable {
     public static RX successUserTip(String userTip) {
         return new RX(SUCCESS, null, null, userTip, null);
     }
+
+    /**
+     * 成功返回（带时间戳）
+     * <p>
+     * 推荐在需要记录响应时间的场景使用
+     * </p>
+     *
+     * @param <T> 数据类型
+     * @return RX 对象
+     */
+    public static <T> RX<T> successWithTimestamp() {
+        RX<T> rx = new RX<>(SUCCESS, null, null, null);
+        rx.timestamp = LocalDateTime.now();
+        return rx;
+    }
+
+    /**
+     * 成功返回数据（带时间戳）
+     *
+     * @param item 返回数据
+     * @param <T>  数据类型
+     * @return RX 对象
+     */
+    public static <T> RX<T> successWithTimestamp(T item) {
+        RX<T> rx = new RX<>(SUCCESS, null, null, item);
+        rx.timestamp = LocalDateTime.now();
+        return rx;
+    }
 //    public static ExRuntimeExceptionImpl throwExDefined(ExDefined def) {
 //        return new ExRuntimeExceptionImpl(def);
 //    }
@@ -677,6 +849,14 @@ public class RX<T> implements Serializable {
 
     public void setData(T data) {
         this.data = data;
+    }
+
+    public LocalDateTime getTimestamp() {
+        return timestamp;
+    }
+
+    public void setTimestamp(LocalDateTime timestamp) {
+        this.timestamp = timestamp;
     }
 
     @Override

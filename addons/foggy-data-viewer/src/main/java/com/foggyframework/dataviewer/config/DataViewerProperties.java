@@ -62,6 +62,22 @@ public class DataViewerProperties {
          * 建议使用浏览器的最小行数
          */
         private int largeDatasetMin = 500;
+
+        /**
+         * MCP 查询结果自动截断阈值（单元格数量 = 行数 × 列数）
+         * <p>
+         * 当来自 MCP 的查询结果超过此阈值时，自动截断并返回链接。
+         * 默认值 10000，约 100 行 × 100 列。
+         */
+        private int cellThresholdForTruncation = 10000;
+
+        /**
+         * MCP 查询结果截断后保留的行数
+         * <p>
+         * 截断时保留前 N 行返回给 LLM 作为样本数据。
+         * 默认值 100 行。
+         */
+        private int truncatedRowLimit = 100;
     }
 
     @Data

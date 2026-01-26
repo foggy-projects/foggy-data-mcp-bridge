@@ -136,24 +136,59 @@ function handleChange(val: [Date, Date] | null) {
 .filter-date-range :deep(.el-date-editor) {
   width: 100% !important;
   max-width: 100%;
+  height: 26px;
 }
 
 .filter-date-range :deep(.el-range-input) {
   font-size: 11px;
+  flex: 1;
+  min-width: 0;
 }
 
 .filter-date-range :deep(.el-range-separator) {
   font-size: 11px;
   padding: 0 2px;
+  line-height: 24px;
+  flex-shrink: 0;
 }
 
 .filter-date-range :deep(.el-input__wrapper) {
-  padding: 0 6px;
+  padding: 0 4px;
   height: 26px;
   box-sizing: border-box;
 }
 
-.filter-date-range :deep(.el-date-editor) {
+/* 控制图标大小 */
+.filter-date-range :deep(.el-input__prefix),
+.filter-date-range :deep(.el-input__suffix) {
+  display: flex;
+  align-items: center;
   height: 26px;
+}
+
+.filter-date-range :deep(.el-input__prefix-inner),
+.filter-date-range :deep(.el-input__suffix-inner) {
+  display: flex;
+  align-items: center;
+  height: 100%;
+}
+
+.filter-date-range :deep(.el-input__prefix .el-icon),
+.filter-date-range :deep(.el-input__suffix .el-icon) {
+  font-size: 12px !important;
+  width: 12px;
+  height: 12px;
+  line-height: 12px;
+}
+
+.filter-date-range :deep(.el-icon svg) {
+  width: 12px;
+  height: 12px;
+}
+
+/* 确保不会换行 */
+.filter-date-range :deep(.el-range-editor--small .el-range__close-icon) {
+  font-size: 12px;
+  line-height: 24px;
 }
 </style>

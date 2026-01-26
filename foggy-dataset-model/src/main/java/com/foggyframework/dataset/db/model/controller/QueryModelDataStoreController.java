@@ -27,8 +27,9 @@ public class QueryModelDataStoreController {
     @ApiModelProperty("建议使用queryModelDataV2替代,URL上带上模型名称,更有利于缓存,第一层权限过滤等")
     public RX<PagingResultImpl> queryModelData(
             @RequestBody PagingRequest<DbQueryRequestDef> form,
+            @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestHeader(value = "X-NS", required = false) String namespace) {
-        PagingResultImpl v = queryFacade.queryModelData(form, namespace);
+        PagingResultImpl v = queryFacade.queryModelData(form, authorization, namespace);
         return RX.success(v);
     }
 
@@ -36,10 +37,11 @@ public class QueryModelDataStoreController {
     public RX<PagingResultImpl> queryModelDataV2(
             @ApiParam(value = "模型", required = true) @PathVariable String model,
             @RequestBody PagingRequest<DbQueryRequestDef> form,
+            @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestHeader(value = "X-NS", required = false) String namespace) {
 
         form.getParam().setQueryModel(model);
-        PagingResultImpl v = queryFacade.queryModelData(form, namespace);
+        PagingResultImpl v = queryFacade.queryModelData(form, authorization, namespace);
         return RX.success(v);
     }
 }

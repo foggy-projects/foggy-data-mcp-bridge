@@ -33,6 +33,22 @@ public interface SemanticQueryServiceV3 {
     SemanticQueryResponse queryModel(String model, SemanticQueryRequest request, String mode);
 
     /**
+     * 执行语义查询（带认证和命名空间）
+     *
+     * @param model         模型名称
+     * @param request       语义查询请求
+     * @param mode          查询模式: execute(执行) | validate(验证)
+     * @param authorization 认证令牌
+     * @param namespace     命名空间
+     * @return 查询响应
+     */
+    default SemanticQueryResponse queryModel(String model, SemanticQueryRequest request, String mode,
+                                             String authorization, String namespace) {
+        // 默认实现忽略 authorization 和 namespace，保持向后兼容
+        return queryModel(model, request, mode);
+    }
+
+    /**
      * 执行语义查询（带安全上下文）
      *
      * @param model           模型名称

@@ -29,12 +29,10 @@
 - 完整示例代码
 - 常见问题解答
 
-✅ **发布指南** (`PUBLISHING_GUIDE.md`)
-- npm 包结构配置
-- 构建配置（Vite + TypeScript）
-- 测试策略
-- 发布流程
-- CI/CD 配置示例
+✅ **发布配置**
+- npm 包已发布到公共库
+- 一键发布脚本（beta/patch/minor/major）
+- 自动化测试和构建（prepublishOnly 钩子）
 
 ✅ **工具函数文档** (`src/utils/README.md`)
 - formatter vs render 详细说明
@@ -79,46 +77,114 @@ npm run dev
 
 ### 发布到 npm
 
+项目已发布到 npm 公共库：https://www.npmjs.com/package/foggy-data-viewer
+
+#### 一键发布脚本
+
 ```bash
-# 1. 确保所有测试通过
-npm test
+# 发布 beta 版本（1.0.0 → 1.0.1-beta.0）
+npm run release:beta
 
-# 2. 构建项目
-npm run build
+# 发布补丁版本（1.0.0 → 1.0.1）
+npm run release:patch
 
-# 3. 登录 npm（首次）
+# 发布次版本（1.0.0 → 1.1.0）
+npm run release:minor
+
+# 发布主版本（1.0.0 → 2.0.0）
+npm run release:major
+```
+
+#### 手动发布步骤
+
+```bash
+# 1. 登录 npm（首次，需启用 2FA）
 npm login
 
-# 4. 发布
+# 2. 发布 beta 版本
+npm version prerelease --preid=beta
+npm publish --tag beta --access public
+
+# 3. 发布正式版本
+npm version patch  # 或 minor, major
 npm publish --access public
 ```
 
-详细步骤请参考 `PUBLISHING_GUIDE.md`。
+**注意**：
+- 所有 release 脚本会自动运行测试和构建（通过 `prepublishOnly` 钩子）
+- 发布需要启用 2FA 或使用 Granular Access Token
+- Beta 版本使用 `--tag beta`，不会影响 latest 标签
+
+## 📦 在其他项目中使用
+
+### 安装
+
+```bash
+# 安装最新稳定版
+npm install foggy-data-viewer
+
+# 安装 beta 版本
+npm install foggy-data-viewer@beta
+
+# 安装特定版本
+npm install foggy-data-viewer@1.0.1-beta.0
+```
+
+### 使用
+
+```vue
+<script setup lang="ts">
+import { ref, onMounted } from 'vue'
+import { DataTable, buildTableColumns } from 'foggy-data-viewer'
+import type { EnhancedColumnSchema } from 'foggy-data-viewer'
+import 'foggy-data-viewer/dist/style.css'
+
+// 从 QM API 获取 schema
+const qmSchema = ref<ColumnSchema[]>([])
+const tableData = ref([])
+
+// 配置可见列和定制
+const tableConfig = {
+  visibleColumns: ['id', 'name', 'amount'],
+  customizations: [
+    { name: 'id', width: 100, fixed: 'left' },
+    { name: 'amount', customFormatter: (v) => `¥${v}` }
+  ]
+}
+
+// 构建表格列
+const columns = ref<EnhancedColumnSchema[]>([])
+onMounted(async () => {
+  qmSchema.value = await fetchQMSchema() // 你的 API 调用
+  columns.value = buildTableColumns(qmSchema.value, tableConfig)
+  tableData.value = await fetchData()
+})
+</script>
+
+<template>
+  <DataTable
+    :columns="columns"
+    :data="tableData"
+    :total="100"
+    :loading="false"
+  />
+</template>
+```
+
+更多使用方法请参考 `COMPONENT_USAGE.md`。
 
 ## 📋 发布前检查清单
 
-在发布到公共库之前，请确保：
+使用 release 脚本发布前，会自动检查：
 
-- [ ] 所有测试通过 (`npm test`)
-- [ ] 代码覆盖率 > 80% (`npm run test:coverage`)
-- [ ] 文档完整且准确
-  - [ ] COMPONENT_USAGE.md
-  - [ ] PUBLISHING_GUIDE.md
-  - [ ] README.md
-  - [ ] CHANGELOG.md
-- [ ] 版本号正确（遵循语义化版本）
-- [ ] LICENSE 文件存在
-- [ ] package.json 配置正确
-  - [ ] name
-  - [ ] version
-  - [ ] description
-  - [ ] keywords
-  - [ ] author
-  - [ ] repository
-  - [ ] license
-- [ ] .npmignore 配置正确
-- [ ] 本地测试通过 (`npm link` 测试)
-- [ ] 构建产物正确 (`npm run build`)
+- ✅ 所有测试通过（`prepublishOnly` 钩子）
+- ✅ 构建成功（`prepublishOnly` 钩子）
+
+手动检查项：
+
+- [ ] 文档已更新（COMPONENT_USAGE.md, README.md）
+- [ ] 版本号符合语义化版本规范
+- [ ] 已在本地项目中测试通过
 
 ## 🎯 核心特性
 
@@ -154,47 +220,54 @@ frontend/
 │   └── examples/
 │       └── EnhancedTableExample.vue  # 使用示例
 ├── COMPONENT_USAGE.md             # 使用文档
-├── PUBLISHING_GUIDE.md            # 发布指南
+├── PROJECT_SUMMARY.md             # 项目总结（本文档）
+├── README.md                      # 包说明文档
 ├── vitest.config.ts               # 测试配置
 └── package.json                   # 包配置
 ```
 
-## 🔧 下一步工作
+## 🔧 后续改进建议
 
-如果要发布到公共库，建议：
-
-1. **创建独立的 npm 包**
-   - 按照 `PUBLISHING_GUIDE.md` 中的结构重组代码
-   - 创建独立的 Git 仓库
-
-2. **完善文档**
-   - 添加 README.md（包含徽章、安装说明、快速开始）
+1. **完善文档**
    - 添加 CHANGELOG.md（版本变更记录）
-   - 添加 LICENSE 文件（推荐 MIT）
+   - 在 README.md 中添加徽章（npm version, downloads, license）
+   - 添加更多使用示例
 
-3. **增加测试覆盖率**
-   - 为 DataTable 组件添加更多测试
-   - 为过滤器组件添加测试
-   - 目标覆盖率 > 80%
+2. **增加测试覆盖率**
+   - 当前：153 个测试用例
+   - 为过滤器组件添加更多边界测试
+   - 添加集成测试
 
-4. **设置 CI/CD**
+3. **设置 CI/CD**
    - 配置 GitHub Actions
    - 自动运行测试
-   - 自动发布到 npm
+   - 自动发布到 npm（tag 触发）
 
-5. **添加示例网站**
-   - 使用 VitePress 或 Vite 创建示例网站
+4. **添加示例网站**
+   - 使用 VitePress 或 Vite 创建在线演示
    - 展示所有功能和使用场景
    - 部署到 GitHub Pages
 
+5. **性能优化**
+   - 虚拟滚动（大数据集）
+   - 懒加载优化
+   - 打包体积优化
+
 ## 📞 支持
 
-如有问题，请参考：
-- 使用文档：`COMPONENT_USAGE.md`
-- 发布指南：`PUBLISHING_GUIDE.md`
-- 工具函数文档：`src/utils/README.md`
-- 示例代码：`src/examples/EnhancedTableExample.vue`
+### 文档
+
+- **使用文档**：`COMPONENT_USAGE.md`
+- **工具函数文档**：`src/utils/README.md`
+- **示例代码**：`src/examples/EnhancedTableExample.vue`
+- **项目总结**：`PROJECT_SUMMARY.md`（本文档）
+
+### npm 包
+
+- **包名**：`foggy-data-viewer`
+- **npm 主页**：https://www.npmjs.com/package/foggy-data-viewer
+- **当前版本**：1.0.1-beta.0
 
 ## 📄 许可证
 
-建议使用 MIT License（开源友好）。
+Apache-2.0 License

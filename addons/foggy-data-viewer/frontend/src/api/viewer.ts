@@ -118,19 +118,32 @@ export async function fetchQmSchema(qmModel: string): Promise<ColumnSchema[]> {
 
   const data = response.data.data
 
-  // 解析 SemanticMetadataResponse 返回的 JSON 结构
-  // 返回格式类似：{ "models": [{ "name": "XXX", "fields": [...] }] }
-  if (data && data.models && data.models[0]) {
-    const fields = data.models[0].fields || []
-    // 将 field 转换为 ColumnSchema 格式
-    return fields.map((field: any) => ({
-      name: field.name,
-      type: field.jdbcType || field.type || 'TEXT',
-      title: field.caption || field.name
-    }))
+  // 解析 SemanticMetadataResponse V3 格式
+  // 返回格式：{ "version": "v3", "fields": { "fieldName": { "name": "显示名", "type": "TEXT", ... } }, "models": {...} }
+  if (!data || !data.fields) {
+    return []
   }
 
-  return []
+  // 遍历 fields 对象，转换为 ColumnSchema 数组
+  const columns: ColumnSchema[] = []
+  for (const [fieldName, fieldInfo] of Object.entries(data.fields)) {
+    const field = fieldInfo as any
+
+    // 直接使用后端返回的字段（不再解析 meta）
+    columns.push({
+      name: fieldName,
+      title: field.name || fieldName,
+      type: field.type || 'TEXT',
+      filterable: field.filterable !== false,
+      aggregatable: field.aggregatable || false,
+      measure: field.measure || false,
+      filterType: field.filterType,
+      dictId: field.dictId,
+      format: field.format
+    })
+  }
+
+  return columns
 }
 
 /**

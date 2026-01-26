@@ -50,7 +50,9 @@ public class SemanticController implements ApplicationContextAware {
     public RX<SemanticMetadataResponse> getMetadata(
             @ApiParam(value = "输出格式: json(为上游MCP服务)|markdown(为大语言模型)", defaultValue = "markdown")
             @RequestParam(value = "format", defaultValue = "markdown") String format,
-            @RequestBody(required = false) SemanticMetadataRequest request) {
+            @RequestBody(required = false) SemanticMetadataRequest request,
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestHeader(value = "X-NS", required = false) String namespace) {
         if (request == null) {
             request = new SemanticMetadataRequest();
 
@@ -63,7 +65,7 @@ public class SemanticController implements ApplicationContextAware {
         }
 
 
-        SemanticMetadataResponse response = semanticService.getMetadata(request, format);
+        SemanticMetadataResponse response = semanticService.getMetadata(request, format, authorization, namespace);
         return RX.success(response);
     }
 
@@ -74,12 +76,16 @@ public class SemanticController implements ApplicationContextAware {
     public RX<SemanticMetadataResponse> descriptionModelInternal(
             @ApiParam(value = "模型名称", required = true) @PathVariable String model,
             @ApiParam(value = "输出格式: json(为上游MCP服务)|markdown(为大语言模型)", defaultValue = "markdown")
-            @RequestParam(value = "format", defaultValue = "markdown") String format) {
+            @RequestParam(value = "format", defaultValue = "markdown") String format,
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestHeader(value = "X-NS", required = false) String namespace) {
 
         // 记录接口调用的详细参数信息
         logger.info("=== 模型内部描述接口调用开始 ===");
         logger.info("模型名称: {}", model);
         logger.info("输出格式: {}", format);
+        logger.info("认证信息: {}", authorization != null ? "已提供" : "未提供");
+        logger.info("命名空间: {}", namespace);
 
         // 构建请求，设置levels为[1,2,3]获取全量字段
         SemanticMetadataRequest request = new SemanticMetadataRequest();
@@ -93,7 +99,7 @@ public class SemanticController implements ApplicationContextAware {
                 request.getLevels(),
                 request.isIncludeExamples());
 
-        SemanticMetadataResponse response = semanticService.getMetadata(request, format);
+        SemanticMetadataResponse response = semanticService.getMetadata(request, format, authorization, namespace);
 
         // 记录响应信息
         logger.info("模型描述完成 - 模型: {}, 数据内容: {}, 处理时间: {}ms",
@@ -111,12 +117,16 @@ public class SemanticController implements ApplicationContextAware {
             @ApiParam(value = "模型名称", required = true) @PathVariable String model,
             @ApiParam(value = "查询模式: execute(执行) | validate(验证)", defaultValue = "execute")
             @RequestParam(value = "mode", defaultValue = "execute") String mode,
-            @RequestBody SemanticQueryRequest request) throws InterruptedException {
+            @RequestBody SemanticQueryRequest request,
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestHeader(value = "X-NS", required = false) String namespace) throws InterruptedException {
 
         // 记录接口调用的详细参数信息
         logger.info("=== 语义查询接口调用开始 ===");
         logger.info("模型名称: {}", model);
         logger.info("查询模式: {}", mode);
+        logger.info("认证信息: {}", authorization != null ? "已提供" : "未提供");
+        logger.info("命名空间: {}", namespace);
         logger.info("字段列表: {}", request.getColumns());
         logger.info("查询条件: {}", request.getSlice());
         logger.info("分组字段: {}", request.getGroupBy());
@@ -128,7 +138,7 @@ public class SemanticController implements ApplicationContextAware {
             logger.debug("语义查询完整请求体: {}", request);
         }
 //        Thread.sleep(2000L);
-        SemanticQueryResponse response = semanticQueryService.queryModel(model, request, mode);
+        SemanticQueryResponse response = semanticQueryService.queryModel(model, request, mode, authorization, namespace);
 
         // 记录响应基本信息
         logger.info("语义查询完成 - 模型: {}, 返回记录数: {}, 执行时间: {}ms",

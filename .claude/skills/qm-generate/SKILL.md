@@ -38,8 +38,31 @@ description: 根据 TM 模型生成 QM（查询模型）文件。当用户要求
 
 用户需提供：
 - TM 模型名称或文件路径（必需）
-- QM 文件存放路径（可选，默认与 TM 同目录）
+- QM 文件存放路径（可选，默认见下方路径规范）
 - 列分组配置（可选，默认按属性、维度、度量分组）
+
+## 文件存放路径
+
+**默认路径**（用户未指定时）：
+```
+src/main/resources/foggy/templates/query/{TM模型名}QueryModel.qm
+```
+
+**目录结构说明**：
+```
+src/main/resources/foggy/templates/
+├── model/                    # TM 表模型目录
+│   ├── Fact{Name}Model.tm
+│   ├── Dim{Name}Model.tm
+│   └── mongo/
+├── query/                   # QM 查询模型目录
+│   ├── {Name}QueryModel.qm  # 查询模型
+│   └── mongo/               # MongoDB 查询模型（可选分类）
+├── dimensions/              # 维度构建器（可选）
+└── dicts.fsscript          # 字典定义
+```
+
+如果用户指定了其他路径，按用户指定的路径生成。
 
 ## 输出格式
 

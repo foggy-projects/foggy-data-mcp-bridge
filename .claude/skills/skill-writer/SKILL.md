@@ -1,11 +1,15 @@
 ---
 name: skill-writer
-description: 为 Claude Code 创建技能文件（SKILL.md）。当用户要求创建 skill、编写 SKILL.md、设计 agent skill、slash command，或将现有提示词转换为技能时使用。
+description: 快速生成简单的 SKILL.md 文件（纯指令型技能）。当用户要求"快速创建skill"、"生成SKILL.md模板"、将提示词转换为技能时使用。对于需要脚本/资源/打包工具的复杂技能，使用 skill-creator。
 ---
 
 # Skill Writer
 
-为用户创建符合规范的 Claude Code 技能文件。
+快速为用户创建符合规范的 Claude Code 技能文件（SKILL.md）。
+
+**适用场景：** 创建纯指令型技能，无需脚本、参考文档或资产文件。
+
+**复杂技能请使用：** `skill-creator` - 提供完整的技能创建框架、工具脚本和设计模式参考。
 
 ## 核心原则
 
@@ -172,3 +176,34 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 - 如果变更涉及多个不相关功能 → 建议用户拆分为多次提交
 - 如果检测到敏感文件（.env, credentials）→ 警告用户
 ```
+
+---
+
+## 何时使用 skill-creator
+
+当技能需要以下功能时，请使用 `skill-creator` 而不是此技能：
+
+### 需要捆绑资源
+- **Scripts** (`scripts/`) - 可执行脚本（Python/Bash等）
+  - 示例：PDF处理、图片编辑、数据转换脚本
+- **References** (`references/`) - 参考文档（需要时加载到上下文）
+  - 示例：数据库架构、API文档、公司政策
+- **Assets** (`assets/`) - 输出中使用的文件
+  - 示例：模板文件、品牌资产、样板代码
+
+### 需要工具支持
+- 自动初始化技能目录 (`init_skill.py`)
+- 打包和验证工具 (`package_skill.py`)
+- 快速验证脚本 (`quick_validate.py`)
+
+### 需要设计模式参考
+- 渐进式披露设计原则
+- 工作流模式（顺序/条件工作流）
+- 输出模式（模板/示例模式）
+- 完整的6步创建流程
+
+### 使用方式
+直接调用 `skill-creator` 技能，或查看其文档：
+- 英文版：`.claude/skills/skill-creator/SKILL.md`
+- 中文版：`.claude/skills/skill-creator/SKILL.zh.md`
+- 参考文档：`.claude/skills/skill-creator/references/`

@@ -1,5 +1,6 @@
 package com.foggyframework.dataviewer.controller;
 
+import com.foggyframework.core.ex.ExDefined;
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.dataviewer.domain.CachedQueryContext;
 import com.foggyframework.dataviewer.domain.ViewerDataResponse;
@@ -210,7 +211,7 @@ class ViewerApiControllerTest {
 
             RX response = controller.queryData("test-query-id", request);
 
-            assertEquals(RX.SUCCESS, response.getCode());
+            assertEquals(ExDefined.COMMON_ERROR_CODE, response.getCode());
             assertNotNull(response.getData());
             ViewerDataResponse data = (ViewerDataResponse) response.getData();
             assertFalse(data.isSuccess());

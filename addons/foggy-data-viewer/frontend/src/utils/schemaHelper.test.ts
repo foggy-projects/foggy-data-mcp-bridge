@@ -11,11 +11,16 @@ describe('schemaHelper', () => {
   ]
 
   describe('buildTableColumns', () => {
-    it('should throw error when neither visibleColumns nor showAll is provided', () => {
+    it('should return all columns when config is empty (defaults to showAll)', () => {
       const config: TableConfig = {}
-      expect(() => buildTableColumns(mockQMSchema, config)).toThrow(
-        'Must specify either visibleColumns or showAll=true'
-      )
+      const result = buildTableColumns(mockQMSchema, config)
+
+      // 空配置时默认显示所有列
+      expect(result).toHaveLength(4)
+      expect(result[0].name).toBe('id')
+      expect(result[1].name).toBe('name')
+      expect(result[2].name).toBe('amount')
+      expect(result[3].name).toBe('status')
     })
 
     it('should return all columns when showAll is true', () => {
@@ -140,13 +145,14 @@ describe('schemaHelper', () => {
       consoleSpy.mockRestore()
     })
 
-    it('should handle empty visibleColumns', () => {
+    it('should handle empty visibleColumns (defaults to showAll)', () => {
       const config: TableConfig = {
         visibleColumns: []
       }
       const result = buildTableColumns(mockQMSchema, config)
 
-      expect(result).toHaveLength(0)
+      // 空的 visibleColumns 时默认显示所有列
+      expect(result).toHaveLength(4)
     })
 
     it('should merge multiple customizations correctly', () => {

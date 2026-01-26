@@ -11,11 +11,12 @@ description: 开发和维护 foggy-data-viewer Vue 3 组件库（DataTable、Com
 
 当用户需要以下操作时激活此技能：
 - 开发新的 Vue 3 数据表格组件或功能
-- 修改或增强 DataTable、DataViewer 组件
+- 修改或增强 DataTable、DataViewer、SearchToolbar、DataTableWithSearch 组件
 - 开发或修改 Composables（useTableSummary、useTableSelection）
 - 编写或更新单元测试用例
 - 管理 TypeScript 类型定义
 - 更新组件 API 文档
+- 修复组件样式问题（过滤器、表头布局等）
 - 构建组件库或准备发布到 npm
 - 在验证项目中测试组件功能
 
@@ -25,10 +26,12 @@ description: 开发和维护 foggy-data-viewer Vue 3 组件库（DataTable、Com
 
 **关键文件路径**：
 - `src/components/DataTable.vue` - 主表格组件
-- `src/components/DataViewer.vue` - 高层封装组件
+- `src/components/DataViewer.vue` - 高层封装组件（集成 API 调用）
+- `src/components/SearchToolbar.vue` - 独立搜索工具栏组件
+- `src/components/DataTableWithSearch.vue` - 组合组件（SearchToolbar + DataTable）
 - `src/components/composables/` - 可复用逻辑（useTableSummary.ts、useTableSelection.ts）
-- `src/components/filters/` - 筛选器组件
-- `src/utils/schemaHelper.ts` - 列配置构建工具
+- `src/components/filters/` - 筛选器组件（TextFilter、NumberRangeFilter、DateRangeFilter、SelectFilter、BoolFilter）
+- `src/utils/schemaHelper.ts` - 列配置构建工具（buildTableColumns）
 - `src/types/index.ts` - 类型定义
 - `src/index.ts` - 组件库导出入口
 - `package.json` - 包配置和依赖
@@ -162,9 +165,12 @@ description: 开发和维护 foggy-data-viewer Vue 3 组件库（DataTable、Com
 
 ### 组件开发场景
 - 如果修改 DataTable.vue → 必须同时更新 DataTable.test.ts
+- 如果修改 SearchToolbar.vue → 必须同时更新 SearchToolbar.test.ts（待创建）
+- 如果修改 DataTableWithSearch.vue → 必须同时更新 DataTableWithSearch.test.ts（待创建）
 - 如果添加新的 Composable → 在 `src/components/composables/` 创建，并在 index.ts 导出
-- 如果修改 Props → 更新 README.md API 文档
+- 如果修改 Props → 更新 README.md 或对应文档（如 docs/SearchToolbar.md）
 - 如果添加新的过滤器组件 → 在 `src/components/filters/` 创建
+- 如果修改过滤器样式 → 检查是否影响 DataTable 表头布局，确保不出现换行或溢出
 
 ### 测试编写场景
 - 如果测试涉及 vxe-table 组件 → 使用 `global: { stubs: { 'vxe-grid': true } }`
@@ -205,19 +211,21 @@ description: 开发和维护 foggy-data-viewer Vue 3 组件库（DataTable、Com
 **组件库架构**：
 ```
 foggy-data-viewer/
-├── DataTable.vue           # 核心表格组件
-├── DataViewer.vue          # 高层封装（集成 API 调用）
+├── DataTable.vue              # 核心表格组件（表头过滤器、分页、排序、汇总）
+├── DataViewer.vue             # 高层封装（集成 API 调用、元数据管理）
+├── SearchToolbar.vue          # 独立搜索工具栏（字段级快速筛选）
+├── DataTableWithSearch.vue    # 组合组件（SearchToolbar + DataTable + 属性透传）
 ├── composables/
-│   ├── useTableSummary     # 汇总行逻辑
-│   └── useTableSelection   # 选择行逻辑
-├── filters/                # 筛选器组件
-│   ├── TextFilter
-│   ├── SelectFilter
-│   ├── DateRangeFilter
-│   ├── NumberRangeFilter
-│   └── BoolFilter
+│   ├── useTableSummary        # 汇总行逻辑（选中汇总、全量汇总）
+│   └── useTableSelection      # 选择行逻辑（checkbox、行选中状态）
+├── filters/                   # 筛选器组件（可复用的过滤控件）
+│   ├── TextFilter             # 文本筛选（等于、左匹配、批量）
+│   ├── SelectFilter           # 选择筛选（单选/多选、搜索）
+│   ├── DateRangeFilter        # 日期范围筛选（依赖 Element Plus）
+│   ├── NumberRangeFilter      # 数字范围筛选（区间、单边界）
+│   └── BoolFilter             # 布尔筛选（是/否/全部）
 └── utils/
-    └── schemaHelper        # buildTableColumns 工具
+    └── schemaHelper           # buildTableColumns 工具（QM Schema → 列配置）
 ```
 
 ## 常见模式
