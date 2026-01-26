@@ -319,6 +319,39 @@ const result = await dslQuery('UserQueryModel', {
   详见 docs-site/zh/dataset-model/tm-qm/query-dsl.md
 ```
 
+## ⚠️ 重要提示
+
+### 请求参数结构
+
+Foggy Dataset Model API 要求的请求参数结构：
+
+```json
+{
+  "param": {              // ⬅️ 查询条件必须包裹在 param 对象内
+    "columns": [...],
+    "slice": [...],
+    "orderBy": [...]
+  },
+  "page": 1,             // ⬅️ 分页参数在外层
+  "pageSize": 50
+}
+```
+
+**常见错误** ❌:
+```json
+{
+  "columns": [...],      // ❌ 错误：直接平铺参数
+  "slice": [...],
+  "page": 1,
+  "pageSize": 50
+}
+```
+
+### API 端点
+
+- **正确**: `/jdbc-model/query-model/v2/{QueryModelName}`
+- **错误**: `/mcp/analyst/query-model/v2/{QueryModelName}`
+
 ## DSL 语法快速参考
 
 ### 过滤条件操作符

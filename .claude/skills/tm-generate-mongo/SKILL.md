@@ -88,7 +88,7 @@ src/main/resources/foggy/templates/
  *
  * @description MongoDB 文档模型 - {详细描述}
  */
-import '@mcpMongoTemplate';
+import { mcpMongoTemplate } from './mongoTemplate.fsscript';
 
 export const model = {
     name: '{模型名称}Model',
@@ -110,6 +110,8 @@ export const model = {
     ]
 };
 ```
+
+**注意**: 需要先创建 `mongoTemplate.fsscript` 文件（详见下方 "MongoTemplate 引用配置" 章节）。
 
 **文件名**：`{模型名称}Model.tm`，与 `model.name` 相同。
 
@@ -145,21 +147,68 @@ export const model = {
 - **属性名称**：camelCase（如 `userId`、`createTime`）
 - **集合名称**：snake_case（如 `mcp_tool_audit_log`）
 
-## mongoTemplate 配置
+## MongoTemplate 引用配置
 
-MongoDB TM 需要引用 MongoTemplate Bean。常见配置方式：
+### 创建引用文件
 
+**文件路径**: `src/main/resources/foggy/templates/mongoTemplate.fsscript`
+
+**正确示例** ✅:
 ```javascript
-// 方式1：引用预定义的 mongoTemplate
-import '@mcpMongoTemplate';
-mongoTemplate: mcpMongoTemplate,
+/**
+ * MongoDB Template 配置
+ *
+ * @description 引用 Spring 容器中的默认 MongoTemplate Bean
+ */
+import '@mongoTemplate'
 
-// 方式2：引用自定义 mongoTemplate（如多数据源）
-import '@customMongoTemplate';
-mongoTemplate: customMongoTemplate,
+// 引用默认 mongoTemplate Bean
+export const mcpMongoTemplate = mongoTemplate;
 ```
 
-用户需在 Spring 配置中注册对应的 MongoTemplate Bean，并在 FSScript 中注册引用。
+**错误示例** ❌:
+```javascript
+// ❌ 不要使用 beanRef() 函数
+export const mcpMongoTemplate = beanRef('mongoTemplate');
+```
+
+### 引用语法说明
+
+| 语法 | 说明 | 示例 |
+|------|------|------|
+| `import '@beanName'` | 导入 Spring Bean | `import '@mongoTemplate'` |
+| 直接使用变量名 | 引用导入的 Bean | `export const myTemplate = mongoTemplate` |
+| 自定义 Bean 名称 | 引用自定义的 MongoTemplate | `import '@customMongoTemplate'` |
+
+### 在 TM 模型中使用
+
+```javascript
+import { mcpMongoTemplate } from './mongoTemplate.fsscript';
+
+export const model = {
+    name: 'VehicleStatusModel',
+    caption: '车辆状态',
+    tableName: 'vehicle_status',
+    type: 'mongo',
+    mongoTemplate: mcpMongoTemplate,  // ⬅️ 引用配置
+    // ...
+};
+```
+
+### Spring Boot 配置
+
+确保 Spring Boot 配置文件中已正确配置 MongoDB 连接：
+
+```yaml
+spring:
+  data:
+    mongodb:
+      host: localhost
+      port: 27017
+      database: your_database
+      # username: user
+      # password: pass
+```
 
 ## 属性 vs 度量检测
 
@@ -200,7 +249,7 @@ mongoTemplate: customMongoTemplate,
  *
  * @description MongoDB 文档模型示例 - 用于记录和查询 MCP 工具调用日志
  */
-import '@mcpMongoTemplate';
+import { mcpMongoTemplate } from './mongoTemplate.fsscript';
 import { dicts } from '../dicts.fsscript';
 
 export const model = {

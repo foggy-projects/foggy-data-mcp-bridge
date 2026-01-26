@@ -76,6 +76,10 @@ public class DatasetMessages {
         return getMessage("error.model.duplicate.column", name);
     }
 
+    public static String loaderNotFound(String typeName, String dependencyHint) {
+        return getMessage("error.model.loader.notfound", typeName, dependencyHint);
+    }
+
     // ==========================================
     // Query Model Error Messages
     // ==========================================

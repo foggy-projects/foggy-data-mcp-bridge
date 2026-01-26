@@ -120,6 +120,11 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
         fix(def);
 
         TableModelLoader tableModelLoader = typeName2Loader.get(def.getType());
+        if (tableModelLoader == null) {
+            String typeName = def.getType();
+            String hint = getLoaderDependencyHint(typeName);
+            throw RX.throwAUserTip(DatasetMessages.loaderNotFound(typeName, hint));
+        }
         tm = tableModelLoader.load(fScript, def, bundle);
         tm = initialization(tm, def, bundle);
 
@@ -139,6 +144,17 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
             return modelName;
         }
         return namespace.trim() + ":" + modelName;
+    }
+
+    /**
+     * 根据类型名称获取依赖提示信息
+     */
+    private String getLoaderDependencyHint(String typeName) {
+        if ("mongo".equalsIgnoreCase(typeName)) {
+            return "foggy-dataset-model-mongo";
+        }
+        // 可扩展其他类型
+        return null;
     }
 
     private void fix(DbModelDef def) {

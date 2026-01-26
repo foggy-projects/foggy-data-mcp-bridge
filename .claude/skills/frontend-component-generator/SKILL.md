@@ -447,11 +447,55 @@ import OrderQueryTable from '@/{commonComponentPath}/models/OrderQueryTable.vue'
 
 ## API 接口
 
-本组件使用以下后台接口：
+本组件使用 Foggy Dataset Model 的查询接口：
 
-- **模型**: `{modelName}`
-- **命名空间**: `default`
-- **端点**: `/mcp/analyst/query-model/v2`
+- **端点**: `POST /jdbc-model/query-model/v2/{QueryModelName}`
+- **完整URL示例**: `http://localhost:8080/jdbc-model/query-model/v2/OrderQueryModel`
+- **命名空间**: 通过后端配置文件指定（默认 `default`）
+
+### 请求格式
+
+```json
+{
+  "param": {
+    "columns": ["column1", "column2"],
+    "sliceRequest": [
+      {
+        "column": "status",
+        "operator": "eq",
+        "value": "ACTIVE"
+      }
+    ],
+    "orderBy": ["-createdAt"]
+  },
+  "page": 1,
+  "pageSize": 50
+}
+```
+
+### Vite 代理配置（必需）
+
+开发环境下需要配置 Vite 代理转发：
+
+```javascript
+// vite.config.js
+import { defineConfig } from 'vite'
+
+export default defineConfig({
+  server: {
+    proxy: {
+      '/jdbc-model': {
+        target: 'http://localhost:8080',  // 后端服务地址
+        changeOrigin: true
+      }
+    }
+  }
+})
+```
+
+### 生产环境配置
+
+生产环境通过 Nginx 或其他反向代理配置路由。
 
 ## 常见问题
 

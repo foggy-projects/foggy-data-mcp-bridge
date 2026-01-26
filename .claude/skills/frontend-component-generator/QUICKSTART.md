@@ -108,7 +108,7 @@ src/components/models/
 |------|------|--------|
 | `/mcp/analyst/metadata` | 搜索匹配的模型 | 用户只提供列需求时 |
 | `/mcp/analyst/description-model-internal` | 获取完整 schema | 确定模型后 |
-| `/mcp/analyst/query-model/v2` | 查询数据 | 生成的组件运行时 |
+| `/jdbc-model/query-model/v2` | 查询数据 | 生成的组件运行时 |
 
 ## 生成的组件工作流程
 

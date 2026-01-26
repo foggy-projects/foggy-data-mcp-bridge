@@ -370,7 +370,7 @@ export async function fetchOrderQueryTableData(
     }
 
     const response = await axios.get(
-      `${API_BASE}/mcp/analyst/query-model/v2`,
+      `${API_BASE}/jdbc-model/query-model/v2`,
       {
         params,
         headers
@@ -496,7 +496,7 @@ interface OrderQueryTableRow {
 
 - **模型**: `order_query_model`
 - **命名空间**: `default`
-- **端点**: `/mcp/analyst/query-model/v2`
+- **端点**: `/jdbc-model/query-model/v2`
 
 ### 请求参数
 
