@@ -228,6 +228,58 @@ foggy-data-viewer/
     └── schemaHelper           # buildTableColumns 工具（QM Schema → 列配置）
 ```
 
+## 已知陷阱（必读）
+
+### SearchToolbar 事件监听
+
+**错误用法**（会导致重复请求）：
+```vue
+<SearchToolbar
+  v-model="slices"
+  @update:model-value="handleSearch"  <!-- 错误：会在每次输入时触发 -->
+  @search="handleSearch"              <!-- 点击搜索按钮也会触发 -->
+/>
+```
+
+**正确用法**：
+```vue
+<!-- 方式1：仅响应搜索按钮 -->
+<SearchToolbar
+  v-model="slices"
+  @search="handleSearch"
+  @reset="handleReset"
+/>
+
+<!-- 方式2：实时搜索（不显示按钮） -->
+<SearchToolbar
+  v-model="slices"
+  :show-actions="false"
+  @update:model-value="handleSearch"
+/>
+```
+
+**原因**：`v-model` 会在过滤值变化时自动更新，`@search` 在点击搜索按钮时触发。同时监听两者会导致点击搜索时发送两次请求。
+
+### DataTable CSS 样式
+
+**禁止**在 DataTable 的表头相关元素设置 `overflow: visible`：
+```css
+/* 错误：会破坏表头与内容的滚动同步 */
+:deep(.vxe-table--header-wrapper) {
+  overflow: visible !important;
+}
+```
+
+**原因**：vxe-table 的横向滚动同步依赖于 `overflow: hidden/auto`，设置为 `visible` 会导致表头不跟随内容滚动。
+
+**替代方案**：如需让下拉框溢出显示，使用 `z-index` 或 Vue 的 `Teleport` 组件。
+
+### verification-app 与 frontend 的关系
+
+- verification-app 通过 `file:../frontend` 引用本地组件库
+- 修改 frontend 代码后，**必须执行 `npm run build:lib`** 才能在 verification-app 中生效
+- 如果 verification-app 报 "No matching export" 错误，检查是否重新构建了 frontend
+
 ## 常见模式
 
 ### 创建新 Composable

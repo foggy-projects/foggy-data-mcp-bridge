@@ -576,3 +576,52 @@ export const columns: EnhancedColumnSchema[] = [
 2. 检查 API 地址配置是否正确
 3. 检查网络连接
 4. 确认命名空间（namespace）配置是否与后端一致
+
+---
+
+### Q8: 点击搜索按钮时，后台收到两个相同的请求？
+
+**原因**: 同时监听了 `@update:model-value` 和 `@search` 事件。
+
+**错误用法**:
+```vue
+<SearchToolbar
+  v-model="slices"
+  @update:model-value="handleSearch"  <!-- 会在输入时触发 -->
+  @search="handleSearch"              <!-- 点击按钮也会触发 -->
+/>
+```
+
+**正确用法**:
+```vue
+<!-- 方式1：仅响应搜索按钮（推荐） -->
+<SearchToolbar
+  v-model="slices"
+  @search="handleSearch"
+  @reset="handleReset"
+/>
+
+<!-- 方式2：实时搜索（隐藏按钮） -->
+<SearchToolbar
+  v-model="slices"
+  :show-actions="false"
+  @update:model-value="handleSearch"
+/>
+```
+
+---
+
+### Q9: 横向滚动表格时，表头不跟随内容同步滚动？
+
+**原因**: 在自定义样式中设置了 `overflow: visible`。
+
+**禁止的写法**:
+```css
+:deep(.vxe-table--header-wrapper) {
+  overflow: visible !important;  /* 会破坏滚动同步 */
+}
+```
+
+**解决方法**:
+
+不要修改 vxe-table 表头相关元素的 overflow 属性。如需让过滤器下拉框溢出显示，使用 `z-index` 或 Vue 的 `Teleport` 组件。
