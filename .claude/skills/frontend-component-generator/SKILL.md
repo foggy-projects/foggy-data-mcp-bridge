@@ -141,216 +141,80 @@ app.use(VXETable)
 - 导入本项目的 schema 配置和 API 层
 - 定义数据响应式状态（分页、加载、排序、筛选）
 - 实现数据加载逻辑（集成 API 层）
-- 事件处理（分页变化、排序变化、筛选变化、行点击）
-- 公开的方法（刷新数据、重置筛选等）
-- **顶部工具栏区域**（支持插槽，靠左对齐，用户可添加自定义按钮等）
-- **分页控件**（靠右对齐，显示总数和分页选项）
-- **操作列**（checkbox 右边，支持通过插槽自定义操作按钮，可通过 Props 控制显示/隐藏）
+- 事件处理（分页、排序、筛选、行点击）
+- 公开的方法（refresh、clearFilters 等）
+- **顶部工具栏**（插槽支持自定义按钮）
+- **分页控件**（显示总数和分页选项）
+- **操作列**（可选，通过 Props 控制）
 
-示例结构：
+核心代码结构：
 ```vue
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
-import { ElPagination } from 'element-plus'
+import { ref } from 'vue'
 import { DataTableWithSearch } from 'foggy-data-viewer'
-import type { EnhancedColumnSchema, SliceRequestDef } from 'foggy-data-viewer'
 import { columns } from './schemas/{componentName}.schema'
-import { fetchOrderData } from './apis/{componentName}.api'
+import { fetchData } from './apis/{componentName}.api'
 
-// 数据状态
+// 响应式状态
 const data = ref([])
 const total = ref(0)
 const loading = ref(false)
 const currentPage = ref(1)
 const pageSize = ref(50)
-const currentFilters = ref<SliceRequestDef[]>([])
-
-// Props
-const showOperColumn = ref(false) // 是否显示操作列
-
-// 计算操作列配置
-const operColumnSchema: EnhancedColumnSchema = {
-  name: '__oper__',
-  type: 'TEXT',
-  title: '操作',
-  width: 150,
-  fixed: 'right',
-  // render 函数由组件使用者通过插槽控制
-}
-
-// 合并列配置（如果显示操作列）
-const displayColumns = computed(() => {
-  if (showOperColumn.value) {
-    return [...columns, operColumnSchema]
-  }
-  return columns
-})
+const filters = ref([])
 
 // 加载数据
 async function loadData() {
   loading.value = true
   try {
-    const response = await fetchOrderData({
-      page: currentPage.value,
-      pageSize: pageSize.value,
-      filters: currentFilters.value
-    })
-    data.value = response.rows
-    total.value = response.total
+    const result = await fetchData({ page: currentPage.value, pageSize: pageSize.value, filters: filters.value })
+    data.value = result.rows
+    total.value = result.total
   } finally {
     loading.value = false
   }
 }
 
-// 分页变化（来自分页组件）
-function handlePaginationChange() {
-  currentPage.value = 1 // 切换每页条数时重置到第一页
-  loadData()
-}
-
-// 分页变化（来自表格）
-function handlePageChange(page: number, size: number) {
-  currentPage.value = page
-  pageSize.value = size
-  loadData()
-}
-
-// 筛选变化
-function handleFilterChange(filters: SliceRequestDef[]) {
-  currentFilters.value = filters
-  currentPage.value = 1 // 筛选时重置到第一页
-  loadData()
-}
-
-// 排序变化
-function handleSortChange(field: string, order: string) {
-  // 如需后台排序，在此实现
-  console.log(`Sorting by ${field} ${order}`)
-}
-
 // 公开方法
-function refresh() {
-  currentPage.value = 1
-  currentFilters.value = []
-  loadData()
-}
-
-function clearFilters() {
-  currentFilters.value = []
-  currentPage.value = 1
-  loadData()
-}
-
-defineExpose({
-  refresh,
-  clearFilters,
-  data,
-  total,
-  loading
-})
+defineExpose({ refresh: loadData, clearFilters: () => { filters.value = []; loadData() } })
 </script>
 
 <template>
-  <div class="order-query-table">
-    <!-- 工具栏 + 分页栏 -->
-    <div class="table-header-bar">
-      <div class="toolbar-left">
-        <slot name="toolbar">
-          <!-- 用户可通过插槽添加按钮或其他组件 -->
-        </slot>
-      </div>
-      <div class="pagination-right">
-        <span class="total-info">共 {{ total }} 条</span>
-        <el-pagination
-          v-model:current-page="currentPage"
-          v-model:page-size="pageSize"
-          :page-sizes="[10, 20, 50, 100]"
-          :total="total"
-          layout="sizes, prev, pager, next, jumper"
-          @change="handlePaginationChange"
-        />
-      </div>
+  <div class="component-wrapper">
+    <!-- 顶部工具栏 + 分页 -->
+    <div class="header-bar">
+      <slot name="toolbar" />
+      <el-pagination :total="total" @change="loadData" />
     </div>
 
     <!-- 数据表格 -->
-    <div class="table-content">
-      <DataTableWithSearch
-        :columns="displayColumns"
-        :data="data"
-        :total="total"
-        :loading="loading"
-        :page-size="pageSize"
-        :show-search-toolbar="true"
-        :show-filters="true"
-        @page-change="handlePageChange"
-        @filter-change="handleFilterChange"
-        @sort-change="handleSortChange"
-      >
-        <!-- 操作列插槽 -->
-        <template #__oper__="{ row }">
-          <slot name="operColumn" :row="row" />
-        </template>
-      </DataTableWithSearch>
-    </div>
+    <DataTableWithSearch
+      :columns="columns"
+      :data="data"
+      :loading="loading"
+      @filter-change="filters = $event; loadData()"
+    />
   </div>
 </template>
-
-<style scoped>
-.order-query-table {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  padding: 16px;
-  background-color: #fff;
-  border-radius: 4px;
-}
-
-.table-header-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-  padding: 12px;
-  background-color: #f5f7fa;
-  border-radius: 4px;
-  gap: 16px;
-}
-
-.toolbar-left {
-  display: flex;
-  gap: 8px;
-  flex: 0 0 auto;
-}
-
-.pagination-right {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex: 0 0 auto;
-}
-
-.total-info {
-  color: #606266;
-  font-size: 14px;
-  white-space: nowrap;
-}
-
-.table-content {
-  flex: 1;
-  overflow: auto;
-}
-</style>
 ```
+
+> **注**: 完整代码包含详细的事件处理、样式定义等，此处仅展示核心结构
 
 #### 6.2 Schema 配置文件
 **路径**：`src/{commonComponentPath}/models/schemas/{componentName}.schema.ts`
 
 生成包含：
 - 从后台 schema 映射的列配置
-- 列的宽度、排序、筛选器类型等定制配置
+- **自动列宽计算**（组件内部自动调用 `calculateColumnWidth`）
+- 列的排序、筛选器类型等定制配置
 - 类型定义导出
 
-示例结构：
+**默认行为**：
+- `width` 不传或为 0 → 组件自动根据列名长度和类型计算
+- `filterable` 不传 → 默认为 `true`（可筛选）
+- `sortable` 不传 → 默认为 `false`
+
+示例结构（最简洁）：
 ```typescript
 import type { EnhancedColumnSchema } from 'foggy-data-viewer'
 
@@ -359,20 +223,30 @@ export const columns: EnhancedColumnSchema[] = [
     name: 'order_id',
     type: 'INTEGER',
     title: '订单ID',
-    width: 100,
-    fixed: 'left',
-    filterable: true,
-    filterType: 'number'
+    fixed: 'left'
+    // width 自动计算
+    // filterable 默认 true
   },
   {
     name: 'order_no',
     type: 'TEXT',
     title: '订单号',
-    width: 150,
-    filterable: true,
     filterType: 'text'
   },
-  // ... 其他列配置
+  {
+    name: 'speed',
+    type: 'NUMBER',
+    title: '速度(km/h)',  // 自动计算宽度: ~170px
+    tooltip: '车辆行驶速度，单位：千米/小时',
+    filterType: 'number'
+  },
+  {
+    name: 'amount',
+    type: 'MONEY',
+    title: '金额',
+    width: 150,  // 手动指定宽度（覆盖自动计算）
+    sortable: true
+  }
 ]
 
 export interface OrderQueryRow {
@@ -426,35 +300,20 @@ export async function fetchOrderData(params: QueryParams): Promise<{
 **路径**：`src/{commonComponentPath}/models/README.md`
 
 生成包含：
-- 组件简介（名称、作者、创建日期、描述）
-- 功能特性列表
-- 快速开始（引入和基本使用）
-- Props 和 Events 列表
-- 常见用法示例
+- 组件基本信息（名称、作者、基于的模型）
+- 快速开始示例
 - API 接口说明
-- 自定义列配置示例
 - 常见问题 FAQ
 
-示例结构：
+核心内容：
 ```markdown
 # {ComponentName}
 
-{组件描述}
-
+**基于模型**: {modelName}
 **作者**: {componentAuthor}
 **创建时间**: {currentDate}
-**基于模型**: {modelName}
-
-## 功能特性
-
-- 自动集成数据表格和搜索工具栏
-- 支持分页、排序、多条件筛选
-- 完整的 TypeScript 类型定义
-- 响应式列配置
 
 ## 快速开始
-
-### 基本使用
 
 \`\`\`vue
 <template>
@@ -466,70 +325,18 @@ import OrderQueryTable from '@/{commonComponentPath}/models/OrderQueryTable.vue'
 </script>
 \`\`\`
 
-### Props
+## API 配置
 
-| 属性 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| loading | `boolean` | `false` | 加载状态 |
-| pageSize | `number` | `50` | 每页显示条数 |
-
-## API 接口
-
-本组件使用 Foggy Dataset Model 的查询接口：
-
-- **端点**: `POST /jdbc-model/query-model/v2/{QueryModelName}`
-- **完整URL示例**: `http://localhost:8080/jdbc-model/query-model/v2/OrderQueryModel`
-- **命名空间**: 通过后端配置文件指定（默认 `default`）
-
-### 请求格式
-
-```json
-{
-  "param": {
-    "columns": ["column1", "column2"],
-    "sliceRequest": [
-      {
-        "column": "status",
-        "operator": "eq",
-        "value": "ACTIVE"
-      }
-    ],
-    "orderBy": ["-createdAt"]
-  },
-  "page": 1,
-  "pageSize": 50
-}
-```
-
-### Vite 代理配置（必需）
-
-开发环境下需要配置 Vite 代理转发：
-
-```javascript
-// vite.config.js
-import { defineConfig } from 'vite'
-
-export default defineConfig({
-  server: {
-    proxy: {
-      '/jdbc-model': {
-        target: 'http://localhost:8080',  // 后端服务地址
-        changeOrigin: true
-      }
-    }
-  }
-})
-```
-
-### 生产环境配置
-
-生产环境通过 Nginx 或其他反向代理配置路由。
+- **端点**: `/jdbc-model/query-model/v2/{modelName}`
+- **Vite 代理**: 需在 `vite.config.js` 中配置 `/jdbc-model` 代理
 
 ## 常见问题
 
-Q: 如何修改显示的列？
-A: 编辑 `schemas/{componentName}.schema.ts` 文件中的 columns 数组
+- 修改列配置: 编辑 `schemas/{componentName}.schema.ts`
+- 修改 API 逻辑: 编辑 `apis/{componentName}.api.ts`
 ```
+
+> **注**: 完整文档包含详细的 Props、Events、API 请求格式等
 
 #### 6.5 索引文件（可选）
 **路径**：`src/{commonComponentPath}/models/index.ts`
@@ -691,7 +498,55 @@ server: {
 
 ---
 
-### Q5: 如何修改生成的组件显示的列？
+### Q5: 列名太长导致排序图标错位或换行？
+
+**原因**: 列宽度设置过小，无法容纳列名和排序图标。
+
+**解决方法**:
+
+**方法 1: 使用自动计算**（推荐，默认行为）
+
+不指定 `width` 或设置为 0，组件会自动计算合理宽度：
+
+```typescript
+export const columns: EnhancedColumnSchema[] = [
+  {
+    name: 'speed',
+    type: 'NUMBER',
+    title: '速度(km/h)'
+    // width 不传，自动计算为 ~170px
+  }
+]
+```
+
+**方法 2: 简化列名 + tooltip**
+
+```typescript
+{
+  name: 'speed',
+  type: 'NUMBER',
+  title: '速度',              // 简短标题
+  tooltip: '速度(km/h)',      // 完整说明
+  width: 100,
+  sortable: true
+}
+```
+
+**方法 3: 手动增加列宽**
+
+```typescript
+{
+  name: 'speed',
+  type: 'NUMBER',
+  title: '速度(km/h)',
+  width: 150,  // 手动增加到 150px
+  sortable: true
+}
+```
+
+---
+
+### Q6: 如何修改生成的组件显示的列？
 
 **解决方法**:
 
@@ -713,7 +568,7 @@ export const columns: EnhancedColumnSchema[] = [
 
 ---
 
-### Q6: 组件生成失败，提示无法连接到 API？
+### Q7: 组件生成失败，提示无法连接到 API？
 
 **解决方法**:
 
