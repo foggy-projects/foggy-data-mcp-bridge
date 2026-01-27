@@ -17,6 +17,22 @@ export * from './components/composables'
 // 导出工具函数
 export { buildTableColumns, calculateColumnWidth } from './utils/schemaHelper'
 
+// 导出 API 函数
+export {
+  createQuery,
+  fetchQueryMeta,
+  fetchQueryData,
+  fetchFilterOptions,
+  fetchQmSchema
+} from './api/viewer'
+
+// 导出 API 类型
+export type {
+  QueryPayload,
+  CreateQueryRequest,
+  CreateQueryResponse
+} from './api/viewer'
+
 // 导出类型定义
 export type {
   ColumnSchema,

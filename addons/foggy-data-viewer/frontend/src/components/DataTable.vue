@@ -772,22 +772,8 @@ provide('dataTableContext', {
   overflow: visible !important;
 }
 
-/* 确保下拉框不被表头裁剪 */
-:deep(.vxe-table--header-wrapper) {
-  overflow: visible !important;
-}
-
-:deep(.vxe-table--header-inner-wrapper) {
-  overflow: visible !important;
-}
-
-:deep(.vxe-table--header) {
-  overflow: visible !important;
-}
-
-:deep(.vxe-header--row) {
-  overflow: visible !important;
-}
+/* 注意：不要设置 overflow: visible，会破坏表头滚动同步 */
+/* 下拉框使用 teleport 或设置高 z-index 来确保可见 */
 
 /* 提高下拉框 z-index，确保在表格内容之上 */
 .column-filter :deep(.filter-dropdown),

@@ -1,644 +1,959 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { DataTable, SearchToolbar, buildTableColumns } from 'foggy-data-viewer'
-import type { EnhancedColumnSchema, SliceRequestDef } from 'foggy-data-viewer'
+import { ref, computed, onMounted, watch } from 'vue'
+import {
+  DataViewer,
+  DataTable,
+  SearchToolbar,
+  DataTableWithSearch,
+  buildTableColumns,
+  createQuery,
+  fetchQueryMeta,
+  fetchQueryData,
+  fetchQmSchema
+} from 'foggy-data-viewer'
+import type {
+  EnhancedColumnSchema,
+  SliceRequestDef,
+  ColumnSchema,
+  CreateQueryRequest,
+  ViewerQueryRequest,
+  QueryMetaResponse
+} from 'foggy-data-viewer'
 
-// 模拟 QM Schema（从服务器获取）
-const qmSchema = [
-  { name: 'id', type: 'INTEGER', title: 'ID', filterType: 'number', measure: false, aggregatable: false, filterable: true },
-  { name: 'orderNo', type: 'TEXT', title: '订单号', filterType: 'text', measure: false, aggregatable: false, filterable: true },
-  { name: 'customerName', type: 'TEXT', title: '客户名称', filterType: 'text', measure: false, aggregatable: false, filterable: true },
-  { name: 'amount', type: 'MONEY', title: '订单金额', filterType: 'number', measure: true, aggregatable: true, filterable: true },
-  { name: 'quantity', type: 'INTEGER', title: '数量', filterType: 'number', measure: true, aggregatable: true, filterable: true },
-  { name: 'status', type: 'TEXT', title: '状态', filterType: 'text', measure: false, aggregatable: false, filterable: true },
-  { name: 'orderDate', type: 'DAY', title: '下单日期', filterType: 'date', measure: false, aggregatable: false, filterable: true },
-  { name: 'actions', type: 'TEXT', title: '操作', filterType: 'none', measure: false, aggregatable: false, filterable: false }
-]
+// ============ 场景切换 ============
+type SceneType = 'home' | 'dataviewer' | 'toolbar' | 'custom-actions' | 'combined'
+const currentScene = ref<SceneType>('home')
 
-// 使用 buildTableColumns 构建列配置
-const columns = ref<EnhancedColumnSchema[]>([])
-const data = ref<any[]>([])
-const total = ref(0)
-const loading = ref(false)
+// ============ DataViewer 场景 ============
+const queryId = ref<string | null>(null)
+const dslInput = ref('')
+const isSubmitting = ref(false)
+const errorMessage = ref('')
 
-// SearchToolbar 的筛选条件
-const searchSlices = ref<SliceRequestDef[]>([])
-
-// 模拟从服务器获取的汇总数据
-const serverSummary = ref({
-  total: 150,
-  amount: 1500000,
-  quantity: 5000
-})
-
-onMounted(() => {
-  // 构建表格列
-  columns.value = buildTableColumns(qmSchema, {
-    visibleColumns: ['id', 'orderNo', 'customerName', 'amount', 'quantity', 'status', 'orderDate', 'actions'],
-    customizations: [
-      { name: 'id', width: 80, fixed: 'left' },
-      { name: 'orderNo', width: 150 },
-      { name: 'customerName', width: 150 },
-      { name: 'amount', width: 120 },
-      { name: 'quantity', width: 100 },
-      { name: 'status', width: 100 },
-      { name: 'orderDate', width: 120 },
-      { name: 'actions', width: 200, fixed: 'right' }
-    ]
-  })
-
-  // 加载初始数据
-  loadData(1, 50)
-})
-
-// 模拟加载数据
-function loadData(page: number, pageSize: number, slices?: SliceRequestDef[]) {
-  loading.value = true
-
-  // 模拟异步加载
-  setTimeout(() => {
-    const mockData = []
-    const statusList = ['待支付', '已支付', '已发货', '已完成', '已取消']
-
-    for (let i = 0; i < pageSize; i++) {
-      const index = (page - 1) * pageSize + i + 1
-      if (index > 150) break
-
-      mockData.push({
-        id: index,
-        orderNo: `ORD-2024-${String(index).padStart(6, '0')}`,
-        customerName: `客户${index}`,
-        amount: Math.floor(Math.random() * 10000) + 100,
-        quantity: Math.floor(Math.random() * 100) + 1,
-        status: statusList[Math.floor(Math.random() * statusList.length)],
-        orderDate: new Date(2024, 0, Math.floor(Math.random() * 365))
-      })
+const examples = [
+  {
+    name: '销售明细',
+    model: 'FactSalesQueryModel',
+    payload: {
+      columns: ['orderId', 'salesDate$caption', 'product$caption', 'customer$caption', 'quantity', 'salesAmount', 'profitAmount'],
+      slice: [
+        { field: 'salesDate$caption', op: '>=', value: '2024-12-01' },
+        { field: 'salesDate$caption', op: '<', value: '2024-12-31' }
+      ],
+      orderBy: [{ field: 'salesDate$caption', order: 'desc' }]
     }
-
-    data.value = mockData
-    total.value = 150
-    loading.value = false
-
-    // 这里可以根据 slices 筛选数据
-    if (slices && slices.length > 0) {
-      console.log('应用筛选条件:', slices)
+  },
+  {
+    name: '商品列表',
+    model: 'DimProductQueryModel',
+    payload: {
+      columns: ['productName', 'productId', 'brand', 'categoryName', 'subCategoryName', 'unitPrice', 'unitCost'],
+      slice: [],
+      orderBy: [{ field: 'productName', order: 'asc' }]
     }
-  }, 500)
-}
-
-// 处理分页变化
-function handlePageChange(page: number, pageSize: number) {
-  console.log('分页变化:', page, pageSize)
-  loadData(page, pageSize, searchSlices.value)
-}
-
-// 处理排序变化
-function handleSortChange(field: string | null, order: string | null) {
-  console.log('排序变化:', field, order)
-  // 这里可以重新加载数据，传递排序参数到后端
-}
-
-// 处理表头筛选变化
-function handleFilterChange(slices: any[]) {
-  console.log('表头筛选变化:', slices)
-  // 这里可以重新加载数据，传递筛选条件到后端
-}
-
-// 处理搜索工具栏筛选变化
-function handleSearchChange(slices: SliceRequestDef[]) {
-  console.log('搜索工具栏筛选变化:', slices)
-  searchSlices.value = slices
-  // 实时搜索：立即重新加载数据
-  loadData(1, 50, slices)
-}
-
-// 处理搜索按钮点击
-function handleSearch() {
-  console.log('点击搜索按钮')
-  loadData(1, 50, searchSlices.value)
-}
-
-// 处理重置按钮点击
-function handleReset() {
-  console.log('点击重置按钮')
-  searchSlices.value = []
-  loadData(1, 50)
-}
-
-// 处理行点击
-function handleRowClick(row: any) {
-  console.log('点击行:', row)
-}
-
-// 处理行双击
-function handleRowDblClick(row: any) {
-  console.log('双击行:', row)
-  alert(`订单详情：\n订单号: ${row.orderNo}\n客户: ${row.customerName}\n金额: ${row.amount}`)
-}
-
-// 截断信息
-const truncationInfo = ref<any>(null)
-
-// 测试大数据截断
-function testLargeDataTruncation() {
-  loading.value = true
-  truncationInfo.value = null
-
-  // 模拟 MCP 查询返回大数据并触发截断
-  setTimeout(() => {
-    // 模拟 150 行数据（实际上原始数据是 5000 行）
-    const mockData = []
-    const statusList = ['待支付', '已支付', '已发货', '已完成', '已取消']
-
-    for (let i = 0; i < 100; i++) {
-      mockData.push({
-        id: i + 1,
-        orderNo: `ORD-2024-${String(i + 1).padStart(6, '0')}`,
-        customerName: `客户${i + 1}`,
-        amount: Math.floor(Math.random() * 10000) + 100,
-        quantity: Math.floor(Math.random() * 100) + 1,
-        status: statusList[Math.floor(Math.random() * statusList.length)],
-        orderDate: new Date(2024, 0, Math.floor(Math.random() * 365))
-      })
-    }
-
-    data.value = mockData
-    total.value = 5000 // 原始总数
-
-    // 模拟截断信息（来自后端）
-    truncationInfo.value = {
-      truncated: true,
-      originalRowCount: 5000,
-      truncatedRowCount: 100,
-      columnCount: 7,
-      cellCount: 35000,
-      message: '数据量较大（5000 行 × 7 列 = 35000 单元格），已自动截断为 100 行。',
-      viewerUrl: 'http://localhost:8080/data-viewer/view/demo123456',
-      apiUrl: 'http://localhost:8080/data-viewer/api/query/demo123456/data',
-      hint: '您可以访问上述链接查看完整数据，或通过 API 分页获取（参数：start, limit）'
-    }
-
-    loading.value = false
-
-    // 滚动到截断信息提示
-    setTimeout(() => {
-      document.querySelector('.truncation-alert')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    }, 100)
-  }, 800)
-}
-
-// 清除截断测试
-function clearTruncationTest() {
-  truncationInfo.value = null
-  loadData(1, 50)
-}
-
-// 查看行详情（操作列按钮）
-function viewRowDetails(row: any) {
-  const details = Object.entries(row)
-    .map(([key, value]) => {
-      const field = qmSchema.find(f => f.name === key)
-      const label = field?.title || key
-      return `${label}: ${value}`
-    })
-    .join('\n')
-
-  alert(`📋 订单详细信息\n\n${details}`)
-}
-
-// 编辑行（操作列按钮）
-function editRow(row: any) {
-  console.log('编辑行:', row)
-  alert(`✏️ 编辑订单\n\n订单号: ${row.orderNo}\n客户: ${row.customerName}\n\n（这里可以打开编辑对话框）`)
-}
-
-// 删除行（操作列按钮）
-function deleteRow(row: any) {
-  if (confirm(`确定要删除订单 ${row.orderNo} 吗？`)) {
-    console.log('删除行:', row)
-    // 这里可以调用删除 API
-    const index = data.value.findIndex(item => item.id === row.id)
-    if (index !== -1) {
-      data.value.splice(index, 1)
-      total.value--
-      alert('✅ 删除成功')
+  },
+  {
+    name: '客户列表',
+    model: 'DimCustomerQueryModel',
+    payload: {
+      columns: ['customerName', 'customerId', 'customerType', 'memberLevel', 'gender', 'province', 'city'],
+      slice: [],
+      orderBy: [{ field: 'customerName', order: 'asc' }]
     }
   }
+]
+
+function selectExample(example: typeof examples[0]) {
+  dslInput.value = JSON.stringify({ model: example.model, title: example.name, payload: example.payload }, null, 2)
+  errorMessage.value = ''
+}
+
+async function submitQuery() {
+  errorMessage.value = ''
+  if (!dslInput.value.trim()) {
+    errorMessage.value = '请输入查询 DSL'
+    return
+  }
+
+  let request: CreateQueryRequest
+  try {
+    request = JSON.parse(dslInput.value)
+  } catch (e) {
+    errorMessage.value = 'JSON 格式错误: ' + (e as Error).message
+    return
+  }
+
+  isSubmitting.value = true
+  try {
+    const response = await createQuery(request)
+    if (response.success && response.queryId) {
+      queryId.value = response.queryId
+    } else {
+      errorMessage.value = response.error || '创建查询失败'
+    }
+  } catch (e) {
+    errorMessage.value = '请求失败: ' + (e as Error).message
+  } finally {
+    isSubmitting.value = false
+  }
+}
+
+// ============ Toolbar 场景 ============
+const toolbarQueryId = ref<string | null>(null)
+const toolbarMeta = ref<QueryMetaResponse | null>(null)
+const toolbarColumns = ref<EnhancedColumnSchema[]>([])
+const toolbarData = ref<Record<string, unknown>[]>([])
+const toolbarTotal = ref(0)
+const toolbarLoading = ref(false)
+const toolbarSlices = ref<SliceRequestDef[]>([])
+const toolbarServerSummary = ref<Record<string, unknown> | null>(null)
+
+async function initToolbarScene() {
+  toolbarLoading.value = true
+  try {
+    // 创建商品列表查询
+    const response = await createQuery({
+      model: 'DimProductQueryModel',
+      title: 'Toolbar 测试 - 商品列表',
+      payload: {
+        columns: ['productName', 'productId', 'brand', 'categoryName', 'subCategoryName', 'unitPrice', 'unitCost', 'status'],
+        slice: [],
+        orderBy: [{ field: 'productName', order: 'asc' }]
+      }
+    })
+
+    if (response.success && response.queryId) {
+      toolbarQueryId.value = response.queryId
+
+      // 获取元数据
+      toolbarMeta.value = await fetchQueryMeta(response.queryId)
+
+      // 获取 schema 并构建列
+      if (toolbarMeta.value?.tableConfig?.qmModel) {
+        const schema = await fetchQmSchema(toolbarMeta.value.tableConfig.qmModel)
+        toolbarColumns.value = buildTableColumns(schema, toolbarMeta.value.tableConfig)
+      }
+
+      // 加载数据
+      await loadToolbarData()
+    }
+  } catch (e) {
+    console.error('初始化 Toolbar 场景失败:', e)
+  } finally {
+    toolbarLoading.value = false
+  }
+}
+
+async function loadToolbarData(start = 0, limit = 50) {
+  if (!toolbarQueryId.value) return
+
+  toolbarLoading.value = true
+  try {
+    const response = await fetchQueryData(toolbarQueryId.value, {
+      start,
+      limit,
+      slice: toolbarSlices.value,
+      orderBy: []
+    })
+
+    if (response.success) {
+      toolbarData.value = response.items
+      toolbarTotal.value = response.total
+      toolbarServerSummary.value = response.totalData ?? null
+    }
+  } catch (e) {
+    console.error('加载数据失败:', e)
+  } finally {
+    toolbarLoading.value = false
+  }
+}
+
+function handleToolbarSearch() {
+  // toolbarSlices 已通过 v-model 绑定自动更新
+  loadToolbarData()
+}
+
+function handleToolbarReset() {
+  toolbarSlices.value = []
+  loadToolbarData()
+}
+
+function handleToolbarPageChange(page: number, size: number) {
+  loadToolbarData((page - 1) * size, size)
+}
+
+// ============ 自定义操作列场景 ============
+const actionsQueryId = ref<string | null>(null)
+const actionsMeta = ref<QueryMetaResponse | null>(null)
+const actionsColumns = ref<EnhancedColumnSchema[]>([])
+const actionsData = ref<Record<string, unknown>[]>([])
+const actionsTotal = ref(0)
+const actionsLoading = ref(false)
+const actionsServerSummary = ref<Record<string, unknown> | null>(null)
+
+async function initActionsScene() {
+  actionsLoading.value = true
+  try {
+    // 创建订单查询
+    const response = await createQuery({
+      model: 'FactOrderQueryModel',
+      title: '自定义操作列测试 - 订单列表',
+      payload: {
+        columns: ['orderId', 'orderStatus', 'paymentStatus', 'orderTime', 'customer$caption', 'amount', 'payAmount'],
+        slice: [
+          { field: 'orderDate$caption', op: '>=', value: '2024-12-01' },
+          { field: 'orderDate$caption', op: '<', value: '2024-12-31' }
+        ],
+        orderBy: [{ field: 'orderTime', order: 'desc' }]
+      }
+    })
+
+    if (response.success && response.queryId) {
+      actionsQueryId.value = response.queryId
+
+      // 获取元数据
+      actionsMeta.value = await fetchQueryMeta(response.queryId)
+
+      // 获取 schema 并构建列（添加操作列）
+      if (actionsMeta.value?.tableConfig?.qmModel) {
+        const schema = await fetchQmSchema(actionsMeta.value.tableConfig.qmModel)
+
+        // 添加操作列到 schema
+        const schemaWithActions: ColumnSchema[] = [
+          ...schema,
+          { name: 'actions', type: 'TEXT', title: '操作', filterable: false, aggregatable: false, measure: false }
+        ]
+
+        // 构建列配置，包含操作列定制
+        actionsColumns.value = buildTableColumns(schemaWithActions, {
+          ...actionsMeta.value.tableConfig,
+          visibleColumns: [...(actionsMeta.value.tableConfig.visibleColumns || []), 'actions'],
+          customizations: [
+            ...(actionsMeta.value.tableConfig.customizations || []),
+            { name: 'actions', width: 200, fixed: 'right' }
+          ]
+        })
+      }
+
+      // 加载数据
+      await loadActionsData()
+    }
+  } catch (e) {
+    console.error('初始化操作列场景失败:', e)
+  } finally {
+    actionsLoading.value = false
+  }
+}
+
+async function loadActionsData(start = 0, limit = 50) {
+  if (!actionsQueryId.value) return
+
+  actionsLoading.value = true
+  try {
+    const response = await fetchQueryData(actionsQueryId.value, { start, limit, slice: [], orderBy: [] })
+
+    if (response.success) {
+      actionsData.value = response.items
+      actionsTotal.value = response.total
+      actionsServerSummary.value = response.totalData ?? null
+    }
+  } catch (e) {
+    console.error('加载数据失败:', e)
+  } finally {
+    actionsLoading.value = false
+  }
+}
+
+function handleActionsPageChange(page: number, size: number) {
+  loadActionsData((page - 1) * size, size)
+}
+
+function viewOrder(row: Record<string, unknown>) {
+  alert(`查看订单详情\n\n订单号: ${row.orderId}\n客户: ${row['customer$caption']}\n金额: ${row.amount}\n状态: ${row.orderStatus}`)
+}
+
+function editOrder(row: Record<string, unknown>) {
+  alert(`编辑订单\n\n订单号: ${row.orderId}\n\n（这里可以打开编辑对话框）`)
+}
+
+function deleteOrder(row: Record<string, unknown>) {
+  if (confirm(`确定要删除订单 ${row.orderId} 吗？`)) {
+    const index = actionsData.value.findIndex(item => item.orderId === row.orderId)
+    if (index !== -1) {
+      actionsData.value.splice(index, 1)
+      actionsTotal.value--
+      alert('删除成功（仅前端删除，刷新后恢复）')
+    }
+  }
+}
+
+// ============ 组合场景（DataTableWithSearch） ============
+const combinedQueryId = ref<string | null>(null)
+const combinedMeta = ref<QueryMetaResponse | null>(null)
+const combinedColumns = ref<EnhancedColumnSchema[]>([])
+const combinedData = ref<Record<string, unknown>[]>([])
+const combinedTotal = ref(0)
+const combinedLoading = ref(false)
+const combinedSlices = ref<SliceRequestDef[]>([])
+const combinedServerSummary = ref<Record<string, unknown> | null>(null)
+
+async function initCombinedScene() {
+  combinedLoading.value = true
+  try {
+    // 创建销售明细查询
+    const response = await createQuery({
+      model: 'FactSalesQueryModel',
+      title: 'DataTableWithSearch 测试 - 销售明细',
+      payload: {
+        columns: ['orderId', 'salesDate$caption', 'product$caption', 'customer$caption', 'store$caption', 'quantity', 'salesAmount', 'profitAmount'],
+        slice: [],
+        orderBy: [{ field: 'salesDate$caption', order: 'desc' }]
+      }
+    })
+
+    if (response.success && response.queryId) {
+      combinedQueryId.value = response.queryId
+
+      // 获取元数据
+      combinedMeta.value = await fetchQueryMeta(response.queryId)
+
+      // 获取 schema 并构建列
+      if (combinedMeta.value?.tableConfig?.qmModel) {
+        const schema = await fetchQmSchema(combinedMeta.value.tableConfig.qmModel)
+        combinedColumns.value = buildTableColumns(schema, combinedMeta.value.tableConfig)
+      }
+
+      // 加载数据
+      await loadCombinedData()
+    }
+  } catch (e) {
+    console.error('初始化组合场景失败:', e)
+  } finally {
+    combinedLoading.value = false
+  }
+}
+
+async function loadCombinedData(start = 0, limit = 50) {
+  if (!combinedQueryId.value) return
+
+  combinedLoading.value = true
+  try {
+    const response = await fetchQueryData(combinedQueryId.value, {
+      start,
+      limit,
+      slice: combinedSlices.value,
+      orderBy: []
+    })
+
+    if (response.success) {
+      combinedData.value = response.items
+      combinedTotal.value = response.total
+      combinedServerSummary.value = response.totalData ?? null
+    }
+  } catch (e) {
+    console.error('加载数据失败:', e)
+  } finally {
+    combinedLoading.value = false
+  }
+}
+
+function handleCombinedFilterChange(slices: SliceRequestDef[]) {
+  combinedSlices.value = slices
+  loadCombinedData()
+}
+
+function handleCombinedPageChange(page: number, size: number) {
+  loadCombinedData((page - 1) * size, size)
+}
+
+// ============ 场景切换逻辑 ============
+function goToScene(scene: SceneType) {
+  currentScene.value = scene
+
+  // 初始化对应场景
+  if (scene === 'toolbar' && !toolbarQueryId.value) {
+    initToolbarScene()
+  } else if (scene === 'custom-actions' && !actionsQueryId.value) {
+    initActionsScene()
+  } else if (scene === 'combined' && !combinedQueryId.value) {
+    initCombinedScene()
+  }
+}
+
+function goHome() {
+  currentScene.value = 'home'
+  queryId.value = null
 }
 </script>
 
 <template>
-  <div class="app">
-    <div class="header">
-      <h1>Foggy Data Viewer - DataTable 验证</h1>
-      <p>这是一个独立的验证项目，用于测试 DataTable 组件的功能</p>
+  <div id="app">
+    <!-- 首页 -->
+    <div v-if="currentScene === 'home'" class="home-page">
+      <div class="hero">
+        <h1>Foggy Data Viewer - 验证应用</h1>
+        <p class="subtitle">使用后台真实数据测试组件各项功能</p>
+      </div>
+
+      <div class="scenes-grid">
+        <div class="scene-card" @click="goToScene('dataviewer')">
+          <div class="scene-icon">📊</div>
+          <h3>DataViewer 组件</h3>
+          <p>完整的数据浏览器组件，支持 DSL 查询</p>
+          <ul>
+            <li>动态 DSL 查询创建</li>
+            <li>自动获取元数据和 Schema</li>
+            <li>完整的分页、排序、筛选功能</li>
+          </ul>
+        </div>
+
+        <div class="scene-card" @click="goToScene('toolbar')">
+          <div class="scene-icon">🔍</div>
+          <h3>SearchToolbar 独立使用</h3>
+          <p>搜索工具栏与 DataTable 分离使用</p>
+          <ul>
+            <li>SearchToolbar 独立放置</li>
+            <li>手动控制筛选条件</li>
+            <li>搜索/重置按钮事件</li>
+          </ul>
+        </div>
+
+        <div class="scene-card" @click="goToScene('custom-actions')">
+          <div class="scene-icon">⚡</div>
+          <h3>自定义操作列</h3>
+          <p>使用插槽自定义操作列按钮</p>
+          <ul>
+            <li>查看/编辑/删除按钮</li>
+            <li>固定在右侧</li>
+            <li>自定义样式和事件</li>
+          </ul>
+        </div>
+
+        <div class="scene-card" @click="goToScene('combined')">
+          <div class="scene-icon">🎯</div>
+          <h3>DataTableWithSearch</h3>
+          <p>SearchToolbar + DataTable 组合组件</p>
+          <ul>
+            <li>自动集成搜索工具栏</li>
+            <li>属性透传</li>
+            <li>统一的筛选事件</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="info-section">
+        <h3>环境要求</h3>
+        <ul>
+          <li>后台服务运行在 <code>localhost:7108</code></li>
+          <li>已配置 API 代理：<code>/data-viewer/api</code> → <code>http://localhost:7108</code></li>
+        </ul>
+      </div>
     </div>
 
-    <div class="content">
-      <div class="info-panel">
-        <h3>功能说明</h3>
-        <ul>
-          <li>✅ 使用 <code>file:</code> 协议引用本地未发布的组件包</li>
-          <li>✅ 支持列配置、固定列、自定义宽度</li>
-          <li>✅ 支持分页（点击分页器测试）</li>
-          <li>✅ 支持排序（点击列头测试）</li>
-          <li>✅ 支持筛选（打开筛选面板测试）</li>
-          <li>✅ 显示汇总行（选中行查看）</li>
-          <li>✅ 行点击/双击事件</li>
-          <li>🆕 独立的 SearchToolbar 组件（快速筛选）</li>
-          <li>🆕 MCP 大数据自动截断（点击下方按钮测试）</li>
-          <li>🎯 自定义操作列插槽（查看/编辑/删除按钮）</li>
-        </ul>
-
-        <div class="test-buttons">
-          <button @click="testLargeDataTruncation" class="test-btn primary" :disabled="loading">
-            🧪 测试大数据截断
-          </button>
-          <button @click="clearTruncationTest" class="test-btn" :disabled="!truncationInfo || loading">
-            🔄 恢复正常数据
-          </button>
-        </div>
+    <!-- DataViewer 场景 -->
+    <div v-else-if="currentScene === 'dataviewer'" class="scene-page">
+      <div class="scene-header">
+        <button class="back-btn" @click="goHome">← 返回首页</button>
+        <h2>DataViewer 组件测试</h2>
       </div>
 
-      <!-- 截断信息提示 -->
-      <div v-if="truncationInfo" class="truncation-alert">
-        <div class="alert-header">
-          <span class="alert-icon">⚠️</span>
-          <h3>数据已自动截断</h3>
-        </div>
-        <div class="alert-body">
-          <p class="message">{{ truncationInfo.message }}</p>
-          <div class="info-grid">
-            <div class="info-item">
-              <span class="label">原始行数:</span>
-              <span class="value">{{ truncationInfo.originalRowCount.toLocaleString() }} 行</span>
-            </div>
-            <div class="info-item">
-              <span class="label">截断后:</span>
-              <span class="value">{{ truncationInfo.truncatedRowCount }} 行</span>
-            </div>
-            <div class="info-item">
-              <span class="label">列数:</span>
-              <span class="value">{{ truncationInfo.columnCount }} 列</span>
-            </div>
-            <div class="info-item">
-              <span class="label">总单元格:</span>
-              <span class="value">{{ truncationInfo.cellCount.toLocaleString() }} 个</span>
+      <!-- 如果已有 queryId，显示 DataViewer -->
+      <div v-if="queryId" class="viewer-container">
+        <DataViewer :query-id="queryId" />
+      </div>
+
+      <!-- 否则显示 DSL 输入表单 -->
+      <div v-else class="dsl-form">
+        <div class="form-row">
+          <div class="examples-panel">
+            <h3>示例查询</h3>
+            <div class="example-list">
+              <button
+                v-for="example in examples"
+                :key="example.name"
+                class="example-btn"
+                @click="selectExample(example)"
+              >
+                {{ example.name }}
+              </button>
             </div>
           </div>
-          <div class="links">
-            <p class="hint">{{ truncationInfo.hint }}</p>
-            <div class="link-buttons">
-              <a :href="truncationInfo.viewerUrl" target="_blank" class="link-btn viewer">
-                🔍 在浏览器中查看完整数据
-              </a>
-              <a :href="truncationInfo.apiUrl" target="_blank" class="link-btn api">
-                📡 API 查询接口
-              </a>
-            </div>
+
+          <div class="input-panel">
+            <h3>DSL 输入</h3>
+            <textarea
+              v-model="dslInput"
+              class="dsl-textarea"
+              placeholder="输入 JSON 格式的查询参数..."
+              :disabled="isSubmitting"
+            ></textarea>
+            <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
+            <button class="submit-btn" @click="submitQuery" :disabled="isSubmitting">
+              {{ isSubmitting ? '提交中...' : '提交查询' }}
+            </button>
           </div>
         </div>
       </div>
+    </div>
 
-      <!-- SearchToolbar 独立使用示例 -->
-      <div class="search-panel">
-        <h3>搜索工具栏（独立使用）</h3>
-        <SearchToolbar
-          :columns="columns"
-          :searchable-fields="['customerName', 'orderDate', 'amount']"
-          v-model="searchSlices"
-          @update:model-value="handleSearchChange"
-          @search="handleSearch"
-          @reset="handleReset"
-        />
+    <!-- Toolbar 场景 -->
+    <div v-else-if="currentScene === 'toolbar'" class="scene-page">
+      <div class="scene-header">
+        <button class="back-btn" @click="goHome">← 返回首页</button>
+        <h2>SearchToolbar 独立使用测试</h2>
       </div>
 
-      <div class="table-container">
-        <DataTable
-          :columns="columns"
-          :data="data"
-          :total="total"
-          :loading="loading"
-          :page-size="50"
-          :show-filters="true"
-          :server-summary="serverSummary"
-          @page-change="handlePageChange"
-          @sort-change="handleSortChange"
-          @filter-change="handleFilterChange"
-          @row-click="handleRowClick"
-          @row-dblclick="handleRowDblClick"
-        >
-          <!-- 自定义操作列插槽 -->
-          <template #column-actions="{ row }">
-            <div class="action-buttons">
-              <button @click.stop="viewRowDetails(row)" class="action-btn view" title="查看详情">
-                <span class="icon">👁️</span>
-                <span class="text">查看</span>
-              </button>
-              <button @click.stop="editRow(row)" class="action-btn edit" title="编辑">
-                <span class="icon">✏️</span>
-                <span class="text">编辑</span>
-              </button>
-              <button @click.stop="deleteRow(row)" class="action-btn delete" title="删除">
-                <span class="icon">🗑️</span>
-                <span class="text">删除</span>
-              </button>
-            </div>
-          </template>
-        </DataTable>
+      <div class="scene-content">
+        <div class="feature-info">
+          <p>SearchToolbar 独立放置在表格上方，手动处理筛选逻辑</p>
+        </div>
+
+        <!-- 独立的 SearchToolbar -->
+        <div class="toolbar-container">
+          <SearchToolbar
+            :columns="toolbarColumns"
+            :searchable-fields="['productName', 'brand', 'categoryName']"
+            v-model="toolbarSlices"
+            @search="handleToolbarSearch"
+            @reset="handleToolbarReset"
+          />
+        </div>
+
+        <!-- DataTable -->
+        <div class="table-container">
+          <DataTable
+            :columns="toolbarColumns"
+            :data="toolbarData"
+            :total="toolbarTotal"
+            :loading="toolbarLoading"
+            :page-size="50"
+            :show-filters="true"
+            :server-summary="toolbarServerSummary"
+            @page-change="handleToolbarPageChange"
+          />
+        </div>
+      </div>
+    </div>
+
+    <!-- 自定义操作列场景 -->
+    <div v-else-if="currentScene === 'custom-actions'" class="scene-page">
+      <div class="scene-header">
+        <button class="back-btn" @click="goHome">← 返回首页</button>
+        <h2>自定义操作列测试</h2>
+      </div>
+
+      <div class="scene-content">
+        <div class="feature-info">
+          <p>使用 <code>#column-actions</code> 插槽自定义操作列，包含查看、编辑、删除按钮</p>
+        </div>
+
+        <div class="table-container">
+          <DataTable
+            :columns="actionsColumns"
+            :data="actionsData"
+            :total="actionsTotal"
+            :loading="actionsLoading"
+            :page-size="50"
+            :show-filters="true"
+            :server-summary="actionsServerSummary"
+            @page-change="handleActionsPageChange"
+          >
+            <!-- 自定义操作列插槽 -->
+            <template #column-actions="{ row }">
+              <div class="action-buttons">
+                <button @click.stop="viewOrder(row)" class="action-btn view" title="查看详情">
+                  👁️ 查看
+                </button>
+                <button @click.stop="editOrder(row)" class="action-btn edit" title="编辑">
+                  ✏️ 编辑
+                </button>
+                <button @click.stop="deleteOrder(row)" class="action-btn delete" title="删除">
+                  🗑️ 删除
+                </button>
+              </div>
+            </template>
+          </DataTable>
+        </div>
+      </div>
+    </div>
+
+    <!-- DataTableWithSearch 场景 -->
+    <div v-else-if="currentScene === 'combined'" class="scene-page">
+      <div class="scene-header">
+        <button class="back-btn" @click="goHome">← 返回首页</button>
+        <h2>DataTableWithSearch 组合组件测试</h2>
+      </div>
+
+      <div class="scene-content">
+        <div class="feature-info">
+          <p>DataTableWithSearch 自动集成 SearchToolbar，通过 <code>searchable-fields</code> 配置可搜索字段</p>
+        </div>
+
+        <div class="table-container combined">
+          <DataTableWithSearch
+            :columns="combinedColumns"
+            :data="combinedData"
+            :total="combinedTotal"
+            :loading="combinedLoading"
+            :page-size="50"
+            :show-filters="true"
+            :server-summary="combinedServerSummary"
+            :searchable-fields="['product$caption', 'customer$caption', 'store$caption', 'salesDate$caption']"
+            @page-change="handleCombinedPageChange"
+            @filter-change="handleCombinedFilterChange"
+          />
+        </div>
       </div>
     </div>
   </div>
 </template>
 
-<style scoped>
-.app {
-  min-height: 100vh;
-  background: #f5f5f5;
-  padding: 20px;
+<style>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
-.header {
+html, body, #app {
+  width: 100%;
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* 首页样式 */
+.home-page {
+  min-height: 100%;
+  padding: 40px 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.hero {
   text-align: center;
-  margin-bottom: 30px;
-  padding: 20px;
+  margin-bottom: 40px;
+  color: white;
+}
+
+.hero h1 {
+  font-size: 2.5rem;
+  margin-bottom: 12px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.subtitle {
+  font-size: 1.2rem;
+  opacity: 0.9;
+}
+
+.scenes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 24px;
+  max-width: 1200px;
+  margin: 0 auto 40px;
+}
+
+.scene-card {
   background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-radius: 16px;
+  padding: 24px;
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
 }
 
-.header h1 {
-  color: #2c3e50;
-  margin-bottom: 10px;
+.scene-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
 }
 
-.header p {
-  color: #7f8c8d;
-  font-size: 14px;
+.scene-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
 }
 
-.content {
-  max-width: 1400px;
-  margin: 0 auto;
+.scene-card h3 {
+  font-size: 1.3rem;
+  color: #303133;
+  margin-bottom: 8px;
 }
 
-.info-panel {
-  background: white;
-  padding: 20px;
-  border-radius: 8px;
-  margin-bottom: 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+.scene-card > p {
+  font-size: 0.9rem;
+  color: #606266;
+  margin-bottom: 16px;
 }
 
-.search-panel {
-  background: white;
-  padding: 20px;
-  border-radius: 8px;
-  margin-bottom: 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.search-panel h3 {
-  color: #2c3e50;
-  margin-bottom: 15px;
-  margin-top: 0;
-}
-
-.info-panel h3 {
-  color: #2c3e50;
-  margin-bottom: 15px;
-}
-
-.info-panel ul {
+.scene-card ul {
   list-style: none;
   padding: 0;
-  margin: 0;
 }
 
-.info-panel li {
-  padding: 8px 0;
-  color: #34495e;
+.scene-card li {
+  font-size: 0.85rem;
+  color: #909399;
+  padding: 4px 0;
+  padding-left: 20px;
+  position: relative;
+}
+
+.scene-card li::before {
+  content: '✓';
+  position: absolute;
+  left: 0;
+  color: #67c23a;
+}
+
+.info-section {
+  max-width: 600px;
+  margin: 0 auto;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.info-section h3 {
+  font-size: 1.1rem;
+  color: #303133;
+  margin-bottom: 12px;
+}
+
+.info-section ul {
+  list-style: none;
+  padding: 0;
+}
+
+.info-section li {
+  font-size: 0.9rem;
+  color: #606266;
+  padding: 6px 0;
+}
+
+.info-section code {
+  background: #f5f7fa;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'Consolas', monospace;
+  color: #409eff;
+}
+
+/* 场景页面通用样式 */
+.scene-page {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #f5f7fa;
+}
+
+.scene-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 24px;
+  background: white;
+  border-bottom: 1px solid #e4e7ed;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.back-btn {
+  padding: 8px 16px;
+  background: #f5f7fa;
+  color: #606266;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.back-btn:hover {
+  background: #e4e7ed;
+  color: #303133;
+}
+
+.scene-header h2 {
+  font-size: 1.3rem;
+  color: #303133;
+}
+
+.scene-content {
+  flex: 1;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.feature-info {
+  background: #ecf5ff;
+  border: 1px solid #b3d8ff;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+}
+
+.feature-info p {
+  color: #409eff;
   font-size: 14px;
 }
 
-.info-panel code {
-  background: #f0f0f0;
+.feature-info code {
+  background: white;
   padding: 2px 6px;
-  border-radius: 3px;
-  font-family: 'Courier New', monospace;
-  font-size: 13px;
-  color: #e74c3c;
+  border-radius: 4px;
+  font-family: 'Consolas', monospace;
+}
+
+.toolbar-container {
+  background: white;
+  padding: 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .table-container {
+  flex: 1;
   background: white;
-  padding: 20px;
+  padding: 16px;
   border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  height: 800px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
-.table-container :deep(.data-table) {
+.table-container.combined {
+  padding: 0;
+}
+
+.table-container :deep(.data-table),
+.table-container :deep(.data-table-with-search) {
   flex: 1;
   display: flex;
   flex-direction: column;
 }
 
-.table-container :deep(.table-wrapper) {
+/* DataViewer 场景 */
+.viewer-container {
   flex: 1;
+  overflow: hidden;
+}
+
+.viewer-container :deep(.data-viewer) {
+  height: 100%;
+}
+
+.dsl-form {
+  flex: 1;
+  padding: 24px;
   overflow: auto;
 }
 
-.table-container :deep(.vxe-table) {
-  height: 100% !important;
+.form-row {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 24px;
+  max-width: 1000px;
+  margin: 0 auto;
 }
 
-/* 测试按钮样式 */
-.test-buttons {
-  margin-top: 20px;
-  padding-top: 20px;
-  border-top: 1px solid #e0e0e0;
-  display: flex;
-  gap: 12px;
-}
-
-.test-btn {
-  padding: 10px 20px;
-  border: 1px solid #dcdfe6;
-  border-radius: 4px;
+.examples-panel,
+.input-panel {
   background: white;
-  color: #606266;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.examples-panel h3,
+.input-panel h3 {
+  font-size: 1.1rem;
+  color: #303133;
+  margin-bottom: 16px;
+}
+
+.example-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.example-btn {
+  padding: 12px 16px;
+  background: #f5f7fa;
+  border: 1px solid #e4e7ed;
+  border-radius: 8px;
   cursor: pointer;
   font-size: 14px;
-  transition: all 0.3s;
+  text-align: left;
+  transition: all 0.2s;
 }
 
-.test-btn:hover:not(:disabled) {
-  background: #f5f7fa;
-  border-color: #c0c4cc;
+.example-btn:hover {
+  background: #ecf5ff;
+  border-color: #409eff;
+  color: #409eff;
 }
 
-.test-btn.primary {
-  background: #409eff;
-  color: white;
+.dsl-textarea {
+  width: 100%;
+  height: 300px;
+  padding: 12px;
+  border: 1px solid #dcdfe6;
+  border-radius: 8px;
+  font-family: 'Consolas', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.dsl-textarea:focus {
+  outline: none;
   border-color: #409eff;
 }
 
-.test-btn.primary:hover:not(:disabled) {
-  background: #66b1ff;
-  border-color: #66b1ff;
+.error-message {
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: #fef0f0;
+  border: 1px solid #fde2e2;
+  border-radius: 6px;
+  color: #f56c6c;
+  font-size: 0.9rem;
 }
 
-.test-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* 截断信息提示样式 */
-.truncation-alert {
-  background: #fff7e6;
-  border: 2px solid #ffa940;
+.submit-btn {
+  margin-top: 16px;
+  width: 100%;
+  padding: 12px 24px;
+  background: #409eff;
+  color: white;
+  border: none;
   border-radius: 8px;
-  padding: 20px;
-  margin-bottom: 20px;
-  box-shadow: 0 4px 12px rgba(255, 169, 64, 0.15);
-  animation: slideIn 0.5s ease-out;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.2s;
 }
 
-@keyframes slideIn {
-  from {
-    opacity: 0;
-    transform: translateY(-20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.submit-btn:hover:not(:disabled) {
+  background: #337ecc;
 }
 
-.alert-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.alert-icon {
-  font-size: 28px;
-}
-
-.alert-header h3 {
-  color: #d46b08;
-  margin: 0;
-  font-size: 18px;
-}
-
-.alert-body .message {
-  color: #d46b08;
-  font-size: 15px;
-  line-height: 1.6;
-  margin-bottom: 16px;
-  padding: 12px;
-  background: white;
-  border-radius: 4px;
-  font-weight: 500;
-}
-
-.info-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.info-item {
-  background: white;
-  padding: 12px;
-  border-radius: 4px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.info-item .label {
-  color: #8c8c8c;
-  font-size: 13px;
-}
-
-.info-item .value {
-  color: #262626;
-  font-weight: 600;
-  font-size: 14px;
-}
-
-.links {
-  background: white;
-  padding: 16px;
-  border-radius: 4px;
-}
-
-.hint {
-  color: #595959;
-  font-size: 13px;
-  margin-bottom: 12px;
-  line-height: 1.6;
-}
-
-.link-buttons {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.link-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  border-radius: 4px;
-  text-decoration: none;
-  font-size: 14px;
-  font-weight: 500;
-  transition: all 0.3s;
-}
-
-.link-btn.viewer {
-  background: #1890ff;
-  color: white;
-}
-
-.link-btn.viewer:hover {
-  background: #40a9ff;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(24, 144, 255, 0.3);
-}
-
-.link-btn.api {
-  background: #52c41a;
-  color: white;
-}
-
-.link-btn.api:hover {
-  background: #73d13d;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(82, 196, 26, 0.3);
+.submit-btn:disabled {
+  background: #a0cfff;
+  cursor: not-allowed;
 }
 
 /* 操作按钮样式 */
 .action-buttons {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   justify-content: center;
-  align-items: center;
 }
 
 .action-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
+  padding: 4px 10px;
   border: 1px solid #d9d9d9;
   border-radius: 4px;
   background: white;
@@ -648,18 +963,8 @@ function deleteRow(row: any) {
   white-space: nowrap;
 }
 
-.action-btn .icon {
-  font-size: 14px;
-  line-height: 1;
-}
-
-.action-btn .text {
-  line-height: 1;
-}
-
 .action-btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .action-btn.view {
@@ -669,7 +974,6 @@ function deleteRow(row: any) {
 
 .action-btn.view:hover {
   background: #e6f7ff;
-  border-color: #40a9ff;
 }
 
 .action-btn.edit {
@@ -679,7 +983,6 @@ function deleteRow(row: any) {
 
 .action-btn.edit:hover {
   background: #f6ffed;
-  border-color: #73d13d;
 }
 
 .action-btn.delete {
@@ -689,6 +992,11 @@ function deleteRow(row: any) {
 
 .action-btn.delete:hover {
   background: #fff1f0;
-  border-color: #ff7875;
+}
+
+@media (max-width: 768px) {
+  .form-row {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
