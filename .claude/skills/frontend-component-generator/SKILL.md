@@ -29,13 +29,20 @@ DataTableWithSearch 组件支持两种工作模式：
   :fetch-data="fetchData"
   @load-success="onSuccess"
   @load-error="onError"
-/>
+>
+  <!-- 可选：自定义工具栏按钮（显示在分页栏左侧） -->
+  <template #toolbar>
+    <button @click="handleAdd">新增</button>
+    <button @click="handleExport">导出</button>
+  </template>
+</DataTableWithSearch>
 ```
 
 **优势**：
 - 代码最简洁，无需手动管理状态
 - 自动处理分页、排序、筛选变化
 - 自动触发数据加载
+- 内置顶部工具栏（分页在右侧，支持左侧插槽放自定义按钮）
 
 ### 受控模式
 传入 `columns` + `data` + `total` + `loading`，用户手动管理所有状态。
@@ -86,25 +93,31 @@ DataTableWithSearch 组件支持两种工作模式：
 
 **检查 VXETable 配置**：
 
-读取 `src/main.js` 或 `src/main.ts`，验证是否包含以下三项：
-1. `import VXETable from 'vxe-table'`
-2. `import 'foggy-data-viewer/style.css'`
-3. `app.use(VXETable)`
+读取 `src/main.js` 或 `src/main.ts`，验证是否包含以下五项（vxe-table v4.7+ 需要 VxeUI）：
+1. `import VxeUI from 'vxe-pc-ui'`
+2. `import VXETable from 'vxe-table'`
+3. `import 'foggy-data-viewer/style.css'`
+4. `app.use(VxeUI)`（必须在 VXETable 之前）
+5. `app.use(VXETable)`
 
 **如果基础环境缺失** → 提示用户先运行 `/foggy-frontend-init`
 
 **如果 VXETable 未注册** → 显示警告并提供配置代码：
 
 ```
-⚠️ 警告：检测到 VXETable 未全局注册
+⚠️ 警告：检测到 VxeUI/VXETable 未全局注册
 
-foggy-data-viewer 依赖 VXETable 表格引擎，必须在 main.js 中注册，否则生成的表格组件无法显示。
+foggy-data-viewer 依赖 VXETable 表格引擎，vxe-table v4.7+ 还需要 VxeUI。
+必须在 main.js 中注册，否则生成的表格组件无法显示。
 
 请在 src/main.js 中添加以下代码：
 
+import VxeUI from 'vxe-pc-ui'
 import VXETable from 'vxe-table'
 import 'foggy-data-viewer/style.css'
 
+// VxeUI 必须在 VXETable 之前注册
+app.use(VxeUI)
 app.use(VXETable)
 
 或运行 /foggy-frontend-init 自动完成配置。
@@ -227,12 +240,8 @@ defineExpose({
 
 <template>
   <div class="component-wrapper">
-    <!-- 顶部工具栏插槽 -->
-    <div class="header-bar">
-      <slot name="toolbar" />
-    </div>
-
     <!-- 数据表格（Schema 模式：组件自动管理分页/加载/筛选状态） -->
+    <!-- 工具栏布局：左侧自定义按钮插槽，右侧分页栏 -->
     <DataTableWithSearch
       ref="tableRef"
       :schema="schema"
@@ -240,6 +249,10 @@ defineExpose({
       @load-success="(result) => $emit('load-success', result)"
       @load-error="(error) => $emit('load-error', error)"
     >
+      <!-- 顶部工具栏插槽（按钮显示在分页栏左侧） -->
+      <template v-if="$slots.toolbar" #toolbar>
+        <slot name="toolbar" />
+      </template>
       <!-- 透传操作列插槽 -->
       <template v-if="$slots['column-actions']" #column-actions="slotData">
         <slot name="column-actions" v-bind="slotData" />
@@ -308,6 +321,7 @@ export const tableSchema: TableSchema = {
   searchableFields: ['order_no', 'customer_name'],  // 搜索工具栏显示的字段
   pageSize: 50,
   showFilters: true,
+  showPager: true,             // 是否显示分页栏（默认 true）
   showSearchToolbar: true,
   searchLayout: 'horizontal'
 }
@@ -501,16 +515,19 @@ src/{commonComponentPath}/models/
 
 ### Q1: 生成的表格组件不显示，但 API 返回数据正常，控制台无报错？
 
-**原因**: VXETable 未全局注册或样式未导入。
+**原因**: VxeUI 或 VXETable 未全局注册，或样式未导入。
 
 **解决方法**:
 
-检查 `src/main.js` 是否包含：
+检查 `src/main.js` 是否包含（vxe-table v4.7+ 需要同时注册 VxeUI）：
 
 ```javascript
+import VxeUI from 'vxe-pc-ui'
 import VXETable from 'vxe-table'
 import 'foggy-data-viewer/style.css'
 
+// 注意：VxeUI 必须在 VXETable 之前注册
+app.use(VxeUI)
 app.use(VXETable)
 ```
 
@@ -666,7 +683,58 @@ export const columns: EnhancedColumnSchema[] = [
 
 ---
 
-### Q10: 点击搜索按钮时，后台收到两个相同的请求？
+### Q9: 如何在表格顶部添加操作按钮（新增、导出等）？
+
+**解决方法**:
+
+使用 `#toolbar` 插槽，按钮会显示在分页栏左侧：
+
+```vue
+<DataTableWithSearch
+  :schema="tableSchema"
+  :fetch-data="fetchData"
+>
+  <template #toolbar>
+    <button class="btn primary" @click="handleAdd">+ 新增</button>
+    <button class="btn" @click="handleExport">导出</button>
+    <button class="btn" @click="tableRef?.refresh()">刷新</button>
+  </template>
+</DataTableWithSearch>
+```
+
+**工具栏布局**：
+- 左侧：`#toolbar` 插槽内容（自定义按钮）
+- 右侧：分页组件（自动显示，可通过 `showPager: false` 隐藏）
+
+---
+
+### Q10: 如何隐藏分页栏？
+
+**解决方法**:
+
+在 TableSchema 中设置 `showPager: false`：
+
+```typescript
+export const tableSchema: TableSchema = {
+  columns,
+  showPager: false,  // 隐藏分页栏
+  // ...
+}
+```
+
+或在组件上直接传入 prop：
+
+```vue
+<DataTableWithSearch
+  :schema="tableSchema"
+  :fetch-data="fetchData"
+  :show-pager="false"
+/>
+```
+
+---
+
+### Q11: 点击搜索按钮时，后台收到两个相同的请求？
 
 **原因**: 同时监听了 `@update:model-value` 和 `@search` 事件。
 
@@ -698,7 +766,7 @@ export const columns: EnhancedColumnSchema[] = [
 
 ---
 
-### Q11: 横向滚动表格时，表头不跟随内容同步滚动？
+### Q12: 横向滚动表格时，表头不跟随内容同步滚动？
 
 **原因**: 在自定义样式中设置了 `overflow: visible`。
 

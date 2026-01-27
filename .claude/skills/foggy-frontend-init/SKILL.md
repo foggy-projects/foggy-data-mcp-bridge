@@ -213,8 +213,10 @@ export async function query<T = any>(
 
 1. 读取 `src/main.js` 或 `src/main.ts`
 2. 检查是否包含以下关键配置：
+   - `import VxeUI from 'vxe-pc-ui'`（vxe-table v4.7+ 必需）
    - `import VXETable from 'vxe-table'`
    - `import 'foggy-data-viewer/style.css'`
+   - `app.use(VxeUI)`（必须在 VXETable 之前）
    - `app.use(VXETable)`
 
 #### 如果缺失配置，询问用户是否自动添加
@@ -224,10 +226,13 @@ export async function query<T = any>(
 ⚠️ 检测到缺少 VXETable 配置
 
 foggy-data-viewer 依赖 VXETable 作为底层表格引擎，需要在应用启动时全局注册。
+vxe-table v4.7+ 还需要同时注册 VxeUI（vxe-pc-ui）。
 
 当前缺失：
+- ❌ 未导入 VxeUI（vxe-pc-ui）
 - ❌ 未导入 VXETable
 - ❌ 未导入 foggy-data-viewer 样式
+- ❌ 未注册 VxeUI 插件
 - ❌ 未注册 VXETable 插件
 
 建议操作：
@@ -241,6 +246,7 @@ import { createApp } from 'vue'
 import ElementPlus from 'element-plus'
 import 'element-plus/dist/index.css'
 import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
+import VxeUI from 'vxe-pc-ui'                       // ⬅️ 必需 (vxe-table v4.7+)
 import VXETable from 'vxe-table'                    // ⬅️ 必需
 import 'foggy-data-viewer/style.css'                // ⬅️ 必需
 import App from './App.vue'
@@ -248,7 +254,8 @@ import router from './router'
 
 const app = createApp(App)
 
-// 必需：注册 VXETable（foggy-data-viewer 的底层表格引擎）
+// 必需：注册 VxeUI 和 VXETable（VxeUI 必须在 VXETable 之前）
+app.use(VxeUI)                                      // ⬅️ 必需，且必须在 VXETable 之前
 app.use(VXETable)                                   // ⬅️ 必需
 
 app.use(ElementPlus, { locale: zhCn })
@@ -283,8 +290,10 @@ npm install vxe-table vxe-pc-ui xe-utils
 
 | 配置项 | 说明 | 是否必需 |
 |-------|------|---------|
+| `import VxeUI from 'vxe-pc-ui'` | 导入 VxeUI（v4.7+ 必需） | ✅ 必需 |
 | `import VXETable from 'vxe-table'` | 导入 VXETable | ✅ 必需 |
 | `import 'foggy-data-viewer/style.css'` | 导入组件样式 | ✅ 必需 |
+| `app.use(VxeUI)` | 全局注册 VxeUI（必须在 VXETable 之前） | ✅ 必需 |
 | `app.use(VXETable)` | 全局注册 VXETable | ✅ 必需 |
 | `locale: zhCn` | Element Plus 中文语言包 | 推荐 |
 
@@ -366,16 +375,19 @@ VITE_NAMESPACE=default
 
 ### Q1: 表格不显示，但 API 返回数据正常，控制台无报错？
 
-**原因**: VXETable 未全局注册或样式未导入。
+**原因**: VxeUI 或 VXETable 未全局注册，或样式未导入。
 
 **解决方法**:
 
-检查 `src/main.js` 是否包含：
+检查 `src/main.js` 是否包含（vxe-table v4.7+ 需要同时注册 VxeUI）：
 
 ```javascript
+import VxeUI from 'vxe-pc-ui'
 import VXETable from 'vxe-table'
 import 'foggy-data-viewer/style.css'
 
+// 注意：VxeUI 必须在 VXETable 之前注册
+app.use(VxeUI)
 app.use(VXETable)
 ```
 
