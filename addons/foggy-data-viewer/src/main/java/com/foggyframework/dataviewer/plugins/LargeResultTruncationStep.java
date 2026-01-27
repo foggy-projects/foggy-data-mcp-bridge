@@ -198,7 +198,7 @@ public class LargeResultTruncationStep implements DataSetResultStep {
 
             // 从原始查询中提取模型名称
             String model = ctx.getQueryModel() != null
-                    ? ctx.getQueryModel().name()
+                    ? ctx.getQueryModel().getName()
                     : "unknown";
 
             request.setModel(model);
