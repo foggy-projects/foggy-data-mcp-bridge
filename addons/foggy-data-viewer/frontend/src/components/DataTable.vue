@@ -37,6 +37,8 @@ interface Props {
   pageSize?: number
   /** 是否显示过滤行 */
   showFilters?: boolean
+  /** 是否显示分页栏 */
+  showPager?: boolean
   /** 初始过滤条件（来自后端缓存） */
   initialSlice?: SliceRequestDef[]
   /** 后端返回的全量汇总数据 */
@@ -49,7 +51,8 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   pageSize: 50,
-  showFilters: true
+  showFilters: true,
+  showPager: true
 })
 
 const emit = defineEmits<{
@@ -494,7 +497,7 @@ const gridOptions = computed<VxeGridProps>(() => {
     border: true,
     stripe: true,
     showOverflow: true,
-    height: 'auto',
+    height: '100%',
     loading: props.loading,
     columnConfig: {
       resizable: true
@@ -512,13 +515,9 @@ const gridOptions = computed<VxeGridProps>(() => {
     footerData: footerData.value,
     // 表头行高需要容纳过滤器
     headerRowClassName: props.showFilters ? 'header-with-filter' : '',
+    // 禁用内置分页，使用自定义 toolbar 中的分页组件
     pagerConfig: {
-      enabled: true,
-      currentPage: pagination.value.currentPage,
-      pageSize: pagination.value.pageSize,
-      total: pagination.value.total,
-      pageSizes: [20, 50, 100, 200],
-      layouts: ['PrevPage', 'JumpNumber', 'NextPage', 'Sizes', 'FullJump', 'Total']
+      enabled: false
     },
     // 禁用 vxe-table 内置排序，我们自己处理
     sortConfig: {
@@ -590,6 +589,13 @@ const gridEvents = computed<VxeGridListeners>(() => {
   return mergedEvents
 })
 
+// 处理顶部分页组件的变化
+function handlePagerChange({ currentPage, pageSize }: { currentPage: number; pageSize: number }) {
+  pagination.value.currentPage = currentPage
+  pagination.value.pageSize = pageSize
+  emit('page-change', currentPage, pageSize)
+}
+
 // 重置分页
 function resetPagination() {
   pagination.value.currentPage = 1
@@ -631,9 +637,21 @@ provide('dataTableContext', {
 
 <template>
   <div class="data-table">
-    <!-- 工具栏插槽 -->
-    <div v-if="$slots.toolbar" class="data-table-toolbar">
-      <slot name="toolbar" />
+    <!-- 工具栏：左侧插槽 + 右侧分页 -->
+    <div v-if="props.showPager || $slots.toolbar" class="data-table-toolbar">
+      <div class="toolbar-left">
+        <slot name="toolbar" />
+      </div>
+      <div v-if="props.showPager" class="toolbar-right">
+        <vxe-pager
+          :current-page="pagination.currentPage"
+          :page-size="pagination.pageSize"
+          :total="pagination.total"
+          :page-sizes="[20, 50, 100, 200]"
+          :layouts="['PrevPage', 'JumpNumber', 'NextPage', 'Sizes', 'Total']"
+          @page-change="handlePagerChange"
+        />
+      </div>
     </div>
 
     <!-- 表格主体（过滤器已移入表头） -->
@@ -671,14 +689,38 @@ provide('dataTableContext', {
 }
 
 .data-table-toolbar {
-  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
   border-bottom: 1px solid #e4e7ed;
   background: #fafafa;
+  gap: 16px;
+}
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 1;
+}
+
+.toolbar-right :deep(.vxe-pager) {
+  padding: 0;
+  background: transparent;
 }
 
 .table-wrapper {
   flex: 1;
-  overflow: hidden;
+  min-height: 0;
+  overflow: auto;
 }
 
 /* 表头内嵌过滤器样式 */

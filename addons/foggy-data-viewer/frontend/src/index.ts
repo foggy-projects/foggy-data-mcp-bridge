@@ -1,4 +1,5 @@
 // 统一引入所有依赖样式（用户只需引入一次）
+import 'vxe-pc-ui/lib/style.css'
 import 'vxe-table/lib/style.css'
 import 'element-plus/dist/index.css'
 
@@ -38,11 +39,18 @@ export type {
   ColumnSchema,
   EnhancedColumnSchema,
   TableConfig,
+  TableSchema,
   ColumnCustomization,
   QueryMetaResponse,
   ViewerQueryRequest,
   ViewerDataResponse,
   SliceRequestDef,
   OrderRequestDef,
-  FilterOption
+  FilterOption,
+  FetchDataParams,
+  FetchDataResult,
+  FetchDataFn,
+  DictItem,
+  PaginationState,
+  SortState
 } from './types'

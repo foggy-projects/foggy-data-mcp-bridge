@@ -16,6 +16,49 @@ description: 自动生成基于 foggy-data-viewer 的 Vue 业务组件。根据 
 - 生成 API 接口层和 TypeScript 类型定义
 - 创建组件使用文档和示例
 
+## ⭐ 两种工作模式
+
+DataTableWithSearch 组件支持两种工作模式：
+
+### Schema 模式（推荐）
+传入 `schema` + `fetchData`，组件自动管理所有状态（分页、加载、筛选）。
+
+```vue
+<DataTableWithSearch
+  :schema="tableSchema"
+  :fetch-data="fetchData"
+  @load-success="onSuccess"
+  @load-error="onError"
+/>
+```
+
+**优势**：
+- 代码最简洁，无需手动管理状态
+- 自动处理分页、排序、筛选变化
+- 自动触发数据加载
+
+### 受控模式
+传入 `columns` + `data` + `total` + `loading`，用户手动管理所有状态。
+
+```vue
+<DataTableWithSearch
+  :columns="columns"
+  :data="data"
+  :total="total"
+  :loading="loading"
+  @page-change="handlePageChange"
+  @filter-change="handleFilterChange"
+  @sort-change="handleSortChange"
+/>
+```
+
+**适用场景**：
+- 需要完全控制数据流
+- 需要在加载前后执行自定义逻辑
+- 需要与外部状态管理集成
+
+**本技能生成的组件默认使用 Schema 模式**。
+
 ## 依赖技能
 
 - `qm-schema-viewer` - 获取 QM 模型 schema 信息
@@ -136,75 +179,84 @@ app.use(VXETable)
 #### 6.1 主组件文件
 **路径**：`src/{commonComponentPath}/models/{ComponentName}.vue`
 
-生成的组件包含：
+生成的组件使用 **Schema 模式**（推荐），包含：
 - 导入 foggy-data-viewer 组件和类型定义
 - 导入本项目的 schema 配置和 API 层
-- 定义数据响应式状态（分页、加载、排序、筛选）
-- 实现数据加载逻辑（集成 API 层）
-- 事件处理（分页、排序、筛选、行点击）
-- 公开的方法（refresh、clearFilters 等）
+- 定义 TableSchema 和 fetchData 函数
+- 公开的方法（refresh、reload、clearFilters 等）
 - **顶部工具栏**（插槽支持自定义按钮）
-- **分页控件**（显示总数和分页选项）
-- **操作列**（可选，通过 Props 控制）
+- **操作列**（可选，通过插槽定制）
 
-核心代码结构：
+核心代码结构（Schema 模式）：
 ```vue
 <script setup lang="ts">
 import { ref } from 'vue'
 import { DataTableWithSearch } from 'foggy-data-viewer'
-import { columns } from './schemas/{componentName}.schema'
-import { fetchData } from './apis/{componentName}.api'
+import type { TableSchema, FetchDataParams, FetchDataResult } from 'foggy-data-viewer'
+import { tableSchema } from './schemas/{componentName}.schema'
+import { fetchOrderData } from './apis/{componentName}.api'
 
-// 响应式状态
-const data = ref([])
-const total = ref(0)
-const loading = ref(false)
-const currentPage = ref(1)
-const pageSize = ref(50)
-const filters = ref([])
+// 组件引用
+const tableRef = ref<InstanceType<typeof DataTableWithSearch>>()
 
-// 加载数据
-async function loadData() {
-  loading.value = true
-  try {
-    const result = await fetchData({ page: currentPage.value, pageSize: pageSize.value, filters: filters.value })
-    data.value = result.rows
-    total.value = result.total
-  } finally {
-    loading.value = false
+// Schema 配置
+const schema: TableSchema = tableSchema
+
+// 数据加载函数
+async function fetchData(params: FetchDataParams): Promise<FetchDataResult> {
+  const result = await fetchOrderData({
+    page: params.page,
+    pageSize: params.pageSize,
+    filters: params.slice,
+    orderBy: params.orderBy
+  })
+  return {
+    items: result.rows,
+    total: result.total,
+    totalData: result.totalData
   }
 }
 
 // 公开方法
-defineExpose({ refresh: loadData, clearFilters: () => { filters.value = []; loadData() } })
+defineExpose({
+  refresh: () => tableRef.value?.refresh(),
+  reload: () => tableRef.value?.reload(),
+  clearFilters: () => tableRef.value?.clearAllFilters()
+})
 </script>
 
 <template>
   <div class="component-wrapper">
-    <!-- 顶部工具栏 + 分页 -->
+    <!-- 顶部工具栏插槽 -->
     <div class="header-bar">
       <slot name="toolbar" />
-      <el-pagination :total="total" @change="loadData" />
     </div>
 
-    <!-- 数据表格 -->
+    <!-- 数据表格（Schema 模式：组件自动管理分页/加载/筛选状态） -->
     <DataTableWithSearch
-      :columns="columns"
-      :data="data"
-      :loading="loading"
-      @filter-change="filters = $event; loadData()"
-    />
+      ref="tableRef"
+      :schema="schema"
+      :fetch-data="fetchData"
+      @load-success="(result) => $emit('load-success', result)"
+      @load-error="(error) => $emit('load-error', error)"
+    >
+      <!-- 透传操作列插槽 -->
+      <template v-if="$slots['column-actions']" #column-actions="slotData">
+        <slot name="column-actions" v-bind="slotData" />
+      </template>
+    </DataTableWithSearch>
   </div>
 </template>
 ```
 
-> **注**: 完整代码包含详细的事件处理、样式定义等，此处仅展示核心结构
+> **注**: Schema 模式下，组件自动处理分页、排序、筛选变化并重新加载数据，无需手动管理状态
 
 #### 6.2 Schema 配置文件
 **路径**：`src/{commonComponentPath}/models/schemas/{componentName}.schema.ts`
 
 生成包含：
 - 从后台 schema 映射的列配置
+- **TableSchema 配置**（用于 Schema 模式）
 - **自动列宽计算**（组件内部自动调用 `calculateColumnWidth`）
 - 列的排序、筛选器类型等定制配置
 - 类型定义导出
@@ -214,10 +266,11 @@ defineExpose({ refresh: loadData, clearFilters: () => { filters.value = []; load
 - `filterable` 不传 → 默认为 `true`（可筛选）
 - `sortable` 不传 → 默认为 `false`
 
-示例结构（最简洁）：
+示例结构：
 ```typescript
-import type { EnhancedColumnSchema } from 'foggy-data-viewer'
+import type { EnhancedColumnSchema, TableSchema } from 'foggy-data-viewer'
 
+// 列配置
 export const columns: EnhancedColumnSchema[] = [
   {
     name: 'order_id',
@@ -249,6 +302,17 @@ export const columns: EnhancedColumnSchema[] = [
   }
 ]
 
+// TableSchema 配置（用于 Schema 模式）
+export const tableSchema: TableSchema = {
+  columns,
+  searchableFields: ['order_no', 'customer_name'],  // 搜索工具栏显示的字段
+  pageSize: 50,
+  showFilters: true,
+  showSearchToolbar: true,
+  searchLayout: 'horizontal'
+}
+
+// 行数据类型定义
 export interface OrderQueryRow {
   order_id: number
   order_no: string
@@ -262,29 +326,36 @@ export interface OrderQueryRow {
 生成包含：
 - 基于公共 dslQuery 的业务封装
 - 类型定义（根据 schema 生成）
+- 支持 Schema 模式的返回格式
 
 示例结构：
 ```typescript
-import { query, type SliceRequestDef } from '@/apis/common/dslQuery'
+import { query, type SliceRequestDef, type OrderRequestDef } from '@/apis/common/dslQuery'
 import type { OrderQueryRow } from '../schemas/{componentName}.schema'
 
 export interface QueryParams {
   page?: number
   pageSize?: number
   filters?: SliceRequestDef[]
+  orderBy?: OrderRequestDef[]
+}
+
+export interface QueryResult {
+  rows: OrderQueryRow[]
+  total: number
+  totalData?: Record<string, unknown>  // 服务端汇总数据（可选）
 }
 
 /**
  * 查询订单数据
+ *
+ * 返回格式兼容 FetchDataResult，可直接用于 Schema 模式
  */
-export async function fetchOrderData(params: QueryParams): Promise<{
-  rows: OrderQueryRow[]
-  total: number
-}> {
+export async function fetchOrderData(params: QueryParams): Promise<QueryResult> {
   const result = await query<OrderQueryRow>('OrderQueryModel', {
     columns: ['orderId', 'orderNo', 'amount', 'status', 'createTime'],
     filters: params.filters,
-    orderBy: ['-createTime'],
+    orderBy: params.orderBy || [{ field: 'createTime', dir: 'desc' }],
     page: params.page || 1,
     pageSize: params.pageSize || 50,
   })
@@ -292,6 +363,7 @@ export async function fetchOrderData(params: QueryParams): Promise<{
   return {
     rows: result.items,
     total: result.total,
+    totalData: result.totalData
   }
 }
 ```
@@ -579,7 +651,22 @@ export const columns: EnhancedColumnSchema[] = [
 
 ---
 
-### Q8: 点击搜索按钮时，后台收到两个相同的请求？
+### Q8: 何时使用 Schema 模式？何时使用受控模式？
+
+**Schema 模式（推荐）** - 大多数场景：
+- 标准数据表格展示
+- 不需要复杂的自定义加载逻辑
+- 希望代码最简洁
+
+**受控模式** - 特殊场景：
+- 需要在数据加载前后执行自定义逻辑
+- 需要与 Vuex/Pinia 等状态管理集成
+- 需要跨组件共享数据状态
+- 需要实现复杂的缓存策略
+
+---
+
+### Q10: 点击搜索按钮时，后台收到两个相同的请求？
 
 **原因**: 同时监听了 `@update:model-value` 和 `@search` 事件。
 
@@ -611,7 +698,7 @@ export const columns: EnhancedColumnSchema[] = [
 
 ---
 
-### Q9: 横向滚动表格时，表头不跟随内容同步滚动？
+### Q11: 横向滚动表格时，表头不跟随内容同步滚动？
 
 **原因**: 在自定义样式中设置了 `overflow: visible`。
 

@@ -17,11 +17,14 @@ import type {
   ColumnSchema,
   CreateQueryRequest,
   ViewerQueryRequest,
-  QueryMetaResponse
+  QueryMetaResponse,
+  TableSchema,
+  FetchDataParams,
+  FetchDataResult
 } from 'foggy-data-viewer'
 
 // ============ 场景切换 ============
-type SceneType = 'home' | 'dataviewer' | 'toolbar' | 'custom-actions' | 'combined'
+type SceneType = 'home' | 'dataviewer' | 'toolbar' | 'custom-actions' | 'combined' | 'schema-mode'
 const currentScene = ref<SceneType>('home')
 
 // ============ DataViewer 场景 ============
@@ -366,6 +369,86 @@ function handleCombinedPageChange(page: number, size: number) {
   loadCombinedData((page - 1) * size, size)
 }
 
+// ============ Schema 模式场景（推荐用法） ============
+const schemaQueryId = ref<string | null>(null)
+const schemaTableSchema = ref<TableSchema | null>(null)
+const schemaModeFetchData = ref<((params: FetchDataParams) => Promise<FetchDataResult>) | null>(null)
+const schemaModeInitialized = ref(false)
+const schemaTableRef = ref<InstanceType<typeof DataTableWithSearch>>()
+
+// Schema 模式的 toolbar 按钮处理
+function handleAdd() {
+  alert('点击了新增按钮\n\n这里可以打开新增对话框')
+}
+
+function handleExport() {
+  alert('点击了导出按钮\n\n这里可以触发数据导出逻辑')
+}
+
+async function initSchemaScene() {
+  if (schemaModeInitialized.value) return
+
+  try {
+    // 1. 创建查询
+    const response = await createQuery({
+      model: 'FactSalesQueryModel',
+      title: 'Schema 模式测试 - 销售明细',
+      payload: {
+        columns: ['orderId', 'salesDate$caption', 'product$caption', 'customer$caption', 'store$caption', 'quantity', 'salesAmount', 'profitAmount'],
+        slice: [],
+        orderBy: [{ field: 'salesDate$caption', order: 'desc' }]
+      }
+    })
+
+    if (!response.success || !response.queryId) {
+      console.error('创建查询失败:', response.error)
+      return
+    }
+
+    schemaQueryId.value = response.queryId
+
+    // 2. 获取元数据
+    const meta = await fetchQueryMeta(response.queryId)
+
+    // 3. 获取 Schema 并构建 TableSchema
+    if (meta?.tableConfig?.qmModel) {
+      const qmSchema = await fetchQmSchema(meta.tableConfig.qmModel)
+      const columns = buildTableColumns(qmSchema, meta.tableConfig)
+
+      // 构建 TableSchema（传给组件）
+      schemaTableSchema.value = {
+        columns,
+        searchableFields: ['product$caption', 'customer$caption', 'store$caption'],
+        pageSize: 50,
+        showFilters: true,
+        showSearchToolbar: true,
+        searchLayout: 'horizontal'
+      }
+
+      // 4. 创建 fetchData 函数（捕获 queryId）
+      const queryId = response.queryId
+      schemaModeFetchData.value = async (params: FetchDataParams): Promise<FetchDataResult> => {
+        const dataResponse = await fetchQueryData(queryId, {
+          start: (params.page - 1) * params.pageSize,
+          limit: params.pageSize,
+          slice: params.slice,
+          orderBy: params.orderBy
+        })
+
+        return {
+          items: dataResponse.items,
+          total: dataResponse.total,
+          totalData: dataResponse.totalData
+        }
+      }
+
+      schemaModeInitialized.value = true
+    }
+  } catch (e) {
+    console.error('初始化 Schema 模式场景失败:', e)
+  }
+}
+
 // ============ 场景切换逻辑 ============
 function goToScene(scene: SceneType) {
   currentScene.value = scene
@@ -377,6 +460,8 @@ function goToScene(scene: SceneType) {
     initActionsScene()
   } else if (scene === 'combined' && !combinedQueryId.value) {
     initCombinedScene()
+  } else if (scene === 'schema-mode' && !schemaModeInitialized.value) {
+    initSchemaScene()
   }
 }
 
@@ -396,6 +481,18 @@ function goHome() {
       </div>
 
       <div class="scenes-grid">
+        <div class="scene-card highlight" @click="goToScene('schema-mode')">
+          <div class="scene-icon">⭐</div>
+          <h3>Schema 模式（推荐）</h3>
+          <p>最简洁的使用方式，传入 schema + fetchData</p>
+          <ul>
+            <li>组件自动管理分页状态</li>
+            <li>组件自动管理加载状态</li>
+            <li>无需手动处理事件</li>
+            <li>支持搜索工具栏和表头筛选</li>
+          </ul>
+        </div>
+
         <div class="scene-card" @click="goToScene('dataviewer')">
           <div class="scene-icon">📊</div>
           <h3>DataViewer 组件</h3>
@@ -431,12 +528,12 @@ function goHome() {
 
         <div class="scene-card" @click="goToScene('combined')">
           <div class="scene-icon">🎯</div>
-          <h3>DataTableWithSearch</h3>
-          <p>SearchToolbar + DataTable 组合组件</p>
+          <h3>受控模式</h3>
+          <p>用户完全控制 data/total/loading 等状态</p>
           <ul>
-            <li>自动集成搜索工具栏</li>
-            <li>属性透传</li>
-            <li>统一的筛选事件</li>
+            <li>手动管理分页状态</li>
+            <li>手动监听事件并加载数据</li>
+            <li>适合需要完全控制的场景</li>
           </ul>
         </div>
       </div>
@@ -577,16 +674,16 @@ function goHome() {
       </div>
     </div>
 
-    <!-- DataTableWithSearch 场景 -->
+    <!-- DataTableWithSearch 场景（受控模式） -->
     <div v-else-if="currentScene === 'combined'" class="scene-page">
       <div class="scene-header">
         <button class="back-btn" @click="goHome">← 返回首页</button>
-        <h2>DataTableWithSearch 组合组件测试</h2>
+        <h2>DataTableWithSearch 受控模式测试</h2>
       </div>
 
       <div class="scene-content">
         <div class="feature-info">
-          <p>DataTableWithSearch 自动集成 SearchToolbar，通过 <code>searchable-fields</code> 配置可搜索字段</p>
+          <p><strong>受控模式：</strong>用户手动管理 data、total、loading 等状态，适合需要完全控制数据流的场景</p>
         </div>
 
         <div class="table-container combined">
@@ -602,6 +699,61 @@ function goHome() {
             @page-change="handleCombinedPageChange"
             @filter-change="handleCombinedFilterChange"
           />
+        </div>
+      </div>
+    </div>
+
+    <!-- Schema 模式场景（推荐用法） -->
+    <div v-else-if="currentScene === 'schema-mode'" class="scene-page">
+      <div class="scene-header">
+        <button class="back-btn" @click="goHome">← 返回首页</button>
+        <h2>Schema 模式测试（推荐）</h2>
+      </div>
+
+      <div class="scene-content">
+        <div class="feature-info success">
+          <p><strong>Schema 模式：</strong>只需传入 <code>schema</code> + <code>fetchData</code>，组件自动管理所有状态（分页、加载、筛选），无需手动处理事件</p>
+        </div>
+
+        <!-- 代码示例 -->
+        <div class="code-example">
+          <h4>使用示例</h4>
+          <pre><code>&lt;DataTableWithSearch
+  :schema="tableSchema"
+  :fetch-data="fetchData"
+  @load-success="onSuccess"
+  @load-error="onError"
+/&gt;
+
+// schema 包含: columns, searchableFields, pageSize, showFilters 等
+// fetchData 函数签名: (params: FetchDataParams) => Promise&lt;FetchDataResult&gt;</code></pre>
+        </div>
+
+        <div v-if="schemaTableSchema && schemaModeFetchData" class="table-container combined">
+          <DataTableWithSearch
+            ref="schemaTableRef"
+            :schema="schemaTableSchema"
+            :fetch-data="schemaModeFetchData"
+            @load-success="(result) => console.log('加载成功:', result)"
+            @load-error="(error) => console.error('加载失败:', error)"
+          >
+            <!-- toolbar 插槽：左侧放置自定义按钮 -->
+            <template #toolbar>
+              <button class="toolbar-btn primary" @click="handleAdd">
+                + 新增
+              </button>
+              <button class="toolbar-btn" @click="handleExport">
+                导出
+              </button>
+              <button class="toolbar-btn" @click="schemaTableRef?.refresh()">
+                刷新
+              </button>
+            </template>
+          </DataTableWithSearch>
+        </div>
+
+        <div v-else class="loading-placeholder">
+          <p>正在初始化...</p>
         </div>
       </div>
     </div>
@@ -992,6 +1144,95 @@ html, body, #app {
 
 .action-btn.delete:hover {
   background: #fff1f0;
+}
+
+/* 推荐卡片高亮样式 */
+.scene-card.highlight {
+  border: 2px solid #67c23a;
+  background: linear-gradient(135deg, #f0f9eb 0%, #ffffff 100%);
+}
+
+.scene-card.highlight:hover {
+  border-color: #67c23a;
+  box-shadow: 0 12px 40px rgba(103, 194, 58, 0.3);
+}
+
+/* 成功样式的信息框 */
+.feature-info.success {
+  background: #f0f9eb;
+  border-color: #c2e7b0;
+}
+
+.feature-info.success p {
+  color: #67c23a;
+}
+
+/* 代码示例样式 */
+.code-example {
+  background: #2d2d2d;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.code-example h4 {
+  color: #909399;
+  font-size: 12px;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.code-example pre {
+  margin: 0;
+  overflow-x: auto;
+}
+
+.code-example code {
+  color: #e6e6e6;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre;
+}
+
+/* 加载占位符 */
+.loading-placeholder {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  border-radius: 8px;
+  color: #909399;
+}
+
+/* Toolbar 按钮样式 */
+.toolbar-btn {
+  padding: 6px 14px;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  background: white;
+  color: #606266;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.toolbar-btn:hover {
+  border-color: #409eff;
+  color: #409eff;
+}
+
+.toolbar-btn.primary {
+  background: #409eff;
+  border-color: #409eff;
+  color: white;
+}
+
+.toolbar-btn.primary:hover {
+  background: #66b1ff;
+  border-color: #66b1ff;
 }
 
 @media (max-width: 768px) {

@@ -1,5 +1,7 @@
 # JSON Query DSL Syntax
 
+<DownloadButton filename="query-dsl.md" title="Download this document" />
+
 This document describes the complete JSON Query DSL (Domain Specific Language) syntax for Foggy Dataset Model.
 
 ## 1. Overview
