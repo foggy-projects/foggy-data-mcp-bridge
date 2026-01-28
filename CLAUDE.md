@@ -67,5 +67,9 @@ const data = response.data.data
 - i18n 资源：`foggy-dataset-model/src/main/resources/i18n/messages*.properties`（UTF-8）
 - 帮助手册：`docs-site/`（VitePress 双语文档）
 
+## 文档生成原则
+- 大部分文档，都是为LLM生成，所以保持简洁高效
+- 避免token浪费及分散LLM注意力
+
 ## License
 Apache License 2.0
