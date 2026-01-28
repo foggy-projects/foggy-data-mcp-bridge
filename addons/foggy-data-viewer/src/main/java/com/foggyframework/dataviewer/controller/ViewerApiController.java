@@ -208,10 +208,10 @@ public class ViewerApiController {
                 return RX.failB("payload.columns 不能为空",
                         new CreateQueryResponse(false, null, null, "payload.columns 不能为空"));
             }
-            if (payload.getSlice() == null || payload.getSlice().isEmpty()) {
-                return RX.failB("payload.slice 不能为空，请提供至少一个过滤条件",
-                        new CreateQueryResponse(false, null, null, "payload.slice 不能为空，请提供至少一个过滤条件"));
-            }
+//            if (payload.getSlice() == null || payload.getSlice().isEmpty()) {
+//                return RX.failB("payload.slice 不能为空，请提供至少一个过滤条件",
+//                        new CreateQueryResponse(false, null, null, "payload.slice 不能为空，请提供至少一个过滤条件"));
+//            }
 
             // 转换为内部请求格式
             QueryCacheService.OpenInViewerRequest request = new QueryCacheService.OpenInViewerRequest();

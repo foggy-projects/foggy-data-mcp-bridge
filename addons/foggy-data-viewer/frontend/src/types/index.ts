@@ -158,3 +158,50 @@ export interface TableConfig {
   /** 列定制配置 */
   customizations?: ColumnCustomization[]
 }
+
+/**
+ * 表格 Schema 配置（用于 DataTableWithSearch 的 schema 模式）
+ */
+export interface TableSchema {
+  /** 列配置 */
+  columns: EnhancedColumnSchema[]
+  /** 搜索工具栏显示的字段（不指定则从 columns 中筛选 uiConfig.showInToolbar=true 的列） */
+  searchableFields?: string[]
+  /** 每页大小 */
+  pageSize?: number
+  /** 是否显示表头过滤器 */
+  showFilters?: boolean
+  /** 是否显示分页栏（默认 true） */
+  showPager?: boolean
+  /** 是否显示搜索工具栏 */
+  showSearchToolbar?: boolean
+  /** 搜索工具栏布局 */
+  searchLayout?: 'horizontal' | 'vertical'
+}
+
+/**
+ * 数据加载参数
+ */
+export interface FetchDataParams {
+  page: number
+  pageSize: number
+  slice: SliceRequestDef[]
+  orderBy: OrderRequestDef[]
+}
+
+/**
+ * 数据加载结果
+ */
+export interface FetchDataResult<T = Record<string, unknown>> {
+  items: T[]
+  total: number
+  /** 全量汇总数据（可选） */
+  totalData?: Record<string, unknown>
+}
+
+/**
+ * 数据加载函数类型
+ */
+export type FetchDataFn<T = Record<string, unknown>> = (
+  params: FetchDataParams
+) => Promise<FetchDataResult<T>>

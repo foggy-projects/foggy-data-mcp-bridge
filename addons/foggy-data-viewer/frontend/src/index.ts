@@ -1,4 +1,5 @@
 // 统一引入所有依赖样式（用户只需引入一次）
+import 'vxe-pc-ui/lib/style.css'
 import 'vxe-table/lib/style.css'
 import 'element-plus/dist/index.css'
 
@@ -17,16 +18,39 @@ export * from './components/composables'
 // 导出工具函数
 export { buildTableColumns, calculateColumnWidth } from './utils/schemaHelper'
 
+// 导出 API 函数
+export {
+  createQuery,
+  fetchQueryMeta,
+  fetchQueryData,
+  fetchFilterOptions,
+  fetchQmSchema
+} from './api/viewer'
+
+// 导出 API 类型
+export type {
+  QueryPayload,
+  CreateQueryRequest,
+  CreateQueryResponse
+} from './api/viewer'
+
 // 导出类型定义
 export type {
   ColumnSchema,
   EnhancedColumnSchema,
   TableConfig,
+  TableSchema,
   ColumnCustomization,
   QueryMetaResponse,
   ViewerQueryRequest,
   ViewerDataResponse,
   SliceRequestDef,
   OrderRequestDef,
-  FilterOption
+  FilterOption,
+  FetchDataParams,
+  FetchDataResult,
+  FetchDataFn,
+  DictItem,
+  PaginationState,
+  SortState
 } from './types'

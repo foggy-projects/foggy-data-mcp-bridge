@@ -25,40 +25,100 @@ description: 根据 DDL 语句、表描述或表名生成 TM（表模型）文�
 
 ## 获取数据库表结构
 
-开发人员编写 TM/QM 时，通常已在本机启动服务。可通过以下 HTTP API 获取表结构：
+当用户提供表名时，需要获取数据库表结构。有两种方法：
 
-### API 端点
+### 方法 1：使用 mysql-docker-client 技能（推荐）
 
-| 端点 | 方法 | 描述 |
-|------|------|------|
-| `GET /dev/tables` | GET | 列出所有表 |
-| `GET /dev/tables/{tableName}` | GET | 获取表详细结构 |
+使用个人技能 `mysql-docker-client` 通过 SQL 查询获取表结构。需要用户提供数据库连接信息。
 
-### 列出所有表
+#### 步骤 1：询问用户连接信息
 
-```bash
-# 默认端口 7108（MCP 服务端口）
-curl http://localhost:7108/dev/tables
+使用 `AskUserQuestion` 工具询问用户数据库连接参数：
+- host（主机地址）
+- port（端口，默认 3306）
+- user（用户名）
+- password（密码）
+- database（数据库名）
+
+#### 步骤 2：获取表的列信息
+
+使用 `Skill` 工具调用 `mysql-docker-client`，执行以下 SQL：
+
+```sql
+SELECT
+    COLUMN_NAME,
+    DATA_TYPE,
+    COLUMN_TYPE,
+    IS_NULLABLE,
+    COLUMN_KEY,
+    COLUMN_DEFAULT,
+    EXTRA,
+    COLUMN_COMMENT
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = '{database}'
+    AND TABLE_NAME = '{table_name}'
+ORDER BY ORDINAL_POSITION;
 ```
 
-返回示例：
-```json
-{
-    "database": "MySQL",
-    "schema": "demo_db",
-    "count": 5,
-    "tables": [
-        {"name": "fact_order", "type": "TABLE"},
-        {"name": "dim_customer", "type": "TABLE"},
-        {"name": "dim_product", "type": "TABLE"}
-    ]
-}
-```
+#### 调用 mysql-docker-client 技能
 
-### 获取表详细结构
+使用 `Bash` 工具直接调用脚本：
 
 ```bash
-curl http://localhost:7108/dev/tables/fact_order
+python C:\Users\oldse\.claude\skills\mysql-docker-client\scripts\execute_sql.py \
+  --host {host} \
+  --port {port} \
+  --user {user} \
+  --password {password} \
+  --database {database} \
+  --sql "SELECT COLUMN_NAME, DATA_TYPE, COLUMN_TYPE, IS_NULLABLE, COLUMN_KEY, COLUMN_DEFAULT, EXTRA, COLUMN_COMMENT FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = '{database}' AND TABLE_NAME = '{table_name}' ORDER BY ORDINAL_POSITION"
+```
+
+**重要提示**：
+- 将 `{host}`、`{port}` 等替换为用户提供的实际值
+- 将 `{database}` 和 `{table_name}` 替换为实际的数据库名和表名
+- SQL 语句需要用双引号包裹
+- 在 Windows 系统中，Python 路径使用反斜杠 `\`
+
+#### 步骤 3：获取外键信息
+
+```bash
+python C:\Users\oldse\.claude\skills\mysql-docker-client\scripts\execute_sql.py \
+  --host {host} \
+  --port {port} \
+  --user {user} \
+  --password {password} \
+  --database {database} \
+  --sql "SELECT CONSTRAINT_NAME, COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = '{database}' AND TABLE_NAME = '{table_name}' AND REFERENCED_TABLE_NAME IS NOT NULL"
+```
+
+#### 步骤 4：获取主键信息
+
+主键信息已包含在步骤 2 的列信息中（`COLUMN_KEY = 'PRI'`），无需单独查询。
+
+#### 步骤 5：获取示例数据（可选）
+
+获取第一行数据，用于推断日期格式等信息：
+
+```bash
+python C:\Users\oldse\.claude\skills\mysql-docker-client\scripts\execute_sql.py \
+  --host {host} \
+  --port {port} \
+  --user {user} \
+  --password {password} \
+  --database {database} \
+  --sql "SELECT * FROM {table_name} LIMIT 1"
+```
+
+示例数据可用于推断日期格式等，写入 description 中。
+
+### 方法 2：使用本地 HTTP API（备选）
+
+如果用户已在本机启动 MCP 服务（端口 7108），可使用 WebFetch 工具访问：
+
+```
+WebFetch URL: http://localhost:7108/dev/tables/{tableName}
+Prompt: 提取表结构信息，包括列名、类型、主键、外键和 TM 模板
 ```
 
 返回包含：
@@ -68,25 +128,9 @@ curl http://localhost:7108/dev/tables/fact_order
 - **suggested_model_type**: 建议的模型类型（fact/dimension）
 - **suggested_model_name**: 建议的模型名称
 - **tm_template**: 自动生成的 TM 模板（可直接使用或调整）
-- **sample_data**: 表中的第一行数据，例如可以用来推断日期的格式等，写到description中
+- **sample_data**: 表中的第一行数据
 
-### 可选参数
-
-| 参数 | 类型 | 默认值 | 描述 |
-|------|------|--------|------|
-| `datasource` | string | defaultDataSource | 数据源 Bean 名称 |
-| `schema` | string | 当前连接 schema | 指定数据库 schema |
-| `includeIndexes` | boolean | false | 是否包含索引信息 |
-| `includeForeignKeys` | boolean | true | 是否包含外键信息 |
-
-### 使用 WebFetch 工具获取
-
-当用户提供表名时，使用 WebFetch 工具获取表结构：
-
-```
-WebFetch URL: http://localhost:7108/dev/tables/{tableName}
-Prompt: 提取表结构信息，包括列名、类型、主键、外键和 TM 模板
-```
+**注意**：此方法要求本地服务已启动，否则应使用方法 1。
 
 ## 输出要求
 
@@ -329,33 +373,64 @@ export const model = {
 ## 操作步骤
 
 1. **分析用户输入**：确定是 DDL、表描述还是表名
+
 2. **获取表结构**（如果用户提供表名）：
-   - 使用 WebFetch 工具访问 `http://localhost:7108/dev/tables/{tableName}`
+
+   **优先使用 mysql-docker-client 技能：**
+   - 使用 `AskUserQuestion` 询问数据库连接信息（host、port、user、password、database）
+   - 使用 `Skill` 工具调用 `mysql-docker-client`
+   - 执行 SQL 查询获取列信息、外键信息
+   - 可选：获取示例数据用于推断格式
+
+   **备选使用 HTTP API：**
+   - 如果用户已启动本地服务，可使用 `WebFetch` 访问 `http://localhost:7108/dev/tables/{tableName}`
    - 从返回的 JSON 中提取列信息、主键、外键等
    - 参考 `tm_template` 字段作为生成基础
-   - 在windows系统中不要使用curl -s 否则控制台会卡住(要求输入url)
-3. **识别表类型**：判断是事实表还是维度表
+
+3. **识别表类型**：根据表名和字段特征判断是事实表还是维度表
+
 4. **分类字段**：区分维度、属性和度量
+   - 外键 → dimensions
+   - 数值类型且名称包含 amount/qty/count → measures
+   - 其他字段 → properties
+
 5. **生成 TM 文件**：按照模板结构输出完整的 .tm 文件
+   - 遵循命名规范（Fact*/Dim* 前缀）
+   - 添加有意义的 caption 和 description
+   - 使用维度构建器（如有可复用维度）
+   - 为度量添加聚合方法
+
 6. **验证输出**：对照检查清单确保完整性
 
-### 示例：用户提供表名
+### 示例：使用 mysql-docker-client 获取表结构
 
 ```
 用户：为 fact_order 表生成 TM 文件
 
-1. 使用 WebFetch 获取表结构：
-   URL: http://localhost:7108/dev/tables/fact_order
+1. 询问数据库连接信息：
+   - host: localhost
+   - port: 3306
+   - user: root
+   - password: ****
+   - database: ecommerce
 
-2. 从返回结果提取信息：
-   - columns: 所有列及类型
-   - foreign_keys: 外键关系 → 生成 dimensions
-   - tm_template: 参考模板
+2. 使用 mysql-docker-client 执行 SQL 查询：
+   - 获取列信息（字段名、类型、注释、主键）
+   - 获取外键信息（关联的表和字段）
+   - 获取示例数据（第一行）
 
-3. 优化生成的 TM：
-   - 添加有意义的 caption 和 description
-   - 调整维度命名
-   - 补充字典引用
+3. 分析结果：
+   - 表名包含 "fact_" → 事实表
+   - customer_key, product_key 外键 → 生成维度
+   - order_amount, quantity → 度量字段
+
+4. 生成 TM 文件：
+   - 模型名称：FactOrderModel
+   - 使用维度构建器：buildCustomerDim、buildProductDim
+   - 度量添加聚合方法：sum
+
+5. 保存到默认路径：
+   src/main/resources/foggy/templates/model/FactOrderModel.tm
 ```
 
 根据用户输入，生成相应的 TM 文件。

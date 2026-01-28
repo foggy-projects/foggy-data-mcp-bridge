@@ -1,5 +1,7 @@
 # TM Syntax Manual
 
+<DownloadButton filename="tm-syntax.md" title="Download this document" />
+
 TM (Table Model) defines the structure and relationships of database tables. This document provides a complete TM syntax specification.
 
 ## 1. Basic Structure
