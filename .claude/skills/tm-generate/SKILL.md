@@ -1,19 +1,21 @@
 ---
 name: tm-generate
-description: 根据 DDL 语句、表描述或表名生成 TM（表模型）文件。当用户需要创建数据模型、生成 .tm 文件、或将数据库表转换为 Foggy Dataset Model 格式时使用。
+description: 根据 DDL 语句、表描述或表名生成 TM（表模型）文件。适用于 JDBC 数据源（MySQL、PostgreSQL 等关系型数据库）。MongoDB 模型请使用 tm-generate-mongo 技能。
 ---
 
-# TM 生成器
+# TM 生成器（JDBC 数据源）
 
-根据用户输入为 Foggy Dataset Model 系统生成 TM（表模型）文件。
+根据用户输入为 Foggy Dataset Model 系统生成 JDBC 类型的 TM（表模型）文件。
 
 ## 使用场景
 
-当用户需要以下操作时使用本技能：
+当用户需要为 **JDBC 数据源**（MySQL、PostgreSQL、Oracle 等关系型数据库）生成 TM 模型时使用：
 - 根据 DDL 语句创建 TM 文件
-- 将数据库表结构转换为数据模型
+- 将关系型数据库表结构转换为数据模型
 - 生成事实表或维度表模型
 - 创建 `.tm` 格式的表模型定义
+
+**注意**：MongoDB 集合请使用 `tm-generate-mongo` 技能。
 
 ## 输入类型
 
@@ -146,13 +148,14 @@ src/main/resources/foggy/templates/model/{模型名称}Model.tm
 src/main/resources/foggy/templates/
 ├── model/                    # TM 表模型目录
 │   ├── Fact{Name}Model.tm   # 事实表模型
-│   ├── Dim{Name}Model.tm    # 维度表模型
-│   └── mongo/               # MongoDB 模型（单独子目录）
+│   └── Dim{Name}Model.tm    # 维度表模型
 ├── query/                   # QM 查询模型目录
 ├── dimensions/              # 可选：维度构建器
 │   └── common-dims.fsscript
 └── dicts.fsscript          # 字典定义
 ```
+
+**注意**：MongoDB 模型请使用 `tm-generate-mongo` 技能生成。
 
 如果用户指定了其他路径，按用户指定的路径生成。
 
@@ -207,6 +210,66 @@ export const model = {
 - **属性/度量名称**：camelCase（如 `orderId`、`salesAmount`）
 - **事实表**：以 `Fact` 为前缀（如 `FactSalesModel`）
 - **维度表**：以 `Dim` 为前缀（如 `DimCustomerModel`）
+
+## ⚠️ Name 字段简化规则（重要）
+
+**核心原则**：name 和 column 一致时，省略 name 字段。
+
+### JDBC 数据源（MySQL、PostgreSQL等）
+
+**自动转换规则**：
+- 数据库字段名（蛇形命名）→ 自动转为驼峰命名
+- `order_count` → `orderCount`
+- `customer_name` → `customerName`
+- `created_at` → `createdAt`
+
+**错误做法** ❌：
+```javascript
+properties: [
+    {
+        column: 'order_count',
+        name: 'orderCount',     // ❌ 冗余，系统自动转换
+        caption: '订单数',
+        type: 'INTEGER'
+    }
+]
+```
+
+**正确做法** ✅：
+```javascript
+properties: [
+    {
+        column: 'order_count',   // ✅ 省略 name，自动转为 orderCount
+        caption: '订单数',
+        type: 'INTEGER'
+    }
+]
+```
+
+**何时需要 name**：
+```javascript
+properties: [
+    {
+        column: 'order_count',
+        name: 'totalOrders',     // ✅ 需要 name，因为与 column 不一致
+        caption: '订单总数',
+        type: 'INTEGER'
+    }
+]
+```
+
+### 决策规则
+
+**省略 name 的场景**（推荐）：
+- JDBC 蛇形命名自动转驼峰：`order_count` → 省略 name，自动转为 `orderCount`
+
+**必须指定 name 的场景**：
+1. 需要自定义名称：`column: 'cnt'` → `name: 'orderCount'`
+2. 用户明确要求特定名称
+
+**总结**：除非用户明确指定或需要自定义映射，否则 **name 与 column 保持一致时省略 name**。
+
+**注意**：MongoDB 模型的 name 字段规则请参考 `tm-generate-mongo` 技能。
 
 ## TM语法规范
 如果需要获取更多的tm语法规范，请参考[Foggy TM 语法规范](https://foggy-projects.github.io/foggy-data-mcp-bridge/downloads/tm-syntax.md)
@@ -264,6 +327,50 @@ export const model = {
 - 日期/布尔类型
 - 标识符列
 - 状态、类型、类别列
+
+## ⚠️ Measures 字段设计原则（重要）
+
+**Foggy Dataset Model 的核心理念**：同一字段支持明细查询和聚合查询两种模式。
+
+### 错误做法（传统数仓建模）❌
+```javascript
+measures: [
+    { column: 'routeCount', name: 'totalRouteCount', caption: '总路线数', type: 'INTEGER', aggregation: 'sum' },
+    { column: 'routeCount', name: 'avgRouteCount', caption: '平均路线数', type: 'INTEGER', aggregation: 'avg' },
+    { column: 'routeCount', name: 'maxRouteCount', caption: '最大路线数', type: 'INTEGER', aggregation: 'max' }
+]
+```
+
+### 正确做法（Foggy Dataset Model）✅
+```javascript
+measures: [
+    { column: 'routeCount', name: 'routeCount', caption: '路线数', type: 'INTEGER', aggregation: 'sum' }
+]
+```
+
+**关键原则**：
+1. **不要为同一字段创建多个聚合度量**（如 totalXxx、avgXxx、maxXxx）
+2. **name 和 column 保持一致**，不添加 total/avg/max 前缀
+3. **aggregation 字段仅作为默认聚合方式**，查询时可动态覆盖
+
+### 为什么这样设计？
+
+Foggy Dataset Model 兼顾明细和分析查询：
+- **同一字段支持两种模式**：明细查询返回原始值，聚合查询应用聚合函数
+- **查询时动态指定**：可使用 sum/avg/max/min/count 等聚合函数
+- **模型保持简洁**：避免为每种聚合方式预定义字段
+
+**查询语法详见**：`dsl-syntax-guide` 技能
+
+### 常见度量示例
+
+| 业务场景 | 默认聚合 | 说明 |
+|---------|---------|------|
+| 金额（salesAmount, totalPrice） | sum | 求和 |
+| 数量（quantity, count） | sum | 求和 |
+| 百分比（batteryLevel, progress） | avg | 平均值 |
+| 速度/频率（speed, frequency） | avg | 平均值 |
+| 距离/时长（distance, duration） | sum | 求和 |
 
 ## 标题和描述指南
 
@@ -341,7 +448,6 @@ export const model = {
         },
         {
             column: 'sales_amount',
-            name: 'salesAmount',
             caption: '销售金额',
             description: '销售总金额',
             type: 'MONEY',
@@ -349,7 +455,6 @@ export const model = {
         },
         {
             column: 'cost_amount',
-            name: 'costAmount',
             caption: '成本金额',
             description: '成本总金额',
             type: 'MONEY',

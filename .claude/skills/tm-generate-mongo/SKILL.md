@@ -147,6 +147,90 @@ export const model = {
 - **属性名称**：camelCase（如 `userId`、`createTime`）
 - **集合名称**：snake_case（如 `mcp_tool_audit_log`）
 
+## ⚠️ Name 字段简化规则（重要）
+
+**核心原则**：name 和 column 一致时，省略 name 字段。
+
+### MongoDB 字段自动转换规则
+
+**单层字段**（已是驼峰命名）：
+- `merchantCode` → 保持 `merchantCode`
+- `createdAt` → 保持 `createdAt`
+
+**嵌套字段**（点号分隔）：
+- `data.orderCount` → 自动转为 `dataOrderCount`
+- `location.coordinates` → 自动转为 `locationCoordinates`
+- `address.city` → 自动转为 `addressCity`
+
+**特殊字段**：
+- `_id` → 需要显式指定 `name: 'id'`
+
+### 错误做法 ❌
+
+```javascript
+properties: [
+    {
+        column: 'merchantCode',
+        name: 'merchantCode',     // ❌ 冗余，name 和 column 一致
+        caption: '商户编码',
+        type: 'STRING'
+    },
+    {
+        column: 'data.orderCount',
+        name: 'dataOrderCount',   // ❌ 冗余，系统自动转换
+        caption: '订单数',
+        type: 'INTEGER'
+    }
+]
+```
+
+### 正确做法 ✅
+
+```javascript
+properties: [
+    {
+        column: '_id',
+        name: 'id',              // ✅ 必须指定，因为不一致
+        caption: '文档ID',
+        type: 'STRING'
+    },
+    {
+        column: 'merchantCode',   // ✅ 省略 name
+        caption: '商户编码',
+        type: 'STRING'
+    },
+    {
+        column: 'data.orderCount', // ✅ 省略 name，自动转为 dataOrderCount
+        caption: '订单数',
+        type: 'INTEGER'
+    }
+]
+```
+
+### 常见场景对照表
+
+| MongoDB 字段 | 自动转换后的 name | 是否需要指定 name |
+|-------------|------------------|------------------|
+| `merchantCode` | `merchantCode` | ❌ 不需要，省略 |
+| `_id` | `id` | ✅ 需要 `name: 'id'` |
+| `createdAt` | `createdAt` | ❌ 不需要，省略 |
+| `data.orderCount` | `dataOrderCount` | ❌ 不需要，省略 |
+| `location.lng` | `locationLng` | ❌ 不需要，省略 |
+| `address.city` | `addressCity` | ❌ 不需要，省略 |
+
+### 决策规则
+
+**省略 name 的场景**（推荐）：
+1. 单层字段已是驼峰：`merchantCode` → 省略 name
+2. 嵌套字段自动拼接：`data.orderCount` → 省略 name
+
+**必须指定 name 的场景**：
+1. MongoDB `_id` 映射为 `id`：`column: '_id'` → `name: 'id'`
+2. 需要自定义名称：`column: 'cnt'` → `name: 'orderCount'`
+3. 用户明确要求特定名称
+
+**总结**：除非字段是 `_id` 或用户明确指定，否则 **name 与 column 一致时省略 name**。
+
 ## MongoTemplate 引用配置
 
 ### 创建引用文件
@@ -271,39 +355,33 @@ export const model = {
         },
         {
             column: 'traceId',
-            name: 'traceId',
             caption: 'AI会话ID',
             type: 'STRING',
             description: '一次完整AI执行的唯一标识'
         },
         {
             column: 'toolName',
-            name: 'toolName',
             caption: '工具名称',
             type: 'STRING',
             dictRef: dicts.tool_name
         },
         {
             column: 'timestamp',
-            name: 'timestamp',
             caption: '调用时间',
             type: 'DATETIME'
         },
         {
             column: 'durationMs',
-            name: 'durationMs',
             caption: '执行耗时(ms)',
             type: 'LONG'
         },
         {
             column: 'success',
-            name: 'success',
             caption: '是否成功',
             type: 'BOOL'
         },
         {
             column: 'errorMessage',
-            name: 'errorMessage',
             caption: '错误信息',
             type: 'STRING'
         }
@@ -312,17 +390,9 @@ export const model = {
     measures: [
         {
             column: 'durationMs',
-            name: 'avgDuration',
-            caption: '平均耗时',
+            caption: '耗时(ms)',
             type: 'LONG',
             aggregation: 'avg'
-        },
-        {
-            column: 'durationMs',
-            name: 'maxDuration',
-            caption: '最大耗时',
-            type: 'LONG',
-            aggregation: 'max'
         }
     ]
 };
