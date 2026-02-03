@@ -39,117 +39,153 @@ description: 根据 MongoDB 集合信息生成 TM（表模型）文件。当用�
 public class McpAuditLog {
     @Id
     private String id;
-
     private String traceId;
     private String toolName;
     private LocalDateTime timestamp;
     private Long durationMs;
     private Boolean success;
-    private String errorMessage;
-
-    // getters/setters
 }
 ```
 
-从 Java 类提取信息：
+**从 Java 类提取信息**：
 - `@Document(collection = "xxx")` → `tableName`
 - `@Id` 字段 → `idColumn`
 - 字段名 → `column` 和 `name`
 - Java 类型 → TM 类型（见类型映射规则）
 
-## 输出要求
+## 执行流程
 
-### 文件存放路径
+### 1. 解析 Java Document 类
 
-**默认路径**（用户未指定时）：
+提取关键信息：
+- 集合名称（`@Document(collection="...")`）
+- 主键字段（`@Id` 注解）
+- 字段列表及类型
+
+### 2. 应用 TM 语法规则
+
+使用 `tm-syntax-reference` 技能中的规则：
+
+- **类型映射**：`String` → `STRING`、`BigDecimal` → `MONEY`、`LocalDateTime` → `DATETIME`
+- **Name 字段简化**：
+  - 单层驼峰字段：`merchantCode` → 省略 name
+  - 嵌套字段自动拼接：`data.orderCount` → 省略 name（自动转为 `dataOrderCount`）
+  - `_id` 字段：必须指定 `name: 'id'`
+- **Measures 设计**：不为同一字段创建多个聚合版本
+
+**详细规则见**：`tm-syntax-reference` 技能
+
+### 3. 生成 TM 文件
+
+**文件路径**（用户未指定时）：
 ```
 src/main/resources/foggy/templates/model/mongo/{模型名称}Model.tm
 ```
 
-**目录结构说明**：
-```
-src/main/resources/foggy/templates/
-├── model/                    # TM 表模型目录
-│   ├── mongo/               # MongoDB 模型
-│   │   └── {Name}Model.tm
-│   └── jdbc/                # JDBC 模型（可选分类）
-│       └── {Name}Model.tm
-├── query/                   # QM 查询模型目录（后续）
-└── dicts.fsscript          # 字典定义
-```
-
-如果用户指定了其他路径，按用户指定的路径生成。
-
-### 文件内容结构
-
+**文件结构**：
 ```javascript
 /**
  * {模型描述}
- *
  * @description MongoDB 文档模型 - {详细描述}
  */
 import { mcpMongoTemplate } from './mongoTemplate.fsscript';
 
 export const model = {
-    name: '{模型名称}Model',
-    caption: '{显示名称}',
-    tableName: '{collection_name}',
+    name: 'McpAuditLogModel',
+    caption: 'MCP工具调用日志',
+    tableName: 'mcp_tool_audit_log',
     idColumn: '_id',
-    type: 'mongo',
-    mongoTemplate: mcpMongoTemplate,
+    type: 'mongo',                  // ✅ 必须指定
+    mongoTemplate: mcpMongoTemplate, // ✅ 必须配置
 
     // MongoDB 模型没有维度（不做 join）
-    // 所有字段都定义在 properties 中
 
     properties: [
-        // 所有字段定义
+        {
+            column: '_id',
+            name: 'id',              // ✅ 必须指定
+            caption: '日志ID',
+            type: 'STRING'
+        },
+        {
+            column: 'traceId',       // ✅ 省略 name
+            caption: 'AI会话ID',
+            type: 'STRING'
+        }
     ],
 
     measures: [
-        // 可聚合的数值字段
+        {
+            column: 'durationMs',
+            caption: '耗时(ms)',
+            type: 'LONG',
+            aggregation: 'avg'
+        }
     ]
 };
 ```
 
-**注意**: 需要先创建 `mongoTemplate.fsscript` 文件（详见下方 "MongoTemplate 引用配置" 章节）。
+### 4. 验证输出
 
-**文件名**：`{模型名称}Model.tm`，与 `model.name` 相同。
+对照检查清单：
+- [ ] `type: 'mongo'` 已设置
+- [ ] `mongoTemplate` 已指定并有对应 import
+- [ ] `idColumn` 已设置（通常为 `_id`）
+- [ ] **没有** dimensions 定义（MongoDB 不支持）
+- [ ] 所有字段都在 properties 中定义
+- [ ] 数值聚合字段在 measures 中定义
+- [ ] 所有字段都有 caption
+- [ ] `_id` 字段指定了 `name: 'id'`
 
-## 类型映射规则
+## MongoDB 专属规则
 
-### Java 类型 → TM 类型
+### 1. 不支持 Dimensions/JOIN
 
-| Java 类型 | TM 类型 | 说明 |
-|----------|---------|------|
-| String | `STRING` | 文本、ID |
-| Integer, int | `INTEGER` | 整数 |
-| Long, long | `LONG` | 长整数 |
-| BigDecimal | `MONEY` | 金额、精确小数 |
-| Double, Float | `NUMBER` | 浮点数 |
-| Boolean, boolean | `BOOL` | 布尔值 |
-| LocalDateTime, Date | `DATETIME` | 时间戳 |
-| LocalDate | `DAY` | 仅日期 |
+```javascript
+dimensions: []  // ❌ MongoDB 模型不支持维度
 
-### MongoDB 原生类型 → TM 类型
+// 所有字段定义在 properties 中
+properties: [
+    { column: 'customerId', caption: '客户ID', type: 'STRING' },
+    { column: 'customerName', caption: '客户名称', type: 'STRING' }
+]
+```
 
-| MongoDB 类型 | TM 类型 | 使用场景 |
-|-------------|---------|----------|
-| String | `STRING` | 文本、ID |
-| ObjectId | `STRING` | _id 字段 |
-| Number (整数) | `INTEGER` / `LONG` | 计数、整数 |
-| Number (浮点) | `NUMBER` / `MONEY` | 金额、小数 |
-| Boolean | `BOOL` | 是/否标志 |
-| Date | `DATETIME` | 时间戳 |
+### 2. Name 字段规则
 
-## 命名规范
+**嵌套字段自动拼接**：
+```javascript
+properties: [
+    {
+        column: 'data.orderCount',  // ✅ 省略 name，自动转为 dataOrderCount
+        caption: '订单数',
+        type: 'INTEGER'
+    },
+    {
+        column: 'location.lng',     // ✅ 省略 name，自动转为 locationLng
+        caption: '经度',
+        type: 'NUMBER'
+    }
+]
+```
 
-- **模型名称**：PascalCase，以 `Model` 为后缀（如 `AuditLogModel`）
-- **属性名称**：camelCase（如 `userId`、`createTime`）
-- **集合名称**：snake_case（如 `mcp_tool_audit_log`）
+**_id 字段必须指定 name**：
+```javascript
+{
+    column: '_id',
+    name: 'id',                     // ✅ 必须指定
+    caption: '文档ID',
+    type: 'STRING'
+}
+```
+
+### 3. 必须配置 mongoTemplate
+
+MongoDB 模型必须指定 `mongoTemplate`，引用 Spring Bean。
 
 ## MongoTemplate 引用配置
 
-### 创建引用文件
+### 创建 mongoTemplate.fsscript
 
 **文件路径**: `src/main/resources/foggy/templates/mongoTemplate.fsscript`
 
@@ -157,7 +193,6 @@ export const model = {
 ```javascript
 /**
  * MongoDB Template 配置
- *
  * @description 引用 Spring 容器中的默认 MongoTemplate Bean
  */
 import '@mongoTemplate'
@@ -171,14 +206,6 @@ export const mcpMongoTemplate = mongoTemplate;
 // ❌ 不要使用 beanRef() 函数
 export const mcpMongoTemplate = beanRef('mongoTemplate');
 ```
-
-### 引用语法说明
-
-| 语法 | 说明 | 示例 |
-|------|------|------|
-| `import '@beanName'` | 导入 Spring Bean | `import '@mongoTemplate'` |
-| 直接使用变量名 | 引用导入的 Bean | `export const myTemplate = mongoTemplate` |
-| 自定义 Bean 名称 | 引用自定义的 MongoTemplate | `import '@customMongoTemplate'` |
 
 ### 在 TM 模型中使用
 
@@ -197,7 +224,7 @@ export const model = {
 
 ### Spring Boot 配置
 
-确保 Spring Boot 配置文件中已正确配置 MongoDB 连接：
+确保配置文件中已正确配置 MongoDB 连接：
 
 ```yaml
 spring:
@@ -210,44 +237,12 @@ spring:
       # password: pass
 ```
 
-## 属性 vs 度量检测
-
-**属性特征**（放入 properties）：
-- 字符串/文本类型
-- 日期/布尔类型
-- 标识符字段（如 `_id`、`userId`）
-- 状态、类型、类别字段
-
-**度量特征**（放入 measures）：
-- 数值类型且可聚合
-- 字段名包含：`amount`、`count`、`total`、`duration`、`price`、`cost`
-- 需要指定聚合方式：`sum`、`avg`、`count`、`max`、`min`
-
-## 字典引用
-
-对于枚举类型字段，可添加 dictRef：
-
-```javascript
-{
-    column: 'status',
-    name: 'status',
-    caption: '状态',
-    type: 'STRING',
-    dictRef: dicts.status_dict
-}
-```
-
-需要在 dicts.fsscript 中定义对应字典。
-
 ## 完整示例
-
-对于 MCP 工具调用日志集合：
 
 ```javascript
 /**
  * MCP 工具调用审计日志模型
- *
- * @description MongoDB 文档模型示例 - 用于记录和查询 MCP 工具调用日志
+ * @description MongoDB 文档模型 - 用于记录和查询 MCP 工具调用日志
  */
 import { mcpMongoTemplate } from './mongoTemplate.fsscript';
 import { dicts } from '../dicts.fsscript';
@@ -260,8 +255,6 @@ export const model = {
     type: 'mongo',
     mongoTemplate: mcpMongoTemplate,
 
-    // MongoDB 模型没有维度（不做 join）
-
     properties: [
         {
             column: '_id',
@@ -271,39 +264,28 @@ export const model = {
         },
         {
             column: 'traceId',
-            name: 'traceId',
             caption: 'AI会话ID',
             type: 'STRING',
             description: '一次完整AI执行的唯一标识'
         },
         {
             column: 'toolName',
-            name: 'toolName',
             caption: '工具名称',
             type: 'STRING',
             dictRef: dicts.tool_name
         },
         {
             column: 'timestamp',
-            name: 'timestamp',
             caption: '调用时间',
             type: 'DATETIME'
         },
         {
-            column: 'durationMs',
-            name: 'durationMs',
-            caption: '执行耗时(ms)',
-            type: 'LONG'
-        },
-        {
             column: 'success',
-            name: 'success',
             caption: '是否成功',
             type: 'BOOL'
         },
         {
             column: 'errorMessage',
-            name: 'errorMessage',
             caption: '错误信息',
             type: 'STRING'
         }
@@ -312,40 +294,21 @@ export const model = {
     measures: [
         {
             column: 'durationMs',
-            name: 'avgDuration',
-            caption: '平均耗时',
+            caption: '耗时(ms)',
             type: 'LONG',
             aggregation: 'avg'
-        },
-        {
-            column: 'durationMs',
-            name: 'maxDuration',
-            caption: '最大耗时',
-            type: 'LONG',
-            aggregation: 'max'
         }
     ]
 };
 ```
 
-## 输出前检查清单
+## 决策规则
 
-- [ ] `type: 'mongo'` 已设置
-- [ ] `mongoTemplate` 已指定并有对应 import
-- [ ] `idColumn` 已设置（通常为 `_id`）
-- [ ] **没有** dimensions 定义（MongoDB 不支持）
-- [ ] 所有字段都在 properties 中定义
-- [ ] 数值聚合字段在 measures 中定义
-- [ ] 所有字段都有 caption
-- [ ] 枚举字段建议添加 dictRef
-
-## 操作步骤
-
-1. **分析用户输入**：确定是集合描述、样本文档还是集合名
-2. **确认 mongoTemplate**：询问用户使用哪个 MongoTemplate（如有多个）
-3. **识别字段**：区分属性和度量
-4. **生成 TM 文件**：按照模板结构输出完整的 .tm 文件
-5. **验证输出**：对照检查清单确保完整性
+- 如用户提供 Java Document 类 → 解析注解和字段
+- 如用户提供 JSON 示例 → 推断字段类型
+- 如用户要求添加维度 → 提示 MongoDB 模型不支持维度，建议应用层处理
+- 如用户要求 JOIN 多个集合 → 提示 MongoDB 模型不支持 JOIN
+- 如用户未指定 mongoTemplate → 询问使用哪个 MongoTemplate Bean
 
 ## 约束条件
 
@@ -354,10 +317,10 @@ export const model = {
 - 必须指定 `type: 'mongo'`
 - 必须指定 `mongoTemplate`
 - 集合名使用 `tableName` 字段
+- `_id` 字段必须指定 `name: 'id'`
 
-## 决策规则
+## 参考文档
 
-- 如果用户要求添加维度 → 提示 MongoDB 模型不支持维度，建议使用 JDBC 模型或在应用层处理
-- 如果用户要求 JOIN 多个集合 → 提示 MongoDB 模型不支持 JOIN
-- 如果用户未指定 mongoTemplate → 询问使用哪个 MongoTemplate Bean
-- 如果字段既是属性又需要聚合 → 在 properties 和 measures 中都定义（使用不同的 name）
+详细语法规则、类型映射、高级特性请参考：
+- **核心语法**：`tm-syntax-reference` 技能
+- **完整手册**：[TM 语法手册](https://foggy-projects.github.io/foggy-data-mcp-bridge/zh/dataset-model/tm-qm/tm-syntax.html)
