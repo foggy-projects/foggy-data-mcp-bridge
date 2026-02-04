@@ -26,7 +26,6 @@ import org.springframework.data.mongodb.core.aggregation.Aggregation;
 import org.springframework.data.mongodb.core.aggregation.AggregationOperation;
 import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 import org.springframework.data.mongodb.core.aggregation.GroupOperation;
-import org.springframework.data.mongodb.core.aggregation.ProjectionOperation;
 import org.springframework.data.mongodb.core.query.Criteria;
 
 import java.util.*;
@@ -94,7 +93,7 @@ public class MongoQueryModelImpl extends QueryModelSupport implements MongoQuery
          * 构建查询语句（包含权限条件注入）
          */
         queryEngine.analysisQueryRequest(systemBundlesContext, context);
-        Tuple3<Criteria, ProjectionOperation, Sort> options = queryEngine.buildOptions();
+        Tuple3<Criteria, AggregationOperation, Sort> options = queryEngine.buildOptions();
 
         // 构建 $addFields 操作（用于计算字段）
         AggregationOperation addFieldsOp = queryEngine.buildAddFieldsOperation();
@@ -129,7 +128,7 @@ public class MongoQueryModelImpl extends QueryModelSupport implements MongoQuery
             if (addFieldsOp != null) {
                 log.debug("$addFields: {}", queryEngine.buildAddFieldsDocument());
             }
-            log.debug("$project: {}", MongoModelNamedUtils.projectionOperationToString(options.getT2()));
+            log.debug("$project: {}", queryEngine.getProjectionDocument());
             if (options.getT3() != null) {
                 log.debug("$sort: {}", MongoModelNamedUtils.formatSort(options.getT3()));
             }
@@ -206,7 +205,7 @@ public class MongoQueryModelImpl extends QueryModelSupport implements MongoQuery
      * @param form         分页请求
      * @return 管道字符串表示（用于缓存键）
      */
-    private String buildPipelineCacheKey(Tuple3<Criteria, ProjectionOperation, Sort> options,
+    private String buildPipelineCacheKey(Tuple3<Criteria, AggregationOperation, Sort> options,
                                          AggregationOperation addFieldsOp,
                                          MongoModelQueryEngine queryEngine,
                                          PagingRequest<DbQueryRequestDef> form) {
@@ -216,7 +215,7 @@ public class MongoQueryModelImpl extends QueryModelSupport implements MongoQuery
         if (addFieldsOp != null) {
             sb.append("|addFields:").append(queryEngine.buildAddFieldsDocument());
         }
-        sb.append("|project:").append(MongoModelNamedUtils.projectionOperationToString(options.getT2()));
+        sb.append("|project:").append(queryEngine.getProjectionDocument());
         if (options.getT3() != null) {
             sb.append("|sort:").append(MongoModelNamedUtils.formatSort(options.getT3()));
         }

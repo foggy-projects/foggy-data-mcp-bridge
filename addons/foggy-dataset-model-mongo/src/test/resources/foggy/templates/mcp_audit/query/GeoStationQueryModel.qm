@@ -1,0 +1,40 @@
+/**
+ * 地理站点查询模型（用于测试数组元素访问）
+ *
+ * @caption 地理站点查询
+ */
+const gm = loadTableModel('GeoStationModel');
+
+export const queryModel = {
+    name: 'GeoStationQueryModel',
+    caption: '地理站点查询',
+    description: '测试 MongoDB 数组元素通过点号索引访问的投影',
+    loader: 'v2',
+
+    model: gm,
+
+    columnGroups: [
+        {
+            caption: '基本信息',
+            items: [
+                { ref: gm.id },
+                { ref: gm.name },
+                { ref: gm.city },
+                { ref: gm.status }
+            ]
+        },
+        {
+            caption: '地理位置',
+            items: [
+                { ref: gm.locationType },
+                { ref: gm.coordinates },
+                { ref: gm.lng },
+                { ref: gm.lat }
+            ]
+        }
+    ],
+
+    orders: [],
+
+    accesses: []
+};
