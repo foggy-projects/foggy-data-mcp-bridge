@@ -64,10 +64,14 @@ public class SqlColumnRefExp extends AbstractExp<String> {
         // 构建 SqlFragment
         SqlFragment fragment = SqlFragment.ofColumn(column, sqlDeclare);
 
-        // 如果是计算字段，需要合并其依赖的列
+        // 如果是计算字段，需要合并其依赖的列和聚合状态
         if (column instanceof CalculatedDbColumn) {
             CalculatedDbColumn calcColumn = (CalculatedDbColumn) column;
             fragment.getReferencedColumns().addAll(calcColumn.getReferencedColumns());
+            // 传播聚合状态，避免外层表达式再次包裹聚合函数导致嵌套聚合
+            if (calcColumn.hasAggregate()) {
+                fragment.setHasAggregate(true);
+            }
         }
 
         return fragment;

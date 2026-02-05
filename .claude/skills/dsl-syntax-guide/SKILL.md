@@ -36,7 +36,7 @@ DSL（Domain Specific Language）查询语法用于统一前后端的数据查�
 | 字段 | 类型 | 必需 | 说明 |
 |------|------|------|------|
 | queryModel | string | 是 | 查询模型名称 |
-| columns | string[] | 否 | 查询列（空则返回所有有权限列） |
+| columns | string[] | 否 | 查询列（空则返回所有有权限列），支持原始字段和计算字段 |
 | slice | array | 否 | 过滤条件 |
 | groupBy | array | 否 | 分组字段 |
 | orderBy | array | 否 | 排序字段 |
@@ -257,6 +257,8 @@ DSL（Domain Specific Language）查询语法用于统一前后端的数据查�
 
 ## 计算字段 (calculatedFields)
 
+> **重要提示**：计算字段定义后，必须将其名称添加到 `columns` 数组中，才能在查询结果中返回。
+
 ### 基本结构
 
 ```json
@@ -410,6 +412,8 @@ DSL（Domain Specific Language）查询语法用于统一前后端的数据查�
 }
 ```
 
+> **注意**：`netAmount` 在 `calculatedFields` 中定义后，必须在 `columns` 中引用才能返回。
+
 ---
 
 ## 响应格式
@@ -470,3 +474,8 @@ DSL（Domain Specific Language）查询语法用于统一前后端的数据查�
    - 尽量指定 `columns`，避免查询所有列
    - 使用索引字段作为过滤条件
    - 分组查询时确保分组字段有索引
+
+6. **计算字段使用**：
+   - 计算字段在 `calculatedFields` 中定义计算逻辑
+   - 必须将计算字段名称添加到 `columns` 数组中才能返回
+   - 计算字段可以在 `orderBy`、`slice` 等其他位置直接引用

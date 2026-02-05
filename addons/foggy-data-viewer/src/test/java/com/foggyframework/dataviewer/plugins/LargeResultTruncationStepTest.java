@@ -390,7 +390,7 @@ class LargeResultTruncationStepTest {
         ctx.setRequest(request);
 
         // 设置 QueryModel
-        when(queryModel.name()).thenReturn("test_model");
+        when(queryModel.getName()).thenReturn("test_model");
         ctx.setQueryModel(queryModel);
 
         return ctx;
