@@ -171,6 +171,7 @@ public class LargeResultTruncationStep implements DataSetResultStep {
         truncationInfo.put("truncated", true);
         truncationInfo.put("originalRowCount", originalRowCount);
         truncationInfo.put("truncatedRowCount", truncatedRowLimit);
+        truncationInfo.put("truncatedRowLimit", truncatedRowLimit); // 配置的截断限制
         truncationInfo.put("columnCount", columnCount);
         truncationInfo.put("cellCount", (long) originalRowCount * columnCount);
         truncationInfo.put("message", String.format(

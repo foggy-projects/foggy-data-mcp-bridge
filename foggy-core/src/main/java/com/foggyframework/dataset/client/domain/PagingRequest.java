@@ -106,6 +106,34 @@ public class PagingRequest<T> {
         this.limit = limit;
     }
 
+    /**
+     * 解析分页参数用于查询执行：start/limit 优先，其次从 page/pageSize 换算，最后使用默认值
+     */
+    public void resolveForQuery(int defaultLimit) {
+        // start/limit 已显式传入，直接使用
+        if (this.start != null && this.limit != null) {
+            return;
+        }
+
+        // page 显式传入时，从 page/pageSize 换算
+        if (this.start == null && this.page != null) {
+            int ps = this.pageSize != null ? this.pageSize : defaultLimit;
+            this.start = (this.page - 1) * ps;
+            if (this.limit == null) {
+                this.limit = ps;
+            }
+            return;
+        }
+
+        // 兜底默认值
+        if (this.limit == null) {
+            this.limit = defaultLimit;
+        }
+        if (this.start == null) {
+            this.start = 0;
+        }
+    }
+
     public T getParam() {
         return param;
     }

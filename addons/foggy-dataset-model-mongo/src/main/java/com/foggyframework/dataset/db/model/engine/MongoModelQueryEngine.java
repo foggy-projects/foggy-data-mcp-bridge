@@ -26,11 +26,12 @@ import org.bson.Document;
 import org.springframework.context.ApplicationContext;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.AggregationOperation;
 import org.springframework.data.mongodb.core.aggregation.GroupOperation;
-import org.springframework.data.mongodb.core.aggregation.ProjectionOperation;
 import org.springframework.data.mongodb.core.query.Criteria;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -53,6 +54,11 @@ public class MongoModelQueryEngine implements QueryEngine {
      * 处理后的计算字段列表
      */
     List<CalculatedDbColumn> calculatedColumns;
+
+    /**
+     * 原始 $project Document（用于调试日志和缓存键）
+     */
+    private Document projectionDocument;
 
     private static final String PATTERN = "^[a-zA-Z\\s]+$";
     private static final Pattern PATTERN_OBJECT = Pattern.compile(PATTERN);
@@ -157,24 +163,25 @@ public class MongoModelQueryEngine implements QueryEngine {
         //start和limit
     }
 
-    public Tuple3<Criteria, ProjectionOperation, Sort> buildOptions() {
-        //构建project
-
-//        List<String > ll = jdbcQuery.getSelect().getColumns().stream().map(column-> column.getSqlColumnName()).collect(Collectors.toList());
-
-        ProjectionOperation project = Aggregation.project();
+    public Tuple3<Criteria, AggregationOperation, Sort> buildOptions() {
+        // 使用原始 Document 构建 $project，避免 Spring Data MongoDB 将点号数字路径段
+        // (如 "location.coordinates.1") 转为无效的括号语法 ("location.coordinates[1]")
+        // 对于尾部数字索引的字段，使用 $arrayElemAt 实现数组元素访问
+        Document projectDoc = new Document();
         for (DbColumn column : jdbcQuery.getSelect().getColumns()) {
-            project = project.and(column.getSqlColumnName()).as(column.getAlias());
-//            project = project.and(column.getAlias()).as("$"+column.getSqlColumnName());
+            String fieldName = column.getSqlColumnName();
+            projectDoc.put(column.getAlias(), buildFieldExpression(fieldName));
         }
 
         // 将计算字段也加入到 projection（计算字段通过 $addFields 已经添加到文档中）
         if (calculatedColumns != null && !calculatedColumns.isEmpty()) {
             for (CalculatedDbColumn calcColumn : calculatedColumns) {
-                // 计算字段在 $addFields 阶段已经被计算出来，这里只需要投影
-                project = project.and(calcColumn.getAlias()).as(calcColumn.getAlias());
+                projectDoc.put(calcColumn.getAlias(), "$" + calcColumn.getAlias());
             }
         }
+
+        this.projectionDocument = projectDoc;
+        AggregationOperation projectOp = ctx -> new Document("$project", projectDoc);
 
         //构建match
         Criteria criteria = new Criteria();
@@ -272,7 +279,7 @@ public class MongoModelQueryEngine implements QueryEngine {
         }
 
 
-        return new Tuple3<Criteria, ProjectionOperation, Sort>(criteria, project, sort);
+        return new Tuple3<>(criteria, projectOp, sort);
     }
 
     public GroupOperation buildGroupOperation(SystemBundlesContext systemBundlesContext, Map<String, GroupRequestDef> groupByMap, DbQueryRequestDef queryRequest) {
@@ -332,6 +339,27 @@ public class MongoModelQueryEngine implements QueryEngine {
         return groupOperation;
     }
 
+
+    /**
+     * 构建字段投影表达式
+     * <p>
+     * 对于普通字段(如 "name", "location.type")，返回 "$fieldName" 引用。
+     * 对于尾部为数组索引的字段(如 "location.coordinates.1")，
+     * 使用 $arrayElemAt 操作符：{ $arrayElemAt: ["$location.coordinates", 1] }
+     * </p>
+     */
+    private static Object buildFieldExpression(String fieldName) {
+        int lastDot = fieldName.lastIndexOf('.');
+        if (lastDot > 0) {
+            String lastSegment = fieldName.substring(lastDot + 1);
+            if (lastSegment.matches("\\d+")) {
+                String arrayPath = fieldName.substring(0, lastDot);
+                int index = Integer.parseInt(lastSegment);
+                return new Document("$arrayElemAt", Arrays.asList("$" + arrayPath, index));
+            }
+        }
+        return "$" + fieldName;
+    }
 
     private void buildSlice(MongoQueryModel jdbcQueryModel, JdbcQuery jdbcQuery, SliceRequestDef sliceDef) {
 

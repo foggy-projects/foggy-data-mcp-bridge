@@ -3,6 +3,11 @@ package com.foggyframework.dataset.db.model.engine.expression;
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
+import com.foggyframework.dataset.db.model.engine.expression.sql.SqlBinaryExp;
+import com.foggyframework.dataset.db.model.engine.expression.sql.SqlColumnRefExp;
+import com.foggyframework.dataset.db.model.engine.expression.sql.SqlFunctionExp;
+import com.foggyframework.dataset.db.model.engine.expression.sql.SqlUnaryExp;
+import com.foggyframework.dataset.db.model.engine.expression.SqlExpHolder;
 import com.foggyframework.dataset.db.model.spi.support.CalculatedDbColumn;
 import com.foggyframework.fsscript.DefaultExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.Exp;
@@ -12,8 +17,7 @@ import com.foggyframework.fsscript.parser.spi.ParserFactory;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 /**
  * 计算字段服务（工具类）
@@ -53,7 +57,8 @@ public final class CalculatedFieldService {
     /**
      * 处理计算字段列表
      * <p>
-     * 按顺序编译每个计算字段，支持后面的字段引用前面的字段。
+     * 自动分析字段间的依赖关系，按依赖顺序编译计算字段。
+     * 支持计算字段引用其他计算字段（包括内联表达式生成的）。
      * </p>
      *
      * @param calculatedFields 计算字段定义列表
@@ -69,14 +74,185 @@ public final class CalculatedFieldService {
             return new ArrayList<>();
         }
 
-        List<CalculatedDbColumn> result = new ArrayList<>(calculatedFields.size());
+        // 按依赖关系排序
+        List<CalculatedFieldDef> sortedFields = sortByDependencies(calculatedFields);
 
-        for (CalculatedFieldDef fieldDef : calculatedFields) {
+        List<CalculatedDbColumn> result = new ArrayList<>(sortedFields.size());
+
+        for (CalculatedFieldDef fieldDef : sortedFields) {
             CalculatedDbColumn column = processCalculatedField(fieldDef, context, appCtx);
             result.add(column);
         }
 
         return result;
+    }
+
+    /**
+     * 按依赖关系对计算字段进行拓扑排序
+     * <p>
+     * 确保被引用的字段先于引用它的字段被处理。
+     * 支持内联表达式别名和用户定义的 calculatedFields 混合引用。
+     * </p>
+     *
+     * @param calculatedFields 计算字段定义列表
+     * @return 排序后的计算字段列表
+     * @throws IllegalArgumentException 如果检测到循环引用
+     */
+    private static List<CalculatedFieldDef> sortByDependencies(List<CalculatedFieldDef> calculatedFields) {
+        if (calculatedFields.size() <= 1) {
+            return new ArrayList<>(calculatedFields);
+        }
+
+        // 1. 收集所有字段名
+        Set<String> allFieldNames = new HashSet<>();
+        Map<String, CalculatedFieldDef> fieldMap = new LinkedHashMap<>();
+        for (CalculatedFieldDef field : calculatedFields) {
+            allFieldNames.add(field.getName());
+            fieldMap.put(field.getName(), field);
+        }
+
+        // 2. 分析每个字段的依赖（只关心对其他 calculatedField 的依赖）
+        Map<String, Set<String>> dependencies = new LinkedHashMap<>();
+        for (CalculatedFieldDef field : calculatedFields) {
+            // 确保表达式已编译
+            Exp compiledExp = field.getCompiledExp();
+            if (compiledExp == null && field.getExpression() != null) {
+                compiledExp = compileExpression(field.getExpression());
+                field.setCompiledExp(compiledExp);
+            }
+
+            // 提取依赖
+            Set<String> refs = new HashSet<>();
+            if (compiledExp != null) {
+                extractColumnReferences(compiledExp, refs);
+            }
+
+            // 只保留对其他 calculatedField 的依赖
+            refs.retainAll(allFieldNames);
+            // 移除自引用
+            refs.remove(field.getName());
+
+            dependencies.put(field.getName(), refs);
+
+            if (log.isDebugEnabled() && !refs.isEmpty()) {
+                log.debug("Field '{}' depends on: {}", field.getName(), refs);
+            }
+        }
+
+        // 3. 拓扑排序（Kahn's algorithm）
+        List<CalculatedFieldDef> sorted = new ArrayList<>(calculatedFields.size());
+
+        // 计算入度
+        Map<String, Integer> inDegree = new LinkedHashMap<>();
+        for (String name : fieldMap.keySet()) {
+            inDegree.put(name, 0);
+        }
+        for (Set<String> deps : dependencies.values()) {
+            for (String dep : deps) {
+                if (inDegree.containsKey(dep)) {
+                    inDegree.put(dep, inDegree.get(dep) + 1);
+                }
+            }
+        }
+
+        // 找出入度为 0 的节点（没有被其他字段依赖）
+        // 注意：我们要按"被依赖的先处理"，所以入度为 0 表示没有字段依赖它
+        // 但我们需要的是"依赖其他字段少的先处理"，所以应该计算出度
+        // 重新思考：入度 = 有多少字段依赖我，出度 = 我依赖多少字段
+        // 我们需要先处理"不依赖其他字段"的，即出度为 0 的
+
+        // 重新计算：使用出度（依赖数量）
+        Queue<String> queue = new LinkedList<>();
+        for (Map.Entry<String, Set<String>> entry : dependencies.entrySet()) {
+            if (entry.getValue().isEmpty()) {
+                queue.add(entry.getKey());
+            }
+        }
+
+        Set<String> processed = new HashSet<>();
+
+        while (!queue.isEmpty()) {
+            String name = queue.poll();
+            if (processed.contains(name)) {
+                continue;
+            }
+            processed.add(name);
+            sorted.add(fieldMap.get(name));
+
+            // 找出依赖这个字段的其他字段，检查它们的依赖是否都已处理
+            for (Map.Entry<String, Set<String>> entry : dependencies.entrySet()) {
+                if (processed.contains(entry.getKey())) {
+                    continue;
+                }
+                Set<String> deps = entry.getValue();
+                if (deps.contains(name)) {
+                    // 检查是否所有依赖都已处理
+                    boolean allDepsProcessed = true;
+                    for (String dep : deps) {
+                        if (!processed.contains(dep)) {
+                            allDepsProcessed = false;
+                            break;
+                        }
+                    }
+                    if (allDepsProcessed) {
+                        queue.add(entry.getKey());
+                    }
+                }
+            }
+        }
+
+        // 4. 检测循环引用
+        if (sorted.size() < calculatedFields.size()) {
+            // 找出循环引用的字段
+            Set<String> cycleFields = new LinkedHashSet<>(fieldMap.keySet());
+            cycleFields.removeAll(processed);
+            throw new IllegalArgumentException(
+                    "检测到计算字段循环引用，涉及字段: " + cycleFields +
+                    "。请检查这些字段的表达式，确保没有互相引用。");
+        }
+
+        if (log.isDebugEnabled()) {
+            List<String> sortedNames = new ArrayList<>();
+            for (CalculatedFieldDef f : sorted) {
+                sortedNames.add(f.getName());
+            }
+            log.debug("Calculated fields sorted by dependencies: {}", sortedNames);
+        }
+
+        return sorted;
+    }
+
+    /**
+     * 从 AST 中递归提取所有列引用
+     *
+     * @param exp  表达式 AST
+     * @param refs 收集到的列名集合
+     */
+    private static void extractColumnReferences(Exp exp, Set<String> refs) {
+        if (exp == null) {
+            return;
+        }
+
+        // 处理包装器类型（SqlExpWrapper, SqlExpFunCallWrapper 等）
+        if (exp instanceof SqlExpHolder) {
+            extractColumnReferences(((SqlExpHolder) exp).getInnerSqlExp(), refs);
+            return;
+        }
+
+        if (exp instanceof SqlColumnRefExp) {
+            refs.add(((SqlColumnRefExp) exp).getColumnName());
+        } else if (exp instanceof SqlBinaryExp) {
+            SqlBinaryExp binary = (SqlBinaryExp) exp;
+            extractColumnReferences(binary.getLeft(), refs);
+            extractColumnReferences(binary.getRight(), refs);
+        } else if (exp instanceof SqlUnaryExp) {
+            extractColumnReferences(((SqlUnaryExp) exp).getOperand(), refs);
+        } else if (exp instanceof SqlFunctionExp) {
+            for (Exp arg : ((SqlFunctionExp) exp).getArgs()) {
+                extractColumnReferences(arg, refs);
+            }
+        }
+        // SqlLiteralExp 不包含列引用，忽略
     }
 
     /**

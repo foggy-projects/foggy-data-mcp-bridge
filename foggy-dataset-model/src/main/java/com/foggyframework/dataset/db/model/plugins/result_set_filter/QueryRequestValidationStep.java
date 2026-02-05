@@ -96,12 +96,8 @@ public class QueryRequestValidationStep implements DataSetResultStep {
             log.debug("=== Query Request Validation Passed ===");
         }
 
-        if(ctx.getRequest().getLimit() == null && datasetProperties!=null){
-            ctx.getRequest().setLimit(datasetProperties.getDefaultLimit());
-        }
-        if(ctx.getRequest().getStart() == null){
-            ctx.getRequest().setStart(0);
-        }
+        int defaultLimit = datasetProperties != null ? datasetProperties.getDefaultLimit() : 1000;
+        ctx.getRequest().resolveForQuery(defaultLimit);
 
         return CONTINUE;
     }

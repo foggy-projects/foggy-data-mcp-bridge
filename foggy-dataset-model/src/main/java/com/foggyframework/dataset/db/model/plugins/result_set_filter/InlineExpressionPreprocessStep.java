@@ -184,11 +184,25 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
                 if (result.getColumnAggregations().containsKey(calcFieldDef.getName())) {
                     continue;
                 }
+
+                // 优先使用显式设置的 agg
                 if (calcFieldDef.getAgg() != null) {
                     result.getColumnAggregations().put(calcFieldDef.getName(), calcFieldDef.getAgg().toUpperCase());
                     if (log.isDebugEnabled()) {
                         log.debug("从预定义 calculatedField 识别聚合列: '{}' -> agg='{}'",
                                 calcFieldDef.getName(), calcFieldDef.getAgg());
+                    }
+                } else if (calcFieldDef.getExpression() != null) {
+                    // 如果没有显式 agg，通过 AST 分析检测表达式中的聚合函数
+                    AggregateAnalysisResult aggResult = analyzeAggregateByAst(calcFieldDef.getExpression(), calcFieldDef);
+                    if (aggResult.hasAggregate && aggResult.aggregationType != null) {
+                        calcFieldDef.setAgg(aggResult.aggregationType);
+                        result.getColumnAggregations().put(calcFieldDef.getName(), aggResult.aggregationType);
+                        hasAnyAggregate = true;
+                        if (log.isDebugEnabled()) {
+                            log.debug("通过 AST 分析识别预定义 calculatedField 聚合列: '{}' -> agg='{}'",
+                                    calcFieldDef.getName(), aggResult.aggregationType);
+                        }
                     }
                 }
             }
