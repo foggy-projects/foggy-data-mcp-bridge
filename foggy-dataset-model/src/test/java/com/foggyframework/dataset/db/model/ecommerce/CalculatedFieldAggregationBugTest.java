@@ -584,4 +584,220 @@ class CalculatedFieldAggregationBugTest extends EcommerceTestSupport {
             assertTrue(firstRow.containsKey("avgOrderAmount"), "结果应包含 avgOrderAmount 字段");
         }
     }
+
+    // ==========================================
+    // 混合引用场景测试（内联表达式 + calculatedFields）
+    // ==========================================
+
+    /**
+     * 测试混合引用场景：calculatedFields 引用内联表达式的别名
+     *
+     * <p>场景：</p>
+     * <pre>
+     * columns: [
+     *   "customer$caption",
+     *   "SUM(salesAmount) as totalSalesAmount",  // 内联表达式
+     *   "totalQuantity",
+     *   "avgUnitPrice"
+     * ]
+     * calculatedFields: [
+     *   { name: "totalQuantity", expression: "SUM(quantity)" },
+     *   { name: "avgUnitPrice", expression: "totalSalesAmount / totalQuantity" }  // 引用内联表达式别名
+     * ]
+     * </pre>
+     *
+     * <p>期望：依赖排序后正确编译，不报 "找不到列 totalSalesAmount" 错误</p>
+     */
+    @Test
+    @Order(30)
+    @DisplayName("混合引用: calculatedField 引用内联表达式别名")
+    void testCalculatedFieldReferenceInlineAlias() {
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("FactSalesQueryModel");
+
+        // columns 中包含内联表达式
+        List<String> columns = Arrays.asList(
+            "customer$caption",
+            "SUM(salesAmount) as totalSalesAmount",  // 内联表达式，别名 totalSalesAmount
+            "totalQuantity",
+            "avgUnitPrice"
+        );
+        queryRequest.setColumns(columns);
+
+        // calculatedFields 中的 avgUnitPrice 引用 totalSalesAmount（内联表达式别名）
+        List<CalculatedFieldDef> calculatedFields = new ArrayList<>();
+
+        CalculatedFieldDef f1 = new CalculatedFieldDef();
+        f1.setName("totalQuantity");
+        f1.setCaption("总数量");
+        f1.setExpression("SUM(quantity)");
+        calculatedFields.add(f1);
+
+        CalculatedFieldDef f2 = new CalculatedFieldDef();
+        f2.setName("avgUnitPrice");
+        f2.setCaption("平均单价");
+        f2.setExpression("totalSalesAmount / totalQuantity");  // 引用内联表达式别名
+        calculatedFields.add(f2);
+
+        queryRequest.setCalculatedFields(calculatedFields);
+
+        // 设置过滤条件
+        List<SliceRequestDef> slices = new ArrayList<>();
+        SliceRequestDef slice1 = new SliceRequestDef();
+        slice1.setField("salesDate$year");
+        slice1.setOp("=");
+        slice1.setValue(2024);
+        slices.add(slice1);
+        SliceRequestDef slice2 = new SliceRequestDef();
+        slice2.setField("salesDate$month");
+        slice2.setOp("=");
+        slice2.setValue(7);
+        slices.add(slice2);
+        queryRequest.setSlice(slices);
+
+        // 设置排序
+        List<OrderRequestDef> orders = new ArrayList<>();
+        OrderRequestDef order = new OrderRequestDef();
+        order.setField("totalSalesAmount");
+        order.setDir("desc");
+        orders.add(order);
+        queryRequest.setOrderBy(orders);
+
+        queryRequest.setReturnTotal(true);
+
+        // 通过 QueryFacade 执行查询 - 之前会报 "找不到列 totalSalesAmount" 错误
+        PagingResultImpl result = assertDoesNotThrow(() ->
+            queryFacade.queryModelData(PagingRequest.buildPagingRequest(queryRequest, 10)),
+            "混合引用场景不应抛出 '找不到列' 异常"
+        );
+
+        assertNotNull(result, "查询结果不应为空");
+        log.info("混合引用测试 - 查询返回 {} 条记录", result.getItems().size());
+
+        // 验证结果中包含所有字段
+        if (!result.getItems().isEmpty()) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> firstRow = (Map<String, Object>) result.getItems().get(0);
+            assertTrue(firstRow.containsKey("avgUnitPrice"), "结果应包含 avgUnitPrice 字段");
+            assertTrue(firstRow.containsKey("totalSalesAmount"), "结果应包含 totalSalesAmount 字段");
+            assertTrue(firstRow.containsKey("totalQuantity"), "结果应包含 totalQuantity 字段");
+
+            // 验证 avgUnitPrice 的计算逻辑（应该是 totalSalesAmount / totalQuantity）
+            Object avgUnitPrice = firstRow.get("avgUnitPrice");
+            Object totalSalesAmount = firstRow.get("totalSalesAmount");
+            Object totalQuantity = firstRow.get("totalQuantity");
+            log.info("首行数据: totalSalesAmount={}, totalQuantity={}, avgUnitPrice={}",
+                    totalSalesAmount, totalQuantity, avgUnitPrice);
+        }
+    }
+
+    /**
+     * 测试循环引用检测
+     *
+     * <p>场景：a 依赖 b，b 依赖 a</p>
+     */
+    @Test
+    @Order(31)
+    @DisplayName("循环引用检测: 应该抛出异常")
+    void testCircularReferenceDetection() {
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("FactSalesQueryModel");
+
+        // 创建循环引用：fieldA 依赖 fieldB，fieldB 依赖 fieldA
+        List<CalculatedFieldDef> calculatedFields = new ArrayList<>();
+
+        CalculatedFieldDef fieldA = new CalculatedFieldDef();
+        fieldA.setName("fieldA");
+        fieldA.setCaption("字段A");
+        fieldA.setExpression("fieldB + 1");  // 依赖 fieldB
+        calculatedFields.add(fieldA);
+
+        CalculatedFieldDef fieldB = new CalculatedFieldDef();
+        fieldB.setName("fieldB");
+        fieldB.setCaption("字段B");
+        fieldB.setExpression("fieldA + 1");  // 依赖 fieldA
+        calculatedFields.add(fieldB);
+
+        queryRequest.setCalculatedFields(calculatedFields);
+        queryRequest.setColumns(Arrays.asList("customer$caption", "fieldA", "fieldB"));
+
+        // 应该抛出循环引用异常
+        Exception exception = assertThrows(Exception.class, () ->
+            queryFacade.queryModelData(PagingRequest.buildPagingRequest(queryRequest, 10)),
+            "循环引用应该抛出异常"
+        );
+
+        String message = exception.getMessage();
+        log.info("循环引用检测 - 捕获到异常: {}", message);
+        assertTrue(message.contains("循环引用") || message.contains("circular"),
+                "异常消息应包含循环引用提示");
+    }
+
+    /**
+     * 测试多层依赖排序：a -> b -> c
+     */
+    @Test
+    @Order(32)
+    @DisplayName("多层依赖: a -> b -> c 应正确排序")
+    void testMultiLevelDependency() {
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("FactSalesQueryModel");
+
+        // 创建多层依赖：fieldC 依赖 fieldB，fieldB 依赖 fieldA
+        // 故意按错误顺序定义，测试排序功能
+        List<CalculatedFieldDef> calculatedFields = new ArrayList<>();
+
+        // fieldC 定义在最前面，但它依赖 fieldB
+        CalculatedFieldDef fieldC = new CalculatedFieldDef();
+        fieldC.setName("fieldC");
+        fieldC.setCaption("字段C");
+        fieldC.setExpression("fieldB * 2");  // 依赖 fieldB
+        calculatedFields.add(fieldC);
+
+        // fieldB 定义在中间，它依赖 fieldA
+        CalculatedFieldDef fieldB = new CalculatedFieldDef();
+        fieldB.setName("fieldB");
+        fieldB.setCaption("字段B");
+        fieldB.setExpression("fieldA + 100");  // 依赖 fieldA
+        calculatedFields.add(fieldB);
+
+        // fieldA 定义在最后，但它不依赖任何其他字段
+        CalculatedFieldDef fieldA = new CalculatedFieldDef();
+        fieldA.setName("fieldA");
+        fieldA.setCaption("字段A");
+        fieldA.setExpression("SUM(salesAmount)");  // 不依赖其他 calculatedField
+        calculatedFields.add(fieldA);
+
+        queryRequest.setCalculatedFields(calculatedFields);
+        queryRequest.setColumns(Arrays.asList("customer$caption", "fieldA", "fieldB", "fieldC"));
+
+        // 设置过滤条件
+        List<SliceRequestDef> slices = new ArrayList<>();
+        SliceRequestDef slice = new SliceRequestDef();
+        slice.setField("salesDate$year");
+        slice.setOp("=");
+        slice.setValue(2024);
+        slices.add(slice);
+        queryRequest.setSlice(slices);
+
+        // 应该能正确处理多层依赖
+        PagingResultImpl result = assertDoesNotThrow(() ->
+            queryFacade.queryModelData(PagingRequest.buildPagingRequest(queryRequest, 10)),
+            "多层依赖场景不应抛出异常"
+        );
+
+        assertNotNull(result, "查询结果不应为空");
+        log.info("多层依赖测试 - 查询返回 {} 条记录", result.getItems().size());
+
+        // 验证结果中包含所有字段
+        if (!result.getItems().isEmpty()) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> firstRow = (Map<String, Object>) result.getItems().get(0);
+            assertTrue(firstRow.containsKey("fieldA"), "结果应包含 fieldA");
+            assertTrue(firstRow.containsKey("fieldB"), "结果应包含 fieldB");
+            assertTrue(firstRow.containsKey("fieldC"), "结果应包含 fieldC");
+            log.info("首行数据: fieldA={}, fieldB={}, fieldC={}",
+                    firstRow.get("fieldA"), firstRow.get("fieldB"), firstRow.get("fieldC"));
+        }
+    }
 }
