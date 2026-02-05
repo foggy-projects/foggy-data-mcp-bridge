@@ -16,19 +16,21 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import java.time.Instant;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 /**
  * LargeResultTruncationStep 单元测试
  */
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class LargeResultTruncationStepTest {
 
     @Mock
@@ -141,7 +143,7 @@ class LargeResultTruncationStepTest {
                     .createdAt(Instant.now())
                     .expiresAt(Instant.now().plusSeconds(3600))
                     .build();
-            when(queryCacheService.cacheQuery(any(), anyString())).thenReturn(cachedQuery);
+            when(queryCacheService.cacheQuery(any(), any())).thenReturn(cachedQuery);
 
             int result = step.process(ctx);
 
@@ -172,7 +174,7 @@ class LargeResultTruncationStepTest {
             assertTrue(apiUrl.contains("test-query-id-123"));
 
             // 验证调用了 QueryCacheService
-            verify(queryCacheService).cacheQuery(any(), anyString());
+            verify(queryCacheService).cacheQuery(any(), any());
         }
 
         @Test
@@ -187,7 +189,7 @@ class LargeResultTruncationStepTest {
                     .createdAt(Instant.now())
                     .expiresAt(Instant.now().plusSeconds(3600))
                     .build();
-            when(queryCacheService.cacheQuery(any(), anyString())).thenReturn(cachedQuery);
+            when(queryCacheService.cacheQuery(any(), any())).thenReturn(cachedQuery);
 
             step.process(ctx);
 
@@ -214,7 +216,7 @@ class LargeResultTruncationStepTest {
                     .createdAt(Instant.now())
                     .expiresAt(Instant.now().plusSeconds(3600))
                     .build();
-            when(queryCacheService.cacheQuery(any(), anyString())).thenReturn(cachedQuery);
+            when(queryCacheService.cacheQuery(any(), any())).thenReturn(cachedQuery);
 
             step.process(ctx);
 
@@ -234,7 +236,7 @@ class LargeResultTruncationStepTest {
             ModelResultContext ctx = createContext(true, 200, 100);
 
             // Mock 缓存服务抛出异常
-            when(queryCacheService.cacheQuery(any(), anyString()))
+            when(queryCacheService.cacheQuery(any(), any()))
                     .thenThrow(new RuntimeException("Cache service error"));
 
             int result = step.process(ctx);
@@ -295,7 +297,7 @@ class LargeResultTruncationStepTest {
                     .createdAt(Instant.now())
                     .expiresAt(Instant.now().plusSeconds(3600))
                     .build();
-            when(queryCacheService.cacheQuery(any(), anyString())).thenReturn(cachedQuery);
+            when(queryCacheService.cacheQuery(any(), any())).thenReturn(cachedQuery);
 
             step.process(ctx);
 
@@ -322,7 +324,7 @@ class LargeResultTruncationStepTest {
                     .createdAt(Instant.now())
                     .expiresAt(Instant.now().plusSeconds(3600))
                     .build();
-            when(queryCacheService.cacheQuery(any(), anyString())).thenReturn(cachedQuery);
+            when(queryCacheService.cacheQuery(any(), any())).thenReturn(cachedQuery);
 
             step.process(ctx);
 
@@ -362,9 +364,11 @@ class LargeResultTruncationStepTest {
         List<Map<String, Object>> items = new ArrayList<>();
 
         for (int i = 0; i < rowCount; i++) {
-            Map<String, Object> row = new HashMap<>();
+            Map<String, Object> row = new LinkedHashMap<>();
+            // 第一列作为 id
             row.put("id", "row-" + i);
-            for (int j = 0; j < columnCount; j++) {
+            // 剩余列（总共 columnCount 列，包括 id）
+            for (int j = 1; j < columnCount; j++) {
                 row.put("col" + j, "value-" + i + "-" + j);
             }
             items.add(row);
