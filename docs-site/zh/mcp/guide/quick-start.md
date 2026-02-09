@@ -150,7 +150,7 @@ mvn spring-boot:run -pl foggy-mcp-launcher
     </dependency>
 
     <!-- Foggy MCP 服务（包含 dataset-model） -->
-    <dependency>
+    <dependency>    
         <groupId>com.foggysource</groupId>
         <artifactId>foggy-dataset-mcp</artifactId>
         <version>8.1.4.beta</version>
