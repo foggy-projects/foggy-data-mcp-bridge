@@ -52,5 +52,13 @@ export type {
   FetchDataFn,
   DictItem,
   PaginationState,
-  SortState
+  SortState,
+  QueryHooks,
+  QueryHookContext,
+  QueryTrigger,
+  QueryHookName,
+  BeforeQueryHookFn,
+  AfterQueryHookFn,
+  ErrorQueryHookFn,
+  MaybePromise
 } from './types'

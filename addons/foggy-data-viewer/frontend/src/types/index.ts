@@ -205,3 +205,55 @@ export interface FetchDataResult<T = Record<string, unknown>> {
 export type FetchDataFn<T = Record<string, unknown>> = (
   params: FetchDataParams
 ) => Promise<FetchDataResult<T>>
+
+// ========== Query Hooks ==========
+
+/** Promise 或同步值 */
+export type MaybePromise<T> = T | Promise<T>
+
+/** 查询触发来源 */
+export type QueryTrigger = 'mount' | 'filter' | 'sort' | 'page' | 'refresh' | 'reload'
+
+/** 钩子名称 */
+export type QueryHookName = 'onBeforeQuery' | 'onAfterQuery' | 'onQueryError'
+
+/**
+ * 查询钩子上下文
+ */
+export interface QueryHookContext {
+  /** 查询参数（可在 onBeforeQuery 中修改） */
+  params: FetchDataParams
+  /** 触发来源 */
+  trigger: QueryTrigger
+}
+
+/**
+ * 查询前钩子函数
+ * - 返回 false 取消本次查询
+ * - 返回 FetchDataParams 替换查询参数
+ * - 返回 void 继续执行
+ */
+export type BeforeQueryHookFn = (ctx: QueryHookContext) => MaybePromise<void | false | FetchDataParams>
+
+/**
+ * 查询后钩子函数（成功时调用）
+ * - 返回 FetchDataResult 替换查询结果
+ * - 返回 void 使用原结果
+ */
+export type AfterQueryHookFn = (ctx: QueryHookContext, result: FetchDataResult) => MaybePromise<void | FetchDataResult>
+
+/**
+ * 查询错误钩子函数
+ * - 返回 true 表示已处理错误（不再触发 load-error 事件）
+ * - 返回 void 继续默认错误处理
+ */
+export type ErrorQueryHookFn = (ctx: QueryHookContext, error: Error) => MaybePromise<void | boolean>
+
+/**
+ * 查询钩子配置（用于 props 声明式传入）
+ */
+export interface QueryHooks {
+  onBeforeQuery?: BeforeQueryHookFn
+  onAfterQuery?: AfterQueryHookFn
+  onQueryError?: ErrorQueryHookFn
+}

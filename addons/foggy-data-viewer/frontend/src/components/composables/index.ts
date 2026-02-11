@@ -1,2 +1,6 @@
 export { useTableSelection } from './useTableSelection'
 export { useTableSummary } from './useTableSummary'
+export { useTableQuery } from './useTableQuery'
+export type { UseTableQueryOptions, UseTableQueryReturn } from './useTableQuery'
+export { HookRegistry } from './hookRegistry'
+export { globalQueryHooks } from './globalQueryHooks'
