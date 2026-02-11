@@ -77,7 +77,7 @@ public class OpenInViewerTool implements McpTool {
         CachedQueryContext ctx = cacheService.cacheQuery(request, context.getAuthorization());
 
         // 构建响应
-        String viewerUrl = getBaseUrl() + "/view/" + ctx.getQueryId();
+        String viewerUrl = getBaseUrl() + "/view/" + request.getModel() + "/" + ctx.getQueryId();
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("viewerUrl", viewerUrl);

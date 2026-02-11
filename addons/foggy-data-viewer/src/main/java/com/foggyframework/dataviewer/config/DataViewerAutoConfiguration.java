@@ -1,12 +1,14 @@
 package com.foggyframework.dataviewer.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.foggyframework.dataviewer.controller.SavedQueryController;
 import com.foggyframework.dataviewer.controller.ViewerApiController;
 import com.foggyframework.dataviewer.controller.ViewerPageController;
 import com.foggyframework.dataviewer.mcp.OpenInViewerTool;
 import com.foggyframework.dataviewer.repository.CachedQueryRepository;
 import com.foggyframework.dataviewer.service.QueryCacheService;
 import com.foggyframework.dataviewer.service.QueryScopeConstraintService;
+import com.foggyframework.dataviewer.service.SavedQueryService;
 import com.foggyframework.dataset.db.model.service.QueryFacade;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -68,5 +70,17 @@ public class DataViewerAutoConfiguration {
     @ConditionalOnMissingBean
     public ViewerPageController viewerPageController() {
         return new ViewerPageController();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public SavedQueryService savedQueryService() {
+        return new SavedQueryService();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public SavedQueryController savedQueryController(SavedQueryService savedQueryService) {
+        return new SavedQueryController(savedQueryService);
     }
 }

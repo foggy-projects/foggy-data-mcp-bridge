@@ -60,8 +60,8 @@ export async function createQuery(request: CreateQueryRequest): Promise<CreateQu
 /**
  * 获取查询元数据
  */
-export async function fetchQueryMeta(queryId: string): Promise<QueryMetaResponse> {
-  const response = await apiClient.get<any>(`/query/${queryId}/meta`)
+export async function fetchQueryMeta(model: string, queryId: string): Promise<QueryMetaResponse> {
+  const response = await apiClient.get<any>(`/query/${encodeURIComponent(model)}/${queryId}/meta`)
 
   // Handle RX response format: { code: 200, msg: "", data: {} }
   if (!response.data || response.data.code !== 200) {
@@ -75,10 +75,11 @@ export async function fetchQueryMeta(queryId: string): Promise<QueryMetaResponse
  * 查询数据
  */
 export async function fetchQueryData(
+  model: string,
   queryId: string,
   request: ViewerQueryRequest
 ): Promise<ViewerDataResponse> {
-  const response = await apiClient.post<any>(`/query/${queryId}/data`, request)
+  const response = await apiClient.post<any>(`/query/${encodeURIComponent(model)}/${queryId}/data`, request)
 
   // Handle RX response format: { code: 200, msg: "", data: {} }
   if (!response.data || response.data.code !== 200) {
@@ -96,11 +97,12 @@ export async function fetchQueryData(
  * 获取过滤选项（维度成员或字典项）
  */
 export async function fetchFilterOptions(
+  model: string,
   queryId: string,
   columnName: string
 ): Promise<FilterOptionsResponse> {
   const response = await apiClient.get<FilterOptionsResponse>(
-    `/query/${queryId}/filter-options/${encodeURIComponent(columnName)}`
+    `/query/${encodeURIComponent(model)}/${queryId}/filter-options/${encodeURIComponent(columnName)}`
   )
   return response.data
 }

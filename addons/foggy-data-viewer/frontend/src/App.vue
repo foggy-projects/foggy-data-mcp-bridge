@@ -3,13 +3,16 @@ import { ref, computed } from 'vue'
 import DataViewer from './components/DataViewer.vue'
 import { createQuery, type CreateQueryRequest } from './api/viewer'
 
-// 从 URL 中获取 queryId
-const queryId = computed(() => {
+// 从 URL 中获取 model 和 queryId
+const urlParams = computed(() => {
   const path = window.location.pathname
-  // 匹配 /data-viewer/view/{queryId} 格式
-  const match = path.match(/\/data-viewer\/view\/([^/]+)/)
-  return match ? match[1] : null
+  // 匹配 /data-viewer/view/{model}/{queryId} 格式
+  const match = path.match(/\/data-viewer\/view\/([^/]+)\/([^/]+)/)
+  return match ? { model: match[1], queryId: match[2] } : null
 })
+
+const queryId = computed(() => urlParams.value?.queryId ?? null)
+const model = computed(() => urlParams.value?.model ?? null)
 
 // DSL 输入相关状态
 const dslInput = ref('')
@@ -148,7 +151,7 @@ async function submitQuery() {
 
 <template>
   <div id="app">
-    <DataViewer v-if="queryId" :query-id="queryId" />
+    <DataViewer v-if="queryId && model" :query-id="queryId" :model="model" />
     <div v-else class="landing-page">
       <div class="hero">
         <h1>Foggy Data Viewer</h1>

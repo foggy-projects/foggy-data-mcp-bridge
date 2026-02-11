@@ -27,8 +27,8 @@ public class ViewerPageController {
      * <p>
      * 返回SPA的index.html，由前端路由处理
      */
-    @GetMapping("/view/{queryId}")
-    public String viewQuery(@PathVariable String queryId) {
+    @GetMapping("/view/{model}/{queryId}")
+    public String viewQuery(@PathVariable String model, @PathVariable String queryId) {
         return "forward:/data-viewer/index.html";
     }
 }

@@ -7,6 +7,7 @@ import type { QueryMetaResponse, ViewerQueryRequest, SliceRequestDef, OrderReque
 
 const props = defineProps<{
   queryId: string
+  model: string
 }>()
 
 // 状态
@@ -44,7 +45,7 @@ async function loadMeta() {
     error.value = null
 
     // 1. 获取查询元数据（包含 tableConfig）
-    meta.value = await fetchQueryMeta(props.queryId)
+    meta.value = await fetchQueryMeta(props.model, props.queryId)
 
     // 2. 获取 QM Schema
     if (meta.value.tableConfig.qmModel) {
@@ -68,7 +69,7 @@ async function loadData() {
     loading.value = true
     error.value = null
 
-    const response = await fetchQueryData(props.queryId, queryParams.value)
+    const response = await fetchQueryData(props.model, props.queryId, queryParams.value)
 
     if (response.expired) {
       expired.value = true
@@ -118,7 +119,7 @@ function handleFilterChange(slices: SliceRequestDef[]) {
 // 加载维度选项
 async function loadFilterOptions(columnName: string): Promise<FilterOption[]> {
   try {
-    const response = await fetchFilterOptions(props.queryId, columnName)
+    const response = await fetchFilterOptions(props.model, props.queryId, columnName)
     return response.options || []
   } catch (e) {
     console.error('Failed to load filter options:', e)
