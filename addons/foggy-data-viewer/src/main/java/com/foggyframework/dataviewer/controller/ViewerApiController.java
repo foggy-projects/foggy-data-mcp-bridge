@@ -52,16 +52,21 @@ public class ViewerApiController {
     /**
      * 获取查询元数据（用于初始页面加载）
      */
-    @GetMapping("/query/{queryId}/meta")
-    public RX getQueryMeta(@PathVariable String queryId) {
+    @GetMapping("/query/{model}/{queryId}/meta")
+    public RX getQueryMeta(@PathVariable String model, @PathVariable String queryId) {
         return cacheService.getQuery(queryId)
-                .map(ctx -> RX.ok(new QueryMetaResponse(
-                        ctx.getTitle(),
-                        ctx.getTableConfig(),
-                        ctx.getEstimatedRowCount(),
-                        ctx.getExpiresAt().toString(),
-                        ctx.getSlice()  // 返回初始过滤条件
-                )))
+                .map(ctx -> {
+                    if (!model.equals(ctx.getModel())) {
+                        return RX.failB("URL中的model与查询不匹配", null);
+                    }
+                    return RX.ok(new QueryMetaResponse(
+                            ctx.getTitle(),
+                            ctx.getTableConfig(),
+                            ctx.getEstimatedRowCount(),
+                            ctx.getExpiresAt().toString(),
+                            ctx.getSlice()  // 返回初始过滤条件
+                    ));
+                })
                 .orElse(RX.notFound().build());
     }
 
@@ -145,8 +150,9 @@ public class ViewerApiController {
     /**
      * 执行查询并返回数据
      */
-    @PostMapping("/query/{queryId}/data")
+    @PostMapping("/query/{model}/{queryId}/data")
     public RX<ViewerDataResponse> queryData(
+            @PathVariable String model,
             @PathVariable String queryId,
             @RequestBody ViewerQueryRequest request) {
 
@@ -157,6 +163,10 @@ public class ViewerApiController {
         }
 
         CachedQueryContext ctx = ctxOpt.get();
+
+        if (!model.equals(ctx.getModel())) {
+            return RX.failB("URL中的model与查询不匹配", null);
+        }
 
         try {
             // 构建查询请求，合并缓存参数与用户覆盖
@@ -229,7 +239,7 @@ public class ViewerApiController {
             return RX.ok(new CreateQueryResponse(
                     true,
                     ctx.getQueryId(),
-                    "/data-viewer/view/" + ctx.getQueryId(),
+                    "/data-viewer/view/" + request.getModel() + "/" + ctx.getQueryId(),
                     null
             ));
         } catch (Exception e) {

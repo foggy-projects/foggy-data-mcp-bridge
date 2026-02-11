@@ -89,13 +89,13 @@ async function loadData() {
     loading.value = true
 
     // 1. 获取 QM schema
-    const meta = await fetchQueryMeta('your-query-id')
+    const meta = await fetchQueryMeta('your-model', 'your-query-id')
 
     // 2. 合并 schema 和定制参数
     columns.value = buildTableColumns(meta.schema, tableConfig)
 
     // 3. 加载数据
-    const response = await fetchQueryData('your-query-id', {
+    const response = await fetchQueryData('your-model', 'your-query-id', {
       start: 0,
       limit: 50
     })

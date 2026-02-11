@@ -18,6 +18,7 @@ description: 自动生成基于 foggy-data-viewer 的 Vue 业务组件。根据 
 <DataTableWithSearch
   :schema="tableSchema"
   :fetch-data="fetchData"
+  :query-hooks="queryHooks"
 >
   <template #toolbar>
     <button @click="handleAdd">新增</button>
@@ -25,6 +26,8 @@ description: 自动生成基于 foggy-data-viewer 的 Vue 业务组件。根据 
 </DataTableWithSearch>
 ```
 组件自动管理分页、排序、筛选状态。工具栏布局：左侧插槽放按钮，右侧自动显示分页。
+
+支持查询钩子（`queryHooks` prop / `ref.addQueryHook()` / `globalQueryHooks`），可在查询前后注入业务逻辑。
 
 ### 受控模式
 ```vue
@@ -64,7 +67,7 @@ description: 自动生成基于 foggy-data-viewer 的 Vue 业务组件。根据 
 <script setup lang="ts">
 import { ref } from 'vue'
 import { DataTableWithSearch } from 'foggy-data-viewer'
-import type { TableSchema, FetchDataParams, FetchDataResult } from 'foggy-data-viewer'
+import type { TableSchema, FetchDataParams, FetchDataResult, QueryHooks } from 'foggy-data-viewer'
 import { tableSchema } from './schemas/{name}.schema'
 import { fetchData as apiFetch } from './apis/{name}.api'
 
@@ -76,9 +79,18 @@ async function fetchData(params: FetchDataParams): Promise<FetchDataResult> {
   return apiFetch(params)
 }
 
+// 查询钩子（可选）
+const queryHooks: QueryHooks = {
+  // onBeforeQuery(ctx) { 查询前注入逻辑，返回 false 可取消查询 },
+  // onAfterQuery(ctx, result) { 查询后转换数据 },
+  // onQueryError(ctx, error) { 错误处理，返回 true 表示已处理 },
+}
+
 defineExpose({
   refresh: () => tableRef.value?.refresh(),
   reload: () => tableRef.value?.reload(),
+  addQueryHook: (...args: Parameters<typeof tableRef.value.addQueryHook>) =>
+    tableRef.value?.addQueryHook(...args),
 })
 </script>
 
@@ -87,6 +99,7 @@ defineExpose({
     ref="tableRef"
     :schema="schema"
     :fetch-data="fetchData"
+    :query-hooks="queryHooks"
   >
     <template v-if="$slots.toolbar" #toolbar>
       <slot name="toolbar" />
@@ -150,11 +163,27 @@ src/{commonComponentPath}/models/
 └── apis/{name}.api.ts
 ```
 
+## 查询钩子
+
+生成的组件支持三种钩子注入方式：
+
+| 方式 | 场景 |
+|------|------|
+| `queryHooks` prop | 固定业务逻辑（如固定过滤条件） |
+| `ref.addQueryHook(name, fn)` | 运行时动态注入/移除，返回 dispose 函数 |
+| `globalQueryHooks.add(name, fn)` | 全局生效（如租户隔离、统一错误上报） |
+
+钩子类型：`onBeforeQuery`（查询前，可取消/修改参数）、`onAfterQuery`（查询后，可转换结果）、`onQueryError`（错误处理）。
+
+执行顺序：Before `global → props → instance` → fetchData → After `instance → props → global`。
+
 ## 决策规则
 - 找不到匹配模型 → 询问用户手动输入模型名称
 - 目标组件已存在 → 询问是否覆盖
 - API 调用失败 → 显示错误，检查 API 地址
+- 用户需要查询前注入逻辑（如租户隔离） → 在组件模板中添加 `queryHooks` 配置
 
 ## 相关技能
 - `qm-schema-viewer` - 获取模型 schema
 - `frontend-dsl-query` - DSL 查询语法参考
+- `data-viewer-dev` - 开发维护 foggy-data-viewer 组件库

@@ -34,6 +34,23 @@ export type {
   CreateQueryResponse
 } from './api/viewer'
 
+// 导出保存查询 API
+export {
+  saveQuery,
+  listSavedQueries,
+  getSavedQuery,
+  updateSavedQuery,
+  deleteSavedQuery,
+  applySavedQuery
+} from './api/savedQuery'
+
+// 导出保存查询类型
+export type {
+  SavedQueryDef,
+  SaveQueryRequest,
+  QueryVisibility
+} from './api/savedQuery'
+
 // 导出类型定义
 export type {
   ColumnSchema,
@@ -52,5 +69,13 @@ export type {
   FetchDataFn,
   DictItem,
   PaginationState,
-  SortState
+  SortState,
+  QueryHooks,
+  QueryHookContext,
+  QueryTrigger,
+  QueryHookName,
+  BeforeQueryHookFn,
+  AfterQueryHookFn,
+  ErrorQueryHookFn,
+  MaybePromise
 } from './types'

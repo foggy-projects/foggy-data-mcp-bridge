@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, useAttrs } from 'vue'
-import type { EnhancedColumnSchema, SliceRequestDef, FilterOption, TableSchema, FetchDataParams, FetchDataResult, OrderRequestDef } from '@/types'
+import { ref, computed, onMounted, useAttrs } from 'vue'
+import type { EnhancedColumnSchema, SliceRequestDef, FilterOption, TableSchema, FetchDataParams, FetchDataResult, OrderRequestDef, QueryHooks } from '@/types'
 import SearchToolbar from './SearchToolbar.vue'
 import DataTable from './DataTable.vue'
+import { useTableQuery } from './composables/useTableQuery'
 
 // 禁用自动继承属性
 defineOptions({
@@ -63,6 +64,10 @@ interface Props {
   // ========== 组合配置 ==========
   /** 搜索工具栏和表头过滤器的筛选条件合并模式 */
   filterMergeMode?: 'replace' | 'merge'
+
+  // ========== 查询钩子 ==========
+  /** 查询钩子（声明式） */
+  queryHooks?: QueryHooks
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -93,14 +98,15 @@ const emit = defineEmits<{
 // ========== 判断工作模式 ==========
 const isSchemaMode = computed(() => !!props.schema && !!props.fetchData)
 
-// ========== Schema 模式的内部状态 ==========
-const internalData = ref<Record<string, unknown>[]>([])
-const internalTotal = ref(0)
-const internalLoading = ref(false)
-const internalServerSummary = ref<Record<string, unknown> | null>(null)
-const currentPage = ref(1)
-const currentPageSize = ref(props.schema?.pageSize ?? props.pageSize)
-const currentOrderBy = ref<OrderRequestDef[]>([])
+// ========== useTableQuery（Schema 模式） ==========
+// 始终创建 query 对象，但只在 Schema 模式下调用 loadData
+const query = useTableQuery(
+  props.fetchData ?? (async () => ({ items: [], total: 0 })),
+  {
+    pageSize: props.schema?.pageSize ?? props.pageSize,
+    hooks: props.queryHooks
+  }
+)
 
 // ========== 计算属性：根据模式选择数据源 ==========
 const effectiveColumns = computed(() => {
@@ -112,28 +118,28 @@ const effectiveColumns = computed(() => {
 
 const effectiveData = computed(() => {
   if (isSchemaMode.value) {
-    return internalData.value
+    return query.data.value
   }
   return props.data || []
 })
 
 const effectiveTotal = computed(() => {
   if (isSchemaMode.value) {
-    return internalTotal.value
+    return query.total.value
   }
   return props.total || 0
 })
 
 const effectiveLoading = computed(() => {
   if (isSchemaMode.value) {
-    return internalLoading.value
+    return query.loading.value
   }
   return props.loading || false
 })
 
 const effectiveServerSummary = computed(() => {
   if (isSchemaMode.value) {
-    return internalServerSummary.value
+    return query.serverSummary.value
   }
   return props.serverSummary || null
 })
@@ -216,35 +222,26 @@ const mergedSlices = computed(() => {
 })
 
 // ========== Schema 模式的数据加载 ==========
-async function loadData() {
+async function loadData(trigger: 'mount' | 'filter' | 'sort' | 'page' | 'refresh' | 'reload' = 'refresh') {
   if (!isSchemaMode.value || !props.fetchData) return
 
-  internalLoading.value = true
+  // 同步 slice 到 query 对象
+  query.setSlice(mergedSlices.value)
+
   try {
-    const result = await props.fetchData({
-      page: currentPage.value,
-      pageSize: currentPageSize.value,
-      slice: mergedSlices.value,
-      orderBy: currentOrderBy.value
-    })
-
-    internalData.value = result.items
-    internalTotal.value = result.total
-    internalServerSummary.value = result.totalData || null
-
-    emit('load-success', result)
+    await query.loadData(trigger)
+    // 加载成功后发出事件
+    emit('load-success', { items: query.data.value, total: query.total.value, totalData: query.serverSummary.value ?? undefined })
   } catch (error) {
-    console.error('数据加载失败:', error)
+    // 未被钩子处理的错误，发出 load-error 事件
     emit('load-error', error as Error)
-  } finally {
-    internalLoading.value = false
   }
 }
 
 // Schema 模式下，初始化时加载数据
 onMounted(() => {
   if (isSchemaMode.value) {
-    loadData()
+    loadData('mount')
   }
 })
 
@@ -284,8 +281,8 @@ function handleFilterChange() {
 
   // Schema 模式下，重置到第一页并重新加载
   if (isSchemaMode.value) {
-    currentPage.value = 1
-    loadData()
+    query.currentPage.value = 1
+    loadData('filter')
   }
 }
 
@@ -295,9 +292,8 @@ function handlePageChange(page: number, size: number) {
 
   // Schema 模式下，更新分页并重新加载
   if (isSchemaMode.value) {
-    currentPage.value = page
-    currentPageSize.value = size
-    loadData()
+    query.setPage(page, size)
+    loadData('page')
   }
 }
 
@@ -308,11 +304,11 @@ function handleSortChange(field: string | null, order: 'asc' | 'desc' | null) {
   // Schema 模式下，更新排序并重新加载
   if (isSchemaMode.value) {
     if (field && order) {
-      currentOrderBy.value = [{ field, order }]
+      query.setSort([{ field, order }])
     } else {
-      currentOrderBy.value = []
+      query.setSort([])
     }
-    loadData()
+    loadData('sort')
   }
 }
 
@@ -361,13 +357,13 @@ const dataTableEvents = computed(() => {
       }
     },
     'filter-change': handleTableFilterChange,
-    'row-click': (...args: any[]) => {
+    'row-click': (...args: unknown[]) => {
       emit('row-click', ...args as [Record<string, unknown>, EnhancedColumnSchema])
       if (userEvents['rowClick']) {
         userEvents['rowClick'](...args)
       }
     },
-    'row-dblclick': (...args: any[]) => {
+    'row-dblclick': (...args: unknown[]) => {
       emit('row-dblclick', ...args as [Record<string, unknown>, EnhancedColumnSchema])
       if (userEvents['rowDblclick']) {
         userEvents['rowDblclick'](...args)
@@ -398,16 +394,22 @@ defineExpose({
   /** 刷新数据（仅 Schema 模式） */
   refresh: () => {
     if (isSchemaMode.value) {
-      loadData()
+      loadData('refresh')
     }
   },
   /** 重新加载（重置分页后刷新，仅 Schema 模式） */
   reload: () => {
     if (isSchemaMode.value) {
-      currentPage.value = 1
-      loadData()
+      query.currentPage.value = 1
+      loadData('reload')
     }
-  }
+  },
+  /** 注册查询钩子（运行时） */
+  addQueryHook: query.addHook,
+  /** 移除查询钩子（运行时） */
+  removeQueryHook: query.removeHook,
+  /** 获取 useTableQuery 实例（高级用法） */
+  getQuery: () => query
 })
 </script>
 

@@ -138,6 +138,27 @@ app.use(ElementPlus, { locale: zhCn })
 ### 构建后生效
 修改 frontend 代码后，**必须 `npm run build:lib`** 才能在 verification-app 生效。
 
+## Composables 清单
+
+| Composable | 职责 |
+|------------|------|
+| `useTableSelection` | 行选择状态管理 |
+| `useTableSummary` | 汇总行计算（选中/全量） |
+| `useTableQuery` | 查询状态 + 钩子执行链 |
+| `HookRegistry` | 钩子注册/移除/执行引擎 |
+| `globalQueryHooks` | 全局查询钩子 API |
+
+### 查询钩子（Query Hooks）
+
+三种注入方式：
+- `queryHooks` prop：声明式，组件创建时传入
+- `ref.addQueryHook(name, fn)`：运行时动态注入，返回 dispose 函数
+- `globalQueryHooks.add(name, fn)`：全局生效，所有实例共享
+
+钩子类型：`onBeforeQuery`、`onAfterQuery`、`onQueryError`
+
+执行顺序：Before `global → props → instance` → fetch → After `instance → props → global`
+
 ## 类型导出清单
 
 `src/index.ts` 导出的主要类型：
@@ -146,3 +167,5 @@ app.use(ElementPlus, { locale: zhCn })
 - `SliceRequestDef`, `OrderRequestDef`
 - `PaginationState`, `SortState`
 - `TableConfig`, `ColumnCustomization`
+- `QueryHooks`, `QueryHookContext`, `QueryTrigger`, `QueryHookName`
+- `BeforeQueryHookFn`, `AfterQueryHookFn`, `ErrorQueryHookFn`
