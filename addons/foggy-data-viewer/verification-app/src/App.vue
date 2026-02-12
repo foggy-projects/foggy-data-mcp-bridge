@@ -5,6 +5,7 @@ import {
   DataTable,
   SearchToolbar,
   DataTableWithSearch,
+  SavedQueryManager,
   buildTableColumns,
   createQuery,
   fetchQueryMeta,
@@ -24,7 +25,7 @@ import type {
 } from 'foggy-data-viewer'
 
 // ============ 场景切换 ============
-type SceneType = 'home' | 'dataviewer' | 'toolbar' | 'custom-actions' | 'combined' | 'schema-mode'
+type SceneType = 'home' | 'dataviewer' | 'toolbar' | 'custom-actions' | 'combined' | 'schema-mode' | 'saved-query'
 const currentScene = ref<SceneType>('home')
 
 // ============ DataViewer 场景 ============
@@ -449,6 +450,76 @@ async function initSchemaScene() {
   }
 }
 
+// ============ 保存查询场景 ============
+const savedQueryTableRef = ref<InstanceType<typeof DataTableWithSearch>>()
+const savedQuerySchema = ref<TableSchema | null>(null)
+const savedQueryFetchData = ref<((params: FetchDataParams) => Promise<FetchDataResult>) | null>(null)
+const savedQueryInitialized = ref(false)
+const savedQueryQueryId = ref<string | null>(null)
+
+async function initSavedQueryScene() {
+  if (savedQueryInitialized.value) return
+
+  try {
+    // 创建查询
+    const response = await createQuery({
+      model: 'FactSalesDemoAuthQueryModel',
+      title: '保存查询测试 - 销售明细',
+      payload: {
+        columns: ['orderId', 'salesDate$caption', 'product$caption', 'customer$caption', 'store$caption', 'quantity', 'salesAmount', 'profitAmount'],
+        slice: [],
+        orderBy: [{ field: 'salesDate$caption', order: 'desc' }]
+      }
+    })
+
+    if (!response.success || !response.queryId) {
+      console.error('创建查询失败:', response.error)
+      return
+    }
+
+    savedQueryQueryId.value = response.queryId
+
+    // 获取元数据
+    const meta = await fetchQueryMeta(response.queryId)
+
+    // 获取 Schema 并构建 TableSchema
+    if (meta?.tableConfig?.qmModel) {
+      const qmSchema = await fetchQmSchema(meta.tableConfig.qmModel)
+      const columns = buildTableColumns(qmSchema, meta.tableConfig)
+
+      savedQuerySchema.value = {
+        columns,
+        searchableFields: ['product$caption', 'customer$caption', 'store$caption'],
+        pageSize: 50,
+        showFilters: true,
+        showSearchToolbar: true,
+        searchLayout: 'horizontal'
+      }
+
+      // 创建 fetchData 函数
+      const queryId = response.queryId
+      savedQueryFetchData.value = async (params: FetchDataParams): Promise<FetchDataResult> => {
+        const dataResponse = await fetchQueryData(queryId, {
+          start: (params.page - 1) * params.pageSize,
+          limit: params.pageSize,
+          slice: params.slice,
+          orderBy: params.orderBy
+        })
+
+        return {
+          items: dataResponse.items,
+          total: dataResponse.total,
+          totalData: dataResponse.totalData
+        }
+      }
+
+      savedQueryInitialized.value = true
+    }
+  } catch (e) {
+    console.error('初始化保存查询场景失败:', e)
+  }
+}
+
 // ============ 场景切换逻辑 ============
 function goToScene(scene: SceneType) {
   currentScene.value = scene
@@ -462,6 +533,8 @@ function goToScene(scene: SceneType) {
     initCombinedScene()
   } else if (scene === 'schema-mode' && !schemaModeInitialized.value) {
     initSchemaScene()
+  } else if (scene === 'saved-query' && !savedQueryInitialized.value) {
+    initSavedQueryScene()
   }
 }
 
@@ -534,6 +607,18 @@ function goHome() {
             <li>手动管理分页状态</li>
             <li>手动监听事件并加载数据</li>
             <li>适合需要完全控制的场景</li>
+          </ul>
+        </div>
+
+        <div class="scene-card highlight" @click="goToScene('saved-query')">
+          <div class="scene-icon">💾</div>
+          <h3>保存查询功能（新）</h3>
+          <p>保存和加载查询配置，支持团队协作</p>
+          <ul>
+            <li>保存筛选条件和列配置</li>
+            <li>三级分享（个人/部门/租户）</li>
+            <li>查询列表管理</li>
+            <li>一键应用已保存查询</li>
           </ul>
         </div>
       </div>
@@ -747,6 +832,90 @@ function goHome() {
               </button>
               <button class="toolbar-btn" @click="schemaTableRef?.refresh()">
                 刷新
+              </button>
+            </template>
+          </DataTableWithSearch>
+        </div>
+
+        <div v-else class="loading-placeholder">
+          <p>正在初始化...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 保存查询场景（新功能） -->
+    <div v-else-if="currentScene === 'saved-query'" class="scene-page">
+      <div class="scene-header">
+        <button class="back-btn" @click="goHome">← 返回首页</button>
+        <h2>保存查询功能测试（新功能）</h2>
+      </div>
+
+      <div class="scene-content">
+        <div class="feature-info success">
+          <p><strong>保存查询功能：</strong>允许用户保存常用的查询配置（列、筛选、排序），并支持团队成员之间共享查询</p>
+        </div>
+
+        <!-- 功能说明 -->
+        <div class="code-example">
+          <h4>功能特性</h4>
+          <pre><code>✓ 三步向导保存查询（选列 → 配置条件 → 命名确认）
+✓ 三级分享：PRIVATE（仅自己）/ DEPARTMENT（部门）/ TENANT（租户）
+✓ 查询列表：左右分栏显示"我的查询"和"共享查询"
+✓ 一键应用：快速加载已保存的查询配置
+✓ 参数配置：支持固定值、单选、多选三种参数类型
+✓ 业务隔离：通过 businessId 区分不同业务的查询</code></pre>
+        </div>
+
+        <div class="code-example">
+          <h4>使用示例</h4>
+          <pre><code>&lt;SavedQueryManager
+  :table-ref="tableRef"
+  :model="FactSalesDemoAuthQueryModel"
+  :business-id="sales-report-2024"
+  :current-user-id="user_manager_001"
+/&gt;
+
+&lt;DataTableWithSearch
+  ref="tableRef"
+  :schema="schema"
+  :fetch-data="fetchData"
+  enable-saved-query
+/&gt;</code></pre>
+        </div>
+
+        <!-- 操作提示 -->
+        <div class="feature-info">
+          <p><strong>操作指南：</strong>使用上方的"保存查询"按钮保存当前配置，使用"加载查询"按钮查看和应用已保存的查询</p>
+          <p><strong>认证说明：</strong>当前使用 Authorization: Bearer manager-token-123（模拟门店经理身份）</p>
+        </div>
+
+        <div v-if="savedQuerySchema && savedQueryFetchData" class="table-container combined">
+          <!-- SavedQueryManager 独立放置 -->
+          <div class="saved-query-toolbar">
+            <SavedQueryManager
+              :table-ref="savedQueryTableRef"
+              :model="'FactSalesDemoAuthQueryModel'"
+              business-id="sales-report-2024"
+              current-user-id="user_manager_001"
+            />
+          </div>
+
+          <!-- DataTable -->
+          <DataTableWithSearch
+            ref="savedQueryTableRef"
+            :schema="savedQuerySchema"
+            :fetch-data="savedQueryFetchData"
+            enable-saved-query
+            @load-success="(result) => console.log('加载成功:', result)"
+            @load-error="(error) => console.error('加载失败:', error)"
+          >
+            <!-- toolbar 插槽 -->
+            <template #toolbar>
+              <button class="toolbar-btn" @click="savedQueryTableRef?.refresh()">
+                刷新数据
+              </button>
+              <button class="toolbar-btn" @click="savedQueryTableRef?.clearAllFilters()">
+                清空筛选
               </button>
             </template>
           </DataTableWithSearch>
@@ -1233,6 +1402,16 @@ html, body, #app {
 .toolbar-btn.primary:hover {
   background: #66b1ff;
   border-color: #66b1ff;
+}
+
+/* 保存查询工具栏样式 */
+.saved-query-toolbar {
+  padding: 12px 16px;
+  background: #f5f7fa;
+  border-bottom: 1px solid #e4e7ed;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 @media (max-width: 768px) {
