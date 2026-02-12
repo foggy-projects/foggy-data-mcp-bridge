@@ -78,7 +78,7 @@ class ViewerApiControllerTest {
             when(cacheService.getQuery("test-query-id"))
                     .thenReturn(Optional.of(validContext));
 
-            RX response = controller.getQueryMeta("test-query-id");
+            RX response = controller.getQueryMeta("orders", "test-query-id");
 
             assertEquals(RX.SUCCESS, response.getCode());
             assertNotNull(response.getData());
@@ -96,7 +96,7 @@ class ViewerApiControllerTest {
             when(cacheService.getQuery("non-existent"))
                     .thenReturn(Optional.empty());
 
-            RX response = controller.getQueryMeta("non-existent");
+            RX response = controller.getQueryMeta("orders", "non-existent");
 
             assertEquals(404, response.getCode());
         }
@@ -123,7 +123,7 @@ class ViewerApiControllerTest {
             request.setStart(0);
             request.setLimit(10);
 
-            RX response = controller.queryData("test-query-id", request);
+            RX response = controller.queryData("orders", "test-query-id", request);
 
             assertEquals(RX.SUCCESS, response.getCode());
             assertNotNull(response.getData());
@@ -141,7 +141,7 @@ class ViewerApiControllerTest {
 
             ViewerQueryRequest request = new ViewerQueryRequest();
 
-            RX response = controller.queryData("expired-query", request);
+            RX response = controller.queryData("orders", "expired-query", request);
 
             assertEquals(410, response.getCode());
             assertNotNull(response.getData());
@@ -165,7 +165,7 @@ class ViewerApiControllerTest {
             request.setStart(20);
             request.setLimit(5);
 
-            RX response = controller.queryData("test-query-id", request);
+            RX response = controller.queryData("orders", "test-query-id", request);
 
             assertEquals(RX.SUCCESS, response.getCode());
             assertNotNull(response.getData());
@@ -190,7 +190,7 @@ class ViewerApiControllerTest {
             ViewerQueryRequest request = new ViewerQueryRequest();
             // 不设置分页参数
 
-            RX response = controller.queryData("test-query-id", request);
+            RX response = controller.queryData("orders", "test-query-id", request);
 
             assertEquals(RX.SUCCESS, response.getCode());
             assertNotNull(response.getData());
@@ -209,7 +209,7 @@ class ViewerApiControllerTest {
 
             ViewerQueryRequest request = new ViewerQueryRequest();
 
-            RX response = controller.queryData("test-query-id", request);
+            RX response = controller.queryData("orders", "test-query-id", request);
 
             assertEquals(ExDefined.COMMON_ERROR_CODE, response.getCode());
             assertNotNull(response.getData());

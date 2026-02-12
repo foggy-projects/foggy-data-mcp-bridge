@@ -68,6 +68,10 @@ interface Props {
   // ========== 查询钩子 ==========
   /** 查询钩子（声明式） */
   queryHooks?: QueryHooks
+
+  // ========== 保存查询功能 ==========
+  /** 启用保存查询功能 */
+  enableSavedQuery?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -409,7 +413,29 @@ defineExpose({
   /** 移除查询钩子（运行时） */
   removeQueryHook: query.removeHook,
   /** 获取 useTableQuery 实例（高级用法） */
-  getQuery: () => query
+  getQuery: () => query,
+
+  // ========== 保存查询功能方法 ==========
+  /** 获取当前查询状态（用于保存查询） */
+  getQueryState: () => ({
+    columns: effectiveColumns.value.map(c => c.name),
+    slice: mergedSlices.value,
+    orderBy: query.currentOrderBy.value
+  }),
+  /** 应用查询状态（用于加载保存的查询） */
+  applyQueryState: (state: { columns: string[]; slice: SliceRequestDef[]; orderBy: OrderRequestDef[] }) => {
+    // 应用筛选条件
+    searchSlices.value = []
+    tableSlices.value = state.slice || []
+
+    // 应用排序
+    query.setSort(state.orderBy || [])
+
+    // 注意：列的应用需要由父组件处理，因为 schema 是从 props 传入的
+    // 这里只是更新查询状态
+  },
+  /** 获取列 Schema（用于保存查询对话框） */
+  getSchema: () => effectiveColumns.value
 })
 </script>
 

@@ -71,6 +71,10 @@ spring:
 # Foggy MCP 服务配置
 # ==========================================
 foggy:
+  # 测试功能开关 - Docker 环境启用
+  test:
+    enabled: true
+
   mcp:
     dataset:
       access-mode: ${DATASET_ACCESS_MODE:local}

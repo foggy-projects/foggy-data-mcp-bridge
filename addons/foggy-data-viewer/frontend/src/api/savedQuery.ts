@@ -19,6 +19,7 @@ export type QueryVisibility = 'PRIVATE' | 'DEPARTMENT' | 'TENANT'
  */
 export interface SavedQueryDef {
   id: string
+  businessId?: string  // 业务ID（可选，用于隔离不同业务的查询）
   model: string
   title: string
   description?: string
@@ -39,6 +40,7 @@ export interface SavedQueryDef {
  * 保存查询请求
  */
 export interface SaveQueryRequest {
+  businessId?: string  // 业务ID（可选）
   model: string
   title: string
   description?: string
@@ -64,8 +66,11 @@ export async function saveQuery(request: SaveQueryRequest): Promise<SavedQueryDe
 /**
  * 列出可见查询
  */
-export async function listSavedQueries(model: string): Promise<SavedQueryDef[]> {
-  const response = await apiClient.get<any>(`/list/${encodeURIComponent(model)}`)
+export async function listSavedQueries(model: string, businessId?: string): Promise<SavedQueryDef[]> {
+  const params: any = {}
+  if (businessId) params.businessId = businessId
+
+  const response = await apiClient.get<any>(`/list/${encodeURIComponent(model)}`, { params })
   if (!response.data || response.data.code !== 200) {
     throw new Error(response.data?.msg || '获取查询列表失败')
   }
