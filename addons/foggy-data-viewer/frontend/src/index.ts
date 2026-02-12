@@ -12,6 +12,9 @@ export { default as DataTableWithSearch } from './components/DataTableWithSearch
 // 导出过滤器组件
 export * from './components/filters'
 
+// 导出保存查询组件
+export * from './components/saved-query'
+
 // 导出 Composables
 export * from './components/composables'
 

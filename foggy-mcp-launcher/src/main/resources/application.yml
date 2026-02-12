@@ -33,6 +33,11 @@ spring:
 
 # Foggy MCP Service Configuration
 foggy:
+  # 测试功能开关（DemoSecurityIdentityResolver 和 SavedQueryTestController）
+  # 默认关闭，仅在测试环境或 Docker 环境中启用
+  test:
+    enabled: false
+
   mcp:
     # 数据访问模式: local (直接调用SemanticService) 或 remote (HTTP调用)
     dataset:
