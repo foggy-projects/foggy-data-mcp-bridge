@@ -48,6 +48,15 @@ public class SqlFragment {
     private boolean hasAggregate = false;
 
     /**
+     * 是否包含窗口函数
+     * <p>
+     * 当表达式中包含 ROW_NUMBER, RANK, DENSE_RANK, NTILE, LAG, LEAD 等窗口函数时为 true。
+     * hasWindow=true 时不触发 autoGroupBy，不被 AggSqlOptimizer 处理。
+     * </p>
+     */
+    private boolean hasWindow = false;
+
+    /**
      * 聚合函数类型（如果是单一顶层聚合）
      * <p>
      * 例如 "sum(a)" → "SUM"
@@ -145,17 +154,42 @@ public class SqlFragment {
         // 推断函数返回类型
         f.inferredType = inferFunctionType(funcName, args);
 
-        // 检测聚合函数
+        // 检测窗口函数
         String upperFuncName = funcName.toUpperCase();
-        if (AllowedFunctions.isAggregateFunction(upperFuncName)) {
+        if (AllowedFunctions.isWindowFunction(upperFuncName)) {
+            f.hasWindow = true;
+            // 窗口函数不标记为聚合
+        } else if (AllowedFunctions.isAggregateFunction(upperFuncName)) {
+            // 检测聚合函数
             f.hasAggregate = true;
             f.aggregationType = upperFuncName;
         } else {
-            // 继承子表达式的聚合状态
+            // 继承子表达式的聚合状态和窗口状态
             f.hasAggregate = args.stream().anyMatch(SqlFragment::isHasAggregate);
+            f.hasWindow = args.stream().anyMatch(SqlFragment::isHasWindow);
             // 复合聚合时不设置单一类型
         }
 
+        return f;
+    }
+
+    /**
+     * 创建窗口函数片段
+     *
+     * @param baseSql    基础 SQL（如 "RANK()" 或 "AVG(tx.amount)"）
+     * @param overClause OVER 子句（如 "PARTITION BY x ORDER BY y"）
+     * @param refs       引用的列
+     * @param type       返回类型
+     */
+    public static SqlFragment windowFunction(String baseSql, String overClause, Set<DbQueryColumn> refs, DbColumnType type) {
+        SqlFragment f = new SqlFragment();
+        f.sql = baseSql + " OVER (" + overClause + ")";
+        f.hasWindow = true;
+        f.hasAggregate = false;
+        f.inferredType = type != null ? type : DbColumnType.NUMBER;
+        if (refs != null) {
+            f.referencedColumns.addAll(refs);
+        }
         return f;
     }
 
@@ -327,8 +361,8 @@ public class SqlFragment {
             return args.get(1).inferredType;
         }
 
-        // COUNT -> INTEGER
-        if ("COUNT".equals(upperName)) {
+        // COUNT / COUNTD / COUNT_DISTINCT -> INTEGER
+        if ("COUNT".equals(upperName) || "COUNTD".equals(upperName) || "COUNT_DISTINCT".equals(upperName)) {
             return DbColumnType.INTEGER;
         }
 
@@ -339,6 +373,22 @@ public class SqlFragment {
 
         // MIN/MAX -> 继承参数类型
         if ("MIN".equals(upperName) || "MAX".equals(upperName)) {
+            return args.isEmpty() ? DbColumnType.UNKNOWN : args.get(0).inferredType;
+        }
+
+        // 统计函数 -> NUMBER
+        if ("STDDEV_POP".equals(upperName) || "STDDEV_SAMP".equals(upperName)
+                || "VAR_POP".equals(upperName) || "VAR_SAMP".equals(upperName)) {
+            return DbColumnType.NUMBER;
+        }
+
+        // 窗口函数类型推断
+        if ("ROW_NUMBER".equals(upperName) || "RANK".equals(upperName)
+                || "DENSE_RANK".equals(upperName) || "NTILE".equals(upperName)) {
+            return DbColumnType.INTEGER;
+        }
+        if ("LAG".equals(upperName) || "LEAD".equals(upperName)
+                || "FIRST_VALUE".equals(upperName) || "LAST_VALUE".equals(upperName)) {
             return args.isEmpty() ? DbColumnType.UNKNOWN : args.get(0).inferredType;
         }
 

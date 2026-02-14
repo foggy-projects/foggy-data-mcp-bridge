@@ -256,11 +256,29 @@ public class AggSqlOptimizer {
                         aggExpressions.add("count(*) `" + alias + "`");
                     }
                     break;
+                case COUNT_DISTINCT:
+                    if (countToSum) {
+                        aggExpressions.add("sum(" + colRef + ") `" + alias + "`");
+                    } else {
+                        aggExpressions.add("count(distinct " + colRef + ") `" + alias + "`");
+                    }
+                    break;
                 case MAX:
                     aggExpressions.add("max(" + colRef + ") `" + alias + "`");
                     break;
                 case MIN:
                     aggExpressions.add("min(" + colRef + ") `" + alias + "`");
+                    break;
+                case STDDEV_POP:
+                case STDDEV_SAMP:
+                case VAR_POP:
+                case VAR_SAMP:
+                    // 统计函数不可再聚合，直接透传为 null
+                    aggExpressions.add("null `" + alias + "`");
+                    break;
+                case WINDOW:
+                    // 窗口函数不可再聚合，直接透传为 null
+                    aggExpressions.add("null `" + alias + "`");
                     break;
                 case NONE:
                 default:
@@ -306,6 +324,9 @@ public class AggSqlOptimizer {
             case COUNT:
                 // 外层用 SUM 聚合内层的 COUNT
                 return "sum(" + colRef + ") `" + alias + "`";
+            case COUNT_DISTINCT:
+                // 外层用 SUM 聚合内层的 COUNT(DISTINCT)
+                return "sum(" + colRef + ") `" + alias + "`";
             case MAX:
                 return "max(" + colRef + ") `" + alias + "`";
             case MIN:
@@ -315,6 +336,13 @@ public class AggSqlOptimizer {
             case CUSTOM:
                 // CUSTOM 聚合：保守处理，使用 SUM
                 return "sum(" + colRef + ") `" + alias + "`";
+            case STDDEV_POP:
+            case STDDEV_SAMP:
+            case VAR_POP:
+            case VAR_SAMP:
+            case WINDOW:
+                // 统计/窗口函数不可再聚合，返回 null
+                return "null `" + alias + "`";
             case NONE:
             default:
                 // 理论上不应该到这里（NONE 不会调用此方法）

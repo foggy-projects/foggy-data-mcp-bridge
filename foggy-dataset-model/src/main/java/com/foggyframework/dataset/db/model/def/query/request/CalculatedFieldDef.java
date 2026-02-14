@@ -8,6 +8,8 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 /**
  * 动态计算字段定义
  * <p>
@@ -86,6 +88,30 @@ public class CalculatedFieldDef {
      */
     @ApiModelProperty(value = "聚合类型", notes = "如 SUM, AVG, COUNT, MAX, MIN，用于autoGroupBy场景")
     private String agg;
+
+    /**
+     * 窗口函数 PARTITION BY 字段列表
+     * <p>
+     * 如果设置，表达式会被窗口函数包装：expression OVER (PARTITION BY ... ORDER BY ...)
+     * </p>
+     */
+    @ApiModelProperty(value = "窗口 PARTITION BY", notes = "窗口函数分区字段列表")
+    private List<String> partitionBy;
+
+    /**
+     * 窗口函数 ORDER BY 定义
+     */
+    @ApiModelProperty(value = "窗口 ORDER BY", notes = "窗口函数排序定义列表")
+    private List<WindowOrderDef> windowOrderBy;
+
+    /**
+     * 窗口帧子句
+     * <p>
+     * 如 "ROWS BETWEEN 6 PRECEDING AND CURRENT ROW"
+     * </p>
+     */
+    @ApiModelProperty(value = "窗口帧", notes = "如 ROWS BETWEEN 6 PRECEDING AND CURRENT ROW")
+    private String windowFrame;
 
     /**
      * 编译后的 AST，运行时使用

@@ -14,6 +14,8 @@ import com.foggyframework.dataset.db.model.def.order.OrderDef;
 import com.foggyframework.dataset.db.model.def.query.DbQueryModelDef;
 import com.foggyframework.dataset.db.model.def.query.QueryConditionDef;
 import com.foggyframework.dataset.db.model.def.query.SelectColumnDef;
+import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
+import com.foggyframework.dataset.db.model.def.query.request.WindowOrderDef;
 import com.foggyframework.dataset.db.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.db.model.impl.LoaderSupport;
 import com.foggyframework.dataset.db.model.impl.query.*;
@@ -407,6 +409,8 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
     private void loadColumnGroups(QueryModelSupport qm, DbQueryModelDef queryModelDef) {
         if (queryModelDef.getColumnGroups() != null && !queryModelDef.getColumnGroups().isEmpty()) {
             List<QueryColumnGroup> columnGroups = new ArrayList<>();
+            List<CalculatedFieldDef> predefined = new ArrayList<>();
+
             for (DbColumnGroupDef columnGroupDef : queryModelDef.getColumnGroups()) {
                 if (columnGroupDef.getItems() == null || columnGroupDef.getItems().isEmpty()) {
                     continue;
@@ -417,6 +421,21 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
                     if (item == null) {
                         continue;
                     }
+
+                    // formula 项 → 转为 CalculatedFieldDef，不走常规列加载
+                    if (StringUtils.isNotEmpty(item.getFormula())) {
+                        CalculatedFieldDef calc = new CalculatedFieldDef();
+                        calc.setName(item.getName());
+                        calc.setCaption(item.getCaption());
+                        calc.setExpression(item.getFormula());
+                        calc.setPartitionBy(item.getPartitionBy());
+                        calc.setWindowOrderBy(convertWindowOrderBy(item.getWindowOrderBy()));
+                        calc.setWindowFrame(item.getWindowFrame());
+                        predefined.add(calc);
+                        // formula 项不加入常规列查找（通过 calculatedFields 机制处理）
+                        continue;
+                    }
+
                     // V2 格式：ref 可能是 ColumnRef 对象
                     // aliasRef: 使用 _ 分隔，用于列名/别名和列查找
                     String aliasRef = item.getRefAsString();
@@ -451,7 +470,33 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
                 columnGroups.add(group);
             }
             qm.setColumnGroups(columnGroups);
+            qm.setPredefinedCalculatedFields(predefined);
         }
+    }
+
+    /**
+     * 将 QM 中 windowOrderBy 的 List&lt;Object&gt; 转换为 List&lt;WindowOrderDef&gt;
+     * <p>
+     * FSScript 转换后 windowOrderBy 可能是 Map 列表（{field: "x", dir: "desc"}）
+     * </p>
+     */
+    @SuppressWarnings("unchecked")
+    private List<WindowOrderDef> convertWindowOrderBy(List<Object> rawList) {
+        if (rawList == null || rawList.isEmpty()) {
+            return null;
+        }
+        List<WindowOrderDef> result = new ArrayList<>(rawList.size());
+        for (Object item : rawList) {
+            if (item instanceof WindowOrderDef) {
+                result.add((WindowOrderDef) item);
+            } else if (item instanceof Map) {
+                Map<String, Object> map = (Map<String, Object>) item;
+                String field = map.get("field") != null ? map.get("field").toString() : null;
+                String dir = map.get("dir") != null ? map.get("dir").toString() : null;
+                result.add(new WindowOrderDef(field, dir));
+            }
+        }
+        return result;
     }
 
     private void addColumn(QueryModelSupport qm, QueryColumnGroup group, String columnName, SelectColumnDef item, boolean hasRef) {

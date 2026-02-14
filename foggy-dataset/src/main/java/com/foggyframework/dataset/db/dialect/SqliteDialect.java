@@ -184,6 +184,18 @@ public class SqliteDialect extends FDialect {
         }
     }
 
+    @Override
+    public String buildStatFunction(String funcName, String column) {
+        throw new UnsupportedOperationException(
+                "SQLite does not support statistical function: " + funcName);
+    }
+
+    @Override
+    public String buildStatFunction(String funcName) {
+        throw new UnsupportedOperationException(
+                "SQLite does not support statistical function: " + funcName);
+    }
+
     /**
      * SQLite 特殊处理：将 Date 类型转换为 TEXT 格式字符串
      * <p>

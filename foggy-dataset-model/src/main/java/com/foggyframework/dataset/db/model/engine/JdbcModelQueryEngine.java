@@ -215,8 +215,13 @@ public class JdbcModelQueryEngine implements QueryEngine {
             int idx=0;
             for (DbColumn column : jdbcQuery.getSelect().getColumns()) {
                 if (column instanceof CalculatedDbColumn c) {
+                    // hasWindow=true: 窗口函数，不参与 GROUP BY
+                    if (c.hasWindow()) {
+                        AggregationDbColumn aggColumn = buildAggColumn1(column.getQueryObject(), column.getDeclare(), column, DbAggregation.WINDOW);
+                        jdbcQuery.getSelect().getColumns().set(idx, aggColumn);
+                    }
                     // hasAggregate=true: 表达式本身已包含聚合函数（如 SUM(totalAmount)），跳过
-                    if (!c.hasAggregate()) {
+                    else if (!c.hasAggregate()) {
                         // aggregationType!=null: 推断的聚合类型（如 totalAmount+2 推断为 SUM），用聚合函数包裹
                         // aggregationType==null: 无聚合，加入 groupBy
                         DbAggregation agg = c.getAggregationType() != null
@@ -349,6 +354,25 @@ public class JdbcModelQueryEngine implements QueryEngine {
             case AVG:
                 aggColumn.setDeclare("AVG(" + declare + ")");
                 break;
+            case COUNT_DISTINCT:
+                aggColumn.setDeclare("COUNT(DISTINCT " + declare + ")");
+                break;
+            case STDDEV_POP:
+                aggColumn.setDeclare(jdbcQueryModel.getDialect().buildStatFunction("STDDEV_POP", declare));
+                break;
+            case STDDEV_SAMP:
+                aggColumn.setDeclare(jdbcQueryModel.getDialect().buildStatFunction("STDDEV_SAMP", declare));
+                break;
+            case VAR_POP:
+                aggColumn.setDeclare(jdbcQueryModel.getDialect().buildStatFunction("VAR_POP", declare));
+                break;
+            case VAR_SAMP:
+                aggColumn.setDeclare(jdbcQueryModel.getDialect().buildStatFunction("VAR_SAMP", declare));
+                break;
+            case WINDOW:
+                // 窗口函数：直接透传 declare，不包装聚合、不加入 GROUP BY
+                aggColumn.setDeclare(declare);
+                break;
             case CUSTOM:
                 String aggregationFormula = column.getAggregationFormula();
                 RX.hasText(aggregationFormula, "传了groupBy为CUSTOM , 但没有定义aggregationFormula，列:" + column.getName());
@@ -430,6 +454,24 @@ public class JdbcModelQueryEngine implements QueryEngine {
                 case MIN:
                     declare = "min" + "(" + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + ")";
                     aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), declare, column.getType(), DbAggregation.MIN);
+                    break;
+                case COUNT_DISTINCT:
+                    if (countToSum) {
+                        declare = "sum" + "(" + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + ")";
+                        aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), declare, column.getType(), DbAggregation.SUM);
+                    } else {
+                        declare = "count(distinct " + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + ")";
+                        aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), declare, column.getType(), DbAggregation.COUNT_DISTINCT);
+                    }
+                    break;
+                case STDDEV_POP:
+                case STDDEV_SAMP:
+                case VAR_POP:
+                case VAR_SAMP:
+                case WINDOW:
+                    // 统计/窗口函数不可在外层再聚合，返回 null
+                    declare = "null";
+                    aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), declare, column.getType(), DbAggregation.NONE);
                     break;
                 case NONE:
                     //意思是不做聚合
@@ -844,6 +886,10 @@ public class JdbcModelQueryEngine implements QueryEngine {
         }
 
         // 未预处理，执行原有逻辑
+
+        // 注入 QM 预定义的 calculatedFields（与 InlineExpressionPreprocessStep 相同逻辑）
+        injectPredefinedCalculatedFields(queryRequest);
+
         List<String> columns = queryRequest.getColumns();
         if (columns == null || columns.isEmpty()) {
             return;
@@ -896,6 +942,61 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
         if (log.isDebugEnabled() && !calculatedFields.isEmpty()) {
             log.debug("After preprocessing: {} calculated fields", calculatedFields.size());
+        }
+    }
+
+    /**
+     * 注入 QM 预定义的 calculatedFields
+     * <p>
+     * 仅注入查询 columns 中引用到且未被 DSL 覆盖的预定义字段。
+     * 当直接调用 analysisQueryRequest（跳过 Step 流水线）时由此方法注入。
+     * </p>
+     */
+    private void injectPredefinedCalculatedFields(DbQueryRequestDef queryRequest) {
+        if (!(jdbcQueryModel instanceof com.foggyframework.dataset.db.model.engine.query_model.QueryModelSupport)) {
+            return;
+        }
+        com.foggyframework.dataset.db.model.engine.query_model.QueryModelSupport qms =
+                (com.foggyframework.dataset.db.model.engine.query_model.QueryModelSupport) jdbcQueryModel;
+        List<CalculatedFieldDef> predefined = qms.getPredefinedCalculatedFields();
+        if (predefined == null || predefined.isEmpty()) {
+            return;
+        }
+
+        // 收集 DSL 请求中已定义的 calculatedField 名称
+        java.util.Set<String> existingNames = new java.util.HashSet<>();
+        if (queryRequest.getCalculatedFields() != null) {
+            for (CalculatedFieldDef f : queryRequest.getCalculatedFields()) {
+                existingNames.add(f.getName());
+            }
+        }
+
+        // 收集 columns 中引用到的名称
+        java.util.Set<String> referencedColumns = new java.util.HashSet<>();
+        if (queryRequest.getColumns() != null) {
+            referencedColumns.addAll(queryRequest.getColumns());
+        }
+
+        // 注入引用到的、且未被 DSL 覆盖的预定义字段
+        List<CalculatedFieldDef> toInject = new ArrayList<>();
+        for (CalculatedFieldDef calc : predefined) {
+            if (referencedColumns.contains(calc.getName()) && !existingNames.contains(calc.getName())) {
+                toInject.add(calc);
+            }
+        }
+
+        if (!toInject.isEmpty()) {
+            List<CalculatedFieldDef> existing = queryRequest.getCalculatedFields();
+            if (existing == null) {
+                existing = new ArrayList<>();
+                queryRequest.setCalculatedFields(existing);
+            }
+            existing.addAll(0, toInject);
+
+            if (log.isDebugEnabled()) {
+                log.debug("Injected {} QM predefined calculated fields: {}", toInject.size(),
+                        toInject.stream().map(CalculatedFieldDef::getName).collect(Collectors.toList()));
+            }
         }
     }
 

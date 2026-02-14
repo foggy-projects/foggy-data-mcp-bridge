@@ -6,6 +6,7 @@ import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.db.model.def.order.OrderDef;
+import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.engine.join.JoinEdge;
 import com.foggyframework.dataset.db.model.engine.join.JoinGraph;
@@ -84,6 +85,15 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
      * 权限查询构建器列表（简化后的 accesses）
      */
     protected List<FsscriptFunction> accessBuilders = new ArrayList<>();
+
+    /**
+     * QM 预定义的计算字段（formula 项）
+     * <p>
+     * 在查询时自动注入到 calculatedFields 中。
+     * DSL 请求中同名的 calculatedField 可覆盖 QM 预定义的。
+     * </p>
+     */
+    protected List<CalculatedFieldDef> predefinedCalculatedFields = new ArrayList<>();
 
     protected  List<TableModel> jdbcModelList;
 

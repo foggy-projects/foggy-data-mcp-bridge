@@ -1,12 +1,16 @@
 package com.foggyframework.dataset.db.model.engine.expression.sql;
 
+import com.foggyframework.dataset.db.model.engine.expression.AllowedFunctions;
 import com.foggyframework.dataset.db.model.engine.expression.SqlExpContext;
 import com.foggyframework.dataset.db.model.engine.expression.SqlFragment;
+import com.foggyframework.dataset.db.model.spi.DbColumnType;
 import com.foggyframework.fsscript.exp.AbstractExp;
+import com.foggyframework.fsscript.exp.EmptyExp;
 import com.foggyframework.fsscript.parser.spi.Exp;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -36,10 +40,48 @@ public class SqlFunctionExp extends AbstractExp<String> {
     public Object evalValue(ExpEvaluator evaluator) {
         SqlExpContext ctx = (SqlExpContext) evaluator.getVar(SqlExpContext.CONTEXT_KEY);
 
-        // 执行所有参数
+        // 执行所有参数（过滤掉 EmptyExp，它代表零参数函数调用如 ROW_NUMBER()）
         List<SqlFragment> argFragments = args.stream()
+                .filter(arg -> !(arg instanceof EmptyExp))
                 .map(arg -> (SqlFragment) arg.evalResult(evaluator))
+                .filter(Objects::nonNull)
                 .collect(Collectors.toList());
+
+        String upper = functionName.toUpperCase();
+
+        // COUNT(DISTINCT) 特殊处理
+        if ("COUNTD".equals(upper) || "COUNT_DISTINCT".equals(upper)) {
+            String argsStr = argFragments.stream().map(SqlFragment::getSql).collect(Collectors.joining(", "));
+            SqlFragment f = new SqlFragment();
+            f.setSql("COUNT(DISTINCT " + argsStr + ")");
+            f.setHasAggregate(true);
+            f.setAggregationType("COUNT_DISTINCT");
+            f.setInferredType(DbColumnType.INTEGER);
+            argFragments.forEach(arg -> f.getReferencedColumns().addAll(arg.getReferencedColumns()));
+            return f;
+        }
+
+        // 统计函数方言适配
+        if ("STDDEV_POP".equals(upper) || "STDDEV_SAMP".equals(upper)
+                || "VAR_POP".equals(upper) || "VAR_SAMP".equals(upper)) {
+            String dialectFunc = translateStatFunction(ctx, upper);
+            String argsStr = argFragments.stream().map(SqlFragment::getSql).collect(Collectors.joining(", "));
+            SqlFragment f = new SqlFragment();
+            f.setSql(dialectFunc + "(" + argsStr + ")");
+            f.setHasAggregate(true);
+            f.setAggregationType(upper);
+            f.setInferredType(DbColumnType.NUMBER);
+            argFragments.forEach(arg -> f.getReferencedColumns().addAll(arg.getReferencedColumns()));
+            return f;
+        }
+
+        // 窗口函数标记
+        if (AllowedFunctions.isWindowFunction(upper)) {
+            SqlFragment f = SqlFragment.function(upper, argFragments);
+            f.setHasWindow(true);
+            f.setHasAggregate(false);
+            return f;
+        }
 
         // 根据方言转换函数名
         String dialectFuncName = translateFunction(ctx, functionName);
@@ -59,6 +101,16 @@ public class SqlFunctionExp extends AbstractExp<String> {
         // 例如：MySQL 的 IFNULL vs Oracle 的 NVL vs PostgreSQL 的 COALESCE
         // 目前简单返回原函数名，后续可扩展
         return funcName;
+    }
+
+    /**
+     * 统计函数方言适配
+     */
+    private String translateStatFunction(SqlExpContext ctx, String funcName) {
+        if (ctx == null || ctx.getDialect() == null) {
+            return funcName;
+        }
+        return ctx.getDialect().buildStatFunction(funcName);
     }
 
     @Override

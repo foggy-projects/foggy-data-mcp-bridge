@@ -6,6 +6,7 @@ import com.foggyframework.dataset.db.model.proxy.ColumnRef;
 import com.foggyframework.dataset.db.model.proxy.DimensionProxy;
 import lombok.Data;
 
+import java.util.List;
 import java.util.Map;
 
 @Data
@@ -28,6 +29,17 @@ public class SelectColumnDef {
 
     String field;
     String caption;
+
+    /** QM 计算字段公式 */
+    String formula;
+    /** 计算字段返回类型 */
+    String type;
+    /** 窗口函数 PARTITION BY */
+    List<String> partitionBy;
+    /** 窗口函数 ORDER BY */
+    List<Object> windowOrderBy;
+    /** 窗口帧 */
+    String windowFrame;
 
     /**
      * 获取字符串形式的 ref（别名格式，使用 _ 分隔）

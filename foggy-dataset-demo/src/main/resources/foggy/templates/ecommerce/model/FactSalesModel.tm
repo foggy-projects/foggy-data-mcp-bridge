@@ -221,6 +221,14 @@ export const model = {
                     return `${alias}.tax_amount+1`;
                 }
             }
+        },
+        {
+            column: 'customer_key',
+            name: 'uniqueCustomers',
+            caption: '独立客户数',
+            description: '去重客户数量（COUNT DISTINCT）',
+            type: 'INTEGER',
+            aggregation: 'COUNT_DISTINCT'
         }
     ]
 };

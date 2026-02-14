@@ -152,4 +152,26 @@ public class SqlServerDialect extends FDialect {
         // SQL Server 使用 sp_addextendedproperty，这里返回空，需要单独处理
         return "";
     }
+
+    @Override
+    public String buildStatFunction(String funcName, String column) {
+        switch (funcName) {
+            case "STDDEV_POP": return "STDEVP(" + column + ")";
+            case "STDDEV_SAMP": return "STDEV(" + column + ")";
+            case "VAR_POP": return "VARP(" + column + ")";
+            case "VAR_SAMP": return "VAR(" + column + ")";
+            default: return funcName + "(" + column + ")";
+        }
+    }
+
+    @Override
+    public String buildStatFunction(String funcName) {
+        switch (funcName) {
+            case "STDDEV_POP": return "STDEVP";
+            case "STDDEV_SAMP": return "STDEV";
+            case "VAR_POP": return "VARP";
+            case "VAR_SAMP": return "VAR";
+            default: return funcName;
+        }
+    }
 }
