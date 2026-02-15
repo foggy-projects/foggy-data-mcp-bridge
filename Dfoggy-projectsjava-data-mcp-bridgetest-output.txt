@@ -1,0 +1,589 @@
+[INFO] Scanning for projects...
+[INFO] ------------------------------------------------------------------------
+[INFO] Reactor Build Order:
+[INFO] 
+[INFO] Java Data MCP Bridge                                               [pom]
+[INFO] Foggy Core                                                         [jar]
+[INFO] Foggy Bean Copy                                                    [jar]
+[INFO] Foggy FSScript                                                     [jar]
+[INFO] Foggy Dataset                                                      [jar]
+[INFO] Foggy Dataset Demo                                                 [jar]
+[INFO] Foggy Dataset Model                                                [jar]
+[INFO] 
+[INFO] ---------------< com.foggysource:foggy-data-mcp-bridge >----------------
+[INFO] Building Java Data MCP Bridge 8.1.4.beta                           [1/7]
+[INFO]   from pom.xml
+[INFO] --------------------------------[ pom ]---------------------------------
+[INFO] 
+[INFO] ---------------------< com.foggysource:foggy-core >---------------------
+[INFO] Building Foggy Core 8.1.4.beta                                     [2/7]
+[INFO]   from foggy-core\pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ foggy-core ---
+[INFO] Copying 0 resource from src\main\resources to target\classes
+[INFO] Copying 1 resource from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.13.0:compile (default-compile) @ foggy-core ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ foggy-core ---
+[INFO] Copying 4 resources from src\test\resources to target\test-classes
+[INFO] 
+[INFO] --- compiler:3.13.0:testCompile (default-testCompile) @ foggy-core ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- surefire:3.5.3:test (default-test) @ foggy-core ---
+[INFO] 
+[INFO] ------------------< com.foggysource:foggy-bean-copy >-------------------
+[INFO] Building Foggy Bean Copy 8.1.4.beta                                [3/7]
+[INFO]   from foggy-bean-copy\pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ foggy-bean-copy ---
+[INFO] skip non existing resourceDirectory D:\foggy-projects\java-data-mcp-bridge\foggy-bean-copy\src\main\resources
+[INFO] skip non existing resourceDirectory D:\foggy-projects\java-data-mcp-bridge\foggy-bean-copy\src\main\resources
+[INFO] 
+[INFO] --- compiler:3.13.0:compile (default-compile) @ foggy-bean-copy ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ foggy-bean-copy ---
+[INFO] skip non existing resourceDirectory D:\foggy-projects\java-data-mcp-bridge\foggy-bean-copy\src\test\resources
+[INFO] 
+[INFO] --- compiler:3.13.0:testCompile (default-testCompile) @ foggy-bean-copy ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- surefire:3.5.3:test (default-test) @ foggy-bean-copy ---
+[INFO] 
+[INFO] -------------------< com.foggysource:foggy-fsscript >-------------------
+[INFO] Building Foggy FSScript 8.1.4.beta                                 [4/7]
+[INFO]   from foggy-fsscript\pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ foggy-fsscript ---
+[INFO] Copying 0 resource from src\main\resources to target\classes
+[INFO] Copying 3 resources from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.13.0:compile (default-compile) @ foggy-fsscript ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ foggy-fsscript ---
+[INFO] Copying 63 resources from src\test\resources to target\test-classes
+[INFO] 
+[INFO] --- compiler:3.13.0:testCompile (default-testCompile) @ foggy-fsscript ---
+[INFO] Recompiling the module because of changed source code.
+[INFO] Compiling 49 source files with javac [debug parameters release 17] to target\test-classes
+[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-fsscript/src/test/java/com/foggyframework/fsscript/exp/ArrayExpTest.java: 某些输入文件使用或覆盖了已过时的 API。
+[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-fsscript/src/test/java/com/foggyframework/fsscript/exp/ArrayExpTest.java: 有关详细信息, 请使用 -Xlint:deprecation 重新编译。
+[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-fsscript/src/test/java/com/foggyframework/fsscript/bugfix/FromBatchBugFixTest.java: 某些输入文件使用了未经检查或不安全的操作。
+[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-fsscript/src/test/java/com/foggyframework/fsscript/bugfix/FromBatchBugFixTest.java: 有关详细信息, 请使用 -Xlint:unchecked 重新编译。
+[INFO] 
+[INFO] --- surefire:3.5.3:test (default-test) @ foggy-fsscript ---
+[INFO] 
+[INFO] -------------------< com.foggysource:foggy-dataset >--------------------
+[INFO] Building Foggy Dataset 8.1.4.beta                                  [5/7]
+[INFO]   from foggy-dataset\pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ foggy-dataset ---
+[INFO] Copying 0 resource from src\main\resources to target\classes
+[INFO] Copying 2 resources from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.13.0:compile (default-compile) @ foggy-dataset ---
+[INFO] Recompiling the module because of changed source code.
+[INFO] Compiling 103 source files with javac [debug parameters release 17] to target\classes
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset/src/main/java/com/foggyframework/dataset/model/QueryExpEvaluator.java:[12,1] Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset/src/main/java/com/foggyframework/dataset/resultset/support/ListPagingResultSet.java:[27,1] Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
+[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset/src/main/java/com/foggyframework/dataset/fun/DatasetJdbcUtils.java: 某些输入文件使用或覆盖了已过时的 API。
+[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset/src/main/java/com/foggyframework/dataset/fun/DatasetJdbcUtils.java: 有关详细信息, 请使用 -Xlint:deprecation 重新编译。
+[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset/src/main/java/com/foggyframework/dataset/db/table/SqlTableSupport.java: 某些输入文件使用了未经检查或不安全的操作。
+[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset/src/main/java/com/foggyframework/dataset/db/table/SqlTableSupport.java: 有关详细信息, 请使用 -Xlint:unchecked 重新编译。
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ foggy-dataset ---
+[INFO] Copying 10 resources from src\test\resources to target\test-classes
+[INFO] 
+[INFO] --- compiler:3.13.0:testCompile (default-testCompile) @ foggy-dataset ---
+[INFO] Recompiling the module because of changed dependency.
+[INFO] Compiling 15 source files with javac [debug parameters release 17] to target\test-classes
+[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset/src/test/java/com/foggyframework/dataset/db/data/dll/OnDuplicateKeyBuilderTest.java: 某些输入文件使用了未经检查或不安全的操作。
+[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset/src/test/java/com/foggyframework/dataset/db/data/dll/OnDuplicateKeyBuilderTest.java: 有关详细信息, 请使用 -Xlint:unchecked 重新编译。
+[INFO] 
+[INFO] --- surefire:3.5.3:test (default-test) @ foggy-dataset ---
+[INFO] 
+[INFO] -----------------< com.foggysource:foggy-dataset-demo >-----------------
+[INFO] Building Foggy Dataset Demo 8.1.4.beta                             [6/7]
+[INFO]   from foggy-dataset-demo\pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ foggy-dataset-demo ---
+[INFO] Copying 0 resource from src\main\resources to target\classes
+[INFO] Copying 49 resources from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.13.0:compile (default-compile) @ foggy-dataset-demo ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ foggy-dataset-demo ---
+[INFO] skip non existing resourceDirectory D:\foggy-projects\java-data-mcp-bridge\foggy-dataset-demo\src\test\resources
+[INFO] 
+[INFO] --- compiler:3.13.0:testCompile (default-testCompile) @ foggy-dataset-demo ---
+[INFO] No sources to compile
+[INFO] 
+[INFO] --- surefire:3.5.3:test (default-test) @ foggy-dataset-demo ---
+[INFO] 
+[INFO] ----------------< com.foggysource:foggy-dataset-model >-----------------
+[INFO] Building Foggy Dataset Model 8.1.4.beta                            [7/7]
+[INFO]   from foggy-dataset-model\pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ foggy-dataset-model ---
+[INFO] Copying 0 resource from src\main\resources to target\classes
+[INFO] Copying 4 resources from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.13.0:compile (default-compile) @ foggy-dataset-model ---
+[INFO] Recompiling the module because of changed dependency.
+[INFO] Compiling 228 source files with javac [debug parameters release 17] to target\classes
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/impl/dimension/DbModelParentChildDimensionImpl.java:[32,1] Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/def/property/DbPropertyDef.java:[12,1] Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/impl/DbObjectSupport.java:[9,1] Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/impl/DbColumnSupport.java:[9,1] Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/def/dimension/DbDimensionDef.java:[17,1] Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/def/query/request/FilterRequestDef.java:[5,1] Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/query/JdbcQuery.java:[653,9] Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/query/JdbcQuery.java:[665,9] Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/query/JdbcQuery.java:[682,5] Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/query/JdbcQuery.java:[777,5] Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/query/JdbcQuery.java:[795,5] Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/query/JdbcQuery.java:[809,5] Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/query/JdbcQuery.java:[825,5] Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/query/JdbcQuery.java:[839,5] Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/query/JdbcQuery.java:[852,5] Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/query/JdbcQuery.java:[858,5] Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/query_model/QueryModelSupport.java:[40,1] Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/spi/support/AggregationDbColumn.java:[16,1] Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/def/query/DbQueryModelDef.java:[14,1] Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/def/measure/DbMeasureDef.java:[11,1] Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/spi/support/CalculatedDbColumn.java:[25,1] Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/spi/support/SimpleQueryObject.java:[10,1] Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/impl/utils/TableQueryObject.java:[8,1] Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/impl/utils/ViewSqlQueryObject.java:[7,1] Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/impl/measure/DbMeasureSupport.java:[21,1] Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/impl/query/DbQueryConditionSupport.java:[8,1] Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/spi/support/SimpleSqlJdbcColumn.java:[13,1] Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/def/DbModelDef.java:[15,1] Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/impl/utils/QueryObjectSupport.java:[14,1] Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/spi/DbColumnType.java:[87,32] 未使用 @Deprecated 对已过时的项目进行注释
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/spi/DbColumnType.java:[89,32] 未使用 @Deprecated 对已过时的项目进行注释
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/spi/DbColumnType.java:[91,32] 未使用 @Deprecated 对已过时的项目进行注释
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/spi/DbColumnType.java:[93,32] 未使用 @Deprecated 对已过时的项目进行注释
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/spi/DbColumnType.java:[95,32] 未使用 @Deprecated 对已过时的项目进行注释
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/spi/DbColumnType.java:[97,32] 未使用 @Deprecated 对已过时的项目进行注释
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/spi/DbColumnType.java:[99,32] 未使用 @Deprecated 对已过时的项目进行注释
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/spi/DbColumnType.java:[101,32] 未使用 @Deprecated 对已过时的项目进行注释
+[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/query_model/QueryModelLoaderImpl.java: 某些输入文件使用或覆盖了已过时的 API。
+[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/query_model/QueryModelLoaderImpl.java: 有关详细信息, 请使用 -Xlint:deprecation 重新编译。
+[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/service/impl/JdbcServiceImpl.java: 某些输入文件使用了未经检查或不安全的操作。
+[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/service/impl/JdbcServiceImpl.java: 有关详细信息, 请使用 -Xlint:unchecked 重新编译。
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ foggy-dataset-model ---
+[INFO] Copying 10 resources from src\test\resources to target\test-classes
+[INFO] 
+[INFO] --- compiler:3.13.0:testCompile (default-testCompile) @ foggy-dataset-model ---
+[INFO] Recompiling the module because of changed dependency.
+[INFO] Compiling 44 source files with javac [debug parameters release 17] to target\test-classes
+[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/demo/FactOrderDemoAuthQueryModelTest.java: 某些输入文件使用或覆盖了已过时的 API。
+[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/demo/FactOrderDemoAuthQueryModelTest.java: 有关详细信息, 请使用 -Xlint:deprecation 重新编译。
+[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/demo/FactOrderDemoAuthQueryModelTest.java: 某些输入文件使用了未经检查或不安全的操作。
+[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/demo/FactOrderDemoAuthQueryModelTest.java: 有关详细信息, 请使用 -Xlint:unchecked 重新编译。
+[INFO] 
+[INFO] --- surefire:3.5.3:test (default-test) @ foggy-dataset-model ---
+[INFO] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
+[INFO] 
+[INFO] -------------------------------------------------------
+[INFO]  T E S T S
+[INFO] -------------------------------------------------------
+[INFO] Running com.foggyframework.dataset.db.model.ecommerce.AdvancedAnalyticsTest
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.4.5)
+
+2026-02-14 09:06:22.141 [main] INFO  c.f.d.d.m.e.AdvancedAnalyticsTest - Starting AdvancedAnalyticsTest using Java 17.0.17 with PID 59720 (started by oldse in D:\foggy-projects\java-data-mcp-bridge\foggy-dataset-model)
+2026-02-14 09:06:22.147 [main] DEBUG c.f.d.d.m.e.AdvancedAnalyticsTest - Running with Spring Boot v3.4.5, Spring v6.2.6
+2026-02-14 09:06:22.149 [main] INFO  c.f.d.d.m.e.AdvancedAnalyticsTest - The following 1 profile is active: "sqlite"
+2026-02-14 09:06:25.659 [main] WARN  o.s.c.s.PostProcessorRegistrationDelegate$BeanPostProcessorChecker - Bean 'com.foggyframework.core.spring.SpringFoggyFrameworkAutoConfiguration' of type [com.foggyframework.core.spring.SpringFoggyFrameworkAutoConfiguration$$SpringCGLIB$$0] is not eligible for getting processed by all BeanPostProcessors (for example: not eligible for auto-proxying). The currently created BeanPostProcessor [springFoggyBeanPostProcessor] is declared through a non-static factory method on that class; consider declaring it as static instead.
+2026-02-14 09:06:25.665 [main] WARN  o.s.c.s.PostProcessorRegistrationDelegate$BeanPostProcessorChecker - Bean 'springCGLibProxy' of type [com.foggyframework.core.spring.proxy.SpringCGLibProxy] is not eligible for getting processed by all BeanPostProcessors (for example: not eligible for auto-proxying). Is this bean getting eagerly injected/applied to a currently created BeanPostProcessor [springFoggyBeanPostProcessor]? Check the corresponding BeanPostProcessor declaration and its dependencies/advisors. If this bean does not have to be post-processed, declare it with ROLE_INFRASTRUCTURE.
+2026-02-14 09:06:25.779 [main] DEBUG c.f.b.external.ExternalBundleLoader - 外部Bundle加载未启用
+2026-02-14 09:06:25.782 [main] DEBUG c.f.bundle.SystemBundlesContextImpl - 开始注册系统中定义的模块
+2026-02-14 09:06:25.782 [main] DEBUG c.f.bundle.SystemBundlesContextImpl - 检查模块的定义是否冲突
+2026-02-14 09:06:25.782 [main] DEBUG c.f.bundle.SystemBundlesContextImpl - 对模块进行排序,包名越长越靠前
+2026-02-14 09:06:25.784 [main] DEBUG c.f.bundle.SystemBundlesContextImpl - foggy-framework-dataset-jdbc-model-test,com.foggyframework.dataset.db.model.test
+2026-02-14 09:06:25.785 [main] DEBUG c.f.bundle.SystemBundlesContextImpl - foggy-dataset-demo,com.foggyframework.dataset.db.model.demo
+2026-02-14 09:06:25.785 [main] DEBUG c.f.bundle.SystemBundlesContextImpl - 注册完毕，开始加载模块(异步)
+2026-02-14 09:06:25.788 [Thread-2] DEBUG c.f.bundle.loader.ClassBundleLoader - foggy-framework-dataset-jdbc-model-test,com.foggyframework.dataset.db.model.test
+2026-02-14 09:06:25.788 [Thread-2] DEBUG c.f.bundle.loader.ClassBundleLoader - foggy-dataset-demo,com.foggyframework.dataset.db.model.demo
+2026-02-14 09:06:25.790 [Thread-2] WARN  c.f.bundle.loader.ClassBundleLoader - 模块【foggy-framework-dataset-jdbc-model-test】处于开发者目录，当前templatesLocation: ,file:/D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/target/test-classes/foggy/templates
+2026-02-14 09:06:25.791 [Thread-2] WARN  c.f.bundle.loader.ClassBundleLoader - 模块【foggy-dataset-demo】处于开发者目录，当前templatesLocation: ,file:/D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-demo/target/classes/foggy/templates
+2026-02-14 09:06:25.791 [Thread-2] DEBUG c.f.bundle.SystemBundlesContextImpl - 加载完毕
+2026-02-14 09:06:25.802 [main] INFO  c.f.f.l.FsscriptFileChangeHandler - 使用 WatchService 进行文件变化监听
+2026-02-14 09:06:25.803 [WatchServiceFileTracer] INFO  c.f.c.u.file.WatchServiceFileTracer - WatchServiceFileTracer 事件处理线程已启动
+2026-02-14 09:06:25.926 [main] DEBUG c.f.d.d.m.p.q.QueryExecutionStepExecutor - QueryExecutionStepExecutor initialized with 2 steps: [PreAggRewriteStep, L2CacheStep]
+2026-02-14 09:06:25.970 [main] DEBUG c.f.d.d.m.p.r.DataSetResultStepExecutor - DataSetResultStepExecutor initialized with 5 steps
+2026-02-14 09:06:25.970 [main] DEBUG c.f.d.d.m.p.r.DefaultDataSetResultFilterManagerImpl - DataSetResultFilterManager initialized with 5 steps
+2026-02-14 09:06:28.199 [main] DEBUG o.s.jdbc.datasource.DataSourceUtils - Fetching JDBC Connection from DataSource
+2026-02-14 09:06:28.202 [main] INFO  com.zaxxer.hikari.HikariDataSource - FoggyTestHikariCP-SQLite - Starting...
+2026-02-14 09:06:28.972 [main] INFO  com.zaxxer.hikari.pool.HikariPool - FoggyTestHikariCP-SQLite - Added connection org.sqlite.jdbc4.JDBC4Connection@49b89425
+2026-02-14 09:06:28.976 [main] INFO  com.zaxxer.hikari.HikariDataSource - FoggyTestHikariCP-SQLite - Start completed.
+2026-02-14 09:06:28.981 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - Executing SQL script from class path resource [sqlite/01-schema.sql]
+2026-02-14 09:06:28.994 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: DROP TABLE IF EXISTS dim_date
+2026-02-14 09:06:28.994 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE TABLE dim_date ( date_key INTEGER NOT NULL PRIMARY KEY, full_date TEXT NOT NULL, year INTEGER NOT NULL, quarter INTEGER NOT NULL, month INTEGER NOT NULL, month_name TEXT NOT NULL, week_of_year INTEGER NOT NULL, day_of_month INTEGER NOT NULL, day_of_week INTEGER NOT NULL, day_name TEXT NOT NULL, is_weekend INTEGER NOT NULL DEFAULT 0, is_holiday INTEGER NOT NULL DEFAULT 0, fiscal_year INTEGER, fiscal_quarter INTEGER )
+2026-02-14 09:06:28.994 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE INDEX idx_dim_date_full_date ON dim_date (full_date)
+2026-02-14 09:06:28.994 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE INDEX idx_dim_date_year_month ON dim_date (year, month)
+2026-02-14 09:06:28.994 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: DROP TABLE IF EXISTS dim_product
+2026-02-14 09:06:28.995 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE TABLE dim_product ( product_key INTEGER PRIMARY KEY AUTOINCREMENT, product_id TEXT NOT NULL UNIQUE, product_name TEXT NOT NULL, category_id TEXT, category_name TEXT, sub_category_id TEXT, sub_category_name TEXT, brand TEXT, supplier_id TEXT, unit_price REAL NOT NULL, unit_cost REAL, status TEXT DEFAULT 'ACTIVE', created_at TEXT DEFAULT (datetime('now', 'localtime')), updated_at TEXT DEFAULT (datetime('now', 'localtime')) )
+2026-02-14 09:06:28.995 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE INDEX idx_dim_product_category ON dim_product (category_id)
+2026-02-14 09:06:28.995 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE INDEX idx_dim_product_brand ON dim_product (brand)
+2026-02-14 09:06:28.995 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE INDEX idx_dim_product_status ON dim_product (status)
+2026-02-14 09:06:28.995 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: DROP TABLE IF EXISTS dim_customer
+2026-02-14 09:06:28.995 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE TABLE dim_customer ( customer_key INTEGER PRIMARY KEY AUTOINCREMENT, customer_id TEXT NOT NULL UNIQUE, customer_name TEXT NOT NULL, customer_type TEXT, gender TEXT, age_group TEXT, province TEXT, city TEXT, id_card TEXT, phone TEXT, district TEXT, register_date TEXT, member_level TEXT, status TEXT DEFAULT 'ACTIVE', created_at TEXT DEFAULT (datetime('now', 'localtime')) )
+2026-02-14 09:06:28.995 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE INDEX idx_dim_customer_province_city ON dim_customer (province, city)
+2026-02-14 09:06:28.996 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE INDEX idx_dim_customer_member_level ON dim_customer (member_level)
+2026-02-14 09:06:28.996 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: DROP TABLE IF EXISTS dim_store
+2026-02-14 09:06:28.996 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE TABLE dim_store ( store_key INTEGER PRIMARY KEY AUTOINCREMENT, store_id TEXT NOT NULL UNIQUE, store_name TEXT NOT NULL, store_type TEXT, province TEXT, city TEXT, district TEXT, address TEXT, manager_name TEXT, open_date TEXT, area_sqm REAL, status TEXT DEFAULT 'ACTIVE', created_at TEXT DEFAULT (datetime('now', 'localtime')) )
+2026-02-14 09:06:28.996 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE INDEX idx_dim_store_province_city ON dim_store (province, city)
+2026-02-14 09:06:28.996 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: DROP TABLE IF EXISTS dim_channel
+2026-02-14 09:06:28.996 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE TABLE dim_channel ( channel_key INTEGER PRIMARY KEY AUTOINCREMENT, channel_id TEXT NOT NULL UNIQUE, channel_name TEXT NOT NULL, channel_type TEXT, platform TEXT, status TEXT DEFAULT 'ACTIVE', created_at TEXT DEFAULT (datetime('now', 'localtime')) )
+2026-02-14 09:06:28.996 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: DROP TABLE IF EXISTS dim_promotion
+2026-02-14 09:06:28.997 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE TABLE dim_promotion ( promotion_key INTEGER PRIMARY KEY AUTOINCREMENT, promotion_id TEXT NOT NULL UNIQUE, promotion_name TEXT NOT NULL, promotion_type TEXT, discount_rate REAL, start_date TEXT, end_date TEXT, status TEXT DEFAULT 'ACTIVE', created_at TEXT DEFAULT (datetime('now', 'localtime')) )
+2026-02-14 09:06:28.997 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE INDEX idx_dim_promotion_date_range ON dim_promotion (start_date, end_date)
+2026-02-14 09:06:28.997 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: DROP TABLE IF EXISTS fact_order
+2026-02-14 09:06:28.997 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE TABLE fact_order ( order_key INTEGER PRIMARY KEY AUTOINCREMENT, order_id TEXT NOT NULL UNIQUE, date_key INTEGER NOT NULL, customer_key INTEGER, store_key INTEGER, channel_key INTEGER, promotion_key INTEGER, total_quantity INTEGER NOT NULL, total_amount REAL NOT NULL, discount_amount REAL DEFAULT 0, freight_amount REAL DEFAULT 0, pay_amount REAL NOT NULL, order_status TEXT NOT NULL, payment_status TEXT, order_time TEXT NOT NULL, created_at TEXT DEFAULT (datetime('now', 'localtime')) )
+2026-02-14 09:06:28.997 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE INDEX idx_fact_order_date_key ON fact_order (date_key)
+2026-02-14 09:06:28.997 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE INDEX idx_fact_order_customer_key ON fact_order (customer_key)
+2026-02-14 09:06:28.998 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE INDEX idx_fact_order_order_status ON fact_order (order_status)
+2026-02-14 09:06:28.998 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: DROP TABLE IF EXISTS fact_sales
+2026-02-14 09:06:28.998 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE TABLE fact_sales ( sales_key INTEGER PRIMARY KEY AUTOINCREMENT, order_id TEXT NOT NULL, order_line_no INTEGER NOT NULL, date_key INTEGER NOT NULL, product_key INTEGER NOT NULL, customer_key INTEGER, store_key INTEGER, channel_key INTEGER, promotion_key INTEGER, quantity INTEGER NOT NULL, unit_price REAL NOT NULL, unit_cost REAL, discount_amount REAL DEFAULT 0, sales_amount REAL NOT NULL, cost_amount REAL, profit_amount REAL, tax_amount REAL DEFAULT 0, order_status TEXT, payment_method TEXT, created_at TEXT DEFAULT (datetime('now', 'localtime')), UNIQUE (order_id, order_line_no) )
+2026-02-14 09:06:28.998 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE INDEX idx_fact_sales_date_key ON fact_sales (date_key)
+2026-02-14 09:06:28.998 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE INDEX idx_fact_sales_product_key ON fact_sales (product_key)
+2026-02-14 09:06:28.998 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: DROP TABLE IF EXISTS fact_payment
+2026-02-14 09:06:28.998 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE TABLE fact_payment ( payment_key INTEGER PRIMARY KEY AUTOINCREMENT, payment_id TEXT NOT NULL UNIQUE, order_id TEXT NOT NULL, date_key INTEGER NOT NULL, customer_key INTEGER, pay_amount REAL NOT NULL, pay_method TEXT NOT NULL, pay_channel TEXT, pay_status TEXT NOT NULL, pay_time TEXT NOT NULL, created_at TEXT DEFAULT (datetime('now', 'localtime')) )
+2026-02-14 09:06:28.999 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE INDEX idx_fact_payment_order_id ON fact_payment (order_id)
+2026-02-14 09:06:29.000 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: DROP TABLE IF EXISTS fact_return
+2026-02-14 09:06:29.001 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE TABLE fact_return ( return_key INTEGER PRIMARY KEY AUTOINCREMENT, return_id TEXT NOT NULL UNIQUE, order_id TEXT NOT NULL, order_line_no INTEGER, date_key INTEGER NOT NULL, product_key INTEGER, customer_key INTEGER, store_key INTEGER, return_quantity INTEGER NOT NULL, return_amount REAL NOT NULL, return_reason TEXT, return_type TEXT, return_status TEXT NOT NULL, return_time TEXT NOT NULL, created_at TEXT DEFAULT (datetime('now', 'localtime')) )
+2026-02-14 09:06:29.001 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE INDEX idx_fact_return_order_id ON fact_return (order_id)
+2026-02-14 09:06:29.002 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: DROP TABLE IF EXISTS fact_inventory_snapshot
+2026-02-14 09:06:29.002 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE TABLE fact_inventory_snapshot ( snapshot_key INTEGER PRIMARY KEY AUTOINCREMENT, date_key INTEGER NOT NULL, product_key INTEGER NOT NULL, store_key INTEGER NOT NULL, quantity_on_hand INTEGER NOT NULL, quantity_reserved INTEGER DEFAULT 0, quantity_available INTEGER NOT NULL, unit_cost REAL, inventory_value REAL, created_at TEXT DEFAULT (datetime('now', 'localtime')), UNIQUE (date_key, product_key, store_key) )
+2026-02-14 09:06:29.002 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: DROP TABLE IF EXISTS dict_region
+2026-02-14 09:06:29.002 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE TABLE dict_region ( region_id TEXT NOT NULL PRIMARY KEY, region_name TEXT NOT NULL, parent_id TEXT, region_level INTEGER NOT NULL, region_code TEXT, sort_order INTEGER DEFAULT 0, created_at TEXT DEFAULT (datetime('now', 'localtime')) )
+2026-02-14 09:06:29.003 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE INDEX idx_dict_region_parent_id ON dict_region (parent_id)
+2026-02-14 09:06:29.003 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: DROP TABLE IF EXISTS dict_category
+2026-02-14 09:06:29.003 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE TABLE dict_category ( category_id TEXT NOT NULL PRIMARY KEY, category_name TEXT NOT NULL, parent_id TEXT, category_level INTEGER NOT NULL, sort_order INTEGER DEFAULT 0, created_at TEXT DEFAULT (datetime('now', 'localtime')) )
+2026-02-14 09:06:29.003 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE INDEX idx_dict_category_parent_id ON dict_category (parent_id)
+2026-02-14 09:06:29.004 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: DROP TABLE IF EXISTS dict_status
+2026-02-14 09:06:29.004 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE TABLE dict_status ( status_type TEXT NOT NULL, status_code TEXT NOT NULL, status_name TEXT NOT NULL, sort_order INTEGER DEFAULT 0, created_at TEXT DEFAULT (datetime('now', 'localtime')), PRIMARY KEY (status_type, status_code) )
+2026-02-14 09:06:29.004 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: DROP TABLE IF EXISTS dim_team
+2026-02-14 09:06:29.005 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE TABLE dim_team ( team_id TEXT NOT NULL PRIMARY KEY, team_name TEXT NOT NULL, parent_id TEXT, team_level INTEGER NOT NULL DEFAULT 1, manager_name TEXT, status TEXT DEFAULT 'ACTIVE', created_at TEXT DEFAULT (datetime('now', 'localtime')) )
+2026-02-14 09:06:29.005 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE INDEX idx_dim_team_parent_id ON dim_team (parent_id)
+2026-02-14 09:06:29.005 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: DROP TABLE IF EXISTS team_closure
+2026-02-14 09:06:29.005 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE TABLE team_closure ( parent_id TEXT NOT NULL, team_id TEXT NOT NULL, distance INTEGER DEFAULT 0, PRIMARY KEY (parent_id, team_id) )
+2026-02-14 09:06:29.005 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE INDEX idx_team_closure_parent_id ON team_closure (parent_id)
+2026-02-14 09:06:29.006 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE INDEX idx_team_closure_team_id ON team_closure (team_id)
+2026-02-14 09:06:29.006 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: DROP TABLE IF EXISTS fact_team_sales
+2026-02-14 09:06:29.006 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE TABLE fact_team_sales ( sales_id INTEGER PRIMARY KEY AUTOINCREMENT, team_id TEXT NOT NULL, date_key INTEGER NOT NULL, sales_amount REAL NOT NULL, sales_count INTEGER NOT NULL DEFAULT 1, created_at TEXT DEFAULT (datetime('now', 'localtime')) )
+2026-02-14 09:06:29.006 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE INDEX idx_fact_team_sales_team_id ON fact_team_sales (team_id)
+2026-02-14 09:06:29.006 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE INDEX idx_fact_team_sales_date_key ON fact_team_sales (date_key)
+2026-02-14 09:06:29.006 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: DROP TABLE IF EXISTS dim_category_group
+2026-02-14 09:06:29.007 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE TABLE dim_category_group ( group_key INTEGER PRIMARY KEY AUTOINCREMENT, group_id TEXT NOT NULL UNIQUE, group_name TEXT NOT NULL, group_type TEXT, status TEXT DEFAULT 'ACTIVE', created_at TEXT DEFAULT (datetime('now', 'localtime')) )
+2026-02-14 09:06:29.007 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: DROP TABLE IF EXISTS dim_category_nested
+2026-02-14 09:06:29.007 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE TABLE dim_category_nested ( category_key INTEGER PRIMARY KEY AUTOINCREMENT, category_id TEXT NOT NULL UNIQUE, category_name TEXT NOT NULL, category_level INTEGER DEFAULT 1, group_key INTEGER, status TEXT DEFAULT 'ACTIVE', created_at TEXT DEFAULT (datetime('now', 'localtime')) )
+2026-02-14 09:06:29.007 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE INDEX idx_dim_category_nested_group_key ON dim_category_nested (group_key)
+2026-02-14 09:06:29.007 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: DROP TABLE IF EXISTS dim_product_nested
+2026-02-14 09:06:29.007 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE TABLE dim_product_nested ( product_key INTEGER PRIMARY KEY AUTOINCREMENT, product_id TEXT NOT NULL UNIQUE, product_name TEXT NOT NULL, brand TEXT, category_key INTEGER, unit_price REAL NOT NULL, status TEXT DEFAULT 'ACTIVE', created_at TEXT DEFAULT (datetime('now', 'localtime')) )
+2026-02-14 09:06:29.008 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE INDEX idx_dim_product_nested_category_key ON dim_product_nested (category_key)
+2026-02-14 09:06:29.008 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: DROP TABLE IF EXISTS dim_region_nested
+2026-02-14 09:06:29.008 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE TABLE dim_region_nested ( region_key INTEGER PRIMARY KEY AUTOINCREMENT, region_id TEXT NOT NULL UNIQUE, region_name TEXT NOT NULL, province TEXT, city TEXT, status TEXT DEFAULT 'ACTIVE', created_at TEXT DEFAULT (datetime('now', 'localtime')) )
+2026-02-14 09:06:29.008 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: DROP TABLE IF EXISTS dim_store_nested
+2026-02-14 09:06:29.008 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE TABLE dim_store_nested ( store_key INTEGER PRIMARY KEY AUTOINCREMENT, store_id TEXT NOT NULL UNIQUE, store_name TEXT NOT NULL, store_type TEXT, region_key INTEGER, status TEXT DEFAULT 'ACTIVE', created_at TEXT DEFAULT (datetime('now', 'localtime')) )
+2026-02-14 09:06:29.008 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE INDEX idx_dim_store_nested_region_key ON dim_store_nested (region_key)
+2026-02-14 09:06:29.008 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: DROP TABLE IF EXISTS fact_sales_nested
+2026-02-14 09:06:29.009 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE TABLE fact_sales_nested ( sales_key INTEGER PRIMARY KEY AUTOINCREMENT, date_key INTEGER NOT NULL, product_key INTEGER NOT NULL, store_key INTEGER, quantity INTEGER NOT NULL, sales_amount REAL NOT NULL, cost_amount REAL, created_at TEXT DEFAULT (datetime('now', 'localtime')) )
+2026-02-14 09:06:29.009 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE INDEX idx_fact_sales_nested_date_key ON fact_sales_nested (date_key)
+2026-02-14 09:06:29.009 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE INDEX idx_fact_sales_nested_product_key ON fact_sales_nested (product_key)
+2026-02-14 09:06:29.009 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE INDEX idx_fact_sales_nested_store_key ON fact_sales_nested (store_key)
+2026-02-14 09:06:29.012 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - Executed SQL script from class path resource [sqlite/01-schema.sql] in 28 ms.
+2026-02-14 09:06:29.012 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - Executing SQL script from class path resource [sqlite/04-preagg-schema.sql]
+2026-02-14 09:06:29.013 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: DROP TABLE IF EXISTS preagg_daily_product_sales
+2026-02-14 09:06:29.014 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE TABLE preagg_daily_product_sales ( date_key INTEGER NOT NULL, product_key INTEGER NOT NULL, full_date TEXT, year INTEGER, quarter INTEGER, month INTEGER, month_name TEXT, product_id TEXT, product_name TEXT, category_id TEXT, category_name TEXT, brand TEXT, quantity_sum INTEGER NOT NULL DEFAULT 0, sales_amount_sum REAL NOT NULL DEFAULT 0, cost_amount_sum REAL DEFAULT 0, profit_amount_sum REAL DEFAULT 0, _preagg_row_count INTEGER DEFAULT 1, _preagg_updated_at TEXT DEFAULT (datetime('now','localtime')), PRIMARY KEY (date_key, product_key) )
+2026-02-14 09:06:29.014 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE INDEX idx_preagg_daily_product_sales_date ON preagg_daily_product_sales(date_key)
+2026-02-14 09:06:29.014 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE INDEX idx_preagg_daily_product_sales_product ON preagg_daily_product_sales(product_key)
+2026-02-14 09:06:29.014 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: DROP TABLE IF EXISTS preagg_monthly_category_sales
+2026-02-14 09:06:29.014 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE TABLE preagg_monthly_category_sales ( year_month TEXT NOT NULL, category_id TEXT NOT NULL, category_name TEXT, quantity_sum INTEGER NOT NULL DEFAULT 0, sales_amount_sum REAL NOT NULL DEFAULT 0, _preagg_row_count INTEGER DEFAULT 1, _preagg_updated_at TEXT DEFAULT (datetime('now','localtime')), PRIMARY KEY (year_month, category_id) )
+2026-02-14 09:06:29.014 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: DROP TABLE IF EXISTS preagg_daily_customer_channel_sales
+2026-02-14 09:06:29.014 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE TABLE preagg_daily_customer_channel_sales ( date_key INTEGER NOT NULL, customer_key INTEGER NOT NULL, channel_key INTEGER NOT NULL, full_date TEXT, customer_name TEXT, customer_type TEXT, province TEXT, city TEXT, channel_name TEXT, channel_type TEXT, quantity_sum INTEGER NOT NULL DEFAULT 0, sales_amount_sum REAL NOT NULL DEFAULT 0, _preagg_row_count INTEGER DEFAULT 1, _preagg_updated_at TEXT DEFAULT (datetime('now','localtime')), PRIMARY KEY (date_key, customer_key, channel_key) )
+2026-02-14 09:06:29.014 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: DROP TABLE IF EXISTS preagg_daily_return
+2026-02-14 09:06:29.015 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 0 returned as update count for SQL: CREATE TABLE preagg_daily_return ( date_key INTEGER NOT NULL, product_key INTEGER NOT NULL, full_date TEXT, product_name TEXT, category_name TEXT, return_quantity_sum INTEGER NOT NULL DEFAULT 0, return_amount_sum REAL NOT NULL DEFAULT 0, _preagg_row_count INTEGER DEFAULT 1, _preagg_updated_at TEXT DEFAULT (datetime('now','localtime')), PRIMARY KEY (date_key, product_key) )
+2026-02-14 09:06:29.015 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - Executed SQL script from class path resource [sqlite/04-preagg-schema.sql] in 3 ms.
+2026-02-14 09:06:29.023 [main] DEBUG o.s.jdbc.datasource.DataSourceUtils - Fetching JDBC Connection from DataSource
+2026-02-14 09:06:29.024 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - Executing SQL script from class path resource [sqlite/02-dict-data.sql]
+2026-02-14 09:06:29.027 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 48 returned as update count for SQL: INSERT INTO dict_status (status_type, status_code, status_name, sort_order) VALUES ('ORDER_STATUS', 'PENDING', '待处理', 1), ('ORDER_STATUS', 'PAID', '已支付', 2), ('ORDER_STATUS', 'SHIPPED', '已发货', 3), ('ORDER_STATUS', 'COMPLETED', '已完成', 4), ('ORDER_STATUS', 'CANCELLED', '已取消', 5), ('PAYMENT_STATUS', 'UNPAID', '未支付', 1), ('PAYMENT_STATUS', 'PAID', '已支付', 2), ('PAYMENT_STATUS', 'REFUNDED', '已退款', 3), ('PAY_METHOD', 'ALIPAY', '支付宝', 1), ('PAY_METHOD', 'WECHAT', '微信支付', 2), ('PAY_METHOD', 'CARD', '银行卡', 3), ('PAY_METHOD', 'CASH', '现金', 4), ('PAY_STATUS', 'SUCCESS', '成功', 1), ('PAY_STATUS', 'FAILED', '失败', 2), ('PAY_STATUS', 'REFUNDING', '退款中', 3), ('PAY_STATUS', 'REFUNDED', '已退款', 4), ('RETURN_TYPE', 'REFUND_ONLY', '仅退款', 1), ('RETURN_TYPE', 'RETURN_REFUND', '退货退款', 2), ('RETURN_STATUS', 'PENDING', '待审核', 1), ('RETURN_STATUS', 'APPROVED', '已批准', 2), ('RETURN_STATUS', 'COMPLETED', '已完成', 3), ('RETURN_STATUS', 'REJECTED', '已拒绝', 4), ('CUSTOMER_TYPE', 'NEW', '新客户', 1), ('CUSTOMER_TYPE', 'NORMAL', '普通客户', 2), ('CUSTOMER_TYPE', 'VIP', 'VIP客户', 3), ('MEMBER_LEVEL', 'BRONZE', '铜卡', 1), ('MEMBER_LEVEL', 'SILVER', '银卡', 2), ('MEMBER_LEVEL', 'GOLD', '金卡', 3), ('MEMBER_LEVEL', 'PLATINUM', '白金卡', 4), ('MEMBER_LEVEL', 'DIAMOND', '钻石卡', 5), ('STORE_TYPE', 'DIRECT', '直营店', 1), ('STORE_TYPE', 'FRANCHISE', '加盟店', 2), ('CHANNEL_TYPE', 'ONLINE', '线上', 1), ('CHANNEL_TYPE', 'OFFLINE', '线下', 2), ('PROMOTION_TYPE', 'DISCOUNT', '折扣', 1), ('PROMOTION_TYPE', 'FULL_REDUCE', '满减', 2), ('PROMOTION_TYPE', 'GIFT', '赠品', 3), ('PROMOTION_TYPE', 'COUPON', '优惠券', 4), ('GENDER', 'M', '男', 1), ('GENDER', 'F', '女', 2), ('GENDER', 'U', '未知', 3), ('AGE_GROUP', '18-24', '18-24岁', 1), ('AGE_GROUP', '25-34', '25-34岁', 2), ('AGE_GROUP', '35-44', '35-44岁', 3), ('AGE_GROUP', '45-54', '45-54岁', 4), ('AGE_GROUP', '55+', '55岁以上', 5), ('COMMON_STATUS', 'ACTIVE', '启用', 1), ('COMMON_STATUS', 'INACTIVE', '停用', 2)
+2026-02-14 09:06:29.028 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 14 returned as update count for SQL: INSERT INTO dict_category (category_id, category_name, parent_id, category_level, sort_order) VALUES ('CAT001', '数码电器', NULL, 1, 1), ('CAT002', '服装配饰', NULL, 1, 2), ('CAT003', '食品饮料', NULL, 1, 3), ('CAT004', '家居日用', NULL, 1, 4), ('CAT005', '美妆个护', NULL, 1, 5), ('CAT001001', '手机通讯', 'CAT001', 2, 1), ('CAT001002', '电脑办公', 'CAT001', 2, 2), ('CAT001003', '家用电器', 'CAT001', 2, 3), ('CAT002001', '男装', 'CAT002', 2, 1), ('CAT002002', '女装', 'CAT002', 2, 2), ('CAT002003', '鞋靴', 'CAT002', 2, 3), ('CAT003001', '休闲零食', 'CAT003', 2, 1), ('CAT004001', '家具', 'CAT004', 2, 1), ('CAT005001', '护肤', 'CAT005', 2, 1)
+2026-02-14 09:06:29.028 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 13 returned as update count for SQL: INSERT INTO dict_region (region_id, region_name, parent_id, region_level, region_code, sort_order) VALUES ('110000', '北京市', NULL, 1, '110000', 1), ('310000', '上海市', NULL, 1, '310000', 2), ('330000', '浙江省', NULL, 1, '330000', 3), ('320000', '江苏省', NULL, 1, '320000', 4), ('440000', '广东省', NULL, 1, '440000', 5), ('110105', '朝阳区', '110000', 2, '110105', 1), ('310115', '浦东新区', '310000', 2, '310115', 1), ('330100', '杭州市', '330000', 2, '330100', 1), ('330106', '西湖区', '330100', 3, '330106', 1), ('320100', '南京市', '320000', 2, '320100', 1), ('320102', '玄武区', '320100', 3, '320102', 1), ('440100', '广州市', '440000', 2, '440100', 1), ('440106', '天河区', '440100', 3, '440106', 1)
+2026-02-14 09:06:29.028 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - Executed SQL script from class path resource [sqlite/02-dict-data.sql] in 4 ms.
+2026-02-14 09:06:29.028 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - Executing SQL script from class path resource [sqlite/03-test-data.sql]
+2026-02-14 09:06:29.032 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 5 returned as update count for SQL: INSERT INTO dim_channel (channel_id, channel_name, channel_type, platform, status) VALUES ('CHN001', '天猫旗舰店', 'ONLINE', '天猫', 'ACTIVE'), ('CHN002', '京东自营店', 'ONLINE', '京东', 'ACTIVE'), ('CHN003', '拼多多官方店', 'ONLINE', '拼多多', 'ACTIVE'), ('CHN004', '线下直营', 'OFFLINE', '线下门店', 'ACTIVE'), ('CHN005', '微信小程序', 'ONLINE', '微信', 'ACTIVE')
+2026-02-14 09:06:29.032 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 5 returned as update count for SQL: INSERT INTO dim_promotion (promotion_id, promotion_name, promotion_type, discount_rate, start_date, end_date, status) VALUES ('PRM001', '无促销', NULL, 1.00, '2022-01-01', '2099-12-31', 'ACTIVE'), ('PRM002', '新年特惠-全场9折', '折扣', 0.90, '2024-01-01', '2024-01-15', 'ACTIVE'), ('PRM003', '618年中大促', '折扣', 0.75, '2024-06-01', '2024-06-18', 'ACTIVE'), ('PRM004', '双11狂欢节', '满减', NULL, '2024-11-01', '2024-11-11', 'ACTIVE'), ('PRM005', '会员专享日', '折扣', 0.88, '2024-01-01', '2024-12-31', 'ACTIVE')
+2026-02-14 09:06:29.033 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 5 returned as update count for SQL: INSERT INTO dim_store (store_id, store_name, store_type, province, city, district, address, manager_name, open_date, area_sqm, status) VALUES ('STR00001', '杭州西湖店1', '直营', '浙江省', '杭州市', '西湖区', '西湖区某路1号', '店长1', '2020-01-15', 350.00, 'ACTIVE'), ('STR00002', '南京玄武店2', '直营', '江苏省', '南京市', '玄武区', '玄武区某路2号', '店长2', '2020-03-20', 420.00, 'ACTIVE'), ('STR00003', '广州天河店3', '直营', '广东省', '广州市', '天河区', '天河区某路3号', '店长3', '2020-05-10', 380.00, 'ACTIVE'), ('STR00004', '上海浦东店4', '加盟', '上海市', '上海市', '浦东新区', '浦东新区某路4号', '店长4', '2021-01-05', 500.00, 'ACTIVE'), ('STR00005', '北京朝阳店5', '加盟', '北京市', '北京市', '朝阳区', '朝阳区某路5号', '店长5', '2021-06-15', 450.00, 'ACTIVE')
+2026-02-14 09:06:29.034 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 10 returned as update count for SQL: INSERT INTO dim_product (product_id, product_name, category_id, category_name, sub_category_id, sub_category_name, brand, unit_price, unit_cost, status) VALUES ('PRD000001', 'Apple 手机通讯商品1', 'CAT001', '数码电器', 'CAT001001', '手机通讯', 'Apple', 5999.00, 3599.40, 'ACTIVE'), ('PRD000002', '华为 手机通讯商品2', 'CAT001', '数码电器', 'CAT001001', '手机通讯', '华为', 4599.00, 2759.40, 'ACTIVE'), ('PRD000003', '小米 电脑办公商品3', 'CAT001', '数码电器', 'CAT001002', '电脑办公', '小米', 3999.00, 2399.40, 'ACTIVE'), ('PRD000004', '三星 电脑办公商品4', 'CAT001', '数码电器', 'CAT001002', '电脑办公', '三星', 6999.00, 4199.40, 'ACTIVE'), ('PRD000005', '海尔 家用电器商品5', 'CAT001', '数码电器', 'CAT001003', '家用电器', '海尔', 2999.00, 1799.40, 'ACTIVE'), ('PRD000006', 'Nike 男装商品6', 'CAT002', '服装配饰', 'CAT002001', '男装', 'Nike', 599.00, 359.40, 'ACTIVE'), ('PRD000007', 'Adidas 女装商品7', 'CAT002', '服装配饰', 'CAT002002', '女装', 'Adidas', 699.00, 419.40, 'ACTIVE'), ('PRD000008', '优衣库 鞋靴商品8', 'CAT002', '服装配饰', 'CAT002003', '鞋靴', '优衣库', 399.00, 239.40, 'ACTIVE'), ('PRD000009', '乐事 休闲零食商品9', 'CAT003', '食品饮料', 'CAT003001', '休闲零食', '乐事', 19.90, 11.94, 'ACTIVE'), ('PRD000010', '宜家 家具商品10', 'CAT004', '家居日用', 'CAT004001', '家具', '宜家', 1299.00, 779.40, 'ACTIVE')
+2026-02-14 09:06:29.035 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 10 returned as update count for SQL: INSERT INTO dim_customer (customer_id, customer_name, customer_type, gender, age_group, province, city, district, register_date, member_level, status) VALUES ('CUS000001', '客户1', 'VIP', '男', '25-34', '浙江省', '杭州市', '西湖区', '2020-01-10', 'DIAMOND', 'ACTIVE'), ('CUS000002', '客户2', 'VIP', '女', '25-34', '江苏省', '南京市', '玄武区', '2020-02-15', 'PLATINUM', 'ACTIVE'), ('CUS000003', '客户3', 'VIP', '男', '35-44', '广东省', '广州市', '天河区', '2020-03-20', 'GOLD', 'ACTIVE'), ('CUS000004', '客户4', 'NORMAL', '女', '18-24', '上海市', '上海市', '浦东新区', '2021-01-05', 'SILVER', 'ACTIVE'), ('CUS000005', '客户5', 'NORMAL', '男', '45-54', '北京市', '北京市', '朝阳区', '2021-06-15', 'BRONZE', 'ACTIVE'), ('CUS000006', '客户6', 'NORMAL', '女', '25-34', '浙江省', '杭州市', '西湖区', '2022-01-10', 'SILVER', 'ACTIVE'), ('CUS000007', '客户7', 'NEW', '男', '18-24', '江苏省', '南京市', '玄武区', '2023-02-15', 'BRONZE', 'ACTIVE'), ('CUS000008', '客户8', 'NEW', '女', '25-34', '广东省', '广州市', '天河区', '2023-05-20', 'BRONZE', 'ACTIVE'), ('CUS000009', '客户9', 'NEW', '男', '35-44', '上海市', '上海市', '浦东新区', '2023-08-05', 'BRONZE', 'ACTIVE'), ('CUS000010', '客户10', 'NEW', '女', '55+', '北京市', '北京市', '朝阳区', '2024-01-15', 'BRONZE', 'ACTIVE')
+2026-02-14 09:06:29.035 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 10 returned as update count for SQL: INSERT INTO dim_date (date_key, full_date, year, quarter, month, month_name, week_of_year, day_of_month, day_of_week, day_name, is_weekend, is_holiday, fiscal_year, fiscal_quarter) VALUES (20240101, '2024-01-01', 2024, 1, 1, '一月', 1, 1, 1, '星期一', 0, 1, 2024, 1), (20240102, '2024-01-02', 2024, 1, 1, '一月', 1, 2, 2, '星期二', 0, 0, 2024, 1), (20240103, '2024-01-03', 2024, 1, 1, '一月', 1, 3, 3, '星期三', 0, 0, 2024, 1), (20240104, '2024-01-04', 2024, 1, 1, '一月', 1, 4, 4, '星期四', 0, 0, 2024, 1), (20240105, '2024-01-05', 2024, 1, 1, '一月', 1, 5, 5, '星期五', 0, 0, 2024, 1), (20240106, '2024-01-06', 2024, 1, 1, '一月', 1, 6, 6, '星期六', 1, 0, 2024, 1), (20240107, '2024-01-07', 2024, 1, 1, '一月', 1, 7, 7, '星期日', 1, 0, 2024, 1), (20240108, '2024-01-08', 2024, 1, 1, '一月', 2, 8, 1, '星期一', 0, 0, 2024, 1), (20240109, '2024-01-09', 2024, 1, 1, '一月', 2, 9, 2, '星期二', 0, 0, 2024, 1), (20240110, '2024-01-10', 2024, 1, 1, '一月', 2, 10, 3, '星期三', 0, 0, 2024, 1)
+2026-02-14 09:06:29.036 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 10 returned as update count for SQL: INSERT INTO fact_order (order_id, date_key, customer_key, store_key, channel_key, promotion_key, total_quantity, total_amount, discount_amount, freight_amount, pay_amount, order_status, payment_status, order_time) VALUES ('ORD20240101000001', 20240101, 1, 1, 1, 2, 2, 10998.00, 1099.80, 0, 9898.20, 'COMPLETED', 'PAID', '2024-01-01 10:30:00'), ('ORD20240101000002', 20240101, 2, 2, 2, 1, 1, 4599.00, 0, 0, 4599.00, 'COMPLETED', 'PAID', '2024-01-01 14:20:00'), ('ORD20240102000003', 20240102, 3, 3, 1, 1, 3, 1298.00, 0, 0, 1298.00, 'COMPLETED', 'PAID', '2024-01-02 09:15:00'), ('ORD20240102000004', 20240102, 4, 1, 3, 1, 1, 599.00, 0, 10, 609.00, 'SHIPPED', 'PAID', '2024-01-02 16:45:00'), ('ORD20240103000005', 20240103, 5, 2, 2, 2, 2, 6998.00, 699.80, 0, 6298.20, 'PAID', 'PAID', '2024-01-03 11:00:00'), ('ORD20240103000006', 20240103, 6, 3, 4, 1, 1, 2999.00, 0, 0, 2999.00, 'PENDING', 'UNPAID', '2024-01-03 15:30:00'), ('ORD20240104000007', 20240104, 7, 4, 1, 1, 2, 798.00, 0, 10, 808.00, 'COMPLETED', 'PAID', '2024-01-04 10:00:00'), ('ORD20240104000008', 20240104, 8, 5, 5, 5, 1, 1299.00, 155.88, 0, 1143.12, 'COMPLETED', 'PAID', '2024-01-04 14:30:00'), ('ORD20240105000009', 20240105, 9, 1, 2, 1, 1, 19.90, 0, 10, 29.90, 'CANCELLED', 'UNPAID', '2024-01-05 09:00:00'), ('ORD20240105000010', 20240105, 10, 2, 1, 2, 3, 7697.00, 769.70, 0, 6927.30, 'COMPLETED', 'PAID', '2024-01-05 16:00:00')
+2026-02-14 09:06:29.036 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 10 returned as update count for SQL: INSERT INTO fact_sales (order_id, order_line_no, date_key, product_key, customer_key, store_key, channel_key, promotion_key, quantity, unit_price, unit_cost, discount_amount, sales_amount, cost_amount, profit_amount, order_status, payment_method) VALUES ('ORD20240101000001', 1, 20240101, 1, 1, 1, 1, 2, 1, 5999.00, 3599.40, 599.90, 5399.10, 3599.40, 1799.70, 'COMPLETED', 'ALIPAY'), ('ORD20240101000001', 2, 20240101, 2, 1, 1, 1, 2, 1, 4999.00, 2999.40, 499.90, 4499.10, 2999.40, 1499.70, 'COMPLETED', 'ALIPAY'), ('ORD20240101000002', 1, 20240101, 2, 2, 2, 2, 1, 1, 4599.00, 2759.40, 0, 4599.00, 2759.40, 1839.60, 'COMPLETED', 'WECHAT'), ('ORD20240102000003', 1, 20240102, 6, 3, 3, 1, 1, 1, 599.00, 359.40, 0, 599.00, 359.40, 239.60, 'COMPLETED', 'ALIPAY'), ('ORD20240102000003', 2, 20240102, 7, 3, 3, 1, 1, 1, 699.00, 419.40, 0, 699.00, 419.40, 279.60, 'COMPLETED', 'ALIPAY'), ('ORD20240102000004', 1, 20240102, 6, 4, 1, 3, 1, 1, 599.00, 359.40, 0, 599.00, 359.40, 239.60, 'SHIPPED', 'CARD'), ('ORD20240103000005', 1, 20240103, 4, 5, 2, 2, 2, 1, 6999.00, 4199.40, 699.90, 6299.10, 4199.40, 2099.70, 'PAID', 'WECHAT'), ('ORD20240103000006', 1, 20240103, 5, 6, 3, 4, 1, 1, 2999.00, 1799.40, 0, 2999.00, 1799.40, 1199.60, 'PENDING', NULL), ('ORD20240104000007', 1, 20240104, 8, 7, 4, 1, 1, 2, 399.00, 239.40, 0, 798.00, 478.80, 319.20, 'COMPLETED', 'ALIPAY'), ('ORD20240104000008', 1, 20240104, 10, 8, 5, 5, 5, 1, 1299.00, 779.40, 155.88, 1143.12, 779.40, 363.72, 'COMPLETED', 'WECHAT')
+2026-02-14 09:06:29.037 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 8 returned as update count for SQL: INSERT INTO fact_payment (payment_id, order_id, date_key, customer_key, pay_amount, pay_method, pay_channel, pay_status, pay_time) VALUES ('PAY00000001', 'ORD20240101000001', 20240101, 1, 9898.20, 'ALIPAY', 'APP', 'SUCCESS', '2024-01-01 10:35:00'), ('PAY00000002', 'ORD20240101000002', 20240101, 2, 4599.00, 'WECHAT', 'APP', 'SUCCESS', '2024-01-01 14:25:00'), ('PAY00000003', 'ORD20240102000003', 20240102, 3, 1298.00, 'ALIPAY', 'WEB', 'SUCCESS', '2024-01-02 09:20:00'), ('PAY00000004', 'ORD20240102000004', 20240102, 4, 609.00, 'CARD', 'POS', 'SUCCESS', '2024-01-02 16:50:00'), ('PAY00000005', 'ORD20240103000005', 20240103, 5, 6298.20, 'WECHAT', 'APP', 'SUCCESS', '2024-01-03 11:05:00'), ('PAY00000006', 'ORD20240104000007', 20240104, 7, 808.00, 'ALIPAY', 'APP', 'SUCCESS', '2024-01-04 10:05:00'), ('PAY00000007', 'ORD20240104000008', 20240104, 8, 1143.12, 'WECHAT', 'APP', 'SUCCESS', '2024-01-04 14:35:00'), ('PAY00000008', 'ORD20240105000010', 20240105, 10, 6927.30, 'ALIPAY', 'WEB', 'SUCCESS', '2024-01-05 16:05:00')
+2026-02-14 09:06:29.037 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 1 returned as update count for SQL: INSERT INTO fact_return (return_id, order_id, order_line_no, date_key, product_key, customer_key, store_key, return_quantity, return_amount, return_reason, return_type, return_status, return_time) VALUES ('RTN00000001', 'ORD20240101000001', 2, 20240105, 2, 1, 1, 1, 4499.10, '不喜欢', 'RETURN_REFUND', 'COMPLETED', '2024-01-05 10:00:00')
+2026-02-14 09:06:29.037 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 5 returned as update count for SQL: INSERT INTO fact_inventory_snapshot (date_key, product_key, store_key, quantity_on_hand, quantity_reserved, quantity_available, unit_cost, inventory_value) VALUES (20240101, 1, 1, 100, 10, 90, 3599.40, 359940.00), (20240101, 2, 1, 80, 5, 75, 2759.40, 220752.00), (20240101, 3, 2, 50, 3, 47, 2399.40, 119970.00), (20240101, 4, 2, 30, 2, 28, 4199.40, 125982.00), (20240101, 5, 3, 60, 5, 55, 1799.40, 107964.00)
+2026-02-14 09:06:29.037 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 9 returned as update count for SQL: INSERT INTO dim_team (team_id, team_name, parent_id, team_level, manager_name, status) VALUES ('T001', '总公司', NULL, 1, '张总', 'ACTIVE'), ('T002', '技术部', 'T001', 2, '李经理', 'ACTIVE'), ('T003', '研发组', 'T002', 3, '王组长', 'ACTIVE'), ('T004', '测试组', 'T002', 3, '赵组长', 'ACTIVE'), ('T005', '销售部', 'T001', 2, '钱经理', 'ACTIVE'), ('T006', '前端小组', 'T003', 4, '孙组长', 'ACTIVE'), ('T007', '后端小组', 'T003', 4, '周组长', 'ACTIVE'), ('T008', '华东区', 'T005', 3, '吴经理', 'ACTIVE'), ('T009', '华北区', 'T005', 3, '郑经理', 'ACTIVE')
+2026-02-14 09:06:29.038 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 25 returned as update count for SQL: INSERT INTO team_closure (parent_id, team_id, distance) VALUES ('T001', 'T001', 0), ('T001', 'T002', 1), ('T001', 'T003', 2), ('T001', 'T004', 2), ('T001', 'T005', 1), ('T001', 'T006', 3), ('T001', 'T007', 3), ('T001', 'T008', 2), ('T001', 'T009', 2), ('T002', 'T002', 0), ('T002', 'T003', 1), ('T002', 'T004', 1), ('T002', 'T006', 2), ('T002', 'T007', 2), ('T003', 'T003', 0), ('T003', 'T006', 1), ('T003', 'T007', 1), ('T004', 'T004', 0), ('T005', 'T005', 0), ('T005', 'T008', 1), ('T005', 'T009', 1), ('T006', 'T006', 0), ('T007', 'T007', 0), ('T008', 'T008', 0), ('T009', 'T009', 0)
+2026-02-14 09:06:29.038 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 18 returned as update count for SQL: INSERT INTO fact_team_sales (team_id, date_key, sales_amount, sales_count) VALUES ('T001', 20240101, 50000.00, 5), ('T001', 20240102, 60000.00, 6), ('T002', 20240101, 30000.00, 3), ('T002', 20240102, 35000.00, 4), ('T003', 20240101, 10000.00, 2), ('T003', 20240102, 12000.00, 2), ('T004', 20240101, 8000.00, 1), ('T004', 20240102, 9000.00, 1), ('T005', 20240101, 100000.00, 20), ('T005', 20240102, 120000.00, 25), ('T006', 20240101, 5000.00, 1), ('T006', 20240102, 6000.00, 1), ('T007', 20240101, 7000.00, 1), ('T007', 20240102, 8000.00, 2), ('T008', 20240101, 45000.00, 10), ('T008', 20240102, 55000.00, 12), ('T009', 20240101, 40000.00, 8), ('T009', 20240102, 48000.00, 10)
+2026-02-14 09:06:29.038 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 3 returned as update count for SQL: INSERT INTO dim_category_group (group_id, group_name, group_type, status) VALUES ('GRP001', '电子产品组', '高价值', 'ACTIVE'), ('GRP002', '日用品组', '快消品', 'ACTIVE'), ('GRP003', '服装配饰组', '时尚', 'ACTIVE')
+2026-02-14 09:06:29.038 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 7 returned as update count for SQL: INSERT INTO dim_category_nested (category_id, category_name, category_level, group_key, status) VALUES ('CAT001', '数码电器', 1, 1, 'ACTIVE'), ('CAT002', '手机通讯', 2, 1, 'ACTIVE'), ('CAT003', '电脑办公', 2, 1, 'ACTIVE'), ('CAT004', '家居用品', 1, 2, 'ACTIVE'), ('CAT005', '厨房用品', 2, 2, 'ACTIVE'), ('CAT006', '男装', 1, 3, 'ACTIVE'), ('CAT007', '女装', 1, 3, 'ACTIVE')
+2026-02-14 09:06:29.038 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 10 returned as update count for SQL: INSERT INTO dim_product_nested (product_id, product_name, brand, category_key, unit_price, status) VALUES ('NP001', 'iPhone 15 Pro', 'Apple', 2, 8999.00, 'ACTIVE'), ('NP002', '华为 Mate 60', '华为', 2, 6999.00, 'ACTIVE'), ('NP003', 'MacBook Pro 14', 'Apple', 3, 14999.00, 'ACTIVE'), ('NP004', '联想 ThinkPad', '联想', 3, 7999.00, 'ACTIVE'), ('NP005', '不锈钢炒锅', '苏泊尔', 5, 299.00, 'ACTIVE'), ('NP006', '电饭煲', '美的', 5, 499.00, 'ACTIVE'), ('NP007', '休闲T恤', '优衣库', 6, 99.00, 'ACTIVE'), ('NP008', '牛仔裤', 'Levis', 6, 599.00, 'ACTIVE'), ('NP009', '连衣裙', 'ZARA', 7, 399.00, 'ACTIVE'), ('NP010', '风衣外套', 'MAX&Co.', 7, 1299.00, 'ACTIVE')
+2026-02-14 09:06:29.039 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 5 returned as update count for SQL: INSERT INTO dim_region_nested (region_id, region_name, province, city, status) VALUES ('REG001', '华东区-杭州', '浙江省', '杭州市', 'ACTIVE'), ('REG002', '华东区-上海', '上海市', '上海市', 'ACTIVE'), ('REG003', '华北区-北京', '北京市', '北京市', 'ACTIVE'), ('REG004', '华南区-广州', '广东省', '广州市', 'ACTIVE'), ('REG005', '华南区-深圳', '广东省', '深圳市', 'ACTIVE')
+2026-02-14 09:06:29.039 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 6 returned as update count for SQL: INSERT INTO dim_store_nested (store_id, store_name, store_type, region_key, status) VALUES ('NS001', '杭州西湖旗舰店', '旗舰店', 1, 'ACTIVE'), ('NS002', '杭州滨江店', '标准店', 1, 'ACTIVE'), ('NS003', '上海南京路店', '旗舰店', 2, 'ACTIVE'), ('NS004', '北京王府井店', '旗舰店', 3, 'ACTIVE'), ('NS005', '广州天河店', '标准店', 4, 'ACTIVE'), ('NS006', '深圳华强北店', '标准店', 5, 'ACTIVE')
+2026-02-14 09:06:29.039 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 16 returned as update count for SQL: INSERT INTO fact_sales_nested (date_key, product_key, store_key, quantity, sales_amount, cost_amount) VALUES (20240101, 1, 1, 2, 17998.00, 10800.00), (20240101, 2, 1, 1, 6999.00, 4200.00), (20240101, 3, 3, 1, 14999.00, 9000.00), (20240101, 5, 2, 5, 1495.00, 750.00), (20240101, 7, 4, 10, 990.00, 400.00), (20240101, 9, 5, 3, 1197.00, 600.00), (20240102, 1, 3, 3, 26997.00, 16200.00), (20240102, 4, 4, 2, 15998.00, 9600.00), (20240102, 6, 1, 4, 1996.00, 1000.00), (20240102, 8, 6, 5, 2995.00, 1500.00), (20240102, 10, 5, 2, 2598.00, 1300.00), (20240103, 2, 4, 2, 13998.00, 8400.00), (20240103, 3, 1, 1, 14999.00, 9000.00), (20240103, 5, 5, 8, 2392.00, 1200.00), (20240103, 7, 6, 15, 1485.00, 600.00), (20240103, 9, 2, 4, 1596.00, 800.00)
+2026-02-14 09:06:29.039 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - Executed SQL script from class path resource [sqlite/03-test-data.sql] in 11 ms.
+2026-02-14 09:06:29.039 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - Executing SQL script from class path resource [sqlite/05-preagg-data.sql]
+2026-02-14 09:06:29.041 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 8 returned as update count for SQL: INSERT INTO preagg_daily_product_sales (date_key, product_key, full_date, year, quarter, month, month_name, product_id, product_name, category_id, category_name, brand, quantity_sum, sales_amount_sum, cost_amount_sum, profit_amount_sum, _preagg_row_count) SELECT fs.date_key, fs.product_key, d.full_date, d.year, d.quarter, d.month, d.month_name, p.product_id, p.product_name, p.category_id, p.category_name, p.brand, SUM(fs.quantity) as quantity_sum, SUM(fs.sales_amount) as sales_amount_sum, SUM(COALESCE(fs.cost_amount, 0)) as cost_amount_sum, SUM(COALESCE(fs.profit_amount, 0)) as profit_amount_sum, COUNT(*) as _preagg_row_count FROM fact_sales fs LEFT JOIN dim_date d ON fs.date_key = d.date_key LEFT JOIN dim_product p ON fs.product_key = p.product_key GROUP BY fs.date_key, fs.product_key, d.full_date, d.year, d.quarter, d.month, d.month_name, p.product_id, p.product_name, p.category_id, p.category_name, p.brand
+2026-02-14 09:06:29.042 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 3 returned as update count for SQL: INSERT INTO preagg_monthly_category_sales (year_month, category_id, category_name, quantity_sum, sales_amount_sum, _preagg_row_count) SELECT substr(d.full_date, 1, 7) as year_month, p.category_id, p.category_name, SUM(fs.quantity) as quantity_sum, SUM(fs.sales_amount) as sales_amount_sum, COUNT(*) as _preagg_row_count FROM fact_sales fs LEFT JOIN dim_product p ON fs.product_key = p.product_key LEFT JOIN dim_date d ON fs.date_key = d.date_key GROUP BY substr(d.full_date, 1, 7), p.category_id, p.category_name
+2026-02-14 09:06:29.042 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 8 returned as update count for SQL: INSERT INTO preagg_daily_customer_channel_sales (date_key, customer_key, channel_key, full_date, customer_name, customer_type, province, city, channel_name, channel_type, quantity_sum, sales_amount_sum, _preagg_row_count) SELECT fs.date_key, fs.customer_key, fs.channel_key, d.full_date, c.customer_name, c.customer_type, c.province, c.city, ch.channel_name, ch.channel_type, SUM(fs.quantity) as quantity_sum, SUM(fs.sales_amount) as sales_amount_sum, COUNT(*) as _preagg_row_count FROM fact_sales fs LEFT JOIN dim_date d ON fs.date_key = d.date_key LEFT JOIN dim_customer c ON fs.customer_key = c.customer_key LEFT JOIN dim_channel ch ON fs.channel_key = ch.channel_key WHERE fs.customer_key IS NOT NULL AND fs.channel_key IS NOT NULL GROUP BY fs.date_key, fs.customer_key, fs.channel_key, d.full_date, c.customer_name, c.customer_type, c.province, c.city, ch.channel_name, ch.channel_type
+2026-02-14 09:06:29.042 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 1 returned as update count for SQL: INSERT INTO preagg_daily_return (date_key, product_key, full_date, product_name, category_name, return_quantity_sum, return_amount_sum, _preagg_row_count) SELECT fr.date_key, fr.product_key, d.full_date, p.product_name, p.category_name, SUM(fr.return_quantity) as return_quantity_sum, SUM(fr.return_amount) as return_amount_sum, COUNT(*) as _preagg_row_count FROM fact_return fr LEFT JOIN dim_date d ON fr.date_key = d.date_key LEFT JOIN dim_product p ON fr.product_key = p.product_key WHERE fr.product_key IS NOT NULL GROUP BY fr.date_key, fr.product_key, d.full_date, p.product_name, p.category_name
+2026-02-14 09:06:29.042 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - Executed SQL script from class path resource [sqlite/05-preagg-data.sql] in 3 ms.
+2026-02-14 09:06:29.125 [main] INFO  c.f.d.d.m.e.AdvancedAnalyticsTest - Started AdvancedAnalyticsTest in 7.561 seconds (process running for 8.866)
+2026-02-14 09:06:30.310 [main] DEBUG c.foggyframework.bundle.BundleImpl - 找到资源(findResources): file:/D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-demo/target/classes/foggy/templates/ecommerce/query/FactSalesQueryModel.qm
+2026-02-14 09:06:30.353 [main] DEBUG c.f.c.u.file.WatchServiceFileTracer - 已注册目录监听: D:\foggy-projects\java-data-mcp-bridge\foggy-dataset-demo\target\classes\foggy\templates\ecommerce\query
+2026-02-14 09:06:30.353 [main] DEBUG c.f.c.u.file.WatchServiceFileTracer - 已添加文件监听: D:\foggy-projects\java-data-mcp-bridge\foggy-dataset-demo\target\classes\foggy\templates\ecommerce\query\FactSalesQueryModel.qm
+2026-02-14 09:06:30.360 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - Raw QM columnGroups count=9
+2026-02-14 09:06:30.360 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[0] item[0]: type=HashMap, value={ref=FactSalesModel.orderId}
+2026-02-14 09:06:30.360 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[0] item[1]: type=HashMap, value={ref=FactSalesModel.orderLineNo}
+2026-02-14 09:06:30.360 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[0] item[2]: type=HashMap, value={ref=FactSalesModel.orderStatus}
+2026-02-14 09:06:30.360 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[0] item[3]: type=HashMap, value={ref=FactSalesModel.paymentMethod}
+2026-02-14 09:06:30.360 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[1] item[0]: type=HashMap, value={ref=FactSalesModel.salesDate}
+2026-02-14 09:06:30.360 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[1] item[1]: type=HashMap, value={ref=FactSalesModel.salesDate$year}
+2026-02-14 09:06:30.361 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[1] item[2]: type=HashMap, value={ref=FactSalesModel.salesDate$quarter}
+2026-02-14 09:06:30.361 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[1] item[3]: type=HashMap, value={ref=FactSalesModel.salesDate$month}
+2026-02-14 09:06:30.361 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[1] item[4]: type=HashMap, value={ref=FactSalesModel.salesDate$monthName}
+2026-02-14 09:06:30.361 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[1] item[5]: type=HashMap, value={ref=FactSalesModel.salesDate$dayOfWeek}
+2026-02-14 09:06:30.361 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[1] item[6]: type=HashMap, value={ref=FactSalesModel.salesDate$isWeekend}
+2026-02-14 09:06:30.361 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[2] item[0]: type=HashMap, value={ref=FactSalesModel.product}
+2026-02-14 09:06:30.361 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[2] item[1]: type=HashMap, value={ref=FactSalesModel.product$categoryId}
+2026-02-14 09:06:30.361 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[2] item[2]: type=HashMap, value={ref=FactSalesModel.product$categoryName}
+2026-02-14 09:06:30.361 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[2] item[3]: type=HashMap, value={ref=FactSalesModel.product$subCategoryId}
+2026-02-14 09:06:30.362 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[2] item[4]: type=HashMap, value={ref=FactSalesModel.product$subCategoryName}
+2026-02-14 09:06:30.362 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[2] item[5]: type=HashMap, value={ref=FactSalesModel.product$brand}
+2026-02-14 09:06:30.362 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[2] item[6]: type=HashMap, value={ref=FactSalesModel.product$unitPrice}
+2026-02-14 09:06:30.362 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[2] item[7]: type=HashMap, value={ref=FactSalesModel.product$unitCost}
+2026-02-14 09:06:30.362 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[3] item[0]: type=HashMap, value={ref=FactSalesModel.customer}
+2026-02-14 09:06:30.362 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[3] item[1]: type=HashMap, value={ref=FactSalesModel.customer$customerType}
+2026-02-14 09:06:30.362 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[3] item[2]: type=HashMap, value={ref=FactSalesModel.customer$gender}
+2026-02-14 09:06:30.362 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[3] item[3]: type=HashMap, value={ref=FactSalesModel.customer$ageGroup}
+2026-02-14 09:06:30.362 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[3] item[4]: type=HashMap, value={ref=FactSalesModel.customer$province}
+2026-02-14 09:06:30.362 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[3] item[5]: type=HashMap, value={ref=FactSalesModel.customer$city}
+2026-02-14 09:06:30.362 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[3] item[6]: type=HashMap, value={ref=FactSalesModel.customer$memberLevel}
+2026-02-14 09:06:30.362 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[4] item[0]: type=HashMap, value={ref=FactSalesModel.store}
+2026-02-14 09:06:30.362 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[4] item[1]: type=HashMap, value={ref=FactSalesModel.store$storeType}
+2026-02-14 09:06:30.362 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[4] item[2]: type=HashMap, value={ref=FactSalesModel.store$province}
+2026-02-14 09:06:30.362 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[4] item[3]: type=HashMap, value={ref=FactSalesModel.store$city}
+2026-02-14 09:06:30.362 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[5] item[0]: type=HashMap, value={ref=FactSalesModel.channel}
+2026-02-14 09:06:30.362 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[5] item[1]: type=HashMap, value={ref=FactSalesModel.channel$channelType}
+2026-02-14 09:06:30.362 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[5] item[2]: type=HashMap, value={ref=FactSalesModel.channel$platform}
+2026-02-14 09:06:30.363 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[6] item[0]: type=HashMap, value={ref=FactSalesModel.promotion}
+2026-02-14 09:06:30.363 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[6] item[1]: type=HashMap, value={ref=FactSalesModel.promotion$promotionType}
+2026-02-14 09:06:30.363 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[6] item[2]: type=HashMap, value={ref=FactSalesModel.promotion$discountRate}
+2026-02-14 09:06:30.363 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[7] item[0]: type=HashMap, value={ref=FactSalesModel.quantity}
+2026-02-14 09:06:30.363 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[7] item[1]: type=HashMap, value={ref=FactSalesModel.unitPrice}
+2026-02-14 09:06:30.363 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[7] item[2]: type=HashMap, value={ref=FactSalesModel.unitCost}
+2026-02-14 09:06:30.363 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[7] item[3]: type=HashMap, value={ref=FactSalesModel.discountAmount}
+2026-02-14 09:06:30.363 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[7] item[4]: type=HashMap, value={ref=FactSalesModel.salesAmount}
+2026-02-14 09:06:30.363 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[7] item[5]: type=HashMap, value={ref=FactSalesModel.costAmount}
+2026-02-14 09:06:30.363 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[7] item[6]: type=HashMap, value={ref=FactSalesModel.profitAmount}
+2026-02-14 09:06:30.363 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[7] item[7]: type=HashMap, value={ref=FactSalesModel.taxAmount}
+2026-02-14 09:06:30.363 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[7] item[8]: type=HashMap, value={ref=FactSalesModel.taxAmount2}
+2026-02-14 09:06:30.363 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[7] item[9]: type=HashMap, value={ref=FactSalesModel.uniqueCustomers}
+2026-02-14 09:06:30.363 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[8] item[0]: type=HashMap, value={name=profitRate, caption=利润率(%), formula=profitAmount / salesAmount * 100, type=NUMBER}
+2026-02-14 09:06:30.363 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[8] item[1]: type=HashMap, value={partitionBy=[product$categoryName], windowOrderBy=[{field=salesAmount, dir=desc}], name=salesRank, caption=品类销售排名, formula=RANK(), type=INTEGER}
+2026-02-14 09:06:30.363 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[8] item[2]: type=HashMap, value={partitionBy=[product$caption], windowOrderBy=[{field=salesDate$caption, dir=asc}], windowFrame=ROWS BETWEEN 6 PRECEDING AND CURRENT ROW, name=ma7, caption=7日移动平均, formula=AVG(salesAmount), type=NUMBER}
+2026-02-14 09:06:30.393 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - 开始遍历 QueryModelBuilder，共 1 个
+2026-02-14 09:06:30.393 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - 尝试 Builder: com.foggyframework.dataset.db.model.engine.query_model.JdbcQueryModelBuilder
+2026-02-14 09:06:30.393 [main] DEBUG c.f.d.d.m.e.q.JdbcQueryModelBuilder - V2 构建器尝试构建 QM: FactSalesQueryModel
+2026-02-14 09:06:30.399 [main] DEBUG c.foggyframework.bundle.BundleImpl - 找到资源(findResources): file:/D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-demo/target/classes/foggy/templates/ecommerce/model/FactSalesModel.tm
+2026-02-14 09:06:30.417 [main] DEBUG c.f.c.u.file.WatchServiceFileTracer - 已注册目录监听: D:\foggy-projects\java-data-mcp-bridge\foggy-dataset-demo\target\classes\foggy\templates\ecommerce\model
+2026-02-14 09:06:30.418 [main] DEBUG c.f.c.u.file.WatchServiceFileTracer - 已添加文件监听: D:\foggy-projects\java-data-mcp-bridge\foggy-dataset-demo\target\classes\foggy\templates\ecommerce\model\FactSalesModel.tm
+2026-02-14 09:06:30.426 [main] DEBUG c.f.c.u.file.WatchServiceFileTracer - 已注册目录监听: D:\foggy-projects\java-data-mcp-bridge\foggy-dataset-demo\target\classes\foggy\templates\ecommerce
+2026-02-14 09:06:30.427 [main] DEBUG c.f.c.u.file.WatchServiceFileTracer - 已添加文件监听: D:\foggy-projects\java-data-mcp-bridge\foggy-dataset-demo\target\classes\foggy\templates\ecommerce\dicts.fsscript
+2026-02-14 09:06:30.487 [main] DEBUG c.f.d.d.m.s.i.DbModelDictServiceImpl - 注册字典: payment_method (支付方式), 共 3 项
+2026-02-14 09:06:30.488 [main] DEBUG c.f.d.d.m.s.i.DbModelDictServiceImpl - 注册字典: order_status (订单状态), 共 8 项
+2026-02-14 09:06:30.489 [main] DEBUG c.f.d.d.m.s.i.DbModelDictServiceImpl - 注册字典: payment_status (支付状态), 共 5 项
+2026-02-14 09:06:30.489 [main] DEBUG c.f.d.d.m.s.i.DbModelDictServiceImpl - 注册字典: return_reason (退货原因), 共 5 项
+2026-02-14 09:06:30.489 [main] DEBUG c.f.d.d.m.s.i.DbModelDictServiceImpl - 注册字典: return_type (退货类型), 共 3 项
+2026-02-14 09:06:30.490 [main] DEBUG c.f.d.d.m.s.i.DbModelDictServiceImpl - 注册字典: return_status (退货状态), 共 6 项
+2026-02-14 09:06:30.490 [main] DEBUG c.f.d.d.m.s.i.DbModelDictServiceImpl - 注册字典: pay_channel (支付渠道), 共 5 项
+2026-02-14 09:06:30.490 [main] DEBUG c.f.d.d.m.s.i.DbModelDictServiceImpl - 注册字典: pay_method (支付方式), 共 4 项
+2026-02-14 09:06:30.490 [main] DEBUG c.f.d.d.m.s.i.DbModelDictServiceImpl - 注册字典: pay_status (支付状态), 共 4 项
+2026-02-14 09:06:30.588 [main] DEBUG c.f.d.db.model.engine.join.JoinGraph - 添加边: JoinEdge{m1 -[date_key]-> d1}
+2026-02-14 09:06:30.589 [main] DEBUG c.f.d.db.model.engine.join.JoinGraph - 添加边: JoinEdge{m1 -[product_key]-> d2}
+2026-02-14 09:06:30.589 [main] DEBUG c.f.d.db.model.engine.join.JoinGraph - 添加边: JoinEdge{m1 -[customer_key]-> d3}
+2026-02-14 09:06:30.589 [main] DEBUG c.f.d.db.model.engine.join.JoinGraph - 添加边: JoinEdge{m1 -[store_key]-> d4}
+2026-02-14 09:06:30.589 [main] DEBUG c.f.d.db.model.engine.join.JoinGraph - 添加边: JoinEdge{m1 -[channel_key]-> d5}
+2026-02-14 09:06:30.589 [main] DEBUG c.f.d.db.model.engine.join.JoinGraph - 添加边: JoinEdge{m1 -[promotion_key]-> d6}
+2026-02-14 09:06:30.589 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - 模型 FactSalesModel 的 JoinGraph: JoinGraph{root=m1, nodes=7, edges=6}
+  JoinEdge{m1 -[date_key]-> d1}
+  JoinEdge{m1 -[product_key]-> d2}
+  JoinEdge{m1 -[customer_key]-> d3}
+  JoinEdge{m1 -[store_key]-> d4}
+  JoinEdge{m1 -[channel_key]-> d5}
+  JoinEdge{m1 -[promotion_key]-> d6}
+
+2026-02-14 09:06:30.590 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - 模型 FactSalesModel 的维度索引: [product, salesDate, channel, store, customer, promotion]
+2026-02-14 09:06:30.591 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - 模型FactSalesModel包含如下列
+2026-02-14 09:06:30.591 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[salesDate$id],caption:[销售日期]
+2026-02-14 09:06:30.591 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[salesDate$caption],caption:[销售日期]
+2026-02-14 09:06:30.591 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[salesDate$year],caption:[年]
+2026-02-14 09:06:30.591 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[salesDate$quarter],caption:[季度]
+2026-02-14 09:06:30.591 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[salesDate$month],caption:[月]
+2026-02-14 09:06:30.591 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[salesDate$monthName],caption:[月份名称]
+2026-02-14 09:06:30.591 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[salesDate$dayOfWeek],caption:[周几]
+2026-02-14 09:06:30.591 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[salesDate$isWeekend],caption:[是否周末]
+2026-02-14 09:06:30.591 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[product$id],caption:[商品]
+2026-02-14 09:06:30.591 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[product$caption],caption:[商品]
+2026-02-14 09:06:30.591 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[product$productId],caption:[商品ID]
+2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[product$categoryId],caption:[一级品类ID]
+2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[product$categoryName],caption:[一级品类名称]
+2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[product$subCategoryId],caption:[二级品类ID]
+2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[product$subCategoryName],caption:[二级品类名称]
+2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[product$brand],caption:[品牌]
+2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[product$unitPrice],caption:[商品售价]
+2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[product$unitCost],caption:[商品成本]
+2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[customer$id],caption:[客户]
+2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[customer$caption],caption:[客户]
+2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[customer$customerId],caption:[客户ID]
+2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[customer$customerType],caption:[客户类型]
+2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[customer$gender],caption:[性别]
+2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[customer$ageGroup],caption:[年龄段]
+2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[customer$idCard],caption:[身份证号]
+2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[customer$phone],caption:[手机号]
+2026-02-14 09:06:30.593 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[customer$province],caption:[省份]
+2026-02-14 09:06:30.593 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[customer$city],caption:[城市]
+2026-02-14 09:06:30.593 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[customer$memberLevel],caption:[会员等级]
+2026-02-14 09:06:30.593 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[store$id],caption:[门店]
+2026-02-14 09:06:30.593 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[store$caption],caption:[门店]
+2026-02-14 09:06:30.593 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[store$storeId],caption:[门店ID]
+2026-02-14 09:06:30.593 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[store$storeType],caption:[门店类型]
+2026-02-14 09:06:30.593 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[store$province],caption:[省份]
+2026-02-14 09:06:30.593 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[store$city],caption:[城市]
+2026-02-14 09:06:30.593 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[channel$id],caption:[渠道]
+2026-02-14 09:06:30.593 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[channel$caption],caption:[渠道]
+2026-02-14 09:06:30.593 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[channel$channelId],caption:[渠道ID]
+2026-02-14 09:06:30.593 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[channel$channelType],caption:[渠道类型]
+2026-02-14 09:06:30.593 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[channel$platform],caption:[平台]
+2026-02-14 09:06:30.593 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[promotion$id],caption:[促销活动]
+2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[promotion$caption],caption:[促销活动]
+2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[promotion$promotionId],caption:[促销ID]
+2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[promotion$promotionType],caption:[促销类型]
+2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[promotion$discountRate],caption:[折扣率]
+2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[quantity],caption:[销售数量]
+2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[unitPrice],caption:[单价]
+2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[unitCost],caption:[单位成本]
+2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[discountAmount],caption:[折扣金额]
+2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[salesAmount],caption:[销售金额]
+2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[costAmount],caption:[成本金额]
+2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[profitAmount],caption:[利润金额]
+2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[taxAmount],caption:[税额]
+2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[taxAmount2],caption:[税额*2]
+2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[uniqueCustomers],caption:[独立客户数]
+2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[salesKey],caption:[销售代理键]
+2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[orderId],caption:[订单ID]
+2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[orderLineNo],caption:[订单行号]
+2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[orderStatus],caption:[订单状态]
+2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[paymentMethod],caption:[支付方式]
+2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[createdAt],caption:[创建时间]
+2026-02-14 09:06:30.597 [main] DEBUG c.f.d.d.m.e.q.JdbcQueryModelBuilder - V2 构建器成功构建 JDBC QM: FactSalesQueryModel
+2026-02-14 09:06:30.597 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - Builder JdbcQueryModelBuilder 成功构建 QM: com.foggyframework.dataset.db.model.engine.query_model.JdbcQueryModelImpl
+2026-02-14 09:06:30.597 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [订单明细信息] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.599 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [订单明细信息] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.599 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [订单明细信息] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.600 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [订单明细信息] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.600 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [日期维度] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.601 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [日期维度] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.601 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [日期维度] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.601 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [日期维度] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.601 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [日期维度] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.601 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [日期维度] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.601 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [日期维度] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.601 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [商品维度] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.601 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [商品维度] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.601 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [商品维度] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.601 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [商品维度] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.602 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [商品维度] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.602 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [商品维度] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.602 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [商品维度] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.602 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [商品维度] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.602 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [客户维度] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.602 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [客户维度] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.602 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [客户维度] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.602 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [客户维度] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.602 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [客户维度] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.603 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [客户维度] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.603 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [客户维度] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.603 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [门店维度] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.603 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [门店维度] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.603 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [门店维度] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.603 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [门店维度] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.603 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [渠道维度] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.603 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [渠道维度] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.603 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [渠道维度] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.603 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [促销维度] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.603 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [促销维度] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.604 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [促销维度] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.604 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [度量] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.604 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [度量] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.604 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [度量] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.604 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [度量] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.604 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [度量] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.604 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [度量] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.604 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [度量] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.604 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [度量] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.605 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [度量] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.605 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [度量] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.605 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [高级分析] item: name=profitRate, formula=profitAmount / salesAmount * 100, ref=null, caption=利润率(%)
+2026-02-14 09:06:30.605 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [高级分析] item: name=salesRank, formula=RANK(), ref=null, caption=品类销售排名
+2026-02-14 09:06:30.606 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [高级分析] item: name=ma7, formula=AVG(salesAmount), ref=null, caption=7日移动平均
+2026-02-14 09:06:30.608 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - 已为模型 FactSalesQueryModel 分配简称: FS (namespace: 默认)
+2026-02-14 09:06:30.609 [main] INFO  c.f.d.d.m.e.AdvancedAnalyticsTest - predefinedCalculatedFields size=3
+2026-02-14 09:06:30.609 [main] INFO  c.f.d.d.m.e.AdvancedAnalyticsTest -   predefined: name=profitRate, expression=profitAmount / salesAmount * 100, partitionBy=null
+2026-02-14 09:06:30.609 [main] INFO  c.f.d.d.m.e.AdvancedAnalyticsTest -   predefined: name=salesRank, expression=RANK(), partitionBy=[product$categoryName]
+2026-02-14 09:06:30.609 [main] INFO  c.f.d.d.m.e.AdvancedAnalyticsTest -   predefined: name=ma7, expression=AVG(salesAmount), partitionBy=[product$caption]
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 9.571 s -- in com.foggyframework.dataset.db.model.ecommerce.AdvancedAnalyticsTest
+[INFO] 
+[INFO] Results:
+[INFO] 
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0
+[INFO] 
+[INFO] ------------------------------------------------------------------------
+[INFO] Reactor Summary for Java Data MCP Bridge 8.1.4.beta:
+[INFO] 
+[INFO] Java Data MCP Bridge ............................... SUCCESS [  0.038 s]
+[INFO] Foggy Core ......................................... SUCCESS [  1.081 s]
+[INFO] Foggy Bean Copy .................................... SUCCESS [  0.169 s]
+[INFO] Foggy FSScript ..................................... SUCCESS [  6.002 s]
+[INFO] Foggy Dataset ...................................... SUCCESS [  7.372 s]
+[INFO] Foggy Dataset Demo ................................. SUCCESS [  0.165 s]
+[INFO] Foggy Dataset Model ................................ SUCCESS [ 22.942 s]
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  38.353 s
+[INFO] Finished at: 2026-02-14T09:06:30+08:00
+[INFO] ------------------------------------------------------------------------

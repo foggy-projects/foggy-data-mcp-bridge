@@ -3,6 +3,7 @@ package com.foggyframework.dataset.db.model.semantic.service.impl;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.core.utils.beanhelper.BeanInfoHelper;
 import com.foggyframework.dataset.db.model.def.dict.DbDictDef;
+import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.impl.AiObject;
 import com.foggyframework.dataset.db.model.impl.dimension.DbDimensionSupport;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataRequest;
@@ -723,6 +724,16 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             Map<String, Object> fieldInfo = createMeasureFieldInfo(measure, queryModel.getName());
             fields.put(fieldName, fieldInfo);
         }
+
+        // 处理 QM 预定义计算字段
+        for (CalculatedFieldDef calc : queryModel.getPredefinedCalculatedFields()) {
+            String fieldName = calc.getName();
+            if (fieldFilter != null && !fieldFilter.contains(fieldName)) {
+                continue;
+            }
+            Map<String, Object> fieldInfo = createCalculatedFieldInfo(calc, queryModel.getName());
+            fields.put(fieldName, fieldInfo);
+        }
     }
 
     /**
@@ -1016,6 +1027,16 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                 fieldInfo.addMeasure(queryColumn, queryModel.getName(), this);
             }
         }
+
+        // 收集 QM 预定义计算字段信息
+        for (CalculatedFieldDef calc : queryModel.getPredefinedCalculatedFields()) {
+            String fieldName = calc.getName();
+            if (fieldFilter != null && !fieldFilter.contains(fieldName)) {
+                continue;
+            }
+            FieldInfoV3 fieldInfo = allFields.computeIfAbsent(fieldName, k -> new FieldInfoV3());
+            fieldInfo.addCalculatedField(calc, queryModel.getName());
+        }
     }
 
     private boolean isFieldInLevels(AiObject ai, List<Integer> requestedLevels) {
@@ -1086,6 +1107,33 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
 
         Map<String, Object> modelInfo = new LinkedHashMap<>();
         modelInfo.put("description", property.getCaption());
+
+        Map<String, Object> models = new LinkedHashMap<>();
+        models.put(modelName, modelInfo);
+        fieldInfo.put("models", models);
+
+        return fieldInfo;
+    }
+
+    private Map<String, Object> createCalculatedFieldInfo(CalculatedFieldDef calc, String modelName) {
+        Map<String, Object> fieldInfo = new LinkedHashMap<>();
+        fieldInfo.put("name", calc.getCaption() != null ? calc.getCaption() : calc.getName());
+        fieldInfo.put("fieldName", calc.getName());
+
+        boolean isWindow = calc.getPartitionBy() != null || calc.getWindowOrderBy() != null;
+        String typeStr = calc.getType() != null ? calc.getType() : "NUMBER";
+        fieldInfo.put("meta", (isWindow ? "窗口计算字段" : "计算字段") + " | " + typeStr);
+
+        fieldInfo.put("type", typeStr);
+        fieldInfo.put("filterType", "number");
+        fieldInfo.put("filterable", false);
+        fieldInfo.put("measure", false);
+        fieldInfo.put("aggregatable", false);
+        fieldInfo.put("calculated", true);
+
+        Map<String, Object> modelInfo = new LinkedHashMap<>();
+        modelInfo.put("description", (calc.getCaption() != null ? calc.getCaption() : calc.getName())
+                + " (公式: " + calc.getExpression() + ")");
 
         Map<String, Object> models = new LinkedHashMap<>();
         models.put(modelName, modelInfo);
@@ -1353,6 +1401,18 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             ModelUsage usage = new ModelUsage();
             usage.setDescription(measure.getDescription() != null ? measure.getDescription() : measure.getCaption());
             usage.setAggregation(measure.getAggregation());
+            modelUsages.put(modelName, usage);
+        }
+
+        public void addCalculatedField(CalculatedFieldDef calc, String modelName) {
+            this.displayName = calc.getCaption() != null ? calc.getCaption() : calc.getName();
+            boolean isWindow = calc.getPartitionBy() != null || calc.getWindowOrderBy() != null;
+            String typeStr = calc.getType() != null ? calc.getType() : "NUMBER";
+            this.meta = (isWindow ? "窗口计算字段" : "计算字段") + " | " + typeStr;
+            this.fieldType = isWindow ? "window_calculated" : "calculated";
+
+            ModelUsage usage = new ModelUsage();
+            usage.setDescription(this.displayName + " (公式: " + calc.getExpression() + ")");
             modelUsages.put(modelName, usage);
         }
 

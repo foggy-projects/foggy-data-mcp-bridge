@@ -175,6 +175,7 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
         Fsscript fsscript = findFsscriptWithNamespace(queryModelNameOrAlias, normalizedNs, "qm");
         ExpEvaluator ee = evalQmScript(fsscript);
         Object queryModel = ee.getExportObject("queryModel");
+
         DbQueryModelDef queryModelDef = FsscriptConversionService.getSharedInstance().convert(queryModel, DbQueryModelDef.class);
 
         tm = loadJdbcQueryModel(ee, fsscript, queryModelDef);
@@ -261,15 +262,10 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
          * 构建JdbcQueryModelImpl
          */
         QueryModelSupport qm = null;
-        log.debug("开始遍历 QueryModelBuilder，共 {} 个", queryModelBuilders.size());
         for (QueryModelBuilder queryModelBuilder : queryModelBuilders) {
-            log.debug("尝试 Builder: {}", queryModelBuilder.getClass().getName());
             qm = queryModelBuilder.build(queryModelDef, fsscript);
             if (qm != null) {
-                log.debug("Builder {} 成功构建 QM: {}", queryModelBuilder.getClass().getSimpleName(), qm.getClass().getName());
                 break;
-            } else {
-                log.debug("Builder {} 返回 null", queryModelBuilder.getClass().getSimpleName());
             }
         }
         if (qm == null) {
@@ -422,12 +418,21 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
                         continue;
                     }
 
+                    if (log.isDebugEnabled()) {
+                        log.debug("loadColumnGroups [{}] item: name={}, formula={}, ref={}, caption={}",
+                                columnGroupDef.getCaption(),
+                                item.getName(), item.getFormula(),
+                                item.getRef() != null ? item.getRef().getClass().getSimpleName() : "null",
+                                item.getCaption());
+                    }
+
                     // formula 项 → 转为 CalculatedFieldDef，不走常规列加载
                     if (StringUtils.isNotEmpty(item.getFormula())) {
                         CalculatedFieldDef calc = new CalculatedFieldDef();
                         calc.setName(item.getName());
                         calc.setCaption(item.getCaption());
                         calc.setExpression(item.getFormula());
+                        calc.setType(item.getType());
                         calc.setPartitionBy(item.getPartitionBy());
                         calc.setWindowOrderBy(convertWindowOrderBy(item.getWindowOrderBy()));
                         calc.setWindowFrame(item.getWindowFrame());

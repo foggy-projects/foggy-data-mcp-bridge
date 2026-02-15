@@ -310,42 +310,6 @@ class AdvancedAnalyticsTest extends EcommerceTestSupport {
     // ==========================================
 
     @Test
-    @Order(19)
-    @DisplayName("诊断：检查 QM 预定义计算字段是否加载")
-    void testDiagnosticPredefinedFields() {
-        // 1. 直接加载 QM def 检查 FSScript 转换结果
-        com.foggyframework.dataset.db.model.def.query.DbQueryModelDef qmDef =
-                getTestObject("ecommerce/query/FactSalesQueryModel.qm",
-                        com.foggyframework.dataset.db.model.def.query.DbQueryModelDef.class, "queryModel");
-        log.info("QM columnGroups count={}", qmDef.getColumnGroups() != null ? qmDef.getColumnGroups().size() : "null");
-        if (qmDef.getColumnGroups() != null) {
-            for (var cg : qmDef.getColumnGroups()) {
-                log.info("  group: caption={}, items={}", cg.getCaption(),
-                        cg.getItems() != null ? cg.getItems().size() : "null");
-                if (cg.getItems() != null) {
-                    for (var item : cg.getItems()) {
-                        log.info("    item: name={}, formula={}, ref={}, caption={}",
-                                item.getName(), item.getFormula(),
-                                item.getRef() != null ? item.getRef().getClass().getSimpleName() : "null",
-                                item.getCaption());
-                    }
-                }
-            }
-        }
-
-        // 2. 检查已加载的 QueryModel
-        JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
-        com.foggyframework.dataset.db.model.engine.query_model.QueryModelSupport qms =
-                (com.foggyframework.dataset.db.model.engine.query_model.QueryModelSupport) queryModel;
-        List<CalculatedFieldDef> predefined = qms.getPredefinedCalculatedFields();
-        log.info("predefinedCalculatedFields size={}", predefined.size());
-        for (CalculatedFieldDef f : predefined) {
-            log.info("  predefined: name={}, expression={}, partitionBy={}", f.getName(), f.getExpression(), f.getPartitionBy());
-        }
-        assertFalse(predefined.isEmpty(), "QM 应该有预定义计算字段（profitRate, salesRank, ma7）");
-    }
-
-    @Test
     @Order(20)
     @DisplayName("QM 预定义普通计算字段 (profitRate)")
     void testQmPredefinedFormulaField() {

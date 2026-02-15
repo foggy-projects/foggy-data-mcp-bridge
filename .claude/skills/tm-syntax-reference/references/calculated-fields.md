@@ -351,6 +351,45 @@ formulaDef: {
    - 频繁查询的计算字段考虑物化（添加实际列）
    - JSON 提取性能较差，考虑提前展开
 
+## 去重计数度量 (count_distinct)
+
+TM 中定义去重计数度量：
+
+```javascript
+measures: [
+    {
+        column: 'customer_key',
+        name: 'uniqueCustomers',
+        caption: '独立客户数',
+        type: 'INTEGER',
+        aggregation: 'count_distinct'
+    }
+]
+```
+
+生成 SQL：`COUNT(DISTINCT t1.customer_key)`
+
+DSL 中也可通过计算字段动态使用：`COUNTD(customer$id)` 或 `COUNT_DISTINCT(customer$id)`
+
+## 统计函数
+
+在 DSL 查询的 `calculatedFields` 中使用统计函数：
+
+| 函数 | 说明 | 数据库兼容性 |
+|------|------|-------------|
+| `STDDEV_POP(field)` | 总体标准差 | MySQL/PG: 标准名, SQL Server: STDEVP |
+| `STDDEV_SAMP(field)` | 样本标准差 | MySQL/PG: 标准名, SQL Server: STDEV |
+| `VAR_POP(field)` | 总体方差 | MySQL/PG: 标准名, SQL Server: VARP |
+| `VAR_SAMP(field)` | 样本方差 | MySQL/PG: 标准名, SQL Server: VAR |
+
+SQLite 不支持统计函数，运行时抛出友好错误。
+
+方言适配由 `FDialect.buildStatFunction()` 自动处理，DSL 中始终使用标准函数名。
+
+## 窗口函数（QM 预定义）
+
+窗口函数在 QM 文件的 `columnGroups` 中定义，不在 TM 中。详见 `qm-generate` 技能的 `references/predefined-calculated-fields.md`。
+
 ## 示例：电商订单模型
 
 ```javascript

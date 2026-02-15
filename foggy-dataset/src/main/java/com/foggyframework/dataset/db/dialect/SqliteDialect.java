@@ -8,6 +8,7 @@
  *******************************************************************************/
 package com.foggyframework.dataset.db.dialect;
 
+import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.db.table.SqlColumn;
 import com.foggyframework.dataset.db.table.SqlTable;
@@ -186,14 +187,14 @@ public class SqliteDialect extends FDialect {
 
     @Override
     public String buildStatFunction(String funcName, String column) {
-        throw new UnsupportedOperationException(
-                "SQLite does not support statistical function: " + funcName);
+        throw RX.throwAUserTip(String.format(
+                "SQLite 不支持统计函数 %s。请切换到 MySQL、PostgreSQL 或 SQL Server 数据源以使用此功能。", funcName));
     }
 
     @Override
     public String buildStatFunction(String funcName) {
-        throw new UnsupportedOperationException(
-                "SQLite does not support statistical function: " + funcName);
+        throw RX.throwAUserTip(String.format(
+                "SQLite 不支持统计函数 %s。请切换到 MySQL、PostgreSQL 或 SQL Server 数据源以使用此功能。", funcName));
     }
 
     /**

@@ -26,7 +26,7 @@
 ```json
 ["product$categoryName", "sum(salesAmount) as totalSales", "count(orderId) as orderCount"]
 ```
-聚合函数：`sum`、`avg`、`count`、`max`、`min`、`group_concat`
+聚合函数：`sum`、`avg`、`count`、`max`、`min`、`group_concat`、`countd`(去重计数)、`stddev_pop`、`stddev_samp`、`var_pop`、`var_samp`
 
 **重要**：
 - 当使用聚合表达式后，系统自动推断 groupBy，通常无需手动指定
@@ -38,6 +38,15 @@
 [{"name": "netAmount", "expression": "salesAmount - discountAmount", "agg": "SUM"}]
 ```
 
+**窗口函数**：通过 `partitionBy`、`windowOrderBy`、`windowFrame` 实现排名、移动平均等分析：
+```json
+[
+  {"name": "salesRank", "expression": "RANK()", "partitionBy": ["product$categoryName"], "windowOrderBy": [{"field": "salesAmount", "dir": "desc"}]},
+  {"name": "ma7", "expression": "AVG(salesAmount)", "partitionBy": ["product$caption"], "windowOrderBy": [{"field": "salesDate$caption", "dir": "asc"}], "windowFrame": "ROWS BETWEEN 6 PRECEDING AND CURRENT ROW"}
+]
+```
+窗口函数：`ROW_NUMBER`、`RANK`、`DENSE_RANK`、`NTILE`、`LAG`、`LEAD`、`FIRST_VALUE`、`LAST_VALUE`
+
 **支持的函数**（函数名不区分大小写，使用函数调用语法如 `YEAR(date)` 而非 SQL 语法 `EXTRACT(YEAR FROM date)`）：
 | 类型 | 函数 |
 |------|------|
@@ -46,6 +55,7 @@
 | 空值 | `COALESCE`, `IFNULL`, `NVL`, `NULLIF` |
 | 条件 | `IF`, `CASE` |
 | 类型 | `CAST`, `CONVERT` |
+| 统计 | `STDDEV_POP`, `STDDEV_SAMP`, `VAR_POP`, `VAR_SAMP` (SQLite 不支持) |
 
 *常用数学函数如 ABS、ROUND、FLOOR、CEIL 等均支持*
 

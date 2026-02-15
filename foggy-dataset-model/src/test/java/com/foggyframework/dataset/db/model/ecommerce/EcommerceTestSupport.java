@@ -15,8 +15,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.ActiveProfiles;
-
 import java.util.List;
 import java.util.Map;
 
@@ -24,13 +22,14 @@ import java.util.Map;
  * 电商测试基类
  *
  * <p>提供电商测试数据模型的公共测试支持</p>
+ * <p>默认使用 SQLite profile（application.yml 中配置 spring.profiles.active=sqlite）。
+ * 可通过 -Dspring.profiles.active=postgres 等参数切换到其他数据库。</p>
  *
  * @author foggy-dataset
  * @since 1.0.0
  */
 @Slf4j
 @SpringBootTest(classes = JdbcModelTestApplication.class)
-@ActiveProfiles({"sqlite"})
 public abstract class EcommerceTestSupport {
 
     @Resource

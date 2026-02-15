@@ -20,7 +20,8 @@
 | 维度 | `$id` | 返回ID值 |
 | 维度 | `$caption` | 返回显示名称 |
 | 字典 | 无/`$id`/`$caption` | 原始值/字典值/字典名称 |
-| 度量 | - | 用于聚合(SUM/AVG/MAX/MIN/COUNT) |
+| 度量 | - | 用于聚合(SUM/AVG/MAX/MIN/COUNT/COUNT_DISTINCT/STDDEV/VAR) |
+| 计算字段 | - | QM预定义的公式/窗口计算字段 |
 
 ## 使用场景
 - 查询前确认字段名和数据类型

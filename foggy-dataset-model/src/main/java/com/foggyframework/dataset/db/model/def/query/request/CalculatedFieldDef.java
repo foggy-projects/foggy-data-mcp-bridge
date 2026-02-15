@@ -114,6 +114,15 @@ public class CalculatedFieldDef {
     private String windowFrame;
 
     /**
+     * 返回类型（QM 预定义字段使用）
+     * <p>
+     * 如 "NUMBER", "INTEGER" 等
+     * </p>
+     */
+    @ApiModelProperty(value = "返回类型", notes = "如 NUMBER, INTEGER, TEXT")
+    private String type;
+
+    /**
      * 编译后的 AST，运行时使用
      */
     @JsonIgnore
