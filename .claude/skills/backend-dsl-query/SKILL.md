@@ -554,6 +554,7 @@ public List<OrderDTO> getOrdersByStatusOrAmount(
 - 如果用户需要分页 → 使用 `PagingRequest` 和 `PagingResultImpl`
 - 如果用户需要单条记录 → 设置 `pageSize = 1` 并返回第一条
 - 如果查询结果需要转换 → 生成 DTO 类和转换方法
+- 如果用户需要去重计数/窗口函数/移动平均/统计函数 → 读取 `references/advanced-query-patterns.md`
 
 ## 依赖技能
 
