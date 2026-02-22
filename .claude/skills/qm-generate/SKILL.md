@@ -10,6 +10,19 @@ description: 根据 TM 模型生成 QM（查询模型）文件。当用户要求
 ## QM语法规范
 如果需要获取更多的qm语法规范，请参考[Foggy QM 语法规范](https://foggy-projects.github.io/foggy-data-mcp-bridge/downloads/qm-syntax.md)
 
+## TM 与 QM 的架构关系
+
+```
+TM (表模型)  → 描述数据库表结构，引擎内部自动加载，不可直接查询
+QM (查询模型) → 定义用户可查询的视图，是唯一的查询入口
+```
+
+**关键设计原则**：
+- **TM 不可直接查询**：TM 暴露了表的全部字段（包括 password_hash 等敏感字段），没有访问控制
+- **QM 是受控查询视图**：可以选择性暴露字段、添加计算列、未来可加权限过滤
+- **TM 不需要注册到 `model-list`**：引擎根据 QM 中的 `loadTableModel()` 调用自动加载所需的 TM
+- **只有 QM 需要注册到 `application.yml` 的 `model-list`**
+
 ## 使用场景
 
 当用户需要以下操作时使用：
@@ -32,7 +45,8 @@ description: 根据 TM 模型生成 QM（查询模型）文件。当用户要求
    - 创建 `columnGroups`，按逻辑分组字段
    - 添加默认排序（通常按时间字段降序）
 4. 将 QM 文件写入 `{TM模型名}QueryModel.qm`
-5. 输出文件路径和生成的字段列表
+5. **注册 QM 到 `application.yml`**（见下方"模型注册"章节）
+6. 输出文件路径和生成的字段列表
 
 ## 输入要求
 
@@ -63,6 +77,45 @@ src/main/resources/foggy/templates/
 ```
 
 如果用户指定了其他路径，按用户指定的路径生成。
+
+## 模型注册
+
+QM 文件生成后，**必须注册到 `application.yml` 的 `model-list`** 才能被查询引擎加载。
+
+### 注册规则
+
+1. **只注册 QM 模型名称**，不需要路径前缀
+2. **不要注册 TM 模型**，TM 由引擎根据 `loadTableModel()` 自动加载
+
+### 正确示例
+
+```yaml
+mcp:
+  semantic:
+    model-list:
+      - FactScoreQueryModel
+      - FactAttendanceQueryModel
+      - AggStudentProfileQueryModel
+```
+
+### 错误示例
+
+```yaml
+# 错误 1: 不要注册 TM 模型
+mcp:
+  semantic:
+    model-list:
+      - DimStudentModel          # 错! TM 不需要注册
+      - FactScoreModel           # 错! TM 不需要注册
+      - FactScoreQueryModel      # 正确
+
+# 错误 2: 不要带路径前缀
+mcp:
+  semantic:
+    model-list:
+      - student/query/FactScoreQueryModel   # 错! 不需要路径
+      - FactScoreQueryModel                 # 正确
+```
 
 ## 输出格式
 
