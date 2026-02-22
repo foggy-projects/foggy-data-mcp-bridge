@@ -83,19 +83,26 @@ curl -s -X POST http://localhost:{port}/api/semantic-layer/validate \
 ```
 
 **失败时**（`success: false`）：
-逐个列出错误，格式：
+
+先按 `category` 字段分类错误：
+- `MODEL` — 真实模型错误（语法、引用、字段等）
+- `CASCADING` — 因上游 TM 加载失败导致的级联错误
+
+优先展示 MODEL 错误，CASCADING 错误折叠显示：
 ```
 验证失败 ({invalidFiles}/{totalFiles} 个文件有错误)
 
-错误:
+模型错误 ({modelErrorCount}):
 1. [{file}] ({type})
    {message}
    行号: {line}
    建议: {suggestion}
 
-2. [{file}] ({type})
-   ...
+级联错误 ({cascadingErrors}, 修复上游TM后自动消除):
+  - [{file}] {message} (因 {tmName} 加载失败)
 ```
+
+如果 `cascadingErrors > 0` 且有 MODEL 类型的 TM 错误，提示用户优先修复 TM 错误，级联错误会自动消除。
 
 然后根据错误类型给出修复建议：
 - 语法错误 → 读取对应文件，定位错误行，给出修复代码
@@ -111,6 +118,7 @@ curl -s -X POST http://localhost:{port}/api/semantic-layer/validate \
   "totalFiles": 5,
   "validFiles": 3,
   "invalidFiles": 2,
+  "cascadingErrors": 1,
   "errors": [
     {
       "file": "query/OrderQueryModel.qm",
@@ -121,7 +129,14 @@ curl -s -X POST http://localhost:{port}/api/semantic-layer/validate \
       "code": "ScriptParseException",
       "message": "Unexpected token...",
       "suggestion": null,
+      "category": "MODEL",
       "stackTrace": "..."
+    },
+    {
+      "file": "query/SalesReport.qm",
+      "type": "QM",
+      "category": "CASCADING",
+      "message": "Table model 'DimProduct' not found..."
     }
   ],
   "warnings": [
