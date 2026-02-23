@@ -7,6 +7,7 @@ import com.foggyframework.dataset.db.model.common.query.CondType;
 import com.foggyframework.dataset.db.model.def.query.request.*;
 import com.foggyframework.dataset.db.model.engine.expression.InlineExpressionParser;
 import com.foggyframework.dataset.db.model.engine.expression.SliceExpressionProcessor;
+import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.db.model.engine.expression.SqlCalculatedFieldProcessor;
 import com.foggyframework.dataset.db.model.engine.expression.SqlExpContext;
 import com.foggyframework.dataset.db.model.engine.formula.SqlFormulaService;
@@ -392,6 +393,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
 
     private String buildAggSql(SystemBundlesContext systemBundlesContext, Map<String, GroupRequestDef> groupByMap, DbQueryRequestDef queryRequest, boolean addOrder, boolean countToSum) {
+        FDialect dialect = jdbcQueryModel != null ? jdbcQueryModel.getDialect() : FDialect.MYSQL_DIALECT;
         JdbcQuery aggJdbcQuery = new JdbcQuery();
         // 使用不含 ORDER BY 的SQL作为子查询，避免生成无意义的排序语句
         SqlQueryObject sqlQueryObject = new SqlQueryObject(this.innerSqlWithoutOrder, "tx");
@@ -400,6 +402,8 @@ public class JdbcModelQueryEngine implements QueryEngine {
 //            jdbcQueryModel.get
             AggregationDbColumn aggColumn = null;
             DbAggregation c = column.getAggregation();
+            String qAlias = dialect.quoteIdentifier(column.getAlias());
+            String colRef = jdbcQueryModel.getAlias(sqlQueryObject) + "." + qAlias;
 
             if (groupByMap != null) {
                 GroupRequestDef def = groupByMap.get(column.getName());
@@ -415,7 +419,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
                 case AVG:
 //                    aggJdbcQuery.getSelect().select()
                     aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(),
-                            "avg" + "(" + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + ")",
+                            "avg(" + colRef + ")",
                             column.getType(), DbAggregation.AVG);
                     break;
                 case SUM:
@@ -426,41 +430,41 @@ public class JdbcModelQueryEngine implements QueryEngine {
                             case Types.DOUBLE:
                             case Types.FLOAT:
                                 //需要格式化,不再格式化,会引起外部聚合时的问题,这个格式化交给前端处理好了
-//                                declare = "format(sum" + "(" + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + "),2)";
+//                                declare = "format(sum(" + colRef + "),2)";
 //                                break;
                             default:
-                                declare = "sum" + "(" + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + ")";
+                                declare = "sum(" + colRef + ")";
                         }
                     } else {
                         // 没有 SqlColumn 时（如 AggregationDbColumn），使用默认逻辑
-                        declare = "sum" + "(" + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + ")";
+                        declare = "sum(" + colRef + ")";
                     }
                     aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), declare, column.getType(), DbAggregation.SUM);
                     break;
                 case COUNT:
                     if (countToSum) {
                         //解决前端聚合维度或属性时的BUG
-                        declare = "sum" + "(" + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + ")";
+                        declare = "sum(" + colRef + ")";
                         aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), declare, column.getType(), DbAggregation.SUM);
                     } else {
-                        aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), "count" + "(*)", null, DbAggregation.COUNT);
+                        aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), "count(*)", null, DbAggregation.COUNT);
                     }
 
                     break;
                 case MAX:
-                    declare = "max" + "(" + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + ")";
+                    declare = "max(" + colRef + ")";
                     aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), declare, column.getType(), DbAggregation.MAX);
                     break;
                 case MIN:
-                    declare = "min" + "(" + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + ")";
+                    declare = "min(" + colRef + ")";
                     aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), declare, column.getType(), DbAggregation.MIN);
                     break;
                 case COUNT_DISTINCT:
                     if (countToSum) {
-                        declare = "sum" + "(" + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + ")";
+                        declare = "sum(" + colRef + ")";
                         aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), declare, column.getType(), DbAggregation.SUM);
                     } else {
-                        declare = "count(distinct " + jdbcQueryModel.getAlias(sqlQueryObject) + "." + column.getAlias() + ")";
+                        declare = "count(distinct " + colRef + ")";
                         aggColumn = new AggregationDbColumn(sqlQueryObject, column.getAlias(), declare, column.getType(), DbAggregation.COUNT_DISTINCT);
                     }
                     break;

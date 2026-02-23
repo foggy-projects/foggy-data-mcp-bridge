@@ -1,6 +1,7 @@
 package com.foggyframework.dataset.db.model.engine;
 
 import com.foggyframework.bundle.SystemBundlesContext;
+import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.engine.query.JdbcQuery;
 import com.foggyframework.dataset.db.model.engine.query.SimpleSqlJdbcQueryVisitor;
@@ -48,6 +49,7 @@ public class AggSqlOptimizer {
     private final JdbcQuery originalQuery;
     private final SystemBundlesContext systemBundlesContext;
     private final DbQueryRequestDef queryRequest;
+    private final FDialect dialect;
 
     /**
      * 优化结果
@@ -118,6 +120,12 @@ public class AggSqlOptimizer {
         this.originalQuery = originalQuery;
         this.systemBundlesContext = systemBundlesContext;
         this.queryRequest = queryRequest;
+        this.dialect = jdbcQueryModel != null ? jdbcQueryModel.getDialect() : FDialect.MYSQL_DIALECT;
+    }
+
+    /** 用当前方言引用标识符 */
+    private String q(String identifier) {
+        return dialect.quoteIdentifier(identifier);
     }
 
     /**
@@ -216,7 +224,7 @@ public class AggSqlOptimizer {
 
         for (DbColumn column : columns) {
             String alias = column.getAlias();
-            String colRef = "tx." + alias;
+            String colRef = "tx." + q(alias);
 
             // 对于 AggregationDbColumn，直接使用 getAggregation() 判断
             if (column instanceof AggregationDbColumn) {
@@ -231,7 +239,7 @@ public class AggSqlOptimizer {
                     aggExpressions.add(aggExpr);
                 } else {
                     // 这是一个分组列（agg == NONE），在外层聚合时返回 null
-                    aggExpressions.add("null `" + alias + "`");
+                    aggExpressions.add("null " + q(alias));
                 }
                 continue;
             }
@@ -244,52 +252,52 @@ public class AggSqlOptimizer {
 
             switch (agg) {
                 case AVG:
-                    aggExpressions.add("avg(" + colRef + ") `" + alias + "`");
+                    aggExpressions.add("avg(" + colRef + ") " + q(alias));
                     break;
                 case SUM:
-                    aggExpressions.add("sum(" + colRef + ") `" + alias + "`");
+                    aggExpressions.add("sum(" + colRef + ") " + q(alias));
                     break;
                 case COUNT:
                     if (countToSum) {
-                        aggExpressions.add("sum(" + colRef + ") `" + alias + "`");
+                        aggExpressions.add("sum(" + colRef + ") " + q(alias));
                     } else {
-                        aggExpressions.add("count(*) `" + alias + "`");
+                        aggExpressions.add("count(*) " + q(alias));
                     }
                     break;
                 case COUNT_DISTINCT:
                     if (countToSum) {
-                        aggExpressions.add("sum(" + colRef + ") `" + alias + "`");
+                        aggExpressions.add("sum(" + colRef + ") " + q(alias));
                     } else {
-                        aggExpressions.add("count(distinct " + colRef + ") `" + alias + "`");
+                        aggExpressions.add("count(distinct " + colRef + ") " + q(alias));
                     }
                     break;
                 case MAX:
-                    aggExpressions.add("max(" + colRef + ") `" + alias + "`");
+                    aggExpressions.add("max(" + colRef + ") " + q(alias));
                     break;
                 case MIN:
-                    aggExpressions.add("min(" + colRef + ") `" + alias + "`");
+                    aggExpressions.add("min(" + colRef + ") " + q(alias));
                     break;
                 case STDDEV_POP:
                 case STDDEV_SAMP:
                 case VAR_POP:
                 case VAR_SAMP:
                     // 统计函数不可再聚合，直接透传为 null
-                    aggExpressions.add("null `" + alias + "`");
+                    aggExpressions.add("null " + q(alias));
                     break;
                 case WINDOW:
                     // 窗口函数不可再聚合，直接透传为 null
-                    aggExpressions.add("null `" + alias + "`");
+                    aggExpressions.add("null " + q(alias));
                     break;
                 case NONE:
                 default:
                     // NONE 不做聚合，返回 null
-                    aggExpressions.add("null `" + alias + "`");
+                    aggExpressions.add("null " + q(alias));
                     break;
             }
         }
 
         // 添加 count(*) as total
-        aggExpressions.add("count(*) `total`");
+        aggExpressions.add("count(*) " + q("total"));
 
         StringBuilder sb = new StringBuilder();
         sb.append("select ");
@@ -318,35 +326,35 @@ public class AggSqlOptimizer {
 
         switch (agg) {
             case SUM:
-                return "sum(" + colRef + ") `" + alias + "`";
+                return "sum(" + colRef + ") " + q(alias);
             case AVG:
-                return "avg(" + colRef + ") `" + alias + "`";
+                return "avg(" + colRef + ") " + q(alias);
             case COUNT:
                 // 外层用 SUM 聚合内层的 COUNT
-                return "sum(" + colRef + ") `" + alias + "`";
+                return "sum(" + colRef + ") " + q(alias);
             case COUNT_DISTINCT:
                 // 外层用 SUM 聚合内层的 COUNT(DISTINCT)
-                return "sum(" + colRef + ") `" + alias + "`";
+                return "sum(" + colRef + ") " + q(alias);
             case MAX:
-                return "max(" + colRef + ") `" + alias + "`";
+                return "max(" + colRef + ") " + q(alias);
             case MIN:
-                return "min(" + colRef + ") `" + alias + "`";
+                return "min(" + colRef + ") " + q(alias);
             case GROUP_CONCAT:
-                return "group_concat(" + colRef + ") `" + alias + "`";
+                return "group_concat(" + colRef + ") " + q(alias);
             case CUSTOM:
                 // CUSTOM 聚合：保守处理，使用 SUM
-                return "sum(" + colRef + ") `" + alias + "`";
+                return "sum(" + colRef + ") " + q(alias);
             case STDDEV_POP:
             case STDDEV_SAMP:
             case VAR_POP:
             case VAR_SAMP:
             case WINDOW:
                 // 统计/窗口函数不可再聚合，返回 null
-                return "null `" + alias + "`";
+                return "null " + q(alias);
             case NONE:
             default:
                 // 理论上不应该到这里（NONE 不会调用此方法）
-                return "sum(" + colRef + ") `" + alias + "`";
+                return "sum(" + colRef + ") " + q(alias);
         }
     }
 
