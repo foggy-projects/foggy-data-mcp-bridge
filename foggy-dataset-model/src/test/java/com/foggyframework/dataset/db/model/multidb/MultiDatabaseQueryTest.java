@@ -15,6 +15,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import javax.sql.DataSource;
+import java.sql.Connection;
 import java.util.List;
 import java.util.Map;
 
@@ -396,8 +397,12 @@ public class MultiDatabaseQueryTest {
 
     @Test
     @DisplayName("测试窗口函数 ROW_NUMBER/RANK")
-    void testWindowFunctions() {
+    void testWindowFunctions() throws Exception {
         FDialect dialect = DbUtils.getDialect(dataSource);
+
+        if (!supportsWindowFunctions(dialect)) {
+            return;
+        }
 
         String countSql = "SELECT COUNT(*) FROM " + dialect.quoteIdentifier("fact_sales");
         Long count = jdbcTemplate.queryForObject(countSql, Long.class);
@@ -431,8 +436,12 @@ public class MultiDatabaseQueryTest {
 
     @Test
     @DisplayName("测试窗口函数 LAG")
-    void testLagWindowFunction() {
+    void testLagWindowFunction() throws Exception {
         FDialect dialect = DbUtils.getDialect(dataSource);
+
+        if (!supportsWindowFunctions(dialect)) {
+            return;
+        }
 
         String countSql = "SELECT COUNT(*) FROM " + dialect.quoteIdentifier("fact_sales");
         Long count = jdbcTemplate.queryForObject(countSql, Long.class);
@@ -464,8 +473,12 @@ public class MultiDatabaseQueryTest {
 
     @Test
     @DisplayName("测试移动平均窗口帧")
-    void testMovingAverageFrame() {
+    void testMovingAverageFrame() throws Exception {
         FDialect dialect = DbUtils.getDialect(dataSource);
+
+        if (!supportsWindowFunctions(dialect)) {
+            return;
+        }
 
         String countSql = "SELECT COUNT(*) FROM " + dialect.quoteIdentifier("fact_sales");
         Long count = jdbcTemplate.queryForObject(countSql, Long.class);
@@ -533,5 +546,22 @@ public class MultiDatabaseQueryTest {
         } else {
             log.warn("fact_sales 表无数据，跳过STDDEV测试");
         }
+    }
+
+    /**
+     * 检查当前数据库是否支持窗口函数（MySQL 8.0+、PostgreSQL、SQL Server、SQLite 3.25+）
+     */
+    private boolean supportsWindowFunctions(FDialect dialect) throws Exception {
+        if (dialect.getDbType() == DbType.MYSQL) {
+            try (Connection conn = dataSource.getConnection()) {
+                int majorVersion = conn.getMetaData().getDatabaseMajorVersion();
+                if (majorVersion < 8) {
+                    log.info("MySQL {} 不支持窗口函数，跳过",
+                            conn.getMetaData().getDatabaseProductVersion());
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 }

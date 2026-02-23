@@ -146,6 +146,10 @@ class AdvancedAnalyticsTest extends EcommerceTestSupport {
     @Order(10)
     @DisplayName("ROW_NUMBER 窗口函数")
     void testRowNumberWindow() {
+        if (!supportsWindowFunctions()) {
+            log.info("当前数据库不支持窗口函数，跳过");
+            return;
+        }
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
@@ -188,6 +192,10 @@ class AdvancedAnalyticsTest extends EcommerceTestSupport {
     @Order(11)
     @DisplayName("RANK 窗口函数")
     void testRankWindow() {
+        if (!supportsWindowFunctions()) {
+            log.info("当前数据库不支持窗口函数，跳过");
+            return;
+        }
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
@@ -228,6 +236,10 @@ class AdvancedAnalyticsTest extends EcommerceTestSupport {
     @Order(12)
     @DisplayName("LAG 窗口函数 — 环比计算")
     void testLagWindow() {
+        if (!supportsWindowFunctions()) {
+            log.info("当前数据库不支持窗口函数，跳过");
+            return;
+        }
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
@@ -268,6 +280,10 @@ class AdvancedAnalyticsTest extends EcommerceTestSupport {
     @Order(13)
     @DisplayName("移动平均（带窗口帧）")
     void testMovingAverageWithFrame() {
+        if (!supportsWindowFunctions()) {
+            log.info("当前数据库不支持窗口函数，跳过");
+            return;
+        }
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
@@ -341,6 +357,10 @@ class AdvancedAnalyticsTest extends EcommerceTestSupport {
     @Order(21)
     @DisplayName("QM 预定义窗口字段 (salesRank)")
     void testQmPredefinedWindowField() {
+        if (!supportsWindowFunctions()) {
+            log.info("当前数据库不支持窗口函数，跳过");
+            return;
+        }
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 
@@ -370,6 +390,10 @@ class AdvancedAnalyticsTest extends EcommerceTestSupport {
     @Order(22)
     @DisplayName("QM 预定义移动平均字段 (ma7)")
     void testQmPredefinedMovingAverage() {
+        if (!supportsWindowFunctions()) {
+            log.info("当前数据库不支持窗口函数，跳过");
+            return;
+        }
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
 

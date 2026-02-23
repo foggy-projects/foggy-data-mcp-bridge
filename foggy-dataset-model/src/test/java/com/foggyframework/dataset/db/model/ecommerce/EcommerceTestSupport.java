@@ -6,6 +6,9 @@ import com.foggyframework.dataset.db.model.spi.JdbcQueryModel;
 import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
 import com.foggyframework.dataset.db.model.spi.TableModelLoaderManager;
 import com.foggyframework.dataset.db.model.test.JdbcModelTestApplication;
+import com.foggyframework.dataset.db.dialect.DbType;
+import com.foggyframework.dataset.db.dialect.FDialect;
+import com.foggyframework.dataset.utils.DbUtils;
 import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
@@ -15,6 +18,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
+import javax.sql.DataSource;
+import java.sql.Connection;
 import java.util.List;
 import java.util.Map;
 
@@ -135,6 +140,26 @@ public abstract class EcommerceTestSupport {
     protected Long getTableCount(String tableName) {
         String sql = "SELECT COUNT(*) FROM " + tableName;
         return executeQueryForObject(sql, Long.class);
+    }
+
+    /**
+     * 检查当前数据库是否支持窗口函数。
+     * MySQL 8.0+、PostgreSQL、SQL Server、SQLite 3.25+ 均支持；MySQL 5.7 不支持。
+     */
+    protected boolean supportsWindowFunctions() {
+        try {
+            DataSource ds = jdbcTemplate.getDataSource();
+            FDialect dialect = DbUtils.getDialect(ds);
+            if (dialect.getDbType() == DbType.MYSQL) {
+                try (Connection conn = ds.getConnection()) {
+                    return conn.getMetaData().getDatabaseMajorVersion() >= 8;
+                }
+            }
+            return true;
+        } catch (Exception e) {
+            log.warn("无法检测窗口函数支持: {}", e.getMessage());
+            return false;
+        }
     }
 
     /**
