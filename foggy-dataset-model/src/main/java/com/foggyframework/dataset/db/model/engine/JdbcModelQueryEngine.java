@@ -268,7 +268,13 @@ public class JdbcModelQueryEngine implements QueryEngine {
                     if (jdbcQuery.containSelect(order.getSelectColumn())) {
                         continue;
                     }
-                    jdbcQuery.join(order.getSelectColumn().getQueryObject());
+                    // 为 ORDER BY 中的计算字段触发 JOIN
+                    DbColumn selectColumn = order.getSelectColumn();
+                    if (selectColumn.isCalculatedField()) {
+                        joinReferencedColumns(jdbcQuery, selectColumn);
+                    } else {
+                        jdbcQuery.join(selectColumn.getQueryObject());
+                    }
                 }
             }
         }
@@ -580,8 +586,9 @@ public class JdbcModelQueryEngine implements QueryEngine {
         // 判断是否为聚合条件
         boolean isAggregateCondition = isAggregateCondition(sliceDef.getField());
 
-        // 计算字段直接使用 SQL 表达式，不需要 JOIN 和特殊处理
+        // 计算字段需要遍历其引用的列来触发 JOIN
         if (jdbcColumn.isCalculatedField()) {
+            joinReferencedColumns(jdbcQuery, jdbcColumn);
             // 聚合条件需要添加到HAVING，否则添加到WHERE
             if (isAggregateCondition) {
                 sqlFormulaService.buildAndAddToJdbcCond(jdbcQuery.getHaving(), sliceDef.getOp(), jdbcColumn, null, sliceDef.getValue(), parentLink);
@@ -709,10 +716,14 @@ public class JdbcModelQueryEngine implements QueryEngine {
         }
 
         // 确保需要的表已 JOIN
-        if (leftColumn.getQueryObject() != null && !jdbcQuery.getFrom().getFromObject().isRootEqual(leftColumn.getQueryObject())) {
+        if (leftColumn.isCalculatedField()) {
+            joinReferencedColumns(jdbcQuery, leftColumn);
+        } else if (leftColumn.getQueryObject() != null && !jdbcQuery.getFrom().getFromObject().isRootEqual(leftColumn.getQueryObject())) {
             jdbcQuery.join(leftColumn.getQueryObject());
         }
-        if (rightColumn.getQueryObject() != null && !jdbcQuery.getFrom().getFromObject().isRootEqual(rightColumn.getQueryObject())) {
+        if (rightColumn.isCalculatedField()) {
+            joinReferencedColumns(jdbcQuery, rightColumn);
+        } else if (rightColumn.getQueryObject() != null && !jdbcQuery.getFrom().getFromObject().isRootEqual(rightColumn.getQueryObject())) {
             jdbcQuery.join(rightColumn.getQueryObject());
         }
 
@@ -733,6 +744,30 @@ public class JdbcModelQueryEngine implements QueryEngine {
         if (log.isDebugEnabled()) {
             log.debug("Added $field condition: {} {} ${} -> SQL: {}",
                     leftFieldName, op, rightFieldName, sql);
+        }
+    }
+
+    /**
+     * 为计算字段引用的所有列触发 JOIN
+     * <p>
+     * 计算字段（如 count(student$caption)）本身没有 queryObject，
+     * 但其引用的列（如 student$caption）可能需要 JOIN。
+     * </p>
+     *
+     * @param jdbcQuery JDBC 查询对象
+     * @param jdbcColumn 计算字段列
+     */
+    private void joinReferencedColumns(JdbcQuery jdbcQuery, DbColumn jdbcColumn) {
+        if (jdbcColumn instanceof com.foggyframework.dataset.db.model.spi.support.CalculatedDbColumn calcColumn) {
+            java.util.Set<com.foggyframework.dataset.db.model.spi.DbQueryColumn> refs = calcColumn.getReferencedColumns();
+            if (refs != null) {
+                for (com.foggyframework.dataset.db.model.spi.DbQueryColumn ref : refs) {
+                    QueryObject refQueryObject = ref.getQueryObject();
+                    if (refQueryObject != null && !jdbcQuery.getFrom().getFromObject().isRootEqual(refQueryObject)) {
+                        jdbcQuery.join(refQueryObject);
+                    }
+                }
+            }
         }
     }
 

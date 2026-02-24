@@ -342,6 +342,33 @@ public class JdbcQuery {
             order.getOrders().add(column);
         }
 
+        // 为 ORDER BY 中的计算字段触发 JOIN
+        DbColumn selectColumn = column.getSelectColumn();
+        if (selectColumn != null && selectColumn.isCalculatedField()) {
+            joinReferencedColumnsForOrder(selectColumn);
+        }
+    }
+
+    /**
+     * 为 ORDER BY 中的计算字段引用的所有列触发 JOIN
+     * <p>
+     * ORDER BY 子句中的计算字段（如 RANK() OVER (...)）可能需要 JOIN。
+     * </p>
+     *
+     * @param selectColumn 计算字段列
+     */
+    private void joinReferencedColumnsForOrder(DbColumn selectColumn) {
+        if (selectColumn instanceof com.foggyframework.dataset.db.model.spi.support.CalculatedDbColumn calcColumn) {
+            java.util.Set<com.foggyframework.dataset.db.model.spi.DbQueryColumn> refs = calcColumn.getReferencedColumns();
+            if (refs != null) {
+                for (com.foggyframework.dataset.db.model.spi.DbQueryColumn ref : refs) {
+                    QueryObject refQueryObject = ref.getQueryObject();
+                    if (refQueryObject != null && !from.getFromObject().isRootEqual(refQueryObject)) {
+                        from.join(refQueryObject);
+                    }
+                }
+            }
+        }
     }
 
     public boolean containSelect(DbColumn jdbcColumn) {
@@ -385,13 +412,41 @@ public class JdbcQuery {
             }
             columns.add(selectColumn);
 
-            // 计算字段没有 queryObject，不需要 join
-            QueryObject selectQueryObject = selectColumn.getQueryObject();
-            if (selectQueryObject != null && !from.getFromObject().isRootEqual(selectQueryObject)) {
-                //需要加入left join
-                from.join(selectQueryObject);
+            // 计算字段没有 queryObject，需要遍历其引用的列来触发 JOIN
+            if (selectColumn.isCalculatedField()) {
+                joinReferencedColumns(selectColumn);
+            } else {
+                // 普通列：直接检查 queryObject
+                QueryObject selectQueryObject = selectColumn.getQueryObject();
+                if (selectQueryObject != null && !from.getFromObject().isRootEqual(selectQueryObject)) {
+                    //需要加入left join
+                    from.join(selectQueryObject);
+                }
             }
             return this;
+        }
+
+        /**
+         * 为计算字段引用的所有列触发 JOIN
+         * <p>
+         * 计算字段（如 count(student$caption)）本身没有 queryObject，
+         * 但其引用的列（如 student$caption）可能需要 JOIN。
+         * </p>
+         *
+         * @param selectColumn 计算字段列
+         */
+        private void joinReferencedColumns(DbColumn selectColumn) {
+            if (selectColumn instanceof com.foggyframework.dataset.db.model.spi.support.CalculatedDbColumn calcColumn) {
+                java.util.Set<com.foggyframework.dataset.db.model.spi.DbQueryColumn> refs = calcColumn.getReferencedColumns();
+                if (refs != null) {
+                    for (com.foggyframework.dataset.db.model.spi.DbQueryColumn ref : refs) {
+                        QueryObject refQueryObject = ref.getQueryObject();
+                        if (refQueryObject != null && !from.getFromObject().isRootEqual(refQueryObject)) {
+                            from.join(refQueryObject);
+                        }
+                    }
+                }
+            }
         }
     }
 
