@@ -480,28 +480,29 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
     }
 
     /**
-     * 将 QM 中 windowOrderBy 的 List&lt;Object&gt; 转换为 List&lt;WindowOrderDef&gt;
+     * 将 QM 中 windowOrderBy 的 {@code List<Map>} 转换为 {@code List<WindowOrderDef>}
      * <p>
-     * FSScript 转换后 windowOrderBy 可能是 Map 列表（{field: "x", dir: "desc"}）
+     * {@code SelectColumnDef.windowOrderBy} 声明为 {@code List<Map<String, Object>>}，
+     * 这样 FsscriptConversionService 转换时会保留 Map 结构（避免被 MapToObjectConverter
+     * 误转为空 Object 实例）。
      * </p>
      */
-    @SuppressWarnings("unchecked")
-    private List<WindowOrderDef> convertWindowOrderBy(List<Object> rawList) {
+    private List<WindowOrderDef> convertWindowOrderBy(List<Map<String, Object>> rawList) {
         if (rawList == null || rawList.isEmpty()) {
             return null;
         }
         List<WindowOrderDef> result = new ArrayList<>(rawList.size());
-        for (Object item : rawList) {
-            if (item instanceof WindowOrderDef) {
-                result.add((WindowOrderDef) item);
-            } else if (item instanceof Map) {
-                Map<String, Object> map = (Map<String, Object>) item;
-                String field = map.get("field") != null ? map.get("field").toString() : null;
-                String dir = map.get("dir") != null ? map.get("dir").toString() : null;
+        for (Map<String, Object> map : rawList) {
+            if (map == null) {
+                continue;
+            }
+            String field = map.get("field") != null ? map.get("field").toString() : null;
+            String dir = map.get("dir") != null ? map.get("dir").toString() : null;
+            if (field != null) {
                 result.add(new WindowOrderDef(field, dir));
             }
         }
-        return result;
+        return result.isEmpty() ? null : result;
     }
 
     private void addColumn(QueryModelSupport qm, QueryColumnGroup group, String columnName, SelectColumnDef item, boolean hasRef) {

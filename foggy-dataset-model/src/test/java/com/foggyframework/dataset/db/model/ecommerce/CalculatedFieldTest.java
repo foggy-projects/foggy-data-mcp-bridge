@@ -584,9 +584,8 @@ class CalculatedFieldTest extends EcommerceTestSupport {
                 (sales_amount - discount_amount) as net_amount
             FROM fact_sales
             ORDER BY order_id ASC
-            LIMIT 10
             """;
-        List<Map<String, Object>> nativeResults = jdbcTemplate.queryForList(nativeSql);
+        List<Map<String, Object>> nativeResults = jdbcTemplate.queryForList(paginateSql(nativeSql, 10));
         log.info("原生SQL结果: {} 条", nativeResults.size());
 
         // 2. 模型查询 - 使用计算字段
@@ -619,7 +618,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
         queryRequest.setOrderBy(orders);
 
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
-        String modelSql = queryEngine.getSql() + " LIMIT 10";
+        String modelSql = paginateSql(queryEngine.getSql(), 10);
         printSql(modelSql, "计算字段模型SQL");
 
         List<Map<String, Object>> modelResults = jdbcTemplate.queryForList(modelSql);
@@ -656,9 +655,8 @@ class CalculatedFieldTest extends EcommerceTestSupport {
                 (sales_amount - discount_amount) * 1.13 as tax_amount
             FROM fact_sales
             ORDER BY order_id ASC
-            LIMIT 10
             """;
-        List<Map<String, Object>> nativeResults = jdbcTemplate.queryForList(nativeSql);
+        List<Map<String, Object>> nativeResults = jdbcTemplate.queryForList(paginateSql(nativeSql, 10));
         log.info("原生SQL结果: {} 条", nativeResults.size());
 
         // 2. 模型查询 - 使用计算字段
@@ -691,7 +689,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
         queryRequest.setOrderBy(orders);
 
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
-        String modelSql = queryEngine.getSql() + " LIMIT 10";
+        String modelSql = paginateSql(queryEngine.getSql(), 10);
         printSql(modelSql, "复合计算字段模型SQL");
 
         List<Map<String, Object>> modelResults = jdbcTemplate.queryForList(modelSql);
@@ -723,9 +721,8 @@ class CalculatedFieldTest extends EcommerceTestSupport {
                 ABS(discount_amount) as abs_discount
             FROM fact_sales
             ORDER BY order_id ASC
-            LIMIT 10
             """;
-        List<Map<String, Object>> nativeResults = jdbcTemplate.queryForList(nativeSql);
+        List<Map<String, Object>> nativeResults = jdbcTemplate.queryForList(paginateSql(nativeSql, 10));
         log.info("原生SQL结果: {} 条", nativeResults.size());
 
         // 2. 模型查询
@@ -757,7 +754,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
         queryRequest.setOrderBy(orders);
 
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
-        String modelSql = queryEngine.getSql() + " LIMIT 10";
+        String modelSql = paginateSql(queryEngine.getSql(), 10);
         printSql(modelSql, "ABS函数计算字段SQL");
 
         List<Map<String, Object>> modelResults = jdbcTemplate.queryForList(modelSql);
@@ -789,9 +786,8 @@ class CalculatedFieldTest extends EcommerceTestSupport {
                 ROUND(sales_amount, 1) as rounded_amount
             FROM fact_sales
             ORDER BY order_id ASC
-            LIMIT 10
             """;
-        List<Map<String, Object>> nativeResults = jdbcTemplate.queryForList(nativeSql);
+        List<Map<String, Object>> nativeResults = jdbcTemplate.queryForList(paginateSql(nativeSql, 10));
         log.info("原生SQL结果: {} 条", nativeResults.size());
 
         // 2. 模型查询
@@ -823,7 +819,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
         queryRequest.setOrderBy(orders);
 
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
-        String modelSql = queryEngine.getSql() + " LIMIT 10";
+        String modelSql = paginateSql(queryEngine.getSql(), 10);
         printSql(modelSql, "ROUND函数计算字段SQL");
 
         List<Map<String, Object>> modelResults = jdbcTemplate.queryForList(modelSql);
@@ -855,9 +851,8 @@ class CalculatedFieldTest extends EcommerceTestSupport {
                 COALESCE(discount_amount, 0) as safe_discount
             FROM fact_sales
             ORDER BY order_id ASC
-            LIMIT 10
             """;
-        List<Map<String, Object>> nativeResults = jdbcTemplate.queryForList(nativeSql);
+        List<Map<String, Object>> nativeResults = jdbcTemplate.queryForList(paginateSql(nativeSql, 10));
         log.info("原生SQL结果: {} 条", nativeResults.size());
 
         // 2. 模型查询
@@ -889,7 +884,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
         queryRequest.setOrderBy(orders);
 
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
-        String modelSql = queryEngine.getSql() + " LIMIT 10";
+        String modelSql = paginateSql(queryEngine.getSql(), 10);
         printSql(modelSql, "COALESCE函数计算字段SQL");
 
         List<Map<String, Object>> modelResults = jdbcTemplate.queryForList(modelSql);
@@ -923,9 +918,8 @@ class CalculatedFieldTest extends EcommerceTestSupport {
             FROM fact_sales
             WHERE sales_amount > 100
             ORDER BY order_id ASC
-            LIMIT 10
             """;
-        List<Map<String, Object>> nativeResults = jdbcTemplate.queryForList(nativeSql);
+        List<Map<String, Object>> nativeResults = jdbcTemplate.queryForList(paginateSql(nativeSql, 10));
         log.info("原生SQL结果: {} 条", nativeResults.size());
 
         // 2. 模型查询 - 使用计算字段计算利润率
@@ -968,7 +962,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
         queryRequest.setOrderBy(orders);
 
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
-        String modelSql = queryEngine.getSql() + " LIMIT 10";
+        String modelSql = paginateSql(queryEngine.getSql(), 10);
         List<Object> values = queryEngine.getValues();
         printSql(modelSql, "带过滤条件的计算字段SQL");
         log.info("参数: {}", values);
@@ -1009,9 +1003,8 @@ class CalculatedFieldTest extends EcommerceTestSupport {
             WHERE sales_amount > 0
               AND profit_amount * 100.0 / sales_amount > 10
             ORDER BY order_id ASC
-            LIMIT 10
             """;
-        List<Map<String, Object>> nativeResults = jdbcTemplate.queryForList(nativeSql);
+        List<Map<String, Object>> nativeResults = jdbcTemplate.queryForList(paginateSql(nativeSql, 10));
         log.info("原生SQL结果: {} 条", nativeResults.size());
 
         // 2. 模型查询 - 使用计算字段作为过滤条件
@@ -1062,7 +1055,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
         queryRequest.setOrderBy(orders);
 
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
-        String modelSql = queryEngine.getSql() + " LIMIT 10";
+        String modelSql = paginateSql(queryEngine.getSql(), 10);
         List<Object> values = queryEngine.getValues();
         printSql(modelSql, "计算字段作为过滤条件SQL");
         log.info("参数: {}", values);
@@ -1108,9 +1101,8 @@ class CalculatedFieldTest extends EcommerceTestSupport {
                             (sales_amount - discount_amount) * 1.13 as tax_included
                         FROM fact_sales
                         ORDER BY order_id ASC
-                        LIMIT 10
                 """;
-        List<Map<String, Object>> nativeResults = jdbcTemplate.queryForList(nativeSql);
+        List<Map<String, Object>> nativeResults = jdbcTemplate.queryForList(paginateSql(nativeSql, 10));
         log.info("原生SQL结果: {} 条", nativeResults.size());
 
         // 2. 模型查询 - 计算字段链式依赖
@@ -1152,7 +1144,7 @@ class CalculatedFieldTest extends EcommerceTestSupport {
         queryRequest.setOrderBy(orders);
 
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
-        String modelSql = queryEngine.getSql() + " LIMIT 10";
+        String modelSql = paginateSql(queryEngine.getSql(), 10);
         printSql(modelSql, "计算字段链式依赖SQL");
 
         List<Map<String, Object>> modelResults = jdbcTemplate.queryForList(modelSql);

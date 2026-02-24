@@ -267,6 +267,11 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
 
             // 2.1 如果有 partitionBy/windowOrderBy，包装窗口子句
             if (fieldDef.getPartitionBy() != null || fieldDef.getWindowOrderBy() != null) {
+                if (log.isDebugEnabled()) {
+                    log.debug("Window clause for {}: partitionBy={}, windowOrderBy={}, windowFrame={}",
+                            fieldDef.getName(), fieldDef.getPartitionBy(),
+                            fieldDef.getWindowOrderBy(), fieldDef.getWindowFrame());
+                }
                 sqlFragment = wrapWithWindowClause(sqlFragment, fieldDef, context, appCtx);
             }
 

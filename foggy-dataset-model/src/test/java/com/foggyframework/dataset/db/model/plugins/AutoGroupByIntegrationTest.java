@@ -839,7 +839,7 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
         // 测试：内联聚合表达式在 GROUP BY 场景下的排序
         // 例如：sum(quantity) as quantity
 
-        // 1. 原生 SQL 查询（按总数量升序）
+        // 1. 原生 SQL 查询（按总数量升序，品类名称作为二级排序确保确定性）
         String nativeSql = """
                 SELECT
                     dp.category_name as category_name,
@@ -848,7 +848,7 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
                 FROM fact_sales fs
                 LEFT JOIN dim_product dp ON fs.product_key = dp.product_key
                 GROUP BY dp.category_name
-                ORDER BY total_quantity ASC
+                ORDER BY total_quantity ASC, dp.category_name ASC
                 """;
         List<Map<String, Object>> nativeResults = executeQuery(nativeSql);
         log.info("原生 SQL 结果 (内联聚合表达式排序 ASC): {} 条", nativeResults.size());
@@ -861,7 +861,10 @@ class AutoGroupByIntegrationTest extends EcommerceTestSupport {
                 "sum(quantity) as quantity2",  // 内联聚合表达式
                 "sum(salesAmount) as salesAmount2"
         ));
-        request.setOrderBy(createOrderList("quantity2", "ASC"));
+        List<OrderRequestDef> orders = new ArrayList<>();
+        orders.add(createOrder("quantity2", "ASC"));
+        orders.add(createOrder("product$categoryName", "ASC"));
+        request.setOrderBy(orders);
 
         PagingResultImpl result = queryFacade.queryModelData(
                 PagingRequest.buildPagingRequest(request, 100));

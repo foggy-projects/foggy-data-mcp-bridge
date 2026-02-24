@@ -163,6 +163,19 @@ public abstract class EcommerceTestSupport {
     }
 
     /**
+     * 使用当前数据库方言生成分页SQL。
+     * <p>将 MySQL LIMIT 语法替换为各数据库通用的分页语法。</p>
+     *
+     * @param sql   原始SQL（不含 LIMIT）
+     * @param limit 返回记录数
+     * @return 分页SQL
+     */
+    protected String paginateSql(String sql, int limit) {
+        FDialect dialect = DbUtils.getDialect(jdbcTemplate.getDataSource());
+        return dialect.generatePagingSql(sql, 0, limit);
+    }
+
+    /**
      * 打印查询结果
      *
      * @param results 查询结果

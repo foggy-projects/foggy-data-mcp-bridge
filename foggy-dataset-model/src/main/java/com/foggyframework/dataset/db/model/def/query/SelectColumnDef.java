@@ -37,7 +37,7 @@ public class SelectColumnDef {
     /** 窗口函数 PARTITION BY */
     List<String> partitionBy;
     /** 窗口函数 ORDER BY */
-    List<Object> windowOrderBy;
+    List<Map<String, Object>> windowOrderBy;
     /** 窗口帧 */
     String windowFrame;
 
