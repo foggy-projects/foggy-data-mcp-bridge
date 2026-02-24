@@ -295,6 +295,88 @@ class SemanticServiceV3Test extends EcommerceTestSupport {
     }
 
     // ==========================================
+    // 维度属性过滤测试
+    // ==========================================
+
+    @Test
+    @Order(25)
+    @DisplayName("BUG修复 - Markdown元数据应只包含QM暴露的维度属性，不应包含TM中未暴露的属性")
+    void testMetadata_Markdown_ShouldOnlyContainQmExposedDimensionProperties() {
+        SemanticMetadataRequest request = new SemanticMetadataRequest();
+        request.setQmModels(Collections.singletonList(TEST_MODEL));
+
+        SemanticMetadataResponse response = semanticServiceV3.getMetadata(request, "markdown");
+
+        assertNotNull(response, "响应不应为空");
+        String content = response.getContent();
+        assertNotNull(content, "内容不应为空");
+
+        // QM中暴露的客户维度属性 — 这些应该出现在输出中
+        assertTrue(content.contains("customer$customerType"), "应包含QM暴露的 customer$customerType");
+        assertTrue(content.contains("customer$gender"), "应包含QM暴露的 customer$gender");
+        assertTrue(content.contains("customer$ageGroup"), "应包含QM暴露的 customer$ageGroup");
+        assertTrue(content.contains("customer$province"), "应包含QM暴露的 customer$province");
+        assertTrue(content.contains("customer$city"), "应包含QM暴露的 customer$city");
+        assertTrue(content.contains("customer$memberLevel"), "应包含QM暴露的 customer$memberLevel");
+
+        // QM中未暴露的客户维度属性 — 这些不应该出现在输出中
+        // customer$customerId 在TM维度属性中存在，但QM的columnGroups没有引用它
+        assertFalse(content.contains("customer$customerId"),
+                "不应包含QM未暴露的 customer$customerId，否则用户使用该字段查询会报错: " +
+                "Cannot find column customer$customerId in query model");
+
+        log.info("维度属性过滤验证通过");
+    }
+
+    @Test
+    @Order(26)
+    @DisplayName("BUG修复 - JSON元数据应只包含QM暴露的维度属性")
+    void testMetadata_Json_ShouldOnlyContainQmExposedDimensionProperties() {
+        SemanticMetadataRequest request = new SemanticMetadataRequest();
+        request.setQmModels(Collections.singletonList(TEST_MODEL));
+
+        SemanticMetadataResponse response = semanticServiceV3.getMetadata(request, "json");
+
+        assertNotNull(response, "响应不应为空");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> fields = (Map<String, Object>) response.getData().get("fields");
+        assertNotNull(fields, "字段信息不应为空");
+
+        // QM中暴露的 — 应存在
+        assertTrue(fields.containsKey("customer$customerType"), "应包含QM暴露的 customer$customerType");
+        assertTrue(fields.containsKey("customer$gender"), "应包含QM暴露的 customer$gender");
+
+        // QM中未暴露的 — 不应存在
+        assertFalse(fields.containsKey("customer$customerId"),
+                "不应包含QM未暴露的 customer$customerId");
+
+        log.info("JSON元数据维度属性过滤验证通过");
+    }
+
+    @Test
+    @Order(27)
+    @DisplayName("BUG修复 - 多模型元数据应只包含QM暴露的维度属性")
+    void testMetadata_MultiModel_ShouldOnlyContainQmExposedDimensionProperties() {
+        SemanticMetadataRequest request = new SemanticMetadataRequest();
+        request.setQmModels(Arrays.asList(TEST_MODEL, "FactSalesQueryModel"));
+
+        SemanticMetadataResponse response = semanticServiceV3.getMetadata(request, "markdown");
+
+        assertNotNull(response, "响应不应为空");
+        String content = response.getContent();
+        assertNotNull(content, "内容不应为空");
+
+        // QM中暴露的应存在
+        assertTrue(content.contains("customer$customerType"), "应包含QM暴露的 customer$customerType");
+
+        // QM中未暴露的不应存在
+        assertFalse(content.contains("customer$customerId"),
+                "不应包含QM未暴露的 customer$customerId");
+
+        log.info("多模型维度属性过滤验证通过");
+    }
+
+    // ==========================================
     // 对比 V2 和 V3
     // ==========================================
 

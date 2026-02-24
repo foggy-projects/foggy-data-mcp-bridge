@@ -218,13 +218,17 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                         .append(" | ").append(dimCaption).append("显示名称")
                         .append(" |\n");
 
-                // 维度属性
+                // 维度属性（仅输出QM暴露的属性）
                 if (dimension instanceof DbDimensionSupport) {
                     for (DbProperty prop : ((DbDimensionSupport) dimension).getJdbcProperties()) {
+                        String propFieldName = dimName + "$" + prop.getName();
+                        // 检查该属性是否通过QM的columnGroups暴露
+                        if (queryModel.findJdbcQueryColumnByName(propFieldName, false) == null) {
+                            continue;
+                        }
                         if (!isFieldInLevels(prop.getAi(), request.getLevels())) {
                             continue;
                         }
-                        String propFieldName = dimName + "$" + prop.getName();
                         dimensionFieldNames.add(propFieldName);
                         String propCaption = prop.getCaption() != null ? prop.getCaption() : prop.getName();
                         String propType = getDataTypeDescription(prop.getPropertyDbColumn().getType());
@@ -683,12 +687,15 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             Map<String, Object> captionFieldInfo = createDimensionCaptionFieldInfo(dimension, queryModel.getName());
             fields.put(captionFieldName, captionFieldInfo);
 
-            // 3. 处理维度属性
+            // 3. 处理维度属性（仅包含QM暴露的属性）
             for (DbProperty prop : ((DbDimensionSupport) dimension).getJdbcProperties()) {
+                String propFieldName = baseName + "$" + prop.getName();
+                if (queryModel.findJdbcQueryColumnByName(propFieldName, false) == null) {
+                    continue;
+                }
                 if (!isFieldInLevels(prop.getAi(), levels)) {
                     continue;
                 }
-                String propFieldName = baseName + "$" + prop.getName();
                 Map<String, Object> propFieldInfo = createDimensionPropertyFieldInfo(dimension, prop, queryModel.getName());
                 fields.put(propFieldName, propFieldInfo);
             }
@@ -982,12 +989,15 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             FieldInfoV3 captionFieldInfo = allFields.computeIfAbsent(captionFieldName, k -> new FieldInfoV3());
             captionFieldInfo.addDimensionCaption(dimension, queryModel.getName(), this);
 
-            // 维度属性
+            // 维度属性（仅包含QM暴露的属性）
             for (DbProperty prop : ((DbDimensionSupport) dimension).getJdbcProperties()) {
+                String propFieldName = baseName + "$" + prop.getName();
+                if (queryModel.findJdbcQueryColumnByName(propFieldName, false) == null) {
+                    continue;
+                }
                 if (!isFieldInLevels(prop.getAi(), levels)) {
                     continue;
                 }
-                String propFieldName = baseName + "$" + prop.getName();
                 FieldInfoV3 propFieldInfo = allFields.computeIfAbsent(propFieldName, k -> new FieldInfoV3());
                 propFieldInfo.addDimensionProperty(dimension, prop, queryModel.getName(), this,
                         referencedDictIds, referencedDictClasses);
