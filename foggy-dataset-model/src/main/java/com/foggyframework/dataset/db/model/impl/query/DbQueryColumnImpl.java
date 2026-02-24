@@ -25,9 +25,19 @@ public class DbQueryColumnImpl extends DbObjectSupport implements DbQueryColumn 
 
     DbQueryCondition dbQueryCondition;
 
+    /**
+     * 别名（alias）
+     * <p>用户在 QM 中定义的列别名，用于避免多模型 JOIN 时重名问题。
+     * <p>示例：在 QM 中定义 { ref: dc.customerType, alias: 'custType' }，
+     * 则 alias 为 'custType'，用于在查询结果中重命名该字段。
+     * <p>作用：
+     * <ul>
+     *   <li>在 SQL SELECT 子句中作为列别名（AS alias）</li>
+     *   <li>在查询条件中作为字段名（WHERE alias = ?）</li>
+     *   <li>在返回结果中作为字段名</li>
+     * </ul>
+     */
     String alias;
-
-    String field;
 
     boolean hasRef;
 
@@ -53,15 +63,11 @@ public class DbQueryColumnImpl extends DbObjectSupport implements DbQueryColumn 
 //        this.selectColumn = selectColumn;
 //    }
 
-    public DbQueryColumnImpl(DbColumn selectColumn, String name, String caption, String alias, String field) {
+    public DbQueryColumnImpl(DbColumn selectColumn, String name, String caption, String alias) {
         this.selectColumn = selectColumn;
         this.name = name;
         this.caption = caption;
         this.alias = alias;
-        this.field = field;
-        if (StringUtils.isEmpty(field)) {
-            this.field = this.alias;
-        }
     }
 
 //    public JdbcQueryColumnImpl(JdbcColumn selectColumn, JdbcQueryCond jdbcQueryCond) {

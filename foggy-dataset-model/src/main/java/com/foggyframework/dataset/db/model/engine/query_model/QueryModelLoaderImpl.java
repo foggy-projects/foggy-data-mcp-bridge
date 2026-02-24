@@ -509,7 +509,19 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
         // columnName 使用 alias 格式（_ 分隔），因为列在 TableModel 中以 alias 格式索引
         DbColumn jdbcColumn = qm.findJdbcColumnForCond(columnName, true);
 
-        DbQueryColumn dbQueryColumn = new DbQueryColumnImpl(jdbcColumn, columnName, item.getCaption(), item.getAlias(), item.getField());
+        /**
+         * 创建 DbQueryColumn 并设置字段名相关属性：
+         *
+         * @param jdbcColumn 从 TableModel 中找到的列
+         * @param columnName 列名（name），用于在 QM 中标识列（通过 findJdbcQueryColumnByName 查找）
+         * @param item.getCaption() 列标题
+         * @param item.getAlias() 别名（alias），用户在 QM 中定义的列别名，用于避免多模型 JOIN 时重名
+         *
+         * 说明：
+         * - name: 列的唯一标识，用于在 QM 中查找列
+         * - alias: 用户定义的别名，用于重命名字段（如 { ref: dc.customerType, alias: 'custType' }）
+         */
+        DbQueryColumn dbQueryColumn = new DbQueryColumnImpl(jdbcColumn, columnName, item.getCaption(), item.getAlias());
         dbQueryColumn.setHasRef(hasRef);
 
         qm.addJdbcQueryColumn(dbQueryColumn);

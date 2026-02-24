@@ -221,14 +221,21 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                 // 维度属性（仅输出QM暴露的属性）
                 if (dimension instanceof DbDimensionSupport) {
                     for (DbProperty prop : ((DbDimensionSupport) dimension).getJdbcProperties()) {
-                        String propFieldName = dimName + "$" + prop.getName();
-                        // 检查该属性是否通过QM的columnGroups暴露
-                        if (queryModel.findJdbcQueryColumnByName(propFieldName, false) == null) {
+                        // 先尝试使用默认格式查找
+                        String defaultPropFieldName = dimName + "$" + prop.getName();
+                        DbQueryColumn queryColumn = queryModel.findJdbcQueryColumnByName(defaultPropFieldName, false);
+                        
+                        if (queryColumn == null) {
                             continue;
                         }
+                        
                         if (!isFieldInLevels(prop.getAi(), request.getLevels())) {
                             continue;
                         }
+                        
+                        // 使用 QM 中定义的列名（name），而不是默认格式
+                        // 这样可以支持用户在 QM 中使用 alias 重命名字段
+                        String propFieldName = queryColumn.getName();
                         dimensionFieldNames.add(propFieldName);
                         String propCaption = prop.getCaption() != null ? prop.getCaption() : prop.getName();
                         String propType = getDataTypeDescription(prop.getPropertyDbColumn().getType());
@@ -264,8 +271,9 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         List<DbQueryProperty> queryProperties = queryModel.getQueryProperties();
         if (queryProperties != null && !queryProperties.isEmpty()) {
             // 过滤掉已在维度字段中输出的属性
+            // 注意：使用 qp.getName() 而不是 qp.getProperty().getName()，因为 dimensionFieldNames 中存储的是 QM 中定义的列名
             List<DbQueryProperty> filteredProperties = queryProperties.stream()
-                    .filter(qp -> !dimensionFieldNames.contains(qp.getProperty().getName()))
+                    .filter(qp -> !dimensionFieldNames.contains(qp.getName()))
                     .toList();
 
             if (!filteredProperties.isEmpty()) {
@@ -689,14 +697,22 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
 
             // 3. 处理维度属性（仅包含QM暴露的属性）
             for (DbProperty prop : ((DbDimensionSupport) dimension).getJdbcProperties()) {
-                String propFieldName = baseName + "$" + prop.getName();
-                if (queryModel.findJdbcQueryColumnByName(propFieldName, false) == null) {
+                // 先尝试使用默认格式查找
+                String defaultPropFieldName = baseName + "$" + prop.getName();
+                DbQueryColumn queryColumn = queryModel.findJdbcQueryColumnByName(defaultPropFieldName, false);
+                
+                if (queryColumn == null) {
                     continue;
                 }
+                
                 if (!isFieldInLevels(prop.getAi(), levels)) {
                     continue;
                 }
-                Map<String, Object> propFieldInfo = createDimensionPropertyFieldInfo(dimension, prop, queryModel.getName());
+                
+                // 使用 QM 中定义的列名（name），而不是默认格式
+                // 这样可以支持用户在 QM 中使用 alias 重命名字段
+                String propFieldName = queryColumn.getName();
+                Map<String, Object> propFieldInfo = createDimensionPropertyFieldInfo(dimension, prop, queryModel.getName(), propFieldName);
                 fields.put(propFieldName, propFieldInfo);
             }
         }
@@ -811,13 +827,11 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
     /**
      * 创建维度属性字段信息
      */
-    private Map<String, Object> createDimensionPropertyFieldInfo(DbDimension dimension, DbProperty prop, String modelName) {
+    private Map<String, Object> createDimensionPropertyFieldInfo(DbDimension dimension, DbProperty prop, String modelName, String fieldName) {
         Map<String, Object> fieldInfo = new LinkedHashMap<>();
-        String baseName = dimension.getEffectiveName();
-        String propName = baseName + "$" + prop.getName();
 
         fieldInfo.put("name", (prop.getCaption() != null ? prop.getCaption() : prop.getName()));
-        fieldInfo.put("fieldName", propName);
+        fieldInfo.put("fieldName", fieldName);
 
         DbColumnType columnType = prop.getPropertyDbColumn().getType();
         String dataType = getDataTypeDescription(columnType);
@@ -991,13 +1005,21 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
 
             // 维度属性（仅包含QM暴露的属性）
             for (DbProperty prop : ((DbDimensionSupport) dimension).getJdbcProperties()) {
-                String propFieldName = baseName + "$" + prop.getName();
-                if (queryModel.findJdbcQueryColumnByName(propFieldName, false) == null) {
+                // 先尝试使用默认格式查找
+                String defaultPropFieldName = baseName + "$" + prop.getName();
+                DbQueryColumn queryColumn = queryModel.findJdbcQueryColumnByName(defaultPropFieldName, false);
+                
+                if (queryColumn == null) {
                     continue;
                 }
+                
                 if (!isFieldInLevels(prop.getAi(), levels)) {
                     continue;
                 }
+                
+                // 使用 QM 中定义的列名（name），而不是默认格式
+                // 这样可以支持用户在 QM 中使用 alias 重命名字段
+                String propFieldName = queryColumn.getName();
                 FieldInfoV3 propFieldInfo = allFields.computeIfAbsent(propFieldName, k -> new FieldInfoV3());
                 propFieldInfo.addDimensionProperty(dimension, prop, queryModel.getName(), this,
                         referencedDictIds, referencedDictClasses);
