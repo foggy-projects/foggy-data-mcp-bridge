@@ -13,13 +13,16 @@
       "properties": {
         "calculatedFields": {
           "type": "array",
-          "description": "计算字段定义（复杂表达式或需指定 agg 时使用）",
+          "description": "计算字段定义（复杂表达式、窗口函数或需指定 agg 时使用）",
           "items": {
             "type": "object",
             "properties": {
               "name": { "type": "string", "description": "字段名称，在 columns 中引用" },
-              "expression": { "type": "string", "description": "表达式，支持算术运算、函数(ABS,ROUND,COALESCE)、字段引用" },
-              "agg": { "type": "string", "enum": ["SUM", "AVG", "MAX", "MIN", "COUNT"], "description": "聚合类型，groupBy 场景使用" }
+              "expression": { "type": "string", "description": "表达式，支持算术运算、函数、窗口函数(RANK/ROW_NUMBER/LAG等)" },
+              "agg": { "type": "string", "enum": ["SUM", "AVG", "MAX", "MIN", "COUNT", "COUNT_DISTINCT", "STDDEV_POP", "STDDEV_SAMP", "VAR_POP", "VAR_SAMP"], "description": "聚合类型，groupBy 场景使用" },
+              "partitionBy": { "type": "array", "items": { "type": "string" }, "description": "窗口函数 PARTITION BY 字段列表" },
+              "windowOrderBy": { "type": "array", "items": { "type": "object", "properties": { "field": { "type": "string" }, "dir": { "type": "string", "enum": ["asc", "desc"] } } }, "description": "窗口函数 ORDER BY" },
+              "windowFrame": { "type": "string", "description": "窗口帧，如 ROWS BETWEEN 6 PRECEDING AND CURRENT ROW" }
             },
             "required": ["name", "expression"]
           }
@@ -111,7 +114,7 @@
                 "type": "object",
                 "properties": {
                   "field": { "type": "string" },
-                  "agg": { "type": "string", "enum": ["MAX", "MIN", "SUM", "AVG", "COUNT", "PK"] }
+                  "agg": { "type": "string", "enum": ["MAX", "MIN", "SUM", "AVG", "COUNT", "COUNT_DISTINCT", "STDDEV_POP", "STDDEV_SAMP", "VAR_POP", "VAR_SAMP", "PK"] }
                 },
                 "required": ["field"]
               }

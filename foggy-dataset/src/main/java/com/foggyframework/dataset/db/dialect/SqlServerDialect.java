@@ -64,14 +64,43 @@ public class SqlServerDialect extends FDialect {
         StringBuilder sb = new StringBuilder(sql.length() + 50);
         sb.append(sql);
 
-        // 检查是否有 ORDER BY，没有则添加默认排序
-        if (!sql.toUpperCase().contains("ORDER BY")) {
+        // 检查是否有顶层 ORDER BY（排除 OVER() 子句内的 ORDER BY）
+        if (!hasTopLevelOrderBy(sql)) {
             sb.append(" ORDER BY (SELECT NULL)");
         }
 
         sb.append(" OFFSET ").append(start).append(" ROWS");
         sb.append(" FETCH NEXT ").append(limit).append(" ROWS ONLY");
         return sb.toString();
+    }
+
+    /**
+     * 检测 SQL 中是否存在顶层 ORDER BY（不在括号内）。
+     * <p>
+     * 简单的 {@code sql.contains("ORDER BY")} 会误匹配
+     * {@code OVER(ORDER BY ...)} 等子句内的 ORDER BY，
+     * 导致误判 SQL 已含排序，从而省略 {@code ORDER BY (SELECT NULL)}，
+     * 而 SQL Server 的 OFFSET...FETCH 必须紧跟顶层 ORDER BY。
+     * </p>
+     */
+    private boolean hasTopLevelOrderBy(String sql) {
+        String upper = sql.toUpperCase();
+        int depth = 0;
+        for (int i = 0; i < upper.length(); i++) {
+            char c = upper.charAt(i);
+            if (c == '(') {
+                depth++;
+            } else if (c == ')') {
+                depth--;
+            } else if (depth == 0 && c == 'O' && i + 8 <= upper.length()
+                    && upper.startsWith("ORDER BY", i)) {
+                // 确保不是某个标识符的一部分（如 REORDER_BY）
+                if (i == 0 || !Character.isLetterOrDigit(upper.charAt(i - 1))) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     @Override
@@ -151,5 +180,27 @@ public class SqlServerDialect extends FDialect {
     public String getColumnComment(String comment) {
         // SQL Server 使用 sp_addextendedproperty，这里返回空，需要单独处理
         return "";
+    }
+
+    @Override
+    public String buildStatFunction(String funcName, String column) {
+        switch (funcName) {
+            case "STDDEV_POP": return "STDEVP(" + column + ")";
+            case "STDDEV_SAMP": return "STDEV(" + column + ")";
+            case "VAR_POP": return "VARP(" + column + ")";
+            case "VAR_SAMP": return "VAR(" + column + ")";
+            default: return funcName + "(" + column + ")";
+        }
+    }
+
+    @Override
+    public String buildStatFunction(String funcName) {
+        switch (funcName) {
+            case "STDDEV_POP": return "STDEVP";
+            case "STDDEV_SAMP": return "STDEV";
+            case "VAR_POP": return "VARP";
+            case "VAR_SAMP": return "VAR";
+            default: return funcName;
+        }
     }
 }

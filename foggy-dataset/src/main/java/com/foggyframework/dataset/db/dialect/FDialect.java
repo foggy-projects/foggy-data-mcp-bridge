@@ -340,6 +340,34 @@ public abstract class FDialect {
     public abstract String buildDateFormatFunction(String column);
 
     /**
+     * 构建统计函数 SQL（STDDEV_POP / STDDEV_SAMP / VAR_POP / VAR_SAMP）
+     * <p>
+     * MySQL/PostgreSQL 直接使用标准名称。
+     * 子类（如 SqlServerDialect、SqliteDialect）可重写以适配方言差异。
+     * </p>
+     *
+     * @param funcName 标准函数名
+     * @param column   列表达式
+     * @return 方言特定的 SQL 表达式
+     */
+    public String buildStatFunction(String funcName, String column) {
+        return funcName + "(" + column + ")";
+    }
+
+    /**
+     * 获取统计函数的方言名称（不含参数）
+     * <p>
+     * 用于 SqlFunctionExp 中仅翻译函数名，参数由调用方拼接。
+     * </p>
+     *
+     * @param funcName 标准函数名
+     * @return 方言特定的函数名
+     */
+    public String buildStatFunction(String funcName) {
+        return funcName;
+    }
+
+    /**
      * 转换参数值以适配不同数据库的参数绑定需求
      * <p>
      * 默认实现：直接返回原值（适用于MySQL、PostgreSQL、SQL Server等）

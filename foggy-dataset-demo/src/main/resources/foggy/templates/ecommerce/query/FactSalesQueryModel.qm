@@ -97,7 +97,36 @@ export const queryModel = {
                 { ref: fs.costAmount },
                 { ref: fs.profitAmount },
                 { ref: fs.taxAmount },
-                { ref: fs.taxAmount2 }
+                { ref: fs.taxAmount2 },
+                { ref: fs.uniqueCustomers }
+            ]
+        },
+        {
+            caption: '高级分析',
+            items: [
+                {
+                    name: 'profitRate',
+                    caption: '利润率(%)',
+                    formula: 'profitAmount / salesAmount * 100',
+                    type: 'NUMBER'
+                },
+                {
+                    name: 'salesRank',
+                    caption: '品类销售排名',
+                    formula: 'RANK()',
+                    partitionBy: ['product$categoryName'],
+                    windowOrderBy: [{ field: 'salesAmount', dir: 'desc' }],
+                    type: 'INTEGER'
+                },
+                {
+                    name: 'ma7',
+                    caption: '7日移动平均',
+                    formula: 'AVG(salesAmount)',
+                    partitionBy: ['product$caption'],
+                    windowOrderBy: [{ field: 'salesDate$caption', dir: 'asc' }],
+                    windowFrame: 'ROWS BETWEEN 6 PRECEDING AND CURRENT ROW',
+                    type: 'NUMBER'
+                }
             ]
         }
     ],

@@ -154,9 +154,30 @@ A: 确保 `bundleName` 参数已正确设置，例如：
 
 创建 `src/main/resources/foggy/templates/` 目录（如不存在）
 
-### 6. 验证配置
+### 6. 验证配置（自检清单）
 
-提示用户启动项目验证配置是否正确
+完成所有步骤后，**必须逐项检查**以下内容，未通过的项标记为 `[ ]` 并给出修复建议：
+
+| # | 检查项 | 检查方法 |
+|---|--------|----------|
+| 1 | Maven 依赖已添加 | Grep `pom.xml` 中包含 `foggy-dataset-model` |
+| 2 | 版本使用属性管理 | Grep `pom.xml` 中包含 `<foggy-model.version>` |
+| 3 | `@EnableFoggyFramework` 已配置 | Grep `**/*.java` 中包含 `@EnableFoggyFramework` |
+| 4 | `bundleName` 参数非空 | 确认注解中 `bundleName = "..."` 不为空字符串 |
+| 5 | 数据源已配置 | Grep `application*.yml` 中包含 `spring.datasource` 或 `spring.data` |
+| 6 | 模型目录已创建 | 检查 `src/main/resources/foggy/templates/` 目录存在 |
+
+**输出格式**：
+```
+自检清单：
+[x] Maven 依赖 foggy-dataset-model
+[x] 版本属性 foggy-model.version = 8.1.4.beta
+[x] @EnableFoggyFramework(bundleName = "my-project")
+[x] 数据源配置 (MySQL)
+[x] 模型目录 foggy/templates/
+```
+
+如有未通过项，立即修复或提示用户处理后再输出最终结果。
 
 ## 输入要求
 

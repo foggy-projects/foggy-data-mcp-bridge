@@ -4,12 +4,12 @@ import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
+import com.foggyframework.dataset.db.model.def.query.request.WindowOrderDef;
 import com.foggyframework.dataset.db.model.engine.expression.sql.SqlBinaryExp;
 import com.foggyframework.dataset.db.model.engine.expression.sql.SqlColumnRefExp;
 import com.foggyframework.dataset.db.model.engine.expression.sql.SqlFunctionExp;
 import com.foggyframework.dataset.db.model.engine.expression.sql.SqlUnaryExp;
-import com.foggyframework.dataset.db.model.spi.CalculatedFieldProcessor;
-import com.foggyframework.dataset.db.model.spi.JdbcQueryModel;
+import com.foggyframework.dataset.db.model.spi.*;
 import com.foggyframework.dataset.db.model.spi.support.CalculatedDbColumn;
 import com.foggyframework.fsscript.DefaultExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.Exp;
@@ -20,6 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * SQL 计算字段处理器
@@ -264,8 +265,18 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
             // 2. 执行表达式得到 SQL 片段
             SqlFragment sqlFragment = evaluateExpression(compiledExp, context, appCtx);
 
-            // 2.1 如果推断了聚合类型，传递到 SqlFragment
-            if (fieldDef.getAgg() != null && sqlFragment.getAggregationType() == null) {
+            // 2.1 如果有 partitionBy/windowOrderBy，包装窗口子句
+            if (fieldDef.getPartitionBy() != null || fieldDef.getWindowOrderBy() != null) {
+                if (log.isDebugEnabled()) {
+                    log.debug("Window clause for {}: partitionBy={}, windowOrderBy={}, windowFrame={}",
+                            fieldDef.getName(), fieldDef.getPartitionBy(),
+                            fieldDef.getWindowOrderBy(), fieldDef.getWindowFrame());
+                }
+                sqlFragment = wrapWithWindowClause(sqlFragment, fieldDef, context, appCtx);
+            }
+
+            // 2.2 如果推断了聚合类型，传递到 SqlFragment
+            if (fieldDef.getAgg() != null && sqlFragment.getAggregationType() == null && !sqlFragment.isHasWindow()) {
                 sqlFragment.setAggregationType(fieldDef.getAgg().toUpperCase());
                 if (log.isDebugEnabled()) {
                     log.debug("Applied inferred aggregation from CalculatedFieldDef: {} -> agg={}",
@@ -340,6 +351,84 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
 
         throw new RuntimeException("表达式执行结果不是 SqlFragment: " + result +
                 " (type: " + (result != null ? result.getClass().getName() : "null") + ")");
+    }
+
+    /**
+     * 包装窗口函数 OVER 子句
+     * <p>
+     * 将已编译的 SQL 表达式追加 OVER (PARTITION BY ... ORDER BY ... frame) 子句。
+     * partitionBy/windowOrderBy 中的列名会被解析为实际的 SQL 引用。
+     * </p>
+     *
+     * @param baseSql  基础 SQL 片段（如 "RANK()" 或 "AVG(m1.amount)"）
+     * @param fieldDef 计算字段定义（含 partitionBy/windowOrderBy/windowFrame）
+     * @param context  SQL 表达式上下文
+     * @param appCtx   Spring ApplicationContext
+     * @return 包含完整 OVER 子句的 SqlFragment
+     */
+    private SqlFragment wrapWithWindowClause(SqlFragment baseSql, CalculatedFieldDef fieldDef,
+                                              SqlExpContext context, ApplicationContext appCtx) {
+        StringBuilder overClause = new StringBuilder();
+        Set<DbQueryColumn> refs = new LinkedHashSet<>(baseSql.getReferencedColumns());
+
+        // PARTITION BY
+        if (fieldDef.getPartitionBy() != null && !fieldDef.getPartitionBy().isEmpty()) {
+            overClause.append("PARTITION BY ");
+            List<String> partitionSqls = new ArrayList<>();
+            for (String colName : fieldDef.getPartitionBy()) {
+                DbQueryColumn col = context.resolveColumn(colName);
+                String alias = context.getAlias(col);
+                String colSql = resolveColumnSql(col, alias, appCtx);
+                partitionSqls.add(colSql);
+                refs.add(col);
+            }
+            overClause.append(String.join(", ", partitionSqls));
+        }
+
+        // ORDER BY
+        if (fieldDef.getWindowOrderBy() != null && !fieldDef.getWindowOrderBy().isEmpty()) {
+            if (overClause.length() > 0) {
+                overClause.append(" ");
+            }
+            overClause.append("ORDER BY ");
+            List<String> orderSqls = new ArrayList<>();
+            for (WindowOrderDef orderDef : fieldDef.getWindowOrderBy()) {
+                DbQueryColumn col = context.resolveColumn(orderDef.getField());
+                String alias = context.getAlias(col);
+                String colSql = resolveColumnSql(col, alias, appCtx);
+                orderSqls.add(colSql + " " + orderDef.getNormalizedDir());
+                refs.add(col);
+            }
+            overClause.append(String.join(", ", orderSqls));
+        }
+
+        // Window frame
+        if (StringUtils.isNotEmpty(fieldDef.getWindowFrame())) {
+            if (overClause.length() > 0) {
+                overClause.append(" ");
+            }
+            overClause.append(fieldDef.getWindowFrame());
+        }
+
+        return SqlFragment.windowFunction(
+                baseSql.getSql(),
+                overClause.toString(),
+                refs,
+                baseSql.getInferredType()
+        );
+    }
+
+    /**
+     * 解析列的 SQL 表达式
+     */
+    private String resolveColumnSql(DbQueryColumn col, String alias, ApplicationContext appCtx) {
+        if (col instanceof CalculatedDbColumn) {
+            return ((CalculatedDbColumn) col).getDeclare();
+        }
+        if (col.getSelectColumn() != null) {
+            return col.getSelectColumn().getDeclare(appCtx, alias);
+        }
+        return alias != null ? alias + "." + col.getAlias() : col.getAlias();
     }
 
     /**

@@ -61,6 +61,11 @@ public final class AllowedFunctions {
     public static final Set<String> AGGREGATE_FUNCTIONS;
 
     /**
+     * 窗口函数（不触发 GROUP BY，需要 OVER 子句）
+     */
+    public static final Set<String> WINDOW_FUNCTIONS;
+
+    /**
      * 所有允许的函数（包含聚合函数）
      */
     public static final Set<String> ALL_ALLOWED;
@@ -187,10 +192,31 @@ public final class AllowedFunctions {
         aggregate.add("MAX");
         aggregate.add("MIN");
         aggregate.add("GROUP_CONCAT");
+        // COUNT(DISTINCT) 去重计数
+        aggregate.add("COUNTD");
+        aggregate.add("COUNT_DISTINCT");
+        // 统计函数
+        aggregate.add("STDDEV_POP");
+        aggregate.add("STDDEV_SAMP");
+        aggregate.add("VAR_POP");
+        aggregate.add("VAR_SAMP");
         AGGREGATE_FUNCTIONS = Collections.unmodifiableSet(aggregate);
 
-        // 直接加入聚合函数
+        // 窗口函数（不触发 GROUP BY）
+        Set<String> window = new HashSet<>();
+        window.add("ROW_NUMBER");
+        window.add("RANK");
+        window.add("DENSE_RANK");
+        window.add("NTILE");
+        window.add("LAG");
+        window.add("LEAD");
+        window.add("FIRST_VALUE");
+        window.add("LAST_VALUE");
+        WINDOW_FUNCTIONS = Collections.unmodifiableSet(window);
+
+        // 直接加入聚合函数和窗口函数
         all.addAll(AGGREGATE_FUNCTIONS);
+        all.addAll(WINDOW_FUNCTIONS);
         ALL_ALLOWED = Collections.unmodifiableSet(all);
 
         ALL_ALLOWED_WITH_AGGREGATE = ALL_ALLOWED;  // 保持兼容
@@ -237,6 +263,19 @@ public final class AllowedFunctions {
             return false;
         }
         return AGGREGATE_FUNCTIONS.contains(funcName.toUpperCase());
+    }
+
+    /**
+     * 检查是否是窗口函数
+     *
+     * @param funcName 函数名（不区分大小写）
+     * @return 是否是窗口函数
+     */
+    public static boolean isWindowFunction(String funcName) {
+        if (funcName == null) {
+            return false;
+        }
+        return WINDOW_FUNCTIONS.contains(funcName.toUpperCase());
     }
 
     /**

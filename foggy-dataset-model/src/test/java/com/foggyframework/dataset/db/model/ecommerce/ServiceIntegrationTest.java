@@ -94,9 +94,8 @@ class ServiceIntegrationTest extends EcommerceTestSupport {
             LEFT JOIN dim_customer dc ON fo.customer_key = dc.customer_key
             LEFT JOIN dim_channel dch ON fo.channel_key = dch.channel_key
             ORDER BY fo.order_id
-            LIMIT 10
             """;
-        List<Map<String, Object>> nativeResults = executeQuery(nativeSql);
+        List<Map<String, Object>> nativeResults = executeQuery(paginateSql(nativeSql, 10));
 
         // 2. 通过服务查询
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();

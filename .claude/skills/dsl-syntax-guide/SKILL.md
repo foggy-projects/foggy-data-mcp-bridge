@@ -301,7 +301,9 @@ DSL（Domain Specific Language）查询语法用于统一前后端的数据查�
 }
 ```
 
-**支持的聚合类型**：`SUM`, `AVG`, `COUNT`, `MAX`, `MIN`
+**支持的聚合类型**：`SUM`, `AVG`, `COUNT`, `MAX`, `MIN`, `COUNT_DISTINCT` (别名 `COUNTD`)
+
+**高级分析**（窗口函数、统计函数、去重计数）见 `references/advanced-analytics.md`
 
 ---
 
@@ -479,3 +481,7 @@ DSL（Domain Specific Language）查询语法用于统一前后端的数据查�
    - 计算字段在 `calculatedFields` 中定义计算逻辑
    - 必须将计算字段名称添加到 `columns` 数组中才能返回
    - 计算字段可以在 `orderBy`、`slice` 等其他位置直接引用
+
+7. **高级分析**：
+   - 窗口函数（RANK/ROW_NUMBER/LAG/移动平均）、去重计数（COUNTD）、统计函数（STDDEV/VAR）
+   - 详见 `references/advanced-analytics.md`

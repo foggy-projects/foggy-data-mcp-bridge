@@ -82,4 +82,56 @@
         </dependency>
     </dependencies>
 
+    <profiles>
+        <!--
+            多数据库测试 profile（默认激活）
+            默认 mvn test 会依次跑 SQLite + MySQL + PostgreSQL + SQL Server。
+            前提: Docker 容器已启动 (docker-compose -f docker/docker-compose.test.yml up -d)
+            跳过: mvn test -P!multi-db 只跑 SQLite
+        -->
+        <profile>
+            <id>multi-db</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>test-mysql</id>
+                                <goals><goal>test</goal></goals>
+                                <configuration>
+                                    <systemPropertyVariables>
+                                        <spring.profiles.active>docker</spring.profiles.active>
+                                    </systemPropertyVariables>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>test-postgres</id>
+                                <goals><goal>test</goal></goals>
+                                <configuration>
+                                    <systemPropertyVariables>
+                                        <spring.profiles.active>postgres</spring.profiles.active>
+                                    </systemPropertyVariables>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>test-sqlserver</id>
+                                <goals><goal>test</goal></goals>
+                                <configuration>
+                                    <systemPropertyVariables>
+                                        <spring.profiles.active>sqlserver</spring.profiles.active>
+                                    </systemPropertyVariables>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+
 </project>

@@ -6,6 +6,7 @@ import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.db.model.def.order.OrderDef;
+import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.engine.join.JoinEdge;
 import com.foggyframework.dataset.db.model.engine.join.JoinGraph;
@@ -84,6 +85,15 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
      * 权限查询构建器列表（简化后的 accesses）
      */
     protected List<FsscriptFunction> accessBuilders = new ArrayList<>();
+
+    /**
+     * QM 预定义的计算字段（formula 项）
+     * <p>
+     * 在查询时自动注入到 calculatedFields 中。
+     * DSL 请求中同名的 calculatedField 可覆盖 QM 预定义的。
+     * </p>
+     */
+    protected List<CalculatedFieldDef> predefinedCalculatedFields = new ArrayList<>();
 
     protected  List<TableModel> jdbcModelList;
 
@@ -409,12 +419,12 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
         String captionName = path + "$caption";
 
         if (!nameToJdbcQueryColumn.containsKey(idName)) {
-            DbQueryColumn idColumn = new DbQueryColumnImpl(foreignKeyJdbcColumn, idName, foreignKeyJdbcColumn.getCaption(), idName, idName);
+            DbQueryColumn idColumn = new DbQueryColumnImpl(foreignKeyJdbcColumn, idName, foreignKeyJdbcColumn.getCaption(), idName);
             nameToJdbcQueryColumn.put(idName, idColumn);
             dbQueryColumns.add(idColumn);
         }
         if (!nameToJdbcQueryColumn.containsKey(captionName)) {
-            DbQueryColumn captionColumn = new DbQueryColumnImpl(captionJdbcColumn, captionName, caption, captionName, captionName);
+            DbQueryColumn captionColumn = new DbQueryColumnImpl(captionJdbcColumn, captionName, caption, captionName);
             nameToJdbcQueryColumn.put(captionName, captionColumn);
             dbQueryColumns.add(captionColumn);
         }
@@ -425,11 +435,11 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
         String aliasCaptionName = aliasPath + "$caption";
 
         if (!nameToJdbcQueryColumn.containsKey(aliasIdName)) {
-            DbQueryColumn aliasIdColumn = new DbQueryColumnImpl(foreignKeyJdbcColumn, aliasIdName, foreignKeyJdbcColumn.getCaption(), aliasIdName, aliasIdName);
+            DbQueryColumn aliasIdColumn = new DbQueryColumnImpl(foreignKeyJdbcColumn, aliasIdName, foreignKeyJdbcColumn.getCaption(), aliasIdName);
             nameToJdbcQueryColumn.put(aliasIdName, aliasIdColumn);
         }
         if (!nameToJdbcQueryColumn.containsKey(aliasCaptionName)) {
-            DbQueryColumn aliasCaptionColumn = new DbQueryColumnImpl(captionJdbcColumn, aliasCaptionName, caption, aliasCaptionName, aliasCaptionName);
+            DbQueryColumn aliasCaptionColumn = new DbQueryColumnImpl(captionJdbcColumn, aliasCaptionName, caption, aliasCaptionName);
             nameToJdbcQueryColumn.put(aliasCaptionName, aliasCaptionColumn);
         }
 
@@ -439,11 +449,11 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
             String aliasBasedIdName = alias + "$id";
             String aliasBasedCaptionName = alias + "$caption";
             if (!nameToJdbcQueryColumn.containsKey(aliasBasedIdName)) {
-                DbQueryColumn aliasIdCol = new DbQueryColumnImpl(foreignKeyJdbcColumn, aliasBasedIdName, foreignKeyJdbcColumn.getCaption(), aliasBasedIdName, aliasBasedIdName);
+                DbQueryColumn aliasIdCol = new DbQueryColumnImpl(foreignKeyJdbcColumn, aliasBasedIdName, foreignKeyJdbcColumn.getCaption(), aliasBasedIdName);
                 nameToJdbcQueryColumn.put(aliasBasedIdName, aliasIdCol);
             }
             if (!nameToJdbcQueryColumn.containsKey(aliasBasedCaptionName)) {
-                DbQueryColumn aliasCaptionCol = new DbQueryColumnImpl(captionJdbcColumn, aliasBasedCaptionName, caption, aliasBasedCaptionName, aliasBasedCaptionName);
+                DbQueryColumn aliasCaptionCol = new DbQueryColumnImpl(captionJdbcColumn, aliasBasedCaptionName, caption, aliasBasedCaptionName);
                 nameToJdbcQueryColumn.put(aliasBasedCaptionName, aliasCaptionCol);
             }
         }
@@ -481,12 +491,12 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
         String hierarchyCaptionName = path + "$hierarchy$caption";
 
         if (!nameToJdbcQueryColumn.containsKey(hierarchyIdName)) {
-            DbQueryColumn idCol = new DbQueryColumnImpl(hierarchyIdColumn, hierarchyIdName, hierarchyIdColumn.getCaption(), hierarchyIdName, hierarchyIdName);
+            DbQueryColumn idCol = new DbQueryColumnImpl(hierarchyIdColumn, hierarchyIdName, hierarchyIdColumn.getCaption(), hierarchyIdName);
             nameToJdbcQueryColumn.put(hierarchyIdName, idCol);
             dbQueryColumns.add(idCol);
         }
         if (!nameToJdbcQueryColumn.containsKey(hierarchyCaptionName)) {
-            DbQueryColumn captionCol = new DbQueryColumnImpl(hierarchyCaptionColumn, hierarchyCaptionName, caption + "(层级)", hierarchyCaptionName, hierarchyCaptionName);
+            DbQueryColumn captionCol = new DbQueryColumnImpl(hierarchyCaptionColumn, hierarchyCaptionName, caption + "(层级)", hierarchyCaptionName);
             nameToJdbcQueryColumn.put(hierarchyCaptionName, captionCol);
             dbQueryColumns.add(captionCol);
         }
@@ -496,11 +506,11 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
         String aliasHierarchyCaptionName = aliasPath + "$hierarchy$caption";
 
         if (!nameToJdbcQueryColumn.containsKey(aliasHierarchyIdName)) {
-            DbQueryColumn aliasIdCol = new DbQueryColumnImpl(hierarchyIdColumn, aliasHierarchyIdName, hierarchyIdColumn.getCaption(), aliasHierarchyIdName, aliasHierarchyIdName);
+            DbQueryColumn aliasIdCol = new DbQueryColumnImpl(hierarchyIdColumn, aliasHierarchyIdName, hierarchyIdColumn.getCaption(), aliasHierarchyIdName);
             nameToJdbcQueryColumn.put(aliasHierarchyIdName, aliasIdCol);
         }
         if (!nameToJdbcQueryColumn.containsKey(aliasHierarchyCaptionName)) {
-            DbQueryColumn aliasCaptionCol = new DbQueryColumnImpl(hierarchyCaptionColumn, aliasHierarchyCaptionName, caption + "(层级)", aliasHierarchyCaptionName, aliasHierarchyCaptionName);
+            DbQueryColumn aliasCaptionCol = new DbQueryColumnImpl(hierarchyCaptionColumn, aliasHierarchyCaptionName, caption + "(层级)", aliasHierarchyCaptionName);
             nameToJdbcQueryColumn.put(aliasHierarchyCaptionName, aliasCaptionCol);
         }
 
@@ -509,11 +519,11 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
             String aliasBasedHierarchyIdName = alias + "$hierarchy$id";
             String aliasBasedHierarchyCaptionName = alias + "$hierarchy$caption";
             if (!nameToJdbcQueryColumn.containsKey(aliasBasedHierarchyIdName)) {
-                DbQueryColumn aliasIdCol = new DbQueryColumnImpl(hierarchyIdColumn, aliasBasedHierarchyIdName, hierarchyIdColumn.getCaption(), aliasBasedHierarchyIdName, aliasBasedHierarchyIdName);
+                DbQueryColumn aliasIdCol = new DbQueryColumnImpl(hierarchyIdColumn, aliasBasedHierarchyIdName, hierarchyIdColumn.getCaption(), aliasBasedHierarchyIdName);
                 nameToJdbcQueryColumn.put(aliasBasedHierarchyIdName, aliasIdCol);
             }
             if (!nameToJdbcQueryColumn.containsKey(aliasBasedHierarchyCaptionName)) {
-                DbQueryColumn aliasCaptionCol = new DbQueryColumnImpl(hierarchyCaptionColumn, aliasBasedHierarchyCaptionName, caption + "(层级)", aliasBasedHierarchyCaptionName, aliasBasedHierarchyCaptionName);
+                DbQueryColumn aliasCaptionCol = new DbQueryColumnImpl(hierarchyCaptionColumn, aliasBasedHierarchyCaptionName, caption + "(层级)", aliasBasedHierarchyCaptionName);
                 nameToJdbcQueryColumn.put(aliasBasedHierarchyCaptionName, aliasCaptionCol);
             }
         }
@@ -522,7 +532,7 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
         for (DbDimensionSupport.DimensionPropertyDbColumn propCol : pcDim.getHierarchyPropertyDbColumns()) {
             String propName = propCol.getName(); // 已经是 team$hierarchy$xxx 格式
             if (!nameToJdbcQueryColumn.containsKey(propName)) {
-                DbQueryColumn propQueryCol = new DbQueryColumnImpl(propCol, propName, propCol.getCaption(), propName, propName);
+                DbQueryColumn propQueryCol = new DbQueryColumnImpl(propCol, propName, propCol.getCaption(), propName);
                 nameToJdbcQueryColumn.put(propName, propQueryCol);
                 dbQueryColumns.add(propQueryCol);
             }

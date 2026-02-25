@@ -59,6 +59,12 @@ public class ValidationError {
     private String suggestion;
 
     /**
+     * 错误分类: MODEL(模型逻辑错误), CASCADING(因上游TM失败导致的级联错误)
+     */
+    @Builder.Default
+    private String category = "MODEL";
+
+    /**
      * 堆栈跟踪（可选，调试用）
      */
     private String stackTrace;

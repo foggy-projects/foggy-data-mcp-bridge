@@ -72,11 +72,19 @@ export interface OrderRequestDef {
   dir?: 'asc' | 'desc'
 }
 
+export interface WindowOrderDef {
+  field: string
+  dir?: 'asc' | 'desc'
+}
+
 export interface CalculatedFieldDef {
   name: string
   caption?: string
   expression: string
-  agg?: 'SUM' | 'AVG' | 'COUNT' | 'MAX' | 'MIN'
+  agg?: 'SUM' | 'AVG' | 'COUNT' | 'COUNT_DISTINCT' | 'COUNTD' | 'MAX' | 'MIN'
+  partitionBy?: string[]
+  windowOrderBy?: WindowOrderDef[]
+  windowFrame?: string
 }
 
 export interface DslQueryParam {
@@ -396,6 +404,7 @@ Foggy Dataset Model API 要求的请求参数结构：
 - 如果用户未指定模型 → 使用 qm-schema-viewer 搜索合适的模型
 - 如果用户未指定字段 → 查询 schema 后推荐常用字段
 - 如果项目使用 fetch 而非 axios → 提供 fetch 版本的公共 API
+- 如果用户需要去重计数/窗口函数/移动平均 → 读取 `references/advanced-query-patterns.md`
 
 ## 依赖技能
 

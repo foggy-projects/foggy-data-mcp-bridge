@@ -3,6 +3,7 @@ package com.foggyframework.dataset.db.model.semantic.service.impl;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.core.utils.beanhelper.BeanInfoHelper;
 import com.foggyframework.dataset.db.model.def.dict.DbDictDef;
+import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.impl.AiObject;
 import com.foggyframework.dataset.db.model.impl.dimension.DbDimensionSupport;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataRequest;
@@ -217,13 +218,24 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                         .append(" | ").append(dimCaption).append("显示名称")
                         .append(" |\n");
 
-                // 维度属性
+                // 维度属性（仅输出QM暴露的属性）
                 if (dimension instanceof DbDimensionSupport) {
                     for (DbProperty prop : ((DbDimensionSupport) dimension).getJdbcProperties()) {
+                        // 先尝试使用默认格式查找
+                        String defaultPropFieldName = dimName + "$" + prop.getName();
+                        DbQueryColumn queryColumn = queryModel.findJdbcQueryColumnByName(defaultPropFieldName, false);
+                        
+                        if (queryColumn == null) {
+                            continue;
+                        }
+                        
                         if (!isFieldInLevels(prop.getAi(), request.getLevels())) {
                             continue;
                         }
-                        String propFieldName = dimName + "$" + prop.getName();
+                        
+                        // 使用 QM 中定义的列名（name），而不是默认格式
+                        // 这样可以支持用户在 QM 中使用 alias 重命名字段
+                        String propFieldName = queryColumn.getName();
                         dimensionFieldNames.add(propFieldName);
                         String propCaption = prop.getCaption() != null ? prop.getCaption() : prop.getName();
                         String propType = getDataTypeDescription(prop.getPropertyDbColumn().getType());
@@ -259,8 +271,9 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         List<DbQueryProperty> queryProperties = queryModel.getQueryProperties();
         if (queryProperties != null && !queryProperties.isEmpty()) {
             // 过滤掉已在维度字段中输出的属性
+            // 注意：使用 qp.getName() 而不是 qp.getProperty().getName()，因为 dimensionFieldNames 中存储的是 QM 中定义的列名
             List<DbQueryProperty> filteredProperties = queryProperties.stream()
-                    .filter(qp -> !dimensionFieldNames.contains(qp.getProperty().getName()))
+                    .filter(qp -> !dimensionFieldNames.contains(qp.getName()))
                     .toList();
 
             if (!filteredProperties.isEmpty()) {
@@ -682,13 +695,24 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             Map<String, Object> captionFieldInfo = createDimensionCaptionFieldInfo(dimension, queryModel.getName());
             fields.put(captionFieldName, captionFieldInfo);
 
-            // 3. 处理维度属性
+            // 3. 处理维度属性（仅包含QM暴露的属性）
             for (DbProperty prop : ((DbDimensionSupport) dimension).getJdbcProperties()) {
+                // 先尝试使用默认格式查找
+                String defaultPropFieldName = baseName + "$" + prop.getName();
+                DbQueryColumn queryColumn = queryModel.findJdbcQueryColumnByName(defaultPropFieldName, false);
+                
+                if (queryColumn == null) {
+                    continue;
+                }
+                
                 if (!isFieldInLevels(prop.getAi(), levels)) {
                     continue;
                 }
-                String propFieldName = baseName + "$" + prop.getName();
-                Map<String, Object> propFieldInfo = createDimensionPropertyFieldInfo(dimension, prop, queryModel.getName());
+                
+                // 使用 QM 中定义的列名（name），而不是默认格式
+                // 这样可以支持用户在 QM 中使用 alias 重命名字段
+                String propFieldName = queryColumn.getName();
+                Map<String, Object> propFieldInfo = createDimensionPropertyFieldInfo(dimension, prop, queryModel.getName(), propFieldName);
                 fields.put(propFieldName, propFieldInfo);
             }
         }
@@ -721,6 +745,16 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             }
 
             Map<String, Object> fieldInfo = createMeasureFieldInfo(measure, queryModel.getName());
+            fields.put(fieldName, fieldInfo);
+        }
+
+        // 处理 QM 预定义计算字段
+        for (CalculatedFieldDef calc : queryModel.getPredefinedCalculatedFields()) {
+            String fieldName = calc.getName();
+            if (fieldFilter != null && !fieldFilter.contains(fieldName)) {
+                continue;
+            }
+            Map<String, Object> fieldInfo = createCalculatedFieldInfo(calc, queryModel.getName());
             fields.put(fieldName, fieldInfo);
         }
     }
@@ -793,13 +827,11 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
     /**
      * 创建维度属性字段信息
      */
-    private Map<String, Object> createDimensionPropertyFieldInfo(DbDimension dimension, DbProperty prop, String modelName) {
+    private Map<String, Object> createDimensionPropertyFieldInfo(DbDimension dimension, DbProperty prop, String modelName, String fieldName) {
         Map<String, Object> fieldInfo = new LinkedHashMap<>();
-        String baseName = dimension.getEffectiveName();
-        String propName = baseName + "$" + prop.getName();
 
         fieldInfo.put("name", (prop.getCaption() != null ? prop.getCaption() : prop.getName()));
-        fieldInfo.put("fieldName", propName);
+        fieldInfo.put("fieldName", fieldName);
 
         DbColumnType columnType = prop.getPropertyDbColumn().getType();
         String dataType = getDataTypeDescription(columnType);
@@ -971,12 +1003,23 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             FieldInfoV3 captionFieldInfo = allFields.computeIfAbsent(captionFieldName, k -> new FieldInfoV3());
             captionFieldInfo.addDimensionCaption(dimension, queryModel.getName(), this);
 
-            // 维度属性
+            // 维度属性（仅包含QM暴露的属性）
             for (DbProperty prop : ((DbDimensionSupport) dimension).getJdbcProperties()) {
+                // 先尝试使用默认格式查找
+                String defaultPropFieldName = baseName + "$" + prop.getName();
+                DbQueryColumn queryColumn = queryModel.findJdbcQueryColumnByName(defaultPropFieldName, false);
+                
+                if (queryColumn == null) {
+                    continue;
+                }
+                
                 if (!isFieldInLevels(prop.getAi(), levels)) {
                     continue;
                 }
-                String propFieldName = baseName + "$" + prop.getName();
+                
+                // 使用 QM 中定义的列名（name），而不是默认格式
+                // 这样可以支持用户在 QM 中使用 alias 重命名字段
+                String propFieldName = queryColumn.getName();
                 FieldInfoV3 propFieldInfo = allFields.computeIfAbsent(propFieldName, k -> new FieldInfoV3());
                 propFieldInfo.addDimensionProperty(dimension, prop, queryModel.getName(), this,
                         referencedDictIds, referencedDictClasses);
@@ -1015,6 +1058,16 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                 FieldInfoV3 fieldInfo = allFields.computeIfAbsent(fieldName, k -> new FieldInfoV3());
                 fieldInfo.addMeasure(queryColumn, queryModel.getName(), this);
             }
+        }
+
+        // 收集 QM 预定义计算字段信息
+        for (CalculatedFieldDef calc : queryModel.getPredefinedCalculatedFields()) {
+            String fieldName = calc.getName();
+            if (fieldFilter != null && !fieldFilter.contains(fieldName)) {
+                continue;
+            }
+            FieldInfoV3 fieldInfo = allFields.computeIfAbsent(fieldName, k -> new FieldInfoV3());
+            fieldInfo.addCalculatedField(calc, queryModel.getName());
         }
     }
 
@@ -1086,6 +1139,33 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
 
         Map<String, Object> modelInfo = new LinkedHashMap<>();
         modelInfo.put("description", property.getCaption());
+
+        Map<String, Object> models = new LinkedHashMap<>();
+        models.put(modelName, modelInfo);
+        fieldInfo.put("models", models);
+
+        return fieldInfo;
+    }
+
+    private Map<String, Object> createCalculatedFieldInfo(CalculatedFieldDef calc, String modelName) {
+        Map<String, Object> fieldInfo = new LinkedHashMap<>();
+        fieldInfo.put("name", calc.getCaption() != null ? calc.getCaption() : calc.getName());
+        fieldInfo.put("fieldName", calc.getName());
+
+        boolean isWindow = calc.getPartitionBy() != null || calc.getWindowOrderBy() != null;
+        String typeStr = calc.getType() != null ? calc.getType() : "NUMBER";
+        fieldInfo.put("meta", (isWindow ? "窗口计算字段" : "计算字段") + " | " + typeStr);
+
+        fieldInfo.put("type", typeStr);
+        fieldInfo.put("filterType", "number");
+        fieldInfo.put("filterable", false);
+        fieldInfo.put("measure", false);
+        fieldInfo.put("aggregatable", false);
+        fieldInfo.put("calculated", true);
+
+        Map<String, Object> modelInfo = new LinkedHashMap<>();
+        modelInfo.put("description", (calc.getCaption() != null ? calc.getCaption() : calc.getName())
+                + " (公式: " + calc.getExpression() + ")");
 
         Map<String, Object> models = new LinkedHashMap<>();
         models.put(modelName, modelInfo);
@@ -1353,6 +1433,18 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             ModelUsage usage = new ModelUsage();
             usage.setDescription(measure.getDescription() != null ? measure.getDescription() : measure.getCaption());
             usage.setAggregation(measure.getAggregation());
+            modelUsages.put(modelName, usage);
+        }
+
+        public void addCalculatedField(CalculatedFieldDef calc, String modelName) {
+            this.displayName = calc.getCaption() != null ? calc.getCaption() : calc.getName();
+            boolean isWindow = calc.getPartitionBy() != null || calc.getWindowOrderBy() != null;
+            String typeStr = calc.getType() != null ? calc.getType() : "NUMBER";
+            this.meta = (isWindow ? "窗口计算字段" : "计算字段") + " | " + typeStr;
+            this.fieldType = isWindow ? "window_calculated" : "calculated";
+
+            ModelUsage usage = new ModelUsage();
+            usage.setDescription(this.displayName + " (公式: " + calc.getExpression() + ")");
             modelUsages.put(modelName, usage);
         }
 

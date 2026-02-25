@@ -3,6 +3,7 @@ package com.foggyframework.dataset.db.model.spi;
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.core.Decorate;
 import com.foggyframework.dataset.client.domain.PagingRequest;
+import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.engine.join.JoinGraph;
 import com.foggyframework.dataset.db.model.engine.query.DbQueryResult;
@@ -12,6 +13,7 @@ import com.foggyframework.dataset.db.model.spi.support.QueryColumnGroup;
 import com.foggyframework.fsscript.exp.FsscriptFunction;
 import jakarta.annotation.Nullable;
 
+import java.util.Collections;
 import java.util.List;
 
 public interface QueryModel extends Decorate, DbObject {
@@ -123,6 +125,16 @@ public interface QueryModel extends Decorate, DbObject {
     List<DbQueryDimension> getQueryDimensions();
 
     List<QueryColumnGroup> getColumnGroups();
+
+    /**
+     * 获取 QM 预定义的计算字段
+     *
+     * @return 预定义计算字段列表，默认空列表
+     * @since 8.4.0
+     */
+    default List<CalculatedFieldDef> getPredefinedCalculatedFields() {
+        return Collections.emptyList();
+    }
 
     @Nullable
     DbQueryCondition findJdbcQueryCondByName(String name);

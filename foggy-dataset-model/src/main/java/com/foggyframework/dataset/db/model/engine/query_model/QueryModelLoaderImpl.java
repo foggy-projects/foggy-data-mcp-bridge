@@ -14,6 +14,8 @@ import com.foggyframework.dataset.db.model.def.order.OrderDef;
 import com.foggyframework.dataset.db.model.def.query.DbQueryModelDef;
 import com.foggyframework.dataset.db.model.def.query.QueryConditionDef;
 import com.foggyframework.dataset.db.model.def.query.SelectColumnDef;
+import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
+import com.foggyframework.dataset.db.model.def.query.request.WindowOrderDef;
 import com.foggyframework.dataset.db.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.db.model.impl.LoaderSupport;
 import com.foggyframework.dataset.db.model.impl.query.*;
@@ -173,6 +175,7 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
         Fsscript fsscript = findFsscriptWithNamespace(queryModelNameOrAlias, normalizedNs, "qm");
         ExpEvaluator ee = evalQmScript(fsscript);
         Object queryModel = ee.getExportObject("queryModel");
+
         DbQueryModelDef queryModelDef = FsscriptConversionService.getSharedInstance().convert(queryModel, DbQueryModelDef.class);
 
         tm = loadJdbcQueryModel(ee, fsscript, queryModelDef);
@@ -259,15 +262,10 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
          * 构建JdbcQueryModelImpl
          */
         QueryModelSupport qm = null;
-        log.debug("开始遍历 QueryModelBuilder，共 {} 个", queryModelBuilders.size());
         for (QueryModelBuilder queryModelBuilder : queryModelBuilders) {
-            log.debug("尝试 Builder: {}", queryModelBuilder.getClass().getName());
             qm = queryModelBuilder.build(queryModelDef, fsscript);
             if (qm != null) {
-                log.debug("Builder {} 成功构建 QM: {}", queryModelBuilder.getClass().getSimpleName(), qm.getClass().getName());
                 break;
-            } else {
-                log.debug("Builder {} 返回 null", queryModelBuilder.getClass().getSimpleName());
             }
         }
         if (qm == null) {
@@ -407,6 +405,8 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
     private void loadColumnGroups(QueryModelSupport qm, DbQueryModelDef queryModelDef) {
         if (queryModelDef.getColumnGroups() != null && !queryModelDef.getColumnGroups().isEmpty()) {
             List<QueryColumnGroup> columnGroups = new ArrayList<>();
+            List<CalculatedFieldDef> predefined = new ArrayList<>();
+
             for (DbColumnGroupDef columnGroupDef : queryModelDef.getColumnGroups()) {
                 if (columnGroupDef.getItems() == null || columnGroupDef.getItems().isEmpty()) {
                     continue;
@@ -417,6 +417,30 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
                     if (item == null) {
                         continue;
                     }
+
+                    if (log.isDebugEnabled()) {
+                        log.debug("loadColumnGroups [{}] item: name={}, formula={}, ref={}, caption={}",
+                                columnGroupDef.getCaption(),
+                                item.getName(), item.getFormula(),
+                                item.getRef() != null ? item.getRef().getClass().getSimpleName() : "null",
+                                item.getCaption());
+                    }
+
+                    // formula 项 → 转为 CalculatedFieldDef，不走常规列加载
+                    if (StringUtils.isNotEmpty(item.getFormula())) {
+                        CalculatedFieldDef calc = new CalculatedFieldDef();
+                        calc.setName(item.getName());
+                        calc.setCaption(item.getCaption());
+                        calc.setExpression(item.getFormula());
+                        calc.setType(item.getType());
+                        calc.setPartitionBy(item.getPartitionBy());
+                        calc.setWindowOrderBy(convertWindowOrderBy(item.getWindowOrderBy()));
+                        calc.setWindowFrame(item.getWindowFrame());
+                        predefined.add(calc);
+                        // formula 项不加入常规列查找（通过 calculatedFields 机制处理）
+                        continue;
+                    }
+
                     // V2 格式：ref 可能是 ColumnRef 对象
                     // aliasRef: 使用 _ 分隔，用于列名/别名和列查找
                     String aliasRef = item.getRefAsString();
@@ -451,14 +475,53 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
                 columnGroups.add(group);
             }
             qm.setColumnGroups(columnGroups);
+            qm.setPredefinedCalculatedFields(predefined);
         }
+    }
+
+    /**
+     * 将 QM 中 windowOrderBy 的 {@code List<Map>} 转换为 {@code List<WindowOrderDef>}
+     * <p>
+     * {@code SelectColumnDef.windowOrderBy} 声明为 {@code List<Map<String, Object>>}，
+     * 这样 FsscriptConversionService 转换时会保留 Map 结构（避免被 MapToObjectConverter
+     * 误转为空 Object 实例）。
+     * </p>
+     */
+    private List<WindowOrderDef> convertWindowOrderBy(List<Map<String, Object>> rawList) {
+        if (rawList == null || rawList.isEmpty()) {
+            return null;
+        }
+        List<WindowOrderDef> result = new ArrayList<>(rawList.size());
+        for (Map<String, Object> map : rawList) {
+            if (map == null) {
+                continue;
+            }
+            String field = map.get("field") != null ? map.get("field").toString() : null;
+            String dir = map.get("dir") != null ? map.get("dir").toString() : null;
+            if (field != null) {
+                result.add(new WindowOrderDef(field, dir));
+            }
+        }
+        return result.isEmpty() ? null : result;
     }
 
     private void addColumn(QueryModelSupport qm, QueryColumnGroup group, String columnName, SelectColumnDef item, boolean hasRef) {
         // columnName 使用 alias 格式（_ 分隔），因为列在 TableModel 中以 alias 格式索引
         DbColumn jdbcColumn = qm.findJdbcColumnForCond(columnName, true);
 
-        DbQueryColumn dbQueryColumn = new DbQueryColumnImpl(jdbcColumn, columnName, item.getCaption(), item.getAlias(), item.getField());
+        /**
+         * 创建 DbQueryColumn 并设置字段名相关属性：
+         *
+         * @param jdbcColumn 从 TableModel 中找到的列
+         * @param columnName 列名（name），用于在 QM 中标识列（通过 findJdbcQueryColumnByName 查找）
+         * @param item.getCaption() 列标题
+         * @param item.getAlias() 别名（alias），用户在 QM 中定义的列别名，用于避免多模型 JOIN 时重名
+         *
+         * 说明：
+         * - name: 列的唯一标识，用于在 QM 中查找列
+         * - alias: 用户定义的别名，用于重命名字段（如 { ref: dc.customerType, alias: 'custType' }）
+         */
+        DbQueryColumn dbQueryColumn = new DbQueryColumnImpl(jdbcColumn, columnName, item.getCaption(), item.getAlias());
         dbQueryColumn.setHasRef(hasRef);
 
         qm.addJdbcQueryColumn(dbQueryColumn);

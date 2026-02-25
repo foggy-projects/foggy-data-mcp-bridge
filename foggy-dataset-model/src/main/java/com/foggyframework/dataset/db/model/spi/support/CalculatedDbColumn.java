@@ -205,6 +205,18 @@ public class CalculatedDbColumn extends AbstractDecorate implements DbQueryColum
         return sqlFragment != null ? sqlFragment.getAggregationType() : null;
     }
 
+    /**
+     * 是否包含窗口函数
+     * <p>
+     * 窗口函数不触发 GROUP BY，在 SELECT 中直接输出完整 SQL。
+     * </p>
+     *
+     * @return 如果表达式包含 ROW_NUMBER, RANK 等窗口函数或 OVER 子句，返回 true
+     */
+    public boolean hasWindow() {
+        return sqlFragment != null && sqlFragment.isHasWindow();
+    }
+
     @Override
     public String toString() {
         return "CalculatedJdbcColumn{" +

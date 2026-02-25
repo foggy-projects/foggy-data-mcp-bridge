@@ -6,6 +6,7 @@ import com.foggyframework.dataset.db.model.proxy.ColumnRef;
 import com.foggyframework.dataset.db.model.proxy.DimensionProxy;
 import lombok.Data;
 
+import java.util.List;
 import java.util.Map;
 
 @Data
@@ -13,6 +14,11 @@ public class SelectColumnDef {
 
     AiDef ai;
 
+    /**
+     * 列名（name）
+     * <p>列的唯一标识，用于在 QM 中查找列（通过 findJdbcQueryColumnByName 查找）。
+     * <p>如果未设置，默认使用 ref 的值。
+     */
     String name;
 
     /**
@@ -24,10 +30,33 @@ public class SelectColumnDef {
      */
     Object ref;
 
+    /**
+     * 别名（alias）
+     * <p>用户在 QM 中定义的列别名，用于避免多模型 JOIN 时重名问题。
+     * <p>示例：在 QM 中定义 { ref: dc.customerType, alias: 'custType' }，
+     * 则 alias 为 'custType'，用于在查询结果中重命名该字段。
+     * <p>作用：
+     * <ul>
+     *   <li>在 SQL SELECT 子句中作为列别名（AS alias）</li>
+     *   <li>在查询条件中作为字段名（WHERE alias = ?）</li>
+     *   <li>在返回结果中作为字段名</li>
+     * </ul>
+     * <p>如果未设置，默认使用 ref 的值。
+     */
     String alias;
 
-    String field;
     String caption;
+
+    /** QM 计算字段公式 */
+    String formula;
+    /** 计算字段返回类型 */
+    String type;
+    /** 窗口函数 PARTITION BY */
+    List<String> partitionBy;
+    /** 窗口函数 ORDER BY */
+    List<Map<String, Object>> windowOrderBy;
+    /** 窗口帧 */
+    String windowFrame;
 
     /**
      * 获取字符串形式的 ref（别名格式，使用 _ 分隔）

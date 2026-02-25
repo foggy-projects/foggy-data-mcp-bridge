@@ -96,7 +96,7 @@ class FieldComparisonTest extends EcommerceTestSupport {
 
         // 执行查询验证
         try {
-            List<Map<String, Object>> results = jdbcTemplate.queryForList(sql + " LIMIT 10");
+            List<Map<String, Object>> results = jdbcTemplate.queryForList(paginateSql(sql, 10));
             log.info("查询结果数量: {}", results.size());
             printResults(results);
 
@@ -142,7 +142,7 @@ class FieldComparisonTest extends EcommerceTestSupport {
         printSql(sql, "$field 引用 - salesAmount >= costAmount");
 
         // 执行查询验证
-        List<Map<String, Object>> results = jdbcTemplate.queryForList(sql + " LIMIT 10");
+        List<Map<String, Object>> results = jdbcTemplate.queryForList(paginateSql(sql, 10));
         log.info("查询结果数量: {}", results.size());
 
         for (Map<String, Object> row : results) {
@@ -182,7 +182,7 @@ class FieldComparisonTest extends EcommerceTestSupport {
         printSql(sql, "$field 引用 - salesAmount = costAmount");
 
         // 执行查询
-        List<Map<String, Object>> results = jdbcTemplate.queryForList(sql + " LIMIT 10");
+        List<Map<String, Object>> results = jdbcTemplate.queryForList(paginateSql(sql, 10));
         log.info("查询结果数量: {} (可能为0，因为相等的情况可能很少)", results.size());
     }
 
@@ -215,7 +215,7 @@ class FieldComparisonTest extends EcommerceTestSupport {
         printSql(sql, "$field 引用 - salesAmount != costAmount");
 
         // 执行查询
-        List<Map<String, Object>> results = jdbcTemplate.queryForList(sql + " LIMIT 10");
+        List<Map<String, Object>> results = jdbcTemplate.queryForList(paginateSql(sql, 10));
         log.info("查询结果数量: {}", results.size());
         assertTrue(results.size() > 0, "应该有不相等的记录");
     }
@@ -263,7 +263,7 @@ class FieldComparisonTest extends EcommerceTestSupport {
 
         // 执行查询验证
         try {
-            List<Map<String, Object>> results = jdbcTemplate.queryForList(sql + " LIMIT 10");
+            List<Map<String, Object>> results = jdbcTemplate.queryForList(paginateSql(sql, 10));
             log.info("查询结果数量: {}", results.size());
             printResults(results);
 
@@ -310,7 +310,7 @@ class FieldComparisonTest extends EcommerceTestSupport {
 
         // 执行查询验证
         try {
-            List<Map<String, Object>> results = jdbcTemplate.queryForList(sql + " LIMIT 10");
+            List<Map<String, Object>> results = jdbcTemplate.queryForList(paginateSql(sql, 10));
             log.info("查询结果数量: {}", results.size());
 
             // 验证结果
@@ -358,7 +358,7 @@ class FieldComparisonTest extends EcommerceTestSupport {
 
         // 执行查询验证
         try {
-            List<Map<String, Object>> results = jdbcTemplate.queryForList(sql + " LIMIT 10");
+            List<Map<String, Object>> results = jdbcTemplate.queryForList(paginateSql(sql, 10));
             log.info("查询结果数量: {}", results.size());
 
             // 验证结果
@@ -390,9 +390,8 @@ class FieldComparisonTest extends EcommerceTestSupport {
             FROM fact_sales
             WHERE sales_amount > cost_amount
             ORDER BY order_id ASC
-            LIMIT 10
             """;
-        List<Map<String, Object>> nativeResults = jdbcTemplate.queryForList(nativeSql);
+        List<Map<String, Object>> nativeResults = jdbcTemplate.queryForList(paginateSql(nativeSql, 10));
         log.info("原生SQL结果: {} 条", nativeResults.size());
 
         // 2. 模型查询 - 使用 $field 引用
@@ -421,7 +420,7 @@ class FieldComparisonTest extends EcommerceTestSupport {
         queryRequest.setOrderBy(orders);
 
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
-        String modelSql = queryEngine.getSql() + " LIMIT 10";
+        String modelSql = paginateSql(queryEngine.getSql(), 10);
         printSql(modelSql, "模型SQL ($field 引用)");
 
         List<Map<String, Object>> modelResults = jdbcTemplate.queryForList(modelSql);
@@ -453,9 +452,8 @@ class FieldComparisonTest extends EcommerceTestSupport {
             FROM fact_sales
             WHERE sales_amount > cost_amount * 1.2
             ORDER BY order_id ASC
-            LIMIT 10
             """;
-        List<Map<String, Object>> nativeResults = jdbcTemplate.queryForList(nativeSql);
+        List<Map<String, Object>> nativeResults = jdbcTemplate.queryForList(paginateSql(nativeSql, 10));
         log.info("原生SQL结果: {} 条", nativeResults.size());
 
         // 2. 模型查询 - 使用 $expr 表达式
@@ -480,7 +478,7 @@ class FieldComparisonTest extends EcommerceTestSupport {
         queryRequest.setOrderBy(orders);
 
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
-        String modelSql = queryEngine.getSql() + " LIMIT 10";
+        String modelSql = paginateSql(queryEngine.getSql(), 10);
         printSql(modelSql, "模型SQL ($expr 表达式)");
 
         List<Map<String, Object>> modelResults = jdbcTemplate.queryForList(modelSql);
@@ -544,7 +542,7 @@ class FieldComparisonTest extends EcommerceTestSupport {
 
         // 执行查询
         List<Object> values = queryEngine.getValues();
-        List<Map<String, Object>> results = jdbcTemplate.queryForList(sql + " LIMIT 10", values.toArray());
+        List<Map<String, Object>> results = jdbcTemplate.queryForList(paginateSql(sql, 10), values.toArray());
         log.info("查询结果数量: {}", results.size());
 
         // 验证结果
@@ -593,7 +591,7 @@ class FieldComparisonTest extends EcommerceTestSupport {
 
         // 执行查询
         List<Object> values = queryEngine.getValues();
-        List<Map<String, Object>> results = jdbcTemplate.queryForList(sql + " LIMIT 10", values.toArray());
+        List<Map<String, Object>> results = jdbcTemplate.queryForList(paginateSql(sql, 10), values.toArray());
         log.info("查询结果数量: {}", results.size());
 
         // 验证结果
@@ -653,7 +651,7 @@ class FieldComparisonTest extends EcommerceTestSupport {
 
         // 执行查询
         List<Object> values = queryEngine.getValues();
-        List<Map<String, Object>> results = jdbcTemplate.queryForList(sql + " LIMIT 10", values.toArray());
+        List<Map<String, Object>> results = jdbcTemplate.queryForList(paginateSql(sql, 10), values.toArray());
         log.info("查询结果数量: {}", results.size());
         assertTrue(results.size() > 0, "应有查询结果");
     }
@@ -699,7 +697,7 @@ class FieldComparisonTest extends EcommerceTestSupport {
 
         // 执行查询
         List<Object> values = queryEngine.getValues();
-        List<Map<String, Object>> results = jdbcTemplate.queryForList(sql + " LIMIT 10", values.toArray());
+        List<Map<String, Object>> results = jdbcTemplate.queryForList(paginateSql(sql, 10), values.toArray());
         log.info("查询结果数量: {}", results.size());
     }
 

@@ -2,6 +2,7 @@ package com.foggyframework.dataset.db.model.plugins.result_set_filter;
 
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
+import com.foggyframework.dataset.db.model.engine.query_model.QueryModelSupport;
 import com.foggyframework.dataset.db.model.engine.expression.AllowedFunctions;
 import com.foggyframework.dataset.db.model.engine.expression.CalculatedFieldService;
 import com.foggyframework.dataset.db.model.engine.expression.InlineExpressionParser;
@@ -16,9 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
+import java.util.*;
 
 /**
  * 内联表达式预处理步骤
@@ -61,6 +60,9 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
 
         // 获取 QueryModel（用于查询字段定义）
         QueryModel queryModel = ctx.getQueryModel();
+
+        // 注入 QM 预定义的 calculatedFields
+        injectPredefinedCalculatedFields(queryRequest, queryModel);
 
         // 解析并转换
         ModelResultContext.ParsedInlineExpressions result = parseAndConvert(columns, queryRequest, queryModel);
@@ -426,7 +428,8 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
      */
     private AggregateAnalysisResult fallbackAggregateDetection(String expression) {
         String upper = expression.toUpperCase();
-        String[] aggregates = {"SUM", "AVG", "COUNT", "MAX", "MIN"};
+        String[] aggregates = {"SUM", "AVG", "COUNT", "COUNTD", "COUNT_DISTINCT", "MAX", "MIN",
+                "STDDEV_POP", "STDDEV_SAMP", "VAR_POP", "VAR_SAMP"};
 
         String foundType = null;
         int count = 0;
@@ -482,6 +485,61 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
         AggregateAnalysisResult(boolean hasAggregate, String aggregationType) {
             this.hasAggregate = hasAggregate;
             this.aggregationType = aggregationType;
+        }
+    }
+
+    /**
+     * 注入 QM 预定义的 calculatedFields
+     * <p>
+     * 仅注入查询 columns 中引用到的预定义字段。
+     * DSL 请求中同名的 calculatedField 可覆盖 QM 预定义的。
+     * </p>
+     */
+    private void injectPredefinedCalculatedFields(DbQueryRequestDef queryRequest, QueryModel queryModel) {
+        if (!(queryModel instanceof QueryModelSupport)) {
+            return;
+        }
+        QueryModelSupport qms = (QueryModelSupport) queryModel;
+        List<CalculatedFieldDef> predefined = qms.getPredefinedCalculatedFields();
+        if (predefined == null || predefined.isEmpty()) {
+            return;
+        }
+
+        // 收集 DSL 请求中已定义的 calculatedField 名称
+        Set<String> existingNames = new HashSet<>();
+        if (queryRequest.getCalculatedFields() != null) {
+            for (CalculatedFieldDef f : queryRequest.getCalculatedFields()) {
+                existingNames.add(f.getName());
+            }
+        }
+
+        // 收集 columns 中引用到的名称
+        Set<String> referencedColumns = new HashSet<>();
+        if (queryRequest.getColumns() != null) {
+            referencedColumns.addAll(queryRequest.getColumns());
+        }
+
+        // 注入引用到的、且未被 DSL 覆盖的预定义字段
+        List<CalculatedFieldDef> toInject = new ArrayList<>();
+        for (CalculatedFieldDef calc : predefined) {
+            if (referencedColumns.contains(calc.getName()) && !existingNames.contains(calc.getName())) {
+                toInject.add(calc);
+            }
+        }
+
+        if (!toInject.isEmpty()) {
+            List<CalculatedFieldDef> existing = queryRequest.getCalculatedFields();
+            if (existing == null) {
+                existing = new ArrayList<>();
+                queryRequest.setCalculatedFields(existing);
+            }
+            // 预定义字段放在前面，DSL 请求中的放在后面
+            existing.addAll(0, toInject);
+
+            if (log.isDebugEnabled()) {
+                log.debug("注入了 {} 个 QM 预定义计算字段: {}", toInject.size(),
+                        toInject.stream().map(CalculatedFieldDef::getName).collect(java.util.stream.Collectors.toList()));
+            }
         }
     }
 }

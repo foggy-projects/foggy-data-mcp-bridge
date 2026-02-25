@@ -149,6 +149,7 @@ measures: [
 | 百分比（batteryLevel, progress） | avg | 平均值 |
 | 速度/频率（speed, frequency） | avg | 平均值 |
 | 距离/时长（distance, duration） | sum | 求和 |
+| 去重计数（uniqueCustomers） | count_distinct | 唯一值计数 |
 
 ## 4. 基本维度定义
 
@@ -285,6 +286,7 @@ export const model = {
 | 雪花模型（商品→品类→品类组） | `references/nested-dimensions.md` |
 | 组织架构/树形结构 | `references/parent-child-dimensions.md` |
 | JSON 提取/字符串拼接/复杂计算 | `references/calculated-fields.md` |
+| 窗口函数/统计函数（STDDEV/VAR） | `references/calculated-fields.md`（末尾章节） |
 | 创建自定义维度构建器 | `references/dimension-reuse.md` |
 | 向量检索模型（Milvus） | `references/vector-model.md` |
 

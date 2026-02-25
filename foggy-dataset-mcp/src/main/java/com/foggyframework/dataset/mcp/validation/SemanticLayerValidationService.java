@@ -10,8 +10,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -121,6 +125,7 @@ public class SemanticLayerValidationService {
     private ValidationResult performValidation(Bundle bundle, ValidationRequest request) {
         List<ValidationError> errors = new ArrayList<>();
         List<ValidationWarning> warnings = new ArrayList<>();
+        Set<String> failedTmNames = new HashSet<>();
         int totalFiles = 0;
 
         // 验证TM文件
@@ -131,7 +136,12 @@ public class SemanticLayerValidationService {
                 log.info("找到 {} 个TM文件", tmResources.length);
 
                 for (BundleResource tmResource : tmResources) {
+                    int beforeSize = errors.size();
                     validateTmFile(tmResource, request, errors);
+                    if (errors.size() > beforeSize) {
+                        String modelName = extractModelName(getRelativePath(tmResource));
+                        failedTmNames.add(modelName);
+                    }
                 }
             }
         } catch (Exception e) {
@@ -146,12 +156,27 @@ public class SemanticLayerValidationService {
                 log.info("找到 {} 个QM文件", qmResources.length);
 
                 for (BundleResource qmResource : qmResources) {
+                    int beforeSize = errors.size();
                     validateQmFile(qmResource, request, errors);
+                    // 检查新增的QM错误是否由上游TM失败导致
+                    if (errors.size() > beforeSize && !failedTmNames.isEmpty()) {
+                        for (int i = beforeSize; i < errors.size(); i++) {
+                            ValidationError err = errors.get(i);
+                            if (isCascadingError(err, failedTmNames)) {
+                                err.setCategory("CASCADING");
+                            }
+                        }
+                    }
                 }
             }
         } catch (Exception e) {
             log.warn("查找QM文件时出错: {}", e.getMessage());
         }
+
+        // 统计级联错误数
+        int cascadingErrors = (int) errors.stream()
+                .filter(e -> "CASCADING".equals(e.getCategory()))
+                .count();
 
         // 构建结果
         boolean success = errors.isEmpty();
@@ -165,7 +190,21 @@ public class SemanticLayerValidationService {
                 .invalidFiles(errors.size())
                 .errors(errors)
                 .warnings(warnings)
+                .cascadingErrors(cascadingErrors)
                 .build();
+    }
+
+    /**
+     * 判断QM错误是否由上游TM失败级联导致
+     */
+    private boolean isCascadingError(ValidationError error, Set<String> failedTmNames) {
+        if (error.getMessage() == null) return false;
+        for (String tmName : failedTmNames) {
+            if (error.getMessage().contains(tmName)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -179,9 +218,7 @@ public class SemanticLayerValidationService {
             // 提取模型名称（去掉 .tm 后缀）
             String modelName = extractModelName(fileName);
 
-            // 尝试加载模型（注意：当前版本不支持namespace参数）
-            // 假设模型已经通过配置加载到对应的namespace
-            tableModelLoaderManager.load(modelName);
+            tableModelLoaderManager.load(modelName, request.getNamespace());
 
             log.debug("TM文件验证通过: {}", fileName);
 
@@ -249,19 +286,21 @@ public class SemanticLayerValidationService {
      */
     private String getRelativePath(BundleResource resource) {
         try {
-            String description = resource.getResource().getDescription();
-            // 提取文件名部分
-            int lastSlash = description.lastIndexOf('/');
-            int lastBackslash = description.lastIndexOf('\\');
-            int lastSeparator = Math.max(lastSlash, lastBackslash);
-
-            if (lastSeparator >= 0) {
-                return description.substring(lastSeparator + 1);
+            File file = resource.getResource().getFile();
+            String rootPath = resource.getBundle().getRootPath();
+            if (rootPath != null && file != null) {
+                Path root = Paths.get(rootPath);
+                Path filePath = file.toPath();
+                if (filePath.startsWith(root)) {
+                    return root.relativize(filePath).toString().replace('\\', '/');
+                }
             }
-            return description;
-        } catch (Exception e) {
-            return "unknown";
-        }
+        } catch (Exception ignored) {}
+        try {
+            String filename = resource.getResource().getFilename();
+            if (filename != null) return filename;
+        } catch (Exception ignored) {}
+        return "unknown";
     }
 
     /**

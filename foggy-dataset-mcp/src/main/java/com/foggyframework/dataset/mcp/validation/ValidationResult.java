@@ -59,6 +59,11 @@ public class ValidationResult {
     private List<ValidationWarning> warnings = new ArrayList<>();
 
     /**
+     * 级联错误数（因上游TM失败导致的QM错误）
+     */
+    private int cascadingErrors;
+
+    /**
      * 验证时间戳
      */
     @Builder.Default

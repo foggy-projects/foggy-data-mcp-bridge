@@ -89,6 +89,17 @@ public class DialectTest {
         void testGetDbType() {
             assertEquals(DbType.MYSQL, dialect.getDbType());
         }
+
+        @Test
+        @DisplayName("测试统计函数 - 使用标准SQL名")
+        void testBuildStatFunction() {
+            assertEquals("STDDEV_POP(t1.amount)", dialect.buildStatFunction("STDDEV_POP", "t1.amount"));
+            assertEquals("STDDEV_SAMP(t1.amount)", dialect.buildStatFunction("STDDEV_SAMP", "t1.amount"));
+            assertEquals("VAR_POP(t1.amount)", dialect.buildStatFunction("VAR_POP", "t1.amount"));
+            assertEquals("VAR_SAMP(t1.amount)", dialect.buildStatFunction("VAR_SAMP", "t1.amount"));
+            // 无参版本
+            assertEquals("STDDEV_POP", dialect.buildStatFunction("STDDEV_POP"));
+        }
     }
 
     // ==========================================
@@ -162,6 +173,17 @@ public class DialectTest {
         @DisplayName("测试数据库类型")
         void testGetDbType() {
             assertEquals(DbType.POSTGRESQL, dialect.getDbType());
+        }
+
+        @Test
+        @DisplayName("测试统计函数 - 使用标准SQL名")
+        void testBuildStatFunction() {
+            assertEquals("STDDEV_POP(t1.amount)", dialect.buildStatFunction("STDDEV_POP", "t1.amount"));
+            assertEquals("STDDEV_SAMP(t1.amount)", dialect.buildStatFunction("STDDEV_SAMP", "t1.amount"));
+            assertEquals("VAR_POP(t1.amount)", dialect.buildStatFunction("VAR_POP", "t1.amount"));
+            assertEquals("VAR_SAMP(t1.amount)", dialect.buildStatFunction("VAR_SAMP", "t1.amount"));
+            // 无参版本
+            assertEquals("STDDEV_POP", dialect.buildStatFunction("STDDEV_POP"));
         }
     }
 
@@ -254,6 +276,18 @@ public class DialectTest {
         void testGetDbType() {
             assertEquals(DbType.SQLSERVER, dialect.getDbType());
         }
+
+        @Test
+        @DisplayName("测试统计函数 - SQL Server 函数名映射")
+        void testBuildStatFunction() {
+            assertEquals("STDEVP(t1.amount)", dialect.buildStatFunction("STDDEV_POP", "t1.amount"));
+            assertEquals("STDEV(t1.amount)", dialect.buildStatFunction("STDDEV_SAMP", "t1.amount"));
+            assertEquals("VARP(t1.amount)", dialect.buildStatFunction("VAR_POP", "t1.amount"));
+            assertEquals("VAR(t1.amount)", dialect.buildStatFunction("VAR_SAMP", "t1.amount"));
+            // 无参版本
+            assertEquals("STDEVP", dialect.buildStatFunction("STDDEV_POP"));
+            assertEquals("STDEV", dialect.buildStatFunction("STDDEV_SAMP"));
+        }
     }
 
     // ==========================================
@@ -323,6 +357,15 @@ public class DialectTest {
         @DisplayName("测试数据库类型")
         void testGetDbType() {
             assertEquals(DbType.SQLITE, dialect.getDbType());
+        }
+
+        @Test
+        @DisplayName("测试统计函数 - 抛出友好错误")
+        void testBuildStatFunctionThrows() {
+            assertThrows(RuntimeException.class,
+                () -> dialect.buildStatFunction("STDDEV_POP", "t1.amount"));
+            assertThrows(RuntimeException.class,
+                () -> dialect.buildStatFunction("STDDEV_POP"));
         }
     }
 

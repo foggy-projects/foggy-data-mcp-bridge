@@ -742,9 +742,8 @@ class DataComparisonTest extends EcommerceTestSupport {
             LEFT JOIN dim_product dp ON fs.product_key = dp.product_key
             LEFT JOIN dim_customer dc ON fs.customer_key = dc.customer_key
             ORDER BY fs.order_id ASC, fs.order_line_no ASC
-            LIMIT 100
             """;
-        List<Map<String, Object>> nativeResults = executeQuery(nativeSql);
+        List<Map<String, Object>> nativeResults = executeQuery(paginateSql(nativeSql, 100));
         log.info("原生SQL结果: {} 条", nativeResults.size());
 
         // 2. 模型查询
@@ -766,7 +765,7 @@ class DataComparisonTest extends EcommerceTestSupport {
         queryRequest.setOrderBy(orders);
 
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
-        String modelSql = queryEngine.getSql() + " LIMIT 100";
+        String modelSql = paginateSql(queryEngine.getSql(), 100);
         printSql(modelSql, "模型生成SQL");
 
         List<Map<String, Object>> modelResults = jdbcTemplate.queryForList(modelSql);

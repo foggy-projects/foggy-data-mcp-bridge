@@ -1,5 +1,6 @@
 package com.foggyframework.dataset.db.model.multidb;
 
+import com.foggyframework.dataset.db.dialect.DbType;
 import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.db.model.test.JdbcModelTestApplication;
 import com.foggyframework.dataset.db.table.SqlColumn;
@@ -14,6 +15,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import javax.sql.DataSource;
+import java.sql.Connection;
 import java.util.List;
 import java.util.Map;
 
@@ -362,5 +364,204 @@ public class MultiDatabaseQueryTest {
         } else {
             log.warn("dim_product 表无数据，跳过子查询测试");
         }
+    }
+
+    // ==========================================
+    // 高级分析测试
+    // ==========================================
+
+    @Test
+    @DisplayName("测试COUNT(DISTINCT)查询")
+    void testCountDistinct() {
+        FDialect dialect = DbUtils.getDialect(dataSource);
+
+        String countSql = "SELECT COUNT(*) FROM " + dialect.quoteIdentifier("fact_sales");
+        Long count = jdbcTemplate.queryForObject(countSql, Long.class);
+
+        if (count > 0) {
+            String sql = "SELECT COUNT(DISTINCT " + dialect.quoteIdentifier("product_key") +
+                    ") AS distinct_products FROM " + dialect.quoteIdentifier("fact_sales");
+
+            log.info("COUNT(DISTINCT) SQL: {}", sql);
+
+            Map<String, Object> result = jdbcTemplate.queryForMap(sql);
+            log.info("COUNT(DISTINCT) 结果: {}", result);
+
+            assertNotNull(result.get("distinct_products"), "COUNT(DISTINCT) 结果不应为空");
+            assertTrue(((Number) result.get("distinct_products")).longValue() > 0,
+                    "去重产品数应大于0");
+        } else {
+            log.warn("fact_sales 表无数据，跳过COUNT(DISTINCT)测试");
+        }
+    }
+
+    @Test
+    @DisplayName("测试窗口函数 ROW_NUMBER/RANK")
+    void testWindowFunctions() throws Exception {
+        FDialect dialect = DbUtils.getDialect(dataSource);
+
+        if (!supportsWindowFunctions(dialect)) {
+            return;
+        }
+
+        String countSql = "SELECT COUNT(*) FROM " + dialect.quoteIdentifier("fact_sales");
+        Long count = jdbcTemplate.queryForObject(countSql, Long.class);
+
+        if (count > 0) {
+            String sql = "SELECT " +
+                    dialect.quoteIdentifier("product_key") + ", " +
+                    dialect.quoteIdentifier("sales_amount") + ", " +
+                    "ROW_NUMBER() OVER (ORDER BY " + dialect.quoteIdentifier("sales_amount") + " DESC) AS rn, " +
+                    "RANK() OVER (PARTITION BY " + dialect.quoteIdentifier("product_key") +
+                    " ORDER BY " + dialect.quoteIdentifier("sales_amount") + " DESC) AS rnk " +
+                    "FROM " + dialect.quoteIdentifier("fact_sales");
+
+            String pagedSql = dialect.generatePagingSql(sql, 0, 10);
+            log.info("窗口函数SQL: {}", pagedSql);
+
+            List<Map<String, Object>> results = jdbcTemplate.queryForList(pagedSql);
+            log.info("窗口函数返回记录数: {}", results.size());
+
+            assertFalse(results.isEmpty(), "窗口函数查询应返回结果");
+            assertNotNull(results.get(0).get("rn"), "ROW_NUMBER 结果不应为空");
+            assertNotNull(results.get(0).get("rnk"), "RANK 结果不应为空");
+
+            if (!results.isEmpty()) {
+                log.info("第一条记录: {}", results.get(0));
+            }
+        } else {
+            log.warn("fact_sales 表无数据，跳过窗口函数测试");
+        }
+    }
+
+    @Test
+    @DisplayName("测试窗口函数 LAG")
+    void testLagWindowFunction() throws Exception {
+        FDialect dialect = DbUtils.getDialect(dataSource);
+
+        if (!supportsWindowFunctions(dialect)) {
+            return;
+        }
+
+        String countSql = "SELECT COUNT(*) FROM " + dialect.quoteIdentifier("fact_sales");
+        Long count = jdbcTemplate.queryForObject(countSql, Long.class);
+
+        if (count > 0) {
+            String sql = "SELECT " +
+                    dialect.quoteIdentifier("product_key") + ", " +
+                    dialect.quoteIdentifier("sales_amount") + ", " +
+                    "LAG(" + dialect.quoteIdentifier("sales_amount") + ", 1) OVER " +
+                    "(PARTITION BY " + dialect.quoteIdentifier("product_key") +
+                    " ORDER BY " + dialect.quoteIdentifier("sales_key") + ") AS prev_amount " +
+                    "FROM " + dialect.quoteIdentifier("fact_sales");
+
+            String pagedSql = dialect.generatePagingSql(sql, 0, 10);
+            log.info("LAG窗口函数SQL: {}", pagedSql);
+
+            List<Map<String, Object>> results = jdbcTemplate.queryForList(pagedSql);
+            log.info("LAG窗口函数返回记录数: {}", results.size());
+
+            assertFalse(results.isEmpty(), "LAG查询应返回结果");
+
+            if (!results.isEmpty()) {
+                log.info("第一条记录: {}", results.get(0));
+            }
+        } else {
+            log.warn("fact_sales 表无数据，跳过LAG测试");
+        }
+    }
+
+    @Test
+    @DisplayName("测试移动平均窗口帧")
+    void testMovingAverageFrame() throws Exception {
+        FDialect dialect = DbUtils.getDialect(dataSource);
+
+        if (!supportsWindowFunctions(dialect)) {
+            return;
+        }
+
+        String countSql = "SELECT COUNT(*) FROM " + dialect.quoteIdentifier("fact_sales");
+        Long count = jdbcTemplate.queryForObject(countSql, Long.class);
+
+        if (count > 0) {
+            String sql = "SELECT " +
+                    dialect.quoteIdentifier("product_key") + ", " +
+                    dialect.quoteIdentifier("sales_amount") + ", " +
+                    "AVG(" + dialect.quoteIdentifier("sales_amount") + ") OVER " +
+                    "(PARTITION BY " + dialect.quoteIdentifier("product_key") +
+                    " ORDER BY " + dialect.quoteIdentifier("sales_key") +
+                    " ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS ma3 " +
+                    "FROM " + dialect.quoteIdentifier("fact_sales");
+
+            String pagedSql = dialect.generatePagingSql(sql, 0, 10);
+            log.info("移动平均SQL: {}", pagedSql);
+
+            List<Map<String, Object>> results = jdbcTemplate.queryForList(pagedSql);
+            log.info("移动平均返回记录数: {}", results.size());
+
+            assertFalse(results.isEmpty(), "移动平均查询应返回结果");
+            assertNotNull(results.get(0).get("ma3"), "移动平均结果不应为空");
+
+            if (!results.isEmpty()) {
+                log.info("第一条记录: {}", results.get(0));
+            }
+        } else {
+            log.warn("fact_sales 表无数据，跳过移动平均测试");
+        }
+    }
+
+    @Test
+    @DisplayName("测试STDDEV统计函数")
+    void testStddevFunction() {
+        FDialect dialect = DbUtils.getDialect(dataSource);
+
+        if (dialect.getDbType() == DbType.SQLITE) {
+            log.info("SQLite 不支持 STDDEV，跳过");
+            return;
+        }
+
+        String countSql = "SELECT COUNT(*) FROM " + dialect.quoteIdentifier("fact_sales");
+        Long count = jdbcTemplate.queryForObject(countSql, Long.class);
+
+        if (count > 0) {
+            String funcExpr = dialect.buildStatFunction("STDDEV_POP",
+                    dialect.quoteIdentifier("sales_amount"));
+
+            String sql = "SELECT " +
+                    dialect.quoteIdentifier("product_key") + ", " +
+                    funcExpr + " AS stddev_amount " +
+                    "FROM " + dialect.quoteIdentifier("fact_sales") +
+                    " GROUP BY " + dialect.quoteIdentifier("product_key");
+
+            log.info("STDDEV SQL: {}", sql);
+
+            List<Map<String, Object>> results = jdbcTemplate.queryForList(sql);
+            log.info("STDDEV 返回记录数: {}", results.size());
+
+            assertFalse(results.isEmpty(), "STDDEV查询应返回结果");
+
+            if (!results.isEmpty()) {
+                log.info("第一条记录: {}", results.get(0));
+            }
+        } else {
+            log.warn("fact_sales 表无数据，跳过STDDEV测试");
+        }
+    }
+
+    /**
+     * 检查当前数据库是否支持窗口函数（MySQL 8.0+、PostgreSQL、SQL Server、SQLite 3.25+）
+     */
+    private boolean supportsWindowFunctions(FDialect dialect) throws Exception {
+        if (dialect.getDbType() == DbType.MYSQL) {
+            try (Connection conn = dataSource.getConnection()) {
+                int majorVersion = conn.getMetaData().getDatabaseMajorVersion();
+                if (majorVersion < 8) {
+                    log.info("MySQL {} 不支持窗口函数，跳过",
+                            conn.getMetaData().getDatabaseProductVersion());
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 }
