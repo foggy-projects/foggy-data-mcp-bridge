@@ -11,12 +11,12 @@
 [INFO] Foggy Dataset Model                                                [jar]
 [INFO] 
 [INFO] ---------------< com.foggysource:foggy-data-mcp-bridge >----------------
-[INFO] Building Java Data MCP Bridge 8.1.4.beta                           [1/7]
+[INFO] Building Java Data MCP Bridge 8.1.5.beta                           [1/7]
 [INFO]   from pom.xml
 [INFO] --------------------------------[ pom ]---------------------------------
 [INFO] 
 [INFO] ---------------------< com.foggysource:foggy-core >---------------------
-[INFO] Building Foggy Core 8.1.4.beta                                     [2/7]
+[INFO] Building Foggy Core 8.1.5.beta                                     [2/7]
 [INFO]   from foggy-core\pom.xml
 [INFO] --------------------------------[ jar ]---------------------------------
 [INFO] 
@@ -36,7 +36,7 @@
 [INFO] --- surefire:3.5.3:test (default-test) @ foggy-core ---
 [INFO] 
 [INFO] ------------------< com.foggysource:foggy-bean-copy >-------------------
-[INFO] Building Foggy Bean Copy 8.1.4.beta                                [3/7]
+[INFO] Building Foggy Bean Copy 8.1.5.beta                                [3/7]
 [INFO]   from foggy-bean-copy\pom.xml
 [INFO] --------------------------------[ jar ]---------------------------------
 [INFO] 
@@ -56,7 +56,7 @@
 [INFO] --- surefire:3.5.3:test (default-test) @ foggy-bean-copy ---
 [INFO] 
 [INFO] -------------------< com.foggysource:foggy-fsscript >-------------------
-[INFO] Building Foggy FSScript 8.1.4.beta                                 [4/7]
+[INFO] Building Foggy FSScript 8.1.5.beta                                 [4/7]
 [INFO]   from foggy-fsscript\pom.xml
 [INFO] --------------------------------[ jar ]---------------------------------
 [INFO] 
@@ -73,15 +73,15 @@
 [INFO] --- compiler:3.13.0:testCompile (default-testCompile) @ foggy-fsscript ---
 [INFO] Recompiling the module because of changed source code.
 [INFO] Compiling 49 source files with javac [debug parameters release 17] to target\test-classes
-[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-fsscript/src/test/java/com/foggyframework/fsscript/exp/ArrayExpTest.java: Ä³Ð©ÊäÈëÎÄ¼þÊ¹ÓÃ»ò¸²¸ÇÁËÒÑ¹ýÊ±µÄ API¡£
-[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-fsscript/src/test/java/com/foggyframework/fsscript/exp/ArrayExpTest.java: ÓÐ¹ØÏêÏ¸ÐÅÏ¢, ÇëÊ¹ÓÃ -Xlint:deprecation ÖØÐÂ±àÒë¡£
-[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-fsscript/src/test/java/com/foggyframework/fsscript/bugfix/FromBatchBugFixTest.java: Ä³Ð©ÊäÈëÎÄ¼þÊ¹ÓÃÁËÎ´¾­¼ì²é»ò²»°²È«µÄ²Ù×÷¡£
-[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-fsscript/src/test/java/com/foggyframework/fsscript/bugfix/FromBatchBugFixTest.java: ÓÐ¹ØÏêÏ¸ÐÅÏ¢, ÇëÊ¹ÓÃ -Xlint:unchecked ÖØÐÂ±àÒë¡£
+[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-fsscript/src/test/java/com/foggyframework/fsscript/exp/ArrayExpTest.java: Ä³Ð©ï¿½ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½Ê¹ï¿½Ã»ò¸²¸ï¿½ï¿½ï¿½ï¿½Ñ¹ï¿½Ê±ï¿½ï¿½ APIï¿½ï¿½
+[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-fsscript/src/test/java/com/foggyframework/fsscript/exp/ArrayExpTest.java: ï¿½Ð¹ï¿½ï¿½ï¿½Ï¸ï¿½ï¿½Ï¢, ï¿½ï¿½Ê¹ï¿½ï¿½ -Xlint:deprecation ï¿½ï¿½ï¿½Â±ï¿½ï¿½ë¡£
+[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-fsscript/src/test/java/com/foggyframework/fsscript/bugfix/FromBatchBugFixTest.java: Ä³Ð©ï¿½ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½Ê¹ï¿½ï¿½ï¿½ï¿½Î´ï¿½ï¿½ï¿½ï¿½ï¿½ò²»°ï¿½È«ï¿½Ä²ï¿½ï¿½ï¿½ï¿½ï¿½
+[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-fsscript/src/test/java/com/foggyframework/fsscript/bugfix/FromBatchBugFixTest.java: ï¿½Ð¹ï¿½ï¿½ï¿½Ï¸ï¿½ï¿½Ï¢, ï¿½ï¿½Ê¹ï¿½ï¿½ -Xlint:unchecked ï¿½ï¿½ï¿½Â±ï¿½ï¿½ë¡£
 [INFO] 
 [INFO] --- surefire:3.5.3:test (default-test) @ foggy-fsscript ---
 [INFO] 
 [INFO] -------------------< com.foggysource:foggy-dataset >--------------------
-[INFO] Building Foggy Dataset 8.1.4.beta                                  [5/7]
+[INFO] Building Foggy Dataset 8.1.5.beta                                  [5/7]
 [INFO]   from foggy-dataset\pom.xml
 [INFO] --------------------------------[ jar ]---------------------------------
 [INFO] 
@@ -94,10 +94,10 @@
 [INFO] Compiling 103 source files with javac [debug parameters release 17] to target\classes
 [WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset/src/main/java/com/foggyframework/dataset/model/QueryExpEvaluator.java:[12,1] Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
 [WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset/src/main/java/com/foggyframework/dataset/resultset/support/ListPagingResultSet.java:[27,1] Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
-[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset/src/main/java/com/foggyframework/dataset/fun/DatasetJdbcUtils.java: Ä³Ð©ÊäÈëÎÄ¼þÊ¹ÓÃ»ò¸²¸ÇÁËÒÑ¹ýÊ±µÄ API¡£
-[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset/src/main/java/com/foggyframework/dataset/fun/DatasetJdbcUtils.java: ÓÐ¹ØÏêÏ¸ÐÅÏ¢, ÇëÊ¹ÓÃ -Xlint:deprecation ÖØÐÂ±àÒë¡£
-[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset/src/main/java/com/foggyframework/dataset/db/table/SqlTableSupport.java: Ä³Ð©ÊäÈëÎÄ¼þÊ¹ÓÃÁËÎ´¾­¼ì²é»ò²»°²È«µÄ²Ù×÷¡£
-[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset/src/main/java/com/foggyframework/dataset/db/table/SqlTableSupport.java: ÓÐ¹ØÏêÏ¸ÐÅÏ¢, ÇëÊ¹ÓÃ -Xlint:unchecked ÖØÐÂ±àÒë¡£
+[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset/src/main/java/com/foggyframework/dataset/fun/DatasetJdbcUtils.java: Ä³Ð©ï¿½ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½Ê¹ï¿½Ã»ò¸²¸ï¿½ï¿½ï¿½ï¿½Ñ¹ï¿½Ê±ï¿½ï¿½ APIï¿½ï¿½
+[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset/src/main/java/com/foggyframework/dataset/fun/DatasetJdbcUtils.java: ï¿½Ð¹ï¿½ï¿½ï¿½Ï¸ï¿½ï¿½Ï¢, ï¿½ï¿½Ê¹ï¿½ï¿½ -Xlint:deprecation ï¿½ï¿½ï¿½Â±ï¿½ï¿½ë¡£
+[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset/src/main/java/com/foggyframework/dataset/db/table/SqlTableSupport.java: Ä³Ð©ï¿½ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½Ê¹ï¿½ï¿½ï¿½ï¿½Î´ï¿½ï¿½ï¿½ï¿½ï¿½ò²»°ï¿½È«ï¿½Ä²ï¿½ï¿½ï¿½ï¿½ï¿½
+[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset/src/main/java/com/foggyframework/dataset/db/table/SqlTableSupport.java: ï¿½Ð¹ï¿½ï¿½ï¿½Ï¸ï¿½ï¿½Ï¢, ï¿½ï¿½Ê¹ï¿½ï¿½ -Xlint:unchecked ï¿½ï¿½ï¿½Â±ï¿½ï¿½ë¡£
 [INFO] 
 [INFO] --- resources:3.3.1:testResources (default-testResources) @ foggy-dataset ---
 [INFO] Copying 10 resources from src\test\resources to target\test-classes
@@ -105,13 +105,13 @@
 [INFO] --- compiler:3.13.0:testCompile (default-testCompile) @ foggy-dataset ---
 [INFO] Recompiling the module because of changed dependency.
 [INFO] Compiling 15 source files with javac [debug parameters release 17] to target\test-classes
-[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset/src/test/java/com/foggyframework/dataset/db/data/dll/OnDuplicateKeyBuilderTest.java: Ä³Ð©ÊäÈëÎÄ¼þÊ¹ÓÃÁËÎ´¾­¼ì²é»ò²»°²È«µÄ²Ù×÷¡£
-[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset/src/test/java/com/foggyframework/dataset/db/data/dll/OnDuplicateKeyBuilderTest.java: ÓÐ¹ØÏêÏ¸ÐÅÏ¢, ÇëÊ¹ÓÃ -Xlint:unchecked ÖØÐÂ±àÒë¡£
+[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset/src/test/java/com/foggyframework/dataset/db/data/dll/OnDuplicateKeyBuilderTest.java: Ä³Ð©ï¿½ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½Ê¹ï¿½ï¿½ï¿½ï¿½Î´ï¿½ï¿½ï¿½ï¿½ï¿½ò²»°ï¿½È«ï¿½Ä²ï¿½ï¿½ï¿½ï¿½ï¿½
+[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset/src/test/java/com/foggyframework/dataset/db/data/dll/OnDuplicateKeyBuilderTest.java: ï¿½Ð¹ï¿½ï¿½ï¿½Ï¸ï¿½ï¿½Ï¢, ï¿½ï¿½Ê¹ï¿½ï¿½ -Xlint:unchecked ï¿½ï¿½ï¿½Â±ï¿½ï¿½ë¡£
 [INFO] 
 [INFO] --- surefire:3.5.3:test (default-test) @ foggy-dataset ---
 [INFO] 
 [INFO] -----------------< com.foggysource:foggy-dataset-demo >-----------------
-[INFO] Building Foggy Dataset Demo 8.1.4.beta                             [6/7]
+[INFO] Building Foggy Dataset Demo 8.1.5.beta                             [6/7]
 [INFO]   from foggy-dataset-demo\pom.xml
 [INFO] --------------------------------[ jar ]---------------------------------
 [INFO] 
@@ -131,7 +131,7 @@
 [INFO] --- surefire:3.5.3:test (default-test) @ foggy-dataset-demo ---
 [INFO] 
 [INFO] ----------------< com.foggysource:foggy-dataset-model >-----------------
-[INFO] Building Foggy Dataset Model 8.1.4.beta                            [7/7]
+[INFO] Building Foggy Dataset Model 8.1.5.beta                            [7/7]
 [INFO]   from foggy-dataset-model\pom.xml
 [INFO] --------------------------------[ jar ]---------------------------------
 [INFO] 
@@ -171,18 +171,18 @@
 [WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/spi/support/SimpleSqlJdbcColumn.java:[13,1] Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
 [WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/def/DbModelDef.java:[15,1] Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
 [WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/impl/utils/QueryObjectSupport.java:[14,1] Generating equals/hashCode implementation but without a call to superclass, even though this class does not extend java.lang.Object. If this is intentional, add '@EqualsAndHashCode(callSuper=false)' to your type.
-[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/spi/DbColumnType.java:[87,32] Î´Ê¹ÓÃ @Deprecated ¶ÔÒÑ¹ýÊ±µÄÏîÄ¿½øÐÐ×¢ÊÍ
-[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/spi/DbColumnType.java:[89,32] Î´Ê¹ÓÃ @Deprecated ¶ÔÒÑ¹ýÊ±µÄÏîÄ¿½øÐÐ×¢ÊÍ
-[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/spi/DbColumnType.java:[91,32] Î´Ê¹ÓÃ @Deprecated ¶ÔÒÑ¹ýÊ±µÄÏîÄ¿½øÐÐ×¢ÊÍ
-[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/spi/DbColumnType.java:[93,32] Î´Ê¹ÓÃ @Deprecated ¶ÔÒÑ¹ýÊ±µÄÏîÄ¿½øÐÐ×¢ÊÍ
-[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/spi/DbColumnType.java:[95,32] Î´Ê¹ÓÃ @Deprecated ¶ÔÒÑ¹ýÊ±µÄÏîÄ¿½øÐÐ×¢ÊÍ
-[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/spi/DbColumnType.java:[97,32] Î´Ê¹ÓÃ @Deprecated ¶ÔÒÑ¹ýÊ±µÄÏîÄ¿½øÐÐ×¢ÊÍ
-[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/spi/DbColumnType.java:[99,32] Î´Ê¹ÓÃ @Deprecated ¶ÔÒÑ¹ýÊ±µÄÏîÄ¿½øÐÐ×¢ÊÍ
-[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/spi/DbColumnType.java:[101,32] Î´Ê¹ÓÃ @Deprecated ¶ÔÒÑ¹ýÊ±µÄÏîÄ¿½øÐÐ×¢ÊÍ
-[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/query_model/QueryModelLoaderImpl.java: Ä³Ð©ÊäÈëÎÄ¼þÊ¹ÓÃ»ò¸²¸ÇÁËÒÑ¹ýÊ±µÄ API¡£
-[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/query_model/QueryModelLoaderImpl.java: ÓÐ¹ØÏêÏ¸ÐÅÏ¢, ÇëÊ¹ÓÃ -Xlint:deprecation ÖØÐÂ±àÒë¡£
-[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/service/impl/JdbcServiceImpl.java: Ä³Ð©ÊäÈëÎÄ¼þÊ¹ÓÃÁËÎ´¾­¼ì²é»ò²»°²È«µÄ²Ù×÷¡£
-[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/service/impl/JdbcServiceImpl.java: ÓÐ¹ØÏêÏ¸ÐÅÏ¢, ÇëÊ¹ÓÃ -Xlint:unchecked ÖØÐÂ±àÒë¡£
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/spi/DbColumnType.java:[87,32] Î´Ê¹ï¿½ï¿½ @Deprecated ï¿½ï¿½ï¿½Ñ¹ï¿½Ê±ï¿½ï¿½ï¿½ï¿½Ä¿ï¿½ï¿½ï¿½ï¿½×¢ï¿½ï¿½
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/spi/DbColumnType.java:[89,32] Î´Ê¹ï¿½ï¿½ @Deprecated ï¿½ï¿½ï¿½Ñ¹ï¿½Ê±ï¿½ï¿½ï¿½ï¿½Ä¿ï¿½ï¿½ï¿½ï¿½×¢ï¿½ï¿½
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/spi/DbColumnType.java:[91,32] Î´Ê¹ï¿½ï¿½ @Deprecated ï¿½ï¿½ï¿½Ñ¹ï¿½Ê±ï¿½ï¿½ï¿½ï¿½Ä¿ï¿½ï¿½ï¿½ï¿½×¢ï¿½ï¿½
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/spi/DbColumnType.java:[93,32] Î´Ê¹ï¿½ï¿½ @Deprecated ï¿½ï¿½ï¿½Ñ¹ï¿½Ê±ï¿½ï¿½ï¿½ï¿½Ä¿ï¿½ï¿½ï¿½ï¿½×¢ï¿½ï¿½
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/spi/DbColumnType.java:[95,32] Î´Ê¹ï¿½ï¿½ @Deprecated ï¿½ï¿½ï¿½Ñ¹ï¿½Ê±ï¿½ï¿½ï¿½ï¿½Ä¿ï¿½ï¿½ï¿½ï¿½×¢ï¿½ï¿½
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/spi/DbColumnType.java:[97,32] Î´Ê¹ï¿½ï¿½ @Deprecated ï¿½ï¿½ï¿½Ñ¹ï¿½Ê±ï¿½ï¿½ï¿½ï¿½Ä¿ï¿½ï¿½ï¿½ï¿½×¢ï¿½ï¿½
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/spi/DbColumnType.java:[99,32] Î´Ê¹ï¿½ï¿½ @Deprecated ï¿½ï¿½ï¿½Ñ¹ï¿½Ê±ï¿½ï¿½ï¿½ï¿½Ä¿ï¿½ï¿½ï¿½ï¿½×¢ï¿½ï¿½
+[WARNING] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/spi/DbColumnType.java:[101,32] Î´Ê¹ï¿½ï¿½ @Deprecated ï¿½ï¿½ï¿½Ñ¹ï¿½Ê±ï¿½ï¿½ï¿½ï¿½Ä¿ï¿½ï¿½ï¿½ï¿½×¢ï¿½ï¿½
+[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/query_model/QueryModelLoaderImpl.java: Ä³Ð©ï¿½ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½Ê¹ï¿½Ã»ò¸²¸ï¿½ï¿½ï¿½ï¿½Ñ¹ï¿½Ê±ï¿½ï¿½ APIï¿½ï¿½
+[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/query_model/QueryModelLoaderImpl.java: ï¿½Ð¹ï¿½ï¿½ï¿½Ï¸ï¿½ï¿½Ï¢, ï¿½ï¿½Ê¹ï¿½ï¿½ -Xlint:deprecation ï¿½ï¿½ï¿½Â±ï¿½ï¿½ë¡£
+[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/service/impl/JdbcServiceImpl.java: Ä³Ð©ï¿½ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½Ê¹ï¿½ï¿½ï¿½ï¿½Î´ï¿½ï¿½ï¿½ï¿½ï¿½ò²»°ï¿½È«ï¿½Ä²ï¿½ï¿½ï¿½ï¿½ï¿½
+[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/service/impl/JdbcServiceImpl.java: ï¿½Ð¹ï¿½ï¿½ï¿½Ï¸ï¿½ï¿½Ï¢, ï¿½ï¿½Ê¹ï¿½ï¿½ -Xlint:unchecked ï¿½ï¿½ï¿½Â±ï¿½ï¿½ë¡£
 [INFO] 
 [INFO] --- resources:3.3.1:testResources (default-testResources) @ foggy-dataset-model ---
 [INFO] Copying 10 resources from src\test\resources to target\test-classes
@@ -190,10 +190,10 @@
 [INFO] --- compiler:3.13.0:testCompile (default-testCompile) @ foggy-dataset-model ---
 [INFO] Recompiling the module because of changed dependency.
 [INFO] Compiling 44 source files with javac [debug parameters release 17] to target\test-classes
-[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/demo/FactOrderDemoAuthQueryModelTest.java: Ä³Ð©ÊäÈëÎÄ¼þÊ¹ÓÃ»ò¸²¸ÇÁËÒÑ¹ýÊ±µÄ API¡£
-[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/demo/FactOrderDemoAuthQueryModelTest.java: ÓÐ¹ØÏêÏ¸ÐÅÏ¢, ÇëÊ¹ÓÃ -Xlint:deprecation ÖØÐÂ±àÒë¡£
-[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/demo/FactOrderDemoAuthQueryModelTest.java: Ä³Ð©ÊäÈëÎÄ¼þÊ¹ÓÃÁËÎ´¾­¼ì²é»ò²»°²È«µÄ²Ù×÷¡£
-[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/demo/FactOrderDemoAuthQueryModelTest.java: ÓÐ¹ØÏêÏ¸ÐÅÏ¢, ÇëÊ¹ÓÃ -Xlint:unchecked ÖØÐÂ±àÒë¡£
+[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/demo/FactOrderDemoAuthQueryModelTest.java: Ä³Ð©ï¿½ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½Ê¹ï¿½Ã»ò¸²¸ï¿½ï¿½ï¿½ï¿½Ñ¹ï¿½Ê±ï¿½ï¿½ APIï¿½ï¿½
+[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/demo/FactOrderDemoAuthQueryModelTest.java: ï¿½Ð¹ï¿½ï¿½ï¿½Ï¸ï¿½ï¿½Ï¢, ï¿½ï¿½Ê¹ï¿½ï¿½ -Xlint:deprecation ï¿½ï¿½ï¿½Â±ï¿½ï¿½ë¡£
+[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/demo/FactOrderDemoAuthQueryModelTest.java: Ä³Ð©ï¿½ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½Ê¹ï¿½ï¿½ï¿½ï¿½Î´ï¿½ï¿½ï¿½ï¿½ï¿½ò²»°ï¿½È«ï¿½Ä²ï¿½ï¿½ï¿½ï¿½ï¿½
+[INFO] /D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/demo/FactOrderDemoAuthQueryModelTest.java: ï¿½Ð¹ï¿½ï¿½ï¿½Ï¸ï¿½ï¿½Ï¢, ï¿½ï¿½Ê¹ï¿½ï¿½ -Xlint:unchecked ï¿½ï¿½ï¿½Â±ï¿½ï¿½ë¡£
 [INFO] 
 [INFO] --- surefire:3.5.3:test (default-test) @ foggy-dataset-model ---
 [INFO] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
@@ -217,20 +217,20 @@
 2026-02-14 09:06:22.149 [main] INFO  c.f.d.d.m.e.AdvancedAnalyticsTest - The following 1 profile is active: "sqlite"
 2026-02-14 09:06:25.659 [main] WARN  o.s.c.s.PostProcessorRegistrationDelegate$BeanPostProcessorChecker - Bean 'com.foggyframework.core.spring.SpringFoggyFrameworkAutoConfiguration' of type [com.foggyframework.core.spring.SpringFoggyFrameworkAutoConfiguration$$SpringCGLIB$$0] is not eligible for getting processed by all BeanPostProcessors (for example: not eligible for auto-proxying). The currently created BeanPostProcessor [springFoggyBeanPostProcessor] is declared through a non-static factory method on that class; consider declaring it as static instead.
 2026-02-14 09:06:25.665 [main] WARN  o.s.c.s.PostProcessorRegistrationDelegate$BeanPostProcessorChecker - Bean 'springCGLibProxy' of type [com.foggyframework.core.spring.proxy.SpringCGLibProxy] is not eligible for getting processed by all BeanPostProcessors (for example: not eligible for auto-proxying). Is this bean getting eagerly injected/applied to a currently created BeanPostProcessor [springFoggyBeanPostProcessor]? Check the corresponding BeanPostProcessor declaration and its dependencies/advisors. If this bean does not have to be post-processed, declare it with ROLE_INFRASTRUCTURE.
-2026-02-14 09:06:25.779 [main] DEBUG c.f.b.external.ExternalBundleLoader - Íâ²¿Bundle¼ÓÔØÎ´ÆôÓÃ
-2026-02-14 09:06:25.782 [main] DEBUG c.f.bundle.SystemBundlesContextImpl - ¿ªÊ¼×¢²áÏµÍ³ÖÐ¶¨ÒåµÄÄ£¿é
-2026-02-14 09:06:25.782 [main] DEBUG c.f.bundle.SystemBundlesContextImpl - ¼ì²éÄ£¿éµÄ¶¨ÒåÊÇ·ñ³åÍ»
-2026-02-14 09:06:25.782 [main] DEBUG c.f.bundle.SystemBundlesContextImpl - ¶ÔÄ£¿é½øÐÐÅÅÐò,°üÃûÔ½³¤Ô½¿¿Ç°
+2026-02-14 09:06:25.779 [main] DEBUG c.f.b.external.ExternalBundleLoader - ï¿½â²¿Bundleï¿½ï¿½ï¿½ï¿½Î´ï¿½ï¿½ï¿½ï¿½
+2026-02-14 09:06:25.782 [main] DEBUG c.f.bundle.SystemBundlesContextImpl - ï¿½ï¿½Ê¼×¢ï¿½ï¿½ÏµÍ³ï¿½Ð¶ï¿½ï¿½ï¿½ï¿½Ä£ï¿½ï¿½
+2026-02-14 09:06:25.782 [main] DEBUG c.f.bundle.SystemBundlesContextImpl - ï¿½ï¿½ï¿½Ä£ï¿½ï¿½Ä¶ï¿½ï¿½ï¿½ï¿½Ç·ï¿½ï¿½Í»
+2026-02-14 09:06:25.782 [main] DEBUG c.f.bundle.SystemBundlesContextImpl - ï¿½ï¿½Ä£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½,ï¿½ï¿½ï¿½ï¿½Ô½ï¿½ï¿½Ô½ï¿½ï¿½Ç°
 2026-02-14 09:06:25.784 [main] DEBUG c.f.bundle.SystemBundlesContextImpl - foggy-framework-dataset-jdbc-model-test,com.foggyframework.dataset.db.model.test
 2026-02-14 09:06:25.785 [main] DEBUG c.f.bundle.SystemBundlesContextImpl - foggy-dataset-demo,com.foggyframework.dataset.db.model.demo
-2026-02-14 09:06:25.785 [main] DEBUG c.f.bundle.SystemBundlesContextImpl - ×¢²áÍê±Ï£¬¿ªÊ¼¼ÓÔØÄ£¿é(Òì²½)
+2026-02-14 09:06:25.785 [main] DEBUG c.f.bundle.SystemBundlesContextImpl - ×¢ï¿½ï¿½ï¿½ï¿½Ï£ï¿½ï¿½ï¿½Ê¼ï¿½ï¿½ï¿½ï¿½Ä£ï¿½ï¿½(ï¿½ì²½)
 2026-02-14 09:06:25.788 [Thread-2] DEBUG c.f.bundle.loader.ClassBundleLoader - foggy-framework-dataset-jdbc-model-test,com.foggyframework.dataset.db.model.test
 2026-02-14 09:06:25.788 [Thread-2] DEBUG c.f.bundle.loader.ClassBundleLoader - foggy-dataset-demo,com.foggyframework.dataset.db.model.demo
-2026-02-14 09:06:25.790 [Thread-2] WARN  c.f.bundle.loader.ClassBundleLoader - Ä£¿é¡¾foggy-framework-dataset-jdbc-model-test¡¿´¦ÓÚ¿ª·¢ÕßÄ¿Â¼£¬µ±Ç°templatesLocation: ,file:/D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/target/test-classes/foggy/templates
-2026-02-14 09:06:25.791 [Thread-2] WARN  c.f.bundle.loader.ClassBundleLoader - Ä£¿é¡¾foggy-dataset-demo¡¿´¦ÓÚ¿ª·¢ÕßÄ¿Â¼£¬µ±Ç°templatesLocation: ,file:/D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-demo/target/classes/foggy/templates
-2026-02-14 09:06:25.791 [Thread-2] DEBUG c.f.bundle.SystemBundlesContextImpl - ¼ÓÔØÍê±Ï
-2026-02-14 09:06:25.802 [main] INFO  c.f.f.l.FsscriptFileChangeHandler - Ê¹ÓÃ WatchService ½øÐÐÎÄ¼þ±ä»¯¼àÌý
-2026-02-14 09:06:25.803 [WatchServiceFileTracer] INFO  c.f.c.u.file.WatchServiceFileTracer - WatchServiceFileTracer ÊÂ¼þ´¦ÀíÏß³ÌÒÑÆô¶¯
+2026-02-14 09:06:25.790 [Thread-2] WARN  c.f.bundle.loader.ClassBundleLoader - Ä£ï¿½é¡¾foggy-framework-dataset-jdbc-model-testï¿½ï¿½ï¿½ï¿½ï¿½Ú¿ï¿½ï¿½ï¿½ï¿½ï¿½Ä¿Â¼ï¿½ï¿½ï¿½ï¿½Ç°templatesLocation: ,file:/D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-model/target/test-classes/foggy/templates
+2026-02-14 09:06:25.791 [Thread-2] WARN  c.f.bundle.loader.ClassBundleLoader - Ä£ï¿½é¡¾foggy-dataset-demoï¿½ï¿½ï¿½ï¿½ï¿½Ú¿ï¿½ï¿½ï¿½ï¿½ï¿½Ä¿Â¼ï¿½ï¿½ï¿½ï¿½Ç°templatesLocation: ,file:/D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-demo/target/classes/foggy/templates
+2026-02-14 09:06:25.791 [Thread-2] DEBUG c.f.bundle.SystemBundlesContextImpl - ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+2026-02-14 09:06:25.802 [main] INFO  c.f.f.l.FsscriptFileChangeHandler - Ê¹ï¿½ï¿½ WatchService ï¿½ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½ï¿½ä»¯ï¿½ï¿½ï¿½ï¿½
+2026-02-14 09:06:25.803 [WatchServiceFileTracer] INFO  c.f.c.u.file.WatchServiceFileTracer - WatchServiceFileTracer ï¿½Â¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ß³ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 2026-02-14 09:06:25.926 [main] DEBUG c.f.d.d.m.p.q.QueryExecutionStepExecutor - QueryExecutionStepExecutor initialized with 2 steps: [PreAggRewriteStep, L2CacheStep]
 2026-02-14 09:06:25.970 [main] DEBUG c.f.d.d.m.p.r.DataSetResultStepExecutor - DataSetResultStepExecutor initialized with 5 steps
 2026-02-14 09:06:25.970 [main] DEBUG c.f.d.d.m.p.r.DefaultDataSetResultFilterManagerImpl - DataSetResultFilterManager initialized with 5 steps
@@ -329,30 +329,30 @@
 2026-02-14 09:06:29.015 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - Executed SQL script from class path resource [sqlite/04-preagg-schema.sql] in 3 ms.
 2026-02-14 09:06:29.023 [main] DEBUG o.s.jdbc.datasource.DataSourceUtils - Fetching JDBC Connection from DataSource
 2026-02-14 09:06:29.024 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - Executing SQL script from class path resource [sqlite/02-dict-data.sql]
-2026-02-14 09:06:29.027 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 48 returned as update count for SQL: INSERT INTO dict_status (status_type, status_code, status_name, sort_order) VALUES ('ORDER_STATUS', 'PENDING', '´ý´¦Àí', 1), ('ORDER_STATUS', 'PAID', 'ÒÑÖ§¸¶', 2), ('ORDER_STATUS', 'SHIPPED', 'ÒÑ·¢»õ', 3), ('ORDER_STATUS', 'COMPLETED', 'ÒÑÍê³É', 4), ('ORDER_STATUS', 'CANCELLED', 'ÒÑÈ¡Ïû', 5), ('PAYMENT_STATUS', 'UNPAID', 'Î´Ö§¸¶', 1), ('PAYMENT_STATUS', 'PAID', 'ÒÑÖ§¸¶', 2), ('PAYMENT_STATUS', 'REFUNDED', 'ÒÑÍË¿î', 3), ('PAY_METHOD', 'ALIPAY', 'Ö§¸¶±¦', 1), ('PAY_METHOD', 'WECHAT', 'Î¢ÐÅÖ§¸¶', 2), ('PAY_METHOD', 'CARD', 'ÒøÐÐ¿¨', 3), ('PAY_METHOD', 'CASH', 'ÏÖ½ð', 4), ('PAY_STATUS', 'SUCCESS', '³É¹¦', 1), ('PAY_STATUS', 'FAILED', 'Ê§°Ü', 2), ('PAY_STATUS', 'REFUNDING', 'ÍË¿îÖÐ', 3), ('PAY_STATUS', 'REFUNDED', 'ÒÑÍË¿î', 4), ('RETURN_TYPE', 'REFUND_ONLY', '½öÍË¿î', 1), ('RETURN_TYPE', 'RETURN_REFUND', 'ÍË»õÍË¿î', 2), ('RETURN_STATUS', 'PENDING', '´ýÉóºË', 1), ('RETURN_STATUS', 'APPROVED', 'ÒÑÅú×¼', 2), ('RETURN_STATUS', 'COMPLETED', 'ÒÑÍê³É', 3), ('RETURN_STATUS', 'REJECTED', 'ÒÑ¾Ü¾ø', 4), ('CUSTOMER_TYPE', 'NEW', 'ÐÂ¿Í»§', 1), ('CUSTOMER_TYPE', 'NORMAL', 'ÆÕÍ¨¿Í»§', 2), ('CUSTOMER_TYPE', 'VIP', 'VIP¿Í»§', 3), ('MEMBER_LEVEL', 'BRONZE', 'Í­¿¨', 1), ('MEMBER_LEVEL', 'SILVER', 'Òø¿¨', 2), ('MEMBER_LEVEL', 'GOLD', '½ð¿¨', 3), ('MEMBER_LEVEL', 'PLATINUM', '°×½ð¿¨', 4), ('MEMBER_LEVEL', 'DIAMOND', '×êÊ¯¿¨', 5), ('STORE_TYPE', 'DIRECT', 'Ö±Óªµê', 1), ('STORE_TYPE', 'FRANCHISE', '¼ÓÃËµê', 2), ('CHANNEL_TYPE', 'ONLINE', 'ÏßÉÏ', 1), ('CHANNEL_TYPE', 'OFFLINE', 'ÏßÏÂ', 2), ('PROMOTION_TYPE', 'DISCOUNT', 'ÕÛ¿Û', 1), ('PROMOTION_TYPE', 'FULL_REDUCE', 'Âú¼õ', 2), ('PROMOTION_TYPE', 'GIFT', 'ÔùÆ·', 3), ('PROMOTION_TYPE', 'COUPON', 'ÓÅ»ÝÈ¯', 4), ('GENDER', 'M', 'ÄÐ', 1), ('GENDER', 'F', 'Å®', 2), ('GENDER', 'U', 'Î´Öª', 3), ('AGE_GROUP', '18-24', '18-24Ëê', 1), ('AGE_GROUP', '25-34', '25-34Ëê', 2), ('AGE_GROUP', '35-44', '35-44Ëê', 3), ('AGE_GROUP', '45-54', '45-54Ëê', 4), ('AGE_GROUP', '55+', '55ËêÒÔÉÏ', 5), ('COMMON_STATUS', 'ACTIVE', 'ÆôÓÃ', 1), ('COMMON_STATUS', 'INACTIVE', 'Í£ÓÃ', 2)
-2026-02-14 09:06:29.028 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 14 returned as update count for SQL: INSERT INTO dict_category (category_id, category_name, parent_id, category_level, sort_order) VALUES ('CAT001', 'ÊýÂëµçÆ÷', NULL, 1, 1), ('CAT002', '·þ×°ÅäÊÎ', NULL, 1, 2), ('CAT003', 'Ê³Æ·ÒûÁÏ', NULL, 1, 3), ('CAT004', '¼Ò¾ÓÈÕÓÃ', NULL, 1, 4), ('CAT005', 'ÃÀ×±¸ö»¤', NULL, 1, 5), ('CAT001001', 'ÊÖ»úÍ¨Ñ¶', 'CAT001', 2, 1), ('CAT001002', 'µçÄÔ°ì¹«', 'CAT001', 2, 2), ('CAT001003', '¼ÒÓÃµçÆ÷', 'CAT001', 2, 3), ('CAT002001', 'ÄÐ×°', 'CAT002', 2, 1), ('CAT002002', 'Å®×°', 'CAT002', 2, 2), ('CAT002003', 'Ð¬Ñ¥', 'CAT002', 2, 3), ('CAT003001', 'ÐÝÏÐÁãÊ³', 'CAT003', 2, 1), ('CAT004001', '¼Ò¾ß', 'CAT004', 2, 1), ('CAT005001', '»¤·ô', 'CAT005', 2, 1)
-2026-02-14 09:06:29.028 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 13 returned as update count for SQL: INSERT INTO dict_region (region_id, region_name, parent_id, region_level, region_code, sort_order) VALUES ('110000', '±±¾©ÊÐ', NULL, 1, '110000', 1), ('310000', 'ÉÏº£ÊÐ', NULL, 1, '310000', 2), ('330000', 'Õã½­Ê¡', NULL, 1, '330000', 3), ('320000', '½­ËÕÊ¡', NULL, 1, '320000', 4), ('440000', '¹ã¶«Ê¡', NULL, 1, '440000', 5), ('110105', '³¯ÑôÇø', '110000', 2, '110105', 1), ('310115', 'ÆÖ¶«ÐÂÇø', '310000', 2, '310115', 1), ('330100', 'º¼ÖÝÊÐ', '330000', 2, '330100', 1), ('330106', 'Î÷ºþÇø', '330100', 3, '330106', 1), ('320100', 'ÄÏ¾©ÊÐ', '320000', 2, '320100', 1), ('320102', 'ÐþÎäÇø', '320100', 3, '320102', 1), ('440100', '¹ãÖÝÊÐ', '440000', 2, '440100', 1), ('440106', 'ÌìºÓÇø', '440100', 3, '440106', 1)
+2026-02-14 09:06:29.027 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 48 returned as update count for SQL: INSERT INTO dict_status (status_type, status_code, status_name, sort_order) VALUES ('ORDER_STATUS', 'PENDING', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', 1), ('ORDER_STATUS', 'PAID', 'ï¿½ï¿½Ö§ï¿½ï¿½', 2), ('ORDER_STATUS', 'SHIPPED', 'ï¿½Ñ·ï¿½ï¿½ï¿½', 3), ('ORDER_STATUS', 'COMPLETED', 'ï¿½ï¿½ï¿½ï¿½ï¿½', 4), ('ORDER_STATUS', 'CANCELLED', 'ï¿½ï¿½È¡ï¿½ï¿½', 5), ('PAYMENT_STATUS', 'UNPAID', 'Î´Ö§ï¿½ï¿½', 1), ('PAYMENT_STATUS', 'PAID', 'ï¿½ï¿½Ö§ï¿½ï¿½', 2), ('PAYMENT_STATUS', 'REFUNDED', 'ï¿½ï¿½ï¿½Ë¿ï¿½', 3), ('PAY_METHOD', 'ALIPAY', 'Ö§ï¿½ï¿½ï¿½ï¿½', 1), ('PAY_METHOD', 'WECHAT', 'Î¢ï¿½ï¿½Ö§ï¿½ï¿½', 2), ('PAY_METHOD', 'CARD', 'ï¿½ï¿½ï¿½Ð¿ï¿½', 3), ('PAY_METHOD', 'CASH', 'ï¿½Ö½ï¿½', 4), ('PAY_STATUS', 'SUCCESS', 'ï¿½É¹ï¿½', 1), ('PAY_STATUS', 'FAILED', 'Ê§ï¿½ï¿½', 2), ('PAY_STATUS', 'REFUNDING', 'ï¿½Ë¿ï¿½ï¿½ï¿½', 3), ('PAY_STATUS', 'REFUNDED', 'ï¿½ï¿½ï¿½Ë¿ï¿½', 4), ('RETURN_TYPE', 'REFUND_ONLY', 'ï¿½ï¿½ï¿½Ë¿ï¿½', 1), ('RETURN_TYPE', 'RETURN_REFUND', 'ï¿½Ë»ï¿½ï¿½Ë¿ï¿½', 2), ('RETURN_STATUS', 'PENDING', 'ï¿½ï¿½ï¿½ï¿½ï¿½', 1), ('RETURN_STATUS', 'APPROVED', 'ï¿½ï¿½ï¿½ï¿½×¼', 2), ('RETURN_STATUS', 'COMPLETED', 'ï¿½ï¿½ï¿½ï¿½ï¿½', 3), ('RETURN_STATUS', 'REJECTED', 'ï¿½Ñ¾Ü¾ï¿½', 4), ('CUSTOMER_TYPE', 'NEW', 'ï¿½Â¿Í»ï¿½', 1), ('CUSTOMER_TYPE', 'NORMAL', 'ï¿½ï¿½Í¨ï¿½Í»ï¿½', 2), ('CUSTOMER_TYPE', 'VIP', 'VIPï¿½Í»ï¿½', 3), ('MEMBER_LEVEL', 'BRONZE', 'Í­ï¿½ï¿½', 1), ('MEMBER_LEVEL', 'SILVER', 'ï¿½ï¿½ï¿½ï¿½', 2), ('MEMBER_LEVEL', 'GOLD', 'ï¿½ï¿½', 3), ('MEMBER_LEVEL', 'PLATINUM', 'ï¿½×½ï¿½', 4), ('MEMBER_LEVEL', 'DIAMOND', 'ï¿½ï¿½Ê¯ï¿½ï¿½', 5), ('STORE_TYPE', 'DIRECT', 'Ö±Óªï¿½ï¿½', 1), ('STORE_TYPE', 'FRANCHISE', 'ï¿½ï¿½ï¿½Ëµï¿½', 2), ('CHANNEL_TYPE', 'ONLINE', 'ï¿½ï¿½ï¿½ï¿½', 1), ('CHANNEL_TYPE', 'OFFLINE', 'ï¿½ï¿½ï¿½ï¿½', 2), ('PROMOTION_TYPE', 'DISCOUNT', 'ï¿½Û¿ï¿½', 1), ('PROMOTION_TYPE', 'FULL_REDUCE', 'ï¿½ï¿½ï¿½ï¿½', 2), ('PROMOTION_TYPE', 'GIFT', 'ï¿½ï¿½Æ·', 3), ('PROMOTION_TYPE', 'COUPON', 'ï¿½Å»ï¿½È¯', 4), ('GENDER', 'M', 'ï¿½ï¿½', 1), ('GENDER', 'F', 'Å®', 2), ('GENDER', 'U', 'Î´Öª', 3), ('AGE_GROUP', '18-24', '18-24ï¿½ï¿½', 1), ('AGE_GROUP', '25-34', '25-34ï¿½ï¿½', 2), ('AGE_GROUP', '35-44', '35-44ï¿½ï¿½', 3), ('AGE_GROUP', '45-54', '45-54ï¿½ï¿½', 4), ('AGE_GROUP', '55+', '55ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', 5), ('COMMON_STATUS', 'ACTIVE', 'ï¿½ï¿½ï¿½ï¿½', 1), ('COMMON_STATUS', 'INACTIVE', 'Í£ï¿½ï¿½', 2)
+2026-02-14 09:06:29.028 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 14 returned as update count for SQL: INSERT INTO dict_category (category_id, category_name, parent_id, category_level, sort_order) VALUES ('CAT001', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', NULL, 1, 1), ('CAT002', 'ï¿½ï¿½×°ï¿½ï¿½ï¿½ï¿½', NULL, 1, 2), ('CAT003', 'Ê³Æ·ï¿½ï¿½ï¿½ï¿½', NULL, 1, 3), ('CAT004', 'ï¿½Ò¾ï¿½ï¿½ï¿½ï¿½ï¿½', NULL, 1, 4), ('CAT005', 'ï¿½ï¿½×±ï¿½ï¿½ï¿½ï¿½', NULL, 1, 5), ('CAT001001', 'ï¿½Ö»ï¿½Í¨Ñ¶', 'CAT001', 2, 1), ('CAT001002', 'ï¿½ï¿½ï¿½Ô°ì¹«', 'CAT001', 2, 2), ('CAT001003', 'ï¿½ï¿½ï¿½Ãµï¿½ï¿½ï¿½', 'CAT001', 2, 3), ('CAT002001', 'ï¿½ï¿½×°', 'CAT002', 2, 1), ('CAT002002', 'Å®×°', 'CAT002', 2, 2), ('CAT002003', 'Ð¬Ñ¥', 'CAT002', 2, 3), ('CAT003001', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê³', 'CAT003', 2, 1), ('CAT004001', 'ï¿½Ò¾ï¿½', 'CAT004', 2, 1), ('CAT005001', 'ï¿½ï¿½ï¿½ï¿½', 'CAT005', 2, 1)
+2026-02-14 09:06:29.028 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 13 returned as update count for SQL: INSERT INTO dict_region (region_id, region_name, parent_id, region_level, region_code, sort_order) VALUES ('110000', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', NULL, 1, '110000', 1), ('310000', 'ï¿½Ïºï¿½ï¿½ï¿½', NULL, 1, '310000', 2), ('330000', 'ï¿½ã½­Ê¡', NULL, 1, '330000', 3), ('320000', 'ï¿½ï¿½ï¿½ï¿½Ê¡', NULL, 1, '320000', 4), ('440000', 'ï¿½ã¶«Ê¡', NULL, 1, '440000', 5), ('110105', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', '110000', 2, '110105', 1), ('310115', 'ï¿½Ö¶ï¿½ï¿½ï¿½ï¿½ï¿½', '310000', 2, '310115', 1), ('330100', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', '330000', 2, '330100', 1), ('330106', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', '330100', 3, '330106', 1), ('320100', 'ï¿½Ï¾ï¿½ï¿½ï¿½', '320000', 2, '320100', 1), ('320102', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', '320100', 3, '320102', 1), ('440100', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', '440000', 2, '440100', 1), ('440106', 'ï¿½ï¿½ï¿½ï¿½ï¿½', '440100', 3, '440106', 1)
 2026-02-14 09:06:29.028 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - Executed SQL script from class path resource [sqlite/02-dict-data.sql] in 4 ms.
 2026-02-14 09:06:29.028 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - Executing SQL script from class path resource [sqlite/03-test-data.sql]
-2026-02-14 09:06:29.032 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 5 returned as update count for SQL: INSERT INTO dim_channel (channel_id, channel_name, channel_type, platform, status) VALUES ('CHN001', 'ÌìÃ¨Æì½¢µê', 'ONLINE', 'ÌìÃ¨', 'ACTIVE'), ('CHN002', '¾©¶«×ÔÓªµê', 'ONLINE', '¾©¶«', 'ACTIVE'), ('CHN003', 'Æ´¶à¶à¹Ù·½µê', 'ONLINE', 'Æ´¶à¶à', 'ACTIVE'), ('CHN004', 'ÏßÏÂÖ±Óª', 'OFFLINE', 'ÏßÏÂÃÅµê', 'ACTIVE'), ('CHN005', 'Î¢ÐÅÐ¡³ÌÐò', 'ONLINE', 'Î¢ÐÅ', 'ACTIVE')
-2026-02-14 09:06:29.032 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 5 returned as update count for SQL: INSERT INTO dim_promotion (promotion_id, promotion_name, promotion_type, discount_rate, start_date, end_date, status) VALUES ('PRM001', 'ÎÞ´ÙÏú', NULL, 1.00, '2022-01-01', '2099-12-31', 'ACTIVE'), ('PRM002', 'ÐÂÄêÌØ»Ý-È«³¡9ÕÛ', 'ÕÛ¿Û', 0.90, '2024-01-01', '2024-01-15', 'ACTIVE'), ('PRM003', '618ÄêÖÐ´ó´Ù', 'ÕÛ¿Û', 0.75, '2024-06-01', '2024-06-18', 'ACTIVE'), ('PRM004', 'Ë«11¿ñ»¶½Ú', 'Âú¼õ', NULL, '2024-11-01', '2024-11-11', 'ACTIVE'), ('PRM005', '»áÔ±×¨ÏíÈÕ', 'ÕÛ¿Û', 0.88, '2024-01-01', '2024-12-31', 'ACTIVE')
-2026-02-14 09:06:29.033 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 5 returned as update count for SQL: INSERT INTO dim_store (store_id, store_name, store_type, province, city, district, address, manager_name, open_date, area_sqm, status) VALUES ('STR00001', 'º¼ÖÝÎ÷ºþµê1', 'Ö±Óª', 'Õã½­Ê¡', 'º¼ÖÝÊÐ', 'Î÷ºþÇø', 'Î÷ºþÇøÄ³Â·1ºÅ', 'µê³¤1', '2020-01-15', 350.00, 'ACTIVE'), ('STR00002', 'ÄÏ¾©ÐþÎäµê2', 'Ö±Óª', '½­ËÕÊ¡', 'ÄÏ¾©ÊÐ', 'ÐþÎäÇø', 'ÐþÎäÇøÄ³Â·2ºÅ', 'µê³¤2', '2020-03-20', 420.00, 'ACTIVE'), ('STR00003', '¹ãÖÝÌìºÓµê3', 'Ö±Óª', '¹ã¶«Ê¡', '¹ãÖÝÊÐ', 'ÌìºÓÇø', 'ÌìºÓÇøÄ³Â·3ºÅ', 'µê³¤3', '2020-05-10', 380.00, 'ACTIVE'), ('STR00004', 'ÉÏº£ÆÖ¶«µê4', '¼ÓÃË', 'ÉÏº£ÊÐ', 'ÉÏº£ÊÐ', 'ÆÖ¶«ÐÂÇø', 'ÆÖ¶«ÐÂÇøÄ³Â·4ºÅ', 'µê³¤4', '2021-01-05', 500.00, 'ACTIVE'), ('STR00005', '±±¾©³¯Ñôµê5', '¼ÓÃË', '±±¾©ÊÐ', '±±¾©ÊÐ', '³¯ÑôÇø', '³¯ÑôÇøÄ³Â·5ºÅ', 'µê³¤5', '2021-06-15', 450.00, 'ACTIVE')
-2026-02-14 09:06:29.034 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 10 returned as update count for SQL: INSERT INTO dim_product (product_id, product_name, category_id, category_name, sub_category_id, sub_category_name, brand, unit_price, unit_cost, status) VALUES ('PRD000001', 'Apple ÊÖ»úÍ¨Ñ¶ÉÌÆ·1', 'CAT001', 'ÊýÂëµçÆ÷', 'CAT001001', 'ÊÖ»úÍ¨Ñ¶', 'Apple', 5999.00, 3599.40, 'ACTIVE'), ('PRD000002', '»ªÎª ÊÖ»úÍ¨Ñ¶ÉÌÆ·2', 'CAT001', 'ÊýÂëµçÆ÷', 'CAT001001', 'ÊÖ»úÍ¨Ñ¶', '»ªÎª', 4599.00, 2759.40, 'ACTIVE'), ('PRD000003', 'Ð¡Ã× µçÄÔ°ì¹«ÉÌÆ·3', 'CAT001', 'ÊýÂëµçÆ÷', 'CAT001002', 'µçÄÔ°ì¹«', 'Ð¡Ã×', 3999.00, 2399.40, 'ACTIVE'), ('PRD000004', 'ÈýÐÇ µçÄÔ°ì¹«ÉÌÆ·4', 'CAT001', 'ÊýÂëµçÆ÷', 'CAT001002', 'µçÄÔ°ì¹«', 'ÈýÐÇ', 6999.00, 4199.40, 'ACTIVE'), ('PRD000005', 'º£¶û ¼ÒÓÃµçÆ÷ÉÌÆ·5', 'CAT001', 'ÊýÂëµçÆ÷', 'CAT001003', '¼ÒÓÃµçÆ÷', 'º£¶û', 2999.00, 1799.40, 'ACTIVE'), ('PRD000006', 'Nike ÄÐ×°ÉÌÆ·6', 'CAT002', '·þ×°ÅäÊÎ', 'CAT002001', 'ÄÐ×°', 'Nike', 599.00, 359.40, 'ACTIVE'), ('PRD000007', 'Adidas Å®×°ÉÌÆ·7', 'CAT002', '·þ×°ÅäÊÎ', 'CAT002002', 'Å®×°', 'Adidas', 699.00, 419.40, 'ACTIVE'), ('PRD000008', 'ÓÅÒÂ¿â Ð¬Ñ¥ÉÌÆ·8', 'CAT002', '·þ×°ÅäÊÎ', 'CAT002003', 'Ð¬Ñ¥', 'ÓÅÒÂ¿â', 399.00, 239.40, 'ACTIVE'), ('PRD000009', 'ÀÖÊÂ ÐÝÏÐÁãÊ³ÉÌÆ·9', 'CAT003', 'Ê³Æ·ÒûÁÏ', 'CAT003001', 'ÐÝÏÐÁãÊ³', 'ÀÖÊÂ', 19.90, 11.94, 'ACTIVE'), ('PRD000010', 'ÒË¼Ò ¼Ò¾ßÉÌÆ·10', 'CAT004', '¼Ò¾ÓÈÕÓÃ', 'CAT004001', '¼Ò¾ß', 'ÒË¼Ò', 1299.00, 779.40, 'ACTIVE')
-2026-02-14 09:06:29.035 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 10 returned as update count for SQL: INSERT INTO dim_customer (customer_id, customer_name, customer_type, gender, age_group, province, city, district, register_date, member_level, status) VALUES ('CUS000001', '¿Í»§1', 'VIP', 'ÄÐ', '25-34', 'Õã½­Ê¡', 'º¼ÖÝÊÐ', 'Î÷ºþÇø', '2020-01-10', 'DIAMOND', 'ACTIVE'), ('CUS000002', '¿Í»§2', 'VIP', 'Å®', '25-34', '½­ËÕÊ¡', 'ÄÏ¾©ÊÐ', 'ÐþÎäÇø', '2020-02-15', 'PLATINUM', 'ACTIVE'), ('CUS000003', '¿Í»§3', 'VIP', 'ÄÐ', '35-44', '¹ã¶«Ê¡', '¹ãÖÝÊÐ', 'ÌìºÓÇø', '2020-03-20', 'GOLD', 'ACTIVE'), ('CUS000004', '¿Í»§4', 'NORMAL', 'Å®', '18-24', 'ÉÏº£ÊÐ', 'ÉÏº£ÊÐ', 'ÆÖ¶«ÐÂÇø', '2021-01-05', 'SILVER', 'ACTIVE'), ('CUS000005', '¿Í»§5', 'NORMAL', 'ÄÐ', '45-54', '±±¾©ÊÐ', '±±¾©ÊÐ', '³¯ÑôÇø', '2021-06-15', 'BRONZE', 'ACTIVE'), ('CUS000006', '¿Í»§6', 'NORMAL', 'Å®', '25-34', 'Õã½­Ê¡', 'º¼ÖÝÊÐ', 'Î÷ºþÇø', '2022-01-10', 'SILVER', 'ACTIVE'), ('CUS000007', '¿Í»§7', 'NEW', 'ÄÐ', '18-24', '½­ËÕÊ¡', 'ÄÏ¾©ÊÐ', 'ÐþÎäÇø', '2023-02-15', 'BRONZE', 'ACTIVE'), ('CUS000008', '¿Í»§8', 'NEW', 'Å®', '25-34', '¹ã¶«Ê¡', '¹ãÖÝÊÐ', 'ÌìºÓÇø', '2023-05-20', 'BRONZE', 'ACTIVE'), ('CUS000009', '¿Í»§9', 'NEW', 'ÄÐ', '35-44', 'ÉÏº£ÊÐ', 'ÉÏº£ÊÐ', 'ÆÖ¶«ÐÂÇø', '2023-08-05', 'BRONZE', 'ACTIVE'), ('CUS000010', '¿Í»§10', 'NEW', 'Å®', '55+', '±±¾©ÊÐ', '±±¾©ÊÐ', '³¯ÑôÇø', '2024-01-15', 'BRONZE', 'ACTIVE')
-2026-02-14 09:06:29.035 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 10 returned as update count for SQL: INSERT INTO dim_date (date_key, full_date, year, quarter, month, month_name, week_of_year, day_of_month, day_of_week, day_name, is_weekend, is_holiday, fiscal_year, fiscal_quarter) VALUES (20240101, '2024-01-01', 2024, 1, 1, 'Ò»ÔÂ', 1, 1, 1, 'ÐÇÆÚÒ»', 0, 1, 2024, 1), (20240102, '2024-01-02', 2024, 1, 1, 'Ò»ÔÂ', 1, 2, 2, 'ÐÇÆÚ¶þ', 0, 0, 2024, 1), (20240103, '2024-01-03', 2024, 1, 1, 'Ò»ÔÂ', 1, 3, 3, 'ÐÇÆÚÈý', 0, 0, 2024, 1), (20240104, '2024-01-04', 2024, 1, 1, 'Ò»ÔÂ', 1, 4, 4, 'ÐÇÆÚËÄ', 0, 0, 2024, 1), (20240105, '2024-01-05', 2024, 1, 1, 'Ò»ÔÂ', 1, 5, 5, 'ÐÇÆÚÎå', 0, 0, 2024, 1), (20240106, '2024-01-06', 2024, 1, 1, 'Ò»ÔÂ', 1, 6, 6, 'ÐÇÆÚÁù', 1, 0, 2024, 1), (20240107, '2024-01-07', 2024, 1, 1, 'Ò»ÔÂ', 1, 7, 7, 'ÐÇÆÚÈÕ', 1, 0, 2024, 1), (20240108, '2024-01-08', 2024, 1, 1, 'Ò»ÔÂ', 2, 8, 1, 'ÐÇÆÚÒ»', 0, 0, 2024, 1), (20240109, '2024-01-09', 2024, 1, 1, 'Ò»ÔÂ', 2, 9, 2, 'ÐÇÆÚ¶þ', 0, 0, 2024, 1), (20240110, '2024-01-10', 2024, 1, 1, 'Ò»ÔÂ', 2, 10, 3, 'ÐÇÆÚÈý', 0, 0, 2024, 1)
+2026-02-14 09:06:29.032 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 5 returned as update count for SQL: INSERT INTO dim_channel (channel_id, channel_name, channel_type, platform, status) VALUES ('CHN001', 'ï¿½ï¿½Ã¨ï¿½ì½¢ï¿½ï¿½', 'ONLINE', 'ï¿½ï¿½Ã¨', 'ACTIVE'), ('CHN002', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Óªï¿½ï¿½', 'ONLINE', 'ï¿½ï¿½ï¿½ï¿½', 'ACTIVE'), ('CHN003', 'Æ´ï¿½ï¿½ï¿½Ù·ï¿½ï¿½ï¿½', 'ONLINE', 'Æ´ï¿½ï¿½ï¿½', 'ACTIVE'), ('CHN004', 'ï¿½ï¿½ï¿½ï¿½Ö±Óª', 'OFFLINE', 'ï¿½ï¿½ï¿½ï¿½ï¿½Åµï¿½', 'ACTIVE'), ('CHN005', 'Î¢ï¿½ï¿½Ð¡ï¿½ï¿½ï¿½ï¿½', 'ONLINE', 'Î¢ï¿½ï¿½', 'ACTIVE')
+2026-02-14 09:06:29.032 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 5 returned as update count for SQL: INSERT INTO dim_promotion (promotion_id, promotion_name, promotion_type, discount_rate, start_date, end_date, status) VALUES ('PRM001', 'ï¿½Þ´ï¿½ï¿½ï¿½', NULL, 1.00, '2022-01-01', '2099-12-31', 'ACTIVE'), ('PRM002', 'ï¿½ï¿½ï¿½ï¿½ï¿½Ø»ï¿½-È«ï¿½ï¿½9ï¿½ï¿½', 'ï¿½Û¿ï¿½', 0.90, '2024-01-01', '2024-01-15', 'ACTIVE'), ('PRM003', '618ï¿½ï¿½ï¿½Ð´ï¿½ï¿½', 'ï¿½Û¿ï¿½', 0.75, '2024-06-01', '2024-06-18', 'ACTIVE'), ('PRM004', 'Ë«11ï¿½ñ»¶½ï¿½', 'ï¿½ï¿½ï¿½ï¿½', NULL, '2024-11-01', '2024-11-11', 'ACTIVE'), ('PRM005', 'ï¿½ï¿½Ô±×¨ï¿½ï¿½ï¿½ï¿½', 'ï¿½Û¿ï¿½', 0.88, '2024-01-01', '2024-12-31', 'ACTIVE')
+2026-02-14 09:06:29.033 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 5 returned as update count for SQL: INSERT INTO dim_store (store_id, store_name, store_type, province, city, district, address, manager_name, open_date, area_sqm, status) VALUES ('STR00001', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½1', 'Ö±Óª', 'ï¿½ã½­Ê¡', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä³Â·1ï¿½ï¿½', 'ï¿½ê³¤1', '2020-01-15', 350.00, 'ACTIVE'), ('STR00002', 'ï¿½Ï¾ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½2', 'Ö±Óª', 'ï¿½ï¿½ï¿½ï¿½Ê¡', 'ï¿½Ï¾ï¿½ï¿½ï¿½', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä³Â·2ï¿½ï¿½', 'ï¿½ê³¤2', '2020-03-20', 420.00, 'ACTIVE'), ('STR00003', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Óµï¿½3', 'Ö±Óª', 'ï¿½ã¶«Ê¡', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', 'ï¿½ï¿½ï¿½ï¿½ï¿½', 'ï¿½ï¿½ï¿½ï¿½ï¿½Ä³Â·3ï¿½ï¿½', 'ï¿½ê³¤3', '2020-05-10', 380.00, 'ACTIVE'), ('STR00004', 'ï¿½Ïºï¿½ï¿½Ö¶ï¿½ï¿½ï¿½4', 'ï¿½ï¿½ï¿½ï¿½', 'ï¿½Ïºï¿½ï¿½ï¿½', 'ï¿½Ïºï¿½ï¿½ï¿½', 'ï¿½Ö¶ï¿½ï¿½ï¿½ï¿½ï¿½', 'ï¿½Ö¶ï¿½ï¿½ï¿½ï¿½ï¿½Ä³Â·4ï¿½ï¿½', 'ï¿½ê³¤4', '2021-01-05', 500.00, 'ACTIVE'), ('STR00005', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½5', 'ï¿½ï¿½ï¿½ï¿½', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä³Â·5ï¿½ï¿½', 'ï¿½ê³¤5', '2021-06-15', 450.00, 'ACTIVE')
+2026-02-14 09:06:29.034 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 10 returned as update count for SQL: INSERT INTO dim_product (product_id, product_name, category_id, category_name, sub_category_id, sub_category_name, brand, unit_price, unit_cost, status) VALUES ('PRD000001', 'Apple ï¿½Ö»ï¿½Í¨Ñ¶ï¿½ï¿½Æ·1', 'CAT001', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', 'CAT001001', 'ï¿½Ö»ï¿½Í¨Ñ¶', 'Apple', 5999.00, 3599.40, 'ACTIVE'), ('PRD000002', 'ï¿½ï¿½Îª ï¿½Ö»ï¿½Í¨Ñ¶ï¿½ï¿½Æ·2', 'CAT001', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', 'CAT001001', 'ï¿½Ö»ï¿½Í¨Ñ¶', 'ï¿½ï¿½Îª', 4599.00, 2759.40, 'ACTIVE'), ('PRD000003', 'Ð¡ï¿½ï¿½ ï¿½ï¿½ï¿½Ô°ì¹«ï¿½ï¿½Æ·3', 'CAT001', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', 'CAT001002', 'ï¿½ï¿½ï¿½Ô°ì¹«', 'Ð¡ï¿½ï¿½', 3999.00, 2399.40, 'ACTIVE'), ('PRD000004', 'ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½Ô°ì¹«ï¿½ï¿½Æ·4', 'CAT001', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', 'CAT001002', 'ï¿½ï¿½ï¿½Ô°ì¹«', 'ï¿½ï¿½ï¿½ï¿½', 6999.00, 4199.40, 'ACTIVE'), ('PRD000005', 'ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½Ãµï¿½ï¿½ï¿½ï¿½ï¿½Æ·5', 'CAT001', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', 'CAT001003', 'ï¿½ï¿½ï¿½Ãµï¿½ï¿½ï¿½', 'ï¿½ï¿½ï¿½ï¿½', 2999.00, 1799.40, 'ACTIVE'), ('PRD000006', 'Nike ï¿½ï¿½×°ï¿½ï¿½Æ·6', 'CAT002', 'ï¿½ï¿½×°ï¿½ï¿½ï¿½ï¿½', 'CAT002001', 'ï¿½ï¿½×°', 'Nike', 599.00, 359.40, 'ACTIVE'), ('PRD000007', 'Adidas Å®×°ï¿½ï¿½Æ·7', 'CAT002', 'ï¿½ï¿½×°ï¿½ï¿½ï¿½ï¿½', 'CAT002002', 'Å®×°', 'Adidas', 699.00, 419.40, 'ACTIVE'), ('PRD000008', 'ï¿½ï¿½ï¿½Â¿ï¿½ Ð¬Ñ¥ï¿½ï¿½Æ·8', 'CAT002', 'ï¿½ï¿½×°ï¿½ï¿½ï¿½ï¿½', 'CAT002003', 'Ð¬Ñ¥', 'ï¿½ï¿½ï¿½Â¿ï¿½', 399.00, 239.40, 'ACTIVE'), ('PRD000009', 'ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê³ï¿½ï¿½Æ·9', 'CAT003', 'Ê³Æ·ï¿½ï¿½ï¿½ï¿½', 'CAT003001', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê³', 'ï¿½ï¿½ï¿½ï¿½', 19.90, 11.94, 'ACTIVE'), ('PRD000010', 'ï¿½Ë¼ï¿½ ï¿½Ò¾ï¿½ï¿½ï¿½Æ·10', 'CAT004', 'ï¿½Ò¾ï¿½ï¿½ï¿½ï¿½ï¿½', 'CAT004001', 'ï¿½Ò¾ï¿½', 'ï¿½Ë¼ï¿½', 1299.00, 779.40, 'ACTIVE')
+2026-02-14 09:06:29.035 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 10 returned as update count for SQL: INSERT INTO dim_customer (customer_id, customer_name, customer_type, gender, age_group, province, city, district, register_date, member_level, status) VALUES ('CUS000001', 'ï¿½Í»ï¿½1', 'VIP', 'ï¿½ï¿½', '25-34', 'ï¿½ã½­Ê¡', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', '2020-01-10', 'DIAMOND', 'ACTIVE'), ('CUS000002', 'ï¿½Í»ï¿½2', 'VIP', 'Å®', '25-34', 'ï¿½ï¿½ï¿½ï¿½Ê¡', 'ï¿½Ï¾ï¿½ï¿½ï¿½', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', '2020-02-15', 'PLATINUM', 'ACTIVE'), ('CUS000003', 'ï¿½Í»ï¿½3', 'VIP', 'ï¿½ï¿½', '35-44', 'ï¿½ã¶«Ê¡', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', 'ï¿½ï¿½ï¿½ï¿½ï¿½', '2020-03-20', 'GOLD', 'ACTIVE'), ('CUS000004', 'ï¿½Í»ï¿½4', 'NORMAL', 'Å®', '18-24', 'ï¿½Ïºï¿½ï¿½ï¿½', 'ï¿½Ïºï¿½ï¿½ï¿½', 'ï¿½Ö¶ï¿½ï¿½ï¿½ï¿½ï¿½', '2021-01-05', 'SILVER', 'ACTIVE'), ('CUS000005', 'ï¿½Í»ï¿½5', 'NORMAL', 'ï¿½ï¿½', '45-54', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', '2021-06-15', 'BRONZE', 'ACTIVE'), ('CUS000006', 'ï¿½Í»ï¿½6', 'NORMAL', 'Å®', '25-34', 'ï¿½ã½­Ê¡', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', '2022-01-10', 'SILVER', 'ACTIVE'), ('CUS000007', 'ï¿½Í»ï¿½7', 'NEW', 'ï¿½ï¿½', '18-24', 'ï¿½ï¿½ï¿½ï¿½Ê¡', 'ï¿½Ï¾ï¿½ï¿½ï¿½', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', '2023-02-15', 'BRONZE', 'ACTIVE'), ('CUS000008', 'ï¿½Í»ï¿½8', 'NEW', 'Å®', '25-34', 'ï¿½ã¶«Ê¡', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', 'ï¿½ï¿½ï¿½ï¿½ï¿½', '2023-05-20', 'BRONZE', 'ACTIVE'), ('CUS000009', 'ï¿½Í»ï¿½9', 'NEW', 'ï¿½ï¿½', '35-44', 'ï¿½Ïºï¿½ï¿½ï¿½', 'ï¿½Ïºï¿½ï¿½ï¿½', 'ï¿½Ö¶ï¿½ï¿½ï¿½ï¿½ï¿½', '2023-08-05', 'BRONZE', 'ACTIVE'), ('CUS000010', 'ï¿½Í»ï¿½10', 'NEW', 'Å®', '55+', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', '2024-01-15', 'BRONZE', 'ACTIVE')
+2026-02-14 09:06:29.035 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 10 returned as update count for SQL: INSERT INTO dim_date (date_key, full_date, year, quarter, month, month_name, week_of_year, day_of_month, day_of_week, day_name, is_weekend, is_holiday, fiscal_year, fiscal_quarter) VALUES (20240101, '2024-01-01', 2024, 1, 1, 'Ò»ï¿½ï¿½', 1, 1, 1, 'ï¿½ï¿½ï¿½ï¿½Ò»', 0, 1, 2024, 1), (20240102, '2024-01-02', 2024, 1, 1, 'Ò»ï¿½ï¿½', 1, 2, 2, 'ï¿½ï¿½ï¿½Ú¶ï¿½', 0, 0, 2024, 1), (20240103, '2024-01-03', 2024, 1, 1, 'Ò»ï¿½ï¿½', 1, 3, 3, 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', 0, 0, 2024, 1), (20240104, '2024-01-04', 2024, 1, 1, 'Ò»ï¿½ï¿½', 1, 4, 4, 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', 0, 0, 2024, 1), (20240105, '2024-01-05', 2024, 1, 1, 'Ò»ï¿½ï¿½', 1, 5, 5, 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', 0, 0, 2024, 1), (20240106, '2024-01-06', 2024, 1, 1, 'Ò»ï¿½ï¿½', 1, 6, 6, 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', 1, 0, 2024, 1), (20240107, '2024-01-07', 2024, 1, 1, 'Ò»ï¿½ï¿½', 1, 7, 7, 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', 1, 0, 2024, 1), (20240108, '2024-01-08', 2024, 1, 1, 'Ò»ï¿½ï¿½', 2, 8, 1, 'ï¿½ï¿½ï¿½ï¿½Ò»', 0, 0, 2024, 1), (20240109, '2024-01-09', 2024, 1, 1, 'Ò»ï¿½ï¿½', 2, 9, 2, 'ï¿½ï¿½ï¿½Ú¶ï¿½', 0, 0, 2024, 1), (20240110, '2024-01-10', 2024, 1, 1, 'Ò»ï¿½ï¿½', 2, 10, 3, 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', 0, 0, 2024, 1)
 2026-02-14 09:06:29.036 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 10 returned as update count for SQL: INSERT INTO fact_order (order_id, date_key, customer_key, store_key, channel_key, promotion_key, total_quantity, total_amount, discount_amount, freight_amount, pay_amount, order_status, payment_status, order_time) VALUES ('ORD20240101000001', 20240101, 1, 1, 1, 2, 2, 10998.00, 1099.80, 0, 9898.20, 'COMPLETED', 'PAID', '2024-01-01 10:30:00'), ('ORD20240101000002', 20240101, 2, 2, 2, 1, 1, 4599.00, 0, 0, 4599.00, 'COMPLETED', 'PAID', '2024-01-01 14:20:00'), ('ORD20240102000003', 20240102, 3, 3, 1, 1, 3, 1298.00, 0, 0, 1298.00, 'COMPLETED', 'PAID', '2024-01-02 09:15:00'), ('ORD20240102000004', 20240102, 4, 1, 3, 1, 1, 599.00, 0, 10, 609.00, 'SHIPPED', 'PAID', '2024-01-02 16:45:00'), ('ORD20240103000005', 20240103, 5, 2, 2, 2, 2, 6998.00, 699.80, 0, 6298.20, 'PAID', 'PAID', '2024-01-03 11:00:00'), ('ORD20240103000006', 20240103, 6, 3, 4, 1, 1, 2999.00, 0, 0, 2999.00, 'PENDING', 'UNPAID', '2024-01-03 15:30:00'), ('ORD20240104000007', 20240104, 7, 4, 1, 1, 2, 798.00, 0, 10, 808.00, 'COMPLETED', 'PAID', '2024-01-04 10:00:00'), ('ORD20240104000008', 20240104, 8, 5, 5, 5, 1, 1299.00, 155.88, 0, 1143.12, 'COMPLETED', 'PAID', '2024-01-04 14:30:00'), ('ORD20240105000009', 20240105, 9, 1, 2, 1, 1, 19.90, 0, 10, 29.90, 'CANCELLED', 'UNPAID', '2024-01-05 09:00:00'), ('ORD20240105000010', 20240105, 10, 2, 1, 2, 3, 7697.00, 769.70, 0, 6927.30, 'COMPLETED', 'PAID', '2024-01-05 16:00:00')
 2026-02-14 09:06:29.036 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 10 returned as update count for SQL: INSERT INTO fact_sales (order_id, order_line_no, date_key, product_key, customer_key, store_key, channel_key, promotion_key, quantity, unit_price, unit_cost, discount_amount, sales_amount, cost_amount, profit_amount, order_status, payment_method) VALUES ('ORD20240101000001', 1, 20240101, 1, 1, 1, 1, 2, 1, 5999.00, 3599.40, 599.90, 5399.10, 3599.40, 1799.70, 'COMPLETED', 'ALIPAY'), ('ORD20240101000001', 2, 20240101, 2, 1, 1, 1, 2, 1, 4999.00, 2999.40, 499.90, 4499.10, 2999.40, 1499.70, 'COMPLETED', 'ALIPAY'), ('ORD20240101000002', 1, 20240101, 2, 2, 2, 2, 1, 1, 4599.00, 2759.40, 0, 4599.00, 2759.40, 1839.60, 'COMPLETED', 'WECHAT'), ('ORD20240102000003', 1, 20240102, 6, 3, 3, 1, 1, 1, 599.00, 359.40, 0, 599.00, 359.40, 239.60, 'COMPLETED', 'ALIPAY'), ('ORD20240102000003', 2, 20240102, 7, 3, 3, 1, 1, 1, 699.00, 419.40, 0, 699.00, 419.40, 279.60, 'COMPLETED', 'ALIPAY'), ('ORD20240102000004', 1, 20240102, 6, 4, 1, 3, 1, 1, 599.00, 359.40, 0, 599.00, 359.40, 239.60, 'SHIPPED', 'CARD'), ('ORD20240103000005', 1, 20240103, 4, 5, 2, 2, 2, 1, 6999.00, 4199.40, 699.90, 6299.10, 4199.40, 2099.70, 'PAID', 'WECHAT'), ('ORD20240103000006', 1, 20240103, 5, 6, 3, 4, 1, 1, 2999.00, 1799.40, 0, 2999.00, 1799.40, 1199.60, 'PENDING', NULL), ('ORD20240104000007', 1, 20240104, 8, 7, 4, 1, 1, 2, 399.00, 239.40, 0, 798.00, 478.80, 319.20, 'COMPLETED', 'ALIPAY'), ('ORD20240104000008', 1, 20240104, 10, 8, 5, 5, 5, 1, 1299.00, 779.40, 155.88, 1143.12, 779.40, 363.72, 'COMPLETED', 'WECHAT')
 2026-02-14 09:06:29.037 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 8 returned as update count for SQL: INSERT INTO fact_payment (payment_id, order_id, date_key, customer_key, pay_amount, pay_method, pay_channel, pay_status, pay_time) VALUES ('PAY00000001', 'ORD20240101000001', 20240101, 1, 9898.20, 'ALIPAY', 'APP', 'SUCCESS', '2024-01-01 10:35:00'), ('PAY00000002', 'ORD20240101000002', 20240101, 2, 4599.00, 'WECHAT', 'APP', 'SUCCESS', '2024-01-01 14:25:00'), ('PAY00000003', 'ORD20240102000003', 20240102, 3, 1298.00, 'ALIPAY', 'WEB', 'SUCCESS', '2024-01-02 09:20:00'), ('PAY00000004', 'ORD20240102000004', 20240102, 4, 609.00, 'CARD', 'POS', 'SUCCESS', '2024-01-02 16:50:00'), ('PAY00000005', 'ORD20240103000005', 20240103, 5, 6298.20, 'WECHAT', 'APP', 'SUCCESS', '2024-01-03 11:05:00'), ('PAY00000006', 'ORD20240104000007', 20240104, 7, 808.00, 'ALIPAY', 'APP', 'SUCCESS', '2024-01-04 10:05:00'), ('PAY00000007', 'ORD20240104000008', 20240104, 8, 1143.12, 'WECHAT', 'APP', 'SUCCESS', '2024-01-04 14:35:00'), ('PAY00000008', 'ORD20240105000010', 20240105, 10, 6927.30, 'ALIPAY', 'WEB', 'SUCCESS', '2024-01-05 16:05:00')
-2026-02-14 09:06:29.037 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 1 returned as update count for SQL: INSERT INTO fact_return (return_id, order_id, order_line_no, date_key, product_key, customer_key, store_key, return_quantity, return_amount, return_reason, return_type, return_status, return_time) VALUES ('RTN00000001', 'ORD20240101000001', 2, 20240105, 2, 1, 1, 1, 4499.10, '²»Ï²»¶', 'RETURN_REFUND', 'COMPLETED', '2024-01-05 10:00:00')
+2026-02-14 09:06:29.037 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 1 returned as update count for SQL: INSERT INTO fact_return (return_id, order_id, order_line_no, date_key, product_key, customer_key, store_key, return_quantity, return_amount, return_reason, return_type, return_status, return_time) VALUES ('RTN00000001', 'ORD20240101000001', 2, 20240105, 2, 1, 1, 1, 4499.10, 'ï¿½ï¿½Ï²ï¿½ï¿½', 'RETURN_REFUND', 'COMPLETED', '2024-01-05 10:00:00')
 2026-02-14 09:06:29.037 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 5 returned as update count for SQL: INSERT INTO fact_inventory_snapshot (date_key, product_key, store_key, quantity_on_hand, quantity_reserved, quantity_available, unit_cost, inventory_value) VALUES (20240101, 1, 1, 100, 10, 90, 3599.40, 359940.00), (20240101, 2, 1, 80, 5, 75, 2759.40, 220752.00), (20240101, 3, 2, 50, 3, 47, 2399.40, 119970.00), (20240101, 4, 2, 30, 2, 28, 4199.40, 125982.00), (20240101, 5, 3, 60, 5, 55, 1799.40, 107964.00)
-2026-02-14 09:06:29.037 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 9 returned as update count for SQL: INSERT INTO dim_team (team_id, team_name, parent_id, team_level, manager_name, status) VALUES ('T001', '×Ü¹«Ë¾', NULL, 1, 'ÕÅ×Ü', 'ACTIVE'), ('T002', '¼¼Êõ²¿', 'T001', 2, 'Àî¾­Àí', 'ACTIVE'), ('T003', 'ÑÐ·¢×é', 'T002', 3, 'Íõ×é³¤', 'ACTIVE'), ('T004', '²âÊÔ×é', 'T002', 3, 'ÕÔ×é³¤', 'ACTIVE'), ('T005', 'ÏúÊÛ²¿', 'T001', 2, 'Ç®¾­Àí', 'ACTIVE'), ('T006', 'Ç°¶ËÐ¡×é', 'T003', 4, 'Ëï×é³¤', 'ACTIVE'), ('T007', 'ºó¶ËÐ¡×é', 'T003', 4, 'ÖÜ×é³¤', 'ACTIVE'), ('T008', '»ª¶«Çø', 'T005', 3, 'Îâ¾­Àí', 'ACTIVE'), ('T009', '»ª±±Çø', 'T005', 3, 'Ö£¾­Àí', 'ACTIVE')
+2026-02-14 09:06:29.037 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 9 returned as update count for SQL: INSERT INTO dim_team (team_id, team_name, parent_id, team_level, manager_name, status) VALUES ('T001', 'ï¿½Ü¹ï¿½Ë¾', NULL, 1, 'ï¿½ï¿½ï¿½ï¿½', 'ACTIVE'), ('T002', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', 'T001', 2, 'ï¿½î¾­ï¿½ï¿½', 'ACTIVE'), ('T003', 'ï¿½Ð·ï¿½ï¿½ï¿½', 'T002', 3, 'ï¿½ï¿½ï¿½é³¤', 'ACTIVE'), ('T004', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', 'T002', 3, 'ï¿½ï¿½ï¿½é³¤', 'ACTIVE'), ('T005', 'ï¿½ï¿½ï¿½Û²ï¿½', 'T001', 2, 'Ç®ï¿½ï¿½ï¿½ï¿½', 'ACTIVE'), ('T006', 'Ç°ï¿½ï¿½Ð¡ï¿½ï¿½', 'T003', 4, 'ï¿½ï¿½ï¿½é³¤', 'ACTIVE'), ('T007', 'ï¿½ï¿½ï¿½Ð¡ï¿½ï¿½', 'T003', 4, 'ï¿½ï¿½ï¿½é³¤', 'ACTIVE'), ('T008', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', 'T005', 3, 'ï¿½â¾­ï¿½ï¿½', 'ACTIVE'), ('T009', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', 'T005', 3, 'Ö£ï¿½ï¿½ï¿½ï¿½', 'ACTIVE')
 2026-02-14 09:06:29.038 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 25 returned as update count for SQL: INSERT INTO team_closure (parent_id, team_id, distance) VALUES ('T001', 'T001', 0), ('T001', 'T002', 1), ('T001', 'T003', 2), ('T001', 'T004', 2), ('T001', 'T005', 1), ('T001', 'T006', 3), ('T001', 'T007', 3), ('T001', 'T008', 2), ('T001', 'T009', 2), ('T002', 'T002', 0), ('T002', 'T003', 1), ('T002', 'T004', 1), ('T002', 'T006', 2), ('T002', 'T007', 2), ('T003', 'T003', 0), ('T003', 'T006', 1), ('T003', 'T007', 1), ('T004', 'T004', 0), ('T005', 'T005', 0), ('T005', 'T008', 1), ('T005', 'T009', 1), ('T006', 'T006', 0), ('T007', 'T007', 0), ('T008', 'T008', 0), ('T009', 'T009', 0)
 2026-02-14 09:06:29.038 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 18 returned as update count for SQL: INSERT INTO fact_team_sales (team_id, date_key, sales_amount, sales_count) VALUES ('T001', 20240101, 50000.00, 5), ('T001', 20240102, 60000.00, 6), ('T002', 20240101, 30000.00, 3), ('T002', 20240102, 35000.00, 4), ('T003', 20240101, 10000.00, 2), ('T003', 20240102, 12000.00, 2), ('T004', 20240101, 8000.00, 1), ('T004', 20240102, 9000.00, 1), ('T005', 20240101, 100000.00, 20), ('T005', 20240102, 120000.00, 25), ('T006', 20240101, 5000.00, 1), ('T006', 20240102, 6000.00, 1), ('T007', 20240101, 7000.00, 1), ('T007', 20240102, 8000.00, 2), ('T008', 20240101, 45000.00, 10), ('T008', 20240102, 55000.00, 12), ('T009', 20240101, 40000.00, 8), ('T009', 20240102, 48000.00, 10)
-2026-02-14 09:06:29.038 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 3 returned as update count for SQL: INSERT INTO dim_category_group (group_id, group_name, group_type, status) VALUES ('GRP001', 'µç×Ó²úÆ·×é', '¸ß¼ÛÖµ', 'ACTIVE'), ('GRP002', 'ÈÕÓÃÆ·×é', '¿ìÏûÆ·', 'ACTIVE'), ('GRP003', '·þ×°ÅäÊÎ×é', 'Ê±ÉÐ', 'ACTIVE')
-2026-02-14 09:06:29.038 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 7 returned as update count for SQL: INSERT INTO dim_category_nested (category_id, category_name, category_level, group_key, status) VALUES ('CAT001', 'ÊýÂëµçÆ÷', 1, 1, 'ACTIVE'), ('CAT002', 'ÊÖ»úÍ¨Ñ¶', 2, 1, 'ACTIVE'), ('CAT003', 'µçÄÔ°ì¹«', 2, 1, 'ACTIVE'), ('CAT004', '¼Ò¾ÓÓÃÆ·', 1, 2, 'ACTIVE'), ('CAT005', '³ø·¿ÓÃÆ·', 2, 2, 'ACTIVE'), ('CAT006', 'ÄÐ×°', 1, 3, 'ACTIVE'), ('CAT007', 'Å®×°', 1, 3, 'ACTIVE')
-2026-02-14 09:06:29.038 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 10 returned as update count for SQL: INSERT INTO dim_product_nested (product_id, product_name, brand, category_key, unit_price, status) VALUES ('NP001', 'iPhone 15 Pro', 'Apple', 2, 8999.00, 'ACTIVE'), ('NP002', '»ªÎª Mate 60', '»ªÎª', 2, 6999.00, 'ACTIVE'), ('NP003', 'MacBook Pro 14', 'Apple', 3, 14999.00, 'ACTIVE'), ('NP004', 'ÁªÏë ThinkPad', 'ÁªÏë', 3, 7999.00, 'ACTIVE'), ('NP005', '²»Ðâ¸Ö³´¹ø', 'ËÕ²´¶û', 5, 299.00, 'ACTIVE'), ('NP006', 'µç·¹ìÒ', 'ÃÀµÄ', 5, 499.00, 'ACTIVE'), ('NP007', 'ÐÝÏÐTÐô', 'ÓÅÒÂ¿â', 6, 99.00, 'ACTIVE'), ('NP008', 'Å£×Ð¿ã', 'Levis', 6, 599.00, 'ACTIVE'), ('NP009', 'Á¬ÒÂÈ¹', 'ZARA', 7, 399.00, 'ACTIVE'), ('NP010', '·çÒÂÍâÌ×', 'MAX&Co.', 7, 1299.00, 'ACTIVE')
-2026-02-14 09:06:29.039 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 5 returned as update count for SQL: INSERT INTO dim_region_nested (region_id, region_name, province, city, status) VALUES ('REG001', '»ª¶«Çø-º¼ÖÝ', 'Õã½­Ê¡', 'º¼ÖÝÊÐ', 'ACTIVE'), ('REG002', '»ª¶«Çø-ÉÏº£', 'ÉÏº£ÊÐ', 'ÉÏº£ÊÐ', 'ACTIVE'), ('REG003', '»ª±±Çø-±±¾©', '±±¾©ÊÐ', '±±¾©ÊÐ', 'ACTIVE'), ('REG004', '»ªÄÏÇø-¹ãÖÝ', '¹ã¶«Ê¡', '¹ãÖÝÊÐ', 'ACTIVE'), ('REG005', '»ªÄÏÇø-ÉîÛÚ', '¹ã¶«Ê¡', 'ÉîÛÚÊÐ', 'ACTIVE')
-2026-02-14 09:06:29.039 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 6 returned as update count for SQL: INSERT INTO dim_store_nested (store_id, store_name, store_type, region_key, status) VALUES ('NS001', 'º¼ÖÝÎ÷ºþÆì½¢µê', 'Æì½¢µê', 1, 'ACTIVE'), ('NS002', 'º¼ÖÝ±õ½­µê', '±ê×¼µê', 1, 'ACTIVE'), ('NS003', 'ÉÏº£ÄÏ¾©Â·µê', 'Æì½¢µê', 2, 'ACTIVE'), ('NS004', '±±¾©Íõ¸®¾®µê', 'Æì½¢µê', 3, 'ACTIVE'), ('NS005', '¹ãÖÝÌìºÓµê', '±ê×¼µê', 4, 'ACTIVE'), ('NS006', 'ÉîÛÚ»ªÇ¿±±µê', '±ê×¼µê', 5, 'ACTIVE')
+2026-02-14 09:06:29.038 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 3 returned as update count for SQL: INSERT INTO dim_category_group (group_id, group_name, group_type, status) VALUES ('GRP001', 'ï¿½ï¿½ï¿½Ó²ï¿½Æ·ï¿½ï¿½', 'ï¿½ß¼ï¿½Öµ', 'ACTIVE'), ('GRP002', 'ï¿½ï¿½ï¿½ï¿½Æ·ï¿½ï¿½', 'ï¿½ï¿½ï¿½ï¿½Æ·', 'ACTIVE'), ('GRP003', 'ï¿½ï¿½×°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', 'Ê±ï¿½ï¿½', 'ACTIVE')
+2026-02-14 09:06:29.038 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 7 returned as update count for SQL: INSERT INTO dim_category_nested (category_id, category_name, category_level, group_key, status) VALUES ('CAT001', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', 1, 1, 'ACTIVE'), ('CAT002', 'ï¿½Ö»ï¿½Í¨Ñ¶', 2, 1, 'ACTIVE'), ('CAT003', 'ï¿½ï¿½ï¿½Ô°ì¹«', 2, 1, 'ACTIVE'), ('CAT004', 'ï¿½Ò¾ï¿½ï¿½ï¿½Æ·', 1, 2, 'ACTIVE'), ('CAT005', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ·', 2, 2, 'ACTIVE'), ('CAT006', 'ï¿½ï¿½×°', 1, 3, 'ACTIVE'), ('CAT007', 'Å®×°', 1, 3, 'ACTIVE')
+2026-02-14 09:06:29.038 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 10 returned as update count for SQL: INSERT INTO dim_product_nested (product_id, product_name, brand, category_key, unit_price, status) VALUES ('NP001', 'iPhone 15 Pro', 'Apple', 2, 8999.00, 'ACTIVE'), ('NP002', 'ï¿½ï¿½Îª Mate 60', 'ï¿½ï¿½Îª', 2, 6999.00, 'ACTIVE'), ('NP003', 'MacBook Pro 14', 'Apple', 3, 14999.00, 'ACTIVE'), ('NP004', 'ï¿½ï¿½ï¿½ï¿½ ThinkPad', 'ï¿½ï¿½ï¿½ï¿½', 3, 7999.00, 'ACTIVE'), ('NP005', 'ï¿½ï¿½ï¿½ï¿½Ö³ï¿½ï¿½ï¿½', 'ï¿½Õ²ï¿½ï¿½ï¿½', 5, 299.00, 'ACTIVE'), ('NP006', 'ï¿½ç·¹ï¿½ï¿½', 'ï¿½ï¿½ï¿½ï¿½', 5, 499.00, 'ACTIVE'), ('NP007', 'ï¿½ï¿½ï¿½ï¿½Tï¿½ï¿½', 'ï¿½ï¿½ï¿½Â¿ï¿½', 6, 99.00, 'ACTIVE'), ('NP008', 'Å£ï¿½Ð¿ï¿½', 'Levis', 6, 599.00, 'ACTIVE'), ('NP009', 'ï¿½ï¿½ï¿½ï¿½È¹', 'ZARA', 7, 399.00, 'ACTIVE'), ('NP010', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', 'MAX&Co.', 7, 1299.00, 'ACTIVE')
+2026-02-14 09:06:29.039 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 5 returned as update count for SQL: INSERT INTO dim_region_nested (region_id, region_name, province, city, status) VALUES ('REG001', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½-ï¿½ï¿½ï¿½ï¿½', 'ï¿½ã½­Ê¡', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', 'ACTIVE'), ('REG002', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½-ï¿½Ïºï¿½', 'ï¿½Ïºï¿½ï¿½ï¿½', 'ï¿½Ïºï¿½ï¿½ï¿½', 'ACTIVE'), ('REG003', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½-ï¿½ï¿½ï¿½ï¿½', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', 'ACTIVE'), ('REG004', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½-ï¿½ï¿½ï¿½ï¿½', 'ï¿½ã¶«Ê¡', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', 'ACTIVE'), ('REG005', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½-ï¿½ï¿½ï¿½ï¿½', 'ï¿½ã¶«Ê¡', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', 'ACTIVE')
+2026-02-14 09:06:29.039 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 6 returned as update count for SQL: INSERT INTO dim_store_nested (store_id, store_name, store_type, region_key, status) VALUES ('NS001', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ì½¢ï¿½ï¿½', 'ï¿½ì½¢ï¿½ï¿½', 1, 'ACTIVE'), ('NS002', 'ï¿½ï¿½ï¿½Ý±ï¿½ï¿½ï¿½ï¿½ï¿½', 'ï¿½ï¿½×¼ï¿½ï¿½', 1, 'ACTIVE'), ('NS003', 'ï¿½Ïºï¿½ï¿½Ï¾ï¿½Â·ï¿½ï¿½', 'ï¿½ì½¢ï¿½ï¿½', 2, 'ACTIVE'), ('NS004', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', 'ï¿½ì½¢ï¿½ï¿½', 3, 'ACTIVE'), ('NS005', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Óµï¿½', 'ï¿½ï¿½×¼ï¿½ï¿½', 4, 'ACTIVE'), ('NS006', 'ï¿½ï¿½ï¿½Ú»ï¿½Ç¿ï¿½ï¿½ï¿½ï¿½', 'ï¿½ï¿½×¼ï¿½ï¿½', 5, 'ACTIVE')
 2026-02-14 09:06:29.039 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 16 returned as update count for SQL: INSERT INTO fact_sales_nested (date_key, product_key, store_key, quantity, sales_amount, cost_amount) VALUES (20240101, 1, 1, 2, 17998.00, 10800.00), (20240101, 2, 1, 1, 6999.00, 4200.00), (20240101, 3, 3, 1, 14999.00, 9000.00), (20240101, 5, 2, 5, 1495.00, 750.00), (20240101, 7, 4, 10, 990.00, 400.00), (20240101, 9, 5, 3, 1197.00, 600.00), (20240102, 1, 3, 3, 26997.00, 16200.00), (20240102, 4, 4, 2, 15998.00, 9600.00), (20240102, 6, 1, 4, 1996.00, 1000.00), (20240102, 8, 6, 5, 2995.00, 1500.00), (20240102, 10, 5, 2, 2598.00, 1300.00), (20240103, 2, 4, 2, 13998.00, 8400.00), (20240103, 3, 1, 1, 14999.00, 9000.00), (20240103, 5, 5, 8, 2392.00, 1200.00), (20240103, 7, 6, 15, 1485.00, 600.00), (20240103, 9, 2, 4, 1596.00, 800.00)
 2026-02-14 09:06:29.039 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - Executed SQL script from class path resource [sqlite/03-test-data.sql] in 11 ms.
 2026-02-14 09:06:29.039 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - Executing SQL script from class path resource [sqlite/05-preagg-data.sql]
@@ -362,9 +362,9 @@
 2026-02-14 09:06:29.042 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - 1 returned as update count for SQL: INSERT INTO preagg_daily_return (date_key, product_key, full_date, product_name, category_name, return_quantity_sum, return_amount_sum, _preagg_row_count) SELECT fr.date_key, fr.product_key, d.full_date, p.product_name, p.category_name, SUM(fr.return_quantity) as return_quantity_sum, SUM(fr.return_amount) as return_amount_sum, COUNT(*) as _preagg_row_count FROM fact_return fr LEFT JOIN dim_date d ON fr.date_key = d.date_key LEFT JOIN dim_product p ON fr.product_key = p.product_key WHERE fr.product_key IS NOT NULL GROUP BY fr.date_key, fr.product_key, d.full_date, p.product_name, p.category_name
 2026-02-14 09:06:29.042 [main] DEBUG o.s.jdbc.datasource.init.ScriptUtils - Executed SQL script from class path resource [sqlite/05-preagg-data.sql] in 3 ms.
 2026-02-14 09:06:29.125 [main] INFO  c.f.d.d.m.e.AdvancedAnalyticsTest - Started AdvancedAnalyticsTest in 7.561 seconds (process running for 8.866)
-2026-02-14 09:06:30.310 [main] DEBUG c.foggyframework.bundle.BundleImpl - ÕÒµ½×ÊÔ´(findResources): file:/D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-demo/target/classes/foggy/templates/ecommerce/query/FactSalesQueryModel.qm
-2026-02-14 09:06:30.353 [main] DEBUG c.f.c.u.file.WatchServiceFileTracer - ÒÑ×¢²áÄ¿Â¼¼àÌý: D:\foggy-projects\java-data-mcp-bridge\foggy-dataset-demo\target\classes\foggy\templates\ecommerce\query
-2026-02-14 09:06:30.353 [main] DEBUG c.f.c.u.file.WatchServiceFileTracer - ÒÑÌí¼ÓÎÄ¼þ¼àÌý: D:\foggy-projects\java-data-mcp-bridge\foggy-dataset-demo\target\classes\foggy\templates\ecommerce\query\FactSalesQueryModel.qm
+2026-02-14 09:06:30.310 [main] DEBUG c.foggyframework.bundle.BundleImpl - ï¿½Òµï¿½ï¿½ï¿½Ô´(findResources): file:/D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-demo/target/classes/foggy/templates/ecommerce/query/FactSalesQueryModel.qm
+2026-02-14 09:06:30.353 [main] DEBUG c.f.c.u.file.WatchServiceFileTracer - ï¿½ï¿½×¢ï¿½ï¿½Ä¿Â¼ï¿½ï¿½ï¿½ï¿½: D:\foggy-projects\java-data-mcp-bridge\foggy-dataset-demo\target\classes\foggy\templates\ecommerce\query
+2026-02-14 09:06:30.353 [main] DEBUG c.f.c.u.file.WatchServiceFileTracer - ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½ï¿½ï¿½ï¿½ï¿½: D:\foggy-projects\java-data-mcp-bridge\foggy-dataset-demo\target\classes\foggy\templates\ecommerce\query\FactSalesQueryModel.qm
 2026-02-14 09:06:30.360 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - Raw QM columnGroups count=9
 2026-02-14 09:06:30.360 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[0] item[0]: type=HashMap, value={ref=FactSalesModel.orderId}
 2026-02-14 09:06:30.360 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[0] item[1]: type=HashMap, value={ref=FactSalesModel.orderLineNo}
@@ -412,33 +412,33 @@
 2026-02-14 09:06:30.363 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[7] item[7]: type=HashMap, value={ref=FactSalesModel.taxAmount}
 2026-02-14 09:06:30.363 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[7] item[8]: type=HashMap, value={ref=FactSalesModel.taxAmount2}
 2026-02-14 09:06:30.363 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[7] item[9]: type=HashMap, value={ref=FactSalesModel.uniqueCustomers}
-2026-02-14 09:06:30.363 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[8] item[0]: type=HashMap, value={name=profitRate, caption=ÀûÈóÂÊ(%), formula=profitAmount / salesAmount * 100, type=NUMBER}
-2026-02-14 09:06:30.363 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[8] item[1]: type=HashMap, value={partitionBy=[product$categoryName], windowOrderBy=[{field=salesAmount, dir=desc}], name=salesRank, caption=Æ·ÀàÏúÊÛÅÅÃû, formula=RANK(), type=INTEGER}
-2026-02-14 09:06:30.363 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[8] item[2]: type=HashMap, value={partitionBy=[product$caption], windowOrderBy=[{field=salesDate$caption, dir=asc}], windowFrame=ROWS BETWEEN 6 PRECEDING AND CURRENT ROW, name=ma7, caption=7ÈÕÒÆ¶¯Æ½¾ù, formula=AVG(salesAmount), type=NUMBER}
-2026-02-14 09:06:30.393 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - ¿ªÊ¼±éÀú QueryModelBuilder£¬¹² 1 ¸ö
-2026-02-14 09:06:30.393 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - ³¢ÊÔ Builder: com.foggyframework.dataset.db.model.engine.query_model.JdbcQueryModelBuilder
-2026-02-14 09:06:30.393 [main] DEBUG c.f.d.d.m.e.q.JdbcQueryModelBuilder - V2 ¹¹½¨Æ÷³¢ÊÔ¹¹½¨ QM: FactSalesQueryModel
-2026-02-14 09:06:30.399 [main] DEBUG c.foggyframework.bundle.BundleImpl - ÕÒµ½×ÊÔ´(findResources): file:/D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-demo/target/classes/foggy/templates/ecommerce/model/FactSalesModel.tm
-2026-02-14 09:06:30.417 [main] DEBUG c.f.c.u.file.WatchServiceFileTracer - ÒÑ×¢²áÄ¿Â¼¼àÌý: D:\foggy-projects\java-data-mcp-bridge\foggy-dataset-demo\target\classes\foggy\templates\ecommerce\model
-2026-02-14 09:06:30.418 [main] DEBUG c.f.c.u.file.WatchServiceFileTracer - ÒÑÌí¼ÓÎÄ¼þ¼àÌý: D:\foggy-projects\java-data-mcp-bridge\foggy-dataset-demo\target\classes\foggy\templates\ecommerce\model\FactSalesModel.tm
-2026-02-14 09:06:30.426 [main] DEBUG c.f.c.u.file.WatchServiceFileTracer - ÒÑ×¢²áÄ¿Â¼¼àÌý: D:\foggy-projects\java-data-mcp-bridge\foggy-dataset-demo\target\classes\foggy\templates\ecommerce
-2026-02-14 09:06:30.427 [main] DEBUG c.f.c.u.file.WatchServiceFileTracer - ÒÑÌí¼ÓÎÄ¼þ¼àÌý: D:\foggy-projects\java-data-mcp-bridge\foggy-dataset-demo\target\classes\foggy\templates\ecommerce\dicts.fsscript
-2026-02-14 09:06:30.487 [main] DEBUG c.f.d.d.m.s.i.DbModelDictServiceImpl - ×¢²á×Öµä: payment_method (Ö§¸¶·½Ê½), ¹² 3 Ïî
-2026-02-14 09:06:30.488 [main] DEBUG c.f.d.d.m.s.i.DbModelDictServiceImpl - ×¢²á×Öµä: order_status (¶©µ¥×´Ì¬), ¹² 8 Ïî
-2026-02-14 09:06:30.489 [main] DEBUG c.f.d.d.m.s.i.DbModelDictServiceImpl - ×¢²á×Öµä: payment_status (Ö§¸¶×´Ì¬), ¹² 5 Ïî
-2026-02-14 09:06:30.489 [main] DEBUG c.f.d.d.m.s.i.DbModelDictServiceImpl - ×¢²á×Öµä: return_reason (ÍË»õÔ­Òò), ¹² 5 Ïî
-2026-02-14 09:06:30.489 [main] DEBUG c.f.d.d.m.s.i.DbModelDictServiceImpl - ×¢²á×Öµä: return_type (ÍË»õÀàÐÍ), ¹² 3 Ïî
-2026-02-14 09:06:30.490 [main] DEBUG c.f.d.d.m.s.i.DbModelDictServiceImpl - ×¢²á×Öµä: return_status (ÍË»õ×´Ì¬), ¹² 6 Ïî
-2026-02-14 09:06:30.490 [main] DEBUG c.f.d.d.m.s.i.DbModelDictServiceImpl - ×¢²á×Öµä: pay_channel (Ö§¸¶ÇþµÀ), ¹² 5 Ïî
-2026-02-14 09:06:30.490 [main] DEBUG c.f.d.d.m.s.i.DbModelDictServiceImpl - ×¢²á×Öµä: pay_method (Ö§¸¶·½Ê½), ¹² 4 Ïî
-2026-02-14 09:06:30.490 [main] DEBUG c.f.d.d.m.s.i.DbModelDictServiceImpl - ×¢²á×Öµä: pay_status (Ö§¸¶×´Ì¬), ¹² 4 Ïî
-2026-02-14 09:06:30.588 [main] DEBUG c.f.d.db.model.engine.join.JoinGraph - Ìí¼Ó±ß: JoinEdge{m1 -[date_key]-> d1}
-2026-02-14 09:06:30.589 [main] DEBUG c.f.d.db.model.engine.join.JoinGraph - Ìí¼Ó±ß: JoinEdge{m1 -[product_key]-> d2}
-2026-02-14 09:06:30.589 [main] DEBUG c.f.d.db.model.engine.join.JoinGraph - Ìí¼Ó±ß: JoinEdge{m1 -[customer_key]-> d3}
-2026-02-14 09:06:30.589 [main] DEBUG c.f.d.db.model.engine.join.JoinGraph - Ìí¼Ó±ß: JoinEdge{m1 -[store_key]-> d4}
-2026-02-14 09:06:30.589 [main] DEBUG c.f.d.db.model.engine.join.JoinGraph - Ìí¼Ó±ß: JoinEdge{m1 -[channel_key]-> d5}
-2026-02-14 09:06:30.589 [main] DEBUG c.f.d.db.model.engine.join.JoinGraph - Ìí¼Ó±ß: JoinEdge{m1 -[promotion_key]-> d6}
-2026-02-14 09:06:30.589 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - Ä£ÐÍ FactSalesModel µÄ JoinGraph: JoinGraph{root=m1, nodes=7, edges=6}
+2026-02-14 09:06:30.363 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[8] item[0]: type=HashMap, value={name=profitRate, caption=ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½(%), formula=profitAmount / salesAmount * 100, type=NUMBER}
+2026-02-14 09:06:30.363 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[8] item[1]: type=HashMap, value={partitionBy=[product$categoryName], windowOrderBy=[{field=salesAmount, dir=desc}], name=salesRank, caption=Æ·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½, formula=RANK(), type=INTEGER}
+2026-02-14 09:06:30.363 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl -   Raw group[8] item[2]: type=HashMap, value={partitionBy=[product$caption], windowOrderBy=[{field=salesDate$caption, dir=asc}], windowFrame=ROWS BETWEEN 6 PRECEDING AND CURRENT ROW, name=ma7, caption=7ï¿½ï¿½ï¿½Æ¶ï¿½Æ½ï¿½ï¿½, formula=AVG(salesAmount), type=NUMBER}
+2026-02-14 09:06:30.393 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - ï¿½ï¿½Ê¼ï¿½ï¿½ï¿½ï¿½ QueryModelBuilderï¿½ï¿½ï¿½ï¿½ 1 ï¿½ï¿½
+2026-02-14 09:06:30.393 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - ï¿½ï¿½ï¿½ï¿½ Builder: com.foggyframework.dataset.db.model.engine.query_model.JdbcQueryModelBuilder
+2026-02-14 09:06:30.393 [main] DEBUG c.f.d.d.m.e.q.JdbcQueryModelBuilder - V2 ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ô¹ï¿½ï¿½ï¿½ QM: FactSalesQueryModel
+2026-02-14 09:06:30.399 [main] DEBUG c.foggyframework.bundle.BundleImpl - ï¿½Òµï¿½ï¿½ï¿½Ô´(findResources): file:/D:/foggy-projects/java-data-mcp-bridge/foggy-dataset-demo/target/classes/foggy/templates/ecommerce/model/FactSalesModel.tm
+2026-02-14 09:06:30.417 [main] DEBUG c.f.c.u.file.WatchServiceFileTracer - ï¿½ï¿½×¢ï¿½ï¿½Ä¿Â¼ï¿½ï¿½ï¿½ï¿½: D:\foggy-projects\java-data-mcp-bridge\foggy-dataset-demo\target\classes\foggy\templates\ecommerce\model
+2026-02-14 09:06:30.418 [main] DEBUG c.f.c.u.file.WatchServiceFileTracer - ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½ï¿½ï¿½ï¿½ï¿½: D:\foggy-projects\java-data-mcp-bridge\foggy-dataset-demo\target\classes\foggy\templates\ecommerce\model\FactSalesModel.tm
+2026-02-14 09:06:30.426 [main] DEBUG c.f.c.u.file.WatchServiceFileTracer - ï¿½ï¿½×¢ï¿½ï¿½Ä¿Â¼ï¿½ï¿½ï¿½ï¿½: D:\foggy-projects\java-data-mcp-bridge\foggy-dataset-demo\target\classes\foggy\templates\ecommerce
+2026-02-14 09:06:30.427 [main] DEBUG c.f.c.u.file.WatchServiceFileTracer - ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½ï¿½ï¿½ï¿½ï¿½: D:\foggy-projects\java-data-mcp-bridge\foggy-dataset-demo\target\classes\foggy\templates\ecommerce\dicts.fsscript
+2026-02-14 09:06:30.487 [main] DEBUG c.f.d.d.m.s.i.DbModelDictServiceImpl - ×¢ï¿½ï¿½ï¿½Öµï¿½: payment_method (Ö§ï¿½ï¿½ï¿½ï¿½Ê½), ï¿½ï¿½ 3 ï¿½ï¿½
+2026-02-14 09:06:30.488 [main] DEBUG c.f.d.d.m.s.i.DbModelDictServiceImpl - ×¢ï¿½ï¿½ï¿½Öµï¿½: order_status (ï¿½ï¿½ï¿½ï¿½×´Ì¬), ï¿½ï¿½ 8 ï¿½ï¿½
+2026-02-14 09:06:30.489 [main] DEBUG c.f.d.d.m.s.i.DbModelDictServiceImpl - ×¢ï¿½ï¿½ï¿½Öµï¿½: payment_status (Ö§ï¿½ï¿½×´Ì¬), ï¿½ï¿½ 5 ï¿½ï¿½
+2026-02-14 09:06:30.489 [main] DEBUG c.f.d.d.m.s.i.DbModelDictServiceImpl - ×¢ï¿½ï¿½ï¿½Öµï¿½: return_reason (ï¿½Ë»ï¿½Ô­ï¿½ï¿½), ï¿½ï¿½ 5 ï¿½ï¿½
+2026-02-14 09:06:30.489 [main] DEBUG c.f.d.d.m.s.i.DbModelDictServiceImpl - ×¢ï¿½ï¿½ï¿½Öµï¿½: return_type (ï¿½Ë»ï¿½ï¿½ï¿½ï¿½ï¿½), ï¿½ï¿½ 3 ï¿½ï¿½
+2026-02-14 09:06:30.490 [main] DEBUG c.f.d.d.m.s.i.DbModelDictServiceImpl - ×¢ï¿½ï¿½ï¿½Öµï¿½: return_status (ï¿½Ë»ï¿½×´Ì¬), ï¿½ï¿½ 6 ï¿½ï¿½
+2026-02-14 09:06:30.490 [main] DEBUG c.f.d.d.m.s.i.DbModelDictServiceImpl - ×¢ï¿½ï¿½ï¿½Öµï¿½: pay_channel (Ö§ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½), ï¿½ï¿½ 5 ï¿½ï¿½
+2026-02-14 09:06:30.490 [main] DEBUG c.f.d.d.m.s.i.DbModelDictServiceImpl - ×¢ï¿½ï¿½ï¿½Öµï¿½: pay_method (Ö§ï¿½ï¿½ï¿½ï¿½Ê½), ï¿½ï¿½ 4 ï¿½ï¿½
+2026-02-14 09:06:30.490 [main] DEBUG c.f.d.d.m.s.i.DbModelDictServiceImpl - ×¢ï¿½ï¿½ï¿½Öµï¿½: pay_status (Ö§ï¿½ï¿½×´Ì¬), ï¿½ï¿½ 4 ï¿½ï¿½
+2026-02-14 09:06:30.588 [main] DEBUG c.f.d.db.model.engine.join.JoinGraph - ï¿½ï¿½Ó±ï¿½: JoinEdge{m1 -[date_key]-> d1}
+2026-02-14 09:06:30.589 [main] DEBUG c.f.d.db.model.engine.join.JoinGraph - ï¿½ï¿½Ó±ï¿½: JoinEdge{m1 -[product_key]-> d2}
+2026-02-14 09:06:30.589 [main] DEBUG c.f.d.db.model.engine.join.JoinGraph - ï¿½ï¿½Ó±ï¿½: JoinEdge{m1 -[customer_key]-> d3}
+2026-02-14 09:06:30.589 [main] DEBUG c.f.d.db.model.engine.join.JoinGraph - ï¿½ï¿½Ó±ï¿½: JoinEdge{m1 -[store_key]-> d4}
+2026-02-14 09:06:30.589 [main] DEBUG c.f.d.db.model.engine.join.JoinGraph - ï¿½ï¿½Ó±ï¿½: JoinEdge{m1 -[channel_key]-> d5}
+2026-02-14 09:06:30.589 [main] DEBUG c.f.d.db.model.engine.join.JoinGraph - ï¿½ï¿½Ó±ï¿½: JoinEdge{m1 -[promotion_key]-> d6}
+2026-02-14 09:06:30.589 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - Ä£ï¿½ï¿½ FactSalesModel ï¿½ï¿½ JoinGraph: JoinGraph{root=m1, nodes=7, edges=6}
   JoinEdge{m1 -[date_key]-> d1}
   JoinEdge{m1 -[product_key]-> d2}
   JoinEdge{m1 -[customer_key]-> d3}
@@ -446,121 +446,121 @@
   JoinEdge{m1 -[channel_key]-> d5}
   JoinEdge{m1 -[promotion_key]-> d6}
 
-2026-02-14 09:06:30.590 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - Ä£ÐÍ FactSalesModel µÄÎ¬¶ÈË÷Òý: [product, salesDate, channel, store, customer, promotion]
-2026-02-14 09:06:30.591 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - Ä£ÐÍFactSalesModel°üº¬ÈçÏÂÁÐ
-2026-02-14 09:06:30.591 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[salesDate$id],caption:[ÏúÊÛÈÕÆÚ]
-2026-02-14 09:06:30.591 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[salesDate$caption],caption:[ÏúÊÛÈÕÆÚ]
-2026-02-14 09:06:30.591 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[salesDate$year],caption:[Äê]
-2026-02-14 09:06:30.591 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[salesDate$quarter],caption:[¼¾¶È]
-2026-02-14 09:06:30.591 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[salesDate$month],caption:[ÔÂ]
-2026-02-14 09:06:30.591 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[salesDate$monthName],caption:[ÔÂ·ÝÃû³Æ]
-2026-02-14 09:06:30.591 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[salesDate$dayOfWeek],caption:[ÖÜ¼¸]
-2026-02-14 09:06:30.591 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[salesDate$isWeekend],caption:[ÊÇ·ñÖÜÄ©]
-2026-02-14 09:06:30.591 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[product$id],caption:[ÉÌÆ·]
-2026-02-14 09:06:30.591 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[product$caption],caption:[ÉÌÆ·]
-2026-02-14 09:06:30.591 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[product$productId],caption:[ÉÌÆ·ID]
-2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[product$categoryId],caption:[Ò»¼¶Æ·ÀàID]
-2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[product$categoryName],caption:[Ò»¼¶Æ·ÀàÃû³Æ]
-2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[product$subCategoryId],caption:[¶þ¼¶Æ·ÀàID]
-2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[product$subCategoryName],caption:[¶þ¼¶Æ·ÀàÃû³Æ]
-2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[product$brand],caption:[Æ·ÅÆ]
-2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[product$unitPrice],caption:[ÉÌÆ·ÊÛ¼Û]
-2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[product$unitCost],caption:[ÉÌÆ·³É±¾]
-2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[customer$id],caption:[¿Í»§]
-2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[customer$caption],caption:[¿Í»§]
-2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[customer$customerId],caption:[¿Í»§ID]
-2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[customer$customerType],caption:[¿Í»§ÀàÐÍ]
-2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[customer$gender],caption:[ÐÔ±ð]
-2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[customer$ageGroup],caption:[ÄêÁä¶Î]
-2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[customer$idCard],caption:[Éí·ÝÖ¤ºÅ]
-2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[customer$phone],caption:[ÊÖ»úºÅ]
-2026-02-14 09:06:30.593 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[customer$province],caption:[Ê¡·Ý]
-2026-02-14 09:06:30.593 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[customer$city],caption:[³ÇÊÐ]
-2026-02-14 09:06:30.593 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[customer$memberLevel],caption:[»áÔ±µÈ¼¶]
-2026-02-14 09:06:30.593 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[store$id],caption:[ÃÅµê]
-2026-02-14 09:06:30.593 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[store$caption],caption:[ÃÅµê]
-2026-02-14 09:06:30.593 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[store$storeId],caption:[ÃÅµêID]
-2026-02-14 09:06:30.593 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[store$storeType],caption:[ÃÅµêÀàÐÍ]
-2026-02-14 09:06:30.593 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[store$province],caption:[Ê¡·Ý]
-2026-02-14 09:06:30.593 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[store$city],caption:[³ÇÊÐ]
-2026-02-14 09:06:30.593 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[channel$id],caption:[ÇþµÀ]
-2026-02-14 09:06:30.593 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[channel$caption],caption:[ÇþµÀ]
-2026-02-14 09:06:30.593 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[channel$channelId],caption:[ÇþµÀID]
-2026-02-14 09:06:30.593 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[channel$channelType],caption:[ÇþµÀÀàÐÍ]
+2026-02-14 09:06:30.590 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - Ä£ï¿½ï¿½ FactSalesModel ï¿½ï¿½Î¬ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½: [product, salesDate, channel, store, customer, promotion]
+2026-02-14 09:06:30.591 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - Ä£ï¿½ï¿½FactSalesModelï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+2026-02-14 09:06:30.591 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[salesDate$id],caption:[ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½]
+2026-02-14 09:06:30.591 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[salesDate$caption],caption:[ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½]
+2026-02-14 09:06:30.591 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[salesDate$year],caption:[ï¿½ï¿½]
+2026-02-14 09:06:30.591 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[salesDate$quarter],caption:[ï¿½ï¿½ï¿½ï¿½]
+2026-02-14 09:06:30.591 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[salesDate$month],caption:[ï¿½ï¿½]
+2026-02-14 09:06:30.591 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[salesDate$monthName],caption:[ï¿½Â·ï¿½ï¿½ï¿½ï¿½ï¿½]
+2026-02-14 09:06:30.591 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[salesDate$dayOfWeek],caption:[ï¿½Ü¼ï¿½]
+2026-02-14 09:06:30.591 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[salesDate$isWeekend],caption:[ï¿½Ç·ï¿½ï¿½ï¿½Ä©]
+2026-02-14 09:06:30.591 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[product$id],caption:[ï¿½ï¿½Æ·]
+2026-02-14 09:06:30.591 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[product$caption],caption:[ï¿½ï¿½Æ·]
+2026-02-14 09:06:30.591 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[product$productId],caption:[ï¿½ï¿½Æ·ID]
+2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[product$categoryId],caption:[Ò»ï¿½ï¿½Æ·ï¿½ï¿½ID]
+2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[product$categoryName],caption:[Ò»ï¿½ï¿½Æ·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½]
+2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[product$subCategoryId],caption:[ï¿½ï¿½ï¿½ï¿½Æ·ï¿½ï¿½ID]
+2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[product$subCategoryName],caption:[ï¿½ï¿½ï¿½ï¿½Æ·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½]
+2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[product$brand],caption:[Æ·ï¿½ï¿½]
+2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[product$unitPrice],caption:[ï¿½ï¿½Æ·ï¿½Û¼ï¿½]
+2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[product$unitCost],caption:[ï¿½ï¿½Æ·ï¿½É±ï¿½]
+2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[customer$id],caption:[ï¿½Í»ï¿½]
+2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[customer$caption],caption:[ï¿½Í»ï¿½]
+2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[customer$customerId],caption:[ï¿½Í»ï¿½ID]
+2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[customer$customerType],caption:[ï¿½Í»ï¿½ï¿½ï¿½ï¿½ï¿½]
+2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[customer$gender],caption:[ï¿½Ô±ï¿½]
+2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[customer$ageGroup],caption:[ï¿½ï¿½ï¿½ï¿½ï¿½]
+2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[customer$idCard],caption:[ï¿½ï¿½ï¿½Ö¤ï¿½ï¿½]
+2026-02-14 09:06:30.592 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[customer$phone],caption:[ï¿½Ö»ï¿½ï¿½ï¿½]
+2026-02-14 09:06:30.593 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[customer$province],caption:[Ê¡ï¿½ï¿½]
+2026-02-14 09:06:30.593 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[customer$city],caption:[ï¿½ï¿½ï¿½ï¿½]
+2026-02-14 09:06:30.593 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[customer$memberLevel],caption:[ï¿½ï¿½Ô±ï¿½È¼ï¿½]
+2026-02-14 09:06:30.593 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[store$id],caption:[ï¿½Åµï¿½]
+2026-02-14 09:06:30.593 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[store$caption],caption:[ï¿½Åµï¿½]
+2026-02-14 09:06:30.593 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[store$storeId],caption:[ï¿½Åµï¿½ID]
+2026-02-14 09:06:30.593 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[store$storeType],caption:[ï¿½Åµï¿½ï¿½ï¿½ï¿½ï¿½]
+2026-02-14 09:06:30.593 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[store$province],caption:[Ê¡ï¿½ï¿½]
+2026-02-14 09:06:30.593 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[store$city],caption:[ï¿½ï¿½ï¿½ï¿½]
+2026-02-14 09:06:30.593 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[channel$id],caption:[ï¿½ï¿½ï¿½ï¿½]
+2026-02-14 09:06:30.593 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[channel$caption],caption:[ï¿½ï¿½ï¿½ï¿½]
+2026-02-14 09:06:30.593 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[channel$channelId],caption:[ï¿½ï¿½ï¿½ï¿½ID]
+2026-02-14 09:06:30.593 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[channel$channelType],caption:[ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½]
 2026-02-14 09:06:30.593 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[channel$platform],caption:[Æ½Ì¨]
-2026-02-14 09:06:30.593 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[promotion$id],caption:[´ÙÏú»î¶¯]
-2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[promotion$caption],caption:[´ÙÏú»î¶¯]
-2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[promotion$promotionId],caption:[´ÙÏúID]
-2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[promotion$promotionType],caption:[´ÙÏúÀàÐÍ]
-2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[promotion$discountRate],caption:[ÕÛ¿ÛÂÊ]
-2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[quantity],caption:[ÏúÊÛÊýÁ¿]
-2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[unitPrice],caption:[µ¥¼Û]
-2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[unitCost],caption:[µ¥Î»³É±¾]
-2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[discountAmount],caption:[ÕÛ¿Û½ð¶î]
-2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[salesAmount],caption:[ÏúÊÛ½ð¶î]
-2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[costAmount],caption:[³É±¾½ð¶î]
-2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[profitAmount],caption:[ÀûÈó½ð¶î]
-2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[taxAmount],caption:[Ë°¶î]
-2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[taxAmount2],caption:[Ë°¶î*2]
-2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[uniqueCustomers],caption:[¶ÀÁ¢¿Í»§Êý]
-2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[salesKey],caption:[ÏúÊÛ´úÀí¼ü]
-2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[orderId],caption:[¶©µ¥ID]
-2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[orderLineNo],caption:[¶©µ¥ÐÐºÅ]
-2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[orderStatus],caption:[¶©µ¥×´Ì¬]
-2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[paymentMethod],caption:[Ö§¸¶·½Ê½]
-2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[createdAt],caption:[´´½¨Ê±¼ä]
-2026-02-14 09:06:30.597 [main] DEBUG c.f.d.d.m.e.q.JdbcQueryModelBuilder - V2 ¹¹½¨Æ÷³É¹¦¹¹½¨ JDBC QM: FactSalesQueryModel
-2026-02-14 09:06:30.597 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - Builder JdbcQueryModelBuilder ³É¹¦¹¹½¨ QM: com.foggyframework.dataset.db.model.engine.query_model.JdbcQueryModelImpl
-2026-02-14 09:06:30.597 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [¶©µ¥Ã÷Ï¸ÐÅÏ¢] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.599 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [¶©µ¥Ã÷Ï¸ÐÅÏ¢] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.599 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [¶©µ¥Ã÷Ï¸ÐÅÏ¢] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.600 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [¶©µ¥Ã÷Ï¸ÐÅÏ¢] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.600 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ÈÕÆÚÎ¬¶È] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.601 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ÈÕÆÚÎ¬¶È] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.601 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ÈÕÆÚÎ¬¶È] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.601 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ÈÕÆÚÎ¬¶È] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.601 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ÈÕÆÚÎ¬¶È] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.601 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ÈÕÆÚÎ¬¶È] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.601 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ÈÕÆÚÎ¬¶È] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.601 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ÉÌÆ·Î¬¶È] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.601 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ÉÌÆ·Î¬¶È] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.601 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ÉÌÆ·Î¬¶È] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.601 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ÉÌÆ·Î¬¶È] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.602 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ÉÌÆ·Î¬¶È] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.602 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ÉÌÆ·Î¬¶È] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.602 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ÉÌÆ·Î¬¶È] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.602 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ÉÌÆ·Î¬¶È] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.602 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [¿Í»§Î¬¶È] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.602 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [¿Í»§Î¬¶È] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.602 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [¿Í»§Î¬¶È] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.602 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [¿Í»§Î¬¶È] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.602 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [¿Í»§Î¬¶È] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.603 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [¿Í»§Î¬¶È] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.603 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [¿Í»§Î¬¶È] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.603 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ÃÅµêÎ¬¶È] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.603 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ÃÅµêÎ¬¶È] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.603 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ÃÅµêÎ¬¶È] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.603 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ÃÅµêÎ¬¶È] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.603 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ÇþµÀÎ¬¶È] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.603 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ÇþµÀÎ¬¶È] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.603 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ÇþµÀÎ¬¶È] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.603 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [´ÙÏúÎ¬¶È] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.603 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [´ÙÏúÎ¬¶È] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.604 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [´ÙÏúÎ¬¶È] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.604 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [¶ÈÁ¿] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.604 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [¶ÈÁ¿] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.604 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [¶ÈÁ¿] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.604 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [¶ÈÁ¿] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.604 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [¶ÈÁ¿] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.604 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [¶ÈÁ¿] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.604 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [¶ÈÁ¿] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.604 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [¶ÈÁ¿] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.605 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [¶ÈÁ¿] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.605 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [¶ÈÁ¿] item: name=null, formula=null, ref=String, caption=null
-2026-02-14 09:06:30.605 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [¸ß¼¶·ÖÎö] item: name=profitRate, formula=profitAmount / salesAmount * 100, ref=null, caption=ÀûÈóÂÊ(%)
-2026-02-14 09:06:30.605 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [¸ß¼¶·ÖÎö] item: name=salesRank, formula=RANK(), ref=null, caption=Æ·ÀàÏúÊÛÅÅÃû
-2026-02-14 09:06:30.606 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [¸ß¼¶·ÖÎö] item: name=ma7, formula=AVG(salesAmount), ref=null, caption=7ÈÕÒÆ¶¯Æ½¾ù
-2026-02-14 09:06:30.608 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - ÒÑÎªÄ£ÐÍ FactSalesQueryModel ·ÖÅä¼ò³Æ: FS (namespace: Ä¬ÈÏ)
+2026-02-14 09:06:30.593 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[promotion$id],caption:[ï¿½ï¿½ï¿½ï¿½ï¿½î¶¯]
+2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[promotion$caption],caption:[ï¿½ï¿½ï¿½ï¿½ï¿½î¶¯]
+2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[promotion$promotionId],caption:[ï¿½ï¿½ï¿½ï¿½ID]
+2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[promotion$promotionType],caption:[ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½]
+2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[promotion$discountRate],caption:[ï¿½Û¿ï¿½ï¿½ï¿½]
+2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[quantity],caption:[ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½]
+2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[unitPrice],caption:[ï¿½ï¿½ï¿½ï¿½]
+2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[unitCost],caption:[ï¿½ï¿½Î»ï¿½É±ï¿½]
+2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[discountAmount],caption:[ï¿½Û¿Û½ï¿½ï¿½]
+2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[salesAmount],caption:[ï¿½ï¿½ï¿½Û½ï¿½ï¿½]
+2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[costAmount],caption:[ï¿½É±ï¿½ï¿½ï¿½ï¿½]
+2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[profitAmount],caption:[ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½]
+2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[taxAmount],caption:[Ë°ï¿½ï¿½]
+2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[taxAmount2],caption:[Ë°ï¿½ï¿½*2]
+2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[uniqueCustomers],caption:[ï¿½ï¿½ï¿½ï¿½ï¿½Í»ï¿½ï¿½ï¿½]
+2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[salesKey],caption:[ï¿½ï¿½ï¿½Û´ï¿½ï¿½ï¿½ï¿½]
+2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[orderId],caption:[ï¿½ï¿½ï¿½ï¿½ID]
+2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[orderLineNo],caption:[ï¿½ï¿½ï¿½ï¿½ï¿½Ðºï¿½]
+2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[orderStatus],caption:[ï¿½ï¿½ï¿½ï¿½×´Ì¬]
+2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[paymentMethod],caption:[Ö§ï¿½ï¿½ï¿½ï¿½Ê½]
+2026-02-14 09:06:30.594 [main] DEBUG c.f.d.d.m.i.model.TableModelSupport - name[createdAt],caption:[ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½]
+2026-02-14 09:06:30.597 [main] DEBUG c.f.d.d.m.e.q.JdbcQueryModelBuilder - V2 ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½É¹ï¿½ï¿½ï¿½ï¿½ï¿½ JDBC QM: FactSalesQueryModel
+2026-02-14 09:06:30.597 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - Builder JdbcQueryModelBuilder ï¿½É¹ï¿½ï¿½ï¿½ï¿½ï¿½ QM: com.foggyframework.dataset.db.model.engine.query_model.JdbcQueryModelImpl
+2026-02-14 09:06:30.597 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ï¸ï¿½ï¿½Ï¢] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.599 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ï¸ï¿½ï¿½Ï¢] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.599 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ï¸ï¿½ï¿½Ï¢] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.600 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ï¸ï¿½ï¿½Ï¢] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.600 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½ï¿½ï¿½ï¿½Î¬ï¿½ï¿½] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.601 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½ï¿½ï¿½ï¿½Î¬ï¿½ï¿½] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.601 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½ï¿½ï¿½ï¿½Î¬ï¿½ï¿½] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.601 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½ï¿½ï¿½ï¿½Î¬ï¿½ï¿½] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.601 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½ï¿½ï¿½ï¿½Î¬ï¿½ï¿½] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.601 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½ï¿½ï¿½ï¿½Î¬ï¿½ï¿½] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.601 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½ï¿½ï¿½ï¿½Î¬ï¿½ï¿½] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.601 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½ï¿½Æ·Î¬ï¿½ï¿½] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.601 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½ï¿½Æ·Î¬ï¿½ï¿½] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.601 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½ï¿½Æ·Î¬ï¿½ï¿½] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.601 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½ï¿½Æ·Î¬ï¿½ï¿½] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.602 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½ï¿½Æ·Î¬ï¿½ï¿½] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.602 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½ï¿½Æ·Î¬ï¿½ï¿½] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.602 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½ï¿½Æ·Î¬ï¿½ï¿½] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.602 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½ï¿½Æ·Î¬ï¿½ï¿½] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.602 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½Í»ï¿½Î¬ï¿½ï¿½] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.602 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½Í»ï¿½Î¬ï¿½ï¿½] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.602 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½Í»ï¿½Î¬ï¿½ï¿½] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.602 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½Í»ï¿½Î¬ï¿½ï¿½] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.602 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½Í»ï¿½Î¬ï¿½ï¿½] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.603 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½Í»ï¿½Î¬ï¿½ï¿½] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.603 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½Í»ï¿½Î¬ï¿½ï¿½] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.603 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½Åµï¿½Î¬ï¿½ï¿½] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.603 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½Åµï¿½Î¬ï¿½ï¿½] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.603 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½Åµï¿½Î¬ï¿½ï¿½] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.603 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½Åµï¿½Î¬ï¿½ï¿½] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.603 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½ï¿½ï¿½ï¿½Î¬ï¿½ï¿½] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.603 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½ï¿½ï¿½ï¿½Î¬ï¿½ï¿½] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.603 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½ï¿½ï¿½ï¿½Î¬ï¿½ï¿½] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.603 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½ï¿½ï¿½ï¿½Î¬ï¿½ï¿½] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.603 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½ï¿½ï¿½ï¿½Î¬ï¿½ï¿½] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.604 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½ï¿½ï¿½ï¿½Î¬ï¿½ï¿½] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.604 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½ï¿½ï¿½ï¿½] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.604 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½ï¿½ï¿½ï¿½] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.604 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½ï¿½ï¿½ï¿½] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.604 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½ï¿½ï¿½ï¿½] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.604 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½ï¿½ï¿½ï¿½] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.604 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½ï¿½ï¿½ï¿½] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.604 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½ï¿½ï¿½ï¿½] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.604 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½ï¿½ï¿½ï¿½] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.605 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½ï¿½ï¿½ï¿½] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.605 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½ï¿½ï¿½ï¿½] item: name=null, formula=null, ref=String, caption=null
+2026-02-14 09:06:30.605 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½ß¼ï¿½ï¿½ï¿½ï¿½ï¿½] item: name=profitRate, formula=profitAmount / salesAmount * 100, ref=null, caption=ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½(%)
+2026-02-14 09:06:30.605 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½ß¼ï¿½ï¿½ï¿½ï¿½ï¿½] item: name=salesRank, formula=RANK(), ref=null, caption=Æ·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+2026-02-14 09:06:30.606 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - loadColumnGroups [ï¿½ß¼ï¿½ï¿½ï¿½ï¿½ï¿½] item: name=ma7, formula=AVG(salesAmount), ref=null, caption=7ï¿½ï¿½ï¿½Æ¶ï¿½Æ½ï¿½ï¿½
+2026-02-14 09:06:30.608 [main] DEBUG c.f.d.d.m.e.q.QueryModelLoaderImpl - ï¿½ï¿½ÎªÄ£ï¿½ï¿½ FactSalesQueryModel ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½: FS (namespace: Ä¬ï¿½ï¿½)
 2026-02-14 09:06:30.609 [main] INFO  c.f.d.d.m.e.AdvancedAnalyticsTest - predefinedCalculatedFields size=3
 2026-02-14 09:06:30.609 [main] INFO  c.f.d.d.m.e.AdvancedAnalyticsTest -   predefined: name=profitRate, expression=profitAmount / salesAmount * 100, partitionBy=null
 2026-02-14 09:06:30.609 [main] INFO  c.f.d.d.m.e.AdvancedAnalyticsTest -   predefined: name=salesRank, expression=RANK(), partitionBy=[product$categoryName]
@@ -572,7 +572,7 @@
 [INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0
 [INFO] 
 [INFO] ------------------------------------------------------------------------
-[INFO] Reactor Summary for Java Data MCP Bridge 8.1.4.beta:
+[INFO] Reactor Summary for Java Data MCP Bridge 8.1.5.beta:
 [INFO] 
 [INFO] Java Data MCP Bridge ............................... SUCCESS [  0.038 s]
 [INFO] Foggy Core ......................................... SUCCESS [  1.081 s]
