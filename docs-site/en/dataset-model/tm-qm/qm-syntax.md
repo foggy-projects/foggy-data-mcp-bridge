@@ -200,12 +200,30 @@ fo.product.category.group$caption
 
 ### 5.1 Nested Dimension References
 
-Nested dimensions use path syntax:
+**Syntax rule**: `.` handles dimension path navigation, `$` handles property access — each has a distinct role:
+
+```
+fo.product.category$caption
+   ├─────────────┘  └──┘
+   │  dimension path (.sep)  property ($sep)
+```
+
+**Three reference formats**:
 
 ```javascript
+// Format 1: Full path (precise, no alias needed)
 { ref: fo.product.category$caption }
 { ref: fo.product.category.group$caption }
+
+// Format 2: Alias (recommended, requires alias defined in TM)
+{ ref: fo.productCategory$caption }     // alias: 'productCategory'
+{ ref: fo.categoryGroup$caption }       // alias: 'categoryGroup'
+
+// Format 3: Underscore format in DSL queries (output column name format)
+columns: ["product_category$caption", "product_category_group$caption"]
 ```
+
+> **Note**: Do NOT use multiple `$` instead of `.` (e.g., ~~`product$category$caption`~~) — the parser treats everything after the first `$` as the property name, causing lookup failure.
 
 **Path syntax explanation**:
 
@@ -217,10 +235,10 @@ Nested dimensions use path syntax:
 
 **Output column name format**:
 
-Path syntax uses underscores in output to avoid `.` issues in JavaScript property names:
+Dots in paths are automatically converted to underscores in output, avoiding JavaScript property name conflicts:
 
-| Reference | Output Column Name |
-|-----------|-------------------|
+| QM Reference | Output Column Name |
+|-------------|-------------------|
 | `fo.product$caption` | `product$caption` |
 | `fo.product.category$caption` | `product_category$caption` |
 | `fo.product.category.group$caption` | `product_category_group$caption` |

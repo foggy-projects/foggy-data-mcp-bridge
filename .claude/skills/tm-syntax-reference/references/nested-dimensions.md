@@ -74,27 +74,50 @@
 | `foreignKey` | **重要**：嵌套维度的 foreignKey 指向父维度表上的列 |
 | `dimensions` | 子维度列表，可继续嵌套形成多层结构 |
 
+## 语法设计原则
+
+嵌套维度引用使用两种分隔符，各管一件事：
+
+- **`.`（点号）**：维度层级导航 — `product.category.group` 表示沿层级定位维度
+- **`$`（美元符）**：属性访问 — `category$caption` 表示取该维度的属性
+
+组合：`product.category$caption` = 沿 product → category 路径，取 caption 属性。
+
+> 禁止用多个 `$` 代替 `.`（如 ~~`product$category$caption`~~），解析器会将第一个 `$` 后的内容整体视为属性名，导致查找失败。
+
 ## QM 中访问嵌套维度
 
 ### 方式1：使用别名（推荐）
 
 ```javascript
-columns: [
-    'product$caption',           // 一级维度
-    'productCategory$caption',   // 二级维度（通过 alias）
-    'categoryGroup$caption'      // 三级维度（通过 alias）
-]
+// 需在 TM 中定义 alias，如 alias: 'productCategory'
+{ ref: fs.productCategory$caption }     // 二级维度
+{ ref: fs.categoryGroup$caption }       // 三级维度
 ```
 
 ### 方式2：使用完整路径
 
 ```javascript
-columns: [
-    'product$caption',
-    'product.category$caption',
-    'product.category.group$caption'
-]
+{ ref: fs.product.category$caption }
+{ ref: fs.product.category.group$caption }
 ```
+
+### 方式3：DSL 查询中使用下划线格式
+
+```json
+{ "columns": ["product_category$caption", "product_category_group$caption"] }
+```
+
+## 输出列名转换
+
+路径中的 `.` 在输出时自动转为 `_`，避免 JavaScript 属性名冲突：
+
+| QM / DSL 引用 | 输出列名 |
+|--------------|---------|
+| `product$caption` | `product$caption` |
+| `product.category$caption` | `product_category$caption` |
+| `product.category.group$caption` | `product_category_group$caption` |
+| `productCategory$caption`（别名） | `productCategory$caption` |
 
 ## 生成的 SQL JOIN
 

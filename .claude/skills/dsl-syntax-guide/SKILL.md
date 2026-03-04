@@ -63,11 +63,26 @@ DSL（Domain Specific Language）查询语法用于统一前后端的数据查�
 ```
 
 ### 嵌套维度（雪花模型）
+
+语法规则：`.` 负责维度层级导航，`$` 负责属性访问，二者不可混用。
+
 ```
-"product$categoryName"           # 一级维度属性
-"product.category$caption"       # 二级维度显示值
+"product$brand"                  # 一级维度属性
+"product.category$caption"       # 二级维度显示值（.分隔层级，$分隔属性）
 "product.category.group$caption" # 三级维度显示值
+"productCategory$caption"        # 二级维度（通过 TM 中定义的 alias）
+"categoryGroup$caption"          # 三级维度（通过 alias）
 ```
+
+> 禁止写 `product$category$caption`（多个 `$`），解析器会将第一个 `$` 后的内容整体视为属性名。
+
+输出列名映射（`.` → `_`）：
+
+| DSL 引用 | 响应列名 |
+|---------|---------|
+| `product.category$caption` | `product_category$caption` |
+| `product.category.group$caption` | `product_category_group$caption` |
+| `productCategory$caption`（别名） | `productCategory$caption` |
 
 ### 日期维度字段
 ```
