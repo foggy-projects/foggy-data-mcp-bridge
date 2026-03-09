@@ -197,6 +197,13 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                     continue;
                 }
                 String dimName = dimension.getEffectiveName();
+
+                // 检查 QM 是否暴露了该维度（$id 或 $caption 至少有一个在 QM columnGroups 中）
+                if (queryModel.findJdbcQueryColumnByName(dimName + "$id", false) == null
+                        && queryModel.findJdbcQueryColumnByName(dimName + "$caption", false) == null) {
+                    continue;
+                }
+
                 String dimCaption = dimension.getCaption() != null ? dimension.getCaption() : dimName;
                 String keyDesc = dimension.getKeyDescription() != null ? dimension.getKeyDescription() : "";
 
@@ -671,7 +678,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                                       List<String> fieldFilter, List<Integer> levels) {
         TableModel jdbcModel = queryModel.getJdbcModel();
 
-        // 处理维度（展开为 $id 和 $caption）
+        // 处理维度（展开为 $id 和 $caption，仅包含QM暴露的维度）
         for (DbDimension dimension : jdbcModel.getDimensions()) {
             if (!isFieldInLevels(dimension.getAi(), levels)) {
                 continue;
@@ -684,14 +691,20 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                 continue;
             }
 
+            // 检查 QM 是否暴露了该维度（$id 或 $caption 至少有一个在 QM columnGroups 中）
+            String idFieldName = baseName + "$id";
+            String captionFieldName = baseName + "$caption";
+            if (queryModel.findJdbcQueryColumnByName(idFieldName, false) == null
+                    && queryModel.findJdbcQueryColumnByName(captionFieldName, false) == null) {
+                continue;
+            }
+
             // 展开为两个独立字段
             // 1. $id 字段
-            String idFieldName = baseName + "$id";
             Map<String, Object> idFieldInfo = createDimensionIdFieldInfo(dimension, queryModel.getName());
             fields.put(idFieldName, idFieldInfo);
 
             // 2. $caption 字段
-            String captionFieldName = baseName + "$caption";
             Map<String, Object> captionFieldInfo = createDimensionCaptionFieldInfo(dimension, queryModel.getName());
             fields.put(captionFieldName, captionFieldInfo);
 
@@ -980,7 +993,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                                      Set<String> referencedDictIds, Set<DictInfo> referencedDictClasses) {
         TableModel jdbcModel = queryModel.getJdbcModel();
 
-        // 收集维度信息（展开为 $id 和 $caption）
+        // 收集维度信息（展开为 $id 和 $caption，仅包含QM暴露的维度）
         for (DbDimension dimension : jdbcModel.getDimensions()) {
             if (!isFieldInLevels(dimension.getAi(), levels)) {
                 continue;
@@ -993,13 +1006,19 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                 continue;
             }
 
-            // $id 字段
+            // 检查 QM 是否暴露了该维度（$id 或 $caption 至少有一个在 QM columnGroups 中）
             String idFieldName = baseName + "$id";
+            String captionFieldName = baseName + "$caption";
+            if (queryModel.findJdbcQueryColumnByName(idFieldName, false) == null
+                    && queryModel.findJdbcQueryColumnByName(captionFieldName, false) == null) {
+                continue;
+            }
+
+            // $id 字段
             FieldInfoV3 idFieldInfo = allFields.computeIfAbsent(idFieldName, k -> new FieldInfoV3());
             idFieldInfo.addDimensionId(dimension, queryModel.getName(), this);
 
             // $caption 字段
-            String captionFieldName = baseName + "$caption";
             FieldInfoV3 captionFieldInfo = allFields.computeIfAbsent(captionFieldName, k -> new FieldInfoV3());
             captionFieldInfo.addDimensionCaption(dimension, queryModel.getName(), this);
 
