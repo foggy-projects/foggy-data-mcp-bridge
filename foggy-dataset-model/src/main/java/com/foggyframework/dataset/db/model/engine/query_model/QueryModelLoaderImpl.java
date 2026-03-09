@@ -18,6 +18,7 @@ import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.def.query.request.WindowOrderDef;
 import com.foggyframework.dataset.db.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.db.model.impl.LoaderSupport;
+import com.foggyframework.dataset.db.model.impl.dimension.DbDimensionSupport;
 import com.foggyframework.dataset.db.model.impl.query.*;
 import com.foggyframework.dataset.db.model.spi.*;
 import com.foggyframework.dataset.db.model.spi.support.QueryColumnGroup;
@@ -407,12 +408,33 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
             List<QueryColumnGroup> columnGroups = new ArrayList<>();
             List<CalculatedFieldDef> predefined = new ArrayList<>();
 
+            // 预扫描所有列组：收集显式引用的列名和维度路径，用于维度展开时跳过重复
+            Set<String> explicitColumnNames = new HashSet<>();
+            Set<String> explicitDimensionRefs = new HashSet<>();
+            for (DbColumnGroupDef scanGroup : queryModelDef.getColumnGroups()) {
+                if (scanGroup.getItems() == null) continue;
+                for (SelectColumnDef scanItem : scanGroup.getItems()) {
+                    if (scanItem == null || StringUtils.isNotEmpty(scanItem.getFormula())) continue;
+                    String scanAliasRef = scanItem.getRefAsString();
+                    String scanLookupRef = scanItem.getRefForLookup();
+                    boolean scanHasRef = StringUtils.isNotEmpty(scanAliasRef);
+                    String scanDimRef = scanHasRef ? scanLookupRef : scanItem.getName();
+                    String scanColumnName = scanHasRef ? scanAliasRef : scanItem.getName();
+                    if (qm.findDimension(scanDimRef) != null) {
+                        explicitDimensionRefs.add(scanDimRef);
+                    } else {
+                        explicitColumnNames.add(scanColumnName);
+                    }
+                }
+            }
+
             for (DbColumnGroupDef columnGroupDef : queryModelDef.getColumnGroups()) {
                 if (columnGroupDef.getItems() == null || columnGroupDef.getItems().isEmpty()) {
                     continue;
                 }
                 QueryColumnGroup group = new QueryColumnGroup();
                 group.setCaption(columnGroupDef.getCaption());
+
                 for (SelectColumnDef item : columnGroupDef.getItems()) {
                     if (item == null) {
                         continue;
@@ -465,9 +487,8 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
 
                     DbDimension dimension = qm.findDimension(dimRef);
                     if (dimension != null) {
-                        //维度，自动拆解成$id及$caption两列
-                        addColumn(qm, group, columnName + "$id", item, hasRef);
-                        addColumn(qm, group, columnName + "$caption", item, hasRef);
+                        //维度，自动展开 $id + $caption + 所有属性 + 嵌套子维度（递归）
+                        expandDimension(qm, group, dimension, columnName, item, hasRef, explicitColumnNames, explicitDimensionRefs);
                     } else {
                         addColumn(qm, group, columnName, item, hasRef);
                     }
@@ -503,6 +524,55 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
             }
         }
         return result.isEmpty() ? null : result;
+    }
+
+    /**
+     * 展开维度为 $id + $caption + 所有属性 + 嵌套子维度（递归）。
+     * <p>
+     * 展开策略：
+     * - $id + $caption 始终添加
+     * - 属性：仅当该维度没有任何显式属性引用时才自动展开全部属性；
+     *   若 QM 已显式引用了部分属性（如 fo.customer$gender），说明作者有意选择，不再自动补全
+     * - 嵌套子维度：若子维度已被 QM 显式引用（如 fo.product.category），则跳过（由其自身的 ref 展开）
+     */
+    private void expandDimension(QueryModelSupport qm, QueryColumnGroup group,
+                                  DbDimension dimension, String columnName,
+                                  SelectColumnDef item, boolean hasRef,
+                                  Set<String> explicitColumnNames,
+                                  Set<String> explicitDimensionRefs) {
+        // 1. $id + $caption（必加）
+        addColumn(qm, group, columnName + "$id", item, hasRef);
+        addColumn(qm, group, columnName + "$caption", item, hasRef);
+
+        // 2. 展开属性：仅当该维度没有任何显式属性引用时
+        if (dimension instanceof DbDimensionSupport) {
+            String basePath = dimension.getFullPathForAlias();
+            // 检查是否有任何该维度的显式属性引用
+            String propPrefix = basePath + "$";
+            boolean hasExplicitProps = explicitColumnNames.stream()
+                    .anyMatch(name -> name.startsWith(propPrefix));
+
+            if (!hasExplicitProps) {
+                // 无显式属性引用 → 自动展开全部属性
+                for (DbProperty prop : ((DbDimensionSupport) dimension).getJdbcProperties()) {
+                    String propColumnName = basePath + "$" + prop.getPropertyDbColumn().getAlias();
+                    addColumn(qm, group, propColumnName, item, hasRef);
+                }
+            }
+        }
+
+        // 3. 递归展开嵌套子维度（跳过已被 QM 显式引用的子维度）
+        if (dimension.hasChildDimensions()) {
+            for (DbDimension child : dimension.getChildDimensions()) {
+                String childDimPath = child.getFullPath();
+                if (explicitDimensionRefs.contains(childDimPath)) {
+                    // 该子维度已被 QM 显式引用，由其自身的 ref 展开，此处跳过
+                    continue;
+                }
+                String childColumnName = child.getFullPathForAlias();
+                expandDimension(qm, group, child, childColumnName, item, hasRef, explicitColumnNames, explicitDimensionRefs);
+            }
+        }
     }
 
     private void addColumn(QueryModelSupport qm, QueryColumnGroup group, String columnName, SelectColumnDef item, boolean hasRef) {

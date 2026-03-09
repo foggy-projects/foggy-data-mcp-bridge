@@ -1,0 +1,41 @@
+/**
+ * 维度自动展开测试查询模型
+ *
+ * @caption 维度自动展开测试
+ * @description 测试 { ref: fo.dimension } 自动展开属性和嵌套维度
+ */
+const fs = loadTableModel('FactSalesNestedDimModel');
+
+export const queryModel = {
+    name: 'FactSalesAutoExpandQueryModel',
+    caption: '维度自动展开测试',
+    description: '测试维度自动展开属性和嵌套子维度',
+    loader: 'v2',
+
+    model: fs,
+
+    columnGroups: [
+        {
+            caption: '商品维度（自动展开，无显式属性引用）',
+            items: [
+                // 仅引用维度本身，应自动展开 $id + $caption + 所有属性 + 嵌套子维度
+                { ref: fs.product }
+            ]
+        },
+        {
+            caption: '门店维度（自动展开）',
+            items: [
+                { ref: fs.store }
+            ]
+        },
+        {
+            caption: '度量',
+            items: [
+                { ref: fs.quantity },
+                { ref: fs.salesAmount }
+            ]
+        }
+    ],
+
+    accesses: []
+};
