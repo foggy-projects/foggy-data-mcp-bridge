@@ -31,7 +31,7 @@ description: 指导 Java 项目引入 foggy-dataset-model 依赖并完成基础�
 
 ```xml
 <properties>
-    <foggy-model.version>8.1.5.beta</foggy-model.version>
+    <foggy-model.version>8.1.6.beta</foggy-model.version>
 </properties>
 ```
 
@@ -56,7 +56,7 @@ description: 指导 Java 项目引入 foggy-dataset-model 依赖并完成基础�
 
 <properties>
     <java.version>17</java.version>
-    <foggy-model.version>8.1.5.beta</foggy-model.version>
+    <foggy-model.version>8.1.6.beta</foggy-model.version>
 </properties>
 
 <dependencies>
@@ -121,7 +121,7 @@ public class Application {
 <dependency>
     <groupId>com.foggysource</groupId>
     <artifactId>foggy-dataset-model</artifactId>
-    <version>8.1.5.beta</version>
+    <version>8.1.6.beta</version>
 </dependency>
 ```
 
@@ -171,7 +171,7 @@ A: 确保 `bundleName` 参数已正确设置，例如：
 ```
 自检清单：
 [x] Maven 依赖 foggy-dataset-model
-[x] 版本属性 foggy-model.version = 8.1.5.beta
+[x] 版本属性 foggy-model.version = 8.1.6.beta
 [x] @EnableFoggyFramework(bundleName = "my-project")
 [x] 数据源配置 (MySQL)
 [x] 模型目录 foggy/templates/
@@ -208,7 +208,7 @@ foggy-dataset-model 集成完成
 
 ## 约束条件
 
-- 使用 Maven 属性管理版本：`<foggy-model.version>8.1.5.beta</foggy-model.version>`
+- 使用 Maven 属性管理版本：`<foggy-model.version>8.1.6.beta</foggy-model.version>`
 - bundleName 使用小写中划线格式（如 `my-project`）
 - 模型文件目录固定为 `src/main/resources/foggy/templates/`
 - 需要 JDK 17+、Spring Boot 3.x

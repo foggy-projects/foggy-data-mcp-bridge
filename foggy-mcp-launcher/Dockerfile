@@ -60,7 +60,7 @@ FROM eclipse-temurin:17-jre-alpine
 
 LABEL maintainer="Foggy Framework <contact@foggysource.com>"
 LABEL description="Foggy MCP Launcher - AI-powered semantic data query with demo models"
-LABEL version="8.1.5.beta"
+LABEL version="8.1.6.beta"
 
 WORKDIR /app
 
