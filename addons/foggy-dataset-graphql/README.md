@@ -34,7 +34,7 @@
 <dependency>
     <groupId>com.foggysource</groupId>
     <artifactId>foggy-dataset-graphql</artifactId>
-    <version>8.1.6.beta</version>
+    <version>8.1.7.beta</version>
 </dependency>
 ```
 
