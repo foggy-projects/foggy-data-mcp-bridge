@@ -3,7 +3,7 @@
 spring:
   # MySQL 数据源配置（主数据源）
   datasource:
-    url: jdbc:mysql://localhost:13306/foggy_test?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://127.0.0.1:13306/foggy_test?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true
     username: foggy
     password: foggy_test_123
     driver-class-name: com.mysql.cj.jdbc.Driver
