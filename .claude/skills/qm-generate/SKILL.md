@@ -134,8 +134,11 @@ QM 文件已生成：{文件路径}
 - 必须使用 `loadTableModel` 加载模型
 - 字段引用必须使用 `ref` 语法（V2 语法）
 - 维度字段自动展开为 `$id` 和 `$caption` 两列
-- 嵌套维度使用路径语法（如 `fo.product.category$caption`）
-- 输出列名使用下划线分隔路径（如 `product_category$caption`）
+- 嵌套维度语法：`.` 负责维度层级导航，`$` 负责属性访问，二者不可混用
+  - 完整路径：`fo.product.category$caption`、`fo.product.category.group$caption`
+  - 别名引用（推荐）：`fo.productCategory$caption`（需 TM 定义 `alias: 'productCategory'`）
+  - 禁止写 `product$category$caption`（多个 `$`），解析器无法区分维度路径和属性名
+- 输出列名自动转换：路径中 `.` → `_`（如 `product.category$caption` → `product_category$caption`）
 
 ## 决策规则
 

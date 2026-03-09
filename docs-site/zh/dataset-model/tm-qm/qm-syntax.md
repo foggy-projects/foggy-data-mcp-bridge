@@ -200,12 +200,30 @@ fo.product.category.group$caption
 
 ### 5.1 嵌套维度引用
 
-嵌套维度使用路径语法引用：
+**语法规则**：`.` 负责维度层级导航，`$` 负责属性访问，二者职责分离：
+
+```
+fo.product.category$caption
+   ├─────────────┘  └──┘
+   │  维度路径（.分隔）   属性名（$分隔）
+```
+
+**三种引用方式**：
 
 ```javascript
+// 方式1：完整路径（精确，无需 alias）
 { ref: fo.product.category$caption }
 { ref: fo.product.category.group$caption }
+
+// 方式2：别名（推荐，需在 TM 中定义 alias）
+{ ref: fo.productCategory$caption }     // alias: 'productCategory'
+{ ref: fo.categoryGroup$caption }       // alias: 'categoryGroup'
+
+// 方式3：DSL 查询中使用下划线格式（输出列名格式）
+columns: ["product_category$caption", "product_category_group$caption"]
 ```
+
+> **注意**：不能用多个 `$` 代替 `.`（如 ~~`product$category$caption`~~），解析器会将第一个 `$` 后的内容整体视为属性名，导致查找失败。
 
 **路径语法说明**：
 
@@ -217,10 +235,10 @@ fo.product.category.group$caption
 
 **输出列名格式**：
 
-路径语法在输出时使用下划线分隔，避免 JavaScript 属性名中的 `.` 问题：
+路径中的 `.` 在输出时自动转为 `_`，避免 JavaScript 属性名冲突：
 
-| 引用 | 输出列名 |
-|------|---------|
+| QM 引用 | 输出列名 |
+|---------|---------|
 | `fo.product$caption` | `product$caption` |
 | `fo.product.category$caption` | `product_category$caption` |
 | `fo.product.category.group$caption` | `product_category_group$caption` |

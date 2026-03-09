@@ -191,23 +191,38 @@ Nested dimensions implement snowflake schema where dimension tables have hierarc
 | `foreignKey` | **Important**: Nested dimension's foreignKey refers to parent dimension table |
 | `dimensions` | Sub-dimension list, can continue nesting for multi-level structures |
 
-**Accessing Nested Dimensions in QM**:
+**Syntax Design Principle**: Nested dimension references use two separators, each with a distinct role:
+
+| Separator | Role | Example |
+|-----------|------|---------|
+| `.` (dot) | **Dimension path navigation** — which dimension to locate | `product.category.group` |
+| `$` (dollar) | **Property access** — which field of the dimension | `category$caption` |
+
+Combined: `product.category$caption` = navigate product → category path, access caption property. **Do NOT use multiple `$` instead of `.`** (e.g., ~~`product$category$caption`~~) — the parser cannot distinguish dimension paths from property names.
+
+**Referencing Nested Dimensions in QM** (three equivalent formats):
 
 ```javascript
-// Method 1: Using alias (recommended)
-columns: [
-    'product$caption',           // Level 1 dimension
-    'productCategory$caption',   // Level 2 dimension (via alias)
-    'categoryGroup$caption'      // Level 3 dimension (via alias)
-]
+// Format 1: Alias (recommended, concise)
+// Requires alias defined in TM, e.g., alias: 'productCategory'
+{ ref: fs.productCategory$caption }
+{ ref: fs.categoryGroup$caption }
 
-// Method 2: Using full path
-columns: [
-    'product$caption',
-    'product.category$caption',
-    'product.category.group$caption'
-]
+// Format 2: Full path (precise, no alias needed)
+{ ref: fs.product.category$caption }
+{ ref: fs.product.category.group$caption }
+
+// Format 3: Underscore format in DSL queries (output column name format)
+columns: ["product_category$caption", "product_category_group$caption"]
 ```
+
+**Output Column Name Conversion**: Dots in paths are automatically converted to underscores in output, avoiding JavaScript property name conflicts:
+
+| QM Reference | Output Column Name |
+|-------------|-------------------|
+| `product$caption` | `product$caption` |
+| `product.category$caption` | `product_category$caption` |
+| `product.category.group$caption` | `product_category_group$caption` |
 
 **Generated SQL JOIN**:
 

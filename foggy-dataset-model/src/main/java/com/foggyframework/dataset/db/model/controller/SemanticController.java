@@ -64,7 +64,6 @@ public class SemanticController implements ApplicationContextAware {
             request.setLevels(Arrays.asList(1));
         }
 
-
         SemanticMetadataResponse response = semanticService.getMetadata(request, format, authorization, namespace);
         return RX.success(response);
     }

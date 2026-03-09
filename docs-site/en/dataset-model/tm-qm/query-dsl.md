@@ -43,17 +43,40 @@ JSON Query DSL is a declarative query language that describes query conditions, 
 
 ### 2.2 Nested Dimension Reference
 
-For multi-level nested dimensions, use `.` to separate paths:
+Nested dimension references use two separators: **`.` for dimension path navigation, `$` for property access**.
 
 ```json
 {
     "columns": [
         "product$caption",                    // Level 1 dimension
-        "product.category$caption",           // Level 2 dimension
+        "product.category$caption",           // Level 2 dimension (. separates hierarchy)
         "product.category.group$caption"      // Level 3 dimension
     ]
 }
 ```
+
+If `alias` is defined in TM, you can also use alias references:
+
+```json
+{
+    "columns": [
+        "product$caption",                    // Level 1 dimension
+        "productCategory$caption",            // Level 2 dimension (via alias)
+        "categoryGroup$caption"               // Level 3 dimension (via alias)
+    ]
+}
+```
+
+> **Note**: Do NOT use multiple `$` instead of `.` (e.g., ~~`product$category$caption`~~) — `$` is only for separating dimension from property.
+
+**Output column name mapping**: Dots in paths are automatically converted to underscores in response data:
+
+| DSL Reference | Output Column Name |
+|--------------|-------------------|
+| `product$caption` | `product$caption` |
+| `product.category$caption` | `product_category$caption` |
+| `product.category.group$caption` | `product_category_group$caption` |
+| `productCategory$caption` (alias) | `productCategory$caption` |
 
 ---
 
