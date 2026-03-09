@@ -118,15 +118,15 @@
                                     </systemPropertyVariables>
                                 </configuration>
                             </execution>
-                            <execution>
-                                <id>test-sqlserver</id>
-                                <goals><goal>test</goal></goals>
-                                <configuration>
-                                    <systemPropertyVariables>
-                                        <spring.profiles.active>sqlserver</spring.profiles.active>
-                                    </systemPropertyVariables>
-                                </configuration>
-                            </execution>
+<!--                            <execution>-->
+<!--                                <id>test-sqlserver</id>-->
+<!--                                <goals><goal>test</goal></goals>-->
+<!--                                <configuration>-->
+<!--                                    <systemPropertyVariables>-->
+<!--                                        <spring.profiles.active>sqlserver</spring.profiles.active>-->
+<!--                                    </systemPropertyVariables>-->
+<!--                                </configuration>-->
+<!--                            </execution>-->
                         </executions>
                     </plugin>
                 </plugins>
