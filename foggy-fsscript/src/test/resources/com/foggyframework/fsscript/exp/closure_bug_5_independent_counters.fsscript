@@ -1,0 +1,23 @@
+// Bug 5: 两个独立计数器 —— 验证不同闭包实例的变量是否隔离
+// 这是 Bug 3（栈重复叠加）和 Bug 2（浅拷贝共享）的综合验证
+// 如果 savedStack 浅拷贝导致 closure 共享，两个计数器会互相干扰
+
+function makeCounter() {
+    var count = 0;
+    function counter() {
+        count = count + 1;
+        return count;
+    };
+    return counter;
+};
+
+var counterA = makeCounter();
+var counterB = makeCounter();
+
+export var a1 = counterA();
+export var a2 = counterA();
+export var b1 = counterB();
+export var a3 = counterA();
+export var b2 = counterB();
+// JS语义: a1=1, a2=2, b1=1, a3=3, b2=2
+// 如果闭包共享了同一个 count VarDef，b1 可能不是 1

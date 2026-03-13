@@ -1,0 +1,17 @@
+// Bug 2: 闭包浅拷贝 —— 定义后外层变量被修改，闭包看到修改后的值
+// JavaScript 语义：闭包捕获的是变量绑定(引用)，不是值
+// 因此 getX() 应返回修改后的值 99
+// 但如果引擎行为不一致，此测试可以暴露
+
+var x = 1;
+
+function getX() {
+    return x;
+};
+
+// 定义后修改 x
+x = 99;
+
+export var beforeCall = x;
+export var result = getX();
+// JS语义: result 应该是 99

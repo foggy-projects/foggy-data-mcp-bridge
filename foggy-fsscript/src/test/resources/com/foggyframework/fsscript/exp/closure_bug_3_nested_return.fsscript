@@ -1,0 +1,20 @@
+// Bug 3: 多层嵌套闭包 —— 函数工厂返回的闭包是否正确捕获各层变量
+// 期望：
+//   add5(3) = 8   (base=5, n=3)
+//   add10(3) = 13  (base=10, n=3)
+//   add5 和 add10 互不干扰
+
+function makeAdder(base) {
+    function adder(n) {
+        return base + n;
+    };
+    return adder;
+};
+
+var add5 = makeAdder(5);
+var add10 = makeAdder(10);
+
+export var r1 = add5(3);
+export var r2 = add10(3);
+export var r3 = add5(0);
+export var r4 = add10(0);

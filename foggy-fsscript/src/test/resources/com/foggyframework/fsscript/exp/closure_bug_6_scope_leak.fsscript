@@ -1,0 +1,19 @@
+// Bug 6: 作用域泄漏 —— 闭包是否能意外访问到调用时的上下文变量
+// apply() 中 ee.clone() 会带入调用时栈，savedStack 叠加在上面
+// 如果 BeanDefinitionSpace 相同，函数可能穿透到不属于它的变量
+
+var secret = 'defined_scope';
+
+function capture() {
+    return secret;
+};
+
+function callInNewScope() {
+    var secret = 'call_scope';
+    var leaked = capture();
+    return leaked;
+};
+
+export var result = callInNewScope();
+// JS语义: result = 'defined_scope'（闭包只看定义时作用域）
+// 如果栈叠加导致穿透，可能返回 'call_scope'

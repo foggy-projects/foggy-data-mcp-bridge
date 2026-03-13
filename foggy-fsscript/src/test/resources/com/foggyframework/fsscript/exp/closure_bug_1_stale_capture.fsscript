@@ -1,0 +1,14 @@
+// Bug 1: 函数返回后，闭包仍能正确访问定义时的词法作用域
+// 验证：outer 返回 inner 后，inner 仍能访问 outer 的局部变量 x
+// 期望：result = 10（inner 捕获的是 outer 作用域的 x=10）
+
+function outer() {
+    var x = 10;
+    function inner() {
+        return x;
+    };
+    return inner;
+};
+
+var fn = outer();
+export var result = fn();

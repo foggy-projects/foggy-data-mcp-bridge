@@ -40,11 +40,7 @@ public class FunctionDefExp extends AbstractExp<Exp> {
 
         public X(ExpEvaluator ee) {
             this.ee = ee;
-
-            //TODO 这里似乎应该保存整个 stack
-//            savedFss = ee.getCurrentFsscriptClosure();
             savedStack = new ArrayList<>(ee.getStack());
-//            ee.getSt
         }
 
         @Override
@@ -86,42 +82,24 @@ public class FunctionDefExp extends AbstractExp<Exp> {
             String name;
             int i = 0;
 
+            // Fix: 保存 evaluator 原始栈，替换为 savedStack 以消除栈冗余
+            // 之前 ee.clone() 复制的栈与 savedStack 内容重叠，导致 savedStack.size = 2N-1
+            Stack<FsscriptClosure> stack = evaluator.getStack();
+            List<FsscriptClosure> originalStack = new ArrayList<>(stack);
+            stack.clear();
+
             try {
 
-                evaluator.pushFsscriptClosure(savedStack);
+                stack.addAll(savedStack);
                 evaluator.pushNewFoggyClosure();
                 Object value = null;
                 for (Exp e : argDefs) {
                     value = args.length > i? args[i]:null;
                     if(e instanceof IdExp) {
                         name = ((IdExp) e).getValue();
-//                        if (args.length > i) {
-//                            evaluator.setVar(name, args[i]);
-//                        } else {
                             evaluator.setVar(name, value);
-//                        }
                     }else if(e instanceof MapExp){
-//                        if(value==null||BeanInfoHelper.isBaseClassByStr(value.getClass().getName())){
-//                            //基本类型，如int 等，不参与
-//                            for (MapEntry mapEntry : ((MapExp) e).getLl()) {
-//                                evaluator.setVar( mapEntry.getKey(), null);
-//                            }
-//                        }else if(value instanceof Map){
-//                            for (MapEntry mapEntry : ((MapExp) e).getLl()) {
-//                                evaluator.setVar( mapEntry.getKey(), ((Map<?, ?>) value).get(mapEntry.getKey()));
-//                            }
-//                        }else {
-//                            BeanInfoHelper h  = BeanInfoHelper.getClassHelper(value.getClass());
-//                            for (MapEntry mapEntry : ((MapExp) e).getLl()) {
-//                                evaluator.setVar( mapEntry.getKey(), h.getBeanProperty(mapEntry.getKey(),true).getBeanValue(value));
-//                            }
-//                        }
                         test(evaluator, (MapExp) e,value);
-//                        if (args.length > i) {
-//
-//                        } else {
-//                            evaluator.setVar(name, null);
-//                        }
                     }else if(e instanceof DefaultArgExp){
                         // 处理带默认值的参数
                         DefaultArgExp defArg = (DefaultArgExp) e;
@@ -137,9 +115,9 @@ public class FunctionDefExp extends AbstractExp<Exp> {
 
                 return evalValue(evaluator);
             } finally {
-                evaluator.popFsscriptClosure();
-                evaluator.popFsscriptClosure(savedStack.size());
-
+                // 恢复 evaluator 的原始栈
+                stack.clear();
+                stack.addAll(originalStack);
             }
         }
 
@@ -184,19 +162,22 @@ public class FunctionDefExp extends AbstractExp<Exp> {
                 }
                 i++;
             }
+            // Fix: 保存 evaluator 原始栈，替换为 savedStack 以消除栈冗余
+            Stack<FsscriptClosure> stack = evaluator.getStack();
+            List<FsscriptClosure> originalStack = new ArrayList<>(stack);
+            stack.clear();
+
             try {
-
-
-                evaluator.pushFsscriptClosure(savedStack);
+                stack.addAll(savedStack);
                 evaluator.pushNewFoggyClosure();
 
                 evaluator.setMap2Var(mm);
 
                 return evalValue(evaluator);
             } finally {
-                evaluator.popFsscriptClosure();
-                evaluator.popFsscriptClosure(savedStack.size());
-
+                // 恢复 evaluator 的原始栈
+                stack.clear();
+                stack.addAll(originalStack);
             }
         }
     }

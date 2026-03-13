@@ -1,0 +1,18 @@
+// Bug 4: 闭包计数器 —— 多次调用同一闭包，状态是否正确维持
+// 验证 savedStack 浅拷贝下，闭包内的状态变更是否可累积
+// JavaScript 中 counter() 每次调用应返回递增值
+
+function makeCounter() {
+    var count = 0;
+    function counter() {
+        count = count + 1;
+        return count;
+    };
+    return counter;
+};
+
+var c = makeCounter();
+export var v1 = c();
+export var v2 = c();
+export var v3 = c();
+// JS语义: v1=1, v2=2, v3=3
