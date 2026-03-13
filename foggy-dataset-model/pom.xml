@@ -107,6 +107,7 @@
                                     <systemPropertyVariables>
                                         <spring.profiles.active>docker</spring.profiles.active>
                                     </systemPropertyVariables>
+                                    <!-- Odoo 表仅在 SQLite 内存库自动初始化；Docker 容器需用新 init 脚本重建后移除此 exclude -->
                                     <excludes>
                                         <exclude>**/odoo/**</exclude>
                                     </excludes>
@@ -119,6 +120,7 @@
                                     <systemPropertyVariables>
                                         <spring.profiles.active>postgres</spring.profiles.active>
                                     </systemPropertyVariables>
+                                    <!-- 同上：Docker 容器重建后可移除 -->
                                     <excludes>
                                         <exclude>**/odoo/**</exclude>
                                     </excludes>
