@@ -145,6 +145,21 @@ spring:
 | 5 | 模型目录存在 | 检查 `foggy/templates/` |
 | 6 | 模式对应配置 | Lite→exclude MongoDB；标准+→`spring.data.mongodb` |
 
+## MCP 端点
+
+| 端点 | 角色 | 协议 |
+|------|------|------|
+| `/mcp/analyst/rpc` | 分析师 | JSON-RPC（推荐） |
+| `/mcp/analyst/stream` | 分析师 | SSE 流式 |
+| `/mcp/admin/rpc` | 管理员（全部权限） | JSON-RPC |
+| `/mcp/business/rpc` | 业务用户（仅查询） | JSON-RPC |
+
+Namespace 隔离：通过 HTTP Header `X-NS` 传递。
+
+## MongoDB 可选说明
+
+`foggy-dataset-mcp` 的 MongoDB 依赖为 `optional`，仅审计日志需要。条件装配链路（`ToolAuditAutoConfiguration`）：`@ConditionalOnClass` → `@ConditionalOnProperty(foggy.mcp.audit.enabled=true)` → `@ConditionalOnBean(MongoTemplate)`。Lite 模式下审计类完全不加载。
+
 ## 输出格式
 
 ```
