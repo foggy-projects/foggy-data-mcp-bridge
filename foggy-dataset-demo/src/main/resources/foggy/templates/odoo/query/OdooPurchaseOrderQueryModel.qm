@@ -1,0 +1,72 @@
+/**
+ * Purchase Order Query Model
+ *
+ * @caption Purchase Analysis
+ * @description Query purchase orders by vendor, buyer, delivery, and date.
+ *              Permissions enforced via payload.slice injection from Odoo MCP Gateway.
+ */
+const po = loadTableModel('OdooPurchaseOrderModel');
+
+export const queryModel = {
+    name: 'OdooPurchaseOrderQueryModel',
+    caption: 'Purchase Analysis',
+    description: 'Analyze purchase orders by vendor, buyer, and time period. '
+        + 'Supports amount aggregation, order counts, and procurement analysis.',
+    loader: 'v2',
+
+    model: po,
+
+    columnGroups: [
+        {
+            caption: 'Order Information',
+            items: [
+                { ref: po.id },
+                { ref: po.name },
+                { ref: po.state },
+                { ref: po.dateOrder },
+                { ref: po.dateApprove },
+                { ref: po.datePlanned },
+                { ref: po.invoiceStatus },
+                { ref: po.origin },
+                { ref: po.createDate },
+                { ref: po.writeDate }
+            ]
+        },
+        {
+            caption: 'Vendor',
+            items: [
+                { ref: po.vendor },
+                { ref: po.vendor$email },
+                { ref: po.vendor$phone },
+                { ref: po.vendor$city },
+                { ref: po.vendor$supplierRank }
+            ]
+        },
+        {
+            caption: 'Organization',
+            items: [
+                { ref: po.buyer },
+                { ref: po.company },
+                { ref: po.currency },
+                { ref: po.pickingType }
+            ]
+        },
+        {
+            caption: 'Amounts',
+            items: [
+                { ref: po.amountUntaxed },
+                { ref: po.amountTax },
+                { ref: po.amountTotal },
+                { ref: po.orderCount },
+                {
+                    name: 'avgPurchaseValue',
+                    caption: 'Avg Purchase Value',
+                    formula: 'amountTotal / orderCount',
+                    type: 'MONEY'
+                }
+            ]
+        }
+    ],
+
+    accesses: []
+};

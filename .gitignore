@@ -124,6 +124,15 @@ generated-test-sources/
 .flattened-pom.xml
 
 # ====================
+# Python
+# ====================
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+.pytest_cache/
+
+# ====================
 # VitePress (docs-site)
 # ====================
 docs-site/.vitepress/cache/

@@ -12,6 +12,7 @@
 - `foggy-bean-copy/` - Bean拷贝工具
 - `docs-site/` - 帮助手册（VitePress，中英双语）
 - `addons/` - 扩展模块
+  - `foggy-odoo-bridge/` - Odoo ERP 集成（MCP Gateway + 权限桥接）
   - `foggy-data-viewer/` - 数据浏览器组件
   - `chart-render-service/` - 图表渲染服务
   - `foggy-benchmark-spider2/` - Spider2基准测试
@@ -19,6 +20,32 @@
   - `foggy-dataset-model-mongo/` - MongoDB模型支持
   - `foggy-dataset-mongo/` - MongoDB数据层
   - `foggy-fsscript-client/` - FSScript客户端
+
+## Odoo Bridge (addons/foggy-odoo-bridge)
+Odoo Python 插件，作为 MCP Gateway 桥接 AI 客户端与 Foggy MCP Server。
+
+**架构**：`AI Client ──MCP──→ Odoo MCP Gateway ──HTTP──→ Foggy MCP Server ──SQL──→ PostgreSQL`
+
+**核心模块**：
+- `foggy_mcp/controllers/mcp_controller.py` — MCP JSON-RPC 端点 + `/foggy-mcp/health` 诊断
+- `foggy_mcp/services/permission_bridge.py` — ir.rule 域解析（波兰表示法 AST → DSL slice 条件）
+- `foggy_mcp/services/tool_registry.py` — 从 Foggy 加载工具并按用户 ir.model.access 过滤
+- `foggy_mcp/services/foggy_client.py` — Foggy MCP Server HTTP 客户端
+- `foggy_mcp/models/foggy_api_key.py` — API Key 认证（`fmcp_` 前缀）
+- `foggy-models/` — Odoo 表的 TM/QM 模型文件
+
+**权限桥接**（payload.slice 注入方式）：
+- ir.model.access → 工具级过滤（tools/list 按用户权限裁剪）
+- ir.rule → 行级过滤（域解析 → DSL slice 条件 → 注入 payload.slice → Foggy DSL 引擎原生处理）
+- 支持：AND/OR/NOT、De Morgan 定律、`$or`/`$and` 嵌套、child_of/parent_of 层级展开、null 检查
+- 失败关闭（fail-closed）：权限计算异常时拒绝访问
+- Foggy Java 侧作为纯查询引擎，不直接对外暴露；用户统一通过 Odoo MCP 端点访问
+
+**已支持 Odoo 模型**：sale.order, sale.order.line, purchase.order, account.move, stock.picking, hr.employee, res.partner
+
+**测试**：`cd addons/foggy-odoo-bridge && python -m pytest tests/ -v`（45 tests，无需 Odoo 运行时）
+
+**Docker**：`cd addons/foggy-odoo-bridge/docker && docker-compose up -d`（PostgreSQL + Odoo 17 + Foggy MCP）
 
 ## 多数据库支持 (foggy-dataset)
 已实现方言：MySQL 5.7+、PostgreSQL 12+、SQL Server 2012+、SQLite 3.30+

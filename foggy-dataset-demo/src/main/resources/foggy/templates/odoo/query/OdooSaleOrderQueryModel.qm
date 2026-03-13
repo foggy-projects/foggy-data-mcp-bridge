@@ -1,0 +1,80 @@
+/**
+ * Sale Order Query Model
+ *
+ * @caption Sales Analysis
+ * @description Query sale orders by customer, salesperson, team, product, and date.
+ *              Permissions enforced via payload.slice injection from Odoo MCP Gateway.
+ */
+const so = loadTableModel('OdooSaleOrderModel');
+
+export const queryModel = {
+    name: 'OdooSaleOrderQueryModel',
+    caption: 'Sales Analysis',
+    description: 'Analyze sale orders by customer, salesperson, sales team, warehouse and time period. '
+        + 'Supports amount aggregation, order counts, and trend analysis.',
+    loader: 'v2',
+
+    model: so,
+
+    columnGroups: [
+        {
+            caption: 'Order Information',
+            items: [
+                { ref: so.id },
+                { ref: so.name },
+                { ref: so.state },
+                { ref: so.dateOrder },
+                { ref: so.commitmentDate },
+                { ref: so.invoiceStatus },
+                { ref: so.clientOrderRef },
+                { ref: so.origin },
+                { ref: so.createDate },
+                { ref: so.writeDate }
+            ]
+        },
+        {
+            caption: 'Customer',
+            items: [
+                { ref: so.partner },
+                { ref: so.partner$email },
+                { ref: so.partner$phone },
+                { ref: so.partner$city },
+                { ref: so.partner$isCompany },
+                { ref: so.partner$customerRank }
+            ]
+        },
+        {
+            caption: 'Sales Organization',
+            items: [
+                { ref: so.salesperson },
+                { ref: so.salesTeam },
+                { ref: so.company }
+            ]
+        },
+        {
+            caption: 'Logistics',
+            items: [
+                { ref: so.pricelist },
+                { ref: so.warehouse }
+            ]
+        },
+        {
+            caption: 'Amounts',
+            items: [
+                { ref: so.amountUntaxed },
+                { ref: so.amountTax },
+                { ref: so.amountTotal },
+                { ref: so.orderCount },
+                {
+                    name: 'avgOrderValue',
+                    caption: 'Avg Order Value',
+                    formula: 'amountTotal / orderCount',
+                    type: 'MONEY'
+                }
+            ]
+        }
+    ],
+
+    // No accesses — permissions injected by Odoo MCP Gateway via payload.slice
+    accesses: []
+};

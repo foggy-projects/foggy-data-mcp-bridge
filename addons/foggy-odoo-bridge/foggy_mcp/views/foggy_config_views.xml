@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <!-- Extend Settings form to add Foggy MCP configuration -->
+    <record id="res_config_settings_view_form_foggy" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.foggy</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="base.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form" position="inside">
+                <app data-string="Foggy MCP" string="Foggy MCP" groups="base.group_system">
+                    <block title="Foggy MCP Server Connection">
+                        <setting string="Server URL" help="Base URL of the Foggy MCP Server">
+                            <div class="content-group">
+                                <div class="row mt16">
+                                    <label for="foggy_mcp_url" class="col-lg-3"/>
+                                    <field name="foggy_mcp_url" class="col-lg-6"
+                                           placeholder="http://foggy-mcp:8080"/>
+                                </div>
+                            </div>
+                        </setting>
+                        <setting string="Endpoint Path" help="MCP JSON-RPC endpoint path">
+                            <div class="content-group">
+                                <div class="row mt16">
+                                    <label for="foggy_mcp_endpoint" class="col-lg-3"/>
+                                    <field name="foggy_mcp_endpoint" class="col-lg-6"/>
+                                </div>
+                            </div>
+                        </setting>
+                        <setting string="Request Timeout" help="HTTP timeout in seconds">
+                            <div class="content-group">
+                                <div class="row mt16">
+                                    <label for="foggy_mcp_timeout" class="col-lg-3"/>
+                                    <field name="foggy_mcp_timeout" class="col-lg-3"/>
+                                </div>
+                            </div>
+                        </setting>
+                    </block>
+                    <block title="Advanced Settings">
+                        <setting string="Namespace" help="Model namespace for Foggy bundles">
+                            <div class="content-group">
+                                <div class="row mt16">
+                                    <label for="foggy_mcp_namespace" class="col-lg-3"/>
+                                    <field name="foggy_mcp_namespace" class="col-lg-4"/>
+                                </div>
+                            </div>
+                        </setting>
+                        <setting string="Tool Cache TTL" help="How long to cache tool definitions (seconds)">
+                            <div class="content-group">
+                                <div class="row mt16">
+                                    <label for="foggy_mcp_cache_ttl" class="col-lg-3"/>
+                                    <field name="foggy_mcp_cache_ttl" class="col-lg-3"/>
+                                </div>
+                            </div>
+                        </setting>
+                    </block>
+                </app>
+            </xpath>
+        </field>
+    </record>
+</odoo>

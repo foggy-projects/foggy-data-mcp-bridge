@@ -1,0 +1,81 @@
+version: '3.8'
+
+services:
+  # ──────────────────────────────────────────────
+  # PostgreSQL — shared by Odoo and Foggy
+  # ──────────────────────────────────────────────
+  postgres:
+    image: postgres:15
+    container_name: foggy-odoo-postgres
+    environment:
+      POSTGRES_USER: odoo
+      POSTGRES_PASSWORD: odoo
+      POSTGRES_DB: odoo
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U odoo"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ──────────────────────────────────────────────
+  # Odoo 17 — with foggy_mcp addon
+  # ──────────────────────────────────────────────
+  odoo:
+    image: odoo:17.0
+    container_name: foggy-odoo
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8069:8069"
+    environment:
+      HOST: postgres
+      USER: odoo
+      PASSWORD: odoo
+    volumes:
+      # Mount foggy_mcp addon
+      - ../foggy_mcp:/mnt/extra-addons/foggy_mcp:ro
+      # Odoo config
+      - ./odoo.conf:/etc/odoo/odoo.conf:ro
+    command: >
+      -- --update=foggy_mcp
+         --stop-after-init=false
+
+  # ──────────────────────────────────────────────
+  # Foggy MCP Server (Java) — lite mode
+  # ──────────────────────────────────────────────
+  foggy-mcp:
+    image: foggy/foggy-dataset-mcp:latest
+    container_name: foggy-mcp-server
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      # Spring profile: lite mode (no MongoDB, no data-viewer)
+      SPRING_PROFILES_ACTIVE: lite
+      # PostgreSQL connection (same DB as Odoo)
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/odoo
+      SPRING_DATASOURCE_USERNAME: odoo
+      SPRING_DATASOURCE_PASSWORD: odoo
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
+      # External bundle: Odoo TM/QM models
+      FOGGY_BUNDLES_EXTERNAL_0_NAME: odoo-models
+      FOGGY_BUNDLES_EXTERNAL_0_PATH: /foggy-models
+      FOGGY_BUNDLES_EXTERNAL_0_NAMESPACE: odoo
+    volumes:
+      # Mount Odoo TM/QM model files
+      - ../foggy-models:/foggy-models:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:

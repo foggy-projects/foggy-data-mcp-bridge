@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <!-- API Key tree view -->
+    <record id="foggy_api_key_view_tree" model="ir.ui.view">
+        <field name="name">foggy.api.key.tree</field>
+        <field name="model">foggy.api.key</field>
+        <field name="arch" type="xml">
+            <tree>
+                <field name="name"/>
+                <field name="user_id"/>
+                <field name="key" password="True"/>
+                <field name="active"/>
+                <field name="last_used"/>
+                <field name="create_date"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- API Key form view -->
+    <record id="foggy_api_key_view_form" model="ir.ui.view">
+        <field name="name">foggy.api.key.form</field>
+        <field name="model">foggy.api.key</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_regenerate_key" string="Regenerate Key"
+                            type="object" class="btn-warning"
+                            confirm="This will invalidate the current key. Continue?"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" placeholder="e.g., Claude Desktop - Work Laptop"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="user_id"/>
+                            <field name="active"/>
+                        </group>
+                        <group>
+                            <field name="key" password="True"/>
+                            <field name="last_used"/>
+                        </group>
+                    </group>
+                    <group string="Restrictions">
+                        <field name="company_ids" widget="many2many_tags"/>
+                    </group>
+                    <group string="Connection Instructions">
+                        <div class="alert alert-info" role="alert">
+                            <p><strong>Claude Desktop Configuration:</strong></p>
+                            <p>Add this to your <code>claude_desktop_config.json</code>:</p>
+                            <pre>{
+  "mcpServers": {
+    "odoo": {
+      "url": "https://your-odoo.com/foggy-mcp/rpc",
+      "headers": {
+        "Authorization": "Bearer &lt;your-api-key&gt;"
+      }
+    }
+  }
+}</pre>
+                        </div>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- API Key action -->
+    <record id="foggy_api_key_action" model="ir.actions.act_window">
+        <field name="name">MCP API Keys</field>
+        <field name="res_model">foggy.api.key</field>
+        <field name="view_mode">tree,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create an API Key
+            </p>
+            <p>
+                API keys allow AI clients (Claude Desktop, Cursor, etc.)
+                to securely connect to Odoo via the MCP protocol.
+            </p>
+        </field>
+    </record>
+
+    <!-- Menu items -->
+    <menuitem id="foggy_mcp_menu_root"
+              name="Foggy MCP"
+              parent="base.menu_administration"
+              sequence="100"/>
+
+    <menuitem id="foggy_mcp_menu_api_keys"
+              name="API Keys"
+              parent="foggy_mcp_menu_root"
+              action="foggy_api_key_action"
+              sequence="10"/>
+</odoo>

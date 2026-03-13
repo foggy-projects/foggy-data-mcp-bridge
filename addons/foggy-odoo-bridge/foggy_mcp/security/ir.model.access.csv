@@ -1,0 +1,3 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_foggy_api_key_user,foggy.api.key.user,model_foggy_api_key,base.group_user,1,0,0,0
+access_foggy_api_key_admin,foggy.api.key.admin,model_foggy_api_key,base.group_system,1,1,1,1

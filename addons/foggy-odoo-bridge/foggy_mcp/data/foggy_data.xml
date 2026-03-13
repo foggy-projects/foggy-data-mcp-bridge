@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!-- Default Foggy MCP Server configuration -->
+        <record id="foggy_config_server_url" model="ir.config_parameter">
+            <field name="key">foggy_mcp.server_url</field>
+            <field name="value">http://foggy-mcp:8080</field>
+        </record>
+
+        <record id="foggy_config_endpoint_path" model="ir.config_parameter">
+            <field name="key">foggy_mcp.endpoint_path</field>
+            <field name="value">/mcp/analyst/rpc</field>
+        </record>
+
+        <record id="foggy_config_request_timeout" model="ir.config_parameter">
+            <field name="key">foggy_mcp.request_timeout</field>
+            <field name="value">30</field>
+        </record>
+
+        <record id="foggy_config_namespace" model="ir.config_parameter">
+            <field name="key">foggy_mcp.namespace</field>
+            <field name="value">odoo</field>
+        </record>
+
+        <record id="foggy_config_cache_ttl" model="ir.config_parameter">
+            <field name="key">foggy_mcp.cache_ttl</field>
+            <field name="value">300</field>
+        </record>
+
+    </data>
+</odoo>
