@@ -28,7 +28,15 @@ export const model = {
             tableName: 'hr_job',
             foreignKey: 'job_id',
             primaryKey: 'id',
-            captionColumn: 'name',
+            // Odoo 17: hr_job.name is JSONB (translatable field)
+            captionDef: {
+                column: 'name',
+                dialectFormulaDef: {
+                    postgresql: {
+                        builder: (alias) => { return `${alias}.name ->> 'en_US'`; }
+                    }
+                }
+            },
             caption: 'Job Position',
             description: 'Job position'
         },
@@ -61,7 +69,15 @@ export const model = {
             tableName: 'hr_work_location',
             foreignKey: 'work_location_id',
             primaryKey: 'id',
-            captionColumn: 'name',
+            // Odoo 17: hr_work_location.name is JSONB (translatable field)
+            captionDef: {
+                column: 'name',
+                dialectFormulaDef: {
+                    postgresql: {
+                        builder: (alias) => { return `${alias}.name ->> 'en_US'`; }
+                    }
+                }
+            },
             caption: 'Work Location',
             description: 'Work location'
         },

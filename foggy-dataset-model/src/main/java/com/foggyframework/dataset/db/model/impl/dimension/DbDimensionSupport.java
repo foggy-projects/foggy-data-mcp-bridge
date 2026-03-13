@@ -16,6 +16,7 @@ import com.foggyframework.dataset.db.model.spi.*;
 import com.foggyframework.dataset.db.model.spi.support.DbDataProviderDelegate;
 import com.foggyframework.dataset.db.model.utils.JdbcModelNamedUtils;
 import com.foggyframework.dataset.db.table.SqlColumn;
+import com.foggyframework.fsscript.DefaultExpEvaluator;
 import com.foggyframework.dataset.model.QueryExpEvaluator;
 import com.foggyframework.dataset.utils.DataSourceQueryUtils;
 import com.foggyframework.dataset.utils.RowMapperUtils;
@@ -23,6 +24,7 @@ import com.foggyframework.fsscript.exp.FsscriptFunction;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
+import org.springframework.context.ApplicationContext;
 
 import javax.sql.DataSource;
 import java.util.*;
@@ -63,6 +65,12 @@ public abstract class DbDimensionSupport extends DbObjectSupport implements DbDi
 
 
     DbColumn captionDbColumn;
+
+    /**
+     * caption 公式构建器，在 TableModelLoaderManagerImpl 中解析 DbCaptionDef 后注入。
+     * init() 时会将此 builder 传递给 DimensionCaptionDbColumn。
+     */
+    FsscriptFunction captionFormulaBuilder;
 
     Map<String, Object> extData;
 
@@ -167,7 +175,11 @@ public abstract class DbDimensionSupport extends DbObjectSupport implements DbDi
         if (queryObject != null) {
             //有独立的维表
             //从维表取captionJdbcColumn
-            captionDbColumn = new DimensionCaptionDbColumn(queryObject, queryObject.getSqlColumn(captionColumn, true));
+            DimensionCaptionDbColumn captionCol = new DimensionCaptionDbColumn(queryObject, queryObject.getSqlColumn(captionColumn, true));
+            if (captionFormulaBuilder != null) {
+                captionCol.setCaptionFormulaBuilder(captionFormulaBuilder);
+            }
+            captionDbColumn = captionCol;
             RX.hasText(primaryKey, String.format("维度%s没有定义主键", name));
             primaryKeyDbColumn = new DimensionPrimaryKeyDbColumn(queryObject.getSqlColumn(primaryKey, true));
             if (StringUtils.isEmpty(type)) {
@@ -185,7 +197,11 @@ public abstract class DbDimensionSupport extends DbObjectSupport implements DbDi
             }
             if (StringUtils.isNotEmpty(captionColumn)) {
                 //从主表取captionJdbcColumn
-                captionDbColumn = new DimensionCaptionDbColumn(jdbcModel.getQueryObject(), jdbcModel.getQueryObject().getSqlColumn(captionColumn, true));
+                DimensionCaptionDbColumn captionCol = new DimensionCaptionDbColumn(jdbcModel.getQueryObject(), jdbcModel.getQueryObject().getSqlColumn(captionColumn, true));
+                if (captionFormulaBuilder != null) {
+                    captionCol.setCaptionFormulaBuilder(captionFormulaBuilder);
+                }
+                captionDbColumn = captionCol;
             }
         }
 
@@ -497,6 +513,13 @@ public abstract class DbDimensionSupport extends DbObjectSupport implements DbDi
         QueryObject queryObject;
         String captionAlias;
 
+        /**
+         * caption 公式构建器（通用 / 方言解析后的最终 builder）。
+         * 在 TableModelLoaderManagerImpl 加载时，按 dialectFormulaDef[dbType] > formulaDef 优先级解析并注入。
+         */
+        @Setter
+        FsscriptFunction captionFormulaBuilder;
+
         public DimensionCaptionDbColumn(QueryObject queryObject, SqlColumn sqlColumn) {
             super(sqlColumn);
             this.queryObject = queryObject;
@@ -521,6 +544,30 @@ public abstract class DbDimensionSupport extends DbObjectSupport implements DbDi
             return getName();
         }
 
+        @Override
+        public String getDeclare(ApplicationContext appCtx, String alias) {
+            if (captionFormulaBuilder == null) {
+                return super.getDeclare(appCtx, alias);
+            }
+            DefaultExpEvaluator expEvaluator = DefaultExpEvaluator.newInstance(appCtx);
+            String effectiveAlias = (com.foggyframework.core.utils.StringUtils.isEmpty(alias)
+                    ? queryObject.getAlias() : alias);
+            expEvaluator.setVar("alias", effectiveAlias);
+            expEvaluator.setVar("def", DbDimensionSupport.this);
+            return (String) captionFormulaBuilder.autoApply(expEvaluator);
+        }
+
+        @Override
+        public String getDeclare() {
+            if (captionFormulaBuilder == null) {
+                return super.getDeclare();
+            }
+            // 无 ApplicationContext 时使用 QueryObject 别名作为 alias
+            DefaultExpEvaluator expEvaluator = DefaultExpEvaluator.newInstance(null);
+            expEvaluator.setVar("alias", queryObject.getAlias());
+            expEvaluator.setVar("def", DbDimensionSupport.this);
+            return (String) captionFormulaBuilder.autoApply(expEvaluator);
+        }
     }
 
     @Override

@@ -92,6 +92,9 @@ failsafe-reports/
 coverage/
 jacoco.exec
 .coverage
+test-*.json
+test-*.sh
+test-*.bat
 
 # ====================
 # Node.js (if used in frontend)

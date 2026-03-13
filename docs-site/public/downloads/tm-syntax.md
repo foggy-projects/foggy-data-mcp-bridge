@@ -356,23 +356,10 @@ export const dicts = {
 
 ### 3.3 计算属性
 
-使用 `formulaDef` 定义计算字段。常见场景包括 JSON 字段提取、字符串拼接等：
+使用 `formulaDef` 定义计算字段。`builder` 函数接收表别名，返回原生 SQL 表达式：
 
 ```javascript
 properties: [
-    {
-        column: 'send_addr_info',  // JSON 类型字段
-        name: 'sendStreet',
-        caption: '收货街道',
-        description: '从地址 JSON 中提取街道信息',
-        type: 'STRING',
-        formulaDef: {
-            builder: (alias) => {
-                return `${alias}.send_addr_info ->> '$.send_street'`;
-            },
-            description: '提取收货地址中的街道字段'
-        }
-    },
     {
         column: 'customer_name',
         name: 'fullName',
@@ -384,9 +371,23 @@ properties: [
             },
             description: '拼接姓和名'
         }
+    },
+    {
+        column: 'amount',
+        name: 'amountInWan',
+        caption: '金额（万元）',
+        type: 'MONEY',
+        formulaDef: {
+            builder: (alias) => {
+                return `${alias}.amount / 10000`;
+            },
+            description: '将金额换算为万元'
+        }
     }
 ]
 ```
+
+> **方言注意**：`builder` 生成的是原生 SQL。JSON 提取等方言差异语法见下方 3.3.1。通用函数（`CONCAT`、`COALESCE`、`ROUND` 等）可安全跨方言使用。
 
 ### 3.4 属性字段说明
 

@@ -371,23 +371,10 @@ export const dicts = {
 
 ### 3.3 Calculated Properties
 
-Use `formulaDef` to define calculated fields. Common scenarios include JSON field extraction, string concatenation:
+Use `formulaDef` to define calculated fields. The `builder` function receives the table alias and returns a raw SQL expression:
 
 ```javascript
 properties: [
-    {
-        column: 'send_addr_info',  // JSON type field
-        name: 'sendStreet',
-        caption: 'Shipping Street',
-        description: 'Extract street from address JSON',
-        type: 'STRING',
-        formulaDef: {
-            builder: (alias) => {
-                return `${alias}.send_addr_info ->> '$.send_street'`;
-            },
-            description: 'Extract street field from shipping address'
-        }
-    },
     {
         column: 'customer_name',
         name: 'fullName',
@@ -399,9 +386,32 @@ properties: [
             },
             description: 'Concatenate first and last name'
         }
+    },
+    {
+        column: 'amount',
+        name: 'amountInWan',
+        caption: 'Amount (10K)',
+        type: 'MONEY',
+        formulaDef: {
+            builder: (alias) => {
+                return `${alias}.amount / 10000`;
+            },
+            description: 'Convert amount to 10K unit'
+        }
     }
 ]
 ```
+
+::: warning Dialect Awareness
+`builder` produces **raw SQL** embedded directly into queries. For dialect-specific operations like JSON extraction, write SQL for your target database:
+
+| Scenario | MySQL | PostgreSQL | SQL Server |
+|----------|-------|-----------|------------|
+| JSON text extract | `col ->> '$.key'` | `col ->> 'key'` | `JSON_VALUE(col, '$.key')` |
+| Type cast | `CAST(col AS SIGNED)` | `col::integer` | `CAST(col AS INT)` |
+
+Universal functions (`CONCAT`, `COALESCE`, `ROUND`, etc.) are safe across all dialects.
+:::
 
 ### 3.4 Property Field Reference
 

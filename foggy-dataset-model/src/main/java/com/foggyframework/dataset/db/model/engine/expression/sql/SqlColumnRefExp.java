@@ -54,7 +54,7 @@ public class SqlColumnRefExp extends AbstractExp<String> {
 
         // 通过 getDeclare() 获取 SQL 片段
         // - 普通列: "t0.order_date"
-        // - formulaDef 列: "t0.send_addr_info ->> '$.send_company_name'"
+        // - formulaDef 列: 由 builder 函数生成的原生 SQL（方言相关，如 MySQL: "t0.data ->> '$.key'", PG: "t0.data ->> 'key'"）
         // - 计算字段: "(t0.totaldue - d1.salesquota)"
         String sqlDeclare = column.getDeclare(ctx.getAppCtx(), ctx.getAlias(column));
         if (log.isDebugEnabled()) {

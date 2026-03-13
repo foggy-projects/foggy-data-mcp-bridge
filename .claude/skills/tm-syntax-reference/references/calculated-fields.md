@@ -23,9 +23,10 @@
 
 ### 1. JSON 字段提取
 
-从 JSON 列中提取嵌套字段：
+从 JSON 列中提取嵌套字段（**注意：JSON 语法因数据库而异**）：
 
 ```javascript
+// MySQL 示例（->> '$.key' 语法）
 properties: [
     {
         column: 'send_addr_info',  // JSON 类型字段
@@ -39,26 +40,17 @@ properties: [
             },
             description: '提取收货地址中的街道字段'
         }
-    },
-    {
-        column: 'send_addr_info',
-        name: 'sendCity',
-        caption: '收货城市',
-        type: 'STRING',
-        formulaDef: {
-            builder: (alias) => {
-                return `${alias}.send_addr_info ->> '$.city'`;
-            },
-            description: '提取收货地址中的城市字段'
-        }
     }
 ]
 ```
 
-**MySQL JSON 操作符**：
-- `->>` : 提取 JSON 值并返回字符串
-- `->` : 提取 JSON 值保持 JSON 类型
-- `JSON_EXTRACT()` : 函数形式提取
+**JSON 提取语法对照**：
+
+| 数据库 | 提取文本 | 示例 |
+|--------|---------|------|
+| MySQL 5.7+ | `->> '$.key'` | `col ->> '$.send_street'` |
+| PostgreSQL | `->> 'key'` | `col ->> 'send_street'`（无 `$.`） |
+| SQL Server | `JSON_VALUE(col, '$.key')` | `JSON_VALUE(col, '$.send_street')` |
 
 ### 2. 字符串拼接
 
@@ -129,7 +121,7 @@ properties: [
         type: 'STRING',
         formulaDef: {
             builder: (alias) => {
-                return `DATE_FORMAT(${alias}.created_at, '%Y-%m')`;
+                return `DATE_FORMAT(${alias}.created_at, '%Y-%m')`;  // MySQL; PG 用 TO_CHAR(..., 'YYYY-MM')
             },
             description: '提取创建时间的年月'
         }
@@ -403,7 +395,7 @@ export const model = {
         { column: 'order_id', caption: '订单ID', type: 'STRING' },
         { column: 'customer_info', caption: '客户信息', type: 'STRING' },  // JSON
 
-        // 计算字段：从 JSON 提取
+        // 计算字段：从 JSON 提取（MySQL 语法，PG 用 ->> 'name'，SQL Server 用 JSON_VALUE）
         {
             column: 'customer_info',
             name: 'customerName',
@@ -411,7 +403,7 @@ export const model = {
             type: 'STRING',
             formulaDef: {
                 builder: (alias) => {
-                    return `${alias}.customer_info ->> '$.name'`;
+                    return `${alias}.customer_info ->> '$.name'`;  // MySQL
                 },
                 description: '从客户信息 JSON 中提取姓名'
             }
@@ -423,7 +415,7 @@ export const model = {
             type: 'STRING',
             formulaDef: {
                 builder: (alias) => {
-                    return `${alias}.customer_info ->> '$.phone'`;
+                    return `${alias}.customer_info ->> '$.phone'`;  // MySQL
                 },
                 description: '从客户信息 JSON 中提取手机号'
             }

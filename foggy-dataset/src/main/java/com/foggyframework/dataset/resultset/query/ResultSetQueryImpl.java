@@ -12,6 +12,7 @@ import org.springframework.context.ApplicationContext;
 import java.sql.SQLException;
 import java.util.*;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 import com.foggyframework.dataset.resultset.Record;
 @SuppressWarnings({"rawtypes", "unchecked"})
 public class ResultSetQueryImpl implements ResultSetQuery {
@@ -331,11 +332,42 @@ public class ResultSetQueryImpl implements ResultSetQuery {
     public static class SqlLikeExp implements Exp {
         SelectColumn sc;
         String v;
+        private final Pattern pattern;
+
+        /** Regex meta-characters that must be escaped when converting LIKE pattern to regex */
+        private static final String REGEX_SPECIAL = "\\.^$[](){}|+*?";
 
         public SqlLikeExp(SelectColumn sc, String v) {
             super();
             this.sc = sc;
             this.v = (v == null ? "" : v);
+            this.pattern = Pattern.compile(likeToRegex(this.v), Pattern.CASE_INSENSITIVE);
+        }
+
+        /**
+         * Convert a SQL LIKE pattern to a Java regex pattern string.
+         * <ul>
+         *   <li>{@code %} maps to {@code .*} (any number of characters)</li>
+         *   <li>{@code _} maps to {@code .} (exactly one character)</li>
+         *   <li>All other regex meta-characters are escaped</li>
+         * </ul>
+         */
+        static String likeToRegex(String likePattern) {
+            StringBuilder sb = new StringBuilder("^");
+            for (int i = 0; i < likePattern.length(); i++) {
+                char c = likePattern.charAt(i);
+                if (c == '%') {
+                    sb.append(".*");
+                } else if (c == '_') {
+                    sb.append('.');
+                } else if (REGEX_SPECIAL.indexOf(c) >= 0) {
+                    sb.append('\\').append(c);
+                } else {
+                    sb.append(c);
+                }
+            }
+            sb.append('$');
+            return sb.toString();
         }
 
         @Override
@@ -344,8 +376,7 @@ public class ResultSetQueryImpl implements ResultSetQuery {
             Record<?> rec = wee.getRecord();
             try {
                 Object o = rec.getObject(sc);
-                // TODO bug 需要使用正则表达式等...
-                return o == null ? false : (o.toString().indexOf(v) >= 0);
+                return o == null ? false : pattern.matcher(o.toString()).matches();
             } catch (SQLException e) {
                 throw RX.throwB(e);
             }

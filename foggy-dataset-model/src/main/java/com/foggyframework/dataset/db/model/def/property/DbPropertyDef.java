@@ -9,6 +9,8 @@ import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 import org.springframework.beans.BeanUtils;
 
+import java.util.Map;
+
 @Data
 public class DbPropertyDef extends DbDefSupport {
 
@@ -24,6 +26,9 @@ public class DbPropertyDef extends DbDefSupport {
 
     @ApiModelProperty("公式描述")
     DbFormulaDef formulaDef;
+
+    @ApiModelProperty(value = "方言专属公式", notes = "key 为方言标识（postgresql/mysql/sqlserver/sqlite/oracle），value 为该方言的公式定义。优先级高于 formulaDef")
+    Map<String, DbFormulaDef> dialectFormulaDef;
 
     @ApiModelProperty(value = "字典引用", notes = "引用通过 registerDict 注册的字典ID，用于将数据库中的值转换为显示标签")
     String dictRef;

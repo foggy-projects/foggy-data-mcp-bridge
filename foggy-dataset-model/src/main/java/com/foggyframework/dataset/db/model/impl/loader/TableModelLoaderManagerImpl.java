@@ -7,12 +7,16 @@ import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.ErrorUtils;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.db.model.def.DbModelDef;
+import com.foggyframework.dataset.db.model.def.dimension.DbCaptionDef;
 import com.foggyframework.dataset.db.model.def.dimension.DbDimensionDef;
+import com.foggyframework.dataset.db.model.def.measure.DbFormulaDef;
 import com.foggyframework.dataset.db.model.def.measure.DbMeasureDef;
 import com.foggyframework.dataset.db.model.def.preagg.PreAggregationDef;
 import com.foggyframework.dataset.db.model.def.property.DbPropertyDef;
+import com.foggyframework.fsscript.exp.FsscriptFunction;
 import com.foggyframework.dataset.db.model.engine.query_model.DbModelFileChangeHandler;
 import com.foggyframework.dataset.db.model.i18n.DatasetMessages;
+import com.foggyframework.dataset.db.dialect.DbType;
 import com.foggyframework.dataset.db.model.impl.LoaderSupport;
 import com.foggyframework.dataset.db.model.impl.dimension.DbDimensionSupport;
 import com.foggyframework.dataset.db.model.impl.dimension.DbModelDimensionImpl;
@@ -25,6 +29,7 @@ import com.foggyframework.dataset.db.model.impl.preagg.PreAggregationImpl;
 import com.foggyframework.dataset.db.model.impl.property.DbPropertyImpl;
 import com.foggyframework.dataset.db.model.impl.utils.QueryObjectSupport;
 import com.foggyframework.dataset.db.model.spi.*;
+import com.foggyframework.dataset.utils.DbUtils;
 import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
@@ -442,6 +447,9 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
             dimension.setKeyCaption(dimension.getCaption() + "主键");
         }
 
+        // 解析 caption 公式（dialectFormulaDef > formulaDef > 无公式）
+        resolveCaptionFormula(context, dimensionDef, dimension);
+
         // 设置父维度（如果是嵌套维度）
         if (parentDimension != null) {
             dimension.setParentDimension(parentDimension);
@@ -482,6 +490,57 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
         return dbDimension;
     }
 
+    /**
+     * 解析维度的 caption 公式。
+     * <p>
+     * 优先级：captionDef.dialectFormulaDef[当前数据库类型] > captionDef.formulaDef > 无公式（使用 column 原样输出）
+     * </p>
+     */
+    private void resolveCaptionFormula(JdbcModelLoadContext context, DbDimensionDef dimensionDef, DbDimensionSupport dimension) {
+        DbCaptionDef captionDef = dimensionDef.getCaptionDef();
+        if (captionDef == null) {
+            return;
+        }
+        DataSource ds = dimensionDef.getDataSource() == null ? context.getDataSource() : dimensionDef.getDataSource();
+        FsscriptFunction builder = resolveDialectFormula(ds, captionDef.getFormulaDef(), captionDef.getDialectFormulaDef());
+        if (builder != null) {
+            dimension.setCaptionFormulaBuilder(builder);
+        }
+    }
+
+    /**
+     * 通用方言公式解析。
+     * <p>
+     * 优先级：dialectFormulaDef[当前数据库类型] > formulaDef > null
+     * </p>
+     * <p>
+     * 适用于维度 captionDef、属性 formulaDef/dialectFormulaDef、度量 formulaDef/dialectFormulaDef。
+     * </p>
+     *
+     * @param ds                数据源（用于检测方言类型）
+     * @param formulaDef        通用公式定义（可为 null）
+     * @param dialectFormulaDef 方言专属公式 Map（可为 null）
+     * @return 解析后的 FsscriptFunction builder，或 null
+     */
+    private FsscriptFunction resolveDialectFormula(DataSource ds, DbFormulaDef formulaDef, java.util.Map<String, DbFormulaDef> dialectFormulaDef) {
+        // 1. 尝试方言专属公式
+        if (dialectFormulaDef != null && !dialectFormulaDef.isEmpty()) {
+            DbType dbType = DbUtils.getDialect(ds).getDbType();
+            String dbTypeKey = dbType.name().toLowerCase(); // postgresql, mysql, sqlserver, sqlite, oracle
+            DbFormulaDef dialectFormula = dialectFormulaDef.get(dbTypeKey);
+            if (dialectFormula != null && dialectFormula.getBuilder() != null) {
+                return dialectFormula.getBuilder();
+            }
+        }
+
+        // 2. 回退到通用公式
+        if (formulaDef != null && formulaDef.getBuilder() != null) {
+            return formulaDef.getBuilder();
+        }
+
+        return null;
+    }
+
     private void processJdbcDataProvider(DbDataProvider dataProvider) {
         if (DbDimensionType.DICT == dataProvider.getDimensionType()) {
             RX.notNull(dataProvider.getExtData(), String.format("字典类型的维%s，必须有extData", dataProvider.getName()));
@@ -516,8 +575,11 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
 
         DbProperty dbProperty = property;
 
-        if (propertyDef.getFormulaDef() != null && propertyDef.getFormulaDef().getBuilder() != null) {
-            dbProperty.setFormulaBuilder(propertyDef.getFormulaDef().getBuilder());
+        // 解析方言公式：dialectFormulaDef[dbType] > formulaDef > 无公式
+        DataSource propDs = context.getDataSource();
+        FsscriptFunction propFormulaBuilder = resolveDialectFormula(propDs, propertyDef.getFormulaDef(), propertyDef.getDialectFormulaDef());
+        if (propFormulaBuilder != null) {
+            dbProperty.setFormulaBuilder(propFormulaBuilder);
         }
 //        /**
 //         * 加入维度支持
@@ -560,8 +622,11 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
             measure.getDecorate(DbMeasureSupport.class).setAggregation(DbAggregation.valueOf(measureDef.getAggregation().toUpperCase()));
         }
 
-        if (measureDef.getFormulaDef() != null && measureDef.getFormulaDef().getBuilder() != null) {
-            measure.getDecorate(DbMeasureSupport.class).setFormulaBuilder(measureDef.getFormulaDef().getBuilder());
+        // 解析方言公式：dialectFormulaDef[dbType] > formulaDef > 无公式
+        DataSource measureDs = context.getDataSource();
+        FsscriptFunction measureFormulaBuilder = resolveDialectFormula(measureDs, measureDef.getFormulaDef(), measureDef.getDialectFormulaDef());
+        if (measureFormulaBuilder != null) {
+            measure.getDecorate(DbMeasureSupport.class).setFormulaBuilder(measureFormulaBuilder);
         }
 
         measure.getDecorate(DbMeasureSupport.class).init(context.getJdbcModel(), measureDef);

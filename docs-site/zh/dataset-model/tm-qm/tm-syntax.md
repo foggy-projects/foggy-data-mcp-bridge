@@ -371,23 +371,10 @@ export const dicts = {
 
 ### 3.3 计算属性
 
-使用 `formulaDef` 定义计算字段。常见场景包括 JSON 字段提取、字符串拼接等：
+使用 `formulaDef` 定义计算字段。`builder` 函数接收表别名，返回原生 SQL 表达式：
 
 ```javascript
 properties: [
-    {
-        column: 'send_addr_info',  // JSON 类型字段
-        name: 'sendStreet',
-        caption: '收货街道',
-        description: '从地址 JSON 中提取街道信息',
-        type: 'STRING',
-        formulaDef: {
-            builder: (alias) => {
-                return `${alias}.send_addr_info ->> '$.send_street'`;
-            },
-            description: '提取收货地址中的街道字段'
-        }
-    },
     {
         column: 'customer_name',
         name: 'fullName',
@@ -399,9 +386,32 @@ properties: [
             },
             description: '拼接姓和名'
         }
+    },
+    {
+        column: 'amount',
+        name: 'amountInWan',
+        caption: '金额（万元）',
+        type: 'MONEY',
+        formulaDef: {
+            builder: (alias) => {
+                return `${alias}.amount / 10000`;
+            },
+            description: '将金额换算为万元'
+        }
     }
 ]
 ```
+
+::: warning 方言注意
+`builder` 生成的是**原生 SQL**，直接嵌入查询。涉及 JSON 提取等方言差异时，需按目标数据库编写：
+
+| 场景 | MySQL | PostgreSQL | SQL Server |
+|------|-------|-----------|------------|
+| JSON 文本提取 | `col ->> '$.key'` | `col ->> 'key'` | `JSON_VALUE(col, '$.key')` |
+| 类型转换 | `CAST(col AS SIGNED)` | `col::integer` | `CAST(col AS INT)` |
+
+通用函数（`CONCAT`、`COALESCE`、`ROUND` 等）在所有方言下可安全使用。
+:::
 
 ### 3.4 属性字段说明
 

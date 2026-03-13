@@ -40,6 +40,10 @@ public class DbDimensionDef extends DbDefSupport {
     String keyDescription;
 
     String captionColumn;
+
+    @ApiModelProperty(value = "caption 对象定义", notes = "支持 column + formulaDef + dialectFormulaDef 三级优先级。与 captionColumn 二选一，captionDef 优先")
+    DbCaptionDef captionDef;
+
     String type;
     String schema;
     Map<String, Object> extData;
@@ -64,11 +68,25 @@ public class DbDimensionDef extends DbDefSupport {
 
     public void apply(DbDimensionSupport dimension) {
         super.apply(dimension);
-        BeanUtils.copyProperties(this, dimension, "type"); // 排除 type，因为类型不同
+        // captionDef 对象优先：如果指定了 captionDef.column，则覆盖 captionColumn
+        if (captionDef != null && StringUtils.isNotEmpty(captionDef.getColumn())) {
+            this.captionColumn = captionDef.getColumn();
+        }
+        BeanUtils.copyProperties(this, dimension, "type", "captionDef"); // 排除 type（类型不同）和 captionDef（需特殊处理）
         dimension.setAlias(alias);
         // 手动转换 type
         if (StringUtils.isNotEmpty(type)) {
             dimension.setType(DbDimensionType.fromString(type));
         }
+    }
+
+    /**
+     * 获取有效的 captionColumn：caption.column 优先于 captionColumn
+     */
+    public String getEffectiveCaptionColumn() {
+        if (captionDef != null && StringUtils.isNotEmpty(captionDef.getColumn())) {
+            return captionDef.getColumn();
+        }
+        return captionColumn;
     }
 }

@@ -9,6 +9,8 @@
 package com.foggyframework.core.trans;
 
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.regex.Pattern;
 
 public interface ObjectTransFormatter<T> {
@@ -21,8 +23,16 @@ public interface ObjectTransFormatter<T> {
             }
 
             if (object instanceof Number x) {
-                // TODO 存在BUG,需要更好的判断
-                return x.floatValue() != 0;
+                if (x instanceof Byte || x instanceof Short || x instanceof Integer || x instanceof Long) {
+                    return x.longValue() != 0;
+                }
+                if (x instanceof BigDecimal bd) {
+                    return bd.compareTo(BigDecimal.ZERO) != 0;
+                }
+                if (x instanceof BigInteger bi) {
+                    return bi.signum() != 0;
+                }
+                return x.doubleValue() != 0;
             }
             if (object instanceof Boolean) {
                 return (Boolean) object;
