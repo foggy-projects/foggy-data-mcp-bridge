@@ -62,6 +62,16 @@ if (response.data.code !== 200) throw new Error(response.data.msg)
 const data = response.data.data
 ```
 
+## MongoDB 可选架构
+`foggy-dataset-mcp` 的 MongoDB 依赖为 `optional`，仅审计日志功能需要。
+
+条件装配链路（`ToolAuditAutoConfiguration`）：
+1. `@ConditionalOnClass` — classpath 无 MongoDB 则整个配置跳过
+2. `@ConditionalOnProperty(foggy.mcp.audit.enabled=true)` — 默认关闭
+3. `@ConditionalOnBean(MongoTemplate)` — 需已配置 MongoDB 连接
+
+**极简模式**：`--spring.profiles.active=lite` 启动，排除 MongoDB 自动配置 + 关闭 data-viewer，仅保留核心 MCP + JDBC 能力。
+
 ## 开发约定
 - 不需要运行单元测试（`-DskipTests`）
 - i18n 资源：`foggy-dataset-model/src/main/resources/i18n/messages*.properties`（UTF-8）

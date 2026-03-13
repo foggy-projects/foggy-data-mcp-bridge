@@ -1,0 +1,30 @@
+# ============================================================
+# 极简模式（Lite Profile）
+# 无需 MongoDB，仅保留核心 MCP + JDBC 查询能力
+#
+# 启动方式：
+#   java -jar foggy-mcp-launcher.jar --spring.profiles.active=lite
+#   或 SPRING_PROFILES_ACTIVE=lite
+# ============================================================
+
+spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.mongo.MongoRepositoriesAutoConfiguration
+
+foggy:
+  # 关闭 Data Viewer（强依赖 MongoDB）
+  data-viewer:
+    enabled: false
+
+  mcp:
+    # 关闭审计日志（需要 MongoDB）
+    audit:
+      enabled: false
+
+    # 禁用依赖 Data Viewer 的 MCP 工具
+    tools:
+      - name: "dataset.open_in_viewer"
+        enabled: false

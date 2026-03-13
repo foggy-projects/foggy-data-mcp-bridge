@@ -3,11 +3,8 @@ package com.foggyframework.dataset.mcp.audit;
 import com.foggyframework.dataset.mcp.config.McpProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.scheduling.annotation.Async;
-import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.Map;
@@ -17,20 +14,19 @@ import java.util.Map;
  *
  * <p>负责将工具调用信息异步写入 MongoDB。
  *
- * <p>启用条件：
+ * <p>启用条件（由 {@code ToolAuditAutoConfiguration} 管理）：
  * <ul>
- *   <li>{@code mcp.audit.enabled=true}</li>
+ *   <li>classpath 存在 {@code spring-boot-starter-data-mongodb}</li>
+ *   <li>{@code foggy.mcp.audit.enabled=true}</li>
  *   <li>存在 {@link MongoTemplate} Bean（即配置了 MongoDB 数据源）</li>
  * </ul>
  *
  * @author foggy-dataset-mcp
  * @since 1.0.0
+ * @see com.foggyframework.dataset.mcp.audit.ToolAuditAutoConfiguration
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
-@ConditionalOnProperty(prefix = "mcp.audit", name = "enabled", havingValue = "true")
-@ConditionalOnBean(MongoTemplate.class)
 public class ToolAuditService {
 
     private final MongoTemplate mongoTemplate;
