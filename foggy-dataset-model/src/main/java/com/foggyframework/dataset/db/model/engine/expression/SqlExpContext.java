@@ -152,9 +152,6 @@ public class SqlExpContext {
         if (dialect == null) {
             return funcName;
         }
-
-        // TODO: 实现方言特定的函数转换
-        // 目前直接返回原函数名
-        return funcName;
+        return dialect.translateFunction(funcName);
     }
 }

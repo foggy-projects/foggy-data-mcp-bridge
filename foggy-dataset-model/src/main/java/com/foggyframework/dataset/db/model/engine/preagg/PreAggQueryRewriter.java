@@ -1,5 +1,7 @@
 package com.foggyframework.dataset.db.model.engine.preagg;
 
+import com.foggyframework.core.utils.StringUtils;
+import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.db.model.def.query.request.CondRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
@@ -69,8 +71,10 @@ public class PreAggQueryRewriter {
             if (isHybrid) {
                 // 混合查询模式：UNION SQL
                 Object watermark = matchResult.getWatermark();
-                sql = buildHybridSql(preAgg, jdbcQuery, queryRequest, queryEngine, watermark);
-                params = buildHybridParams(queryEngine.getValues(), watermark);
+                // 先从原始 JdbcQuery 提取 WHERE 条件和参数（#005 修复）
+                WhereClauseResult originalWhere = extractWhereClause(jdbcQuery.getWhere());
+                sql = buildHybridSql(preAgg, jdbcQuery, queryRequest, queryEngine, watermark, originalWhere);
+                params = buildHybridParams(originalWhere.getParams(), watermark);
 
                 if (log.isInfoEnabled()) {
                     log.info("Rewrote query to HYBRID mode using pre-aggregation '{}', watermark={}",
@@ -476,11 +480,14 @@ public class PreAggQueryRewriter {
      */
     private String buildHybridSql(PreAggregation preAgg, JdbcQuery jdbcQuery,
                                    DbQueryRequestDef queryRequest, JdbcModelQueryEngine queryEngine,
-                                   Object watermark) {
+                                   Object watermark, WhereClauseResult originalWhere) {
         StringBuilder sql = new StringBuilder();
         String preAggTableName = getFullTableName(preAgg);
-        String sourceTableName = queryModel.getJdbcModel().getTableName();
-        String watermarkColumn = parseWatermarkColumn(preAgg.getWatermarkColumn());
+        String watermarkPreAggColumn = parseWatermarkColumn(preAgg.getWatermarkColumn());
+
+        // #005/#006 修复：解析源表水位线列（使用事实表的外键，而非维度名称）
+        String watermarkSourceColumn = resolveWatermarkSourceColumn(preAgg);
+        String factTableAlias = queryModel.getAlias(jdbcQuery.getFrom().getFromObject());
 
         // 外层 SELECT（带聚合函数）
         List<String> outerSelectColumns = buildOuterSelectColumns(preAgg, jdbcQuery, "combined");
@@ -495,22 +502,26 @@ public class PreAggQueryRewriter {
         List<String> preAggInnerColumns = buildInnerSelectColumns(preAgg, jdbcQuery, "pa", true);
         sql.append(String.join(", ", preAggInnerColumns));
         sql.append(" FROM ").append(preAggTableName).append(" pa");
-        sql.append(" WHERE ").append("pa.").append(watermarkColumn).append(" <= ?");
+        sql.append(" WHERE ").append("pa.").append(watermarkPreAggColumn).append(" <= ?");
 
         // UNION ALL
         sql.append(" UNION ALL ");
 
-        // 内层 UNION: 原始表部分
+        // 内层 UNION: 原始表部分（#006 修复：使用原始 FROM+JOIN 结构）
         sql.append("SELECT ");
-        List<String> sourceInnerColumns = buildInnerSelectColumns(preAgg, jdbcQuery, "src", false);
+        List<String> sourceInnerColumns = buildSourceSelectColumnsWithJoins(jdbcQuery);
         sql.append(String.join(", ", sourceInnerColumns));
-        sql.append(" FROM ").append(sourceTableName).append(" src");
-        sql.append(" WHERE ").append("src.").append(watermarkColumn).append(" > ?");
 
-        // 添加原始查询的 WHERE 条件（如果有）
-        String originalWhere = buildOriginalWhereClause(jdbcQuery, "src");
-        if (originalWhere != null && !originalWhere.isEmpty()) {
-            sql.append(" AND ").append(originalWhere);
+        // FROM + JOINs（使用原始查询的表结构和别名，不再用 "src" 单表）
+        sql.append(" FROM ");
+        sql.append(buildSourceFromClause(jdbcQuery));
+
+        // WHERE: 水位线条件（使用事实表外键）
+        sql.append(" WHERE ").append(factTableAlias).append(".").append(watermarkSourceColumn).append(" > ?");
+
+        // #005 修复：追加原始查询的 WHERE 条件（如 d1.full_date >= ? AND d1.full_date < ?）
+        if (originalWhere != null && originalWhere.getClause() != null && !originalWhere.getClause().isEmpty()) {
+            sql.append(" AND ").append(originalWhere.getClause());
         }
 
         sql.append(") AS combined");
@@ -532,15 +543,21 @@ public class PreAggQueryRewriter {
     /**
      * 构建混合查询参数
      * <p>
-     * 参数顺序：watermark（用于预聚合表）、watermark（用于原始表）、原始查询参数
+     * #005 修复：参数顺序与 SQL 占位符严格对应：
+     * watermark（预聚合表 WHERE）、watermark（源表 WHERE）、提取的原始 WHERE 参数。
+     * 不再使用 queryEngine.getValues()，避免 SQL 占位符与参数数量不匹配。
      * </p>
+     *
+     * @param whereParams 从 JdbcQuery.WHERE 提取的参数（已按 SQL 顺序排列）
+     * @param watermark   水位线值
+     * @return 参数列表
      */
-    private List<Object> buildHybridParams(List<Object> originalParams, Object watermark) {
+    private List<Object> buildHybridParams(List<Object> whereParams, Object watermark) {
         List<Object> params = new ArrayList<>();
-        params.add(watermark);  // 预聚合表 WHERE
-        params.add(watermark);  // 原始表 WHERE
-        if (originalParams != null) {
-            params.addAll(originalParams);
+        params.add(watermark);  // 预聚合表 WHERE: pa.date_key <= ?
+        params.add(watermark);  // 原始表 WHERE: t1.date_key > ?
+        if (whereParams != null) {
+            params.addAll(whereParams);  // 原始 WHERE 条件参数
         }
         return params;
     }
@@ -618,27 +635,260 @@ public class PreAggQueryRewriter {
     }
 
     /**
-     * 解析水位线列名
+     * 解析水位线列名（用于预聚合表）
+     * <p>
+     * 将配置的水位线列名（如 salesDate$id）映射到预聚合表的物理列名（如 date_key）。
+     * </p>
      */
     private String parseWatermarkColumn(String watermarkColumn) {
         if (watermarkColumn == null) {
             return "created_at"; // 默认
         }
-        // 格式：dimensionName$propertyName 或 dimensionName$id
         int dollarIndex = watermarkColumn.indexOf('$');
         if (dollarIndex > 0) {
-            return watermarkColumn.substring(0, dollarIndex);
+            String dimName = watermarkColumn.substring(0, dollarIndex);
+            String propName = watermarkColumn.substring(dollarIndex + 1);
+            if ("id".equals(propName)) {
+                // $id → 维度主键/外键（如 date_key, product_key）
+                // 先尝试通过 QueryModel 查找维度的外键
+                DbDimension dimension = queryModel.findDimension(dimName);
+                if (dimension != null) {
+                    return dimension.getForeignKey();
+                }
+                // 回退到命名约定
+                String snakeCaseDimName = normalizePropertyName(dimName);
+                if (snakeCaseDimName.contains("date") || snakeCaseDimName.contains("time")
+                        || snakeCaseDimName.contains("day")) {
+                    return "date_key";
+                }
+                return snakeCaseDimName + "_key";
+            }
+            // 其他属性（如 $caption）→ 使用命名约定
+            return normalizePropertyName(propName);
         }
         return watermarkColumn;
     }
 
     /**
-     * 构建原始 WHERE 条件（用于混合查询的原始表部分）
+     * 解析源表水位线列名
+     * <p>
+     * 将水位线列配置（如 salesDate$id）解析为事实表上的物理列名（如 date_key）。
+     * 通过查找维度定义的 foreignKey 获取正确的物理列名。
+     * </p>
+     *
+     * @param preAgg 预聚合配置
+     * @return 事实表上的水位线物理列名
      */
-    private String buildOriginalWhereClause(JdbcQuery jdbcQuery, String alias) {
-        // 简化实现：暂时不处理复杂的 WHERE 条件
-        // TODO: 实现完整的 WHERE 条件转换
-        return "";
+    private String resolveWatermarkSourceColumn(PreAggregation preAgg) {
+        String watermarkColumn = preAgg.getWatermarkColumn();
+        if (watermarkColumn == null) {
+            return "created_at";
+        }
+
+        int dollarIndex = watermarkColumn.indexOf('$');
+        if (dollarIndex <= 0) {
+            return watermarkColumn;
+        }
+
+        String dimName = watermarkColumn.substring(0, dollarIndex);
+        String propName = watermarkColumn.substring(dollarIndex + 1);
+
+        // 通过 QueryModel 查找维度，获取外键（事实表上的物理列）
+        DbDimension dimension = queryModel.findDimension(dimName);
+        if (dimension != null) {
+            if ("id".equals(propName)) {
+                // $id → 维度外键（事实表上的列）
+                return dimension.getForeignKey();
+            }
+            // 其他属性（如 $caption）→ 维表上的列，不在事实表上
+            // 回退到外键
+            return dimension.getForeignKey();
+        }
+
+        // 未找到维度，回退到 parseWatermarkColumn 的逻辑
+        return parseWatermarkColumn(watermarkColumn);
+    }
+
+    /**
+     * 构建源表 FROM + JOIN 子句
+     * <p>
+     * #006 修复：从原始 JdbcQuery 的 FROM 结构提取表和 JOIN 关系，
+     * 使用原始表别名（如 t1, d1, d2），支持维度表列的正确引用。
+     * </p>
+     *
+     * @param jdbcQuery 原始 JdbcQuery
+     * @return FROM + JOIN SQL 片段
+     */
+    private String buildSourceFromClause(JdbcQuery jdbcQuery) {
+        JdbcQuery.JdbcFrom from = jdbcQuery.getFrom();
+        StringBuilder sb = new StringBuilder();
+
+        // 主表
+        QueryObject fromObject = from.getFromObject();
+        sb.append(fromObject.getBody()).append(" ").append(queryModel.getAlias(fromObject));
+
+        // JOINs（维度表）
+        if (from.getJoins() != null) {
+            for (JdbcQuery.JdbcFrom.JdbcJoin join : from.getJoins()) {
+                sb.append(join.getJoinTypeString());
+                sb.append(join.getRight().getBody()).append(" ");
+                sb.append(queryModel.getAlias(join.getRight()));
+
+                if (join.getRight().getForceIndex() != null) {
+                    sb.append(" ").append(join.getRight().getForceIndex());
+                }
+
+                sb.append(" on ");
+
+                // 优先使用预计算的 ON 条件
+                String onCondition = join.getOnCondition();
+                if (onCondition != null) {
+                    sb.append(onCondition);
+                } else {
+                    // 从 left/FK/right/PK 构建
+                    onCondition = queryModel.getAlias(join.getLeft()) + "." + join.getForeignKey() + "="
+                            + queryModel.getAlias(join.getRight()) + "." + join.getRight().getPrimaryKey();
+                    sb.append(onCondition);
+                }
+            }
+        }
+
+        return sb.toString();
+    }
+
+    /**
+     * 构建源表 SELECT 列（使用原始表别名）
+     * <p>
+     * #006 修复：不再使用单一的 "src" 别名，而是使用各列所属表的原始别名，
+     * 正确引用维度表上的列（如 d1.full_date, d2.product_name）。
+     * </p>
+     *
+     * @param jdbcQuery 原始 JdbcQuery
+     * @return SELECT 列列表（如 ["d1.full_date AS salesDate$caption", "t1.sales_amount AS salesAmount"]）
+     */
+    private List<String> buildSourceSelectColumnsWithJoins(JdbcQuery jdbcQuery) {
+        List<String> columns = new ArrayList<>();
+        JdbcQuery.JdbcSelect select = jdbcQuery.getSelect();
+
+        if (select == null || select.getColumns() == null) {
+            return columns;
+        }
+
+        for (DbColumn column : select.getColumns()) {
+            String columnAlias = column.getAlias();
+
+            if (column.getQueryObject() != null && column.getSqlColumn() != null) {
+                // 普通列：使用 queryModel 解析的原始表别名
+                String tableAlias = queryModel.getAlias(column.getQueryObject());
+                String sqlColumnName = column.getSqlColumnName();
+                columns.add(tableAlias + "." + sqlColumnName + " AS " + columnAlias);
+            } else {
+                // AggregationDbColumn 等特殊列（无 SqlColumn）
+                // 使用 getDeclare 获取预构建的引用，然后去除可能的聚合函数包装
+                String declare = column.getDeclare(applicationContext, null);
+                if (column.isMeasure() && column.getAggregation() != null
+                        && column.getAggregation() != DbAggregation.NONE) {
+                    // 去除聚合函数包装：SUM(t1.amount) → t1.amount
+                    declare = stripAggregationWrapper(declare);
+                }
+                columns.add(declare + " AS " + columnAlias);
+            }
+        }
+
+        return columns;
+    }
+
+    /**
+     * 去除聚合函数包装
+     * <p>
+     * 例如：SUM(t1.sales_amount) → t1.sales_amount
+     * </p>
+     */
+    private String stripAggregationWrapper(String declare) {
+        if (declare == null) {
+            return declare;
+        }
+        int openParen = declare.indexOf('(');
+        int closeParen = declare.lastIndexOf(')');
+        if (openParen >= 0 && closeParen > openParen) {
+            return declare.substring(openParen + 1, closeParen);
+        }
+        return declare;
+    }
+
+    /**
+     * 从原始 JdbcQuery 的 WHERE 条件中提取 SQL 片段和参数
+     * <p>
+     * #005 修复：遍历 JdbcWhere 条件树，收集 SQL 片段和对应的参数值。
+     * 模式与 SimpleSqlJdbcQueryVisitor.acceptListCond() 一致。
+     * </p>
+     *
+     * @param where JdbcWhere 条件
+     * @return WHERE 子句和参数
+     */
+    private WhereClauseResult extractWhereClause(JdbcQuery.JdbcWhere where) {
+        if (where == null || where.isEmpty()) {
+            return WhereClauseResult.empty();
+        }
+
+        StringBuilder sb = new StringBuilder();
+        List<Object> params = new ArrayList<>();
+        FDialect dialect = queryModel.getDialect();
+
+        extractListCond(where, sb, params, dialect);
+
+        String clause = sb.toString().trim();
+        if (clause.isEmpty()) {
+            return WhereClauseResult.empty();
+        }
+
+        return new WhereClauseResult(clause, params);
+    }
+
+    /**
+     * 递归提取 JdbcListCond 中的条件
+     * <p>
+     * 逻辑与 SimpleSqlJdbcQueryVisitor.acceptListCond() 保持一致，
+     * 确保生成的 SQL 和参数顺序正确。
+     * </p>
+     */
+    private void extractListCond(JdbcQuery.JdbcListCond listCond, StringBuilder sb,
+                                  List<Object> params, FDialect dialect) {
+        if (listCond.getConds().isEmpty()) {
+            return;
+        }
+
+        // 与 visitor 一致：OR 开头用 1=0，AND 开头用 1=1
+        if (StringUtils.equalsIgnoreCase(listCond.getConds().get(0).getLink(), "OR")) {
+            sb.append("1=0");
+        } else {
+            sb.append("1=1");
+        }
+
+        for (JdbcQuery.JdbcCond cond : listCond.getConds()) {
+            sb.append(" ").append(cond.getLink()).append(" ");
+
+            if (cond instanceof JdbcQuery.JdbcListCond) {
+                if (StringUtils.isEmpty(cond.getLink())) {
+                    sb.append("and ");
+                }
+                sb.append("(");
+                extractListCond((JdbcQuery.JdbcListCond) cond, sb, params, dialect);
+                sb.append(")");
+            } else if (cond instanceof JdbcQuery.ValueCond) {
+                sb.append(((JdbcQuery.ValueCond) cond).getSqlFragment());
+                Object rawValue = ((JdbcQuery.ValueCond) cond).getValue();
+                params.add(dialect != null ? dialect.convertParameterValue(rawValue) : rawValue);
+            } else if (cond instanceof JdbcQuery.ListValueCond) {
+                sb.append(((JdbcQuery.ListValueCond) cond).getSqlFragment());
+                List<Object> rawValues = ((JdbcQuery.ListValueCond) cond).getValue();
+                for (Object rawValue : rawValues) {
+                    params.add(dialect != null ? dialect.convertParameterValue(rawValue) : rawValue);
+                }
+            } else if (cond instanceof JdbcQuery.SqlFragmentCond) {
+                sb.append(((JdbcQuery.SqlFragmentCond) cond).getSqlFragment());
+            }
+        }
     }
 
     // ==================== 单表模式方法（原有实现） ====================

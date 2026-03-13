@@ -186,6 +186,23 @@ public class SqliteDialect extends FDialect {
     }
 
     @Override
+    public String translateFunction(String funcName) {
+        if (funcName == null) {
+            return null;
+        }
+        if (funcName.isEmpty()) {
+            return funcName;
+        }
+        switch (funcName.toUpperCase()) {
+            case "NVL":         // Oracle → SQLite
+            case "ISNULL":      // SQL Server → SQLite
+                return "IFNULL";
+            default:
+                return funcName;
+        }
+    }
+
+    @Override
     public String buildStatFunction(String funcName, String column) {
         throw RX.throwAUserTip(String.format(
                 "SQLite 不支持统计函数 %s。请切换到 MySQL、PostgreSQL 或 SQL Server 数据源以使用此功能。", funcName));

@@ -183,6 +183,32 @@ public class SqlServerDialect extends FDialect {
     }
 
     @Override
+    public String translateFunction(String funcName) {
+        if (funcName == null) {
+            return null;
+        }
+        if (funcName.isEmpty()) {
+            return funcName;
+        }
+        switch (funcName.toUpperCase()) {
+            case "IFNULL":      // MySQL → SQL Server
+            case "NVL":         // Oracle → SQL Server
+                return "ISNULL";
+            case "POW":         // MySQL → SQL Server
+                return "POWER";
+            case "CEIL":        // MySQL/PG → SQL Server
+                return "CEILING";
+            case "SUBSTR":      // MySQL/PG/SQLite → SQL Server
+                return "SUBSTRING";
+            case "LENGTH":      // MySQL/PG/SQLite → SQL Server
+            case "CHAR_LENGTH": // MySQL → SQL Server
+                return "LEN";
+            default:
+                return funcName;
+        }
+    }
+
+    @Override
     public String buildStatFunction(String funcName, String column) {
         switch (funcName) {
             case "STDDEV_POP": return "STDEVP(" + column + ")";

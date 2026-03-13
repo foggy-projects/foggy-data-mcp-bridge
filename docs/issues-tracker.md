@@ -46,30 +46,34 @@
 
 ## P1 — 预聚合引擎
 
-### 005 PreAgg WHERE 条件转换不完整
+### ~~005 PreAgg WHERE 条件转换不完整~~
 
-- **文件**: `foggy-dataset-model/.../preagg/PreAggQueryRewriter.java:640`
-- **现状**: `// TODO: 实现完整的 WHERE 条件转换`
-- **影响**: 预聚合查询在复杂 WHERE 条件下可能返回错误结果或回退到全量查询
-- [ ] 已修复
+- **文件**: `foggy-dataset-model/.../preagg/PreAggQueryRewriter.java`
+- **修复**: 新增 `extractWhereClause()` + `extractListCond()` 递归遍历 `JdbcWhere` 条件树，按 `SimpleSqlJdbcQueryVisitor.acceptListCond()` 模式生成完整 SQL 片段和参数列表。支持 `ValueCond`、`ListValueCond`、`SqlFragmentCond`、`JdbcGroupCond`（嵌套），并通过 `FDialect.convertParameterValue()` 处理方言参数转换（如 SQLite Date→String）
+- **同时修复**: `buildHybridParams()` 使用提取的 WHERE 参数替代错误的 `queryEngine.getValues()`，解决 SQL 占位符与参数数量不匹配问题
+- **测试**: `PreAggregationIntegrationTest.java` — `testHybridQueryShouldIncludeOriginalWhereInSourcePart`（验证 WHERE 条件传递）+ `testHybridQueryWhereParamsOrderCorrect`（验证参数数量匹配）
+- **依赖**: 与 #006 一起修复（同一代码路径）
+- [x] 已修复 — 2026-03-14
 
-### 006 PreAgg SQL 缺少维表 JOIN
+### ~~006 PreAgg SQL 缺少维表 JOIN~~
 
-- **文件**: `addons/foggy-dataset-model-preagg/.../ddl/PreAggSqlBuilder.java:106`
-- **现状**: `// TODO: 添加 JOIN（如果需要维表属性）`
-- **影响**: 预聚合表无法包含维表属性列，限制了分析能力
-- [ ] 已修复
+- **文件**: `foggy-dataset-model/.../preagg/PreAggQueryRewriter.java`
+- **修复**: 重写混合查询源表部分 SQL 生成。新增 `buildSourceFromClause()` 从 `JdbcQuery.JdbcFrom` 提取原始 FROM + 所有 JOIN（含 ON 条件），新增 `buildSourceSelectColumnsWithJoins()` 使用原始表别名（`t1`/`d1`/`d2`）引用列。替代原来错误使用 `src` 别名 + 无 JOIN 的单表查询
+- **同时修复**: `parseWatermarkColumn()` 和新增 `resolveWatermarkSourceColumn()` — 通过 `queryModel.findDimension().getForeignKey()` 解析物理列名（如 `salesDate$id` → `date_key`），替代原来返回维度名的错误行为
+- **测试**: `PreAggregationIntegrationTest.java` — 3 个混合查询测试全部通过（含原有 `testHybridQuerySqlGeneration`）
+- **依赖**: 与 #005 一起修复（同一代码路径）
+- [x] 已修复 — 2026-03-14
 
 ---
 
 ## P1 — 方言适配
 
-### 007 SqlExpContext 方言函数转换未实现
+### ~~007 SqlExpContext 方言函数转换未实现~~
 
-- **文件**: `foggy-dataset-model/.../expression/SqlExpContext.java:156`
-- **现状**: `// TODO: 实现方言特定的函数转换`
-- **影响**: DSL 表达式中的函数可能在非 MySQL 方言下生成错误 SQL
-- [ ] 已修复
+- **文件**: `foggy-dataset-model/.../expression/SqlExpContext.java`
+- **修复**: `translateFunction()` 委托给 `FDialect.translateFunction()`。4 个方言已实现函数映射：MySQL（`NVL`→`IFNULL`）、PostgreSQL（`IFNULL`→`COALESCE`、`ISNULL`→`COALESCE`）、SQL Server（`IFNULL`→`ISNULL`、`POW`→`POWER` 等 6 个映射）、SQLite（`NVL`→`IFNULL`、`ISNULL`→`IFNULL`）
+- **测试**: `SqlExpContextDialectTest.java` — 方言函数转换验证
+- [x] 已修复 — 2026-03-14
 
 ---
 

@@ -520,6 +520,149 @@ class PreAggregationIntegrationTest {
     }
 
     // ==========================================
+    // #005 复现测试：混合查询 WHERE 条件转换
+    // ==========================================
+
+    @Test
+    @Order(32)
+    @DisplayName("#005 复现 — 混合查询+slice条件时源表部分应包含原始WHERE条件")
+    void testHybridQueryShouldIncludeOriginalWhereInSourcePart() {
+        JdbcQueryModel queryModel = getQueryModel("FactSalesPreAggQueryModel");
+        TableModel tableModel = queryModel.getJdbcModel();
+        List<PreAggregation> preAggregations = tableModel.getPreAggregations();
+
+        // 设置 watermark 为过去日期以触发混合查询
+        for (PreAggregation preAgg : preAggregations) {
+            if (preAgg.supportsHybridQuery()) {
+                preAgg.setDataWatermark(LocalDate.of(2024, 3, 20));
+            }
+        }
+
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("FactSalesPreAggQueryModel");
+        queryRequest.setColumns(Arrays.asList(
+                "salesDate$caption",
+                "product$caption",
+                "salesAmount"
+        ));
+
+        // 添加日期过滤条件
+        List<SliceRequestDef> slices = new ArrayList<>();
+        SliceRequestDef dateSlice = new SliceRequestDef();
+        dateSlice.setField("salesDate$caption");
+        dateSlice.setOp("[)");
+        dateSlice.setValue(Arrays.asList("2024-01-01", "2024-03-31"));
+        slices.add(dateSlice);
+        queryRequest.setSlice(slices);
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+
+        PreAggregationInterceptor interceptor = new PreAggregationInterceptor(applicationContext);
+        interceptor.setHybridQueryEnabled(true);
+
+        PreAggRewriteResult result = interceptor.tryRewrite(queryEngine, queryModel, queryRequest);
+
+        assertTrue(result.isApplied(), "应匹配预聚合");
+
+        if (result.isHybridQuery()) {
+            String sql = result.getSql();
+            String upperSql = sql.toUpperCase();
+
+            // SQL应包含UNION
+            assertTrue(upperSql.contains("UNION ALL"), "混合查询应包含UNION ALL");
+
+            // 源表部分（UNION ALL之后）应包含除watermark之外的WHERE条件
+            int unionIndex = upperSql.indexOf("UNION ALL");
+            assertTrue(unionIndex > 0, "应有UNION ALL");
+            String sourcePart = upperSql.substring(unionIndex);
+
+            // #005 核心断言：源表部分应包含原始查询的WHERE条件（日期过滤 >= 和 <）
+            assertTrue(sourcePart.contains(">=") || sourcePart.contains("BETWEEN"),
+                    "#005: 源表部分应包含日期过滤条件（>= 或 BETWEEN），" +
+                    "但实际SQL: " + sql);
+
+            // 验证参数数量：2个watermark + 原始查询的WHERE参数（至少2个日期参数）
+            assertNotNull(result.getParams(), "参数不应为空");
+            assertTrue(result.getParams().size() > 2,
+                    "#005: 混合查询带slice条件时参数应多于2个（2个watermark + slice参数），" +
+                    "实际参数数量: " + result.getParams().size());
+
+            log.info("#005 混合查询+slice — SQL: {}", sql);
+            log.info("#005 混合查询+slice — params: {}", result.getParams());
+        } else {
+            log.info("#005 测试：未进入混合模式（可能预聚合不支持hybrid），跳过断言");
+        }
+    }
+
+    @Test
+    @Order(33)
+    @DisplayName("#005 复现 — 混合查询+多个slice条件时参数顺序正确")
+    void testHybridQueryWhereParamsOrderCorrect() {
+        JdbcQueryModel queryModel = getQueryModel("FactSalesPreAggQueryModel");
+        TableModel tableModel = queryModel.getJdbcModel();
+        List<PreAggregation> preAggregations = tableModel.getPreAggregations();
+
+        // 设置 watermark 为过去日期
+        for (PreAggregation preAgg : preAggregations) {
+            if (preAgg.supportsHybridQuery()) {
+                preAgg.setDataWatermark(LocalDate.of(2024, 3, 20));
+            }
+        }
+
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("FactSalesPreAggQueryModel");
+        queryRequest.setColumns(Arrays.asList(
+                "salesDate$caption",
+                "product$caption",
+                "salesAmount"
+        ));
+
+        // 添加日期过滤条件（范围条件产生2个参数）
+        List<SliceRequestDef> slices = new ArrayList<>();
+        SliceRequestDef dateSlice = new SliceRequestDef();
+        dateSlice.setField("salesDate$caption");
+        dateSlice.setOp("[)");
+        dateSlice.setValue(Arrays.asList("2024-01-01", "2024-06-30"));
+        slices.add(dateSlice);
+        queryRequest.setSlice(slices);
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+
+        // 获取原始查询的参数数量（用于后续验证）
+        int originalParamCount = queryEngine.getValues() != null ? queryEngine.getValues().size() : 0;
+        log.info("#005 原始查询参数数量: {}, 值: {}", originalParamCount, queryEngine.getValues());
+
+        PreAggregationInterceptor interceptor = new PreAggregationInterceptor(applicationContext);
+        interceptor.setHybridQueryEnabled(true);
+
+        PreAggRewriteResult result = interceptor.tryRewrite(queryEngine, queryModel, queryRequest);
+
+        assertTrue(result.isApplied(), "应匹配预聚合");
+
+        if (result.isHybridQuery()) {
+            List<Object> params = result.getParams();
+            String sql = result.getSql();
+
+            // SQL中 ? 占位符数量应与参数数量一致
+            long placeholderCount = sql.chars().filter(c -> c == '?').count();
+            assertEquals(placeholderCount, params.size(),
+                    "#005: SQL占位符数量(" + placeholderCount + ")应与参数数量(" + params.size() + ")一致，" +
+                    "SQL: " + sql);
+
+            // 前两个参数应是watermark
+            assertTrue(params.size() >= 2, "至少应有2个watermark参数");
+
+            log.info("#005 参数验证 — SQL: {}", sql);
+            log.info("#005 参数验证 — params: {}", params);
+            log.info("#005 参数验证 — 占位符数量: {}", placeholderCount);
+        }
+    }
+
+    // ==========================================
     // 预聚合匹配器单元测试
     // ==========================================
 

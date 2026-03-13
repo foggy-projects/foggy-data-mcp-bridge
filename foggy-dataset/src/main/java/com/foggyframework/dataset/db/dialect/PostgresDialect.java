@@ -131,6 +131,28 @@ public class PostgresDialect extends FDialect {
     }
 
     @Override
+    public String translateFunction(String funcName) {
+        if (funcName == null) {
+            return null;
+        }
+        if (funcName.isEmpty()) {
+            return funcName;
+        }
+        switch (funcName.toUpperCase()) {
+            case "IFNULL":      // MySQL → PostgreSQL
+            case "NVL":         // Oracle → PostgreSQL
+            case "ISNULL":      // SQL Server → PostgreSQL
+                return "COALESCE";
+            case "TRUNCATE":    // MySQL → PostgreSQL
+                return "TRUNC";
+            case "POW":         // MySQL/多数DB → PostgreSQL 推荐 POWER
+                return "POWER";
+            default:
+                return funcName;
+        }
+    }
+
+    @Override
     public String getValidationQuery() {
         return "SELECT 1";
     }

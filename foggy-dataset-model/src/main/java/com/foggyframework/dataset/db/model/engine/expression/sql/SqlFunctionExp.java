@@ -93,14 +93,10 @@ public class SqlFunctionExp extends AbstractExp<String> {
      * 根据方言转换函数名
      */
     private String translateFunction(SqlExpContext ctx, String funcName) {
-        if (ctx == null || ctx.getDialect() == null) {
+        if (ctx == null) {
             return funcName;
         }
-
-        // 这里可以根据方言进行函数名转换
-        // 例如：MySQL 的 IFNULL vs Oracle 的 NVL vs PostgreSQL 的 COALESCE
-        // 目前简单返回原函数名，后续可扩展
-        return funcName;
+        return ctx.translateFunction(funcName);
     }
 
     /**

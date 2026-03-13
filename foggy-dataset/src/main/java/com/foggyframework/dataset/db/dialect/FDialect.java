@@ -378,6 +378,28 @@ public abstract class FDialect {
     }
 
     /**
+     * 转换函数名以适配当前方言
+     * <p>
+     * 将标准或其他方言的函数名转换为当前方言对应的函数名。
+     * 例如：MySQL 的 IFNULL 在 PostgreSQL 中应转换为 COALESCE。
+     * 仅做函数名映射（参数结构相同的情况），子类按需重写。
+     * </p>
+     *
+     * @param funcName 函数名（可大小写混合）
+     * @return 方言特定的函数名
+     */
+    public String translateFunction(String funcName) {
+        if (funcName == null) {
+            return null;
+        }
+        if (funcName.isEmpty()) {
+            return funcName;
+        }
+        // 默认：不转换，直接返回原函数名
+        return funcName;
+    }
+
+    /**
      * 转换参数值以适配不同数据库的参数绑定需求
      * <p>
      * 默认实现：直接返回原值（适用于MySQL、PostgreSQL、SQL Server等）

@@ -134,6 +134,25 @@ public  class MysqlDialect extends FDialect {
     }
 
     @Override
+    public String translateFunction(String funcName) {
+        if (funcName == null) {
+            return null;
+        }
+        if (funcName.isEmpty()) {
+            return funcName;
+        }
+        switch (funcName.toUpperCase()) {
+            case "NVL":         // Oracle → MySQL
+            case "ISNULL":      // SQL Server → MySQL
+                return "IFNULL";
+            case "TRUNC":       // Oracle/PostgreSQL → MySQL
+                return "TRUNCATE";
+            default:
+                return funcName;
+        }
+    }
+
+    @Override
     protected void handleSpecialDataType(SqlTable st, String columnName, String dataType) {
         SqlColumn col = st.getSqlColumn(columnName, true);
         if (col == null) {
