@@ -38,7 +38,10 @@ export const model = {
             primaryKey: 'id',
             captionColumn: 'name',
             caption: 'Parent Company',
-            description: 'Parent company in multi-company hierarchy'
+            description: 'Parent company in multi-company hierarchy',
+            closureTableName: 'res_company_closure',
+            parentKey: 'parent_id',
+            childKey: 'company_id'
         }
     ],
 

@@ -14,10 +14,10 @@ INSERT INTO res_country (id, name, code) VALUES
 INSERT INTO res_country_state (id, name, code, country_id) VALUES
 (1, 'Zhejiang', 'ZJ', 1), (2, 'Shanghai', 'SH', 1), (3, 'Beijing', 'BJ', 1);
 
-INSERT INTO res_company (id, name, currency_id, country_id, city, active) VALUES
-(1, 'My Company (Shanghai)', 1, 1, 'Shanghai', 1),
-(2, 'My Company (Beijing)', 1, 1, 'Beijing', 1),
-(3, 'Overseas Branch', 2, 2, 'New York', 1);
+INSERT INTO res_company (id, name, parent_id, currency_id, country_id, city, active) VALUES
+(1, 'My Company (Shanghai)', NULL, 1, 1, 'Shanghai', 1),
+(2, 'My Company (Beijing)',  1,    1, 1, 'Beijing', 1),
+(3, 'Overseas Branch',       1,    2, 2, 'New York', 1);
 
 INSERT INTO res_users (id, login, company_id) VALUES
 (1, 'admin', 1),
@@ -133,11 +133,11 @@ INSERT INTO stock_picking (id, name, state, partner_id, picking_type_id, locatio
 
 -- ========== HR 模块 ==========
 
-INSERT INTO hr_department (id, name, complete_name) VALUES
-(1, 'Sales', 'Sales'),
-(2, 'Purchasing', 'Purchasing'),
-(3, 'Accounting', 'Finance / Accounting'),
-(4, 'Management', 'Management');
+INSERT INTO hr_department (id, name, complete_name, parent_id) VALUES
+(4, 'Management', 'Management', NULL),
+(1, 'Sales', 'Management / Sales', 4),
+(2, 'Purchasing', 'Management / Purchasing', 4),
+(3, 'Accounting', 'Management / Accounting', 4);
 
 INSERT INTO hr_job (id, name) VALUES
 (1, 'Sales Representative'),

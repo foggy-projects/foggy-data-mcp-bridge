@@ -614,10 +614,19 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
             if (pp != null && (isHierarchyColumn || hierarchyOp != null)) {
                 //这是一个parentChild维的层级查询，条件重写为使用closure表
-                jdbcQuery.join(pp.getClosureQueryObject(), pp.getForeignKey());
-                alias = jdbcQueryModel.getAlias(pp.getClosureQueryObject());
-                //查询列换成closure表的parentId
-                jdbcColumn = pp.getParentKeyJdbcColumn();
+                boolean isAncestorDirection = hierarchyOp != null && hierarchyOp.isAncestorDirection();
+
+                if (isAncestorDirection && pp.getAncestorClosureQueryObject() != null) {
+                    // 祖先方向: JOIN closure ON fact.FK = closure.parent_id, WHERE closure.child_id = value
+                    jdbcQuery.join(pp.getAncestorClosureQueryObject(), pp.getForeignKey());
+                    alias = jdbcQueryModel.getAlias(pp.getAncestorClosureQueryObject());
+                    jdbcColumn = pp.getChildKeyJdbcColumn();
+                } else {
+                    // 后代方向（默认）: JOIN closure ON fact.FK = closure.child_id, WHERE closure.parent_id = value
+                    jdbcQuery.join(pp.getClosureQueryObject(), pp.getForeignKey());
+                    alias = jdbcQueryModel.getAlias(pp.getClosureQueryObject());
+                    jdbcColumn = pp.getParentKeyJdbcColumn();
+                }
 
                 // 处理层级操作符的 distance 条件
                 if (hierarchyOp != null) {

@@ -20,7 +20,10 @@ export const model = {
             primaryKey: 'id',
             captionColumn: 'name',
             caption: 'Company',
-            description: 'Operating company'
+            description: 'Operating company',
+            closureTableName: 'res_company_closure',
+            parentKey: 'parent_id',
+            childKey: 'company_id'
         },
         {
             name: 'country',
@@ -53,7 +56,10 @@ export const model = {
             primaryKey: 'id',
             captionColumn: 'name',
             caption: 'Parent Company',
-            description: 'Parent company for contacts'
+            description: 'Parent company for contacts',
+            closureTableName: 'res_partner_closure',
+            parentKey: 'parent_id',
+            childKey: 'partner_id'
         },
         {
             name: 'salesperson',

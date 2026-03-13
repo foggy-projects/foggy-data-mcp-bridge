@@ -287,7 +287,8 @@ DROP TABLE IF EXISTS hr_department;
 CREATE TABLE hr_department (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     name          TEXT NOT NULL,
-    complete_name TEXT
+    complete_name TEXT,
+    parent_id     INTEGER
 );
 
 DROP TABLE IF EXISTS hr_job;

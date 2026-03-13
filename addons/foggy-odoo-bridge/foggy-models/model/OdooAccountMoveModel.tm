@@ -49,7 +49,10 @@ export const model = {
             primaryKey: 'id',
             captionColumn: 'name',
             caption: 'Company',
-            description: 'Operating company'
+            description: 'Operating company',
+            closureTableName: 'res_company_closure',
+            parentKey: 'parent_id',
+            childKey: 'company_id'
         },
         {
             name: 'currency',

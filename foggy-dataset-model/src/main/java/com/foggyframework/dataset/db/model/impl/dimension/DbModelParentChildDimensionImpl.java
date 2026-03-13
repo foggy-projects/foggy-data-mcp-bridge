@@ -46,6 +46,13 @@ public class DbModelParentChildDimensionImpl extends DbDimensionSupport {
 
     QueryObject closureQueryObject;
 
+    /**
+     * 祖先方向闭包表 QueryObject
+     * <p>与 closureQueryObject 指向同一张闭包表，但 PK 设为 parentKey（而非 childKey），
+     * 用于祖先方向查询：fact.FK = closure.parentKey, WHERE closure.childKey = value
+     */
+    QueryObject ancestorClosureQueryObject;
+
     // ========== 层级视角（hierarchy）相关字段 ==========
 
     /**

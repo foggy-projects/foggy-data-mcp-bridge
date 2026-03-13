@@ -74,6 +74,9 @@ _pb_spec.loader.exec_module(_pb_mod)
 _parse_domain_ast = _pb_mod._parse_domain_ast
 _flatten_to_dsl_slices = _pb_mod._flatten_to_dsl_slices
 _leaf_to_condition = _pb_mod._leaf_to_condition
+_expand_hierarchy_operators = _pb_mod._expand_hierarchy_operators
+_normalize_hierarchy_value = _pb_mod._normalize_hierarchy_value
+HIERARCHY_FIELD_MAP = _pb_mod.HIERARCHY_FIELD_MAP
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -217,9 +220,19 @@ class TestLeafToCondition:
         assert result == {'field': 'amount', 'op': '<=', 'value': 500}
 
     def test_unsupported_operator(self):
-        """child_of and similar are not directly mapped."""
+        """Operators not in DOMAIN_OP_MAP return None."""
         result = _leaf_to_condition(('department_id', 'child_of', [3]))
         assert result is None
+
+    def test_selfAndDescendantsOf_passes_through(self):
+        """selfAndDescendantsOf is a valid operator in DOMAIN_OP_MAP."""
+        result = _leaf_to_condition(('company$id', 'selfAndDescendantsOf', 1))
+        assert result == {'field': 'company$id', 'op': 'selfAndDescendantsOf', 'value': 1}
+
+    def test_selfAndAncestorsOf_passes_through(self):
+        """selfAndAncestorsOf is a valid operator in DOMAIN_OP_MAP."""
+        result = _leaf_to_condition(('company$id', 'selfAndAncestorsOf', 2))
+        assert result == {'field': 'company$id', 'op': 'selfAndAncestorsOf', 'value': 2}
 
     def test_tuple_value_to_list(self):
         """Tuple values should be converted to list."""
@@ -538,3 +551,137 @@ class TestDomainEndToEnd:
         # Permission conditions appended
         assert payload['slice'][1] == {'field': 'company_id', 'op': 'in', 'value': [1, 3]}
         assert '$or' in payload['slice'][2]
+
+    def test_hierarchy_child_of_end_to_end(self):
+        """
+        End-to-end: child_of with mapped field → selfAndDescendantsOf in DSL slice.
+
+        Simulates Odoo ir.rule: ('company_id', 'child_of', [1])
+        After hierarchy expansion: ('company$id', 'selfAndDescendantsOf', 1)
+        Final DSL slice: {"field": "company$id", "op": "selfAndDescendantsOf", "value": 1}
+        """
+        # After _expand_hierarchy_operators, child_of becomes selfAndDescendantsOf
+        domain = [('company$id', 'selfAndDescendantsOf', 1)]
+        slices = self._domain_to_slices(domain)
+        assert slices == [{'field': 'company$id', 'op': 'selfAndDescendantsOf', 'value': 1}]
+
+    def test_hierarchy_with_company_filter(self):
+        """
+        Real-world scenario: company hierarchy + user filter.
+
+        ir.rule: ['&', ('company_id', 'child_of', [user.company_id]),
+                       ('user_id', '=', user.id)]
+
+        After expansion:
+            ['&', ('company$id', 'selfAndDescendantsOf', 1), ('user_id', '=', 42)]
+        """
+        domain = ['&', ('company$id', 'selfAndDescendantsOf', 1), ('user_id', '=', 42)]
+        slices = self._domain_to_slices(domain)
+        assert len(slices) == 2
+        assert slices[0] == {'field': 'company$id', 'op': 'selfAndDescendantsOf', 'value': 1}
+        assert slices[1] == {'field': 'user_id', 'op': '=', 'value': 42}
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Hierarchy expansion tests (child_of/parent_of → closure table operators)
+# ═══════════════════════════════════════════════════════════════════
+
+class TestExpandHierarchyOperators:
+    """Test _expand_hierarchy_operators: child_of/parent_of → selfAndDescendantsOf/selfAndAncestorsOf."""
+
+    def test_child_of_mapped_field(self):
+        """child_of on mapped field → selfAndDescendantsOf with dimension field."""
+        domain = [('company_id', 'child_of', [1])]
+        result = _expand_hierarchy_operators(None, domain, 'sale.order')
+        assert len(result) == 1
+        assert result[0] == ('company$id', 'selfAndDescendantsOf', 1)
+
+    def test_parent_of_mapped_field(self):
+        """parent_of on mapped field → selfAndAncestorsOf with dimension field."""
+        domain = [('company_id', 'parent_of', [2])]
+        result = _expand_hierarchy_operators(None, domain, 'sale.order')
+        assert len(result) == 1
+        assert result[0] == ('company$id', 'selfAndAncestorsOf', 2)
+
+    def test_child_of_department(self):
+        """department_id child_of → department$id selfAndDescendantsOf."""
+        domain = [('department_id', 'child_of', [3])]
+        result = _expand_hierarchy_operators(None, domain, 'hr.employee')
+        assert len(result) == 1
+        assert result[0] == ('department$id', 'selfAndDescendantsOf', 3)
+
+    def test_child_of_parent_id(self):
+        """parent_id child_of (employee manager hierarchy) → parent$id selfAndDescendantsOf."""
+        domain = [('parent_id', 'child_of', [1])]
+        result = _expand_hierarchy_operators(None, domain, 'hr.employee')
+        assert len(result) == 1
+        assert result[0] == ('parent$id', 'selfAndDescendantsOf', 1)
+
+    def test_child_of_company_ids(self):
+        """company_ids also maps to company$id."""
+        domain = [('company_ids', 'child_of', [1])]
+        result = _expand_hierarchy_operators(None, domain, 'sale.order')
+        assert len(result) == 1
+        assert result[0] == ('company$id', 'selfAndDescendantsOf', 1)
+
+    def test_child_of_scalar_value(self):
+        """Scalar value (not list) is preserved as-is."""
+        domain = [('company_id', 'child_of', 1)]
+        result = _expand_hierarchy_operators(None, domain, 'sale.order')
+        assert len(result) == 1
+        assert result[0] == ('company$id', 'selfAndDescendantsOf', 1)
+
+    def test_child_of_multi_value(self):
+        """Multi-element list is preserved."""
+        domain = [('company_id', 'child_of', [1, 2])]
+        result = _expand_hierarchy_operators(None, domain, 'sale.order')
+        assert len(result) == 1
+        assert result[0] == ('company$id', 'selfAndDescendantsOf', [1, 2])
+
+    def test_non_hierarchy_operators_pass_through(self):
+        """Non-hierarchy operators are not modified."""
+        domain = ['&', ('company_id', 'in', [1, 3]), ('user_id', '=', 42)]
+        result = _expand_hierarchy_operators(None, domain, 'sale.order')
+        assert result == ['&', ('company_id', 'in', [1, 3]), ('user_id', '=', 42)]
+
+    def test_mixed_hierarchy_and_normal(self):
+        """Mix of hierarchy and normal operators in same domain."""
+        domain = ['&', ('company_id', 'child_of', [1]), ('user_id', '=', 42)]
+        result = _expand_hierarchy_operators(None, domain, 'sale.order')
+        assert len(result) == 3
+        assert result[0] == '&'
+        assert result[1] == ('company$id', 'selfAndDescendantsOf', 1)
+        assert result[2] == ('user_id', '=', 42)
+
+    def test_hierarchy_field_map_coverage(self):
+        """All entries in HIERARCHY_FIELD_MAP are correctly defined."""
+        assert 'company_id' in HIERARCHY_FIELD_MAP
+        assert 'company_ids' in HIERARCHY_FIELD_MAP
+        assert 'department_id' in HIERARCHY_FIELD_MAP
+        assert 'parent_id' in HIERARCHY_FIELD_MAP
+        # All map to dimension$id format
+        for field, dim_field in HIERARCHY_FIELD_MAP.items():
+            assert '$id' in dim_field, f"{field} should map to a dimension$id field"
+
+
+class TestNormalizeHierarchyValue:
+    """Test _normalize_hierarchy_value helper."""
+
+    def test_single_int(self):
+        assert _normalize_hierarchy_value(1) == 1
+
+    def test_single_element_list(self):
+        """Single-element list unwrapped to plain int."""
+        assert _normalize_hierarchy_value([5]) == 5
+
+    def test_multi_element_list(self):
+        assert _normalize_hierarchy_value([1, 2, 3]) == [1, 2, 3]
+
+    def test_tuple_to_list(self):
+        assert _normalize_hierarchy_value((1, 2)) == [1, 2]
+
+    def test_single_tuple(self):
+        assert _normalize_hierarchy_value((5,)) == 5
+
+    def test_empty_list(self):
+        assert _normalize_hierarchy_value([]) == []

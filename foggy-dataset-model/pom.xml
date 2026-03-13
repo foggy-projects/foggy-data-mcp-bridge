@@ -107,6 +107,9 @@
                                     <systemPropertyVariables>
                                         <spring.profiles.active>docker</spring.profiles.active>
                                     </systemPropertyVariables>
+                                    <excludes>
+                                        <exclude>**/odoo/**</exclude>
+                                    </excludes>
                                 </configuration>
                             </execution>
                             <execution>
@@ -116,6 +119,9 @@
                                     <systemPropertyVariables>
                                         <spring.profiles.active>postgres</spring.profiles.active>
                                     </systemPropertyVariables>
+                                    <excludes>
+                                        <exclude>**/odoo/**</exclude>
+                                    </excludes>
                                 </configuration>
                             </execution>
 <!--                            <execution>-->

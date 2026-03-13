@@ -19,6 +19,9 @@ export const model = {
             captionColumn: 'name',
             caption: 'Department',
             description: 'Employee department',
+            closureTableName: 'hr_department_closure',
+            parentKey: 'parent_id',
+            childKey: 'department_id',
             properties: [
                 { column: 'complete_name', caption: 'Full Department Path', type: 'STRING' }
             ]
@@ -39,7 +42,10 @@ export const model = {
             primaryKey: 'id',
             captionColumn: 'name',
             caption: 'Company',
-            description: 'Operating company'
+            description: 'Operating company',
+            closureTableName: 'res_company_closure',
+            parentKey: 'parent_id',
+            childKey: 'company_id'
         },
         {
             name: 'parent',
@@ -48,7 +54,10 @@ export const model = {
             primaryKey: 'id',
             captionColumn: 'name',
             caption: 'Manager',
-            description: 'Direct manager'
+            description: 'Direct manager',
+            closureTableName: 'hr_employee_closure',
+            parentKey: 'parent_id',
+            childKey: 'employee_id'
         },
         {
             name: 'workLocation',

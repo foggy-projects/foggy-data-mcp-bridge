@@ -37,15 +37,59 @@ Odoo Python 插件，作为 MCP Gateway 桥接 AI 客户端与 Foggy MCP Server�
 **权限桥接**（payload.slice 注入方式）：
 - ir.model.access → 工具级过滤（tools/list 按用户权限裁剪）
 - ir.rule → 行级过滤（域解析 → DSL slice 条件 → 注入 payload.slice → Foggy DSL 引擎原生处理）
-- 支持：AND/OR/NOT、De Morgan 定律、`$or`/`$and` 嵌套、child_of/parent_of 层级展开、null 检查
+- 支持：AND/OR/NOT、De Morgan 定律、`$or`/`$and` 嵌套、child_of/parent_of 闭包表原生映射、null 检查
 - 失败关闭（fail-closed）：权限计算异常时拒绝访问
 - Foggy Java 侧作为纯查询引擎，不直接对外暴露；用户统一通过 Odoo MCP 端点访问
 
 **已支持 Odoo 模型**：sale.order, sale.order.line, purchase.order, account.move, stock.picking, hr.employee, res.partner
 
-**测试**：`cd addons/foggy-odoo-bridge && python -m pytest tests/ -v`（45 tests，无需 Odoo 运行时）
+**测试**：`cd addons/foggy-odoo-bridge && python -m pytest tests/ -v`（65 tests，无需 Odoo 运行时）
 
 **Docker**：`cd addons/foggy-odoo-bridge/docker && docker-compose up -d`（PostgreSQL + Odoo 17 + Foggy MCP）
+
+**闭包表层级集成**：
+
+Odoo `child_of`/`parent_of` 直接映射到 Foggy 闭包表操作符，无需展开为 flat ID 列表：
+- `child_of` → `selfAndDescendantsOf`（JOIN closure ON fact.FK = closure.childKey, WHERE closure.parentKey = value）
+- `parent_of` → `selfAndAncestorsOf`（JOIN closure ON fact.FK = closure.parentKey, WHERE closure.childKey = value）
+
+已映射层级维度（`HIERARCHY_FIELD_MAP`）：
+
+| Odoo 字段 | Foggy 维度字段 | 闭包表 |
+|---|---|---|
+| `company_id` / `company_ids` | `company$id` | `res_company_closure` |
+| `department_id` | `department$id` | `hr_department_closure` |
+| `parent_id` | `parent$id` | 上下文相关（company/employee） |
+
+未映射字段回退到 Odoo ORM 展开（`_resolve_hierarchy()`）。
+
+**闭包表维护**：`addons/foggy-odoo-bridge/sql/refresh_closure_tables.sql` 提供 PostgreSQL 递归 CTE 刷新函数，可通过 pg_cron 定期调度或在层级变更后手动调用。
+
+## 闭包表引擎 (foggy-dataset-model)
+
+**层级操作符**（`hierarchy/` 包）：
+
+| 操作符 | 方向 | 含自身 | SQL 效果 |
+|---|---|---|---|
+| `selfAndDescendantsOf` | 向下 | ✓ | `closure.parent_id = X` |
+| `descendantsOf` | 向下 | ✗ | `closure.parent_id = X AND distance > 0` |
+| `childrenOf` | 向下 | ✗ | `closure.parent_id = X AND distance = 1` |
+| `selfAndAncestorsOf` | 向上 | ✓ | `closure.child_id = X` |
+| `ancestorsOf` | 向上 | ✗ | `closure.child_id = X AND distance > 0` |
+
+**TM 维度闭包配置**：
+```javascript
+{
+    name: 'company',
+    closureTableName: 'res_company_closure',
+    parentKey: 'parent_id',
+    childKey: 'company_id'
+}
+```
+
+**引擎 JOIN 方向**（`JdbcModelQueryEngine`）：
+- 后代方向：`fact.FK = closure.childKey`，WHERE `closure.parentKey = value`
+- 祖先方向（`isAncestorDirection()`）：`fact.FK = closure.parentKey`，WHERE `closure.childKey = value`
 
 ## 多数据库支持 (foggy-dataset)
 已实现方言：MySQL 5.7+、PostgreSQL 12+、SQL Server 2012+、SQLite 3.30+

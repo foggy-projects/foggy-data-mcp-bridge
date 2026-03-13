@@ -14,10 +14,13 @@ public class HierarchyOperatorService {
     private final Map<String, HierarchyOperator> name2Operator = new HashMap<>();
 
     public HierarchyOperatorService() {
-        // 注册内置操作符
+        // 注册内置操作符 —— 后代方向
         register(new ChildrenOfOperator());
         register(new DescendantsOfOperator());
         register(new SelfAndDescendantsOfOperator());
+        // 祖先方向
+        register(new AncestorsOfOperator());
+        register(new SelfAndAncestorsOfOperator());
     }
 
     public HierarchyOperatorService(List<HierarchyOperator> operators) {

@@ -49,6 +49,8 @@ DOMAIN_OP_MAP = {
     'ilike': 'like',
     '=like': 'like',
     '=ilike': 'like',
+    'selfAndDescendantsOf': 'selfAndDescendantsOf',
+    'selfAndAncestorsOf': 'selfAndAncestorsOf',
 }
 
 # Negation mapping for NOT operator (De Morgan's laws)
@@ -80,6 +82,16 @@ DIRECT_FIELD_MAP = {
     'warehouse_id': 'warehouse_id',
     'journal_id': 'journal_id',
     'picking_type_id': 'picking_type_id',
+}
+
+# Odoo ir.rule field → Foggy dimension field (for hierarchy operators).
+# These fields reference hierarchical models with closure tables.
+# child_of → selfAndDescendantsOf, parent_of → selfAndAncestorsOf.
+HIERARCHY_FIELD_MAP = {
+    'company_id':    'company$id',
+    'company_ids':   'company$id',
+    'department_id': 'department$id',
+    'parent_id':     'parent$id',
 }
 
 
@@ -252,14 +264,21 @@ def _eval_rule_domain(rule, eval_context):
 
 def _expand_hierarchy_operators(env, domain, odoo_model):
     """
-    Expand child_of/parent_of operators to 'in' with resolved ID lists.
+    Expand child_of/parent_of to Foggy hierarchy operators or flat ID lists.
 
-    Odoo uses these operators for hierarchical models (departments, categories,
-    companies, etc.). We resolve them to flat ID lists via Odoo's parent_path.
+    For fields with closure table mapping (HIERARCHY_FIELD_MAP):
+        child_of  → selfAndDescendantsOf (closure table JOIN, no Odoo ORM call)
+        parent_of → selfAndAncestorsOf   (closure table JOIN, no Odoo ORM call)
 
-    Example:
-        ('department_id', 'child_of', [3])
-        → ('department_id', 'in', [3, 7, 12, 15])  (dept 3 + all descendants)
+    For unmapped fields: fallback to flat ID resolution via Odoo ORM.
+
+    Example (mapped):
+        ('company_id', 'child_of', [1])
+        → ('company$id', 'selfAndDescendantsOf', 1)
+
+    Example (unmapped, fallback):
+        ('categ_id', 'child_of', [5])
+        → ('categ_id', 'in', [5, 8, 12])
 
     Args:
         env: Odoo environment
@@ -267,24 +286,57 @@ def _expand_hierarchy_operators(env, domain, odoo_model):
         odoo_model: Odoo model name (e.g., 'sale.order')
 
     Returns:
-        list: Domain with child_of/parent_of replaced by 'in'
+        list: Domain with child_of/parent_of replaced
     """
     expanded = []
     for element in domain:
         if isinstance(element, (list, tuple)) and len(element) == 3:
             field, op, value = element
             if op in ('child_of', 'parent_of'):
-                resolved_ids = _resolve_hierarchy(env, odoo_model, field, op, value)
-                if resolved_ids:
-                    expanded.append((field, 'in', resolved_ids))
+                dim_field = HIERARCHY_FIELD_MAP.get(field)
+                if dim_field:
+                    # Map to Foggy closure table operator (no Odoo ORM call needed)
+                    foggy_op = 'selfAndDescendantsOf' if op == 'child_of' else 'selfAndAncestorsOf'
+                    norm_value = _normalize_hierarchy_value(value)
+                    expanded.append((dim_field, foggy_op, norm_value))
+                    _logger.debug("Hierarchy mapping: %s %s %s → %s %s %s",
+                                  field, op, value, dim_field, foggy_op, norm_value)
                 else:
-                    _logger.debug("Hierarchy expansion returned empty for %s %s %s",
-                                  field, op, value)
+                    # No closure table mapping → fallback to flat ID resolution
+                    resolved_ids = _resolve_hierarchy(env, odoo_model, field, op, value)
+                    if resolved_ids:
+                        expanded.append((field, 'in', resolved_ids))
+                    else:
+                        _logger.debug("Hierarchy expansion returned empty for %s %s %s",
+                                      field, op, value)
             else:
                 expanded.append(element)
         else:
             expanded.append(element)
     return expanded
+
+
+def _normalize_hierarchy_value(value):
+    """
+    Normalize hierarchy operator value.
+
+    Foggy hierarchy operators (selfAndDescendantsOf, etc.) accept:
+    - Single int: selfAndDescendantsOf(1) → closure.parent_id = 1
+    - List: selfAndDescendantsOf([1, 2]) → closure.parent_id IN (1, 2)
+
+    Single-element lists are unwrapped to a plain int for cleaner queries.
+    """
+    if hasattr(value, 'ids'):
+        value = value.ids
+    elif isinstance(value, int):
+        return value
+
+    if isinstance(value, (list, tuple)):
+        if len(value) == 1:
+            return value[0]
+        return list(value)
+
+    return value
 
 
 def _resolve_hierarchy(env, odoo_model, field, op, value):

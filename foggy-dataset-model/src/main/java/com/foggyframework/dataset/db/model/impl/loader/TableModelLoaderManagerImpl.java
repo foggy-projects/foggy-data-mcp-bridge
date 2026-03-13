@@ -253,8 +253,12 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
             dqo.getDecorate(QueryObjectSupport.class).setAlias(d + (++dimIdx));
             if (dimension.getDecorate(DbModelParentChildDimensionImpl.class) != null) {
                 DbModelParentChildDimensionImpl pcDim = dimension.getDecorate(DbModelParentChildDimensionImpl.class);
-                // 为闭包表分配别名
+                // 为闭包表分配别名（后代方向）
                 pcDim.getClosureQueryObject().getDecorate(QueryObjectSupport.class).setAlias(d + (++dimIdx));
+                // 为闭包表分配别名（祖先方向）
+                if (pcDim.getAncestorClosureQueryObject() != null) {
+                    pcDim.getAncestorClosureQueryObject().getDecorate(QueryObjectSupport.class).setAlias(d + (++dimIdx));
+                }
                 // 为层级视角维度表分配别名
                 if (pcDim.getHierarchyQueryObject() != null) {
                     pcDim.getHierarchyQueryObject().getDecorate(QueryObjectSupport.class).setAlias(d + (++dimIdx));
@@ -414,6 +418,10 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
             parentChildDimension.setClosureQueryObject(loadQueryObject(dimensionDef.getDataSource() == null ? dataSource : dimensionDef.getDataSource(), dimensionDef.getClosureTableName(), null, dimensionDef.getClosureTableSchema()));
             //childKey用来作为ClosureQueryObject的primaryKey与主表进行关联，注意，childKey实际上可不是主键
             parentChildDimension.getClosureQueryObject().getDecorate(QueryObjectSupport.class).setPrimaryKey(dimensionDef.getChildKey());
+            // 加载祖先方向闭包表（ancestorClosureQueryObject），PK 设为 parentKey
+            // 用于 selfAndAncestorsOf / ancestorsOf 操作符：fact.FK = closure.parentKey, WHERE closure.childKey = value
+            parentChildDimension.setAncestorClosureQueryObject(loadQueryObject(dimensionDef.getDataSource() == null ? dataSource : dimensionDef.getDataSource(), dimensionDef.getClosureTableName(), null, dimensionDef.getClosureTableSchema()));
+            parentChildDimension.getAncestorClosureQueryObject().getDecorate(QueryObjectSupport.class).setPrimaryKey(dimensionDef.getParentKey());
             // 加载层级视角的维度表（hierarchyQueryObject），用于 team$hierarchy$xxx 列
             // hierarchyQueryObject 与 queryObject 是同一个表，但通过 closure.parent_id 关联
             if (StringUtils.isNotEmpty(dimensionDef.getTableName()) || StringUtils.isNotEmpty(dimensionDef.getViewSql())) {

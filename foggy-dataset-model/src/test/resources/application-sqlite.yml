@@ -44,8 +44,8 @@ spring:
   sql:
     init:
       mode: always
-      schema-locations: classpath:sqlite/01-schema.sql,classpath:sqlite/04-preagg-schema.sql,classpath:sqlite/06-odoo-schema.sql
-      data-locations: classpath:sqlite/02-dict-data.sql,classpath:sqlite/03-test-data.sql,classpath:sqlite/05-preagg-data.sql,classpath:sqlite/07-odoo-data.sql
+      schema-locations: classpath:sqlite/01-schema.sql,classpath:sqlite/04-preagg-schema.sql,classpath:sqlite/06-odoo-schema.sql,classpath:sqlite/08-odoo-closure-schema.sql
+      data-locations: classpath:sqlite/02-dict-data.sql,classpath:sqlite/03-test-data.sql,classpath:sqlite/05-preagg-data.sql,classpath:sqlite/07-odoo-data.sql,classpath:sqlite/09-odoo-closure-data.sql
 
 # ==========================================
 # 日志配置
