@@ -43,7 +43,9 @@ Odoo Python 插件，作为 MCP Gateway 桥接 AI 客户端与 Foggy MCP Server�
 
 **已支持 Odoo 模型**：sale.order, sale.order.line, purchase.order, account.move, stock.picking, hr.employee, res.partner
 
-**测试**：`cd addons/foggy-odoo-bridge && python -m pytest tests/ -v`（65 tests，无需 Odoo 运行时）
+**测试**：
+- 单元测试：`cd addons/foggy-odoo-bridge && python -m pytest tests/test_permission_bridge.py -v`（65 tests，无需 Odoo 运行时）
+- E2E 测试：`cd addons/foggy-odoo-bridge && python -m pytest tests/e2e/ -v`（需 Foggy MCP Server + Odoo 运行中）
 
 **Docker**：`cd addons/foggy-odoo-bridge/docker && docker-compose up -d`（PostgreSQL + Odoo 17 + Foggy MCP）
 
@@ -64,6 +66,17 @@ Odoo `child_of`/`parent_of` 直接映射到 Foggy 闭包表操作符，无需展
 未映射字段回退到 Odoo ORM 展开（`_resolve_hierarchy()`）。
 
 **闭包表维护**：`addons/foggy-odoo-bridge/sql/refresh_closure_tables.sql` 提供 PostgreSQL 递归 CTE 刷新函数，可通过 pg_cron 定期调度或在层级变更后手动调用。
+
+**Odoo 17 JSONB 翻译字段**：Odoo 17 将可翻译的 `Char`/`Text` 字段存储为 JSONB（如 `{"en_US": "Research & Development"}`）。影响：`hr_department.name`、`hr_job.name`、`hr_work_location.name`。解决策略：
+- `hr_department`：使用 `complete_name`（非翻译字段）作为 `captionColumn`
+- `hr_job` / `hr_work_location`：当前返回 JSONB 对象，AI 客户端可解析。未来可在 `PostgresDialect` 添加 JSONB 自动提取
+
+**Odoo 17 字段兼容性注意**（已在 TM 模型中处理）：
+- `product_template_id`（sale_order_line）：ORM 计算字段，非物理列 → 已移除 `productTemplate` 维度
+- `display_name`（res_partner）：ORM 计算字段 → 改用 `complete_name`
+- `credit_limit`（res_partner）：Odoo 17 已移除 → 已从度量中删除
+- `street/city/zip/website/vat`（res_company）：委托给 `res_partner` → 已从属性中删除
+- `country_id`（res_company）：委托给 `res_partner` → 已移除 `country` 维度
 
 ## 闭包表引擎 (foggy-dataset-model)
 
@@ -142,6 +155,25 @@ const data = response.data.data
 3. `@ConditionalOnBean(MongoTemplate)` — 需已配置 MongoDB 连接
 
 **极简模式**：`--spring.profiles.active=lite` 启动，排除 MongoDB 自动配置 + 关闭 data-viewer，仅保留核心 MCP + JDBC 能力。
+
+**Odoo 集成启动示例**（lite 模式 + 外部 Bundle + Odoo PostgreSQL）：
+```bash
+java -jar foggy-mcp-launcher/target/foggy-mcp-launcher-8.1.7.beta.jar \
+  --spring.profiles.active=lite \
+  --spring.datasource.url=jdbc:postgresql://localhost:5432/odoo \
+  --spring.datasource.username=odoo --spring.datasource.password=odoo \
+  --spring.datasource.driver-class-name=org.postgresql.Driver \
+  --foggy.bundle.external.enabled=true \
+  --foggy.bundle.external.bundles[0].name=odoo-models \
+  "--foggy.bundle.external.bundles[0].path=path/to/foggy-models" \
+  --foggy.demo.enabled=false \
+  --foggy.mcp.semantic.model-list[0]=OdooSaleOrderQueryModel \
+  --foggy.mcp.semantic.model-list[1]=OdooSaleOrderLineQueryModel \
+  --foggy.mcp.semantic.model-list[2]=OdooPurchaseOrderQueryModel \
+  --foggy.mcp.semantic.model-list[3]=OdooAccountMoveQueryModel \
+  --foggy.mcp.semantic.model-list[4]=OdooHrEmployeeQueryModel \
+  --foggy.mcp.semantic.model-list[5]=OdooResPartnerQueryModel
+```
 
 ## 开发约定
 - 不需要运行单元测试（`-DskipTests`）

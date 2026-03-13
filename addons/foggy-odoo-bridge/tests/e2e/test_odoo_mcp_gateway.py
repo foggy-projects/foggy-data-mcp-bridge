@@ -70,7 +70,7 @@ class TestOdooHierarchyQueries:
         """Basic sale order query through the gateway."""
         result = self._call_tool(odoo_session, odoo_url,
             'query_OdooSaleOrderQueryModel', {
-                'columns': ['name', 'partner$name', 'amountTotal'],
+                'columns': ['name', 'partner$caption', 'amountTotal'],
             })
         content = result.get('content', [])
         assert len(content) > 0, 'Expected sale order results'
@@ -85,7 +85,7 @@ class TestOdooHierarchyQueries:
         """
         result = self._call_tool(odoo_session, odoo_url,
             'query_OdooSaleOrderQueryModel', {
-                'columns': ['name', 'company$name', 'amountTotal'],
+                'columns': ['name', 'company$caption', 'amountTotal'],
             })
         content = result.get('content', [])
         # User should see at least their company's data
@@ -95,7 +95,7 @@ class TestOdooHierarchyQueries:
         """Query employees through the gateway."""
         result = self._call_tool(odoo_session, odoo_url,
             'query_OdooHrEmployeeQueryModel', {
-                'columns': ['name', 'department$name', 'company$name'],
+                'columns': ['name', 'department$caption', 'company$caption'],
             })
         content = result.get('content', [])
         assert len(content) > 0, 'Expected employee results'
@@ -111,8 +111,8 @@ class TestClosureTableIntegrity:
         """
         result = self._call_tool_direct(odoo_session, odoo_url,
             'query_OdooSaleOrderQueryModel', {
-                'columns': ['name', 'company$name'],
-                'slice': {'company$id': {'selfAndDescendantsOf': 1}},
+                'columns': ['name', 'company$caption'],
+                'slice': [{'field': 'company$id', 'op': 'selfAndDescendantsOf', 'value': 1}],
             })
         content = result.get('content', [])
         assert len(content) > 0, \

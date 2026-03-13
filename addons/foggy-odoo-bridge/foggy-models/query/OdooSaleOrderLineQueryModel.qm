@@ -40,10 +40,7 @@ export const queryModel = {
             caption: 'Product',
             items: [
                 { ref: sol.product },
-                { ref: sol.product$barcode },
-                { ref: sol.productTemplate },
-                { ref: sol.productTemplate$type },
-                { ref: sol.productTemplate$listPrice }
+                { ref: sol.product$barcode }
             ]
         },
         {

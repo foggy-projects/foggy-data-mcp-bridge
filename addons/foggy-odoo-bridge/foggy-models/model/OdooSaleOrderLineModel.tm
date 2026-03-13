@@ -39,20 +39,6 @@ export const model = {
             ]
         },
         {
-            name: 'productTemplate',
-            tableName: 'product_template',
-            foreignKey: 'product_template_id',
-            primaryKey: 'id',
-            captionColumn: 'name',
-            caption: 'Product Template',
-            description: 'Product template (shared across variants)',
-            properties: [
-                { column: 'type', caption: 'Product Type', type: 'STRING' },
-                { column: 'categ_id', caption: 'Category ID', type: 'INTEGER' },
-                { column: 'list_price', caption: 'Sales Price', type: 'MONEY' }
-            ]
-        },
-        {
             name: 'uom',
             tableName: 'uom_uom',
             foreignKey: 'product_uom',

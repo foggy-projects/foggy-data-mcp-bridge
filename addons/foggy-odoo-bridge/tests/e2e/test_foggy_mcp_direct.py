@@ -63,8 +63,8 @@ class TestClosureTableQueries:
         """Query sale orders for company 1 and all its descendants."""
         result = self._call_tool(foggy_session, foggy_url,
             'query_OdooSaleOrderQueryModel', {
-                'columns': ['name', 'company$name', 'amountTotal'],
-                'slice': {'company$id': {'selfAndDescendantsOf': 1}}
+                'columns': ['name', 'company$caption', 'amountTotal'],
+                'slice': [{'field': 'company$id', 'op': 'selfAndDescendantsOf', 'value': 1}]
             })
         content = result.get('content', [])
         assert len(content) > 0, 'Expected sale order results'
@@ -76,18 +76,18 @@ class TestClosureTableQueries:
         """Query sale orders for company 2 and its ancestors."""
         result = self._call_tool(foggy_session, foggy_url,
             'query_OdooSaleOrderQueryModel', {
-                'columns': ['name', 'company$name', 'amountTotal'],
-                'slice': {'company$id': {'selfAndAncestorsOf': 2}}
+                'columns': ['name', 'company$caption', 'amountTotal'],
+                'slice': [{'field': 'company$id', 'op': 'selfAndAncestorsOf', 'value': 2}]
             })
         content = result.get('content', [])
         assert len(content) > 0, 'Expected sale order results'
 
     def test_employee_department_hierarchy(self, foggy_session, foggy_url):
-        """Query employees in department 4 (Management) and all sub-departments."""
+        """Query employees in department and all sub-departments."""
         result = self._call_tool(foggy_session, foggy_url,
             'query_OdooHrEmployeeQueryModel', {
-                'columns': ['name', 'department$name', 'jobTitle'],
-                'slice': {'department$id': {'selfAndDescendantsOf': 4}}
+                'columns': ['name', 'department$caption', 'jobTitle'],
+                'slice': [{'field': 'department$id', 'op': 'selfAndDescendantsOf', 'value': 1}]
             })
         content = result.get('content', [])
         assert len(content) > 0, 'Expected employee results'
@@ -96,10 +96,10 @@ class TestClosureTableQueries:
         """Aggregate sale orders grouped by company, filtered by hierarchy."""
         result = self._call_tool(foggy_session, foggy_url,
             'query_OdooSaleOrderQueryModel', {
-                'columns': ['company$name'],
-                'slice': {'company$id': {'selfAndDescendantsOf': 1}},
-                'groupBy': ['company$name'],
-                'orderBy': [{'field': 'company$name', 'dir': 'ASC'}]
+                'columns': ['company$caption'],
+                'slice': [{'field': 'company$id', 'op': 'selfAndDescendantsOf', 'value': 1}],
+                'groupBy': ['company$caption'],
+                'orderBy': [{'field': 'company$caption', 'dir': 'ASC'}]
             })
         content = result.get('content', [])
         assert len(content) > 0, 'Expected grouped results'

@@ -5,6 +5,7 @@ import com.foggyframework.dataviewer.domain.SavedQueryDef;
 import com.foggyframework.dataviewer.service.SavedQueryService;
 import com.foggyframework.dataviewer.service.SavedQueryService.SaveQueryRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.web.bind.annotation.*;
 
@@ -17,6 +18,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/data-viewer/api/saved-query")
 @RequiredArgsConstructor
+@ConditionalOnProperty(prefix = "foggy.data-viewer", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class SavedQueryController {
 
     private final SavedQueryService savedQueryService;

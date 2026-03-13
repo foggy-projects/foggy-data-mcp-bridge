@@ -5,6 +5,7 @@ import com.foggyframework.dataviewer.config.DataViewerProperties.ModelScopeConst
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -23,6 +24,7 @@ import java.util.*;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@ConditionalOnProperty(prefix = "foggy.data-viewer", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class QueryScopeConstraintService {
 
     private final DataViewerProperties properties;

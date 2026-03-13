@@ -22,7 +22,7 @@ export const queryModel = {
             items: [
                 { ref: p.id },
                 { ref: p.name },
-                { ref: p.displayName },
+                { ref: p.completeName },
                 { ref: p.type },
                 { ref: p.email },
                 { ref: p.phone },
@@ -63,7 +63,6 @@ export const queryModel = {
                 { ref: p.customerRank },
                 { ref: p.supplierRank },
                 { ref: p.lang },
-                { ref: p.creditLimit },
                 { ref: p.partnerCount }
             ]
         }

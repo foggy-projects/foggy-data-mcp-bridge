@@ -20,18 +20,6 @@ export const model = {
             description: 'Company default currency'
         },
         {
-            name: 'country',
-            tableName: 'res_country',
-            foreignKey: 'country_id',
-            primaryKey: 'id',
-            captionColumn: 'name',
-            caption: 'Country',
-            description: 'Company country',
-            properties: [
-                { column: 'code', caption: 'Country Code', type: 'STRING' }
-            ]
-        },
-        {
             name: 'parent',
             tableName: 'res_company',
             foreignKey: 'parent_id',
@@ -48,13 +36,8 @@ export const model = {
     properties: [
         { column: 'id', caption: 'ID', type: 'INTEGER' },
         { column: 'name', caption: 'Company Name', type: 'STRING' },
-        { column: 'street', caption: 'Street', type: 'STRING' },
-        { column: 'city', caption: 'City', type: 'STRING' },
-        { column: 'zip', caption: 'ZIP', type: 'STRING' },
         { column: 'email', caption: 'Email', type: 'STRING' },
         { column: 'phone', caption: 'Phone', type: 'STRING' },
-        { column: 'website', caption: 'Website', type: 'STRING' },
-        { column: 'vat', caption: 'Tax ID', type: 'STRING' },
         { column: 'active', caption: 'Active', type: 'BOOL' },
         { column: 'create_date', caption: 'Created On', type: 'DATETIME' }
     ],

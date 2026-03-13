@@ -57,7 +57,7 @@ class OdooModelLoadingTest extends EcommerceTestSupport {
         assertEquals("sale_order_line", model.getTableName());
 
         assertNotNull(model.getDimensions(), "维度定义为空");
-        assertTrue(model.getDimensions().size() >= 5, "维度数量不足（预期>=5: order, product, productTemplate, uom, salesperson, company）");
+        assertTrue(model.getDimensions().size() >= 4, "维度数量不足（预期>=4: order, product, uom, salesperson, company）");
 
         log.info("OdooSaleOrderLineModel 加载成功: 维度数={}, 属性数={}, 度量数={}",
             model.getDimensions().size(),

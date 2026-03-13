@@ -109,10 +109,7 @@ public abstract class FDialect {
                 //去数据库加载id列
                 if(schema == null) {
                     try (Connection connection = ds.getConnection()) {
-                        schema = connection.getCatalog();
-                        if (StringUtils.isEmpty(schema)) {
-                            schema = connection.getSchema();
-                        }
+                        schema = detectSchema(connection);
                     }
                 }
 
@@ -147,6 +144,19 @@ public abstract class FDialect {
             System.err.println(t.getMessage());
             return null;
         }
+    }
+
+    /**
+     * 从 JDBC Connection 检测当前 schema 名。
+     * 默认实现：优先 getCatalog()，回退 getSchema()。
+     * PostgreSQL 等方言需重写，因为 getCatalog() 返回数据库名而非 schema。
+     */
+    protected String detectSchema(Connection connection) throws SQLException {
+        String schema = connection.getCatalog();
+        if (StringUtils.isEmpty(schema)) {
+            schema = connection.getSchema();
+        }
+        return schema;
     }
 
     /**

@@ -20,6 +20,7 @@ import com.foggyframework.dataset.model.PagingResultImpl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
@@ -41,6 +42,7 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/data-viewer/api")
 @RequiredArgsConstructor
+@ConditionalOnProperty(prefix = "foggy.data-viewer", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class ViewerApiController {
 
     private final QueryCacheService cacheService;

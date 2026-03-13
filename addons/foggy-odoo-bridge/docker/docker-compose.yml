@@ -41,9 +41,11 @@ services:
       - ../foggy_mcp:/mnt/extra-addons/foggy_mcp:ro
       # Odoo config
       - ./odoo.conf:/etc/odoo/odoo.conf:ro
-    command: >
-      -- --update=foggy_mcp
-         --stop-after-init=false
+    # 首次安装模块:
+    #   docker compose run --rm odoo odoo -i sale,purchase,account,stock,hr,foggy_mcp -d odoo --stop-after-init
+    # 后续正常启动:
+    #   docker compose up -d odoo
+    command: ["odoo", "--database=odoo"]
 
   # ──────────────────────────────────────────────
   # Foggy MCP Server (Java) — lite mode

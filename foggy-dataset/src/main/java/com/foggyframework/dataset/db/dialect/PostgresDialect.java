@@ -8,6 +8,8 @@
  *******************************************************************************/
 package com.foggyframework.dataset.db.dialect;
 
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.sql.Types;
 
 /**
@@ -103,6 +105,19 @@ public class PostgresDialect extends FDialect {
     @Override
     public String getCurrentSchemaFunction() {
         return "current_schema()";
+    }
+
+    /**
+     * PostgreSQL: getCatalog() 返回数据库名（如 "odoo"），不是 schema。
+     * 应使用 getSchema()（返回 "public"）作为 information_schema 查询的 table_schema 参数。
+     */
+    @Override
+    protected String detectSchema(Connection connection) throws SQLException {
+        String schema = connection.getSchema();
+        if (schema == null || schema.isEmpty()) {
+            schema = "public";
+        }
+        return schema;
     }
 
     @Override

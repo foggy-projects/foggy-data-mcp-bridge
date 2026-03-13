@@ -16,15 +16,12 @@ export const model = {
             tableName: 'hr_department',
             foreignKey: 'department_id',
             primaryKey: 'id',
-            captionColumn: 'name',
+            captionColumn: 'complete_name',
             caption: 'Department',
             description: 'Employee department',
             closureTableName: 'hr_department_closure',
             parentKey: 'parent_id',
-            childKey: 'department_id',
-            properties: [
-                { column: 'complete_name', caption: 'Full Department Path', type: 'STRING' }
-            ]
+            childKey: 'department_id'
         },
         {
             name: 'job',

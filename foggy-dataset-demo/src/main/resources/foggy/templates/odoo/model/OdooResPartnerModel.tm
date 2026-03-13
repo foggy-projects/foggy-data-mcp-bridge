@@ -84,7 +84,7 @@ export const model = {
     properties: [
         { column: 'id', caption: 'ID', type: 'INTEGER' },
         { column: 'name', caption: 'Name', type: 'STRING' },
-        { column: 'display_name', caption: 'Display Name', type: 'STRING' },
+        { column: 'complete_name', caption: 'Full Name', type: 'STRING' },
         { column: 'type', caption: 'Address Type', type: 'STRING', dictRef: dicts.partner_type },
         { column: 'email', caption: 'Email', type: 'STRING' },
         { column: 'phone', caption: 'Phone', type: 'STRING' },
@@ -105,7 +105,6 @@ export const model = {
     ],
 
     measures: [
-        { column: 'credit_limit', caption: 'Credit Limit', type: 'MONEY' },
         {
             column: 'id',
             name: 'partnerCount',
