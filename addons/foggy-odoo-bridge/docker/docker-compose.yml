@@ -80,6 +80,7 @@ services:
       FOGGY_MCP_SEMANTIC_MODELLIST_4: OdooStockPickingQueryModel
       FOGGY_MCP_SEMANTIC_MODELLIST_5: OdooHrEmployeeQueryModel
       FOGGY_MCP_SEMANTIC_MODELLIST_6: OdooResPartnerQueryModel
+      FOGGY_MCP_SEMANTIC_MODELLIST_7: OdooResCompanyQueryModel
     volumes:
       - ../foggy-models:/foggy-models:ro
     healthcheck:
@@ -123,6 +124,7 @@ services:
       FOGGY_MCP_SEMANTIC_MODELLIST_4: OdooStockPickingQueryModel
       FOGGY_MCP_SEMANTIC_MODELLIST_5: OdooHrEmployeeQueryModel
       FOGGY_MCP_SEMANTIC_MODELLIST_6: OdooResPartnerQueryModel
+      FOGGY_MCP_SEMANTIC_MODELLIST_7: OdooResCompanyQueryModel
     volumes:
       - ../foggy-models:/foggy-models:ro
       - ../../../foggy-mcp-launcher/target:/app:ro

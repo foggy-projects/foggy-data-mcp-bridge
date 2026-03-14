@@ -30,17 +30,18 @@ def main():
         ('OdooStockPickingQueryModel',  ['name', 'state']),
         ('OdooHrEmployeeQueryModel',    ['name', 'jobTitle']),
         ('OdooResPartnerQueryModel',    ['completeName', 'email']),
+        ('OdooResCompanyQueryModel',    ['name', 'email']),
     ]
 
     print("=" * 60)
-    print("  Foggy MCP Direct — All 7 Odoo Models Verification")
+    print("  Foggy MCP — All 8 Odoo Models Verification")
     print("=" * 60)
     print()
 
     passed = 0
     failed = 0
 
-    # 1. Basic model queries
+    # ── Basic Model Queries ──────────────────────────────────
     for model, cols in models:
         data, err = call_tool('dataset.query_model', {
             'model': model,
@@ -54,17 +55,57 @@ def main():
             print(f"  FAIL {model}: {err}")
             failed += 1
 
+    # ── Dimension Caption Queries ────────────────────────────
+    print()
+    print("-" * 60)
+    print("  Dimension Caption Queries")
+    print("-" * 60)
+    print()
+
+    caption_tests = [
+        # VARCHAR caption columns
+        ('OdooSaleOrderQueryModel',     'partner$caption',       'Partner (complete_name, VARCHAR)'),
+        ('OdooSaleOrderQueryModel',     'company$caption',       'Company (name, VARCHAR)'),
+        ('OdooHrEmployeeQueryModel',    'department$caption',    'Department (complete_name, VARCHAR)'),
+        ('OdooHrEmployeeQueryModel',    'workLocation$caption',  'WorkLocation (name, VARCHAR)'),
+        ('OdooResCompanyQueryModel',    'currency$caption',      'Currency (name, VARCHAR)'),
+        ('OdooStockPickingQueryModel',  'locationSrc$caption',   'Source Location (complete_name, VARCHAR)'),
+        # JSONB caption columns (Odoo 17 translatable fields, need ->> en_US)
+        ('OdooHrEmployeeQueryModel',    'job$caption',           'Job (JSONB ->> en_US)'),
+        ('OdooResPartnerQueryModel',    'country$caption',       'Country (JSONB ->> en_US)'),
+        ('OdooSaleOrderQueryModel',     'salesTeam$caption',     'SalesTeam (JSONB ->> en_US)'),
+        ('OdooPurchaseOrderQueryModel', 'pickingType$caption',   'PickingType (JSONB ->> en_US)'),
+        ('OdooAccountMoveQueryModel',   'journal$caption',       'Journal (JSONB ->> en_US)'),
+        ('OdooStockPickingQueryModel',  'pickingType$caption',   'PickingType (JSONB ->> en_US)'),
+        ('OdooSaleOrderLineQueryModel', 'uom$caption',           'UoM (JSONB ->> en_US)'),
+    ]
+
+    for model, caption_col, desc in caption_tests:
+        data, err = call_tool('dataset.query_model', {
+            'model': model,
+            'payload': {'columns': [caption_col], 'limit': 3}
+        })
+        if data:
+            items = data.get('items', [])
+            sample = items[0].get(caption_col, '(null)') if items else '(empty)'
+            print(f"  OK  {caption_col:<25s} = {sample}")
+            passed += 1
+        else:
+            print(f"  FAIL {caption_col:<25s} ({desc}): {err}")
+            failed += 1
+
+    # ── Closure Table Hierarchy Queries ──────────────────────
     print()
     print("-" * 60)
     print("  Closure Table Hierarchy Queries")
     print("-" * 60)
     print()
 
-    # 2. Department hierarchy: selfAndDescendantsOf (Management, id=2)
+    # Department hierarchy: selfAndDescendantsOf (Management, id=2)
     data, err = call_tool('dataset.query_model', {
         'model': 'OdooHrEmployeeQueryModel',
         'payload': {
-            'columns': ['name', 'department$caption', 'jobTitle'],
+            'columns': ['name', 'department$caption', 'job$caption'],
             'slice': [{'field': 'department$id', 'op': 'selfAndDescendantsOf', 'value': 2}],
             'limit': 50
         }
@@ -74,13 +115,14 @@ def main():
         print(f"  OK  dept selfAndDescendantsOf(2): {count} employees")
         for item in data['items'][:3]:
             dept = item.get('department$caption', '?')
-            print(f"       - {item.get('name', '?')} | {dept} | {item.get('jobTitle', '?')}")
+            job = item.get('job$caption', '?')
+            print(f"       - {item.get('name', '?')} | {dept} | {job}")
         passed += 1
     else:
         print(f"  FAIL dept hierarchy: {err}")
         failed += 1
 
-    # 3. Company hierarchy
+    # Company hierarchy via SaleOrder
     data, err = call_tool('dataset.query_model', {
         'model': 'OdooSaleOrderQueryModel',
         'payload': {
@@ -97,7 +139,7 @@ def main():
         print(f"  FAIL company hierarchy: {err}")
         failed += 1
 
-    # 4. GroupBy with hierarchy
+    # GroupBy with hierarchy
     data, err = call_tool('dataset.query_model', {
         'model': 'OdooHrEmployeeQueryModel',
         'payload': {
@@ -115,6 +157,27 @@ def main():
         passed += 1
     else:
         print(f"  FAIL groupBy hierarchy: {err}")
+        failed += 1
+
+    # Company hierarchy via ResCompanyQueryModel (without self-referential parent$caption)
+    # Note: parent$caption on self-referential dimensions (fact table = dimension table)
+    #       causes SQL alias collision in Foggy engine — known limitation, tested separately
+    data, err = call_tool('dataset.query_model', {
+        'model': 'OdooResCompanyQueryModel',
+        'payload': {
+            'columns': ['name', 'currency$caption'],
+            'slice': [{'field': 'parent$id', 'op': 'selfAndDescendantsOf', 'value': 1}],
+        }
+    })
+    if data:
+        count = data['pagination']['returned']
+        print(f"  OK  ResCompany hierarchy selfAndDescendantsOf(1): {count} companies")
+        for item in data['items'][:3]:
+            cur = item.get('currency$caption', '?')
+            print(f"       - {item.get('name', '?')} | currency: {cur}")
+        passed += 1
+    else:
+        print(f"  FAIL ResCompany hierarchy: {err}")
         failed += 1
 
     print()

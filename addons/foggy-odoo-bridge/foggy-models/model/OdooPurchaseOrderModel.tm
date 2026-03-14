@@ -4,6 +4,7 @@
  * @description Purchase order header table with vendor, buyer, and company dimensions
  */
 import { dicts } from '../dicts.fsscript';
+import { jsonbCaption } from '../odoo17.fsscript';
 
 export const model = {
     name: 'OdooPurchaseOrderModel',
@@ -63,7 +64,8 @@ export const model = {
             tableName: 'stock_picking_type',
             foreignKey: 'picking_type_id',
             primaryKey: 'id',
-            captionColumn: 'name',
+            // Odoo 17: stock_picking_type.name is JSONB
+            captionDef: jsonbCaption(),
             caption: 'Deliver To',
             description: 'Picking type for receipt'
         }

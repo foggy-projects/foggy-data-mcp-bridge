@@ -1,0 +1,30 @@
+/**
+ * Odoo 17 JSONB 翻译字段工具
+ *
+ * Odoo 17 stores translatable Char/Text fields as JSONB (e.g. {"en_US": "Sales"}).
+ * This helper generates a captionDef with dialect-specific extraction formula.
+ */
+
+/**
+ * 为 JSONB 翻译字段生成 captionDef
+ *
+ * @param {string} column - 列名 (默认 'name')
+ * @param {string} lang   - 语言代码 (默认 'en_US')
+ * @returns {Object} captionDef with column + dialectFormulaDef
+ *
+ * 用法:
+ *   captionDef: jsonbCaption()            // name ->> 'en_US'
+ *   captionDef: jsonbCaption('title')     // title ->> 'en_US'
+ */
+export function jsonbCaption(column, lang) {
+    const col = column || 'name';
+    const lc = lang || 'en_US';
+    return {
+        column: col,
+        dialectFormulaDef: {
+            postgresql: {
+                builder: (alias) => { return `${alias}.${col} ->> '${lc}'`; }
+            }
+        }
+    };
+}

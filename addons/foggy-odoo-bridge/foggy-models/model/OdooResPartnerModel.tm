@@ -5,6 +5,7 @@
  *              Use customer_rank > 0 for customers, supplier_rank > 0 for vendors.
  */
 import { dicts } from '../dicts.fsscript';
+import { jsonbCaption } from '../odoo17.fsscript';
 
 export const model = {
     name: 'OdooResPartnerModel',
@@ -30,7 +31,8 @@ export const model = {
             tableName: 'res_country',
             foreignKey: 'country_id',
             primaryKey: 'id',
-            captionColumn: 'name',
+            // Odoo 17: res_country.name is JSONB
+            captionDef: jsonbCaption(),
             caption: 'Country',
             description: 'Partner country',
             properties: [
@@ -75,7 +77,8 @@ export const model = {
             tableName: 'crm_team',
             foreignKey: 'team_id',
             primaryKey: 'id',
-            captionColumn: 'name',
+            // Odoo 17: crm_team.name is JSONB
+            captionDef: jsonbCaption(),
             caption: 'Sales Team',
             description: 'Sales team'
         }

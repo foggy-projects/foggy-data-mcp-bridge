@@ -67,10 +67,17 @@ Odoo `child_of`/`parent_of` 直接映射到 Foggy 闭包表操作符，无需展
 
 **闭包表维护**：`addons/foggy-odoo-bridge/sql/refresh_closure_tables.sql` 提供 PostgreSQL 递归 CTE 刷新函数，可通过 pg_cron 定期调度或在层级变更后手动调用。
 
-**Odoo 17 JSONB 翻译字段**：Odoo 17 将可翻译的 `Char`/`Text` 字段存储为 JSONB（如 `{"en_US": "Research & Development"}`）。影响：`hr_department.name`、`hr_job.name`、`hr_work_location.name`。解决策略：
-- `hr_department`：使用 `complete_name`（非翻译字段）作为 `captionColumn`
-- `hr_job`：`name` 列为 JSONB → 使用 `captionDef.dialectFormulaDef` 的 `->> 'en_US'` 提取（`captionDef.column` 自动设置 `captionColumn`，无需重复声明）
-- `hr_work_location`：`name` 列为 VARCHAR（非 JSONB）→ 直接使用 `captionColumn: 'name'`
+**Odoo 17 JSONB 翻译字段**：Odoo 17 将可翻译的 `Char`/`Text` 字段存储为 JSONB（如 `{"en_US": "Research & Development"}`）。
+
+共享辅助函数：`foggy-models/odoo17.fsscript` 提供 `jsonbCaption(column, lang)` 生成 `captionDef`（含 PostgreSQL `->> 'en_US'` 提取公式）。
+
+已确认 JSONB 的 `name` 列（需 `captionDef: jsonbCaption()`）：
+- `hr_job`、`account_journal`、`crm_team`、`product_pricelist`、`res_country`、`stock_picking_type`、`uom_uom`
+
+已确认 VARCHAR 的列（直接 `captionColumn`）：
+- `hr_work_location.name`、`hr_department.complete_name`、`stock_location.complete_name`、`res_country_state.name`、`res_currency.name`
+
+**已知引擎限制**：自引用维度（fact table = dimension table，如 `res_company.parent_id → res_company`）会产生 SQL 别名冲突，暂时避免在查询中同时使用 `parent$caption`。
 
 **Odoo 17 字段兼容性注意**（已在 TM 模型中处理）：
 - `product_template_id`（sale_order_line）：ORM 计算字段，非物理列 → 已移除 `productTemplate` 维度

@@ -21,6 +21,7 @@ MODEL_MAPPING = {
     'stock.picking': 'OdooStockPickingQueryModel',
     'hr.employee': 'OdooHrEmployeeQueryModel',
     'res.partner': 'OdooResPartnerQueryModel',
+    'res.company': 'OdooResCompanyQueryModel',
 }
 
 # Reverse mapping: QM model name → Odoo model name
