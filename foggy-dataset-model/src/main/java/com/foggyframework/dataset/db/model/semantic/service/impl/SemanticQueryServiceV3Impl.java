@@ -12,6 +12,7 @@ import com.foggyframework.dataset.db.model.engine.query.DbQueryResult;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.db.model.semantic.service.DimensionMemberLoader;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.dataset.db.model.service.QueryFacade;
@@ -60,27 +61,10 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
     private DimensionMemberLoader dimensionMemberLoader;
 
     @Override
-    public SemanticQueryResponse queryModel(String model, SemanticQueryRequest request, String mode) {
-        return queryModel(model, request, mode, null, null);
-    }
-
-    @Override
     public SemanticQueryResponse queryModel(String model, SemanticQueryRequest request, String mode,
-                                            String authorization, String namespace) {
-        // 创建SecurityContext
-        ModelResultContext.SecurityContext securityContext = null;
-        if (authorization != null) {
-            securityContext = new ModelResultContext.SecurityContext();
-            securityContext.setAuthorization(authorization);
-        }
-        // Note: namespace 不在 SecurityContext 中，而是在 ModelResultContext.setNamespace() 中设置
-        return queryModelWithNamespace(model, request, mode, securityContext, namespace);
-    }
-
-    @Override
-    public SemanticQueryResponse queryModel(String model, SemanticQueryRequest request, String mode,
-                                            ModelResultContext.SecurityContext securityContext) {
-        return queryModelWithNamespace(model, request, mode, securityContext, null);
+                                            SemanticRequestContext context) {
+        return queryModelWithNamespace(model, request, mode,
+                context.getSecurityContext(), context.getNamespace());
     }
 
     /**
@@ -148,8 +132,9 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
     }
 
     @Override
-    public SemanticQueryResponse validateQuery(String model, SemanticQueryRequest request) {
-        return validateQueryInternal(model, request, null);
+    public SemanticQueryResponse validateQuery(String model, SemanticQueryRequest request,
+                                               SemanticRequestContext context) {
+        return validateQueryInternal(model, request, context.getNamespace());
     }
 
     /**

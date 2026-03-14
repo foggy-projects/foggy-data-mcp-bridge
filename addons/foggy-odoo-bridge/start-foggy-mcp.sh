@@ -179,7 +179,7 @@ main() {
     # Launch in background
     # Note: Spring Boot list properties must be fully specified on command line
     # (partial override of bundles[0] loses other fields from YAML)
-    java -jar "$JAR" \
+    java -Dfile.encoding=UTF-8 -Dconsole.encoding=UTF-8 -jar "$JAR" \
         "--spring.config.additional-location=file:${config_path}" \
         "--server.port=${PORT}" \
         "--foggy.bundle.external.bundles[0].name=odoo-models" \

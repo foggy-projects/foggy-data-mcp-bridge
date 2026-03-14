@@ -77,7 +77,7 @@ public class AnalystMcpController {
         }
 
         if (namespace == null || namespace.isBlank()) {
-            log.warn("Analyst MCP RPC: X-NS header is MISSING — will use default namespace. " +
+            log.warn("Analyst MCP RPC: X-NS header is MISSING -- will use default namespace. " +
                     "For Odoo models, set header X-NS: odoo");
         }
         log.info("Analyst MCP RPC request received: method={}, id={}, traceId={}, requestId={}, namespace={}",
@@ -147,7 +147,7 @@ public class AnalystMcpController {
         }
 
         if (namespace == null || namespace.isBlank()) {
-            log.warn("Analyst MCP Stream: X-NS header is MISSING — will use default namespace. " +
+            log.warn("Analyst MCP Stream: X-NS header is MISSING -- will use default namespace. " +
                     "For Odoo models, set header X-NS: odoo");
         }
         log.info("Analyst MCP Stream request received: method={}, id={}, traceId={}, requestId={}, namespace={}",

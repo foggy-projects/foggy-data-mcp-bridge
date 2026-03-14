@@ -65,12 +65,14 @@ public class ToolConfigLoader {
 
     /**
      * 加载所有工具配置
+     *
+     * <p>合并策略：始终以内置默认工具为基础，再叠加 YAML 中的覆盖配置。
+     * 这解决了 Spring Boot 对 list 属性采用"整体替换"导致 profile（如 lite）
+     * 只配了一个 disabled 条目就把其余默认工具全部丢失的问题。
      */
     private void loadAllConfigurations() {
         log.info("Loading tool configurations from classpath...");
-        if (mcpProperties.getTools().isEmpty()) {
-            loadDefaultConfigurations();
-        }
+        mergeWithDefaults();
         // useAllModels 为三态逻辑，null 时在运行时根据 model-list 自动推断
         // 这里仅记录日志，不修改配置值
         if (mcpProperties.getSemantic().getUseAllModels() == null) {
@@ -115,31 +117,85 @@ public class ToolConfigLoader {
     }
 
     /**
-     * 加载默认工具配置
+     * 获取内置默认工具列表
      */
-    private void loadDefaultConfigurations() {
-        log.info("No tools configured in YAML, loading default tools configuration");
-        mcpProperties.getTools().add(createToolConfig("dataset_nl.query", "classpath:/schemas/descriptions/dataset_nl_query.md", "classpath:/schemas/dataset_nl_query_schema.json", "NATURAL_LANGUAGE"));
-        mcpProperties.getTools().add(createToolConfig("dataset.get_metadata", "classpath:/schemas/descriptions/get_metadata.md", "classpath:/schemas/get_metadata_schema.json", "METADATA"));
-        mcpProperties.getTools().add(createToolConfig("dataset.describe_model_internal", "classpath:/schemas/descriptions/describe_model_internal.md", "classpath:/schemas/describe_model_internal_schema.json", "METADATA"));
-        mcpProperties.getTools().add(createToolConfig("dataset.query_model", "classpath:/schemas/descriptions/query_model_v3.md", "classpath:/schemas/query_model_v3_schema.json", "QUERY"));
-        mcpProperties.getTools().add(createToolConfig("chart.generate", "classpath:/schemas/descriptions/generate_chart.md", "classpath:/schemas/generate_chart_schema.json", "VISUALIZATION", false));
-        mcpProperties.getTools().add(createToolConfig("dataset.export_with_chart", "classpath:/schemas/descriptions/export_with_chart.md", "classpath:/schemas/export_with_chart_schema.json", "EXPORT"));
-        mcpProperties.getTools().add(createToolConfig("dataset.inspect_table", "classpath:/schemas/descriptions/inspect_table.md", "classpath:/schemas/inspect_table_schema.json", "ADMIN", false));
-        mcpProperties.getTools().add(createToolConfig("dataset.open_in_viewer", "classpath:/schemas/descriptions/open_in_viewer.md", "classpath:/schemas/open_in_viewer_schema.json", "EXPORT"));
+    static List<McpProperties.ToolConfigItem> getBuiltinDefaults() {
+        List<McpProperties.ToolConfigItem> defaults = new ArrayList<>();
+        defaults.add(createToolConfig("dataset_nl.query", "classpath:/schemas/descriptions/dataset_nl_query.md", "classpath:/schemas/dataset_nl_query_schema.json", "NATURAL_LANGUAGE"));
+        defaults.add(createToolConfig("dataset.get_metadata", "classpath:/schemas/descriptions/get_metadata.md", "classpath:/schemas/get_metadata_schema.json", "METADATA"));
+        defaults.add(createToolConfig("dataset.describe_model_internal", "classpath:/schemas/descriptions/describe_model_internal.md", "classpath:/schemas/describe_model_internal_schema.json", "METADATA"));
+        defaults.add(createToolConfig("dataset.query_model", "classpath:/schemas/descriptions/query_model_v3.md", "classpath:/schemas/query_model_v3_schema.json", "QUERY"));
+        defaults.add(createToolConfig("chart.generate", "classpath:/schemas/descriptions/generate_chart.md", "classpath:/schemas/generate_chart_schema.json", "VISUALIZATION", false));
+        defaults.add(createToolConfig("dataset.export_with_chart", "classpath:/schemas/descriptions/export_with_chart.md", "classpath:/schemas/export_with_chart_schema.json", "EXPORT"));
+        defaults.add(createToolConfig("dataset.inspect_table", "classpath:/schemas/descriptions/inspect_table.md", "classpath:/schemas/inspect_table_schema.json", "ADMIN", false));
+        defaults.add(createToolConfig("dataset.open_in_viewer", "classpath:/schemas/descriptions/open_in_viewer.md", "classpath:/schemas/open_in_viewer_schema.json", "EXPORT"));
+        return defaults;
+    }
+
+    /**
+     * 合并策略：以内置默认工具为基础，叠加 YAML 覆盖
+     *
+     * <p>Spring Boot 对 list 属性采用整体替换策略，导致 profile 中只要配了
+     * {@code foggy.mcp.tools} 的任意条目，就会覆盖掉主 application.yml 中的全部工具。
+     * 此方法始终先加载 8 个内置默认工具，再将 YAML 中的同名条目合并覆盖上去（仅覆盖已设置的字段）。
+     */
+    private void mergeWithDefaults() {
+        List<McpProperties.ToolConfigItem> yamlOverrides = new ArrayList<>(mcpProperties.getTools());
+        Map<String, McpProperties.ToolConfigItem> overrideMap = new LinkedHashMap<>();
+        for (McpProperties.ToolConfigItem item : yamlOverrides) {
+            if (item.getName() != null) {
+                overrideMap.put(item.getName(), item);
+            }
+        }
+
+        List<McpProperties.ToolConfigItem> merged = new ArrayList<>();
+        for (McpProperties.ToolConfigItem defaultTool : getBuiltinDefaults()) {
+            McpProperties.ToolConfigItem override = overrideMap.remove(defaultTool.getName());
+            if (override != null) {
+                // YAML 中有同名覆盖：只覆盖 YAML 中显式设置的字段
+                defaultTool.setEnabled(override.isEnabled());
+                if (override.getDescriptionFile() != null) {
+                    defaultTool.setDescriptionFile(override.getDescriptionFile());
+                }
+                if (override.getSchemaFile() != null) {
+                    defaultTool.setSchemaFile(override.getSchemaFile());
+                }
+                if (override.getCategory() != null) {
+                    defaultTool.setCategory(override.getCategory());
+                }
+                log.info("Tool '{}' overridden by YAML config (enabled={})", defaultTool.getName(), defaultTool.isEnabled());
+            }
+            merged.add(defaultTool);
+        }
+
+        // 追加 YAML 中额外定义的非内置工具
+        for (McpProperties.ToolConfigItem extra : overrideMap.values()) {
+            merged.add(extra);
+            log.info("Additional tool from YAML: '{}'", extra.getName());
+        }
+
+        mcpProperties.getTools().clear();
+        mcpProperties.getTools().addAll(merged);
+
+        if (yamlOverrides.isEmpty()) {
+            log.info("No YAML tool overrides, using {} builtin defaults", merged.size());
+        } else {
+            log.info("Merged {} builtin defaults with {} YAML overrides -> {} tools total",
+                    getBuiltinDefaults().size(), yamlOverrides.size(), merged.size());
+        }
     }
 
     /**
      * 创建工具配置项
      */
-    private McpProperties.ToolConfigItem createToolConfig(String name, String descriptionFile, String schemaFile, String category) {
+    private static McpProperties.ToolConfigItem createToolConfig(String name, String descriptionFile, String schemaFile, String category) {
         return createToolConfig(name, descriptionFile, schemaFile, category, true);
     }
 
     /**
      * 创建工具配置项
      */
-    private McpProperties.ToolConfigItem createToolConfig(String name, String descriptionFile, String schemaFile, String category, boolean enabled) {
+    private static McpProperties.ToolConfigItem createToolConfig(String name, String descriptionFile, String schemaFile, String category, boolean enabled) {
         McpProperties.ToolConfigItem item = new McpProperties.ToolConfigItem();
         item.setName(name);
         item.setDescriptionFile(descriptionFile);

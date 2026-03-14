@@ -5,11 +5,11 @@ import com.foggyframework.bundle.BundleResource;
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.core.utils.file.DirectoryChangeListener;
 import com.foggyframework.core.utils.file.WatchServiceFileTracer;
-import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticServiceV3;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
@@ -204,40 +204,17 @@ public class SemanticServiceResolverImpl implements SemanticServiceResolver, Dir
     // ==================== SemanticServiceResolver 实现 ====================
 
     @Override
-    public SemanticMetadataResponse getMetadata(SemanticMetadataRequest request, String format) {
-        log.debug("Using SemanticServiceV3 for metadata generation");
-        return semanticServiceV3.getMetadata(request, format);
-    }
-
-    @Override
-    public SemanticMetadataResponse getMetadata(SemanticMetadataRequest request, String format, String namespace) {
-        log.debug("Using SemanticServiceV3 for metadata generation, namespace={}", namespace);
-        // TODO: SemanticServiceV3.getMetadata 目前不支持 namespace 参数，
-        // 元数据加载通常从所有 bundle 扫描，namespace 隔离需引擎层支持后补充
-        return semanticServiceV3.getMetadata(request, format);
-    }
-
-    @Override
-    public SemanticQueryResponse queryModel(String model, SemanticQueryRequest request, String mode) {
-        return queryModel(model, request, mode, (ModelResultContext.SecurityContext) null);
+    public SemanticMetadataResponse getMetadata(SemanticMetadataRequest request, String format,
+                                                SemanticRequestContext context) {
+        log.debug("Using SemanticServiceV3 for metadata generation, namespace={}", context.getNamespace());
+        return semanticServiceV3.getMetadata(request, format, context);
     }
 
     @Override
     public SemanticQueryResponse queryModel(String model, SemanticQueryRequest request, String mode,
-                                            ModelResultContext.SecurityContext securityContext) {
-        return queryModel(model, request, mode, securityContext, null);
-    }
-
-    @Override
-    public SemanticQueryResponse queryModel(String model, SemanticQueryRequest request, String mode,
-                                            ModelResultContext.SecurityContext securityContext, String namespace) {
-        log.debug("Using SemanticQueryServiceV3 for query execution, namespace={}", namespace);
-        if (namespace != null && !namespace.isEmpty()) {
-            // 使用带 namespace 的重载，将 authorization 从 securityContext 提取
-            String authorization = securityContext != null ? securityContext.getAuthorization() : null;
-            return semanticQueryServiceV3.queryModel(model, request, mode, authorization, namespace);
-        }
-        return semanticQueryServiceV3.queryModel(model, request, mode, securityContext);
+                                            SemanticRequestContext context) {
+        log.debug("Using SemanticQueryServiceV3 for query execution, namespace={}", context.getNamespace());
+        return semanticQueryServiceV3.queryModel(model, request, mode, context);
     }
 
     @Override

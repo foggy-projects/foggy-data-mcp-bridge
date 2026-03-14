@@ -136,19 +136,6 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
     /**
      * 在执行查询前，我们需要先获取查询模型
      *
-     * <p>支持通过模型全名或简称查询（从默认命名空间）
-     *
-     * @param queryModelNameOrAlias 模型名称或简称
-     * @return 查询模型
-     */
-    @Override
-    public QueryModel getJdbcQueryModel(String queryModelNameOrAlias) {
-        return getJdbcQueryModel(queryModelNameOrAlias, "");
-    }
-
-    /**
-     * 在执行查询前，我们需要先获取查询模型
-     *
      * <p>支持通过模型全名或简称查询（从指定命名空间）
      *
      * @param queryModelNameOrAlias 模型名称或简称

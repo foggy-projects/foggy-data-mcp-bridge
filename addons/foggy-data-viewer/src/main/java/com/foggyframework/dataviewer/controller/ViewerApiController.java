@@ -14,6 +14,7 @@ import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticServiceV3;
 import com.foggyframework.dataset.db.model.service.QueryFacade;
 import com.foggyframework.dataset.model.PagingResultImpl;
@@ -92,7 +93,7 @@ public class ViewerApiController {
             request.setIncludeExamples(true); // 包含示例数据
 
             // 获取 JSON 格式的元数据
-            SemanticMetadataResponse response = semanticService.getMetadata(request, "json");
+            SemanticMetadataResponse response = semanticService.getMetadata(request, "json", SemanticRequestContext.empty());
 
             if (response == null || response.getContent() == null) {
                 return ResponseEntity.notFound().build();
@@ -135,7 +136,7 @@ public class ViewerApiController {
             request.setIncludeExamples(false); // 不需要示例数据
 
             // 获取 JSON 格式的元数据
-            SemanticMetadataResponse response = semanticService.getMetadata(request, "json");
+            SemanticMetadataResponse response = semanticService.getMetadata(request, "json", SemanticRequestContext.empty());
 
             if (response == null || response.getData() == null) {
                 return RX.notFound().build();

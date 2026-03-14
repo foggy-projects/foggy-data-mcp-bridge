@@ -413,7 +413,7 @@ public class QueryExpertService {
     @SuppressWarnings("unchecked")
     public Map<String, Object> fetchMetadata(String traceId, String authorization) {
         log.info("Fetching metadata via DatasetAccessor, traceId={}", traceId);
-        Object response = datasetAccessor.getMetadata(traceId, authorization);
+        Object response = datasetAccessor.getMetadata(traceId, authorization, null);
         if (response instanceof Map) {
             return (Map<String, Object>) response;
         }
@@ -431,7 +431,7 @@ public class QueryExpertService {
     @SuppressWarnings("unchecked")
     public Map<String, Object> fetchModelDescription(String model, String traceId, String authorization) {
         log.info("Describing model via DatasetAccessor: {}, traceId={}", model, traceId);
-        Object response = datasetAccessor.describeModel(model, "json", traceId, authorization);
+        Object response = datasetAccessor.describeModel(model, "json", traceId, authorization, null);
         if (response instanceof Map) {
             return (Map<String, Object>) response;
         }
@@ -450,7 +450,7 @@ public class QueryExpertService {
     @SuppressWarnings("unchecked")
     public Map<String, Object> executeQuery(String model, Map<String, Object> payload, String traceId, String authorization) {
         log.info("Querying model via DatasetAccessor: {}, traceId={}", model, traceId);
-        Object response = datasetAccessor.queryModel(model, payload, "execute", traceId, authorization);
+        Object response = datasetAccessor.queryModel(model, payload, "execute", traceId, authorization, null);
         if (response instanceof Map) {
             return (Map<String, Object>) response;
         }

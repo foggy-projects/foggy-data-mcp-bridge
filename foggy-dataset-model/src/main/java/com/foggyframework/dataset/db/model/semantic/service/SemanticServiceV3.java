@@ -2,6 +2,7 @@ package com.foggyframework.dataset.db.model.semantic.service;
 
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 
 /**
  * V3版本语义服务接口
@@ -23,22 +24,9 @@ public interface SemanticServiceV3 {
      *
      * @param request 元数据请求
      * @param format  输出格式：json(为上游MCP服务)|markdown(为大语言模型)
+     * @param context 请求上下文（命名空间 + 安全信息），不可为 null，可用 {@link SemanticRequestContext#empty()}
      * @return 元数据响应（维度字段已展开为独立的 $id/$caption 字段）
      */
-    SemanticMetadataResponse getMetadata(SemanticMetadataRequest request, String format);
-
-    /**
-     * 获取字段语义元数据（V3版本：维度展开，带认证和命名空间）
-     *
-     * @param request       元数据请求
-     * @param format        输出格式：json(为上游MCP服务)|markdown(为大语言模型)
-     * @param authorization 认证令牌
-     * @param namespace     命名空间
-     * @return 元数据响应（维度字段已展开为独立的 $id/$caption 字段）
-     */
-    default SemanticMetadataResponse getMetadata(SemanticMetadataRequest request, String format,
-                                                 String authorization, String namespace) {
-        // 默认实现忽略 authorization 和 namespace，保持向后兼容
-        return getMetadata(request, format);
-    }
+    SemanticMetadataResponse getMetadata(SemanticMetadataRequest request, String format,
+                                         SemanticRequestContext context);
 }

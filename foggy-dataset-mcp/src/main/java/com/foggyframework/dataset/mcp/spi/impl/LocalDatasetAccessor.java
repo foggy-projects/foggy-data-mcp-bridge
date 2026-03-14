@@ -2,11 +2,11 @@ package com.foggyframework.dataset.mcp.spi.impl;
 
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
-import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.mcp.config.McpProperties;
 import com.foggyframework.dataset.mcp.spi.DatasetAccessor;
 import com.foggyframework.dataset.mcp.spi.SemanticServiceResolver;
@@ -47,11 +47,6 @@ public class LocalDatasetAccessor implements DatasetAccessor {
 
     private final SemanticServiceResolver semanticServiceResolver;
     private final McpProperties mcpProperties;
-
-    @Override
-    public RX<SemanticMetadataResponse> getMetadata(String traceId, String authorization) {
-        return getMetadata(traceId, authorization, null);
-    }
 
     @Override
     public RX<SemanticMetadataResponse> getMetadata(String traceId, String authorization, String namespace) {
@@ -105,7 +100,8 @@ public class LocalDatasetAccessor implements DatasetAccessor {
                     availableModels, levels, traceId, namespace);
 
             // 使用版本解析器获取元数据（传递 namespace）
-            SemanticMetadataResponse response = semanticServiceResolver.getMetadata(request, "markdown", namespace);
+            SemanticRequestContext ctx = SemanticRequestContext.ofNamespace(namespace);
+            SemanticMetadataResponse response = semanticServiceResolver.getMetadata(request, "markdown", ctx);
 
             log.debug("[Local] Metadata fetched successfully, traceId={}", traceId);
             return RX.success(response);
@@ -135,11 +131,6 @@ public class LocalDatasetAccessor implements DatasetAccessor {
      * @return 模型描述信息
      */
     @Override
-    public RX<SemanticMetadataResponse> describeModel(String model, String format, String traceId, String authorization) {
-        return describeModel(model, format, traceId, authorization, null);
-    }
-
-    @Override
     public RX<SemanticMetadataResponse> describeModel(String model, String format, String traceId,
                                                        String authorization, String namespace) {
         log.debug("[Local] Describing model: {}, format={}, traceId={}, namespace={}",
@@ -163,7 +154,8 @@ public class LocalDatasetAccessor implements DatasetAccessor {
 
             String outputFormat = format != null ? format : "json";
             // 使用版本解析器获取元数据（传递 namespace）
-            SemanticMetadataResponse response = semanticServiceResolver.getMetadata(request, outputFormat, namespace);
+            SemanticRequestContext ctx = SemanticRequestContext.ofNamespace(namespace);
+            SemanticMetadataResponse response = semanticServiceResolver.getMetadata(request, outputFormat, ctx);
 
             log.debug("[Local] Model description fetched: {}, traceId={}", model, traceId);
             return RX.success(response);
@@ -196,13 +188,6 @@ public class LocalDatasetAccessor implements DatasetAccessor {
     @Override
     @SuppressWarnings("unchecked")
     public RX<SemanticQueryResponse> queryModel(String model, Map<String, Object> payload, String mode,
-                                                String traceId, String authorization) {
-        return queryModel(model, payload, mode, traceId, authorization, null);
-    }
-
-    @Override
-    @SuppressWarnings("unchecked")
-    public RX<SemanticQueryResponse> queryModel(String model, Map<String, Object> payload, String mode,
                                                 String traceId, String authorization, String namespace) {
         log.debug("[Local] Querying model: {}, mode={}, traceId={}, namespace={}",
                 model, mode, traceId, namespace);
@@ -211,15 +196,11 @@ public class LocalDatasetAccessor implements DatasetAccessor {
             SemanticQueryRequest request = buildQueryRequest(payload);
             String queryMode = mode != null ? mode : "execute";
 
-            // 构建 SecurityContext 传递授权信息
-            ModelResultContext.SecurityContext securityContext = null;
-            if (authorization != null && !authorization.isEmpty()) {
-                securityContext = ModelResultContext.SecurityContext.fromAuthorization(authorization);
-                log.debug("[Local] SecurityContext created for authorization, traceId={}", traceId);
-            }
+            // 构建请求上下文（namespace + 安全信息）
+            SemanticRequestContext ctx = SemanticRequestContext.of(namespace, authorization);
 
-            // 使用版本解析器执行查询（带 SecurityContext 和 namespace）
-            SemanticQueryResponse response = semanticServiceResolver.queryModel(model, request, queryMode, securityContext, namespace);
+            // 使用版本解析器执行查询
+            SemanticQueryResponse response = semanticServiceResolver.queryModel(model, request, queryMode, ctx);
 
             log.debug("[Local] Query executed: model={}, items={}, traceId={}",
                     model, response.getItems() != null ? response.getItems().size() : 0, traceId);

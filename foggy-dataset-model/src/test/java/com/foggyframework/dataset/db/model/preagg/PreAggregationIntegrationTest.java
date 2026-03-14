@@ -1033,7 +1033,7 @@ class PreAggregationIntegrationTest {
     // ==========================================
 
     private JdbcQueryModel getQueryModel(String queryModelName) {
-        JdbcQueryModel model = (JdbcQueryModel) queryModelLoader.getJdbcQueryModel(queryModelName);
+        JdbcQueryModel model = (JdbcQueryModel) queryModelLoader.getJdbcQueryModel(queryModelName, null);
         assertNotNull(model, "查询模型 " + queryModelName + " 加载失败");
         return model;
     }

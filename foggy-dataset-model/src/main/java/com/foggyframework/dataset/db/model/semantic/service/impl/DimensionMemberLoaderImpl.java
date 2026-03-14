@@ -169,7 +169,7 @@ public class DimensionMemberLoaderImpl implements DimensionMemberLoader {
         /**
          * 首先，我们要判断fieldName是维度还是属性,注意这里的fieldName是不带$caption 或$id后缀的~
          */
-        QueryModel jdbcQueryModel = queryModelLoader.getJdbcQueryModel(model);
+        QueryModel jdbcQueryModel = queryModelLoader.getJdbcQueryModel(model, null);
         String cacheKey = null;
         DbQueryDimension jdbcDimension = jdbcQueryModel.findQueryDimension(fieldName, false);
         if (jdbcDimension != null) {

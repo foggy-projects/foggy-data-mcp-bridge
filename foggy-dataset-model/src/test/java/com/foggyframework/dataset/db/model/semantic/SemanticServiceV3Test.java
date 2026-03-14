@@ -5,6 +5,7 @@ import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataReque
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticServiceV3;
 import jakarta.annotation.Resource;
@@ -52,7 +53,7 @@ class SemanticServiceV3Test extends EcommerceTestSupport {
         SemanticMetadataRequest request = new SemanticMetadataRequest();
         request.setQmModels(Collections.singletonList(TEST_MODEL));
 
-        SemanticMetadataResponse response = semanticServiceV3.getMetadata(request, "json");
+        SemanticMetadataResponse response = semanticServiceV3.getMetadata(request, "json", SemanticRequestContext.empty());
 
         assertNotNull(response, "响应不应为空");
         assertEquals("json", response.getFormat(), "格式应为json");
@@ -92,7 +93,7 @@ class SemanticServiceV3Test extends EcommerceTestSupport {
         SemanticMetadataRequest request = new SemanticMetadataRequest();
         request.setQmModels(Collections.singletonList(TEST_MODEL));
 
-        SemanticMetadataResponse response = semanticServiceV3.getMetadata(request, "markdown");
+        SemanticMetadataResponse response = semanticServiceV3.getMetadata(request, "markdown", SemanticRequestContext.empty());
 
         assertNotNull(response, "响应不应为空");
         assertEquals("markdown", response.getFormat(), "格式应为markdown");
@@ -120,7 +121,7 @@ class SemanticServiceV3Test extends EcommerceTestSupport {
         SemanticMetadataRequest request = new SemanticMetadataRequest();
         request.setQmModels(Collections.singletonList(TEST_MODEL));
 
-        SemanticMetadataResponse response = semanticServiceV3.getMetadata(request, "json");
+        SemanticMetadataResponse response = semanticServiceV3.getMetadata(request, "json", SemanticRequestContext.empty());
 
         @SuppressWarnings("unchecked")
         Map<String, Object> fields = (Map<String, Object>) response.getData().get("fields");
@@ -150,7 +151,7 @@ class SemanticServiceV3Test extends EcommerceTestSupport {
         request.setColumns(Arrays.asList("orderId", "customer$caption", "customer$id", "amount"));
         request.setLimit(10);
 
-        SemanticQueryResponse response = semanticQueryServiceV3.queryModel(TEST_MODEL, request, "execute");
+        SemanticQueryResponse response = semanticQueryServiceV3.queryModel(TEST_MODEL, request, "execute", SemanticRequestContext.empty());
 
         assertNotNull(response, "响应不应为空");
         assertNotNull(response.getItems(), "数据项不应为空");
@@ -182,7 +183,7 @@ class SemanticServiceV3Test extends EcommerceTestSupport {
         request.setSlice(Collections.singletonList(slice));
         request.setLimit(10);
 
-        SemanticQueryResponse response = semanticQueryServiceV3.queryModel(TEST_MODEL, request, "execute");
+        SemanticQueryResponse response = semanticQueryServiceV3.queryModel(TEST_MODEL, request, "execute", SemanticRequestContext.empty());
 
         assertNotNull(response, "响应不应为空");
         // 可能没有匹配的数据，但不应报错
@@ -214,7 +215,7 @@ class SemanticServiceV3Test extends EcommerceTestSupport {
         request.setGroupBy(groupByItems);
         request.setLimit(10);
 
-        SemanticQueryResponse response = semanticQueryServiceV3.queryModel(TEST_MODEL, request, "execute");
+        SemanticQueryResponse response = semanticQueryServiceV3.queryModel(TEST_MODEL, request, "execute", SemanticRequestContext.empty());
 
         assertNotNull(response, "响应不应为空");
         assertNotNull(response.getItems(), "数据项不应为空");
@@ -239,7 +240,7 @@ class SemanticServiceV3Test extends EcommerceTestSupport {
         request.setOrderBy(Collections.singletonList(orderItem));
         request.setLimit(10);
 
-        SemanticQueryResponse response = semanticQueryServiceV3.queryModel(TEST_MODEL, request, "execute");
+        SemanticQueryResponse response = semanticQueryServiceV3.queryModel(TEST_MODEL, request, "execute", SemanticRequestContext.empty());
 
         assertNotNull(response, "响应不应为空");
         assertNotNull(response.getItems(), "数据项不应为空");
@@ -259,7 +260,7 @@ class SemanticServiceV3Test extends EcommerceTestSupport {
         request.setColumns(Arrays.asList("amount", "nonExistentField$id"));
         request.setLimit(10);
 
-        SemanticQueryResponse response = semanticQueryServiceV3.validateQuery(TEST_MODEL, request);
+        SemanticQueryResponse response = semanticQueryServiceV3.validateQuery(TEST_MODEL, request, SemanticRequestContext.empty());
 
         assertNotNull(response, "响应不应为空");
         assertNotNull(response.getWarnings(), "应有警告信息");
@@ -282,7 +283,7 @@ class SemanticServiceV3Test extends EcommerceTestSupport {
         request.setGroupBy(Collections.singletonList(groupByItem));
         request.setLimit(10);
 
-        SemanticQueryResponse response = semanticQueryServiceV3.validateQuery(TEST_MODEL, request);
+        SemanticQueryResponse response = semanticQueryServiceV3.validateQuery(TEST_MODEL, request, SemanticRequestContext.empty());
 
         assertNotNull(response, "响应不应为空");
         assertNotNull(response.getWarnings(), "应有警告信息");
@@ -305,7 +306,7 @@ class SemanticServiceV3Test extends EcommerceTestSupport {
         SemanticMetadataRequest request = new SemanticMetadataRequest();
         request.setQmModels(Collections.singletonList(TEST_MODEL));
 
-        SemanticMetadataResponse response = semanticServiceV3.getMetadata(request, "markdown");
+        SemanticMetadataResponse response = semanticServiceV3.getMetadata(request, "markdown", SemanticRequestContext.empty());
 
         assertNotNull(response, "响应不应为空");
         String content = response.getContent();
@@ -335,7 +336,7 @@ class SemanticServiceV3Test extends EcommerceTestSupport {
         SemanticMetadataRequest request = new SemanticMetadataRequest();
         request.setQmModels(Collections.singletonList(TEST_MODEL));
 
-        SemanticMetadataResponse response = semanticServiceV3.getMetadata(request, "json");
+        SemanticMetadataResponse response = semanticServiceV3.getMetadata(request, "json", SemanticRequestContext.empty());
 
         assertNotNull(response, "响应不应为空");
         @SuppressWarnings("unchecked")
@@ -360,7 +361,7 @@ class SemanticServiceV3Test extends EcommerceTestSupport {
         SemanticMetadataRequest request = new SemanticMetadataRequest();
         request.setQmModels(Arrays.asList(TEST_MODEL, "FactSalesQueryModel"));
 
-        SemanticMetadataResponse response = semanticServiceV3.getMetadata(request, "markdown");
+        SemanticMetadataResponse response = semanticServiceV3.getMetadata(request, "markdown", SemanticRequestContext.empty());
 
         assertNotNull(response, "响应不应为空");
         String content = response.getContent();
@@ -393,7 +394,7 @@ class SemanticServiceV3Test extends EcommerceTestSupport {
         // 只在 columns 中有 $caption，没有 $id，V3 不会强制对齐
         request.setLimit(10);
 
-        SemanticQueryResponse response = semanticQueryServiceV3.queryModel(TEST_MODEL, request, "execute");
+        SemanticQueryResponse response = semanticQueryServiceV3.queryModel(TEST_MODEL, request, "execute", SemanticRequestContext.empty());
 
         assertNotNull(response, "响应不应为空");
         assertNotNull(response.getItems(), "数据项不应为空");

@@ -97,7 +97,7 @@ public abstract class DemoTestSupport {
      * @return JdbcQueryModel
      */
     protected JdbcQueryModel getQueryModel(String queryModelName) {
-        return (JdbcQueryModel) queryModelLoader.getJdbcQueryModel(queryModelName);
+        return (JdbcQueryModel) queryModelLoader.getJdbcQueryModel(queryModelName, null);
     }
 
     /**

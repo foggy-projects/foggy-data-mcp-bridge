@@ -286,7 +286,7 @@ class CalculatedFieldJoinTest {
      * 获取查询模型
      */
     private JdbcQueryModel getQueryModel(String queryModelName) {
-        return (JdbcQueryModel) queryModelLoader.getJdbcQueryModel(queryModelName);
+        return (JdbcQueryModel) queryModelLoader.getJdbcQueryModel(queryModelName, null);
     }
 
     /**

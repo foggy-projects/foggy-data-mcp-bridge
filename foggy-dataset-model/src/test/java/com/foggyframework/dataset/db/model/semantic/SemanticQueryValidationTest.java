@@ -3,6 +3,7 @@ package com.foggyframework.dataset.db.model.semantic;
 import com.foggyframework.dataset.db.model.ecommerce.EcommerceTestSupport;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -59,7 +60,7 @@ class SemanticQueryValidationTest extends EcommerceTestSupport {
         request.setGroupBy(Collections.singletonList(groupByItem));
         request.setLimit(10);
 
-        SemanticQueryResponse response = semanticQueryService.queryModel(TEST_MODEL, request, "execute");
+        SemanticQueryResponse response = semanticQueryService.queryModel(TEST_MODEL, request, "execute", SemanticRequestContext.empty());
 
         assertNotNull(response, "响应不应为空");
         assertNotNull(response.getWarnings(), "应有警告信息");
@@ -91,7 +92,7 @@ class SemanticQueryValidationTest extends EcommerceTestSupport {
         request.setGroupBy(Collections.singletonList(groupByItem));
         request.setLimit(10);
 
-        SemanticQueryResponse response = semanticQueryService.queryModel(TEST_MODEL, request, "execute");
+        SemanticQueryResponse response = semanticQueryService.queryModel(TEST_MODEL, request, "execute", SemanticRequestContext.empty());
 
         assertNotNull(response, "响应不应为空");
         // V3 会触发双向补全
@@ -133,7 +134,7 @@ class SemanticQueryValidationTest extends EcommerceTestSupport {
         request.setGroupBy(Collections.singletonList(groupByItem));
         request.setLimit(10);
 
-        SemanticQueryResponse response = semanticQueryService.queryModel(TEST_MODEL, request, "execute");
+        SemanticQueryResponse response = semanticQueryService.queryModel(TEST_MODEL, request, "execute", SemanticRequestContext.empty());
 
         assertNotNull(response, "响应不应为空");
         assertNotNull(response.getWarnings(), "应有警告信息");
@@ -174,7 +175,7 @@ class SemanticQueryValidationTest extends EcommerceTestSupport {
         request.setLimit(10);
 
         // 不应抛出异常，度量字段不需要在 columns 中
-        SemanticQueryResponse response = semanticQueryService.queryModel(TEST_MODEL, request, "execute");
+        SemanticQueryResponse response = semanticQueryService.queryModel(TEST_MODEL, request, "execute", SemanticRequestContext.empty());
 
         assertNotNull(response, "响应不应为空");
         log.info("度量字段测试通过，返回 {} 条数据", response.getItems() != null ? response.getItems().size() : 0);
@@ -204,7 +205,7 @@ class SemanticQueryValidationTest extends EcommerceTestSupport {
         request.setGroupBy(groupByItems);
         request.setLimit(10);
 
-        SemanticQueryResponse response = semanticQueryService.queryModel(TEST_MODEL, request, "execute");
+        SemanticQueryResponse response = semanticQueryService.queryModel(TEST_MODEL, request, "execute", SemanticRequestContext.empty());
 
         assertNotNull(response, "响应不应为空");
 
@@ -237,7 +238,7 @@ class SemanticQueryValidationTest extends EcommerceTestSupport {
         request.setLimit(10);
 
         RuntimeException exception = assertThrows(RuntimeException.class, () -> {
-            semanticQueryService.queryModel(TEST_MODEL, request, "execute");
+            semanticQueryService.queryModel(TEST_MODEL, request, "execute", SemanticRequestContext.empty());
         });
 
         String errorMsg = exception.getMessage();
@@ -263,7 +264,7 @@ class SemanticQueryValidationTest extends EcommerceTestSupport {
         request.setLimit(10);
 
         RuntimeException exception = assertThrows(RuntimeException.class, () -> {
-            semanticQueryService.queryModel(TEST_MODEL, request, "execute");
+            semanticQueryService.queryModel(TEST_MODEL, request, "execute", SemanticRequestContext.empty());
         });
 
         String errorMsg = exception.getMessage();
@@ -289,7 +290,7 @@ class SemanticQueryValidationTest extends EcommerceTestSupport {
         request.setLimit(10);
 
         RuntimeException exception = assertThrows(RuntimeException.class, () -> {
-            semanticQueryService.queryModel(TEST_MODEL, request, "execute");
+            semanticQueryService.queryModel(TEST_MODEL, request, "execute", SemanticRequestContext.empty());
         });
 
         String errorMsg = exception.getMessage();
@@ -317,7 +318,7 @@ class SemanticQueryValidationTest extends EcommerceTestSupport {
         request.setLimit(10);
 
         RuntimeException exception = assertThrows(RuntimeException.class, () -> {
-            semanticQueryService.queryModel(TEST_MODEL, request, "execute");
+            semanticQueryService.queryModel(TEST_MODEL, request, "execute", SemanticRequestContext.empty());
         });
 
         String errorMsg = exception.getMessage();
@@ -347,7 +348,7 @@ class SemanticQueryValidationTest extends EcommerceTestSupport {
         request.setOrderBy(Collections.singletonList(orderItem));
         request.setLimit(10);
 
-        SemanticQueryResponse response = semanticQueryService.queryModel(TEST_MODEL, request, "execute");
+        SemanticQueryResponse response = semanticQueryService.queryModel(TEST_MODEL, request, "execute", SemanticRequestContext.empty());
 
         assertNotNull(response, "响应不应为空");
 
@@ -375,7 +376,7 @@ class SemanticQueryValidationTest extends EcommerceTestSupport {
         request.setOrderBy(Collections.singletonList(orderItem));
         request.setLimit(10);
 
-        SemanticQueryResponse response = semanticQueryService.queryModel(TEST_MODEL, request, "execute");
+        SemanticQueryResponse response = semanticQueryService.queryModel(TEST_MODEL, request, "execute", SemanticRequestContext.empty());
 
         assertNotNull(response, "响应不应为空");
 
@@ -400,7 +401,7 @@ class SemanticQueryValidationTest extends EcommerceTestSupport {
         request.setColumns(Arrays.asList("orderId", "customer$caption", "amount"));
         request.setLimit(10);
 
-        SemanticQueryResponse response = semanticQueryService.queryModel(TEST_MODEL, request, "execute");
+        SemanticQueryResponse response = semanticQueryService.queryModel(TEST_MODEL, request, "execute", SemanticRequestContext.empty());
 
         assertNotNull(response, "响应不应为空");
         assertNotNull(response.getItems(), "数据项不应为空");
@@ -434,7 +435,7 @@ class SemanticQueryValidationTest extends EcommerceTestSupport {
         request.setGroupBy(groupByItems);
         request.setLimit(10);
 
-        SemanticQueryResponse response = semanticQueryService.queryModel(TEST_MODEL, request, "execute");
+        SemanticQueryResponse response = semanticQueryService.queryModel(TEST_MODEL, request, "execute", SemanticRequestContext.empty());
 
         assertNotNull(response, "响应不应为空");
         assertNotNull(response.getItems(), "数据项不应为空");

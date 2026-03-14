@@ -16,14 +16,6 @@ public interface QueryModelLoader {
     void clearByNamespace(String namespace);
 
     /**
-     * 获取查询模型（从默认命名空间）
-     *
-     * @param queryModelName 查询模型名称
-     * @return 查询模型
-     */
-    QueryModel getJdbcQueryModel(String queryModelName);
-
-    /**
      * 获取查询模型（从指定命名空间）
      *
      * @param queryModelName 查询模型名称

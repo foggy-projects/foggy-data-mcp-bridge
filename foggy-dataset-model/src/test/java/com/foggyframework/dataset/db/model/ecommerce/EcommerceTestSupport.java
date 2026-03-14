@@ -115,7 +115,7 @@ public abstract class EcommerceTestSupport {
      * @return JdbcQueryModel
      */
     protected JdbcQueryModel getQueryModel(String queryModelName) {
-        return (JdbcQueryModel) queryModelLoader.getJdbcQueryModel(queryModelName);
+        return (JdbcQueryModel) queryModelLoader.getJdbcQueryModel(queryModelName, null);
     }
 
     /**

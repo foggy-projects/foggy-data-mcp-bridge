@@ -39,7 +39,7 @@ public class JdbcServiceImpl implements JdbcService {
         DimensionDataQueryForm qf = form.getParam();
         String queryModelName = qf.getQueryModel();
         String dimensionName = qf.getDimension();
-        QueryModel jdbcQueryModel = queryModelLoader.getJdbcQueryModel(queryModelName);
+        QueryModel jdbcQueryModel = queryModelLoader.getJdbcQueryModel(queryModelName, null);
 
         RX.notNull(jdbcQueryModel, "未能找到查询模型:" + dimensionName);
 
@@ -57,7 +57,7 @@ public class JdbcServiceImpl implements JdbcService {
     public PagingResultImpl queryModelData(PagingRequest<DbQueryRequestDef> form) {
         DbQueryRequestDef qf = form.getParam();
         String queryModelName = qf.getQueryModel();
-        QueryModel jdbcQueryModel = queryModelLoader.getJdbcQueryModel(queryModelName);
+        QueryModel jdbcQueryModel = queryModelLoader.getJdbcQueryModel(queryModelName, null);
 
         PagingResultImpl p = jdbcQueryModel.query(systemBundlesContext, form).getPagingResult();
         return p;
@@ -67,7 +67,7 @@ public class JdbcServiceImpl implements JdbcService {
     public DbQueryResult queryModelResult(PagingRequest<DbQueryRequestDef> form) {
         DbQueryRequestDef qf = form.getParam();
         String queryModelName = qf.getQueryModel();
-        QueryModel jdbcQueryModel = queryModelLoader.getJdbcQueryModel(queryModelName);
+        QueryModel jdbcQueryModel = queryModelLoader.getJdbcQueryModel(queryModelName, null);
 
         DbQueryResult p = jdbcQueryModel.query(systemBundlesContext, form);
         return p;

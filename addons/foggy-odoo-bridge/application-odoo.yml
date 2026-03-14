@@ -17,6 +17,9 @@ spring:
     driver-class-name: org.postgresql.Driver
 
 logging:
+  charset:
+    file: UTF-8
+    console: UTF-8
   file:
     path: ./logs
   level:

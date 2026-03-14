@@ -6,6 +6,7 @@ import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataReque
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticServiceV3;
 import io.swagger.annotations.ApiOperation;
@@ -64,7 +65,8 @@ public class SemanticController implements ApplicationContextAware {
             request.setLevels(Arrays.asList(1));
         }
 
-        SemanticMetadataResponse response = semanticService.getMetadata(request, format, authorization, namespace);
+        SemanticRequestContext ctx = SemanticRequestContext.of(namespace, authorization);
+        SemanticMetadataResponse response = semanticService.getMetadata(request, format, ctx);
         return RX.success(response);
     }
 
@@ -98,7 +100,8 @@ public class SemanticController implements ApplicationContextAware {
                 request.getLevels(),
                 request.isIncludeExamples());
 
-        SemanticMetadataResponse response = semanticService.getMetadata(request, format, authorization, namespace);
+        SemanticRequestContext ctx = SemanticRequestContext.of(namespace, authorization);
+        SemanticMetadataResponse response = semanticService.getMetadata(request, format, ctx);
 
         // 记录响应信息
         logger.info("模型描述完成 - 模型: {}, 数据内容: {}, 处理时间: {}ms",
@@ -137,7 +140,8 @@ public class SemanticController implements ApplicationContextAware {
             logger.debug("语义查询完整请求体: {}", request);
         }
 //        Thread.sleep(2000L);
-        SemanticQueryResponse response = semanticQueryService.queryModel(model, request, mode, authorization, namespace);
+        SemanticRequestContext ctx = SemanticRequestContext.of(namespace, authorization);
+        SemanticQueryResponse response = semanticQueryService.queryModel(model, request, mode, ctx);
 
         // 记录响应基本信息
         logger.info("语义查询完成 - 模型: {}, 返回记录数: {}, 执行时间: {}ms",

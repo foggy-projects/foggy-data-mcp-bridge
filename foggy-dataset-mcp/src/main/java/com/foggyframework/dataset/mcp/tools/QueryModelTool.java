@@ -84,6 +84,6 @@ public class QueryModelTool implements McpTool {
         log.info("Querying model: {}, mode={}, traceId={}, accessMode={}",
                 model, mode, traceId, datasetAccessor.getAccessMode());
 
-        return datasetAccessor.queryModel(model, payload, mode, traceId, authorization);
+        return datasetAccessor.queryModel(model, payload, mode, traceId, authorization, null);
     }
 }

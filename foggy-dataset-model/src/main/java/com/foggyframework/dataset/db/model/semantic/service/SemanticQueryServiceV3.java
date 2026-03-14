@@ -1,8 +1,8 @@
 package com.foggyframework.dataset.db.model.semantic.service;
 
-import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 
 /**
  * V3版本语义查询服务接口
@@ -28,47 +28,20 @@ public interface SemanticQueryServiceV3 {
      * @param model   模型名称
      * @param request 语义查询请求（字段名已包含后缀，无需归一化处理）
      * @param mode    查询模式: execute(执行) | validate(验证)
+     * @param context 请求上下文（命名空间 + 安全信息），不可为 null，可用 {@link SemanticRequestContext#empty()}
      * @return 查询响应
      */
-    SemanticQueryResponse queryModel(String model, SemanticQueryRequest request, String mode);
-
-    /**
-     * 执行语义查询（带认证和命名空间）
-     *
-     * @param model         模型名称
-     * @param request       语义查询请求
-     * @param mode          查询模式: execute(执行) | validate(验证)
-     * @param authorization 认证令牌
-     * @param namespace     命名空间
-     * @return 查询响应
-     */
-    default SemanticQueryResponse queryModel(String model, SemanticQueryRequest request, String mode,
-                                             String authorization, String namespace) {
-        // 默认实现忽略 authorization 和 namespace，保持向后兼容
-        return queryModel(model, request, mode);
-    }
-
-    /**
-     * 执行语义查询（带安全上下文）
-     *
-     * @param model           模型名称
-     * @param request         语义查询请求
-     * @param mode            查询模式: execute(执行) | validate(验证)
-     * @param securityContext 安全上下文（用于权限控制）
-     * @return 查询响应
-     */
-    default SemanticQueryResponse queryModel(String model, SemanticQueryRequest request, String mode,
-                                             ModelResultContext.SecurityContext securityContext) {
-        // 默认实现忽略 securityContext，保持向后兼容
-        return queryModel(model, request, mode);
-    }
+    SemanticQueryResponse queryModel(String model, SemanticQueryRequest request, String mode,
+                                     SemanticRequestContext context);
 
     /**
      * 验证查询请求（V3版本）
      *
      * @param model   模型名称
      * @param request 原始请求
+     * @param context 请求上下文（命名空间 + 安全信息），不可为 null，可用 {@link SemanticRequestContext#empty()}
      * @return 验证响应
      */
-    SemanticQueryResponse validateQuery(String model, SemanticQueryRequest request);
+    SemanticQueryResponse validateQuery(String model, SemanticQueryRequest request,
+                                        SemanticRequestContext context);
 }

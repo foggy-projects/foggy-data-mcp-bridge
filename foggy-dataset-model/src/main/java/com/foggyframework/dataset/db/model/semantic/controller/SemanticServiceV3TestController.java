@@ -4,6 +4,7 @@ import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataReque
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticServiceV3;
 import io.swagger.annotations.Api;
@@ -51,7 +52,7 @@ public class SemanticServiceV3TestController {
         SemanticMetadataRequest request = new SemanticMetadataRequest();
         request.setQmModels(Collections.singletonList(model));
 
-        return semanticServiceV3.getMetadata(request, format);
+        return semanticServiceV3.getMetadata(request, format, SemanticRequestContext.empty());
     }
 
     /**
@@ -67,7 +68,7 @@ public class SemanticServiceV3TestController {
             @RequestBody SemanticMetadataRequest request,
             @ApiParam("输出格式：json/markdown") @RequestParam(defaultValue = "markdown") String format) {
 
-        return semanticServiceV3.getMetadata(request, format);
+        return semanticServiceV3.getMetadata(request, format, SemanticRequestContext.empty());
     }
 
     /**
@@ -85,7 +86,7 @@ public class SemanticServiceV3TestController {
             @RequestBody SemanticQueryRequest request,
             @ApiParam("执行模式：execute/validate") @RequestParam(defaultValue = "execute") String mode) {
 
-        return semanticQueryServiceV3.queryModel(model, request, mode);
+        return semanticQueryServiceV3.queryModel(model, request, mode, SemanticRequestContext.empty());
     }
 
     /**
@@ -101,6 +102,6 @@ public class SemanticServiceV3TestController {
             @ApiParam("模型名称") @PathVariable String model,
             @RequestBody SemanticQueryRequest request) {
 
-        return semanticQueryServiceV3.validateQuery(model, request);
+        return semanticQueryServiceV3.validateQuery(model, request, SemanticRequestContext.empty());
     }
 }

@@ -8,6 +8,7 @@ import com.foggyframework.dataset.db.model.impl.AiObject;
 import com.foggyframework.dataset.db.model.impl.dimension.DbDimensionSupport;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticServiceV3;
 import com.foggyframework.dataset.db.model.spi.*;
 import io.swagger.annotations.ApiModelProperty;
@@ -43,13 +44,9 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
     private DbModelDictService dbModelDictService;
 
     @Override
-    public SemanticMetadataResponse getMetadata(SemanticMetadataRequest request, String format) {
-        return getMetadata(request, format, null, null);
-    }
-
-    @Override
     public SemanticMetadataResponse getMetadata(SemanticMetadataRequest request, String format,
-                                                String authorization, String namespace) {
+                                                SemanticRequestContext context) {
+        String namespace = context.getNamespace();
         try {
             // 设置namespace到ThreadLocal（供模型加载使用）
             if (namespace != null) {
@@ -60,11 +57,11 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             response.setFormat(format);
 
             if ("json".equalsIgnoreCase(format)) {
-                Map<String, Object> data = buildJsonMetadata(request);
+                Map<String, Object> data = buildJsonMetadata(request, namespace);
                 response.setData(data);
                 response.setContent(null);
             } else {
-                String markdownContent = buildMarkdownMetadata(request);
+                String markdownContent = buildMarkdownMetadata(request, namespace);
                 response.setContent(markdownContent);
                 response.setData(null);
             }
@@ -81,7 +78,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
     /**
      * 构建JSON格式的元数据（V3版本：维度展开）
      */
-    private Map<String, Object> buildJsonMetadata(SemanticMetadataRequest request) {
+    private Map<String, Object> buildJsonMetadata(SemanticMetadataRequest request, String namespace) {
         Map<String, Object> data = new LinkedHashMap<>();
 
         data.put("prompt", buildPrompt());
@@ -91,7 +88,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         Map<String, Object> models = new LinkedHashMap<>();
 
         for (String qmModelName : request.getQmModels()) {
-            QueryModel queryModel = queryModelLoader.getJdbcQueryModel(qmModelName);
+            QueryModel queryModel = queryModelLoader.getJdbcQueryModel(qmModelName, namespace);
             if (queryModel == null) {
                 continue;
             }
@@ -127,16 +124,16 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
      *   <li>多模型：精简索引格式，按业务含义分组</li>
      * </ul>
      */
-    private String buildMarkdownMetadata(SemanticMetadataRequest request) {
+    private String buildMarkdownMetadata(SemanticMetadataRequest request, String namespace) {
         List<String> qmModels = request.getQmModels();
 
         // 单模型：使用详细格式
         if (qmModels != null && qmModels.size() == 1) {
-            return buildSingleModelMarkdown(qmModels.get(0), request);
+            return buildSingleModelMarkdown(qmModels.get(0), request, namespace);
         }
 
         // 多模型：使用精简索引格式
-        return buildMultiModelMarkdown(request);
+        return buildMultiModelMarkdown(request, namespace);
     }
 
     /**
@@ -151,8 +148,8 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
      *   <li>字典定义</li>
      * </ul>
      */
-    private String buildSingleModelMarkdown(String modelName, SemanticMetadataRequest request) {
-        QueryModel queryModel = queryModelLoader.getJdbcQueryModel(modelName);
+    private String buildSingleModelMarkdown(String modelName, SemanticMetadataRequest request, String namespace) {
+        QueryModel queryModel = queryModelLoader.getJdbcQueryModel(modelName, namespace);
         if (queryModel == null) {
             return "# 错误\n\n模型不存在: " + modelName;
         }
@@ -403,7 +400,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
      *   <li>字典定义：被引用的字典ID及取值</li>
      * </ol>
      */
-    private String buildMultiModelMarkdown(SemanticMetadataRequest request) {
+    private String buildMultiModelMarkdown(SemanticMetadataRequest request, String namespace) {
         StringBuilder md = new StringBuilder();
 
         md.append("# 数据模型语义索引 V3\n\n");
@@ -416,7 +413,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         Set<DictInfo> referencedDictClasses = new LinkedHashSet<>();
 
         for (String qmModelName : request.getQmModels()) {
-            QueryModel queryModel = queryModelLoader.getJdbcQueryModel(qmModelName);
+            QueryModel queryModel = queryModelLoader.getJdbcQueryModel(qmModelName, namespace);
             if (queryModel == null) {
                 continue;
             }
