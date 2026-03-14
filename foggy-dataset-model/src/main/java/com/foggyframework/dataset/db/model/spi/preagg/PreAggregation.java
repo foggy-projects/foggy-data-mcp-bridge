@@ -53,6 +53,23 @@ public interface PreAggregation {
     int getPriority();
 
     /**
+     * 获取带 schema 前缀的完整表名
+     * <p>
+     * 如果设置了 schema，返回 "schema.tableName"，否则返回 "tableName"。
+     * </p>
+     *
+     * @return 完整表名
+     */
+    default String getQualifiedTableName() {
+        String schema = getSchema();
+        String tableName = getTableName();
+        if (schema != null && !schema.isEmpty()) {
+            return schema + "." + tableName;
+        }
+        return tableName;
+    }
+
+    /**
      * 获取包含的维度名称集合
      */
     Set<String> getDimensionNames();

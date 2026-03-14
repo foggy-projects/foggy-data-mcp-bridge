@@ -1,5 +1,6 @@
 package com.foggyframework.dataset.db.model.preagg.controller;
 
+import com.foggyframework.core.ex.RX;
 import com.foggyframework.dataset.db.model.preagg.ddl.PreAggSqlBuilder;
 import com.foggyframework.dataset.db.model.preagg.refresh.PreAggRefreshResult;
 import com.foggyframework.dataset.db.model.preagg.scheduler.PreAggScheduler;
@@ -8,7 +9,6 @@ import com.foggyframework.dataset.db.model.spi.preagg.PreAggregation;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
@@ -17,6 +17,7 @@ import java.util.*;
  * 预聚合管理 REST API
  * <p>
  * 提供预聚合的管理、监控和手动操作接口。
+ * 所有接口使用 {@link RX} 统一返回格式。
  * </p>
  *
  * @author foggy-framework
@@ -39,11 +40,11 @@ public class PreAggController {
      * 列出所有预聚合
      */
     @GetMapping("/list")
-    public ResponseEntity<List<PreAggInfo>> listPreAggregations() {
+    public RX<List<PreAggInfo>> listPreAggregations() {
         List<PreAggInfo> result = new ArrayList<>();
 
         if (tableModelMap == null || tableModelMap.isEmpty()) {
-            return ResponseEntity.ok(result);
+            return RX.ok(result);
         }
 
         for (Map.Entry<String, TableModel> entry : tableModelMap.entrySet()) {
@@ -83,20 +84,20 @@ public class PreAggController {
             }
         }
 
-        return ResponseEntity.ok(result);
+        return RX.ok(result);
     }
 
     /**
      * 获取预聚合详情
      */
     @GetMapping("/{modelName}/{preAggName}")
-    public ResponseEntity<PreAggDetail> getPreAggregation(
+    public RX<PreAggDetail> getPreAggregation(
             @PathVariable String modelName,
             @PathVariable String preAggName) {
 
         PreAggregation preAgg = findPreAggregation(modelName, preAggName);
         if (preAgg == null) {
-            return ResponseEntity.notFound().build();
+            return RX.notFound().build();
         }
 
         TableModel model = tableModelMap.get(modelName);
@@ -137,26 +138,25 @@ public class PreAggController {
             }
         }
 
-        return ResponseEntity.ok(detail);
+        return RX.ok(detail);
     }
 
     /**
      * 手动触发刷新
      */
     @PostMapping("/{modelName}/{preAggName}/refresh")
-    public ResponseEntity<RefreshResponse> triggerRefresh(
+    public RX<RefreshResponse> triggerRefresh(
             @PathVariable String modelName,
             @PathVariable String preAggName,
             @RequestParam(defaultValue = "false") boolean forceFullRefresh) {
 
         if (scheduler == null) {
-            return ResponseEntity.badRequest().body(
-                    RefreshResponse.error("Scheduler not configured"));
+            return RX.failB("Scheduler not configured");
         }
 
         PreAggregation preAgg = findPreAggregation(modelName, preAggName);
         if (preAgg == null) {
-            return ResponseEntity.notFound().build();
+            return RX.notFound().build();
         }
 
         log.info("Manual refresh triggered for {}:{} (forceFullRefresh={})",
@@ -171,43 +171,43 @@ public class PreAggController {
         response.setDurationMs(result.getDurationMs());
         response.setErrorMessage(result.getErrorMessage());
 
-        return ResponseEntity.ok(response);
+        return RX.ok(response);
     }
 
     /**
      * 获取 DDL
      */
     @GetMapping("/{modelName}/{preAggName}/ddl")
-    public ResponseEntity<DdlResponse> getDdl(
+    public RX<DdlResponse> getDdl(
             @PathVariable String modelName,
             @PathVariable String preAggName) {
 
         PreAggregation preAgg = findPreAggregation(modelName, preAggName);
         if (preAgg == null) {
-            return ResponseEntity.notFound().build();
+            return RX.notFound().build();
         }
 
         TableModel model = tableModelMap.get(modelName);
         if (model == null) {
-            return ResponseEntity.notFound().build();
+            return RX.notFound().build();
         }
 
         DdlResponse response = new DdlResponse();
         response.setTableName(preAgg.getTableName());
         response.setCreateTableDdl(sqlBuilder.buildCreateTableDdl(preAgg, model));
 
-        return ResponseEntity.ok(response);
+        return RX.ok(response);
     }
 
     /**
      * 获取所有调度任务状态
      */
     @GetMapping("/tasks")
-    public ResponseEntity<Map<String, PreAggScheduler.ScheduledTaskInfo>> getScheduledTasks() {
+    public RX<Map<String, PreAggScheduler.ScheduledTaskInfo>> getScheduledTasks() {
         if (scheduler == null) {
-            return ResponseEntity.ok(Collections.emptyMap());
+            return RX.ok(Collections.emptyMap());
         }
-        return ResponseEntity.ok(scheduler.getScheduledTasks());
+        return RX.ok(scheduler.getScheduledTasks());
     }
 
     // ==================== 辅助方法 ====================
@@ -264,13 +264,6 @@ public class PreAggController {
         private long affectedRows;
         private long durationMs;
         private String errorMessage;
-
-        public static RefreshResponse error(String message) {
-            RefreshResponse response = new RefreshResponse();
-            response.setSuccess(false);
-            response.setErrorMessage(message);
-            return response;
-        }
     }
 
     @Data

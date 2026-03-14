@@ -1,8 +1,10 @@
 package com.foggyframework.dataset.db.model.preagg.refresh;
 
+import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.db.model.def.preagg.PreAggRefreshDef;
 import com.foggyframework.dataset.db.model.spi.TableModel;
 import com.foggyframework.dataset.db.model.spi.preagg.PreAggregation;
+import com.foggyframework.dataset.utils.DbUtils;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.sql.DataSource;
@@ -48,8 +50,19 @@ public class PreAggRefreshService {
     public PreAggRefreshResult refresh(PreAggregation preAgg,
                                         TableModel sourceModel,
                                         DataSource dataSource) {
-        return refresh(preAgg, sourceModel, dataSource, PreAggRefreshContext.of(
-                sourceModel.getName(), preAgg.getName()));
+        PreAggRefreshContext context = PreAggRefreshContext.of(
+                sourceModel.getName(), preAgg.getName());
+
+        // 从 DataSource 解析方言并设入上下文
+        try {
+            FDialect dialect = DbUtils.getDialect(dataSource);
+            context.setDialect(dialect);
+        } catch (Exception e) {
+            log.warn("Failed to resolve dialect from DataSource, using default MySQL dialect: {}", e.getMessage());
+            context.setDialect(FDialect.MYSQL_DIALECT);
+        }
+
+        return refresh(preAgg, sourceModel, dataSource, context);
     }
 
     /**

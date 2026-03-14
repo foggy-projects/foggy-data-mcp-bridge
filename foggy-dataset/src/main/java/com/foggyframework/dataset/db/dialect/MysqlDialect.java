@@ -166,4 +166,33 @@ public  class MysqlDialect extends FDialect {
             col.setJdbcType(geometry_type);
         }
     }
+
+    // ==================== 预聚合 SQL 构建支持 ====================
+
+    @Override
+    public String buildDateTruncateExpression(String column, String granularity) {
+        if (granularity == null) return column;
+        switch (granularity.toUpperCase()) {
+            case "YEAR":
+                return "DATE_FORMAT(" + column + ", '%Y-01-01')";
+            case "QUARTER":
+                return "MAKEDATE(YEAR(" + column + "), 1) + INTERVAL QUARTER(" + column + ") QUARTER - INTERVAL 1 QUARTER";
+            case "MONTH":
+                return "DATE_FORMAT(" + column + ", '%Y-%m-01')";
+            case "WEEK":
+                return "DATE_SUB(" + column + ", INTERVAL WEEKDAY(" + column + ") DAY)";
+            case "DAY":
+                return "DATE(" + column + ")";
+            case "HOUR":
+                return "DATE_FORMAT(" + column + ", '%Y-%m-%d %H:00:00')";
+            case "MINUTE":
+            default:
+                return column;
+        }
+    }
+
+    @Override
+    public String buildCurrentTimestampExpression() {
+        return "NOW()";
+    }
 }

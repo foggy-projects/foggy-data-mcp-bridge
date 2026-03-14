@@ -1,26 +1,31 @@
 package com.foggyframework.dataset.db.model.preagg.refresh;
 
+import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.db.model.def.preagg.PreAggRefreshDef;
+import com.foggyframework.dataset.db.model.preagg.ddl.ParameterizedSql;
 import com.foggyframework.dataset.db.model.preagg.ddl.PreAggSqlBuilder;
 import com.foggyframework.dataset.db.model.spi.TableModel;
 import com.foggyframework.dataset.db.model.spi.preagg.PreAggregation;
-import com.foggyframework.dataset.utils.DataSourceQueryUtils;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.jdbc.core.JdbcTemplate;
 
 import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 增量刷新策略
  * <p>
- * 增量刷新流程：
+ * 增量刷新流程（原子操作）：
  * <ol>
  *   <li>获取上次水位线</li>
  *   <li>计算刷新范围（含 lookback）</li>
- *   <li>删除受影响的数据</li>
- *   <li>插入新聚合数据</li>
+ *   <li>开启事务</li>
+ *   <li>删除受影响的数据（参数化 SQL）</li>
+ *   <li>插入新聚合数据（参数化 SQL）</li>
+ *   <li>提交事务（或异常时回滚）</li>
  *   <li>更新水位线</li>
  * </ol>
  * </p>
@@ -31,10 +36,15 @@ import java.time.LocalDateTime;
 @Slf4j
 public class IncrementalRefreshStrategy implements PreAggRefreshStrategy {
 
-    private final PreAggSqlBuilder sqlBuilder;
-
     public IncrementalRefreshStrategy() {
-        this.sqlBuilder = new PreAggSqlBuilder();
+    }
+
+    /**
+     * 根据上下文中的方言创建 PreAggSqlBuilder
+     */
+    private PreAggSqlBuilder createSqlBuilder(PreAggRefreshContext context) {
+        FDialect dialect = context != null ? context.getDialect() : null;
+        return new PreAggSqlBuilder(dialect);
     }
 
     @Override
@@ -59,13 +69,12 @@ public class IncrementalRefreshStrategy implements PreAggRefreshStrategy {
                                         DataSource dataSource,
                                         PreAggRefreshContext context) {
         LocalDateTime startTime = LocalDateTime.now();
-        String preAggTableName = getFullTableName(preAgg);
+        String preAggTableName = preAgg.getQualifiedTableName();
 
         log.info("Starting INCREMENTAL refresh for pre-aggregation '{}' (table: {})",
                 preAgg.getName(), preAggTableName);
 
         try {
-            JdbcTemplate jdbcTemplate = DataSourceQueryUtils.getDatasetTemplate(dataSource).getTemplate();
             PreAggRefreshDef refreshConfig = preAgg.getRefreshConfig();
 
             // 1. 计算刷新范围
@@ -74,17 +83,50 @@ public class IncrementalRefreshStrategy implements PreAggRefreshStrategy {
 
             log.info("Incremental refresh range: {} to {}", startDate, endDate);
 
-            // 2. 删除受影响的数据
-            String deleteSql = sqlBuilder.buildIncrementalDeleteSql(preAgg, refreshConfig, startDate, endDate);
-            log.debug("Executing DELETE: {}", deleteSql);
-            int deletedRows = jdbcTemplate.update(deleteSql);
-            log.info("Deleted {} rows from {} for date range {} to {}",
-                    deletedRows, preAggTableName, startDate, endDate);
+            // 2. 构建参数化 SQL（使用上下文中的方言）
+            PreAggSqlBuilder sqlBuilder = createSqlBuilder(context);
+            ParameterizedSql deletePSql = sqlBuilder.buildIncrementalDeleteSql(preAgg, refreshConfig, startDate, endDate);
+            ParameterizedSql insertPSql = sqlBuilder.buildIncrementalInsertSql(preAgg, sourceModel, refreshConfig, startDate, endDate);
 
-            // 3. 插入新聚合数据
-            String insertSql = sqlBuilder.buildIncrementalInsertSql(preAgg, sourceModel, refreshConfig, startDate, endDate);
-            log.debug("Executing INSERT: {}", insertSql);
-            int insertedRows = jdbcTemplate.update(insertSql);
+            log.debug("DELETE SQL: {} params: {}", deletePSql.getSql(), deletePSql.getParams());
+            log.debug("INSERT SQL: {} params: {}", insertPSql.getSql(), insertPSql.getParams());
+
+            // 3. 使用编程式事务保证原子性
+            int deletedRows;
+            int insertedRows;
+            Connection conn = dataSource.getConnection();
+            try {
+                boolean originalAutoCommit = conn.getAutoCommit();
+                conn.setAutoCommit(false);
+                try {
+                    // 删除受影响的数据（参数化）
+                    try (PreparedStatement deleteStmt = conn.prepareStatement(deletePSql.getSql())) {
+                        setParameters(deleteStmt, deletePSql.getParams());
+                        deletedRows = deleteStmt.executeUpdate();
+                        log.info("Deleted {} rows from {} for date range {} to {}",
+                                deletedRows, preAggTableName, startDate, endDate);
+                    }
+
+                    // 插入新聚合数据（参数化）
+                    try (PreparedStatement insertStmt = conn.prepareStatement(insertPSql.getSql())) {
+                        setParameters(insertStmt, insertPSql.getParams());
+                        insertedRows = insertStmt.executeUpdate();
+                    }
+
+                    conn.commit();
+                    log.info("INCREMENTAL refresh committed: {} deleted, {} inserted into {}",
+                            deletedRows, insertedRows, preAggTableName);
+
+                } catch (Exception e) {
+                    conn.rollback();
+                    log.error("INCREMENTAL refresh rolled back for '{}': {}", preAgg.getName(), e.getMessage());
+                    throw e;
+                } finally {
+                    conn.setAutoCommit(originalAutoCommit);
+                }
+            } finally {
+                conn.close();
+            }
 
             LocalDateTime endTime = LocalDateTime.now();
 
@@ -94,13 +136,22 @@ public class IncrementalRefreshStrategy implements PreAggRefreshStrategy {
 
             PreAggRefreshResult result = PreAggRefreshResult.success(
                     getStrategyName(), insertedRows, startTime, endTime);
-            result.setExecutedSql(insertSql);
+            result.setExecutedSql(insertPSql.getSql());
             result.setNewWatermark(endDate);
             return result;
 
         } catch (Exception e) {
             log.error("INCREMENTAL refresh failed for '{}': {}", preAgg.getName(), e.getMessage(), e);
             return PreAggRefreshResult.failure(getStrategyName(), e.getMessage(), e, startTime);
+        }
+    }
+
+    /**
+     * 设置 PreparedStatement 参数
+     */
+    private void setParameters(PreparedStatement stmt, List<Object> params) throws java.sql.SQLException {
+        for (int i = 0; i < params.size(); i++) {
+            stmt.setObject(i + 1, params.get(i));
         }
     }
 
@@ -127,15 +178,4 @@ public class IncrementalRefreshStrategy implements PreAggRefreshStrategy {
         return LocalDate.now().minusDays(30);
     }
 
-    /**
-     * 获取完整表名
-     */
-    private String getFullTableName(PreAggregation preAgg) {
-        String schema = preAgg.getSchema();
-        String tableName = preAgg.getTableName();
-        if (schema != null && !schema.isEmpty()) {
-            return schema + "." + tableName;
-        }
-        return tableName;
-    }
 }

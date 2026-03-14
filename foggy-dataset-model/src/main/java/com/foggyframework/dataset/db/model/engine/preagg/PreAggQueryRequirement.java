@@ -1,5 +1,6 @@
 package com.foggyframework.dataset.db.model.engine.preagg;
 
+import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.db.model.spi.DbAggregation;
 import com.foggyframework.dataset.db.model.spi.preagg.PreAggregation;
 import com.foggyframework.dataset.db.model.spi.preagg.TimeGranularity;
@@ -178,7 +179,8 @@ public class PreAggQueryRequirement {
     /**
      * 将属性名标准化为 snake_case 格式
      * <p>
-     * 例如：categoryName -> category_name
+     * 委托 {@link StringUtils#to_sm_string(String)}，避免重复实现。
+     * 例如：categoryName → category_name
      * </p>
      */
     private static String normalizePropertyName(String name) {
@@ -189,20 +191,28 @@ public class PreAggQueryRequirement {
         if (name.contains("_")) {
             return name.toLowerCase();
         }
-        // 转换 camelCase 到 snake_case
-        StringBuilder result = new StringBuilder();
-        for (int i = 0; i < name.length(); i++) {
-            char c = name.charAt(i);
-            if (Character.isUpperCase(c)) {
-                if (i > 0) {
-                    result.append('_');
-                }
-                result.append(Character.toLowerCase(c));
-            } else {
-                result.append(c);
-            }
+        return StringUtils.to_sm_string(name);
+    }
+
+    /**
+     * 构建规范化的属性名集合
+     * <p>
+     * 将预聚合维度的属性名集合统一转换为 snake_case 格式，
+     * 避免在 {@link #isSatisfiableBy(PreAggregation)} 中重复创建 HashSet。
+     * </p>
+     *
+     * @param properties 原始属性名集合
+     * @return 规范化后的属性名集合
+     */
+    private static Set<String> buildNormalizedPropertySet(Set<String> properties) {
+        if (properties == null || properties.isEmpty()) {
+            return Collections.emptySet();
         }
-        return result.toString();
+        Set<String> normalized = new HashSet<>(properties.size());
+        for (String p : properties) {
+            normalized.add(normalizePropertyName(p));
+        }
+        return normalized;
     }
 
     /**
@@ -235,13 +245,7 @@ public class PreAggQueryRequirement {
         for (Map.Entry<String, Set<String>> entry : dimensionProperties.entrySet()) {
             String dimName = entry.getKey();
             Set<String> queryProps = entry.getValue();
-            Set<String> preAggProps = preAgg.getDimensionProperties(dimName);
-
-            // 将预聚合属性名规范化为 Set
-            Set<String> normalizedPreAggProps = new HashSet<>();
-            for (String p : preAggProps) {
-                normalizedPreAggProps.add(normalizePropertyName(p));
-            }
+            Set<String> normalizedPreAggProps = buildNormalizedPropertySet(preAgg.getDimensionProperties(dimName));
 
             for (String prop : queryProps) {
                 // 跳过隐式属性（caption, id）的检查
@@ -306,11 +310,7 @@ public class PreAggQueryRequirement {
                 if (!IMPLICIT_PROPERTIES.contains(propName)) {
                     // 跳过时间粒度属性的检查
                     if (!TIME_GRANULARITY_PROPERTIES.contains(propName.toLowerCase())) {
-                        Set<String> preAggProps = preAgg.getDimensionProperties(dimName);
-                        Set<String> normalizedPreAggProps = new HashSet<>();
-                        for (String p : preAggProps) {
-                            normalizedPreAggProps.add(normalizePropertyName(p));
-                        }
+                        Set<String> normalizedPreAggProps = buildNormalizedPropertySet(preAgg.getDimensionProperties(dimName));
                         String normalizedProp = normalizePropertyName(propName);
                         if (!normalizedPreAggProps.contains(normalizedProp)) {
                             return false;
@@ -328,11 +328,9 @@ public class PreAggQueryRequirement {
      * <p>
      * 兼容规则：
      * <ul>
-     *   <li>SUM → SUM（可 rollup）</li>
+     *   <li>相同聚合类型（SUM→SUM, MIN→MIN, MAX→MAX 等）直接兼容</li>
      *   <li>COUNT → SUM（rollup 时 COUNT 变成 SUM）</li>
-     *   <li>MIN → MIN（可 rollup）</li>
-     *   <li>MAX → MAX（可 rollup）</li>
-     *   <li>AVG → 需要 SUM + COUNT（特殊处理）</li>
+     *   <li>AVG → 需要 SUM + COUNT（暂不支持）</li>
      * </ul>
      * </p>
      *
@@ -344,34 +342,11 @@ public class PreAggQueryRequirement {
         if (preAggAgg == null || queryAgg == null) {
             return true; // 默认兼容
         }
-
         if (preAggAgg == queryAgg) {
             return true;
         }
-
-        // SUM 可以 rollup 到 SUM
-        if (preAggAgg == DbAggregation.SUM && queryAgg == DbAggregation.SUM) {
-            return true;
-        }
-
         // COUNT 可以 rollup 到 SUM
-        if (preAggAgg == DbAggregation.COUNT && queryAgg == DbAggregation.SUM) {
-            return true;
-        }
-
-        // MIN 可以 rollup 到 MIN
-        if (preAggAgg == DbAggregation.MIN && queryAgg == DbAggregation.MIN) {
-            return true;
-        }
-
-        // MAX 可以 rollup 到 MAX
-        if (preAggAgg == DbAggregation.MAX && queryAgg == DbAggregation.MAX) {
-            return true;
-        }
-
-        // AVG 需要特殊处理（需要 SUM + COUNT）
-        // 暂时不支持直接 AVG rollup
-        return false;
+        return preAggAgg == DbAggregation.COUNT && queryAgg == DbAggregation.SUM;
     }
 
     @Override

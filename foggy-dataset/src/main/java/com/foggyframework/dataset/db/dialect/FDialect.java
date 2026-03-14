@@ -399,6 +399,51 @@ public abstract class FDialect {
         return funcName;
     }
 
+    // ==================== 预聚合 SQL 构建支持 ====================
+
+    /**
+     * 构建日期截断表达式
+     * <p>
+     * 将日期/时间列截断到指定粒度（如 DAY、MONTH、YEAR 等）。
+     * 各数据库使用不同语法实现相同效果。
+     * </p>
+     *
+     * @param column      列名或列表达式
+     * @param granularity 粒度名称（MINUTE, HOUR, DAY, WEEK, MONTH, QUARTER, YEAR）
+     * @return 截断后的 SQL 表达式
+     */
+    public String buildDateTruncateExpression(String column, String granularity) {
+        // 默认：不截断，直接返回列名
+        return column;
+    }
+
+    /**
+     * 获取当前时间戳的 SQL 表达式
+     * <p>
+     * ANSI SQL 标准为 {@code CURRENT_TIMESTAMP}，但各数据库有不同习惯。
+     * </p>
+     *
+     * @return 当前时间戳表达式
+     */
+    public String buildCurrentTimestampExpression() {
+        return "CURRENT_TIMESTAMP";
+    }
+
+    /**
+     * 将抽象列类型映射为方言特定的 DDL 类型
+     * <p>
+     * 用于预聚合建表 DDL 生成。抽象类型如 "DATE", "DATETIME", "INT", "BIGINT",
+     * "VARCHAR(255)", "DECIMAL(20,4)", "TIMESTAMP" 等。
+     * </p>
+     *
+     * @param abstractType 抽象类型名称
+     * @return 方言特定的 DDL 类型
+     */
+    public String mapColumnType(String abstractType) {
+        // 默认：直通（适用于 MySQL）
+        return abstractType;
+    }
+
     /**
      * 转换参数值以适配不同数据库的参数绑定需求
      * <p>

@@ -229,4 +229,45 @@ public class SqlServerDialect extends FDialect {
             default: return funcName;
         }
     }
+
+    // ==================== 预聚合 SQL 构建支持 ====================
+
+    @Override
+    public String buildDateTruncateExpression(String column, String granularity) {
+        if (granularity == null) return column;
+        switch (granularity.toUpperCase()) {
+            case "YEAR":
+                return "DATEFROMPARTS(YEAR(" + column + "), 1, 1)";
+            case "QUARTER":
+                return "DATEFROMPARTS(YEAR(" + column + "), (DATEPART(QUARTER, " + column + ") - 1) * 3 + 1, 1)";
+            case "MONTH":
+                return "DATEFROMPARTS(YEAR(" + column + "), MONTH(" + column + "), 1)";
+            case "WEEK":
+                return "DATEADD(DAY, -(DATEPART(WEEKDAY, " + column + ") - 1), CAST(" + column + " AS DATE))";
+            case "DAY":
+                return "CAST(" + column + " AS DATE)";
+            case "HOUR":
+                return "DATEADD(HOUR, DATEDIFF(HOUR, 0, " + column + "), 0)";
+            case "MINUTE":
+                return "DATEADD(MINUTE, DATEDIFF(MINUTE, 0, " + column + "), 0)";
+            default:
+                return column;
+        }
+    }
+
+    @Override
+    public String buildCurrentTimestampExpression() {
+        return "GETDATE()";
+    }
+
+    @Override
+    public String mapColumnType(String abstractType) {
+        if (abstractType == null) return null;
+        switch (abstractType.toUpperCase()) {
+            case "DATETIME":
+                return "DATETIME2";
+            default:
+                return abstractType;
+        }
+    }
 }
