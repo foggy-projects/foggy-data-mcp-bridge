@@ -98,7 +98,7 @@ public final class CalculatedFieldService {
      * @return 排序后的计算字段列表
      * @throws IllegalArgumentException 如果检测到循环引用
      */
-    private static List<CalculatedFieldDef> sortByDependencies(List<CalculatedFieldDef> calculatedFields) {
+    static List<CalculatedFieldDef> sortByDependencies(List<CalculatedFieldDef> calculatedFields) {
         if (calculatedFields.size() <= 1) {
             return new ArrayList<>(calculatedFields);
         }
@@ -142,26 +142,7 @@ public final class CalculatedFieldService {
         // 3. 拓扑排序（Kahn's algorithm）
         List<CalculatedFieldDef> sorted = new ArrayList<>(calculatedFields.size());
 
-        // 计算入度
-        Map<String, Integer> inDegree = new LinkedHashMap<>();
-        for (String name : fieldMap.keySet()) {
-            inDegree.put(name, 0);
-        }
-        for (Set<String> deps : dependencies.values()) {
-            for (String dep : deps) {
-                if (inDegree.containsKey(dep)) {
-                    inDegree.put(dep, inDegree.get(dep) + 1);
-                }
-            }
-        }
-
-        // 找出入度为 0 的节点（没有被其他字段依赖）
-        // 注意：我们要按"被依赖的先处理"，所以入度为 0 表示没有字段依赖它
-        // 但我们需要的是"依赖其他字段少的先处理"，所以应该计算出度
-        // 重新思考：入度 = 有多少字段依赖我，出度 = 我依赖多少字段
-        // 我们需要先处理"不依赖其他字段"的，即出度为 0 的
-
-        // 重新计算：使用出度（依赖数量）
+        // 找出不依赖其他 calculatedField 的字段（依赖集为空）
         Queue<String> queue = new LinkedList<>();
         for (Map.Entry<String, Set<String>> entry : dependencies.entrySet()) {
             if (entry.getValue().isEmpty()) {
@@ -364,7 +345,7 @@ public final class CalculatedFieldService {
      * @param appCtx  Spring 上下文
      * @return SQL 片段
      */
-    private static SqlFragment evaluateExpression(Exp exp, SqlExpContext context, ApplicationContext appCtx) {
+    static SqlFragment evaluateExpression(Exp exp, SqlExpContext context, ApplicationContext appCtx) {
         ExpEvaluator evaluator = DefaultExpEvaluator.newInstance(appCtx);
         evaluator.setVar(SqlExpContext.CONTEXT_KEY, context);
 
