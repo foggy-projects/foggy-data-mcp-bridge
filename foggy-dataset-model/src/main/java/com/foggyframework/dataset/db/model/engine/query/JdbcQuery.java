@@ -363,7 +363,7 @@ public class JdbcQuery {
             if (refs != null) {
                 for (com.foggyframework.dataset.db.model.spi.DbQueryColumn ref : refs) {
                     QueryObject refQueryObject = ref.getQueryObject();
-                    if (refQueryObject != null && !from.getFromObject().isRootEqual(refQueryObject)) {
+                    if (refQueryObject != null && !from.getFromObject().getAlias().equals(refQueryObject.getAlias())) {
                         from.join(refQueryObject);
                     }
                 }
@@ -416,9 +416,9 @@ public class JdbcQuery {
             if (selectColumn.isCalculatedField()) {
                 joinReferencedColumns(selectColumn);
             } else {
-                // 普通列：直接检查 queryObject
+                // 普通列：直接检查 queryObject（使用 alias 比较，支持自引用维度）
                 QueryObject selectQueryObject = selectColumn.getQueryObject();
-                if (selectQueryObject != null && !from.getFromObject().isRootEqual(selectQueryObject)) {
+                if (selectQueryObject != null && !from.getFromObject().getAlias().equals(selectQueryObject.getAlias())) {
                     //需要加入left join
                     from.join(selectQueryObject);
                 }
@@ -441,7 +441,7 @@ public class JdbcQuery {
                 if (refs != null) {
                     for (com.foggyframework.dataset.db.model.spi.DbQueryColumn ref : refs) {
                         QueryObject refQueryObject = ref.getQueryObject();
-                        if (refQueryObject != null && !from.getFromObject().isRootEqual(refQueryObject)) {
+                        if (refQueryObject != null && !from.getFromObject().getAlias().equals(refQueryObject.getAlias())) {
                             from.join(refQueryObject);
                         }
                     }
@@ -474,7 +474,9 @@ public class JdbcQuery {
 
 
         public JdbcFrom join(QueryObject queryObject, JoinType joinType) {
-            if (queryObject.isRootEqual(this.fromObject)) {
+            // 使用 alias 比较代替 isRootEqual，解决自引用维度（fact table = dimension table）别名冲突
+            // isRootEqual 比较的是底层对象引用，对同表不同角色（fact vs dimension）会误判为"同一张表"
+            if (queryObject.getAlias().equals(this.fromObject.getAlias())) {
                 return this;
             }
 
@@ -491,6 +493,12 @@ public class JdbcQuery {
 
             // 必须使用 JoinGraph
             if (joinGraph == null) {
+                // 非 JDBC 模型（如 MongoDB）没有 JoinGraph，
+                // 但列的 QO 可能因 JdbcModelDx 包装导致 alias 不同而误触发 JOIN。
+                // 此时回退到 isRootEqual 检查：如果底层是同一张表则跳过 JOIN。
+                if (queryObject.isRootEqual(this.fromObject)) {
+                    return this;
+                }
                 throw RX.throwAUserTip("JoinGraph 未设置，无法执行 JOIN: " + queryObject.getAlias());
             }
 
@@ -669,8 +677,8 @@ public class JdbcQuery {
             }
 
             public boolean contain(QueryObject queryObject) {
-                boolean v = this.queryObject.isRootEqual(queryObject);
-                return v;
+                // 使用 alias 比较代替 isRootEqual，解决自引用维度别名冲突
+                return this.queryObject.getAlias().equals(queryObject.getAlias());
             }
 
             public String getJoinTypeString() {

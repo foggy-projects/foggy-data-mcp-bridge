@@ -77,7 +77,7 @@ Odoo `child_of`/`parent_of` 直接映射到 Foggy 闭包表操作符，无需展
 已确认 VARCHAR 的列（直接 `captionColumn`）：
 - `hr_work_location.name`、`hr_department.complete_name`、`stock_location.complete_name`、`res_country_state.name`、`res_currency.name`
 
-**已知引擎限制**：自引用维度（fact table = dimension table，如 `res_company.parent_id → res_company`）会产生 SQL 别名冲突，暂时避免在查询中同时使用 `parent$caption`。
+**自引用维度**（fact table = dimension table，如 `res_company.parent_id → res_company`）已支持，`parent$caption` 可正常使用。修复方案：JOIN 去重使用 alias 比较代替 `isRootEqual`，`name2Alias` 改为 `IdentityHashMap`。测试：`SelfReferencingDimensionAliasTest`（593 tests 全通过）。
 
 **Odoo 17 字段兼容性注意**（已在 TM 模型中处理）：
 - `product_template_id`（sale_order_line）：ORM 计算字段，非物理列 → 已移除 `productTemplate` 维度

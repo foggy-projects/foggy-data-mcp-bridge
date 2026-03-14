@@ -159,13 +159,12 @@ def main():
         print(f"  FAIL groupBy hierarchy: {err}")
         failed += 1
 
-    # Company hierarchy via ResCompanyQueryModel (without self-referential parent$caption)
-    # Note: parent$caption on self-referential dimensions (fact table = dimension table)
-    #       causes SQL alias collision in Foggy engine — known limitation, tested separately
+    # Company hierarchy via ResCompanyQueryModel — self-referential parent$caption now supported
+    # (Fixed: JOIN dedup uses alias comparison instead of isRootEqual, name2Alias uses IdentityHashMap)
     data, err = call_tool('dataset.query_model', {
         'model': 'OdooResCompanyQueryModel',
         'payload': {
-            'columns': ['name', 'currency$caption'],
+            'columns': ['name', 'parent$caption', 'currency$caption'],
             'slice': [{'field': 'parent$id', 'op': 'selfAndDescendantsOf', 'value': 1}],
         }
     })
@@ -173,8 +172,9 @@ def main():
         count = data['pagination']['returned']
         print(f"  OK  ResCompany hierarchy selfAndDescendantsOf(1): {count} companies")
         for item in data['items'][:3]:
+            parent = item.get('parent$caption', '?')
             cur = item.get('currency$caption', '?')
-            print(f"       - {item.get('name', '?')} | currency: {cur}")
+            print(f"       - {item.get('name', '?')} | parent: {parent} | currency: {cur}")
         passed += 1
     else:
         print(f"  FAIL ResCompany hierarchy: {err}")

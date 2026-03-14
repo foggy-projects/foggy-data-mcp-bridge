@@ -169,10 +169,10 @@ public class JoinGraph {
             return Collections.emptyList();
         }
 
-        // 过滤掉主表本身
+        // 过滤掉主表本身（使用 alias 比较，解决自引用维度别名冲突）
         Set<String> targetAliases = new LinkedHashSet<>();
         for (QueryObject target : targets) {
-            if (!target.isRootEqual(root)) {
+            if (!target.getAlias().equals(root.getAlias())) {
                 targetAliases.add(target.getAlias());
             }
         }

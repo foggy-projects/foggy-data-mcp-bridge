@@ -33,6 +33,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -97,7 +98,10 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
 
     protected  List<TableModel> jdbcModelList;
 
-    protected   Map<Object, String> name2Alias = new HashMap<>();
+    // 使用 IdentityHashMap：按对象引用（==）而非 equals() 匹配 key
+    // 解决自引用维度场景：两个不同的 QueryObject 实例引用同一张物理表时，
+    // 如果 equals()/hashCode() 基于字段比较会导致 alias 覆盖
+    protected   Map<Object, String> name2Alias = new IdentityHashMap<>();
 
     /**
      * 合并后的 JoinGraph（延迟初始化，线程安全）
