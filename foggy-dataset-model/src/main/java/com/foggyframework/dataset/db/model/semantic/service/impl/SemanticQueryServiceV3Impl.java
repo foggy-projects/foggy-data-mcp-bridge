@@ -8,6 +8,7 @@ import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
+import com.foggyframework.dataset.db.model.engine.expression.InlineExpressionParser;
 import com.foggyframework.dataset.db.model.engine.query.DbQueryResult;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
@@ -646,6 +647,15 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
      */
     private void validateGroupByFieldsInColumns(List<SemanticQueryRequest.GroupByItem> groupByItems, List<String> columns) {
         Set<String> columnsSet = new HashSet<>(columns);
+
+        // 解析 inline expression 的别名，加入 columnsSet
+        // 例如 "YEAR(dateOrder) as year" → 将 "year" 加入集合
+        for (String col : columns) {
+            InlineExpressionParser.InlineExpression inlineExpr = InlineExpressionParser.parse(col);
+            if (inlineExpr != null && inlineExpr.hasAlias()) {
+                columnsSet.add(inlineExpr.getAlias());
+            }
+        }
 
         // 收集 columns 中的维度基础名
         Set<String> columnBases = new HashSet<>();

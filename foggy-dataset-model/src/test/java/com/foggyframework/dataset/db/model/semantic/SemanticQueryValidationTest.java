@@ -442,4 +442,72 @@ class SemanticQueryValidationTest extends EcommerceTestSupport {
 
         log.info("分组聚合查询返回 {} 条数据", response.getItems().size());
     }
+
+    // ==========================================
+    // #Issue3: groupBy 别名匹配 inline expression
+    // ==========================================
+
+    @Test
+    @Order(110)
+    @DisplayName("inline expression 别名匹配 — groupBy 使用 inline expression 的别名应通过验证")
+    void testInlineExpressionAlias_GroupByMatch() {
+        // columns: ["YEAR(orderTime) as year", "amount"]
+        // groupBy: [{field: "year"}, {field: "amount", agg: "SUM"}]
+        // 应通过验证（"year" 是 inline expression "YEAR(orderTime)" 的别名）
+        // 注：orderTime 是 DATETIME 属性列，orderDate 是维度（不可直接用于函数）
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(Arrays.asList("YEAR(orderTime) as year", "amount"));
+
+        List<SemanticQueryRequest.GroupByItem> groupByItems = new ArrayList<>();
+
+        SemanticQueryRequest.GroupByItem yearItem = new SemanticQueryRequest.GroupByItem();
+        yearItem.setField("year");
+        groupByItems.add(yearItem);
+
+        SemanticQueryRequest.GroupByItem measureItem = new SemanticQueryRequest.GroupByItem();
+        measureItem.setField("amount");
+        measureItem.setAgg("SUM");
+        groupByItems.add(measureItem);
+
+        request.setGroupBy(groupByItems);
+        request.setLimit(10);
+
+        // 不应抛出 "groupBy 字段 year 必须出现在 columns 中" 异常
+        SemanticQueryResponse response = semanticQueryService.queryModel(TEST_MODEL, request, "execute", SemanticRequestContext.empty());
+
+        assertNotNull(response, "响应不应为空");
+        log.info("inline expression 别名 groupBy 测试通过，返回 {} 条数据",
+                response.getItems() != null ? response.getItems().size() : 0);
+    }
+
+    @Test
+    @Order(111)
+    @DisplayName("inline expression 带 MONTH 别名 — groupBy 使用别名应通过验证")
+    void testInlineExpressionAlias_MonthGroupBy() {
+        // columns: ["MONTH(orderTime) as month", "amount"]
+        // groupBy: [{field: "month"}, {field: "amount", agg: "SUM"}]
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(Arrays.asList("MONTH(orderTime) as month", "amount"));
+
+        List<SemanticQueryRequest.GroupByItem> groupByItems = new ArrayList<>();
+
+        SemanticQueryRequest.GroupByItem monthItem = new SemanticQueryRequest.GroupByItem();
+        monthItem.setField("month");
+        groupByItems.add(monthItem);
+
+        SemanticQueryRequest.GroupByItem measureItem = new SemanticQueryRequest.GroupByItem();
+        measureItem.setField("amount");
+        measureItem.setAgg("SUM");
+        groupByItems.add(measureItem);
+
+        request.setGroupBy(groupByItems);
+        request.setLimit(10);
+
+        SemanticQueryResponse response = semanticQueryService.queryModel(TEST_MODEL, request, "execute", SemanticRequestContext.empty());
+
+        assertNotNull(response, "响应不应为空");
+        log.info("MONTH inline expression 别名 groupBy 测试通过");
+    }
 }

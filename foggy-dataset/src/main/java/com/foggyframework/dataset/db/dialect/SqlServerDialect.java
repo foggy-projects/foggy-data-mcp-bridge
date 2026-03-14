@@ -9,6 +9,7 @@
 package com.foggyframework.dataset.db.dialect;
 
 import java.sql.Types;
+import java.util.List;
 
 /**
  * SQL Server 2012+ 方言实现
@@ -180,6 +181,45 @@ public class SqlServerDialect extends FDialect {
     public String getColumnComment(String comment) {
         // SQL Server 使用 sp_addextendedproperty，这里返回空，需要单独处理
         return "";
+    }
+
+    @Override
+    public String buildFunctionCall(String funcName, List<String> argsSql) {
+        if (funcName == null || argsSql == null) return null;
+        switch (funcName.toUpperCase()) {
+            // SQL Server 原生支持 YEAR(), MONTH(), DAY()
+            case "HOUR":
+                return argsSql.size() == 1 ? "DATEPART(HOUR, " + argsSql.get(0) + ")" : null;
+            case "MINUTE":
+                return argsSql.size() == 1 ? "DATEPART(MINUTE, " + argsSql.get(0) + ")" : null;
+            case "SECOND":
+                return argsSql.size() == 1 ? "DATEPART(SECOND, " + argsSql.get(0) + ")" : null;
+            case "DATE_FORMAT":
+                if (argsSql.size() == 2) {
+                    return "FORMAT(" + argsSql.get(0) + ", " + translateMysqlDateFormatToSqlServer(argsSql.get(1)) + ")";
+                }
+                return null;
+            default:
+                return null;
+        }
+    }
+
+    /**
+     * 将 MySQL DATE_FORMAT 格式字符串转换为 SQL Server FORMAT 格式
+     */
+    private String translateMysqlDateFormatToSqlServer(String mysqlFormat) {
+        String fmt = mysqlFormat;
+        if (fmt.startsWith("'") && fmt.endsWith("'")) {
+            fmt = fmt.substring(1, fmt.length() - 1);
+        }
+        fmt = fmt.replace("%Y", "yyyy")
+                 .replace("%y", "yy")
+                 .replace("%m", "MM")
+                 .replace("%d", "dd")
+                 .replace("%H", "HH")
+                 .replace("%i", "mm")
+                 .replace("%s", "ss");
+        return "'" + fmt + "'";
     }
 
     @Override

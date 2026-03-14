@@ -83,6 +83,17 @@ public class SqlFunctionExp extends AbstractExp<String> {
             return f;
         }
 
+        // 尝试方言特定的函数调用构建（处理需要语法重构的函数，如 YEAR→EXTRACT）
+        if (ctx != null && ctx.getDialect() != null) {
+            java.util.List<String> argsSql = argFragments.stream()
+                    .map(SqlFragment::getSql)
+                    .collect(Collectors.toList());
+            String dialectSql = ctx.getDialect().buildFunctionCall(functionName, argsSql);
+            if (dialectSql != null) {
+                return SqlFragment.customFunction(dialectSql, functionName, argFragments);
+            }
+        }
+
         // 根据方言转换函数名
         String dialectFuncName = translateFunction(ctx, functionName);
 

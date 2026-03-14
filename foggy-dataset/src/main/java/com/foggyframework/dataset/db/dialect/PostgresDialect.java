@@ -11,6 +11,7 @@ package com.foggyframework.dataset.db.dialect;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Types;
+import java.util.List;
 
 /**
  * PostgreSQL 12+ 方言实现
@@ -128,6 +129,57 @@ public class PostgresDialect extends FDialect {
     @Override
     public String buildDateFormatFunction(String column) {
         return "TO_CHAR(" + column + ", 'YYYY-MM-DD')";
+    }
+
+    @Override
+    public String buildFunctionCall(String funcName, List<String> argsSql) {
+        if (funcName == null || argsSql == null) return null;
+        switch (funcName.toUpperCase()) {
+            case "YEAR":
+            case "MONTH":
+            case "DAY":
+            case "HOUR":
+            case "MINUTE":
+            case "SECOND":
+                if (argsSql.size() == 1) {
+                    return "EXTRACT(" + funcName.toUpperCase() + " FROM " + argsSql.get(0) + ")";
+                }
+                return null;
+            case "DATE_FORMAT":
+                if (argsSql.size() == 2) {
+                    return "TO_CHAR(" + argsSql.get(0) + ", " + translateMysqlDateFormat(argsSql.get(1)) + ")";
+                }
+                return null;
+            default:
+                return null;
+        }
+    }
+
+    /**
+     * 将 MySQL DATE_FORMAT 格式字符串转换为 PostgreSQL TO_CHAR 格式
+     * <p>
+     * 例如：'%Y-%m' → 'YYYY-MM'，'%Y-%m-%d' → 'YYYY-MM-DD'
+     * </p>
+     */
+    private String translateMysqlDateFormat(String mysqlFormat) {
+        String fmt = mysqlFormat;
+        // 去掉 SQL 字符串的引号
+        if (fmt.startsWith("'") && fmt.endsWith("'")) {
+            fmt = fmt.substring(1, fmt.length() - 1);
+        }
+        fmt = fmt.replace("%Y", "YYYY")
+                 .replace("%y", "YY")
+                 .replace("%m", "MM")
+                 .replace("%d", "DD")
+                 .replace("%H", "HH24")
+                 .replace("%i", "MI")
+                 .replace("%s", "SS")
+                 .replace("%M", "Month")
+                 .replace("%b", "Mon")
+                 .replace("%W", "Day")
+                 .replace("%a", "Dy")
+                 .replace("%j", "DDD");
+        return "'" + fmt + "'";
     }
 
     @Override

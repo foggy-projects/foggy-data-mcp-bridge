@@ -20,6 +20,7 @@ import javax.sql.DataSource;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public abstract class FDialect {
     public static MysqlDialect MYSQL_DIALECT;
@@ -375,6 +376,26 @@ public abstract class FDialect {
      */
     public String buildStatFunction(String funcName) {
         return funcName;
+    }
+
+    /**
+     * 构建函数调用的 SQL（需要语法重构的情况）
+     * <p>
+     * 默认返回 null，表示使用标准 {@code funcName(args)} 格式。
+     * 子类可重写以处理需要语法重构的函数，例如：
+     * <ul>
+     *     <li>PostgreSQL: {@code YEAR(col)} → {@code EXTRACT(YEAR FROM col)}</li>
+     *     <li>PostgreSQL: {@code DATE_FORMAT(col, '%Y-%m')} → {@code TO_CHAR(col, 'YYYY-MM')}</li>
+     *     <li>SQLite: {@code YEAR(col)} → {@code CAST(strftime('%Y', col) AS INTEGER)}</li>
+     * </ul>
+     * </p>
+     *
+     * @param funcName 函数名（原始大小写）
+     * @param argsSql  参数 SQL 字符串列表
+     * @return 重构后的完整 SQL 表达式，或 null 表示使用默认 {@code funcName(args)} 格式
+     */
+    public String buildFunctionCall(String funcName, List<String> argsSql) {
+        return null;
     }
 
     /**

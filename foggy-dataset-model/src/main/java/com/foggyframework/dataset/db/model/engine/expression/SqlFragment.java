@@ -194,6 +194,37 @@ public class SqlFragment {
     }
 
     /**
+     * 创建方言自定义的函数调用片段
+     * <p>
+     * 用于方言需要完全重写函数语法的场景（如 YEAR(col) → EXTRACT(YEAR FROM col)）。
+     * 使用原始函数名进行类型推断和聚合/窗口检测。
+     * </p>
+     *
+     * @param customSql     方言生成的自定义 SQL
+     * @param origFuncName  原始函数名（用于类型推断）
+     * @param args          原始参数片段列表（用于引用追踪）
+     */
+    public static SqlFragment customFunction(String customSql, String origFuncName, List<SqlFragment> args) {
+        SqlFragment f = new SqlFragment();
+        f.sql = customSql;
+        args.forEach(arg -> f.referencedColumns.addAll(arg.referencedColumns));
+        f.inferredType = inferFunctionType(origFuncName, args);
+
+        String upperFuncName = origFuncName.toUpperCase();
+        if (AllowedFunctions.isWindowFunction(upperFuncName)) {
+            f.hasWindow = true;
+        } else if (AllowedFunctions.isAggregateFunction(upperFuncName)) {
+            f.hasAggregate = true;
+            f.aggregationType = upperFuncName;
+        } else {
+            f.hasAggregate = args.stream().anyMatch(SqlFragment::isHasAggregate);
+            f.hasWindow = args.stream().anyMatch(SqlFragment::isHasWindow);
+        }
+
+        return f;
+    }
+
+    /**
      * 创建带格式的函数调用片段（用于特殊函数如 CAST）
      *
      * @param template SQL 模板，使用 {0}, {1} 作为占位符

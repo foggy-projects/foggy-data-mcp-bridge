@@ -18,6 +18,7 @@ import javax.sql.DataSource;
 import java.sql.Types;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.List;
 
 /**
  * SQLite 3.30+ 方言实现
@@ -182,6 +183,30 @@ public class SqliteDialect extends FDialect {
         } catch (Throwable t) {
             System.err.println(t.getMessage());
             return null;
+        }
+    }
+
+    @Override
+    public String buildFunctionCall(String funcName, List<String> argsSql) {
+        if (funcName == null || argsSql == null) return null;
+        switch (funcName.toUpperCase()) {
+            case "YEAR":
+                return argsSql.size() == 1 ? "CAST(strftime('%Y', " + argsSql.get(0) + ") AS INTEGER)" : null;
+            case "MONTH":
+                return argsSql.size() == 1 ? "CAST(strftime('%m', " + argsSql.get(0) + ") AS INTEGER)" : null;
+            case "DAY":
+                return argsSql.size() == 1 ? "CAST(strftime('%d', " + argsSql.get(0) + ") AS INTEGER)" : null;
+            case "HOUR":
+                return argsSql.size() == 1 ? "CAST(strftime('%H', " + argsSql.get(0) + ") AS INTEGER)" : null;
+            case "MINUTE":
+                return argsSql.size() == 1 ? "CAST(strftime('%M', " + argsSql.get(0) + ") AS INTEGER)" : null;
+            case "SECOND":
+                return argsSql.size() == 1 ? "CAST(strftime('%S', " + argsSql.get(0) + ") AS INTEGER)" : null;
+            case "DATE_FORMAT":
+                // SQLite strftime 与 MySQL 使用相同的 % 格式符，参数顺序需调换
+                return argsSql.size() == 2 ? "strftime(" + argsSql.get(1) + ", " + argsSql.get(0) + ")" : null;
+            default:
+                return null;
         }
     }
 
