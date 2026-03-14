@@ -7,6 +7,7 @@ import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
+import com.foggyframework.dataset.db.model.def.query.request.CondRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.db.model.engine.expression.InlineExpressionParser;
 import com.foggyframework.dataset.db.model.engine.query.DbQueryResult;
@@ -276,23 +277,16 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         List<SliceRequestDef> processed = new ArrayList<>();
 
         for (SemanticQueryRequest.SliceItem item : slice) {
-            SliceRequestDef sliceDef = new SliceRequestDef();
-
-            // 检查是否是 $caption 字段
-            if (item.getField().endsWith("$caption")) {
-                // 需要将 caption 值转换为查询 caption 字段的条件
-                // 但如果用户明确使用 $caption 字段，说明他想直接查询 caption 列
-                // V3 版本：直接使用字段名，不做值转换
-                sliceDef.setField(item.getField());
-                sliceDef.setOp(item.getOp());
-                sliceDef.setValue(item.getValue());
-            } else {
-                // 其他字段直接透传
-                sliceDef.setField(item.getField());
-                sliceDef.setOp(item.getOp());
-                sliceDef.setValue(item.getValue());
+            // $or/$and 逻辑组：递归转换子条件
+            if (item._isLogicalGroup()) {
+                processed.add(convertToJdbcSlice(item));
+                continue;
             }
 
+            SliceRequestDef sliceDef = new SliceRequestDef();
+            sliceDef.setField(item.getField());
+            sliceDef.setOp(item.getOp());
+            sliceDef.setValue(item.getValue());
             processed.add(sliceDef);
         }
 
@@ -300,6 +294,21 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
     }
 
     private SliceRequestDef convertToJdbcSlice(SemanticQueryRequest.SliceItem item) {
+        // $or/$and 逻辑组：递归转换子条件
+        if (item._isLogicalGroup()) {
+            SliceRequestDef groupDef = new SliceRequestDef();
+            List<CondRequestDef> children = new ArrayList<>();
+            for (SemanticQueryRequest.SliceItem child : item._getGroupChildren()) {
+                children.add(convertToJdbcSlice(child));
+            }
+            if (item._isOrGroup()) {
+                groupDef.setOr(children);
+            } else {
+                groupDef.setAnd(children);
+            }
+            return groupDef;
+        }
+
         SliceRequestDef slice = new SliceRequestDef();
         slice.setField(item.getField());
         slice.setOp(item.getOp());
