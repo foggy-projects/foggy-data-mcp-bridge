@@ -9,10 +9,7 @@ import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.*;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -449,11 +446,11 @@ class SemanticQueryValidationTest extends EcommerceTestSupport {
 
     @Test
     @Order(110)
-    @DisplayName("inline expression 别名匹配 — groupBy 使用 inline expression 的别名应通过验证")
+    @DisplayName("YEAR(orderTime) as year — 端到端：验证别名通过 + SQL 执行 + 结果正确")
     void testInlineExpressionAlias_GroupByMatch() {
         // columns: ["YEAR(orderTime) as year", "amount"]
         // groupBy: [{field: "year"}, {field: "amount", agg: "SUM"}]
-        // 应通过验证（"year" 是 inline expression "YEAR(orderTime)" 的别名）
+        // 测试数据：10 笔订单全部在 2024-01，应聚合为 1 行
         // 注：orderTime 是 DATETIME 属性列，orderDate 是维度（不可直接用于函数）
 
         SemanticQueryRequest request = new SemanticQueryRequest();
@@ -473,20 +470,35 @@ class SemanticQueryValidationTest extends EcommerceTestSupport {
         request.setGroupBy(groupByItems);
         request.setLimit(10);
 
-        // 不应抛出 "groupBy 字段 year 必须出现在 columns 中" 异常
         SemanticQueryResponse response = semanticQueryService.queryModel(TEST_MODEL, request, "execute", SemanticRequestContext.empty());
 
+        // 1. 基础断言
         assertNotNull(response, "响应不应为空");
-        log.info("inline expression 别名 groupBy 测试通过，返回 {} 条数据",
-                response.getItems() != null ? response.getItems().size() : 0);
+        assertNotNull(response.getItems(), "items 不应为空");
+        assertFalse(response.getItems().isEmpty(), "items 不应为空列表");
+
+        // 2. 测试数据全在 2024 年，聚合后应只有 1 行
+        assertEquals(1, response.getItems().size(), "按 YEAR 分组应只有 1 行（测试数据均在 2024）");
+
+        // 3. 校验结果字段和值
+        Map<String, Object> row = response.getItems().get(0);
+        assertTrue(row.containsKey("year"), "结果应包含 'year' 别名字段");
+        assertEquals(2024, ((Number) row.get("year")).intValue(), "year 应为 2024");
+
+        assertTrue(row.containsKey("amount"), "结果应包含 'amount' 度量字段");
+        double totalAmount = ((Number) row.get("amount")).doubleValue();
+        assertEquals(37304.90, totalAmount, 0.01, "SUM(amount) 应为 37304.90（10 笔订单合计）");
+
+        log.info("YEAR 端到端验证通过: year={}, SUM(amount)={}", row.get("year"), totalAmount);
     }
 
     @Test
     @Order(111)
-    @DisplayName("inline expression 带 MONTH 别名 — groupBy 使用别名应通过验证")
+    @DisplayName("MONTH(orderTime) as month — 端到端：验证别名通过 + SQL 执行 + 结果正确")
     void testInlineExpressionAlias_MonthGroupBy() {
         // columns: ["MONTH(orderTime) as month", "amount"]
         // groupBy: [{field: "month"}, {field: "amount", agg: "SUM"}]
+        // 测试数据：10 笔订单全部在 1 月，应聚合为 1 行
 
         SemanticQueryRequest request = new SemanticQueryRequest();
         request.setColumns(Arrays.asList("MONTH(orderTime) as month", "amount"));
@@ -507,7 +519,23 @@ class SemanticQueryValidationTest extends EcommerceTestSupport {
 
         SemanticQueryResponse response = semanticQueryService.queryModel(TEST_MODEL, request, "execute", SemanticRequestContext.empty());
 
+        // 1. 基础断言
         assertNotNull(response, "响应不应为空");
-        log.info("MONTH inline expression 别名 groupBy 测试通过");
+        assertNotNull(response.getItems(), "items 不应为空");
+        assertFalse(response.getItems().isEmpty(), "items 不应为空列表");
+
+        // 2. 测试数据全在 1 月，聚合后应只有 1 行
+        assertEquals(1, response.getItems().size(), "按 MONTH 分组应只有 1 行（测试数据均在 1 月）");
+
+        // 3. 校验结果字段和值
+        Map<String, Object> row = response.getItems().get(0);
+        assertTrue(row.containsKey("month"), "结果应包含 'month' 别名字段");
+        assertEquals(1, ((Number) row.get("month")).intValue(), "month 应为 1（一月）");
+
+        assertTrue(row.containsKey("amount"), "结果应包含 'amount' 度量字段");
+        double totalAmount = ((Number) row.get("amount")).doubleValue();
+        assertEquals(37304.90, totalAmount, 0.01, "SUM(amount) 应为 37304.90（10 笔订单合计）");
+
+        log.info("MONTH 端到端验证通过: month={}, SUM(amount)={}", row.get("month"), totalAmount);
     }
 }
