@@ -32,6 +32,27 @@ public class FunctionDefExp extends AbstractExp<Exp> {
         }
     }
 
+    /**
+     * 将解构参数的结果放入 mm Map，确保栈重建后变量仍可达。
+     * （与 test() 逻辑相同，但写入 Map 而非 evaluator 闭包）
+     */
+    private void destructToMap(Map<String, Object> mm, MapExp e, Object value){
+        if(value==null||BeanInfoHelper.isBaseClassByStr(value.getClass().getName())){
+            for (MapEntry mapEntry : e.getLl()) {
+                mm.put(mapEntry.getKey(), null);
+            }
+        }else if(value instanceof Map){
+            for (MapEntry mapEntry : e.getLl()) {
+                mm.put(mapEntry.getKey(), ((Map<?, ?>) value).get(mapEntry.getKey()));
+            }
+        }else {
+            BeanInfoHelper h = BeanInfoHelper.getClassHelper(value.getClass());
+            for (MapEntry mapEntry : e.getLl()) {
+                mm.put(mapEntry.getKey(), h.getBeanProperty(mapEntry.getKey(), true).getBeanValue(value));
+            }
+        }
+    }
+
     class X implements Exp, FsscriptFunction {
         ExpEvaluator ee;
         //        FsscriptClosure savedFss;
@@ -141,7 +162,7 @@ public class FunctionDefExp extends AbstractExp<Exp> {
                    if(objects !=null) {
                        if (i < objects.length) {
                            Object v = objects[i];
-                           test(evaluator, (MapExp) e, v);
+                           destructToMap(mm, (MapExp) e, v);
                        } else {
                            log.warn("数组长度超出，无视该参数");
                        }
@@ -162,22 +183,16 @@ public class FunctionDefExp extends AbstractExp<Exp> {
                 }
                 i++;
             }
-            // Fix: 保存 evaluator 原始栈，替换为 savedStack 以消除栈冗余
-            Stack<FsscriptClosure> stack = evaluator.getStack();
-            List<FsscriptClosure> originalStack = new ArrayList<>(stack);
-            stack.clear();
-
             try {
-                stack.addAll(savedStack);
+                evaluator.pushFsscriptClosure(savedStack);
                 evaluator.pushNewFoggyClosure();
 
                 evaluator.setMap2Var(mm);
 
                 return evalValue(evaluator);
             } finally {
-                // 恢复 evaluator 的原始栈
-                stack.clear();
-                stack.addAll(originalStack);
+                evaluator.popFsscriptClosure();
+                evaluator.popFsscriptClosure(savedStack.size());
             }
         }
     }
