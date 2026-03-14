@@ -124,7 +124,8 @@ public class BusinessMcpController {
             @RequestBody McpRequest request,
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestHeader(value = "X-Trace-Id", required = false) String traceId,
-            @RequestHeader(value = "X-Request-Id", required = false) String requestId
+            @RequestHeader(value = "X-Request-Id", required = false) String requestId,
+            @RequestHeader(value = "X-NS", required = false) String namespace
     ) {
         // traceId: AI 会话级
         if (traceId == null || traceId.isBlank()) {
@@ -135,11 +136,15 @@ public class BusinessMcpController {
             requestId = UUID.randomUUID().toString();
         }
 
-        log.info("Business MCP Stream request received: method={}, id={}, traceId={}, requestId={}",
-                request.getMethod(), request.getId(), traceId, requestId);
+        if (namespace == null || namespace.isBlank()) {
+            log.warn("Business MCP Stream: X-NS header is MISSING — will use default namespace. " +
+                    "For Odoo models, set header X-NS: odoo");
+        }
+        log.info("Business MCP Stream request received: method={}, id={}, traceId={}, requestId={}, namespace={}",
+                request.getMethod(), request.getId(), traceId, requestId, namespace);
 
         final String finalTraceId = traceId;
-        return toolDispatcher.executeWithProgress(request, traceId, authorization)
+        return toolDispatcher.executeWithProgress(request, traceId, authorization, namespace)
                 .map(event -> ServerSentEvent.<Object>builder()
                         .id(event.getId())
                         .event(event.getEventType())

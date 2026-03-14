@@ -16,6 +16,15 @@ spring:
     password: odoo
     driver-class-name: org.postgresql.Driver
 
+logging:
+  file:
+    path: ./logs
+  level:
+    com.foggyframework.dataset.mcp.controller: DEBUG
+    com.foggyframework.dataset.mcp.service.McpToolDispatcher: DEBUG
+    com.foggyframework.dataset.mcp.tools: DEBUG
+    com.foggyframework.dataset.mcp.spi.impl: DEBUG
+
 foggy:
   demo:
     enabled: false

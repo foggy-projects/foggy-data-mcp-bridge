@@ -226,14 +226,22 @@ public class McpToolDispatcher {
     }
 
     /**
+     * 执行工具（带进度流）— 无命名空间版本（兼容旧调用）
+     */
+    public Flux<ProgressEvent> executeWithProgress(McpRequest request, String traceId, String authorization) {
+        return executeWithProgress(request, traceId, authorization, null);
+    }
+
+    /**
      * 执行工具（带进度流）
      *
      * @param request       MCP请求
      * @param traceId       追踪ID
      * @param authorization 授权令牌
+     * @param namespace     命名空间（用于模型隔离）
      * @return 进度事件流
      */
-    public Flux<ProgressEvent> executeWithProgress(McpRequest request, String traceId, String authorization) {
+    public Flux<ProgressEvent> executeWithProgress(McpRequest request, String traceId, String authorization, String namespace) {
         Map<String, Object> params = request.getParams();
         if (params == null) {
             return Flux.just(ProgressEvent.error("INVALID_PARAMS", "Missing params"));
@@ -259,8 +267,14 @@ public class McpToolDispatcher {
             return Flux.just(ProgressEvent.error("TOOL_NOT_FOUND", "Unknown tool: " + toolName));
         }
 
-        // 创建执行上下文
-        ToolExecutionContext context = ToolExecutionContext.of(traceId, authorization);
+        log.info("Stream executeWithProgress: tool={}, traceId={}, namespace={}", toolName, traceId, namespace);
+
+        // 创建执行上下文（含命名空间）
+        ToolExecutionContext context = ToolExecutionContext.builder()
+                .traceId(traceId)
+                .authorization(authorization)
+                .namespace(namespace)
+                .build();
 
         // 检查工具是否支持流式执行
         if (tool.supportsStreaming()) {
