@@ -7,6 +7,10 @@ Provides a single endpoint at /foggy-mcp/rpc that:
 2. Routes MCP methods (initialize, tools/list, tools/call, ping)
 3. Injects permission conditions into payload.slice for tools/call
 4. Forwards tools/call requests to the Foggy MCP Server
+
+Odoo 17 compatibility:
+    Uses type='http' + request.get_json_data() instead of the removed
+    type='json' + request.jsonrequest pattern.
 """
 import json
 import logging
@@ -55,10 +59,22 @@ def _reset_singletons():
     _foggy_client = None
 
 
+def _json_response(data, status=200):
+    """Build a JSON HTTP response."""
+    return Response(
+        json.dumps(data, ensure_ascii=False),
+        status=status,
+        headers={
+            'Content-Type': 'application/json; charset=utf-8',
+            'Access-Control-Allow-Origin': '*',
+        }
+    )
+
+
 class McpController(http.Controller):
     """MCP JSON-RPC 2.0 endpoint for AI clients."""
 
-    @http.route('/foggy-mcp/rpc', type='json', auth='none', methods=['POST'],
+    @http.route('/foggy-mcp/rpc', type='http', auth='none', methods=['POST', 'OPTIONS'],
                 csrf=False, cors='*')
     def handle_rpc(self, **kwargs):
         """
@@ -73,11 +89,22 @@ class McpController(http.Controller):
             - tools/list: Available tools (filtered by user permissions)
             - tools/call: Execute a tool (with permission slices injected)
             - ping: Health check
+
+        Note: Uses type='http' for Odoo 17 compatibility.
+              Odoo 17 removed request.jsonrequest; uses request.get_json_data() instead.
         """
+        # Handle CORS preflight
+        if request.httprequest.method == 'OPTIONS':
+            return Response('', status=204, headers={
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'POST, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Trace-Id',
+            })
+
         jsonrpc_request = None
         try:
-            # Parse request
-            jsonrpc_request = request.jsonrequest
+            # Parse request body (Odoo 17 compatible)
+            jsonrpc_request = request.get_json_data()
             method = jsonrpc_request.get('method')
             params = jsonrpc_request.get('params', {})
             request_id = jsonrpc_request.get('id')
@@ -88,26 +115,32 @@ class McpController(http.Controller):
             # Authenticate
             user = self._authenticate()
             if not user:
-                return self._error_response(request_id, -32000, 'Authentication required')
+                return self._jsonrpc_error(request_id, -32000, 'Authentication required')
 
             env = request.env(user=user.id)
 
             # Route by method
             if method == 'initialize':
-                return self._handle_initialize(request_id)
+                result = self._handle_initialize(request_id)
             elif method == 'tools/list':
-                return self._handle_tools_list(request_id, env, user)
+                result = self._handle_tools_list(request_id, env, user)
             elif method == 'tools/call':
-                return self._handle_tools_call(request_id, params, env, user, trace_id)
+                result = self._handle_tools_call(request_id, params, env, user, trace_id)
             elif method == 'ping':
-                return self._handle_ping(request_id)
+                result = self._handle_ping(request_id)
             else:
-                return self._error_response(request_id, -32601, f'Method not found: {method}')
+                return self._jsonrpc_error(request_id, -32601, f'Method not found: {method}')
+
+            # Check if result is an error response
+            if isinstance(result, dict) and 'error' in result:
+                return self._jsonrpc_response(request_id, result=result)
+
+            return self._jsonrpc_response(request_id, result=result)
 
         except Exception as e:
             _logger.error("MCP error: %s", e, exc_info=True)
             req_id = jsonrpc_request.get('id') if jsonrpc_request else None
-            return self._error_response(req_id, -32603, str(e))
+            return self._jsonrpc_error(req_id, -32603, str(e))
 
     def _authenticate(self):
         """
@@ -155,10 +188,12 @@ class McpController(http.Controller):
             tools = registry.get_tools_for_user(env, user.id)
         except Exception as e:
             _logger.error("Failed to load tools: %s", e, exc_info=True)
-            return self._error_response(
-                request_id, -32002,
-                f'Failed to load tools from Foggy MCP Server: {e}'
-            )
+            return {
+                'error': {
+                    'code': -32002,
+                    'message': f'Failed to load tools from Foggy MCP Server: {e}'
+                }
+            }
 
         _logger.info("tools/list: user=%s, tools=%d", user.login, len(tools))
         return {'tools': tools}
@@ -176,7 +211,12 @@ class McpController(http.Controller):
         arguments = params.get('arguments', {})
 
         if not tool_name:
-            return self._error_response(request_id, -32602, 'Missing tool name')
+            return {
+                'error': {
+                    'code': -32602,
+                    'message': 'Missing tool name'
+                }
+            }
 
         _logger.info("tools/call: user=%s, tool=%s, trace_id=%s",
                       user.login, tool_name, trace_id)
@@ -195,10 +235,12 @@ class McpController(http.Controller):
                         _logger.warning(
                             "Access denied: user=%s, model=%s", user.login, odoo_model
                         )
-                        return self._error_response(
-                            request_id, -32003,
-                            f'Access denied: no read permission on {odoo_model}'
-                        )
+                        return {
+                            'error': {
+                                'code': -32003,
+                                'message': f'Access denied: no read permission on {odoo_model}'
+                            }
+                        }
 
                 # Row-level access: compute permission slices and inject into payload.slice
                 try:
@@ -212,10 +254,12 @@ class McpController(http.Controller):
                 except Exception as e:
                     _logger.error("Failed to compute permission slices: %s", e, exc_info=True)
                     # Fail closed: deny access if we can't compute permissions
-                    return self._error_response(
-                        request_id, -32004,
-                        'Failed to compute access permissions. Access denied for safety.'
-                    )
+                    return {
+                        'error': {
+                            'code': -32004,
+                            'message': 'Failed to compute access permissions. Access denied for safety.'
+                        }
+                    }
 
         # Forward to Foggy MCP Server
         try:
@@ -227,10 +271,12 @@ class McpController(http.Controller):
             )
         except Exception as e:
             _logger.error("Foggy MCP Server error: %s", e, exc_info=True)
-            return self._error_response(
-                request_id, -32005,
-                f'Foggy MCP Server unavailable: {e}'
-            )
+            return {
+                'error': {
+                    'code': -32005,
+                    'message': f'Foggy MCP Server unavailable: {e}'
+                }
+            }
 
         # Return the Foggy response result directly
         return response.get('result', {})
@@ -239,14 +285,26 @@ class McpController(http.Controller):
         """Handle MCP ping request."""
         return {}
 
-    def _error_response(self, request_id, code, message):
-        """Build a JSON-RPC error response."""
-        return {
+    def _jsonrpc_response(self, request_id, result=None):
+        """Build a JSON-RPC 2.0 success response."""
+        body = {
+            'jsonrpc': '2.0',
+            'id': request_id,
+        }
+        if result is not None:
+            body['result'] = result
+        return _json_response(body)
+
+    def _jsonrpc_error(self, request_id, code, message):
+        """Build a JSON-RPC 2.0 error response."""
+        return _json_response({
+            'jsonrpc': '2.0',
+            'id': request_id,
             'error': {
                 'code': code,
                 'message': message,
             }
-        }
+        })
 
     # ─── Diagnostics endpoint ────────────────────────────────────
 

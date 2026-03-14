@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * dialectFormulaDef 功能测试
@@ -26,6 +27,20 @@ import static org.junit.jupiter.api.Assertions.*;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @DisplayName("dialectFormulaDef 功能测试（维度/属性/度量）")
 class CaptionDefTest extends EcommerceTestSupport {
+
+    /** store 维度 — 各方言 captionDef 标记 */
+    private static final Map<String, String> STORE_MARKERS = Map.of(
+            "sqlite", "[SQLite]",
+            "postgresql", "[PG]",
+            "mysql", "[MySQL]"
+    );
+
+    /** orderId 属性 — 各方言 dialectFormulaDef 后缀 */
+    private static final Map<String, String> PROPERTY_SUFFIXES = Map.of(
+            "sqlite", "-sqlite",
+            "postgresql", "-pg",
+            "mysql", "-mysql"
+    );
 
     // ==========================================
     // 模型加载测试
@@ -83,8 +98,13 @@ class CaptionDefTest extends EcommerceTestSupport {
 
     @Test
     @Order(3)
-    @DisplayName("captionDef.dialectFormulaDef 模式 — SQLite 方言公式")
+    @DisplayName("captionDef.dialectFormulaDef 模式 — 方言公式自动匹配")
     void testCaptionDefDialectFormulaDef() {
+        String dialectKey = getDialectKey();
+        String expectedMarker = STORE_MARKERS.get(dialectKey);
+        assumeTrue(expectedMarker != null,
+                "当前方言 " + dialectKey + " 未在 TM 中定义 dialectFormulaDef，跳过");
+
         TableModel model = tableModelLoaderManager.load("FactSalesCaptionDefModel");
         assertNotNull(model);
 
@@ -93,18 +113,18 @@ class CaptionDefTest extends EcommerceTestSupport {
 
         DbDimensionSupport ds = storeDim.getDecorate(DbDimensionSupport.class);
         assertNotNull(ds.getCaptionDbColumn(), "captionDbColumn 不应为空");
-        assertNotNull(ds.getCaptionFormulaBuilder(), "captionFormulaBuilder 应被设置（方言匹配）");
+        assertNotNull(ds.getCaptionFormulaBuilder(),
+                "captionFormulaBuilder 应被设置（方言 " + dialectKey + " 匹配）");
 
-        // 测试环境使用 SQLite，应匹配 dialectFormulaDef.sqlite
         String declare = ds.getCaptionDbColumn().getDeclare(appCtx,
                 ds.getCaptionDbColumn().getQueryObject().getAlias());
         assertNotNull(declare, "getDeclare() 不应返回 null");
-        assertTrue(declare.contains("[SQLite]"),
-                "SQLite 方言模式 getDeclare() 应包含 [SQLite] 标记，实际: " + declare);
+        assertTrue(declare.contains(expectedMarker),
+                dialectKey + " 方言 getDeclare() 应包含 " + expectedMarker + " 标记，实际: " + declare);
         assertTrue(declare.contains("store_name"),
                 "方言模式 getDeclare() 应包含 store_name，实际: " + declare);
 
-        log.info("captionDef.dialectFormulaDef 模式验证通过: declare={}", declare);
+        log.info("captionDef.dialectFormulaDef [{}] 验证通过: declare={}", dialectKey, declare);
     }
 
     // ==========================================
@@ -133,9 +153,18 @@ class CaptionDefTest extends EcommerceTestSupport {
     @Order(11)
     @DisplayName("captionDef.dialectFormulaDef 查询实际数据")
     void testCaptionDefDialectFormulaDefQuery() {
-        // 直接用 SQLite 拼接语法验证
+        String dialectKey = getDialectKey();
+        String marker = STORE_MARKERS.get(dialectKey);
+        assumeTrue(marker != null,
+                "当前方言 " + dialectKey + " 未定义 store dialectFormulaDef，跳过");
+
+        // 根据方言使用不同的字符串拼接语法
+        String concatExpr = "mysql".equals(dialectKey)
+                ? "CONCAT(s.store_name, ' " + marker + "')"
+                : "s.store_name || ' " + marker + "'";
+
         List<Map<String, Object>> results = executeQuery(
-                "SELECT s.store_name || ' [SQLite]' as caption " +
+                "SELECT " + concatExpr + " as caption " +
                 "FROM fact_sales fs JOIN dim_store s ON fs.store_key = s.store_key " +
                 "LIMIT 5");
         assertNotNull(results, "查询结果不应为空");
@@ -143,10 +172,10 @@ class CaptionDefTest extends EcommerceTestSupport {
         results.forEach(row -> {
             String caption = (String) row.get("caption");
             assertNotNull(caption, "caption 不应为 null");
-            assertTrue(caption.endsWith("[SQLite]"), "应以 [SQLite] 结尾: " + caption);
+            assertTrue(caption.endsWith(marker), "应以 " + marker + " 结尾: " + caption);
         });
 
-        log.info("captionDef.dialectFormulaDef 数据查询验证通过: {} 条", results.size());
+        log.info("captionDef.dialectFormulaDef [{}] 数据查询验证通过: {} 条", dialectKey, results.size());
     }
 
     // ==========================================
@@ -197,27 +226,31 @@ class CaptionDefTest extends EcommerceTestSupport {
 
     @Test
     @Order(30)
-    @DisplayName("属性 dialectFormulaDef — SQLite 方言公式")
+    @DisplayName("属性 dialectFormulaDef — 方言公式自动匹配")
     void testPropertyDialectFormulaDef() {
+        String dialectKey = getDialectKey();
+        String expectedSuffix = PROPERTY_SUFFIXES.get(dialectKey);
+        assumeTrue(expectedSuffix != null,
+                "当前方言 " + dialectKey + " 未定义 orderId dialectFormulaDef，跳过");
+
         TableModel model = tableModelLoaderManager.load("FactSalesCaptionDefModel");
         assertNotNull(model);
 
-        // order_id 属性配置了 dialectFormulaDef.sqlite
         DbProperty orderIdProp = model.findJdbcPropertyByName("orderId");
         assertNotNull(orderIdProp, "orderId 属性不存在");
 
         DbPropertyImpl propImpl = orderIdProp.getDecorate(DbPropertyImpl.class);
         assertNotNull(propImpl, "属性应为 DbPropertyImpl 类型");
-        assertNotNull(propImpl.getFormulaBuilder(), "dialectFormulaDef.sqlite 应注入 formulaBuilder");
+        assertNotNull(propImpl.getFormulaBuilder(),
+                "dialectFormulaDef." + dialectKey + " 应注入 formulaBuilder");
 
-        // getDeclare 应使用 SQLite 方言公式
         DbColumn propCol = propImpl.getPropertyDbColumn();
         String declare = propCol.getDeclare(appCtx, model.getQueryObject().getAlias());
         assertNotNull(declare, "getDeclare() 不应返回 null");
-        assertTrue(declare.contains("-sqlite"),
-                "SQLite 方言属性公式应包含 '-sqlite'，实际: " + declare);
+        assertTrue(declare.contains(expectedSuffix),
+                dialectKey + " 方言属性公式应包含 '" + expectedSuffix + "'，实际: " + declare);
 
-        log.info("属性 dialectFormulaDef 验证通过: declare={}", declare);
+        log.info("属性 dialectFormulaDef [{}] 验证通过: declare={}", dialectKey, declare);
     }
 
     @Test
@@ -270,26 +303,27 @@ class CaptionDefTest extends EcommerceTestSupport {
 
     @Test
     @Order(40)
-    @DisplayName("度量 dialectFormulaDef — SQLite 方言公式")
+    @DisplayName("度量 dialectFormulaDef — 方言公式自动匹配")
     void testMeasureDialectFormulaDef() {
+        String dialectKey = getDialectKey();
+
         TableModel model = tableModelLoaderManager.load("FactSalesCaptionDefModel");
         assertNotNull(model);
 
-        // taxDialect 度量配置了 dialectFormulaDef.sqlite
         DbMeasure taxMeasure = model.findJdbcMeasureByName("taxDialect");
         assertNotNull(taxMeasure, "taxDialect 度量不存在");
 
         DbMeasureSupport measureSupport = taxMeasure.getDecorate(DbMeasureSupport.class);
-        assertNotNull(measureSupport.getFormulaBuilder(), "dialectFormulaDef.sqlite 应注入 formulaBuilder");
+        assertNotNull(measureSupport.getFormulaBuilder(),
+                "dialectFormulaDef." + dialectKey + " 应注入 formulaBuilder");
 
-        // getDeclare 应使用 SQLite 方言公式
         DbColumn measCol = measureSupport.getJdbcColumn();
         String declare = measCol.getDeclare(appCtx, model.getQueryObject().getAlias());
         assertNotNull(declare, "getDeclare() 不应返回 null");
         assertTrue(declare.contains("* 1.1"),
-                "SQLite 方言度量公式应包含 '* 1.1'，实际: " + declare);
+                dialectKey + " 方言度量公式应包含 '* 1.1'，实际: " + declare);
 
-        log.info("度量 dialectFormulaDef 验证通过: declare={}", declare);
+        log.info("度量 dialectFormulaDef [{}] 验证通过: declare={}", dialectKey, declare);
     }
 
     @Test

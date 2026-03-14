@@ -127,9 +127,9 @@ public class QueryFacadeImpl implements QueryFacade {
             PagingRequest<DbQueryRequestDef> form = context.getRequest();
             DbQueryRequestDef queryRequest = form.getParam();
 
-            // 1. 获取查询模型
+            // 1. 获取查询模型（带命名空间）
             String queryModelName = queryRequest.getQueryModel();
-            QueryModel jdbcQueryModel = queryModelLoader.getJdbcQueryModel(queryModelName);
+            QueryModel jdbcQueryModel = queryModelLoader.getJdbcQueryModel(queryModelName, context.getNamespace());
 
             // 1.1 提前设置 jdbcQueryModel，供 beforeQuery Step 使用
             context.setQueryModel(jdbcQueryModel);

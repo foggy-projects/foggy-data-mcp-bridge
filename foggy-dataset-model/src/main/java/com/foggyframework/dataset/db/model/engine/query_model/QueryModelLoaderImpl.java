@@ -174,14 +174,29 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
 
         // 3. 加载新模型（此时 queryModelNameOrAlias 应该是全名）
         Fsscript fsscript = findFsscriptWithNamespace(queryModelNameOrAlias, normalizedNs, "qm");
-        ExpEvaluator ee = evalQmScript(fsscript);
-        Object queryModel = ee.getExportObject("queryModel");
 
-        DbQueryModelDef queryModelDef = FsscriptConversionService.getSharedInstance().convert(queryModel, DbQueryModelDef.class);
+        // 设置 NamespaceContext，确保 QM 脚本中的 loadTableModel 能在正确命名空间中查找 TM
+        String previousNs = NamespaceContext.getNamespace();
+        try {
+            if (!normalizedNs.isEmpty()) {
+                NamespaceContext.setNamespace(normalizedNs);
+            }
+            ExpEvaluator ee = evalQmScript(fsscript);
+            Object queryModel = ee.getExportObject("queryModel");
 
-        tm = loadJdbcQueryModel(ee, fsscript, queryModelDef);
-        registerQueryModel(queryModelNameOrAlias, (QueryModelSupport) tm, normalizedNs);
-        return tm;
+            DbQueryModelDef queryModelDef = FsscriptConversionService.getSharedInstance().convert(queryModel, DbQueryModelDef.class);
+
+            tm = loadJdbcQueryModel(ee, fsscript, queryModelDef);
+            registerQueryModel(queryModelNameOrAlias, (QueryModelSupport) tm, normalizedNs);
+            return tm;
+        } finally {
+            // 恢复之前的 namespace（避免影响调用方）
+            if (previousNs != null) {
+                NamespaceContext.setNamespace(previousNs);
+            } else if (!normalizedNs.isEmpty()) {
+                NamespaceContext.clear();
+            }
+        }
     }
 
     /**
@@ -197,23 +212,38 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
     public QueryModel loadJdbcQueryModel(BundleResource bundleResource) {
         // 从BundleResource中提取namespace
         String namespace = getNamespaceFromBundleResource(bundleResource);
+        String normalizedNs = normalizeNamespace(namespace);
 
         Fsscript fsscript = fileFsscriptLoader.findLoadFsscript(bundleResource);
-        ExpEvaluator ee = evalQmScript(fsscript);
-        Object queryModel = ee.getExportObject("queryModel");
-        DbQueryModelDef queryModelDef = FsscriptConversionService.getSharedInstance().convert(queryModel, DbQueryModelDef.class);
+
+        // 设置 NamespaceContext，确保 QM 脚本中的 loadTableModel 能在正确命名空间中查找 TM
+        String previousNs = NamespaceContext.getNamespace();
         try {
-            QueryModelSupport qm = loadJdbcQueryModel(ee, fsscript, queryModelDef);
-            // 注册模型并分配简称（使用提取的namespace）
-            String modelName = qm.getName();
-            NamespaceCache cache = getOrCreateCache(namespace);
-            if (!cache.name2QueryModel.containsKey(modelName)) {
-                registerQueryModel(modelName, qm, namespace);
+            if (!normalizedNs.isEmpty()) {
+                NamespaceContext.setNamespace(normalizedNs);
             }
-            return qm;
-        } catch (Throwable t) {
-            log.error(String.format("加载%s时出现异常", bundleResource));
-            throw ErrorUtils.toRuntimeException(t);
+            ExpEvaluator ee = evalQmScript(fsscript);
+            Object queryModel = ee.getExportObject("queryModel");
+            DbQueryModelDef queryModelDef = FsscriptConversionService.getSharedInstance().convert(queryModel, DbQueryModelDef.class);
+            try {
+                QueryModelSupport qm = loadJdbcQueryModel(ee, fsscript, queryModelDef);
+                // 注册模型并分配简称（使用提取的namespace）
+                String modelName = qm.getName();
+                NamespaceCache cache = getOrCreateCache(normalizedNs);
+                if (!cache.name2QueryModel.containsKey(modelName)) {
+                    registerQueryModel(modelName, qm, normalizedNs);
+                }
+                return qm;
+            } catch (Throwable t) {
+                log.error(String.format("加载%s时出现异常", bundleResource));
+                throw ErrorUtils.toRuntimeException(t);
+            }
+        } finally {
+            if (previousNs != null) {
+                NamespaceContext.setNamespace(previousNs);
+            } else if (!normalizedNs.isEmpty()) {
+                NamespaceContext.clear();
+            }
         }
     }
 

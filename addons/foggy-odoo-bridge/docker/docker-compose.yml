@@ -49,6 +49,10 @@ services:
 
   # ──────────────────────────────────────────────
   # Foggy MCP Server (Java) — lite mode
+  #
+  # Two deployment options:
+  #   1. Pre-built image:  docker compose up -d foggy-mcp
+  #   2. Local JAR build:  docker compose --profile local up -d foggy-mcp-local
   # ──────────────────────────────────────────────
   foggy-mcp:
     image: foggy/foggy-dataset-mcp:latest
@@ -59,25 +63,76 @@ services:
     ports:
       - "8080:8080"
     environment:
-      # Spring profile: lite mode (no MongoDB, no data-viewer)
       SPRING_PROFILES_ACTIVE: lite
-      # PostgreSQL connection (same DB as Odoo)
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/odoo
       SPRING_DATASOURCE_USERNAME: odoo
       SPRING_DATASOURCE_PASSWORD: odoo
       SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
-      # External bundle: Odoo TM/QM models
-      FOGGY_BUNDLES_EXTERNAL_0_NAME: odoo-models
-      FOGGY_BUNDLES_EXTERNAL_0_PATH: /foggy-models
-      FOGGY_BUNDLES_EXTERNAL_0_NAMESPACE: odoo
+      FOGGY_DEMO_ENABLED: "false"
+      FOGGY_BUNDLE_EXTERNAL_ENABLED: "true"
+      FOGGY_BUNDLE_EXTERNAL_BUNDLES_0_NAME: odoo-models
+      FOGGY_BUNDLE_EXTERNAL_BUNDLES_0_PATH: /foggy-models
+      FOGGY_BUNDLE_EXTERNAL_BUNDLES_0_NAMESPACE: odoo
+      FOGGY_MCP_SEMANTIC_MODELLIST_0: OdooSaleOrderQueryModel
+      FOGGY_MCP_SEMANTIC_MODELLIST_1: OdooSaleOrderLineQueryModel
+      FOGGY_MCP_SEMANTIC_MODELLIST_2: OdooPurchaseOrderQueryModel
+      FOGGY_MCP_SEMANTIC_MODELLIST_3: OdooAccountMoveQueryModel
+      FOGGY_MCP_SEMANTIC_MODELLIST_4: OdooStockPickingQueryModel
+      FOGGY_MCP_SEMANTIC_MODELLIST_5: OdooHrEmployeeQueryModel
+      FOGGY_MCP_SEMANTIC_MODELLIST_6: OdooResPartnerQueryModel
     volumes:
-      # Mount Odoo TM/QM model files
       - ../foggy-models:/foggy-models:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+
+  # ──────────────────────────────────────────────
+  # Foggy MCP Server — local JAR (profile: local)
+  #
+  # Uses pre-built JAR from Maven. Build first:
+  #   cd ../../.. && mvn package -pl foggy-mcp-launcher -am -DskipTests
+  # Start:
+  #   docker compose --profile local up -d foggy-mcp-local
+  # ──────────────────────────────────────────────
+  foggy-mcp-local:
+    image: eclipse-temurin:17-jre
+    container_name: foggy-mcp-server
+    profiles: ["local"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: lite
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/odoo
+      SPRING_DATASOURCE_USERNAME: odoo
+      SPRING_DATASOURCE_PASSWORD: odoo
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
+      FOGGY_DEMO_ENABLED: "false"
+      FOGGY_BUNDLE_EXTERNAL_ENABLED: "true"
+      FOGGY_BUNDLE_EXTERNAL_BUNDLES_0_NAME: odoo-models
+      FOGGY_BUNDLE_EXTERNAL_BUNDLES_0_PATH: /foggy-models
+      FOGGY_BUNDLE_EXTERNAL_BUNDLES_0_NAMESPACE: odoo
+      FOGGY_MCP_SEMANTIC_MODELLIST_0: OdooSaleOrderQueryModel
+      FOGGY_MCP_SEMANTIC_MODELLIST_1: OdooSaleOrderLineQueryModel
+      FOGGY_MCP_SEMANTIC_MODELLIST_2: OdooPurchaseOrderQueryModel
+      FOGGY_MCP_SEMANTIC_MODELLIST_3: OdooAccountMoveQueryModel
+      FOGGY_MCP_SEMANTIC_MODELLIST_4: OdooStockPickingQueryModel
+      FOGGY_MCP_SEMANTIC_MODELLIST_5: OdooHrEmployeeQueryModel
+      FOGGY_MCP_SEMANTIC_MODELLIST_6: OdooResPartnerQueryModel
+    volumes:
+      - ../foggy-models:/foggy-models:ro
+      - ../../../foggy-mcp-launcher/target:/app:ro
+    working_dir: /app
+    entrypoint: ["sh", "-c", "java -jar /app/foggy-mcp-launcher-*.jar"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
 volumes:
   pgdata:

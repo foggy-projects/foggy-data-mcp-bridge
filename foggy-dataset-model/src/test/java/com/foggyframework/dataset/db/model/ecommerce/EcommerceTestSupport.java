@@ -54,6 +54,17 @@ public abstract class EcommerceTestSupport {
         return "sqlite".equalsIgnoreCase(databaseType);
     }
 
+    /**
+     * 获取当前数据库方言标识（小写）。
+     * <p>通过实际 DataSource 连接检测，而非配置文件推断。</p>
+     *
+     * @return 方言标识，如 "sqlite", "postgresql", "mysql", "sqlserver"
+     */
+    protected String getDialectKey() {
+        return DbUtils.getDialect(jdbcTemplate.getDataSource())
+                .getDbType().name().toLowerCase();
+    }
+
     @Resource
     protected TableModelLoaderManager tableModelLoaderManager;
 

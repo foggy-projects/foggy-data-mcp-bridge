@@ -29,6 +29,9 @@ export const model = {
             foreignKey: 'job_id',
             primaryKey: 'id',
             // Odoo 17: hr_job.name is JSONB (translatable field)
+            // captionColumn required as fallback — captionDef.column alone causes NPE
+            // in external bundle loading (SqlTableSupport.getSqlColumn null name)
+            captionColumn: 'name',
             captionDef: {
                 column: 'name',
                 dialectFormulaDef: {
@@ -70,6 +73,7 @@ export const model = {
             foreignKey: 'work_location_id',
             primaryKey: 'id',
             // Odoo 17: hr_work_location.name is JSONB (translatable field)
+            captionColumn: 'name',
             captionDef: {
                 column: 'name',
                 dialectFormulaDef: {

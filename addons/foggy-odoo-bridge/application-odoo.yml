@@ -1,0 +1,41 @@
+# ═══════════════════════════════════════════════════════════════
+# Foggy MCP Server — Odoo Integration Profile
+#
+# Usage:
+#   java -jar foggy-mcp-launcher.jar --spring.config.additional-location=application-odoo.yml
+#   or set: --spring.profiles.active=lite  (and this file via additional-location)
+# ═══════════════════════════════════════════════════════════════
+
+spring:
+  profiles:
+    active: lite
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/odoo
+    username: odoo
+    password: odoo
+    driver-class-name: org.postgresql.Driver
+
+foggy:
+  demo:
+    enabled: false
+
+  bundle:
+    external:
+      enabled: true
+      bundles:
+        - name: odoo-models
+          # Overridden by start-foggy-mcp.sh to absolute path
+          path: ./foggy-models
+          namespace: odoo
+
+  mcp:
+    semantic:
+      model-list:
+        - OdooSaleOrderQueryModel
+        - OdooSaleOrderLineQueryModel
+        - OdooPurchaseOrderQueryModel
+        - OdooAccountMoveQueryModel
+        - OdooStockPickingQueryModel
+        - OdooHrEmployeeQueryModel
+        - OdooResPartnerQueryModel

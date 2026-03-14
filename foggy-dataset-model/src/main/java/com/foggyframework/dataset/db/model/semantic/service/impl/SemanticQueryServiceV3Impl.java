@@ -90,7 +90,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                                                           ModelResultContext.SecurityContext securityContext,
                                                           String namespace) {
         if ("validate".equals(mode)) {
-            return validateQuery(model, request);
+            return validateQueryInternal(model, request, namespace);
         }
 
         if (request.getColumns() == null || request.getColumns().isEmpty()) {
@@ -105,7 +105,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         context.originalRequest = request;
 
         // 2. 构建初始JDBC请求
-        PagingRequest<DbQueryRequestDef> jdbcRequest = buildJdbcRequest(model, request, context);
+        PagingRequest<DbQueryRequestDef> jdbcRequest = buildJdbcRequest(model, request, context, namespace);
 
         // 3. 处理 slice 中的 $caption 值转换（如果需要）
         // 注意：这里在 beforeQuery 之前处理，因为需要先转换好 slice
@@ -149,10 +149,17 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
 
     @Override
     public SemanticQueryResponse validateQuery(String model, SemanticQueryRequest request) {
+        return validateQueryInternal(model, request, null);
+    }
+
+    /**
+     * 带命名空间的验证查询（内部方法）
+     */
+    private SemanticQueryResponse validateQueryInternal(String model, SemanticQueryRequest request, String namespace) {
         SemanticQueryResponse response = new SemanticQueryResponse();
 
         // V3 的验证主要检查字段是否存在
-        QueryModel queryModel = queryModelLoader.getJdbcQueryModel(model);
+        QueryModel queryModel = queryModelLoader.getJdbcQueryModel(model, namespace);
         if (queryModel == null) {
             throw RX.throwB("模型不存在: " + model);
         }
@@ -195,14 +202,15 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
     /**
      * 构建JDBC查询请求（V3版本：直接透传字段名）
      */
-    private PagingRequest<DbQueryRequestDef> buildJdbcRequest(String model, SemanticQueryRequest request, QueryContextV3 context) {
+    private PagingRequest<DbQueryRequestDef> buildJdbcRequest(String model, SemanticQueryRequest request,
+                                                               QueryContextV3 context, String namespace) {
         DbQueryRequestDef queryDef = new DbQueryRequestDef();
         queryDef.setQueryModel(model);
         queryDef.setReturnTotal(request.getReturnTotal());
         queryDef.setStrictColumns(true);
 
-        // 获取模型定义用于字段校验
-        QueryModel queryModel = queryModelLoader.getJdbcQueryModel(model);
+        // 获取模型定义用于字段校验（带命名空间）
+        QueryModel queryModel = queryModelLoader.getJdbcQueryModel(model, namespace);
 
         // 复制 columns 和 groupBy 以便修改
         List<String> columns = new ArrayList<>(request.getColumns());

@@ -56,13 +56,19 @@ export const model = {
                         builder: (alias) => {
                             return `${alias}.store_name || ' [SQLite]'`;
                         },
-                        description: 'SQLite 方言：拼接标记'
+                        description: 'SQLite 方言：|| 拼接标记'
                     },
                     postgresql: {
                         builder: (alias) => {
                             return `${alias}.store_name || ' [PG]'`;
                         },
-                        description: 'PostgreSQL 方言：拼接标记'
+                        description: 'PostgreSQL 方言：|| 拼接标记'
+                    },
+                    mysql: {
+                        builder: (alias) => {
+                            return `CONCAT(${alias}.store_name, ' [MySQL]')`;
+                        },
+                        description: 'MySQL 方言：CONCAT 拼接标记'
                     }
                 }
             }
@@ -79,11 +85,15 @@ export const model = {
             dialectFormulaDef: {
                 sqlite: {
                     builder: (alias) => { return `${alias}.order_id || '-sqlite'`; },
-                    description: 'SQLite: 拼接后缀'
+                    description: 'SQLite: || 拼接后缀'
                 },
                 postgresql: {
                     builder: (alias) => { return `${alias}.order_id || '-pg'`; },
-                    description: 'PostgreSQL: 拼接后缀'
+                    description: 'PostgreSQL: || 拼接后缀'
+                },
+                mysql: {
+                    builder: (alias) => { return `CONCAT(${alias}.order_id, '-mysql')`; },
+                    description: 'MySQL: CONCAT 拼接后缀'
                 }
             }
         },
@@ -123,6 +133,10 @@ export const model = {
                 postgresql: {
                     builder: (alias) => { return `${alias}.tax_amount * 1.1`; },
                     description: 'PostgreSQL: 税额*1.1'
+                },
+                mysql: {
+                    builder: (alias) => { return `${alias}.tax_amount * 1.1`; },
+                    description: 'MySQL: 税额*1.1'
                 }
             }
         },

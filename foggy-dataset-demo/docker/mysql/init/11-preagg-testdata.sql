@@ -207,13 +207,15 @@ DROP PROCEDURE IF EXISTS `sp_generate_sales_data`;
 -- ==========================================
 TRUNCATE TABLE `fact_return`;
 
+-- MySQL 5.7 兼容：用用户变量替代 ROW_NUMBER() 窗口函数
+SET @ret_row := 0;
 INSERT INTO `fact_return` (
     `return_id`, `order_id`, `order_line_no`, `date_key`, `product_key`, `customer_key`,
     `store_key`, `return_quantity`, `return_amount`, `return_reason`, `return_type`,
     `return_status`, `return_time`, `created_at`
 )
 SELECT
-    CONCAT('RET', LPAD(ROW_NUMBER() OVER (ORDER BY s.sales_key), 8, '0')) AS return_id,
+    CONCAT('RET', LPAD(@ret_row := @ret_row + 1, 8, '0')) AS return_id,
     s.order_id,
     s.order_line_no,
     s.date_key + FLOOR(1 + RAND() * 7) AS date_key,  -- 退货日期在购买后1-7天
@@ -228,7 +230,8 @@ SELECT
     DATE_ADD(s.created_at, INTERVAL FLOOR(1 + RAND() * 7) DAY) AS return_time,
     NOW() AS created_at
 FROM fact_sales s
-WHERE RAND() < 0.1;  -- 约10%的销售会退货
+WHERE RAND() < 0.1  -- 约10%的销售会退货
+ORDER BY s.sales_key;
 
 -- ==========================================
 -- 9. 填充预聚合表数据（模拟已完成的预聚合）
