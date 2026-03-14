@@ -1,5 +1,6 @@
 package com.foggyframework.dataset.db.model.preagg.refresh;
 
+import com.foggyframework.dataset.db.dialect.FDialect;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -47,6 +48,11 @@ public class PreAggRefreshContext {
      * 是否强制全量刷新
      */
     private boolean forceFullRefresh;
+
+    /**
+     * 数据库方言（用于生成方言特定的 SQL）
+     */
+    private FDialect dialect;
 
     /**
      * 扩展数据

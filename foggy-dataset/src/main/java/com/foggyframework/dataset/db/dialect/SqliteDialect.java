@@ -232,4 +232,58 @@ public class SqliteDialect extends FDialect {
         }
         return value;
     }
+
+    // ==================== 预聚合 SQL 构建支持 ====================
+
+    @Override
+    public String buildDateTruncateExpression(String column, String granularity) {
+        if (granularity == null) return column;
+        switch (granularity.toUpperCase()) {
+            case "YEAR":
+                return "strftime('%Y-01-01', " + column + ")";
+            case "QUARTER":
+                // SQLite 无 QUARTER 函数，用 strftime 模拟
+                return "strftime('%Y-', " + column + ") || CASE " +
+                       "WHEN CAST(strftime('%m', " + column + ") AS INTEGER) <= 3 THEN '01-01' " +
+                       "WHEN CAST(strftime('%m', " + column + ") AS INTEGER) <= 6 THEN '04-01' " +
+                       "WHEN CAST(strftime('%m', " + column + ") AS INTEGER) <= 9 THEN '07-01' " +
+                       "ELSE '10-01' END";
+            case "MONTH":
+                return "strftime('%Y-%m-01', " + column + ")";
+            case "WEEK":
+                return "DATE(" + column + ", 'weekday 0', '-6 days')";
+            case "DAY":
+                return "DATE(" + column + ")";
+            case "HOUR":
+                return "strftime('%Y-%m-%d %H:00:00', " + column + ")";
+            case "MINUTE":
+                return "strftime('%Y-%m-%d %H:%M:00', " + column + ")";
+            default:
+                return column;
+        }
+    }
+
+    @Override
+    public String buildCurrentTimestampExpression() {
+        return "datetime('now')";
+    }
+
+    @Override
+    public String mapColumnType(String abstractType) {
+        if (abstractType == null) return null;
+        String upper = abstractType.toUpperCase();
+        // SQLite 使用亲和类型
+        if (upper.startsWith("VARCHAR") || upper.equals("DATETIME") || upper.equals("DATE")
+                || upper.equals("TIMESTAMP")) {
+            return "TEXT";
+        }
+        if (upper.equals("INT") || upper.equals("BIGINT") || upper.equals("TINYINT")
+                || upper.equals("SMALLINT")) {
+            return "INTEGER";
+        }
+        if (upper.startsWith("DECIMAL") || upper.equals("NUMERIC")) {
+            return "REAL";
+        }
+        return abstractType;
+    }
 }

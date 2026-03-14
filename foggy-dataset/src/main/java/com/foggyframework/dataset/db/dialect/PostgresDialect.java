@@ -172,4 +172,47 @@ public class PostgresDialect extends FDialect {
         // PostgreSQL 使用 COMMENT ON COLUMN 语法，这里返回空，需要单独处理
         return "";
     }
+
+    // ==================== 预聚合 SQL 构建支持 ====================
+
+    @Override
+    public String buildDateTruncateExpression(String column, String granularity) {
+        if (granularity == null) return column;
+        switch (granularity.toUpperCase()) {
+            case "YEAR":
+                return "DATE_TRUNC('year', " + column + ")";
+            case "QUARTER":
+                return "DATE_TRUNC('quarter', " + column + ")";
+            case "MONTH":
+                return "DATE_TRUNC('month', " + column + ")";
+            case "WEEK":
+                return "DATE_TRUNC('week', " + column + ")";
+            case "DAY":
+                return "DATE_TRUNC('day', " + column + ")";
+            case "HOUR":
+                return "DATE_TRUNC('hour', " + column + ")";
+            case "MINUTE":
+                return "DATE_TRUNC('minute', " + column + ")";
+            default:
+                return column;
+        }
+    }
+
+    @Override
+    public String buildCurrentTimestampExpression() {
+        return "NOW()";
+    }
+
+    @Override
+    public String mapColumnType(String abstractType) {
+        if (abstractType == null) return null;
+        switch (abstractType.toUpperCase()) {
+            case "DATETIME":
+                return "TIMESTAMP";
+            case "INT":
+                return "INTEGER";
+            default:
+                return abstractType;
+        }
+    }
 }

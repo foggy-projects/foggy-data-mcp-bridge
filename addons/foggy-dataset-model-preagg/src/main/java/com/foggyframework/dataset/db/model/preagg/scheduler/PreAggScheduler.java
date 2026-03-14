@@ -164,23 +164,29 @@ public class PreAggScheduler {
         PreAggRefreshContext context = PreAggRefreshContext.of(modelName, preAggName);
         context.setForceFullRefresh(forceFullRefresh);
 
-        // 获取上次刷新信息
+        // 获取上次刷新信息（synchronized 匹配写端锁）
         String taskKey = buildTaskKey(modelName, preAggName);
         ScheduledTaskInfo taskInfo = scheduledTasks.get(taskKey);
-        if (taskInfo != null && taskInfo.getLastRefreshTime() != null) {
-            context.setLastRefreshTime(taskInfo.getLastRefreshTime());
-            context.setLastWatermark(taskInfo.getLastWatermark());
+        if (taskInfo != null) {
+            synchronized (taskInfo) {
+                if (taskInfo.getLastRefreshTime() != null) {
+                    context.setLastRefreshTime(taskInfo.getLastRefreshTime());
+                    context.setLastWatermark(taskInfo.getLastWatermark());
+                }
+            }
         }
 
         // 执行刷新
         PreAggRefreshResult result = refreshService.refresh(preAgg, model, dataSource, context);
 
-        // 更新任务状态
+        // 更新任务状态（synchronized 保证多字段更新的原子可见性）
         if (taskInfo != null) {
-            taskInfo.setLastRefreshTime(LocalDateTime.now());
-            taskInfo.setLastResult(result);
-            if (result.isSuccess() && result.getNewWatermark() != null) {
-                taskInfo.setLastWatermark(result.getNewWatermark());
+            synchronized (taskInfo) {
+                taskInfo.setLastRefreshTime(LocalDateTime.now());
+                taskInfo.setLastResult(result);
+                if (result.isSuccess() && result.getNewWatermark() != null) {
+                    taskInfo.setLastWatermark(result.getNewWatermark());
+                }
             }
         }
 

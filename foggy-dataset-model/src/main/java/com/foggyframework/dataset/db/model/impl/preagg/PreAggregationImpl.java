@@ -1,5 +1,6 @@
 package com.foggyframework.dataset.db.model.impl.preagg;
 
+import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.db.model.def.preagg.PreAggFilterDef;
 import com.foggyframework.dataset.db.model.def.preagg.PreAggMeasureDef;
 import com.foggyframework.dataset.db.model.def.preagg.PreAggRefreshDef;
@@ -162,7 +163,7 @@ public class PreAggregationImpl implements PreAggregation {
         // 使用命名约定填充未配置的属性
         if (def.getDimensions() != null) {
             for (String dimName : def.getDimensions()) {
-                String snakeCaseDimName = toSnakeCase(dimName);
+                String snakeCaseDimName = StringUtils.to_sm_string(dimName);
 
                 // caption 映射
                 String captionKey = dimName + "$caption";
@@ -193,7 +194,7 @@ public class PreAggregationImpl implements PreAggregation {
                         for (String propName : props) {
                             String propKey = dimName + "$" + propName;
                             if (!result.containsKey(propKey)) {
-                                result.put(propKey, toSnakeCase(propName));
+                                result.put(propKey, StringUtils.to_sm_string(propName));
                             }
                         }
                     }
@@ -215,28 +216,6 @@ public class PreAggregationImpl implements PreAggregation {
         }
         // 其他维度使用 <dimName>_name
         return snakeCaseDimName + "_name";
-    }
-
-    /**
-     * 将驼峰命名转换为 snake_case
-     */
-    private String toSnakeCase(String camelCase) {
-        if (camelCase == null || camelCase.isEmpty()) {
-            return camelCase;
-        }
-        StringBuilder result = new StringBuilder();
-        for (int i = 0; i < camelCase.length(); i++) {
-            char c = camelCase.charAt(i);
-            if (Character.isUpperCase(c)) {
-                if (i > 0) {
-                    result.append('_');
-                }
-                result.append(Character.toLowerCase(c));
-            } else {
-                result.append(c);
-            }
-        }
-        return result.toString();
     }
 
     /**
