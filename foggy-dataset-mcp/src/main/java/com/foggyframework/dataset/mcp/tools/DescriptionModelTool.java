@@ -39,6 +39,7 @@ public class DescriptionModelTool implements McpTool {
     public Object execute(Map<String, Object> arguments, ToolExecutionContext context) {
         String traceId = context.getTraceId();
         String authorization = context.getAuthorization();
+        String namespace = context.getNamespace();
 
         String model = (String) arguments.get("model");
         String format = (String) arguments.getOrDefault("format", "markdown");
@@ -50,9 +51,9 @@ public class DescriptionModelTool implements McpTool {
             return error;
         }
 
-        log.info("Describing model: {}, traceId={}, accessMode={}",
-                model, traceId, datasetAccessor.getAccessMode());
+        log.info("Describing model: {}, traceId={}, namespace={}, accessMode={}",
+                model, traceId, namespace, datasetAccessor.getAccessMode());
 
-        return datasetAccessor.describeModel(model, format, traceId, authorization);
+        return datasetAccessor.describeModel(model, format, traceId, authorization, namespace);
     }
 }

@@ -50,7 +50,12 @@ public class LocalDatasetAccessor implements DatasetAccessor {
 
     @Override
     public RX<SemanticMetadataResponse> getMetadata(String traceId, String authorization) {
-        log.debug("[Local] Fetching metadata, traceId={}", traceId);
+        return getMetadata(traceId, authorization, null);
+    }
+
+    @Override
+    public RX<SemanticMetadataResponse> getMetadata(String traceId, String authorization, String namespace) {
+        log.debug("[Local] Fetching metadata, traceId={}, namespace={}", traceId, namespace);
 
         try {
             SemanticMetadataRequest request = new SemanticMetadataRequest();
@@ -96,11 +101,11 @@ public class LocalDatasetAccessor implements DatasetAccessor {
             List<Integer> levels = metadataLevelConfig.apply(null); // 无用户指定，使用配置
             request.setLevels(levels);
 
-            log.debug("[Local] Fetching metadata for models: {}, levels: {}, traceId={}",
-                    availableModels, levels, traceId);
+            log.debug("[Local] Fetching metadata for models: {}, levels: {}, traceId={}, namespace={}",
+                    availableModels, levels, traceId, namespace);
 
-            // 使用版本解析器获取元数据
-            SemanticMetadataResponse response = semanticServiceResolver.getMetadata(request, "markdown");
+            // 使用版本解析器获取元数据（传递 namespace）
+            SemanticMetadataResponse response = semanticServiceResolver.getMetadata(request, "markdown", namespace);
 
             log.debug("[Local] Metadata fetched successfully, traceId={}", traceId);
             return RX.success(response);
@@ -131,8 +136,14 @@ public class LocalDatasetAccessor implements DatasetAccessor {
      */
     @Override
     public RX<SemanticMetadataResponse> describeModel(String model, String format, String traceId, String authorization) {
-        log.debug("[Local] Describing model: {}, format={}, traceId={}",
-                model, format, traceId);
+        return describeModel(model, format, traceId, authorization, null);
+    }
+
+    @Override
+    public RX<SemanticMetadataResponse> describeModel(String model, String format, String traceId,
+                                                       String authorization, String namespace) {
+        log.debug("[Local] Describing model: {}, format={}, traceId={}, namespace={}",
+                model, format, traceId, namespace);
 
         try {
             SemanticMetadataRequest request = new SemanticMetadataRequest();
@@ -147,12 +158,12 @@ public class LocalDatasetAccessor implements DatasetAccessor {
             List<Integer> levels = internalLevelConfig.apply(null);
             request.setLevels(levels);
 
-            log.debug("[Local] Describing model: {}, levels: {}, traceId={}",
-                    model, levels, traceId);
+            log.debug("[Local] Describing model: {}, levels: {}, traceId={}, namespace={}",
+                    model, levels, traceId, namespace);
 
             String outputFormat = format != null ? format : "json";
-            // 使用版本解析器获取元数据
-            SemanticMetadataResponse response = semanticServiceResolver.getMetadata(request, outputFormat);
+            // 使用版本解析器获取元数据（传递 namespace）
+            SemanticMetadataResponse response = semanticServiceResolver.getMetadata(request, outputFormat, namespace);
 
             log.debug("[Local] Model description fetched: {}, traceId={}", model, traceId);
             return RX.success(response);
@@ -186,8 +197,15 @@ public class LocalDatasetAccessor implements DatasetAccessor {
     @SuppressWarnings("unchecked")
     public RX<SemanticQueryResponse> queryModel(String model, Map<String, Object> payload, String mode,
                                                 String traceId, String authorization) {
-        log.debug("[Local] Querying model: {}, mode={}, traceId={}",
-                model, mode, traceId);
+        return queryModel(model, payload, mode, traceId, authorization, null);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public RX<SemanticQueryResponse> queryModel(String model, Map<String, Object> payload, String mode,
+                                                String traceId, String authorization, String namespace) {
+        log.debug("[Local] Querying model: {}, mode={}, traceId={}, namespace={}",
+                model, mode, traceId, namespace);
 
         try {
             SemanticQueryRequest request = buildQueryRequest(payload);
@@ -200,8 +218,8 @@ public class LocalDatasetAccessor implements DatasetAccessor {
                 log.debug("[Local] SecurityContext created for authorization, traceId={}", traceId);
             }
 
-            // 使用版本解析器执行查询（带 SecurityContext）
-            SemanticQueryResponse response = semanticServiceResolver.queryModel(model, request, queryMode, securityContext);
+            // 使用版本解析器执行查询（带 SecurityContext 和 namespace）
+            SemanticQueryResponse response = semanticServiceResolver.queryModel(model, request, queryMode, securityContext, namespace);
 
             log.debug("[Local] Query executed: model={}, items={}, traceId={}",
                     model, response.getItems() != null ? response.getItems().size() : 0, traceId);

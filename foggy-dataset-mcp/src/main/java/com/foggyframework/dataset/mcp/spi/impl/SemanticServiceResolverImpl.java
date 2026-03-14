@@ -210,14 +210,33 @@ public class SemanticServiceResolverImpl implements SemanticServiceResolver, Dir
     }
 
     @Override
+    public SemanticMetadataResponse getMetadata(SemanticMetadataRequest request, String format, String namespace) {
+        log.debug("Using SemanticServiceV3 for metadata generation, namespace={}", namespace);
+        // TODO: SemanticServiceV3.getMetadata 目前不支持 namespace 参数，
+        // 元数据加载通常从所有 bundle 扫描，namespace 隔离需引擎层支持后补充
+        return semanticServiceV3.getMetadata(request, format);
+    }
+
+    @Override
     public SemanticQueryResponse queryModel(String model, SemanticQueryRequest request, String mode) {
-        return queryModel(model, request, mode, null);
+        return queryModel(model, request, mode, (ModelResultContext.SecurityContext) null);
     }
 
     @Override
     public SemanticQueryResponse queryModel(String model, SemanticQueryRequest request, String mode,
                                             ModelResultContext.SecurityContext securityContext) {
-        log.debug("Using SemanticQueryServiceV3 for query execution");
+        return queryModel(model, request, mode, securityContext, null);
+    }
+
+    @Override
+    public SemanticQueryResponse queryModel(String model, SemanticQueryRequest request, String mode,
+                                            ModelResultContext.SecurityContext securityContext, String namespace) {
+        log.debug("Using SemanticQueryServiceV3 for query execution, namespace={}", namespace);
+        if (namespace != null && !namespace.isEmpty()) {
+            // 使用带 namespace 的重载，将 authorization 从 securityContext 提取
+            String authorization = securityContext != null ? securityContext.getAuthorization() : null;
+            return semanticQueryServiceV3.queryModel(model, request, mode, authorization, namespace);
+        }
         return semanticQueryServiceV3.queryModel(model, request, mode, securityContext);
     }
 

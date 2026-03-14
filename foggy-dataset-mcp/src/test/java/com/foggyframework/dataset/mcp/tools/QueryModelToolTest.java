@@ -130,7 +130,7 @@ class QueryModelToolTest {
             mockResponse.setTotal(2L);
             mockResponse.setHasNext(false);
 
-            when(datasetAccessor.queryModel(anyString(), any(), anyString(), anyString(), any()))
+            when(datasetAccessor.queryModel(anyString(), any(), anyString(), anyString(), any(), any()))
                     .thenReturn(RX.success(mockResponse));
 
             Map<String, Object> args = Map.of(
@@ -147,12 +147,13 @@ class QueryModelToolTest {
             assertEquals(2L, rxResult.getData().getTotal());
             assertEquals(2, rxResult.getData().getItems().size());
 
-            // 验证调用
+            // 验证调用（namespace 为 null，因为 ToolExecutionContext.of 不设置 namespace）
             verify(datasetAccessor).queryModel(
                     eq("ProductModel"),
                     any(),
                     eq("execute"),
                     eq("trace-success-1"),
+                    isNull(),
                     isNull()
             );
         }
@@ -163,7 +164,7 @@ class QueryModelToolTest {
             SemanticQueryResponse mockResponse = new SemanticQueryResponse();
             mockResponse.setItems(List.of());
             mockResponse.setTotal(0L);
-            when(datasetAccessor.queryModel(anyString(), any(), anyString(), anyString(), any()))
+            when(datasetAccessor.queryModel(anyString(), any(), anyString(), anyString(), any(), any()))
                     .thenReturn(RX.success(mockResponse));
 
             Map<String, Object> payload = Map.of(
@@ -187,6 +188,7 @@ class QueryModelToolTest {
                     eq(payload),
                     eq("execute"),
                     eq("trace-slice"),
+                    isNull(),
                     isNull()
             );
         }
@@ -201,7 +203,7 @@ class QueryModelToolTest {
             ));
             mockResponse.setTotal(2L);
 
-            when(datasetAccessor.queryModel(anyString(), any(), anyString(), anyString(), any()))
+            when(datasetAccessor.queryModel(anyString(), any(), anyString(), anyString(), any(), any()))
                     .thenReturn(RX.success(mockResponse));
 
             Map<String, Object> payload = Map.of(
@@ -227,7 +229,7 @@ class QueryModelToolTest {
         void validateMode_shouldPassCorrectly() {
             SemanticQueryResponse mockResponse = new SemanticQueryResponse();
             mockResponse.setItems(List.of());
-            when(datasetAccessor.queryModel(anyString(), any(), anyString(), anyString(), any()))
+            when(datasetAccessor.queryModel(anyString(), any(), anyString(), anyString(), any(), any()))
                     .thenReturn(RX.success(mockResponse));
 
             Map<String, Object> args = Map.of(
@@ -243,6 +245,7 @@ class QueryModelToolTest {
                     any(),
                     eq("validate"),
                     anyString(),
+                    any(),
                     any()
             );
         }
@@ -253,7 +256,7 @@ class QueryModelToolTest {
             SemanticQueryResponse mockResponse = new SemanticQueryResponse();
             mockResponse.setItems(List.of());
             mockResponse.setTotal(0L);
-            when(datasetAccessor.queryModel(anyString(), any(), anyString(), anyString(), any()))
+            when(datasetAccessor.queryModel(anyString(), any(), anyString(), anyString(), any(), any()))
                     .thenReturn(RX.success(mockResponse));
 
             Map<String, Object> args = Map.of(
@@ -268,6 +271,7 @@ class QueryModelToolTest {
                     any(),
                     eq("execute"),
                     anyString(),
+                    any(),
                     any()
             );
         }
@@ -281,7 +285,7 @@ class QueryModelToolTest {
             mockResponse.setHasNext(true);
             mockResponse.setCursor("cursor_page_3");
 
-            when(datasetAccessor.queryModel(anyString(), any(), anyString(), anyString(), any()))
+            when(datasetAccessor.queryModel(anyString(), any(), anyString(), anyString(), any(), any()))
                     .thenReturn(RX.success(mockResponse));
 
             Map<String, Object> payload = Map.of(
@@ -309,7 +313,7 @@ class QueryModelToolTest {
             SemanticQueryResponse mockResponse = new SemanticQueryResponse();
             mockResponse.setItems(List.of());
             mockResponse.setTotal(0L);
-            when(datasetAccessor.queryModel(anyString(), any(), anyString(), anyString(), anyString()))
+            when(datasetAccessor.queryModel(anyString(), any(), anyString(), anyString(), anyString(), any()))
                     .thenReturn(RX.success(mockResponse));
 
             Map<String, Object> args = Map.of(
@@ -324,7 +328,107 @@ class QueryModelToolTest {
                     any(),
                     anyString(),
                     anyString(),
-                    eq("Bearer token123")
+                    eq("Bearer token123"),
+                    isNull()
+            );
+        }
+    }
+
+    // ==================== Namespace 传递测试 ====================
+
+    @Nested
+    @DisplayName("execute - Namespace 传递")
+    class NamespaceTest {
+
+        @Test
+        @DisplayName("应正确传递 namespace 到 DatasetAccessor")
+        void shouldPassNamespaceToAccessor() {
+            SemanticQueryResponse mockResponse = new SemanticQueryResponse();
+            mockResponse.setItems(List.of());
+            mockResponse.setTotal(0L);
+            when(datasetAccessor.queryModel(anyString(), any(), anyString(), anyString(), any(), anyString()))
+                    .thenReturn(RX.success(mockResponse));
+
+            Map<String, Object> args = Map.of(
+                    "model", "OdooSalesModel",
+                    "payload", Map.of("columns", List.of("amount"))
+            );
+
+            ToolExecutionContext context = ToolExecutionContext.builder()
+                    .traceId("trace-ns-1")
+                    .authorization("Bearer token")
+                    .namespace("odoo-prod")
+                    .build();
+
+            queryModelTool.execute(args, context);
+
+            verify(datasetAccessor).queryModel(
+                    eq("OdooSalesModel"),
+                    any(),
+                    eq("execute"),
+                    eq("trace-ns-1"),
+                    eq("Bearer token"),
+                    eq("odoo-prod")
+            );
+        }
+
+        @Test
+        @DisplayName("namespace 为 null 时应传递 null")
+        void nullNamespace_shouldPassNull() {
+            SemanticQueryResponse mockResponse = new SemanticQueryResponse();
+            mockResponse.setItems(List.of());
+            mockResponse.setTotal(0L);
+            when(datasetAccessor.queryModel(anyString(), any(), anyString(), anyString(), any(), any()))
+                    .thenReturn(RX.success(mockResponse));
+
+            Map<String, Object> args = Map.of(
+                    "model", "TestModel",
+                    "payload", Map.of("columns", List.of("field1"))
+            );
+
+            // ToolExecutionContext.of 不设置 namespace → null
+            queryModelTool.execute(args, ToolExecutionContext.of("trace-ns-null", null));
+
+            verify(datasetAccessor).queryModel(
+                    anyString(),
+                    any(),
+                    anyString(),
+                    anyString(),
+                    any(),
+                    isNull()
+            );
+        }
+
+        @Test
+        @DisplayName("应同时传递 authorization 和 namespace")
+        void shouldPassBothAuthAndNamespace() {
+            SemanticQueryResponse mockResponse = new SemanticQueryResponse();
+            mockResponse.setItems(List.of(Map.of("id", 1)));
+            mockResponse.setTotal(1L);
+            when(datasetAccessor.queryModel(anyString(), any(), anyString(), anyString(), anyString(), anyString()))
+                    .thenReturn(RX.success(mockResponse));
+
+            Map<String, Object> args = Map.of(
+                    "model", "MultiTenantModel",
+                    "payload", Map.of("columns", List.of("id", "name"))
+            );
+
+            ToolExecutionContext context = ToolExecutionContext.builder()
+                    .traceId("trace-multi")
+                    .authorization("Bearer jwt-token")
+                    .namespace("tenant-a")
+                    .build();
+
+            Object result = queryModelTool.execute(args, context);
+
+            assertNotNull(result);
+            verify(datasetAccessor).queryModel(
+                    eq("MultiTenantModel"),
+                    any(),
+                    eq("execute"),
+                    eq("trace-multi"),
+                    eq("Bearer jwt-token"),
+                    eq("tenant-a")
             );
         }
     }
@@ -341,7 +445,7 @@ class QueryModelToolTest {
             // 使用 RX 的错误响应
             RX<SemanticQueryResponse> errorResponse = RX.failB("Query execution failed");
 
-            when(datasetAccessor.queryModel(anyString(), any(), anyString(), anyString(), any()))
+            when(datasetAccessor.queryModel(anyString(), any(), anyString(), anyString(), any(), any()))
                     .thenReturn(errorResponse);
 
             Map<String, Object> args = Map.of(
@@ -361,7 +465,7 @@ class QueryModelToolTest {
         @Test
         @DisplayName("服务抛出异常应被正确处理")
         void serviceException_shouldBeHandled() {
-            when(datasetAccessor.queryModel(anyString(), any(), anyString(), anyString(), any()))
+            when(datasetAccessor.queryModel(anyString(), any(), anyString(), anyString(), any(), any()))
                     .thenThrow(new RuntimeException("Connection failed"));
 
             Map<String, Object> args = Map.of(

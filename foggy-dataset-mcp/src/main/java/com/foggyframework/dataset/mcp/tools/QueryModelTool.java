@@ -42,6 +42,7 @@ public class QueryModelTool implements McpTool {
     public Object execute(Map<String, Object> arguments, ToolExecutionContext context) {
         String traceId = context.getTraceId();
         String authorization = context.getAuthorization();
+        String namespace = context.getNamespace();
 
         String model = (String) arguments.get("model");
         Map<String, Object> payload = (Map<String, Object>) arguments.get("payload");
@@ -54,10 +55,10 @@ public class QueryModelTool implements McpTool {
             return RX.failB("缺少必要参数: payload");
         }
 
-        log.info("Querying model: {}, mode={}, traceId={}, accessMode={}",
-                model, mode, traceId, datasetAccessor.getAccessMode());
+        log.info("Querying model: {}, mode={}, traceId={}, namespace={}, accessMode={}",
+                model, mode, traceId, namespace, datasetAccessor.getAccessMode());
 
-        return datasetAccessor.queryModel(model, payload, mode, traceId, authorization);
+        return datasetAccessor.queryModel(model, payload, mode, traceId, authorization, namespace);
     }
 
     /**

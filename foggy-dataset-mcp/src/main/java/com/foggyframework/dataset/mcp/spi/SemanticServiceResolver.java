@@ -28,6 +28,18 @@ public interface SemanticServiceResolver {
     SemanticMetadataResponse getMetadata(SemanticMetadataRequest request, String format);
 
     /**
+     * 获取元数据（带命名空间）
+     *
+     * @param request   元数据请求
+     * @param format    输出格式（json/markdown）
+     * @param namespace 命名空间（可选，用于多环境模型隔离）
+     * @return 元数据响应
+     */
+    default SemanticMetadataResponse getMetadata(SemanticMetadataRequest request, String format, String namespace) {
+        return getMetadata(request, format);
+    }
+
+    /**
      * 执行查询
      *
      * @param model   模型名称
@@ -49,6 +61,21 @@ public interface SemanticServiceResolver {
     default SemanticQueryResponse queryModel(String model, SemanticQueryRequest request, String mode,
                                              ModelResultContext.SecurityContext securityContext) {
         return queryModel(model, request, mode);
+    }
+
+    /**
+     * 执行查询（带安全上下文和命名空间）
+     *
+     * @param model           模型名称
+     * @param request         查询请求
+     * @param mode            执行模式（execute/validate）
+     * @param securityContext 安全上下文（授权信息）
+     * @param namespace       命名空间（可选，用于多环境模型隔离）
+     * @return 查询响应
+     */
+    default SemanticQueryResponse queryModel(String model, SemanticQueryRequest request, String mode,
+                                             ModelResultContext.SecurityContext securityContext, String namespace) {
+        return queryModel(model, request, mode, securityContext);
     }
 
     /**
