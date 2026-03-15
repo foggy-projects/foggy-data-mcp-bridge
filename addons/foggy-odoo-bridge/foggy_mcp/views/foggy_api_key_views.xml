@@ -88,14 +88,45 @@
         </field>
     </record>
 
-    <!-- Menu items -->
+    <!-- "My API Key" action — opens current user's key directly -->
+    <record id="foggy_my_api_key_action" model="ir.actions.act_window">
+        <field name="name">My API Key</field>
+        <field name="res_model">foggy.api.key</field>
+        <field name="view_mode">tree,form</field>
+        <field name="domain">[('user_id', '=', uid)]</field>
+        <field name="context">{'default_user_id': uid}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No API Key yet
+            </p>
+            <p>
+                Click <strong>New</strong> to create your Foggy MCP API key,
+                then use it with Claude Desktop, Cursor, or any MCP-compatible AI client.
+            </p>
+        </field>
+    </record>
+
+    <!-- ===== User-facing menu (visible to ALL internal users) ===== -->
+    <menuitem id="foggy_mcp_user_menu_root"
+              name="Foggy MCP"
+              web_icon="foggy_mcp,static/description/icon.png"
+              groups="base.group_user"
+              sequence="200"/>
+
+    <menuitem id="foggy_mcp_user_menu_my_key"
+              name="My API Key"
+              parent="foggy_mcp_user_menu_root"
+              action="foggy_my_api_key_action"
+              sequence="10"/>
+
+    <!-- ===== Admin menu (under Settings) ===== -->
     <menuitem id="foggy_mcp_menu_root"
               name="Foggy MCP"
               parent="base.menu_administration"
               sequence="100"/>
 
     <menuitem id="foggy_mcp_menu_api_keys"
-              name="API Keys"
+              name="API Keys (All Users)"
               parent="foggy_mcp_menu_root"
               action="foggy_api_key_action"
               sequence="10"/>

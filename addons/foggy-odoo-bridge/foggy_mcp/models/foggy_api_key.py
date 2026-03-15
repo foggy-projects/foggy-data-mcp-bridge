@@ -178,6 +178,17 @@ class FoggyApiKey(models.Model):
         )
         return new_key
 
+    def action_open_my_api_key(self):
+        """Open the current user's API key directly (create if needed)."""
+        key = self.ensure_user_key(self.env.uid)
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'foggy.api.key',
+            'res_id': key.id,
+            'view_mode': 'form',
+            'target': 'current',
+        }
+
     @api.model
     def authenticate_by_key(self, key):
         """
