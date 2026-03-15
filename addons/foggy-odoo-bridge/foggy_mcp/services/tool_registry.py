@@ -31,7 +31,16 @@ QM_TO_ODOO_MODEL = {v: k for k, v in MODEL_MAPPING.items()}
 MODEL_TOOL_NAMES = {'dataset.query_model'}
 
 # Tool names that are always available (no model restriction)
-UNIVERSAL_TOOL_NAMES = {'dataset.list_models', 'dataset.get_schema', 'dataset_nl.query'}
+# Note: actual Foggy tool names are dataset.get_metadata and dataset.describe_model_internal
+UNIVERSAL_TOOL_NAMES = {
+    'dataset.list_models', 'dataset.get_schema', 'dataset_nl.query',  # legacy names
+    'dataset.get_metadata', 'dataset.describe_model_internal',         # current Foggy names
+}
+
+# Tools blocked in this version (deferred to future releases)
+# - export_with_chart: requires chart-render-service integration
+# - validate: language-level schema validation, planned for v1.2+
+BLOCKED_TOOL_NAMES = {'dataset.export_with_chart', 'semantic_layer.validate'}
 
 
 class ToolRegistry:
@@ -110,6 +119,10 @@ class ToolRegistry:
         filtered_tools = []
         for tool in all_tools:
             tool_name = tool.get('name', '')
+
+            # Skip blocked tools (deferred to future releases)
+            if tool_name in BLOCKED_TOOL_NAMES:
+                continue
 
             # Universal tools are always included
             if tool_name in UNIVERSAL_TOOL_NAMES:
