@@ -55,7 +55,7 @@ services:
   #   2. Local JAR build:  docker compose --profile local up -d foggy-mcp-local
   # ──────────────────────────────────────────────
   foggy-mcp:
-    image: foggy/foggy-dataset-mcp:latest
+    image: foggysource/foggy-dataset-mcp:latest
     container_name: foggy-mcp-server
     depends_on:
       postgres:

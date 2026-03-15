@@ -8,7 +8,7 @@
 
 services:
   foggy-mcp:
-    image: foggy/foggy-dataset-mcp:latest
+    image: foggysource/foggy-dataset-mcp:latest
     container_name: foggy-mcp-odoo
     ports:
       - "{foggy_port}:8080"

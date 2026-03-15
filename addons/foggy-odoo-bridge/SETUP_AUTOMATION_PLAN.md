@@ -172,7 +172,7 @@ def action_test_connection(self):
 version: '3.8'
 services:
   foggy-mcp:
-    image: foggy/foggy-dataset-mcp:latest
+    image: foggysource/foggy-dataset-mcp:latest
     container_name: foggy-mcp-odoo
     ports:
       - "{foggy_port}:8080"
@@ -252,13 +252,13 @@ java -jar foggy-mcp-launcher-8.1.8.beta.jar \
 mvn package -pl foggy-mcp-launcher -am -DskipTests
 
 # 构建 Docker 镜像
-docker build -t foggy/foggy-dataset-mcp:latest \
-  -t foggy/foggy-dataset-mcp:8.1.7 \
+docker build -t foggysource/foggy-dataset-mcp:latest \
+  -t foggysource/foggy-dataset-mcp:8.1.7 \
   -f docker/Dockerfile .
 
 # 推送到 Docker Hub
-docker push foggy/foggy-dataset-mcp:latest
-docker push foggy/foggy-dataset-mcp:8.1.7
+docker push foggysource/foggy-dataset-mcp:latest
+docker push foggysource/foggy-dataset-mcp:8.1.7
 ```
 
 ---

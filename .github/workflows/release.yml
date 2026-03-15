@@ -15,7 +15,7 @@ permissions:
   packages: write      # Docker push (if using ghcr.io in future)
 
 env:
-  DOCKER_IMAGE: foggy/foggy-dataset-mcp
+  DOCKER_IMAGE: foggysource/foggy-dataset-mcp
   JAVA_VERSION: '17'
 
 jobs:
