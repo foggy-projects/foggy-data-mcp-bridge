@@ -219,7 +219,7 @@ class McpController(http.Controller):
             }
 
         _logger.info("tools/call: user=%s, tool=%s, trace_id=%s",
-                      user.login, tool_name, trace_id)
+                     user.login, tool_name, trace_id)
 
         # For dataset.query_model: check access + inject permission slices
         if tool_name == 'dataset.query_model':

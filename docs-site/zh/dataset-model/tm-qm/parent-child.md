@@ -359,13 +359,15 @@ GROUP BY d1.team_name
 
 除了 `$hierarchy$` 视角，还支持通过 `op` 操作符进行细粒度层级查询，无需使用 `$hierarchy$` 列名：
 
-| op | 含义 | SQL 条件 | 包含自身 |
-|----|------|----------|----------|
-| `childrenOf` | 直接子节点 | `distance = 1` | 否 |
-| `descendantsOf` | 所有后代 | `distance > 0` | 否 |
-| `selfAndDescendantsOf` | 自身及所有后代 | 无限制 | 是 |
+| op | 方向 | 含义 | SQL 条件 | 包含自身 |
+|----|------|------|----------|----------|
+| `childrenOf` | 后代 ↓ | 直接子节点 | `distance = 1` | 否 |
+| `descendantsOf` | 后代 ↓ | 所有后代 | `distance > 0` | 否 |
+| `selfAndDescendantsOf` | 后代 ↓ | 自身及所有后代 | 无限制 | 是 |
+| `selfAndAncestorsOf` | 祖先 ↑ | 自身及所有祖先 | 无限制 | 是 |
+| `ancestorsOf` | 祖先 ↑ | 所有祖先 | `distance > 0` | 否 |
 
-支持 `maxDepth` 参数限制查询深度。
+所有操作符均支持 `maxDepth` 参数限制查询深度。
 
 ---
 
@@ -505,7 +507,90 @@ GROUP BY d1.team_name
 
 ---
 
-#### 5.4.4 maxDepth - 限制查询深度
+#### 5.4.4 selfAndAncestorsOf - 查询自身及所有祖先
+
+查询指定节点及其所有祖先（反向 JOIN 闭包表）。典型场景：Odoo `parent_of` 权限规则。
+
+**请求**：
+
+```json
+{
+    "param": {
+        "columns": ["team$caption", "salesAmount"],
+        "slice": [
+            { "field": "team$id", "op": "selfAndAncestorsOf", "value": "T003" }
+        ],
+       "groupBy": [
+          { "field": "team$caption" }
+       ]
+    }
+}
+```
+
+**生成的 SQL**（注意 JOIN 方向反转）：
+
+```sql
+SELECT d1.team_name AS "team$caption",
+       SUM(t0.sales_amount) AS "salesAmount"
+FROM fact_team_sales t0
+LEFT JOIN dim_team d1 ON t0.team_id = d1.team_id
+LEFT JOIN team_closure d2 ON t0.team_id = d2.parent_id
+WHERE d2.team_id = 'T003'
+GROUP BY d1.team_name
+```
+
+**返回数据**（T003 研发组 + 其所有祖先）：
+
+| team$caption | salesAmount |
+|--------------|-------------|
+| 总公司        | 110,000     |
+| 技术部        | 65,000      |
+| 研发组        | 22,000      |
+
+---
+
+#### 5.4.5 ancestorsOf - 查询所有祖先（不含自身）
+
+查询指定节点的所有祖先，不包含自身（distance > 0）。
+
+**请求**：
+
+```json
+{
+    "param": {
+        "columns": ["team$caption", "salesAmount"],
+        "slice": [
+            { "field": "team$id", "op": "ancestorsOf", "value": "T003" }
+        ],
+       "groupBy": [
+          { "field": "team$caption" }
+       ]
+    }
+}
+```
+
+**生成的 SQL**：
+
+```sql
+SELECT d1.team_name AS "team$caption",
+       SUM(t0.sales_amount) AS "salesAmount"
+FROM fact_team_sales t0
+LEFT JOIN dim_team d1 ON t0.team_id = d1.team_id
+LEFT JOIN team_closure d2 ON t0.team_id = d2.parent_id
+WHERE d2.team_id = 'T003' AND d2.distance > 0
+GROUP BY d1.team_name
+```
+
+**返回数据**（T003 的祖先，不含 T003 自身）：
+
+| team$caption | salesAmount |
+|--------------|-------------|
+| 总公司        | 110,000     |
+| 技术部        | 65,000      |
+
+---
+
+#### 5.4.6 maxDepth - 限制查询深度
 
 使用 `maxDepth` 参数限制层级查询的深度。
 
@@ -591,7 +676,7 @@ GROUP BY d1.team_name
 
 ---
 
-#### 5.4.5 多值查询
+#### 5.4.7 多值查询
 
 层级操作符支持传入多个值，查询多个节点的后代。
 
@@ -634,7 +719,7 @@ GROUP BY d1.team_name
 
 ---
 
-#### 5.4.6 操作符对比表
+#### 5.4.8 操作符对比表
 
 | 查询需求 | 推荐方式 | 说明 |
 |----------|----------|------|
@@ -643,7 +728,9 @@ GROUP BY d1.team_name
 | 各后代明细 | `team$hierarchy$id` + `team$caption` | 混合视角 |
 | 直接子节点 | `op: childrenOf` | 层级操作符 |
 | 所有后代（不含自身） | `op: descendantsOf` | 层级操作符 |
-| 限定深度查询 | `op` + `maxDepth` | 层级操作符 |
+| 自身及所有祖先 | `op: selfAndAncestorsOf` | 祖先方向操作符 |
+| 所有祖先（不含自身） | `op: ancestorsOf` | 祖先方向操作符 |
+| 限定深度查询 | `op` + `maxDepth` | 所有操作符均支持 |
 
 ---
 

@@ -9,15 +9,16 @@
 | 字段类型 | 用法 |
 |---------|------|
 | 维度 | `xxx$id`(查询/过滤), `xxx$caption`(展示) |
-| 父子维度 | `xxx$hierarchy$id`(含子节点汇总) |
+| 父子维度 | `xxx$hierarchy$id`(层级范围过滤), `xxx$hierarchy$caption`(层级汇总展示) |
 | 属性/度量 | 直接使用字段名 |
 | 向量字段 | 仅支持 `similar`/`hybrid` 操作符 |
 
 ### 父子维度 (Parent-Child Dimension)
-层级结构维度（如组织架构）额外支持 `$hierarchy$` 视角：
-- **xxx$id**: 精确匹配该节点
-- **xxx$hierarchy$id**: 匹配该节点及所有后代（用于层级汇总）
-示例：`team$hierarchy$id = 'T001'` 查询总公司及所有子部门
+层级结构维度（如组织架构、公司层级）支持两种访问视角：
+- **xxx$id / xxx$caption**: 精确匹配该节点（与普通维度相同）
+- **xxx$hierarchy$id / xxx$hierarchy$caption**: 通过闭包表匹配节点及所有后代（层级汇总）
+
+还可在 slice 中对 `xxx$id` 使用层级操作符进行细粒度查询（见操作符表）。
 
 ## 参数
 
@@ -100,8 +101,16 @@
 | 集合 | `in`, `not in` |
 | 空值 | `is null`, `is not null` (无需value) |
 | 区间 | `[]`, `[)`, `()`, `(]` (value为[start,end]) |
-| 层级 | `childrenOf`, `descendantsOf`, `selfAndDescendantsOf` |
+| 层级(后代) | `childrenOf`(直接子节点), `descendantsOf`(所有后代,不含自身), `selfAndDescendantsOf`(自身+所有后代) |
+| 层级(祖先) | `selfAndAncestorsOf`(自身+所有祖先), `ancestorsOf`(所有祖先,不含自身) |
 | 向量 | `similar`, `hybrid` (向量检索) |
+
+层级操作符用于父子维度，作用于 `xxx$id` 字段，可选 `maxDepth` 限制深度：
+```json
+{"field": "team$id", "op": "selfAndDescendantsOf", "value": "T001"}
+{"field": "company$id", "op": "selfAndAncestorsOf", "value": 3}
+{"field": "team$id", "op": "descendantsOf", "value": "T001", "maxDepth": 2}
+```
 
 **字段间比较**：
 - `$field` 引用：`{"field": "a", "op": ">", "value": {"$field": "b"}}` → `WHERE a > b`

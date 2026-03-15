@@ -206,14 +206,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
 
 
-        //bug fix: 如果启用了distinct,出现在orderBy中的列，必须加入到select
-        if (jdbcQuery.getSelect().isDistinct()) {
-            for (DbQueryOrderColumnImpl order : jdbcQuery.getOrder().getOrders()) {
-                if (!jdbcQuery.containSelect(order.getSelectColumn())) {
-                    jdbcQuery.getSelect().select(order.getSelectColumn());
-                }
-            }
-        }
+        // DISTINCT + ORDER BY 冲突处理移至 ORDER BY 全部添加完成之后（见下方 else 分支末尾）
 
 
         if (queryRequest.hasGroupBy()) {
@@ -280,6 +273,17 @@ public class JdbcModelQueryEngine implements QueryEngine {
                     } else {
                         jdbcQuery.join(selectColumn.getQueryObject());
                     }
+                }
+            }
+
+            // DISTINCT 查询：移除 ORDER BY 中不在 SELECT 列表中的列
+            // （PostgreSQL 等数据库要求 SELECT DISTINCT 的 ORDER BY 列必须出现在 SELECT 中，
+            //   不能反过来把 ORDER BY 列加入 SELECT，否则会破坏 DISTINCT 语义）
+            if (jdbcQuery.getSelect().isDistinct() && jdbcQuery.getOrder() != null) {
+                jdbcQuery.getOrder().getOrders().removeIf(order ->
+                        !jdbcQuery.containSelect(order.getSelectColumn()));
+                if (jdbcQuery.getOrder().getOrders().isEmpty()) {
+                    jdbcQuery.setOrder(null);
                 }
             }
         }

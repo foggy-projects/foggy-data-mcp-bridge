@@ -1,0 +1,47 @@
+/**
+ * Res Company Query Model
+ *
+ * @caption Company Directory
+ * @description Query company master data, currency, and parent hierarchy.
+ *              Permissions enforced via payload.slice injection from Odoo MCP Gateway.
+ */
+const c = loadTableModel('OdooResCompanyModel');
+
+export const queryModel = {
+    name: 'OdooResCompanyQueryModel',
+    caption: 'Company Directory',
+    description: 'Search and analyze companies by currency and parent hierarchy. '
+        + 'Use parent hierarchy operators (selfAndDescendantsOf) to query company trees.',
+    loader: 'v2',
+
+    model: c,
+
+    columnGroups: [
+        {
+            caption: 'Company Information',
+            items: [
+                { ref: c.id },
+                { ref: c.name },
+                { ref: c.email },
+                { ref: c.phone },
+                { ref: c.active },
+                { ref: c.createDate }
+            ]
+        },
+        {
+            caption: 'Organization',
+            items: [
+                { ref: c.currency },
+                { ref: c.parent }
+            ]
+        },
+        {
+            caption: 'Metrics',
+            items: [
+                { ref: c.companyCount }
+            ]
+        }
+    ],
+
+    accesses: []
+};

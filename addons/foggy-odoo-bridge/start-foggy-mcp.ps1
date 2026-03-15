@@ -47,15 +47,15 @@ function Stop-ProcessOnPort {
     $connections = netstat -ano 2>$null | Select-String ":$TargetPort\s" | Select-String "LISTENING"
     foreach ($line in $connections) {
         if ($line -match '\s(\d+)\s*$') {
-            $pid = [int]$Matches[1]
-            if ($pid -gt 0) {
+            $procId = [int]$Matches[1]
+            if ($procId -gt 0) {
                 $found = $true
-                Write-Info "Killing PID $pid on port $TargetPort..."
+                Write-Info "Killing PID $procId on port $TargetPort..."
                 try {
-                    Stop-Process -Id $pid -Force -ErrorAction Stop
-                    Write-Ok "Killed $pid"
+                    Stop-Process -Id $procId -Force -ErrorAction Stop
+                    Write-Ok "Killed $procId"
                 } catch {
-                    Write-Warn "Failed to kill $pid : $_"
+                    Write-Warn "Failed to kill $procId : $_"
                 }
             }
         }

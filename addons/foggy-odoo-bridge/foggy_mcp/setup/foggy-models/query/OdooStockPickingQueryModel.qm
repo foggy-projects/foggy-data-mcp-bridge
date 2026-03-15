@@ -1,0 +1,69 @@
+/**
+ * Stock Picking (Inventory Transfer) Query Model
+ *
+ * @caption Inventory Transfer Analysis
+ * @description Query receipts, deliveries, and internal transfers by operation type, location, and date.
+ *              Permissions enforced via payload.slice injection from Odoo MCP Gateway.
+ */
+const sp = loadTableModel('OdooStockPickingModel');
+
+export const queryModel = {
+    name: 'OdooStockPickingQueryModel',
+    caption: 'Inventory Transfer Analysis',
+    description: 'Analyze inventory transfers (receipts, deliveries, internal moves) by operation type, '
+        + 'source/destination location, partner, and time period.',
+    loader: 'v2',
+
+    model: sp,
+
+    columnGroups: [
+        {
+            caption: 'Transfer Information',
+            items: [
+                { ref: sp.id },
+                { ref: sp.name },
+                { ref: sp.state },
+                { ref: sp.origin },
+                { ref: sp.scheduledDate },
+                { ref: sp.dateDeadline },
+                { ref: sp.dateDone },
+                { ref: sp.priority },
+                { ref: sp.createDate },
+                { ref: sp.writeDate }
+            ]
+        },
+        {
+            caption: 'Operation',
+            items: [
+                { ref: sp.pickingType },
+                { ref: sp.pickingType$code },
+                { ref: sp.pickingType$sequenceCode }
+            ]
+        },
+        {
+            caption: 'Locations',
+            items: [
+                { ref: sp.locationSrc },
+                { ref: sp.locationDest }
+            ]
+        },
+        {
+            caption: 'Organization',
+            items: [
+                { ref: sp.partner },
+                { ref: sp.partner$email },
+                { ref: sp.partner$city },
+                { ref: sp.responsible },
+                { ref: sp.company }
+            ]
+        },
+        {
+            caption: 'Metrics',
+            items: [
+                { ref: sp.transferCount }
+            ]
+        }
+    ],
+
+    accesses: []
+};

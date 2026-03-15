@@ -8,7 +8,7 @@
             <tree>
                 <field name="name"/>
                 <field name="user_id"/>
-                <field name="key" password="True"/>
+                <field name="key_short"/>
                 <field name="active"/>
                 <field name="last_used"/>
                 <field name="create_date"/>
@@ -39,29 +39,34 @@
                             <field name="active"/>
                         </group>
                         <group>
-                            <field name="key" password="True"/>
+                            <field name="key" widget="CopyClipboardChar"/>
+                            <field name="mcp_endpoint" widget="CopyClipboardChar"/>
                             <field name="last_used"/>
                         </group>
                     </group>
                     <group string="Restrictions">
                         <field name="company_ids" widget="many2many_tags"/>
                     </group>
-                    <group string="Connection Instructions">
-                        <div class="alert alert-info" role="alert">
-                            <p><strong>Claude Desktop Configuration:</strong></p>
-                            <p>Add this to your <code>claude_desktop_config.json</code>:</p>
-                            <pre>{
+                    <separator string="Connection Instructions"/>
+                    <div class="alert alert-success" role="alert">
+                        <p><strong>Ready-to-use Configuration:</strong></p>
+                        <field name="mcp_config_html" widget="html" readonly="1" nolabel="1"/>
+                        <p class="mb-0 text-muted"><small>Select the JSON text and press Ctrl+C / ⌘+C to copy. Or copy the API Key and MCP Endpoint individually above.</small></p>
+                    </div>
+                    <div class="alert alert-info" role="alert">
+                        <p><strong>Generic Template (for other environments):</strong></p>
+                        <p>Replace <code>&lt;your-odoo-url&gt;</code> and <code>&lt;your-api-key&gt;</code> accordingly:</p>
+                        <pre style="background:#f8f9fa; padding:12px; border-radius:4px; font-size:13px;">{
   "mcpServers": {
     "odoo": {
-      "url": "https://your-odoo.com/foggy-mcp/rpc",
+      "url": "https://&lt;your-odoo-url&gt;/foggy-mcp/rpc",
       "headers": {
         "Authorization": "Bearer &lt;your-api-key&gt;"
       }
     }
   }
 }</pre>
-                        </div>
-                    </group>
+                    </div>
                 </sheet>
             </form>
         </field>

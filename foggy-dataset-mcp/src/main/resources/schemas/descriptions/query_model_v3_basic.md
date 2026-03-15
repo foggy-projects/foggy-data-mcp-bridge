@@ -107,6 +107,27 @@
 ```
 **使用 columns 中定义的别名**，如 `year` 而非 `YEAR(createdAt)`
 
+### distinct (可选)
+设为 `true` 返回去重结果（`SELECT DISTINCT`），适用于"列出所有…"类查询。
+与聚合查询（groupBy）互斥，有 groupBy 时自动忽略 distinct。
+```json
+{"columns": ["customer$caption", "customer$customerType"], "distinct": true}
+```
+
+### withSubtotals (可选)
+设为 `true` 对 groupBy 聚合结果追加分组小计行和总计行。通过 `_rowType` 字段标记行类型：
+- `data` — 原始数据行
+- `subtotal` — 分组小计行（按第一维度分组）
+- `grandTotal` — 总计行
+
+仅对包含 groupBy 的聚合查询生效。多维度时按第一维度做小计；单维度时仅追加总计行。
+```json
+{
+  "columns": ["department$caption", "month$caption", "sum(amount) as total"],
+  "withSubtotals": true
+}
+```
+
 ### 分页
 - `start`: 起始行(从0开始)
 - `limit`: 每页记录数

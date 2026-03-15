@@ -1,0 +1,87 @@
+/**
+ * Account Move (Invoice) Query Model
+ *
+ * @caption Invoice & Billing Analysis
+ * @description Query invoices, bills, and journal entries by partner, journal, date.
+ *              Use move_type filter to distinguish customer invoices from vendor bills.
+ *              Permissions enforced via payload.slice injection from Odoo MCP Gateway.
+ */
+const am = loadTableModel('OdooAccountMoveModel');
+
+export const queryModel = {
+    name: 'OdooAccountMoveQueryModel',
+    caption: 'Invoice & Billing Analysis',
+    description: 'Analyze invoices, vendor bills, and credit notes by partner, journal, payment status, and time period. '
+        + 'Filter by move_type to focus on customer invoices (out_invoice) or vendor bills (in_invoice).',
+    loader: 'v2',
+
+    model: am,
+
+    columnGroups: [
+        {
+            caption: 'Entry Information',
+            items: [
+                { ref: am.id },
+                { ref: am.name },
+                { ref: am.moveType },
+                { ref: am.state },
+                { ref: am.date },
+                { ref: am.invoiceDate },
+                { ref: am.invoiceDateDue },
+                { ref: am.paymentState },
+                { ref: am.ref },
+                { ref: am.invoiceOrigin },
+                { ref: am.createDate },
+                { ref: am.writeDate }
+            ]
+        },
+        {
+            caption: 'Partner',
+            items: [
+                { ref: am.partner },
+                { ref: am.partner$email },
+                { ref: am.partner$phone },
+                { ref: am.partner$city },
+                { ref: am.partner$isCompany }
+            ]
+        },
+        {
+            caption: 'Accounting',
+            items: [
+                { ref: am.journal },
+                { ref: am.journal$code },
+                { ref: am.journal$type },
+                { ref: am.currency }
+            ]
+        },
+        {
+            caption: 'Sales Organization',
+            items: [
+                { ref: am.salesperson },
+                { ref: am.salesTeam },
+                { ref: am.company }
+            ]
+        },
+        {
+            caption: 'Amounts',
+            items: [
+                { ref: am.amountUntaxed },
+                { ref: am.amountTax },
+                { ref: am.amountTotal },
+                { ref: am.amountResidual },
+                { ref: am.amountUntaxedSigned },
+                { ref: am.amountTotalSigned },
+                { ref: am.amountResidualSigned },
+                { ref: am.entryCount },
+                {
+                    name: 'collectionRate',
+                    caption: 'Collection Rate (%)',
+                    formula: '(amountTotal - amountResidual) / amountTotal * 100',
+                    type: 'NUMBER'
+                }
+            ]
+        }
+    ],
+
+    accesses: []
+};

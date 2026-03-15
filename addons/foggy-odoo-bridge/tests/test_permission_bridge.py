@@ -28,6 +28,9 @@ _odoo_osv.expression = _odoo_osv_expression
 _odoo_tools = types.ModuleType('odoo.tools')
 _odoo_tools_safe_eval = types.ModuleType('odoo.tools.safe_eval')
 _odoo_tools_safe_eval.safe_eval = lambda expr, ctx=None: eval(expr, ctx or {})
+# Pre-wrapped modules (Odoo 17 compatibility)
+_odoo_tools_safe_eval.time = __import__('time')
+_odoo_tools_safe_eval.datetime = __import__('datetime')
 _odoo_tools.safe_eval = _odoo_tools_safe_eval
 
 sys.modules['odoo'] = _odoo
@@ -96,7 +99,7 @@ class TestParseDomainAst:
         assert tree == ('LEAF', ('company_id', '=', 1))
 
     def test_implicit_and_two_leaves(self):
-        """Two leaves without operator → implicitly AND'd (after normalize)."""
+        """Two leaves without operator -> implicitly AND'd (after normalize)."""
         domain = ['&', ('a', '=', 1), ('b', '=', 2)]
         tree = _parse_domain_ast(domain)
         assert tree == ('AND', ('LEAF', ('a', '=', 1)), ('LEAF', ('b', '=', 2)))
@@ -112,7 +115,7 @@ class TestParseDomainAst:
         assert tree == ('NOT', ('LEAF', ('a', '=', 1)))
 
     def test_and_with_or_subtree(self):
-        """['&', '|', A, B, C] → AND(OR(A, B), C)"""
+        """['&', '|', A, B, C] -> AND(OR(A, B), C)"""
         domain = ['&', '|', ('a', '=', 1), ('b', '=', 2), ('c', '=', 3)]
         tree = _parse_domain_ast(domain)
         expected = (
@@ -123,7 +126,7 @@ class TestParseDomainAst:
         assert tree == expected
 
     def test_nested_or(self):
-        """['|', '|', A, B, C] → OR(OR(A, B), C)"""
+        """['|', '|', A, B, C] -> OR(OR(A, B), C)"""
         domain = ['|', '|', ('a', '=', 1), ('b', '=', 2), ('c', '=', 3)]
         tree = _parse_domain_ast(domain)
         expected = (
@@ -134,7 +137,7 @@ class TestParseDomainAst:
         assert tree == expected
 
     def test_complex_three_and(self):
-        """['&', '&', A, B, C] → AND(AND(A, B), C)"""
+        """['&', '&', A, B, C] -> AND(AND(A, B), C)"""
         domain = ['&', '&', ('a', '=', 1), ('b', '=', 2), ('c', '=', 3)]
         tree = _parse_domain_ast(domain)
         expected = (
@@ -145,7 +148,7 @@ class TestParseDomainAst:
         assert tree == expected
 
     def test_not_or(self):
-        """['!', '|', A, B] → NOT(OR(A, B))"""
+        """['!', '|', A, B] -> NOT(OR(A, B))"""
         domain = ['!', '|', ('a', '=', 1), ('b', '=', 2)]
         tree = _parse_domain_ast(domain)
         expected = (
@@ -154,45 +157,61 @@ class TestParseDomainAst:
         )
         assert tree == expected
 
+    def test_tautology_literal(self):
+        """(1, '=', 1) is parsed as a valid LEAF."""
+        domain = [(1, '=', 1)]
+        tree = _parse_domain_ast(domain)
+        assert tree == ('LEAF', (1, '=', 1))
+
 
 # ═══════════════════════════════════════════════════════════════════
 # _leaf_to_condition tests
 # ═══════════════════════════════════════════════════════════════════
 
 class TestLeafToCondition:
-    """Test leaf (field, op, value) → DSL condition dict conversion."""
+    """Test leaf (field, op, value) -> DSL condition dict conversion."""
 
     def test_simple_eq(self):
         result = _leaf_to_condition(('company_id', '=', 1))
-        assert result == {'field': 'company_id', 'op': '=', 'value': 1}
+        assert result == {'field': 'company$id', 'op': '=', 'value': 1}
 
     def test_in_operator(self):
         result = _leaf_to_condition(('company_id', 'in', [1, 3]))
-        assert result == {'field': 'company_id', 'op': 'in', 'value': [1, 3]}
+        assert result == {'field': 'company$id', 'op': 'in', 'value': [1, 3]}
 
     def test_not_in_operator(self):
         result = _leaf_to_condition(('state', 'not in', ['cancel', 'draft']))
         assert result == {'field': 'state', 'op': 'not in', 'value': ['cancel', 'draft']}
 
     def test_null_check_eq_false(self):
-        """('field', '=', False) → is null"""
+        """('field', '=', False) -> is null"""
         result = _leaf_to_condition(('user_id', '=', False))
-        assert result == {'field': 'user_id', 'op': 'is null'}
+        assert result == {'field': 'salesperson$id', 'op': 'is null'}
 
     def test_null_check_neq_false(self):
-        """('field', '!=', False) → is not null"""
+        """('field', '!=', False) -> is not null"""
         result = _leaf_to_condition(('user_id', '!=', False))
-        assert result == {'field': 'user_id', 'op': 'is not null'}
+        assert result == {'field': 'salesperson$id', 'op': 'is not null'}
 
     def test_relational_field_dot_id(self):
-        """'company_id.id' → 'company_id'"""
+        """'company_id.id' -> 'company$id'"""
         result = _leaf_to_condition(('company_id.id', '=', 5))
-        assert result == {'field': 'company_id', 'op': '=', 'value': 5}
+        assert result == {'field': 'company$id', 'op': '=', 'value': 5}
 
     def test_field_mapping(self):
-        """'company_ids' maps to 'company_id' in QM"""
+        """'company_ids' maps to 'company$id' in QM"""
         result = _leaf_to_condition(('company_ids', 'in', [1, 2]))
-        assert result == {'field': 'company_id', 'op': 'in', 'value': [1, 2]}
+        assert result == {'field': 'company$id', 'op': 'in', 'value': [1, 2]}
+
+    def test_user_id_maps_to_salesperson(self):
+        """'user_id' maps to 'salesperson$id' in QM"""
+        result = _leaf_to_condition(('user_id', '=', 42))
+        assert result == {'field': 'salesperson$id', 'op': '=', 'value': 42}
+
+    def test_team_id_maps_to_salesTeam(self):
+        """'team_id' maps to 'salesTeam$id' in QM"""
+        result = _leaf_to_condition(('team_id', 'in', [5, 8]))
+        assert result == {'field': 'salesTeam$id', 'op': 'in', 'value': [5, 8]}
 
     def test_negate_eq(self):
         result = _leaf_to_condition(('state', '=', 'done'), negate=True)
@@ -200,12 +219,12 @@ class TestLeafToCondition:
 
     def test_negate_in(self):
         result = _leaf_to_condition(('company_id', 'in', [1, 2]), negate=True)
-        assert result == {'field': 'company_id', 'op': 'not in', 'value': [1, 2]}
+        assert result == {'field': 'company$id', 'op': 'not in', 'value': [1, 2]}
 
     def test_negate_is_null(self):
-        """NOT (field = False) → is not null"""
+        """NOT (field = False) -> is not null"""
         result = _leaf_to_condition(('user_id', '=', False), negate=True)
-        assert result == {'field': 'user_id', 'op': 'is not null'}
+        assert result == {'field': 'salesperson$id', 'op': 'is not null'}
 
     def test_ilike_maps_to_like(self):
         result = _leaf_to_condition(('name', 'ilike', '%test%'))
@@ -237,7 +256,7 @@ class TestLeafToCondition:
     def test_tuple_value_to_list(self):
         """Tuple values should be converted to list."""
         result = _leaf_to_condition(('company_id', 'in', (1, 2, 3)))
-        assert result == {'field': 'company_id', 'op': 'in', 'value': [1, 2, 3]}
+        assert result == {'field': 'company$id', 'op': 'in', 'value': [1, 2, 3]}
 
     def test_null_no_value_key(self):
         """Null-check conditions should not have a 'value' key."""
@@ -246,18 +265,33 @@ class TestLeafToCondition:
         result2 = _leaf_to_condition(('user_id', '!=', False))
         assert 'value' not in result2
 
+    def test_tautology_returns_none(self):
+        """(1, '=', 1) is a tautology (always true) -> returns None."""
+        result = _leaf_to_condition((1, '=', 1))
+        assert result is None
+
+    def test_contradiction_returns_impossible(self):
+        """(0, '=', 1) is a contradiction (always false) -> returns impossible condition."""
+        result = _leaf_to_condition((0, '=', 1))
+        assert result == {'field': 'id', 'op': '=', 'value': -1}
+
+    def test_unmapped_field_passes_through(self):
+        """Fields not in DIRECT_FIELD_MAP are passed through as-is."""
+        result = _leaf_to_condition(('custom_field', '=', 'test'))
+        assert result == {'field': 'custom_field', 'op': '=', 'value': 'test'}
+
 
 # ═══════════════════════════════════════════════════════════════════
 # _flatten_to_dsl_slices tests
 # ═══════════════════════════════════════════════════════════════════
 
 class TestFlattenToDslSlices:
-    """Test AST → DSL slice list flattening."""
+    """Test AST -> DSL slice list flattening."""
 
     def test_single_leaf(self):
         tree = ('LEAF', ('company_id', '=', 1))
         slices = _flatten_to_dsl_slices(tree)
-        assert slices == [{'field': 'company_id', 'op': '=', 'value': 1}]
+        assert slices == [{'field': 'company$id', 'op': '=', 'value': 1}]
 
     def test_two_and_leaves(self):
         tree = ('AND',
@@ -265,11 +299,11 @@ class TestFlattenToDslSlices:
                 ('LEAF', ('user_id', '=', 42)))
         slices = _flatten_to_dsl_slices(tree)
         assert len(slices) == 2
-        assert slices[0] == {'field': 'company_id', 'op': 'in', 'value': [1, 3]}
-        assert slices[1] == {'field': 'user_id', 'op': '=', 'value': 42}
+        assert slices[0] == {'field': 'company$id', 'op': 'in', 'value': [1, 3]}
+        assert slices[1] == {'field': 'salesperson$id', 'op': '=', 'value': 42}
 
     def test_or_becomes_dsl_or(self):
-        """OR at top level → {"$or": [...]}"""
+        """OR at top level -> {"$or": [...]}"""
         tree = ('OR',
                 ('LEAF', ('user_id', '=', 42)),
                 ('LEAF', ('user_id', '=', False)))
@@ -278,13 +312,13 @@ class TestFlattenToDslSlices:
         assert '$or' in slices[0]
         or_children = slices[0]['$or']
         assert len(or_children) == 2
-        assert or_children[0] == {'field': 'user_id', 'op': '=', 'value': 42}
-        assert or_children[1] == {'field': 'user_id', 'op': 'is null'}
+        assert or_children[0] == {'field': 'salesperson$id', 'op': '=', 'value': 42}
+        assert or_children[1] == {'field': 'salesperson$id', 'op': 'is null'}
 
     def test_and_with_or_subtree(self):
         """
         company_id IN [1,3] AND (user_id = 42 OR user_id IS NULL)
-        → [company_id IN ..., {"$or": [user_id = 42, user_id IS NULL]}]
+        -> [company$id IN ..., {"$or": [salesperson$id = 42, salesperson$id IS NULL]}]
         """
         tree = ('AND',
                 ('LEAF', ('company_id', 'in', [1, 3])),
@@ -293,12 +327,12 @@ class TestFlattenToDslSlices:
                     ('LEAF', ('user_id', '=', False))))
         slices = _flatten_to_dsl_slices(tree)
         assert len(slices) == 2
-        assert slices[0] == {'field': 'company_id', 'op': 'in', 'value': [1, 3]}
+        assert slices[0] == {'field': 'company$id', 'op': 'in', 'value': [1, 3]}
         assert '$or' in slices[1]
         assert len(slices[1]['$or']) == 2
 
     def test_nested_or_flattens(self):
-        """OR(OR(A, B), C) → {"$or": [A, B, C]}"""
+        """OR(OR(A, B), C) -> {"$or": [A, B, C]}"""
         tree = ('OR',
                 ('OR',
                     ('LEAF', ('a', '=', 1)),
@@ -310,14 +344,14 @@ class TestFlattenToDslSlices:
         assert len(slices[0]['$or']) == 3
 
     def test_not_leaf(self):
-        """NOT(a = 1) → a != 1"""
+        """NOT(a = 1) -> a != 1"""
         tree = ('NOT', ('LEAF', ('state', '=', 'cancel')))
         slices = _flatten_to_dsl_slices(tree)
         assert len(slices) == 1
         assert slices[0] == {'field': 'state', 'op': '!=', 'value': 'cancel'}
 
     def test_not_or_de_morgan(self):
-        """NOT(A OR B) = NOT(A) AND NOT(B) → two conditions (AND'd)"""
+        """NOT(A OR B) = NOT(A) AND NOT(B) -> two conditions (AND'd)"""
         tree = ('NOT',
                 ('OR',
                     ('LEAF', ('state', '=', 'cancel')),
@@ -328,7 +362,7 @@ class TestFlattenToDslSlices:
         assert slices[1] == {'field': 'state', 'op': '!=', 'value': 'draft'}
 
     def test_not_and_de_morgan(self):
-        """NOT(A AND B) = NOT(A) OR NOT(B) → {"$or": [NOT(A), NOT(B)]}"""
+        """NOT(A AND B) = NOT(A) OR NOT(B) -> {"$or": [NOT(A), NOT(B)]}"""
         tree = ('NOT',
                 ('AND',
                     ('LEAF', ('company_id', '=', 1)),
@@ -338,11 +372,11 @@ class TestFlattenToDslSlices:
         assert '$or' in slices[0]
         or_children = slices[0]['$or']
         assert len(or_children) == 2
-        assert or_children[0] == {'field': 'company_id', 'op': '!=', 'value': 1}
-        assert or_children[1] == {'field': 'user_id', 'op': '!=', 'value': 42}
+        assert or_children[0] == {'field': 'company$id', 'op': '!=', 'value': 1}
+        assert or_children[1] == {'field': 'salesperson$id', 'op': '!=', 'value': 42}
 
     def test_three_and_conditions(self):
-        """AND(AND(A, B), C) → three conditions (flat list)"""
+        """AND(AND(A, B), C) -> three conditions (flat list)"""
         tree = ('AND',
                 ('AND',
                     ('LEAF', ('a', '=', 1)),
@@ -352,7 +386,7 @@ class TestFlattenToDslSlices:
         assert len(slices) == 3
 
     def test_and_inside_or(self):
-        """(A AND B) OR C → {"$or": [{"$and": [A, B]}, C]}"""
+        """(A AND B) OR C -> {"$or": [{"$and": [A, B]}, C]}"""
         tree = ('OR',
                 ('AND',
                     ('LEAF', ('a', '=', 1)),
@@ -373,7 +407,7 @@ class TestFlattenToDslSlices:
         assert or_children[1] == {'field': 'c', 'op': '=', 'value': 3}
 
     def test_single_and_inside_or_unwrapped(self):
-        """(single_cond) OR C → {"$or": [single_cond, C]} (no $and wrapper)"""
+        """(single_cond) OR C -> {"$or": [single_cond, C]} (no $and wrapper)"""
         tree = ('OR',
                 ('LEAF', ('a', '=', 1)),
                 ('LEAF', ('c', '=', 3)))
@@ -385,13 +419,19 @@ class TestFlattenToDslSlices:
         assert 'field' in or_children[0]
         assert 'field' in or_children[1]
 
+    def test_tautology_leaf_produces_no_slice(self):
+        """(1, '=', 1) tautology produces empty slice list."""
+        tree = ('LEAF', (1, '=', 1))
+        slices = _flatten_to_dsl_slices(tree)
+        assert slices == []
+
 
 # ═══════════════════════════════════════════════════════════════════
-# Integration: domain → parse → flatten (end-to-end)
+# Integration: domain -> parse -> flatten (end-to-end)
 # ═══════════════════════════════════════════════════════════════════
 
 class TestDomainEndToEnd:
-    """Test the full pipeline: Odoo domain → AST → DSL slice list."""
+    """Test the full pipeline: Odoo domain -> AST -> DSL slice list."""
 
     def _domain_to_slices(self, domain):
         """Helper: full pipeline."""
@@ -404,13 +444,13 @@ class TestDomainEndToEnd:
         """Standard Odoo multi-company rule: [('company_id', 'in', company_ids)]"""
         domain = [('company_id', 'in', [1, 3])]
         slices = self._domain_to_slices(domain)
-        assert slices == [{'field': 'company_id', 'op': 'in', 'value': [1, 3]}]
+        assert slices == [{'field': 'company$id', 'op': 'in', 'value': [1, 3]}]
 
     def test_odoo_own_records(self):
         """Standard Odoo 'own records' rule: [('user_id', '=', user.id)]"""
         domain = [('user_id', '=', 42)]
         slices = self._domain_to_slices(domain)
-        assert slices == [{'field': 'user_id', 'op': '=', 'value': 42}]
+        assert slices == [{'field': 'salesperson$id', 'op': '=', 'value': 42}]
 
     def test_odoo_own_or_unassigned(self):
         """
@@ -421,8 +461,8 @@ class TestDomainEndToEnd:
         slices = self._domain_to_slices(domain)
         assert len(slices) == 1
         assert '$or' in slices[0]
-        assert slices[0]['$or'][0] == {'field': 'user_id', 'op': '=', 'value': 42}
-        assert slices[0]['$or'][1] == {'field': 'user_id', 'op': 'is null'}
+        assert slices[0]['$or'][0] == {'field': 'salesperson$id', 'op': '=', 'value': 42}
+        assert slices[0]['$or'][1] == {'field': 'salesperson$id', 'op': 'is null'}
 
     def test_odoo_company_plus_own_or_unassigned(self):
         """
@@ -434,10 +474,10 @@ class TestDomainEndToEnd:
 
         Expected DSL slice:
             [
-              {"field": "company_id", "op": "in", "value": [1, 3]},
+              {"field": "company$id", "op": "in", "value": [1, 3]},
               {"$or": [
-                {"field": "user_id", "op": "=", "value": 42},
-                {"field": "user_id", "op": "is null"}
+                {"field": "salesperson$id", "op": "=", "value": 42},
+                {"field": "salesperson$id", "op": "is null"}
               ]}
             ]
         """
@@ -445,7 +485,7 @@ class TestDomainEndToEnd:
                   '|', ('user_id', '=', 42), ('user_id', '=', False)]
         slices = self._domain_to_slices(domain)
         assert len(slices) == 2
-        assert slices[0] == {'field': 'company_id', 'op': 'in', 'value': [1, 3]}
+        assert slices[0] == {'field': 'company$id', 'op': 'in', 'value': [1, 3]}
         assert '$or' in slices[1]
         assert len(slices[1]['$or']) == 2
 
@@ -453,7 +493,7 @@ class TestDomainEndToEnd:
         """Team-based access: [('team_id', 'in', user.sale_team_ids.ids)]"""
         domain = [('team_id', 'in', [5, 8, 12])]
         slices = self._domain_to_slices(domain)
-        assert slices == [{'field': 'team_id', 'op': 'in', 'value': [5, 8, 12]}]
+        assert slices == [{'field': 'salesTeam$id', 'op': 'in', 'value': [5, 8, 12]}]
 
     def test_odoo_not_cancelled(self):
         """Exclude cancelled: ['!', ('state', '=', 'cancel')]"""
@@ -479,11 +519,11 @@ class TestDomainEndToEnd:
         assert isinstance(parsed, list)
         assert len(parsed) == 2
         # First element: plain condition
-        assert parsed[0]['field'] == 'company_id'
+        assert parsed[0]['field'] == 'company$id'
         assert parsed[0]['op'] == 'in'
         # Second element: $or group
         assert '$or' in parsed[1]
-        assert parsed[1]['$or'][0]['field'] == 'user_id'
+        assert parsed[1]['$or'][0]['field'] == 'salesperson$id'
         assert parsed[1]['$or'][0]['op'] == '='
         assert parsed[1]['$or'][1]['op'] == 'is null'
 
@@ -499,10 +539,10 @@ class TestDomainEndToEnd:
 
         Expected DSL slice:
             [
-              {"field": "company_id", "op": "in", "value": [1, 3]},
+              {"field": "company$id", "op": "in", "value": [1, 3]},
               {"$or": [
-                {"field": "team_id", "op": "=", "value": 5},
-                {"field": "user_id", "op": "=", "value": 42}
+                {"field": "salesTeam$id", "op": "=", "value": 5},
+                {"field": "salesperson$id", "op": "=", "value": 42}
               ]},
               {"field": "active", "op": "=", "value": true}
             ]
@@ -513,10 +553,10 @@ class TestDomainEndToEnd:
                   ('active', '=', True)]
         slices = self._domain_to_slices(domain)
 
-        # 3 items: company_id condition, $or group, active condition
+        # 3 items: company$id condition, $or group, active condition
         assert len(slices) == 3
         field_names = [s.get('field') for s in slices if 'field' in s]
-        assert 'company_id' in field_names
+        assert 'company$id' in field_names
         assert 'active' in field_names
         # One $or group
         or_items = [s for s in slices if '$or' in s]
@@ -549,12 +589,12 @@ class TestDomainEndToEnd:
         # Original filter preserved
         assert payload['slice'][0] == {'field': 'order_date', 'op': '>=', 'value': '2024-01-01'}
         # Permission conditions appended
-        assert payload['slice'][1] == {'field': 'company_id', 'op': 'in', 'value': [1, 3]}
+        assert payload['slice'][1] == {'field': 'company$id', 'op': 'in', 'value': [1, 3]}
         assert '$or' in payload['slice'][2]
 
     def test_hierarchy_child_of_end_to_end(self):
         """
-        End-to-end: child_of with mapped field → selfAndDescendantsOf in DSL slice.
+        End-to-end: child_of with mapped field -> selfAndDescendantsOf in DSL slice.
 
         Simulates Odoo ir.rule: ('company_id', 'child_of', [1])
         After hierarchy expansion: ('company$id', 'selfAndDescendantsOf', 1)
@@ -579,39 +619,45 @@ class TestDomainEndToEnd:
         slices = self._domain_to_slices(domain)
         assert len(slices) == 2
         assert slices[0] == {'field': 'company$id', 'op': 'selfAndDescendantsOf', 'value': 1}
-        assert slices[1] == {'field': 'user_id', 'op': '=', 'value': 42}
+        assert slices[1] == {'field': 'salesperson$id', 'op': '=', 'value': 42}
+
+    def test_tautology_domain_produces_no_slices(self):
+        """[(1, '=', 1)] (allow all) -> empty slice list."""
+        domain = [(1, '=', 1)]
+        slices = self._domain_to_slices(domain)
+        assert slices == []
 
 
 # ═══════════════════════════════════════════════════════════════════
-# Hierarchy expansion tests (child_of/parent_of → closure table operators)
+# Hierarchy expansion tests (child_of/parent_of -> closure table operators)
 # ═══════════════════════════════════════════════════════════════════
 
 class TestExpandHierarchyOperators:
-    """Test _expand_hierarchy_operators: child_of/parent_of → selfAndDescendantsOf/selfAndAncestorsOf."""
+    """Test _expand_hierarchy_operators: child_of/parent_of -> selfAndDescendantsOf/selfAndAncestorsOf."""
 
     def test_child_of_mapped_field(self):
-        """child_of on mapped field → selfAndDescendantsOf with dimension field."""
+        """child_of on mapped field -> selfAndDescendantsOf with dimension field."""
         domain = [('company_id', 'child_of', [1])]
         result = _expand_hierarchy_operators(None, domain, 'sale.order')
         assert len(result) == 1
         assert result[0] == ('company$id', 'selfAndDescendantsOf', 1)
 
     def test_parent_of_mapped_field(self):
-        """parent_of on mapped field → selfAndAncestorsOf with dimension field."""
+        """parent_of on mapped field -> selfAndAncestorsOf with dimension field."""
         domain = [('company_id', 'parent_of', [2])]
         result = _expand_hierarchy_operators(None, domain, 'sale.order')
         assert len(result) == 1
         assert result[0] == ('company$id', 'selfAndAncestorsOf', 2)
 
     def test_child_of_department(self):
-        """department_id child_of → department$id selfAndDescendantsOf."""
+        """department_id child_of -> department$id selfAndDescendantsOf."""
         domain = [('department_id', 'child_of', [3])]
         result = _expand_hierarchy_operators(None, domain, 'hr.employee')
         assert len(result) == 1
         assert result[0] == ('department$id', 'selfAndDescendantsOf', 3)
 
     def test_child_of_parent_id(self):
-        """parent_id child_of (employee manager hierarchy) → parent$id selfAndDescendantsOf."""
+        """parent_id child_of (employee manager hierarchy) -> parent$id selfAndDescendantsOf."""
         domain = [('parent_id', 'child_of', [1])]
         result = _expand_hierarchy_operators(None, domain, 'hr.employee')
         assert len(result) == 1

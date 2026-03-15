@@ -1,0 +1,61 @@
+/**
+ * HR Employee Query Model
+ *
+ * @caption Employee Directory
+ * @description Query employee information by department, job position, and company.
+ *              Sensitive fields excluded. Permissions enforced via payload.slice injection from Odoo MCP Gateway.
+ */
+const emp = loadTableModel('OdooHrEmployeeModel');
+
+export const queryModel = {
+    name: 'OdooHrEmployeeQueryModel',
+    caption: 'Employee Directory',
+    description: 'Search and analyze employees by department, job position, company, and work location. '
+        + 'Salary and private information excluded for security.',
+    loader: 'v2',
+
+    model: emp,
+
+    columnGroups: [
+        {
+            caption: 'Employee Information',
+            items: [
+                { ref: emp.id },
+                { ref: emp.name },
+                { ref: emp.jobTitle },
+                { ref: emp.workEmail },
+                { ref: emp.workPhone },
+                { ref: emp.mobilePhone },
+                { ref: emp.active },
+                { ref: emp.employeeType },
+                { ref: emp.createDate },
+                { ref: emp.writeDate }
+            ]
+        },
+        {
+            caption: 'Organization',
+            items: [
+                { ref: emp.department },
+                { ref: emp.job },
+                { ref: emp.company },
+                { ref: emp.parent },
+                { ref: emp.workLocation }
+            ]
+        },
+        {
+            caption: 'Demographics',
+            items: [
+                { ref: emp.gender },
+                { ref: emp.marital }
+            ]
+        },
+        {
+            caption: 'Metrics',
+            items: [
+                { ref: emp.employeeCount }
+            ]
+        }
+    ],
+
+    accesses: []
+};

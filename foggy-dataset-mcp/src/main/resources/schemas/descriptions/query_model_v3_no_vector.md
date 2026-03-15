@@ -9,14 +9,15 @@
 | 字段类型   | 用法                                         |
 |------------|----------------------------------------------|
 | 维度       | `xxx$id`(查询/过滤), `xxx$caption`(展示)     |
-| 父子维度   | `xxx$hierarchy$id`(含子节点汇总)             |
+| 父子维度   | `xxx$hierarchy$id`(层级范围过滤), `xxx$hierarchy$caption`(层级汇总展示) |
 | 属性/度量  | 直接使用字段名                               |
 
 ### 父子维度 (Parent-Child Dimension)
-层级结构维度（如组织架构）额外支持 `$hierarchy$` 视角：
-- **xxx$id**: 精确匹配该节点
-- **xxx$hierarchy$id**: 匹配该节点及所有后代（用于层级汇总）
-示例：`team$hierarchy$id = 'T001'` 查询总公司及所有子部门
+层级结构维度（如组织架构、公司层级）支持两种访问视角：
+- **xxx$id / xxx$caption**: 精确匹配该节点（与普通维度相同）
+- **xxx$hierarchy$id / xxx$hierarchy$caption**: 通过闭包表匹配节点及所有后代（层级汇总）
+
+还可在 slice 中对 `xxx$id` 使用层级操作符进行细粒度查询（见操作符表）。
 
 ## 参数
 
@@ -92,7 +93,15 @@
 | 集合 | `in`, `not in`                                      |
 | 空值 | `is null`, `is not null` (无需value)                |
 | 区间 | `[]`, `[)`, `()`, `(]` (value为[start,end])         |
-| 层级 | `childrenOf`, `descendantsOf`, `selfAndDescendantsOf` |
+| 层级(后代) | `childrenOf`(直接子节点), `descendantsOf`(所有后代,不含自身), `selfAndDescendantsOf`(自身+所有后代) |
+| 层级(祖先) | `selfAndAncestorsOf`(自身+所有祖先), `ancestorsOf`(所有祖先,不含自身) |
+
+层级操作符用于父子维度，作用于 `xxx$id` 字段，可选 `maxDepth` 限制深度：
+```json
+{"field": "team$id", "op": "selfAndDescendantsOf", "value": "T001"}
+{"field": "company$id", "op": "selfAndAncestorsOf", "value": 3}
+{"field": "team$id", "op": "descendantsOf", "value": "T001", "maxDepth": 2}
+```
 
 **字段间比较**：
 - `$field` 引用：`{"field": "a", "op": ">", "value": {"$field": "b"}}` → `WHERE a > b`
@@ -103,6 +112,27 @@
 [{"field": "totalSales", "dir": "DESC"}]
 ```
 **使用 columns 中定义的别名**，如 `year` 而非 `YEAR(createdAt)`
+
+### distinct (可选)
+设为 `true` 返回去重结果（`SELECT DISTINCT`），适用于"列出所有…"类查询。
+与聚合查询（groupBy）互斥，有 groupBy 时自动忽略 distinct。
+```json
+{"columns": ["customer$caption", "customer$customerType"], "distinct": true}
+```
+
+### withSubtotals (可选)
+设为 `true` 对 groupBy 聚合结果追加分组小计行和总计行。通过 `_rowType` 字段标记行类型：
+- `data` — 原始数据行
+- `subtotal` — 分组小计行（按第一维度分组）
+- `grandTotal` — 总计行
+
+仅对包含 groupBy 的聚合查询生效。多维度时按第一维度做小计；单维度时仅追加总计行。
+```json
+{
+  "columns": ["department$caption", "month$caption", "sum(amount) as total"],
+  "withSubtotals": true
+}
+```
 
 ### 分页
 - `start`: 起始行(从0开始)

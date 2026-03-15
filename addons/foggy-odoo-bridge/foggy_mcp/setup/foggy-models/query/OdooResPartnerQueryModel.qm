@@ -1,0 +1,72 @@
+/**
+ * Res Partner Query Model
+ *
+ * @caption Partner Directory
+ * @description Query customers, vendors, and contacts by country, company, and sales team.
+ *              Permissions enforced via payload.slice injection from Odoo MCP Gateway.
+ */
+const p = loadTableModel('OdooResPartnerModel');
+
+export const queryModel = {
+    name: 'OdooResPartnerQueryModel',
+    caption: 'Partner Directory',
+    description: 'Search and analyze partners (customers, vendors, contacts) by country, company, '
+        + 'sales team, and address. Use customer_rank/supplier_rank to filter by role.',
+    loader: 'v2',
+
+    model: p,
+
+    columnGroups: [
+        {
+            caption: 'Partner Information',
+            items: [
+                { ref: p.id },
+                { ref: p.name },
+                { ref: p.completeName },
+                { ref: p.type },
+                { ref: p.email },
+                { ref: p.phone },
+                { ref: p.mobile },
+                { ref: p.website },
+                { ref: p.vat },
+                { ref: p.ref },
+                { ref: p.isCompany },
+                { ref: p.active },
+                { ref: p.createDate },
+                { ref: p.writeDate }
+            ]
+        },
+        {
+            caption: 'Address',
+            items: [
+                { ref: p.street },
+                { ref: p.city },
+                { ref: p.zip },
+                { ref: p.state },
+                { ref: p.state$code },
+                { ref: p.country },
+                { ref: p.country$code }
+            ]
+        },
+        {
+            caption: 'Organization',
+            items: [
+                { ref: p.company },
+                { ref: p.parentPartner },
+                { ref: p.salesperson },
+                { ref: p.salesTeam }
+            ]
+        },
+        {
+            caption: 'Ranking & Metrics',
+            items: [
+                { ref: p.customerRank },
+                { ref: p.supplierRank },
+                { ref: p.lang },
+                { ref: p.partnerCount }
+            ]
+        }
+    ],
+
+    accesses: []
+};

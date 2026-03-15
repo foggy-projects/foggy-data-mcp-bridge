@@ -6,7 +6,6 @@ Handles HTTP communication with the Foggy MCP Server (Java side).
 Odoo MCP Gateway injects permission conditions into payload.slice before
 forwarding — no custom headers needed for permission control.
 """
-import json
 import logging
 import uuid
 

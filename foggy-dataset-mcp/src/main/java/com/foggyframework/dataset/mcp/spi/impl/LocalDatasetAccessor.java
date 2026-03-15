@@ -324,6 +324,16 @@ public class LocalDatasetAccessor implements DatasetAccessor {
             request.setReturnTotal(Iif.check( payload.get("returnTotal")));
         }
 
+        // distinct
+        if (payload.containsKey("distinct")) {
+            request.setDistinct(Iif.check(payload.get("distinct")));
+        }
+
+        // withSubtotals
+        if (payload.containsKey("withSubtotals")) {
+            request.setWithSubtotals(Iif.check(payload.get("withSubtotals")));
+        }
+
         // 添加 MCP 来源标记（供 LargeResultTruncationStep 识别）
         Map<String, Object> hints = new HashMap<>();
         hints.put("fromMcp", true);

@@ -1,0 +1,144 @@
+/**
+ * Odoo 业务字典定义
+ *
+ * 通过 registerDict 注册到全局服务，
+ * TM 模型文件通过 dictRef 引用。
+ */
+import { registerDict } from '@jdbcModelDictService';
+
+export const dicts = {
+    /**
+     * 销售订单状态 (sale.order.state)
+     */
+    sale_order_state: registerDict({
+        id: 'odoo_sale_order_state',
+        caption: 'Sale Order Status',
+        items: [
+            { value: 'draft', label: 'Quotation' },
+            { value: 'sent', label: 'Quotation Sent' },
+            { value: 'sale', label: 'Sales Order' },
+            { value: 'done', label: 'Locked' },
+            { value: 'cancel', label: 'Cancelled' }
+        ]
+    }),
+
+    /**
+     * 销售订单开票状态
+     */
+    sale_invoice_status: registerDict({
+        id: 'odoo_sale_invoice_status',
+        caption: 'Invoice Status',
+        items: [
+            { value: 'upselling', label: 'Upselling Opportunity' },
+            { value: 'invoiced', label: 'Fully Invoiced' },
+            { value: 'to invoice', label: 'To Invoice' },
+            { value: 'no', label: 'Nothing to Invoice' }
+        ]
+    }),
+
+    /**
+     * 采购订单状态 (purchase.order.state)
+     */
+    purchase_order_state: registerDict({
+        id: 'odoo_purchase_order_state',
+        caption: 'Purchase Order Status',
+        items: [
+            { value: 'draft', label: 'RFQ' },
+            { value: 'sent', label: 'RFQ Sent' },
+            { value: 'to approve', label: 'To Approve' },
+            { value: 'purchase', label: 'Purchase Order' },
+            { value: 'done', label: 'Locked' },
+            { value: 'cancel', label: 'Cancelled' }
+        ]
+    }),
+
+    /**
+     * 采购开票状态
+     */
+    purchase_invoice_status: registerDict({
+        id: 'odoo_purchase_invoice_status',
+        caption: 'Billing Status',
+        items: [
+            { value: 'no', label: 'Nothing to Bill' },
+            { value: 'to invoice', label: 'Waiting Bills' },
+            { value: 'invoiced', label: 'Fully Billed' }
+        ]
+    }),
+
+    /**
+     * 会计分录类型 (account.move.move_type)
+     */
+    account_move_type: registerDict({
+        id: 'odoo_account_move_type',
+        caption: 'Journal Entry Type',
+        items: [
+            { value: 'entry', label: 'Journal Entry' },
+            { value: 'out_invoice', label: 'Customer Invoice' },
+            { value: 'out_refund', label: 'Customer Credit Note' },
+            { value: 'in_invoice', label: 'Vendor Bill' },
+            { value: 'in_refund', label: 'Vendor Credit Note' },
+            { value: 'out_receipt', label: 'Sales Receipt' },
+            { value: 'in_receipt', label: 'Purchase Receipt' }
+        ]
+    }),
+
+    /**
+     * 会计分录状态
+     */
+    account_move_state: registerDict({
+        id: 'odoo_account_move_state',
+        caption: 'Journal Entry Status',
+        items: [
+            { value: 'draft', label: 'Draft' },
+            { value: 'posted', label: 'Posted' },
+            { value: 'cancel', label: 'Cancelled' }
+        ]
+    }),
+
+    /**
+     * 会计分录付款状态
+     */
+    account_payment_state: registerDict({
+        id: 'odoo_account_payment_state',
+        caption: 'Payment Status',
+        items: [
+            { value: 'not_paid', label: 'Not Paid' },
+            { value: 'in_payment', label: 'In Payment' },
+            { value: 'paid', label: 'Paid' },
+            { value: 'partial', label: 'Partially Paid' },
+            { value: 'reversed', label: 'Reversed' },
+            { value: 'invoicing_legacy', label: 'Invoicing App Legacy' }
+        ]
+    }),
+
+    /**
+     * 库存调拨状态 (stock.picking.state)
+     */
+    stock_picking_state: registerDict({
+        id: 'odoo_stock_picking_state',
+        caption: 'Transfer Status',
+        items: [
+            { value: 'draft', label: 'Draft' },
+            { value: 'waiting', label: 'Waiting Another Operation' },
+            { value: 'confirmed', label: 'Waiting' },
+            { value: 'assigned', label: 'Ready' },
+            { value: 'done', label: 'Done' },
+            { value: 'cancel', label: 'Cancelled' }
+        ]
+    }),
+
+    /**
+     * 合作伙伴类型
+     */
+    partner_type: registerDict({
+        id: 'odoo_partner_type',
+        caption: 'Partner Type',
+        items: [
+            { value: 'contact', label: 'Contact' },
+            { value: 'invoice', label: 'Invoice Address' },
+            { value: 'delivery', label: 'Delivery Address' },
+            { value: 'other', label: 'Other Address' },
+            { value: 'private', label: 'Private Address' }
+        ]
+    })
+}

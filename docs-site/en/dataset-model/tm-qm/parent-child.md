@@ -359,13 +359,15 @@ Assuming T001 (Head Office) has 9 teams (including itself), each with sales data
 
 Besides the `$hierarchy$` perspective, fine-grained hierarchical queries are supported via `op` operators without using `$hierarchy$` column names:
 
-| op | Meaning | SQL Condition | Includes Self |
-|----|---------|---------------|---------------|
-| `childrenOf` | Direct children | `distance = 1` | No |
-| `descendantsOf` | All descendants | `distance > 0` | No |
-| `selfAndDescendantsOf` | Self and all descendants | No restriction | Yes |
+| op | Direction | Meaning | SQL Condition | Includes Self |
+|----|-----------|---------|---------------|---------------|
+| `childrenOf` | Descendant ↓ | Direct children | `distance = 1` | No |
+| `descendantsOf` | Descendant ↓ | All descendants | `distance > 0` | No |
+| `selfAndDescendantsOf` | Descendant ↓ | Self and all descendants | No restriction | Yes |
+| `selfAndAncestorsOf` | Ancestor ↑ | Self and all ancestors | No restriction | Yes |
+| `ancestorsOf` | Ancestor ↑ | All ancestors | `distance > 0` | No |
 
-Supports `maxDepth` parameter to limit query depth.
+All operators support the `maxDepth` parameter to limit query depth.
 
 ---
 
@@ -505,7 +507,90 @@ GROUP BY d1.team_name
 
 ---
 
-#### 5.4.4 maxDepth - Limit Query Depth
+#### 5.4.4 selfAndAncestorsOf - Query Self and All Ancestors
+
+Query a specified node and all its ancestors (reverse JOIN on closure table). Typical use case: Odoo `parent_of` permission rules.
+
+**Request**:
+
+```json
+{
+    "param": {
+        "columns": ["team$caption", "salesAmount"],
+        "slice": [
+            { "field": "team$id", "op": "selfAndAncestorsOf", "value": "T003" }
+        ],
+       "groupBy": [
+          { "field": "team$caption" }
+       ]
+    }
+}
+```
+
+**Generated SQL** (note the reversed JOIN direction):
+
+```sql
+SELECT d1.team_name AS "team$caption",
+       SUM(t0.sales_amount) AS "salesAmount"
+FROM fact_team_sales t0
+LEFT JOIN dim_team d1 ON t0.team_id = d1.team_id
+LEFT JOIN team_closure d2 ON t0.team_id = d2.parent_id
+WHERE d2.team_id = 'T003'
+GROUP BY d1.team_name
+```
+
+**Returned Data** (T003 R&D Group + all its ancestors):
+
+| team$caption | salesAmount |
+|--------------|-------------|
+| Head Office  | 110,000     |
+| Technology Dept | 65,000   |
+| R&D Group    | 22,000      |
+
+---
+
+#### 5.4.5 ancestorsOf - Query All Ancestors (Excluding Self)
+
+Query all ancestors of a specified node, excluding itself (distance > 0).
+
+**Request**:
+
+```json
+{
+    "param": {
+        "columns": ["team$caption", "salesAmount"],
+        "slice": [
+            { "field": "team$id", "op": "ancestorsOf", "value": "T003" }
+        ],
+       "groupBy": [
+          { "field": "team$caption" }
+       ]
+    }
+}
+```
+
+**Generated SQL**:
+
+```sql
+SELECT d1.team_name AS "team$caption",
+       SUM(t0.sales_amount) AS "salesAmount"
+FROM fact_team_sales t0
+LEFT JOIN dim_team d1 ON t0.team_id = d1.team_id
+LEFT JOIN team_closure d2 ON t0.team_id = d2.parent_id
+WHERE d2.team_id = 'T003' AND d2.distance > 0
+GROUP BY d1.team_name
+```
+
+**Returned Data** (T003's ancestors, excluding T003 itself):
+
+| team$caption | salesAmount |
+|--------------|-------------|
+| Head Office  | 110,000     |
+| Technology Dept | 65,000   |
+
+---
+
+#### 5.4.6 maxDepth - Limit Query Depth
 
 Use `maxDepth` parameter to limit the depth of hierarchical queries.
 
@@ -591,7 +676,7 @@ GROUP BY d1.team_name
 
 ---
 
-#### 5.4.5 Multi-Value Query
+#### 5.4.7 Multi-Value Query
 
 Hierarchy operators support passing multiple values to query descendants of multiple nodes.
 
@@ -634,7 +719,7 @@ GROUP BY d1.team_name
 
 ---
 
-#### 5.4.6 Operator Comparison Table
+#### 5.4.8 Operator Comparison Table
 
 | Query Need | Recommended Approach | Description |
 |------------|----------------------|-------------|
@@ -643,7 +728,9 @@ GROUP BY d1.team_name
 | Descendant details | `team$hierarchy$id` + `team$caption` | Mixed perspective |
 | Direct children | `op: childrenOf` | Hierarchy operator |
 | All descendants (excluding self) | `op: descendantsOf` | Hierarchy operator |
-| Depth-limited query | `op` + `maxDepth` | Hierarchy operator |
+| Self and all ancestors | `op: selfAndAncestorsOf` | Ancestor direction operator |
+| All ancestors (excluding self) | `op: ancestorsOf` | Ancestor direction operator |
+| Depth-limited query | `op` + `maxDepth` | All operators support this |
 
 ---
 

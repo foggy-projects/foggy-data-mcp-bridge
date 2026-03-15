@@ -7,7 +7,19 @@
         <field name="inherit_id" ref="base.res_config_settings_view_form"/>
         <field name="arch" type="xml">
             <xpath expr="//form" position="inside">
-                <app data-string="Foggy MCP" string="Foggy MCP" groups="base.group_system">
+                <app string="Foggy MCP" name="foggy_mcp" groups="base.group_system">
+                    <block title="Quick Setup">
+                        <setting string="Setup Wizard"
+                                 help="Step-by-step guide to deploy Foggy MCP Server, initialize closure tables, and verify connection">
+                            <div class="content-group">
+                                <div class="mt16">
+                                    <button name="%(foggy_setup_wizard_action)d"
+                                            string="Launch Setup Wizard"
+                                            type="action" class="btn-primary"/>
+                                </div>
+                            </div>
+                        </setting>
+                    </block>
                     <block title="Foggy MCP Server Connection">
                         <setting string="Server URL" help="Base URL of the Foggy MCP Server">
                             <div class="content-group">

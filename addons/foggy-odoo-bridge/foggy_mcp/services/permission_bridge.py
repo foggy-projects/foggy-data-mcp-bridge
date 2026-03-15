@@ -28,6 +28,7 @@ import logging
 
 from odoo.osv import expression
 from odoo.tools.safe_eval import safe_eval
+from odoo.tools import safe_eval as _safe_eval_mod
 
 from .tool_registry import QM_TO_ODOO_MODEL
 
@@ -70,28 +71,29 @@ NEGATE_OP_MAP = {
 
 # ─── Field mapping ─────────────────────────────────────────────────
 
-# Odoo ir.rule field names → QM model column names.
+# Odoo ir.rule field names → QM model column names (dimension $id fields).
 # Relational fields (e.g., 'user_id.id') are pre-resolved to IDs.
+# Values are Foggy dimension fields, e.g., company$id, salesperson$id.
 DIRECT_FIELD_MAP = {
-    'company_id': 'company_id',
-    'company_ids': 'company_id',
-    'user_id': 'user_id',
-    'partner_id': 'partner_id',
-    'team_id': 'team_id',
-    'department_id': 'department_id',
-    'warehouse_id': 'warehouse_id',
-    'journal_id': 'journal_id',
-    'picking_type_id': 'picking_type_id',
+    'company_id': 'company$id',
+    'company_ids': 'company$id',
+    'user_id': 'salesperson$id',
+    'partner_id': 'partner$id',
+    'team_id': 'salesTeam$id',
+    'department_id': 'department$id',
+    'warehouse_id': 'warehouse$id',
+    'journal_id': 'journal$id',
+    'picking_type_id': 'pickingType$id',
 }
 
 # Odoo ir.rule field → Foggy dimension field (for hierarchy operators).
 # These fields reference hierarchical models with closure tables.
 # child_of → selfAndDescendantsOf, parent_of → selfAndAncestorsOf.
 HIERARCHY_FIELD_MAP = {
-    'company_id':    'company$id',
-    'company_ids':   'company$id',
+    'company_id': 'company$id',
+    'company_ids': 'company$id',
     'department_id': 'department$id',
-    'parent_id':     'parent$id',
+    'parent_id': 'parent$id',
 }
 
 
@@ -125,7 +127,7 @@ def compute_permission_slices(env, uid, qm_model_name):
     slices = _compute_model_slices(env, uid, odoo_model)
     if slices:
         _logger.debug("Permission slices for %s (uid=%s): %d conditions",
-                       qm_model_name, uid, len(slices))
+                      qm_model_name, uid, len(slices))
     return slices
 
 
@@ -174,37 +176,67 @@ def _compute_model_slices(env, uid, odoo_model):
     # ── Group rules: OR'd across rules ──
     if group_rules:
         rule_branches = []
+        eval_failures = 0
         for rule in group_rules:
             try:
                 domain = _eval_rule_domain(rule, eval_context)
                 if not domain:
+                    # Empty domain or [(1,'=',1)] after normalize → no filter (allow all)
+                    rule_branches.append([])
                     continue
                 domain = _expand_hierarchy_operators(env, domain, odoo_model)
                 tree = _parse_domain_ast(domain)
                 if tree is None:
+                    rule_branches.append([])
                     continue
                 branch = _flatten_to_dsl_slices(tree)
                 if branch:
                     rule_branches.append(branch)
+                else:
+                    rule_branches.append([])
             except Exception as e:
+                eval_failures += 1
                 _logger.warning("Failed to evaluate group rule '%s' on %s: %s",
                                 rule.name, odoo_model, e)
 
-        if len(rule_branches) == 1:
-            # Single group rule → AND'd directly
-            slices.extend(rule_branches[0])
-        elif len(rule_branches) > 1:
-            # Multiple group rules → OR'd:
-            # {"$or": [branch1, branch2, ...]}
-            # Each branch with multiple conditions is wrapped in {"$and": [...]}
-            or_children = []
-            for branch in rule_branches:
-                if len(branch) == 1:
-                    or_children.append(branch[0])
-                else:
-                    # Multi-condition branch → {"$and": [cond1, cond2, ...]}
-                    or_children.append({'$and': branch})
-            slices.append({'$or': or_children})
+        # Fail-closed: if ALL group rules failed to evaluate, deny access
+        if eval_failures > 0 and eval_failures == len(group_rules):
+            _logger.error(
+                "All %d group rules failed for %s (uid=%s) — fail-closed: denying access",
+                eval_failures, odoo_model, uid,
+            )
+            # Inject an impossible condition to block all rows
+            slices.append({'field': 'id', 'op': '=', 'value': -1})
+            return slices
+
+        # Odoo semantics: group rules are OR'd.
+        # If ANY branch is a tautology (empty = "allow all", e.g., [(1,'=',1)]),
+        # then tautology OR anything = tautology → no group-level filter needed.
+        has_tautology = any(b == [] for b in rule_branches)
+        if has_tautology:
+            _logger.debug("Group rules for %s include tautology — no group filter",
+                          odoo_model)
+        else:
+            non_empty = [b for b in rule_branches if b]
+
+            if not non_empty:
+                # No branches at all → no group filter
+                pass
+            elif len(non_empty) == 1:
+                # Single group rule with conditions → AND'd directly
+                slices.extend(non_empty[0])
+            elif len(non_empty) > 1:
+                # Multiple group rules → OR'd:
+                # {"$or": [branch1, branch2, ...]}
+                # Each branch with multiple conditions is wrapped in {"$and": [...]}
+                or_children = []
+                for branch in non_empty:
+                    if len(branch) == 1:
+                        or_children.append(branch[0])
+                    else:
+                        # Multi-condition branch → {"$and": [cond1, cond2, ...]}
+                        or_children.append({'$and': branch})
+                slices.append({'$or': or_children})
 
     return slices
 
@@ -239,13 +271,18 @@ def _get_applicable_rules(env, uid, odoo_model):
 
 
 def _build_eval_context(env, user):
-    """Build evaluation context for domain_force."""
+    """Build evaluation context for domain_force.
+
+    Uses Odoo 17's pre-wrapped safe modules (wrap_module) instead of raw
+    Python builtins so that ``safe_eval`` does not reject the context.
+    """
     return {
         'user': user,
         'uid': user.id,
         'company_id': user.company_id.id,
         'company_ids': user.company_ids.ids,
-        'time': __import__('time'),
+        'time': _safe_eval_mod.time,
+        'datetime': _safe_eval_mod.datetime,
     }
 
 
@@ -379,12 +416,12 @@ def _resolve_hierarchy(env, odoo_model, field, op, value):
         resolved = result.ids
 
         _logger.debug("Hierarchy expansion: %s %s %s → %d IDs",
-                       field, op, value, len(resolved))
+                      field, op, value, len(resolved))
         return resolved
 
     except Exception as e:
         _logger.warning("Failed to resolve hierarchy for %s %s %s: %s",
-                         field, op, value, e)
+                        field, op, value, e)
         return value
 
 
@@ -600,6 +637,15 @@ def _leaf_to_condition(leaf, negate=False):
         dict: {'field': ..., 'op': ..., 'value': ...} or None if unsupported
     """
     field, op, value = leaf
+
+    # ── Handle tautology / contradiction literals ──
+    # (1, '=', 1) → always true → no filter (return None)
+    # (0, '=', 1) → always false → should never match
+    if isinstance(field, int) and isinstance(value, int):
+        if (op == '=' and field == value) or (op == '!=' and field != value):
+            return None  # tautology — no condition needed
+        # contradiction — return impossible condition
+        return {'field': 'id', 'op': '=', 'value': -1}
 
     # Handle relational field traversal (e.g., 'company_id.id', 'user_id.company_id')
     if '.' in field:

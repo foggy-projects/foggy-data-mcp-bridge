@@ -1,2 +1,2 @@
 # -*- coding: utf-8 -*-
-from . import mcp_controller
+from . import mcp_controller  # noqa: F401
