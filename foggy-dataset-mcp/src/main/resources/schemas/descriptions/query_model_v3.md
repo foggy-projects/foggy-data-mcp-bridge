@@ -172,6 +172,27 @@
 
 **使用 columns 中定义的别名**，如 `year` 而非 `YEAR(createdAt)`
 
+### distinct (可选)
+设为 `true` 返回去重结果（`SELECT DISTINCT`），适用于"列出所有…"类查询。
+与聚合查询（groupBy）互斥，有 groupBy 时自动忽略 distinct。
+```json
+{"columns": ["customer$caption", "customer$customerType"], "distinct": true}
+```
+
+### withSubtotals (可选)
+设为 `true` 对 groupBy 聚合结果追加分组小计行和总计行。通过 `_rowType` 字段标记行类型：
+- `data` — 原始数据行
+- `subtotal` — 分组小计行（按第一维度分组）
+- `grandTotal` — 总计行
+
+仅对包含 groupBy 的聚合查询生效。多维度时按第一维度做小计；单维度时仅追加总计行。
+```json
+{
+  "columns": ["department$caption", "month$caption", "sum(amount) as total"],
+  "withSubtotals": true
+}
+```
+
 ### 分页
 - `start`: 起始行(从0开始)
 - `limit`: 每页记录数
@@ -218,8 +239,34 @@
 }
 ```
 
+**去重查询（DISTINCT）**：
+```json
+{
+  "model": "TmsCustomerModel",
+  "payload": {
+    "columns": ["customer$caption", "customer$customerType"],
+    "distinct": true,
+    "limit": 100
+  }
+}
+```
+
+**分组小计与总计**：
+```json
+{
+  "model": "TmsOrderModel",
+  "payload": {
+    "columns": ["department$caption", "MONTH(salesDate) as month", "sum(totalAmount) as total"],
+    "withSubtotals": true,
+    "limit": 200
+  }
+}
+```
+
 ## 最佳实践
 - 展示用`$caption`，查询用`$id`
 - 简单聚合用内联表达式，复杂计算用calculatedFields
 - orderBy/groupBy 使用 columns 中定义的别名（如 `year`）而非表达式
 - 向量检索：`similar`可与普通过滤组合，`hybrid`用于语义+关键词混合搜索
+- `distinct` 与 `groupBy` 互斥：去重用 distinct，聚合用 groupBy
+- `withSubtotals` 追加的行通过 `_rowType` 字段区分，前端可据此渲染样式

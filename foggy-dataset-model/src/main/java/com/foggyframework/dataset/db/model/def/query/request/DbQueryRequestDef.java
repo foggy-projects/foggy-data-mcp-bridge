@@ -41,6 +41,12 @@ public class DbQueryRequestDef implements DbQueryRequest {
     @ApiModelProperty("是否返回总数及合计")
     boolean returnTotal;
 
+    @ApiModelProperty("是否启用 DISTINCT 去重（与 groupBy 互斥）")
+    boolean distinct;
+
+    @ApiModelProperty("是否追加小计/总计行（仅 groupBy 查询有效）")
+    boolean withSubtotals;
+
     /**
      * @deprecated 已废弃，系统始终自动处理 groupBy。此字段保留仅为 API 兼容性。
      */

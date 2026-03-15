@@ -123,7 +123,9 @@
         },
         "start": { "type": "integer", "default": 0, "description": "起始行号" },
         "limit": { "type": "integer", "default": 1000, "description": "每页记录数" },
-        "returnTotal": { "type": "boolean", "default": false, "description": "是否返回总记录数" }
+        "returnTotal": { "type": "boolean", "default": false, "description": "是否返回总记录数" },
+        "distinct": { "type": "boolean", "default": false, "description": "是否去重（SELECT DISTINCT）。适用于'列出所有…'类查询，与 groupBy 互斥" },
+        "withSubtotals": { "type": "boolean", "default": false, "description": "是否追加小计/总计行。对 groupBy 聚合结果追加分组小计和总计行，通过 _rowType 字段标记（data/subtotal/grandTotal）" }
       }
     },
     "mode": {

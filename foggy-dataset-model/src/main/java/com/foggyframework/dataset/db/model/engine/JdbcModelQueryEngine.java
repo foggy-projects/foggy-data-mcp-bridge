@@ -180,6 +180,11 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
         jdbcQuery.select(selectColumns);
 
+        // DISTINCT 支持：仅在非聚合查询时生效（聚合查询本身通过 GROUP BY 去重）
+        if (queryRequest.isDistinct() && !queryRequest.hasGroupBy()) {
+            jdbcQuery.getSelect().setDistinct(true);
+        }
+
         // 2.加入切片条件,注意，切片暂时不考虑or
         if (queryRequest.getSlice() != null) {
             for (SliceRequestDef sliceDef : queryRequest.getSlice()) {

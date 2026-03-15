@@ -60,6 +60,12 @@ public class SemanticQueryRequest {
     @ApiModelProperty(value = "是否返回总记录数。当用户询问'共有多少条'、'总数是多少'、需要分页显示总页数时，应设为 true", example = "true")
     private Boolean returnTotal = false;
 
+    @ApiModelProperty(value = "是否去重。适用于'列出所有…'类查询，生成 SELECT DISTINCT。与聚合查询互斥，有 groupBy 时自动忽略", example = "true")
+    private Boolean distinct = false;
+
+    @ApiModelProperty(value = "是否追加小计/总计行。对 groupBy 聚合结果追加分组小计和总计行，通过 _rowType 字段标记行类型", example = "true")
+    private Boolean withSubtotals = false;
+
     /**
      * 过滤条件项
      */

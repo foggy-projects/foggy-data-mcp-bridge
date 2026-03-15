@@ -37,7 +37,42 @@ public enum CondType {
     RANGE_RE("(]"),
 
     @ApiModelProperty(value = "向量相似度查询", notes = "用于向量数据库的语义相似度检索")
-    SIMILAR("similar");
+    SIMILAR("similar"),
+
+    // === 以下为补齐的操作符，与 SqlFormula 注册保持一致 ===
+
+    @ApiModelProperty("不等于")
+    NEQ("!="),
+
+    @ApiModelProperty("不等于（SQL 标准写法）")
+    NEQ_ALT("<>"),
+
+    @ApiModelProperty("大于")
+    GT(">"),
+
+    @ApiModelProperty("大于等于")
+    GTE(">="),
+
+    @ApiModelProperty("小于")
+    LT("<"),
+
+    @ApiModelProperty("小于等于")
+    LTE("<="),
+
+    @ApiModelProperty("不在列表中")
+    NOT_IN("not in"),
+
+    @ApiModelProperty("不匹配模式")
+    NOT_LIKE("not like"),
+
+    @ApiModelProperty(value = "为空", notes = "无需 value 参数")
+    IS_NULL("is null"),
+
+    @ApiModelProperty(value = "不为空", notes = "无需 value 参数")
+    IS_NOT_NULL("is not null"),
+
+    @ApiModelProperty(value = "强制等于", notes = "忽略空值特殊处理")
+    FORCE_EQ("===");
 
     private final String code;
 

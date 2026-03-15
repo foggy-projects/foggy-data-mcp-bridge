@@ -195,6 +195,8 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         queryDef.setQueryModel(model);
         queryDef.setReturnTotal(request.getReturnTotal());
         queryDef.setStrictColumns(true);
+        queryDef.setDistinct(Boolean.TRUE.equals(request.getDistinct()));
+        queryDef.setWithSubtotals(Boolean.TRUE.equals(request.getWithSubtotals()));
 
         // 获取模型定义用于字段校验（带命名空间）
         QueryModel queryModel = queryModelLoader.getJdbcQueryModel(model, namespace);
