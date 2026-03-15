@@ -86,15 +86,14 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Docker meta (tags + labels)
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.DOCKER_IMAGE }}
-          tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest
+      - name: Compute Docker tags
+        id: tags
+        run: |
+          VERSION="${{ needs.build-jar.outputs.version }}"
+          TAGS="${{ env.DOCKER_IMAGE }}:${VERSION}"
+          TAGS="${TAGS},${{ env.DOCKER_IMAGE }}:latest"
+          echo "tags=$TAGS" >> "$GITHUB_OUTPUT"
+          echo "Docker tags: $TAGS"
 
       - name: Build and push
         uses: docker/build-push-action@v5
@@ -102,8 +101,7 @@ jobs:
           context: .
           file: foggy-mcp-launcher/Dockerfile
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.tags.outputs.tags }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
