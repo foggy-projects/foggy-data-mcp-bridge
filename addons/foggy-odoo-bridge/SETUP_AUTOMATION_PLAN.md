@@ -220,7 +220,7 @@ https://github.com/nicholasgasior/foggy-data-mcp-bridge/releases/latest
 
 ### 启动命令（自动生成）
 ```bash
-java -jar foggy-mcp-launcher-8.1.7.beta.jar \
+java -jar foggy-mcp-launcher-8.1.8.beta.jar \
   --spring.profiles.active=lite \
   --spring.datasource.url=jdbc:postgresql://{db_host}:{db_port}/{db_name} \
   --spring.datasource.username={db_user} \

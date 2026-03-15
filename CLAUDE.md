@@ -168,7 +168,7 @@ const data = response.data.data
 
 **Odoo 集成启动示例**（lite 模式 + 外部 Bundle + Odoo PostgreSQL）：
 ```bash
-java -jar foggy-mcp-launcher/target/foggy-mcp-launcher-8.1.7.beta.jar \
+java -jar foggy-mcp-launcher/target/foggy-mcp-launcher-8.1.8.beta.jar \
   --spring.profiles.active=lite \
   --spring.datasource.url=jdbc:postgresql://localhost:5432/odoo \
   --spring.datasource.username=odoo --spring.datasource.password=odoo \
