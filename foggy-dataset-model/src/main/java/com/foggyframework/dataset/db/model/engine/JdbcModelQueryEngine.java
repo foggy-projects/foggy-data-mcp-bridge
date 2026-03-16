@@ -1020,7 +1020,40 @@ public class JdbcModelQueryEngine implements QueryEngine {
             return;
         }
 
-        // 收集 DSL 请求中已定义的 calculatedField 名称
+        // 建立预定义字段名称索引
+        java.util.Map<String, CalculatedFieldDef> predefinedMap = new java.util.LinkedHashMap<>();
+        for (CalculatedFieldDef calc : predefined) {
+            predefinedMap.put(calc.getName(), calc);
+        }
+
+        // 处理与 QM 预定义计算字段同名的用户自定义字段（AI 常见误用）。
+        // 策略：移除用户自定义版本，后续由正常流程注入预定义版本。
+        // 这样做是安全的，因为预定义字段来自可信的 QM 模型定义；
+        // 与普通列（维度/度量/属性）同名的冲突不在此处处理，
+        // 由 CalculatedFieldService.processCalculatedField() 的 context.hasColumn() 检查拦截并报错，
+        // 防止用户通过自定义计算字段覆盖已有列（可能涉及权限控制等安全敏感字段）。
+        //
+        // 注意：用户自定义的表达式可能与预定义公式语义不同（如 COUNT(*) vs COUNT_DISTINCT(id)），
+        // 但预定义字段是模型设计者的明确意图，同名即视为引用预定义字段。
+        // 通过元数据 usage 提示 + warn 日志双重机制，帮助 AI 学习正确用法。
+        if (queryRequest.getCalculatedFields() != null) {
+            List<CalculatedFieldDef> userFields = queryRequest.getCalculatedFields();
+            List<String> replaced = new ArrayList<>();
+            userFields.removeIf(f -> {
+                if (predefinedMap.containsKey(f.getName())) {
+                    replaced.add(f.getName());
+                    return true;
+                }
+                return false;
+            });
+            if (!replaced.isEmpty()) {
+                log.warn("Dropped {} user-defined calculatedFields that duplicate QM predefined fields: {}. " +
+                        "These are predefined fields — reference them in 'columns' directly, " +
+                        "do NOT redefine in 'calculatedFields'.", replaced.size(), replaced);
+            }
+        }
+
+        // 收集 DSL 请求中剩余的 calculatedField 名称
         java.util.Set<String> existingNames = new java.util.HashSet<>();
         if (queryRequest.getCalculatedFields() != null) {
             for (CalculatedFieldDef f : queryRequest.getCalculatedFields()) {

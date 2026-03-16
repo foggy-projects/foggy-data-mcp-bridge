@@ -129,6 +129,7 @@ public class ToolConfigLoader {
         defaults.add(createToolConfig("dataset.export_with_chart", "classpath:/schemas/descriptions/export_with_chart.md", "classpath:/schemas/export_with_chart_schema.json", "EXPORT"));
         defaults.add(createToolConfig("dataset.inspect_table", "classpath:/schemas/descriptions/inspect_table.md", "classpath:/schemas/inspect_table_schema.json", "ADMIN", false));
         defaults.add(createToolConfig("dataset.open_in_viewer", "classpath:/schemas/descriptions/open_in_viewer.md", "classpath:/schemas/open_in_viewer_schema.json", "EXPORT"));
+        defaults.add(createToolConfig("dataset.compose_query", "classpath:/schemas/descriptions/compose_query.md", "classpath:/schemas/compose_query_schema.json", "QUERY"));
         return defaults;
     }
 

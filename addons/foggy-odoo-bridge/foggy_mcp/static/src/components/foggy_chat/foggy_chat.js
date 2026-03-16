@@ -1,5 +1,5 @@
 /** @odoo-module */
-import { Component, useState, useRef, onMounted, onWillUnmount } from "@odoo/owl";
+import { Component, useState, useRef, onMounted, onWillUnmount, markup } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 
@@ -163,12 +163,31 @@ class FoggyChat extends Component {
     }
 
     /**
-     * Simple markdown-like rendering for assistant messages.
-     * Handles: **bold**, `code`, ```code blocks```, and tables.
+     * Render assistant messages: supports Markdown, HTML, or mixed content.
+     *
+     * Strategy: if the content already contains HTML block tags (table, ul, ol, h1-h6, div, p),
+     * treat it as HTML-rich and only apply Markdown transforms to non-HTML parts.
+     * Otherwise, apply full Markdown→HTML conversion with HTML escaping.
      */
     formatContent(content) {
-        if (!content) return "";
-        // Escape HTML
+        if (!content) return markup("");
+
+        const hasHtmlBlocks = /<(table|thead|tbody|tr|th|td|ul|ol|li|h[1-6]|div|p|pre|blockquote)\b/i.test(content);
+
+        if (hasHtmlBlocks) {
+            // Content has HTML — sanitize dangerous tags but keep structural ones
+            let html = content;
+            // Strip script/iframe/style for safety
+            html = html.replace(/<(script|iframe|style|link|meta)\b[^>]*>[\s\S]*?<\/\1>/gi, "");
+            html = html.replace(/<(script|iframe|style|link|meta)\b[^>]*\/?>/gi, "");
+            // Remove event handlers (onclick, onerror, etc.)
+            html = html.replace(/\s+on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, "");
+            // Apply Markdown within text nodes (bold, inline code, links)
+            html = this._applyInlineMarkdown(html);
+            return markup(html);
+        }
+
+        // Pure Markdown path — escape HTML first, then transform
         let html = content
             .replace(/&/g, "&amp;")
             .replace(/</g, "&lt;")
@@ -179,8 +198,18 @@ class FoggyChat extends Component {
             '<pre class="foggy-code-block"><code>$2</code></pre>');
         // Inline code
         html = html.replace(/`([^`]+)`/g, '<code class="foggy-inline-code">$1</code>');
+        // Headers (## ...) — process before bold to avoid conflict
+        html = html.replace(/^#{3}\s+(.+)$/gm, '<h4>$1</h4>');
+        html = html.replace(/^#{2}\s+(.+)$/gm, '<h3>$1</h3>');
+        html = html.replace(/^#{1}\s+(.+)$/gm, '<h2>$1</h2>');
         // Bold
         html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+        // Italic
+        html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+        // Unordered list items (- item)
+        html = html.replace(/^(\s*)[-*]\s+(.+)$/gm, '$1<li>$2</li>');
+        // Wrap consecutive <li> in <ul>
+        html = html.replace(/((?:<li>.*<\/li>\s*)+)/g, '<ul>$1</ul>');
         // Tables (pipe-delimited)
         html = html.replace(
             /(\|.+\|\n)((?:\|[-:]+)+\|)\n((?:\|.+\|\n?)+)/g,
@@ -193,9 +222,24 @@ class FoggyChat extends Component {
                 return `<table class="foggy-table"><thead><tr>${headers.join("")}</tr></thead><tbody>${rows.join("")}</tbody></table>`;
             }
         );
-        // Line breaks
+        // Line breaks (but not inside <pre>, <table>, <ul>, <h*> blocks)
         html = html.replace(/\n/g, "<br/>");
-        return html;
+        // Clean up excessive <br/> around block elements
+        html = html.replace(/<br\/>\s*(<\/?(?:table|thead|tbody|tr|th|td|ul|li|h[2-4]|pre))/g, "$1");
+        html = html.replace(/(<\/(?:table|ul|li|h[2-4]|pre)>)\s*<br\/>/g, "$1");
+        return markup(html);
+    }
+
+    /** Apply bold/code/link Markdown to text outside of HTML tags */
+    _applyInlineMarkdown(html) {
+        // Process text segments outside of HTML tags
+        return html.replace(/(>[^<]*<|^[^<]*<|>[^<]*$)/g, (segment) => {
+            let s = segment;
+            s = s.replace(/`([^`]+)`/g, '<code class="foggy-inline-code">$1</code>');
+            s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+            s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+            return s;
+        });
     }
 }
 

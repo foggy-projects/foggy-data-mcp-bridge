@@ -1196,10 +1196,12 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         fieldInfo.put("measure", false);
         fieldInfo.put("aggregatable", false);
         fieldInfo.put("calculated", true);
+        fieldInfo.put("predefined", true);
 
         Map<String, Object> modelInfo = new LinkedHashMap<>();
         modelInfo.put("description", (calc.getCaption() != null ? calc.getCaption() : calc.getName())
                 + " (公式: " + calc.getExpression() + ")");
+        modelInfo.put("usage", "预定义计算字段，直接在 columns 中引用即可，不要在 calculatedFields 中重复定义");
 
         Map<String, Object> models = new LinkedHashMap<>();
         models.put(modelName, modelInfo);

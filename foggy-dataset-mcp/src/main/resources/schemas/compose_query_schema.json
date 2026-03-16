@@ -1,0 +1,12 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "description": "Execute a compose script to orchestrate multiple query models",
+  "properties": {
+    "script": {
+      "type": "string",
+      "description": "FSScript code that uses dsl() to query multiple models and combine results. The script must use 'return' to output the final result."
+    }
+  },
+  "required": ["script"]
+}
