@@ -1,6 +1,6 @@
 # Foggy Odoo Bridge — 真实体验手册
 
-> 本手册帮你亲手走一遍完整链路：Odoo UI → 创建 API Key → 配置 AI 客户端 → 对话查数据。
+> 本手册帮你亲手走一遍完整链路：Odoo UI → 配置 LLM → 内置 AI Chat 对话 → 外部 AI 客户端接入。
 
 ## 前置条件
 
@@ -9,6 +9,7 @@
 ✅ Odoo 17 运行中：  http://localhost:8069
 ✅ Foggy MCP 运行中：http://localhost:8080
 ✅ 闭包表已初始化：  SELECT refresh_all_closures();
+✅ litellm 已安装：   docker compose exec odoo pip install litellm
 ```
 
 验证命令：
@@ -67,12 +68,105 @@ curl -s http://localhost:8069/foggy-mcp/health | python -m json.tool
 应看到 JSON 响应，包含：
 - `status: "ok"` — 网关正常
 - `checks.foggy_server.status: "ok"` — Java 引擎连通
-- `checks.tool_cache.tool_count: 5` — 工具已缓存
-- `checks.models.mapped_count: 7` — 7 个模型映射
+- `checks.tool_cache.tool_count: 6` — 工具已缓存
+- `checks.models.mapped_count: 8` — 8 个模型映射（含 CRM）
 
 ---
 
-## 第二步：AI 客户端配置
+## 第二步：Odoo 内置 AI Chat 体验
+
+> 无需配置外部 AI 客户端，直接在 Odoo 内与你的业务数据对话。
+
+### 2.1 配置 LLM
+
+1. 进入 **Settings**（需 admin 权限）
+2. 向下滚动到 **Foggy MCP → AI Chat (LLM Configuration)** 区域
+3. 填写配置：
+
+| 配置项 | 说明 | 示例值 |
+|---|---|---|
+| LLM Provider | AI 模型提供商 | `OpenAI` / `Anthropic (Claude)` / `DeepSeek` / `Ollama (Local)` |
+| API Key | 提供商的 API 密钥（Ollama 不需要） | `sk-xxx...` |
+| Model Name | 模型标识符 | `gpt-4o-mini` / `claude-3-5-sonnet-20241022` / `deepseek-chat` |
+| API Base URL | 自定义端点（Ollama 必填） | `http://localhost:11434/v1` |
+| Temperature | 随机性控制（0.0=精确, 1.0=创意） | `0.3`（推荐） |
+
+**各提供商快速配置**：
+
+**OpenAI**（推荐入门）：
+- Provider: `OpenAI`
+- API Key: 你的 OpenAI key
+- Model: `gpt-4o-mini`（性价比高）或 `gpt-4o`（更强）
+
+**DeepSeek**（性价比之选）：
+- Provider: `DeepSeek`
+- API Key: 你的 DeepSeek key
+- Model: `deepseek-chat`
+
+**Ollama**（完全本地，无需 API Key）：
+- Provider: `Ollama (Local)`
+- Model: `llama3` 或 `qwen2.5`
+- API Base URL: `http://host.docker.internal:11434/v1`（Docker 环境用 `host.docker.internal`）
+
+4. 点击 **Save** 保存设置
+
+### 2.2 进入 AI Chat
+
+1. 点击顶部菜单 **Foggy MCP → AI Chat**
+2. 看到欢迎界面，包含 3 个建议问题按钮
+3. 直接输入问题或点击建议按钮开始对话
+
+### 2.3 对话示例
+
+**基础查询**：
+```
+最近5笔销售订单是什么？显示订单号、客户、金额
+```
+→ AI 自动调用 Foggy MCP 工具查询 sale_order，返回结构化数据表格。
+
+**聚合分析**：
+```
+哪个客户的销售总额最高？按金额排列前5
+```
+→ 按 partner 分组 SUM，排序返回。
+
+**CRM 漏斗**：
+```
+当前各阶段分别有多少商机？各阶段的预期收入是多少？
+```
+→ 按 stage 分组统计 crm_lead 数据。
+
+**多轮对话**：
+```
+用户: 列出所有在职员工
+AI:  （返回员工列表）
+用户: 其中研发部门有多少人？
+AI:  （自动使用 selfAndDescendantsOf 查询层级数据）
+```
+
+### 2.4 AI Chat 工作原理
+
+```
+用户提问 → LLM 分析意图 → 调用 Foggy MCP 工具 → 获取数据 → LLM 整理回答
+                ↑                    ↓
+           工具调用循环（最多 5 轮，自动停止）
+```
+
+- AI 会根据你的问题自动选择合适的模型和查询参数
+- 所有查询经过 Odoo 权限桥接，不同用户看到不同数据
+- 工具调用过程对用户透明，你直接看到最终答案
+- 对话历史按会话保存，可通过左侧边栏切换/管理会话
+
+### 2.5 非管理员用户体验
+
+非管理员用户（如 demo 用户）：
+1. 无法看到 Settings 菜单，但可以通过 **Foggy MCP → AI Chat** 直接对话
+2. 通过 **Foggy MCP → My API Key** 管理自己的 API Key
+3. AI Chat 中看到的数据受 ir.rule 权限控制，仅能查看自己有权限的数据
+
+---
+
+## 第三步：外部 AI 客户端配置
 
 ### 2.1 Claude Desktop 配置
 
@@ -129,7 +223,7 @@ MCP Server 设置 → 添加新连接：
 
 ---
 
-## 第三步：对话体验
+## 第四步：对话体验（外部 AI 客户端）
 
 > 配置好 AI 客户端后，直接用自然语言提问。AI 会自动调用 MCP 工具查询 Odoo 数据。
 
@@ -201,7 +295,7 @@ Research & Development 部门及其所有子部门共有多少员工？
 
 ---
 
-## 第四步：验证权限桥接（通过 Gateway）
+## 第五步：验证权限桥接（通过 Gateway）
 
 > 以下仅通过 Odoo Gateway（端口 8069）测试时有效。直连 Foggy（8080）没有权限过滤。
 
@@ -230,7 +324,7 @@ admin 用户能看到所有公司数据。如果限制某用户只能看 company
 
 ---
 
-## 第五步：直接 API 测试（可选）
+## 第六步：直接 API 测试（可选）
 
 如果不想配置 AI 客户端，也可以直接 curl 体验：
 
@@ -295,19 +389,34 @@ curl -s http://localhost:8080/mcp/admin/rpc \
 | stock.picking | 25 | |
 | hr.employee | 20 | |
 | res.partner | 61 | 含客户、供应商、联系人 |
+| crm.lead | ~10+ | 商机/线索（CRM demo data） |
 | res.company | 2 | 均无父公司 |
 
 ---
 
 ## 体验完成检查清单
 
-- [ ] Odoo 后台能看到 Foggy MCP 配置页
-- [ ] 能看到 API Key 管理页
-- [ ] Health 端点返回全绿
+**Odoo 后台**：
+- [ ] 能看到 Foggy MCP 配置页（Settings → Foggy MCP）
+- [ ] 能看到 AI Chat LLM 配置区域
+- [ ] Admin 能看到 API Key 管理页
+- [ ] 非 Admin 用户能看到 Foggy MCP → My API Key
+- [ ] Health 端点返回全绿（8 个模型、6 个工具）
+
+**AI Chat（内置对话）**：
+- [ ] LLM 配置保存成功（Provider + API Key + Model）
+- [ ] AI Chat 页面正常打开（Foggy MCP → AI Chat）
+- [ ] 基础查询：能通过自然语言查到销售数据
+- [ ] CRM 查询：能查询商机/漏斗数据
+- [ ] 聚合分析：能按维度分组统计
+- [ ] 多轮对话：上下文连续
+- [ ] 会话管理：可新建/切换/删除会话
+
+**外部 AI 客户端**：
 - [ ] AI 客户端能列出工具（tools/list）
 - [ ] 基础查询能返回数据
 - [ ] 维度名称正确显示（非 JSON/非 ID）
 - [ ] 聚合分组正确
-- [ ] 层级查询正确
+- [ ] 层级查询正确（闭包表 selfAndDescendantsOf）
 - [ ] DISTINCT 返回去重结果
 - [ ] withSubtotals 返回小计行

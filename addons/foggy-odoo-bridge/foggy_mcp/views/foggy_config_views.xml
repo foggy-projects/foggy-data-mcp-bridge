@@ -108,6 +108,15 @@
                                 </div>
                             </div>
                         </setting>
+                        <setting string="Business Context"
+                                 help="Custom business knowledge injected into every AI conversation. Define your KPIs, terms, and rules here.">
+                            <div class="content-group">
+                                <div class="row mt16">
+                                    <field name="foggy_llm_custom_prompt" class="col-lg-9"
+                                           placeholder="Examples:&#10;- Key account = annual sales > 500,000&#10;- Active customer = ordered in the last 90 days&#10;- Our fiscal year starts in April&#10;- R&amp;D department includes QA and DevOps teams"/>
+                                </div>
+                            </div>
+                        </setting>
                     </block>
                 </app>
             </xpath>

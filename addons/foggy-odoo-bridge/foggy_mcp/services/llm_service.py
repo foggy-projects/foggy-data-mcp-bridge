@@ -22,7 +22,9 @@ import logging
 _logger = logging.getLogger(__name__)
 
 # Maximum tool calling rounds to prevent infinite loops
-MAX_TOOL_ROUNDS = 5
+# Most queries complete in 1-3 rounds; complex multi-step analysis may need more.
+# Configurable via ir.config_parameter: foggy_mcp.llm_max_tool_rounds
+DEFAULT_MAX_TOOL_ROUNDS = 20
 
 # ── System prompt template ──────────────────────────────────────
 
@@ -33,29 +35,31 @@ You help users analyze their business data using natural language.
 {model_descriptions}
 
 ## How to Query
-Use the `dataset.query_model` tool to run data queries. Key parameters:
-- **model**: The query model name (see available models above)
-- **payload**: The DSL query payload with columns, filters, sorting, and pagination
+1. First use `dataset__get_metadata` to learn available fields for a model
+2. Then use `dataset__query_model` to run the actual query
 
-## Query Payload Format
+## Query Payload Format (for dataset__query_model)
 ```json
 {{
-  "columns": ["field1", "field2"],
-  "columnSort": [{{"column": "field1", "order": "desc"}}],
-  "slice": [{{"field": "fieldName", "op": "=", "value": "..."}}, ...],
-  "pageSize": 20,
-  "pageIndex": 0
+  "model": "ModelName",
+  "payload": {{
+    "columns": ["field1", "dimension$caption", "sum(measure) as total"],
+    "slice": [{{"field": "fieldName", "op": "=", "value": "..."}}],
+    "orderBy": [{{"field": "total", "dir": "desc"}}],
+    "limit": 20
+  }}
 }}
 ```
 
-## Guidelines
-- Always specify which columns to return (don't leave columns empty)
-- Use dimension$id for filtering, dimension$caption for display
-- For date filtering, use ISO format: "2025-01-01"
-- Measures (numeric fields) are auto-aggregated when dimensions are present
+## Key Rules
+- Use `dimension$caption` for display names, `dimension$id` for filtering
+- Inline aggregations: `sum(amount) as total`, `count(id) as cnt` — system auto-generates groupBy
+- For aliases, avoid names that conflict with existing model fields
+- Date format: ISO "2025-01-01"
 - Respond in the user's language (Chinese if they write in Chinese)
-- Present data in clear markdown tables when appropriate
-- Provide brief analysis and insights along with the data
+- Present data in clear markdown tables
+- Provide brief analysis and insights
+- **Prefer dataset__query_model directly** when you know the model fields; only use dataset__describe_model_internal when you need to discover field names
 """
 
 
@@ -77,36 +81,54 @@ def _get_llm_config(env):
     }
 
 
+    # Human-readable model descriptions for the system prompt
+_MODEL_DESCRIPTIONS = {
+    'OdooSaleOrderQueryModel': 'Sales Orders — order number, customer, amount, status, salesperson, team',
+    'OdooSaleOrderLineQueryModel': 'Sales Order Lines — product details, quantity, unit price, line totals',
+    'OdooPurchaseOrderQueryModel': 'Purchase Orders — vendor, purchase amount, status',
+    'OdooAccountMoveQueryModel': 'Invoices & Bills — journal entries, payment status, amounts',
+    'OdooStockPickingQueryModel': 'Inventory Transfers — warehouse movements, picking status',
+    'OdooHrEmployeeQueryModel': 'Employees — name, department, job title, work location, contact info',
+    'OdooResPartnerQueryModel': 'Contacts/Partners — customers, vendors, addresses',
+    'OdooCrmLeadQueryModel': 'CRM Leads/Opportunities — pipeline stages, expected revenue, probability, salesperson',
+}
+
+
 def _build_system_prompt(env, uid):
     """Build system prompt with available model information."""
-    from .tool_registry import ToolRegistry, MODEL_MAPPING
-    from .foggy_client import FoggyClient
+    from .tool_registry import MODEL_MAPPING
 
-    # Get model descriptions from Foggy metadata
+    # Get model descriptions from accessible models
     model_descriptions = []
     try:
-        client = FoggyClient.from_config(env)
-        # Use describe_model_internal for each accessible model
-        accessible_models = set()
         user_env = env(user=uid)
         for odoo_model, qm_name in MODEL_MAPPING.items():
             try:
                 if odoo_model in user_env and user_env['ir.model.access'].check(
                     odoo_model, 'read', raise_exception=False
                 ):
-                    accessible_models.add(qm_name)
+                    desc = _MODEL_DESCRIPTIONS.get(qm_name, '')
+                    model_descriptions.append(f"- **{qm_name}**: {desc}" if desc else f"- **{qm_name}**")
             except Exception:
                 pass
 
-        for qm_name in sorted(accessible_models):
-            model_descriptions.append(f"- **{qm_name}**")
+        if not model_descriptions:
+            model_descriptions.append("(No accessible models — check user permissions)")
     except Exception as e:
         _logger.warning("Failed to build model descriptions: %s", e)
         model_descriptions.append("(Model list unavailable — check Foggy MCP Server connection)")
 
-    return SYSTEM_PROMPT_TEMPLATE.format(
+    prompt = SYSTEM_PROMPT_TEMPLATE.format(
         model_descriptions='\n'.join(model_descriptions)
     )
+
+    # Inject admin-defined business context
+    custom_prompt = env['ir.config_parameter'].sudo().get_param(
+        'foggy_mcp.llm_custom_prompt', '')
+    if custom_prompt and custom_prompt.strip():
+        prompt += f"\n\n## Business Context (defined by admin)\n{custom_prompt.strip()}\n"
+
+    return prompt
 
 
 def _build_litellm_tools(env, uid):
@@ -122,34 +144,43 @@ def _build_litellm_tools(env, uid):
         _logger.error("Failed to load tools for LLM: %s", e)
         return []
 
+    # Explicit name mapping: OpenAI function names can't have dots
+    _TOOL_NAME_MAP = {
+        'dataset.query_model': 'dataset__query_model',
+        'dataset.get_metadata': 'dataset__get_metadata',
+        'dataset.describe_model_internal': 'dataset__describe_model_internal',
+    }
+
     tools = []
     for tool in foggy_tools:
         name = tool.get('name', '')
-        # Only expose query-related tools to LLM
-        if name not in ('dataset.query_model', 'dataset.get_metadata', 'dataset.describe_model_internal'):
+        if name not in _TOOL_NAME_MAP:
             continue
 
         fn_def = {
             'type': 'function',
             'function': {
-                'name': name.replace('.', '_'),  # OpenAI doesn't allow dots
+                'name': _TOOL_NAME_MAP[name],
                 'description': tool.get('description', ''),
                 'parameters': tool.get('inputSchema', {'type': 'object', 'properties': {}}),
             }
         }
         tools.append(fn_def)
 
-    return tools
+    return tools, _TOOL_NAME_MAP
 
 
-def _execute_tool_call(env, uid, tool_name, arguments):
+def _execute_tool_call(env, uid, tool_name, arguments, reverse_name_map=None):
     """Execute a tool call through Foggy MCP Server with permission injection."""
     from .foggy_client import FoggyClient
     from .permission_bridge import compute_permission_slices
     from .tool_registry import QM_TO_ODOO_MODEL
 
-    # Restore original tool name (dots)
-    original_name = tool_name.replace('_', '.', 2)
+    # Restore original tool name using reverse map
+    if reverse_name_map and tool_name in reverse_name_map:
+        original_name = reverse_name_map[tool_name]
+    else:
+        original_name = tool_name  # fallback
 
     # For query_model, inject permission slices
     if original_name == 'dataset.query_model' and 'payload' in arguments:
@@ -241,29 +272,37 @@ def chat(env, uid, session_id, user_message):
             'content': msg.content or '',
         })
 
-    # Build tools
-    tools = _build_litellm_tools(env, uid)
+    # Build tools and name mapping
+    tools, tool_name_map = _build_litellm_tools(env, uid)
+    reverse_name_map = {v: k for k, v in tool_name_map.items()}
 
     # Configure litellm
-    litellm.api_key = config['api_key']
-    if config['base_url']:
-        litellm.api_base = config['base_url']
-
     model_name = config['model']
-    # litellm provider prefix handling
     provider = config['provider']
+
+    # litellm provider prefix handling
     if provider == 'ollama' and not model_name.startswith('ollama/'):
         model_name = f'ollama/{model_name}'
     elif provider == 'deepseek' and not model_name.startswith('deepseek/'):
         model_name = f'deepseek/{model_name}'
+    elif provider == 'custom' and config['base_url']:
+        # Custom OpenAI-compatible endpoint — litellm needs openai/ prefix
+        if not model_name.startswith('openai/'):
+            model_name = f'openai/{model_name}'
+    elif provider == 'anthropic' and not model_name.startswith('anthropic/'):
+        model_name = f'anthropic/{model_name}'
+    # Note: openai provider doesn't need prefix — litellm infers from model name
 
     # LLM call with tool calling loop
+    max_rounds = int(env['ir.config_parameter'].sudo().get_param(
+        'foggy_mcp.llm_max_tool_rounds', str(DEFAULT_MAX_TOOL_ROUNDS)))
     try:
-        for round_idx in range(MAX_TOOL_ROUNDS):
+        for round_idx in range(max_rounds):
             call_kwargs = {
                 'model': model_name,
                 'messages': messages,
                 'temperature': config['temperature'],
+                'api_key': config['api_key'],
             }
             if tools:
                 call_kwargs['tools'] = tools
@@ -288,11 +327,12 @@ def chat(env, uid, session_id, user_message):
                     except json.JSONDecodeError:
                         fn_args = {}
 
-                    _logger.info("Chat tool call: %s(%s)", fn_name, json.dumps(fn_args, ensure_ascii=False)[:200])
+                    _logger.info("Chat round %d tool call: %s(%s)", round_idx, fn_name, json.dumps(fn_args, ensure_ascii=False)[:200])
 
                     # Execute tool
-                    result = _execute_tool_call(env, uid, fn_name, fn_args)
+                    result = _execute_tool_call(env, uid, fn_name, fn_args, reverse_name_map)
                     result_str = json.dumps(result, ensure_ascii=False, default=str)
+                    _logger.info("Chat round %d tool result length: %d, preview: %s", round_idx, len(result_str), result_str[:300])
 
                     # Add tool result to conversation
                     messages.append({
