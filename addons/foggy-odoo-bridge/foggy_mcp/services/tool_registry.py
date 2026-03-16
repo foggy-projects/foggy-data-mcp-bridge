@@ -44,6 +44,52 @@ UNIVERSAL_TOOL_NAMES = {
 BLOCKED_TOOL_NAMES = {'dataset.export_with_chart', 'semantic_layer.validate'}
 
 
+def auto_discover_model_mapping(env, field_mapping_registry):
+    """
+    Auto-discover MODEL_MAPPING from Foggy metadata + Odoo ORM.
+
+    Matching logic:
+        Foggy metadata provides {factTable: qm_model} via FieldMappingRegistry.
+        Odoo ORM provides env[odoo_model]._table for each installed model.
+        Match: env[odoo_model]._table == factTable → MODEL_MAPPING[odoo_model] = qm_model
+
+    On success, replaces static MODEL_MAPPING and QM_TO_ODOO_MODEL entirely.
+    On failure, keeps the existing static values as fallback.
+
+    Args:
+        env: Odoo environment
+        field_mapping_registry: FieldMappingRegistry instance (must be loaded)
+    """
+    table_to_model = field_mapping_registry.get_table_to_model_map()
+    if not table_to_model:
+        _logger.warning("No table-to-model map available, keeping static MODEL_MAPPING")
+        return False
+
+    discovered = {}
+    # Fast path: derive Odoo model name from table name (underscores → dots).
+    # Covers standard Odoo naming: sale_order → sale.order, hr_employee → hr.employee.
+    # Only models whose _table matches a Foggy factTable are considered.
+    for table_name, qm_model in table_to_model.items():
+        odoo_model = table_name.replace('_', '.')
+        try:
+            if odoo_model in env and env[odoo_model]._table == table_name:
+                discovered[odoo_model] = qm_model
+        except Exception:
+            pass
+
+    if discovered:
+        MODEL_MAPPING.clear()
+        MODEL_MAPPING.update(discovered)
+        QM_TO_ODOO_MODEL.clear()
+        QM_TO_ODOO_MODEL.update({v: k for k, v in MODEL_MAPPING.items()})
+        _logger.info("Auto-discovered MODEL_MAPPING: %d models — %s",
+                      len(discovered), list(discovered.keys()))
+        return True
+    else:
+        _logger.warning("Auto-discovery found no matches, keeping static MODEL_MAPPING")
+        return False
+
+
 class ToolRegistry:
     """
     Caches and filters Foggy MCP tools per user.

@@ -20,7 +20,9 @@ from odoo import http
 from odoo.http import request, Response
 
 from ..services.foggy_client import FoggyClient
-from ..services.tool_registry import ToolRegistry, MODEL_MAPPING, QM_TO_ODOO_MODEL
+from ..services.tool_registry import (
+    ToolRegistry, MODEL_MAPPING, QM_TO_ODOO_MODEL, auto_discover_model_mapping,
+)
 from ..services.permission_bridge import compute_permission_slices
 from ..services.field_mapping_registry import FieldMappingRegistry
 
@@ -33,6 +35,7 @@ PROTOCOL_VERSION = '2024-11-05'
 _tool_registry = None
 _foggy_client = None
 _field_mapping_registry = None
+_model_mapping_discovered_at = 0
 
 
 def _get_foggy_client(env):
@@ -65,12 +68,28 @@ def _get_field_mapping_registry(env):
     return _field_mapping_registry
 
 
+def _ensure_model_mapping_discovered(env):
+    """Auto-discover MODEL_MAPPING, refreshing on same TTL as FieldMappingRegistry."""
+    global _model_mapping_discovered_at
+    import time as _time
+    fmr = _get_field_mapping_registry(env)
+    now = _time.time()
+    if (now - _model_mapping_discovered_at) < fmr._cache_ttl:
+        return
+    _model_mapping_discovered_at = now
+    try:
+        auto_discover_model_mapping(env, fmr)
+    except Exception as e:
+        _logger.warning("Model auto-discovery failed, using static MODEL_MAPPING: %s", e)
+
+
 def _reset_singletons():
     """Reset singletons (for testing or config changes)."""
-    global _tool_registry, _foggy_client, _field_mapping_registry
+    global _tool_registry, _foggy_client, _field_mapping_registry, _model_mapping_discovered_at
     _tool_registry = None
     _foggy_client = None
     _field_mapping_registry = None
+    _model_mapping_discovered_at = 0
 
 
 def _json_response(data, status=200):
@@ -132,6 +151,9 @@ class McpController(http.Controller):
                 return self._jsonrpc_error(request_id, -32000, 'Authentication required')
 
             env = request.env(user=user.id)
+
+            # Auto-discover MODEL_MAPPING on first request
+            _ensure_model_mapping_discovered(env)
 
             # Route by method
             if method == 'initialize':

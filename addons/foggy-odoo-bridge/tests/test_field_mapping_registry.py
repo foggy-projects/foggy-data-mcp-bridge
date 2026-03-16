@@ -78,18 +78,34 @@ FieldMappingRegistry = _fmr_mod.FieldMappingRegistry
 # ─── Mock Foggy Client ────────────────────────────────────────────
 
 class MockFoggyClient:
-    """Mock FoggyClient that returns predefined metadata responses."""
+    """Mock FoggyClient that returns predefined metadata responses.
 
-    def __init__(self, responses=None):
+    Supports two-phase loading:
+    - Phase 1: dataset.get_metadata → returns discovery_response
+    - Phase 2: dataset.describe_model_internal → returns per-model responses
+    """
+
+    def __init__(self, responses=None, discovery_response=None):
         """
         Args:
-            responses: dict of {model_name: response_data}
+            responses: dict of {model_name: response_data} for describe_model_internal
+            discovery_response: response for dataset.get_metadata (Phase 1)
         """
         self._responses = responses or {}
+        self._discovery_response = discovery_response
         self.call_count = 0
+        self.calls = []  # [(tool_name, arguments), ...]
 
     def call_tools_call(self, tool_name, arguments, trace_id=None):
         self.call_count += 1
+        self.calls.append((tool_name, dict(arguments)))
+
+        if tool_name == 'dataset.get_metadata':
+            if self._discovery_response is not None:
+                return self._discovery_response
+            raise ValueError("No discovery response configured")
+
+        # dataset.describe_model_internal
         model = arguments.get('model', '')
         data = self._responses.get(model)
         if data is None:
@@ -288,48 +304,60 @@ class TestExtractMetadata:
         assert FieldMappingRegistry._extract_metadata(response) is None
 
 
+# ─── Shared mixin for tests that mutate MODEL_MAPPING ─────────────
+
+class _ModelMappingGuard:
+    """Mixin: saves/restores MODEL_MAPPING + QM_TO_ODOO_MODEL around each test."""
+
+    @staticmethod
+    def _get_model_mapping():
+        return sys.modules['foggy_mcp.services.tool_registry'].MODEL_MAPPING
+
+    @staticmethod
+    def _get_qm_to_odoo():
+        return sys.modules['foggy_mcp.services.tool_registry'].QM_TO_ODOO_MODEL
+
+    def setup_method(self):
+        self._saved_mapping = dict(self._get_model_mapping())
+        self._saved_reverse = dict(self._get_qm_to_odoo())
+
+    def teardown_method(self):
+        m = self._get_model_mapping(); m.clear(); m.update(self._saved_mapping)
+        r = self._get_qm_to_odoo(); r.clear(); r.update(self._saved_reverse)
+
+
 # ═══════════════════════════════════════════════════════════════════
 # Full integration (with mock client)
 # ═══════════════════════════════════════════════════════════════════
 
-class TestRegistryIntegration:
+class TestRegistryIntegration(_ModelMappingGuard):
     """Test the full registry with mock client."""
 
-    def _get_model_mapping(self):
-        """Get the current MODEL_MAPPING dict from sys.modules.
-
-        Uses sys.modules to always get the live reference, even if
-        test_permission_bridge.py replaced the module object.
-        """
-        return sys.modules['foggy_mcp.services.tool_registry'].MODEL_MAPPING
-
-    def setup_method(self):
-        """Save original MODEL_MAPPING before each test."""
-        self._original_mapping = dict(self._get_model_mapping())
-
-    def teardown_method(self):
-        """Restore original MODEL_MAPPING after each test."""
-        mapping = self._get_model_mapping()
-        mapping.clear()
-        mapping.update(self._original_mapping)
-
-    def _make_registry(self, model_responses, cache_ttl=300):
+    def _make_registry(self, model_responses, cache_ttl=300, discovery_response=None):
         """Create a registry with mock responses for known models.
 
-        Also patches MODEL_MAPPING so _load_all_models() knows which
-        QM models to iterate over.
+        Builds Phase 1 discovery response automatically from model_responses
+        (extracting the 'models' section from each), unless discovery_response
+        is explicitly provided.
         """
-        # Patch MODEL_MAPPING to contain exactly the test models
-        mapping = self._get_model_mapping()
-        mapping.clear()
-        for qm_model_name in model_responses:
-            # Use a synthetic Odoo model name; value = QM model name
-            mapping[f'test.{qm_model_name}'] = qm_model_name
-
+        # Build per-model describe responses (Phase 2)
         wrapped = {}
         for model_name, metadata in model_responses.items():
             wrapped[model_name] = _make_mcp_response(metadata)
-        client = MockFoggyClient(responses=wrapped)
+
+        # Build discovery response (Phase 1) from merged models sections
+        if discovery_response is None and model_responses:
+            merged_models = {}
+            for model_name, metadata in model_responses.items():
+                models_section = metadata.get('models', {})
+                merged_models.update(models_section)
+            discovery_data = {'fields': {}, 'models': merged_models}
+            discovery_response = _make_mcp_response(discovery_data)
+
+        client = MockFoggyClient(
+            responses=wrapped,
+            discovery_response=discovery_response,
+        )
         return FieldMappingRegistry(client, cache_ttl=cache_ttl), client
 
     def test_load_single_model(self):
@@ -456,3 +484,342 @@ class TestRegistryIntegration:
 
         column_map = registry.get_column_map('OdooSaleOrderQueryModel')
         assert column_map == {}
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Phase 1 Discovery (_discover_models) tests
+# ═══════════════════════════════════════════════════════════════════
+
+class TestDiscoverModels:
+    """Test the Phase 1 discovery via dataset.get_metadata."""
+
+    def test_discover_models_basic(self):
+        """Discovery extracts QM model names and factTables."""
+        discovery_data = {
+            'fields': {},
+            'models': {
+                'OdooSaleOrderQueryModel': {'factTable': 'sale_order', 'name': '销售订单'},
+                'OdooResPartnerQueryModel': {'factTable': 'res_partner', 'name': '合作伙伴'},
+            }
+        }
+        client = MockFoggyClient(
+            discovery_response=_make_mcp_response(discovery_data),
+        )
+        registry = FieldMappingRegistry(client)
+
+        qm_models, table_to_model = registry._discover_models()
+
+        assert set(qm_models) == {'OdooSaleOrderQueryModel', 'OdooResPartnerQueryModel'}
+        assert table_to_model == {
+            'sale_order': 'OdooSaleOrderQueryModel',
+            'res_partner': 'OdooResPartnerQueryModel',
+        }
+
+    def test_discover_models_with_schema_prefix(self):
+        """MySQL schema-qualified factTable is stripped to bare name."""
+        discovery_data = {
+            'fields': {},
+            'models': {
+                'Model1': {'factTable': 'other_db.sale_order'},
+                'Model2': {'factTable': 'sale_order_line'},  # no schema
+            }
+        }
+        client = MockFoggyClient(
+            discovery_response=_make_mcp_response(discovery_data),
+        )
+        registry = FieldMappingRegistry(client)
+
+        qm_models, table_to_model = registry._discover_models()
+
+        assert table_to_model == {
+            'sale_order': 'Model1',
+            'sale_order_line': 'Model2',
+        }
+
+    def test_discover_models_no_fact_table(self):
+        """Models without factTable are discovered but not in table_to_model."""
+        discovery_data = {
+            'fields': {},
+            'models': {
+                'ModelA': {'factTable': 'table_a'},
+                'ModelB': {'name': 'No fact table'},  # no factTable key
+            }
+        }
+        client = MockFoggyClient(
+            discovery_response=_make_mcp_response(discovery_data),
+        )
+        registry = FieldMappingRegistry(client)
+
+        qm_models, table_to_model = registry._discover_models()
+
+        assert set(qm_models) == {'ModelA', 'ModelB'}
+        assert table_to_model == {'table_a': 'ModelA'}
+
+    def test_discover_models_failure_returns_empty(self):
+        """If get_metadata fails, returns empty lists."""
+        client = MockFoggyClient()  # No discovery_response → will raise
+        registry = FieldMappingRegistry(client)
+
+        qm_models, table_to_model = registry._discover_models()
+
+        assert qm_models == []
+        assert table_to_model == {}
+
+    def test_discover_models_empty_response(self):
+        """Empty models section → empty results."""
+        discovery_data = {'fields': {}, 'models': {}}
+        client = MockFoggyClient(
+            discovery_response=_make_mcp_response(discovery_data),
+        )
+        registry = FieldMappingRegistry(client)
+
+        qm_models, table_to_model = registry._discover_models()
+
+        assert qm_models == []
+        assert table_to_model == {}
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Two-phase loading integration tests
+# ═══════════════════════════════════════════════════════════════════
+
+class TestTwoPhaseLoading:
+    """Test that Phase 1 (discovery) + Phase 2 (detail) work together."""
+
+    def test_discovery_drives_detail_loading(self):
+        """Phase 1 discovers models, Phase 2 loads their column maps."""
+        discovery_data = {
+            'fields': {},
+            'models': {
+                'OdooSaleOrderQueryModel': {'factTable': 'sale_order'},
+            }
+        }
+        detail_metadata = {
+            'fields': {
+                'salesperson$id': {'sourceColumn': 'user_id'},
+                'company$id': {'sourceColumn': 'company_id'},
+            },
+            'models': {'OdooSaleOrderQueryModel': {'factTable': 'sale_order'}}
+        }
+        client = MockFoggyClient(
+            discovery_response=_make_mcp_response(discovery_data),
+            responses={'OdooSaleOrderQueryModel': _make_mcp_response(detail_metadata)},
+        )
+        registry = FieldMappingRegistry(client)
+
+        column_map = registry.get_column_map('OdooSaleOrderQueryModel')
+        assert column_map == {
+            'user_id': 'salesperson$id',
+            'company_id': 'company$id',
+        }
+
+        table_map = registry.get_table_to_model_map()
+        assert table_map['sale_order'] == 'OdooSaleOrderQueryModel'
+
+    def test_discovery_failure_falls_back_to_model_mapping(self):
+        """If Phase 1 fails, falls back to MODEL_MAPPING for QM model list."""
+        # Patch MODEL_MAPPING with a test model
+        mapping = sys.modules['foggy_mcp.services.tool_registry'].MODEL_MAPPING
+        original = dict(mapping)
+        try:
+            mapping.clear()
+            mapping['test.model'] = 'TestQmModel'
+
+            detail_metadata = {
+                'fields': {'x$id': {'sourceColumn': 'x_id'}},
+                'models': {'TestQmModel': {'factTable': 'test_table'}}
+            }
+            client = MockFoggyClient(
+                # No discovery_response → Phase 1 fails
+                responses={'TestQmModel': _make_mcp_response(detail_metadata)},
+            )
+            registry = FieldMappingRegistry(client)
+
+            column_map = registry.get_column_map('TestQmModel')
+            assert column_map == {'x_id': 'x$id'}
+        finally:
+            mapping.clear()
+            mapping.update(original)
+
+    def test_phase1_call_then_phase2_calls(self):
+        """Verify the call sequence: get_metadata → describe_model_internal × N."""
+        discovery_data = {
+            'fields': {},
+            'models': {
+                'ModelA': {'factTable': 'table_a'},
+                'ModelB': {'factTable': 'table_b'},
+            }
+        }
+        client = MockFoggyClient(
+            discovery_response=_make_mcp_response(discovery_data),
+            responses={
+                'ModelA': _make_mcp_response({
+                    'fields': {'a$id': {'sourceColumn': 'a_id'}},
+                    'models': {'ModelA': {'factTable': 'table_a'}},
+                }),
+                'ModelB': _make_mcp_response({
+                    'fields': {'b$id': {'sourceColumn': 'b_id'}},
+                    'models': {'ModelB': {'factTable': 'table_b'}},
+                }),
+            },
+        )
+        registry = FieldMappingRegistry(client)
+        registry.get_column_map('ModelA')
+
+        # First call should be get_metadata (Phase 1)
+        assert client.calls[0][0] == 'dataset.get_metadata'
+        # Subsequent calls should be describe_model_internal (Phase 2)
+        phase2_calls = [c for c in client.calls if c[0] == 'dataset.describe_model_internal']
+        assert len(phase2_calls) == 2
+
+    def test_schema_prefix_stripped_in_table_to_model(self):
+        """Schema-qualified factTables are stripped for table_to_model keys."""
+        discovery_data = {
+            'fields': {},
+            'models': {
+                'Model1': {'factTable': 'mydb.orders'},
+            }
+        }
+        client = MockFoggyClient(
+            discovery_response=_make_mcp_response(discovery_data),
+            responses={
+                'Model1': _make_mcp_response({
+                    'fields': {},
+                    'models': {'Model1': {'factTable': 'mydb.orders'}},
+                }),
+            },
+        )
+        registry = FieldMappingRegistry(client)
+
+        table_map = registry.get_table_to_model_map()
+        assert 'orders' in table_map
+        assert 'mydb.orders' not in table_map
+
+
+# ═══════════════════════════════════════════════════════════════════
+# _strip_schema tests
+# ═══════════════════════════════════════════════════════════════════
+
+class TestStripSchema:
+    """Test the schema prefix stripping utility."""
+
+    def test_no_schema(self):
+        assert FieldMappingRegistry._strip_schema('sale_order') == 'sale_order'
+
+    def test_with_schema(self):
+        assert FieldMappingRegistry._strip_schema('other_db.sale_order') == 'sale_order'
+
+    def test_multiple_dots(self):
+        """Only the last part is kept (schema.catalog.table edge case)."""
+        assert FieldMappingRegistry._strip_schema('catalog.schema.table') == 'table'
+
+    def test_empty_string(self):
+        assert FieldMappingRegistry._strip_schema('') == ''
+
+
+# ═══════════════════════════════════════════════════════════════════
+# auto_discover_model_mapping tests
+# ═══════════════════════════════════════════════════════════════════
+
+auto_discover_model_mapping = sys.modules['foggy_mcp.services.tool_registry'].auto_discover_model_mapping
+
+
+class TestAutoDiscoverModelMapping(_ModelMappingGuard):
+    """Test auto-discovery of MODEL_MAPPING from Foggy metadata + Odoo ORM."""
+
+    def _make_mock_env(self, installed_models):
+        """Create a mock Odoo env with model name → _table mappings.
+
+        Args:
+            installed_models: dict of {odoo_model_name: table_name}
+        """
+        class _Proxy:
+            def __init__(self, table): self._table = table
+
+        class _Env:
+            def __contains__(self, key): return key in installed_models
+            def __getitem__(self, key):
+                if key in installed_models:
+                    return _Proxy(installed_models[key])
+                raise KeyError(key)
+
+        return _Env()
+
+    def _make_mock_registry(self, table_to_model):
+        """Create a mock FieldMappingRegistry with a preset table_to_model map."""
+        class MockRegistry:
+            def get_table_to_model_map(self):
+                return dict(table_to_model)
+        return MockRegistry()
+
+    def test_basic_discovery(self):
+        """Matches Odoo models to QM models via table name."""
+        env = self._make_mock_env({
+            'sale.order': 'sale_order',
+            'res.partner': 'res_partner',
+            'ir.model': 'ir_model',  # no QM match
+        })
+        registry = self._make_mock_registry({
+            'sale_order': 'OdooSaleOrderQueryModel',
+            'res_partner': 'OdooResPartnerQueryModel',
+        })
+
+        result = auto_discover_model_mapping(env, registry)
+
+        assert result is True
+        mapping = self._get_model_mapping()
+        assert mapping == {
+            'sale.order': 'OdooSaleOrderQueryModel',
+            'res.partner': 'OdooResPartnerQueryModel',
+        }
+        reverse = self._get_qm_to_odoo()
+        assert reverse == {
+            'OdooSaleOrderQueryModel': 'sale.order',
+            'OdooResPartnerQueryModel': 'res.partner',
+        }
+
+    def test_empty_table_to_model_keeps_static(self):
+        """If registry returns empty map, static MODEL_MAPPING is preserved."""
+        original = dict(self._get_model_mapping())
+        env = self._make_mock_env({'sale.order': 'sale_order'})
+        registry = self._make_mock_registry({})
+
+        result = auto_discover_model_mapping(env, registry)
+
+        assert result is False
+        assert self._get_model_mapping() == original
+
+    def test_no_matches_keeps_static(self):
+        """If no Odoo models match, static MODEL_MAPPING is preserved."""
+        original = dict(self._get_model_mapping())
+        env = self._make_mock_env({
+            'my.custom.model': 'my_custom_table',  # not in Foggy
+        })
+        registry = self._make_mock_registry({
+            'sale_order': 'OdooSaleOrderQueryModel',
+        })
+
+        result = auto_discover_model_mapping(env, registry)
+
+        assert result is False
+        assert self._get_model_mapping() == original
+
+    def test_replaces_static_mapping(self):
+        """Discovery replaces (not merges with) static MODEL_MAPPING."""
+        # Set a static mapping that won't match
+        mapping = self._get_model_mapping()
+        mapping.clear()
+        mapping['old.model'] = 'OldQmModel'
+
+        env = self._make_mock_env({'sale.order': 'sale_order'})
+        registry = self._make_mock_registry({
+            'sale_order': 'OdooSaleOrderQueryModel',
+        })
+
+        auto_discover_model_mapping(env, registry)
+
+        assert self._get_model_mapping() == {
+            'sale.order': 'OdooSaleOrderQueryModel',
+        }
+        # Old mapping should be gone
+        assert 'old.model' not in self._get_model_mapping()

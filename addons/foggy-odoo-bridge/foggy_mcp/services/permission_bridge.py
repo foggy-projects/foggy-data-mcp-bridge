@@ -719,8 +719,13 @@ def _leaf_to_condition(leaf, negate=False, ctx=None):
             field = parts[0]
 
     # Map Odoo field name to QM column name
-    # Priority: dynamic column_map (per-model) > static DIRECT_FIELD_MAP > passthrough
-    qm_field = (_ctx.column_map or {}).get(field) or DIRECT_FIELD_MAP.get(field, field)
+    # When column_map is available (from FieldMappingRegistry), use it exclusively
+    # to avoid cross-model contamination from the global DIRECT_FIELD_MAP.
+    # Fall back to DIRECT_FIELD_MAP only when registry is unavailable.
+    if _ctx.column_map:
+        qm_field = _ctx.column_map.get(field, field)
+    else:
+        qm_field = DIRECT_FIELD_MAP.get(field, field)
 
     # ── Handle False value: Boolean vs NULL ──
     # Odoo uses False for both "IS NULL" (Many2one) and "equals false" (Boolean).

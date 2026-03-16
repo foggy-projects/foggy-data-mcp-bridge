@@ -1204,10 +1204,10 @@ class TestDynamicColumnMap:
     """Test dynamic per-model column_map field resolution via FieldContext.
 
     FieldContext.column_map is a dict of {db_column: qm_field} loaded from Foggy
-    metadata (FieldMappingRegistry). It takes priority over the static
-    DIRECT_FIELD_MAP for per-model field name mapping.
+    metadata (FieldMappingRegistry). When column_map is present and non-empty,
+    DIRECT_FIELD_MAP is bypassed entirely (no cross-model contamination).
 
-    Priority: ctx.column_map > DIRECT_FIELD_MAP > passthrough
+    Priority: ctx.column_map (exclusive when non-empty) | DIRECT_FIELD_MAP (fallback when no column_map)
     """
 
     def test_column_map_overrides_direct_field_map(self):
@@ -1231,14 +1231,20 @@ class TestDynamicColumnMap:
                                     ctx=FieldContext(column_map={}))
         assert result == {'field': 'salesperson$id', 'op': '=', 'value': 42}
 
-    def test_column_map_field_not_in_map_falls_back(self):
-        """Field not in column_map falls back to DIRECT_FIELD_MAP."""
+    def test_column_map_field_not_in_map_passthrough(self):
+        """Field not in column_map passes through (DIRECT_FIELD_MAP bypassed).
+
+        With non-empty column_map, DIRECT_FIELD_MAP is NOT consulted.
+        This prevents cross-model contamination (e.g., user_id mapping
+        from sale.order leaking into hr.employee).
+        """
         ctx = FieldContext(column_map={'company_id': 'company$id'})
         result = _leaf_to_condition(('user_id', '=', 42), ctx=ctx)
-        assert result == {'field': 'salesperson$id', 'op': '=', 'value': 42}
+        # user_id passes through as-is (not mapped to salesperson$id)
+        assert result == {'field': 'user_id', 'op': '=', 'value': 42}
 
     def test_column_map_unknown_field_passthrough(self):
-        """Field not in either map passes through unchanged."""
+        """Field not in any map passes through unchanged."""
         ctx = FieldContext(column_map={'company_id': 'company$id'})
         result = _leaf_to_condition(('unknown_field', '=', 'abc'), ctx=ctx)
         assert result == {'field': 'unknown_field', 'op': '=', 'value': 'abc'}

@@ -6,11 +6,13 @@ and builds per-model DB column → QM field reverse maps.
 This enables dynamic permission field resolution without maintaining
 a static DIRECT_FIELD_MAP for every model.
 
-Architecture:
-    Odoo startup / TTL refresh
-        → call dataset.describe_model_internal (JSON format) for each QM model
-        → parse fields[*].sourceColumn → build {db_col: qm_field} reverse map
-        → parse models[*].factTable → build {db_table: qm_model} map
+Architecture (two-phase loading):
+    Phase 1 — Discovery:
+        → call dataset.get_metadata (JSON) once
+        → parse models section → {fact_table: qm_model} + qm_model list
+    Phase 2 — Detail:
+        → call dataset.describe_model_internal × N (per model)
+        → parse fields[*].sourceColumn → build {db_col: qm_field} per-model reverse map
 
 Usage:
     registry = FieldMappingRegistry(foggy_client)
@@ -63,8 +65,8 @@ class FieldMappingRegistry:
         """
         Get the DB table name → QM model name mapping.
 
-        Useful for auto-discovering which QM model corresponds to which
-        Odoo model (via env[model]._table matching factTable).
+        Used by auto_discover_model_mapping() to match Odoo models
+        (via env[model]._table) to QM models (via factTable).
 
         Returns:
             dict: {db_table: qm_model} e.g. {'sale_order': 'OdooSaleOrderQueryModel'}
@@ -87,23 +89,35 @@ class FieldMappingRegistry:
 
     def _load_all_models(self):
         """
-        Fetch metadata for all known QM models and build reverse maps.
+        Two-phase metadata loading:
 
-        Uses dataset.describe_model_internal with format=json for each model.
-        On failure, falls back to stale cache if available.
+        Phase 1 (Discovery): call dataset.get_metadata once to discover all
+            QM model names and their factTable mappings.
+        Phase 2 (Detail): call dataset.describe_model_internal per model to
+            build per-model column maps (sourceColumn → qm_field).
+
+        Falls back to MODEL_MAPPING for the QM model list if Phase 1 fails,
+        and to stale cache if Phase 2 fails entirely.
         """
-        # Import here to avoid circular dependency
-        from .tool_registry import MODEL_MAPPING
+        # ── Phase 1: Discovery ──
+        qm_models, new_table_to_model = self._discover_models()
 
-        qm_models = list(set(MODEL_MAPPING.values()))
         if not qm_models:
-            _logger.warning("No QM models configured in MODEL_MAPPING, skipping metadata load")
+            # Fallback: get QM model list from static MODEL_MAPPING
+            try:
+                from .tool_registry import MODEL_MAPPING
+                qm_models = list(set(MODEL_MAPPING.values()))
+            except Exception:
+                qm_models = []
+
+        if not qm_models:
+            _logger.warning("No QM models discovered, skipping metadata load")
             return
 
+        # ── Phase 2: Per-model column maps ──
         _logger.info("Loading field metadata from Foggy for %d models...", len(qm_models))
 
         new_column_maps = {}
-        new_table_to_model = {}
 
         for qm_model in qm_models:
             try:
@@ -111,7 +125,6 @@ class FieldMappingRegistry:
                     'dataset.describe_model_internal',
                     {'model': qm_model, 'format': 'json'}
                 )
-                # Extract the metadata from the MCP response
                 data = self._extract_metadata(response)
                 if data is None:
                     _logger.warning("No metadata returned for model %s", qm_model)
@@ -119,8 +132,12 @@ class FieldMappingRegistry:
 
                 column_map, fact_table = self._parse_model_metadata(qm_model, data)
                 new_column_maps[qm_model] = column_map
+
+                # Supplement table_to_model if Phase 1 missed this model
                 if fact_table:
-                    new_table_to_model[fact_table] = qm_model
+                    bare = self._strip_schema(fact_table)
+                    if bare not in new_table_to_model:
+                        new_table_to_model[bare] = qm_model
 
                 _logger.debug("Model %s: %d column mappings, factTable=%s",
                               qm_model, len(column_map), fact_table)
@@ -143,6 +160,55 @@ class FieldMappingRegistry:
                 self._column_maps = {}
                 self._table_to_model = {}
                 self._cache_timestamp = time.time()
+
+    def _discover_models(self):
+        """
+        Phase 1: Call dataset.get_metadata to discover all QM models and factTables.
+
+        This breaks the circular dependency on MODEL_MAPPING — the QM model list
+        comes directly from the Foggy server.
+
+        Returns:
+            tuple: (qm_models, table_to_model)
+                - qm_models: list of QM model names
+                - table_to_model: {bare_table_name: qm_model}
+        """
+        try:
+            response = self._client.call_tools_call(
+                'dataset.get_metadata', {'format': 'json'}
+            )
+            data = self._extract_metadata(response)
+            if not data:
+                _logger.debug("get_metadata returned no data, falling back to MODEL_MAPPING")
+                return [], {}
+
+            models_section = data.get('models', {})
+            qm_models = []
+            table_to_model = {}
+            for qm_name, info in models_section.items():
+                qm_models.append(qm_name)
+                fact_table = info.get('factTable') if isinstance(info, dict) else None
+                if fact_table:
+                    bare = self._strip_schema(fact_table)
+                    table_to_model[bare] = qm_name
+
+            _logger.info("Discovery: %d QM models, %d factTable mappings",
+                         len(qm_models), len(table_to_model))
+            return qm_models, table_to_model
+
+        except Exception as e:
+            _logger.warning("Model discovery via get_metadata failed: %s", e)
+            return [], {}
+
+    @staticmethod
+    def _strip_schema(table_name):
+        """Strip schema prefix from a table name.
+
+        MySQL tables can be schema-qualified (e.g., 'other_db.sale_order').
+        Odoo's env[model]._table returns bare names ('sale_order').
+        Strip the schema part for matching.
+        """
+        return table_name.rsplit('.', 1)[-1] if '.' in table_name else table_name
 
     @staticmethod
     def _extract_metadata(mcp_response):
