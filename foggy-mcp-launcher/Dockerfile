@@ -32,6 +32,12 @@ COPY addons/foggy-dataset-client/pom.xml addons/foggy-dataset-client/
 COPY addons/foggy-dataset-mongo/pom.xml addons/foggy-dataset-mongo/
 COPY addons/foggy-dataset-model-mongo/pom.xml addons/foggy-dataset-model-mongo/
 COPY addons/foggy-data-viewer/pom.xml addons/foggy-data-viewer/
+COPY addons/foggy-dataset-model-cache/pom.xml addons/foggy-dataset-model-cache/
+COPY addons/foggy-dataset-model-vector/pom.xml addons/foggy-dataset-model-vector/
+COPY addons/foggy-chart-storage-cloud/pom.xml addons/foggy-chart-storage-cloud/
+COPY addons/foggy-dataset-vector/pom.xml addons/foggy-dataset-vector/
+COPY addons/foggy-dataset-graphql/pom.xml addons/foggy-dataset-graphql/
+COPY addons/foggy-dataset-model-preagg/pom.xml addons/foggy-dataset-model-preagg/
 
 # 下载依赖（利用 Docker 缓存）
 RUN mvn dependency:go-offline -B -pl foggy-mcp-launcher -am -DskipTests
