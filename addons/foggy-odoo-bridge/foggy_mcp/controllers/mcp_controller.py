@@ -22,15 +22,17 @@ from odoo.http import request, Response
 from ..services.foggy_client import FoggyClient
 from ..services.tool_registry import ToolRegistry, MODEL_MAPPING, QM_TO_ODOO_MODEL
 from ..services.permission_bridge import compute_permission_slices
+from ..services.field_mapping_registry import FieldMappingRegistry
 
 _logger = logging.getLogger(__name__)
 
 # Protocol version supported
 PROTOCOL_VERSION = '2024-11-05'
 
-# Singleton-like registry (lazily initialized per worker process)
+# Singleton-like registries (lazily initialized per worker process)
 _tool_registry = None
 _foggy_client = None
+_field_mapping_registry = None
 
 
 def _get_foggy_client(env):
@@ -52,11 +54,23 @@ def _get_tool_registry(env):
     return _tool_registry
 
 
+def _get_field_mapping_registry(env):
+    """Get or create the FieldMappingRegistry singleton."""
+    global _field_mapping_registry
+    if _field_mapping_registry is None:
+        client = _get_foggy_client(env)
+        cache_ttl = int(env['ir.config_parameter'].sudo().get_param(
+            'foggy_mcp.cache_ttl', '300'))
+        _field_mapping_registry = FieldMappingRegistry(client, cache_ttl)
+    return _field_mapping_registry
+
+
 def _reset_singletons():
     """Reset singletons (for testing or config changes)."""
-    global _tool_registry, _foggy_client
+    global _tool_registry, _foggy_client, _field_mapping_registry
     _tool_registry = None
     _foggy_client = None
+    _field_mapping_registry = None
 
 
 def _json_response(data, status=200):
@@ -244,7 +258,9 @@ class McpController(http.Controller):
 
                 # Row-level access: compute permission slices and inject into payload.slice
                 try:
-                    perm_slices = compute_permission_slices(env, user.id, model_name)
+                    fmr = _get_field_mapping_registry(env)
+                    perm_slices = compute_permission_slices(env, user.id, model_name,
+                                                           field_mapping_registry=fmr)
                     if perm_slices:
                         payload = arguments.setdefault('payload', {})
                         existing_slice = payload.setdefault('slice', [])
@@ -378,6 +394,22 @@ class McpController(http.Controller):
             'mapped_count': len(MODEL_MAPPING),
             'models': list(MODEL_MAPPING.keys()),
         }
+
+        # Check 5: Field mapping registry
+        try:
+            fmr = _get_field_mapping_registry(env)
+            fmr_maps = fmr._column_maps or {}
+            fmr_age = int(_time.time() - fmr._cache_timestamp) if fmr._cache_timestamp else -1
+            result['checks']['field_mapping'] = {
+                'status': 'ok' if fmr_maps else 'not_loaded',
+                'models_loaded': len(fmr_maps),
+                'cache_age_seconds': fmr_age,
+            }
+        except Exception as e:
+            result['checks']['field_mapping'] = {
+                'status': 'error',
+                'error': str(e),
+            }
 
         headers = {'Content-Type': 'application/json'}
         return Response(

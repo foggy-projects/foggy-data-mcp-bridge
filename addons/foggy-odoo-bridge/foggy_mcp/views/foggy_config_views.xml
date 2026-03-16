@@ -65,6 +65,50 @@
                             </div>
                         </setting>
                     </block>
+                    <block title="AI Chat (LLM Configuration)">
+                        <setting string="LLM Provider" help="Select your AI model provider for the embedded chat">
+                            <div class="content-group">
+                                <div class="row mt16">
+                                    <label for="foggy_llm_provider" class="col-lg-3"/>
+                                    <field name="foggy_llm_provider" class="col-lg-4"/>
+                                </div>
+                            </div>
+                        </setting>
+                        <setting string="API Key" help="API key for the selected LLM provider">
+                            <div class="content-group">
+                                <div class="row mt16">
+                                    <label for="foggy_llm_api_key" class="col-lg-3"/>
+                                    <field name="foggy_llm_api_key" class="col-lg-6" password="True"/>
+                                </div>
+                            </div>
+                        </setting>
+                        <setting string="Model Name" help="Model identifier (e.g., gpt-4o-mini, claude-3-5-sonnet, deepseek-chat)">
+                            <div class="content-group">
+                                <div class="row mt16">
+                                    <label for="foggy_llm_model" class="col-lg-3"/>
+                                    <field name="foggy_llm_model" class="col-lg-4"
+                                           placeholder="gpt-4o-mini"/>
+                                </div>
+                            </div>
+                        </setting>
+                        <setting string="API Base URL" help="Custom endpoint URL (required for Ollama and custom providers)">
+                            <div class="content-group">
+                                <div class="row mt16">
+                                    <label for="foggy_llm_base_url" class="col-lg-3"/>
+                                    <field name="foggy_llm_base_url" class="col-lg-6"
+                                           placeholder="http://localhost:11434/v1"/>
+                                </div>
+                            </div>
+                        </setting>
+                        <setting string="Temperature" help="Controls randomness (0.0 = deterministic, 1.0 = creative)">
+                            <div class="content-group">
+                                <div class="row mt16">
+                                    <label for="foggy_llm_temperature" class="col-lg-3"/>
+                                    <field name="foggy_llm_temperature" class="col-lg-2"/>
+                                </div>
+                            </div>
+                        </setting>
+                    </block>
                 </app>
             </xpath>
         </field>

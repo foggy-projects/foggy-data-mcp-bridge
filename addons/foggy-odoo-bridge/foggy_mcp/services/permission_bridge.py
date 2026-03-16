@@ -25,12 +25,28 @@ Output is standard DSL slice format:
     ]
 """
 import logging
+from typing import NamedTuple, Optional
 
 from odoo.osv import expression
 from odoo.tools.safe_eval import safe_eval
 from odoo.tools import safe_eval as _safe_eval_mod
 
 from .tool_registry import QM_TO_ODOO_MODEL
+
+
+class FieldContext(NamedTuple):
+    """Immutable context for AST traversal — built once per model, used in _leaf_to_condition.
+
+    Attributes:
+        column_map: {db_column: qm_field} from FieldMappingRegistry (per-model dynamic mapping)
+        field_types: {field_name: type_string} from Odoo ORM (for Boolean vs NULL disambiguation)
+    """
+    column_map: Optional[dict] = None
+    field_types: Optional[dict] = None
+
+
+# Sentinel for ctx=None — avoids allocating an empty NamedTuple on each call
+_EMPTY_CTX = FieldContext()
 
 _logger = logging.getLogger(__name__)
 
@@ -78,12 +94,15 @@ DIRECT_FIELD_MAP = {
     'company_id': 'company$id',
     'company_ids': 'company$id',
     'user_id': 'salesperson$id',
+    'invoice_user_id': 'salesperson$id',  # account.move salesperson FK
     'partner_id': 'partner$id',
     'team_id': 'salesTeam$id',
     'department_id': 'department$id',
     'warehouse_id': 'warehouse$id',
     'journal_id': 'journal$id',
     'picking_type_id': 'pickingType$id',
+    'move_type': 'moveType',             # account.move property
+    'state': 'state',                    # common property (explicit mapping)
 }
 
 # Odoo ir.rule field → Foggy dimension field (for hierarchy operators).
@@ -96,10 +115,30 @@ HIERARCHY_FIELD_MAP = {
     'parent_id': 'parent$id',
 }
 
+# ─── Field type introspection ─────────────────────────────────────
+
+def _build_field_types(env, odoo_model):
+    """Build a field_name → field_type dict from Odoo ORM metadata.
+
+    This enables dynamic Boolean vs NULL disambiguation without
+    maintaining a static whitelist. For example:
+        env['res.partner']._fields['partner_share'].type == 'boolean'
+        env['res.partner']._fields['company_id'].type == 'many2one'
+
+    Returns:
+        dict: {field_name: type_string} e.g. {'active': 'boolean', 'company_id': 'many2one'}
+    """
+    try:
+        Model = env[odoo_model].sudo()
+        return {fname: f.type for fname, f in Model._fields.items()}
+    except Exception as e:
+        _logger.warning("Failed to introspect field types for %s: %s", odoo_model, e)
+        return {}
+
 
 # ─── Public API ────────────────────────────────────────────────────
 
-def compute_permission_slices(env, uid, qm_model_name):
+def compute_permission_slices(env, uid, qm_model_name, field_mapping_registry=None):
     """
     Compute permission slice conditions for a single QM model.
 
@@ -110,6 +149,9 @@ def compute_permission_slices(env, uid, qm_model_name):
         env: Odoo environment
         uid: User ID
         qm_model_name: QM model name (e.g., 'OdooSaleOrderQueryModel')
+        field_mapping_registry: Optional FieldMappingRegistry for dynamic
+            DB column → QM field resolution. When provided, per-model metadata
+            from Foggy is used instead of the static DIRECT_FIELD_MAP.
 
     Returns:
         list[dict]: DSL slice conditions, can be appended to payload['slice'].
@@ -124,7 +166,15 @@ def compute_permission_slices(env, uid, qm_model_name):
         _logger.debug("Odoo model not installed: %s", odoo_model)
         return []
 
-    slices = _compute_model_slices(env, uid, odoo_model)
+    # Load per-model column mapping from Foggy metadata (if registry available)
+    column_map = None
+    if field_mapping_registry:
+        try:
+            column_map = field_mapping_registry.get_column_map(qm_model_name)
+        except Exception as e:
+            _logger.warning("Failed to get column map for %s: %s", qm_model_name, e)
+
+    slices = _compute_model_slices(env, uid, odoo_model, column_map)
     if slices:
         _logger.debug("Permission slices for %s (uid=%s): %d conditions",
                       qm_model_name, uid, len(slices))
@@ -133,7 +183,7 @@ def compute_permission_slices(env, uid, qm_model_name):
 
 # ─── Model-level slice computation ────────────────────────────────
 
-def _compute_model_slices(env, uid, odoo_model):
+def _compute_model_slices(env, uid, odoo_model, column_map=None):
     """
     Compute permission slices for a single Odoo model based on ir.rule.
 
@@ -141,6 +191,10 @@ def _compute_model_slices(env, uid, odoo_model):
         - Global rules (groups=False): applied to ALL users, AND'd together
         - Group rules (groups=specific groups): OR'd across rules, then AND'd with globals
         - Final: global1 AND global2 AND ... AND (group_rule1 OR group_rule2 OR ...)
+
+    Args:
+        column_map: Optional dict of {db_column: qm_field} for dynamic field
+                    resolution. Takes priority over static DIRECT_FIELD_MAP.
 
     Returns:
         list[dict]: DSL slice conditions (AND'd together at top level)
@@ -152,6 +206,8 @@ def _compute_model_slices(env, uid, odoo_model):
         return []
 
     slices = []
+    field_types = _build_field_types(env, odoo_model)
+    ctx = FieldContext(column_map=column_map, field_types=field_types)
 
     global_rules = rules.filtered(lambda r: not r.groups)
     group_rules = rules.filtered(lambda r: r.groups)
@@ -167,7 +223,7 @@ def _compute_model_slices(env, uid, odoo_model):
             tree = _parse_domain_ast(domain)
             if tree is None:
                 continue
-            rule_slices = _flatten_to_dsl_slices(tree)
+            rule_slices = _flatten_to_dsl_slices(tree, ctx)
             slices.extend(rule_slices)
         except Exception as e:
             _logger.warning("Failed to evaluate global rule '%s' on %s: %s",
@@ -189,7 +245,7 @@ def _compute_model_slices(env, uid, odoo_model):
                 if tree is None:
                     rule_branches.append([])
                     continue
-                branch = _flatten_to_dsl_slices(tree)
+                branch = _flatten_to_dsl_slices(tree, ctx)
                 if branch:
                     rule_branches.append(branch)
                 else:
@@ -482,22 +538,26 @@ def _parse_domain_ast(domain):
 
 # ─── AST → DSL slice conditions ──────────────────────────────────
 
-def _flatten_to_dsl_slices(tree):
+def _flatten_to_dsl_slices(tree, ctx=None):
     """
     Flatten an AST into a list of DSL slice conditions.
 
     Top-level items are AND'd together (slice array semantics).
     OR subtrees become {"$or": [...]} objects.
 
+    Args:
+        tree: AST node from _parse_domain_ast
+        ctx: FieldContext with column_map and field_types for field resolution
+
     Returns:
         list[dict]: DSL slice conditions
     """
     slices = []
-    _collect_and_node(tree, slices)
+    _collect_and_node(tree, slices, ctx)
     return slices
 
 
-def _collect_and_node(node, slices):
+def _collect_and_node(node, slices, ctx=None):
     """
     Collect DSL slice conditions from an AND-rooted (or top-level) AST node.
 
@@ -512,25 +572,25 @@ def _collect_and_node(node, slices):
     node_type = node[0]
 
     if node_type == 'AND':
-        _collect_and_node(node[1], slices)
-        _collect_and_node(node[2], slices)
+        _collect_and_node(node[1], slices, ctx)
+        _collect_and_node(node[2], slices, ctx)
 
     elif node_type == 'OR':
         or_children = []
-        _collect_or_children(node, or_children)
+        _collect_or_children(node, or_children, ctx)
         if or_children:
             slices.append({'$or': or_children})
 
     elif node_type == 'LEAF':
-        cond = _leaf_to_condition(node[1])
+        cond = _leaf_to_condition(node[1], ctx=ctx)
         if cond:
             slices.append(cond)
 
     elif node_type == 'NOT':
-        _handle_not_node(node[1], slices)
+        _handle_not_node(node[1], slices, ctx)
 
 
-def _collect_or_children(node, or_children):
+def _collect_or_children(node, or_children, ctx=None):
     """
     Collect children from an OR subtree into a flat list for {"$or": [...]}.
 
@@ -543,18 +603,18 @@ def _collect_or_children(node, or_children):
     node_type = node[0]
 
     if node_type == 'OR':
-        _collect_or_children(node[1], or_children)
-        _collect_or_children(node[2], or_children)
+        _collect_or_children(node[1], or_children, ctx)
+        _collect_or_children(node[2], or_children, ctx)
 
     elif node_type == 'LEAF':
-        cond = _leaf_to_condition(node[1])
+        cond = _leaf_to_condition(node[1], ctx=ctx)
         if cond:
             or_children.append(cond)
 
     elif node_type == 'AND':
         # AND inside OR → wrap in {"$and": [...]}
         and_slices = []
-        _collect_and_node(node, and_slices)
+        _collect_and_node(node, and_slices, ctx)
         if len(and_slices) == 1:
             or_children.append(and_slices[0])
         elif and_slices:
@@ -563,14 +623,14 @@ def _collect_or_children(node, or_children):
     elif node_type == 'NOT':
         inner = node[1]
         if inner and inner[0] == 'LEAF':
-            cond = _leaf_to_condition(inner[1], negate=True)
+            cond = _leaf_to_condition(inner[1], negate=True, ctx=ctx)
             if cond:
                 or_children.append(cond)
         else:
             _logger.debug("NOT with complex operand inside OR — skipping")
 
 
-def _handle_not_node(inner_node, slices):
+def _handle_not_node(inner_node, slices, ctx=None):
     """
     Handle NOT(inner_node) using De Morgan's laws.
 
@@ -584,20 +644,20 @@ def _handle_not_node(inner_node, slices):
     node_type = inner_node[0]
 
     if node_type == 'LEAF':
-        cond = _leaf_to_condition(inner_node[1], negate=True)
+        cond = _leaf_to_condition(inner_node[1], negate=True, ctx=ctx)
         if cond:
             slices.append(cond)
 
     elif node_type == 'OR':
         # NOT(A OR B) = NOT(A) AND NOT(B) → each added individually (AND'd)
         negated = []
-        _collect_negated_leaves(inner_node, negated)
+        _collect_negated_leaves(inner_node, negated, ctx)
         slices.extend(negated)
 
     elif node_type == 'AND':
         # NOT(A AND B) = NOT(A) OR NOT(B) → {"$or": [...]}
         negated = []
-        _collect_negated_leaves(inner_node, negated)
+        _collect_negated_leaves(inner_node, negated, ctx)
         if negated:
             slices.append({'$or': negated})
 
@@ -605,7 +665,7 @@ def _handle_not_node(inner_node, slices):
         _logger.warning("NOT with unsupported inner node type: %s", node_type)
 
 
-def _collect_negated_leaves(node, negated_list):
+def _collect_negated_leaves(node, negated_list, ctx=None):
     """Collect negated leaf conditions from a subtree."""
     if node is None:
         return
@@ -613,30 +673,32 @@ def _collect_negated_leaves(node, negated_list):
     node_type = node[0]
 
     if node_type == 'LEAF':
-        cond = _leaf_to_condition(node[1], negate=True)
+        cond = _leaf_to_condition(node[1], negate=True, ctx=ctx)
         if cond:
             negated_list.append(cond)
     elif node_type in ('AND', 'OR'):
-        _collect_negated_leaves(node[1], negated_list)
-        _collect_negated_leaves(node[2], negated_list)
+        _collect_negated_leaves(node[1], negated_list, ctx)
+        _collect_negated_leaves(node[2], negated_list, ctx)
     else:
         _logger.debug("Cannot negate complex node: %s", node_type)
 
 
 # ─── Leaf conversion ──────────────────────────────────────────────
 
-def _leaf_to_condition(leaf, negate=False):
+def _leaf_to_condition(leaf, negate=False, ctx=None):
     """
     Convert a single Odoo domain leaf (field, op, value) to a DSL slice condition.
 
     Args:
         leaf: Tuple of (field_name, operator, value)
         negate: If True, negate the operator (for NOT handling)
+        ctx: FieldContext with column_map and field_types for field resolution
 
     Returns:
         dict: {'field': ..., 'op': ..., 'value': ...} or None if unsupported
     """
     field, op, value = leaf
+    _ctx = ctx or _EMPTY_CTX
 
     # ── Handle tautology / contradiction literals ──
     # (1, '=', 1) → always true → no filter (return None)
@@ -657,16 +719,31 @@ def _leaf_to_condition(leaf, negate=False):
             field = parts[0]
 
     # Map Odoo field name to QM column name
-    qm_field = DIRECT_FIELD_MAP.get(field, field)
+    # Priority: dynamic column_map (per-model) > static DIRECT_FIELD_MAP > passthrough
+    qm_field = (_ctx.column_map or {}).get(field) or DIRECT_FIELD_MAP.get(field, field)
 
-    # ── Handle null checks (Odoo uses False for NULL) ──
+    # ── Handle False value: Boolean vs NULL ──
+    # Odoo uses False for both "IS NULL" (Many2one) and "equals false" (Boolean).
+    # We use field_types from Odoo ORM metadata to distinguish the two cases.
+    is_boolean = (_ctx.field_types or {}).get(field) == 'boolean'
+
     if op == '=' and value is False:
+        if is_boolean:
+            # Boolean field: ('active', '=', False) → active = false
+            dsl_op = '!=' if negate else '='
+            return {'field': qm_field, 'op': dsl_op, 'value': False}
+        # Many2one / other: ('company_id', '=', False) → IS NULL
         dsl_op = 'is null'
         if negate:
             dsl_op = NEGATE_OP_MAP.get(dsl_op, dsl_op)
         return {'field': qm_field, 'op': dsl_op}
 
     if op == '!=' and value is False:
+        if is_boolean:
+            # Boolean field: ('active', '!=', False) → active != false (i.e., true)
+            dsl_op = '=' if negate else '!='
+            return {'field': qm_field, 'op': dsl_op, 'value': False}
+        # Many2one / other: ('company_id', '!=', False) → IS NOT NULL
         dsl_op = 'is not null'
         if negate:
             dsl_op = NEGATE_OP_MAP.get(dsl_op, dsl_op)
@@ -697,6 +774,33 @@ def _leaf_to_condition(leaf, negate=False):
     # Handle Odoo record singletons
     if hasattr(value, 'id') and not isinstance(value, (int, float, str, bool)):
         value = value.id
+
+    # ── Handle False/None in 'in'/'not in' value lists ──
+    # Odoo pattern: ('company_id', 'in', company_ids + [False])
+    # False in a list means NULL for Many2one fields.
+    # Convert to: field IN [non-null-values] OR field IS NULL (for 'in')
+    #         or: field NOT IN [non-null-values] AND field IS NOT NULL (for 'not in')
+    if isinstance(value, list) and dsl_op in ('in', 'not in'):
+        has_false = any(v is False or v is None for v in value)
+        if has_false:
+            clean_values = [v for v in value if v is not False and v is not None]
+            if not clean_values:
+                # Only False/None values → simplify to is null / is not null
+                null_op = 'is null' if dsl_op == 'in' else 'is not null'
+                if negate:
+                    null_op = NEGATE_OP_MAP.get(null_op, null_op)
+                return {'field': qm_field, 'op': null_op}
+
+            in_cond = {'field': qm_field, 'op': dsl_op, 'value': clean_values}
+            null_cond = {'field': qm_field,
+                         'op': 'is null' if dsl_op == 'in' else 'is not null'}
+
+            if dsl_op == 'in':
+                # field IN [...] OR field IS NULL → {"$or": [...]}
+                return {'$or': [in_cond, null_cond]}
+            else:
+                # field NOT IN [...] AND field IS NOT NULL → {"$and": [...]}
+                return {'$and': [in_cond, null_cond]}
 
     condition = {
         'field': qm_field,

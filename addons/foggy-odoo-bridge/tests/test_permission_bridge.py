@@ -80,6 +80,9 @@ _leaf_to_condition = _pb_mod._leaf_to_condition
 _expand_hierarchy_operators = _pb_mod._expand_hierarchy_operators
 _normalize_hierarchy_value = _pb_mod._normalize_hierarchy_value
 HIERARCHY_FIELD_MAP = _pb_mod.HIERARCHY_FIELD_MAP
+DIRECT_FIELD_MAP = _pb_mod.DIRECT_FIELD_MAP
+_build_field_types = _pb_mod._build_field_types
+FieldContext = _pb_mod.FieldContext
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -731,3 +734,586 @@ class TestNormalizeHierarchyValue:
 
     def test_empty_list(self):
         assert _normalize_hierarchy_value([]) == []
+
+
+# ═══════════════════════════════════════════════════════════════════
+# DIRECT_FIELD_MAP coverage tests
+# ═══════════════════════════════════════════════════════════════════
+
+class TestDirectFieldMapCoverage:
+    """Verify DIRECT_FIELD_MAP covers all fields used by ir.rule domains."""
+
+    def test_company_fields(self):
+        """company_id / company_ids → company$id."""
+        assert DIRECT_FIELD_MAP['company_id'] == 'company$id'
+        assert DIRECT_FIELD_MAP['company_ids'] == 'company$id'
+
+    def test_user_id_field(self):
+        """user_id → salesperson$id (sale.order FK)."""
+        assert DIRECT_FIELD_MAP['user_id'] == 'salesperson$id'
+
+    def test_invoice_user_id_field(self):
+        """invoice_user_id → salesperson$id (account.move FK)."""
+        assert DIRECT_FIELD_MAP['invoice_user_id'] == 'salesperson$id'
+
+    def test_partner_id_field(self):
+        assert DIRECT_FIELD_MAP['partner_id'] == 'partner$id'
+
+    def test_team_id_field(self):
+        assert DIRECT_FIELD_MAP['team_id'] == 'salesTeam$id'
+
+    def test_department_id_field(self):
+        assert DIRECT_FIELD_MAP['department_id'] == 'department$id'
+
+    def test_journal_id_field(self):
+        assert DIRECT_FIELD_MAP['journal_id'] == 'journal$id'
+
+    def test_picking_type_id_field(self):
+        assert DIRECT_FIELD_MAP['picking_type_id'] == 'pickingType$id'
+
+    def test_move_type_field(self):
+        """move_type → moveType (account.move property)."""
+        assert DIRECT_FIELD_MAP['move_type'] == 'moveType'
+
+    def test_state_field(self):
+        """state → state (common property, explicit mapping)."""
+        assert DIRECT_FIELD_MAP['state'] == 'state'
+
+
+# ═══════════════════════════════════════════════════════════════════
+# False in IN/NOT IN value lists
+# ═══════════════════════════════════════════════════════════════════
+
+class TestFalseInValueLists:
+    """Test handling of False/None in 'in'/'not in' value lists.
+
+    Odoo pattern: ('company_id', 'in', company_ids + [False])
+    False in a Many2one IN list means NULL → should produce $or with is null.
+    """
+
+    def test_in_with_false_produces_or(self):
+        """('company_id', 'in', [1, 2, False]) → $or: [IN [1,2], IS NULL]."""
+        result = _leaf_to_condition(('company_id', 'in', [1, 2, False]))
+        assert '$or' in result
+        or_children = result['$or']
+        assert len(or_children) == 2
+        assert or_children[0] == {'field': 'company$id', 'op': 'in', 'value': [1, 2]}
+        assert or_children[1] == {'field': 'company$id', 'op': 'is null'}
+
+    def test_in_with_none_produces_or(self):
+        """None in value list is treated same as False."""
+        result = _leaf_to_condition(('company_id', 'in', [1, None]))
+        assert '$or' in result
+        assert result['$or'][0] == {'field': 'company$id', 'op': 'in', 'value': [1]}
+        assert result['$or'][1] == {'field': 'company$id', 'op': 'is null'}
+
+    def test_in_with_only_false(self):
+        """('company_id', 'in', [False]) → is null."""
+        result = _leaf_to_condition(('company_id', 'in', [False]))
+        assert result == {'field': 'company$id', 'op': 'is null'}
+
+    def test_not_in_with_false_produces_and(self):
+        """('company_id', 'not in', [1, False]) → $and: [NOT IN [1], IS NOT NULL]."""
+        result = _leaf_to_condition(('company_id', 'not in', [1, False]))
+        assert '$and' in result
+        and_children = result['$and']
+        assert len(and_children) == 2
+        assert and_children[0] == {'field': 'company$id', 'op': 'not in', 'value': [1]}
+        assert and_children[1] == {'field': 'company$id', 'op': 'is not null'}
+
+    def test_in_without_false_unchanged(self):
+        """Normal IN list (no False) is unchanged."""
+        result = _leaf_to_condition(('company_id', 'in', [1, 2]))
+        assert result == {'field': 'company$id', 'op': 'in', 'value': [1, 2]}
+
+    def test_in_with_false_single_value(self):
+        """('company_id', 'in', [3, False]) → $or with single-element list."""
+        result = _leaf_to_condition(('company_id', 'in', [3, False]))
+        assert '$or' in result
+        assert result['$or'][0] == {'field': 'company$id', 'op': 'in', 'value': [3]}
+        assert result['$or'][1] == {'field': 'company$id', 'op': 'is null'}
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Model-specific ir.rule domain tests
+# ═══════════════════════════════════════════════════════════════════
+
+class TestPurchaseOrderDomains:
+    """Test purchase.order ir.rule domain patterns.
+
+    Actual Odoo ir.rule for purchase.order:
+      Global: [('company_id', 'in', company_ids)]
+    """
+
+    def _domain_to_slices(self, domain):
+        tree = _parse_domain_ast(domain)
+        return _flatten_to_dsl_slices(tree) if tree else []
+
+    def test_company_isolation(self):
+        """Global rule: [('company_id', 'in', [1])]."""
+        slices = self._domain_to_slices([('company_id', 'in', [1])])
+        assert slices == [{'field': 'company$id', 'op': 'in', 'value': [1]}]
+
+    def test_multi_company(self):
+        """User in multiple companies: [('company_id', 'in', [1, 2])]."""
+        slices = self._domain_to_slices([('company_id', 'in', [1, 2])])
+        assert slices == [{'field': 'company$id', 'op': 'in', 'value': [1, 2]}]
+
+
+class TestAccountMoveDomains:
+    """Test account.move ir.rule domain patterns.
+
+    Actual Odoo ir.rules for account.move:
+      Global: [('company_id', 'in', company_ids)]
+      Group (Billing): [(1, '=', 1)]  — tautology
+      Group (Own Docs): [('move_type', 'in', ('out_invoice', 'out_refund')),
+                          '|', ('invoice_user_id', '=', user.id),
+                               ('invoice_user_id', '=', False)]
+      Group (All Docs): [('move_type', 'in', ('out_invoice', 'out_refund'))]
+      Group (Purchase): [('move_type', 'in', ('in_invoice', 'in_refund', 'in_receipt'))]
+    """
+
+    def _domain_to_slices(self, domain):
+        tree = _parse_domain_ast(domain)
+        return _flatten_to_dsl_slices(tree) if tree else []
+
+    def test_company_isolation(self):
+        """Global rule: company_id IN company_ids."""
+        slices = self._domain_to_slices([('company_id', 'in', [1, 2])])
+        assert slices == [{'field': 'company$id', 'op': 'in', 'value': [1, 2]}]
+
+    def test_billing_tautology(self):
+        """Billing group rule: [(1, '=', 1)] → empty (allow all)."""
+        slices = self._domain_to_slices([(1, '=', 1)])
+        assert slices == []
+
+    def test_all_invoices(self):
+        """All Documents group: move_type IN customer invoice types."""
+        domain = [('move_type', 'in', ('out_invoice', 'out_refund'))]
+        slices = self._domain_to_slices(domain)
+        assert slices == [{'field': 'moveType', 'op': 'in',
+                           'value': ['out_invoice', 'out_refund']}]
+
+    def test_personal_invoices(self):
+        """Own Documents group: move_type filter AND (own OR unassigned).
+
+        Domain: ['&', ('move_type', 'in', ('out_invoice', 'out_refund')),
+                      '|', ('invoice_user_id', '=', 6), ('invoice_user_id', '=', False)]
+        """
+        domain = ['&', ('move_type', 'in', ('out_invoice', 'out_refund')),
+                  '|', ('invoice_user_id', '=', 6), ('invoice_user_id', '=', False)]
+        slices = self._domain_to_slices(domain)
+
+        assert len(slices) == 2
+        # First: move_type filter
+        assert slices[0] == {'field': 'moveType', 'op': 'in',
+                             'value': ['out_invoice', 'out_refund']}
+        # Second: user OR null
+        assert '$or' in slices[1]
+        or_children = slices[1]['$or']
+        assert len(or_children) == 2
+        assert or_children[0] == {'field': 'salesperson$id', 'op': '=', 'value': 6}
+        assert or_children[1] == {'field': 'salesperson$id', 'op': 'is null'}
+
+    def test_purchase_invoices(self):
+        """Purchase User group: move_type IN vendor bill types."""
+        domain = [('move_type', 'in', ('in_invoice', 'in_refund', 'in_receipt'))]
+        slices = self._domain_to_slices(domain)
+        assert slices == [{'field': 'moveType', 'op': 'in',
+                           'value': ['in_invoice', 'in_refund', 'in_receipt']}]
+
+
+class TestStockPickingDomains:
+    """Test stock.picking ir.rule domain patterns.
+
+    Actual Odoo ir.rule for stock.picking:
+      Global: [('company_id', 'in', company_ids)]
+    """
+
+    def _domain_to_slices(self, domain):
+        tree = _parse_domain_ast(domain)
+        return _flatten_to_dsl_slices(tree) if tree else []
+
+    def test_company_isolation(self):
+        """Global rule: company_id IN company_ids."""
+        slices = self._domain_to_slices([('company_id', 'in', [1])])
+        assert slices == [{'field': 'company$id', 'op': 'in', 'value': [1]}]
+
+    def test_multi_company(self):
+        """Multi-company user sees pickings from all companies."""
+        slices = self._domain_to_slices([('company_id', 'in', [1, 2])])
+        assert slices == [{'field': 'company$id', 'op': 'in', 'value': [1, 2]}]
+
+
+class TestHrEmployeeDomains:
+    """Test hr.employee ir.rule domain patterns.
+
+    Actual Odoo ir.rule for hr.employee:
+      Global: [('company_id', 'in', company_ids + [False])]
+    """
+
+    def _domain_to_slices(self, domain):
+        tree = _parse_domain_ast(domain)
+        return _flatten_to_dsl_slices(tree) if tree else []
+
+    def test_company_isolation_with_false(self):
+        """Global rule: company_id IN company_ids + [False].
+
+        The + [False] allows employees without a company (company_id IS NULL).
+        Should produce: company$id IN [1] OR company$id IS NULL.
+        """
+        domain = [('company_id', 'in', [1, False])]
+        slices = self._domain_to_slices(domain)
+
+        assert len(slices) == 1
+        assert '$or' in slices[0]
+        or_children = slices[0]['$or']
+        assert len(or_children) == 2
+        assert or_children[0] == {'field': 'company$id', 'op': 'in', 'value': [1]}
+        assert or_children[1] == {'field': 'company$id', 'op': 'is null'}
+
+    def test_multi_company_with_false(self):
+        """Multi-company user: company_id IN [1, 2, False]."""
+        domain = [('company_id', 'in', [1, 2, False])]
+        slices = self._domain_to_slices(domain)
+
+        assert len(slices) == 1
+        assert '$or' in slices[0]
+        or_children = slices[0]['$or']
+        assert or_children[0] == {'field': 'company$id', 'op': 'in', 'value': [1, 2]}
+        assert or_children[1] == {'field': 'company$id', 'op': 'is null'}
+
+
+class TestResPartnerDomains:
+    """Test res.partner ir.rule domain patterns.
+
+    Actual Odoo ir.rule for res.partner:
+      Global: ['|', '|', ('partner_share', '=', False),
+                         ('company_id', 'parent_of', company_ids),
+                         ('company_id', '=', False)]
+
+    NOTE: partner_share is a boolean field. With field_types from Odoo ORM,
+    ('partner_share', '=', False) correctly produces op='=' value=false,
+    not op='is null' (which is the default for Many2one fields).
+    """
+
+    # Simulated field types for res.partner (from Odoo ORM introspection)
+    PARTNER_FIELD_TYPES = {
+        'partner_share': 'boolean',
+        'is_company': 'boolean',
+        'active': 'boolean',
+        'company_id': 'many2one',
+    }
+
+    def _domain_to_slices(self, domain, field_types=None):
+        tree = _parse_domain_ast(domain)
+        ctx = FieldContext(field_types=field_types) if field_types else None
+        return _flatten_to_dsl_slices(tree, ctx=ctx) if tree else []
+
+    def test_company_null_check(self):
+        """company_id = False → company$id IS NULL."""
+        slices = self._domain_to_slices([('company_id', '=', False)])
+        assert slices == [{'field': 'company$id', 'op': 'is null'}]
+
+    def test_partner_share_false(self):
+        """partner_share = False → boolean field, treated as = false (not IS NULL).
+
+        With field_types={'partner_share': 'boolean'}, ('partner_share', '=', False)
+        correctly produces op='=' value=false, not op='is null'.
+        """
+        slices = self._domain_to_slices(
+            [('partner_share', '=', False)],
+            field_types=self.PARTNER_FIELD_TYPES)
+        assert slices == [{'field': 'partner_share', 'op': '=', 'value': False}]
+
+    def test_partner_hierarchy_parent_of(self):
+        """company_id parent_of → selfAndAncestorsOf (after hierarchy expansion)."""
+        # After _expand_hierarchy_operators, parent_of becomes selfAndAncestorsOf
+        domain = [('company$id', 'selfAndAncestorsOf', [1, 2])]
+        slices = self._domain_to_slices(domain)
+        assert slices == [{'field': 'company$id', 'op': 'selfAndAncestorsOf',
+                           'value': [1, 2]}]
+
+    def test_full_partner_global_rule(self):
+        """Full global rule after hierarchy expansion:
+
+        ['|', '|', ('partner_share', '=', False),
+                   ('company$id', 'selfAndAncestorsOf', [1, 2]),
+                   ('company_id', '=', False)]
+
+        Expected: {"$or": [partner_share = false, company$id selfAndAncestorsOf, company$id IS NULL]}
+        """
+        # Simulating after _expand_hierarchy_operators has run:
+        domain = ['|', '|', ('partner_share', '=', False),
+                  ('company$id', 'selfAndAncestorsOf', [1, 2]),
+                  ('company_id', '=', False)]
+        slices = self._domain_to_slices(domain, field_types=self.PARTNER_FIELD_TYPES)
+
+        assert len(slices) == 1
+        assert '$or' in slices[0]
+        or_children = slices[0]['$or']
+        assert len(or_children) == 3
+        # partner_share is boolean (from field_types) → = false, not IS NULL
+        assert or_children[0] == {'field': 'partner_share', 'op': '=', 'value': False}
+        assert or_children[1] == {'field': 'company$id', 'op': 'selfAndAncestorsOf',
+                                  'value': [1, 2]}
+        assert or_children[2] == {'field': 'company$id', 'op': 'is null'}
+
+    def test_hierarchy_expansion_parent_of(self):
+        """Verify _expand_hierarchy_operators converts parent_of correctly."""
+        domain = [('company_id', 'parent_of', [1, 2])]
+        result = _expand_hierarchy_operators(None, domain, 'res.partner')
+        assert len(result) == 1
+        assert result[0] == ('company$id', 'selfAndAncestorsOf', [1, 2])
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Cross-model field mapping integration tests
+# ═══════════════════════════════════════════════════════════════════
+
+class TestCrossModelFieldMapping:
+    """Verify field mappings work correctly across different model contexts.
+
+    Different models use the same Odoo field names but map to different
+    QM dimensions. The DIRECT_FIELD_MAP is global, so we test that the
+    most common mappings work for the fields used in ir.rule domains.
+    """
+
+    def test_invoice_user_id_maps_to_salesperson(self):
+        """account.move: invoice_user_id → salesperson$id."""
+        result = _leaf_to_condition(('invoice_user_id', '=', 6))
+        assert result == {'field': 'salesperson$id', 'op': '=', 'value': 6}
+
+    def test_invoice_user_id_null_check(self):
+        """account.move: invoice_user_id = False → salesperson$id IS NULL."""
+        result = _leaf_to_condition(('invoice_user_id', '=', False))
+        assert result == {'field': 'salesperson$id', 'op': 'is null'}
+
+    def test_move_type_maps_to_moveType(self):
+        """account.move: move_type → moveType."""
+        result = _leaf_to_condition(('move_type', 'in', ('out_invoice', 'out_refund')))
+        assert result == {'field': 'moveType', 'op': 'in',
+                          'value': ['out_invoice', 'out_refund']}
+
+    def test_state_passes_through(self):
+        """state → state (same name, explicit mapping)."""
+        result = _leaf_to_condition(('state', 'not in', ('cancel', 'draft')))
+        assert result == {'field': 'state', 'op': 'not in',
+                          'value': ['cancel', 'draft']}
+
+    def test_journal_id_maps_to_journal(self):
+        """account.move: journal_id → journal$id."""
+        result = _leaf_to_condition(('journal_id', '=', 3))
+        assert result == {'field': 'journal$id', 'op': '=', 'value': 3}
+
+    def test_picking_type_id_maps_to_pickingType(self):
+        """stock.picking/purchase.order: picking_type_id → pickingType$id."""
+        result = _leaf_to_condition(('picking_type_id', '=', 1))
+        assert result == {'field': 'pickingType$id', 'op': '=', 'value': 1}
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Boolean vs NULL disambiguation
+# ═══════════════════════════════════════════════════════════════════
+
+class TestBooleanVsNull:
+    """Test dynamic field type introspection for Boolean vs NULL disambiguation.
+
+    Odoo uses ('field', '=', False) for two entirely different semantics:
+      - Many2one: field IS NULL  (no related record)
+      - Boolean:  field = false  (boolean value is false)
+
+    The field_types dict (built from Odoo ORM metadata via _build_field_types)
+    tells _leaf_to_condition which interpretation to use.
+    """
+
+    # Simulated field types (what _build_field_types would return from Odoo ORM)
+    FIELD_TYPES = {
+        'partner_share': 'boolean',
+        'active': 'boolean',
+        'is_company': 'boolean',
+        'company_id': 'many2one',
+        'user_id': 'many2one',
+    }
+
+    def test_many2one_eq_false_is_null(self):
+        """Many2one field: ('company_id', '=', False) → IS NULL."""
+        result = _leaf_to_condition(('company_id', '=', False),
+                                    ctx=FieldContext(field_types=self.FIELD_TYPES))
+        assert result == {'field': 'company$id', 'op': 'is null'}
+
+    def test_many2one_neq_false_is_not_null(self):
+        """Many2one field: ('user_id', '!=', False) → IS NOT NULL."""
+        result = _leaf_to_condition(('user_id', '!=', False),
+                                    ctx=FieldContext(field_types=self.FIELD_TYPES))
+        assert result == {'field': 'salesperson$id', 'op': 'is not null'}
+
+    def test_boolean_eq_false_equals_false(self):
+        """Boolean field: ('partner_share', '=', False) → = false."""
+        result = _leaf_to_condition(('partner_share', '=', False),
+                                    ctx=FieldContext(field_types=self.FIELD_TYPES))
+        assert result == {'field': 'partner_share', 'op': '=', 'value': False}
+
+    def test_boolean_neq_false_neq_false(self):
+        """Boolean field: ('active', '!=', False) → != false (i.e., active is true)."""
+        result = _leaf_to_condition(('active', '!=', False),
+                                    ctx=FieldContext(field_types=self.FIELD_TYPES))
+        assert result == {'field': 'active', 'op': '!=', 'value': False}
+
+    def test_boolean_eq_false_negated(self):
+        """NOT ('partner_share', '=', False) → partner_share != false."""
+        result = _leaf_to_condition(('partner_share', '=', False),
+                                    negate=True, ctx=FieldContext(field_types=self.FIELD_TYPES))
+        assert result == {'field': 'partner_share', 'op': '!=', 'value': False}
+
+    def test_boolean_neq_false_negated(self):
+        """NOT ('active', '!=', False) → active = false."""
+        result = _leaf_to_condition(('active', '!=', False),
+                                    negate=True, ctx=FieldContext(field_types=self.FIELD_TYPES))
+        assert result == {'field': 'active', 'op': '=', 'value': False}
+
+    def test_is_company_boolean(self):
+        """is_company is boolean (from field_types) → correct boolean handling."""
+        result = _leaf_to_condition(('is_company', '=', False),
+                                    ctx=FieldContext(field_types=self.FIELD_TYPES))
+        assert result == {'field': 'is_company', 'op': '=', 'value': False}
+
+    def test_unknown_field_eq_false_is_null(self):
+        """Unknown field (not in field_types) defaults to IS NULL (Many2one assumption)."""
+        result = _leaf_to_condition(('some_relation_id', '=', False),
+                                    ctx=FieldContext(field_types=self.FIELD_TYPES))
+        assert result == {'field': 'some_relation_id', 'op': 'is null'}
+
+    def test_no_field_types_defaults_to_null(self):
+        """Without ctx (None), all '= False' treated as IS NULL."""
+        result = _leaf_to_condition(('partner_share', '=', False))
+        assert result == {'field': 'partner_share', 'op': 'is null'}
+
+    def test_empty_field_types_defaults_to_null(self):
+        """With empty field_types dict, all '= False' treated as IS NULL."""
+        result = _leaf_to_condition(('active', '=', False),
+                                    ctx=FieldContext(field_types={}))
+        assert result == {'field': 'active', 'op': 'is null'}
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Dynamic column_map (per-model field resolution)
+# ═══════════════════════════════════════════════════════════════════
+
+class TestDynamicColumnMap:
+    """Test dynamic per-model column_map field resolution via FieldContext.
+
+    FieldContext.column_map is a dict of {db_column: qm_field} loaded from Foggy
+    metadata (FieldMappingRegistry). It takes priority over the static
+    DIRECT_FIELD_MAP for per-model field name mapping.
+
+    Priority: ctx.column_map > DIRECT_FIELD_MAP > passthrough
+    """
+
+    def test_column_map_overrides_direct_field_map(self):
+        """column_map entry takes priority over DIRECT_FIELD_MAP.
+
+        DIRECT_FIELD_MAP: user_id → salesperson$id
+        column_map: user_id → user$id (e.g., hr.employee model)
+        """
+        ctx = FieldContext(column_map={'user_id': 'user$id'})
+        result = _leaf_to_condition(('user_id', '=', 42), ctx=ctx)
+        assert result == {'field': 'user$id', 'op': '=', 'value': 42}
+
+    def test_column_map_none_falls_back_to_direct(self):
+        """Without ctx, falls back to DIRECT_FIELD_MAP."""
+        result = _leaf_to_condition(('user_id', '=', 42))
+        assert result == {'field': 'salesperson$id', 'op': '=', 'value': 42}
+
+    def test_column_map_empty_falls_back_to_direct(self):
+        """Empty column_map falls back to DIRECT_FIELD_MAP."""
+        result = _leaf_to_condition(('user_id', '=', 42),
+                                    ctx=FieldContext(column_map={}))
+        assert result == {'field': 'salesperson$id', 'op': '=', 'value': 42}
+
+    def test_column_map_field_not_in_map_falls_back(self):
+        """Field not in column_map falls back to DIRECT_FIELD_MAP."""
+        ctx = FieldContext(column_map={'company_id': 'company$id'})
+        result = _leaf_to_condition(('user_id', '=', 42), ctx=ctx)
+        assert result == {'field': 'salesperson$id', 'op': '=', 'value': 42}
+
+    def test_column_map_unknown_field_passthrough(self):
+        """Field not in either map passes through unchanged."""
+        ctx = FieldContext(column_map={'company_id': 'company$id'})
+        result = _leaf_to_condition(('unknown_field', '=', 'abc'), ctx=ctx)
+        assert result == {'field': 'unknown_field', 'op': '=', 'value': 'abc'}
+
+    def test_per_model_user_id_sale_order(self):
+        """sale.order: user_id → salesperson$id (from column_map)."""
+        ctx = FieldContext(column_map={'user_id': 'salesperson$id', 'partner_id': 'partner$id'})
+        result = _leaf_to_condition(('user_id', '=', 5), ctx=ctx)
+        assert result == {'field': 'salesperson$id', 'op': '=', 'value': 5}
+
+    def test_per_model_user_id_hr_employee(self):
+        """hr.employee: user_id → user$id (different from sale.order)."""
+        ctx = FieldContext(column_map={'user_id': 'user$id', 'department_id': 'department$id'})
+        result = _leaf_to_condition(('user_id', '=', 5), ctx=ctx)
+        assert result == {'field': 'user$id', 'op': '=', 'value': 5}
+
+    def test_column_map_with_null_handling(self):
+        """column_map works correctly with NULL/IS NULL semantics."""
+        ctx = FieldContext(column_map={'user_id': 'user$id'})
+        result = _leaf_to_condition(('user_id', '=', False), ctx=ctx)
+        assert result == {'field': 'user$id', 'op': 'is null'}
+
+    def test_column_map_with_boolean_field(self):
+        """column_map works with boolean field_types disambiguation."""
+        ctx = FieldContext(
+            column_map={'partner_share': 'partnerShare'},
+            field_types={'partner_share': 'boolean'},
+        )
+        result = _leaf_to_condition(('partner_share', '=', False), ctx=ctx)
+        assert result == {'field': 'partnerShare', 'op': '=', 'value': False}
+
+    def test_column_map_in_flatten(self):
+        """column_map propagates through _flatten_to_dsl_slices via FieldContext."""
+        domain = ['&', ('user_id', '=', 5), ('company_id', 'in', [1, 2])]
+        tree = _parse_domain_ast(domain)
+        ctx = FieldContext(column_map={'user_id': 'user$id', 'company_id': 'company$id'})
+        slices = _flatten_to_dsl_slices(tree, ctx=ctx)
+        assert slices == [
+            {'field': 'user$id', 'op': '=', 'value': 5},
+            {'field': 'company$id', 'op': 'in', 'value': [1, 2]},
+        ]
+
+    def test_column_map_in_or_branch(self):
+        """column_map propagates into OR branches."""
+        domain = ['|', ('user_id', '=', 5), ('user_id', '=', False)]
+        tree = _parse_domain_ast(domain)
+        ctx = FieldContext(column_map={'user_id': 'user$id'})
+        slices = _flatten_to_dsl_slices(tree, ctx=ctx)
+        assert len(slices) == 1
+        assert '$or' in slices[0]
+        or_children = slices[0]['$or']
+        assert or_children[0] == {'field': 'user$id', 'op': '=', 'value': 5}
+        assert or_children[1] == {'field': 'user$id', 'op': 'is null'}
+
+    def test_column_map_in_not_branch(self):
+        """column_map propagates into NOT (negated) branches."""
+        domain = ['!', ('user_id', '=', 5)]
+        tree = _parse_domain_ast(domain)
+        ctx = FieldContext(column_map={'user_id': 'user$id'})
+        slices = _flatten_to_dsl_slices(tree, ctx=ctx)
+        assert slices == [{'field': 'user$id', 'op': '!=', 'value': 5}]
+
+    def test_column_map_with_negated_or(self):
+        """column_map in NOT(OR(A, B)) = AND(NOT(A), NOT(B))."""
+        domain = ['!', '|', ('user_id', '=', 5), ('company_id', '=', 1)]
+        tree = _parse_domain_ast(domain)
+        ctx = FieldContext(column_map={'user_id': 'user$id', 'company_id': 'company$id'})
+        slices = _flatten_to_dsl_slices(tree, ctx=ctx)
+        # NOT(OR(A, B)) = NOT(A) AND NOT(B) → two AND'd slices
+        assert len(slices) == 2
+        assert slices[0] == {'field': 'user$id', 'op': '!=', 'value': 5}
+        assert slices[1] == {'field': 'company$id', 'op': '!=', 'value': 1}
+
+    def test_column_map_measure_field(self):
+        """column_map works for measure fields (e.g., amount_total → amountTotal)."""
+        ctx = FieldContext(column_map={'amount_total': 'amountTotal'})
+        result = _leaf_to_condition(('amount_total', '>', 100), ctx=ctx)
+        assert result == {'field': 'amountTotal', 'op': '>', 'value': 100}

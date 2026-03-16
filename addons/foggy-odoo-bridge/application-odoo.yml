@@ -52,3 +52,4 @@ foggy:
         - OdooHrEmployeeQueryModel
         - OdooResPartnerQueryModel
         - OdooResCompanyQueryModel
+        - OdooCrmLeadQueryModel

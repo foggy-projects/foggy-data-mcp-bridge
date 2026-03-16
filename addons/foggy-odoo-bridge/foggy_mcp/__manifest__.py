@@ -23,7 +23,8 @@ Features:
     - Closure table hierarchy queries (child_of/parent_of -> selfAndDescendantsOf/selfAndAncestorsOf)
     - Tool registry with caching from Foggy MCP Server
     - Multi-company support
-    - 7 pre-built Odoo business models (Sale Order, Purchase, Invoice, Stock, HR, Partner, Company)
+    - 8 pre-built Odoo business models (Sale, Purchase, Invoice, Stock, HR, Partner, Company, CRM)
+    - Built-in AI Chat: talk to your data directly from Odoo (supports OpenAI, Anthropic, DeepSeek, Ollama)
 
 Security:
     - Users only see data they have access to (enforced by Odoo ir.rule)
@@ -42,20 +43,30 @@ Data Privacy Notice:
     'author': 'Foggy Framework',
     'website': 'https://github.com/nicholasgasior/foggy-data-mcp-bridge',
     'license': 'Other OSI approved licence',
-    'depends': ['base', 'sale', 'purchase', 'account', 'stock', 'hr'],
-    'external_dependencies': {},
+    'depends': ['base', 'sale', 'purchase', 'account', 'stock', 'hr', 'crm'],
+    'external_dependencies': {
+        'python': ['litellm'],
+    },
     'data': [
         'security/ir.model.access.csv',
         'security/foggy_security.xml',
         'wizard/foggy_setup_wizard_views.xml',
         'views/foggy_config_views.xml',
         'views/foggy_api_key_views.xml',
+        'views/foggy_chat_views.xml',
         'data/foggy_data.xml',
     ],
+    'assets': {
+        'web.assets_backend': [
+            'foggy_mcp/static/src/components/**/*.js',
+            'foggy_mcp/static/src/components/**/*.xml',
+            'foggy_mcp/static/src/components/**/*.scss',
+        ],
+    },
     'images': ['static/description/banner.png'],
     'price': 0,
     'currency': 'EUR',
     'installable': True,
-    'application': False,
+    'application': True,
     'auto_install': False,
 }

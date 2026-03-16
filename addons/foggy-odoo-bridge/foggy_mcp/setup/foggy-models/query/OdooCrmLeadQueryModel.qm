@@ -1,0 +1,111 @@
+/**
+ * CRM Lead/Opportunity Query Model
+ *
+ * @caption CRM Pipeline Analysis
+ * @description Query leads and opportunities by stage, salesperson, team, campaign, and time period.
+ *              Permissions enforced via payload.slice injection from Odoo MCP Gateway.
+ */
+const crm = loadTableModel('OdooCrmLeadModel');
+
+export const queryModel = {
+    name: 'OdooCrmLeadQueryModel',
+    caption: 'CRM Pipeline Analysis',
+    description: 'Analyze CRM leads and opportunities by pipeline stage, salesperson, sales team, '
+        + 'campaign, and time period. Supports revenue forecasting, conversion analysis, and pipeline metrics.',
+    loader: 'v2',
+
+    model: crm,
+
+    columnGroups: [
+        {
+            caption: 'Lead Information',
+            items: [
+                { ref: crm.id },
+                { ref: crm.name },
+                { ref: crm.type },
+                { ref: crm.priority },
+                { ref: crm.active },
+                { ref: crm.contactName },
+                { ref: crm.partnerName },
+                { ref: crm.emailFrom },
+                { ref: crm.phone },
+                { ref: crm.city },
+                { ref: crm.dateDeadline },
+                { ref: crm.dateOpen },
+                { ref: crm.dateClosed },
+                { ref: crm.dateConversion },
+                { ref: crm.dateLastStageUpdate },
+                { ref: crm.createDate },
+                { ref: crm.writeDate }
+            ]
+        },
+        {
+            caption: 'Pipeline',
+            items: [
+                { ref: crm.stage },
+                { ref: crm.lostReason }
+            ]
+        },
+        {
+            caption: 'Customer',
+            items: [
+                { ref: crm.partner },
+                { ref: crm.partner$email },
+                { ref: crm.partner$phone },
+                { ref: crm.partner$city },
+                { ref: crm.partner$isCompany }
+            ]
+        },
+        {
+            caption: 'Sales Organization',
+            items: [
+                { ref: crm.salesperson },
+                { ref: crm.salesTeam },
+                { ref: crm.company }
+            ]
+        },
+        {
+            caption: 'Geography',
+            items: [
+                { ref: crm.country }
+            ]
+        },
+        {
+            caption: 'Marketing',
+            items: [
+                { ref: crm.campaign },
+                { ref: crm.utmSource },
+                { ref: crm.utmMedium }
+            ]
+        },
+        {
+            caption: 'Revenue & Metrics',
+            items: [
+                { ref: crm.expectedRevenue },
+                { ref: crm.proratedRevenue },
+                { ref: crm.recurringRevenue },
+                { ref: crm.recurringRevenueMonthly },
+                { ref: crm.probability },
+                { ref: crm.dayOpen },
+                { ref: crm.dayClose },
+                { ref: crm.leadCount },
+                {
+                    name: 'avgDealSize',
+                    caption: 'Avg Deal Size',
+                    formula: 'expectedRevenue / leadCount',
+                    type: 'MONEY'
+                },
+                {
+                    name: 'weightedPipeline',
+                    caption: 'Weighted Pipeline',
+                    formula: 'proratedRevenue',
+                    type: 'MONEY',
+                    description: 'Expected revenue weighted by win probability'
+                }
+            ]
+        }
+    ],
+
+    // No accesses — permissions injected by Odoo MCP Gateway via payload.slice
+    accesses: []
+};

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <!-- Client action for the OWL chat component -->
+    <record id="foggy_chat_action" model="ir.actions.client">
+        <field name="name">Foggy AI Chat</field>
+        <field name="tag">foggy_mcp.foggy_chat_action_client</field>
+    </record>
+
+    <!-- Menu: Foggy MCP → AI Chat (all internal users) -->
+    <menuitem id="foggy_mcp_user_menu_chat"
+              name="AI Chat"
+              parent="foggy_mcp_user_menu_root"
+              action="foggy_chat_action"
+              sequence="5"/>
+</odoo>

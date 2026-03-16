@@ -792,6 +792,12 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         fieldInfo.put("measure", false);
         fieldInfo.put("aggregatable", false);
 
+        // 输出事实表外键列名（供外部系统做 DB列名→QM字段 自动映射）
+        String fk = dimension.getForeignKey();
+        if (fk != null) {
+            fieldInfo.put("sourceColumn", fk);
+        }
+
         Map<String, Object> modelInfo = new LinkedHashMap<>();
         modelInfo.put("description", buildIdDescription(dimension));
         modelInfo.put("usage", "用于精确查询、作为外键关联、排序");
@@ -1127,6 +1133,12 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             modelInfo.put("type", modelType.name());
         }
 
+        // 输出事实表名（供外部系统做 DB列名→QM字段 自动映射）
+        String tableName = jdbcModel.getTableName();
+        if (tableName != null) {
+            modelInfo.put("factTable", tableName);
+        }
+
         modelInfo.put("purpose", "数据查询和分析");
         modelInfo.put("scenarios", Arrays.asList("数据查询", "统计分析", "报表生成"));
         models.put(queryModel.getName(), modelInfo);
@@ -1151,6 +1163,12 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         // 如果是字典类型，添加字典信息
         if (StringUtils.isNotEmpty(property.getDictRef())) {
             fieldInfo.put("dictId", property.getDictRef());
+        }
+
+        // 输出源列名（供外部系统做 DB列名→QM字段 自动映射）
+        String sqlCol = property.getPropertyDbColumn().getSqlColumnName();
+        if (sqlCol != null) {
+            fieldInfo.put("sourceColumn", sqlCol);
         }
 
         Map<String, Object> modelInfo = new LinkedHashMap<>();
@@ -1206,6 +1224,12 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         fieldInfo.put("measure", true);
         fieldInfo.put("aggregatable", true);
         fieldInfo.put("aggregation", aggregation);
+
+        // 输出源列名（供外部系统做 DB列名→QM字段 自动映射）
+        String sqlCol = measure.getJdbcColumn().getSqlColumnName();
+        if (sqlCol != null) {
+            fieldInfo.put("sourceColumn", sqlCol);
+        }
 
         Map<String, Object> modelInfo = new LinkedHashMap<>();
         modelInfo.put("description", measure.getCaption() + " (聚合方式: " + aggregation + ")");
