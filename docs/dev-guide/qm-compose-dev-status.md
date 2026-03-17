@@ -51,33 +51,33 @@
 
 ## 三、测试覆盖
 
-### 现状：专项单元测试覆盖率 = 0
+### 现状：P0 单元测试已覆盖
 
-| 组件 | 需要的测试类型 | 优先级 |
-|---|---|---|
-| `CteComposer` | 纯单元测试（无需 DB），验证 CTE/子查询 SQL 拼接 | **P0** |
-| `DataSetResult.filter/sort/compute` | 纯单元测试（无需 DB），验证内存操作 | **P0** |
-| `DataSetResult.column/toList/first/size/value` | 纯单元测试 | P1 |
-| `ComposedDataSetResult` | 集成测试（需 DataSource + QM），验证延迟执行 | P2 |
-| `SqlGenerationResult` | 集成测试（通过 QueryFacade 间接验证） | P2 |
-| `ComposeQueryTool` | MCP 层集成测试 | P3 |
+| 组件 | 测试类型 | 优先级 | 状态 |
+|---|---|---|---|
+| `CteComposer` | 纯单元测试（13 tests） | **P0** | ✅ `CteComposerTest` |
+| `DataSetResult.filter/sort/compute` | 纯单元测试（46 tests 中含） | **P0** | ✅ `DataSetResultTest` |
+| `DataSetResult.column/toList/first/size/value` | 纯单元测试（46 tests 中含） | P1 | ✅ `DataSetResultTest` |
+| `DataSetResult.joinInMemory` | 纯单元测试（15 tests） | **P0** | ✅ `DataSetResultTest` |
+| `ComposedDataSetResult` | 集成测试（需 DataSource + QM），验证延迟执行 | P2 | 🔲 待实现 |
+| `SqlGenerationResult` | 集成测试（通过 QueryFacade 间接验证） | P2 | 🔲 待实现 |
+| `ComposeQueryTool` | MCP 层集成测试 | P3 | 🔲 待实现 |
 
-### 已有测试影响
+### 测试结果
 
 运行 `mvn test -pl foggy-dataset-model -Dspring.profiles.active=sqlite`：
 
-- **631 tests run, 1 failure**
-- 失败测试：`AdvancedAnalyticsTest.testDslOverrideQmPredefined`
-- **原因**：此失败与 QM Compose 无关，是 main 分支 commit `5f48802`（"fix: handle AI误传预定义calculatedFields冲突"）引入的已有问题
-- **验证**：QM Compose 未修改 `JdbcModelQueryEngine.java`，`git diff HEAD` 确认无改动
+- **690 tests run, 0 failures**（含 59 个 Compose 单元测试）
 
 ---
 
 ## 四、下一步工作
 
-1. **修复已有测试失败**：`AdvancedAnalyticsTest.testDslOverrideQmPredefined`（main 上已有，非 Compose 引入）
-2. **补充 QM Compose 单元测试**：
-   - `CteComposerTest` — CTE 模式 / 子查询模式 / 多表 JOIN / 参数合并
-   - `DataSetResultTest` — filter / sort / compute / column / 链式调用
-3. **更新 AI 文档**：`compose_query.md` 补充 withJoin / filter / sort / compute API 说明
-4. **端到端验证**：通过 MCP 工具实际运行 fsscript 编排脚本
+1. ~~修复已有测试失败~~：✅ `AdvancedAnalyticsTest.testDslOverrideQmPredefined` 已通过
+2. ~~补充 QM Compose P0 单元测试~~：✅ `CteComposerTest`（13）+ `DataSetResultTest`（46）
+3. ~~更新 AI 文档~~：✅ `compose_query.md` 已补充 withJoin / joinInMemory / filter / sort / compute API 说明
+4. ~~内存 JOIN~~：✅ `DataSetResult.joinInMemory()` 支持跨库 Hash JOIN（LEFT/INNER），含 15 个单元测试
+5. **元数据 dataSourceGroup**：在模型元数据中暴露 dataSource 归属信息，供 LLM/调用者判断使用 withJoin 还是 joinInMemory
+6. **P2 集成测试**：`ComposedDataSetResult` 延迟执行（需 DataSource + 真实 QM 模型）
+7. **P3 MCP 端到端验证**：通过 MCP 工具实际运行 fsscript 编排脚本
+8. **多数据库方言验证**：PostgreSQL / MySQL 8 的 CTE 模式、MySQL 5.7 子查询回退

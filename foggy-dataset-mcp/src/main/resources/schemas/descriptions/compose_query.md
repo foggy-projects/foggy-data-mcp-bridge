@@ -20,7 +20,14 @@ Returns a `DataSetResult` with methods:
 - `.toList()` — all rows as array of objects
 - `.first()` — first row
 - `.size()` — row count
+- `.isEmpty()` — check if result is empty
 - `.value('field')` — scalar value from first row
+- `.withJoin(rightDs, joinType, joinKey)` — CTE/subquery composition, same dataSource only (lazy execution)
+- `.joinInMemory(rightDs, joinType, joinKey)` — in-memory Hash JOIN, works across different dataSources
+- `.joinInMemory(rightDs, joinType, leftKey, rightKey)` — in-memory Hash JOIN with different key names
+- `.filter(expr)` — in-memory row filter using boolean expression
+- `.sort(field)` — in-memory sort; prefix `-` for descending (e.g. `'-amount'`)
+- `.compute(name, expr)` — add computed column via expression
 
 ## Pattern: ID Pushdown
 
@@ -39,6 +46,92 @@ const leads = dsl({
     slice: [{ field: 'partner$id', op: 'in', value: topCustomers.column('partner$id') }]
 });
 return leads;
+```
+
+## Pattern: CTE Composition (withJoin)
+
+Join results from two different QM models at the database level using CTE (or subquery fallback for MySQL 5.7):
+
+```javascript
+const sales = dsl({
+    model: 'SaleOrderQM',
+    columns: ['partner$id', 'sum(amountTotal) as totalSales']
+});
+const leads = dsl({
+    model: 'CrmLeadQM',
+    columns: ['partner$id', 'count(id) as leadCount']
+});
+// LEFT JOIN at DB level — generates WITH cte_0 AS (...), cte_1 AS (...) SELECT ...
+return sales.withJoin(leads, 'LEFT', 'partner$id');
+```
+
+Supported join types: `LEFT`, `INNER`.
+
+## Pattern: Cross-Database JOIN (joinInMemory)
+
+When two models are on different dataSources (cross-database), use `joinInMemory` instead of `withJoin`.
+Each query executes on its own database, results are merged via Hash JOIN in Java memory.
+
+```javascript
+const orders = dsl({
+    model: 'SaleOrderQM',    // on MySQL
+    columns: ['partner$id', 'sum(amountTotal) as totalSales']
+});
+const employees = dsl({
+    model: 'HrEmployeeQM',   // on PostgreSQL
+    columns: ['partner$id', 'name', 'department$caption']
+});
+// In-memory Hash JOIN (O(n+m)), no CTE — works across databases
+return orders.joinInMemory(employees, 'LEFT', 'partner$id');
+```
+
+Different key names:
+
+```javascript
+return orders.joinInMemory(shipments, 'INNER', 'orderId', 'orderRef');
+```
+
+Combine with filter/sort/compute:
+
+```javascript
+return orders.joinInMemory(employees, 'INNER', 'partner$id')
+    .filter("totalSales > 10000")
+    .sort('-totalSales');
+```
+
+**Choosing withJoin vs joinInMemory:**
+- Same `dataSourceGroup` → `withJoin` (SQL-level, no row limit)
+- Different `dataSourceGroup` → `joinInMemory` (in-memory, subject to JVM memory)
+
+## Pattern: In-Memory Transformations (filter / sort / compute)
+
+Post-process query results without additional SQL queries. Each method returns a new `DataSetResult` (immutable).
+
+```javascript
+const ds = dsl({
+    model: 'SaleOrderQM',
+    columns: ['partner$caption', 'amountTotal', 'status']
+});
+
+// Filter: keep rows where expression is truthy
+const big = ds.filter('amountTotal > 1000');
+
+// Sort: prefix '-' for descending
+const sorted = big.sort('-amountTotal');
+
+// Compute: add a derived column
+const withMargin = sorted.compute('margin', 'amountTotal * 0.1');
+
+return withMargin;
+```
+
+Chain calls fluently:
+
+```javascript
+return dsl({ model: 'SaleOrderQM', columns: ['partner$caption', 'amountTotal', 'status'] })
+    .filter("status == 'confirmed'")
+    .sort('-amountTotal')
+    .compute('rank', 'amountTotal');
 ```
 
 ## Pattern: Multi-step Analysis
