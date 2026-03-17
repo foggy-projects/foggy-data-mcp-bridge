@@ -61,8 +61,8 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
         // 获取 QueryModel（用于查询字段定义）
         QueryModel queryModel = ctx.getQueryModel();
 
-        // 注入 QM 预定义的 calculatedFields
-        injectPredefinedCalculatedFields(queryRequest, queryModel);
+        // 注入 QM 预定义的 calculatedFields（同时处理 AI 误传的同名字段）
+        injectPredefinedCalculatedFields(queryRequest, queryModel, ctx);
 
         // 解析并转换
         ModelResultContext.ParsedInlineExpressions result = parseAndConvert(columns, queryRequest, queryModel);
@@ -495,7 +495,16 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
      * DSL 请求中同名的 calculatedField 可覆盖 QM 预定义的。
      * </p>
      */
-    private void injectPredefinedCalculatedFields(DbQueryRequestDef queryRequest, QueryModel queryModel) {
+    /**
+     * 注入 QM 预定义计算字段，并处理与用户自定义字段的同名冲突。
+     *
+     * <p>安全策略：仅移除与 QM 预定义计算字段同名的用户自定义字段（AI 常见误用）。
+     * 与普通列（维度/度量/属性）同名的冲突由 CalculatedFieldService 拦截，
+     * 防止用户通过自定义计算字段覆盖已有列（可能涉及权限控制等安全敏感字段）。</p>
+     */
+    @SuppressWarnings("unchecked")
+    private void injectPredefinedCalculatedFields(DbQueryRequestDef queryRequest, QueryModel queryModel,
+                                                   ModelResultContext ctx) {
         if (!(queryModel instanceof QueryModelSupport)) {
             return;
         }
@@ -505,7 +514,37 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
             return;
         }
 
-        // 收集 DSL 请求中已定义的 calculatedField 名称
+        // 建立预定义字段名称索引
+        Set<String> predefinedNames = new HashSet<>();
+        for (CalculatedFieldDef calc : predefined) {
+            predefinedNames.add(calc.getName());
+        }
+
+        // 移除与预定义字段同名的用户自定义字段，并记录 warning
+        if (queryRequest.getCalculatedFields() != null) {
+            List<CalculatedFieldDef> userFields = queryRequest.getCalculatedFields();
+            List<String> replaced = new ArrayList<>();
+            userFields.removeIf(f -> {
+                if (predefinedNames.contains(f.getName())) {
+                    replaced.add(f.getName());
+                    return true;
+                }
+                return false;
+            });
+            if (!replaced.isEmpty()) {
+                String warning = "以下字段为预定义计算字段，已忽略您自定义的版本并使用模型预定义公式: " + replaced
+                        + "。请直接在 columns 中引用，不要在 calculatedFields 中重复定义。";
+                log.warn(warning);
+                // 写入 extData，由 SemanticQueryServiceV3Impl 收集到 response.warnings
+                if (ctx != null) {
+                    List<String> engineWarnings = (List<String>) ctx.getExtData()
+                            .computeIfAbsent("engineWarnings", k -> new ArrayList<>());
+                    engineWarnings.add(warning);
+                }
+            }
+        }
+
+        // 收集 DSL 请求中剩余的 calculatedField 名称
         Set<String> existingNames = new HashSet<>();
         if (queryRequest.getCalculatedFields() != null) {
             for (CalculatedFieldDef f : queryRequest.getCalculatedFields()) {

@@ -945,7 +945,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
         // 未预处理，执行原有逻辑
 
         // 注入 QM 预定义的 calculatedFields（与 InlineExpressionPreprocessStep 相同逻辑）
-        injectPredefinedCalculatedFields(queryRequest);
+        injectPredefinedCalculatedFields(queryRequest, context);
 
         List<String> columns = queryRequest.getColumns();
         if (columns == null || columns.isEmpty()) {
@@ -1009,7 +1009,8 @@ public class JdbcModelQueryEngine implements QueryEngine {
      * 当直接调用 analysisQueryRequest（跳过 Step 流水线）时由此方法注入。
      * </p>
      */
-    private void injectPredefinedCalculatedFields(DbQueryRequestDef queryRequest) {
+    @SuppressWarnings("unchecked")
+    private void injectPredefinedCalculatedFields(DbQueryRequestDef queryRequest, ModelResultContext context) {
         if (!(jdbcQueryModel instanceof com.foggyframework.dataset.db.model.engine.query_model.QueryModelSupport)) {
             return;
         }
@@ -1047,9 +1048,15 @@ public class JdbcModelQueryEngine implements QueryEngine {
                 return false;
             });
             if (!replaced.isEmpty()) {
-                log.warn("Dropped {} user-defined calculatedFields that duplicate QM predefined fields: {}. " +
-                        "These are predefined fields — reference them in 'columns' directly, " +
-                        "do NOT redefine in 'calculatedFields'.", replaced.size(), replaced);
+                String warning = "以下字段为预定义计算字段，已忽略您自定义的版本并使用模型预定义公式: " + replaced
+                        + "。请直接在 columns 中引用，不要在 calculatedFields 中重复定义。";
+                log.warn(warning);
+                // 写入 extData，由 SemanticQueryServiceV3Impl 收集到 response.warnings
+                if (context != null) {
+                    List<String> engineWarnings = (List<String>) context.getExtData()
+                            .computeIfAbsent("engineWarnings", k -> new ArrayList<>());
+                    engineWarnings.add(warning);
+                }
             }
         }
 

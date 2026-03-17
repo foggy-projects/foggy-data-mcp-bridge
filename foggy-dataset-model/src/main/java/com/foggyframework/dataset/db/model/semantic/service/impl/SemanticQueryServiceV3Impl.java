@@ -9,6 +9,7 @@ import com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.CondRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
+import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
 import com.foggyframework.dataset.db.model.engine.expression.InlineExpressionParser;
 import com.foggyframework.dataset.db.model.engine.query.DbQueryResult;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
@@ -137,6 +138,45 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
     public SemanticQueryResponse validateQuery(String model, SemanticQueryRequest request,
                                                SemanticRequestContext context) {
         return validateQueryInternal(model, request, context.getNamespace());
+    }
+
+    @Override
+    public SqlGenerationResult generateSql(String model, SemanticQueryRequest request,
+                                           SemanticRequestContext context) {
+        if (request.getColumns() == null || request.getColumns().isEmpty()) {
+            throw RX.throwB("请指定查询字段");
+        }
+
+        String namespace = context.getNamespace();
+        ModelResultContext.SecurityContext securityContext = context.getSecurityContext();
+
+        // 1. 构建上下文（复用现有逻辑）
+        QueryContextV3 qctx = new QueryContextV3();
+        qctx.model = model;
+        qctx.originalRequest = request;
+
+        // 2. 构建初始JDBC请求
+        PagingRequest<DbQueryRequestDef> jdbcRequest = buildJdbcRequest(model, request, qctx, namespace);
+
+        // 3. 处理 slice 中的 $caption 值转换
+        if (request.getSlice() != null) {
+            List<SliceRequestDef> processedSlice = processSliceValues(model, request.getSlice(), request, qctx);
+            jdbcRequest.getParam().setSlice(processedSlice);
+        }
+
+        // 4. 创建ModelResultContext
+        ModelResultContext resultContext = new ModelResultContext();
+        resultContext.setRequest(jdbcRequest);
+        resultContext.setQueryType(ModelResultContext.QueryType.SEMANTIC);
+        resultContext.setSecurityContext(securityContext);
+        resultContext.setNamespace(namespace);
+
+        if (request.getHints() != null && !request.getHints().isEmpty()) {
+            resultContext.setExtData(new HashMap<>(request.getHints()));
+        }
+
+        // 5. 走 beforeQuery pipeline 然后截取 SQL（不执行）
+        return queryFacade.buildSqlOnly(resultContext);
     }
 
     /**
@@ -374,7 +414,12 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         response.setHasNext(hasMore);
         response.setTotalData(queryResult.getTotalData());
 
-        // 设置警告信息
+        // 设置警告信息（合并语义层 warnings + 引擎层 engineWarnings）
+        if (context.extData != null && context.extData.containsKey("engineWarnings")) {
+            @SuppressWarnings("unchecked")
+            List<String> engineWarnings = (List<String>) context.extData.get("engineWarnings");
+            context.warnings.addAll(engineWarnings);
+        }
         response.setWarnings(context.warnings.isEmpty() ? null : context.warnings);
 
         // 构建 Schema 信息（包含 summary）
