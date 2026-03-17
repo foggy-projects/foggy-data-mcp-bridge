@@ -52,10 +52,10 @@ class FoggySetupWizard(models.TransientModel):
     db_user = fields.Char(string='Database User')
     db_password = fields.Char(string='Database Password')
     db_name = fields.Char(string='Database Name')
-    foggy_port = fields.Integer(string='Foggy Port', default=8080)
+    foggy_port = fields.Integer(string='Foggy Port', default=7108)
     foggy_url = fields.Char(
         string='Foggy MCP URL',
-        default='http://localhost:8080',
+        default='http://localhost:7108',
     )
     models_path = fields.Char(
         string='Models Path',
@@ -181,7 +181,7 @@ class FoggySetupWizard(models.TransientModel):
             db_user=self.db_user,
             db_password=self.db_password,
             db_name=self.db_name,
-            foggy_port=self.foggy_port or 8080,
+            foggy_port=self.foggy_port or 7108,
             models_path=self.models_path or self._get_models_path(),
         )
 
@@ -278,7 +278,7 @@ class FoggySetupWizard(models.TransientModel):
     def action_test_connection(self):
         """Test connectivity to Foggy MCP Server."""
         self.ensure_one()
-        url = self.foggy_url or 'http://localhost:8080'
+        url = self.foggy_url or 'http://localhost:7108'
 
         try:
             import requests  # noqa: E401  (delayed import — not an Odoo dep)

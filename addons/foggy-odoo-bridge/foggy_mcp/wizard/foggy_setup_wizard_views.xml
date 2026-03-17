@@ -154,7 +154,7 @@
                             </p>
                         </div>
                         <group string="Foggy MCP Server">
-                            <field name="foggy_url" placeholder="http://localhost:8080"/>
+                            <field name="foggy_url" placeholder="http://localhost:7108"/>
                         </group>
                         <group string="Result" invisible="not connection_status">
                             <field name="connection_status" nolabel="1"

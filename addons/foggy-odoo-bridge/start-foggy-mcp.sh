@@ -6,7 +6,7 @@
 # PostgreSQL database, with Odoo TM/QM models loaded.
 #
 # Usage:
-#   ./start-foggy-mcp.sh              # default port 8080
+#   ./start-foggy-mcp.sh              # default port 7108
 #   ./start-foggy-mcp.sh 9090         # custom port
 #   ./start-foggy-mcp.sh --stop       # stop only
 #
@@ -19,7 +19,7 @@
 set -euo pipefail
 
 # ─── Configuration ──────────────────────────────────────────
-PORT="${1:-8080}"
+PORT="${1:-7108}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CONFIG_FILE="$SCRIPT_DIR/application-odoo.yml"
@@ -83,7 +83,7 @@ if [[ "${1:-}" == "--stop" ]]; then
         rm -f "$PID_FILE"
     else
         warn "No PID file found. Trying port-based kill..."
-        kill_by_port 8080 || warn "No process found."
+        kill_by_port 7108 || warn "No process found."
     fi
     exit 0
 fi

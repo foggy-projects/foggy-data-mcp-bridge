@@ -7,7 +7,7 @@
 ```
 ✅ Docker 环境已启动（3 个容器）
 ✅ Odoo 17 运行中：  http://localhost:8069
-✅ Foggy MCP 运行中：http://localhost:8080
+✅ Foggy MCP 运行中：http://localhost:7108
 ✅ 闭包表已初始化：  SELECT refresh_all_closures();
 ✅ litellm 已安装：   docker compose exec odoo pip install litellm
 ```
@@ -40,7 +40,7 @@ curl -s http://localhost:8069/foggy-mcp/health | python -m json.tool
 
 | 配置项 | 值 | 说明 |
 |---|---|---|
-| Server URL | `http://host.docker.internal:8080` | Docker 内部通信地址 |
+| Server URL | `http://foggy-mcp:8080` | Docker 内部通信地址 |
 | Endpoint Path | `/mcp/analyst/rpc` | MCP 端点路径 |
 | Request Timeout | `30` | 超时秒数 |
 | Namespace | `odoo` | 模型命名空间 |
@@ -191,7 +191,7 @@ AI:  （自动使用 selfAndDescendantsOf 查询层级数据）
 {
   "mcpServers": {
     "foggy-odoo": {
-      "url": "http://localhost:8080/mcp/analyst/stream",
+      "url": "http://localhost:7108/mcp/analyst/stream",
       "headers": { "X-NS": "odoo" }
     }
   }
@@ -297,7 +297,7 @@ Research & Development 部门及其所有子部门共有多少员工？
 
 ## 第五步：验证权限桥接（通过 Gateway）
 
-> 以下仅通过 Odoo Gateway（端口 8069）测试时有效。直连 Foggy（8080）没有权限过滤。
+> 以下仅通过 Odoo Gateway（端口 8069）测试时有效。直连 Foggy（7108）没有权限过滤。
 
 ### 4.1 理解权限模型
 
@@ -357,7 +357,7 @@ curl -s http://localhost:8069/foggy-mcp/rpc \
 
 ```bash
 # 员工列表
-curl -s http://localhost:8080/mcp/admin/rpc \
+curl -s http://localhost:7108/mcp/admin/rpc \
   -H "Content-Type: application/json" \
   -H "X-NS: odoo" \
   -d '{

@@ -283,7 +283,7 @@ class TestResPartnerDirect:
     @pytest.fixture(scope='class')
     def foggy_session(self):
         """Direct Foggy MCP session (no Odoo auth)."""
-        foggy_url = os.getenv('FOGGY_MCP_URL', 'http://localhost:8080')
+        foggy_url = os.getenv('FOGGY_MCP_URL', 'http://localhost:7108')
         s = requests.Session()
         s.headers.update({
             'Content-Type': 'application/json',

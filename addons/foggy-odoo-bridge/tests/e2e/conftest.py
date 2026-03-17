@@ -2,7 +2,7 @@
 E2E integration test fixtures.
 
 Environment variables:
-  FOGGY_MCP_URL  - Foggy MCP Server base URL (default: http://localhost:8080)
+  FOGGY_MCP_URL  - Foggy MCP Server base URL (default: http://localhost:7108)
   ODOO_MCP_URL   - Odoo MCP Gateway base URL  (default: http://localhost:8069)
   ODOO_API_KEY   - Odoo MCP API key (fmcp_ prefix)
   FOGGY_NS       - Foggy namespace (default: odoo)
@@ -12,7 +12,7 @@ import os
 import pytest
 import requests
 
-FOGGY_MCP_URL = os.getenv('FOGGY_MCP_URL', 'http://localhost:8080')
+FOGGY_MCP_URL = os.getenv('FOGGY_MCP_URL', 'http://localhost:7108')
 ODOO_MCP_URL = os.getenv('ODOO_MCP_URL', 'http://localhost:8069')
 ODOO_API_KEY = os.getenv('ODOO_API_KEY', '')
 FOGGY_NS = os.getenv('FOGGY_NS', 'odoo')

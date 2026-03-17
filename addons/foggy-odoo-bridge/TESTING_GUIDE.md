@@ -3,25 +3,25 @@
 ## 架构与端口
 
 ```
-AI Client ──MCP──→ Odoo MCP Gateway (:8069) ──HTTP──→ Foggy MCP Server (:8080) ──SQL──→ PostgreSQL (:5432)
+AI Client ──MCP──→ Odoo MCP Gateway (:8069) ──HTTP──→ Foggy MCP Server (:7108) ──SQL──→ PostgreSQL (:5432)
 ```
 
 | 服务 | 端口 | 说明 |
 |---|---|---|
 | **Odoo 17** | `8069` | Odoo Web + MCP Gateway（含权限桥接） |
-| **Foggy MCP Java** | `8080` | 纯查询引擎（内部服务，本次体验直连此端口） |
+| **Foggy MCP Java** | `7108` | 纯查询引擎（内部服务，本次体验直连此端口） |
 | **PostgreSQL 15** | `5432` | Odoo 数据库 |
 
-### 本次体验：直连 Foggy MCP Java（端口 8080）
+### 本次体验：直连 Foggy MCP Java（端口 7108）
 
 跳过 Odoo Gateway，直接验证模型和查询能力。
 
 | 项目 | 值 |
 |---|---|
-| MCP Admin 端点 | `http://localhost:8080/mcp/admin/rpc` |
-| MCP Analyst 端点 | `http://localhost:8080/mcp/analyst/rpc` |
-| MCP SSE 端点 | `http://localhost:8080/mcp/analyst/stream` |
-| Health Check | `http://localhost:8080/actuator/health` |
+| MCP Admin 端点 | `http://localhost:7108/mcp/admin/rpc` |
+| MCP Analyst 端点 | `http://localhost:7108/mcp/analyst/rpc` |
+| MCP SSE 端点 | `http://localhost:7108/mcp/analyst/stream` |
+| Health Check | `http://localhost:7108/actuator/health` |
 | 必填 Header | `X-NS: odoo` |
 
 **AI 客户端配置**（Claude Desktop / Cursor / Cherry Studio 等）：
@@ -29,7 +29,7 @@ AI Client ──MCP──→ Odoo MCP Gateway (:8069) ──HTTP──→ Foggy 
 {
   "mcpServers": {
     "foggy-odoo": {
-      "url": "http://localhost:8080/mcp/analyst/stream",
+      "url": "http://localhost:7108/mcp/analyst/stream",
       "headers": { "X-NS": "odoo" }
     }
   }
@@ -154,13 +154,13 @@ AI Client ──MCP──→ Odoo MCP Gateway (:8069) ──HTTP──→ Foggy 
 ```bash
 # 自动化验证（25 项测试）
 cd addons/foggy-odoo-bridge
-python tests/e2e/verify_all_models.py http://localhost:8080 odoo
+python tests/e2e/verify_all_models.py http://localhost:7108 odoo
 
 # Schema 验证（TM vs 数据库列类型）
 python tests/e2e/verify_schema.py --docker foggy-odoo-postgres
 
 # 手动 curl 测试（示例：查询销售订单）
-curl -s -X POST http://localhost:8080/mcp/admin/rpc \
+curl -s -X POST http://localhost:7108/mcp/admin/rpc \
   -H "Content-Type: application/json" \
   -H "X-NS: odoo" \
   -d '{

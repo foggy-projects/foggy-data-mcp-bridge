@@ -149,7 +149,7 @@ def action_init_closure_tables(self):
 def action_test_connection(self):
     """测试 Foggy MCP Server 连通性"""
     import requests
-    url = self.foggy_url or 'http://localhost:8080'
+    url = self.foggy_url or 'http://localhost:7108'
     try:
         r = requests.get(f'{url}/actuator/health', timeout=5)
         if r.status_code == 200:

@@ -5,7 +5,7 @@
 # PostgreSQL database, with Odoo TM/QM models loaded.
 #
 # Usage:
-#   .\start-foggy-mcp.ps1              # default port 8080
+#   .\start-foggy-mcp.ps1              # default port 7108
 #   .\start-foggy-mcp.ps1 -Port 9090   # custom port
 #   .\start-foggy-mcp.ps1 -Stop        # stop only
 #
@@ -17,7 +17,7 @@
 
 [CmdletBinding()]
 param(
-    [int]$Port = 8080,
+    [int]$Port = 7108,
     [switch]$Stop
 )
 

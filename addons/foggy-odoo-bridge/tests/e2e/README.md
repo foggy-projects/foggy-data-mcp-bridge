@@ -30,7 +30,7 @@ psql -U odoo -d odoo -c "SELECT refresh_all_closures();"
 
 ```bash
 # 设置环境变量（可选，默认值适用于 Docker 环境）
-export FOGGY_MCP_URL=http://localhost:8080
+export FOGGY_MCP_URL=http://localhost:7108
 export ODOO_MCP_URL=http://localhost:8069
 
 # 运行
