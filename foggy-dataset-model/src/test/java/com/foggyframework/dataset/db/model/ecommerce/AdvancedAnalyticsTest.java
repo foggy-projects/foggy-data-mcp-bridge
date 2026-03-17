@@ -420,7 +420,7 @@ class AdvancedAnalyticsTest extends EcommerceTestSupport {
 
     @Test
     @Order(23)
-    @DisplayName("DSL 覆盖 QM 预定义字段")
+    @DisplayName("DSL 同名预定义字段被丢弃，使用 QM 预定义版本（安全策略）")
     void testDslOverrideQmPredefined() {
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
@@ -428,7 +428,7 @@ class AdvancedAnalyticsTest extends EcommerceTestSupport {
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("FactSalesQueryModel");
 
-        // DSL 中定义同名的 profitRate，覆盖 QM 预定义
+        // DSL 中定义同名的 profitRate，但安全策略会丢弃用户版本，使用 QM 预定义公式
         List<CalculatedFieldDef> calculatedFields = new ArrayList<>();
         calculatedFields.add(new CalculatedFieldDef(
                 "profitRate", "利润率(override)", "profitAmount / salesAmount * 200"
@@ -441,10 +441,11 @@ class AdvancedAnalyticsTest extends EcommerceTestSupport {
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
         String sql = queryEngine.getSql();
         assertNotNull(sql);
-        printSql(sql, "DSL 覆盖 QM 预定义");
+        printSql(sql, "预定义字段不可覆盖");
 
-        // 验证是 *200 而非 QM 预定义的 *100
-        assertTrue(sql.contains("200"), "SQL 应使用 DSL 覆盖的 *200 而非 QM 预定义的 *100");
+        // 安全策略：预定义字段名 = 固定语义，用户自定义的 *200 被丢弃，使用 QM 预定义的 *100
+        assertTrue(sql.contains("100"), "SQL 应使用 QM 预定义的 *100，用户自定义版本应被丢弃");
+        assertFalse(sql.contains("200"), "用户自定义的 *200 不应出现在 SQL 中");
 
         List<Map<String, Object>> results = executeQuery(sql);
         assertFalse(results.isEmpty());
