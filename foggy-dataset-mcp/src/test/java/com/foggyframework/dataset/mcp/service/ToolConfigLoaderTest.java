@@ -18,11 +18,11 @@ import static org.junit.jupiter.api.Assertions.*;
 class ToolConfigLoaderTest {
 
     @Test
-    @DisplayName("getBuiltinDefaults 应返回 8 个内置工具")
+    @DisplayName("getBuiltinDefaults 应返回 9 个内置工具")
     void testBuiltinDefaults_ShouldReturn8Tools() {
         List<McpProperties.ToolConfigItem> defaults = ToolConfigLoader.getBuiltinDefaults();
 
-        assertEquals(8, defaults.size());
+        assertEquals(9, defaults.size());
 
         // 验证每个工具都有完整配置
         for (McpProperties.ToolConfigItem tool : defaults) {
@@ -47,6 +47,7 @@ class ToolConfigLoaderTest {
         assertTrue(names.contains("dataset.open_in_viewer"), "Should contain open_in_viewer");
         assertTrue(names.contains("dataset_nl.query"), "Should contain nl.query");
         assertTrue(names.contains("chart.generate"), "Should contain chart.generate");
+        assertTrue(names.contains("dataset.compose_query"), "Should contain compose_query");
     }
 
     @Test
@@ -83,7 +84,7 @@ class ToolConfigLoaderTest {
      * 整体替换主 application.yml 的 8 个工具，导致只剩 1 个。
      */
     @Test
-    @DisplayName("lite profile: YAML 只禁用 open_in_viewer，其他 7 个默认工具应保留")
+    @DisplayName("lite profile: YAML 只禁用 open_in_viewer，其他 8 个默认工具应保留")
     void testLiteProfileScenario_ShouldKeepAllDefaultsExceptDisabled() {
         // 模拟 application-lite.yml 的 tools 配置
         McpProperties props = new McpProperties();
@@ -96,7 +97,7 @@ class ToolConfigLoaderTest {
         simulateMerge(props);
 
         // 验证结果
-        assertEquals(8, props.getTools().size(), "Should still have 8 tools after merge");
+        assertEquals(9, props.getTools().size(), "Should still have 9 tools after merge");
 
         // open_in_viewer 应该被禁用
         McpProperties.ToolConfigItem viewer = findTool(props, "dataset.open_in_viewer");
@@ -126,7 +127,7 @@ class ToolConfigLoaderTest {
 
         simulateMerge(props);
 
-        assertEquals(8, props.getTools().size());
+        assertEquals(9, props.getTools().size());
         for (McpProperties.ToolConfigItem tool : props.getTools()) {
             assertNotNull(tool.getDescriptionFile(), "Should have descriptionFile for " + tool.getName());
             assertNotNull(tool.getSchemaFile(), "Should have schemaFile for " + tool.getName());
@@ -165,8 +166,8 @@ class ToolConfigLoaderTest {
 
         simulateMerge(props);
 
-        assertEquals(9, props.getTools().size(), "8 defaults + 1 custom");
-        McpProperties.ToolConfigItem last = props.getTools().get(8);
+        assertEquals(10, props.getTools().size(), "9 defaults + 1 custom");
+        McpProperties.ToolConfigItem last = props.getTools().get(9);
         assertEquals("custom.my_tool", last.getName());
         assertEquals("classpath:/custom/tool.md", last.getDescriptionFile());
     }

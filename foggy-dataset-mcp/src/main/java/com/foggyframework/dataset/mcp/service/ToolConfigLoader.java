@@ -138,7 +138,7 @@ public class ToolConfigLoader {
      *
      * <p>Spring Boot 对 list 属性采用整体替换策略，导致 profile 中只要配了
      * {@code foggy.mcp.tools} 的任意条目，就会覆盖掉主 application.yml 中的全部工具。
-     * 此方法始终先加载 8 个内置默认工具，再将 YAML 中的同名条目合并覆盖上去（仅覆盖已设置的字段）。
+     * 此方法始终先加载内置默认工具，再将 YAML 中的同名条目合并覆盖上去（仅覆盖已设置的字段）。
      */
     private void mergeWithDefaults() {
         List<McpProperties.ToolConfigItem> yamlOverrides = new ArrayList<>(mcpProperties.getTools());
