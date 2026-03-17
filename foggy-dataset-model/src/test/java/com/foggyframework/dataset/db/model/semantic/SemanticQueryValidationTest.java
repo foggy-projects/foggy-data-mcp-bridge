@@ -470,9 +470,11 @@ class SemanticQueryValidationTest extends EcommerceTestSupport {
         assertFalse(response.getItems().isEmpty(), "items 不应为空列表");
 
         // SQL 基线查询（等价 SQL，直接查 fact_order 表）
-        String yearFunc = "sqlite".equals(getDialectKey())
-                ? "CAST(strftime('%Y', order_time) AS INTEGER)"
-                : "YEAR(order_time)";
+        String yearFunc = switch (getDialectKey()) {
+            case "sqlite" -> "CAST(strftime('%Y', order_time) AS INTEGER)";
+            case "postgresql" -> "EXTRACT(YEAR FROM order_time)::INTEGER";
+            default -> "YEAR(order_time)";  // MySQL, SQL Server
+        };
         String baselineSql = "SELECT " + yearFunc + " AS yr, SUM(total_amount) AS amt "
                 + "FROM fact_order GROUP BY " + yearFunc + " ORDER BY yr";
         List<Map<String, Object>> baseline = executeQuery(baselineSql);
@@ -526,9 +528,11 @@ class SemanticQueryValidationTest extends EcommerceTestSupport {
         assertFalse(response.getItems().isEmpty(), "items 不应为空列表");
 
         // SQL 基线查询
-        String monthFunc = "sqlite".equals(getDialectKey())
-                ? "CAST(strftime('%m', order_time) AS INTEGER)"
-                : "MONTH(order_time)";
+        String monthFunc = switch (getDialectKey()) {
+            case "sqlite" -> "CAST(strftime('%m', order_time) AS INTEGER)";
+            case "postgresql" -> "EXTRACT(MONTH FROM order_time)::INTEGER";
+            default -> "MONTH(order_time)";  // MySQL, SQL Server
+        };
         String baselineSql = "SELECT " + monthFunc + " AS mo, SUM(total_amount) AS amt "
                 + "FROM fact_order GROUP BY " + monthFunc + " ORDER BY mo";
         List<Map<String, Object>> baseline = executeQuery(baselineSql);
