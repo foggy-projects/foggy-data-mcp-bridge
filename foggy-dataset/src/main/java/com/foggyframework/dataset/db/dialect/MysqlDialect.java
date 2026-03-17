@@ -195,4 +195,13 @@ public  class MysqlDialect extends FDialect {
     public String buildCurrentTimestampExpression() {
         return "NOW()";
     }
+
+    /**
+     * MySQL 5.7 不支持 CTE；保守默认 false。
+     * <p>CteComposer 会自动回退为子查询（FROM subquery）方案。</p>
+     */
+    @Override
+    public boolean supportsCte() {
+        return false;
+    }
 }

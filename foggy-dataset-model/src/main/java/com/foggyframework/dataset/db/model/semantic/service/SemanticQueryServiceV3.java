@@ -1,5 +1,6 @@
 package com.foggyframework.dataset.db.model.semantic.service;
 
+import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
@@ -44,4 +45,18 @@ public interface SemanticQueryServiceV3 {
      */
     SemanticQueryResponse validateQuery(String model, SemanticQueryRequest request,
                                         SemanticRequestContext context);
+
+    /**
+     * 仅生成 SQL，不执行查询
+     *
+     * <p>用于 CTE/子查询组合场景：走完语义层转换 + beforeQuery pipeline（权限注入等），
+     * 截取 QM 生成的完整 SQL，不执行。</p>
+     *
+     * @param model   模型名称
+     * @param request 语义查询请求
+     * @param context 请求上下文
+     * @return SQL 生成结果
+     */
+    SqlGenerationResult generateSql(String model, SemanticQueryRequest request,
+                                    SemanticRequestContext context);
 }

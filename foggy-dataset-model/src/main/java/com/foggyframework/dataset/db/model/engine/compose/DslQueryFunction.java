@@ -1,6 +1,5 @@
 package com.foggyframework.dataset.db.model.engine.compose;
 
-import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
@@ -11,6 +10,7 @@ import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.sql.DataSource;
 import java.util.*;
 
 /**
@@ -52,6 +52,11 @@ public class DslQueryFunction implements FsscriptFunction {
     private final SemanticRequestContext requestContext;
 
     /**
+     * 数据源（可选，用于 withJoin 的 CTE 组合执行）
+     */
+    private final DataSource dataSource;
+
+    /**
      * 查询计数器（防止脚本中死循环调用 dsl）
      */
     private int queryCount = 0;
@@ -62,8 +67,20 @@ public class DslQueryFunction implements FsscriptFunction {
      */
     public DslQueryFunction(SemanticQueryServiceV3 queryService,
                             SemanticRequestContext requestContext) {
+        this(queryService, requestContext, null);
+    }
+
+    /**
+     * @param queryService   语义查询服务
+     * @param requestContext 请求上下文（namespace + 安全信息）
+     * @param dataSource     数据源（用于 withJoin 的 CTE 组合执行，可选）
+     */
+    public DslQueryFunction(SemanticQueryServiceV3 queryService,
+                            SemanticRequestContext requestContext,
+                            DataSource dataSource) {
         this.queryService = queryService;
         this.requestContext = requestContext;
+        this.dataSource = dataSource;
     }
 
     @Override
@@ -103,7 +120,17 @@ public class DslQueryFunction implements FsscriptFunction {
         logger.debug("dsl() query #{} completed: model={}, rows={}",
                 queryCount, model, response.getItems() != null ? response.getItems().size() : 0);
 
-        return new DataSetResult(response.getItems(), response);
+        DataSetResult result = new DataSetResult(response.getItems(), response);
+
+        // 保留原始参数（供 withJoin 重新生成 SQL）
+        result.setDslParams(params);
+
+        // 设置 compose 上下文（供 withJoin 使用）
+        if (dataSource != null) {
+            result.setComposeContext(new DataSetResult.ComposeContext(queryService, requestContext, dataSource));
+        }
+
+        return result;
     }
 
     /**

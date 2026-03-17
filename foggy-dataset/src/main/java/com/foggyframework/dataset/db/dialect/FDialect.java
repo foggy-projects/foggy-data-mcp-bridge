@@ -485,4 +485,17 @@ public abstract class FDialect {
         // 默认实现：直接返回原值
         return value;
     }
+
+    /**
+     * 是否支持 CTE（WITH ... AS）语法
+     *
+     * <p>默认 true（PostgreSQL 12+、SQL Server 2012+、SQLite 3.35+、MySQL 8.0+ 均支持）。
+     * MySQL 5.7 需重写为 false，{@link com.foggyframework.dataset.db.model.engine.compose.CteComposer}
+     * 会自动回退为子查询方案。</p>
+     *
+     * @return true 如果支持 CTE 语法
+     */
+    public boolean supportsCte() {
+        return true;
+    }
 }

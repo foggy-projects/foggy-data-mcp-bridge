@@ -13,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import javax.script.*;
+import javax.sql.DataSource;
 import java.util.*;
 
 /**
@@ -40,6 +41,7 @@ import java.util.*;
 public class ComposeQueryTool implements McpTool {
 
     private final SemanticQueryServiceV3 queryService;
+    private final DataSource dataSource;
 
     @Override
     public String getName() {
@@ -77,9 +79,9 @@ public class ComposeQueryTool implements McpTool {
                 return RX.failB("FSScript engine not available");
             }
 
-            // 3. 创建 Bindings，注入白名单函数
+            // 3. 创建 Bindings，注入白名单函数（含 DataSource 用于 withJoin CTE 组合）
             Bindings bindings = engine.createBindings();
-            bindings.put("dsl", new DslQueryFunction(queryService, requestContext));
+            bindings.put("dsl", new DslQueryFunction(queryService, requestContext, dataSource));
             // 不注入 applicationContext → 阻断 @bean / java: 导入
 
             ScriptContext scriptContext = new SimpleScriptContext();
@@ -116,7 +118,11 @@ public class ComposeQueryTool implements McpTool {
     private Object convertResult(Object result) {
         if (result instanceof DataSetResult ds) {
             // 返回完整的 SemanticQueryResponse（含 items, schema, pagination 等）
-            return RX.ok(ds.getRawResponse());
+            if (ds.getRawResponse() != null) {
+                return RX.ok(ds.getRawResponse());
+            }
+            // withJoin 等场景可能没有 rawResponse，直接返回 items
+            return RX.ok(ds.toList());
         }
         if (result instanceof List) {
             // 脚本直接返回列表

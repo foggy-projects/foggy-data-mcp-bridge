@@ -2,6 +2,7 @@ package com.foggyframework.dataset.db.model.service;
 
 import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
+import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
 import com.foggyframework.dataset.db.model.engine.query.DbQueryResult;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.model.PagingResultImpl;
@@ -88,4 +89,15 @@ public interface QueryFacade {
      * @return 查询结果（包含查询引擎信息）
      */
     DbQueryResult queryModelResult(ModelResultContext context);
+
+    /**
+     * 仅生成 SQL，不执行查询
+     *
+     * <p>用于 CTE/子查询组合场景：走完 beforeQuery pipeline（权限注入、AutoGroupBy 等），
+     * 然后调用 {@code JdbcQueryModelImpl.generateSql()} 截取 SQL + 参数，不实际执行。</p>
+     *
+     * @param context 预配置的上下文（必须已设置 request）
+     * @return SQL 生成结果（含 SQL 字符串、绑定参数）
+     */
+    SqlGenerationResult buildSqlOnly(ModelResultContext context);
 }

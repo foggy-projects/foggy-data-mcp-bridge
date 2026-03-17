@@ -6,6 +6,7 @@ import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.engine.JdbcModelQueryEngine;
+import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
 import com.foggyframework.dataset.db.model.engine.expression.SqlCalculatedFieldProcessor;
 import com.foggyframework.dataset.db.model.engine.formula.SqlFormulaService;
 import com.foggyframework.dataset.db.model.engine.query.DbQueryResult;
@@ -152,6 +153,23 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
         }
 
         return DbQueryResult.of(result, queryEngine);
+    }
+
+    /**
+     * 仅生成 SQL，不执行
+     *
+     * <p>用于 CTE/子查询组合场景：复用 {@link #queryJdbc} 的 SQL 构建流程
+     * （{@code analysisQueryRequest}），截取生成的 SQL 和参数后返回，
+     * 不执行查询、不走预聚合/缓存步骤。</p>
+     *
+     * @param systemBundlesContext 系统上下文
+     * @param context              查询上下文（已完成 beforeQuery pipeline）
+     * @return SQL 生成结果（含 SQL、参数、查询引擎引用）
+     */
+    public SqlGenerationResult generateSql(SystemBundlesContext systemBundlesContext, ModelResultContext context) {
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(this, sqlFormulaService);
+        queryEngine.analysisQueryRequest(systemBundlesContext, context);
+        return new SqlGenerationResult(queryEngine.getSql(), queryEngine.getValues(), queryEngine);
     }
 
     /**

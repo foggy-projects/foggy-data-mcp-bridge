@@ -1,9 +1,15 @@
 package com.foggyframework.dataset.db.model.engine.compose;
 
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
+import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
+import com.foggyframework.fsscript.DefaultExpEvaluator;
 import com.foggyframework.fsscript.exp.PropertyFunction;
+import com.foggyframework.fsscript.parser.ExpParser;
+import com.foggyframework.fsscript.parser.spi.Exp;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 
+import javax.sql.DataSource;
 import java.util.*;
 
 /**
@@ -33,14 +39,62 @@ public class DataSetResult implements PropertyFunction {
     private final List<Map<String, Object>> items;
     private final SemanticQueryResponse rawResponse;
 
+    /**
+     * 原始 dsl() 查询参数（用于 withJoin 时重新生成 SQL）
+     */
+    private Map<String, Object> dslParams;
+
+    /**
+     * Compose 上下文（用于 withJoin）
+     */
+    private ComposeContext composeContext;
+
     public DataSetResult(List<Map<String, Object>> items, SemanticQueryResponse rawResponse) {
         this.items = items != null ? items : Collections.emptyList();
         this.rawResponse = rawResponse;
     }
 
+    public Map<String, Object> getDslParams() {
+        return dslParams;
+    }
+
+    public void setDslParams(Map<String, Object> dslParams) {
+        this.dslParams = dslParams;
+    }
+
+    public ComposeContext getComposeContext() {
+        return composeContext;
+    }
+
+    public void setComposeContext(ComposeContext composeContext) {
+        this.composeContext = composeContext;
+    }
+
+    /**
+     * Compose 上下文 -- 持有 withJoin 所需的服务引用
+     */
+    public static class ComposeContext {
+        private final SemanticQueryServiceV3 queryService;
+        private final SemanticRequestContext requestContext;
+        private final DataSource dataSource;
+
+        public ComposeContext(SemanticQueryServiceV3 queryService,
+                              SemanticRequestContext requestContext,
+                              DataSource dataSource) {
+            this.queryService = queryService;
+            this.requestContext = requestContext;
+            this.dataSource = dataSource;
+        }
+
+        public SemanticQueryServiceV3 getQueryService() { return queryService; }
+        public SemanticRequestContext getRequestContext() { return requestContext; }
+        public DataSource getDataSource() { return dataSource; }
+    }
+
     // ---- PropertyFunction：让 fsscript 中 ds.method() 能正确分发 ----
 
     @Override
+    @SuppressWarnings("unchecked")
     public Object invoke(ExpEvaluator evaluator, String methodName, Object[] args) {
         return switch (methodName) {
             case "column" -> {
@@ -56,9 +110,26 @@ public class DataSetResult implements PropertyFunction {
                 yield value((String) args[0]);
             }
             case "getRawResponse" -> getRawResponse();
+            case "withJoin" -> {
+                // withJoin(rightDs, joinType, joinKey)
+                requireArgs(methodName, args, 3);
+                yield withJoin((DataSetResult) args[0], (String) args[1], (String) args[2]);
+            }
+            case "filter" -> {
+                requireArgs(methodName, args, 1);
+                yield filter((String) args[0]);
+            }
+            case "sort" -> {
+                requireArgs(methodName, args, 1);
+                yield sort((String) args[0]);
+            }
+            case "compute" -> {
+                requireArgs(methodName, args, 2);
+                yield compute((String) args[0], (String) args[1]);
+            }
             default -> throw new IllegalArgumentException(
                     "DataSetResult has no method '" + methodName + "'. " +
-                    "Available: column(field), toList(), first(), size(), isEmpty(), value(field)");
+                    "Available: column, toList, first, size, isEmpty, value, withJoin, filter, sort, compute");
         };
     }
 
@@ -140,6 +211,191 @@ public class DataSetResult implements PropertyFunction {
     public Object value(String field) {
         Map<String, Object> row = first();
         return row.isEmpty() ? null : row.get(field);
+    }
+
+    /**
+     * 创建 CTE 组合查询（延迟执行）
+     *
+     * <p>在 fsscript 中：
+     * <pre>{@code
+     * const composed = leftDs.withJoin(rightDs, 'LEFT', 'partner_id');
+     * return composed.toList();
+     * }</pre>
+     *
+     * @param right    右侧数据集（必须有 dslParams）
+     * @param joinType JOIN 类型（LEFT, INNER）
+     * @param joinKey  JOIN 键名
+     * @return ComposedDataSetResult（延迟执行，首次调用方法时触发 SQL 组合）
+     */
+    public ComposedDataSetResult withJoin(DataSetResult right, String joinType, String joinKey) {
+        if (this.dslParams == null) {
+            throw new IllegalStateException("withJoin() requires dslParams. This DataSetResult was not created by dsl().");
+        }
+        if (right.getDslParams() == null) {
+            throw new IllegalStateException("withJoin() requires dslParams on the right DataSetResult.");
+        }
+        if (this.composeContext == null) {
+            throw new IllegalStateException("withJoin() requires composeContext. Ensure DslQueryFunction provides it.");
+        }
+
+        return new ComposedDataSetResult(
+                composeContext.getQueryService(),
+                composeContext.getRequestContext(),
+                composeContext.getDataSource(),
+                this.dslParams,
+                right.getDslParams(),
+                joinType,
+                joinKey
+        );
+    }
+
+    // ---- 二次计算方法（返回新 DataSetResult，不修改原实例）----
+
+    /**
+     * 内存过滤 -- 使用 fsscript 表达式对每行求值，保留结果为 truthy 的行
+     *
+     * <pre>{@code
+     * // fsscript 中的用法
+     * const filtered = ds.filter('amountTotal > 1000');
+     * const active = ds.filter("status == 'confirmed'");
+     * }</pre>
+     *
+     * @param expr fsscript 布尔表达式，行字段作为变量
+     * @return 新的 DataSetResult（仅含匹配行）
+     */
+    public DataSetResult filter(String expr) {
+        if (expr == null || expr.isBlank()) {
+            throw new IllegalArgumentException("filter() requires a non-empty expression");
+        }
+        if (items.isEmpty()) {
+            return new DataSetResult(Collections.emptyList(), null);
+        }
+
+        Exp compiled = new ExpParser().compileEl(expr);
+        List<Map<String, Object>> filtered = new ArrayList<>();
+
+        for (Map<String, Object> row : items) {
+            ExpEvaluator ee = DefaultExpEvaluator.newInstance();
+            for (Map.Entry<String, Object> entry : row.entrySet()) {
+                ee.setVar(entry.getKey(), entry.getValue());
+            }
+            Object result = compiled.evalValue(ee);
+            if (isTruthy(result)) {
+                filtered.add(row);
+            }
+        }
+
+        return new DataSetResult(filtered, null);
+    }
+
+    /**
+     * 内存排序 -- 按指定字段排序
+     *
+     * <p>支持简写：{@code '-field'} 降序，{@code 'field'} 升序</p>
+     *
+     * <pre>{@code
+     * const sorted = ds.sort('-amountTotal');   // 按金额降序
+     * const sorted2 = ds.sort('name');          // 按名称升序
+     * }</pre>
+     *
+     * @param field 排序字段（前缀 '-' 表示降序）
+     * @return 新的 DataSetResult（排序后）
+     */
+    public DataSetResult sort(String field) {
+        if (field == null || field.isBlank()) {
+            throw new IllegalArgumentException("sort() requires a non-empty field name");
+        }
+        if (items.size() <= 1) {
+            return new DataSetResult(new ArrayList<>(items), null);
+        }
+
+        boolean desc = field.startsWith("-");
+        String actualField = desc ? field.substring(1) : field;
+
+        List<Map<String, Object>> sorted = new ArrayList<>(items);
+        sorted.sort((a, b) -> {
+            Object va = a.get(actualField);
+            Object vb = b.get(actualField);
+            int cmp = compareValues(va, vb);
+            return desc ? -cmp : cmp;
+        });
+
+        return new DataSetResult(sorted, null);
+    }
+
+    /**
+     * 新增计算列 -- 对每行执行 fsscript 表达式，将结果写入新列
+     *
+     * <pre>{@code
+     * // fsscript 中的用法
+     * const withMargin = ds.compute('margin', 'revenue - cost');
+     * const withLabel = ds.compute('label', "name + ' (' + region + ')'");
+     * }</pre>
+     *
+     * @param name 新列名
+     * @param expr fsscript 表达式，行字段作为变量
+     * @return 新的 DataSetResult（每行增加计算列）
+     */
+    public DataSetResult compute(String name, String expr) {
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException("compute() requires a non-empty column name");
+        }
+        if (expr == null || expr.isBlank()) {
+            throw new IllegalArgumentException("compute() requires a non-empty expression");
+        }
+        if (items.isEmpty()) {
+            return new DataSetResult(Collections.emptyList(), null);
+        }
+
+        Exp compiled = new ExpParser().compileEl(expr);
+        List<Map<String, Object>> computed = new ArrayList<>(items.size());
+
+        for (Map<String, Object> row : items) {
+            ExpEvaluator ee = DefaultExpEvaluator.newInstance();
+            for (Map.Entry<String, Object> entry : row.entrySet()) {
+                ee.setVar(entry.getKey(), entry.getValue());
+            }
+            Object result = compiled.evalValue(ee);
+
+            // 创建新行（不修改原始 row）
+            Map<String, Object> newRow = new LinkedHashMap<>(row);
+            newRow.put(name, result);
+            computed.add(newRow);
+        }
+
+        return new DataSetResult(computed, null);
+    }
+
+    // ---- 内部辅助方法 ----
+
+    /**
+     * 判断值是否为 truthy（与 JavaScript 语义一致）
+     */
+    private static boolean isTruthy(Object value) {
+        if (value == null) return false;
+        if (value instanceof Boolean b) return b;
+        if (value instanceof Number n) return n.doubleValue() != 0;
+        if (value instanceof String s) return !s.isEmpty();
+        return true;
+    }
+
+    /**
+     * 通用值比较（null-safe，支持 Comparable）
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static int compareValues(Object a, Object b) {
+        if (a == null && b == null) return 0;
+        if (a == null) return -1;
+        if (b == null) return 1;
+        if (a instanceof Comparable && b instanceof Comparable) {
+            try {
+                return ((Comparable) a).compareTo(b);
+            } catch (ClassCastException e) {
+                // 类型不同时回退到字符串比较
+                return a.toString().compareTo(b.toString());
+            }
+        }
+        return a.toString().compareTo(b.toString());
     }
 
     @Override

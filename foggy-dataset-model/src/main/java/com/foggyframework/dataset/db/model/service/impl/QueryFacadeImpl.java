@@ -3,7 +3,9 @@ package com.foggyframework.dataset.db.model.service.impl;
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
+import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
 import com.foggyframework.dataset.db.model.engine.query.DbQueryResult;
+import com.foggyframework.dataset.db.model.engine.query_model.JdbcQueryModelImpl;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.DataSetResultFilterManager;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.service.QueryFacade;
@@ -169,6 +171,37 @@ public class QueryFacadeImpl implements QueryFacade {
             return DbQueryResult.of(processedResult, dbQueryResult.getQueryEngine());
         } finally {
             // 8. 清理namespace ThreadLocal
+            NamespaceContext.clear();
+        }
+    }
+
+    @Override
+    public SqlGenerationResult buildSqlOnly(ModelResultContext context) {
+        try {
+            // 0. 设置namespace到ThreadLocal
+            if (context.getNamespace() != null) {
+                NamespaceContext.setNamespace(context.getNamespace());
+            }
+
+            PagingRequest<DbQueryRequestDef> form = context.getRequest();
+            DbQueryRequestDef queryRequest = form.getParam();
+
+            // 1. 获取查询模型
+            String queryModelName = queryRequest.getQueryModel();
+            QueryModel queryModel = queryModelLoader.getJdbcQueryModel(queryModelName, context.getNamespace());
+            context.setQueryModel(queryModel);
+
+            // 2. beforeQuery: 执行预处理（权限注入、AutoGroupBy 等）
+            dataSetResultFilterManager.beforeQuery(context);
+
+            // 3. 仅生成 SQL，不执行
+            if (queryModel instanceof JdbcQueryModelImpl jdbcImpl) {
+                return jdbcImpl.generateSql(systemBundlesContext, context);
+            }
+
+            throw new UnsupportedOperationException(
+                    "buildSqlOnly only supports JDBC query models, got: " + queryModel.getClass().getName());
+        } finally {
             NamespaceContext.clear();
         }
     }
