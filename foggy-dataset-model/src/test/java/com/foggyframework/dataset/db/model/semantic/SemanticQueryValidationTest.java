@@ -446,108 +446,113 @@ class SemanticQueryValidationTest extends EcommerceTestSupport {
 
     @Test
     @Order(110)
-    @DisplayName("YEAR(orderTime) as year — 端到端：验证别名通过 + SQL 执行 + 结果正确")
+    @DisplayName("YEAR(orderTime) as year — 端到端：DSL 结果与 SQL 基线对比")
     void testInlineExpressionAlias_GroupByMatch() {
-        // columns: ["YEAR(orderTime) as year", "amount"]
-        // groupBy: [{field: "year"}, {field: "amount", agg: "SUM"}]
-        // 测试数据：10 笔订单全部在 2024-01，应聚合为 1 行
-        // 注：orderTime 是 DATETIME 属性列，orderDate 是维度（不可直接用于函数）
-
+        // DSL 查询：YEAR(orderTime) as year, SUM(amount) GROUP BY year
         SemanticQueryRequest request = new SemanticQueryRequest();
         request.setColumns(Arrays.asList("YEAR(orderTime) as year", "amount"));
 
         List<SemanticQueryRequest.GroupByItem> groupByItems = new ArrayList<>();
-
         SemanticQueryRequest.GroupByItem yearItem = new SemanticQueryRequest.GroupByItem();
         yearItem.setField("year");
         groupByItems.add(yearItem);
-
         SemanticQueryRequest.GroupByItem measureItem = new SemanticQueryRequest.GroupByItem();
         measureItem.setField("amount");
         measureItem.setAgg("SUM");
         groupByItems.add(measureItem);
-
         request.setGroupBy(groupByItems);
-        request.setLimit(10);
 
-        SemanticQueryResponse response = semanticQueryService.queryModel(TEST_MODEL, request, "execute", SemanticRequestContext.empty());
+        SemanticQueryResponse response = semanticQueryService.queryModel(
+                TEST_MODEL, request, "execute", SemanticRequestContext.empty());
 
-        // 1. 基础断言
         assertNotNull(response, "响应不应为空");
         assertNotNull(response.getItems(), "items 不应为空");
         assertFalse(response.getItems().isEmpty(), "items 不应为空列表");
 
-        // 诊断：打印 schema、warnings 和全部结果
-        log.info("YEAR 查询 schema: {}", response.getSchema());
-        log.info("YEAR 查询 warnings: {}", response.getWarnings());
-        log.info("YEAR 查询 items (共 {} 行): {}", response.getItems().size(), response.getItems());
+        // SQL 基线查询（等价 SQL，直接查 fact_order 表）
+        String yearFunc = "sqlite".equals(getDialectKey())
+                ? "CAST(strftime('%Y', order_time) AS INTEGER)"
+                : "YEAR(order_time)";
+        String baselineSql = "SELECT " + yearFunc + " AS yr, SUM(total_amount) AS amt "
+                + "FROM fact_order GROUP BY " + yearFunc + " ORDER BY yr";
+        List<Map<String, Object>> baseline = executeQuery(baselineSql);
 
-        // 2. 验证内联表达式 YEAR(orderTime) 被正确解析
-        // 核心验证点：结果列名为 "year"（来自 AS 别名），值为合理的年份数字，
-        // 且 amount 为正数。不硬编码具体金额，因为 SQLite(10条) 和 MySQL docker(20000条) 数据量不同。
-        Map<String, Object> firstRow = response.getItems().get(0);
-        assertTrue(firstRow.containsKey("year"), "结果应包含 'year' 别名字段（来自内联表达式）");
-        int yearValue = ((Number) firstRow.get("year")).intValue();
-        assertTrue(yearValue >= 2020 && yearValue <= 2030,
-                "year 值应为合理年份，实际: " + yearValue);
+        log.info("DSL 结果 ({} 行): {}", response.getItems().size(), response.getItems());
+        log.info("SQL 基线 ({} 行): {}", baseline.size(), baseline);
 
-        assertTrue(firstRow.containsKey("amount"), "结果应包含 'amount' 度量字段");
-        double totalAmount = ((Number) firstRow.get("amount")).doubleValue();
-        assertTrue(totalAmount > 0, "SUM(amount) 应大于 0，实际: " + totalAmount);
+        // 对比行数
+        assertEquals(baseline.size(), response.getItems().size(),
+                "DSL 与 SQL 基线行数应一致");
 
-        log.info("YEAR 端到端验证通过: year={}, SUM(amount)={}", yearValue, totalAmount);
+        // 逐行对比（按 year 排序匹配）
+        Map<Integer, Double> dslMap = new LinkedHashMap<>();
+        for (Map<String, Object> item : response.getItems()) {
+            assertTrue(item.containsKey("year"), "DSL 结果应包含 'year' 列");
+            dslMap.put(((Number) item.get("year")).intValue(),
+                    ((Number) item.get("amount")).doubleValue());
+        }
+        for (Map<String, Object> row : baseline) {
+            int yr = ((Number) row.get("yr")).intValue();
+            double expectedAmt = ((Number) row.get("amt")).doubleValue();
+            assertTrue(dslMap.containsKey(yr), "DSL 结果应包含 year=" + yr);
+            assertEquals(expectedAmt, dslMap.get(yr), 0.01,
+                    "year=" + yr + " 的 SUM(amount) 应与 SQL 基线一致");
+        }
     }
 
     @Test
     @Order(111)
-    @DisplayName("MONTH(orderTime) as month — 端到端：验证别名通过 + SQL 执行 + 结果正确")
+    @DisplayName("MONTH(orderTime) as month — 端到端：DSL 结果与 SQL 基线对比")
     void testInlineExpressionAlias_MonthGroupBy() {
-        // columns: ["MONTH(orderTime) as month", "amount"]
-        // groupBy: [{field: "month"}, {field: "amount", agg: "SUM"}]
-        // 测试数据：10 笔订单全部在 1 月，应聚合为 1 行
-
+        // DSL 查询：MONTH(orderTime) as month, SUM(amount) GROUP BY month
         SemanticQueryRequest request = new SemanticQueryRequest();
         request.setColumns(Arrays.asList("MONTH(orderTime) as month", "amount"));
 
         List<SemanticQueryRequest.GroupByItem> groupByItems = new ArrayList<>();
-
         SemanticQueryRequest.GroupByItem monthItem = new SemanticQueryRequest.GroupByItem();
         monthItem.setField("month");
         groupByItems.add(monthItem);
-
         SemanticQueryRequest.GroupByItem measureItem = new SemanticQueryRequest.GroupByItem();
         measureItem.setField("amount");
         measureItem.setAgg("SUM");
         groupByItems.add(measureItem);
-
         request.setGroupBy(groupByItems);
-        request.setLimit(10);
 
-        SemanticQueryResponse response = semanticQueryService.queryModel(TEST_MODEL, request, "execute", SemanticRequestContext.empty());
+        SemanticQueryResponse response = semanticQueryService.queryModel(
+                TEST_MODEL, request, "execute", SemanticRequestContext.empty());
 
-        // 1. 基础断言
         assertNotNull(response, "响应不应为空");
         assertNotNull(response.getItems(), "items 不应为空");
         assertFalse(response.getItems().isEmpty(), "items 不应为空列表");
 
-        // 诊断：打印 schema、warnings 和全部结果
-        log.info("MONTH 查询 schema: {}", response.getSchema());
-        log.info("MONTH 查询 warnings: {}", response.getWarnings());
-        log.info("MONTH 查询 items (共 {} 行): {}", response.getItems().size(), response.getItems());
+        // SQL 基线查询
+        String monthFunc = "sqlite".equals(getDialectKey())
+                ? "CAST(strftime('%m', order_time) AS INTEGER)"
+                : "MONTH(order_time)";
+        String baselineSql = "SELECT " + monthFunc + " AS mo, SUM(total_amount) AS amt "
+                + "FROM fact_order GROUP BY " + monthFunc + " ORDER BY mo";
+        List<Map<String, Object>> baseline = executeQuery(baselineSql);
 
-        // 2. 验证内联表达式 MONTH(orderTime) 被正确解析
-        // 核心验证点：结果列名为 "month"（来自 AS 别名），值为 1-12 的合理月份，
-        // 且 amount 为正数。不硬编码具体金额，因为 SQLite(10条) 和 MySQL docker(20000条) 数据量不同。
-        Map<String, Object> firstRow = response.getItems().get(0);
-        assertTrue(firstRow.containsKey("month"), "结果应包含 'month' 别名字段（来自内联表达式）");
-        int monthValue = ((Number) firstRow.get("month")).intValue();
-        assertTrue(monthValue >= 1 && monthValue <= 12,
-                "month 值应为 1-12，实际: " + monthValue);
+        log.info("DSL 结果 ({} 行): {}", response.getItems().size(), response.getItems());
+        log.info("SQL 基线 ({} 行): {}", baseline.size(), baseline);
 
-        assertTrue(firstRow.containsKey("amount"), "结果应包含 'amount' 度量字段");
-        double totalAmount = ((Number) firstRow.get("amount")).doubleValue();
-        assertTrue(totalAmount > 0, "SUM(amount) 应大于 0，实际: " + totalAmount);
+        // 对比行数
+        assertEquals(baseline.size(), response.getItems().size(),
+                "DSL 与 SQL 基线行数应一致");
 
-        log.info("MONTH 端到端验证通过: month={}, SUM(amount)={}", monthValue, totalAmount);
+        // 逐行对比
+        Map<Integer, Double> dslMap = new LinkedHashMap<>();
+        for (Map<String, Object> item : response.getItems()) {
+            assertTrue(item.containsKey("month"), "DSL 结果应包含 'month' 列");
+            dslMap.put(((Number) item.get("month")).intValue(),
+                    ((Number) item.get("amount")).doubleValue());
+        }
+        for (Map<String, Object> row : baseline) {
+            int mo = ((Number) row.get("mo")).intValue();
+            double expectedAmt = ((Number) row.get("amt")).doubleValue();
+            assertTrue(dslMap.containsKey(mo), "DSL 结果应包含 month=" + mo);
+            assertEquals(expectedAmt, dslMap.get(mo), 0.01,
+                    "month=" + mo + " 的 SUM(amount) 应与 SQL 基线一致");
+        }
     }
 }
