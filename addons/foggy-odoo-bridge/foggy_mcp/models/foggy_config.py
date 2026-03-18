@@ -74,13 +74,8 @@ class ResConfigSettings(models.TransientModel):
         default=0.3,
         help='Controls randomness. Lower = more focused, higher = more creative. (0.0 - 1.0)',
     )
-    foggy_llm_custom_prompt = fields.Text(
+    foggy_llm_custom_prompt = fields.Char(
         string='Business Context Prompt',
         config_parameter='foggy_mcp.llm_custom_prompt',
-        help='Custom business context injected into the AI system prompt. '
-             'Define your company-specific terms, KPI definitions, and business rules here.\n'
-             'Examples:\n'
-             '- "Key account = annual sales > 500,000"\n'
-             '- "Active customer = placed an order in the last 90 days"\n'
-             '- "Our fiscal year starts in April"',
+        help='Custom business context injected into the AI system prompt.',
     )

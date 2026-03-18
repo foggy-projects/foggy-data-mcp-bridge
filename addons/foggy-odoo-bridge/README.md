@@ -12,8 +12,9 @@ AI Client ──MCP──→ Odoo MCP Gateway ──HTTP──→ Foggy MCP Serv
 ```
 
 - **Odoo MCP Gateway** (`foggy_mcp/`): Odoo addon handling MCP protocol, authentication, and permission slice injection
-- **Foggy MCP Server**: Java-based semantic query engine (pure query engine, not directly exposed)
-- **TM/QM Models** (`foggy-models/`): Semantic layer defining Odoo tables, dimensions, and measures
+- **Foggy MCP Server**: Java-based semantic query engine with **built-in Odoo models** (TM/QM)
+  - Docker image: `foggysource/foggy-odoo-mcp:v8.1.8-beta`
+  - Dynamic DataSource configuration via API
 
 ## Key Features
 
@@ -38,23 +39,32 @@ AI Client ──MCP──→ Odoo MCP Gateway ──HTTP──→ Foggy MCP Serv
 
 ## Quick Start
 
-### Docker Compose
+### Using Setup Wizard (Recommended)
+
+1. **Install the Odoo addon**: Copy `foggy_mcp/` to your Odoo addons path and install
+2. **Open Setup Wizard**: Settings → Foggy MCP → 🧙 Setup Wizard
+3. **Follow the steps**:
+   - Copy the generated Docker command
+   - Run it to start Foggy MCP Server (models built-in)
+   - Test connection
+   - Configure data source (auto-fills Odoo DB info)
+   - Initialize closure tables
+
+### Docker Quick Start
 
 ```bash
-cd docker
-docker-compose up -d
+# Start Foggy MCP Server with built-in Odoo models
+docker run -d \
+  --name foggy-mcp \
+  -p 7108:8080 \
+  -e SPRING_PROFILES_ACTIVE=lite,odoo \
+  -e FOGGY_AUTH_TOKEN=your_token_here \
+  --add-host=host.docker.internal:host-gateway \
+  --restart unless-stopped \
+  foggysource/foggy-odoo-mcp:v8.1.8-beta
 ```
 
-This starts:
-- PostgreSQL 15 on port 5432
-- Odoo 17 on port 8069
-- Foggy MCP Server on port 8080
-
-### Manual Setup
-
-1. **Install the Odoo addon**: Copy `foggy_mcp/` to your Odoo addons path
-2. **Configure Foggy MCP URL**: Settings → Foggy MCP → Server URL
-3. **Deploy TM/QM models**: Mount `foggy-models/` as an external bundle in Foggy
+Then use the Setup Wizard to configure the data source.
 
 ### Generate an API Key
 
@@ -157,7 +167,26 @@ python -m pytest tests/test_permission_bridge.py -v
 
 ## Extending with Custom Models
 
-### 1. Create TM file (`foggy-models/model/MyCustomModel.tm`)
+Custom TM/QM models can be added in two ways:
+
+### Option 1: Add to foggy-odoo-bridge-java module
+
+Add your TM/QM files to the `foggy-odoo-bridge-java` module's resources and rebuild the Docker image.
+
+### Option 2: External Bundle (Advanced)
+
+Mount an external bundle directory and configure Foggy to load it:
+
+```bash
+java -jar foggy-mcp-launcher.jar \
+  --spring.profiles.active=lite \
+  --foggy.bundle.external.enabled=true \
+  --foggy.bundle.external.bundles[0].name=custom-models \
+  --foggy.bundle.external.bundles[0].path=/path/to/custom-models \
+  --foggy.bundle.external.bundles[0].namespace=custom
+```
+
+### Create TM file (`model/MyCustomModel.tm`)
 
 ```javascript
 export const model = {
@@ -171,7 +200,7 @@ export const model = {
 };
 ```
 
-### 2. Create QM file (`foggy-models/query/MyCustomQueryModel.qm`)
+### 2. Create QM file (`query/MyCustomQueryModel.qm`)
 
 ```javascript
 const m = loadTableModel('MyCustomModel');

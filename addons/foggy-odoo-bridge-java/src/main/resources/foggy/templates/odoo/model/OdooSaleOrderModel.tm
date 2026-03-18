@@ -3,7 +3,7 @@
  *
  * @description Sales order header table with customer, salesperson, team and company dimensions
  */
-import { dicts } from '../dicts.fsscript';
+import { dicts, ODOO_DATA_SOURCE_NAME } from '../dicts.fsscript';
 import { jsonbCaption } from '../odoo17.fsscript';
 
 export const model = {
@@ -11,6 +11,7 @@ export const model = {
     caption: 'Sale Orders',
     tableName: 'sale_order',
     idColumn: 'id',
+    dataSourceName: ODOO_DATA_SOURCE_NAME,
 
     dimensions: [
         {

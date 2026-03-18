@@ -37,19 +37,21 @@ services:
       USER: odoo
       PASSWORD: odoo
     volumes:
-      # Mount foggy_mcp addon
-      - ../foggy_mcp:/mnt/extra-addons/foggy_mcp:ro
-      # Odoo config
-      - ./odoo.conf:/etc/odoo/odoo.conf:ro
-    # 首次安装模块:
-    #   docker compose run --rm odoo odoo -i sale,purchase,account,stock,hr,foggy_mcp -d odoo --stop-after-init
-    # 后续正常启动:
-    #   docker compose up -d odoo
-    command: ["odoo", "--database=odoo"]
+      - ./foggy_mcp:/mnt/extra-addons/foggy_mcp:ro
+      - odoo-data:/var/lib/odoo
+    command:
+      - odoo
+      - --database=odoo
+      - --addons-path=/mnt/extra-addons
+      - --db_host=postgres
+      - --db_port=5432
+      - --db_user=odoo
+      - --db_password=odoo
+      - --admin_passwd=admin
 
   # ──────────────────────────────────────────────
   # Foggy MCP Server (Java) — with built-in Odoo models
-  # Data source configured via Setup Wizard or API
+  # Data source configured via API after startup
   # ──────────────────────────────────────────────
   foggy-mcp:
     image: foggysource/foggy-odoo-mcp:v8.1.8-beta
@@ -71,3 +73,4 @@ services:
 
 volumes:
   pgdata:
+  odoo-data:

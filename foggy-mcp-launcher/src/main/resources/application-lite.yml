@@ -5,6 +5,9 @@
 # 启动方式：
 #   java -jar foggy-mcp-launcher.jar --spring.profiles.active=lite
 #   或 SPRING_PROFILES_ACTIVE=lite
+#
+# 数据源：使用内存 SQLite 作为启动数据源
+# 实际业务数据源通过 DataSource API 动态配置
 # ============================================================
 
 spring:
@@ -13,6 +16,10 @@ spring:
       - org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration
       - org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration
       - org.springframework.boot.autoconfigure.data.mongo.MongoRepositoriesAutoConfiguration
+
+  datasource:
+    url: jdbc:sqlite::memory:
+    driver-class-name: org.sqlite.JDBC
 
 foggy:
   # 关闭 Data Viewer（强依赖 MongoDB）

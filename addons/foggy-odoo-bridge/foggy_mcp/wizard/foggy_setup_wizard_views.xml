@@ -2,68 +2,49 @@
 <odoo>
 
     <!-- ═══════════════════════════════════════════════════════════════
-         Setup Wizard Form View (multi-step)
+         Setup Wizard Form View
          ═══════════════════════════════════════════════════════════════ -->
     <record id="foggy_setup_wizard_view_form" model="ir.ui.view">
         <field name="name">foggy.setup.wizard.form</field>
         <field name="model">foggy.setup.wizard</field>
         <field name="arch" type="xml">
-            <form string="Foggy MCP Setup Wizard">
+            <form string="Foggy MCP Setup">
                 <field name="state" invisible="1"/>
 
-                <!-- ─── Header: step indicator ─── -->
                 <header>
-                    <button name="action_next" string="Next"
-                            type="object" class="btn-primary"
-                            invisible="state not in ('deploy_method', 'server_config', 'closure_tables')"/>
-                    <button name="action_test_connection" string="Test Connection"
-                            type="object" class="btn-primary"
-                            invisible="state != 'test_connection'"/>
-                    <button name="action_finish" string="Create API Key"
-                            type="object" class="btn-success"
-                            invisible="state != 'done'"/>
-                    <button name="action_prev" string="Back"
-                            type="object" class="btn-secondary"
-                            invisible="state in ('deploy_method', 'done')"/>
                     <field name="state" widget="statusbar"
-                           statusbar_visible="deploy_method,server_config,closure_tables,test_connection,done"/>
+                           statusbar_visible="welcome,deploy,connection,closure,done"/>
                 </header>
 
                 <sheet>
-                    <!-- ═══════════════════════════════════════════════
-                         Step 1: Choose deployment method
-                         ═══════════════════════════════════════════════ -->
-                    <div invisible="state != 'deploy_method'">
+                    <!-- Step 1: Welcome -->
+                    <div invisible="state != 'welcome'">
                         <div class="oe_title mb24">
-                            <h2>Welcome to Foggy MCP Setup</h2>
+                            <h2>Welcome to Foggy MCP</h2>
                             <p class="text-muted">
-                                This wizard will help you deploy the Foggy MCP Server,
-                                initialize closure tables, and verify the connection.
+                                This wizard will help you connect Odoo to AI assistants like Claude and Cursor.
                             </p>
                         </div>
-                        <group string="Choose Deployment Method">
-                            <field name="deploy_method" widget="radio"/>
-                        </group>
                         <div class="alert alert-info" role="alert">
-                            <strong>Docker (Recommended)</strong>: One-command deployment.
-                            Requires Docker and Docker Compose installed.<br/>
-                            <strong>Manual JAR</strong>: Download and run the Java JAR directly.
-                            Requires Java 17+.
+                            <strong>What you'll need:</strong>
+                            <ul class="mb0 mt4">
+                                <li>Docker installed on your server</li>
+                                <li>Access to run terminal commands</li>
+                                <li>~2 minutes</li>
+                            </ul>
                         </div>
                     </div>
 
-                    <!-- ═══════════════════════════════════════════════
-                         Step 2: Server configuration
-                         ═══════════════════════════════════════════════ -->
-                    <div invisible="state != 'server_config'">
-                        <div class="oe_title mb24">
-                            <h2>Server Configuration</h2>
+                    <!-- Step 2: Deploy -->
+                    <div invisible="state != 'deploy'">
+                        <div class="oe_title mb16">
+                            <h2>Deploy Foggy MCP Server</h2>
                             <p class="text-muted">
-                                Database parameters have been auto-detected from your Odoo configuration.
-                                Adjust if needed, then copy the generated config below.
+                                Database connection detected from Odoo config. Adjust if needed, then run the command in your terminal.
                             </p>
                         </div>
-                        <group string="Database Connection" col="4">
+
+                        <group string="Database Connection" col="6">
                             <field name="db_host"/>
                             <field name="db_port"/>
                             <field name="db_user"/>
@@ -71,139 +52,126 @@
                             <field name="db_name"/>
                             <field name="foggy_port"/>
                         </group>
-                        <group string="Model Files">
-                            <field name="models_path"/>
-                        </group>
+
                         <group>
-                            <button name="action_regenerate_config" string="Regenerate Config"
-                                    type="object" class="btn-secondary btn-sm"
-                                    help="Regenerate after changing parameters above"/>
+                            <button name="action_regenerate_command" string="Regenerate Command"
+                                    type="object" class="btn-secondary btn-sm"/>
                         </group>
 
-                        <!-- Docker tab -->
-                        <field name="deploy_method" invisible="1"/>
-                        <div invisible="deploy_method != 'docker'">
-                            <separator string="Docker Compose"/>
-                            <p class="text-muted">
-                                Save the content below as <code>docker-compose.yml</code> and run:
-                                <code>docker compose up -d</code>
-                            </p>
-                            <field name="docker_compose_content"
-                                   widget="ace" options="{'mode': 'yaml'}"
-                                   readonly="1"/>
-                        </div>
+                        <separator string="Run this command in your terminal"/>
+                        <field name="deploy_command"
+                               widget="ace" options="{'mode': 'sh'}"
+                               readonly="1" nolabel="1"
+                               class="mb16"/>
 
-                        <!-- Manual JAR tab -->
-                        <div invisible="deploy_method != 'manual'">
-                            <separator string="Manual JAR Startup"/>
-                            <p class="text-muted">
-                                Download the latest JAR from
-                                <a href="https://github.com/nicholasgasior/foggy-data-mcp-bridge/releases/latest"
-                                   target="_blank">GitHub Releases</a>,
-                                then run the command below:
-                            </p>
-                            <field name="manual_command"
-                                   widget="ace" options="{'mode': 'sh'}"
-                                   readonly="1"/>
-                        </div>
-                    </div>
-
-                    <!-- ═══════════════════════════════════════════════
-                         Step 3: Closure tables
-                         ═══════════════════════════════════════════════ -->
-                    <div invisible="state != 'closure_tables'">
-                        <div class="oe_title mb24">
-                            <h2>Initialize Closure Tables</h2>
-                            <p class="text-muted">
-                                Closure tables enable hierarchical queries (e.g., "show sales for
-                                this company and all subsidiaries"). Click the button below to create
-                                and populate them in your PostgreSQL database.
-                            </p>
-                        </div>
-                        <group>
-                            <button name="action_init_closure_tables"
-                                    string="Initialize Closure Tables"
-                                    type="object" class="btn-warning"
-                                    confirm="This will create 4 closure tables and populate them. Continue?"/>
-                        </group>
-                        <group string="Result" invisible="not closure_status">
-                            <field name="closure_status" nolabel="1"
-                                   widget="text" readonly="1"/>
-                        </group>
                         <div class="alert alert-secondary" role="alert">
-                            <strong>Tables created:</strong>
-                            <code>res_company_closure</code>,
-                            <code>hr_department_closure</code>,
-                            <code>hr_employee_closure</code>,
-                            <code>res_partner_closure</code>
-                            <br/>
-                            <strong>Tip:</strong> You can skip this step if you don't need
-                            hierarchical queries, or run it later.
+                            <strong>How to run:</strong>
+                            <ol class="mb0 mt4">
+                                <li>Click in the code box above and press <code>Ctrl+A</code> then <code>Ctrl+C</code> to copy</li>
+                                <li>Open your terminal (SSH or local)</li>
+                                <li>Paste and press Enter</li>
+                                <li>Wait for "Started" message, then click Next below</li>
+                            </ol>
                         </div>
                     </div>
 
-                    <!-- ═══════════════════════════════════════════════
-                         Step 4: Test connection
-                         ═══════════════════════════════════════════════ -->
-                    <div invisible="state != 'test_connection'">
-                        <div class="oe_title mb24">
+                    <!-- Step 3: Connection Test -->
+                    <div invisible="state != 'connection'">
+                        <div class="oe_title mb16">
                             <h2>Test Connection</h2>
                             <p class="text-muted">
-                                Make sure Foggy MCP Server is running, then click "Test Connection"
-                                in the header. On success, the URL will be saved to Odoo settings.
+                                Verify Foggy MCP Server is running and save the connection.
                             </p>
                         </div>
-                        <group string="Foggy MCP Server">
+
+                        <group string="Foggy MCP Server URL">
                             <field name="foggy_url" placeholder="http://localhost:7108"/>
                         </group>
+
                         <group string="Result" invisible="not connection_status">
                             <field name="connection_status" nolabel="1"
                                    widget="text" readonly="1"/>
                         </group>
+
+                        <div invisible="connection_status" class="alert alert-warning" role="alert">
+                            Click <strong>Test Connection</strong> button below to verify.
+                        </div>
                     </div>
 
-                    <!-- ═══════════════════════════════════════════════
-                         Step 5: Done
-                         ═══════════════════════════════════════════════ -->
+                    <!-- Step 4: Closure Tables -->
+                    <div invisible="state != 'closure'">
+                        <div class="oe_title mb16">
+                            <h2>Initialize Closure Tables</h2>
+                            <p class="text-muted">
+                                Required for hierarchical queries (company tree, department tree, etc.).
+                            </p>
+                        </div>
+
+                        <group>
+                            <button name="action_init_closure_tables"
+                                    string="Initialize Closure Tables"
+                                    type="object" class="btn-primary"
+                                    confirm="This will create 4 tables in your database. Continue?"/>
+                        </group>
+
+                        <group string="Result" invisible="not closure_status">
+                            <field name="closure_status" nolabel="1"
+                                   widget="text" readonly="1"/>
+                        </group>
+
+                        <div class="alert alert-secondary" role="alert">
+                            <strong>Tables:</strong> res_company_closure, hr_department_closure, hr_employee_closure, res_partner_closure
+                            <br/><br/>
+                            <strong>Tip:</strong> You can skip this step if you don't need hierarchical queries, and run it later from Settings.
+                        </div>
+                    </div>
+
+                    <!-- Step 5: Done -->
                     <div invisible="state != 'done'">
-                        <div class="oe_title mb24">
-                            <h2>Setup Complete!</h2>
+                        <div class="oe_title mb16">
+                            <h2>🎉 Setup Complete!</h2>
                         </div>
                         <div class="alert alert-success" role="alert">
-                            <strong>Foggy MCP is ready.</strong>
+                            <p><strong>Foggy MCP is ready to use.</strong></p>
                             <p class="mt8 mb0">
-                                Next steps:<br/>
-                                1. Click <strong>"Create API Key"</strong> below to generate an MCP access key.<br/>
-                                2. Configure your AI client (Claude Desktop, Cursor, etc.) with the API key.<br/>
-                                3. Start querying your Odoo data with natural language!
+                                Next step: Create an API Key to connect your AI assistant.
                             </p>
                         </div>
                     </div>
                 </sheet>
+
+                <!-- Footer -->
+                <footer>
+                    <button name="action_next" string="Next →"
+                            type="object" class="btn-primary"
+                            invisible="state not in ('welcome', 'deploy', 'closure')"/>
+                    <button name="action_test_connection" string="Test Connection"
+                            type="object" class="btn-primary"
+                            invisible="state != 'connection'"/>
+                    <button name="action_skip_closure" string="Skip"
+                            type="object" class="btn-secondary"
+                            invisible="state != 'closure'"/>
+                    <button name="action_finish" string="Create API Key"
+                            type="object" class="btn-success"
+                            invisible="state != 'done'"/>
+                    <button name="action_prev" string="← Back"
+                            type="object" class="btn-secondary"
+                            invisible="state in ('welcome', 'done')"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
             </form>
         </field>
     </record>
 
-    <!-- ═══════════════════════════════════════════════════════════════
-         Wizard Action (opens as popup)
-         ═══════════════════════════════════════════════════════════════ -->
+    <!-- Action -->
     <record id="foggy_setup_wizard_action" model="ir.actions.act_window">
-        <field name="name">Foggy MCP Setup Wizard</field>
+        <field name="name">Foggy MCP Setup</field>
         <field name="res_model">foggy.setup.wizard</field>
         <field name="view_mode">form</field>
         <field name="target">new</field>
-        <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">
-                Setup Foggy MCP Server
-            </p>
-            <p>
-                This wizard guides you through deploying Foggy MCP Server,
-                initializing closure tables, and verifying the connection.
-            </p>
-        </field>
     </record>
 
-    <!-- ── Menu entry (under Foggy MCP root) ── -->
+    <!-- Menu -->
     <menuitem id="foggy_mcp_menu_setup_wizard"
               name="Setup Wizard"
               parent="foggy_mcp_menu_root"

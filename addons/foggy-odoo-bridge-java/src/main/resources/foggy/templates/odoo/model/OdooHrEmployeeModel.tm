@@ -4,11 +4,14 @@
  * @description Employee records with department, job, and company dimensions.
  *              Sensitive fields (e.g. salary) excluded — use forced filters for access control.
  */
+import { ODOO_DATA_SOURCE_NAME } from '../dicts.fsscript';
+
 export const model = {
     name: 'OdooHrEmployeeModel',
     caption: 'Employees',
     tableName: 'hr_employee',
     idColumn: 'id',
+    dataSourceName: ODOO_DATA_SOURCE_NAME,
 
     dimensions: [
         {

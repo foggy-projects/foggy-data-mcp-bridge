@@ -4,7 +4,7 @@
  * @description Inventory transfers (receipts, deliveries, internal) with partner,
  *              picking type, location, and company dimensions
  */
-import { dicts } from '../dicts.fsscript';
+import { dicts, ODOO_DATA_SOURCE_NAME } from '../dicts.fsscript';
 import { jsonbCaption } from '../odoo17.fsscript';
 
 export const model = {
@@ -12,6 +12,7 @@ export const model = {
     caption: 'Inventory Transfers',
     tableName: 'stock_picking',
     idColumn: 'id',
+    dataSourceName: ODOO_DATA_SOURCE_NAME,
 
     dimensions: [
         {

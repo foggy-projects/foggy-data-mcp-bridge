@@ -2,8 +2,8 @@
 # ═══════════════════════════════════════════════════════════════
 # Foggy MCP Server — Odoo Integration Launcher
 #
-# Starts the Java MCP server in lite mode, connected to the Odoo
-# PostgreSQL database, with Odoo TM/QM models loaded.
+# Starts the Java MCP server in lite mode with built-in Odoo models.
+# Data source is configured via DataSource API after startup.
 #
 # Usage:
 #   ./start-foggy-mcp.sh              # default port 7108
@@ -12,7 +12,6 @@
 #
 # Prerequisites:
 #   - Java 17+
-#   - PostgreSQL (Odoo DB) accessible at localhost:5432
 #   - foggy-mcp-launcher JAR built (mvn package -DskipTests)
 # ═══════════════════════════════════════════════════════════════
 
@@ -22,8 +21,6 @@ set -euo pipefail
 PORT="${1:-7108}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-CONFIG_FILE="$SCRIPT_DIR/application-odoo.yml"
-MODELS_DIR="$SCRIPT_DIR/foggy-models"
 LOG_FILE="$SCRIPT_DIR/foggy-mcp.log"
 PID_FILE="$SCRIPT_DIR/.foggy-mcp.pid"
 
@@ -115,32 +112,6 @@ preflight() {
         exit 1
     fi
     ok "Java $java_ver"
-
-    # Config file
-    if [[ ! -f "$CONFIG_FILE" ]]; then
-        err "Config not found: $CONFIG_FILE"
-        exit 1
-    fi
-    ok "Config: $CONFIG_FILE"
-
-    # Models directory
-    if [[ ! -d "$MODELS_DIR" ]]; then
-        err "Models not found: $MODELS_DIR"
-        exit 1
-    fi
-    local tm_count qm_count
-    tm_count=$(ls "$MODELS_DIR"/model/*.tm 2>/dev/null | wc -l)
-    qm_count=$(ls "$MODELS_DIR"/query/*.qm 2>/dev/null | wc -l)
-    ok "Models: ${tm_count} TM + ${qm_count} QM"
-
-    # PostgreSQL connectivity (optional)
-    if command -v pg_isready &>/dev/null; then
-        if pg_isready -h localhost -p 5432 -U odoo -q 2>/dev/null; then
-            ok "PostgreSQL: localhost:5432"
-        else
-            warn "PostgreSQL not reachable at localhost:5432 (may be in Docker)"
-        fi
-    fi
 }
 
 # ─── Main ───────────────────────────────────────────────────
@@ -155,6 +126,7 @@ main() {
 
     JAR=$(find_jar)
     ok "JAR: $(basename "$JAR")"
+    ok "Built-in Odoo models enabled"
 
     # Kill existing process on the port
     info "Checking port $PORT..."
@@ -164,27 +136,14 @@ main() {
         ok "Port $PORT is free."
     fi
 
-    # Convert paths for Windows (Java needs Windows paths on MSYS/Git Bash)
-    local models_path="$MODELS_DIR"
-    local config_path="$CONFIG_FILE"
-    if [[ "$(uname -s)" == MINGW* ]] || [[ "$(uname -s)" == MSYS* ]]; then
-        models_path=$(cygpath -m "$MODELS_DIR" 2>/dev/null || echo "$MODELS_DIR")
-        config_path=$(cygpath -m "$CONFIG_FILE" 2>/dev/null || echo "$CONFIG_FILE")
-    fi
-
     info "Starting on port $PORT..."
     info "Log: $LOG_FILE"
     echo ""
 
-    # Launch in background
-    # Note: Spring Boot list properties must be fully specified on command line
-    # (partial override of bundles[0] loses other fields from YAML)
+    # Launch in background (models are built into JAR, datasource configured via API)
     java -Dfile.encoding=UTF-8 -Dconsole.encoding=UTF-8 -jar "$JAR" \
-        "--spring.config.additional-location=file:${config_path}" \
+        "--spring.profiles.active=lite,odoo" \
         "--server.port=${PORT}" \
-        "--foggy.bundle.external.bundles[0].name=odoo-models" \
-        "--foggy.bundle.external.bundles[0].path=${models_path}" \
-        "--foggy.bundle.external.bundles[0].namespace=odoo" \
         > "$LOG_FILE" 2>&1 &
 
     local pid=$!
@@ -222,6 +181,9 @@ main() {
             echo -e "  ${CYAN}Tools:${NC}     ${tool_count} loaded"
             echo -e "  ${CYAN}PID:${NC}       ${pid}"
             echo -e "  ${CYAN}Log:${NC}       ${LOG_FILE}"
+            echo ""
+            echo -e "  ${YELLOW}Next step:${NC} Configure data source via Setup Wizard or API"
+            echo -e "  ${YELLOW}POST ${NC}http://localhost:${PORT}/api/v1/datasource"
             echo ""
             echo -e "  Stop: ${YELLOW}./start-foggy-mcp.sh --stop${NC}"
             echo ""

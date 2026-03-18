@@ -1,8 +1,8 @@
 # ═══════════════════════════════════════════════════════════════
 # Foggy MCP Server - Odoo Integration Launcher (PowerShell)
 #
-# Starts the Java MCP server in lite mode, connected to the Odoo
-# PostgreSQL database, with Odoo TM/QM models loaded.
+# Starts the Java MCP server in lite mode with built-in Odoo models.
+# Data source is configured via DataSource API after startup.
 #
 # Usage:
 #   .\start-foggy-mcp.ps1              # default port 7108
@@ -11,7 +11,6 @@
 #
 # Prerequisites:
 #   - Java 17+
-#   - PostgreSQL (Odoo DB) accessible at localhost:5432
 #   - foggy-mcp-launcher JAR built (mvn package -DskipTests)
 # ═══════════════════════════════════════════════════════════════
 
@@ -28,8 +27,6 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 # ─── Configuration ──────────────────────────────────────────
 $ScriptDir   = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProjectRoot = (Resolve-Path "$ScriptDir\..\..").Path
-$ConfigFile  = Join-Path $ScriptDir "application-odoo.yml"
-$ModelsDir   = Join-Path $ScriptDir "foggy-models"
 $LogFile     = Join-Path $ScriptDir "foggy-mcp.log"
 $PidFile     = Join-Path $ScriptDir ".foggy-mcp.pid"
 
@@ -105,8 +102,6 @@ function Find-Jar {
 # ─── Pre-flight checks ─────────────────────────────────────
 function Test-Preflight {
     # Java version check
-    # Note: java -version writes to stderr; must capture with 2>&1
-    # and temporarily relax ErrorAction to avoid false "not found".
     try {
         $prevEA = $ErrorActionPreference
         $ErrorActionPreference = "Continue"
@@ -129,41 +124,13 @@ function Test-Preflight {
         exit 1
     }
     Write-Ok "Java $javaVer"
-
-    # Config file
-    if (-not (Test-Path $ConfigFile)) {
-        Write-Err "Config not found: $ConfigFile"
-        exit 1
-    }
-    Write-Ok "Config: $ConfigFile"
-
-    # Models directory
-    if (-not (Test-Path $ModelsDir)) {
-        Write-Err "Models not found: $ModelsDir"
-        exit 1
-    }
-    $tmCount = (Get-ChildItem "$ModelsDir\model\*.tm" -ErrorAction SilentlyContinue).Count
-    $qmCount = (Get-ChildItem "$ModelsDir\query\*.qm" -ErrorAction SilentlyContinue).Count
-    Write-Ok "Models: $tmCount TM + $qmCount QM"
-
-    # PostgreSQL connectivity (optional)
-    if (Get-Command pg_isready -ErrorAction SilentlyContinue) {
-        $prevEA = $ErrorActionPreference; $ErrorActionPreference = "Continue"
-        & pg_isready -h localhost -p 5432 -U odoo -q 2>$null | Out-Null
-        $ErrorActionPreference = $prevEA
-        if ($LASTEXITCODE -eq 0) {
-            Write-Ok "PostgreSQL: localhost:5432"
-        } else {
-            Write-Warn "PostgreSQL not reachable at localhost:5432 (may be in Docker)"
-        }
-    }
 }
 
 # ─── Main ───────────────────────────────────────────────────
 function Start-Main {
     Write-Host ""
     Write-Host "+================================================+" -ForegroundColor Cyan
-    Write-Host "|  Foggy MCP Server - Odoo Integration            |" -ForegroundColor Cyan
+    Write-Host "|  Foggy MCP Server - Odoo Integration           |" -ForegroundColor Cyan
     Write-Host "+================================================+" -ForegroundColor Cyan
     Write-Host ""
 
@@ -171,6 +138,7 @@ function Start-Main {
 
     $jar = Find-Jar
     Write-Ok "JAR: $(Split-Path $jar -Leaf)"
+    Write-Ok "Built-in Odoo models enabled"
 
     # Kill existing process on the port
     Write-Info "Checking port $Port..."
@@ -184,19 +152,13 @@ function Start-Main {
     Write-Info "Log: $LogFile"
     Write-Host ""
 
-    # Launch in background
-    # Note: Spring Boot list properties must be fully specified on command line
-    # (partial override of bundles[0] loses other fields from YAML)
-    # Quote args that contain brackets or spaces so they survive Start-Process
+    # Launch in background (models are built into JAR, datasource configured via API)
     $javaArgs = @(
         "-Dfile.encoding=UTF-8",
         "-Dconsole.encoding=UTF-8",
         "-jar", "`"$jar`"",
-        "`"--spring.config.additional-location=file:$ConfigFile`"",
-        "--server.port=$Port",
-        "`"--foggy.bundle.external.bundles[0].name=odoo-models`"",
-        "`"--foggy.bundle.external.bundles[0].path=$ModelsDir`"",
-        "`"--foggy.bundle.external.bundles[0].namespace=odoo`""
+        "--spring.profiles.active=lite,odoo",
+        "--server.port=$Port"
     )
 
     $ErrLog = Join-Path $ScriptDir "foggy-mcp-err.log"
@@ -257,6 +219,9 @@ function Start-Main {
                 Write-Host "  Tools:     $toolCount loaded" -ForegroundColor Cyan
                 Write-Host "  PID:       $($process.Id)" -ForegroundColor Cyan
                 Write-Host "  Log:       $LogFile" -ForegroundColor Cyan
+                Write-Host ""
+                Write-Host "  Next step: Configure data source via Setup Wizard or API" -ForegroundColor Yellow
+                Write-Host "  POST http://localhost:$Port/api/v1/datasource" -ForegroundColor Yellow
                 Write-Host ""
                 Write-Host "  Stop: " -NoNewline
                 Write-Host ".\start-foggy-mcp.ps1 -Stop" -ForegroundColor Yellow

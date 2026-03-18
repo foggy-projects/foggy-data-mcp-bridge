@@ -3,7 +3,7 @@
  *
  * @description Sales order line items with product, order, and UoM dimensions
  */
-import { dicts } from '../dicts.fsscript';
+import { dicts, ODOO_DATA_SOURCE_NAME } from '../dicts.fsscript';
 import { jsonbCaption } from '../odoo17.fsscript';
 
 export const model = {
@@ -11,6 +11,7 @@ export const model = {
     caption: 'Sale Order Lines',
     tableName: 'sale_order_line',
     idColumn: 'id',
+    dataSourceName: ODOO_DATA_SOURCE_NAME,
 
     dimensions: [
         {

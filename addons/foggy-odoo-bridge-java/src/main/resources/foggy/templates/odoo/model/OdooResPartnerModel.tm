@@ -4,7 +4,7 @@
  * @description Partners (customers, vendors, contacts) with company and country dimensions.
  *              Use customer_rank > 0 for customers, supplier_rank > 0 for vendors.
  */
-import { dicts } from '../dicts.fsscript';
+import { dicts, ODOO_DATA_SOURCE_NAME } from '../dicts.fsscript';
 import { jsonbCaption } from '../odoo17.fsscript';
 
 export const model = {
@@ -12,6 +12,7 @@ export const model = {
     caption: 'Partners',
     tableName: 'res_partner',
     idColumn: 'id',
+    dataSourceName: ODOO_DATA_SOURCE_NAME,
 
     dimensions: [
         {

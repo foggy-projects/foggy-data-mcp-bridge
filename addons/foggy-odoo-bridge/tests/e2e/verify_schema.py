@@ -19,7 +19,8 @@ import sys
 
 
 # ── TM Model Definitions ─────────────────────────────────────
-# Extracted from foggy-models/model/*.tm
+# Model definitions extracted from foggy-odoo-bridge-java module
+# (built into Docker image foggysource/foggy-odoo-mcp)
 MODELS = [
     {
         'name': 'OdooSaleOrderModel',

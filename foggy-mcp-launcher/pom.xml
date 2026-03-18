@@ -31,6 +31,14 @@
             <version>${project.version}</version>
         </dependency>
 
+        <!-- Odoo 数据模型（可通过 spring.profiles.active=odoo 启用） -->
+        <dependency>
+            <groupId>com.foggysource</groupId>
+            <artifactId>foggy-odoo-bridge</artifactId>
+            <version>${project.version}</version>
+            <optional>true</optional>
+        </dependency>
+
         <!-- Data Viewer（可通过 foggy.data-viewer.enabled=false 禁用） -->
         <dependency>
             <groupId>com.foggysource</groupId>

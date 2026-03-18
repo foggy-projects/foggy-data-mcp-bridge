@@ -1,44 +1,84 @@
 # Foggy Odoo Bridge — 用户安装自动化方案
 
-## 问题分析
+> **注：此文档已过时。新架构使用动态 DataSource API 配置，TM/QM 模型内置于 Docker 镜像。**
+>
+> **请参考 `README.md` 和 Setup Wizard（`foggy_setup_wizard.py`）了解最新安装流程。**
 
-用户从 Odoo Apps 安装 `foggy_mcp` 模块后，只获得了 Python 插件部分。
-要完整使用，还需要：
+## ~~问题分析~~（已废弃）
 
-| 缺失组件 | 说明 | 难度 |
+~~用户从 Odoo Apps 安装 `foggy_mcp` 模块后，只获得了 Python 插件部分。~~
+~~要完整使用，还需要：~~
+
+| ~~缺失组件~~ | ~~说明~~ | ~~难度~~ |
 |---|---|---|
-| **Foggy MCP Server** | Java 服务（JAR 或 Docker） | 高 — 用户可能不会部署 Java |
-| **TM/QM 模型文件** | 8 个 .tm + 8 个 .qm + 2 个 .fsscript | 中 — 需要放对位置 |
-| **闭包表 SQL** | 4 张闭包表 + 刷新函数 | 中 — 需要在 Odoo 的 PostgreSQL 上执行 |
-| **Odoo 配置** | foggy_mcp.server_url 指向 Foggy | 低 — 但需要知道正确地址 |
-| **API Key** | 每用户创建 | 低 — UI 已有 |
+| ~~**Foggy MCP Server**~~ | ~~Java 服务（JAR 或 Docker）~~ | ~~高 — 用户可能不会部署 Java~~ |
+| ~~**TM/QM 模型文件**~~ | ~~8 个 .tm + 8 个 .qm + 2 个 .fsscript~~ | ~~中 — 需要放对位置~~ |
+| ~~**闭包表 SQL**~~ | ~~4 张闭包表 + 刷新函数~~ | ~~中 — 需要在 Odoo 的 PostgreSQL 上执行~~ |
+| ~~**Odoo 配置**~~ | ~~foggy_mcp.server_url 指向 Foggy~~ | ~~低 — 但需要知道正确地址~~ |
+| ~~**API Key**~~ | ~~每用户创建~~ | ~~低 — UI 已有~~ |
 
-**核心矛盾**：Odoo Apps 只允许上传一个 Python 模块 ZIP。我们需要让这个 ZIP 能够引导用户完成 Java 侧的安装。
+**~~核心矛盾~~**：~~Odoo Apps 只允许上传一个 Python 模块 ZIP。我们需要让这个 ZIP 能够引导用户完成 Java 侧的安装。~~
 
 ---
 
-## 推荐方案：Setup Wizard + 内置资源 + Docker 一键部署
+## 当前架构（2024更新）
 
-### 方案架构
+### 简化安装流程
+
+1. **Docker 镜像内置模型** — TM/QM 模型已打包进 `foggysource/foggy-odoo-mcp` 镜像
+2. **动态 DataSource API** — Java 侧用 SQLite 启动，Odoo 通过 API 注册自己的 PostgreSQL 数据源
+3. **Setup Wizard** — 向导生成一键 Docker 命令，引导完成配置
+
+### 安装流程（用户视角）
 
 ```
-foggy_mcp/                      ← Odoo 模块（上传到 Odoo Apps）
-├── __manifest__.py
-├── models/ controllers/ ...    ← 已有的 Python 代码
-├── setup/                      ← 新增：内置安装资源
-│   ├── docker-compose.yml      ← 一键启动 Foggy MCP 的 compose
-│   ├── foggy-models/           ← TM/QM 模型文件（随模块分发）
-│   │   ├── odoo17.fsscript
-│   │   ├── dicts.fsscript
-│   │   ├── model/*.tm
-│   │   └── query/*.qm
-│   └── sql/
-│       └── refresh_closure_tables.sql
-├── wizard/                     ← 新增：安装向导
-│   ├── __init__.py
-│   ├── foggy_setup_wizard.py   ← 向导模型
-│   └── foggy_setup_wizard_views.xml
-└── static/description/         ← 市场页面
+Step 1: Odoo Apps 安装 foggy_mcp 模块
+              ↓
+Step 2: Settings → Foggy MCP → 🧙 Setup Wizard（按钮）
+              ↓
+Step 3: 向导 Step 1 — Welcome
+              ↓
+Step 4: 向导 Step 2 — 生成 Docker 命令（自动检测平台）
+        - 复制一键 docker run 命令
+        - 在终端执行启动 Foggy MCP Server
+              ↓
+Step 5: 向导 Step 3 — 测试连接
+        - [Test Connection] 按钮：调用 Foggy /actuator/health
+              ↓
+Step 6: 向导 Step 4 — 配置数据源
+        - 自动填充 Odoo 数据库连接信息
+        - [Configure Data Source] 按钮：通过 API 注册数据源
+              ↓
+Step 7: 向导 Step 5 — 初始化闭包表
+        - [一键执行] 按钮：直接在 Odoo 的 PostgreSQL 上运行 SQL
+              ↓
+Step 8: 创建 API Key → 配置 AI 客户端 → 开始使用
+```
+
+---
+
+## ~~推荐方案：Setup Wizard + 内置资源 + Docker 一键部署~~（已废弃）
+
+~~### 方案架构~~
+
+```
+~~foggy_mcp/                      ← Odoo 模块（上传到 Odoo Apps）~~
+~~├── __manifest__.py~~
+~~├── models/ controllers/ ...    ← 已有的 Python 代码~~
+~~├── setup/                      ← 新增：内置安装资源~~
+~~│   ├── docker-compose.yml      ← 一键启动 Foggy MCP 的 compose~~
+~~│   ├── foggy-models/           ← TM/QM 模型文件（随模块分发）~~
+~~│   │   ├── odoo17.fsscript~~
+~~│   │   ├── dicts.fsscript~~
+~~│   │   ├── model/*.tm~~
+~~│   │   └── query/*.qm~~
+~~│   └── sql/~~
+~~│       └── refresh_closure_tables.sql~~
+~~├── wizard/                     ← 新增：安装向导~~
+~~│   ├── __init__.py~~
+~~│   ├── foggy_setup_wizard.py   ← 向导模型~~
+~~│   └── foggy_setup_wizard_views.xml~~
+~~└── static/description/         ← 市场页面~~
 ```
 
 ### 安装流程（用户视角）
@@ -71,52 +111,30 @@ Step 7: 创建 API Key → 配置 AI 客户端 → 开始使用
 
 ---
 
-## 实现细节
+## ~~实现细节~~（已废弃）
 
-### 1. 内置模型文件（`setup/foggy-models/`）
+### ~~1. 内置模型文件（`setup/foggy-models/`）~~
 
-将 `foggy-models/` 目录复制到模块内部。用户安装模块后，文件位于 Odoo 的 addons 路径中。
+~~将 `foggy-models/` 目录复制到模块内部。用户安装模块后，文件位于 Odoo 的 addons 路径中。~~
 
-Docker compose 通过 volume mount 引用这个路径：
+~~Docker compose 通过 volume mount 引用这个路径：~~
 ```yaml
-volumes:
-  - /path/to/odoo/addons/foggy_mcp/setup/foggy-models:/foggy-models:ro
+# 已废弃：模型现在内置在 Docker 镜像中
+# volumes:
+#   - /path/to/odoo/addons/foggy_mcp/setup/foggy-models:/foggy-models:ro
 ```
 
-### 2. 动态 Docker Compose 生成
+### ~~2. 动态 Docker Compose 生成~~
 
-向导从 Odoo 数据库配置自动生成 `docker-compose.yml`：
+~~向导从 Odoo 数据库配置自动生成 `docker-compose.yml`：~~
 
 ```python
-def _generate_docker_compose(self):
-    """从 Odoo 的数据库连接参数生成 docker-compose.yml"""
-    config = tools.config
-    db_host = config.get('db_host', 'localhost')
-    db_port = config.get('db_port', '5432')
-    db_user = config.get('db_user', 'odoo')
-    db_password = config.get('db_password', 'odoo')
-    db_name = self.env.cr.dbname
-
-    # Odoo 和 Foggy 共享同一个 PostgreSQL
-    # 如果 Odoo 在 Docker 中，db_host 可能是 'postgres' (service name)
-    # 如果 Odoo 在宿主机，db_host 可能是 'localhost'
-
-    # Docker 网络策略：
-    # - Foggy 容器用 host.docker.internal 连到宿主机 PG
-    # - 或者如果 PG 也在 Docker，用 Docker network 连
-
-    return DOCKER_COMPOSE_TEMPLATE.format(
-        db_host=db_host,
-        db_port=db_port,
-        db_user=db_user,
-        db_password=db_password,
-        db_name=db_name,
-        foggy_port=self.foggy_port or 8080,
-        models_path=self._get_models_path(),
-    )
+# 已废弃：现在使用动态 DataSource API 配置
+# def _generate_docker_compose(self):
+#     ...
 ```
 
-### 3. 闭包表一键初始化
+### ~~3. 闭包表一键初始化~~
 
 向导直接通过 Odoo 的 `cr` 执行 SQL：
 
@@ -143,7 +161,7 @@ def action_init_closure_tables(self):
     }
 ```
 
-### 4. 连接测试
+### ~~4. 连接测试~~
 
 ```python
 def action_test_connection(self):
@@ -164,122 +182,56 @@ def action_test_connection(self):
 
 ---
 
-## Docker Compose 模板（最终用户版）
+## ~~Docker Compose 模板（最终用户版）~~（已废弃）
 
 ```yaml
-# Foggy MCP Server for Odoo
-# Generated by Foggy MCP Setup Wizard
-version: '3.8'
-services:
-  foggy-mcp:
-    image: foggysource/foggy-dataset-mcp:latest
-    container_name: foggy-mcp-odoo
-    ports:
-      - "{foggy_port}:8080"
-    environment:
-      SPRING_PROFILES_ACTIVE: lite
-      SPRING_DATASOURCE_URL: "jdbc:postgresql://{db_host}:{db_port}/{db_name}"
-      SPRING_DATASOURCE_USERNAME: "{db_user}"
-      SPRING_DATASOURCE_PASSWORD: "{db_password}"
-      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
-      FOGGY_DEMO_ENABLED: "false"
-      FOGGY_BUNDLE_EXTERNAL_ENABLED: "true"
-      FOGGY_BUNDLE_EXTERNAL_BUNDLES_0_NAME: odoo-models
-      FOGGY_BUNDLE_EXTERNAL_BUNDLES_0_PATH: /foggy-models
-      FOGGY_BUNDLE_EXTERNAL_BUNDLES_0_NAMESPACE: odoo
-      # 8 query models
-      FOGGY_MCP_SEMANTIC_MODELLIST_0: OdooSaleOrderQueryModel
-      FOGGY_MCP_SEMANTIC_MODELLIST_1: OdooSaleOrderLineQueryModel
-      FOGGY_MCP_SEMANTIC_MODELLIST_2: OdooPurchaseOrderQueryModel
-      FOGGY_MCP_SEMANTIC_MODELLIST_3: OdooAccountMoveQueryModel
-      FOGGY_MCP_SEMANTIC_MODELLIST_4: OdooStockPickingQueryModel
-      FOGGY_MCP_SEMANTIC_MODELLIST_5: OdooHrEmployeeQueryModel
-      FOGGY_MCP_SEMANTIC_MODELLIST_6: OdooResPartnerQueryModel
-      FOGGY_MCP_SEMANTIC_MODELLIST_7: OdooResCompanyQueryModel
-    volumes:
-      - {models_path}:/foggy-models:ro
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
+# 已废弃：使用动态 DataSource API
+# 现在只需 docker run，数据源通过 API 配置
+# docker run -d \
+#   --name foggy-mcp \
+#   -p 7108:8080 \
+#   -e SPRING_PROFILES_ACTIVE=lite,odoo \
+#   -e FOGGY_AUTH_TOKEN=your_token \
+#   foggysource/foggy-odoo-mcp:v8.1.8-beta
 ```
 
 ---
 
-## 非 Docker 方案（手动 JAR）
+## ~~非 Docker 方案（手动 JAR）~~（已废弃）
 
-对于不使用 Docker 的用户，向导提供：
+~~对于不使用 Docker 的用户，向导提供：~~
 
-### 下载链接
+### ~~下载链接~~
 ```
-https://github.com/nicholasgasior/foggy-data-mcp-bridge/releases/latest
-→ foggy-mcp-launcher-x.x.x.jar
+~~https://github.com/nicholasgasior/foggy-data-mcp-bridge/releases/latest~~
+~~→ foggy-mcp-launcher-x.x.x.jar~~
 ```
 
-### 启动命令（自动生成）
+### ~~启动命令（自动生成）~~
 ```bash
-java -jar foggy-mcp-launcher-8.1.8.beta.jar \
-  --spring.profiles.active=lite \
-  --spring.datasource.url=jdbc:postgresql://{db_host}:{db_port}/{db_name} \
-  --spring.datasource.username={db_user} \
-  --spring.datasource.password={db_password} \
-  --spring.datasource.driver-class-name=org.postgresql.Driver \
-  --foggy.bundle.external.enabled=true \
-  --foggy.bundle.external.bundles[0].name=odoo-models \
-  "--foggy.bundle.external.bundles[0].path={models_path}" \
-  --foggy.bundle.external.bundles[0].namespace=odoo \
-  --foggy.demo.enabled=false \
-  --foggy.mcp.semantic.model-list[0]=OdooSaleOrderQueryModel \
-  --foggy.mcp.semantic.model-list[1]=OdooSaleOrderLineQueryModel \
-  --foggy.mcp.semantic.model-list[2]=OdooPurchaseOrderQueryModel \
-  --foggy.mcp.semantic.model-list[3]=OdooAccountMoveQueryModel \
-  --foggy.mcp.semantic.model-list[4]=OdooStockPickingQueryModel \
-  --foggy.mcp.semantic.model-list[5]=OdooHrEmployeeQueryModel \
-  --foggy.mcp.semantic.model-list[6]=OdooResPartnerQueryModel \
-  --foggy.mcp.semantic.model-list[7]=OdooResCompanyQueryModel
+# 已废弃：现在模型内置于 foggy-odoo-bridge-java 模块
+# java -jar foggy-mcp-launcher-8.1.8.beta.jar \
+#   --spring.profiles.active=lite \
+#   ...
 ```
 
 ---
 
-## 发布 Docker 镜像
+## ~~发布 Docker 镜像~~（已迁移）
 
-需要先将 Foggy MCP Server 发布为 Docker 镜像：
-
-```bash
-# 构建 JAR
-mvn package -pl foggy-mcp-launcher -am -DskipTests
-
-# 构建 Docker 镜像
-docker build -t foggysource/foggy-dataset-mcp:latest \
-  -t foggysource/foggy-dataset-mcp:8.1.7 \
-  -f docker/Dockerfile .
-
-# 推送到 Docker Hub
-docker push foggysource/foggy-dataset-mcp:latest
-docker push foggysource/foggy-dataset-mcp:8.1.7
-```
+Docker 镜像现在从 `foggy-odoo-bridge-java` 模块构建，包含内置的 TM/QM 模型。
 
 ---
 
-## 实施优先级
+## ~~实施优先级~~（已完成）
 
-| 步骤 | 内容 | 优先级 | 预估时间 |
-|---|---|---|---|
-| 1 | 将 foggy-models/ 和 sql/ 复制到模块 setup/ | P0 | 10 min |
-| 2 | 创建 Setup Wizard (模型 + 视图) | P0 | 2-3 hr |
-| 3 | 闭包表一键初始化（SQL 直接执行） | P0 | 30 min |
-| 4 | Docker Compose 模板生成 | P0 | 1 hr |
-| 5 | 连接测试 + 自动保存配置 | P1 | 30 min |
-| 6 | 发布 Foggy Docker 镜像 | P1 | 1 hr |
-| 7 | GitHub Release 自动发布 JAR | P2 | 配置 CI |
-| 8 | 向导中嵌入视频教程链接 | P2 | - |
-
-### 最小可行版本（Phase 1）：
-- 步骤 1-5：向导能引导用户完成全部安装
-- 预计 4-5 小时开发
-
-### 完整版本（Phase 2）：
-- 加上 Docker 镜像发布 + CI 自动化
-- 预计额外 2-3 小时
+| 步骤 | 内容 | 状态 |
+|---|---|---|
+| 1 | ~~将 foggy-models/ 和 sql/ 复制到模块 setup/~~ | 已废弃 — 模型内置于 Docker 镜像 |
+| 2 | 创建 Setup Wizard (模型 + 视图) | ✅ 完成 |
+| 3 | 闭包表一键初始化（SQL 直接执行） | ✅ 完成 |
+| 4 | Docker 命令生成（动态 DataSource） | ✅ 完成 |
+| 5 | 连接测试 + 自动保存配置 | ✅ 完成 |
+| 6 | 发布 Foggy Docker 镜像（内置模型） | ✅ 完成 |
+| 7 | GitHub Release 自动发布 JAR | 配置 CI |
+| 8 | 向导中嵌入视频教程链接 | P2 |

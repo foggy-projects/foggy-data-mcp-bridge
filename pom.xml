@@ -60,6 +60,7 @@
         <module>addons/foggy-dataset-vector</module>
         <module>addons/foggy-dataset-graphql</module>
         <module>addons/foggy-dataset-model-preagg</module>
+        <module>addons/foggy-odoo-bridge-java</module>
 
         <!-- WIP: 基准测试模块，暂未完成 -->
 <!--        <module>foggy-benchmark-spider2</module>-->
@@ -154,6 +155,11 @@
             <dependency>
                 <groupId>com.foggysource</groupId>
                 <artifactId>foggy-dataset-vector</artifactId>
+                <version>${foggy-framework.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.foggysource</groupId>
+                <artifactId>foggy-odoo-bridge</artifactId>
                 <version>${foggy-framework.version}</version>
             </dependency>
 

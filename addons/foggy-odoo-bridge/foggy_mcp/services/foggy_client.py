@@ -17,11 +17,12 @@ _logger = logging.getLogger(__name__)
 class FoggyClient:
     """HTTP client for the Foggy MCP Server."""
 
-    def __init__(self, base_url, endpoint_path='/mcp/analyst/rpc', timeout=30, namespace='odoo'):
+    def __init__(self, base_url, endpoint_path='/mcp/analyst/rpc', timeout=30, namespace='odoo', auth_token=None):
         self.base_url = base_url.rstrip('/')
         self.endpoint_path = endpoint_path
         self.timeout = timeout
         self.namespace = namespace
+        self.auth_token = auth_token
         self._url = f"{self.base_url}{self.endpoint_path}"
 
     @classmethod
@@ -32,11 +33,12 @@ class FoggyClient:
         endpoint_path = ICP.get_param('foggy_mcp.endpoint_path', '/mcp/analyst/rpc')
         timeout = int(ICP.get_param('foggy_mcp.request_timeout', '30'))
         namespace = ICP.get_param('foggy_mcp.namespace', 'odoo')
+        auth_token = ICP.get_param('foggy_mcp.auth_token', '')
 
         if not base_url:
             raise ValueError("Foggy MCP Server URL not configured. Go to Settings > Foggy MCP.")
 
-        return cls(base_url, endpoint_path, timeout, namespace)
+        return cls(base_url, endpoint_path, timeout, namespace, auth_token)
 
     def call_tools_list(self):
         """
@@ -148,6 +150,11 @@ class FoggyClient:
             'X-NS': self.namespace,
             'X-Request-Id': str(uuid.uuid4()),
         }
+
+        # Add Authorization header if auth token is configured
+        if self.auth_token:
+            headers['Authorization'] = f'Bearer {self.auth_token}'
+
         if extra_headers:
             headers.update(extra_headers)
 

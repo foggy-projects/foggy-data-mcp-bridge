@@ -23,7 +23,9 @@ export function jsonbCaption(column, lang) {
         column: col,
         dialectFormulaDef: {
             postgresql: {
-                builder: (alias) => { return `${alias}.${col} ->> '${lc}'`; }
+                builder: (alias) => {
+                    return `${alias}.${col} ->> '${lc}'`;
+                }
             }
         }
     };

@@ -6,6 +6,12 @@
  */
 import { registerDict } from '@jdbcModelDictService';
 
+/**
+ * Odoo 数据源名称常量
+ * 用于 TM 模型的 dataSourceName 字段
+ */
+export const ODOO_DATA_SOURCE_NAME = 'odoo';
+
 export const dicts = {
     /**
      * 销售订单状态 (sale.order.state)

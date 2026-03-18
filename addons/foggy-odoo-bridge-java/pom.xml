@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.foggysource</groupId>
+        <artifactId>foggy-data-mcp-bridge</artifactId>
+        <version>8.1.8.beta</version>
+    </parent>
+
+    <artifactId>foggy-odoo-bridge</artifactId>
+    <name>Foggy Odoo Bridge</name>
+    <description>Odoo MCP Gateway -内置 Odoo 数据模型，支持与 Odoo ERP 集成</description>
+
+    <dependencies>
+        <!-- Foggy Dataset Model - 核心语义层引擎 -->
+        <dependency>
+            <groupId>com.foggysource</groupId>
+            <artifactId>foggy-dataset-model</artifactId>
+        </dependency>
+
+        <!-- Foggy Dataset MCP - MCP 服务 -->
+        <dependency>
+            <groupId>com.foggysource</groupId>
+            <artifactId>foggy-dataset-mcp</artifactId>
+        </dependency>
+
+        <!-- PostgreSQL Driver (Odoo 默认使用 PostgreSQL) -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <resources>
+            <!-- 包含 foggy 模型文件 -->
+            <resource>
+                <directory>src/main/resources</directory>
+                <includes>
+                    <include>**/*</include>
+                </includes>
+            </resource>
+        </resources>
+    </build>
+
+</project>

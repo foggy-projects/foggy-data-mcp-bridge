@@ -51,6 +51,12 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
     @Resource
     DataSource dataSource;
 
+    /**
+     * Named data source resolver (optional).
+     * Used to resolve dataSourceName in TM definitions.
+     */
+    NamedDataSourceResolver namedDataSourceResolver;
+
 //    /**
 //     * MongoDB 模型加载器（可选）
 //     * <p>仅当项目配置了 MongoDB（存在 MongoClient Bean）时自动注入
@@ -70,6 +76,11 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
         super(systemBundlesContext, fileFsscriptLoader);
         this.processors = processors;
         loaders.forEach(loader -> typeName2Loader.put(loader.getTypeName(), loader));
+    }
+
+    public TableModelLoaderManagerImpl(SystemBundlesContext systemBundlesContext, FileFsscriptLoader fileFsscriptLoader, List<DbModelLoadProcessor> processors, List<TableModelLoader> loaders, NamedDataSourceResolver namedDataSourceResolver) {
+        this(systemBundlesContext, fileFsscriptLoader, processors, loaders);
+        this.namedDataSourceResolver = namedDataSourceResolver;
     }
 
     @Override
@@ -162,6 +173,35 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
         return null;
     }
 
+    /**
+     * Resolve data source for model loading.
+     *
+     * <p>Priority: dataSourceName (resolved via NamedDataSourceResolver) > def.dataSource > default dataSource
+     *
+     * @param def Model definition
+     * @return Resolved DataSource
+     */
+    private DataSource resolveDataSource(DbModelDef def) {
+        // 1. Try to resolve by name
+        if (StringUtils.isNotEmpty(def.getDataSourceName()) && namedDataSourceResolver != null) {
+            DataSource namedDs = namedDataSourceResolver.resolve(def.getDataSourceName());
+            if (namedDs != null) {
+                log.debug("Using named data source: {} for model: {}", def.getDataSourceName(), def.getName());
+                return namedDs;
+            }
+            log.warn("Named data source '{}' not found for model '{}', falling back to default",
+                    def.getDataSourceName(), def.getName());
+        }
+
+        // 2. Use dataSource from definition
+        if (def.getDataSource() != null) {
+            return def.getDataSource();
+        }
+
+        // 3. Use default dataSource
+        return this.dataSource;
+    }
+
     private void fix(DbModelDef def) {
         if (def.getProperties() != null) {
             for (DbPropertyDef property : def.getProperties()) {
@@ -191,8 +231,11 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
     }
 
     public TableModel initialization(TableModel jm, DbModelDef def, Bundle bundle) {
-        RX.notNull(dataSource, "加载模型时的数据源不得为空");
-        RX.notNull(dataSource, "加载模型时的def不得为空");
+        RX.notNull(def, "加载模型时的def不得为空");
+
+        // Resolve data source: dataSourceName > def.dataSource > default dataSource
+        DataSource effectiveDataSource = resolveDataSource(def);
+        RX.notNull(effectiveDataSource, "加载模型时的数据源不得为空");
 
         String tableName = def.getTableName();
         String viewSql = def.getViewSql();
@@ -220,7 +263,7 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
             }
         }
 
-        JdbcModelLoadContext context = new JdbcModelLoadContext(dataSource, def, jdbcModel, bundle);
+        JdbcModelLoadContext context = new JdbcModelLoadContext(effectiveDataSource, def, jdbcModel, bundle);
         //加载维度定义
         loadDimensions(context);
 

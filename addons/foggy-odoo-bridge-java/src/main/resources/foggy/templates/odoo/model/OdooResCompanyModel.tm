@@ -3,11 +3,14 @@
  *
  * @description Company master data — typically used as a dimension table for multi-company filtering
  */
+import { ODOO_DATA_SOURCE_NAME } from '../dicts.fsscript';
+
 export const model = {
     name: 'OdooResCompanyModel',
     caption: 'Companies',
     tableName: 'res_company',
     idColumn: 'id',
+    dataSourceName: ODOO_DATA_SOURCE_NAME,
 
     dimensions: [
         {
