@@ -182,7 +182,7 @@ public class DataSourceController {
             log.info("Data source removed: {}", name);
             return RX.ok();
         } else {
-            return RX.notFound().message("Data source not found: " + name);
+            return RX.<Void>notFound().message("Data source not found: " + name).build();
         }
     }
 
