@@ -43,7 +43,7 @@ public class DataSourceConfigPersistence {
 
     private final ObjectMapper objectMapper;
 
-    @Value("${foggy.datasource.config.dir:#{systemProperties['user.home']/.foggy/datasources}}")
+    @Value("${foggy.datasource.config.dir:#{T(java.lang.System).getProperty('user.home') + '/.foggy/datasources'}}")
     private String configDir;
 
     public DataSourceConfigPersistence() {
