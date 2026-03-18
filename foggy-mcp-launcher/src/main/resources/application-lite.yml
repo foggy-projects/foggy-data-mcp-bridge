@@ -18,7 +18,7 @@ spring:
       - org.springframework.boot.autoconfigure.data.mongo.MongoRepositoriesAutoConfiguration
 
   datasource:
-    url: jdbc:sqlite::memory:
+    url: "jdbc:sqlite::memory:"
     driver-class-name: org.sqlite.JDBC
 
 foggy:
