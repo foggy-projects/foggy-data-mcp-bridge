@@ -57,32 +57,50 @@ public class ForExpTest {
 
     @Test
     public void forTest2() {
-        String expStr = "let result = [];let bb=[1,2,3];for(let b in bb){ result.add(b); } export result; ";
+        // for...in 返回索引（符合 JavaScript 标准）
+        String expStr = "let result = [];let bb=[10,20,30];for(let b in bb){ result.add(b); } export result; ";
         Exp exp = new ExpParser().compileEl(expStr);
 
         ExpEvaluator ee = DefaultExpEvaluator.newInstance(appCtx);
         exp.evalValue(ee);
         List mm = (List) ee.getExportMap().get("result");
 
-        Assertions.assertEquals(mm.get(0),1);
-        Assertions.assertEquals(mm.get(1),2);
-        Assertions.assertEquals(mm.get(2),3);
+        // for...in 返回索引：0, 1, 2
+        Assertions.assertEquals(0, mm.get(0));
+        Assertions.assertEquals(1, mm.get(1));
+        Assertions.assertEquals(2, mm.get(2));
+    }
 
+    @Test
+    public void forOfTest() {
+        // for...of 返回值
+        String expStr = "let result = [];let bb=[10,20,30];for(let b of bb){ result.add(b); } export result; ";
+        Exp exp = new ExpParser().compileEl(expStr);
+
+        ExpEvaluator ee = DefaultExpEvaluator.newInstance(appCtx);
+        exp.evalValue(ee);
+        List mm = (List) ee.getExportMap().get("result");
+
+        // for...of 返回值：10, 20, 30
+        Assertions.assertEquals(10, mm.get(0));
+        Assertions.assertEquals(20, mm.get(1));
+        Assertions.assertEquals(30, mm.get(2));
     }
 
     @Test
     public void forTest3() {
-        String expStr = "let result = [];let bb=[1,2,3];for(let b : bb){ result.add(b); } export result; ";
+        // for...: 返回值（Java 风格，等同于 for...of）
+        String expStr = "let result = [];let bb=[10,20,30];for(let b : bb){ result.add(b); } export result; ";
         Exp exp = new ExpParser().compileEl(expStr);
 
         ExpEvaluator ee = DefaultExpEvaluator.newInstance(appCtx);
         exp.evalValue(ee);
         List mm = (List) ee.getExportMap().get("result");
 
-        Assertions.assertEquals(mm.get(0),1);
-        Assertions.assertEquals(mm.get(1),2);
-        Assertions.assertEquals(mm.get(2),3);
-
+        // for...: 返回值：10, 20, 30
+        Assertions.assertEquals(10, mm.get(0));
+        Assertions.assertEquals(20, mm.get(1));
+        Assertions.assertEquals(30, mm.get(2));
     }
 
     @Test

@@ -230,6 +230,11 @@ public class DefaultExpFactory implements ExpFactory, ApplicationRunner, Disposa
     }
 
     @Override
+    public Exp createForIn(String leftId, Exp rightExp, Exp forBodyExp) {
+        return new ForInExp(leftId, rightExp, forBodyExp);
+    }
+
+    @Override
     public Exp createFunctionDef(FsscriptClosureDefinition fcDefinition, Exp body, List<Exp> argDefs) {
         if (argDefs == null) {
             argDefs = Collections.EMPTY_LIST;

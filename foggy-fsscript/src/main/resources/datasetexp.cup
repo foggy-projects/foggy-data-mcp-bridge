@@ -1,5 +1,7 @@
 
 
+package com.foggyframework.fsscript.parser;
+
 import com.foggyframework.fsscript.parser.spi.*;
 import com.foggyframework.fsscript.exp.*;
 import java_cup.runtime.Symbol;
@@ -9,12 +11,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Stack;
 
-/* Note: When regenerating the parser, use -expect 3 to allow 3 shift/reduce conflicts:
-   1. AT ID vs AT ID LPAREN - resolved by shifting (prefer function call)
-   2. FUNCTION vs FUNCTION LPAREN - resolved by shifting (prefer function definition)
-   3. expression_or_empty vs destructure_pattern (empty) - resolved by shifting
+/* Note: When regenerating the parser, use -expect 91 to allow shift/reduce conflicts:
+   Conflicts are resolved in favor of shifting for operator precedence and expression parsing.
 
-   Example: java -jar java-cup.jar -expect 3 datasetexp.cup
+   Example: java -cp java-cup-11b-20160615.jar java_cup.Main -expect 91 -parser ExpParser -symbols ExpSymbols -destdir src/main/java/com/foggyframework/fsscript/parser datasetexp.cup
 */
 
 parser code {:
@@ -410,12 +410,18 @@ for ::=
         	:}
 
     |	FOR LPAREN VAR ID:l IN expression_or_empty:ll RPAREN ncount_fragment_list:l2{:
-    		RESULT = parser.factory.createFor(l,ll,l2);
+    		RESULT = parser.factory.createForIn(l,ll,l2);
     	:}
     |	FOR LPAREN LET ID:l IN expression_or_empty:ll RPAREN ncount_fragment_list:l2{:
-            RESULT = parser.factory.createFor(l,ll,l2);
+            RESULT = parser.factory.createForIn(l,ll,l2);
         :}
     |	FOR LPAREN CONST ID:l IN expression_or_empty:ll RPAREN ncount_fragment_list:l2{:
+                RESULT = parser.factory.createForIn(l,ll,l2);
+            :}
+    |	FOR LPAREN VAR ID:l OF expression_or_empty:ll RPAREN ncount_fragment_list:l2{:
+                RESULT = parser.factory.createFor(l,ll,l2);
+            :}
+    |	FOR LPAREN LET ID:l OF expression_or_empty:ll RPAREN ncount_fragment_list:l2{:
                 RESULT = parser.factory.createFor(l,ll,l2);
             :}
     |	FOR LPAREN CONST ID:l OF expression_or_empty:ll RPAREN ncount_fragment_list:l2{:
