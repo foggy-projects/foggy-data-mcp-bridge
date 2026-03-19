@@ -1,0 +1,846 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+#   * foggy_mcp
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 17.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-03-19 05:00+0000\n"
+"PO-Revision-Date: 2025-03-19 05:00+0000\n"
+"Last-Translator: \n"
+"Language-Team: Chinese (Simplified)\n"
+"Language: zh_CN\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: \n"
+
+#. Module: foggy_mcp
+#: model:ir.model,name:foggy_mcp.model_res_config_settings
+msgid "Settings"
+msgstr "设置"
+
+#. Module: foggy_mcp
+#: model:ir.model,name:foggy_mcp.model_foggy_api_key
+msgid "Foggy MCP API Key"
+msgstr "Foggy MCP API 密钥"
+
+#. Module: foggy_mcp
+#: model:ir.model,name:foggy_mcp.model_foggy_setup_wizard
+msgid "Foggy MCP Setup Wizard"
+msgstr "Foggy MCP 设置向导"
+
+#. Module: foggy_mcp
+#: model:ir.model,name:foggy_mcp.model_foggy_chat
+msgid "Foggy MCP Chat"
+msgstr "Foggy MCP 对话"
+
+#. ─────────────────────────────────────────────────────────────────────
+#. Settings Fields (foggy_config.py)
+#. ─────────────────────────────────────────────────────────────────────
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,field_description:foggy_mcp.field_res_config_settings__foggy_mcp_url
+msgid "Foggy MCP Server URL"
+msgstr "Foggy MCP 服务地址"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,help:foggy_mcp.field_res_config_settings__foggy_mcp_url
+msgid "Base URL of the Foggy MCP Server (e.g., http://foggy-mcp:8080)"
+msgstr "Foggy MCP 服务器的基础地址（例如：http://foggy-mcp:8080）"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,field_description:foggy_mcp.field_res_config_settings__foggy_mcp_endpoint
+msgid "MCP Endpoint Path"
+msgstr "MCP 端点路径"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,help:foggy_mcp.field_res_config_settings__foggy_mcp_endpoint
+msgid "MCP JSON-RPC endpoint path on the Foggy server"
+msgstr "Foggy 服务器上的 MCP JSON-RPC 端点路径"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,field_description:foggy_mcp.field_res_config_settings__foggy_mcp_timeout
+msgid "Request Timeout (seconds)"
+msgstr "请求超时（秒）"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,help:foggy_mcp.field_res_config_settings__foggy_mcp_timeout
+msgid "HTTP request timeout when calling the Foggy MCP Server"
+msgstr "调用 Foggy MCP 服务器时的 HTTP 请求超时时间"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,field_description:foggy_mcp.field_res_config_settings__foggy_mcp_namespace
+msgid "Namespace"
+msgstr "命名空间"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,help:foggy_mcp.field_res_config_settings__foggy_mcp_namespace
+msgid "Namespace for Odoo models in Foggy (X-NS header value)"
+msgstr "Foggy 中 Odoo 模型的命名空间（X-NS 请求头值）"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,field_description:foggy_mcp.field_res_config_settings__foggy_mcp_cache_ttl
+msgid "Tool Cache TTL (seconds)"
+msgstr "工具缓存时间（秒）"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,help:foggy_mcp.field_res_config_settings__foggy_mcp_cache_ttl
+msgid "How long to cache the tools/list response from Foggy"
+msgstr "缓存 Foggy 工具列表响应的时间"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,field_description:foggy_mcp.field_res_config_settings__foggy_mcp_auth_token
+msgid "Auth Token"
+msgstr "认证令牌"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,help:foggy_mcp.field_res_config_settings__foggy_mcp_auth_token
+msgid "Bearer token for authenticating with Foggy MCP Server. Leave empty if auth is disabled on the server."
+msgstr "用于认证 Foggy MCP 服务器的 Bearer 令牌。如果服务器禁用了认证，请留空。"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,field_description:foggy_mcp.field_res_config_settings__foggy_llm_provider
+msgid "LLM Provider"
+msgstr "LLM 提供商"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,help:foggy_mcp.field_res_config_settings__foggy_llm_provider
+msgid "AI model provider for the embedded chat feature."
+msgstr "嵌入式对话功能的 AI 模型提供商。"
+
+#. Module: foggy_mcp
+#: selection:res.config.settings,foggy_llm_provider:0
+msgid "OpenAI"
+msgstr "OpenAI"
+
+#. Module: foggy_mcp
+#: selection:res.config.settings,foggy_llm_provider:0
+msgid "Anthropic (Claude)"
+msgstr "Anthropic (Claude)"
+
+#. Module: foggy_mcp
+#: selection:res.config.settings,foggy_llm_provider:0
+msgid "DeepSeek"
+msgstr "DeepSeek"
+
+#. Module: foggy_mcp
+#: selection:res.config.settings,foggy_llm_provider:0
+msgid "Ollama (Local)"
+msgstr "Ollama（本地）"
+
+#. Module: foggy_mcp
+#: selection:res.config.settings,foggy_llm_provider:0
+msgid "Custom (OpenAI-compatible)"
+msgstr "自定义（OpenAI 兼容）"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,field_description:foggy_mcp.field_res_config_settings__foggy_llm_api_key
+msgid "LLM API Key"
+msgstr "LLM API 密钥"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,help:foggy_mcp.field_res_config_settings__foggy_llm_api_key
+msgid "API key for the LLM provider (not needed for Ollama)."
+msgstr "LLM 提供商的 API 密钥（Ollama 不需要）。"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,field_description:foggy_mcp.field_res_config_settings__foggy_llm_model
+msgid "Model Name"
+msgstr "模型名称"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,help:foggy_mcp.field_res_config_settings__foggy_llm_model
+msgid "Model identifier (e.g., gpt-4o, claude-3-5-sonnet-20241022, deepseek-chat, llama3)."
+msgstr "模型标识符（例如：gpt-4o、claude-3-5-sonnet-20241022、deepseek-chat、llama3）。"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,field_description:foggy_mcp.field_res_config_settings__foggy_llm_base_url
+msgid "API Base URL"
+msgstr "API 基础地址"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,help:foggy_mcp.field_res_config_settings__foggy_llm_base_url
+msgid "Custom API endpoint. Required for Ollama (http://localhost:11434/v1) and custom providers."
+msgstr "自定义 API 端点。Ollama（http://localhost:11434/v1）和自定义提供商需要填写。"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,field_description:foggy_mcp.field_res_config_settings__foggy_llm_temperature
+msgid "Temperature"
+msgstr "温度"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,help:foggy_mcp.field_res_config_settings__foggy_llm_temperature
+msgid "Controls randomness. Lower = more focused, higher = more creative. (0.0 - 1.0)"
+msgstr "控制随机性。值越低越专注，值越高越有创造性。（0.0 - 1.0）"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,field_description:foggy_mcp.field_res_config_settings__foggy_llm_custom_prompt
+msgid "Business Context Prompt"
+msgstr "业务上下文提示"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,help:foggy_mcp.field_res_config_settings__foggy_llm_custom_prompt
+msgid "Custom business context injected into the AI system prompt."
+msgstr "注入到 AI 系统提示中的自定义业务上下文。"
+
+#. ─────────────────────────────────────────────────────────────────────
+#. Settings Views (foggy_config_views.xml)
+#. ─────────────────────────────────────────────────────────────────────
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.res_config_settings_view_form_foggy
+msgid "Foggy MCP"
+msgstr "Foggy MCP"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.res_config_settings_view_form_foggy
+msgid "Quick Setup"
+msgstr "快速设置"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.res_config_settings_view_form_foggy
+msgid "Setup Wizard"
+msgstr "设置向导"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.res_config_settings_view_form_foggy
+msgid "Step-by-step guide to deploy Foggy MCP Server, initialize closure tables, and verify connection"
+msgstr "分步指南：部署 Foggy MCP 服务器、初始化闭包表、验证连接"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.res_config_settings_view_form_foggy
+msgid "Launch Setup Wizard"
+msgstr "启动设置向导"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.res_config_settings_view_form_foggy
+msgid "Foggy MCP Server Connection"
+msgstr "Foggy MCP 服务器连接"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.res_config_settings_view_form_foggy
+msgid "Server URL"
+msgstr "服务器地址"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.res_config_settings_view_form_foggy
+msgid "Base URL of the Foggy MCP Server"
+msgstr "Foggy MCP 服务器的基础地址"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.res_config_settings_view_form_foggy
+msgid "Endpoint Path"
+msgstr "端点路径"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.res_config_settings_view_form_foggy
+msgid "MCP JSON-RPC endpoint path"
+msgstr "MCP JSON-RPC 端点路径"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.res_config_settings_view_form_foggy
+msgid "Request Timeout"
+msgstr "请求超时"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.res_config_settings_view_form_foggy
+msgid "HTTP timeout in seconds"
+msgstr "HTTP 超时时间（秒）"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.res_config_settings_view_form_foggy
+msgid "Advanced Settings"
+msgstr "高级设置"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.res_config_settings_view_form_foggy
+msgid "Model namespace for Foggy bundles"
+msgstr "Foggy 包的模型命名空间"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.res_config_settings_view_form_foggy
+msgid "Tool Cache TTL"
+msgstr "工具缓存时间"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.res_config_settings_view_form_foggy
+msgid "How long to cache tool definitions (seconds)"
+msgstr "工具定义缓存时间（秒）"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.res_config_settings_view_form_foggy
+msgid "Bearer token for authenticating with Foggy MCP Server (leave empty if auth is disabled)"
+msgstr "用于认证 Foggy MCP 服务器的 Bearer 令牌（如果禁用认证请留空）"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.res_config_settings_view_form_foggy
+msgid "AI Chat (LLM Configuration)"
+msgstr "AI 对话（LLM 配置）"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.res_config_settings_view_form_foggy
+msgid "Select your AI model provider for the embedded chat"
+msgstr "选择嵌入式对话的 AI 模型提供商"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.res_config_settings_view_form_foggy
+msgid "API Key"
+msgstr "API 密钥"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.res_config_settings_view_form_foggy
+msgid "API key for the selected LLM provider"
+msgstr "所选 LLM 提供商的 API 密钥"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.res_config_settings_view_form_foggy
+msgid "Model identifier (e.g., gpt-4o-mini, claude-3-5-sonnet, deepseek-chat)"
+msgstr "模型标识符（例如：gpt-4o-mini、claude-3-5-sonnet、deepseek-chat）"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.res_config_settings_view_form_foggy
+msgid "Custom endpoint URL (required for Ollama and custom providers)"
+msgstr "自定义端点地址（Ollama 和自定义提供商需要）"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.res_config_settings_view_form_foggy
+msgid "Controls randomness (0.0 = deterministic, 1.0 = creative)"
+msgstr "控制随机性（0.0 = 确定，1.0 = 创造性）"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.res_config_settings_view_form_foggy
+msgid "Business Context"
+msgstr "业务上下文"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.res_config_settings_view_form_foggy
+msgid "Custom business knowledge injected into every AI conversation. Define your KPIs, terms, and rules here."
+msgstr "注入到每次 AI 对话中的自定义业务知识。在此定义您的 KPI、术语和规则。"
+
+#. ─────────────────────────────────────────────────────────────────────
+#. API Key Fields (foggy_api_key.py)
+#. ─────────────────────────────────────────────────────────────────────
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,field_description:foggy_mcp.field_foggy_api_key__name
+msgid "Name"
+msgstr "名称"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,field_description:foggy_mcp.field_foggy_api_key__key
+msgid "API Key"
+msgstr "API 密钥"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,field_description:foggy_mcp.field_foggy_api_key__user_id
+msgid "User"
+msgstr "用户"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,field_description:foggy_mcp.field_foggy_api_key__active
+msgid "Active"
+msgstr "启用"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,field_description:foggy_mcp.field_foggy_api_key__last_used
+msgid "Last Used"
+msgstr "最后使用"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,field_description:foggy_mcp.field_foggy_api_key__company_ids
+msgid "Allowed Companies"
+msgstr "允许的公司"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,field_description:foggy_mcp.field_foggy_api_key__mcp_endpoint
+msgid "MCP Endpoint"
+msgstr "MCP 端点"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,field_description:foggy_mcp.field_foggy_api_key__key_short
+msgid "Key Preview"
+msgstr "密钥预览"
+
+#. ─────────────────────────────────────────────────────────────────────
+#. API Key Views (foggy_api_key_views.xml)
+#. ─────────────────────────────────────────────────────────────────────
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_api_key_view_form
+msgid "Regenerate Key"
+msgstr "重新生成密钥"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_api_key_view_form
+msgid "This will invalidate the current key. Continue?"
+msgstr "这将使当前密钥失效。确定继续吗？"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_api_key_view_form
+msgid "Restrictions"
+msgstr "限制"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_api_key_view_form
+msgid "Connection Instructions"
+msgstr "连接说明"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_api_key_view_form
+msgid "Ready-to-use Configuration:"
+msgstr "即用配置："
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_api_key_view_form
+msgid "Select the JSON text and press Ctrl+C / ⌘+C to copy. Or copy the API Key and MCP Endpoint individually above."
+msgstr "选择 JSON 文本后按 Ctrl+C / ⌘+C 复制。或者单独复制上面的 API 密钥和 MCP 端点。"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_api_key_view_form
+msgid "Generic Template (for other environments):"
+msgstr "通用模板（用于其他环境）："
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_api_key_view_form
+msgid "Replace <your-odoo-url> and <your-api-key> accordingly:"
+msgstr "相应地替换 <your-odoo-url> 和 <your-api-key>："
+
+#. Module: foggy_mcp
+#: model:ir.actions.act_window,name:foggy_mcp.foggy_api_key_action
+msgid "MCP API Keys"
+msgstr "MCP API 密钥"
+
+#. Module: foggy_mcp
+#: model_terms:ir.actions.act_window,help:foggy_mcp.foggy_api_key_action
+msgid "Create an API Key"
+msgstr "创建 API 密钥"
+
+#. Module: foggy_mcp
+#: model_terms:ir.actions.act_window,help:foggy_mcp.foggy_api_key_action
+msgid "API keys allow AI clients (Claude Desktop, Cursor, etc.) to securely connect to Odoo via the MCP protocol."
+msgstr "API 密钥允许 AI 客户端（Claude Desktop、Cursor 等）通过 MCP 协议安全地连接到 Odoo。"
+
+#. Module: foggy_mcp
+#: model:ir.actions.act_window,name:foggy_mcp.foggy_my_api_key_action
+msgid "My API Key"
+msgstr "我的 API 密钥"
+
+#. Module: foggy_mcp
+#: model_terms:ir.actions.act_window,help:foggy_mcp.foggy_my_api_key_action
+msgid "No API Key yet"
+msgstr "还没有 API 密钥"
+
+#. Module: foggy_mcp
+#: model_terms:ir.actions.act_window,help:foggy_mcp.foggy_my_api_key_action
+msgid "Click <strong>New</strong> to create your Foggy MCP API key, then use it with Claude Desktop, Cursor, or any MCP-compatible AI client."
+msgstr "点击 <strong>新建</strong> 创建您的 Foggy MCP API 密钥，然后将其用于 Claude Desktop、Cursor 或任何兼容 MCP 的 AI 客户端。"
+
+#. Module: foggy_mcp
+#: model:ir.ui.menu,name:foggy_mcp.foggy_mcp_user_menu_root
+msgid "Foggy MCP"
+msgstr "Foggy MCP"
+
+#. Module: foggy_mcp
+#: model:ir.ui.menu,name:foggy_mcp.foggy_mcp_user_menu_my_key
+msgid "My API Key"
+msgstr "我的 API 密钥"
+
+#. Module: foggy_mcp
+#: model:ir.ui.menu,name:foggy_mcp.foggy_mcp_menu_root
+msgid "Foggy MCP"
+msgstr "Foggy MCP"
+
+#. Module: foggy_mcp
+#: model:ir.ui.menu,name:foggy_mcp.foggy_mcp_menu_api_keys
+msgid "API Keys (All Users)"
+msgstr "API 密钥（所有用户）"
+
+#. ─────────────────────────────────────────────────────────────────────
+#. Setup Wizard Fields (foggy_setup_wizard.py)
+#. ─────────────────────────────────────────────────────────────────────
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,field_description:foggy_mcp.field_foggy_setup_wizard__state
+msgid "Step"
+msgstr "步骤"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,field_description:foggy_mcp.field_foggy_setup_wizard__foggy_port
+msgid "Foggy MCP Port"
+msgstr "Foggy MCP 端口"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,field_description:foggy_mcp.field_foggy_setup_wizard__auth_token
+msgid "Auth Token"
+msgstr "认证令牌"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,field_description:foggy_mcp.field_foggy_setup_wizard__docker_network_name
+msgid "Docker Network"
+msgstr "Docker 网络"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,field_description:foggy_mcp.field_foggy_setup_wizard__docker_network_mode
+msgid "Network Mode"
+msgstr "网络模式"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,field_description:foggy_mcp.field_foggy_setup_wizard__docker_network_detected
+msgid "Docker Network Detected"
+msgstr "已检测到 Docker 网络"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,field_description:foggy_mcp.field_foggy_setup_wizard__docker_socket_available
+msgid "Docker Socket Available"
+msgstr "Docker Socket 可用"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,field_description:foggy_mcp.field_foggy_setup_wizard__deploy_command
+msgid "Deploy Command"
+msgstr "部署命令"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,field_description:foggy_mcp.field_foggy_setup_wizard__deploy_status
+msgid "Status"
+msgstr "状态"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,field_description:foggy_mcp.field_foggy_setup_wizard__foggy_url
+msgid "Foggy MCP URL"
+msgstr "Foggy MCP 地址"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,field_description:foggy_mcp.field_foggy_setup_wizard__connection_status
+msgid "Connection Status"
+msgstr "连接状态"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,field_description:foggy_mcp.field_foggy_setup_wizard__db_host
+msgid "Database Host"
+msgstr "数据库主机"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,field_description:foggy_mcp.field_foggy_setup_wizard__db_port
+msgid "Database Port"
+msgstr "数据库端口"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,field_description:foggy_mcp.field_foggy_setup_wizard__db_user
+msgid "Database User"
+msgstr "数据库用户"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,field_description:foggy_mcp.field_foggy_setup_wizard__db_password
+msgid "Database Password"
+msgstr "数据库密码"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,field_description:foggy_mcp.field_foggy_setup_wizard__db_name
+msgid "Database Name"
+msgstr "数据库名称"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,field_description:foggy_mcp.field_foggy_setup_wizard__datasource_status
+msgid "Data Source Status"
+msgstr "数据源状态"
+
+#. Module: foggy_mcp
+#: model:ir.model.fields,field_description:foggy_mcp.field_foggy_setup_wizard__closure_status
+msgid "Closure Table Status"
+msgstr "闭包表状态"
+
+#. ─────────────────────────────────────────────────────────────────────
+#. Setup Wizard Views (foggy_setup_wizard_views.xml)
+#. ─────────────────────────────────────────────────────────────────────
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "Foggy MCP Setup"
+msgstr "Foggy MCP 设置"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "Welcome to Foggy MCP"
+msgstr "欢迎使用 Foggy MCP"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "This wizard will help you connect Odoo to AI assistants like Claude and Cursor."
+msgstr "此向导将帮助您将 Odoo 连接到 Claude 和 Cursor 等 AI 助手。"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "What you'll need:"
+msgstr "您需要准备："
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "Docker installed on your server"
+msgstr "服务器上已安装 Docker"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "Access to run terminal commands"
+msgstr "有权限运行终端命令"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "~2 minutes"
+msgstr "约 2 分钟"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "Deploy Foggy MCP Server"
+msgstr "部署 Foggy MCP 服务器"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "Database connection detected from Odoo config. Adjust if needed, then run the command in your terminal."
+msgstr "已从 Odoo 配置检测到数据库连接。如需要可调整，然后在终端运行命令。"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "✓ Docker Network Detected:"
+msgstr "✓ 已检测到 Docker 网络："
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "Odoo is running in Docker on network"
+msgstr "Odoo 正在 Docker 网络中运行"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "Foggy MCP will automatically join this network for seamless communication."
+msgstr "Foggy MCP 将自动加入此网络以实现无缝通信。"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "⚠️ Docker Environment Detected (No Socket)"
+msgstr "⚠️ 检测到 Docker 环境（无 Socket）"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "Odoo is running in Docker but the Docker socket is not mounted. The generated command includes a network placeholder - you'll need to find your network name."
+msgstr "Odoo 正在 Docker 中运行，但 Docker socket 未挂载。生成的命令包含网络占位符 - 您需要找到您的网络名称。"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "Database Connection"
+msgstr "数据库连接"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "Regenerate Command"
+msgstr "重新生成命令"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "Run this command in your terminal"
+msgstr "在终端中运行此命令"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "How to run:"
+msgstr "如何运行："
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "Click in the code box above and press <code>Ctrl+A</code> then <code>Ctrl+C</code> to copy"
+msgstr "点击上方代码框，按 <code>Ctrl+A</code> 然后 <code>Ctrl+C</code> 复制"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "Open your terminal (SSH or local)"
+msgstr "打开终端（SSH 或本地）"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "Paste and press Enter"
+msgstr "粘贴并按回车"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "Wait for \"Started\" message, then click Next below"
+msgstr "等待 \"Started\" 消息出现，然后点击下方的下一步"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "Test Connection"
+msgstr "测试连接"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "Verify Foggy MCP Server is running and save the connection."
+msgstr "验证 Foggy MCP 服务器是否正在运行并保存连接。"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "Tip:"
+msgstr "提示："
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "Since both containers are on network"
+msgstr "由于两个容器都在同一网络"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "use"
+msgstr "使用"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "as the URL."
+msgstr "作为地址。"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "Both containers are on the same Docker network."
+msgstr "两个容器在同一 Docker 网络中。"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "Foggy MCP Server URL"
+msgstr "Foggy MCP 服务器地址"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "Result"
+msgstr "结果"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "Click <strong>Test Connection</strong> button below to verify."
+msgstr "点击下方的 <strong>测试连接</strong> 按钮进行验证。"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "Initialize Closure Tables"
+msgstr "初始化闭包表"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "Required for hierarchical queries (company tree, department tree, etc.)."
+msgstr "层级查询所需（公司树、部门树等）。"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "Initialize Closure Tables"
+msgstr "初始化闭包表"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "This will create 4 tables in your database. Continue?"
+msgstr "这将在您的数据库中创建 4 个表。确定继续吗？"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "Tables:"
+msgstr "表："
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "You can skip this step if you don't need hierarchical queries, and run it later from Settings."
+msgstr "如果您不需要层级查询，可以跳过此步骤，稍后从设置中运行。"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "🎉 Setup Complete!"
+msgstr "🎉 设置完成！"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "Foggy MCP is ready to use."
+msgstr "Foggy MCP 已准备就绪。"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "Next step: Create an API Key to connect your AI assistant."
+msgstr "下一步：创建 API 密钥以连接您的 AI 助手。"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "Next →"
+msgstr "下一步 →"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "Skip"
+msgstr "跳过"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "Create API Key"
+msgstr "创建 API 密钥"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "← Back"
+msgstr "← 返回"
+
+#. Module: foggy_mcp
+#: model_terms:ir.ui.view,arch:foggy_mcp.foggy_setup_wizard_view_form
+msgid "Cancel"
+msgstr "取消"
+
+#. Module: foggy_mcp
+#: model:ir.actions.act_window,name:foggy_mcp.foggy_setup_wizard_action
+msgid "Foggy MCP Setup"
+msgstr "Foggy MCP 设置"
+
+#. Module: foggy_mcp
+#: model:ir.ui.menu,name:foggy_mcp.foggy_mcp_menu_setup_wizard
+msgid "Setup Wizard"
+msgstr "设置向导"
+
+#. ─────────────────────────────────────────────────────────────────────
+#. Error Messages (Python code)
+#. ─────────────────────────────────────────────────────────────────────
+
+#. Module: foggy_mcp
+#: code:addons/foggy_mcp/models/foggy_config.py:0
+#, python-format
+msgid ""
+"Settings cannot be saved because the module needs to be upgraded.\n"
+"\n"
+"Please run the following command:\n"
+"    docker exec <odoo_container> odoo -u foggy_mcp -d <database> --stop-after-init\n"
+"\n"
+"Then restart Odoo and try again.\n"
+"\n"
+"Technical details: %s"
+msgstr ""
+"设置无法保存，因为模块需要升级。\n"
+"\n"
+"请运行以下命令：\n"
+"    docker exec <odoo_container> odoo -u foggy_mcp -d <database> --stop-after-init\n"
+"\n"
+"然后重启 Odoo 并重试。\n"
+"\n"
+"技术详情：%s"
+
+#. Module: foggy_mcp
+#: code:addons/foggy_mcp/models/foggy_config.py:0
+#, python-format
+msgid "Module Upgrade Required"
+msgstr "需要升级模块"
+
+#. Module: foggy_mcp
+#: code:addons/foggy_mcp/models/foggy_config.py:0
+#, python-format
+msgid "Please run: docker exec <odoo_container> odoo -u foggy_mcp -d <database> --stop-after-init"
+msgstr "请运行：docker exec <odoo_container> odoo -u foggy_mcp -d <database> --stop-after-init"
+
+#. Module: foggy_mcp
+#: code:addons/foggy_mcp/services/foggy_client.py:0
+#, python-format
+msgid "Foggy MCP Server URL not configured. Go to Settings > Foggy MCP."
+msgstr "Foggy MCP 服务器地址未配置。请前往设置 > Foggy MCP。"
+
+#. Module: foggy_mcp
+#: code:addons/foggy_mcp/services/foggy_client.py:0
+#, python-format
+msgid "Foggy MCP error: %s"
+msgstr "Foggy MCP 错误：%s"
