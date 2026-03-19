@@ -64,6 +64,14 @@
                                 </div>
                             </div>
                         </setting>
+                        <setting string="Auth Token" help="Bearer token for authenticating with Foggy MCP Server (leave empty if auth is disabled)">
+                            <div class="content-group">
+                                <div class="row mt16">
+                                    <label for="foggy_mcp_auth_token" class="col-lg-3"/>
+                                    <field name="foggy_mcp_auth_token" class="col-lg-6" password="True"/>
+                                </div>
+                            </div>
+                        </setting>
                     </block>
                     <block title="AI Chat (LLM Configuration)">
                         <setting string="LLM Provider" help="Select your AI model provider for the embedded chat">

@@ -44,6 +44,24 @@
                             </p>
                         </div>
 
+                        <!-- Docker Network Detection - Real network name (Docker socket mounted) -->
+                        <div invisible="not docker_network_name" class="alert alert-success mb16" role="alert">
+                            <strong>✓ Docker Network Detected:</strong>
+                            <span>Odoo is running in Docker on network <code><field name="docker_network_name"/></code></span>
+                            <br/>
+                            <small>Foggy MCP will automatically join this network for seamless communication.</small>
+                        </div>
+
+                        <!-- Docker Network Detection - Inferred (no Docker socket) -->
+                        <div invisible="not docker_network_detected or docker_network_name" class="alert alert-warning mb16" role="alert">
+                            <strong>⚠️ Docker Environment Detected (No Socket)</strong>
+                            <br/>
+                            <small>Odoo is running in Docker but the Docker socket is not mounted.
+                            The generated command includes a network placeholder - you'll need to find your network name.</small>
+                            <br/>
+                            <code style="margin-top: 4px; display: inline-block;">docker network ls</code>
+                        </div>
+
                         <group string="Database Connection" col="6">
                             <field name="db_host"/>
                             <field name="db_port"/>
@@ -52,6 +70,12 @@
                             <field name="db_name"/>
                             <field name="foggy_port"/>
                         </group>
+
+                        <!-- Hidden fields for network info -->
+                        <field name="docker_network_name" invisible="1"/>
+                        <field name="docker_network_mode" invisible="1"/>
+                        <field name="docker_network_detected" invisible="1"/>
+                        <field name="docker_socket_available" invisible="1"/>
 
                         <group>
                             <button name="action_regenerate_command" string="Regenerate Command"
@@ -82,6 +106,18 @@
                             <p class="text-muted">
                                 Verify Foggy MCP Server is running and save the connection.
                             </p>
+                        </div>
+
+                        <!-- Docker network hint - Real network -->
+                        <div invisible="not docker_network_name" class="alert alert-info mb8" role="alert">
+                            <strong>Tip:</strong> Since both containers are on network <code><field name="docker_network_name"/></code>,
+                            use <code>http://foggy-mcp:8080</code> as the URL.
+                        </div>
+
+                        <!-- Docker network hint - No socket, but in Docker -->
+                        <div invisible="not docker_network_detected or docker_network_name" class="alert alert-info mb8" role="alert">
+                            <strong>Tip:</strong> Both containers are on the same Docker network.
+                            Use <code>http://foggy-mcp:8080</code> as the URL.
                         </div>
 
                         <group string="Foggy MCP Server URL">

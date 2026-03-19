@@ -1,5 +1,6 @@
 package com.foggyframework.odoo.bridge;
 
+import com.foggyframework.core.annotates.EnableFoggyFramework;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 
@@ -53,6 +54,7 @@ import org.springframework.context.annotation.Configuration;
  */
 @Configuration
 @ComponentScan("com.foggyframework.odoo.bridge")
+@EnableFoggyFramework(bundleName = "odoo", namespace = "odoo")
 public class OdooBridgeAutoConfiguration {
 
 }

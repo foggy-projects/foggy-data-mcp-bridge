@@ -17,7 +17,7 @@ _logger = logging.getLogger(__name__)
 class FoggyClient:
     """HTTP client for the Foggy MCP Server."""
 
-    def __init__(self, base_url, endpoint_path='/mcp/analyst/rpc', timeout=30, namespace='odoo', auth_token=None):
+    def __init__(self, base_url, endpoint_path='/mcp/analyst/rpc', timeout=30, namespace='', auth_token=None):
         self.base_url = base_url.rstrip('/')
         self.endpoint_path = endpoint_path
         self.timeout = timeout
@@ -32,7 +32,8 @@ class FoggyClient:
         base_url = ICP.get_param('foggy_mcp.server_url', '')
         endpoint_path = ICP.get_param('foggy_mcp.endpoint_path', '/mcp/analyst/rpc')
         timeout = int(ICP.get_param('foggy_mcp.request_timeout', '30'))
-        namespace = ICP.get_param('foggy_mcp.namespace', 'odoo')
+        # Handle empty string - treat as default namespace (empty string, not 'odoo')
+        namespace = ICP.get_param('foggy_mcp.namespace', '') or ''
         auth_token = ICP.get_param('foggy_mcp.auth_token', '')
 
         if not base_url:
@@ -86,6 +87,7 @@ class FoggyClient:
         if trace_id:
             headers['X-Trace-Id'] = trace_id
 
+        _logger.info("FoggyClient.call_tools_call: tool=%s, arguments=%s", tool_name, arguments)
         response = self._send_request(request_body, extra_headers=headers)
         return response
 
@@ -147,9 +149,13 @@ class FoggyClient:
         """
         headers = {
             'Content-Type': 'application/json',
-            'X-NS': self.namespace,
             'X-Request-Id': str(uuid.uuid4()),
         }
+
+        # Only add X-NS header if namespace is non-empty
+        # Empty namespace means use default namespace on Java side
+        if self.namespace and self.namespace.strip():
+            headers['X-NS'] = self.namespace
 
         # Add Authorization header if auth token is configured
         if self.auth_token:
@@ -158,7 +164,7 @@ class FoggyClient:
         if extra_headers:
             headers.update(extra_headers)
 
-        _logger.debug("Foggy request: url=%s, method=%s", self._url, body.get('method'))
+        _logger.debug("Foggy request: url=%s, method=%s, headers=%s", self._url, body.get('method'), headers)
 
         try:
             resp = requests.post(

@@ -46,6 +46,11 @@ public class AuthInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
+        // Skip authentication if not configured (auth disabled)
+        if (!authProperties.isEnabled()) {
+            return true;
+        }
+
         String path = request.getRequestURI();
 
         // Whitelist paths don't require authentication

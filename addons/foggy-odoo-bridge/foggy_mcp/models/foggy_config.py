@@ -38,6 +38,11 @@ class ResConfigSettings(models.TransientModel):
         default=300,
         help='How long to cache the tools/list response from Foggy',
     )
+    foggy_mcp_auth_token = fields.Char(
+        string='Auth Token',
+        config_parameter='foggy_mcp.auth_token',
+        help='Bearer token for authenticating with Foggy MCP Server. Leave empty if auth is disabled on the server.',
+    )
 
     # ── AI Chat (LLM) Settings ──────────────────────────
 
