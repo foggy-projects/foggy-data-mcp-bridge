@@ -135,6 +135,12 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
         DbModelDef def = FsscriptConversionService.getSharedInstance().convert(model, DbModelDef.class);
         fix(def);
 
+        // Resolve data source before loading (needed by JdbcTableModelLoaderImpl)
+        DataSource effectiveDataSource = resolveDataSource(def);
+        if (effectiveDataSource != null) {
+            def.setDataSource(effectiveDataSource);
+        }
+
         TableModelLoader tableModelLoader = typeName2Loader.get(def.getType());
         if (tableModelLoader == null) {
             String typeName = def.getType();
@@ -462,13 +468,13 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
             //父子结构~
             DbModelParentChildDimensionImpl parentChildDimension = new DbModelParentChildDimensionImpl(dimensionDef.getParentKey(), dimensionDef.getChildKey(), dimensionDef.getClosureTableName());
             dimension = parentChildDimension;
-            // 加载闭包表
-            parentChildDimension.setClosureQueryObject(loadQueryObject(dimensionDef.getDataSource() == null ? dataSource : dimensionDef.getDataSource(), dimensionDef.getClosureTableName(), null, dimensionDef.getClosureTableSchema()));
+            // 加载闭包表 - use context.getDataSource() to inherit from model's dataSourceName
+            parentChildDimension.setClosureQueryObject(loadQueryObject(dimensionDef.getDataSource() == null ? context.getDataSource() : dimensionDef.getDataSource(), dimensionDef.getClosureTableName(), null, dimensionDef.getClosureTableSchema()));
             //childKey用来作为ClosureQueryObject的primaryKey与主表进行关联，注意，childKey实际上可不是主键
             parentChildDimension.getClosureQueryObject().getDecorate(QueryObjectSupport.class).setPrimaryKey(dimensionDef.getChildKey());
             // 加载祖先方向闭包表（ancestorClosureQueryObject），PK 设为 parentKey
             // 用于 selfAndAncestorsOf / ancestorsOf 操作符：fact.FK = closure.parentKey, WHERE closure.childKey = value
-            parentChildDimension.setAncestorClosureQueryObject(loadQueryObject(dimensionDef.getDataSource() == null ? dataSource : dimensionDef.getDataSource(), dimensionDef.getClosureTableName(), null, dimensionDef.getClosureTableSchema()));
+            parentChildDimension.setAncestorClosureQueryObject(loadQueryObject(dimensionDef.getDataSource() == null ? context.getDataSource() : dimensionDef.getDataSource(), dimensionDef.getClosureTableName(), null, dimensionDef.getClosureTableSchema()));
             parentChildDimension.getAncestorClosureQueryObject().getDecorate(QueryObjectSupport.class).setPrimaryKey(dimensionDef.getParentKey());
             // 加载层级视角的维度表（hierarchyQueryObject），用于 team$hierarchy$xxx 列
             // hierarchyQueryObject 与 queryObject 是同一个表，但通过 closure.parent_id 关联
