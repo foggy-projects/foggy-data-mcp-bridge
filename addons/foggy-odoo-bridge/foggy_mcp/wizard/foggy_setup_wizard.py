@@ -512,8 +512,18 @@ class FoggySetupWizard(models.TransientModel):
             'setup', 'sql', 'refresh_closure_tables.sql',
         )
         try:
+            # Check if SQL file exists
+            if not os.path.exists(sql_path):
+                self.write({
+                    'closure_status': f"❌ SQL file not found: {sql_path}\n\n"
+                                      "This is optional - you can skip this step."
+                })
+                return self._reopen()
+
             with open(sql_path, 'r', encoding='utf-8') as f:
                 sql = f.read()
+
+            # Execute in transaction - will rollback on error
             self.env.cr.execute(sql)
             self.env.cr.execute("SELECT refresh_all_closures()")
             self.env.cr.fetchone()
@@ -522,6 +532,7 @@ class FoggySetupWizard(models.TransientModel):
                       'hr_employee_closure', 'res_partner_closure']
             counts = []
             for table in tables:
+                # Use safe SQL identifier (table names are hardcoded above)
                 self.env.cr.execute(f"SELECT count(*) FROM {table}")
                 count = self.env.cr.fetchone()[0]
                 counts.append(f"  {table}: {count} rows")
@@ -530,7 +541,14 @@ class FoggySetupWizard(models.TransientModel):
                 'closure_status': "✅ Closure tables initialized!\n\n" + '\n'.join(counts)
             })
         except Exception as e:
-            self.write({'closure_status': f"❌ Error: {e}"})
+            # Log the error for debugging, but show user-friendly message
+            _logger.warning("Closure table initialization failed: %s", e, exc_info=True)
+            self.write({
+                'closure_status': f"❌ Error: {e}\n\n"
+                                  "You can skip this step and initialize closure tables later.\n"
+                                  "Hierarchical queries (child_of/parent_of) will still work "
+                                  "using Odoo's native parent_path."
+            })
 
         return self._reopen()
 

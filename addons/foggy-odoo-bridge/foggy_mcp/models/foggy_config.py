@@ -1,7 +1,20 @@
 # -*- coding: utf-8 -*-
+"""
+Foggy MCP Gateway Settings
+
+Configuration stored in ir.config_parameter (no DB column needed).
+Fields with config_parameter attribute are automatically mapped.
+
+IMPORTANT: After adding new fields, always run module upgrade:
+    docker exec <odoo_container> odoo -u foggy_mcp -d <database> --stop-after-init
+
+This ensures Odoo properly registers the new fields without requiring
+database columns (TransientModel fields are stored in ir.config_parameter).
+"""
 import logging
 
-from odoo import fields, models
+from odoo import _, api, fields, models
+from odoo.exceptions import UserError
 
 _logger = logging.getLogger(__name__)
 
@@ -84,3 +97,51 @@ class ResConfigSettings(models.TransientModel):
         config_parameter='foggy_mcp.llm_custom_prompt',
         help='Custom business context injected into the AI system prompt.',
     )
+
+    # ── Safe Execute Override ─────────────────────────────────────
+
+    def execute(self):
+        """
+        Override execute to provide better error messages for schema issues.
+
+        When new config_parameter fields are added without running module upgrade,
+        Odoo may raise "column does not exist" errors. This override catches
+        those errors and provides actionable guidance.
+        """
+        try:
+            return super().execute()
+        except Exception as e:
+            error_msg = str(e)
+
+            # Check for common schema-related errors
+            if 'column' in error_msg.lower() and 'does not exist' in error_msg.lower():
+                _logger.error("Schema error when saving settings: %s", error_msg)
+                raise UserError(_(
+                    "Settings cannot be saved because the module needs to be upgraded.\n\n"
+                    "Please run the following command:\n"
+                    "    docker exec <odoo_container> odoo -u foggy_mcp -d <database> --stop-after-init\n\n"
+                    "Then restart Odoo and try again.\n\n"
+                    "Technical details: %s"
+                ) % error_msg)
+
+            # Re-raise other errors as-is
+            raise
+
+    def action_upgrade_module(self):
+        """
+        Action to trigger module upgrade from settings UI.
+        Opens a wizard or shows instructions.
+        """
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Module Upgrade Required'),
+                'message': _(
+                    'Please run: docker exec <odoo_container> odoo -u foggy_mcp -d <database> --stop-after-init'
+                ),
+                'type': 'warning',
+                'sticky': True,
+            }
+        }

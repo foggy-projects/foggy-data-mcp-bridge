@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Foggy MCP Gateway',
-    'version': '17.0.1.0.0',
+    'version': '17.0.1.1.0',
     'category': 'Technical',
     'summary': 'MCP Gateway for AI-powered natural language data queries via Foggy Framework',
     'description': """
@@ -69,4 +69,5 @@ Data Privacy Notice:
     'installable': True,
     'application': True,
     'auto_install': False,
+    'post_init_hook': 'post_init_hook',
 }
