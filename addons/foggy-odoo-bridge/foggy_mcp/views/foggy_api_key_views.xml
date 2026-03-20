@@ -106,18 +106,13 @@
         </field>
     </record>
 
-    <!-- ===== User-facing menu (visible to ALL internal users) ===== -->
-    <menuitem id="foggy_mcp_user_menu_root"
-              name="Foggy MCP"
-              web_icon="foggy_mcp,static/description/icon.png"
-              groups="base.group_user"
-              sequence="200"/>
-
+    <!-- ===== "My API Key" moved under Settings → Foggy MCP ===== -->
     <menuitem id="foggy_mcp_user_menu_my_key"
-              name="My API Key"
-              parent="foggy_mcp_user_menu_root"
+              name="MCP API Key"
+              parent="foggy_mcp_config_menu_root"
               action="foggy_my_api_key_action"
-              sequence="10"/>
+              sequence="20"
+              groups="base.group_user"/>
 
     <!-- ===== Admin menu (under Settings) ===== -->
     <menuitem id="foggy_mcp_menu_root"

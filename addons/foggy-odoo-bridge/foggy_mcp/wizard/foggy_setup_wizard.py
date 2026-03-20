@@ -172,6 +172,18 @@ class FoggySetupWizard(models.TransientModel):
     docker_network_detected = fields.Boolean(string='Docker Network Detected', readonly=True)
     docker_socket_available = fields.Boolean(string='Docker Socket Available', readonly=True)
 
+    # Connection mode selection
+    connection_mode = fields.Selection([
+        ('docker', 'Docker 网络模式（推荐）'),
+        ('direct_ip', '直接 IP 连接'),
+    ], string='连接模式', default='docker', required=True)
+
+    # Custom database host for direct IP mode (user-editable)
+    custom_db_host = fields.Char(string='数据库主机 IP', default='192.168.1.100')
+
+    # Docker network name (user can edit)
+    docker_network_input = fields.Char(string='Docker Network 名称', help='输入或选择 Docker 网络名称，运行 `docker network ls` 查看可用网络')
+
     deploy_command = fields.Text(string='Deploy Command', readonly=True)
     deploy_status = fields.Text(string='Status', readonly=True)
 
@@ -233,6 +245,8 @@ class FoggySetupWizard(models.TransientModel):
             'docker_network_mode': docker_info.get('network_mode'),
             'docker_network_detected': docker_info['in_docker'] and bool(docker_info.get('network_name')),
             'docker_socket_available': socket_available,
+            'docker_network_input': real_network_name or '',
+            'custom_db_host': '192.168.1.100',
         })
         return res
 
@@ -294,30 +308,35 @@ class FoggySetupWizard(models.TransientModel):
             f'-e FOGGY_AUTH_TOKEN={self.auth_token}',
         ]
 
-        # Network options
+        # Network options and DB host based on connection mode
         network_opts = []
         port_mapping = f"-p {self.foggy_port}:8080"
         network_comment = ""
+        db_host_env = ""
 
-        if docker_info['in_docker'] and docker_info['network_name']:
-            # We have network info
-            if os.path.exists('/var/run/docker.sock'):
-                # Real network name from Docker API
-                network_opts.append(f"--network {docker_info['network_name']}")
-            else:
-                # Inferred network - user needs to replace placeholder
+        if self.connection_mode == 'docker':
+            # Docker network mode
+            network_name = self.docker_network_input or docker_info.get('network_name')
+
+            if network_name:
+                network_opts.append(f"--network {network_name}")
+            elif docker_info['in_docker']:
+                # No network name available - use placeholder
                 network_opts.append("--network <NETWORK_NAME>")
                 network_comment = "\n# ⚠️ Replace <NETWORK_NAME> with your Docker network name."
                 network_comment += "\n#    Run: docker network ls"
-                network_comment += f"\n#    Or join Odoo's network: --network container:{docker_info['container_id']}"
-            _logger.info("Detected Docker network: %s", docker_info['network_name'])
-        elif docker_info['in_docker'] and docker_info['network_mode'] == 'host':
-            # Host network mode - no port mapping needed, uses host's network directly
-            network_opts.append("--network host")
-            port_mapping = ""  # Not needed in host mode
-        elif system == 'Linux':
-            # Linux requires explicit host gateway
-            network_opts.append('--add-host=host.docker.internal:host-gateway')
+                if docker_info.get('container_id'):
+                    network_comment += f"\n#    Or join Odoo's network: --network container:{docker_info['container_id']}"
+            elif docker_info['network_mode'] == 'host':
+                # Host network mode - no port mapping needed
+                network_opts.append("--network host")
+                port_mapping = ""
+        elif self.connection_mode == 'direct_ip':
+            # Direct IP connection mode
+            # Use host.docker.internal to access host machine's database
+            db_host_env = f'-e DB_HOST={self.custom_db_host}'
+            if system == 'Linux':
+                network_opts.append('--add-host=host.docker.internal:host-gateway')
 
         cmd = (
             f"docker run -d \\\n"
@@ -328,6 +347,9 @@ class FoggySetupWizard(models.TransientModel):
             cmd += f"  {port_mapping} \\\n"
 
         cmd += f"  {' '.join(env_vars)} \\\n"
+
+        if db_host_env:
+            cmd += f"  {db_host_env} \\\n"
 
         if network_opts:
             cmd += f"  {' '.join(network_opts)} \\\n"
@@ -367,39 +389,61 @@ class FoggySetupWizard(models.TransientModel):
     # ══════════════════════════════════════════════════════════════════
 
     def action_test_connection(self):
-        """Test connectivity to Foggy MCP Server."""
+        """Test connectivity to Foggy MCP Server (without saving)."""
         self.ensure_one()
         url = self.foggy_url or 'http://localhost:7108'
+
+        status_msg = ""
+        is_success = False
 
         try:
             import requests
             r = requests.get(f'{url.rstrip("/")}/actuator/health', timeout=5)
             if r.status_code == 200:
-                # Save configuration
-                ICP = self.env['ir.config_parameter'].sudo()
-                ICP.set_param('foggy_mcp.server_url', url)
-                ICP.set_param('foggy_mcp.auth_token', self.auth_token)
-
-                self.write({
-                    'connection_status': f"✅ Connected to Foggy MCP Server\n\n"
-                                        f"URL: {url}\n"
-                                        f"Auth Token: {self.auth_token}\n\n"
-                                        f"Response: {r.text[:200]}"
-                })
+                is_success = True
+                status_msg = (
+                    f"✅ Connected to Foggy MCP Server\n\n"
+                    f"URL: {url}\n"
+                    f"Auth Token: {self.auth_token}\n\n"
+                    f"Response: {r.text[:200]}"
+                )
             else:
-                self.write({
-                    'connection_status': f"❌ Server responded with HTTP {r.status_code}\n\n{r.text[:200]}"
-                })
+                status_msg = f"❌ Server responded with HTTP {r.status_code}\n\n{r.text[:200]}"
         except ImportError:
-            self.write({
-                'connection_status': "❌ Error: 'requests' library not available.\n\nInstall: pip install requests"
-            })
+            status_msg = "❌ Error: 'requests' library not available.\n\nInstall: pip install requests"
         except Exception as e:
-            self.write({
-                'connection_status': f"❌ Cannot reach {url}\n\nError: {e}"
-            })
+            status_msg = f"❌ Cannot reach {url}\n\nError: {e}"
+
+        self.write({'connection_status': status_msg})
+
+        # If test succeeded, save configuration
+        if is_success:
+            ICP = self.env['ir.config_parameter'].sudo()
+            ICP.set_param('foggy_mcp.server_url', url)
+            ICP.set_param('foggy_mcp.auth_token', self.auth_token)
 
         return self._reopen()
+
+    def action_save_connection(self):
+        """Manually save connection configuration."""
+        self.ensure_one()
+        url = self.foggy_url or 'http://localhost:7108'
+
+        ICP = self.env['ir.config_parameter'].sudo()
+        ICP.set_param('foggy_mcp.server_url', url)
+        ICP.set_param('foggy_mcp.auth_token', self.auth_token)
+
+        # Show confirmation message
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Configuration Saved'),
+                'message': _('Foggy MCP Server URL and Auth Token have been saved.'),
+                'type': 'success',
+                'sticky': False,
+            }
+        }
 
     # ══════════════════════════════════════════════════════════════════
     # Step 4: Data Source Configuration
@@ -413,28 +457,33 @@ class FoggySetupWizard(models.TransientModel):
         ICP = self.env['ir.config_parameter'].sudo()
         auth_token = ICP.get_param('foggy_mcp.auth_token', '')
 
-        # Detect Docker environment
-        docker_info = _get_docker_network_info()
-
-        # Determine database host for Foggy MCP
-        db_host = self.db_host
-        if docker_info['in_docker'] and docker_info['network_name']:
-            # Both Odoo and Foggy MCP are in the same Docker network
-            # Use the PostgreSQL container name directly (usually 'postgres' or from Odoo config)
-            # Check if db_host is localhost/127.0.0.1 -> use the postgres container name
-            if db_host in ('localhost', '127.0.0.1'):
-                # Try to get actual postgres container name from Odoo config or environment
-                # Common patterns: 'postgres', 'db', 'odoo-postgres', etc.
-                config = tools.config
-                pg_host = config.get('db_host')
-                if pg_host and pg_host not in ('localhost', '127.0.0.1', 'False', False):
-                    db_host = pg_host
-                else:
-                    # Default to 'postgres' which is common in docker-compose setups
-                    db_host = 'postgres'
-        elif db_host in ('localhost', '127.0.0.1'):
-            # Not in Docker or different network -> use host.docker.internal
-            db_host = 'host.docker.internal'
+        # Determine database host based on connection mode
+        if self.connection_mode == 'docker':
+            # Docker network mode - use PostgreSQL service name
+            # In Docker network, Foggy can reach DB via service name like 'postgres'
+            db_host = 'postgres'
+            # Try to get actual postgres container name from Odoo config
+            config = tools.config
+            pg_host = config.get('db_host')
+            if pg_host and pg_host not in ('localhost', '127.0.0.1', 'False', False):
+                db_host = pg_host
+        elif self.connection_mode == 'direct_ip':
+            # Direct IP mode - use user-provided IP
+            db_host = self.custom_db_host
+        else:
+            # Fallback to auto-detection
+            docker_info = _get_docker_network_info()
+            db_host = self.db_host
+            if docker_info['in_docker'] and docker_info['network_name']:
+                if db_host in ('localhost', '127.0.0.1'):
+                    config = tools.config
+                    pg_host = config.get('db_host')
+                    if pg_host and pg_host not in ('localhost', '127.0.0.1', 'False', False):
+                        db_host = pg_host
+                    else:
+                        db_host = 'postgres'
+            elif db_host in ('localhost', '127.0.0.1'):
+                db_host = 'host.docker.internal'
 
         try:
             import requests

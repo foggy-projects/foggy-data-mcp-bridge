@@ -6,7 +6,7 @@
             <div t-attf-class="foggy-chat-sidebar {{ state.sidebarOpen ? '' : 'd-none' }}">
                 <div class="foggy-sidebar-header">
                     <button class="btn btn-primary btn-sm w-100" t-on-click="newChat">
-                        <i class="fa fa-plus me-1"/>New Chat
+                        <i class="fa fa-plus me-1"/><t t-_t="">New Chat</t>
                     </button>
                 </div>
                 <div class="foggy-session-list">
@@ -16,13 +16,13 @@
                             <span class="foggy-session-name" t-esc="session.name"/>
                             <button class="foggy-session-delete btn btn-link btn-sm text-danger p-0"
                                     t-on-click="(ev) => this.deleteSession(ev, session.id)"
-                                    title="Delete">
+                                    t-att-title="_t('Delete')">
                                 <i class="fa fa-trash-o"/>
                             </button>
                         </div>
                     </t>
                     <div t-if="!state.sessions.length" class="text-muted p-3 text-center">
-                        <small>No conversations yet</small>
+                        <small><t t-_t="">No conversations yet</t></small>
                     </div>
                 </div>
             </div>
@@ -35,9 +35,9 @@
                         <i class="fa fa-bars"/>
                     </button>
                     <h5 class="mb-0">
-                        <i class="fa fa-magic me-2 text-primary"/>Foggy AI
+                        <i class="fa fa-magic me-2 text-primary"/><t t-_t="">Foggy AI</t>
                     </h5>
-                    <span class="badge bg-success ms-2">Data Analyst</span>
+                    <span class="badge bg-success ms-2"><t t-_t="">Data Analyst</t></span>
                 </div>
 
                 <!-- Messages -->
@@ -48,20 +48,20 @@
                             <div class="foggy-welcome-icon mb-3">
                                 <i class="fa fa-database fa-3x text-primary"/>
                             </div>
-                            <h4>Foggy AI Data Analyst</h4>
-                            <p class="text-muted">Ask questions about your business data in natural language.</p>
+                            <h4><t t-_t="">Foggy AI Data Analyst</t></h4>
+                            <p class="text-muted"><t t-_t="">Ask questions about your business data in natural language.</t></p>
                             <div class="foggy-suggestions d-flex flex-wrap justify-content-center gap-2 mt-3">
                                 <button class="btn btn-outline-primary btn-sm"
                                         t-on-click="() => { this.state.inputText = 'Show me the top 5 customers by total sales revenue'; this.sendMessage(); }">
-                                    📊 Top customers by revenue
+                                    <t t-_t="">📊 Top customers by revenue</t>
                                 </button>
                                 <button class="btn btn-outline-primary btn-sm"
                                         t-on-click="() => { this.state.inputText = 'What is the total sales amount by month for the last 6 months?'; this.sendMessage(); }">
-                                    📈 Monthly sales trend
+                                    <t t-_t="">📈 Monthly sales trend</t>
                                 </button>
                                 <button class="btn btn-outline-primary btn-sm"
                                         t-on-click="() => { this.state.inputText = 'Show CRM pipeline: lead count and expected revenue by stage'; this.sendMessage(); }">
-                                    🎯 CRM pipeline overview
+                                    <t t-_t="">🎯 CRM pipeline overview</t>
                                 </button>
                             </div>
                         </div>
@@ -115,7 +115,7 @@
                             t-att-value="state.inputText"
                             t-on-input="(ev) => { this.state.inputText = ev.target.value; }"
                             t-on-keydown="onKeydown"
-                            placeholder="Ask about your business data..."
+                            t-att-placeholder="_t('Ask about your business data...')"
                             rows="1"
                             t-att-disabled="state.loading"
                         />
@@ -127,7 +127,7 @@
                         </button>
                     </div>
                     <div class="foggy-input-hint text-muted mt-1">
-                        <small>Press Enter to send, Shift+Enter for new line</small>
+                        <small><t t-_t="">Press Enter to send, Shift+Enter for new line</t></small>
                     </div>
                 </div>
             </div>

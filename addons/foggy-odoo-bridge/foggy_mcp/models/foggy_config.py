@@ -98,6 +98,13 @@ class ResConfigSettings(models.TransientModel):
         help='Custom business context injected into the AI system prompt.',
     )
 
+    # ── Connection Test ─────────────────────────────────────
+
+    foggy_connection_status = fields.Text(
+        string='Connection Status',
+        readonly=True,
+    )
+
     # ── Safe Execute Override ─────────────────────────────────────
 
     def execute(self):
@@ -145,3 +152,159 @@ class ResConfigSettings(models.TransientModel):
                 'sticky': True,
             }
         }
+
+    def action_test_connection(self):
+        """
+        Test connection to Foggy MCP Server with detailed error guidance.
+        Provides user-friendly troubleshooting steps when connection fails.
+        """
+        self.ensure_one()
+
+        url = self.foggy_mcp_url or 'http://localhost:8080'
+        endpoint = self.foggy_mcp_endpoint or '/mcp/analyst/rpc'
+        full_url = f"{url.rstrip('/')}{endpoint}"
+
+        try:
+            import requests
+
+            # Try health check first
+            try:
+                health_url = f"{url.rstrip('/')}/actuator/health"
+                r = requests.get(health_url, timeout=5)
+
+                if r.status_code == 200:
+                    # Server is healthy, try MCP endpoint
+                    mcp_payload = {
+                        "jsonrpc": "2.0",
+                        "method": "initialize",
+                        "params": {
+                            "protocolVersion": "2024-11-05",
+                            "capabilities": {},
+                            "clientInfo": {"name": "odoo-test", "version": "1.0"}
+                        },
+                        "id": 1
+                    }
+
+                    headers = {'Content-Type': 'application/json'}
+                    if self.foggy_mcp_auth_token:
+                        headers['Authorization'] = f'Bearer {self.foggy_mcp_auth_token}'
+
+                    r_mcp = requests.post(full_url, json=mcp_payload, headers=headers, timeout=10)
+
+                    if r_mcp.status_code == 200:
+                        result = r_mcp.json()
+                        if 'result' in result:
+                            server_info = result['result'].get('serverInfo', {})
+                            status_msg = _(
+                                "✅ Connection successful!\n\n"
+                                "Server: %(name)s v%(version)s\n"
+                                "Protocol: %(protocol)s\n"
+                                "URL: %(url)s"
+                            ) % {
+                                'name': server_info.get('name', 'Foggy MCP'),
+                                'version': server_info.get('version', 'unknown'),
+                                'protocol': result['result'].get('protocolVersion', 'unknown'),
+                                'url': url,
+                            }
+                        else:
+                            status_msg = _(
+                                "⚠️ Server responded but MCP initialization failed.\n\n"
+                                "Response: %(response)s"
+                            ) % {'response': r_mcp.text[:200]}
+                    elif r_mcp.status_code == 401:
+                        status_msg = _(
+                            "❌ Authentication failed.\n\n"
+                            "The server requires a valid Auth Token.\n"
+                            "Please check your Auth Token setting."
+                        )
+                    else:
+                        status_msg = _(
+                            "❌ MCP endpoint returned HTTP %(status)d.\n\n"
+                            "Response: %(response)s"
+                        ) % {'status': r_mcp.status_code, 'response': r_mcp.text[:200]}
+                else:
+                    status_msg = self._build_error_guidance(
+                        url, f"Health check failed with HTTP {r.status_code}"
+                    )
+
+            except requests.exceptions.ConnectionError as e:
+                status_msg = self._build_error_guidance(url, str(e))
+            except requests.exceptions.Timeout:
+                status_msg = self._build_error_guidance(
+                    url, "Connection timed out after 5 seconds"
+                )
+
+        except ImportError:
+            status_msg = _(
+                "❌ Missing required library.\n\n"
+                "Please install: pip install requests"
+            )
+
+        # Show result in a modal dialog with the status message
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'foggy.connection.test.result',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {
+                'default_status_message': status_msg,
+            }
+        }
+
+    def _build_error_guidance(self, url, error_detail):
+        """
+        Build user-friendly error message with troubleshooting steps.
+
+        Args:
+            url: The URL that failed to connect
+            error_detail: Technical error message
+
+        Returns:
+            str: User-friendly error message with troubleshooting guidance
+        """
+        import os
+
+        # Detect environment
+        in_docker = os.path.exists('/.dockerenv')
+
+        guidance_lines = [
+            _("❌ Cannot connect to Foggy MCP Server"),
+            "",
+            _("URL: %(url)s") % {'url': url},
+            _("Error: %(error)s") % {'error': error_detail},
+            "",
+            "═══════════════════════════════════════",
+            _("Troubleshooting steps:"),
+            "",
+            _("1. Check if Foggy MCP container is running:"),
+            "   docker ps | grep foggy-mcp",
+            "",
+            _("2. Check container logs for errors:"),
+            "   docker logs foggy-mcp",
+            "",
+        ]
+
+        if in_docker:
+            guidance_lines.extend([
+                _("3. Both Odoo and Foggy are in Docker:"),
+                _("   • Ensure they're on the same network: docker network ls"),
+                _("   • Try URL: http://foggy-mcp:8080"),
+                "",
+                _("4. Or use Odoo's container network:"),
+                "   docker run --network container:odoo ...",
+            ])
+        else:
+            guidance_lines.extend([
+                _("3. Check if port is accessible:"),
+                f"   curl http://localhost:8080/actuator/health",
+                "",
+                _("4. If running in Docker, check port mapping:"),
+                "   docker port foggy-mcp",
+            ])
+
+        guidance_lines.extend([
+            "",
+            _("5. Verify Auth Token matches server config."),
+        ])
+
+        return '\n'.join(guidance_lines)

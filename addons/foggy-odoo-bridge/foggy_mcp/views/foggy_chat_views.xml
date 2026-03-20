@@ -6,10 +6,11 @@
         <field name="tag">foggy_mcp.foggy_chat_action_client</field>
     </record>
 
-    <!-- Menu: Foggy MCP → AI Chat (all internal users) -->
+    <!-- Menu: AI Chat moved under Settings → Foggy MCP -->
     <menuitem id="foggy_mcp_user_menu_chat"
-              name="AI Chat"
-              parent="foggy_mcp_user_menu_root"
+              name="Foggy AI Chat"
+              parent="foggy_mcp_config_menu_root"
               action="foggy_chat_action"
-              sequence="5"/>
+              sequence="10"
+              groups="base.group_user"/>
 </odoo>

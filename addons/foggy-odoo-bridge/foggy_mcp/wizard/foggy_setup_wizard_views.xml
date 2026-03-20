@@ -13,7 +13,7 @@
 
                 <header>
                     <field name="state" widget="statusbar"
-                           statusbar_visible="welcome,deploy,connection,closure,done"/>
+                           statusbar_visible="welcome,deploy,connection,datasource,closure,done"/>
                 </header>
 
                 <sheet>
@@ -62,12 +62,44 @@
                             <code style="margin-top: 4px; display: inline-block;">docker network ls</code>
                         </div>
 
-                        <group string="Database Connection" col="6">
-                            <field name="db_host"/>
-                            <field name="db_port"/>
-                            <field name="db_user"/>
-                            <field name="db_password" password="True"/>
-                            <field name="db_name"/>
+                        <!-- Connection Mode Selection -->
+                        <group string="连接模式" col="2">
+                            <field name="connection_mode" widget="radio"/>
+                        </group>
+
+                        <!-- Docker Network Mode Settings -->
+                        <div invisible="connection_mode != 'docker'" class="mb16">
+                            <group string="▼ Docker 网络设置" col="4">
+                                <field name="docker_network_input"
+                                       placeholder="odoo_default"
+                                       help="输入 Docker 网络名称，运行 `docker network ls` 查看可用网络"/>
+                            </group>
+                            <div class="alert alert-info mb8" role="alert">
+                                <strong>💡 说明：</strong>
+                                <span class="text-muted">Foggy 容器将加入此网络，通过 Docker 服务名访问数据库。</span>
+                            </div>
+                        </div>
+
+                        <!-- Direct IP Mode Settings -->
+                        <div invisible="connection_mode != 'direct_ip'" class="mb16">
+                            <group string="▼ 直接 IP 连接设置" col="4">
+                                <field name="custom_db_host"
+                                       placeholder="192.168.1.100"
+                                       help="输入 Odoo 数据库的 IP 地址"/>
+                            </group>
+                            <div class="alert alert-info mb8" role="alert">
+                                <strong>💡 说明：</strong>
+                                <span class="text-muted">Foggy 容器将通过 IP 地址直接访问数据库，适合生产环境。</span>
+                            </div>
+                        </div>
+
+                        <!-- Database Config (Read-only from Odoo) -->
+                        <group string="▼ 从 Odoo 配置自动读取（只读）" col="6">
+                            <field name="db_host" readonly="1" force_save="1"/>
+                            <field name="db_port" readonly="1" force_save="1"/>
+                            <field name="db_user" readonly="1" force_save="1"/>
+                            <field name="db_password" password="True" readonly="1" force_save="1"/>
+                            <field name="db_name" readonly="1" force_save="1"/>
                             <field name="foggy_port"/>
                         </group>
 
@@ -104,7 +136,7 @@
                         <div class="oe_title mb16">
                             <h2>Test Connection</h2>
                             <p class="text-muted">
-                                Verify Foggy MCP Server is running and save the connection.
+                                Verify Foggy MCP Server is running. Configuration will be saved automatically on success.
                             </p>
                         </div>
 
@@ -132,9 +164,66 @@
                         <div invisible="connection_status" class="alert alert-warning" role="alert">
                             Click <strong>Test Connection</strong> button below to verify.
                         </div>
+
+                        <!-- Manual save button - show after successful test -->
+                        <div invisible="not connection_status or '❌' in connection_status" class="alert alert-success mb16" role="alert">
+                            <strong>✅ 测试成功！</strong>
+                            <p class="mb0 mt4">
+                                配置已自动保存。如需手动保存当前配置，请点击下方按钮。
+                            </p>
+                        </div>
+
+                        <group invisible="not connection_status or '❌' in connection_status">
+                            <button name="action_save_connection" string="保存当前配置"
+                                    type="object" class="btn-secondary"/>
+                        </group>
                     </div>
 
-                    <!-- Step 4: Closure Tables -->
+                    <!-- Step 4: Data Source -->
+                    <div invisible="state != 'datasource'">
+                        <div class="oe_title mb16">
+                            <h2>Configure Data Source</h2>
+                            <p class="text-muted">
+                                Register Odoo database as a data source in Foggy MCP Server.
+                            </p>
+                        </div>
+
+                        <!-- Connection Mode Summary -->
+                        <div class="alert alert-info mb16" role="alert">
+                            <strong>当前连接模式：</strong>
+                            <span invisible="connection_mode != 'docker'">
+                                <strong>Docker 网络模式</strong> - Foggy 容器通过 Docker 网络访问数据库
+                                <br/>
+                                <small>数据库主机：<code>postgres</code>（或从 Odoo 配置读取的服务名）</small>
+                            </span>
+                            <span invisible="connection_mode != 'direct_ip'">
+                                <strong>直接 IP 连接</strong> - Foggy 容器通过 IP 地址访问数据库
+                                <br/>
+                                <small>数据库主机：<code><field name="custom_db_host" class="font-weight-bold"/></code></small>
+                            </span>
+                        </div>
+
+                        <!-- Data Source Preview -->
+                        <group string="数据源配置预览" col="4">
+                            <field name="db_host" readonly="1" force_save="1" string="数据库主机"/>
+                            <field name="db_port" readonly="1" force_save="1" string="数据库端口"/>
+                            <field name="db_user" readonly="1" force_save="1" string="数据库用户"/>
+                            <field name="db_name" readonly="1" force_save="1" string="数据库名称"/>
+                        </group>
+
+                        <group>
+                            <button name="action_configure_datasource"
+                                    string="注册数据源"
+                                    type="object" class="btn-primary"/>
+                        </group>
+
+                        <group string="Result" invisible="not datasource_status">
+                            <field name="datasource_status" nolabel="1"
+                                   widget="text" readonly="1"/>
+                        </group>
+                    </div>
+
+                    <!-- Step 5: Closure Tables -->
                     <div invisible="state != 'closure'">
                         <div class="oe_title mb16">
                             <h2>Initialize Closure Tables</h2>
@@ -180,10 +269,16 @@
                 <footer>
                     <button name="action_next" string="Next →"
                             type="object" class="btn-primary"
-                            invisible="state not in ('welcome', 'deploy', 'closure')"/>
+                            invisible="state not in ('welcome', 'deploy', 'connection', 'datasource')"/>
                     <button name="action_test_connection" string="Test Connection"
                             type="object" class="btn-primary"
                             invisible="state != 'connection'"/>
+                    <button name="action_configure_datasource" string="注册数据源"
+                            type="object" class="btn-primary"
+                            invisible="state != 'datasource'"/>
+                    <button name="action_init_closure_tables" string="Initialize Closure Tables"
+                            type="object" class="btn-primary"
+                            invisible="state != 'closure'"/>
                     <button name="action_skip_closure" string="Skip"
                             type="object" class="btn-secondary"
                             invisible="state != 'closure'"/>
