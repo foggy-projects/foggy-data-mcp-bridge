@@ -100,6 +100,7 @@ terminal
     NOT,					//~
     LIKE,
     IN,
+    INSTANCEOF,
     OF,
     OR,						//|
     ORR,					//or
@@ -850,6 +851,12 @@ term3 ::=
     		list.add(x);
     		list.add(y);
             RESULT = parser.factory.createUnresolvedFunCall("IN",list,false);
+        :}
+    |   term3:x INSTANCEOF term2:y {:
+    		ListExp list = new ListExp(2);
+    		list.add(x);
+    		list.add(y);
+            RESULT = parser.factory.createUnresolvedFunCall("INSTANCEOF",list,false);
         :}
 	;
 term2 ::=

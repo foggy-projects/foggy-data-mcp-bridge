@@ -37,6 +37,7 @@ public class ElExpScanner implements BaseScanner {
         initResword(ExpSymbols.NOT, "NOT");
         initResword(ExpSymbols.LIKE, "LIKE");
         initResword(ExpSymbols.IN, "IN");
+        initResword(ExpSymbols.INSTANCEOF, "INSTANCEOF");
         initResword(ExpSymbols.NULL, "NULL");
         initResword(ExpSymbols.FUNCTION, "FUNCTION");
         initResword(ExpSymbols.VAR, "VAR");
