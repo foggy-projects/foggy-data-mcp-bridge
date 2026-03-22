@@ -276,4 +276,4 @@ WHERE child_id IN (
 ## 详细文档
 
 更多闭包表设计和实现细节，请参考项目文档：
-- [父子维度文档](https://foggy-projects.github.io/foggy-data-mcp-bridge/zh/dataset-model/tm-qm/parent-child.html)
+- [父子维度文档](https://foggy-projects.github.io/foggy-data-mcp-docs/zh/dataset-model/tm-qm/parent-child.html)

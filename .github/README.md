@@ -21,7 +21,7 @@ Automatically builds and deploys the VitePress documentation site to GitHub Page
 
 **Deployment URL:**
 ```
-https://foggy-projects.github.io/foggy-data-mcp-bridge/
+https://foggy-projects.github.io/foggy-data-mcp-docs/
 ```
 
 ## Initial Setup Required
