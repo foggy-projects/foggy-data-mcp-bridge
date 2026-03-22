@@ -159,7 +159,7 @@
             </dependency>
             <dependency>
                 <groupId>com.foggysource</groupId>
-                <artifactId>foggy-odoo-bridge</artifactId>
+                <artifactId>foggy-odoo-bridge-java</artifactId>
                 <version>${foggy-framework.version}</version>
             </dependency>
 

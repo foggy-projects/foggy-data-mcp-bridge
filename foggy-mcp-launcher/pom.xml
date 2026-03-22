@@ -34,7 +34,7 @@
         <!-- Odoo 数据模型（可通过 spring.profiles.active=odoo 启用） -->
         <dependency>
             <groupId>com.foggysource</groupId>
-            <artifactId>foggy-odoo-bridge</artifactId>
+            <artifactId>foggy-odoo-bridge-java</artifactId>
             <version>${project.version}</version>
             <optional>true</optional>
         </dependency>

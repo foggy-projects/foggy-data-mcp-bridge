@@ -11,7 +11,7 @@
         <relativePath>../../pom.xml</relativePath>
     </parent>
 
-    <artifactId>foggy-odoo-bridge</artifactId>
+    <artifactId>foggy-odoo-bridge-java</artifactId>
     <name>Foggy Odoo Bridge</name>
     <description>Odoo MCP Gateway -内置 Odoo 数据模型，支持与 Odoo ERP 集成</description>
 
