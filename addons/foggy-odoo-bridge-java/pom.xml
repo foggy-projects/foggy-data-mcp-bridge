@@ -8,6 +8,7 @@
         <groupId>com.foggysource</groupId>
         <artifactId>foggy-data-mcp-bridge</artifactId>
         <version>8.1.8.beta</version>
+        <relativePath>../../pom.xml</relativePath>
     </parent>
 
     <artifactId>foggy-odoo-bridge</artifactId>
