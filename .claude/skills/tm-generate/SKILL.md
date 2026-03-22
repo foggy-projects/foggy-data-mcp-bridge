@@ -291,4 +291,4 @@ export const model = {
 
 详细语法规则、类型映射、高级特性请参考：
 - **核心语法**：`tm-syntax-reference` 技能
-- **完整手册**：[TM 语法手册](https://foggy-projects.github.io/foggy-data-mcp-bridge/zh/dataset-model/tm-qm/tm-syntax.html)
+- **完整手册**：[TM 语法手册](https://foggy-projects.github.io/foggy-data-mcp-docs/zh/dataset-model/tm-qm/tm-syntax.html)

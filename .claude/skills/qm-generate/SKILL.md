@@ -8,7 +8,7 @@ description: 根据 TM 模型生成 QM（查询模型）文件。当用户要求
 根据 TM 模型生成 QM（查询模型）文件，定义可查询的字段和 UI 配置。
 
 ## QM语法规范
-如果需要获取更多的qm语法规范，请参考[Foggy QM 语法规范](https://foggy-projects.github.io/foggy-data-mcp-bridge/downloads/qm-syntax.md)
+如果需要获取更多的qm语法规范，请参考[Foggy QM 语法规范](https://foggy-projects.github.io/foggy-data-mcp-docs/downloads/qm-syntax.md)
 
 ## TM 与 QM 的架构关系
 
