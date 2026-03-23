@@ -93,4 +93,122 @@ class ErrorCollectionTest extends EcommerceTestSupport {
 
         log.info("DimCustomerModel properties count: {}", model.getProperties().size());
     }
+
+    // ==========================================
+    // ModelLoadStatus 枚举测试
+    // ==========================================
+
+    @Test
+    @DisplayName("ModelLoadStatus.SUCCESS - 所有方法返回正确值")
+    void testModelLoadStatusSuccess() {
+        assertTrue(ModelLoadStatus.SUCCESS.isSuccess());
+        assertTrue(ModelLoadStatus.SUCCESS.isFullySuccess());
+        assertFalse(ModelLoadStatus.SUCCESS.isFailed());
+    }
+
+    @Test
+    @DisplayName("ModelLoadStatus.SUCCESS_WITH_WARNINGS - isSuccess=true, isFullySuccess=false")
+    void testModelLoadStatusSuccessWithWarnings() {
+        assertTrue(ModelLoadStatus.SUCCESS_WITH_WARNINGS.isSuccess());
+        assertFalse(ModelLoadStatus.SUCCESS_WITH_WARNINGS.isFullySuccess());
+        assertFalse(ModelLoadStatus.SUCCESS_WITH_WARNINGS.isFailed());
+    }
+
+    @Test
+    @DisplayName("ModelLoadStatus.PARTIAL_SUCCESS - isSuccess=true, isFullySuccess=false")
+    void testModelLoadStatusPartialSuccess() {
+        assertTrue(ModelLoadStatus.PARTIAL_SUCCESS.isSuccess());
+        assertFalse(ModelLoadStatus.PARTIAL_SUCCESS.isFullySuccess());
+        assertFalse(ModelLoadStatus.PARTIAL_SUCCESS.isFailed());
+    }
+
+    @Test
+    @DisplayName("ModelLoadStatus.FAILED - isFailed=true, isSuccess=false")
+    void testModelLoadStatusFailed() {
+        assertFalse(ModelLoadStatus.FAILED.isSuccess());
+        assertFalse(ModelLoadStatus.FAILED.isFullySuccess());
+        assertTrue(ModelLoadStatus.FAILED.isFailed());
+    }
+
+    // ==========================================
+    // ModelLoadError 数据完整性测试
+    // ==========================================
+
+    @Test
+    @DisplayName("ModelLoadError - ErrorType 枚举覆盖")
+    void testModelLoadErrorTypes() {
+        // 验证所有 ErrorType 枚举值存在
+        ModelLoadError.ErrorType[] types = ModelLoadError.ErrorType.values();
+        assertTrue(types.length >= 7, "Should have at least 7 error types");
+
+        // 验证关键类型存在
+        assertNotNull(ModelLoadError.ErrorType.valueOf("COLUMN_NOT_FOUND"));
+        assertNotNull(ModelLoadError.ErrorType.valueOf("TABLE_NOT_FOUND"));
+        assertNotNull(ModelLoadError.ErrorType.valueOf("DIMENSION_NOT_FOUND"));
+        assertNotNull(ModelLoadError.ErrorType.valueOf("TYPE_MISMATCH"));
+        assertNotNull(ModelLoadError.ErrorType.valueOf("FORMULA_ERROR"));
+        assertNotNull(ModelLoadError.ErrorType.valueOf("PREAGG_CONFIG_ERROR"));
+        assertNotNull(ModelLoadError.ErrorType.valueOf("OTHER"));
+    }
+
+    @Test
+    @DisplayName("ModelLoadError - ErrorLevel 枚举覆盖")
+    void testModelLoadErrorLevels() {
+        ModelLoadError.ErrorLevel[] levels = ModelLoadError.ErrorLevel.values();
+        assertTrue(levels.length >= 3, "Should have at least 3 error levels");
+
+        assertNotNull(ModelLoadError.ErrorLevel.valueOf("WARNING"));
+        assertNotNull(ModelLoadError.ErrorLevel.valueOf("ERROR"));
+        assertNotNull(ModelLoadError.ErrorLevel.valueOf("FATAL"));
+    }
+
+    @Test
+    @DisplayName("ModelLoadError - 格式化消息包含关键信息")
+    void testModelLoadErrorFormattedMessage() {
+        // 验证实际加载的模型错误（如果有的话）的格式化消息
+        TableModel model = tableModelLoaderManager.load("FactSalesModel");
+        if (model.hasErrors()) {
+            for (ModelLoadError error : model.getLoadErrors()) {
+                String msg = error.getFormattedMessage();
+                assertNotNull(msg, "Formatted message should not be null");
+                assertFalse(msg.isEmpty(), "Formatted message should not be empty");
+                log.info("Error formatted message: {}", msg);
+            }
+        }
+    }
+
+    // ==========================================
+    // 多模型加载错误收集
+    // ==========================================
+
+    @Test
+    @DisplayName("多模型连续加载不互相干扰")
+    void testMultipleModelLoadErrors() {
+        TableModel dateModel = tableModelLoaderManager.load("DimDateModel");
+        TableModel salesModel = tableModelLoaderManager.load("FactSalesModel");
+        TableModel customerModel = tableModelLoaderManager.load("DimCustomerModel");
+
+        // 每个模型的错误列表独立
+        assertNotNull(dateModel.getLoadErrors());
+        assertNotNull(salesModel.getLoadErrors());
+        assertNotNull(customerModel.getLoadErrors());
+
+        // DimDateModel 应该是成功的
+        assertEquals(ModelLoadStatus.SUCCESS, dateModel.getLoadStatus());
+
+        log.info("Date errors: {}, Sales errors: {}, Customer errors: {}",
+                dateModel.getLoadErrors().size(),
+                salesModel.getLoadErrors().size(),
+                customerModel.getLoadErrors().size());
+    }
+
+    @Test
+    @DisplayName("成功模型的 hasErrors 和 hasFatalErrors 为 false")
+    void testSuccessModelNoErrors() {
+        TableModel model = tableModelLoaderManager.load("DimDateModel");
+
+        assertFalse(model.hasErrors(), "Successful model should not have errors");
+        assertFalse(model.hasFatalErrors(), "Successful model should not have fatal errors");
+        assertTrue(model.getLoadErrors().isEmpty(), "Error list should be empty");
+    }
 }

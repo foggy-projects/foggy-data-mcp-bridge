@@ -424,4 +424,163 @@ class AuthorizationStepTest {
             }
         };
     }
+
+    // ==========================================
+    // 增强：SecurityContext 边界值测试
+    // ==========================================
+
+    @Test
+    @Order(4)
+    @DisplayName("SecurityContext - 空字符串属性值")
+    void testSecurityContextEmptyStrings() {
+        ModelResultContext.SecurityContext ctx = ModelResultContext.SecurityContext.builder()
+                .tenantId("")
+                .userId("")
+                .deptId("")
+                .build();
+
+        assertEquals("", ctx.getTenantId());
+        assertEquals("", ctx.getUserId());
+        assertEquals("", ctx.getDeptId());
+    }
+
+    @Test
+    @Order(5)
+    @DisplayName("SecurityContext - null roles 列表")
+    void testSecurityContextNullRoles() {
+        ModelResultContext.SecurityContext ctx = ModelResultContext.SecurityContext.builder()
+                .userId("user-001")
+                .roles(null)
+                .build();
+
+        assertNull(ctx.getRoles());
+    }
+
+    @Test
+    @Order(6)
+    @DisplayName("SecurityContext - 空 roles 列表")
+    void testSecurityContextEmptyRoles() {
+        ModelResultContext.SecurityContext ctx = ModelResultContext.SecurityContext.builder()
+                .userId("user-001")
+                .roles(Collections.emptyList())
+                .build();
+
+        assertNotNull(ctx.getRoles());
+        assertTrue(ctx.getRoles().isEmpty());
+    }
+
+    // ==========================================
+    // 增强：AuthorizationStep 边界行为
+    // ==========================================
+
+    @Test
+    @Order(18)
+    @DisplayName("AuthorizationStep - 空字符串 tenantId 不添加过滤")
+    void testAuthorizationStepEmptyTenantId() {
+        AuthorizationStep step = new AuthorizationStep();
+
+        ModelResultContext.SecurityContext security = ModelResultContext.SecurityContext.builder()
+                .tenantId("")
+                .build();
+
+        ModelResultContext ctx = createMockContext(security);
+
+        step.beforeQuery(ctx);
+
+        // 空字符串的 tenantId 不应添加过滤条件
+        List<SliceRequestDef> slice = ctx.getRequest().getParam().getSlice();
+        assertTrue(slice == null || slice.isEmpty(),
+                "Empty tenantId should not generate filter");
+    }
+
+    @Test
+    @Order(19)
+    @DisplayName("AuthorizationStep - null SecurityContext 中所有字段为 null")
+    void testAuthorizationStepAllNullFields() {
+        AuthorizationStep step = new AuthorizationStep();
+
+        ModelResultContext.SecurityContext security = ModelResultContext.SecurityContext.builder()
+                .build();
+
+        ModelResultContext ctx = createMockContext(security);
+
+        int result = step.beforeQuery(ctx);
+
+        assertEquals(CONTINUE, result, "Should continue even with all-null security context");
+        List<SliceRequestDef> slice = ctx.getRequest().getParam().getSlice();
+        assertTrue(slice == null || slice.isEmpty(),
+                "All-null security context should not add any filters");
+    }
+
+    // ==========================================
+    // 增强：StepExecutor ABORT 后续 process 不执行
+    // ==========================================
+
+    @Test
+    @Order(23)
+    @DisplayName("StepExecutor - ABORT 后续步骤不执行 (3步链)")
+    void testStepExecutorAbortChain() {
+        List<String> executionOrder = new ArrayList<>();
+
+        DataSetResultStep step1 = createStep("step1", executionOrder, CONTINUE, 1000);
+        DataSetResultStep step2 = createStep("step2", executionOrder, ABORT, 500);
+        DataSetResultStep step3 = createStep("step3", executionOrder, CONTINUE, 100);
+
+        DataSetResultStepExecutor executor = new DataSetResultStepExecutor(Arrays.asList(step1, step2, step3));
+        ModelResultContext ctx = createMockContext(null);
+
+        int result = executor.executeBeforeQuery(ctx);
+
+        assertEquals(ABORT, result);
+        // step1(1000) 先执行 → CONTINUE, step2(500) → ABORT, step3 不执行
+        assertEquals(2, executionOrder.size());
+        assertEquals("step1", executionOrder.get(0));
+        assertEquals("step2", executionOrder.get(1));
+    }
+
+    @Test
+    @Order(24)
+    @DisplayName("StepExecutor - 空步骤列表不报错")
+    void testStepExecutorEmptySteps() {
+        DataSetResultStepExecutor executor = new DataSetResultStepExecutor(Collections.emptyList());
+        ModelResultContext ctx = createMockContext(null);
+
+        int result = executor.executeBeforeQuery(ctx);
+        assertEquals(CONTINUE, result, "Empty steps should return CONTINUE");
+    }
+
+    @Test
+    @Order(25)
+    @DisplayName("StepExecutor - process 执行顺序独立于 beforeQuery")
+    void testStepExecutorProcessIndependent() {
+        List<String> beforeOrder = new ArrayList<>();
+        List<String> processOrder = new ArrayList<>();
+
+        // 创建同时实现 beforeQuery 和 process 的 step
+        DataSetResultStep step = new DataSetResultStep() {
+            @Override
+            public int beforeQuery(ModelResultContext ctx) {
+                beforeOrder.add("before");
+                return CONTINUE;
+            }
+            @Override
+            public int order() {
+                return 100;
+            }
+            @Override
+            public int process(ModelResultContext ctx) {
+                processOrder.add("process");
+                return CONTINUE;
+            }
+        };
+
+        DataSetResultStepExecutor executor = new DataSetResultStepExecutor(List.of(step));
+        ModelResultContext ctx = createMockContext(null);
+
+        executor.executeBeforeQuery(ctx);
+        executor.executeProcess(ctx);
+
+        assertEquals(1, beforeOrder.size());
+        assertEquals(1, processOrder.size());
+    }
 }
