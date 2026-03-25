@@ -38,6 +38,7 @@ COPY addons/foggy-chart-storage-cloud/pom.xml addons/foggy-chart-storage-cloud/
 COPY addons/foggy-dataset-vector/pom.xml addons/foggy-dataset-vector/
 COPY addons/foggy-dataset-graphql/pom.xml addons/foggy-dataset-graphql/
 COPY addons/foggy-dataset-model-preagg/pom.xml addons/foggy-dataset-model-preagg/
+COPY addons/foggy-odoo-bridge-java/pom.xml addons/foggy-odoo-bridge-java/
 
 # 下载依赖（利用 Docker 缓存）
 RUN mvn dependency:go-offline -B -pl foggy-mcp-launcher -am -DskipTests
@@ -57,6 +58,7 @@ COPY addons/foggy-dataset-client/src addons/foggy-dataset-client/src
 COPY addons/foggy-dataset-mongo/src addons/foggy-dataset-mongo/src
 COPY addons/foggy-dataset-model-mongo/src addons/foggy-dataset-model-mongo/src
 COPY addons/foggy-data-viewer/src addons/foggy-data-viewer/src
+COPY addons/foggy-odoo-bridge-java/src addons/foggy-odoo-bridge-java/src
 
 # 构建（跳过测试）
 RUN mvn clean package -B -pl foggy-mcp-launcher -am -DskipTests

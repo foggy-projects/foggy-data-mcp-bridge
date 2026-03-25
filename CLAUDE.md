@@ -12,7 +12,7 @@
 - `foggy-bean-copy/` - Bean拷贝工具
 - `docs-site/` - 帮助手册（VitePress，中英双语）
 - `addons/` - 扩展模块
-  - `foggy-odoo-bridge/` - Odoo ERP 集成（MCP Gateway + 权限桥接）
+  - `foggy-odoo-bridge-java/` - Odoo TM/QM 模型模块（内置模型，打包进 JAR，网关模式用）
   - `foggy-data-viewer/` - 数据浏览器组件
   - `chart-render-service/` - 图表渲染服务
   - `foggy-benchmark-spider2/` - Spider2基准测试
@@ -21,70 +21,28 @@
   - `foggy-dataset-mongo/` - MongoDB数据层
   - `foggy-fsscript-client/` - FSScript客户端
 
-## Odoo Bridge (addons/foggy-odoo-bridge)
-Odoo Python 插件，作为 MCP Gateway 桥接 AI 客户端与 Foggy MCP Server。
+## Odoo Bridge
 
-**架构**：`AI Client ──MCP──→ Odoo MCP Gateway ──HTTP──→ Foggy MCP Server ──SQL──→ PostgreSQL`
+> **Odoo Python 插件已独立立项** → [foggy-odoo-bridge](https://github.com/foggy-projects/foggy-odoo-bridge)
+>
+> 本仓库仅保留 `addons/foggy-odoo-bridge-java/`（Java TM/QM 模型，网关模式时打包进 JAR）。
 
-**核心模块**：
-- `foggy_mcp/controllers/mcp_controller.py` — MCP JSON-RPC 端点（`type='http'` + `request.get_json_data()`，Odoo 17 兼容）+ `/foggy-mcp/health` 诊断
-- `foggy_mcp/services/permission_bridge.py` — ir.rule 域解析（波兰表示法 AST → DSL slice 条件）
-- `foggy_mcp/services/tool_registry.py` — 从 Foggy 加载工具并按用户 ir.model.access 过滤
-- `foggy_mcp/services/foggy_client.py` — Foggy MCP Server HTTP 客户端
-- `foggy_mcp/models/foggy_api_key.py` — API Key 认证（`fmcp_` 前缀）
-- `foggy-models/` — Odoo 表的 TM/QM 模型文件
+### 架构概览
 
-**权限桥接**（payload.slice 注入方式）：
-- ir.model.access → 工具级过滤（tools/list 按用户权限裁剪）
-- ir.rule → 行级过滤（域解析 → DSL slice 条件 → 注入 payload.slice → Foggy DSL 引擎原生处理）
-- 支持：AND/OR/NOT、De Morgan 定律、`$or`/`$and` 嵌套、child_of/parent_of 闭包表原生映射、null 检查
-- 失败关闭（fail-closed）：权限计算异常时拒绝访问
-- Foggy Java 侧作为纯查询引擎，不直接对外暴露；用户统一通过 Odoo MCP 端点访问
+Odoo 插件支持双引擎模式：
 
-**已支持 Odoo 模型**：sale.order, sale.order.line, purchase.order, account.move, stock.picking, hr.employee, res.partner
+```
+模式 A（网关）：AI ──MCP──→ Odoo foggy_mcp ──HTTP──→ 本项目 Java Server ──SQL──→ PG
+模式 B（内嵌）：AI ──MCP──→ Odoo foggy_mcp（Python 引擎进程内运行）──SQL──→ PG
+```
 
-**测试**：
-- 单元测试：`cd addons/foggy-odoo-bridge && python -m pytest tests/test_permission_bridge.py -v`（65 tests，无需 Odoo 运行时）
-- E2E 测试：`cd addons/foggy-odoo-bridge && python -m pytest tests/e2e/ -v`（需 Foggy MCP Server + Odoo 运行中）
+### foggy-odoo-bridge-java（本仓库）
 
-**Docker**：`cd addons/foggy-odoo-bridge/docker && docker-compose up -d`（PostgreSQL + Odoo 17 + Foggy MCP）
+Java TM/QM 模型模块，网关模式下打包进 JAR，提供 9 个 Odoo 业务模型。
 
-**闭包表层级集成**：
+**位置**：`addons/foggy-odoo-bridge-java/`
 
-Odoo `child_of`/`parent_of` 直接映射到 Foggy 闭包表操作符，无需展开为 flat ID 列表：
-- `child_of` → `selfAndDescendantsOf`（JOIN closure ON fact.FK = closure.childKey, WHERE closure.parentKey = value）
-- `parent_of` → `selfAndAncestorsOf`（JOIN closure ON fact.FK = closure.parentKey, WHERE closure.childKey = value）
-
-已映射层级维度（`HIERARCHY_FIELD_MAP`）：
-
-| Odoo 字段 | Foggy 维度字段 | 闭包表 |
-|---|---|---|
-| `company_id` / `company_ids` | `company$id` | `res_company_closure` |
-| `department_id` | `department$id` | `hr_department_closure` |
-| `parent_id` | `parent$id` | 上下文相关（company/employee） |
-
-未映射字段回退到 Odoo ORM 展开（`_resolve_hierarchy()`）。
-
-**闭包表维护**：`addons/foggy-odoo-bridge/sql/refresh_closure_tables.sql` 提供 PostgreSQL 递归 CTE 刷新函数，可通过 pg_cron 定期调度或在层级变更后手动调用。
-
-**Odoo 17 JSONB 翻译字段**：Odoo 17 将可翻译的 `Char`/`Text` 字段存储为 JSONB（如 `{"en_US": "Research & Development"}`）。
-
-共享辅助函数：`foggy-models/odoo17.fsscript` 提供 `jsonbCaption(column, lang)` 生成 `captionDef`（含 PostgreSQL `->> 'en_US'` 提取公式）。
-
-已确认 JSONB 的 `name` 列（需 `captionDef: jsonbCaption()`）：
-- `hr_job`、`account_journal`、`crm_team`、`product_pricelist`、`res_country`、`stock_picking_type`、`uom_uom`
-
-已确认 VARCHAR 的列（直接 `captionColumn`）：
-- `hr_work_location.name`、`hr_department.complete_name`、`stock_location.complete_name`、`res_country_state.name`、`res_currency.name`
-
-**自引用维度**（fact table = dimension table，如 `res_company.parent_id → res_company`）已支持，`parent$caption` 可正常使用。修复方案：JOIN 去重使用 alias 比较代替 `isRootEqual`，`name2Alias` 改为 `IdentityHashMap`。测试：`SelfReferencingDimensionAliasTest`（593 tests 全通过）。
-
-**Odoo 17 字段兼容性注意**（已在 TM 模型中处理）：
-- `product_template_id`（sale_order_line）：ORM 计算字段，非物理列 → 已移除 `productTemplate` 维度
-- `display_name`（res_partner）：ORM 计算字段 → 改用 `complete_name`
-- `credit_limit`（res_partner）：Odoo 17 已移除 → 已从度量中删除
-- `street/city/zip/website/vat`（res_company）：委托给 `res_partner` → 已从属性中删除
-- `country_id`（res_company）：委托给 `res_partner` → 已移除 `country` 维度
+**模型列表**：sale_order、sale_order_line、purchase_order、account_move、stock_picking、hr_employee、res_partner、res_company、crm_lead
 
 ## 闭包表引擎 (foggy-dataset-model)
 
@@ -166,36 +124,23 @@ const data = response.data.data
 
 **极简模式**：`--spring.profiles.active=lite` 启动，排除 MongoDB 自动配置 + 关闭 data-viewer，仅保留核心 MCP + JDBC 能力。
 
-**Odoo 集成启动示例**（lite 模式 + 外部 Bundle + Odoo PostgreSQL）：
+**Odoo 集成启动示例**（lite + odoo profile，模型已内置）：
 ```bash
-java -jar foggy-mcp-launcher/target/foggy-mcp-launcher-8.1.8.beta.jar \
-  --spring.profiles.active=lite \
-  --spring.datasource.url=jdbc:postgresql://localhost:5432/odoo \
-  --spring.datasource.username=odoo --spring.datasource.password=odoo \
-  --spring.datasource.driver-class-name=org.postgresql.Driver \
-  --foggy.bundle.external.enabled=true \
-  --foggy.bundle.external.bundles[0].name=odoo-models \
-  "--foggy.bundle.external.bundles[0].path=path/to/foggy-models" \
-  --foggy.bundle.external.bundles[0].namespace=odoo \
-  --foggy.demo.enabled=false \
-  --foggy.mcp.semantic.model-list[0]=OdooSaleOrderQueryModel \
-  --foggy.mcp.semantic.model-list[1]=OdooSaleOrderLineQueryModel \
-  --foggy.mcp.semantic.model-list[2]=OdooPurchaseOrderQueryModel \
-  --foggy.mcp.semantic.model-list[3]=OdooAccountMoveQueryModel \
-  --foggy.mcp.semantic.model-list[4]=OdooStockPickingQueryModel \
-  --foggy.mcp.semantic.model-list[5]=OdooHrEmployeeQueryModel \
-  --foggy.mcp.semantic.model-list[6]=OdooResPartnerQueryModel
+java -jar foggy-mcp-launcher.jar \
+  --spring.profiles.active=lite,odoo \
+  --foggy.auth.token=your_token_here
 ```
+
+数据源通过 Setup Wizard 动态配置，无需启动参数。
 
 ## Docker 环境
 
-项目有三套独立 Docker 环境，职责不同，不可合并：
+项目有两套独立 Docker 环境（Odoo 环境已随插件独立立项迁出）：
 
 | 环境 | 路径 | 用途 |
 |---|---|---|
 | **开发测试** | `foggy-dataset-demo/docker/` | 多方言测试基础设施（MySQL/PG/MSSQL/Mongo/Redis/Milvus） |
 | **用户体验** | `docker/demo/` | 一键演示包（MySQL + Foggy MCP + AI），面向外部用户 |
-| **Odoo 集成** | `addons/foggy-odoo-bridge/docker/` | Odoo 联调栈（PG + Odoo 17 + Foggy MCP lite） |
 
 **开发测试环境** — `foggy-dataset-demo/docker/`
 
@@ -220,16 +165,6 @@ java -jar foggy-mcp-launcher/target/foggy-mcp-launcher-8.1.8.beta.jar \
 | MySQL 5.7（自建镜像） | `13306` |
 | Foggy MCP 服务 | `7108` |
 | Adminer（optional profile） | `18080` |
-
-**Odoo 集成环境** — `addons/foggy-odoo-bridge/docker/`
-
-Odoo E2E 联调专用，PG schema 为 Odoo 业务表，与开发测试环境不可共用。
-
-| 服务 | 端口 |
-|---|---|
-| PostgreSQL 15 | `5432`（默认端口） |
-| Odoo 17 | `8069` |
-| Foggy MCP lite | `8080` |
 
 ### 测试 Profile 与 Docker 端口对应
 

@@ -19,6 +19,15 @@ public class DbModelDef extends DbDefSupport {
 
     DataSource dataSource;
 
+    /**
+     * Named data source reference (e.g., "odoo").
+     * When specified, the model will use the named data source registered via DataSource API.
+     * This takes precedence over the default dataSource.
+     *
+     * @since 8.2.0
+     */
+    String dataSourceName;
+
     boolean autoLoadDimensions;
 
     boolean autoLoadMeasures;

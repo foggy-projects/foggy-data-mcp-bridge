@@ -1,46 +1,62 @@
 # Foggy Data MCP Bridge
 
-[中文文档](README.zh-CN.md) | [📚 Full Documentation](https://foggy-projects.github.io/foggy-data-mcp-docs/)
+[中文文档](README.zh-CN.md) | [Full Documentation](https://foggy-projects.github.io/foggy-data-mcp-docs/)
 
-**AI-Native Semantic Layer Framework** - Enable AI assistants to query business data safely and accurately through MCP protocol.
+Enable AI assistants to query business data through a semantic layer and MCP instead of writing raw SQL directly.
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Java](https://img.shields.io/badge/Java-17+-green.svg)](https://openjdk.org/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.x-brightgreen.svg)](https://spring.io/projects/spring-boot)
 [![MCP](https://img.shields.io/badge/MCP-Compatible-purple.svg)](https://modelcontextprotocol.io/)
 
----
+## Why This Exists
 
-## 🚀 Why This Project?
+Letting an LLM generate SQL directly against production data is usually the wrong abstraction:
 
-### ❌ The Problem: Letting AI Write SQL Directly is Dangerous
+- You have to expose schema details and database dialect quirks to the model.
+- Permissions become hard to preserve once the model writes SQL itself.
+- JOINs, aggregations, and business meaning drift quickly as prompts grow.
+- Multi-database deployments multiply the problem.
 
-Having LLMs generate SQL directly creates serious security and maintainability issues:
+Foggy Data MCP puts a semantic layer between AI and the database:
 
-| Problem | Impact |
-|---------|--------|
-| **Security Risks** | AI may generate `DELETE`, `UPDATE`, or access sensitive tables - hard to prevent |
-| **Schema Exposure** | Must share complete database schema with AI, exposing internal design |
-| **No Business Semantics** | What does `order_status=3` mean? AI doesn't know, users shouldn't care |
-| **Complex JOINs Error-Prone** | Multi-table relationships and aggregations are fragile, debugging is costly |
-| **Database Dialect Chaos** | MySQL, PostgreSQL, SQL Server, MongoDB - AI needs separate handling for each |
-| **Uncontrollable Execution** | Generated SQL is opaque and difficult to intercept or modify |
-
-### ✅ Our Solution: Semantic Layer with DSL Query Language
-
-Instead of SQL, AI sends **structured JSON queries** to a semantic layer that:
-
-```
-AI → JSON DSL Query → Semantic Layer → Safe SQL → Database
-                            ↓
-                    • Prevents SQL injection
-                    • Enforces access control
-                    • Handles multi-table JOINs
-                    • Abstracts database dialects
-                    • Enables runtime permission injection
+```text
+AI assistant -> MCP tools / JSON DSL -> semantic layer -> safe SQL -> database
 ```
 
-**Example**: AI only needs to know the semantic meaning, not database internals:
+That layer gives you:
+
+- business semantics instead of raw table exposure
+- read-oriented query governance
+- permission injection before execution
+- reusable TM/QM models
+- one query interface across multiple databases
+
+## Who This Is For
+
+- Teams building internal AI data assistants
+- Products exposing governed data access through MCP
+- ERP / BI / reporting projects that need business-friendly query interfaces
+- Developers who want AI-accessible analytics without handing SQL generation to the model
+
+If your immediate use case is Odoo, start here instead:
+
+- [Foggy Odoo Bridge](https://github.com/foggy-projects/foggy-odoo-bridge)
+
+## What You Get
+
+- Semantic layer engine based on TM/QM models
+- JSON Query DSL instead of raw SQL prompts
+- Native MCP endpoints for AI clients and tools
+- Multi-database support: MySQL, PostgreSQL, SQL Server, SQLite, MongoDB
+- JavaScript-like modeling with FSScript
+- Automatic chart generation support
+- Java implementation for server deployment
+- Python implementation for embeddable and FastAPI-based scenarios
+
+## Example Query Flow
+
+The AI only needs business fields, not table structure:
 
 ```json
 {
@@ -52,50 +68,85 @@ AI → JSON DSL Query → Semantic Layer → Safe SQL → Database
 }
 ```
 
-The framework automatically generates optimized, safe SQL with proper JOINs and aggregations.
+Foggy turns that into governed SQL with JOIN handling, aggregation, and dialect translation built in.
 
----
+## Quick Start
 
-## ⭐ Key Features
+### 1. Clone and start the demo
 
-### 🔒 **Security First**
-- **DSL-Based Queries** - AI never touches raw SQL, eliminating injection risks
-- **Field-Level Access Control** - Define exactly which models and fields each role can access
-- **Read-Only by Design** - DSL only supports `SELECT`, no `DELETE`/`UPDATE`/`DROP`
-- **Runtime Permission Injection** - Intercept and modify queries before execution
+```bash
+git clone https://github.com/foggy-projects/foggy-data-mcp-bridge.git
+cd foggy-data-mcp-bridge/docker/demo
 
-### 🎯 **Model-as-Code**
-- **JavaScript-Based Modeling** - Define data models using [FSScript](https://foggy-projects.github.io/foggy-data-mcp-docs/en/fsscript/guide/introduction) (JavaScript-like syntax)
-- **Function Reusability** - Unlike static YAML/JSON, supports functions, imports, and dynamic logic
-- **TM/QM Files** - Table Models (TM) + Query Models (QM) create a semantic layer
-- **Calculated Fields** - Define complex business metrics in models, not in queries
+# Optional: enable natural-language querying
+cp .env.example .env
+# Edit .env and set OPENAI_API_KEY if needed
 
-### 🌐 **Multi-Database Support**
-Works seamlessly across:
-- ✅ MySQL 5.7+
-- ✅ PostgreSQL 12+
-- ✅ SQL Server 2012+
-- ✅ SQLite 3.30+
-- ✅ MongoDB (via addon)
+docker compose up -d
+```
 
-Same DSL query works on all databases - automatic dialect translation.
+### 2. Verify the service
 
-### 🤖 **AI-Native Integration**
-- **MCP Protocol** - Native support for [Model Context Protocol](https://modelcontextprotocol.io/)
-- **Role-Based Endpoints** - `/mcp/admin/rpc`, `/mcp/analyst/rpc`, `/mcp/business/rpc`
-- **Natural Language Queries** - AI converts user questions to DSL automatically
-- **Claude Desktop & Cursor** - Out-of-box integration with popular AI tools
+```bash
+curl http://localhost:7108/actuator/health
+```
 
-### 📊 **Data Visualization**
-- **Automatic Chart Generation** - Trend charts, bar charts, pie charts, and more
-- **Chart Render Service** - Powered by `chart-render-service` addon
-- **Export with Charts** - Download data with embedded visualizations
+### 3. Connect an AI client
 
-### 🚀 **Production Ready**
-- **Spring Boot Based** - Enterprise-grade Java framework
-- **Docker Support** - One-click deployment with Docker Compose
-- **Comprehensive Docs** - Bilingual documentation site (EN/ZH) built with VitePress
-- **Extensible Architecture** - Addon system for charts, MongoDB, benchmarks, etc.
+Claude Desktop example:
+
+```json
+{
+  "mcpServers": {
+    "foggy-dataset": {
+      "url": "http://localhost:7108/mcp/analyst/rpc"
+    }
+  }
+}
+```
+
+Cursor setup:
+
+- [Cursor integration guide](https://foggy-projects.github.io/foggy-data-mcp-docs/en/mcp/integration/cursor)
+
+### 4. Ask a question
+
+- "Show me sales by brand for the last week"
+- "Which products had the highest return rate last month?"
+- "Generate a chart comparing revenue by region"
+
+## Why Not Raw SQL
+
+| Problem | Why It Matters |
+|---------|----------------|
+| Schema exposure | Prompts become tied to internal database design |
+| SQL safety | It is difficult to prove what the model may generate |
+| Missing business meaning | AI does not know what `order_status=3` means |
+| Fragile JOIN logic | Complex reporting queries degrade quickly |
+| Dialect differences | MySQL, PostgreSQL, SQL Server, and others diverge fast |
+
+## Key Capabilities
+
+### Security and Governance
+
+- DSL-based queries instead of raw SQL generation
+- Read-only query model by design
+- Field-level and role-level access control
+- Runtime permission injection before execution
+
+### Modeling
+
+- TM/QM semantic modeling
+- Calculated fields and reusable business metrics
+- FSScript for functions, imports, and dynamic logic
+- Parent-child dimensions and pre-aggregation support
+
+### Integration
+
+- MCP endpoints for AI assistants
+- Natural language to DSL workflows
+- Chart rendering support
+- Docker-based local demos and deployment
 
 ---
 

@@ -62,11 +62,15 @@ public class ExRuntimeExceptionImpl extends RuntimeException implements ExRuntim
         }
         return exCode.startsWith("A") ? INFO_LEVEL : ERROR_LEVEL;
     }
-
+    public ExRuntimeExceptionImpl(String msg) {
+        this(RX.SYSTEM_ERROR.code, RX.SYSTEM_ERROR.exCode, msg, msg, null);
+    }
     public ExRuntimeExceptionImpl(ExDefined defined) {
         this(defined.getCode(), defined.getExCode(), defined.getErrMsg(), defined.getUserTip(), null);
     }
-
+    public ExRuntimeExceptionImpl(int  code,String msg) {
+        this(code, code+"", msg, msg, null);
+    }
     public ExRuntimeExceptionImpl(ExDefined defined, Object item) {
         this(defined.getCode(), defined.getExCode(), defined.getErrMsg(), defined.getUserTip(), item);
     }

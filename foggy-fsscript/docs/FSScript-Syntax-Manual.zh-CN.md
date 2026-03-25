@@ -294,25 +294,38 @@ for (var i = 0; i < 10; i++) {
     // 代码
 }
 
-// for-in 循环（遍历对象键）
+// for-in 循环（遍历索引/键名，符合 JavaScript 标准）
+// 数组：返回索引（0, 1, 2...）
+// 对象/Map：返回键名
 for (let key in obj) {
-    // 代码
+    // key 是属性名或数组索引
 }
 
-// for-of 循环（遍历数组值）
+// for-of 循环（遍历值，ES6 标准）
 for (const value of array) {
-    // 代码
+    // value 是元素值
 }
 
-// for-: 循环（遍历集合）
+// for-: 循环（遍历值，Java 风格，等同于 for-of）
 for (var item : collection) {
-    // 代码
+    // item 是元素值
 }
 
 // 示例
 let sum = 0;
 for (var i = 0; i < 10; i++) {
     sum = sum + i;
+}
+
+// for-in 示例：遍历数组索引
+let arr = [10, 20, 30];
+for (let i in arr) {
+    console.log(i);  // 输出: 0, 1, 2（索引）
+}
+
+// for-of 示例：遍历数组值
+for (let v of arr) {
+    console.log(v);  // 输出: 10, 20, 30（值）
 }
 
 let b = [1, 2];

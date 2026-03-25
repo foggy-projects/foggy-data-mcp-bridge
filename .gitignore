@@ -136,6 +136,11 @@ __pycache__/
 .pytest_cache/
 
 # ====================
+# Playwright
+# ====================
+.playwright-cli/
+
+# ====================
 # VitePress (docs-site)
 # ====================
 docs-site/.vitepress/cache/

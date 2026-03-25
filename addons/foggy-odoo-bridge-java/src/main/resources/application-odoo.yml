@@ -1,0 +1,44 @@
+# Foggy Odoo Bridge Configuration
+#
+# This configuration provides default settings for the Odoo integration.
+# When foggy-odoo-bridge module is included, these models are available
+# under the "odoo" namespace.
+#
+# Data Source: Configured dynamically via DataSource API
+# POST /api/v1/datasource {name: "odoo", host: "...", ...}
+
+foggy:
+  # Authentication token (optional)
+  # When configured, all API endpoints require Bearer token authentication
+  auth:
+    token: ${FOGGY_AUTH_TOKEN:}
+
+  mcp:
+    semantic:
+      # Odoo query models available under 'odoo' namespace
+      model-list:
+        - OdooSaleOrderQueryModel
+        - OdooSaleOrderLineQueryModel
+        - OdooPurchaseOrderQueryModel
+        - OdooAccountMoveQueryModel
+        - OdooStockPickingQueryModel
+        - OdooHrEmployeeQueryModel
+        - OdooResPartnerQueryModel
+        - OdooResCompanyQueryModel
+        - OdooCrmLeadQueryModel
+
+---
+# Odoo Profile - Enables Odoo models, data source configured via API
+spring:
+  config:
+    activate:
+      on-profile: odoo
+
+foggy:
+  demo:
+    enabled: false
+
+  dataset:
+    show-sql: true
+    show-sql-parameters: true
+    show-execution-time: true

@@ -1,0 +1,20 @@
+import MyClass from 'java:com.foggyframework.fsscript.support.ImportStaticClassTest';
+
+let obj = new MyClass('a', 'b');
+
+// instanceof with imported Java class
+export let r1 = obj instanceof MyClass;
+
+// instanceof with built-in type names
+export let r2 = "hello" instanceof String;
+export let r3 = 123 instanceof Number;
+export let r4 = true instanceof Boolean;
+
+// null instanceof should return false
+export let r5 = null instanceof String;
+
+// array instanceof
+export let r6 = [1, 2, 3] instanceof Array;
+
+// map instanceof
+export let r7 = {name: 'test'} instanceof Map;

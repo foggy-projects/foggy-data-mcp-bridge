@@ -88,6 +88,7 @@ public class FunTable implements FunctionSet, DisposableBean {
 
         append(new ParseFile());
         append(new IN());
+        append(new InstanceofOp());
     }
 
     private void addFun(String name, FunDef f) {

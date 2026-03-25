@@ -639,6 +639,20 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
                 // 处理层级操作符的 distance 条件
                 if (hierarchyOp != null) {
+                    // 当闭包操作符在 $or 内时，distance 条件和值条件必须封装在子组内，
+                    // 否则 SQL 运算优先级会导致 distance 条件与错误的分支结合。
+                    // 例如 $or [IS NULL, descendantsOf(1)] 应生成:
+                    //   (company_id IS NULL OR (closure.distance > 0 AND closure.parent_id = 1))
+                    // 而不是:
+                    //   (company_id IS NULL AND closure.distance > 0 OR closure.parent_id = 1)
+                    if ("OR".equalsIgnoreCase(parentLink)) {
+                        JdbcQuery.JdbcGroupCond subGroup = jdbcQuery.getWhere().newGroupCond(parentLink);
+                        hierarchyOp.buildDistanceCondition(subGroup, alias, sliceDef.getMaxDepth());
+                        sliceDef.setOp(sliceDef.getValue() instanceof List ? "in" : "=");
+                        sqlFormulaService.buildAndAddToJdbcCond(subGroup, sliceDef.getOp(), jdbcColumn, alias, sliceDef.getValue(), "AND");
+                        listCond.addCond(subGroup);
+                        return;
+                    }
                     hierarchyOp.buildDistanceCondition(listCond, alias, sliceDef.getMaxDepth());
                     // 将 op 转换为标准操作符（in 或 =）
                     sliceDef.setOp(sliceDef.getValue() instanceof List ? "in" : "=");

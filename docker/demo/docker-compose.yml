@@ -73,14 +73,14 @@ services:
       mysql:
         condition: service_healthy
     ports:
-      - "${MCP_PORT:-7108}:7108"
+      - "${MCP_PORT:-8066}:8066"
       - "${MCP_M2_PORT:-7109}:7109"
     volumes:
       # 外部自定义模型目录挂载
       - ${EXTERNAL_MODELS_PATH:-./custom-models}:/app/external-models:ro
     environment:
       # 服务配置
-      SERVER_PORT: 7108
+      SERVER_PORT: 8066
       SPRING_PROFILES_ACTIVE: docker
 
       # 数据库连接 (连接到同一网络中的 mysql 容器)
@@ -117,7 +117,7 @@ services:
       # JVM 内存配置
       JAVA_OPTS: ${JAVA_OPTS:--Xms256m -Xmx512m -XX:+UseG1GC}
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:7108/actuator/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8066/actuator/health"]
       interval: 30s
       timeout: 10s
       retries: 5

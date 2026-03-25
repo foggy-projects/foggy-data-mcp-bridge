@@ -6,6 +6,7 @@ import com.foggyframework.dataset.db.model.def.dict.DbDictDef;
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.impl.AiObject;
 import com.foggyframework.dataset.db.model.impl.dimension.DbDimensionSupport;
+import com.foggyframework.dataset.db.model.impl.dimension.DbModelParentChildDimensionImpl;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
@@ -186,8 +187,8 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         List<DbDimension> dimensions = jdbcModel.getDimensions();
         if (dimensions != null && !dimensions.isEmpty()) {
             md.append("## 维度字段\n");
-            md.append("| 字段名 | 名称 | 类型 | 说明 |\n");
-            md.append("|--------|------|------|------|\n");
+            md.append("| 字段名 | 名称 | 类型 | 层级 | 说明 |\n");
+            md.append("|--------|------|------|------|------|\n");
 
             for (DbDimension dimension : dimensions) {
                 if (!isFieldInLevels(dimension.getAi(), request.getLevels())) {
@@ -202,15 +203,19 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                 }
 
                 String dimCaption = dimension.getCaption() != null ? dimension.getCaption() : dimName;
-                String keyDesc = dimension.getKeyDescription() != null ? dimension.getKeyDescription() : "";
+                boolean isHier = isHierarchicalDimension(dimension);
+                String hierLabel = isHier ? "✅ selfAndDescendantsOf / selfAndAncestorsOf" : "-";
 
                 // $id 字段
                 String idFieldName = dimName + "$id";
                 dimensionFieldNames.add(idFieldName);
+                String idDesc = escapeMarkdownTable(
+                        dimension.getKeyDescription() != null ? dimension.getKeyDescription() : "");
                 md.append("| ").append(idFieldName)
                         .append(" | ").append(dimCaption).append("(ID)")
                         .append(" | ").append(getIdTypeDescription(dimension))
-                        .append(" | ").append(escapeMarkdownTable(keyDesc))
+                        .append(" | ").append(hierLabel)
+                        .append(" | ").append(idDesc)
                         .append(" |\n");
 
                 // $caption 字段
@@ -219,6 +224,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                 md.append("| ").append(captionFieldName)
                         .append(" | ").append(dimCaption).append("(名称)")
                         .append(" | TEXT")
+                        .append(" | -")
                         .append(" | ").append(dimCaption).append("显示名称")
                         .append(" |\n");
 
@@ -228,15 +234,15 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                         // 先尝试使用默认格式查找
                         String defaultPropFieldName = dimName + "$" + prop.getName();
                         DbQueryColumn queryColumn = queryModel.findJdbcQueryColumnByName(defaultPropFieldName, false);
-                        
+
                         if (queryColumn == null) {
                             continue;
                         }
-                        
+
                         if (!isFieldInLevels(prop.getAi(), request.getLevels())) {
                             continue;
                         }
-                        
+
                         // 使用 QM 中定义的列名（name），而不是默认格式
                         // 这样可以支持用户在 QM 中使用 alias 重命名字段
                         String propFieldName = queryColumn.getName();
@@ -263,6 +269,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                         md.append("| ").append(propFieldName)
                                 .append(" | ").append(propCaption)
                                 .append(" | ").append(propType)
+                                .append(" | -")
                                 .append(" | ").append(escapeMarkdownTable(propDesc))
                                 .append(" |\n");
                     }
@@ -376,6 +383,13 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             }
             md.append("\n");
         }
+
+        // ========== 使用提示 ==========
+        md.append("## 使用提示\n");
+        md.append("- 维度用 `xxx$id`(查询/过滤), `xxx$caption`(展示), `xxx$property`(维度属性)\n");
+        md.append("- 度量支持内联聚合: `sum(salesAmount) as total`\n");
+        md.append("- 系统自动处理 groupBy，通常无需手动指定\n");
+        md.append("- 层级维度支持 `selfAndDescendantsOf`(值及其所有下级) 和 `selfAndAncestorsOf`(值及其所有上级) 操作符\n");
 
         return md.toString();
     }
@@ -783,7 +797,11 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         String idType = getIdTypeDescription(dimension);
         String idFormatHint = getIdFormatHint(dimension);
 
-        fieldInfo.put("meta", "维度ID | " + idType + (idFormatHint != null ? " | " + idFormatHint : ""));
+        String metaStr = "维度ID | " + idType + (idFormatHint != null ? " | " + idFormatHint : "");
+        if (isHierarchicalDimension(dimension)) {
+            metaStr += " | 层级维度(selfAndDescendantsOf/selfAndAncestorsOf)";
+        }
+        fieldInfo.put("meta", metaStr);
 
         // 前端需要的字段
         fieldInfo.put("type", getJdbcColumnType(dimension));
@@ -798,9 +816,19 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             fieldInfo.put("sourceColumn", fk);
         }
 
+        // 层级维度标记：支持 selfAndDescendantsOf/selfAndAncestorsOf 等层级操作符
+        if (isHierarchicalDimension(dimension)) {
+            fieldInfo.put("hierarchical", true);
+            fieldInfo.put("hierarchyOps", Arrays.asList(
+                    "selfAndDescendantsOf", "descendantsOf", "childrenOf",
+                    "selfAndAncestorsOf", "ancestorsOf"));
+        }
+
         Map<String, Object> modelInfo = new LinkedHashMap<>();
         modelInfo.put("description", buildIdDescription(dimension));
-        modelInfo.put("usage", "用于精确查询、作为外键关联、排序");
+        modelInfo.put("usage", isHierarchicalDimension(dimension)
+                ? "用于精确查询、层级查询（如查某节点及其所有子节点）、作为外键关联、排序"
+                : "用于精确查询、作为外键关联、排序");
 
         Map<String, Object> models = new LinkedHashMap<>();
         models.put(modelName, modelInfo);
@@ -884,6 +912,13 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             return "日期";
         }
         return "数值/文本";
+    }
+
+    /**
+     * 判断维度是否为层级维度（父子维度）
+     */
+    private boolean isHierarchicalDimension(DbDimension dimension) {
+        return dimension instanceof DbModelParentChildDimensionImpl;
     }
 
     /**
@@ -1377,10 +1412,17 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             String idType = service.getIdTypeDescription(dimension);
             String idHint = service.getIdFormatHint(dimension);
             this.meta = "维度ID | " + idType + (idHint != null ? " | " + idHint : "");
+            if (service.isHierarchicalDimension(dimension)) {
+                this.meta += " | 层级维度(selfAndDescendantsOf/selfAndAncestorsOf)";
+            }
             this.fieldType = "dimension_id";
 
             ModelUsage usage = new ModelUsage();
-            usage.setDescription(service.buildIdDescription(dimension));
+            String desc = service.buildIdDescription(dimension);
+            if (service.isHierarchicalDimension(dimension)) {
+                desc = desc + " (层级维度，支持selfAndDescendantsOf等层级操作符)";
+            }
+            usage.setDescription(desc);
             modelUsages.put(modelName, usage);
         }
 

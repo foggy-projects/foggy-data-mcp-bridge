@@ -69,7 +69,19 @@ public interface ExpFactory {
 
     Exp createFor(Exp defExp, Exp booleanExp, Exp addExp, Exp forBodyExp);
 
+    /**
+     * 创建 for...of / for...: 循环（遍历值）
+     */
     Exp createFor(String leftId, Exp rightExp, Exp forBodyExp);
+
+    /**
+     * 创建 for...in 循环（遍历索引/键名，符合 JavaScript 标准）
+     * @param leftId 循环变量名（接收索引/键名）
+     * @param rightExp 被遍历的表达式
+     * @param forBodyExp 循环体
+     * @return ForInExp
+     */
+    Exp createForIn(String leftId, Exp rightExp, Exp forBodyExp);
 
     /**
      * 创建匿名函数

@@ -1,6 +1,0 @@
-id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-access_foggy_api_key_user,foggy.api.key.user,model_foggy_api_key,base.group_user,1,1,1,0
-access_foggy_api_key_admin,foggy.api.key.admin,model_foggy_api_key,base.group_system,1,1,1,1
-access_foggy_setup_wizard_admin,foggy.setup.wizard.admin,model_foggy_setup_wizard,base.group_system,1,1,1,1
-access_foggy_chat_session_user,foggy.chat.session.user,model_foggy_chat_session,base.group_user,1,1,1,1
-access_foggy_chat_message_user,foggy.chat.message.user,model_foggy_chat_message,base.group_user,1,1,1,0

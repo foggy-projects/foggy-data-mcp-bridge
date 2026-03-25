@@ -189,14 +189,21 @@ for (var i = 0; i < 10; i++) {
     // code
 }
 
-// for-in (iterate object keys)
+// for-in (iterate keys/indices, JavaScript standard)
+// For arrays: returns index (0, 1, 2...)
+// For objects/Map: returns keys
 for (let key in obj) {
-    // code
+    // key is the property name or array index
 }
 
-// for-of (iterate array values)
+// for-of (iterate values, ES6 standard)
 for (const value of array) {
-    // code
+    // value is the element value
+}
+
+// for-colon (iterate values, Java-style alias for for-of)
+for (let item : array) {
+    // item is the element value
 }
 ```
 

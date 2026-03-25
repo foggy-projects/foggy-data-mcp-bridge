@@ -304,4 +304,89 @@ class AccessControlTest extends EcommerceTestSupport {
 
         printSql(sql, "表别名验证 SQL");
     }
+
+    // ==========================================
+    // 增强：无权限模型行为验证
+    // ==========================================
+
+    @Test
+    @Order(30)
+    @DisplayName("无权限模型 - SQL 不包含权限 WHERE 条件")
+    void testNoAccessModelNoPredicate() {
+        JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("FactSalesQueryModel");
+        queryRequest.setColumns(Arrays.asList("orderId", "salesAmount"));
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+
+        String sql = queryEngine.getSql();
+        List<Object> values = queryEngine.getValues();
+
+        // 无权限模型不应注入 COMPLETED、LIKE 等条件
+        assertFalse(values.contains("COMPLETED"),
+                "无权限模型不应包含 COMPLETED 过滤");
+
+        printSql(sql, "无权限模型 SQL");
+    }
+
+    @Test
+    @Order(31)
+    @DisplayName("权限过滤 - 多条件同时生效验证")
+    void testAccessControlAllConditionsPresent() {
+        JdbcQueryModel queryModel = getQueryModel("FactSalesAccessQueryModel");
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("FactSalesAccessQueryModel");
+        queryRequest.setColumns(Arrays.asList(
+                "orderId", "orderStatus", "store$caption", "salesAmount"
+        ));
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+
+        String sql = queryEngine.getSql();
+        List<Object> values = queryEngine.getValues();
+
+        // 验证所有权限条件参数都存在
+        assertTrue(values.contains("COMPLETED"),
+                "参数应包含 COMPLETED（orderStatus 权限条件）");
+
+        // SQL 中应包含 WHERE 子句
+        assertTrue(sql.toLowerCase().contains("where"),
+                "SQL应包含 WHERE 子句");
+
+        log.info("All access conditions present. Values: {}", values);
+    }
+
+    @Test
+    @Order(32)
+    @DisplayName("权限过滤 + 排序组合")
+    void testAccessWithUserOrderBy() {
+        JdbcQueryModel queryModel = getQueryModel("FactSalesAccessQueryModel");
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("FactSalesAccessQueryModel");
+        queryRequest.setColumns(Arrays.asList("orderId", "salesAmount"));
+
+        // 添加用户排序条件
+        com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef order =
+                new com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef();
+        order.setField("salesAmount");
+        order.setDir("desc");
+        queryRequest.setOrderBy(java.util.Collections.singletonList(order));
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+
+        String sql = queryEngine.getSql();
+
+        // 权限 WHERE 和用户 ORDER BY 应同时存在
+        assertTrue(sql.toLowerCase().contains("where"), "SQL应包含 WHERE（权限条件）");
+        assertTrue(sql.toLowerCase().contains("order by"), "SQL应包含 ORDER BY（用户排序）");
+
+        printSql(sql, "权限+排序组合 SQL");
+    }
 }
