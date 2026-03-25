@@ -125,9 +125,9 @@ public class PagingRequest<T> {
             return;
         }
 
-        // 兜底默认值
+        // 兜底默认值（pageSize 优先于 defaultLimit）
         if (this.limit == null) {
-            this.limit = defaultLimit;
+            this.limit = this.pageSize != null ? this.pageSize : defaultLimit;
         }
         if (this.start == null) {
             this.start = 0;

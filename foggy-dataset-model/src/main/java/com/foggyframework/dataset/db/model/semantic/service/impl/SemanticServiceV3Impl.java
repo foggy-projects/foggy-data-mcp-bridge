@@ -689,6 +689,11 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                                       List<String> fieldFilter, List<Integer> levels) {
         TableModel jdbcModel = queryModel.getJdbcModel();
 
+        // 收集维度字段名，用于在属性字段中排除（与 markdown 方法对齐）
+        // 避免同一个 sourceColumn 出现重复映射（如 company$id 和 company 都映射到 company_id），
+        // 导致下游 FieldMappingRegistry 反向映射时后者覆盖前者，权限注入字段名错误。
+        Set<String> dimensionFieldNames = new HashSet<>();
+
         // 处理维度（展开为 $id 和 $caption，仅包含QM暴露的维度）
         for (DbDimension dimension : jdbcModel.getDimensions()) {
             if (!isFieldInLevels(dimension.getAi(), levels)) {
@@ -712,10 +717,12 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
 
             // 展开为两个独立字段
             // 1. $id 字段
+            dimensionFieldNames.add(idFieldName);
             Map<String, Object> idFieldInfo = createDimensionIdFieldInfo(dimension, queryModel.getName());
             fields.put(idFieldName, idFieldInfo);
 
             // 2. $caption 字段
+            dimensionFieldNames.add(captionFieldName);
             Map<String, Object> captionFieldInfo = createDimensionCaptionFieldInfo(dimension, queryModel.getName());
             fields.put(captionFieldName, captionFieldInfo);
 
@@ -724,24 +731,25 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                 // 先尝试使用默认格式查找
                 String defaultPropFieldName = baseName + "$" + prop.getName();
                 DbQueryColumn queryColumn = queryModel.findJdbcQueryColumnByName(defaultPropFieldName, false);
-                
+
                 if (queryColumn == null) {
                     continue;
                 }
-                
+
                 if (!isFieldInLevels(prop.getAi(), levels)) {
                     continue;
                 }
-                
+
                 // 使用 QM 中定义的列名（name），而不是默认格式
                 // 这样可以支持用户在 QM 中使用 alias 重命名字段
                 String propFieldName = queryColumn.getName();
+                dimensionFieldNames.add(propFieldName);
                 Map<String, Object> propFieldInfo = createDimensionPropertyFieldInfo(dimension, prop, queryModel.getName(), propFieldName);
                 fields.put(propFieldName, propFieldInfo);
             }
         }
 
-        // 处理属性
+        // 处理属性（排除已在维度字段中输出的，与 markdown buildSingleModelMarkdown 对齐）
         for (DbQueryProperty queryProperty : queryModel.getQueryProperties()) {
             if (!isFieldInLevels(queryProperty.getAi(), levels)) {
                 continue;
@@ -749,6 +757,12 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
 
             DbProperty property = queryProperty.getProperty();
             String fieldName = property.getName();
+
+            // 跳过已作为维度字段输出的属性，避免 sourceColumn 重复映射
+            if (dimensionFieldNames.contains(queryProperty.getName())) {
+                continue;
+            }
+
             if (fieldFilter != null && !fieldFilter.contains(fieldName)) {
                 continue;
             }
