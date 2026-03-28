@@ -402,6 +402,87 @@ class ClosureOperatorOrSliceTest extends EcommerceTestSupport {
     }
 
     @Test
+    @Order(32)
+    @DisplayName("嵌套组合: $and[$or[is null,selfAndAncestorsOf], city is not null]")
+    void testNestedAndOrWithSelfAndAncestorsOf() {
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("OdooResPartnerQueryModel");
+        queryRequest.setColumns(Arrays.asList("name", "city", "company$caption"));
+
+        SliceRequestDef andGroup = new SliceRequestDef();
+        List<CondRequestDef> andConditions = new ArrayList<>();
+
+        SliceRequestDef orGroup = new SliceRequestDef();
+        List<CondRequestDef> orConditions = new ArrayList<>();
+
+        SliceRequestDef cond1 = new SliceRequestDef();
+        cond1.setField("company$id");
+        cond1.setOp("is null");
+        orConditions.add(cond1);
+
+        SliceRequestDef cond2 = new SliceRequestDef();
+        cond2.setField("company$id");
+        cond2.setOp("selfAndAncestorsOf");
+        cond2.setValue(2);
+        orConditions.add(cond2);
+
+        orGroup.setOr(orConditions);
+        andConditions.add(orGroup);
+
+        SliceRequestDef cond3 = new SliceRequestDef();
+        cond3.setField("city");
+        cond3.setOp("is not null");
+        andConditions.add(cond3);
+
+        andGroup.setAnd(andConditions);
+        queryRequest.setSlice(Collections.singletonList(andGroup));
+
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 50);
+        PagingResultImpl result = jdbcService.queryModelData(form);
+
+        List<Map<String, Object>> items = (List<Map<String, Object>>) result.getItems();
+        log.info("嵌套 $and/$or + selfAndAncestorsOf 返回 {} 条", items.size());
+
+        assertTrue(items.size() > 0, "嵌套逻辑条件不应将 hierarchy 条件降级为无结果");
+        assertTrue(items.stream().allMatch(item -> item.get("city") != null), "AND 条件 city is not null 应生效");
+    }
+
+    @Test
+    @Order(33)
+    @DisplayName("祖先方向多值: $or [is null, selfAndAncestorsOf([2,3])]")
+    void testOrWithIsNullAndSelfAndAncestorsOfListValue() {
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("OdooResPartnerQueryModel");
+        queryRequest.setColumns(Arrays.asList("name", "city", "company$caption"));
+
+        SliceRequestDef orGroup = new SliceRequestDef();
+        List<CondRequestDef> orConditions = new ArrayList<>();
+
+        SliceRequestDef cond1 = new SliceRequestDef();
+        cond1.setField("company$id");
+        cond1.setOp("is null");
+        orConditions.add(cond1);
+
+        SliceRequestDef cond2 = new SliceRequestDef();
+        cond2.setField("company$id");
+        cond2.setOp("selfAndAncestorsOf");
+        cond2.setValue(Arrays.asList(2, 3));
+        orConditions.add(cond2);
+
+        orGroup.setOr(orConditions);
+        queryRequest.setSlice(Collections.singletonList(orGroup));
+
+        PagingRequest<DbQueryRequestDef> form = PagingRequest.buildPagingRequest(queryRequest, 50);
+        PagingResultImpl result = jdbcService.queryModelData(form);
+
+        List<Map<String, Object>> items = (List<Map<String, Object>>) result.getItems();
+        log.info("$or [is null, selfAndAncestorsOf([2,3])] 返回 {} 条", items.size());
+
+        assertTrue(items.size() >= 8,
+                "祖先方向多值列表应匹配 company 1/2/3 再加上 NULL company 的记录, 实际: " + items.size());
+    }
+
+    @Test
     @Order(31)
     @DisplayName("完整 Odoo 场景对比: 不带 slice 查询所有 partner")
     void testAllPartnersWithoutSlice() {
