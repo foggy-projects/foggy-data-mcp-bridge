@@ -24,7 +24,7 @@ Add Foggy Dataset Model dependency in `pom.xml`:
 <dependency>
     <groupId>com.foggysource</groupId>
     <artifactId>foggy-dataset-model</artifactId>
-    <version>8.1.8.beta</version>
+    <version>8.1.9.beta</version>
 </dependency>
 ```
 
@@ -56,7 +56,7 @@ If you are creating a new project, you need to add the following dependencies:
     <dependency>
         <groupId>com.foggysource</groupId>
         <artifactId>foggy-dataset-model</artifactId>
-        <version>8.1.8.beta</version>
+        <version>8.1.9.beta</version>
     </dependency>
 
     <!-- Database drivers (choose one according to actual situation) -->

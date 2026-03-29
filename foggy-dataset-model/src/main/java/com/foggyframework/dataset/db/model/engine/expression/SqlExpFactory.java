@@ -192,6 +192,7 @@ public class SqlExpFactory extends DefaultExpFactory {
                 case "===":
                 case "!=":
                 case "!==":
+                case "<>":  // SQL standard not-equal (parser may convert != to <>)
                 case ">":
                 case "<":
                 case ">=":
