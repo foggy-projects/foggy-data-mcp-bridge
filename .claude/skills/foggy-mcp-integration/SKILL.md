@@ -26,7 +26,7 @@ description: 指导 Java 项目集成 foggy-dataset-mcp，部署 MCP 服务给 A
 
 ```xml
 <properties>
-    <foggy.version>8.1.8.beta</foggy.version>
+    <foggy.version>8.1.9.beta</foggy.version>
 </properties>
 
 <dependency>
