@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.foggyframework.core.ex.RX;
 import lombok.extern.slf4j.Slf4j;
 
@@ -19,7 +20,8 @@ import java.util.Map;
 @Slf4j
 public final class JsonUtils {
 
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper()
+            .registerModule(new JavaTimeModule());
 
     static {
         // 禁用循环引用检测（类似 fastjson 的 DisableCircularReferenceDetect）
@@ -28,6 +30,7 @@ public final class JsonUtils {
         OBJECT_MAPPER.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
         // 允许序列化空的POJO
         OBJECT_MAPPER.enable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+
     }
 
     /**
