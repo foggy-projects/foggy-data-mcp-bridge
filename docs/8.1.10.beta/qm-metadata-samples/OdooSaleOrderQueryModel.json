@@ -1,0 +1,554 @@
+{
+  "prompt" : "## 使用说明 (V3版本)\n- 格式约定：字段类型 | 数据类型 | 格式说明\n",
+  "version" : "v3",
+  "fields" : {
+    "partner$id" : {
+      "name" : "Customer(ID)",
+      "fieldName" : "partner$id",
+      "meta" : "维度ID | 数值/文本",
+      "type" : "TEXT",
+      "filterType" : "dimension",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "sourceColumn" : "partner_id",
+      "models" : {
+        "OdooSaleOrderQueryModel" : {
+          "description" : "partner$id | Customer的ID/值",
+          "usage" : "用于精确查询、作为外键关联、排序"
+        }
+      }
+    },
+    "partner$caption" : {
+      "name" : "Customer(名称)",
+      "fieldName" : "partner$caption",
+      "meta" : "维度名称 | 文本 | Customer主键",
+      "type" : "TEXT",
+      "filterType" : "dimension",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "models" : {
+        "OdooSaleOrderQueryModel" : {
+          "description" : "partner$caption | Customer的显示名称 | Customer主键",
+          "usage" : "用于展示、模糊查询"
+        }
+      }
+    },
+    "partner$email" : {
+      "name" : "Email",
+      "fieldName" : "partner$email",
+      "meta" : "维度属性 | 文本",
+      "type" : "STRING",
+      "filterType" : "text",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "models" : {
+        "OdooSaleOrderQueryModel" : {
+          "description" : "Email"
+        }
+      }
+    },
+    "partner$phone" : {
+      "name" : "Phone",
+      "fieldName" : "partner$phone",
+      "meta" : "维度属性 | 文本",
+      "type" : "STRING",
+      "filterType" : "text",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "models" : {
+        "OdooSaleOrderQueryModel" : {
+          "description" : "Phone"
+        }
+      }
+    },
+    "partner$city" : {
+      "name" : "City",
+      "fieldName" : "partner$city",
+      "meta" : "维度属性 | 文本",
+      "type" : "STRING",
+      "filterType" : "text",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "models" : {
+        "OdooSaleOrderQueryModel" : {
+          "description" : "City"
+        }
+      }
+    },
+    "partner$isCompany" : {
+      "name" : "Is Company",
+      "fieldName" : "partner$isCompany",
+      "meta" : "维度属性 | 布尔",
+      "type" : "BOOL",
+      "filterType" : "bool",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "models" : {
+        "OdooSaleOrderQueryModel" : {
+          "description" : "Is Company"
+        }
+      }
+    },
+    "partner$customerRank" : {
+      "name" : "Customer Rank",
+      "fieldName" : "partner$customerRank",
+      "meta" : "维度属性 | 文本",
+      "type" : "INTEGER",
+      "filterType" : "number",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "models" : {
+        "OdooSaleOrderQueryModel" : {
+          "description" : "Customer Rank"
+        }
+      }
+    },
+    "salesperson$id" : {
+      "name" : "Salesperson(ID)",
+      "fieldName" : "salesperson$id",
+      "meta" : "维度ID | 数值/文本",
+      "type" : "TEXT",
+      "filterType" : "dimension",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "sourceColumn" : "user_id",
+      "models" : {
+        "OdooSaleOrderQueryModel" : {
+          "description" : "salesperson$id | Salesperson的ID/值",
+          "usage" : "用于精确查询、作为外键关联、排序"
+        }
+      }
+    },
+    "salesperson$caption" : {
+      "name" : "Salesperson(名称)",
+      "fieldName" : "salesperson$caption",
+      "meta" : "维度名称 | 文本 | Salesperson主键",
+      "type" : "TEXT",
+      "filterType" : "dimension",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "models" : {
+        "OdooSaleOrderQueryModel" : {
+          "description" : "salesperson$caption | Salesperson的显示名称 | Salesperson主键",
+          "usage" : "用于展示、模糊查询"
+        }
+      }
+    },
+    "company$id" : {
+      "name" : "Company(ID)",
+      "fieldName" : "company$id",
+      "meta" : "维度ID | 数值/文本 | 层级维度(selfAndDescendantsOf/selfAndAncestorsOf)",
+      "type" : "TEXT",
+      "filterType" : "dimension",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "sourceColumn" : "company_id",
+      "hierarchical" : true,
+      "hierarchyOps" : [ "selfAndDescendantsOf", "descendantsOf", "childrenOf", "selfAndAncestorsOf", "ancestorsOf" ],
+      "models" : {
+        "OdooSaleOrderQueryModel" : {
+          "description" : "company$id | Company的ID/值",
+          "usage" : "用于精确查询、层级查询（如查某节点及其所有子节点）、作为外键关联、排序"
+        }
+      }
+    },
+    "company$caption" : {
+      "name" : "Company(名称)",
+      "fieldName" : "company$caption",
+      "meta" : "维度名称 | 文本 | Company主键",
+      "type" : "TEXT",
+      "filterType" : "dimension",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "models" : {
+        "OdooSaleOrderQueryModel" : {
+          "description" : "company$caption | Company的显示名称 | Company主键",
+          "usage" : "用于展示、模糊查询"
+        }
+      }
+    },
+    "salesTeam$id" : {
+      "name" : "Sales Team(ID)",
+      "fieldName" : "salesTeam$id",
+      "meta" : "维度ID | 数值/文本",
+      "type" : "TEXT",
+      "filterType" : "dimension",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "sourceColumn" : "team_id",
+      "models" : {
+        "OdooSaleOrderQueryModel" : {
+          "description" : "salesTeam$id | Sales Team的ID/值",
+          "usage" : "用于精确查询、作为外键关联、排序"
+        }
+      }
+    },
+    "salesTeam$caption" : {
+      "name" : "Sales Team(名称)",
+      "fieldName" : "salesTeam$caption",
+      "meta" : "维度名称 | 文本 | Sales Team主键",
+      "type" : "TEXT",
+      "filterType" : "dimension",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "models" : {
+        "OdooSaleOrderQueryModel" : {
+          "description" : "salesTeam$caption | Sales Team的显示名称 | Sales Team主键",
+          "usage" : "用于展示、模糊查询"
+        }
+      }
+    },
+    "pricelist$id" : {
+      "name" : "Pricelist(ID)",
+      "fieldName" : "pricelist$id",
+      "meta" : "维度ID | 数值/文本",
+      "type" : "TEXT",
+      "filterType" : "dimension",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "sourceColumn" : "pricelist_id",
+      "models" : {
+        "OdooSaleOrderQueryModel" : {
+          "description" : "pricelist$id | Pricelist的ID/值",
+          "usage" : "用于精确查询、作为外键关联、排序"
+        }
+      }
+    },
+    "pricelist$caption" : {
+      "name" : "Pricelist(名称)",
+      "fieldName" : "pricelist$caption",
+      "meta" : "维度名称 | 文本 | Pricelist主键",
+      "type" : "TEXT",
+      "filterType" : "dimension",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "models" : {
+        "OdooSaleOrderQueryModel" : {
+          "description" : "pricelist$caption | Pricelist的显示名称 | Pricelist主键",
+          "usage" : "用于展示、模糊查询"
+        }
+      }
+    },
+    "warehouse$id" : {
+      "name" : "Warehouse(ID)",
+      "fieldName" : "warehouse$id",
+      "meta" : "维度ID | 数值/文本",
+      "type" : "TEXT",
+      "filterType" : "dimension",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "sourceColumn" : "warehouse_id",
+      "models" : {
+        "OdooSaleOrderQueryModel" : {
+          "description" : "warehouse$id | Warehouse的ID/值",
+          "usage" : "用于精确查询、作为外键关联、排序"
+        }
+      }
+    },
+    "warehouse$caption" : {
+      "name" : "Warehouse(名称)",
+      "fieldName" : "warehouse$caption",
+      "meta" : "维度名称 | 文本 | Warehouse主键",
+      "type" : "TEXT",
+      "filterType" : "dimension",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "models" : {
+        "OdooSaleOrderQueryModel" : {
+          "description" : "warehouse$caption | Warehouse的显示名称 | Warehouse主键",
+          "usage" : "用于展示、模糊查询"
+        }
+      }
+    },
+    "id" : {
+      "name" : "ID",
+      "fieldName" : "id",
+      "meta" : "属性 | 文本",
+      "type" : "INTEGER",
+      "filterType" : "number",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "sourceColumn" : "id",
+      "models" : {
+        "OdooSaleOrderQueryModel" : {
+          "description" : "ID"
+        }
+      }
+    },
+    "name" : {
+      "name" : "Order Reference",
+      "fieldName" : "name",
+      "meta" : "属性 | 文本",
+      "type" : "STRING",
+      "filterType" : "text",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "sourceColumn" : "name",
+      "models" : {
+        "OdooSaleOrderQueryModel" : {
+          "description" : "Order Reference"
+        }
+      }
+    },
+    "state" : {
+      "name" : "Status",
+      "fieldName" : "state",
+      "meta" : "属性 | 文本",
+      "type" : "STRING",
+      "filterType" : "text",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "dictId" : "odoo_sale_order_state",
+      "sourceColumn" : "state",
+      "models" : {
+        "OdooSaleOrderQueryModel" : {
+          "description" : "Status"
+        }
+      }
+    },
+    "dateOrder" : {
+      "name" : "Order Date",
+      "fieldName" : "dateOrder",
+      "meta" : "属性 | 日期时间",
+      "type" : "DATETIME",
+      "filterType" : "date",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "sourceColumn" : "date_order",
+      "models" : {
+        "OdooSaleOrderQueryModel" : {
+          "description" : "Order Date"
+        }
+      }
+    },
+    "commitmentDate" : {
+      "name" : "Delivery Date",
+      "fieldName" : "commitmentDate",
+      "meta" : "属性 | 日期时间",
+      "type" : "DATETIME",
+      "filterType" : "date",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "sourceColumn" : "commitment_date",
+      "models" : {
+        "OdooSaleOrderQueryModel" : {
+          "description" : "Delivery Date"
+        }
+      }
+    },
+    "invoiceStatus" : {
+      "name" : "Invoice Status",
+      "fieldName" : "invoiceStatus",
+      "meta" : "属性 | 文本",
+      "type" : "STRING",
+      "filterType" : "text",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "dictId" : "odoo_sale_invoice_status",
+      "sourceColumn" : "invoice_status",
+      "models" : {
+        "OdooSaleOrderQueryModel" : {
+          "description" : "Invoice Status"
+        }
+      }
+    },
+    "clientOrderRef" : {
+      "name" : "Customer Reference",
+      "fieldName" : "clientOrderRef",
+      "meta" : "属性 | 文本",
+      "type" : "STRING",
+      "filterType" : "text",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "sourceColumn" : "client_order_ref",
+      "models" : {
+        "OdooSaleOrderQueryModel" : {
+          "description" : "Customer Reference"
+        }
+      }
+    },
+    "origin" : {
+      "name" : "Source Document",
+      "fieldName" : "origin",
+      "meta" : "属性 | 文本",
+      "type" : "STRING",
+      "filterType" : "text",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "sourceColumn" : "origin",
+      "models" : {
+        "OdooSaleOrderQueryModel" : {
+          "description" : "Source Document"
+        }
+      }
+    },
+    "createDate" : {
+      "name" : "Created On",
+      "fieldName" : "createDate",
+      "meta" : "属性 | 日期时间",
+      "type" : "DATETIME",
+      "filterType" : "date",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "sourceColumn" : "create_date",
+      "models" : {
+        "OdooSaleOrderQueryModel" : {
+          "description" : "Created On"
+        }
+      }
+    },
+    "writeDate" : {
+      "name" : "Last Updated",
+      "fieldName" : "writeDate",
+      "meta" : "属性 | 日期时间",
+      "type" : "DATETIME",
+      "filterType" : "date",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "sourceColumn" : "write_date",
+      "models" : {
+        "OdooSaleOrderQueryModel" : {
+          "description" : "Last Updated"
+        }
+      }
+    },
+    "amountUntaxed" : {
+      "name" : "Untaxed Amount",
+      "fieldName" : "amountUntaxed",
+      "meta" : "度量 | 数值 | 默认聚合:SUM",
+      "type" : "MONEY",
+      "filterType" : "number",
+      "filterable" : true,
+      "measure" : true,
+      "aggregatable" : true,
+      "aggregation" : "SUM",
+      "sourceColumn" : "amount_untaxed",
+      "models" : {
+        "OdooSaleOrderQueryModel" : {
+          "description" : "Untaxed Amount (聚合方式: SUM)"
+        }
+      }
+    },
+    "amountTax" : {
+      "name" : "Taxes",
+      "fieldName" : "amountTax",
+      "meta" : "度量 | 数值 | 默认聚合:SUM",
+      "type" : "MONEY",
+      "filterType" : "number",
+      "filterable" : true,
+      "measure" : true,
+      "aggregatable" : true,
+      "aggregation" : "SUM",
+      "sourceColumn" : "amount_tax",
+      "models" : {
+        "OdooSaleOrderQueryModel" : {
+          "description" : "Taxes (聚合方式: SUM)"
+        }
+      }
+    },
+    "amountTotal" : {
+      "name" : "Total",
+      "fieldName" : "amountTotal",
+      "meta" : "度量 | 数值 | 默认聚合:SUM",
+      "type" : "MONEY",
+      "filterType" : "number",
+      "filterable" : true,
+      "measure" : true,
+      "aggregatable" : true,
+      "aggregation" : "SUM",
+      "sourceColumn" : "amount_total",
+      "models" : {
+        "OdooSaleOrderQueryModel" : {
+          "description" : "Total (聚合方式: SUM)"
+        }
+      }
+    },
+    "currencyRate" : {
+      "name" : "Currency Rate",
+      "fieldName" : "currencyRate",
+      "meta" : "度量 | 数值 | 默认聚合:SUM",
+      "type" : "NUMBER",
+      "filterType" : "number",
+      "filterable" : true,
+      "measure" : true,
+      "aggregatable" : true,
+      "aggregation" : "SUM",
+      "sourceColumn" : "currency_rate",
+      "models" : {
+        "OdooSaleOrderQueryModel" : {
+          "description" : "Currency Rate (聚合方式: SUM)"
+        }
+      }
+    },
+    "orderCount" : {
+      "name" : "Order Count",
+      "fieldName" : "orderCount",
+      "meta" : "度量 | 数值 | 默认聚合:COUNT_DISTINCT",
+      "type" : "INTEGER",
+      "filterType" : "number",
+      "filterable" : true,
+      "measure" : true,
+      "aggregatable" : true,
+      "aggregation" : "COUNT_DISTINCT",
+      "sourceColumn" : "id",
+      "models" : {
+        "OdooSaleOrderQueryModel" : {
+          "description" : "Order Count (聚合方式: COUNT_DISTINCT)"
+        }
+      }
+    },
+    "avgOrderValue" : {
+      "name" : "Avg Order Value",
+      "fieldName" : "avgOrderValue",
+      "meta" : "计算字段 | MONEY",
+      "type" : "MONEY",
+      "filterType" : "number",
+      "filterable" : false,
+      "measure" : false,
+      "aggregatable" : false,
+      "calculated" : true,
+      "predefined" : true,
+      "models" : {
+        "OdooSaleOrderQueryModel" : {
+          "description" : "Avg Order Value (公式: amountTotal / orderCount)",
+          "usage" : "预定义计算字段，直接在 columns 中引用即可，不要在 calculatedFields 中重复定义"
+        }
+      }
+    }
+  },
+  "models" : {
+    "OdooSaleOrderQueryModel" : {
+      "name" : "Sales Analysis",
+      "factTable" : "sale_order",
+      "purpose" : "数据查询和分析",
+      "scenarios" : [ "数据查询", "统计分析", "报表生成" ]
+    }
+  }
+}
