@@ -3,15 +3,15 @@
  *
  * @description Purchase order header table with vendor, buyer, and company dimensions
  */
-import { dicts, ODOO_DATA_SOURCE_NAME } from '../dicts.fsscript';
+import { dicts } from '../dicts.fsscript';
 import { jsonbCaption } from '../odoo17.fsscript';
 
 export const model = {
     name: 'OdooPurchaseOrderModel',
     caption: 'Purchase Orders',
     tableName: 'purchase_order',
+    dataSourceName: 'odoo',
     idColumn: 'id',
-    dataSourceName: ODOO_DATA_SOURCE_NAME,
 
     dimensions: [
         {

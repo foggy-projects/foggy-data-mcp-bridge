@@ -5,11 +5,13 @@
  *              Use move_type to distinguish invoices from bills.
  */
 import { dicts } from '../dicts.fsscript';
+import { jsonbCaption } from '../odoo17.fsscript';
 
 export const model = {
     name: 'OdooAccountMoveModel',
     caption: 'Invoices & Journal Entries',
     tableName: 'account_move',
+    dataSourceName: 'odoo',
     idColumn: 'id',
 
     dimensions: [
@@ -34,7 +36,8 @@ export const model = {
             tableName: 'account_journal',
             foreignKey: 'journal_id',
             primaryKey: 'id',
-            captionColumn: 'name',
+            // Odoo 17: account_journal.name is JSONB
+            captionDef: jsonbCaption(),
             caption: 'Journal',
             description: 'Accounting journal',
             properties: [
@@ -77,7 +80,8 @@ export const model = {
             tableName: 'crm_team',
             foreignKey: 'team_id',
             primaryKey: 'id',
-            captionColumn: 'name',
+            // Odoo 17: crm_team.name is JSONB
+            captionDef: jsonbCaption(),
             caption: 'Sales Team',
             description: 'Sales team responsible'
         }

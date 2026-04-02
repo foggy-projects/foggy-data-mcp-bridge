@@ -4,11 +4,13 @@
  * @description Sales order header table with customer, salesperson, team and company dimensions
  */
 import { dicts } from '../dicts.fsscript';
+import { jsonbCaption } from '../odoo17.fsscript';
 
 export const model = {
     name: 'OdooSaleOrderModel',
     caption: 'Sale Orders',
     tableName: 'sale_order',
+    dataSourceName: 'odoo',
     idColumn: 'id',
 
     dimensions: [
@@ -55,7 +57,7 @@ export const model = {
             tableName: 'crm_team',
             foreignKey: 'team_id',
             primaryKey: 'id',
-            captionColumn: 'name',
+            captionDef: jsonbCaption(),
             caption: 'Sales Team',
             description: 'Sales team responsible'
         },
@@ -64,7 +66,7 @@ export const model = {
             tableName: 'product_pricelist',
             foreignKey: 'pricelist_id',
             primaryKey: 'id',
-            captionColumn: 'name',
+            captionDef: jsonbCaption(),
             caption: 'Pricelist',
             description: 'Applied pricelist'
         },

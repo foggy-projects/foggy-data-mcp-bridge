@@ -17,15 +17,20 @@ foggy:
     semantic:
       # Odoo query models available under 'odoo' namespace
       model-list:
-        - OdooSaleOrderQueryModel
-        - OdooSaleOrderLineQueryModel
-        - OdooPurchaseOrderQueryModel
+        - OdooAccountMoveLineQueryModel
         - OdooAccountMoveQueryModel
-        - OdooStockPickingQueryModel
-        - OdooHrEmployeeQueryModel
-        - OdooResPartnerQueryModel
-        - OdooResCompanyQueryModel
+        - OdooAccountPaymentQueryModel
         - OdooCrmLeadQueryModel
+        - OdooHrEmployeeQueryModel
+        - OdooMrpProductionQueryModel
+        - OdooProductTemplateQueryModel
+        - OdooProjectTaskQueryModel
+        - OdooPurchaseOrderQueryModel
+        - OdooResCompanyQueryModel
+        - OdooResPartnerQueryModel
+        - OdooSaleOrderLineQueryModel
+        - OdooSaleOrderQueryModel
+        - OdooStockPickingQueryModel
 
 ---
 # Odoo Profile - Enables Odoo models, data source configured via API

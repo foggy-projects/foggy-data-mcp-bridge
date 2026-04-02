@@ -4,11 +4,13 @@
  * @description Sales order line items with product, order, and UoM dimensions
  */
 import { dicts } from '../dicts.fsscript';
+import { jsonbCaption } from '../odoo17.fsscript';
 
 export const model = {
     name: 'OdooSaleOrderLineModel',
     caption: 'Sale Order Lines',
     tableName: 'sale_order_line',
+    dataSourceName: 'odoo',
     idColumn: 'id',
 
     dimensions: [
@@ -43,7 +45,7 @@ export const model = {
             tableName: 'uom_uom',
             foreignKey: 'product_uom',
             primaryKey: 'id',
-            captionColumn: 'name',
+            captionDef: jsonbCaption(),
             caption: 'Unit of Measure',
             description: 'Unit of measure for the line'
         },

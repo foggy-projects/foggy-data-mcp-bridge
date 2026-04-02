@@ -31,6 +31,7 @@ export const queryModel = {
                 { ref: p.vat },
                 { ref: p.ref },
                 { ref: p.isCompany },
+                { ref: p.partnerShare },
                 { ref: p.active },
                 { ref: p.createDate },
                 { ref: p.writeDate }

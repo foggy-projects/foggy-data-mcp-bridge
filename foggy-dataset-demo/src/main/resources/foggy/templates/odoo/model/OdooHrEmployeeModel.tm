@@ -8,6 +8,7 @@ export const model = {
     name: 'OdooHrEmployeeModel',
     caption: 'Employees',
     tableName: 'hr_employee',
+    dataSourceName: 'odoo',
     idColumn: 'id',
 
     dimensions: [
@@ -29,7 +30,7 @@ export const model = {
             foreignKey: 'job_id',
             primaryKey: 'id',
             // Odoo 17: hr_job.name is JSONB (translatable field)
-            captionColumn: 'name',
+            // captionDef.column provides the column name; dialectFormulaDef extracts en_US
             captionDef: {
                 column: 'name',
                 dialectFormulaDef: {
@@ -70,16 +71,8 @@ export const model = {
             tableName: 'hr_work_location',
             foreignKey: 'work_location_id',
             primaryKey: 'id',
-            // Odoo 17: hr_work_location.name is JSONB (translatable field)
+            // hr_work_location.name is VARCHAR (not JSONB) in Odoo 17
             captionColumn: 'name',
-            captionDef: {
-                column: 'name',
-                dialectFormulaDef: {
-                    postgresql: {
-                        builder: (alias) => { return `${alias}.name ->> 'en_US'`; }
-                    }
-                }
-            },
             caption: 'Work Location',
             description: 'Work location'
         },

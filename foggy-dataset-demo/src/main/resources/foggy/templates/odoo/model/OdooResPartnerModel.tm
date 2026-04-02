@@ -5,11 +5,13 @@
  *              Use customer_rank > 0 for customers, supplier_rank > 0 for vendors.
  */
 import { dicts } from '../dicts.fsscript';
+import { jsonbCaption } from '../odoo17.fsscript';
 
 export const model = {
     name: 'OdooResPartnerModel',
     caption: 'Partners',
     tableName: 'res_partner',
+    dataSourceName: 'odoo',
     idColumn: 'id',
 
     dimensions: [
@@ -30,7 +32,8 @@ export const model = {
             tableName: 'res_country',
             foreignKey: 'country_id',
             primaryKey: 'id',
-            captionColumn: 'name',
+            // Odoo 17: res_country.name is JSONB
+            captionDef: jsonbCaption(),
             caption: 'Country',
             description: 'Partner country',
             properties: [
@@ -75,7 +78,8 @@ export const model = {
             tableName: 'crm_team',
             foreignKey: 'team_id',
             primaryKey: 'id',
-            captionColumn: 'name',
+            // Odoo 17: crm_team.name is JSONB
+            captionDef: jsonbCaption(),
             caption: 'Sales Team',
             description: 'Sales team'
         }
@@ -97,6 +101,7 @@ export const model = {
         { column: 'ref', caption: 'Internal Reference', type: 'STRING' },
         { column: 'lang', caption: 'Language', type: 'STRING' },
         { column: 'is_company', caption: 'Is Company', type: 'BOOL' },
+        { column: 'partner_share', caption: 'Is Shared (External)', type: 'BOOL', description: 'True if partner is shared with portal users (used by ir.rule)' },
         { column: 'active', caption: 'Active', type: 'BOOL' },
         { column: 'customer_rank', caption: 'Customer Rank', type: 'INTEGER', description: '> 0 means customer' },
         { column: 'supplier_rank', caption: 'Supplier Rank', type: 'INTEGER', description: '> 0 means vendor' },

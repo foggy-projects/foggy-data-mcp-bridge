@@ -8,6 +8,15 @@
   - 后端维护 TM/QM 与元数据输出
   - 前端消费 `foggy-data-viewer` 组件并承接 UI 定制
 
+## 系列归档
+本需求已归入 `QM 前端生成与业务接入` 系列，相关总览和运行时/接入文档见：
+
+- [P1-QM前端生成与业务接入-需求.md](/D:/foggy-projects/foggy-data-mcp/foggy-data-mcp-bridge/docs/8.1.10.beta/P1-QM前端生成与业务接入/P1-QM前端生成与业务接入-需求.md)
+- [P1-QM业务系统使用规范-需求.md](/D:/foggy-projects/foggy-data-mcp/foggy-data-mcp-bridge/docs/8.1.10.beta/P1-QM前端生成与业务接入/P1-QM业务系统使用规范-需求.md)
+- [P1-QM前端下拉组件生成-需求.md](/D:/foggy-projects/foggy-data-mcp/foggy-data-mcp-bridge/docs/8.1.10.beta/P1-QM前端生成与业务接入/P1-QM前端下拉组件生成-需求.md)
+- [P1-QM查询条件区与列筛选并存-需求.md](/D:/foggy-projects/foggy-data-mcp/foggy-data-mcp-bridge/docs/8.1.10.beta/P1-QM前端生成与业务接入/P1-QM查询条件区与列筛选并存-需求.md)
+- [P1-DataViewer维度成员实时过滤-需求.md](/D:/foggy-projects/foggy-data-mcp/foggy-data-mcp-bridge/docs/8.1.10.beta/P1-QM前端生成与业务接入/P1-DataViewer维度成员实时过滤-需求.md)
+
 ## 背景
 公司重构项目计划在前端侧复用 `addons/foggy-data-viewer` 中的 Vue 3 组件能力。
 
@@ -17,6 +26,7 @@ TM/QM 继续由后端相关技术维护，希望在版本 `8.1.10.beta` 中规�
 - 本阶段暂不处理 `groupBy` 交互能力，后续版本再讨论。
 - `uiConfig` 不由后端强控，前端自行扩展；后端仅提供全局参数入口与定制参数入口。
 - 当前能力默认依赖后端服务启动后提供元数据。
+- 本需求只规范“如何生成前端产物”，不替代“业务系统如何接入这些产物”的规范；后者在独立文档中讨论。
 - 主推荐方案：
   - 后端提供稳定、标准、版本化的 JSON 元数据。
   - 前端通过 Node/CLI/构建插件拉取 JSON 并生成代码。
@@ -26,9 +36,11 @@ TM/QM 继续由后端相关技术维护，希望在版本 `8.1.10.beta` 中规�
 
 ## 目标
 - 建立面向前端消费的 QM 标准元数据输出格式。
-- 支持从 QM 生成前端基础代码资产，至少包括：
+- 支持从 QM 生成前端基础代码资产，优先包括表格组件，并为 lookup / 下拉组件生成保留扩展位。
+- 表格相关生成产物至少包括：
   - `types.ts`
   - `schema.ts`
+  - `query.schema.ts`
   - `api.ts`
   - 薄封装的 Vue 3 表格组件
   - `index.ts` 导出入口
@@ -38,6 +50,7 @@ TM/QM 继续由后端相关技术维护，希望在版本 `8.1.10.beta` 中规�
 - 本阶段不生成复杂业务页面。
 - 本阶段不承诺通用 `groupBy`、透视、分析型页面生成。
 - 本阶段不由后端定义具体页面级 `uiConfig` 细节。
+- 本文档不展开定义 lookup / 下拉组件的细节契约，由独立子文档跟踪。
 
 ## 方案选择
 本需求在 `8.1.10.beta` 中按方案 A 推进：
@@ -178,9 +191,32 @@ TM/QM 继续由后端相关技术维护，希望在版本 `8.1.10.beta` 中规�
 ### 文件职责
 - `types.ts`：QM 行类型、查询参数类型、可复用字典类型
 - `schema.ts`：面向 `foggy-data-viewer` 的 `TableSchema`、列配置、默认搜索字段
+- `query.schema.ts`：独立的 `QuerySchema`、`QueryFieldSchema`、查询区布局默认值
 - `api.ts`：调用项目公共查询 API 的薄封装
 - `Table.vue`：基于 `DataTableWithSearch` 的薄组件，不承载复杂业务逻辑
 - `index.ts`：统一导出生成结果
+
+### `query.schema.ts` 的生成口径
+`query.schema.ts` 应按独立查询模型生成，不再简单等同于“从列里挑可筛选字段”。
+
+建议生成来源：
+
+1. QM 前端元数据中的字段语义
+2. 字段的 `filterType`、`dictId`、lookup / member 信息
+3. 生成器默认映射规则
+4. 模型级生成配置覆盖
+
+最小要求：
+
+- 生成 `QueryFieldSchema[]`
+- 生成传统查询区的默认 `layout`
+- 生成 `placement` 默认值
+- 生成 `sourceField` 到值字段的归一结果
+
+约束：
+
+- `query.schema.ts` 与 `table.schema.ts` 可以关联，但必须允许独立演进
+- 不能再把“查询条件布局”硬塞回列 schema
 
 ## 生成流程
 ### 开发态
@@ -247,4 +283,4 @@ TM/QM 继续由后端相关技术维护，希望在版本 `8.1.10.beta` 中规�
 ## 跟踪说明
 - 后续围绕该能力的讨论、设计、拆分与实现，统一追加到 `docs/8.1.10.beta/` 目录下。
 - 如果该能力拆成多个子需求，继续按 `docs/{版本号}/{需求等级}-${功能名称}-需求.md` 规则拆分建档。
-- 本需求涉及的 QM 元数据样本统一归档在 `docs/8.1.10.beta/qm-metadata-samples/` 目录下，作为前端元数据契约设计的参考输入。
+- 本需求涉及的 QM 元数据样本统一归档在 `docs/8.1.10.beta/P1-QM前端生成与业务接入/qm-metadata-samples/` 目录下，作为前端元数据契约设计的参考输入。

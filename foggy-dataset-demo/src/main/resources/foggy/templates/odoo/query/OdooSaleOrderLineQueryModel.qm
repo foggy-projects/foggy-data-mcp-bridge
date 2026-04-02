@@ -1,0 +1,96 @@
+/**
+ * Sale Order Line Query Model
+ *
+ * @caption Sales Line Analysis
+ * @description Query sale order lines by product, order, salesperson, and UoM.
+ *              Enables product-level sales analytics, margin analysis, and delivery tracking.
+ *              Permissions enforced via payload.slice injection from Odoo MCP Gateway.
+ */
+const sol = loadTableModel('OdooSaleOrderLineModel');
+
+export const queryModel = {
+    name: 'OdooSaleOrderLineQueryModel',
+    caption: 'Sales Line Analysis',
+    description: 'Analyze sale order line items by product, order, salesperson, and unit of measure. '
+        + 'Supports quantity tracking (ordered/delivered/invoiced), revenue breakdown, and discount analysis.',
+    loader: 'v2',
+
+    model: sol,
+
+    columnGroups: [
+        {
+            caption: 'Line Information',
+            items: [
+                { ref: sol.id },
+                { ref: sol.name },
+                { ref: sol.sequence },
+                { ref: sol.invoiceStatus },
+                { ref: sol.createDate }
+            ]
+        },
+        {
+            caption: 'Order',
+            items: [
+                { ref: sol.order },
+                { ref: sol.order$state },
+                { ref: sol.order$dateOrder }
+            ]
+        },
+        {
+            caption: 'Product',
+            items: [
+                { ref: sol.product },
+                { ref: sol.product$barcode }
+            ]
+        },
+        {
+            caption: 'Organization',
+            items: [
+                { ref: sol.salesperson },
+                { ref: sol.uom },
+                { ref: sol.company }
+            ]
+        },
+        {
+            caption: 'Quantities',
+            items: [
+                { ref: sol.productUomQty },
+                { ref: sol.qtyDelivered },
+                { ref: sol.qtyInvoiced },
+                { ref: sol.qtyToInvoice },
+                { ref: sol.lineCount },
+                {
+                    name: 'deliveryRate',
+                    caption: 'Delivery Rate (%)',
+                    formula: 'qtyDelivered / productUomQty * 100',
+                    type: 'NUMBER'
+                }
+            ]
+        },
+        {
+            caption: 'Amounts',
+            items: [
+                { ref: sol.priceUnit },
+                { ref: sol.discount },
+                { ref: sol.priceSubtotal },
+                { ref: sol.priceTax },
+                { ref: sol.priceTotal },
+                {
+                    name: 'avgUnitPrice',
+                    caption: 'Avg Unit Price',
+                    formula: 'priceSubtotal / productUomQty',
+                    type: 'MONEY'
+                },
+                {
+                    name: 'discountAmount',
+                    caption: 'Discount Amount',
+                    formula: 'priceUnit * productUomQty * discount / 100',
+                    type: 'MONEY'
+                }
+            ]
+        }
+    ],
+
+    // No accesses — permissions injected by Odoo MCP Gateway via payload.slice
+    accesses: []
+};

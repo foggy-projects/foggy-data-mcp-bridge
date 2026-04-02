@@ -4,15 +4,15 @@
  * @description Journal entries / invoices / bills with partner, journal, and company dimensions.
  *              Use move_type to distinguish invoices from bills.
  */
-import { dicts, ODOO_DATA_SOURCE_NAME } from '../dicts.fsscript';
+import { dicts } from '../dicts.fsscript';
 import { jsonbCaption } from '../odoo17.fsscript';
 
 export const model = {
     name: 'OdooAccountMoveModel',
     caption: 'Invoices & Journal Entries',
     tableName: 'account_move',
+    dataSourceName: 'odoo',
     idColumn: 'id',
-    dataSourceName: ODOO_DATA_SOURCE_NAME,
 
     dimensions: [
         {

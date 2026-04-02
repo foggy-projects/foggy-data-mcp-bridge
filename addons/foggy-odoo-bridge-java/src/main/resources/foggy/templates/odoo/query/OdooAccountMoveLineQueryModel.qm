@@ -1,0 +1,97 @@
+/**
+ * Account Move Line Query Model
+ *
+ * @caption Journal Items Analysis
+ * @description Query journal items (invoice lines, debit/credit entries) by account, journal,
+ *              partner, product, and time period.
+ *              Permissions enforced via payload.slice injection from Odoo MCP Gateway.
+ */
+const aml = loadTableModel('OdooAccountMoveLineModel');
+
+export const queryModel = {
+    name: 'OdooAccountMoveLineQueryModel',
+    caption: 'Journal Items Analysis',
+    description: 'Analyze journal items by GL account, journal, partner, product, and date. '
+        + 'Filter by display_type="product" for invoice product lines only. '
+        + 'Filter by parent_state="posted" for confirmed entries.',
+    loader: 'v2',
+
+    model: aml,
+
+    columnGroups: [
+        {
+            caption: 'Line Information',
+            items: [
+                { ref: aml.id },
+                { ref: aml.moveName },
+                { ref: aml.name },
+                { ref: aml.ref },
+                { ref: aml.parentState },
+                { ref: aml.displayType },
+                { ref: aml.date },
+                { ref: aml.invoiceDate },
+                { ref: aml.dateMaturity },
+                { ref: aml.matchingNumber },
+                { ref: aml.reconciled },
+                { ref: aml.createDate }
+            ]
+        },
+        {
+            caption: 'Journal Entry',
+            items: [
+                { ref: aml.move },
+                { ref: aml.move$moveType },
+                { ref: aml.move$state },
+                { ref: aml.move$paymentState }
+            ]
+        },
+        {
+            caption: 'Accounting',
+            items: [
+                { ref: aml.account },
+                { ref: aml.account$code },
+                { ref: aml.account$accountType },
+                { ref: aml.journal },
+                { ref: aml.journal$code },
+                { ref: aml.journal$type },
+                { ref: aml.currency }
+            ]
+        },
+        {
+            caption: 'Partner & Product',
+            items: [
+                { ref: aml.partner },
+                { ref: aml.partner$email },
+                { ref: aml.partner$city },
+                { ref: aml.partner$isCompany },
+                { ref: aml.product },
+                { ref: aml.company }
+            ]
+        },
+        {
+            caption: 'Amounts',
+            items: [
+                { ref: aml.debit },
+                { ref: aml.credit },
+                { ref: aml.balance },
+                { ref: aml.amountCurrency },
+                { ref: aml.amountResidual },
+                { ref: aml.quantity },
+                { ref: aml.priceUnit },
+                { ref: aml.priceSubtotal },
+                { ref: aml.priceTotal },
+                { ref: aml.discount },
+                { ref: aml.lineCount },
+                {
+                    name: 'netAmount',
+                    caption: 'Net Amount',
+                    formula: 'debit - credit',
+                    type: 'MONEY'
+                }
+            ]
+        }
+    ],
+
+    // No accesses — permissions injected by Odoo MCP Gateway via payload.slice
+    accesses: []
+};
