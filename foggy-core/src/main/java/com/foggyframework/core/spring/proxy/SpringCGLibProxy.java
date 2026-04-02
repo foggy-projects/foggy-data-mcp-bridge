@@ -41,7 +41,8 @@ public class SpringCGLibProxy implements ICGLibProxy {
     public static  Object newProxyInterface1(Class targetClass, IMethodInterceptor methodInterceptor, Class[] interfaces) {
         if(Modifier.isFinal(targetClass.getModifiers())){
             //这个一个final类，我们使用它的接口来创建代理吧～～
-            return newProxyInterface1(methodInterceptor,targetClass.getInterfaces());
+            Class[] targetInterfaces = interfaces != null ? interfaces : targetClass.getInterfaces();
+            return newProxyInterface1(methodInterceptor,targetInterfaces);
         }else {
             Enhancer enhancer = new Enhancer();
             enhancer.setSuperclass(targetClass);

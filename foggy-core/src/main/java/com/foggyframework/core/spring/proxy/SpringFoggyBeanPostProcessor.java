@@ -11,7 +11,10 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.config.BeanPostProcessor;
+import org.springframework.aop.SpringProxy;
+import org.springframework.aop.framework.Advised;
 import org.springframework.context.ApplicationContext;
+import org.springframework.core.DecoratingProxy;
 import org.springframework.core.Ordered;
 
 import java.lang.reflect.InvocationTargetException;
@@ -61,9 +64,10 @@ public class SpringFoggyBeanPostProcessor implements BeanPostProcessor, Ordered 
         if (match(cls, beanName)) {
 
             SpringFoggyBeanProxy proxy = null;
+            Class<?>[] userInterfaces = resolveUserInterfaces(cls);
             if (bean instanceof SpringCGLibProxy.FoggySuperclass) {
                 //呃 已经 被 代理 过了~~
-                List<Class> clss = Arrays.stream(cls.getInterfaces()).collect(Collectors.toList());
+                List<Class> clss = Arrays.stream(userInterfaces).collect(Collectors.toList());
 
                 for (Class anInterface : clss) {
                     proxy = build(proxy, anInterface.getMethods(), bean, beanName, cls,true);
@@ -89,10 +93,10 @@ public class SpringFoggyBeanPostProcessor implements BeanPostProcessor, Ordered 
                 }
             } else if (Modifier.isFinal(cls.getModifiers())) {
 
-                if (cls.getInterfaces().length > 1) {
+                if (userInterfaces.length > 1) {
                     throw new RuntimeException("仅支持一个接口的！" + cls + "," + beanName);
                 }
-                for (Class anInterface : cls.getInterfaces()) {
+                for (Class anInterface : userInterfaces) {
                     proxy = build(proxy, anInterface.getMethods(), bean, beanName, cls,false);
                 }
             } else {
@@ -103,7 +107,7 @@ public class SpringFoggyBeanPostProcessor implements BeanPostProcessor, Ordered 
             if (proxy == null) {
                 return bean;
             }
-            bean = cglibProxy.newProxyInterface(cls, proxy, null);
+            bean = cglibProxy.newProxyInterface(cls, proxy, userInterfaces.length == 0 ? null : userInterfaces);
 
 
         } else {
@@ -191,6 +195,15 @@ public class SpringFoggyBeanPostProcessor implements BeanPostProcessor, Ordered 
             }
         }
         return method;
+    }
+
+    private static Class<?>[] resolveUserInterfaces(Class<?> cls) {
+        return Arrays.stream(cls.getInterfaces())
+                .filter(anInterface -> anInterface != SpringProxy.class)
+                .filter(anInterface -> anInterface != Advised.class)
+                .filter(anInterface -> anInterface != DecoratingProxy.class)
+                .distinct()
+                .toArray(Class<?>[]::new);
     }
 
     private String getMsg(Throwable e) {
