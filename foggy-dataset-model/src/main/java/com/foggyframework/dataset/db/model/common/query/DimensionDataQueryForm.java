@@ -19,6 +19,9 @@ public class DimensionDataQueryForm {
     @ApiModelProperty(value = "层次", notes = "可能为空")
     String hierarchy;
 
+    @ApiModelProperty("成员查询扩展数据，可用于 external patch 透传")
+    Object extData;
+
     public DimensionDataQueryForm(String queryModel, String dimension) {
         this.queryModel = queryModel;
         this.dimension = dimension;

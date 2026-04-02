@@ -58,10 +58,23 @@ public class QueryRequestValidationStep implements DataSetResultStep {
     private static final Set<String> SUPPORTED_SORT_DIRECTIONS = Set.of("asc", "desc");
 
     /**
-     * 支持的层级操作符（父子维度查询）
+     * 支持的父子维 hierarchy 操作符名称白名单。
+     *
+     * <p>这些操作符的方向、距离和 {@code maxDepth} 语义较复杂，这里只维护校验所需的名称集合，
+     * 不在此处重复展开行为定义。详细说明可直接查看：
+     * <ul>
+     *   <li>{@link com.foggyframework.dataset.db.model.engine.formula.hierarchy.HierarchyOperator}</li>
+     *   <li>{@link com.foggyframework.dataset.db.model.engine.formula.hierarchy.ChildrenOfOperator}</li>
+     *   <li>{@link com.foggyframework.dataset.db.model.engine.formula.hierarchy.DescendantsOfOperator}</li>
+     *   <li>{@link com.foggyframework.dataset.db.model.engine.formula.hierarchy.SelfAndDescendantsOfOperator}</li>
+     *   <li>{@link com.foggyframework.dataset.db.model.engine.formula.hierarchy.AncestorsOfOperator}</li>
+     *   <li>{@link com.foggyframework.dataset.db.model.engine.formula.hierarchy.SelfAndAncestorsOfOperator}</li>
+     *   <li>样例文档：{@code docs/8.1.10.beta/P1-维度成员内部QM映射/P1-维度成员内部QM映射-MVP样例.md}</li>
+     * </ul>
      */
     private static final Set<String> HIERARCHY_OPERATORS = Set.of(
-            "childrenof", "descendantsof", "selfanddescendantsof"
+            "childrenof", "descendantsof", "selfanddescendantsof",
+            "ancestorsof", "selfandancestorsof"
     );
 
     /**
@@ -280,7 +293,7 @@ public class QueryRequestValidationStep implements DataSetResultStep {
     private String getSupportedOperators() {
         return "=, !=, >, >=, <, <=, in, not in, like, left_like, right_like, " +
                "is null, is not null, [], [), (], (), " +
-               "childrenOf, descendantsOf, selfAndDescendantsOf, similar, hybrid";
+               "childrenOf, descendantsOf, selfAndDescendantsOf, ancestorsOf, selfAndAncestorsOf, similar, hybrid";
     }
 
     /**

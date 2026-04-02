@@ -20,6 +20,7 @@ import com.foggyframework.dataset.db.model.impl.query.*;
 import com.foggyframework.dataset.db.model.impl.utils.QueryObjectDelegate;
 import com.foggyframework.dataset.db.model.path.DimensionPath;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
+import com.foggyframework.dataset.db.model.semantic.member.SyntheticMemberRuntimeColumn;
 import com.foggyframework.dataset.db.model.spi.*;
 import com.foggyframework.dataset.db.model.spi.support.QueryColumnGroup;
 import com.foggyframework.fsscript.exp.FsscriptFunction;
@@ -333,75 +334,65 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
         return null;
     }
 
+    /**
+     * 向 QM 注册一个可查询列。
+     *
+     * <p>这里有两条不同的注册路径，后续修改时不要混在一起：
+     *
+     * <p>1. 普通业务 QM 的维度列不能直接按当前列名落入 {@code dbQueryColumns}。
+     * 这类列通常先经过维度展开，最终对外暴露为 {@code dim$id}、{@code dim$caption}、
+     * 以及嵌套维度路径等稳定别名；如果这里直接注册，会把原有维度语义顶掉，
+     * 之前出现过 {@code customer$id -> customer} 这类回归。
+     *
+     * <p>2. synthetic member-QM 的运行时列是特意构造出来的最终 schema，
+     * 例如 {@code id}、{@code caption}、{@code productCategory$id}。
+     * 这些列已经是最终对外名称，必须直接注册，不能再走普通维度展开逻辑。
+     */
     public void addJdbcQueryColumn(DbQueryColumn dbQueryColumn) {
         if (dbQueryColumns == null) {
             dbQueryColumns = new ArrayList<>();
         }
 
-        // 维度特殊处理
-        if (dbQueryColumn.isDimension()) {
+        boolean syntheticMemberRuntimeColumn = dbQueryColumn.getSelectColumn() instanceof SyntheticMemberRuntimeColumn;
+
+        // 普通 QM 的维度列走旧的维度别名注册逻辑，保持 $id/$caption 和嵌套路径兼容。
+        // 只有 synthetic member-QM 的运行时列才允许直接注册。
+        if (dbQueryColumn.isDimension() && !syntheticMemberRuntimeColumn) {
+            DbDimensionColumn dimensionColumn = dbQueryColumn.getSelectColumn().getDecorate(DbDimensionColumn.class);
             DbDimensionSupport.DimensionCaptionDbColumn support = dbQueryColumn.getSelectColumn().getDecorate(DbDimensionSupport.DimensionCaptionDbColumn.class);
-            if (support == null) {
-                return;
+
+            if (support != null && dimensionColumn != null && dimensionColumn.isCaptionColumn()) {
+                DbDimension dbDimension = support.getDimension();
+                DbColumn foreignKeyJdbcColumn = support.getDimension().getForeignKeyDbColumn();
+                DbColumn captionJdbcColumn = support.getDimension().getCaptionDbColumn();
+                registerNestedDimensionAliases(dbDimension, foreignKeyJdbcColumn, captionJdbcColumn, dbQueryColumn.getCaption());
             }
-            DbDimension dbDimension = support.getDimension();
-            DbColumn foreignKeyJdbcColumn = support.getDimension().getForeignKeyDbColumn();
-            DbColumn captionJdbcColumn = support.getDimension().getCaptionDbColumn();
-            registerNestedDimensionAliases(dbDimension, foreignKeyJdbcColumn, captionJdbcColumn, dbQueryColumn.getCaption());
-        } else {
-            for (DbQueryColumn selectQueryColumn : dbQueryColumns) {
-                if ((selectQueryColumn.getSelectColumn() == dbQueryColumn.getSelectColumn()) && (StringUtils.equals(selectQueryColumn.getName(), dbQueryColumn.getName()))) {
-                    throw RX.throwAUserTip(DatasetMessages.querymodelDuplicateColumn(selectQueryColumn.getSelectColumn().getName()));
-                }
-            }
-            dbQueryColumns.add(dbQueryColumn);
-            if (nameToJdbcQueryColumn.containsKey(dbQueryColumn.getName())) {
-                throw RX.throwAUserTip(DatasetMessages.querymodelDuplicateQuerycolumn(dbQueryColumn.getName()));
-            }
-            nameToJdbcQueryColumn.put(dbQueryColumn.getName(), dbQueryColumn);
+            return;
         }
 
-//        /**
-//         * 开始支持$id与$caption，通过维度名称如user,user$id,user$caption。定位维度的id和caption，简化原来user.userCaption/user.userId需要定义三处的设计（user、userId、userCaption）
-//         */
-//        if (jdbcQueryColumn.isDimension()) {
-//            JdbcDimensionSupport.DimensionCaptionJdbcColumn support = jdbcQueryColumn.getSelectColumn().getDecorate(JdbcDimensionSupport.DimensionCaptionJdbcColumn.class);
-//            if (support != null && support.getJdbcDimension().getCaptionJdbcColumn() == jdbcQueryColumn.getSelectColumn()) {
-//
-//                String dimName = jdbcQueryColumn.getName().split("\\.")[0];
-//                String idName = dimName + "$id";
-//                String captionName = dimName + "$caption";
-//                JdbcColumn foreignKeyJdbcColumn = support.getJdbcDimension().getForeignKeyJdbcColumn();
-//                JdbcColumn captionJdbcColumn = support.getJdbcDimension().getCaptionJdbcColumn();
-//                // 只有当列名不存在时才添加，避免与 QM 中直接定义的列重复
-//                if (!nameToJdbcQueryColumn.containsKey(idName)) {
-//                    JdbcQueryColumn idColumn = new JdbcQueryColumnImpl(foreignKeyJdbcColumn, idName, foreignKeyJdbcColumn.getCaption(), idName, idName);
-//                    nameToJdbcQueryColumn.put(idName, idColumn);
-//                }
-//                if (!nameToJdbcQueryColumn.containsKey(captionName)) {
-//                    JdbcQueryColumn captionColumn = new JdbcQueryColumnImpl(captionJdbcColumn, captionName, jdbcQueryColumn.getCaption(), captionName, captionName);
-//                    nameToJdbcQueryColumn.put(captionName, captionColumn);
-//                }
-//
-//
-//            }
-//        } else if (jdbcQueryColumn.isProperty()) {
-//            JdbcPropertyColumn jdbcQueryProperty = jdbcQueryColumn.getSelectColumn().getDecorate(JdbcPropertyColumn.class);
-//            if (jdbcQueryProperty.getJdbcProperty().isDict()) {
-//                //带字典表的补下$id
-//                String name = jdbcQueryProperty.getName();
-//                String idName = name + "$id";
-//                JdbcColumn column = jdbcQueryColumn.getSelectColumn();
-//                JdbcQueryColumn idColumn = new JdbcQueryColumnImpl(column, idName, jdbcQueryProperty.getCaption(), idName, idName);
-//                nameToJdbcQueryColumn.put(idName, idColumn);
-//
-//                String captionName = name + "$caption";
-//                JdbcQueryColumnImpl captionColumn = new JdbcQueryColumnImpl(column, captionName, jdbcQueryProperty.getCaption(), captionName, captionName);
-//                nameToJdbcQueryColumn.put(captionName, captionColumn);
-//                captionColumn.setValueFormatter(new ClassDictObjectTransFormatter(jdbcQueryProperty.getJdbcProperty().getExtDataValue("dictClass")));
-//
-//            }
-//        }
+        registerJdbcQueryColumnDirectly(dbQueryColumn);
+    }
+
+    private void registerJdbcQueryColumnDirectly(DbQueryColumn dbQueryColumn) {
+        // 直接注册只适用于：
+        // 1. 非维度普通列
+        // 2. synthetic member-QM 的运行时维度列
+        // 这里不再补做维度展开，传入的 name 必须已经是最终对外字段名。
+        for (DbQueryColumn selectQueryColumn : dbQueryColumns) {
+            if ((selectQueryColumn.getSelectColumn() == dbQueryColumn.getSelectColumn()) && (StringUtils.equals(selectQueryColumn.getName(), dbQueryColumn.getName()))) {
+                return;
+            }
+        }
+        DbQueryColumn existing = nameToJdbcQueryColumn.get(dbQueryColumn.getName());
+        if (existing != null) {
+            if (existing.getSelectColumn() == dbQueryColumn.getSelectColumn()) {
+                return;
+            }
+            throw RX.throwAUserTip(DatasetMessages.querymodelDuplicateQuerycolumn(dbQueryColumn.getName()));
+        }
+        dbQueryColumns.add(dbQueryColumn);
+        nameToJdbcQueryColumn.put(dbQueryColumn.getName(), dbQueryColumn);
+
     }
 
     /**

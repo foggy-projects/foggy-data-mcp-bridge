@@ -20,6 +20,9 @@ import com.foggyframework.dataset.db.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.db.model.impl.LoaderSupport;
 import com.foggyframework.dataset.db.model.impl.dimension.DbDimensionSupport;
 import com.foggyframework.dataset.db.model.impl.query.*;
+import com.foggyframework.dataset.db.model.semantic.member.SyntheticMemberQueryModelDescriptor;
+import com.foggyframework.dataset.db.model.semantic.member.SyntheticMemberQueryModelFactory;
+import com.foggyframework.dataset.db.model.semantic.member.SyntheticMemberQueryModelResolver;
 import com.foggyframework.dataset.db.model.spi.*;
 import com.foggyframework.dataset.db.model.spi.support.QueryColumnGroup;
 import com.foggyframework.fsscript.loadder.FileFsscriptLoader;
@@ -57,6 +60,11 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
 
 
     private List<QueryModelBuilder> queryModelBuilders;
+
+    @Resource
+    private SyntheticMemberQueryModelFactory syntheticMemberQueryModelFactory;
+
+    private final SyntheticMemberQueryModelResolver syntheticMemberQueryModelResolver = new SyntheticMemberQueryModelResolver();
     /**
      * 驼峰命名模式，用于提取大写字母
      */
@@ -159,6 +167,12 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
             return cache.name2QueryModel.get(fullName);
         }
 
+        QueryModel syntheticModel = tryLoadSyntheticMemberQueryModel(queryModelNameOrAlias, normalizedNs);
+        if (syntheticModel != null) {
+            registerQueryModel(queryModelNameOrAlias, (QueryModelSupport) syntheticModel, normalizedNs);
+            return syntheticModel;
+        }
+
         // 3. 加载新模型（此时 queryModelNameOrAlias 应该是全名）
         Fsscript fsscript = findFsscriptWithNamespace(queryModelNameOrAlias, normalizedNs, "qm");
 
@@ -184,6 +198,29 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
                 NamespaceContext.clear();
             }
         }
+    }
+
+    private QueryModel tryLoadSyntheticMemberQueryModel(String queryModelNameOrAlias, String namespace) {
+        if (StringUtils.isEmpty(queryModelNameOrAlias)
+                || !queryModelNameOrAlias.contains(SyntheticMemberQueryModelResolver.MODEL_SEPARATOR)) {
+            return null;
+        }
+
+        int separatorIndex = queryModelNameOrAlias.indexOf(SyntheticMemberQueryModelResolver.MODEL_SEPARATOR);
+        if (separatorIndex <= 0 || separatorIndex == queryModelNameOrAlias.length() - 1) {
+            return null;
+        }
+
+        String sourceModelName = queryModelNameOrAlias.substring(0, separatorIndex);
+        String dimFieldBase = queryModelNameOrAlias.substring(separatorIndex + 1);
+
+        QueryModel sourceModel = getJdbcQueryModel(sourceModelName, namespace);
+        SyntheticMemberQueryModelDescriptor descriptor = syntheticMemberQueryModelResolver.resolve(
+                sourceModel,
+                dimFieldBase,
+                namespace
+        );
+        return syntheticMemberQueryModelFactory.build(sourceModel, descriptor);
     }
 
     /**
