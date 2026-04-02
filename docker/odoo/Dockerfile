@@ -69,7 +69,7 @@ FROM eclipse-temurin:17-jre-alpine
 
 LABEL maintainer="Foggy Framework <contact@foggysource.com>"
 LABEL description="Foggy Odoo MCP - AI-powered semantic data query with built-in Odoo models"
-LABEL version="8.1.9.beta"
+LABEL version="8.1.10.beta"
 
 WORKDIR /app
 
