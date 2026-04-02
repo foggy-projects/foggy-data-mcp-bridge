@@ -153,7 +153,7 @@ mvn spring-boot:run -pl foggy-mcp-launcher
     <dependency>    
         <groupId>com.foggysource</groupId>
         <artifactId>foggy-dataset-mcp</artifactId>
-        <version>8.1.9.beta</version>
+        <version>8.1.10.beta</version>
     </dependency>
 
     <!-- 数据库驱动（根据实际情况选择） -->
@@ -173,7 +173,7 @@ mvn spring-boot:run -pl foggy-mcp-launcher
 <dependency>
     <groupId>com.foggysource</groupId>
     <artifactId>foggy-dataset-mcp</artifactId>
-    <version>8.1.9.beta</version>
+    <version>8.1.10.beta</version>
 </dependency>
 ```
 
@@ -186,7 +186,7 @@ mvn spring-boot:run -pl foggy-mcp-launcher
 <dependency>
     <groupId>com.foggysource</groupId>
     <artifactId>foggy-dataset-demo</artifactId>
-    <version>8.1.9.beta</version>
+    <version>8.1.10.beta</version>
 </dependency>
 ```
 

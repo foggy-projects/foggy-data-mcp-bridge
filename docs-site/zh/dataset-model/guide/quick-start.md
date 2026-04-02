@@ -24,7 +24,7 @@
 <dependency>
     <groupId>com.foggysource</groupId>
     <artifactId>foggy-dataset-model</artifactId>
-    <version>8.1.9.beta</version>
+    <version>8.1.10.beta</version>
 </dependency>
 ```
 
@@ -56,7 +56,7 @@
     <dependency>
         <groupId>com.foggysource</groupId>
         <artifactId>foggy-dataset-model</artifactId>
-        <version>8.1.9.beta</version>
+        <version>8.1.10.beta</version>
     </dependency>
 
     <!-- 数据库驱动（根据实际情况选择一个） -->
