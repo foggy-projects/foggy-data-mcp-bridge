@@ -1,5 +1,7 @@
 import { createApp } from 'vue'
-import VXETable from 'vxe-table'
+import VxeUI from 'vxe-pc-ui'
+import 'vxe-pc-ui/lib/style.css'
+import VxeTable from 'vxe-table'
 import 'vxe-table/lib/style.css'
 import ElementPlus from 'element-plus'
 import 'element-plus/dist/index.css'
@@ -8,7 +10,8 @@ import App from './App.vue'
 
 const app = createApp(App)
 
-app.use(VXETable)
+app.use(VxeUI)
+app.use(VxeTable)
 app.use(ElementPlus, { locale: zhCn })
 
 app.mount('#app')

@@ -7,12 +7,17 @@ import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataRequest;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
+import com.foggyframework.dataset.db.model.semantic.service.SemanticServiceV3;
 import com.foggyframework.dataset.db.model.service.QueryFacade;
 import com.foggyframework.dataset.model.PagingResultImpl;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 维度成员查询服务（data-viewer adapter 层）
@@ -26,7 +31,6 @@ import java.util.*;
  * 不暴露 synthetic member-QM 名称和 /jdbc-model/ URL 给前端。
  */
 @Slf4j
-@RequiredArgsConstructor
 public class MemberQueryService {
 
     private static final int DEFAULT_LIMIT = 20;
@@ -34,13 +38,22 @@ public class MemberQueryService {
     private static final String SEPARATOR = "$";
     private static final String SYNTHETIC_SEPARATOR = "#";
 
-    /** 本版本前端只启用 childrenOf */
     private static final List<String> SUPPORTED_HIERARCHY_OPS = List.of(
             "childrenOf", "descendantsOf", "selfAndDescendantsOf",
             "ancestorsOf", "selfAndAncestorsOf"
     );
 
     private final QueryFacade queryFacade;
+
+    @Autowired(required = false)
+    private SemanticServiceV3 semanticService;
+
+    /** 缓存：qmModel -> { fieldName -> hierarchical } */
+    private final ConcurrentHashMap<String, Map<String, Boolean>> hierarchyCache = new ConcurrentHashMap<>();
+
+    public MemberQueryService(QueryFacade queryFacade) {
+        this.queryFacade = queryFacade;
+    }
 
     /**
      * 查询维度成员
@@ -49,8 +62,8 @@ public class MemberQueryService {
         String qmModel = req.getQmModel();
         String fieldName = req.getFieldName();
 
-        // 推导维度基名、selectionFieldName、displayFieldName
-        FieldMapping mapping = resolveFieldMapping(fieldName);
+        // 推导维度基名、selectionFieldName、displayFieldName、hierarchical
+        FieldMapping mapping = resolveFieldMapping(qmModel, fieldName);
         String syntheticModelName = qmModel + SYNTHETIC_SEPARATOR + mapping.dimBaseName;
 
         int start = req.getStart() != null ? req.getStart() : 0;
@@ -101,7 +114,12 @@ public class MemberQueryService {
     private DbQueryRequestDef buildQueryDef(String syntheticModelName, MemberQueryRequest req) {
         DbQueryRequestDef def = new DbQueryRequestDef();
         def.setQueryModel(syntheticModelName);
-        def.setColumns(List.of("id", "caption"));
+        // 层级维度时请求额外字段
+        if (req.getHierarchy() != null || isHierarchyQuery(req)) {
+            def.setColumns(List.of("id", "caption", "parentId", "depth", "hasChildren"));
+        } else {
+            def.setColumns(List.of("id", "caption"));
+        }
         def.setReturnTotal(true);
         def.setDistinct(true);
 
@@ -197,13 +215,9 @@ public class MemberQueryService {
     }
 
     /**
-     * 推导字段映射
-     * <p>
-     * customer$caption → dimBaseName=customer, selectionFieldName=customer$id, displayFieldName=customer$caption
-     * customer$id     → dimBaseName=customer, selectionFieldName=customer$id, displayFieldName=customer$caption
-     * team$caption    → dimBaseName=team, ...
+     * 推导字段映射（含 hierarchy 检测）
      */
-    private FieldMapping resolveFieldMapping(String fieldName) {
+    private FieldMapping resolveFieldMapping(String qmModel, String fieldName) {
         String dimBaseName;
         String selectionFieldName;
         String displayFieldName;
@@ -214,13 +228,64 @@ public class MemberQueryService {
             selectionFieldName = dimBaseName + "$id";
             displayFieldName = dimBaseName + "$caption";
         } else {
-            // 无 $ 分隔的字段，直接用作维度基名
             dimBaseName = fieldName;
             selectionFieldName = fieldName + "$id";
             displayFieldName = fieldName + "$caption";
         }
 
-        return new FieldMapping(dimBaseName, selectionFieldName, displayFieldName, false);
+        // 从 V3 元数据检查是否层级维度
+        boolean hierarchyEnabled = checkHierarchical(qmModel, fieldName);
+
+        return new FieldMapping(dimBaseName, selectionFieldName, displayFieldName, hierarchyEnabled);
+    }
+
+    /**
+     * 检查字段是否层级维度（结果缓存）
+     */
+    @SuppressWarnings("unchecked")
+    private boolean checkHierarchical(String qmModel, String fieldName) {
+        Map<String, Boolean> fieldCache = hierarchyCache.computeIfAbsent(qmModel, k -> {
+            if (semanticService == null) return Map.of();
+            try {
+                SemanticMetadataRequest request = new SemanticMetadataRequest();
+                request.setQmModels(List.of(qmModel));
+                request.setLevels(List.of(1, 2, 3));
+                request.setIncludeExamples(false);
+                SemanticMetadataResponse response = semanticService.getMetadata(
+                        request, "json", SemanticRequestContext.empty());
+                if (response == null || response.getData() == null) return Map.of();
+
+                Map<String, Object> data = response.getData();
+                Map<String, Object> fields = (Map<String, Object>) data.get("fields");
+                if (fields == null) return Map.of();
+
+                Map<String, Boolean> result = new HashMap<>();
+                for (Map.Entry<String, Object> entry : fields.entrySet()) {
+                    Map<String, Object> fieldData = (Map<String, Object>) entry.getValue();
+                    if (fieldData != null && Boolean.TRUE.equals(fieldData.get("hierarchical"))) {
+                        result.put(entry.getKey(), true);
+                    }
+                }
+                return result;
+            } catch (Exception e) {
+                log.warn("Failed to load hierarchy metadata for {}: {}", qmModel, e.getMessage());
+                return Map.of();
+            }
+        });
+
+        // 检查当前字段或同基名字段
+        if (fieldCache.getOrDefault(fieldName, false)) return true;
+        // 尝试 $id / $caption 变体
+        if (fieldName.contains(SEPARATOR)) {
+            String baseName = fieldName.substring(0, fieldName.indexOf(SEPARATOR));
+            return fieldCache.getOrDefault(baseName + "$id", false)
+                    || fieldCache.getOrDefault(baseName + "$caption", false);
+        }
+        return false;
+    }
+
+    private boolean isHierarchyQuery(MemberQueryRequest req) {
+        return req.getHierarchy() != null && req.getHierarchy().getOp() != null;
     }
 
     private record FieldMapping(

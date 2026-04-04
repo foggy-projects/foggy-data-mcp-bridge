@@ -271,6 +271,67 @@ public class ViewerApiController {
         }
     }
 
+    // ── 过滤选项（兼容 DataViewer queryId 模式） ──
+
+    /**
+     * 获取过滤选项（维度成员或字典项）
+     * <p>
+     * DataViewer 页面通过此接口加载下拉选项。
+     * 对 dimension 类型的列，委托给 MemberQueryService 查询维度成员。
+     */
+    @GetMapping("/query/{model}/{queryId}/filter-options/{columnName}")
+    public RX getFilterOptions(
+            @PathVariable String model,
+            @PathVariable String queryId,
+            @PathVariable String columnName) {
+
+        // 验证 queryId 有效（复用缓存上下文获取 qmModel）
+        Optional<CachedQueryContext> ctxOpt = cacheService.getQuery(queryId);
+        if (ctxOpt.isEmpty()) {
+            return RX.notFound().build();
+        }
+
+        CachedQueryContext ctx = ctxOpt.get();
+        String qmModel = ctx.getTableConfig() != null ? ctx.getTableConfig().getQmModel() : null;
+        if (qmModel == null) {
+            qmModel = model;
+        }
+
+        try {
+            // 委托给 MemberQueryService 查询维度成员
+            MemberQueryRequest memberReq = new MemberQueryRequest();
+            memberReq.setQmModel(qmModel);
+            memberReq.setFieldName(columnName);
+            memberReq.setStart(0);
+            memberReq.setLimit(100);
+
+            MemberQueryResponse memberResp = memberQueryService.query(memberReq);
+
+            // 转换为旧的 FilterOption 格式 { options: [{value, label}], total }
+            List<java.util.Map<String, Object>> options = new ArrayList<>();
+            if (memberResp.getItems() != null) {
+                for (MemberQueryResponse.MemberOption item : memberResp.getItems()) {
+                    java.util.Map<String, Object> opt = new java.util.LinkedHashMap<>();
+                    opt.put("value", item.getValue());
+                    opt.put("label", item.getLabel());
+                    options.add(opt);
+                }
+            }
+
+            java.util.Map<String, Object> result = new java.util.LinkedHashMap<>();
+            result.put("options", options);
+            result.put("total", memberResp.getTotal());
+            return RX.ok(result);
+        } catch (Exception e) {
+            log.warn("Failed to load filter options for {}.{}: {}", qmModel, columnName, e.getMessage());
+            // 返回空选项而非错误，避免前端组件报错
+            java.util.Map<String, Object> emptyResult = new java.util.LinkedHashMap<>();
+            emptyResult.put("options", List.of());
+            emptyResult.put("total", 0);
+            return RX.ok(emptyResult);
+        }
+    }
+
     // ── 直连查询（无需 queryId） ──
 
     /**
