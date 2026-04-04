@@ -69,7 +69,19 @@ public abstract class LoaderSupport {
         QueryObject queryObject = null;
         if (StringUtils.isNotTrimEmpty(tableName)) {
             //优先根据表名读取
-            sqlTable = dialect.getTableByNameWithSchema(dataSource, tableName, true, schema);
+            try {
+                sqlTable = dialect.getTableByNameWithSchema(dataSource, tableName, true, schema);
+            } catch (Exception e) {
+                throw RX.throwAUserTip(String.format(
+                        "表 '%s' 加载失败（schema=%s）: %s。请检查该表是否存在于目标数据源中，或对应模块是否已安装。",
+                        tableName, schema != null ? schema : "default", e.getMessage()));
+            }
+
+            if (sqlTable == null || sqlTable.getSqlColumns() == null || sqlTable.getSqlColumns().isEmpty()) {
+                throw RX.throwAUserTip(String.format(
+                        "表 '%s' 在数据源中不存在或无列信息（schema=%s）。请检查该表是否存在，或对应模块是否已安装。",
+                        tableName, schema != null ? schema : "default"));
+            }
 
             queryObject = new TableQueryObject(sqlTable, schema);
         } else {
