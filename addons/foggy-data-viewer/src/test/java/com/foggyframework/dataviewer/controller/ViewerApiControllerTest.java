@@ -45,13 +45,16 @@ class ViewerApiControllerTest {
     @Mock
     private QueryFacade queryFacade;
 
+    @Mock
+    private com.foggyframework.dataviewer.service.MemberQueryService memberQueryService;
+
     private ViewerApiController controller;
 
     private CachedQueryContext validContext;
 
     @BeforeEach
     void setUp() {
-        controller = new ViewerApiController(cacheService, queryFacade);
+        controller = new ViewerApiController(cacheService, queryFacade, memberQueryService);
 
         validContext = CachedQueryContext.builder()
                 .queryId("test-query-id")
