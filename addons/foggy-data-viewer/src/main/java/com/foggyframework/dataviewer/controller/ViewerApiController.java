@@ -3,8 +3,13 @@ package com.foggyframework.dataviewer.controller;
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.JsonUtils;
 import com.foggyframework.dataviewer.domain.CachedQueryContext;
+import com.foggyframework.dataviewer.domain.FrontendMeta;
+import com.foggyframework.dataviewer.domain.MemberQueryRequest;
+import com.foggyframework.dataviewer.domain.MemberQueryResponse;
 import com.foggyframework.dataviewer.domain.ViewerDataResponse;
 import com.foggyframework.dataviewer.domain.ViewerQueryRequest;
+import com.foggyframework.dataviewer.service.FrontendMetaConverter;
+import com.foggyframework.dataviewer.service.MemberQueryService;
 import com.foggyframework.dataviewer.service.QueryCacheService;
 import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
@@ -51,6 +56,9 @@ public class ViewerApiController {
 
     @Autowired(required = false)
     private SemanticServiceV3 semanticService;
+
+    private final FrontendMetaConverter frontendMetaConverter = new FrontendMetaConverter();
+    private final MemberQueryService memberQueryService;
 
     /**
      * 获取查询元数据（用于初始页面加载）
@@ -147,6 +155,167 @@ public class ViewerApiController {
         } catch (Exception e) {
             log.error("Error fetching QM schema for model: {}", qmModel, e);
             return RX.error("{\"error\": \"" + e.getMessage() + "\"}");
+        }
+    }
+
+    // ── frontend-meta v1 ──
+
+    /**
+     * 获取前端元数据契约 (frontend-meta v1)
+     * <p>
+     * 将 V3 语义元数据转换为面向前端渲染的标准结构：
+     * fields 为有序数组、自动推导 memberLookup、新增 category/sortable/uiHints。
+     */
+    @GetMapping("/frontend-meta/{qmModel}")
+    public RX<FrontendMeta> getFrontendMeta(@PathVariable String qmModel) {
+        if (semanticService == null) {
+            return RX.status(HttpStatusCode.valueOf(503))
+                    .msg("SemanticService not available").build();
+        }
+
+        try {
+            SemanticMetadataRequest request = new SemanticMetadataRequest();
+            request.setQmModels(Arrays.asList(qmModel));
+            request.setLevels(Arrays.asList(1, 2, 3));
+            request.setIncludeExamples(false);
+
+            SemanticMetadataResponse response = semanticService.getMetadata(
+                    request, "json", SemanticRequestContext.empty());
+
+            if (response == null || response.getData() == null) {
+                return RX.notFound().build();
+            }
+
+            FrontendMeta meta = frontendMetaConverter.convert(response.getData());
+            if (meta == null) {
+                return RX.notFound().build();
+            }
+
+            return RX.ok(meta);
+        } catch (Exception e) {
+            log.error("Error building frontend-meta for model: {}", qmModel, e);
+            return RX.error(e.getMessage());
+        }
+    }
+
+    /**
+     * 下载前端元数据契约 (frontend-meta v1) 为 JSON 文件
+     * <p>
+     * 供代码生成器离线使用或 CI 快照
+     */
+    @GetMapping("/frontend-meta/download/{qmModel}")
+    public ResponseEntity<String> downloadFrontendMeta(@PathVariable String qmModel) {
+        if (semanticService == null) {
+            return ResponseEntity.status(503)
+                    .body("{\"error\": \"SemanticService not available\"}");
+        }
+
+        try {
+            SemanticMetadataRequest request = new SemanticMetadataRequest();
+            request.setQmModels(Arrays.asList(qmModel));
+            request.setLevels(Arrays.asList(1, 2, 3));
+            request.setIncludeExamples(false);
+
+            SemanticMetadataResponse response = semanticService.getMetadata(
+                    request, "json", SemanticRequestContext.empty());
+
+            if (response == null || response.getData() == null) {
+                return ResponseEntity.notFound().build();
+            }
+
+            FrontendMeta meta = frontendMetaConverter.convert(response.getData());
+            if (meta == null) {
+                return ResponseEntity.notFound().build();
+            }
+
+            String json = JsonUtils.toJson(meta);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.setContentDispositionFormData("attachment",
+                    qmModel + ".frontend-meta.json");
+            headers.set(HttpHeaders.CONTENT_TYPE, "application/json; charset=UTF-8");
+
+            return ResponseEntity.ok().headers(headers).body(json);
+        } catch (Exception e) {
+            log.error("Error downloading frontend-meta for model: {}", qmModel, e);
+            return ResponseEntity.internalServerError()
+                    .body("{\"error\": \"" + e.getMessage() + "\"}");
+        }
+    }
+
+    // ── 维度成员查询 ──
+
+    /**
+     * 查询维度成员（远程搜索、分页、回填）
+     * <p>
+     * 前端只需传 qmModel + fieldName，内部自动映射到 synthetic member-QM。
+     * 返回的 selectionFieldName 是前端生成 DSL slice 时必须使用的字段。
+     */
+    @PostMapping("/members/query")
+    public RX<MemberQueryResponse> queryMembers(@RequestBody MemberQueryRequest request) {
+        if (request.getQmModel() == null || request.getQmModel().isBlank()) {
+            return RX.failB("qmModel 不能为空", null);
+        }
+        if (request.getFieldName() == null || request.getFieldName().isBlank()) {
+            return RX.failB("fieldName 不能为空", null);
+        }
+
+        try {
+            MemberQueryResponse response = memberQueryService.query(request);
+            return RX.ok(response);
+        } catch (Exception e) {
+            log.error("Error querying members for {}.{}: {}",
+                    request.getQmModel(), request.getFieldName(), e.getMessage(), e);
+            return RX.failB("维度成员查询失败: " + e.getMessage(), null);
+        }
+    }
+
+    // ── 直连查询（无需 queryId） ──
+
+    /**
+     * 直连查询数据（无需提前创建 queryId）
+     * <p>
+     * 适用于生成组件的标准用法：前端只需 qmModel + 分页/筛选/排序参数即可查询。
+     * 现有 queryId 模式保留给 DataViewer / SavedQuery 等需要缓存上下文的场景。
+     */
+    @PostMapping("/query/direct/{qmModel}")
+    public RX<ViewerDataResponse> queryDirect(
+            @PathVariable String qmModel,
+            @RequestBody ViewerQueryRequest request) {
+        try {
+            DbQueryRequestDef queryDef = new DbQueryRequestDef();
+            queryDef.setQueryModel(qmModel);
+            queryDef.setReturnTotal(true);
+
+            // 直接使用前端传入的 slice / orderBy / groupBy
+            if (request.getSlice() != null) {
+                queryDef.setSlice(request.getSlice());
+            }
+            if (request.getOrderBy() != null) {
+                queryDef.setOrderBy(request.getOrderBy());
+            }
+            if (request.getGroupBy() != null) {
+                queryDef.setGroupBy(request.getGroupBy());
+            }
+
+            PagingRequest<DbQueryRequestDef> pagingRequest = new PagingRequest<>();
+            pagingRequest.setParam(queryDef);
+            pagingRequest.setStart(request.getStart() != null ? request.getStart() : 0);
+            pagingRequest.setLimit(request.getLimit() != null ? request.getLimit() : 50);
+
+            PagingResultImpl result = queryFacade.queryModelData(pagingRequest);
+
+            return RX.ok(ViewerDataResponse.success(
+                    result.getItems(),
+                    result.getTotal(),
+                    result.getTotalData(),
+                    pagingRequest.getStart(),
+                    pagingRequest.getLimit()
+            ));
+        } catch (Exception e) {
+            log.error("Error executing direct query for model: {}", qmModel, e);
+            return RX.failB(e.getMessage(), ViewerDataResponse.error(e.getMessage()));
         }
     }
 

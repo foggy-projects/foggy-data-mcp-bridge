@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import type { EnhancedColumnSchema, SliceRequestDef } from '@/types'
+import type { EnhancedColumnSchema, SliceRequestDef, MemberQueryRequest, MemberQueryResponse } from '@/types'
 import { TextFilter, NumberRangeFilter, DateRangeFilter, SelectFilter, BoolFilter } from './filters'
 
 /**
@@ -20,8 +20,12 @@ interface Props {
   layout?: 'horizontal' | 'vertical'
   /** 是否显示操作按钮（搜索、重置） */
   showActions?: boolean
-  /** 过滤选项加载器（用于维度列） */
+  /** 过滤选项加载器（用于维度列，兼容旧接口） */
   filterOptionsLoader?: (columnName: string) => Promise<{ label: string; value: string | number }[]>
+  /** 远程维度成员加载器（优先于 filterOptionsLoader） */
+  filterMemberLoader?: (request: MemberQueryRequest) => Promise<MemberQueryResponse>
+  /** QM 模型名称（远程成员加载所需） */
+  qmModel?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -154,13 +158,32 @@ function getFilterProps(col: EnhancedColumnSchema) {
         options: col.dictItems || [],
         placeholder: `请选择${col.title || col.name}`
       }
-    case 'dimension':
+    case 'dimension': {
+      // 优先使用远程成员加载器
+      const hasMemberLoader = !!props.filterMemberLoader && !!props.qmModel
+      const memberLookup = (col as any).memberLookup
+      const selectionField = memberLookup?.selectionFieldName
+
+      if (hasMemberLoader && memberLookup?.enabled) {
+        return {
+          ...baseProps,
+          // DSL slice 使用 selectionFieldName（如 customer$id）
+          selectionField: selectionField || col.name,
+          remoteLoader: props.filterMemberLoader,
+          qmModel: props.qmModel,
+          options: [],
+          placeholder: `请选择${col.title || col.name}`
+        }
+      }
+
+      // fallback：静态 options
       return {
         ...baseProps,
         options: [],
         loading: false,
         placeholder: `请选择${col.title || col.name}`
       }
+    }
     default:
       return {
         ...baseProps,

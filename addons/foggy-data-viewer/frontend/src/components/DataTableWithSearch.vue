@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, useAttrs } from 'vue'
-import type { EnhancedColumnSchema, SliceRequestDef, FilterOption, TableSchema, FetchDataParams, FetchDataResult, OrderRequestDef, QueryHooks } from '@/types'
+import type { EnhancedColumnSchema, SliceRequestDef, FilterOption, TableSchema, FetchDataParams, FetchDataResult, OrderRequestDef, QueryHooks, MemberQueryRequest, MemberQueryResponse } from '@/types'
 import SearchToolbar from './SearchToolbar.vue'
+import QueryPanel from './QueryPanel.vue'
+import type { QuerySchema } from './QueryPanel.vue'
 import DataTable from './DataTable.vue'
 import { useTableQuery } from './composables/useTableQuery'
 
@@ -69,6 +71,18 @@ interface Props {
   /** 查询钩子（声明式） */
   queryHooks?: QueryHooks
 
+  // ========== 查询条件区 ==========
+  /** 查询 Schema（传统查询区定义） */
+  querySchema?: QuerySchema
+  /** 是否显示传统查询区 */
+  showQueryPanel?: boolean
+
+  // ========== 维度成员远程过滤 ==========
+  /** QM 模型名称（远程成员加载所需） */
+  qmModel?: string
+  /** 远程维度成员加载器 */
+  filterMemberLoader?: (request: MemberQueryRequest) => Promise<MemberQueryResponse>
+
   // ========== 保存查询功能 ==========
   /** 启用保存查询功能 */
   enableSavedQuery?: boolean
@@ -81,7 +95,8 @@ const props = withDefaults(defineProps<Props>(), {
   showSearchToolbar: true,
   searchLayout: 'horizontal',
   showSearchActions: true,
-  filterMergeMode: 'merge'
+  filterMergeMode: 'merge',
+  showQueryPanel: false
 })
 
 const emit = defineEmits<{
@@ -203,26 +218,44 @@ const effectiveSearchableFields = computed(() => {
 
 // ========== 组件引用 ==========
 const searchToolbarRef = ref<InstanceType<typeof SearchToolbar>>()
+const queryPanelRef = ref<InstanceType<typeof QueryPanel>>()
 const dataTableRef = ref<InstanceType<typeof DataTable>>()
 
 // ========== 筛选状态 ==========
 const searchSlices = ref<SliceRequestDef[]>([])
 const tableSlices = ref<SliceRequestDef[]>([])
+const queryPanelSlices = ref<SliceRequestDef[]>([])
 
-// 合并后的筛选条件
+// 合并后的筛选条件（QueryPanel + SearchToolbar + DataTable header filters）
 const mergedSlices = computed(() => {
+  // QueryPanel 条件始终参与
+  const allSlices = [...queryPanelSlices.value]
+  const usedFields = new Set(allSlices.map(s => s.field))
+
   if (props.filterMergeMode === 'replace') {
-    return searchSlices.value.length > 0 ? searchSlices.value : tableSlices.value
-  } else {
-    const merged = [...searchSlices.value]
-    const searchFields = new Set(searchSlices.value.map(s => s.field))
-    for (const slice of tableSlices.value) {
-      if (!searchFields.has(slice.field)) {
-        merged.push(slice)
+    const source = searchSlices.value.length > 0 ? searchSlices.value : tableSlices.value
+    for (const s of source) {
+      if (!usedFields.has(s.field)) {
+        allSlices.push(s)
+        usedFields.add(s.field)
       }
     }
-    return merged
+  } else {
+    for (const s of searchSlices.value) {
+      if (!usedFields.has(s.field)) {
+        allSlices.push(s)
+        usedFields.add(s.field)
+      }
+    }
+    for (const s of tableSlices.value) {
+      if (!usedFields.has(s.field)) {
+        allSlices.push(s)
+        usedFields.add(s.field)
+      }
+    }
   }
+
+  return allSlices
 })
 
 // ========== Schema 模式的数据加载 ==========
@@ -250,6 +283,20 @@ onMounted(() => {
 })
 
 // ========== 事件处理 ==========
+
+// 处理 QueryPanel 查询提交
+function handleQueryPanelChange(slices: SliceRequestDef[]) {
+  queryPanelSlices.value = slices
+}
+
+function handleQueryPanelSearch() {
+  handleFilterChange()
+}
+
+function handleQueryPanelReset() {
+  queryPanelSlices.value = []
+  handleFilterChange()
+}
 
 // 处理搜索工具栏筛选变化（v-model 更新）
 function handleSearchChange(slices: SliceRequestDef[]) {
@@ -441,6 +488,20 @@ defineExpose({
 
 <template>
   <div class="data-table-with-search">
+    <!-- 传统查询区 -->
+    <div v-if="showQueryPanel && querySchema" class="query-panel-wrapper">
+      <QueryPanel
+        ref="queryPanelRef"
+        :schema="querySchema"
+        :filter-member-loader="filterMemberLoader"
+        :qm-model="qmModel"
+        v-model="queryPanelSlices"
+        @update:model-value="handleQueryPanelChange"
+        @search="handleQueryPanelSearch"
+        @reset="handleQueryPanelReset"
+      />
+    </div>
+
     <!-- 搜索工具栏 -->
     <div v-if="effectiveShowSearchToolbar" class="search-toolbar-wrapper">
       <SearchToolbar
@@ -450,6 +511,8 @@ defineExpose({
         :layout="effectiveSearchLayout"
         :show-actions="showSearchActions"
         :filter-options-loader="filterOptionsLoader"
+        :filter-member-loader="filterMemberLoader"
+        :qm-model="qmModel"
         v-model="searchSlices"
         @update:model-value="handleSearchChange"
         @search="handleSearch"
@@ -480,6 +543,10 @@ defineExpose({
   gap: 16px;
   width: 100%;
   height: 100%;
+}
+
+.query-panel-wrapper {
+  flex-shrink: 0;
 }
 
 .search-toolbar-wrapper {
