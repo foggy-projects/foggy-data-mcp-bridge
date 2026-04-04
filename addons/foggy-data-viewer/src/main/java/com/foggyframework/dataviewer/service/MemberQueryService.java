@@ -114,12 +114,9 @@ public class MemberQueryService {
     private DbQueryRequestDef buildQueryDef(String syntheticModelName, MemberQueryRequest req) {
         DbQueryRequestDef def = new DbQueryRequestDef();
         def.setQueryModel(syntheticModelName);
-        // 层级维度时请求额外字段
-        if (req.getHierarchy() != null || isHierarchyQuery(req)) {
-            def.setColumns(List.of("id", "caption", "parentId", "depth", "hasChildren"));
-        } else {
-            def.setColumns(List.of("id", "caption"));
-        }
+        // 始终只请求 id + caption（安全），不强制请求 parentId/depth/hasChildren
+        // 层级字段由 synthetic member-QM 自动包含（如果可用）
+        def.setColumns(List.of("id", "caption"));
         def.setReturnTotal(true);
         def.setDistinct(true);
 
