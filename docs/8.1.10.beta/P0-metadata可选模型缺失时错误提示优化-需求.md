@@ -3,8 +3,32 @@
 ## 基本信息
 - 目标版本：`8.1.10.beta`
 - 需求等级：`P0`
-- 状态：`待处理`
+- 状态：`已完成`
+- 完成日期：2026-04-05
 - 责任项目：`foggy-data-mcp-bridge`
+
+## 完成记录
+
+### 开发进度：已完成
+
+改动文件：
+
+| 文件 | 改动 |
+|------|------|
+| `foggy-dataset-model/.../impl/LoaderSupport.java` | 表不存在时抛出含 tableName/schema 的清晰异常，附带"请检查模块是否已安装"提示 |
+| `foggy-dataset-model/.../engine/query_model/JdbcQueryModelBuilder.java` | loadTableModel 错误增加 namespace 上下文；`e.printStackTrace()` 替换为 `log.error` |
+| `foggy-dataset-model/.../semantic/service/impl/SemanticServiceV3Impl.java` | metadata 全量构建对单模型加载 try-catch，失败时 `log.warn` 跳过，不拖垮整包 |
+
+改前错误：`sqlTable is null`（无上下文）
+
+改后错误：`QM [OdooMrpProductionQueryModel] loadTableModel('OdooMrpProductionModel'): 表模型 'OdooMrpProductionModel' 加载失败 (namespace=odoo): 表 'mrp_production' 在数据源中不存在或无列信息。请检查该表是否存在，或对应模块是否已安装。`
+
+### 测试进度：已完成
+
+- `mvn compile` 通过
+- metadata 全量构建不再因单模型缺表而整体失败
+
+### 体验进度：N/A
 
 ## 背景
 2026-04-02 在 Odoo 本地分层测试中，`dataset.get_metadata` 构建全量 metadata 时触发失败，外层表现为 metadata JSON 异常，内层定位到：
