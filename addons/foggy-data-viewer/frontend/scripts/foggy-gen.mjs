@@ -111,8 +111,8 @@ function genTableSchema(meta) {
     ` * ${meta.model} - 自动生成的表格 Schema`,
     ` * ⚠️ 此文件由 foggy-gen 自动生成，请勿手动修改`,
     ` */`,
-    `import type { EnhancedColumnSchema, TableSchema } from '@foggy/data-viewer'`,
-    `import { calculateColumnWidth } from '@foggy/data-viewer'`,
+    `import type { EnhancedColumnSchema, TableSchema } from 'foggy-data-viewer'`,
+    `import { calculateColumnWidth } from 'foggy-data-viewer'`,
     ``,
     `/** 全量列定义 */`,
     `export const allColumns: EnhancedColumnSchema[] = [`,
@@ -238,8 +238,8 @@ function genApi(meta) {
  * ${meta.model} - 自动生成的 API 封装
  * ⚠️ 此文件由 foggy-gen 自动生成，请勿手动修改
  */
-import { fetchQueryDataDirect, fetchMemberOptions, fetchFrontendMeta } from '@foggy/data-viewer'
-import type { FetchDataParams, FetchDataResult, MemberQueryRequest, MemberQueryResponse, FrontendMeta } from '@foggy/data-viewer'
+import { fetchQueryDataDirect, fetchMemberOptions, fetchFrontendMeta } from 'foggy-data-viewer'
+import type { FetchDataParams, FetchDataResult, MemberQueryRequest, MemberQueryResponse, FrontendMeta } from 'foggy-data-viewer'
 import type { ${prefix}Row } from './${prefix}.types'
 import { ${constName} } from './${prefix}.types'
 
@@ -274,8 +274,8 @@ function genVue(meta) {
 -->
 <script setup lang="ts">
 import { computed } from 'vue'
-import { DataTableWithSearch, fetchMemberOptions } from '@foggy/data-viewer'
-import type { SliceRequestDef, QueryHooks, EnhancedColumnSchema } from '@foggy/data-viewer'
+import { DataTableWithSearch, fetchMemberOptions } from 'foggy-data-viewer'
+import type { SliceRequestDef, QueryHooks, EnhancedColumnSchema } from 'foggy-data-viewer'
 import { tableSchema } from './${prefix}.table.schema'
 import { querySchema } from './${prefix}.query.schema'
 import { query${prefix} } from './${prefix}.api'

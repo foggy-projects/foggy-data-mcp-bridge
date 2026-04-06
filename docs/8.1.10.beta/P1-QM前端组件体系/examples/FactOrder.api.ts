@@ -6,14 +6,14 @@ import {
   fetchQueryData,
   fetchMemberOptions,
   fetchFrontendMeta,
-} from '@foggy/data-viewer'
+} from 'foggy-data-viewer'
 import type {
   FetchDataParams,
   FetchDataResult,
   MemberQueryRequest,
   MemberQueryResponse,
   FrontendMeta,
-} from '@foggy/data-viewer'
+} from 'foggy-data-viewer'
 import type { FactOrderRow } from './FactOrder.types'
 import { FACT_ORDER_QM_MODEL } from './FactOrder.types'
 

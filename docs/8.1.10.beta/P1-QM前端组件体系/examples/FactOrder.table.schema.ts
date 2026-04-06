@@ -2,8 +2,8 @@
  * FactOrderQueryModel - 自动生成的表格 Schema
  * ⚠️ 此文件由 foggy-gen 自动生成，请勿手动修改
  */
-import type { EnhancedColumnSchema, TableSchema } from '@foggy/data-viewer'
-import { calculateColumnWidth } from '@foggy/data-viewer'
+import type { EnhancedColumnSchema, TableSchema } from 'foggy-data-viewer'
+import { calculateColumnWidth } from 'foggy-data-viewer'
 
 /** 全量列定义 */
 export const allColumns: EnhancedColumnSchema[] = [

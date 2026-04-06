@@ -6,7 +6,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
-import type { QueryHooks, SliceRequestDef } from '@foggy/data-viewer'
+import type { QueryHooks, SliceRequestDef } from 'foggy-data-viewer'
 import FactOrderTable from '@/generated/qm/order/FactOrderTable.vue'
 import { orderColumnOverrides } from './order-module.config'
 import { useOrderQueryHooks } from './order-query-hooks'

@@ -2,7 +2,7 @@
  * FactOrderQueryModel - 自动生成的查询 Schema
  * ⚠️ 此文件由 foggy-gen 自动生成，请勿手动修改
  */
-import type { QueryFieldSchema, QuerySchema } from '@foggy/data-viewer'
+import type { QueryFieldSchema, QuerySchema } from 'foggy-data-viewer'
 
 /** 查询字段定义 */
 export const queryFields: QueryFieldSchema[] = [

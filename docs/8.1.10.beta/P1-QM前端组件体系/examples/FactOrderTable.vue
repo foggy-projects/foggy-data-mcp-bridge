@@ -8,14 +8,14 @@
 -->
 <script setup lang="ts">
 import { computed } from 'vue'
-import { DataTableWithSearch, buildTableColumns } from '@foggy/data-viewer'
+import { DataTableWithSearch, buildTableColumns } from 'foggy-data-viewer'
 import type {
   SliceRequestDef,
   QueryHooks,
   TableConfig,
   QuerySchema,
   EnhancedColumnSchema,
-} from '@foggy/data-viewer'
+} from 'foggy-data-viewer'
 import { tableSchema, allColumns } from './FactOrder.table.schema'
 import { querySchema as defaultQuerySchema } from './FactOrder.query.schema'
 import { queryOrders } from './FactOrder.api'

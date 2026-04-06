@@ -4,7 +4,7 @@
  *
  * 职责：查询前后处理、埋点、错误处理
  */
-import type { QueryHooks, QueryHookContext, FetchDataResult } from '@foggy/data-viewer'
+import type { QueryHooks, QueryHookContext, FetchDataResult } from 'foggy-data-viewer'
 
 export function useOrderQueryHooks(): QueryHooks {
   return {
