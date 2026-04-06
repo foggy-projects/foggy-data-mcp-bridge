@@ -3,7 +3,7 @@
 ## 基本信息
 - 目标版本：`8.1.10.beta`
 - 需求等级：`P1`
-- 状态：`已完成`
+- 状态：`已完成（已验收，可交付业务系统部署使用）`
 - 完成日期：2026-04-05
 - 本文档替代：`P1-QM前端生成与业务接入/` 目录下全部讨论稿（已归档至 `archive/`）
 
@@ -98,14 +98,38 @@ V3 是面向 LLM 的语义元数据，包含 `prompt`、`meta` 拼接字符串�
 
 ## 全局验收标准
 
-- [ ] 后端 `GET /data-viewer/api/frontend-meta/{qmModel}` 返回 `frontend-meta v1` JSON
-- [ ] 前端通过 `fetchFrontendMeta(qmModel)` 可获取标准元数据
-- [ ] `dimension` 类型字段的 DSL slice 始终使用 `selectionFieldName`（如 `team$id`）而非显示字段
-- [ ] `POST /data-viewer/api/members/query` 支持 keyword / 分页 / selectedValues 回填 / childrenOf
-- [ ] QueryPanel + ColumnFilters 可并存，共享同一份 QueryState
-- [ ] 生成器可基于一个 QM 元数据 JSON 生成 types + schema + api + Vue 组件
-- [ ] 生成产物不会被业务代码修改、不会被生成器覆盖业务代码
-- [ ] 至少一个业务模块完成三层接入验证（generated → modules → pages）
+- [x] 后端 `GET /data-viewer/api/frontend-meta/{qmModel}` 返回 `frontend-meta v1` JSON
+- [x] 前端通过 `fetchFrontendMeta(qmModel)` 可获取标准元数据
+- [x] `dimension` 类型字段的 DSL slice 始终使用 `selectionFieldName`（如 `team$id`）而非显示字段
+- [x] `POST /data-viewer/api/members/query` 支持 keyword / 分页 / selectedValues 回填 / childrenOf
+- [x] QueryPanel + ColumnFilters 可并存，共享同一份 QueryState
+- [x] 生成器可基于一个 QM 元数据 JSON 生成 types + schema + api + Vue 组件
+- [x] 生成产物不会被业务代码修改、不会被生成器覆盖业务代码
+- [x] 至少一个业务模块完成三层接入验证（generated → modules → pages）
+
+## 最终签收结论
+
+### 签收结果
+
+`2026-04-05` 已完成最终验收，结论为：**P1-QM 前端组件体系可以交付业务系统部署并使用。**
+
+### 本次签收覆盖
+
+- 后端部署态：`health`、`frontend-meta`、`members/query`、`query/create`、`query/{model}/{queryId}/filter-options`、`frontend-meta/download` 均验证通过
+- 页面运行态：`FactOrderQueryModel` DataViewer 页面已验证筛选、排序、分页、合计、层级能力链路，浏览器控制台 `0 error / 0 warning`
+- 生成链路：在线模式可直接从运行中的服务拉取 `frontend-meta` 并生成 `types/schema/api/Vue/index` 共 6 个文件
+- 业务接入口径：已验证三层接入模式 `generated → modules → pages` 可成立
+
+### 当前可交付边界
+
+- 当前结论适用于已具备 `data-viewer` 标准部署能力的环境
+- 开发环境可直接使用；若投放测试、预发、生产环境，仍需按目标环境补充认证、网关、CORS、域名与反向代理验证
+
+### 验收证据
+
+- 验证步骤手册：`docs/8.1.10.beta/P1-QM前端组件体系/验证步骤手册.md`
+- 复核报告：`docs/8.1.10.beta/P1-QM前端组件体系/验证复核报告-2026-04-04.md`
+- 最终业务交付截图：`docs/8.1.10.beta/P1-QM前端组件体系/screenshots/07-business-delivery-accept-2026-04-05.png`
 
 ## 后续版本预留（不在 8.1.10.beta 范围内）
 - 查询字段分组
