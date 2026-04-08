@@ -1,0 +1,277 @@
+package com.foggyframework.dataviewer.service;
+
+import com.foggyframework.dataviewer.domain.FrontendMeta;
+import com.foggyframework.dataviewer.domain.FrontendMeta.*;
+
+import java.util.*;
+
+/**
+ * V3 语义元数据 → frontend-meta v1 转换器
+ * <p>
+ * 将 SemanticServiceV3 输出的 Map 结构转换为面向前端的标准 FrontendMeta 结构。
+ * 核心转换：fields 从 Object 映射转为有序数组、自动推导 memberLookup、新增 category/sortable/uiHints。
+ */
+public class FrontendMetaConverter {
+
+    private static final String META_VERSION = "v1";
+    private static final int DEFAULT_MEMBER_LIMIT = 20;
+
+    /**
+     * 将 V3 JSON 的 Map 结构转换为 FrontendMeta
+     *
+     * @param v3Data SemanticServiceV3 返回的 response.getData()
+     * @return FrontendMeta 前端元数据契约
+     */
+    @SuppressWarnings("unchecked")
+    public FrontendMeta convert(Map<String, Object> v3Data) {
+        if (v3Data == null) {
+            return null;
+        }
+
+        // 提取模型信息
+        Map<String, Object> modelsMap = getMap(v3Data, "models");
+        String modelName = null;
+        String caption = null;
+        String description = null;
+        boolean hasAggregatable = false;
+
+        if (modelsMap != null && !modelsMap.isEmpty()) {
+            modelName = modelsMap.keySet().iterator().next();
+            Map<String, Object> modelInfo = getMap(modelsMap, modelName);
+            if (modelInfo != null) {
+                caption = getString(modelInfo, "name");
+                description = getString(modelInfo, "purpose");
+            }
+        }
+
+        // 转换字段：Object 映射 → 有序数组
+        Map<String, Object> fieldsMap = getMap(v3Data, "fields");
+        List<FieldMeta> fields = new ArrayList<>();
+
+        if (fieldsMap != null) {
+            // 先收集所有字段名，用于 memberLookup 推导
+            Set<String> allFieldNames = fieldsMap.keySet();
+
+            for (Map.Entry<String, Object> entry : fieldsMap.entrySet()) {
+                String fieldKey = entry.getKey();
+                Map<String, Object> fieldData = (Map<String, Object>) entry.getValue();
+                if (fieldData == null) continue;
+
+                FieldMeta field = convertField(fieldKey, fieldData, allFieldNames, modelName);
+                fields.add(field);
+
+                if (Boolean.TRUE.equals(field.getAggregatable())) {
+                    hasAggregatable = true;
+                }
+            }
+        }
+
+        return FrontendMeta.builder()
+                .metaVersion(META_VERSION)
+                .model(modelName)
+                .caption(caption)
+                .description(description)
+                .fields(fields)
+                .defaults(buildDefaults(fields))
+                .capabilities(CapabilitiesMeta.builder()
+                        .pageable(true)
+                        .sortable(true)
+                        .filterable(true)
+                        .aggregatable(hasAggregatable)
+                        .build())
+                .build();
+    }
+
+    /**
+     * 转换单个字段
+     */
+    @SuppressWarnings("unchecked")
+    private FieldMeta convertField(String fieldKey, Map<String, Object> fieldData,
+                                   Set<String> allFieldNames, String modelName) {
+        String name = getString(fieldData, "fieldName", fieldKey);
+        String title = getString(fieldData, "name");
+        String type = getString(fieldData, "type");
+        String filterType = getString(fieldData, "filterType");
+        Boolean filterable = getBoolean(fieldData, "filterable");
+        Boolean measure = getBoolean(fieldData, "measure");
+        Boolean aggregatable = getBoolean(fieldData, "aggregatable");
+        String aggregation = getString(fieldData, "aggregation");
+        String sourceColumn = getString(fieldData, "sourceColumn");
+        String dictId = getString(fieldData, "dictId");
+        Boolean calculated = getBoolean(fieldData, "calculated");
+        Boolean hierarchical = getBoolean(fieldData, "hierarchical");
+        List<String> hierarchyOps = getStringList(fieldData, "hierarchyOps");
+
+        // 推导 category
+        String category = deriveCategory(name, measure, calculated);
+
+        // 推导 sortable（度量默认不可排序）
+        boolean sortable = !Boolean.TRUE.equals(measure);
+
+        // 推导 dictMode
+        String dictMode = dictId != null ? "static" : null;
+
+        // 推导 memberLookup（仅 $caption 字段自动开启）
+        MemberLookupMeta memberLookup = deriveMemberLookup(name, filterType, allFieldNames, hierarchical);
+
+        // 推导 uiHints
+        UiHintsMeta uiHints = deriveUiHints(category, type);
+
+        return FieldMeta.builder()
+                .name(name)
+                .title(title)
+                .type(type)
+                .category(category)
+                .filterType(filterType)
+                .filterable(filterable)
+                .sortable(sortable)
+                .measure(measure)
+                .aggregatable(aggregatable)
+                .aggregation(aggregation)
+                .sourceColumn(sourceColumn)
+                .dictId(dictId)
+                .dictMode(dictMode)
+                .calculated(calculated)
+                .hierarchical(hierarchical)
+                .hierarchyOps(hierarchyOps)
+                .memberLookup(memberLookup)
+                .uiHints(uiHints)
+                .build();
+    }
+
+    /**
+     * 根据字段命名和类型推导 category
+     */
+    private String deriveCategory(String name, Boolean measure, Boolean calculated) {
+        if (Boolean.TRUE.equals(calculated)) {
+            return "calculated";
+        }
+        if (Boolean.TRUE.equals(measure)) {
+            return "measure";
+        }
+        if (name.contains("$")) {
+            if (name.endsWith("$id")) {
+                return "dimension-id";
+            }
+            if (name.endsWith("$caption")) {
+                return "dimension-caption";
+            }
+            return "dimension-property";
+        }
+        return "attribute";
+    }
+
+    /**
+     * $caption 字段自动推导 memberLookup
+     * <p>
+     * 规则：
+     * 1. 字段名以 $caption 结尾，且同基名存在 $id → 自动开启
+     * 2. 字段名以 $id 结尾 → 不自动开启（过滤器挂在 $caption 上）
+     * 3. 无法推导 → 不开启
+     */
+    private MemberLookupMeta deriveMemberLookup(String name, String filterType,
+                                                 Set<String> allFieldNames,
+                                                 Boolean hierarchical) {
+        if (!"dimension".equals(filterType)) {
+            return null;
+        }
+        if (!name.endsWith("$caption")) {
+            return null;
+        }
+
+        String baseName = name.substring(0, name.lastIndexOf("$caption"));
+        String idFieldName = baseName + "$id";
+
+        if (!allFieldNames.contains(idFieldName)) {
+            return null;
+        }
+
+        return MemberLookupMeta.builder()
+                .enabled(true)
+                .selectionFieldName(idFieldName)
+                .displayFieldName(name)
+                .searchable(true)
+                .pageable(true)
+                .defaultLimit(DEFAULT_MEMBER_LIMIT)
+                .build();
+    }
+
+    /**
+     * 推导 UI 提示
+     */
+    private UiHintsMeta deriveUiHints(String category, String type) {
+        boolean visible = !"dimension-id".equals(category);
+
+        UiHintsMeta.UiHintsMetaBuilder builder = UiHintsMeta.builder()
+                .visible(visible)
+                .nullable(true);
+
+        // 日期时间类型添加 format 提示
+        if ("DATETIME".equals(type)) {
+            builder.format("yyyy-MM-dd HH:mm:ss");
+        } else if ("DAY".equals(type)) {
+            builder.format("yyyy-MM-dd");
+        }
+
+        return builder.build();
+    }
+
+    /**
+     * 构建默认配置
+     */
+    private DefaultsMeta buildDefaults(List<FieldMeta> fields) {
+        List<String> visibleColumns = new ArrayList<>();
+        List<String> searchFields = new ArrayList<>();
+
+        for (FieldMeta field : fields) {
+            if (field.getUiHints() != null && Boolean.TRUE.equals(field.getUiHints().getVisible())) {
+                visibleColumns.add(field.getName());
+            }
+            // 文本属性字段纳入默认搜索
+            if ("attribute".equals(field.getCategory())
+                    && "text".equals(field.getFilterType())
+                    && Boolean.TRUE.equals(field.getFilterable())) {
+                searchFields.add(field.getName());
+            }
+        }
+
+        return DefaultsMeta.builder()
+                .visibleColumns(visibleColumns)
+                .searchFields(searchFields.isEmpty() ? null : searchFields)
+                .pageSize(50)
+                .build();
+    }
+
+    // ── 工具方法 ──
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> getMap(Map<String, Object> map, String key) {
+        Object val = map.get(key);
+        return val instanceof Map ? (Map<String, Object>) val : null;
+    }
+
+    private String getString(Map<String, Object> map, String key) {
+        Object val = map.get(key);
+        return val instanceof String ? (String) val : null;
+    }
+
+    private String getString(Map<String, Object> map, String key, String defaultVal) {
+        String val = getString(map, key);
+        return val != null ? val : defaultVal;
+    }
+
+    private Boolean getBoolean(Map<String, Object> map, String key) {
+        Object val = map.get(key);
+        if (val instanceof Boolean) return (Boolean) val;
+        return null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> getStringList(Map<String, Object> map, String key) {
+        Object val = map.get(key);
+        if (val instanceof List) {
+            return (List<String>) val;
+        }
+        return null;
+    }
+}

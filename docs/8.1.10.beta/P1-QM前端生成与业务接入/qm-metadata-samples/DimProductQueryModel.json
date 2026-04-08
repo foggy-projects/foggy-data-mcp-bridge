@@ -1,0 +1,222 @@
+{
+  "prompt" : "## 使用说明 (V3版本)\n- 格式约定：字段类型 | 数据类型 | 格式说明\n",
+  "version" : "v3",
+  "fields" : {
+    "productName" : {
+      "name" : "商品名称",
+      "fieldName" : "productName",
+      "meta" : "属性 | 文本",
+      "type" : "STRING",
+      "filterType" : "text",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "sourceColumn" : "product_name",
+      "models" : {
+        "DimProductQueryModel" : {
+          "description" : "商品名称"
+        }
+      }
+    },
+    "productId" : {
+      "name" : "商品业务ID",
+      "fieldName" : "productId",
+      "meta" : "属性 | 文本",
+      "type" : "STRING",
+      "filterType" : "text",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "sourceColumn" : "product_id",
+      "models" : {
+        "DimProductQueryModel" : {
+          "description" : "商品业务ID"
+        }
+      }
+    },
+    "brand" : {
+      "name" : "品牌",
+      "fieldName" : "brand",
+      "meta" : "属性 | 文本",
+      "type" : "STRING",
+      "filterType" : "text",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "sourceColumn" : "brand",
+      "models" : {
+        "DimProductQueryModel" : {
+          "description" : "品牌"
+        }
+      }
+    },
+    "status" : {
+      "name" : "状态",
+      "fieldName" : "status",
+      "meta" : "属性 | 文本",
+      "type" : "STRING",
+      "filterType" : "text",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "sourceColumn" : "status",
+      "models" : {
+        "DimProductQueryModel" : {
+          "description" : "状态"
+        }
+      }
+    },
+    "categoryId" : {
+      "name" : "一级品类ID",
+      "fieldName" : "categoryId",
+      "meta" : "属性 | 文本",
+      "type" : "STRING",
+      "filterType" : "text",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "sourceColumn" : "category_id",
+      "models" : {
+        "DimProductQueryModel" : {
+          "description" : "一级品类ID"
+        }
+      }
+    },
+    "categoryName" : {
+      "name" : "一级品类名称",
+      "fieldName" : "categoryName",
+      "meta" : "属性 | 文本",
+      "type" : "STRING",
+      "filterType" : "text",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "sourceColumn" : "category_name",
+      "models" : {
+        "DimProductQueryModel" : {
+          "description" : "一级品类名称"
+        }
+      }
+    },
+    "subCategoryId" : {
+      "name" : "二级品类ID",
+      "fieldName" : "subCategoryId",
+      "meta" : "属性 | 文本",
+      "type" : "STRING",
+      "filterType" : "text",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "sourceColumn" : "sub_category_id",
+      "models" : {
+        "DimProductQueryModel" : {
+          "description" : "二级品类ID"
+        }
+      }
+    },
+    "subCategoryName" : {
+      "name" : "二级品类名称",
+      "fieldName" : "subCategoryName",
+      "meta" : "属性 | 文本",
+      "type" : "STRING",
+      "filterType" : "text",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "sourceColumn" : "sub_category_name",
+      "models" : {
+        "DimProductQueryModel" : {
+          "description" : "二级品类名称"
+        }
+      }
+    },
+    "unitPrice" : {
+      "name" : "售价",
+      "fieldName" : "unitPrice",
+      "meta" : "属性 | 金额",
+      "type" : "MONEY",
+      "filterType" : "number",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "sourceColumn" : "unit_price",
+      "models" : {
+        "DimProductQueryModel" : {
+          "description" : "售价"
+        }
+      }
+    },
+    "unitCost" : {
+      "name" : "成本",
+      "fieldName" : "unitCost",
+      "meta" : "属性 | 金额",
+      "type" : "MONEY",
+      "filterType" : "number",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "sourceColumn" : "unit_cost",
+      "models" : {
+        "DimProductQueryModel" : {
+          "description" : "成本"
+        }
+      }
+    },
+    "supplierId" : {
+      "name" : "供应商ID",
+      "fieldName" : "supplierId",
+      "meta" : "属性 | 文本",
+      "type" : "STRING",
+      "filterType" : "text",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "sourceColumn" : "supplier_id",
+      "models" : {
+        "DimProductQueryModel" : {
+          "description" : "供应商ID"
+        }
+      }
+    },
+    "createdAt" : {
+      "name" : "创建时间",
+      "fieldName" : "createdAt",
+      "meta" : "属性 | 日期时间",
+      "type" : "DATETIME",
+      "filterType" : "date",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "sourceColumn" : "created_at",
+      "models" : {
+        "DimProductQueryModel" : {
+          "description" : "创建时间"
+        }
+      }
+    },
+    "updatedAt" : {
+      "name" : "更新时间",
+      "fieldName" : "updatedAt",
+      "meta" : "属性 | 日期时间",
+      "type" : "DATETIME",
+      "filterType" : "date",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "sourceColumn" : "updated_at",
+      "models" : {
+        "DimProductQueryModel" : {
+          "description" : "更新时间"
+        }
+      }
+    }
+  },
+  "models" : {
+    "DimProductQueryModel" : {
+      "name" : "商品维度查询",
+      "factTable" : "dim_product",
+      "purpose" : "数据查询和分析",
+      "scenarios" : [ "数据查询", "统计分析", "报表生成" ]
+    }
+  }
+}

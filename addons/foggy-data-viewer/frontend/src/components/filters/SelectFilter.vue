@@ -1,26 +1,44 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import type { SliceRequestDef, FilterOption } from '@/types'
+import type { SliceRequestDef, FilterOption, MemberQueryRequest, MemberQueryResponse, MemberOption } from '@/types'
 
+/**
+ * SelectFilter - 支持静态选项和远程维度成员两种模式
+ *
+ * 模式 1（静态）：传入 options 数组，本地搜索
+ * 模式 2（远程成员）：传入 remoteLoader，keyword debounce 远程搜索、分页、回填
+ *
+ * 当存在 selectionField 时，DSL slice 使用 selectionField 而非 field（维度成员场景）
+ */
 interface Props {
+  /** 当前字段名（展示字段，如 customer$caption） */
   field: string
+  /** DSL slice 使用的值字段（如 customer$id）。不传则使用 field */
+  selectionField?: string
   modelValue?: SliceRequestDef[] | null
-  options: FilterOption[]
+  /** 静态选项（模式 1） */
+  options?: FilterOption[]
   placeholder?: string
   loading?: boolean
   maxDisplayItems?: number
+  /** 远程成员加载器（模式 2） */
+  remoteLoader?: (request: MemberQueryRequest) => Promise<MemberQueryResponse>
+  /** 远程模式所需的 qmModel */
+  qmModel?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
   placeholder: '请选择...',
   loading: false,
-  maxDisplayItems: 100
+  maxDisplayItems: 100,
+  options: () => []
 })
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: SliceRequestDef[] | null): void
 }>()
 
+// ── 状态 ──
 const showDropdown = ref(false)
 const isMulti = ref(false)
 const searchText = ref('')
@@ -29,7 +47,21 @@ const containerRef = ref<HTMLElement>()
 const highlightIndex = ref(0)
 const searchInputRef = ref<HTMLInputElement>()
 
-// 从 modelValue 初始化
+// 远程模式状态
+const remoteOptions = ref<FilterOption[]>([])
+const remoteLoading = ref(false)
+const remoteTotal = ref(0)
+const remoteHasMore = ref(false)
+const selectedLabels = ref<Map<string | number, string>>(new Map())
+let debounceTimer: ReturnType<typeof setTimeout> | null = null
+
+/** 是否远程模式 */
+const isRemote = computed(() => !!props.remoteLoader && !!props.qmModel)
+
+/** DSL 输出字段：优先使用 selectionField */
+const sliceField = computed(() => props.selectionField || props.field)
+
+// ── 从 modelValue 初始化 ──
 watch(() => props.modelValue, (slices) => {
   selectedValues.value.clear()
   if (!slices || slices.length === 0) return
@@ -44,65 +76,132 @@ watch(() => props.modelValue, (slices) => {
   }
 }, { immediate: true })
 
-// 过滤后的选项
+// ── 选项列表 ──
+const effectiveOptions = computed(() => {
+  if (isRemote.value) return remoteOptions.value
+  return props.options
+})
+
 const filteredOptions = computed(() => {
-  if (!searchText.value.trim()) {
-    return props.options
-  }
+  if (isRemote.value) return effectiveOptions.value // 远程已过滤
+  if (!searchText.value.trim()) return effectiveOptions.value
   const keyword = searchText.value.toLowerCase()
-  return props.options.filter(opt =>
+  return effectiveOptions.value.filter(opt =>
     opt.label.toLowerCase().includes(keyword) ||
     String(opt.value).toLowerCase().includes(keyword)
   )
 })
 
-// 显示的选项（限制数量）
 const displayOptions = computed(() => {
   return filteredOptions.value.slice(0, props.maxDisplayItems)
 })
 
-// 是否有更多选项
 const hasMore = computed(() => {
+  if (isRemote.value) return remoteHasMore.value
   return filteredOptions.value.length > props.maxDisplayItems
 })
 
-// 显示文本
+const isLoading = computed(() => {
+  if (isRemote.value) return remoteLoading.value
+  return props.loading
+})
+
+// ── 显示文本 ──
 const displayText = computed(() => {
-  if (selectedValues.value.size === 0) {
-    return ''
+  if (selectedValues.value.size === 0) return ''
+
+  if (isRemote.value) {
+    const labels: string[] = []
+    for (const v of selectedValues.value) {
+      const label = selectedLabels.value.get(v)
+      if (label) labels.push(label)
+      else labels.push(String(v))
+    }
+    if (labels.length <= 2) return labels.join(', ')
+    return `已选 ${labels.length} 项`
   }
+
   const selected = props.options.filter(opt => selectedValues.value.has(opt.value))
-  if (selected.length === 0) {
-    return Array.from(selectedValues.value).join(', ')
-  }
-  if (selected.length <= 2) {
-    return selected.map(s => s.label).join(', ')
-  }
+  if (selected.length === 0) return Array.from(selectedValues.value).join(', ')
+  if (selected.length <= 2) return selected.map(s => s.label).join(', ')
   return `已选 ${selected.length} 项`
 })
 
+// ── 远程加载 ──
+async function loadRemote(keyword: string) {
+  if (!props.remoteLoader || !props.qmModel) return
+
+  remoteLoading.value = true
+  try {
+    const response = await props.remoteLoader({
+      qmModel: props.qmModel,
+      fieldName: props.field,
+      keyword: keyword || undefined,
+      start: 0,
+      limit: props.maxDisplayItems,
+      selectedValues: selectedValues.value.size > 0
+        ? Array.from(selectedValues.value)
+        : undefined
+    })
+
+    remoteOptions.value = response.items.map(toFilterOption)
+    remoteTotal.value = response.total
+    remoteHasMore.value = response.hasMore ?? false
+
+    // 缓存已选项的 label
+    if (response.selectedItems) {
+      for (const item of response.selectedItems) {
+        selectedLabels.value.set(item.value, item.label)
+      }
+    }
+    for (const item of response.items) {
+      selectedLabels.value.set(item.value, item.label)
+    }
+  } catch (e) {
+    console.error('远程成员加载失败:', e)
+    remoteOptions.value = []
+  } finally {
+    remoteLoading.value = false
+  }
+}
+
+function toFilterOption(item: MemberOption): FilterOption {
+  return { value: item.value, label: item.label }
+}
+
+function onSearchInput() {
+  highlightIndex.value = 0
+  if (isRemote.value) {
+    // debounce 远程搜索
+    if (debounceTimer) clearTimeout(debounceTimer)
+    debounceTimer = setTimeout(() => {
+      loadRemote(searchText.value)
+    }, 250)
+  }
+}
+
+// ── 交互 ──
 function toggleDropdown() {
   showDropdown.value = !showDropdown.value
   if (showDropdown.value) {
     searchText.value = ''
     highlightIndex.value = 0
-    // 聚焦搜索框
     setTimeout(() => searchInputRef.value?.focus(), 0)
+    // 远程模式：打开时首次加载
+    if (isRemote.value && remoteOptions.value.length === 0) {
+      loadRemote('')
+    }
   }
 }
 
 function toggleMultiMode() {
   isMulti.value = !isMulti.value
   if (!isMulti.value && selectedValues.value.size > 1) {
-    // 切换到单选时，只保留第一个并立即查询
     const first = selectedValues.value.values().next().value
     selectedValues.value.clear()
-    if (first !== undefined) {
-      selectedValues.value.add(first)
-    }
+    if (first !== undefined) selectedValues.value.add(first)
     emitChange()
   }
-  // 切换到多选时不触发查询，等用户点击确定
 }
 
 function isSelected(opt: FilterOption): boolean {
@@ -110,16 +209,16 @@ function isSelected(opt: FilterOption): boolean {
 }
 
 function selectItem(opt: FilterOption) {
+  // 缓存 label
+  selectedLabels.value.set(opt.value, opt.label)
+
   if (isMulti.value) {
-    // 多选模式：只更新选中状态，不触发查询
     if (selectedValues.value.has(opt.value)) {
       selectedValues.value.delete(opt.value)
     } else {
       selectedValues.value.add(opt.value)
     }
-    // 不调用 emitChange，等用户点击确定按钮
   } else {
-    // 单选模式：立即触发查询并关闭
     selectedValues.value.clear()
     selectedValues.value.add(opt.value)
     emitChange()
@@ -127,7 +226,6 @@ function selectItem(opt: FilterOption) {
   }
 }
 
-// 多选确认
 function confirmMultiSelect() {
   emitChange()
   showDropdown.value = false
@@ -139,16 +237,16 @@ function emitChange() {
     return
   }
 
-  // 生成 DSL slice
+  // DSL slice 使用 sliceField（维度成员场景下为 $id 字段）
   if (isMulti.value || selectedValues.value.size > 1) {
     emit('update:modelValue', [{
-      field: props.field,
+      field: sliceField.value,
       op: 'in',
       value: Array.from(selectedValues.value)
     }])
   } else {
     emit('update:modelValue', [{
-      field: props.field,
+      field: sliceField.value,
       op: '=',
       value: selectedValues.value.values().next().value
     }])
@@ -162,13 +260,8 @@ function clear() {
   emit('update:modelValue', null)
 }
 
-function onSearchInput() {
-  highlightIndex.value = 0
-}
-
 function onKeydown(e: KeyboardEvent) {
   if (!showDropdown.value) return
-
   const options = displayOptions.value
   if (options.length === 0) return
 
@@ -183,9 +276,7 @@ function onKeydown(e: KeyboardEvent) {
       break
     case 'Enter':
       e.preventDefault()
-      if (options[highlightIndex.value]) {
-        selectItem(options[highlightIndex.value])
-      }
+      if (options[highlightIndex.value]) selectItem(options[highlightIndex.value])
       break
     case 'Escape':
       showDropdown.value = false
@@ -193,23 +284,17 @@ function onKeydown(e: KeyboardEvent) {
   }
 }
 
-// 点击外部关闭下拉
 function handleClickOutside(e: MouseEvent) {
   if (containerRef.value && !containerRef.value.contains(e.target as Node)) {
-    if (showDropdown.value && isMulti.value) {
-      // 多选模式下关闭时提交选择
-      emitChange()
-    }
+    if (showDropdown.value && isMulti.value) emitChange()
     showDropdown.value = false
   }
 }
 
-onMounted(() => {
-  document.addEventListener('click', handleClickOutside)
-})
-
+onMounted(() => document.addEventListener('click', handleClickOutside))
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
+  if (debounceTimer) clearTimeout(debounceTimer)
 })
 </script>
 
@@ -230,7 +315,7 @@ onUnmounted(() => {
           ref="searchInputRef"
           v-model="searchText"
           type="text"
-          placeholder="搜索..."
+          :placeholder="isRemote ? '输入关键词搜索...' : '搜索...'"
           @click.stop
           @input="onSearchInput"
           @keydown="onKeydown"
@@ -238,7 +323,7 @@ onUnmounted(() => {
       </div>
 
       <div class="options-container">
-        <div v-if="loading" class="loading-hint">
+        <div v-if="isLoading" class="loading-hint">
           加载中...
         </div>
 
@@ -261,16 +346,20 @@ onUnmounted(() => {
           </div>
 
           <div v-if="displayOptions.length === 0" class="no-data">
-            无匹配数据
+            {{ isRemote && !searchText ? '打开后自动加载' : '无匹配数据' }}
           </div>
         </template>
       </div>
 
       <div v-if="hasMore" class="more-hint">
-        还有 {{ filteredOptions.length - maxDisplayItems }} 条，请输入关键词搜索
+        <template v-if="isRemote">
+          共 {{ remoteTotal }} 条，请输入关键词缩小范围
+        </template>
+        <template v-else>
+          还有 {{ filteredOptions.length - maxDisplayItems }} 条，请输入关键词搜索
+        </template>
       </div>
 
-      <!-- 多选模式下显示确认按钮 -->
       <div v-if="isMulti" class="confirm-bar">
         <span class="selected-count">已选 {{ selectedValues.size }} 项</span>
         <button class="confirm-btn" @click="confirmMultiSelect">确定</button>

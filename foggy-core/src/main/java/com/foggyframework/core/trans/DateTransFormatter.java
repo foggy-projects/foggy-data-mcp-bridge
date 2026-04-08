@@ -76,6 +76,16 @@ public class DateTransFormatter implements ObjectTransFormatter<Date> {
                     return new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").parse(str);
                 } else if (pattern05.matcher(str).find()) {
                     return new SimpleDateFormat("yyyy-MM-dd HH:mm").parse(str);
+                } else if (str.contains("T")) {
+                    String normalized = str.replace('T', ' ');
+                    if (normalized.endsWith("Z")) {
+                        normalized = normalized.substring(0, normalized.length() - 1);
+                    }
+                    try {
+                        return DateParserUtils.parseDate(str);
+                    } catch (Exception ignore) {
+                        return DateParserUtils.parseDate(normalized);
+                    }
                 } else if (str.length() > 20) {
                     return DateParserUtils.parseDate(str);
                 } else if (pattern06.matcher(str).find() && str.length() >13) {

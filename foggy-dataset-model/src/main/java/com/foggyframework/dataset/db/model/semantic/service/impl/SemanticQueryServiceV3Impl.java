@@ -9,6 +9,7 @@ import com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.CondRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
+import com.foggyframework.dataset.db.model.engine.JdbcModelQueryEngine;
 import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
 import com.foggyframework.dataset.db.model.engine.expression.InlineExpressionParser;
 import com.foggyframework.dataset.db.model.engine.query.DbQueryResult;
@@ -127,9 +128,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         );
 
         // 7. 添加调试信息
-        if (logger.isDebugEnabled()) {
-            addDebugInfo(response, context, startTime);
-        }
+        addDebugInfo(response, context, startTime, jdbcRequest.getParam(), dbQueryResult);
 
         return response;
     }
@@ -591,10 +590,78 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
     /**
      * 添加调试信息
      */
-    private void addDebugInfo(SemanticQueryResponse response, QueryContextV3 context, long startTime) {
+    private void addDebugInfo(SemanticQueryResponse response, QueryContextV3 context, long startTime,
+                              DbQueryRequestDef normalizedRequest, DbQueryResult dbQueryResult) {
         SemanticQueryResponse.DebugInfo debugInfo = new SemanticQueryResponse.DebugInfo();
         debugInfo.setDurationMs(System.currentTimeMillis() - startTime);
+
+        SemanticQueryResponse.DebugInfo.NormalizedRequest normalized = new SemanticQueryResponse.DebugInfo.NormalizedRequest();
+        normalized.setSlice(toSemanticSliceItems(normalizedRequest.getSlice()));
+        normalized.setGroupBy(toSemanticGroupByItems(normalizedRequest.getGroupBy()));
+        normalized.setOrderBy(toSemanticOrderItems(normalizedRequest.getOrderBy()));
+        debugInfo.setNormalized(normalized);
+
+        if (dbQueryResult.getQueryEngine() instanceof JdbcModelQueryEngine queryEngine) {
+            Map<String, Object> extra = new LinkedHashMap<>();
+            extra.put("sql", normalizeDebugSql(queryEngine.getSql()));
+            extra.put("aggSql", normalizeDebugSql(queryEngine.getAggSql()));
+            extra.put("params", queryEngine.getValues());
+            debugInfo.setExtra(extra);
+        }
+
         response.setDebug(debugInfo);
+    }
+
+    private List<SemanticQueryRequest.SliceItem> toSemanticSliceItems(List<SliceRequestDef> slice) {
+        if (slice == null) {
+            return null;
+        }
+        return slice.stream().map(this::toSemanticSliceItem).collect(Collectors.toList());
+    }
+
+    private SemanticQueryRequest.SliceItem toSemanticSliceItem(CondRequestDef cond) {
+        SemanticQueryRequest.SliceItem item = new SemanticQueryRequest.SliceItem();
+        item.setField(cond.getField());
+        item.setOp(cond.getOp());
+        item.setValue(cond.getValue());
+
+        if (cond.getOr() != null && !cond.getOr().isEmpty()) {
+            item.setOr(cond.getOr().stream().map(this::toSemanticSliceItem).collect(Collectors.toList()));
+        }
+        if (cond.getAnd() != null && !cond.getAnd().isEmpty()) {
+            item.setAnd(cond.getAnd().stream().map(this::toSemanticSliceItem).collect(Collectors.toList()));
+        }
+        return item;
+    }
+
+    private List<SemanticQueryRequest.GroupByItem> toSemanticGroupByItems(List<GroupRequestDef> groupBy) {
+        if (groupBy == null) {
+            return null;
+        }
+        return groupBy.stream()
+                .map(item -> new SemanticQueryRequest.GroupByItem(item.getField(), item.getAgg()))
+                .collect(Collectors.toList());
+    }
+
+    private List<SemanticQueryRequest.OrderItem> toSemanticOrderItems(List<OrderRequestDef> orderBy) {
+        if (orderBy == null) {
+            return null;
+        }
+        return orderBy.stream().map(item -> {
+            SemanticQueryRequest.OrderItem orderItem = new SemanticQueryRequest.OrderItem();
+            orderItem.setField(item.getField());
+            orderItem.setDir(item.getDir());
+            return orderItem;
+        }).collect(Collectors.toList());
+    }
+
+    private String normalizeDebugSql(String sql) {
+        if (sql == null) {
+            return null;
+        }
+        return sql
+                .replaceAll("(?i)\\bnot\\s+in\\s*\\(", "NOT IN (")
+                .replaceAll("(?i)\\bin\\s*\\(", "IN (");
     }
 
     /**

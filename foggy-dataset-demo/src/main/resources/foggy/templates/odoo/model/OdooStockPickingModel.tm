@@ -5,11 +5,13 @@
  *              picking type, location, and company dimensions
  */
 import { dicts } from '../dicts.fsscript';
+import { jsonbCaption } from '../odoo17.fsscript';
 
 export const model = {
     name: 'OdooStockPickingModel',
     caption: 'Inventory Transfers',
     tableName: 'stock_picking',
+    dataSourceName: 'odoo',
     idColumn: 'id',
 
     dimensions: [
@@ -31,7 +33,8 @@ export const model = {
             tableName: 'stock_picking_type',
             foreignKey: 'picking_type_id',
             primaryKey: 'id',
-            captionColumn: 'name',
+            // Odoo 17: stock_picking_type.name is JSONB
+            captionDef: jsonbCaption(),
             caption: 'Operation Type',
             description: 'Receipt / Delivery / Internal transfer',
             properties: [

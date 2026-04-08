@@ -491,12 +491,15 @@ public final class StringUtils {
         }
         return false;
     }
-
-    public  static boolean isEmpty(final Long value) {
+    // Long 版本：null 或 0 都视为 empty
+    public static boolean isEmpty(final Long value) {
         return value == null || value == 0L;
     }
 
-    public  static boolean isEmpty(final Object value) {
+    public static boolean isNotEmpty(final Long value) {
+        return value != null && value != 0L;
+    }
+    public final static boolean isEmpty(final Object value) {
         return value == null || "".equals(value);
     }
 
@@ -919,6 +922,15 @@ public final class StringUtils {
         return maskTxt(name, 3, 4);
     }
 
+    /**
+     String tel1="1234567890";
+     * 隐藏后四位: maskTxt(tel1,0,tel1.length()-4)
+     * 只显示第一位 maskTxt("小明",1,"小明".length()-1)
+     * @param name
+     * @param start
+     * @param length
+     * @return
+     */
     public static String maskTxt(String name, int start, int length) {
         if (name == null) {
             return null;

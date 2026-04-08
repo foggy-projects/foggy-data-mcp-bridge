@@ -145,3 +145,6 @@ __pycache__/
 # ====================
 docs-site/.vitepress/cache/
 docs-site/.vitepress/dist/
+.tmp-gen*
+.claude/plans/
+model-manifest.json

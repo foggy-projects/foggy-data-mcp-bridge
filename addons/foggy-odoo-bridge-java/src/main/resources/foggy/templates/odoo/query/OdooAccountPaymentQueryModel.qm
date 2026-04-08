@@ -1,0 +1,81 @@
+/**
+ * Account Payment Query Model
+ *
+ * @caption Payment Analysis
+ * @description Query payment records by partner, currency, method, and time period.
+ *              Permissions enforced via payload.slice injection from Odoo MCP Gateway.
+ */
+const ap = loadTableModel('OdooAccountPaymentModel');
+
+export const queryModel = {
+    name: 'OdooAccountPaymentQueryModel',
+    caption: 'Payment Analysis',
+    description: 'Analyze payments by partner, type, currency, and time period. '
+        + 'Filter by payment_type: "inbound" for received payments, "outbound" for sent payments. '
+        + 'Filter by partner_type: "customer" or "supplier".',
+    loader: 'v2',
+
+    model: ap,
+
+    columnGroups: [
+        {
+            caption: 'Payment Information',
+            items: [
+                { ref: ap.id },
+                { ref: ap.paymentType },
+                { ref: ap.partnerType },
+                { ref: ap.paymentReference },
+                { ref: ap.isReconciled },
+                { ref: ap.isMatched },
+                { ref: ap.isInternalTransfer },
+                { ref: ap.createDate },
+                { ref: ap.writeDate }
+            ]
+        },
+        {
+            caption: 'Partner',
+            items: [
+                { ref: ap.partner },
+                { ref: ap.partner$email },
+                { ref: ap.partner$phone },
+                { ref: ap.partner$city },
+                { ref: ap.partner$isCompany }
+            ]
+        },
+        {
+            caption: 'Journal Entry',
+            items: [
+                { ref: ap.move },
+                { ref: ap.move$date },
+                { ref: ap.move$state }
+            ]
+        },
+        {
+            caption: 'Payment Details',
+            items: [
+                { ref: ap.currency },
+                { ref: ap.paymentMethod },
+                { ref: ap.paymentMethod$code },
+                { ref: ap.destinationJournal },
+                { ref: ap.destinationJournal$code }
+            ]
+        },
+        {
+            caption: 'Amounts',
+            items: [
+                { ref: ap.amount },
+                { ref: ap.amountCompanyCurrencySigned },
+                { ref: ap.paymentCount },
+                {
+                    name: 'avgPaymentAmount',
+                    caption: 'Avg Payment Amount',
+                    formula: 'amount / paymentCount',
+                    type: 'MONEY'
+                }
+            ]
+        }
+    ],
+
+    // No accesses — permissions injected by Odoo MCP Gateway via payload.slice
+    accesses: []
+};

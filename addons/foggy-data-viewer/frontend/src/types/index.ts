@@ -257,3 +257,131 @@ export interface QueryHooks {
   onAfterQuery?: AfterQueryHookFn
   onQueryError?: ErrorQueryHookFn
 }
+
+// ========== Frontend Meta v1 ==========
+
+/** 前端元数据契约 (frontend-meta v1) */
+export interface FrontendMeta {
+  metaVersion: string
+  model: string
+  caption: string
+  description?: string
+  fields: FieldMeta[]
+  defaults?: DefaultsMeta
+  capabilities?: CapabilitiesMeta
+  params?: ParamsMeta
+}
+
+/** 字段分类 */
+export type FieldCategory =
+  | 'dimension-id'
+  | 'dimension-caption'
+  | 'dimension-property'
+  | 'attribute'
+  | 'measure'
+  | 'calculated'
+
+/** 字段元数据 */
+export interface FieldMeta {
+  name: string
+  title: string
+  type: string
+  category: FieldCategory
+  filterType?: string
+  filterable?: boolean
+  sortable?: boolean
+  measure?: boolean
+  aggregatable?: boolean
+  aggregation?: string
+  sourceColumn?: string
+  dictId?: string
+  dictMode?: 'static' | 'remote'
+  calculated?: boolean
+  hierarchical?: boolean
+  hierarchyOps?: string[]
+  memberLookup?: MemberLookupMeta
+  uiHints?: UiHintsMeta
+}
+
+/** 维度成员远程查询配置 */
+export interface MemberLookupMeta {
+  enabled: boolean
+  selectionFieldName: string
+  displayFieldName: string
+  searchable?: boolean
+  pageable?: boolean
+  defaultLimit?: number
+}
+
+/** 前端 UI 提示 */
+export interface UiHintsMeta {
+  visible?: boolean
+  required?: boolean
+  nullable?: boolean
+  format?: string
+  width?: number
+}
+
+/** 默认配置 */
+export interface DefaultsMeta {
+  visibleColumns?: string[]
+  searchFields?: string[]
+  pageSize?: number
+  orderBy?: Array<{ field: string; order: 'asc' | 'desc' }>
+}
+
+/** 模型级能力声明 */
+export interface CapabilitiesMeta {
+  pageable?: boolean
+  sortable?: boolean
+  filterable?: boolean
+  aggregatable?: boolean
+}
+
+/** 参数入口 */
+export interface ParamsMeta {
+  global?: Record<string, unknown>
+  custom?: Record<string, unknown>
+}
+
+// ========== Member Query ==========
+
+/** 维度成员查询请求 */
+export interface MemberQueryRequest {
+  qmModel: string
+  fieldName: string
+  keyword?: string
+  start?: number
+  limit?: number
+  selectedValues?: Array<string | number>
+  hierarchy?: {
+    op: string
+    value: string | number
+  }
+}
+
+/** 维度成员选项 */
+export interface MemberOption {
+  value: string | number
+  label: string
+  parentValue?: string | number | null
+  depth?: number
+  hasChildren?: boolean
+  pathValues?: Array<string | number>
+  pathLabels?: string[]
+  disabled?: boolean
+}
+
+/** 维度成员查询响应 */
+export interface MemberQueryResponse {
+  qmModel?: string
+  fieldName?: string
+  selectionFieldName: string
+  displayFieldName: string
+  hierarchical?: boolean
+  hierarchyOps?: string[]
+  items: MemberOption[]
+  selectedItems?: MemberOption[]
+  total: number
+  hasMore?: boolean
+}

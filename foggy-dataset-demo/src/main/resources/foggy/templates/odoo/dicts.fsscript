@@ -128,6 +128,32 @@ export const dicts = {
     }),
 
     /**
+     * CRM 线索/商机类型 (crm.lead.type)
+     */
+    crm_lead_type: registerDict({
+        id: 'odoo_crm_lead_type',
+        caption: 'Lead/Opportunity Type',
+        items: [
+            { value: 'lead', label: 'Lead' },
+            { value: 'opportunity', label: 'Opportunity' }
+        ]
+    }),
+
+    /**
+     * CRM 优先级 (crm.lead.priority)
+     */
+    crm_lead_priority: registerDict({
+        id: 'odoo_crm_lead_priority',
+        caption: 'Priority',
+        items: [
+            { value: '0', label: 'Normal' },
+            { value: '1', label: 'Low' },
+            { value: '2', label: 'High' },
+            { value: '3', label: 'Very High' }
+        ]
+    }),
+
+    /**
      * 合作伙伴类型
      */
     partner_type: registerDict({
@@ -139,6 +165,116 @@ export const dicts = {
             { value: 'delivery', label: 'Delivery Address' },
             { value: 'other', label: 'Other Address' },
             { value: 'private', label: 'Private Address' }
+        ]
+    }),
+
+    /**
+     * 付款类型 (account.payment.payment_type)
+     */
+    payment_type: registerDict({
+        id: 'odoo_payment_type',
+        caption: 'Payment Type',
+        items: [
+            { value: 'inbound', label: 'Receive Money' },
+            { value: 'outbound', label: 'Send Money' }
+        ]
+    }),
+
+    /**
+     * 付款对象类型 (account.payment.partner_type)
+     */
+    payment_partner_type: registerDict({
+        id: 'odoo_payment_partner_type',
+        caption: 'Payment Partner Type',
+        items: [
+            { value: 'customer', label: 'Customer' },
+            { value: 'supplier', label: 'Vendor' }
+        ]
+    }),
+
+    /**
+     * 会计分录行展示类型 (account.move.line.display_type)
+     */
+    move_line_display_type: registerDict({
+        id: 'odoo_move_line_display_type',
+        caption: 'Line Display Type',
+        items: [
+            { value: 'product', label: 'Product' },
+            { value: 'cogs', label: 'Cost of Goods Sold' },
+            { value: 'tax', label: 'Tax' },
+            { value: 'rounding', label: 'Rounding' },
+            { value: 'payment_term', label: 'Payment Term' },
+            { value: 'line_section', label: 'Section' },
+            { value: 'line_note', label: 'Note' },
+            { value: 'epd', label: 'Early Payment Discount' }
+        ]
+    }),
+
+    /**
+     * 产品类型 (product.template.detailed_type)
+     */
+    product_detailed_type: registerDict({
+        id: 'odoo_product_detailed_type',
+        caption: 'Product Type',
+        items: [
+            { value: 'consu', label: 'Consumable' },
+            { value: 'service', label: 'Service' },
+            { value: 'product', label: 'Storable Product' }
+        ]
+    }),
+
+    /**
+     * 产品开票策略 (product.template.invoice_policy)
+     */
+    product_invoice_policy: registerDict({
+        id: 'odoo_product_invoice_policy',
+        caption: 'Invoicing Policy',
+        items: [
+            { value: 'order', label: 'Ordered Quantities' },
+            { value: 'delivery', label: 'Delivered Quantities' }
+        ]
+    }),
+
+    /**
+     * 项目任务状态 (project.task — Odoo 17 uses stage_id for kanban,
+     * but state field stores the lifecycle state)
+     */
+    project_task_state: registerDict({
+        id: 'odoo_project_task_state',
+        caption: 'Task State',
+        items: [
+            { value: '01_in_progress', label: 'In Progress' },
+            { value: '1_done', label: 'Done' },
+            { value: '1_canceled', label: 'Canceled' },
+            { value: '04_waiting_normal', label: 'Waiting' }
+        ]
+    }),
+
+    /**
+     * 项目任务优先级 (project.task.priority)
+     */
+    project_task_priority: registerDict({
+        id: 'odoo_project_task_priority',
+        caption: 'Task Priority',
+        items: [
+            { value: '0', label: 'Normal' },
+            { value: '1', label: 'Important' }
+        ]
+    }),
+
+    /**
+     * 生产订单状态 (mrp.production.state)
+     */
+    mrp_production_state: registerDict({
+        id: 'odoo_mrp_production_state',
+        caption: 'Manufacturing Order Status',
+        items: [
+            { value: 'draft', label: 'Draft' },
+            { value: 'confirmed', label: 'Confirmed' },
+            { value: 'progress', label: 'In Progress' },
+            { value: 'to_close', label: 'To Close' },
+            { value: 'done', label: 'Done' },
+            { value: 'cancel', label: 'Cancelled' }
         ]
     })
 }

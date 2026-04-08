@@ -8,7 +8,7 @@ description: 根据 TM 模型生成 QM（查询模型）文件。当用户要求
 根据 TM 模型生成 QM（查询模型）文件，定义可查询的字段和 UI 配置。
 
 ## QM语法规范
-如果需要获取更多的qm语法规范，请参考[Foggy QM 语法规范](https://foggy-projects.github.io/foggy-data-mcp-docs/downloads/qm-syntax.md)
+如果需要获取更多的qm语法规范，请参考[Foggy QM 语法规范](https://foggy-projects.github.io/foggy-data-mcp-bridge/downloads/qm-syntax.md)
 
 ## TM 与 QM 的架构关系
 
@@ -128,7 +128,28 @@ QM 文件已生成：{文件路径}
 - 度量：{字段列表}
 ```
 
-## 约束条件
+## 约束条件（必须严格遵守）
+
+### 硬性语法要求
+
+以下属性名和结构是引擎强制要求的，**不可使用其他变体名**：
+
+| 必须使用 | 禁止使用 | 说明 |
+|---------|---------|------|
+| `export const queryModel = {...}` | `export const query`, `export const qm` | 导出变量名必须是 `queryModel` |
+| `model: fo` | `modelRef: fo`, `tableModel: fo` | TM 引用属性名必须是 `model` |
+| `columnGroups: [{ caption, items }]` | `columns: [{ ref, caption }]` | 列定义必须用 `columnGroups` + `items` 结构 |
+| `{ ref: fo.fieldName }` | `{ name: 'fieldName' }` | 列引用必须用 `ref` 语法 |
+
+### 维度引用前置检查
+
+在 QM 中引用维度字段前，检查 TM 中该维度是否具备完整配置：
+
+- ✅ 有 `tableName`（维度表名）+ `captionColumn`（显示列）→ 可在 QM 中引用，会自动展开 `$id` 和 `$caption`
+- ❌ 只有 `foreignKey` 但无 `tableName` → **不可在 QM 中引用该维度**，只能引用 properties 和 measures
+- 如果维度配置不完整，在 QM 中跳过该维度并输出警告
+
+### 其他规范
 
 - QM 文件名格式：`{TM模型名}QueryModel.qm`
 - 必须使用 `loadTableModel` 加载模型

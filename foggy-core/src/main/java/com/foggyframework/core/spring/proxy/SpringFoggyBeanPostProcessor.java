@@ -11,7 +11,10 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.config.BeanPostProcessor;
+import org.springframework.aop.SpringProxy;
+import org.springframework.aop.framework.Advised;
 import org.springframework.context.ApplicationContext;
+import org.springframework.core.DecoratingProxy;
 import org.springframework.core.Ordered;
 
 import java.lang.reflect.InvocationTargetException;
@@ -52,13 +55,19 @@ public class SpringFoggyBeanPostProcessor implements BeanPostProcessor, Ordered 
         bean = BeanPostProcessor.super.postProcessAfterInitialization(bean, beanName);
         Object oriBean = BeanPostProcessor.super.postProcessAfterInitialization(bean, beanName);
         Class cls = beanName2Class.remove(beanName);
+        if (cls == null) {
+            // FactoryBean 产品（如 @FeignClient）Spring 不调用 postProcessBeforeInitialization，
+            // beanName2Class 中无记录，直接用当前 bean 的 class 兜底
+            cls = bean.getClass();
+        }
 
         if (match(cls, beanName)) {
 
             SpringFoggyBeanProxy proxy = null;
+            Class<?>[] userInterfaces = resolveUserInterfaces(cls);
             if (bean instanceof SpringCGLibProxy.FoggySuperclass) {
                 //呃 已经 被 代理 过了~~
-                List<Class> clss = Arrays.stream(cls.getInterfaces()).collect(Collectors.toList());
+                List<Class> clss = Arrays.stream(userInterfaces).collect(Collectors.toList());
 
                 for (Class anInterface : clss) {
                     proxy = build(proxy, anInterface.getMethods(), bean, beanName, cls,true);
@@ -84,10 +93,10 @@ public class SpringFoggyBeanPostProcessor implements BeanPostProcessor, Ordered 
                 }
             } else if (Modifier.isFinal(cls.getModifiers())) {
 
-                if (cls.getInterfaces().length > 1) {
+                if (userInterfaces.length > 1) {
                     throw new RuntimeException("仅支持一个接口的！" + cls + "," + beanName);
                 }
-                for (Class anInterface : cls.getInterfaces()) {
+                for (Class anInterface : userInterfaces) {
                     proxy = build(proxy, anInterface.getMethods(), bean, beanName, cls,false);
                 }
             } else {
@@ -98,7 +107,7 @@ public class SpringFoggyBeanPostProcessor implements BeanPostProcessor, Ordered 
             if (proxy == null) {
                 return bean;
             }
-            bean = cglibProxy.newProxyInterface(cls, proxy, null);
+            bean = cglibProxy.newProxyInterface(cls, proxy, userInterfaces.length == 0 ? null : userInterfaces);
 
 
         } else {
@@ -117,10 +126,14 @@ public class SpringFoggyBeanPostProcessor implements BeanPostProcessor, Ordered 
                 //不会对表态方法进行拦截！！！
                 continue;
             }
+            // method 可能来自 JDK 动态代理类（jdk.proxy*/com.sun.proxy*）。
+            // 代理类覆盖了接口方法但不继承接口上的注解，FoggyMethodFilterBuilder 需要拿到原始接口方法才能正确读取注解。
+            // method.invoke / proxy.addFilters 仍使用原始 method，以保证代理拦截时的方法匹配。
+            Method resolvedMethod = resolveInterfaceMethod(method, beanClass);
             List<FoggyMethodFilter> filters = null;
             for (FoggyMethodFilterBuilder build : builders) {
 
-                FoggyMethodFilter filter = build.build(method, beanName, beanClass);
+                FoggyMethodFilter filter = build.build(resolvedMethod, beanName, beanClass);
                 if (filter != null) {
                     if (filters == null) {
                         filters = new ArrayList<>();
@@ -153,13 +166,44 @@ public class SpringFoggyBeanPostProcessor implements BeanPostProcessor, Ordered 
 
                     });
                 }
-                String[] methodNames = FoggyBeanUtils.getParameterNames(method);
+                String[] methodNames = FoggyBeanUtils.getParameterNames(resolvedMethod);
                 proxy.addFilters(method, methodNames, filters);
             }
 
         }
 
         return proxy;
+    }
+
+    /**
+     * 将 JDK 动态代理类的方法解析为原始接口方法。
+     * <p>
+     * JDK 动态代理（jdk.proxy* / com.sun.proxy*）会在代理类中生成每个接口方法的实现，
+     * 这些实现方法不继承接口上定义的注解（Java 方法注解不跨实现类继承）。
+     * 通过此方法找到 beanClass 所实现的接口中同签名的方法，使 FoggyMethodFilterBuilder
+     * 能正确读取注解。若非代理方法或未找到接口方法，则原样返回。
+     */
+    private static Method resolveInterfaceMethod(Method method, Class<?> beanClass) {
+        String declaringName = method.getDeclaringClass().getName();
+        if (!declaringName.startsWith("jdk.proxy") && !declaringName.startsWith("com.sun.proxy")) {
+            return method;
+        }
+        for (Class<?> iface : beanClass.getInterfaces()) {
+            try {
+                return iface.getMethod(method.getName(), method.getParameterTypes());
+            } catch (NoSuchMethodException ignored) {
+            }
+        }
+        return method;
+    }
+
+    private static Class<?>[] resolveUserInterfaces(Class<?> cls) {
+        return Arrays.stream(cls.getInterfaces())
+                .filter(anInterface -> anInterface != SpringProxy.class)
+                .filter(anInterface -> anInterface != Advised.class)
+                .filter(anInterface -> anInterface != DecoratingProxy.class)
+                .distinct()
+                .toArray(Class<?>[]::new);
     }
 
     private String getMsg(Throwable e) {
@@ -215,6 +259,7 @@ public class SpringFoggyBeanPostProcessor implements BeanPostProcessor, Ordered 
 
             return false;
         }
+        log.info("[Foggy] match check: beanName={}, cls={}", beanName, cls.getName());
         //呃，FeignClient的cls没有package
         String pn;
         if (cls.getPackage() == null || cls.getPackage().getName().startsWith("jdk.proxy")
@@ -268,8 +313,10 @@ public class SpringFoggyBeanPostProcessor implements BeanPostProcessor, Ordered 
 
     @Override
     public int getOrder() {
-        //警告，它的顺序，必须在事务处理器等bean之后
-        return Ordered.LOWEST_PRECEDENCE;
+        // 在 Spring AOP AbstractAutoProxyCreator 之前执行
+        // FoggyMethodFilter 代理在 AOP 代理内层
+        // 调用顺序: AOP(@Transactional等) → FoggyMethodFilter → 原始方法
+        return Ordered.LOWEST_PRECEDENCE - 2;
     }
 
 }

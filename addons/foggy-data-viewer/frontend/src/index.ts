@@ -8,6 +8,7 @@ export { default as DataTable } from './components/DataTable.vue'
 export { default as DataViewer } from './components/DataViewer.vue'
 export { default as SearchToolbar } from './components/SearchToolbar.vue'
 export { default as DataTableWithSearch } from './components/DataTableWithSearch.vue'
+export { default as QueryPanel } from './components/QueryPanel.vue'
 
 // 导出过滤器组件
 export * from './components/filters'
@@ -27,7 +28,10 @@ export {
   fetchQueryMeta,
   fetchQueryData,
   fetchFilterOptions,
-  fetchQmSchema
+  fetchQmSchema,
+  fetchQueryDataDirect,
+  fetchFrontendMeta,
+  fetchMemberOptions
 } from './api/viewer'
 
 // 导出 API 类型
@@ -80,5 +84,18 @@ export type {
   BeforeQueryHookFn,
   AfterQueryHookFn,
   ErrorQueryHookFn,
-  MaybePromise
+  MaybePromise,
+  // Frontend Meta v1
+  FrontendMeta,
+  FieldMeta,
+  FieldCategory,
+  MemberLookupMeta,
+  UiHintsMeta,
+  DefaultsMeta,
+  CapabilitiesMeta,
+  ParamsMeta,
+  // Member Query
+  MemberQueryRequest,
+  MemberOption,
+  MemberQueryResponse
 } from './types'

@@ -3,7 +3,6 @@ package com.foggyframework.core.utils;
 
 import java.text.DecimalFormat;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -57,7 +56,12 @@ public final class NumberUtils {
         }
         return toFixedStr(value / 100.0);
     }
-
+    public static String cent2yuan(Long value) {
+        if (value == null) {
+            return "0";
+        }
+        return toFixedStr(value / 100.0);
+    }
     /**
      * 把分转成元为单位的字符串
      * 2022-12-12 升级，如果是以.00结束，则去掉.00
@@ -527,6 +531,14 @@ public final class NumberUtils {
         return total;
     }
 
+    public static long sumLong(Long... vs) {
+        long total = 0;
+        for (Long v : vs) {
+            total = total + (v == null ? 0 : v);
+        }
+        return total;
+    }
+
     public static int toInt(Integer object) {
         return object == null ? 0 : object;
     }
@@ -534,7 +546,9 @@ public final class NumberUtils {
     public static boolean isZero(Integer object) {
         return object == null || object == 0;
     }
-
+    public static boolean isZero(Long object) {
+        return object == null || object == 0;
+    }
     public static long toLong(Long object) {
         return object == null ? 0 : object;
     }

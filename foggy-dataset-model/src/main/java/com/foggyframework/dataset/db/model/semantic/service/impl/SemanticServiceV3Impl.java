@@ -18,6 +18,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -35,6 +36,7 @@ import java.util.*;
  *   <li>salesDate$caption - 可以有独立的描述（如：格式 yyyy年mm月dd日）</li>
  * </ul>
  */
+@Slf4j
 @Service
 public class SemanticServiceV3Impl implements SemanticServiceV3 {
 
@@ -89,16 +91,22 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         Map<String, Object> models = new LinkedHashMap<>();
 
         for (String qmModelName : request.getQmModels()) {
-            QueryModel queryModel = queryModelLoader.getJdbcQueryModel(qmModelName, namespace);
-            if (queryModel == null) {
-                continue;
+            try {
+                QueryModel queryModel = queryModelLoader.getJdbcQueryModel(qmModelName, namespace);
+                if (queryModel == null) {
+                    log.warn("metadata 构建跳过模型 '{}': 模型不存在或加载返回 null", qmModelName);
+                    continue;
+                }
+
+                // 处理字段信息（展开维度字段）
+                processModelFieldsV3(queryModel, fields, request.getFields(), request.getLevels());
+
+                // 处理模型信息
+                processModelInfo(queryModel, models);
+            } catch (Exception e) {
+                // 单模型加载失败不拖垮整包 metadata
+                log.warn("metadata 构建跳过模型 '{}': {}", qmModelName, e.getMessage());
             }
-
-            // 处理字段信息（展开维度字段）
-            processModelFieldsV3(queryModel, fields, request.getFields(), request.getLevels());
-
-            // 处理模型信息
-            processModelInfo(queryModel, models);
         }
 
         data.put("fields", fields);

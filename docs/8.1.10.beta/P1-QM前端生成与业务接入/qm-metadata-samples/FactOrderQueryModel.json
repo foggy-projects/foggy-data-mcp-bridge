@@ -1,0 +1,645 @@
+{
+  "prompt" : "## 使用说明 (V3版本)\n- 格式约定：字段类型 | 数据类型 | 格式说明\n",
+  "version" : "v3",
+  "fields" : {
+    "orderDate$id" : {
+      "name" : "订单日期(ID)",
+      "fieldName" : "orderDate$id",
+      "meta" : "维度ID | 数值/文本 | 日期主键，格式yyyyMMdd，如20240101",
+      "type" : "TEXT",
+      "filterType" : "dimension",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "sourceColumn" : "date_key",
+      "models" : {
+        "FactOrderQueryModel" : {
+          "description" : "orderDate$id | 订单日期的ID/值 | 日期主键，格式yyyyMMdd，如20240101",
+          "usage" : "用于精确查询、作为外键关联、排序"
+        }
+      }
+    },
+    "orderDate$caption" : {
+      "name" : "订单日期(名称)",
+      "fieldName" : "orderDate$caption",
+      "meta" : "维度名称 | 文本 | 订单日期主键",
+      "type" : "TEXT",
+      "filterType" : "dimension",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "models" : {
+        "FactOrderQueryModel" : {
+          "description" : "orderDate$caption | 订单日期的显示名称 | 订单日期主键",
+          "usage" : "用于展示、模糊查询"
+        }
+      }
+    },
+    "orderDate$year" : {
+      "name" : "年",
+      "fieldName" : "orderDate$year",
+      "meta" : "维度属性 | 文本",
+      "type" : "TEXT",
+      "filterType" : "text",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "models" : {
+        "FactOrderQueryModel" : {
+          "description" : "下单的年份"
+        }
+      }
+    },
+    "orderDate$quarter" : {
+      "name" : "季度",
+      "fieldName" : "orderDate$quarter",
+      "meta" : "维度属性 | 文本",
+      "type" : "TEXT",
+      "filterType" : "text",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "models" : {
+        "FactOrderQueryModel" : {
+          "description" : "下单的季度（1-4）"
+        }
+      }
+    },
+    "orderDate$month" : {
+      "name" : "月",
+      "fieldName" : "orderDate$month",
+      "meta" : "维度属性 | 文本",
+      "type" : "TEXT",
+      "filterType" : "text",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "models" : {
+        "FactOrderQueryModel" : {
+          "description" : "下单的月份（1-12）"
+        }
+      }
+    },
+    "orderDate$monthName" : {
+      "name" : "月份名称",
+      "fieldName" : "orderDate$monthName",
+      "meta" : "维度属性 | 文本",
+      "type" : "TEXT",
+      "filterType" : "text",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "models" : {
+        "FactOrderQueryModel" : {
+          "description" : "下单的月份中文名（一月至十二月）"
+        }
+      }
+    },
+    "orderDate$dayOfWeek" : {
+      "name" : "周几",
+      "fieldName" : "orderDate$dayOfWeek",
+      "meta" : "维度属性 | 文本",
+      "type" : "TEXT",
+      "filterType" : "text",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "models" : {
+        "FactOrderQueryModel" : {
+          "description" : "下单的在周几（1=周一）"
+        }
+      }
+    },
+    "orderDate$dayName" : {
+      "name" : "星期名称",
+      "fieldName" : "orderDate$dayName",
+      "meta" : "维度属性 | 文本",
+      "type" : "TEXT",
+      "filterType" : "text",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "models" : {
+        "FactOrderQueryModel" : {
+          "description" : "下单的星期中文名（周一至周日）"
+        }
+      }
+    },
+    "orderDate$isWeekend" : {
+      "name" : "是否周末",
+      "fieldName" : "orderDate$isWeekend",
+      "meta" : "维度属性 | 文本",
+      "type" : "TEXT",
+      "filterType" : "text",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "models" : {
+        "FactOrderQueryModel" : {
+          "description" : "下单的是否在周末"
+        }
+      }
+    },
+    "customer$id" : {
+      "name" : "客户(ID)",
+      "fieldName" : "customer$id",
+      "meta" : "维度ID | 数值/文本 | 客户代理键，自增整数",
+      "type" : "TEXT",
+      "filterType" : "dimension",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "sourceColumn" : "customer_key",
+      "models" : {
+        "FactOrderQueryModel" : {
+          "description" : "customer$id | 客户的ID/值 | 客户代理键，自增整数",
+          "usage" : "用于精确查询、作为外键关联、排序"
+        }
+      }
+    },
+    "customer$caption" : {
+      "name" : "客户(名称)",
+      "fieldName" : "customer$caption",
+      "meta" : "维度名称 | 文本 | 客户主键",
+      "type" : "TEXT",
+      "filterType" : "dimension",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "models" : {
+        "FactOrderQueryModel" : {
+          "description" : "customer$caption | 客户的显示名称 | 客户主键",
+          "usage" : "用于展示、模糊查询"
+        }
+      }
+    },
+    "customer$customerType" : {
+      "name" : "客户类型",
+      "fieldName" : "customer$customerType",
+      "meta" : "维度属性 | 文本",
+      "type" : "TEXT",
+      "filterType" : "text",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "models" : {
+        "FactOrderQueryModel" : {
+          "description" : "下单客户类型：个人/企业"
+        }
+      }
+    },
+    "customer$gender" : {
+      "name" : "性别",
+      "fieldName" : "customer$gender",
+      "meta" : "维度属性 | 文本",
+      "type" : "TEXT",
+      "filterType" : "text",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "models" : {
+        "FactOrderQueryModel" : {
+          "description" : "下单客户性别：男/女"
+        }
+      }
+    },
+    "customer$ageGroup" : {
+      "name" : "年龄段",
+      "fieldName" : "customer$ageGroup",
+      "meta" : "维度属性 | 文本",
+      "type" : "TEXT",
+      "filterType" : "text",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "models" : {
+        "FactOrderQueryModel" : {
+          "description" : "下单客户年龄段：18-25/26-35/36-45/46+"
+        }
+      }
+    },
+    "customer$province" : {
+      "name" : "省份",
+      "fieldName" : "customer$province",
+      "meta" : "维度属性 | 文本",
+      "type" : "TEXT",
+      "filterType" : "text",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "models" : {
+        "FactOrderQueryModel" : {
+          "description" : "下单客户所在省份"
+        }
+      }
+    },
+    "customer$city" : {
+      "name" : "城市",
+      "fieldName" : "customer$city",
+      "meta" : "维度属性 | 文本",
+      "type" : "TEXT",
+      "filterType" : "text",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "models" : {
+        "FactOrderQueryModel" : {
+          "description" : "下单客户所在城市"
+        }
+      }
+    },
+    "customer$memberLevel" : {
+      "name" : "会员等级",
+      "fieldName" : "customer$memberLevel",
+      "meta" : "维度属性 | 文本",
+      "type" : "TEXT",
+      "filterType" : "text",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "models" : {
+        "FactOrderQueryModel" : {
+          "description" : "下单客户会员等级：普通/银卡/金卡/钻石"
+        }
+      }
+    },
+    "store$id" : {
+      "name" : "门店(ID)",
+      "fieldName" : "store$id",
+      "meta" : "维度ID | 数值/文本 | 门店代理键，自增整数",
+      "type" : "TEXT",
+      "filterType" : "dimension",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "sourceColumn" : "store_key",
+      "models" : {
+        "FactOrderQueryModel" : {
+          "description" : "store$id | 门店的ID/值 | 门店代理键，自增整数",
+          "usage" : "用于精确查询、作为外键关联、排序"
+        }
+      }
+    },
+    "store$caption" : {
+      "name" : "门店(名称)",
+      "fieldName" : "store$caption",
+      "meta" : "维度名称 | 文本 | 门店主键",
+      "type" : "TEXT",
+      "filterType" : "dimension",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "models" : {
+        "FactOrderQueryModel" : {
+          "description" : "store$caption | 门店的显示名称 | 门店主键",
+          "usage" : "用于展示、模糊查询"
+        }
+      }
+    },
+    "store$storeType" : {
+      "name" : "门店类型",
+      "fieldName" : "store$storeType",
+      "meta" : "维度属性 | 文本",
+      "type" : "TEXT",
+      "filterType" : "text",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "models" : {
+        "FactOrderQueryModel" : {
+          "description" : "订单类型：直营店/加盟店/旗舰店"
+        }
+      }
+    },
+    "store$province" : {
+      "name" : "省份",
+      "fieldName" : "store$province",
+      "meta" : "维度属性 | 文本",
+      "type" : "TEXT",
+      "filterType" : "text",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "models" : {
+        "FactOrderQueryModel" : {
+          "description" : "订单所在省份"
+        }
+      }
+    },
+    "store$city" : {
+      "name" : "城市",
+      "fieldName" : "store$city",
+      "meta" : "维度属性 | 文本",
+      "type" : "TEXT",
+      "filterType" : "text",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "models" : {
+        "FactOrderQueryModel" : {
+          "description" : "订单所在城市"
+        }
+      }
+    },
+    "store$managerName" : {
+      "name" : "店长",
+      "fieldName" : "store$managerName",
+      "meta" : "维度属性 | 文本",
+      "type" : "TEXT",
+      "filterType" : "text",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "models" : {
+        "FactOrderQueryModel" : {
+          "description" : "订单负责人姓名"
+        }
+      }
+    },
+    "channel$id" : {
+      "name" : "渠道(ID)",
+      "fieldName" : "channel$id",
+      "meta" : "维度ID | 数值/文本 | 渠道代理键，自增整数",
+      "type" : "TEXT",
+      "filterType" : "dimension",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "sourceColumn" : "channel_key",
+      "models" : {
+        "FactOrderQueryModel" : {
+          "description" : "channel$id | 渠道的ID/值 | 渠道代理键，自增整数",
+          "usage" : "用于精确查询、作为外键关联、排序"
+        }
+      }
+    },
+    "channel$caption" : {
+      "name" : "渠道(名称)",
+      "fieldName" : "channel$caption",
+      "meta" : "维度名称 | 文本 | 渠道主键",
+      "type" : "TEXT",
+      "filterType" : "dimension",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "models" : {
+        "FactOrderQueryModel" : {
+          "description" : "channel$caption | 渠道的显示名称 | 渠道主键",
+          "usage" : "用于展示、模糊查询"
+        }
+      }
+    },
+    "channel$channelType" : {
+      "name" : "渠道类型",
+      "fieldName" : "channel$channelType",
+      "meta" : "维度属性 | 文本",
+      "type" : "TEXT",
+      "filterType" : "text",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "models" : {
+        "FactOrderQueryModel" : {
+          "description" : "订单渠道类型：线上/线下"
+        }
+      }
+    },
+    "channel$platform" : {
+      "name" : "平台",
+      "fieldName" : "channel$platform",
+      "meta" : "维度属性 | 文本",
+      "type" : "TEXT",
+      "filterType" : "text",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "models" : {
+        "FactOrderQueryModel" : {
+          "description" : "订单渠道平台：淘宝/京东/线下门店"
+        }
+      }
+    },
+    "promotion$id" : {
+      "name" : "促销活动(ID)",
+      "fieldName" : "promotion$id",
+      "meta" : "维度ID | 数值/文本 | 促销活动代理键，自增整数",
+      "type" : "TEXT",
+      "filterType" : "dimension",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "sourceColumn" : "promotion_key",
+      "models" : {
+        "FactOrderQueryModel" : {
+          "description" : "promotion$id | 促销活动的ID/值 | 促销活动代理键，自增整数",
+          "usage" : "用于精确查询、作为外键关联、排序"
+        }
+      }
+    },
+    "promotion$caption" : {
+      "name" : "促销活动(名称)",
+      "fieldName" : "promotion$caption",
+      "meta" : "维度名称 | 文本 | 促销活动主键",
+      "type" : "TEXT",
+      "filterType" : "dimension",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "models" : {
+        "FactOrderQueryModel" : {
+          "description" : "promotion$caption | 促销活动的显示名称 | 促销活动主键",
+          "usage" : "用于展示、模糊查询"
+        }
+      }
+    },
+    "promotion$promotionType" : {
+      "name" : "促销类型",
+      "fieldName" : "promotion$promotionType",
+      "meta" : "维度属性 | 文本",
+      "type" : "TEXT",
+      "filterType" : "text",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "models" : {
+        "FactOrderQueryModel" : {
+          "description" : "订单促销活动类型：满减/折扣/赠品"
+        }
+      }
+    },
+    "promotion$discountRate" : {
+      "name" : "折扣率",
+      "fieldName" : "promotion$discountRate",
+      "meta" : "维度属性 | 文本",
+      "type" : "TEXT",
+      "filterType" : "text",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "models" : {
+        "FactOrderQueryModel" : {
+          "description" : "订单促销活动折扣率，如0.8表示8折"
+        }
+      }
+    },
+    "orderId" : {
+      "name" : "订单ID",
+      "fieldName" : "orderId",
+      "meta" : "属性 | 文本",
+      "type" : "STRING",
+      "filterType" : "text",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "sourceColumn" : "order_id",
+      "models" : {
+        "FactOrderQueryModel" : {
+          "description" : "订单ID"
+        }
+      }
+    },
+    "orderStatus" : {
+      "name" : "订单状态",
+      "fieldName" : "orderStatus",
+      "meta" : "属性 | 文本",
+      "type" : "STRING",
+      "filterType" : "text",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "dictId" : "order_status",
+      "sourceColumn" : "order_status",
+      "models" : {
+        "FactOrderQueryModel" : {
+          "description" : "订单状态"
+        }
+      }
+    },
+    "paymentStatus" : {
+      "name" : "支付状态",
+      "fieldName" : "paymentStatus",
+      "meta" : "属性 | 文本",
+      "type" : "STRING",
+      "filterType" : "text",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "dictId" : "payment_status",
+      "sourceColumn" : "payment_status",
+      "models" : {
+        "FactOrderQueryModel" : {
+          "description" : "支付状态"
+        }
+      }
+    },
+    "orderTime" : {
+      "name" : "下单时间",
+      "fieldName" : "orderTime",
+      "meta" : "属性 | 日期时间",
+      "type" : "DATETIME",
+      "filterType" : "date",
+      "filterable" : true,
+      "measure" : false,
+      "aggregatable" : false,
+      "sourceColumn" : "order_time",
+      "models" : {
+        "FactOrderQueryModel" : {
+          "description" : "下单时间"
+        }
+      }
+    },
+    "quantity" : {
+      "name" : "订单总数量",
+      "fieldName" : "quantity",
+      "meta" : "度量 | 数值 | 默认聚合:SUM",
+      "type" : "INTEGER",
+      "filterType" : "number",
+      "filterable" : true,
+      "measure" : true,
+      "aggregatable" : true,
+      "aggregation" : "SUM",
+      "sourceColumn" : "total_quantity",
+      "models" : {
+        "FactOrderQueryModel" : {
+          "description" : "订单总数量 (聚合方式: SUM)"
+        }
+      }
+    },
+    "amount" : {
+      "name" : "订单总额",
+      "fieldName" : "amount",
+      "meta" : "度量 | 数值 | 默认聚合:SUM",
+      "type" : "MONEY",
+      "filterType" : "number",
+      "filterable" : true,
+      "measure" : true,
+      "aggregatable" : true,
+      "aggregation" : "SUM",
+      "sourceColumn" : "total_amount",
+      "models" : {
+        "FactOrderQueryModel" : {
+          "description" : "订单总额 (聚合方式: SUM)"
+        }
+      }
+    },
+    "discountAmount" : {
+      "name" : "折扣金额",
+      "fieldName" : "discountAmount",
+      "meta" : "度量 | 数值 | 默认聚合:SUM",
+      "type" : "MONEY",
+      "filterType" : "number",
+      "filterable" : true,
+      "measure" : true,
+      "aggregatable" : true,
+      "aggregation" : "SUM",
+      "sourceColumn" : "discount_amount",
+      "models" : {
+        "FactOrderQueryModel" : {
+          "description" : "折扣金额 (聚合方式: SUM)"
+        }
+      }
+    },
+    "freightAmount" : {
+      "name" : "运费",
+      "fieldName" : "freightAmount",
+      "meta" : "度量 | 数值 | 默认聚合:SUM",
+      "type" : "MONEY",
+      "filterType" : "number",
+      "filterable" : true,
+      "measure" : true,
+      "aggregatable" : true,
+      "aggregation" : "SUM",
+      "sourceColumn" : "freight_amount",
+      "models" : {
+        "FactOrderQueryModel" : {
+          "description" : "运费 (聚合方式: SUM)"
+        }
+      }
+    },
+    "payAmount" : {
+      "name" : "订单应付金额",
+      "fieldName" : "payAmount",
+      "meta" : "度量 | 数值 | 默认聚合:SUM",
+      "type" : "MONEY",
+      "filterType" : "number",
+      "filterable" : true,
+      "measure" : true,
+      "aggregatable" : true,
+      "aggregation" : "SUM",
+      "sourceColumn" : "pay_amount",
+      "models" : {
+        "FactOrderQueryModel" : {
+          "description" : "订单应付金额 (聚合方式: SUM)"
+        }
+      }
+    }
+  },
+  "models" : {
+    "FactOrderQueryModel" : {
+      "name" : "订单查询",
+      "factTable" : "fact_order",
+      "purpose" : "数据查询和分析",
+      "scenarios" : [ "数据查询", "统计分析", "报表生成" ]
+    }
+  }
+}

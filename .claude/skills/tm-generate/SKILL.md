@@ -28,13 +28,13 @@ description: 根据 DDL 语句、表描述或表名生成 TM（表模型）文�
 
 ### 1. 获取表结构
 
-#### 方法 1：使用 mysql-docker-client 技能（推荐）
+#### 方法 1：直接查询数据库（推荐）
 
-当用户提供表名时，使用 `mysql-docker-client` 技能获取表结构：
+当用户提供表名时，优先直接执行 SQL 获取表结构。不要假定 `mysql-docker-client` 技能一定存在。
 
 **步骤**：
-1. 使用 `AskUserQuestion` 询问数据库连接信息（host、port、user、password、database）
-2. 使用 `Bash` 工具调用脚本获取列信息、外键信息、示例数据
+1. 询问数据库连接信息（host、port、user、password、database）
+2. 用当前环境可用的命令或项目内脚本获取列信息、外键信息、示例数据
 
 **SQL 查询**：
 ```sql
@@ -51,17 +51,6 @@ WHERE TABLE_SCHEMA = '{database}' AND TABLE_NAME = '{table_name}' AND REFERENCED
 
 -- 获取示例数据（可选）
 SELECT * FROM {table_name} LIMIT 1;
-```
-
-**调用示例**：
-```bash
-python C:\Users\oldse\.claude\skills\mysql-docker-client\scripts\execute_sql.py \
-  --host {host} \
-  --port {port} \
-  --user {user} \
-  --password {password} \
-  --database {database} \
-  --sql "SELECT ..."
 ```
 
 #### 方法 2：使用本地 HTTP API（备选）
@@ -152,6 +141,7 @@ export const model = {
 - [ ] 使用维度构建器（如有可复用维度）
 - [ ] 枚举字段建议添加 dictRef
 - [ ] 重要字段提供 description（供 AI 使用）
+- [ ] 如果后续要生成 QM/前端组件，维度和层级语义足够清晰
 
 ## JDBC 专属规则
 
@@ -211,6 +201,16 @@ dimensions: [
    - `customer_key`、`customer_id` → 客户维度
    - `product_key`、`product_id` → 产品维度
    - `store_key`、`store_id` → 门店维度
+
+## 面向后续 QM / 前端组件的附加要求
+
+如果该 TM 后续要进入 `qm-generate`、`frontend-meta`、前端组件生成链路，额外注意：
+
+- 维度尽量提供稳定的 `captionColumn`
+- 组织树、地区树等层级数据要提前识别 `parent` 关系
+- 枚举型字段尽量提前判断是否应抽字典
+- 避免把纯技术字段误暴露成业务属性
+- 事实表主时间字段要清晰，便于后续 QM 设默认排序
 
 ## 高级特性
 
@@ -281,7 +281,7 @@ export const model = {
 ## 决策规则
 
 - 如用户提供 DDL → 直接解析生成
-- 如用户提供表名 → 优先使用 mysql-docker-client 获取结构
+- 如用户提供表名 → 优先使用当前环境可用的 SQL 查询方式获取结构
 - 如检测到外键 → 生成 dimensions（使用构建器）
 - 如表名含 fact_/fct_ → 事实表（FactXxxModel）
 - 如表名含 dim_或为名词 → 维度表（DimXxxModel）

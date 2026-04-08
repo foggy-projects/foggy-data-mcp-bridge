@@ -7,6 +7,7 @@ export const model = {
     name: 'OdooResCompanyModel',
     caption: 'Companies',
     tableName: 'res_company',
+    dataSourceName: 'odoo',
     idColumn: 'id',
 
     dimensions: [

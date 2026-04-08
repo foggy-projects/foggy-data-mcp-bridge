@@ -1,5 +1,14 @@
 import axios from 'axios'
-import type { QueryMetaResponse, ViewerQueryRequest, ViewerDataResponse, FilterOptionsResponse, ColumnSchema } from '@/types'
+import type {
+  QueryMetaResponse,
+  ViewerQueryRequest,
+  ViewerDataResponse,
+  FilterOptionsResponse,
+  ColumnSchema,
+  FrontendMeta,
+  MemberQueryRequest,
+  MemberQueryResponse
+} from '@/types'
 
 const apiClient = axios.create({
   baseURL: '/data-viewer/api',
@@ -146,6 +155,67 @@ export async function fetchQmSchema(qmModel: string): Promise<ColumnSchema[]> {
   }
 
   return columns
+}
+
+// ========== Direct Query (无需 queryId) ==========
+
+/**
+ * 直连查询数据（无需提前创建 queryId）
+ *
+ * 适用于生成组件的标准用法：只需 qmModel + 分页/筛选/排序即可查询。
+ * 现有 fetchQueryData(model, queryId, request) 保留给 DataViewer / SavedQuery 场景。
+ */
+export async function fetchQueryDataDirect(
+  qmModel: string,
+  request: ViewerQueryRequest
+): Promise<ViewerDataResponse> {
+  const response = await apiClient.post<any>(
+    `/query/direct/${encodeURIComponent(qmModel)}`,
+    request
+  )
+
+  if (!response.data || response.data.code !== 200) {
+    throw new Error(response.data?.msg || '查询数据失败')
+  }
+
+  return response.data.data
+}
+
+// ========== Frontend Meta v1 ==========
+
+/**
+ * 获取前端元数据契约 (frontend-meta v1)
+ *
+ * 返回面向前端渲染的标准元数据：fields 为有序数组、包含 memberLookup/category/uiHints。
+ */
+export async function fetchFrontendMeta(qmModel: string): Promise<FrontendMeta> {
+  const response = await apiClient.get<any>(`/frontend-meta/${encodeURIComponent(qmModel)}`)
+
+  if (!response.data || response.data.code !== 200) {
+    throw new Error(response.data?.msg || '获取前端元数据失败')
+  }
+
+  return response.data.data
+}
+
+// ========== Member Query ==========
+
+/**
+ * 查询维度成员（远程搜索、分页、回填）
+ *
+ * 用于 SelectFilter 的 dimension 远程模式，替代旧的 fetchFilterOptions。
+ * DSL slice 应使用返回的 selectionFieldName，而非 displayFieldName。
+ */
+export async function fetchMemberOptions(
+  request: MemberQueryRequest
+): Promise<MemberQueryResponse> {
+  const response = await apiClient.post<any>('/members/query', request)
+
+  if (!response.data || response.data.code !== 200) {
+    throw new Error(response.data?.msg || '查询维度成员失败')
+  }
+
+  return response.data.data
 }
 
 /**

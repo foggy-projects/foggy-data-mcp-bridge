@@ -6,6 +6,7 @@ import com.foggyframework.dataviewer.controller.ViewerApiController;
 import com.foggyframework.dataviewer.controller.ViewerPageController;
 import com.foggyframework.dataviewer.mcp.OpenInViewerTool;
 import com.foggyframework.dataviewer.repository.CachedQueryRepository;
+import com.foggyframework.dataviewer.service.MemberQueryService;
 import com.foggyframework.dataviewer.service.QueryCacheService;
 import com.foggyframework.dataviewer.service.QueryScopeConstraintService;
 import com.foggyframework.dataviewer.service.SavedQueryService;
@@ -61,9 +62,16 @@ public class DataViewerAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    public MemberQueryService memberQueryService(QueryFacade queryFacade) {
+        return new MemberQueryService(queryFacade);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
     public ViewerApiController viewerApiController(QueryCacheService cacheService,
-                                                    QueryFacade queryFacade) {
-        return new ViewerApiController(cacheService, queryFacade);
+                                                    QueryFacade queryFacade,
+                                                    MemberQueryService memberQueryService) {
+        return new ViewerApiController(cacheService, queryFacade, memberQueryService);
     }
 
     @Bean

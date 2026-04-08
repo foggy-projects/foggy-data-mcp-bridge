@@ -1,0 +1,64 @@
+/**
+ * Product Template Query Model
+ *
+ * @caption Product Catalog
+ * @description Query products by category, type, UoM, and pricing.
+ *              Permissions enforced via payload.slice injection from Odoo MCP Gateway.
+ */
+const pt = loadTableModel('OdooProductTemplateModel');
+
+export const queryModel = {
+    name: 'OdooProductTemplateQueryModel',
+    caption: 'Product Catalog',
+    description: 'Browse and analyze the product catalog by category, product type, unit of measure, and company. '
+        + 'Filter by detailed_type: "consu" (consumable), "service", "product" (storable). '
+        + 'Filter by active=true for current products only.',
+    loader: 'v2',
+
+    model: pt,
+
+    columnGroups: [
+        {
+            caption: 'Product Information',
+            items: [
+                { ref: pt.id },
+                { ref: pt.defaultCode },
+                { ref: pt.detailedType },
+                { ref: pt.active },
+                { ref: pt.saleOk },
+                { ref: pt.purchaseOk },
+                { ref: pt.invoicePolicy },
+                { ref: pt.tracking },
+                { ref: pt.priority },
+                { ref: pt.createDate },
+                { ref: pt.writeDate }
+            ]
+        },
+        {
+            caption: 'Classification',
+            items: [
+                { ref: pt.category },
+                { ref: pt.company }
+            ]
+        },
+        {
+            caption: 'Units of Measure',
+            items: [
+                { ref: pt.uom },
+                { ref: pt.purchaseUom }
+            ]
+        },
+        {
+            caption: 'Pricing & Physical',
+            items: [
+                { ref: pt.listPrice },
+                { ref: pt.weight },
+                { ref: pt.volume },
+                { ref: pt.productCount }
+            ]
+        }
+    ],
+
+    // No accesses — permissions injected by Odoo MCP Gateway via payload.slice
+    accesses: []
+};

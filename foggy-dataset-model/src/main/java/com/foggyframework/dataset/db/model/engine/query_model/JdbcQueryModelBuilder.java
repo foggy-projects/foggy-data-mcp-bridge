@@ -264,9 +264,11 @@ public class JdbcQueryModelBuilder implements QueryModelBuilder {
             TableModel tm = tableModelLoaderManager.load(modelName, namespace);
             return tm;
         } catch (Exception e) {
+            String namespace = com.foggyframework.dataset.db.model.spi.NamespaceContext.getNamespace();
             addError(qmName, "loadTableModel('" + modelName + "')",
-                    String.format("表模型 '%s' 加载失败: %s", modelName, e.getMessage()));
-            e.printStackTrace();
+                    String.format("表模型 '%s' 加载失败 (namespace=%s): %s",
+                            modelName, namespace != null ? namespace : "default", e.getMessage()));
+            log.error("QM [{}] 加载表模型 '{}' 失败: {}", qmName, modelName, e.getMessage());
             return null;
         }
     }
