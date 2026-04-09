@@ -29,7 +29,15 @@ import java.util.*;
  * <p>测试使用业务代码的工具定义（schemas/ 目录），确保测试和业务代码一致。
  */
 @Slf4j
-@SpringBootTest(classes = McpIntegrationTestApplication.class)
+@SpringBootTest(
+        classes = McpIntegrationTestApplication.class,
+        properties = {
+                "spring.ai.openai.api-key=test-api-key-disabled",
+                "spring.ai.openai.chat.api-key=test-api-key-disabled",
+                "spring.ai.openai.base-url=http://127.0.0.1:65535/v1",
+                "spring.ai.openai.chat.options.model=test-model-disabled"
+        }
+)
 @Import(McpIntegrationTestConfig.class)
 @ActiveProfiles({"integration", "test"})
 public abstract class AiIntegrationTestSupport {

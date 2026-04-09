@@ -55,6 +55,18 @@ export const model = {
             description: 'Payment currency'
         },
         {
+            name: 'company',
+            tableName: 'res_company',
+            foreignKey: 'company_id',
+            primaryKey: 'id',
+            captionColumn: 'name',
+            caption: 'Company',
+            description: 'Operating company',
+            closureTableName: 'res_company_closure',
+            parentKey: 'parent_id',
+            childKey: 'company_id'
+        },
+        {
             name: 'destinationJournal',
             tableName: 'account_journal',
             foreignKey: 'destination_journal_id',
