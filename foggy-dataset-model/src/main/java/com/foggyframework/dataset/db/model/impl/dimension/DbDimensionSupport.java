@@ -12,6 +12,7 @@ import com.foggyframework.dataset.db.model.impl.DbColumnSupport;
 import com.foggyframework.dataset.db.model.impl.DbObjectSupport;
 import com.foggyframework.dataset.db.model.impl.property.DbPropertyImpl;
 import com.foggyframework.dataset.db.model.path.DimensionPath;
+import com.foggyframework.dataset.db.model.semantic.member.permission.MemberPermissionDef;
 import com.foggyframework.dataset.db.model.spi.*;
 import com.foggyframework.dataset.db.model.spi.support.DbDataProviderDelegate;
 import com.foggyframework.dataset.db.model.utils.JdbcModelNamedUtils;
@@ -107,6 +108,11 @@ public abstract class DbDimensionSupport extends DbObjectSupport implements DbDi
      * 维表主键字段的 description，用于描述 $id 字段的详细说明
      */
     String keyDescription;
+
+    /**
+     * 维度成员权限配置（TM 侧声明），通过 DbDimensionDef.apply() 自动 copy。
+     */
+    MemberPermissionDef memberPermission;
 
     /**
      * 维度路径（懒加载）

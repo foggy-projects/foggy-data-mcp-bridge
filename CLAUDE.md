@@ -190,6 +190,54 @@ mvn test -pl foggy-dataset-model -P!multi-db
 - i18n 资源：`foggy-dataset-model/src/main/resources/i18n/messages*.properties`（UTF-8）
 - 帮助手册：`docs-site/`（VitePress 双语文档）
 
+## 集成测试规范：真实 SQL 数据比对
+
+涉及查询链路（QueryFacade、beforeQuery 步骤、权限注入、synthetic member-QM 等）的功能，集成测试**必须包含真实 SQL 数据比对**，不能只验证 SQL 字符串或中间对象。
+
+### 强制要求
+
+- 使用 `queryFacade.queryModelData()` 执行真实查询，获取实际返回数据
+- 编写等价的原生 SQL 作为基线，通过 `executeQuery()` 获取期望数据
+- 逐行比对实际结果与原生 SQL 结果（ID、字段值、排序、记录数）
+- 如果功能涉及过滤条件注入（如 forcedSlice），必须验证返回数据确实只包含符合条件的记录
+- 如果功能涉及列裁剪（如 visibleColumns），必须验证返回的每一行只包含允许的列
+- 如果功能涉及排序控制（如 forcedOrderBy），必须验证返回数据的实际排序
+- 如果功能涉及权限隔离，必须同时测试无权限模型不受限制
+
+### 不允许
+
+- 仅用 `buildSqlOnly()` 检查 SQL 字符串包含/不包含某片段就认为测试通过
+- 仅检查中间对象（如 extData 中的 effective permission）就认为链路正确
+- 仅用 mock 对象构造的单元测试替代真实 TM/QM 文件的集成测试
+
+### 测试模型文件
+
+- 测试用 TM/QM 文件放在 `foggy-dataset-demo/src/main/resources/foggy/templates/ecommerce/` 下
+- 新增测试模型文件后需 `mvn install -pl foggy-dataset-demo -DskipTests` 更新本地依赖
+- 集成测试继承 `EcommerceTestSupport`，使用 SQLite profile 运行
+
+### 参考模式
+
+```java
+// 1. 原生 SQL 基线
+String expectedSql = "SELECT ... FROM dim_xxx WHERE brand = 'Apple' ORDER BY ...";
+List<Map<String, Object>> expectedRows = executeQuery(expectedSql);
+
+// 2. 通过 QueryFacade 执行查询
+DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+queryRequest.setQueryModel("XxxQueryModel#dimension");
+queryRequest.setColumns(List.of("id", "caption", "brand"));
+PagingResultImpl result = queryFacade.queryModelData(PagingRequest.buildPagingRequest(queryRequest, 100));
+List<Map<String, Object>> items = castItems(result);
+
+// 3. 逐行比对
+assertEquals(expectedRows.size(), items.size());
+for (int i = 0; i < items.size(); i++) {
+    assertEquals(String.valueOf(expectedRows.get(i).get("id")), String.valueOf(items.get(i).get("id")));
+    assertEquals(expectedRows.get(i).get("brand"), items.get(i).get("brand"));
+}
+```
+
 ## 版本化需求管理
 - 后续所有讨论中的新能力、需求、增强项、重构项，必须先明确目标版本，再进入设计、实现或验收。
 - 需求文档统一放在 `docs/{版本号}/` 目录下跟踪；如果目录不存在，先创建版本目录。

@@ -21,6 +21,7 @@ import com.foggyframework.dataset.db.model.impl.utils.QueryObjectDelegate;
 import com.foggyframework.dataset.db.model.path.DimensionPath;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.semantic.member.SyntheticMemberRuntimeColumn;
+import com.foggyframework.dataset.db.model.semantic.member.permission.QmMemberPermissionDef;
 import com.foggyframework.dataset.db.model.spi.*;
 import com.foggyframework.dataset.db.model.spi.support.QueryColumnGroup;
 import com.foggyframework.fsscript.exp.FsscriptFunction;
@@ -87,6 +88,11 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
      * 权限查询构建器列表（简化后的 accesses）
      */
     protected List<FsscriptFunction> accessBuilders = new ArrayList<>();
+
+    /**
+     * QM 级成员权限配置列表（内部成员权限）
+     */
+    protected List<QmMemberPermissionDef> memberPermissions;
 
     /**
      * QM 预定义的计算字段（formula 项）

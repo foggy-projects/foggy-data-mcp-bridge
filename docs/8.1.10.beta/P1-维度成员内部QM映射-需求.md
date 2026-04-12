@@ -3,7 +3,7 @@
 ## 基本信息
 - 目标版本：`8.1.10.beta`
 - 需求等级：`P1`
-- 状态：`阶段1-5已完成（2026-04-02）`
+- 状态：`阶段1-5已完成，内部成员权限设计已补充（2026-04-12）`
 - 责任边界：
   - 后端负责维度成员能力的内部模型抽象、查询执行链路、权限挂载点与元数据输出
   - 前端负责消费统一成员接口，不感知底层维表、维度表或内部 QM 映射细节
@@ -41,6 +41,11 @@
 - `groupBy / orderBy / start / limit / columns / slice` 属于 QM 基础能力，本需求不额外禁用；手册仅说明成员查询推荐用法，字段空间仍限制在 member-QM 的根维度子树内
 - `JOIN` 不作为单独能力设计；父子维的 closure join 与嵌套子维度 join 复用现有模型与引擎能力
 - `8.1.10.beta` 优先支持“外部权限 patch”模式：由 Odoo 等网关/插件先完成权限翻译，再把过滤条件与可见列裁剪注入 Foggy
+- 在内部成员权限方案中，`TM` 与 `QM` 都允许声明成员权限
+- `QM` 对同一维度的成员权限配置可覆盖 `TM` 默认配置
+- 内部成员权限不只支持声明式 `forcedSlice`，还应支持 `queryBuilder(context)` 形式的编程式增强
+- 成员权限脚本不依赖原业务 QM 的 `fo` 一类代理，而应依赖 synthetic member-QM 专属的 `context.member`
+- 动态权限值主方案采用函数式 `valueBuilder(context)`，不主推 `value: { from: 'security.xxx' }` 风格
 
 ## 目标
 - 建立“`QM + 维度字段` -> synthetic member-QM” 的内部映射机制
@@ -103,7 +108,15 @@
   - 外部系统先完成角色、组织、租户等权限求值
   - 再将 `forcedSlice`、`visibleColumns`、`forcedOrderBy` 等信息注入 Foggy
   - Foggy 侧负责与 synthetic member-QM schema 求交并执行
-- 需要保留后续内部权限扩展挂载点，但不要求本阶段先完成完整的内部角色权限体系
+- 需要保留并明确内部权限挂载点：
+  - `TM.dimensions[].memberPermission`
+  - `QM.memberPermissions[]`
+- 内部成员权限统一抽象为两部分：
+  - `patch`：负责列裁剪、强制过滤、强制排序、层级能力开关
+  - `queryBuilder(context)`：负责复杂 SQL 级权限增强
+- `patch` 中的动态值采用 `valueBuilder(context)` 求值
+- `queryBuilder` 与 `valueBuilder` 都应支持通过公共 helper 函数获取租户、组织、角色等上下文信息
+- 成员权限脚本上下文必须稳定，不要求也不允许依赖原 QM 别名代理
 - 该方案应尽量避免要求用户手工维护大量独立的物理 QM 文件
 
 ### 6. 插件/网关集成
@@ -131,9 +144,10 @@
 - 或继续沿用 `xxx$id` / `xxx$caption` 风格
 
 ### 3. 权限挂载方式
-- 在原 QM 的维度配置上声明成员权限扩展，然后编译到 synthetic member-QM
-- 还是单独提供 overlay 配置给 synthetic member-QM
-- 还是允许注册命名规则对应的权限增强器
+- `TM` 默认成员权限挂在维度定义本身：`dimensions[].memberPermission`
+- `QM` 成员权限覆盖单独定义：`memberPermissions[]`
+- `QM` 使用 `dimension` / `fieldBase` 方式定位根维度，不依赖 `columnGroups` 中具体列项
+- 两边配置统一编译到 synthetic member-QM 的运行时权限对象
 
 ### 4. 生命周期
 - synthetic member-QM 在何时生成：
@@ -161,6 +175,231 @@
 - member-QM 采用“根维度 + 维度子树逻辑视图”思路，根维度自身字段 canonical 化，子维度按相对路径展开
 - 权限由 member-QM 自身承担，不与事实数据上下文耦合
 - 插件/网关可以在 DSL 入口前置注入自身权限过滤，但最终仍由 Foggy 做字段与能力边界校验
+- 内部成员权限采用 `patch + queryBuilder` 双轨模式：
+  - `patch` 走 request 级改写
+  - `queryBuilder` 走 SQL 级增强
+- `TM` 与 `QM` 均可声明成员权限：
+  - `QM.patch` 覆盖 `TM.patch`
+  - `TM.queryBuilder` 与 `QM.queryBuilder` 允许同时存在并顺序执行
+- 动态权限值不再主推 `from-path` 式配置，而统一采用 `valueBuilder(context)` 函数式方式
+
+## 内部成员权限设计（2026-04-12 补充）
+
+### 1. 设计目标
+- 在保留现有 external patch 能力的前提下，为 synthetic member-QM 增加内部可配置权限
+- 让 `TM` 承担维度默认成员权限，让 `QM` 承担业务场景下的成员权限覆盖
+- 让简单规则优先用声明式配置，复杂规则可退回 `queryBuilder(context)`
+- 保持 data-viewer、simple 入口、direct DSL 入口都走同一条 synthetic member-QM 主链
+
+### 2. 配置模型
+
+#### 2.1 TM 侧
+- 在 `TM.dimensions[]` 上新增 `memberPermission`
+- `memberPermission` 结构：
+  - `patch`
+  - `queryBuilder`
+
+示意：
+
+```javascript
+dimensions: [
+  {
+    name: 'product',
+    memberPermission: {
+      patch: {
+        visibleColumns: ['id', 'caption', 'brand'],
+        forcedSlice: [
+          {
+            field: 'tenantId',
+            op: '=',
+            valueBuilder: () => currentTenantId()
+          }
+        ]
+      },
+      queryBuilder: (context) => {
+        const query = context.query;
+        const member = context.member;
+        query.and(member.enabled, true);
+      }
+    }
+  }
+]
+```
+
+#### 2.2 QM 侧
+- 在 `QM` 上新增 `memberPermissions[]`
+- 每项至少包含：
+  - `dimension`
+  - `patch`
+  - `queryBuilder`
+
+示意：
+
+```javascript
+memberPermissions: [
+  {
+    dimension: 'product',
+    patch: {
+      visibleColumns: ['id', 'caption'],
+      forcedOrderBy: [
+        { field: 'caption', dir: 'ASC' }
+      ]
+    },
+    queryBuilder: (context) => {
+      const query = context.query;
+      const member = context.member;
+      query.and(member.tenantId, currentTenantId());
+    }
+  }
+]
+```
+
+### 3. patch 能力范围
+- `visibleColumns`
+- `forcedSlice`
+- `forcedOrderBy`
+- `hierarchyEnabled`
+- `allowedHierarchyOps`
+
+其中：
+- `visibleColumns` 控制 synthetic member-QM 可见列
+- `forcedSlice` 控制强制过滤条件
+- `forcedOrderBy` 控制排序收敛
+- `hierarchyEnabled` 控制是否允许层级操作
+- `allowedHierarchyOps` 控制 hierarchy operator 白名单
+
+### 4. 动态值能力
+- `forcedSlice` 中每项支持：
+  - `value`
+  - `valueBuilder`
+- `value` 用于静态值
+- `valueBuilder(context)` 用于动态取值
+
+示意：
+
+```javascript
+forcedSlice: [
+  {
+    field: 'tenantId',
+    op: '=',
+    valueBuilder: () => currentTenantId()
+  },
+  {
+    field: 'deptId',
+    op: 'in',
+    valueBuilder: () => currentDeptIds()
+  }
+]
+```
+
+约束：
+- 不再将 `value: { from: 'security.tenantId' }` 作为主推荐方式
+- 推荐通过公共 helper 读取 token / tenant / org / role 等上下文
+- 动态值能力统一收敛到 `valueBuilder(context)`，减少额外语法负担
+
+### 5. queryBuilder 运行语境
+- 成员权限 `queryBuilder` 必须使用统一上下文，不依赖原 QM 的 `fo`
+- 推荐暴露：
+  - `context.query`
+  - `context.member`
+  - `context.queryModel`
+  - `context.request`
+  - `context.security`
+  - `context.extData`
+  - `context.namespace`
+
+示意：
+
+```javascript
+queryBuilder: (context) => {
+  const query = context.query;
+  const member = context.member;
+  query.and(member.tenantId, currentTenantId());
+}
+```
+
+约束：
+- `context.member` 表示 synthetic member-QM 的字段代理
+- `queryBuilder` 只能访问 synthetic member-QM 字段空间内的字段
+- 不允许借由脚本回退访问原业务 QM 的其他维度、度量或事实字段
+- 安全边界依赖开发者自律与测试覆盖，不做运行时沙箱强制校验
+- QM 权限配置仅面向技术人员，不向业务人员开放 `queryBuilder` 编写入口
+- 业务人员后续可基于 QM 使用白名单函数进行二次开发，不直接接触脚本层
+
+### 6. 合并规则
+
+#### 6.1 patch 合并
+- synthetic member-QM schema 是最终硬边界
+- `TM.patch` 作为默认配置
+- `QM.patch` 覆盖 `TM.patch`
+- external patch 再覆盖内部 patch
+- user request 最后与强制规则求交
+
+具体规则：
+- `visibleColumns`：后者覆盖前者，不做并集
+- `forcedSlice`：同字段以后者完全替换前者，不同字段合并保留；执行时与 request slice 按 `AND` 合并
+- `forcedOrderBy`：同字段以后者为准
+- `allowedHierarchyOps`：后者覆盖前者
+- `hierarchyEnabled`：后者覆盖前者
+
+#### 6.2 queryBuilder 合并
+- `TM.queryBuilder` 与 `QM.queryBuilder` 都允许存在
+- 默认执行顺序：
+  - `TM.queryBuilder`
+  - `QM.queryBuilder`
+- 两者都是收紧权限，不做“覆盖替换”语义
+
+### 7. 执行分层
+
+#### 7.1 request 级
+- `patch` 在 beforeQuery 阶段生效
+- 负责：
+  - `valueBuilder` 求值
+  - `visibleColumns` 求交
+  - `forcedSlice` 合并
+  - `forcedOrderBy` 合并
+  - `hierarchyEnabled / allowedHierarchyOps` 校验
+
+#### 7.2 SQL 级
+- `queryBuilder` 在 SQL 构建阶段执行
+- 负责在 `JdbcQuery` 上直接追加 where / in / null / custom SQL 条件
+- 该语义与现有 `QM.accesses[].queryBuilder` 保持一致，但作用范围仅限 synthetic member-QM
+
+### 8. 与 external patch 的关系
+- external patch 仍是当前已落地能力
+- 内部成员权限不替代 external patch，而是补充其前置默认值
+- 推荐优先级：
+  - schema
+  - `TM.patch`
+  - `QM.patch`
+  - external patch
+  - request
+  - `TM.queryBuilder`
+  - `QM.queryBuilder`
+
+解释：
+- patch 类规则负责请求层裁剪
+- queryBuilder 负责 SQL 层最终收紧
+- external patch 仍适合作为网关/插件把外部权限系统翻译后的注入承载点
+
+### 9. 运行时改造方向
+- 定义统一配置对象：
+  - `MemberPermissionDef`
+  - `QmMemberPermissionDef`
+- 定义运行时合并结果：
+  - `SyntheticMemberEffectivePermission`
+- 定义权限解析器：
+  - `SyntheticMemberPermissionResolver`
+- 在 synthetic member-QM 主链中增加两类能力：
+  - internal patch step
+  - member queryBuilder 执行
+
+### 10. 实施顺序建议
+1. 增加 `TM/QM` 配置定义与 loader 承载
+2. 实现 `TM + QM -> effective permission` 合并
+3. 实现 internal patch 注入与 `valueBuilder` 求值
+4. 实现 synthetic member-QM 的 `queryBuilder` 执行
+5. 增补文档、样例与测试
 
 ## 推荐字段命名示例
 以 `SaleOrderQM#product` 为例，如果 `product` 维度拥有属性与嵌套子维度：
@@ -318,3 +557,5 @@
 - synthetic member-QM 已支持根维度全部属性、嵌套子维路径字段与父子维 hierarchy operator。
 - `8.1.10.beta` MVP 已支持 external patch：`visibleColumns`、`forcedSlice`、`forcedOrderBy`。
 - synthetic member-QM 已补齐 namespace 级缓存、`clearByNamespace`、bundle 移除与文件移除后的重建验证。
+- 内部成员权限设计已补充：`TM.memberPermission` + `QM.memberPermissions[]`，`patch + queryBuilder` 双轨模式，合并规则与执行分层已明确。
+- 性能基线待后续补充：首次懒生成耗时、缓存命中率、大维度成员量级下查询响应时间等指标，建议在正式上线前补齐实测数据。

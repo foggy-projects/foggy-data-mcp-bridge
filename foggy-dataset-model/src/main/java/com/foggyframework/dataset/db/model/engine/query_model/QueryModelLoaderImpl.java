@@ -9,6 +9,7 @@ import com.foggyframework.core.tuple.Tuple2;
 import com.foggyframework.core.utils.ErrorUtils;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.db.model.def.access.DbAccessDef;
+import com.foggyframework.dataset.db.model.semantic.member.permission.QmMemberPermissionDef;
 import com.foggyframework.dataset.db.model.def.column.DbColumnGroupDef;
 import com.foggyframework.dataset.db.model.def.order.OrderDef;
 import com.foggyframework.dataset.db.model.def.query.DbQueryModelDef;
@@ -417,6 +418,11 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
         loadAccesses(qm, queryModelDef.getAccesses());
 
         /**
+         * step42.加载成员权限配置
+         */
+        loadMemberPermissions(qm, queryModelDef.getMemberPermissions());
+
+        /**
          * step50.补一些默认值
          */
         for (DbQueryCondition dbQueryCondition : qm.getDbQueryConditions()) {
@@ -765,6 +771,14 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
                 qm.getAccessBuilders().add(accessDef.getQueryBuilder());
             }
         }
+    }
+
+    private void loadMemberPermissions(QueryModelSupport qm,
+                                        List<QmMemberPermissionDef> memberPermissions) {
+        if (memberPermissions == null || memberPermissions.isEmpty()) {
+            return;
+        }
+        qm.setMemberPermissions(memberPermissions);
     }
 
     // ==================== 简称分配相关方法 ====================

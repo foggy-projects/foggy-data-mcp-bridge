@@ -1,0 +1,68 @@
+/**
+ * 带成员权限的销售查询模型（测试用）
+ *
+ * @caption 成员权限测试查询
+ * @description 基于 FactSalesMemberPermModel，在 QM 层叠加 memberPermissions 配置
+ */
+const fs = loadTableModel('FactSalesMemberPermModel');
+
+export const queryModel = {
+    name: 'FactSalesMemberPermQueryModel',
+    caption: '成员权限测试查询',
+    loader: 'v2',
+
+    model: fs,
+
+    columnGroups: [
+        {
+            caption: '商品维度',
+            items: [
+                { ref: fs.product },
+                { ref: fs.product$brand },
+                { ref: fs.product$unitPrice }
+            ]
+        },
+        {
+            caption: '品类维度',
+            items: [
+                { ref: fs.product.category },
+                { ref: fs.product.category$categoryId }
+            ]
+        },
+        {
+            caption: '门店维度',
+            items: [
+                { ref: fs.store },
+                { ref: fs.store$storeType }
+            ]
+        },
+        {
+            caption: '度量',
+            items: [
+                { ref: fs.quantity },
+                { ref: fs.salesAmount }
+            ]
+        }
+    ],
+
+    // ---- QM 级成员权限覆盖 ----
+    memberPermissions: [
+        {
+            dimension: 'product',
+            patch: {
+                // QM 收窄 visibleColumns（覆盖 TM 的 [id, caption, productId, brand]）
+                visibleColumns: ['id', 'caption', 'brand'],
+                // QM 追加新字段的 forcedSlice（与 TM 的 brand='Apple' 不同字段，合并保留）
+                forcedSlice: [
+                    { field: 'id', op: '!=', value: 0 }
+                ],
+                // QM 覆盖 TM 的 forcedOrderBy（同字段 caption，改为 DESC）
+                forcedOrderBy: [
+                    { field: 'caption', dir: 'DESC' }
+                ]
+            }
+        }
+    ],
+
+    accesses: []
+};
