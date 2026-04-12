@@ -104,7 +104,7 @@ const dimensionOptionsLoading = ref<Record<string, boolean>>({})
 
 // 使用 composables
 const columnsRef = computed(() => props.columns)
-const { selectedRows, onCheckboxChange, onCheckboxAll, clearSelection } = useTableSelection()
+const { selectedRows, onCheckboxChange, onCheckboxAll, clearSelection, getSelectedCount } = useTableSelection()
 const { serverSummary, calculateSelectedSummary, generateFooterData, setServerSummary } = useTableSummary(columnsRef)
 
 // 监听 serverSummary prop 变化
@@ -624,7 +624,13 @@ defineExpose({
   /** 设置过滤值 */
   setFilter: updateFilter,
   /** 获取 vxe-grid 实例 */
-  getGridInstance: () => gridRef.value
+  getGridInstance: () => gridRef.value,
+  /** 获取当前选中行数组 */
+  getSelectedRows: (): Record<string, unknown>[] => selectedRows.value as Record<string, unknown>[],
+  /** 获取当前选中行数量 */
+  getSelectedCount: (): number => getSelectedCount(),
+  /** 清空选中行 */
+  clearSelection
 })
 
 // 提供上下文给子组件

@@ -25,6 +25,30 @@ const serverSummary = ref({
   quantity: 5000
 })
 
+// 选中行计数（响应式）
+const selectedCount = ref(0)
+const tableRef = ref<InstanceType<typeof DataTableWithSearch> | null>(null)
+
+function refreshSelectedCount() {
+  selectedCount.value = tableRef.value?.getSelectedCount?.() ?? 0
+}
+
+function handleBatchAction() {
+  const rows = tableRef.value?.getSelectedRows?.() ?? []
+  console.log('批量操作选中行:', rows)
+  alert(`选中了 ${rows.length} 条记录`)
+}
+
+function handleEdit(row: any) {
+  console.log('编辑行:', row)
+  alert(`编辑订单: ${row.orderNo}`)
+}
+
+function handleDelete(row: any) {
+  console.log('删除行:', row)
+  alert(`删除订单: ${row.orderNo}`)
+}
+
 onMounted(() => {
   columns.value = buildTableColumns(qmSchema, {
     visibleColumns: ['id', 'orderNo', 'customerName', 'amount', 'quantity', 'status', 'orderDate'],
@@ -98,11 +122,12 @@ function handleReset() {
   <div class="demo-page">
     <div class="header">
       <h1>DataTableWithSearch 组合组件示例</h1>
-      <p>SearchToolbar + DataTable 的组合组件，支持完整的属性和事件透传</p>
+      <p>验证项：toolbar slot / row-actions / 批量选择并读取选中行 / 高度自适应</p>
     </div>
 
     <div class="content">
       <DataTableWithSearch
+        ref="tableRef"
         :columns="columns"
         :data="data"
         :total="total"
@@ -117,7 +142,24 @@ function handleReset() {
         @filter-change="handleFilterChange"
         @search="handleSearch"
         @reset="handleReset"
-      />
+        @checkbox-change="refreshSelectedCount"
+        @checkbox-all="refreshSelectedCount"
+      >
+        <!-- toolbar slot 验证 -->
+        <template #toolbar>
+          <button @click="handleBatchAction" :disabled="selectedCount === 0" style="padding: 4px 12px; cursor: pointer;">
+            批量操作 ({{ selectedCount }})
+          </button>
+        </template>
+
+        <!-- row-actions slot 验证 -->
+        <template #row-actions="{ row }">
+          <div style="display: flex; gap: 4px;">
+            <button @click="handleEdit(row)" style="padding: 2px 8px; font-size: 12px; cursor: pointer;">编辑</button>
+            <button @click="handleDelete(row)" style="padding: 2px 8px; font-size: 12px; cursor: pointer; color: red;">删除</button>
+          </div>
+        </template>
+      </DataTableWithSearch>
     </div>
   </div>
 </template>

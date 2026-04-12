@@ -481,6 +481,53 @@ describe('DataTable', () => {
 
       expect(wrapper.vm.getGridInstance).toBeDefined()
     })
+
+    it('should have getSelectedRows method that returns an array', () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: mockData,
+          total: 3,
+          loading: false
+        },
+        ...globalConfig
+      })
+
+      expect(wrapper.vm.getSelectedRows).toBeDefined()
+      const rows = wrapper.vm.getSelectedRows()
+      expect(Array.isArray(rows)).toBe(true)
+      expect(rows).toHaveLength(0) // 初始无选中
+    })
+
+    it('should have getSelectedCount method that returns a number', () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: mockData,
+          total: 3,
+          loading: false
+        },
+        ...globalConfig
+      })
+
+      expect(wrapper.vm.getSelectedCount).toBeDefined()
+      expect(wrapper.vm.getSelectedCount()).toBe(0) // 初始无选中
+    })
+
+    it('should have clearSelection method', () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: mockData,
+          total: 3,
+          loading: false
+        },
+        ...globalConfig
+      })
+
+      expect(wrapper.vm.clearSelection).toBeDefined()
+      expect(() => wrapper.vm.clearSelection()).not.toThrow()
+    })
   })
 
   describe('Props Validation', () => {
