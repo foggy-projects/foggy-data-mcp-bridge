@@ -688,6 +688,14 @@ public class ElExpScanner implements BaseScanner {
         this.newlineEncountered = false;
 
         if (this.previousSymbol == ExpSymbols.NCOUNT) {
+            // 在箭头函数表达式体内遇到分号时，先关闭自动插入的 { 再放行分号
+            // 例如: const fn = x => x * 2; 中的 ; 触发 } 关闭
+            if (inNf && nfLRCount == 1) {
+                inNf = false;
+                nfLRCount = 0;
+                tmpSymbol = symbol;
+                return makeSymbol(ExpSymbols.RBRACE, "auto fix}");
+            }
             return symbol;
         }
 
@@ -737,12 +745,6 @@ public class ElExpScanner implements BaseScanner {
                     tmpSymbol = symbol;
                     return makeSymbol(ExpSymbols.RBRACE, "auto fix}");
                 }
-            } else if (symbol.sym == ExpSymbols.NCOUNT && nfLRCount == 1) {
-                // 遇到分号时关闭箭头函数表达式体: const fn = x => x * 2;
-                inNf = false;
-                nfLRCount = 0;
-                tmpSymbol = symbol;
-                return makeSymbol(ExpSymbols.RBRACE, "auto fix}");
             } else if (symbol.sym == ExpSymbols.EOF) {
                 // 遇到 EOF 时关闭箭头函数表达式体: x => x * 2
                 inNf = false;

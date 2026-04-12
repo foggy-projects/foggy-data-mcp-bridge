@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -70,5 +71,110 @@ public class NfFunctionExpTest {
 //        Assertions.assertEquals(null,mm.get("bb"));
     }
 
+    // ── arrow expression body tests (fix: ElExpScanner auto-close on ; and EOF) ──
+
+    /**
+     * const fn = x => x * 2 — expression body assigned and callable
+     */
+    @Test
+    public void arrowExprBody_standalone() {
+        String code = "const fn = x => x * 2; const r = fn(3); export r;";
+        Exp exp = new ExpParser().compileEl(code);
+        ExpEvaluator ee = DefaultExpEvaluator.newInstance();
+        exp.evalValue(ee);
+
+        Assertions.assertEquals(6.0, ee.getExportMap().get("r"));
+    }
+
+    /**
+     * x => fn() — function call inside expression body
+     */
+    @Test
+    public void arrowExprBody_functionCall() {
+        String code = "var counter = 0;"
+                + "function inc() { counter = counter + 1; return counter; }"
+                + "const fn = x => inc();"
+                + "const r1 = fn(null); const r2 = fn(null);"
+                + "export r1; export r2;";
+        Exp exp = new ExpParser().compileEl(code);
+        ExpEvaluator ee = DefaultExpEvaluator.newInstance();
+        exp.evalValue(ee);
+
+        // counter + 1 yields Integer (int arithmetic)
+        Assertions.assertEquals(1, ee.getExportMap().get("r1"));
+        Assertions.assertEquals(2, ee.getExportMap().get("r2"));
+    }
+
+    /**
+     * x => obj[x] — bracket property access in expression body
+     */
+    @Test
+    public void arrowExprBody_propertyAccess() {
+        String code = "const obj = { a: 10, b: 20 };"
+                + "const fn = x => obj[x];"
+                + "const r = fn('a');"
+                + "export r;";
+        Exp exp = new ExpParser().compileEl(code);
+        ExpEvaluator ee = DefaultExpEvaluator.newInstance();
+        exp.evalValue(ee);
+
+        Assertions.assertEquals(10, ee.getExportMap().get("r"));
+    }
+
+    /**
+     * (x, y) => x + y — multi-param arrow expression body
+     */
+    @Test
+    public void arrowExprBody_multiParam() {
+        String code = "const add = (x, y) => x + y; const r = add(2, 3); export r;";
+        Exp exp = new ExpParser().compileEl(code);
+        ExpEvaluator ee = DefaultExpEvaluator.newInstance();
+        exp.evalValue(ee);
+
+        // int + int yields Integer
+        Assertions.assertEquals(5, ee.getExportMap().get("r"));
+    }
+
+    /**
+     * [].map(x => x * 10) — arrow in callback (regression guard, worked before the fix)
+     */
+    @Test
+    public void arrowExprBody_inMapCallback() {
+        String code = "const result = [1, 2, 3].map(x => x * 10); export result;";
+        Exp exp = new ExpParser().compileEl(code);
+        ExpEvaluator ee = DefaultExpEvaluator.newInstance();
+        exp.evalValue(ee);
+
+        Object result = ee.getExportMap().get("result");
+        Assertions.assertNotNull(result);
+        Assertions.assertEquals(Arrays.asList(10.0, 20.0, 30.0), result);
+    }
+
+    /**
+     * [].filter(Boolean) — filter callback (regression guard)
+     */
+    @Test
+    public void arrowExprBody_inFilterCallback() {
+        String code = "const result = [1, null, 2, null, 3].filter(Boolean); export result;";
+        Exp exp = new ExpParser().compileEl(code);
+        ExpEvaluator ee = DefaultExpEvaluator.newInstance();
+        exp.evalValue(ee);
+
+        Object result = ee.getExportMap().get("result");
+        Assertions.assertNotNull(result);
+        Assertions.assertEquals(Arrays.asList(1, 2, 3), result);
+    }
+
+    /**
+     * var fn = x => x * 2; fn(5) — direct invocation returns result
+     */
+    @Test
+    public void arrowExprBody_directCall() {
+        Exp exp = new ExpParser().compileEl("var fn = x => x * 2; fn(5);");
+        ExpEvaluator ee = DefaultExpEvaluator.newInstance();
+        Object result = exp.evalValue(ee);
+
+        Assertions.assertEquals(10.0, result);
+    }
 
 }
