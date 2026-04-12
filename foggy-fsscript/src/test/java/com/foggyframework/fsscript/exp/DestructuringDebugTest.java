@@ -58,6 +58,7 @@ public class DestructuringDebugTest {
         testParseOnly("multi-param arrow", "(x, y) => x + y");
         testParseOnly("multi-param arrow semi", "(x, y) => x + y;");
         testParseOnly("arrow in map context", "[].map(x => x * 2)");
+        testParseOnly("function expr parse", "x => xx()");
 
         // Export function tests
         System.out.println("\n=== Export Function Tests ===");

@@ -737,6 +737,18 @@ public class ElExpScanner implements BaseScanner {
                     tmpSymbol = symbol;
                     return makeSymbol(ExpSymbols.RBRACE, "auto fix}");
                 }
+            } else if (symbol.sym == ExpSymbols.NCOUNT && nfLRCount == 1) {
+                // 遇到分号时关闭箭头函数表达式体: const fn = x => x * 2;
+                inNf = false;
+                nfLRCount = 0;
+                tmpSymbol = symbol;
+                return makeSymbol(ExpSymbols.RBRACE, "auto fix}");
+            } else if (symbol.sym == ExpSymbols.EOF) {
+                // 遇到 EOF 时关闭箭头函数表达式体: x => x * 2
+                inNf = false;
+                nfLRCount = 0;
+                tmpSymbol = symbol;
+                return makeSymbol(ExpSymbols.RBRACE, "auto fix}");
             }
         }
         /**end **********************/
