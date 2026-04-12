@@ -736,9 +736,12 @@ public class ElExpScanner implements BaseScanner {
             }
         }
         if (inNf) {
-            if (symbol.sym == ExpSymbols.LPAREN) {
+            if (symbol.sym == ExpSymbols.LPAREN
+                    || symbol.sym == ExpSymbols.LBRACE
+                    || symbol.sym == ExpSymbols.LBRACE_OBJ) {
                 nfLRCount++;
-            } else if (symbol.sym == ExpSymbols.RPAREN) {
+            } else if (symbol.sym == ExpSymbols.RPAREN
+                    || symbol.sym == ExpSymbols.RBRACE) {
                 nfLRCount--;
                 if (nfLRCount == 0) {
                     inNf = false;

@@ -177,4 +177,81 @@ public class NfFunctionExpTest {
         Assertions.assertEquals(10.0, result);
     }
 
+    // ── arrow inside object / array literal (fix: inNf brace depth tracking) ──
+
+    /**
+     * { valueBuilder: (ctx) => fn() } — arrow expr body as object property value
+     */
+    @Test
+    public void arrowExprBody_inObjectValue() {
+        String code = "function getTenantId() { return 42; }\n"
+                + "var v = { valueBuilder: (ctx) => getTenantId() };\n"
+                + "export v;";
+        Exp exp = new ExpParser().compileEl(code);
+        ExpEvaluator ee = DefaultExpEvaluator.newInstance();
+        exp.evalValue(ee);
+
+        Map<String, Object> v = (Map<String, Object>) ee.getExportMap().get("v");
+        Assertions.assertNotNull(v);
+        Function vb = (Function) v.get("valueBuilder");
+        Assertions.assertNotNull(vb, "arrow in object value should be callable");
+        Assertions.assertEquals(42, vb.apply(new Object[]{"ctx"}));
+    }
+
+    /**
+     * [{ valueBuilder: (ctx) => fn() }] — arrow expr body inside array of objects
+     */
+    @Test
+    public void arrowExprBody_inArrayObjectValue() {
+        String code = "function getTenantId() { return 42; }\n"
+                + "var v = [{ field: 'id', valueBuilder: (ctx) => getTenantId() }];\n"
+                + "export v;";
+        Exp exp = new ExpParser().compileEl(code);
+        ExpEvaluator ee = DefaultExpEvaluator.newInstance();
+        exp.evalValue(ee);
+
+        List<Map<String, Object>> v = (List<Map<String, Object>>) ee.getExportMap().get("v");
+        Assertions.assertNotNull(v);
+        Assertions.assertEquals(1, v.size());
+        Assertions.assertEquals("id", v.get(0).get("field"));
+        Function vb = (Function) v.get(0).get("valueBuilder");
+        Assertions.assertEquals(42, vb.apply(new Object[]{"ctx"}));
+    }
+
+    /**
+     * forcedSlice patch pattern — the real-world use case:
+     * nested object > array > objects with mixed static values and arrow callbacks
+     */
+    @Test
+    public void arrowExprBody_forcedSlicePatchPattern() {
+        String code = "function requireTenantId() { return 99; }\n"
+                + "var v = {\n"
+                + "    patch: {\n"
+                + "        forcedSlice: [\n"
+                + "            { field: 'tenantFlag', op: '=', value: 1 },\n"
+                + "            { field: 'id', op: '=', valueBuilder: (ctx) => requireTenantId() }\n"
+                + "        ]\n"
+                + "    }\n"
+                + "};\n"
+                + "export v;";
+        Exp exp = new ExpParser().compileEl(code);
+        ExpEvaluator ee = DefaultExpEvaluator.newInstance();
+        exp.evalValue(ee);
+
+        Map<String, Object> v = (Map<String, Object>) ee.getExportMap().get("v");
+        Map<String, Object> patch = (Map<String, Object>) v.get("patch");
+        List<Map<String, Object>> slices = (List<Map<String, Object>>) patch.get("forcedSlice");
+        Assertions.assertEquals(2, slices.size());
+
+        // static entry
+        Assertions.assertEquals("tenantFlag", slices.get(0).get("field"));
+        Assertions.assertEquals(1, slices.get(0).get("value"));
+
+        // arrow callback entry
+        Assertions.assertEquals("id", slices.get(1).get("field"));
+        Function vb = (Function) slices.get(1).get("valueBuilder");
+        Assertions.assertNotNull(vb, "valueBuilder should be a callable function");
+        Assertions.assertEquals(99, vb.apply(new Object[]{"ctx"}));
+    }
+
 }
