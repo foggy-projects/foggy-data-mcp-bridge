@@ -386,6 +386,55 @@ describe('SearchToolbar', () => {
 
       expect(wrapper.find('.bool-filter').exists()).toBe(true)
     })
+
+    it('should render dict select when dictId is present even if filterType is number', () => {
+      const dictColumns: EnhancedColumnSchema[] = [
+        { name: 'orgNature', type: 'INTEGER', title: '机构性质', filterable: true, filterType: 'number', dictId: 'OrgNature' }
+      ]
+
+      const wrapper = mount(SearchToolbar, {
+        props: {
+          columns: dictColumns,
+          searchableFields: ['orgNature']
+        }
+      })
+
+      // dictId 存在 → 应该渲染为 SelectFilter（dict），而非 NumberRangeFilter
+      expect(wrapper.find('.select-filter').exists()).toBe(true)
+      expect(wrapper.find('.number-filter').exists()).toBe(false)
+    })
+
+    it('should render dict select when dictId is present without filterType', () => {
+      const dictColumns: EnhancedColumnSchema[] = [
+        { name: 'state', type: 'INTEGER', title: '状态', filterable: true, dictId: 'OrgState' }
+      ]
+
+      const wrapper = mount(SearchToolbar, {
+        props: {
+          columns: dictColumns,
+          searchableFields: ['state']
+        }
+      })
+
+      expect(wrapper.find('.select-filter').exists()).toBe(true)
+      expect(wrapper.find('.number-filter').exists()).toBe(false)
+    })
+
+    it('should render number filter when no dictId and filterType is number', () => {
+      const numColumns: EnhancedColumnSchema[] = [
+        { name: 'amount', type: 'INTEGER', title: '金额', filterable: true, filterType: 'number' }
+      ]
+
+      const wrapper = mount(SearchToolbar, {
+        props: {
+          columns: numColumns,
+          searchableFields: ['amount']
+        }
+      })
+
+      expect(wrapper.find('.number-filter').exists()).toBe(true)
+      expect(wrapper.find('.select-filter').exists()).toBe(false)
+    })
   })
 
   describe('Integration', () => {

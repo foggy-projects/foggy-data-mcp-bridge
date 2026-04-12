@@ -86,6 +86,11 @@ function inferFilterType(col: EnhancedColumnSchema): string {
       return 'datetime'
   }
 
+  // dictId 优先级高于 filterType：只要列声明了 dictId，就渲染为字典下拉
+  if (col.dictId) {
+    return 'dict'
+  }
+
   // 使用后端返回的 filterType
   if (col.filterType) {
     return col.filterType

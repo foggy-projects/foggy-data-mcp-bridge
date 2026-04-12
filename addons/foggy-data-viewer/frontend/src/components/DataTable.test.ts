@@ -562,6 +562,46 @@ describe('DataTable', () => {
     })
   })
 
+  describe('DictId Filter Inference', () => {
+    it('should accept columns with dictId and filterType=number without error', () => {
+      const dictColumns: EnhancedColumnSchema[] = [
+        { name: 'orgNature', type: 'INTEGER', title: '机构性质', dictId: 'OrgNature', filterType: 'number' },
+        { name: 'state', type: 'INTEGER', title: '状态', dictId: 'OrgState' }
+      ]
+
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: dictColumns,
+          data: [{ orgNature: 1, state: 2 }],
+          total: 1,
+          loading: false
+        },
+        ...globalConfig
+      })
+
+      // 组件能正常渲染不报错即可；真正的过滤器渲染由 vxe-grid 内部 slot 完成
+      expect(wrapper.exists()).toBe(true)
+    })
+
+    it('should accept columns with dictId only (no filterType)', () => {
+      const dictColumns: EnhancedColumnSchema[] = [
+        { name: 'status', type: 'INTEGER', title: '状态', dictId: 'StatusDict', dictItems: [{ value: 1, label: '启用' }, { value: 0, label: '禁用' }] }
+      ]
+
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: dictColumns,
+          data: [{ status: 1 }],
+          total: 1,
+          loading: false
+        },
+        ...globalConfig
+      })
+
+      expect(wrapper.exists()).toBe(true)
+    })
+  })
+
   describe('Props Validation', () => {
     it('should accept valid props', () => {
       const wrapper = mount(DataTable, {
