@@ -349,6 +349,38 @@ describe('DataTable', () => {
       await wrapper.vm.$emit('row-dblclick', row, mockColumns[0])
       expect(wrapper.emitted('row-dblclick')).toBeTruthy()
     })
+
+    it('should emit checkbox-change event', async () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: mockData,
+          total: 3,
+          loading: false
+        },
+        ...globalConfig
+      })
+
+      await wrapper.vm.$emit('checkbox-change', [mockData[0]])
+      expect(wrapper.emitted('checkbox-change')).toBeTruthy()
+      expect(wrapper.emitted('checkbox-change')?.[0]).toEqual([[mockData[0]]])
+    })
+
+    it('should emit checkbox-all event', async () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: mockData,
+          total: 3,
+          loading: false
+        },
+        ...globalConfig
+      })
+
+      await wrapper.vm.$emit('checkbox-all', mockData)
+      expect(wrapper.emitted('checkbox-all')).toBeTruthy()
+      expect(wrapper.emitted('checkbox-all')?.[0]).toEqual([mockData])
+    })
   })
 
   describe('Summary', () => {

@@ -26,7 +26,7 @@ vi.mock('./DataTable.vue', () => ({
     name: 'DataTable',
     template: '<div class="data-table-mock"><slot name="toolbar" /><slot name="footer" /><slot name="empty" /><slot name="column-_actions" :row="{}" :column="{}" :value="null" /><slot /></div>',
     props: ['columns', 'data', 'total', 'loading', 'pageSize', 'showFilters', 'initialSlice', 'serverSummary'],
-    emits: ['page-change', 'sort-change', 'filter-change', 'row-click', 'row-dblclick'],
+    emits: ['page-change', 'sort-change', 'filter-change', 'row-click', 'row-dblclick', 'checkbox-change', 'checkbox-all'],
     methods: {
       resetPagination() {
         // mock
@@ -283,6 +283,31 @@ describe('DataTableWithSearch', () => {
 
       expect(wrapper.emitted('row-dblclick')).toBeTruthy()
       expect(wrapper.emitted('row-dblclick')![0]).toEqual([mockRow, mockColumn])
+    })
+
+    it('should emit checkbox-change event from DataTable', async () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: defaultProps
+      })
+
+      const dataTable = wrapper.findComponent({ name: 'DataTable' })
+      const selectedRows = [{ id: 1, name: 'Test 1' }]
+      await dataTable.vm.$emit('checkbox-change', selectedRows)
+
+      expect(wrapper.emitted('checkbox-change')).toBeTruthy()
+      expect(wrapper.emitted('checkbox-change')![0]).toEqual([selectedRows])
+    })
+
+    it('should emit checkbox-all event from DataTable', async () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: defaultProps
+      })
+
+      const dataTable = wrapper.findComponent({ name: 'DataTable' })
+      await dataTable.vm.$emit('checkbox-all', mockData)
+
+      expect(wrapper.emitted('checkbox-all')).toBeTruthy()
+      expect(wrapper.emitted('checkbox-all')![0]).toEqual([mockData])
     })
 
     it('should emit search event from SearchToolbar', async () => {

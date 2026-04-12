@@ -64,6 +64,10 @@ const emit = defineEmits<{
   (e: 'row-click', row: Record<string, unknown>, column: EnhancedColumnSchema): void
   /** 行双击事件 */
   (e: 'row-dblclick', row: Record<string, unknown>, column: EnhancedColumnSchema): void
+  /** 行选中变化 */
+  (e: 'checkbox-change', rows: Record<string, unknown>[]): void
+  /** 全选变化 */
+  (e: 'checkbox-all', rows: Record<string, unknown>[]): void
 }>()
 
 // 暴露给插槽使用的上下文
@@ -574,8 +578,14 @@ const gridEvents = computed<VxeGridListeners>(() => {
         emit('row-dblclick', row, col)
       }
     }, 'cellDblclick'),
-    checkboxChange: wrapEvent(onCheckboxChange, 'checkboxChange'),
-    checkboxAll: wrapEvent(onCheckboxAll, 'checkboxAll')
+    checkboxChange: wrapEvent((params: { records: Record<string, unknown>[] }) => {
+      onCheckboxChange(params)
+      emit('checkbox-change', params.records)
+    }, 'checkboxChange'),
+    checkboxAll: wrapEvent((params: { records: Record<string, unknown>[] }) => {
+      onCheckboxAll(params)
+      emit('checkbox-all', params.records)
+    }, 'checkboxAll')
   }
 
   // 合并：添加用户定义但我们没有默认处理的事件

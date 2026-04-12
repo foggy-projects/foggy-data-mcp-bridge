@@ -106,6 +106,8 @@ const emit = defineEmits<{
   (e: 'filter-change', slices: SliceRequestDef[]): void
   (e: 'row-click', row: Record<string, unknown>, column: EnhancedColumnSchema): void
   (e: 'row-dblclick', row: Record<string, unknown>, column: EnhancedColumnSchema): void
+  (e: 'checkbox-change', rows: Record<string, unknown>[]): void
+  (e: 'checkbox-all', rows: Record<string, unknown>[]): void
   // SearchToolbar 事件
   (e: 'search', slices: SliceRequestDef[]): void
   (e: 'reset'): void
@@ -450,6 +452,18 @@ const dataTableEvents = computed(() => {
       emit('row-dblclick', ...args as [Record<string, unknown>, EnhancedColumnSchema])
       if (userEvents['rowDblclick']) {
         userEvents['rowDblclick'](...args)
+      }
+    },
+    'checkbox-change': (rows: Record<string, unknown>[]) => {
+      emit('checkbox-change', rows)
+      if (userEvents['checkboxChange']) {
+        userEvents['checkboxChange'](rows)
+      }
+    },
+    'checkbox-all': (rows: Record<string, unknown>[]) => {
+      emit('checkbox-all', rows)
+      if (userEvents['checkboxAll']) {
+        userEvents['checkboxAll'](rows)
       }
     }
   }
