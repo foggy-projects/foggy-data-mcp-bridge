@@ -332,8 +332,20 @@ class SyntheticMemberPermissionIntegrationTest extends EcommerceTestSupport {
         }
 
         @Test
-        @DisplayName("forcedOrderBy caption DESC 实际按降序排列")
+        @DisplayName("forcedOrderBy caption DESC 实际排序与原生 SQL 一致")
         void forcedOrderBy_captionDesc_actuallyOrdered() {
+            // 原生 SQL 基线：brand='Apple' AND id!=0，按 caption DESC 排序
+            String expectedSql = """
+                    SELECT p.product_key AS id,
+                           p.product_name AS caption,
+                           p.brand AS brand
+                      FROM dim_product_nested p
+                     WHERE p.brand = 'Apple'
+                       AND p.product_key != 0
+                     ORDER BY p.product_name DESC
+                    """;
+            List<Map<String, Object>> expectedRows = executeQuery(expectedSql);
+
             DbQueryRequestDef queryRequest = new DbQueryRequestDef();
             queryRequest.setQueryModel("FactSalesMemberPermQueryModel#product");
             queryRequest.setColumns(List.of("id", "caption", "brand"));
@@ -344,15 +356,17 @@ class SyntheticMemberPermissionIntegrationTest extends EcommerceTestSupport {
             );
             List<Map<String, Object>> items = castItems(result);
             assertFalse(items.isEmpty());
+            assertEquals(expectedRows.size(), items.size(), "结果数量应一致");
 
-            // 验证 caption 按降序排列
-            List<String> captions = items.stream()
+            // 逐行比对：排序顺序应与原生 SQL ORDER BY product_name DESC 完全一致
+            List<String> expectedCaptions = expectedRows.stream()
                     .map(r -> String.valueOf(r.get("caption")))
                     .collect(java.util.stream.Collectors.toList());
-            for (int i = 1; i < captions.size(); i++) {
-                assertTrue(captions.get(i - 1).compareTo(captions.get(i)) >= 0,
-                        "caption 应按 DESC 排序: [" + captions.get(i - 1) + "] >= [" + captions.get(i) + "]");
-            }
+            List<String> actualCaptions = items.stream()
+                    .map(r -> String.valueOf(r.get("caption")))
+                    .collect(java.util.stream.Collectors.toList());
+            assertEquals(expectedCaptions, actualCaptions,
+                    "forcedOrderBy caption DESC 排序应与原生 SQL 完全一致");
         }
 
         @Test
