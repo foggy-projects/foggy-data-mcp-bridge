@@ -125,6 +125,10 @@ function genTableSchema(meta) {
     if (f.measure) props.push(`    measure: true`)
     if (f.aggregatable) props.push(`    aggregatable: true`)
     if (f.dictId) props.push(`    dictId: '${f.dictId}'`)
+    if (f.dictItems?.length) {
+      const items = f.dictItems.map(i => `{ value: ${JSON.stringify(i.value)}, label: ${JSON.stringify(i.label)} }`).join(', ')
+      props.push(`    dictItems: [${items}]`)
+    }
     if (f.memberLookup?.enabled) {
       props.push(`    memberLookup: { enabled: true, selectionFieldName: '${f.memberLookup.selectionFieldName}', displayFieldName: '${f.memberLookup.displayFieldName}', searchable: true, pageable: true, defaultLimit: ${f.memberLookup.defaultLimit || 20} }`)
     }
