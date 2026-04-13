@@ -19,7 +19,24 @@ const emit = defineEmits<{
 const inputValue = ref('')
 const showDropdown = ref(false)
 const containerRef = ref<HTMLElement>()
+const inputWrapperRef = ref<HTMLElement>()
+const dropdownRef = ref<HTMLElement>()
 const highlightIndex = ref(0)
+
+// 下拉框位置（Teleport 到 body）
+const dropdownStyle = ref<Record<string, string>>({})
+
+function updateDropdownPosition() {
+  if (!inputWrapperRef.value) return
+  const rect = inputWrapperRef.value.getBoundingClientRect()
+  dropdownStyle.value = {
+    position: 'fixed',
+    top: `${rect.bottom + 4}px`,
+    left: `${rect.left}px`,
+    width: `${rect.width}px`,
+    zIndex: '9999'
+  }
+}
 
 // 从 modelValue 初始化
 watch(() => props.modelValue, (slices) => {
@@ -50,6 +67,7 @@ const operatorOptions = computed(() => {
 
 function onInput() {
   if (inputValue.value.trim()) {
+    updateDropdownPosition()
     showDropdown.value = true
     highlightIndex.value = 0
   } else {
@@ -84,6 +102,7 @@ function selectOperator(op: string) {
 function onKeydown(e: KeyboardEvent) {
   if (!showDropdown.value || operatorOptions.value.length === 0) {
     if (e.key === 'Enter' && inputValue.value.trim()) {
+      updateDropdownPosition()
       showDropdown.value = true
       highlightIndex.value = 0
     }
@@ -117,7 +136,10 @@ function clear() {
 
 // 点击外部关闭下拉
 function handleClickOutside(e: MouseEvent) {
-  if (containerRef.value && !containerRef.value.contains(e.target as Node)) {
+  const target = e.target as Node
+  const inContainer = containerRef.value?.contains(target)
+  const inDropdown = dropdownRef.value?.contains(target)
+  if (!inContainer && !inDropdown) {
     showDropdown.value = false
   }
 }
@@ -133,30 +155,32 @@ onUnmounted(() => {
 
 <template>
   <div ref="containerRef" class="filter-text">
-    <div class="input-wrapper">
+    <div ref="inputWrapperRef" class="input-wrapper">
       <input
         v-model="inputValue"
         type="text"
         :placeholder="placeholder"
         @input="onInput"
         @keydown="onKeydown"
-        @focus="inputValue.trim() && (showDropdown = true)"
+        @focus="() => { if (inputValue.trim()) { updateDropdownPosition(); showDropdown = true } }"
       />
       <span v-if="inputValue" class="clear-btn" @click.stop="clear">×</span>
     </div>
 
-    <div v-if="showDropdown && operatorOptions.length > 0" class="filter-dropdown">
-      <div
-        v-for="(opt, index) in operatorOptions"
-        :key="opt.op"
-        class="filter-option"
-        :class="{ highlighted: index === highlightIndex }"
-        @click="selectOperator(opt.op)"
-        @mouseenter="highlightIndex = index"
-      >
-        {{ opt.label }}
+    <Teleport to="body">
+      <div v-if="showDropdown && operatorOptions.length > 0" ref="dropdownRef" class="filter-dropdown" :style="dropdownStyle">
+        <div
+          v-for="(opt, index) in operatorOptions"
+          :key="opt.op"
+          class="filter-option"
+          :class="{ highlighted: index === highlightIndex }"
+          @click="selectOperator(opt.op)"
+          @mouseenter="highlightIndex = index"
+        >
+          {{ opt.label }}
+        </div>
       </div>
-    </div>
+    </Teleport>
   </div>
 </template>
 
@@ -200,31 +224,10 @@ onUnmounted(() => {
   color: #909399;
 }
 
-.filter-dropdown {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  margin-top: 4px;
-  background: white;
-  border: 1px solid #e4e7ed;
-  border-radius: 4px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
-  z-index: 9999;
-  max-height: 200px;
-  overflow-y: auto;
-}
-
-.filter-option {
-  padding: 8px 12px;
-  font-size: 12px;
-  color: #606266;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-.filter-option:hover,
-.filter-option.highlighted {
-  background-color: #f5f7fa;
-}
+/* dropdown 样式已移至非 scoped <style> 块（Teleport 到 body 后 scoped 不生效） */
 </style>
+
+<!--
+  Teleport 到 body 的 .filter-dropdown / .filter-option 样式
+  由 SelectFilter.vue 的全局 <style> 统一提供，此处无需重复定义
+-->

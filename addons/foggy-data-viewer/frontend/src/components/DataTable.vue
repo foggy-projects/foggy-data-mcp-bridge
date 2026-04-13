@@ -750,7 +750,9 @@ provide('dataTableContext', {
   flex-direction: column;
   width: 100%;
   padding: 4px 0;
-  min-height: 60px;
+  height: 60px;
+  max-height: 60px;
+  overflow: visible;
 }
 
 .column-title {
@@ -835,15 +837,7 @@ provide('dataTableContext', {
   overflow: visible !important;
 }
 
-/* 注意：不要设置 overflow: visible，会破坏表头滚动同步 */
-/* 下拉框使用 teleport 或设置高 z-index 来确保可见 */
-
-/* 提高下拉框 z-index，确保在表格内容之上 */
-.column-filter :deep(.filter-dropdown),
-.column-filter :deep(.filter-select .filter-dropdown),
-.column-filter :deep(.filter-text .filter-dropdown) {
-  z-index: 2000 !important;
-}
+/* 下拉框已通过 Teleport 渲染到 body，不再受表头 overflow 裁切 */
 
 .data-table-footer {
   padding: 12px 16px;
