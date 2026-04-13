@@ -3,6 +3,7 @@ package com.foggyframework.dataset.db.model.semantic.service.impl;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.core.utils.beanhelper.BeanInfoHelper;
 import com.foggyframework.dataset.db.model.def.dict.DbDictDef;
+import com.foggyframework.dataset.db.model.def.dict.DbDictItemDef;
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.impl.AiObject;
 import com.foggyframework.dataset.db.model.impl.dimension.DbDimensionSupport;
@@ -913,6 +914,20 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         // 如果是字典类型，添加字典信息
         if (StringUtils.isNotEmpty(prop.getDictRef())) {
             fieldInfo.put("dictId", prop.getDictRef());
+            // 内联字典选项，供 frontend-meta v1 直接使用
+            if (dbModelDictService != null) {
+                DbDictDef dictDef = dbModelDictService.getDictById(prop.getDictRef());
+                if (dictDef != null && dictDef.getItems() != null) {
+                    List<Map<String, Object>> items = new ArrayList<>();
+                    for (DbDictItemDef item : dictDef.getItems()) {
+                        Map<String, Object> m = new LinkedHashMap<>();
+                        m.put("value", item.getValue());
+                        m.put("label", item.getLabel());
+                        items.add(m);
+                    }
+                    fieldInfo.put("dictItems", items);
+                }
+            }
         }
 
         Map<String, Object> modelInfo = new LinkedHashMap<>();
@@ -1220,6 +1235,20 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         // 如果是字典类型，添加字典信息
         if (StringUtils.isNotEmpty(property.getDictRef())) {
             fieldInfo.put("dictId", property.getDictRef());
+            // 内联字典选项，供 frontend-meta v1 直接使用
+            if (dbModelDictService != null) {
+                DbDictDef dictDef = dbModelDictService.getDictById(property.getDictRef());
+                if (dictDef != null && dictDef.getItems() != null) {
+                    List<Map<String, Object>> items = new ArrayList<>();
+                    for (DbDictItemDef item : dictDef.getItems()) {
+                        Map<String, Object> m = new LinkedHashMap<>();
+                        m.put("value", item.getValue());
+                        m.put("label", item.getLabel());
+                        items.add(m);
+                    }
+                    fieldInfo.put("dictItems", items);
+                }
+            }
         }
 
         // 输出源列名（供外部系统做 DB列名→QM字段 自动映射）

@@ -111,6 +111,9 @@ public class FrontendMetaConverter {
         // 推导 dictMode
         String dictMode = dictId != null ? "static" : null;
 
+        // 读取内联字典选项
+        List<FrontendMeta.DictItemMeta> dictItems = convertDictItems(fieldData);
+
         // 推导 memberLookup（仅 $caption 字段自动开启）
         MemberLookupMeta memberLookup = deriveMemberLookup(name, filterType, allFieldNames, hierarchical);
 
@@ -131,6 +134,7 @@ public class FrontendMetaConverter {
                 .sourceColumn(sourceColumn)
                 .dictId(dictId)
                 .dictMode(dictMode)
+                .dictItems(dictItems)
                 .calculated(calculated)
                 .hierarchical(hierarchical)
                 .hierarchyOps(hierarchyOps)
@@ -240,6 +244,35 @@ public class FrontendMetaConverter {
                 .searchFields(searchFields.isEmpty() ? null : searchFields)
                 .pageSize(50)
                 .build();
+    }
+
+    /**
+     * 转换内联字典选项（从 V3 元数据的 dictItems 数组）
+     */
+    @SuppressWarnings("unchecked")
+    private List<FrontendMeta.DictItemMeta> convertDictItems(Map<String, Object> fieldData) {
+        Object raw = fieldData.get("dictItems");
+        if (!(raw instanceof List)) {
+            return null;
+        }
+
+        List<?> rawList = (List<?>) raw;
+        if (rawList.isEmpty()) {
+            return null;
+        }
+
+        List<FrontendMeta.DictItemMeta> items = new ArrayList<>();
+        for (Object item : rawList) {
+            if (item instanceof Map) {
+                Map<String, Object> m = (Map<String, Object>) item;
+                Object value = m.get("value");
+                Object label = m.get("label");
+                if (value != null && label != null) {
+                    items.add(new FrontendMeta.DictItemMeta(value, String.valueOf(label)));
+                }
+            }
+        }
+        return items.isEmpty() ? null : items;
     }
 
     // ── 工具方法 ──
