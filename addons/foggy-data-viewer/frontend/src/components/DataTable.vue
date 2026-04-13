@@ -337,6 +337,17 @@ function getColumnFormatter(col: EnhancedColumnSchema): Partial<VxeGridProps['co
     }
   }
 
+  // 字典列：value → label 映射（优先级高于 type 默认 formatter）
+  if (col.dictItems && col.dictItems.length > 0) {
+    const labelMap = new Map(col.dictItems.map(item => [String(item.value), item.label]))
+    return {
+      formatter: ({ cellValue }) => {
+        if (cellValue == null) return ''
+        return labelMap.get(String(cellValue)) ?? String(cellValue)
+      }
+    }
+  }
+
   const type = col.type?.toUpperCase()
   switch (type) {
     case 'MONEY':

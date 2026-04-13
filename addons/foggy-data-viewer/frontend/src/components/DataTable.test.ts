@@ -583,7 +583,7 @@ describe('DataTable', () => {
       expect(wrapper.exists()).toBe(true)
     })
 
-    it('should accept columns with dictId only (no filterType)', () => {
+    it('should render with dictItems columns and use dict formatter', () => {
       const dictColumns: EnhancedColumnSchema[] = [
         { name: 'status', type: 'INTEGER', title: '状态', dictId: 'StatusDict', dictItems: [{ value: 1, label: '启用' }, { value: 0, label: '禁用' }] }
       ]
