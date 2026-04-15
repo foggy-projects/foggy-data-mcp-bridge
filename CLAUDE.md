@@ -88,6 +88,27 @@ Java TM/QM 模型模块，网关模式下打包进 JAR，提供 9 个 Odoo 业�
 
 **动态 Bundle**：支持运行时添加/移除外部 Bundle（详见 [Bundle & Namespace](docs/dev-guide/bundle-namespace.md)）
 
+## 运行时列权限 (fieldAccess)
+
+**入口**：`SemanticRequestContext.of(namespace, securityContext, fieldAccess)`
+
+**传递链路**：`SemanticRequestContext.fieldAccess` → `ModelResultContext.fieldAccess` → `FieldAccessPermissionStep.beforeQuery()`
+
+**校验范围**：columns / calculatedFields / slice / orderBy / groupBy（含内联表达式依赖提取和 fail-closed 策略）
+
+**metadata 裁剪**：`SemanticServiceV3Impl` 按 fieldAccess 过滤 JSON 和 Markdown 输出（维度/属性/度量/计算字段）
+
+**安全机制**：
+- 防御性复制：`Set.copyOf` + `Collections.unmodifiableSet`
+- 表达式依赖级校验：`CalculatedFieldService.extractColumnReferences(String)`
+- fail-closed：无法解析的表达式拒绝而非放行
+- 维度后缀剥离：`salesDate$id` → `salesDate` 做白名单匹配
+
+**与 visibleColumns 的关系**：
+- `fieldAccess`（运行时动态）在 @Order(-25) 全局校验
+- `visibleColumns`（QM 声明式）在 @Order(-20) 按维度成员收窄
+- 最终有效列 = intersection(fieldAccess, visibleColumns)
+
 ## TM/QM 模型文件
 - 位置：`foggy-dataset-demo/src/main/resources/foggy/templates/`
 - `.tm` - 表模型（维度、属性、度量）

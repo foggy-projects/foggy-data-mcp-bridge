@@ -4,162 +4,147 @@
 
 - doc_type: `verification-report`
 - intended_for: `engine-owner | execution-agent | reviewer`
-- purpose: 将 workspace root 的 Java 引擎验证结论下放到 `foggy-data-mcp-bridge`，作为本仓库后续能力整改的直接输入
+- purpose: 记录 `foggy-dataset-model` Java 引擎 fieldAccess 列权限能力的实现与测试验证结论
 
 ## 基本信息
 
 - 目标版本：`8.1.10.beta`
 - 优先级：`P0`
-- 状态：`handoff`
+- 状态：`implemented`
 - 责任项目：`foggy-data-mcp-bridge`
 - 上游目标文档：`docs/v1.3/P0-引擎计算字段列权限能力整改目标-需求.md`（workspace root）
 - 上游验证报告：`docs/v1.3/java-engine-calculated-field-permission-verification.md`（workspace root）
+- 实现 commit：`cabdd34` feat(dataset-model): add query-time field access permission
+- 测试 commit：`e9c7d21` test(dataset-model): comprehensive security test coverage
 
 ## 结论
 
-- 结论：**不支持**
+- 结论：**已支持**
 - 适用范围：
-  - Java 引擎具备 metadata 构建、字段过滤、`query_model`、inline expression、calculated field 等一般能力
-  - 但没有发现 query-time 的 `fieldAccess` / `visibleFields` / 等价列权限输入与校验链路
-  - 因而不存在“计算字段依赖源列权限”的引擎侧能力入口
-- 风险点：
-  - metadata `fields` 过滤只能裁剪 metadata 输出，不能等价成查询执行时的列权限
-  - 现有表达式相关测试全部是“表达式功能测试”，不是“权限测试”
-  - 若 bridge 把 `field.groups` 直接视为可由 Java 引擎兜底，会产生错误架构假设
+  - Java 引擎已具备 query-time `fieldAccess` 列权限输入与校验链路
+  - 计算字段依赖源列权限校验已实现（AST 递归依赖提取 + fail-closed）
+  - metadata 输出按 fieldAccess 过滤已实现（JSON + Markdown，含计算字段依赖检查）
+  - 55 个 fieldAccess 专项测试全部通过，全量 889 测试 0 回归
 
 ## 问题定义
 
-本报告验证 `foggy-dataset-model` Java 引擎侧是否真的支持以下能力：
+本报告验证 `foggy-dataset-model` Java 引擎侧是否支持以下能力：
 
-1. metadata / describe_model / get_metadata 场景下的字段裁剪
+1. metadata / describe_model / get_metadata 场景下按 fieldAccess 裁剪字段
 2. query_model / DSL 执行时的列权限校验
 3. 计算字段依赖源列权限的正确处理
 4. 重点场景：
    - QM 预定义计算字段
    - DSL 内联表达式 `a + b as c`
    - 聚合表达式 `sum(a + b) as total`
-   - 只在 `orderBy` / `filter` 中引用计算表达式
+   - 只在 `orderBy` / `filter` / `slice` 中引用计算表达式
+
+## 实现摘要
+
+### 新增核心组件
+
+| 组件 | 职责 |
+|---|---|
+| `FieldAccessPermissionStep` (`@Order -25`) | beforeQuery 步骤，校验 columns / calculatedFields / slice / orderBy / groupBy 是否在 fieldAccess 白名单内 |
+| `SemanticRequestContext.fieldAccess` | query-time 列权限输入（`null` = 无限制） |
+| `ModelResultContext.fieldAccess` | pipeline 内传播 |
+| `CalculatedFieldService.extractColumnReferences(String)` | 公共 API，AST 递归提取表达式依赖字段 |
+| `SemanticServiceV3Impl` metadata 过滤 | JSON + Markdown 输出按 fieldAccess 裁剪，含 `isCalculatedFieldAccessible()` 依赖检查 |
+
+### 安全措施
+
+- **fail-closed**：无法解析依赖的表达式默认拒绝
+- **维度后缀剥离**：`$id` / `$caption` / `$property` 后缀在权限检查前自动剥离
+- **AST 递归依赖提取**：对计算字段表达式做完整递归遍历，提取所有引用列
+- **防御性拷贝**：`SemanticRequestContext` 使用 `Set.copyOf` + `Collections.unmodifiableSet` 防止并发修改
 
 ## 代码链路
 
 ### 1. metadata / get_metadata
 
-- [SemanticMetadataRequest.java](D:/foggy-projects/foggy-data-mcp/foggy-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/semantic/domain/SemanticMetadataRequest.java)
-  - 只有 `qmModels`、`fields`、`includeExamples`、`levels`
-- [SemanticServiceV3Impl.java](D:/foggy-projects/foggy-data-mcp/foggy-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/semantic/service/impl/SemanticServiceV3Impl.java)
-  - metadata 构建时会按 `request.getFields()` 过滤字段
+- `SemanticRequestContext.fieldAccess` — query-time 列权限白名单输入
+- `SemanticServiceV3Impl` — metadata 构建时按 fieldAccess 过滤字段，计算字段通过 `isCalculatedFieldAccessible()` 检查依赖列是否全部在白名单内
 
 ### 2. query_model / DSL 执行
 
-- [SemanticQueryRequest.java](D:/foggy-projects/foggy-data-mcp/foggy-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/semantic/domain/SemanticQueryRequest.java)
-  - 有 `columns`、`calculatedFields`、`slice`、`groupBy`、`orderBy`
-  - **没有** `fieldAccess`
-  - **没有** `visibleFields`
-  - **没有** 等价的 query-time 列权限输入
-- [SemanticQueryServiceV3Impl.java](D:/foggy-projects/foggy-data-mcp/foggy-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/semantic/service/impl/SemanticQueryServiceV3Impl.java)
-  - `queryModel()` → `buildJdbcRequest()` → `QueryFacade.queryModelResult(...)`
-  - 只做字段存在性、groupBy 对齐、普通语义校验
-  - 未发现“用户可见字段白名单”或“源列权限校验”逻辑
+- `SemanticRequestContext.fieldAccess` — 列权限白名单
+- `FieldAccessPermissionStep` (`@Order -25`) — beforeQuery 步骤，在查询执行前校验：
+  - `columns` 中的每个字段
+  - `calculatedFields` 中每个表达式的依赖列
+  - `slice` 中引用的字段
+  - `orderBy` 中引用的字段
+  - `groupBy` 中引用的字段
+- 校验失败时抛出异常，阻止查询执行
 
-### 3. 表达式 / 计算字段能力
+### 3. 表达式 / 计算字段依赖提取
 
-- [InlineExpressionParserTest.java](D:/foggy-projects/foggy-data-mcp/foggy-data-mcp-bridge/foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/expression/InlineExpressionParserTest.java)
-- [CalculatedFieldAggregationBugTest.java](D:/foggy-projects/foggy-data-mcp/foggy-data-mcp-bridge/foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/ecommerce/CalculatedFieldAggregationBugTest.java)
+- `CalculatedFieldService.extractColumnReferences(String)` — AST 递归遍历表达式树，提取所有列引用
+- 支持嵌套函数调用、算术运算、聚合函数内的列引用提取
+- 无法解析时返回空集，由调用方执行 fail-closed 策略
 
-这类实现与测试证明 Java 引擎支持表达式功能，但**不等于**支持列权限。
+## 测试证据
 
-## 已有测试证据
+### fieldAccess 专项测试（55 个）
 
-### 现有测试文件
+| 测试类 | 用例数 | 覆盖范围 |
+|---|---|---|
+| `CalculatedFieldServiceTest` | 12 | 表达式依赖提取（简单/嵌套/聚合/不可解析） |
+| `FieldAccessPermissionStepTest` | 24 | 单元测试：权限校验、安全边界、维度后缀、fail-closed |
+| `FieldAccessPermissionIntegrationTest` | 8 | 全链路集成测试，真实 SQL 数据比对 |
+| `SemanticServiceV3Test.MetadataFieldAccessTests` | 4 | metadata 按 fieldAccess 过滤输出 |
+| `SemanticRequestContextTest` | 7 (新增) | factory 方法、防御性拷贝、不可变性 |
 
-- [SemanticServiceV3Test.java](D:/foggy-projects/foggy-data-mcp/foggy-data-mcp-bridge/foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/semantic/SemanticServiceV3Test.java)
-- [SemanticQueryValidationTest.java](D:/foggy-projects/foggy-data-mcp/foggy-data-mcp-bridge/foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/semantic/SemanticQueryValidationTest.java)
-- [InlineExpressionParserTest.java](D:/foggy-projects/foggy-data-mcp/foggy-data-mcp-bridge/foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/expression/InlineExpressionParserTest.java)
-- [CalculatedFieldAggregationBugTest.java](D:/foggy-projects/foggy-data-mcp/foggy-data-mcp-bridge/foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/ecommerce/CalculatedFieldAggregationBugTest.java)
+### 全量测试基线
 
-### 实际运行命令
-
-```powershell
-mvn -pl foggy-dataset-model "-Dtest=SemanticServiceV3Test,SemanticQueryValidationTest,InlineExpressionParserTest,CalculatedFieldAggregationBugTest" test
+```
+Tests run: 889, Failures: 0, Errors: 0, Skipped: 0
 ```
 
-### 测试结果摘要
-
-- `Tests run: 65, Failures: 0, Errors: 0, Skipped: 0`
-
-这些测试证明：
-
-- Java 引擎的 metadata / query / expression 功能本身存在
-
-这些测试没有证明：
-
-- query_model 请求里可以传用户列权限
-- 计算字段会按源列权限做拒绝/过滤
-- `a + b as c` 且 `b` 无权限时有正确处理
+0 回归。
 
 ## 分类型结论
 
 ### 1. QM 预定义计算字段
 
-- 结论：**权限能力不支持**
+- 结论：**已支持**
 - 说明：
-  - Java 有 calculated field 功能
-  - 但没有 query-time 列权限输入，无法谈“按源列权限处理”
+  - `FieldAccessPermissionStep` 对计算字段调用 `extractColumnReferences()` 提取依赖列
+  - 依赖列中任一不在 fieldAccess 白名单内则拒绝
+  - 无法解析依赖时 fail-closed
 
 ### 2. 查询时 DSL 内联表达式 `a + b as c`
 
-- 结论：**不支持**
+- 结论：**已支持**
 - 说明：
-  - 不是“证据还没补齐”的问题
-  - 而是请求模型和执行链路里没有任何列权限输入/校验入口
+  - 内联表达式经 AST 解析提取 `a`、`b` 两个依赖列
+  - 两个依赖列均须在 fieldAccess 白名单内
 
 ### 3. 聚合表达式 `sum(a + b) as total`
 
-- 结论：**不支持**
+- 结论：**已支持**
+- 说明：
+  - AST 递归进入聚合函数参数，提取 `a`、`b`
+  - 权限校验逻辑与内联表达式一致
 
-### 4. 只在 orderBy / filter 中引用计算表达式
+### 4. orderBy / filter / slice 中引用字段
 
-- 结论：**不支持**
-
-## 缺口分析
-
-### 缺哪类测试
-
-从“测试补齐”角度看，当前缺的是：
-
-1. query-time 列权限输入 DTO 测试
-2. query_model 拒绝无权限源字段表达式测试
-3. orderBy / filter 中表达式权限测试
-
-### 为什么不能只写“证据不足”
-
-因为问题不只是“没测试”，而是能力入口本身不存在：
-
-1. [SemanticQueryRequest.java](D:/foggy-projects/foggy-data-mcp/foggy-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/semantic/domain/SemanticQueryRequest.java) 里没有 permission DTO
-2. [SemanticQueryServiceV3Impl.java](D:/foggy-projects/foggy-data-mcp/foggy-data-mcp-bridge/foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/semantic/service/impl/SemanticQueryServiceV3Impl.java) 里没有权限校验链路
-
-### 建议最小整改
-
-1. request DTO 增加 `fieldAccess` 或等价结构
-2. service 层在 query 前校验 `columns` / `calculatedFields` / `slice` / `orderBy` / `filter`
-3. 为表达式引入依赖字段提取
-4. 对无法解析依赖的表达式 fail-closed
-5. 补齐以下测试：
-   - `a + b as c` 且 `b` 无权限
-   - `sum(a + b)` 且 `b` 无权限
-   - `orderBy` / `filter` 中表达式引用
+- 结论：**已支持**
+- 说明：
+  - `FieldAccessPermissionStep` 对 orderBy、slice 中的字段引用逐一校验
+  - 维度字段自动剥离 `$id` / `$caption` / `$property` 后缀后匹配
 
 ## 是否可以支撑 `odoo-bridge-pro` 按 `field.groups` 落地列权限
 
-- 结论：**不能**
+- 结论：**可以**
 
 原因：
 
-1. Java 引擎当前没有 query-time 列权限输入能力
-2. 没有计算字段源列权限校验逻辑
-3. 已有测试只证明表达式功能，不证明权限能力
+1. Java 引擎已具备 query-time `fieldAccess` 列权限输入能力
+2. 计算字段源列权限校验已实现（AST 依赖提取 + fail-closed）
+3. metadata 输出已按 fieldAccess 过滤
+4. 55 个专项测试覆盖全部 4 类场景
 
-因此，bridge 不能把 Java 引擎当作 `field.groups` 的列权限兜底方。
+bridge 可将 Odoo `field.groups` 解析为 `fieldAccess` 白名单，传递给 Java 引擎执行列权限校验。
 
 ## 关联文档
 
