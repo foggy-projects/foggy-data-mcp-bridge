@@ -12,7 +12,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -48,17 +50,20 @@ public class FieldAccessPermissionStep implements DataSetResultStep {
 
         DbQueryRequestDef request = ctx.getRequest().getParam();
 
+        // 构建计算字段名→表达式映射，用于传递依赖展开
+        Map<String, String> calcFieldMap = buildCalculatedFieldMap(request.getCalculatedFields());
+
         // 1. 校验 columns
-        validateColumns(request.getColumns(), fieldAccess);
+        validateColumns(request.getColumns(), fieldAccess, calcFieldMap);
 
         // 2. 校验 calculatedFields
-        validateCalculatedFields(request.getCalculatedFields(), fieldAccess);
+        validateCalculatedFields(request.getCalculatedFields(), fieldAccess, calcFieldMap);
 
         // 3. 校验 slice
         validateSlice(request.getSlice(), fieldAccess);
 
         // 4. 校验 orderBy
-        validateOrderBy(request.getOrderBy(), fieldAccess);
+        validateOrderBy(request.getOrderBy(), fieldAccess, calcFieldMap);
 
         // 5. 校验 groupBy
         validateGroupBy(request.getGroupBy(), fieldAccess);
@@ -71,19 +76,37 @@ public class FieldAccessPermissionStep implements DataSetResultStep {
     }
 
     /**
+     * 构建计算字段名→表达式映射（用于传递依赖展开）
+     */
+    private Map<String, String> buildCalculatedFieldMap(List<CalculatedFieldDef> calculatedFields) {
+        if (calculatedFields == null || calculatedFields.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, String> map = new LinkedHashMap<>();
+        for (CalculatedFieldDef field : calculatedFields) {
+            if (field.getName() != null && field.getExpression() != null) {
+                map.put(field.getName(), field.getExpression());
+            }
+        }
+        return map;
+    }
+
+    /**
      * 校验 columns 列表
      * <p>
      * 纯字段名直接检查白名单；内联表达式（含运算符/函数）先提取依赖再逐一检查。
+     * 表达式中引用的计算字段名会传递展开为基础字段。
      */
-    private void validateColumns(List<String> columns, Set<String> fieldAccess) {
+    private void validateColumns(List<String> columns, Set<String> fieldAccess,
+                                  Map<String, String> calcFieldMap) {
         if (columns == null || columns.isEmpty()) {
             return;
         }
         for (String column : columns) {
             InlineExpressionParser.InlineExpression parsed = InlineExpressionParser.parse(column);
             if (parsed != null) {
-                // 内联表达式：提取依赖字段
-                validateExpressionDeps(parsed.getExpression(), column, "columns", fieldAccess);
+                // 内联表达式：提取依赖字段（传递展开计算字段引用）
+                validateExpressionDeps(parsed.getExpression(), column, "columns", fieldAccess, calcFieldMap);
             } else {
                 // 纯字段名（可能带 $id/$caption 后缀）
                 String baseField = stripDimensionSuffix(column);
@@ -94,8 +117,12 @@ public class FieldAccessPermissionStep implements DataSetResultStep {
 
     /**
      * 校验 calculatedFields 列表
+     * <p>
+     * 对每个计算字段的表达式做传递依赖展开：如果表达式引用了其他计算字段，
+     * 递归解析到基础字段后再校验白名单。
      */
-    private void validateCalculatedFields(List<CalculatedFieldDef> calculatedFields, Set<String> fieldAccess) {
+    private void validateCalculatedFields(List<CalculatedFieldDef> calculatedFields, Set<String> fieldAccess,
+                                           Map<String, String> calcFieldMap) {
         if (calculatedFields == null || calculatedFields.isEmpty()) {
             return;
         }
@@ -105,7 +132,7 @@ public class FieldAccessPermissionStep implements DataSetResultStep {
             }
             validateExpressionDeps(field.getExpression(),
                     field.getName() != null ? field.getName() : field.getExpression(),
-                    "calculatedFields", fieldAccess);
+                    "calculatedFields", fieldAccess, calcFieldMap);
         }
     }
 
@@ -127,7 +154,8 @@ public class FieldAccessPermissionStep implements DataSetResultStep {
     /**
      * 校验 orderBy 列表
      */
-    private void validateOrderBy(List<OrderRequestDef> orderBy, Set<String> fieldAccess) {
+    private void validateOrderBy(List<OrderRequestDef> orderBy, Set<String> fieldAccess,
+                                  Map<String, String> calcFieldMap) {
         if (orderBy == null || orderBy.isEmpty()) {
             return;
         }
@@ -136,10 +164,16 @@ public class FieldAccessPermissionStep implements DataSetResultStep {
             if (field == null) {
                 continue;
             }
-            // orderBy 可能是表达式（如引用计算字段别名）或纯字段名
+            // orderBy 可能引用计算字段别名 — 需要传递展开
+            if (calcFieldMap.containsKey(field)) {
+                // 引用了一个计算字段，展开校验其基础依赖
+                validateExpressionDeps(calcFieldMap.get(field), field, "orderBy", fieldAccess, calcFieldMap);
+                continue;
+            }
+            // orderBy 可能是表达式或纯字段名
             InlineExpressionParser.InlineExpression parsed = InlineExpressionParser.parse(field);
             if (parsed != null) {
-                validateExpressionDeps(parsed.getExpression(), field, "orderBy", fieldAccess);
+                validateExpressionDeps(parsed.getExpression(), field, "orderBy", fieldAccess, calcFieldMap);
             } else {
                 String baseField = stripDimensionSuffix(field);
                 checkField(baseField, "orderBy", fieldAccess);
@@ -165,15 +199,16 @@ public class FieldAccessPermissionStep implements DataSetResultStep {
     }
 
     /**
-     * 提取表达式依赖并逐一校验
+     * 提取表达式依赖并逐一校验（支持传递依赖展开）
      * <p>
+     * 如果表达式引用了 {@code calcFieldMap} 中的计算字段，会递归解析到基础字段。
      * fail-closed：解析失败时拒绝而非放行。
      */
     private void validateExpressionDeps(String expression, String displayName, String clause,
-                                        Set<String> fieldAccess) {
+                                        Set<String> fieldAccess, Map<String, String> calcFieldMap) {
         Set<String> deps;
         try {
-            deps = CalculatedFieldService.extractColumnReferences(expression);
+            deps = CalculatedFieldService.resolveBaseColumnReferences(expression, calcFieldMap);
         } catch (Exception e) {
             // fail-closed：无法解析依赖时拒绝
             throw RX.throwB("表达式依赖无法解析，已拒绝访问（fail-closed）: '" + displayName

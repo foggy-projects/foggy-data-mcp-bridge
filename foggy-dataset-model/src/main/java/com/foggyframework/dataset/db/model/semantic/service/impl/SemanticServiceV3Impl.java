@@ -837,14 +837,16 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         }
 
         // 处理 QM 预定义计算字段
-        for (CalculatedFieldDef calc : queryModel.getPredefinedCalculatedFields()) {
+        List<CalculatedFieldDef> predefinedCalcs = queryModel.getPredefinedCalculatedFields();
+        Map<String, String> calcFieldMap = buildPredefinedCalcFieldMap(predefinedCalcs);
+        for (CalculatedFieldDef calc : predefinedCalcs) {
             String fieldName = calc.getName();
             if (fieldFilter != null && !fieldFilter.contains(fieldName)) {
                 continue;
             }
 
-            // fieldAccess 列权限裁剪：按依赖源字段判定
-            if (!isCalculatedFieldAccessible(calc, fieldAccess)) {
+            // fieldAccess 列权限裁剪：按依赖源字段判定（传递展开计算字段引用）
+            if (!isCalculatedFieldAccessible(calc, fieldAccess, calcFieldMap)) {
                 continue;
             }
 
@@ -1219,14 +1221,16 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         }
 
         // 收集 QM 预定义计算字段信息
-        for (CalculatedFieldDef calc : queryModel.getPredefinedCalculatedFields()) {
+        List<CalculatedFieldDef> predefinedCalcs = queryModel.getPredefinedCalculatedFields();
+        Map<String, String> calcFieldMap = buildPredefinedCalcFieldMap(predefinedCalcs);
+        for (CalculatedFieldDef calc : predefinedCalcs) {
             String fieldName = calc.getName();
             if (fieldFilter != null && !fieldFilter.contains(fieldName)) {
                 continue;
             }
 
-            // fieldAccess 列权限裁剪：按依赖源字段判定
-            if (!isCalculatedFieldAccessible(calc, fieldAccess)) {
+            // fieldAccess 列权限裁剪：按依赖源字段判定（传递展开计算字段引用）
+            if (!isCalculatedFieldAccessible(calc, fieldAccess, calcFieldMap)) {
                 continue;
             }
 
@@ -1236,18 +1240,37 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
     }
 
     /**
-     * 判断计算字段的所有依赖源字段是否都在 fieldAccess 白名单内。
+     * 构建预定义计算字段名→表达式映射（用于传递依赖展开）
+     */
+    private Map<String, String> buildPredefinedCalcFieldMap(List<CalculatedFieldDef> predefinedCalcs) {
+        if (predefinedCalcs == null || predefinedCalcs.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, String> map = new LinkedHashMap<>();
+        for (CalculatedFieldDef calc : predefinedCalcs) {
+            if (calc.getName() != null && calc.getExpression() != null) {
+                map.put(calc.getName(), calc.getExpression());
+            }
+        }
+        return map;
+    }
+
+    /**
+     * 判断计算字段的所有基础依赖源字段是否都在 fieldAccess 白名单内。
+     * <p>
+     * 支持传递依赖展开：如果计算字段引用了其他计算字段，递归解析到基础字段。
      * fieldAccess 为 null 或表达式为空时视为可访问。
      * 解析失败时 fail-closed（视为不可访问）。
      */
-    private boolean isCalculatedFieldAccessible(CalculatedFieldDef calc, Set<String> fieldAccess) {
+    private boolean isCalculatedFieldAccessible(CalculatedFieldDef calc, Set<String> fieldAccess,
+                                                 Map<String, String> calcFieldMap) {
         if (fieldAccess == null || calc.getExpression() == null) {
             return true;
         }
         try {
-            Set<String> deps = com.foggyframework.dataset.db.model.engine.expression
-                    .CalculatedFieldService.extractColumnReferences(calc.getExpression());
-            for (String dep : deps) {
+            Set<String> baseDeps = com.foggyframework.dataset.db.model.engine.expression
+                    .CalculatedFieldService.resolveBaseColumnReferences(calc.getExpression(), calcFieldMap);
+            for (String dep : baseDeps) {
                 if (!fieldAccess.contains(dep)) {
                     return false;
                 }

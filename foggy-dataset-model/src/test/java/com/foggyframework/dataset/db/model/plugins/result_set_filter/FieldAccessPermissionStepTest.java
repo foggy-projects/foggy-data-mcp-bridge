@@ -427,4 +427,117 @@ class FieldAccessPermissionStepTest {
 
         assertThrows(RuntimeException.class, () -> step.beforeQuery(ctx));
     }
+
+    // ==============================================
+    // 传递依赖测试（计算字段引用其他计算字段）
+    // ==============================================
+
+    @Test
+    @DisplayName("传递依赖 — 计算字段 d=c+e，c=a+b，基础字段全部在白名单时通过")
+    void fieldAccess_transitiveCalcField_allBaseDepsAllowed() {
+        Set<String> allowed = new LinkedHashSet<>(Arrays.asList("a", "b", "e"));
+        DbQueryRequestDef request = new DbQueryRequestDef();
+        request.setColumns(List.of());
+
+        CalculatedFieldDef cf1 = new CalculatedFieldDef();
+        cf1.setName("c");
+        cf1.setExpression("a + b");
+
+        CalculatedFieldDef cf2 = new CalculatedFieldDef();
+        cf2.setName("d");
+        cf2.setExpression("c + e"); // c 是另一个计算字段
+
+        request.setCalculatedFields(new java.util.ArrayList<>(List.of(cf1, cf2)));
+
+        PagingRequest<DbQueryRequestDef> pagingRequest = PagingRequest.buildPagingRequest(request, 100);
+        ModelResultContext ctx = new ModelResultContext();
+        ctx.setRequest(pagingRequest);
+        ctx.setFieldAccess(allowed);
+
+        // d → {c, e} → c → {a, b} → 传递展开后基础字段 = {a, b, e}，全部在白名单
+        assertEquals(0, step.beforeQuery(ctx), "传递依赖展开后基础字段全部在白名单应通过");
+    }
+
+    @Test
+    @DisplayName("传递依赖 — 计算字段 d=c+e，c=a+b，基础字段 b 不在白名单时拒绝")
+    void fieldAccess_transitiveCalcField_baseDep_denied() {
+        Set<String> allowed = new LinkedHashSet<>(Arrays.asList("a", "e")); // 缺 b
+        DbQueryRequestDef request = new DbQueryRequestDef();
+        request.setColumns(List.of());
+
+        CalculatedFieldDef cf1 = new CalculatedFieldDef();
+        cf1.setName("c");
+        cf1.setExpression("a + b");
+
+        CalculatedFieldDef cf2 = new CalculatedFieldDef();
+        cf2.setName("d");
+        cf2.setExpression("c + e");
+
+        request.setCalculatedFields(new java.util.ArrayList<>(List.of(cf1, cf2)));
+
+        PagingRequest<DbQueryRequestDef> pagingRequest = PagingRequest.buildPagingRequest(request, 100);
+        ModelResultContext ctx = new ModelResultContext();
+        ctx.setRequest(pagingRequest);
+        ctx.setFieldAccess(allowed);
+
+        // d → {c, e} → c → {a, b} → b 不在白名单 → 拒绝
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> step.beforeQuery(ctx));
+        assertTrue(ex.getMessage().contains("b"),
+                "应包含被拒绝的基础字段 'b': " + ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("传递依赖 — 三层嵌套 f=d+g，d=c+e，c=a+b 全部在白名单时通过")
+    void fieldAccess_deepTransitive_passes() {
+        Set<String> allowed = new LinkedHashSet<>(Arrays.asList("a", "b", "e", "g"));
+        DbQueryRequestDef request = new DbQueryRequestDef();
+        request.setColumns(List.of());
+
+        CalculatedFieldDef cf1 = new CalculatedFieldDef();
+        cf1.setName("c");
+        cf1.setExpression("a + b");
+
+        CalculatedFieldDef cf2 = new CalculatedFieldDef();
+        cf2.setName("d");
+        cf2.setExpression("c + e");
+
+        CalculatedFieldDef cf3 = new CalculatedFieldDef();
+        cf3.setName("f");
+        cf3.setExpression("d + g");
+
+        request.setCalculatedFields(new java.util.ArrayList<>(List.of(cf1, cf2, cf3)));
+
+        PagingRequest<DbQueryRequestDef> pagingRequest = PagingRequest.buildPagingRequest(request, 100);
+        ModelResultContext ctx = new ModelResultContext();
+        ctx.setRequest(pagingRequest);
+        ctx.setFieldAccess(allowed);
+
+        assertEquals(0, step.beforeQuery(ctx), "三层传递依赖全部在白名单应通过");
+    }
+
+    @Test
+    @DisplayName("orderBy 引用计算字段别名 — 传递展开后校验基础字段")
+    void fieldAccess_orderByCalcAlias_transitiveCheck() {
+        Set<String> allowed = new LinkedHashSet<>(Arrays.asList("a", "b"));
+        DbQueryRequestDef request = new DbQueryRequestDef();
+        request.setColumns(List.of());
+
+        CalculatedFieldDef cf = new CalculatedFieldDef();
+        cf.setName("total");
+        cf.setExpression("a + b");
+        request.setCalculatedFields(new java.util.ArrayList<>(List.of(cf)));
+
+        OrderRequestDef order = new OrderRequestDef();
+        order.setField("total"); // 引用计算字段别名
+        order.setDir("DESC");
+        request.setOrderBy(List.of(order));
+
+        PagingRequest<DbQueryRequestDef> pagingRequest = PagingRequest.buildPagingRequest(request, 100);
+        ModelResultContext ctx = new ModelResultContext();
+        ctx.setRequest(pagingRequest);
+        ctx.setFieldAccess(allowed);
+
+        assertEquals(0, step.beforeQuery(ctx), "orderBy 引用计算字段别名应传递展开后校验通过");
+    }
 }

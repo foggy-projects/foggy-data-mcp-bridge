@@ -227,6 +227,64 @@ public final class CalculatedFieldService {
     }
 
     /**
+     * 将表达式的列引用展开为基础字段（传递解析计算字段依赖）
+     * <p>
+     * 对于表达式中引用的列名，如果该列名是 {@code calculatedFieldMap} 中的计算字段，
+     * 则递归展开为该计算字段的基础字段依赖。最终返回的集合只包含基础字段名，
+     * 不包含任何计算字段名。
+     * </p>
+     * <p>
+     * 用于列权限校验场景：{@code fieldAccess} 白名单只包含基础字段名，
+     * 计算字段引用其他计算字段时需要传递展开才能正确判定。
+     * </p>
+     *
+     * @param expression         表达式字符串
+     * @param calculatedFieldMap 计算字段名 → 表达式的映射（用于传递解析）
+     * @return 展开后的基础字段集合（不可变）
+     * @throws RuntimeException 如果表达式语法错误
+     * @since 8.2.0
+     */
+    public static Set<String> resolveBaseColumnReferences(String expression,
+                                                           Map<String, String> calculatedFieldMap) {
+        if (expression == null || expression.trim().isEmpty()) {
+            return Collections.emptySet();
+        }
+        Set<String> directRefs = extractColumnReferences(expression);
+        if (calculatedFieldMap == null || calculatedFieldMap.isEmpty()) {
+            return directRefs;
+        }
+
+        // 传递展开：将引用的计算字段替换为其基础字段
+        Set<String> baseRefs = new LinkedHashSet<>();
+        Set<String> visited = new HashSet<>(); // 防止循环引用无限递归
+        for (String ref : directRefs) {
+            resolveToBase(ref, calculatedFieldMap, baseRefs, visited);
+        }
+        return Collections.unmodifiableSet(baseRefs);
+    }
+
+    /**
+     * 递归将列引用解析为基础字段
+     */
+    private static void resolveToBase(String ref, Map<String, String> calculatedFieldMap,
+                                       Set<String> baseRefs, Set<String> visited) {
+        if (!visited.add(ref)) {
+            return; // 循环引用保护
+        }
+        String calcExpr = calculatedFieldMap.get(ref);
+        if (calcExpr == null) {
+            // 不是计算字段，是基础字段
+            baseRefs.add(ref);
+        } else {
+            // 是计算字段，递归展开其依赖
+            Set<String> innerRefs = extractColumnReferences(calcExpr);
+            for (String inner : innerRefs) {
+                resolveToBase(inner, calculatedFieldMap, baseRefs, visited);
+            }
+        }
+    }
+
+    /**
      * 从 AST 中递归提取所有列引用
      *
      * @param exp  表达式 AST

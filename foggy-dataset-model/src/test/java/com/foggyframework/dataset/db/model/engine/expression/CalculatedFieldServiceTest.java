@@ -108,4 +108,51 @@ class CalculatedFieldServiceTest {
         Set<String> refs = CalculatedFieldService.extractColumnReferences("-amount");
         assertEquals(Set.of("amount"), refs);
     }
+
+    // ==============================================
+    // resolveBaseColumnReferences 传递依赖展开测试
+    // ==============================================
+
+    @Test
+    @DisplayName("传递展开 — 无计算字段映射时直接返回原始引用")
+    void resolveBase_noCalcMap() {
+        Set<String> refs = CalculatedFieldService.resolveBaseColumnReferences("a + b", null);
+        assertEquals(Set.of("a", "b"), refs);
+    }
+
+    @Test
+    @DisplayName("传递展开 — 空计算字段映射时直接返回原始引用")
+    void resolveBase_emptyCalcMap() {
+        Set<String> refs = CalculatedFieldService.resolveBaseColumnReferences("a + b", java.util.Map.of());
+        assertEquals(Set.of("a", "b"), refs);
+    }
+
+    @Test
+    @DisplayName("传递展开 — 引用计算字段时递归到基础字段")
+    void resolveBase_transitiveResolve() {
+        java.util.Map<String, String> calcMap = java.util.Map.of("c", "a + b");
+        Set<String> refs = CalculatedFieldService.resolveBaseColumnReferences("c + e", calcMap);
+        assertEquals(Set.of("a", "b", "e"), refs);
+    }
+
+    @Test
+    @DisplayName("传递展开 — 多层嵌套 d→c→{a,b}，结果为基础字段集合")
+    void resolveBase_deepTransitive() {
+        java.util.Map<String, String> calcMap = new java.util.LinkedHashMap<>();
+        calcMap.put("c", "a + b");
+        calcMap.put("d", "c + e");
+        Set<String> refs = CalculatedFieldService.resolveBaseColumnReferences("d + g", calcMap);
+        assertEquals(Set.of("a", "b", "e", "g"), refs);
+    }
+
+    @Test
+    @DisplayName("传递展开 — 循环引用不死循环")
+    void resolveBase_circularReference() {
+        java.util.Map<String, String> calcMap = new java.util.LinkedHashMap<>();
+        calcMap.put("x", "y + 1");
+        calcMap.put("y", "x + 1");
+        // 不应死循环，应正常返回（可能包含部分结果）
+        Set<String> refs = CalculatedFieldService.resolveBaseColumnReferences("x", calcMap);
+        assertNotNull(refs, "循环引用不应导致死循环");
+    }
 }
