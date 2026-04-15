@@ -110,6 +110,25 @@ Java TM/QM 模型模块，网关模式下打包进 JAR，提供 9 个 Odoo 业�
 - `visibleColumns`（QM 声明式）在 @Order(-20) 按维度成员收窄
 - 最终有效列 = intersection(fieldAccess, visibleColumns)
 
+## 物理列级权限 (deniedColumns)
+
+**入口**：`SemanticRequestContext.ofDeniedColumns(namespace, securityContext, deniedColumns)`
+
+**传递链路**：`SemanticRequestContext.deniedColumns` → `ModelResultContext.deniedColumns` → `PhysicalColumnPermissionStep.beforeExecute()`
+
+**检查时机**：`QueryExecutionStep` 接口，order=1100，在 JdbcQuery 构建完成后、SQL 执行前拦截（PreAggRewrite 和 L2Cache 之前）
+
+**校验逻辑**：遍历 `JdbcQuery.select.columns`、`order`、`group` 中的 `DbColumn`，提取 `TableQueryObject.schema` + `tableName` + `sqlColumnName`，匹配 deniedColumns 黑名单
+
+**输入格式**：`List<DeniedPhysicalColumn>`，每条含 `schema`（可 null，null 匹配任意 schema）、`table`、`column`
+
+**metadata physicalTables**：JSON metadata 输出包含 `physicalTables` 字段，列出 QM 涉及的物理表（事实表 + 维度表）
+
+**与 fieldAccess 的关系**：
+- `fieldAccess` — QM 字段名白名单，在 beforeQuery 阶段检查（解析前）
+- `deniedColumns` — 物理列黑名单，在 beforeExecute 阶段检查（SQL 构建后）
+- 两套机制并存，互不干扰
+
 ## TM/QM 模型文件
 - 位置：`foggy-dataset-demo/src/main/resources/foggy/templates/`
 - `.tm` - 表模型（维度、属性、度量）
