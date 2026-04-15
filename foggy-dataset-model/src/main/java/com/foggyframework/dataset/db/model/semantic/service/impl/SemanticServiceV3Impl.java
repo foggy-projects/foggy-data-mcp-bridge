@@ -94,6 +94,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
 
         Map<String, Object> fields = new LinkedHashMap<>();
         Map<String, Object> models = new LinkedHashMap<>();
+        List<Map<String, String>> physicalTables = new ArrayList<>();
 
         for (String qmModelName : request.getQmModels()) {
             try {
@@ -108,6 +109,9 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
 
                 // 处理模型信息
                 processModelInfo(queryModel, models);
+
+                // 收集物理表信息
+                collectPhysicalTables(queryModel, physicalTables);
             } catch (Exception e) {
                 // 单模型加载失败不拖垮整包 metadata
                 log.warn("metadata 构建跳过模型 '{}': {}", qmModelName, e.getMessage());
@@ -116,6 +120,9 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
 
         data.put("fields", fields);
         data.put("models", models);
+        if (!physicalTables.isEmpty()) {
+            data.put("physicalTables", physicalTables);
+        }
 
         return data;
     }
@@ -1236,6 +1243,50 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
 
             FieldInfoV3 fieldInfo = allFields.computeIfAbsent(fieldName, k -> new FieldInfoV3());
             fieldInfo.addCalculatedField(calc, queryModel.getName());
+        }
+    }
+
+    /**
+     * 收集 QM 模型涉及的物理表信息
+     * <p>
+     * 从 TM 主表和维度 JOIN 表中提取物理表名。
+     */
+    private void collectPhysicalTables(QueryModel queryModel, List<Map<String, String>> physicalTables) {
+        TableModel tm = queryModel.getJdbcModel();
+        Set<String> seen = new HashSet<>();
+
+        // 主表（事实表）
+        String mainTable = tm.getTableName();
+        if (mainTable != null && seen.add(mainTable)) {
+            Map<String, String> entry = new LinkedHashMap<>();
+            entry.put("table", mainTable);
+            entry.put("role", "fact");
+            physicalTables.add(entry);
+        }
+
+        // 维度表（通过 JOIN 关联）
+        for (DbDimension dim : tm.getDimensions()) {
+            if (dim instanceof com.foggyframework.dataset.db.model.impl.dimension.DbDimensionSupport dimSupport) {
+                collectDimensionTables(dimSupport, physicalTables, seen);
+            }
+        }
+    }
+
+    /**
+     * 递归收集维度及其嵌套维度的物理表
+     */
+    private void collectDimensionTables(
+            com.foggyframework.dataset.db.model.impl.dimension.DbDimensionSupport dimSupport,
+            List<Map<String, String>> physicalTables, Set<String> seen) {
+        TableModel dimTm = dimSupport.getJdbcModel();
+        if (dimTm != null) {
+            String dimTable = dimTm.getTableName();
+            if (dimTable != null && seen.add(dimTable)) {
+                Map<String, String> entry = new LinkedHashMap<>();
+                entry.put("table", dimTable);
+                entry.put("role", "dimension");
+                physicalTables.add(entry);
+            }
         }
     }
 

@@ -71,6 +71,17 @@ public class ModelResultContext {
     Set<String> fieldAccess;
 
     /**
+     * 受限物理列黑名单（由 bridge/上层调用方传入）
+     * <p>
+     * null 表示不限制；非 null 时，JdbcQuery 中引用的物理列
+     * 如果命中黑名单，查询将被拒绝（在 SQL 执行前拦截）。
+     * </p>
+     *
+     * @since 8.2.0
+     */
+    java.util.List<com.foggyframework.dataset.db.model.semantic.domain.DeniedPhysicalColumn> deniedColumns;
+
+    /**
      * 查询缓存配置
      */
     QueryCacheConfig cacheConfig;
