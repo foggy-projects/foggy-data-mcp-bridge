@@ -146,6 +146,22 @@ class CalculatedFieldServiceTest {
     }
 
     @Test
+    @DisplayName("维度属性字段名（含$） — FSScript 解析为完整标识符")
+    void extractRefs_dimensionProperty() {
+        // FSScript 将 product$categoryName 解析为单个完整标识符
+        Set<String> refs = CalculatedFieldService.extractColumnReferences("product$categoryName");
+        assertEquals(Set.of("product$categoryName"), refs);
+    }
+
+    @Test
+    @DisplayName("跨表计算表达式 — 提取维度属性和度量字段")
+    void extractRefs_crossTableExpression() {
+        Set<String> refs = CalculatedFieldService.extractColumnReferences(
+                "salesAmount * product$discountRate");
+        assertEquals(Set.of("salesAmount", "product$discountRate"), refs);
+    }
+
+    @Test
     @DisplayName("传递展开 — 循环引用不死循环")
     void resolveBase_circularReference() {
         java.util.Map<String, String> calcMap = new java.util.LinkedHashMap<>();

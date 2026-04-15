@@ -221,8 +221,10 @@ public class FieldAccessPermissionStep implements DataSetResultStep {
         }
 
         for (String dep : deps) {
-            if (!fieldAccess.contains(dep)) {
-                throw RX.throwB("字段访问被拒绝: " + clause + " 中字段 '" + dep
+            // 对表达式中提取的依赖也做维度后缀剥离（如 product$categoryName → product）
+            String baseDep = stripDimensionSuffix(dep);
+            if (!fieldAccess.contains(baseDep)) {
+                throw RX.throwB("字段访问被拒绝: " + clause + " 中字段 '" + baseDep
                         + "' 不在当前用户的可访问字段列表中");
             }
         }

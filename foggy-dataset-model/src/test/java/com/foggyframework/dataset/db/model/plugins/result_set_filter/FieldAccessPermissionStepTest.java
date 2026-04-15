@@ -540,4 +540,52 @@ class FieldAccessPermissionStepTest {
 
         assertEquals(0, step.beforeQuery(ctx), "orderBy 引用计算字段别名应传递展开后校验通过");
     }
+
+    // ==============================================
+    // 跨表维度属性字段测试
+    // ==============================================
+
+    @Test
+    @DisplayName("表达式引用维度属性字段 product$categoryName — 剥离后缀匹配白名单 product")
+    void fieldAccess_expressionWithDimensionProperty_passes() {
+        Set<String> allowed = new LinkedHashSet<>(Arrays.asList("salesAmount", "product"));
+        DbQueryRequestDef request = new DbQueryRequestDef();
+        request.setColumns(List.of());
+
+        CalculatedFieldDef cf = new CalculatedFieldDef();
+        cf.setName("adjusted");
+        cf.setExpression("salesAmount * product$discountRate");
+        request.setCalculatedFields(new java.util.ArrayList<>(List.of(cf)));
+
+        PagingRequest<DbQueryRequestDef> pagingRequest = PagingRequest.buildPagingRequest(request, 100);
+        ModelResultContext ctx = new ModelResultContext();
+        ctx.setRequest(pagingRequest);
+        ctx.setFieldAccess(allowed);
+
+        // product$discountRate 剥离为 product，在白名单中 → 通过
+        assertEquals(0, step.beforeQuery(ctx));
+    }
+
+    @Test
+    @DisplayName("表达式引用维度属性字段 — 维度基础名不在白名单时拒绝")
+    void fieldAccess_expressionWithDimensionProperty_denied() {
+        Set<String> allowed = new LinkedHashSet<>(List.of("salesAmount")); // 没有 product
+        DbQueryRequestDef request = new DbQueryRequestDef();
+        request.setColumns(List.of());
+
+        CalculatedFieldDef cf = new CalculatedFieldDef();
+        cf.setName("adjusted");
+        cf.setExpression("salesAmount * product$discountRate");
+        request.setCalculatedFields(new java.util.ArrayList<>(List.of(cf)));
+
+        PagingRequest<DbQueryRequestDef> pagingRequest = PagingRequest.buildPagingRequest(request, 100);
+        ModelResultContext ctx = new ModelResultContext();
+        ctx.setRequest(pagingRequest);
+        ctx.setFieldAccess(allowed);
+
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> step.beforeQuery(ctx));
+        assertTrue(ex.getMessage().contains("product"),
+                "应包含被拒绝的维度基础名 'product': " + ex.getMessage());
+    }
 }

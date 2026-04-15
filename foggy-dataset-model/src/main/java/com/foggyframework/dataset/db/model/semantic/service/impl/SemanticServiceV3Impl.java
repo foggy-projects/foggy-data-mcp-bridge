@@ -1271,7 +1271,9 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             Set<String> baseDeps = com.foggyframework.dataset.db.model.engine.expression
                     .CalculatedFieldService.resolveBaseColumnReferences(calc.getExpression(), calcFieldMap);
             for (String dep : baseDeps) {
-                if (!fieldAccess.contains(dep)) {
+                // 维度后缀剥离：product$categoryName → product
+                String baseDep = dep.indexOf('$') > 0 ? dep.substring(0, dep.indexOf('$')) : dep;
+                if (!fieldAccess.contains(baseDep)) {
                     return false;
                 }
             }
