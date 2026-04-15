@@ -18,6 +18,7 @@ import lombok.NoArgsConstructor;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Data
 @NoArgsConstructor
@@ -56,6 +57,18 @@ public class ModelResultContext {
      * <p>空字符串或null表示默认命名空间
      */
     String namespace;
+
+    /**
+     * 运行时列权限白名单（由 bridge/上层调用方传入）
+     * <p>
+     * null 表示不限制（所有字段可访问）；非 null 时，
+     * 只有白名单内的字段名才允许出现在 columns / calculatedFields /
+     * slice / orderBy / groupBy 中。
+     * </p>
+     *
+     * @since 8.2.0
+     */
+    Set<String> fieldAccess;
 
     /**
      * 查询缓存配置

@@ -204,12 +204,35 @@ public final class CalculatedFieldService {
     }
 
     /**
+     * 从表达式字符串中提取所有引用的列名
+     * <p>
+     * 编译表达式为 AST，然后递归提取所有 {@link SqlColumnRefExp} 引用。
+     * 用于列权限校验场景：判断表达式依赖哪些源字段。
+     * </p>
+     *
+     * @param expression 表达式字符串，如 {@code "a + b"}、{@code "SUM(amount * rate)"}
+     * @return 引用的列名集合（不可变），如 {@code {"a", "b"}} 或 {@code {"amount", "rate"}}；
+     *         表达式为空时返回空集合
+     * @throws RuntimeException 如果表达式语法错误
+     * @since 8.2.0
+     */
+    public static Set<String> extractColumnReferences(String expression) {
+        if (expression == null || expression.trim().isEmpty()) {
+            return Collections.emptySet();
+        }
+        Exp compiled = compileExpression(expression);
+        Set<String> refs = new LinkedHashSet<>();
+        extractColumnReferences(compiled, refs);
+        return Collections.unmodifiableSet(refs);
+    }
+
+    /**
      * 从 AST 中递归提取所有列引用
      *
      * @param exp  表达式 AST
      * @param refs 收集到的列名集合
      */
-    private static void extractColumnReferences(Exp exp, Set<String> refs) {
+    public static void extractColumnReferences(Exp exp, Set<String> refs) {
         if (exp == null) {
             return;
         }

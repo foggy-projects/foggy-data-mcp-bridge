@@ -2,33 +2,40 @@ package com.foggyframework.dataset.db.model.semantic.domain;
 
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 
+import java.util.Set;
+
 /**
- * 语义请求上下文 -- 携带跨切面关注点（namespace + 安全上下文）。
+ * 语义请求上下文 -- 携带跨切面关注点（namespace + 安全上下文 + 列权限）。
  *
- * <p>将 namespace 和 securityContext 统一为单一参数，
+ * <p>将 namespace、securityContext 和 fieldAccess 统一为单一参数，
  * 消除语义服务接口中因可选参数组合导致的重载膨胀。</p>
  *
- * <p>两个字段均可为 null：</p>
+ * <p>所有字段均可为 null：</p>
  * <ul>
  *   <li>{@code namespace} -- null 表示使用默认命名空间</li>
  *   <li>{@code securityContext} -- null 表示无认证/安全信息</li>
+ *   <li>{@code fieldAccess} -- null 表示不限制列访问（全部字段可用）；
+ *       非 null 时为允许访问的字段白名单</li>
  * </ul>
  *
  * @since 8.2.0
  */
 public class SemanticRequestContext {
 
-    private static final SemanticRequestContext EMPTY = new SemanticRequestContext(null, null);
+    private static final SemanticRequestContext EMPTY = new SemanticRequestContext(null, null, null);
 
     private final String namespace;
     private final ModelResultContext.SecurityContext securityContext;
+    private final Set<String> fieldAccess;
 
-    private SemanticRequestContext(String namespace, ModelResultContext.SecurityContext securityContext) {
+    private SemanticRequestContext(String namespace, ModelResultContext.SecurityContext securityContext,
+                                   Set<String> fieldAccess) {
         this.namespace = namespace;
         this.securityContext = securityContext;
+        this.fieldAccess = fieldAccess;
     }
 
-    /** 空上下文 -- 无命名空间、无安全信息 */
+    /** 空上下文 -- 无命名空间、无安全信息、无列权限限制 */
     public static SemanticRequestContext empty() {
         return EMPTY;
     }
@@ -38,7 +45,7 @@ public class SemanticRequestContext {
         if (namespace == null) {
             return EMPTY;
         }
-        return new SemanticRequestContext(namespace, null);
+        return new SemanticRequestContext(namespace, null, null);
     }
 
     /** 从 authorization 字符串自动构建 SecurityContext */
@@ -47,12 +54,25 @@ public class SemanticRequestContext {
         if (authorization != null && !authorization.isEmpty()) {
             sc = ModelResultContext.SecurityContext.fromAuthorization(authorization);
         }
-        return new SemanticRequestContext(namespace, sc);
+        return new SemanticRequestContext(namespace, sc, null);
     }
 
     /** 显式传入 SecurityContext */
     public static SemanticRequestContext of(String namespace, ModelResultContext.SecurityContext securityContext) {
-        return new SemanticRequestContext(namespace, securityContext);
+        return new SemanticRequestContext(namespace, securityContext, null);
+    }
+
+    /**
+     * 完整构造：namespace + securityContext + fieldAccess
+     *
+     * @param namespace       命名空间（可 null）
+     * @param securityContext  安全上下文（可 null）
+     * @param fieldAccess     运行时列权限白名单（null 表示不限制）
+     * @since 8.2.0
+     */
+    public static SemanticRequestContext of(String namespace, ModelResultContext.SecurityContext securityContext,
+                                            Set<String> fieldAccess) {
+        return new SemanticRequestContext(namespace, securityContext, fieldAccess);
     }
 
     public String getNamespace() {
@@ -63,6 +83,16 @@ public class SemanticRequestContext {
         return securityContext;
     }
 
+    /**
+     * 获取运行时列权限白名单
+     *
+     * @return 允许访问的字段名集合；null 表示不限制
+     * @since 8.2.0
+     */
+    public Set<String> getFieldAccess() {
+        return fieldAccess;
+    }
+
     /** 便捷方法：委托给 securityContext.getAuthorization() */
     public String getAuthorization() {
         return securityContext != null ? securityContext.getAuthorization() : null;
@@ -70,6 +100,7 @@ public class SemanticRequestContext {
 
     @Override
     public String toString() {
-        return "SemanticRequestContext{namespace='" + namespace + "'}";
+        return "SemanticRequestContext{namespace='" + namespace + "'" +
+                (fieldAccess != null ? ", fieldAccess=" + fieldAccess.size() + " fields" : "") + "}";
     }
 }

@@ -51,6 +51,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
     public SemanticMetadataResponse getMetadata(SemanticMetadataRequest request, String format,
                                                 SemanticRequestContext context) {
         String namespace = context.getNamespace();
+        Set<String> fieldAccess = context.getFieldAccess();
         try {
             // 设置namespace到ThreadLocal（供模型加载使用）
             if (namespace != null) {
@@ -61,11 +62,11 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             response.setFormat(format);
 
             if ("json".equalsIgnoreCase(format)) {
-                Map<String, Object> data = buildJsonMetadata(request, namespace);
+                Map<String, Object> data = buildJsonMetadata(request, namespace, fieldAccess);
                 response.setData(data);
                 response.setContent(null);
             } else {
-                String markdownContent = buildMarkdownMetadata(request, namespace);
+                String markdownContent = buildMarkdownMetadata(request, namespace, fieldAccess);
                 response.setContent(markdownContent);
                 response.setData(null);
             }
@@ -81,8 +82,11 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
 
     /**
      * 构建JSON格式的元数据（V3版本：维度展开）
+     *
+     * @param fieldAccess 运行时列权限白名单（null 表示不限制）
      */
-    private Map<String, Object> buildJsonMetadata(SemanticMetadataRequest request, String namespace) {
+    private Map<String, Object> buildJsonMetadata(SemanticMetadataRequest request, String namespace,
+                                                   Set<String> fieldAccess) {
         Map<String, Object> data = new LinkedHashMap<>();
 
         data.put("prompt", buildPrompt());
@@ -99,8 +103,8 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                     continue;
                 }
 
-                // 处理字段信息（展开维度字段）
-                processModelFieldsV3(queryModel, fields, request.getFields(), request.getLevels());
+                // 处理字段信息（展开维度字段，按列权限裁剪）
+                processModelFieldsV3(queryModel, fields, request.getFields(), request.getLevels(), fieldAccess);
 
                 // 处理模型信息
                 processModelInfo(queryModel, models);
@@ -134,16 +138,17 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
      *   <li>多模型：精简索引格式，按业务含义分组</li>
      * </ul>
      */
-    private String buildMarkdownMetadata(SemanticMetadataRequest request, String namespace) {
+    private String buildMarkdownMetadata(SemanticMetadataRequest request, String namespace,
+                                         Set<String> fieldAccess) {
         List<String> qmModels = request.getQmModels();
 
         // 单模型：使用详细格式
         if (qmModels != null && qmModels.size() == 1) {
-            return buildSingleModelMarkdown(qmModels.get(0), request, namespace);
+            return buildSingleModelMarkdown(qmModels.get(0), request, namespace, fieldAccess);
         }
 
         // 多模型：使用精简索引格式
-        return buildMultiModelMarkdown(request, namespace);
+        return buildMultiModelMarkdown(request, namespace, fieldAccess);
     }
 
     /**
@@ -158,7 +163,8 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
      *   <li>字典定义</li>
      * </ul>
      */
-    private String buildSingleModelMarkdown(String modelName, SemanticMetadataRequest request, String namespace) {
+    private String buildSingleModelMarkdown(String modelName, SemanticMetadataRequest request, String namespace,
+                                              Set<String> fieldAccess) {
         QueryModel queryModel = queryModelLoader.getJdbcQueryModel(modelName, namespace);
         if (queryModel == null) {
             return "# 错误\n\n模型不存在: " + modelName;
@@ -208,6 +214,11 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                 // 检查 QM 是否暴露了该维度（$id 或 $caption 至少有一个在 QM columnGroups 中）
                 if (queryModel.findJdbcQueryColumnByName(dimName + "$id", false) == null
                         && queryModel.findJdbcQueryColumnByName(dimName + "$caption", false) == null) {
+                    continue;
+                }
+
+                // fieldAccess 列权限裁剪
+                if (fieldAccess != null && !fieldAccess.contains(dimName)) {
                     continue;
                 }
 
@@ -307,6 +318,11 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                     }
                     DbProperty property = queryProperty.getProperty();
                     String fieldName = property.getName();
+
+                    // fieldAccess 列权限裁剪
+                    if (fieldAccess != null && !fieldAccess.contains(fieldName)) {
+                        continue;
+                    }
                     String fieldCaption = property.getCaption() != null ? property.getCaption() : fieldName;
                     String fieldType = getDataTypeDescription(property.getPropertyDbColumn().getType());
                     String fieldDesc = property.getDescription() != null ? property.getDescription() : "";
@@ -348,6 +364,12 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                     continue;
                 }
                 String fieldName = measure.getName();
+
+                // fieldAccess 列权限裁剪
+                if (fieldAccess != null && !fieldAccess.contains(fieldName)) {
+                    continue;
+                }
+
                 String fieldCaption = measure.getCaption() != null ? measure.getCaption() : fieldName;
                 String fieldType = getDataTypeDescription(measure.getJdbcColumn().getType());
                 String aggregation = measure.getAggregation() != null ? measure.getAggregation().name() : "SUM";
@@ -423,7 +445,8 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
      *   <li>字典定义：被引用的字典ID及取值</li>
      * </ol>
      */
-    private String buildMultiModelMarkdown(SemanticMetadataRequest request, String namespace) {
+    private String buildMultiModelMarkdown(SemanticMetadataRequest request, String namespace,
+                                           Set<String> fieldAccess) {
         StringBuilder md = new StringBuilder();
 
         md.append("# 数据模型语义索引 V3\n\n");
@@ -442,7 +465,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             }
             modelMap.put(qmModelName, queryModel);
             collectFieldsInfoV3(queryModel, allFields, request.getFields(), request.getLevels(),
-                    referencedDictIds, referencedDictClasses);
+                    referencedDictIds, referencedDictClasses, fieldAccess);
         }
 
         // 构建模型简称映射（使用 JdbcQueryModel 的 shortAlias）
@@ -693,9 +716,12 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
 
     /**
      * 处理模型字段（V3版本：展开维度）
+     *
+     * @param fieldAccess 运行时列权限白名单（null 表示不限制）
      */
     private void processModelFieldsV3(QueryModel queryModel, Map<String, Object> fields,
-                                      List<String> fieldFilter, List<Integer> levels) {
+                                      List<String> fieldFilter, List<Integer> levels,
+                                      Set<String> fieldAccess) {
         TableModel jdbcModel = queryModel.getJdbcModel();
 
         // 收集维度字段名，用于在属性字段中排除（与 markdown 方法对齐）
@@ -713,6 +739,11 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             if (fieldFilter != null && !fieldFilter.contains(baseName)
                     && !fieldFilter.contains(baseName + "$id")
                     && !fieldFilter.contains(baseName + "$caption")) {
+                continue;
+            }
+
+            // fieldAccess 列权限裁剪：维度基础名不在白名单则跳过
+            if (fieldAccess != null && !fieldAccess.contains(baseName)) {
                 continue;
             }
 
@@ -776,6 +807,11 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                 continue;
             }
 
+            // fieldAccess 列权限裁剪
+            if (fieldAccess != null && !fieldAccess.contains(fieldName)) {
+                continue;
+            }
+
             Map<String, Object> fieldInfo = createPropertyFieldInfo(property, queryModel.getName());
             fields.put(fieldName, fieldInfo);
         }
@@ -791,6 +827,11 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                 continue;
             }
 
+            // fieldAccess 列权限裁剪
+            if (fieldAccess != null && !fieldAccess.contains(fieldName)) {
+                continue;
+            }
+
             Map<String, Object> fieldInfo = createMeasureFieldInfo(measure, queryModel.getName());
             fields.put(fieldName, fieldInfo);
         }
@@ -801,6 +842,12 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             if (fieldFilter != null && !fieldFilter.contains(fieldName)) {
                 continue;
             }
+
+            // fieldAccess 列权限裁剪：按依赖源字段判定
+            if (!isCalculatedFieldAccessible(calc, fieldAccess)) {
+                continue;
+            }
+
             Map<String, Object> fieldInfo = createCalculatedFieldInfo(calc, queryModel.getName());
             fields.put(fieldName, fieldInfo);
         }
@@ -1062,10 +1109,12 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
      * @param levels AI级别
      * @param referencedDictIds 收集被引用的 fsscript 字典ID
      * @param referencedDictClasses 收集被引用的 Java 类字典
+     * @param fieldAccess 运行时列权限白名单（null 表示不限制）
      */
     private void collectFieldsInfoV3(QueryModel queryModel, Map<String, FieldInfoV3> allFields,
                                      List<String> fieldFilter, List<Integer> levels,
-                                     Set<String> referencedDictIds, Set<DictInfo> referencedDictClasses) {
+                                     Set<String> referencedDictIds, Set<DictInfo> referencedDictClasses,
+                                     Set<String> fieldAccess) {
         TableModel jdbcModel = queryModel.getJdbcModel();
 
         // 收集维度信息（展开为 $id 和 $caption，仅包含QM暴露的维度）
@@ -1078,6 +1127,11 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             if (fieldFilter != null && !fieldFilter.contains(baseName)
                     && !fieldFilter.contains(baseName + "$id")
                     && !fieldFilter.contains(baseName + "$caption")) {
+                continue;
+            }
+
+            // fieldAccess 列权限裁剪
+            if (fieldAccess != null && !fieldAccess.contains(baseName)) {
                 continue;
             }
 
@@ -1132,6 +1186,11 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                 continue;
             }
 
+            // fieldAccess 列权限裁剪
+            if (fieldAccess != null && !fieldAccess.contains(fieldName)) {
+                continue;
+            }
+
             FieldInfoV3 fieldInfo = allFields.computeIfAbsent(fieldName, k -> new FieldInfoV3());
             fieldInfo.addProperty(queryProperty, queryModel.getName(), this,
                     referencedDictIds, referencedDictClasses);
@@ -1149,6 +1208,11 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                     continue;
                 }
 
+                // fieldAccess 列权限裁剪
+                if (fieldAccess != null && !fieldAccess.contains(fieldName)) {
+                    continue;
+                }
+
                 FieldInfoV3 fieldInfo = allFields.computeIfAbsent(fieldName, k -> new FieldInfoV3());
                 fieldInfo.addMeasure(queryColumn, queryModel.getName(), this);
             }
@@ -1160,8 +1224,38 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             if (fieldFilter != null && !fieldFilter.contains(fieldName)) {
                 continue;
             }
+
+            // fieldAccess 列权限裁剪：按依赖源字段判定
+            if (!isCalculatedFieldAccessible(calc, fieldAccess)) {
+                continue;
+            }
+
             FieldInfoV3 fieldInfo = allFields.computeIfAbsent(fieldName, k -> new FieldInfoV3());
             fieldInfo.addCalculatedField(calc, queryModel.getName());
+        }
+    }
+
+    /**
+     * 判断计算字段的所有依赖源字段是否都在 fieldAccess 白名单内。
+     * fieldAccess 为 null 或表达式为空时视为可访问。
+     * 解析失败时 fail-closed（视为不可访问）。
+     */
+    private boolean isCalculatedFieldAccessible(CalculatedFieldDef calc, Set<String> fieldAccess) {
+        if (fieldAccess == null || calc.getExpression() == null) {
+            return true;
+        }
+        try {
+            Set<String> deps = com.foggyframework.dataset.db.model.engine.expression
+                    .CalculatedFieldService.extractColumnReferences(calc.getExpression());
+            for (String dep : deps) {
+                if (!fieldAccess.contains(dep)) {
+                    return false;
+                }
+            }
+            return true;
+        } catch (Exception e) {
+            // fail-closed：无法解析依赖时不暴露
+            return false;
         }
     }
 

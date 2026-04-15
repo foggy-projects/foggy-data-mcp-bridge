@@ -68,15 +68,16 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
     public SemanticQueryResponse queryModel(String model, SemanticQueryRequest request, String mode,
                                             SemanticRequestContext context) {
         return queryModelWithNamespace(model, request, mode,
-                context.getSecurityContext(), context.getNamespace());
+                context.getSecurityContext(), context.getNamespace(), context.getFieldAccess());
     }
 
     /**
-     * 执行查询（带命名空间和安全上下文）
+     * 执行查询（带命名空间、安全上下文和列权限）
      */
     private SemanticQueryResponse queryModelWithNamespace(String model, SemanticQueryRequest request, String mode,
                                                           ModelResultContext.SecurityContext securityContext,
-                                                          String namespace) {
+                                                          String namespace,
+                                                          Set<String> fieldAccess) {
         if ("validate".equals(mode)) {
             return validateQueryInternal(model, request, namespace);
         }
@@ -102,12 +103,13 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
             jdbcRequest.getParam().setSlice(processedSlice);
         }
 
-        // 4. 创建ModelResultContext，标记为语义查询，设置SecurityContext和Namespace
+        // 4. 创建ModelResultContext，标记为语义查询，设置SecurityContext、Namespace和列权限
         ModelResultContext resultContext = new ModelResultContext();
         resultContext.setRequest(jdbcRequest);
         resultContext.setQueryType(ModelResultContext.QueryType.SEMANTIC);
         resultContext.setSecurityContext(securityContext);
         resultContext.setNamespace(namespace);
+        resultContext.setFieldAccess(fieldAccess);
 
         // 将请求中的 hints 传递到 extData（用于 DataSetResultStep 插件）
         if (request.getHints() != null && !request.getHints().isEmpty()) {
@@ -163,12 +165,13 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
             jdbcRequest.getParam().setSlice(processedSlice);
         }
 
-        // 4. 创建ModelResultContext
+        // 4. 创建ModelResultContext（含列权限）
         ModelResultContext resultContext = new ModelResultContext();
         resultContext.setRequest(jdbcRequest);
         resultContext.setQueryType(ModelResultContext.QueryType.SEMANTIC);
         resultContext.setSecurityContext(securityContext);
         resultContext.setNamespace(namespace);
+        resultContext.setFieldAccess(context.getFieldAccess());
 
         if (request.getHints() != null && !request.getHints().isEmpty()) {
             resultContext.setExtData(new HashMap<>(request.getHints()));
