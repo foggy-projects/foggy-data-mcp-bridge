@@ -101,6 +101,7 @@ Java TM/QM 模型模块，网关模式下打包进 JAR，提供 9 个 Odoo 业�
 **安全机制**：
 - 防御性复制：`Set.copyOf` + `Collections.unmodifiableSet`
 - 表达式依赖级校验：`CalculatedFieldService.extractColumnReferences(String)`
+- 传递依赖展开：`CalculatedFieldService.resolveBaseColumnReferences(String, Map)` — 计算字段引用其他计算字段时递归解析到基础字段
 - fail-closed：无法解析的表达式拒绝而非放行
 - 维度后缀剥离：`salesDate$id` → `salesDate` 做白名单匹配
 
