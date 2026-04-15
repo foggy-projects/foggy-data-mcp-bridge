@@ -60,6 +60,12 @@ class FieldAccessPermissionIntegrationTest extends EcommerceTestSupport {
             queryRequest.setQueryModel(QUERY_MODEL);
             queryRequest.setColumns(List.of("orderId", "salesAmount"));
 
+            // 显式排序以保证跨数据库一致性（PostgreSQL 不保证无序查询行顺序）
+            OrderRequestDef order = new OrderRequestDef();
+            order.setField("orderId");
+            order.setDir("ASC");
+            queryRequest.setOrderBy(List.of(order));
+
             ModelResultContext ctx = buildContextWithFieldAccess(queryRequest,
                     Set.of("orderId", "salesAmount", "store"));
 
@@ -162,6 +168,12 @@ class FieldAccessPermissionIntegrationTest extends EcommerceTestSupport {
             DbQueryRequestDef queryRequest = new DbQueryRequestDef();
             queryRequest.setQueryModel(QUERY_MODEL);
             queryRequest.setColumns(List.of("orderId", "salesAmount"));
+
+            // 显式排序以保证跨数据库一致性
+            OrderRequestDef order = new OrderRequestDef();
+            order.setField("orderId");
+            order.setDir("ASC");
+            queryRequest.setOrderBy(List.of(order));
 
             ModelResultContext ctx = buildContextWithFieldAccess(queryRequest, null);
 
