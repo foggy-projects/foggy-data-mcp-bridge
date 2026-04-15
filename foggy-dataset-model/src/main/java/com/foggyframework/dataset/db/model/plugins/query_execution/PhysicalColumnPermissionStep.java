@@ -89,10 +89,12 @@ public class PhysicalColumnPermissionStep implements QueryExecutionStep {
             }
         }
 
-        // WHERE / HAVING 条件中的列通过 Cond 结构存储，
-        // 其列引用已在 SELECT 和 JoinGraph 中覆盖（同一物理列），不需要单独检查。
-        // 如果 WHERE 引用了一个物理列，那么该列一定通过 JOIN 或 FROM 被引入，
-        // 而 SELECT 中使用的列集合 ⊇ WHERE 条件中的列引用。
+        // WHERE / HAVING 条件在 JdbcQuery 中以 SQL 片段（SqlFragmentCond/ValueCond）存储，
+        // 无法从结构中提取 DbColumn 引用。
+        // 已知限制：slice 条件可引用不在 SELECT 中的物理列（如 WHERE profit_amount > 100
+        // 而 SELECT 不含 profit_amount），此处无法拦截。
+        // 安全缓解：与 FieldAccessPermissionStep 配合使用时，slice 字段已在 beforeQuery 阶段
+        // 按 QM 字段名校验。仅使用 deniedColumns 时，WHERE 列检查依赖 FieldAccessPermissionStep。
 
         if (log.isDebugEnabled()) {
             log.debug("PhysicalColumnPermission check passed for model: {}", ctx.getModelName());
@@ -109,7 +111,7 @@ public class PhysicalColumnPermissionStep implements QueryExecutionStep {
 
         // 解包 QueryObjectDelegate（装饰器模式），获取底层真实 QueryObject
         if (qo instanceof QueryObjectDelegate delegate) {
-            qo = delegate.delegate;
+            qo = delegate.getDelegate();
         }
 
         if (!(qo instanceof TableQueryObject tqo)) {
@@ -139,11 +141,9 @@ public class PhysicalColumnPermissionStep implements QueryExecutionStep {
     /**
      * 构建快速匹配集合
      * <p>
-     * 每个 DeniedPhysicalColumn 生成两种 key 格式：
-     * <ul>
-     *   <li>{@code table.column} — 用于 schema 无关匹配（当 denied.schema 为 null 时）</li>
-     *   <li>{@code schema.table.column} — 用于精确匹配（当 denied.schema 非 null 时）</li>
-     * </ul>
+     * 每个 DeniedPhysicalColumn 始终生成 {@code table.column} key（schema 无关匹配），
+     * 若 schema 非 null 则额外生成 {@code schema.table.column} key（精确匹配）。
+     * 这确保 denied 有 schema 时也能匹配无 schema 的查询（如 SQLite）。
      */
     private Set<String> buildDeniedSet(List<DeniedPhysicalColumn> denied) {
         Set<String> set = new HashSet<>(denied.size() * 2);
@@ -151,11 +151,10 @@ public class PhysicalColumnPermissionStep implements QueryExecutionStep {
             if (d.getTable() == null || d.getColumn() == null) {
                 continue;
             }
-            if (d.getSchema() == null || d.getSchema().isEmpty()) {
-                // schema 无关：只用 table.column 匹配
-                set.add(d.getTable() + "." + d.getColumn());
-            } else {
-                // 精确匹配：schema.table.column
+            // 始终添加 table.column（跨 schema 兼容）
+            set.add(d.getTable() + "." + d.getColumn());
+            // 有 schema 时额外添加精确 key
+            if (d.getSchema() != null && !d.getSchema().isEmpty()) {
                 set.add(d.getSchema() + "." + d.getTable() + "." + d.getColumn());
             }
         }

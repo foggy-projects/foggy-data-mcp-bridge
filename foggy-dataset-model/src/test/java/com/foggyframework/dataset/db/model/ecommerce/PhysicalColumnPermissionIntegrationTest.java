@@ -285,13 +285,11 @@ class PhysicalColumnPermissionIntegrationTest extends EcommerceTestSupport {
             );
             ModelResultContext ctx = buildContextWithDeniedColumns(queryRequest, denied);
 
-            // 带 schema 精确匹配：schema 不对应则不命中，查询应正常执行
-            DbQueryResult dbResult = queryFacade.queryModelResult(ctx);
-            PagingResultImpl result = dbResult.getPagingResult();
-            List<Map<String, Object>> items = castItems(result);
-
-            assertNotNull(items, "schema 不匹配时查询应正常执行");
-            assertFalse(items.isEmpty(), "查询结果不应为空");
+            // denied 条目始终生成 table.column key（跨 schema 兼容），
+            // 即使 schema 不匹配，table.column 仍命中 → 安全优先，拒绝查询
+            assertThrows(RuntimeException.class,
+                    () -> queryFacade.queryModelResult(ctx),
+                    "denied 条目有 schema 时也应通过 table.column 匹配拦截");
         }
     }
 

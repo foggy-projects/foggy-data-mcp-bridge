@@ -1273,7 +1273,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
     }
 
     /**
-     * 递归收集维度及其嵌套维度的物理表
+     * 递归收集维度及其嵌套子维度的物理表
      */
     private void collectDimensionTables(
             com.foggyframework.dataset.db.model.impl.dimension.DbDimensionSupport dimSupport,
@@ -1286,6 +1286,13 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                 entry.put("table", dimTable);
                 entry.put("role", "dimension");
                 physicalTables.add(entry);
+            }
+        }
+
+        // 递归收集子维度（如 product → product_category）
+        for (DbDimension childDim : dimSupport.getChildDimensions()) {
+            if (childDim instanceof com.foggyframework.dataset.db.model.impl.dimension.DbDimensionSupport childSupport) {
+                collectDimensionTables(childSupport, physicalTables, seen);
             }
         }
     }

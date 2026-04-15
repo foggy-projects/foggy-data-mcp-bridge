@@ -15,6 +15,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import com.foggyframework.dataset.db.model.semantic.domain.DeniedPhysicalColumn;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -79,7 +81,7 @@ public class ModelResultContext {
      *
      * @since 8.2.0
      */
-    java.util.List<com.foggyframework.dataset.db.model.semantic.domain.DeniedPhysicalColumn> deniedColumns;
+    List<DeniedPhysicalColumn> deniedColumns;
 
     /**
      * 查询缓存配置
