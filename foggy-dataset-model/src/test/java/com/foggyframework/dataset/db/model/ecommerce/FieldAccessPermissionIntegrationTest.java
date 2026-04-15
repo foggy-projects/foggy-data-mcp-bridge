@@ -1,7 +1,9 @@
 package com.foggyframework.dataset.db.model.ecommerce;
 
 import com.foggyframework.dataset.client.domain.PagingRequest;
+import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
+import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.db.model.engine.query.DbQueryResult;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
@@ -183,6 +185,105 @@ class FieldAccessPermissionIntegrationTest extends EcommerceTestSupport {
                         String.valueOf(items.get(i).get("salesAmount")),
                         "第 " + i + " 行 salesAmount 应一致");
             }
+        }
+    }
+
+    // ==================== 计算字段全链路测试 ====================
+
+    @Nested
+    @DisplayName("计算字段列权限全链路")
+    class CalculatedFieldTests {
+
+        @Test
+        @DisplayName("计算字段依赖源字段全部在白名单 — 查询成功")
+        void queryWithFieldAccess_calculatedFieldAllowed() {
+            DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+            queryRequest.setQueryModel(QUERY_MODEL);
+            queryRequest.setColumns(List.of("orderId"));
+
+            // 添加计算字段：salesAmount * 2 （依赖 salesAmount）
+            CalculatedFieldDef cf = new CalculatedFieldDef();
+            cf.setName("doubleAmount");
+            cf.setExpression("salesAmount * 2");
+            queryRequest.setCalculatedFields(new java.util.ArrayList<>(List.of(cf)));
+
+            // fieldAccess 包含 orderId 和 salesAmount — 应通过
+            ModelResultContext ctx = buildContextWithFieldAccess(queryRequest,
+                    Set.of("orderId", "salesAmount"));
+
+            // 不抛异常即通过
+            DbQueryResult dbResult = queryFacade.queryModelResult(ctx);
+            assertNotNull(dbResult);
+            PagingResultImpl result = dbResult.getPagingResult();
+            assertNotNull(result);
+            assertFalse(castItems(result).isEmpty(), "查询结果不应为空");
+        }
+
+        @Test
+        @DisplayName("计算字段依赖源字段不在白名单 — 拒绝")
+        void queryWithFieldAccess_calculatedFieldDenied() {
+            DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+            queryRequest.setQueryModel(QUERY_MODEL);
+            queryRequest.setColumns(List.of("orderId"));
+
+            // 添加计算字段：salesAmount * 2 （依赖 salesAmount）
+            CalculatedFieldDef cf = new CalculatedFieldDef();
+            cf.setName("doubleAmount");
+            cf.setExpression("salesAmount * 2");
+            queryRequest.setCalculatedFields(new java.util.ArrayList<>(List.of(cf)));
+
+            // fieldAccess 只有 orderId，不包含 salesAmount — 应拒绝
+            ModelResultContext ctx = buildContextWithFieldAccess(queryRequest,
+                    Set.of("orderId"));
+
+            RuntimeException ex = assertThrows(RuntimeException.class,
+                    () -> queryFacade.queryModelResult(ctx),
+                    "计算字段依赖的 salesAmount 不在白名单应抛异常");
+            assertTrue(ex.getMessage().contains("salesAmount"),
+                    "异常消息应包含被拒字段 'salesAmount': " + ex.getMessage());
+        }
+    }
+
+    // ==================== 空集合边界测试 ====================
+
+    @Nested
+    @DisplayName("边界条件")
+    class EdgeCaseTests {
+
+        @Test
+        @DisplayName("fieldAccess 空集合 — 拒绝所有查询")
+        void queryWithFieldAccess_emptySet_rejectsAll() {
+            DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+            queryRequest.setQueryModel(QUERY_MODEL);
+            queryRequest.setColumns(List.of("orderId"));
+
+            ModelResultContext ctx = buildContextWithFieldAccess(queryRequest, Set.of());
+
+            assertThrows(RuntimeException.class,
+                    () -> queryFacade.queryModelResult(ctx),
+                    "空 fieldAccess 集合应拒绝所有查询");
+        }
+
+        @Test
+        @DisplayName("orderBy 引用无权限字段 — 拒绝")
+        void queryWithFieldAccess_orderByDenied() {
+            DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+            queryRequest.setQueryModel(QUERY_MODEL);
+            queryRequest.setColumns(List.of("orderId"));
+
+            OrderRequestDef order = new OrderRequestDef();
+            order.setField("salesAmount");
+            order.setDir("ASC");
+            queryRequest.setOrderBy(List.of(order));
+
+            // fieldAccess 只有 orderId，不包含 salesAmount
+            ModelResultContext ctx = buildContextWithFieldAccess(queryRequest,
+                    Set.of("orderId"));
+
+            RuntimeException ex = assertThrows(RuntimeException.class,
+                    () -> queryFacade.queryModelResult(ctx),
+                    "orderBy 引用无权限字段 salesAmount 应拒绝");
+            assertTrue(ex.getMessage().contains("salesAmount"));
         }
     }
 

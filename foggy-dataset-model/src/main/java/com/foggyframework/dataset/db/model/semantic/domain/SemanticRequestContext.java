@@ -2,6 +2,7 @@ package com.foggyframework.dataset.db.model.semantic.domain;
 
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 
+import java.util.Collections;
 import java.util.Set;
 
 /**
@@ -32,7 +33,8 @@ public class SemanticRequestContext {
                                    Set<String> fieldAccess) {
         this.namespace = namespace;
         this.securityContext = securityContext;
-        this.fieldAccess = fieldAccess;
+        // 防御性复制：防止调用方在创建后修改 mutable Set 导致权限绕过
+        this.fieldAccess = fieldAccess != null ? Collections.unmodifiableSet(Set.copyOf(fieldAccess)) : null;
     }
 
     /** 空上下文 -- 无命名空间、无安全信息、无列权限限制 */

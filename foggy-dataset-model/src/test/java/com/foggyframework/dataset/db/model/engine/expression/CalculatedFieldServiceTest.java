@@ -77,4 +77,35 @@ class CalculatedFieldServiceTest {
         Set<String> refs = CalculatedFieldService.extractColumnReferences("a * b + c - d");
         assertEquals(Set.of("a", "b", "c", "d"), refs);
     }
+
+    @Test
+    @DisplayName("复杂嵌套函数 — 提取所有层级的列引用")
+    void extractRefs_complexNested() {
+        Set<String> refs = CalculatedFieldService.extractColumnReferences("ROUND(amount * rate, 2) + YEAR(orderDate)");
+        assertTrue(refs.contains("amount"));
+        assertTrue(refs.contains("rate"));
+        assertTrue(refs.contains("orderDate"));
+        assertEquals(3, refs.size());
+    }
+
+    @Test
+    @DisplayName("表达式仅含字面量和函数（无列引用）— 返回空集合")
+    void extractRefs_onlyLiteralsAndFunctions() {
+        Set<String> refs = CalculatedFieldService.extractColumnReferences("1 + 2 * 3");
+        assertTrue(refs.isEmpty(), "纯算术字面量表达式不应包含列引用");
+    }
+
+    @Test
+    @DisplayName("重复列引用 — 去重")
+    void extractRefs_duplicateColumns() {
+        Set<String> refs = CalculatedFieldService.extractColumnReferences("a + a + a * b");
+        assertEquals(Set.of("a", "b"), refs);
+    }
+
+    @Test
+    @DisplayName("一元运算符 — 提取操作数列引用")
+    void extractRefs_unaryOperator() {
+        Set<String> refs = CalculatedFieldService.extractColumnReferences("-amount");
+        assertEquals(Set.of("amount"), refs);
+    }
 }

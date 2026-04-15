@@ -1,6 +1,7 @@
 package com.foggyframework.dataset.db.model.semantic;
 
 import com.foggyframework.dataset.db.model.ecommerce.EcommerceTestSupport;
+import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
@@ -406,5 +407,104 @@ class SemanticServiceV3Test extends EcommerceTestSupport {
         }
 
         log.info("V3 特性验证通过：字段直接使用，无自动补全");
+    }
+
+    // ==========================================
+    // metadata fieldAccess 列权限裁剪测试
+    // ==========================================
+
+    @Nested
+    @DisplayName("metadata fieldAccess 裁剪")
+    class MetadataFieldAccessTests {
+
+        @Test
+        @DisplayName("JSON metadata — fieldAccess 限制后只包含白名单内字段")
+        void metadata_json_withFieldAccess_filtersFields() {
+            SemanticMetadataRequest request = new SemanticMetadataRequest();
+            request.setQmModels(Collections.singletonList(TEST_MODEL));
+
+            // 获取无限制的完整 metadata 作为基线
+            SemanticMetadataResponse fullResponse = semanticServiceV3.getMetadata(
+                    request, "json", SemanticRequestContext.empty());
+            Map<String, Object> fullData = fullResponse.getData();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> fullFields = (Map<String, Object>) fullData.get("fields");
+            assertTrue(fullFields.size() > 2, "基线 metadata 应包含多个字段");
+
+            // 获取 fieldAccess 限制后的 metadata
+            // 只允许 orderId 和 salesAmount
+            Set<String> allowed = Set.of("orderId", "salesAmount");
+            SemanticRequestContext restrictedCtx = SemanticRequestContext.of(null, (ModelResultContext.SecurityContext) null, allowed);
+            SemanticMetadataResponse restrictedResponse = semanticServiceV3.getMetadata(
+                    request, "json", restrictedCtx);
+            Map<String, Object> restrictedData = restrictedResponse.getData();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> restrictedFields = (Map<String, Object>) restrictedData.get("fields");
+
+            // 受限 metadata 应只包含白名单内的字段
+            assertTrue(restrictedFields.size() < fullFields.size(),
+                    "受限 metadata 字段数应少于完整 metadata: restricted=" + restrictedFields.size() + ", full=" + fullFields.size());
+            for (String fieldName : restrictedFields.keySet()) {
+                // 字段名要么在白名单内，要么是白名单字段的维度展开（如 orderId → 不适用，salesAmount → 不适用）
+                // 实际上度量/属性字段名直接匹配
+                assertTrue(allowed.contains(fieldName) || allowed.stream().anyMatch(a -> fieldName.startsWith(a + "$")),
+                        "受限 metadata 不应包含白名单外的字段: " + fieldName);
+            }
+        }
+
+        @Test
+        @DisplayName("JSON metadata — fieldAccess 为 null 时所有字段可见（向后兼容）")
+        void metadata_json_noFieldAccess_allFieldsVisible() {
+            SemanticMetadataRequest request = new SemanticMetadataRequest();
+            request.setQmModels(Collections.singletonList(TEST_MODEL));
+
+            SemanticMetadataResponse response = semanticServiceV3.getMetadata(
+                    request, "json", SemanticRequestContext.empty());
+            Map<String, Object> data = response.getData();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> fields = (Map<String, Object>) data.get("fields");
+
+            assertNotNull(fields);
+            assertFalse(fields.isEmpty(), "fieldAccess=null 时所有字段应可见");
+        }
+
+        @Test
+        @DisplayName("Markdown metadata — fieldAccess 限制后输出不含被拒字段")
+        void metadata_markdown_withFieldAccess_filtersFields() {
+            SemanticMetadataRequest request = new SemanticMetadataRequest();
+            request.setQmModels(Collections.singletonList(TEST_MODEL));
+
+            // 获取无限制的完整 markdown
+            SemanticMetadataResponse fullResponse = semanticServiceV3.getMetadata(
+                    request, "markdown", SemanticRequestContext.empty());
+            String fullContent = fullResponse.getContent();
+            assertNotNull(fullContent);
+
+            // 获取限制后的 markdown — 只允许 orderId
+            Set<String> allowed = Set.of("orderId");
+            SemanticRequestContext restrictedCtx = SemanticRequestContext.of(null, (ModelResultContext.SecurityContext) null, allowed);
+            SemanticMetadataResponse restrictedResponse = semanticServiceV3.getMetadata(
+                    request, "markdown", restrictedCtx);
+            String restrictedContent = restrictedResponse.getContent();
+
+            assertTrue(restrictedContent.length() < fullContent.length(),
+                    "受限 markdown 应比完整 markdown 短");
+        }
+
+        @Test
+        @DisplayName("JSON metadata — fieldAccess 空集合时字段区域为空")
+        void metadata_json_emptyFieldAccess_noFields() {
+            SemanticMetadataRequest request = new SemanticMetadataRequest();
+            request.setQmModels(Collections.singletonList(TEST_MODEL));
+
+            Set<String> empty = Set.of();
+            SemanticRequestContext ctx = SemanticRequestContext.of(null, (ModelResultContext.SecurityContext) null, empty);
+            SemanticMetadataResponse response = semanticServiceV3.getMetadata(request, "json", ctx);
+            Map<String, Object> data = response.getData();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> fields = (Map<String, Object>) data.get("fields");
+
+            assertTrue(fields.isEmpty(), "fieldAccess 为空集合时不应暴露任何字段");
+        }
     }
 }

@@ -254,4 +254,177 @@ class FieldAccessPermissionStepTest {
         int result = step.beforeQuery(ctx);
         assertEquals(0, result, "维度后缀 $id 应被剥离，基础字段 salesDate 在白名单中应通过");
     }
+
+    // ==============================================
+    // 安全边界测试
+    // ==============================================
+
+    @Test
+    @DisplayName("fieldAccess 为空集合（非 null）— 拒绝所有字段")
+    void fieldAccess_emptySet_rejectsAllFields() {
+        Set<String> empty = Set.of();
+        ModelResultContext ctx = buildCtx(List.of("amount"), empty);
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> step.beforeQuery(ctx));
+        assertTrue(ex.getMessage().contains("amount"));
+    }
+
+    @Test
+    @DisplayName("columns 中内联表达式 — 提取依赖后校验")
+    void fieldAccess_inlineExpression_extractsDeps() {
+        Set<String> allowed = new LinkedHashSet<>(Arrays.asList("amount", "bonus"));
+        ModelResultContext ctx = buildCtx(List.of("amount + bonus as total"), allowed);
+        int result = step.beforeQuery(ctx);
+        assertEquals(0, result, "表达式依赖字段全部在白名单时应通过");
+    }
+
+    @Test
+    @DisplayName("columns 中内联表达式依赖被拒 — 抛出异常")
+    void fieldAccess_inlineExpression_deniedDep() {
+        Set<String> allowed = new LinkedHashSet<>(List.of("amount"));
+        ModelResultContext ctx = buildCtx(List.of("amount + secret as total"), allowed);
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> step.beforeQuery(ctx));
+        assertTrue(ex.getMessage().contains("secret"),
+                "应包含被拒绝的依赖字段 'secret': " + ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("orderBy 中表达式 — 提取依赖后校验拒绝")
+    void fieldAccess_orderByExpression_deniedDep() {
+        Set<String> allowed = new LinkedHashSet<>(List.of("amount"));
+        DbQueryRequestDef request = new DbQueryRequestDef();
+        request.setColumns(List.of());
+
+        OrderRequestDef order = new OrderRequestDef();
+        order.setField("amount + secret");
+        order.setDir("ASC");
+        request.setOrderBy(List.of(order));
+
+        PagingRequest<DbQueryRequestDef> pagingRequest = PagingRequest.buildPagingRequest(request, 100);
+        ModelResultContext ctx = new ModelResultContext();
+        ctx.setRequest(pagingRequest);
+        ctx.setFieldAccess(allowed);
+
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> step.beforeQuery(ctx));
+        assertTrue(ex.getMessage().contains("secret"));
+    }
+
+    @Test
+    @DisplayName("维度后缀 $caption — 剥离后匹配白名单")
+    void fieldAccess_dimensionSuffix_caption() {
+        Set<String> allowed = new LinkedHashSet<>(List.of("product"));
+        ModelResultContext ctx = buildCtx(List.of("product$caption"), allowed);
+        assertEquals(0, step.beforeQuery(ctx));
+    }
+
+    @Test
+    @DisplayName("维度后缀 $property — 剥离后匹配白名单")
+    void fieldAccess_dimensionSuffix_property() {
+        Set<String> allowed = new LinkedHashSet<>(List.of("product"));
+        ModelResultContext ctx = buildCtx(List.of("product$brand"), allowed);
+        assertEquals(0, step.beforeQuery(ctx));
+    }
+
+    @Test
+    @DisplayName("null columns 列表 — 不抛异常")
+    void fieldAccess_nullColumns_passes() {
+        DbQueryRequestDef request = new DbQueryRequestDef();
+        request.setColumns(null);
+        PagingRequest<DbQueryRequestDef> pagingRequest = PagingRequest.buildPagingRequest(request, 100);
+        ModelResultContext ctx = new ModelResultContext();
+        ctx.setRequest(pagingRequest);
+        ctx.setFieldAccess(Set.of("amount"));
+        assertEquals(0, step.beforeQuery(ctx));
+    }
+
+    @Test
+    @DisplayName("空 columns 列表 — 不抛异常")
+    void fieldAccess_emptyColumns_passes() {
+        ModelResultContext ctx = buildCtx(List.of(), Set.of("amount"));
+        assertEquals(0, step.beforeQuery(ctx));
+    }
+
+    @Test
+    @DisplayName("$ 在字段名开头 — 不剥离，按原名校验")
+    void fieldAccess_dollarAtStart_notStripped() {
+        // $system 这样的字段名，$ 在 index 0，stripDimensionSuffix 不剥离
+        Set<String> allowed = new LinkedHashSet<>(List.of("$system"));
+        ModelResultContext ctx = buildCtx(List.of("$system"), allowed);
+        assertEquals(0, step.beforeQuery(ctx));
+    }
+
+    @Test
+    @DisplayName("$ 在字段名开头且不在白名单 — 拒绝")
+    void fieldAccess_dollarAtStart_denied() {
+        Set<String> allowed = new LinkedHashSet<>(List.of("amount"));
+        ModelResultContext ctx = buildCtx(List.of("$system"), allowed);
+        assertThrows(RuntimeException.class, () -> step.beforeQuery(ctx));
+    }
+
+    @Test
+    @DisplayName("fail-closed — 无法解析的表达式被拒绝")
+    void fieldAccess_failClosed_unparseable() {
+        Set<String> allowed = new LinkedHashSet<>(List.of("amount"));
+        DbQueryRequestDef request = new DbQueryRequestDef();
+        request.setColumns(List.of());
+
+        CalculatedFieldDef cf = new CalculatedFieldDef();
+        cf.setName("bad");
+        cf.setExpression("amount ++ !! invalid syntax [[[");
+        request.setCalculatedFields(List.of(cf));
+
+        PagingRequest<DbQueryRequestDef> pagingRequest = PagingRequest.buildPagingRequest(request, 100);
+        ModelResultContext ctx = new ModelResultContext();
+        ctx.setRequest(pagingRequest);
+        ctx.setFieldAccess(allowed);
+
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> step.beforeQuery(ctx));
+        assertTrue(ex.getMessage().contains("fail-closed"),
+                "异常消息应包含 fail-closed: " + ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("多个 clause 同时校验 — slice + orderBy + groupBy 全部检查")
+    void fieldAccess_multiClause_allChecked() {
+        Set<String> allowed = new LinkedHashSet<>(Arrays.asList("orderId", "amount"));
+        DbQueryRequestDef request = new DbQueryRequestDef();
+        request.setColumns(List.of("orderId", "amount"));
+        request.setSlice(List.of(new SliceRequestDef("orderId", "=", 1)));
+
+        OrderRequestDef order = new OrderRequestDef();
+        order.setField("amount");
+        order.setDir("ASC");
+        request.setOrderBy(List.of(order));
+
+        GroupRequestDef group = new GroupRequestDef();
+        group.setField("orderId");
+        request.setGroupBy(List.of(group));
+
+        PagingRequest<DbQueryRequestDef> pagingRequest = PagingRequest.buildPagingRequest(request, 100);
+        ModelResultContext ctx = new ModelResultContext();
+        ctx.setRequest(pagingRequest);
+        ctx.setFieldAccess(allowed);
+
+        assertEquals(0, step.beforeQuery(ctx), "全部 clause 的字段都在白名单时应通过");
+    }
+
+    @Test
+    @DisplayName("多个 clause 中有一个被拒 — 即使 columns 通过也应失败")
+    void fieldAccess_multiClause_oneRejected() {
+        Set<String> allowed = new LinkedHashSet<>(List.of("orderId"));
+        DbQueryRequestDef request = new DbQueryRequestDef();
+        request.setColumns(List.of("orderId")); // columns 通过
+
+        request.setSlice(List.of(new SliceRequestDef("secret", "=", "x"))); // slice 不通过
+
+        PagingRequest<DbQueryRequestDef> pagingRequest = PagingRequest.buildPagingRequest(request, 100);
+        ModelResultContext ctx = new ModelResultContext();
+        ctx.setRequest(pagingRequest);
+        ctx.setFieldAccess(allowed);
+
+        assertThrows(RuntimeException.class, () -> step.beforeQuery(ctx));
+    }
 }
