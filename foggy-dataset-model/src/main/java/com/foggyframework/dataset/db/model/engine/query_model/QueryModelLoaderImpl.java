@@ -445,6 +445,11 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
             }
         }
 
+        /**
+         * step60.构建物理列映射缓存（QM 字段名 ↔ 物理 table.column）
+         */
+        qm.setPhysicalColumnMapping(PhysicalColumnMappingBuilder.build(qm));
+
         return qm;
     }
 

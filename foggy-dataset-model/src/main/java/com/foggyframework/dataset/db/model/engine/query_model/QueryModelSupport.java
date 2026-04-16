@@ -105,6 +105,11 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
 
     protected  List<TableModel> jdbcModelList;
 
+    /**
+     * QM 字段 ↔ 物理列双向映射缓存（QM 加载时构建）
+     */
+    protected PhysicalColumnMapping physicalColumnMapping;
+
     // 使用 IdentityHashMap：按对象引用（==）而非 equals() 匹配 key
     // 解决自引用维度场景：两个不同的 QueryObject 实例引用同一张物理表时，
     // 如果 equals()/hashCode() 基于字段比较会导致 alias 覆盖
