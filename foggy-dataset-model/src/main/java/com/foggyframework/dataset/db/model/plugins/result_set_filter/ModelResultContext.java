@@ -3,6 +3,7 @@ package com.foggyframework.dataset.db.model.plugins.result_set_filter;
 import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
+import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.db.model.engine.expression.InlineExpressionParser;
 import com.foggyframework.dataset.db.model.engine.query.DbQueryResult;
 import com.foggyframework.dataset.db.model.engine.query.JdbcQuery;
@@ -92,7 +93,7 @@ public class ModelResultContext {
      *
      * @since 8.2.0
      */
-    List<com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef> systemSlice;
+    List<SliceRequestDef> systemSlice;
 
     /**
      * 查询缓存配置

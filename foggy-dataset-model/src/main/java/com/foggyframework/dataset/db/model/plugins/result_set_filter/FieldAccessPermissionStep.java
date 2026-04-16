@@ -15,7 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
-import java.util.*;;
+import java.util.*;
 
 /**
  * 运行时列权限校验步骤
@@ -44,13 +44,16 @@ public class FieldAccessPermissionStep implements DataSetResultStep {
     @Override
     public int beforeQuery(ModelResultContext ctx) {
         Set<String> fieldAccess = ctx.getFieldAccess();
+        List<DeniedPhysicalColumn> deniedCols = ctx.getDeniedColumns();
 
-        // deniedColumns → 通过映射缓存转换为 denied QM 字段集合
-        Set<String> deniedQmFields = resolveDeniedQmFields(ctx);
-
-        if (fieldAccess == null && deniedQmFields.isEmpty()) {
+        // 快速退出：两套机制都未启用
+        if (fieldAccess == null && (deniedCols == null || deniedCols.isEmpty())) {
             return CONTINUE;
         }
+
+        // deniedColumns → 通过映射缓存转换为 denied QM 字段集合
+        Set<String> deniedQmFields = (deniedCols != null && !deniedCols.isEmpty())
+                ? resolveDeniedQmFields(ctx) : Set.of();
 
         DbQueryRequestDef request = ctx.getRequest().getParam();
 
@@ -268,7 +271,7 @@ public class FieldAccessPermissionStep implements DataSetResultStep {
      * <p>
      * 例如 "salesDate$id" → "salesDate"，"amount" → "amount"
      */
-    static String stripDimensionSuffix(String fieldName) {
+    public static String stripDimensionSuffix(String fieldName) {
         if (fieldName == null) {
             return null;
         }
