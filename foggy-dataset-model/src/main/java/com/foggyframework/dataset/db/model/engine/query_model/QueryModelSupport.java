@@ -106,9 +106,20 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
     protected  List<TableModel> jdbcModelList;
 
     /**
-     * QM 字段 ↔ 物理列双向映射缓存（QM 加载时构建）
+     * QM 字段 ↔ 物理列双向映射缓存（QM 加载时构建，或首次访问时 lazy init）
      */
-    protected PhysicalColumnMapping physicalColumnMapping;
+    protected volatile PhysicalColumnMapping physicalColumnMapping;
+
+    @Override
+    public PhysicalColumnMapping getPhysicalColumnMapping() {
+        PhysicalColumnMapping m = this.physicalColumnMapping;
+        if (m == null) {
+            // Lazy init: 如果 QM 在映射代码加入前已缓存，首次访问时构建
+            m = PhysicalColumnMappingBuilder.build(this);
+            this.physicalColumnMapping = m;
+        }
+        return m;
+    }
 
     // 使用 IdentityHashMap：按对象引用（==）而非 equals() 匹配 key
     // 解决自引用维度场景：两个不同的 QueryObject 实例引用同一张物理表时，

@@ -56,6 +56,14 @@ public class PhysicalColumnPermissionStep implements QueryExecutionStep {
             return CONTINUE;
         }
 
+        // 如果 QM 映射缓存可用，deniedColumns 已在 FieldAccessPermissionStep (beforeQuery)
+        // 中通过 toDeniedQmFields() 转换并校验。此处作为后备仅在映射缓存不可用时执行。
+        if (ctx.getQueryEngine() != null
+                && ctx.getQueryEngine().getJdbcQueryModel() != null
+                && ctx.getQueryEngine().getJdbcQueryModel().getPhysicalColumnMapping() != null) {
+            return CONTINUE;
+        }
+
         JdbcQuery jdbcQuery = ctx.getQueryEngine().getJdbcQuery();
         if (jdbcQuery == null) {
             return CONTINUE;

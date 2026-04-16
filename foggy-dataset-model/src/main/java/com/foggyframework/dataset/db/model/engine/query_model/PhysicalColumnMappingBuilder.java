@@ -87,6 +87,11 @@ public final class PhysicalColumnMappingBuilder {
 
         if (dim instanceof DbDimensionSupport dimSupport) {
             TableModel dimModel = dimSupport.getJdbcModel();
+            if (log.isDebugEnabled()) {
+                log.debug("Dimension '{}': jdbcModel={}, properties={}",
+                        dimName, dimModel != null ? dimModel.getTableName() : "NULL",
+                        dimSupport.getJdbcProperties().size());
+            }
             if (dimModel != null) {
                 String dimTable = dimModel.getTableName();
 

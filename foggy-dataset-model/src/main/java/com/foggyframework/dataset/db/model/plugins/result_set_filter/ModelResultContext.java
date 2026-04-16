@@ -84,6 +84,17 @@ public class ModelResultContext {
     List<DeniedPhysicalColumn> deniedColumns;
 
     /**
+     * 系统注入的 slice 条件（如 Odoo ir.rule）
+     * <p>
+     * 绕过字段权限校验，在权限检查通过后合并到请求 slice 中。
+     * 对齐 Python 引擎的 system_slice 语义。
+     * </p>
+     *
+     * @since 8.2.0
+     */
+    List<com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef> systemSlice;
+
+    /**
      * 查询缓存配置
      */
     QueryCacheConfig cacheConfig;

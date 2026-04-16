@@ -8,14 +8,14 @@ import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.db.model.engine.expression.CalculatedFieldService;
 import com.foggyframework.dataset.db.model.engine.expression.InlineExpressionParser;
+import com.foggyframework.dataset.db.model.semantic.domain.DeniedPhysicalColumn;
+import com.foggyframework.dataset.db.model.spi.PhysicalColumnMapping;
+import com.foggyframework.dataset.db.model.spi.QueryModel;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;;
 
 /**
  * 运行时列权限校验步骤
@@ -44,7 +44,11 @@ public class FieldAccessPermissionStep implements DataSetResultStep {
     @Override
     public int beforeQuery(ModelResultContext ctx) {
         Set<String> fieldAccess = ctx.getFieldAccess();
-        if (fieldAccess == null) {
+
+        // deniedColumns → 通过映射缓存转换为 denied QM 字段集合
+        Set<String> deniedQmFields = resolveDeniedQmFields(ctx);
+
+        if (fieldAccess == null && deniedQmFields.isEmpty()) {
             return CONTINUE;
         }
 
@@ -54,25 +58,44 @@ public class FieldAccessPermissionStep implements DataSetResultStep {
         Map<String, String> calcFieldMap = buildCalculatedFieldMap(request.getCalculatedFields());
 
         // 1. 校验 columns
-        validateColumns(request.getColumns(), fieldAccess, calcFieldMap);
+        validateColumns(request.getColumns(), fieldAccess, deniedQmFields, calcFieldMap);
 
         // 2. 校验 calculatedFields
-        validateCalculatedFields(request.getCalculatedFields(), fieldAccess, calcFieldMap);
+        validateCalculatedFields(request.getCalculatedFields(), fieldAccess, deniedQmFields, calcFieldMap);
 
-        // 3. 校验 slice
-        validateSlice(request.getSlice(), fieldAccess);
+        // 3. 校验 slice（只校验用户 slice，system_slice 在 SystemSliceMergeStep 中后续合并）
+        validateSlice(request.getSlice(), fieldAccess, deniedQmFields);
 
         // 4. 校验 orderBy
-        validateOrderBy(request.getOrderBy(), fieldAccess, calcFieldMap);
+        validateOrderBy(request.getOrderBy(), fieldAccess, deniedQmFields, calcFieldMap);
 
         // 5. 校验 groupBy
-        validateGroupBy(request.getGroupBy(), fieldAccess);
+        validateGroupBy(request.getGroupBy(), fieldAccess, deniedQmFields);
 
         if (log.isDebugEnabled()) {
-            log.debug("FieldAccessPermission check passed. Allowed fields: {}", fieldAccess);
+            log.debug("FieldAccessPermission check passed.");
         }
 
         return CONTINUE;
+    }
+
+    /**
+     * 将 deniedColumns 物理列黑名单通过 QM 映射缓存转换为 denied QM 字段集合
+     */
+    private Set<String> resolveDeniedQmFields(ModelResultContext ctx) {
+        List<DeniedPhysicalColumn> denied = ctx.getDeniedColumns();
+        if (denied == null || denied.isEmpty()) {
+            return Set.of();
+        }
+        QueryModel qm = ctx.getQueryModel();
+        if (qm == null) {
+            return Set.of();
+        }
+        PhysicalColumnMapping mapping = qm.getPhysicalColumnMapping();
+        if (mapping == null) {
+            return Set.of();
+        }
+        return mapping.toDeniedQmFields(denied);
     }
 
     /**
@@ -93,36 +116,28 @@ public class FieldAccessPermissionStep implements DataSetResultStep {
 
     /**
      * 校验 columns 列表
-     * <p>
-     * 纯字段名直接检查白名单；内联表达式（含运算符/函数）先提取依赖再逐一检查。
-     * 表达式中引用的计算字段名会传递展开为基础字段。
      */
     private void validateColumns(List<String> columns, Set<String> fieldAccess,
-                                  Map<String, String> calcFieldMap) {
+                                  Set<String> deniedQmFields, Map<String, String> calcFieldMap) {
         if (columns == null || columns.isEmpty()) {
             return;
         }
         for (String column : columns) {
             InlineExpressionParser.InlineExpression parsed = InlineExpressionParser.parse(column);
             if (parsed != null) {
-                // 内联表达式：提取依赖字段（传递展开计算字段引用）
-                validateExpressionDeps(parsed.getExpression(), column, "columns", fieldAccess, calcFieldMap);
+                validateExpressionDeps(parsed.getExpression(), column, "columns", fieldAccess, deniedQmFields, calcFieldMap);
             } else {
-                // 纯字段名（可能带 $id/$caption 后缀）
                 String baseField = stripDimensionSuffix(column);
-                checkField(baseField, "columns", fieldAccess);
+                checkField(baseField, column, "columns", fieldAccess, deniedQmFields);
             }
         }
     }
 
     /**
      * 校验 calculatedFields 列表
-     * <p>
-     * 对每个计算字段的表达式做传递依赖展开：如果表达式引用了其他计算字段，
-     * 递归解析到基础字段后再校验白名单。
      */
     private void validateCalculatedFields(List<CalculatedFieldDef> calculatedFields, Set<String> fieldAccess,
-                                           Map<String, String> calcFieldMap) {
+                                           Set<String> deniedQmFields, Map<String, String> calcFieldMap) {
         if (calculatedFields == null || calculatedFields.isEmpty()) {
             return;
         }
@@ -132,21 +147,22 @@ public class FieldAccessPermissionStep implements DataSetResultStep {
             }
             validateExpressionDeps(field.getExpression(),
                     field.getName() != null ? field.getName() : field.getExpression(),
-                    "calculatedFields", fieldAccess, calcFieldMap);
+                    "calculatedFields", fieldAccess, deniedQmFields, calcFieldMap);
         }
     }
 
     /**
-     * 校验 slice 条件列表
+     * 校验 slice 条件列表（只校验用户 slice，不含 system_slice）
      */
-    private void validateSlice(List<SliceRequestDef> slice, Set<String> fieldAccess) {
+    private void validateSlice(List<SliceRequestDef> slice, Set<String> fieldAccess,
+                                Set<String> deniedQmFields) {
         if (slice == null || slice.isEmpty()) {
             return;
         }
         for (SliceRequestDef item : slice) {
             if (item.getField() != null) {
                 String baseField = stripDimensionSuffix(item.getField());
-                checkField(baseField, "slice", fieldAccess);
+                checkField(baseField, item.getField(), "slice", fieldAccess, deniedQmFields);
             }
         }
     }
@@ -155,7 +171,7 @@ public class FieldAccessPermissionStep implements DataSetResultStep {
      * 校验 orderBy 列表
      */
     private void validateOrderBy(List<OrderRequestDef> orderBy, Set<String> fieldAccess,
-                                  Map<String, String> calcFieldMap) {
+                                  Set<String> deniedQmFields, Map<String, String> calcFieldMap) {
         if (orderBy == null || orderBy.isEmpty()) {
             return;
         }
@@ -164,19 +180,16 @@ public class FieldAccessPermissionStep implements DataSetResultStep {
             if (field == null) {
                 continue;
             }
-            // orderBy 可能引用计算字段别名 — 需要传递展开
             if (calcFieldMap.containsKey(field)) {
-                // 引用了一个计算字段，展开校验其基础依赖
-                validateExpressionDeps(calcFieldMap.get(field), field, "orderBy", fieldAccess, calcFieldMap);
+                validateExpressionDeps(calcFieldMap.get(field), field, "orderBy", fieldAccess, deniedQmFields, calcFieldMap);
                 continue;
             }
-            // orderBy 可能是表达式或纯字段名
             InlineExpressionParser.InlineExpression parsed = InlineExpressionParser.parse(field);
             if (parsed != null) {
-                validateExpressionDeps(parsed.getExpression(), field, "orderBy", fieldAccess, calcFieldMap);
+                validateExpressionDeps(parsed.getExpression(), field, "orderBy", fieldAccess, deniedQmFields, calcFieldMap);
             } else {
                 String baseField = stripDimensionSuffix(field);
-                checkField(baseField, "orderBy", fieldAccess);
+                checkField(baseField, field, "orderBy", fieldAccess, deniedQmFields);
             }
         }
     }
@@ -184,7 +197,8 @@ public class FieldAccessPermissionStep implements DataSetResultStep {
     /**
      * 校验 groupBy 列表
      */
-    private void validateGroupBy(List<GroupRequestDef> groupBy, Set<String> fieldAccess) {
+    private void validateGroupBy(List<GroupRequestDef> groupBy, Set<String> fieldAccess,
+                                  Set<String> deniedQmFields) {
         if (groupBy == null || groupBy.isEmpty()) {
             return;
         }
@@ -194,18 +208,16 @@ public class FieldAccessPermissionStep implements DataSetResultStep {
                 continue;
             }
             String baseField = stripDimensionSuffix(field);
-            checkField(baseField, "groupBy", fieldAccess);
+            checkField(baseField, field, "groupBy", fieldAccess, deniedQmFields);
         }
     }
 
     /**
      * 提取表达式依赖并逐一校验（支持传递依赖展开）
-     * <p>
-     * 如果表达式引用了 {@code calcFieldMap} 中的计算字段，会递归解析到基础字段。
-     * fail-closed：解析失败时拒绝而非放行。
      */
     private void validateExpressionDeps(String expression, String displayName, String clause,
-                                        Set<String> fieldAccess, Map<String, String> calcFieldMap) {
+                                        Set<String> fieldAccess, Set<String> deniedQmFields,
+                                        Map<String, String> calcFieldMap) {
         Set<String> deps;
         try {
             deps = CalculatedFieldService.resolveBaseColumnReferences(expression, calcFieldMap);
@@ -221,22 +233,33 @@ public class FieldAccessPermissionStep implements DataSetResultStep {
         }
 
         for (String dep : deps) {
-            // 对表达式中提取的依赖也做维度后缀剥离（如 product$categoryName → product）
             String baseDep = stripDimensionSuffix(dep);
-            if (!fieldAccess.contains(baseDep)) {
-                throw RX.throwB("字段访问被拒绝: " + clause + " 中字段 '" + baseDep
-                        + "' 不在当前用户的可访问字段列表中");
-            }
+            checkField(baseDep, dep, clause, fieldAccess, deniedQmFields);
         }
     }
 
     /**
-     * 检查单个字段是否在白名单内
+     * 统一字段权限检查：白名单 + 黑名单
+     * <p>
+     * fieldAccess 非 null 时：字段（剥离后缀）必须在白名单中。
+     * deniedQmFields 非空时：字段（原始名）不能在黑名单中。
+     *
+     * @param field          字段名（已剥离维度后缀，用于白名单匹配）
+     * @param originalField  原始字段名（含维度后缀，用于黑名单匹配，如 "customer$customerType"）
      */
-    private void checkField(String field, String clause, Set<String> fieldAccess) {
-        if (!fieldAccess.contains(field)) {
+    private void checkField(String field, String originalField, String clause,
+                             Set<String> fieldAccess, Set<String> deniedQmFields) {
+        // 白名单检查（使用剥离后缀的基础名）
+        if (fieldAccess != null && !fieldAccess.contains(field)) {
             throw RX.throwB("字段访问被拒绝: " + clause + " 中字段 '" + field
                     + "' 不在当前用户的可访问字段列表中");
+        }
+        // 黑名单检查（使用原始名匹配 — QM 映射缓存存的是完整 QM 字段名）
+        if (!deniedQmFields.isEmpty()) {
+            if (deniedQmFields.contains(originalField) || deniedQmFields.contains(field)) {
+                throw RX.throwB("字段访问被拒绝: " + clause + " 中字段 '" + originalField
+                        + "' 对应的物理列在受限列黑名单中");
+            }
         }
     }
 

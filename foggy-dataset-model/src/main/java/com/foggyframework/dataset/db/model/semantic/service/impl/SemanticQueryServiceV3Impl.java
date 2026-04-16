@@ -111,6 +111,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         resultContext.setNamespace(namespace);
         resultContext.setFieldAccess(fieldAccess);
         resultContext.setDeniedColumns(reqContext.getDeniedColumns());
+        resultContext.setSystemSlice(reqContext.getSystemSlice());
 
         // 将请求中的 hints 传递到 extData（用于 DataSetResultStep 插件）
         if (request.getHints() != null && !request.getHints().isEmpty()) {
