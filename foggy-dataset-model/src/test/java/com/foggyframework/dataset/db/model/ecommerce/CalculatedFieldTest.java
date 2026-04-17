@@ -1431,4 +1431,320 @@ class CalculatedFieldTest extends EcommerceTestSupport {
         printSql(innerSql, "内联表达式(无分组) - 明细查询");
         log.info("参数值: {}", queryEngine.getValues());
     }
+
+    /**
+     * 测试场景：SUM(IF(...)) 形式的条件计数
+     *
+     * <p>验证 IF 函数可在聚合内被降级为 CASE WHEN，并保持 group by 语义正常。</p>
+     */
+    @Test
+    @Order(84)
+    @DisplayName("条件聚合 - SUM(IF(cond, 1, 0))")
+    void testConditionalAggregateCountWithIf() {
+        String nativeSql = """
+            SELECT
+                dp.category_name,
+                SUM(CASE WHEN fs.order_status = 'COMPLETED' THEN 1 ELSE 0 END) as completed_count
+            FROM fact_sales fs
+            LEFT JOIN dim_product dp ON fs.product_key = dp.product_key
+            GROUP BY dp.category_name
+            ORDER BY dp.category_name
+            """;
+        List<Map<String, Object>> nativeResults = executeQuery(nativeSql);
+        log.info("原生SQL结果: {} 条", nativeResults.size());
+
+        JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("FactSalesQueryModel");
+        queryRequest.setColumns(Arrays.asList(
+            "product$categoryName",
+            "sum(if(orderStatus == 'COMPLETED', 1, 0)) as completedCount"
+        ));
+
+        List<GroupRequestDef> groups = new ArrayList<>();
+        GroupRequestDef group = new GroupRequestDef();
+        group.setField("product$categoryName");
+        groups.add(group);
+        queryRequest.setGroupBy(groups);
+
+        List<OrderRequestDef> orders = new ArrayList<>();
+        OrderRequestDef order = new OrderRequestDef();
+        order.setField("product$categoryName");
+        order.setDir("ASC");
+        orders.add(order);
+        queryRequest.setOrderBy(orders);
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+
+        String sql = queryEngine.getSql();
+        assertNotNull(sql, "SQL生成失败");
+        assertTrue(sql.toUpperCase().contains("SUM"), "SQL应包含SUM函数");
+        assertTrue(sql.toUpperCase().contains("CASE WHEN"), "SQL应包含CASE WHEN降级结果");
+
+        printSql(sql, "条件聚合 - SUM(IF(cond, 1, 0))");
+        log.info("参数值: {}", queryEngine.getValues());
+
+        List<Object> values = queryEngine.getValues();
+        List<Map<String, Object>> modelResults;
+        try {
+            modelResults = jdbcTemplate.queryForList(sql, values.toArray());
+            log.info("模型查询结果: {} 条", modelResults.size());
+            printResults(modelResults);
+        } catch (Exception e) {
+            log.error("SQL执行失败: {}", e.getMessage(), e);
+            fail("条件计数 SQL 应能正确执行，但出现错误: " + e.getMessage());
+            return;
+        }
+
+        assertEquals(nativeResults.size(), modelResults.size(), "分组数量应一致");
+        for (int i = 0; i < nativeResults.size(); i++) {
+            Map<String, Object> nativeRow = nativeResults.get(i);
+            Map<String, Object> modelRow = modelResults.get(i);
+
+            assertEquals(nativeRow.get("category_name"), modelRow.get("product$categoryName"),
+                "品类名称应一致: 行 " + i);
+            assertDecimalEquals(nativeRow.get("completed_count"), modelRow.get("completedCount"),
+                "条件计数应一致: " + nativeRow.get("category_name"));
+        }
+    }
+
+    /**
+     * 测试场景：SUM(IF(cond, salesAmount, 0)) 形式的多条件金额聚合
+     *
+     * <p>验证多个条件可通过现有布尔表达式组合，并在聚合函数中正常降级执行。</p>
+     */
+    @Test
+    @Order(85)
+    @DisplayName("条件聚合 - SUM(IF(cond, measure, 0))")
+    void testConditionalAggregateSumWithIf() {
+        String nativeSql = """
+            SELECT
+                dp.category_name,
+                SUM(CASE WHEN fs.order_status = 'COMPLETED' AND fs.sales_amount > 100
+                         THEN fs.sales_amount ELSE 0 END) as completed_sales
+            FROM fact_sales fs
+            LEFT JOIN dim_product dp ON fs.product_key = dp.product_key
+            GROUP BY dp.category_name
+            ORDER BY dp.category_name
+            """;
+        List<Map<String, Object>> nativeResults = executeQuery(nativeSql);
+        log.info("原生SQL结果: {} 条", nativeResults.size());
+
+        JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("FactSalesQueryModel");
+        queryRequest.setColumns(Arrays.asList(
+            "product$categoryName",
+            "sum(if(orderStatus == 'COMPLETED' && salesAmount > 100, salesAmount, 0)) as completedSales"
+        ));
+
+        List<GroupRequestDef> groups = new ArrayList<>();
+        GroupRequestDef group = new GroupRequestDef();
+        group.setField("product$categoryName");
+        groups.add(group);
+        queryRequest.setGroupBy(groups);
+
+        List<OrderRequestDef> orders = new ArrayList<>();
+        OrderRequestDef order = new OrderRequestDef();
+        order.setField("product$categoryName");
+        order.setDir("ASC");
+        orders.add(order);
+        queryRequest.setOrderBy(orders);
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+
+        String sql = queryEngine.getSql();
+        assertNotNull(sql, "SQL生成失败");
+        assertTrue(sql.toUpperCase().contains("SUM"), "SQL应包含SUM函数");
+        assertTrue(sql.toUpperCase().contains("CASE WHEN"), "SQL应包含CASE WHEN降级结果");
+        assertTrue(sql.toUpperCase().contains("THEN"), "SQL应包含THEN子句");
+
+        printSql(sql, "条件聚合 - SUM(IF(cond, measure, 0))");
+        log.info("参数值: {}", queryEngine.getValues());
+
+        List<Object> values = queryEngine.getValues();
+        List<Map<String, Object>> modelResults;
+        try {
+            modelResults = jdbcTemplate.queryForList(sql, values.toArray());
+            log.info("模型查询结果: {} 条", modelResults.size());
+            printResults(modelResults);
+        } catch (Exception e) {
+            log.error("SQL执行失败: {}", e.getMessage(), e);
+            fail("条件求和 SQL 应能正确执行，但出现错误: " + e.getMessage());
+            return;
+        }
+
+        assertEquals(nativeResults.size(), modelResults.size(), "分组数量应一致");
+        for (int i = 0; i < nativeResults.size(); i++) {
+            Map<String, Object> nativeRow = nativeResults.get(i);
+            Map<String, Object> modelRow = modelResults.get(i);
+
+            assertEquals(nativeRow.get("category_name"), modelRow.get("product$categoryName"),
+                "品类名称应一致: 行 " + i);
+            assertDecimalEquals(nativeRow.get("completed_sales"), modelRow.get("completedSales"),
+                "条件求和应一致: " + nativeRow.get("category_name"));
+        }
+    }
+
+    /**
+     * 测试场景：AVG(IF(cond, salesAmount, NULL)) 形式的条件均值
+     *
+     * <p>验证 NULL else 分支可保持 AVG 仅统计命中条件的数据。</p>
+     */
+    @Test
+    @Order(86)
+    @DisplayName("条件聚合 - AVG(IF(cond, measure, NULL))")
+    void testConditionalAggregateAvgWithIf() {
+        String nativeSql = """
+            SELECT
+                dp.category_name,
+                AVG(CASE WHEN fs.order_status = 'COMPLETED' THEN fs.sales_amount ELSE NULL END) as avg_completed_sales
+            FROM fact_sales fs
+            LEFT JOIN dim_product dp ON fs.product_key = dp.product_key
+            GROUP BY dp.category_name
+            ORDER BY dp.category_name
+            """;
+        List<Map<String, Object>> nativeResults = executeQuery(nativeSql);
+        log.info("原生SQL结果: {} 条", nativeResults.size());
+
+        JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("FactSalesQueryModel");
+        queryRequest.setColumns(Arrays.asList(
+            "product$categoryName",
+            "avg(if(orderStatus == 'COMPLETED', salesAmount, null)) as avgCompletedSales"
+        ));
+
+        List<GroupRequestDef> groups = new ArrayList<>();
+        GroupRequestDef group = new GroupRequestDef();
+        group.setField("product$categoryName");
+        groups.add(group);
+        queryRequest.setGroupBy(groups);
+
+        List<OrderRequestDef> orders = new ArrayList<>();
+        OrderRequestDef order = new OrderRequestDef();
+        order.setField("product$categoryName");
+        order.setDir("ASC");
+        orders.add(order);
+        queryRequest.setOrderBy(orders);
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+
+        String sql = queryEngine.getSql();
+        assertNotNull(sql, "SQL生成失败");
+        assertTrue(sql.toUpperCase().contains("AVG"), "SQL应包含AVG函数");
+        assertTrue(sql.toUpperCase().contains("CASE WHEN"), "SQL应包含CASE WHEN降级结果");
+        assertTrue(sql.toUpperCase().contains("ELSE NULL"), "SQL应保留NULL else分支");
+
+        printSql(sql, "条件聚合 - AVG(IF(cond, measure, NULL))");
+        log.info("参数值: {}", queryEngine.getValues());
+
+        List<Object> values = queryEngine.getValues();
+        List<Map<String, Object>> modelResults;
+        try {
+            modelResults = jdbcTemplate.queryForList(sql, values.toArray());
+            log.info("模型查询结果: {} 条", modelResults.size());
+            printResults(modelResults);
+        } catch (Exception e) {
+            log.error("SQL执行失败: {}", e.getMessage(), e);
+            fail("条件均值 SQL 应能正确执行，但出现错误: " + e.getMessage());
+            return;
+        }
+
+        assertEquals(nativeResults.size(), modelResults.size(), "分组数量应一致");
+        for (int i = 0; i < nativeResults.size(); i++) {
+            Map<String, Object> nativeRow = nativeResults.get(i);
+            Map<String, Object> modelRow = modelResults.get(i);
+
+            assertEquals(nativeRow.get("category_name"), modelRow.get("product$categoryName"),
+                "品类名称应一致: 行 " + i);
+            assertDecimalEquals(nativeRow.get("avg_completed_sales"), modelRow.get("avgCompletedSales"),
+                "条件均值应一致: " + nativeRow.get("category_name"));
+        }
+    }
+
+    /**
+     * 测试场景：COUNT(IF(cond, 1, NULL)) 形式的条件计数
+     *
+     * <p>验证 COUNT 仅统计命中条件后返回非 NULL 的行。</p>
+     */
+    @Test
+    @Order(87)
+    @DisplayName("条件聚合 - COUNT(IF(cond, 1, NULL))")
+    void testConditionalAggregateCountNullElseWithIf() {
+        String nativeSql = """
+            SELECT
+                dp.category_name,
+                COUNT(CASE WHEN fs.order_status = 'COMPLETED' THEN 1 ELSE NULL END) as completed_order_count
+            FROM fact_sales fs
+            LEFT JOIN dim_product dp ON fs.product_key = dp.product_key
+            GROUP BY dp.category_name
+            ORDER BY dp.category_name
+            """;
+        List<Map<String, Object>> nativeResults = executeQuery(nativeSql);
+        log.info("原生SQL结果: {} 条", nativeResults.size());
+
+        JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("FactSalesQueryModel");
+        queryRequest.setColumns(Arrays.asList(
+            "product$categoryName",
+            "count(if(orderStatus == 'COMPLETED', 1, null)) as completedOrderCount"
+        ));
+
+        List<GroupRequestDef> groups = new ArrayList<>();
+        GroupRequestDef group = new GroupRequestDef();
+        group.setField("product$categoryName");
+        groups.add(group);
+        queryRequest.setGroupBy(groups);
+
+        List<OrderRequestDef> orders = new ArrayList<>();
+        OrderRequestDef order = new OrderRequestDef();
+        order.setField("product$categoryName");
+        order.setDir("ASC");
+        orders.add(order);
+        queryRequest.setOrderBy(orders);
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+
+        String sql = queryEngine.getSql();
+        assertNotNull(sql, "SQL生成失败");
+        assertTrue(sql.toUpperCase().contains("COUNT"), "SQL应包含COUNT函数");
+        assertTrue(sql.toUpperCase().contains("CASE WHEN"), "SQL应包含CASE WHEN降级结果");
+        assertTrue(sql.toUpperCase().contains("ELSE NULL"), "SQL应保留NULL else分支");
+
+        printSql(sql, "条件聚合 - COUNT(IF(cond, 1, NULL))");
+        log.info("参数值: {}", queryEngine.getValues());
+
+        List<Object> values = queryEngine.getValues();
+        List<Map<String, Object>> modelResults;
+        try {
+            modelResults = jdbcTemplate.queryForList(sql, values.toArray());
+            log.info("模型查询结果: {} 条", modelResults.size());
+            printResults(modelResults);
+        } catch (Exception e) {
+            log.error("SQL执行失败: {}", e.getMessage(), e);
+            fail("条件计数 SQL 应能正确执行，但出现错误: " + e.getMessage());
+            return;
+        }
+
+        assertEquals(nativeResults.size(), modelResults.size(), "分组数量应一致");
+        for (int i = 0; i < nativeResults.size(); i++) {
+            Map<String, Object> nativeRow = nativeResults.get(i);
+            Map<String, Object> modelRow = modelResults.get(i);
+
+            assertEquals(nativeRow.get("category_name"), modelRow.get("product$categoryName"),
+                "品类名称应一致: 行 " + i);
+            assertDecimalEquals(nativeRow.get("completed_order_count"), modelRow.get("completedOrderCount"),
+                "条件 COUNT 应一致: " + nativeRow.get("category_name"));
+        }
+    }
 }

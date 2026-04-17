@@ -151,6 +151,7 @@ Use `expression as alias` format directly in columns:
 | `COALESCE(a, b, ...)` | Return first non-null value | `COALESCE(discountAmount, 0)` |
 | `NULLIF(a, b)` | Return NULL if equal | `NULLIF(status, 'UNKNOWN')` |
 | `IFNULL(a, b)` | Return default if null | `IFNULL(discountAmount, 0)` |
+| `IF(cond, thenExpr, elseExpr)` | Conditional expression, lowered to `CASE WHEN` on JDBC engines | `IF(orderStatus == 'COMPLETED', salesAmount, 0)` |
 
 ### 4.6 Aggregation Functions
 
@@ -164,9 +165,72 @@ Use `expression as alias` format directly in columns:
 
 ---
 
-## 5. Complete Examples
+## 5. Conditional Aggregations
 
-### 5.1 Simple Arithmetic Expression
+For conditional counts, sums, and averages, the recommended pattern is to wrap the existing aggregate functions around `IF(...)` instead of introducing `count_if / sum_if / avg_if`:
+
+```text
+SUM(IF(cond, 1, 0))
+SUM(IF(cond, amount, 0))
+AVG(IF(cond, amount, NULL))
+COUNT(IF(cond, 1, NULL))
+```
+
+### 5.1 Operators and Multiple Conditions
+
+- Continue using the existing DSL comparison and logical operators inside the condition
+- Use `==` for equality
+- Combine multiple predicates with `&&` and `||`
+
+Examples:
+
+```text
+IF(stage$caption == 'Won', 1, 0)
+IF(state == 'sale' && amountTotal > 100, amountTotal, 0)
+```
+
+### 5.2 Recommended Pattern
+
+```json
+{
+    "param": {
+        "columns": [
+            "salesTeam$caption",
+            "sum(if(stage$caption == 'Won', 1, 0)) as wonCount",
+            "sum(if(state == 'sale', amountTotal, 0)) as confirmedAmount",
+            "avg(if(stage$caption == 'Won', amountTotal, null)) as avgWonAmount",
+            "count(if(stage$caption == 'Won', 1, null)) as wonOrderCount"
+        ],
+        "groupBy": [
+            { "field": "salesTeam$caption" }
+        ]
+    }
+}
+```
+
+### 5.3 SQL Lowering Rule
+
+The JDBC engine does not rely on database-native `IF(...)`. During SQL generation, it lowers the expression to standard SQL:
+
+```sql
+SUM(CASE WHEN stage_caption = 'Won' THEN 1 ELSE 0 END)
+SUM(CASE WHEN state = 'sale' THEN amount_total ELSE 0 END)
+AVG(CASE WHEN stage_caption = 'Won' THEN amount_total ELSE NULL END)
+COUNT(CASE WHEN stage_caption = 'Won' THEN 1 ELSE NULL END)
+```
+
+### 5.4 Boundaries
+
+- Use `==` inside `if(...)`; do not use SQL-style `=`
+- For `AVG(IF(...))`, use `null` in the `else` branch if you only want matched rows to participate in the average
+- For `COUNT(IF(...))`, prefer `COUNT(IF(cond, 1, null))`
+- The public syntax remains `if(...)`; internally the compiler normalizes it to `IIF(...)` before further processing
+
+---
+
+## 6. Complete Examples
+
+### 6.1 Simple Arithmetic Expression
 
 ```json
 {
@@ -194,7 +258,7 @@ SELECT
 FROM fact_sales
 ```
 
-### 5.2 Profit Rate Calculation
+### 6.2 Profit Rate Calculation
 
 ```json
 {
@@ -214,7 +278,7 @@ FROM fact_sales
 }
 ```
 
-### 5.3 Chained Calculated Fields
+### 6.3 Chained Calculated Fields
 
 Calculated fields can reference other calculated fields:
 
@@ -238,7 +302,7 @@ Calculated fields can reference other calculated fields:
 }
 ```
 
-### 5.4 Reference Dimension Columns
+### 6.4 Reference Dimension Columns
 
 ```json
 {
@@ -255,7 +319,7 @@ Calculated fields can reference other calculated fields:
 }
 ```
 
-### 5.5 Calculated Field as Filter Condition
+### 6.5 Calculated Field as Filter Condition
 
 ```json
 {
@@ -276,7 +340,7 @@ Calculated fields can reference other calculated fields:
 }
 ```
 
-### 5.6 Calculated Fields in Grouped Aggregations
+### 6.6 Calculated Fields in Grouped Aggregations
 
 ```json
 {
@@ -299,9 +363,9 @@ Calculated fields can reference other calculated fields:
 
 ---
 
-## 6. Security
+## 7. Security
 
-### 6.1 Prohibited Functions
+### 7.1 Prohibited Functions
 
 The following functions will be intercepted and throw `SecurityException`:
 
@@ -310,7 +374,7 @@ The following functions will be intercepted and throw `SecurityException`:
 - `CREATE`, `ALTER`, `TRUNCATE`
 - Other functions not in the whitelist
 
-### 6.2 Error Handling
+### 7.2 Error Handling
 
 | Error Type | Description |
 |------------|-------------|
@@ -321,7 +385,7 @@ The following functions will be intercepted and throw `SecurityException`:
 
 ---
 
-## 7. Best Practices
+## 8. Best Practices
 
 1. **Avoid division by zero**: Add `salesAmount > 0` condition before division
 2. **Use COALESCE**: Handle fields that may be NULL

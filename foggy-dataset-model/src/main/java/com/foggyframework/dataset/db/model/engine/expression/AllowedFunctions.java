@@ -169,6 +169,7 @@ public final class AllowedFunctions {
         other.add("NVL");
         other.add("ISNULL");
         other.add("IF");
+        other.add("IIF");
         other.add("CASE");
         other.add("CAST");
         other.add("CONVERT");

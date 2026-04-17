@@ -223,6 +223,13 @@ public class SqlExpFactoryTest {
         assertNotNull(exp, "Should parse nested function");
     }
 
+    @Test
+    @DisplayName("解析 IIF 函数")
+    void testParseFunctionIif() throws Exception {
+        Exp exp = parser.compileEl(null, "IIF(flag == 1, amount, 0)");
+        assertNotNull(exp, "Should parse IIF function");
+    }
+
     // ==========================================
     // 安全检查测试
     // ==========================================

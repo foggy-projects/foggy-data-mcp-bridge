@@ -151,6 +151,7 @@
 | `COALESCE(a, b, ...)` | 返回第一个非空值 | `COALESCE(discountAmount, 0)` |
 | `NULLIF(a, b)` | 相等则返回 NULL | `NULLIF(status, 'UNKNOWN')` |
 | `IFNULL(a, b)` | 为空则返回默认值 | `IFNULL(discountAmount, 0)` |
+| `IF(cond, thenExpr, elseExpr)` | 条件表达式，JDBC 端会统一降级为 `CASE WHEN` | `IF(orderStatus == 'COMPLETED', salesAmount, 0)` |
 
 ### 4.6 聚合函数
 
@@ -164,9 +165,72 @@
 
 ---
 
-## 5. 完整示例
+## 5. 条件聚合写法
 
-### 5.1 简单算术表达式
+当需要表达“条件计数 / 条件求和 / 条件均值”时，不新增 `count_if / sum_if / avg_if` 语法糖，统一使用现有聚合函数包裹 `IF(...)`：
+
+```text
+SUM(IF(cond, 1, 0))
+SUM(IF(cond, amount, 0))
+AVG(IF(cond, amount, NULL))
+COUNT(IF(cond, 1, NULL))
+```
+
+### 5.1 运算符与多个条件
+
+- 条件表达式继续使用现有 DSL 比较与逻辑运算符
+- 相等判断使用 `==`
+- 多个条件可用 `&&` / `||`
+
+示例：
+
+```text
+IF(stage$caption == 'Won', 1, 0)
+IF(state == 'sale' && amountTotal > 100, amountTotal, 0)
+```
+
+### 5.2 推荐写法
+
+```json
+{
+    "param": {
+        "columns": [
+            "salesTeam$caption",
+            "sum(if(stage$caption == 'Won', 1, 0)) as wonCount",
+            "sum(if(state == 'sale', amountTotal, 0)) as confirmedAmount",
+            "avg(if(stage$caption == 'Won', amountTotal, null)) as avgWonAmount",
+            "count(if(stage$caption == 'Won', 1, null)) as wonOrderCount"
+        ],
+        "groupBy": [
+            { "field": "salesTeam$caption" }
+        ]
+    }
+}
+```
+
+### 5.3 SQL 降级规则
+
+JDBC 引擎不会依赖数据库原生 `IF(...)`。表达式在 SQL 生成时会统一降级为标准 SQL：
+
+```sql
+SUM(CASE WHEN stage_caption = 'Won' THEN 1 ELSE 0 END)
+SUM(CASE WHEN state = 'sale' THEN amount_total ELSE 0 END)
+AVG(CASE WHEN stage_caption = 'Won' THEN amount_total ELSE NULL END)
+COUNT(CASE WHEN stage_caption = 'Won' THEN 1 ELSE NULL END)
+```
+
+### 5.4 使用边界
+
+- `if(...)` 中的相等判断使用 `==`，不要写 SQL 风格的 `=`
+- `AVG(IF(...))` 若希望只统计命中条件的样本，`else` 分支应写 `null`，不要写 `0`
+- `COUNT(IF(...))` 若希望只统计命中条件的行，推荐写 `COUNT(IF(cond, 1, null))`
+- 当前对外暴露仍然是 `if(...)`，内部会在编译阶段归一化为 `IIF(...)` 再继续处理
+
+---
+
+## 6. 完整示例
+
+### 6.1 简单算术表达式
 
 ```json
 {
@@ -194,7 +258,7 @@ SELECT
 FROM fact_sales
 ```
 
-### 5.2 利润率计算
+### 6.2 利润率计算
 
 ```json
 {
@@ -214,7 +278,7 @@ FROM fact_sales
 }
 ```
 
-### 5.3 链式计算字段
+### 6.3 链式计算字段
 
 计算字段可以引用其他计算字段：
 
@@ -238,7 +302,7 @@ FROM fact_sales
 }
 ```
 
-### 5.4 引用维度列
+### 6.4 引用维度列
 
 ```json
 {
@@ -255,7 +319,7 @@ FROM fact_sales
 }
 ```
 
-### 5.5 计算字段作为过滤条件
+### 6.5 计算字段作为过滤条件
 
 ```json
 {
@@ -276,7 +340,7 @@ FROM fact_sales
 }
 ```
 
-### 5.6 分组汇总中的计算字段
+### 6.6 分组汇总中的计算字段
 
 ```json
 {
@@ -299,9 +363,9 @@ FROM fact_sales
 
 ---
 
-## 6. 安全性
+## 7. 安全性
 
-### 6.1 禁止的函数
+### 7.1 禁止的函数
 
 以下函数会被拦截并抛出 `SecurityException`：
 
@@ -310,7 +374,7 @@ FROM fact_sales
 - `CREATE`、`ALTER`、`TRUNCATE`
 - 其他未在白名单中的函数
 
-### 6.2 错误处理
+### 7.2 错误处理
 
 | 错误类型 | 说明 |
 |----------|------|
@@ -321,7 +385,7 @@ FROM fact_sales
 
 ---
 
-## 7. 最佳实践
+## 8. 最佳实践
 
 1. **避免除零错误**：除法运算前添加 `salesAmount > 0` 条件
 2. **使用 COALESCE**：处理可能为 NULL 的字段

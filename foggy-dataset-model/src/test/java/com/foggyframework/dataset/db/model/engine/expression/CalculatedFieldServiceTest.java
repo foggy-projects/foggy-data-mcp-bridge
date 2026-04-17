@@ -89,6 +89,22 @@ class CalculatedFieldServiceTest {
     }
 
     @Test
+    @DisplayName("IF 条件函数写法 — 预处理后仍可提取列引用")
+    void extractRefs_ifFunctionNormalized() {
+        Set<String> refs = CalculatedFieldService.extractColumnReferences(
+                "SUM(if(orderStatus == 'COMPLETED', salesAmount, 0))");
+        assertEquals(Set.of("orderStatus", "salesAmount"), refs);
+    }
+
+    @Test
+    @DisplayName("IF 条件函数 + null 分支 — 预处理后仍可提取列引用")
+    void extractRefs_ifFunctionWithNullElse() {
+        Set<String> refs = CalculatedFieldService.extractColumnReferences(
+                "AVG(if(orderStatus == 'COMPLETED', salesAmount, null))");
+        assertEquals(Set.of("orderStatus", "salesAmount"), refs);
+    }
+
+    @Test
     @DisplayName("表达式仅含字面量和函数（无列引用）— 返回空集合")
     void extractRefs_onlyLiteralsAndFunctions() {
         Set<String> refs = CalculatedFieldService.extractColumnReferences("1 + 2 * 3");

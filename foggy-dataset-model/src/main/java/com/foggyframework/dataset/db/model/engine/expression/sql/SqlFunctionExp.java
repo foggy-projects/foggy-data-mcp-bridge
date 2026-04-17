@@ -6,11 +6,12 @@ import com.foggyframework.dataset.db.model.engine.expression.SqlFragment;
 import com.foggyframework.dataset.db.model.spi.DbColumnType;
 import com.foggyframework.fsscript.exp.AbstractExp;
 import com.foggyframework.fsscript.exp.EmptyExp;
+import com.foggyframework.fsscript.exp.NullExp;
 import com.foggyframework.fsscript.parser.spi.Exp;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 
 import java.util.List;
-import java.util.Objects;
+import java.util.ArrayList;
 import java.util.stream.Collectors;
 
 /**
@@ -41,13 +42,38 @@ public class SqlFunctionExp extends AbstractExp<String> {
         SqlExpContext ctx = (SqlExpContext) evaluator.getVar(SqlExpContext.CONTEXT_KEY);
 
         // 执行所有参数（过滤掉 EmptyExp，它代表零参数函数调用如 ROW_NUMBER()）
-        List<SqlFragment> argFragments = args.stream()
-                .filter(arg -> !(arg instanceof EmptyExp))
-                .map(arg -> (SqlFragment) arg.evalResult(evaluator))
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
+        // NullExp 需要显式保留为 SQL NULL，不能在这里被丢弃，否则 IF(cond, x, null) 会只剩两个参数。
+        List<SqlFragment> argFragments = new ArrayList<>(args.size());
+        for (Exp arg : args) {
+            if (arg instanceof EmptyExp) {
+                continue;
+            }
+            if (arg instanceof NullExp) {
+                argFragments.add(SqlFragment.ofLiteral("NULL"));
+                continue;
+            }
+            SqlFragment fragment = (SqlFragment) arg.evalResult(evaluator);
+            if (fragment != null) {
+                argFragments.add(fragment);
+            }
+        }
 
         String upper = functionName.toUpperCase();
+
+        // IF/IIF(cond, thenExpr, elseExpr) 在 JDBC 侧降级为标准 CASE WHEN，便于复用现有 DSL 语法支持条件聚合
+        if ("IF".equals(upper) || "IIF".equals(upper)) {
+            if (argFragments.size() != 3) {
+                throw new IllegalArgumentException("IF/IIF function requires exactly 3 arguments");
+            }
+            SqlFragment condition = argFragments.get(0);
+            SqlFragment thenExpr = argFragments.get(1);
+            SqlFragment elseExpr = argFragments.get(2);
+            String caseSql = "CASE WHEN " + condition.getSql()
+                    + " THEN " + thenExpr.getSql()
+                    + " ELSE " + elseExpr.getSql()
+                    + " END";
+            return SqlFragment.customFunction(caseSql, "IF", argFragments);
+        }
 
         // COUNT(DISTINCT) 特殊处理
         if ("COUNTD".equals(upper) || "COUNT_DISTINCT".equals(upper)) {

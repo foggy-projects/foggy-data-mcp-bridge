@@ -403,12 +403,13 @@ public final class CalculatedFieldService {
      */
     public static Exp compileExpression(String expression) {
         try {
+            String normalizedExpression = normalizeConditionalFunctionCalls(expression);
             // 使用 compileEl 解析纯 fsscript 表达式
             // compile 是为 SQL 模板语法设计的（如 select ... where ${expr}），会把标识符当作字面量
-            Exp exp = SHARED_PARSER.compileEl(null, expression);
+            Exp exp = SHARED_PARSER.compileEl(null, normalizedExpression);
             if (log.isDebugEnabled()) {
-                log.debug("Compiled expression '{}' -> AST type: {}, AST: {}",
-                        expression, exp.getClass().getName(), exp);
+                log.debug("Compiled expression '{}' (normalized='{}') -> AST type: {}, AST: {}",
+                        expression, normalizedExpression, exp.getClass().getName(), exp);
             }
             return exp;
         } catch (SecurityException e) {
@@ -416,6 +417,98 @@ public final class CalculatedFieldService {
         } catch (Exception e) {
             throw new RuntimeException("表达式语法错误: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * 计算字段表达式预处理：
+     * parser 中 if 是保留关键字，不能直接作为函数名参与 expression 解析。
+     * 这里将函数式 IF(...) 归一化为 IIF(...)，避免修改 parser 主语法。
+     */
+    private static String normalizeConditionalFunctionCalls(String expression) {
+        if (StringUtils.isEmpty(expression)) {
+            return expression;
+        }
+
+        StringBuilder normalized = new StringBuilder(expression.length() + 8);
+        boolean inSingleQuote = false;
+        boolean inDoubleQuote = false;
+
+        for (int i = 0; i < expression.length(); i++) {
+            char ch = expression.charAt(i);
+
+            if (inSingleQuote) {
+                normalized.append(ch);
+                if (ch == '\'') {
+                    if (i + 1 < expression.length() && expression.charAt(i + 1) == '\'') {
+                        normalized.append(expression.charAt(i + 1));
+                        i++;
+                    } else {
+                        inSingleQuote = false;
+                    }
+                }
+                continue;
+            }
+
+            if (inDoubleQuote) {
+                normalized.append(ch);
+                if (ch == '"' && !isEscaped(expression, i)) {
+                    inDoubleQuote = false;
+                }
+                continue;
+            }
+
+            if (ch == '\'') {
+                inSingleQuote = true;
+                normalized.append(ch);
+                continue;
+            }
+
+            if (ch == '"') {
+                inDoubleQuote = true;
+                normalized.append(ch);
+                continue;
+            }
+
+            if (isIfFunctionCall(expression, i)) {
+                normalized.append("IIF");
+                i++;
+                continue;
+            }
+
+            normalized.append(ch);
+        }
+
+        return normalized.toString();
+    }
+
+    private static boolean isIfFunctionCall(String expression, int index) {
+        if (index + 1 >= expression.length()) {
+            return false;
+        }
+        if (!expression.regionMatches(true, index, "if", 0, 2)) {
+            return false;
+        }
+        if (index > 0 && isIdentifierChar(expression.charAt(index - 1))) {
+            return false;
+        }
+
+        int next = index + 2;
+        while (next < expression.length() && Character.isWhitespace(expression.charAt(next))) {
+            next++;
+        }
+        return next < expression.length() && expression.charAt(next) == '(';
+    }
+
+    private static boolean isIdentifierChar(char ch) {
+        return Character.isLetterOrDigit(ch) || ch == '_' || ch == '$';
+    }
+
+    private static boolean isEscaped(String expression, int index) {
+        int slashCount = 0;
+        for (int i = index - 1; i >= 0 && expression.charAt(i) == '\\'; i--) {
+            slashCount++;
+        }
+        return slashCount % 2 == 1;
     }
 
     /**
