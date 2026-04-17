@@ -621,7 +621,7 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
                 // 无显式属性引用 → 自动展开全部属性
                 for (DbProperty prop : ((DbDimensionSupport) dimension).getJdbcProperties()) {
                     String propColumnName = basePath + "$" + prop.getPropertyDbColumn().getAlias();
-                    addColumn(qm, group, propColumnName, item, hasRef);
+                    addColumn(qm, group, propColumnName, createAutoExpandedPropertyItem(item, propColumnName), hasRef);
                 }
             }
         }
@@ -661,6 +661,16 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
 
         qm.addJdbcQueryColumn(dbQueryColumn);
         group.addJdbcColumn(dbQueryColumn);
+    }
+
+    private SelectColumnDef createAutoExpandedPropertyItem(SelectColumnDef item, String propColumnName) {
+        SelectColumnDef autoExpandedItem = new SelectColumnDef();
+        BeanUtils.copyProperties(item, autoExpandedItem);
+        autoExpandedItem.setName(propColumnName);
+        autoExpandedItem.setAlias(propColumnName);
+        // 自动展开属性应回落到各自列的 caption，不能复用维度入口列的 caption。
+        autoExpandedItem.setCaption(null);
+        return autoExpandedItem;
     }
 
     private void fixJdbcQueryCond(QueryModelSupport qm, DbQueryConditionImpl jdbcQueryCond, DbColumn selectColumn) {

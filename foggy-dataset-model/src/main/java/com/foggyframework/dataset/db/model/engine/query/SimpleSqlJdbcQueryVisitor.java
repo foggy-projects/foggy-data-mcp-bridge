@@ -6,6 +6,7 @@ import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.impl.query.DbQueryGroupColumnImpl;
 import com.foggyframework.dataset.db.model.impl.query.DbQueryOrderColumnImpl;
+import com.foggyframework.dataset.db.model.proxy.JoinBuilderFunction;
 import com.foggyframework.dataset.db.model.spi.DbColumn;
 import com.foggyframework.dataset.db.model.spi.JdbcQueryModel;
 import com.foggyframework.dataset.db.model.spi.QueryObject;
@@ -115,7 +116,11 @@ public class SimpleSqlJdbcQueryVisitor implements JdbcQueryVisitor {
                     ee.setVar("queryRequest", queryRequest);
                     ee.setVar("queryModel", jdbcQueryModel);
 
-                    onCondition = String.valueOf(join.getOnBuilder().autoApply(ee));
+                    if (join.getOnBuilder() instanceof JoinBuilderFunction joinBuilderFunction) {
+                        onCondition = joinBuilderFunction.buildOnClause(jdbcQueryModel);
+                    } else {
+                        onCondition = String.valueOf(join.getOnBuilder().autoApply(ee));
+                    }
                     join.setOnCondition(onCondition);  // 缓存
                     sb.append(onCondition).append("\t");
                 } else {

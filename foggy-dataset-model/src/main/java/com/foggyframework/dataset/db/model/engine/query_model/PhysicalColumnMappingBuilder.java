@@ -3,6 +3,7 @@ package com.foggyframework.dataset.db.model.engine.query_model;
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.engine.expression.CalculatedFieldService;
 import com.foggyframework.dataset.db.model.impl.dimension.DbDimensionSupport;
+import com.foggyframework.dataset.db.model.impl.utils.TableQueryObject;
 import com.foggyframework.dataset.db.model.spi.*;
 import lombok.extern.slf4j.Slf4j;
 
@@ -86,42 +87,41 @@ public final class PhysicalColumnMappingBuilder {
         }
 
         if (dim instanceof DbDimensionSupport dimSupport) {
-            TableModel dimModel = dimSupport.getJdbcModel();
+            // dimSupport.getJdbcModel() 返回父模型（事实表），不是维度表自身。
+            // 维度的实际物理表通过 QueryObject 获取。
+            TableQueryObject tqo = dimSupport.getQueryObject() != null
+                    ? dimSupport.getQueryObject().getDecorate(TableQueryObject.class) : null;
+            String dimTable = tqo != null ? tqo.getTableName() : factTable;
+
             if (log.isDebugEnabled()) {
-                log.debug("Dimension '{}': jdbcModel={}, properties={}",
-                        dimName, dimModel != null ? dimModel.getTableName() : "NULL",
-                        dimSupport.getJdbcProperties().size());
+                log.debug("Dimension '{}': dimTable={}, properties={}",
+                        dimName, dimTable, dimSupport.getJdbcProperties().size());
             }
-            if (dimModel != null) {
-                String dimTable = dimModel.getTableName();
 
-                // $id → PK on dimension table (additional mapping)
-                String pk = dimSupport.getPrimaryKey();
-                if (pk != null && dimTable != null) {
-                    addMapping(qmToPhysical, physicalToQm, dimName + "$id", dimTable, pk);
-                }
+            // $id → PK on dimension table (additional mapping)
+            String pk = dimSupport.getPrimaryKey();
+            if (pk != null) {
+                addMapping(qmToPhysical, physicalToQm, dimName + "$id", dimTable, pk);
+            }
 
-                // $caption → caption column on dimension table
-                DbColumn captionCol = dim.getCaptionDbColumn();
-                if (captionCol != null && captionCol.getSqlColumnName() != null && dimTable != null) {
-                    addMapping(qmToPhysical, physicalToQm, dimName + "$caption", dimTable, captionCol.getSqlColumnName());
-                }
+            // $caption → caption column on dimension table
+            DbColumn captionCol = dim.getCaptionDbColumn();
+            if (captionCol != null && captionCol.getSqlColumnName() != null) {
+                addMapping(qmToPhysical, physicalToQm, dimName + "$caption", dimTable, captionCol.getSqlColumnName());
+            }
 
-                // 维度属性 → dimension table columns
-                for (DbProperty prop : dimSupport.getJdbcProperties()) {
-                    DbColumn propCol = prop.getPropertyDbColumn();
-                    if (propCol != null && propCol.getSqlColumnName() != null && dimTable != null) {
-                        addMapping(qmToPhysical, physicalToQm,
-                                dimName + "$" + prop.getName(), dimTable, propCol.getSqlColumnName());
-                    }
+            // 维度属性 → dimension table columns
+            for (DbProperty prop : dimSupport.getJdbcProperties()) {
+                DbColumn propCol = prop.getPropertyDbColumn();
+                if (propCol != null && propCol.getSqlColumnName() != null) {
+                    addMapping(qmToPhysical, physicalToQm,
+                            dimName + "$" + prop.getName(), dimTable, propCol.getSqlColumnName());
                 }
             }
 
-            // 递归子维度
+            // 递归子维度（子维度的 FK 在当前维度表上）
             for (DbDimension childDim : dimSupport.getChildDimensions()) {
-                String childFactTable = dimSupport.getJdbcModel() != null
-                        ? dimSupport.getJdbcModel().getTableName() : factTable;
-                processDimension(childDim, childFactTable, qmToPhysical, physicalToQm);
+                processDimension(childDim, dimTable, qmToPhysical, physicalToQm);
             }
         }
     }
@@ -152,9 +152,7 @@ public final class PhysicalColumnMappingBuilder {
                         calc.getExpression(), calcFieldMap);
                 // 收集所有基础字段的物理列
                 for (String baseDep : baseDeps) {
-                    // 维度后缀剥离以查找基础字段映射
-                    String lookupName = baseDep;
-                    List<PhysicalColumnRef> baseRefs = qmToPhysical.get(lookupName);
+                    List<PhysicalColumnRef> baseRefs = qmToPhysical.get(baseDep);
                     if (baseRefs != null) {
                         for (PhysicalColumnRef ref : baseRefs) {
                             addMapping(qmToPhysical, physicalToQm, calc.getName(), ref.table(), ref.column());
@@ -175,17 +173,12 @@ public final class PhysicalColumnMappingBuilder {
                                     String qmFieldName, String table, String column) {
         PhysicalColumnRef ref = new PhysicalColumnRef(table, column);
 
-        // QM → physical（避免重复）
-        qmToPhysical.computeIfAbsent(qmFieldName, k -> new ArrayList<>());
-        List<PhysicalColumnRef> refs = qmToPhysical.get(qmFieldName);
+        List<PhysicalColumnRef> refs = qmToPhysical.computeIfAbsent(qmFieldName, k -> new ArrayList<>());
         if (!refs.contains(ref)) {
             refs.add(ref);
         }
 
-        // physical → QM（避免重复）
-        String physKey = table + "." + column;
-        physicalToQm.computeIfAbsent(physKey, k -> new ArrayList<>());
-        List<String> qmNames = physicalToQm.get(physKey);
+        List<String> qmNames = physicalToQm.computeIfAbsent(ref.toKey(), k -> new ArrayList<>());
         if (!qmNames.contains(qmFieldName)) {
             qmNames.add(qmFieldName);
         }

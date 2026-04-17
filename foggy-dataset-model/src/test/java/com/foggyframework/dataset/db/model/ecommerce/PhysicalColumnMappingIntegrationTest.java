@@ -32,6 +32,21 @@ class PhysicalColumnMappingIntegrationTest extends EcommerceTestSupport {
         return mapping;
     }
 
+    /** 断言正向映射：QM 字段 → 物理 table.column */
+    private void assertMapsTo(PhysicalColumnMapping mapping, String qmField, String table, String column) {
+        List<PhysicalColumnRef> refs = mapping.getPhysicalColumns(qmField);
+        assertFalse(refs.isEmpty(), qmField + " 应有物理列映射");
+        assertTrue(refs.stream().anyMatch(r -> table.equals(r.table()) && column.equals(r.column())),
+                qmField + " 应映射到 " + table + "." + column + ", 实际: " + refs);
+    }
+
+    /** 断言反向映射：物理 table.column → QM 字段名 */
+    private void assertReverseMapsTo(PhysicalColumnMapping mapping, String table, String column, String expectedQmField) {
+        List<String> qmNames = mapping.getQmFieldNames(table, column);
+        assertTrue(qmNames.contains(expectedQmField),
+                table + "." + column + " 应反向映射到 " + expectedQmField + ", 实际: " + qmNames);
+    }
+
     // ==================== 基本结构 ====================
 
     @Nested
@@ -64,21 +79,13 @@ class PhysicalColumnMappingIntegrationTest extends EcommerceTestSupport {
         @Test
         @DisplayName("度量 salesAmount → fact_sales.sales_amount")
         void measureMapsToFactColumn() {
-            PhysicalColumnMapping mapping = getMapping(SALES_QM);
-            List<PhysicalColumnRef> refs = mapping.getPhysicalColumns("salesAmount");
-            assertFalse(refs.isEmpty(), "salesAmount 应有物理列映射");
-            assertTrue(refs.stream().anyMatch(r ->
-                            "fact_sales".equals(r.table()) && "sales_amount".equals(r.column())),
-                    "salesAmount 应映射到 fact_sales.sales_amount, 实际: " + refs);
+            assertMapsTo(getMapping(SALES_QM), "salesAmount", "fact_sales", "sales_amount");
         }
 
         @Test
         @DisplayName("反向查找：fact_sales.sales_amount → salesAmount")
         void reverseLookupsalesAmount() {
-            PhysicalColumnMapping mapping = getMapping(SALES_QM);
-            List<String> qmNames = mapping.getQmFieldNames("fact_sales", "sales_amount");
-            assertTrue(qmNames.contains("salesAmount"),
-                    "fact_sales.sales_amount 应反向映射到 salesAmount, 实际: " + qmNames);
+            assertReverseMapsTo(getMapping(SALES_QM), "fact_sales", "sales_amount", "salesAmount");
         }
     }
 
@@ -117,52 +124,50 @@ class PhysicalColumnMappingIntegrationTest extends EcommerceTestSupport {
         @Test
         @DisplayName("维度属性 customer$customerType → dim_customer.customer_type")
         void dimensionPropertyMapsToPhysicalColumn() {
-            PhysicalColumnMapping mapping = getMapping(SALES_QM);
-            List<PhysicalColumnRef> refs = mapping.getPhysicalColumns("customer$customerType");
-            assertFalse(refs.isEmpty(),
-                    "customer$customerType 应有物理列映射，实际 allQmFields: " + mapping.getAllQmFieldNames());
+            assertMapsTo(getMapping(SALES_QM), "customer$customerType", "dim_customer", "customer_type");
         }
 
         @Test
-        @org.junit.jupiter.api.Disabled("维度属性反向映射在部分测试 context 中失败，需要调试 Spring context 加载顺序")
         @DisplayName("反向查找 dim_customer.customer_type → customer$customerType")
-        void reverseLookusDimCustomerColumn() {
-            PhysicalColumnMapping mapping = getMapping(SALES_QM);
-            // 先看正向映射存的物理列是什么
-            List<PhysicalColumnRef> forwardRefs = mapping.getPhysicalColumns("customer$customerType");
-            assertFalse(forwardRefs.isEmpty(), "正向映射应存在");
-            // 用正向映射的物理列做反向查找
-            PhysicalColumnRef ref = forwardRefs.get(0);
-            // 打印实际物理表名（可能不是 dim_customer）
-            // 如果实际 table 不是 dim_customer，用 assertEquals 暴露
-            assertEquals("dim_customer", ref.table(),
-                    "维度属性物理表应是 dim_customer，正向映射: " + forwardRefs);
-            assertEquals("customer_type", ref.column(),
-                    "维度属性物理列应是 customer_type，正向映射: " + forwardRefs);
-            List<String> result = mapping.getQmFieldNames(ref.table(), ref.column());
-            assertFalse(result.isEmpty(),
-                    "反向查找 " + ref.table() + "." + ref.column() + " 应非空，实际: " + result
-                    + "。正向映射: " + forwardRefs);
+        void reverseLookupDimCustomerColumn() {
+            assertReverseMapsTo(getMapping(SALES_QM), "dim_customer", "customer_type", "customer$customerType");
         }
 
         @Test
         @DisplayName("deniedColumns dim_customer.customer_type 转换包含 customer$customerType")
         void deniedDimColumnConvertsToQmField() {
-            PhysicalColumnMapping mapping = getMapping(SALES_QM);
-            // 先确认正向映射存在
-            List<PhysicalColumnRef> refs = mapping.getPhysicalColumns("customer$customerType");
-            assertFalse(refs.isEmpty(), "正向映射应存在");
-            // 用实际物理列做反向查找
-            PhysicalColumnRef firstRef = refs.get(0);
-            List<String> reverseResult = mapping.getQmFieldNames(firstRef.table(), firstRef.column());
-            assertTrue(reverseResult.contains("customer$customerType"),
-                    "反向查找 " + firstRef + " 应含 customer$customerType，实际: " + reverseResult);
-            // 再测 toDeniedQmFields
-            Set<String> denied = mapping.toDeniedQmFields(List.of(
-                    new DeniedPhysicalColumn(null, firstRef.table(), firstRef.column())
+            Set<String> denied = getMapping(SALES_QM).toDeniedQmFields(List.of(
+                    new DeniedPhysicalColumn(null, "dim_customer", "customer_type")
             ));
             assertTrue(denied.contains("customer$customerType"),
-                    "denied " + firstRef + " 应转换含 customer$customerType，实际: " + denied);
+                    "denied dim_customer.customer_type 应含 customer$customerType，实际: " + denied);
+        }
+
+        @Test
+        @DisplayName("物理表集合包含维度表")
+        void physicalTablesContainsDimTables() {
+            Set<String> tables = getMapping(SALES_QM).getAllPhysicalTables();
+            assertAll(
+                    () -> assertTrue(tables.contains("dim_customer"), "应包含 dim_customer"),
+                    () -> assertTrue(tables.contains("dim_product"), "应包含 dim_product"),
+                    () -> assertTrue(tables.contains("dim_store"), "应包含 dim_store")
+            );
+        }
+
+        @Test
+        @DisplayName("维度 $id 同时映射到事实表 FK 和维度表 PK")
+        void dimensionIdMapsToBothFkAndPk() {
+            PhysicalColumnMapping mapping = getMapping(SALES_QM);
+            assertAll(
+                    () -> assertMapsTo(mapping, "customer$id", "fact_sales", "customer_key"),
+                    () -> assertMapsTo(mapping, "customer$id", "dim_customer", "customer_key")
+            );
+        }
+
+        @Test
+        @DisplayName("维度 $caption 映射到维度表")
+        void dimensionCaptionMapsToDimTable() {
+            assertMapsTo(getMapping(SALES_QM), "customer$caption", "dim_customer", "customer_name");
         }
     }
 
@@ -207,6 +212,107 @@ class PhysicalColumnMappingIntegrationTest extends EcommerceTestSupport {
         void getPhysicalColumns_unknownField() {
             PhysicalColumnMapping mapping = getMapping(SALES_QM);
             assertTrue(mapping.getPhysicalColumns("nonexistent_field").isEmpty());
+        }
+    }
+
+    // ==================== 嵌套维度映射 ====================
+
+    @Nested
+    @DisplayName("嵌套维度物理列映射（雪花模型 3 层）")
+    class NestedDimensionMapping {
+
+        private static final String NESTED_QM = "FactSalesNestedDimQueryModel";
+
+        @Test
+        @DisplayName("一级维度属性映射到自身维度表（product → dim_product_nested）")
+        void level1PropertyMapsToOwnTable() {
+            assertMapsTo(getMapping(NESTED_QM), "product$brand", "dim_product_nested", "brand");
+        }
+
+        @Test
+        @DisplayName("二级嵌套维度 FK 映射到父维度表（category FK → dim_product_nested）")
+        void level2FkMapsToParentDimTable() {
+            // category FK (category_key) 应在父维度表 dim_product_nested 上
+            List<String> fkFields = getMapping(NESTED_QM).getQmFieldNames("dim_product_nested", "category_key");
+            assertFalse(fkFields.isEmpty(),
+                    "dim_product_nested.category_key 应有 QM 字段映射（二级维度 FK）, 实际: " + fkFields);
+        }
+
+        @Test
+        @DisplayName("二级嵌套维度属性映射到自身维度表（category → dim_category_nested）")
+        void level2PropertyMapsToOwnTable() {
+            List<String> fields = getMapping(NESTED_QM).getQmFieldNames("dim_category_nested", "category_level");
+            assertFalse(fields.isEmpty(),
+                    "dim_category_nested.category_level 应有 QM 字段映射, 实际: " + fields);
+        }
+
+        @Test
+        @DisplayName("三级嵌套维度 FK 映射到父维度表（group FK → dim_category_nested）")
+        void level3FkMapsToParentDimTable() {
+            List<String> fkFields = getMapping(NESTED_QM).getQmFieldNames("dim_category_nested", "group_key");
+            assertFalse(fkFields.isEmpty(),
+                    "dim_category_nested.group_key 应有 QM 字段映射（三级维度 FK）, 实际: " + fkFields);
+        }
+
+        @Test
+        @DisplayName("三级嵌套维度属性映射到自身维度表（group → dim_category_group）")
+        void level3PropertyMapsToOwnTable() {
+            List<String> fields = getMapping(NESTED_QM).getQmFieldNames("dim_category_group", "group_type");
+            assertFalse(fields.isEmpty(),
+                    "dim_category_group.group_type 应有 QM 字段映射, 实际: " + fields);
+        }
+
+        @Test
+        @DisplayName("嵌套维度的物理表集合包含全部维度表")
+        void allDimTablesPresent() {
+            Set<String> tables = getMapping(NESTED_QM).getAllPhysicalTables();
+            assertAll(
+                    () -> assertTrue(tables.contains("fact_sales_nested"), "应包含事实表"),
+                    () -> assertTrue(tables.contains("dim_product_nested"), "应包含一级维度表"),
+                    () -> assertTrue(tables.contains("dim_category_nested"), "应包含二级维度表"),
+                    () -> assertTrue(tables.contains("dim_category_group"), "应包含三级维度表")
+            );
+        }
+
+        @Test
+        @DisplayName("嵌套维度的 deniedColumns 反向映射正确")
+        void nestedDimDeniedColumnsReverseMapping() {
+            Set<String> denied = getMapping(NESTED_QM).toDeniedQmFields(List.of(
+                    new DeniedPhysicalColumn(null, "dim_category_group", "group_type")
+            ));
+            assertFalse(denied.isEmpty(),
+                    "denied dim_category_group.group_type 应有 QM 字段映射, 实际: " + denied);
+        }
+    }
+
+    // ==================== 父子维度（闭包表）映射 ====================
+
+    @Nested
+    @DisplayName("父子维度物理列映射（闭包表）")
+    class ParentChildDimensionMapping {
+
+        private static final String TEAM_QM = "FactTeamSalesQueryModel";
+
+        @Test
+        @DisplayName("父子维度属性映射到维度表（team → dim_team）")
+        void hierarchyDimPropertyMapsToOwnTable() {
+            assertMapsTo(getMapping(TEAM_QM), "team$managerName", "dim_team", "manager_name");
+        }
+
+        @Test
+        @DisplayName("父子维度 $id 包含维度表 PK 映射")
+        void hierarchyDimIdMapsToDimTable() {
+            assertMapsTo(getMapping(TEAM_QM), "team$id", "dim_team", "team_id");
+        }
+
+        @Test
+        @DisplayName("父子维度 deniedColumns 反向映射正确")
+        void hierarchyDimDeniedColumnsWorks() {
+            Set<String> denied = getMapping(TEAM_QM).toDeniedQmFields(List.of(
+                    new DeniedPhysicalColumn(null, "dim_team", "manager_name")
+            ));
+            assertTrue(denied.contains("team$managerName"),
+                    "denied dim_team.manager_name 应含 team$managerName, 实际: " + denied);
         }
     }
 }

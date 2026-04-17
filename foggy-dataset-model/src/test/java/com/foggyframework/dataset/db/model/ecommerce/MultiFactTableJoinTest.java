@@ -78,6 +78,29 @@ class MultiFactTableJoinTest extends EcommerceTestSupport {
     }
 
     @Test
+    @Order(1)
+    @DisplayName("订单-支付JOIN应使用物理列名而不是语义字段名")
+    void testOrderPaymentJoinShouldUsePhysicalColumnNamesInOnClause() {
+        JdbcQueryModel queryModel = getQueryModel("OrderPaymentJoinQueryModel");
+        assertNotNull(queryModel, "查询模型加载失败");
+
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("OrderPaymentJoinQueryModel");
+        queryRequest.setColumns(Arrays.asList("orderId", "paymentId", "payAmount"));
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+
+        String sql = queryEngine.getSql();
+        assertNotNull(sql, "SQL生成失败");
+        assertTrue(sql.contains("order_id"), "JOIN ON 子句应使用物理列名 order_id");
+        assertTrue(!sql.contains(".orderId ="), "JOIN ON 子句不应直接使用语义字段名 orderId");
+
+        printSql(sql, "订单-支付JOIN物理列名校验SQL");
+    }
+
+    @Test
     @Order(2)
     @DisplayName("订单-支付关联带维度查询")
     void testOrderPaymentJoinWithDimensions() {
@@ -242,6 +265,31 @@ class MultiFactTableJoinTest extends EcommerceTestSupport {
             "SQL应包含LEFT JOIN");
 
         printSql(sql, "销售-退货LEFT JOIN查询SQL");
+    }
+
+    @Test
+    @Order(10)
+    @DisplayName("销售-退货多条件JOIN应使用物理列名")
+    void testSalesReturnJoinShouldUsePhysicalColumnNamesInOnClause() {
+        JdbcQueryModel queryModel = getQueryModel("SalesReturnJoinQueryModel");
+        assertNotNull(queryModel, "查询模型加载失败");
+
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("SalesReturnJoinQueryModel");
+        queryRequest.setColumns(Arrays.asList("orderId", "orderLineNo", "returnId"));
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+
+        String sql = queryEngine.getSql();
+        assertNotNull(sql, "SQL生成失败");
+        assertTrue(sql.contains("order_id"), "复合 JOIN ON 子句应使用物理列名 order_id");
+        assertTrue(sql.contains("order_line_no"), "复合 JOIN ON 子句应使用物理列名 order_line_no");
+        assertTrue(!sql.contains(".orderId ="), "JOIN ON 子句不应直接使用语义字段名 orderId");
+        assertTrue(!sql.contains(".orderLineNo ="), "JOIN ON 子句不应直接使用语义字段名 orderLineNo");
+
+        printSql(sql, "销售-退货JOIN物理列名校验SQL");
     }
 
     @Test

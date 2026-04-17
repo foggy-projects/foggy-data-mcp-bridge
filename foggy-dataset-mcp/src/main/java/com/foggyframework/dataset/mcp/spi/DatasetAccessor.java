@@ -29,6 +29,24 @@ public interface DatasetAccessor {
     RX<SemanticMetadataResponse> getMetadata(String traceId, String authorization, String namespace);
 
     /**
+     * 获取元数据（带附加上下文参数，如 deniedColumns）。
+     *
+     * @param traceId       追踪ID
+     * @param authorization 授权头（可选）
+     * @param namespace     命名空间（可为 null，表示默认命名空间）
+     * @param options       透传的附加参数
+     * @return 元数据响应
+     */
+    default RX<SemanticMetadataResponse> getMetadata(
+            String traceId,
+            String authorization,
+            String namespace,
+            Map<String, Object> options
+    ) {
+        return getMetadata(traceId, authorization, namespace);
+    }
+
+    /**
      * 获取模型描述（字段详情）
      *
      * @param model         模型名称
@@ -40,6 +58,28 @@ public interface DatasetAccessor {
      */
     RX<SemanticMetadataResponse> describeModel(String model, String format, String traceId,
                                                 String authorization, String namespace);
+
+    /**
+     * 获取模型描述（带附加上下文参数，如 deniedColumns）。
+     *
+     * @param model         模型名称
+     * @param format        输出格式：json | markdown
+     * @param traceId       追踪ID
+     * @param authorization 授权头（可选）
+     * @param namespace     命名空间（可为 null，表示默认命名空间）
+     * @param options       透传的附加参数
+     * @return 模型描述响应
+     */
+    default RX<SemanticMetadataResponse> describeModel(
+            String model,
+            String format,
+            String traceId,
+            String authorization,
+            String namespace,
+            Map<String, Object> options
+    ) {
+        return describeModel(model, format, traceId, authorization, namespace);
+    }
 
     /**
      * 执行模型查询
@@ -54,6 +94,30 @@ public interface DatasetAccessor {
      */
     RX<SemanticQueryResponse> queryModel(String model, Map<String, Object> payload, String mode,
                                          String traceId, String authorization, String namespace);
+
+    /**
+     * 执行模型查询（带附加上下文参数，如 deniedColumns/systemSlice）。
+     *
+     * @param model         模型名称
+     * @param payload       查询参数
+     * @param mode          查询模式：execute | validate
+     * @param traceId       追踪ID
+     * @param authorization 授权头（可选）
+     * @param namespace     命名空间（可为 null，表示默认命名空间）
+     * @param options       透传的附加参数
+     * @return 查询结果
+     */
+    default RX<SemanticQueryResponse> queryModel(
+            String model,
+            Map<String, Object> payload,
+            String mode,
+            String traceId,
+            String authorization,
+            String namespace,
+            Map<String, Object> options
+    ) {
+        return queryModel(model, payload, mode, traceId, authorization, namespace);
+    }
 
     /**
      * 获取访问模式名称

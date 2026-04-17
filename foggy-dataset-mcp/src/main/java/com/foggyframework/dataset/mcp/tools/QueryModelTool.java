@@ -58,7 +58,7 @@ public class QueryModelTool implements McpTool {
         log.info("Querying model: {}, mode={}, traceId={}, namespace={}, accessMode={}",
                 model, mode, traceId, namespace, datasetAccessor.getAccessMode());
 
-        return datasetAccessor.queryModel(model, payload, mode, traceId, authorization, namespace);
+        return datasetAccessor.queryModel(model, payload, mode, traceId, authorization, namespace, arguments);
     }
 
     /**

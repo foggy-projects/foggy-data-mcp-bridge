@@ -44,6 +44,6 @@ public class MetadataTool implements McpTool {
         String authorization = context.getAuthorization();
         String namespace = context.getNamespace();
         log.info("Fetching metadata, traceId={}, namespace={}, accessMode={}", traceId, namespace, datasetAccessor.getAccessMode());
-        return datasetAccessor.getMetadata(traceId, authorization, namespace);
+        return datasetAccessor.getMetadata(traceId, authorization, namespace, arguments);
     }
 }

@@ -220,29 +220,8 @@ class PhysicalColumnPermissionIntegrationTest extends EcommerceTestSupport {
         }
 
         @Test
-        @org.junit.jupiter.api.Disabled("维度属性 deniedColumns→QM 映射反向查找需要更深入调试，暂时跳过")
         @DisplayName("deniedColumns 命中维度表物理列 — 查询被拒绝")
         void deniedDimensionTableColumn_queryRejected() {
-            // 先验证映射缓存中有这个映射
-            com.foggyframework.dataset.db.model.spi.QueryModel qm = getQueryModel(QUERY_MODEL);
-            assertNotNull(qm.getPhysicalColumnMapping(), "映射缓存应可用");
-            // 诊断：看 customer$customerType 的正向映射
-            var fwdRefs = qm.getPhysicalColumnMapping().getPhysicalColumns("customer$customerType");
-            java.util.Set<String> testDenied;
-            if (!fwdRefs.isEmpty()) {
-                // 用实际的 ref 测试 toDeniedQmFields
-                var actualRef = fwdRefs.get(0);
-                testDenied = qm.getPhysicalColumnMapping().toDeniedQmFields(
-                        List.of(new DeniedPhysicalColumn(null, actualRef.table(), actualRef.column())));
-            } else {
-                testDenied = qm.getPhysicalColumnMapping().toDeniedQmFields(
-                        List.of(new DeniedPhysicalColumn(null, "dim_customer", "customer_type")));
-            }
-            assertFalse(testDenied.isEmpty(),
-                    "映射转换应非空，toDeniedQmFields 实际返回: " + testDenied
-                    + "，正向映射: " + fwdRefs
-                    + "，allQmFields: " + qm.getPhysicalColumnMapping().getAllQmFieldNames());
-
             // 查询使用 customer$customerType（映射到 dim_customer.customer_type）
             DbQueryRequestDef queryRequest = new DbQueryRequestDef();
             queryRequest.setQueryModel(QUERY_MODEL);
