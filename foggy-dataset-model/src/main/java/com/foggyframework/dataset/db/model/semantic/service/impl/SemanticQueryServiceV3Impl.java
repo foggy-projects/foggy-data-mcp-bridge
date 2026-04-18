@@ -261,6 +261,9 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         }
 
         queryDef.setColumns(columns);
+        queryDef.setCalculatedFields(request.getCalculatedFields() == null
+                ? null
+                : new ArrayList<>(request.getCalculatedFields()));
 
         // 转换过滤条件（V3：字段名直接使用）
         if (request.getSlice() != null) {
