@@ -428,7 +428,8 @@ public class SqlFragment {
 
     private static boolean isComparisonOperator(String op) {
         return "=".equals(op) || "<>".equals(op) || "!=".equals(op) ||
-               ">".equals(op) || "<".equals(op) || ">=".equals(op) || "<=".equals(op);
+               ">".equals(op) || "<".equals(op) || ">=".equals(op) || "<=".equals(op) ||
+               "IN".equals(op) || "NOT IN".equals(op);
     }
 
     private static boolean isLogicalOperator(String op) {

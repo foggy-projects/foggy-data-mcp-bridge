@@ -6,6 +6,7 @@ import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.engine.expression.sql.SqlBinaryExp;
 import com.foggyframework.dataset.db.model.engine.expression.sql.SqlColumnRefExp;
 import com.foggyframework.dataset.db.model.engine.expression.sql.SqlFunctionExp;
+import com.foggyframework.dataset.db.model.engine.expression.sql.SqlListExp;
 import com.foggyframework.dataset.db.model.engine.expression.sql.SqlUnaryExp;
 import com.foggyframework.dataset.db.model.engine.expression.SqlExpHolder;
 import com.foggyframework.dataset.db.model.spi.support.CalculatedDbColumn;
@@ -312,6 +313,12 @@ public final class CalculatedFieldService {
         } else if (exp instanceof SqlFunctionExp) {
             for (Exp arg : ((SqlFunctionExp) exp).getArgs()) {
                 extractColumnReferences(arg, refs);
+            }
+        } else if (exp instanceof SqlListExp) {
+            // IN / NOT IN 的 RHS 列表。典型内容是字面量（SqlLiteralExp 会自动忽略），
+            // 但也允许 `x in (col1, col2)` 这种列组合场景，此时 col1 / col2 需要被收为依赖。
+            for (Exp item : ((SqlListExp) exp).getItems()) {
+                extractColumnReferences(item, refs);
             }
         }
         // SqlLiteralExp 不包含列引用，忽略

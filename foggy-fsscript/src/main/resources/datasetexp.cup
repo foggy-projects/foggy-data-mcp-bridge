@@ -11,10 +11,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Stack;
 
-/* Note: When regenerating the parser, use -expect 91 to allow shift/reduce conflicts:
+/* Note: When regenerating the parser, use -expect 104 to allow shift/reduce conflicts:
    Conflicts are resolved in favor of shifting for operator precedence and expression parsing.
+   (Was 91 historically; 100 after earlier grammar work; +4 from v8.1.11.beta `term3 NOT IN term2` addition, see docs/8.1.11.beta/P2-fsscript支持in和not-in算子-需求.md)
 
-   Example: java -cp java-cup-11b-20160615.jar java_cup.Main -expect 91 -parser ExpParser -symbols ExpSymbols -destdir src/main/java/com/foggyframework/fsscript/parser datasetexp.cup
+   Example: java -cp java-cup-11b-20160615.jar java_cup.Main -expect 104 -parser ExpParser -symbols ExpSymbols -destdir src/main/java/com/foggyframework/fsscript/parser datasetexp.cup
 */
 
 parser code {:
@@ -851,6 +852,12 @@ term3 ::=
     		list.add(x);
     		list.add(y);
             RESULT = parser.factory.createUnresolvedFunCall("IN",list,false);
+        :}
+    |   term3:x NOT IN term2:y {:
+            ListExp list = new ListExp(2);
+            list.add(x);
+            list.add(y);
+            RESULT = parser.factory.createUnresolvedFunCall("NOT_IN",list,false);
         :}
     |   term3:x INSTANCEOF term2:y {:
     		ListExp list = new ListExp(2);

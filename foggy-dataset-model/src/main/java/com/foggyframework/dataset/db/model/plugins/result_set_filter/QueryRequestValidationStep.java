@@ -138,6 +138,13 @@ public class QueryRequestValidationStep implements DataSetResultStep {
             return;
         }
 
+        // $expr 表达式条件：field / op / value 不适用，表达式合法性由 SqlExpFactory
+        // 在编译期兜底（非法函数或语法会抛 SecurityException / IllegalArgumentException）。
+        // 见 BUG-001-slice-expr-validation-gap。
+        if (StringUtils.isNotEmpty(item.getExpr())) {
+            return;
+        }
+
         // 2. 校验 field 不为空
         if (StringUtils.isEmpty(item.getField())) {
             throw RX.throwAUserTip(DatasetMessages.validationSliceFieldRequired(index));
@@ -178,6 +185,12 @@ public class QueryRequestValidationStep implements DataSetResultStep {
             // 1. 如果是逻辑组（$or 或 $and），递归校验
             if (item._isLogicalGroup()) {
                 validateCondChildren(item._getGroupChildren());
+                continue;
+            }
+
+            // $expr 表达式条件：field / op / value 不适用，由 SqlExpFactory 在编译期兜底。
+            // 见 BUG-001-slice-expr-validation-gap。
+            if (StringUtils.isNotEmpty(item.getExpr())) {
                 continue;
             }
 

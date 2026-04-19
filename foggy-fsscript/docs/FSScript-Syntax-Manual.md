@@ -150,6 +150,58 @@ obj?.nested?.value
 { ...obj1, ...obj2, newProp: value }
 ```
 
+### 3.8 Membership (`in` / `not in`)
+
+SQL-style membership operators that return `true` / `false`. The right-hand side accepts three forms:
+
+```javascript
+// 1) Parenthesized literal list (SQL style)
+brand in ('Apple', 'Huawei', 'Xiaomi')
+status not in ('cancelled', 'returned')
+
+// 2) Array literal
+id in [1, 2, 3]
+
+// 3) Variable (Collection / array / Set / Map.keySet)
+product_id in selectedIds
+```
+
+Semantics:
+
+- Same precedence as `==` / `<>` / `like` (grammar level `term3`); freely combinable with `&&` / `||`
+- Equality semantics are identical to `==` (delegates to `Equal.eq`): `null` only matches `null`; `BigDecimal` cross-compares with any numeric type; other types use `Object.equals`. `1 in (1.0)` is `false` — same as `1 == 1.0`, matching Java's boxed-number rule. For cross-numeric-type matching, convert explicitly or use `BigDecimal`.
+- `null` handling: `null in (1, null, 3)` → `true`; `null in (1,2,3)` → `false`
+- Empty collection: `v in ()` / `v in []` always `false`; `v not in ()` always `true`
+- Null haystack treated as empty: `v in null` → `false`
+- Legacy `for (var x in list) {...}` loop and `(item, index) in list` tuple-iteration semantics are preserved.
+
+##### Use in QM formulas / DSL `calculatedFields` (since v8.1.11.beta)
+
+Calculated fields support the same `in` / `not in` operators via `SqlExpFactory`, which translates them to standard SQL `IN` / `NOT IN`:
+
+```javascript
+// QM columnGroups.items[].formula
+{
+    name: 'isTopBrand',
+    caption: 'Is top brand',
+    formula: "IIF(brand in ('Apple', 'Huawei', 'Xiaomi'), 1, 0)",
+    type: 'INTEGER'
+}
+
+// DSL calculatedFields request payload
+{
+    "name": "isTopBrand",
+    "expression": "IIF(brand in ('Apple','Huawei','Xiaomi'), 1, 0)"
+}
+```
+
+Differences at the calc-field layer (vs. fsscript runtime):
+
+- Emitted SQL fragment looks like `(brand IN ('Apple', 'Huawei'))` / `(status NOT IN ('cancelled'))`
+- `extractColumnReferences`: literal values in the IN list are NOT mistaken as column refs; however `x in (col1, col2)` correctly collects col1/col2 as dependencies
+- Empty list `v in ()` is rejected at compile time (`IllegalArgumentException`) — SQL `IN ()` is a syntax error on most DBs; if you need an always-false predicate, write `1 == 0`
+- SQL `NOT IN (...)` follows three-valued logic: if the list contains `NULL`, the expression evaluates to `UNKNOWN` and is filtered out by the `WHERE` clause — this differs slightly from the boolean semantics in the fsscript runtime
+
 ---
 
 ## 4. Control Flow

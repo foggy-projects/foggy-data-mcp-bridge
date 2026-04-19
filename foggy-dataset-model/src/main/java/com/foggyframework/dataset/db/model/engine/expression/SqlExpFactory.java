@@ -2,12 +2,14 @@ package com.foggyframework.dataset.db.model.engine.expression;
 
 import com.foggyframework.dataset.db.model.engine.expression.sql.*;
 import com.foggyframework.fsscript.exp.DefaultExpFactory;
+import com.foggyframework.fsscript.exp.EmptyExp;
 import com.foggyframework.fsscript.exp.UnresolvedFunCall;
 import com.foggyframework.fsscript.parser.spi.Exp;
 import com.foggyframework.fsscript.parser.spi.ListExp;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -169,14 +171,21 @@ public class SqlExpFactory extends DefaultExpFactory {
      * 根据函数名和参数创建对应的 SqlExp
      */
     private Exp createSqlExp(String name, List<Exp> args) {
-        // 括号表达式：直接返回内部表达式
-        if ("()".equals(name) && args.size() == 1) {
-            if (log.isDebugEnabled()) {
-                log.debug("createSqlExp: handling parentheses, inner exp type={}", args.get(0).getClass().getName());
+        // 括号表达式 `()`：空 / 单括号分组 / 多元素列表（用作 IN / NOT IN 的 RHS）
+        if ("()".equals(name)) {
+            if (args.isEmpty() || (args.size() == 1 && args.get(0) instanceof EmptyExp)) {
+                return new SqlListExp(Collections.emptyList());
             }
-            // 括号表达式，内部表达式已经是正确的类型
-            // 直接返回内部表达式，不需要再包装
-            return args.get(0);
+            if (args.size() == 1) {
+                return args.get(0);
+            }
+            return new SqlListExp(args);
+        }
+
+        // IN / NOT_IN 成员测试：RHS 规范化为 SqlListExp
+        if (args.size() == 2 && AllowedFunctions.isMembershipOperator(name)) {
+            String sqlOp = AllowedFunctions.toSqlOperator(name.toUpperCase());
+            return new SqlBinaryExp(args.get(0), sqlOp, normalizeInRhs(sqlOp, args.get(1)));
         }
 
         // 二元运算符
@@ -219,6 +228,40 @@ public class SqlExpFactory extends DefaultExpFactory {
         }
 
         return null;
+    }
+
+    /**
+     * 把 IN / NOT IN 的 RHS 规范化为 {@link SqlListExp}。
+     *
+     * <ul>
+     *     <li>已经是 {@link SqlListExp} → 直接用；空列表抛编译错误</li>
+     *     <li>被 {@link SqlExpHolder} 包裹（外层分组括号会叠多层）→ 循环解包</li>
+     *     <li>其他单一 Exp → 包成单元素 {@code SqlListExp}，允许 {@code x in (1)} / {@code x in (col)} 写法</li>
+     * </ul>
+     */
+    private Exp normalizeInRhs(String sqlOp, Exp rhs) {
+        Exp inner = rhs;
+        while (inner instanceof SqlExpHolder) {
+            Exp unwrapped = ((SqlExpHolder) inner).getInnerSqlExp();
+            if (unwrapped == null || unwrapped == inner) {
+                break;
+            }
+            inner = unwrapped;
+        }
+        if (inner instanceof EmptyExp
+                || (inner instanceof SqlListExp && ((SqlListExp) inner).isEmpty())) {
+            throw emptyInListError(sqlOp);
+        }
+        if (inner instanceof SqlListExp) {
+            return inner;
+        }
+        return new SqlListExp(Collections.singletonList(inner));
+    }
+
+    private static IllegalArgumentException emptyInListError(String sqlOp) {
+        return new IllegalArgumentException(
+                sqlOp + " 列表不能为空（空 IN 在多数数据库里是 SQL 语法错误；"
+                        + "需要恒为 false 时请使用 '1 == 0'）");
     }
 
     /**
