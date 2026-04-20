@@ -11,6 +11,7 @@ import com.foggyframework.dataset.db.model.engine.expression.sql.SqlUnaryExp;
 import com.foggyframework.dataset.db.model.engine.expression.SqlExpHolder;
 import com.foggyframework.dataset.db.model.spi.support.CalculatedDbColumn;
 import com.foggyframework.fsscript.DefaultExpEvaluator;
+import com.foggyframework.fsscript.parser.FsscriptDialect;
 import com.foggyframework.fsscript.parser.spi.Exp;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.Parser;
@@ -399,7 +400,8 @@ public final class CalculatedFieldService {
     }
 
     /**
-     * 编译表达式字符串
+     * 编译表达式字符串（默认使用 {@link FsscriptDialect#SQL_EXPRESSION} 方言，
+     * 与历史行为一致：把函数式 {@code if(c, a, b)} 归一化为 {@code IIF(c, a, b)}）。
      * <p>
      * 使用共享的 Parser 实例编译表达式，可被其他类复用。
      * </p>
@@ -409,14 +411,32 @@ public final class CalculatedFieldService {
      * @throws RuntimeException 如果表达式语法错误
      */
     public static Exp compileExpression(String expression) {
+        return compileExpression(expression, FsscriptDialect.SQL_EXPRESSION);
+    }
+
+    /**
+     * 编译表达式字符串（指定方言）。
+     * <p>
+     * 方言负责在 parse 前对源码做必要的词法预处理。{@link FsscriptDialect#DEFAULT}
+     * 不做预处理（保留 FSScript 完整保留字语义）；{@link FsscriptDialect#SQL_EXPRESSION}
+     * 会把函数式 {@code if(...)} 改写为 {@code IIF(...)}。
+     * </p>
+     *
+     * @param expression 表达式字符串
+     * @param dialect    方言；传 null 等价于 {@link FsscriptDialect#DEFAULT}
+     * @return 编译后的 AST
+     * @throws RuntimeException 如果表达式语法错误
+     * @since 8.1.11.beta
+     */
+    public static Exp compileExpression(String expression, FsscriptDialect dialect) {
         try {
-            String normalizedExpression = normalizeConditionalFunctionCalls(expression);
             // 使用 compileEl 解析纯 fsscript 表达式
             // compile 是为 SQL 模板语法设计的（如 select ... where ${expr}），会把标识符当作字面量
-            Exp exp = SHARED_PARSER.compileEl(null, normalizedExpression);
+            Exp exp = SHARED_PARSER.compileEl(null, expression, dialect);
             if (log.isDebugEnabled()) {
-                log.debug("Compiled expression '{}' (normalized='{}') -> AST type: {}, AST: {}",
-                        expression, normalizedExpression, exp.getClass().getName(), exp);
+                String dialectName = (dialect == null ? "null" : dialect.getName());
+                log.debug("Compiled expression '{}' (dialect={}) -> AST type: {}, AST: {}",
+                        expression, dialectName, exp.getClass().getName(), exp);
             }
             return exp;
         } catch (SecurityException e) {
@@ -424,98 +444,6 @@ public final class CalculatedFieldService {
         } catch (Exception e) {
             throw new RuntimeException("表达式语法错误: " + e.getMessage(), e);
         }
-    }
-
-    /**
-     * 计算字段表达式预处理：
-     * parser 中 if 是保留关键字，不能直接作为函数名参与 expression 解析。
-     * 这里将函数式 IF(...) 归一化为 IIF(...)，避免修改 parser 主语法。
-     */
-    private static String normalizeConditionalFunctionCalls(String expression) {
-        if (StringUtils.isEmpty(expression)) {
-            return expression;
-        }
-
-        StringBuilder normalized = new StringBuilder(expression.length() + 8);
-        boolean inSingleQuote = false;
-        boolean inDoubleQuote = false;
-
-        for (int i = 0; i < expression.length(); i++) {
-            char ch = expression.charAt(i);
-
-            if (inSingleQuote) {
-                normalized.append(ch);
-                if (ch == '\'') {
-                    if (i + 1 < expression.length() && expression.charAt(i + 1) == '\'') {
-                        normalized.append(expression.charAt(i + 1));
-                        i++;
-                    } else {
-                        inSingleQuote = false;
-                    }
-                }
-                continue;
-            }
-
-            if (inDoubleQuote) {
-                normalized.append(ch);
-                if (ch == '"' && !isEscaped(expression, i)) {
-                    inDoubleQuote = false;
-                }
-                continue;
-            }
-
-            if (ch == '\'') {
-                inSingleQuote = true;
-                normalized.append(ch);
-                continue;
-            }
-
-            if (ch == '"') {
-                inDoubleQuote = true;
-                normalized.append(ch);
-                continue;
-            }
-
-            if (isIfFunctionCall(expression, i)) {
-                normalized.append("IIF");
-                i++;
-                continue;
-            }
-
-            normalized.append(ch);
-        }
-
-        return normalized.toString();
-    }
-
-    private static boolean isIfFunctionCall(String expression, int index) {
-        if (index + 1 >= expression.length()) {
-            return false;
-        }
-        if (!expression.regionMatches(true, index, "if", 0, 2)) {
-            return false;
-        }
-        if (index > 0 && isIdentifierChar(expression.charAt(index - 1))) {
-            return false;
-        }
-
-        int next = index + 2;
-        while (next < expression.length() && Character.isWhitespace(expression.charAt(next))) {
-            next++;
-        }
-        return next < expression.length() && expression.charAt(next) == '(';
-    }
-
-    private static boolean isIdentifierChar(char ch) {
-        return Character.isLetterOrDigit(ch) || ch == '_' || ch == '$';
-    }
-
-    private static boolean isEscaped(String expression, int index) {
-        int slashCount = 0;
-        for (int i = index - 1; i >= 0 && expression.charAt(i) == '\\'; i--) {
-            slashCount++;
-        }
-        return slashCount % 2 == 1;
     }
 
     /**

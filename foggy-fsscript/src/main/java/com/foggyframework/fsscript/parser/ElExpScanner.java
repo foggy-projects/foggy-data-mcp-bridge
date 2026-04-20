@@ -291,8 +291,27 @@ public class ElExpScanner implements BaseScanner {
      */
     protected boolean newlineEncountered = false;
 
+    /**
+     * 当前方言（可选）。
+     * <p>
+     * 非 null 时，在 identifier 查表命中保留字后，scanner 会咨询 dialect 决定是否
+     * 降级为 IDENTIFIER（例如 SQL 表达式方言里 {@code IF + '('} 被当作函数调用）。
+     * 默认 null 表示沿用 FSScript 全保留字语义，历史调用方无感知。
+     * </p>
+     * @since v1.4
+     */
+    protected FsscriptDialect dialect;
+
     public ElExpScanner(final String s) {
         this.s = s;
+    }
+
+    /**
+     * 注入方言。null 表示不启用方言降级（默认 FSScript 保留字语义）。
+     * @since v1.4
+     */
+    public void setDialect(FsscriptDialect dialect) {
+        this.dialect = dialect;
     }
 
     /**
@@ -1146,6 +1165,10 @@ public class ElExpScanner implements BaseScanner {
                                         advance();
                                         i = ExpSymbols.DEFAULT_COLON;
                                         strId = "DEFAULT:";
+                                    } else if (dialect != null && dialect.isKeywordAsIdentifier(i, nextChar)) {
+                                        // v1.4 · Scanner 层方言降级：在当前方言里这个 keyword 被当作
+                                        // IDENTIFIER 处理（例如 SQL_EXPRESSION 里 IF + '(' 走函数调用）
+                                        return makeToken(ExpSymbols.ID, strId);
                                     }
                                     return makeToken(i, strId);
                                     // reserved word

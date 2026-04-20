@@ -2235,12 +2235,18 @@ public class ExpParser extends java_cup.runtime.lr_parser {
 	private BaseScanner scanner;
 	ExpFactory factory =DefaultExpFactory.DEFAULT ;
 	FsscriptClosureDefinition fcDefinition;
+	/** 方言（可选）。v1.4 起由 {@code compileEl} 传入 {@link ElExpScanner}。 */
+	FsscriptDialect dialect;
 
 	public final FsscriptClosureDefinition getFcDefinition(){
 		return fcDefinition;
 	}
 	public final void setFcDefinition(FsscriptClosureDefinition fcDefinition){
 		this.fcDefinition= fcDefinition;
+	}
+	/** @since v1.4 */
+	public final void setDialect(FsscriptDialect dialect){
+		this.dialect = dialect;
 	}
 	public ExpParser(ExpFactory factory){
 		super(null, new java_cup.runtime.DefaultSymbolFactory());
@@ -2265,7 +2271,11 @@ public class ExpParser extends java_cup.runtime.lr_parser {
 	}
 	
 	public Exp compileEl(String str) throws CompileException {
-		scanner = new ElExpScanner(str);
+		ElExpScanner elScanner = new ElExpScanner(str);
+		if (dialect != null) {
+			elScanner.setDialect(dialect);
+		}
+		scanner = elScanner;
 		try {
 			Object obj = this.parse().value;
 			return obj instanceof Exp ? (Exp) obj : new ObjectExp(obj);
