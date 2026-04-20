@@ -3,6 +3,7 @@ package com.foggyframework.dataset.db.model.plugins.result_set_filter;
 import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
+import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.db.model.engine.expression.InlineExpressionParser;
 import com.foggyframework.dataset.db.model.engine.query.DbQueryResult;
 import com.foggyframework.dataset.db.model.engine.query.JdbcQuery;
@@ -15,9 +16,12 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import com.foggyframework.dataset.db.model.semantic.domain.DeniedPhysicalColumn;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Data
 @NoArgsConstructor
@@ -56,6 +60,40 @@ public class ModelResultContext {
      * <p>空字符串或null表示默认命名空间
      */
     String namespace;
+
+    /**
+     * 运行时列权限白名单（由 bridge/上层调用方传入）
+     * <p>
+     * null 表示不限制（所有字段可访问）；非 null 时，
+     * 只有白名单内的字段名才允许出现在 columns / calculatedFields /
+     * slice / orderBy / groupBy 中。
+     * </p>
+     *
+     * @since 8.2.0
+     */
+    Set<String> fieldAccess;
+
+    /**
+     * 受限物理列黑名单（由 bridge/上层调用方传入）
+     * <p>
+     * null 表示不限制；非 null 时，JdbcQuery 中引用的物理列
+     * 如果命中黑名单，查询将被拒绝（在 SQL 执行前拦截）。
+     * </p>
+     *
+     * @since 8.2.0
+     */
+    List<DeniedPhysicalColumn> deniedColumns;
+
+    /**
+     * 系统注入的 slice 条件（如 Odoo ir.rule）
+     * <p>
+     * 绕过字段权限校验，在权限检查通过后合并到请求 slice 中。
+     * 对齐 Python 引擎的 system_slice 语义。
+     * </p>
+     *
+     * @since 8.2.0
+     */
+    List<SliceRequestDef> systemSlice;
 
     /**
      * 查询缓存配置

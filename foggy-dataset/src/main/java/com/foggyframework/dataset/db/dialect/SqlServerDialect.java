@@ -300,6 +300,41 @@ public class SqlServerDialect extends FDialect {
         return "GETDATE()";
     }
 
+    /**
+     * SQL Server: {@code DATEDIFF(day, b, a)} · <b>参数顺序反</b> —— unit 在前，小的在前、大的在后
+     * <p>与 MySQL 的 {@code DATEDIFF(a, b)} 刚好相反；本接口约定 a 是被减数、b 是减数。</p>
+     */
+    @Override
+    public String buildDateDiffExpression(String a, String b) {
+        return "DATEDIFF(day, " + b + ", " + a + ")";
+    }
+
+    /**
+     * SQL Server: {@code DATEADD(day, ?, d)}
+     */
+    @Override
+    public String buildDateAddExpression(String d, String nParamPlaceholder, String unit) {
+        String mssqlUnit = toMssqlUnit(unit);
+        return "DATEADD(" + mssqlUnit + ", " + nParamPlaceholder + ", " + d + ")";
+    }
+
+    private static String toMssqlUnit(String unit) {
+        if (unit == null) {
+            throw new IllegalArgumentException("date_add unit must not be null");
+        }
+        switch (unit.toLowerCase()) {
+            case "day":
+                return "day";
+            case "month":
+                return "month";
+            case "year":
+                return "year";
+            default:
+                throw new IllegalArgumentException(
+                        "date_add unit must be one of {day, month, year}, got: " + unit);
+        }
+    }
+
     @Override
     public String mapColumnType(String abstractType) {
         if (abstractType == null) return null;

@@ -4,6 +4,7 @@ import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.db.model.def.DbDefSupport;
 import com.foggyframework.dataset.db.model.def.property.DbPropertyDef;
 import com.foggyframework.dataset.db.model.impl.dimension.DbDimensionSupport;
+import com.foggyframework.dataset.db.model.semantic.member.permission.MemberPermissionDef;
 import com.foggyframework.dataset.db.model.spi.DbDimensionType;
 import com.foggyframework.fsscript.exp.FsscriptFunction;
 import io.swagger.annotations.ApiModelProperty;
@@ -59,6 +60,9 @@ public class DbDimensionDef extends DbDefSupport {
 
     @ApiModelProperty("嵌套子维度列表，形成雪花结构。子维度的foreignKey指向父维度表上的列")
     List<DbDimensionDef> dimensions;
+
+    @ApiModelProperty("维度成员权限配置（patch + queryBuilder）")
+    MemberPermissionDef memberPermission;
 
     @Deprecated
     @ApiModelProperty("已废弃，请使用嵌套维度方式。使某个维度与其他维度关联，形成多级结构")

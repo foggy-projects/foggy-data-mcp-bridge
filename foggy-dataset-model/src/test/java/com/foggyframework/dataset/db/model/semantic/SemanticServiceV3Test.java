@@ -1,6 +1,7 @@
 package com.foggyframework.dataset.db.model.semantic;
 
 import com.foggyframework.dataset.db.model.ecommerce.EcommerceTestSupport;
+import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
@@ -13,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.*;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -406,5 +408,204 @@ class SemanticServiceV3Test extends EcommerceTestSupport {
         }
 
         log.info("V3 特性验证通过：字段直接使用，无自动补全");
+    }
+
+    // ==========================================
+    // metadata fieldAccess 列权限裁剪测试
+    // ==========================================
+
+    @Nested
+    @DisplayName("metadata fieldAccess 裁剪")
+    class MetadataFieldAccessTests {
+
+        @Test
+        @DisplayName("JSON metadata — fieldAccess 限制后只包含白名单内字段")
+        void metadata_json_withFieldAccess_filtersFields() {
+            SemanticMetadataRequest request = new SemanticMetadataRequest();
+            request.setQmModels(Collections.singletonList(TEST_MODEL));
+
+            // 获取无限制的完整 metadata 作为基线
+            SemanticMetadataResponse fullResponse = semanticServiceV3.getMetadata(
+                    request, "json", SemanticRequestContext.empty());
+            Map<String, Object> fullData = fullResponse.getData();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> fullFields = (Map<String, Object>) fullData.get("fields");
+            assertTrue(fullFields.size() > 2, "基线 metadata 应包含多个字段");
+
+            // 获取 fieldAccess 限制后的 metadata
+            // 只允许 orderId 和 salesAmount
+            Set<String> allowed = Set.of("orderId", "salesAmount");
+            SemanticRequestContext restrictedCtx = SemanticRequestContext.of(null, (ModelResultContext.SecurityContext) null, allowed);
+            SemanticMetadataResponse restrictedResponse = semanticServiceV3.getMetadata(
+                    request, "json", restrictedCtx);
+            Map<String, Object> restrictedData = restrictedResponse.getData();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> restrictedFields = (Map<String, Object>) restrictedData.get("fields");
+
+            // 受限 metadata 应只包含白名单内的字段
+            assertTrue(restrictedFields.size() < fullFields.size(),
+                    "受限 metadata 字段数应少于完整 metadata: restricted=" + restrictedFields.size() + ", full=" + fullFields.size());
+            for (String fieldName : restrictedFields.keySet()) {
+                // 字段名要么在白名单内，要么是白名单字段的维度展开（如 orderId → 不适用，salesAmount → 不适用）
+                // 实际上度量/属性字段名直接匹配
+                assertTrue(allowed.contains(fieldName) || allowed.stream().anyMatch(a -> fieldName.startsWith(a + "$")),
+                        "受限 metadata 不应包含白名单外的字段: " + fieldName);
+            }
+        }
+
+        @Test
+        @DisplayName("JSON metadata — fieldAccess 为 null 时所有字段可见（向后兼容）")
+        void metadata_json_noFieldAccess_allFieldsVisible() {
+            SemanticMetadataRequest request = new SemanticMetadataRequest();
+            request.setQmModels(Collections.singletonList(TEST_MODEL));
+
+            SemanticMetadataResponse response = semanticServiceV3.getMetadata(
+                    request, "json", SemanticRequestContext.empty());
+            Map<String, Object> data = response.getData();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> fields = (Map<String, Object>) data.get("fields");
+
+            assertNotNull(fields);
+            assertFalse(fields.isEmpty(), "fieldAccess=null 时所有字段应可见");
+        }
+
+        @Test
+        @DisplayName("Markdown metadata — fieldAccess 限制后输出不含被拒字段")
+        void metadata_markdown_withFieldAccess_filtersFields() {
+            SemanticMetadataRequest request = new SemanticMetadataRequest();
+            request.setQmModels(Collections.singletonList(TEST_MODEL));
+
+            // 获取无限制的完整 markdown
+            SemanticMetadataResponse fullResponse = semanticServiceV3.getMetadata(
+                    request, "markdown", SemanticRequestContext.empty());
+            String fullContent = fullResponse.getContent();
+            assertNotNull(fullContent);
+
+            // 获取限制后的 markdown — 只允许 orderId
+            Set<String> allowed = Set.of("orderId");
+            SemanticRequestContext restrictedCtx = SemanticRequestContext.of(null, (ModelResultContext.SecurityContext) null, allowed);
+            SemanticMetadataResponse restrictedResponse = semanticServiceV3.getMetadata(
+                    request, "markdown", restrictedCtx);
+            String restrictedContent = restrictedResponse.getContent();
+
+            assertTrue(restrictedContent.length() < fullContent.length(),
+                    "受限 markdown 应比完整 markdown 短");
+        }
+
+        @Test
+        @DisplayName("JSON metadata — fieldAccess 空集合时字段区域为空")
+        void metadata_json_emptyFieldAccess_noFields() {
+            SemanticMetadataRequest request = new SemanticMetadataRequest();
+            request.setQmModels(Collections.singletonList(TEST_MODEL));
+
+            Set<String> empty = Set.of();
+            SemanticRequestContext ctx = SemanticRequestContext.of(null, (ModelResultContext.SecurityContext) null, empty);
+            SemanticMetadataResponse response = semanticServiceV3.getMetadata(request, "json", ctx);
+            Map<String, Object> data = response.getData();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> fields = (Map<String, Object>) data.get("fields");
+
+            assertTrue(fields.isEmpty(), "fieldAccess 为空集合时不应暴露任何字段");
+        }
+    }
+
+    // ==========================================
+    // metadata physicalTables 输出测试
+    // ==========================================
+
+    @Nested
+    @DisplayName("metadata physicalTables 输出")
+    class MetadataPhysicalTablesTests {
+
+        @Test
+        @DisplayName("JSON metadata 包含 physicalTables 物理表列表")
+        void metadata_json_containsPhysicalTables() {
+            SemanticMetadataRequest request = new SemanticMetadataRequest();
+            request.setQmModels(Collections.singletonList(TEST_MODEL));
+
+            SemanticMetadataResponse response = semanticServiceV3.getMetadata(
+                    request, "json", SemanticRequestContext.empty());
+            Map<String, Object> data = response.getData();
+
+            @SuppressWarnings("unchecked")
+            List<Map<String, String>> physicalTables = (List<Map<String, String>>) data.get("physicalTables");
+
+            assertNotNull(physicalTables, "JSON metadata 应包含 physicalTables");
+            assertFalse(physicalTables.isEmpty(), "physicalTables 不应为空");
+
+            // 验证至少包含事实表
+            boolean hasFact = physicalTables.stream()
+                    .anyMatch(t -> "fact".equals(t.get("role")));
+            assertTrue(hasFact, "physicalTables 应包含 role=fact 的事实表");
+        }
+
+        @Test
+        @DisplayName("JSON metadata physicalTables 事实表名与 TM 定义一致")
+        void metadata_json_physicalTables_factTableMatchesTmDefinition() {
+            // FactSalesQueryModel 的 TM 事实表为 fact_sales
+            SemanticMetadataRequest request = new SemanticMetadataRequest();
+            request.setQmModels(Collections.singletonList("FactSalesQueryModel"));
+
+            SemanticMetadataResponse response = semanticServiceV3.getMetadata(
+                    request, "json", SemanticRequestContext.empty());
+            Map<String, Object> data = response.getData();
+
+            @SuppressWarnings("unchecked")
+            List<Map<String, String>> physicalTables = (List<Map<String, String>>) data.get("physicalTables");
+
+            assertNotNull(physicalTables);
+            assertFalse(physicalTables.isEmpty());
+
+            // 验证事实表名称与 TM 定义一致
+            boolean hasFactSales = physicalTables.stream()
+                    .anyMatch(t -> "fact_sales".equals(t.get("table")) && "fact".equals(t.get("role")));
+            assertTrue(hasFactSales, "physicalTables 应包含 fact_sales 事实表");
+        }
+
+        @Test
+        @DisplayName("JSON metadata physicalTables 每个条目包含 table 和 role 字段")
+        void metadata_json_physicalTables_entryStructure() {
+            SemanticMetadataRequest request = new SemanticMetadataRequest();
+            request.setQmModels(Collections.singletonList(TEST_MODEL));
+
+            SemanticMetadataResponse response = semanticServiceV3.getMetadata(
+                    request, "json", SemanticRequestContext.empty());
+            Map<String, Object> data = response.getData();
+
+            @SuppressWarnings("unchecked")
+            List<Map<String, String>> physicalTables = (List<Map<String, String>>) data.get("physicalTables");
+
+            assertNotNull(physicalTables);
+            for (Map<String, String> entry : physicalTables) {
+                assertNotNull(entry.get("table"), "每个 physicalTables 条目应包含 table 字段");
+                assertNotNull(entry.get("role"), "每个 physicalTables 条目应包含 role 字段");
+                assertTrue("fact".equals(entry.get("role")) || "dimension".equals(entry.get("role")),
+                        "role 应为 fact 或 dimension，实际: " + entry.get("role"));
+            }
+        }
+
+        @Test
+        @DisplayName("多模型 metadata physicalTables 去重")
+        void metadata_json_multiModel_physicalTables_deduplicated() {
+            SemanticMetadataRequest request = new SemanticMetadataRequest();
+            request.setQmModels(Arrays.asList(TEST_MODEL, "FactSalesQueryModel"));
+
+            SemanticMetadataResponse response = semanticServiceV3.getMetadata(
+                    request, "json", SemanticRequestContext.empty());
+            Map<String, Object> data = response.getData();
+
+            @SuppressWarnings("unchecked")
+            List<Map<String, String>> physicalTables = (List<Map<String, String>>) data.get("physicalTables");
+
+            assertNotNull(physicalTables);
+
+            // 验证表名去重：相同表名不应出现多次
+            List<String> tableNames = physicalTables.stream()
+                    .map(t -> t.get("table"))
+                    .collect(Collectors.toList());
+            Set<String> uniqueNames = new HashSet<>(tableNames);
+            assertEquals(uniqueNames.size(), tableNames.size(),
+                    "physicalTables 应去重，不应出现重复表名");
+        }
     }
 }

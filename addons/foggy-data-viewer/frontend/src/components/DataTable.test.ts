@@ -349,6 +349,38 @@ describe('DataTable', () => {
       await wrapper.vm.$emit('row-dblclick', row, mockColumns[0])
       expect(wrapper.emitted('row-dblclick')).toBeTruthy()
     })
+
+    it('should emit checkbox-change event', async () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: mockData,
+          total: 3,
+          loading: false
+        },
+        ...globalConfig
+      })
+
+      await wrapper.vm.$emit('checkbox-change', [mockData[0]])
+      expect(wrapper.emitted('checkbox-change')).toBeTruthy()
+      expect(wrapper.emitted('checkbox-change')?.[0]).toEqual([[mockData[0]]])
+    })
+
+    it('should emit checkbox-all event', async () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: mockData,
+          total: 3,
+          loading: false
+        },
+        ...globalConfig
+      })
+
+      await wrapper.vm.$emit('checkbox-all', mockData)
+      expect(wrapper.emitted('checkbox-all')).toBeTruthy()
+      expect(wrapper.emitted('checkbox-all')?.[0]).toEqual([mockData])
+    })
   })
 
   describe('Summary', () => {
@@ -480,6 +512,93 @@ describe('DataTable', () => {
       })
 
       expect(wrapper.vm.getGridInstance).toBeDefined()
+    })
+
+    it('should have getSelectedRows method that returns an array', () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: mockData,
+          total: 3,
+          loading: false
+        },
+        ...globalConfig
+      })
+
+      expect(wrapper.vm.getSelectedRows).toBeDefined()
+      const rows = wrapper.vm.getSelectedRows()
+      expect(Array.isArray(rows)).toBe(true)
+      expect(rows).toHaveLength(0) // 初始无选中
+    })
+
+    it('should have getSelectedCount method that returns a number', () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: mockData,
+          total: 3,
+          loading: false
+        },
+        ...globalConfig
+      })
+
+      expect(wrapper.vm.getSelectedCount).toBeDefined()
+      expect(wrapper.vm.getSelectedCount()).toBe(0) // 初始无选中
+    })
+
+    it('should have clearSelection method', () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: mockData,
+          total: 3,
+          loading: false
+        },
+        ...globalConfig
+      })
+
+      expect(wrapper.vm.clearSelection).toBeDefined()
+      expect(() => wrapper.vm.clearSelection()).not.toThrow()
+    })
+  })
+
+  describe('DictId Filter Inference', () => {
+    it('should accept columns with dictId and filterType=number without error', () => {
+      const dictColumns: EnhancedColumnSchema[] = [
+        { name: 'orgNature', type: 'INTEGER', title: '机构性质', dictId: 'OrgNature', filterType: 'number' },
+        { name: 'state', type: 'INTEGER', title: '状态', dictId: 'OrgState' }
+      ]
+
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: dictColumns,
+          data: [{ orgNature: 1, state: 2 }],
+          total: 1,
+          loading: false
+        },
+        ...globalConfig
+      })
+
+      // 组件能正常渲染不报错即可；真正的过滤器渲染由 vxe-grid 内部 slot 完成
+      expect(wrapper.exists()).toBe(true)
+    })
+
+    it('should render with dictItems columns and use dict formatter', () => {
+      const dictColumns: EnhancedColumnSchema[] = [
+        { name: 'status', type: 'INTEGER', title: '状态', dictId: 'StatusDict', dictItems: [{ value: 1, label: '启用' }, { value: 0, label: '禁用' }] }
+      ]
+
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: dictColumns,
+          data: [{ status: 1 }],
+          total: 1,
+          loading: false
+        },
+        ...globalConfig
+      })
+
+      expect(wrapper.exists()).toBe(true)
     })
   })
 

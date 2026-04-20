@@ -6,7 +6,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -146,6 +148,36 @@ class DimensionAutoExpandTest extends EcommerceTestSupport {
         assertEquals(24, columnNames.size(), "自动展开后总列数应为 24");
     }
 
+    @Test
+    @Order(16)
+    @DisplayName("自动展开 - 根维属性字段名不应因复用同一 item 而重复")
+    void testAutoExpand_ProductDimension_ExpandedFieldsShouldBeUnique() {
+        JdbcQueryModel qm = getQueryModel("FactSalesAutoExpandQueryModel");
+        Map<String, String> columnFields = getColumnFields(qm);
+
+        assertDistinctFields(columnFields,
+                "product$id",
+                "product$caption",
+                "product$productId",
+                "product$brand",
+                "product$unitPrice");
+    }
+
+    @Test
+    @Order(17)
+    @DisplayName("自动展开 - 嵌套维属性字段名不应因递归复用同一 item 而重复")
+    void testAutoExpand_NestedDimension_ExpandedFieldsShouldBeUnique() {
+        JdbcQueryModel qm = getQueryModel("FactSalesAutoExpandQueryModel");
+        Map<String, String> columnFields = getColumnFields(qm);
+
+        assertDistinctFields(columnFields,
+                "store.region$id",
+                "store.region$caption",
+                "store_region$regionId",
+                "store_region$province",
+                "store_region$city");
+    }
+
     // ==================== 显式属性引用时不自动展开 ====================
 
     @Test
@@ -198,5 +230,27 @@ class DimensionAutoExpandTest extends EcommerceTestSupport {
         log.info("QM [{}] 共 {} 个查询列: {}", qm.getName(), names.size(),
                 names.stream().sorted().collect(Collectors.toList()));
         return names;
+    }
+
+    private Map<String, String> getColumnFields(JdbcQueryModel qm) {
+        List<DbQueryColumn> columns = qm.getJdbcQueryColumns();
+        assertNotNull(columns, "查询列不应为空");
+        Map<String, String> fields = columns.stream()
+                .collect(Collectors.toMap(DbQueryColumn::getName, DbQueryColumn::getField));
+        log.info("QM [{}] 字段映射: {}", qm.getName(), fields);
+        return fields;
+    }
+
+    private void assertDistinctFields(Map<String, String> columnFields, String... columnNames) {
+        Map<String, String> selected = List.of(columnNames).stream()
+                .collect(Collectors.toMap(Function.identity(), name -> {
+                    String field = columnFields.get(name);
+                    assertNotNull(field, "缺少列: " + name);
+                    return field;
+                }));
+
+        long distinctCount = selected.values().stream().distinct().count();
+        assertEquals(selected.size(), distinctCount,
+                "自动展开列的 field 不应重复，实际映射: " + selected);
     }
 }

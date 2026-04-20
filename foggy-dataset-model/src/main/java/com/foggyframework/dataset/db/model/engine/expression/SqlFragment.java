@@ -387,8 +387,8 @@ public class SqlFragment {
             return args.isEmpty() ? DbColumnType.UNKNOWN : args.get(0).inferredType;
         }
 
-        // IF 函数 -> 继承 then 分支的类型（第二个参数）
-        if ("IF".equals(upperName) && args.size() >= 2) {
+        // IF/IIF 函数 -> 继承 then 分支的类型（第二个参数）
+        if (("IF".equals(upperName) || "IIF".equals(upperName)) && args.size() >= 2) {
             return args.get(1).inferredType;
         }
 
@@ -428,7 +428,8 @@ public class SqlFragment {
 
     private static boolean isComparisonOperator(String op) {
         return "=".equals(op) || "<>".equals(op) || "!=".equals(op) ||
-               ">".equals(op) || "<".equals(op) || ">=".equals(op) || "<=".equals(op);
+               ">".equals(op) || "<".equals(op) || ">=".equals(op) || "<=".equals(op) ||
+               "IN".equals(op) || "NOT IN".equals(op);
     }
 
     private static boolean isLogicalOperator(String op) {

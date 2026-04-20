@@ -6,11 +6,12 @@ import com.foggyframework.dataset.db.model.engine.expression.SqlFragment;
 import com.foggyframework.dataset.db.model.spi.DbColumnType;
 import com.foggyframework.fsscript.exp.AbstractExp;
 import com.foggyframework.fsscript.exp.EmptyExp;
+import com.foggyframework.fsscript.exp.NullExp;
 import com.foggyframework.fsscript.parser.spi.Exp;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 
 import java.util.List;
-import java.util.Objects;
+import java.util.ArrayList;
 import java.util.stream.Collectors;
 
 /**
@@ -41,13 +42,76 @@ public class SqlFunctionExp extends AbstractExp<String> {
         SqlExpContext ctx = (SqlExpContext) evaluator.getVar(SqlExpContext.CONTEXT_KEY);
 
         // 执行所有参数（过滤掉 EmptyExp，它代表零参数函数调用如 ROW_NUMBER()）
-        List<SqlFragment> argFragments = args.stream()
-                .filter(arg -> !(arg instanceof EmptyExp))
-                .map(arg -> (SqlFragment) arg.evalResult(evaluator))
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
+        // NullExp 需要显式保留为 SQL NULL，不能在这里被丢弃，否则 IF(cond, x, null) 会只剩两个参数。
+        List<SqlFragment> argFragments = new ArrayList<>(args.size());
+        for (Exp arg : args) {
+            if (arg instanceof EmptyExp) {
+                continue;
+            }
+            if (arg instanceof NullExp) {
+                argFragments.add(SqlFragment.ofLiteral("NULL"));
+                continue;
+            }
+            SqlFragment fragment = (SqlFragment) arg.evalResult(evaluator);
+            if (fragment != null) {
+                argFragments.add(fragment);
+            }
+        }
 
         String upper = functionName.toUpperCase();
+
+        // IF/IIF(cond, thenExpr, elseExpr) 在 JDBC 侧降级为标准 CASE WHEN，便于复用现有 DSL 语法支持条件聚合
+        if ("IF".equals(upper) || "IIF".equals(upper)) {
+            if (argFragments.size() != 3) {
+                throw new IllegalArgumentException("IF/IIF function requires exactly 3 arguments");
+            }
+            SqlFragment condition = argFragments.get(0);
+            SqlFragment thenExpr = argFragments.get(1);
+            SqlFragment elseExpr = argFragments.get(2);
+            String caseSql = "CASE WHEN " + condition.getSql()
+                    + " THEN " + thenExpr.getSql()
+                    + " ELSE " + elseExpr.getSql()
+                    + " END";
+            return SqlFragment.customFunction(caseSql, "IF", argFragments);
+        }
+
+        // v1.4 Step 3.4 · Spec v1 方言分派函数 · 路由到 DialectAwareFunctionExp
+        // B-5 核实结论 B：date_diff / date_add / now 走 ctx.getDialect() 分派
+        if ("DATE_DIFF".equals(upper)) {
+            return DialectAwareFunctionExp.renderDateDiff(ctx, argFragments);
+        }
+        if ("DATE_ADD".equals(upper)) {
+            return DialectAwareFunctionExp.renderDateAdd(ctx, argFragments);
+        }
+        if ("NOW".equals(upper)) {
+            return DialectAwareFunctionExp.renderNow(ctx, argFragments);
+        }
+
+        // v1.4 Step 3.2 · Spec v1 MUST 函数（ANSI 方言无关 lowering）
+        // R-2 括号规则：二元/一元运算外包一层括号，便于嵌套组合
+        if ("IS_NULL".equals(upper)) {
+            if (argFragments.size() != 1) {
+                throw new IllegalArgumentException("is_null function requires exactly 1 argument, got " + argFragments.size());
+            }
+            String sql = "(" + argFragments.get(0).getSql() + " IS NULL)";
+            return SqlFragment.customFunction(sql, "IS_NULL", argFragments);
+        }
+        if ("IS_NOT_NULL".equals(upper)) {
+            if (argFragments.size() != 1) {
+                throw new IllegalArgumentException("is_not_null function requires exactly 1 argument, got " + argFragments.size());
+            }
+            String sql = "(" + argFragments.get(0).getSql() + " IS NOT NULL)";
+            return SqlFragment.customFunction(sql, "IS_NOT_NULL", argFragments);
+        }
+        if ("BETWEEN".equals(upper)) {
+            if (argFragments.size() != 3) {
+                throw new IllegalArgumentException("between function requires exactly 3 arguments (value, lo, hi), got " + argFragments.size());
+            }
+            String sql = "(" + argFragments.get(0).getSql()
+                    + " BETWEEN " + argFragments.get(1).getSql()
+                    + " AND " + argFragments.get(2).getSql() + ")";
+            return SqlFragment.customFunction(sql, "BETWEEN", argFragments);
+        }
 
         // COUNT(DISTINCT) 特殊处理
         if ("COUNTD".equals(upper) || "COUNT_DISTINCT".equals(upper)) {

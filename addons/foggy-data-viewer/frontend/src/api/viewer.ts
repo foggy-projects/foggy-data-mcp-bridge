@@ -150,6 +150,7 @@ export async function fetchQmSchema(qmModel: string): Promise<ColumnSchema[]> {
       measure: field.measure || false,
       filterType: field.filterType,
       dictId: field.dictId,
+      dictItems: field.dictItems,
       format: field.format
     })
   }

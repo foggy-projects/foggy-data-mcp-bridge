@@ -3,6 +3,7 @@ package com.foggyframework.dataset.db.model.proxy;
 import com.foggyframework.fsscript.exp.FsscriptFunction;
 import com.foggyframework.fsscript.parser.spi.Exp;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
+import com.foggyframework.dataset.db.model.spi.QueryModel;
 import lombok.Getter;
 
 import java.util.Collections;
@@ -41,6 +42,13 @@ public class JoinBuilderFunction implements FsscriptFunction {
         this.joinBuilder = joinBuilder;
         // 预计算 ON 子句
         this.onClause = joinBuilder.buildOnClause();
+    }
+
+    public String buildOnClause(QueryModel queryModel) {
+        if (queryModel == null) {
+            return onClause;
+        }
+        return joinBuilder.buildOnClause(queryModel);
     }
 
     @Override

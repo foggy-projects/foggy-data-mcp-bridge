@@ -53,6 +53,7 @@ export const queryModel = {
         {
             caption: 'Payment Details',
             items: [
+                { ref: ap.company },
                 { ref: ap.currency },
                 { ref: ap.paymentMethod },
                 { ref: ap.paymentMethod$code },

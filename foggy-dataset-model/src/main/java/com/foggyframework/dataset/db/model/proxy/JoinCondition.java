@@ -1,5 +1,9 @@
 package com.foggyframework.dataset.db.model.proxy;
 
+import com.foggyframework.core.ex.RX;
+import com.foggyframework.dataset.db.model.spi.DbColumn;
+import com.foggyframework.dataset.db.model.spi.QueryModel;
+import com.foggyframework.dataset.db.model.spi.TableModel;
 import lombok.Getter;
 
 /**
@@ -83,13 +87,26 @@ public class JoinCondition {
      * @return SQL 片段
      */
     public String toSqlFragment() {
-        String leftPart = buildColumnSql(left);
+        return toSqlFragment(null);
+    }
+
+    /**
+     * 生成 SQL ON 子句片段。
+     *
+     * <p>如果提供 QueryModel，则优先将语义字段引用解析为物理列名和运行时别名；
+     * 否则退回到 ColumnRef 自身携带的 tableAlias/columnName。
+     *
+     * @param queryModel 查询模型，可为空
+     * @return SQL 片段
+     */
+    public String toSqlFragment(QueryModel queryModel) {
+        String leftPart = buildColumnSql(left, queryModel);
         String rightPart;
 
         if (right instanceof ColumnRef rightCol) {
-            rightPart = buildColumnSql(rightCol);
+            rightPart = buildColumnSql(rightCol, queryModel);
         } else if (right instanceof DimensionProxy rightProxy) {
-            rightPart = buildColumnSql(rightProxy.toColumnRef());
+            rightPart = buildColumnSql(rightProxy.toColumnRef(), queryModel);
         } else {
             // 常量值使用占位符
             rightPart = "?";
@@ -105,12 +122,37 @@ public class JoinCondition {
      * @return SQL 表达式（如 fo.order_id）
      */
     private String buildColumnSql(ColumnRef columnRef) {
+        return buildColumnSql(columnRef, null);
+    }
+
+    private String buildColumnSql(ColumnRef columnRef, QueryModel queryModel) {
+        if (queryModel != null) {
+            DbColumn dbColumn = findDbColumn(queryModel, columnRef);
+            RX.notNull(dbColumn, "JOIN 条件字段不存在: " + columnRef.getFullRef());
+            String alias = queryModel.getAlias(dbColumn.getQueryObject());
+            return alias + "." + dbColumn.getSqlColumnName();
+        }
+
         String alias = columnRef.getTableAlias();
         if (alias != null && !alias.isEmpty()) {
             return alias + "." + columnRef.getColumnName();
         }
         // 如果没有别名，使用模型名（后续加载时会分配别名）
         return columnRef.getColumnName();
+    }
+
+    private DbColumn findDbColumn(QueryModel queryModel, ColumnRef columnRef) {
+        String modelName = columnRef.getModelName();
+        for (TableModel tableModel : queryModel.getJdbcModelList()) {
+            if (!modelName.equals(tableModel.getName())) {
+                continue;
+            }
+            DbColumn dbColumn = tableModel.findJdbcColumnByName(columnRef.getFullRef());
+            if (dbColumn != null) {
+                return dbColumn;
+            }
+        }
+        return queryModel.findJdbcColumn(columnRef.getFullRef());
     }
 
     /**

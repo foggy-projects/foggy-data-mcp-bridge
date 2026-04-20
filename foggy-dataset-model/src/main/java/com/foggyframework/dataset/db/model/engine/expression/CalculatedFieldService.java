@@ -6,10 +6,12 @@ import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.engine.expression.sql.SqlBinaryExp;
 import com.foggyframework.dataset.db.model.engine.expression.sql.SqlColumnRefExp;
 import com.foggyframework.dataset.db.model.engine.expression.sql.SqlFunctionExp;
+import com.foggyframework.dataset.db.model.engine.expression.sql.SqlListExp;
 import com.foggyframework.dataset.db.model.engine.expression.sql.SqlUnaryExp;
 import com.foggyframework.dataset.db.model.engine.expression.SqlExpHolder;
 import com.foggyframework.dataset.db.model.spi.support.CalculatedDbColumn;
 import com.foggyframework.fsscript.DefaultExpEvaluator;
+import com.foggyframework.fsscript.parser.FsscriptDialect;
 import com.foggyframework.fsscript.parser.spi.Exp;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.Parser;
@@ -204,12 +206,93 @@ public final class CalculatedFieldService {
     }
 
     /**
+     * 从表达式字符串中提取所有引用的列名
+     * <p>
+     * 编译表达式为 AST，然后递归提取所有 {@link SqlColumnRefExp} 引用。
+     * 用于列权限校验场景：判断表达式依赖哪些源字段。
+     * </p>
+     *
+     * @param expression 表达式字符串，如 {@code "a + b"}、{@code "SUM(amount * rate)"}
+     * @return 引用的列名集合（不可变），如 {@code {"a", "b"}} 或 {@code {"amount", "rate"}}；
+     *         表达式为空时返回空集合
+     * @throws RuntimeException 如果表达式语法错误
+     * @since 8.2.0
+     */
+    public static Set<String> extractColumnReferences(String expression) {
+        if (expression == null || expression.trim().isEmpty()) {
+            return Collections.emptySet();
+        }
+        Exp compiled = compileExpression(expression);
+        Set<String> refs = new LinkedHashSet<>();
+        extractColumnReferences(compiled, refs);
+        return Collections.unmodifiableSet(refs);
+    }
+
+    /**
+     * 将表达式的列引用展开为基础字段（传递解析计算字段依赖）
+     * <p>
+     * 对于表达式中引用的列名，如果该列名是 {@code calculatedFieldMap} 中的计算字段，
+     * 则递归展开为该计算字段的基础字段依赖。最终返回的集合只包含基础字段名，
+     * 不包含任何计算字段名。
+     * </p>
+     * <p>
+     * 用于列权限校验场景：{@code fieldAccess} 白名单只包含基础字段名，
+     * 计算字段引用其他计算字段时需要传递展开才能正确判定。
+     * </p>
+     *
+     * @param expression         表达式字符串
+     * @param calculatedFieldMap 计算字段名 → 表达式的映射（用于传递解析）
+     * @return 展开后的基础字段集合（不可变）
+     * @throws RuntimeException 如果表达式语法错误
+     * @since 8.2.0
+     */
+    public static Set<String> resolveBaseColumnReferences(String expression,
+                                                           Map<String, String> calculatedFieldMap) {
+        if (expression == null || expression.trim().isEmpty()) {
+            return Collections.emptySet();
+        }
+        Set<String> directRefs = extractColumnReferences(expression);
+        if (calculatedFieldMap == null || calculatedFieldMap.isEmpty()) {
+            return directRefs;
+        }
+
+        // 传递展开：将引用的计算字段替换为其基础字段
+        Set<String> baseRefs = new LinkedHashSet<>();
+        Set<String> visited = new HashSet<>(); // 防止循环引用无限递归
+        for (String ref : directRefs) {
+            resolveToBase(ref, calculatedFieldMap, baseRefs, visited);
+        }
+        return Collections.unmodifiableSet(baseRefs);
+    }
+
+    /**
+     * 递归将列引用解析为基础字段
+     */
+    private static void resolveToBase(String ref, Map<String, String> calculatedFieldMap,
+                                       Set<String> baseRefs, Set<String> visited) {
+        if (!visited.add(ref)) {
+            return; // 循环引用保护
+        }
+        String calcExpr = calculatedFieldMap.get(ref);
+        if (calcExpr == null) {
+            // 不是计算字段，是基础字段
+            baseRefs.add(ref);
+        } else {
+            // 是计算字段，递归展开其依赖
+            Set<String> innerRefs = extractColumnReferences(calcExpr);
+            for (String inner : innerRefs) {
+                resolveToBase(inner, calculatedFieldMap, baseRefs, visited);
+            }
+        }
+    }
+
+    /**
      * 从 AST 中递归提取所有列引用
      *
      * @param exp  表达式 AST
      * @param refs 收集到的列名集合
      */
-    private static void extractColumnReferences(Exp exp, Set<String> refs) {
+    public static void extractColumnReferences(Exp exp, Set<String> refs) {
         if (exp == null) {
             return;
         }
@@ -231,6 +314,12 @@ public final class CalculatedFieldService {
         } else if (exp instanceof SqlFunctionExp) {
             for (Exp arg : ((SqlFunctionExp) exp).getArgs()) {
                 extractColumnReferences(arg, refs);
+            }
+        } else if (exp instanceof SqlListExp) {
+            // IN / NOT IN 的 RHS 列表。典型内容是字面量（SqlLiteralExp 会自动忽略），
+            // 但也允许 `x in (col1, col2)` 这种列组合场景，此时 col1 / col2 需要被收为依赖。
+            for (Exp item : ((SqlListExp) exp).getItems()) {
+                extractColumnReferences(item, refs);
             }
         }
         // SqlLiteralExp 不包含列引用，忽略
@@ -311,7 +400,8 @@ public final class CalculatedFieldService {
     }
 
     /**
-     * 编译表达式字符串
+     * 编译表达式字符串（默认使用 {@link FsscriptDialect#SQL_EXPRESSION} 方言，
+     * 与历史行为一致：把函数式 {@code if(c, a, b)} 归一化为 {@code IIF(c, a, b)}）。
      * <p>
      * 使用共享的 Parser 实例编译表达式，可被其他类复用。
      * </p>
@@ -321,13 +411,32 @@ public final class CalculatedFieldService {
      * @throws RuntimeException 如果表达式语法错误
      */
     public static Exp compileExpression(String expression) {
+        return compileExpression(expression, FsscriptDialect.SQL_EXPRESSION);
+    }
+
+    /**
+     * 编译表达式字符串（指定方言）。
+     * <p>
+     * 方言负责在 parse 前对源码做必要的词法预处理。{@link FsscriptDialect#DEFAULT}
+     * 不做预处理（保留 FSScript 完整保留字语义）；{@link FsscriptDialect#SQL_EXPRESSION}
+     * 会把函数式 {@code if(...)} 改写为 {@code IIF(...)}。
+     * </p>
+     *
+     * @param expression 表达式字符串
+     * @param dialect    方言；传 null 等价于 {@link FsscriptDialect#DEFAULT}
+     * @return 编译后的 AST
+     * @throws RuntimeException 如果表达式语法错误
+     * @since 8.1.11.beta
+     */
+    public static Exp compileExpression(String expression, FsscriptDialect dialect) {
         try {
             // 使用 compileEl 解析纯 fsscript 表达式
             // compile 是为 SQL 模板语法设计的（如 select ... where ${expr}），会把标识符当作字面量
-            Exp exp = SHARED_PARSER.compileEl(null, expression);
+            Exp exp = SHARED_PARSER.compileEl(null, expression, dialect);
             if (log.isDebugEnabled()) {
-                log.debug("Compiled expression '{}' -> AST type: {}, AST: {}",
-                        expression, exp.getClass().getName(), exp);
+                String dialectName = (dialect == null ? "null" : dialect.getName());
+                log.debug("Compiled expression '{}' (dialect={}) -> AST type: {}, AST: {}",
+                        expression, dialectName, exp.getClass().getName(), exp);
             }
             return exp;
         } catch (SecurityException e) {

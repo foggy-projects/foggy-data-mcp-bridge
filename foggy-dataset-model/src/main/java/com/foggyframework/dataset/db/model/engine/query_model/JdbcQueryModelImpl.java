@@ -16,6 +16,8 @@ import com.foggyframework.dataset.db.model.plugins.query_execution.QueryExecutio
 import com.foggyframework.dataset.db.model.plugins.query_execution.QueryExecutionStep;
 import com.foggyframework.dataset.db.model.plugins.query_execution.QueryExecutionStepExecutor;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
+import com.foggyframework.dataset.db.model.semantic.util.QueryErrorSanitizer;
+import com.foggyframework.dataset.db.model.semantic.util.SanitizedQueryExecutionException;
 import com.foggyframework.dataset.db.model.spi.*;
 import com.foggyframework.dataset.model.PagingResultImpl;
 import com.foggyframework.dataset.utils.DataSourceQueryUtils;
@@ -144,7 +146,21 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
         }
 
         // 5. 执行 SQL
-        PagingResultImpl result = executeSql(execCtx, form, queryEngine);
+        //    Wrap executor errors with QueryErrorSanitizer so the message
+        //    does not leak physical table alias / column names
+        //    (BUG-007 v1.3).  We rethrow with the same runtime exception
+        //    shape the callers already expect (LocalDatasetAccessor /
+        //    McpService catch Exception and read getMessage()).
+        PagingResultImpl result;
+        try {
+            result = executeSql(execCtx, form, queryEngine);
+        } catch (RuntimeException e) {
+            String sanitized = QueryErrorSanitizer.sanitize(e.getMessage(), this);
+            if (sanitized != null && !sanitized.isEmpty() && !sanitized.equals(e.getMessage())) {
+                throw new SanitizedQueryExecutionException(sanitized, e);
+            }
+            throw e;
+        }
         execCtx.setExecutionResult(result);
 
         // 6. 执行 afterExecute Steps（L2 缓存写入等）

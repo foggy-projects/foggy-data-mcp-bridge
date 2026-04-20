@@ -11,10 +11,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Stack;
 
-/* Note: When regenerating the parser, use -expect 91 to allow shift/reduce conflicts:
+/* Note: When regenerating the parser, use -expect 104 to allow shift/reduce conflicts:
    Conflicts are resolved in favor of shifting for operator precedence and expression parsing.
+   (Was 91 historically; 100 after earlier grammar work; +4 from v8.1.11.beta `term3 NOT IN term2` addition, see docs/8.1.11.beta/P2-fsscript支持in和not-in算子-需求.md)
 
-   Example: java -cp java-cup-11b-20160615.jar java_cup.Main -expect 91 -parser ExpParser -symbols ExpSymbols -destdir src/main/java/com/foggyframework/fsscript/parser datasetexp.cup
+   Example: java -cp java-cup-11b-20160615.jar java_cup.Main -expect 104 -parser ExpParser -symbols ExpSymbols -destdir src/main/java/com/foggyframework/fsscript/parser datasetexp.cup
 */
 
 parser code {:
@@ -513,8 +514,8 @@ function_def ::=
         :}
 
     |   LPAREN arg_list:e RPAREN NF arrow_body:v {:
-            // 箭头函数表达式体: (args) => expr
-            // 使用 arrow_body 避免语法冲突
+            // multi-param arrow expression body: (args) => expr
+            // uses arrow_body to avoid grammar conflicts
             RESULT = parser.factory.createFunctionDef(parser.getFcDefinition(),v,e);
         :}
 
@@ -792,8 +793,8 @@ term4 ::=
             :}
 
         |   unquoted_identifier:s NF arrow_body:v {:
-                // 单参数箭头函数表达式体: x => expr
-                // 使用 arrow_body 避免与嵌套箭头函数的冲突
+                // single-param arrow expression body: x => expr
+                // uses arrow_body to avoid ambiguity with nested arrow functions
                 List args = new ListExp(1);
                 args.add(s);
                 RESULT = parser.factory.createFunctionDef(parser.getFcDefinition(),v,args);
@@ -801,8 +802,8 @@ term4 ::=
 
     ;
 
-// 箭头函数表达式体 - 不包含单参数箭头函数，避免解析歧义
-// 例如: x => y * 2 中的 y * 2 应该解析为表达式，而不是尝试匹配 y => ...
+// Arrow expression body - excludes single-param arrows to avoid parse ambiguity
+// e.g. in x => y * 2, "y * 2" must parse as expression, not try to match y => ...
 arrow_body ::=
         term4_logical:t {:
             RESULT = t;
@@ -851,6 +852,12 @@ term3 ::=
     		list.add(x);
     		list.add(y);
             RESULT = parser.factory.createUnresolvedFunCall("IN",list,false);
+        :}
+    |   term3:x NOT IN term2:y {:
+            ListExp list = new ListExp(2);
+            list.add(x);
+            list.add(y);
+            RESULT = parser.factory.createUnresolvedFunCall("NOT_IN",list,false);
         :}
     |   term3:x INSTANCEOF term2:y {:
     		ListExp list = new ListExp(2);

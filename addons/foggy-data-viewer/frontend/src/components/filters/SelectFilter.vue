@@ -44,8 +44,12 @@ const isMulti = ref(false)
 const searchText = ref('')
 const selectedValues = ref<Set<string | number>>(new Set())
 const containerRef = ref<HTMLElement>()
+const inputRef = ref<HTMLElement>()
 const highlightIndex = ref(0)
 const searchInputRef = ref<HTMLInputElement>()
+
+// 下拉框位置（Teleport 到 body 后需要绝对定位）
+const dropdownStyle = ref<Record<string, string>>({})
 
 // 远程模式状态
 const remoteOptions = ref<FilterOption[]>([])
@@ -181,11 +185,24 @@ function onSearchInput() {
 }
 
 // ── 交互 ──
+function updateDropdownPosition() {
+  if (!inputRef.value) return
+  const rect = inputRef.value.getBoundingClientRect()
+  dropdownStyle.value = {
+    position: 'fixed',
+    top: `${rect.bottom + 4}px`,
+    left: `${rect.left}px`,
+    width: `${rect.width}px`,
+    zIndex: '9999'
+  }
+}
+
 function toggleDropdown() {
   showDropdown.value = !showDropdown.value
   if (showDropdown.value) {
     searchText.value = ''
     highlightIndex.value = 0
+    updateDropdownPosition()
     setTimeout(() => searchInputRef.value?.focus(), 0)
     // 远程模式：打开时首次加载
     if (isRemote.value && remoteOptions.value.length === 0) {
@@ -284,8 +301,13 @@ function onKeydown(e: KeyboardEvent) {
   }
 }
 
+const dropdownRef = ref<HTMLElement>()
+
 function handleClickOutside(e: MouseEvent) {
-  if (containerRef.value && !containerRef.value.contains(e.target as Node)) {
+  const target = e.target as Node
+  const inContainer = containerRef.value?.contains(target)
+  const inDropdown = dropdownRef.value?.contains(target)
+  if (!inContainer && !inDropdown) {
     if (showDropdown.value && isMulti.value) emitChange()
     showDropdown.value = false
   }
@@ -300,7 +322,7 @@ onUnmounted(() => {
 
 <template>
   <div ref="containerRef" class="filter-select">
-    <div class="select-input" @click="toggleDropdown">
+    <div ref="inputRef" class="select-input" @click="toggleDropdown">
       <span v-if="displayText" class="selected-text">{{ displayText }}</span>
       <span v-else class="placeholder-text">{{ placeholder }}</span>
       <span class="toggle-multi" @click.stop="toggleMultiMode" :title="isMulti ? '切换单选' : '切换多选'">
@@ -309,62 +331,64 @@ onUnmounted(() => {
       <span v-if="displayText" class="clear-btn" @click.stop="clear">×</span>
     </div>
 
-    <div v-if="showDropdown" class="filter-dropdown">
-      <div class="search-box">
-        <input
-          ref="searchInputRef"
-          v-model="searchText"
-          type="text"
-          :placeholder="isRemote ? '输入关键词搜索...' : '搜索...'"
-          @click.stop
-          @input="onSearchInput"
-          @keydown="onKeydown"
-        />
-      </div>
-
-      <div class="options-container">
-        <div v-if="isLoading" class="loading-hint">
-          加载中...
+    <Teleport to="body">
+      <div v-if="showDropdown" ref="dropdownRef" class="filter-dropdown" :style="dropdownStyle">
+        <div class="search-box">
+          <input
+            ref="searchInputRef"
+            v-model="searchText"
+            type="text"
+            :placeholder="isRemote ? '输入关键词搜索...' : '搜索...'"
+            @click.stop
+            @input="onSearchInput"
+            @keydown="onKeydown"
+          />
         </div>
 
-        <template v-else>
-          <div
-            v-for="(opt, index) in displayOptions"
-            :key="String(opt.value)"
-            class="filter-option"
-            :class="{ selected: isSelected(opt), highlighted: index === highlightIndex }"
-            @click="selectItem(opt)"
-            @mouseenter="highlightIndex = index"
-          >
-            <input
-              v-if="isMulti"
-              type="checkbox"
-              :checked="isSelected(opt)"
-              @click.stop
-            />
-            <span class="option-label">{{ opt.label }}</span>
+        <div class="options-container">
+          <div v-if="isLoading" class="loading-hint">
+            加载中...
           </div>
 
-          <div v-if="displayOptions.length === 0" class="no-data">
-            {{ isRemote && !searchText ? '打开后自动加载' : '无匹配数据' }}
-          </div>
-        </template>
-      </div>
+          <template v-else>
+            <div
+              v-for="(opt, index) in displayOptions"
+              :key="String(opt.value)"
+              class="filter-option"
+              :class="{ selected: isSelected(opt), highlighted: index === highlightIndex }"
+              @click="selectItem(opt)"
+              @mouseenter="highlightIndex = index"
+            >
+              <input
+                v-if="isMulti"
+                type="checkbox"
+                :checked="isSelected(opt)"
+                @click.stop
+              />
+              <span class="option-label">{{ opt.label }}</span>
+            </div>
 
-      <div v-if="hasMore" class="more-hint">
-        <template v-if="isRemote">
-          共 {{ remoteTotal }} 条，请输入关键词缩小范围
-        </template>
-        <template v-else>
-          还有 {{ filteredOptions.length - maxDisplayItems }} 条，请输入关键词搜索
-        </template>
-      </div>
+            <div v-if="displayOptions.length === 0" class="no-data">
+              {{ isRemote && !searchText ? '打开后自动加载' : '无匹配数据' }}
+            </div>
+          </template>
+        </div>
 
-      <div v-if="isMulti" class="confirm-bar">
-        <span class="selected-count">已选 {{ selectedValues.size }} 项</span>
-        <button class="confirm-btn" @click="confirmMultiSelect">确定</button>
+        <div v-if="hasMore" class="more-hint">
+          <template v-if="isRemote">
+            共 {{ remoteTotal }} 条，请输入关键词缩小范围
+          </template>
+          <template v-else>
+            还有 {{ filteredOptions.length - maxDisplayItems }} 条，请输入关键词搜索
+          </template>
+        </div>
+
+        <div v-if="isMulti" class="confirm-bar">
+          <span class="selected-count">已选 {{ selectedValues.size }} 项</span>
+          <button class="confirm-btn" @click="confirmMultiSelect">确定</button>
+        </div>
       </div>
-    </div>
+    </Teleport>
   </div>
 </template>
 
@@ -429,49 +453,49 @@ onUnmounted(() => {
   color: #909399;
 }
 
+/* dropdown 样式已移至非 scoped <style> 块（Teleport 到 body 后 scoped 不生效） */
+</style>
+
+<!-- Teleport 到 body 的下拉框样式（不能 scoped） -->
+<style>
 .filter-dropdown {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  margin-top: 4px;
   background: white;
   border: 1px solid #e4e7ed;
   border-radius: 4px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
-  z-index: 9999;
   max-height: 280px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
-.search-box {
+.filter-dropdown .search-box {
   flex-shrink: 0;
   padding: 8px;
   border-bottom: 1px solid #e4e7ed;
 }
 
-.search-box input {
+.filter-dropdown .search-box input {
   width: 100%;
   padding: 6px 8px;
   border: 1px solid #dcdfe6;
   border-radius: 4px;
   font-size: 12px;
   outline: none;
+  box-sizing: border-box;
 }
 
-.search-box input:focus {
+.filter-dropdown .search-box input:focus {
   border-color: #409eff;
 }
 
-.options-container {
+.filter-dropdown .options-container {
   flex: 1;
   overflow-y: auto;
   min-height: 0;
 }
 
-.filter-option {
+.filter-dropdown .filter-option {
   display: flex;
   align-items: center;
   padding: 8px 12px;
@@ -482,37 +506,36 @@ onUnmounted(() => {
   gap: 6px;
 }
 
-.filter-option:hover,
-.filter-option.highlighted {
+.filter-dropdown .filter-option:hover,
+.filter-dropdown .filter-option.highlighted {
   background-color: #f5f7fa;
 }
 
-.filter-option.selected {
+.filter-dropdown .filter-option.selected {
   color: #409eff;
   background-color: #ecf5ff;
 }
 
-.filter-option input[type="checkbox"] {
+.filter-dropdown .filter-option input[type="checkbox"] {
   margin: 0;
 }
 
-.option-label {
+.filter-dropdown .option-label {
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.loading-hint,
-.no-data,
-.more-hint {
+.filter-dropdown .loading-hint,
+.filter-dropdown .no-data {
   padding: 12px;
   text-align: center;
   font-size: 12px;
   color: #909399;
 }
 
-.more-hint {
+.filter-dropdown .more-hint {
   flex-shrink: 0;
   padding: 8px 12px;
   text-align: center;
@@ -522,7 +545,7 @@ onUnmounted(() => {
   background: #f5f7fa;
 }
 
-.confirm-bar {
+.filter-dropdown .confirm-bar {
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -532,12 +555,12 @@ onUnmounted(() => {
   background: #fafafa;
 }
 
-.selected-count {
+.filter-dropdown .selected-count {
   font-size: 12px;
   color: #606266;
 }
 
-.confirm-btn {
+.filter-dropdown .confirm-btn {
   padding: 4px 12px;
   font-size: 12px;
   color: white;
@@ -547,7 +570,7 @@ onUnmounted(() => {
   cursor: pointer;
 }
 
-.confirm-btn:hover {
+.filter-dropdown .confirm-btn:hover {
   background: #337ecc;
 }
 </style>

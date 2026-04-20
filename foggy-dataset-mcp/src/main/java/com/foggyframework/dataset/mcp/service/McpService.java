@@ -1,5 +1,6 @@
 package com.foggyframework.dataset.mcp.service;
 
+import com.foggyframework.core.ex.RX;
 import com.foggyframework.dataset.mcp.enums.UserRole;
 import com.foggyframework.dataset.mcp.schema.McpError;
 import com.foggyframework.dataset.mcp.schema.McpRequest;
@@ -108,13 +109,7 @@ public class McpService {
             Object result = toolDispatcher.executeTool(toolName, arguments, context.getTraceId(), context.getRequestId(),
                     context.getAuthorization(), context.getUserRole().name(), context.getNamespace());
 
-            // MCP 规范要求返回 content 数组
-            return McpResponse.success(request.getId(), Map.of(
-                    "content", List.of(Map.of(
-                            "type", "text",
-                            "text", result instanceof String ? result : toJsonString(result)
-                    ))
-            ));
+            return McpResponse.success(request.getId(), buildToolsCallResult(toolName, result));
 
         } catch (Exception e) {
             log.error("Tool execution failed: name={}, role={}, error={}", toolName, context.getUserRole(), e.getMessage(), e);
@@ -226,6 +221,69 @@ public class McpService {
 
         // 使用过滤服务检查权限
         return toolFilterService.canAccessTool(tool, userRole);
+    }
+
+    /**
+     * 构建 MCP tools/call 结果。
+     *
+     * <p>仅对 dataset.query_model 注入结构化状态，其他工具保持现有 content 兼容行为。</p>
+     */
+    private Map<String, Object> buildToolsCallResult(String toolName, Object result) {
+        Map<String, Object> toolCallResult = new HashMap<>();
+        toolCallResult.put("content", List.of(Map.of(
+                "type", "text",
+                "text", resolveContentText(toolName, result)
+        )));
+
+        if (isQueryModelTool(toolName)) {
+            toolCallResult.put("status", resolveQueryModelStatus(result));
+        }
+
+        return toolCallResult;
+    }
+
+    private boolean isQueryModelTool(String toolName) {
+        return "dataset.query_model".equals(toolName);
+    }
+
+    private String resolveQueryModelStatus(Object result) {
+        if (result instanceof RX<?> rx) {
+            return rx._isSuccess() ? "success" : "failed";
+        }
+        if (result instanceof Map<?, ?> resultMap) {
+            Object status = resultMap.get("status");
+            if ("failed".equals(status)) {
+                return "failed";
+            }
+            if ("success".equals(status)) {
+                return "success";
+            }
+
+            Object code = resultMap.get("code");
+            if (code instanceof Number number) {
+                return number.intValue() == RX.SUCCESS ? "success" : "failed";
+            }
+        }
+        return "success";
+    }
+
+    private String resolveContentText(String toolName, Object result) {
+        if (isQueryModelTool(toolName) && result instanceof RX<?> rx && !rx._isSuccess()) {
+            String errorText = firstNonBlank(rx.getMsg(), rx.getUserTip());
+            if (errorText != null) {
+                return errorText;
+            }
+        }
+        return result instanceof String ? result.toString() : toJsonString(result);
+    }
+
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return null;
     }
 
     /**

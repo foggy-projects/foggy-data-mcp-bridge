@@ -1,5 +1,7 @@
 package com.foggyframework.dataset.mcp.service;
 
+import com.foggyframework.core.ex.RX;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.mcp.base.BaseMcpTest;
 import com.foggyframework.dataset.mcp.base.MockToolFactory;
 import com.foggyframework.dataset.mcp.enums.UserRole;
@@ -307,12 +309,70 @@ class McpServiceTest extends BaseMcpTest {
 
             assertResponseSuccess(response);
             Map<String, Object> result = extractResultMap(response);
+            assertFalse(result.containsKey("status"));
 
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> content = (List<Map<String, Object>>) result.get("content");
             assertNotNull(content);
             assertFalse(content.isEmpty());
             assertEquals("text", content.get(0).get("type"));
+        }
+
+        @Test
+        @DisplayName("query_model 成功时应返回 success 状态并保留 JSON 文本")
+        void queryModelSuccess_shouldReturnSuccessStatus() {
+            McpRequest request = createToolsCallRequest("dataset.query_model", Map.of(
+                    "model", "SalesModel",
+                    "payload", Map.of("columns", List.of("amount"))
+            ));
+
+            McpTool mockTool = MockToolFactory.createQueryModelTool();
+            SemanticQueryResponse queryResponse = new SemanticQueryResponse();
+            queryResponse.setItems(List.of(Map.of("amount", 100)));
+            queryResponse.setTotal(1L);
+
+            when(toolDispatcher.hasTool("dataset.query_model")).thenReturn(true);
+            when(toolDispatcher.getTool("dataset.query_model")).thenReturn(mockTool);
+            when(toolDispatcher.executeTool(eq("dataset.query_model"), any(), any(), any(), any(), any(), any()))
+                    .thenReturn(RX.success(queryResponse));
+
+            McpResponse response = mcpService.handleToolsCall(request, UserRole.ADMIN, "trace-1", "req-1", null, null);
+
+            assertResponseSuccess(response);
+            Map<String, Object> result = extractResultMap(response);
+            assertEquals("success", result.get("status"));
+
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> content = (List<Map<String, Object>>) result.get("content");
+            String text = (String) content.get(0).get("text");
+            assertNotNull(text);
+            assertTrue(text.contains("\"code\":200"));
+            assertTrue(text.contains("\"total\":1"));
+        }
+
+        @Test
+        @DisplayName("query_model 业务失败时应返回 failed 状态和错误文案")
+        void queryModelFailure_shouldReturnFailedStatus() {
+            McpRequest request = createToolsCallRequest("dataset.query_model", Map.of(
+                    "model", "SalesModel",
+                    "payload", Map.of("columns", List.of("amount"))
+            ));
+
+            McpTool mockTool = MockToolFactory.createQueryModelTool();
+            when(toolDispatcher.hasTool("dataset.query_model")).thenReturn(true);
+            when(toolDispatcher.getTool("dataset.query_model")).thenReturn(mockTool);
+            when(toolDispatcher.executeTool(eq("dataset.query_model"), any(), any(), any(), any(), any(), any()))
+                    .thenReturn(RX.failB("查询被拒绝：column \"totalamount\" does not exist"));
+
+            McpResponse response = mcpService.handleToolsCall(request, UserRole.ADMIN, "trace-1", "req-1", null, null);
+
+            assertResponseSuccess(response);
+            Map<String, Object> result = extractResultMap(response);
+            assertEquals("failed", result.get("status"));
+
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> content = (List<Map<String, Object>>) result.get("content");
+            assertEquals("查询被拒绝：column \"totalamount\" does not exist", content.get(0).get("text"));
         }
 
         @Test

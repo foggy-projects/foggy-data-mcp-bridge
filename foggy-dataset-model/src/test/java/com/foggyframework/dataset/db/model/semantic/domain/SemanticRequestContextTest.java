@@ -4,6 +4,8 @@ import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResult
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.Set;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -99,5 +101,90 @@ class SemanticRequestContextTest {
     void testToString() {
         SemanticRequestContext ctx = SemanticRequestContext.ofNamespace("odoo");
         assertTrue(ctx.toString().contains("odoo"));
+    }
+
+    // ==========================================
+    // fieldAccess 相关测试
+    // ==========================================
+
+    @Test
+    @DisplayName("of(namespace, securityContext, fieldAccess) 传入列权限白名单")
+    void testOfWithFieldAccess() {
+        ModelResultContext.SecurityContext sc = new ModelResultContext.SecurityContext();
+        sc.setAuthorization("Bearer token");
+        Set<String> fieldAccess = Set.of("field1", "field2", "field3");
+
+        SemanticRequestContext ctx = SemanticRequestContext.of("odoo", sc, fieldAccess);
+        assertEquals("odoo", ctx.getNamespace());
+        assertSame(sc, ctx.getSecurityContext());
+        assertNotNull(ctx.getFieldAccess());
+        assertEquals(3, ctx.getFieldAccess().size());
+        assertTrue(ctx.getFieldAccess().contains("field1"));
+        assertTrue(ctx.getFieldAccess().contains("field2"));
+        assertTrue(ctx.getFieldAccess().contains("field3"));
+    }
+
+    @Test
+    @DisplayName("of(namespace, securityContext, null fieldAccess) 返回 null")
+    void testOfWithNullFieldAccess() {
+        SemanticRequestContext ctx = SemanticRequestContext.of("odoo", (ModelResultContext.SecurityContext) null, null);
+        assertEquals("odoo", ctx.getNamespace());
+        assertNull(ctx.getFieldAccess());
+    }
+
+    @Test
+    @DisplayName("empty() 的 fieldAccess 为 null（向后兼容）")
+    void testEmptyFieldAccessIsNull() {
+        assertNull(SemanticRequestContext.empty().getFieldAccess());
+    }
+
+    @Test
+    @DisplayName("ofNamespace 的 fieldAccess 为 null")
+    void testOfNamespaceFieldAccessIsNull() {
+        assertNull(SemanticRequestContext.ofNamespace("odoo").getFieldAccess());
+    }
+
+    @Test
+    @DisplayName("of(namespace, authorization) 的 fieldAccess 为 null")
+    void testOfWithAuthFieldAccessIsNull() {
+        assertNull(SemanticRequestContext.of("odoo", "Bearer token").getFieldAccess());
+    }
+
+    @Test
+    @DisplayName("fieldAccess 防御性复制 — 修改原始 Set 不影响上下文")
+    void testFieldAccessDefensiveCopy() {
+        Set<String> mutable = new java.util.HashSet<>(Set.of("field1", "field2"));
+        SemanticRequestContext ctx = SemanticRequestContext.of("ns", (ModelResultContext.SecurityContext) null, mutable);
+
+        // 修改原始 Set
+        mutable.add("field3");
+        mutable.remove("field1");
+
+        // 上下文中的 fieldAccess 不受影响
+        assertEquals(2, ctx.getFieldAccess().size());
+        assertTrue(ctx.getFieldAccess().contains("field1"), "应仍包含 field1");
+        assertTrue(ctx.getFieldAccess().contains("field2"), "应仍包含 field2");
+        assertFalse(ctx.getFieldAccess().contains("field3"), "不应包含后添加的 field3");
+    }
+
+    @Test
+    @DisplayName("fieldAccess 不可变 — 尝试修改返回的 Set 抛异常")
+    void testFieldAccessImmutable() {
+        Set<String> fieldAccess = Set.of("field1", "field2");
+        SemanticRequestContext ctx = SemanticRequestContext.of("ns", (ModelResultContext.SecurityContext) null, fieldAccess);
+
+        assertThrows(UnsupportedOperationException.class,
+                () -> ctx.getFieldAccess().add("field3"),
+                "fieldAccess 应不可变");
+    }
+
+    @Test
+    @DisplayName("toString 包含 fieldAccess 数量信息")
+    void testToStringWithFieldAccess() {
+        SemanticRequestContext ctx = SemanticRequestContext.of("odoo",
+                (ModelResultContext.SecurityContext) null, Set.of("a", "b"));
+        String str = ctx.toString();
+        assertTrue(str.contains("fieldAccess="), "toString 应包含 fieldAccess 信息");
+        assertTrue(str.contains("2 fields"), "toString 应包含字段数量");
     }
 }

@@ -22,10 +22,13 @@ public class JavacupHelper {
 
     public static void main(final String[] args) {
         try {
+            // Paths below are relative to the foggy-fsscript module root.
+            // Run from that working directory (e.g. via `mvn test -Dtest=JavacupHelper`
+            // after wiring, or `java -cp ... java_cup.JavacupHelper`).
             Main.main(
-                    new String[]{"-expect", "100", "-package", "com.foggyframework.fsscript.parser", "-parser", "ExpParser",
-                    "-symbols", "ExpSymbols", "-destdir", "D:\\foggy-projects\\foggy-data-mcp-bridge\\foggy-fsscript\\src\\main\\java\\com\\foggyframework\\fsscript\\parser",
-                    "D:\\foggy-projects\\foggy-data-mcp-bridge\\foggy-fsscript\\src\\main\\resources\\datasetexp.cup"});
+                    new String[]{"-expect", "104", "-package", "com.foggyframework.fsscript.parser", "-parser", "ExpParser",
+                    "-symbols", "ExpSymbols", "-destdir", "src/main/java/com/foggyframework/fsscript/parser",
+                    "src/main/resources/datasetexp.cup"});
 
 //					"/Users/fengjianguang/workspaces/v3-foggy/work/foggy-framework-fsscript/src/main/resources/datasetexp.cup");
         } catch (final internal_error e) {

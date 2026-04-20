@@ -21,6 +21,7 @@ import com.foggyframework.dataset.db.model.impl.utils.QueryObjectDelegate;
 import com.foggyframework.dataset.db.model.path.DimensionPath;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.semantic.member.SyntheticMemberRuntimeColumn;
+import com.foggyframework.dataset.db.model.semantic.member.permission.QmMemberPermissionDef;
 import com.foggyframework.dataset.db.model.spi.*;
 import com.foggyframework.dataset.db.model.spi.support.QueryColumnGroup;
 import com.foggyframework.fsscript.exp.FsscriptFunction;
@@ -89,6 +90,11 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
     protected List<FsscriptFunction> accessBuilders = new ArrayList<>();
 
     /**
+     * QM 级成员权限配置列表（内部成员权限）
+     */
+    protected List<QmMemberPermissionDef> memberPermissions;
+
+    /**
      * QM 预定义的计算字段（formula 项）
      * <p>
      * 在查询时自动注入到 calculatedFields 中。
@@ -98,6 +104,22 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
     protected List<CalculatedFieldDef> predefinedCalculatedFields = new ArrayList<>();
 
     protected  List<TableModel> jdbcModelList;
+
+    /**
+     * QM 字段 ↔ 物理列双向映射缓存（QM 加载时构建，或首次访问时 lazy init）
+     */
+    protected volatile PhysicalColumnMapping physicalColumnMapping;
+
+    @Override
+    public PhysicalColumnMapping getPhysicalColumnMapping() {
+        PhysicalColumnMapping m = this.physicalColumnMapping;
+        if (m == null) {
+            // Lazy init: 如果 QM 在映射代码加入前已缓存，首次访问时构建
+            m = PhysicalColumnMappingBuilder.build(this);
+            this.physicalColumnMapping = m;
+        }
+        return m;
+    }
 
     // 使用 IdentityHashMap：按对象引用（==）而非 equals() 匹配 key
     // 解决自引用维度场景：两个不同的 QueryObject 实例引用同一张物理表时，

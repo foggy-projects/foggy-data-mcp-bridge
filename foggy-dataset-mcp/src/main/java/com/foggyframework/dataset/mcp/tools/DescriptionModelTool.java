@@ -54,6 +54,6 @@ public class DescriptionModelTool implements McpTool {
         log.info("Describing model: {}, traceId={}, namespace={}, accessMode={}",
                 model, traceId, namespace, datasetAccessor.getAccessMode());
 
-        return datasetAccessor.describeModel(model, format, traceId, authorization, namespace);
+        return datasetAccessor.describeModel(model, format, traceId, authorization, namespace, arguments);
     }
 }

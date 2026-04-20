@@ -9,6 +9,7 @@ import com.foggyframework.core.tuple.Tuple2;
 import com.foggyframework.core.utils.ErrorUtils;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.db.model.def.access.DbAccessDef;
+import com.foggyframework.dataset.db.model.semantic.member.permission.QmMemberPermissionDef;
 import com.foggyframework.dataset.db.model.def.column.DbColumnGroupDef;
 import com.foggyframework.dataset.db.model.def.order.OrderDef;
 import com.foggyframework.dataset.db.model.def.query.DbQueryModelDef;
@@ -417,6 +418,11 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
         loadAccesses(qm, queryModelDef.getAccesses());
 
         /**
+         * step42.加载成员权限配置
+         */
+        loadMemberPermissions(qm, queryModelDef.getMemberPermissions());
+
+        /**
          * step50.补一些默认值
          */
         for (DbQueryCondition dbQueryCondition : qm.getDbQueryConditions()) {
@@ -438,6 +444,11 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
                 qm.addOrder(idQueryColumn.getSelectColumn(), "desc");
             }
         }
+
+        /**
+         * step60.构建物理列映射缓存（QM 字段名 ↔ 物理 table.column）
+         */
+        qm.setPhysicalColumnMapping(PhysicalColumnMappingBuilder.build(qm));
 
         return qm;
     }
@@ -610,7 +621,7 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
                 // 无显式属性引用 → 自动展开全部属性
                 for (DbProperty prop : ((DbDimensionSupport) dimension).getJdbcProperties()) {
                     String propColumnName = basePath + "$" + prop.getPropertyDbColumn().getAlias();
-                    addColumn(qm, group, propColumnName, item, hasRef);
+                    addColumn(qm, group, propColumnName, createAutoExpandedPropertyItem(item, propColumnName), hasRef);
                 }
             }
         }
@@ -650,6 +661,16 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
 
         qm.addJdbcQueryColumn(dbQueryColumn);
         group.addJdbcColumn(dbQueryColumn);
+    }
+
+    private SelectColumnDef createAutoExpandedPropertyItem(SelectColumnDef item, String propColumnName) {
+        SelectColumnDef autoExpandedItem = new SelectColumnDef();
+        BeanUtils.copyProperties(item, autoExpandedItem);
+        autoExpandedItem.setName(propColumnName);
+        autoExpandedItem.setAlias(propColumnName);
+        // 自动展开属性应回落到各自列的 caption，不能复用维度入口列的 caption。
+        autoExpandedItem.setCaption(null);
+        return autoExpandedItem;
     }
 
     private void fixJdbcQueryCond(QueryModelSupport qm, DbQueryConditionImpl jdbcQueryCond, DbColumn selectColumn) {
@@ -765,6 +786,14 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
                 qm.getAccessBuilders().add(accessDef.getQueryBuilder());
             }
         }
+    }
+
+    private void loadMemberPermissions(QueryModelSupport qm,
+                                        List<QmMemberPermissionDef> memberPermissions) {
+        if (memberPermissions == null || memberPermissions.isEmpty()) {
+            return;
+        }
+        qm.setMemberPermissions(memberPermissions);
     }
 
     // ==================== 简称分配相关方法 ====================

@@ -24,6 +24,7 @@ COPY pom.xml ./
 COPY foggy-core/pom.xml foggy-core/
 COPY foggy-bean-copy/pom.xml foggy-bean-copy/
 COPY foggy-dataset/pom.xml foggy-dataset/
+COPY foggy-dataset-demo/pom.xml foggy-dataset-demo/
 COPY foggy-dataset-model/pom.xml foggy-dataset-model/
 COPY foggy-dataset-mcp/pom.xml foggy-dataset-mcp/
 COPY foggy-mcp-launcher/pom.xml foggy-mcp-launcher/

@@ -36,6 +36,18 @@ public final class AllowedFunctions {
     public static final Set<String> LOGICAL_OPERATORS;
 
     /**
+     * 成员测试运算符（SQL 风格 IN / NOT IN）
+     * <p>
+     * 右侧必须是圆括号列表，例如 {@code brand in ('Apple','Huawei')}。
+     * 对应 fsscript grammar 的 {@code term3 IN term2} 与 {@code term3 NOT IN term2}
+     * 产生式；在 SQL 翻译层映射到标准 {@code IN} / {@code NOT IN} SQL 算子。
+     * </p>
+     *
+     * @since 8.1.11.beta
+     */
+    public static final Set<String> MEMBERSHIP_OPERATORS;
+
+    /**
      * 数学函数
      */
     public static final Set<String> MATH_FUNCTIONS;
@@ -104,6 +116,11 @@ public final class AllowedFunctions {
         logical.add("NOT");
         LOGICAL_OPERATORS = Collections.unmodifiableSet(logical);
 
+        Set<String> membership = new HashSet<>();
+        membership.add("IN");
+        membership.add("NOT_IN");
+        MEMBERSHIP_OPERATORS = Collections.unmodifiableSet(membership);
+
         Set<String> math = new HashSet<>();
         math.add("ABS");
         math.add("ROUND");
@@ -169,9 +186,17 @@ public final class AllowedFunctions {
         other.add("NVL");
         other.add("ISNULL");
         other.add("IF");
+        other.add("IIF");
         other.add("CASE");
         other.add("CAST");
         other.add("CONVERT");
+        // v1.4 Step 3.2 · Spec v1 MUST formula 函数（ANSI lowering / 方言路由）
+        other.add("IS_NULL");        // is_null(x) → (x IS NULL)
+        other.add("IS_NOT_NULL");    // is_not_null(x) → (x IS NOT NULL)
+        other.add("BETWEEN");        // between(v, lo, hi) → (v BETWEEN lo AND hi)
+        other.add("DATE_DIFF");      // date_diff(a, b) · 方言路由，见 Step 3.4
+        // 注：DATE_ADD 已在 DATE_FUNCTIONS 白名单中，date_add(d, n, unit) 方言路由见 Step 3.4
+        // 注：运算符 in / not in 由引擎原生识别，不走函数白名单
         OTHER_FUNCTIONS = Collections.unmodifiableSet(other);
 
         // 合并所有允许的函数（包含聚合函数）
@@ -179,6 +204,7 @@ public final class AllowedFunctions {
         all.addAll(OPERATORS);
         all.addAll(COMPARISON_OPERATORS);
         all.addAll(LOGICAL_OPERATORS);
+        all.addAll(MEMBERSHIP_OPERATORS);
         all.addAll(MATH_FUNCTIONS);
         all.addAll(DATE_FUNCTIONS);
         all.addAll(STRING_FUNCTIONS);
@@ -295,8 +321,24 @@ public final class AllowedFunctions {
                 return "OR";
             case "!":
                 return "NOT";
+            case "IN":
+                return "IN";
+            case "NOT_IN":
+                return "NOT IN";
             default:
                 return fsOperator;
         }
+    }
+
+    /**
+     * 检查是否是成员测试运算符（IN / NOT_IN）
+     *
+     * @since 8.1.11.beta
+     */
+    public static boolean isMembershipOperator(String name) {
+        if (name == null) {
+            return false;
+        }
+        return MEMBERSHIP_OPERATORS.contains(name.toUpperCase());
     }
 }

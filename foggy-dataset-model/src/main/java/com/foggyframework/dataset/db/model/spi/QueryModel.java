@@ -136,6 +136,21 @@ public interface QueryModel extends Decorate, DbObject {
         return Collections.emptyList();
     }
 
+    /**
+     * 获取 QM 字段 ↔ 物理列的双向映射缓存
+     * <p>
+     * 在 QM 加载时自动构建，包含所有字段类型（度量、属性、维度、计算字段）的
+     * QM 字段名 → 物理 table.column 映射和反向索引。
+     * </p>
+     *
+     * @return 物理列映射，未构建时返回 null
+     * @since 8.2.0
+     */
+    @Nullable
+    default PhysicalColumnMapping getPhysicalColumnMapping() {
+        return null;
+    }
+
     @Nullable
     DbQueryCondition findJdbcQueryCondByName(String name);
 

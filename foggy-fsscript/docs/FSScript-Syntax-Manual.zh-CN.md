@@ -205,8 +205,62 @@ let combined = { ...{a: 1}, ...{b: 2}, c: 3 };  // {a: 1, b: 2, c: 3}
 
 | 运算符 | 描述 | 示例 |
 |--------|------|------|
-| `in` | 成员检查 | `key in obj` |
+| `in` | 成员检查（SQL 风格） | `v in (1,2,3)` / `v in [1,2,3]` / `v in list` |
+| `not in` | 成员检查取反 | `v not in (1,2,3)` |
 | `like` | 模式匹配 | `name like 'pattern'` |
+
+#### `in` / `not in` 成员测试
+
+`v in (...)` 与 `v not in (...)` 是 SQL 风格的成员测试算子，返回 `true` / `false`。右值支持三种写法：
+
+```javascript
+// 1) 圆括号字面量列表（SQL 风格）
+brand in ('Apple', 'Huawei', 'Xiaomi')
+status not in ('cancelled', 'returned')
+
+// 2) 方括号数组字面量
+id in [1, 2, 3]
+
+// 3) 变量（Collection / 数组 / Set / Map.keySet 均可）
+product_id in selectedIds
+```
+
+语义说明：
+
+- 优先级与 `==` / `<>` / `like` 相同（`term3`），可与 `&&` / `||` 自由组合：
+  `brand in ('Apple','Huawei') && price > 100`
+- 等值语义与 `==` 完全一致（调用 `Equal.eq`）：`null` 仅匹配 `null`；`BigDecimal` 与其他数值类型按数值兼容；其他类型按 `Object.equals`。`1 in (1.0)` 与 `1 == 1.0` 结果一致（为 `false`，Java 装箱语义）；需要跨数值类型匹配请显式转换或统一使用 `BigDecimal`
+- null 语义：`null in (1, null, 3)` → `true`；`null in (1,2,3)` → `false`
+- 空集合：`v in ()` / `v in []` 总是 `false`；`v not in ()` 总是 `true`
+- 右值为 `null` 视为空集合：`v in null` → `false`
+- `for (var x in list) {...}` 循环与 `(item, index) in list` 元组迭代语义不变
+
+##### 在 QM formula / DSL `calculatedFields` 里使用（v8.1.11.beta+）
+
+计算字段支持同一套 `in` / `not in`，通过 `foggy-dataset-model` 的 `SqlExpFactory` 翻译成标准 SQL `IN` / `NOT IN`：
+
+```javascript
+// QM columnGroups.items[].formula
+{
+    name: 'isTopBrand',
+    caption: '是否头部品牌',
+    formula: "IIF(brand in ('Apple', 'Huawei', 'Xiaomi'), 1, 0)",
+    type: 'INTEGER'
+}
+
+// DSL calculatedFields 请求参数
+{
+    "name": "isTopBrand",
+    "expression": "IIF(brand in ('Apple','Huawei','Xiaomi'), 1, 0)"
+}
+```
+
+计算字段层的差异（与 fsscript runtime 相比）：
+
+- 生成的 SQL 片段形如 `(brand IN ('Apple', 'Huawei'))` / `(status NOT IN ('cancelled'))`
+- 依赖提取 `extractColumnReferences`：IN 列表的字面量不会被误判为列引用；但 `x in (col1, col2)` 里的 col1/col2 会被正确收为依赖
+- 空列表 `v in ()` 在编译期被直接拒绝（抛 `IllegalArgumentException`）——多数数据库的 SQL `IN ()` 是语法错误；需要"恒为 false"请写 `1 == 0`
+- SQL 的 `NOT IN (...)` 遵循三值逻辑：如果列表中含 `NULL`，整条表达式结果为 `UNKNOWN`，最终被 `WHERE` 过滤掉 —— 这与 fsscript runtime 的布尔语义不完全一致，依赖链路时请按 SQL 语义设计
 
 ---
 

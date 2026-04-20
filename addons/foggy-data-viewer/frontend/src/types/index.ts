@@ -296,6 +296,7 @@ export interface FieldMeta {
   sourceColumn?: string
   dictId?: string
   dictMode?: 'static' | 'remote'
+  dictItems?: DictItem[]
   calculated?: boolean
   hierarchical?: boolean
   hierarchyOps?: string[]

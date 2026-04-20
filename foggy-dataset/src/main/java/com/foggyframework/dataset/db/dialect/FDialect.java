@@ -451,6 +451,53 @@ public abstract class FDialect {
     }
 
     /**
+     * 构建 date_diff(a, b) 日期差值 SQL 表达式 · v1.4 Step 3.4
+     * <p>
+     * Formula Spec v1 的 {@code date_diff(a, b)} 函数返回 {@code a - b} 的天数（整数）。
+     * 各方言语法差异很大，子类必须 override：
+     * </p>
+     * <ul>
+     *   <li>MySQL: {@code DATEDIFF(a, b)}</li>
+     *   <li>PostgreSQL: {@code (a::date - b::date)}</li>
+     *   <li>SQL Server: {@code DATEDIFF(day, b, a)} ⚠ 参数顺序反</li>
+     *   <li>SQLite: {@code CAST((julianday(a) - julianday(b)) AS INTEGER)}</li>
+     * </ul>
+     *
+     * @param a 被减数（SQL 片段，可能是列引用 / 字面量 / 子表达式）
+     * @param b 减数
+     * @return 方言特定的 SQL 表达式；默认返回 null 让调用方走 fallback
+     * @since v1.4
+     */
+    public String buildDateDiffExpression(String a, String b) {
+        return null;
+    }
+
+    /**
+     * 构建 date_add(d, n, unit) 日期加法 SQL 表达式 · v1.4 Step 3.4
+     * <p>
+     * Formula Spec v1 的 {@code date_add(d, n, unit)} 函数在 {@code d} 上加 {@code n}
+     * 个 unit（day / month / year）。参数 {@code n} 由 {@code ?} 绑定（不要拼接字面量，
+     * B-4 安全决策防 SQL 注入）。
+     * </p>
+     * <ul>
+     *   <li>MySQL: {@code DATE_ADD(d, INTERVAL ? DAY|MONTH|YEAR)}</li>
+     *   <li>PostgreSQL: {@code (d + make_interval(days => ?))} / {@code months => ?} / {@code years => ?}</li>
+     *   <li>SQL Server: {@code DATEADD(day, ?, d)} / {@code month, ?, d} / {@code year, ?, d}</li>
+     *   <li>SQLite: {@code date(d, '+' || ? || ' day')} / {@code month} / {@code year}</li>
+     * </ul>
+     *
+     * @param d                   日期 SQL 片段
+     * @param nParamPlaceholder   参数占位符（通常是 {@code ?}，由 SqlFragment 绑定值）
+     * @param unit                单位：{@code day} / {@code month} / {@code year}（小写）
+     * @return 方言特定的 SQL 表达式；默认返回 null 让调用方走 fallback
+     * @throws IllegalArgumentException 子类可在 unit 非法时抛出
+     * @since v1.4
+     */
+    public String buildDateAddExpression(String d, String nParamPlaceholder, String unit) {
+        return null;
+    }
+
+    /**
      * 将抽象列类型映射为方言特定的 DDL 类型
      * <p>
      * 用于预聚合建表 DDL 生成。抽象类型如 "DATE", "DATETIME", "INT", "BIGINT",

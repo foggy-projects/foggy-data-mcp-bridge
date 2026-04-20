@@ -88,6 +88,47 @@ Java TM/QM 模型模块，网关模式下打包进 JAR，提供 9 个 Odoo 业�
 
 **动态 Bundle**：支持运行时添加/移除外部 Bundle（详见 [Bundle & Namespace](docs/dev-guide/bundle-namespace.md)）
 
+## 运行时列权限 (fieldAccess)
+
+**入口**：`SemanticRequestContext.of(namespace, securityContext, fieldAccess)`
+
+**传递链路**：`SemanticRequestContext.fieldAccess` → `ModelResultContext.fieldAccess` → `FieldAccessPermissionStep.beforeQuery()`
+
+**校验范围**：columns / calculatedFields / slice / orderBy / groupBy（含内联表达式依赖提取和 fail-closed 策略）
+
+**metadata 裁剪**：`SemanticServiceV3Impl` 按 fieldAccess 过滤 JSON 和 Markdown 输出（维度/属性/度量/计算字段）
+
+**安全机制**：
+- 防御性复制：`Set.copyOf` + `Collections.unmodifiableSet`
+- 表达式依赖级校验：`CalculatedFieldService.extractColumnReferences(String)`
+- 传递依赖展开：`CalculatedFieldService.resolveBaseColumnReferences(String, Map)` — 计算字段引用其他计算字段时递归解析到基础字段
+- fail-closed：无法解析的表达式拒绝而非放行
+- 维度后缀剥离：`salesDate$id` → `salesDate` 做白名单匹配
+
+**与 visibleColumns 的关系**：
+- `fieldAccess`（运行时动态）在 @Order(-25) 全局校验
+- `visibleColumns`（QM 声明式）在 @Order(-20) 按维度成员收窄
+- 最终有效列 = intersection(fieldAccess, visibleColumns)
+
+## 物理列级权限 (deniedColumns)
+
+**入口**：`SemanticRequestContext.ofDeniedColumns(namespace, securityContext, deniedColumns)`
+
+**传递链路**：`SemanticRequestContext.deniedColumns` → `ModelResultContext.deniedColumns` → `PhysicalColumnPermissionStep.beforeExecute()`
+
+**检查时机**：`QueryExecutionStep` 接口，order=1100，在 JdbcQuery 构建完成后、SQL 执行前拦截（PreAggRewrite 和 L2Cache 之前）
+
+**校验逻辑**：遍历 `JdbcQuery.select.columns`、`order`、`group` 中的 `DbColumn`，提取 `TableQueryObject.schema` + `tableName` + `sqlColumnName`，匹配 deniedColumns 黑名单
+
+**输入格式**：`List<DeniedPhysicalColumn>`，每条含 `schema`（可 null，null 匹配任意 schema）、`table`、`column`
+
+**metadata physicalTables**：JSON metadata 输出包含 `physicalTables` 字段，列出 QM 涉及的物理表（事实表 + 维度表）
+
+**与 fieldAccess 的关系**：
+- `fieldAccess` — QM 字段名白名单，在 beforeQuery 阶段检查（解析前）
+- `deniedColumns` — 物理列黑名单，在 beforeExecute 阶段检查（SQL 构建后）
+- 两套机制并存，互不干扰
+
 ## TM/QM 模型文件
 - 位置：`foggy-dataset-demo/src/main/resources/foggy/templates/`
 - `.tm` - 表模型（维度、属性、度量）
@@ -189,6 +230,54 @@ mvn test -pl foggy-dataset-model -P!multi-db
 - 不需要运行单元测试（`-DskipTests`）
 - i18n 资源：`foggy-dataset-model/src/main/resources/i18n/messages*.properties`（UTF-8）
 - 帮助手册：`docs-site/`（VitePress 双语文档）
+
+## 集成测试规范：真实 SQL 数据比对
+
+涉及查询链路（QueryFacade、beforeQuery 步骤、权限注入、synthetic member-QM 等）的功能，集成测试**必须包含真实 SQL 数据比对**，不能只验证 SQL 字符串或中间对象。
+
+### 强制要求
+
+- 使用 `queryFacade.queryModelData()` 执行真实查询，获取实际返回数据
+- 编写等价的原生 SQL 作为基线，通过 `executeQuery()` 获取期望数据
+- 逐行比对实际结果与原生 SQL 结果（ID、字段值、排序、记录数）
+- 如果功能涉及过滤条件注入（如 forcedSlice），必须验证返回数据确实只包含符合条件的记录
+- 如果功能涉及列裁剪（如 visibleColumns），必须验证返回的每一行只包含允许的列
+- 如果功能涉及排序控制（如 forcedOrderBy），必须验证返回数据的实际排序
+- 如果功能涉及权限隔离，必须同时测试无权限模型不受限制
+
+### 不允许
+
+- 仅用 `buildSqlOnly()` 检查 SQL 字符串包含/不包含某片段就认为测试通过
+- 仅检查中间对象（如 extData 中的 effective permission）就认为链路正确
+- 仅用 mock 对象构造的单元测试替代真实 TM/QM 文件的集成测试
+
+### 测试模型文件
+
+- 测试用 TM/QM 文件放在 `foggy-dataset-demo/src/main/resources/foggy/templates/ecommerce/` 下
+- 新增测试模型文件后需 `mvn install -pl foggy-dataset-demo -DskipTests` 更新本地依赖
+- 集成测试继承 `EcommerceTestSupport`，使用 SQLite profile 运行
+
+### 参考模式
+
+```java
+// 1. 原生 SQL 基线
+String expectedSql = "SELECT ... FROM dim_xxx WHERE brand = 'Apple' ORDER BY ...";
+List<Map<String, Object>> expectedRows = executeQuery(expectedSql);
+
+// 2. 通过 QueryFacade 执行查询
+DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+queryRequest.setQueryModel("XxxQueryModel#dimension");
+queryRequest.setColumns(List.of("id", "caption", "brand"));
+PagingResultImpl result = queryFacade.queryModelData(PagingRequest.buildPagingRequest(queryRequest, 100));
+List<Map<String, Object>> items = castItems(result);
+
+// 3. 逐行比对
+assertEquals(expectedRows.size(), items.size());
+for (int i = 0; i < items.size(); i++) {
+    assertEquals(String.valueOf(expectedRows.get(i).get("id")), String.valueOf(items.get(i).get("id")));
+    assertEquals(expectedRows.get(i).get("brand"), items.get(i).get("brand"));
+}
+```
 
 ## 版本化需求管理
 - 后续所有讨论中的新能力、需求、增强项、重构项，必须先明确目标版本，再进入设计、实现或验收。

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, useAttrs } from 'vue'
+import { ref, computed, onMounted, useAttrs, useSlots } from 'vue'
 import type { EnhancedColumnSchema, SliceRequestDef, FilterOption, TableSchema, FetchDataParams, FetchDataResult, OrderRequestDef, QueryHooks, MemberQueryRequest, MemberQueryResponse } from '@/types'
 import SearchToolbar from './SearchToolbar.vue'
 import QueryPanel from './QueryPanel.vue'
@@ -106,6 +106,8 @@ const emit = defineEmits<{
   (e: 'filter-change', slices: SliceRequestDef[]): void
   (e: 'row-click', row: Record<string, unknown>, column: EnhancedColumnSchema): void
   (e: 'row-dblclick', row: Record<string, unknown>, column: EnhancedColumnSchema): void
+  (e: 'checkbox-change', rows: Record<string, unknown>[]): void
+  (e: 'checkbox-all', rows: Record<string, unknown>[]): void
   // SearchToolbar 事件
   (e: 'search', slices: SliceRequestDef[]): void
   (e: 'reset'): void
@@ -113,6 +115,9 @@ const emit = defineEmits<{
   (e: 'load-success', result: FetchDataResult): void
   (e: 'load-error', error: Error): void
 }>()
+
+// 获取插槽（用于检测 row-actions 等标准插槽）
+const parentSlots = useSlots()
 
 // ========== 判断工作模式 ==========
 const isSchemaMode = computed(() => !!props.schema && !!props.fetchData)
@@ -129,10 +134,27 @@ const query = useTableQuery(
 
 // ========== 计算属性：根据模式选择数据源 ==========
 const effectiveColumns = computed(() => {
+  let cols: EnhancedColumnSchema[]
   if (isSchemaMode.value && props.schema) {
-    return props.schema.columns
+    cols = props.schema.columns
+  } else {
+    cols = props.columns || []
   }
-  return props.columns || []
+
+  // 当用户提供 row-actions 插槽时，自动注入一个 actions 列（除非已有同名列）
+  if (parentSlots['row-actions'] && !cols.some(c => c.name === '_actions')) {
+    const actionsCol: EnhancedColumnSchema = {
+      name: '_actions',
+      type: 'TEXT',
+      title: '操作',
+      width: 120,
+      fixed: 'right',
+      filterable: false
+    }
+    return [...cols, actionsCol]
+  }
+
+  return cols
 })
 
 const effectiveData = computed(() => {
@@ -214,6 +236,18 @@ const effectiveSearchableFields = computed(() => {
     .map(col => col.name)
 
   return toolbarFields.length > 0 ? toolbarFields : undefined
+})
+
+// ========== 动态插槽：仅透传 column-* / filter-* 前缀插槽 ==========
+const STANDARD_SLOTS = new Set(['toolbar', 'footer', 'empty', 'row-actions'])
+const dynamicSlots = computed(() => {
+  const result: Record<string, unknown> = {}
+  for (const name of Object.keys(parentSlots)) {
+    if (!STANDARD_SLOTS.has(name) && (name.startsWith('column-') || name.startsWith('filter-'))) {
+      result[name] = parentSlots[name]
+    }
+  }
+  return result
 })
 
 // ========== 组件引用 ==========
@@ -419,6 +453,18 @@ const dataTableEvents = computed(() => {
       if (userEvents['rowDblclick']) {
         userEvents['rowDblclick'](...args)
       }
+    },
+    'checkbox-change': (rows: Record<string, unknown>[]) => {
+      emit('checkbox-change', rows)
+      if (userEvents['checkboxChange']) {
+        userEvents['checkboxChange'](rows)
+      }
+    },
+    'checkbox-all': (rows: Record<string, unknown>[]) => {
+      emit('checkbox-all', rows)
+      if (userEvents['checkboxAll']) {
+        userEvents['checkboxAll'](rows)
+      }
     }
   }
 })
@@ -459,6 +505,12 @@ defineExpose({
   addQueryHook: query.addHook,
   /** 移除查询钩子（运行时） */
   removeQueryHook: query.removeHook,
+  /** 获取当前选中行数组（代理 DataTable） */
+  getSelectedRows: (): Record<string, unknown>[] => dataTableRef.value?.getSelectedRows?.() ?? [],
+  /** 获取当前选中行数量（代理 DataTable） */
+  getSelectedCount: (): number => dataTableRef.value?.getSelectedCount?.() ?? 0,
+  /** 清空选中行（代理 DataTable） */
+  clearSelection: () => dataTableRef.value?.clearSelection?.(),
   /** 获取 useTableQuery 实例（高级用法） */
   getQuery: () => query,
 
@@ -527,8 +579,24 @@ defineExpose({
         v-bind="dataTableProps"
         v-on="dataTableEvents"
       >
-        <!-- 透传所有插槽 -->
-        <template v-for="(_, name) in $slots" #[name]="slotData">
+        <!-- 显式透传标准插槽，保证 HMR 热更新稳定 -->
+        <template v-if="$slots.toolbar" #toolbar>
+          <slot name="toolbar" />
+        </template>
+        <template v-if="$slots.footer" #footer>
+          <slot name="footer" />
+        </template>
+        <template v-if="$slots.empty" #empty>
+          <slot name="empty" />
+        </template>
+
+        <!-- row-actions 标准扩展点：映射为 column-_actions cell slot -->
+        <template v-if="$slots['row-actions']" #column-_actions="{ row, column, value }">
+          <slot name="row-actions" :row="row" :column="column" :value="value" />
+        </template>
+
+        <!-- 透传动态前缀插槽（column-* / filter-*），保持兼容 -->
+        <template v-for="(_, name) in dynamicSlots" :key="name" #[name]="slotData">
           <slot :name="name" v-bind="slotData || {}" />
         </template>
       </DataTable>

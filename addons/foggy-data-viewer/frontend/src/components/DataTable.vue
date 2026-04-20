@@ -64,6 +64,10 @@ const emit = defineEmits<{
   (e: 'row-click', row: Record<string, unknown>, column: EnhancedColumnSchema): void
   /** 行双击事件 */
   (e: 'row-dblclick', row: Record<string, unknown>, column: EnhancedColumnSchema): void
+  /** 行选中变化 */
+  (e: 'checkbox-change', rows: Record<string, unknown>[]): void
+  /** 全选变化 */
+  (e: 'checkbox-all', rows: Record<string, unknown>[]): void
 }>()
 
 // 暴露给插槽使用的上下文
@@ -104,7 +108,7 @@ const dimensionOptionsLoading = ref<Record<string, boolean>>({})
 
 // 使用 composables
 const columnsRef = computed(() => props.columns)
-const { selectedRows, onCheckboxChange, onCheckboxAll, clearSelection } = useTableSelection()
+const { selectedRows, onCheckboxChange, onCheckboxAll, clearSelection, getSelectedCount } = useTableSelection()
 const { serverSummary, calculateSelectedSummary, generateFooterData, setServerSummary } = useTableSummary(columnsRef)
 
 // 监听 serverSummary prop 变化
@@ -180,6 +184,11 @@ function inferFilterType(col: EnhancedColumnSchema): string {
       return 'date'
     case 'DATETIME':
       return 'datetime'
+  }
+
+  // dictId 优先级高于 filterType：只要列声明了 dictId，就渲染为字典下拉
+  if (col.dictId) {
+    return 'dict'
   }
 
   // 其次使用后端返回的 filterType
@@ -325,6 +334,17 @@ function getColumnFormatter(col: EnhancedColumnSchema): Partial<VxeGridProps['co
   if (col.customFormatter) {
     return {
       formatter: ({ cellValue }) => col.customFormatter!(cellValue)
+    }
+  }
+
+  // 字典列：value → label 映射（优先级高于 type 默认 formatter）
+  if (col.dictItems && col.dictItems.length > 0) {
+    const labelMap = new Map(col.dictItems.map(item => [String(item.value), item.label]))
+    return {
+      formatter: ({ cellValue }) => {
+        if (cellValue == null) return ''
+        return labelMap.get(String(cellValue)) ?? String(cellValue)
+      }
     }
   }
 
@@ -574,8 +594,14 @@ const gridEvents = computed<VxeGridListeners>(() => {
         emit('row-dblclick', row, col)
       }
     }, 'cellDblclick'),
-    checkboxChange: wrapEvent(onCheckboxChange, 'checkboxChange'),
-    checkboxAll: wrapEvent(onCheckboxAll, 'checkboxAll')
+    checkboxChange: wrapEvent((params: { records: Record<string, unknown>[] }) => {
+      onCheckboxChange(params)
+      emit('checkbox-change', params.records)
+    }, 'checkboxChange'),
+    checkboxAll: wrapEvent((params: { records: Record<string, unknown>[] }) => {
+      onCheckboxAll(params)
+      emit('checkbox-all', params.records)
+    }, 'checkboxAll')
   }
 
   // 合并：添加用户定义但我们没有默认处理的事件
@@ -624,7 +650,13 @@ defineExpose({
   /** 设置过滤值 */
   setFilter: updateFilter,
   /** 获取 vxe-grid 实例 */
-  getGridInstance: () => gridRef.value
+  getGridInstance: () => gridRef.value,
+  /** 获取当前选中行数组 */
+  getSelectedRows: (): Record<string, unknown>[] => selectedRows.value as Record<string, unknown>[],
+  /** 获取当前选中行数量 */
+  getSelectedCount: (): number => getSelectedCount(),
+  /** 清空选中行 */
+  clearSelection
 })
 
 // 提供上下文给子组件
@@ -729,7 +761,9 @@ provide('dataTableContext', {
   flex-direction: column;
   width: 100%;
   padding: 4px 0;
-  min-height: 60px;
+  height: 60px;
+  max-height: 60px;
+  overflow: visible;
 }
 
 .column-title {
@@ -814,15 +848,7 @@ provide('dataTableContext', {
   overflow: visible !important;
 }
 
-/* 注意：不要设置 overflow: visible，会破坏表头滚动同步 */
-/* 下拉框使用 teleport 或设置高 z-index 来确保可见 */
-
-/* 提高下拉框 z-index，确保在表格内容之上 */
-.column-filter :deep(.filter-dropdown),
-.column-filter :deep(.filter-select .filter-dropdown),
-.column-filter :deep(.filter-text .filter-dropdown) {
-  z-index: 2000 !important;
-}
+/* 下拉框已通过 Teleport 渲染到 body，不再受表头 overflow 裁切 */
 
 .data-table-footer {
   padding: 12px 16px;

@@ -24,9 +24,9 @@ vi.mock('./SearchToolbar.vue', () => ({
 vi.mock('./DataTable.vue', () => ({
   default: {
     name: 'DataTable',
-    template: '<div class="data-table-mock"><slot /></div>',
+    template: '<div class="data-table-mock"><slot name="toolbar" /><slot name="footer" /><slot name="empty" /><slot name="column-_actions" :row="{}" :column="{}" :value="null" /><slot /></div>',
     props: ['columns', 'data', 'total', 'loading', 'pageSize', 'showFilters', 'initialSlice', 'serverSummary'],
-    emits: ['page-change', 'sort-change', 'filter-change', 'row-click', 'row-dblclick'],
+    emits: ['page-change', 'sort-change', 'filter-change', 'row-click', 'row-dblclick', 'checkbox-change', 'checkbox-all'],
     methods: {
       resetPagination() {
         // mock
@@ -36,6 +36,15 @@ vi.mock('./DataTable.vue', () => ({
       },
       getGridInstance() {
         return null
+      },
+      getSelectedRows() {
+        return [{ id: 1, name: 'Test' }]
+      },
+      getSelectedCount() {
+        return 1
+      },
+      clearSelection() {
+        // mock
       }
     }
   }
@@ -274,6 +283,31 @@ describe('DataTableWithSearch', () => {
 
       expect(wrapper.emitted('row-dblclick')).toBeTruthy()
       expect(wrapper.emitted('row-dblclick')![0]).toEqual([mockRow, mockColumn])
+    })
+
+    it('should emit checkbox-change event from DataTable', async () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: defaultProps
+      })
+
+      const dataTable = wrapper.findComponent({ name: 'DataTable' })
+      const selectedRows = [{ id: 1, name: 'Test 1' }]
+      await dataTable.vm.$emit('checkbox-change', selectedRows)
+
+      expect(wrapper.emitted('checkbox-change')).toBeTruthy()
+      expect(wrapper.emitted('checkbox-change')![0]).toEqual([selectedRows])
+    })
+
+    it('should emit checkbox-all event from DataTable', async () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: defaultProps
+      })
+
+      const dataTable = wrapper.findComponent({ name: 'DataTable' })
+      await dataTable.vm.$emit('checkbox-all', mockData)
+
+      expect(wrapper.emitted('checkbox-all')).toBeTruthy()
+      expect(wrapper.emitted('checkbox-all')![0]).toEqual([mockData])
     })
 
     it('should emit search event from SearchToolbar', async () => {
@@ -619,7 +653,7 @@ describe('DataTableWithSearch', () => {
   })
 
   describe('Slot Passthrough', () => {
-    it('should have slot passthrough capability', () => {
+    it('should have slot passthrough capability for toolbar', () => {
       const wrapper = mount(DataTableWithSearch, {
         props: defaultProps,
         slots: {
@@ -627,9 +661,113 @@ describe('DataTableWithSearch', () => {
         }
       })
 
-      // 插槽会传递给 DataTable，但由于使用了 mock 组件，无法直接验证
-      // 这里只验证组件能够接受插槽而不报错
       expect(wrapper.exists()).toBe(true)
+      expect(wrapper.find('.custom-toolbar').exists()).toBe(true)
+    })
+
+    it('should have slot passthrough capability for footer', () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: defaultProps,
+        slots: {
+          footer: '<div class="custom-footer">Custom Footer</div>'
+        }
+      })
+
+      expect(wrapper.exists()).toBe(true)
+      expect(wrapper.find('.custom-footer').exists()).toBe(true)
+    })
+  })
+
+  describe('Row Actions', () => {
+    it('should inject _actions column when row-actions slot is provided', () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: defaultProps,
+        slots: {
+          'row-actions': '<button class="row-action-btn">Edit</button>'
+        }
+      })
+
+      const dataTable = wrapper.findComponent({ name: 'DataTable' })
+      const columns = dataTable.props('columns') as EnhancedColumnSchema[]
+      const actionsCol = columns.find(c => c.name === '_actions')
+      expect(actionsCol).toBeTruthy()
+      expect(actionsCol!.title).toBe('操作')
+      expect(actionsCol!.fixed).toBe('right')
+    })
+
+    it('should NOT inject _actions column when row-actions slot is absent', () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: defaultProps
+      })
+
+      const dataTable = wrapper.findComponent({ name: 'DataTable' })
+      const columns = dataTable.props('columns') as EnhancedColumnSchema[]
+      expect(columns.find(c => c.name === '_actions')).toBeUndefined()
+    })
+
+    it('should render row-actions slot content', () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: defaultProps,
+        slots: {
+          'row-actions': '<button class="row-action-btn">Edit</button>'
+        }
+      })
+
+      expect(wrapper.find('.row-action-btn').exists()).toBe(true)
+    })
+
+    it('should not inject duplicate _actions column if already present', () => {
+      const columnsWithActions: EnhancedColumnSchema[] = [
+        ...mockColumns,
+        { name: '_actions', type: 'TEXT', title: '操作', width: 200 }
+      ]
+      const wrapper = mount(DataTableWithSearch, {
+        props: { ...defaultProps, columns: columnsWithActions },
+        slots: {
+          'row-actions': '<button>Edit</button>'
+        }
+      })
+
+      const dataTable = wrapper.findComponent({ name: 'DataTable' })
+      const columns = dataTable.props('columns') as EnhancedColumnSchema[]
+      const actionsCols = columns.filter(c => c.name === '_actions')
+      expect(actionsCols).toHaveLength(1)
+      expect(actionsCols[0].width).toBe(200) // 保留原始配置
+    })
+  })
+
+  describe('Selection API', () => {
+    it('should expose getSelectedRows method that delegates to DataTable', () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: defaultProps
+      })
+
+      const vm = wrapper.vm as any
+      expect(vm.getSelectedRows).toBeDefined()
+      const rows = vm.getSelectedRows()
+      expect(Array.isArray(rows)).toBe(true)
+      expect(rows).toHaveLength(1) // mock returns 1 row
+      expect(rows[0].id).toBe(1)
+    })
+
+    it('should expose getSelectedCount method that delegates to DataTable', () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: defaultProps
+      })
+
+      const vm = wrapper.vm as any
+      expect(vm.getSelectedCount).toBeDefined()
+      expect(vm.getSelectedCount()).toBe(1) // mock returns 1
+    })
+
+    it('should expose clearSelection method', () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: defaultProps
+      })
+
+      const vm = wrapper.vm as any
+      expect(vm.clearSelection).toBeDefined()
+      expect(() => vm.clearSelection()).not.toThrow()
     })
   })
 })

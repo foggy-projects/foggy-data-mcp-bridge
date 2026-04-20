@@ -293,6 +293,42 @@ public class SqliteDialect extends FDialect {
         return "datetime('now')";
     }
 
+    /**
+     * SQLite: {@code CAST((julianday(a) - julianday(b)) AS INTEGER)}
+     * · julianday 返回浮点天数，转整数对齐 formula 语义
+     */
+    @Override
+    public String buildDateDiffExpression(String a, String b) {
+        return "CAST((julianday(" + a + ") - julianday(" + b + ")) AS INTEGER)";
+    }
+
+    /**
+     * SQLite: {@code date(d, '+' || ? || ' day')}
+     * · modifier 字符串通过 || 拼接参数绑定
+     */
+    @Override
+    public String buildDateAddExpression(String d, String nParamPlaceholder, String unit) {
+        String sqliteUnit = toSqliteUnit(unit);
+        return "date(" + d + ", '+' || " + nParamPlaceholder + " || ' " + sqliteUnit + "')";
+    }
+
+    private static String toSqliteUnit(String unit) {
+        if (unit == null) {
+            throw new IllegalArgumentException("date_add unit must not be null");
+        }
+        switch (unit.toLowerCase()) {
+            case "day":
+                return "day";
+            case "month":
+                return "month";
+            case "year":
+                return "year";
+            default:
+                throw new IllegalArgumentException(
+                        "date_add unit must be one of {day, month, year}, got: " + unit);
+        }
+    }
+
     @Override
     public String mapColumnType(String abstractType) {
         if (abstractType == null) return null;

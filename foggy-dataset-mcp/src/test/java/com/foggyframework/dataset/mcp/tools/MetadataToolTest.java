@@ -10,6 +10,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -25,6 +26,11 @@ import static org.mockito.Mockito.*;
 @DisplayName("MetadataTool 单元测试")
 @ExtendWith(MockitoExtension.class)
 class MetadataToolTest {
+
+    private static final Map<String, Object> GOVERNANCE_OPTIONS = Map.of(
+            "deniedColumns",
+            List.of(Map.of("table", "hr_employee", "columns", List.of("gender", "marital")))
+    );
 
     @Mock
     private DatasetAccessor datasetAccessor;
@@ -82,7 +88,7 @@ class MetadataToolTest {
                     "version", "1.0.0"
             ));
 
-            when(datasetAccessor.getMetadata(anyString(), any(), any()))
+            when(datasetAccessor.getMetadata(anyString(), any(), any(), anyMap()))
                     .thenReturn(RX.success(response));
 
             // 执行
@@ -102,7 +108,7 @@ class MetadataToolTest {
             assertEquals(2, models.size());
 
             // 验证调用参数（namespace 为 null）
-            verify(datasetAccessor).getMetadata(eq("trace-123"), isNull(), isNull());
+            verify(datasetAccessor).getMetadata(eq("trace-123"), isNull(), isNull(), eq(Map.of()));
         }
 
         @Test
@@ -110,12 +116,12 @@ class MetadataToolTest {
         void shouldPassTraceId() {
             SemanticMetadataResponse response = new SemanticMetadataResponse();
             response.setData(Map.of("models", List.of()));
-            when(datasetAccessor.getMetadata(anyString(), any(), any()))
+            when(datasetAccessor.getMetadata(anyString(), any(), any(), anyMap()))
                     .thenReturn(RX.success(response));
 
             metadataTool.execute(Map.of(), ToolExecutionContext.of("custom-trace-id-456", null));
 
-            verify(datasetAccessor).getMetadata(eq("custom-trace-id-456"), isNull(), isNull());
+            verify(datasetAccessor).getMetadata(eq("custom-trace-id-456"), isNull(), isNull(), eq(Map.of()));
         }
 
         @Test
@@ -123,12 +129,12 @@ class MetadataToolTest {
         void shouldPassAuthorization() {
             SemanticMetadataResponse response = new SemanticMetadataResponse();
             response.setData(Map.of("models", List.of()));
-            when(datasetAccessor.getMetadata(anyString(), anyString(), any()))
+            when(datasetAccessor.getMetadata(anyString(), anyString(), any(), anyMap()))
                     .thenReturn(RX.success(response));
 
             metadataTool.execute(Map.of(), ToolExecutionContext.of("trace-789", "Bearer token123"));
 
-            verify(datasetAccessor).getMetadata(eq("trace-789"), eq("Bearer token123"), isNull());
+            verify(datasetAccessor).getMetadata(eq("trace-789"), eq("Bearer token123"), isNull(), eq(Map.of()));
         }
 
         @Test
@@ -136,7 +142,7 @@ class MetadataToolTest {
         void argumentsShouldBeIgnored() {
             SemanticMetadataResponse response = new SemanticMetadataResponse();
             response.setData(Map.of("models", List.of()));
-            when(datasetAccessor.getMetadata(anyString(), any(), any()))
+            when(datasetAccessor.getMetadata(anyString(), any(), any(), anyMap()))
                     .thenReturn(RX.success(response));
 
             // 即使传入参数也应正常执行
@@ -146,7 +152,31 @@ class MetadataToolTest {
             );
 
             assertNotNull(result);
-            verify(datasetAccessor).getMetadata(anyString(), any(), any());
+            verify(datasetAccessor).getMetadata(anyString(), any(), any(), anyMap());
+        }
+
+        @Test
+        @DisplayName("应透传 deniedColumns 等治理参数")
+        void shouldPassGovernanceArguments() {
+            SemanticMetadataResponse response = new SemanticMetadataResponse();
+            response.setData(Map.of("models", List.of()));
+            when(datasetAccessor.getMetadata(anyString(), any(), any(), anyMap()))
+                    .thenReturn(RX.success(response));
+
+            Map<String, Object> arguments = new LinkedHashMap<>(GOVERNANCE_OPTIONS);
+
+            Object result = metadataTool.execute(arguments, ToolExecutionContext.of("trace-governance", null));
+
+            assertNotNull(result);
+            @SuppressWarnings("unchecked")
+            RX<SemanticMetadataResponse> rxResult = (RX<SemanticMetadataResponse>) result;
+            assertNotNull(rxResult.getData());
+            verify(datasetAccessor).getMetadata(
+                    eq("trace-governance"),
+                    isNull(),
+                    isNull(),
+                    same(arguments)
+            );
         }
     }
 
@@ -161,7 +191,7 @@ class MetadataToolTest {
         void shouldPassNamespaceToAccessor() {
             SemanticMetadataResponse response = new SemanticMetadataResponse();
             response.setData(Map.of("models", List.of()));
-            when(datasetAccessor.getMetadata(anyString(), any(), anyString()))
+            when(datasetAccessor.getMetadata(anyString(), any(), anyString(), anyMap()))
                     .thenReturn(RX.success(response));
 
             ToolExecutionContext context = ToolExecutionContext.builder()
@@ -175,7 +205,8 @@ class MetadataToolTest {
             verify(datasetAccessor).getMetadata(
                     eq("trace-ns"),
                     eq("Bearer token"),
-                    eq("odoo-prod")
+                    eq("odoo-prod"),
+                    eq(Map.of())
             );
         }
 
@@ -184,12 +215,12 @@ class MetadataToolTest {
         void nullNamespace_shouldPassNull() {
             SemanticMetadataResponse response = new SemanticMetadataResponse();
             response.setData(Map.of("models", List.of()));
-            when(datasetAccessor.getMetadata(anyString(), any(), any()))
+            when(datasetAccessor.getMetadata(anyString(), any(), any(), anyMap()))
                     .thenReturn(RX.success(response));
 
             metadataTool.execute(Map.of(), ToolExecutionContext.of("trace-ns-null", null));
 
-            verify(datasetAccessor).getMetadata(anyString(), any(), isNull());
+            verify(datasetAccessor).getMetadata(anyString(), any(), isNull(), eq(Map.of()));
         }
 
         @Test
@@ -197,7 +228,7 @@ class MetadataToolTest {
         void shouldPassBothAuthAndNamespace() {
             SemanticMetadataResponse response = new SemanticMetadataResponse();
             response.setData(Map.of("models", List.of()));
-            when(datasetAccessor.getMetadata(anyString(), anyString(), anyString()))
+            when(datasetAccessor.getMetadata(anyString(), anyString(), anyString(), anyMap()))
                     .thenReturn(RX.success(response));
 
             ToolExecutionContext context = ToolExecutionContext.builder()
@@ -211,7 +242,8 @@ class MetadataToolTest {
             verify(datasetAccessor).getMetadata(
                     eq("trace-multi"),
                     eq("Bearer jwt"),
-                    eq("tenant-b")
+                    eq("tenant-b"),
+                    eq(Map.of())
             );
         }
     }
@@ -227,7 +259,7 @@ class MetadataToolTest {
         void serviceError_shouldReturnErrorResponse() {
             // 使用 RX 的错误响应
             RX<SemanticMetadataResponse> errorResponse = RX.failB("Service unavailable");
-            when(datasetAccessor.getMetadata(anyString(), any(), any()))
+            when(datasetAccessor.getMetadata(anyString(), any(), any(), anyMap()))
                     .thenReturn(errorResponse);
 
             Object result = metadataTool.execute(Map.of(), ToolExecutionContext.of("trace-error-1", null));
@@ -243,7 +275,7 @@ class MetadataToolTest {
         @Test
         @DisplayName("服务抛出异常应被正确处理")
         void serviceException_shouldBeHandled() {
-            when(datasetAccessor.getMetadata(anyString(), any(), any()))
+            when(datasetAccessor.getMetadata(anyString(), any(), any(), anyMap()))
                     .thenThrow(new RuntimeException("Connection failed"));
 
             // 工具层不捕获异常，异常由调用者处理
@@ -286,7 +318,7 @@ class MetadataToolTest {
                     "lastUpdate", "2025-01-15T10:30:00"
             ));
 
-            when(datasetAccessor.getMetadata(anyString(), any(), any()))
+            when(datasetAccessor.getMetadata(anyString(), any(), any(), anyMap()))
                     .thenReturn(RX.success(response));
 
             Object result = metadataTool.execute(Map.of(), ToolExecutionContext.of("trace-complex", null));
@@ -305,7 +337,7 @@ class MetadataToolTest {
         void emptyModelList_shouldReturnSuccessfully() {
             SemanticMetadataResponse response = new SemanticMetadataResponse();
             response.setData(Map.of("models", List.of(), "version", "1.0.0"));
-            when(datasetAccessor.getMetadata(anyString(), any(), any()))
+            when(datasetAccessor.getMetadata(anyString(), any(), any(), anyMap()))
                     .thenReturn(RX.success(response));
 
             Object result = metadataTool.execute(Map.of(), ToolExecutionContext.of("trace-empty", null));
@@ -331,7 +363,7 @@ class MetadataToolTest {
             when(datasetAccessor.getAccessMode()).thenReturn("local");
             SemanticMetadataResponse response = new SemanticMetadataResponse();
             response.setData(Map.of("models", List.of()));
-            when(datasetAccessor.getMetadata(anyString(), any(), any()))
+            when(datasetAccessor.getMetadata(anyString(), any(), any(), anyMap()))
                     .thenReturn(RX.success(response));
 
             metadataTool.execute(Map.of(), ToolExecutionContext.of("trace-mode", null));

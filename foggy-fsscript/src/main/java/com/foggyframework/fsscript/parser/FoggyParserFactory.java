@@ -29,10 +29,16 @@ public class FoggyParserFactory extends ParserFactory {
 
 		@Override
 		public Exp compileEl(FsscriptClosureDefinition fcDefinition, String str) throws CompileException {
+			return compileEl(fcDefinition, str, null);
+		}
+
+		@Override
+		public Exp compileEl(FsscriptClosureDefinition fcDefinition, String str, FsscriptDialect dialect) throws CompileException {
 			if (expParser == null) {
 				expParser = new ExpParser();
 			}
 			expParser.setFcDefinition(fcDefinition);
+			expParser.setDialect(dialect);
 			return expParser.compileEl(str);
 		}
 
@@ -56,6 +62,11 @@ public class FoggyParserFactory extends ParserFactory {
 
 		@Override
 		public Exp compileEl(FsscriptClosureDefinition fcDefinition, String str) throws CompileException {
+			return compileEl(fcDefinition, str, null);
+		}
+
+		@Override
+		public Exp compileEl(FsscriptClosureDefinition fcDefinition, String str, FsscriptDialect dialect) throws CompileException {
 			ExpParser expParser = null;
 			if (expFactory == null) {
 				expParser = new ExpParser();
@@ -63,6 +74,7 @@ public class FoggyParserFactory extends ParserFactory {
 				expParser = new ExpParser(expFactory);
 			}
 			expParser.setFcDefinition(fcDefinition);
+			expParser.setDialect(dialect);
 			return expParser.compileEl(str);
 		}
 

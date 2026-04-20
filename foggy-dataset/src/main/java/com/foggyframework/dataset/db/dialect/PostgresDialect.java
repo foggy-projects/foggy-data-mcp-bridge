@@ -255,6 +255,41 @@ public class PostgresDialect extends FDialect {
         return "NOW()";
     }
 
+    /**
+     * PostgreSQL: {@code (a::date - b::date)} · 日期做差得整数天数
+     */
+    @Override
+    public String buildDateDiffExpression(String a, String b) {
+        return "(" + a + "::date - " + b + "::date)";
+    }
+
+    /**
+     * PostgreSQL: {@code (d + make_interval(days => ?))} · 使用 named arg + 参数绑定
+     * (B-4 安全决策：走 ? 绑定避免数字字面量拼接的 SQL 注入风险)
+     */
+    @Override
+    public String buildDateAddExpression(String d, String nParamPlaceholder, String unit) {
+        String namedArg = toPgMakeIntervalNamedArg(unit);
+        return "(" + d + " + make_interval(" + namedArg + " => " + nParamPlaceholder + "))";
+    }
+
+    private static String toPgMakeIntervalNamedArg(String unit) {
+        if (unit == null) {
+            throw new IllegalArgumentException("date_add unit must not be null");
+        }
+        switch (unit.toLowerCase()) {
+            case "day":
+                return "days";
+            case "month":
+                return "months";
+            case "year":
+                return "years";
+            default:
+                throw new IllegalArgumentException(
+                        "date_add unit must be one of {day, month, year}, got: " + unit);
+        }
+    }
+
     @Override
     public String mapColumnType(String abstractType) {
         if (abstractType == null) return null;

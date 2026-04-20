@@ -3,6 +3,7 @@ package com.foggyframework.dataset.db.model.proxy;
 import com.foggyframework.fsscript.exp.PropertyFunction;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.PropertyHolder;
+import com.foggyframework.dataset.db.model.spi.QueryModel;
 import jakarta.persistence.criteria.JoinType;
 import lombok.Getter;
 
@@ -163,11 +164,15 @@ public class JoinBuilder implements PropertyFunction {
      * @return ON 子句 SQL
      */
     public String buildOnClause() {
+        return buildOnClause(null);
+    }
+
+    public String buildOnClause(QueryModel queryModel) {
         if (conditions.isEmpty()) {
             return "";
         }
         return conditions.stream()
-                .map(JoinCondition::toSqlFragment)
+                .map(condition -> condition.toSqlFragment(queryModel))
                 .collect(Collectors.joining(" AND "));
     }
 

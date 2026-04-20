@@ -77,6 +77,8 @@ public class FrontendMeta {
         private String dictId;
         /** 字典模式：static / remote */
         private String dictMode;
+        /** 字典选项列表（static 模式下直接内联，前端无需额外加载） */
+        private List<DictItemMeta> dictItems;
         /** 是否计算字段 */
         private Boolean calculated;
         /** 是否层级维度 */
@@ -102,6 +104,14 @@ public class FrontendMeta {
         private Boolean searchable;
         private Boolean pageable;
         private Integer defaultLimit;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class DictItemMeta {
+        private Object value;
+        private String label;
     }
 
     @Data
