@@ -190,6 +190,13 @@ public final class AllowedFunctions {
         other.add("CASE");
         other.add("CAST");
         other.add("CONVERT");
+        // v1.4 Step 3.2 · Spec v1 MUST formula 函数（ANSI lowering / 方言路由）
+        other.add("IS_NULL");        // is_null(x) → (x IS NULL)
+        other.add("IS_NOT_NULL");    // is_not_null(x) → (x IS NOT NULL)
+        other.add("BETWEEN");        // between(v, lo, hi) → (v BETWEEN lo AND hi)
+        other.add("DATE_DIFF");      // date_diff(a, b) · 方言路由，见 Step 3.4
+        // 注：DATE_ADD 已在 DATE_FUNCTIONS 白名单中，date_add(d, n, unit) 方言路由见 Step 3.4
+        // 注：运算符 in / not in 由引擎原生识别，不走函数白名单
         OTHER_FUNCTIONS = Collections.unmodifiableSet(other);
 
         // 合并所有允许的函数（包含聚合函数）

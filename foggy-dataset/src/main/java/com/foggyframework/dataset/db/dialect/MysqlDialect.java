@@ -197,6 +197,40 @@ public  class MysqlDialect extends FDialect {
     }
 
     /**
+     * MySQL: {@code DATEDIFF(a, b)} · 参数顺序同 formula 语义（a 被减数在前）
+     */
+    @Override
+    public String buildDateDiffExpression(String a, String b) {
+        return "DATEDIFF(" + a + ", " + b + ")";
+    }
+
+    /**
+     * MySQL: {@code DATE_ADD(d, INTERVAL ? DAY|MONTH|YEAR)}
+     */
+    @Override
+    public String buildDateAddExpression(String d, String nParamPlaceholder, String unit) {
+        String mysqlUnit = toMysqlIntervalUnit(unit);
+        return "DATE_ADD(" + d + ", INTERVAL " + nParamPlaceholder + " " + mysqlUnit + ")";
+    }
+
+    private static String toMysqlIntervalUnit(String unit) {
+        if (unit == null) {
+            throw new IllegalArgumentException("date_add unit must not be null");
+        }
+        switch (unit.toLowerCase()) {
+            case "day":
+                return "DAY";
+            case "month":
+                return "MONTH";
+            case "year":
+                return "YEAR";
+            default:
+                throw new IllegalArgumentException(
+                        "date_add unit must be one of {day, month, year}, got: " + unit);
+        }
+    }
+
+    /**
      * MySQL 5.7 不支持 CTE；保守默认 false。
      * <p>CteComposer 会自动回退为子查询（FROM subquery）方案。</p>
      */

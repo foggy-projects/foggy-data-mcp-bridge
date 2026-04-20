@@ -75,6 +75,44 @@ public class SqlFunctionExp extends AbstractExp<String> {
             return SqlFragment.customFunction(caseSql, "IF", argFragments);
         }
 
+        // v1.4 Step 3.4 · Spec v1 方言分派函数 · 路由到 DialectAwareFunctionExp
+        // B-5 核实结论 B：date_diff / date_add / now 走 ctx.getDialect() 分派
+        if ("DATE_DIFF".equals(upper)) {
+            return DialectAwareFunctionExp.renderDateDiff(ctx, argFragments);
+        }
+        if ("DATE_ADD".equals(upper)) {
+            return DialectAwareFunctionExp.renderDateAdd(ctx, argFragments);
+        }
+        if ("NOW".equals(upper)) {
+            return DialectAwareFunctionExp.renderNow(ctx, argFragments);
+        }
+
+        // v1.4 Step 3.2 · Spec v1 MUST 函数（ANSI 方言无关 lowering）
+        // R-2 括号规则：二元/一元运算外包一层括号，便于嵌套组合
+        if ("IS_NULL".equals(upper)) {
+            if (argFragments.size() != 1) {
+                throw new IllegalArgumentException("is_null function requires exactly 1 argument, got " + argFragments.size());
+            }
+            String sql = "(" + argFragments.get(0).getSql() + " IS NULL)";
+            return SqlFragment.customFunction(sql, "IS_NULL", argFragments);
+        }
+        if ("IS_NOT_NULL".equals(upper)) {
+            if (argFragments.size() != 1) {
+                throw new IllegalArgumentException("is_not_null function requires exactly 1 argument, got " + argFragments.size());
+            }
+            String sql = "(" + argFragments.get(0).getSql() + " IS NOT NULL)";
+            return SqlFragment.customFunction(sql, "IS_NOT_NULL", argFragments);
+        }
+        if ("BETWEEN".equals(upper)) {
+            if (argFragments.size() != 3) {
+                throw new IllegalArgumentException("between function requires exactly 3 arguments (value, lo, hi), got " + argFragments.size());
+            }
+            String sql = "(" + argFragments.get(0).getSql()
+                    + " BETWEEN " + argFragments.get(1).getSql()
+                    + " AND " + argFragments.get(2).getSql() + ")";
+            return SqlFragment.customFunction(sql, "BETWEEN", argFragments);
+        }
+
         // COUNT(DISTINCT) 特殊处理
         if ("COUNTD".equals(upper) || "COUNT_DISTINCT".equals(upper)) {
             String argsStr = argFragments.stream().map(SqlFragment::getSql).collect(Collectors.joining(", "));
