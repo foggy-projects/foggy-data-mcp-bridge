@@ -776,12 +776,12 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             // 1. $id 字段
             dimensionFieldNames.add(idFieldName);
             Map<String, Object> idFieldInfo = createDimensionIdFieldInfo(dimension, queryModel.getName());
-            fields.put(idFieldName, idFieldInfo);
+            mergeFieldInfo(fields, idFieldName, idFieldInfo);
 
             // 2. $caption 字段
             dimensionFieldNames.add(captionFieldName);
             Map<String, Object> captionFieldInfo = createDimensionCaptionFieldInfo(dimension, queryModel.getName());
-            fields.put(captionFieldName, captionFieldInfo);
+            mergeFieldInfo(fields, captionFieldName, captionFieldInfo);
 
             // 3. 处理维度属性（仅包含QM暴露的属性）
             for (DbProperty prop : ((DbDimensionSupport) dimension).getJdbcProperties()) {
@@ -802,7 +802,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                 String propFieldName = queryColumn.getName();
                 dimensionFieldNames.add(propFieldName);
                 Map<String, Object> propFieldInfo = createDimensionPropertyFieldInfo(dimension, prop, queryModel.getName(), propFieldName);
-                fields.put(propFieldName, propFieldInfo);
+                mergeFieldInfo(fields, propFieldName, propFieldInfo);
             }
         }
 
@@ -830,7 +830,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             }
 
             Map<String, Object> fieldInfo = createPropertyFieldInfo(property, queryModel.getName());
-            fields.put(fieldName, fieldInfo);
+            mergeFieldInfo(fields, fieldName, fieldInfo);
         }
 
         // 处理度量
@@ -850,7 +850,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             }
 
             Map<String, Object> fieldInfo = createMeasureFieldInfo(measure, queryModel.getName());
-            fields.put(fieldName, fieldInfo);
+            mergeFieldInfo(fields, fieldName, fieldInfo);
         }
 
         // 处理 QM 预定义计算字段
@@ -868,7 +868,48 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             }
 
             Map<String, Object> fieldInfo = createCalculatedFieldInfo(calc, queryModel.getName());
-            fields.put(fieldName, fieldInfo);
+            mergeFieldInfo(fields, fieldName, fieldInfo);
+        }
+    }
+
+    /**
+     * v1.6 F-3 fix (upstream sync of Python
+     * {@code foggy.dataset_model.semantic.service._resolve_effective_visible}):
+     * when two QMs share a QM field name (e.g. {@code customer$id} appearing
+     * in both {@code FactOrderQueryModel} and {@code FactSalesQueryModel}),
+     * the original {@code fields.put(key, freshInfo)} path overwrote the
+     * first model's entry entirely because every {@code createXxxFieldInfo}
+     * builds a fresh single-entry {@code "models"} map. The aggregate
+     * metadata ended up carrying only the last-processed model, violating
+     * the v1.3 contract that {@code fields[x]["models"]} is the multi-model
+     * attribution surface.
+     *
+     * <p>This helper preserves first-write semantics for top-level metadata
+     * (type, filterable, etc. — assumed consistent across models that
+     * share a QM field name) while merging the inner {@code "models"}
+     * sub-map. Subsequent models contribute only their per-model
+     * description/usage under their own model-name key.</p>
+     *
+     * <p>Mirror of Python per-model logic in
+     * {@code SemanticQueryService.get_metadata_v3} (v1.6 F-3 fix).</p>
+     *
+     * @param fields    the shared aggregate fields map (mutable)
+     * @param key       QM field name (e.g. {@code "customer$id"})
+     * @param freshInfo field info built for the current model; its
+     *                  {@code models} sub-map has exactly one key
+     */
+    @SuppressWarnings("unchecked")
+    private void mergeFieldInfo(Map<String, Object> fields, String key,
+                                Map<String, Object> freshInfo) {
+        Map<String, Object> existing = (Map<String, Object>) fields.get(key);
+        if (existing == null) {
+            fields.put(key, freshInfo);
+            return;
+        }
+        Map<String, Object> existingModels = (Map<String, Object>) existing.get("models");
+        Map<String, Object> freshModels = (Map<String, Object>) freshInfo.get("models");
+        if (existingModels != null && freshModels != null) {
+            existingModels.putAll(freshModels);
         }
     }
 
