@@ -1,0 +1,61 @@
+{
+  "schema_version": "1",
+  "spec_version": "v1-r5",
+  "description": "Formula Spec v1 parity catalog — shared by Java FormulaParitySnapshotTest and Python test_formula_parity. See docs/v1.4/formula-spec-v1/parity.md §2 for the canonical-form rules. Each entry's expected_sql is Python's native output (with `?` placeholders). The Java side produces SQL with inline literals; SqlNormalizer.toCanonical(...) on both sides converges to the same canonical form.",
+  "expressions": [
+    {"id": "ari-01", "expression": "a + b", "dialect": "mysql", "kind": "positive", "expected_sql": "(a + b)", "expected_params": []},
+    {"id": "ari-02", "expression": "(a - b) * 100", "dialect": "mysql", "kind": "positive", "expected_sql": "((a - b) * ?)", "expected_params": [100]},
+    {"id": "ari-03", "expression": "(amountTotal - amountResidual) / amountTotal * 100", "dialect": "mysql", "kind": "positive", "expected_sql": "(((amountTotal - amountResidual) / amountTotal) * ?)", "expected_params": [100]},
+    {"id": "ari-04", "expression": "-a", "dialect": "mysql", "kind": "positive", "expected_sql": "(-a)", "expected_params": []},
+    {"id": "ari-05", "expression": "a % 10", "dialect": "mysql", "kind": "positive", "expected_sql": "(a % ?)", "expected_params": [10]},
+
+    {"id": "cmp-01", "expression": "a == 10", "dialect": "mysql", "kind": "positive", "expected_sql": "(a = ?)", "expected_params": [10]},
+    {"id": "cmp-02", "expression": "a != 0", "dialect": "mysql", "kind": "positive", "expected_sql": "(a <> ?)", "expected_params": [0]},
+    {"id": "cmp-03", "expression": "a >= 100", "dialect": "mysql", "kind": "positive", "expected_sql": "(a >= ?)", "expected_params": [100]},
+    {"id": "cmp-04", "expression": "a < b", "dialect": "mysql", "kind": "positive", "expected_sql": "(a < b)", "expected_params": []},
+
+    {"id": "bool-01", "expression": "(a > 0) && (b < 100)", "dialect": "mysql", "kind": "positive", "expected_sql": "((a > ?) AND (b < ?))", "expected_params": [0, 100]},
+    {"id": "bool-02", "expression": "(a == 0) || (b > 0)", "dialect": "mysql", "kind": "positive", "expected_sql": "((a = ?) OR (b > ?))", "expected_params": [0, 0]},
+    {"id": "bool-03", "expression": "!(a == 0)", "dialect": "mysql", "kind": "positive", "expected_sql": "NOT ((a = ?))", "expected_params": [0]},
+
+    {"id": "in-01", "expression": "state in ('posted', 'paid')", "dialect": "mysql", "kind": "positive", "expected_sql": "(state IN (?, ?))", "expected_params": ["posted", "paid"]},
+    {"id": "in-02", "expression": "companyId in (1, 2, 3)", "dialect": "mysql", "kind": "positive", "expected_sql": "(companyId IN (?, ?, ?))", "expected_params": [1, 2, 3]},
+    {"id": "in-03", "expression": "type not in ('draft')", "dialect": "mysql", "kind": "positive", "expected_sql": "(type NOT IN (?))", "expected_params": ["draft"]},
+
+    {"id": "if-01", "expression": "if(a > 0, a, 0)", "dialect": "mysql", "kind": "positive", "expected_sql": "CASE WHEN (a > ?) THEN a ELSE ? END", "expected_params": [0, 0]},
+    {"id": "if-02", "expression": "if(state == 'posted', 1, 0)", "dialect": "mysql", "kind": "positive", "expected_sql": "CASE WHEN (state = ?) THEN ? ELSE ? END", "expected_params": ["posted", 1, 0]},
+    {"id": "if-03", "expression": "if(a > 0, if(b > 0, 1, 2), 3)", "dialect": "mysql", "kind": "positive", "expected_sql": "CASE WHEN (a > ?) THEN CASE WHEN (b > ?) THEN ? ELSE ? END ELSE ? END", "expected_params": [0, 0, 1, 2, 3]},
+    {"id": "if-04", "expression": "if(overdue, amount, null)", "dialect": "mysql", "kind": "positive", "expected_sql": "CASE WHEN (overdue) THEN amount ELSE NULL END", "expected_params": []},
+
+    {"id": "null-01", "expression": "is_null(deletedAt)", "dialect": "mysql", "kind": "positive", "expected_sql": "deletedAt IS NULL", "expected_params": []},
+    {"id": "null-02", "expression": "is_not_null(confirmedAt)", "dialect": "mysql", "kind": "positive", "expected_sql": "confirmedAt IS NOT NULL", "expected_params": []},
+    {"id": "null-03", "expression": "coalesce(a, 0)", "dialect": "mysql", "kind": "positive", "expected_sql": "COALESCE(a, ?)", "expected_params": [0]},
+    {"id": "null-04", "expression": "coalesce(a, b, c, 0)", "dialect": "mysql", "kind": "positive", "expected_sql": "COALESCE(a, b, c, ?)", "expected_params": [0]},
+
+    {"id": "num-01", "expression": "abs(a - b)", "dialect": "mysql", "kind": "positive", "expected_sql": "ABS((a - b))", "expected_params": []},
+    {"id": "num-02", "expression": "round(a / b * 100, 2)", "dialect": "mysql", "kind": "positive", "expected_sql": "ROUND(((a / b) * ?), ?)", "expected_params": [100, 2]},
+    {"id": "num-03", "expression": "ceil(a / b)", "dialect": "mysql", "kind": "positive", "expected_sql": "CEILING((a / b))", "expected_params": []},
+
+    {"id": "bt-01", "expression": "between(age, 18, 65)", "dialect": "mysql", "kind": "positive", "expected_sql": "(age BETWEEN ? AND ?)", "expected_params": [18, 65]},
+
+    {"id": "dt-01-mysql", "expression": "date_diff(now(), dateMaturity)", "dialect": "mysql", "kind": "positive", "expected_sql": "DATEDIFF(NOW(), dateMaturity)", "expected_params": []},
+    {"id": "dt-01-postgres", "expression": "date_diff(now(), dateMaturity)", "dialect": "postgres", "kind": "positive", "expected_sql": "(NOW()::date - dateMaturity::date)", "expected_params": []},
+    {"id": "dt-01-sqlserver", "expression": "date_diff(now(), dateMaturity)", "dialect": "sqlserver", "kind": "positive", "expected_sql": "DATEDIFF(day, dateMaturity, GETDATE())", "expected_params": []},
+    {"id": "dt-01-sqlite", "expression": "date_diff(now(), dateMaturity)", "dialect": "sqlite", "kind": "positive", "expected_sql": "CAST((julianday(datetime('now')) - julianday(dateMaturity)) AS INTEGER)", "expected_params": []},
+    {"id": "dt-02-mysql", "expression": "date_add(today, 30, 'day')", "dialect": "mysql", "kind": "positive", "expected_sql": "DATE_ADD(today, INTERVAL ? DAY)", "expected_params": [30]},
+    {"id": "dt-02-postgres", "expression": "date_add(today, 30, 'day')", "dialect": "postgres", "kind": "positive", "expected_sql": "(today + make_interval(days => ?))", "expected_params": [30]},
+    {"id": "dt-02-sqlserver", "expression": "date_add(today, 30, 'day')", "dialect": "sqlserver", "kind": "positive", "expected_sql": "DATEADD(day, ?, today)", "expected_params": [30]},
+    {"id": "dt-03-now-mysql", "expression": "now()", "dialect": "mysql", "kind": "positive", "expected_sql": "NOW()", "expected_params": []},
+    {"id": "dt-03-now-sqlserver", "expression": "now()", "dialect": "sqlserver", "kind": "positive", "expected_sql": "GETDATE()", "expected_params": []},
+
+    {"id": "agg-01", "expression": "sum(if(status == 'cancelled', amount, 0))", "dialect": "mysql", "kind": "positive", "expected_sql": "SUM(CASE WHEN (status = ?) THEN amount ELSE ? END)", "expected_params": ["cancelled", 0]},
+    {"id": "agg-02", "expression": "count(distinct(buyerId))", "dialect": "mysql", "kind": "positive", "expected_sql": "COUNT(DISTINCT buyerId)", "expected_params": [], "java_skip": true, "java_skip_reason": "Java today expects COUNTD(x)/COUNT_DISTINCT(x); count(distinct(...)) pseudo-function form is Python-only (Spec v1 §4.2). Tracking gap for REQ-FORMULA-EXTEND v1.5."},
+    {"id": "agg-03", "expression": "count(if(amount > 1000, 1, null))", "dialect": "mysql", "kind": "positive", "expected_sql": "COUNT(CASE WHEN (amount > ?) THEN ? ELSE NULL END)", "expected_params": [1000, 1]},
+    {"id": "agg-04", "expression": "avg(if(discountAmount > 0, discountAmount, null))", "dialect": "mysql", "kind": "positive", "expected_sql": "AVG(CASE WHEN (discountAmount > ?) THEN discountAmount ELSE NULL END)", "expected_params": [0]},
+    {"id": "agg-05", "expression": "count(distinct(if(overdue == true, partnerId, null)))", "dialect": "mysql", "kind": "positive", "expected_sql": "COUNT(DISTINCT CASE WHEN (overdue = ?) THEN partnerId END)", "expected_params": [true], "java_skip": true, "java_skip_reason": "Java today expects COUNTD(x)/COUNT_DISTINCT(x); count(distinct(...)) pseudo-function form is Python-only (Spec v1 §4.2). Tracking gap for REQ-FORMULA-EXTEND v1.5."},
+
+    {"id": "ar-01-outstanding", "expression": "sum(if(move$moveType == 'out_invoice' && move$state == 'posted' && move$paymentState in ('not_paid', 'partial', 'in_payment'), amountResidual, 0))", "dialect": "mysql", "kind": "positive", "expected_sql": "SUM(CASE WHEN ((((move$moveType = ?) AND (move$state = ?)) AND (move$paymentState IN (?, ?, ?)))) THEN amountResidual ELSE ? END)", "expected_params": ["out_invoice", "posted", "not_paid", "partial", "in_payment", 0], "note": "REQ-003 B1a L1b #1 — arOutstandingAmount measure in OdooAccountMoveLineQueryModel.qm"},
+    {"id": "ar-02-overdue-amount", "expression": "sum(if(move$moveType == 'out_invoice' && move$state == 'posted' && move$paymentState in ('not_paid', 'partial', 'in_payment') && dateMaturity < now(), amountResidual, 0))", "dialect": "mysql", "kind": "positive", "expected_sql": "SUM(CASE WHEN (((((move$moveType = ?) AND (move$state = ?)) AND (move$paymentState IN (?, ?, ?))) AND (dateMaturity < NOW()))) THEN amountResidual ELSE ? END)", "expected_params": ["out_invoice", "posted", "not_paid", "partial", "in_payment", 0], "note": "REQ-003 B1a L1b #2 — arOverdueAmount measure"},
+    {"id": "ar-03-overdue-customer-count", "expression": "count(distinct(if(move$moveType == 'out_invoice' && move$state == 'posted' && move$paymentState in ('not_paid', 'partial', 'in_payment') && dateMaturity < now(), partner$id, null)))", "dialect": "mysql", "kind": "positive", "expected_sql": "COUNT(DISTINCT CASE WHEN (((((move$moveType = ?) AND (move$state = ?)) AND (move$paymentState IN (?, ?, ?))) AND (dateMaturity < NOW()))) THEN partner$id END)", "expected_params": ["out_invoice", "posted", "not_paid", "partial", "in_payment"], "java_skip": true, "java_skip_reason": "Uses count(distinct(if(.., null))) pseudo-function form — Java today expects COUNTD(x)/COUNT_DISTINCT(x) (see agg-02/agg-05). REQ-003 B1a Step 6 Java parity tracked as non-blocking; Python + Odoo Pro embedded side MUST match this normalization.", "note": "REQ-003 B1a L1b #3 — arOverdueCustomerCount measure (R-01 distinct-count form)"}
+  ]
+}
