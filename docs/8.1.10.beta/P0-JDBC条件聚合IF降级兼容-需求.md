@@ -1,5 +1,12 @@
 # P0 - JDBC 条件聚合 IF 降级兼容
 
+> **状态：superseded**（2026-04-19）
+> **继承方案**：`D:/foggy-projects/foggy-data-mcp/docs/v1.4/REQ-FORMULA-EXTEND-non-aggregation-functions-需求.md`
+> **关闭原因**：REQ-FORMULA-EXTEND 在 v1.4 做 formula 引擎双端（Java/Python）对齐，本 REQ 的 `IF → CASE WHEN` lowering 是其 Java 子任务。本 REQ Java 侧实装已基本完成（progress.md Step 1-5 均标记"已完成"，83 tests pass），**仅剩多方言（MySQL/PG/MSSQL）验证**，该验证已吸纳到 REQ-FORMULA-EXTEND 的验收范围。
+> **保留该文档**：作为历史上下文和 Java 侧实施细节的技术档案，不删除。后续讨论与进度跟踪统一在 REQ-FORMULA-EXTEND。
+
+---
+
 ## 文档作用
 
 - doc_type: `requirement`
@@ -165,3 +172,25 @@ SUM(CASE WHEN stage_caption = 'Won' AND state = 'sale' THEN amount_total ELSE 0 
 - 开发进度：`待开始`
 - 测试进度：`待开始`
 - 体验进度：`N/A`
+
+---
+
+## 最终签收跳转（2026-04-20）
+
+本文档已于 2026-04-19 标记 `superseded`，所有工作项并入 `REQ-FORMULA-EXTEND-non-aggregation-functions` (v1.4)。
+
+**上游 REQ 已签收**（`accepted-with-risks`，2026-04-20）：
+
+- 最终签收记录：`D:/foggy-projects/foggy-data-mcp/docs/v1.4/acceptance/REQ-FORMULA-EXTEND-non-aggregation-functions-acceptance.md`
+- 覆盖审计：`D:/foggy-projects/foggy-data-mcp/docs/v1.4/coverage/REQ-FORMULA-EXTEND-non-aggregation-functions-coverage-audit.md`
+- Spec v1 实装对照表：`D:/foggy-projects/foggy-data-mcp/docs/v1.4/formula-spec-v1/parity.md §11`
+- Java 质量闸门报告：`D:/foggy-projects/foggy-data-mcp/docs/v1.4/REQ-FORMULA-EXTEND-java-quality-gate-report.md` (`conditional-passed`)
+
+本文档（需求）的核心能力（`IF → CASE WHEN` lowering + `sum/avg/count(if(...))` 聚合组合）已由上游 REQ 完成并证明：
+
+- Java SQLite 1055 passed / MySQL 147 / PG 147 · MSSQL 单元类全绿（F-M3-3 集成 103+44 blocked 为本机 JDBC 环境问题）
+- Java `DialectAwareFunctionExp` 14 tests × 4 profile
+- 双端 parity 41 positive catalog + 双端安全 20+14 cases
+- Odoo Pro embedded vendored 同步 · fast 510+1 xfailed / demo 27 passed
+
+本文件仅作历史快照保留，后续进度 / 签收状态 / follow-up 跟踪一律以上游 REQ 文档为准。

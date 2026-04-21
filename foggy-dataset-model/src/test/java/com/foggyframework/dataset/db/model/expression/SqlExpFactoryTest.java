@@ -326,4 +326,128 @@ public class SqlExpFactoryTest {
         assertTrue(str.contains("salesAmount"));
         assertTrue(str.contains("discountAmount"));
     }
+
+    // ==========================================
+    // BUG-003 v1.4 — DSL 字符串字面量必须归一化为 SQL 单引号
+    //
+    // 对应 Python 侧 `service.py::_render_expression` 的同路径修复。
+    // 此处 Java 引擎走 `ElExpScanner` + `SqlExpFactory.createString` 路径，
+    // 本身已经正确 (createString 永远输出 `'...'`)，这些用例是防御性锁死，
+    // 防止后续回归。
+    //
+    // 不能通过时的典型生产故障：
+    //   查询被拒绝：column "posted" does not exist
+    //   HINT:  Perhaps you meant to reference the column "rc.po_lead".
+    // ==========================================
+
+    @Test
+    @DisplayName("BUG-003 — DSL 双引号字符串必须输出为 SQL 单引号")
+    void testDoubleQuotedDslStringEmittedAsSqlSingleQuoted() throws Exception {
+        Exp exp = parser.compileEl(null, "\"posted\"");
+        assertInstanceOf(SqlLiteralExp.class, exp);
+        String rendering = exp.toString();
+        assertTrue(rendering.contains("'posted'"),
+                "double-quoted DSL string must be emitted as SQL single-quoted literal; got: " + rendering);
+        assertFalse(rendering.contains("\"posted\""),
+                "SQL literal must not retain PostgreSQL identifier quoting; got: " + rendering);
+    }
+
+    @Test
+    @DisplayName("BUG-003 — DSL 双引号与单引号字面量输出一致")
+    void testDoubleQuotedAndSingleQuotedDslStringsProduceEquivalentSql() throws Exception {
+        Exp dq = parser.compileEl(null, "\"COMPLETED\"");
+        Exp sq = parser.compileEl(null, "'COMPLETED'");
+        assertEquals(dq.toString(), sq.toString(),
+                "DSL 双引号与单引号字面量在 SQL 层应生成完全相同的单引号字面量");
+    }
+
+    @Test
+    @DisplayName("BUG-003 — 比较表达式中的双引号字符串被归一化")
+    void testComparisonWithDoubleQuotedLiteral() throws Exception {
+        Exp exp = parser.compileEl(null, "parentState == \"posted\"");
+        String rendering = exp.toString();
+        assertTrue(rendering.contains("'posted'"),
+                "comparison literal must be SQL single-quoted; got: " + rendering);
+        assertFalse(rendering.contains("\"posted\""),
+                "comparison literal must not use PG identifier quotes; got: " + rendering);
+    }
+
+    @Test
+    @DisplayName("BUG-003 — IIF(cond, ..., ...) 内部的双引号字符串归一化")
+    void testIifWithDoubleQuotedLiteral() throws Exception {
+        // CalculatedFieldService 把用户写的 if(...) 归一化为 IIF(...)
+        Exp exp = parser.compileEl(null, "IIF(parentState == \"posted\", amountResidual, 0)");
+        String rendering = exp.toString();
+        assertTrue(rendering.contains("'posted'"),
+                "IIF literal must be SQL single-quoted; got: " + rendering);
+        assertFalse(rendering.contains("\"posted\""),
+                "IIF literal must not use PG identifier quotes; got: " + rendering);
+    }
+
+    @Test
+    @DisplayName("BUG-003 — 嵌套 IIF 的多双引号字符串归一化")
+    void testNestedIifWithMultipleDoubleQuotedLiterals() throws Exception {
+        Exp exp = parser.compileEl(null,
+                "IIF(a == \"X\", IIF(b == \"Y\", 1, 0), 0)");
+        String rendering = exp.toString();
+        assertTrue(rendering.contains("'X'"));
+        assertTrue(rendering.contains("'Y'"));
+        assertFalse(rendering.contains("\"X\""));
+        assertFalse(rendering.contains("\"Y\""));
+    }
+
+    @Test
+    @DisplayName("BUG-003 — && / || 链中的双引号字符串归一化")
+    void testAndOrChainWithDoubleQuotedLiterals() throws Exception {
+        Exp exp = parser.compileEl(null,
+                "parentState == \"posted\" && moveType == \"out_invoice\"");
+        String rendering = exp.toString();
+        assertTrue(rendering.contains("'posted'"));
+        assertTrue(rendering.contains("'out_invoice'"));
+        assertFalse(rendering.contains("\"posted\""));
+        assertFalse(rendering.contains("\"out_invoice\""));
+    }
+
+    @Test
+    @DisplayName("BUG-003 — 值恰好是物理列形状 (po_lead) 也必须当字符串字面量")
+    void testValueThatLooksLikePhysicalColumnNameStaysAsLiteral() throws Exception {
+        Exp exp = parser.compileEl(null, "\"po_lead\"");
+        String rendering = exp.toString();
+        assertTrue(rendering.contains("'po_lead'"));
+        assertFalse(rendering.contains("\"po_lead\""));
+    }
+
+    @Test
+    @DisplayName("BUG-003 — 用户报告的 Odoo 多条件 sum(if(...)) 形状锁死")
+    void testUserReportedOdooSumIfShapeDoubleQuotesAreNormalized() throws Exception {
+        Exp exp = parser.compileEl(null,
+                "IIF(parentState == \"posted\" && dateMaturity < \"2026-04-19\" && amountResidual > 0 && moveType == \"out_invoice\", amountResidual, 0)");
+        String rendering = exp.toString();
+        assertTrue(rendering.contains("'posted'"));
+        assertTrue(rendering.contains("'2026-04-19'"));
+        assertTrue(rendering.contains("'out_invoice'"));
+        assertFalse(rendering.contains("\"posted\""));
+        assertFalse(rendering.contains("\"2026-04-19\""));
+        assertFalse(rendering.contains("\"out_invoice\""));
+    }
+
+    @Test
+    @DisplayName("BUG-003 — 字符串值含单引号必须 SQL 转义为 ''")
+    void testStringValueWithSingleQuoteIsSqlEscaped() {
+        Exp exp = expFactory.createString("it's");
+        String rendering = exp.toString();
+        assertTrue(rendering.contains("'it''s'"),
+                "single quote inside value must be doubled per SQL standard; got: " + rendering);
+    }
+
+    @Test
+    @DisplayName("BUG-003 — 空字符串字面量")
+    void testEmptyStringLiteral() throws Exception {
+        Exp exp = parser.compileEl(null, "\"\"");
+        String rendering = exp.toString();
+        assertTrue(rendering.contains("''"),
+                "empty DSL string must emit SQL ''; got: " + rendering);
+        assertFalse(rendering.contains("\"\""),
+                "must not emit PG empty identifier; got: " + rendering);
+    }
 }

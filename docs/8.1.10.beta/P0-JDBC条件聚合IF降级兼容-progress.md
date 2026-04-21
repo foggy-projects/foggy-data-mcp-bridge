@@ -1,5 +1,16 @@
 # P0 - JDBC 条件聚合 IF 降级兼容 — Progress
 
+> **状态：superseded**（2026-04-19）
+> **继承方案**：`D:/foggy-projects/foggy-data-mcp/docs/v1.4/REQ-FORMULA-EXTEND-non-aggregation-functions-progress.md`
+> **本文档最终状态快照**：
+> - Step 1-3（lowering + 组合 + 单测）：已完成
+> - Step 4（集成测试）：SQLite 真实查询 ✅ / MySQL / PG / MSSQL **未执行** ← 剩余工作，收口到主 REQ
+> - Step 5（文档回写）：已完成
+> - 自检结论：`needs-formal-quality-gate`，已转主 REQ 统一进质量闸门
+> **后续不再维护本 progress**，后续进度请查看主 REQ progress。
+
+---
+
 ## 文档作用
 
 - doc_type: `progress`
@@ -171,3 +182,29 @@
   - `needs-formal-quality-gate`
 - 是否进入正式 `foggy-implementation-quality-gate`：
   - `建议进入`
+
+---
+
+## 最终签收跳转（2026-04-20）
+
+本 progress 已于 2026-04-19 标记 `superseded`，所有进度跟踪统一切换到 `REQ-FORMULA-EXTEND-non-aggregation-functions` (v1.4) 主 progress。
+
+**上游 REQ 已签收**（`accepted-with-risks`，2026-04-20）：
+
+- 最终签收记录：`D:/foggy-projects/foggy-data-mcp/docs/v1.4/acceptance/REQ-FORMULA-EXTEND-non-aggregation-functions-acceptance.md`
+- 主 progress（`signed-off`）：`D:/foggy-projects/foggy-data-mcp/docs/v1.4/REQ-FORMULA-EXTEND-non-aggregation-functions-progress.md`
+- 覆盖审计：`D:/foggy-projects/foggy-data-mcp/docs/v1.4/coverage/REQ-FORMULA-EXTEND-non-aggregation-functions-coverage-audit.md`（`ready-with-gaps`）
+- Java 质量闸门报告：`D:/foggy-projects/foggy-data-mcp/docs/v1.4/REQ-FORMULA-EXTEND-java-quality-gate-report.md`（G2 `conditional-passed`）
+
+**本文档自检结论 `needs-formal-quality-gate` 的后续处置**：已由上游 M3.5 完成，产出 `REQ-FORMULA-EXTEND-java-quality-gate-report.md`，闸门结论 `conditional-passed`（F-M3-1/2/3 三项条件均非阻断）。
+
+**Step 4（集成测试 · 多方言）最终状态**：
+
+| 方言 | 本 progress 历史快照 | 上游 M3.3 最终 |
+|---|---|---|
+| SQLite | 83 ✅（8.1.10.beta 原状） | **1055 passed**（M5 +16 净增） |
+| MySQL 5.7 | 未执行 | **147 passed**（M3.3 Docker profile） |
+| PostgreSQL 15 | 未执行 | **147 passed** |
+| SQL Server 2022 | 未执行 | **103 passed + 44 JDBC blocked**（F-M3-3 本机环境阻塞，方言代码由单元测试证明） |
+
+本文件仅作历史进度快照保留，不再维护。

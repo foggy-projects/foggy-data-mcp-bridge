@@ -1,5 +1,11 @@
 # P0 - JDBC 条件聚合 IF 降级兼容 — Implementation Plan
 
+> **状态：superseded**（2026-04-19）
+> **继承方案**：`D:/foggy-projects/foggy-data-mcp/docs/v1.4/REQ-FORMULA-EXTEND-non-aggregation-functions-implementation-plan.md`
+> **说明**：本计划对应的 Step 1-5 Java 实施已基本完成，详见本目录 progress.md。剩余多方言验证与 Python parity 收口到 REQ-FORMULA-EXTEND 主计划。
+
+---
+
 ## 文档作用
 
 - doc_type: `implementation-plan`
@@ -200,3 +206,30 @@
 | 4. 集成测试 | 0.5d | SQLite 基线 + 可选多方言 |
 | 5. 文档回写 | 0.25d | docs-site 与版本文档 |
 | **合计** | **2.0d** | 不含后续 planner/prompt 联动 |
+
+---
+
+## 最终签收跳转（2026-04-20）
+
+本计划已于 2026-04-19 标记 `superseded`，所有 Step（1-5）已并入 `REQ-FORMULA-EXTEND-non-aggregation-functions` (v1.4) 的 M3（Java 多方言 + dialect-aware lowering + 白名单 + quality gate）。
+
+**上游 REQ 已签收**（`accepted-with-risks`，2026-04-20）：
+
+- 最终签收记录：`D:/foggy-projects/foggy-data-mcp/docs/v1.4/acceptance/REQ-FORMULA-EXTEND-non-aggregation-functions-acceptance.md`
+- Java 质量闸门报告（本计划剩余 Step 4 多方言 + Step 5 文档回写）：`D:/foggy-projects/foggy-data-mcp/docs/v1.4/REQ-FORMULA-EXTEND-java-quality-gate-report.md`（G2 `conditional-passed`）
+- Java 侧主计划（本计划的最终落盘形态 + 新增 dialect-aware 设计）：`D:/foggy-projects/foggy-data-mcp/docs/v1.4/REQ-FORMULA-EXTEND-java-M3-execution-prompt.md`
+
+**工期对照**（本计划预估 2.0d → 实际执行）：
+
+| Step | 本计划预估 | 上游 M3 实际 |
+|---|---|---|
+| 1. `IF(...)` lowering | 0.5d | ✅ 8.1.10.beta 原地完成（进入上游前已基本闭环） |
+| 2. 聚合组合验证 | 0.25d | ✅ 同上 |
+| 3. 单元测试 | 0.5d | ✅ 同上 |
+| 4. 集成测试（多方言） | 0.5d | ✅ 升级为 0.3d（上游 M3.3 · MySQL/PG/SQLite 全绿；MSSQL JDBC 本机环境 blocked F-M3-3） |
+| 5. 文档回写 | 0.25d | ✅ 升级为 0.1d（M6.4b 统一跳转） |
+| **新增（上游 M3.4）** | — | **`DialectAwareFunctionExp` utility + `FDialect` 补 abstract + 四方言 override · 0.6d 实际** |
+| **新增（上游 M3.5）** | — | **`foggy-implementation-quality-gate` 正式进闸 · 0.1d 实际** |
+| **合计实际** | — | **≈ 1.5d**（上游 M3 预估 2.25d；实际节省因文档假设偏差 + 代码重用）|
+
+本文件仅作历史实施计划快照保留。
