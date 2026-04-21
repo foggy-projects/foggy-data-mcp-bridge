@@ -127,9 +127,18 @@ public class DataSetResult implements PropertyFunction {
                 requireArgs(methodName, args, 2);
                 yield compute((String) args[0], (String) args[1]);
             }
+            case "joinInMemory" -> {
+                // joinInMemory(rightDs, joinType, joinKey) or joinInMemory(rightDs, joinType, leftKey, rightKey)
+                requireArgs(methodName, args, 3);
+                if (args.length >= 4) {
+                    yield joinInMemory((DataSetResult) args[0], (String) args[1],
+                            (String) args[2], (String) args[3]);
+                }
+                yield joinInMemory((DataSetResult) args[0], (String) args[1], (String) args[2]);
+            }
             default -> throw new IllegalArgumentException(
                     "DataSetResult has no method '" + methodName + "'. " +
-                    "Available: column, toList, first, size, isEmpty, value, withJoin, filter, sort, compute");
+                    "Available: column, toList, first, size, isEmpty, value, withJoin, joinInMemory, filter, sort, compute");
         };
     }
 
@@ -364,6 +373,122 @@ public class DataSetResult implements PropertyFunction {
         }
 
         return new DataSetResult(computed, null);
+    }
+
+    // ---- 内存 JOIN（跨库合并查询）----
+
+    /**
+     * 内存 Hash JOIN -- 将两个已执行的 DataSetResult 在 Java 内存中合并
+     *
+     * <p>适用于跨库场景：左右两个 QM 来自不同 DataSource，无法使用 CTE 拼接。
+     * 两侧各自独立执行后，在内存中按 joinKey 做 Hash JOIN。</p>
+     *
+     * <p>算法参考 {@code ResultSetQueryImpl.LeftJoin}：
+     * 对右表建 HashMap 索引（O(m)），遍历左表逐行探测（O(n)），
+     * 支持 1:N 多行匹配自动展开。</p>
+     *
+     * <pre>{@code
+     * // fsscript 中的用法（跨库）
+     * const orders = dsl({ model: 'SaleOrderQM', columns: ['partner$id', 'amountTotal'] });
+     * const employees = dsl({ model: 'HrEmployeeQM', columns: ['partner$id', 'name'] });
+     * return orders.joinInMemory(employees, 'LEFT', 'partner$id');
+     * }</pre>
+     *
+     * <p>与 {@link #withJoin} 的区别：
+     * <ul>
+     *   <li>{@code withJoin} — SQL 层 CTE 组合，要求同库同 DataSource</li>
+     *   <li>{@code joinInMemory} — Java 内存 Hash JOIN，支持跨库，但受 JVM 内存限制</li>
+     * </ul>
+     *
+     * @param right    右侧数据集
+     * @param joinType JOIN 类型：{@code "LEFT"}（保留左侧全部行）或 {@code "INNER"}（仅匹配行）
+     * @param joinKey  JOIN 键名（左右两侧使用相同字段名）
+     * @return 新的 DataSetResult（合并后的行，列为两侧列的并集）
+     */
+    public DataSetResult joinInMemory(DataSetResult right, String joinType, String joinKey) {
+        return joinInMemory(right, joinType, joinKey, joinKey);
+    }
+
+    /**
+     * 内存 Hash JOIN（支持左右不同 joinKey 名称）
+     *
+     * @param right    右侧数据集
+     * @param joinType JOIN 类型（LEFT, INNER）
+     * @param leftKey  左侧 JOIN 键名
+     * @param rightKey 右侧 JOIN 键名
+     * @return 新的 DataSetResult（合并后的行）
+     */
+    public DataSetResult joinInMemory(DataSetResult right, String joinType,
+                                       String leftKey, String rightKey) {
+        if (joinType == null || joinType.isBlank()) {
+            throw new IllegalArgumentException("joinInMemory() requires a non-empty joinType");
+        }
+        if (leftKey == null || leftKey.isBlank()) {
+            throw new IllegalArgumentException("joinInMemory() requires a non-empty leftKey");
+        }
+        if (rightKey == null || rightKey.isBlank()) {
+            throw new IllegalArgumentException("joinInMemory() requires a non-empty rightKey");
+        }
+
+        String jt = joinType.trim().toUpperCase();
+        if (!"LEFT".equals(jt) && !"INNER".equals(jt)) {
+            throw new IllegalArgumentException("joinInMemory() joinType must be LEFT or INNER, got: " + joinType);
+        }
+
+        boolean isLeft = "LEFT".equals(jt);
+
+        // 空集快速路径
+        if (this.items.isEmpty()) {
+            return new DataSetResult(Collections.emptyList(), null);
+        }
+        if (right.items.isEmpty()) {
+            if (isLeft) {
+                // LEFT JOIN：左表全保留，右侧列为 null
+                List<Map<String, Object>> result = new ArrayList<>(items.size());
+                for (Map<String, Object> leftRow : items) {
+                    result.add(new LinkedHashMap<>(leftRow));
+                }
+                return new DataSetResult(result, null);
+            } else {
+                // INNER JOIN：右表空则无匹配
+                return new DataSetResult(Collections.emptyList(), null);
+            }
+        }
+
+        // 1. 对右表建 Hash 索引（O(m)），支持 1:N
+        Map<Object, List<Map<String, Object>>> rightIndex = new LinkedHashMap<>();
+        for (Map<String, Object> rightRow : right.items) {
+            Object key = rightRow.get(rightKey);
+            if (key != null) {
+                rightIndex.computeIfAbsent(key, k -> new ArrayList<>()).add(rightRow);
+            }
+        }
+
+        // 2. 遍历左表，逐行探测（O(n)）
+        List<Map<String, Object>> result = new ArrayList<>();
+
+        for (Map<String, Object> leftRow : items) {
+            Object key = leftRow.get(leftKey);
+            List<Map<String, Object>> matches = (key != null) ? rightIndex.get(key) : null;
+
+            if (matches != null && !matches.isEmpty()) {
+                // 匹配：1:N 展开
+                for (Map<String, Object> rightRow : matches) {
+                    Map<String, Object> merged = new LinkedHashMap<>(leftRow);
+                    for (Map.Entry<String, Object> entry : rightRow.entrySet()) {
+                        // 右侧列合并，同名列右侧不覆盖左侧（左表优先）
+                        merged.putIfAbsent(entry.getKey(), entry.getValue());
+                    }
+                    result.add(merged);
+                }
+            } else if (isLeft) {
+                // LEFT JOIN：无匹配行，保留左侧
+                result.add(new LinkedHashMap<>(leftRow));
+            }
+            // INNER JOIN：无匹配行，丢弃
+        }
+
+        return new DataSetResult(result, null);
     }
 
     // ---- 内部辅助方法 ----

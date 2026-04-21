@@ -151,7 +151,7 @@ For new projects, add to `pom.xml`:
     <dependency>
         <groupId>com.foggysource</groupId>
         <artifactId>foggy-dataset-mcp</artifactId>
-c        <version>8.1.10.beta</version>
+        <version>8.1.10.beta</version>
     </dependency>
 
     <!-- Database Driver (choose based on your needs) -->

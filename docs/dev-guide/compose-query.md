@@ -1,0 +1,202 @@
+# Compose Query — 多查询编排引擎
+
+> 功能名称：**Compose Query**
+> 包路径：`foggy-dataset-model/.../engine/compose/`
+> MCP 工具：`dataset.compose_query`
+> 分支：`dev-compose`
+> 最后更新：2026-03-25
+
+## 一、功能定位
+
+Compose Query 解决的核心问题：**单个 QM 查询无法满足的多步分析场景**。
+
+传统 QM 查询是"单模型 → 单 SQL → 单结果"。Compose Query 通过 fsscript 脚本编排多个 `dsl()` 查询，支持：
+
+- **ID 下推**：A 查询的结果作为 B 查询的过滤条件
+- **CTE 组合**（同库）：多个 QM 的 SQL 拼接为 CTE，在数据库层 JOIN
+- **内存 JOIN**（跨库）：各自执行后在 Java 内存中 Hash JOIN
+- **二次计算**：对结果集做内存 filter / sort / compute
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                   fsscript 沙箱                          │
+│                                                         │
+│   dsl({model: 'A', ...})  ──→  DataSetResult            │
+│   dsl({model: 'B', ...})  ──→  DataSetResult            │
+│                                                         │
+│   ┌─ 同库 ─→ .withJoin()  ──→ CTE/子查询 ──→ DB 执行   │
+│   │                                                     │
+│   ├─ 跨库 ─→ .joinInMemory() ──→ Hash JOIN ──→ 内存合并 │
+│   │                                                     │
+│   └─ 链式 ─→ .filter().sort().compute() ──→ 内存变换    │
+│                                                         │
+│   return result                                         │
+└─────────────────────────────────────────────────────────┘
+```
+
+## 二、架构分层
+
+```
+MCP 层（foggy-dataset-mcp）
+  └─ ComposeQueryTool        ← MCP 工具入口，接收 fsscript 脚本
+       └─ DslQueryFunction   ← fsscript 内置函数 dsl()
+            └─ SemanticQueryServiceV3.queryModel()    ← 执行查询
+            └─ SemanticQueryServiceV3.generateSql()   ← 仅生成 SQL（CTE 用）
+
+引擎层（foggy-dataset-model / engine/compose/）
+  ├─ DataSetResult            ← 轻量 DataFrame，查询结果包装
+  │   ├─ .column() / .toList() / .first() / .value()   ← 数据访问
+  │   ├─ .filter() / .sort() / .compute()              ← 内存变换（P3）
+  │   ├─ .withJoin()          ← 创建 CTE 组合（同库，P2）
+  │   └─ .joinInMemory()     ← 内存 Hash JOIN（跨库，P4）
+  │
+  ├─ ComposedDataSetResult    ← withJoin 的延迟执行容器
+  │   └─ .execute()           ← generateSql() → CteComposer → DB 执行
+  │
+  ├─ CteComposer              ← 纯 SQL 拼接（WITH ... AS / 子查询回退）
+  ├─ CteUnit                  ← 一个 CTE 子句（alias, sql, params）
+  ├─ JoinSpec                 ← JOIN 描述（type, leftKey, rightKey）
+  ├─ ComposedSql              ← 拼接后的最终 SQL + 合并参数
+  └─ SqlGenerationResult      ← generateSql() 的返回值
+
+方言层（foggy-dataset）
+  ├─ FDialect.supportsCte()   ← 默认 true
+  └─ MysqlDialect             ← MySQL 5.7 返回 false，触发子查询回退
+```
+
+## 三、核心类详解
+
+### 3.1 DataSetResult — 轻量 DataFrame
+
+持有 `List<Map<String, Object>>`，所有方法返回**新实例**（不可变语义）。
+
+| 方法 | 类型 | 说明 |
+|---|---|---|
+| `column(field)` | 数据访问 | 提取单列去重值（ID 下推用） |
+| `toList()` | 数据访问 | 返回不可修改的行列表 |
+| `first()` / `value(field)` | 数据访问 | 首行 / 首行单值 |
+| `size()` / `isEmpty()` | 数据访问 | 行数 / 空判断 |
+| `filter(expr)` | 内存变换 | fsscript 表达式过滤（truthy 语义） |
+| `sort(field)` | 内存变换 | 排序，`-field` 降序 |
+| `compute(name, expr)` | 内存变换 | 添加计算列 |
+| `withJoin(right, type, key)` | SQL 组合 | CTE JOIN（同库，延迟执行） |
+| `joinInMemory(right, type, key)` | 内存合并 | Hash JOIN（跨库，立即执行） |
+| `joinInMemory(right, type, lk, rk)` | 内存合并 | 左右不同 key 名 |
+
+实现 `PropertyFunction` 接口，fsscript 中 `ds.method()` 自动分发。
+
+### 3.2 CteComposer — SQL 拼接器
+
+纯静态工具类，无状态。两种模式：
+
+**CTE 模式**（PostgreSQL、MySQL 8+、SQLite 3.35+、SQL Server）：
+```sql
+WITH cte_0 AS (sql₁), cte_1 AS (sql₂)
+SELECT cte_0.*, cte_1.*
+FROM cte_0 LEFT JOIN cte_1 ON cte_0.key = cte_1.key
+```
+
+**子查询模式**（MySQL 5.7 回退）：
+```sql
+SELECT t0.*, t1.*
+FROM (sql₁) AS t0 LEFT JOIN (sql₂) AS t1 ON t0.key = t1.key
+```
+
+支持二元组合和多表链式 JOIN（N 个 CteUnit + N-1 个 JoinSpec）。
+
+### 3.3 joinInMemory — 内存 Hash JOIN
+
+算法（与 `ResultSetQueryImpl.LeftJoin` 相同策略）：
+
+```
+1. 右表建 HashMap<joinKey, List<Row>>   — O(m)
+2. 遍历左表，逐行探测 HashMap           — O(n)
+3. 匹配 → 合并行（左表列优先 putIfAbsent）
+4. 1:N → 自动展开为多行
+5. 无匹配 → LEFT 保留 / INNER 丢弃
+```
+
+支持 `LEFT` 和 `INNER` 两种 JOIN 类型。
+
+### 3.4 withJoin vs joinInMemory 选择策略
+
+| | `withJoin` | `joinInMemory` |
+|---|---|---|
+| **执行位置** | 数据库（CTE/子查询） | Java 内存 |
+| **跨库** | ❌ 同一 DataSource | ✅ 任意 DataSource |
+| **数据量** | 无限制（DB 处理） | 受 JVM 内存限制 |
+| **选择依据** | 同 `dataSourceGroup` | 不同 `dataSourceGroup` |
+| **执行时机** | 延迟（首次调用方法时） | 立即 |
+
+## 四、实现阶段
+
+| Phase | 状态 | 内容 |
+|---|---|---|
+| **P1 — MVP** | ✅ | `dsl()` 桥接、`DataSetResult` 基础包装、`ComposeQueryTool` MCP 工具 |
+| **P2 — CTE 组合** | ✅ | `generateSql()` 模式、`CteComposer`、`withJoin` 延迟执行、`FDialect.supportsCte()` |
+| **P3 — 二次计算** | ✅ | `filter()` / `sort()` / `compute()` 内存操作 |
+| **P4 — 跨库 JOIN** | ✅ | `joinInMemory()` Hash JOIN，支持 LEFT/INNER，不同 key 名 |
+
+## 五、文件清单
+
+### 新建文件
+
+| 文件 | 模块 | 职责 |
+|---|---|---|
+| `DataSetResult.java` | dataset-model | 轻量 DataFrame + 内存变换 + joinInMemory |
+| `DslQueryFunction.java` | dataset-model | fsscript `dsl()` 内置函数 |
+| `ComposedDataSetResult.java` | dataset-model | withJoin 延迟执行容器 |
+| `CteComposer.java` | dataset-model | CTE / 子查询 SQL 拼接 |
+| `CteUnit.java` | dataset-model | CTE 单元 |
+| `JoinSpec.java` | dataset-model | JOIN 规格 |
+| `ComposedSql.java` | dataset-model | 拼接后的 SQL + 参数 |
+| `SqlGenerationResult.java` | dataset-model | generateSql() 返回值 |
+| `ComposeQueryTool.java` | dataset-mcp | MCP 工具入口 |
+| `compose_query.md` | dataset-mcp | AI 工具说明文档 |
+
+### 修改文件
+
+| 文件 | 改动 |
+|---|---|
+| `SemanticQueryServiceV3.java` | 新增 `generateSql()` 接口 |
+| `SemanticQueryServiceV3Impl.java` | 实现 `generateSql()` |
+| `QueryFacade.java` / `Impl` | 新增 `buildSqlOnly()` |
+| `FDialect.java` | 新增 `supportsCte()` 默认 true |
+| `MysqlDialect.java` | 覆写 `supportsCte()` → false |
+
+### 测试文件
+
+| 文件 | Tests | 覆盖 |
+|---|---|---|
+| `CteComposerTest.java` | 13 | CTE/子查询拼接、多表链式、参数合并、边界 |
+| `DataSetResultTest.java` | 46 | 数据访问、filter/sort/compute、joinInMemory、链式调用、空集边界 |
+
+## 六、测试覆盖
+
+### 已覆盖（59 个纯单元测试，无需数据库）
+
+| 组件 | 测试数 | 关键场景 |
+|---|---|---|
+| CteComposer | 13 | CTE/子查询二元 JOIN、三表链式、参数合并顺序、边界校验 |
+| DataSetResult 基础 | 12 | toList/first/size/isEmpty/value/column 去重与 null 过滤 |
+| filter | 4 | 数值比较、字符串相等、不可变性、空表达式异常 |
+| sort | 6 | 升序/降序、字符串、null 值、不可变性 |
+| compute | 3 | 添加计算列、不可变性、空参数异常 |
+| 链式调用 | 2 | filter→sort→compute、sort→filter→column |
+| joinInMemory | 15 | LEFT/INNER、1:N 展开、N:1 展开、不同 key、左表优先、链式、空集边界 |
+| 空集边界 | 4 | 空结果 filter/sort/compute/null items |
+
+### 待覆盖
+
+| 组件 | 类型 | 优先级 |
+|---|---|---|
+| ComposedDataSetResult | 集成测试（需 DB + QM） | P2 |
+| ComposeQueryTool | MCP 端到端 | P3 |
+| 多方言 CTE/子查询 | PostgreSQL/MySQL 8/5.7 | P3 |
+
+## 七、下一步工作
+
+1. **元数据 dataSourceGroup**：在模型元数据中暴露 dataSource 归属，供 LLM 判断 withJoin 或 joinInMemory
+2. **P2 集成测试**：ComposedDataSetResult 延迟执行全链路
+3. **P3 MCP 端到端验证**：通过 MCP 工具运行 fsscript 编排脚本
+4. **多数据库方言验证**：Docker 环境下 CTE 模式与子查询回退
