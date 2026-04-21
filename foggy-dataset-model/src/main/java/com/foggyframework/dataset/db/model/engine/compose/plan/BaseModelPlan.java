@@ -1,0 +1,121 @@
+package com.foggyframework.dataset.db.model.engine.compose.plan;
+
+import java.util.List;
+import java.util.Objects;
+
+/**
+ * Leaf plan node pointing at a physical QM (query-model).
+ *
+ * <p>Authority binding (M5) resolves per {@code BaseModelPlan} — that is
+ * why the same QM referenced twice in a script materialises as two
+ * distinct {@code BaseModelPlan} values, each with its own authority
+ * lifecycle.</p>
+ *
+ * <p>Cross-repo invariant: field names mirror Python
+ * {@code BaseModelPlan} (only casing: {@code group_by} → {@code groupBy}).</p>
+ *
+ * @since 8.2.0.beta
+ */
+public final class BaseModelPlan extends QueryPlan {
+
+    private final String model;
+    private final List<String> columns;
+    private final List<Object> slice;
+    private final List<String> groupBy;
+    private final List<String> orderBy;
+    private final Integer limit;
+    private final Integer start;
+    private final boolean distinct;
+
+    private BaseModelPlan(Builder b) {
+        if (b.model == null || b.model.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "BaseModelPlan.model must be non-empty");
+        }
+        validateColumns(b.columns, "BaseModelPlan.columns");
+        validateStringList(b.groupBy, "BaseModelPlan.groupBy");
+        validateStringList(b.orderBy, "BaseModelPlan.orderBy");
+        validatePagination(b.limit, b.start, "BaseModelPlan");
+
+        this.model = b.model;
+        this.columns = List.copyOf(b.columns);
+        this.slice = b.slice == null ? List.of() : List.copyOf(b.slice);
+        this.groupBy = b.groupBy == null ? List.of() : List.copyOf(b.groupBy);
+        this.orderBy = b.orderBy == null ? List.of() : List.copyOf(b.orderBy);
+        this.limit = b.limit;
+        this.start = b.start;
+        this.distinct = b.distinct;
+    }
+
+    public String model() { return model; }
+    public List<String> columns() { return columns; }
+    public List<Object> slice() { return slice; }
+    public List<String> groupBy() { return groupBy; }
+    public List<String> orderBy() { return orderBy; }
+    public Integer limit() { return limit; }
+    public Integer start() { return start; }
+    public boolean distinct() { return distinct; }
+
+    @Override
+    List<BaseModelPlan> baseModelPlans() {
+        return List.of(this);
+    }
+
+    public static Builder builder() { return new Builder(); }
+
+    public static final class Builder {
+        private String model;
+        private List<String> columns;
+        private List<Object> slice;
+        private List<String> groupBy;
+        private List<String> orderBy;
+        private Integer limit;
+        private Integer start;
+        private boolean distinct;
+
+        public Builder model(String v) { this.model = v; return this; }
+        public Builder columns(List<String> v) { this.columns = v; return this; }
+        public Builder slice(List<Object> v) { this.slice = v; return this; }
+        public Builder groupBy(List<String> v) { this.groupBy = v; return this; }
+        public Builder orderBy(List<String> v) { this.orderBy = v; return this; }
+        public Builder limit(Integer v) { this.limit = v; return this; }
+        public Builder start(Integer v) { this.start = v; return this; }
+        public Builder distinct(boolean v) { this.distinct = v; return this; }
+
+        public BaseModelPlan build() { return new BaseModelPlan(this); }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof BaseModelPlan)) return false;
+        BaseModelPlan p = (BaseModelPlan) o;
+        return distinct == p.distinct
+                && Objects.equals(model, p.model)
+                && Objects.equals(columns, p.columns)
+                && Objects.equals(slice, p.slice)
+                && Objects.equals(groupBy, p.groupBy)
+                && Objects.equals(orderBy, p.orderBy)
+                && Objects.equals(limit, p.limit)
+                && Objects.equals(start, p.start);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(model, columns, slice, groupBy, orderBy,
+                limit, start, distinct);
+    }
+
+    @Override
+    public String toString() {
+        return "BaseModelPlan{model=" + model
+                + ", columns=" + columns
+                + ", sliceSize=" + slice.size()
+                + ", groupBy=" + groupBy
+                + ", orderBy=" + orderBy
+                + ", limit=" + limit
+                + ", start=" + start
+                + ", distinct=" + distinct
+                + '}';
+    }
+}
