@@ -6,12 +6,16 @@ target_repo: foggy-data-mcp-bridge-python
 target_module: foggy.dataset_model.engine.compose
 req_id: M6-SQLCompilation-Python
 parent_req: P0-ComposeQuery-QueryPlan派生查询与关系复用规范
-status: ready-to-execute
+status: done
 drafted_at: 2026-04-22
 revised_at: 2026-04-22 (r3 — 应用 6+2 评审确认)
+completed_at: 2026-04-22 (Python M6 · python-ready-for-review)
 python_baseline_before: 2709 passed / 1 skipped (M5 baseline)
+python_baseline_after: 2873 passed / 1 skipped / 2 xfailed (M6 · 净增 164 passed + 2 xfail)
 python_new_tests_target: ≥ 82 (6.1 base+derived ~20 / 6.2 union ~12 / 6.3 join ~12 / 6.4 binding injection ~20 / 6.5 dialect fallback ~14 含 derived-chain × 4 方言 / 6.6 plan-hash dedup ~10 含 MAX_PLAN_DEPTH guard)
+python_new_tests_actual: 164 passed + 2 xfailed（目标 82 · 2× 覆盖）
 python_new_source_files_target: ~7 (compilation subpackage)
+python_new_source_files_actual: 7（__init__ / errors / error_codes / plan_hash / per_base / compose_planner / compiler）
 effort_estimate: 2.5 – 3.5 PD（含 D1–D6 决策闭环）
 ---
 
