@@ -116,6 +116,7 @@ F-3 已于 2026-04-21 accepted · 全部里程碑均已 unblock。M5（集成测
   - 风险：`_build_query` 签名改动将静默破坏 M6 编译层 —— M6 测试必须覆盖 `QueryBuildResult` 四字段（`sql / params / warnings / columns`）shape 断言
 - 2026-04-22 **M6 `MAX_PLAN_DEPTH = 32` DOS guard**（r3 Q5）：`compose_planner.py` 对 `_compile_any` 递归深度加 guard，超过 32 层抛 `UNSUPPORTED_PLAN_SHAPE`。防 M7 script runner 被用户递归 `.query().query()...` 耗尽 executor 线程。实际 Compose Query 典型深度 3–5，32 是充足余量。
 - 2026-04-22 **M6 跨请求 binding 缓存维持 2026-04-21 "不做"决策**（r3 Q2 延续）：`compile_plan_to_sql` 不内部缓存 `bindings`；caller 若需要多次 compile 同一 plan（explain + execute / 多方言 compile），自行 `resolve_authority_for_plan()` 一次后传 `bindings=...` 复用。docstring 必须写明使用指引。
+- 2026-04-22 **M6 Java 提示词准许 `draft-ahead-of-python` 小度并行**：Java 侧开工提示词 `M6-SQLCompilation-Java-execution-prompt.md` 允许在 Python M6 落地前先起草（框架 / 架构 / 命名惯例对齐 Python r3），状态标 `draft-ahead-of-python`。Python M6 push 后由 Java 镜像 agent 填充 `🔄 FILL-AFTER-PYTHON` 占位符（错误消息模板、snapshot 文本、`_build_query` Java 等价入口、v1.3 Java 挂点选择等），状态升为 `ready-to-execute`。**Java 实现本体仍严格等 Python M6 push 后才启动**——该条既不推翻也不弱化 2026-04-22 第 6 条决策（"本期不提前在 Java 侧开工 M6"），只是把"开工"收窄到"实现代码"，把"写提示词"单独允许并行。
 
 ## Follow-ups
 
@@ -137,6 +138,7 @@ F-3 已于 2026-04-21 accepted · 全部里程碑均已 unblock。M5（集成测
 ## 变更日志
 
 ### 2026-04-22
+- **Java M6 execution prompt `draft-ahead-of-python` 落地**：`docs/8.2.0.beta/M6-SQLCompilation-Java-execution-prompt.md` 先行起草（status: `draft-ahead-of-python`）。框架 / 架构 / 5 类源码 + 8 测试类命名 / 4 错误码常量对齐 / 6 阶段拆分 / 验收硬门槛已齐，空缺处标 `🔄 FILL-AFTER-PYTHON` 占位符（10 条），待 Python M6 落地 + push 后由 Java 镜像 agent 回填、状态升级 `ready-to-execute`。决策记录已同步（见上 2026-04-22 第 7 条）。Java 实现本体仍不启动。
 - **Python M6 execution prompt r3 落地**（从 r2 吸收 plan-evaluator · 本轮吸收 6+2 评审确认）：
   - Q1 M6 scope 止于 `ComposedSql`（保持，与 M7 执行层分割线对齐）
   - Q2 `bindings=None` 惰性 resolve 不加缓存（延续 2026-04-21 "不做跨请求缓存"决策），docstring 补 caller 侧使用指引
