@@ -57,7 +57,7 @@ public final class BaseModelPlan extends QueryPlan {
     public boolean distinct() { return distinct; }
 
     @Override
-    List<BaseModelPlan> baseModelPlans() {
+    public List<BaseModelPlan> baseModelPlans() {
         return List.of(this);
     }
 

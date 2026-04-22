@@ -161,21 +161,21 @@ public abstract class QueryPlan {
     }
 
     // ------------------------------------------------------------------
-    // Tree-walk helper — package-private (not in Layer-C public surface).
-    // The authority-resolution pipeline (M5) batch-resolves bindings using
-    // the leaf BaseModelPlan set returned here, in left-to-right preorder.
+    // Tree-walk helper — used by the M5 authority-resolver pipeline.
     // ------------------------------------------------------------------
 
     /**
      * Return the leaf {@link BaseModelPlan} nodes reachable from this node,
      * in left-to-right preorder.
      *
-     * <p>Package-private on purpose — neither scripts nor the sandbox need
-     * to walk the plan tree themselves; the M5 pipeline does it on their
-     * behalf. Exposed in the package so tests and the resolver can call it
-     * without going through reflection.</p>
+     * <p>Public so the M5 authority-resolver pipeline
+     * ({@code compose.authority.BaseModelPlanCollector}) can walk the tree
+     * from a sibling package. Layer-C enforcement for the JS sandbox is
+     * handled at the reflective-allowlist layer in M9; Java package
+     * visibility is not how we defend the sandbox boundary. Mirrors Python
+     * {@code QueryPlan.base_model_plans()} which is also public.</p>
      */
-    abstract List<BaseModelPlan> baseModelPlans();
+    public abstract List<BaseModelPlan> baseModelPlans();
 
     // ------------------------------------------------------------------
     // Shared static helpers — package-private so the subclasses can reuse

@@ -161,8 +161,10 @@ class PlanCompositionTest {
         @DisplayName("QueryPlan 公共面只暴露 5 个动词方法；raw/memoryFilter/forEach/... 必须缺席")
         void layerCWhitelistEnforced() {
             // 允许公共方法集 = Layer-C 5 动词 × 重载 + Object 继承 + equals/hashCode/toString
+            // + baseModelPlans（M5 authority 管线跨包使用；JS sandbox 通过 M9 反射白名单另行拦截）
             Set<String> allowed = Set.of(
                     "query", "union", "join", "execute", "toSql",
+                    "baseModelPlans",
                     "equals", "hashCode", "toString", "getClass",
                     "wait", "notify", "notifyAll");
             Set<String> forbidden = Set.of(

@@ -62,7 +62,7 @@ public final class JoinPlan extends QueryPlan {
     public List<JoinOn> on() { return on; }
 
     @Override
-    List<BaseModelPlan> baseModelPlans() {
+    public List<BaseModelPlan> baseModelPlans() {
         List<BaseModelPlan> out = new ArrayList<>();
         out.addAll(left.baseModelPlans());
         out.addAll(right.baseModelPlans());

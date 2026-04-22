@@ -6,12 +6,15 @@ target_repo: foggy-data-mcp-bridge (worktree: foggy-data-mcp-bridge-wt-dev-compo
 target_module: foggy-dataset-model
 req_id: M5-AuthorityBinding-Java
 parent_req: P0-ComposeQuery-QueryPlan派生查询与关系复用规范
-status: ready-to-execute
+status: done
+completed_at: 2026-04-22
 python_reference_landed_at: 2026-04-21
 python_baseline: 2709 passed / 1 skipped
-java_baseline_before: 1324 passed / 0 failures (M4 baseline)
-java_new_tests_target: ≥ 40 (CollectBaseModelsTest ~10 + ResolveAuthorityForPlanTest ~20 + ApplyFieldAccessToSchemaTest ~10)
-java_new_source_files: 5 (ModelInfoProvider interface + NullModelInfoProvider + BaseModelPlanCollector + AuthorityResolution helper class + FieldAccessApplier)
+java_baseline_before: 1348 passed / 0 failures (M2+M3+M4 baseline; execution prompt's 1324 was pre-M3)
+java_baseline_after: 1399 passed / 0 failures (1348 + 51 new M5 tests, zero regression)
+java_new_tests: 51 (AuthorityResolutionPipelineTest 23 + BaseModelPlanCollectorTest 10 + FieldAccessApplierTest 15 + ModelInfoProviderSmokeTest 3)
+java_new_source_files: 5 (ModelInfoProvider interface + NullModelInfoProvider + BaseModelPlanCollector + AuthorityResolutionPipeline + FieldAccessApplier)
+java_queryplan_visibility_change: baseModelPlans() package-private → public across QueryPlan + 4 subclasses (M5 pipeline lives in a sibling package; Layer-C still enforced by JS sandbox reflective allowlist at M9)
 ---
 
 # Java M5 · BaseModelPlan 首次使用 hook + authorityResolver.resolve 链路 + 请求级去重 开工提示词

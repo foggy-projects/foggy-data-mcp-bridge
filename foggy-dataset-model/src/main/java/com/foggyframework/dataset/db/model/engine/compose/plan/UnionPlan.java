@@ -37,7 +37,7 @@ public final class UnionPlan extends QueryPlan {
     public boolean all() { return all; }
 
     @Override
-    List<BaseModelPlan> baseModelPlans() {
+    public List<BaseModelPlan> baseModelPlans() {
         List<BaseModelPlan> out = new ArrayList<>();
         out.addAll(left.baseModelPlans());
         out.addAll(right.baseModelPlans());
