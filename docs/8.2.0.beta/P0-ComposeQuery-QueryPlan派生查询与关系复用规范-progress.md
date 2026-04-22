@@ -109,6 +109,24 @@ F-3 已于 2026-04-21 accepted · 全部里程碑均已 unblock。M5（集成测
   - M6 职责收窄为"把 `Map<String, ModelBinding>` 按 `BaseModelPlan` 逐节点拆解，注入每个 base-plan 的 `SemanticRequestContext`，让 v1.3 已有的 step 照常拦截"
   - **M6 不**在 compose 层重新实现物理列黑名单 SQL 改写 / 物理列反查 QM 字段的 sanitizer / 行级谓词合并到 WHERE 等能力
   - M6 真正的复杂度落在 `query / union / join` 的 SQL 组合（CTE vs 子查询方言回退，4 方言）、plan-hash 子树去重、跨数据源 join/union 拒绝、以及把每个 `BaseModelPlan` 的 compile 路径接到既有 `SemanticRequestContext` 挂点
+- 2026-04-22 **M6 Python 子包改名 `compile/` → `compilation/`**（r3 评审确认）：避免遮蔽 Python builtin `compile()`；Java 镜像时也选 `engine.compose.compilation` / `engine.compose.sqlcompile` 任一（不选 `compile` 避免撞 `java.lang.Compiler` 习惯）
+- 2026-04-22 **M6 Python 实现依赖 `SemanticQueryService._build_query(table_model, request) → QueryBuildResult(sql, params, warnings, columns)` 的内部签名**（r3 Q4）：
+  - 选择它的理由是保留 exception `__cause__` 链（相比 `query_model(VALIDATE)` 的 `_error` 字符串化，后者会断链）
+  - 本期**不**把 `_build_query` 提升为公开 API —— YAGNI，避免给 M6 单一用例开新公共表面；当 M7 script runner 成为第 2 个 caller 时再议
+  - 风险：`_build_query` 签名改动将静默破坏 M6 编译层 —— M6 测试必须覆盖 `QueryBuildResult` 四字段（`sql / params / warnings / columns`）shape 断言
+- 2026-04-22 **M6 `MAX_PLAN_DEPTH = 32` DOS guard**（r3 Q5）：`compose_planner.py` 对 `_compile_any` 递归深度加 guard，超过 32 层抛 `UNSUPPORTED_PLAN_SHAPE`。防 M7 script runner 被用户递归 `.query().query()...` 耗尽 executor 线程。实际 Compose Query 典型深度 3–5，32 是充足余量。
+- 2026-04-22 **M6 跨请求 binding 缓存维持 2026-04-21 "不做"决策**（r3 Q2 延续）：`compile_plan_to_sql` 不内部缓存 `bindings`；caller 若需要多次 compile 同一 plan（explain + execute / 多方言 compile），自行 `resolve_authority_for_plan()` 一次后传 `bindings=...` 复用。docstring 必须写明使用指引。
+
+## Follow-ups
+
+- **F-7 · `CROSS_DATASOURCE_REJECTED` 真实检测**（post-M6 · 非阻断 · r3 Q6）
+  当前 M6 因 `ModelBinding` / `ModelInfoProvider` 契约都没有 datasource identifier 字段，无法在 compile 时主动拒绝跨数据源 union/join；错误码定义在，但运行时只能通过 mock 触发，真实 plan 走 xfail。
+  - **用户影响**：跨数据源查询会在 DB driver 层报 "table not found"，不是 compile 层结构化错误 —— UX 降级，不是安全问题（DB 最终会拒绝，不泄漏数据）
+  - **解决路径**（二选一）：
+    - (A) `ModelBinding` 增 `datasource_id` 字段（触动 M1/M5 冻结契约，需 Python + Java + Odoo Pro 同步签字）
+    - (B) `ModelInfoProvider` 增 `get_datasource_id(model_name)` 方法（只触动 M5 契约）
+  - **优先级**：P2 · 等 M7 script runner 真实场景或 M8 Odoo Pro 多 datasource 集成时再议
+  - **M7 script 工具用户文档须加提示**："cross-datasource queries may surface as driver-level errors in the current release; planned to be caught at compile time in a future version"
 
 ## 下次回写触发点
 
@@ -119,6 +137,17 @@ F-3 已于 2026-04-21 accepted · 全部里程碑均已 unblock。M5（集成测
 ## 变更日志
 
 ### 2026-04-22
+- **Python M6 execution prompt r3 落地**（从 r2 吸收 plan-evaluator · 本轮吸收 6+2 评审确认）：
+  - Q1 M6 scope 止于 `ComposedSql`（保持，与 M7 执行层分割线对齐）
+  - Q2 `bindings=None` 惰性 resolve 不加缓存（延续 2026-04-21 "不做跨请求缓存"决策），docstring 补 caller 侧使用指引
+  - Q3 6.5 4 方言 SQL snapshot 扩入 **derived-chain** 维度，覆盖 `FROM (inner) AS alias` 唯一的自拼路径
+  - Q4 `_build_query` 内部签名依赖写入决策记录（见上），不提升为公开 API
+  - Q5 新增 `MAX_PLAN_DEPTH = 32` 递归深度 guard（DOS 防线，超限抛 `UNSUPPORTED_PLAN_SHAPE`）
+  - Q6 `CROSS_DATASOURCE_REJECTED` 真实检测登记为 F-7 follow-up（见上），本期维持 xfail
+  - Extra-1 子包改名 `compile/` → `compilation/`（避免遮蔽 Python builtin `compile()`）
+  - Extra-2 错误码措辞改为"4 个错误码 + 1 个 NAMESPACE 常量"，消除"5 个"与表格 4 行的表述歧义
+  - 测试目标从 ≥80 调整为 ≥82（MAX_PLAN_DEPTH guard 1 条 + derived-chain snapshot 4 条 − 原 6.5 部分归并）
+  - 预估规模 2.5–3.5 PD 不变
 - **M5 Java 侧 Authority 绑定管线落地**：新建 `com.foggyframework.dataset.db.model.engine.compose.authority` 子包，共 5 个 public 类型：`ModelInfoProvider` `@FunctionalInterface` interface（`Optional<List<String>> getTablesForModel(String modelName, String namespace)` — Python `Optional[List[str]]` 的强类型版本，`Optional.empty()` 与 `Optional.of(List.of())` 在 pipeline 内都 coerce 为 `List.of()`）+ `NullModelInfoProvider` final · 永远返回 `Optional.of(List.of())` · 无状态线程安全 + `BaseModelPlanCollector` 静态工具 `collect(QueryPlan) → List<BaseModelPlan>` 左右前序 · 按 `model()` 字符串首次出现去重 · 输入 null 抛 `IllegalArgumentException`（对 Python `TypeError`）+ `AuthorityResolutionPipeline` 静态工具 `resolve(plan, context)` + `resolve(plan, context, provider)` 重载 · 5 分支 fail-closed 校验（`RESOLVER_NOT_AVAILABLE` / `AuthorityResolutionException` 原样透传 / 普通 `RuntimeException` 包装为 `UPSTREAM_FAILURE` 保留 `cause` / 非 `AuthorityResolution` 或 null 响应 → `INVALID_RESPONSE` / 缺 key → `MODEL_BINDING_MISSING` 按请求顺序 / 多 key 或值非 `ModelBinding` → `INVALID_RESPONSE`）· 返回 `Map.copyOf` 不可变映射 + `FieldAccessApplier` 静态工具 `apply(OutputSchema, ModelBinding)` · `fieldAccess == null` no-op 同引用返回 / 空 list 返回 `OutputSchema.empty()` / 非空 whitelist 保序过滤；**不**处理 `deniedColumns` / `systemSlice`（M6 范围）· M5 **不新增错误码**：全部复用 M1 `AuthorityErrorCodes.{RESOLVER_NOT_AVAILABLE,UPSTREAM_FAILURE,INVALID_RESPONSE,MODEL_BINDING_MISSING}` · 附带修改：`QueryPlan.baseModelPlans()` 从 package-private 升级为 public（M5 管线位于 sibling 包；Layer-C 仍由 JS sandbox 反射白名单在 M9 拦截；`PlanCompositionTest` Layer-C `allowed` 注释同步更新，`forbidden` 列表未动，现有测试全部保持绿）· 5 份 JUnit5 测试共 **51 tests 全绿**：`AuthorityResolutionPipelineTest` 23（含 `StaticShape` 反射形态硬断言，验证工具类只暴露静态方法、私有 ctor）+ `BaseModelPlanCollectorTest` 10 + `FieldAccessApplierTest` 15（覆盖 `DeniedPhysicalColumn` / `SliceRequestDef` 不交互断言）+ `ModelInfoProviderSmokeTest` 3（Java 版 `@runtime_checkable Protocol` 等价）+ `AuthorityTestDoubles` 内部 test helper（7 种 resolver 假实现 + 2 种 provider 假实现，`BadValueResolver` 经反射注入非 `ModelBinding` 值）· `foggy-dataset-model` sqlite lane **1399 passed / 0 failures**（M3 基线 1348 + 51 = 1399，0 regressed）· **M5 正式 `ready-for-review`**，Python + Java 双端对齐冻结 · 下游解锁：M6 SQL 编译器可直接消费 `Map<String, ModelBinding>` / M8 Odoo Pro 嵌入集成测试仅差 M6 SQL 编译
 
 ### 2026-04-21
