@@ -6,15 +6,19 @@ target_repo: foggy-data-mcp-bridge (worktree: foggy-data-mcp-bridge-wt-dev-compo
 target_module: foggy-dataset-model
 req_id: M6-SQLCompilation-Java
 parent_req: P0-ComposeQuery-QueryPlan派生查询与关系复用规范
-status: ready-to-execute
+status: done
 drafted_at: 2026-04-22
 promoted_at: 2026-04-22 (placeholders filled from Python M6 source)
-python_reference_landed_at: 2026-04-22 (local commit pending push — foggy-data-mcp-bridge-python compose.compilation subpackage)
+completed_at: 2026-04-22 (Java M6 · java-ready-for-review)
+python_reference_landed_at: 2026-04-22 (foggy-data-mcp-bridge-python compose.compilation subpackage)
 python_baseline: 2874 passed / 1 skipped / 1 xfailed (M5 baseline 2709 + 165 M6 passed + 1 F-7 xfail)
 java_baseline_before: 1399 passed / 0 failures (M5 baseline)
+java_baseline_after: 1537 passed / 1 skipped / 0 failures (sqlite lane · 净增 138 passed + 1 skipped — F-7 占位)
 java_new_tests_target: ≥ 100 (Python over-delivered 165 tests; Java mirror can match closer to ~120 but the hard floor is 100)
+java_new_tests_actual: 138 passed + 1 skipped（目标 100 · 1.38× 覆盖）
 java_new_source_files_target: 7 (compilation subpackage: __init__-equivalent package-info.java + 6 classes)
-java_semantic_service_prereq: Java side must add public method buildQueryWithGovernance(modelName, request) → QueryBuildResult mirroring Python's new SemanticQueryService.build_query_with_governance (see §Step 0 Prerequisite)
+java_new_source_files_actual: 6（package-info.java + ComposeCompileErrorCodes + ComposeCompileException + PlanHash + PerBaseCompiler + ComposePlanner + ComposeSqlCompiler — 比原 target 少 1 类，CompileOptions 嵌在 ComposeSqlCompiler 内）
+java_semantic_service_prereq: Reused existing SemanticQueryServiceV3.generateSql(model, request, context) — it already invokes QueryFacade.buildSqlOnly → beforeQuery pipeline (governance steps: field-access + physical-column + system-slice) and returns SqlGenerationResult. No new public method needed.
 ---
 
 # Java M6 · Compose Query SQL 编译器 开工提示词（`ready-to-execute`）
