@@ -8,12 +8,13 @@ req_id: M7-ScriptTool-Java
 parent_req: P0-ComposeQuery-QueryPlan派生查询与关系复用规范
 status: ready-to-execute
 drafted_at: 2026-04-24
+revised_at: 2026-04-24 (r2 · 吸收 plan-evaluator 评审 3 blocker + 7 非阻塞项)
 python_reference_landed_at: 2026-04-24 (Python M7 · 2947 passed / 1 skipped / 1 xfailed · commits c7bcc16 + 76ff422)
-intended_for: foggy-data-mcp-bridge worktree 的 Java 工程师（子 agent）。开工时以本提示词 + Java worktree 根 CLAUDE.md + foggy-dataset-model/CLAUDE.md 为准；冲突时以本 worktree CLAUDE.md 声明的安全边界为准。
-java_baseline_before: 1536 passed / 1 skipped / 0 failures（M6 Java post-simplify sqlite lane）
-java_new_tests_target: ≥ 70（Step 0 ~5 / §7.1 context_bridge ~15 / §7.2 script_runtime + evaluator lockdown ~15 / §7.3 QueryPlan.execute/toSql wire ~15 / §7.4 ComposeScriptTool ~15 / §7.5 error path ~5；Python 净增 73，Java 镜像目标对齐）
-java_new_source_files_target: ~7（compose.runtime 子包 5 个 + ComposeScriptTool + 可能新增的 SemanticQueryServiceV3.executeSql 公共方法）
-effort_estimate: 3.0 – 3.5 PD（镜像 Python r2 估算；Java 侧 ThreadLocal 比 ContextVar 少些调试量，但 McpTool 接入 Spring bean 体系 + ToolExecutionContext 字段较稀需要补抽象会多些）
+intended_for: foggy-data-mcp-bridge worktree 的 Java 工程师（子 agent）。开工时以本提示词 + Java worktree 根 CLAUDE.md + foggy-dataset-model/CLAUDE.md 为准；冲突时以本 worktree 根 CLAUDE.md 声明的安全边界为准。**`foggy-dataset-mcp/CLAUDE.md` 当前是 stale 文档**（描述另一个独立项目 `mcp-data-model-java`，package `com.foggy.mcp`，与本仓 `com.foggyframework.dataset.mcp` 不是同一个东西）—— 直接忽略，以本提示词 + 现成代码（`QueryModelTool.java` / `ComposeQueryTool.java`）为参考。
+java_baseline_before: 1536 passed / 1 skipped / 0 failures（M6 Java post-simplify sqlite lane · foggy-dataset-model） + foggy-dataset-mcp 基线（开工时 `mvn test -pl foggy-dataset-mcp -P'!multi-db'` 跑一次写死精确数字）
+java_new_tests_target: ≥ 70（Step 0 ~5 / §7.1 context_bridge ~12 / §7.2 script_runtime + evaluator lockdown ~15 / §7.3 QueryPlan.execute/toSql wire ~15 / §7.4 ComposeScriptTool ~15 / §7.5 error path ~8；Python 净增 73，Java 镜像目标对齐）
+java_new_source_files_target: ~7（compose.runtime 子包 5 个 + ComposeScriptTool + `SemanticQueryServiceV3.executeSql` 公共方法实现 · 接口 + Impl 两处）
+effort_estimate: 3.5 – 4.0 PD（r1 低估 3.0；r2 上调 0.5–1.0 PD 覆盖：C1 `ComposeQueryTool` 命名决策 0.2 · C3 DataSource 解析实装 0.2 · S3 JWT spike 推迟 0 但要文档化 0.1 · Spring wiring 调试 0.2 · 测试迁移 0.2）
 ---
 
 # Java M7 · Compose Query MCP `script` 工具入口 开工提示词
@@ -23,6 +24,21 @@ effort_estimate: 3.0 – 3.5 PD（镜像 Python r2 估算；Java 侧 ThreadLocal
 | 版本 | 时间 | 变化 |
 |---|---|---|
 | r1 ready-to-execute | 2026-04-24 | 首版落盘 · Python M7 完整落地后起草 · 沿用 M6 Java 提示词结构 |
+| r2 ready-to-execute | 2026-04-24 | 吸收 plan-evaluator 评审：**C1** 新工具改名 `dataset.compose_script`（对齐存量 `dataset.*` 命名）+ 旧 `ComposeQueryTool` 仅加 Javadoc 指向新工具不改代码 · **C2** frontmatter 明写 `foggy-dataset-mcp/CLAUDE.md` 是 stale 项目文档直接忽略 · **C3** Step 0 `executeSql` 的 `DataSource` 解析路径锁死（`@Resource DataSource` 注入 `SemanticQueryServiceV3Impl`；routeModel 单数据源下忽略）· **S1** §7.2 Java fact 已核实：`DefaultExpEvaluator` 不做 builtin 预注入（区别于 Python），策略简化为 `appCtx=null` + `ALLOWED_SCRIPT_GLOBALS={from, dsl}`，Java 比 Python 更严 · **S2** §对齐原则 #8 登记 `QueryPlan.execute()` 返回类型 `Object → List<Map>` 是刻意 M2 API break 需进决策记录 · **S3** §7.1 明确：本期只实装**嵌入模式**；header 模式走 stub 抛 `UnsupportedOperationException`（`foggy-auth` / JWT lib 当前仓内都不存在，真实 token 解析推迟到 M8+）· **S4** foggy-dataset-mcp baseline 改"开工时写死" · **S5** PD 从 3.0 → 3.5–4.0 · **S6** 流程图与正文 DB 调用 API 一致化 · **S7** 停止条件增补 C1/C2/C3 meta-guard + errorPayload 切 LinkedHashMap |
+
+## ★ Java 侧已核实的事实（避免子 agent 重新做假设）
+
+> r2 起草时已用 grep / Read 核实，以下事实不要再"开工时调研"；有变化先停工，回到 progress.md 决策记录重议
+
+| 事实 | 值 | 证据 | 影响 |
+|---|---|---|---|
+| `DefaultExpEvaluator` 默认可见面 | **空**（不预注入任何 builtin） | `foggy-fsscript/src/main/java/.../DefaultExpEvaluator.java:101-119` ctor 只接 `appCtx` 和 `FsscriptClosure`；无 `_setup_builtins()` 等价调用 | §7.2 沙箱策略比 Python 简单：`appCtx=null` 就能阻掉所有 `@FsscriptExp` bean 注入；`ALLOWED_SCRIPT_GLOBALS = Set.of("from", "dsl")` |
+| 现有 `ComposeQueryTool` | 已存在，走前 M6 时代 `CteComposer.compose(left, right, joinSpec, useCte)` 2-way join，name=`dataset.compose_query`，参数 `script:String`，`@Component` + `@RequiredArgsConstructor` 注 `SemanticQueryServiceV3 queryService + DataSource dataSource` | `foggy-dataset-mcp/.../tools/ComposeQueryTool.java` + `foggy-dataset-model/.../engine/compose/ComposedDataSetResult.java` | 新工具改名 `dataset.compose_script`（命名一致 + 功能语义分离） |
+| Java raw-SQL 执行入口 | `DataSourceQueryUtils.getDatasetTemplate(dataSource).getTemplate().queryForList(sql, params.toArray())` | `ComposedDataSetResult.java:126-128` 证明此 API 有效 | Step 0 `executeSql` 用此路径；**不用** JdbcTemplate 直接 new（走现成 utility 统一配置） |
+| `QueryModel.getDataSource()` | **已注释掉** · 不通过 interface 暴露 | `foggy-dataset-model/src/main/java/.../spi/QueryModel.java:111` | DataSource 不能从 QueryModel 解析；走 `@Resource DataSource` 注入 `SemanticQueryServiceV3Impl`（与现有 `ComposeQueryTool` 同样的注入模式） |
+| `foggy-auth` / JWT 库 | **不存在** | 全仓 grep `JwtParser / io.jsonwebtoken / jwt.parse` 无命中 | header 模式 JWT 解析本期**推迟**；`authorization` 字段只作为 `authorizationHint` 原样透传；真实 header 模式 stub 抛 `UnsupportedOperationException` |
+| `SemanticQueryServiceV3` | interface 当前 3 方法（`queryModel / validateQuery / generateSql`），由 `SemanticQueryServiceV3Impl` + 测试 `FakeSemanticService` 实现 | `foggy-dataset-model/src/main/java/.../semantic/service/SemanticQueryServiceV3.java` + 2 impl | M7 新增 `executeSql` 方法：interface 加方法签名 + Impl 落实装 + `FakeSemanticService`（M6 test helper）补 stub。**interface 加方法会触及 FakeSemanticService**，是本期 test 迁移范围 |
+| `foggy-dataset-mcp/CLAUDE.md` | **stale / 描述另一个项目** | 最后更新 2025-11-24 · package `com.foggy.mcp` · 与本仓 `com.foggyframework.dataset.mcp` 不一致 | 子 agent 不要读这份 CLAUDE.md；以 Java worktree 根 CLAUDE.md + 现成工具代码为准 |
 
 ## 位置与角色
 
@@ -90,9 +106,19 @@ effort_estimate: 3.0 – 3.5 PD（镜像 Python r2 估算；Java 侧 ThreadLocal
 
 ## 对齐原则（硬要求）
 
-1. **现有存量 MCP 工具零改动**：`QueryModelTool / ChartTool / MetadataTool / NaturalLanguageQueryTool / ComposeQueryTool` 等全部原样，M7 只新增 `ComposeScriptTool`（名字 `compose.script`）
+1. **现有存量 MCP 工具零代码改动**：`QueryModelTool / ChartTool / MetadataTool / NaturalLanguageQueryTool / ComposeQueryTool` 全部不改行为。M7 新增 `ComposeScriptTool`（name=`dataset.compose_script`）·  **关于 `ComposeQueryTool`（name=`dataset.compose_query`）与新工具命名近似 / 语义重叠的问题**：
+   - 新旧并存 —— 旧的走 pre-M6 `CteComposer` 2-way join 单场景；新的走 M6 `ComposeSqlCompiler` 全量路径
+   - 仅在旧 `ComposeQueryTool.java` 类级 Javadoc 加一行指引：`@implNote since 8.2.0.beta: use {@link ComposeScriptTool} (name="dataset.compose_script") for new compose queries; this tool is retained for legacy 2-way join scenarios. 不加 `@Deprecated` 注解（可能触发现有测试告警）
+   - 旧工具的 body 不切到 M6 pipeline（那是 M10 或后续 cleanup scope）
+   - 工具 description：新的写"**推荐**用于多模型 query / union / join 组合；走 M6 完整 SQL 编译 + 权限 pipeline"；旧的（仅 Javadoc 层）标注"legacy"
 2. **错误码 100% 复用前序里程碑**：M7 **不新增错误码命名空间**。所有异常走既有 5 个家族：`AuthorityResolutionException`（M1/M5）/ `ComposeSchemaException`（M4）/ `ComposeCompileException`（M6）/ `ComposeSandboxViolationException`（M3）/ `RuntimeException`（execute phase + host-misconfig / internal）
 3. **`QueryPlan.toSql()` 返回类型由 M2 占位 `SqlPreview` → M6 `ComposedSql`**（与 Python r2 §对齐原则 #8 保持一致；`SqlPreview` 类本身保留不破 M2 冻结契约）
+
+    **`QueryPlan.execute()` 返回类型由 M2 占位 `Object` → M7 `List<Map<String, Object>>`**（刻意的 M2 API surface binary break）：
+    - M2 冻结契约里 `execute` 返回 `Object` + 抛 `UnsupportedInM2Exception`，callers 无真实使用（M2 验收过的用例都是 `assertThrows(UnsupportedInM2Exception, ...)` 式）
+    - M7 把返回类型精确化为 rows list · 反向断言 `QueryPlan.java` 中抛 `UnsupportedInM2Exception` 的 raise 语句被删除
+    - **本变更需在 progress.md 决策记录里专门登记一条**，与"`toSql` 返回类型变更"并列；M10 签收前跨仓审计要能找到这条决策轨迹
+    - Python 侧 `QueryPlan.execute` 返回类型 `Any → List[Dict]` 本来就 gradual typing 宽松，Java 这次显式登记是为了承接 Java binary compat 责任
 4. **不改 M6 `ComposeSqlCompiler.compilePlanToSql` 签名**
 5. **`ComposeScriptTool.execute` 只认 1 个参数 `script: String`**（不给 AI 加第二个钩子）
 6. **ThreadLocal 必须在 try/finally 里干净 pop**（嵌套脚本父子 bundle 正确保存恢复；测试硬断言）
@@ -123,7 +149,7 @@ foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/com
 ```
 foggy-dataset-mcp/src/main/java/com/foggyframework/dataset/mcp/tools/ComposeScriptTool.java
   — implements McpTool
-  — name="compose.script" · categories={ToolCategory.ANALYST, ...} (查 QueryModelTool 看现成写法)
+  — name="dataset.compose_script" · categories={ToolCategory.ANALYST, ...} (查 QueryModelTool 看现成写法)
   — execute(Map<String, Object> arguments, ToolExecutionContext context) → Map<String, Object>
     · 成功：{status: "success", data: {rows, sql, params}}
     · 失败：{status: "error", data: {error_code, phase, message, model?}}
@@ -204,69 +230,140 @@ Java `ComposeScriptTool` 的错误分支（与 Python 一致）：
 
 **必须先做**。与 Python `SemanticQueryService.execute_sql` 1:1 对齐。
 
-**调研前置**：先 grep 看 Java 现有执行层怎么走：
-```
-grep -rn "JdbcTemplate\|DataSource\|dataSource.getConnection\|query.*execute\|executeQuery" \
-    foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/semantic/ \
-    --include=*.java | head -15
-```
-找到"拿 sql + params → 跑 DB → 返回 rows"的最低入口，公开一个包装方法即可；**不要再造 JdbcExecutor 抽象**（M6 Java 已经否决过这个方向）。
+**实现路径已锁**（r2 · 事实见 §已核实的事实）：
+- 执行层用 `DataSourceQueryUtils.getDatasetTemplate(dataSource).getTemplate().queryForList(sql, params.toArray())`（与 `ComposedDataSetResult.execute()` 同款）
+- `DataSource` 通过 `@Resource` 注入到 `SemanticQueryServiceV3Impl`（新增第 4 个字段，与 `ComposeQueryTool` 同样的注入模式 —— 单数据源部署下 Spring 自动 autowire 主 DataSource）
+- `routeModel` 参数本期**只占位不实装**：javadoc 写 `@param routeModel reserved for multi-datasource routing (M8+); ignored in M7`；实装单数据源路径即可
+- **不要造** `JdbcExecutor` 抽象（M6 Java 已否决此方向）
 
-**routeModel 参数**：当前单数据源场景传 `null` 即可；多数据源路由延后；留 `@Nullable` javadoc 说明"M8 会用到"。
+**interface 改动**（`SemanticQueryServiceV3.java`）：
+
+```java
+public interface SemanticQueryServiceV3 {
+    // 既有 3 方法不动：queryModel / validateQuery / generateSql
+
+    /**
+     * Execute raw SQL compiled by M6 {@link ComposeSqlCompiler} and return rows.
+     *
+     * <p>Used by M7 {@code PlanExecution.executePlan} as the raw-SQL primitive
+     * behind {@code QueryPlan.execute()}. Does NOT re-run governance —
+     * governance already applied during {@link #generateSql} inside
+     * {@code ComposeSqlCompiler}.</p>
+     *
+     * @param sql         compiled SQL (positional ? placeholders)
+     * @param params      positional bind parameters
+     * @param routeModel  reserved for multi-datasource routing (M8+);
+     *                    ignored in M7 single-datasource deployment.
+     *                    Always null-safe.
+     * @return list of rows (Map&lt;column_name, value&gt;)
+     * @throws RuntimeException with message prefix "executeSql failed:"
+     *         when executor未配置 / SQL语法错 / DB 连接错
+     */
+    List<Map<String, Object>> executeSql(String sql, List<Object> params, String routeModel);
+}
+```
+
+**impl 实现要点**（`SemanticQueryServiceV3Impl.java` 加 `@Resource DataSource dataSource` 字段 + 新方法）：
+
+```java
+@Resource
+private DataSource dataSource;
+
+@Override
+public List<Map<String, Object>> executeSql(String sql, List<Object> params, String routeModel) {
+    if (dataSource == null) {
+        throw new RuntimeException(
+            "executeSql failed: DataSource not injected into SemanticQueryServiceV3Impl;"
+            + " host must configure a primary DataSource bean");
+    }
+    try {
+        Object[] paramsArray = params == null ? new Object[0] : params.toArray(new Object[0]);
+        return DataSourceQueryUtils.getDatasetTemplate(dataSource)
+                .getTemplate()
+                .queryForList(sql, paramsArray);
+    } catch (Exception e) {
+        throw new RuntimeException("executeSql failed: " + e.getMessage(), e);
+    }
+}
+```
+
+**`FakeSemanticService`**（M6 test helper · `CompileTestHelpers.java`）同步加该方法 stub 返回一个预置的 `List<Map<String, Object>>`，测试时像 `stub(model, sql, ...)` 那样 `stubExec(rows)` / `stubExecThrows(e)`。
 
 **测试**（`foggy-dataset-model/src/test/java/.../semantic/service/SemanticQueryServiceV3ExecuteSqlTest.java`，~5 tests）：
-- executor 未配置 → RuntimeException
-- 单行返回 ok
-- 多行返回 ok
-- Error 返回（mock DB throws） → RuntimeException 包装
-- routeModel != null 时走多数据源（本期可测 mock 双 executor）
+- DataSource 未注入（null 字段 · 用反射 mock） → RuntimeException 消息前缀 "executeSql failed: DataSource not injected"
+- 单行 / 多行返回 ok（用 `org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder` 起 HSQL，或跟 M6 `CompileTestHelpers` 一样纯 mock）
+- DB 抛 SQLException → RuntimeException 包装 · `getCause()` 保留
+- routeModel 非 null 时当前忽略（与 null 结果一致）· javadoc 承诺保持
+- params null 时视作 empty 正常执行
 
 ### §7.1 · `ToolExecutionContext → ComposeQueryContext` 桥
 
-**Java `ToolExecutionContext` 字段比 Python 稀**，只有 5 个（traceId / authorization / userRole / namespace / sourceIp）。Python 侧依赖的 `X-User-Id / X-Tenant-Id / X-Roles / X-Dept-Id / X-Policy-Snapshot-Id / X-Trace-Id` 这些 header 在 Java 走 `authorization` 一个字段汇总。
+**Java `ToolExecutionContext` 字段比 Python 稀**，只有 5 个（traceId / authorization / userRole / namespace / sourceIp）。Python 侧依赖的 `X-User-Id / X-Tenant-Id / X-Roles / X-Dept-Id / X-Policy-Snapshot-Id / X-Trace-Id` header 在 Java 走 `authorization` 一个字段汇总。
 
-**对策 · 两档**：
-1. **嵌入模式** · host（比如 Odoo Pro Java 网关）直接通过 `ComposeRuntimeHolder.setBundle(...)` 预设 bundle 里的 `ComposeQueryContext.principal`；此时 `ContextBridge.toComposeContext` 不从 ToolExecutionContext 再构造 Principal
-2. **header 模式**（本期写 stub，真实 JWT 解析推迟）：
-   - 从 `authorization` 字段解析 token（基本假设 Bearer 形式；具体解析用现有 `foggy-auth` 或类似包 —— 开工时 grep `class.*SecurityContext\|JwtParser\|jwtSecret`）
-   - `userId` = token 里的 `sub` 或同等字段；`roles` 从 token 取；`tenantId` / `deptId` 保留 null
-   - 若 token 无 / 解析失败 → `IllegalArgumentException("ToolExecutionContext missing principal identity")` —— fail-closed
+**本期策略（r2 已锁）**：**只实装嵌入模式**；header / JWT 模式推迟。理由：`foggy-auth` / `io.jsonwebtoken` 等 JWT 解析依赖当前仓内**都不存在**（r2 grep 已确认）—— 强行上马 header 模式要么拖入新依赖、要么 spike 手写 JWT 解析，都超出 M7 scope。
 
-**Principal 字段映射**（Java 侧 `Principal` 在 `engine/compose/context/Principal.java`，含 `userId / tenantId / roles / deptId / authorizationHint / policySnapshotId`）：
+**嵌入模式**（本期唯一正式路径）：
+- host（比如 Odoo Pro Java 网关 / 任何 Java-embedded caller）调用 `ComposeScriptTool.execute(...)` **之前**已经在 `ComposeRuntimeHolder.setBundle(ComposeRuntimeBundle(...))` 里预置了一个完整的 `ComposeQueryContext`（含 `Principal` 全字段 + `AuthorityResolver` + `namespace` + `traceId`）
+- `ContextBridge.toComposeContext(toolCtx, resolver)` 本期实现：**先查** `ComposeRuntimeHolder.currentBundle()`，若已有 bundle（嵌入模式）→ 直接返回 `bundle.ctx()`；若无 bundle（header 模式触发）→ 抛 `UnsupportedOperationException("ComposeScriptTool header-mode not implemented in M7; host must pre-set ComposeRuntimeBundle via ComposeRuntimeHolder.setBundle(...) before invoking. JWT / header-based Principal parsing is a follow-up scoped to M8+.")`
 
-| 来源 | Principal 字段 |
-|---|---|
-| token `sub` / 嵌入 host | `userId` |
-| token `tenant_id` / 嵌入 host | `tenantId` |
-| token `roles` (逗号或 JSON 数组) / `userRole` fallback | `roles` |
-| token `dept_id` | `deptId` |
-| `authorization` 原串 | `authorizationHint` |
-| token `policy_snapshot_id` | `policySnapshotId` |
-| `namespace` | `ComposeQueryContext.namespace` |
-| `traceId` | `ComposeQueryContext.traceId` |
+**header 模式 stub**（本期仅占位）：
+- 不实装 `authorization` 解析
+- `ContextBridge.toComposeContext` 在 bundle 未预置时**直接抛** `UnsupportedOperationException`，消息里明写推迟原因
+- **不**尝试做任何 opaque-token 兜底；就是 fail-fast
 
-**测试**（`foggy-dataset-model/src/test/java/.../engine/compose/runtime/ContextBridgeTest.java`，~15 tests）：嵌入 / header 两档各 6–7 条 + user_id / namespace 缺失（抛 IllegalArgumentException）+ authorizationHint 携带 + traceId 直通等。
+**`Principal` 字段映射表保留**（供 M8+ 实装 header 模式时参考；本期不用）：
+
+| 来源 | `Principal` 字段 | 备注 |
+|---|---|---|
+| 嵌入 host 预置 | `userId / tenantId / roles / deptId / authorizationHint / policySnapshotId` | 本期唯一路径 |
+| `traceId` | `ComposeQueryContext.traceId` | 直通 · 即便嵌入 host 没塞 traceId，也从 toolCtx 这里补 |
+| `namespace` | `ComposeQueryContext.namespace` | 同上：嵌入 host 塞了优先用 bundle，否则 fallback to `toolCtx.getNamespace()` |
+| token `sub` / `tenant_id` / `roles` / `dept_id` / `policy_snapshot_id` | **M8+ 实装** | stub：`UnsupportedOperationException` |
+| `authorization` 原串 | `authorizationHint` | M8+ 用；本期忽略 |
+
+**测试**（`foggy-dataset-model/src/test/java/.../engine/compose/runtime/ContextBridgeTest.java`，~12 tests）：
+- bundle 已预置 · 返回 `bundle.ctx()` 同引用
+- bundle 已预置 + toolCtx.traceId 不同 · 本期保持 bundle.ctx（不 override · 避免逻辑膨胀 · M8+ 重议）
+- bundle 未预置 · 抛 `UnsupportedOperationException` 消息含 "header-mode not implemented"
+- bundle 未预置 + toolCtx null · 同上抛 `UnsupportedOperationException`（不抛 NPE）
+- resolver null · 抛 `IllegalArgumentException("resolver must not be null")`
+- 多线程隔离：A 线程预置 bundle，B 线程调 toComposeContext（B 线程 bundle 为空 · 抛 UnsupportedOperationException）
+- 其他 4 条覆盖 ThreadLocal 清理、嵌套、authorizationHint 预置场景
 
 ### §7.2 · fsscript evaluator 可见面锁定 + `ComposeRuntimeHolder`
 
-**先 grep 看 DefaultExpEvaluator 默认可见面**：
+**事实已锁（r2）**：Java `DefaultExpEvaluator` **不做 builtin 预注入** —— ctor 只接 `appCtx` 和 `FsscriptClosure`，没有 `_setup_builtins()` 等价动作。这与 Python `ExpressionEvaluator` **不同**（Python 有 17 个自动注入 builtin），所以：
+
+- **Java 的 Layer B 沙箱比 Python 更简单**：默认可见面就是空的（加上 script 里定义的变量）。危险源不是"pre-injected builtins"而是"`appCtx` 里的 Spring bean"
+- **M7 策略**：`ScriptRuntime.runScript` 构造 evaluator 时**不传 appCtx**（即 `DefaultExpEvaluator.newInstance()` / `DefaultExpEvaluator(null, closure)`），阻掉所有 `@FsscriptExp` bean 可见性
+- **`ALLOWED_SCRIPT_GLOBALS`** 收窄到 `Set.of("from", "dsl")`（比 Python 的 19 项少得多，且硬断言等于)
+
+```java
+public static final Set<String> ALLOWED_SCRIPT_GLOBALS = Set.of("from", "dsl");
 ```
-grep -n "setVar\|addBuiltin\|pushClosure\|standard.*[Vv]ar" \
-    foggy-fsscript/src/main/java/com/foggyframework/fsscript/DefaultExpEvaluator.java \
-    foggy-fsscript/src/main/java/com/foggyframework/fsscript/parser/spi/*.java
-```
-确认 Java fsscript 默认向可见面注入哪些名字（可能有 `Math / Date / Array / JSON` 等 builtin 集），以实际为准 locked 到 `ALLOWED_SCRIPT_GLOBALS`。
 
 **`ComposeRuntimeHolder` 实现要点**：
 - 底层 `private static final ThreadLocal<Deque<ComposeRuntimeBundle>> STACK = ThreadLocal.withInitial(ArrayDeque::new);`
 - `setBundle(bundle)` 往 deque push + 返回 `Token`（持 deque 引用 + 原 size 快照）
 - `popBundle(token)` 弹到 token 记录的 size；超弹抛 IllegalStateException
 - `currentBundle()` peek deque；空 deque 返 null
-- **为什么用 Deque 不用 inheritedThreadLocal**：Java async 任务不像 Python asyncio 那样自动继承 ContextVar；但 M7 目前不跨线程执行脚本。Deque 支持嵌套 `runScript` 父子 bundle 正确保存恢复
+- **为什么用 Deque 不用 InheritableThreadLocal**：Java async 任务不像 Python asyncio 那样自动继承 ContextVar；但 M7 目前不跨线程执行脚本。Deque 支持嵌套 `runScript` 父子 bundle 正确保存恢复
+
+**`runScript` 骨架**（关键：`DefaultExpEvaluator.newInstance()` 传 null appCtx，然后 `setVar("from", ...)` / `setVar("dsl", ...)`）：
+
+```java
+DefaultExpEvaluator evaluator = DefaultExpEvaluator.newInstance();   // appCtx=null · 阻 @FsscriptExp bean
+// 注入白名单 2 个全局函数
+evaluator.setVar("from", fromFunctionRef);
+evaluator.setVar("dsl", fromFunctionRef);   // dsl 是 from 的别名
+// parse + eval with COMPOSE_QUERY_DIALECT
+```
 
 **测试**（`foggy-dataset-model/src/test/java/.../engine/compose/runtime/{ComposeRuntimeHolderTest.java, ScriptRuntimeTest.java}`，合计 ~15 tests）：
-- Holder：push/pop 配对、嵌套 push/pop、空 deque currentBundle() == null、多线程隔离（spawn Thread, 子线程 holder 为空）、popBundle 超弹抛异常
-- Runtime：`runScript("return 1;", ...)` 返回 `ScriptResult(value=1)`、`from({model, columns})` / `dsl(...)` 别名、fsscript 语法错冒泡、`import '@bean'` 在默认构造下抛（fsscript 原生错）、`ALLOWED_SCRIPT_GLOBALS` 硬断言（evaluator.getContext() keys ⊇ ALLOWED）
+- Holder：push/pop 配对、嵌套 push/pop、空 deque `currentBundle() == null`、**多线程隔离**（spawn Thread, 子线程 holder 为空）、`popBundle` 超弹抛 IllegalStateException
+- Runtime 功能：`runScript("return 1;", ...)` 返回 `ScriptResult(value=1)`、`from({model, columns})` / `dsl(...)` 别名等价、fsscript 语法错冒泡
+- Runtime 沙箱：evaluator `getVar("JSON") == null`（confirm Java 没像 Python 那样注 JSON）、evaluator `getVar("someSpringBean") == null`（appCtx=null 生效）、`ALLOWED_SCRIPT_GLOBALS` 与 evaluator 可见面**严格相等**（Java 可见面空 + `{from, dsl}` = 2 项，不像 Python 需要 `startswith("__")` / `Array_*` / `Console_*` 过滤）
+- Runtime import 路径封：`import '@someBean'` 在 appCtx=null / bean_registry 未配置下抛 fsscript 原生 ImportException；测试只断抛异常类型，不断具体消息（fsscript 内部实现细节不 freeze）
 - **安全 red-line 扫描**（Python `test_script_runtime.py::test_no_eval_exec_in_runtime` 对齐）：`src/main/java/.../engine/compose/runtime/` 下不得出现字面量 `Runtime.getRuntime().exec(` / `eval(` / `System.exit(` / `ProcessBuilder(` 等
 
 ### §7.3 · `QueryPlan.execute() / toSql()` 接治
@@ -379,7 +476,7 @@ public class ComposeScriptTool implements McpTool {
         this.defaultDialect = defaultDialect != null ? defaultDialect : "mysql";
     }
 
-    @Override public String getName() { return "compose.script"; }
+    @Override public String getName() { return "dataset.compose_script"; }
 
     @Override
     public Set<ToolCategory> getCategories() {
@@ -403,12 +500,15 @@ public class ComposeScriptTool implements McpTool {
             ComposeQueryContext ctx = ContextBridge.toComposeContext(toolCtx, resolver);
             ScriptRuntime.ScriptResult result = ScriptRuntime.runScript(
                     script, ctx, semanticService, defaultDialect);
-            return Map.of(
-                    "status", "success",
-                    "data", Map.of(
-                            "value", result.value(),
-                            "sql", result.sql() != null ? result.sql() : "",
-                            "params", result.params() != null ? result.params() : List.of()));
+            // 用 LinkedHashMap 便于后续 warnings 等字段增补（见 §非阻塞提醒）
+            Map<String, Object> data = new LinkedHashMap<>();
+            data.put("value", result.value());
+            data.put("sql", result.sql() != null ? result.sql() : "");
+            data.put("params", result.params() != null ? result.params() : List.of());
+            Map<String, Object> resp = new LinkedHashMap<>();
+            resp.put("status", "success");
+            resp.put("data", data);
+            return resp;
         } catch (AuthorityResolutionException e) {
             return errorPayload(e.code(), "permission-resolve", e.getMessage(), modelOf(e));
         } catch (ComposeSchemaException e) {
@@ -439,7 +539,10 @@ public class ComposeScriptTool implements McpTool {
         data.put("phase", phase);
         data.put("message", message);
         if (model != null) data.put("model", model);
-        return Map.of("status", "error", "data", data);
+        Map<String, Object> resp = new LinkedHashMap<>();
+        resp.put("status", "error");
+        resp.put("data", data);
+        return resp;
     }
 
     private static String modelOf(Throwable e) {
@@ -453,7 +556,7 @@ public class ComposeScriptTool implements McpTool {
 
 **测试**（`foggy-dataset-mcp/src/test/java/.../tools/ComposeScriptToolTest.java`，~15 tests）：对齐 Python `test_compose_script_tool.py` 的 18 tests：
 - 构造器 null-guards（semanticService / resolverFactory）
-- `getName()` == "compose.script"
+- `getName()` == "dataset.compose_script"
 - `execute({script: null})` → missing-script
 - `execute({script: ""})` → missing-script
 - resolverFactory 返 null → host-misconfig
@@ -483,7 +586,7 @@ public class ComposeScriptTool implements McpTool {
 1. `mvn test -pl foggy-dataset-model -Dtest='SemanticQueryServiceV3ExecuteSqlTest,ContextBridgeTest,ComposeRuntimeHolderTest,ScriptRuntimeTest,PlanExecutionTest' -Dspring.profiles.active=sqlite -P'!multi-db'` 全绿
 2. `mvn test -pl foggy-dataset-mcp -Dtest='ComposeScriptToolTest'` 全绿
 3. `mvn test -pl foggy-dataset-model -Dspring.profiles.active=sqlite -P'!multi-db'` 全仓 sqlite lane · 基线 **1536** → ≥ **1606**（净增 ≥ 70）· **0 regression**
-4. `mvn test -pl foggy-dataset-mcp` 回归 · 基线（当前 foggy-dataset-mcp 测试数从 git log 查；~222 passed）→ ≥ baseline + 15 · **0 regression**
+4. `mvn test -pl foggy-dataset-mcp -P'!multi-db'` 回归 · **开工时先跑一次确认 baseline 精确数字**（写入 progress.md 回写基线）→ 新增 ≥15 tests（ComposeScriptToolTest）· **0 regression**
 5. 新错误码数 == 0（硬断言：`engine/compose/runtime/` 下无任何 `compose-*-error/*` 字面量；host-misconfig / internal-error / missing-script / execute-phase-error 都是明文 tag）
 6. `QueryPlan.execute() / toSql()` 不再抛 `UnsupportedInM2Exception`（反向断言：`QueryPlan.java` 中这两条 throw 语句被删除；`SqlPreview` 类仍保留）
 7. `ComposeScriptTool` 参数 schema 只有 `script` 一项（硬断言 · 反射扫描）
@@ -494,11 +597,19 @@ public class ComposeScriptTool implements McpTool {
 
 ## 停止条件
 
-- `DefaultExpEvaluator` 默认可见面与 Python 差异过大（比如包含 `Runtime / Class / ClassLoader` 这类危险名）→ 停，提进 progress.md 决策记录重议 M7 Java 范围
+**读提示词阶段就应命中的 meta-guard**（r2 新增）：
+- 发现 §已核实的事实 里任何一项与现状不一致 → 停，上报 r3 修订
+- 若试图新建 `ComposeScriptTool` name 用 `dataset.compose_script` 以外的任何名 → 停，C1 决策已锁
+- 若 §7.1 试图实装 header / JWT 解析 → 停，S3 决策已锁（M8+ 再做）
+
+**实装阶段**：
+- `DefaultExpEvaluator` 默认可见面与事实表不符（比如真实注入了 `Runtime / Class / ClassLoader` 类名）→ 停，提进 progress.md 决策记录重议 M7 Java 范围
 - `ComposeSqlCompiler.compilePlanToSql` 签名要改 → 停
 - `SemanticQueryServiceV3` 无法加 `executeSql` 公共方法（比如 interface 已被多处实现；加方法会破接口） → 停，考虑 default method 或 interface 升级
-- `QueryModelTool` 等存量 MCP 工具的测试红 → 停，先回滚再排查
-- 跨 Maven 模块循环依赖 → 停（`foggy-dataset-mcp` 依赖 `foggy-dataset-model` 是允许的；反向则不允许）
+- `FakeSemanticService`（M6 test helper）被强迫 override 超过 `executeSql` 的范围 → 停，回到 interface 设计
+- `QueryModelTool / ComposeQueryTool` 等存量 MCP 工具的测试红 → 停，先回滚再排查（C1 承诺不改代码）
+- 跨 Maven 模块循环依赖 → 停（`foggy-dataset-mcp` → `foggy-dataset-model` 是允许的；反向则不允许）
+- `ComposeScriptTool` 错误分支返回的 `data` Map 字段数 > 4 时编译错 → `Map.of(...)` 最多 10 entry 但嵌套时不直观；见 §7.4 骨架，`data` 用 `LinkedHashMap` 动态构造
 
 ## 流程图（对齐 Python r2 流程图）
 
@@ -518,7 +629,7 @@ sequenceDiagram
     participant Svc as SemanticQueryServiceV3
     participant DB as executeSql (jdbc)
 
-    AI->>MCP: {"tool":"compose.script","script":"..."}
+    AI->>MCP: {"tool":"dataset.compose_script","script":"..."}
     MCP->>Tool: execute(arguments, toolCtx)
     Tool->>Bridge: toComposeContext(toolCtx, resolverFactory.apply(toolCtx))
     Bridge-->>Tool: ComposeQueryContext
@@ -539,7 +650,7 @@ sequenceDiagram
     Svc-->>Compile: SqlGenerationResult
     Compile-->>Plan: ComposedSql
     Plan->>Svc: executeSql(sql, params, routeModel)
-    Svc->>DB: JdbcTemplate.query(sql, params)
+    Svc->>DB: DataSourceQueryUtils.getDatasetTemplate(ds).getTemplate().queryForList(sql, params.toArray())
     DB-->>Svc: List<Map<String, Object>>
     Svc-->>Plan: rows
     Plan-->>Eval: rows
@@ -550,19 +661,29 @@ sequenceDiagram
     MCP-->>AI: tool response
 ```
 
-## 预估规模
+## 预估规模（r2 上调）
 
 | 阶段 | 估算 | 备注 |
 |---|---|---|
-| Step 0 · `SemanticQueryServiceV3.executeSql` + 5 tests | 0.3 PD | 调研 Java 既有 raw-SQL 入口 + minimal 公共方法 |
-| 7.1 ContextBridge + tests | 0.4 PD | Java ToolExecutionContext 比 Python 稀 · JWT 解析可能要看 `foggy-auth` |
-| 7.2 ComposeRuntimeHolder + ScriptRuntime + evaluator 锁定 + tests | 0.5 PD | ThreadLocal Deque + DefaultExpEvaluator 实际可见面 grep + `ALLOWED_SCRIPT_GLOBALS` |
-| 7.3 QueryPlan.execute / toSql 替换 + PlanExecution + tests | 0.5 PD | 含 M2 测试迁移（UnsupportedInM2Exception → RuntimeException） |
-| 7.4 ComposeScriptTool + Spring wiring + tests | 0.5 PD | Function factory bean 注册 · 7 家族错误 shape 断言 |
+| Step 0 · `SemanticQueryServiceV3.executeSql` + impl + `FakeSemanticService` stub + 5 tests | 0.4 PD | interface 加方法 + `@Resource DataSource` 注入 + `DataSourceQueryUtils` 接线 + FakeSemanticService 同步 stub |
+| 7.1 ContextBridge · 嵌入模式 only + tests | 0.3 PD | **只实装嵌入**；header/JWT 推迟（stub 抛 `UnsupportedOperationException`）· 本期省一半工作量 |
+| 7.2 ComposeRuntimeHolder + ScriptRuntime + evaluator 锁定 + tests | 0.5 PD | ThreadLocal Deque + `appCtx=null` evaluator + `ALLOWED_SCRIPT_GLOBALS={from,dsl}` |
+| 7.3 QueryPlan.execute / toSql 替换 + PlanExecution + tests | 0.5 PD | 含 M2 测试迁移（UnsupportedInM2Exception → RuntimeException）+ API surface 变更登记 |
+| 7.4 ComposeScriptTool + Spring wiring + tests | 0.6 PD | Function factory bean 注册 · 7 家族错误 shape 断言 · ComposeQueryTool Javadoc 加指引 |
 | 7.5 integration tests (分在 §7.1-§7.4 内) | - | 合入前面 |
 | progress.md + CLAUDE.md 回写 + Python 仓副本 sync + 三仓 push | 0.2 PD | |
-| buffer（跨 3 Maven 模块 + Spring 上下文调试 + JWT 解析 spike） | 0.3 PD | |
-| **合计** | **3.0 PD** | |
+| buffer（跨 3 Maven 模块 + Spring 上下文调试 + Spring bean 注册调试 + FakeSemanticService 破坏回归定位） | 0.5 PD | r1 buffer 0.3 PD 偏紧，r2 上调 |
+| **合计** | **3.5 PD**（底）/ **4.0 PD**（若 Spring bean wiring 或 FakeSemanticService 回归需要修补） | |
+
+## 附注 · 已知限制 / 非阻塞风险（r2 补）
+
+- **`ComposeScriptTool.data` 用 `LinkedHashMap` 不用 `Map.of`**：后续加 `warnings` / 分页等字段时可直接 `put`，不用重写（Python r2 ToolResult shape 一样保留可扩展性）
+- **`FakeSemanticService` 位于 `CompileTestHelpers.java`（M6 test helper）**：interface 加 `executeSql` 会强迫它实现。本期顺手加 stub + 若干 execute 测试；如果 Fake 还有其他测试依赖，注意同步回归。这是跨 M6/M7 的唯一强耦合点
+- **多数据源路由 M8+ 再做**：`routeModel` 本期仅占位（javadoc 标 reserved）；`@Qualifier("primary") DataSource` 的默认注入在单数据源部署下工作。Odoo Pro 嵌入模式 / M8 集成测试若需要多数据源 —— 追加重载 `executeSql(..., DataSource)` 或走 `@Qualifier` 解析
+- **header 模式 M8+ 再做**：`foggy-auth` / JWT 库本期不引入；嵌入模式 host 预置 `ComposeRuntimeBundle.ctx.principal` 是唯一正式路径。MCP 暴露面的 ComposeScriptTool 实际只对 Java 网关的 Odoo Pro 嵌入场景可用，独立 MCP 客户端 调本工具会直接抛 `UnsupportedOperationException`（这是**期望行为**）
+- **`ComposeQueryTool` 不改代码只加 Javadoc**：Java M10 统一 cleanup 时再决定是否 `@Deprecated` + 是否把 body 切到 M6 pipeline
+- **Java factory 签名 `Function<ToolExecutionContext, AuthorityResolver>`** 与 Python `Callable[[ToolExecutionContext], AuthorityResolver]` 语义等价，但注意 Java 的 Function 是函数式接口 · Spring bean 可以用 `@Bean Function<...>` 或 lambda 返回；host（Odoo Pro）端实装时按此签名
+- **ThreadLocal 内存泄漏**：Deque 靠 `try/finally` 里 `popBundle(token)` 保证平衡；但如果异常路径未 cover，long-running Spring worker thread 可能泄漏 `ComposeRuntimeBundle`。测试应含"finally 块缺失的模拟场景"的反向验证
 
 ## 完成后需要更新的文档
 
