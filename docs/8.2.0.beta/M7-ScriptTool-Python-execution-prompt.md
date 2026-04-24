@@ -6,13 +6,17 @@ target_repo: foggy-data-mcp-bridge-python
 target_module: foggy.mcp + foggy.dataset_model.engine.compose
 req_id: M7-ScriptTool-Python
 parent_req: P0-ComposeQuery-QueryPlan派生查询与关系复用规范
-status: ready-to-execute
+status: done
 drafted_at: 2026-04-23
 revised_at: 2026-04-24 (r2 — 吸收 plan-evaluator 评审)
+completed_at: 2026-04-24
 intended_for: foggy-data-mcp-bridge-python 仓的 Python 工程师（子 agent）。开工时以本提示词 + Python 仓 `CLAUDE.md` 为准；冲突时以 Python 仓 CLAUDE.md 声明的安全边界为准。
-python_baseline_before: 2873 passed / 1 skipped / 2 xfailed (M6 baseline)
+python_baseline_before: 2874 passed / 1 skipped / 1 xfailed (M6 baseline at entry; 文件头原记 2873 是 r2 发稿当时；实际 git state 落地一致)
+python_baseline_after: 2947 passed / 1 skipped / 1 xfailed (net +73 tests, 0 regression)
 python_new_tests_target: ≥ 60 (7.1 ToolExecutionContext → ComposeQueryContext ~15 / 7.2 evaluator global-surface lockdown ~10 / 7.3 QueryPlan.execute / .to_sql ~12 / 7.4 ComposeScriptTool end-to-end ~15 / 7.5 error path ~8)
+python_new_tests_actual: 74 added - 1 M2 removed = 73 net (Step 0 6 / 7.1 context_bridge 17 / 7.2 script_runtime 16 / 7.3 plan_execution 17 / 7.4 compose_script_tool 18; 移除 M2 `test_unsupported_is_subclass_of_not_implemented` 过时用例)
 python_new_source_files_target: ~5 (new: runtime/{__init__, errors, context_bridge, plan_execution, script_runtime}.py + mcp/tools/compose_script_tool.py; edits to: plan/plan.py to wire execute/to_sql; small public-method addition to semantic/service.py)
+python_new_source_files_actual: 6 new (runtime/{__init__.py, errors.py, context_bridge.py, plan_execution.py, script_runtime.py} + mcp/tools/compose_script_tool.py) + 2 edits (plan/plan.py execute/to_sql replaced; semantic/service.py execute_sql added)
 effort_estimate: 3.0 – 3.5 PD (r1 2.0–2.8 低估；r2 上调覆盖 Step 0 + evaluator 全面封装 + 执行适配器)
 ---
 
@@ -24,6 +28,7 @@ effort_estimate: 3.0 – 3.5 PD (r1 2.0–2.8 低估；r2 上调覆盖 Step 0 + 
 |---|---|---|
 | r1 ready-to-execute | 2026-04-23 | 首版落盘，基于 M6 双端 ready-for-review 后的交付形态 |
 | r2 ready-to-execute | 2026-04-24 | 吸收 plan-evaluator 评审：**B1** evaluator 实际 builtin 面锁定（`_setup_builtins` 无条件注入 Array_* / Console_* / JSON / parseInt / String / Number / typeof 等 ~17 个名字；改策略为 "允许既有 builtin + 追加 {from, dsl}，测试冻结整个可见面"）· **B2** 新 Step 0：`SemanticQueryService.execute_sql(sql, params, *, route_model=None)` 公共方法补齐（现有 `_execute_query_async` 是 private），M7 的 `plan_execution.py` 调用它而不是虚构的 `jdbc_executor`· **B3** host 配置缺失改用 `contextvars.ContextVar[ComposeRuntimeBundle]` + `RuntimeError`，不借用 `ComposeCompileError`，`ComposeQueryContext.extensions` 不再被 M7 写入· **S1** `QueryPlan.to_sql` 返回 `ComposedSql` 替换 M2 占位 `SqlPreview` 已记在 §对齐原则 与 decision log· **S3** Python 仓 CLAUDE.md 入 §必读前置 #0· **S4** §7.2 测试修正（fsscript 用 `import`，不是 `require`；删 `process / eval / globalThis` JS-world 词）· **S6** 顶部加 `intended_for`· 附注：同一脚本多次 execute/to_sql 触发多次 resolver、Java 镜像 factory 签名预告 |
+| done | 2026-04-24 | **Python M7 落地**。全仓 2947 passed / 1 skipped / 1 xfailed（+73 net tests from baseline 2874，0 regression）。6 新文件 + 2 edits · 0 新错误码命名空间 · `runtime/` 子包 5 文件 + `compose.script` MCP 工具 · `QueryPlan.execute/to_sql` 替换占位 · ContextVar `_compose_runtime` 隔离嵌套脚本 · `ALLOWED_SCRIPT_GLOBALS` 硬断言测试就位 · 更新 3 份 M2 deferred 测试为 M7 `RuntimeError` 形态 · Java 镜像待后续起草（ThreadLocal + `Function<ToolExecutionContext, AuthorityResolver>` factory 签名冻结）· 远程 `HttpAuthorityResolver` 仅 docstring、实装推迟 |
 
 ## 位置与角色
 
