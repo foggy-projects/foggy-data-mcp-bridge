@@ -3,6 +3,9 @@ package com.foggyframework.dataset.db.model.engine.compose.runtime;
 import com.foggyframework.dataset.db.model.engine.compose.context.ComposeQueryContext;
 import com.foggyframework.dataset.db.model.engine.compose.plan.Dsl;
 import com.foggyframework.dataset.db.model.engine.compose.plan.QueryPlan;
+import com.foggyframework.dataset.db.model.engine.compose.sandbox.ExpressionWhitelistValidator;
+import com.foggyframework.dataset.db.model.engine.compose.sandbox.ScriptSourceScanner;
+import com.foggyframework.dataset.db.model.engine.compose.sandbox.SecurityParamGuard;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.fsscript.DefaultExpEvaluator;
 import com.foggyframework.fsscript.closure.SimpleFsscriptClosureDefinitionSpace;
@@ -73,13 +76,16 @@ public final class ScriptRuntime {
                 .build();
         ComposeRuntimeHolder.Token token = ComposeRuntimeHolder.setBundle(bundle);
         try {
+            // 0. Layer A pre-execution source scan
+            ScriptSourceScanner.scan(script);
+
             // 1. Create closure definition space
             SimpleFsscriptClosureDefinitionSpace space = new SimpleFsscriptClosureDefinitionSpace();
             FsscriptClosureDefinition def = space.newFsscriptClosureDefinition();
 
-            // 2. Compile script (no dialect hook for now — ComposeQueryDialect
-            //    is a scanner-level dialect, ExpUtils.compileEl uses the default parser)
-            Exp exp = ExpUtils.compileEl(def, script, null);
+            // 2. Compile script using ComposeQueryDialect to allow `from(...)` as a function
+            com.foggyframework.fsscript.parser.spi.Parser parser = com.foggyframework.fsscript.utils.ExpUtils.getParser();
+            Exp exp = parser.compileEl(def, script, com.foggyframework.fsscript.parser.ComposeQueryDialect.INSTANCE);
             if (exp == null) {
                 return ScriptResult.builder().build();
             }
@@ -100,6 +106,10 @@ public final class ScriptRuntime {
                 }
                 @SuppressWarnings("unchecked")
                 Map<String, Object> args = (Map<String, Object>) rawArgs[0];
+
+                // Layer A: block security-sensitive parameters
+                SecurityParamGuard.validate(args, "script-eval");
+
                 Dsl.FromOptions.Builder builder = Dsl.FromOptions.builder();
                 if (args.containsKey("model")) {
                     builder.model((String) args.get("model"));
@@ -110,11 +120,15 @@ public final class ScriptRuntime {
                 if (args.containsKey("columns")) {
                     @SuppressWarnings("unchecked")
                     List<String> columns = (List<String>) args.get("columns");
+                    // Layer B: validate column expressions
+                    ExpressionWhitelistValidator.validateColumns(columns, "script-eval");
                     builder.columns(columns);
                 }
                 if (args.containsKey("slice")) {
                     @SuppressWarnings("unchecked")
                     List<Object> slice = (List<Object>) args.get("slice");
+                    // Layer B: validate slice values for injection
+                    ExpressionWhitelistValidator.validateSlice(slice, "script-eval");
                     builder.slice(slice);
                 }
                 if (args.containsKey("groupBy")) {
@@ -140,6 +154,14 @@ public final class ScriptRuntime {
             };
             evaluator.setVar("from", fromFunction);
             evaluator.setVar("dsl", fromFunction);  // dsl is an alias for from
+
+            // 4b. Inject the read-only 'params' surface from ctx
+            Map<String, Object> ctxParams = ctx.params();
+            if (ctxParams != null && !ctxParams.isEmpty()) {
+                evaluator.setVar("params", Collections.unmodifiableMap(ctxParams));
+            } else {
+                evaluator.setVar("params", Collections.emptyMap());
+            }
 
             // 5. Execute
             Object result = fsscript.evalResult(evaluator);
