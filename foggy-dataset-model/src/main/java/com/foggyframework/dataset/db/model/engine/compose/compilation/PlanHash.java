@@ -8,7 +8,6 @@ import com.foggyframework.dataset.db.model.engine.compose.plan.QueryPlan;
 import com.foggyframework.dataset.db.model.engine.compose.plan.UnionPlan;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -223,8 +222,4 @@ public final class PlanHash {
                         + (plan == null ? "null" : plan.getClass().getName()));
     }
 
-    /** Comparator used by tests — exposed for golden-snapshot style debugging. */
-    public static Comparator<Object> canonicalComparator() {
-        return Comparator.comparing(o -> o == null ? "" : o.toString());
-    }
 }

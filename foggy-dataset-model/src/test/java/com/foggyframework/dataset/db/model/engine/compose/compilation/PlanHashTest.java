@@ -315,10 +315,4 @@ class PlanHashTest {
         assertSame(c1.get(0), c2.get(0));
     }
 
-    @Test
-    @DisplayName("canonicalComparator() 可用于字典排序")
-    void canonicalComparatorWorks() {
-        assertTrue(PlanHash.canonicalComparator().compare("a", "b") < 0);
-        assertEquals(0, PlanHash.canonicalComparator().compare("x", "x"));
-    }
 }

@@ -64,28 +64,31 @@ final class ComposePlanner {
     // Dialect helpers (6.5)
     // ------------------------------------------------------------------
 
-    private static final Set<String> MYSQL_LEGACY_ALIASES = Set.of("mysql", "mysql57");
-    private static final Set<String> MYSQL_MODERN_ALIASES = Set.of("mysql8");
-    private static final Set<String> CTE_DIALECTS = Set.of(
-            "postgres", "postgresql", "mssql", "sqlserver", "sqlite");
+    /** dialect alias (lower-case) → whether it supports {@code WITH cte_N AS (...)}.
+     *  {@code "mysql"} (bare) is conservative MySQL 5.7 — callers on MySQL 8+
+     *  must pass {@code "mysql8"} to opt in to CTE emission. Unknown aliases
+     *  are rejected in {@link #assertDialect(String)}. */
+    private static final Map<String, Boolean> DIALECT_CTE_SUPPORT = Map.of(
+            "mysql",       Boolean.FALSE,
+            "mysql57",     Boolean.FALSE,
+            "mysql8",      Boolean.TRUE,
+            "postgres",    Boolean.TRUE,
+            "postgresql",  Boolean.TRUE,
+            "mssql",       Boolean.TRUE,
+            "sqlserver",   Boolean.TRUE,
+            "sqlite",      Boolean.TRUE);
 
     /** Return {@code true} when the dialect supports {@code WITH cte_N AS (...)}
-     *  syntax. {@code "mysql"} (bare) is treated as conservative MySQL 5.7 —
-     *  callers on MySQL 8+ must pass {@code "mysql8"} to opt in to CTE
-     *  emission. */
+     *  syntax. See {@link #DIALECT_CTE_SUPPORT} for the fixed mapping. */
     static boolean dialectSupportsCte(String dialect) {
-        String n = dialect.toLowerCase(Locale.ROOT);
-        if (MYSQL_LEGACY_ALIASES.contains(n)) return false;
-        if (MYSQL_MODERN_ALIASES.contains(n)) return true;
-        return CTE_DIALECTS.contains(n);
+        Boolean flag = DIALECT_CTE_SUPPORT.get(dialect.toLowerCase(Locale.ROOT));
+        return flag != null && flag;
     }
 
     /** Fail-closed: reject unknown dialect strings early so downstream
      *  snapshot drift is caught here rather than at a live query. */
     private static void assertDialect(String dialect) {
-        String n = dialect.toLowerCase(Locale.ROOT);
-        if (MYSQL_LEGACY_ALIASES.contains(n) || MYSQL_MODERN_ALIASES.contains(n)
-                || CTE_DIALECTS.contains(n)) {
+        if (DIALECT_CTE_SUPPORT.containsKey(dialect.toLowerCase(Locale.ROOT))) {
             return;
         }
         throw new ComposeCompileException(
@@ -104,10 +107,20 @@ final class ComposePlanner {
         final Map<String, ModelBinding> bindings;
         final SemanticQueryServiceV3 semanticService;
         final String namespace;
+        /** Dialect lower-cased once at construction; downstream comparisons
+         *  ({@code "sqlite"} SQLite full-outer guard, CTE detection) read this
+         *  without re-normalising. */
         final String dialect;
+        /** Pre-resolved {@code useCte} for the session's dialect — avoids a
+         *  {@link Map#get} + lowercasing at every compile branch. */
+        final boolean useCte;
         int aliasCounter = 0;
 
-        /** MVP dedup: same {@code id(plan)} hit → reuse the CteUnit directly. */
+        /** MVP fast path — same plan reference compiled twice in one session
+         *  (common for self-join / derived-over-same-plan) short-circuits
+         *  here without re-running the structural {@link PlanHash#planHash}
+         *  walk. {@link #hashCache} catches the different-instance-same-shape
+         *  case. Both caches are populated on miss to keep them in sync. */
         final IdentityHashMap<QueryPlan, CteUnit> idCache = new IdentityHashMap<>();
         /** Full-mode dedup: structurally equal plan subtrees share a CteUnit. */
         final Map<List<Object>, CteUnit> hashCache = new HashMap<>();
@@ -122,7 +135,8 @@ final class ComposePlanner {
             this.bindings = bindings;
             this.semanticService = semanticService;
             this.namespace = namespace;
-            this.dialect = dialect;
+            this.dialect = dialect.toLowerCase(Locale.ROOT);
+            this.useCte = dialectSupportsCte(this.dialect);
         }
 
         String nextAlias() {
@@ -167,7 +181,7 @@ final class ComposePlanner {
         // Top-level CteUnit (base / derived) — wrap as a single-unit CTE
         // or inline subquery for dialect-consistent output.
         CteUnit unit = (CteUnit) result;
-        return wrapSingleUnit(unit, dialectSupportsCte(dialect));
+        return wrapSingleUnit(unit, state.useCte);
     }
 
     // ------------------------------------------------------------------
@@ -196,14 +210,16 @@ final class ComposePlanner {
                 return compileJoin((JoinPlan) plan, state);
             }
 
-            if (state.idCache.containsKey(plan)) {
-                return state.idCache.get(plan);
+            CteUnit idHit = state.idCache.get(plan);
+            if (idHit != null) {
+                return idHit;
             }
+            // id-cache miss → fall back to structural hash (Full-mode dedup).
             List<Object> structuralKey = PlanHash.planHash(plan);
-            if (state.hashCache.containsKey(structuralKey)) {
-                CteUnit cached = state.hashCache.get(structuralKey);
-                state.idCache.put(plan, cached);
-                return cached;
+            CteUnit hashHit = state.hashCache.get(structuralKey);
+            if (hashHit != null) {
+                state.idCache.put(plan, hashHit);
+                return hashHit;
             }
 
             CteUnit unit;
@@ -272,8 +288,7 @@ final class ComposePlanner {
     }
 
     private static ComposedSql compileJoin(JoinPlan plan, CompileState state) {
-        if (plan.type() == JoinType.FULL
-                && "sqlite".equals(state.dialect.toLowerCase(Locale.ROOT))) {
+        if (plan.type() == JoinType.FULL && "sqlite".equals(state.dialect)) {
             throw new ComposeCompileException(
                     ComposeCompileErrorCodes.UNSUPPORTED_PLAN_SHAPE,
                     ComposeCompileErrorCodes.PHASE_PLAN_LOWER,
@@ -291,8 +306,6 @@ final class ComposePlanner {
                 : (CteUnit) rightObj;
 
         String onCondition = buildOnCondition(plan.on(), left.getAlias(), right.getAlias());
-        String joinKeyword = sqlJoinKeyword(plan.type());
-        boolean useCte = dialectSupportsCte(state.dialect);
 
         // Dedup anchor units: if both sides resolved to the same CteUnit
         // (via id-cache / hash-cache — typical for self-join on the same
@@ -303,8 +316,8 @@ final class ComposePlanner {
             anchors.add(right);
         }
 
-        return assembleJoinSql(anchors, joinKeyword, onCondition,
-                left.getAlias(), right.getAlias(), useCte);
+        return assembleJoinSql(anchors, plan.type().sqlKeyword(), onCondition,
+                left.getAlias(), right.getAlias(), state.useCte);
     }
 
     private static ComposedSql compileUnion(UnionPlan plan, CompileState state) {
@@ -437,16 +450,6 @@ final class ComposePlanner {
         return String.join(" AND ", frags);
     }
 
-    private static String sqlJoinKeyword(JoinType type) {
-        switch (type) {
-            case INNER: return "INNER";
-            case LEFT:  return "LEFT";
-            case RIGHT: return "RIGHT";
-            case FULL:  return "FULL OUTER";
-            default:    return "INNER";
-        }
-    }
-
     private static String extractSql(Object compiled) {
         if (compiled instanceof CteUnit) return ((CteUnit) compiled).getSql();
         if (compiled instanceof ComposedSql) return ((ComposedSql) compiled).getSql();
@@ -517,37 +520,10 @@ final class ComposePlanner {
         return sb.toString();
     }
 
-    @SuppressWarnings("unchecked")
     private static String renderSliceEntry(Object entry, List<Object> outerParams) {
-        if (!(entry instanceof Map)) {
-            throw new ComposeCompileException(
-                    ComposeCompileErrorCodes.UNSUPPORTED_PLAN_SHAPE,
-                    ComposeCompileErrorCodes.PHASE_PLAN_LOWER,
-                    "Derived slice entries must be Map, got "
-                            + (entry == null ? "null" : entry.getClass().getSimpleName()));
-        }
-        Map<String, Object> map = (Map<String, Object>) entry;
-        String field;
-        String op;
-        Object value;
-        if (map.containsKey("field")) {
-            field = String.valueOf(map.get("field"));
-            op = map.get("op") == null ? "=" : String.valueOf(map.get("op"));
-            value = map.get("value");
-        } else {
-            if (map.size() != 1) {
-                throw new ComposeCompileException(
-                        ComposeCompileErrorCodes.UNSUPPORTED_PLAN_SHAPE,
-                        ComposeCompileErrorCodes.PHASE_PLAN_LOWER,
-                        "Derived slice shortcut must have exactly 1 key, got " + map.keySet());
-            }
-            Map.Entry<String, Object> e = map.entrySet().iterator().next();
-            field = e.getKey();
-            op = "=";
-            value = e.getValue();
-        }
-        outerParams.add(value);
-        return field + " " + op + " ?";
+        SliceShape s = SliceShape.parse(entry);
+        outerParams.add(s.value);
+        return s.field + " " + s.op + " ?";
     }
 
     private static String renderOrderEntry(String entry) {

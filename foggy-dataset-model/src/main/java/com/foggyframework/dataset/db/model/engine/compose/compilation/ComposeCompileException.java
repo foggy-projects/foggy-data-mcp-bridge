@@ -46,7 +46,14 @@ public class ComposeCompileException extends RuntimeException {
      *                                  invalid (fail-closed on typos).
      */
     public ComposeCompileException(String code, String phase, String message, Throwable cause) {
-        super(formatMessage(code, phase, message), cause);
+        super(validateAndFormat(code, phase, message), cause);
+        this.code = code;
+        this.phase = phase;
+    }
+
+    /** Validate fail-closed first, then format — avoids building the message
+     *  string just to throw it away when code/phase is a typo. */
+    private static String validateAndFormat(String code, String phase, String message) {
         if (!ComposeCompileErrorCodes.isValidCode(code)) {
             throw new IllegalArgumentException(
                     "Invalid ComposeCompileException code " + quote(code)
@@ -57,8 +64,7 @@ public class ComposeCompileException extends RuntimeException {
                     "Invalid ComposeCompileException phase " + quote(phase)
                             + "; must be one of " + ComposeCompileErrorCodes.VALID_PHASES);
         }
-        this.code = code;
-        this.phase = phase;
+        return formatMessage(code, phase, message);
     }
 
     /** Stable error-code discriminator (e.g.

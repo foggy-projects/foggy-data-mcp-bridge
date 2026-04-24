@@ -78,7 +78,7 @@ final class PerBaseCompiler {
             String alias,
             Map<String, SqlGenerationResult> governanceCache) {
 
-        String cacheKey = plan.model() + "" + System.identityHashCode(binding);
+        String cacheKey = plan.model() + ":" + System.identityHashCode(binding);
         SqlGenerationResult buildResult = null;
         if (governanceCache != null) {
             buildResult = governanceCache.get(cacheKey);
@@ -90,7 +90,7 @@ final class PerBaseCompiler {
             try {
                 buildResult = semanticService.generateSql(plan.model(), request, reqContext);
             } catch (RuntimeException ex) {
-                if (isModelNotFound(ex, plan.model())) {
+                if (isModelNotFound(ex)) {
                     throw new ComposeCompileException(
                             ComposeCompileErrorCodes.MISSING_BINDING,
                             ComposeCompileErrorCodes.PHASE_PLAN_LOWER,
@@ -127,15 +127,12 @@ final class PerBaseCompiler {
     /** Recognise the "Model not found" branch of v1.3 / semantic-service
      *  exceptions so we can reclassify it as {@link ComposeCompileErrorCodes#MISSING_BINDING}
      *  at the {@code plan-lower} phase. Matches both the Java
-     *  {@code "模型不存在: <name>"} and the Python-aligned
-     *  {@code "Model not found: <name>"} phrasings. */
-    private static boolean isModelNotFound(Throwable ex, String modelName) {
+     *  {@code "模型不存在"} and the Python-aligned
+     *  {@code "Model not found"} phrasings. */
+    private static boolean isModelNotFound(Throwable ex) {
         String msg = ex.getMessage();
-        if (msg == null) return false;
-        if (msg.contains("Model not found")) return true;
-        if (msg.contains("模型不存在")) return true;
-        if (msg.contains("模型不存在: " + modelName)) return true;
-        return false;
+        return msg != null
+                && (msg.contains("Model not found") || msg.contains("模型不存在"));
     }
 
     // ------------------------------------------------------------------
@@ -181,39 +178,14 @@ final class PerBaseCompiler {
         return req;
     }
 
-    /** Plan-level slice shapes accepted:
-     *  <ul>
-     *    <li>{@code {field: F, op: OP, value: V}} — preferred</li>
-     *    <li>{@code {F: V}} — single-key shortcut; op defaults to {@code =}</li>
-     *  </ul> */
-    @SuppressWarnings("unchecked")
+    /** Plan-level slice → v1.3 {@link SemanticQueryRequest.SliceItem}.
+     *  Accepted shapes are documented on {@link SliceShape#parse(Object)}. */
     private static SemanticQueryRequest.SliceItem toSliceItem(Object raw) {
-        if (!(raw instanceof Map)) {
-            throw new ComposeCompileException(
-                    ComposeCompileErrorCodes.UNSUPPORTED_PLAN_SHAPE,
-                    ComposeCompileErrorCodes.PHASE_PLAN_LOWER,
-                    "BaseModelPlan.slice entries must be Map, got "
-                            + (raw == null ? "null" : raw.getClass().getSimpleName()));
-        }
-        Map<String, Object> entry = (Map<String, Object>) raw;
+        SliceShape s = SliceShape.parse(raw);
         SemanticQueryRequest.SliceItem item = new SemanticQueryRequest.SliceItem();
-        if (entry.containsKey("field")) {
-            item.setField(String.valueOf(entry.get("field")));
-            Object op = entry.get("op");
-            item.setOp(op == null ? "=" : String.valueOf(op));
-            item.setValue(entry.get("value"));
-        } else {
-            if (entry.size() != 1) {
-                throw new ComposeCompileException(
-                        ComposeCompileErrorCodes.UNSUPPORTED_PLAN_SHAPE,
-                        ComposeCompileErrorCodes.PHASE_PLAN_LOWER,
-                        "Plan slice shortcut must have exactly 1 key, got " + entry.keySet());
-            }
-            Map.Entry<String, Object> e = entry.entrySet().iterator().next();
-            item.setField(e.getKey());
-            item.setOp("=");
-            item.setValue(e.getValue());
-        }
+        item.setField(s.field);
+        item.setOp(s.op);
+        item.setValue(s.value);
         return item;
     }
 

@@ -29,6 +29,18 @@ public enum JoinType {
         return name().toLowerCase(Locale.ROOT);
     }
 
+    /** Upper-case SQL keyword used by the M6 compiler when assembling
+     *  {@code ... INNER/LEFT/RIGHT/FULL OUTER JOIN ...} fragments. */
+    public String sqlKeyword() {
+        switch (this) {
+            case INNER: return "INNER";
+            case LEFT:  return "LEFT";
+            case RIGHT: return "RIGHT";
+            case FULL:  return "FULL OUTER";
+            default:    throw new IllegalStateException("Unknown JoinType " + this);
+        }
+    }
+
     /**
      * Normalise a raw string to a {@link JoinType}. Whitespace is trimmed
      * and casing is ignored. Unknown tokens raise
