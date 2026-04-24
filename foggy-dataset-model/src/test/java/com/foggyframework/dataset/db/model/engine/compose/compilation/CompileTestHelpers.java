@@ -115,6 +115,10 @@ final class CompileTestHelpers {
         final List<CapturedInvocation> invocations = new ArrayList<>();
         private RuntimeException throwOnNext;
 
+        // ---- M7: executeSql stub support ----
+        private List<Map<String, Object>> execResult;
+        private RuntimeException execThrow;
+
         FakeSemanticService stub(String model, String sql, Object... params) {
             canned.put(model, new CannedResult(sql, new ArrayList<>(Arrays.asList(params))));
             return this;
@@ -122,6 +126,20 @@ final class CompileTestHelpers {
 
         FakeSemanticService throwNext(RuntimeException ex) {
             this.throwOnNext = ex;
+            return this;
+        }
+
+        /** M7: stub the rows returned by {@link #executeSql}. */
+        FakeSemanticService stubExec(List<Map<String, Object>> rows) {
+            this.execResult = rows;
+            this.execThrow = null;
+            return this;
+        }
+
+        /** M7: make {@link #executeSql} throw on next call. */
+        FakeSemanticService stubExecThrows(RuntimeException ex) {
+            this.execThrow = ex;
+            this.execResult = null;
             return this;
         }
 
@@ -139,6 +157,20 @@ final class CompileTestHelpers {
                 throw new RuntimeException("Model not found: " + model);
             }
             return new SqlGenerationResult(c.sql, c.params, null);
+        }
+
+        @Override
+        public java.util.List<java.util.Map<String, Object>> executeSql(
+                String sql, java.util.List<Object> params, String routeModel) {
+            if (execThrow != null) {
+                RuntimeException toThrow = execThrow;
+                execThrow = null;
+                throw toThrow;
+            }
+            if (execResult != null) {
+                return execResult;
+            }
+            return java.util.List.of();
         }
 
         // ---- unused methods required by the interface ----

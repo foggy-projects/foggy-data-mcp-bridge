@@ -1,6 +1,12 @@
 package com.foggyframework.dataset.db.model.engine.compose.plan;
 
+import com.foggyframework.dataset.db.model.engine.compose.ComposedSql;
+import com.foggyframework.dataset.db.model.engine.compose.compilation.ComposeSqlCompiler;
 import com.foggyframework.dataset.db.model.engine.compose.context.ComposeQueryContext;
+import com.foggyframework.dataset.db.model.engine.compose.runtime.ComposeRuntimeBundle;
+import com.foggyframework.dataset.db.model.engine.compose.runtime.ComposeRuntimeHolder;
+import com.foggyframework.dataset.db.model.engine.compose.runtime.PlanExecution;
+import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -129,35 +135,120 @@ public abstract class QueryPlan {
     }
 
     /**
-     * Placeholder — wired in M7 (script runner ties the plan to execution
-     * via the compiler produced in M6).
+     * Execute this plan via the ambient {@link
+     * com.foggyframework.dataset.db.model.engine.compose.runtime.ComposeRuntimeBundle}.
      *
-     * @throws UnsupportedInM2Exception always in 8.2.0.beta M2
+     * <p>M7 wiring: reads the bundle from
+     * {@link com.foggyframework.dataset.db.model.engine.compose.runtime.ComposeRuntimeHolder#currentBundle()},
+     * then delegates to
+     * {@link com.foggyframework.dataset.db.model.engine.compose.runtime.PlanExecution#executePlan}.</p>
+     *
+     * @return rows as a list of column-name→value maps
+     * @throws RuntimeException if no ambient bundle is set
+     * @since 8.2.0.beta M7
      */
-    public final Object execute() {
+    public final List<Map<String, Object>> execute() {
         return execute(null);
     }
 
     /**
-     * Placeholder — wired in M7.
+     * Execute this plan, optionally overriding the context from the
+     * ambient bundle.
      *
-     * @throws UnsupportedInM2Exception always in 8.2.0.beta M2
+     * @param explicitCtx optional override context; when null, the
+     *                    bundle's ctx is used
+     * @return rows as a list of column-name→value maps
+     * @throws RuntimeException if no ambient bundle is set
+     * @since 8.2.0.beta M7
      */
-    public final Object execute(ComposeQueryContext context) {
-        throw new UnsupportedInM2Exception(
-                "QueryPlan.execute() is not implemented in 8.2.0.beta M2. "
-                        + "Wiring arrives in M6 (SQL compile) + M7 (script runner).");
+    public final List<Map<String, Object>> execute(ComposeQueryContext explicitCtx) {
+        ComposeRuntimeBundle bundle = ComposeRuntimeHolder.currentBundle();
+        if (bundle == null) {
+            throw new RuntimeException(
+                    "QueryPlan.execute requires an ambient ComposeRuntimeBundle; "
+                            + "call from inside ScriptRuntime.runScript(), or wrap manually via "
+                            + "ComposeRuntimeHolder.setBundle(...). Host misconfiguration "
+                            + "(semanticService / dialect not bound) cannot be surfaced as "
+                            + "ComposeCompileException — that family is reserved for compile-phase failures.");
+        }
+        ComposeQueryContext effectiveCtx = explicitCtx != null ? explicitCtx : bundle.ctx();
+        return PlanExecution.executePlan(
+                this, effectiveCtx, bundle.semanticService(), bundle.dialect());
     }
 
     /**
-     * Placeholder — wired in M6 (SQL compile + dialect rendering).
+     * Compile this plan to SQL via the ambient
+     * {@link ComposeRuntimeBundle}.
      *
-     * @throws UnsupportedInM2Exception always in 8.2.0.beta M2
+     * <p><b>Note:</b> even when overriding the context via
+     * {@link #toSql(ComposeQueryContext)} or
+     * {@link #toSql(ComposeQueryContext, String)}, an ambient
+     * {@link ComposeRuntimeBundle} is still required to provide the
+     * {@link SemanticQueryServiceV3} for SQL generation. Call from inside
+     * {@code ScriptRuntime.runScript()}, or wrap manually via
+     * {@code ComposeRuntimeHolder.setBundle(...)}.</p>
+     *
+     * @return compiled SQL + params
+     * @throws RuntimeException if no ambient bundle or semanticService is set
+     * @since 8.2.0.beta M7
      */
-    public final SqlPreview toSql() {
-        throw new UnsupportedInM2Exception(
-                "QueryPlan.toSql() is not implemented in 8.2.0.beta M2. "
-                        + "Arrives in M6 together with the SQL compiler.");
+    public final ComposedSql toSql() {
+        return toSql(null, null);
+    }
+
+    /**
+     * Compile this plan to SQL with an explicit context override.
+     *
+     * <p>An ambient {@link ComposeRuntimeBundle} is still required
+     * to provide the {@link SemanticQueryServiceV3}.</p>
+     *
+     * @param explicitCtx optional override context; when null, the
+     *                    bundle's ctx is used
+     * @return compiled SQL + params
+     * @since 8.2.0.beta M7
+     */
+    public final ComposedSql toSql(ComposeQueryContext explicitCtx) {
+        return toSql(explicitCtx, null);
+    }
+
+    /**
+     * Compile this plan to SQL with explicit context and dialect overrides.
+     *
+     * <p>An ambient {@link ComposeRuntimeBundle} is still required
+     * to provide the {@link SemanticQueryServiceV3}.</p>
+     *
+     * @param explicitCtx optional override context; when null, the
+     *                    bundle's ctx is used
+     * @param dialect     optional override dialect; when null, the
+     *                    bundle's dialect is used
+     * @return compiled SQL + params
+     * @since 8.2.0.beta M7
+     */
+    public final ComposedSql toSql(
+            ComposeQueryContext explicitCtx, String dialect) {
+        ComposeRuntimeBundle bundle = ComposeRuntimeHolder.currentBundle();
+        if (bundle == null && explicitCtx == null) {
+            throw new RuntimeException(
+                    "QueryPlan.toSql requires either an explicit ctx or an ambient ComposeRuntimeBundle");
+        }
+        ComposeQueryContext effectiveCtx = explicitCtx != null ? explicitCtx :
+                bundle.ctx();
+        SemanticQueryServiceV3 effectiveSvc =
+                bundle != null ? bundle.semanticService() : null;
+        String effectiveDialect = dialect != null ? dialect :
+                (bundle != null ? bundle.dialect() : "mysql");
+        if (effectiveSvc == null) {
+            throw new RuntimeException(
+                    "QueryPlan.toSql: semanticService unbound — an ambient "
+                            + "ComposeRuntimeBundle is required even when explicitCtx is "
+                            + "provided (call from inside ScriptRuntime.runScript, or wrap "
+                            + "manually via ComposeRuntimeHolder.setBundle)");
+        }
+        return ComposeSqlCompiler.compilePlanToSql(this, effectiveCtx,
+                ComposeSqlCompiler.CompileOptions.builder()
+                        .semanticService(effectiveSvc)
+                        .dialect(effectiveDialect)
+                        .build());
     }
 
     // ------------------------------------------------------------------

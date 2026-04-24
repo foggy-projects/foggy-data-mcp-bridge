@@ -52,8 +52,8 @@ class PlanCompositionTest {
             assertInstanceOf(DerivedQueryPlan.class, salespersonOverdue);
             assertSame(overdueByCustomer, salespersonOverdue.source());
 
-            // execute()/toSql() still deferred
-            assertThrows(UnsupportedInM2Exception.class, salespersonOverdue::execute);
+            // execute()/toSql() — M7: throws RuntimeException when no bundle is set
+            assertThrows(RuntimeException.class, salespersonOverdue::execute);
         }
     }
 

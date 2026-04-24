@@ -125,22 +125,22 @@ class DerivedQueryPlanTest {
     }
 
     @Nested
-    @DisplayName("execute / toSql 占位")
-    class ExecuteToSqlDeferred {
+    @DisplayName("execute / toSql — M7: 无 bundle 时抛 RuntimeException")
+    class ExecuteToSqlWithoutBundle {
         @Test
-        @DisplayName("execute 抛 UnsupportedInM2Exception")
+        @DisplayName("execute 无 ambient bundle → RuntimeException")
         void executeRaises() {
             DerivedQueryPlan d = DerivedQueryPlan.builder()
                     .source(base()).columns(List.of("id")).build();
-            assertThrows(UnsupportedInM2Exception.class, d::execute);
+            assertThrows(RuntimeException.class, d::execute);
         }
 
         @Test
-        @DisplayName("toSql 抛 UnsupportedInM2Exception")
+        @DisplayName("toSql 无 ambient bundle → RuntimeException")
         void toSqlRaises() {
             DerivedQueryPlan d = DerivedQueryPlan.builder()
                     .source(base()).columns(List.of("id")).build();
-            assertThrows(UnsupportedInM2Exception.class, d::toSql);
+            assertThrows(RuntimeException.class, d::toSql);
         }
     }
 

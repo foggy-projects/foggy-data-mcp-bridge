@@ -1,0 +1,203 @@
+package com.foggyframework.dataset.db.model.engine.compose.runtime;
+
+import com.foggyframework.dataset.db.model.engine.compose.context.ComposeQueryContext;
+import com.foggyframework.dataset.db.model.engine.compose.plan.Dsl;
+import com.foggyframework.dataset.db.model.engine.compose.plan.QueryPlan;
+import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
+import com.foggyframework.fsscript.DefaultExpEvaluator;
+import com.foggyframework.fsscript.closure.SimpleFsscriptClosureDefinitionSpace;
+import com.foggyframework.fsscript.parser.spi.Exp;
+import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
+import com.foggyframework.fsscript.parser.spi.Fsscript;
+import com.foggyframework.fsscript.parser.spi.FsscriptClosureDefinition;
+import com.foggyframework.fsscript.support.FsscriptImpl;
+import com.foggyframework.fsscript.utils.ExpUtils;
+
+import java.util.*;
+import java.util.function.Function;
+
+/**
+ * M7 Compose Query script runtime — parse + evaluate fsscript with a
+ * sandboxed visible surface ({@code from}, {@code dsl}).
+ *
+ * <p><b>Sandbox strategy (Java — simpler than Python).</b>
+ * Java {@link DefaultExpEvaluator} does NOT pre-inject any builtins when
+ * constructed with {@code appCtx=null}. The default visible surface is
+ * empty (plus script-defined variables). Danger is not "pre-injected
+ * builtins" (Python has 17) but rather "{@code appCtx}-based Spring
+ * beans". Passing {@code appCtx=null} blocks all {@code @FsscriptExp}
+ * bean injection.</p>
+ *
+ * <p>{@link #ALLOWED_SCRIPT_GLOBALS} is {@code Set.of("from", "dsl")}
+ * — exactly 2 items. Tests hard-assert this equals the evaluator's
+ * actual visible surface after injection.</p>
+ *
+ * <p>Cross-repo invariant: mirrors Python
+ * {@code foggy.dataset_model.engine.compose.runtime.script_runtime}.</p>
+ *
+ * @since 8.2.0.beta
+ */
+public final class ScriptRuntime {
+
+    private ScriptRuntime() { /* utility */ }
+
+    /**
+     * Exact set of global names injected into the script evaluator.
+     * Tests hard-assert this equals the evaluator's actual visible surface.
+     */
+    public static final Set<String> ALLOWED_SCRIPT_GLOBALS = Set.of("from", "dsl");
+
+    /**
+     * Execute a Compose Query fsscript.
+     *
+     * @param script          the fsscript source code
+     * @param ctx             compose query context
+     * @param semanticService the semantic service for compile + execute
+     * @param dialect         SQL dialect (null defaults to "mysql")
+     * @return a {@link ScriptResult} with value / sql / params / warnings
+     * @throws IllegalArgumentException if ctx or semanticService is null
+     */
+    public static ScriptResult runScript(
+            String script,
+            ComposeQueryContext ctx,
+            SemanticQueryServiceV3 semanticService,
+            String dialect) {
+        if (ctx == null) throw new IllegalArgumentException("ctx must not be null");
+        if (semanticService == null) throw new IllegalArgumentException("semanticService must not be null");
+
+        String effectiveDialect = dialect == null ? "mysql" : dialect;
+        ComposeRuntimeBundle bundle = ComposeRuntimeBundle.builder()
+                .ctx(ctx)
+                .semanticService(semanticService)
+                .dialect(effectiveDialect)
+                .build();
+        ComposeRuntimeHolder.Token token = ComposeRuntimeHolder.setBundle(bundle);
+        try {
+            // 1. Create closure definition space
+            SimpleFsscriptClosureDefinitionSpace space = new SimpleFsscriptClosureDefinitionSpace();
+            FsscriptClosureDefinition def = space.newFsscriptClosureDefinition();
+
+            // 2. Compile script (no dialect hook for now — ComposeQueryDialect
+            //    is a scanner-level dialect, ExpUtils.compileEl uses the default parser)
+            Exp exp = ExpUtils.compileEl(def, script, null);
+            if (exp == null) {
+                return ScriptResult.builder().build();
+            }
+            Fsscript fsscript = new FsscriptImpl(def, exp);
+
+            // 3. Create evaluator with appCtx=null (sandbox: blocks @FsscriptExp beans)
+            ExpEvaluator evaluator = DefaultExpEvaluator.newInstance(null,
+                    def.newFoggyClosure());
+
+            // 4. Inject the two allowed globals: from and dsl (both aliases for Dsl.from)
+            //    fsscript engine calls Function<Object[], Object>.apply(evalArgs)
+            //    where evalArgs is the Object[] of evaluated argument expressions.
+            //    For from({model:'X', columns:['id']}), evalArgs = [ Map{model=X, columns=[id]} ]
+            Function<Object[], Object> fromFunction = rawArgs -> {
+                if (rawArgs == null || rawArgs.length == 0) {
+                    throw new IllegalArgumentException(
+                            "from() / dsl() requires exactly 1 argument (options map)");
+                }
+                @SuppressWarnings("unchecked")
+                Map<String, Object> args = (Map<String, Object>) rawArgs[0];
+                Dsl.FromOptions.Builder builder = Dsl.FromOptions.builder();
+                if (args.containsKey("model")) {
+                    builder.model((String) args.get("model"));
+                }
+                if (args.containsKey("source")) {
+                    builder.source((QueryPlan) args.get("source"));
+                }
+                if (args.containsKey("columns")) {
+                    @SuppressWarnings("unchecked")
+                    List<String> columns = (List<String>) args.get("columns");
+                    builder.columns(columns);
+                }
+                if (args.containsKey("slice")) {
+                    @SuppressWarnings("unchecked")
+                    List<Object> slice = (List<Object>) args.get("slice");
+                    builder.slice(slice);
+                }
+                if (args.containsKey("groupBy")) {
+                    @SuppressWarnings("unchecked")
+                    List<String> groupBy = (List<String>) args.get("groupBy");
+                    builder.groupBy(groupBy);
+                }
+                if (args.containsKey("orderBy")) {
+                    @SuppressWarnings("unchecked")
+                    List<String> orderBy = (List<String>) args.get("orderBy");
+                    builder.orderBy(orderBy);
+                }
+                if (args.containsKey("limit")) {
+                    builder.limit(((Number) args.get("limit")).intValue());
+                }
+                if (args.containsKey("start")) {
+                    builder.start(((Number) args.get("start")).intValue());
+                }
+                if (args.containsKey("distinct")) {
+                    builder.distinct(Boolean.TRUE.equals(args.get("distinct")));
+                }
+                return Dsl.from(builder.build());
+            };
+            evaluator.setVar("from", fromFunction);
+            evaluator.setVar("dsl", fromFunction);  // dsl is an alias for from
+
+            // 5. Execute
+            Object result = fsscript.evalResult(evaluator);
+
+            // 6. Build ScriptResult
+            return ScriptResult.builder()
+                    .value(result)
+                    .build();
+
+        } finally {
+            ComposeRuntimeHolder.popBundle(token);
+        }
+    }
+
+    /**
+     * Result of a {@link #runScript} invocation.
+     */
+    public static final class ScriptResult {
+
+        private final Object value;
+        private final String sql;
+        private final List<Object> params;
+        private final List<String> warnings;
+
+        private ScriptResult(Builder b) {
+            this.value = b.value;
+            this.sql = b.sql;
+            this.params = b.params;
+            this.warnings = b.warnings == null ? List.of() : List.copyOf(b.warnings);
+        }
+
+        public Object value() { return value; }
+        public String sql() { return sql; }
+        public List<Object> params() { return params; }
+        public List<String> warnings() { return warnings; }
+
+        public static Builder builder() { return new Builder(); }
+
+        public static final class Builder {
+            private Object value;
+            private String sql;
+            private List<Object> params;
+            private List<String> warnings;
+
+            public Builder value(Object v) { this.value = v; return this; }
+            public Builder sql(String v) { this.sql = v; return this; }
+            public Builder params(List<Object> v) { this.params = v; return this; }
+            public Builder warnings(List<String> v) { this.warnings = v; return this; }
+
+            public ScriptResult build() { return new ScriptResult(this); }
+        }
+
+        @Override
+        public String toString() {
+            return "ScriptResult{value=" + value
+                    + ", sql=" + sql
+                    + ", params=" + params
+                    + ", warnings=" + warnings + '}';
+        }
+    }
+}

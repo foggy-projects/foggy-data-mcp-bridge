@@ -24,10 +24,13 @@ import com.foggyframework.dataset.db.model.spi.DbQueryColumn;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
 import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
 import com.foggyframework.dataset.model.PagingResultImpl;
+import com.foggyframework.dataset.utils.DataSourceQueryUtils;
 import jakarta.annotation.Resource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+
+import javax.sql.DataSource;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -63,6 +66,9 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
 
     @Resource
     private DimensionMemberLoader dimensionMemberLoader;
+
+    @Resource
+    private DataSource dataSource;
 
     @Override
     public SemanticQueryResponse queryModel(String model, SemanticQueryRequest request, String mode,
@@ -872,5 +878,24 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         SemanticQueryRequest originalRequest;
         Map<String, Object> extData = new HashMap<>();
         List<String> warnings = new ArrayList<>();
+    }
+
+    // ---- M7: raw-SQL execution for Compose Query ----
+
+    @Override
+    public List<Map<String, Object>> executeSql(String sql, List<Object> params, String routeModel) {
+        if (dataSource == null) {
+            throw new RuntimeException(
+                "executeSql failed: DataSource not injected into SemanticQueryServiceV3Impl;"
+                + " host must configure a primary DataSource bean");
+        }
+        try {
+            Object[] paramsArray = params == null ? new Object[0] : params.toArray(new Object[0]);
+            return DataSourceQueryUtils.getDatasetTemplate(dataSource)
+                    .getTemplate()
+                    .queryForList(sql, paramsArray);
+        } catch (Exception e) {
+            throw new RuntimeException("executeSql failed: " + e.getMessage(), e);
+        }
     }
 }

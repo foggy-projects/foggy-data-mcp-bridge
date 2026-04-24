@@ -5,6 +5,9 @@ import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 
+import java.util.List;
+import java.util.Map;
+
 /**
  * V3版本语义查询服务接口
  *
@@ -59,4 +62,24 @@ public interface SemanticQueryServiceV3 {
      */
     SqlGenerationResult generateSql(String model, SemanticQueryRequest request,
                                     SemanticRequestContext context);
+
+    /**
+     * Execute raw SQL compiled by M6 {@link com.foggyframework.dataset.db.model.engine.compose.compilation.ComposeSqlCompiler}
+     * and return rows.
+     *
+     * <p>Used by M7 {@code PlanExecution.executePlan} as the raw-SQL primitive
+     * behind {@code QueryPlan.execute()}. Does NOT re-run governance —
+     * governance already applied during {@link #generateSql} inside
+     * {@code ComposeSqlCompiler}.</p>
+     *
+     * @param sql         compiled SQL (positional ? placeholders)
+     * @param params      positional bind parameters
+     * @param routeModel  reserved for multi-datasource routing (M8+);
+     *                    ignored in M7 single-datasource deployment.
+     *                    Always null-safe.
+     * @return list of rows (Map&lt;column_name, value&gt;)
+     * @throws RuntimeException with message prefix "executeSql failed:"
+     *         when executor not configured / SQL syntax error / DB connection error
+     */
+    List<Map<String, Object>> executeSql(String sql, List<Object> params, String routeModel);
 }

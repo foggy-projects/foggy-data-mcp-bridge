@@ -25,6 +25,10 @@ import java.util.*;
  * 不注入 {@code ApplicationContext}，从而阻断 {@code @bean} 和 {@code java:} 导入。
  * 仅通过 Bindings 注入白名单函数（{@code dsl}）。</p>
  *
+ * @implNote since 8.2.0.beta: use {@link ComposeScriptTool}
+ * (name="dataset.compose_script") for new compose queries; this tool
+ * is retained for legacy 2-way join scenarios.
+ *
  * <h3>示例调用</h3>
  * <pre>{@code
  * {

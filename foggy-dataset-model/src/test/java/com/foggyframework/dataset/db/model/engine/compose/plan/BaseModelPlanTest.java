@@ -135,21 +135,21 @@ class BaseModelPlanTest {
     }
 
     @Nested
-    @DisplayName("execute / toSql 占位")
-    class ExecuteAndToSqlDeferred {
+    @DisplayName("execute / toSql — M7: 无 bundle 时抛 RuntimeException")
+    class ExecuteAndToSqlWithoutBundle {
 
         @Test
-        @DisplayName("execute() 抛 UnsupportedInM2Exception")
+        @DisplayName("execute() 无 ambient bundle → RuntimeException")
         void executeRaises() {
             BaseModelPlan p = BaseModelPlan.builder().model("X").columns(List.of("id")).build();
-            assertThrows(UnsupportedInM2Exception.class, p::execute);
+            assertThrows(RuntimeException.class, p::execute);
         }
 
         @Test
-        @DisplayName("toSql() 抛 UnsupportedInM2Exception")
+        @DisplayName("toSql() 无 ambient bundle → RuntimeException")
         void toSqlRaises() {
             BaseModelPlan p = BaseModelPlan.builder().model("X").columns(List.of("id")).build();
-            assertThrows(UnsupportedInM2Exception.class, p::toSql);
+            assertThrows(RuntimeException.class, p::toSql);
         }
     }
 

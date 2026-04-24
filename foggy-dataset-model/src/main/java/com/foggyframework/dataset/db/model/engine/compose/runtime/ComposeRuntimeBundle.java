@@ -1,0 +1,65 @@
+package com.foggyframework.dataset.db.model.engine.compose.runtime;
+
+import com.foggyframework.dataset.db.model.engine.compose.context.ComposeQueryContext;
+import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
+
+import java.util.Objects;
+
+/**
+ * Immutable bag of runtime dependencies threaded through a Compose Query
+ * script execution via {@link ComposeRuntimeHolder}.
+ *
+ * <p>Fields:
+ * <ul>
+ *   <li>{@code ctx} — the {@link ComposeQueryContext} carrying principal,
+ *       authority resolver, namespace, traceId</li>
+ *   <li>{@code semanticService} — the semantic-query service that provides
+ *       {@code generateSql} and {@code executeSql}</li>
+ *   <li>{@code dialect} — SQL dialect (default {@code "mysql"})</li>
+ * </ul>
+ *
+ * <p>Cross-repo invariant: mirrors Python
+ * {@code ComposeRuntimeBundle} from
+ * {@code foggy.dataset_model.engine.compose.runtime}.</p>
+ *
+ * @since 8.2.0.beta
+ */
+public final class ComposeRuntimeBundle {
+
+    private final ComposeQueryContext ctx;
+    private final SemanticQueryServiceV3 semanticService;
+    private final String dialect;
+
+    private ComposeRuntimeBundle(Builder b) {
+        this.ctx = Objects.requireNonNull(b.ctx,
+                "ComposeRuntimeBundle.ctx is required");
+        this.semanticService = Objects.requireNonNull(b.semanticService,
+                "ComposeRuntimeBundle.semanticService is required");
+        this.dialect = b.dialect == null ? "mysql" : b.dialect;
+    }
+
+    public ComposeQueryContext ctx() { return ctx; }
+    public SemanticQueryServiceV3 semanticService() { return semanticService; }
+    public String dialect() { return dialect; }
+
+    public static Builder builder() { return new Builder(); }
+
+    public static final class Builder {
+        private ComposeQueryContext ctx;
+        private SemanticQueryServiceV3 semanticService;
+        private String dialect;
+
+        public Builder ctx(ComposeQueryContext v) { this.ctx = v; return this; }
+        public Builder semanticService(SemanticQueryServiceV3 v) { this.semanticService = v; return this; }
+        public Builder dialect(String v) { this.dialect = v; return this; }
+
+        public ComposeRuntimeBundle build() { return new ComposeRuntimeBundle(this); }
+    }
+
+    @Override
+    public String toString() {
+        return "ComposeRuntimeBundle{ctx=" + ctx
+                + ", semanticService=" + semanticService.getClass().getSimpleName()
+                + ", dialect=" + dialect + '}';
+    }
+}
