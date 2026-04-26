@@ -18,6 +18,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -97,6 +98,129 @@ final class ComposePlanner {
                 "Unknown dialect '" + dialect + "'; supported: "
                         + "mysql / mysql57 / mysql8 / postgres(postgresql) / "
                         + "mssql(sqlserver) / sqlite");
+    }
+
+    // ------------------------------------------------------------------
+    // Identifier quoting (dialect-aware)
+    // ------------------------------------------------------------------
+
+    /** Quote a bare identifier for the target dialect.
+     *  MySQL uses backticks, PostgreSQL/MSSQL/SQLite use double-quotes.
+     *  Only applied to identifiers that NEED quoting (contain $, space, etc.). */
+    static String quoteIdent(String ident, String dialect) {
+        if (ident == null) return ident;
+        if ("mysql".equals(dialect) || "mysql57".equals(dialect) || "mysql8".equals(dialect)) {
+            return "`" + ident + "`";
+        }
+        // postgres, postgresql, mssql, sqlserver, sqlite → ANSI double-quote
+        return "\"" + ident + "\"";
+    }
+
+    /** Return true if a column string needs identifier quoting.
+     *  Simple bare identifiers containing special chars need quoting.
+     *  Expressions (containing spaces, parens, AS keyword) are left as-is.
+     *  For PostgreSQL/MSSQL/SQLite: also quotes mixed-case identifiers
+     *  since these dialects fold unquoted identifiers to lowercase. */
+    private static boolean needsQuoting(String col) {
+        return needsQuoting(col, null);
+    }
+
+    private static boolean needsQuoting(String col, String dialect) {
+        if (col == null || col.isEmpty()) return false;
+        // Skip expressions: contain space, parens
+        if (col.contains(" ") || col.contains("(") || col.contains(")")) return false;
+        // Always quote if contains $
+        if (col.contains("$")) return true;
+        // For non-MySQL dialects, quote if contains uppercase letters
+        // (PostgreSQL folds unquoted identifiers to lowercase)
+        if (dialect != null && !dialect.startsWith("mysql")) {
+            for (int i = 0; i < col.length(); i++) {
+                if (Character.isUpperCase(col.charAt(i))) return true;
+            }
+        }
+        return false;
+    }
+
+    /** Quote a column expression if it's a bare identifier needing quoting.
+     *  Handles "colName" and "colName AS alias" forms.
+     *  For complex expressions (CASE WHEN, arithmetic), scans for bare
+     *  identifiers within the expression and quotes those individually. */
+    static String quoteColumnExpr(String col, String dialect) {
+        if (col == null) return col;
+        // Check for " AS " — handle base and alias separately
+        int asIdx = col.toUpperCase(Locale.ROOT).indexOf(" AS ");
+        if (asIdx > 0) {
+            String base = col.substring(0, asIdx).trim();
+            String alias = col.substring(asIdx + 4).trim();
+            String quotedBase = quoteExpressionTokens(base, dialect);
+            String quotedAlias = needsQuoting(alias, dialect) ? quoteIdent(alias, dialect) : alias;
+            return quotedBase + " AS " + quotedAlias;
+        }
+        // No AS — simple column or expression
+        return quoteExpressionTokens(col, dialect);
+    }
+
+    /** SQL keywords that should NOT be quoted when found as bare tokens */
+    private static final Set<String> SQL_KEYWORDS = Set.of(
+            "CASE", "WHEN", "THEN", "ELSE", "END", "IS", "NULL", "OR", "AND", "NOT",
+            "BETWEEN", "IN", "LIKE", "ESCAPE", "TRUE", "FALSE", "DISTINCT",
+            "ASC", "DESC", "NULLS", "FIRST", "LAST", "SELECT", "FROM", "WHERE",
+            "GROUP", "BY", "ORDER", "HAVING", "LIMIT", "OFFSET", "UNION", "ALL",
+            "JOIN", "LEFT", "RIGHT", "INNER", "OUTER", "FULL", "CROSS", "ON",
+            "AS", "EXISTS", "CAST", "COALESCE", "IFNULL", "ISNULL"
+    );
+
+    /** Quote bare identifiers within a SQL expression.
+     *  Splits the expression into tokens and quotes those that look like
+     *  column identifiers (contain uppercase, $, or __) while preserving
+     *  SQL keywords, numbers, operators, and punctuation. */
+    private static String quoteExpressionTokens(String expr, String dialect) {
+        if (expr == null || expr.isEmpty()) return expr;
+        // Simple identifier — fast path
+        if (needsQuoting(expr, dialect)) {
+            return quoteIdent(expr, dialect);
+        }
+        // No dialect-specific quoting needed — return as-is
+        if (dialect == null || dialect.startsWith("mysql")) {
+            // MySQL is case-insensitive for column names; only $ needs quoting
+            // and we already handled simple identifiers above
+            if (!expr.contains("$")) return expr;
+        }
+
+        // Tokenize and quote — use regex to split on boundaries between
+        // word chars and non-word chars
+        StringBuilder sb = new StringBuilder(expr.length() + 16);
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile(
+                "[A-Za-z_$][A-Za-z0-9_$]*|[^A-Za-z_$]+").matcher(expr);
+        while (m.find()) {
+            String token = m.group();
+            if (token.isEmpty()) continue;
+            char first = token.charAt(0);
+            if (Character.isLetter(first) || first == '_' || first == '$') {
+                // It's a word token — check if it's a keyword or literal
+                String upper = token.toUpperCase(Locale.ROOT);
+                if (SQL_KEYWORDS.contains(upper) || isNumericLiteral(token)) {
+                    sb.append(token);
+                } else if (needsQuoting(token, dialect)) {
+                    sb.append(quoteIdent(token, dialect));
+                } else {
+                    sb.append(token);
+                }
+            } else {
+                // Operators, spaces, parens, etc. — pass through
+                sb.append(token);
+            }
+        }
+        return sb.toString();
+    }
+
+    private static boolean isNumericLiteral(String s) {
+        if (s == null || s.isEmpty()) return false;
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (!Character.isDigit(c) && c != '.') return false;
+        }
+        return true;
     }
 
     // ------------------------------------------------------------------
@@ -181,7 +305,7 @@ final class ComposePlanner {
         // Top-level CteUnit (base / derived) — wrap as a single-unit CTE
         // or inline subquery for dialect-consistent output.
         CteUnit unit = (CteUnit) result;
-        return wrapSingleUnit(unit, state.useCte);
+        return wrapSingleUnit(unit, state.useCte, state.dialect);
     }
 
     // ------------------------------------------------------------------
@@ -226,7 +350,13 @@ final class ComposePlanner {
             if (plan instanceof BaseModelPlan) {
                 unit = compileBase((BaseModelPlan) plan, state);
             } else if (plan instanceof DerivedQueryPlan) {
-                unit = compileDerived((DerivedQueryPlan) plan, state);
+                Object derivedResult = compileDerived((DerivedQueryPlan) plan, state);
+                // When a DerivedQueryPlan wraps a JoinPlan, compileDerived
+                // returns ComposedSql (terminal); skip CteUnit caching.
+                if (derivedResult instanceof ComposedSql) {
+                    return derivedResult;
+                }
+                unit = (CteUnit) derivedResult;
             } else {
                 throw new ComposeCompileException(
                         ComposeCompileErrorCodes.UNSUPPORTED_PLAN_SHAPE,
@@ -264,22 +394,31 @@ final class ComposePlanner {
                 plan, binding, state.semanticService, state.namespace, alias, state.governanceCache);
     }
 
-    private static CteUnit compileDerived(DerivedQueryPlan plan, CompileState state) {
+    private static Object compileDerived(DerivedQueryPlan plan, CompileState state) {
         Object inner = compileAny(plan.source(), state);
+        boolean innerWasJoin = inner instanceof ComposedSql;
         CteUnit innerUnit;
-        if (inner instanceof ComposedSql) {
+        if (innerWasJoin) {
             innerUnit = wrapComposedAsUnit((ComposedSql) inner, state);
         } else {
             innerUnit = (CteUnit) inner;
         }
 
         List<Object> outerParams = new ArrayList<>();
-        String outerSql = renderOuterSelect(plan, innerUnit.getAlias(), innerUnit.getSql(), outerParams);
+        String outerSql = renderOuterSelect(plan, innerUnit.getAlias(), innerUnit.getSql(), outerParams, state.dialect);
 
         List<Object> merged = new ArrayList<>();
         if (innerUnit.getParams() != null) merged.addAll(innerUnit.getParams());
         merged.addAll(outerParams);
 
+        // When the inner plan was a join (ComposedSql), the DerivedQueryPlan
+        // wrapping it already produces the final, self-contained SQL.
+        // Return it as ComposedSql so the top-level compileToComposedSql
+        // short-circuits at line 178 and does NOT call wrapSingleUnit again,
+        // which would add a spurious second outer SELECT layer.
+        if (innerWasJoin) {
+            return new ComposedSql(outerSql, merged);
+        }
         return new CteUnit(
                 state.nextAlias(),
                 outerSql,
@@ -305,7 +444,7 @@ final class ComposePlanner {
                 ? wrapComposedAsUnit((ComposedSql) rightObj, state)
                 : (CteUnit) rightObj;
 
-        String onCondition = buildOnCondition(plan.on(), left.getAlias(), right.getAlias());
+        String onCondition = buildOnCondition(plan.on(), left.getAlias(), right.getAlias(), state.dialect);
 
         // Dedup anchor units: if both sides resolved to the same CteUnit
         // (via id-cache / hash-cache — typical for self-join on the same
@@ -317,7 +456,7 @@ final class ComposePlanner {
         }
 
         return assembleJoinSql(anchors, plan.type().sqlKeyword(), onCondition,
-                left.getAlias(), right.getAlias(), state.useCte);
+                left.getAlias(), right.getAlias(), state.useCte, state.dialect);
     }
 
     private static ComposedSql compileUnion(UnionPlan plan, CompileState state) {
@@ -348,18 +487,18 @@ final class ComposePlanner {
     /** Wrap a single CteUnit as either a one-clause CTE or an inline
      *  subquery SELECT — matches Python CteComposer behaviour for the
      *  single-unit, zero-joinSpecs case. */
-    private static ComposedSql wrapSingleUnit(CteUnit unit, boolean useCte) {
+    private static ComposedSql wrapSingleUnit(CteUnit unit, boolean useCte, String dialect) {
         List<Object> params = new ArrayList<>();
         if (unit.getParams() != null) params.addAll(unit.getParams());
         StringBuilder sb = new StringBuilder();
         if (useCte) {
             sb.append("WITH ").append(unit.getAlias()).append(" AS (")
                     .append(unit.getSql()).append(")\n");
-            sb.append(appendSelectColumns("SELECT ", unit.getAlias(), unit.getSelectColumns()))
+            sb.append(appendSelectColumns("SELECT ", unit.getAlias(), unit.getSelectColumns(), dialect))
                     .append("\n");
             sb.append("FROM ").append(unit.getAlias());
         } else {
-            sb.append(appendSelectColumns("SELECT ", "t0", unit.getSelectColumns()))
+            sb.append(appendSelectColumns("SELECT ", "t0", unit.getSelectColumns(), dialect))
                     .append("\n");
             sb.append("FROM (").append(unit.getSql()).append(") AS t0");
         }
@@ -376,10 +515,16 @@ final class ComposePlanner {
             String onCondition,
             String leftAlias,
             String rightAlias,
-            boolean useCte) {
+            boolean useCte,
+            String dialect) {
 
         List<Object> params = new ArrayList<>();
         StringBuilder sb = new StringBuilder();
+
+        // Build explicit column list to avoid duplicate column names
+        // from both sides of the join (e.g. the join key appears in both).
+        CteUnit left = anchors.get(0);
+        CteUnit right = anchors.size() > 1 ? anchors.get(1) : null;
 
         if (useCte) {
             sb.append("WITH ");
@@ -389,7 +534,9 @@ final class ComposePlanner {
                 sb.append(u.getAlias()).append(" AS (").append(u.getSql()).append(")");
                 if (u.getParams() != null) params.addAll(u.getParams());
             }
-            sb.append("\nSELECT *\nFROM ").append(leftAlias);
+            sb.append("\n");
+            sb.append(buildJoinSelectClause(left, right, leftAlias, rightAlias, dialect));
+            sb.append("\nFROM ").append(leftAlias);
             if (anchors.size() > 1) {
                 sb.append("\n").append(joinKeyword).append(" JOIN ").append(rightAlias)
                         .append(" ON ").append(onCondition);
@@ -403,22 +550,92 @@ final class ComposePlanner {
                 rename.put(anchors.get(i).getAlias(), "t" + i);
             }
             String renamedOn = rewriteAliases(onCondition, rename);
+            String newLeftAlias = rename.get(leftAlias);
+            String newRightAlias = right != null ? rename.get(rightAlias) : null;
 
-            sb.append("SELECT *\nFROM (").append(anchors.get(0).getSql()).append(") AS ")
-                    .append(rename.get(anchors.get(0).getAlias()));
-            if (anchors.get(0).getParams() != null) params.addAll(anchors.get(0).getParams());
+            sb.append(buildJoinSelectClause(left, right, newLeftAlias, newRightAlias, dialect));
+            sb.append("\nFROM (").append(left.getSql()).append(") AS ")
+                    .append(newLeftAlias);
+            if (left.getParams() != null) params.addAll(left.getParams());
 
             if (anchors.size() > 1) {
                 sb.append("\n").append(joinKeyword).append(" JOIN (")
-                        .append(anchors.get(1).getSql()).append(") AS ")
-                        .append(rename.get(anchors.get(1).getAlias()))
+                        .append(right.getSql()).append(") AS ")
+                        .append(newRightAlias)
                         .append(" ON ").append(renamedOn);
-                if (anchors.get(1).getParams() != null) params.addAll(anchors.get(1).getParams());
+                if (right.getParams() != null) params.addAll(right.getParams());
             } else {
                 sb.append("\nWHERE ").append(renamedOn);
             }
         }
         return new ComposedSql(sb.toString(), params);
+    }
+
+    /**
+     * Build a SELECT clause for a join that avoids duplicate column names.
+     * Takes all columns from the left side, then adds right-side columns
+     * that aren't already present (by base column name, ignoring aliases).
+     * Falls back to {@code SELECT *} when selectColumns are unavailable.
+     */
+    private static String buildJoinSelectClause(CteUnit left, CteUnit right,
+                                                 String leftAlias, String rightAlias,
+                                                 String dialect) {
+        List<String> leftCols = left.getSelectColumns();
+        List<String> rightCols = right != null ? right.getSelectColumns() : null;
+
+        // Fall back to SELECT * when column info is unavailable
+        if (leftCols == null || leftCols.isEmpty()) {
+            return "SELECT *";
+        }
+
+        // Collect left output column names (the alias after " AS ", or bare name)
+        Set<String> leftOutputNames = new LinkedHashSet<>();
+        for (String col : leftCols) {
+            leftOutputNames.add(extractOutputColName(col));
+        }
+
+        StringBuilder select = new StringBuilder("SELECT ");
+        // All left columns, qualified with left alias
+        for (int i = 0; i < leftCols.size(); i++) {
+            if (i > 0) select.append(", ");
+            String colExpr = leftCols.get(i);
+            select.append(leftAlias).append(".").append(quoteColumnExpr(colExpr, dialect));
+        }
+
+        // Right columns, excluding those whose output name matches a left column
+        // e.g. right has bare "salesDate$month" → output name is "salesDate$month" → skip (dupe)
+        //      right has "unitPrice AS unitPrice__prior" → output name is "unitPrice__prior" → include
+        if (rightCols != null && !rightCols.isEmpty()) {
+            for (String col : rightCols) {
+                String outputName = extractOutputColName(col);
+                if (!leftOutputNames.contains(outputName)) {
+                    // The right subquery has already applied aliases, so its
+                    // output columns are the alias names. Reference by output name.
+                    select.append(", ").append(rightAlias).append(".").append(quoteColumnExpr(outputName, dialect));
+                }
+            }
+        }
+        return select.toString();
+    }
+
+    /** Extract the base column name — the part before " AS " if present. */
+    private static String extractBaseColName(String col) {
+        int asIdx = col.toUpperCase(Locale.ROOT).indexOf(" AS ");
+        if (asIdx > 0) {
+            return col.substring(0, asIdx).trim();
+        }
+        return col.trim();
+    }
+
+    /** Extract the output column name — the alias after " AS " if present,
+     *  or the full column name if no alias. This is the name the column will
+     *  have in the result set. */
+    private static String extractOutputColName(String col) {
+        int asIdx = col.toUpperCase(Locale.ROOT).indexOf(" AS ");
+        if (asIdx > 0) {
+            return col.substring(asIdx + 4).trim();
+        }
+        return col.trim();
     }
 
     private static String rewriteAliases(String sql, Map<String, String> rename) {
@@ -429,23 +646,30 @@ final class ComposePlanner {
         return out;
     }
 
-    private static String appendSelectColumns(String prefix, String alias, List<String> cols) {
+    private static String appendSelectColumns(String prefix, String alias, List<String> cols, String dialect) {
         if (cols == null || cols.isEmpty()) {
             return prefix + alias + ".*";
         }
         StringBuilder sb = new StringBuilder(prefix);
         for (int i = 0; i < cols.size(); i++) {
             if (i > 0) sb.append(", ");
-            sb.append(alias).append(".").append(cols.get(i));
+            String col = cols.get(i);
+            if (col.contains(" ") || col.contains("(")) {
+                sb.append(col);
+            } else {
+                sb.append(alias).append(".").append(quoteColumnExpr(col, dialect));
+            }
         }
         return sb.toString();
     }
 
-    private static String buildOnCondition(List<JoinOn> onList, String leftAlias, String rightAlias) {
+    private static String buildOnCondition(List<JoinOn> onList, String leftAlias, String rightAlias, String dialect) {
         List<String> frags = new ArrayList<>(onList.size());
         for (JoinOn o : onList) {
-            frags.add(leftAlias + "." + o.left() + " " + o.op() + " "
-                    + rightAlias + "." + o.right());
+            String left = needsQuoting(o.left(), dialect) ? quoteIdent(o.left(), dialect) : o.left();
+            String right = needsQuoting(o.right(), dialect) ? quoteIdent(o.right(), dialect) : o.right();
+            frags.add(leftAlias + "." + left + " " + o.op() + " "
+                    + rightAlias + "." + right);
         }
         return String.join(" AND ", frags);
     }
@@ -479,12 +703,20 @@ final class ComposePlanner {
     // ------------------------------------------------------------------
 
     private static String renderOuterSelect(
-            DerivedQueryPlan plan, String innerAlias, String innerSql, List<Object> outerParams) {
+            DerivedQueryPlan plan, String innerAlias, String innerSql, List<Object> outerParams, String dialect) {
 
         StringBuilder sb = new StringBuilder();
         sb.append("SELECT ");
         if (plan.distinct()) sb.append("DISTINCT ");
-        sb.append(plan.columns().isEmpty() ? "*" : String.join(", ", plan.columns()));
+        if (plan.columns().isEmpty()) {
+            sb.append("*");
+        } else {
+            List<String> quotedCols = new ArrayList<>(plan.columns().size());
+            for (String col : plan.columns()) {
+                quotedCols.add(quoteColumnExpr(col, dialect));
+            }
+            sb.append(String.join(", ", quotedCols));
+        }
         sb.append("\nFROM (").append(innerSql).append(") AS ").append(innerAlias);
 
         if (!plan.slice().isEmpty()) {
@@ -496,7 +728,11 @@ final class ComposePlanner {
         }
 
         if (!plan.groupBy().isEmpty()) {
-            sb.append("\nGROUP BY ").append(String.join(", ", plan.groupBy()));
+            List<String> quotedGroupBy = new ArrayList<>(plan.groupBy().size());
+            for (String g : plan.groupBy()) {
+                quotedGroupBy.add(needsQuoting(g, dialect) ? quoteIdent(g, dialect) : g);
+            }
+            sb.append("\nGROUP BY ").append(String.join(", ", quotedGroupBy));
         }
 
         if (!plan.orderBy().isEmpty()) {

@@ -1,0 +1,170 @@
+package com.foggyframework.dataset.db.model.plugins.result_set_filter;
+
+import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
+import com.foggyframework.dataset.db.model.engine.compose.plan.*;
+import com.foggyframework.dataset.db.model.spi.DbColumn;
+import com.foggyframework.dataset.db.model.spi.DbDimension;
+import com.foggyframework.dataset.db.model.spi.DbMeasure;
+import com.foggyframework.dataset.db.model.spi.QueryModel;
+import org.springframework.core.annotation.Order;
+import org.springframework.stereotype.Component;
+
+import java.util.*;
+import java.util.stream.Collectors;
+
+@Component
+@Order(-22)
+public class TimeWindowInterceptor implements DataSetResultStep {
+
+    @Override
+    public int beforeQuery(ModelResultContext ctx) {
+        if (ctx.getQueryType() != ModelResultContext.QueryType.SEMANTIC) {
+            return 0;
+        }
+
+        Map<String, Object> extData = ctx.getExtData();
+        if (extData == null || !extData.containsKey("timeWindow")) {
+            return 0;
+        }
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> twMap = (Map<String, Object>) extData.get("timeWindow");
+        if (twMap == null || twMap.isEmpty()) {
+            return 0;
+        }
+
+        TimeWindowDef twDef = TimeWindowDef.fromMap(twMap);
+        QueryModel queryModel = ctx.getQueryModel();
+
+        // Collect available fields for validation
+        Set<String> availableFields = new HashSet<>();
+        Set<String> timeFields = new HashSet<>();
+        Set<String> measureFields = new HashSet<>();
+
+        if (queryModel != null && queryModel.getJdbcModel() != null) {
+            if (queryModel.getJdbcModel().getDimensions() != null) {
+                for (DbDimension dim : queryModel.getJdbcModel().getDimensions()) {
+                    String effName = dim.getEffectiveName();
+                    availableFields.add(effName + "$id");
+                    availableFields.add(effName + "$caption");
+                    // Add dimension properties (e.g. salesDate$year, salesDate$month)
+                    // so grain field strict validation can check for them.
+                    // Note: getVisibleSelectColumns() returns names already in
+                    // "dimName$propName" format, so we add them directly.
+                    if (dim.getVisibleSelectColumns() != null) {
+                        for (DbColumn col : dim.getVisibleSelectColumns()) {
+                            if (col.getName() != null) {
+                                availableFields.add(col.getName());
+                            }
+                        }
+                    }
+                    if ("business_date".equals(dim.getTimeRole())) {
+                        timeFields.add(effName + "$id");
+                        timeFields.add(effName + "$caption");
+                        // Also add raw dimension name as time field since some requests might use it
+                        timeFields.add(effName);
+                    }
+                }
+            }
+            if (queryModel.getJdbcModel().getMeasures() != null) {
+                for (DbMeasure m : queryModel.getJdbcModel().getMeasures()) {
+                    availableFields.add(m.getName());
+                    measureFields.add(m.getName());
+                }
+            }
+        }
+        // Always add the field itself to availableFields as fallback
+        availableFields.add(twDef.field());
+        timeFields.add(twDef.field());
+
+        // Validate
+        String errorCode = TimeWindowValidator.validate(twDef, availableFields, timeFields, measureFields);
+        if (errorCode != null) {
+            throw new IllegalArgumentException("Invalid time window: " + errorCode);
+        }
+
+        // Get group by fields from DbQueryRequestDef
+        List<String> groupByFields = new ArrayList<>();
+        if (ctx.getRequest() != null && ctx.getRequest().getParam() != null && ctx.getRequest().getParam().getGroupBy() != null) {
+            groupByFields = ctx.getRequest().getParam().getGroupBy().stream()
+                    .map(g -> g.getField())
+                    .collect(Collectors.toList());
+        }
+
+        // Determine original query columns excluding dynamically generated ones
+        List<String> originalColumns = new ArrayList<>();
+        if (ctx.getRequest() != null && ctx.getRequest().getParam() != null && ctx.getRequest().getParam().getColumns() != null) {
+            for (String col : ctx.getRequest().getParam().getColumns()) {
+                if (!col.endsWith("__prior") && !col.endsWith("__diff") && !col.endsWith("__ratio") && !col.endsWith("__growth")) {
+                    originalColumns.add(col);
+                }
+            }
+        }
+        
+        for (String metric : measureFields) {
+            if (!originalColumns.contains(metric)) {
+                originalColumns.add(metric);
+            }
+        }
+
+        BaseModelPlan basePlan = BaseModelPlan.builder()
+                .model(ctx.getRequest() != null && ctx.getRequest().getParam() != null ? ctx.getRequest().getParam().getQueryModel() : "unknown")
+                .columns(originalColumns)
+                .groupBy(groupByFields)
+                .slice(ctx.getRequest() != null && ctx.getRequest().getParam() != null && ctx.getRequest().getParam().getSlice() != null ? new ArrayList<>(ctx.getRequest().getParam().getSlice()) : List.of())
+                .build();
+
+        if (twDef.isRolling() || twDef.isCumulative()) {
+            TimeWindowExpander.ExpansionResult expResult;
+            if (twDef.isRolling()) {
+                expResult = TimeWindowExpander.expandRolling(twDef, basePlan, groupByFields, measureFields);
+            } else {
+                expResult = TimeWindowExpander.expandCumulative(twDef, basePlan, groupByFields, measureFields);
+            }
+
+            List<CalculatedFieldDef> cfs = ctx.getRequest().getParam().getCalculatedFields();
+            if (cfs == null) {
+                cfs = new ArrayList<>();
+                ctx.getRequest().getParam().setCalculatedFields(cfs);
+            }
+
+            for (ProjectedColumn pc : expResult.additionalColumns()) {
+                CalculatedFieldDef cf = new CalculatedFieldDef();
+                cf.setName(pc.alias());
+                cf.setExpression(pc.toColumnExpr());
+                cf.setType("DECIMAL");
+                cfs.add(cf);
+            }
+
+            extData.put("timeWindowDesc", expResult.description());
+
+        } else if (twDef.isComparative()) {
+            TimeWindowExpander.ComparativeExpansionResult compResult = TimeWindowExpander.expandComparative(twDef, measureFields, groupByFields);
+            QueryPlan compPlan = TimeWindowExpander.buildComparativePlan(basePlan, compResult, twDef);
+            
+            extData.put("comparativePlan", compPlan);
+            ctx.setSkipQuery(true);
+        }
+
+        // Metadata markers for downstream components
+        extData.put("derivedFromTimeWindow", true);
+        extData.put("timeWindowMode", twDef.comparison());
+
+        // Resolve dialect for downstream plan execution.
+        // ctx.getQueryModel() is JdbcQueryModelImpl at runtime, which implements JdbcQueryModel.
+        String resolvedDialect = "mysql";
+        if (queryModel instanceof com.foggyframework.dataset.db.model.spi.JdbcQueryModel) {
+            com.foggyframework.dataset.db.dialect.FDialect fd =
+                    ((com.foggyframework.dataset.db.model.spi.JdbcQueryModel) queryModel).getDialect();
+            if (fd != null && fd.getProductName() != null) {
+                String pn = fd.getProductName().toLowerCase(java.util.Locale.ROOT);
+                if (pn.contains("postgres")) resolvedDialect = "postgres";
+                else if (pn.contains("sqlite")) resolvedDialect = "sqlite";
+                else if (pn.contains("sqlserver") || pn.contains("microsoft")) resolvedDialect = "mssql";
+            }
+        }
+        extData.put("timeWindowDialect", resolvedDialect);
+        
+        return 0;
+    }
+}

@@ -119,9 +119,16 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         resultContext.setDeniedColumns(reqContext.getDeniedColumns());
         resultContext.setSystemSlice(reqContext.getSystemSlice());
 
-        // 将请求中的 hints 传递到 extData（用于 DataSetResultStep 插件）
+        // 将请求中的 hints 和 timeWindow 传递到 extData
+        Map<String, Object> extData = new HashMap<>();
         if (request.getHints() != null && !request.getHints().isEmpty()) {
-            resultContext.setExtData(new HashMap<>(request.getHints()));
+            extData.putAll(request.getHints());
+        }
+        if (request.getTimeWindow() != null && !request.getTimeWindow().isEmpty()) {
+            extData.put("timeWindow", request.getTimeWindow());
+        }
+        if (!extData.isEmpty()) {
+            resultContext.setExtData(extData);
         }
 
         // 5. 使用 QueryFacade 执行完整查询生命周期（beforeQuery -> query -> process）
@@ -129,12 +136,48 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         PagingResultImpl queryResult = resultContext.getPagingResult();
         context.extData = resultContext.getExtData();
 
+        if (resultContext.isSkipQuery() && context.extData != null && context.extData.containsKey("comparativePlan")) {
+            com.foggyframework.dataset.db.model.engine.compose.plan.QueryPlan compPlan = (com.foggyframework.dataset.db.model.engine.compose.plan.QueryPlan) context.extData.get("comparativePlan");
+            com.foggyframework.dataset.db.model.engine.compose.context.Principal principal = com.foggyframework.dataset.db.model.engine.compose.context.Principal.builder()
+                .userId(securityContext != null && securityContext.getUserId() != null ? securityContext.getUserId() : "system")
+                .deptId(securityContext != null ? securityContext.getDeptId() : null)
+                .tenantId(securityContext != null ? securityContext.getTenantId() : null)
+                .build();
+            com.foggyframework.dataset.db.model.engine.compose.context.ComposeQueryContext compCtx = com.foggyframework.dataset.db.model.engine.compose.context.ComposeQueryContext.builder()
+                .principal(principal)
+                .namespace(namespace)
+                .authorityResolver(req -> {
+                    Map<String, com.foggyframework.dataset.db.model.engine.compose.security.ModelBinding> bindings = new java.util.HashMap<>();
+                    for (String m : req.modelNames()) {
+                        bindings.put(m, com.foggyframework.dataset.db.model.engine.compose.security.ModelBinding.builder().build());
+                    }
+                    return com.foggyframework.dataset.db.model.engine.compose.security.AuthorityResolution.builder().bindings(bindings).build();
+                })
+                .build();
+                
+            try {
+                // Read dialect resolved by TimeWindowInterceptor
+                String dialect = context.extData != null && context.extData.containsKey("timeWindowDialect")
+                        ? (String) context.extData.get("timeWindowDialect")
+                        : "mysql";
+                List<Map<String, Object>> rows = com.foggyframework.dataset.db.model.engine.compose.runtime.PlanExecution.executePlan(compPlan, compCtx, this, dialect);
+                
+                queryResult = new PagingResultImpl();
+                queryResult.setItems(new ArrayList<>(rows));
+                queryResult.setTotal((long)rows.size());
+                
+                dbQueryResult = DbQueryResult.of(queryResult, dbQueryResult != null ? dbQueryResult.getQueryEngine() : null);
+            } catch (Exception e) {
+                throw com.foggyframework.core.ex.RX.throwB("执行比较分析(Comparative)计划失败: " + e.getMessage(), e);
+            }
+        }
+
         // 6. 构建响应
         SemanticQueryResponse response = buildResponse(
                 jdbcRequest.getParam(),
                 queryResult,
                 context,
-                dbQueryResult.getQueryEngine().getJdbcQueryModel()
+                dbQueryResult != null && dbQueryResult.getQueryEngine() != null ? dbQueryResult.getQueryEngine().getJdbcQueryModel() : queryModelLoader.getJdbcQueryModel(model, reqContext.getNamespace())
         );
 
         // 7. 添加调试信息
