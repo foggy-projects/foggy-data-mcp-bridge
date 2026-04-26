@@ -1,0 +1,15 @@
+{
+  "description": "NEGATIVE: mom × week grain is incompatible",
+  "comparison": "mom",
+  "grain": "week",
+  "label": "negative-grain-incompat",
+  "timeWindow": {
+    "field": "salesDate$id",
+    "grain": "week",
+    "comparison": "mom",
+    "range": "[)",
+    "value": ["2024-01-01", "2025-01-01"],
+    "targetMetrics": ["salesAmount"]
+  },
+  "expectedError": "TIMEWINDOW_GRAIN_INCOMPATIBLE"
+}

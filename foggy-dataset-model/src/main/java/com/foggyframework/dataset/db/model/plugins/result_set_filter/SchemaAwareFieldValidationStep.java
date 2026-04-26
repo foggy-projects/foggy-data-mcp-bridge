@@ -30,7 +30,7 @@ public class SchemaAwareFieldValidationStep implements DataSetResultStep {
     @Override
     public int beforeQuery(ModelResultContext ctx) {
         QueryModel queryModel = ctx.getQueryModel();
-        if (queryModel == null) {
+        if (queryModel == null || ctx.isSkipQuery()) {
             return CONTINUE;
         }
 

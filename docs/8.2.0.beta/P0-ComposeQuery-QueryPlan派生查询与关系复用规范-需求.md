@@ -166,38 +166,35 @@ from({
 ### 1. 基础查询
 
 ```javascript
-const overdueByCustomer = from({
-  model: 'ReceivableLineQM',
-  columns: [
-    'salespersonId',
-    'salespersonName',
-    'customer$id as customerId',
-    'SUM(IIF(isOverdue == 1, residualAmount, 0)) AS customerOverdueAmount'
-  ],
-  slice: [
+const overdueByCustomer = Query.from('ReceivableLineQM')
+  .where([
     { field: 'docType', op: '=', value: 'AR' },
     { field: 'docState', op: '=', value: 'posted' },
     { field: 'paymentState', op: 'in', value: ['not_paid', 'partial', 'in_payment'] },
     { field: 'customerOverdueAmount', op: '>', value: 0 }
-  ],
-  groupBy: ['salespersonId', 'salespersonName', 'customerId']
-});
+  ])
+  .groupBy('salespersonId', 'salespersonName', 'customer$id')
+  .select(
+    'salespersonId',
+    'salespersonName',
+    'customer$id as customerId',
+    'SUM(IIF(isOverdue == 1, residualAmount, 0)) AS customerOverdueAmount'
+  );
 ```
 
 ### 2. 派生查询
 
 ```javascript
-const salespersonOverdue = overdueByCustomer.query({
-  columns: [
+const salespersonOverdue = overdueByCustomer
+  .groupBy('salespersonId', 'salespersonName')
+  .orderBy('-arOverdueAmount')
+  .select(
     'salespersonId',
     'salespersonName',
     'SUM(customerOverdueAmount) AS arOverdueAmount',
     'COUNT(*) AS arOverdueCustomerCount',
     'MAX(customerOverdueAmount) AS maxSingleCustomerOverdue'
-  ],
-  groupBy: ['salespersonId', 'salespersonName'],
-  orderBy: ['-arOverdueAmount']
-});
+  );
 ```
 
 ### 3. 规范内核：source
@@ -205,22 +202,12 @@ const salespersonOverdue = overdueByCustomer.query({
 以下两种写法语义等价：
 
 ```javascript
-const p2 = p1.query({ columns: [...], groupBy: [...] });
-
-const p2 = from({
-  source: p1,
-  columns: [...],
-  groupBy: [...]
-});
+const p2 = p1.groupBy(...).select(...);
 ```
 
-其中 `source:` 字段是规范内核（在另一个 `QueryPlan` 上继续构建查询），`plan.query()` 是它的语法糖。
-
-DSL body 中：
-
-- `model:` 指向物理 QM 标识（基础模型节点 BaseModelPlan）
-- `source:` 指向已有 `QueryPlan`（派生查询节点 DerivedQueryPlan）
-- `model:` 与 `source:` 互斥，不允许同时出现
+DSL 中：
+- `Query.from("XxxQM")`：指向物理 QM 标识（基础模型节点 BaseModelPlan）
+- `plan.select()` 等链式调用：生成派生查询节点 (DerivedQueryPlan)
 
 ### 4. union
 
@@ -229,48 +216,46 @@ const merged = currentReceivable.union(historyReceivable, {
   all: true
 });
 
-const finalPlan = merged.query({
-  columns: [
+const finalPlan = merged
+  .groupBy('salespersonId')
+  .select(
     'salespersonId',
     'SUM(amount) AS totalAmount'
-  ],
-  groupBy: ['salespersonId']
-});
+  );
 ```
 
 ### 5. join
 
 ```javascript
-const joined = salesPlan.join(leadPlan, {
-  type: 'left',
-  on: [
-    { left: 'partnerId', op: '=', right: 'partnerId' }
-  ]
-});
+const joined = salesPlan.leftJoin(leadPlan)
+  .on(salesPlan.partnerId, leadPlan.partnerId);
 
-const finalPlan = joined.query({
-  columns: [
-    'partnerName',
-    'totalSales',
-    'leadCount'
-  ],
-  orderBy: ['-totalSales']
-});
+const finalPlan = joined
+  .orderBy('-totalSales')
+  .select(
+    leadPlan.partnerName,
+    salesPlan.totalSales,
+    leadPlan.leadCount
+  );
 ```
 
 ## 核心语义
 
-### 1. from 返回 QueryPlan
+### 1. 结构化构建
 
-`from({...})` 返回值规范上定义为 `QueryPlan`，而非自动执行的结果包装。
+`Query.from(...)` 返回值规范上定义为 `QueryPlan`，而非自动执行的结果包装。
 
-`QueryPlan` 暴露的核心能力：
+`QueryPlan` 暴露的核心能力（链式建造者 API）：
 
-- `query(nextDsl)`：基于当前输出 schema 构造派生查询
-- `union(otherPlan, options)`：生成 union 关系
-- `join(otherPlan, options)`：生成 join 关系
-- `execute()`：触发最终 SQL 编译与执行
-- `toSql()`：输出最终 SQL 文本与参数，仅用于调试/组合层
+- `.where(slice)`：追加过滤条件
+- `.groupBy(*fields)`：追加分组字段
+- `.orderBy(*fields)`：追加排序字段
+- `.limit(n)`：追加分页
+- `.select(*args)`：基于当前状态进行投影，返回新的 `DerivedQueryPlan`
+- `.union(otherPlan, options)`：生成 union 关系
+- `.leftJoin(otherPlan)` 等：生成 join 关系
+- `.execute()`：触发最终 SQL 编译与执行
+- `.toSql()`：输出最终 SQL 文本与参数，仅用于调试/组合层
 
 ### 2. 派生查询字段可见性
 
@@ -307,6 +292,28 @@ const finalPlan = joined.query({
 
 - `top10Customers.query({...})` 的输入就是 Top 10 结果
 - 不允许编译器把该 `limit` 随意上提或消除
+
+### 7. columns 元素类型（heterogeneous wildcard）
+
+`BaseModelPlan.columns / DerivedQueryPlan.columns / Dsl.FromOptions.columns / QueryOptions.columns` 一律是 **heterogeneous list**，每个元素必须是下列两者之一：
+
+- `String`：原文 SQL-ish 列描述（含 `"raw AS alias"` 形式）；走源码扫描白名单
+- `PlanExpression` 子类型：`ColumnExpr / PlanColumnRef / LiteralExpr / ProjectedColumn / AggregateColumn / WindowColumn / BinaryExpr / CaseWhenExpr`；走 AST 节点白名单（递归）
+
+构造期 fail-closed 约束：
+
+- `null` 元素拒绝
+- `String` 空字符串拒绝
+- 未识别 `PlanExpression` 子类型拒绝（`LAYER_B_FUNCTION_DENIED`）
+- 其他类型（`Integer / Map / ...`）拒绝（`IllegalArgumentException`，error message 含 index + 实际类型）
+
+跨仓 invariant：
+
+- Java 端 Builder 一律使用 wildcard 单 setter `columns(List<?>)`；元素类型在 `build()` 时统一校验，不存在 `columnsObj` 这类双字段过渡 setter
+- Python 端等价为 `columns: List[Union[str, ColumnExpr, ProjectedColumn, AggregateColumn, WindowColumn, PlanColumnRef]]`，单字段
+- 两端语义对等；任何只在一端引入新元素类型的改动必须在另一端同时落地，否则 parity 审计拦截
+
+落地参考：`docs/8.3.0.beta/P2-ComposeQuery-Columns-API-收口-需求.md`（Java 端 dual API → 单 setter 收口） / `docs/8.3.0.beta/P3-ComposeQuery-Namespace测试与Parity文字同步-需求.md`（spec 文字同步）。
 
 ## 编排场景下的权限与请求上下文
 
@@ -609,9 +616,13 @@ const finalPlan = joined.query({
 
 `QueryPlan` 对象只暴露以下方法，其他一律不开放：
 
-- `plan.query(...)`
+- `plan.where(...)`
+- `plan.groupBy(...)`
+- `plan.orderBy(...)`
+- `plan.limit(...)`
+- `plan.select(...)`
 - `plan.union(other, opts)`
-- `plan.join(other, opts)`
+- `plan.leftJoin(other)`
 - `plan.execute()`
 - `plan.toSql()`
 
@@ -639,9 +650,10 @@ const finalPlan = joined.query({
 
 `union` 的返回值仍是 `QueryPlan`，允许继续：
 
-- `query({...})`
-- `join(...)`
-- 再次 `union(...)`
+- `.select(...)`
+- `.where(...)`
+- `.leftJoin(...)`
+- 再次 `.union(...)`
 
 ### 4. union 后字段可见性
 
@@ -659,25 +671,27 @@ union 后仅暴露 union 输出 schema，不允许访问某一侧独有但未对
 
 join `on` 应基于左右两侧输出 schema 中可见字段定义，不允许直接引用底层未投影字段。
 
-### 3. join 后字段命名
+### 3. join 后字段命名与投影
 
-join 结果的输出字段若发生重名，必须在 join 后派生查询中显式别名消歧。规范不接受“自动覆盖后者”。
+join 结果的输出字段若发生重名，必须在 join 后派生查询中显式别名消歧。规范不接受“自动覆盖后者”。如果冲突未消除，编译器必须 Fail-fast 报错。
 
-推荐形式：
+推荐使用强类型的 `.select(...)` 投影形式，支持链式 `.as(name, caption)`：
 
 ```javascript
-const joined = a.join(b, {
-  type: 'left',
-  on: [{ left: 'partnerId', op: '=', right: 'partnerId' }]
-}).query({
-  columns: [
-    'a.partnerName AS salesPartnerName',
-    'b.partnerName AS leadPartnerName',
-    'a.totalSales',
-    'b.leadCount'
-  ]
-});
+const joined = a.leftJoin(b)
+  .on(a.partnerId, b.partnerId);
+
+const finalPlan = joined.select(
+    a.partnerName.as('salesPartnerName', '销售方名称'),
+    b.partnerName.as('leadPartnerName', '线索方名称'),
+    a.totalSales,
+    b.leadCount
+);
 ```
+
+- 如果不改名且无冲突，直接传入对象引用即可（如 `a.totalSales`），底层会继承原有的 `name` 和 `caption`。
+- 如果需要改名或补充业务说明，调用 `.as(name, caption)`。
+- 如果存在重名且未调用 `.as()` 消除冲突，系统编译时抛出异常：`"Column 'partnerName' is ambiguous. Please use .as('new_name') to disambiguate."`。
 
 ### 4. join 后继续派生
 
@@ -739,94 +753,79 @@ JOIN reused_plan b ON ...
 ### 1. 二段聚合
 
 ```javascript
-const overdueByCustomer = from({
-  model: 'ReceivableLineQM',
-  columns: [
-    'salespersonId',
-    'salespersonName',
-    'customer$id AS customerId',
-    'SUM(IIF(isOverdue == 1, residualAmount, 0)) AS customerOverdueAmount'
-  ],
-  slice: [
+const overdueByCustomer = Query.from('ReceivableLineQM')
+  .where([
     { field: 'docType', op: '=', value: 'AR' },
     { field: 'docState', op: '=', value: 'posted' },
     { field: 'paymentState', op: 'in', value: ['not_paid', 'partial', 'in_payment'] },
     { field: 'customerOverdueAmount', op: '>', value: 0 }
-  ],
-  groupBy: ['salespersonId', 'salespersonName', 'customerId']
-});
+  ])
+  .groupBy('salespersonId', 'salespersonName', 'customer$id')
+  .select(
+    'salespersonId',
+    'salespersonName',
+    'customer$id AS customerId',
+    'SUM(IIF(isOverdue == 1, residualAmount, 0)) AS customerOverdueAmount'
+  );
 
-return overdueByCustomer.query({
-  columns: [
+return overdueByCustomer
+  .groupBy('salespersonId', 'salespersonName')
+  .orderBy('-arOverdueAmount')
+  .select(
     'salespersonId',
     'salespersonName',
     'SUM(customerOverdueAmount) AS arOverdueAmount',
     'COUNT(*) AS arOverdueCustomerCount',
     'MAX(customerOverdueAmount) AS maxSingleCustomerOverdue'
-  ],
-  groupBy: ['salespersonId', 'salespersonName'],
-  orderBy: ['-arOverdueAmount']
-});
+  );
 ```
 
 ### 2. union 后再聚合
 
 ```javascript
-const currentPlan = from({
-  model: 'CurrentReceivableQM',
-  columns: ['salespersonId', 'amount']
-});
+const currentPlan = Query.from('CurrentReceivableQM')
+  .select('salespersonId', 'amount');
 
-const archivedPlan = from({
-  model: 'ArchivedReceivableQM',
-  columns: ['salespersonId', 'amount']
-});
+const archivedPlan = Query.from('ArchivedReceivableQM')
+  .select('salespersonId', 'amount');
 
-return currentPlan.union(archivedPlan, { all: true }).query({
-  columns: [
+return currentPlan.union(archivedPlan, { all: true })
+  .groupBy('salespersonId')
+  .select(
     'salespersonId',
     'SUM(amount) AS totalAmount'
-  ],
-  groupBy: ['salespersonId']
-});
+  );
 ```
 
 ### 3. join 后再筛选
 
 ```javascript
-const salesPlan = from({
-  model: 'SaleOrderQM',
-  columns: [
+const salesPlan = Query.from('SaleOrderQM')
+  .groupBy('partner$id')
+  .select(
     'partner$id AS partnerId',
-    'partner$caption AS partnerName',
     'SUM(amountTotal) AS totalSales'
-  ],
-  groupBy: ['partnerId', 'partnerName']
-});
+  );
 
-const leadPlan = from({
-  model: 'CrmLeadQM',
-  columns: [
+const leadPlan = Query.from('CrmLeadQM')
+  .groupBy('partner$id')
+  .select(
     'partner$id AS partnerId',
-    'COUNT(*) AS leadCount'
-  ],
-  groupBy: ['partnerId']
-});
+    'COUNT(id) AS leadCount'
+  );
 
-return salesPlan.join(leadPlan, {
-  type: 'left',
-  on: [{ left: 'partnerId', op: '=', right: 'partnerId' }]
-}).query({
-  columns: [
-    'partnerName',
-    'totalSales',
-    'leadCount'
-  ],
-  slice: [
-    { field: 'totalSales', op: '>', value: 10000 }
-  ],
-  orderBy: ['-totalSales']
-});
+const joined = salesPlan.leftJoin(leadPlan)
+  .on(salesPlan.partnerId, leadPlan.partnerId);
+
+return joined
+  .where([
+    { field: 'totalSales', op: '>', value: 100000 }
+  ])
+  .select(
+    salesPlan.partnerId.as('partnerId'),
+    salesPlan.totalSales,
+    leadPlan.leadCount
+  );
 ```
 
 ## 与 ROADMAP 的关系

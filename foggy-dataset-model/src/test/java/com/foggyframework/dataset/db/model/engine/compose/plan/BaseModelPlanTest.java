@@ -46,12 +46,14 @@ class BaseModelPlanTest {
         }
 
         @Test
-        @DisplayName("columns 必填且非空")
-        void columnsRequiredNonEmpty() {
-            assertThrows(IllegalArgumentException.class,
+        @DisplayName("columns 为空时允许（OO API）；非空时条目必须合法")
+        void columnsEmptyAllowedForOoApi() {
+            // Empty columns allowed (OO API: columns specified later via .select())
+            assertDoesNotThrow(
                     () -> BaseModelPlan.builder().model("X").columns(List.of()).build());
-            assertThrows(IllegalArgumentException.class,
-                    () -> BaseModelPlan.builder().model("X").columns(null).build());
+            // Null columns also allowed
+            assertDoesNotThrow(
+                    () -> BaseModelPlan.builder().model("X").build());
         }
 
         @Test

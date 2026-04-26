@@ -215,20 +215,19 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         }
         md.append("\n");
 
-        // ========== 维度字段 ==========
-        List<DbDimension> dimensions = jdbcModel.getDimensions();
-        if (dimensions != null && !dimensions.isEmpty()) {
-            md.append("## 维度字段\n");
-            md.append("| 字段名 | 名称 | 类型 | 层级 | 说明 |\n");
-            md.append("|--------|------|------|------|------|\n");
-
-            for (DbDimension dimension : dimensions) {
+        // ========== 区分维度和属性 ==========
+        List<DbDimension> allDimensions = jdbcModel.getDimensions();
+        List<DbDimension> timeDimensions = new ArrayList<>();
+        List<DbDimension> regularDimensions = new ArrayList<>();
+        
+        if (allDimensions != null) {
+            for (DbDimension dimension : allDimensions) {
                 if (!isFieldInLevels(dimension.getAi(), request.getLevels())) {
                     continue;
                 }
                 String dimName = dimension.getEffectiveName();
 
-                // 检查 QM 是否暴露了该维度（$id 或 $caption 至少有一个在 QM columnGroups 中）
+                // 检查 QM 是否暴露了该维度
                 if (queryModel.findJdbcQueryColumnByName(dimName + "$id", false) == null
                         && queryModel.findJdbcQueryColumnByName(dimName + "$caption", false) == null) {
                     continue;
@@ -238,6 +237,31 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                 if (fieldAccess != null && !fieldAccess.contains(dimName)) {
                     continue;
                 }
+                
+                String role = dimension.getTimeRole();
+                if (StringUtils.isEmpty(role)) {
+                    String lowerName = dimension.getName().toLowerCase();
+                    if (lowerName.contains("date") || lowerName.contains("time") || lowerName.contains("calendar")) {
+                        role = "business_date";
+                    }
+                }
+                
+                if (StringUtils.isNotEmpty(role)) {
+                    timeDimensions.add(dimension);
+                } else {
+                    regularDimensions.add(dimension);
+                }
+            }
+        }
+
+        // ========== 常规维度字段 ==========
+        if (!regularDimensions.isEmpty()) {
+            md.append("## 维度字段\n");
+            md.append("| 字段名 | 名称 | 类型 | 层级 | 说明 |\n");
+            md.append("|--------|------|------|------|------|\n");
+
+            for (DbDimension dimension : regularDimensions) {
+                String dimName = dimension.getEffectiveName();
 
                 String dimCaption = dimension.getCaption() != null ? dimension.getCaption() : dimName;
                 boolean isHier = isHierarchicalDimension(dimension);
@@ -268,7 +292,6 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                 // 维度属性（仅输出QM暴露的属性）
                 if (dimension instanceof DbDimensionSupport) {
                     for (DbProperty prop : ((DbDimensionSupport) dimension).getJdbcProperties()) {
-                        // 先尝试使用默认格式查找
                         String defaultPropFieldName = dimName + "$" + prop.getName();
                         DbQueryColumn queryColumn = queryModel.findJdbcQueryColumnByName(defaultPropFieldName, false);
 
@@ -280,15 +303,12 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                             continue;
                         }
 
-                        // 使用 QM 中定义的列名（name），而不是默认格式
-                        // 这样可以支持用户在 QM 中使用 alias 重命名字段
                         String propFieldName = queryColumn.getName();
                         dimensionFieldNames.add(propFieldName);
                         String propCaption = prop.getCaption() != null ? prop.getCaption() : prop.getName();
                         String propType = getDataTypeDescription(prop.getPropertyDbColumn().getType());
                         String propDesc = prop.getDescription() != null ? prop.getDescription() : "";
 
-                        // 处理字典引用
                         String dictRef = prop.getDictRef();
                         if (StringUtils.isNotEmpty(dictRef)) {
                             referencedDictIds.add(dictRef);
@@ -315,31 +335,149 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             md.append("\n");
         }
 
-        // ========== 属性字段 ==========
+        // 预处理收集 timeDimensions 的字段，避免在属性字段中重复输出
+        for (DbDimension dimension : timeDimensions) {
+            String dimName = dimension.getEffectiveName();
+            dimensionFieldNames.add(dimName + "$id");
+            dimensionFieldNames.add(dimName + "$caption");
+            if (dimension instanceof DbDimensionSupport) {
+                for (DbProperty prop : ((DbDimensionSupport) dimension).getJdbcProperties()) {
+                    String defaultPropFieldName = dimName + "$" + prop.getName();
+                    DbQueryColumn queryColumn = queryModel.findJdbcQueryColumnByName(defaultPropFieldName, false);
+                    if (queryColumn != null) {
+                        dimensionFieldNames.add(queryColumn.getName());
+                    }
+                }
+            }
+        }
+
+
+
+        // ========== 时间字段 & 属性字段 ==========
         List<DbQueryProperty> queryProperties = queryModel.getQueryProperties();
         if (queryProperties != null && !queryProperties.isEmpty()) {
-            // 过滤掉已在维度字段中输出的属性
-            // 注意：使用 qp.getName() 而不是 qp.getProperty().getName()，因为 dimensionFieldNames 中存储的是 QM 中定义的列名
             List<DbQueryProperty> filteredProperties = queryProperties.stream()
                     .filter(qp -> !dimensionFieldNames.contains(qp.getName()))
+                    .filter(qp -> isFieldInLevels(qp.getAi(), request.getLevels()))
+                    .filter(qp -> fieldAccess == null || fieldAccess.contains(qp.getProperty().getName()))
                     .toList();
 
-            if (!filteredProperties.isEmpty()) {
+            List<DbQueryProperty> timeProperties = new ArrayList<>();
+            List<DbQueryProperty> regularProperties = new ArrayList<>();
+
+            for (DbQueryProperty qp : filteredProperties) {
+                DbColumnType colType = qp.getProperty().getPropertyDbColumn().getType();
+                if (colType == DbColumnType.DAY || colType == DbColumnType.DATETIME) {
+                    timeProperties.add(qp);
+                } else {
+                    regularProperties.add(qp);
+                }
+            }
+
+            // 输出时间字段
+            if (!timeProperties.isEmpty() || !timeDimensions.isEmpty()) {
+                md.append("## 时间维度与字段 (Time Dimensions & Fields)\n");
+                md.append("> **提示**: 在进行时间趋势分析、同环比或窗口函数(Window Functions)时，请优先使用 `business_date` 角色的字段。\n\n");
+                md.append("| 字段名 | 名称 | 类别 | 时间角色 | 推荐用途 | 说明 |\n");
+                md.append("|--------|------|------|----------|----------|------|\n");
+                
+                // 输出时间维度
+                for (DbDimension dimension : timeDimensions) {
+                    String dimName = dimension.getEffectiveName();
+                    String dimCaption = dimension.getCaption() != null ? dimension.getCaption() : dimName;
+                    
+                    String role = dimension.getTimeRole();
+                    if (StringUtils.isEmpty(role)) {
+                        String lowerName = dimension.getName().toLowerCase();
+                        if (lowerName.contains("date") || lowerName.contains("time") || lowerName.contains("calendar")) {
+                            role = "business_date";
+                        }
+                    }
+                    String recUse = dimension.getRecommendedUse() != null ? dimension.getRecommendedUse() : "核心业务时间轴，用于同环比和窗口函数";
+                    
+                    // $id 字段
+                    String idFieldName = dimName + "$id";
+                    dimensionFieldNames.add(idFieldName);
+                    md.append("| ").append(idFieldName)
+                            .append(" | ").append(dimCaption).append("(ID)")
+                            .append(" | 维度ID")
+                            .append(" | ").append(role)
+                            .append(" | ").append(recUse)
+                            .append(" | ").append(escapeMarkdownTable(dimension.getKeyDescription() != null ? dimension.getKeyDescription() : ""))
+                            .append(" |\n");
+                            
+                    // $caption 字段
+                    String captionFieldName = dimName + "$caption";
+                    dimensionFieldNames.add(captionFieldName);
+                    md.append("| ").append(captionFieldName)
+                            .append(" | ").append(dimCaption).append("(名称)")
+                            .append(" | 维度名称")
+                            .append(" | -")
+                            .append(" | -")
+                            .append(" | ").append(dimCaption).append("显示名称")
+                            .append(" |\n");
+                            
+                    // 维度属性
+                    if (dimension instanceof DbDimensionSupport) {
+                        for (DbProperty prop : ((DbDimensionSupport) dimension).getJdbcProperties()) {
+                            String defaultPropFieldName = dimName + "$" + prop.getName();
+                            DbQueryColumn queryColumn = queryModel.findJdbcQueryColumnByName(defaultPropFieldName, false);
+                            if (queryColumn == null || !isFieldInLevels(prop.getAi(), request.getLevels())) continue;
+                            
+                            String propFieldName = queryColumn.getName();
+                            dimensionFieldNames.add(propFieldName);
+                            String propCaption = prop.getCaption() != null ? prop.getCaption() : prop.getName();
+                            String propDesc = prop.getDescription() != null ? prop.getDescription() : "";
+                            
+                            md.append("| ").append(propFieldName)
+                                    .append(" | ").append(propCaption)
+                                    .append(" | 维度属性")
+                                    .append(" | -")
+                                    .append(" | -")
+                                    .append(" | ").append(escapeMarkdownTable(propDesc))
+                                    .append(" |\n");
+                        }
+                    }
+                }
+
+                for (DbQueryProperty qp : timeProperties) {
+                    DbProperty property = qp.getProperty();
+                    String fieldName = property.getName();
+                    String fieldCaption = property.getCaption() != null ? property.getCaption() : fieldName;
+                    String fieldType = getDataTypeDescription(property.getPropertyDbColumn().getType());
+                    String fieldDesc = property.getDescription() != null ? property.getDescription() : "";
+                    
+                    String timeRole = property.getTimeRole();
+                    if (StringUtils.isEmpty(timeRole)) {
+                        String lowerName = fieldName.toLowerCase();
+                        if (lowerName.startsWith("create") || lowerName.startsWith("write") || lowerName.startsWith("update")) {
+                            timeRole = "system_time";
+                        } else {
+                            timeRole = "business_date";
+                        }
+                    }
+                    String recommendedUse = property.getRecommendedUse() != null ? property.getRecommendedUse() : "-";
+                    
+                    md.append("| ").append(fieldName)
+                            .append(" | ").append(fieldCaption)
+                            .append(" | 属性")
+                            .append(" | ").append(timeRole)
+                            .append(" | ").append(recommendedUse)
+                            .append(" | ").append(escapeMarkdownTable(fieldDesc))
+                            .append(" |\n");
+                }
+                md.append("\n");
+            }
+
+            // 输出常规属性字段
+            if (!regularProperties.isEmpty()) {
                 md.append("## 属性字段\n");
                 md.append("| 字段名 | 名称 | 类型 | 说明 |\n");
                 md.append("|--------|------|------|------|\n");
 
-                for (DbQueryProperty queryProperty : filteredProperties) {
-                    if (!isFieldInLevels(queryProperty.getAi(), request.getLevels())) {
-                        continue;
-                    }
+                for (DbQueryProperty queryProperty : regularProperties) {
                     DbProperty property = queryProperty.getProperty();
                     String fieldName = property.getName();
-
-                    // fieldAccess 列权限裁剪
-                    if (fieldAccess != null && !fieldAccess.contains(fieldName)) {
-                        continue;
-                    }
                     String fieldCaption = property.getCaption() != null ? property.getCaption() : fieldName;
                     String fieldType = getDataTypeDescription(property.getPropertyDbColumn().getType());
                     String fieldDesc = property.getDescription() != null ? property.getDescription() : "";
@@ -565,7 +703,12 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             FieldInfoV3 fieldInfo = entry.getValue();
 
             // 提取基础业务名称（去掉 (ID)/(名称) 后缀）
-            String groupName = extractGroupName(fieldInfo.getDisplayName());
+            String groupName;
+            if (fieldInfo.isTimeField()) {
+                groupName = "时间维度与字段 (Time Dimensions & Fields)";
+            } else {
+                groupName = extractGroupName(fieldInfo.getDisplayName());
+            }
 
             groupedByDisplayName.computeIfAbsent(groupName, k -> new ArrayList<>())
                     .add(new FieldEntry(fieldName, fieldInfo));
@@ -1513,6 +1656,23 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         fieldInfo.put("measure", false);
         fieldInfo.put("aggregatable", false);
 
+        if (columnType == DbColumnType.DAY || columnType == DbColumnType.DATETIME) {
+            if (StringUtils.isNotEmpty(property.getTimeRole())) {
+                fieldInfo.put("timeRole", property.getTimeRole());
+            } else {
+                // Fallback inference if missing
+                String name = property.getName().toLowerCase();
+                if (name.startsWith("create") || name.startsWith("write") || name.startsWith("update")) {
+                    fieldInfo.put("timeRole", "system_time");
+                } else {
+                    fieldInfo.put("timeRole", "business_date");
+                }
+            }
+            if (StringUtils.isNotEmpty(property.getRecommendedUse())) {
+                fieldInfo.put("recommendedUse", property.getRecommendedUse());
+            }
+        }
+
         // 如果是字典类型，添加字典信息
         if (StringUtils.isNotEmpty(property.getDictRef())) {
             fieldInfo.put("dictId", property.getDictRef());
@@ -1735,6 +1895,9 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         private String displayName;
         private String meta;
         private String fieldType;
+        private boolean isTimeField;
+        private String timeRole;
+        private String recommendedUse;
         private Map<String, ModelUsage> modelUsages = new LinkedHashMap<>();
 
         public void addDimensionId(DbDimension dimension, String modelName, SemanticServiceV3Impl service) {
@@ -1748,6 +1911,19 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                 this.meta += " | 层级维度(selfAndDescendantsOf/selfAndAncestorsOf)";
             }
             this.fieldType = "dimension_id";
+
+            String role = dimension.getTimeRole();
+            if (StringUtils.isEmpty(role)) {
+                String dimNameLower = dimension.getName().toLowerCase();
+                if (dimNameLower.contains("date") || dimNameLower.contains("time") || dimNameLower.contains("calendar")) {
+                    role = "business_date";
+                }
+            }
+            if (StringUtils.isNotEmpty(role)) {
+                this.isTimeField = true;
+                this.timeRole = role;
+                this.recommendedUse = StringUtils.isNotEmpty(dimension.getRecommendedUse()) ? dimension.getRecommendedUse() : "核心业务时间轴，用于同环比和窗口函数";
+            }
 
             ModelUsage usage = new ModelUsage();
             String desc = service.buildIdDescription(dimension);
@@ -1766,6 +1942,18 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             this.meta = "维度名称 | 文本" + (captionHint != null ? " | " + captionHint : "");
             this.fieldType = "dimension_caption";
 
+            String role = dimension.getTimeRole();
+            if (StringUtils.isEmpty(role)) {
+                String dimNameLower = dimension.getName().toLowerCase();
+                if (dimNameLower.contains("date") || dimNameLower.contains("time") || dimNameLower.contains("calendar")) {
+                    role = "business_date";
+                }
+            }
+            if (StringUtils.isNotEmpty(role)) {
+                this.isTimeField = true;
+                // 不为caption设置具体的timeRole和recommendedUse，以避免在表格中重复显示，但将其移动到时间分类下
+            }
+
             ModelUsage usage = new ModelUsage();
             usage.setDescription(service.buildCaptionDescription(dimension));
             modelUsages.put(modelName, usage);
@@ -1779,6 +1967,17 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             String dataType = service.getDataTypeDescription(prop.getPropertyDbColumn().getType());
             this.meta = "维度属性 | " + dataType;
             this.fieldType = "dimension_property";
+
+            String role = dimension.getTimeRole();
+            if (StringUtils.isEmpty(role)) {
+                String dimNameLower = dimension.getName().toLowerCase();
+                if (dimNameLower.contains("date") || dimNameLower.contains("time") || dimNameLower.contains("calendar")) {
+                    role = "business_date";
+                }
+            }
+            if (StringUtils.isNotEmpty(role)) {
+                this.isTimeField = true;
+            }
 
             ModelUsage usage = new ModelUsage();
             usage.setDescription(prop.getDescription() != null ? prop.getDescription() : prop.getCaption());
@@ -1811,9 +2010,25 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             DbProperty property = queryProperty.getProperty();
             this.displayName = service.getCaption(property);
 
-            String dataType = service.getDataTypeDescription(property.getPropertyDbColumn().getType());
+            DbColumnType type = property.getPropertyDbColumn().getType();
+            String dataType = service.getDataTypeDescription(type);
             this.meta = "属性 | " + dataType;
             this.fieldType = "property";
+
+            if (type == DbColumnType.DAY || type == DbColumnType.DATETIME) {
+                this.isTimeField = true;
+                String role = property.getTimeRole();
+                if (StringUtils.isEmpty(role)) {
+                    String lowerName = property.getName().toLowerCase();
+                    if (lowerName.startsWith("create") || lowerName.startsWith("write") || lowerName.startsWith("update")) {
+                        role = "system_time";
+                    } else {
+                        role = "business_date";
+                    }
+                }
+                this.timeRole = role;
+                this.recommendedUse = property.getRecommendedUse() != null ? property.getRecommendedUse() : "-";
+            }
 
             ModelUsage usage = new ModelUsage();
             usage.setDescription(property.getDescription() != null ? property.getDescription() : property.getCaption());

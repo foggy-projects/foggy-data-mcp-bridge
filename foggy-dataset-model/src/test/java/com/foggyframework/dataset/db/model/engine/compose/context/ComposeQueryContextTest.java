@@ -51,20 +51,23 @@ class ComposeQueryContextTest {
     }
 
     @Test
-    @DisplayName("namespace 必填且非空")
-    void namespaceRequiredNonBlank() {
-        assertThrows(IllegalArgumentException.class,
-                () -> ComposeQueryContext.builder()
-                        .principal(makePrincipal())
-                        .namespace("")
-                        .authorityResolver(STUB_RESOLVER)
-                        .build());
-        assertThrows(IllegalArgumentException.class,
-                () -> ComposeQueryContext.builder()
-                        .principal(makePrincipal())
-                        .namespace(null)
-                        .authorityResolver(STUB_RESOLVER)
-                        .build());
+    @DisplayName("namespace null/empty fallback 到默认空字符串（A1：默认 namespace 语义）")
+    void namespaceFallsBackToEmptyOnNullOrBlank() {
+        // 8.3.0.beta P3 决策 A1：null/empty namespace 视为默认/匿名 namespace，
+        // 与 v1.3 SemanticRequestContext 默认行为对齐。下游若需限制非空必须自行校验。
+        ComposeQueryContext nullCtx = ComposeQueryContext.builder()
+                .principal(makePrincipal())
+                .namespace(null)
+                .authorityResolver(STUB_RESOLVER)
+                .build();
+        assertEquals("", nullCtx.namespace());
+
+        ComposeQueryContext emptyCtx = ComposeQueryContext.builder()
+                .principal(makePrincipal())
+                .namespace("")
+                .authorityResolver(STUB_RESOLVER)
+                .build();
+        assertEquals("", emptyCtx.namespace());
     }
 
     @Test

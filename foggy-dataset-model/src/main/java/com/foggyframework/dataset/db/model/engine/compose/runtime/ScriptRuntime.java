@@ -2,6 +2,7 @@ package com.foggyframework.dataset.db.model.engine.compose.runtime;
 
 import com.foggyframework.dataset.db.model.engine.compose.context.ComposeQueryContext;
 import com.foggyframework.dataset.db.model.engine.compose.plan.Dsl;
+import com.foggyframework.dataset.db.model.engine.compose.plan.QueryFactory;
 import com.foggyframework.dataset.db.model.engine.compose.plan.QueryPlan;
 import com.foggyframework.dataset.db.model.engine.compose.sandbox.ExpressionWhitelistValidator;
 import com.foggyframework.dataset.db.model.engine.compose.sandbox.ScriptSourceScanner;
@@ -21,7 +22,7 @@ import java.util.function.Function;
 
 /**
  * M7 Compose Query script runtime — parse + evaluate fsscript with a
- * sandboxed visible surface ({@code from}, {@code dsl}).
+ * sandboxed visible surface ({@code from}, {@code dsl}, {@code Query}).
  *
  * <p><b>Sandbox strategy (Java — simpler than Python).</b>
  * Java {@link DefaultExpEvaluator} does NOT pre-inject any builtins when
@@ -31,8 +32,8 @@ import java.util.function.Function;
  * beans". Passing {@code appCtx=null} blocks all {@code @FsscriptExp}
  * bean injection.</p>
  *
- * <p>{@link #ALLOWED_SCRIPT_GLOBALS} is {@code Set.of("from", "dsl")}
- * — exactly 2 items. Tests hard-assert this equals the evaluator's
+ * <p>{@link #ALLOWED_SCRIPT_GLOBALS} is {@code Set.of("from", "dsl", "Query")}
+ * — exactly 3 items. Tests hard-assert this equals the evaluator's
  * actual visible surface after injection.</p>
  *
  * <p>Cross-repo invariant: mirrors Python
@@ -48,7 +49,7 @@ public final class ScriptRuntime {
      * Exact set of global names injected into the script evaluator.
      * Tests hard-assert this equals the evaluator's actual visible surface.
      */
-    public static final Set<String> ALLOWED_SCRIPT_GLOBALS = Set.of("from", "dsl");
+    public static final Set<String> ALLOWED_SCRIPT_GLOBALS = Set.of("from", "dsl", "Query");
 
     /**
      * Execute a Compose Query fsscript.
@@ -65,6 +66,26 @@ public final class ScriptRuntime {
             ComposeQueryContext ctx,
             SemanticQueryServiceV3 semanticService,
             String dialect) {
+        return runScript(script, ctx, semanticService, dialect, false);
+    }
+
+    /**
+     * Execute a Compose Query fsscript with an optional preview mode.
+     *
+     * @param script          the fsscript source code
+     * @param ctx             compose query context
+     * @param semanticService the semantic service for compile + execute
+     * @param dialect         SQL dialect (null defaults to "mysql")
+     * @param previewMode     if true, QueryPlans returned are evaluated to SQL instead of fetching data
+     * @return a {@link ScriptResult} with value / sql / params / warnings
+     * @throws IllegalArgumentException if ctx or semanticService is null
+     */
+    public static ScriptResult runScript(
+            String script,
+            ComposeQueryContext ctx,
+            SemanticQueryServiceV3 semanticService,
+            String dialect,
+            boolean previewMode) {
         if (ctx == null) throw new IllegalArgumentException("ctx must not be null");
         if (semanticService == null) throw new IllegalArgumentException("semanticService must not be null");
 
@@ -119,8 +140,8 @@ public final class ScriptRuntime {
                 }
                 if (args.containsKey("columns")) {
                     @SuppressWarnings("unchecked")
-                    List<String> columns = (List<String>) args.get("columns");
-                    // Layer B: validate column expressions
+                    List<Object> columns = (List<Object>) args.get("columns");
+                    // Layer B: validate column expressions (String + PlanExpression heterogeneous).
                     ExpressionWhitelistValidator.validateColumns(columns, "script-eval");
                     builder.columns(columns);
                 }
@@ -155,6 +176,9 @@ public final class ScriptRuntime {
             evaluator.setVar("from", fromFunction);
             evaluator.setVar("dsl", fromFunction);  // dsl is an alias for from
 
+            // 4a. Inject the new OO entry point: Query.from("ModelName")
+            evaluator.setVar("Query", QueryFactory.INSTANCE);
+
             // 4b. Inject the read-only 'params' surface from ctx
             Map<String, Object> ctxParams = ctx.params();
             if (ctxParams != null && !ctxParams.isEmpty()) {
@@ -165,6 +189,54 @@ public final class ScriptRuntime {
 
             // 5. Execute
             Object result = fsscript.evalResult(evaluator);
+
+            // 5.5 If result is a Map containing 'plans', auto-execute them
+            if (result instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> mapResult = (Map<String, Object>) result;
+                if (mapResult.containsKey("plans")) {
+                    Object plansObj = mapResult.get("plans");
+                    if (plansObj instanceof Map) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> plans = (Map<String, Object>) plansObj;
+                        Map<String, Object> executedPlans = new LinkedHashMap<>();
+                        for (Map.Entry<String, Object> entry : plans.entrySet()) {
+                            Object planObj = entry.getValue();
+                            if (planObj instanceof QueryPlan) {
+                                QueryPlan qp = (QueryPlan) planObj;
+                                executedPlans.put(entry.getKey(), previewMode ? qp.toSql() : qp.execute());
+                            } else {
+                                executedPlans.put(entry.getKey(), planObj);
+                            }
+                        }
+                        mapResult.put("plans", executedPlans);
+                    } else if (plansObj instanceof java.util.List) {
+                        @SuppressWarnings("unchecked")
+                        java.util.List<Object> plans = (java.util.List<Object>) plansObj;
+                        java.util.List<Object> executedPlans = new java.util.ArrayList<>();
+                        for (Object planObj : plans) {
+                            if (planObj instanceof QueryPlan) {
+                                QueryPlan qp = (QueryPlan) planObj;
+                                executedPlans.add(previewMode ? qp.toSql() : qp.execute());
+                            } else {
+                                executedPlans.add(planObj);
+                            }
+                        }
+                        mapResult.put("plans", executedPlans);
+                    } else if (plansObj instanceof QueryPlan) {
+                        QueryPlan qp = (QueryPlan) plansObj;
+                        mapResult.put("plans", previewMode ? qp.toSql() : qp.execute());
+                    }
+                }
+            } else if (result instanceof QueryPlan) {
+                // Backward compatibility: If the script returns a raw QueryPlan instead of calling execute()
+                QueryPlan qp = (QueryPlan) result;
+                if (previewMode) {
+                    result = qp.toSql();
+                } else {
+                    result = qp.execute();
+                }
+            }
 
             // 6. Build ScriptResult
             return ScriptResult.builder()

@@ -1,0 +1,15 @@
+{
+  "description": "WoW + week grain happy path",
+  "comparison": "wow",
+  "grain": "week",
+  "label": "happy",
+  "timeWindow": {
+    "field": "salesDate$id",
+    "grain": "week",
+    "comparison": "wow",
+    "range": "[)",
+    "value": ["-2W", "now"],
+    "targetMetrics": ["salesAmount"]
+  },
+  "expectedColumns": ["salesDate$week", "salesDate$dayOfWeek", "salesAmount", "salesAmount__prior", "salesAmount__diff", "salesAmount__ratio"]
+}

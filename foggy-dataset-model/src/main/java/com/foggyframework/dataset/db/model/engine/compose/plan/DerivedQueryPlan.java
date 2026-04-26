@@ -19,7 +19,7 @@ import java.util.Objects;
 public final class DerivedQueryPlan extends QueryPlan {
 
     private final QueryPlan source;
-    private final List<String> columns;
+    private final List<Object> columns;
     private final List<Object> slice;
     private final List<String> groupBy;
     private final List<String> orderBy;
@@ -29,13 +29,15 @@ public final class DerivedQueryPlan extends QueryPlan {
 
     private DerivedQueryPlan(Builder b) {
         requirePlan(b.source, "DerivedQueryPlan.source");
-        validateColumns(b.columns, "DerivedQueryPlan.columns");
+        // Columns may be null/empty for intermediate fluent stages
+        // (where, groupBy, orderBy, limit before select()).
+        validateColumnElements(b.columns, "DerivedQueryPlan.columns");
         validateStringList(b.groupBy, "DerivedQueryPlan.groupBy");
         validateStringList(b.orderBy, "DerivedQueryPlan.orderBy");
         validatePagination(b.limit, b.start, "DerivedQueryPlan");
 
         this.source = b.source;
-        this.columns = List.copyOf(b.columns);
+        this.columns = b.columns == null ? List.of() : List.copyOf(b.columns);
         this.slice = b.slice == null ? List.of() : List.copyOf(b.slice);
         this.groupBy = b.groupBy == null ? List.of() : List.copyOf(b.groupBy);
         this.orderBy = b.orderBy == null ? List.of() : List.copyOf(b.orderBy);
@@ -45,7 +47,7 @@ public final class DerivedQueryPlan extends QueryPlan {
     }
 
     public QueryPlan source() { return source; }
-    public List<String> columns() { return columns; }
+    public List<Object> columns() { return columns; }
     public List<Object> slice() { return slice; }
     public List<String> groupBy() { return groupBy; }
     public List<String> orderBy() { return orderBy; }
@@ -62,7 +64,7 @@ public final class DerivedQueryPlan extends QueryPlan {
 
     public static final class Builder {
         private QueryPlan source;
-        private List<String> columns;
+        private List<Object> columns;
         private List<Object> slice;
         private List<String> groupBy;
         private List<String> orderBy;
@@ -71,7 +73,16 @@ public final class DerivedQueryPlan extends QueryPlan {
         private boolean distinct;
 
         public Builder source(QueryPlan v) { this.source = v; return this; }
-        public Builder columns(List<String> v) { this.columns = v; return this; }
+
+        /** Accepts a heterogeneous list of {@link String} or
+         *  {@link com.foggyframework.dataset.db.model.engine.compose.plan.expr.PlanExpression}
+         *  elements. Element types are validated in {@link #build()};
+         *  illegal elements fail-closed with {@link IllegalArgumentException}. */
+        public Builder columns(List<?> v) {
+            this.columns = v == null ? null : new java.util.ArrayList<>(v);
+            return this;
+        }
+
         public Builder slice(List<Object> v) { this.slice = v; return this; }
         public Builder groupBy(List<String> v) { this.groupBy = v; return this; }
         public Builder orderBy(List<String> v) { this.orderBy = v; return this; }

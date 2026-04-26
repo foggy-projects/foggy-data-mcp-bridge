@@ -1,0 +1,19 @@
+{
+  "description": "Rolling 30-day happy path",
+  "comparison": "rolling_30d",
+  "grain": "day",
+  "label": "happy",
+  "timeWindow": {
+    "field": "salesDate$id",
+    "grain": "day",
+    "comparison": "rolling_30d",
+    "range": "[)",
+    "value": ["-60D", "now"],
+    "targetMetrics": ["salesAmount"]
+  },
+  "expectedColumns": ["salesAmount__rolling_30d"],
+  "assertions": {
+    "windowFrame": "ROWS BETWEEN 29 PRECEDING AND CURRENT ROW",
+    "rollingMode": "observed"
+  }
+}

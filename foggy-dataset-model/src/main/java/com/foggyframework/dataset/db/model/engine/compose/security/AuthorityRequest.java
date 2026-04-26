@@ -28,11 +28,7 @@ public final class AuthorityRequest {
     private AuthorityRequest(Builder b) {
         this.principal = Objects.requireNonNull(b.principal,
                 "AuthorityRequest.principal must be a Principal");
-        if (b.namespace == null || b.namespace.isEmpty()) {
-            throw new IllegalArgumentException(
-                    "AuthorityRequest.namespace must be non-blank");
-        }
-        this.namespace = b.namespace;
+        this.namespace = b.namespace == null ? "" : b.namespace;
         this.traceId = b.traceId;  // optional
         if (b.models == null || b.models.isEmpty()) {
             throw new IllegalArgumentException(

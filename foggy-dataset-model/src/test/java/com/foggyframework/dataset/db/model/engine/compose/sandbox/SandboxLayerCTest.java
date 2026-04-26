@@ -96,29 +96,28 @@ class SandboxLayerCTest extends ComposeSandboxTestSupport {
 
     @Test
     void c06_legalChainShouldBeAccepted() {
-        // A simple from() call is legal — produces a QueryPlan without sandbox error.
+        // A simple from() call is legal — Layer C does NOT reject it.
+        // The runtime auto-executes the plan (yielding row data), so we only
+        // assert that no sandbox violation was raised; the unwrapped result
+        // shape is owned by the execution path, not Layer C.
         String script = "from({model:'X', columns:['id','val']})";
-        ScriptRuntime.ScriptResult result = assertDoesNotThrow(
-            () -> ScriptRuntime.runScript(script, dummyCtx(),
-                    org.mockito.Mockito.mock(com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3.class),
-                    "mysql"));
-        assertInstanceOf(QueryPlan.class, result.value(),
-                "Legal from() must produce a QueryPlan");
+        assertDoesNotThrow(() -> ScriptRuntime.runScript(script, dummyCtx(),
+                SandboxRunner.stubbedSemanticService(),
+                "mysql"),
+                "Legal from() must not raise a sandbox violation");
     }
 
     @Test
     void c07_legalTosqlDebugShouldBeAccepted() {
-        // A simple from() returning a plan is legal — toSql() is a Layer-C public surface method.
-        // We verify the plan has toSql() accessible via its class, even though calling it
-        // would need a SemanticService for SQL rendering.
+        // A simple from() call is legal — Layer C does NOT reject the toSql
+        // public surface. We verify two things separately:
+        //   (a) the script runs without a sandbox violation
+        //   (b) toSql() is declared on QueryPlan's public surface (class-level)
         String script = "from({model:'X', columns:['id']})";
-        ScriptRuntime.ScriptResult result = assertDoesNotThrow(
-            () -> ScriptRuntime.runScript(script, dummyCtx(),
-                    org.mockito.Mockito.mock(com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3.class),
-                    "mysql"));
-        QueryPlan plan = assertInstanceOf(QueryPlan.class, result.value());
-        // toSql() is a declared method on QueryPlan — it IS in the public surface
-        assertDoesNotThrow(() -> plan.getClass().getMethod("toSql"),
+        assertDoesNotThrow(() -> ScriptRuntime.runScript(script, dummyCtx(),
+                SandboxRunner.stubbedSemanticService(),
+                "mysql"));
+        assertDoesNotThrow(() -> QueryPlan.class.getMethod("toSql"),
                 "toSql() must be part of QueryPlan's public surface");
     }
 }

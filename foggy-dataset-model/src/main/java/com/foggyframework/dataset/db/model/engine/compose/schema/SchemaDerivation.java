@@ -1,11 +1,17 @@
 package com.foggyframework.dataset.db.model.engine.compose.schema;
 
+import com.foggyframework.dataset.db.model.engine.compose.compilation.ComposePlanner;
+import com.foggyframework.dataset.db.model.engine.compose.plan.AggregateColumn;
 import com.foggyframework.dataset.db.model.engine.compose.plan.BaseModelPlan;
 import com.foggyframework.dataset.db.model.engine.compose.plan.DerivedQueryPlan;
 import com.foggyframework.dataset.db.model.engine.compose.plan.JoinOn;
 import com.foggyframework.dataset.db.model.engine.compose.plan.JoinPlan;
+import com.foggyframework.dataset.db.model.engine.compose.plan.PlanColumnRef;
+import com.foggyframework.dataset.db.model.engine.compose.plan.ProjectedColumn;
 import com.foggyframework.dataset.db.model.engine.compose.plan.QueryPlan;
 import com.foggyframework.dataset.db.model.engine.compose.plan.UnionPlan;
+import com.foggyframework.dataset.db.model.engine.compose.plan.WindowColumn;
+import com.foggyframework.dataset.db.model.engine.compose.plan.expr.ColumnExpr;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -106,8 +112,8 @@ public final class SchemaDerivation {
 
         String currentPath = path + "DerivedQueryPlan";
         List<ColumnAliasParts> partsList = new ArrayList<>(plan.columns().size());
-        for (String c : plan.columns()) {
-            partsList.add(parseAliasOrRaise(c, currentPath));
+        for (Object c : plan.columns()) {
+            partsList.add(parseObjectOrRaise(c, currentPath));
         }
 
         // Every expression must reference only names in sourceNames.
@@ -233,10 +239,10 @@ public final class SchemaDerivation {
     // ------------------------------------------------------------------
 
     private static List<ColumnSpec> columnsToSpecs(
-            List<String> columns, String sourceModel, String planPath) {
+            List<Object> columns, String sourceModel, String planPath) {
         List<ColumnAliasParts> partsList = new ArrayList<>(columns.size());
-        for (String c : columns) {
-            partsList.add(parseAliasOrRaise(c, planPath));
+        for (Object c : columns) {
+            partsList.add(parseObjectOrRaise(c, planPath));
         }
         return partsToSpecs(partsList, sourceModel, planPath);
     }
@@ -278,6 +284,39 @@ public final class SchemaDerivation {
                     null,
                     e);
         }
+    }
+
+    /** Schema derivation only needs an SQL-ish text form for
+     *  {@link #extractBareIdentifiers(String)} — actual dialect-specific
+     *  quoting happens later in {@link ComposePlanner#compileToComposedSql}.
+     *  Pin to {@code "mysql"} so identifiers stay unquoted on mixed case
+     *  (PostgreSQL/SQLite would otherwise wrap them in double-quotes,
+     *  which the regex scanner tolerates but is needless noise). */
+    private static final String IDENTIFIER_RENDER_DIALECT = "mysql";
+
+    private static ColumnAliasParts parseObjectOrRaise(Object obj, String planPath) {
+        if (obj instanceof String s) {
+            return parseAliasOrRaise(s, planPath);
+        }
+        if (obj instanceof ProjectedColumn pc) {
+            String exprText = ComposePlanner.compileExpression(pc.expr(), IDENTIFIER_RENDER_DIALECT);
+            return new ColumnAliasParts(pc.alias(), exprText, true);
+        }
+        if (obj instanceof ColumnExpr ce) {
+            return new ColumnAliasParts(ce.name(), ce.name(), false);
+        }
+        if (obj instanceof AggregateColumn agg) {
+            String exprText = agg.toColumnExpr();
+            return new ColumnAliasParts(exprText, exprText, false);
+        }
+        if (obj instanceof WindowColumn win) {
+            String exprText = win.toColumnExpr();
+            return new ColumnAliasParts(exprText, exprText, false);
+        }
+        if (obj instanceof PlanColumnRef ref) {
+            return new ColumnAliasParts(ref.name(), ref.name(), false);
+        }
+        return parseAliasOrRaise(obj.toString(), planPath);
     }
 
     private static void validateGroupAndOrderBy(

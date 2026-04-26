@@ -22,6 +22,8 @@ export function buildDateDim(options = {}) {
         caption = '日期',
         description = '日期信息',
         contextPrefix = '',
+        timeRole = 'business_date',
+        recommendedUse = 'time_axis',
         includeProperties = ['year', 'quarter', 'month', 'month_name', 'day_of_week', 'is_weekend']
     } = options;
 
@@ -50,6 +52,8 @@ export function buildDateDim(options = {}) {
         caption,
         description,
         keyDescription: '日期主键，格式yyyyMMdd，如20240101',
+        timeRole,
+        recommendedUse,
         properties
     };
 }

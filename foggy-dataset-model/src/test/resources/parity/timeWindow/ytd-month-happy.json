@@ -1,0 +1,15 @@
+{
+  "description": "YTD + month grain happy path",
+  "comparison": "ytd",
+  "grain": "month",
+  "label": "happy",
+  "timeWindow": {
+    "field": "salesDate$id",
+    "grain": "month",
+    "comparison": "ytd",
+    "range": "[)",
+    "value": ["2024-01-01", "now"],
+    "targetMetrics": ["salesAmount"]
+  },
+  "expectedColumns": ["salesAmount__ytd"]
+}

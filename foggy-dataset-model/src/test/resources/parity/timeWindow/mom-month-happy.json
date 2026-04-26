@@ -1,0 +1,15 @@
+{
+  "description": "MoM happy path",
+  "comparison": "mom",
+  "grain": "month",
+  "label": "happy",
+  "timeWindow": {
+    "field": "salesDate$id",
+    "grain": "month",
+    "comparison": "mom",
+    "range": "[)",
+    "value": ["2024-01-01", "2025-01-01"],
+    "targetMetrics": ["salesAmount"]
+  },
+  "expectedColumns": ["salesDate$month", "salesDate$id", "salesAmount", "salesAmount__prior", "salesAmount__diff", "salesAmount__ratio"]
+}

@@ -45,11 +45,15 @@ class DerivedQueryPlanTest {
         }
 
         @Test
-        @DisplayName("columns 必填且非空")
-        void columnsRequiredNonEmpty() {
-            assertThrows(IllegalArgumentException.class,
+        @DisplayName("columns 为空时允许（fluent中间阶段）")
+        void columnsEmptyAllowedForFluentStages() {
+            // Empty columns allowed for intermediate stages (where, groupBy, orderBy)
+            assertDoesNotThrow(
                     () -> DerivedQueryPlan.builder()
                             .source(base()).columns(List.of()).build());
+            assertDoesNotThrow(
+                    () -> DerivedQueryPlan.builder()
+                            .source(base()).build());
         }
 
         @Test

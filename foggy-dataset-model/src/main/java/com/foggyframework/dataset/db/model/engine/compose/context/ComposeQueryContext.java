@@ -33,11 +33,7 @@ public final class ComposeQueryContext {
     private ComposeQueryContext(Builder b) {
         this.principal = Objects.requireNonNull(b.principal,
                 "ComposeQueryContext.principal is required");
-        if (b.namespace == null || b.namespace.isEmpty()) {
-            throw new IllegalArgumentException(
-                    "ComposeQueryContext.namespace must be non-blank");
-        }
-        this.namespace = b.namespace;
+        this.namespace = b.namespace == null ? "" : b.namespace;
         this.authorityResolver = Objects.requireNonNull(b.authorityResolver,
                 "ComposeQueryContext.authorityResolver is required; "
                         + "fail-closed means we never resolve with a null resolver");

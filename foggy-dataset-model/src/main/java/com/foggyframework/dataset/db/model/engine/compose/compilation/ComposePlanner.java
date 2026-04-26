@@ -3,13 +3,8 @@ package com.foggyframework.dataset.db.model.engine.compose.compilation;
 import com.foggyframework.dataset.db.model.engine.compose.ComposedSql;
 import com.foggyframework.dataset.db.model.engine.compose.CteUnit;
 import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
-import com.foggyframework.dataset.db.model.engine.compose.plan.BaseModelPlan;
-import com.foggyframework.dataset.db.model.engine.compose.plan.DerivedQueryPlan;
-import com.foggyframework.dataset.db.model.engine.compose.plan.JoinOn;
-import com.foggyframework.dataset.db.model.engine.compose.plan.JoinPlan;
-import com.foggyframework.dataset.db.model.engine.compose.plan.JoinType;
-import com.foggyframework.dataset.db.model.engine.compose.plan.QueryPlan;
-import com.foggyframework.dataset.db.model.engine.compose.plan.UnionPlan;
+import com.foggyframework.dataset.db.model.engine.compose.plan.*;
+import com.foggyframework.dataset.db.model.engine.compose.plan.expr.*;
 import com.foggyframework.dataset.db.model.engine.compose.security.ModelBinding;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 
@@ -23,6 +18,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Plan-tree → {@link ComposedSql} lowering (M6 · 6.2 / 6.3 / 6.5 / 6.6).
@@ -57,7 +54,7 @@ import java.util.Set;
  *
  * @since 8.2.0.beta
  */
-final class ComposePlanner {
+public final class ComposePlanner {
 
     private ComposePlanner() { /* utility */ }
 
@@ -160,6 +157,121 @@ final class ComposePlanner {
         return quoteExpressionTokens(col, dialect);
     }
 
+    /** Compile an AST node or raw string into SQL */
+    public static String compileExpression(Object expr, String dialect) {
+        if (expr == null) return "NULL";
+        if (expr instanceof String s) {
+            return quoteColumnExpr(s, dialect);
+        }
+        if (expr instanceof ProjectedColumn pc) {
+            String compiledExpr = compileExpression(pc.expr(), dialect);
+            if (pc.caption() != null && !pc.caption().isEmpty()) {
+                return compiledExpr + "$" + pc.caption() + " AS " + quoteIdent(pc.alias(), dialect);
+            }
+            return compiledExpr + " AS " + quoteIdent(pc.alias(), dialect);
+        }
+        if (expr instanceof ColumnExpr col) {
+            return needsQuoting(col.name(), dialect) ? quoteIdent(col.name(), dialect) : col.name();
+        }
+        if (expr instanceof LiteralExpr lit) {
+            if (lit.value() == null) return "NULL";
+            if (lit.value() instanceof Number) return lit.value().toString();
+            if (lit.value() instanceof Boolean) return lit.value().toString().toUpperCase(Locale.ROOT);
+            return "'" + lit.value().toString().replace("'", "''") + "'";
+        }
+        if (expr instanceof BinaryExpr bin) {
+            return "(" + compileExpression(bin.left(), dialect) + " " + bin.op() + " " + compileExpression(bin.right(), dialect) + ")";
+        }
+        if (expr instanceof CaseWhenExpr caseWhen) {
+            StringBuilder sb = new StringBuilder("CASE");
+            for (CaseWhenExpr.WhenThen wt : caseWhen.whens()) {
+                sb.append(" WHEN ").append(compileExpression(wt.condition(), dialect))
+                  .append(" THEN ").append(compileExpression(wt.result(), dialect));
+            }
+            if (caseWhen.elseExpr() != null) {
+                sb.append(" ELSE ").append(compileExpression(caseWhen.elseExpr(), dialect));
+            }
+            sb.append(" END");
+            return sb.toString();
+        }
+        if (expr instanceof AggregateColumn agg) {
+            // agg.toColumnExpr() returns raw SQL string like "SUM(col)". For full AST we might need a FuncExpr.
+            // For now, it returns a string with parens, which quoteColumnExpr skips.
+            return quoteColumnExpr(agg.toColumnExpr(), dialect);
+        }
+        if (expr instanceof WindowColumn win) {
+            StringBuilder sb = new StringBuilder(win.func().toUpperCase(Locale.ROOT)).append("(");
+            if (win.ref() != null) {
+                sb.append(compileExpression(win.ref(), dialect));
+            }
+            if (!win.args().isEmpty()) {
+                if (win.ref() != null) sb.append(", ");
+                for (int i = 0; i < win.args().size(); i++) {
+                    if (i > 0) sb.append(", ");
+                    sb.append(win.args().get(i));
+                }
+            }
+            sb.append(") OVER (");
+            
+            OverClause over = win.over();
+            boolean hasPartition = over.getPartitionBy() != null && !over.getPartitionBy().isEmpty();
+            boolean hasOrder = over.getOrderBy() != null && !over.getOrderBy().isEmpty();
+            boolean hasFrame = over.getWindowFrame() != null;
+
+            if (hasPartition) {
+                sb.append("PARTITION BY ");
+                for (int i = 0; i < over.getPartitionBy().size(); i++) {
+                    if (i > 0) sb.append(", ");
+                    sb.append(quoteColumnExpr(over.getPartitionBy().get(i), dialect));
+                }
+            }
+
+            if (hasOrder) {
+                if (hasPartition) sb.append(" ");
+                sb.append("ORDER BY ");
+                for (int i = 0; i < over.getOrderBy().size(); i++) {
+                    if (i > 0) sb.append(", ");
+                    String orderCol = over.getOrderBy().get(i);
+                    boolean isDesc = orderCol.startsWith("-");
+                    String baseCol = isDesc ? orderCol.substring(1) : orderCol;
+                    sb.append(quoteColumnExpr(baseCol, dialect));
+                    if (isDesc) {
+                        sb.append(" DESC");
+                    } else {
+                        sb.append(" ASC");
+                    }
+                }
+            }
+
+            if (hasFrame) {
+                if (hasPartition || hasOrder) sb.append(" ");
+                sb.append(over.getWindowFrame().toSql());
+            }
+
+            sb.append(")");
+            return sb.toString();
+        }
+        if (expr instanceof PlanColumnRef ref) {
+            return needsQuoting(ref.name(), dialect) ? quoteIdent(ref.name(), dialect) : ref.name();
+        }
+        // Fallback for unknown objects
+        return quoteColumnExpr(expr.toString(), dialect);
+    }
+
+    /** Render a heterogeneous {@code .columns()} list (raw strings, {@link ColumnExpr},
+     *  {@link ProjectedColumn}) as plain SQL-ish strings. Package-visible so
+     *  {@link PerBaseCompiler} can share the same conversion. */
+    static List<String> extractStringCols(List<Object> cols) {
+        List<String> out = new ArrayList<>(cols.size());
+        for (Object c : cols) {
+            if (c instanceof String s) out.add(s);
+            else if (c instanceof ColumnExpr ce) out.add(ce.name());
+            else if (c instanceof ProjectedColumn pc) out.add(pc.toColumnExpr());
+            else out.add(c.toString());
+        }
+        return out;
+    }
+
     /** SQL keywords that should NOT be quoted when found as bare tokens */
     private static final Set<String> SQL_KEYWORDS = Set.of(
             "CASE", "WHEN", "THEN", "ELSE", "END", "IS", "NULL", "OR", "AND", "NOT",
@@ -167,8 +279,15 @@ final class ComposePlanner {
             "ASC", "DESC", "NULLS", "FIRST", "LAST", "SELECT", "FROM", "WHERE",
             "GROUP", "BY", "ORDER", "HAVING", "LIMIT", "OFFSET", "UNION", "ALL",
             "JOIN", "LEFT", "RIGHT", "INNER", "OUTER", "FULL", "CROSS", "ON",
-            "AS", "EXISTS", "CAST", "COALESCE", "IFNULL", "ISNULL"
+            "AS", "EXISTS", "CAST", "COALESCE", "IFNULL", "ISNULL",
+            "OVER", "PARTITION", "ROWS", "RANGE", "PRECEDING", "FOLLOWING", "UNBOUNDED", "CURRENT", "ROW"
     );
+
+    /** Token-boundary splitter used by {@link #quoteExpressionTokens(String, String)}.
+     *  Compiled once — {@code quoteExpressionTokens} is invoked per column per
+     *  query. */
+    private static final Pattern EXPR_TOKEN_PATTERN =
+            Pattern.compile("[A-Za-z_$][A-Za-z0-9_$]*|[^A-Za-z_$]+");
 
     /** Quote bare identifiers within a SQL expression.
      *  Splits the expression into tokens and quotes those that look like
@@ -187,11 +306,9 @@ final class ComposePlanner {
             if (!expr.contains("$")) return expr;
         }
 
-        // Tokenize and quote — use regex to split on boundaries between
-        // word chars and non-word chars
+        // Tokenize and quote — split on boundaries between word and non-word chars.
         StringBuilder sb = new StringBuilder(expr.length() + 16);
-        java.util.regex.Matcher m = java.util.regex.Pattern.compile(
-                "[A-Za-z_$][A-Za-z0-9_$]*|[^A-Za-z_$]+").matcher(expr);
+        Matcher m = EXPR_TOKEN_PATTERN.matcher(expr);
         while (m.find()) {
             String token = m.group();
             if (token.isEmpty()) continue;
@@ -423,7 +540,7 @@ final class ComposePlanner {
                 state.nextAlias(),
                 outerSql,
                 merged,
-                new ArrayList<>(plan.columns()));
+                extractStringCols(plan.columns()));
     }
 
     private static ComposedSql compileJoin(JoinPlan plan, CompileState state) {
@@ -712,8 +829,8 @@ final class ComposePlanner {
             sb.append("*");
         } else {
             List<String> quotedCols = new ArrayList<>(plan.columns().size());
-            for (String col : plan.columns()) {
-                quotedCols.add(quoteColumnExpr(col, dialect));
+            for (Object colObj : plan.columns()) {
+                quotedCols.add(compileExpression(colObj, dialect));
             }
             sb.append(String.join(", ", quotedCols));
         }

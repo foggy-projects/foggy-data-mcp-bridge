@@ -120,4 +120,18 @@ public interface DbDimension extends DbObject {
         List<DbDimension> children = getChildDimensions();
         return children != null && !children.isEmpty();
     }
+
+    // ========== 时间维度语义支持 ==========
+
+    /**
+     * 获取时间角色语义
+     * @return 角色字符串 (例如 business_date, event_time, system_time)
+     */
+    String getTimeRole();
+
+    /**
+     * 获取推荐用途说明
+     * @return 推荐用途字符串
+     */
+    String getRecommendedUse();
 }

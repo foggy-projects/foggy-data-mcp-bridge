@@ -144,8 +144,12 @@ public class QueryFacadeImpl implements QueryFacade {
                         context.getQueryType(), queryModelName, context.isSkipQuery(), context.getNamespace());
             }
 
-            // 3. 检查是否跳过查询（如 L1 缓存命中）
-            if (context.isSkipQuery() && context.getQueryResult() != null) {
+            // 3. 检查是否跳过查询（如 L1 缓存命中，或 TimeWindow 拦截）
+            if (context.isSkipQuery()) {
+                if (context.getQueryResult() == null) {
+                    context.setPagingResult(new com.foggyframework.dataset.model.PagingResultImpl());
+                    context.setQueryResult(DbQueryResult.of(context.getPagingResult(), null));
+                }
                 // 执行 process Step（缓存结果也需要经过结果处理）
                 dataSetResultFilterManager.process(context);
                 return context.getQueryResult();
