@@ -231,7 +231,7 @@ SQL Server 支持顶层 CTE，但当前 `QueryPlan` lowering 可能把一个编�
 |---|---|---|
 | SQLite | 8 passed / 0 skipped | `ComposeRealSqlParityTest + ComparativeExecutionIntegrationTest + TimeWindowExecutionIntegrationTest` |
 | PostgreSQL | 8 passed / 0 skipped | 真实 SQL parity 已通过 |
-| MySQL 5.7 | 4 passed / 4 skipped | 非窗口 compose / comparative 通过；timeWindow 因无窗口函数跳过 |
+| MySQL 5.7 | 8 passed / 0 skipped | 非窗口 compose / comparative 通过；timeWindow 因无窗口函数记录 info log 后 no-op 返回 |
 | SQL Server | 8 passed / 0 skipped | 子查询 fallback 通过 |
 | 本地目标套件 | 91 passed / 0 skipped | timeWindow、ScriptRuntime、Compose parity、DialectFallback |
 

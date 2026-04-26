@@ -7,6 +7,7 @@ import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -21,8 +22,8 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
+@Slf4j
 @DisplayName("TimeWindow execution real-SQL parity")
 class TimeWindowExecutionIntegrationTest extends EcommerceTestSupport {
 
@@ -34,7 +35,9 @@ class TimeWindowExecutionIntegrationTest extends EcommerceTestSupport {
     @Test
     @DisplayName("rolling_7d daily execution matches hand-written SQL")
     void rolling7dDailyExecutionMatchesSql() {
-        assumeTrue(supportsWindowFunctions(), "current database does not support window functions");
+        if (skipWhenWindowFunctionsUnsupported("rolling_7d daily execution")) {
+            return;
+        }
 
         SemanticQueryRequest request = request(
                 List.of("salesDate$id", "salesAmount", "salesAmount__rolling_7d"),
@@ -69,7 +72,9 @@ class TimeWindowExecutionIntegrationTest extends EcommerceTestSupport {
     @Test
     @DisplayName("rolling_7d SQL preview matches hand-written SQL")
     void rolling7dGenerateSqlMatchesSql() {
-        assumeTrue(supportsWindowFunctions(), "current database does not support window functions");
+        if (skipWhenWindowFunctionsUnsupported("rolling_7d SQL preview")) {
+            return;
+        }
 
         SemanticQueryRequest request = request(
                 List.of("salesDate$id", "salesAmount", "salesAmount__rolling_7d"),
@@ -112,7 +117,9 @@ class TimeWindowExecutionIntegrationTest extends EcommerceTestSupport {
     @Test
     @DisplayName("MTD daily execution matches hand-written SQL")
     void mtdDailyExecutionMatchesSql() {
-        assumeTrue(supportsWindowFunctions(), "current database does not support window functions");
+        if (skipWhenWindowFunctionsUnsupported("MTD daily execution")) {
+            return;
+        }
 
         SemanticQueryRequest request = request(
                 List.of("salesDate$year", "salesDate$month", "salesDate$id", "salesAmount", "salesAmount__mtd"),
@@ -153,7 +160,9 @@ class TimeWindowExecutionIntegrationTest extends EcommerceTestSupport {
     @Test
     @DisplayName("YTD daily execution matches hand-written SQL")
     void ytdDailyExecutionMatchesSql() {
-        assumeTrue(supportsWindowFunctions(), "current database does not support window functions");
+        if (skipWhenWindowFunctionsUnsupported("YTD daily execution")) {
+            return;
+        }
 
         SemanticQueryRequest request = request(
                 List.of("salesDate$year", "salesDate$id", "salesAmount", "salesAmount__ytd"),
@@ -196,6 +205,15 @@ class TimeWindowExecutionIntegrationTest extends EcommerceTestSupport {
         assertNotNull(response);
         assertNotNull(response.getItems());
         return response;
+    }
+
+    private boolean skipWhenWindowFunctionsUnsupported(String scenario) {
+        if (supportsWindowFunctions()) {
+            return false;
+        }
+        log.info("{} not executed on {} because this database does not support window functions",
+                scenario, getDialectKey());
+        return true;
     }
 
     private static SemanticQueryRequest request(
