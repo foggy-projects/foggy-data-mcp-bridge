@@ -1,6 +1,5 @@
 package com.foggyframework.dataset.db.model.plugins.result_set_filter;
 
-import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.engine.compose.plan.*;
 import com.foggyframework.dataset.db.model.spi.DbColumn;
 import com.foggyframework.dataset.db.model.spi.DbDimension;
@@ -95,13 +94,13 @@ public class TimeWindowInterceptor implements DataSetResultStep {
         List<String> originalColumns = new ArrayList<>();
         if (ctx.getRequest() != null && ctx.getRequest().getParam() != null && ctx.getRequest().getParam().getColumns() != null) {
             for (String col : ctx.getRequest().getParam().getColumns()) {
-                if (!col.endsWith("__prior") && !col.endsWith("__diff") && !col.endsWith("__ratio") && !col.endsWith("__growth")) {
+                if (!isGeneratedTimeWindowColumn(col)) {
                     originalColumns.add(col);
                 }
             }
         }
         
-        for (String metric : measureFields) {
+        for (String metric : targetMetrics(twDef, measureFields)) {
             if (!originalColumns.contains(metric)) {
                 originalColumns.add(metric);
             }
@@ -122,27 +121,25 @@ public class TimeWindowInterceptor implements DataSetResultStep {
                 expResult = TimeWindowExpander.expandCumulative(twDef, basePlan, groupByFields, measureFields);
             }
 
-            List<CalculatedFieldDef> cfs = ctx.getRequest().getParam().getCalculatedFields();
-            if (cfs == null) {
-                cfs = new ArrayList<>();
-                ctx.getRequest().getParam().setCalculatedFields(cfs);
-            }
-
+            List<Object> finalColumns = new ArrayList<>(originalColumns);
             for (ProjectedColumn pc : expResult.additionalColumns()) {
-                CalculatedFieldDef cf = new CalculatedFieldDef();
-                cf.setName(pc.alias());
-                cf.setExpression(pc.toColumnExpr());
-                cf.setType("DECIMAL");
-                cfs.add(cf);
+                finalColumns.add(pc);
             }
+            QueryPlan timeWindowPlan = DerivedQueryPlan.builder()
+                    .source(basePlan)
+                    .columns(finalColumns)
+                    .build();
 
+            extData.put("timeWindowPlan", timeWindowPlan);
             extData.put("timeWindowDesc", expResult.description());
+            ctx.setSkipQuery(true);
 
         } else if (twDef.isComparative()) {
             TimeWindowExpander.ComparativeExpansionResult compResult = TimeWindowExpander.expandComparative(twDef, measureFields, groupByFields);
             QueryPlan compPlan = TimeWindowExpander.buildComparativePlan(basePlan, compResult, twDef);
             
             extData.put("comparativePlan", compPlan);
+            extData.put("timeWindowPlan", compPlan);
             ctx.setSkipQuery(true);
         }
 
@@ -166,5 +163,22 @@ public class TimeWindowInterceptor implements DataSetResultStep {
         extData.put("timeWindowDialect", resolvedDialect);
         
         return 0;
+    }
+
+    private static boolean isGeneratedTimeWindowColumn(String col) {
+        return col.endsWith("__prior")
+                || col.endsWith("__diff")
+                || col.endsWith("__ratio")
+                || col.endsWith("__growth")
+                || col.endsWith("__ytd")
+                || col.endsWith("__mtd")
+                || col.contains("__rolling_");
+    }
+
+    private static Collection<String> targetMetrics(TimeWindowDef twDef, Set<String> measureFields) {
+        if (twDef.targetMetrics() == null || twDef.targetMetrics().isEmpty()) {
+            return measureFields;
+        }
+        return twDef.targetMetrics();
     }
 }

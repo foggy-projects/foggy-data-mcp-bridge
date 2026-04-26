@@ -21,7 +21,7 @@ last_updated: 2026-04-26
 
 ## 当前阶段判断
 
-- 当前阶段：`in-progress`（DSL 包装层 Java 实现已落盘 + 11 parity fixture，sqlite lane 50 passed；待跨方言 lane + 文档收尾）
+- 当前阶段：`in-progress`（DSL 包装层 Java 实现已落盘 + 11 parity fixture，sqlite lane 已补 YoY / rolling_7d / MTD / YTD 真实 SQL parity；待跨方言 lane + 文档收尾）
 - 当前目标：让 `SemanticQueryRequest.timeWindow` 这条 LLM-facing JSON 路径从「design draft + Java 代码先行」推进到 `ready-for-review`
 - 当前范围：仅 Java 主仓 `compose/plan/TimeWindow*` + parity catalog；Python 镜像独立跟踪
 
@@ -54,6 +54,8 @@ last_updated: 2026-04-26
 | S12 | Python parity 镜像 | `deferred` | Java 端 11 个 parity fixture 已可作为契约；Python 端独立立项跟踪 |
 | S13 | CTE 编排真实 SQL parity 补强 | `completed` | `ComposeRealSqlParityTest` 覆盖 derived/filter、join aggregate、union all aggregate；真实执行结果与手写 SQL 逐行比较 |
 | S14 | YoY prior 关联缺陷回归 | `completed` | YoY prior 分支补 shifted period key join，防止同月跨年比较错误匹配当前期 |
+| S15 | rolling / cumulative 执行链路真实 SQL parity | `completed` | `TimeWindowExecutionIntegrationTest` 覆盖 rolling_7d / MTD / YTD；均通过真实 semantic query 执行并与手写 SQL 逐行比较 |
+| S16 | rolling / cumulative 从 calculatedFields 切换为 Compose plan 执行 | `completed` | 避免 `SUM(metric) OVER (...)` 作为 inline calculated field 被聚合校验误判；同时修正窗口分区，剔除当前时间桶，仅按非时间维度 + 年/月重置分区 |
 
 ## 验收对照（来自设计稿 §验收 + 上游 P1 §验收）
 
@@ -63,7 +65,7 @@ last_updated: 2026-04-26
 | AC-2 | grain × comparison 兼容矩阵全部覆盖 | ✅ `passed` | `TimeWindowValidatorTest$ErrorCodes` 11 tests + `HappyPaths` 3 tests |
 | AC-3 | 8 种 comparison（yoy/mom/wow/ytd/mtd/rolling_7d/30d/90d）展开为合法 SQL | ✅ `passed` | `TimeWindowExpanderTest$ComparativeExpansion` 6 + `CumulativeExpansion` 2 + `RollingExpansion` 3 |
 | AC-4 | 相对日期表达式四方言 lowering | ✅ `passed`（sqlite） / ⏳ pending（MySQL / PG / MSSQL lane） | `RelativeDateParserTest` 24 tests · sqlite ✅ |
-| AC-5 | 真实 SQL 数据比对（项目集成测试规范） | ✅ `passed`（sqlite） | `ComparativeExecutionIntegrationTest` 1 test · sqlite |
+| AC-5 | 真实 SQL 数据比对（项目集成测试规范） | ✅ `passed`（sqlite） | `ComparativeExecutionIntegrationTest` 1 test + `TimeWindowExecutionIntegrationTest` 3 tests · sqlite |
 | AC-6 | Parity catalog 与上游 P1 测试基线对齐 | ✅ `passed` | 11 fixture（7 happy + 4 negative）已落盘 |
 | AC-7 | `SemanticQueryRequest` POJO + Controller / Tool 接入 | ⏳ `pending` | S8 待核 |
 | AC-8 | `query_model_internal_schema.json` 暴露 timeWindow shape | ⏳ `pending` | S9 待落 |
@@ -87,10 +89,10 @@ mvn "-Dtest=ComposeSqlCompilerTest,DerivedLoweringTest,JoinCompileTest,UnionComp
 FluentApiCompileTest,SchemaDerivationTest,AuthorityResolutionPipelineTest,\
 BaseModelPlanCollectorTest,ScriptRuntimeTest,SandboxLayerCTest,TimeWindowValidatorTest,\
 TimeWindowExpanderTest,RelativeDateParserTest,FluentApiTest,ComposeRealSqlParityTest,\
-ComparativeExecutionIntegrationTest" "-P!multi-db" test
+ComparativeExecutionIntegrationTest,TimeWindowExecutionIntegrationTest" "-P!multi-db" test
 ```
 
-→ **244 passed / 0 failures / 1 skipped**
+→ **247 passed / 0 failures / 1 skipped**
 
 | 测试类 | 数量 |
 |---|---:|
@@ -101,6 +103,7 @@ ComparativeExecutionIntegrationTest" "-P!multi-db" test
 | `TimeWindowValidatorTest$HappyPaths` | 3 |
 | `RelativeDateParserTest` | ~24 |
 | `ComparativeExecutionIntegrationTest` | 1 |
+| `TimeWindowExecutionIntegrationTest` | 3 |
 
 ## 已落盘文件清单
 
@@ -121,6 +124,7 @@ ComparativeExecutionIntegrationTest" "-P!multi-db" test
 | `test/.../compose/plan/TimeWindowValidatorTest.java` | 184 |
 | `test/.../compose/plan/RelativeDateParserTest.java` | 160 |
 | `test/.../semantic/ComparativeExecutionIntegrationTest.java` | 83 |
+| `test/.../semantic/TimeWindowExecutionIntegrationTest.java` | 198 |
 
 ### Parity catalog（11 fixture）
 

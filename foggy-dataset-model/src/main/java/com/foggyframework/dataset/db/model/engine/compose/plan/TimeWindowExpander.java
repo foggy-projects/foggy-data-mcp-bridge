@@ -1,8 +1,6 @@
 package com.foggyframework.dataset.db.model.engine.compose.plan;
 
-import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.engine.compose.plan.expr.*;
-import com.foggyframework.dataset.db.model.spi.DbMeasure;
 
 import java.util.*;
 
@@ -57,6 +55,7 @@ public class TimeWindowExpander {
 
         WindowFrame frame = WindowFrame.rollingRows(nRows);
         String desc = tw.comparison() + " window logic via OVER(ROWS BETWEEN " + (nRows - 1) + " PRECEDING AND CURRENT ROW)";
+        List<String> partitionByFields = nonTimeGroupByFields(tw, groupByFields);
 
         List<String> metrics = resolveMetrics(tw, measureFields);
         String aggFn = tw.rollingAggregator() != null ? tw.rollingAggregator().toUpperCase() : "SUM";
@@ -67,7 +66,7 @@ public class TimeWindowExpander {
                     aggFn,
                     new PlanColumnRef(plan, metric),
                     List.of(),
-                    new OverClause(groupByFields, List.of(tw.field()), frame)
+                    new OverClause(partitionByFields, List.of(tw.field()), frame)
             );
 
             additionalCols.add(new ProjectedColumn(wc, metric + "__" + tw.comparison(), null));
@@ -76,7 +75,7 @@ public class TimeWindowExpander {
         return new ExpansionResult(
                 additionalCols,
                 tw.field(),
-                groupByFields,
+                partitionByFields,
                 frame,
                 desc);
     }
@@ -99,14 +98,15 @@ public class TimeWindowExpander {
         List<String> metrics = resolveMetrics(tw, measureFields);
         String aggFn = tw.rollingAggregator() != null ? tw.rollingAggregator().toUpperCase() : "SUM";
 
-        List<String> windowPartition = new ArrayList<>(groupByFields);
+        List<String> windowPartition = nonTimeGroupByFields(tw, groupByFields);
+        String baseField = baseTimeField(tw.field());
         if ("ytd".equalsIgnoreCase(tw.comparison())) {
             // YTD resets every year, so partition by the year of the time field
-            windowPartition.add("YEAR(" + tw.field() + ")");
+            windowPartition.add(baseField + "$year");
         } else if ("mtd".equalsIgnoreCase(tw.comparison())) {
             // MTD resets every month, so partition by the year/month of the time field
-            windowPartition.add("YEAR(" + tw.field() + ")");
-            windowPartition.add("MONTH(" + tw.field() + ")");
+            windowPartition.add(baseField + "$year");
+            windowPartition.add(baseField + "$month");
         }
 
         List<ProjectedColumn> additionalCols = new ArrayList<>();
@@ -124,9 +124,31 @@ public class TimeWindowExpander {
         return new ExpansionResult(
                 additionalCols,
                 tw.field(),
-                groupByFields,
+                windowPartition,
                 frame,
                 desc);
+    }
+
+    private static List<String> nonTimeGroupByFields(TimeWindowDef tw, List<String> groupByFields) {
+        if (groupByFields == null || groupByFields.isEmpty()) {
+            return List.of();
+        }
+        String baseField = baseTimeField(tw.field());
+        List<String> result = new ArrayList<>();
+        for (String field : groupByFields) {
+            if (!field.equals(baseField) && !field.startsWith(baseField + "$")) {
+                result.add(field);
+            }
+        }
+        return result;
+    }
+
+    private static String baseTimeField(String field) {
+        if (field == null) {
+            return "";
+        }
+        int idx = field.lastIndexOf('$');
+        return idx >= 0 ? field.substring(0, idx) : field;
     }
 
     // ---- Comparative mode expansion ----

@@ -136,8 +136,11 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         PagingResultImpl queryResult = resultContext.getPagingResult();
         context.extData = resultContext.getExtData();
 
-        if (resultContext.isSkipQuery() && context.extData != null && context.extData.containsKey("comparativePlan")) {
-            com.foggyframework.dataset.db.model.engine.compose.plan.QueryPlan compPlan = (com.foggyframework.dataset.db.model.engine.compose.plan.QueryPlan) context.extData.get("comparativePlan");
+        if (resultContext.isSkipQuery() && context.extData != null
+                && (context.extData.containsKey("timeWindowPlan") || context.extData.containsKey("comparativePlan"))) {
+            com.foggyframework.dataset.db.model.engine.compose.plan.QueryPlan compPlan =
+                    (com.foggyframework.dataset.db.model.engine.compose.plan.QueryPlan) context.extData.getOrDefault(
+                            "timeWindowPlan", context.extData.get("comparativePlan"));
             com.foggyframework.dataset.db.model.engine.compose.context.Principal principal = com.foggyframework.dataset.db.model.engine.compose.context.Principal.builder()
                 .userId(securityContext != null && securityContext.getUserId() != null ? securityContext.getUserId() : "system")
                 .deptId(securityContext != null ? securityContext.getDeptId() : null)
