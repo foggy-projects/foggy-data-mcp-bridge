@@ -21,7 +21,7 @@ last_updated: 2026-04-26
 
 ## 当前阶段判断
 
-- 当前阶段：`in-progress`（DSL 包装层 Java 实现已落盘 + 11 parity fixture，sqlite lane 已补 YoY / rolling_7d / MTD / YTD 真实 SQL parity；`SemanticQueryRequest` / Compose DSL / MCP schema 路径已接入，待跨方言 lane + 文档收尾）
+- 当前阶段：`in-progress`（DSL 包装层 Java 实现已落盘 + 11 parity fixture；YoY / rolling_7d / MTD / YTD 已补真实 SQL parity；SQLite / PostgreSQL / SQL Server lane 通过，MySQL 5.7 非窗口编排通过且窗口用例按能力检测跳过；待 MySQL 8 lane + 文档收尾）
 - 当前目标：让 `SemanticQueryRequest.timeWindow` 这条 LLM-facing JSON 路径从「design draft + Java 代码先行」推进到 `ready-for-review`
 - 当前范围：仅 Java 主仓 `compose/plan/TimeWindow*` + parity catalog；Python 镜像独立跟踪
 
@@ -49,7 +49,7 @@ last_updated: 2026-04-26
 | S7 | PostgreSQL identifier quoting + dialect propagation 修复 | `completed` | commit `9f44ba8 fix(timeWindow)...` |
 | S8 | `SemanticQueryRequest.timeWindow` 字段 + Controller / Tool 接入 | `completed` | `SemanticQueryRequest.timeWindow` 已存在；本轮补齐 `DslQueryFunction` / `ComposedDataSetResult` 参数映射、`SemanticQueryServiceV3Impl.generateSql` preview 编排路径与 `QueryFacadeImpl.buildSqlOnly` 拦截协同 |
 | S9 | LLM-facing schema · `query_model_v3_schema.json` 暴露 timeWindow | `completed` | `foggy-dataset-mcp/src/main/resources/schemas/query_model_v3_schema.json` 已新增 `payload.timeWindow` shape，`descriptions/query_model_v3.md` 已补使用说明；`ToolConfigLoaderTest` 8 tests 全绿 |
-| S10 | 跨方言 lane 全量验收（sqlite ✅ / MySQL / PG / MSSQL） | `pending` | sqlite ✅；其他 3 方言需要 docker lane 复跑 11 个 parity fixture + Comparative integration |
+| S10 | 跨方言 lane 全量验收（sqlite ✅ / MySQL / PG / MSSQL） | `partial` | SQLite ✅ / PostgreSQL ✅ / SQL Server ✅；MySQL 5.7 ✅（非窗口 compose + comparative 通过，timeWindow 4 tests 因无窗口函数 skipped）；MySQL 8 待补 |
 | S11 | 设计稿 status `draft` → `accepted` | `pending` | 待 S10 跨方言 lane 完成 |
 | S12 | Python parity 镜像 | `deferred` | Java 端 11 个 parity fixture 已可作为契约；Python 端独立立项跟踪 |
 | S13 | CTE 编排真实 SQL parity 补强 | `completed` | `ComposeRealSqlParityTest` 覆盖 derived/filter、join aggregate、union all aggregate；真实执行结果与手写 SQL 逐行比较 |
@@ -57,6 +57,7 @@ last_updated: 2026-04-26
 | S15 | rolling / cumulative 执行链路真实 SQL parity | `completed` | `TimeWindowExecutionIntegrationTest` 覆盖 rolling_7d / MTD / YTD；均通过真实 semantic query 执行并与手写 SQL 逐行比较 |
 | S16 | rolling / cumulative 从 calculatedFields 切换为 Compose plan 执行 | `completed` | 避免 `SUM(metric) OVER (...)` 作为 inline calculated field 被聚合校验误判；同时修正窗口分区，剔除当前时间桶，仅按非时间维度 + 年/月重置分区 |
 | S17 | SQL preview / Compose DSL / MCP schema 接入补齐 | `completed` | 新增 `rolling_7d SQL preview matches hand-written SQL`，验证 `generateSql` 输出可直接执行并与手写 SQL 逐行比较；`ScriptRuntimeTest` 覆盖 `dsl()` timeWindow 请求映射 |
+| S18 | SQL Server nested CTE fallback 修复 | `completed` | `mssql/sqlserver` compose 编排改为子查询 fallback，避免 SQL Server 不支持 `FROM (WITH ...)` 嵌套 CTE；`DialectFallbackTest` 覆盖该方言策略 |
 
 ## 验收对照（来自设计稿 §验收 + 上游 P1 §验收）
 
@@ -65,12 +66,12 @@ last_updated: 2026-04-26
 | AC-1 | `TimeWindowDef` 接受 `field/grain/comparison/range/value/targetMetrics/rollingAggregator` 7 字段，构造期 fail-closed | ✅ `passed` | `TimeWindowDef.java` record + 单元测试覆盖 |
 | AC-2 | grain × comparison 兼容矩阵全部覆盖 | ✅ `passed` | `TimeWindowValidatorTest$ErrorCodes` 11 tests + `HappyPaths` 3 tests |
 | AC-3 | 8 种 comparison（yoy/mom/wow/ytd/mtd/rolling_7d/30d/90d）展开为合法 SQL | ✅ `passed` | `TimeWindowExpanderTest$ComparativeExpansion` 6 + `CumulativeExpansion` 2 + `RollingExpansion` 3 |
-| AC-4 | 相对日期表达式四方言 lowering | ✅ `passed`（sqlite） / ⏳ pending（MySQL / PG / MSSQL lane） | `RelativeDateParserTest` 24 tests · sqlite ✅ |
-| AC-5 | 真实 SQL 数据比对（项目集成测试规范） | ✅ `passed`（sqlite） | `ComparativeExecutionIntegrationTest` 1 test + `TimeWindowExecutionIntegrationTest` 4 tests · sqlite，其中 1 条覆盖 `generateSql` preview SQL 直连执行对照 |
+| AC-4 | 相对日期表达式四方言 lowering | ✅ `passed` | `RelativeDateParserTest` 24 tests 覆盖 MySQL / PG / MSSQL / SQLite SQL lowering |
+| AC-5 | 真实 SQL 数据比对（项目集成测试规范） | ✅ `passed`（SQLite / PostgreSQL / SQL Server） / ✅ MySQL 5.7 capability-skip | `ComparativeExecutionIntegrationTest` 1 test + `TimeWindowExecutionIntegrationTest` 4 tests；MySQL 5.7 不支持窗口函数，4 个 timeWindow execution tests skipped |
 | AC-6 | Parity catalog 与上游 P1 测试基线对齐 | ✅ `passed` | 11 fixture（7 happy + 4 negative）已落盘 |
 | AC-7 | `SemanticQueryRequest` POJO + Controller / Tool 接入 | ✅ `passed` | POJO 字段已存在；Compose DSL / composed result / generateSql preview 路径已补映射，`ScriptRuntimeTest` 覆盖请求透传 |
 | AC-8 | `query_model_v3_schema.json` 暴露 timeWindow shape | ✅ `passed` | MCP schema 与 query_model_v3 使用说明已补；`ConvertFrom-Json` 解析通过，`ToolConfigLoaderTest` 8 tests 全绿 |
-| AC-9 | 跨方言 lane 全量验收 | ⏳ `partial` | sqlite ✅；MySQL / PG / MSSQL lane 待跑 |
+| AC-9 | 跨方言 lane 全量验收 | ⏳ `partial` | SQLite ✅ / PostgreSQL ✅ / SQL Server ✅ / MySQL 5.7 ✅（窗口用例 skipped）；MySQL 8 待补 |
 | AC-10 | 设计稿 status 转 `accepted` | ⏳ `pending` | 待 AC-9 跨方言 lane 通过后 |
 
 ## 当前测试基线
@@ -111,6 +112,35 @@ mvn "-Dtest=ToolConfigLoaderTest" test
 ```
 
 → **8 passed / 0 failures / 0 skipped**
+
+跨方言真实 SQL parity 回归（2026-04-26）：
+
+```bash
+mvn "-Dtest=ComposeRealSqlParityTest,ComparativeExecutionIntegrationTest,TimeWindowExecutionIntegrationTest" \
+"-Dspring.profiles.active=postgres" "-P!multi-db" test
+```
+
+→ **8 passed / 0 failures / 0 skipped**
+
+```bash
+mvn "-Dtest=ComposeRealSqlParityTest,ComparativeExecutionIntegrationTest,TimeWindowExecutionIntegrationTest" \
+"-Dspring.profiles.active=docker" "-P!multi-db" test
+```
+
+→ **4 passed / 0 failures / 4 skipped**（MySQL 5.7 无窗口函数，timeWindow execution 4 tests skipped）
+
+```bash
+mvn "-Dtest=ComposeRealSqlParityTest,ComparativeExecutionIntegrationTest,TimeWindowExecutionIntegrationTest" \
+"-Dspring.profiles.active=sqlserver" "-P!multi-db" test
+```
+
+→ **8 passed / 0 failures / 0 skipped**
+
+```bash
+mvn "-Dtest=DialectFallbackTest" "-P!multi-db" test
+```
+
+→ **16 passed / 0 failures / 0 skipped**
 
 | 测试类 | 数量 |
 |---|---:|
@@ -181,7 +211,7 @@ mvn "-Dtest=ToolConfigLoaderTest" test
 
 - 当前无硬阻塞
 - 待解项（不阻断 in-progress，但阻断转 ready-for-review）：
-  - S10 跨方言 lane 全量验收（MySQL / PG / MSSQL）
+  - S10 MySQL 8 lane 尚未执行；当前仅覆盖 MySQL 5.7 的非窗口 fallback 与 capability-skip
 - Deferred：
   - S12 Python parity 镜像（`foggy-data-mcp-bridge-python` 单独立项）
 
@@ -189,7 +219,7 @@ mvn "-Dtest=ToolConfigLoaderTest" test
 
 - 下一步建议：
   1. 起 docker MySQL / PG / MSSQL lane 各跑一遍 11 parity fixture + ComparativeExecutionIntegrationTest（S10）
-  2. 跨方言 lane 通过后转 `ready-for-review`，等签收
+  2. 补 MySQL 8 lane 后转 `ready-for-review`，等签收
   3. 设计稿同步 status `draft` → `accepted`（S11）
 
 ## 后置评审要求

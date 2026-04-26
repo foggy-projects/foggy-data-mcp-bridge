@@ -76,31 +76,71 @@ public class ComparativeExecutionIntegrationTest extends EcommerceTestSupport {
         assertNotNull(response.getItems());
         
         log.info("Returned rows: {}", response.getItems().size());
+        String monthlySql = """
+                SELECT d.year AS %s,
+                       d.month AS %s,
+                       SUM(fs.sales_amount) AS %s
+                FROM fact_sales fs
+                LEFT JOIN dim_date d ON fs.date_key = d.date_key
+                GROUP BY d.year, d.month
+                """.formatted(q("salesDate$year"), q("salesDate$month"), q("salesAmount"));
         List<Map<String, Object>> expected = executeQuery("""
-                WITH monthly AS (
-                    SELECT d.year AS "salesDate$year",
-                           d.month AS "salesDate$month",
-                           SUM(fs.sales_amount) AS "salesAmount"
-                    FROM fact_sales fs
-                    LEFT JOIN dim_date d ON fs.date_key = d.date_key
-                    GROUP BY d.year, d.month
-                )
-                SELECT cur."salesDate$year",
-                       cur."salesDate$month",
-                       cur."salesAmount",
-                       prior."salesAmount" AS "salesAmount__prior",
-                       cur."salesAmount" - prior."salesAmount" AS "salesAmount__diff",
+                SELECT %s,
+                       %s,
+                       %s,
+                       %s AS %s,
+                       %s - %s AS %s,
                        CASE
-                           WHEN prior."salesAmount" IS NULL OR prior."salesAmount" = 0 THEN NULL
-                           ELSE (cur."salesAmount" - prior."salesAmount") / prior."salesAmount"
-                       END AS "salesAmount__ratio"
-                FROM monthly cur
-                LEFT JOIN monthly prior
-                       ON cur."salesDate$year" = prior."salesDate$year" + 1
-                      AND cur."salesDate$month" = prior."salesDate$month"
-                """);
+                           WHEN %s IS NULL OR %s = 0 THEN NULL
+                           ELSE (%s - %s) / %s
+                       END AS %s
+                FROM (
+                    %s
+                ) cur
+                LEFT JOIN (
+                    %s
+                ) prior
+                       ON %s = %s + 1
+                      AND %s = %s
+                """.formatted(
+                ref("cur", "salesDate$year"),
+                ref("cur", "salesDate$month"),
+                ref("cur", "salesAmount"),
+                ref("prior", "salesAmount"),
+                q("salesAmount__prior"),
+                ref("cur", "salesAmount"),
+                ref("prior", "salesAmount"),
+                q("salesAmount__diff"),
+                ref("prior", "salesAmount"),
+                ref("prior", "salesAmount"),
+                ref("cur", "salesAmount"),
+                ref("prior", "salesAmount"),
+                ref("prior", "salesAmount"),
+                q("salesAmount__ratio"),
+                monthlySql,
+                monthlySql,
+                ref("cur", "salesDate$year"),
+                ref("prior", "salesDate$year"),
+                ref("cur", "salesDate$month"),
+                ref("prior", "salesDate$month")
+        ));
 
         assertRowsEqual(expected, response.getItems());
+    }
+
+    private String q(String identifier) {
+        String dialect = getDialectKey();
+        if (dialect.contains("mysql")) {
+            return "`" + identifier + "`";
+        }
+        if (dialect.contains("sqlserver")) {
+            return "[" + identifier + "]";
+        }
+        return "\"" + identifier + "\"";
+    }
+
+    private String ref(String alias, String identifier) {
+        return alias + "." + q(identifier);
     }
 
     private static void assertRowsEqual(List<Map<String, Object>> expected, List<Map<String, Object>> actual) {

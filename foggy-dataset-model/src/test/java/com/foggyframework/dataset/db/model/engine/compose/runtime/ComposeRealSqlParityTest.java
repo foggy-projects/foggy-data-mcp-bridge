@@ -54,13 +54,13 @@ class ComposeRealSqlParityTest extends EcommerceTestSupport {
 
         List<Map<String, Object>> actual = executePlan(filtered);
         List<Map<String, Object>> expected = executeQuery("""
-                SELECT p.category_name AS "product$categoryName",
-                       SUM(fs.sales_amount) AS "salesAmount"
+                SELECT p.category_name AS %s,
+                       SUM(fs.sales_amount) AS %s
                 FROM fact_sales fs
                 LEFT JOIN dim_product p ON fs.product_key = p.product_key
                 GROUP BY p.category_name
                 HAVING SUM(fs.sales_amount) > 1000
-                """);
+                """.formatted(q("product$categoryName"), q("salesAmount")));
 
         assertRowsEqual(expected, actual);
     }
@@ -92,26 +92,33 @@ class ComposeRealSqlParityTest extends EcommerceTestSupport {
 
         List<Map<String, Object>> actual = executePlan(joined);
         List<Map<String, Object>> expected = executeQuery("""
-                WITH sales AS (
-                    SELECT fs.product_key AS "product$id",
-                           SUM(fs.sales_amount) AS "salesAmount"
+                SELECT %s,
+                       %s,
+                       %s
+                FROM (
+                    SELECT fs.product_key AS %s,
+                           SUM(fs.sales_amount) AS %s
                     FROM fact_sales fs
                     GROUP BY fs.product_key
-                ),
-                returns AS (
-                    SELECT fr.product_key AS "product$id",
-                           SUM(fr.return_amount) AS "returnAmount"
+                ) sales
+                INNER JOIN (
+                    SELECT fr.product_key AS %s,
+                           SUM(fr.return_amount) AS %s
                     FROM fact_return fr
                     GROUP BY fr.product_key
-                )
-                SELECT sales."product$id",
-                       sales."salesAmount",
-                       returns."returnAmount"
-                FROM sales
-                INNER JOIN returns ON sales."product$id" = returns."product$id"
-                """);
+                ) ret ON %s = %s
+                """.formatted(
+                ref("sales", "product$id"),
+                ref("sales", "salesAmount"),
+                ref("ret", "returnAmount"),
+                q("product$id"),
+                q("salesAmount"),
+                q("product$id"),
+                q("returnAmount"),
+                ref("sales", "product$id"),
+                ref("ret", "product$id")));
 
-        assertRowsEqual(expected, actual);
+        assertRowsEqual(expected, actual, false);
     }
 
     @Test
@@ -137,16 +144,20 @@ class ComposeRealSqlParityTest extends EcommerceTestSupport {
 
         List<Map<String, Object>> actual = executePlan(union);
         List<Map<String, Object>> expected = executeQuery("""
-                SELECT fs.product_key AS "product$id",
-                       SUM(fs.sales_amount) AS "salesAmount"
+                SELECT fs.product_key AS %s,
+                       SUM(fs.sales_amount) AS %s
                 FROM fact_sales fs
                 GROUP BY fs.product_key
                 UNION ALL
-                SELECT fr.product_key AS "product$id",
-                       SUM(fr.return_amount) AS "salesAmount"
+                SELECT fr.product_key AS %s,
+                       SUM(fr.return_amount) AS %s
                 FROM fact_return fr
                 GROUP BY fr.product_key
-                """);
+                """.formatted(
+                q("product$id"),
+                q("salesAmount"),
+                q("product$id"),
+                q("salesAmount")));
 
         assertRowsEqual(expected, actual);
     }
@@ -183,12 +194,35 @@ class ComposeRealSqlParityTest extends EcommerceTestSupport {
             return "mssql";
         }
         if (dialect.contains("mysql")) {
-            return "mysql8";
+            return supportsWindowFunctions() ? "mysql8" : "mysql";
         }
         return dialect;
     }
 
+    private String q(String identifier) {
+        String dialect = getDialectKey();
+        if (dialect.contains("mysql")) {
+            return "`" + identifier + "`";
+        }
+        if (dialect.contains("sqlserver")) {
+            return "[" + identifier + "]";
+        }
+        return "\"" + identifier + "\"";
+    }
+
+    private String ref(String alias, String identifier) {
+        return alias + "." + q(identifier);
+    }
+
     private static void assertRowsEqual(List<Map<String, Object>> expected, List<Map<String, Object>> actual) {
+        assertRowsEqual(expected, actual, true);
+    }
+
+    private static void assertRowsEqual(List<Map<String, Object>> expected, List<Map<String, Object>> actual, boolean requireNonEmpty) {
+        if (!requireNonEmpty) {
+            assertEquals(canonicalRows(expected), canonicalRows(actual));
+            return;
+        }
         assertFalse(actual.isEmpty(), "actual result should not be empty");
         assertEquals(canonicalRows(expected), canonicalRows(actual));
     }

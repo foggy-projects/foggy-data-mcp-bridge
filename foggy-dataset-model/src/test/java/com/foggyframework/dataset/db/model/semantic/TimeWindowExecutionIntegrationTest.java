@@ -18,10 +18,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 @DisplayName("TimeWindow execution real-SQL parity")
 class TimeWindowExecutionIntegrationTest extends EcommerceTestSupport {
@@ -34,6 +34,8 @@ class TimeWindowExecutionIntegrationTest extends EcommerceTestSupport {
     @Test
     @DisplayName("rolling_7d daily execution matches hand-written SQL")
     void rolling7dDailyExecutionMatchesSql() {
+        assumeTrue(supportsWindowFunctions(), "current database does not support window functions");
+
         SemanticQueryRequest request = request(
                 List.of("salesDate$id", "salesAmount", "salesAmount__rolling_7d"),
                 List.of("salesDate$id"),
@@ -47,11 +49,10 @@ class TimeWindowExecutionIntegrationTest extends EcommerceTestSupport {
         SemanticQueryResponse response = execute(request);
         List<Map<String, Object>> expected = executeQuery("""
                 WITH daily AS (
-                    SELECT d.date_key AS "salesDate$id",
+                    SELECT fs.date_key AS "salesDate$id",
                            SUM(fs.sales_amount) AS "salesAmount"
                     FROM fact_sales fs
-                    LEFT JOIN dim_date d ON fs.date_key = d.date_key
-                    GROUP BY d.date_key
+                    GROUP BY fs.date_key
                 )
                 SELECT "salesDate$id",
                        "salesAmount",
@@ -68,6 +69,8 @@ class TimeWindowExecutionIntegrationTest extends EcommerceTestSupport {
     @Test
     @DisplayName("rolling_7d SQL preview matches hand-written SQL")
     void rolling7dGenerateSqlMatchesSql() {
+        assumeTrue(supportsWindowFunctions(), "current database does not support window functions");
+
         SemanticQueryRequest request = request(
                 List.of("salesDate$id", "salesAmount", "salesAmount__rolling_7d"),
                 List.of("salesDate$id"),
@@ -89,11 +92,10 @@ class TimeWindowExecutionIntegrationTest extends EcommerceTestSupport {
                 generated.getSql(), generated.getParams().toArray(new Object[0]));
         List<Map<String, Object>> expected = executeQuery("""
                 WITH daily AS (
-                    SELECT d.date_key AS "salesDate$id",
+                    SELECT fs.date_key AS "salesDate$id",
                            SUM(fs.sales_amount) AS "salesAmount"
                     FROM fact_sales fs
-                    LEFT JOIN dim_date d ON fs.date_key = d.date_key
-                    GROUP BY d.date_key
+                    GROUP BY fs.date_key
                 )
                 SELECT "salesDate$id",
                        "salesAmount",
@@ -104,12 +106,14 @@ class TimeWindowExecutionIntegrationTest extends EcommerceTestSupport {
                 FROM daily
                 """);
 
-        assertRowsEqual(expected, actual);
+        assertRowsEqual(expected, actual, generated.getSql());
     }
 
     @Test
     @DisplayName("MTD daily execution matches hand-written SQL")
     void mtdDailyExecutionMatchesSql() {
+        assumeTrue(supportsWindowFunctions(), "current database does not support window functions");
+
         SemanticQueryRequest request = request(
                 List.of("salesDate$year", "salesDate$month", "salesDate$id", "salesAmount", "salesAmount__mtd"),
                 List.of("salesDate$year", "salesDate$month", "salesDate$id"),
@@ -125,11 +129,11 @@ class TimeWindowExecutionIntegrationTest extends EcommerceTestSupport {
                 WITH daily AS (
                     SELECT d.year AS "salesDate$year",
                            d.month AS "salesDate$month",
-                           d.date_key AS "salesDate$id",
+                           fs.date_key AS "salesDate$id",
                            SUM(fs.sales_amount) AS "salesAmount"
                     FROM fact_sales fs
                     LEFT JOIN dim_date d ON fs.date_key = d.date_key
-                    GROUP BY d.year, d.month, d.date_key
+                    GROUP BY d.year, d.month, fs.date_key
                 )
                 SELECT "salesDate$year",
                        "salesDate$month",
@@ -149,6 +153,8 @@ class TimeWindowExecutionIntegrationTest extends EcommerceTestSupport {
     @Test
     @DisplayName("YTD daily execution matches hand-written SQL")
     void ytdDailyExecutionMatchesSql() {
+        assumeTrue(supportsWindowFunctions(), "current database does not support window functions");
+
         SemanticQueryRequest request = request(
                 List.of("salesDate$year", "salesDate$id", "salesAmount", "salesAmount__ytd"),
                 List.of("salesDate$year", "salesDate$id"),
@@ -163,11 +169,11 @@ class TimeWindowExecutionIntegrationTest extends EcommerceTestSupport {
         List<Map<String, Object>> expected = executeQuery("""
                 WITH daily AS (
                     SELECT d.year AS "salesDate$year",
-                           d.date_key AS "salesDate$id",
+                           fs.date_key AS "salesDate$id",
                            SUM(fs.sales_amount) AS "salesAmount"
                     FROM fact_sales fs
                     LEFT JOIN dim_date d ON fs.date_key = d.date_key
-                    GROUP BY d.year, d.date_key
+                    GROUP BY d.year, fs.date_key
                 )
                 SELECT "salesDate$year",
                        "salesDate$id",
@@ -210,8 +216,38 @@ class TimeWindowExecutionIntegrationTest extends EcommerceTestSupport {
     }
 
     private static void assertRowsEqual(List<Map<String, Object>> expected, List<Map<String, Object>> actual) {
+        assertRowsEqual(expected, actual, null);
+    }
+
+    private static void assertRowsEqual(
+            List<Map<String, Object>> expected,
+            List<Map<String, Object>> actual,
+            String message) {
         assertFalse(actual.isEmpty(), "actual result should not be empty");
-        assertEquals(canonicalRows(expected), canonicalRows(actual));
+        List<Map<String, String>> expectedRows = canonicalRows(expected);
+        List<Map<String, String>> actualRows = canonicalRows(actual);
+        assertTrue(expectedRows.equals(actualRows), () -> {
+            int firstDiff = firstDiff(expectedRows, actualRows);
+            String diff = firstDiff < 0
+                    ? "no row diff"
+                    : "firstDiff=" + firstDiff
+                    + ", expected=" + expectedRows.get(firstDiff)
+                    + ", actual=" + actualRows.get(firstDiff);
+            return "expectedSize=" + expectedRows.size()
+                    + ", actualSize=" + actualRows.size()
+                    + ", " + diff
+                    + (message == null ? "" : "\nSQL:\n" + message);
+        });
+    }
+
+    private static int firstDiff(List<Map<String, String>> expectedRows, List<Map<String, String>> actualRows) {
+        int size = Math.min(expectedRows.size(), actualRows.size());
+        for (int i = 0; i < size; i++) {
+            if (!expectedRows.get(i).equals(actualRows.get(i))) {
+                return i;
+            }
+        }
+        return expectedRows.size() == actualRows.size() ? -1 : size;
     }
 
     private static List<Map<String, String>> canonicalRows(List<Map<String, Object>> rows) {

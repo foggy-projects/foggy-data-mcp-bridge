@@ -41,10 +41,11 @@ import java.util.regex.Pattern;
  *
  * <p>Dialect-driven output:
  * <ul>
- *   <li>{@code "mysql8" / "postgres" / "postgresql" / "mssql" / "sqlserver" / "sqlite"}
+ *   <li>{@code "mysql8" / "postgres" / "postgresql" / "sqlite"}
  *       → {@code useCte=true} ({@code WITH cte_0 AS (...) SELECT * FROM cte_0})</li>
- *   <li>{@code "mysql" / "mysql57"} (MySQL 5.7 without CTE) → {@code useCte=false}
- *       (inline subqueries).</li>
+ *   <li>{@code "mysql" / "mysql57"} (MySQL 5.7 without CTE) and
+ *       {@code "mssql" / "sqlserver"} (CTE cannot be nested under derived
+ *       tables in SQL Server) → {@code useCte=false} (inline subqueries).</li>
  * </ul>
  * Note: {@code "mysql"} alone is the conservative 5.7-compat default;
  * callers on MySQL 8+ must pass {@code "mysql8"} explicitly.</p>
@@ -72,8 +73,8 @@ public final class ComposePlanner {
             "mysql8",      Boolean.TRUE,
             "postgres",    Boolean.TRUE,
             "postgresql",  Boolean.TRUE,
-            "mssql",       Boolean.TRUE,
-            "sqlserver",   Boolean.TRUE,
+            "mssql",       Boolean.FALSE,
+            "sqlserver",   Boolean.FALSE,
             "sqlite",      Boolean.TRUE);
 
     /** Return {@code true} when the dialect supports {@code WITH cte_N AS (...)}
@@ -708,15 +709,14 @@ public final class ComposePlanner {
         // Collect left output column names (the alias after " AS ", or bare name)
         Set<String> leftOutputNames = new LinkedHashSet<>();
         for (String col : leftCols) {
-            leftOutputNames.add(extractOutputColName(col));
+            leftOutputNames.add(unquoteIdentifier(extractOutputColName(col)));
         }
 
         StringBuilder select = new StringBuilder("SELECT ");
         // All left columns, qualified with left alias
         for (int i = 0; i < leftCols.size(); i++) {
             if (i > 0) select.append(", ");
-            String colExpr = leftCols.get(i);
-            select.append(leftAlias).append(".").append(quoteColumnExpr(colExpr, dialect));
+            select.append(outputColumnRef(leftAlias, leftCols.get(i), dialect));
         }
 
         // Right columns, excluding those whose output name matches a left column
@@ -724,7 +724,7 @@ public final class ComposePlanner {
         //      right has "unitPrice AS unitPrice__prior" → output name is "unitPrice__prior" → include
         if (rightCols != null && !rightCols.isEmpty()) {
             for (String col : rightCols) {
-                String outputName = extractOutputColName(col);
+                String outputName = unquoteIdentifier(extractOutputColName(col));
                 if (!leftOutputNames.contains(outputName)) {
                     // The right subquery has already applied aliases, so its
                     // output columns are the alias names. Reference by output name.
@@ -755,6 +755,36 @@ public final class ComposePlanner {
         return col.trim();
     }
 
+    private static String unquoteIdentifier(String identifier) {
+        if (identifier == null || identifier.length() < 2) {
+            return identifier;
+        }
+        String trimmed = identifier.trim();
+        if ((trimmed.startsWith("\"") && trimmed.endsWith("\""))
+                || (trimmed.startsWith("`") && trimmed.endsWith("`"))) {
+            return trimmed.substring(1, trimmed.length() - 1);
+        }
+        if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+            return trimmed.substring(1, trimmed.length() - 1);
+        }
+        return trimmed;
+    }
+
+    private static boolean isSimpleOutputColumn(String col) {
+        return col != null
+                && !col.contains(" ")
+                && !col.contains("(")
+                && !col.contains(")");
+    }
+
+    private static String outputColumnRef(String alias, String col, String dialect) {
+        String outputName = unquoteIdentifier(extractOutputColName(col));
+        if (isSimpleOutputColumn(outputName)) {
+            return alias + "." + quoteColumnExpr(outputName, dialect);
+        }
+        return quoteColumnExpr(col, dialect);
+    }
+
     private static String rewriteAliases(String sql, Map<String, String> rename) {
         String out = sql;
         for (Map.Entry<String, String> e : rename.entrySet()) {
@@ -770,12 +800,7 @@ public final class ComposePlanner {
         StringBuilder sb = new StringBuilder(prefix);
         for (int i = 0; i < cols.size(); i++) {
             if (i > 0) sb.append(", ");
-            String col = cols.get(i);
-            if (col.contains(" ") || col.contains("(")) {
-                sb.append(col);
-            } else {
-                sb.append(alias).append(".").append(quoteColumnExpr(col, dialect));
-            }
+            sb.append(outputColumnRef(alias, cols.get(i), dialect));
         }
         return sb.toString();
     }
@@ -839,7 +864,7 @@ public final class ComposePlanner {
         if (!plan.slice().isEmpty()) {
             List<String> frags = new ArrayList<>();
             for (Object entry : plan.slice()) {
-                frags.add(renderSliceEntry(entry, outerParams));
+                frags.add(renderSliceEntry(entry, outerParams, dialect));
             }
             sb.append("\nWHERE ").append(String.join(" AND ", frags));
         }
@@ -847,7 +872,7 @@ public final class ComposePlanner {
         if (!plan.groupBy().isEmpty()) {
             List<String> quotedGroupBy = new ArrayList<>(plan.groupBy().size());
             for (String g : plan.groupBy()) {
-                quotedGroupBy.add(needsQuoting(g, dialect) ? quoteIdent(g, dialect) : g);
+                quotedGroupBy.add(quoteColumnExpr(unquoteIdentifier(g), dialect));
             }
             sb.append("\nGROUP BY ").append(String.join(", ", quotedGroupBy));
         }
@@ -855,7 +880,7 @@ public final class ComposePlanner {
         if (!plan.orderBy().isEmpty()) {
             List<String> orderFrags = new ArrayList<>(plan.orderBy().size());
             for (String entry : plan.orderBy()) {
-                orderFrags.add(renderOrderEntry(entry));
+                orderFrags.add(renderOrderEntry(entry, dialect));
             }
             sb.append("\nORDER BY ").append(String.join(", ", orderFrags));
         }
@@ -873,22 +898,35 @@ public final class ComposePlanner {
         return sb.toString();
     }
 
-    private static String renderSliceEntry(Object entry, List<Object> outerParams) {
+    private static String renderSliceEntry(Object entry, List<Object> outerParams, String dialect) {
         SliceShape s = SliceShape.parse(entry);
         outerParams.add(s.value);
-        return s.field + " " + s.op + " ?";
+        return quoteColumnExpr(unquoteIdentifier(s.field), dialect) + " " + s.op + " ?";
     }
 
-    private static String renderOrderEntry(String entry) {
-        if (entry.contains(":")) {
-            String[] parts = entry.split(":", 2);
-            String name = parts[0].trim();
-            String dir = parts[1].trim().toUpperCase(Locale.ROOT);
-            if (!Arrays.asList("ASC", "DESC").contains(dir)) {
-                dir = "ASC";
+    private static String renderOrderEntry(String entry, String dialect) {
+        String trimmed = entry.trim();
+        String name = trimmed;
+        String dir = "ASC";
+        if (trimmed.contains(":")) {
+            String[] parts = trimmed.split(":", 2);
+            name = parts[0].trim();
+            dir = parts[1].trim().toUpperCase(Locale.ROOT);
+        } else if (trimmed.startsWith("-")) {
+            name = trimmed.substring(1).trim();
+            dir = "DESC";
+        } else {
+            String upper = trimmed.toUpperCase(Locale.ROOT);
+            if (upper.endsWith(" DESC")) {
+                name = trimmed.substring(0, trimmed.length() - 5).trim();
+                dir = "DESC";
+            } else if (upper.endsWith(" ASC")) {
+                name = trimmed.substring(0, trimmed.length() - 4).trim();
             }
-            return name + " " + dir;
         }
-        return entry;
+        if (!Arrays.asList("ASC", "DESC").contains(dir)) {
+            dir = "ASC";
+        }
+        return quoteColumnExpr(unquoteIdentifier(name), dialect) + " " + dir;
     }
 }
