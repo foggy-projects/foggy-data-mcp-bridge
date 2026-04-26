@@ -595,11 +595,22 @@ public final class ComposePlanner {
     }
 
     // ------------------------------------------------------------------
-    // SQL assembly helpers — M6 does not go through CteComposer because
-    // the Java CteComposer / JoinSpec pair only supports single-column
-    // equality joins (leftKey = rightKey). Python's JoinSpec carries a
-    // raw on_condition string so its CteComposer is richer; to avoid
-    // touching shared v1.3 / 8.2 infra we own the 2-branch assembly here.
+    // SQL assembly helpers — M6 does NOT go through CteComposer.
+    //
+    // Why: the Java {@link CteComposer} / {@link JoinSpec} pair only
+    // supports single-column equality joins (leftKey = rightKey) and
+    // its {@code compose(List, List, boolean)} signature has no
+    // top-level select_columns parameter (Python has both). Python's
+    // {@code JoinSpec} carries a raw on_condition string and its
+    // {@code CteComposer.compose} accepts {@code select_columns=...},
+    // so the Python composer is strictly richer than ours.
+    //
+    // To avoid mutating the shared v1.3 / 8.2 CteComposer infra (which
+    // is reused by other call sites), M6 keeps full control of the
+    // 2-branch CTE / subquery assembly here. The cross-repo drift is
+    // documented at the class level on both {@code CteComposer} and
+    // {@code JoinSpec}; if you ever align them with Python, this whole
+    // block can be deleted in favour of CteComposer.compose(...).
     // ------------------------------------------------------------------
 
     /** Wrap a single CteUnit as either a one-clause CTE or an inline

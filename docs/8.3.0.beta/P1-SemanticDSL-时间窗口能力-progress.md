@@ -43,13 +43,13 @@ last_updated: 2026-04-26
 | S1 | DSL value object · `TimeWindowDef` | `completed` | record 91 行，含 `fromMap(Map)` JSON 反序列化 + `isComparative/isCumulative/isRolling/rollingWindowSize` 分类辅助；构造期 fail-closed 校验 `field/grain/comparison` 必填 |
 | S2 | 语义校验器 · `TimeWindowValidator` | `completed` | 163 行，覆盖 grain × comparison 兼容矩阵（设计稿 §兼容矩阵）；错误码 `GRAIN_INCOMPATIBLE / RANGE_INVALID` 等；14 tests 全绿 |
 | S3 | 相对日期表达式解析 · `RelativeDateParser` | `completed` | 137 行，`now / -1Y / -7D / -1M / -1Q` 文法 → 四方言 dialect-aware SQL（MySQL `DATE_SUB` / PG `INTERVAL` / MSSQL `DATEADD` / SQLite `DATE('now', ...)`）；24 tests 全绿 |
-| S4 | DSL → AST 展开 · `TimeWindowExpander` | `completed` | 312 行，把 `timeWindow` JSON 展开为 `JoinPlan + DerivedQueryPlan` AST（同环比 = self-join 当期/前期，累计 = 窗口聚合，rolling = ROWS BETWEEN N PRECEDING AND CURRENT ROW）；11 expansion tests 全绿 |
+| S4 | DSL → AST 展开 · `TimeWindowExpander` | `completed` | 346 行，把 `timeWindow` JSON 展开为 `JoinPlan + DerivedQueryPlan` AST（同环比 = self-join 当期/前期，累计 = 窗口聚合，rolling = ROWS BETWEEN N PRECEDING AND CURRENT ROW）；11 expansion tests 全绿 |
 | S5 | Parity catalog（11 fixture） | `completed` | `src/test/resources/parity/timeWindow/` · 7 happy + 4 negative |
 | S6 | 集成测试 · 真实 SQL 数据比对 | `completed` | `ComparativeExecutionIntegrationTest` 1 test · sqlite lane 真实 SQL 比对通过（同 demo TM/QM 链路） |
 | S7 | PostgreSQL identifier quoting + dialect propagation 修复 | `completed` | commit `9f44ba8 fix(timeWindow)...` |
 | S8 | `SemanticQueryRequest.timeWindow` 字段 + Controller / Tool 接入 | `completed` | `SemanticQueryRequest.timeWindow` 已存在；本轮补齐 `DslQueryFunction` / `ComposedDataSetResult` 参数映射、`SemanticQueryServiceV3Impl.generateSql` preview 编排路径与 `QueryFacadeImpl.buildSqlOnly` 拦截协同 |
 | S9 | LLM-facing schema · `query_model_v3_schema.json` 暴露 timeWindow | `completed` | `foggy-dataset-mcp/src/main/resources/schemas/query_model_v3_schema.json` 已新增 `payload.timeWindow` shape，`descriptions/query_model_v3.md` 已补使用说明；`ToolConfigLoaderTest` 8 tests 全绿 |
-| S10 | 跨方言 lane 全量验收（sqlite ✅ / MySQL / PG / MSSQL） | `partial` | SQLite ✅ / PostgreSQL ✅ / SQL Server ✅；MySQL 5.7 ✅（非窗口 compose + comparative 通过，timeWindow 4 tests 因无窗口函数执行 logged no-op）；MySQL 8 待补 |
+| S10 | 跨方言 lane 全量验收（sqlite ✅ / MySQL / PG / MSSQL） | `partial` | SQLite ✅ / PostgreSQL ✅ / SQL Server ✅；MySQL 5.7 ✅ 但仅覆盖非窗口 compose + comparative，timeWindow 4 tests 因 5.7 不支持窗口函数走 capability short-circuit + info log no-op，并不构成对窗口能力的真实数据比对 → 必须靠 MySQL 8 lane 完成 |
 | S11 | 设计稿 status `draft` → `accepted` | `pending` | 待 S10 跨方言 lane 完成 |
 | S12 | Python parity 镜像 | `deferred` | Java 端 11 个 parity fixture 已可作为契约；Python 端独立立项跟踪 |
 | S13 | CTE 编排真实 SQL parity 补强 | `completed` | `ComposeRealSqlParityTest` 覆盖 derived/filter、join aggregate、union all aggregate；真实执行结果与手写 SQL 逐行比较 |
@@ -67,11 +67,11 @@ last_updated: 2026-04-26
 | AC-2 | grain × comparison 兼容矩阵全部覆盖 | ✅ `passed` | `TimeWindowValidatorTest$ErrorCodes` 11 tests + `HappyPaths` 3 tests |
 | AC-3 | 8 种 comparison（yoy/mom/wow/ytd/mtd/rolling_7d/30d/90d）展开为合法 SQL | ✅ `passed` | `TimeWindowExpanderTest$ComparativeExpansion` 6 + `CumulativeExpansion` 2 + `RollingExpansion` 3 |
 | AC-4 | 相对日期表达式四方言 lowering | ✅ `passed` | `RelativeDateParserTest` 24 tests 覆盖 MySQL / PG / MSSQL / SQLite SQL lowering |
-| AC-5 | 真实 SQL 数据比对（项目集成测试规范） | ✅ `passed`（SQLite / PostgreSQL / SQL Server） / ✅ MySQL 5.7 logged no-op | `ComparativeExecutionIntegrationTest` 1 test + `TimeWindowExecutionIntegrationTest` 4 tests；MySQL 5.7 不支持窗口函数，4 个 timeWindow execution tests 记录 info log 后 no-op 返回 |
+| AC-5 | 真实 SQL 数据比对（项目集成测试规范） | ✅ `passed`（SQLite / PostgreSQL / SQL Server）/ ⚠ MySQL 5.7 部分覆盖（非窗口 compose + comparative passed；窗口用例 capability short-circuit + info log no-op，不构成真实数据比对，需 MySQL 8 lane 兜底） | `ComparativeExecutionIntegrationTest` 1 test + `TimeWindowExecutionIntegrationTest` 4 tests；MySQL 5.7 因不支持窗口函数 4 个 timeWindow execution tests 记录 info log 后 no-op 返回 |
 | AC-6 | Parity catalog 与上游 P1 测试基线对齐 | ✅ `passed` | 11 fixture（7 happy + 4 negative）已落盘 |
 | AC-7 | `SemanticQueryRequest` POJO + Controller / Tool 接入 | ✅ `passed` | POJO 字段已存在；Compose DSL / composed result / generateSql preview 路径已补映射，`ScriptRuntimeTest` 覆盖请求透传 |
 | AC-8 | `query_model_v3_schema.json` 暴露 timeWindow shape | ✅ `passed` | MCP schema 与 query_model_v3 使用说明已补；`ConvertFrom-Json` 解析通过，`ToolConfigLoaderTest` 8 tests 全绿 |
-| AC-9 | 跨方言 lane 全量验收 | ⏳ `partial` | SQLite ✅ / PostgreSQL ✅ / SQL Server ✅ / MySQL 5.7 ✅（窗口用例 logged no-op）；MySQL 8 待补 |
+| AC-9 | 跨方言 lane 全量验收 | ⏳ `partial` | SQLite ✅ / PostgreSQL ✅ / SQL Server ✅ / MySQL 5.7 ✅（窗口用例 capability short-circuit + info log no-op，不构成真实数据比对）；MySQL 8 lane 是窗口能力跨方言验收的硬要求，待补 |
 | AC-10 | 设计稿 status 转 `accepted` | ⏳ `pending` | 待 AC-9 跨方言 lane 通过后 |
 
 ## 当前测试基线
@@ -142,28 +142,30 @@ mvn "-Dtest=DialectFallbackTest" "-P!multi-db" test
 
 → **16 passed / 0 failures / 0 skipped**
 
-| 测试类 | 数量 |
-|---|---:|
-| `TimeWindowExpanderTest$ComparativeExpansion` | 6 |
-| `TimeWindowExpanderTest$CumulativeExpansion` | 2 |
-| `TimeWindowExpanderTest$RollingExpansion` | 3 |
-| `TimeWindowValidatorTest$ErrorCodes` | 11 |
-| `TimeWindowValidatorTest$HappyPaths` | 3 |
-| `RelativeDateParserTest` | ~24 |
-| `ComparativeExecutionIntegrationTest` | 1 |
-| `TimeWindowExecutionIntegrationTest` | 4 |
-| `ScriptRuntimeTest` | 18 |
+> 下表前 7 行为基线 50 passed 命令的细分（基线只跑 5 个 timeWindow / Comparative test class）；末两行 `TimeWindowExecutionIntegrationTest` / `ScriptRuntimeTest` 属于本轮接入回归套件（75 passed 命令），不计入基线 50 之内。
+>
+> | 测试类 | 数量 | 归属 |
+> |---|---:|---|
+> | `TimeWindowExpanderTest$ComparativeExpansion` | 6 | 基线 50 |
+> | `TimeWindowExpanderTest$CumulativeExpansion` | 2 | 基线 50 |
+> | `TimeWindowExpanderTest$RollingExpansion` | 3 | 基线 50 |
+> | `TimeWindowValidatorTest$ErrorCodes` | 11 | 基线 50 |
+> | `TimeWindowValidatorTest$HappyPaths` | 3 | 基线 50 |
+> | `RelativeDateParserTest` | ~24 | 基线 50 |
+> | `ComparativeExecutionIntegrationTest` | 1 | 基线 50 |
+> | `TimeWindowExecutionIntegrationTest` | 4 | 本轮接入回归（75） |
+> | `ScriptRuntimeTest` | 18 | 本轮接入回归（75） |
 
 ## 已落盘文件清单
 
-### 主代码（compose/plan · 4 文件 · ~703 行）
+### 主代码（compose/plan · 4 文件 · ~737 行）
 
 | 文件 | 行数 | 用途 |
 |---|---:|---|
 | `compose/plan/TimeWindowDef.java` | 91 | DSL value object（record） |
 | `compose/plan/TimeWindowValidator.java` | 163 | grain × comparison 兼容矩阵 |
 | `compose/plan/RelativeDateParser.java` | 137 | `now / -1Y / -7D` 解析 + 四方言 lowering |
-| `compose/plan/TimeWindowExpander.java` | 312 | DSL → `JoinPlan + DerivedQueryPlan` AST |
+| `compose/plan/TimeWindowExpander.java` | 346 | DSL → `JoinPlan + DerivedQueryPlan` AST |
 
 ### 测试代码（5 文件 · ~1,251 行）
 
@@ -201,9 +203,15 @@ mvn "-Dtest=DialectFallbackTest" "-P!multi-db" test
 | `mom-week-negative-grain-incompat.json` | `GRAIN_INCOMPATIBLE` |
 | `rolling_7d-month-negative-grain-incompat.json` | `GRAIN_INCOMPATIBLE` |
 
-### 已 commit 的 fix
+### 已 commit 的 fix / feat / test（按时间倒序）
 
 ```
+42fb513 test(timeWindow): log unsupported MySQL 5.7 window cases
+c96bc1f docs(compose): update CTE orchestration guide
+7d091b3 fix(compose): stabilize time window SQL parity
+785fa97 feat(timeWindow): expose DSL schema and SQL preview path
+699d008 test(timeWindow): add rolling cumulative SQL parity
+3ba2f19 test(compose): add real SQL parity coverage
 9f44ba8 fix(timeWindow): fix PostgreSQL identifier quoting and dialect propagation for Comparative Query Planner
 ```
 

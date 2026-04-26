@@ -45,27 +45,27 @@ last_updated: 2026-04-26
 | S3 | 明确优先级与非目标 | `completed` | 已在需求稿中冻结为窗口 / 偏移比较 / 区间累计 / 补桶四层 |
 | S4 | 实现规划 → DSL 包装层契约 | `completed` | 直接落到 8.3.0.beta P1-SemanticDSL `timeWindow` JSON 包装层契约（design `draft`），未单独再起 Java 实现规划文档 —— 实现以代码先行 |
 | S5 | 第一层「窗口分析」AST 节点 | `completed` | `WindowColumn` / `OverClause` / `WindowFrame` / `WindowColumnBuilder` 已落地（M2 阶段产出，跨 8.2 P0 / 本 P1 共享） |
-| S6 | 第二层「同环比 yoy/mom/wow」+ 第三层「累计 ytd/mtd」+ rolling 7d/30d/90d | `completed` | `TimeWindowDef` (91L) + `TimeWindowExpander` (312L) + `TimeWindowValidator` (163L) + `RelativeDateParser` (137L) 已落盘，4 文件总计 **703 行主代码** |
+| S6 | 第二层「同环比 yoy/mom/wow」+ 第三层「累计 ytd/mtd」+ rolling 7d/30d/90d | `completed` | `TimeWindowDef` (91L) + `TimeWindowExpander` (346L) + `TimeWindowValidator` (163L) + `RelativeDateParser` (137L) 已落盘，4 文件总计 **737 行主代码** |
 | S7 | parity catalog 落 11 个 fixture | `completed` | `src/test/resources/parity/timeWindow/` 已落 `mom-month-happy / wow-week-happy / mtd-day-happy / ytd-month-happy / yoy-month-happy / yoy-month-negative-range-invalid / yoy-day-negative-grain-incompat / mom-week-negative-grain-incompat / rolling_7d-day-happy / rolling_30d-day-happy / rolling_7d-month-negative-grain-incompat`，11 个 happy + negative case |
 | S8 | 单元 / 集成测试 | `completed` | `TimeWindowDefTest` + `TimeWindowExpanderTest` (308L) + `TimeWindowValidatorTest` (184L) + `RelativeDateParserTest` (160L) + `ComparativeExecutionIntegrationTest` (83L) · sqlite lane **50 passed / 0 failures** |
 | S9 | PostgreSQL identifier quoting + dialect propagation 修复 | `completed` | commit `9f44ba8 fix(timeWindow): fix PostgreSQL identifier quoting and dialect propagation for Comparative Query Planner` |
 | S10 | 第四层「连续时间轴补桶」 | `not-started` | 设计稿与需求稿都明确把这一层挂在第一批之外，留给后续 |
-| S11 | 跨方言 lane 全量验收（MySQL / PG / MSSQL / SQLite） | `partial` | SQLite ✅ / PostgreSQL ✅ / SQL Server ✅；MySQL 5.7 ✅（非窗口 compose + comparative 通过，timeWindow 4 tests 因无窗口函数执行 logged no-op）；MySQL 8 待补 |
+| S11 | 跨方言 lane 全量验收（MySQL / PG / MSSQL / SQLite） | `partial` | SQLite ✅ / PostgreSQL ✅ / SQL Server ✅；MySQL 5.7 ✅ 但仅覆盖非窗口 compose + comparative，timeWindow 4 tests 因 5.7 不支持窗口函数走 capability short-circuit 走 info log no-op，并不构成对窗口能力的真实数据比对 → 必须靠 MySQL 8 lane 完成 |
 | S12 | DSL 包装层签收（8.3.0.beta P1-SemanticDSL） | `partial` | `SemanticQueryRequest.timeWindow` / Compose DSL / MCP `query_model_v3_schema.json` 已接入；待跨方言 lane 后签收 |
 | S13 | Python parity 立项与镜像 | `deferred` | Java 端 11 个 parity fixture 已可作为契约；Python 端单独立项跟踪（暂不在本批节奏内） |
 | S14 | 8.2 P0 M10 签收前补 cross-link | `pending` | 8.2 P0 progress M10 行需补「P1 时间分析（窗口/同环比/累计/rolling）已 in-progress，第四层连续轴 deferred」 |
-| S15 | CTE / timeWindow 真实 SQL parity 补强 | `completed` | 新增 Compose 编排真实 SQL 对比测试；YoY / rolling_7d / MTD / YTD execution 均改为手写 SQL parity；补 `generateSql` preview SQL 直连执行对照；修复 prior 自关联缺少 shifted period key、rolling/cumulative 分区退化、SQL Server nested CTE fallback 与跨方言派生列引用 quoting 等缺陷 |
+| S15 | CTE / timeWindow 真实 SQL parity 补强 | `completed` | 新增 Compose 编排真实 SQL 对比测试；YoY / rolling_7d / MTD / YTD execution 均改为手写 SQL parity；补 `generateSql` preview SQL 直连执行对照；修复 prior 自关联缺少 shifted period key、rolling/cumulative 分区退化、SQL Server nested CTE fallback 与跨方言派生列引用 quoting 等缺陷。详见 `../8.3.0.beta/P1-SemanticDSL-时间窗口能力-progress.md` S13-S18（同一批工作，DSL 包装层视角同步追踪） |
 
 ## 开发进度
 
 ### 已落盘的 Java 实现（working tree · 部分 commit）
 
-**主代码（4 个新文件 · ~703 行）**
+**主代码（4 个新文件 · ~737 行）**
 
 | 文件 | 行数 | 责任 |
 |---|---:|---|
 | `foggy-dataset-model/src/main/java/.../compose/plan/TimeWindowDef.java` | 91 | record + `fromMap` JSON 反序列化 + `isComparative/isCumulative/isRolling/rollingWindowSize` 分类辅助 |
-| `foggy-dataset-model/src/main/java/.../compose/plan/TimeWindowExpander.java` | 312 | 把 `timeWindow` 展开为 `JoinPlan + DerivedQueryPlan` AST，完成 SQL 自动生成 |
+| `foggy-dataset-model/src/main/java/.../compose/plan/TimeWindowExpander.java` | 346 | 把 `timeWindow` 展开为 `JoinPlan + DerivedQueryPlan` AST，完成 SQL 自动生成 |
 | `foggy-dataset-model/src/main/java/.../compose/plan/TimeWindowValidator.java` | 163 | grain × comparison 兼容矩阵校验，错误码 `GRAIN_INCOMPATIBLE / RANGE_INVALID` 等 |
 | `foggy-dataset-model/src/main/java/.../compose/plan/RelativeDateParser.java` | 137 | `now / -1Y / -7D` 等相对表达式解析为绝对日期 SQL（四方言 dialect-aware） |
 
@@ -84,9 +84,15 @@ last_updated: 2026-04-26
 - happy：`mom-month-happy / wow-week-happy / mtd-day-happy / ytd-month-happy / yoy-month-happy / rolling_7d-day-happy / rolling_30d-day-happy`（7 条）
 - negative：`yoy-month-negative-range-invalid / yoy-day-negative-grain-incompat / mom-week-negative-grain-incompat / rolling_7d-month-negative-grain-incompat`（4 条）
 
-**已 commit 的 fix**
+**已 commit 的 fix / feat / test（按时间倒序）**
 
 ```
+42fb513 test(timeWindow): log unsupported MySQL 5.7 window cases
+c96bc1f docs(compose): update CTE orchestration guide
+7d091b3 fix(compose): stabilize time window SQL parity
+785fa97 feat(timeWindow): expose DSL schema and SQL preview path
+699d008 test(timeWindow): add rolling cumulative SQL parity
+3ba2f19 test(compose): add real SQL parity coverage
 9f44ba8 fix(timeWindow): fix PostgreSQL identifier quoting and dialect propagation for Comparative Query Planner
 ```
 
@@ -164,7 +170,7 @@ last_updated: 2026-04-26
 | 优先级有序 | `done` | 第一批已落 1-3 层，第四层 deferred |
 | 与既有 QueryPlan 语义兼容 | `done` | `TimeWindowExpander` 直接产出 `JoinPlan + DerivedQueryPlan`，沿用阶段切断与字段可见性 |
 | 可继续拆规划 | `done` | DSL 包装层已落到 8.3 P1-SemanticDSL；Java 实现先行落地 |
-| 跨方言可验收 | `partial` | SQLite ✅ / PostgreSQL ✅ / SQL Server ✅ / MySQL 5.7 ✅（窗口用例 logged no-op）；MySQL 8 待补 |
+| 跨方言可验收 | `partial` | SQLite ✅ / PostgreSQL ✅ / SQL Server ✅ / MySQL 5.7 ✅（5.7 不支持窗口函数，窗口用例走 capability short-circuit + info log no-op，不构成真实数据比对）；MySQL 8 待补，作为窗口能力跨方言验收的硬要求 |
 | 第一批可签收 | `partial` | 待 S11 / S12 / S14 完成 |
 
 ## 计划外变更
@@ -204,4 +210,4 @@ last_updated: 2026-04-26
   - 命名与现有 `docs/8.2.0.beta/` 约定一致
   - development / testing 维度已记录到代码级
   - 正式需求 / 评估稿 / DSL 设计稿 / DSL progress 已交叉链接
-- 已修复：本次 progress 回写关闭了「文档显示 in-design + 当前无代码实现 / 实际代码已落盘 ~703 行 + 50 tests passed」的状态脱节问题
+- 已修复：本次 progress 回写关闭了「文档显示 in-design + 当前无代码实现 / 实际代码已落盘 ~737 行 + 50 tests passed」的状态脱节问题
