@@ -237,11 +237,18 @@ public class TimeWindowExpander {
                 .build();
                 
         // 2. Prior Derived Plan (Prior Period)
-        List<String> priorCols = new ArrayList<>();
+        List<Object> priorCols = new ArrayList<>();
         // Include dimension fields for join (prior side)
         for (String dim : dims) {
             priorCols.add(dim);
         }
+        priorCols.add(new ProjectedColumn(
+                new BinaryExpr(
+                        new ColumnExpr(compResult.shiftField()),
+                        "+",
+                        new LiteralExpr(-compResult.periodOffset())),
+                compResult.shiftField(),
+                null));
         priorCols.add(compResult.grainKeyField());
         for (ComparativeColumn c : compResult.projectedColumns()) {
             priorCols.add(c.currentAlias() + " AS " + c.priorAlias());
@@ -259,6 +266,11 @@ public class TimeWindowExpander {
                     .left(dim).op("=").right(dim)
                     .build());
         }
+        joinConditions.add(JoinOn.builder()
+                .left(compResult.shiftField())
+                .op("=")
+                .right(compResult.shiftField())
+                .build());
         joinConditions.add(JoinOn.builder()
                 .left(compResult.grainKeyField())
                 .op("=")

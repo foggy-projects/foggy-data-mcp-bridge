@@ -290,12 +290,13 @@ class TimeWindowExpanderTest {
             assertInstanceOf(JoinPlan.class, outerDerived.source());
 
             JoinPlan joinPlan = (JoinPlan) outerDerived.source();
-            // ON conditions: 2 dims + 1 grain key = 3 conditions
-            assertEquals(3, joinPlan.on().size(),
-                    "JOIN ON should have 3 conditions (2 dims + 1 grain key)");
+            // ON conditions: 2 dims + 1 shifted period key + 1 grain key = 4 conditions
+            assertEquals(4, joinPlan.on().size(),
+                    "JOIN ON should have 4 conditions (2 dims + shifted period key + grain key)");
             assertEquals("product$category", joinPlan.on().get(0).left());
             assertEquals("store$city", joinPlan.on().get(1).left());
-            assertEquals("salesDate$month", joinPlan.on().get(2).left());
+            assertEquals("salesDate$year", joinPlan.on().get(2).left());
+            assertEquals("salesDate$month", joinPlan.on().get(3).left());
 
             // Outer projection should include dimension fields
             List<Object> cols = outerDerived.columns();

@@ -68,8 +68,8 @@ class UnionCompileTest {
     }
 
     @Test
-    @DisplayName("UNION 两侧 SQL 均被 () 包裹")
-    void bothSidesParenthesised() {
+    @DisplayName("UNION 顶层 SQL 不包裹分支，保持 SQLite 可执行")
+    void topLevelUnionBranchesAreExecutableOnSqlite() {
         FakeSemanticService svc = new FakeSemanticService();
         svc.stub("A", "SELECT a FROM ta");
         svc.stub("B", "SELECT b FROM tb");
@@ -79,8 +79,8 @@ class UnionCompileTest {
                 svc,
                 Map.of("A", CompileTestHelpers.emptyBinding(), "B", CompileTestHelpers.emptyBinding()),
                 "sqlite");
-        assertTrue(sql.getSql().contains("(SELECT a FROM ta)"));
-        assertTrue(sql.getSql().contains("(SELECT b FROM tb)"));
+        assertTrue(sql.getSql().contains("SELECT a FROM ta\nUNION\nSELECT b FROM tb"));
+        assertTrue(!sql.getSql().contains("(SELECT a FROM ta)"));
     }
 
     @Test

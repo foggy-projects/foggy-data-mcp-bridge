@@ -586,7 +586,7 @@ public final class ComposePlanner {
         List<Object> rightParams = extractParams(right);
 
         String keyword = plan.all() ? "UNION ALL" : "UNION";
-        String sql = "(" + leftSql + ")\n" + keyword + "\n(" + rightSql + ")";
+        String sql = leftSql + "\n" + keyword + "\n" + rightSql;
         List<Object> params = new ArrayList<>();
         params.addAll(leftParams);
         params.addAll(rightParams);

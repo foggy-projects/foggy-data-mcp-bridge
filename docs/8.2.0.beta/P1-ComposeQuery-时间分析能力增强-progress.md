@@ -2,9 +2,9 @@
 type: progress
 version: 8.2.0.beta
 req_id: P1-ComposeQuery-TimeAnalytics
-status: in-design
+status: in-progress
 priority: P1
-last_updated: 2026-04-25
+last_updated: 2026-04-26
 ---
 
 # 8.2.0.beta Compose Query 时间分析能力增强 — Progress
@@ -17,20 +17,23 @@ last_updated: 2026-04-25
 - 评估：`P1-ComposeQuery-时间分析能力增强评估.md`
 - 上游基线能力：`P0-ComposeQuery-QueryPlan派生查询与关系复用规范-需求.md`
 - 能力对比参考：`P0-ComposeQuery-固定Schema下业务分析能力对比评估.md`
+- DSL 包装层（下游接续）：`../8.3.0.beta/P1-SemanticDSL-时间窗口能力设计.md`
+- DSL 包装层 progress：`../8.3.0.beta/P1-SemanticDSL-时间窗口能力-progress.md`
 
 ## 当前阶段判断
 
-- 当前阶段：`in-design`
-- 当前目标：把时间分析增强从“评估草案”推进为“可进一步拆实现规划的正式需求”
-- 当前范围：仅记录需求与设计方向，不进入代码实现
+- 当前阶段：`in-progress`（首批四层中第一层「窗口分析」+ 第二层「时间偏移与同环比」+ 第三层「区间累计 / rolling」核心实现已落盘；尚待跨方言验收 + 文档收尾 + Python parity 镜像）
+- 当前目标：把第一批四层中已实现的能力（窗口/同环比/累计/rolling）从「working tree 已存在」推进到 `ready-for-review`
+- 当前范围：Java 主仓 `compose/plan` + `semantic` 包 + parity catalog；Python 镜像作为独立 follow-up 跟踪
 
 ## 前置条件检查表
 
 | item | 说明 | 状态 |
 |---|---|---|
-| `QueryPlan` 主语义稳定 | 时间分析基于既有派生查询 / 阶段切断 / `JOIN` / `UNION` 能力展开 | `assumed-ready` |
+| `QueryPlan` 主语义稳定 | 时间分析基于既有派生查询 / 阶段切断 / `JOIN` / `UNION` 能力展开 | `done`（M2 + M6 已 ready-for-review） |
 | 时间分析评估稿完成 | 作为正式需求的上游输入 | `done` |
-| 时间粒度建模基线明确 | 默认为 TM / QM 可补齐年月日等属性 | `assumed-ready` |
+| 时间粒度建模基线明确 | TM `timeRole=business_date` 已在 Java/Python 实现 | `done`（见 8.3 P2-Metadata时间维度与属性分析报告.md） |
+| Columns API 收口 | `TimeWindowExpander` 通过 `.columns(List<?>)` 写出 plan，依赖 P2 收口 | `done`（8.3 P2 已 accepted 2026-04-26） |
 | 是否引入完整财务日历 | 当前未纳入第一批范围 | `out-of-scope` |
 
 ## Step 追踪
@@ -40,31 +43,84 @@ last_updated: 2026-04-25
 | S1 | 补写时间分析能力评估稿 | `completed` | `P1-ComposeQuery-时间分析能力增强评估.md` 已创建 |
 | S2 | 上升为正式需求文档 | `completed` | `P1-ComposeQuery-时间分析能力增强-需求.md` 已创建 |
 | S3 | 明确优先级与非目标 | `completed` | 已在需求稿中冻结为窗口 / 偏移比较 / 区间累计 / 补桶四层 |
-| S4 | 决定是否继续拆实现规划 | `pending` | 待设计评审 |
-| S5 | 决定是否同步补参考手册章节 | `pending` | 待需求收口后决定 |
+| S4 | 实现规划 → DSL 包装层契约 | `completed` | 直接落到 8.3.0.beta P1-SemanticDSL `timeWindow` JSON 包装层契约（design `draft`），未单独再起 Java 实现规划文档 —— 实现以代码先行 |
+| S5 | 第一层「窗口分析」AST 节点 | `completed` | `WindowColumn` / `OverClause` / `WindowFrame` / `WindowColumnBuilder` 已落地（M2 阶段产出，跨 8.2 P0 / 本 P1 共享） |
+| S6 | 第二层「同环比 yoy/mom/wow」+ 第三层「累计 ytd/mtd」+ rolling 7d/30d/90d | `completed` | `TimeWindowDef` (91L) + `TimeWindowExpander` (312L) + `TimeWindowValidator` (163L) + `RelativeDateParser` (137L) 已落盘，4 文件总计 **703 行主代码** |
+| S7 | parity catalog 落 11 个 fixture | `completed` | `src/test/resources/parity/timeWindow/` 已落 `mom-month-happy / wow-week-happy / mtd-day-happy / ytd-month-happy / yoy-month-happy / yoy-month-negative-range-invalid / yoy-day-negative-grain-incompat / mom-week-negative-grain-incompat / rolling_7d-day-happy / rolling_30d-day-happy / rolling_7d-month-negative-grain-incompat`，11 个 happy + negative case |
+| S8 | 单元 / 集成测试 | `completed` | `TimeWindowDefTest` + `TimeWindowExpanderTest` (308L) + `TimeWindowValidatorTest` (184L) + `RelativeDateParserTest` (160L) + `ComparativeExecutionIntegrationTest` (83L) · sqlite lane **50 passed / 0 failures** |
+| S9 | PostgreSQL identifier quoting + dialect propagation 修复 | `completed` | commit `9f44ba8 fix(timeWindow): fix PostgreSQL identifier quoting and dialect propagation for Comparative Query Planner` |
+| S10 | 第四层「连续时间轴补桶」 | `not-started` | 设计稿与需求稿都明确把这一层挂在第一批之外，留给后续 |
+| S11 | 跨方言 lane 全量验收（MySQL / PG / MSSQL / SQLite） | `pending` | sqlite ✅；MySQL / PG / MSSQL 需要起 docker lane 复跑 timeWindow + Comparative integration |
+| S12 | DSL 包装层签收（8.3.0.beta P1-SemanticDSL） | `pending` | 包装层 design 已 draft，progress 文档新建中（本次 follow-up） |
+| S13 | Python parity 立项与镜像 | `deferred` | Java 端 11 个 parity fixture 已可作为契约；Python 端单独立项跟踪（暂不在本批节奏内） |
+| S14 | 8.2 P0 M10 签收前补 cross-link | `pending` | 8.2 P0 progress M10 行需补「P1 时间分析（窗口/同环比/累计/rolling）已 in-progress，第四层连续轴 deferred」 |
+| S15 | CTE / timeWindow 真实 SQL parity 补强 | `completed` | 新增 Compose 编排真实 SQL 对比测试；YoY execution 改为手写 SQL parity，并修复 prior 自关联缺少 shifted period key 的缺陷 |
 
 ## 开发进度
 
-- 当前无代码实现
-- 当前已完成文档化收口：
-  - 评估稿
-  - 正式需求稿
-  - 本 progress 骨架
+### 已落盘的 Java 实现（working tree · 部分 commit）
+
+**主代码（4 个新文件 · ~703 行）**
+
+| 文件 | 行数 | 责任 |
+|---|---:|---|
+| `foggy-dataset-model/src/main/java/.../compose/plan/TimeWindowDef.java` | 91 | record + `fromMap` JSON 反序列化 + `isComparative/isCumulative/isRolling/rollingWindowSize` 分类辅助 |
+| `foggy-dataset-model/src/main/java/.../compose/plan/TimeWindowExpander.java` | 312 | 把 `timeWindow` 展开为 `JoinPlan + DerivedQueryPlan` AST，完成 SQL 自动生成 |
+| `foggy-dataset-model/src/main/java/.../compose/plan/TimeWindowValidator.java` | 163 | grain × comparison 兼容矩阵校验，错误码 `GRAIN_INCOMPATIBLE / RANGE_INVALID` 等 |
+| `foggy-dataset-model/src/main/java/.../compose/plan/RelativeDateParser.java` | 137 | `now / -1Y / -7D` 等相对表达式解析为绝对日期 SQL（四方言 dialect-aware） |
+
+**测试代码（4 个新文件 · ~735 行）**
+
+| 文件 | 行数 |
+|---|---:|
+| `foggy-dataset-model/src/test/java/.../compose/plan/TimeWindowExpanderTest.java` | 308 |
+| `foggy-dataset-model/src/test/java/.../compose/plan/TimeWindowValidatorTest.java` | 184 |
+| `foggy-dataset-model/src/test/java/.../compose/plan/RelativeDateParserTest.java` | 160 |
+| `foggy-dataset-model/src/test/java/.../semantic/ComparativeExecutionIntegrationTest.java` | 83 |
+
+**Parity catalog（11 个 fixture）**
+
+`foggy-dataset-model/src/test/resources/parity/timeWindow/`：
+- happy：`mom-month-happy / wow-week-happy / mtd-day-happy / ytd-month-happy / yoy-month-happy / rolling_7d-day-happy / rolling_30d-day-happy`（7 条）
+- negative：`yoy-month-negative-range-invalid / yoy-day-negative-grain-incompat / mom-week-negative-grain-incompat / rolling_7d-month-negative-grain-incompat`（4 条）
+
+**已 commit 的 fix**
+
+```
+9f44ba8 fix(timeWindow): fix PostgreSQL identifier quoting and dialect propagation for Comparative Query Planner
+```
+
+### 第四层「连续时间轴补桶」状态
+
+`not-started`。需求稿与设计稿都把它列为第四优先级，第一批不交付。
 
 ## 测试进度
 
-- 自动化测试：`N/A`
-- 原因：当前尚未进入实现阶段，暂无代码或测试用例落地
-- 预期后续测试方向：
-  - 窗口函数集成测试
-  - 同比 / 环比语义测试
-  - `MTD` / `QTD` / `YTD` 测试
-  - 连续时间桶补齐测试
+- 自动化测试基线（sqlite lane · 2026-04-26）：
+
+  ```bash
+  mvn -pl foggy-dataset-model "-Dtest=TimeWindowDefTest,TimeWindowExpanderTest,\
+  TimeWindowValidatorTest,RelativeDateParserTest,ComparativeExecutionIntegrationTest" \
+  -Dspring.profiles.active=sqlite -P!multi-db test
+  ```
+  → **50 passed / 0 failures / 0 skipped**
+
+  分布：
+  - `TimeWindowExpanderTest`：11（ComparativeExpansion 6 + CumulativeExpansion 2 + RollingExpansion 3）
+  - `TimeWindowValidatorTest`：14（ErrorCodes 11 + HappyPaths 3）
+  - `RelativeDateParserTest`：~24
+  - `ComparativeExecutionIntegrationTest`：1（真实 SQL 数据比对）
+
+- 跨方言验收：sqlite ✅ / MySQL pending / PostgreSQL pending（commit `9f44ba8` 修了 quoting 但未跑全量 lane）/ MSSQL pending
+- CTE / timeWindow parity 补强（sqlite lane · 2026-04-26）：
+  - `ComposeRealSqlParityTest`：派生聚合 + 外层过滤、跨模型 join 聚合、union all 聚合，均与手写 SQL 逐行比较
+  - `ComparativeExecutionIntegrationTest`：YoY current / prior / diff / ratio 与手写 SQL 逐行比较
+  - 相关回归套件：**244 passed / 0 failures / 1 skipped**
 
 ## 体验进度
 
 - experience: `N/A`
-- 原因：当前为后端 DSL / 查询语义需求文档，不涉及 UI 体验与页面交互
+- 后续 LLM 实际能填出 `timeWindow` JSON 后，应在 8.3.0.beta P1-SemanticDSL progress 收实测样例
 
 ## 需求验收标准对照
 
@@ -72,42 +128,48 @@ last_updated: 2026-04-25
 |---|---|---|
 | 需求目标清晰 | `done` | 已说明为什么要补时间分析以及补哪些能力 |
 | 非目标明确 | `done` | 已排除完整 SQL、复杂 cohort、完整财务日历等范围 |
-| 优先级有序 | `done` | 已明确 1~4 优先顺序 |
-| 与既有 QueryPlan 语义兼容 | `done` | 需求稿已要求继续服从阶段切断与字段可见性 |
-| 可继续拆规划 | `ready` | 具备进入实现规划阶段的基础 |
+| 优先级有序 | `done` | 第一批已落 1-3 层，第四层 deferred |
+| 与既有 QueryPlan 语义兼容 | `done` | `TimeWindowExpander` 直接产出 `JoinPlan + DerivedQueryPlan`，沿用阶段切断与字段可见性 |
+| 可继续拆规划 | `done` | DSL 包装层已落到 8.3 P1-SemanticDSL；Java 实现先行落地 |
+| 跨方言可验收 | `partial` | sqlite ✅；其他 3 方言待 docker lane 验收（S11） |
+| 第一批可签收 | `partial` | 待 S11 / S12 / S14 完成 |
 
 ## 计划外变更
 
-- 当前无
+- **变更 1**（2026-04-26 同步）：第一批实现以「代码先行 / 文档跟进」方式推进，`P1-ComposeQuery-时间分析能力增强-实现规划.md` / `代码清单.md` 未单独起草；DSL 包装层契约直接落到 `../8.3.0.beta/P1-SemanticDSL-时间窗口能力设计.md`。本次 progress 回写补全这一脱节。
 
 ## 阻塞项
 
 - 当前无硬阻塞
-- 待确认项：
-  - 时间粒度字段主要依赖 TM 预建，还是 DSL 增加轻量封装
-  - 同比 / 环比是做显式高层语义，还是以 `lag/lead` 为核心再包一层
-  - 连续时间轴补齐是否进入第一批范围
+- 待解项（不阻断 in-progress，但阻断签收）：
+  - S11 跨方言 lane（MySQL / PG / MSSQL）
+  - S12 DSL 包装层 progress 收口（本次新建）
+  - S14 8.2 P0 M10 cross-link
+- Deferred（不在本批）：
+  - S10 第四层连续时间轴补桶
+  - S13 Python parity 镜像
 
 ## 后续衔接
 
-- 下一步建议：如设计方向认可，继续产出实现规划文档
-- 下一步文档候选：
-  - `P1-ComposeQuery-时间分析能力增强-实现规划.md`
-  - `P1-ComposeQuery-时间分析能力增强-代码清单.md`
+- 下一步建议：
+  1. 8.3 P1-SemanticDSL progress 文档（本次同步新建）
+  2. 跨方言 lane 起一次（sqlite + mysql + postgres + sqlserver 各一遍 timeWindow / Comparative integration / parity catalog）
+  3. 收齐后转 `ready-for-review`
+- Python parity 镜像可独立立项（建议放 `foggy-data-mcp-bridge-python/docs/v1.6/` 或其后续版本）
 
 ## 后置评审要求
 
-- 当前不需要 `foggy-implementation-quality-gate`
-- 当前不需要 `foggy-test-coverage-audit`
-- 当前不需要 `foggy-acceptance-signoff`
-- 原因：尚未进入实现与验收阶段
+- 当前阶段不需要 `foggy-implementation-quality-gate`（待 S11 完成、转 `ready-for-review` 之前再走一次）
+- 当前阶段不需要 `foggy-test-coverage-audit`（同上）
+- 当前阶段不需要 `foggy-acceptance-signoff`（同上）
 
 ## 自检结论
 
-- 当前交付类型：`record`
-- 当前结论：`self-check-only`
+- 当前交付类型：`record + implementation`
+- 当前结论：`code-landed-pending-cross-dialect-and-cross-repo`
 - 已完成：
   - 文档路径落在正确版本目录
   - 命名与现有 `docs/8.2.0.beta/` 约定一致
-  - development / testing / experience 三个维度均已记录
-  - 正式需求与评估稿已交叉链接
+  - development / testing 维度已记录到代码级
+  - 正式需求 / 评估稿 / DSL 设计稿 / DSL progress 已交叉链接
+- 已修复：本次 progress 回写关闭了「文档显示 in-design + 当前无代码实现 / 实际代码已落盘 ~703 行 + 50 tests passed」的状态脱节问题
