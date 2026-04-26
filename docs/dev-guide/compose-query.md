@@ -204,6 +204,7 @@ SQL Server 支持顶层 CTE，但当前 `QueryPlan` lowering 可能把一个编�
 | `CteComposerTest.java` | 13 | CTE/子查询拼接、多表链式、参数合并、边界 |
 | `DataSetResultTest.java` | 46 | 数据访问、filter/sort/compute、joinInMemory、链式调用、空集边界 |
 | `ComposeRealSqlParityTest.java` | 3 | derived/filter、join aggregate、union all 与手写 SQL 逐行比较 |
+| `ScriptResourceRealSqlParityTest.java` | 3 | 脚本资源真实执行，结果与手写 SQL 逐行比较 |
 | `DialectFallbackTest.java` | 16 | CTE / 子查询 fallback 方言策略 |
 | `ScriptRuntimeTest.java` | 18 | 脚本 preview、返回值解耦、`timeWindow` 请求映射 |
 
@@ -222,6 +223,7 @@ SQL Server 支持顶层 CTE，但当前 `QueryPlan` lowering 可能把一个编�
 | joinInMemory | 15 | LEFT/INNER、1:N 展开、N:1 展开、不同 key、左表优先、链式、空集边界 |
 | 空集边界 | 4 | 空结果 filter/sort/compute/null items |
 | QueryPlan 真实 SQL parity | 3 | derived/filter、join aggregate、union all 与手写 SQL 对比 |
+| 脚本资源真实 SQL parity | 3 | `real_sql_derived_query_scenario.js` / `real_sql_join_scenario.js` / `real_sql_union_scenario.js` 真实执行并与手写 SQL 对比 |
 | QueryPlan 方言 fallback | 16 | MySQL 5.7 / MySQL 8 / PostgreSQL / SQLite / SQL Server 策略 |
 | CTE 场景脚本 preview | 3 scripts | `derived_query_scenario.js` / `join_scenario.js` / `union_scenario.js` 通过 `ScriptRuntime` preview |
 
@@ -232,8 +234,9 @@ SQL Server 支持顶层 CTE，但当前 `QueryPlan` lowering 可能把一个编�
 | SQLite | 8 passed / 0 skipped | `ComposeRealSqlParityTest + ComparativeExecutionIntegrationTest + TimeWindowExecutionIntegrationTest` |
 | PostgreSQL | 8 passed / 0 skipped | 真实 SQL parity 已通过 |
 | MySQL 5.7 | 8 passed / 0 skipped | 非窗口 compose / comparative 通过；timeWindow 因无窗口函数记录 info log 后 no-op 返回 |
+| MySQL 5.7 脚本 parity | 3 passed / 0 skipped | 脚本资源真实执行，不依赖窗口函数 |
 | SQL Server | 8 passed / 0 skipped | 子查询 fallback 通过 |
-| 本地目标套件 | 91 passed / 0 skipped | timeWindow、ScriptRuntime、Compose parity、DialectFallback |
+| 本地脚本/CTE目标套件 | 24 passed / 0 skipped | `ComposeRealSqlParityTest + ScriptResourceRealSqlParityTest + ScriptRuntimeTest` |
 
 ### 待覆盖
 
@@ -242,12 +245,10 @@ SQL Server 支持顶层 CTE，但当前 `QueryPlan` lowering 可能把一个编�
 | ComposedDataSetResult | 集成测试（需 DB + QM） | P2 |
 | ComposeQueryTool | MCP 端到端 | P3 |
 | 多方言 CTE/子查询 | MySQL 8 lane | P2 |
-| 脚本级真实 SQL 对比 | `src/test/resources/scripts/*.js` 从 preview 升级到真实执行 parity | P2 |
 
 ## 七、下一步工作
 
 1. **MySQL 8 lane**：补齐窗口函数环境下的 CTE + timeWindow 真实 SQL parity
-2. **脚本级真实 SQL parity**：将 `src/test/resources/scripts/*.js` 从 preview 校验升级为真实 SQL 执行对比
-3. **P2 集成测试**：ComposedDataSetResult 延迟执行全链路
-4. **P3 MCP 端到端验证**：通过 MCP 工具运行 fsscript 编排脚本
-5. **元数据 dataSourceGroup**：在模型元数据中暴露 dataSource 归属，供 LLM 判断 withJoin 或 joinInMemory
+2. **P2 集成测试**：ComposedDataSetResult 延迟执行全链路
+3. **P3 MCP 端到端验证**：通过 MCP 工具运行 fsscript 编排脚本
+4. **元数据 dataSourceGroup**：在模型元数据中暴露 dataSource 归属，供 LLM 判断 withJoin 或 joinInMemory
