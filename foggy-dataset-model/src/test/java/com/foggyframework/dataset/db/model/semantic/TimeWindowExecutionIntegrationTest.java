@@ -1,6 +1,7 @@
 package com.foggyframework.dataset.db.model.semantic;
 
 import com.foggyframework.dataset.db.model.ecommerce.EcommerceTestSupport;
+import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
@@ -20,6 +21,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @DisplayName("TimeWindow execution real-SQL parity")
 class TimeWindowExecutionIntegrationTest extends EcommerceTestSupport {
@@ -61,6 +63,48 @@ class TimeWindowExecutionIntegrationTest extends EcommerceTestSupport {
                 """);
 
         assertRowsEqual(expected, response.getItems());
+    }
+
+    @Test
+    @DisplayName("rolling_7d SQL preview matches hand-written SQL")
+    void rolling7dGenerateSqlMatchesSql() {
+        SemanticQueryRequest request = request(
+                List.of("salesDate$id", "salesAmount", "salesAmount__rolling_7d"),
+                List.of("salesDate$id"),
+                Map.of(
+                        "field", "salesDate$id",
+                        "grain", "day",
+                        "comparison", "rolling_7d",
+                        "targetMetrics", List.of("salesAmount")
+                ));
+
+        SqlGenerationResult generated = semanticQueryServiceV3.generateSql(
+                TEST_MODEL, request, SemanticRequestContext.empty());
+        assertNotNull(generated);
+        assertNotNull(generated.getSql());
+        assertTrue(generated.getSql().contains("OVER"), generated.getSql());
+        assertTrue(generated.getSql().contains("salesAmount__rolling_7d"), generated.getSql());
+
+        List<Map<String, Object>> actual = jdbcTemplate.queryForList(
+                generated.getSql(), generated.getParams().toArray(new Object[0]));
+        List<Map<String, Object>> expected = executeQuery("""
+                WITH daily AS (
+                    SELECT d.date_key AS "salesDate$id",
+                           SUM(fs.sales_amount) AS "salesAmount"
+                    FROM fact_sales fs
+                    LEFT JOIN dim_date d ON fs.date_key = d.date_key
+                    GROUP BY d.date_key
+                )
+                SELECT "salesDate$id",
+                       "salesAmount",
+                       SUM("salesAmount") OVER (
+                           ORDER BY "salesDate$id"
+                           ROWS BETWEEN 6 PRECEDING AND CURRENT ROW
+                       ) AS "salesAmount__rolling_7d"
+                FROM daily
+                """);
+
+        assertRowsEqual(expected, actual);
     }
 
     @Test

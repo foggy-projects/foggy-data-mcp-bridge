@@ -198,6 +198,15 @@ public class QueryFacadeImpl implements QueryFacade {
             // 2. beforeQuery: 执行预处理（权限注入、AutoGroupBy 等）
             dataSetResultFilterManager.beforeQuery(context);
 
+            // TimeWindowInterceptor may replace the query with a Compose plan.
+            // The caller owns final plan compilation because it has the semantic service instance.
+            if (context.isSkipQuery()
+                    && context.getExtData() != null
+                    && (context.getExtData().containsKey("timeWindowPlan")
+                    || context.getExtData().containsKey("comparativePlan"))) {
+                return new SqlGenerationResult("", java.util.List.of(), null);
+            }
+
             // 3. 仅生成 SQL，不执行
             if (queryModel instanceof JdbcQueryModelImpl jdbcImpl) {
                 return jdbcImpl.generateSql(systemBundlesContext, context);

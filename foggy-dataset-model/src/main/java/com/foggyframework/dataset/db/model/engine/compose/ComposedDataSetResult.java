@@ -153,6 +153,16 @@ public class ComposedDataSetResult implements PropertyFunction {
             request.setOrderBy(convertOrderItems((List<?>) orderBy));
         }
 
+        Object groupBy = params.get("groupBy");
+        if (groupBy instanceof List) {
+            request.setGroupBy(convertGroupByItems((List<?>) groupBy));
+        }
+
+        Object timeWindow = params.get("timeWindow");
+        if (timeWindow instanceof Map) {
+            request.setTimeWindow(new LinkedHashMap<>((Map<String, Object>) timeWindow));
+        }
+
         Object limit = params.get("limit");
         if (limit instanceof Number) {
             request.setLimit(((Number) limit).intValue());
@@ -208,6 +218,23 @@ public class ComposedDataSetResult implements PropertyFunction {
                 }
             }
             result.add(oi);
+        }
+        return result;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<SemanticQueryRequest.GroupByItem> convertGroupByItems(List<?> rawGroupBy) {
+        List<SemanticQueryRequest.GroupByItem> result = new ArrayList<>();
+        for (Object item : rawGroupBy) {
+            if (item instanceof String str) {
+                result.add(new SemanticQueryRequest.GroupByItem(str, null));
+            } else if (item instanceof Map) {
+                Map<String, Object> map = (Map<String, Object>) item;
+                result.add(new SemanticQueryRequest.GroupByItem(
+                        (String) map.get("field"),
+                        (String) map.get("agg")
+                ));
+            }
         }
         return result;
     }

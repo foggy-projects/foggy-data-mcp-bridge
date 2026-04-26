@@ -51,10 +51,10 @@ last_updated: 2026-04-26
 | S9 | PostgreSQL identifier quoting + dialect propagation 修复 | `completed` | commit `9f44ba8 fix(timeWindow): fix PostgreSQL identifier quoting and dialect propagation for Comparative Query Planner` |
 | S10 | 第四层「连续时间轴补桶」 | `not-started` | 设计稿与需求稿都明确把这一层挂在第一批之外，留给后续 |
 | S11 | 跨方言 lane 全量验收（MySQL / PG / MSSQL / SQLite） | `pending` | sqlite ✅；MySQL / PG / MSSQL 需要起 docker lane 复跑 timeWindow + Comparative integration |
-| S12 | DSL 包装层签收（8.3.0.beta P1-SemanticDSL） | `pending` | 包装层 design 已 draft，progress 文档新建中（本次 follow-up） |
+| S12 | DSL 包装层签收（8.3.0.beta P1-SemanticDSL） | `partial` | `SemanticQueryRequest.timeWindow` / Compose DSL / MCP `query_model_v3_schema.json` 已接入；待跨方言 lane 后签收 |
 | S13 | Python parity 立项与镜像 | `deferred` | Java 端 11 个 parity fixture 已可作为契约；Python 端单独立项跟踪（暂不在本批节奏内） |
 | S14 | 8.2 P0 M10 签收前补 cross-link | `pending` | 8.2 P0 progress M10 行需补「P1 时间分析（窗口/同环比/累计/rolling）已 in-progress，第四层连续轴 deferred」 |
-| S15 | CTE / timeWindow 真实 SQL parity 补强 | `completed` | 新增 Compose 编排真实 SQL 对比测试；YoY / rolling_7d / MTD / YTD execution 均改为手写 SQL parity，并修复 prior 自关联缺少 shifted period key、rolling/cumulative 分区退化等缺陷 |
+| S15 | CTE / timeWindow 真实 SQL parity 补强 | `completed` | 新增 Compose 编排真实 SQL 对比测试；YoY / rolling_7d / MTD / YTD execution 均改为手写 SQL parity；补 `generateSql` preview SQL 直连执行对照，并修复 prior 自关联缺少 shifted period key、rolling/cumulative 分区退化等缺陷 |
 
 ## 开发进度
 
@@ -115,8 +115,11 @@ last_updated: 2026-04-26
 - CTE / timeWindow parity 补强（sqlite lane · 2026-04-26）：
   - `ComposeRealSqlParityTest`：派生聚合 + 外层过滤、跨模型 join 聚合、union all 聚合，均与手写 SQL 逐行比较
   - `ComparativeExecutionIntegrationTest`：YoY current / prior / diff / ratio 与手写 SQL 逐行比较
-  - `TimeWindowExecutionIntegrationTest`：rolling_7d / MTD / YTD 执行结果与手写 SQL 逐行比较
+  - `TimeWindowExecutionIntegrationTest`：rolling_7d / MTD / YTD 执行结果与手写 SQL 逐行比较；新增 `generateSql` preview SQL 执行结果与手写 SQL 逐行比较
+  - `ScriptRuntimeTest`：`DslQueryFunction` timeWindow 请求映射覆盖
+  - `ToolConfigLoaderTest`：MCP `query_model_v3_schema.json` / description 加载通过
   - 相关回归套件：**247 passed / 0 failures / 1 skipped**
+  - 本轮接入回归：**75 passed / 0 failures / 0 skipped**（model 相关套件）+ **8 passed / 0 failures / 0 skipped**（MCP ToolConfigLoader）
 
 ## 体验进度
 
@@ -144,7 +147,6 @@ last_updated: 2026-04-26
 - 当前无硬阻塞
 - 待解项（不阻断 in-progress，但阻断签收）：
   - S11 跨方言 lane（MySQL / PG / MSSQL）
-  - S12 DSL 包装层 progress 收口（本次新建）
   - S14 8.2 P0 M10 cross-link
 - Deferred（不在本批）：
   - S10 第四层连续时间轴补桶
@@ -153,8 +155,8 @@ last_updated: 2026-04-26
 ## 后续衔接
 
 - 下一步建议：
-  1. 8.3 P1-SemanticDSL progress 文档（本次同步新建）
-  2. 跨方言 lane 起一次（sqlite + mysql + postgres + sqlserver 各一遍 timeWindow / Comparative integration / parity catalog）
+  1. 跨方言 lane 起一次（sqlite + mysql + postgres + sqlserver 各一遍 timeWindow / Comparative integration / parity catalog）
+  2. 8.3 P1-SemanticDSL 设计稿 status 与 acceptance 收口
   3. 收齐后转 `ready-for-review`
 - Python parity 镜像可独立立项（建议放 `foggy-data-mcp-bridge-python/docs/v1.6/` 或其后续版本）
 

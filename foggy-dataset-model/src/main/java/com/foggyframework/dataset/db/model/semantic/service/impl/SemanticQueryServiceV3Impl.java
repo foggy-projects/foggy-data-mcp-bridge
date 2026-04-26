@@ -228,12 +228,67 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         resultContext.setFieldAccess(context.getFieldAccess());
         resultContext.setDeniedColumns(context.getDeniedColumns());
 
+        Map<String, Object> extData = new HashMap<>();
         if (request.getHints() != null && !request.getHints().isEmpty()) {
-            resultContext.setExtData(new HashMap<>(request.getHints()));
+            extData.putAll(request.getHints());
+        }
+        if (request.getTimeWindow() != null && !request.getTimeWindow().isEmpty()) {
+            extData.put("timeWindow", request.getTimeWindow());
+        }
+        if (!extData.isEmpty()) {
+            resultContext.setExtData(extData);
         }
 
         // 5. 走 beforeQuery pipeline 然后截取 SQL（不执行）
-        return queryFacade.buildSqlOnly(resultContext);
+        SqlGenerationResult result = queryFacade.buildSqlOnly(resultContext);
+        if (resultContext.getExtData() != null
+                && (resultContext.getExtData().containsKey("timeWindowPlan")
+                || resultContext.getExtData().containsKey("comparativePlan"))) {
+            com.foggyframework.dataset.db.model.engine.compose.plan.QueryPlan timeWindowPlan =
+                    (com.foggyframework.dataset.db.model.engine.compose.plan.QueryPlan) resultContext.getExtData().getOrDefault(
+                            "timeWindowPlan", resultContext.getExtData().get("comparativePlan"));
+            com.foggyframework.dataset.db.model.engine.compose.ComposedSql composedSql =
+                    compileTimeWindowPlan(timeWindowPlan, context, resultContext.getExtData());
+            return new SqlGenerationResult(composedSql.getSql(), composedSql.getParams(), null);
+        }
+        return result;
+    }
+
+    private com.foggyframework.dataset.db.model.engine.compose.ComposedSql compileTimeWindowPlan(
+            com.foggyframework.dataset.db.model.engine.compose.plan.QueryPlan plan,
+            SemanticRequestContext requestContext,
+            Map<String, Object> extData) {
+        ModelResultContext.SecurityContext securityContext = requestContext.getSecurityContext();
+        com.foggyframework.dataset.db.model.engine.compose.context.Principal principal =
+                com.foggyframework.dataset.db.model.engine.compose.context.Principal.builder()
+                        .userId(securityContext != null && securityContext.getUserId() != null ? securityContext.getUserId() : "system")
+                        .deptId(securityContext != null ? securityContext.getDeptId() : null)
+                        .tenantId(securityContext != null ? securityContext.getTenantId() : null)
+                        .build();
+        com.foggyframework.dataset.db.model.engine.compose.context.ComposeQueryContext composeContext =
+                com.foggyframework.dataset.db.model.engine.compose.context.ComposeQueryContext.builder()
+                        .principal(principal)
+                        .namespace(requestContext.getNamespace())
+                        .authorityResolver(req -> {
+                            Map<String, com.foggyframework.dataset.db.model.engine.compose.security.ModelBinding> bindings = new HashMap<>();
+                            for (String m : req.modelNames()) {
+                                bindings.put(m, com.foggyframework.dataset.db.model.engine.compose.security.ModelBinding.builder().build());
+                            }
+                            return com.foggyframework.dataset.db.model.engine.compose.security.AuthorityResolution.builder()
+                                    .bindings(bindings)
+                                    .build();
+                        })
+                        .build();
+        String dialect = extData != null && extData.containsKey("timeWindowDialect")
+                ? (String) extData.get("timeWindowDialect")
+                : "mysql";
+        return com.foggyframework.dataset.db.model.engine.compose.compilation.ComposeSqlCompiler.compilePlanToSql(
+                plan,
+                composeContext,
+                com.foggyframework.dataset.db.model.engine.compose.compilation.ComposeSqlCompiler.CompileOptions.builder()
+                        .semanticService(this)
+                        .dialect(dialect)
+                        .build());
     }
 
     /**

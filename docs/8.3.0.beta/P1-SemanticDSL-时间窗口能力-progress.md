@@ -21,7 +21,7 @@ last_updated: 2026-04-26
 
 ## 当前阶段判断
 
-- 当前阶段：`in-progress`（DSL 包装层 Java 实现已落盘 + 11 parity fixture，sqlite lane 已补 YoY / rolling_7d / MTD / YTD 真实 SQL parity；待跨方言 lane + 文档收尾）
+- 当前阶段：`in-progress`（DSL 包装层 Java 实现已落盘 + 11 parity fixture，sqlite lane 已补 YoY / rolling_7d / MTD / YTD 真实 SQL parity；`SemanticQueryRequest` / Compose DSL / MCP schema 路径已接入，待跨方言 lane + 文档收尾）
 - 当前目标：让 `SemanticQueryRequest.timeWindow` 这条 LLM-facing JSON 路径从「design draft + Java 代码先行」推进到 `ready-for-review`
 - 当前范围：仅 Java 主仓 `compose/plan/TimeWindow*` + parity catalog；Python 镜像独立跟踪
 
@@ -47,15 +47,16 @@ last_updated: 2026-04-26
 | S5 | Parity catalog（11 fixture） | `completed` | `src/test/resources/parity/timeWindow/` · 7 happy + 4 negative |
 | S6 | 集成测试 · 真实 SQL 数据比对 | `completed` | `ComparativeExecutionIntegrationTest` 1 test · sqlite lane 真实 SQL 比对通过（同 demo TM/QM 链路） |
 | S7 | PostgreSQL identifier quoting + dialect propagation 修复 | `completed` | commit `9f44ba8 fix(timeWindow)...` |
-| S8 | `SemanticQueryRequest.timeWindow` 字段 + Controller / Tool 接入 | `pending` | 设计稿 §DSL 语法定义指明应在 `SemanticQueryRequest` 加 `timeWindow` 属性；当前实现是 `TimeWindowDef.fromMap(Map)` 已可消费 JSON Map，但 `SemanticQueryRequest` Java POJO 是否已加字段需核 |
-| S9 | LLM-facing schema · `query_model_internal_schema.json` 暴露 timeWindow | `pending` | 让 AI 知道这条参数的 JSON shape；与 8.3 P2 list_models / get_metadata 收口同期推进 |
+| S8 | `SemanticQueryRequest.timeWindow` 字段 + Controller / Tool 接入 | `completed` | `SemanticQueryRequest.timeWindow` 已存在；本轮补齐 `DslQueryFunction` / `ComposedDataSetResult` 参数映射、`SemanticQueryServiceV3Impl.generateSql` preview 编排路径与 `QueryFacadeImpl.buildSqlOnly` 拦截协同 |
+| S9 | LLM-facing schema · `query_model_v3_schema.json` 暴露 timeWindow | `completed` | `foggy-dataset-mcp/src/main/resources/schemas/query_model_v3_schema.json` 已新增 `payload.timeWindow` shape，`descriptions/query_model_v3.md` 已补使用说明；`ToolConfigLoaderTest` 8 tests 全绿 |
 | S10 | 跨方言 lane 全量验收（sqlite ✅ / MySQL / PG / MSSQL） | `pending` | sqlite ✅；其他 3 方言需要 docker lane 复跑 11 个 parity fixture + Comparative integration |
-| S11 | 设计稿 status `draft` → `accepted` | `pending` | 待 S8 / S9 / S10 完成 |
+| S11 | 设计稿 status `draft` → `accepted` | `pending` | 待 S10 跨方言 lane 完成 |
 | S12 | Python parity 镜像 | `deferred` | Java 端 11 个 parity fixture 已可作为契约；Python 端独立立项跟踪 |
 | S13 | CTE 编排真实 SQL parity 补强 | `completed` | `ComposeRealSqlParityTest` 覆盖 derived/filter、join aggregate、union all aggregate；真实执行结果与手写 SQL 逐行比较 |
 | S14 | YoY prior 关联缺陷回归 | `completed` | YoY prior 分支补 shifted period key join，防止同月跨年比较错误匹配当前期 |
 | S15 | rolling / cumulative 执行链路真实 SQL parity | `completed` | `TimeWindowExecutionIntegrationTest` 覆盖 rolling_7d / MTD / YTD；均通过真实 semantic query 执行并与手写 SQL 逐行比较 |
 | S16 | rolling / cumulative 从 calculatedFields 切换为 Compose plan 执行 | `completed` | 避免 `SUM(metric) OVER (...)` 作为 inline calculated field 被聚合校验误判；同时修正窗口分区，剔除当前时间桶，仅按非时间维度 + 年/月重置分区 |
+| S17 | SQL preview / Compose DSL / MCP schema 接入补齐 | `completed` | 新增 `rolling_7d SQL preview matches hand-written SQL`，验证 `generateSql` 输出可直接执行并与手写 SQL 逐行比较；`ScriptRuntimeTest` 覆盖 `dsl()` timeWindow 请求映射 |
 
 ## 验收对照（来自设计稿 §验收 + 上游 P1 §验收）
 
@@ -65,12 +66,12 @@ last_updated: 2026-04-26
 | AC-2 | grain × comparison 兼容矩阵全部覆盖 | ✅ `passed` | `TimeWindowValidatorTest$ErrorCodes` 11 tests + `HappyPaths` 3 tests |
 | AC-3 | 8 种 comparison（yoy/mom/wow/ytd/mtd/rolling_7d/30d/90d）展开为合法 SQL | ✅ `passed` | `TimeWindowExpanderTest$ComparativeExpansion` 6 + `CumulativeExpansion` 2 + `RollingExpansion` 3 |
 | AC-4 | 相对日期表达式四方言 lowering | ✅ `passed`（sqlite） / ⏳ pending（MySQL / PG / MSSQL lane） | `RelativeDateParserTest` 24 tests · sqlite ✅ |
-| AC-5 | 真实 SQL 数据比对（项目集成测试规范） | ✅ `passed`（sqlite） | `ComparativeExecutionIntegrationTest` 1 test + `TimeWindowExecutionIntegrationTest` 3 tests · sqlite |
+| AC-5 | 真实 SQL 数据比对（项目集成测试规范） | ✅ `passed`（sqlite） | `ComparativeExecutionIntegrationTest` 1 test + `TimeWindowExecutionIntegrationTest` 4 tests · sqlite，其中 1 条覆盖 `generateSql` preview SQL 直连执行对照 |
 | AC-6 | Parity catalog 与上游 P1 测试基线对齐 | ✅ `passed` | 11 fixture（7 happy + 4 negative）已落盘 |
-| AC-7 | `SemanticQueryRequest` POJO + Controller / Tool 接入 | ⏳ `pending` | S8 待核 |
-| AC-8 | `query_model_internal_schema.json` 暴露 timeWindow shape | ⏳ `pending` | S9 待落 |
+| AC-7 | `SemanticQueryRequest` POJO + Controller / Tool 接入 | ✅ `passed` | POJO 字段已存在；Compose DSL / composed result / generateSql preview 路径已补映射，`ScriptRuntimeTest` 覆盖请求透传 |
+| AC-8 | `query_model_v3_schema.json` 暴露 timeWindow shape | ✅ `passed` | MCP schema 与 query_model_v3 使用说明已补；`ConvertFrom-Json` 解析通过，`ToolConfigLoaderTest` 8 tests 全绿 |
 | AC-9 | 跨方言 lane 全量验收 | ⏳ `partial` | sqlite ✅；MySQL / PG / MSSQL lane 待跑 |
-| AC-10 | 设计稿 status 转 `accepted` | ⏳ `pending` | 待 AC-7 / AC-8 / AC-9 全过后 |
+| AC-10 | 设计稿 status 转 `accepted` | ⏳ `pending` | 待 AC-9 跨方言 lane 通过后 |
 
 ## 当前测试基线
 
@@ -94,6 +95,23 @@ ComparativeExecutionIntegrationTest,TimeWindowExecutionIntegrationTest" "-P!mult
 
 → **247 passed / 0 failures / 1 skipped**
 
+本轮接入回归（sqlite lane · 2026-04-26）：
+
+```bash
+mvn "-Dtest=TimeWindowExecutionIntegrationTest,ScriptRuntimeTest,ComparativeExecutionIntegrationTest,\
+ComposeRealSqlParityTest,TimeWindowExpanderTest,TimeWindowValidatorTest,RelativeDateParserTest" \
+"-P!multi-db" test
+```
+
+→ **75 passed / 0 failures / 0 skipped**
+
+```bash
+cd foggy-dataset-mcp
+mvn "-Dtest=ToolConfigLoaderTest" test
+```
+
+→ **8 passed / 0 failures / 0 skipped**
+
 | 测试类 | 数量 |
 |---|---:|
 | `TimeWindowExpanderTest$ComparativeExpansion` | 6 |
@@ -103,7 +121,8 @@ ComparativeExecutionIntegrationTest,TimeWindowExecutionIntegrationTest" "-P!mult
 | `TimeWindowValidatorTest$HappyPaths` | 3 |
 | `RelativeDateParserTest` | ~24 |
 | `ComparativeExecutionIntegrationTest` | 1 |
-| `TimeWindowExecutionIntegrationTest` | 3 |
+| `TimeWindowExecutionIntegrationTest` | 4 |
+| `ScriptRuntimeTest` | 18 |
 
 ## 已落盘文件清单
 
@@ -116,7 +135,7 @@ ComparativeExecutionIntegrationTest,TimeWindowExecutionIntegrationTest" "-P!mult
 | `compose/plan/RelativeDateParser.java` | 137 | `now / -1Y / -7D` 解析 + 四方言 lowering |
 | `compose/plan/TimeWindowExpander.java` | 312 | DSL → `JoinPlan + DerivedQueryPlan` AST |
 
-### 测试代码（4 文件 · ~735 行）
+### 测试代码（5 文件 · ~1,251 行）
 
 | 文件 | 行数 |
 |---|---:|
@@ -124,7 +143,8 @@ ComparativeExecutionIntegrationTest,TimeWindowExecutionIntegrationTest" "-P!mult
 | `test/.../compose/plan/TimeWindowValidatorTest.java` | 184 |
 | `test/.../compose/plan/RelativeDateParserTest.java` | 160 |
 | `test/.../semantic/ComparativeExecutionIntegrationTest.java` | 83 |
-| `test/.../semantic/TimeWindowExecutionIntegrationTest.java` | 198 |
+| `test/.../semantic/TimeWindowExecutionIntegrationTest.java` | 242 |
+| `test/.../engine/compose/runtime/ScriptRuntimeTest.java` | 556 |
 
 ### Parity catalog（11 fixture）
 
@@ -161,8 +181,6 @@ ComparativeExecutionIntegrationTest,TimeWindowExecutionIntegrationTest" "-P!mult
 
 - 当前无硬阻塞
 - 待解项（不阻断 in-progress，但阻断转 ready-for-review）：
-  - S8 `SemanticQueryRequest` POJO + Controller / Tool 接入（核查 + 必要时补字段）
-  - S9 LLM schema 暴露 timeWindow shape（与 8.3 P2 list_models / get_metadata 收口同期）
   - S10 跨方言 lane 全量验收（MySQL / PG / MSSQL）
 - Deferred：
   - S12 Python parity 镜像（`foggy-data-mcp-bridge-python` 单独立项）
@@ -170,10 +188,9 @@ ComparativeExecutionIntegrationTest,TimeWindowExecutionIntegrationTest" "-P!mult
 ## 后续衔接
 
 - 下一步建议：
-  1. 核查 `SemanticQueryRequest.timeWindow` 字段是否已加（S8）
-  2. 起 docker MySQL / PG / MSSQL lane 各跑一遍 11 parity fixture + ComparativeExecutionIntegrationTest（S10）
-  3. S8 / S10 同时通过后转 `ready-for-review`，等签收
-  4. 设计稿同步 status `draft` → `accepted`（S11）
+  1. 起 docker MySQL / PG / MSSQL lane 各跑一遍 11 parity fixture + ComparativeExecutionIntegrationTest（S10）
+  2. 跨方言 lane 通过后转 `ready-for-review`，等签收
+  3. 设计稿同步 status `draft` → `accepted`（S11）
 
 ## 后置评审要求
 
@@ -184,7 +201,7 @@ ComparativeExecutionIntegrationTest,TimeWindowExecutionIntegrationTest" "-P!mult
 ## 自检结论
 
 - 当前交付类型：`record + implementation`
-- 当前结论：`code-landed-pending-controller-and-cross-dialect`
+- 当前结论：`code-landed-pending-cross-dialect`
 - 已完成：
   - 文档路径落在正确版本目录（`docs/8.3.0.beta/`）
   - 命名与现有约定一致（`P1-SemanticDSL-时间窗口能力-progress.md` 配套设计稿同名前缀）
