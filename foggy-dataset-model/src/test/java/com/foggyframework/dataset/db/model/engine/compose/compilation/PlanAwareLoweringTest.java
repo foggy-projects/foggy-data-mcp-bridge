@@ -59,6 +59,10 @@ class PlanAwareLoweringTest {
         return CompileTestHelpers.base("FactSales", "productId", "salesAmount");
     }
 
+    private static Map<String, ModelBinding> factSalesBindings() {
+        return Map.of("FactSales", CompileTestHelpers.emptyBinding());
+    }
+
     /**
      * Build a derived plan whose {@code columns()} include a {@link PlanColumnRef}
      * pointing at the inner base — same shape the chained API produces via
@@ -109,7 +113,7 @@ class PlanAwareLoweringTest {
         BaseModelPlan base = factSales();
         DerivedQueryPlan derived = derivedWithPlanRef(base, "productId");
         ComposedSql sql = compile(derived, svc,
-                Map.of("FactSales", CompileTestHelpers.emptyBinding()), "sqlite");
+                factSalesBindings(), "sqlite");
 
         // The cte_1 inner SELECT (from renderOuterSelect) references the
         // column without alias prefix under flag=false.
@@ -133,7 +137,7 @@ class PlanAwareLoweringTest {
         BaseModelPlan base = factSales();
         DerivedQueryPlan derived = derivedWithPlanRef(base, "productId");
         ComposedSql sql = compile(derived, svc,
-                Map.of("FactSales", CompileTestHelpers.emptyBinding()), "sqlite");
+                factSalesBindings(), "sqlite");
 
         String inner = cteInnerSelect(sql.getSql(), "cte_1");
         assertNotNull(inner, "cte_1 must exist: " + sql.getSql());
@@ -157,23 +161,14 @@ class PlanAwareLoweringTest {
                         new PlanColumnRef(base, "salesAmount")))
                 .build();
         ComposedSql sql = compile(derived, svc,
-                Map.of("FactSales", CompileTestHelpers.emptyBinding()), "sqlite");
+                factSalesBindings(), "sqlite");
 
         String inner = cteInnerSelect(sql.getSql(), "cte_1");
         assertNotNull(inner);
-        assertEquals(2, countOccurrences(inner, "cte_0."),
+        assertEquals(2, CompileTestHelpers.countOccurrences(inner, "cte_0."),
                 "flag=true: 两个 PlanColumnRef 都应路由 → cte_0. 出现 2 次。inner=" + inner);
     }
 
-    private static int countOccurrences(String haystack, String needle) {
-        int count = 0;
-        int from = 0;
-        while ((from = haystack.indexOf(needle, from)) != -1) {
-            count++;
-            from += needle.length();
-        }
-        return count;
-    }
 
     @Test
     @DisplayName("flag=true：混合 PlanColumnRef + 字符串列 → 仅 plan-qualified 部分被路由")
@@ -190,11 +185,11 @@ class PlanAwareLoweringTest {
                         new PlanColumnRef(base, "salesAmount")))  // plan-qualified — alias
                 .build();
         ComposedSql sql = compile(derived, svc,
-                Map.of("FactSales", CompileTestHelpers.emptyBinding()), "sqlite");
+                factSalesBindings(), "sqlite");
 
         String inner = cteInnerSelect(sql.getSql(), "cte_1");
         assertNotNull(inner);
-        assertEquals(1, countOccurrences(inner, "cte_0."),
+        assertEquals(1, CompileTestHelpers.countOccurrences(inner, "cte_0."),
                 "flag=true: 仅 PlanColumnRef 路由（1 次 cte_0.），裸字符串保持原状。inner=" + inner);
     }
 
@@ -213,11 +208,11 @@ class PlanAwareLoweringTest {
 
         ComposeFeatureFlags.overrideG10Enabled(false);
         String legacy = compile(derived, svc,
-                Map.of("FactSales", CompileTestHelpers.emptyBinding()), "sqlite").getSql();
+                factSalesBindings(), "sqlite").getSql();
 
         ComposeFeatureFlags.overrideG10Enabled(true);
         String g10 = compile(derived, svc,
-                Map.of("FactSales", CompileTestHelpers.emptyBinding()), "sqlite").getSql();
+                factSalesBindings(), "sqlite").getSql();
 
         assertNotEquals(legacy, g10,
                 "flag 切换必须产生可观察的 SQL 差异");

@@ -84,6 +84,17 @@ final class CompileTestHelpers {
         return ModelBinding.builder().build();
     }
 
+    /** Count non-overlapping occurrences of {@code needle} in {@code haystack}. */
+    static int countOccurrences(String haystack, String needle) {
+        int count = 0;
+        int from = 0;
+        while ((from = haystack.indexOf(needle, from)) != -1) {
+            count++;
+            from += needle.length();
+        }
+        return count;
+    }
+
     /** Canned SQL + params returned by {@link FakeSemanticService}. */
     static final class CannedResult {
         final String sql;

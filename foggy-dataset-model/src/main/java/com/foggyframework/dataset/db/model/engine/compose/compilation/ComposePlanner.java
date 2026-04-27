@@ -301,19 +301,29 @@ public final class ComposePlanner {
      * {@code planAliasMap} when the G10 flag is enabled and the plan is
      * registered. Falls back to bare-name rendering otherwise — preserves
      * M4 byte-for-byte for single-base / non-ambiguous paths.
+     *
+     * <p>Cost note: in production with G10 flag off, {@link #compileBase} /
+     * {@link #compileDerived} skip the {@code planAliasMap.put(...)} so the
+     * map stays empty for the whole compile. The {@code isEmpty()}
+     * short-circuit therefore avoids any {@code g10Enabled()} read on the
+     * legacy hot path — the flag is consulted only once per
+     * {@link CompileState} construction.</p>
      */
     private static String compilePlanColumnRef(PlanColumnRef ref, String dialect,
                                                 Map<QueryPlan, String> planAliasMap) {
-        String column = needsQuoting(ref.name(), dialect)
-                ? quoteIdent(ref.name(), dialect) : ref.name();
-        if (!ComposeFeatureFlags.g10Enabled() || ref.plan() == null) {
+        String column = quoteIdentIfNeeded(ref.name(), dialect);
+        if (planAliasMap.isEmpty() || ref.plan() == null) {
+            return column;
+        }
+        // Reached only when callers populated the map. Internal callers
+        // populate only when the G10 flag is on; external direct callers
+        // (e.g. unit tests) supply maps explicitly — the flag check enforces
+        // the documented "G10 off ⇒ bare name even with non-empty map" contract.
+        if (!ComposeFeatureFlags.g10Enabled()) {
             return column;
         }
         String alias = planAliasMap.get(ref.plan());
-        if (alias == null) {
-            return column;
-        }
-        return alias + "." + column;
+        return alias == null ? column : alias + "." + column;
     }
 
     /** Render a heterogeneous {@code .columns()} list (raw strings, {@link ColumnExpr},
@@ -421,6 +431,11 @@ public final class ComposePlanner {
         /** Pre-resolved {@code useCte} for the session's dialect — avoids a
          *  {@link Map#get} + lowercasing at every compile branch. */
         final boolean useCte;
+        /** <b>G10 PR3</b> · Snapshot of {@link ComposeFeatureFlags#g10Enabled()}
+         *  taken once at construction so per-{@link PlanColumnRef} compile
+         *  doesn't re-read the volatile override / system property / env var
+         *  for every column in the plan tree. */
+        final boolean g10Enabled;
         int aliasCounter = 0;
 
         /** MVP fast path — same plan reference compiled twice in one session
@@ -461,6 +476,7 @@ public final class ComposePlanner {
             this.namespace = namespace;
             this.dialect = dialect.toLowerCase(Locale.ROOT);
             this.useCte = dialectSupportsCte(this.dialect);
+            this.g10Enabled = ComposeFeatureFlags.g10Enabled();
         }
 
         String nextAlias() {
@@ -590,11 +606,19 @@ public final class ComposePlanner {
                             + "on the same plan tree and its result is passed via bindings=...");
         }
         String alias = state.nextAlias();
-        // G10 PR3: register plan → alias before downstream emit so any
-        // PlanColumnRef pointing at this plan resolves via planAliasMap.
-        state.planAliasMap.put(plan, alias);
+        registerPlanAlias(state, plan, alias);
         return PerBaseCompiler.compileBaseModel(
                 plan, binding, state.semanticService, state.namespace, alias, state.governanceCache);
+    }
+
+    /** Register {@code plan → alias} when the G10 flag is on. Skipping the
+     *  put when flag is off keeps {@link CompileState#planAliasMap} empty so
+     *  {@link #compilePlanColumnRef} short-circuits without consulting the
+     *  flag again per column. */
+    private static void registerPlanAlias(CompileState state, QueryPlan plan, String alias) {
+        if (state.g10Enabled) {
+            state.planAliasMap.put(plan, alias);
+        }
     }
 
     private static Object compileDerived(DerivedQueryPlan plan, CompileState state) {
@@ -623,9 +647,7 @@ public final class ComposePlanner {
             return new ComposedSql(outerSql, merged);
         }
         String derivedAlias = state.nextAlias();
-        // G10 PR3: derived plans carry their own alias too, so a downstream
-        // F5 PlanColumnRef pointing at this derived plan resolves correctly.
-        state.planAliasMap.put(plan, derivedAlias);
+        registerPlanAlias(state, plan, derivedAlias);
         return new CteUnit(
                 derivedAlias,
                 outerSql,
@@ -944,6 +966,14 @@ public final class ComposePlanner {
     // Outer-select rendering (derived chain)
     // ------------------------------------------------------------------
 
+    /**
+     * Render the {@code SELECT ... FROM (innerSql) AS innerAlias [WHERE ... GROUP BY ... ORDER BY ...]}
+     * outer wrapper for a {@link DerivedQueryPlan}.
+     *
+     * <p>Reads {@code state.dialect} for identifier quoting and (G10 PR3)
+     * {@code state.planAliasMap} so {@link PlanColumnRef} columns inside
+     * {@code plan.columns()} compile to alias-qualified SQL.</p>
+     */
     private static String renderOuterSelect(
             DerivedQueryPlan plan, String innerAlias, String innerSql,
             List<Object> outerParams, CompileState state) {
