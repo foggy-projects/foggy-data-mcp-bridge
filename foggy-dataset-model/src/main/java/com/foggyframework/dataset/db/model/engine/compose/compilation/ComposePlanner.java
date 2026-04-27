@@ -549,7 +549,7 @@ public final class ComposePlanner {
     private static void runPlanAwarePermissionCheck(
             QueryPlan plan, Map<String, ModelBinding> bindings) {
         PlanFieldAccessContext.Builder ctxBuilder = PlanFieldAccessContext.builder();
-        Set<QueryPlan> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+        Set<QueryPlan> visited = QueryPlan.identityPlanSet();
         collectPlanBindings(plan, bindings, ctxBuilder, visited);
         PlanFieldAccessContext planCtx = ctxBuilder.build();
         OutputSchema schema = SchemaDerivation.derive(plan);

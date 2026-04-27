@@ -82,9 +82,15 @@ public final class ColumnObjectNormalizer {
 
     /**
      * Allowed keys in F5 object form. Adds {@code plan} on top of F4 keys.
-     * Detected by the presence of the {@code plan} key in the input map.
+     * Detected by the presence of the {@link #F5_PLAN_KEY} key in the input map.
      */
     public static final Set<String> ALLOWED_F5_KEYS = Set.of("plan", "field", "agg", "as");
+
+    /** Sentinel key whose presence in a column-object dict triggers the
+     *  F5 plan-qualified path (vs. the F4 path that uses
+     *  {@link #ALLOWED_F4_KEYS}). Hardcoded {@code "plan"} matches the
+     *  spec §2.4 surface and the Python parity constant. */
+    private static final String F5_PLAN_KEY = "plan";
 
     private ColumnObjectNormalizer() {
         // Utility class
@@ -198,10 +204,10 @@ public final class ColumnObjectNormalizer {
     // ------------------------------------------------------------------
 
     private static Object normalizeMap(Map<?, ?> raw, int index) {
-        // F5 detection: presence of 'plan' key triggers the plan-qualified path.
-        // Validate plan FIRST (before key whitelist) so unknown keys can be
-        // reported against the F5 whitelist when applicable.
-        boolean isF5 = raw.containsKey("plan");
+        // F5 detection via the F5_PLAN_KEY sentinel. The dispatch fans out
+        // into different keysets and different return shapes (string for F4,
+        // PlanExpression compound for F5).
+        boolean isF5 = raw.containsKey(F5_PLAN_KEY);
         Set<String> allowedKeys = isF5 ? ALLOWED_F5_KEYS : ALLOWED_F4_KEYS;
 
         // Validate keys
@@ -264,7 +270,7 @@ public final class ColumnObjectNormalizer {
             // PlanColumnRef/AggregateColumn/ProjectedColumn compound. Plan
             // lineage visibility (spec §5.1) is checked at plan build time,
             // not here — normalize does not have outer-plan context.
-            Object planObj = raw.get("plan");
+            Object planObj = raw.get(F5_PLAN_KEY);
             if (!(planObj instanceof QueryPlan plan)) {
                 throw new IllegalArgumentException(
                     "COLUMN_PLAN_TYPE_INVALID: columns[" + index + "] 'plan' must be a "

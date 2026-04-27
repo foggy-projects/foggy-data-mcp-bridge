@@ -599,40 +599,52 @@ public abstract class QueryPlan implements PropertyHolder, PropertyFunction {
     // ------------------------------------------------------------------
 
     /**
-     * <b>G5 Phase 2 (F5)</b> · Construct an identity-keyed
+     * <b>G5 Phase 2 (F5) / G10 PR4</b> · Construct an identity-keyed
      * {@code Set<QueryPlan>} suitable for {@link #collectVisiblePlans()}
-     * results. Uses {@link IdentityHashMap} so {@code contains} / {@code add}
-     * compare by object reference, not {@code equals} — required by spec §5.1
-     * for same-model multi-instance disambiguation.
+     * results and other plan-tree walks that need {@code ==} membership
+     * (spec §5.1 same-model multi-instance disambiguation). Uses
+     * {@link IdentityHashMap} so {@code contains} / {@code add} compare
+     * by object reference, not {@code equals}.
+     *
+     * <p>Public so the compile-time tree walker in
+     * {@code ComposePlanner.runPlanAwarePermissionCheck} (cross-package)
+     * uses the same idiom as plan-build-time visibility checks.</p>
      */
-    static Set<QueryPlan> identityPlanSet() {
+    public static Set<QueryPlan> identityPlanSet() {
         return Collections.newSetFromMap(new IdentityHashMap<>());
     }
 
     /**
-     * <b>G5 Phase 2 (F5)</b> · Extract the {@link PlanColumnRef} (if any) from
-     * a column entry, peeling off {@link AggregateColumn} / {@link ProjectedColumn}
-     * wrappers. Returns {@code null} for F1-F4 strings or any plan-expression
-     * shape that does not transitively wrap a {@code PlanColumnRef}.
+     * <b>G5 Phase 2 (F5) / G10 PR4</b> · Extract the {@link PlanColumnRef}
+     * (if any) from a column entry, peeling off {@link AggregateColumn} /
+     * {@link WindowColumn} / {@link ProjectedColumn} wrappers (including
+     * the nested {@code ProjectedColumn(AggregateColumn(PlanColumnRef))}
+     * shape produced by F5 {@code {plan, field, agg, as}}). Returns
+     * {@code null} for F1-F4 strings or any plan-expression that does not
+     * transitively wrap a {@code PlanColumnRef}.
      *
-     * <p>Mirror of the chained-API output shape (from
-     * {@link ColumnObjectNormalizer#buildPlanExpression normalize buildPlanExpression}):
-     * {@code PlanColumnRef} / {@code AggregateColumn(PlanColumnRef)} /
-     * {@code ProjectedColumn(PlanColumnRef)} /
-     * {@code ProjectedColumn(AggregateColumn(PlanColumnRef))}.</p>
+     * <p>Public so {@code ComposePlanAwarePermissionValidator} (PR4
+     * package {@code engine.compose.security}) can route by the same
+     * shape-extraction rule used at plan build time. Both call sites must
+     * agree — drift would make F5 visibility checks and PR4 plan-routed
+     * permission checks see different "plan" anchors for the same
+     * column.</p>
      */
-    static PlanColumnRef extractPlanRef(Object column) {
+    public static PlanColumnRef extractPlanRef(Object column) {
         if (column instanceof PlanColumnRef ref) {
             return ref;
         }
         if (column instanceof AggregateColumn agg) {
             return agg.ref();
         }
+        if (column instanceof WindowColumn win) {
+            return win.ref();
+        }
         if (column instanceof ProjectedColumn proj) {
             PlanExpression inner = proj.expr();
             if (inner instanceof PlanColumnRef ref) return ref;
             if (inner instanceof AggregateColumn agg) return agg.ref();
-            // WindowColumn or other PlanExpression — not F5 plan-qualified
+            if (inner instanceof WindowColumn win) return win.ref();
         }
         return null;
     }

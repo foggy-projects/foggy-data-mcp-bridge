@@ -221,22 +221,14 @@ public final class ComposePlanAwarePermissionValidator {
     // Column-shape extractors
     // ------------------------------------------------------------------
 
-    /** Return the {@link PlanColumnRef} wrapped by a column entry, or
-     *  {@code null} when the entry has no plan reference attached. */
+    /** Delegate to {@link QueryPlan#extractPlanRef} so plan-build-time
+     *  visibility (G5 F5) and permission-validate-time routing (this
+     *  class) see the same plan anchor for every column shape. The
+     *  shared helper also handles the
+     *  {@code ProjectedColumn(AggregateColumn(PlanColumnRef))} compound
+     *  produced by F5 {@code {plan, field, agg, as}}. */
     static PlanColumnRef extractPlanRef(Object column) {
-        if (column instanceof PlanColumnRef ref) {
-            return ref;
-        }
-        if (column instanceof ProjectedColumn pc && pc.expr() instanceof PlanColumnRef ref) {
-            return ref;
-        }
-        if (column instanceof AggregateColumn agg) {
-            return agg.ref();
-        }
-        if (column instanceof WindowColumn win) {
-            return win.ref();
-        }
-        return null;
+        return QueryPlan.extractPlanRef(column);
     }
 
     /** Return the bare column name for a column entry without a plan ref,
