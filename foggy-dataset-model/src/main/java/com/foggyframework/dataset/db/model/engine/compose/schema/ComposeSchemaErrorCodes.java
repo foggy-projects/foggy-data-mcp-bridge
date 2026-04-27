@@ -60,9 +60,38 @@ public final class ComposeSchemaErrorCodes {
             NAMESPACE + "/join/on-right-unknown-field";
 
     /** Join left.output + right.output share an output column name without
-     *  explicit alias disambiguation. */
+     *  explicit alias disambiguation.
+     *
+     *  <p><b>G10:</b> Only thrown when {@code foggy.compose.g10.enabled=false}
+     *  (legacy behaviour). When G10 is enabled, the column is marked
+     *  {@code isAmbiguous=true} and the conflict is detected at downstream
+     *  reference resolution as {@link #JOIN_AMBIGUOUS_COLUMN}.</p> */
     public static final String JOIN_OUTPUT_COLUMN_CONFLICT =
             NAMESPACE + "/join/output-column-conflict";
+
+    /**
+     * <b>G10 PR2</b> · A lookup against {@link OutputSchema#get(String)} or
+     * {@code requireUnique(name)} resolved a column name marked
+     * {@code isAmbiguous=true} (multiple plans contribute the same name).
+     *
+     * <p>The error message lists every candidate column's plan provenance so
+     * the caller can disambiguate via F5 plan-qualified column ref
+     * ({@code {plan: <handle>, field: <name>}}).</p>
+     */
+    public static final String OUTPUT_SCHEMA_AMBIGUOUS_LOOKUP =
+            NAMESPACE + "/output-schema/ambiguous-lookup";
+
+    /**
+     * <b>G10 PR3</b> · Downstream reference (in derived/projected expression,
+     * group-by, or order-by) targets a column that the upstream join marked
+     * {@code isAmbiguous=true}, and the reference itself is not
+     * plan-qualified (F5).
+     *
+     * <p>Reserved here so PR3 / PR4 producers can throw a stable code; not
+     * yet emitted by PR2.</p>
+     */
+    public static final String JOIN_AMBIGUOUS_COLUMN =
+            NAMESPACE + "/join/ambiguous-column";
 
     public static final Set<String> ALL_CODES = Set.of(
             DERIVED_QUERY_UNKNOWN_FIELD,
@@ -71,7 +100,9 @@ public final class ComposeSchemaErrorCodes {
             UNION_COLUMN_COUNT_MISMATCH,
             JOIN_ON_LEFT_UNKNOWN_FIELD,
             JOIN_ON_RIGHT_UNKNOWN_FIELD,
-            JOIN_OUTPUT_COLUMN_CONFLICT
+            JOIN_OUTPUT_COLUMN_CONFLICT,
+            OUTPUT_SCHEMA_AMBIGUOUS_LOOKUP,
+            JOIN_AMBIGUOUS_COLUMN
     );
 
     // ------------------------------------------------------------------

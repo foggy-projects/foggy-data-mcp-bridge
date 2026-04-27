@@ -1,26 +1,67 @@
 package com.foggyframework.dataset.db.model.engine.compose.schema;
 
+import com.foggyframework.dataset.db.model.engine.compose.ComposeFeatureFlags;
+
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
 /**
- * Ordered, duplicate-free list of {@link ColumnSpec}.
+ * Ordered list of {@link ColumnSpec}.
  *
- * <p>Duplicate output names are rejected at construction — the spec
- * requires {@link com.foggyframework.dataset.db.model.engine.compose.plan.JoinPlan}
- * to resolve column-name conflicts via explicit alias, so any duplicate
- * surviving into an {@code OutputSchema} is a derivation bug the caller
- * must fix (usually by writing {@code ... AS <x>}).</p>
+ * <h3>Duplicate-name handling</h3>
+ *
+ * <p>The duplicate-name policy depends on the
+ * {@link ComposeFeatureFlags#g10Enabled() G10 feature flag}:</p>
+ *
+ * <ul>
+ *   <li><b>Flag OFF (legacy)</b> — duplicate output names are rejected at
+ *       construction. {@code JoinPlan} must resolve column-name conflicts
+ *       via explicit alias; any duplicate surviving into an
+ *       {@code OutputSchema} is a derivation bug.</li>
+ *   <li><b>Flag ON (G10)</b> — duplicate names are <em>allowed</em> when
+ *       <em>every</em> column carrying that name has
+ *       {@link ColumnSpec#isAmbiguous()} = {@code true}. Such duplicates are
+ *       produced by {@code SchemaDerivation.deriveJoin} when both join
+ *       sides emit the same name. Each ambiguous occurrence must record a
+ *       distinct {@link ColumnSpec#planProvenance()} — pure duplicates
+ *       (same {@code planProvenance}) remain rejected as a structural bug.
+ *       Non-ambiguous duplicates (any column lacking the
+ *       {@code isAmbiguous} flag) are still rejected; they would indicate
+ *       the user wrote two aliases that landed on the same name, which is
+ *       a {@code DUPLICATE_OUTPUT_COLUMN} error from upstream
+ *       derivation.</li>
+ * </ul>
+ *
+ * <h3>Lookup API</h3>
  *
  * <p>Iteration order follows construction order. Positional lookup is
- * {@code O(1)} via {@link #columns()}; name lookup is {@code O(n)} via
- * {@link #get(String)} or {@code O(1)} via {@link #indexOf(String)}
- * (cached map).</p>
+ * {@code O(1)} via {@link #columns()}.</p>
+ *
+ * <p>Name lookup surface (G10 PR2):
+ * <ul>
+ *   <li>{@link #get(String)} — <b>fail-fast on ambiguity.</b> Returns the
+ *       single column for non-ambiguous names; throws
+ *       {@code OUTPUT_SCHEMA_AMBIGUOUS_LOOKUP} when the name resolves to
+ *       multiple ambiguous columns. Returns {@code null} when absent.
+ *       Suitable for callers that already verified non-ambiguity (most
+ *       single-base / derived-single-source paths).</li>
+ *   <li>{@link #requireUnique(String)} — same fail-fast semantics, but
+ *       throws {@link java.util.NoSuchElementException} on absent. Use
+ *       this when the caller logically expects a unique hit.</li>
+ *   <li>{@link #getAll(String)} — returns every {@link ColumnSpec} with
+ *       this name (single-element list for non-ambiguous, multi-element
+ *       for ambiguous, empty for absent). Use when business logic must
+ *       inspect every plan that contributed the name.</li>
+ *   <li>{@link #isAmbiguous(String)} — boolean predicate; {@code true}
+ *       iff the name resolves to two or more columns.</li>
+ *   <li>{@link #indexOf(String)} — fail-fast on ambiguity, throws
+ *       {@link java.util.NoSuchElementException} on absent.</li>
+ * </ul>
  *
  * <p>Cross-repo invariant: mirrors Python
  * {@code foggy.dataset_model.engine.compose.schema.output_schema.OutputSchema}
@@ -33,28 +74,71 @@ public final class OutputSchema {
     /** Canonical empty schema — callable via {@link #empty()}. */
     private static final OutputSchema EMPTY = new OutputSchema(List.of());
 
-    private final List<ColumnSpec> columns;            // unmodifiable
-    private final Map<String, Integer> indexByName;    // cached for O(1) lookup
+    private final List<ColumnSpec> columns;                    // unmodifiable
+    /** Cached name → list of indices into {@code columns}. Always
+     *  iteration-order; single-element list for non-ambiguous names. */
+    private final Map<String, List<Integer>> indicesByName;    // unmodifiable
 
     private OutputSchema(List<ColumnSpec> columns) {
-        // Validate each entry + detect duplicates.
-        Map<String, Integer> index = new HashMap<>();
+        boolean g10 = ComposeFeatureFlags.g10Enabled();
+
+        // Build the name → indices map while validating duplicates per-policy.
+        // LinkedHashMap preserves first-occurrence order for deterministic iteration.
+        Map<String, List<Integer>> index = new LinkedHashMap<>();
         for (int i = 0; i < columns.size(); i++) {
             ColumnSpec c = columns.get(i);
             if (c == null) {
                 throw new IllegalArgumentException(
                         "OutputSchema.columns[" + i + "] must be a ColumnSpec, got null");
             }
-            Integer prev = index.putIfAbsent(c.name(), i);
-            if (prev != null) {
+            List<Integer> bucket = index.get(c.name());
+            if (bucket == null) {
+                List<Integer> first = new ArrayList<>(1);
+                first.add(i);
+                index.put(c.name(), first);
+                continue;
+            }
+            // Duplicate detected — apply the active policy.
+            int firstIndex = bucket.get(0);
+            ColumnSpec firstSpec = columns.get(firstIndex);
+            if (!g10) {
                 throw new IllegalArgumentException(
                         "OutputSchema contains duplicate output column '"
-                                + c.name() + "' (first at index " + prev
+                                + c.name() + "' (first at index " + firstIndex
                                 + ", again at index " + i + ")");
             }
+            // G10 path: ambiguous columns may co-exist, but only if EVERY
+            // occurrence (including the first) is marked ambiguous. Anything
+            // else means upstream derivation produced a structural duplicate.
+            if (!firstSpec.isAmbiguous() || !c.isAmbiguous()) {
+                throw new IllegalArgumentException(
+                        "OutputSchema contains duplicate output column '"
+                                + c.name() + "' (first at index " + firstIndex
+                                + ", again at index " + i + "). G10 allows duplicates only "
+                                + "when every occurrence has isAmbiguous=true; "
+                                + "[firstAmbiguous=" + firstSpec.isAmbiguous()
+                                + ", currentAmbiguous=" + c.isAmbiguous() + "]");
+            }
+            // Reject pure duplicates (same plan provenance) — that is a
+            // plan-tree construction bug, not a join overlap.
+            if (Objects.equals(firstSpec.planProvenance(), c.planProvenance())) {
+                throw new IllegalArgumentException(
+                        "OutputSchema rejects pure duplicate ambiguous column '"
+                                + c.name() + "' — both occurrences carry the same "
+                                + "planProvenance, which indicates a plan-tree "
+                                + "construction bug rather than a join overlap "
+                                + "(first at index " + firstIndex + ", again at index "
+                                + i + ")");
+            }
+            bucket.add(i);
         }
         this.columns = Collections.unmodifiableList(new ArrayList<>(columns));
-        this.indexByName = Collections.unmodifiableMap(index);
+        // Freeze the bucket lists too so callers can't mutate them.
+        Map<String, List<Integer>> frozen = new LinkedHashMap<>(index.size());
+        for (Map.Entry<String, List<Integer>> e : index.entrySet()) {
+            frozen.put(e.getKey(), Collections.unmodifiableList(e.getValue()));
+        }
+        this.indicesByName = Collections.unmodifiableMap(frozen);
     }
 
     // ------------------------------------------------------------------
@@ -90,7 +174,7 @@ public final class OutputSchema {
     public boolean isEmpty() { return columns.isEmpty(); }
 
     /** Ordered list of output names — primary lookup surface for downstream
-     *  plan validation. */
+     *  plan validation. Ambiguous names appear once per occurrence. */
     public List<String> names() {
         List<String> out = new ArrayList<>(columns.size());
         for (ColumnSpec c : columns) {
@@ -99,34 +183,129 @@ public final class OutputSchema {
         return Collections.unmodifiableList(out);
     }
 
-    /** Immutable set of output names. No iteration-order guarantee — mirrors
-     *  Python {@code frozenset} semantics. */
+    /** Immutable set of distinct output names. No iteration-order guarantee —
+     *  mirrors Python {@code frozenset} semantics. Ambiguous names appear
+     *  exactly once. */
     public Set<String> nameSet() {
-        // indexByName is already wrapped via Collections.unmodifiableMap, so
-        // its keySet() is an unmodifiable O(1) view. No allocation per call.
-        return indexByName.keySet();
+        return indicesByName.keySet();
     }
 
-    /** Return the {@link ColumnSpec} with the given output name, or
-     *  {@code null} when absent. */
+    /**
+     * Single-column lookup by name.
+     *
+     * <p>Returns {@code null} when absent. <b>Throws</b>
+     * {@link ComposeSchemaException} with code
+     * {@code OUTPUT_SCHEMA_AMBIGUOUS_LOOKUP} when the name resolves to
+     * multiple ambiguous columns — callers that may encounter ambiguity
+     * should use {@link #getAll(String)} or {@link #requireUnique(String)}
+     * for explicit semantics.</p>
+     */
     public ColumnSpec get(String name) {
-        Integer i = indexByName.get(name);
-        return i == null ? null : columns.get(i);
+        List<Integer> bucket = indicesByName.get(name);
+        if (bucket == null) {
+            return null;
+        }
+        if (bucket.size() == 1) {
+            return columns.get(bucket.get(0));
+        }
+        throw ambiguousLookup(name, bucket);
     }
 
-    /** Positional index of {@code name}; throws {@link java.util.NoSuchElementException}
-     *  when absent. */
-    public int indexOf(String name) {
-        Integer i = indexByName.get(name);
-        if (i == null) {
+    /**
+     * <b>G10 PR2</b> · Return every {@link ColumnSpec} carrying
+     * {@code name}. Returns an empty list when absent, a single-element
+     * list for non-ambiguous names, or a multi-element list for ambiguous
+     * (join-overlap) names. The returned list is unmodifiable and
+     * preserves construction order.
+     */
+    public List<ColumnSpec> getAll(String name) {
+        List<Integer> bucket = indicesByName.get(name);
+        if (bucket == null) {
+            return Collections.emptyList();
+        }
+        List<ColumnSpec> out = new ArrayList<>(bucket.size());
+        for (Integer i : bucket) {
+            out.add(columns.get(i));
+        }
+        return Collections.unmodifiableList(out);
+    }
+
+    /**
+     * <b>G10 PR2</b> · Return {@code true} iff {@code name} resolves to
+     * two or more columns (only possible when the G10 flag is on and an
+     * upstream join produced an overlap).
+     */
+    public boolean isAmbiguous(String name) {
+        List<Integer> bucket = indicesByName.get(name);
+        return bucket != null && bucket.size() > 1;
+    }
+
+    /**
+     * <b>G10 PR2</b> · Same as {@link #get(String)} but throws
+     * {@link java.util.NoSuchElementException} when absent. Use when the
+     * caller logically expects a unique hit; the explicit name documents
+     * intent.
+     */
+    public ColumnSpec requireUnique(String name) {
+        List<Integer> bucket = indicesByName.get(name);
+        if (bucket == null) {
             throw new java.util.NoSuchElementException(
                     "OutputSchema has no column named '" + name + "'");
         }
-        return i;
+        if (bucket.size() == 1) {
+            return columns.get(bucket.get(0));
+        }
+        throw ambiguousLookup(name, bucket);
+    }
+
+    /**
+     * Positional index of {@code name}. <b>Fails fast on ambiguity</b>
+     * with {@code OUTPUT_SCHEMA_AMBIGUOUS_LOOKUP}; throws
+     * {@link java.util.NoSuchElementException} when absent.
+     */
+    public int indexOf(String name) {
+        List<Integer> bucket = indicesByName.get(name);
+        if (bucket == null) {
+            throw new java.util.NoSuchElementException(
+                    "OutputSchema has no column named '" + name + "'");
+        }
+        if (bucket.size() == 1) {
+            return bucket.get(0);
+        }
+        throw ambiguousLookup(name, bucket);
     }
 
     public boolean contains(String name) {
-        return indexByName.containsKey(name);
+        return indicesByName.containsKey(name);
+    }
+
+    // ------------------------------------------------------------------
+    // Internal helpers
+    // ------------------------------------------------------------------
+
+    private ComposeSchemaException ambiguousLookup(String name, List<Integer> bucket) {
+        // Build the candidate list with plan-provenance so the caller can
+        // disambiguate via F5 ({plan: <handle>, field: <name>}).
+        StringBuilder sb = new StringBuilder();
+        sb.append("OutputSchema lookup of '").append(name)
+                .append("' is ambiguous — ").append(bucket.size())
+                .append(" candidate columns. Use a plan-qualified reference "
+                        + "({plan: <handle>, field: '").append(name)
+                .append("'}) or call OutputSchema.getAll(name) explicitly. Candidates: [");
+        for (int j = 0; j < bucket.size(); j++) {
+            if (j > 0) sb.append(", ");
+            ColumnSpec c = columns.get(bucket.get(j));
+            sb.append("{index=").append(bucket.get(j))
+                    .append(", planProvenance=").append(c.planProvenance())
+                    .append("}");
+        }
+        sb.append("]");
+        return new ComposeSchemaException(
+                ComposeSchemaErrorCodes.OUTPUT_SCHEMA_AMBIGUOUS_LOOKUP,
+                sb.toString(),
+                ComposeSchemaErrorCodes.PHASE_SCHEMA_DERIVE,
+                /* path = */ null,
+                /* offendingField = */ name);
     }
 
     @Override

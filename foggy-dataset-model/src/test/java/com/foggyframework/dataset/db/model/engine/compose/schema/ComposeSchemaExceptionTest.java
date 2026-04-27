@@ -15,7 +15,14 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("M4 ComposeSchemaException / ComposeSchemaErrorCodes")
 class ComposeSchemaExceptionTest {
 
-    /** 跨仓冻结的 7 个 code 字符串。 */
+    /**
+     * 跨仓冻结的 code 字符串集合。
+     *
+     * <p>M4 baseline 是 7 条；G10 PR2 追加两条
+     * ({@code OUTPUT_SCHEMA_AMBIGUOUS_LOOKUP} +
+     * {@code JOIN_AMBIGUOUS_COLUMN}) 以承载歧义列下游错误码 → 当前共 9 条。
+     * Python 侧 {@code error_codes.py} 的 {@code ALL_CODES} 必须同步 9 条。</p>
+     */
     private static final Set<String> EXPECTED_CODES = Set.of(
             "compose-schema-error/derived-query/unknown-field",
             "compose-schema-error/column-spec/malformed",
@@ -23,7 +30,9 @@ class ComposeSchemaExceptionTest {
             "compose-schema-error/union/column-count-mismatch",
             "compose-schema-error/join/on-left-unknown-field",
             "compose-schema-error/join/on-right-unknown-field",
-            "compose-schema-error/join/output-column-conflict"
+            "compose-schema-error/join/output-column-conflict",
+            "compose-schema-error/output-schema/ambiguous-lookup",
+            "compose-schema-error/join/ambiguous-column"
     );
 
     private static final Set<String> EXPECTED_PHASES = Set.of(
@@ -32,14 +41,15 @@ class ComposeSchemaExceptionTest {
     );
 
     @Test
-    @DisplayName("ALL_CODES 与跨仓冻结的 7 个字符串逐字符一致")
+    @DisplayName("ALL_CODES 与跨仓冻结的字符串集合逐字符一致")
     void allCodesMatchesExpected() {
         assertEquals(EXPECTED_CODES, ComposeSchemaErrorCodes.ALL_CODES);
-        assertEquals(7, ComposeSchemaErrorCodes.ALL_CODES.size());
+        assertEquals(9, ComposeSchemaErrorCodes.ALL_CODES.size(),
+                "M4 baseline 7 + G10 PR2 新增 2 条 = 9 条");
     }
 
     @Test
-    @DisplayName("7 个常量值匹配 namespace/kind 形态")
+    @DisplayName("9 个常量值匹配 namespace/kind 形态")
     void eachConstantMatchesNamespaceForm() {
         assertEquals("compose-schema-error/derived-query/unknown-field",
                 ComposeSchemaErrorCodes.DERIVED_QUERY_UNKNOWN_FIELD);
@@ -55,6 +65,10 @@ class ComposeSchemaExceptionTest {
                 ComposeSchemaErrorCodes.JOIN_ON_RIGHT_UNKNOWN_FIELD);
         assertEquals("compose-schema-error/join/output-column-conflict",
                 ComposeSchemaErrorCodes.JOIN_OUTPUT_COLUMN_CONFLICT);
+        assertEquals("compose-schema-error/output-schema/ambiguous-lookup",
+                ComposeSchemaErrorCodes.OUTPUT_SCHEMA_AMBIGUOUS_LOOKUP);
+        assertEquals("compose-schema-error/join/ambiguous-column",
+                ComposeSchemaErrorCodes.JOIN_AMBIGUOUS_COLUMN);
     }
 
     @Test
