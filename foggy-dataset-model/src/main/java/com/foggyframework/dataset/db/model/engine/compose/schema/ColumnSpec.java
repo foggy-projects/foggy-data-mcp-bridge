@@ -1,5 +1,7 @@
 package com.foggyframework.dataset.db.model.engine.compose.schema;
 
+import com.foggyframework.dataset.db.model.engine.compose.plan.PlanId;
+
 import java.util.Objects;
 
 /**
@@ -27,7 +29,25 @@ import java.util.Objects;
  *   <li>{@link #hasExplicitAlias} — {@code true} iff the user wrote
  *       {@code ... AS <alias>}. Used only for error-message disambiguation;
  *       does not change behaviour.</li>
+ *   <li>{@link #planProvenance} <b>(G10 PR1)</b> — Plan-level identity of the
+ *       node that produced this column, captured as a {@link PlanId}
+ *       (transient weak reference; see {@link PlanId} javadoc). {@code null}
+ *       in PR1 — no producer sets it yet. Filled in by G10 PR2 (flag-gated
+ *       SchemaDerivation refactor) so post-join disambiguation (G5 F5) and
+ *       plan-routed permissions can resolve a column back to its plan.</li>
+ *   <li>{@link #isAmbiguous} <b>(G10 PR1)</b> — {@code true} when this column
+ *       name occurs in multiple side schemas of a join (the same name appears
+ *       on both {@code left} and {@code right}). {@code false} in PR1 — no
+ *       producer sets it yet. Filled in by G10 PR2.</li>
  * </ul>
+ *
+ * <p><b>G10 PR1 真零行为变化保证</b>: the new fields default to
+ * {@code null}/{@code false} and are <em>not</em> read by any compiler /
+ * validator / lookup path in PR1. They also do not participate in
+ * {@link #equals}/{@link #hashCode} — the existing equality contract
+ * (name + expression + sourceModel + dataType + hasExplicitAlias) is
+ * preserved bitwise. PR2 (when fields actually get set) will revisit
+ * whether to include {@code planProvenance} in equality.</p>
  *
  * <p>Cross-repo invariant: mirrors Python
  * {@code foggy.dataset_model.engine.compose.schema.output_schema.ColumnSpec}
@@ -42,6 +62,9 @@ public final class ColumnSpec {
     private final String sourceModel;   // nullable
     private final String dataType;      // nullable — reserved for M5/M6
     private final boolean hasExplicitAlias;
+    // G10 PR1 — types only, no producer sets these yet
+    private final PlanId planProvenance;  // nullable — PR2 fills in (flag-gated)
+    private final boolean isAmbiguous;     // PR2 sets to true on join overlap (flag-gated)
 
     private ColumnSpec(Builder b) {
         if (b.name == null || b.name.isEmpty()) {
@@ -57,6 +80,8 @@ public final class ColumnSpec {
         this.sourceModel = b.sourceModel;
         this.dataType = b.dataType;
         this.hasExplicitAlias = b.hasExplicitAlias;
+        this.planProvenance = b.planProvenance;
+        this.isAmbiguous = b.isAmbiguous;
     }
 
     public String name() { return name; }
@@ -64,6 +89,26 @@ public final class ColumnSpec {
     public String sourceModel() { return sourceModel; }
     public String dataType() { return dataType; }
     public boolean hasExplicitAlias() { return hasExplicitAlias; }
+
+    /**
+     * G10 PR1 — plan-level provenance (PlanId of the producing plan node).
+     *
+     * <p>{@code null} in PR1 (no producer sets it). Once G10 PR2 lands,
+     * SchemaDerivation will populate this for join-merged columns so
+     * downstream code can route a column back to its origin plan.</p>
+     */
+    public PlanId planProvenance() { return planProvenance; }
+
+    /**
+     * G10 PR1 — {@code true} when this column name overlaps with another
+     * side of a join (same name on both {@code left} and {@code right}).
+     *
+     * <p>{@code false} in PR1 (no producer sets it). Once G10 PR2 lands,
+     * SchemaDerivation will mark overlapping join columns ambiguous instead
+     * of throwing {@code JOIN_OUTPUT_COLUMN_CONFLICT}; downstream consumers
+     * (G10 PR3 / PR4) handle the disambiguation.</p>
+     */
+    public boolean isAmbiguous() { return isAmbiguous; }
 
     public static Builder builder() { return new Builder(); }
 
@@ -78,6 +123,8 @@ public final class ColumnSpec {
         private String sourceModel;
         private String dataType;
         private boolean hasExplicitAlias;
+        private PlanId planProvenance;
+        private boolean isAmbiguous;
 
         public Builder name(String v) { this.name = v; return this; }
         public Builder expression(String v) { this.expression = v; return this; }
@@ -85,9 +132,22 @@ public final class ColumnSpec {
         public Builder dataType(String v) { this.dataType = v; return this; }
         public Builder hasExplicitAlias(boolean v) { this.hasExplicitAlias = v; return this; }
 
+        /** G10 PR1 — see {@link ColumnSpec#planProvenance()}. */
+        public Builder planProvenance(PlanId v) { this.planProvenance = v; return this; }
+
+        /** G10 PR1 — see {@link ColumnSpec#isAmbiguous()}. */
+        public Builder isAmbiguous(boolean v) { this.isAmbiguous = v; return this; }
+
         public ColumnSpec build() { return new ColumnSpec(this); }
     }
 
+    /**
+     * G10 PR1 真零行为保证：equality unchanged from M4 era. The new
+     * {@code planProvenance} / {@code isAmbiguous} fields are
+     * <em>excluded</em> from equality so existing tests / compare paths
+     * see no behavior shift. PR2 will revisit when fields actually carry
+     * meaningful values.
+     */
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -112,6 +172,8 @@ public final class ColumnSpec {
                 + ", sourceModel=" + sourceModel
                 + ", dataType=" + dataType
                 + ", hasExplicitAlias=" + hasExplicitAlias
+                + ", planProvenance=" + planProvenance
+                + ", isAmbiguous=" + isAmbiguous
                 + '}';
     }
 }
