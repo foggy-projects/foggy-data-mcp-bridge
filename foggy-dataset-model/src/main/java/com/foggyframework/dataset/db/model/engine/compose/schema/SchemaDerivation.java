@@ -242,14 +242,10 @@ public final class SchemaDerivation {
             // G10: capture per-side plan provenance; mark overlapping
             // columns ambiguous; keep the legacy sourceModel string so
             // existing consumers that read it still see something.
-            PlanId leftPid = PlanId.of(plan.left());
-            PlanId rightPid = PlanId.of(plan.right());
-            for (ColumnSpec c : leftSchema.columns()) {
-                merged.add(annotateForJoin(c, leftPid, overlap.contains(c.name())));
-            }
-            for (ColumnSpec c : rightSchema.columns()) {
-                merged.add(annotateForJoin(c, rightPid, overlap.contains(c.name())));
-            }
+            appendAnnotatedSide(merged, leftSchema.columns(),
+                    PlanId.of(plan.left()), overlap);
+            appendAnnotatedSide(merged, rightSchema.columns(),
+                    PlanId.of(plan.right()), overlap);
         } else {
             // Legacy merge: source_model cleared (per-side attribution dropped).
             for (ColumnSpec c : leftSchema.columns()) {
@@ -260,6 +256,14 @@ public final class SchemaDerivation {
             }
         }
         return OutputSchema.of(merged);
+    }
+
+    private static void appendAnnotatedSide(List<ColumnSpec> out,
+                                            List<ColumnSpec> sideColumns,
+                                            PlanId sidePid, Set<String> overlap) {
+        for (ColumnSpec c : sideColumns) {
+            out.add(annotateForJoin(c, sidePid, overlap.contains(c.name())));
+        }
     }
 
     // ------------------------------------------------------------------

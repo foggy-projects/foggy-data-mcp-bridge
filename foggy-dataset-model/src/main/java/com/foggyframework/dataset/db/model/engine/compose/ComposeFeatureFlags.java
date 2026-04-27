@@ -72,15 +72,18 @@ public final class ComposeFeatureFlags {
         if (override != null) {
             return override;
         }
-        String prop = System.getProperty(G10_PROPERTY);
+        Boolean prop = parseBool(System.getProperty(G10_PROPERTY));
         if (prop != null) {
-            return Boolean.parseBoolean(prop.trim());
+            return prop;
         }
-        String env = System.getenv(G10_ENV_VAR);
-        if (env != null) {
-            return Boolean.parseBoolean(env.trim());
-        }
-        return false;
+        Boolean env = parseBool(System.getenv(G10_ENV_VAR));
+        return env != null && env;
+    }
+
+    /** {@code null} when {@code raw} is {@code null}; otherwise
+     *  {@code Boolean.parseBoolean(raw.trim())}. */
+    private static Boolean parseBool(String raw) {
+        return raw == null ? null : Boolean.parseBoolean(raw.trim());
     }
 
     /**

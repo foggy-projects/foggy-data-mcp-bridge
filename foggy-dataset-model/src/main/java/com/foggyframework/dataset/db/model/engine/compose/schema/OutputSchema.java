@@ -81,64 +81,92 @@ public final class OutputSchema {
 
     private OutputSchema(List<ColumnSpec> columns) {
         boolean g10 = ComposeFeatureFlags.g10Enabled();
-
-        // Build the name → indices map while validating duplicates per-policy.
         // LinkedHashMap preserves first-occurrence order for deterministic iteration.
         Map<String, List<Integer>> index = new LinkedHashMap<>();
         for (int i = 0; i < columns.size(); i++) {
-            ColumnSpec c = columns.get(i);
-            if (c == null) {
-                throw new IllegalArgumentException(
-                        "OutputSchema.columns[" + i + "] must be a ColumnSpec, got null");
-            }
-            List<Integer> bucket = index.get(c.name());
-            if (bucket == null) {
-                List<Integer> first = new ArrayList<>(1);
-                first.add(i);
-                index.put(c.name(), first);
-                continue;
-            }
-            // Duplicate detected — apply the active policy.
-            int firstIndex = bucket.get(0);
-            ColumnSpec firstSpec = columns.get(firstIndex);
-            if (!g10) {
-                throw new IllegalArgumentException(
-                        "OutputSchema contains duplicate output column '"
-                                + c.name() + "' (first at index " + firstIndex
-                                + ", again at index " + i + ")");
-            }
-            // G10 path: ambiguous columns may co-exist, but only if EVERY
-            // occurrence (including the first) is marked ambiguous. Anything
-            // else means upstream derivation produced a structural duplicate.
-            if (!firstSpec.isAmbiguous() || !c.isAmbiguous()) {
-                throw new IllegalArgumentException(
-                        "OutputSchema contains duplicate output column '"
-                                + c.name() + "' (first at index " + firstIndex
-                                + ", again at index " + i + "). G10 allows duplicates only "
-                                + "when every occurrence has isAmbiguous=true; "
-                                + "[firstAmbiguous=" + firstSpec.isAmbiguous()
-                                + ", currentAmbiguous=" + c.isAmbiguous() + "]");
-            }
-            // Reject pure duplicates (same plan provenance) — that is a
-            // plan-tree construction bug, not a join overlap.
-            if (Objects.equals(firstSpec.planProvenance(), c.planProvenance())) {
-                throw new IllegalArgumentException(
-                        "OutputSchema rejects pure duplicate ambiguous column '"
-                                + c.name() + "' — both occurrences carry the same "
-                                + "planProvenance, which indicates a plan-tree "
-                                + "construction bug rather than a join overlap "
-                                + "(first at index " + firstIndex + ", again at index "
-                                + i + ")");
-            }
-            bucket.add(i);
+            indexOne(columns, i, index, g10);
         }
         this.columns = Collections.unmodifiableList(new ArrayList<>(columns));
-        // Freeze the bucket lists too so callers can't mutate them.
         Map<String, List<Integer>> frozen = new LinkedHashMap<>(index.size());
         for (Map.Entry<String, List<Integer>> e : index.entrySet()) {
             frozen.put(e.getKey(), Collections.unmodifiableList(e.getValue()));
         }
         this.indicesByName = Collections.unmodifiableMap(frozen);
+    }
+
+    /**
+     * Validate column at {@code i} and append its index to the running
+     * {@code index} bucket. Centralises the duplicate-name policy so
+     * the constructor body stays a flat loop.
+     */
+    private static void indexOne(List<ColumnSpec> columns, int i,
+                                 Map<String, List<Integer>> index, boolean g10) {
+        ColumnSpec c = columns.get(i);
+        if (c == null) {
+            throw new IllegalArgumentException(
+                    "OutputSchema.columns[" + i + "] must be a ColumnSpec, got null");
+        }
+        List<Integer> bucket = index.get(c.name());
+        if (bucket == null) {
+            List<Integer> first = new ArrayList<>(1);
+            first.add(i);
+            index.put(c.name(), first);
+            return;
+        }
+        int firstIndex = bucket.get(0);
+        ColumnSpec firstSpec = columns.get(firstIndex);
+        DuplicateOutcome outcome = classifyDuplicate(firstSpec, c, g10);
+        if (outcome != DuplicateOutcome.ACCEPT_AMBIGUOUS) {
+            throw new IllegalArgumentException(
+                    duplicateMessage(outcome, c.name(), firstSpec, c, firstIndex, i));
+        }
+        bucket.add(i);
+    }
+
+    /** Classification of a same-name duplicate against the active flag policy. */
+    private enum DuplicateOutcome {
+        REJECT_LEGACY,        // flag=false: any duplicate forbidden
+        REJECT_MIXED_FLAG,    // flag=true:  not every occurrence has isAmbiguous=true
+        REJECT_PURE_DUPLICATE,// flag=true:  same planProvenance — plan-tree construction bug
+        ACCEPT_AMBIGUOUS      // flag=true:  legitimate join-overlap pair
+    }
+
+    private static DuplicateOutcome classifyDuplicate(
+            ColumnSpec firstSpec, ColumnSpec c, boolean g10) {
+        if (!g10) {
+            return DuplicateOutcome.REJECT_LEGACY;
+        }
+        if (!firstSpec.isAmbiguous() || !c.isAmbiguous()) {
+            return DuplicateOutcome.REJECT_MIXED_FLAG;
+        }
+        if (Objects.equals(firstSpec.planProvenance(), c.planProvenance())) {
+            return DuplicateOutcome.REJECT_PURE_DUPLICATE;
+        }
+        return DuplicateOutcome.ACCEPT_AMBIGUOUS;
+    }
+
+    private static String duplicateMessage(DuplicateOutcome outcome, String name,
+                                           ColumnSpec firstSpec, ColumnSpec c,
+                                           int firstIndex, int i) {
+        String prefix = "OutputSchema contains duplicate output column '" + name
+                + "' (first at index " + firstIndex + ", again at index " + i + ")";
+        switch (outcome) {
+            case REJECT_LEGACY:
+                return prefix;
+            case REJECT_MIXED_FLAG:
+                return prefix + ". G10 allows duplicates only when every occurrence "
+                        + "has isAmbiguous=true; [firstAmbiguous="
+                        + firstSpec.isAmbiguous()
+                        + ", currentAmbiguous=" + c.isAmbiguous() + "]";
+            case REJECT_PURE_DUPLICATE:
+                return "OutputSchema rejects pure duplicate ambiguous column '"
+                        + name + "' — both occurrences carry the same planProvenance, "
+                        + "which indicates a plan-tree construction bug rather than "
+                        + "a join overlap (first at index " + firstIndex
+                        + ", again at index " + i + ")";
+            default:
+                throw new IllegalStateException("unreachable: " + outcome);
+        }
     }
 
     // ------------------------------------------------------------------
@@ -201,14 +229,8 @@ public final class OutputSchema {
      * for explicit semantics.</p>
      */
     public ColumnSpec get(String name) {
-        List<Integer> bucket = indicesByName.get(name);
-        if (bucket == null) {
-            return null;
-        }
-        if (bucket.size() == 1) {
-            return columns.get(bucket.get(0));
-        }
-        throw ambiguousLookup(name, bucket);
+        Integer i = uniqueIndexOrNull(name);
+        return i == null ? null : columns.get(i);
     }
 
     /**
@@ -247,15 +269,7 @@ public final class OutputSchema {
      * intent.
      */
     public ColumnSpec requireUnique(String name) {
-        List<Integer> bucket = indicesByName.get(name);
-        if (bucket == null) {
-            throw new java.util.NoSuchElementException(
-                    "OutputSchema has no column named '" + name + "'");
-        }
-        if (bucket.size() == 1) {
-            return columns.get(bucket.get(0));
-        }
-        throw ambiguousLookup(name, bucket);
+        return columns.get(requireUniqueIndex(name));
     }
 
     /**
@@ -264,15 +278,7 @@ public final class OutputSchema {
      * {@link java.util.NoSuchElementException} when absent.
      */
     public int indexOf(String name) {
-        List<Integer> bucket = indicesByName.get(name);
-        if (bucket == null) {
-            throw new java.util.NoSuchElementException(
-                    "OutputSchema has no column named '" + name + "'");
-        }
-        if (bucket.size() == 1) {
-            return bucket.get(0);
-        }
-        throw ambiguousLookup(name, bucket);
+        return requireUniqueIndex(name);
     }
 
     public boolean contains(String name) {
@@ -282,6 +288,30 @@ public final class OutputSchema {
     // ------------------------------------------------------------------
     // Internal helpers
     // ------------------------------------------------------------------
+
+    /** Bucket → unique index, or null when absent.
+     *  Throws {@code OUTPUT_SCHEMA_AMBIGUOUS_LOOKUP} on multi-element buckets. */
+    private Integer uniqueIndexOrNull(String name) {
+        List<Integer> bucket = indicesByName.get(name);
+        if (bucket == null) {
+            return null;
+        }
+        if (bucket.size() == 1) {
+            return bucket.get(0);
+        }
+        throw ambiguousLookup(name, bucket);
+    }
+
+    /** Same as {@link #uniqueIndexOrNull(String)} but
+     *  {@link java.util.NoSuchElementException} on absent. */
+    private int requireUniqueIndex(String name) {
+        Integer i = uniqueIndexOrNull(name);
+        if (i == null) {
+            throw new java.util.NoSuchElementException(
+                    "OutputSchema has no column named '" + name + "'");
+        }
+        return i;
+    }
 
     private ComposeSchemaException ambiguousLookup(String name, List<Integer> bucket) {
         // Build the candidate list with plan-provenance so the caller can
