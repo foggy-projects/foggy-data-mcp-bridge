@@ -3,6 +3,7 @@ package com.foggyframework.dataset.db.model.engine.compose.plan;
 import com.foggyframework.dataset.db.model.engine.compose.ComposedSql;
 import com.foggyframework.dataset.db.model.engine.compose.compilation.ComposeSqlCompiler;
 import com.foggyframework.dataset.db.model.engine.compose.context.ComposeQueryContext;
+import com.foggyframework.dataset.db.model.engine.compose.plan.expr.PlanExpression;
 import com.foggyframework.dataset.db.model.engine.compose.runtime.ComposeRuntimeBundle;
 import com.foggyframework.dataset.db.model.engine.compose.runtime.ComposeRuntimeHolder;
 import com.foggyframework.dataset.db.model.engine.compose.runtime.PlanExecution;
@@ -467,6 +468,31 @@ public abstract class QueryPlan implements PropertyHolder, PropertyFunction {
      */
     public abstract List<BaseModelPlan> baseModelPlans();
 
+    /**
+     * <b>G5 Phase 2 (F5)</b> · Return all plans visible from this plan node
+     * for F5 plan-qualified column reference validation per G5 spec §5.1.
+     *
+     * <p>The returned set includes {@code this} plus every plan
+     * transitively reachable through structural children:
+     * <ul>
+     *   <li>{@code BaseModelPlan} — leaf, returns {@code {this}}</li>
+     *   <li>{@code DerivedQueryPlan} — {@code {this} ∪ source.collectVisiblePlans()}</li>
+     *   <li>{@code JoinPlan} — {@code {this} ∪ left.collectVisiblePlans() ∪ right.collectVisiblePlans()}</li>
+     *   <li>{@code UnionPlan} — same as join (both branches)</li>
+     * </ul>
+     *
+     * <p><b>Identity-keyed</b> (G5 spec §5.1 warning): the returned set uses
+     * object identity, NOT {@code equals}. Same model name referenced via
+     * two distinct {@code dsl()} calls produces two distinct plan instances
+     * that are NOT interchangeable. Implementations MUST use
+     * {@link #identityPlanSet()} to construct the result.</p>
+     *
+     * @return identity-keyed {@code Set<QueryPlan>} containing {@code this}
+     *         and all transitively-reachable plan nodes
+     * @since 8.3.0.beta
+     */
+    public abstract Set<QueryPlan> collectVisiblePlans();
+
     // ------------------------------------------------------------------
     // Shared static helpers — package-private so the subclasses can reuse
     // them without duplicating validation logic.
@@ -565,5 +591,105 @@ public abstract class QueryPlan implements PropertyHolder, PropertyFunction {
             }
         }
         return out;
+    }
+
+    // ------------------------------------------------------------------
+    // G5 Phase 2 (F5) shared helpers — used by BaseModelPlan / DerivedQueryPlan
+    // build-time visibility + flag-gating validation.
+    // ------------------------------------------------------------------
+
+    /**
+     * <b>G5 Phase 2 (F5)</b> · Construct an identity-keyed
+     * {@code Set<QueryPlan>} suitable for {@link #collectVisiblePlans()}
+     * results. Uses {@link IdentityHashMap} so {@code contains} / {@code add}
+     * compare by object reference, not {@code equals} — required by spec §5.1
+     * for same-model multi-instance disambiguation.
+     */
+    static Set<QueryPlan> identityPlanSet() {
+        return Collections.newSetFromMap(new IdentityHashMap<>());
+    }
+
+    /**
+     * <b>G5 Phase 2 (F5)</b> · Extract the {@link PlanColumnRef} (if any) from
+     * a column entry, peeling off {@link AggregateColumn} / {@link ProjectedColumn}
+     * wrappers. Returns {@code null} for F1-F4 strings or any plan-expression
+     * shape that does not transitively wrap a {@code PlanColumnRef}.
+     *
+     * <p>Mirror of the chained-API output shape (from
+     * {@link ColumnObjectNormalizer#buildPlanExpression normalize buildPlanExpression}):
+     * {@code PlanColumnRef} / {@code AggregateColumn(PlanColumnRef)} /
+     * {@code ProjectedColumn(PlanColumnRef)} /
+     * {@code ProjectedColumn(AggregateColumn(PlanColumnRef))}.</p>
+     */
+    static PlanColumnRef extractPlanRef(Object column) {
+        if (column instanceof PlanColumnRef ref) {
+            return ref;
+        }
+        if (column instanceof AggregateColumn agg) {
+            return agg.ref();
+        }
+        if (column instanceof ProjectedColumn proj) {
+            PlanExpression inner = proj.expr();
+            if (inner instanceof PlanColumnRef ref) return ref;
+            if (inner instanceof AggregateColumn agg) return agg.ref();
+            // WindowColumn or other PlanExpression — not F5 plan-qualified
+        }
+        return null;
+    }
+
+    /**
+     * <b>G5 Phase 2 (F5)</b> · Validate F5 plan-qualified columns at plan
+     * build time per G5 spec §5.1 (visibility / lineage rule).
+     *
+     * <p>For any column whose {@link #extractPlanRef} returns non-null, the
+     * referenced plan must be in {@code visiblePlans} (the build-time lineage
+     * of the plan being constructed). Identity comparison via the
+     * {@link #identityPlanSet() identity-keyed} set — same model name
+     * referenced via two distinct {@code dsl()} calls produces two distinct
+     * plan instances that are NOT interchangeable. Failure:
+     * {@code COLUMN_PLAN_NOT_VISIBLE}.</p>
+     *
+     * <p><b>Why no G10 flag check here</b> · F5 plan-qualified SQL emission is
+     * gated by {@code ComposePlanner.compilePlanColumnRef} (G10 PR3): under
+     * {@code g10Enabled() == false} the compiler falls back to bare column
+     * name. For single-base / self-reference cases that fallback is correct
+     * (one source, no ambiguity); for multi-base / join cases the schema
+     * derivation already throws {@code JOIN_OUTPUT_COLUMN_CONFLICT} (legacy
+     * behaviour) before SQL emission — there is no silent-wrong-SQL window
+     * to guard against at the build stage. The chained API (existing
+     * {@code myBase.amount.sum().as("total")} path) and the F5 Map syntax
+     * produce indistinguishable {@link PlanExpression} graphs, so a flag-gate
+     * here would break the chained API too.</p>
+     *
+     * @param columns      heterogeneous column list (may contain F1-F4 strings
+     *                     and F5 plan-expression objects mixed)
+     * @param visiblePlans identity-keyed lineage set — typically
+     *                     {@code source.collectVisiblePlans()} for a derived
+     *                     plan, or empty for a base plan (which has no
+     *                     children and itself does not yet exist during build)
+     * @param fieldName    error-message prefix (e.g. {@code "DerivedQueryPlan.columns"})
+     */
+    static void validateF5PlanVisibility(
+            List<?> columns, Set<QueryPlan> visiblePlans, String fieldName) {
+        if (columns == null || columns.isEmpty()) return;
+        for (int i = 0; i < columns.size(); i++) {
+            PlanColumnRef ref = extractPlanRef(columns.get(i));
+            if (ref == null) continue;  // F1-F4 string or non-F5 PlanExpression
+            // PlanColumnRef created via Query.col("name") (factory shape) has
+            // plan == null — these are "free" column references, equivalent
+            // in semantics to F4 string columns. They are NOT F5 plan-qualified
+            // references and are out of scope for visibility validation.
+            if (ref.plan() == null) continue;
+            if (!visiblePlans.contains(ref.plan())) {
+                throw new IllegalArgumentException(
+                        "COLUMN_PLAN_NOT_VISIBLE: " + fieldName + "[" + i + "] references "
+                        + "plan ('" + ref.plan().getClass().getSimpleName() + "', field '"
+                        + ref.name() + "') that is NOT in the visibility lineage of this "
+                        + "plan. Per G5 spec §5.1, plan references are matched by object "
+                        + "identity; same model name referenced via two distinct dsl() "
+                        + "calls yields two distinct plan objects that are NOT "
+                        + "interchangeable.");
+            }
+        }
     }
 }

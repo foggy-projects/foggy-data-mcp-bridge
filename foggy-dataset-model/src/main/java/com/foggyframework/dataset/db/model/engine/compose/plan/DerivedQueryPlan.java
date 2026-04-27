@@ -2,6 +2,7 @@ package com.foggyframework.dataset.db.model.engine.compose.plan;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Plan derived from another plan's output schema.
@@ -35,6 +36,11 @@ public final class DerivedQueryPlan extends QueryPlan {
         validateStringList(b.groupBy, "DerivedQueryPlan.groupBy");
         validateStringList(b.orderBy, "DerivedQueryPlan.orderBy");
         validatePagination(b.limit, b.start, "DerivedQueryPlan");
+        // G5 Phase 2 (F5) — visibility lineage = source.collectVisiblePlans()
+        // (already includes source itself). Self-reference (plan === source)
+        // is allowed per spec §5.2.
+        validateF5PlanVisibility(b.columns, b.source.collectVisiblePlans(),
+                "DerivedQueryPlan.columns");
 
         this.source = b.source;
         this.columns = b.columns == null ? List.of() : List.copyOf(b.columns);
@@ -58,6 +64,15 @@ public final class DerivedQueryPlan extends QueryPlan {
     @Override
     public List<BaseModelPlan> baseModelPlans() {
         return source.baseModelPlans();
+    }
+
+    @Override
+    public Set<QueryPlan> collectVisiblePlans() {
+        // Derived = self ∪ source's visible plans (includes source recursively).
+        Set<QueryPlan> set = identityPlanSet();
+        set.add(this);
+        set.addAll(source.collectVisiblePlans());
+        return set;
     }
 
     public static Builder builder() { return new Builder(); }

@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Relational join of two plans.
@@ -89,6 +90,16 @@ public final class JoinPlan extends QueryPlan {
         out.addAll(left.baseModelPlans());
         out.addAll(right.baseModelPlans());
         return Collections.unmodifiableList(out);
+    }
+
+    @Override
+    public Set<QueryPlan> collectVisiblePlans() {
+        // Join = self ∪ left.visible ∪ right.visible (each branch includes its own subtree).
+        Set<QueryPlan> set = identityPlanSet();
+        set.add(this);
+        set.addAll(left.collectVisiblePlans());
+        set.addAll(right.collectVisiblePlans());
+        return set;
     }
 
     public static Builder builder() { return new Builder(); }

@@ -1,17 +1,26 @@
 package com.foggyframework.dataset.db.model.engine.compose.plan;
 
+import com.foggyframework.dataset.db.model.engine.compose.plan.expr.PlanExpression;
+
 import java.util.ArrayList;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
 /**
- * G5 Phase 1 (F4) — Column object normalizer.
+ * G5 Phase 1 (F4) + Phase 2 (F5) — Column object normalizer.
  *
- * <p>Normalizes {@code dsl({columns: [...]})} entries from the F4 object form
- * (e.g. {@code {field: "amount", agg: "sum", as: "totalSales"}}) to the
- * canonical string form (e.g. {@code "SUM(amount) AS totalSales"}). Downstream
- * compilation / validation is unchanged.</p>
+ * <p>Normalizes {@code dsl({columns: [...]})} entries:
+ * <ul>
+ *   <li><b>F4</b> {@code {field, agg?, as?}} → canonical string form
+ *       ({@code "SUM(amount) AS totalSales"}); downstream string-oriented
+ *       compilation / validation is unchanged.</li>
+ *   <li><b>F5</b> {@code {plan, field, agg?, as?}} → {@link PlanColumnRef} /
+ *       {@link AggregateColumn} / {@link ProjectedColumn} compound — same
+ *       object shape as the chained API ({@code sales.amount.sum().as("t")})
+ *       so downstream {@code ComposePlanner.compilePlanColumnRef} (G10 PR3)
+ *       handles them transparently when {@code g10Enabled()} is on.</li>
+ * </ul>
  *
  * <h3>Supported forms</h3>
  * <ul>
@@ -19,26 +28,37 @@ import java.util.Set;
  *       {@code "SUM(amount) AS total"} / {@code "YEAR(orderDate) AS year"}</li>
  *   <li><b>F4 object</b>: {@code {field, agg?, as?}} — required {@code field}, optional
  *       {@code agg} (whitelist below) and {@code as} (string alias)</li>
- *   <li><b>F5 object</b> ({@code {plan, field, ...}}): currently fail-loud with
- *       {@code COLUMN_PLAN_NOT_VISIBLE}; F5 is Phase 2 and blocked on G10</li>
+ *   <li><b>F5 object</b>: {@code {plan, field, agg?, as?}} — adds required
+ *       {@code plan} ({@link QueryPlan} reference). Returns a chained-API-style
+ *       compound (NOT a string); legacy string-only consumers must reject it
+ *       (see {@link #normalizeColumnsToStrings})</li>
  * </ul>
  *
  * <h3>Aggregation whitelist</h3>
  * <p>{@code sum}, {@code avg}, {@code count}, {@code max}, {@code min},
- * {@code count_distinct}. The last is lowered to {@code COUNT_DISTINCT(field)}
- * which the SQL engine ({@code AllowedFunctions} + {@code SqlFunctionExp})
- * automatically translates to {@code COUNT(DISTINCT field)}.</p>
+ * {@code count_distinct}. {@code count_distinct} lowers to
+ * {@code COUNT_DISTINCT(field)} which the SQL engine
+ * ({@code AllowedFunctions} + {@code SqlFunctionExp}) automatically
+ * translates to {@code COUNT(DISTINCT field)}. F4 lowers to a string;
+ * F5 produces an {@link AggregateColumn} carrying the uppercase function
+ * token.</p>
  *
  * <h3>Error codes</h3>
  * <ul>
- *   <li>{@code COLUMN_FIELD_REQUIRED} — F4 object missing {@code field} or null/blank</li>
+ *   <li>{@code COLUMN_FIELD_REQUIRED} — F4/F5 object missing {@code field} or null/blank</li>
  *   <li>{@code COLUMN_AGG_NOT_SUPPORTED} — {@code agg} not in whitelist</li>
  *   <li>{@code COLUMN_AS_TYPE_INVALID} — {@code as} is not a string</li>
- *   <li>{@code COLUMN_FIELD_INVALID_KEY} — F4 object contains an unknown key</li>
- *   <li>{@code COLUMN_PLAN_NOT_VISIBLE} — F5 placeholder; F5 is Phase 2 (blocked on G10)</li>
+ *   <li>{@code COLUMN_FIELD_INVALID_KEY} — F4/F5 object contains an unknown key</li>
+ *   <li>{@code COLUMN_PLAN_TYPE_INVALID} — F5 {@code plan} value is not a {@link QueryPlan}</li>
  * </ul>
  *
- * @see <a href="../../../../../../../../../docs/8.3.0.beta/P0-SemanticDSL-列项对象语法-后置消歧设计.md">G5 spec v2-patch</a>
+ * <p>Plan-lineage visibility (spec §5.1) is checked at plan build time
+ * ({@code BaseModelPlan.Builder.build} / {@code DerivedQueryPlan.Builder.build}),
+ * NOT here, because normalize does not have outer-plan context. Visibility
+ * violations surface as {@code COLUMN_PLAN_NOT_VISIBLE}; cross-plan F5 under
+ * G10 OFF surfaces as {@code COLUMN_PLAN_NOT_BOUND}.</p>
+ *
+ * @see <a href="../../../../../../../../../docs/8.3.0.beta/P0-SemanticDSL-列项对象语法-后置消歧设计.md">G5 spec v2-patch-2</a>
  */
 public final class ColumnObjectNormalizer {
 
@@ -56,9 +76,15 @@ public final class ColumnObjectNormalizer {
 
     /**
      * Allowed keys in F4 object form. Object containing other keys (e.g. {@code plan}
-     * for F5) triggers a fail-loud error in the current Phase 1.
+     * for F5) triggers a fail-loud error.
      */
     public static final Set<String> ALLOWED_F4_KEYS = Set.of("field", "agg", "as");
+
+    /**
+     * Allowed keys in F5 object form. Adds {@code plan} on top of F4 keys.
+     * Detected by the presence of the {@code plan} key in the input map.
+     */
+    public static final Set<String> ALLOWED_F5_KEYS = Set.of("plan", "field", "agg", "as");
 
     private ColumnObjectNormalizer() {
         // Utility class
@@ -66,14 +92,17 @@ public final class ColumnObjectNormalizer {
 
     /**
      * Normalize a single column entry. F1-F3 strings pass through unchanged;
-     * F4 objects are converted to their string equivalent. Other types
+     * F4 objects are converted to their string equivalent; F5 objects are
+     * converted to a chained-API-style compound ({@link PlanColumnRef} /
+     * {@link AggregateColumn} / {@link ProjectedColumn}). Other types
      * (e.g. {@code PlanColumnRef} from chained API) pass through unchanged
      * for downstream handling.
      *
      * @param item  the column entry (String, Map, or other)
      * @param index 0-based index in the columns array (for error messages)
-     * @return normalized form (String for F1-F4; passthrough for others)
-     * @throws IllegalArgumentException with a {@code COLUMN_*} error-code prefix on F4 validation failure
+     * @return normalized form: String for F1-F4; {@link PlanExpression} for F5;
+     *         passthrough for chained-API objects
+     * @throws IllegalArgumentException with a {@code COLUMN_*} error-code prefix on F4/F5 validation failure
      */
     public static Object normalize(Object item, int index) {
         if (item == null) {
@@ -88,8 +117,9 @@ public final class ColumnObjectNormalizer {
         if (item instanceof Map) {
             return normalizeMap((Map<?, ?>) item, index);
         }
-        // Other types (PlanColumnRef, AggregateColumn, etc.) — passthrough.
-        // These come from chained API or programmatic construction; F4 doesn't touch them.
+        // Other types (PlanColumnRef, AggregateColumn, ProjectedColumn,
+        // WindowColumn, etc.) — passthrough. These come from chained API or
+        // programmatic construction; F4 doesn't touch them.
         return item;
     }
 
@@ -111,10 +141,29 @@ public final class ColumnObjectNormalizer {
 
     /**
      * Normalize a list of column entries to {@code List<String>}. Used by legacy
-     * paths (e.g. {@code DslQueryFunction.buildRequest()}) that strictly require
-     * strings downstream. Non-String, non-Map entries fall back to {@code toString()}.
+     * paths (e.g. {@code DslQueryFunction.buildRequest()},
+     * {@code ComposedDataSetResult.toStringList}) that strictly require strings
+     * downstream — i.e. paths that build {@code SemanticQueryRequest.columns:
+     * List<String>}, which cannot carry F5 plan-qualified references.
+     *
+     * <p>F1-F3 strings pass through; F4 maps are normalized to their canonical
+     * string form; F5 maps and any chained-API plan-expression object
+     * ({@link PlanColumnRef} / {@link AggregateColumn} / {@link ProjectedColumn})
+     * are <b>rejected fail-loud</b> with {@code COLUMN_PLAN_TYPE_INVALID}
+     * (G5 spec §10.3 item 5).</p>
+     *
+     * <p>Rejection is deliberate: silently calling {@code toString()} on a
+     * {@link PlanColumnRef} produces a literal {@code "FieldRef(name)"} string
+     * that compiles to a syntactically-legal but semantically-wrong SQL — the
+     * resulting data corruption is not detectable via SQL string inspection.
+     * Callers that want F5 must use the heterogeneous-list path
+     * ({@link #normalizeColumns}) and downstream consumers must handle
+     * {@link PlanExpression} objects natively (the post-G10 {@code BaseModelPlan} /
+     * {@code DerivedQueryPlan} string-or-PlanExpression columns model).</p>
      *
      * @return new {@code List<String>}; null entries skipped (legacy behavior)
+     * @throws IllegalArgumentException with {@code COLUMN_PLAN_TYPE_INVALID} prefix
+     *         when an F5 entry or chained plan-expression object is encountered
      */
     public static java.util.List<String> normalizeColumnsToStrings(java.util.List<?> rawColumns) {
         if (rawColumns == null) {
@@ -126,7 +175,20 @@ public final class ColumnObjectNormalizer {
             if (normalized == null) {
                 continue;
             }
-            result.add(normalized instanceof String ? (String) normalized : normalized.toString());
+            if (normalized instanceof String s) {
+                result.add(s);
+                continue;
+            }
+            // Anything that survived normalize() and is not a String must be a
+            // PlanExpression (PlanColumnRef from chained API, or F5 compound).
+            // Legacy string-only consumers cannot carry these — fail-loud.
+            throw new IllegalArgumentException(
+                "COLUMN_PLAN_TYPE_INVALID: columns[" + i + "] is a plan-qualified "
+                + "column reference (" + normalized.getClass().getSimpleName()
+                + ") which the legacy string-only request path cannot carry. "
+                + "Either use the F4 string form '<AGG>(field) AS alias' / "
+                + "'field AS alias', or route through a path that supports "
+                + "List<Object> columns (e.g. dsl({...}) directly).");
         }
         return result;
     }
@@ -135,27 +197,24 @@ public final class ColumnObjectNormalizer {
     // Internal: normalize one Map (F4 / F5)
     // ------------------------------------------------------------------
 
-    private static String normalizeMap(Map<?, ?> raw, int index) {
-        // Phase 2 placeholder — F5 plan-qualified form not yet supported (blocked on G10).
-        if (raw.containsKey("plan")) {
-            throw new IllegalArgumentException(
-                "COLUMN_PLAN_NOT_VISIBLE: columns[" + index + "] uses plan-qualified syntax "
-                + "{plan, field, ...} which is Phase 2 of G5 and currently blocked on G10 "
-                + "engine refactor. As a workaround, rename in source plans using "
-                + "\"name AS alias\" and reference the alias instead.");
-        }
+    private static Object normalizeMap(Map<?, ?> raw, int index) {
+        // F5 detection: presence of 'plan' key triggers the plan-qualified path.
+        // Validate plan FIRST (before key whitelist) so unknown keys can be
+        // reported against the F5 whitelist when applicable.
+        boolean isF5 = raw.containsKey("plan");
+        Set<String> allowedKeys = isF5 ? ALLOWED_F5_KEYS : ALLOWED_F4_KEYS;
 
         // Validate keys
         for (Object key : raw.keySet()) {
-            if (!(key instanceof String) || !ALLOWED_F4_KEYS.contains(key)) {
+            if (!(key instanceof String) || !allowedKeys.contains(key)) {
                 throw new IllegalArgumentException(
                     "COLUMN_FIELD_INVALID_KEY: columns[" + index + "] contains unknown key "
                     + (key == null ? "null" : "'" + key + "'") + ". Allowed keys: "
-                    + ALLOWED_F4_KEYS);
+                    + allowedKeys);
             }
         }
 
-        // field — required
+        // field — required (both F4 and F5)
         Object fieldObj = raw.get("field");
         if (!(fieldObj instanceof String) || ((String) fieldObj).isBlank()) {
             throw new IllegalArgumentException(
@@ -164,7 +223,7 @@ public final class ColumnObjectNormalizer {
         }
         String field = ((String) fieldObj).trim();
 
-        // as — optional
+        // as — optional (both F4 and F5)
         String alias = null;
         if (raw.containsKey("as")) {
             Object asObj = raw.get("as");
@@ -181,7 +240,7 @@ public final class ColumnObjectNormalizer {
             }
         }
 
-        // agg — optional
+        // agg — optional (both F4 and F5)
         String agg = null;
         if (raw.containsKey("agg")) {
             Object aggObj = raw.get("agg");
@@ -200,7 +259,22 @@ public final class ColumnObjectNormalizer {
             agg = aggLower;
         }
 
-        // Build the canonical string form
+        if (isF5) {
+            // F5: validate plan reference type, then build the
+            // PlanColumnRef/AggregateColumn/ProjectedColumn compound. Plan
+            // lineage visibility (spec §5.1) is checked at plan build time,
+            // not here — normalize does not have outer-plan context.
+            Object planObj = raw.get("plan");
+            if (!(planObj instanceof QueryPlan plan)) {
+                throw new IllegalArgumentException(
+                    "COLUMN_PLAN_TYPE_INVALID: columns[" + index + "] 'plan' must be a "
+                    + "QueryPlan reference (e.g. a `dsl({...})` handle), got "
+                    + (planObj == null ? "null" : planObj.getClass().getSimpleName()));
+            }
+            return buildPlanExpression(plan, field, agg, alias);
+        }
+
+        // F4: build the canonical string form
         StringBuilder sb = new StringBuilder();
         if (agg != null) {
             // Uppercase for SQL convention; count_distinct → COUNT_DISTINCT(...) is
@@ -214,5 +288,41 @@ public final class ColumnObjectNormalizer {
             sb.append(" AS ").append(alias);
         }
         return sb.toString();
+    }
+
+    /**
+     * Build the F5 chained-API-style compound from already-validated parts.
+     * Mirrors the chained API output:
+     * <ul>
+     *   <li>{@code plan, field} → {@link PlanColumnRef}</li>
+     *   <li>{@code plan, field, agg} → {@link AggregateColumn} wrapping {@link PlanColumnRef}</li>
+     *   <li>{@code plan, field, as} → {@link ProjectedColumn} wrapping {@link PlanColumnRef}</li>
+     *   <li>{@code plan, field, agg, as} → {@link ProjectedColumn} wrapping {@link AggregateColumn}</li>
+     * </ul>
+     *
+     * <p>This shape mirrors {@code sales.amount.sum().as("total")} so the
+     * downstream {@code ComposePlanner.compilePlanColumnRef} (G10 PR3) emits
+     * plan-aware SQL transparently.</p>
+     *
+     * @param plan  the plan reference (already validated as non-null QueryPlan)
+     * @param field the field name (already trimmed and non-blank)
+     * @param agg   lowercase aggregation token, or {@code null}
+     * @param alias output alias, or {@code null}
+     * @return a {@link PlanExpression} — exact runtime type depends on
+     *         which optionals are present
+     */
+    private static PlanExpression buildPlanExpression(
+            QueryPlan plan, String field, String agg, String alias) {
+        PlanExpression node = new PlanColumnRef(plan, field);
+        if (agg != null) {
+            // PlanColumnRef → AggregateColumn (uppercase function token; SQL
+            // engine handles COUNT_DISTINCT → COUNT(DISTINCT ...) lowering).
+            node = new AggregateColumn((PlanColumnRef) node, agg.toUpperCase(Locale.ROOT));
+        }
+        if (alias != null) {
+            // Wrap in ProjectedColumn — accepts any PlanExpression.
+            node = new ProjectedColumn(node, alias, null);
+        }
+        return node;
     }
 }

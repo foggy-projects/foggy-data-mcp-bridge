@@ -1,6 +1,7 @@
 package com.foggyframework.dataset.db.model.engine.compose;
 
 import com.foggyframework.dataset.db.dialect.FDialect;
+import com.foggyframework.dataset.db.model.engine.compose.plan.ColumnObjectNormalizer;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
@@ -239,12 +240,25 @@ public class ComposedDataSetResult implements PropertyFunction {
         return result;
     }
 
+    /**
+     * Convert a heterogeneous columns list to {@code List<String>} for the
+     * legacy {@link SemanticQueryRequest#setColumns(List) string-only} request
+     * shape. Delegates to
+     * {@link ColumnObjectNormalizer#normalizeColumnsToStrings} so that:
+     * <ul>
+     *   <li>F4 maps ({@code {field, agg?, as?}}) are normalized to the
+     *       canonical string form;</li>
+     *   <li>F5 maps ({@code {plan, field, ...}}) and chained-API
+     *       plan-expression objects ({@link com.foggyframework.dataset.db.model.engine.compose.plan.PlanColumnRef}
+     *       et al) are <b>rejected fail-loud</b> with
+     *       {@code COLUMN_PLAN_TYPE_INVALID} — silently calling
+     *       {@code toString()} on them would emit literal {@code "FieldRef(name)"}
+     *       strings into SQL, producing semantically-wrong queries that are
+     *       not detectable via SQL-string inspection (G5 spec §10.3 item 5).</li>
+     * </ul>
+     */
     private List<String> toStringList(List<?> raw) {
-        List<String> result = new ArrayList<>(raw.size());
-        for (Object o : raw) {
-            if (o != null) result.add(o.toString());
-        }
-        return result;
+        return ColumnObjectNormalizer.normalizeColumnsToStrings(raw);
     }
 
     @Override

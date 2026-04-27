@@ -368,8 +368,16 @@ class F4ColumnObjectIntegrationTest extends EcommerceTestSupport {
     @Test
     @DisplayName("F5 plan-qualified form fail-loud (Phase 2 not yet supported)")
     void f5PlanQualifiedFailsLoud() {
+        // G5 Phase 2 (F5) is now wired (PR-J1). When the `plan` value is not
+        // a QueryPlan instance, normalize fail-loud at parse stage with
+        // COLUMN_PLAN_TYPE_INVALID. (The pre-PR-J1 placeholder emitted
+        // COLUMN_PLAN_NOT_VISIBLE for any plan key; that placeholder is
+        // replaced now that F5 is wired through to the engine. Visibility
+        // violations against an actual QueryPlan that's not in the lineage
+        // surface as COLUMN_PLAN_NOT_VISIBLE at plan build stage instead —
+        // see QueryPlanVisibilityTest for that path.)
         Map<String, Object> f5Entry = new HashMap<>();
-        f5Entry.put("plan", new Object()); // any non-null plan ref triggers the placeholder
+        f5Entry.put("plan", new Object()); // not a QueryPlan instance
         f5Entry.put("field", "salesAmount");
         f5Entry.put("as", "x");
 
@@ -377,8 +385,8 @@ class F4ColumnObjectIntegrationTest extends EcommerceTestSupport {
                 () -> dsl(Map.of(
                         "model", SALES_MODEL,
                         "columns", List.of(f5Entry))));
-        assertTrue(ex.getMessage().contains("COLUMN_PLAN_NOT_VISIBLE"),
-                "Expected COLUMN_PLAN_NOT_VISIBLE, got: " + ex.getMessage());
+        assertTrue(ex.getMessage().contains("COLUMN_PLAN_TYPE_INVALID"),
+                "Expected COLUMN_PLAN_TYPE_INVALID, got: " + ex.getMessage());
     }
 
     // --- Helpers (mirror ComposedDataSetResultIntegrationTest pattern) ---

@@ -2,6 +2,7 @@ package com.foggyframework.dataset.db.model.engine.compose.plan;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Leaf plan node pointing at a physical QM (query-model).
@@ -35,6 +36,12 @@ public final class BaseModelPlan extends QueryPlan {
         validateStringList(b.groupBy, "BaseModelPlan.groupBy");
         validateStringList(b.orderBy, "BaseModelPlan.orderBy");
         validatePagination(b.limit, b.start, "BaseModelPlan");
+        // G5 Phase 2 (F5) — base plans have no lineage children and the
+        // plan-being-built does not yet exist, so any F5 plan-qualified
+        // column is by definition out-of-scope. Pass an empty visiblePlans
+        // set so the helper rejects every PlanColumnRef with
+        // COLUMN_PLAN_NOT_VISIBLE.
+        validateF5PlanVisibility(b.columns, identityPlanSet(), "BaseModelPlan.columns");
 
         this.model = b.model;
         this.columns = b.columns == null ? List.of() : List.copyOf(b.columns);
@@ -58,6 +65,14 @@ public final class BaseModelPlan extends QueryPlan {
     @Override
     public List<BaseModelPlan> baseModelPlans() {
         return List.of(this);
+    }
+
+    @Override
+    public Set<QueryPlan> collectVisiblePlans() {
+        // BaseModelPlan is a leaf — visible set is just {this} (identity-keyed).
+        Set<QueryPlan> set = identityPlanSet();
+        set.add(this);
+        return set;
     }
 
     public static Builder builder() { return new Builder(); }

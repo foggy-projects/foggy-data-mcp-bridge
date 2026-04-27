@@ -134,6 +134,51 @@ public final class ComposeSchemaErrorCodes {
     public static final String COLUMN_FIELD_NOT_FOUND =
             NAMESPACE + "/column/field-not-found";
 
+    /**
+     * <b>G5 Phase 2 (F5)</b> · An F5 plan-qualified column entry
+     * ({@code {plan, field, ...}}) carries a {@code plan} value that is
+     * not a {@code QueryPlan} instance.
+     *
+     * <p>Surfaces at the DSL parse stage in
+     * {@code ColumnObjectNormalizer.normalizeMap()} as an
+     * {@code IllegalArgumentException} with this code as message prefix
+     * — same convention as the F4 parser-stage codes
+     * ({@code COLUMN_FIELD_REQUIRED} etc.). Listed here for
+     * cross-language parity (Python {@code error_codes.py} carries the
+     * same string) and discoverability.</p>
+     */
+    public static final String COLUMN_PLAN_TYPE_INVALID =
+            NAMESPACE + "/column/plan-type-invalid";
+
+    /**
+     * <b>G5 Phase 2 (F5)</b> · An F5 plan-qualified column references a
+     * plan that is not in the current plan's visibility lineage per
+     * G5 spec §5.1.
+     *
+     * <p>Lineage rules:
+     * <ul>
+     *   <li>{@code BaseModelPlan} — leaf, only itself is visible (which
+     *       is impossible to reference because the plan does not exist
+     *       yet during build, so any F5 column on a base is rejected)</li>
+     *   <li>{@code DerivedQueryPlan} — visible = self ∪ {@code source.collectVisiblePlans()}</li>
+     *   <li>{@code JoinPlan} / {@code UnionPlan} — no columns of their
+     *       own; visibility check N/A</li>
+     * </ul>
+     *
+     * <p>Identity-keyed: same model referenced via two distinct
+     * {@code dsl()} calls produces two distinct plan objects that are
+     * NOT interchangeable (spec §5.1 warning).</p>
+     *
+     * <p>Surfaces at plan build stage in
+     * {@code BaseModelPlan.Builder.build()} /
+     * {@code DerivedQueryPlan.Builder.build()} as an
+     * {@code IllegalArgumentException} with this code as message prefix.
+     * Distinct from {@link #COLUMN_PLAN_NOT_BOUND} (PR4 permission-validate
+     * stage).</p>
+     */
+    public static final String COLUMN_PLAN_NOT_VISIBLE =
+            NAMESPACE + "/column/plan-not-visible";
+
     public static final Set<String> ALL_CODES = Set.of(
             DERIVED_QUERY_UNKNOWN_FIELD,
             COLUMN_SPEC_MALFORMED,
@@ -146,7 +191,9 @@ public final class ComposeSchemaErrorCodes {
             JOIN_AMBIGUOUS_COLUMN,
             FIELD_ACCESS_DENIED,
             COLUMN_PLAN_NOT_BOUND,
-            COLUMN_FIELD_NOT_FOUND
+            COLUMN_FIELD_NOT_FOUND,
+            COLUMN_PLAN_TYPE_INVALID,
+            COLUMN_PLAN_NOT_VISIBLE
     );
 
     // ------------------------------------------------------------------

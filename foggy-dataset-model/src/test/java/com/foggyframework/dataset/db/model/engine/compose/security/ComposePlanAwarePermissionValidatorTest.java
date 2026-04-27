@@ -3,6 +3,9 @@ package com.foggyframework.dataset.db.model.engine.compose.security;
 import com.foggyframework.dataset.db.model.engine.compose.ComposeFeatureFlags;
 import com.foggyframework.dataset.db.model.engine.compose.plan.BaseModelPlan;
 import com.foggyframework.dataset.db.model.engine.compose.plan.DerivedQueryPlan;
+import com.foggyframework.dataset.db.model.engine.compose.plan.JoinOn;
+import com.foggyframework.dataset.db.model.engine.compose.plan.JoinPlan;
+import com.foggyframework.dataset.db.model.engine.compose.plan.JoinType;
 import com.foggyframework.dataset.db.model.engine.compose.plan.PlanColumnRef;
 import com.foggyframework.dataset.db.model.engine.compose.plan.PlanId;
 import com.foggyframework.dataset.db.model.engine.compose.plan.QueryPlan;
@@ -78,15 +81,27 @@ class ComposePlanAwarePermissionValidatorTest {
         }
 
         @Test
-        @DisplayName("plan 不在 context → COLUMN_PLAN_NOT_BOUND")
+        @DisplayName("plan 在谱系内但 context 未绑定 → COLUMN_PLAN_NOT_BOUND (PR4 fail-closed)")
         void unknownPlanFailsClosed() {
+            // G5 spec §5.1 build-time visibility check rejects plans not in
+            // the source's lineage. To exercise PR4's COLUMN_PLAN_NOT_BOUND
+            // (a separate, permission-validate-stage code), the plan must be
+            // VISIBLE (passes build) but missing from the binding context.
+            // Here `stranger` is reachable via the join's right branch, so
+            // visibility passes; ctx then deliberately omits the binding.
             ComposeFeatureFlags.overrideG10Enabled(true);
             QueryPlan order = basePlan("OrderQM", List.of("orderId"));
             QueryPlan stranger = basePlan("StrangerQM", List.of("x"));
+            JoinPlan joined = JoinPlan.builder()
+                    .left(order).right(stranger).type(JoinType.INNER)
+                    .on(List.of(JoinOn.of("orderId", "=", "x"))).build();
+
             PlanColumnRef ref = new PlanColumnRef(stranger, "x");
             DerivedQueryPlan derived = DerivedQueryPlan.builder()
-                    .source(order).columns(List.of(ref)).build();
+                    .source(joined).columns(List.of(ref)).build();
 
+            // Bind only `order`; deliberately omit `stranger` to trigger
+            // PR4's fail-closed COLUMN_PLAN_NOT_BOUND.
             PlanFieldAccessContext ctx = PlanFieldAccessContext.builder()
                     .bind(order, ModelBinding.builder().build()).build();
             OutputSchema schema = OutputSchema.of(List.of(
