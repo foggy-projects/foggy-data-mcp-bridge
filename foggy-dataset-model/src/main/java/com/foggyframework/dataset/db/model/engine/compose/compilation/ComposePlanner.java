@@ -1,5 +1,6 @@
 package com.foggyframework.dataset.db.model.engine.compose.compilation;
 
+import com.foggyframework.dataset.db.model.engine.compose.ComposeFeatureFlags;
 import com.foggyframework.dataset.db.model.engine.compose.ComposedSql;
 import com.foggyframework.dataset.db.model.engine.compose.CteUnit;
 import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
@@ -114,6 +115,10 @@ public final class ComposePlanner {
         return "\"" + ident + "\"";
     }
 
+    private static String quoteIdentIfNeeded(String ident, String dialect) {
+        return needsQuoting(ident, dialect) ? quoteIdent(ident, dialect) : ident;
+    }
+
     /** Return true if a column string needs identifier quoting.
      *  Simple bare identifiers containing special chars need quoting.
      *  Expressions (containing spaces, parens, AS keyword) are left as-is.
@@ -158,18 +163,48 @@ public final class ComposePlanner {
         return quoteExpressionTokens(col, dialect);
     }
 
-    /** Compile an AST node or raw string into SQL */
+    /** Compile an AST node or raw string into SQL.
+     *
+     *  <p>Backward-compatible 2-arg form. Equivalent to calling
+     *  {@link #compileExpression(Object, String, Map)} with an empty alias
+     *  map — {@link PlanColumnRef} renders as a bare column name, matching
+     *  the legacy single-base-plan behaviour.</p> */
     public static String compileExpression(Object expr, String dialect) {
+        return compileExpression(expr, dialect, Collections.emptyMap());
+    }
+
+    /** Compile an AST node or raw string into SQL with plan-aware alias
+     *  resolution.
+     *
+     *  <p><b>G10 PR3</b> · Adds a {@code planAliasMap} parameter so
+     *  {@link PlanColumnRef} references inside a plan tree compile to
+     *  {@code <alias>.<column>} when the producing plan has been registered
+     *  with an alias by {@link #compileBase} / {@link #compileDerived}.</p>
+     *
+     *  <p>When {@link ComposeFeatureFlags#g10Enabled()} is {@code false}
+     *  the alias map is ignored and {@link PlanColumnRef} falls back to
+     *  bare-name rendering — preserving M4 byte-for-byte output for all
+     *  existing single-base / non-ambiguous compile paths.</p>
+     *
+     *  @param expr           AST node, raw string, or supported plan-tree
+     *                        column form
+     *  @param dialect        target SQL dialect (lowercased by caller)
+     *  @param planAliasMap   identity-keyed mapping from {@link QueryPlan}
+     *                        producer to its CTE / subquery alias; never
+     *                        null (use {@link Collections#emptyMap()} when
+     *                        not applicable) */
+    public static String compileExpression(Object expr, String dialect,
+                                           Map<QueryPlan, String> planAliasMap) {
         if (expr == null) return "NULL";
         if (expr instanceof String s) {
             return quoteColumnExpr(s, dialect);
         }
         if (expr instanceof ProjectedColumn pc) {
-            String compiledExpr = compileExpression(pc.expr(), dialect);
+            String compiledExpr = compileExpression(pc.expr(), dialect, planAliasMap);
             if (pc.caption() != null && !pc.caption().isEmpty()) {
-                return compiledExpr + "$" + pc.caption() + " AS " + quoteIdent(pc.alias(), dialect);
+                return compiledExpr + "$" + pc.caption() + " AS " + quoteIdentIfNeeded(pc.alias(), dialect);
             }
-            return compiledExpr + " AS " + quoteIdent(pc.alias(), dialect);
+            return compiledExpr + " AS " + quoteIdentIfNeeded(pc.alias(), dialect);
         }
         if (expr instanceof ColumnExpr col) {
             return needsQuoting(col.name(), dialect) ? quoteIdent(col.name(), dialect) : col.name();
@@ -181,16 +216,18 @@ public final class ComposePlanner {
             return "'" + lit.value().toString().replace("'", "''") + "'";
         }
         if (expr instanceof BinaryExpr bin) {
-            return "(" + compileExpression(bin.left(), dialect) + " " + bin.op() + " " + compileExpression(bin.right(), dialect) + ")";
+            return "(" + compileExpression(bin.left(), dialect, planAliasMap)
+                    + " " + bin.op() + " "
+                    + compileExpression(bin.right(), dialect, planAliasMap) + ")";
         }
         if (expr instanceof CaseWhenExpr caseWhen) {
             StringBuilder sb = new StringBuilder("CASE");
             for (CaseWhenExpr.WhenThen wt : caseWhen.whens()) {
-                sb.append(" WHEN ").append(compileExpression(wt.condition(), dialect))
-                  .append(" THEN ").append(compileExpression(wt.result(), dialect));
+                sb.append(" WHEN ").append(compileExpression(wt.condition(), dialect, planAliasMap))
+                  .append(" THEN ").append(compileExpression(wt.result(), dialect, planAliasMap));
             }
             if (caseWhen.elseExpr() != null) {
-                sb.append(" ELSE ").append(compileExpression(caseWhen.elseExpr(), dialect));
+                sb.append(" ELSE ").append(compileExpression(caseWhen.elseExpr(), dialect, planAliasMap));
             }
             sb.append(" END");
             return sb.toString();
@@ -203,7 +240,7 @@ public final class ComposePlanner {
         if (expr instanceof WindowColumn win) {
             StringBuilder sb = new StringBuilder(win.func().toUpperCase(Locale.ROOT)).append("(");
             if (win.ref() != null) {
-                sb.append(compileExpression(win.ref(), dialect));
+                sb.append(compileExpression(win.ref(), dialect, planAliasMap));
             }
             if (!win.args().isEmpty()) {
                 if (win.ref() != null) sb.append(", ");
@@ -213,7 +250,7 @@ public final class ComposePlanner {
                 }
             }
             sb.append(") OVER (");
-            
+
             OverClause over = win.over();
             boolean hasPartition = over.getPartitionBy() != null && !over.getPartitionBy().isEmpty();
             boolean hasOrder = over.getOrderBy() != null && !over.getOrderBy().isEmpty();
@@ -253,21 +290,49 @@ public final class ComposePlanner {
             return sb.toString();
         }
         if (expr instanceof PlanColumnRef ref) {
-            return needsQuoting(ref.name(), dialect) ? quoteIdent(ref.name(), dialect) : ref.name();
+            return compilePlanColumnRef(ref, dialect, planAliasMap);
         }
         // Fallback for unknown objects
         return quoteColumnExpr(expr.toString(), dialect);
     }
 
+    /**
+     * <b>G10 PR3</b> · Render a {@link PlanColumnRef}, routing through
+     * {@code planAliasMap} when the G10 flag is enabled and the plan is
+     * registered. Falls back to bare-name rendering otherwise — preserves
+     * M4 byte-for-byte for single-base / non-ambiguous paths.
+     */
+    private static String compilePlanColumnRef(PlanColumnRef ref, String dialect,
+                                                Map<QueryPlan, String> planAliasMap) {
+        String column = needsQuoting(ref.name(), dialect)
+                ? quoteIdent(ref.name(), dialect) : ref.name();
+        if (!ComposeFeatureFlags.g10Enabled() || ref.plan() == null) {
+            return column;
+        }
+        String alias = planAliasMap.get(ref.plan());
+        if (alias == null) {
+            return column;
+        }
+        return alias + "." + column;
+    }
+
     /** Render a heterogeneous {@code .columns()} list (raw strings, {@link ColumnExpr},
-     *  {@link ProjectedColumn}) as plain SQL-ish strings. Package-visible so
-     *  {@link PerBaseCompiler} can share the same conversion. */
+     *  {@link ProjectedColumn}, {@link PlanColumnRef}) as plain SQL-ish strings.
+     *  Package-visible so {@link PerBaseCompiler} can share the same conversion.
+     *
+     *  <p>For {@link PlanColumnRef} the bare column name is emitted — these
+     *  strings name the <i>output columns</i> of the surrounding CTE/subquery
+     *  so the wrapper {@code SELECT col1, col2 FROM cte_N} resolves them
+     *  positionally; the alias-qualified {@code cte_N.col} form is rendered
+     *  one layer in by {@code renderOuterSelect}. {@code toString()} would
+     *  emit {@code "FieldRef(...)"} which is meaningless SQL.</p> */
     static List<String> extractStringCols(List<Object> cols) {
         List<String> out = new ArrayList<>(cols.size());
         for (Object c : cols) {
             if (c instanceof String s) out.add(s);
             else if (c instanceof ColumnExpr ce) out.add(ce.name());
             else if (c instanceof ProjectedColumn pc) out.add(pc.toColumnExpr());
+            else if (c instanceof PlanColumnRef ref) out.add(ref.name());
             else out.add(c.toString());
         }
         return out;
@@ -370,6 +435,23 @@ public final class ComposePlanner {
          *  {@link SqlGenerationResult}. Skips re-running v1.3 governance for
          *  self-join / self-union cases. */
         final Map<String, SqlGenerationResult> governanceCache = new HashMap<>();
+        /**
+         * <b>G10 PR3</b> · Plan-tree → CTE/subquery alias mapping.
+         *
+         * <p>Populated by {@link #compileBase} / {@link #compileDerived} as
+         * each plan node receives its {@code cte_N} alias via
+         * {@link #nextAlias()}. Read by {@link #compileExpression(Object, String, Map)}
+         * when emitting {@link PlanColumnRef} so a plan-qualified ref like
+         * {@code {plan: orderHandle, field: "name"}} compiles to
+         * {@code cte_0.name} instead of an ambiguous bare {@code name}.</p>
+         *
+         * <p>Identity-keyed (uses {@link IdentityHashMap}) so two plans with
+         * structurally-equal payloads but distinct object identities don't
+         * collide on the same alias — that would re-introduce ambiguity.
+         * Empty when {@link ComposeFeatureFlags#g10Enabled()} is false; the
+         * legacy emit path then falls back to bare-name rendering.</p>
+         */
+        final IdentityHashMap<QueryPlan, String> planAliasMap = new IdentityHashMap<>();
         int currentDepth = 0;
 
         CompileState(Map<String, ModelBinding> bindings, SemanticQueryServiceV3 semanticService,
@@ -508,6 +590,9 @@ public final class ComposePlanner {
                             + "on the same plan tree and its result is passed via bindings=...");
         }
         String alias = state.nextAlias();
+        // G10 PR3: register plan → alias before downstream emit so any
+        // PlanColumnRef pointing at this plan resolves via planAliasMap.
+        state.planAliasMap.put(plan, alias);
         return PerBaseCompiler.compileBaseModel(
                 plan, binding, state.semanticService, state.namespace, alias, state.governanceCache);
     }
@@ -523,7 +608,7 @@ public final class ComposePlanner {
         }
 
         List<Object> outerParams = new ArrayList<>();
-        String outerSql = renderOuterSelect(plan, innerUnit.getAlias(), innerUnit.getSql(), outerParams, state.dialect);
+        String outerSql = renderOuterSelect(plan, innerUnit.getAlias(), innerUnit.getSql(), outerParams, state);
 
         List<Object> merged = new ArrayList<>();
         if (innerUnit.getParams() != null) merged.addAll(innerUnit.getParams());
@@ -537,8 +622,12 @@ public final class ComposePlanner {
         if (innerWasJoin) {
             return new ComposedSql(outerSql, merged);
         }
+        String derivedAlias = state.nextAlias();
+        // G10 PR3: derived plans carry their own alias too, so a downstream
+        // F5 PlanColumnRef pointing at this derived plan resolves correctly.
+        state.planAliasMap.put(plan, derivedAlias);
         return new CteUnit(
-                state.nextAlias(),
+                derivedAlias,
                 outerSql,
                 merged,
                 extractStringCols(plan.columns()));
@@ -856,8 +945,10 @@ public final class ComposePlanner {
     // ------------------------------------------------------------------
 
     private static String renderOuterSelect(
-            DerivedQueryPlan plan, String innerAlias, String innerSql, List<Object> outerParams, String dialect) {
+            DerivedQueryPlan plan, String innerAlias, String innerSql,
+            List<Object> outerParams, CompileState state) {
 
+        String dialect = state.dialect;
         StringBuilder sb = new StringBuilder();
         sb.append("SELECT ");
         if (plan.distinct()) sb.append("DISTINCT ");
@@ -866,7 +957,7 @@ public final class ComposePlanner {
         } else {
             List<String> quotedCols = new ArrayList<>(plan.columns().size());
             for (Object colObj : plan.columns()) {
-                quotedCols.add(compileExpression(colObj, dialect));
+                quotedCols.add(compileExpression(colObj, dialect, state.planAliasMap));
             }
             sb.append(String.join(", ", quotedCols));
         }
