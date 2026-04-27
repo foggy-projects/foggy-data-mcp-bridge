@@ -255,7 +255,7 @@ const bad_result = dsl({
 > `Rename in source plans using "name AS xxx", or — when G5 lands — use`
 > `{plan: <ref>, field: "name", as: "..."} for post-join disambiguation.`
 
-#### 后置消歧（计划中 · 等 [G5](compose-query-manuals-gap-tracker.md#g5) 收口）
+#### 后置消歧（引擎已就绪 · 用户级仍受 `g10Enabled()` 默认 OFF 约束）
 
 ::: tip 为什么必须有后置消歧路径
 LLM 在生成 join 链时**很可能在源 plan 构造期就引入冲突列**——尤其是按业务模型直觉写 `columns: ["id", "name", ...]` 时。如果 DSL 唯一的消歧机制是"必须回到源 plan rename"，LLM 一旦发现冲突就要重写整段上游脚本，回归代价大、上下文消耗高。
@@ -263,10 +263,20 @@ LLM 在生成 join 链时**很可能在源 plan 构造期就引入冲突列**—
 G5 落地后将提供**派生层后置消歧**通道，让 LLM 在保留上游代码不变的前提下修复冲突——这是 G5 收口的硬性要求，不是可选增强。
 :::
 
-G5 收口后将支持列项对象语法：
+::: warning 当前用户级开放状态（2026-04-28）
+G5 v2 spec **Final** · F4 + F5 双端引擎实施完成（Java PR-J1/J2 + Python PR-P1/P2 双端 11 commits）；F5 集成测试 Java 5 + Python 5 = G10 acceptance FU-1 (≥3 plan-aware compile + ≥2 plan-routed permission) 全部交付。
+
+但 `ComposeFeatureFlags.g10Enabled()` 默认仍为 `false`：
+- flag-off 路径下 SchemaDerivation 直接抛 `JOIN_OUTPUT_COLUMN_CONFLICT`（即上文 `bad_result` 错误示例）
+- flag-on 路径下 F5 plan-qualified columns 已可正确路由编译 + 权限校验，但用户/LLM 默认看不到
+
+翻转决策门见 [G10-flag-flip-rollout-playbook.md](G10-flag-flip-rollout-playbook.md) C1-C4。在 flag 翻转 ON 之前，仍以"源 plan 构造期 rename"为唯一推荐路径。
+:::
+
+flag 翻转 ON 后，下列列项对象语法即可使用（语法已稳定）：
 
 ```javascript
-// 🚧 G5 收口后可用：派生层后置消歧
+// G5 F5 后置消歧（flag g10Enabled=true 后可用）
 const result = dsl({
   model: bad_joined,
   columns: [
@@ -277,7 +287,7 @@ const result = dsl({
 });
 ```
 
-`{plan: <ref>, field: "...", as: "..."}` 在 AST 层等价于链式 API 的 `bad_customers.name.as("customer_name")`，但通过**对象引用**而非 Proxy 属性，DSL 独立性不受影响。详见 [G5](compose-query-manuals-gap-tracker.md#g5)。
+`{plan: <ref>, field: "...", as: "..."}` 在 AST 层等价于链式 API 的 `bad_customers.name.as("customer_name")`，但通过**对象引用**而非 Proxy 属性，DSL 独立性不受影响。详见 [G5 spec](P0-SemanticDSL-列项对象语法-后置消歧设计.md) 与 [Gap tracker · G5](compose-query-manuals-gap-tracker.md#g5)。
 
 ### 3.5 约束与边界
 

@@ -40,7 +40,7 @@ Compose Query 双手册采用"**先骨架、后填能力**"策略：
 | G2 | DSL 配置缺完整 CTE/派生/Join/Union 语法 | A §5-§8 | P0 | 仅 A | **in-review**（spec **v4** 2026-04-26 · model polymorphic + combinator-only + `.union([...])` 数组重载） | 8.3.0.beta |
 | G3 | 双侧缺底层窗口原语暴露 (lag/lead/rolling/over) | A §10 / B §10 | P1 | 双 | open | 8.3.0.beta |
 | G4 | 输出后缀规约链式侧未继承 | B §11 | P1 | 仅 B | open | 8.3.0.beta |
-| G5 | DSL **columns** F4 `{field, agg, as}` + F5 `{plan, field, as}` 后置消歧（v2 缩窄） | A §2 / A §4 / A §3.6（F5 解锁后置路径） | **P0**（LLM 自我修复硬需求） | 仅 A | **in-review**（spec **v2** 2026-04-26 · 收到 v1 代码核实级 ❌ 评估后缩窄到 columns + 拆 Phase 1/Phase 2） | 8.3.0.beta |
+| G5 | DSL **columns** F4 `{field, agg, as}` + F5 `{plan, field, as}` 后置消歧（v2 缩窄） | A §2 / A §4 / A §3.6（F5 解锁后置路径） | **P0**（LLM 自我修复硬需求） | 仅 A | **engine-implemented · user-gated**（F4 ✅ + F5 ✅ Java/Python 双端实施完成 · spec **Final** 2026-04-28 · `g10Enabled()` 默认 OFF → 用户级仍未开放 · F5 集成测试 Java 5 + Python 5 = G10 FU-1 ≥3+≥2 全部交付） | 8.3.0.beta |
 | G10 | Compose 引擎前置改造（join 歧义 schema + plan provenance + plan-aware 编译 + plan-aware 权限校验子层） | G5 F5 / G11 / G12 全部硬前置 | **P0** | Java + Python 引擎 | **accepted-with-risks**（spec v2 · 双仓 12 commits · 154 单元 + 双端 lane 全绿 · 集成测试 ≥3+≥2 deferred → FU-1 G5 Phase 2 同批次承接 · audit `coverage/G10-coverage-audit.md` · acceptance `acceptance/G10-ComposeEngine-PlanAware-acceptance.md` · 2026-04-27 user 签收） | 8.3.0.beta |
 | G11 | DSL `slice` F4/F5 支持（含 SliceShape 字段强转修复） | A §3 (slice) | P1 | 仅 A | open（依赖 G5 v2 + G10 落地） | 8.3.0.beta or later |
 | G12 | DSL `groupBy` / `orderBy` F4/F5 支持（含 `List<String>` → `List<Object>` 类型迁移） | A §3 (groupBy/orderBy) | P2 | 仅 A | open（依赖 G5 v2 + G10 落地） | 8.3.0.beta or later |
@@ -126,22 +126,29 @@ Compose Query 双手册采用"**先骨架、后填能力**"策略：
 
 - **Layer**: Layer 1（底层原语）
 - **范围**：仅限 `columns` 字段中的 F4 / F5 对象形态（v1 → v2 缩窄）
+- **状态**：`engine-implemented · user-gated`（2026-04-28）
 - **关键依赖** ⭐：
   - G2 spec §3.4 规定 join 重名消歧**必须**有后置路径
   - **LLM 生成 join 链时极可能在源 plan 构造期就引入冲突列**——回归源头改写代价大、上下文消耗高
   - G5 必须提供**派生层后置消歧**通道，保留上游代码不变让 LLM 自我修复
 - **v2 范围与依赖**：
-  - **Phase 1 (F4 columns)** · 立即可推进 · 无 AST 改动（columns 已是 `List<Object>`）
-  - **Phase 2 (F5 columns)** · 阻塞于 [G10](#g10) · 依赖 SchemaDerivation / OutputSchema / ComposePlanner / FieldAccessPermissionStep 改造
+  - **Phase 1 (F4 columns)** · ✅ 已落地 · 无 AST 改动（columns 已是 `List<Object>`）
+  - **Phase 2 (F5 columns)** · ✅ 已落地 · 依赖 [G10](#g10) PR2/PR3/PR4 已签收
   - **slice / groupBy / orderBy** 已移交 [G11](#g11) / [G12](#g12)
+- **实施摘要**（PR-J1/J2/P1/P2 · 2026-04-28）：
+  - Java 侧（worktree `dev-compose`）：`d667c52` PR-J1（normalizer F5 sentinel + visibility）+ `56a124e` PR-J2（`F5ColumnObjectIntegrationTest` 5 tests · sqlite lane **1809+ passed**）+ `3b7a9e7` simplify polish
+  - Python 侧（main）：`9973fb8` PR-P1（normalizer F5 flatten + collect_visible_plans）+ `cf2ba9b` PR-P2（`test_f5_integration` 5 tests · pytest **3202 passed**）+ `4703ba8` simplify polish
+- **G10 acceptance FU-1 交付**：≥3 plan-aware compile + ≥2 plan-routed permission 在双端均已落盘（Java 5 + Python 5），FU-1 关闭
 - **关键产物**：F5 形态 `{plan: <ref>, field, agg?, as?}` —— AST 层等价链式 API `customers.name.as(...)`，但通过对象引用绕开 Proxy
+- **架构差异留痕**：Java `BaseModelPlan.columns: List<Object>` 携带 `PlanColumnRef` 直至 SQL 编译；Python 在 `column_normalizer` 解析期 flatten 为 F4 string，`OutputSchema.plan_provenance` 由 PR5.4 承接路由——契约由 G10 PR5 双端 parity 锁住
+- **用户级开放门**：`ComposeFeatureFlags.g10Enabled()` 默认 `false` —— 引擎已就位，但 F5 用户级**仍未开放**；翻转决策门见 [G10-flag-flip-rollout-playbook.md](G10-flag-flip-rollout-playbook.md) C1-C4
 - **关联**：
   - G2 spec §3.4（重名消歧 · 后置路径硬需求）
-  - G10（引擎前置硬阻塞）
-  - 现有 DSL 文档：`docs-site/zh/dataset-model/tm-qm/query-dsl.md` §columns（仅短写）
+  - G10（引擎前置 · 已签收 `accepted-with-risks`）
+  - 现有 DSL 文档：`docs-site/zh/dataset-model/tm-qm/query-dsl.md` §columns（仅短写 · F5 用户文档落稿待 `g10Enabled()` 翻转默认 ON 后再补）
 - **Evidence**：
-  - G5 spec v2：`docs/8.3.0.beta/P0-SemanticDSL-列项对象语法-后置消歧设计.md`
-  - 代码现状（v1 评审证据）：`SchemaDerivation.java:212-234`，`ComposePlanner.java:255`，`BaseModelPlan.java:24-25`，`SliceShape.java:22-66`，`FieldAccessPermissionStep.java:44-83`
+  - G5 spec **Final**：`docs/8.3.0.beta/P0-SemanticDSL-列项对象语法-后置消歧设计.md`
+  - 实施落盘：见 §4.3 实施完成度小结
 
 <a id="g10"></a>
 ### G10 · Compose 引擎前置改造（G5 F5 + G11 + G12 硬阻塞）
@@ -164,7 +171,7 @@ Compose Query 双手册采用"**先骨架、后填能力**"策略：
   - G11 (slice F5) / G12 (groupBy/orderBy F5) — 待 G5 Phase 2 落地后启动
 - **签收记录**：`docs/8.3.0.beta/acceptance/G10-ComposeEngine-PlanAware-acceptance.md`（decision: `accepted-with-risks` · 2026-04-27 user 签收 · evidence_count 12）
 - **Follow-up（非阻断 G10）**：
-  - **FU-1**（critical）：G5 Phase 2 (F5 columns) 实施批次**强制承接** ≥3 plan-aware compile + ≥2 plan-routed permission 真实 SQL 集成测试
+  - **FU-1**（critical · ✅ **已交付** 2026-04-28）：G5 Phase 2 (F5 columns) 实施批次承接的 ≥3 plan-aware compile + ≥2 plan-routed permission 真实 SQL 集成测试 —— Java `F5ColumnObjectIntegrationTest`（5 tests · `56a124e`）+ Python `test_f5_integration.py`（5 tests · `cf2ba9b`），双端均超额覆盖（≥3+≥2）
   - **FU-2**（major）：flag-flip rollout 前补 `flag=true` lane 单次 sweep
   - **FU-3**（minor · 已交付）：flag-flip rollout playbook → `docs/8.3.0.beta/G10-flag-flip-rollout-playbook.md`（draft · C1-C4 决策门均未满足，当前不可执行）
 

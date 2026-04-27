@@ -1,11 +1,11 @@
 # P0 · SemanticDSL · columns 列项对象语法 + 后置消歧设计（G5 v2）
 
-> **状态**：Draft v2-patch-2（已落档，可入实施）
+> **状态**：Final（F4 + F5 双端实施完成 · 用户开放仍受 `g10Enabled()` 默认 OFF 约束）
 > **目标版本**：8.3.0.beta
 > **关联 gap**：[G5](compose-query-manuals-gap-tracker.md#g5)（v2 已缩窄到 columns 范围）
-> **前置依赖**：[G10](compose-query-manuals-gap-tracker.md#g10) PR2/PR3/PR4 ✅ 已落地于 worktree HEAD（`g10Enabled()` 默认 OFF）；Python PR5 单独立项
+> **前置依赖**：[G10](compose-query-manuals-gap-tracker.md#g10) PR2/PR3/PR4 ✅ 已落地于 worktree HEAD（`g10Enabled()` 默认 OFF）；Python G10 PR5 ✅ 已签收
 > **关联 spec**：[G2 spec v4](P0-SemanticDSL-CTE-派生-Join-Union-语法设计.md)（`model` 多态 + combinator 唯一形态）
-> **创建日期**：2026-04-26 · **最近修订**：2026-04-27（v2-patch-2 落档）
+> **创建日期**：2026-04-26 · **最近修订**：2026-04-28（F5 Java/Python 双端 PR-J1/J2/P1/P2 全部落盘）
 
 ## 0. 摘要
 
@@ -372,10 +372,36 @@ C2 是治理硬要求——不检测会导致合成 calc 静默 shadow 真实物
 | 项 | 状态 |
 |----|------|
 | Java 引擎链路（PR2 / PR3 / PR4） | ✅ 已落地于 HEAD |
-| Java F5 DSL 入口集成测试（`F5ColumnObjectIntegrationTest.java`） | ⏳ 待补 —— 现有 `FluentApiCompileTest` 走 `PlanColumnRef` + `.sum().as()` 链式但非 Map DSL |
-| Python PR5（Java PR3+PR4 镜像） | ❌ 未启动 —— 单独立项 |
-| `ComposeFeatureFlags.g10Enabled()` 默认值切换 | 未决定 —— G10 默认 OFF 意味着 F5 代码在 HEAD 但用户级不开放，需协调 LLM 提示词 / G2 / Manual A 一起决策 |
-| Manual A § 后置消歧段落落稿 | ⏳ |
+| Java F5 Map DSL 入口（`ColumnObjectNormalizer` F5 plan-key 分支） | ✅ PR-J1（`d667c52`）—— `ALLOWED_F5_KEYS` + `buildPlanExpression()` + `QueryPlan.collectVisiblePlans()` 谱系遍历 |
+| Java F5 DSL 入口集成测试（`F5ColumnObjectIntegrationTest.java`） | ✅ PR-J2（`56a124e`）—— 5 tests（3 plan-aware compile + 2 plan-routed permission） |
+| Python F5 入口（`column_normalizer` F5 sentinel + flatten） | ✅ PR-P1（`9973fb8`）—— Python 平面化路径，flatten 到 F4 string；`plan_provenance` lookup 由 PR5.4 验证器承接 |
+| Python F5 集成测试（`tests/compose/compilation/test_f5_integration.py`） | ✅ PR-P2（`cf2ba9b`）—— 5 tests 镜像 Java 套件 |
+| Python G10 PR5（Java PR3+PR4 镜像） | ✅ 已签收（详见 G10 acceptance · `b54f0a6` polish） |
+| `ComposeFeatureFlags.g10Enabled()` 默认值切换 | ⏳ 未决定 —— G10 默认 OFF 意味着 F5 用户级仍不开放；翻转决策门见 [G10-flag-flip-rollout-playbook.md](G10-flag-flip-rollout-playbook.md) C1-C4 |
+| Manual A § 后置消歧段落落稿 | ⏳ 待补 —— 待 `g10Enabled()` 翻转默认 ON 后再面向用户落稿 |
+
+### 4.3 F5 实施完成度小结（G5 closure）
+
+**Java 侧**（worktree `dev-compose` HEAD · PR-J1/J2 · `d667c52` + `56a124e`）：
+
+| 改造点 | 落盘文件 | 测试 |
+|--------|---------|------|
+| `ALLOWED_F5_KEYS` + F5 sentinel 分支 + `buildPlanExpression()` | `ColumnObjectNormalizer.java` | `ColumnObjectNormalizerF5Test`（14） |
+| `QueryPlan.collectVisiblePlans()` 抽象 + 4 实现 + `validateF5PlanVisibility()` | `QueryPlan` / `BaseModelPlan` / `DerivedQueryPlan` / `JoinPlan` / `UnionPlan` | `QueryPlanVisibilityTest`（14） |
+| `COLUMN_PLAN_TYPE_INVALID` + `COLUMN_PLAN_NOT_VISIBLE` 错误码 | `ComposeSchemaErrorCodes`（ALL_CODES 12→14） | 错误码反射测试已对齐 |
+| `SchemaDerivation.parseObjectOrRaise` ProjectedColumn alias/expr 参数序修复（latent bug） | `SchemaDerivation.java` | F5 集成测试触发后修复 |
+| F5 plan-aware compile + plan-routed permission 端到端 | `F5ColumnObjectIntegrationTest`（5）| sqlite lane **1809+ passed** |
+
+**Python 侧**（main · PR-P1/P2 · `9973fb8` + `cf2ba9b`）：
+
+| 改造点 | 落盘文件 | 测试 |
+|--------|---------|------|
+| F5 sentinel 检测 + flatten 到 F4 string + plan 类型校验 | `column_normalizer.py` | `tests/compose/plan/test_f5_column_object.py`（21） |
+| `QueryPlan.collect_visible_plans()` 抽象 + 4 实现 | `plan.py` | `_FakePlan` / `Rogue` mock 收口同步更新 |
+| 错误码 `COLUMN_PLAN_TYPE_INVALID` + `COLUMN_PLAN_NOT_VISIBLE` | `error_codes.py` | `test_schema_errors.py` ALL_CODES 12→14 |
+| F5 plan-aware compile + plan-routed permission 端到端 | `tests/compose/compilation/test_f5_integration.py`（5）| pytest 全仓 **3202 passed / 1 skipped / 1 xfailed** |
+
+**架构差异留痕**：Java 在 `BaseModelPlan.columns: List<Object>` 携带 `PlanColumnRef` 直至 SQL 编译；Python 在 `column_normalizer` 解析期即 flatten 为 F4 string，`OutputSchema.plan_provenance` 由 PR5.4 验证器经路由对应 plan binding。两端契约经由 G10 PR5 的双端 parity 测试矩阵锁住，详见 spec §4.1 链路与 `column_normalizer.py` "Architectural divergence from Java" docstring。
 
 ## 5. plan-qualified 解析规则（F5）
 

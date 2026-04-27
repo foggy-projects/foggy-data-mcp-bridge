@@ -170,7 +170,7 @@ evidence_count: 12
 
 | ID | 优先级 | 范围 | 承接批次 | 阻断关系 |
 |----|--------|------|---------|---------|
-| FU-1 | critical | spec §9.6 + §9.7 真实 SQL 集成测试 ≥3 + ≥2 | **G5 Phase 2** (F5 columns) 实施批次 | 不阻断 G10 acceptance；**阻断 G5 Phase 2 单独签收** |
+| FU-1 | critical | spec §9.6 + §9.7 真实 SQL 集成测试 ≥3 + ≥2 | **G5 Phase 2** (F5 columns) 实施批次 | ✅ **已交付** 2026-04-28 — Java `F5ColumnObjectIntegrationTest` 5 tests（`56a124e`）+ Python `tests/compose/compilation/test_f5_integration.py` 5 tests（`cf2ba9b`）；双端均超额覆盖（≥3+≥2） |
 | FU-2 | major | flag=true / false lane 矩阵单次 sweep | flag-flip rollout 前 | 不阻断 G10 acceptance；**阻断 flag 默认翻转** |
 | FU-3 | minor | flag-flip rollout playbook 起草 | 本验收同批 | 不阻断（本验收同批产出） |
 
@@ -180,3 +180,4 @@ evidence_count: 12
 |------|------|------|
 | 2026-04-27 | 创建 ready-for-signoff 草稿 | 基于 coverage audit 结论 `ready-with-gaps`；recommended decision `accepted-with-risks`；待用户最终批复 |
 | 2026-04-27 | 用户签收 → `signed-off` | decision `accepted-with-risks`；FU-1（G5 Phase 2 集成测试 ≥3+≥2）+ FU-2（lane sweep）+ FU-3（playbook）作为非阻断 follow-up 跟踪；G5 Phase 2 / G11 / G12 全部解锁 |
+| 2026-04-28 | FU-1 关闭 | G5 Phase 2 (F5 columns) PR-J1 / PR-J2 / PR-P1 / PR-P2 双端落盘；Java `F5ColumnObjectIntegrationTest` 5 tests + Python `test_f5_integration.py` 5 tests；spec §9.6（plan-aware compile ≥3）+ §9.7（plan-routed permission ≥2）跨端均交付。FU-2 / FU-3 仍跟踪中 |
