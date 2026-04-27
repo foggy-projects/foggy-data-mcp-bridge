@@ -140,7 +140,12 @@ public final class ScriptRuntime {
                 }
                 if (args.containsKey("columns")) {
                     @SuppressWarnings("unchecked")
-                    List<Object> columns = (List<Object>) args.get("columns");
+                    List<Object> rawColumns = (List<Object>) args.get("columns");
+                    // G5 Phase 1 (F4): Normalize {field, agg?, as?} Map entries to
+                    // their canonical string form. F1-F3 strings and PlanColumnRef /
+                    // other PlanExpression types pass through unchanged.
+                    List<Object> columns = com.foggyframework.dataset.db.model.engine.compose.plan
+                            .ColumnObjectNormalizer.normalizeColumns(rawColumns);
                     // Layer B: validate column expressions (String + PlanExpression heterogeneous).
                     ExpressionWhitelistValidator.validateColumns(columns, "script-eval");
                     builder.columns(columns);

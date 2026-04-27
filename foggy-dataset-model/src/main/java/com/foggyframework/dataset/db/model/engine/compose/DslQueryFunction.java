@@ -1,5 +1,6 @@
 package com.foggyframework.dataset.db.model.engine.compose;
 
+import com.foggyframework.dataset.db.model.engine.compose.plan.ColumnObjectNormalizer;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
@@ -301,14 +302,20 @@ public class DslQueryFunction implements FsscriptFunction {
         return result;
     }
 
+    /**
+     * Convert a column list to {@code List<String>} required by
+     * {@link SemanticQueryRequest#setColumns(List)}.
+     *
+     * <p>G5 Phase 1 (F4): {@link Map} entries (e.g. {@code {field, agg, as}}) are
+     * normalized to their canonical string form (e.g. {@code "SUM(amount) AS total"})
+     * via {@link ColumnObjectNormalizer}. F1-F3 string entries pass through unchanged.
+     * Other types (rare in this legacy path) fall back to {@code toString()}.</p>
+     *
+     * <p>Throws {@link IllegalArgumentException} with a {@code COLUMN_*} error-code
+     * prefix on F4 validation failure (missing field, unknown agg, etc.).</p>
+     */
     private List<String> toStringList(List<?> raw) {
-        List<String> result = new ArrayList<>(raw.size());
-        for (Object o : raw) {
-            if (o != null) {
-                result.add(o.toString());
-            }
-        }
-        return result;
+        return ColumnObjectNormalizer.normalizeColumnsToStrings(raw);
     }
 
     // ---- FsscriptFunction 接口方法 ----
