@@ -331,8 +331,13 @@ public final class SchemaDerivation {
             return parseAliasOrRaise(s, planPath);
         }
         if (obj instanceof ProjectedColumn pc) {
+            // ColumnAliasParts(expression, outputName, hasAlias) — preserve
+            // arg order; pre-G5-PR-J2 this swapped expression/outputName,
+            // which was latent because no upstream code path landed a
+            // ProjectedColumn in DerivedQueryPlan.columns until F5 wired
+            // {plan, field, as} into the derived layer.
             String exprText = ComposePlanner.compileExpression(pc.expr(), IDENTIFIER_RENDER_DIALECT);
-            return new ColumnAliasParts(pc.alias(), exprText, true);
+            return new ColumnAliasParts(exprText, pc.alias(), true);
         }
         if (obj instanceof ColumnExpr ce) {
             return new ColumnAliasParts(ce.name(), ce.name(), false);
