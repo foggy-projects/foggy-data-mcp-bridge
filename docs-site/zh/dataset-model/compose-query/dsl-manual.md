@@ -164,6 +164,43 @@ dsl({
 // → SQL: COUNT(DISTINCT customer_id) AS uniqueCustomers
 ```
 
+#### Plain alias-only 形态语义（v2-patch-2）
+
+`{field, as}` 不带 `agg` 时（plain alias-only），引擎将其合成为请求级 `CalculatedFieldDef(origin=PLAIN_ALIAS)`，等价于 SQL `base AS alias`。元数据自动从 base 字段继承：
+
+| 维度 | 行为 |
+|------|------|
+| **type** | 自动继承 base 字段类型（如 base 是 `MONEY`，alias 也是 `MONEY`） |
+| **caption** / label | 从 base 字段拷贝（如 `salesAmount` 的 caption "销售金额"，alias 后仍是 "销售金额"） |
+| **description** | 从 base 字段拷贝 |
+| **formatter** | 由 type 自动派生 |
+
+```javascript
+// 简单重命名 — 类型 / caption 全继承
+{ field: "salesAmount", as: "revenue" }
+// → SQL: t0.sales_amount AS revenue
+// → caption: "销售金额"（从 salesAmount 继承）
+
+// chain rename — 链式 alias 也支持
+columns: [
+  { field: "salesAmount", as: "x" },
+  { field: "x", as: "y" }
+]
+// → SELECT t0.sales_amount AS x, t0.sales_amount AS y FROM ...
+```
+
+#### 限制：维度后缀字段不能用 plain alias
+
+`{field, as}` 中 `field` 含 `$` 后缀（维度成员）时**不支持**，引擎抛 `COLUMN_DIMENSION_ALIAS_NOT_SUPPORTED`。维度成员的结构化语义在 calc field 路径会扁平化丢失，强制使用基础字段或在 G11/G12 框架内处理。
+
+```javascript
+// ❌ 不支持
+{ field: "product$id", as: "productId" }   // → COLUMN_DIMENSION_ALIAS_NOT_SUPPORTED
+
+// ✅ 直接使用维度成员
+"product$id"
+```
+
 #### 错误码（F4 校验）
 
 | 错误码 | 触发条件 |
@@ -172,8 +209,13 @@ dsl({
 | `COLUMN_AGG_NOT_SUPPORTED` | `agg` 不在白名单（`sum/avg/count/max/min/count_distinct`） |
 | `COLUMN_AS_TYPE_INVALID` | `as` 不是字符串 |
 | `COLUMN_FIELD_INVALID_KEY` | 对象包含未知键 |
+| `COLUMN_DIMENSION_ALIAS_NOT_SUPPORTED` | plain alias `{field, as}` 中 `field` 含 `$` 后缀 |
+| `COLUMN_ALIAS_COLLIDES_WITH_CALCULATED_FIELD` | plain alias 命中已有 calc field 名（QM 预定义或 request.calculatedFields） |
+| `COLUMN_ALIAS_COLLIDES_WITH_PHYSICAL_FIELD` | plain alias 命中 QM 物理字段名（防止静默 shadow） |
+| `COLUMN_ALIAS_DUPLICATE` | 同请求多列 alias 重复 |
+| `COLUMN_FIELD_NOT_FOUND` | plain alias 的 base 字段在 QM 不存在（错误信息包含 alias 视角） |
 
-🚧 **待补**：plan-qualified 形态 `{plan: <ref>, field, as}`（F5 · 用于 join 后置消歧）—— 当前为 Phase 2，硬阻塞于 [G10](../../../../docs/8.3.0.beta/compose-query-manuals-gap-tracker.md#g10) 引擎前置改造。如临时遇到 join 后重名冲突，请用源 plan 构造期 rename（即 `"name AS alias"`）；G10 落地后会开放 `{plan, field, as}` 后置消歧路径。详见 [G5 spec v2](../../../../docs/8.3.0.beta/P0-SemanticDSL-列项对象语法-后置消歧设计.md)。
+🚧 **F5 待补**：plan-qualified 形态 `{plan: <ref>, field, as}`（用于 join 后置消歧）—— Java 引擎链路已落地（G10 PR2/PR3/PR4），当前 `g10Enabled()` 默认 OFF；用户级开放等待默认值切换决策 + Python PR5 跨语言对齐。如临时遇到 join 后重名冲突，请用源 plan 构造期 rename（即 `"name AS alias"`）。详见 [G5 spec v2-patch-2](../../../../docs/8.3.0.beta/P0-SemanticDSL-列项对象语法-后置消歧设计.md)。
 
 ### 2.5 别名复用
 

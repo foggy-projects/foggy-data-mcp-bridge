@@ -1725,6 +1725,18 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         fieldInfo.put("calculated", true);
         fieldInfo.put("predefined", true);
 
+        // G5 v2-patch-2 · §3.1.2：plain-alias 合成项的 source 标记。
+        // 当前请求级合成项不进入 metadata pipeline（pipeline 仅取 QM 声明态），
+        // 此处保留 sourceField / aliasOf 段位，便于未来 origin-aware metadata 扩展（如审计回放、
+        // alias 溯源 UI）。其余 origin（USER_DECLARED / INLINE_EXPRESSION）不输出该段。
+        if (calc.getOrigin() == CalculatedFieldDef.Origin.PLAIN_ALIAS) {
+            String baseField = calc.getExpression();
+            if (baseField != null && !baseField.isEmpty()) {
+                fieldInfo.put("sourceField", baseField);
+                fieldInfo.put("aliasOf", baseField);
+            }
+        }
+
         Map<String, Object> modelInfo = new LinkedHashMap<>();
         modelInfo.put("description", (calc.getCaption() != null ? calc.getCaption() : calc.getName())
                 + " (公式: " + calc.getExpression() + ")");

@@ -135,6 +135,189 @@ class F4ColumnObjectIntegrationTest extends EcommerceTestSupport {
         assertRowsEqual(expected, actual.toList(), true);
     }
 
+    // --- G5 v2-patch-2 · Plain-field alias-only (Option A · synthesize CalculatedFieldDef) ---
+
+    @Test
+    @DisplayName("(a) F4 plain alias-only {field, as} — synthesize calc field, real SQL match")
+    void f4PlainAliasOnlyMatchesNative() {
+        Map<String, Object> aliasEntry = Map.of(
+                "field", "salesAmount", "as", "revenue");
+        DataSetResult actual = dsl(Map.of(
+                "model", SALES_MODEL,
+                "columns", List.of(aliasEntry)));
+
+        List<Map<String, Object>> expected = executeQuery("""
+                SELECT fs.sales_amount AS %s
+                FROM fact_sales fs
+                """.formatted(q("revenue")));
+
+        assertRowsEqual(expected, actual.toList(), true);
+    }
+
+    @Test
+    @DisplayName("(e) F2 string \"base AS alias\" and F4 object {field, as} produce identical results")
+    void f4PlainAliasEquivalentToF2String() {
+        Map<String, Object> aliasEntry = Map.of(
+                "field", "salesAmount", "as", "revenue");
+        DataSetResult fromF4 = dsl(Map.of(
+                "model", SALES_MODEL,
+                "columns", List.of(aliasEntry)));
+
+        DataSetResult fromF2 = dsl(Map.of(
+                "model", SALES_MODEL,
+                "columns", List.of("salesAmount AS revenue")));
+
+        // F2 string and F4 object MUST produce identical SQL & results
+        assertRowsEqual(fromF2.toList(), fromF4.toList(), true);
+    }
+
+    @Test
+    @DisplayName("(g) F4 plain alias + groupBy — base field grouped, alias output")
+    void f4PlainAliasGroupByCoordination() {
+        // columns has F4 plain alias (synthesized as calc field), plus an aggregation
+        Map<String, Object> aliasEntry = Map.of(
+                "field", "salesAmount", "as", "revenue");
+        DataSetResult actual = dsl(Map.of(
+                "model", SALES_MODEL,
+                "columns", List.of(aliasEntry, "SUM(quantity) AS qty"),
+                "groupBy", List.of("salesAmount")));
+
+        List<Map<String, Object>> expected = executeQuery("""
+                SELECT fs.sales_amount AS %s,
+                       SUM(fs.quantity) AS %s
+                FROM fact_sales fs
+                GROUP BY fs.sales_amount
+                """.formatted(q("revenue"), q("qty")));
+
+        assertRowsEqual(expected, actual.toList(), true);
+    }
+
+    @Test
+    @DisplayName("(h) F4 chain rename: {field:'a',as:'x'} then {field:'x',as:'y'} resolves to base 'a'")
+    void f4PlainAliasChainRename() {
+        // First column synthesizes calc {x → salesAmount}; second column references "x" (not synthesized,
+        // since "x" itself isn't a base field but a calc field — the ColumnObjectNormalizer just produces
+        // "x AS y" string, which then synthesizes calc {y → x}; resolveBaseColumnReferences chains x → salesAmount.
+        Map<String, Object> first = Map.of("field", "salesAmount", "as", "x");
+        Map<String, Object> second = Map.of("field", "x", "as", "y");
+        DataSetResult actual = dsl(Map.of(
+                "model", SALES_MODEL,
+                "columns", List.of(first, second)));
+
+        List<Map<String, Object>> expected = executeQuery("""
+                SELECT fs.sales_amount AS %s, fs.sales_amount AS %s
+                FROM fact_sales fs
+                """.formatted(q("x"), q("y")));
+
+        assertRowsEqual(expected, actual.toList(), true);
+    }
+
+    // --- G5 v2-patch-2 · Naming collision fail-fast (C1 / C2 / C3) ---
+
+    @Test
+    @DisplayName("(k) C1: alias collides with existing calc field → COLUMN_ALIAS_COLLIDES_WITH_CALCULATED_FIELD")
+    void f4PlainAliasCollidesWithCalcField() {
+        // QM declares calc field "taxAmount2" via formulaDef (FactSalesModel.tm:216-226).
+        Map<String, Object> aliasEntry = Map.of(
+                "field", "salesAmount", "as", "taxAmount2");
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> dsl(Map.of(
+                        "model", SALES_MODEL,
+                        "columns", List.of(aliasEntry))));
+        assertTrue(ex.getMessage().contains("COLUMN_ALIAS_COLLIDES_WITH_CALCULATED_FIELD"),
+                "Expected COLUMN_ALIAS_COLLIDES_WITH_CALCULATED_FIELD, got: " + ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("(l) C2: alias collides with QM physical field → COLUMN_ALIAS_COLLIDES_WITH_PHYSICAL_FIELD")
+    void f4PlainAliasCollidesWithPhysicalField() {
+        // Alias "costAmount" is a real measure in FactSalesModel.tm:198-202 — using it as alias
+        // for salesAmount would silently shadow the real field. Engine must reject.
+        Map<String, Object> aliasEntry = Map.of(
+                "field", "salesAmount", "as", "costAmount");
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> dsl(Map.of(
+                        "model", SALES_MODEL,
+                        "columns", List.of(aliasEntry))));
+        assertTrue(ex.getMessage().contains("COLUMN_ALIAS_COLLIDES_WITH_PHYSICAL_FIELD"),
+                "Expected COLUMN_ALIAS_COLLIDES_WITH_PHYSICAL_FIELD, got: " + ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("(m) C3: duplicate alias in same request → COLUMN_ALIAS_DUPLICATE")
+    void f4PlainAliasDuplicateInSameRequest() {
+        Map<String, Object> first = Map.of("field", "salesAmount", "as", "x");
+        Map<String, Object> second = Map.of("field", "costAmount", "as", "x");
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> dsl(Map.of(
+                        "model", SALES_MODEL,
+                        "columns", List.of(first, second))));
+        assertTrue(ex.getMessage().contains("COLUMN_ALIAS_DUPLICATE"),
+                "Expected COLUMN_ALIAS_DUPLICATE, got: " + ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("(n) F4 dimension-suffix base + alias → COLUMN_DIMENSION_ALIAS_NOT_SUPPORTED")
+    void f4PlainAliasOnDimensionSuffixRejected() {
+        Map<String, Object> aliasEntry = Map.of(
+                "field", "product$id", "as", "productId");
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> dsl(Map.of(
+                        "model", SALES_MODEL,
+                        "columns", List.of(aliasEntry))));
+        assertTrue(ex.getMessage().contains("COLUMN_DIMENSION_ALIAS_NOT_SUPPORTED"),
+                "Expected COLUMN_DIMENSION_ALIAS_NOT_SUPPORTED, got: " + ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("(j) Metadata isolation: synthesized PLAIN_ALIAS calc must not leak into QM predefined calc fields")
+    void f4PlainAliasMetadataIsolation() {
+        // Snapshot QM predefined calc fields BEFORE any request-level synthesis
+        var qmBefore = getQueryModel(SALES_MODEL);
+        long countBefore = qmBefore.getPredefinedCalculatedFields().size();
+
+        // Run a plain-alias query that synthesizes calc field "revenue" at request time
+        Map<String, Object> aliasEntry = Map.of("field", "salesAmount", "as", "revenue");
+        DataSetResult result = dsl(Map.of(
+                "model", SALES_MODEL,
+                "columns", List.of(aliasEntry)));
+        assertFalse(result.toList().isEmpty(), "plain alias query should return rows");
+
+        // Snapshot AFTER — request-level synthesis must not mutate QM-level metadata
+        var qmAfter = getQueryModel(SALES_MODEL);
+        long countAfter = qmAfter.getPredefinedCalculatedFields().size();
+        assertEquals(countBefore, countAfter,
+                "QM predefined calc field count must not change after request-level plain-alias synthesis");
+
+        // No calc field named "revenue" should appear in QM-level metadata
+        boolean leaked = qmAfter.getPredefinedCalculatedFields().stream()
+                .anyMatch(c -> "revenue".equals(c.getName()));
+        assertFalse(leaked,
+                "Synthesized PLAIN_ALIAS calc field 'revenue' must NOT appear in QM predefinedCalculatedFields");
+    }
+
+    @Test
+    @DisplayName("(o) F4 base field not found — error message uses alias-perspective wording")
+    void f4PlainAliasBaseNotFoundShowsAliasPerspective() {
+        Map<String, Object> aliasEntry = Map.of(
+                "field", "nonexistent_field", "as", "myAlias");
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> dsl(Map.of(
+                        "model", SALES_MODEL,
+                        "columns", List.of(aliasEntry))));
+        assertTrue(ex.getMessage().contains("COLUMN_FIELD_NOT_FOUND"),
+                "Expected COLUMN_FIELD_NOT_FOUND, got: " + ex.getMessage());
+        assertTrue(ex.getMessage().contains("myAlias"),
+                "Expected error to mention alias 'myAlias' for traceability, got: " + ex.getMessage());
+        assertTrue(ex.getMessage().contains("nonexistent_field"),
+                "Expected error to mention base 'nonexistent_field', got: " + ex.getMessage());
+    }
+
     // --- Error code cases (no SQL — pure validation) ---
 
     @Test
