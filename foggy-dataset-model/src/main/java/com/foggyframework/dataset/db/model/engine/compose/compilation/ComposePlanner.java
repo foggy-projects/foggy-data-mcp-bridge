@@ -6,7 +6,11 @@ import com.foggyframework.dataset.db.model.engine.compose.CteUnit;
 import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
 import com.foggyframework.dataset.db.model.engine.compose.plan.*;
 import com.foggyframework.dataset.db.model.engine.compose.plan.expr.*;
+import com.foggyframework.dataset.db.model.engine.compose.schema.OutputSchema;
+import com.foggyframework.dataset.db.model.engine.compose.schema.SchemaDerivation;
+import com.foggyframework.dataset.db.model.engine.compose.security.ComposePlanAwarePermissionValidator;
 import com.foggyframework.dataset.db.model.engine.compose.security.ModelBinding;
+import com.foggyframework.dataset.db.model.engine.compose.security.PlanFieldAccessContext;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 
 import java.util.ArrayList;
@@ -514,6 +518,13 @@ public final class ComposePlanner {
 
         assertDialect(dialect);
         CompileState state = new CompileState(bindings, semanticService, namespace, dialect);
+        // G10 PR4 · plan-aware permission validation. Runs only when the
+        // G10 flag is on; under flag=off the legacy single-QM
+        // FieldAccessPermissionStep continues to enforce flat-whitelist
+        // semantics at @Order(-25) without any change.
+        if (state.g10Enabled) {
+            runPlanAwarePermissionCheck(plan, bindings);
+        }
         Object result = compileAny(plan, state);
         if (result instanceof ComposedSql) {
             return (ComposedSql) result;
@@ -522,6 +533,58 @@ public final class ComposePlanner {
         // or inline subquery for dialect-consistent output.
         CteUnit unit = (CteUnit) result;
         return wrapSingleUnit(unit, state.useCte, state.dialect);
+    }
+
+    /**
+     * <b>G10 PR4</b> · Walk the plan tree to build a
+     * {@link PlanFieldAccessContext}, derive the root plan's
+     * {@link OutputSchema}, then run
+     * {@link ComposePlanAwarePermissionValidator#validate}.
+     *
+     * <p>Pure pre-compile sub-step: no SQL is emitted here, no
+     * compile-state side effects beyond the validator's own throws.
+     * Failure surfaces as {@code ComposeSchemaException} (validation
+     * codes carry phase {@code "permission-validate"}).</p>
+     */
+    private static void runPlanAwarePermissionCheck(
+            QueryPlan plan, Map<String, ModelBinding> bindings) {
+        PlanFieldAccessContext.Builder ctxBuilder = PlanFieldAccessContext.builder();
+        collectPlanBindings(plan, bindings, ctxBuilder, new IdentityHashMap<>());
+        PlanFieldAccessContext planCtx = ctxBuilder.build();
+        OutputSchema schema = SchemaDerivation.derive(plan);
+        ComposePlanAwarePermissionValidator.validate(plan, schema, planCtx);
+    }
+
+    /** Tree walk: every {@link BaseModelPlan} pairs with its model's
+     *  {@link ModelBinding}; visited-set prevents quadratic walks on
+     *  shared plan subtrees. */
+    private static void collectPlanBindings(QueryPlan plan,
+                                              Map<String, ModelBinding> bindings,
+                                              PlanFieldAccessContext.Builder ctxBuilder,
+                                              IdentityHashMap<QueryPlan, Boolean> visited) {
+        if (plan == null || visited.put(plan, Boolean.TRUE) != null) {
+            return;
+        }
+        if (plan instanceof BaseModelPlan b) {
+            ModelBinding binding = bindings.get(b.model());
+            if (binding != null) {
+                ctxBuilder.bind(b, binding);
+            }
+            return;
+        }
+        if (plan instanceof DerivedQueryPlan d) {
+            collectPlanBindings(d.source(), bindings, ctxBuilder, visited);
+            return;
+        }
+        if (plan instanceof JoinPlan j) {
+            collectPlanBindings(j.left(), bindings, ctxBuilder, visited);
+            collectPlanBindings(j.right(), bindings, ctxBuilder, visited);
+            return;
+        }
+        if (plan instanceof UnionPlan u) {
+            collectPlanBindings(u.left(), bindings, ctxBuilder, visited);
+            collectPlanBindings(u.right(), bindings, ctxBuilder, visited);
+        }
     }
 
     // ------------------------------------------------------------------

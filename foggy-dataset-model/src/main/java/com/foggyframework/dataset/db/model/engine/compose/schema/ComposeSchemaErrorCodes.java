@@ -87,11 +87,52 @@ public final class ComposeSchemaErrorCodes {
      * {@code isAmbiguous=true}, and the reference itself is not
      * plan-qualified (F5).
      *
-     * <p>Reserved here so PR3 / PR4 producers can throw a stable code; not
-     * yet emitted by PR2.</p>
+     * <p>Emitted by {@code ComposePlanAwarePermissionValidator} (G10 PR4)
+     * during bare-field resolution; reserved here since PR2 so producers
+     * have a stable code.</p>
      */
     public static final String JOIN_AMBIGUOUS_COLUMN =
             NAMESPACE + "/join/ambiguous-column";
+
+    /**
+     * <b>G10 PR4</b> · Field access denied. Either a plan-qualified
+     * {@link com.foggyframework.dataset.db.model.engine.compose.plan.PlanColumnRef}
+     * was rejected by its plan's {@code fieldAccess} whitelist, or a bare
+     * field was uniquely resolved to a plan whose whitelist excludes it.
+     *
+     * <p>Distinct from the legacy single-QM
+     * {@code FieldAccessPermissionStep} flat-whitelist denial (which
+     * surfaces via {@code RX.throwB}); this code is the plan-routed
+     * Compose layer equivalent.</p>
+     */
+    public static final String FIELD_ACCESS_DENIED =
+            NAMESPACE + "/field-access/denied";
+
+    /**
+     * <b>G10 PR4</b> · A {@link com.foggyframework.dataset.db.model.engine.compose.plan.PlanColumnRef}
+     * targets a {@link com.foggyframework.dataset.db.model.engine.compose.plan.QueryPlan}
+     * that is not registered in the active
+     * {@code PlanFieldAccessContext}.
+     *
+     * <p>Fail-closed safeguard: an unregistered plan means we don't know
+     * what {@code fieldAccess} whitelist to apply, so we refuse rather
+     * than silently allowing the access.</p>
+     */
+    public static final String COLUMN_PLAN_NOT_BOUND =
+            NAMESPACE + "/column/plan-not-bound";
+
+    /**
+     * <b>G10 PR4</b> · A bare-field column reference does not resolve to
+     * any column in the plan's {@link OutputSchema}.
+     *
+     * <p>Distinct from {@link #DERIVED_QUERY_UNKNOWN_FIELD} (which fires
+     * during schema derivation when a derived plan references a column
+     * not in its source's output): this code surfaces during the
+     * permission-validate phase against the already-derived
+     * {@code OutputSchema}.</p>
+     */
+    public static final String COLUMN_FIELD_NOT_FOUND =
+            NAMESPACE + "/column/field-not-found";
 
     public static final Set<String> ALL_CODES = Set.of(
             DERIVED_QUERY_UNKNOWN_FIELD,
@@ -102,7 +143,10 @@ public final class ComposeSchemaErrorCodes {
             JOIN_ON_RIGHT_UNKNOWN_FIELD,
             JOIN_OUTPUT_COLUMN_CONFLICT,
             OUTPUT_SCHEMA_AMBIGUOUS_LOOKUP,
-            JOIN_AMBIGUOUS_COLUMN
+            JOIN_AMBIGUOUS_COLUMN,
+            FIELD_ACCESS_DENIED,
+            COLUMN_PLAN_NOT_BOUND,
+            COLUMN_FIELD_NOT_FOUND
     );
 
     // ------------------------------------------------------------------
@@ -112,9 +156,13 @@ public final class ComposeSchemaErrorCodes {
 
     public static final String PHASE_PLAN_BUILD = "plan-build";
     public static final String PHASE_SCHEMA_DERIVE = "schema-derive";
+    /** <b>G10 PR4</b> · plan-aware permission validation (after schema
+     *  derivation, before SQL emission). */
+    public static final String PHASE_PERMISSION_VALIDATE = "permission-validate";
 
     public static final Set<String> VALID_PHASES = Set.of(
             PHASE_PLAN_BUILD,
-            PHASE_SCHEMA_DERIVE
+            PHASE_SCHEMA_DERIVE,
+            PHASE_PERMISSION_VALIDATE
     );
 }

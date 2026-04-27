@@ -18,10 +18,13 @@ class ComposeSchemaExceptionTest {
     /**
      * 跨仓冻结的 code 字符串集合。
      *
-     * <p>M4 baseline 是 7 条；G10 PR2 追加两条
+     * <p>M4 baseline 7 条；G10 PR2 追加 2 条
      * ({@code OUTPUT_SCHEMA_AMBIGUOUS_LOOKUP} +
-     * {@code JOIN_AMBIGUOUS_COLUMN}) 以承载歧义列下游错误码 → 当前共 9 条。
-     * Python 侧 {@code error_codes.py} 的 {@code ALL_CODES} 必须同步 9 条。</p>
+     * {@code JOIN_AMBIGUOUS_COLUMN}) 以承载歧义列下游错误码；G10 PR4 再追加 3 条
+     * ({@code FIELD_ACCESS_DENIED} + {@code COLUMN_PLAN_NOT_BOUND} +
+     * {@code COLUMN_FIELD_NOT_FOUND}) 承载 plan-aware 权限校验子层错误 →
+     * 当前共 12 条。Python 侧 {@code error_codes.py} 的 {@code ALL_CODES}
+     * 必须同步 12 条。</p>
      */
     private static final Set<String> EXPECTED_CODES = Set.of(
             "compose-schema-error/derived-query/unknown-field",
@@ -32,24 +35,28 @@ class ComposeSchemaExceptionTest {
             "compose-schema-error/join/on-right-unknown-field",
             "compose-schema-error/join/output-column-conflict",
             "compose-schema-error/output-schema/ambiguous-lookup",
-            "compose-schema-error/join/ambiguous-column"
+            "compose-schema-error/join/ambiguous-column",
+            "compose-schema-error/field-access/denied",
+            "compose-schema-error/column/plan-not-bound",
+            "compose-schema-error/column/field-not-found"
     );
 
     private static final Set<String> EXPECTED_PHASES = Set.of(
             "plan-build",
-            "schema-derive"
+            "schema-derive",
+            "permission-validate"
     );
 
     @Test
     @DisplayName("ALL_CODES 与跨仓冻结的字符串集合逐字符一致")
     void allCodesMatchesExpected() {
         assertEquals(EXPECTED_CODES, ComposeSchemaErrorCodes.ALL_CODES);
-        assertEquals(9, ComposeSchemaErrorCodes.ALL_CODES.size(),
-                "M4 baseline 7 + G10 PR2 新增 2 条 = 9 条");
+        assertEquals(12, ComposeSchemaErrorCodes.ALL_CODES.size(),
+                "M4 baseline 7 + G10 PR2 新增 2 + G10 PR4 新增 3 = 12 条");
     }
 
     @Test
-    @DisplayName("9 个常量值匹配 namespace/kind 形态")
+    @DisplayName("12 个常量值匹配 namespace/kind 形态")
     void eachConstantMatchesNamespaceForm() {
         assertEquals("compose-schema-error/derived-query/unknown-field",
                 ComposeSchemaErrorCodes.DERIVED_QUERY_UNKNOWN_FIELD);
@@ -69,6 +76,12 @@ class ComposeSchemaExceptionTest {
                 ComposeSchemaErrorCodes.OUTPUT_SCHEMA_AMBIGUOUS_LOOKUP);
         assertEquals("compose-schema-error/join/ambiguous-column",
                 ComposeSchemaErrorCodes.JOIN_AMBIGUOUS_COLUMN);
+        assertEquals("compose-schema-error/field-access/denied",
+                ComposeSchemaErrorCodes.FIELD_ACCESS_DENIED);
+        assertEquals("compose-schema-error/column/plan-not-bound",
+                ComposeSchemaErrorCodes.COLUMN_PLAN_NOT_BOUND);
+        assertEquals("compose-schema-error/column/field-not-found",
+                ComposeSchemaErrorCodes.COLUMN_FIELD_NOT_FOUND);
     }
 
     @Test
