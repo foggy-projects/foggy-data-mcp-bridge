@@ -2,7 +2,7 @@
 
 > **状态**：active · 持续维护
 > **创建于**：2026-04-26
-> **最近更新**：2026-04-26（初始化）
+> **最近更新**：2026-04-27（G10 实施完成 · `implemented · ready-with-gaps`）
 
 ## 目的
 
@@ -41,7 +41,7 @@ Compose Query 双手册采用"**先骨架、后填能力**"策略：
 | G3 | 双侧缺底层窗口原语暴露 (lag/lead/rolling/over) | A §10 / B §10 | P1 | 双 | open | 8.3.0.beta |
 | G4 | 输出后缀规约链式侧未继承 | B §11 | P1 | 仅 B | open | 8.3.0.beta |
 | G5 | DSL **columns** F4 `{field, agg, as}` + F5 `{plan, field, as}` 后置消歧（v2 缩窄） | A §2 / A §4 / A §3.6（F5 解锁后置路径） | **P0**（LLM 自我修复硬需求） | 仅 A | **in-review**（spec **v2** 2026-04-26 · 收到 v1 代码核实级 ❌ 评估后缩窄到 columns + 拆 Phase 1/Phase 2） | 8.3.0.beta |
-| G10 | Compose 引擎前置改造（join 歧义 schema + plan provenance + plan-aware 编译 + plan-aware 权限校验子层） | G5 F5 / G11 / G12 全部硬前置 | **P0** | Java + Python 引擎 | **in-review**（spec **v2** 2026-04-27 · v1 ⚠️ 条件通过后 5 项 patch · 10-15 工程日重估） | 8.3.0.beta |
+| G10 | Compose 引擎前置改造（join 歧义 schema + plan provenance + plan-aware 编译 + plan-aware 权限校验子层） | G5 F5 / G11 / G12 全部硬前置 | **P0** | Java + Python 引擎 | **accepted-with-risks**（spec v2 · 双仓 12 commits · 154 单元 + 双端 lane 全绿 · 集成测试 ≥3+≥2 deferred → FU-1 G5 Phase 2 同批次承接 · audit `coverage/G10-coverage-audit.md` · acceptance `acceptance/G10-ComposeEngine-PlanAware-acceptance.md` · 2026-04-27 user 签收） | 8.3.0.beta |
 | G11 | DSL `slice` F4/F5 支持（含 SliceShape 字段强转修复） | A §3 (slice) | P1 | 仅 A | open（依赖 G5 v2 + G10 落地） | 8.3.0.beta or later |
 | G12 | DSL `groupBy` / `orderBy` F4/F5 支持（含 `List<String>` → `List<Object>` 类型迁移） | A §3 (groupBy/orderBy) | P2 | 仅 A | open（依赖 G5 v2 + G10 落地） | 8.3.0.beta or later |
 | G6 | 计算字段在 timeWindow 上下文里的语义 | A §4 + §9 / B §4 + §9 | P2 | 双 | open | 8.4.0.beta |
@@ -148,25 +148,25 @@ Compose Query 双手册采用"**先骨架、后填能力**"策略：
 
 - **Layer**: Layer 0/1（架构）
 - **优先级**：**P0**（多个下游 gap 阻塞于此）
-- **现状**：G5 v1 评审过程中代码核实暴露的 5 项架构问题，必须在 F5 / G11 / G12 之前解决
-- **范围（4 项前置改造）**：
-  1. **`SchemaDerivation` 允许 join 输出携带歧义列** —— 不再在 `deriveJoin()` 直接抛 `JOIN_OUTPUT_COLUMN_CONFLICT`，而是在 schema 中标记歧义列；歧义在投影/引用时才检查
-     - Evidence：`SchemaDerivation.java:212-223`
-  2. **`OutputSchema` / `ColumnAliasParts` 保留 plan provenance** —— 当前 `withSourceModelCleared(c)` 显式清除归属信息，必须改为保留
-     - Evidence：`SchemaDerivation.java:225-234`
-  3. **`ComposePlanner` plan-aware 编译** —— 编译时识别 `PlanColumnRef.plan()`，生成正确的 table alias 限定 SQL
-     - Evidence：`ComposePlanner.java:255`（当前丢弃 `ref.plan()`）
-  4. **`FieldAccessPermissionStep` plan-routed 校验** —— 从"统一 QM 字段白名单"扩展到"按 plan 解析到 lineage/binding 后路由到对应的 ModelBinding"
-     - Evidence：`FieldAccessPermissionStep.java:44-83`
-- **需要做的事**：
-  1. 起草独立 G10 spec（架构 review 必要）
-  2. 4 项改造分别评估 + Java/Python 双端实施
-  3. 验收：
-     - **现有功能零回归** —— 既有测试脚本（`derived_query_scenario.js` / `join_scenario.js` / `union_scenario.js` / `real_sql_*_scenario.js`）继续通过
-     - **plan-aware 编译真实 SQL 数据比对** —— 至少 3 个集成测试用例覆盖 join 后 plan-qualified 投影编译；通过 `queryFacade.queryModelData()` 真实查询 + 等价原生 SQL 基线 + 逐行比对（CLAUDE.md 集成测试规范，[`docs-site CLAUDE.md:234`](../../CLAUDE.md)）
-     - **plan-routed 权限真实 SQL 数据比对** —— 至少 2 个集成测试用例覆盖跨 BaseModelPlan 的 fieldAccess 路由；包含正向（合法字段）+ 反向（被拒字段）真实结果验证
-     - **零回归 + 单元测试** —— 4 项改造各自的 Java / Python 单元测试覆盖
-- **下游解锁**：G5 Phase 2 (F5 columns) / G11 (slice F5) / G12 (groupBy/orderBy F5)
+- **状态**：`accepted-with-risks`（2026-04-27 · user 签收）
+- **背景**：G5 v1 评审过程中代码核实暴露的 5 项架构问题，G10 spec v2 拆为 4 项 all-or-nothing 改造覆盖
+- **实施摘要**：
+  - **Java 仓** `dev-compose` 7 commits：`0c60914` PR1 / `453cf03` PR2 / `c16136a` PR2 polish / `427bc09` PR3 / `c9be76e` PR3 polish / `be53fae` PR4 / `4f80b6d` PR4 polish · sqlite lane **1809 passed**
+  - **Python 仓** `main` 5 commits：`e8fcc88` PR5.1 / `e15dba5` PR5.2 / `b391cbf` PR5.3 / `1b2e770` PR5.4 / `b54f0a6` PR5 polish · pytest **3176 passed**
+  - 4 项改造全部由 `foggy.compose.g10.enabled` flag（默认 `false`）控制，flag-off 路径零行为变化
+- **覆盖审计**：`docs/8.3.0.beta/coverage/G10-coverage-audit.md`（conclusion: `ready-with-gaps`）
+  - **154 个新增单元** 跨双仓（Java 83 / Python 71）+ 双端 1:1 parity + flag 双状态显式覆盖
+  - spec §9 中 **7/9 项 covered**；2 项 deferred：
+    - **Gap-1**（critical）·真实 SQL 集成测试 ≥3 plan-aware 编译 + ≥2 plan-routed 权限——deferred 至 **G5 Phase 2 同批次**（公共入口 `validate(plan, schema, ctx)` 在 F5 落地前为 dead code path，集成测试**当前无法构造**）
+    - **Gap-2**（major）·CI flag=true / false 双 lane 矩阵未配置（属 CI infra）
+- **下游解锁**：
+  - G5 Phase 2 (F5 columns) — **可立即启动**，但**强制承接** Gap-1 的 ≥3 + ≥2 集成测试要求
+  - G11 (slice F5) / G12 (groupBy/orderBy F5) — 待 G5 Phase 2 落地后启动
+- **签收记录**：`docs/8.3.0.beta/acceptance/G10-ComposeEngine-PlanAware-acceptance.md`（decision: `accepted-with-risks` · 2026-04-27 user 签收 · evidence_count 12）
+- **Follow-up（非阻断 G10）**：
+  - **FU-1**（critical）：G5 Phase 2 (F5 columns) 实施批次**强制承接** ≥3 plan-aware compile + ≥2 plan-routed permission 真实 SQL 集成测试
+  - **FU-2**（major）：flag-flip rollout 前补 `flag=true` lane 单次 sweep
+  - **FU-3**（minor · 已交付）：flag-flip rollout playbook → `docs/8.3.0.beta/G10-flag-flip-rollout-playbook.md`（draft · C1-C4 决策门均未满足，当前不可执行）
 
 <a id="g11"></a>
 ### G11 · DSL `slice` F4/F5 支持
@@ -298,6 +298,8 @@ Compose Query 双手册采用"**先骨架、后填能力**"策略：
 | 2026-04-27 | G10 spec | v1 | 创建 G10 spec draft v1：4 项改造（schema 歧义 / provenance / plan-aware 编译 / plan-routed 权限）+ feature flag (`foggy.compose.g10.enabled`) all-or-nothing 落地 + 真实 SQL 数据比对验收 + 8-12 工程日预估；触发 G5 Phase 2 / G11 / G12 全部下游解锁路径明确 |
 | 2026-04-27 | G5 spec | v2-patch | F4 实施前代码勘察修正：(a) `count_distinct` lowering 已由 `AllowedFunctions.COUNT_DISTINCT` + `SqlFunctionExp` 自动支持，零 AST 改动；(b) F4 实施模式从"AggregateColumn IR 扩展"修正为 **normalize-at-entry**（入口归一化 Map → 字符串 `"AGG(field) AS alias"`）；§2.3 / §10.2 列出双端 5 个具体入口 + 工作量重估 |
 | 2026-04-27 | G10 spec | v1 → v2 | v1 ⚠️ 条件通过 + 5 项 patch：(a) §4.3 PlanId 收紧 equals 契约（按 referent identity，identityHash 仅 hash 桶）；(b) §3.3 OutputSchema 补 lookup API 升级（`getAll` / `isAmbiguous` / `requireUnique`）+ 调用方迁移指南；(c) §6 改造 #4 重构落点（新增 `ComposePlanAwarePermissionValidator` Compose 层独立类，不改 `FieldAccessPermissionStep`）；(d) §6.4 bare field 规则重写（先 schema 唯一解析、再权限校验）；(e) §10.2 PR1 修正为真零行为变化；(f) §10.1 工程日 8-12 → 10-15 重估 |
+| 2026-04-27 | G10 entry | implementation done | spec v2 4 项改造双端落盘：Java `dev-compose` 7 commits（PR1-PR4 + 3 polish · sqlite lane 1809 passed）+ Python `main` 5 commits（PR5.1-PR5.4 + 1 polish · pytest 3176 passed）；154 新单元（Java 83 / Python 71）+ 双端 parity + flag 双状态显式覆盖；coverage audit `coverage/G10-coverage-audit.md` 结论 `ready-with-gaps`，集成测试 ≥3 + ≥2 deferred 至 G5 Phase 2 同批次（spec §9 中 7/9 项 covered）；状态 `in-review → implemented · ready-with-gaps`，pending `foggy-acceptance-signoff` |
+| 2026-04-27 | G10 entry | acceptance signed-off | user 签收 `accepted-with-risks` · acceptance doc `acceptance/G10-ComposeEngine-PlanAware-acceptance.md`（evidence_count 12）· FU-1（G5 Phase 2 集成测试 ≥3+≥2 强制承接）+ FU-2（lane sweep）+ FU-3（flag-flip playbook · 已落 `G10-flag-flip-rollout-playbook.md` draft）作为非阻断 follow-up；G5 Phase 2 / G11 / G12 全部解锁；状态 `implemented · ready-with-gaps → accepted-with-risks` |
 
 ## 相关文档
 
