@@ -35,7 +35,7 @@ public class SpringAiTestExecutor {
 
         ## 使用说明
 
-        1. 先使用 dataset_get_metadata 工具获取可用模型列表
+        1. 先使用 dataset_list_models 工具获取可用模型列表
         2. 使用 dataset_describe_model_internal 工具了解模型的字段定义(可选)
         3. 使用 dataset_query_model 工具执行数据查询
 
@@ -286,7 +286,7 @@ public class SpringAiTestExecutor {
         Map<String, Object> args = new HashMap<>();
 
         switch (testCase.getExpectedTool()) {
-            case "dataset.get_metadata" -> {
+            case "dataset.list_models" -> {
                 // 无参数
             }
             case "dataset.describe_model_internal" -> {

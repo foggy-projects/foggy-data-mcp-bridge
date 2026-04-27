@@ -360,7 +360,8 @@ public final class ComposePlanner {
             "GROUP", "BY", "ORDER", "HAVING", "LIMIT", "OFFSET", "UNION", "ALL",
             "JOIN", "LEFT", "RIGHT", "INNER", "OUTER", "FULL", "CROSS", "ON",
             "AS", "EXISTS", "CAST", "COALESCE", "IFNULL", "ISNULL",
-            "OVER", "PARTITION", "ROWS", "RANGE", "PRECEDING", "FOLLOWING", "UNBOUNDED", "CURRENT", "ROW"
+            "OVER", "PARTITION", "ROWS", "RANGE", "PRECEDING", "FOLLOWING", "UNBOUNDED", "CURRENT", "ROW",
+            "SUM", "COUNT", "AVG", "MAX", "MIN"
     );
 
     /** Token-boundary splitter used by {@link #quoteExpressionTokens(String, String)}.

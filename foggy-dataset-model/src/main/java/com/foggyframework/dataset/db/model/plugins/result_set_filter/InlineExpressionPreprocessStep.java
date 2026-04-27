@@ -686,6 +686,21 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
                 }
             }
         }
+        // C1-ext：alias 命中 QM 预定义 calc field（可能未注入到 request.calculatedFields）
+        if (queryModel instanceof QueryModelSupport) {
+            List<CalculatedFieldDef> predefined = ((QueryModelSupport) queryModel).getPredefinedCalculatedFields();
+            if (predefined != null) {
+                for (CalculatedFieldDef pd : predefined) {
+                    if (aliasName.equals(pd.getName())) {
+                        throw new IllegalArgumentException(
+                                "COLUMN_ALIAS_COLLIDES_WITH_CALCULATED_FIELD: column '" + columnDef
+                                        + "' alias '" + aliasName
+                                        + "' collides with a predefined calculated field in QueryModel. "
+                                        + "Use a different alias.");
+                    }
+                }
+            }
+        }
 
         // C2：alias 命中 QM 物理字段（防止静默 shadow）+ base 存在性校验 + 元数据探测
         DbQueryColumn baseColumn = null;
@@ -694,6 +709,28 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
 
             DbQueryColumn aliasCollision = qms.findJdbcColumnForSelectByName(aliasName, false);
             if (aliasCollision != null) {
+                // C2-refinement: 如果冲突列实际是公式度量（TM 级 formulaDef），
+                // 应报 COLUMN_ALIAS_COLLIDES_WITH_CALCULATED_FIELD 而非 PHYSICAL_FIELD，
+                // 因为公式度量从用户视角是 "计算字段"。
+                boolean isFormulaMeasure = false;
+                for (TableModel tm : qms.getJdbcModelList()) {
+                    com.foggyframework.dataset.db.model.spi.DbMeasure measure = tm.findJdbcMeasureByName(aliasName);
+                    if (measure != null) {
+                        com.foggyframework.dataset.db.model.impl.measure.DbMeasureSupport ms =
+                                measure.getDecorate(com.foggyframework.dataset.db.model.impl.measure.DbMeasureSupport.class);
+                        if (ms != null && ms.getFormulaBuilder() != null) {
+                            isFormulaMeasure = true;
+                        }
+                        break;
+                    }
+                }
+                if (isFormulaMeasure) {
+                    throw new IllegalArgumentException(
+                            "COLUMN_ALIAS_COLLIDES_WITH_CALCULATED_FIELD: column '" + columnDef
+                                    + "' alias '" + aliasName
+                                    + "' collides with a formula-derived field in the QueryModel. "
+                                    + "Use a different alias.");
+                }
                 throw new IllegalArgumentException(
                         "COLUMN_ALIAS_COLLIDES_WITH_PHYSICAL_FIELD: column '" + columnDef
                                 + "' alias '" + aliasName
@@ -701,12 +738,24 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
                                 + "Use a different alias to avoid silent shadowing.");
             }
 
-            baseColumn = qms.findJdbcColumnForSelectByName(baseField, false);
-            if (baseColumn == null) {
-                throw new IllegalArgumentException(
-                        "COLUMN_FIELD_NOT_FOUND: field '" + baseField
-                                + "' (referenced by alias '" + aliasName
-                                + "') not found in QueryModel");
+
+            // 先检查 base 是否是本批次已合成的 calc field（支持链式 alias，如 a→x→y）
+            boolean baseIsSynthesized = false;
+            for (CalculatedFieldDef synth : result.getCalculatedFields()) {
+                if (baseField.equals(synth.getName())) {
+                    baseIsSynthesized = true;
+                    break;
+                }
+            }
+
+            if (!baseIsSynthesized) {
+                baseColumn = qms.findJdbcColumnForSelectByName(baseField, false);
+                if (baseColumn == null) {
+                    throw new IllegalArgumentException(
+                            "COLUMN_FIELD_NOT_FOUND: field '" + baseField
+                                    + "' (referenced by alias '" + aliasName
+                                    + "') not found in QueryModel");
+                }
             }
         }
 

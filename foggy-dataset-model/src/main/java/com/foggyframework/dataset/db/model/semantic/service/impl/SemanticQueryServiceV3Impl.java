@@ -11,6 +11,8 @@ import com.foggyframework.dataset.db.model.def.query.request.CondRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.db.model.engine.JdbcModelQueryEngine;
 import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
+import com.foggyframework.dataset.db.model.engine.compose.schema.AliasExtractor;
+import com.foggyframework.dataset.db.model.engine.compose.schema.ColumnAliasParts;
 import com.foggyframework.dataset.db.model.engine.expression.InlineExpressionParser;
 import com.foggyframework.dataset.db.model.engine.query.DbQueryResult;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
@@ -893,6 +895,17 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
             InlineExpressionParser.InlineExpression inlineExpr = InlineExpressionParser.parse(col);
             if (inlineExpr != null && inlineExpr.hasAlias()) {
                 columnsSet.add(inlineExpr.getAlias());
+            } else {
+                // G5 v2-patch-2: 解析 plain alias "base AS alias"，将 base 字段名加入集合
+                // 这样 groupBy 引用 base 字段时能通过校验（如 columns=[{field:'salesAmount',as:'revenue'}], groupBy=['salesAmount']）
+                try {
+                    ColumnAliasParts parts = AliasExtractor.extract(col);
+                    if (parts.hasAlias()) {
+                        columnsSet.add(parts.expression());  // base field name
+                    }
+                } catch (IllegalArgumentException ignored) {
+                    // 解析失败 → 非 alias 列，忽略
+                }
             }
         }
 

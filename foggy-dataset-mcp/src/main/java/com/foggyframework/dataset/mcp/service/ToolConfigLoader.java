@@ -123,6 +123,7 @@ public class ToolConfigLoader {
         List<McpProperties.ToolConfigItem> defaults = new ArrayList<>();
         defaults.add(createToolConfig("dataset_nl.query", "classpath:/schemas/descriptions/dataset_nl_query.md", "classpath:/schemas/dataset_nl_query_schema.json", "NATURAL_LANGUAGE"));
         defaults.add(createToolConfig("dataset.get_metadata", "classpath:/schemas/descriptions/get_metadata.md", "classpath:/schemas/get_metadata_schema.json", "METADATA"));
+        defaults.add(createToolConfig("dataset.list_models", "classpath:/schemas/descriptions/list_models.md", "classpath:/schemas/list_models_schema.json", "METADATA"));
         defaults.add(createToolConfig("dataset.describe_model_internal", "classpath:/schemas/descriptions/describe_model_internal.md", "classpath:/schemas/describe_model_internal_schema.json", "METADATA"));
         defaults.add(createToolConfig("dataset.query_model", "classpath:/schemas/descriptions/query_model_v3.md", "classpath:/schemas/query_model_v3_schema.json", "QUERY"));
         defaults.add(createToolConfig("chart.generate", "classpath:/schemas/descriptions/generate_chart.md", "classpath:/schemas/generate_chart_schema.json", "VISUALIZATION", false));

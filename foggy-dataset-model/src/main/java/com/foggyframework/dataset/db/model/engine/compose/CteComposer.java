@@ -95,6 +95,24 @@ public class CteComposer {
      * @return 组合后的 SQL 和参数
      */
     public static ComposedSql compose(List<CteUnit> units, List<JoinSpec> joinSpecs, boolean useCte) {
+        return compose(units, joinSpecs, useCte, null);
+    }
+
+    /**
+     * 组合多个 CTE 单元（链式 JOIN），并允许调用方显式覆盖外层 SELECT 投影列。
+     *
+     * <p>{@code selectColumns} 非空时优先使用它渲染外层 SELECT；
+     * 为空时保持历史行为，按各 {@link CteUnit#getSelectColumns()} 渲染，
+     * 缺省则回退到 {@code alias.*}。</p>
+     *
+     * @param units         CTE 单元列表
+     * @param joinSpecs     JOIN 规格列表（长度 = units.size() - 1）
+     * @param useCte        是否使用 CTE 语法
+     * @param selectColumns 外层 SELECT 的显式投影列（可选）
+     * @return 组合后的 SQL 和参数
+     */
+    public static ComposedSql compose(List<CteUnit> units, List<JoinSpec> joinSpecs,
+                                      boolean useCte, List<String> selectColumns) {
         if (units.size() < 2) {
             throw new IllegalArgumentException("At least 2 CTE units required for composition");
         }
@@ -106,9 +124,9 @@ public class CteComposer {
         StringBuilder sb = new StringBuilder();
 
         if (useCte) {
-            buildMultiCte(sb, allParams, units, joinSpecs);
+            buildMultiCte(sb, allParams, units, joinSpecs, selectColumns);
         } else {
-            buildMultiSubquery(sb, allParams, units, joinSpecs);
+            buildMultiSubquery(sb, allParams, units, joinSpecs, selectColumns);
         }
 
         return new ComposedSql(sb.toString(), allParams);
@@ -134,7 +152,8 @@ public class CteComposer {
     }
 
     private static void buildMultiCte(StringBuilder sb, List<Object> allParams,
-                                       List<CteUnit> units, List<JoinSpec> joinSpecs) {
+                                       List<CteUnit> units, List<JoinSpec> joinSpecs,
+                                       List<String> selectColumns) {
         // WITH clause
         sb.append("WITH ");
         for (int i = 0; i < units.size(); i++) {
@@ -145,22 +164,7 @@ public class CteComposer {
         }
         sb.append(" ");
 
-        // SELECT clause -- select all columns from all units
-        sb.append("SELECT ");
-        boolean first = true;
-        for (CteUnit unit : units) {
-            if (unit.getSelectColumns() != null) {
-                for (String col : unit.getSelectColumns()) {
-                    if (!first) sb.append(", ");
-                    sb.append(unit.getAlias()).append(".").append(col);
-                    first = false;
-                }
-            } else {
-                if (!first) sb.append(", ");
-                sb.append(unit.getAlias()).append(".*");
-                first = false;
-            }
-        }
+        appendMultiSelectClause(sb, units, selectColumns);
 
         // FROM + chain JOINs
         sb.append(" FROM ").append(units.get(0).getAlias());
@@ -193,23 +197,10 @@ public class CteComposer {
     }
 
     private static void buildMultiSubquery(StringBuilder sb, List<Object> allParams,
-                                            List<CteUnit> units, List<JoinSpec> joinSpecs) {
+                                            List<CteUnit> units, List<JoinSpec> joinSpecs,
+                                            List<String> selectColumns) {
         // SELECT clause
-        sb.append("SELECT ");
-        boolean first = true;
-        for (CteUnit unit : units) {
-            if (unit.getSelectColumns() != null) {
-                for (String col : unit.getSelectColumns()) {
-                    if (!first) sb.append(", ");
-                    sb.append(unit.getAlias()).append(".").append(col);
-                    first = false;
-                }
-            } else {
-                if (!first) sb.append(", ");
-                sb.append(unit.getAlias()).append(".*");
-                first = false;
-            }
-        }
+        appendMultiSelectClause(sb, units, selectColumns);
 
         // FROM first subquery
         CteUnit firstUnit = units.get(0);
@@ -257,6 +248,32 @@ public class CteComposer {
         } else {
             if (!first) sb.append(", ");
             sb.append(right.getAlias()).append(".*");
+        }
+    }
+
+    private static void appendMultiSelectClause(StringBuilder sb, List<CteUnit> units, List<String> selectColumns) {
+        sb.append("SELECT ");
+        if (selectColumns != null && !selectColumns.isEmpty()) {
+            for (int i = 0; i < selectColumns.size(); i++) {
+                if (i > 0) sb.append(", ");
+                sb.append(selectColumns.get(i));
+            }
+            return;
+        }
+
+        boolean first = true;
+        for (CteUnit unit : units) {
+            if (unit.getSelectColumns() != null) {
+                for (String col : unit.getSelectColumns()) {
+                    if (!first) sb.append(", ");
+                    sb.append(unit.getAlias()).append(".").append(col);
+                    first = false;
+                }
+            } else {
+                if (!first) sb.append(", ");
+                sb.append(unit.getAlias()).append(".*");
+                first = false;
+            }
         }
     }
 

@@ -125,7 +125,8 @@ class F4ColumnObjectIntegrationTest extends EcommerceTestSupport {
                 "field", "product$id", "agg", "count_distinct", "as", "uniqueProducts");
         DataSetResult actual = dsl(Map.of(
                 "model", SALES_MODEL,
-                "columns", List.of(cdEntry)));
+                "columns", List.of(cdEntry),
+                "limit", 50000));
 
         List<Map<String, Object>> expected = executeQuery("""
                 SELECT COUNT(DISTINCT fs.product_key) AS %s
@@ -144,7 +145,8 @@ class F4ColumnObjectIntegrationTest extends EcommerceTestSupport {
                 "field", "salesAmount", "as", "revenue");
         DataSetResult actual = dsl(Map.of(
                 "model", SALES_MODEL,
-                "columns", List.of(aliasEntry)));
+                "columns", List.of(aliasEntry),
+                "limit", 50000));
 
         List<Map<String, Object>> expected = executeQuery("""
                 SELECT fs.sales_amount AS %s
@@ -161,11 +163,13 @@ class F4ColumnObjectIntegrationTest extends EcommerceTestSupport {
                 "field", "salesAmount", "as", "revenue");
         DataSetResult fromF4 = dsl(Map.of(
                 "model", SALES_MODEL,
-                "columns", List.of(aliasEntry)));
+                "columns", List.of(aliasEntry),
+                "limit", 50000));
 
         DataSetResult fromF2 = dsl(Map.of(
                 "model", SALES_MODEL,
-                "columns", List.of("salesAmount AS revenue")));
+                "columns", List.of("salesAmount AS revenue"),
+                "limit", 50000));
 
         // F2 string and F4 object MUST produce identical SQL & results
         assertRowsEqual(fromF2.toList(), fromF4.toList(), true);
@@ -180,7 +184,8 @@ class F4ColumnObjectIntegrationTest extends EcommerceTestSupport {
         DataSetResult actual = dsl(Map.of(
                 "model", SALES_MODEL,
                 "columns", List.of(aliasEntry, "SUM(quantity) AS qty"),
-                "groupBy", List.of("salesAmount")));
+                "groupBy", List.of("salesAmount"),
+                "limit", 50000));
 
         List<Map<String, Object>> expected = executeQuery("""
                 SELECT fs.sales_amount AS %s,
@@ -202,7 +207,8 @@ class F4ColumnObjectIntegrationTest extends EcommerceTestSupport {
         Map<String, Object> second = Map.of("field", "x", "as", "y");
         DataSetResult actual = dsl(Map.of(
                 "model", SALES_MODEL,
-                "columns", List.of(first, second)));
+                "columns", List.of(first, second),
+                "limit", 50000));
 
         List<Map<String, Object>> expected = executeQuery("""
                 SELECT fs.sales_amount AS %s, fs.sales_amount AS %s

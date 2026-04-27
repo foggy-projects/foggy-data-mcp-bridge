@@ -16,6 +16,7 @@
 ## 关联文档
 
 - 实现规划：[P2-list_models模型发现入口与get_metadata隐藏-实现规划](./P2-list_models模型发现入口与get_metadata隐藏-实现规划.md)
+- 开工提示词：[P2-list_models模型发现入口与get_metadata隐藏-execution-prompt](./P2-list_models模型发现入口与get_metadata隐藏-execution-prompt.md)
 - 返回样例与瘦身评估：[P2-get_metadata模型发现返回样例与瘦身评估](./P2-get_metadata模型发现返回样例与瘦身评估.md)
 - 元数据时间维度分析：[P2-Metadata时间维度与属性分析报告](./P2-Metadata时间维度与属性分析报告.md)
 - 单模型元数据输出：[qm_describe.md](./qm_describe.md)

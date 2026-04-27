@@ -1,5 +1,7 @@
 # get_metadata
 
+> ⚠️ Deprecated. 模型发现请改用 `dataset.list_models`，单模型详情请改用 `dataset.describe_model_internal`。本工具计划在后续版本下线。
+
 获取当前用户可访问的所有数据模型和字段的元数据信息包。
 
 ## 返回内容

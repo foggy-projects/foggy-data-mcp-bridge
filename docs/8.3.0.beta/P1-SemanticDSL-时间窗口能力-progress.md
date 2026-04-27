@@ -4,7 +4,7 @@ version: 8.3.0.beta
 req_id: P1-SemanticDSL-TimeWindow
 priority: P1
 status: in-progress
-last_updated: 2026-04-26
+last_updated: 2026-04-27
 ---
 
 # Compose Query · `timeWindow` SemanticDSL — Progress
@@ -58,6 +58,7 @@ last_updated: 2026-04-26
 | S16 | rolling / cumulative 从 calculatedFields 切换为 Compose plan 执行 | `completed` | 避免 `SUM(metric) OVER (...)` 作为 inline calculated field 被聚合校验误判；同时修正窗口分区，剔除当前时间桶，仅按非时间维度 + 年/月重置分区 |
 | S17 | SQL preview / Compose DSL / MCP schema 接入补齐 | `completed` | 新增 `rolling_7d SQL preview matches hand-written SQL`，验证 `generateSql` 输出可直接执行并与手写 SQL 逐行比较；`ScriptRuntimeTest` 覆盖 `dsl()` timeWindow 请求映射 |
 | S18 | SQL Server nested CTE fallback 修复 | `completed` | `mssql/sqlserver` compose 编排改为子查询 fallback，避免 SQL Server 不支持 `FROM (WITH ...)` 嵌套 CTE；`DialectFallbackTest` 覆盖该方言策略 |
+| S19 | Fluent API caption alias quoting 回归修复 | `completed` | `ProjectedColumn` alias 改为仅在必要时 quote，与字符串列 alias 行为一致；`FluentApiCompileTest.captionInColumnExpression` 和全类回归通过 |
 
 ## 验收对照（来自设计稿 §验收 + 上游 P1 §验收）
 
@@ -141,6 +142,15 @@ mvn "-Dtest=DialectFallbackTest" "-P!multi-db" test
 ```
 
 → **16 passed / 0 failures / 0 skipped**
+
+Fluent API caption alias quoting 回归（2026-04-27）：
+
+```bash
+mvn -pl foggy-dataset-model "-Dtest=FluentApiCompileTest$ProjectedColumnExpressions#captionInColumnExpression" test
+mvn -pl foggy-dataset-model "-Dtest=FluentApiCompileTest" test
+```
+
+→ `captionInColumnExpression` 通过；`FluentApiCompileTest` 全类 **14 passed / 0 failures**（default / mysql / postgres surefire lanes 均通过）
 
 > 下表前 7 行为基线 50 passed 命令的细分（基线只跑 5 个 timeWindow / Comparative test class）；末两行 `TimeWindowExecutionIntegrationTest` / `ScriptRuntimeTest` 属于本轮接入回归套件（75 passed 命令），不计入基线 50 之内。
 >
