@@ -10,11 +10,11 @@ import com.foggyframework.dataset.db.model.engine.compose.plan.QueryPlan;
 import com.foggyframework.dataset.db.model.engine.compose.plan.UnionPlan;
 import com.foggyframework.dataset.db.model.engine.compose.plan.WindowColumn;
 import com.foggyframework.dataset.db.model.engine.compose.plan.expr.ColumnExpr;
+import com.foggyframework.dataset.db.model.engine.compose.schema.AliasExtractor;
 import com.foggyframework.dataset.db.model.engine.compose.schema.ColumnSpec;
 import com.foggyframework.dataset.db.model.engine.compose.schema.ComposeSchemaErrorCodes;
 import com.foggyframework.dataset.db.model.engine.compose.schema.ComposeSchemaException;
 import com.foggyframework.dataset.db.model.engine.compose.schema.OutputSchema;
-import com.foggyframework.dataset.db.model.plugins.result_set_filter.FieldAccessPermissionStep;
 
 import java.util.List;
 import java.util.Set;
@@ -152,7 +152,7 @@ public final class ComposePlanAwarePermissionValidator {
             // unrestricted access by spec. Pass.
             return;
         }
-        String baseField = FieldAccessPermissionStep.stripDimensionSuffix(ref.name());
+        String baseField = stripDimensionSuffix(ref.name());
         if (!whitelist.contains(baseField)) {
             throw fieldAccessDenied(ref.name(),
                     "plan-qualified reference '" + ref.name() + "' denied by "
@@ -208,7 +208,7 @@ public final class ComposePlanAwarePermissionValidator {
         if (whitelist == null) {
             return;
         }
-        String baseField = FieldAccessPermissionStep.stripDimensionSuffix(fieldName);
+        String baseField = stripDimensionSuffix(fieldName);
         if (!whitelist.contains(baseField)) {
             throw fieldAccessDenied(fieldName,
                     "bare-field '" + fieldName
@@ -241,12 +241,13 @@ public final class ComposePlanAwarePermissionValidator {
 
     /** Return the bare column name for a column entry without a plan ref,
      *  or {@code null} when the entry is an expression that doesn't map
-     *  to a single field name. */
+     *  to a single field name. Reuses {@link AliasExtractor#extract} so
+     *  the {@code "expr AS alias"} parsing matches {@link OutputSchema}'s
+     *  derivation byte-for-byte (case-insensitive {@code AS}, identifier
+     *  validation on the alias slot, fallback-on-malformed). */
     static String extractFieldName(Object column) {
         if (column instanceof String s) {
-            // Strip "expr AS alias" — only the alias matters as the schema name.
-            int asIdx = indexOfAs(s);
-            return asIdx < 0 ? s.trim() : s.substring(asIdx + 4).trim();
+            return AliasExtractor.extract(s).outputName();
         }
         if (column instanceof ColumnExpr ce) {
             return ce.name();
@@ -257,11 +258,17 @@ public final class ComposePlanAwarePermissionValidator {
         return null;
     }
 
-    private static int indexOfAs(String s) {
-        if (s == null) return -1;
-        String upper = s.toUpperCase();
-        int idx = upper.indexOf(" AS ");
-        return idx > 0 ? idx : -1;
+    /** Drop the {@code $caption} / {@code $id} dimension suffix used by
+     *  the QM dimension-attribute syntax so {@code "salesDate$id"}
+     *  matches the bare {@code "salesDate"} entry of a fieldAccess
+     *  whitelist. Mirrors {@code FieldAccessPermissionStep#stripDimensionSuffix}
+     *  byte-for-byte; copied here to keep
+     *  {@code engine.compose.security} from depending on the
+     *  {@code plugins.result_set_filter} package. */
+    private static String stripDimensionSuffix(String fieldName) {
+        if (fieldName == null) return null;
+        int idx = fieldName.indexOf('$');
+        return idx > 0 ? fieldName.substring(0, idx) : fieldName;
     }
 
     // ------------------------------------------------------------------

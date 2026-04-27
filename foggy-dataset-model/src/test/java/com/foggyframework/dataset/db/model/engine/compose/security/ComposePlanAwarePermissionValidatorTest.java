@@ -40,17 +40,6 @@ class ComposePlanAwarePermissionValidatorTest {
         return BaseModelPlan.builder().model(model).columns(List.copyOf(columns)).build();
     }
 
-    private static QueryPlan basePlan(String model, List<Object> columns, boolean isObjectList) {
-        BaseModelPlan.Builder b = BaseModelPlan.builder().model(model);
-        if (isObjectList) {
-            b.columns(columns);
-        } else {
-            // String overload not available; use objects path
-            b.columns(columns);
-        }
-        return b.build();
-    }
-
     private static ColumnSpec specWithProvenance(String name, QueryPlan plan, boolean ambiguous) {
         return ColumnSpec.builder()
                 .name(name).expression(name)

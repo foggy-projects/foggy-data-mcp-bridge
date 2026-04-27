@@ -549,7 +549,8 @@ public final class ComposePlanner {
     private static void runPlanAwarePermissionCheck(
             QueryPlan plan, Map<String, ModelBinding> bindings) {
         PlanFieldAccessContext.Builder ctxBuilder = PlanFieldAccessContext.builder();
-        collectPlanBindings(plan, bindings, ctxBuilder, new IdentityHashMap<>());
+        Set<QueryPlan> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+        collectPlanBindings(plan, bindings, ctxBuilder, visited);
         PlanFieldAccessContext planCtx = ctxBuilder.build();
         OutputSchema schema = SchemaDerivation.derive(plan);
         ComposePlanAwarePermissionValidator.validate(plan, schema, planCtx);
@@ -561,8 +562,8 @@ public final class ComposePlanner {
     private static void collectPlanBindings(QueryPlan plan,
                                               Map<String, ModelBinding> bindings,
                                               PlanFieldAccessContext.Builder ctxBuilder,
-                                              IdentityHashMap<QueryPlan, Boolean> visited) {
-        if (plan == null || visited.put(plan, Boolean.TRUE) != null) {
+                                              Set<QueryPlan> visited) {
+        if (plan == null || !visited.add(plan)) {
             return;
         }
         if (plan instanceof BaseModelPlan b) {
