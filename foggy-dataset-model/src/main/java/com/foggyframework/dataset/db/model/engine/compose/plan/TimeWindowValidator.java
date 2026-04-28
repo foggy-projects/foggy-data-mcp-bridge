@@ -21,6 +21,12 @@ public final class TimeWindowValidator {
     public static final String RANGE_INVALID = "TIMEWINDOW_RANGE_INVALID";
     public static final String AGG_INVALID = "TIMEWINDOW_AGG_INVALID";
 
+    // ---- Error codes for calculatedFields interaction (8.4.0 contract / 8.5.0 impl) ----
+    public static final String TARGET_CALCULATED_FIELD_UNSUPPORTED = "TIMEWINDOW_TARGET_CALCULATED_FIELD_UNSUPPORTED";
+    public static final String POST_CALC_FIELD_NOT_FOUND = "TIMEWINDOW_POST_CALCULATED_FIELD_NOT_FOUND";
+    public static final String POST_CALC_FIELD_AGG_UNSUPPORTED = "TIMEWINDOW_POST_CALCULATED_FIELD_AGG_UNSUPPORTED";
+    public static final String POST_CALC_FIELD_WINDOW_UNSUPPORTED = "TIMEWINDOW_POST_CALCULATED_FIELD_WINDOW_UNSUPPORTED";
+
     private static final Set<String> VALID_GRAINS = Set.of("day", "week", "month", "quarter", "year");
     private static final Set<String> VALID_COMPARISONS = Set.of(
             "yoy", "mom", "wow", "ytd", "mtd", "rolling_7d", "rolling_30d", "rolling_90d");
@@ -156,6 +162,79 @@ public final class TimeWindowValidator {
         // 10. rollingAggregator validity (if provided)
         if (tw.rollingAggregator() != null && !VALID_ROLLING_AGGS.contains(tw.rollingAggregator().toLowerCase())) {
             return AGG_INVALID;
+        }
+
+        return null; // all checks passed
+    }
+
+    /**
+     * Validate calculatedFields interaction with timeWindow.
+     * <p>
+     * Checks:
+     * <ol>
+     *   <li>targetMetrics must not reference any calculatedField name</li>
+     *   <li>Post calc fields must not use agg</li>
+     *   <li>Post calc fields must not use windowFrame/partitionBy/windowOrderBy</li>
+     *   <li>Post calc field expressions must only reference columns in timeWindowOutputColumns</li>
+     * </ol>
+     *
+     * @param tw                      the time window definition
+     * @param calculatedFieldNames    names of all request-level calculatedFields
+     * @param calculatedFields        the full calc field definitions (for agg/window/expression checks)
+     * @param timeWindowOutputColumns all column names available in the timeWindow output
+     * @return error code string, or null if validation passes
+     * @since 8.5.0.beta
+     */
+    public static String validateCalculatedFieldInteraction(
+            TimeWindowDef tw,
+            Set<String> calculatedFieldNames,
+            java.util.List<com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef> calculatedFields,
+            Set<String> timeWindowOutputColumns) {
+
+        if (calculatedFieldNames == null || calculatedFieldNames.isEmpty()) {
+            return null; // no calc fields, nothing to check
+        }
+
+        // 1. targetMetrics must not reference calculatedField names
+        if (tw.targetMetrics() != null) {
+            for (String metric : tw.targetMetrics()) {
+                if (calculatedFieldNames.contains(metric)) {
+                    return TARGET_CALCULATED_FIELD_UNSUPPORTED;
+                }
+            }
+        }
+
+        // 2-4. Validate each post calc field
+        if (calculatedFields != null) {
+            for (var cf : calculatedFields) {
+                // 2. agg must be null/empty
+                if (cf.getAgg() != null && !cf.getAgg().isEmpty()) {
+                    return POST_CALC_FIELD_AGG_UNSUPPORTED;
+                }
+
+                // 3. window clause must be absent
+                if (cf.getPartitionBy() != null && !cf.getPartitionBy().isEmpty()) {
+                    return POST_CALC_FIELD_WINDOW_UNSUPPORTED;
+                }
+                if (cf.getWindowOrderBy() != null && !cf.getWindowOrderBy().isEmpty()) {
+                    return POST_CALC_FIELD_WINDOW_UNSUPPORTED;
+                }
+                if (cf.getWindowFrame() != null && !cf.getWindowFrame().isEmpty()) {
+                    return POST_CALC_FIELD_WINDOW_UNSUPPORTED;
+                }
+
+                // 4. expression column references must be in timeWindowOutputColumns
+                if (cf.getExpression() != null && timeWindowOutputColumns != null && !timeWindowOutputColumns.isEmpty()) {
+                    Set<String> refs = com.foggyframework.dataset.db.model.engine.expression
+                            .CalculatedFieldService.extractColumnReferences(cf.getExpression());
+                    for (String ref : refs) {
+                        // Allow references to other calc field names (inter-calc-field dependency)
+                        if (!timeWindowOutputColumns.contains(ref) && !calculatedFieldNames.contains(ref)) {
+                            return POST_CALC_FIELD_NOT_FOUND;
+                        }
+                    }
+                }
+            }
         }
 
         return null; // all checks passed

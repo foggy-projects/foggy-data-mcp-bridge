@@ -1,6 +1,8 @@
 package com.foggyframework.dataset.db.model.plugins.result_set_filter;
 
+import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.engine.compose.plan.*;
+import com.foggyframework.dataset.db.model.engine.compose.plan.expr.*;
 import com.foggyframework.dataset.db.model.spi.DbColumn;
 import com.foggyframework.dataset.db.model.spi.DbDimension;
 import com.foggyframework.dataset.db.model.spi.DbMeasure;
@@ -146,6 +148,86 @@ public class TimeWindowInterceptor implements DataSetResultStep {
         // Metadata markers for downstream components
         extData.put("derivedFromTimeWindow", true);
         extData.put("timeWindowMode", twDef.comparison());
+
+        // ---- calculatedFields interaction validation (8.5.0 contract) ----
+        List<CalculatedFieldDef> calcFields = null;
+        Set<String> calcFieldNames = Set.of();
+        if (ctx.getRequest() != null && ctx.getRequest().getParam() != null) {
+            // SemanticQueryRequest carries calculatedFields in extData
+            Object calcFieldsObj = extData.get("calculatedFields");
+            if (calcFieldsObj instanceof List<?> cfList && !cfList.isEmpty()) {
+                calcFields = new ArrayList<>();
+                Set<String> names = new LinkedHashSet<>();
+                for (Object cf : cfList) {
+                    if (cf instanceof CalculatedFieldDef cfd) {
+                        calcFields.add(cfd);
+                        if (cfd.getName() != null) names.add(cfd.getName());
+                    } else if (cf instanceof Map<?, ?> cfMap) {
+                        // JSON-deserialized as Map, convert
+                        CalculatedFieldDef cfd = new CalculatedFieldDef();
+                        cfd.setName((String) cfMap.get("name"));
+                        cfd.setExpression((String) cfMap.get("expression"));
+                        cfd.setAgg((String) cfMap.get("agg"));
+                        Object pb = cfMap.get("partitionBy");
+                        if (pb instanceof List<?> pbList) {
+                            cfd.setPartitionBy(pbList.stream().map(String::valueOf).collect(Collectors.toList()));
+                        }
+                        Object wob = cfMap.get("windowOrderBy");
+                        if (wob instanceof List<?>) {
+                            // Simplified: if windowOrderBy exists at all, flag it
+                            cfd.setWindowOrderBy(List.of(new com.foggyframework.dataset.db.model.def.query.request.WindowOrderDef()));
+                        }
+                        cfd.setWindowFrame((String) cfMap.get("windowFrame"));
+                        calcFields.add(cfd);
+                        if (cfd.getName() != null) names.add(cfd.getName());
+                    }
+                }
+                calcFieldNames = names;
+            }
+        }
+
+        if (!calcFieldNames.isEmpty()) {
+            // Compute timeWindow output columns for validation
+            Set<String> twOutputCols = TimeWindowExpander.getOutputColumns(
+                    twDef, groupByFields, measureFields);
+            // Also add any original columns from the request
+            twOutputCols.addAll(originalColumns);
+
+            String calcError = TimeWindowValidator.validateCalculatedFieldInteraction(
+                    twDef, calcFieldNames, calcFields, twOutputCols);
+            if (calcError != null) {
+                throw new IllegalArgumentException(
+                        "Invalid timeWindow + calculatedFields interaction: " + calcError);
+            }
+
+            // Wrap post calc fields as outer DerivedQueryPlan projection
+            QueryPlan timeWindowPlan = (QueryPlan) extData.get("timeWindowPlan");
+            if (timeWindowPlan != null && calcFields != null && !calcFields.isEmpty()) {
+                List<Object> outerCols = new ArrayList<>();
+                // Pass through all timeWindow output columns
+                for (String col : twOutputCols) {
+                    outerCols.add(col);
+                }
+                // Add post calc field projections
+                for (CalculatedFieldDef cf : calcFields) {
+                    // Parse expression and create a ProjectedColumn with raw expression
+                    outerCols.add(new ProjectedColumn(
+                            new RawExpr(cf.getExpression()),
+                            cf.getName(),
+                            cf.getCaption()));
+                }
+                QueryPlan outerPlan = DerivedQueryPlan.builder()
+                        .source(timeWindowPlan)
+                        .columns(outerCols)
+                        .build();
+                extData.put("timeWindowPlan", outerPlan);
+                if (extData.containsKey("comparativePlan")) {
+                    extData.put("comparativePlan", outerPlan);
+                }
+                // Mark that post calc fields have been handled by timeWindow pipeline
+                extData.put("timeWindowPostCalcFieldsHandled", true);
+            }
+        }
 
         // Resolve dialect for downstream plan execution.
         // ctx.getQueryModel() is JdbcQueryModelImpl at runtime, which implements JdbcQueryModel.

@@ -1,0 +1,21 @@
+{
+  "description": "Negative: targetMetrics references a calculatedField name",
+  "comparison": "yoy",
+  "grain": "month",
+  "label": "negative-target-calc-field",
+  "timeWindow": {
+    "field": "salesDate$id",
+    "grain": "month",
+    "comparison": "yoy",
+    "range": "[)",
+    "value": ["2024-01-01", "2025-01-01"],
+    "targetMetrics": ["unitPrice"]
+  },
+  "calculatedFields": [
+    {
+      "name": "unitPrice",
+      "expression": "salesAmount / quantity"
+    }
+  ],
+  "expectedError": "TIMEWINDOW_TARGET_CALCULATED_FIELD_UNSUPPORTED"
+}

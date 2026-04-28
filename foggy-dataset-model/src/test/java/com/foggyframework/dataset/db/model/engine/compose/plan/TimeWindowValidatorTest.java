@@ -181,4 +181,113 @@ class TimeWindowValidatorTest {
                     TimeWindowValidator.validate(tw, limitedFields, TIME_FIELDS, MEASURES));
         }
     }
+
+    // ==================================================================
+    // Calculated field interaction (8.5.0 contract)
+    // ==================================================================
+
+    @Nested
+    @DisplayName("CalculatedField interaction")
+    class CalculatedFieldInteraction {
+
+        @Test
+        @DisplayName("TARGET_CALCULATED_FIELD_UNSUPPORTED — targetMetrics references calc field")
+        void targetMetricsRejectsCalculatedField() {
+            TimeWindowDef tw = new TimeWindowDef(
+                    "salesDate$id", "month", "yoy", "[)",
+                    List.of("2024-01-01", "2025-01-01"),
+                    List.of("unitPrice"), null);
+
+            var calcField = new com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef(
+                    "unitPrice", "salesAmount / quantity");
+
+            Set<String> calcFieldNames = Set.of("unitPrice");
+            Set<String> twOutputCols = Set.of("salesDate$year", "salesDate$month", "salesAmount",
+                    "salesAmount__prior", "salesAmount__diff", "salesAmount__ratio");
+
+            assertEquals(TimeWindowValidator.TARGET_CALCULATED_FIELD_UNSUPPORTED,
+                    TimeWindowValidator.validateCalculatedFieldInteraction(
+                            tw, calcFieldNames, List.of(calcField), twOutputCols));
+        }
+
+        @Test
+        @DisplayName("POST_CALC_FIELD_AGG_UNSUPPORTED — post calc field with agg")
+        void postCalcFieldAggRejected() {
+            TimeWindowDef tw = new TimeWindowDef(
+                    "salesDate$id", "month", "yoy", "[)",
+                    List.of("2024-01-01", "2025-01-01"),
+                    List.of("salesAmount"), null);
+
+            var calcField = new com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef();
+            calcField.setName("avgRatio");
+            calcField.setExpression("salesAmount__ratio");
+            calcField.setAgg("AVG");
+
+            Set<String> calcFieldNames = Set.of("avgRatio");
+            Set<String> twOutputCols = Set.of("salesAmount", "salesAmount__ratio");
+
+            assertEquals(TimeWindowValidator.POST_CALC_FIELD_AGG_UNSUPPORTED,
+                    TimeWindowValidator.validateCalculatedFieldInteraction(
+                            tw, calcFieldNames, List.of(calcField), twOutputCols));
+        }
+
+        @Test
+        @DisplayName("POST_CALC_FIELD_WINDOW_UNSUPPORTED — post calc field with partitionBy")
+        void postCalcFieldWindowRejected() {
+            TimeWindowDef tw = new TimeWindowDef(
+                    "salesDate$id", "month", "yoy", "[)",
+                    List.of("2024-01-01", "2025-01-01"),
+                    List.of("salesAmount"), null);
+
+            var calcField = new com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef();
+            calcField.setName("rankByRatio");
+            calcField.setExpression("salesAmount__ratio");
+            calcField.setPartitionBy(List.of("product$category"));
+
+            Set<String> calcFieldNames = Set.of("rankByRatio");
+            Set<String> twOutputCols = Set.of("salesAmount", "salesAmount__ratio", "product$category");
+
+            assertEquals(TimeWindowValidator.POST_CALC_FIELD_WINDOW_UNSUPPORTED,
+                    TimeWindowValidator.validateCalculatedFieldInteraction(
+                            tw, calcFieldNames, List.of(calcField), twOutputCols));
+        }
+
+        @Test
+        @DisplayName("POST_CALC_FIELD_NOT_FOUND — post calc field references unknown column")
+        void postCalcFieldNotFoundRejected() {
+            TimeWindowDef tw = new TimeWindowDef(
+                    "salesDate$id", "month", "yoy", "[)",
+                    List.of("2024-01-01", "2025-01-01"),
+                    List.of("salesAmount"), null);
+
+            var calcField = new com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef(
+                    "badCalc", "nonExistentColumn * 100");
+
+            Set<String> calcFieldNames = Set.of("badCalc");
+            Set<String> twOutputCols = Set.of("salesAmount", "salesAmount__ratio");
+
+            assertEquals(TimeWindowValidator.POST_CALC_FIELD_NOT_FOUND,
+                    TimeWindowValidator.validateCalculatedFieldInteraction(
+                            tw, calcFieldNames, List.of(calcField), twOutputCols));
+        }
+
+        @Test
+        @DisplayName("Scalar post calc field passes validation")
+        void postCalcFieldScalarAccepted() {
+            TimeWindowDef tw = new TimeWindowDef(
+                    "salesDate$id", "month", "yoy", "[)",
+                    List.of("2024-01-01", "2025-01-01"),
+                    List.of("salesAmount"), null);
+
+            var calcField = new com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef(
+                    "growthPercent", "salesAmount__ratio * 100");
+
+            Set<String> calcFieldNames = Set.of("growthPercent");
+            Set<String> twOutputCols = Set.of("salesDate$year", "salesDate$month", "salesAmount",
+                    "salesAmount__prior", "salesAmount__diff", "salesAmount__ratio");
+
+            assertNull(TimeWindowValidator.validateCalculatedFieldInteraction(
+                    tw, calcFieldNames, List.of(calcField), twOutputCols));
+        }
+    }
 }

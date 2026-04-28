@@ -1,0 +1,25 @@
+{
+  "description": "YoY + month grain + post calc field: growthPercent = salesAmount__ratio * 100",
+  "comparison": "yoy",
+  "grain": "month",
+  "label": "happy-post-calc-growth",
+  "timeWindow": {
+    "field": "salesDate$id",
+    "grain": "month",
+    "comparison": "yoy",
+    "range": "[)",
+    "value": ["2024-01-01", "2025-01-01"],
+    "targetMetrics": ["salesAmount"]
+  },
+  "calculatedFields": [
+    {
+      "name": "growthPercent",
+      "expression": "salesAmount__ratio * 100"
+    }
+  ],
+  "expectedColumns": ["salesDate$year", "salesDate$month", "salesAmount", "salesAmount__prior", "salesAmount__diff", "salesAmount__ratio", "growthPercent"],
+  "assertions": {
+    "postCalcFieldPresent": true,
+    "growthPercentEqualsRatioTimes100": true
+  }
+}
