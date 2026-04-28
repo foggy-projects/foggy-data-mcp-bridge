@@ -241,17 +241,11 @@ public class SchemaAwareFieldValidationStep implements DataSetResultStep {
         if (field == null || field.isBlank()) {
             return;
         }
-        // 8.4.0.beta backlog B-03 strict path · Foggy QM 公开契约约束：
-        // 维度本身不是可投影列 —— 必须通过 ``$id`` / ``$caption`` /
-        // ``$<custom_attr>`` 引用其属性。LLM 看到的元数据形态（仅
-        // ``$attr``）与引擎实际接受的列引用形态必须对齐。
-        // Python 端等价改造：``v1.7`` ``DbTableModelImpl.resolve_field_strict``。
-        // 这里在所有路径之前先判定，因为：
-        // (a) FK-style dim：bare 名不在 schemaFields，会落到下方 OLD 路径报
-        //     ``INVALID_QUERY_FIELD`` —— 但错误码不一致，无法跨端 parity
-        // (b) self-attribute dim：bare 名可能在 schemaFields，OLD 路径直接
-        //     接受 —— 这是 v1.3 容忍 bug
-        // 两类都改写为 ``COLUMN_FIELD_NOT_FOUND`` + hint，cross-end 对齐 Python。
+        // QM contract: dimensions are not directly projectable; bare-dim
+        // refs fail-loud here. Runs before the schemaFields lookup so the
+        // error code unifies to COLUMN_FIELD_NOT_FOUND regardless of
+        // whether the bare name happens to be registered (FK-style dims
+        // aren't, self-attribute ones are — both must reject identically).
         if (!field.contains("$") && isBareDimensionReference(field, queryModel)) {
             rejectBareDimension(field, queryModel);
         }
@@ -274,14 +268,9 @@ public class SchemaAwareFieldValidationStep implements DataSetResultStep {
     }
 
     /**
-     * 判断给定字段名是否对应模型上的一个裸维度（即没有 ``$<attr>`` 后缀的
-     * 维度引用）。返回 ``true`` 时调用方应当 fail-loud + 给出提示。
-     *
-     * <p>仅当字段名同时满足：(a) 模型上有同名 ``DbDimension``；(b) 同名的
-     * 注册项不是来自 measure 或 property（即并非"度量名碰巧叫 X 同时也存在
-     * 维度 X"的边界 case）—— 才认定为裸维度引用。当前实现：先用
-     * ``findDimension`` 直接命中；若该名称同时是 measure 或 property，仍按
-     * measure/property 解析（避免误伤）。</p>
+     * Returns {@code true} if {@code field} names a {@link DbDimension}
+     * on {@code queryModel} and is not shadowed by a same-named property
+     * (rare conflict case — keep the property path so we don't false-reject).
      */
     private boolean isBareDimensionReference(String field, QueryModel queryModel) {
         DbDimension dim;
@@ -293,15 +282,13 @@ public class SchemaAwareFieldValidationStep implements DataSetResultStep {
         if (dim == null) {
             return false;
         }
-        // 边界保护：若同名 measure / property 存在则按非裸-dim 解析路径走，
-        // 避免在罕见冲突命名场景下误拒。
         try {
             if (queryModel.findProperty(field, false) != null) {
                 return false;
             }
         } catch (Exception ignore) {
-            // findProperty 可能在某些模型形态下抛 RuntimeException —— 忽略，
-            // 保留 isBare=true 判定。
+            // findProperty may throw on some model shapes; treat as
+            // "no shadow property" and keep isBare=true.
         }
         return true;
     }

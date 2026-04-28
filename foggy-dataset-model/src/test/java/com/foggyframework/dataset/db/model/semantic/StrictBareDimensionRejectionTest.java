@@ -7,6 +7,7 @@ import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import jakarta.annotation.Resource;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -116,5 +117,29 @@ class StrictBareDimensionRejectionTest extends EcommerceTestSupport {
                 SemanticRequestContext.empty());
 
         assertNotNull(response);
+    }
+
+    // ------------------------------------------------------------------
+    // Deferred follow-ups — placeholders surface the gaps in test reports
+    // ------------------------------------------------------------------
+
+    @Test
+    @Disabled("FU-2 · `dim AS alias` currently rejected via INVALID_QUERY_FIELD instead of COLUMN_FIELD_NOT_FOUND")
+    @DisplayName("T2 · `product AS p` 应抛 COLUMN_FIELD_NOT_FOUND（与 Python parity）")
+    void t2_bareDimWithAliasRejectedWithUnifiedErrorCode() {
+        // Java 当前路径：inline parser 不识别 `product AS p`，落入
+        // `INVALID_QUERY_FIELD` "Field not found" 分支。功能上正确拒绝，但
+        // 错误码与 Python `ValueError("COLUMN_FIELD_NOT_FOUND: ...")` 不一致。
+        // FU-2 需要在 inline parser 之后追加 fail-loud 区分以统一错误码。
+    }
+
+    @Test
+    @Disabled("FU-1 · user-alias passthrough on dim$attr AS userAlias requires Java SQL-gen-layer fix")
+    @DisplayName("T4 · product$caption AS userAlias 应输出用户 alias（与 Python parity）")
+    void t4_userAliasOverridesTmCaptionOnDimAttr() {
+        // Python `v1.7` 已修复（commit 59176f2）：dim$attr AS userAlias 的
+        // 用户 alias 覆盖 TM dimension.alias。Java 端等价改造涉及
+        // findJdbcQueryColumnByName + DbQueryColumn.getCaption 链路。
+        // FU-1 承接。
     }
 }
