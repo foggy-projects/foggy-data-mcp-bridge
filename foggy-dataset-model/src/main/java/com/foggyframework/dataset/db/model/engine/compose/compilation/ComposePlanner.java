@@ -22,7 +22,9 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -441,6 +443,10 @@ public final class ComposePlanner {
          *  doesn't re-read the volatile override / system property / env var
          *  for every column in the plan tree. */
         final boolean g10Enabled;
+        /** F-7 · Per-model datasource identity map. {@code null} when no
+         *  provider was supplied and no explicit datasourceIds were passed;
+         *  the cross-datasource check is skipped entirely in that case. */
+        final Map<String, Optional<String>> datasourceIds;
         int aliasCounter = 0;
 
         /** MVP fast path — same plan reference compiled twice in one session
@@ -475,13 +481,15 @@ public final class ComposePlanner {
         int currentDepth = 0;
 
         CompileState(Map<String, ModelBinding> bindings, SemanticQueryServiceV3 semanticService,
-                     String namespace, String dialect) {
+                     String namespace, String dialect,
+                     Map<String, Optional<String>> datasourceIds) {
             this.bindings = bindings;
             this.semanticService = semanticService;
             this.namespace = namespace;
             this.dialect = dialect.toLowerCase(Locale.ROOT);
             this.useCte = dialectSupportsCte(this.dialect);
             this.g10Enabled = ComposeFeatureFlags.g10Enabled();
+            this.datasourceIds = datasourceIds;
         }
 
         String nextAlias() {
@@ -515,10 +523,12 @@ public final class ComposePlanner {
             Map<String, ModelBinding> bindings,
             SemanticQueryServiceV3 semanticService,
             String namespace,
-            String dialect) {
+            String dialect,
+            Map<String, Optional<String>> datasourceIds) {
 
         assertDialect(dialect);
-        CompileState state = new CompileState(bindings, semanticService, namespace, dialect);
+        CompileState state = new CompileState(bindings, semanticService, namespace, dialect,
+                datasourceIds);
         // G10 PR4 · plan-aware permission validation. Runs only when the
         // G10 flag is on; under flag=off the legacy single-QM
         // FieldAccessPermissionStep continues to enforce flat-whitelist
@@ -721,6 +731,8 @@ public final class ComposePlanner {
     }
 
     private static ComposedSql compileJoin(JoinPlan plan, CompileState state) {
+        checkCrossDatasource(plan, state, "join");
+
         if (plan.type() == JoinType.FULL && "sqlite".equals(state.dialect)) {
             throw new ComposeCompileException(
                     ComposeCompileErrorCodes.UNSUPPORTED_PLAN_SHAPE,
@@ -754,6 +766,8 @@ public final class ComposePlanner {
     }
 
     private static ComposedSql compileUnion(UnionPlan plan, CompileState state) {
+        checkCrossDatasource(plan, state, "union");
+
         Object left = compileAny(plan.left(), state);
         Object right = compileAny(plan.right(), state);
 
@@ -768,6 +782,60 @@ public final class ComposePlanner {
         params.addAll(leftParams);
         params.addAll(rightParams);
         return new ComposedSql(sql, params);
+    }
+
+    // ------------------------------------------------------------------
+    // F-7 · Cross-datasource guard
+    // ------------------------------------------------------------------
+
+    /**
+     * Check whether the leaf models of a union/join plan span multiple
+     * datasources and reject if they do.
+     *
+     * <p>Called at the top of {@link #compileUnion} and
+     * {@link #compileJoin}, <b>before</b> any SQL is emitted for the
+     * children — mirrors the Python
+     * {@code _check_cross_datasource(plan, state, kind)} guard.</p>
+     *
+     * <p>Skip semantics: when {@code state.datasourceIds} is
+     * {@code null}, the compiler was invoked without a
+     * {@code modelInfoProvider} and without explicit datasource IDs.
+     * In that case the guard is a no-op (backward-compatible fast path).
+     * Unknown datasources ({@code Optional.empty()}) are also skipped
+     * — only non-empty, differing identities trigger rejection.</p>
+     */
+    private static void checkCrossDatasource(
+            QueryPlan plan, CompileState state, String planKind) {
+        if (state.datasourceIds == null) {
+            return;
+        }
+
+        Set<String> dsIds = new TreeSet<>();
+        Set<String> models = new TreeSet<>();
+
+        for (BaseModelPlan base : plan.baseModelPlans()) {
+            models.add(base.model());
+            Optional<String> ds = state.datasourceIds.getOrDefault(
+                    base.model(), Optional.empty());
+            if (ds != null) {
+                ds.ifPresent(id -> {
+                    if (id != null && !id.isBlank()) {
+                        dsIds.add(id);
+                    }
+                });
+            }
+        }
+
+        if (dsIds.size() > 1) {
+            throw new ComposeCompileException(
+                    ComposeCompileErrorCodes.CROSS_DATASOURCE_REJECTED,
+                    ComposeCompileErrorCodes.PHASE_PLAN_LOWER,
+                    planKind + " operands span " + dsIds.size()
+                            + " datasources " + dsIds
+                            + "; models involved: " + models
+                            + ". Cross-datasource composition is not supported; "
+                            + "all operands must belong to the same datasource.");
+        }
     }
 
     // ------------------------------------------------------------------

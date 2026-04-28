@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -205,5 +206,89 @@ class JoinCompileTest {
                 List.of(JoinOn.of("id", "!=", "id")));
         ComposedSql sql = compile(j, twoModelSvc(), twoModelBindings(), "sqlite");
         assertTrue(sql.getSql().contains(".id != "));
+    }
+
+    // ------------------------------------------------------------------
+    // F-7 · Cross-datasource rejection
+    // ------------------------------------------------------------------
+
+    private static ComposedSql compileWithDs(QueryPlan plan, FakeSemanticService svc,
+                                              Map<String, ModelBinding> bindings, String dialect,
+                                              Map<String, Optional<String>> datasourceIds) {
+        return ComposeSqlCompiler.compilePlanToSql(
+                plan,
+                CompileTestHelpers.context(CompileTestHelpers.resolverFor(bindings)),
+                ComposeSqlCompiler.CompileOptions.builder()
+                        .semanticService(svc)
+                        .bindings(bindings)
+                        .datasourceIds(datasourceIds)
+                        .dialect(dialect)
+                        .build());
+    }
+
+    @Test
+    @DisplayName("F-7 · cross-datasource inner join 拒绝")
+    void crossDatasourceInnerJoinRejected() {
+        Map<String, Optional<String>> ds = Map.of(
+                "L", Optional.of("ds-1"),
+                "R", Optional.of("ds-2"));
+        JoinPlan j = CompileTestHelpers.base("L", "id").join(
+                CompileTestHelpers.base("R", "id"), JoinType.INNER,
+                List.of(JoinOn.of("id", "=", "id")));
+        ComposeCompileException ex = assertThrows(ComposeCompileException.class,
+                () -> compileWithDs(j, twoModelSvc(), twoModelBindings(), "sqlite", ds));
+        assertEquals(ComposeCompileErrorCodes.CROSS_DATASOURCE_REJECTED, ex.code());
+        assertEquals(ComposeCompileErrorCodes.PHASE_PLAN_LOWER, ex.phase());
+        assertTrue(ex.getMessage().contains("join"));
+    }
+
+    @Test
+    @DisplayName("F-7 · same datasource join 通过")
+    void sameDatasourceJoinPasses() {
+        Map<String, Optional<String>> ds = Map.of(
+                "L", Optional.of("ds-1"),
+                "R", Optional.of("ds-1"));
+        JoinPlan j = CompileTestHelpers.base("L", "id").join(
+                CompileTestHelpers.base("R", "id"), JoinType.INNER,
+                List.of(JoinOn.of("id", "=", "id")));
+        ComposedSql sql = compileWithDs(j, twoModelSvc(), twoModelBindings(), "sqlite", ds);
+        assertTrue(sql.getSql().contains("INNER JOIN"));
+    }
+
+    @Test
+    @DisplayName("F-7 · unknown datasource join 宽容通过")
+    void unknownDatasourceJoinPermissive() {
+        Map<String, Optional<String>> ds = Map.of(
+                "L", Optional.of("ds-1"),
+                "R", Optional.empty());
+        JoinPlan j = CompileTestHelpers.base("L", "id").join(
+                CompileTestHelpers.base("R", "id"), JoinType.INNER,
+                List.of(JoinOn.of("id", "=", "id")));
+        ComposedSql sql = compileWithDs(j, twoModelSvc(), twoModelBindings(), "sqlite", ds);
+        assertTrue(sql.getSql().contains("INNER JOIN"));
+    }
+
+    @Test
+    @DisplayName("F-7 · no provider / no datasourceIds join 仍通过")
+    void noProviderJoinStillPasses() {
+        JoinPlan j = CompileTestHelpers.base("L", "id").join(
+                CompileTestHelpers.base("R", "id"), JoinType.INNER,
+                List.of(JoinOn.of("id", "=", "id")));
+        ComposedSql sql = compile(j, twoModelSvc(), twoModelBindings(), "sqlite");
+        assertTrue(sql.getSql().contains("INNER JOIN"));
+    }
+
+    @Test
+    @DisplayName("F-7 · left join mismatch 拒绝")
+    void leftJoinMismatchRejected() {
+        Map<String, Optional<String>> ds = Map.of(
+                "L", Optional.of("ds-a"),
+                "R", Optional.of("ds-b"));
+        JoinPlan j = CompileTestHelpers.base("L", "id").join(
+                CompileTestHelpers.base("R", "id"), JoinType.LEFT,
+                List.of(JoinOn.of("id", "=", "id")));
+        ComposeCompileException ex = assertThrows(ComposeCompileException.class,
+                () -> compileWithDs(j, twoModelSvc(), twoModelBindings(), "sqlite", ds));
+        assertEquals(ComposeCompileErrorCodes.CROSS_DATASOURCE_REJECTED, ex.code());
     }
 }

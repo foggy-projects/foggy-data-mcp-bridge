@@ -1,6 +1,7 @@
 package com.foggyframework.dataset.db.model.engine.compose.compilation;
 
 import com.foggyframework.dataset.db.model.engine.compose.ComposedSql;
+import com.foggyframework.dataset.db.model.engine.compose.authority.ModelInfoProvider;
 import com.foggyframework.dataset.db.model.engine.compose.compilation.CompileTestHelpers.FakeSemanticService;
 import com.foggyframework.dataset.db.model.engine.compose.context.ComposeQueryContext;
 import com.foggyframework.dataset.db.model.engine.compose.plan.BaseModelPlan;
@@ -15,6 +16,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -141,14 +143,53 @@ class ComposeSqlCompilerTest {
     void builderFieldsReadback() {
         FakeSemanticService svc = new FakeSemanticService();
         Map<String, ModelBinding> bindings = Map.of();
+        Map<String, Optional<String>> datasourceIds = Map.of("M", Optional.of("ds-main"));
         ComposeSqlCompiler.CompileOptions opts = ComposeSqlCompiler.CompileOptions.builder()
                 .semanticService(svc)
                 .bindings(bindings)
+                .datasourceIds(datasourceIds)
                 .dialect("postgres")
                 .build();
         assertEquals(svc, opts.semanticService());
         assertEquals(bindings, opts.bindings());
+        assertEquals(datasourceIds, opts.datasourceIds());
         assertEquals("postgres", opts.dialect());
+    }
+
+    @Test
+    @DisplayName("F-7 · modelInfoProvider 自动收集 datasourceIds 并拒绝跨数据源 union")
+    void autoCollectsDatasourceIdsFromProvider() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("A", "SELECT id FROM ta");
+        svc.stub("B", "SELECT id FROM tb");
+        Map<String, ModelBinding> bindings = Map.of(
+                "A", CompileTestHelpers.emptyBinding(),
+                "B", CompileTestHelpers.emptyBinding());
+        ModelInfoProvider provider = new ModelInfoProvider() {
+            @Override
+            public Optional<List<String>> getTablesForModel(String modelName, String namespace) {
+                return Optional.of(List.of());
+            }
+
+            @Override
+            public Optional<String> getDatasourceId(String modelName, String namespace) {
+                return Optional.of("A".equals(modelName) ? "ds-1" : "ds-2");
+            }
+        };
+
+        ComposeCompileException ex = assertThrows(ComposeCompileException.class,
+                () -> ComposeSqlCompiler.compilePlanToSql(
+                        CompileTestHelpers.base("A", "id")
+                                .union(CompileTestHelpers.base("B", "id")),
+                        CompileTestHelpers.context(CompileTestHelpers.resolverFor(bindings)),
+                        ComposeSqlCompiler.CompileOptions.builder()
+                                .semanticService(svc)
+                                .bindings(bindings)
+                                .modelInfoProvider(provider)
+                                .dialect("sqlite")
+                                .build()));
+        assertEquals(ComposeCompileErrorCodes.CROSS_DATASOURCE_REJECTED, ex.code());
+        assertEquals(ComposeCompileErrorCodes.PHASE_PLAN_LOWER, ex.phase());
     }
 
     @Test

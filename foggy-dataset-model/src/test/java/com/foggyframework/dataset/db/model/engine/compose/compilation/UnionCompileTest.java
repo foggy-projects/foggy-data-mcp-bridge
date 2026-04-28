@@ -7,14 +7,15 @@ import com.foggyframework.dataset.db.model.engine.compose.plan.DerivedQueryPlan;
 import com.foggyframework.dataset.db.model.engine.compose.plan.QueryPlan;
 import com.foggyframework.dataset.db.model.engine.compose.plan.UnionPlan;
 import com.foggyframework.dataset.db.model.engine.compose.security.ModelBinding;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -31,6 +32,21 @@ class UnionCompileTest {
                 ComposeSqlCompiler.CompileOptions.builder()
                         .semanticService(svc)
                         .bindings(bindings)
+                        .dialect(dialect)
+                        .build());
+    }
+
+    /** Compile with explicit datasource IDs for F-7 tests. */
+    private static ComposedSql compileWithDs(QueryPlan plan, FakeSemanticService svc,
+                                              Map<String, ModelBinding> bindings, String dialect,
+                                              Map<String, Optional<String>> datasourceIds) {
+        return ComposeSqlCompiler.compilePlanToSql(
+                plan,
+                CompileTestHelpers.context(CompileTestHelpers.resolverFor(bindings)),
+                ComposeSqlCompiler.CompileOptions.builder()
+                        .semanticService(svc)
+                        .bindings(bindings)
+                        .datasourceIds(datasourceIds)
                         .dialect(dialect)
                         .build());
     }
@@ -144,7 +160,6 @@ class UnionCompileTest {
                 svc,
                 Map.of("A", CompileTestHelpers.emptyBinding(), "B", CompileTestHelpers.emptyBinding()),
                 "sqlite");
-        // outer wraps the union — union keyword must appear inside a FROM (…) subquery
         assertTrue(sql.getSql().contains("UNION"));
         assertTrue(sql.getSql().contains("FROM ("));
     }
@@ -193,7 +208,6 @@ class UnionCompileTest {
                 svc,
                 Map.of("A", CompileTestHelpers.emptyBinding(), "B", CompileTestHelpers.emptyBinding()),
                 "sqlite");
-        // contains "\nUNION\n" but NOT "\nUNION ALL\n"
         assertTrue(sql.getSql().contains("UNION"));
         assertTrue(!sql.getSql().contains("UNION ALL"));
     }
@@ -212,7 +226,6 @@ class UnionCompileTest {
                 svc,
                 Map.of("A", ba, "B", bb),
                 "sqlite");
-        // Two invocations, each with the binding-specific fieldAccess
         CompileTestHelpers.CapturedInvocation first = svc.invocations.get(0);
         CompileTestHelpers.CapturedInvocation second = svc.invocations.get(1);
         assertTrue(first.context.getFieldAccess().contains("x")
@@ -221,13 +234,147 @@ class UnionCompileTest {
                 || second.context.getFieldAccess().contains("y"));
     }
 
-    @Disabled("F-7 · CROSS_DATASOURCE_REJECTED 真实检测延后（需要 ModelBinding.datasourceId 字段），"
-            + "code 常量已注册，占位测试待 binding 签名增强后启用。")
+    // ------------------------------------------------------------------
+    // F-7 · Cross-datasource rejection
+    // ------------------------------------------------------------------
+
     @Test
-    @DisplayName("(xfail) 跨数据源 union · CROSS_DATASOURCE_REJECTED")
-    void crossDatasourceRejectedPlaceholder() {
-        // Placeholder: once ModelBinding carries datasourceId the compiler will
-        // raise ComposeCompileException(CROSS_DATASOURCE_REJECTED) when left and
-        // right bindings point to different datasources.
+    @DisplayName("F-7 · 跨数据源 union 拒绝 · CROSS_DATASOURCE_REJECTED")
+    void crossDatasourceUnionRejected() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("A", "SELECT * FROM ta");
+        svc.stub("B", "SELECT * FROM tb");
+        Map<String, ModelBinding> bindings = Map.of(
+                "A", CompileTestHelpers.emptyBinding(),
+                "B", CompileTestHelpers.emptyBinding());
+        Map<String, Optional<String>> ds = Map.of(
+                "A", Optional.of("ds-1"),
+                "B", Optional.of("ds-2"));
+
+        ComposeCompileException ex = assertThrows(ComposeCompileException.class,
+                () -> compileWithDs(
+                        CompileTestHelpers.base("A", "col").union(CompileTestHelpers.base("B", "col")),
+                        svc, bindings, "sqlite", ds));
+        assertEquals(ComposeCompileErrorCodes.CROSS_DATASOURCE_REJECTED, ex.code());
+        assertEquals(ComposeCompileErrorCodes.PHASE_PLAN_LOWER, ex.phase());
+        assertTrue(ex.getMessage().contains("union"));
+    }
+
+    @Test
+    @DisplayName("F-7 · 同数据源 union 通过")
+    void sameDatasourceUnionPasses() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("A", "SELECT * FROM ta");
+        svc.stub("B", "SELECT * FROM tb");
+        Map<String, ModelBinding> bindings = Map.of(
+                "A", CompileTestHelpers.emptyBinding(),
+                "B", CompileTestHelpers.emptyBinding());
+        Map<String, Optional<String>> ds = Map.of(
+                "A", Optional.of("ds-1"),
+                "B", Optional.of("ds-1"));
+
+        ComposedSql sql = compileWithDs(
+                CompileTestHelpers.base("A", "col").union(CompileTestHelpers.base("B", "col")),
+                svc, bindings, "sqlite", ds);
+        assertTrue(sql.getSql().contains("UNION"));
+    }
+
+    @Test
+    @DisplayName("F-7 · unknown datasource 宽容通过")
+    void unknownDatasourcePermissive() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("A", "SELECT * FROM ta");
+        svc.stub("B", "SELECT * FROM tb");
+        Map<String, ModelBinding> bindings = Map.of(
+                "A", CompileTestHelpers.emptyBinding(),
+                "B", CompileTestHelpers.emptyBinding());
+        Map<String, Optional<String>> ds = Map.of(
+                "A", Optional.of("ds-1"),
+                "B", Optional.empty());
+
+        ComposedSql sql = compileWithDs(
+                CompileTestHelpers.base("A", "col").union(CompileTestHelpers.base("B", "col")),
+                svc, bindings, "sqlite", ds);
+        assertTrue(sql.getSql().contains("UNION"));
+    }
+
+    @Test
+    @DisplayName("F-7 · 双 unknown datasource 宽容通过")
+    void bothUnknownDatasourcePermissive() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("A", "SELECT * FROM ta");
+        svc.stub("B", "SELECT * FROM tb");
+        Map<String, ModelBinding> bindings = Map.of(
+                "A", CompileTestHelpers.emptyBinding(),
+                "B", CompileTestHelpers.emptyBinding());
+        Map<String, Optional<String>> ds = Map.of(
+                "A", Optional.empty(),
+                "B", Optional.empty());
+
+        ComposedSql sql = compileWithDs(
+                CompileTestHelpers.base("A", "col").union(CompileTestHelpers.base("B", "col")),
+                svc, bindings, "sqlite", ds);
+        assertTrue(sql.getSql().contains("UNION"));
+    }
+
+    @Test
+    @DisplayName("F-7 · 无 provider / 无 datasourceIds 仍通过（向后兼容）")
+    void noProviderNoDatasourceIdsStillPasses() {
+        // The original compile() helper does not set datasourceIds or modelInfoProvider
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("A", "SELECT * FROM ta");
+        svc.stub("B", "SELECT * FROM tb");
+        ComposedSql sql = compile(
+                CompileTestHelpers.base("A", "col").union(CompileTestHelpers.base("B", "col")),
+                svc,
+                Map.of("A", CompileTestHelpers.emptyBinding(), "B", CompileTestHelpers.emptyBinding()),
+                "sqlite");
+        assertTrue(sql.getSql().contains("UNION"));
+    }
+
+    @Test
+    @DisplayName("F-7 · 3-way union mismatch 拒绝")
+    void threeWayUnionMismatchRejected() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("A", "SELECT * FROM ta");
+        svc.stub("B", "SELECT * FROM tb");
+        svc.stub("C", "SELECT * FROM tc");
+        Map<String, ModelBinding> bindings = Map.of(
+                "A", CompileTestHelpers.emptyBinding(),
+                "B", CompileTestHelpers.emptyBinding(),
+                "C", CompileTestHelpers.emptyBinding());
+        Map<String, Optional<String>> ds = Map.of(
+                "A", Optional.of("ds-1"),
+                "B", Optional.of("ds-1"),
+                "C", Optional.of("ds-2"));
+
+        // (A ∪ B) ∪ C — the outer union spans ds-1 and ds-2
+        ComposeCompileException ex = assertThrows(ComposeCompileException.class,
+                () -> compileWithDs(
+                        CompileTestHelpers.base("A", "col")
+                                .union(CompileTestHelpers.base("B", "col"))
+                                .union(CompileTestHelpers.base("C", "col")),
+                        svc, bindings, "sqlite", ds));
+        assertEquals(ComposeCompileErrorCodes.CROSS_DATASOURCE_REJECTED, ex.code());
+    }
+
+    @Test
+    @DisplayName("F-7 · UNION ALL mismatch 拒绝")
+    void unionAllMismatchRejected() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("A", "SELECT * FROM ta");
+        svc.stub("B", "SELECT * FROM tb");
+        Map<String, ModelBinding> bindings = Map.of(
+                "A", CompileTestHelpers.emptyBinding(),
+                "B", CompileTestHelpers.emptyBinding());
+        Map<String, Optional<String>> ds = Map.of(
+                "A", Optional.of("ds-x"),
+                "B", Optional.of("ds-y"));
+
+        ComposeCompileException ex = assertThrows(ComposeCompileException.class,
+                () -> compileWithDs(
+                        CompileTestHelpers.base("A", "col").union(CompileTestHelpers.base("B", "col"), true),
+                        svc, bindings, "sqlite", ds));
+        assertEquals(ComposeCompileErrorCodes.CROSS_DATASOURCE_REJECTED, ex.code());
     }
 }

@@ -50,12 +50,15 @@ public final class ComposeCompileErrorCodes {
     public static final String UNSUPPORTED_PLAN_SHAPE =
             "compose-compile-error/unsupported-plan-shape";
 
-    /** Union / join operands come from different data sources. M6 leaves
-     *  real detection to post-M6 follow-up F-7 — the {@code ModelBinding}
-     *  and {@code ModelInfoProvider} contracts do not yet carry a datasource
-     *  identity field. This code is <b>defined</b> so call sites that want
-     *  to raise it programmatically have a stable constant, but the
-     *  compiler does not raise it by itself on live plans. */
+    /** Union / join operands come from different data sources. The compiler
+     *  raises this code when the {@code datasourceIds} map (resolved via
+     *  {@link com.foggyframework.dataset.db.model.engine.compose.authority.DatasourceIdCollector})
+     *  contains two or more distinct non-empty datasource identities among
+     *  the plan's leaf models.
+     *
+     *  <p>Cross-repo invariant: mirrors Python
+     *  {@code compose-compile-error/cross-datasource-rejected} raised by
+     *  {@code _check_cross_datasource} in the Python compose planner.</p> */
     public static final String CROSS_DATASOURCE_REJECTED =
             "compose-compile-error/cross-datasource-rejected";
 

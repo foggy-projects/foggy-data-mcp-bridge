@@ -43,4 +43,26 @@ class ModelInfoProviderSmokeTest {
         assertTrue(result.isPresent());
         assertEquals(List.of(), result.get());
     }
+
+    // ------------------------------------------------------------------
+    // F-7 · getDatasourceId
+    // ------------------------------------------------------------------
+
+    @Test
+    @DisplayName("F-7 · default getDatasourceId 返回 Optional.empty()")
+    void defaultGetDatasourceIdReturnsEmpty() {
+        // Use a lambda to construct a provider — proves @FunctionalInterface
+        // is still valid after adding the default method.
+        ModelInfoProvider lambda = (name, ns) -> Optional.of(List.of("table1"));
+        assertTrue(lambda.getDatasourceId("any", "ns").isEmpty(),
+                "default getDatasourceId must return Optional.empty()");
+    }
+
+    @Test
+    @DisplayName("F-7 · NullModelInfoProvider.getDatasourceId 返回 Optional.empty()")
+    void nullProviderGetDatasourceIdReturnsEmpty() {
+        NullModelInfoProvider provider = new NullModelInfoProvider();
+        assertTrue(provider.getDatasourceId("SaleOrderQM", "odoo").isEmpty());
+        assertTrue(provider.getDatasourceId("AnyQM", null).isEmpty());
+    }
 }
