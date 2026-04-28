@@ -129,6 +129,9 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         if (request.getTimeWindow() != null && !request.getTimeWindow().isEmpty()) {
             extData.put("timeWindow", request.getTimeWindow());
         }
+        if (request.getCalculatedFields() != null && !request.getCalculatedFields().isEmpty()) {
+            extData.put("calculatedFields", new ArrayList<>(request.getCalculatedFields()));
+        }
         if (!extData.isEmpty()) {
             resultContext.setExtData(extData);
         }
@@ -236,6 +239,11 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         }
         if (request.getTimeWindow() != null && !request.getTimeWindow().isEmpty()) {
             extData.put("timeWindow", request.getTimeWindow());
+        }
+        // Stage 5: pass calculatedFields to extData so TimeWindowInterceptor
+        // can build the outer post-calc projection wrapper.
+        if (request.getCalculatedFields() != null && !request.getCalculatedFields().isEmpty()) {
+            extData.put("calculatedFields", new ArrayList<>(request.getCalculatedFields()));
         }
         if (!extData.isEmpty()) {
             resultContext.setExtData(extData);

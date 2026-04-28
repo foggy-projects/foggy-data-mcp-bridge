@@ -93,10 +93,22 @@ public class TimeWindowInterceptor implements DataSetResultStep {
         }
 
         // Determine original query columns excluding dynamically generated ones
+        // and request-level calculatedField output names (those are projected in
+        // the outer DerivedQueryPlan wrapper, not the inner BaseModelPlan).
+        Set<String> calcFieldOutputNames = new HashSet<>();
+        if (ctx.getRequest() != null && ctx.getRequest().getParam() != null
+                && ctx.getRequest().getParam().getCalculatedFields() != null) {
+            for (var cf : ctx.getRequest().getParam().getCalculatedFields()) {
+                if (cf != null && cf.getName() != null) {
+                    calcFieldOutputNames.add(cf.getName());
+                }
+            }
+        }
+
         List<String> originalColumns = new ArrayList<>();
         if (ctx.getRequest() != null && ctx.getRequest().getParam() != null && ctx.getRequest().getParam().getColumns() != null) {
             for (String col : ctx.getRequest().getParam().getColumns()) {
-                if (!isGeneratedTimeWindowColumn(col)) {
+                if (!isGeneratedTimeWindowColumn(col) && !calcFieldOutputNames.contains(col)) {
                     originalColumns.add(col);
                 }
             }

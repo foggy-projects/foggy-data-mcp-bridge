@@ -107,16 +107,16 @@ class TimeWindowParitySnapshotTest extends EcommerceTestSupport {
         // Request shape mirrors java_time_window_parity_catalog.json
         // case "yoy-month-post-calc-growth-happy"
         //
-        // columns: only real model columns + timeWindow-synthesized suffixes.
-        // The __prior/__diff/__ratio are added by the TimeWindow interceptor;
-        // growthPercent is added by the post-calc wrapper from calculatedFields.
-        // SchemaAwareFieldValidationStep allows timeWindow-suffixed columns
-        // but rejects unknown calc-field names, so we omit growthPercent here.
+        // Stage 5: request columns now include the post-calc output alias.
+        // SchemaAwareFieldValidationStep is skipped when timeWindow is active
+        // (isSkipQuery=true), and collectSchemaFields() adds request-level
+        // calculatedFields.name to the valid set anyway.
         SemanticQueryRequest request = new SemanticQueryRequest();
         request.setColumns(List.of(
                 "salesDate$year", "salesDate$month",
                 "salesAmount", "salesAmount__prior",
-                "salesAmount__diff", "salesAmount__ratio"));
+                "salesAmount__diff", "salesAmount__ratio",
+                "growthPercent"));
         request.setGroupBy(List.of(
                 new SemanticQueryRequest.GroupByItem("salesDate$year", null),
                 new SemanticQueryRequest.GroupByItem("salesDate$month", null)));
@@ -149,12 +149,12 @@ class TimeWindowParitySnapshotTest extends EcommerceTestSupport {
         // Request shape mirrors java_time_window_parity_catalog.json
         // case "rolling_7d-post-calc-gap-happy"
         //
-        // Same as above: omit rollingGap from columns (post-calc wrapper adds it).
-        // __rolling_7d is a timeWindow suffix — the interceptor handles it.
+        // Stage 5: request columns now include the post-calc output alias.
         SemanticQueryRequest request = new SemanticQueryRequest();
         request.setColumns(List.of(
                 "salesDate$id", "salesAmount",
-                "salesAmount__rolling_7d"));
+                "salesAmount__rolling_7d",
+                "rollingGap"));
         request.setGroupBy(List.of(
                 new SemanticQueryRequest.GroupByItem("salesDate$id", null)));
         request.setTimeWindow(Map.of(
