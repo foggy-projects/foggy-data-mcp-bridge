@@ -11,6 +11,7 @@
 | 功能 | 状态 | 备注 |
 |------|------|------|
 | `P0-v13引擎收紧裸dimension引用`（Java 端 · 同步 Python `v1.7`） | `in-design` | 需求文档已落盘 · M0 立项 · M1 跨端审计待启动 |
+| `P2-timeWindow-calculatedFields-interaction-contract`（G6 契约） | `spec-ready` | 契约文档已落盘 · 实现目标 8.5.0.beta |
 
 ## 功能清单
 
@@ -18,6 +19,7 @@
 |------|------|
 | `P0-v13引擎收紧裸dimension引用-需求.md` | Java 端改造路径 / 列循环改造方案 / 验收标准 / 测试计划 |
 | `P0-v13引擎收紧裸dimension引用-progress.md` | M0-M12 里程碑 + Self-Check + 决策记录 |
+| `P2-timeWindow-calculatedFields-interaction-contract.md` | timeWindow + calculatedFields 联动语义契约 / 错误码 / Python 对齐指引 |
 
 ## 关联文档
 

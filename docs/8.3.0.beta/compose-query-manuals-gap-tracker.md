@@ -44,7 +44,7 @@ Compose Query 双手册采用"**先骨架、后填能力**"策略：
 | G10 | Compose 引擎前置改造（join 歧义 schema + plan provenance + plan-aware 编译 + plan-aware 权限校验子层） | G5 F5 / G11 / G12 全部硬前置 | **P0** | Java + Python 引擎 | **accepted-with-risks**（spec v2 · 双仓 12 commits · 154 单元 + 双端 lane 全绿 · 集成测试 ≥3+≥2 deferred → FU-1 G5 Phase 2 同批次承接 · audit `coverage/G10-coverage-audit.md` · acceptance `acceptance/G10-ComposeEngine-PlanAware-acceptance.md` · 2026-04-27 user 签收） | 8.3.0.beta |
 | G11 | DSL `slice` F4/F5 支持（含 SliceShape 字段强转修复） | A §3 (slice) | P1 | 仅 A | open（依赖 G5 v2 + G10 落地） | 8.3.0.beta or later |
 | G12 | DSL `groupBy` / `orderBy` F4/F5 支持（含 `List<String>` → `List<Object>` 类型迁移） | A §3 (groupBy/orderBy) | P2 | 仅 A | open（依赖 G5 v2 + G10 落地） | 8.3.0.beta or later |
-| G6 | 计算字段在 timeWindow 上下文里的语义 | A §4 + §9 / B §4 + §9 | P2 | 双 | open | 8.4.0.beta |
+| G6 | 计算字段在 timeWindow 上下文里的语义 | A §4 + §9 / B §4 + §9 | P2 | 双 | **spec-ready**（契约文档 2026-04-28 · 实现目标 8.5.0.beta） | 8.4.0.beta |
 | G7 | DSL 与链式 API 是否互不依赖（架构验证） | 全文契约 | P0 | 元层 | **closed**（2026-04-26 · 结论 Clean · Level 1） | 8.3.0.beta |
 | G8 | 移除链式 API 时的级别选择（Level 1 vs Level 2） | 全文契约 | P3 | 元层 | deferred（待未来 deprecation 决策时启动） | TBD |
 | G9 | `withSubtotals` 字段已声明但未在 DslQueryFunction 处理 | A §1 / §3 (分页旁) | P3 | 仅 A | open（小 bug） | 8.3.0.beta or later |
@@ -206,13 +206,22 @@ Compose Query 双手册采用"**先骨架、后填能力**"策略：
 ### G6 · 计算字段在 timeWindow 上下文里的语义
 
 - **Layer**: Layer 2（联动场景）
-- **现状**：单独场景两边都有，但"对一个计算字段做 yoy 比较"或"在 yoy 比较结果上再算计算字段"这种联动场景**两边都没有示例**
-- **优先级**：P2，可推迟到 8.4.0.beta
-- **需要做的事**：
-  1. 收集 3-5 个真实业务场景（如：客单价同比、毛利率同比）
-  2. 在 spec 中明确"计算字段是先于还是后于 timeWindow 展开"
-  3. Manual A §4 + §9 / Manual B §4 + §9 各加一节联动示例
-- **Evidence**：（待补）
+- **状态**：`spec-ready`（2026-04-28 · 契约文档落盘）
+- **现状**：契约文档定义了执行顺序、允许/禁止矩阵、4 个错误码、可引用列清单、正反例 JSON；实现目标 8.5.0.beta
+- **优先级**：P2
+- **语义结论**：
+  1. timeWindow 先完成 base aggregation / rolling / cumulative / comparative 展开
+  2. 后置 calculatedFields 作用于 timeWindow 最终输出列（仅 scalar row-level）
+  3. `targetMetrics` 不允许引用 `request.calculatedFields.name`（循环依赖）
+  4. 后置 calc fields 不允许 `agg / windowFrame / partitionBy / windowOrderBy`（S16 决策约束）
+  5. 后置 calc fields 可引用所有 timeWindow 派生列（`__prior / __diff / __ratio / __rolling_* / __ytd / __mtd`）及维度列
+- **错误码**：
+  - `TIMEWINDOW_TARGET_CALCULATED_FIELD_UNSUPPORTED`
+  - `TIMEWINDOW_POST_CALCULATED_FIELD_NOT_FOUND`
+  - `TIMEWINDOW_POST_CALCULATED_FIELD_AGG_UNSUPPORTED`
+  - `TIMEWINDOW_POST_CALCULATED_FIELD_WINDOW_UNSUPPORTED`
+- **Python 对齐**：Python 侧 `TIMEWINDOW_CALCULATED_FIELDS_NOT_IMPLEMENTED` 应细化为上述 4 个错误码
+- **Evidence**：`docs/8.4.0.beta/P2-timeWindow-calculatedFields-interaction-contract.md`
 
 ### G7 · DSL 与链式 API 是否互不依赖（架构验证）✅ closed
 
@@ -307,6 +316,7 @@ Compose Query 双手册采用"**先骨架、后填能力**"策略：
 | 2026-04-27 | G10 spec | v1 → v2 | v1 ⚠️ 条件通过 + 5 项 patch：(a) §4.3 PlanId 收紧 equals 契约（按 referent identity，identityHash 仅 hash 桶）；(b) §3.3 OutputSchema 补 lookup API 升级（`getAll` / `isAmbiguous` / `requireUnique`）+ 调用方迁移指南；(c) §6 改造 #4 重构落点（新增 `ComposePlanAwarePermissionValidator` Compose 层独立类，不改 `FieldAccessPermissionStep`）；(d) §6.4 bare field 规则重写（先 schema 唯一解析、再权限校验）；(e) §10.2 PR1 修正为真零行为变化；(f) §10.1 工程日 8-12 → 10-15 重估 |
 | 2026-04-27 | G10 entry | implementation done | spec v2 4 项改造双端落盘：Java `dev-compose` 7 commits（PR1-PR4 + 3 polish · sqlite lane 1809 passed）+ Python `main` 5 commits（PR5.1-PR5.4 + 1 polish · pytest 3176 passed）；154 新单元（Java 83 / Python 71）+ 双端 parity + flag 双状态显式覆盖；coverage audit `coverage/G10-coverage-audit.md` 结论 `ready-with-gaps`，集成测试 ≥3 + ≥2 deferred 至 G5 Phase 2 同批次（spec §9 中 7/9 项 covered）；状态 `in-review → implemented · ready-with-gaps`，pending `foggy-acceptance-signoff` |
 | 2026-04-27 | G10 entry | acceptance signed-off | user 签收 `accepted-with-risks` · acceptance doc `acceptance/G10-ComposeEngine-PlanAware-acceptance.md`（evidence_count 12）· FU-1（G5 Phase 2 集成测试 ≥3+≥2 强制承接）+ FU-2（lane sweep）+ FU-3（flag-flip playbook · 已落 `G10-flag-flip-rollout-playbook.md` draft）作为非阻断 follow-up；G5 Phase 2 / G11 / G12 全部解锁；状态 `implemented · ready-with-gaps → accepted-with-risks` |
+| 2026-04-28 | G6 entry | spec-ready | 契约文档 `docs/8.4.0.beta/P2-timeWindow-calculatedFields-interaction-contract.md` 落盘；定义执行顺序 + 允许/禁止矩阵 + 4 错误码 + 正反例 JSON + Python 对齐指引；G6 状态 `open → spec-ready`；实现目标 8.5.0.beta |
 
 ## 相关文档
 
