@@ -50,21 +50,26 @@ class TimeWindowExecutionIntegrationTest extends EcommerceTestSupport {
                 ));
 
         SemanticQueryResponse response = execute(request);
+        String salesDateId = quoteIdentifier("salesDate$id");
+        String salesAmount = quoteIdentifier("salesAmount");
+        String rolling7d = quoteIdentifier("salesAmount__rolling_7d");
         List<Map<String, Object>> expected = executeQuery("""
                 WITH daily AS (
-                    SELECT fs.date_key AS "salesDate$id",
-                           SUM(fs.sales_amount) AS "salesAmount"
+                    SELECT fs.date_key AS %s,
+                           SUM(fs.sales_amount) AS %s
                     FROM fact_sales fs
                     GROUP BY fs.date_key
                 )
-                SELECT "salesDate$id",
-                       "salesAmount",
-                       SUM("salesAmount") OVER (
-                           ORDER BY "salesDate$id"
+                SELECT %s,
+                       %s,
+                       SUM(%s) OVER (
+                           ORDER BY %s
                            ROWS BETWEEN 6 PRECEDING AND CURRENT ROW
-                       ) AS "salesAmount__rolling_7d"
+                       ) AS %s
                 FROM daily
-                """);
+                """.formatted(
+                        salesDateId, salesAmount, salesDateId, salesAmount,
+                        salesAmount, salesDateId, rolling7d));
 
         assertRowsEqual(expected, response.getItems());
     }
@@ -95,21 +100,26 @@ class TimeWindowExecutionIntegrationTest extends EcommerceTestSupport {
 
         List<Map<String, Object>> actual = jdbcTemplate.queryForList(
                 generated.getSql(), generated.getParams().toArray(new Object[0]));
+        String salesDateId = quoteIdentifier("salesDate$id");
+        String salesAmount = quoteIdentifier("salesAmount");
+        String rolling7d = quoteIdentifier("salesAmount__rolling_7d");
         List<Map<String, Object>> expected = executeQuery("""
                 WITH daily AS (
-                    SELECT fs.date_key AS "salesDate$id",
-                           SUM(fs.sales_amount) AS "salesAmount"
+                    SELECT fs.date_key AS %s,
+                           SUM(fs.sales_amount) AS %s
                     FROM fact_sales fs
                     GROUP BY fs.date_key
                 )
-                SELECT "salesDate$id",
-                       "salesAmount",
-                       SUM("salesAmount") OVER (
-                           ORDER BY "salesDate$id"
+                SELECT %s,
+                       %s,
+                       SUM(%s) OVER (
+                           ORDER BY %s
                            ROWS BETWEEN 6 PRECEDING AND CURRENT ROW
-                       ) AS "salesAmount__rolling_7d"
+                       ) AS %s
                 FROM daily
-                """);
+                """.formatted(
+                        salesDateId, salesAmount, salesDateId, salesAmount,
+                        salesAmount, salesDateId, rolling7d));
 
         assertRowsEqual(expected, actual, generated.getSql());
     }
@@ -132,27 +142,35 @@ class TimeWindowExecutionIntegrationTest extends EcommerceTestSupport {
                 ));
 
         SemanticQueryResponse response = execute(request);
+        String salesYear = quoteIdentifier("salesDate$year");
+        String salesMonth = quoteIdentifier("salesDate$month");
+        String salesDateId = quoteIdentifier("salesDate$id");
+        String salesAmount = quoteIdentifier("salesAmount");
+        String mtd = quoteIdentifier("salesAmount__mtd");
         List<Map<String, Object>> expected = executeQuery("""
                 WITH daily AS (
-                    SELECT d.year AS "salesDate$year",
-                           d.month AS "salesDate$month",
-                           fs.date_key AS "salesDate$id",
-                           SUM(fs.sales_amount) AS "salesAmount"
+                    SELECT d.year AS %s,
+                           d.month AS %s,
+                           fs.date_key AS %s,
+                           SUM(fs.sales_amount) AS %s
                     FROM fact_sales fs
                     LEFT JOIN dim_date d ON fs.date_key = d.date_key
                     GROUP BY d.year, d.month, fs.date_key
                 )
-                SELECT "salesDate$year",
-                       "salesDate$month",
-                       "salesDate$id",
-                       "salesAmount",
-                       SUM("salesAmount") OVER (
-                           PARTITION BY "salesDate$year", "salesDate$month"
-                           ORDER BY "salesDate$id"
+                SELECT %s,
+                       %s,
+                       %s,
+                       %s,
+                       SUM(%s) OVER (
+                           PARTITION BY %s, %s
+                           ORDER BY %s
                            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-                       ) AS "salesAmount__mtd"
+                       ) AS %s
                 FROM daily
-                """);
+                """.formatted(
+                        salesYear, salesMonth, salesDateId, salesAmount,
+                        salesYear, salesMonth, salesDateId, salesAmount,
+                        salesAmount, salesYear, salesMonth, salesDateId, mtd));
 
         assertRowsEqual(expected, response.getItems());
     }
@@ -175,25 +193,32 @@ class TimeWindowExecutionIntegrationTest extends EcommerceTestSupport {
                 ));
 
         SemanticQueryResponse response = execute(request);
+        String salesYear = quoteIdentifier("salesDate$year");
+        String salesDateId = quoteIdentifier("salesDate$id");
+        String salesAmount = quoteIdentifier("salesAmount");
+        String ytd = quoteIdentifier("salesAmount__ytd");
         List<Map<String, Object>> expected = executeQuery("""
                 WITH daily AS (
-                    SELECT d.year AS "salesDate$year",
-                           fs.date_key AS "salesDate$id",
-                           SUM(fs.sales_amount) AS "salesAmount"
+                    SELECT d.year AS %s,
+                           fs.date_key AS %s,
+                           SUM(fs.sales_amount) AS %s
                     FROM fact_sales fs
                     LEFT JOIN dim_date d ON fs.date_key = d.date_key
                     GROUP BY d.year, fs.date_key
                 )
-                SELECT "salesDate$year",
-                       "salesDate$id",
-                       "salesAmount",
-                       SUM("salesAmount") OVER (
-                           PARTITION BY "salesDate$year"
-                           ORDER BY "salesDate$id"
+                SELECT %s,
+                       %s,
+                       %s,
+                       SUM(%s) OVER (
+                           PARTITION BY %s
+                           ORDER BY %s
                            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-                       ) AS "salesAmount__ytd"
+                       ) AS %s
                 FROM daily
-                """);
+                """.formatted(
+                        salesYear, salesDateId, salesAmount,
+                        salesYear, salesDateId, salesAmount,
+                        salesAmount, salesYear, salesDateId, ytd));
 
         assertRowsEqual(expected, response.getItems());
     }
@@ -214,6 +239,17 @@ class TimeWindowExecutionIntegrationTest extends EcommerceTestSupport {
         log.info("{} not executed on {} because this database does not support window functions",
                 scenario, getDialectKey());
         return true;
+    }
+
+    private String quoteIdentifier(String identifier) {
+        String dialect = getDialectKey();
+        if (dialect.contains("mysql")) {
+            return "`" + identifier + "`";
+        }
+        if (dialect.contains("sqlserver")) {
+            return "[" + identifier + "]";
+        }
+        return "\"" + identifier + "\"";
     }
 
     private static SemanticQueryRequest request(

@@ -268,7 +268,7 @@ INSERT INTO `preagg_monthly_category_sales` (
     `order_count`, `_preagg_row_count`
 )
 SELECT
-    FLOOR(fs.date_key / 100) AS year_month,
+    FLOOR(fs.date_key / 100) AS `year_month`,
     p.category_name,
     SUM(fs.quantity) AS quantity_sum,
     SUM(fs.sales_amount) AS sales_amount_sum,

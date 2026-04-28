@@ -3,8 +3,8 @@ type: progress
 version: 8.3.0.beta
 req_id: P1-SemanticDSL-TimeWindow
 priority: P1
-status: in-progress
-last_updated: 2026-04-27
+status: ready-for-review
+last_updated: 2026-04-28
 ---
 
 # Compose Query · `timeWindow` SemanticDSL — Progress
@@ -13,7 +13,7 @@ last_updated: 2026-04-27
 
 ## 关联规范文档
 
-- 设计稿：`P1-SemanticDSL-时间窗口能力设计.md`（design `draft`）
+- 设计稿：`P1-SemanticDSL-时间窗口能力设计.md`（design `ready-for-review`）
 - 上游主语义：`../8.2.0.beta/P1-ComposeQuery-时间分析能力增强-需求.md`
 - 上游 progress：`../8.2.0.beta/P1-ComposeQuery-时间分析能力增强-progress.md`
 - Metadata 配套（`timeRole`）：`P2-Metadata时间维度与属性分析报告.md`
@@ -21,8 +21,8 @@ last_updated: 2026-04-27
 
 ## 当前阶段判断
 
-- 当前阶段：`in-progress`（DSL 包装层 Java 实现已落盘 + 11 parity fixture；YoY / rolling_7d / MTD / YTD 已补真实 SQL parity；SQLite / PostgreSQL / SQL Server lane 通过，MySQL 5.7 非窗口编排通过且窗口用例按能力检测跳过；待 MySQL 8 lane + 文档收尾）
-- 当前目标：让 `SemanticQueryRequest.timeWindow` 这条 LLM-facing JSON 路径从「design draft + Java 代码先行」推进到 `ready-for-review`
+- 当前阶段：`ready-for-review`（DSL 包装层 Java 实现已落盘 + 11 parity fixture；YoY / rolling_7d / MTD / YTD 已补真实 SQL parity；SQLite / PostgreSQL / SQL Server / MySQL 8 lane 通过，MySQL 5.7 非窗口编排通过且窗口用例按能力检测跳过）
+- 当前目标：进入签收；Python 镜像按 S12 deferred 单独跟踪
 - 当前范围：仅 Java 主仓 `compose/plan/TimeWindow*` + parity catalog；Python 镜像独立跟踪
 
 ## 前置条件检查表
@@ -32,14 +32,14 @@ last_updated: 2026-04-27
 | 上游 P1 主语义已落盘 | `WindowColumn / OverClause / WindowFrame` + `JoinPlan + DerivedQueryPlan` | `done`（M2 + M6 已 ready-for-review） |
 | `timeRole=business_date` 元数据 | DSL `field` 字段需要靠它选择正确的时间轴 | `done`（Java/Python 已实现） |
 | Columns API 收口 | `TimeWindowExpander` 通过 `.columns(List<?>)` 写出 plan | `done`（8.3 P2 已 accepted 2026-04-26） |
-| TM 演示模板 timeRole 配置 | `salesDate` 维度需显式 `timeRole: 'business_date'` | `pending`（见设计稿 §前提与依赖） |
+| TM 演示模板 timeRole 配置 | `salesDate` 维度需显式 `timeRole: 'business_date'` | `done`（现有 `FactSalesQueryModel` timeWindow 集成测试已使用 `salesDate$id` 业务时间轴） |
 | 时间维度样例行（metadata） | LLM 需要样例值理解 `salesDate$id / caption / 年月日` 形态 | `draft`（见 P2-Metadata时间维度样例行-需求.md） |
 
 ## Step 追踪
 
 | step | 内容 | 状态 | 备注 |
 |---|---|---|---|
-| S0 | 设计稿创建 | `completed` | `P1-SemanticDSL-时间窗口能力设计.md`（design `draft`） |
+| S0 | 设计稿创建 | `completed` | `P1-SemanticDSL-时间窗口能力设计.md`（design `ready-for-review`） |
 | S1 | DSL value object · `TimeWindowDef` | `completed` | record 91 行，含 `fromMap(Map)` JSON 反序列化 + `isComparative/isCumulative/isRolling/rollingWindowSize` 分类辅助；构造期 fail-closed 校验 `field/grain/comparison` 必填 |
 | S2 | 语义校验器 · `TimeWindowValidator` | `completed` | 163 行，覆盖 grain × comparison 兼容矩阵（设计稿 §兼容矩阵）；错误码 `GRAIN_INCOMPATIBLE / RANGE_INVALID` 等；14 tests 全绿 |
 | S3 | 相对日期表达式解析 · `RelativeDateParser` | `completed` | 137 行，`now / -1Y / -7D / -1M / -1Q` 文法 → 四方言 dialect-aware SQL（MySQL `DATE_SUB` / PG `INTERVAL` / MSSQL `DATEADD` / SQLite `DATE('now', ...)`）；24 tests 全绿 |
@@ -49,8 +49,8 @@ last_updated: 2026-04-27
 | S7 | PostgreSQL identifier quoting + dialect propagation 修复 | `completed` | commit `9f44ba8 fix(timeWindow)...` |
 | S8 | `SemanticQueryRequest.timeWindow` 字段 + Controller / Tool 接入 | `completed` | `SemanticQueryRequest.timeWindow` 已存在；本轮补齐 `DslQueryFunction` / `ComposedDataSetResult` 参数映射、`SemanticQueryServiceV3Impl.generateSql` preview 编排路径与 `QueryFacadeImpl.buildSqlOnly` 拦截协同 |
 | S9 | LLM-facing schema · `query_model_v3_schema.json` 暴露 timeWindow | `completed` | `foggy-dataset-mcp/src/main/resources/schemas/query_model_v3_schema.json` 已新增 `payload.timeWindow` shape，`descriptions/query_model_v3.md` 已补使用说明；`ToolConfigLoaderTest` 8 tests 全绿 |
-| S10 | 跨方言 lane 全量验收（sqlite ✅ / MySQL / PG / MSSQL） | `partial` | SQLite ✅ / PostgreSQL ✅ / SQL Server ✅；MySQL 5.7 ✅ 但仅覆盖非窗口 compose + comparative，timeWindow 4 tests 因 5.7 不支持窗口函数走 capability short-circuit + info log no-op，并不构成对窗口能力的真实数据比对 → 必须靠 MySQL 8 lane 完成 |
-| S11 | 设计稿 status `draft` → `accepted` | `pending` | 待 S10 跨方言 lane 完成 |
+| S10 | 跨方言 lane 全量验收（sqlite ✅ / MySQL / PG / MSSQL） | `completed` | SQLite ✅ / PostgreSQL ✅ / SQL Server ✅ / MySQL 8 ✅；MySQL 5.7 ✅ 覆盖非窗口 compose + comparative，timeWindow 4 tests 因 5.7 不支持窗口函数走 capability short-circuit |
+| S11 | 设计稿 status `draft` → `ready-for-review` | `completed` | S10 完成后设计稿同步转 `ready-for-review`；待签收后再转 `accepted` |
 | S12 | Python parity 镜像 | `deferred` | Java 端 11 个 parity fixture 已可作为契约；Python 端独立立项跟踪 |
 | S13 | CTE 编排真实 SQL parity 补强 | `completed` | `ComposeRealSqlParityTest` 覆盖 derived/filter、join aggregate、union all aggregate；真实执行结果与手写 SQL 逐行比较 |
 | S14 | YoY prior 关联缺陷回归 | `completed` | YoY prior 分支补 shifted period key join，防止同月跨年比较错误匹配当前期 |
@@ -68,12 +68,12 @@ last_updated: 2026-04-27
 | AC-2 | grain × comparison 兼容矩阵全部覆盖 | ✅ `passed` | `TimeWindowValidatorTest$ErrorCodes` 11 tests + `HappyPaths` 3 tests |
 | AC-3 | 8 种 comparison（yoy/mom/wow/ytd/mtd/rolling_7d/30d/90d）展开为合法 SQL | ✅ `passed` | `TimeWindowExpanderTest$ComparativeExpansion` 6 + `CumulativeExpansion` 2 + `RollingExpansion` 3 |
 | AC-4 | 相对日期表达式四方言 lowering | ✅ `passed` | `RelativeDateParserTest` 24 tests 覆盖 MySQL / PG / MSSQL / SQLite SQL lowering |
-| AC-5 | 真实 SQL 数据比对（项目集成测试规范） | ✅ `passed`（SQLite / PostgreSQL / SQL Server）/ ⚠ MySQL 5.7 部分覆盖（非窗口 compose + comparative passed；窗口用例 capability short-circuit + info log no-op，不构成真实数据比对，需 MySQL 8 lane 兜底） | `ComparativeExecutionIntegrationTest` 1 test + `TimeWindowExecutionIntegrationTest` 4 tests；MySQL 5.7 因不支持窗口函数 4 个 timeWindow execution tests 记录 info log 后 no-op 返回 |
+| AC-5 | 真实 SQL 数据比对（项目集成测试规范） | ✅ `passed`（SQLite / PostgreSQL / SQL Server / MySQL 8）/ MySQL 5.7 capability short-circuit | `ComparativeExecutionIntegrationTest` 1 test + `TimeWindowExecutionIntegrationTest` 4 tests；MySQL 8 提供窗口函数真实数据比对，MySQL 5.7 因不支持窗口函数 4 个 timeWindow execution tests 记录 info log 后 no-op 返回 |
 | AC-6 | Parity catalog 与上游 P1 测试基线对齐 | ✅ `passed` | 11 fixture（7 happy + 4 negative）已落盘 |
 | AC-7 | `SemanticQueryRequest` POJO + Controller / Tool 接入 | ✅ `passed` | POJO 字段已存在；Compose DSL / composed result / generateSql preview 路径已补映射，`ScriptRuntimeTest` 覆盖请求透传 |
 | AC-8 | `query_model_v3_schema.json` 暴露 timeWindow shape | ✅ `passed` | MCP schema 与 query_model_v3 使用说明已补；`ConvertFrom-Json` 解析通过，`ToolConfigLoaderTest` 8 tests 全绿 |
-| AC-9 | 跨方言 lane 全量验收 | ⏳ `partial` | SQLite ✅ / PostgreSQL ✅ / SQL Server ✅ / MySQL 5.7 ✅（窗口用例 capability short-circuit + info log no-op，不构成真实数据比对）；MySQL 8 lane 是窗口能力跨方言验收的硬要求，待补 |
-| AC-10 | 设计稿 status 转 `accepted` | ⏳ `pending` | 待 AC-9 跨方言 lane 通过后 |
+| AC-9 | 跨方言 lane 全量验收 | ✅ `passed` | SQLite ✅ / PostgreSQL ✅ / SQL Server ✅ / MySQL 8 ✅；MySQL 5.7 ✅（窗口用例 capability short-circuit） |
+| AC-10 | 设计稿 status 转 `ready-for-review` | ✅ `passed` | 待签收后再转 `accepted` |
 
 ## 当前测试基线
 
@@ -152,6 +152,28 @@ mvn -pl foggy-dataset-model "-Dtest=FluentApiCompileTest" test
 
 → `captionInColumnExpression` 通过；`FluentApiCompileTest` 全类 **14 passed / 0 failures**（default / mysql / postgres surefire lanes 均通过）
 
+MySQL 8 lane 补齐（2026-04-28）：
+
+```bash
+cd foggy-dataset-demo/docker
+docker compose up -d mysql8
+```
+
+→ `foggy-demo-mysql8` 初始化完成，MySQL `8.0.44`，TCP 端口 `13308`；`11-preagg-testdata.sql` MySQL 8 alias 兼容修复已覆盖。
+
+```bash
+mvn -pl foggy-dataset-model "-Dtest=ComposeRealSqlParityTest,ComparativeExecutionIntegrationTest,TimeWindowExecutionIntegrationTest" \
+"-Dspring.profiles.active=mysql8" "-P!multi-db" test
+```
+
+→ **8 passed / 0 failures / 0 skipped**
+
+```bash
+mvn -pl foggy-dataset-model "-Dtest=TimeWindowExecutionIntegrationTest" test
+```
+
+→ **4 passed / 0 failures / 0 skipped**（default sqlite lane）
+
 > 下表前 7 行为基线 50 passed 命令的细分（基线只跑 5 个 timeWindow / Comparative test class）；末两行 `TimeWindowExecutionIntegrationTest` / `ScriptRuntimeTest` 属于本轮接入回归套件（75 passed 命令），不计入基线 50 之内。
 >
 > | 测试类 | 数量 | 归属 |
@@ -228,28 +250,28 @@ c96bc1f docs(compose): update CTE orchestration guide
 ## 阻塞项
 
 - 当前无硬阻塞
-- 待解项（不阻断 in-progress，但阻断转 ready-for-review）：
-  - S10 MySQL 8 lane 尚未执行；当前 MySQL 5.7 覆盖非窗口 fallback，窗口函数用例以 info log no-op 收口
+- 待解项：
+  - 正式签收前建议执行 `foggy-implementation-quality-gate` + `foggy-test-coverage-audit`
 - Deferred：
   - S12 Python parity 镜像（`foggy-data-mcp-bridge-python` 单独立项）
 
 ## 后续衔接
 
 - 下一步建议：
-  1. 起 docker MySQL / PG / MSSQL lane 各跑一遍 11 parity fixture + ComparativeExecutionIntegrationTest（S10）
-  2. 补 MySQL 8 lane 后转 `ready-for-review`，等签收
-  3. 设计稿同步 status `draft` → `accepted`（S11）
+  1. 执行实现质量闸门与测试证据覆盖审计
+  2. 进入签收，签收后将设计稿 / progress status 转 `accepted`
+  3. Python parity 镜像按 S12 deferred 独立立项
 
 ## 后置评审要求
 
-- 当前阶段不需要 `foggy-implementation-quality-gate`（待 S10 完成、转 `ready-for-review` 之前再走一次）
-- 当前阶段不需要 `foggy-test-coverage-audit`
+- 当前阶段建议补跑 `foggy-implementation-quality-gate`
+- 当前阶段建议补跑 `foggy-test-coverage-audit`
 - 当前阶段不需要 `foggy-acceptance-signoff`
 
 ## 自检结论
 
 - 当前交付类型：`record + implementation`
-- 当前结论：`code-landed-pending-cross-dialect`
+- 当前结论：`code-landed-ready-for-review`
 - 已完成：
   - 文档路径落在正确版本目录（`docs/8.3.0.beta/`）
   - 命名与现有约定一致（`P1-SemanticDSL-时间窗口能力-progress.md` 配套设计稿同名前缀）

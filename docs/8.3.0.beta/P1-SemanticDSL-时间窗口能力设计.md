@@ -7,7 +7,7 @@
 - purpose: 定义面向 AI 的声明式 Single Query DSL `timeWindow` 结构，作为上游 P1 时间分析能力增强的高层 DSL 包装层
 - 目标版本: 8.3.0.beta
 - 需求等级: P1（随上游 P1-ComposeQuery-时间分析能力增强）
-- 状态: draft
+- 状态: ready-for-review
 - 责任仓: foggy-data-mcp-bridge（Java）+ foggy-odoo-bridge-pro（Python）
 - 责任模块: foggy-dataset-model / foggy-dataset-mcp
 
@@ -44,7 +44,7 @@ SQL（窗口函数 / CTE JOIN / 方言表达式）
 | 依赖项 | 说明 | 状态 |
 |--------|------|------|
 | P2 §建议1：DbDimension 增加 timeRole | AI 需要通过 `business_date` 标识选择正确的时间轴字段 | `done`（Java/Python 已实现） |
-| P2 §建议2：演示 TM 补 timeRole 配置 | 演示模板中 `salesDate` 维度需显式配置 `timeRole: 'business_date'` | `pending` |
+| P2 §建议2：演示 TM 补 timeRole 配置 | 演示模板中 `salesDate` 维度需显式配置 `timeRole: 'business_date'` | `done`（Java timeWindow 集成测试已使用 `salesDate$id` 业务时间轴） |
 | P2：时间维度样例行 | AI 需要通过真实样例值理解 `salesDate$id`、`caption`、年月日等字段值形态 | `draft`（见 `P2-Metadata时间维度样例行-需求.md`） |
 | P2：模型发现入口切换 | AI 首轮应通过 `dataset.list_models` 发现模型，避免 `get_metadata` 全量索引膨胀 | `approved`（见 `P2-list_models模型发现入口与get_metadata隐藏-需求.md`） |
 | 上游 P1 §1：窗口函数进入 QueryPlan 主语义 | `OverClause` 已有骨架，需完成 lag/lead/running 等完整语义 | `approved` |
@@ -380,6 +380,6 @@ QM 中已存在 `ma7` 等通过 `partitionBy / windowOrderBy / windowFrame` 定�
 | 滚动 happy path | ≥2 | rolling_7d/rolling_30d 各 1 |
 | 兼容矩阵 negative | ≥4 | 覆盖 ❌ 组合的错误码触发 |
 | 相对表达式解析 | ≥3 | `-1Y`, `-7D`, `now` |
-| 四方言 SQL parity | ≥4 | 每种方言至少 1 个完整 timeWindow 用例 |
-| 跨端 parity | ≥2 | Java/Python 同 input 同 output |
+| 四方言 SQL parity | ≥4 | Java 已覆盖 SQLite / PostgreSQL / SQL Server / MySQL 8；MySQL 5.7 仅做 capability short-circuit |
+| 跨端 parity | ≥2 | Java fixture 已落盘；Python parity 镜像 deferred |
 | ratio 除零 | 1 | prior=0 或 NULL 时 ratio=NULL |
