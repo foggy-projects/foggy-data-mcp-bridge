@@ -124,13 +124,33 @@ class StrictBareDimensionRejectionTest extends EcommerceTestSupport {
     // ------------------------------------------------------------------
 
     @Test
-    @Disabled("FU-2 · `dim AS alias` currently rejected via INVALID_QUERY_FIELD instead of COLUMN_FIELD_NOT_FOUND")
-    @DisplayName("T2 · `product AS p` 应抛 COLUMN_FIELD_NOT_FOUND（与 Python parity）")
+    @DisplayName("T2 · `product AS p` 应抛 COLUMN_FIELD_NOT_FOUND + hint 保留用户 alias（与 Python parity）")
     void t2_bareDimWithAliasRejectedWithUnifiedErrorCode() {
-        // Java 当前路径：inline parser 不识别 `product AS p`，落入
-        // `INVALID_QUERY_FIELD` "Field not found" 分支。功能上正确拒绝，但
-        // 错误码与 Python `ValueError("COLUMN_FIELD_NOT_FOUND: ...")` 不一致。
-        // FU-2 需要在 inline parser 之后追加 fail-loud 区分以统一错误码。
+        // FU-2 closure: InlineExpressionPreprocessStep (order=5) runs first
+        // and rejects the plain-alias synthesis when baseField isn't a
+        // queryable column. We've enhanced its error to detect when
+        // baseField is a DbDimension and emit the dim-aware hint with the
+        // user's alias preserved. Exception type stays IllegalArgumentException
+        // for consistency with the step's sibling error throws.
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(List.of("product AS p"));
+        request.setLimit(10);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                semanticQueryService.queryModel(
+                        SALES_MODEL,
+                        request,
+                        "execute",
+                        SemanticRequestContext.empty()));
+
+        String msg = ex.getMessage();
+        assertNotNull(msg);
+        assertTrue(msg.contains("COLUMN_FIELD_NOT_FOUND"),
+                "expected COLUMN_FIELD_NOT_FOUND prefix, got: " + msg);
+        assertTrue(msg.contains("'product AS p'"),
+                "error message should quote original columnDef, got: " + msg);
+        assertTrue(msg.contains("did you mean 'product$caption AS p'"),
+                "hint should preserve user alias 'p', got: " + msg);
     }
 
     @Test

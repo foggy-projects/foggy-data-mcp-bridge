@@ -13,6 +13,7 @@ import com.foggyframework.dataset.db.model.engine.expression.sql.SqlBinaryExp;
 import com.foggyframework.dataset.db.model.engine.expression.sql.SqlFunctionExp;
 import com.foggyframework.dataset.db.model.engine.expression.sql.SqlUnaryExp;
 import com.foggyframework.core.utils.StringUtils;
+import com.foggyframework.dataset.db.model.spi.DbDimension;
 import com.foggyframework.dataset.db.model.spi.DbQueryColumn;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
 import com.foggyframework.dataset.db.model.spi.TableModel;
@@ -751,6 +752,29 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
             if (!baseIsSynthesized) {
                 baseColumn = qms.findJdbcColumnForSelectByName(baseField, false);
                 if (baseColumn == null) {
+                    // 8.4.0.beta backlog B-03 FU-2 · 当 baseField 实际命中模型上
+                    // 的 DbDimension 时，给出"维度不可直接投影 → $caption"提示，
+                    // 让 LLM/用户的 copy-paste 修复保留用户 alias。其他情况保留
+                    // 原有 generic 错误消息。
+                    DbDimension dim = null;
+                    try {
+                        dim = qms.findDimension(baseField);
+                    } catch (Exception ignore) {
+                        // findDimension may throw on rare model shapes; treat
+                        // as "not a dim" and fall back to the generic message.
+                    }
+                    if (dim != null) {
+                        String hintCaption = baseField + "$caption";
+                        String hintId = baseField + "$id";
+                        throw new IllegalArgumentException(
+                                "COLUMN_FIELD_NOT_FOUND: column '" + columnDef
+                                        + "' references dimension '" + baseField
+                                        + "' directly. Dimensions are not projectable; "
+                                        + "reference an attribute (e.g. '" + hintCaption
+                                        + "' or '" + hintId + "'). "
+                                        + "Hint: did you mean '" + hintCaption + " AS "
+                                        + aliasName + "'?");
+                    }
                     throw new IllegalArgumentException(
                             "COLUMN_FIELD_NOT_FOUND: field '" + baseField
                                     + "' (referenced by alias '" + aliasName

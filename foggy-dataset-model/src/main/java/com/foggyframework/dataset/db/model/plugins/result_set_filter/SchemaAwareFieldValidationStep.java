@@ -16,6 +16,8 @@ import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 /**
  * 基于当前 QueryModel schema 的字段存在性校验。
  *
@@ -27,6 +29,15 @@ import java.util.*;
 public class SchemaAwareFieldValidationStep implements DataSetResultStep {
 
     private static final String ERROR_CODE = "INVALID_QUERY_FIELD";
+
+    /**
+     * Top-level {@code <expr> AS <alias>} pattern (case-insensitive on AS).
+     * Mirrors {@code InlineExpressionParser.AS_PATTERN} — kept local because
+     * the parser's pattern is private.
+     */
+    private static final Pattern TRAILING_AS_PATTERN = Pattern.compile(
+            "^(.+?)\\s+[Aa][Ss]\\s+(\\w+)\\s*$"
+    );
 
     @Override
     public int beforeQuery(ModelResultContext ctx) {
@@ -242,12 +253,20 @@ public class SchemaAwareFieldValidationStep implements DataSetResultStep {
             return;
         }
         // QM contract: dimensions are not directly projectable; bare-dim
-        // refs fail-loud here. Runs before the schemaFields lookup so the
-        // error code unifies to COLUMN_FIELD_NOT_FOUND regardless of
-        // whether the bare name happens to be registered (FK-style dims
-        // aren't, self-attribute ones are — both must reject identically).
-        if (!field.contains("$") && isBareDimensionReference(field, queryModel)) {
-            rejectBareDimension(field, queryModel);
+        // refs (with or without trailing "AS alias") fail-loud here.
+        // Runs before the schemaFields lookup so the error code unifies
+        // to COLUMN_FIELD_NOT_FOUND regardless of whether the bare name
+        // happens to be registered (FK-style dims aren't, self-attribute
+        // ones are — both must reject identically).
+        Matcher asMatcher = TRAILING_AS_PATTERN.matcher(field.trim());
+        if (asMatcher.matches()) {
+            String baseExpr = asMatcher.group(1).trim();
+            String userAlias = asMatcher.group(2).trim();
+            if (!baseExpr.contains("$") && isBareDimensionReference(baseExpr, queryModel)) {
+                rejectBareDimension(baseExpr, userAlias, queryModel, field);
+            }
+        } else if (!field.contains("$") && isBareDimensionReference(field, queryModel)) {
+            rejectBareDimension(field, null, queryModel, field);
         }
         if (schemaFields.contains(field)) {
             return;
@@ -293,19 +312,39 @@ public class SchemaAwareFieldValidationStep implements DataSetResultStep {
         return true;
     }
 
-    private void rejectBareDimension(String field, QueryModel queryModel) {
+    /**
+     * Throw {@code COLUMN_FIELD_NOT_FOUND} for a bare-dim reference.
+     *
+     * @param dimName    the bare dimension name (without $-attribute or AS alias)
+     * @param userAlias  optional trailing {@code AS <alias>} the user wrote;
+     *                   when present, the suggested fix preserves it so the
+     *                   user's copy-paste fix carries the same alias
+     * @param queryModel target QM model (for error payload)
+     * @param invalidField the original column entry verbatim (may include
+     *                     " AS alias"); reported in the payload so the
+     *                     caller error message points to exactly what the
+     *                     user wrote
+     */
+    private void rejectBareDimension(
+            String dimName,
+            String userAlias,
+            QueryModel queryModel,
+            String invalidField) {
         String modelName = queryModel.getName();
-        String hintCaption = field + "$caption";
-        String hintId = field + "$id";
-        String message = "COLUMN_FIELD_NOT_FOUND: column '" + field + "' references "
-                + "dimension '" + field + "' directly. Dimensions are not projectable; "
+        String hintCaption = dimName + "$caption";
+        String hintId = dimName + "$id";
+        String suggestedFix = userAlias != null
+                ? hintCaption + " AS " + userAlias
+                : hintCaption;
+        String message = "COLUMN_FIELD_NOT_FOUND: column '" + invalidField + "' references "
+                + "dimension '" + dimName + "' directly. Dimensions are not projectable; "
                 + "reference an attribute (e.g. '" + hintCaption + "' or '" + hintId
-                + "'). Hint: did you mean '" + hintCaption + "'?";
+                + "'). Hint: did you mean '" + suggestedFix + "'?";
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("errorCode", "COLUMN_FIELD_NOT_FOUND");
         payload.put("model", modelName);
-        payload.put("invalidField", field);
+        payload.put("invalidField", invalidField);
         payload.put("suggestions", List.of(hintCaption, hintId));
         throw RX.throwB(message, payload);
     }
