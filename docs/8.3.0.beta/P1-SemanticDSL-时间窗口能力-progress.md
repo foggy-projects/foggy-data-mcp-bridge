@@ -3,7 +3,7 @@ type: progress
 version: 8.3.0.beta
 req_id: P1-SemanticDSL-TimeWindow
 priority: P1
-status: ready-for-review
+status: accepted
 last_updated: 2026-04-28
 ---
 
@@ -13,7 +13,7 @@ last_updated: 2026-04-28
 
 ## 关联规范文档
 
-- 设计稿：`P1-SemanticDSL-时间窗口能力设计.md`（design `ready-for-review`）
+- 设计稿：`P1-SemanticDSL-时间窗口能力设计.md`（design `accepted`）
 - 上游主语义：`../8.2.0.beta/P1-ComposeQuery-时间分析能力增强-需求.md`
 - 上游 progress：`../8.2.0.beta/P1-ComposeQuery-时间分析能力增强-progress.md`
 - Metadata 配套（`timeRole`）：`P2-Metadata时间维度与属性分析报告.md`
@@ -21,8 +21,8 @@ last_updated: 2026-04-28
 
 ## 当前阶段判断
 
-- 当前阶段：`ready-for-review`（DSL 包装层 Java 实现已落盘 + 11 parity fixture；YoY / rolling_7d / MTD / YTD 已补真实 SQL parity；SQLite / PostgreSQL / SQL Server / MySQL 8 lane 通过，MySQL 5.7 非窗口编排通过且窗口用例按能力检测跳过）
-- 当前目标：进入签收；Python 镜像按 S12 deferred 单独跟踪
+- 当前阶段：`accepted`（Java 侧 DSL 包装层实现已签收；11 parity fixture；YoY / rolling_7d / MTD / YTD 真实 SQL parity；SQLite / PostgreSQL / SQL Server / MySQL 8 lane 通过，MySQL 5.7 非窗口编排通过且窗口用例按能力检测跳过）
+- 当前目标：Java 侧已完成；Python 镜像按 S12 deferred 单独跟踪
 - 当前范围：仅 Java 主仓 `compose/plan/TimeWindow*` + parity catalog；Python 镜像独立跟踪
 
 ## 前置条件检查表
@@ -39,7 +39,7 @@ last_updated: 2026-04-28
 
 | step | 内容 | 状态 | 备注 |
 |---|---|---|---|
-| S0 | 设计稿创建 | `completed` | `P1-SemanticDSL-时间窗口能力设计.md`（design `ready-for-review`） |
+| S0 | 设计稿创建 | `completed` | `P1-SemanticDSL-时间窗口能力设计.md`（design `accepted`） |
 | S1 | DSL value object · `TimeWindowDef` | `completed` | record 91 行，含 `fromMap(Map)` JSON 反序列化 + `isComparative/isCumulative/isRolling/rollingWindowSize` 分类辅助；构造期 fail-closed 校验 `field/grain/comparison` 必填 |
 | S2 | 语义校验器 · `TimeWindowValidator` | `completed` | 163 行，覆盖 grain × comparison 兼容矩阵（设计稿 §兼容矩阵）；错误码 `GRAIN_INCOMPATIBLE / RANGE_INVALID` 等；14 tests 全绿 |
 | S3 | 相对日期表达式解析 · `RelativeDateParser` | `completed` | 137 行，`now / -1Y / -7D / -1M / -1Q` 文法 → 四方言 dialect-aware SQL（MySQL `DATE_SUB` / PG `INTERVAL` / MSSQL `DATEADD` / SQLite `DATE('now', ...)`）；24 tests 全绿 |
@@ -50,7 +50,7 @@ last_updated: 2026-04-28
 | S8 | `SemanticQueryRequest.timeWindow` 字段 + Controller / Tool 接入 | `completed` | `SemanticQueryRequest.timeWindow` 已存在；本轮补齐 `DslQueryFunction` / `ComposedDataSetResult` 参数映射、`SemanticQueryServiceV3Impl.generateSql` preview 编排路径与 `QueryFacadeImpl.buildSqlOnly` 拦截协同 |
 | S9 | LLM-facing schema · `query_model_v3_schema.json` 暴露 timeWindow | `completed` | `foggy-dataset-mcp/src/main/resources/schemas/query_model_v3_schema.json` 已新增 `payload.timeWindow` shape，`descriptions/query_model_v3.md` 已补使用说明；`ToolConfigLoaderTest` 8 tests 全绿 |
 | S10 | 跨方言 lane 全量验收（sqlite ✅ / MySQL / PG / MSSQL） | `completed` | SQLite ✅ / PostgreSQL ✅ / SQL Server ✅ / MySQL 8 ✅；MySQL 5.7 ✅ 覆盖非窗口 compose + comparative，timeWindow 4 tests 因 5.7 不支持窗口函数走 capability short-circuit |
-| S11 | 设计稿 status `draft` → `ready-for-review` | `completed` | S10 完成后设计稿同步转 `ready-for-review`；待签收后再转 `accepted` |
+| S11 | 设计稿 status `draft` → `accepted` | `completed` | S10、质量闸门、覆盖审计、功能签收均完成 |
 | S12 | Python parity 镜像 | `deferred` | Java 端 11 个 parity fixture 已可作为契约；Python 端独立立项跟踪 |
 | S13 | CTE 编排真实 SQL parity 补强 | `completed` | `ComposeRealSqlParityTest` 覆盖 derived/filter、join aggregate、union all aggregate；真实执行结果与手写 SQL 逐行比较 |
 | S14 | YoY prior 关联缺陷回归 | `completed` | YoY prior 分支补 shifted period key join，防止同月跨年比较错误匹配当前期 |
@@ -73,7 +73,7 @@ last_updated: 2026-04-28
 | AC-7 | `SemanticQueryRequest` POJO + Controller / Tool 接入 | ✅ `passed` | POJO 字段已存在；Compose DSL / composed result / generateSql preview 路径已补映射，`ScriptRuntimeTest` 覆盖请求透传 |
 | AC-8 | `query_model_v3_schema.json` 暴露 timeWindow shape | ✅ `passed` | MCP schema 与 query_model_v3 使用说明已补；`ConvertFrom-Json` 解析通过，`ToolConfigLoaderTest` 8 tests 全绿 |
 | AC-9 | 跨方言 lane 全量验收 | ✅ `passed` | SQLite ✅ / PostgreSQL ✅ / SQL Server ✅ / MySQL 8 ✅；MySQL 5.7 ✅（窗口用例 capability short-circuit） |
-| AC-10 | 设计稿 status 转 `ready-for-review` | ✅ `passed` | 待签收后再转 `accepted` |
+| AC-10 | 设计稿 / progress status 转 `accepted` | ✅ `passed` | 签收记录：`acceptance/P1-SemanticDSL-TimeWindow-Java-acceptance.md` |
 
 ## 当前测试基线
 
@@ -250,31 +250,38 @@ c96bc1f docs(compose): update CTE orchestration guide
 ## 阻塞项
 
 - 当前无硬阻塞
-- 待解项：
-  - 正式签收前建议执行 `foggy-implementation-quality-gate` + `foggy-test-coverage-audit`
+- 待解项：无
 - Deferred：
   - S12 Python parity 镜像（`foggy-data-mcp-bridge-python` 单独立项）
 
 ## 后续衔接
 
 - 下一步建议：
-  1. 执行实现质量闸门与测试证据覆盖审计
-  2. 进入签收，签收后将设计稿 / progress status 转 `accepted`
-  3. Python parity 镜像按 S12 deferred 独立立项
+  1. Python parity 镜像按 S12 deferred 独立立项
 
 ## 后置评审要求
 
-- 当前阶段建议补跑 `foggy-implementation-quality-gate`
-- 当前阶段建议补跑 `foggy-test-coverage-audit`
-- 当前阶段不需要 `foggy-acceptance-signoff`
+- `foggy-implementation-quality-gate`：✅ `ready-for-coverage-audit`（`quality/P1-SemanticDSL-TimeWindow-implementation-quality.md`）
+- `foggy-test-coverage-audit`：✅ `ready-for-acceptance`（`coverage/P1-SemanticDSL-TimeWindow-coverage-audit.md`）
+- `foggy-acceptance-signoff`：✅ `accepted`（`acceptance/P1-SemanticDSL-TimeWindow-Java-acceptance.md`）
 
 ## 自检结论
 
 - 当前交付类型：`record + implementation`
-- 当前结论：`code-landed-ready-for-review`
+- 当前结论：`accepted`
 - 已完成：
   - 文档路径落在正确版本目录（`docs/8.3.0.beta/`）
   - 命名与现有约定一致（`P1-SemanticDSL-时间窗口能力-progress.md` 配套设计稿同名前缀）
   - 已与上游 8.2 P1 progress（in-progress · S12 待本文件）建立交叉引用
   - 已交叉引用 8.3 P2 metadata 配套（timeRole + 样例行）
 - 已修复：本次 progress 新建关闭了「design 稿 draft / 实际代码已落盘 + 50 tests passed / 无 progress 跟踪」的状态脱节问题
+
+## Acceptance Status
+
+- acceptance_status: signed-off
+- acceptance_decision: accepted
+- signed_off_by: codex
+- signed_off_at: 2026-04-28
+- acceptance_record: docs/8.3.0.beta/acceptance/P1-SemanticDSL-TimeWindow-Java-acceptance.md
+- blocking_items: none
+- follow_up_required: no

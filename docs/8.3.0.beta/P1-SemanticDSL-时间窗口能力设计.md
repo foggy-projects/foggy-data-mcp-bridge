@@ -7,7 +7,7 @@
 - purpose: 定义面向 AI 的声明式 Single Query DSL `timeWindow` 结构，作为上游 P1 时间分析能力增强的高层 DSL 包装层
 - 目标版本: 8.3.0.beta
 - 需求等级: P1（随上游 P1-ComposeQuery-时间分析能力增强）
-- 状态: ready-for-review
+- 状态: accepted
 - 责任仓: foggy-data-mcp-bridge（Java）+ foggy-odoo-bridge-pro（Python）
 - 责任模块: foggy-dataset-model / foggy-dataset-mcp
 
