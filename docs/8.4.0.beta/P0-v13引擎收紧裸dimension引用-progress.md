@@ -94,7 +94,7 @@ accepted_at: null
 
 ## Follow-ups（非阻断 8.4.0.beta acceptance · 后续 minor 跟踪）
 
-- **FU-1**（P2）· user-alias 透传修复（Python T4 ★）· 改造点：SQL gen 层让用户在 `dim$attr AS userAlias` 形态下指定的 alias 覆盖 TM dim.alias。涉及 `findJdbcQueryColumnByName` 调用点 + DbQueryColumn caption 返回。Python 端已实现（`v1.7`）
+- ~~**FU-1**（P2）· user-alias 透传修复（Python T4 ★）~~ ✅ **已交付**（2026-04-28 · 8.5.0.beta）：`InlineExpressionPreprocessStep.trySynthesizePlainAlias` 放开单级 `dim$attr AS userAlias` PLAIN_ALIAS 合成路径；T4 激活验证 `product$caption AS userAlias` 响应列名为 `userAlias`；F4 `{field:"product$id", as:"productId"}` 真实 SQL 对比通过；`mvn -pl foggy-dataset-model test` → 1857 tests / 0 failures / 0 errors / 1 skipped。验收记录：`docs/8.5.0.beta/acceptance/P0-FU1-dim-attr-alias-passthrough-acceptance.md`
 - ~~**FU-2**（P3）· `dim AS alias` 形态显式拒绝~~ ✅ **已交付**（2026-04-28）：在 `InlineExpressionPreprocessStep.trySynthesizePlainAlias` 的 `baseColumn == null` 分支前加 `findDimension(baseField)` 探测，命中即抛 `COLUMN_FIELD_NOT_FOUND` + dim-aware hint（含用户 alias）。`SchemaAwareFieldValidationStep` 也加了 `TRAILING_AS_PATTERN` 兜底（防止前置 step 被绕过）。T2 单测已激活并通过
 
 ## 关联文档

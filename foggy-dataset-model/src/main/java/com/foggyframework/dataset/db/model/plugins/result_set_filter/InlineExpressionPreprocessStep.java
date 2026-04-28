@@ -605,7 +605,6 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
      *
      * <h3>命名冲突 fail-fast</h3>
      * <ul>
-     *   <li>{@code COLUMN_DIMENSION_ALIAS_NOT_SUPPORTED} — base 含 {@code $} 后缀（维度成员）</li>
      *   <li>{@code COLUMN_ALIAS_DUPLICATE} — 同请求多列 alias 重复</li>
      *   <li>{@code COLUMN_ALIAS_COLLIDES_WITH_CALCULATED_FIELD} — alias 命中 QM 预定义或 request.calculatedFields 同名 calc field</li>
      *   <li>{@code COLUMN_ALIAS_COLLIDES_WITH_PHYSICAL_FIELD} — alias 命中 QM 物理字段名</li>
@@ -621,7 +620,7 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
      * @param queryModel    当前 QM
      * @param result        累计的 ParsedInlineExpressions（含本批次已合成的 calc）
      * @return 合成的 CalculatedFieldDef；列不是 plain-alias 时返回 null
-     * @throws IllegalArgumentException 命名冲突或维度后缀拒绝时抛出，消息以 {@code COLUMN_*} 短码起头
+     * @throws IllegalArgumentException 命名冲突或字段不存在时抛出，消息以 {@code COLUMN_*} 短码起头
      */
     private CalculatedFieldDef trySynthesizePlainAlias(
             String columnDef,
@@ -648,18 +647,8 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
         String baseField = parts.expression();
         String aliasName = parts.outputName();
 
-        // 维度后缀显式拒绝（spec §3.1.2）
-        if (baseField.indexOf('$') >= 0) {
-            throw new IllegalArgumentException(
-                    "COLUMN_DIMENSION_ALIAS_NOT_SUPPORTED: column '" + columnDef
-                            + "' references dimension-suffixed field '" + baseField
-                            + "' with alias '" + aliasName
-                            + "'. Plain-field alias is not supported on dimension members ($id/$caption); "
-                            + "drop the alias or use the base dimension field directly.");
-        }
-
-        // base 必须是简单 identifier（不含 . / 函数 / 操作符）；否则不合成，回退原路径
-        if (!isSimpleFieldRef(baseField)) {
+        // base 必须是简单 identifier 或 dim$attr 引用；否则不合成，回退原路径
+        if (!isSimpleFieldOrDimAttrRef(baseField)) {
             return null;
         }
 
@@ -809,13 +798,29 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
     }
 
     /**
-     * 判断是否为"简单字段引用"——letter/_ 开头，仅含 letter/digit/_。
+     * 判断是否为"简单字段引用"或"维度属性引用"。
      * <p>
-     * 排除：维度后缀（含 {@code $}，由 caller 单独拒绝）、嵌套维度（含 {@code .}）、
-     * 函数 / 操作符 / 空格等。{@code "name"} / {@code "customerId"} / {@code "_internal"} 通过；
-     * {@code "product.name"} / {@code "product$id"} / {@code "SUM(x)"} 不通过。
+     * 排除：嵌套维度（含 {@code .}）、多级 {@code $}、函数 / 操作符 / 空格等。
+     * {@code "name"} / {@code "customerId"} / {@code "_internal"} 通过；
+     * {@code "product$id"} / {@code "product$caption"} 通过；
+     * {@code "product.name"} / {@code "product$caption$zh"} / {@code "SUM(x)"} 不通过。
      */
-    private static boolean isSimpleFieldRef(String s) {
+    private static boolean isSimpleFieldOrDimAttrRef(String s) {
+        if (s == null || s.isEmpty()) {
+            return false;
+        }
+        int dollar = s.indexOf('$');
+        if (dollar < 0) {
+            return isSimpleIdentifier(s);
+        }
+        if (dollar == 0 || dollar == s.length() - 1 || dollar != s.lastIndexOf('$')) {
+            return false;
+        }
+        return isSimpleIdentifier(s.substring(0, dollar))
+                && isSimpleIdentifier(s.substring(dollar + 1));
+    }
+
+    private static boolean isSimpleIdentifier(String s) {
         if (s == null || s.isEmpty()) {
             return false;
         }

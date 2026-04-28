@@ -26,7 +26,7 @@
 |------|------|------|------|
 | A1-1 | 裸 `["dimension"]` 抛 `IllegalArgumentException` 含 hint `"did you mean 'dim$caption'"` | T1 单测验证 ✓（实际抛 `ExRuntimeExceptionImpl` 携带 `COLUMN_FIELD_NOT_FOUND` 错误码 + hint）| **passed** |
 | A1-2 | `["dimension AS alias"]` 抛 `IllegalArgumentException` 含 hint `"did you mean 'dim$caption AS alias'"` | **2026-04-28 FU-2 closure**：`InlineExpressionPreprocessStep.trySynthesizePlainAlias` 增加 `findDimension(baseField)` 探测；命中即抛 `IllegalArgumentException("COLUMN_FIELD_NOT_FOUND: ...")` + dim-aware hint（保留用户 alias）。T2 单测验证 ✓ | **passed** |
-| A1-3 | `["dimension$caption AS userAlias"]` SQL 输出 `... AS "userAlias"` | **deferred → FU-1**（Java SQL gen alias 路径需另行改造）| **partial** |
+| A1-3 | `["dimension$caption AS userAlias"]` SQL 输出 `... AS "userAlias"` | ✅ **2026-04-28 FU-1 closure**：8.5.0.beta `InlineExpressionPreprocessStep.trySynthesizePlainAlias` 删除维度属性 alias 拒绝分支；T4 激活验证 `product$caption AS userAlias` 响应列名为 `userAlias`；F4 `{field:"product$id", as:"productId"}` 真实 SQL 对比通过 | **passed** |
 | A1-4 | `["dim$id]` / `["dim$caption"]` 行为不变 | T3/T5 单测验证 ✓ + sqlite lane 1857 passed 零 regression | **passed** |
 | A1-5 | `measureName` / `AGG(...) AS alias` 行为不变 | sqlite lane 1857 passed 零 regression | **passed** |
 
@@ -78,6 +78,7 @@
 3. A4-1 不需要 fixture 迁移（实测验证）
 4. A4-2 deferred 至 M9（Odoo Pro JAR 同步）
 5. 8.4.0.beta 本期目标"v1.3 引擎 fail-loud 拒绝裸 dim 引用 + 与 Python 跨端错误码对齐"全部达成
+6. **2026-04-28 addendum**：FU-1 / FU-2 均已关闭；Java A1-1~A1-5 已全量 passed。历史 decision 仍保留为 `accepted-with-risks`，剩余风险仅为 M9 Odoo Pro JAR 同步。
 
 ## Signoff Marker
 
@@ -92,7 +93,7 @@
 
 | ID | 优先级 | 范围 | 承接批次 | 阻断关系 |
 |----|--------|------|---------|---------|
-| FU-1 | P2 | Java SQL gen 层 user-alias 透传修复（A1-3 ★ Python T4 完整等价）| 8.5.0.beta 或下一轮治理批次 | 不阻断 8.4.0.beta；行为体验优化项 |
+| ~~FU-1~~ | ~~P2~~ | ~~Java SQL gen 层 user-alias 透传修复（A1-3 ★ Python T4 完整等价）~~ | ✅ **已交付**（2026-04-28 · 8.5.0.beta · `InlineExpressionPreprocessStep` + T4/F4 测试 + `foggy-dataset-model` sqlite lane 1857 passed） | **closed** |
 | ~~FU-2~~ | ~~P3~~ | ~~`dim AS alias` 形态错误码~~ | ✅ **已交付**（2026-04-28 · `InlineExpressionPreprocessStep` + T2 测试 + sqlite lane 1857 passed）| **closed** |
 | M9 | P2 | Odoo Pro vendored java JAR 同步 + gateway lane 全绿验证 | Python `v1.7` + Java `8.4.0.beta` 都落盘后承接 | 不阻断本期；下游集成验收前置 |
 
@@ -101,3 +102,4 @@
 | 日期 | 操作 | 备注 |
 |------|------|------|
 | 2026-04-28 | 创建 + 自检签收 | 基于 progress 自检结论 + 验收对照表 evidence；推荐 final decision **`accepted-with-risks`**；FU-1 / FU-2 / M9 留作 follow-up |
+| 2026-04-28 | FU-1 关闭回写 | 8.5.0.beta `P0-FU1-dim-attr-alias-passthrough` accepted；A1-3 由 partial → passed；FU-1/FU-2 均 closed，剩余跟踪仅 M9 |

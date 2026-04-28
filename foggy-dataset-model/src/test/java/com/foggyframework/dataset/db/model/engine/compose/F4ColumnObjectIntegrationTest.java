@@ -266,17 +266,22 @@ class F4ColumnObjectIntegrationTest extends EcommerceTestSupport {
     }
 
     @Test
-    @DisplayName("(n) F4 dimension-suffix base + alias → COLUMN_DIMENSION_ALIAS_NOT_SUPPORTED")
-    void f4PlainAliasOnDimensionSuffixRejected() {
+    @DisplayName("(n) F4 dimension-suffix base + alias — user alias passthrough")
+    void f4PlainAliasOnDimensionSuffixUsesUserAlias() {
         Map<String, Object> aliasEntry = Map.of(
                 "field", "product$id", "as", "productId");
 
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> dsl(Map.of(
-                        "model", SALES_MODEL,
-                        "columns", List.of(aliasEntry))));
-        assertTrue(ex.getMessage().contains("COLUMN_DIMENSION_ALIAS_NOT_SUPPORTED"),
-                "Expected COLUMN_DIMENSION_ALIAS_NOT_SUPPORTED, got: " + ex.getMessage());
+        DataSetResult actual = dsl(Map.of(
+                "model", SALES_MODEL,
+                "columns", List.of(aliasEntry),
+                "limit", 50000));
+
+        List<Map<String, Object>> expected = executeQuery("""
+                SELECT fs.product_key AS %s
+                FROM fact_sales fs
+                """.formatted(q("productId")));
+
+        assertRowsEqual(expected, actual.toList(), true);
     }
 
     @Test

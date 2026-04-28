@@ -7,7 +7,6 @@ import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import jakarta.annotation.Resource;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -15,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -27,9 +27,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p>镜像 Python 端
  * {@code tests/test_dataset_model/test_strict_column_resolution.py}
  * 的 T1-T10 矩阵中可在 Java 端单独验证的子集。本批仅覆盖**裸维度
- * 拒绝**与**$attr 接受**两条主路径；剩余 user-alias 透传修复
- * （Python T4 ★）属于 SQL 生成路径改造，单独跟进
- * （progress 文档 follow-up）。</p>
+ * 拒绝**与**$attr 接受**两条主路径；并覆盖 Python T4 ★
+ * user-alias 透传等价行为。</p>
  *
  * <p>使用 {@code FactSalesQueryModel} 的 {@code product} 维度
  * 作为测试目标（FK-style dim with {@code dim_product} join，自带
@@ -154,12 +153,25 @@ class StrictBareDimensionRejectionTest extends EcommerceTestSupport {
     }
 
     @Test
-    @Disabled("FU-1 · user-alias passthrough on dim$attr AS userAlias requires Java SQL-gen-layer fix")
     @DisplayName("T4 · product$caption AS userAlias 应输出用户 alias（与 Python parity）")
     void t4_userAliasOverridesTmCaptionOnDimAttr() {
-        // Python `v1.7` 已修复（commit 59176f2）：dim$attr AS userAlias 的
-        // 用户 alias 覆盖 TM dimension.alias。Java 端等价改造涉及
-        // findJdbcQueryColumnByName + DbQueryColumn.getCaption 链路。
-        // FU-1 承接。
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(List.of("product$caption AS userAlias"));
+        request.setLimit(10);
+
+        SemanticQueryResponse response = semanticQueryService.queryModel(
+                SALES_MODEL,
+                request,
+                "execute",
+                SemanticRequestContext.empty());
+
+        assertNotNull(response);
+        assertNotNull(response.getItems());
+        assertFalse(response.getItems().isEmpty(), "user-alias query should return rows");
+        Map<String, Object> firstRow = response.getItems().get(0);
+        assertTrue(firstRow.containsKey("userAlias"),
+                "response row should expose user alias, got keys: " + firstRow.keySet());
+        assertFalse(firstRow.containsKey("product$caption"),
+                "response row should not expose the source dim attr when user alias is present");
     }
 }
