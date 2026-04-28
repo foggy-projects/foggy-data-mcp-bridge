@@ -80,6 +80,20 @@ public final class ComposeCompileErrorCodes {
     public static final String PER_BASE_COMPILE_FAILED =
             "compose-compile-error/per-base-compile-failed";
 
+    // ---------- S7a relation error codes ----------
+
+    /** Relation cannot be wrapped for the target dialect. */
+    public static final String RELATION_WRAP_UNSUPPORTED =
+            "compose-compile-error/relation-wrap-unsupported";
+
+    /** Relation contains inner CTE that cannot be hoisted for the target dialect. */
+    public static final String RELATION_CTE_HOIST_UNSUPPORTED =
+            "compose-compile-error/relation-cte-hoist-unsupported";
+
+    /** Relation and outer plan target different datasources. */
+    public static final String RELATION_DATASOURCE_MISMATCH =
+            "compose-compile-error/relation-datasource-mismatch";
+
     // ---------- phases ----------
 
     /** Structural validation phase (before any SQL is generated). */
@@ -96,7 +110,10 @@ public final class ComposeCompileErrorCodes {
             UNSUPPORTED_PLAN_SHAPE,
             CROSS_DATASOURCE_REJECTED,
             MISSING_BINDING,
-            PER_BASE_COMPILE_FAILED);
+            PER_BASE_COMPILE_FAILED,
+            RELATION_WRAP_UNSUPPORTED,
+            RELATION_CTE_HOIST_UNSUPPORTED,
+            RELATION_DATASOURCE_MISMATCH);
 
     /** Valid phase labels carried by {@link ComposeCompileException#phase()}. */
     public static final Set<String> VALID_PHASES = Set.of(

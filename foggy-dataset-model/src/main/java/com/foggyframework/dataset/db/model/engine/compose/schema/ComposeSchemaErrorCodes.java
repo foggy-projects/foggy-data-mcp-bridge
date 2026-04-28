@@ -179,6 +179,16 @@ public final class ComposeSchemaErrorCodes {
     public static final String COLUMN_PLAN_NOT_VISIBLE =
             NAMESPACE + "/column/plan-not-visible";
 
+    // ---------- S7a relation schema error codes ----------
+
+    /** Relation output schema is unavailable (e.g. not yet compiled). */
+    public static final String RELATION_OUTPUT_SCHEMA_UNAVAILABLE =
+            NAMESPACE + "/relation/output-schema-unavailable";
+
+    /** Column reference within relation is unsupported (e.g. aggregatable
+     *  on a ratio column). */
+    public static final String RELATION_COLUMN_REFERENCE_UNSUPPORTED =
+            NAMESPACE + "/relation/column-reference-unsupported";
     public static final Set<String> ALL_CODES = Set.of(
             DERIVED_QUERY_UNKNOWN_FIELD,
             COLUMN_SPEC_MALFORMED,
@@ -193,7 +203,9 @@ public final class ComposeSchemaErrorCodes {
             COLUMN_PLAN_NOT_BOUND,
             COLUMN_FIELD_NOT_FOUND,
             COLUMN_PLAN_TYPE_INVALID,
-            COLUMN_PLAN_NOT_VISIBLE
+            COLUMN_PLAN_NOT_VISIBLE,
+            RELATION_OUTPUT_SCHEMA_UNAVAILABLE,
+            RELATION_COLUMN_REFERENCE_UNSUPPORTED
     );
 
     // ------------------------------------------------------------------

@@ -1,6 +1,10 @@
 package com.foggyframework.dataset.db.model.engine.compose.plan;
 
 import com.foggyframework.dataset.db.model.engine.compose.plan.expr.*;
+import com.foggyframework.dataset.db.model.engine.compose.relation.ReferencePolicy;
+import com.foggyframework.dataset.db.model.engine.compose.relation.SemanticKind;
+import com.foggyframework.dataset.db.model.engine.compose.schema.ColumnSpec;
+import com.foggyframework.dataset.db.model.engine.compose.schema.OutputSchema;
 
 import java.util.*;
 
@@ -422,5 +426,142 @@ public class TimeWindowExpander {
         }
 
         return output;
+    }
+
+    /**
+     * Produce an {@link OutputSchema} with full S7a semantic metadata for
+     * timeWindow output columns.
+     *
+     * <p>This parallels {@link #getOutputColumns(TimeWindowDef, List, Set)}
+     * but returns {@link ColumnSpec} objects with {@code semanticKind},
+     * {@code referencePolicy}, {@code valueMeaning}, and {@code lineage}
+     * populated per the S7a contract.</p>
+     *
+     * @since 8.5.0.beta (S7a)
+     */
+    public static OutputSchema getOutputSchema(
+            TimeWindowDef tw,
+            List<String> dimensionFields,
+            Set<String> measureFields) {
+
+        List<ColumnSpec> specs = new ArrayList<>();
+
+        // 1. Dimension fields
+        if (dimensionFields != null) {
+            for (String dim : dimensionFields) {
+                specs.add(ColumnSpec.builder()
+                        .name(dim).expression(dim)
+                        .semanticKind(SemanticKind.BASE_FIELD)
+                        .referencePolicy(ReferencePolicy.DIMENSION_DEFAULT)
+                        .build());
+            }
+        }
+
+        // Resolve targeted metrics
+        List<String> metrics;
+        if (tw.targetMetrics() == null || tw.targetMetrics().isEmpty()) {
+            metrics = new ArrayList<>(measureFields);
+        } else {
+            metrics = tw.targetMetrics();
+        }
+
+        // 2. Original metrics
+        for (String metric : metrics) {
+            specs.add(ColumnSpec.builder()
+                    .name(metric).expression(metric)
+                    .semanticKind(SemanticKind.AGGREGATE_MEASURE)
+                    .referencePolicy(ReferencePolicy.MEASURE_DEFAULT)
+                    .build());
+        }
+
+        // 3. Derived columns based on comparison mode
+        if (tw.isComparative()) {
+            for (String metric : metrics) {
+                // __prior
+                specs.add(ColumnSpec.builder()
+                        .name(metric + "__prior").expression(metric + "__prior")
+                        .semanticKind(SemanticKind.TIME_WINDOW_DERIVED)
+                        .referencePolicy(ReferencePolicy.TIME_WINDOW_DERIVED_DEFAULT)
+                        .valueMeaning("prior period " + metric)
+                        .lineage(Set.of(metric))
+                        .build());
+                // __diff
+                specs.add(ColumnSpec.builder()
+                        .name(metric + "__diff").expression(metric + "__diff")
+                        .semanticKind(SemanticKind.TIME_WINDOW_DERIVED)
+                        .referencePolicy(ReferencePolicy.TIME_WINDOW_DERIVED_DEFAULT)
+                        .valueMeaning("current minus prior " + metric)
+                        .lineage(Set.of(metric))
+                        .build());
+                // __ratio — NOT aggregatable
+                specs.add(ColumnSpec.builder()
+                        .name(metric + "__ratio").expression(metric + "__ratio")
+                        .semanticKind(SemanticKind.TIME_WINDOW_DERIVED)
+                        .referencePolicy(ReferencePolicy.TIME_WINDOW_DERIVED_DEFAULT)
+                        .valueMeaning("current relative to prior " + metric)
+                        .lineage(Set.of(metric))
+                        .build());
+            }
+            // Grain key fields as dimensions
+            String baseField = tw.field();
+            if (baseField.endsWith("$id")) {
+                baseField = baseField.substring(0, baseField.length() - 3);
+            }
+            List<String> grainKeys = new ArrayList<>();
+            if ("yoy".equalsIgnoreCase(tw.comparison())) {
+                grainKeys.add(baseField + "$year");
+                if ("month".equalsIgnoreCase(tw.grain())) {
+                    grainKeys.add(baseField + "$month");
+                } else if ("quarter".equalsIgnoreCase(tw.grain())) {
+                    grainKeys.add(baseField + "$quarter");
+                } else {
+                    grainKeys.add(baseField + "$dayOfYear");
+                }
+            } else if ("mom".equalsIgnoreCase(tw.comparison())) {
+                grainKeys.add(baseField + "$month");
+                grainKeys.add(baseField + "$id");
+            } else if ("wow".equalsIgnoreCase(tw.comparison())) {
+                grainKeys.add(baseField + "$week");
+                grainKeys.add(baseField + "$dayOfWeek");
+            }
+            for (String gk : grainKeys) {
+                // Only add if not already in dimensions
+                boolean alreadyAdded = false;
+                for (ColumnSpec s : specs) {
+                    if (s.name().equals(gk)) { alreadyAdded = true; break; }
+                }
+                if (!alreadyAdded) {
+                    specs.add(ColumnSpec.builder()
+                            .name(gk).expression(gk)
+                            .semanticKind(SemanticKind.BASE_FIELD)
+                            .referencePolicy(ReferencePolicy.DIMENSION_DEFAULT)
+                            .build());
+                }
+            }
+        } else if (tw.isRolling()) {
+            for (String metric : metrics) {
+                String derivedName = metric + "__" + tw.comparison();
+                specs.add(ColumnSpec.builder()
+                        .name(derivedName).expression(derivedName)
+                        .semanticKind(SemanticKind.TIME_WINDOW_DERIVED)
+                        .referencePolicy(ReferencePolicy.TIME_WINDOW_DERIVED_DEFAULT)
+                        .valueMeaning("rolling " + tw.comparison() + " of " + metric)
+                        .lineage(Set.of(metric))
+                        .build());
+            }
+        } else if (tw.isCumulative()) {
+            for (String metric : metrics) {
+                String derivedName = metric + "__" + tw.comparison();
+                specs.add(ColumnSpec.builder()
+                        .name(derivedName).expression(derivedName)
+                        .semanticKind(SemanticKind.TIME_WINDOW_DERIVED)
+                        .referencePolicy(ReferencePolicy.TIME_WINDOW_DERIVED_DEFAULT)
+                        .valueMeaning("cumulative " + tw.comparison() + " of " + metric)
+                        .lineage(Set.of(metric))
+                        .build());
+            }
+        }
+
+        return OutputSchema.of(specs);
     }
 }

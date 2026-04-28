@@ -40,7 +40,9 @@ class ComposeSchemaExceptionTest {
             "compose-schema-error/column/plan-not-bound",
             "compose-schema-error/column/field-not-found",
             "compose-schema-error/column/plan-type-invalid",
-            "compose-schema-error/column/plan-not-visible"
+            "compose-schema-error/column/plan-not-visible",
+            "compose-schema-error/relation/output-schema-unavailable",
+            "compose-schema-error/relation/column-reference-unsupported"
     );
 
     private static final Set<String> EXPECTED_PHASES = Set.of(
@@ -53,8 +55,8 @@ class ComposeSchemaExceptionTest {
     @DisplayName("ALL_CODES 与跨仓冻结的字符串集合逐字符一致")
     void allCodesMatchesExpected() {
         assertEquals(EXPECTED_CODES, ComposeSchemaErrorCodes.ALL_CODES);
-        assertEquals(14, ComposeSchemaErrorCodes.ALL_CODES.size(),
-                "M4 baseline 7 + G10 PR2 新增 2 + G10 PR4 新增 3 + G5 F5 新增 2 = 14 条");
+        assertEquals(16, ComposeSchemaErrorCodes.ALL_CODES.size(),
+                "M4 baseline 7 + G10 PR2 新增 2 + G10 PR4 新增 3 + G5 F5 新增 2 + S7a 新增 2 = 16 条");
     }
 
     @Test

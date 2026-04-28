@@ -45,9 +45,9 @@ class ComposeCompileErrorCodesTest {
     }
 
     @Test
-    @DisplayName("ALL_CODES 大小严格等于 4（NAMESPACE 不纳入）")
-    void allCodesSizeIsExactlyFour() {
-        assertEquals(4, ComposeCompileErrorCodes.ALL_CODES.size());
+    @DisplayName("ALL_CODES 大小严格等于 7（NAMESPACE 不纳入）")
+    void allCodesSizeIsSeven() {
+        assertEquals(7, ComposeCompileErrorCodes.ALL_CODES.size());
     }
 
     @Test
@@ -61,6 +61,12 @@ class ComposeCompileErrorCodesTest {
                 ComposeCompileErrorCodes.MISSING_BINDING));
         assertTrue(ComposeCompileErrorCodes.ALL_CODES.contains(
                 ComposeCompileErrorCodes.PER_BASE_COMPILE_FAILED));
+        assertTrue(ComposeCompileErrorCodes.ALL_CODES.contains(
+                ComposeCompileErrorCodes.RELATION_WRAP_UNSUPPORTED));
+        assertTrue(ComposeCompileErrorCodes.ALL_CODES.contains(
+                ComposeCompileErrorCodes.RELATION_CTE_HOIST_UNSUPPORTED));
+        assertTrue(ComposeCompileErrorCodes.ALL_CODES.contains(
+                ComposeCompileErrorCodes.RELATION_DATASOURCE_MISMATCH));
     }
 
     @Test
@@ -81,6 +87,12 @@ class ComposeCompileErrorCodesTest {
                 ComposeCompileErrorCodes.MISSING_BINDING));
         assertTrue(ComposeCompileErrorCodes.isValidCode(
                 ComposeCompileErrorCodes.PER_BASE_COMPILE_FAILED));
+        assertTrue(ComposeCompileErrorCodes.isValidCode(
+                ComposeCompileErrorCodes.RELATION_WRAP_UNSUPPORTED));
+        assertTrue(ComposeCompileErrorCodes.isValidCode(
+                ComposeCompileErrorCodes.RELATION_CTE_HOIST_UNSUPPORTED));
+        assertTrue(ComposeCompileErrorCodes.isValidCode(
+                ComposeCompileErrorCodes.RELATION_DATASOURCE_MISMATCH));
     }
 
     @Test

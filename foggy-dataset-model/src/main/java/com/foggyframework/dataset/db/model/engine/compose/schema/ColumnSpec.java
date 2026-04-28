@@ -2,7 +2,10 @@ package com.foggyframework.dataset.db.model.engine.compose.schema;
 
 import com.foggyframework.dataset.db.model.engine.compose.plan.PlanId;
 
+import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * One column in an {@link OutputSchema}.
@@ -65,6 +68,11 @@ public final class ColumnSpec {
     // G10 PR1 — types only, no producer sets these yet
     private final PlanId planProvenance;  // nullable — PR2 fills in (flag-gated)
     private final boolean isAmbiguous;     // PR2 sets to true on join overlap (flag-gated)
+    // S7a POC — semantic metadata, excluded from equals/hashCode
+    private final String semanticKind;         // nullable — S7a POC
+    private final String valueMeaning;         // nullable — S7a POC
+    private final Set<String> lineage;         // nullable — S7a POC (unmodifiable)
+    private final Set<String> referencePolicy; // nullable — S7a POC (unmodifiable)
 
     private ColumnSpec(Builder b) {
         if (b.name == null || b.name.isEmpty()) {
@@ -82,6 +90,12 @@ public final class ColumnSpec {
         this.hasExplicitAlias = b.hasExplicitAlias;
         this.planProvenance = b.planProvenance;
         this.isAmbiguous = b.isAmbiguous;
+        this.semanticKind = b.semanticKind;
+        this.valueMeaning = b.valueMeaning;
+        this.lineage = b.lineage == null ? null
+                : Collections.unmodifiableSet(new LinkedHashSet<>(b.lineage));
+        this.referencePolicy = b.referencePolicy == null ? null
+                : Collections.unmodifiableSet(new LinkedHashSet<>(b.referencePolicy));
     }
 
     public String name() { return name; }
@@ -110,6 +124,15 @@ public final class ColumnSpec {
      */
     public boolean isAmbiguous() { return isAmbiguous; }
 
+    /** S7a POC — semantic classification (e.g. "base_field", "time_window_derived"). */
+    public String semanticKind() { return semanticKind; }
+    /** S7a POC — human/LLM-readable meaning of this column's value. */
+    public String valueMeaning() { return valueMeaning; }
+    /** S7a POC — upstream field(s) this column derives from. */
+    public Set<String> lineage() { return lineage; }
+    /** S7a POC — capability set (readable, groupable, aggregatable, etc.). */
+    public Set<String> referencePolicy() { return referencePolicy; }
+
     public static Builder builder() { return new Builder(); }
 
     /** Convenience: minimal {@code name + expression} ColumnSpec. */
@@ -125,6 +148,10 @@ public final class ColumnSpec {
         private boolean hasExplicitAlias;
         private PlanId planProvenance;
         private boolean isAmbiguous;
+        private String semanticKind;
+        private String valueMeaning;
+        private Set<String> lineage;
+        private Set<String> referencePolicy;
 
         public Builder name(String v) { this.name = v; return this; }
         public Builder expression(String v) { this.expression = v; return this; }
@@ -137,6 +164,15 @@ public final class ColumnSpec {
 
         /** G10 PR1 — see {@link ColumnSpec#isAmbiguous()}. */
         public Builder isAmbiguous(boolean v) { this.isAmbiguous = v; return this; }
+
+        /** S7a POC — see {@link ColumnSpec#semanticKind()}. */
+        public Builder semanticKind(String v) { this.semanticKind = v; return this; }
+        /** S7a POC — see {@link ColumnSpec#valueMeaning()}. */
+        public Builder valueMeaning(String v) { this.valueMeaning = v; return this; }
+        /** S7a POC — see {@link ColumnSpec#lineage()}. */
+        public Builder lineage(Set<String> v) { this.lineage = v; return this; }
+        /** S7a POC — see {@link ColumnSpec#referencePolicy()}. */
+        public Builder referencePolicy(Set<String> v) { this.referencePolicy = v; return this; }
 
         public ColumnSpec build() { return new ColumnSpec(this); }
     }
@@ -174,6 +210,10 @@ public final class ColumnSpec {
                 + ", hasExplicitAlias=" + hasExplicitAlias
                 + ", planProvenance=" + planProvenance
                 + ", isAmbiguous=" + isAmbiguous
+                + ", semanticKind=" + semanticKind
+                + ", valueMeaning=" + valueMeaning
+                + ", lineage=" + lineage
+                + ", referencePolicy=" + referencePolicy
                 + '}';
     }
 }
