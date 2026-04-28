@@ -3,7 +3,7 @@
 ## 基本信息
 
 - version: 8.5.0.beta
-- status: poc-complete
+- status: poc-complete / contract-frozen
 - contract_ref: `foggy-data-mcp-bridge-python/docs/v1.5/S7a-plan-stable-view-relation-contract-preflight.md`
 - contract_version: S7a-1
 

@@ -9,7 +9,7 @@
 ## 基本信息
 
 - version: 8.5.0.beta
-- status: planned-wait-for-s7b-contract-freeze
+- status: in-progress
 - contract_ref: `foggy-data-mcp-bridge-python/docs/v1.5/S7b-stage7-runtime-contract-plan.md`
 - s7a_progress: `docs/8.5.0.beta/P2-S7a-stable-relation-contract-progress.md`
 - current_java_commit: `f3360b3 feat(compose): add stable relation contract model`
@@ -48,7 +48,7 @@ Python 已完成 mirror 并消费 Java snapshot。Java 下一步不应直接开�
 
 ### S7b - Contract freeze
 
-- status: pending
+- status: completed
 - owner: root-controller + Java/Python contract owners
 
 Java responsibilities:
@@ -67,7 +67,7 @@ Acceptance:
 
 ### S7c - compileToRelation runtime entry
 
-- status: wait-for-s7b
+- status: ready
 - owner: Java
 
 Implementation boundary:
