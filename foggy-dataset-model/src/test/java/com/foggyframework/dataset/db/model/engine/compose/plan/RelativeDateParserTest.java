@@ -104,6 +104,58 @@ class RelativeDateParserTest {
             assertEquals(RelativeDateParser.OffsetUnit.QUARTER, expr.offsetUnit());
             assertEquals(-1, expr.offsetAmount());
         }
+
+        // ---- Sign-direction edge cases (BUG-J1 regression guard) ----
+
+        @Test
+        @DisplayName("30D (unsigned) → DAY, +30 (future, not past)")
+        void unsigned30D() {
+            RelativeDateParser.DateExpr expr = RelativeDateParser.parse("30D");
+            assertEquals(RelativeDateParser.OffsetUnit.DAY, expr.offsetUnit());
+            assertEquals(30, expr.offsetAmount(),
+                    "Unsigned '30D' must be positive (future). " +
+                    "BUG-J1 caused this to be -30 (past).");
+        }
+
+        @Test
+        @DisplayName("+30D → DAY, +30")
+        void plus30D() {
+            RelativeDateParser.DateExpr expr = RelativeDateParser.parse("+30D");
+            assertEquals(RelativeDateParser.OffsetUnit.DAY, expr.offsetUnit());
+            assertEquals(30, expr.offsetAmount());
+        }
+
+        @Test
+        @DisplayName("-30D → DAY, -30")
+        void minus30D() {
+            RelativeDateParser.DateExpr expr = RelativeDateParser.parse("-30D");
+            assertEquals(RelativeDateParser.OffsetUnit.DAY, expr.offsetUnit());
+            assertEquals(-30, expr.offsetAmount());
+        }
+
+        @Test
+        @DisplayName("1Y (unsigned) → YEAR, +1")
+        void unsigned1Y() {
+            RelativeDateParser.DateExpr expr = RelativeDateParser.parse("1Y");
+            assertEquals(RelativeDateParser.OffsetUnit.YEAR, expr.offsetUnit());
+            assertEquals(1, expr.offsetAmount());
+        }
+
+        @Test
+        @DisplayName("2W (unsigned) → WEEK, +2")
+        void unsigned2W() {
+            RelativeDateParser.DateExpr expr = RelativeDateParser.parse("2W");
+            assertEquals(RelativeDateParser.OffsetUnit.WEEK, expr.offsetUnit());
+            assertEquals(2, expr.offsetAmount());
+        }
+
+        @Test
+        @DisplayName("3M (unsigned) → MONTH, +3")
+        void unsigned3M() {
+            RelativeDateParser.DateExpr expr = RelativeDateParser.parse("3M");
+            assertEquals(RelativeDateParser.OffsetUnit.MONTH, expr.offsetUnit());
+            assertEquals(3, expr.offsetAmount());
+        }
     }
 
     // ==================================================================

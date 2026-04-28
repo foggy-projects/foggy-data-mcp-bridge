@@ -64,7 +64,7 @@ public final class RelativeDateParser {
             String sign = m.group(1);
             int amount = Integer.parseInt(m.group(2));
             String unitChar = m.group(3).toUpperCase();
-            if ("-".equals(sign) || sign.isEmpty()) {
+            if ("-".equals(sign)) {
                 amount = -amount;
             }
             OffsetUnit unit;

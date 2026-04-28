@@ -305,5 +305,68 @@ class TimeWindowExpanderTest {
             assertTrue(cols.contains("store$city"),
                     "Outer projection should include store$city");
         }
+
+        @Test
+        @DisplayName("yoy + year grain uses dayOfYear as grain key (Java-specific behavior)")
+        void yoyYear() {
+            // NOTE (parity gap): Python yoy+year uses [year] only (no grain sub-key).
+            // Java uses dayOfYear as the grain key field.
+            // This is a documented cross-engine difference.
+            TimeWindowDef tw = new TimeWindowDef(
+                    "salesDate$id", "year", "yoy", "[)",
+                    List.of("2023-01-01", "2025-01-01"),
+                    List.of("salesAmount"), null);
+
+            TimeWindowExpander.ComparativeExpansionResult result =
+                    TimeWindowExpander.expandComparative(tw, Set.of("salesAmount"), List.of());
+
+            assertEquals(-1, result.periodOffset());
+            assertEquals(RelativeDateParser.OffsetUnit.YEAR, result.offsetUnit());
+            assertEquals("salesDate$year", result.shiftField(),
+                    "YoY → shift field is salesDate$year");
+            assertEquals("salesDate$dayOfYear", result.grainKeyField(),
+                    "YoY + year grain → Java uses dayOfYear as grain key");
+        }
+
+        @Test
+        @DisplayName("yoy + week grain uses dayOfYear as grain key (Java-specific behavior)")
+        void yoyWeek() {
+            // NOTE (parity gap): Python yoy+week uses [year+1, week=week].
+            // Java uses dayOfYear as grain key instead of week number.
+            TimeWindowDef tw = new TimeWindowDef(
+                    "salesDate$id", "week", "yoy", "[)",
+                    List.of("2024-01-01", "2025-01-01"),
+                    List.of("salesAmount"), null);
+
+            TimeWindowExpander.ComparativeExpansionResult result =
+                    TimeWindowExpander.expandComparative(tw, Set.of("salesAmount"), List.of());
+
+            assertEquals("salesDate$year", result.shiftField());
+            assertEquals("salesDate$dayOfYear", result.grainKeyField(),
+                    "YoY + week grain → Java falls through to dayOfYear " +
+                    "(Python uses week=week — documented parity gap GAP-1)");
+        }
+
+        @Test
+        @DisplayName("wow + day grain still uses week/dayOfWeek (Java-specific behavior)")
+        void wowDay() {
+            // NOTE (parity gap): Python wow+day uses id = id + 7.
+            // Java always uses week/dayOfWeek even for day grain.
+            TimeWindowDef tw = new TimeWindowDef(
+                    "salesDate$id", "day", "wow", "[)",
+                    List.of("-2W", "now"),
+                    List.of("salesAmount"), null);
+
+            TimeWindowExpander.ComparativeExpansionResult result =
+                    TimeWindowExpander.expandComparative(tw, Set.of("salesAmount"), List.of());
+
+            assertEquals(-1, result.periodOffset());
+            assertEquals(RelativeDateParser.OffsetUnit.WEEK, result.offsetUnit());
+            assertEquals("salesDate$week", result.shiftField(),
+                    "WoW + day grain → Java still uses salesDate$week as shift field");
+            assertEquals("salesDate$dayOfWeek", result.grainKeyField(),
+                    "WoW + day grain → Java uses dayOfWeek as grain key " +
+                    "(Python uses id+7 — documented parity gap GAP-4)");
+        }
     }
 }
