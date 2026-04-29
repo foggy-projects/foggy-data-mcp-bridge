@@ -45,9 +45,9 @@ class ComposeCompileErrorCodesTest {
     }
 
     @Test
-    @DisplayName("ALL_CODES 大小严格等于 7（NAMESPACE 不纳入）")
-    void allCodesSizeIsSeven() {
-        assertEquals(7, ComposeCompileErrorCodes.ALL_CODES.size());
+    @DisplayName("ALL_CODES 大小严格等于 12（NAMESPACE 不纳入）")
+    void allCodesSizeIsTwelve() {
+        assertEquals(12, ComposeCompileErrorCodes.ALL_CODES.size());
     }
 
     @Test
@@ -67,6 +67,17 @@ class ComposeCompileErrorCodesTest {
                 ComposeCompileErrorCodes.RELATION_CTE_HOIST_UNSUPPORTED));
         assertTrue(ComposeCompileErrorCodes.ALL_CODES.contains(
                 ComposeCompileErrorCodes.RELATION_DATASOURCE_MISMATCH));
+        // S7d codes
+        assertTrue(ComposeCompileErrorCodes.ALL_CODES.contains(
+                ComposeCompileErrorCodes.RELATION_COLUMN_NOT_FOUND));
+        assertTrue(ComposeCompileErrorCodes.ALL_CODES.contains(
+                ComposeCompileErrorCodes.RELATION_COLUMN_NOT_READABLE));
+        assertTrue(ComposeCompileErrorCodes.ALL_CODES.contains(
+                ComposeCompileErrorCodes.RELATION_COLUMN_NOT_ORDERABLE));
+        assertTrue(ComposeCompileErrorCodes.ALL_CODES.contains(
+                ComposeCompileErrorCodes.RELATION_OUTER_AGGREGATE_NOT_SUPPORTED));
+        assertTrue(ComposeCompileErrorCodes.ALL_CODES.contains(
+                ComposeCompileErrorCodes.RELATION_OUTER_WINDOW_NOT_SUPPORTED));
     }
 
     @Test
@@ -93,6 +104,17 @@ class ComposeCompileErrorCodesTest {
                 ComposeCompileErrorCodes.RELATION_CTE_HOIST_UNSUPPORTED));
         assertTrue(ComposeCompileErrorCodes.isValidCode(
                 ComposeCompileErrorCodes.RELATION_DATASOURCE_MISMATCH));
+        // S7d codes
+        assertTrue(ComposeCompileErrorCodes.isValidCode(
+                ComposeCompileErrorCodes.RELATION_COLUMN_NOT_FOUND));
+        assertTrue(ComposeCompileErrorCodes.isValidCode(
+                ComposeCompileErrorCodes.RELATION_COLUMN_NOT_READABLE));
+        assertTrue(ComposeCompileErrorCodes.isValidCode(
+                ComposeCompileErrorCodes.RELATION_COLUMN_NOT_ORDERABLE));
+        assertTrue(ComposeCompileErrorCodes.isValidCode(
+                ComposeCompileErrorCodes.RELATION_OUTER_AGGREGATE_NOT_SUPPORTED));
+        assertTrue(ComposeCompileErrorCodes.isValidCode(
+                ComposeCompileErrorCodes.RELATION_OUTER_WINDOW_NOT_SUPPORTED));
     }
 
     @Test

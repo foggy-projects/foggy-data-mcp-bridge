@@ -94,6 +94,28 @@ public final class ComposeCompileErrorCodes {
     public static final String RELATION_DATASOURCE_MISMATCH =
             "compose-compile-error/relation-datasource-mismatch";
 
+    // ---------- S7d outer query error codes ----------
+
+    /** Column does not exist in the relation's OutputSchema. */
+    public static final String RELATION_COLUMN_NOT_FOUND =
+            "compose-compile-error/relation-column-not-found";
+
+    /** Column exists but lacks 'readable' in referencePolicy. */
+    public static final String RELATION_COLUMN_NOT_READABLE =
+            "compose-compile-error/relation-column-not-readable";
+
+    /** Column exists but lacks 'orderable' in referencePolicy. */
+    public static final String RELATION_COLUMN_NOT_ORDERABLE =
+            "compose-compile-error/relation-column-not-orderable";
+
+    /** Outer aggregate attempted when supportsOuterAggregate=false. */
+    public static final String RELATION_OUTER_AGGREGATE_NOT_SUPPORTED =
+            "compose-compile-error/relation-outer-aggregate-not-supported";
+
+    /** Outer window attempted when supportsOuterWindow=false. */
+    public static final String RELATION_OUTER_WINDOW_NOT_SUPPORTED =
+            "compose-compile-error/relation-outer-window-not-supported";
+
     // ---------- phases ----------
 
     /** Structural validation phase (before any SQL is generated). */
@@ -107,8 +129,8 @@ public final class ComposeCompileErrorCodes {
 
     // ---------- public registries ----------
 
-    /** Immutable set of the 4 full error-code strings.
-     *  Tests assert {@code size == 4} ({@link #NAMESPACE} is excluded by design). */
+    /** Immutable set of all full error-code strings.
+     *  ({@link #NAMESPACE} is excluded by design.) */
     public static final Set<String> ALL_CODES = Set.of(
             UNSUPPORTED_PLAN_SHAPE,
             CROSS_DATASOURCE_REJECTED,
@@ -116,7 +138,12 @@ public final class ComposeCompileErrorCodes {
             PER_BASE_COMPILE_FAILED,
             RELATION_WRAP_UNSUPPORTED,
             RELATION_CTE_HOIST_UNSUPPORTED,
-            RELATION_DATASOURCE_MISMATCH);
+            RELATION_DATASOURCE_MISMATCH,
+            RELATION_COLUMN_NOT_FOUND,
+            RELATION_COLUMN_NOT_READABLE,
+            RELATION_COLUMN_NOT_ORDERABLE,
+            RELATION_OUTER_AGGREGATE_NOT_SUPPORTED,
+            RELATION_OUTER_WINDOW_NOT_SUPPORTED);
 
     /** Valid phase labels carried by {@link ComposeCompileException#phase()}. */
     public static final Set<String> VALID_PHASES = Set.of(

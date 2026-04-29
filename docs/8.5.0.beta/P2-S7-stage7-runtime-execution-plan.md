@@ -9,7 +9,7 @@
 ## 基本信息
 
 - version: 8.5.0.beta
-- status: complete-through-s7c; s7d-ready
+- status: complete-through-s7d; s7e-ready
 - contract_ref: `foggy-data-mcp-bridge-python/docs/v1.5/S7b-stage7-runtime-contract-plan.md`
 - s7a_progress: `docs/8.5.0.beta/P2-S7a-stable-relation-contract-progress.md`
 - current_java_commit: `f3360b3 feat(compose): add stable relation contract model`
@@ -95,7 +95,7 @@ Tests:
 
 ### S7d - relation-as-source read-only query
 
-- status: ready
+- status: completed
 - owner: Java first
 
 Implementation boundary:
@@ -125,10 +125,12 @@ Tests:
 - non-readable / non-orderable rejected。
 - datasource identity preserved。
 - output schema stable after wrapping。
+- raw filter 必须声明 `filterColumns`，否则无法验证 `referencePolicy`，按 fail-closed 拒绝。
+- SQL Server hoisted CTE 使用防御性 `;WITH`，且仍不得出现 `FROM (WITH`。
 
 ### S7e - outer aggregate
 
-- status: wait-for-s7d
+- status: ready
 - owner: Java first
 
 Implementation boundary:
