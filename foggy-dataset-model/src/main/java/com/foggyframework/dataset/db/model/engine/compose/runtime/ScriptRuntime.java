@@ -1,6 +1,13 @@
 package com.foggyframework.dataset.db.model.engine.compose.runtime;
 
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
+import com.foggyframework.dataset.db.model.engine.compose.capability.CapabilityException;
+import com.foggyframework.dataset.db.model.engine.compose.capability.CapabilityPolicy;
+import com.foggyframework.dataset.db.model.engine.compose.capability.CapabilityRegistry;
+import com.foggyframework.dataset.db.model.engine.compose.capability.FunctionDescriptor;
+import com.foggyframework.dataset.db.model.engine.compose.capability.MethodDescriptor;
+import com.foggyframework.dataset.db.model.engine.compose.capability.ObjectFacadeDescriptor;
+import com.foggyframework.dataset.db.model.engine.compose.capability.ObjectFacadeProxy;
 import com.foggyframework.dataset.db.model.engine.compose.context.ComposeQueryContext;
 import com.foggyframework.dataset.db.model.engine.compose.plan.Dsl;
 import com.foggyframework.dataset.db.model.engine.compose.plan.QueryFactory;
@@ -87,6 +94,36 @@ public final class ScriptRuntime {
             SemanticQueryServiceV3 semanticService,
             String dialect,
             boolean previewMode) {
+        return runScript(script, ctx, semanticService, dialect, previewMode, null, null);
+    }
+
+    /**
+     * Execute a Compose Query fsscript with capability injection.
+     *
+     * <p>Capabilities are only injected when both registry and policy are
+     * explicit. Existing overloads keep the default visible surface unchanged.</p>
+     */
+    public static ScriptResult runScript(
+            String script,
+            ComposeQueryContext ctx,
+            SemanticQueryServiceV3 semanticService,
+            String dialect,
+            CapabilityRegistry capabilityRegistry,
+            CapabilityPolicy capabilityPolicy) {
+        return runScript(script, ctx, semanticService, dialect, false, capabilityRegistry, capabilityPolicy);
+    }
+
+    /**
+     * Execute a Compose Query fsscript with optional preview mode and capability injection.
+     */
+    public static ScriptResult runScript(
+            String script,
+            ComposeQueryContext ctx,
+            SemanticQueryServiceV3 semanticService,
+            String dialect,
+            boolean previewMode,
+            CapabilityRegistry capabilityRegistry,
+            CapabilityPolicy capabilityPolicy) {
         if (ctx == null) throw new IllegalArgumentException("ctx must not be null");
         if (semanticService == null) throw new IllegalArgumentException("semanticService must not be null");
 
@@ -198,6 +235,8 @@ public final class ScriptRuntime {
                 evaluator.setVar("params", Collections.emptyMap());
             }
 
+            injectCapabilities(evaluator, capabilityRegistry, capabilityPolicy);
+
             // 5. Execute
             Object result = fsscript.evalResult(evaluator);
 
@@ -256,6 +295,82 @@ public final class ScriptRuntime {
 
         } finally {
             ComposeRuntimeHolder.popBundle(token);
+        }
+    }
+
+    private static void injectCapabilities(
+            ExpEvaluator evaluator,
+            CapabilityRegistry registry,
+            CapabilityPolicy policy) {
+        if (registry == null || policy == null || registry.isEmpty()) {
+            return;
+        }
+
+        for (String name : policy.getAllowedFunctions()) {
+            if (!registry.hasFunction(name)) {
+                continue;
+            }
+            CapabilityRegistry.FunctionEntry entry = registry.getFunction(name);
+            FunctionDescriptor descriptor = entry.getDescriptor();
+            if (!"pure_runtime".equals(descriptor.getKind())
+                    || !descriptor.getAllowedIn().contains("compose_runtime")
+                    || entry.getHandler() == null) {
+                continue;
+            }
+            evaluator.setVar(name, (Function<Object[], Object>) rawArgs -> {
+                Object result = entry.getHandler().handle(toNamedArgs(descriptor, rawArgs));
+                ensureSafeCapabilityReturn(result, "Function '" + name + "'");
+                return result;
+            });
+        }
+
+        for (String objectName : policy.getAllowedObjects().keySet()) {
+            if (!registry.hasObject(objectName) || !policy.isObjectAllowed(objectName)) {
+                continue;
+            }
+            CapabilityRegistry.ObjectEntry entry = registry.getObject(objectName);
+            ObjectFacadeDescriptor descriptor = entry.getDescriptor();
+            ObjectFacadeProxy proxy = new ObjectFacadeProxy(descriptor, entry.getTarget(), policy);
+            Map<String, Object> methodWrappers = new LinkedHashMap<>();
+            for (MethodDescriptor method : descriptor.getMethods()) {
+                if (!policy.isMethodAllowed(objectName, method.getName())) {
+                    continue;
+                }
+                methodWrappers.put(method.getName(), (Function<Object[], Object>) rawArgs -> {
+                    Object[] args = rawArgs == null ? new Object[0] : rawArgs;
+                    Object result = proxy.invoke(method.getName(), args);
+                    ensureSafeCapabilityReturn(result,
+                            "Method '" + method.getName() + "' on object '" + objectName + "'");
+                    return result;
+                });
+            }
+            evaluator.setVar(objectName, Collections.unmodifiableMap(methodWrappers));
+        }
+    }
+
+    private static Map<String, Object> toNamedArgs(FunctionDescriptor descriptor, Object[] rawArgs) {
+        Object[] args = rawArgs == null ? new Object[0] : rawArgs;
+        List<Map<String, Object>> schema = descriptor.getArgsSchema();
+        if (args.length > schema.size()) {
+            throw new CapabilityException.InvalidDescriptor(
+                    "Function '" + descriptor.getName() + "' received too many arguments.");
+        }
+        Map<String, Object> named = new LinkedHashMap<>();
+        for (int i = 0; i < args.length; i++) {
+            Object argName = schema.get(i).get("name");
+            if (!(argName instanceof String name) || name.isEmpty()) {
+                throw new CapabilityException.InvalidDescriptor(
+                        "Function '" + descriptor.getName() + "' has invalid argsSchema[" + i + "].name.");
+            }
+            named.put(name, args[i]);
+        }
+        return Collections.unmodifiableMap(named);
+    }
+
+    private static void ensureSafeCapabilityReturn(Object result, String label) {
+        if (!ObjectFacadeProxy.isSafeReturnValue(result)) {
+            throw new CapabilityException.ReturnTypeDenied(
+                    label + " returned a value of disallowed type.");
         }
     }
 

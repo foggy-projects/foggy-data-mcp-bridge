@@ -1,6 +1,7 @@
 package com.foggyframework.dataset.db.model.engine.expression;
 
 import com.foggyframework.dataset.db.model.engine.expression.sql.*;
+import com.foggyframework.dataset.db.model.engine.compose.capability.*;
 import com.foggyframework.fsscript.exp.DefaultExpFactory;
 import com.foggyframework.fsscript.exp.EmptyExp;
 import com.foggyframework.fsscript.exp.UnresolvedFunCall;
@@ -8,9 +9,8 @@ import com.foggyframework.fsscript.parser.spi.Exp;
 import com.foggyframework.fsscript.parser.spi.ListExp;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * SQL 表达式工厂
@@ -110,6 +110,12 @@ public class SqlExpFactory extends DefaultExpFactory {
             return new SqlExpWrapper(this, name, args, sqlExp);
         }
 
+        // Check capability registry for sql_scalar functions
+        Exp capabilityExp = tryCreateCapabilitySqlExp(name, argList);
+        if (capabilityExp != null) {
+            return new SqlExpWrapper(this, name, args, capabilityExp);
+        }
+
         // 不在白名单中的函数
         throw new SecurityException("Function not allowed in calculated field expression: " + name);
     }
@@ -128,6 +134,12 @@ public class SqlExpFactory extends DefaultExpFactory {
         Exp sqlExp = createSqlExp(funcName, argList);
         if (sqlExp != null) {
             return new SqlExpWrapper(this, name, args, sqlExp);
+        }
+
+        // Check capability registry for sql_scalar functions
+        Exp capabilityExp = tryCreateCapabilitySqlExp(funcName, argList);
+        if (capabilityExp != null) {
+            return new SqlExpWrapper(this, name, args, capabilityExp);
         }
 
         throw new SecurityException("Function not allowed in calculated field expression: " + funcName);
@@ -157,6 +169,12 @@ public class SqlExpFactory extends DefaultExpFactory {
                 List<Exp> argList = new ArrayList<>(args);
                 Exp sqlExp = new SqlFunctionExp(upperName, argList);
                 return new SqlExpFunCallWrapper(sqlExp);
+            }
+
+            // Check capability registry for sql_scalar functions
+            Exp capabilityExp = tryCreateCapabilitySqlExp(funcName, new ArrayList<>(args));
+            if (capabilityExp != null) {
+                return new SqlExpFunCallWrapper(capabilityExp);
             }
 
             // 不允许的函数
@@ -228,6 +246,68 @@ public class SqlExpFactory extends DefaultExpFactory {
         }
 
         return null;
+    }
+
+    /**
+     * Try to resolve a function from the thread-local CapabilityExpContext.
+     * Returns a CapabilitySqlFunctionExp if the function is a registered sql_scalar,
+     * or null if no registry is set or the function is not registered.
+     *
+     * <p>Validates: registration, policy, allowed_in surface, dialect support,
+     * and argument arity. All violations are fail-closed.</p>
+     */
+    private Exp tryCreateCapabilitySqlExp(String name, List<Exp> args) {
+        CapabilityRegistry registry = CapabilityExpContext.getRegistry();
+        CapabilityPolicy policy = CapabilityExpContext.getPolicy();
+        String dialect = CapabilityExpContext.getDialect();
+
+        if (registry == null || !registry.hasFunction(name)) {
+            return null;
+        }
+
+        CapabilityRegistry.FunctionEntry entry = registry.getFunction(name);
+        FunctionDescriptor descriptor = entry.getDescriptor();
+
+        // Must be sql_scalar
+        if (!"sql_scalar".equals(descriptor.getKind())) {
+            return null;
+        }
+
+        // Policy check
+        if (policy == null || !policy.isFunctionAllowed(name)) {
+            throw new SecurityException(
+                    "Function '" + name + "' is not allowed by the current policy");
+        }
+
+        // Surface check: must be allowed in formula or compose_column
+        List<String> allowedIn = descriptor.getAllowedIn();
+        if (!allowedIn.contains("formula") && !allowedIn.contains("compose_column")) {
+            throw new SecurityException(
+                    "Function '" + name + "' is not allowed in formula/compose_column");
+        }
+
+        // Arity check (filter EmptyExp — fsscript parser produces one for zero-arg calls)
+        int requiredArgs = (int) descriptor.getArgsSchema().stream()
+                .filter(a -> Boolean.TRUE.equals(a.get("required")))
+                .count();
+        int totalArgs = descriptor.getArgsSchema().size();
+        long actualArgs = args.stream()
+                .filter(a -> !(a instanceof com.foggyframework.fsscript.exp.EmptyExp))
+                .count();
+        if (actualArgs < requiredArgs || actualArgs > totalArgs) {
+            throw new SecurityException(
+                    "Function '" + name + "' expects " + totalArgs
+                            + " arguments, got " + actualArgs);
+        }
+
+        // Dialect check
+        if (dialect != null && !descriptor.getDialects().contains(dialect)) {
+            throw new SecurityException(
+                    "Function '" + name + "' does not support dialect '" + dialect + "'");
+        }
+
+        // Create a CapabilitySqlFunctionExp that will invoke the renderer at eval time
+        return new CapabilitySqlFunctionExp(name, args, entry.getRenderer(), descriptor, dialect);
     }
 
     /**

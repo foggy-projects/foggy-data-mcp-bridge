@@ -1,6 +1,12 @@
 package com.foggyframework.dataset.db.model.engine.compose.runtime;
 
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
+import com.foggyframework.dataset.db.model.engine.compose.capability.CapabilityException;
+import com.foggyframework.dataset.db.model.engine.compose.capability.CapabilityPolicy;
+import com.foggyframework.dataset.db.model.engine.compose.capability.CapabilityRegistry;
+import com.foggyframework.dataset.db.model.engine.compose.capability.FunctionDescriptor;
+import com.foggyframework.dataset.db.model.engine.compose.capability.MethodDescriptor;
+import com.foggyframework.dataset.db.model.engine.compose.capability.ObjectFacadeDescriptor;
 import com.foggyframework.dataset.db.model.engine.compose.ComposedDataSetResult;
 import com.foggyframework.dataset.db.model.engine.compose.DslQueryFunction;
 import com.foggyframework.dataset.db.model.engine.compose.context.ComposeQueryContext;
@@ -117,6 +123,143 @@ class ScriptRuntimeTest {
         assertNotNull(result);
         // Note: fsscript eval may return int or long depending on implementation
         assertTrue(result.value() instanceof Number);
+    }
+
+    @Test
+    @DisplayName("pure_runtime capability is visible only when registry and policy allow it")
+    void pureRuntimeCapability_allowedByPolicy() {
+        CapabilityRegistry registry = new CapabilityRegistry();
+        registry.registerFunction(new FunctionDescriptor(
+                "fiscalYear",
+                "pure_runtime",
+                List.of(Map.of("name", "month", "type", "int")),
+                "int",
+                true,
+                "none",
+                List.of("compose_runtime"),
+                "test.fiscalYear",
+                null
+        ), args -> ((Number) args.get("month")).intValue() >= 4 ? 2025 : 2024);
+        CapabilityPolicy policy = new CapabilityPolicy(
+                Set.of("fiscalYear"),
+                Map.of(),
+                Set.of()
+        );
+
+        ScriptRuntime.ScriptResult result = ScriptRuntime.runScript(
+                "return fiscalYear(4);",
+                dummyCtx(),
+                mock(SemanticQueryServiceV3.class),
+                "mysql",
+                registry,
+                policy);
+
+        assertEquals(2025, ((Number) result.value()).intValue());
+    }
+
+    @Test
+    @DisplayName("pure_runtime capability is not injected by default or when policy denies it")
+    void pureRuntimeCapability_policyDeny() {
+        CapabilityRegistry registry = new CapabilityRegistry();
+        registry.registerFunction(new FunctionDescriptor(
+                "fiscalYear",
+                "pure_runtime",
+                List.of(Map.of("name", "month", "type", "int")),
+                "int",
+                true,
+                "none",
+                List.of("compose_runtime"),
+                "test.fiscalYear",
+                null
+        ), args -> 2025);
+
+        assertThrows(RuntimeException.class, () -> ScriptRuntime.runScript(
+                "return fiscalYear(4);",
+                dummyCtx(),
+                mock(SemanticQueryServiceV3.class),
+                "mysql",
+                registry,
+                CapabilityPolicy.empty()));
+    }
+
+    @Test
+    @DisplayName("pure_runtime capability rejects unsafe return values")
+    void pureRuntimeCapability_returnTypeDeny() {
+        CapabilityRegistry registry = new CapabilityRegistry();
+        registry.registerFunction(new FunctionDescriptor(
+                "unsafeValue",
+                "pure_runtime",
+                List.of(),
+                "string",
+                true,
+                "none",
+                List.of("compose_runtime"),
+                "test.unsafeValue",
+                null
+        ), args -> new Thread());
+        CapabilityPolicy policy = new CapabilityPolicy(
+                Set.of("unsafeValue"),
+                Map.of(),
+                Set.of()
+        );
+
+        assertThrows(CapabilityException.ReturnTypeDenied.class, () -> ScriptRuntime.runScript(
+                "return unsafeValue();",
+                dummyCtx(),
+                mock(SemanticQueryServiceV3.class),
+                "mysql",
+                registry,
+                policy));
+    }
+
+    @Test
+    @DisplayName("object facade exposes only declared method wrappers at runtime")
+    void objectFacadeCapability_declaredMethodOnly() {
+        CapabilityRegistry registry = new CapabilityRegistry();
+        MethodDescriptor method = new MethodDescriptor(
+                "getValue",
+                List.of(),
+                "string",
+                "none",
+                "read",
+                5000,
+                "test.getValue"
+        );
+        registry.registerObjectFacade(
+                new ObjectFacadeDescriptor("biz", List.of(method)),
+                new Object() {
+                    public String getValue() { return "ok"; }
+                    public String hidden() { return "secret"; }
+                });
+        CapabilityPolicy policy = new CapabilityPolicy(
+                Set.of(),
+                Map.of("biz", Set.of("getValue")),
+                Set.of("read")
+        );
+
+        ScriptRuntime.ScriptResult result = ScriptRuntime.runScript(
+                "return biz.getValue();",
+                dummyCtx(),
+                mock(SemanticQueryServiceV3.class),
+                "mysql",
+                registry,
+                policy);
+
+        assertEquals("ok", result.value());
+        assertThrows(RuntimeException.class, () -> ScriptRuntime.runScript(
+                "return biz.hidden();",
+                dummyCtx(),
+                mock(SemanticQueryServiceV3.class),
+                "mysql",
+                registry,
+                policy));
+        assertThrows(RuntimeException.class, () -> ScriptRuntime.runScript(
+                "return biz.getClass();",
+                dummyCtx(),
+                mock(SemanticQueryServiceV3.class),
+                "mysql",
+                registry,
+                policy));
     }
 
     @Test
