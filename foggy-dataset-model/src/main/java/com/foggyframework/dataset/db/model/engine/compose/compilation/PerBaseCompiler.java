@@ -172,6 +172,10 @@ final class PerBaseCompiler {
             req.setOrderBy(ob);
         }
 
+        if (!plan.calculatedFields().isEmpty()) {
+            req.setCalculatedFields(new ArrayList<>(plan.calculatedFields()));
+        }
+
         req.setStart(plan.start() == null ? 0 : plan.start());
         req.setLimit(plan.limit());
         req.setDistinct(plan.distinct());

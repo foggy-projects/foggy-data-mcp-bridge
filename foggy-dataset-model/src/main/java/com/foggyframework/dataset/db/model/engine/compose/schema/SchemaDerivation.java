@@ -1,5 +1,6 @@
 package com.foggyframework.dataset.db.model.engine.compose.schema;
 
+import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.engine.compose.ComposeFeatureFlags;
 import com.foggyframework.dataset.db.model.engine.compose.compilation.ComposePlanner;
 import com.foggyframework.dataset.db.model.engine.compose.plan.AggregateColumn;
@@ -102,6 +103,7 @@ public final class SchemaDerivation {
     private static OutputSchema deriveBaseModel(BaseModelPlan plan, String path) {
         String currentPath = path + "BaseModelPlan[" + plan.model() + "]";
         List<ColumnSpec> specs = columnsToSpecs(plan.columns(), plan.model(), currentPath);
+        specs.addAll(calculatedFieldsToSpecs(plan.calculatedFields(), plan.model(), currentPath));
         OutputSchema output = OutputSchema.of(specs);
         validateGroupAndOrderBy(plan.groupBy(), plan.orderBy(), output, currentPath);
         return output;
@@ -302,6 +304,28 @@ public final class SchemaDerivation {
                     .build());
         }
         return specs;
+    }
+
+    private static List<ColumnSpec> calculatedFieldsToSpecs(
+            List<CalculatedFieldDef> calculatedFields, String sourceModel, String planPath) {
+        List<ColumnAliasParts> partsList = new ArrayList<>(calculatedFields.size());
+        for (CalculatedFieldDef cf : calculatedFields) {
+            String name = cf.getName();
+            if (name == null || name.trim().isEmpty()) {
+                throw new ComposeSchemaException(
+                        ComposeSchemaErrorCodes.COLUMN_SPEC_MALFORMED,
+                        "calculatedFields entries require a non-empty name",
+                        ComposeSchemaErrorCodes.PHASE_PLAN_BUILD,
+                        planPath,
+                        null);
+            }
+            String trimmed = name.trim();
+            String expression = cf.getExpression() == null || cf.getExpression().isEmpty()
+                    ? trimmed
+                    : cf.getExpression();
+            partsList.add(new ColumnAliasParts(expression, trimmed, false));
+        }
+        return partsToSpecs(partsList, sourceModel, planPath);
     }
 
     private static ColumnAliasParts parseAliasOrRaise(String columnSpec, String planPath) {

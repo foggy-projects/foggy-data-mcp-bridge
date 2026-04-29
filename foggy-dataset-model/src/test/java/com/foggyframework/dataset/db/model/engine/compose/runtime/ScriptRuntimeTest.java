@@ -1,5 +1,6 @@
 package com.foggyframework.dataset.db.model.engine.compose.runtime;
 
+import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.engine.compose.ComposedDataSetResult;
 import com.foggyframework.dataset.db.model.engine.compose.DslQueryFunction;
 import com.foggyframework.dataset.db.model.engine.compose.context.ComposeQueryContext;
@@ -327,6 +328,49 @@ class ScriptRuntimeTest {
     }
 
     @Test
+    @DisplayName("dataset.compose_script dsl() maps calculatedFields into SemanticQueryRequest")
+    void scriptRuntimeDsl_mapsCalculatedFieldsIntoRequest() {
+        AtomicReference<SemanticQueryRequest> captured = new AtomicReference<>();
+        SemanticQueryServiceV3 fakeSvc = new SemanticQueryServiceV3() {
+            @Override
+            public com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult generateSql(
+                    String model, SemanticQueryRequest req, SemanticRequestContext ctx) {
+                captured.set(req);
+                return new com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult(
+                        "SELECT name FROM employee", List.of(), null);
+            }
+
+            @Override
+            public com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse queryModel(
+                    String model, SemanticQueryRequest req, String mode, SemanticRequestContext ctx) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse validateQuery(
+                    String model, SemanticQueryRequest req, SemanticRequestContext ctx) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public List<Map<String, Object>> executeSql(String sql, List<Object> params, String routeModel) {
+                throw new AssertionError("preview mode must not execute SQL");
+            }
+        };
+
+        ScriptRuntime.runScript(
+                "return dsl({model: 'EmployeeQM', columns: ['name'], "
+                        + "calculatedFields: [{name: 'genderCopy', expression: 'gender'}]});",
+                dummyCtx(), fakeSvc, "mysql8", true);
+
+        assertNotNull(captured.get());
+        assertEquals(1, captured.get().getCalculatedFields().size());
+        CalculatedFieldDef cf = captured.get().getCalculatedFields().get(0);
+        assertEquals("genderCopy", cf.getName());
+        assertEquals("gender", cf.getExpression());
+    }
+
+    @Test
     @DisplayName("dsl() maps timeWindow into SemanticQueryRequest")
     void dslFunction_mapsTimeWindowIntoRequest() {
         AtomicReference<com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest> captured =
@@ -389,6 +433,56 @@ class ScriptRuntimeTest {
     }
 
     @Test
+    @DisplayName("legacy DslQueryFunction maps calculatedFields into SemanticQueryRequest")
+    void dslFunction_mapsCalculatedFieldsIntoRequest() {
+        AtomicReference<SemanticQueryRequest> captured = new AtomicReference<>();
+        SemanticQueryServiceV3 fakeSvc = new SemanticQueryServiceV3() {
+            @Override
+            public com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult generateSql(
+                    String model, SemanticQueryRequest req, SemanticRequestContext ctx) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse queryModel(
+                    String model, SemanticQueryRequest req, String mode, SemanticRequestContext ctx) {
+                captured.set(req);
+                com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse response =
+                        new com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse();
+                response.setItems(List.of());
+                return response;
+            }
+
+            @Override
+            public com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse validateQuery(
+                    String model, SemanticQueryRequest req, SemanticRequestContext ctx) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public List<Map<String, Object>> executeSql(String sql, List<Object> params, String routeModel) {
+                throw new UnsupportedOperationException();
+            }
+        };
+
+        Map<String, Object> calc = new LinkedHashMap<>();
+        calc.put("name", "genderCopy");
+        calc.put("expression", "gender");
+        Map<String, Object> params = new LinkedHashMap<>();
+        params.put("model", "SalesQM");
+        params.put("columns", List.of("name"));
+        params.put("calculatedFields", List.of(calc));
+
+        DslQueryFunction function = new DslQueryFunction(fakeSvc, SemanticRequestContext.empty());
+        function.executeFunction(null, params);
+
+        assertNotNull(captured.get());
+        assertEquals(1, captured.get().getCalculatedFields().size());
+        assertEquals("genderCopy", captured.get().getCalculatedFields().get(0).getName());
+        assertEquals("gender", captured.get().getCalculatedFields().get(0).getExpression());
+    }
+
+    @Test
     @DisplayName("ComposedDataSetResult maps groupBy and timeWindow into SemanticQueryRequest")
     void composedDataSetResult_mapsGroupByAndTimeWindowIntoRequest() throws Exception {
         Map<String, Object> groupByObject = new LinkedHashMap<>();
@@ -399,11 +493,15 @@ class ScriptRuntimeTest {
         timeWindow.put("grain", "day");
         timeWindow.put("comparison", "rolling_7d");
         timeWindow.put("targetMetrics", List.of("salesAmount"));
+        Map<String, Object> calc = new LinkedHashMap<>();
+        calc.put("name", "growthPercent");
+        calc.put("expression", "salesAmount__rolling_7d * 100");
 
         Map<String, Object> params = new LinkedHashMap<>();
         params.put("columns", List.of("salesDate$id", "channel$id", "salesAmount", "salesAmount__rolling_7d"));
         params.put("groupBy", List.of("salesDate$id", groupByObject));
         params.put("timeWindow", timeWindow);
+        params.put("calculatedFields", List.of(calc));
 
         ComposedDataSetResult result = new ComposedDataSetResult(
                 mock(SemanticQueryServiceV3.class),
@@ -426,6 +524,9 @@ class ScriptRuntimeTest {
         assertEquals("salesDate$id", request.getTimeWindow().get("field"));
         assertEquals("rolling_7d", request.getTimeWindow().get("comparison"));
         assertEquals(List.of("salesAmount"), request.getTimeWindow().get("targetMetrics"));
+        assertEquals(1, request.getCalculatedFields().size());
+        assertEquals("growthPercent", request.getCalculatedFields().get(0).getName());
+        assertEquals("salesAmount__rolling_7d * 100", request.getCalculatedFields().get(0).getExpression());
     }
 
     @Test

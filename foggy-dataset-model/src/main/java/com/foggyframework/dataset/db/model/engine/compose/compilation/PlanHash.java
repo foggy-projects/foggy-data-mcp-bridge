@@ -134,6 +134,7 @@ public final class PlanHash {
                     canonical(p.slice()),
                     canonical(p.groupBy()),
                     canonical(p.orderBy()),
+                    canonical(p.calculatedFields()),
                     boxNull(p.limit()),
                     boxNull(p.start()),
                     Boolean.valueOf(p.distinct()));

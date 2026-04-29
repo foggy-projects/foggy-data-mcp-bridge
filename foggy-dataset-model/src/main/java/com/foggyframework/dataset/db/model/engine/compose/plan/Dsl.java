@@ -1,5 +1,7 @@
 package com.foggyframework.dataset.db.model.engine.compose.plan;
 
+import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -78,6 +80,7 @@ public final class Dsl {
                     .slice(opts.slice())
                     .groupBy(opts.groupBy())
                     .orderBy(opts.orderBy())
+                    .calculatedFields(opts.calculatedFields())
                     .limit(opts.limit())
                     .start(opts.start())
                     .distinct(opts.distinct())
@@ -112,6 +115,7 @@ public final class Dsl {
         private final List<Object> slice;
         private final List<String> groupBy;
         private final List<String> orderBy;
+        private final List<CalculatedFieldDef> calculatedFields;
         private final Integer limit;
         private final Integer start;
         private final boolean distinct;
@@ -123,6 +127,7 @@ public final class Dsl {
             this.slice = b.slice;
             this.groupBy = b.groupBy;
             this.orderBy = b.orderBy;
+            this.calculatedFields = b.calculatedFields;
             this.limit = b.limit;
             this.start = b.start;
             this.distinct = b.distinct;
@@ -134,6 +139,7 @@ public final class Dsl {
         public List<Object> slice() { return slice; }
         public List<String> groupBy() { return groupBy; }
         public List<String> orderBy() { return orderBy; }
+        public List<CalculatedFieldDef> calculatedFields() { return calculatedFields; }
         public Integer limit() { return limit; }
         public Integer start() { return start; }
         public boolean distinct() { return distinct; }
@@ -147,6 +153,7 @@ public final class Dsl {
             private List<Object> slice;
             private List<String> groupBy;
             private List<String> orderBy;
+            private List<CalculatedFieldDef> calculatedFields;
             private Integer limit;
             private Integer start;
             private boolean distinct;
@@ -165,6 +172,7 @@ public final class Dsl {
             public Builder slice(List<Object> v) { this.slice = v; return this; }
             public Builder groupBy(List<String> v) { this.groupBy = v; return this; }
             public Builder orderBy(List<String> v) { this.orderBy = v; return this; }
+            public Builder calculatedFields(List<CalculatedFieldDef> v) { this.calculatedFields = v; return this; }
             public Builder limit(Integer v) { this.limit = v; return this; }
             public Builder start(Integer v) { this.start = v; return this; }
             public Builder distinct(boolean v) { this.distinct = v; return this; }

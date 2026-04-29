@@ -1,5 +1,6 @@
 package com.foggyframework.dataset.db.model.engine.compose.runtime;
 
+import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.engine.compose.context.ComposeQueryContext;
 import com.foggyframework.dataset.db.model.engine.compose.plan.Dsl;
 import com.foggyframework.dataset.db.model.engine.compose.plan.QueryFactory;
@@ -167,6 +168,11 @@ public final class ScriptRuntime {
                     List<String> orderBy = (List<String>) args.get("orderBy");
                     builder.orderBy(orderBy);
                 }
+                if (args.containsKey("calculatedFields")) {
+                    @SuppressWarnings("unchecked")
+                    List<Object> calculatedFields = (List<Object>) args.get("calculatedFields");
+                    builder.calculatedFields(toCalculatedFields(calculatedFields));
+                }
                 if (args.containsKey("limit")) {
                     builder.limit(((Number) args.get("limit")).intValue());
                 }
@@ -251,6 +257,36 @@ public final class ScriptRuntime {
         } finally {
             ComposeRuntimeHolder.popBundle(token);
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<CalculatedFieldDef> toCalculatedFields(List<Object> raw) {
+        if (raw == null || raw.isEmpty()) {
+            return List.of();
+        }
+        List<CalculatedFieldDef> out = new ArrayList<>(raw.size());
+        for (Object item : raw) {
+            if (item instanceof CalculatedFieldDef def) {
+                out.add(def);
+                continue;
+            }
+            if (item instanceof Map<?, ?> map) {
+                out.add(toCalculatedField((Map<String, Object>) map));
+                continue;
+            }
+            throw new IllegalArgumentException("calculatedFields entries must be objects");
+        }
+        return out;
+    }
+
+    private static CalculatedFieldDef toCalculatedField(Map<String, Object> map) {
+        CalculatedFieldDef def = new CalculatedFieldDef();
+        def.setName((String) map.get("name"));
+        def.setCaption((String) map.get("caption"));
+        def.setExpression((String) map.get("expression"));
+        def.setDescription((String) map.get("description"));
+        def.setAgg((String) map.get("agg"));
+        return def;
     }
 
     /**

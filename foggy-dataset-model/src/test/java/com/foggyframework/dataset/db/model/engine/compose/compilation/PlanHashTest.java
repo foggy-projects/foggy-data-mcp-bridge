@@ -1,5 +1,6 @@
 package com.foggyframework.dataset.db.model.engine.compose.compilation;
 
+import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.engine.compose.plan.BaseModelPlan;
 import com.foggyframework.dataset.db.model.engine.compose.plan.DerivedQueryPlan;
 import com.foggyframework.dataset.db.model.engine.compose.plan.JoinOn;
@@ -167,6 +168,22 @@ class PlanHashTest {
     void distinctFlagAffectsHash() {
         BaseModelPlan a = BaseModelPlan.builder().model("M").columns(List.of("id")).distinct(false).build();
         BaseModelPlan b = BaseModelPlan.builder().model("M").columns(List.of("id")).distinct(true).build();
+        assertNotEquals(PlanHash.planHash(a), PlanHash.planHash(b));
+    }
+
+    @Test
+    @DisplayName("calculatedFields 反映到 BaseModelPlan hash")
+    void calculatedFieldsAffectHash() {
+        BaseModelPlan a = BaseModelPlan.builder()
+                .model("M")
+                .columns(List.of("name"))
+                .calculatedFields(List.of(new CalculatedFieldDef("genderCopy", "gender")))
+                .build();
+        BaseModelPlan b = BaseModelPlan.builder()
+                .model("M")
+                .columns(List.of("name"))
+                .calculatedFields(List.of(new CalculatedFieldDef("genderCopy", "gender2")))
+                .build();
         assertNotEquals(PlanHash.planHash(a), PlanHash.planHash(b));
     }
 
