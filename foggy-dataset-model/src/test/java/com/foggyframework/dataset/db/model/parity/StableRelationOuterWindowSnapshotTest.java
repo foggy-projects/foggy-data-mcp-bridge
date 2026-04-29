@@ -247,7 +247,7 @@ class StableRelationOuterWindowSnapshotTest {
             entry.put("name", cs.name());
             entry.put("semanticKind", cs.semanticKind());
             if (cs.referencePolicy() != null) {
-                entry.put("referencePolicy", new ArrayList<>(cs.referencePolicy()));
+                entry.put("referencePolicy", orderedReferencePolicy(cs.referencePolicy()));
             }
             if (cs.lineage() != null) {
                 entry.put("lineage", new ArrayList<>(cs.lineage()));
@@ -258,6 +258,21 @@ class StableRelationOuterWindowSnapshotTest {
             entries.add(entry);
         }
         return entries;
+    }
+
+    private List<String> orderedReferencePolicy(Set<String> policies) {
+        List<String> ordered = new ArrayList<>();
+        for (String policy : List.of(
+                ReferencePolicy.READABLE,
+                ReferencePolicy.GROUPABLE,
+                ReferencePolicy.AGGREGATABLE,
+                ReferencePolicy.WINDOWABLE,
+                ReferencePolicy.ORDERABLE)) {
+            if (policies.contains(policy)) {
+                ordered.add(policy);
+            }
+        }
+        return ordered;
     }
 
     private Map<String, Object> capsMap(RelationCapabilities caps) {

@@ -169,7 +169,7 @@ class StableRelationSnapshotTest {
             entry.put("name", cs.name());
             entry.put("semanticKind", cs.semanticKind());
             if (cs.referencePolicy() != null) {
-                entry.put("referencePolicy", new ArrayList<>(cs.referencePolicy()));
+                entry.put("referencePolicy", orderedReferencePolicy(cs.referencePolicy()));
             }
             if (cs.valueMeaning() != null) {
                 entry.put("valueMeaning", cs.valueMeaning());
@@ -196,6 +196,21 @@ class StableRelationSnapshotTest {
         caseMap.put("params", rSql.flattenParams());
 
         return caseMap;
+    }
+
+    private List<String> orderedReferencePolicy(Set<String> policies) {
+        List<String> ordered = new ArrayList<>();
+        for (String policy : List.of(
+                ReferencePolicy.READABLE,
+                ReferencePolicy.GROUPABLE,
+                ReferencePolicy.AGGREGATABLE,
+                ReferencePolicy.WINDOWABLE,
+                ReferencePolicy.ORDERABLE)) {
+            if (policies.contains(policy)) {
+                ordered.add(policy);
+            }
+        }
+        return ordered;
     }
 
     private RelationCapabilities s7aFrozenCapabilities(
