@@ -10,6 +10,7 @@ import com.foggyframework.dataset.db.model.engine.compose.schema.OutputSchema;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -17,7 +18,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * S7d/S7e · Build an outer query over a {@link CompiledRelation}.
+ * S7d/S7e/S7f · Build an outer query over a {@link CompiledRelation}.
  *
  * <p>Validates all column references against the relation's
  * {@link OutputSchema} and {@link ReferencePolicy}, generates
@@ -29,6 +30,8 @@ import java.util.regex.Pattern;
  *   <li>SELECT readable columns</li>
  *   <li>S7e aggregate expressions over aggregatable columns when
  *       {@code supportsOuterAggregate=true}</li>
+ *   <li>S7f window expressions over windowable columns when
+ *       {@code supportsOuterWindow=true}</li>
  *   <li>GROUP BY groupable columns</li>
  *   <li>ORDER BY orderable columns</li>
  *   <li>WHERE filter on readable columns</li>
@@ -37,11 +40,11 @@ import java.util.regex.Pattern;
  *
  * <h3>Not allowed</h3>
  * <ul>
- *   <li>Outer window (OVER(...))</li>
  *   <li>Relation join / union</li>
+ *   <li>Arbitrary raw OVER(...) — only parsed structured subset</li>
  * </ul>
  *
- * @since 8.5.0.beta (S7d, S7e)
+ * @since 8.5.0.beta (S7d, S7e, S7f)
  */
 public final class RelationOuterQueryBuilder {
 
@@ -97,7 +100,8 @@ public final class RelationOuterQueryBuilder {
         List<String> selectCols = resolveSelectColumns(spec, schema);
         List<SelectItem> selectItems = validateSelectColumns(
                 selectCols, schema,
-                relation.capabilities().supportsOuterAggregate());
+                relation.capabilities().supportsOuterAggregate(),
+                relation.capabilities().supportsOuterWindow());
 
         if (spec.groupBy() != null && !spec.groupBy().isEmpty()) {
             validateGroupByColumns(spec.groupBy(), schema);
@@ -169,15 +173,24 @@ public final class RelationOuterQueryBuilder {
 
     private static List<SelectItem> validateSelectColumns(
             List<String> columns, OutputSchema schema,
-            boolean supportsOuterAggregate) {
+            boolean supportsOuterAggregate,
+            boolean supportsOuterWindow) {
         List<SelectItem> items = new ArrayList<>(columns.size());
         for (String col : columns) {
+            // S7f: detect window expressions
             if (WINDOW_PATTERN.matcher(col).find()) {
-                throw new ComposeCompileException(
-                        ComposeCompileErrorCodes.RELATION_OUTER_WINDOW_NOT_SUPPORTED,
-                        ComposeCompileErrorCodes.PHASE_RELATION_COMPILE,
-                        "Outer window is not supported (S7e): '"
-                                + col + "'. supportsOuterWindow=false.");
+                if (!supportsOuterWindow) {
+                    throw new ComposeCompileException(
+                            ComposeCompileErrorCodes.RELATION_OUTER_WINDOW_NOT_SUPPORTED,
+                            ComposeCompileErrorCodes.PHASE_RELATION_COMPILE,
+                            "Outer window is not supported: '"
+                                    + col + "'. supportsOuterWindow=false.");
+                }
+                WindowSelectSpec wSpec = WindowSelectParser.parse(col);
+                validateWindowSelect(wSpec, schema);
+                items.add(new SelectItem(col, false, null, null,
+                        wSpec.outputAlias(), false, wSpec));
+                continue;
             }
 
             SelectItem item = parseSelectItem(col);
@@ -206,6 +219,73 @@ public final class RelationOuterQueryBuilder {
             }
         }
         return items;
+    }
+
+    // ---- S7f window validation ----
+
+    private static void validateWindowSelect(
+            WindowSelectSpec wSpec, OutputSchema schema) {
+        // Validate input column
+        if (wSpec.inputColumn() != null && !"*".equals(wSpec.inputColumn())) {
+            if (!schema.contains(wSpec.inputColumn())) {
+                throw new ComposeCompileException(
+                        ComposeCompileErrorCodes.RELATION_COLUMN_NOT_FOUND,
+                        ComposeCompileErrorCodes.PHASE_RELATION_COMPILE,
+                        "Window input column '" + wSpec.inputColumn()
+                                + "' does not exist. Available: "
+                                + schema.nameSet());
+            }
+            ColumnSpec inputSpec = schema.get(wSpec.inputColumn());
+            if (inputSpec != null && !isWindowable(inputSpec)) {
+                throw new ComposeCompileException(
+                        ComposeCompileErrorCodes.RELATION_COLUMN_NOT_WINDOWABLE,
+                        ComposeCompileErrorCodes.PHASE_RELATION_COMPILE,
+                        "Window input column '" + wSpec.inputColumn()
+                                + "' is not windowable. referencePolicy="
+                                + inputSpec.referencePolicy());
+            }
+        }
+        // Validate partition columns — must be groupable
+        for (String partCol : wSpec.partitionBy()) {
+            if (!schema.contains(partCol)) {
+                throw new ComposeCompileException(
+                        ComposeCompileErrorCodes.RELATION_COLUMN_NOT_FOUND,
+                        ComposeCompileErrorCodes.PHASE_RELATION_COMPILE,
+                        "Window PARTITION BY column '" + partCol
+                                + "' does not exist. Available: "
+                                + schema.nameSet());
+            }
+            ColumnSpec partSpec = schema.get(partCol);
+            if (partSpec != null && !isGroupable(partSpec)) {
+                throw new ComposeCompileException(
+                        ComposeCompileErrorCodes.RELATION_COLUMN_NOT_READABLE,
+                        ComposeCompileErrorCodes.PHASE_RELATION_COMPILE,
+                        "Window PARTITION BY column '" + partCol
+                                + "' is not groupable. referencePolicy="
+                                + partSpec.referencePolicy());
+            }
+        }
+        // Validate order columns — must be orderable
+        for (String ordClause : wSpec.orderBy()) {
+            String baseName = WindowSelectParser.extractOrderByBase(ordClause);
+            if (!schema.contains(baseName)) {
+                throw new ComposeCompileException(
+                        ComposeCompileErrorCodes.RELATION_COLUMN_NOT_FOUND,
+                        ComposeCompileErrorCodes.PHASE_RELATION_COMPILE,
+                        "Window ORDER BY column '" + baseName
+                                + "' does not exist. Available: "
+                                + schema.nameSet());
+            }
+            ColumnSpec ordSpec = schema.get(baseName);
+            if (ordSpec != null && !isOrderable(ordSpec)) {
+                throw new ComposeCompileException(
+                        ComposeCompileErrorCodes.RELATION_COLUMN_NOT_ORDERABLE,
+                        ComposeCompileErrorCodes.PHASE_RELATION_COMPILE,
+                        "Window ORDER BY column '" + baseName
+                                + "' is not orderable. referencePolicy="
+                                + ordSpec.referencePolicy());
+            }
+        }
     }
 
     private static void validateAggregateSelect(
@@ -342,11 +422,19 @@ public final class RelationOuterQueryBuilder {
         return rp == null || rp.contains(ReferencePolicy.AGGREGATABLE);
     }
 
+    /** S7f: column can be used as a window function input. */
+    static boolean isWindowable(ColumnSpec col) {
+        Set<String> rp = col.referencePolicy();
+        return rp == null || rp.contains(ReferencePolicy.WINDOWABLE);
+    }
+
     private static OutputSchema buildOutputSchema(
             List<SelectItem> selectItems, OutputSchema innerSchema) {
         List<ColumnSpec> outCols = new ArrayList<>(selectItems.size());
         for (SelectItem item : selectItems) {
-            if (item.aggregate()) {
+            if (item.windowSpec() != null) {
+                outCols.add(windowColumnSpec(item.windowSpec()));
+            } else if (item.aggregate()) {
                 outCols.add(aggregateColumnSpec(item));
             } else {
                 ColumnSpec inner = innerSchema.get(item.outputName());
@@ -369,6 +457,52 @@ public final class RelationOuterQueryBuilder {
                         + " of " + item.inputName())
                 .lineage("*".equals(item.inputName()) ? Set.of() : Set.of(item.inputName()))
                 .referencePolicy(ReferencePolicy.MEASURE_DEFAULT)
+                .build();
+    }
+
+    /** S7f: build ColumnSpec for a window function output column. */
+    private static ColumnSpec windowColumnSpec(WindowSelectSpec wSpec) {
+        // Build expression string
+        StringBuilder expr = new StringBuilder(wSpec.function());
+        expr.append("(");
+        if (wSpec.inputColumn() != null) {
+            expr.append(wSpec.inputColumn());
+        }
+        expr.append(") OVER (...)");
+
+        // Build valueMeaning
+        StringBuilder meaning = new StringBuilder(wSpec.function().toLowerCase(Locale.ROOT));
+        if (wSpec.inputColumn() != null && !"*".equals(wSpec.inputColumn())) {
+            meaning.append(" of ").append(wSpec.inputColumn());
+        }
+        if (!wSpec.partitionBy().isEmpty()) {
+            meaning.append(" partitioned by ").append(String.join(", ", wSpec.partitionBy()));
+        }
+        if (!wSpec.orderBy().isEmpty()) {
+            meaning.append(" ordered by ").append(String.join(", ", wSpec.orderBy()));
+        }
+        if (wSpec.frame() != null) {
+            meaning.append(" ").append(wSpec.frame().toLowerCase(Locale.ROOT));
+        }
+
+        // Build lineage: input + partition + order columns
+        Set<String> lineage = new LinkedHashSet<>();
+        if (wSpec.inputColumn() != null && !"*".equals(wSpec.inputColumn())) {
+            lineage.add(wSpec.inputColumn());
+        }
+        lineage.addAll(wSpec.partitionBy());
+        for (String ordClause : wSpec.orderBy()) {
+            lineage.add(WindowSelectParser.extractOrderByBase(ordClause));
+        }
+
+        return ColumnSpec.builder()
+                .name(wSpec.outputAlias())
+                .expression(expr.toString())
+                .hasExplicitAlias(true)
+                .semanticKind(SemanticKind.WINDOW_CALC)
+                .valueMeaning(meaning.toString())
+                .lineage(lineage)
+                .referencePolicy(Set.of(ReferencePolicy.READABLE, ReferencePolicy.ORDERABLE))
                 .build();
     }
 
@@ -429,6 +563,10 @@ public final class RelationOuterQueryBuilder {
 
     private static String renderSelectItem(
             SelectItem item, String alias, String dialect) {
+        // S7f: window expression rendering
+        if (item.windowSpec() != null) {
+            return renderWindowSelectItem(item.windowSpec(), alias, dialect);
+        }
         if (!item.aggregate()) {
             return alias + "." + quoteIdentifier(item.outputName(), dialect);
         }
@@ -437,6 +575,48 @@ public final class RelationOuterQueryBuilder {
                 : alias + "." + quoteIdentifier(item.inputName(), dialect);
         return item.function() + "(" + input + ") AS "
                 + quoteIdentifier(item.outputName(), dialect);
+    }
+
+    /** S7f: render a window function expression as SQL. */
+    private static String renderWindowSelectItem(
+            WindowSelectSpec wSpec, String alias, String dialect) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(wSpec.function()).append("(");
+        if (wSpec.inputColumn() != null) {
+            if ("*".equals(wSpec.inputColumn())) {
+                sb.append("*");
+            } else {
+                sb.append(alias).append(".")
+                        .append(quoteIdentifier(wSpec.inputColumn(), dialect));
+            }
+        }
+        sb.append(") OVER (");
+        boolean hasClause = false;
+        if (!wSpec.partitionBy().isEmpty()) {
+            sb.append("PARTITION BY ");
+            for (int i = 0; i < wSpec.partitionBy().size(); i++) {
+                if (i > 0) sb.append(", ");
+                sb.append(alias).append(".")
+                        .append(quoteIdentifier(wSpec.partitionBy().get(i), dialect));
+            }
+            hasClause = true;
+        }
+        if (!wSpec.orderBy().isEmpty()) {
+            if (hasClause) sb.append(" ");
+            sb.append("ORDER BY ");
+            for (int i = 0; i < wSpec.orderBy().size(); i++) {
+                if (i > 0) sb.append(", ");
+                sb.append(qualifyOrderByClause(
+                        wSpec.orderBy().get(i), alias, dialect));
+            }
+            hasClause = true;
+        }
+        if (wSpec.frame() != null) {
+            if (hasClause) sb.append(" ");
+            sb.append(wSpec.frame());
+        }
+        sb.append(") AS ").append(quoteIdentifier(wSpec.outputAlias(), dialect));
+        return sb.toString();
     }
 
     private static void appendWhereGroupOrderLimit(
@@ -500,7 +680,7 @@ public final class RelationOuterQueryBuilder {
                     ? alias
                     : defaultAggregateAlias(function, inputName);
             return new SelectItem(raw, true, function, inputName, outputName,
-                    alias != null && !alias.isBlank());
+                    alias != null && !alias.isBlank(), null);
         }
         if (AGGREGATE_PATTERN.matcher(raw).find()) {
             throw new ComposeCompileException(
@@ -510,7 +690,7 @@ public final class RelationOuterQueryBuilder {
                             + "'. Use FUNC(column) or FUNC(column) AS alias.");
         }
         String outputName = extractColumnName(raw);
-        return new SelectItem(raw, false, null, outputName, outputName, false);
+        return new SelectItem(raw, false, null, outputName, outputName, false, null);
     }
 
     private static String defaultAggregateAlias(String function, String inputName) {
@@ -561,6 +741,7 @@ public final class RelationOuterQueryBuilder {
             String function,
             String inputName,
             String outputName,
-            boolean hasExplicitAlias) {
+            boolean hasExplicitAlias,
+            WindowSelectSpec windowSpec) {
     }
 }

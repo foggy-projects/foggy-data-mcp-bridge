@@ -130,4 +130,44 @@ class ColumnSpecMetadataTest {
         assertNotNull(schema.get("dim1"));
         assertEquals(SemanticKind.BASE_FIELD, schema.get("dim1").semanticKind());
     }
+
+    // ---- S7f WINDOWABLE tests ----
+
+    @Test
+    @DisplayName("S7f: MEASURE_DEFAULT includes WINDOWABLE")
+    void measureDefaultIncludesWindowable() {
+        assertTrue(ReferencePolicy.MEASURE_DEFAULT.contains(ReferencePolicy.WINDOWABLE),
+                "MEASURE_DEFAULT must include WINDOWABLE after S7f");
+        assertEquals(4, ReferencePolicy.MEASURE_DEFAULT.size(),
+                "MEASURE_DEFAULT must have 4 policies: readable, aggregatable, orderable, windowable");
+    }
+
+    @Test
+    @DisplayName("S7f: TIME_WINDOW_DERIVED_DEFAULT excludes WINDOWABLE")
+    void timeWindowDerivedDefaultExcludesWindowable() {
+        assertFalse(ReferencePolicy.TIME_WINDOW_DERIVED_DEFAULT.contains(ReferencePolicy.WINDOWABLE),
+                "TIME_WINDOW_DERIVED_DEFAULT must NOT include WINDOWABLE — ratio/percent cannot be window input");
+    }
+
+    @Test
+    @DisplayName("S7f: DIMENSION_DEFAULT excludes WINDOWABLE")
+    void dimensionDefaultExcludesWindowable() {
+        assertFalse(ReferencePolicy.DIMENSION_DEFAULT.contains(ReferencePolicy.WINDOWABLE),
+                "DIMENSION_DEFAULT must NOT include WINDOWABLE");
+    }
+
+    @Test
+    @DisplayName("S7f: WINDOWABLE does not affect equals/hashCode")
+    void windowableDoesNotAffectEquality() {
+        ColumnSpec a = ColumnSpec.builder()
+                .name("m").expression("m")
+                .referencePolicy(Set.of(ReferencePolicy.READABLE, ReferencePolicy.ORDERABLE))
+                .build();
+        ColumnSpec b = ColumnSpec.builder()
+                .name("m").expression("m")
+                .referencePolicy(Set.of(ReferencePolicy.READABLE, ReferencePolicy.ORDERABLE, ReferencePolicy.WINDOWABLE))
+                .build();
+        assertEquals(a, b, "WINDOWABLE metadata must not affect equals");
+        assertEquals(a.hashCode(), b.hashCode(), "WINDOWABLE metadata must not affect hashCode");
+    }
 }

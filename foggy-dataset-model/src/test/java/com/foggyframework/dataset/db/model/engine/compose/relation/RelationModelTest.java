@@ -141,19 +141,48 @@ class RelationModelTest {
     }
 
     @Test
-    @DisplayName("S7e: supportsOuterAggregate opens for wrappable relations; window stays closed")
-    void outerAggregateCapabilityOpened() {
-        for (String d : List.of("mysql8", "postgres", "sqlite", "mssql", "mysql")) {
+    @DisplayName("S7e/S7f: supportsOuterAggregate and supportsOuterWindow open for wrappable relations")
+    void outerAggregateAndWindowCapabilityOpened() {
+        // Non-MySQL57 inline relations: both aggregate and window open
+        for (String d : List.of("mysql8", "postgres", "sqlite", "mssql")) {
             RelationCapabilities noCte = RelationCapabilities.forDialect(d, false);
             assertTrue(noCte.supportsOuterAggregate(),
                     "S7e must open outer aggregate for inline relation on " + d);
-            assertFalse(noCte.supportsOuterWindow(),
-                    "S7f must not open outer window for " + d);
+            assertTrue(noCte.supportsOuterWindow(),
+                    "S7f must open outer window for inline relation on " + d);
         }
 
+        // MySQL 5.7 inline: aggregate yes, window no
+        RelationCapabilities mysql57NoCte = RelationCapabilities.forDialect("mysql", false);
+        assertTrue(mysql57NoCte.supportsOuterAggregate(),
+                "S7e opens aggregate for MySQL 5.7 inline");
+        assertFalse(mysql57NoCte.supportsOuterWindow(),
+                "S7f must NOT open outer window for MySQL 5.7");
+
+        // MySQL 5.7 + CTE: both closed (FAIL_CLOSED)
         RelationCapabilities mysql57Cte = RelationCapabilities.forDialect("mysql", true);
         assertFalse(mysql57Cte.supportsOuterAggregate(),
                 "MySQL 5.7 + CTE remains fail-closed");
+        assertFalse(mysql57Cte.supportsOuterWindow(),
+                "MySQL 5.7 + CTE window remains fail-closed");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"mysql8", "postgres", "postgresql", "sqlite", "mssql", "sqlserver"})
+    @DisplayName("S7f: supportsOuterWindow=true for CTE-capable dialects with CTE items")
+    void supportsOuterWindow_cteCapable(String dialect) {
+        RelationCapabilities caps = RelationCapabilities.forDialect(dialect, true);
+        assertTrue(caps.supportsOuterWindow(),
+                "S7f must open outer window for " + dialect + " with CTE");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"mysql", "mysql57"})
+    @DisplayName("S7f: supportsOuterWindow=false for MySQL 5.7 even without CTE")
+    void supportsOuterWindow_mysql57False(String dialect) {
+        RelationCapabilities caps = RelationCapabilities.forDialect(dialect, false);
+        assertFalse(caps.supportsOuterWindow(),
+                "MySQL 5.7 must never support outer window");
     }
 
     @Test

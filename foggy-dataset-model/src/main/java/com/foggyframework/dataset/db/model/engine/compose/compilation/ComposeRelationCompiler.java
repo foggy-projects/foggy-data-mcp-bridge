@@ -38,7 +38,8 @@ import java.util.regex.Pattern;
  * <ul>
  *   <li>{@code supportsOuterAggregate} is opened only when the relation can
  *       be safely wrapped for the target dialect.</li>
- *   <li>{@code supportsOuterWindow = false} — S7f not yet opened.</li>
+ *   <li>{@code supportsOuterWindow} — S7f opened; controlled by dialect
+ *       capability. MySQL 5.7 remains {@code false}.</li>
  *   <li>MySQL 5.7 + inner CTE → {@code RELATION_WRAP_UNSUPPORTED}.</li>
  *   <li>SQL Server inner CTE → hoisted top-level CTE (guaranteed by
  *       {@code ComposePlanner} subquery fallback on mssql/sqlserver).</li>

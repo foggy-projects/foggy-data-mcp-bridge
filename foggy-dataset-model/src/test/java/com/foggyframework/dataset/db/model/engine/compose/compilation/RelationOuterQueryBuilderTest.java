@@ -424,9 +424,31 @@ class RelationOuterQueryBuilderTest {
     // ------------------------------------------------------------------
 
     @Test
-    @DisplayName("outerWindow_rejected · OVER() throws RELATION_OUTER_WINDOW_NOT_SUPPORTED")
+    @DisplayName("outerWindow_rejected · OVER() throws when supportsOuterWindow=false")
     void outerWindow_rejected() {
-        CompiledRelation rel = enrichedRelation("mysql8");
+        // Build a relation with supportsOuterWindow=false explicitly
+        ColumnSpec salesAmount = ColumnSpec.builder()
+                .name("salesAmount").expression("salesAmount")
+                .referencePolicy(ReferencePolicy.MEASURE_DEFAULT)
+                .build();
+        CompiledRelation rel = CompiledRelation.builder()
+                .alias("rel_0")
+                .relationSql(RelationSql.builder()
+                        .bodySql("SELECT salesAmount FROM fact_sales")
+                        .bodyParams(List.of())
+                        .preferredAlias("rel_0")
+                        .build())
+                .outputSchema(OutputSchema.of(List.of(salesAmount)))
+                .dialect("mysql57")
+                .capabilities(RelationCapabilities.builder()
+                        .canInlineAsSubquery(true)
+                        .canHoistCte(false)
+                        .containsWithItems(false)
+                        .supportsOuterAggregate(true)
+                        .supportsOuterWindow(false)
+                        .relationWrapStrategy(RelationWrapStrategy.INLINE_SUBQUERY)
+                        .build())
+                .build();
         ComposeCompileException ex = assertThrows(
                 ComposeCompileException.class,
                 () -> RelationOuterQueryBuilder.buildOuterQuery(
@@ -783,5 +805,219 @@ class RelationOuterQueryBuilderTest {
         assertTrue(pgResult.sql().contains("\"storeName\""),
                 "Postgres should use double-quote quoting; got: "
                         + pgResult.sql());
+    }
+
+    // ==================================================================
+    // S7f outer window tests
+    // ==================================================================
+
+    private CompiledRelation windowRelation(String dialect) {
+        return windowRelation(dialect, false);
+    }
+
+    private CompiledRelation windowRelation(String dialect, boolean hasCte) {
+        ColumnSpec storeName = ColumnSpec.builder()
+                .name("storeName").expression("storeName")
+                .referencePolicy(ReferencePolicy.DIMENSION_DEFAULT)
+                .semanticKind(SemanticKind.BASE_FIELD)
+                .build();
+        ColumnSpec salesAmount = ColumnSpec.builder()
+                .name("salesAmount").expression("salesAmount")
+                .referencePolicy(ReferencePolicy.MEASURE_DEFAULT)
+                .semanticKind(SemanticKind.AGGREGATE_MEASURE)
+                .build();
+        ColumnSpec salesDate = ColumnSpec.builder()
+                .name("salesDate").expression("salesDate")
+                .referencePolicy(ReferencePolicy.DIMENSION_DEFAULT)
+                .semanticKind(SemanticKind.BASE_FIELD)
+                .build();
+        ColumnSpec ratio = ColumnSpec.builder()
+                .name("salesAmount__ratio").expression("salesAmount__ratio")
+                .semanticKind(SemanticKind.TIME_WINDOW_DERIVED)
+                .referencePolicy(ReferencePolicy.TIME_WINDOW_DERIVED_DEFAULT)
+                .build();
+
+        List<ColumnSpec> cols = List.of(storeName, salesAmount, salesDate, ratio);
+
+        RelationSql.Builder sqlBuilder = RelationSql.builder()
+                .bodySql("SELECT storeName, salesAmount, salesDate, salesAmount__ratio FROM fact_sales")
+                .bodyParams(hasCte ? List.of("p1") : List.of())
+                .preferredAlias("rel_0");
+        if (hasCte) {
+            sqlBuilder.withItems(List.of(CteItem.builder()
+                    .name("__rel0_base")
+                    .sql("SELECT * FROM fact_sales WHERE d >= ?")
+                    .params(List.of("p0"))
+                    .build()));
+        }
+
+        return CompiledRelation.builder()
+                .alias("rel_0")
+                .relationSql(sqlBuilder.build())
+                .outputSchema(OutputSchema.of(cols))
+                .datasourceId("demo-ds")
+                .dialect(dialect)
+                .capabilities(RelationCapabilities.forDialect(dialect, hasCte))
+                .build();
+    }
+
+    @Test
+    @DisplayName("S7f: RANK() OVER (ORDER BY orderable column) succeeds")
+    void outerWindowRank_pass() {
+        CompiledRelation rel = windowRelation("mysql8");
+        RelationOuterQuery result = RelationOuterQueryBuilder.buildOuterQuery(
+                rel,
+                OuterQuerySpec.builder()
+                        .selectColumns(List.of(
+                                "storeName",
+                                "RANK() OVER (ORDER BY salesAmount DESC) AS growthRank"))
+                        .build());
+
+        assertNotNull(result);
+        assertTrue(result.sql().contains("RANK()"));
+        assertTrue(result.sql().contains("OVER"));
+        assertTrue(result.sql().contains("ORDER BY"));
+        assertEquals(2, result.outputSchema().size());
+        ColumnSpec rankCol = result.outputSchema().get("growthRank");
+        assertNotNull(rankCol);
+        assertEquals(SemanticKind.WINDOW_CALC, rankCol.semanticKind());
+        assertTrue(rankCol.referencePolicy().contains(ReferencePolicy.READABLE));
+        assertTrue(rankCol.referencePolicy().contains(ReferencePolicy.ORDERABLE));
+        assertFalse(rankCol.referencePolicy().contains(ReferencePolicy.AGGREGATABLE));
+        assertFalse(rankCol.referencePolicy().contains(ReferencePolicy.WINDOWABLE));
+    }
+
+    @Test
+    @DisplayName("S7f: ratio column as ORDER BY key in window (allowed)")
+    void outerWindowRatioOrderKey_pass() {
+        CompiledRelation rel = windowRelation("mysql8");
+        RelationOuterQuery result = RelationOuterQueryBuilder.buildOuterQuery(
+                rel,
+                OuterQuerySpec.builder()
+                        .selectColumns(List.of(
+                                "RANK() OVER (ORDER BY salesAmount__ratio DESC) AS ratioRank"))
+                        .build());
+
+        assertNotNull(result);
+        assertTrue(result.sql().contains("salesAmount__ratio"));
+        assertEquals(1, result.outputSchema().size());
+    }
+
+    @Test
+    @DisplayName("S7f: AVG over WINDOWABLE measure with frame succeeds")
+    void outerWindowMovingAvg_pass() {
+        CompiledRelation rel = windowRelation("mysql8");
+        RelationOuterQuery result = RelationOuterQueryBuilder.buildOuterQuery(
+                rel,
+                OuterQuerySpec.builder()
+                        .selectColumns(List.of(
+                                "AVG(salesAmount) OVER (PARTITION BY storeName ORDER BY salesDate ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS movingAvg"))
+                        .build());
+
+        assertNotNull(result);
+        String sql = result.sql();
+        assertTrue(sql.contains("AVG(rel_0.`salesAmount`)"), "must contain qualified input: " + sql);
+        assertTrue(sql.contains("PARTITION BY rel_0.`storeName`"), "must contain qualified partition: " + sql);
+        assertTrue(sql.contains("ORDER BY rel_0.`salesDate`"), "must contain qualified order: " + sql);
+        assertTrue(sql.contains("ROWS BETWEEN 2 PRECEDING AND CURRENT ROW"), "must contain frame: " + sql);
+
+        ColumnSpec avgCol = result.outputSchema().get("movingAvg");
+        assertNotNull(avgCol);
+        assertEquals(SemanticKind.WINDOW_CALC, avgCol.semanticKind());
+        assertTrue(avgCol.lineage().contains("salesAmount"));
+        assertTrue(avgCol.lineage().contains("storeName"));
+        assertTrue(avgCol.lineage().contains("salesDate"));
+    }
+
+    @Test
+    @DisplayName("S7f: ratio column as window input rejected — not WINDOWABLE")
+    void outerWindowRatioInput_rejected() {
+        CompiledRelation rel = windowRelation("mysql8");
+        ComposeCompileException ex = assertThrows(
+                ComposeCompileException.class,
+                () -> RelationOuterQueryBuilder.buildOuterQuery(
+                        rel,
+                        OuterQuerySpec.builder()
+                                .selectColumns(List.of(
+                                        "AVG(salesAmount__ratio) OVER (ORDER BY salesDate) AS badAvg"))
+                                .build()));
+
+        assertEquals(ComposeCompileErrorCodes.RELATION_COLUMN_NOT_WINDOWABLE, ex.code());
+    }
+
+    @Test
+    @DisplayName("S7f: MySQL 5.7 rejects outer window even without CTE")
+    void outerWindowMysql57_rejected() {
+        CompiledRelation rel = windowRelation("mysql57");
+        ComposeCompileException ex = assertThrows(
+                ComposeCompileException.class,
+                () -> RelationOuterQueryBuilder.buildOuterQuery(
+                        rel,
+                        OuterQuerySpec.builder()
+                                .selectColumns(List.of(
+                                        "RANK() OVER (ORDER BY salesAmount DESC) AS r"))
+                                .build()));
+
+        assertEquals(ComposeCompileErrorCodes.RELATION_OUTER_WINDOW_NOT_SUPPORTED, ex.code());
+    }
+
+    @Test
+    @DisplayName("S7f: SQL Server hoisted CTE window — ;WITH prefix, no FROM (WITH")
+    void outerWindowHoistedSqlServer_pass() {
+        CompiledRelation rel = windowRelation("sqlserver", true);
+        RelationOuterQuery result = RelationOuterQueryBuilder.buildOuterQuery(
+                rel,
+                OuterQuerySpec.builder()
+                        .selectColumns(List.of(
+                                "ROW_NUMBER() OVER (ORDER BY salesAmount DESC) AS rowNum"))
+                        .build());
+
+        String sql = result.sql();
+        assertTrue(sql.startsWith(";WITH"),
+                "SQL Server hoisted CTE must start with ;WITH; got: " + sql);
+        assertFalse(ComposeRelationCompiler.containsFromWith(sql),
+                "SQL must NEVER contain FROM (WITH; got: " + sql);
+        assertTrue(sql.contains("FROM rel_0"),
+                "hoisted CTE must reference alias in FROM; got: " + sql);
+    }
+
+    @Test
+    @DisplayName("S7f: window output columns have window_calc semantics")
+    void outerWindowOutputSchema() {
+        CompiledRelation rel = windowRelation("postgres");
+        RelationOuterQuery result = RelationOuterQueryBuilder.buildOuterQuery(
+                rel,
+                OuterQuerySpec.builder()
+                        .selectColumns(List.of(
+                                "storeName",
+                                "SUM(salesAmount) OVER (PARTITION BY storeName) AS runningTotal"))
+                        .build());
+
+        assertEquals(2, result.outputSchema().size());
+        ColumnSpec windowCol = result.outputSchema().get("runningTotal");
+        assertNotNull(windowCol);
+        assertEquals(SemanticKind.WINDOW_CALC, windowCol.semanticKind());
+        assertEquals(Set.of(ReferencePolicy.READABLE, ReferencePolicy.ORDERABLE),
+                windowCol.referencePolicy());
+        assertNotNull(windowCol.valueMeaning());
+        assertTrue(windowCol.valueMeaning().contains("sum"));
+        assertTrue(windowCol.lineage().contains("salesAmount"));
+        assertTrue(windowCol.lineage().contains("storeName"));
+    }
+
+    @Test
+    @DisplayName("S7f: window FROM (WITH forbidden invariant")
+    void outerWindowFromWithForbidden() {
+        CompiledRelation rel = windowRelation("mysql8");
+        RelationOuterQuery result = RelationOuterQueryBuilder.buildOuterQuery(
+                rel,
+                OuterQuerySpec.builder()
+                        .selectColumns(List.of(
+                                "RANK() OVER (ORDER BY salesAmount DESC) AS r"))
+                        .build());
+
+        assertFalse(ComposeRelationCompiler.containsFromWith(result.sql()),
+                "Window query SQL must NEVER contain FROM (WITH; got: "
+                        + result.sql());
     }
 }

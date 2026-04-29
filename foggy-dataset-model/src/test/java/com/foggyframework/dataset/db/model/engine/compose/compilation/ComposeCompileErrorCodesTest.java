@@ -45,9 +45,9 @@ class ComposeCompileErrorCodesTest {
     }
 
     @Test
-    @DisplayName("ALL_CODES 大小严格等于 13（NAMESPACE 不纳入）")
-    void allCodesSizeIsThirteen() {
-        assertEquals(13, ComposeCompileErrorCodes.ALL_CODES.size());
+    @DisplayName("ALL_CODES 大小严格等于 14（NAMESPACE 不纳入）")
+    void allCodesSizeIsFourteen() {
+        assertEquals(14, ComposeCompileErrorCodes.ALL_CODES.size());
     }
 
     @Test
@@ -80,6 +80,9 @@ class ComposeCompileErrorCodesTest {
                 ComposeCompileErrorCodes.RELATION_OUTER_AGGREGATE_NOT_SUPPORTED));
         assertTrue(ComposeCompileErrorCodes.ALL_CODES.contains(
                 ComposeCompileErrorCodes.RELATION_OUTER_WINDOW_NOT_SUPPORTED));
+        // S7f codes
+        assertTrue(ComposeCompileErrorCodes.ALL_CODES.contains(
+                ComposeCompileErrorCodes.RELATION_COLUMN_NOT_WINDOWABLE));
     }
 
     @Test
@@ -119,6 +122,9 @@ class ComposeCompileErrorCodesTest {
                 ComposeCompileErrorCodes.RELATION_OUTER_AGGREGATE_NOT_SUPPORTED));
         assertTrue(ComposeCompileErrorCodes.isValidCode(
                 ComposeCompileErrorCodes.RELATION_OUTER_WINDOW_NOT_SUPPORTED));
+        // S7f codes
+        assertTrue(ComposeCompileErrorCodes.isValidCode(
+                ComposeCompileErrorCodes.RELATION_COLUMN_NOT_WINDOWABLE));
     }
 
     @Test

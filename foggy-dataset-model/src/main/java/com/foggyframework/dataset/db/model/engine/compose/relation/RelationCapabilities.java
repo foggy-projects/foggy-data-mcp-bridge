@@ -51,12 +51,14 @@ public final class RelationCapabilities {
         boolean isMysql57 = "mysql".equals(dl) || "mysql57".equals(dl);
 
         if (!hasWithItems) {
+            // S7f: MySQL 5.7 has no window functions — supportsOuterWindow=false
+            boolean windowCapable = !isMysql57;
             return builder()
                     .canInlineAsSubquery(true)
                     .canHoistCte(cteCapable || isSqlServer)
                     .containsWithItems(false)
                     .supportsOuterAggregate(true)
-                    .supportsOuterWindow(false)
+                    .supportsOuterWindow(windowCapable)
                     .requiresTopLevelWith(false)
                     .relationWrapStrategy(RelationWrapStrategy.INLINE_SUBQUERY)
                     .build();
@@ -76,7 +78,7 @@ public final class RelationCapabilities {
             return builder()
                     .canInlineAsSubquery(false).canHoistCte(true)
                     .containsWithItems(true)
-                    .supportsOuterAggregate(true).supportsOuterWindow(false)
+                    .supportsOuterAggregate(true).supportsOuterWindow(true)
                     .requiresTopLevelWith(true)
                     .relationWrapStrategy(RelationWrapStrategy.HOISTED_CTE)
                     .build();
@@ -85,7 +87,7 @@ public final class RelationCapabilities {
         return builder()
                 .canInlineAsSubquery(false).canHoistCte(true)
                 .containsWithItems(true)
-                .supportsOuterAggregate(true).supportsOuterWindow(false)
+                .supportsOuterAggregate(true).supportsOuterWindow(true)
                 .requiresTopLevelWith(false)
                 .relationWrapStrategy(RelationWrapStrategy.HOISTED_CTE)
                 .build();

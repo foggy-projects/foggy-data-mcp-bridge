@@ -289,9 +289,23 @@ class ComposeRelationCompilerTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"mysql8", "postgres", "sqlite", "mssql", "mysql", "mysql57", "sqlserver"})
-    @DisplayName("supportsOuterWindow_alwaysFalse · S7f not opened")
-    void supportsOuterWindow_alwaysFalse(String dialect) {
+    @ValueSource(strings = {"mysql8", "postgres", "sqlite", "mssql", "sqlserver"})
+    @DisplayName("supportsOuterWindow_true · S7f opens for window-capable dialects")
+    void supportsOuterWindow_true(String dialect) {
+        FakeSemanticService svc = svc();
+        CompiledRelation rel = ComposeRelationCompiler.compileToRelation(
+                basePlan(),
+                ctx(bindings()),
+                opts(svc, dialect).build());
+
+        assertTrue(rel.capabilities().supportsOuterWindow(),
+                "S7f must open outer window for " + dialect);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"mysql", "mysql57"})
+    @DisplayName("supportsOuterWindow_false · S7f closed for MySQL 5.7")
+    void supportsOuterWindow_false(String dialect) {
         FakeSemanticService svc = svc();
         CompiledRelation rel = ComposeRelationCompiler.compileToRelation(
                 basePlan(),
@@ -299,7 +313,7 @@ class ComposeRelationCompilerTest {
                 opts(svc, dialect).build());
 
         assertFalse(rel.capabilities().supportsOuterWindow(),
-                "S7f must not open outer window for " + dialect);
+                "S7f must not open outer window for MySQL 5.7 (" + dialect + ")");
     }
 
     // ------------------------------------------------------------------

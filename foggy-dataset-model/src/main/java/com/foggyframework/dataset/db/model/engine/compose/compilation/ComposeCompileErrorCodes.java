@@ -120,6 +120,11 @@ public final class ComposeCompileErrorCodes {
     public static final String RELATION_OUTER_WINDOW_NOT_SUPPORTED =
             "compose-compile-error/relation-outer-window-not-supported";
 
+    /** Column exists but lacks 'windowable' in referencePolicy — cannot be
+     *  used as a window function input (S7f). */
+    public static final String RELATION_COLUMN_NOT_WINDOWABLE =
+            "compose-compile-error/relation-column-not-windowable";
+
     // ---------- phases ----------
 
     /** Structural validation phase (before any SQL is generated). */
@@ -148,7 +153,8 @@ public final class ComposeCompileErrorCodes {
             RELATION_COLUMN_NOT_ORDERABLE,
             RELATION_COLUMN_NOT_AGGREGATABLE,
             RELATION_OUTER_AGGREGATE_NOT_SUPPORTED,
-            RELATION_OUTER_WINDOW_NOT_SUPPORTED);
+            RELATION_OUTER_WINDOW_NOT_SUPPORTED,
+            RELATION_COLUMN_NOT_WINDOWABLE);
 
     /** Valid phase labels carried by {@link ComposeCompileException#phase()}. */
     public static final Set<String> VALID_PHASES = Set.of(
