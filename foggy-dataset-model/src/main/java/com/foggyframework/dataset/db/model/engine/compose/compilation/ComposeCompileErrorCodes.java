@@ -102,6 +102,9 @@ public final class ComposeCompileErrorCodes {
     /** SQL generation phase (through v1.3 engine). */
     public static final String PHASE_COMPILE = "compile";
 
+    /** S7c · Relation compilation phase (compileToRelation path). */
+    public static final String PHASE_RELATION_COMPILE = "relation-compile";
+
     // ---------- public registries ----------
 
     /** Immutable set of the 4 full error-code strings.
@@ -117,7 +120,7 @@ public final class ComposeCompileErrorCodes {
 
     /** Valid phase labels carried by {@link ComposeCompileException#phase()}. */
     public static final Set<String> VALID_PHASES = Set.of(
-            PHASE_PLAN_LOWER, PHASE_COMPILE);
+            PHASE_PLAN_LOWER, PHASE_COMPILE, PHASE_RELATION_COMPILE);
 
     /** Return {@code true} iff {@code code} is one of the 4 registered compile codes.
      *  Used by {@link ComposeCompileException#ComposeCompileException(String, String, String, Throwable)}

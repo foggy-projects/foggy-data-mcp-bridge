@@ -106,13 +106,15 @@ class ComposeCompileErrorCodesTest {
     }
 
     @Test
-    @DisplayName("VALID_PHASES 大小严格等于 2 且含 plan-lower + compile")
-    void validPhasesHasTwoPhases() {
-        assertEquals(2, ComposeCompileErrorCodes.VALID_PHASES.size());
+    @DisplayName("VALID_PHASES 大小严格等于 3 且含 plan-lower + compile + relation-compile")
+    void validPhasesHasThreePhases() {
+        assertEquals(3, ComposeCompileErrorCodes.VALID_PHASES.size());
         assertTrue(ComposeCompileErrorCodes.VALID_PHASES.contains(
                 ComposeCompileErrorCodes.PHASE_PLAN_LOWER));
         assertTrue(ComposeCompileErrorCodes.VALID_PHASES.contains(
                 ComposeCompileErrorCodes.PHASE_COMPILE));
+        assertTrue(ComposeCompileErrorCodes.VALID_PHASES.contains(
+                ComposeCompileErrorCodes.PHASE_RELATION_COMPILE));
     }
 
     @Test
@@ -120,13 +122,15 @@ class ComposeCompileErrorCodesTest {
     void phaseLiteralsMatchPython() {
         assertEquals("plan-lower", ComposeCompileErrorCodes.PHASE_PLAN_LOWER);
         assertEquals("compile", ComposeCompileErrorCodes.PHASE_COMPILE);
+        assertEquals("relation-compile", ComposeCompileErrorCodes.PHASE_RELATION_COMPILE);
     }
 
     @Test
-    @DisplayName("isValidPhase 对 plan-lower / compile 返回 true")
+    @DisplayName("isValidPhase 对 plan-lower / compile / relation-compile 返回 true")
     void isValidPhaseTrueForRegisteredPhases() {
         assertTrue(ComposeCompileErrorCodes.isValidPhase("plan-lower"));
         assertTrue(ComposeCompileErrorCodes.isValidPhase("compile"));
+        assertTrue(ComposeCompileErrorCodes.isValidPhase("relation-compile"));
     }
 
     @Test

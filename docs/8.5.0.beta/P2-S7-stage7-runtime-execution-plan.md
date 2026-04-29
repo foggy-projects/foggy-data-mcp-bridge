@@ -9,7 +9,7 @@
 ## 基本信息
 
 - version: 8.5.0.beta
-- status: in-progress
+- status: complete-through-s7c; s7d-ready
 - contract_ref: `foggy-data-mcp-bridge-python/docs/v1.5/S7b-stage7-runtime-contract-plan.md`
 - s7a_progress: `docs/8.5.0.beta/P2-S7a-stable-relation-contract-progress.md`
 - current_java_commit: `f3360b3 feat(compose): add stable relation contract model`
@@ -67,7 +67,7 @@ Acceptance:
 
 ### S7c - compileToRelation runtime entry
 
-- status: ready
+- status: completed
 - owner: Java
 
 Implementation boundary:
@@ -95,7 +95,7 @@ Tests:
 
 ### S7d - relation-as-source read-only query
 
-- status: wait-for-s7c
+- status: ready
 - owner: Java first
 
 Implementation boundary:
