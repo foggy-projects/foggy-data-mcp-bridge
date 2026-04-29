@@ -2,15 +2,18 @@
 
 执行数据模型查询，支持过滤、排序、分组聚合、计算字段。
 
+> **Note**: 本工具适用于单模型查询。如果遇到单模型 DSL 无法解决的复杂查询（如跨模型 Join、Union、派生查询、或者需要返回多个 Plan 的场景），请使用 `dataset.compose_script` 工具。
+
 ## 字段规则
 
-**直接使用 `description_model` 返回的字段名**
+**直接使用 `dataset.describe_model_internal` 返回的字段名**
 
-| 字段类型   | 用法                                         |
-|------------|----------------------------------------------|
-| 维度       | `xxx$id`(查询/过滤), `xxx$caption`(展示)     |
-| 父子维度   | `xxx$hierarchy$id`(层级范围过滤), `xxx$hierarchy$caption`(层级汇总展示) |
-| 属性/度量  | 直接使用字段名                               |
+| 字段类型 | 用法 |
+|---|---|
+| 维度 | `xxx$id`(查询/过滤), `xxx$caption`(展示) |
+| 父子维度 | `xxx$hierarchy$id`(层级范围过滤), `xxx$hierarchy$caption`(层级汇总展示) |
+| 属性/度量 | 直接使用字段名 |
+
 
 ### 父子维度 (Parent-Child Dimension)
 层级结构维度（如组织架构、公司层级）支持两种访问视角：
@@ -22,70 +25,90 @@
 ## 参数
 
 ### columns (必填)
-支持内联聚合表达式，系统自动处理groupBy：
+声明要查询的列，支持普通字段或简单的内联聚合表达式（系统自动处理 groupBy）：
 ```json
 ["product$categoryName", "sum(salesAmount) as totalSales", "count(orderId) as orderCount"]
 ```
-聚合函数：`sum`、`avg`、`count`、`max`、`min`、`group_concat`、`countd`(去重计数)、`stddev_pop`、`stddev_samp`、`var_pop`、`var_samp`
+支持的聚合函数：`sum`、`avg`、`count`、`max`、`min`、`group_concat`、`countd`(去重计数)、`stddev_pop`、`stddev_samp`、`var_pop`、`var_samp`。
 
-**重要**：
-- 当使用聚合表达式后，系统自动推断 groupBy，通常无需手动指定
-- columns 仅支持简单的 `agg(field) as alias`，复杂计算用 calculatedFields
-- 不要生成 SQL 风格 `case when ... then ... else ... end`
-- 不要生成 `count_if`、`sum_if`、`avg_if` 这类未定义函数
-- 条件聚合统一改写为 `sum/avg/count(if(...))`
+> **WARNING**:
+> - 当使用聚合表达式后，系统自动推断 groupBy，通常无需手动指定。
+> - `columns` 仅用于简单的单层聚合：`agg(field) as alias`。
+> - **条件聚合** 统一使用 `sum/avg/count(if(条件, 满足时的值, 不满足时的值))` 写法，例如：`sum(if(state == "sale", amountTotal, 0)) as confirmed`。**绝对不要**生成 `count_if`、`sum_if` 之类的未定义函数，也绝对不要生成 SQL 风格的 `case when`。
 
 ### calculatedFields (可选)
-需要指定agg或复杂表达式时使用：
-```json
-[{"name": "netAmount", "expression": "salesAmount - discountAmount", "agg": "SUM"}]
-```
-
-**窗口函数**：通过 `partitionBy`、`windowOrderBy`、`windowFrame` 实现排名、移动平均等分析：
+如果计算逻辑比较复杂，必须放在 `calculatedFields` 中：
 ```json
 [
-  {"name": "salesRank", "expression": "RANK()", "partitionBy": ["product$categoryName"], "windowOrderBy": [{"field": "salesAmount", "dir": "desc"}]},
-  {"name": "ma7", "expression": "AVG(salesAmount)", "partitionBy": ["product$caption"], "windowOrderBy": [{"field": "salesDate$caption", "dir": "asc"}], "windowFrame": "ROWS BETWEEN 6 PRECEDING AND CURRENT ROW"}
+  {"name": "netAmount", "expression": "salesAmount - discountAmount"},
+  {"name": "salesRank", "expression": "RANK()", "partitionBy": ["product$categoryName"], "windowOrderBy": [{"field": "salesAmount", "dir": "desc"}]}
 ]
 ```
-窗口函数：`ROW_NUMBER`、`RANK`、`DENSE_RANK`、`NTILE`、`LAG`、`LEAD`、`FIRST_VALUE`、`LAST_VALUE`
 
-**支持的函数**（函数名不区分大小写，使用函数调用语法如 `YEAR(date)` 而非 SQL 语法 `EXTRACT(YEAR FROM date)`）：
-| 类型 | 函数 |
-|------|------|
-| 日期 | `YEAR(date)`, `MONTH(date)`, `DAY(date)`, `DATE_FORMAT`, `STR_TO_DATE`, `DATE_ADD`, `DATE_SUB`, `DATEDIFF`, `TIMESTAMPDIFF` |
-| 字符串 | `CONCAT`, `CONCAT_WS`, `SUBSTRING`, `LEFT`, `RIGHT`, `LPAD`, `RPAD`, `REPLACE`, `LOCATE` |
-| 空值 | `COALESCE`, `IFNULL`, `NVL`, `NULLIF` |
-| 条件 | `IF`, `CASE` |
-| 类型 | `CAST`, `CONVERT` |
-| 统计 | `STDDEV_POP`, `STDDEV_SAMP`, `VAR_POP`, `VAR_SAMP` (SQLite 不支持) |
+**边界判定：何时使用 calculatedFields？**
+- 需要使用窗口函数（如 `RANK()`、移动平均，通过 `partitionBy`、`windowOrderBy` 配置）。
+- 需要显式指定 `agg` 参数。
+- 表达式中引用了其他的计算字段。
+如果只是普通的 `sum(field)` 或 `sum(if(...))`，请直接写在 `columns` 中。
 
-*常用数学函数如 ABS、ROUND、FLOOR、CEIL 等均支持*
+### timeWindow (可选)
+声明式时间窗口分析。遇到同比、环比、周同比、年初至今、月累计、滚动 7/30/90 天这类需求，优先使用 `timeWindow`，不要手写窗口 SQL。
 
-**条件聚合推荐写法**：
-- 条件计数：`sum(if(stage$caption == 'Won', 1, 0)) as wonCount`
-- 条件求和：`sum(if(state == 'sale', amountTotal, 0)) as confirmedAmount`
-- 条件均值：`avg(if(stage$caption == 'Won', amountTotal, null)) as avgWonAmount`
-- 条件计数（只统计命中行）：`count(if(stage$caption == 'Won', 1, null)) as wonOrderCount`
+```json
+{
+  "timeWindow": {
+    "field": "salesDate$id",
+    "grain": "month",
+    "comparison": "yoy",
+    "targetMetrics": ["salesAmount"]
+  }
+}
+```
 
-**条件表达式规则**：
-- 相等判断用 `==`，不要写 SQL 风格 `=`
-- 多个条件用 `&&` / `||`
-- `avg(if(...))` 的 else 分支通常应为 `null`
-- `count(if(...))` 的 else 分支通常应为 `null`
-- 对外写法使用 `if(...)`，内部会归一化并降级到 SQL `CASE WHEN`
+派生列命名规则：
+- 同环比：`{metric}__prior`、`{metric}__diff`、`{metric}__ratio`
+- 累计：`{metric}__ytd`、`{metric}__mtd`
+- 滚动：`{metric}__rolling_7d`、`{metric}__rolling_30d`、`{metric}__rolling_90d`
+
+可在 `timeWindow` 结果列之上追加后置标量 `calculatedFields`：
+```json
+{
+  "columns": ["salesDate$year", "salesDate$month", "salesAmount__ratio", "growthPercent"],
+  "groupBy": ["salesDate$year", "salesDate$month"],
+  "timeWindow": {
+    "field": "salesDate$id",
+    "grain": "month",
+    "comparison": "yoy",
+    "targetMetrics": ["salesAmount"]
+  },
+  "calculatedFields": [
+    {"name": "growthPercent", "expression": "salesAmount__ratio * 100"}
+  ]
+}
+```
+
+限制：`targetMetrics` 不可引用 calculatedFields；后置 calculatedFields 不能设置 `agg` 或窗口字段。
+
 
 ### slice (可选)
-过滤条件（数组内条件默认 AND 连接）：
+数组形式的过滤条件。
+
+**标准格式**：
 ```json
 [
-  {"field": "customer$caption", "op": "like", "value": "张三"},
-  {"field": "salesDate$id", "op": "[)", "value": ["20250101", "20251231"]},
-  {"field": "customerLevel", "op": "is not null"}
+  {"field": "status", "op": "=", "value": "done"},
+  {"field": "amount", "op": ">", "value": 100}
 ]
 ```
 
-**逻辑组合**：使用 `$or` / `$and` 显式组合条件：
+**等值简写格式**（仅限等值判断）：
+```json
+[{"status": "done"}]
+```
+等价于 `{"field": "status", "op": "=", "value": "done"}`。
+> **WARNING**: 在使用 `$or` 嵌套逻辑时，强烈建议**全部使用标准格式**，以免结构混淆导致语法错误。
+
+**逻辑组合**：
 ```json
 [
   {"field": "orderStatus", "op": "=", "value": "COMPLETED"},
@@ -97,91 +120,55 @@
   }
 ]
 ```
-生成 SQL：`WHERE order_status = 'COMPLETED' AND (total_amount >= 1000 OR customer_type = 'VIP')`
 
-**操作符**：
-
-| 类型 | 操作符                                              |
-|------|-----------------------------------------------------|
-| 等值 | `=`, `!=`, `<>`                                     |
-| 比较 | `>`, `>=`, `<`, `<=`                                |
-| 模糊 | `like`, `left_like`, `right_like`                   |
-| 集合 | `in`, `not in`                                      |
-| 空值 | `is null`, `is not null` (无需value)                |
-| 区间 | `[]`, `[)`, `()`, `(]` (value为[start,end])         |
-| 层级(后代) | `childrenOf`(直接子节点), `descendantsOf`(所有后代,不含自身), `selfAndDescendantsOf`(自身+所有后代) |
-| 层级(祖先) | `selfAndAncestorsOf`(自身+所有祖先), `ancestorsOf`(所有祖先,不含自身) |
-
-层级操作符用于父子维度，作用于 `xxx$id` 字段，可选 `maxDepth` 限制深度：
-```json
-{"field": "team$id", "op": "selfAndDescendantsOf", "value": "T001"}
-{"field": "company$id", "op": "selfAndAncestorsOf", "value": 3}
-{"field": "team$id", "op": "descendantsOf", "value": "T001", "maxDepth": 2}
-```
+**通用操作符**：
+| 类型 | 操作符 |
+|---|---|
+| 等值 | `=`, `!=`, `<>` |
+| 比较 | `>`, `>=`, `<`, `<=` |
+| 模糊 | `like`, `left_like`, `right_like` |
+| 集合 | `in`, `not in` |
+| 空值 | `is null`, `is not null` (无需value) |
+| 区间 | `[]`, `[)`, `()`, `(]` (value为[start,end]) |
 
 **字段间比较**：
 - `$field` 引用：`{"field": "a", "op": ">", "value": {"$field": "b"}}` → `WHERE a > b`
 - `$expr` 表达式：`{"$expr": "salesAmount > costAmount * 1.2"}` → 支持算术运算
 
+
+**层级操作符**（仅限父子维度的 `$id` 字段）：
+| 类型 | 操作符 | 说明 |
+|---|---|---|
+| 后代 | `childrenOf` | 直接子节点 |
+| 后代 | `descendantsOf` | 所有后代（不含自身） |
+| 后代 | `selfAndDescendantsOf` | 自身 + 所有后代 |
+| 祖先 | `ancestorsOf` | 所有祖先（不含自身） |
+| 祖先 | `selfAndAncestorsOf` | 自身 + 所有祖先 |
+
+可选 `maxDepth` 限制深度：
+```json
+{"field": "team$id", "op": "descendantsOf", "value": "T001", "maxDepth": 2}
+```
+
+
 ### orderBy (可选)
+排序规则。简写格式：`"field"`(升序)、`"field desc"`(降序)、`"-field"`(降序)。**必须使用 columns 中定义的别名**，如 `year` 而非 `YEAR(createdAt)`。
 ```json
-[{"field": "totalSales", "dir": "DESC"}]
-```
-**使用 columns 中定义的别名**，如 `year` 而非 `YEAR(createdAt)`
-
-### distinct (可选)
-设为 `true` 返回去重结果（`SELECT DISTINCT`），适用于"列出所有…"类查询。
-与聚合查询（groupBy）互斥，有 groupBy 时自动忽略 distinct。
-```json
-{"columns": ["customer$caption", "customer$customerType"], "distinct": true}
+["-totalSales", "orderId"]
 ```
 
-### withSubtotals (可选)
-设为 `true` 对 groupBy 聚合结果追加分组小计行和总计行。通过 `_rowType` 字段标记行类型：
-- `data` — 原始数据行
-- `subtotal` — 分组小计行（按第一维度分组）
-- `grandTotal` — 总计行
+### 其他控制参数
+| 参数 | 类型 | 默认值 | 互斥/依赖关系 |
+|---|---|---|---|
+| `limit` | number | 无 | 分页大小 |
+| `start` | number | `0` | 偏移量 |
+| `returnTotal` | boolean | `true` | 是否返回总行数 |
+| `distinct` | boolean | `false` | 与 `groupBy` 和聚合函数互斥 |
+| `withSubtotals` | boolean | `false` | 仅在有 `groupBy` 时生效（Rollup计算） |
 
-仅对包含 groupBy 的聚合查询生效。多维度时按第一维度做小计；单维度时仅追加总计行。
-```json
-{
-  "columns": ["department$caption", "month$caption", "sum(amount) as total"],
-  "withSubtotals": true
-}
-```
-
-### 分页
-- `start`: 起始行(从0开始)
-- `limit`: 每页记录数
-- `returnTotal`: false可提升性能
-
-## 示例
-
-**聚合查询**：
-```json
-{
-  "model": "TmsOrderModel",
-  "payload": {
-    "columns": ["salesDate$caption", "sum(totalAmount) as totalSales"],
-    "orderBy": [{"field": "totalSales", "dir": "DESC"}],
-    "limit": 50
-  }
-}
-```
-
-**按年月统计**：
-```json
-{
-  "model": "ProductModel",
-  "payload": {
-    "columns": ["YEAR(createdAt) as year", "MONTH(createdAt) as month", "count(productKey) as cnt"],
-    "orderBy": [{"field": "year"}, {"field": "month"}],
-    "limit": 100
-  }
-}
-```
-
-## 最佳实践
-- 展示用`$caption`，查询用`$id`
-- 简单聚合用内联表达式，复杂计算用calculatedFields
-- orderBy/groupBy 使用 columns 中定义的别名（如 `year`）而非表达式
+## 错误处理指南
+如果在调用 `query_model` 时遇到报错，请按以下思路进行修复：
+1. **字段不存在**：检查字段名是否写错。外键必须使用 `xxx$id` 或 `xxx$caption` 访问，不要直接用关联模型的自身名称。如果不确定，先调用 `dataset.describe_model_internal`。
+2. **函数未定义**：如果是 `count_if` / `sum_if` 报错，请改为 `sum/avg/count(if(...))`。
+3. **不支持在 columns 中使用复杂表达式**：将该带有计算逻辑的表达式（比如加减乘除、窗口函数等）移到 `calculatedFields` 中定义别名，再放入 `columns`。
+4. **语法错误**：检查 JSON 结构是否闭合，特别是 `slice` 中的 `$or` 是否正确嵌套。

@@ -46,11 +46,9 @@ import java.util.function.Function;
  * is available — hosts that do not implement embedded-mode authority
  * resolution will not activate this tool.</p>
  *
- * @implNote since 8.2.0.beta: this is the <b>recommended</b> tool for
- * multi-model query / union / join composition; walks the M6 full SQL
- * compilation + authority pipeline. See also
- * {@link ComposeQueryTool} (name="dataset.compose_query") which is
- * retained for legacy 2-way join scenarios.
+ * @implNote since 8.2.0.beta: this is the tool for multi-model query /
+ * union / join composition; walks the M6 full SQL compilation + authority
+ * pipeline.
  *
  * @since 8.2.0.beta
  */

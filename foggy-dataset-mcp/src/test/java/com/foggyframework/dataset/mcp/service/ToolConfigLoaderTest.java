@@ -18,8 +18,8 @@ import static org.junit.jupiter.api.Assertions.*;
 class ToolConfigLoaderTest {
 
     @Test
-    @DisplayName("getBuiltinDefaults 应返回 11 个内置工具")
-    void testBuiltinDefaults_ShouldReturn11Tools() {
+    @DisplayName("getBuiltinDefaults 应返回 10 个内置工具")
+    void testBuiltinDefaults_ShouldReturn10Tools() {
         List<McpProperties.ToolConfigItem> defaults = ToolConfigLoader.getBuiltinDefaults();
 
         assertEquals(10, defaults.size());
@@ -49,7 +49,14 @@ class ToolConfigLoaderTest {
         assertTrue(names.contains("chart.generate"), "Should contain chart.generate");
         assertTrue(names.contains("dataset.list_models"), "Should contain list_models");
         assertTrue(names.contains("dataset.compose_script"), "Should contain compose_script");
-        assertTrue(names.contains("dataset.compose_query"), "Should contain compose_query");
+        assertFalse(names.contains("dataset.compose_query"), "Should not contain legacy compose_query");
+
+        McpProperties.ToolConfigItem composeScript = defaults.stream()
+                .filter(tool -> "dataset.compose_script".equals(tool.getName()))
+                .findFirst()
+                .orElseThrow();
+        assertTrue(composeScript.getDescriptionFile().contains("compose_script_m2.md"),
+                "compose_script should use the latest M2 script description");
     }
 
     @Test
@@ -99,7 +106,7 @@ class ToolConfigLoaderTest {
         simulateMerge(props);
 
         // 验证结果
-        assertEquals(11, props.getTools().size(), "Should still have 11 tools after merge");
+        assertEquals(10, props.getTools().size(), "Should still have 10 tools after merge");
 
         // open_in_viewer 应该被禁用
         McpProperties.ToolConfigItem viewer = findTool(props, "dataset.open_in_viewer");
@@ -129,7 +136,7 @@ class ToolConfigLoaderTest {
 
         simulateMerge(props);
 
-        assertEquals(11, props.getTools().size());
+        assertEquals(10, props.getTools().size());
         for (McpProperties.ToolConfigItem tool : props.getTools()) {
             assertNotNull(tool.getDescriptionFile(), "Should have descriptionFile for " + tool.getName());
             assertNotNull(tool.getSchemaFile(), "Should have schemaFile for " + tool.getName());
@@ -168,8 +175,8 @@ class ToolConfigLoaderTest {
 
         simulateMerge(props);
 
-        assertEquals(12, props.getTools().size(), "11 defaults + 1 custom");
-        McpProperties.ToolConfigItem last = props.getTools().get(11);
+        assertEquals(11, props.getTools().size(), "10 defaults + 1 custom");
+        McpProperties.ToolConfigItem last = props.getTools().get(10);
         assertEquals("custom.my_tool", last.getName());
         assertEquals("classpath:/custom/tool.md", last.getDescriptionFile());
     }
