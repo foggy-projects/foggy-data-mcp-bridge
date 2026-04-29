@@ -141,17 +141,19 @@ class RelationModelTest {
     }
 
     @Test
-    @DisplayName("S7a: supportsOuterAggregate and supportsOuterWindow are always false")
-    void outerCapabilitiesNotOpened() {
+    @DisplayName("S7e: supportsOuterAggregate opens for wrappable relations; window stays closed")
+    void outerAggregateCapabilityOpened() {
         for (String d : List.of("mysql8", "postgres", "sqlite", "mssql", "mysql")) {
-            for (boolean hasCte : List.of(true, false)) {
-                RelationCapabilities caps = RelationCapabilities.forDialect(d, hasCte);
-                assertFalse(caps.supportsOuterAggregate(),
-                        "S7a must not open outer aggregate for " + d);
-                assertFalse(caps.supportsOuterWindow(),
-                        "S7a must not open outer window for " + d);
-            }
+            RelationCapabilities noCte = RelationCapabilities.forDialect(d, false);
+            assertTrue(noCte.supportsOuterAggregate(),
+                    "S7e must open outer aggregate for inline relation on " + d);
+            assertFalse(noCte.supportsOuterWindow(),
+                    "S7f must not open outer window for " + d);
         }
+
+        RelationCapabilities mysql57Cte = RelationCapabilities.forDialect("mysql", true);
+        assertFalse(mysql57Cte.supportsOuterAggregate(),
+                "MySQL 5.7 + CTE remains fail-closed");
     }
 
     @Test

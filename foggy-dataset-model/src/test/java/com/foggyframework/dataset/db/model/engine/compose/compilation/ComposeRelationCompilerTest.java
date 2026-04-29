@@ -271,26 +271,26 @@ class ComposeRelationCompilerTest {
     }
 
     // ------------------------------------------------------------------
-    // 9–10. supportsOuterAggregate / supportsOuterWindow always false
+    // 9–10. supportsOuterAggregate opened / supportsOuterWindow false
     // ------------------------------------------------------------------
 
     @ParameterizedTest
     @ValueSource(strings = {"mysql8", "postgres", "sqlite", "mssql", "mysql", "mysql57", "sqlserver"})
-    @DisplayName("supportsOuterAggregate_alwaysFalse · S7a invariant")
-    void supportsOuterAggregate_alwaysFalse(String dialect) {
+    @DisplayName("supportsOuterAggregate_true · S7e opens wrappable relation aggregate")
+    void supportsOuterAggregate_true(String dialect) {
         FakeSemanticService svc = svc();
         CompiledRelation rel = ComposeRelationCompiler.compileToRelation(
                 basePlan(),
                 ctx(bindings()),
                 opts(svc, dialect).build());
 
-        assertFalse(rel.capabilities().supportsOuterAggregate(),
-                "S7a must not open outer aggregate for " + dialect);
+        assertTrue(rel.capabilities().supportsOuterAggregate(),
+                "S7e must open outer aggregate for wrappable relation on " + dialect);
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"mysql8", "postgres", "sqlite", "mssql", "mysql", "mysql57", "sqlserver"})
-    @DisplayName("supportsOuterWindow_alwaysFalse · S7a invariant")
+    @DisplayName("supportsOuterWindow_alwaysFalse · S7f not opened")
     void supportsOuterWindow_alwaysFalse(String dialect) {
         FakeSemanticService svc = svc();
         CompiledRelation rel = ComposeRelationCompiler.compileToRelation(
@@ -299,7 +299,7 @@ class ComposeRelationCompilerTest {
                 opts(svc, dialect).build());
 
         assertFalse(rel.capabilities().supportsOuterWindow(),
-                "S7a must not open outer window for " + dialect);
+                "S7f must not open outer window for " + dialect);
     }
 
     // ------------------------------------------------------------------

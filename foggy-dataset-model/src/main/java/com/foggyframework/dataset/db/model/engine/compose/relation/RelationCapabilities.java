@@ -55,7 +55,7 @@ public final class RelationCapabilities {
                     .canInlineAsSubquery(true)
                     .canHoistCte(cteCapable || isSqlServer)
                     .containsWithItems(false)
-                    .supportsOuterAggregate(false)
+                    .supportsOuterAggregate(true)
                     .supportsOuterWindow(false)
                     .requiresTopLevelWith(false)
                     .relationWrapStrategy(RelationWrapStrategy.INLINE_SUBQUERY)
@@ -76,7 +76,7 @@ public final class RelationCapabilities {
             return builder()
                     .canInlineAsSubquery(false).canHoistCte(true)
                     .containsWithItems(true)
-                    .supportsOuterAggregate(false).supportsOuterWindow(false)
+                    .supportsOuterAggregate(true).supportsOuterWindow(false)
                     .requiresTopLevelWith(true)
                     .relationWrapStrategy(RelationWrapStrategy.HOISTED_CTE)
                     .build();
@@ -85,7 +85,7 @@ public final class RelationCapabilities {
         return builder()
                 .canInlineAsSubquery(false).canHoistCte(true)
                 .containsWithItems(true)
-                .supportsOuterAggregate(false).supportsOuterWindow(false)
+                .supportsOuterAggregate(true).supportsOuterWindow(false)
                 .requiresTopLevelWith(false)
                 .relationWrapStrategy(RelationWrapStrategy.HOISTED_CTE)
                 .build();

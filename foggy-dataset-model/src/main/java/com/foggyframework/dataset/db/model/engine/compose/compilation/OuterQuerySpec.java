@@ -19,6 +19,7 @@ import java.util.Set;
 public final class OuterQuerySpec {
 
     private final List<String> selectColumns;   // nullable → select all readable
+    private final List<String> groupBy;         // nullable → no grouping
     private final List<String> orderBy;         // nullable → no ordering
     private final String filter;                // nullable → no WHERE
     private final List<Object> filterParams;    // nullable → no bind params
@@ -29,6 +30,8 @@ public final class OuterQuerySpec {
     private OuterQuerySpec(Builder b) {
         this.selectColumns = b.selectColumns == null ? null
                 : Collections.unmodifiableList(new ArrayList<>(b.selectColumns));
+        this.groupBy = b.groupBy == null ? null
+                : Collections.unmodifiableList(new ArrayList<>(b.groupBy));
         this.orderBy = b.orderBy == null ? null
                 : Collections.unmodifiableList(new ArrayList<>(b.orderBy));
         this.filter = b.filter;
@@ -42,6 +45,9 @@ public final class OuterQuerySpec {
 
     /** Columns to SELECT. {@code null} = select all readable columns. */
     public List<String> selectColumns() { return selectColumns; }
+
+    /** GROUP BY columns. Format: relation output column names. */
+    public List<String> groupBy() { return groupBy; }
 
     /** ORDER BY clauses. Format: {@code "colName"} or {@code "colName DESC"}.
      *  {@code null} = no ordering. */
@@ -67,6 +73,7 @@ public final class OuterQuerySpec {
 
     public static final class Builder {
         private List<String> selectColumns;
+        private List<String> groupBy;
         private List<String> orderBy;
         private String filter;
         private List<Object> filterParams;
@@ -75,6 +82,7 @@ public final class OuterQuerySpec {
         private Integer offset;
 
         public Builder selectColumns(List<String> v) { this.selectColumns = v; return this; }
+        public Builder groupBy(List<String> v) { this.groupBy = v; return this; }
         public Builder orderBy(List<String> v) { this.orderBy = v; return this; }
         public Builder filter(String v) { this.filter = v; return this; }
         public Builder filterParams(List<Object> v) { this.filterParams = v; return this; }

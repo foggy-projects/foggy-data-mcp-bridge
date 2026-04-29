@@ -1,25 +1,35 @@
 package com.foggyframework.dataset.db.model.engine.compose.compilation;
 
 import com.foggyframework.dataset.db.model.engine.compose.relation.CompiledRelation;
+import com.foggyframework.dataset.db.model.engine.compose.relation.CteItem;
 import com.foggyframework.dataset.db.model.engine.compose.relation.ReferencePolicy;
 import com.foggyframework.dataset.db.model.engine.compose.relation.RelationWrapStrategy;
+import com.foggyframework.dataset.db.model.engine.compose.relation.SemanticKind;
 import com.foggyframework.dataset.db.model.engine.compose.schema.ColumnSpec;
 import com.foggyframework.dataset.db.model.engine.compose.schema.OutputSchema;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * S7d · Build a read-only outer query over a {@link CompiledRelation}.
+ * S7d/S7e · Build an outer query over a {@link CompiledRelation}.
  *
  * <p>Validates all column references against the relation's
  * {@link OutputSchema} and {@link ReferencePolicy}, generates
  * wrapped SQL using the appropriate strategy (inline subquery
- * or hoisted CTE), and enforces the S7c fail-closed invariants.</p>
+ * or hoisted CTE), and enforces relation fail-closed invariants.</p>
  *
  * <h3>Allowed operations</h3>
  * <ul>
  *   <li>SELECT readable columns</li>
+ *   <li>S7e aggregate expressions over aggregatable columns when
+ *       {@code supportsOuterAggregate=true}</li>
+ *   <li>GROUP BY groupable columns</li>
  *   <li>ORDER BY orderable columns</li>
  *   <li>WHERE filter on readable columns</li>
  *   <li>LIMIT / OFFSET pagination</li>
@@ -27,30 +37,33 @@ import java.util.regex.Pattern;
  *
  * <h3>Not allowed</h3>
  * <ul>
- *   <li>Outer aggregate (SUM, AVG, COUNT, MIN, MAX)</li>
  *   <li>Outer window (OVER(...))</li>
  *   <li>Relation join / union</li>
  * </ul>
  *
- * @since 8.5.0.beta (S7d)
+ * @since 8.5.0.beta (S7d, S7e)
  */
 public final class RelationOuterQueryBuilder {
 
     private RelationOuterQueryBuilder() { /* utility */ }
 
-    // Aggregate function pattern — matches SUM(...), COUNT(*), etc.
     private static final Pattern AGGREGATE_PATTERN = Pattern.compile(
             "\\b(SUM|AVG|COUNT|MIN|MAX)\\s*\\(", Pattern.CASE_INSENSITIVE);
 
-    // Window function pattern — matches ... OVER(...)
+    private static final Pattern AGGREGATE_SELECT_PATTERN = Pattern.compile(
+            "^\\s*(SUM|AVG|COUNT|MIN|MAX)\\s*\\(\\s*([A-Za-z_][A-Za-z0-9_$]*|\\*)\\s*\\)"
+                    + "\\s*(?:AS\\s+([A-Za-z_][A-Za-z0-9_$]*))?\\s*$",
+            Pattern.CASE_INSENSITIVE);
+
     private static final Pattern WINDOW_PATTERN = Pattern.compile(
             "\\bOVER\\s*\\(", Pattern.CASE_INSENSITIVE);
 
     /**
-     * Build a read-only outer query over the given compiled relation.
+     * Build an outer query over the given compiled relation.
      *
      * @param relation the pre-compiled relation source
-     * @param spec     outer query specification (columns, orderBy, filter, etc.)
+     * @param spec     outer query specification (columns, groupBy, orderBy,
+     *                 filter, etc.)
      * @return an immutable {@link RelationOuterQuery}
      * @throws ComposeCompileException on validation failure
      */
@@ -81,27 +94,23 @@ public final class RelationOuterQueryBuilder {
         String alias = relation.alias();
         String dialect = relation.dialect();
 
-        // ---- 1. Resolve select columns ----
         List<String> selectCols = resolveSelectColumns(spec, schema);
+        List<SelectItem> selectItems = validateSelectColumns(
+                selectCols, schema,
+                relation.capabilities().supportsOuterAggregate());
 
-        // ---- 2. Validate select columns ----
-        validateSelectColumns(selectCols, schema);
-
-        // ---- 3. Validate orderBy columns ----
-        List<String> orderByCols = spec.orderBy();
-        if (orderByCols != null && !orderByCols.isEmpty()) {
-            validateOrderByColumns(orderByCols, schema);
+        if (spec.groupBy() != null && !spec.groupBy().isEmpty()) {
+            validateGroupByColumns(spec.groupBy(), schema);
         }
-
-        // ---- 4. Validate filter columns ----
+        if (spec.orderBy() != null && !spec.orderBy().isEmpty()) {
+            validateOrderByColumns(spec.orderBy(), schema);
+        }
         if (spec.filter() != null && !spec.filter().isBlank()) {
             validateFilterColumns(spec.filterColumns(), schema);
         }
 
-        // ---- 5. Build output schema (subset) ----
-        OutputSchema outputSchema = buildOutputSchema(selectCols, schema);
+        OutputSchema outputSchema = buildOutputSchema(selectItems, schema);
 
-        // ---- 6. Generate SQL ----
         String bodySql = relation.relationSql().bodySql();
         List<Object> innerParams = relation.params() != null
                 ? relation.params()
@@ -109,21 +118,18 @@ public final class RelationOuterQueryBuilder {
 
         String sql;
         if (RelationWrapStrategy.HOISTED_CTE.equals(wrapStrategy)) {
-            sql = buildHoistedCteSql(bodySql, alias, selectCols, spec,
-                    dialect);
+            sql = buildHoistedCteSql(relation.relationSql().withItems(),
+                    bodySql, alias, selectItems, spec, dialect);
         } else {
-            // INLINE_SUBQUERY or NATIVE_CTE (treated as inline for now)
-            sql = buildInlineSubquerySql(bodySql, alias, selectCols, spec,
+            sql = buildInlineSubquerySql(bodySql, alias, selectItems, spec,
                     dialect);
         }
 
-        // ---- 7. Flatten params ----
         List<Object> allParams = new ArrayList<>(innerParams);
         if (spec.filterParams() != null) {
             allParams.addAll(spec.filterParams());
         }
 
-        // ---- 8. Post-compilation FROM (WITH safety ----
         if (ComposeRelationCompiler.containsFromWith(sql)) {
             throw new ComposeCompileException(
                     ComposeCompileErrorCodes.RELATION_CTE_HOIST_UNSUPPORTED,
@@ -141,20 +147,11 @@ public final class RelationOuterQueryBuilder {
                 .build();
     }
 
-    // ------------------------------------------------------------------
-    // Column resolution
-    // ------------------------------------------------------------------
-
-    /**
-     * Resolve select columns: if spec provides explicit columns, use them;
-     * otherwise select all readable columns from the schema.
-     */
     private static List<String> resolveSelectColumns(
             OuterQuerySpec spec, OutputSchema schema) {
         if (spec.selectColumns() != null && !spec.selectColumns().isEmpty()) {
             return spec.selectColumns();
         }
-        // Select all readable columns
         List<String> readable = new ArrayList<>();
         for (ColumnSpec col : schema.columns()) {
             if (isReadable(col)) {
@@ -170,31 +167,27 @@ public final class RelationOuterQueryBuilder {
         return readable;
     }
 
-    // ------------------------------------------------------------------
-    // Validation
-    // ------------------------------------------------------------------
-
-    private static void validateSelectColumns(
-            List<String> columns, OutputSchema schema) {
+    private static List<SelectItem> validateSelectColumns(
+            List<String> columns, OutputSchema schema,
+            boolean supportsOuterAggregate) {
+        List<SelectItem> items = new ArrayList<>(columns.size());
         for (String col : columns) {
-            // Check for outer aggregate
-            if (AGGREGATE_PATTERN.matcher(col).find()) {
-                throw new ComposeCompileException(
-                        ComposeCompileErrorCodes.RELATION_OUTER_AGGREGATE_NOT_SUPPORTED,
-                        ComposeCompileErrorCodes.PHASE_RELATION_COMPILE,
-                        "Outer aggregate is not supported (S7d read-only): '"
-                                + col + "'. supportsOuterAggregate=false.");
-            }
-            // Check for outer window
             if (WINDOW_PATTERN.matcher(col).find()) {
                 throw new ComposeCompileException(
                         ComposeCompileErrorCodes.RELATION_OUTER_WINDOW_NOT_SUPPORTED,
                         ComposeCompileErrorCodes.PHASE_RELATION_COMPILE,
-                        "Outer window is not supported (S7d read-only): '"
+                        "Outer window is not supported (S7e): '"
                                 + col + "'. supportsOuterWindow=false.");
             }
-            // Check column exists
-            String baseName = extractColumnName(col);
+
+            SelectItem item = parseSelectItem(col);
+            items.add(item);
+            if (item.aggregate()) {
+                validateAggregateSelect(item, schema, supportsOuterAggregate);
+                continue;
+            }
+
+            String baseName = item.outputName();
             if (!schema.contains(baseName)) {
                 throw new ComposeCompileException(
                         ComposeCompileErrorCodes.RELATION_COLUMN_NOT_FOUND,
@@ -203,13 +196,74 @@ public final class RelationOuterQueryBuilder {
                                 + "relation's output schema. Available columns: "
                                 + schema.nameSet());
             }
-            // Check readable
             ColumnSpec spec = schema.get(baseName);
             if (spec != null && !isReadable(spec)) {
                 throw new ComposeCompileException(
                         ComposeCompileErrorCodes.RELATION_COLUMN_NOT_READABLE,
                         ComposeCompileErrorCodes.PHASE_RELATION_COMPILE,
                         "Column '" + baseName + "' is not readable. "
+                                + "referencePolicy=" + spec.referencePolicy());
+            }
+        }
+        return items;
+    }
+
+    private static void validateAggregateSelect(
+            SelectItem item, OutputSchema schema,
+            boolean supportsOuterAggregate) {
+        if (!supportsOuterAggregate) {
+            throw new ComposeCompileException(
+                    ComposeCompileErrorCodes.RELATION_OUTER_AGGREGATE_NOT_SUPPORTED,
+                    ComposeCompileErrorCodes.PHASE_RELATION_COMPILE,
+                    "Outer aggregate is not supported by this relation: '"
+                            + item.raw() + "'. supportsOuterAggregate=false.");
+        }
+        if ("*".equals(item.inputName())) {
+            if (!"COUNT".equals(item.function())) {
+                throw new ComposeCompileException(
+                        ComposeCompileErrorCodes.RELATION_OUTER_AGGREGATE_NOT_SUPPORTED,
+                        ComposeCompileErrorCodes.PHASE_RELATION_COMPILE,
+                        "Only COUNT(*) is supported for star aggregate: '"
+                                + item.raw() + "'.");
+            }
+            return;
+        }
+        if (!schema.contains(item.inputName())) {
+            throw new ComposeCompileException(
+                    ComposeCompileErrorCodes.RELATION_COLUMN_NOT_FOUND,
+                    ComposeCompileErrorCodes.PHASE_RELATION_COMPILE,
+                    "Aggregate input column '" + item.inputName()
+                            + "' does not exist in the relation's output schema. "
+                            + "Available columns: " + schema.nameSet());
+        }
+        ColumnSpec spec = schema.get(item.inputName());
+        if (spec != null && !isAggregatable(spec)) {
+            throw new ComposeCompileException(
+                    ComposeCompileErrorCodes.RELATION_COLUMN_NOT_AGGREGATABLE,
+                    ComposeCompileErrorCodes.PHASE_RELATION_COMPILE,
+                    "Aggregate input column '" + item.inputName()
+                            + "' is not aggregatable. referencePolicy="
+                            + spec.referencePolicy());
+        }
+    }
+
+    private static void validateGroupByColumns(
+            List<String> groupBy, OutputSchema schema) {
+        for (String col : groupBy) {
+            if (!schema.contains(col)) {
+                throw new ComposeCompileException(
+                        ComposeCompileErrorCodes.RELATION_COLUMN_NOT_FOUND,
+                        ComposeCompileErrorCodes.PHASE_RELATION_COMPILE,
+                        "GROUP BY column '" + col + "' does not exist in the "
+                                + "relation's output schema. "
+                                + "Available columns: " + schema.nameSet());
+            }
+            ColumnSpec spec = schema.get(col);
+            if (spec != null && !isGroupable(spec)) {
+                throw new ComposeCompileException(
+                        ComposeCompileErrorCodes.RELATION_COLUMN_NOT_READABLE,
+                        ComposeCompileErrorCodes.PHASE_RELATION_COMPILE,
+                        "GROUP BY column '" + col + "' is not groupable. "
                                 + "referencePolicy=" + spec.referencePolicy());
             }
         }
@@ -268,92 +322,136 @@ public final class RelationOuterQueryBuilder {
         }
     }
 
-    // ------------------------------------------------------------------
-    // Reference policy checks
-    // ------------------------------------------------------------------
-
-    /**
-     * A column is readable if its referencePolicy is null (non-enriched
-     * schema → backward-compatible default) or contains
-     * {@link ReferencePolicy#READABLE}.
-     */
     static boolean isReadable(ColumnSpec col) {
         Set<String> rp = col.referencePolicy();
         return rp == null || rp.contains(ReferencePolicy.READABLE);
     }
 
-    /**
-     * A column is orderable if its referencePolicy is null (backward-
-     * compatible default) or contains {@link ReferencePolicy#ORDERABLE}.
-     */
     static boolean isOrderable(ColumnSpec col) {
         Set<String> rp = col.referencePolicy();
         return rp == null || rp.contains(ReferencePolicy.ORDERABLE);
     }
 
-    // ------------------------------------------------------------------
-    // Output schema
-    // ------------------------------------------------------------------
+    static boolean isGroupable(ColumnSpec col) {
+        Set<String> rp = col.referencePolicy();
+        return rp == null || rp.contains(ReferencePolicy.GROUPABLE);
+    }
+
+    static boolean isAggregatable(ColumnSpec col) {
+        Set<String> rp = col.referencePolicy();
+        return rp == null || rp.contains(ReferencePolicy.AGGREGATABLE);
+    }
 
     private static OutputSchema buildOutputSchema(
-            List<String> selectCols, OutputSchema innerSchema) {
-        List<ColumnSpec> outCols = new ArrayList<>(selectCols.size());
-        for (String name : selectCols) {
-            ColumnSpec inner = innerSchema.get(name);
-            if (inner != null) {
-                outCols.add(inner);
+            List<SelectItem> selectItems, OutputSchema innerSchema) {
+        List<ColumnSpec> outCols = new ArrayList<>(selectItems.size());
+        for (SelectItem item : selectItems) {
+            if (item.aggregate()) {
+                outCols.add(aggregateColumnSpec(item));
+            } else {
+                ColumnSpec inner = innerSchema.get(item.outputName());
+                if (inner != null) {
+                    outCols.add(inner);
+                }
             }
         }
         return OutputSchema.of(outCols);
     }
 
-    // ------------------------------------------------------------------
-    // SQL generation
-    // ------------------------------------------------------------------
+    private static ColumnSpec aggregateColumnSpec(SelectItem item) {
+        String expression = item.function() + "(" + item.inputName() + ")";
+        return ColumnSpec.builder()
+                .name(item.outputName())
+                .expression(expression)
+                .hasExplicitAlias(item.hasExplicitAlias())
+                .semanticKind(SemanticKind.AGGREGATE_MEASURE)
+                .valueMeaning(item.function().toLowerCase(Locale.ROOT)
+                        + " of " + item.inputName())
+                .lineage("*".equals(item.inputName()) ? Set.of() : Set.of(item.inputName()))
+                .referencePolicy(ReferencePolicy.MEASURE_DEFAULT)
+                .build();
+    }
 
     private static String buildInlineSubquerySql(
             String bodySql, String alias,
-            List<String> selectCols, OuterQuerySpec spec,
+            List<SelectItem> selectItems, OuterQuerySpec spec,
             String dialect) {
         StringBuilder sb = new StringBuilder();
-        sb.append(buildSelectClause(selectCols, alias, dialect));
+        sb.append(buildSelectClause(selectItems, alias, dialect));
         sb.append("\nFROM (").append(bodySql).append(") AS ").append(alias);
-        appendWhereOrderLimit(sb, spec, alias, dialect);
+        appendWhereGroupOrderLimit(sb, spec, alias, dialect);
         return sb.toString();
     }
 
     private static String buildHoistedCteSql(
-            String bodySql, String alias,
-            List<String> selectCols, OuterQuerySpec spec,
+            List<CteItem> withItems, String bodySql, String alias,
+            List<SelectItem> selectItems, OuterQuerySpec spec,
             String dialect) {
         StringBuilder sb = new StringBuilder();
         if (isSqlServerDialect(dialect)) {
             sb.append(";");
         }
-        sb.append("WITH ").append(alias).append(" AS (")
-                .append(bodySql).append(")\n");
-        sb.append(buildSelectClause(selectCols, alias, dialect));
+        sb.append("WITH ");
+        boolean first = true;
+        if (withItems != null) {
+            for (CteItem item : withItems) {
+                if (!first) {
+                    sb.append(",\n");
+                }
+                appendCteItem(sb, item.name(), item.sql());
+                first = false;
+            }
+        }
+        if (!first) {
+            sb.append(",\n");
+        }
+        appendCteItem(sb, alias, bodySql);
+        sb.append("\n");
+        sb.append(buildSelectClause(selectItems, alias, dialect));
         sb.append("\nFROM ").append(alias);
-        appendWhereOrderLimit(sb, spec, alias, dialect);
+        appendWhereGroupOrderLimit(sb, spec, alias, dialect);
         return sb.toString();
     }
 
+    private static void appendCteItem(StringBuilder sb, String name, String sql) {
+        sb.append(name).append(" AS (").append(sql).append(")");
+    }
+
     private static String buildSelectClause(
-            List<String> selectCols, String alias, String dialect) {
+            List<SelectItem> selectItems, String alias, String dialect) {
         StringBuilder sb = new StringBuilder("SELECT ");
-        for (int i = 0; i < selectCols.size(); i++) {
+        for (int i = 0; i < selectItems.size(); i++) {
             if (i > 0) sb.append(", ");
-            sb.append(alias).append(".")
-                    .append(quoteIdentifier(selectCols.get(i), dialect));
+            sb.append(renderSelectItem(selectItems.get(i), alias, dialect));
         }
         return sb.toString();
     }
 
-    private static void appendWhereOrderLimit(
+    private static String renderSelectItem(
+            SelectItem item, String alias, String dialect) {
+        if (!item.aggregate()) {
+            return alias + "." + quoteIdentifier(item.outputName(), dialect);
+        }
+        String input = "*".equals(item.inputName())
+                ? "*"
+                : alias + "." + quoteIdentifier(item.inputName(), dialect);
+        return item.function() + "(" + input + ") AS "
+                + quoteIdentifier(item.outputName(), dialect);
+    }
+
+    private static void appendWhereGroupOrderLimit(
             StringBuilder sb, OuterQuerySpec spec,
             String alias, String dialect) {
         if (spec.filter() != null && !spec.filter().isBlank()) {
             sb.append("\nWHERE ").append(spec.filter());
+        }
+        if (spec.groupBy() != null && !spec.groupBy().isEmpty()) {
+            sb.append("\nGROUP BY ");
+            for (int i = 0; i < spec.groupBy().size(); i++) {
+                if (i > 0) sb.append(", ");
+                sb.append(alias).append(".")
+                        .append(quoteIdentifier(spec.groupBy().get(i), dialect));
+            }
         }
         if (spec.orderBy() != null && !spec.orderBy().isEmpty()) {
             sb.append("\nORDER BY ");
@@ -371,14 +469,6 @@ public final class RelationOuterQueryBuilder {
         }
     }
 
-    // ------------------------------------------------------------------
-    // String helpers
-    // ------------------------------------------------------------------
-
-    /**
-     * Extract the base column name from a select column expression.
-     * Strips trailing " AS alias" if present.
-     */
     private static String extractColumnName(String col) {
         String trimmed = col.trim();
         int asIdx = trimmed.toUpperCase(Locale.ROOT).lastIndexOf(" AS ");
@@ -388,10 +478,6 @@ public final class RelationOuterQueryBuilder {
         return trimmed;
     }
 
-    /**
-     * Extract the column name from an ORDER BY clause.
-     * Strips trailing " ASC" / " DESC" if present.
-     */
     private static String extractOrderByColumnName(String clause) {
         String trimmed = clause.trim();
         String upper = trimmed.toUpperCase(Locale.ROOT);
@@ -404,10 +490,37 @@ public final class RelationOuterQueryBuilder {
         return trimmed;
     }
 
-    /**
-     * Qualify an ORDER BY clause with the alias prefix.
-     * E.g. "storeName DESC" → "rel_0.`storeName` DESC".
-     */
+    private static SelectItem parseSelectItem(String raw) {
+        Matcher m = AGGREGATE_SELECT_PATTERN.matcher(raw);
+        if (m.matches()) {
+            String function = m.group(1).toUpperCase(Locale.ROOT);
+            String inputName = m.group(2);
+            String alias = m.group(3);
+            String outputName = alias != null && !alias.isBlank()
+                    ? alias
+                    : defaultAggregateAlias(function, inputName);
+            return new SelectItem(raw, true, function, inputName, outputName,
+                    alias != null && !alias.isBlank());
+        }
+        if (AGGREGATE_PATTERN.matcher(raw).find()) {
+            throw new ComposeCompileException(
+                    ComposeCompileErrorCodes.RELATION_OUTER_AGGREGATE_NOT_SUPPORTED,
+                    ComposeCompileErrorCodes.PHASE_RELATION_COMPILE,
+                    "Unsupported outer aggregate expression: '" + raw
+                            + "'. Use FUNC(column) or FUNC(column) AS alias.");
+        }
+        String outputName = extractColumnName(raw);
+        return new SelectItem(raw, false, null, outputName, outputName, false);
+    }
+
+    private static String defaultAggregateAlias(String function, String inputName) {
+        String fn = function.toLowerCase(Locale.ROOT);
+        if ("*".equals(inputName)) {
+            return fn;
+        }
+        return fn + "_" + inputName;
+    }
+
     private static String qualifyOrderByClause(
             String clause, String alias, String dialect) {
         String trimmed = clause.trim();
@@ -426,10 +539,6 @@ public final class RelationOuterQueryBuilder {
         return alias + "." + quoteIdentifier(baseName, dialect) + suffix;
     }
 
-    /**
-     * Quote an identifier for the given dialect.
-     * MySQL uses backticks; SQL Server uses brackets; others use double-quotes.
-     */
     private static String quoteIdentifier(String name, String dialect) {
         String dl = dialect == null ? "mysql" : dialect.toLowerCase(Locale.ROOT);
         if (dl.startsWith("mysql")) {
@@ -444,5 +553,14 @@ public final class RelationOuterQueryBuilder {
     private static boolean isSqlServerDialect(String dialect) {
         String dl = dialect == null ? "" : dialect.toLowerCase(Locale.ROOT);
         return "mssql".equals(dl) || "sqlserver".equals(dl);
+    }
+
+    private record SelectItem(
+            String raw,
+            boolean aggregate,
+            String function,
+            String inputName,
+            String outputName,
+            boolean hasExplicitAlias) {
     }
 }

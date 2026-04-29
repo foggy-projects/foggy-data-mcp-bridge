@@ -38,8 +38,8 @@ public final class ReferencePolicy {
     /** Convenience: dimension fields — readable, groupable, orderable. */
     public static final Set<String> DIMENSION_DEFAULT = Set.of(READABLE, GROUPABLE, ORDERABLE);
 
-    /** Convenience: measure fields — readable, orderable. */
-    public static final Set<String> MEASURE_DEFAULT = Set.of(READABLE, ORDERABLE);
+    /** Convenience: measure fields — readable, aggregatable, orderable. */
+    public static final Set<String> MEASURE_DEFAULT = Set.of(READABLE, AGGREGATABLE, ORDERABLE);
 
     /** Convenience: timeWindow derived fields — readable, orderable. */
     public static final Set<String> TIME_WINDOW_DERIVED_DEFAULT = Set.of(READABLE, ORDERABLE);

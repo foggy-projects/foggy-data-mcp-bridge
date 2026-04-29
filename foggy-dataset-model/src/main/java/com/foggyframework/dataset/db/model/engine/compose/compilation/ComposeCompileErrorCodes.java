@@ -108,6 +108,10 @@ public final class ComposeCompileErrorCodes {
     public static final String RELATION_COLUMN_NOT_ORDERABLE =
             "compose-compile-error/relation-column-not-orderable";
 
+    /** Column exists but lacks 'aggregatable' in referencePolicy. */
+    public static final String RELATION_COLUMN_NOT_AGGREGATABLE =
+            "compose-compile-error/relation-column-not-aggregatable";
+
     /** Outer aggregate attempted when supportsOuterAggregate=false. */
     public static final String RELATION_OUTER_AGGREGATE_NOT_SUPPORTED =
             "compose-compile-error/relation-outer-aggregate-not-supported";
@@ -142,6 +146,7 @@ public final class ComposeCompileErrorCodes {
             RELATION_COLUMN_NOT_FOUND,
             RELATION_COLUMN_NOT_READABLE,
             RELATION_COLUMN_NOT_ORDERABLE,
+            RELATION_COLUMN_NOT_AGGREGATABLE,
             RELATION_OUTER_AGGREGATE_NOT_SUPPORTED,
             RELATION_OUTER_WINDOW_NOT_SUPPORTED);
 

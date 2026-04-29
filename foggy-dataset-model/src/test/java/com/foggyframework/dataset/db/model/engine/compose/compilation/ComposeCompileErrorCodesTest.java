@@ -45,9 +45,9 @@ class ComposeCompileErrorCodesTest {
     }
 
     @Test
-    @DisplayName("ALL_CODES 大小严格等于 12（NAMESPACE 不纳入）")
-    void allCodesSizeIsTwelve() {
-        assertEquals(12, ComposeCompileErrorCodes.ALL_CODES.size());
+    @DisplayName("ALL_CODES 大小严格等于 13（NAMESPACE 不纳入）")
+    void allCodesSizeIsThirteen() {
+        assertEquals(13, ComposeCompileErrorCodes.ALL_CODES.size());
     }
 
     @Test
@@ -74,6 +74,8 @@ class ComposeCompileErrorCodesTest {
                 ComposeCompileErrorCodes.RELATION_COLUMN_NOT_READABLE));
         assertTrue(ComposeCompileErrorCodes.ALL_CODES.contains(
                 ComposeCompileErrorCodes.RELATION_COLUMN_NOT_ORDERABLE));
+        assertTrue(ComposeCompileErrorCodes.ALL_CODES.contains(
+                ComposeCompileErrorCodes.RELATION_COLUMN_NOT_AGGREGATABLE));
         assertTrue(ComposeCompileErrorCodes.ALL_CODES.contains(
                 ComposeCompileErrorCodes.RELATION_OUTER_AGGREGATE_NOT_SUPPORTED));
         assertTrue(ComposeCompileErrorCodes.ALL_CODES.contains(
@@ -111,6 +113,8 @@ class ComposeCompileErrorCodesTest {
                 ComposeCompileErrorCodes.RELATION_COLUMN_NOT_READABLE));
         assertTrue(ComposeCompileErrorCodes.isValidCode(
                 ComposeCompileErrorCodes.RELATION_COLUMN_NOT_ORDERABLE));
+        assertTrue(ComposeCompileErrorCodes.isValidCode(
+                ComposeCompileErrorCodes.RELATION_COLUMN_NOT_AGGREGATABLE));
         assertTrue(ComposeCompileErrorCodes.isValidCode(
                 ComposeCompileErrorCodes.RELATION_OUTER_AGGREGATE_NOT_SUPPORTED));
         assertTrue(ComposeCompileErrorCodes.isValidCode(

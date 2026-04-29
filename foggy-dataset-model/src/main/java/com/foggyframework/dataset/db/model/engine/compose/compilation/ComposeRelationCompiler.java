@@ -36,7 +36,8 @@ import java.util.regex.Pattern;
  *
  * <h3>Fail-closed invariants</h3>
  * <ul>
- *   <li>{@code supportsOuterAggregate = false} — S7e not yet opened.</li>
+ *   <li>{@code supportsOuterAggregate} is opened only when the relation can
+ *       be safely wrapped for the target dialect.</li>
  *   <li>{@code supportsOuterWindow = false} — S7f not yet opened.</li>
  *   <li>MySQL 5.7 + inner CTE → {@code RELATION_WRAP_UNSUPPORTED}.</li>
  *   <li>SQL Server inner CTE → hoisted top-level CTE (guaranteed by

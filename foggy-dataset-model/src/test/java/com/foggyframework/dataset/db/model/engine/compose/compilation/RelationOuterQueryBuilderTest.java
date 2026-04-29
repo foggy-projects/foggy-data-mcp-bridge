@@ -28,7 +28,7 @@ class RelationOuterQueryBuilderTest {
      * Build a CompiledRelation with enriched OutputSchema (referencePolicy set).
      * Columns:
      *   storeName  — readable, groupable, orderable (dimension)
-     *   salesAmount — readable, orderable (measure)
+     *   salesAmount — readable, aggregatable, orderable (measure)
      *   internalNote — NOT readable (empty referencePolicy)
      */
     private CompiledRelation enrichedRelation(String dialect) {
@@ -70,6 +70,35 @@ class RelationOuterQueryBuilderTest {
                 .datasourceId("demo-ds")
                 .dialect(dialect)
                 .capabilities(caps)
+                .build();
+    }
+
+    private CompiledRelation relationWithRatioColumn(String dialect) {
+        ColumnSpec storeName = ColumnSpec.builder()
+                .name("storeName").expression("storeName")
+                .referencePolicy(ReferencePolicy.DIMENSION_DEFAULT)
+                .build();
+        ColumnSpec salesAmount = ColumnSpec.builder()
+                .name("salesAmount").expression("salesAmount")
+                .referencePolicy(ReferencePolicy.MEASURE_DEFAULT)
+                .build();
+        ColumnSpec ratio = ColumnSpec.builder()
+                .name("salesAmount__ratio").expression("salesAmount__ratio")
+                .semanticKind(SemanticKind.TIME_WINDOW_DERIVED)
+                .referencePolicy(ReferencePolicy.TIME_WINDOW_DERIVED_DEFAULT)
+                .build();
+
+        return CompiledRelation.builder()
+                .alias("rel_0")
+                .relationSql(RelationSql.builder()
+                        .bodySql("SELECT storeName, salesAmount, salesAmount__ratio FROM fact_sales")
+                        .bodyParams(List.of())
+                        .preferredAlias("rel_0")
+                        .build())
+                .outputSchema(OutputSchema.of(List.of(storeName, salesAmount, ratio)))
+                .datasourceId("demo-ds")
+                .dialect(dialect)
+                .capabilities(RelationCapabilities.forDialect(dialect, false))
                 .build();
     }
 
@@ -267,13 +296,33 @@ class RelationOuterQueryBuilderTest {
     }
 
     // ------------------------------------------------------------------
-    // 8. outer aggregate rejected
+    // 8. outer aggregate rejected when capability is closed
     // ------------------------------------------------------------------
 
     @Test
-    @DisplayName("outerAggregate_rejected · SUM() throws RELATION_OUTER_AGGREGATE_NOT_SUPPORTED")
-    void outerAggregate_rejected() {
-        CompiledRelation rel = enrichedRelation("mysql8");
+    @DisplayName("outerAggregateCapabilityClosed_rejected · supportsOuterAggregate=false throws")
+    void outerAggregateCapabilityClosed_rejected() {
+        CompiledRelation rel = CompiledRelation.builder()
+                .alias("rel_0")
+                .relationSql(RelationSql.builder()
+                        .bodySql("SELECT salesAmount FROM fact_sales")
+                        .bodyParams(List.of())
+                        .preferredAlias("rel_0")
+                        .build())
+                .outputSchema(OutputSchema.of(List.of(ColumnSpec.builder()
+                        .name("salesAmount").expression("salesAmount")
+                        .referencePolicy(ReferencePolicy.MEASURE_DEFAULT)
+                        .build())))
+                .dialect("mysql8")
+                .capabilities(RelationCapabilities.builder()
+                        .canInlineAsSubquery(true)
+                        .canHoistCte(true)
+                        .containsWithItems(false)
+                        .supportsOuterAggregate(false)
+                        .supportsOuterWindow(false)
+                        .relationWrapStrategy(RelationWrapStrategy.INLINE_SUBQUERY)
+                        .build())
+                .build();
         ComposeCompileException ex = assertThrows(
                 ComposeCompileException.class,
                 () -> RelationOuterQueryBuilder.buildOuterQuery(
@@ -283,6 +332,90 @@ class RelationOuterQueryBuilderTest {
                                 .build()));
 
         assertEquals(ComposeCompileErrorCodes.RELATION_OUTER_AGGREGATE_NOT_SUPPORTED,
+                ex.code());
+    }
+
+    @Test
+    @DisplayName("outerAggregate_pass · SUM over aggregatable measure succeeds")
+    void outerAggregate_pass() {
+        CompiledRelation rel = enrichedRelation("mysql8");
+        RelationOuterQuery result = RelationOuterQueryBuilder.buildOuterQuery(
+                rel,
+                OuterQuerySpec.builder()
+                        .selectColumns(List.of("SUM(salesAmount) AS totalSales"))
+                        .build());
+
+        assertTrue(result.sql().contains("SUM(rel_0.`salesAmount`) AS `totalSales`"));
+        assertEquals(1, result.outputSchema().size());
+        ColumnSpec totalSales = result.outputSchema().get("totalSales");
+        assertEquals(SemanticKind.AGGREGATE_MEASURE, totalSales.semanticKind());
+        assertTrue(totalSales.referencePolicy().contains(ReferencePolicy.AGGREGATABLE));
+    }
+
+    @Test
+    @DisplayName("outerAggregateWithGroupBy_pass · groupable dimension + aggregate measure")
+    void outerAggregateWithGroupBy_pass() {
+        CompiledRelation rel = enrichedRelation("mysql8");
+        RelationOuterQuery result = RelationOuterQueryBuilder.buildOuterQuery(
+                rel,
+                OuterQuerySpec.builder()
+                        .selectColumns(List.of("storeName", "SUM(salesAmount) AS totalSales"))
+                        .groupBy(List.of("storeName"))
+                        .build());
+
+        String sql = result.sql();
+        assertTrue(sql.contains("rel_0.`storeName`"));
+        assertTrue(sql.contains("SUM(rel_0.`salesAmount`) AS `totalSales`"));
+        assertTrue(sql.contains("GROUP BY rel_0.`storeName`"));
+        assertEquals(2, result.outputSchema().size());
+        assertTrue(result.outputSchema().contains("storeName"));
+        assertTrue(result.outputSchema().contains("totalSales"));
+    }
+
+    @Test
+    @DisplayName("outerAggregateRatio_rejected · ratio column is not aggregatable")
+    void outerAggregateRatio_rejected() {
+        CompiledRelation rel = relationWithRatioColumn("mysql8");
+        ComposeCompileException ex = assertThrows(
+                ComposeCompileException.class,
+                () -> RelationOuterQueryBuilder.buildOuterQuery(
+                        rel,
+                        OuterQuerySpec.builder()
+                                .selectColumns(List.of("SUM(salesAmount__ratio) AS badRatio"))
+                                .build()));
+
+        assertEquals(ComposeCompileErrorCodes.RELATION_COLUMN_NOT_AGGREGATABLE,
+                ex.code());
+    }
+
+    @Test
+    @DisplayName("outerCountStar_pass · COUNT(*) succeeds without input column")
+    void outerCountStar_pass() {
+        CompiledRelation rel = enrichedRelation("postgres");
+        RelationOuterQuery result = RelationOuterQueryBuilder.buildOuterQuery(
+                rel,
+                OuterQuerySpec.builder()
+                        .selectColumns(List.of("COUNT(*) AS rowCount"))
+                        .build());
+
+        assertTrue(result.sql().contains("COUNT(*) AS \"rowCount\""));
+        assertEquals("rowCount", result.outputSchema().columns().get(0).name());
+    }
+
+    @Test
+    @DisplayName("groupByNonGroupable_rejected · measure cannot be GROUP BY column")
+    void groupByNonGroupable_rejected() {
+        CompiledRelation rel = enrichedRelation("mysql8");
+        ComposeCompileException ex = assertThrows(
+                ComposeCompileException.class,
+                () -> RelationOuterQueryBuilder.buildOuterQuery(
+                        rel,
+                        OuterQuerySpec.builder()
+                                .selectColumns(List.of("salesAmount"))
+                                .groupBy(List.of("salesAmount"))
+                                .build()));
+
+        assertEquals(ComposeCompileErrorCodes.RELATION_COLUMN_NOT_READABLE,
                 ex.code());
     }
 
@@ -388,6 +521,11 @@ class RelationOuterQueryBuilderTest {
         CompiledRelation rel = CompiledRelation.builder()
                 .alias("rel_0")
                 .relationSql(RelationSql.builder()
+                        .withItems(List.of(CteItem.builder()
+                                .name("__rel0_base")
+                                .sql("SELECT storeName FROM fact_sales")
+                                .params(List.of())
+                                .build()))
                         .bodySql("SELECT storeName FROM fact_sales")
                         .bodyParams(List.of())
                         .preferredAlias("rel_0")
@@ -412,11 +550,60 @@ class RelationOuterQueryBuilderTest {
                         .build());
 
         String sql = result.sql();
-        assertTrue(sql.startsWith(";WITH rel_0 AS ("),
-                "SQL Server hoisted CTE must start with ;WITH alias AS (...); got: "
+        assertTrue(sql.startsWith(";WITH __rel0_base AS ("),
+                "SQL Server hoisted CTE must start with hoisted inner items; got: "
+                        + sql);
+        assertTrue(sql.contains("rel_0 AS ("),
+                "hoisted CTE must include relation alias after inner items; got: "
                         + sql);
         assertTrue(sql.contains("FROM rel_0"),
                 "hoisted CTE must reference alias in FROM; got: " + sql);
+    }
+
+    @Test
+    @DisplayName("outerAggregateHoistedCte_pass · aggregate over hoisted CTE relation")
+    void outerAggregateHoistedCte_pass() {
+        ColumnSpec salesAmount = ColumnSpec.builder()
+                .name("salesAmount").expression("salesAmount")
+                .referencePolicy(ReferencePolicy.MEASURE_DEFAULT)
+                .build();
+        CompiledRelation rel = CompiledRelation.builder()
+                .alias("rel_0")
+                .relationSql(RelationSql.builder()
+                        .withItems(List.of(CteItem.builder()
+                                .name("__rel0_base")
+                                .sql("SELECT salesAmount FROM fact_sales")
+                                .params(List.of("p0"))
+                                .build()))
+                        .bodySql("SELECT salesAmount FROM __rel0_base")
+                        .bodyParams(List.of("p1"))
+                        .preferredAlias("rel_0")
+                        .build())
+                .outputSchema(OutputSchema.of(List.of(salesAmount)))
+                .dialect("mssql")
+                .capabilities(RelationCapabilities.builder()
+                        .canInlineAsSubquery(false)
+                        .canHoistCte(true)
+                        .containsWithItems(true)
+                        .supportsOuterAggregate(true)
+                        .supportsOuterWindow(false)
+                        .requiresTopLevelWith(true)
+                        .relationWrapStrategy(RelationWrapStrategy.HOISTED_CTE)
+                        .build())
+                .build();
+
+        RelationOuterQuery result = RelationOuterQueryBuilder.buildOuterQuery(
+                rel,
+                OuterQuerySpec.builder()
+                        .selectColumns(List.of("SUM(salesAmount) AS totalSales"))
+                        .build());
+
+        assertTrue(result.sql().startsWith(";WITH __rel0_base AS ("),
+                "SQL Server hoisted CTE must preserve inner CTE items; got: "
+                        + result.sql());
+        assertTrue(result.sql().contains("rel_0 AS (SELECT salesAmount FROM __rel0_base)"));
+        assertTrue(result.sql().contains("SUM(rel_0.[salesAmount]) AS [totalSales]"));
+        assertEquals(List.of("p0", "p1"), result.params());
     }
 
     // ------------------------------------------------------------------

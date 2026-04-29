@@ -118,7 +118,7 @@ class StableRelationSnapshotTest {
         OutputSchema schema = TimeWindowExpander.getOutputSchema(
                 tw, List.of("storeName"), Set.of("salesAmount"));
 
-        RelationCapabilities caps = RelationCapabilities.forDialect(dialect, hasCte);
+        RelationCapabilities caps = s7aFrozenCapabilities(dialect, hasCte);
 
         // Build relation model
         RelationSql rSql = RelationSql.builder()
@@ -196,5 +196,19 @@ class StableRelationSnapshotTest {
         caseMap.put("params", rSql.flattenParams());
 
         return caseMap;
+    }
+
+    private RelationCapabilities s7aFrozenCapabilities(
+            String dialect, boolean hasCte) {
+        RelationCapabilities current = RelationCapabilities.forDialect(dialect, hasCte);
+        return RelationCapabilities.builder()
+                .canInlineAsSubquery(current.canInlineAsSubquery())
+                .canHoistCte(current.canHoistCte())
+                .containsWithItems(current.containsWithItems())
+                .supportsOuterAggregate(false)
+                .supportsOuterWindow(false)
+                .requiresTopLevelWith(current.requiresTopLevelWith())
+                .relationWrapStrategy(current.relationWrapStrategy())
+                .build();
     }
 }

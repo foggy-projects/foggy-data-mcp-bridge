@@ -9,7 +9,7 @@
 ## 基本信息
 
 - version: 8.5.0.beta
-- status: complete-through-s7d; s7e-ready
+- status: complete-through-s7e; s7f-ready
 - contract_ref: `foggy-data-mcp-bridge-python/docs/v1.5/S7b-stage7-runtime-contract-plan.md`
 - s7a_progress: `docs/8.5.0.beta/P2-S7a-stable-relation-contract-progress.md`
 - current_java_commit: `f3360b3 feat(compose): add stable relation contract model`
@@ -23,7 +23,8 @@ S7a 已完成模型层 POC：
 - `ColumnSpec` 已新增 semantic metadata，并排除在 `equals()` / `hashCode()` 之外。
 - `TimeWindowExpander.getOutputSchema()` 已提供 timeWindow 输出 schema。
 - `StableRelationSnapshotTest` 已生成 `target/parity/_stable_relation_schema_snapshot.json`。
-- `supportsOuterAggregate=false` / `supportsOuterWindow=false`，Stage 7 runtime 能力尚未开放。
+- S7e 已开放 wrappable relation 的 `supportsOuterAggregate=true`；
+  `supportsOuterWindow=false`，S7f runtime 能力尚未开放。
 
 Python 已完成 mirror 并消费 Java snapshot。Java 下一步不应直接开放二次聚合/窗口，而应先把 POC 对象模型接入真实 runtime 编译入口。
 
@@ -130,7 +131,7 @@ Tests:
 
 ### S7e - outer aggregate
 
-- status: ready
+- status: completed
 - owner: Java first
 
 Implementation boundary:
@@ -147,9 +148,26 @@ Tests:
 - error code stable。
 - Java snapshot 增加 positive/negative cases，Python mirror 消费。
 
+Delivered:
+
+- `RelationCapabilities.forDialect(...)` now opens `supportsOuterAggregate=true`
+  for wrappable relations while keeping `supportsOuterWindow=false`.
+- `ReferencePolicy.MEASURE_DEFAULT` now includes `aggregatable`; timeWindow
+  derived ratio / percent columns remain non-aggregatable.
+- `OuterQuerySpec` accepts explicit `groupBy`; groupBy columns must be
+  `groupable`.
+- `RelationOuterQueryBuilder` supports `SUM` / `AVG` / `COUNT` / `MIN` /
+  `MAX` over aggregatable columns, re-derives aggregate output schema, and
+  still rejects outer window.
+- Structured inner `withItems` are hoisted before the relation CTE, preserving
+  SQL Server `;WITH` and parameter order.
+- S7a frozen snapshot remains `_stable_relation_schema_snapshot.json`
+  (`S7a-1`); S7e writes a separate
+  `_stable_relation_outer_aggregate_snapshot.json` (`S7e-1`).
+
 ### S7f - outer window
 
-- status: wait-for-s7e
+- status: ready
 - owner: Java first
 
 Implementation boundary:
