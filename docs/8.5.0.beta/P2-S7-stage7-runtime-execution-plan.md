@@ -9,11 +9,12 @@
 ## 基本信息
 
 - version: 8.5.0.beta
-- status: complete-through-s7e; s7f-ready
+- status: complete-through-s7f; root-signed-off-with-risks
 - contract_ref: `foggy-data-mcp-bridge-python/docs/v1.5/S7b-stage7-runtime-contract-plan.md`
 - s7a_progress: `docs/8.5.0.beta/P2-S7a-stable-relation-contract-progress.md`
-- current_java_commit: `f3360b3 feat(compose): add stable relation contract model`
-- python_mirror_commit: `8234006 feat(compose): mirror stable relation contract`
+- current_java_commit: `9a5ad62 fix(compose): validate relation window frame clauses`
+- python_mirror_commit: `39b1db4 feat(compose): mirror S7f relation window contract`
+- root_signoff: `foggy-data-mcp-bridge-python/docs/v1.5/acceptance/S7-stage7-acceptance.md`
 
 ## 当前基线
 
@@ -23,10 +24,10 @@ S7a 已完成模型层 POC：
 - `ColumnSpec` 已新增 semantic metadata，并排除在 `equals()` / `hashCode()` 之外。
 - `TimeWindowExpander.getOutputSchema()` 已提供 timeWindow 输出 schema。
 - `StableRelationSnapshotTest` 已生成 `target/parity/_stable_relation_schema_snapshot.json`。
-- S7e 已开放 wrappable relation 的 `supportsOuterAggregate=true`；
-  `supportsOuterWindow=false`，S7f runtime 能力尚未开放。
+- S7e 已开放 wrappable relation 的 `supportsOuterAggregate=true`。
+- S7f 已开放 wrappable / window-capable relation 的 `supportsOuterWindow=true`，MySQL 5.7 仍 fail-closed。
 
-Python 已完成 mirror 并消费 Java snapshot。Java 下一步不应直接开放二次聚合/窗口，而应先把 POC 对象模型接入真实 runtime 编译入口。
+Python 已完成 mirror 并消费 Java S7a / S7e / S7f snapshots。S7 已在 root 文档中签收为 `accepted-with-risks`；S8 relation join / union / in-memory post-processing 不属于本计划。
 
 ## 目标
 
@@ -167,7 +168,7 @@ Delivered:
 
 ### S7f - outer window
 
-- status: ready
+- status: completed
 - owner: Java first
 
 Implementation boundary:
@@ -182,6 +183,20 @@ Tests:
 - non-windowable derived column rejected。
 - invalid partition/order reference rejected。
 - snapshot/parity 更新。
+
+Delivered:
+
+- `RelationCapabilities.forDialect(...)` now opens `supportsOuterWindow=true`
+  for wrappable window-capable dialects while keeping MySQL 5.7 fail-closed.
+- `ReferencePolicy.MEASURE_DEFAULT` now includes `windowable`; ratio /
+  percent style derived columns remain non-windowable where the contract
+  forbids them.
+- `WindowSelectParser` accepts a restricted subset of ranking, offset, and
+  aggregate window expressions.
+- Window frame clauses are validated through a whitelist and unsupported
+  frames fail closed with `RELATION_OUTER_WINDOW_NOT_SUPPORTED`.
+- S7f writes `_stable_relation_outer_window_snapshot.json`
+  (`contractVersion=S7f-1`) for Python snapshot consumption.
 
 ## Code Inventory
 
@@ -235,5 +250,5 @@ git diff --check
 - relation schema 字段命名或 metadata 语义发生漂移。
 - SQL Server 输出出现 `FROM (WITH`。
 - MySQL 5.7 + inner CTE 没有 fail-closed。
-- outer aggregate/window 被提前打开。
+- outer aggregate/window 或后续 relation composition 在没有对应 stage contract 时被打开。
 - `ColumnSpec.equals()` / `hashCode()` 行为被 metadata 字段改变。
