@@ -114,15 +114,25 @@ class AuthorityRequestTest {
     }
 
     @Test
-    @DisplayName("namespace 必填")
-    void namespaceRequired() {
-        assertThrows(IllegalArgumentException.class,
-                () -> AuthorityRequest.builder()
-                        .principal(principal())
-                        .namespace("")
-                        .models(List.of(ModelQuery.builder()
-                                .model("X").tables(Collections.emptyList()).build()))
-                        .build());
+    @DisplayName("namespace null/empty fallback 到默认空字符串（A1：默认 namespace 语义）")
+    void namespaceFallsBackToEmptyOnNullOrBlank() {
+        // 8.3.0.beta P3 决策 A1：null/empty namespace 视为默认/匿名 namespace，
+        // 与 v1.3 SemanticRequestContext 默认行为对齐。下游若需限制非空必须自行校验。
+        AuthorityRequest emptyReq = AuthorityRequest.builder()
+                .principal(principal())
+                .namespace("")
+                .models(List.of(ModelQuery.builder()
+                        .model("X").tables(Collections.emptyList()).build()))
+                .build();
+        assertEquals("", emptyReq.namespace());
+
+        AuthorityRequest nullReq = AuthorityRequest.builder()
+                .principal(principal())
+                .namespace(null)
+                .models(List.of(ModelQuery.builder()
+                        .model("X").tables(Collections.emptyList()).build()))
+                .build();
+        assertEquals("", nullReq.namespace());
     }
 
     @Test

@@ -115,6 +115,16 @@ public abstract class DbDimensionSupport extends DbObjectSupport implements DbDi
     MemberPermissionDef memberPermission;
 
     /**
+     * 时间角色语义 (例如 business_date, event_time, system_time)
+     */
+    String timeRole;
+
+    /**
+     * 推荐用途说明
+     */
+    String recommendedUse;
+
+    /**
      * 维度路径（懒加载）
      */
     private transient DimensionPath dimensionPath;

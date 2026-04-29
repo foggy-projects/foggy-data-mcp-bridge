@@ -6,7 +6,7 @@
       "id": "META-001",
       "category": "METADATA",
       "question": "有哪些可用的数据模型？",
-      "expected_tool": "dataset.get_metadata",
+      "expected_tool": "dataset.list_models",
       "description": "获取元数据 - 模型列表",
       "difficulty": "EASY",
       "expected": {

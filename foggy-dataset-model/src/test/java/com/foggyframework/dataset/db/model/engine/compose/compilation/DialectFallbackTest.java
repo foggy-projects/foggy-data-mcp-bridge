@@ -63,13 +63,13 @@ class DialectFallbackTest {
     }
 
     @Test
-    @DisplayName("dialectSupportsCte: postgres / postgresql / mssql / sqlite → true")
+    @DisplayName("dialectSupportsCte: postgres / postgresql / sqlite → true; mssql → false")
     void modernDialectsAreCte() {
         assertTrue(ComposePlanner.dialectSupportsCte("postgres"));
         assertTrue(ComposePlanner.dialectSupportsCte("postgresql"));
-        assertTrue(ComposePlanner.dialectSupportsCte("mssql"));
-        assertTrue(ComposePlanner.dialectSupportsCte("sqlserver"));
         assertTrue(ComposePlanner.dialectSupportsCte("sqlite"));
+        assertFalse(ComposePlanner.dialectSupportsCte("mssql"));
+        assertFalse(ComposePlanner.dialectSupportsCte("sqlserver"));
     }
 
     // ---------- unknown dialect fail-closed ----------
@@ -128,11 +128,12 @@ class DialectFallbackTest {
     }
 
     @Test
-    @DisplayName("single-base mssql · WITH cte_N")
+    @DisplayName("single-base mssql · 子查询 fallback")
     void singleBaseMssql() {
         BaseModelPlan a = CompileTestHelpers.base("A", "id");
         ComposedSql sql = compile(a, svcAB(), bindingsAB(), "mssql");
-        assertTrue(sql.getSql().startsWith("WITH "));
+        assertTrue(sql.getSql().contains("FROM ("));
+        assertFalse(sql.getSql().startsWith("WITH "));
     }
 
     // ---------- join across dialects ----------

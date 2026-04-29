@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Relational join of two plans.
@@ -61,12 +62,44 @@ public final class JoinPlan extends QueryPlan {
     public JoinType type() { return type; }
     public List<JoinOn> on() { return on; }
 
+    /**
+     * Append an additional join condition (AND predicate).
+     * Returns a new JoinPlan with the extra condition appended.
+     *
+     * <p>Usage in fsscript:
+     * <pre>{@code
+     * const joined = customers.leftJoin(orders)
+     *     .on(customers.id, orders.partnerId)
+     *     .and(customers.companyId, orders.companyId);
+     * }</pre>
+     */
+    public JoinPlan and(PlanColumnRef leftCol, PlanColumnRef rightCol) {
+        List<JoinOn> extended = new ArrayList<>(this.on);
+        extended.add(JoinOn.of(leftCol.name(), "=", rightCol.name()));
+        return JoinPlan.builder()
+                .left(this.left)
+                .right(this.right)
+                .type(this.type)
+                .on(extended)
+                .build();
+    }
+
     @Override
     public List<BaseModelPlan> baseModelPlans() {
         List<BaseModelPlan> out = new ArrayList<>();
         out.addAll(left.baseModelPlans());
         out.addAll(right.baseModelPlans());
         return Collections.unmodifiableList(out);
+    }
+
+    @Override
+    public Set<QueryPlan> collectVisiblePlans() {
+        // Join = self ∪ left.visible ∪ right.visible (each branch includes its own subtree).
+        Set<QueryPlan> set = identityPlanSet();
+        set.add(this);
+        set.addAll(left.collectVisiblePlans());
+        set.addAll(right.collectVisiblePlans());
+        return set;
     }
 
     public static Builder builder() { return new Builder(); }

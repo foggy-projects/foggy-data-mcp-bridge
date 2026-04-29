@@ -45,9 +45,9 @@ class ComposeCompileErrorCodesTest {
     }
 
     @Test
-    @DisplayName("ALL_CODES 大小严格等于 4（NAMESPACE 不纳入）")
-    void allCodesSizeIsExactlyFour() {
-        assertEquals(4, ComposeCompileErrorCodes.ALL_CODES.size());
+    @DisplayName("ALL_CODES 大小严格等于 14（NAMESPACE 不纳入）")
+    void allCodesSizeIsFourteen() {
+        assertEquals(14, ComposeCompileErrorCodes.ALL_CODES.size());
     }
 
     @Test
@@ -61,6 +61,28 @@ class ComposeCompileErrorCodesTest {
                 ComposeCompileErrorCodes.MISSING_BINDING));
         assertTrue(ComposeCompileErrorCodes.ALL_CODES.contains(
                 ComposeCompileErrorCodes.PER_BASE_COMPILE_FAILED));
+        assertTrue(ComposeCompileErrorCodes.ALL_CODES.contains(
+                ComposeCompileErrorCodes.RELATION_WRAP_UNSUPPORTED));
+        assertTrue(ComposeCompileErrorCodes.ALL_CODES.contains(
+                ComposeCompileErrorCodes.RELATION_CTE_HOIST_UNSUPPORTED));
+        assertTrue(ComposeCompileErrorCodes.ALL_CODES.contains(
+                ComposeCompileErrorCodes.RELATION_DATASOURCE_MISMATCH));
+        // S7d codes
+        assertTrue(ComposeCompileErrorCodes.ALL_CODES.contains(
+                ComposeCompileErrorCodes.RELATION_COLUMN_NOT_FOUND));
+        assertTrue(ComposeCompileErrorCodes.ALL_CODES.contains(
+                ComposeCompileErrorCodes.RELATION_COLUMN_NOT_READABLE));
+        assertTrue(ComposeCompileErrorCodes.ALL_CODES.contains(
+                ComposeCompileErrorCodes.RELATION_COLUMN_NOT_ORDERABLE));
+        assertTrue(ComposeCompileErrorCodes.ALL_CODES.contains(
+                ComposeCompileErrorCodes.RELATION_COLUMN_NOT_AGGREGATABLE));
+        assertTrue(ComposeCompileErrorCodes.ALL_CODES.contains(
+                ComposeCompileErrorCodes.RELATION_OUTER_AGGREGATE_NOT_SUPPORTED));
+        assertTrue(ComposeCompileErrorCodes.ALL_CODES.contains(
+                ComposeCompileErrorCodes.RELATION_OUTER_WINDOW_NOT_SUPPORTED));
+        // S7f codes
+        assertTrue(ComposeCompileErrorCodes.ALL_CODES.contains(
+                ComposeCompileErrorCodes.RELATION_COLUMN_NOT_WINDOWABLE));
     }
 
     @Test
@@ -81,6 +103,28 @@ class ComposeCompileErrorCodesTest {
                 ComposeCompileErrorCodes.MISSING_BINDING));
         assertTrue(ComposeCompileErrorCodes.isValidCode(
                 ComposeCompileErrorCodes.PER_BASE_COMPILE_FAILED));
+        assertTrue(ComposeCompileErrorCodes.isValidCode(
+                ComposeCompileErrorCodes.RELATION_WRAP_UNSUPPORTED));
+        assertTrue(ComposeCompileErrorCodes.isValidCode(
+                ComposeCompileErrorCodes.RELATION_CTE_HOIST_UNSUPPORTED));
+        assertTrue(ComposeCompileErrorCodes.isValidCode(
+                ComposeCompileErrorCodes.RELATION_DATASOURCE_MISMATCH));
+        // S7d codes
+        assertTrue(ComposeCompileErrorCodes.isValidCode(
+                ComposeCompileErrorCodes.RELATION_COLUMN_NOT_FOUND));
+        assertTrue(ComposeCompileErrorCodes.isValidCode(
+                ComposeCompileErrorCodes.RELATION_COLUMN_NOT_READABLE));
+        assertTrue(ComposeCompileErrorCodes.isValidCode(
+                ComposeCompileErrorCodes.RELATION_COLUMN_NOT_ORDERABLE));
+        assertTrue(ComposeCompileErrorCodes.isValidCode(
+                ComposeCompileErrorCodes.RELATION_COLUMN_NOT_AGGREGATABLE));
+        assertTrue(ComposeCompileErrorCodes.isValidCode(
+                ComposeCompileErrorCodes.RELATION_OUTER_AGGREGATE_NOT_SUPPORTED));
+        assertTrue(ComposeCompileErrorCodes.isValidCode(
+                ComposeCompileErrorCodes.RELATION_OUTER_WINDOW_NOT_SUPPORTED));
+        // S7f codes
+        assertTrue(ComposeCompileErrorCodes.isValidCode(
+                ComposeCompileErrorCodes.RELATION_COLUMN_NOT_WINDOWABLE));
     }
 
     @Test
@@ -94,13 +138,15 @@ class ComposeCompileErrorCodesTest {
     }
 
     @Test
-    @DisplayName("VALID_PHASES 大小严格等于 2 且含 plan-lower + compile")
-    void validPhasesHasTwoPhases() {
-        assertEquals(2, ComposeCompileErrorCodes.VALID_PHASES.size());
+    @DisplayName("VALID_PHASES 大小严格等于 3 且含 plan-lower + compile + relation-compile")
+    void validPhasesHasThreePhases() {
+        assertEquals(3, ComposeCompileErrorCodes.VALID_PHASES.size());
         assertTrue(ComposeCompileErrorCodes.VALID_PHASES.contains(
                 ComposeCompileErrorCodes.PHASE_PLAN_LOWER));
         assertTrue(ComposeCompileErrorCodes.VALID_PHASES.contains(
                 ComposeCompileErrorCodes.PHASE_COMPILE));
+        assertTrue(ComposeCompileErrorCodes.VALID_PHASES.contains(
+                ComposeCompileErrorCodes.PHASE_RELATION_COMPILE));
     }
 
     @Test
@@ -108,13 +154,15 @@ class ComposeCompileErrorCodesTest {
     void phaseLiteralsMatchPython() {
         assertEquals("plan-lower", ComposeCompileErrorCodes.PHASE_PLAN_LOWER);
         assertEquals("compile", ComposeCompileErrorCodes.PHASE_COMPILE);
+        assertEquals("relation-compile", ComposeCompileErrorCodes.PHASE_RELATION_COMPILE);
     }
 
     @Test
-    @DisplayName("isValidPhase 对 plan-lower / compile 返回 true")
+    @DisplayName("isValidPhase 对 plan-lower / compile / relation-compile 返回 true")
     void isValidPhaseTrueForRegisteredPhases() {
         assertTrue(ComposeCompileErrorCodes.isValidPhase("plan-lower"));
         assertTrue(ComposeCompileErrorCodes.isValidPhase("compile"));
+        assertTrue(ComposeCompileErrorCodes.isValidPhase("relation-compile"));
     }
 
     @Test

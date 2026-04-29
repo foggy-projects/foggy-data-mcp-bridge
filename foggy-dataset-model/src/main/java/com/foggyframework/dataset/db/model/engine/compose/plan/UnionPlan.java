@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Set-union of two plans.
@@ -42,6 +43,16 @@ public final class UnionPlan extends QueryPlan {
         out.addAll(left.baseModelPlans());
         out.addAll(right.baseModelPlans());
         return Collections.unmodifiableList(out);
+    }
+
+    @Override
+    public Set<QueryPlan> collectVisiblePlans() {
+        // Union = self ∪ left.visible ∪ right.visible (each branch's full subtree).
+        Set<QueryPlan> set = identityPlanSet();
+        set.add(this);
+        set.addAll(left.collectVisiblePlans());
+        set.addAll(right.collectVisiblePlans());
+        return set;
     }
 
     public static Builder builder() { return new Builder(); }

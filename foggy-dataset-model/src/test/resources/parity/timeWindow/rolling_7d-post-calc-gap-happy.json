@@ -1,0 +1,25 @@
+{
+  "description": "rolling_7d + post calc field: rollingGap = salesAmount - salesAmount__rolling_7d",
+  "comparison": "rolling_7d",
+  "grain": "day",
+  "label": "happy-post-calc-gap",
+  "timeWindow": {
+    "field": "salesDate$id",
+    "grain": "day",
+    "comparison": "rolling_7d",
+    "range": "[)",
+    "value": ["-1M", "now"],
+    "targetMetrics": ["salesAmount"]
+  },
+  "calculatedFields": [
+    {
+      "name": "rollingGap",
+      "expression": "salesAmount - salesAmount__rolling_7d"
+    }
+  ],
+  "expectedColumns": ["salesDate$id", "salesAmount", "salesAmount__rolling_7d", "rollingGap"],
+  "assertions": {
+    "postCalcFieldPresent": true,
+    "rollingGapEqualsAmountMinusRolling": true
+  }
+}

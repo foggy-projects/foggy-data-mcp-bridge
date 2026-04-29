@@ -1,0 +1,15 @@
+{
+  "description": "NEGATIVE: invalid range (] is not allowed",
+  "comparison": "yoy",
+  "grain": "month",
+  "label": "negative-range-invalid",
+  "timeWindow": {
+    "field": "salesDate$id",
+    "grain": "month",
+    "comparison": "yoy",
+    "range": "(]",
+    "value": ["2024-01-01", "2025-01-01"],
+    "targetMetrics": ["salesAmount"]
+  },
+  "expectedError": "TIMEWINDOW_RANGE_INVALID"
+}

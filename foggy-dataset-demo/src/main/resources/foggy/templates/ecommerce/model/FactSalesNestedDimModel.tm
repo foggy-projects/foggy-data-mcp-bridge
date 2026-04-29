@@ -19,6 +19,8 @@ export const model = {
             primaryKey: 'date_key',
             captionColumn: 'full_date',
             caption: '销售日期',
+            timeRole: 'business_date',
+            recommendedUse: 'time_axis',
 
             properties: [
                 { column: 'year', caption: '年' },

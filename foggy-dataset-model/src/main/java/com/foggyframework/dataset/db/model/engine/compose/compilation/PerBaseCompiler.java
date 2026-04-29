@@ -121,7 +121,7 @@ final class PerBaseCompiler {
                 alias,
                 buildResult.getSql(),
                 params,
-                new ArrayList<>(plan.columns()));
+                ComposePlanner.extractStringCols(plan.columns()));
     }
 
     /** Recognise the "Model not found" branch of v1.3 / semantic-service
@@ -146,7 +146,7 @@ final class PerBaseCompiler {
     @SuppressWarnings("unchecked")
     private static SemanticQueryRequest buildRequest(BaseModelPlan plan) {
         SemanticQueryRequest req = new SemanticQueryRequest();
-        req.setColumns(new ArrayList<>(plan.columns()));
+        req.setColumns(ComposePlanner.extractStringCols(plan.columns()));
 
         if (!plan.slice().isEmpty()) {
             List<SemanticQueryRequest.SliceItem> slice = new ArrayList<>(plan.slice().size());

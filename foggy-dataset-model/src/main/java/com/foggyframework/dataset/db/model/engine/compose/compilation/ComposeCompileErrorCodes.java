@@ -50,12 +50,15 @@ public final class ComposeCompileErrorCodes {
     public static final String UNSUPPORTED_PLAN_SHAPE =
             "compose-compile-error/unsupported-plan-shape";
 
-    /** Union / join operands come from different data sources. M6 leaves
-     *  real detection to post-M6 follow-up F-7 — the {@code ModelBinding}
-     *  and {@code ModelInfoProvider} contracts do not yet carry a datasource
-     *  identity field. This code is <b>defined</b> so call sites that want
-     *  to raise it programmatically have a stable constant, but the
-     *  compiler does not raise it by itself on live plans. */
+    /** Union / join operands come from different data sources. The compiler
+     *  raises this code when the {@code datasourceIds} map (resolved via
+     *  {@link com.foggyframework.dataset.db.model.engine.compose.authority.DatasourceIdCollector})
+     *  contains two or more distinct non-empty datasource identities among
+     *  the plan's leaf models.
+     *
+     *  <p>Cross-repo invariant: mirrors Python
+     *  {@code compose-compile-error/cross-datasource-rejected} raised by
+     *  {@code _check_cross_datasource} in the Python compose planner.</p> */
     public static final String CROSS_DATASOURCE_REJECTED =
             "compose-compile-error/cross-datasource-rejected";
 
@@ -77,6 +80,51 @@ public final class ComposeCompileErrorCodes {
     public static final String PER_BASE_COMPILE_FAILED =
             "compose-compile-error/per-base-compile-failed";
 
+    // ---------- S7a relation error codes ----------
+
+    /** Relation cannot be wrapped for the target dialect. */
+    public static final String RELATION_WRAP_UNSUPPORTED =
+            "compose-compile-error/relation-wrap-unsupported";
+
+    /** Relation contains inner CTE that cannot be hoisted for the target dialect. */
+    public static final String RELATION_CTE_HOIST_UNSUPPORTED =
+            "compose-compile-error/relation-cte-hoist-unsupported";
+
+    /** Relation and outer plan target different datasources. */
+    public static final String RELATION_DATASOURCE_MISMATCH =
+            "compose-compile-error/relation-datasource-mismatch";
+
+    // ---------- S7d outer query error codes ----------
+
+    /** Column does not exist in the relation's OutputSchema. */
+    public static final String RELATION_COLUMN_NOT_FOUND =
+            "compose-compile-error/relation-column-not-found";
+
+    /** Column exists but lacks 'readable' in referencePolicy. */
+    public static final String RELATION_COLUMN_NOT_READABLE =
+            "compose-compile-error/relation-column-not-readable";
+
+    /** Column exists but lacks 'orderable' in referencePolicy. */
+    public static final String RELATION_COLUMN_NOT_ORDERABLE =
+            "compose-compile-error/relation-column-not-orderable";
+
+    /** Column exists but lacks 'aggregatable' in referencePolicy. */
+    public static final String RELATION_COLUMN_NOT_AGGREGATABLE =
+            "compose-compile-error/relation-column-not-aggregatable";
+
+    /** Outer aggregate attempted when supportsOuterAggregate=false. */
+    public static final String RELATION_OUTER_AGGREGATE_NOT_SUPPORTED =
+            "compose-compile-error/relation-outer-aggregate-not-supported";
+
+    /** Outer window attempted when supportsOuterWindow=false. */
+    public static final String RELATION_OUTER_WINDOW_NOT_SUPPORTED =
+            "compose-compile-error/relation-outer-window-not-supported";
+
+    /** Column exists but lacks 'windowable' in referencePolicy — cannot be
+     *  used as a window function input (S7f). */
+    public static final String RELATION_COLUMN_NOT_WINDOWABLE =
+            "compose-compile-error/relation-column-not-windowable";
+
     // ---------- phases ----------
 
     /** Structural validation phase (before any SQL is generated). */
@@ -85,19 +133,32 @@ public final class ComposeCompileErrorCodes {
     /** SQL generation phase (through v1.3 engine). */
     public static final String PHASE_COMPILE = "compile";
 
+    /** S7c · Relation compilation phase (compileToRelation path). */
+    public static final String PHASE_RELATION_COMPILE = "relation-compile";
+
     // ---------- public registries ----------
 
-    /** Immutable set of the 4 full error-code strings.
-     *  Tests assert {@code size == 4} ({@link #NAMESPACE} is excluded by design). */
+    /** Immutable set of all full error-code strings.
+     *  ({@link #NAMESPACE} is excluded by design.) */
     public static final Set<String> ALL_CODES = Set.of(
             UNSUPPORTED_PLAN_SHAPE,
             CROSS_DATASOURCE_REJECTED,
             MISSING_BINDING,
-            PER_BASE_COMPILE_FAILED);
+            PER_BASE_COMPILE_FAILED,
+            RELATION_WRAP_UNSUPPORTED,
+            RELATION_CTE_HOIST_UNSUPPORTED,
+            RELATION_DATASOURCE_MISMATCH,
+            RELATION_COLUMN_NOT_FOUND,
+            RELATION_COLUMN_NOT_READABLE,
+            RELATION_COLUMN_NOT_ORDERABLE,
+            RELATION_COLUMN_NOT_AGGREGATABLE,
+            RELATION_OUTER_AGGREGATE_NOT_SUPPORTED,
+            RELATION_OUTER_WINDOW_NOT_SUPPORTED,
+            RELATION_COLUMN_NOT_WINDOWABLE);
 
     /** Valid phase labels carried by {@link ComposeCompileException#phase()}. */
     public static final Set<String> VALID_PHASES = Set.of(
-            PHASE_PLAN_LOWER, PHASE_COMPILE);
+            PHASE_PLAN_LOWER, PHASE_COMPILE, PHASE_RELATION_COMPILE);
 
     /** Return {@code true} iff {@code code} is one of the 4 registered compile codes.
      *  Used by {@link ComposeCompileException#ComposeCompileException(String, String, String, Throwable)}

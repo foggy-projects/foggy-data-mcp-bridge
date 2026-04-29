@@ -85,6 +85,30 @@ class AnalystMcpControllerTest {
 
             verify(mcpService).handleToolsList(any(McpRequest.class), eq(UserRole.ANALYST));
         }
+
+        @Test
+        @DisplayName("tools/list 应包含 dataset.list_models")
+        void toolsList_shouldContainListModels() throws Exception {
+            McpResponse mockResponse = McpResponse.success("1", Map.of(
+                    "tools", List.of(
+                            Map.of("name", "dataset.list_models", "description", "发现所有可用模型"),
+                            Map.of("name", "dataset.get_metadata", "description", "获取元数据"),
+                            Map.of("name", "dataset.query_model", "description", "查询模型")
+                    )
+            ));
+
+            when(mcpService.handleToolsList(any(McpRequest.class), eq(UserRole.ANALYST)))
+                    .thenReturn(mockResponse);
+
+            mockMvc.perform(post("/mcp/analyst/rpc")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"jsonrpc":"2.0","id":"1","method":"tools/list","params":{}}
+                                    """))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.result.tools[*].name",
+                            hasItem("dataset.list_models")));
+        }
     }
 
     // ==================== tools/call 测试 ====================
@@ -115,6 +139,37 @@ class AnalystMcpControllerTest {
                                       "method":"tools/call",
                                       "params":{
                                         "name":"dataset.get_metadata",
+                                        "arguments":{}
+                                      }
+                                    }
+                                    """))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.result.content").isArray())
+                    .andExpect(jsonPath("$.error").doesNotExist());
+        }
+
+        @Test
+        @DisplayName("Analyst 调用 list_models 工具应成功")
+        void analyst_shouldAccessListModelsTool() throws Exception {
+            McpResponse mockResponse = McpResponse.success("1", Map.of(
+                    "content", List.of(Map.of(
+                            "type", "text",
+                            "text", "{\"code\":200,\"data\":{\"format\":\"markdown\",\"content\":\"# 数据模型列表\"}}"
+                    ))
+            ));
+
+            when(mcpService.handleToolsCall(any(McpRequest.class), eq(UserRole.ANALYST), any(), any(), any(), any()))
+                    .thenReturn(mockResponse);
+
+            mockMvc.perform(post("/mcp/analyst/rpc")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {
+                                      "jsonrpc":"2.0",
+                                      "id":"1",
+                                      "method":"tools/call",
+                                      "params":{
+                                        "name":"dataset.list_models",
                                         "arguments":{}
                                       }
                                     }

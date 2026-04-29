@@ -101,6 +101,12 @@ public class SemanticQueryResponse {
 
             @ApiModelProperty(value = "列标题", example = "团队")
             private String title;
+
+            @ApiModelProperty(value = "是否由时间窗口(timeWindow DSL)派生生成")
+            private Boolean derivedFromTimeWindow;
+
+            @ApiModelProperty(value = "时间窗口派生字段的语义说明")
+            private String timeWindowDesc;
         }
     }
     

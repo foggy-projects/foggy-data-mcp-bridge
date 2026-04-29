@@ -129,6 +129,24 @@ public class CalculatedFieldDef {
     private transient Exp compiledExp;
 
     /**
+     * 计算字段来源（请求级 transient，不参与序列化）。
+     * <p>
+     * 用于区分 calc field 的合成路径，便于 metadata 输出 / 审计日志 / DEBUG 日志按 origin 分流。
+     * 默认值 {@link Origin#USER_DECLARED}（含 QM 声明态与请求显式 calc field）。
+     * </p>
+     *
+     * <ul>
+     *     <li>{@link Origin#USER_DECLARED} — QM 声明态 / 请求显式提交的 calc field</li>
+     *     <li>{@link Origin#INLINE_EXPRESSION} — `"SUM(x) AS y"` 等内联表达式合成</li>
+     *     <li>{@link Origin#PLAIN_ALIAS} — F4 plain alias `{field, as}` 合成（G5 v2-patch-2）</li>
+     * </ul>
+     *
+     * @since 8.3.0.beta
+     */
+    @JsonIgnore
+    private transient Origin origin = Origin.USER_DECLARED;
+
+    /**
      * 便捷构造方法
      */
     public CalculatedFieldDef(String name, String expression) {
@@ -143,5 +161,19 @@ public class CalculatedFieldDef {
         this.name = name;
         this.caption = caption;
         this.expression = expression;
+    }
+
+    /**
+     * 计算字段来源枚举。
+     *
+     * @since 8.3.0.beta
+     */
+    public enum Origin {
+        /** QM 声明态或请求显式提交的 calc field（默认） */
+        USER_DECLARED,
+        /** {@code InlineExpressionPreprocessStep} 从 {@code "SUM(x) AS y"} 等内联表达式合成 */
+        INLINE_EXPRESSION,
+        /** {@code InlineExpressionPreprocessStep} 从 F4 plain alias {@code {field, as}} 合成 */
+        PLAIN_ALIAS
     }
 }

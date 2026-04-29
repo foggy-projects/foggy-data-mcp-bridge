@@ -1,6 +1,7 @@
 package com.foggyframework.dataset.db.model.engine.compose;
 
 import com.foggyframework.dataset.db.dialect.FDialect;
+import com.foggyframework.dataset.db.model.engine.compose.plan.ColumnObjectNormalizer;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
@@ -153,6 +154,16 @@ public class ComposedDataSetResult implements PropertyFunction {
             request.setOrderBy(convertOrderItems((List<?>) orderBy));
         }
 
+        Object groupBy = params.get("groupBy");
+        if (groupBy instanceof List) {
+            request.setGroupBy(convertGroupByItems((List<?>) groupBy));
+        }
+
+        Object timeWindow = params.get("timeWindow");
+        if (timeWindow instanceof Map) {
+            request.setTimeWindow(new LinkedHashMap<>((Map<String, Object>) timeWindow));
+        }
+
         Object limit = params.get("limit");
         if (limit instanceof Number) {
             request.setLimit(((Number) limit).intValue());
@@ -212,12 +223,42 @@ public class ComposedDataSetResult implements PropertyFunction {
         return result;
     }
 
-    private List<String> toStringList(List<?> raw) {
-        List<String> result = new ArrayList<>(raw.size());
-        for (Object o : raw) {
-            if (o != null) result.add(o.toString());
+    @SuppressWarnings("unchecked")
+    private List<SemanticQueryRequest.GroupByItem> convertGroupByItems(List<?> rawGroupBy) {
+        List<SemanticQueryRequest.GroupByItem> result = new ArrayList<>();
+        for (Object item : rawGroupBy) {
+            if (item instanceof String str) {
+                result.add(new SemanticQueryRequest.GroupByItem(str, null));
+            } else if (item instanceof Map) {
+                Map<String, Object> map = (Map<String, Object>) item;
+                result.add(new SemanticQueryRequest.GroupByItem(
+                        (String) map.get("field"),
+                        (String) map.get("agg")
+                ));
+            }
         }
         return result;
+    }
+
+    /**
+     * Convert a heterogeneous columns list to {@code List<String>} for the
+     * legacy {@link SemanticQueryRequest#setColumns(List) string-only} request
+     * shape. Delegates to
+     * {@link ColumnObjectNormalizer#normalizeColumnsToStrings} so that:
+     * <ul>
+     *   <li>F4 maps ({@code {field, agg?, as?}}) are normalized to the
+     *       canonical string form;</li>
+     *   <li>F5 maps ({@code {plan, field, ...}}) and chained-API
+     *       plan-expression objects ({@link com.foggyframework.dataset.db.model.engine.compose.plan.PlanColumnRef}
+     *       et al) are <b>rejected fail-loud</b> with
+     *       {@code COLUMN_PLAN_TYPE_INVALID} — silently calling
+     *       {@code toString()} on them would emit literal {@code "FieldRef(name)"}
+     *       strings into SQL, producing semantically-wrong queries that are
+     *       not detectable via SQL-string inspection (G5 spec §10.3 item 5).</li>
+     * </ul>
+     */
+    private List<String> toStringList(List<?> raw) {
+        return ColumnObjectNormalizer.normalizeColumnsToStrings(raw);
     }
 
     @Override

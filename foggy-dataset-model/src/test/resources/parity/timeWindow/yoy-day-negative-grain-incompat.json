@@ -1,0 +1,15 @@
+{
+  "description": "NEGATIVE: yoy × day grain is incompatible",
+  "comparison": "yoy",
+  "grain": "day",
+  "label": "negative-grain-incompat",
+  "timeWindow": {
+    "field": "salesDate$id",
+    "grain": "day",
+    "comparison": "yoy",
+    "range": "[)",
+    "value": ["2024-01-01", "2025-01-01"],
+    "targetMetrics": ["salesAmount"]
+  },
+  "expectedError": "TIMEWINDOW_GRAIN_INCOMPATIBLE"
+}

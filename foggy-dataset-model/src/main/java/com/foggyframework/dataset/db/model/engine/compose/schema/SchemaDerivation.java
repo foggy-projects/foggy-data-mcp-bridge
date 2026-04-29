@@ -1,11 +1,19 @@
 package com.foggyframework.dataset.db.model.engine.compose.schema;
 
+import com.foggyframework.dataset.db.model.engine.compose.ComposeFeatureFlags;
+import com.foggyframework.dataset.db.model.engine.compose.compilation.ComposePlanner;
+import com.foggyframework.dataset.db.model.engine.compose.plan.AggregateColumn;
 import com.foggyframework.dataset.db.model.engine.compose.plan.BaseModelPlan;
 import com.foggyframework.dataset.db.model.engine.compose.plan.DerivedQueryPlan;
 import com.foggyframework.dataset.db.model.engine.compose.plan.JoinOn;
 import com.foggyframework.dataset.db.model.engine.compose.plan.JoinPlan;
+import com.foggyframework.dataset.db.model.engine.compose.plan.PlanColumnRef;
+import com.foggyframework.dataset.db.model.engine.compose.plan.PlanId;
+import com.foggyframework.dataset.db.model.engine.compose.plan.ProjectedColumn;
 import com.foggyframework.dataset.db.model.engine.compose.plan.QueryPlan;
 import com.foggyframework.dataset.db.model.engine.compose.plan.UnionPlan;
+import com.foggyframework.dataset.db.model.engine.compose.plan.WindowColumn;
+import com.foggyframework.dataset.db.model.engine.compose.plan.expr.ColumnExpr;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -106,8 +114,8 @@ public final class SchemaDerivation {
 
         String currentPath = path + "DerivedQueryPlan";
         List<ColumnAliasParts> partsList = new ArrayList<>(plan.columns().size());
-        for (String c : plan.columns()) {
-            partsList.add(parseAliasOrRaise(c, currentPath));
+        for (Object c : plan.columns()) {
+            partsList.add(parseObjectOrRaise(c, currentPath));
         }
 
         // Every expression must reference only names in sourceNames.
@@ -203,7 +211,20 @@ public final class SchemaDerivation {
                 overlap.add(n);
             }
         }
-        if (!overlap.isEmpty()) {
+
+        // ----------------------------------------------------------
+        // G10 PR2 · Flag-gated branch
+        // ----------------------------------------------------------
+        // flag=false (legacy): any overlap throws JOIN_OUTPUT_COLUMN_CONFLICT
+        //                      and ColumnSpec.sourceModel is cleared on merge.
+        // flag=true  (G10):    overlap is allowed; each overlapping column is
+        //                      marked isAmbiguous=true and carries a PlanId
+        //                      pointing at the producing side. sourceModel is
+        //                      preserved so downstream consumers (PR3 / PR4)
+        //                      can route reads back to the origin plan.
+        boolean g10 = ComposeFeatureFlags.g10Enabled();
+
+        if (!g10 && !overlap.isEmpty()) {
             String first = overlap.first();
             throw new ComposeSchemaException(
                     ComposeSchemaErrorCodes.JOIN_OUTPUT_COLUMN_CONFLICT,
@@ -216,16 +237,33 @@ public final class SchemaDerivation {
                     first);
         }
 
-        // Merge outputs. Strip source_model since once joined, the
-        // per-side attribution is not reliable downstream.
         List<ColumnSpec> merged = new ArrayList<>(leftSchema.size() + rightSchema.size());
-        for (ColumnSpec c : leftSchema.columns()) {
-            merged.add(withSourceModelCleared(c));
-        }
-        for (ColumnSpec c : rightSchema.columns()) {
-            merged.add(withSourceModelCleared(c));
+        if (g10) {
+            // G10: capture per-side plan provenance; mark overlapping
+            // columns ambiguous; keep the legacy sourceModel string so
+            // existing consumers that read it still see something.
+            appendAnnotatedSide(merged, leftSchema.columns(),
+                    PlanId.of(plan.left()), overlap);
+            appendAnnotatedSide(merged, rightSchema.columns(),
+                    PlanId.of(plan.right()), overlap);
+        } else {
+            // Legacy merge: source_model cleared (per-side attribution dropped).
+            for (ColumnSpec c : leftSchema.columns()) {
+                merged.add(withSourceModelCleared(c));
+            }
+            for (ColumnSpec c : rightSchema.columns()) {
+                merged.add(withSourceModelCleared(c));
+            }
         }
         return OutputSchema.of(merged);
+    }
+
+    private static void appendAnnotatedSide(List<ColumnSpec> out,
+                                            List<ColumnSpec> sideColumns,
+                                            PlanId sidePid, Set<String> overlap) {
+        for (ColumnSpec c : sideColumns) {
+            out.add(annotateForJoin(c, sidePid, overlap.contains(c.name())));
+        }
     }
 
     // ------------------------------------------------------------------
@@ -233,10 +271,10 @@ public final class SchemaDerivation {
     // ------------------------------------------------------------------
 
     private static List<ColumnSpec> columnsToSpecs(
-            List<String> columns, String sourceModel, String planPath) {
+            List<Object> columns, String sourceModel, String planPath) {
         List<ColumnAliasParts> partsList = new ArrayList<>(columns.size());
-        for (String c : columns) {
-            partsList.add(parseAliasOrRaise(c, planPath));
+        for (Object c : columns) {
+            partsList.add(parseObjectOrRaise(c, planPath));
         }
         return partsToSpecs(partsList, sourceModel, planPath);
     }
@@ -280,6 +318,44 @@ public final class SchemaDerivation {
         }
     }
 
+    /** Schema derivation only needs an SQL-ish text form for
+     *  {@link #extractBareIdentifiers(String)} — actual dialect-specific
+     *  quoting happens later in {@link ComposePlanner#compileToComposedSql}.
+     *  Pin to {@code "mysql"} so identifiers stay unquoted on mixed case
+     *  (PostgreSQL/SQLite would otherwise wrap them in double-quotes,
+     *  which the regex scanner tolerates but is needless noise). */
+    private static final String IDENTIFIER_RENDER_DIALECT = "mysql";
+
+    private static ColumnAliasParts parseObjectOrRaise(Object obj, String planPath) {
+        if (obj instanceof String s) {
+            return parseAliasOrRaise(s, planPath);
+        }
+        if (obj instanceof ProjectedColumn pc) {
+            // ColumnAliasParts(expression, outputName, hasAlias) — preserve
+            // arg order; pre-G5-PR-J2 this swapped expression/outputName,
+            // which was latent because no upstream code path landed a
+            // ProjectedColumn in DerivedQueryPlan.columns until F5 wired
+            // {plan, field, as} into the derived layer.
+            String exprText = ComposePlanner.compileExpression(pc.expr(), IDENTIFIER_RENDER_DIALECT);
+            return new ColumnAliasParts(exprText, pc.alias(), true);
+        }
+        if (obj instanceof ColumnExpr ce) {
+            return new ColumnAliasParts(ce.name(), ce.name(), false);
+        }
+        if (obj instanceof AggregateColumn agg) {
+            String exprText = agg.toColumnExpr();
+            return new ColumnAliasParts(exprText, exprText, false);
+        }
+        if (obj instanceof WindowColumn win) {
+            String exprText = win.toColumnExpr();
+            return new ColumnAliasParts(exprText, exprText, false);
+        }
+        if (obj instanceof PlanColumnRef ref) {
+            return new ColumnAliasParts(ref.name(), ref.name(), false);
+        }
+        return parseAliasOrRaise(obj.toString(), planPath);
+    }
+
     private static void validateGroupAndOrderBy(
             List<String> groupBy, List<String> orderBy,
             OutputSchema outputSchema, String planPath) {
@@ -311,6 +387,44 @@ public final class SchemaDerivation {
                 .expression(c.expression())
                 .sourceModel(null)
                 .hasExplicitAlias(c.hasExplicitAlias())
+                .planProvenance(c.planProvenance())
+                .isAmbiguous(c.isAmbiguous())
+                .build();
+    }
+
+    /**
+     * G10 PR2 · Build the merged {@link ColumnSpec} that
+     * {@link #deriveJoin} emits for one side of the join.
+     *
+     * <p>Compared to {@link #withSourceModelCleared} (legacy):</p>
+     * <ul>
+     *   <li>Preserves {@link ColumnSpec#sourceModel()} — under G10 the
+     *       per-side QM attribution is still useful even after joining,
+     *       and clearing it would discard provenance information for no
+     *       gain (PR3 routes via {@code planProvenance}, not
+     *       {@code sourceModel}).</li>
+     *   <li>Sets {@link ColumnSpec#planProvenance()} to the side's
+     *       {@link PlanId} so downstream consumers can resolve the
+     *       column back to its producing plan (and to its alias in
+     *       {@code planAliasMap}, when PR3 lands).</li>
+     *   <li>Sets {@link ColumnSpec#isAmbiguous()} = {@code overlap}: the
+     *       caller has already detected which names appear on both sides
+     *       and passes that boolean in.</li>
+     * </ul>
+     */
+    private static ColumnSpec annotateForJoin(ColumnSpec c, PlanId planPid, boolean overlap) {
+        // Fast-path: already annotated with the same provenance/ambiguity.
+        if (planPid.equals(c.planProvenance()) && c.isAmbiguous() == overlap) {
+            return c;
+        }
+        return ColumnSpec.builder()
+                .name(c.name())
+                .expression(c.expression())
+                .sourceModel(c.sourceModel())
+                .dataType(c.dataType())
+                .hasExplicitAlias(c.hasExplicitAlias())
+                .planProvenance(planPid)
+                .isAmbiguous(overlap)
                 .build();
     }
 

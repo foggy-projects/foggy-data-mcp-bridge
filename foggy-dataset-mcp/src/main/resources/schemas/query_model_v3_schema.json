@@ -121,6 +121,45 @@
             ]
           }
         },
+        "timeWindow": {
+          "type": "object",
+          "description": "声明式时间窗口分析。用于同环比、累计、滚动窗口；优先于手写窗口 calculatedFields。派生列会自动生成，可在 columns 中引用，如 salesAmount__prior、salesAmount__diff、salesAmount__ratio、salesAmount__rolling_7d、salesAmount__mtd、salesAmount__ytd。",
+          "properties": {
+            "field": {
+              "type": "string",
+              "description": "业务时间字段，通常使用 timeRole=business_date 的维度 id 字段，如 salesDate$id"
+            },
+            "grain": {
+              "type": "string",
+              "enum": ["day", "week", "month", "quarter", "year"],
+              "description": "分析粒度"
+            },
+            "comparison": {
+              "type": "string",
+              "enum": ["yoy", "mom", "wow", "ytd", "mtd", "rolling_7d", "rolling_30d", "rolling_90d"],
+              "description": "时间窗口类型：yoy/mom/wow 为同期比较，ytd/mtd 为累计，rolling_* 为滚动窗口"
+            },
+            "range": {
+              "type": "string",
+              "enum": ["[)", "[]"],
+              "description": "日期范围边界语义，默认 [)"
+            },
+            "value": {
+              "description": "可选日期范围或相对日期表达式，如 [\"20250101\", \"20260101\"]、\"-1Y\""
+            },
+            "targetMetrics": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "需要派生时间窗口列的度量字段，如 [\"salesAmount\"]。不填时默认作用于可用度量。"
+            },
+            "rollingAggregator": {
+              "type": "string",
+              "enum": ["sum", "avg", "count"],
+              "description": "rolling_* 的聚合函数；默认 sum"
+            }
+          },
+          "required": ["field", "grain", "comparison"]
+        },
         "start": { "type": "integer", "default": 0, "description": "起始行号" },
         "limit": { "type": "integer", "default": 1000, "description": "每页记录数" },
         "returnTotal": { "type": "boolean", "default": false, "description": "是否返回总记录数" },

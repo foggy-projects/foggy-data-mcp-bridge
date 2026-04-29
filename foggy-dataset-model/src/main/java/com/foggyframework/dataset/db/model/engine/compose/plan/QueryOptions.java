@@ -1,5 +1,6 @@
 package com.foggyframework.dataset.db.model.engine.compose.plan;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -9,7 +10,8 @@ import java.util.List;
  * <p>Python exposes these as keyword-only parameters. Java has no keyword
  * arguments, so we use a Builder — the contract and defaults are identical.
  * All fields except {@code columns} are optional; {@code columns} must be
- * a non-empty list.</p>
+ * a non-empty list of {@link String} or
+ * {@link com.foggyframework.dataset.db.model.engine.compose.plan.expr.PlanExpression}.</p>
  *
  * <p>This carrier intentionally does NOT include {@code model} or
  * {@code source}; those are exclusive to the {@link Dsl.FromOptions} shape
@@ -19,7 +21,7 @@ import java.util.List;
  */
 public final class QueryOptions {
 
-    private final List<String> columns;
+    private final List<Object> columns;
     private final List<Object> slice;
     private final List<String> groupBy;
     private final List<String> orderBy;
@@ -41,7 +43,7 @@ public final class QueryOptions {
         this.distinct = b.distinct;
     }
 
-    public List<String> columns() { return columns; }
+    public List<Object> columns() { return columns; }
     public List<Object> slice() { return slice; }
     public List<String> groupBy() { return groupBy; }
     public List<String> orderBy() { return orderBy; }
@@ -52,12 +54,12 @@ public final class QueryOptions {
     public static Builder builder() { return new Builder(); }
 
     /** Convenience factory — just columns, all other fields default. */
-    public static QueryOptions of(List<String> columns) {
+    public static QueryOptions of(List<?> columns) {
         return builder().columns(columns).build();
     }
 
     public static final class Builder {
-        private List<String> columns;
+        private List<Object> columns;
         private List<Object> slice;
         private List<String> groupBy;
         private List<String> orderBy;
@@ -65,7 +67,14 @@ public final class QueryOptions {
         private Integer start;
         private boolean distinct;
 
-        public Builder columns(List<String> v) { this.columns = v; return this; }
+        /** Accepts a heterogeneous list of {@link String} or
+         *  {@link com.foggyframework.dataset.db.model.engine.compose.plan.expr.PlanExpression}.
+         *  Element types are validated when consumed by {@link QueryPlan#query(QueryOptions)}. */
+        public Builder columns(List<?> v) {
+            this.columns = v == null ? null : new ArrayList<>(v);
+            return this;
+        }
+
         public Builder slice(List<Object> v) { this.slice = v; return this; }
         public Builder groupBy(List<String> v) { this.groupBy = v; return this; }
         public Builder orderBy(List<String> v) { this.orderBy = v; return this; }

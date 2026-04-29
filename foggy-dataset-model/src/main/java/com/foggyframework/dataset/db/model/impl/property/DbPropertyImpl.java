@@ -52,6 +52,16 @@ public class DbPropertyImpl extends DbObjectSupport implements DbProperty, DbDat
      */
     String dictRef;
 
+    /**
+     * 时间角色语义 (e.g. business_date, event_time, system_time)
+     */
+    String timeRole;
+
+    /**
+     * 推荐用途说明
+     */
+    String recommendedUse;
+
     @Override
     public <T> T getExtDataValue(String key) {
         return extData == null ? null : (T) extData.get(key);

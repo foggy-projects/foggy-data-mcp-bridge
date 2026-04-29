@@ -69,6 +69,45 @@ services:
       - foggy-demo-net
 
   # ==========================================
+  # MySQL 8.0 测试数据库（窗口函数验收 lane）
+  # ==========================================
+  mysql8:
+    image: mysql:8.0
+    container_name: foggy-demo-mysql8
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: foggy_root_123
+      MYSQL_DATABASE: foggy_test
+      MYSQL_USER: foggy
+      MYSQL_PASSWORD: foggy_test_123
+      TZ: Asia/Shanghai
+    ports:
+      - "13308:3306"
+    volumes:
+      # 复用 MySQL 5.7 初始化脚本，保障跨版本测试数据一致
+      - ./mysql/init:/docker-entrypoint-initdb.d:ro
+      - ./mysql/conf/my.cnf:/etc/mysql/conf.d/custom.cnf:ro
+      - mysql8-demo-data:/var/lib/mysql
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --default-time-zone='+08:00'
+      --lower-case-table-names=1
+      --max-connections=500
+      --innodb-buffer-pool-size=256M
+      --innodb-log-file-size=64M
+      --innodb-flush-log-at-trx-commit=2
+      --sync-binlog=0
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-P", "3306", "-u", "root", "-pfoggy_root_123"]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 120s
+    networks:
+      - foggy-demo-net
+
+  # ==========================================
   # PostgreSQL 15 测试数据库
   # ==========================================
   postgres:
@@ -261,6 +300,8 @@ services:
 volumes:
   mysql-demo-data:
     name: foggy-demo-mysql-data
+  mysql8-demo-data:
+    name: foggy-demo-mysql8-data
   postgres-demo-data:
     name: foggy-demo-postgres-data
   sqlserver-demo-data:

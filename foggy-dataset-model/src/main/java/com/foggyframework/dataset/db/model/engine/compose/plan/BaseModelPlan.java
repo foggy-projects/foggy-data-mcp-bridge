@@ -2,6 +2,7 @@ package com.foggyframework.dataset.db.model.engine.compose.plan;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Leaf plan node pointing at a physical QM (query-model).
@@ -19,7 +20,7 @@ import java.util.Objects;
 public final class BaseModelPlan extends QueryPlan {
 
     private final String model;
-    private final List<String> columns;
+    private final List<Object> columns;
     private final List<Object> slice;
     private final List<String> groupBy;
     private final List<String> orderBy;
@@ -29,16 +30,21 @@ public final class BaseModelPlan extends QueryPlan {
 
     private BaseModelPlan(Builder b) {
         if (b.model == null || b.model.isEmpty()) {
-            throw new IllegalArgumentException(
-                    "BaseModelPlan.model must be non-empty");
+            throw new IllegalArgumentException("BaseModelPlan.model must be non-empty");
         }
-        validateColumns(b.columns, "BaseModelPlan.columns");
+        validateColumnElements(b.columns, "BaseModelPlan.columns");
         validateStringList(b.groupBy, "BaseModelPlan.groupBy");
         validateStringList(b.orderBy, "BaseModelPlan.orderBy");
         validatePagination(b.limit, b.start, "BaseModelPlan");
+        // G5 Phase 2 (F5) — base plans have no lineage children and the
+        // plan-being-built does not yet exist, so any F5 plan-qualified
+        // column is by definition out-of-scope. Pass an empty visiblePlans
+        // set so the helper rejects every PlanColumnRef with
+        // COLUMN_PLAN_NOT_VISIBLE.
+        validateF5PlanVisibility(b.columns, identityPlanSet(), "BaseModelPlan.columns");
 
         this.model = b.model;
-        this.columns = List.copyOf(b.columns);
+        this.columns = b.columns == null ? List.of() : List.copyOf(b.columns);
         this.slice = b.slice == null ? List.of() : List.copyOf(b.slice);
         this.groupBy = b.groupBy == null ? List.of() : List.copyOf(b.groupBy);
         this.orderBy = b.orderBy == null ? List.of() : List.copyOf(b.orderBy);
@@ -48,7 +54,7 @@ public final class BaseModelPlan extends QueryPlan {
     }
 
     public String model() { return model; }
-    public List<String> columns() { return columns; }
+    public List<Object> columns() { return columns; }
     public List<Object> slice() { return slice; }
     public List<String> groupBy() { return groupBy; }
     public List<String> orderBy() { return orderBy; }
@@ -61,11 +67,19 @@ public final class BaseModelPlan extends QueryPlan {
         return List.of(this);
     }
 
+    @Override
+    public Set<QueryPlan> collectVisiblePlans() {
+        // BaseModelPlan is a leaf — visible set is just {this} (identity-keyed).
+        Set<QueryPlan> set = identityPlanSet();
+        set.add(this);
+        return set;
+    }
+
     public static Builder builder() { return new Builder(); }
 
     public static final class Builder {
         private String model;
-        private List<String> columns;
+        private List<Object> columns;
         private List<Object> slice;
         private List<String> groupBy;
         private List<String> orderBy;
@@ -74,7 +88,16 @@ public final class BaseModelPlan extends QueryPlan {
         private boolean distinct;
 
         public Builder model(String v) { this.model = v; return this; }
-        public Builder columns(List<String> v) { this.columns = v; return this; }
+
+        /** Accepts a heterogeneous list of {@link String} or
+         *  {@link com.foggyframework.dataset.db.model.engine.compose.plan.expr.PlanExpression}
+         *  elements. Element types are validated in {@link #build()};
+         *  illegal elements fail-closed with {@link IllegalArgumentException}. */
+        public Builder columns(List<?> v) {
+            this.columns = v == null ? null : new java.util.ArrayList<>(v);
+            return this;
+        }
+
         public Builder slice(List<Object> v) { this.slice = v; return this; }
         public Builder groupBy(List<String> v) { this.groupBy = v; return this; }
         public Builder orderBy(List<String> v) { this.orderBy = v; return this; }
