@@ -47,6 +47,14 @@ public final class WindowSelectParser {
                     + "(?:\\s+AS\\s+([A-Za-z_][A-Za-z0-9_$]*))?\\s*$",
             Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
 
+    private static final Pattern FRAME_BOUND_PATTERN = Pattern.compile(
+            "(?:UNBOUNDED\\s+PRECEDING|UNBOUNDED\\s+FOLLOWING|CURRENT\\s+ROW|\\d+\\s+PRECEDING|\\d+\\s+FOLLOWING)",
+            Pattern.CASE_INSENSITIVE);
+
+    private static final Pattern FRAME_PATTERN = Pattern.compile(
+            "^(ROWS|RANGE)\\s+(?:(BETWEEN)\\s+(.+)\\s+AND\\s+(.+)|(.+))$",
+            Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+
     /**
      * Parse a window expression string.
      *
@@ -152,6 +160,7 @@ public final class WindowSelectParser {
 
             if (frameIdx >= 0) {
                 frame = overBody.substring(frameIdx).trim();
+                validateFrame(frame, expr);
             }
         }
 
@@ -181,6 +190,36 @@ public final class WindowSelectParser {
             return Math.min(rowsIdx, rangeIdx);
         }
         return rowsIdx >= 0 ? rowsIdx : rangeIdx;
+    }
+
+    private static void validateFrame(String frame, String expr) {
+        Matcher frameMatcher = FRAME_PATTERN.matcher(frame);
+        if (!frameMatcher.matches()) {
+            throw new ComposeCompileException(
+                    ComposeCompileErrorCodes.RELATION_OUTER_WINDOW_NOT_SUPPORTED,
+                    ComposeCompileErrorCodes.PHASE_RELATION_COMPILE,
+                    "Unsupported window frame clause in expression: '" + expr + "'.");
+        }
+
+        String between = frameMatcher.group(2);
+        if (between != null) {
+            validateFrameBound(frameMatcher.group(3), expr);
+            validateFrameBound(frameMatcher.group(4), expr);
+            return;
+        }
+
+        validateFrameBound(frameMatcher.group(5), expr);
+    }
+
+    private static void validateFrameBound(String bound, String expr) {
+        String normalized = bound == null ? "" : bound.trim();
+        if (!FRAME_BOUND_PATTERN.matcher(normalized).matches()) {
+            throw new ComposeCompileException(
+                    ComposeCompileErrorCodes.RELATION_OUTER_WINDOW_NOT_SUPPORTED,
+                    ComposeCompileErrorCodes.PHASE_RELATION_COMPILE,
+                    "Unsupported window frame bound '" + normalized
+                            + "' in expression: '" + expr + "'.");
+        }
     }
 
     private static List<String> parseColumnList(String clause) {

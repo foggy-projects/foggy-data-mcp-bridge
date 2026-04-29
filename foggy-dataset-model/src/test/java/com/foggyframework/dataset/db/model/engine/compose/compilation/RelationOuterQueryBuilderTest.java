@@ -930,6 +930,23 @@ class RelationOuterQueryBuilderTest {
     }
 
     @Test
+    @DisplayName("S7f: unsupported window frame clause is rejected")
+    void outerWindowUnsupportedFrame_rejected() {
+        CompiledRelation rel = windowRelation("mysql8");
+        ComposeCompileException ex = assertThrows(
+                ComposeCompileException.class,
+                () -> RelationOuterQueryBuilder.buildOuterQuery(
+                        rel,
+                        OuterQuerySpec.builder()
+                                .selectColumns(List.of(
+                                        "AVG(salesAmount) OVER (ORDER BY salesDate ROWS NOT A FRAME) AS badFrame"))
+                                .build()));
+
+        assertEquals(ComposeCompileErrorCodes.RELATION_OUTER_WINDOW_NOT_SUPPORTED,
+                ex.code());
+    }
+
+    @Test
     @DisplayName("S7f: ratio column as window input rejected — not WINDOWABLE")
     void outerWindowRatioInput_rejected() {
         CompiledRelation rel = windowRelation("mysql8");

@@ -62,3 +62,10 @@ Outer window query capability on `CompiledRelation`:
 - **S7a snapshot**: 12 cases, contractVersion S7a-1 ✅
 - **S7e snapshot**: 4 cases, contractVersion S7e-1 ✅
 - **S7f snapshot**: 5 cases, contractVersion S7f-1 ✅
+
+## Quality Gate Follow-up
+
+- Window frame clauses are now validated through a restricted whitelist instead of being passed through after extraction.
+- Supported frame forms are `ROWS` / `RANGE` with `UNBOUNDED PRECEDING`, `UNBOUNDED FOLLOWING`, `CURRENT ROW`, or numeric `PRECEDING` / `FOLLOWING` bounds, including `BETWEEN ... AND ...`.
+- Unsupported frame clauses fail closed with `relation-outer-window-not-supported`.
+- Focused verification: `RelationOuterQueryBuilderTest`, `StableRelationOuterWindowSnapshotTest`, `StableRelationOuterAggregateSnapshotTest`, `StableRelationSnapshotTest`, `RelationModelTest`, `ComposeRelationCompilerTest`, `ComposeCompileErrorCodesTest`, `ColumnSpecMetadataTest` -> 3 Surefire lanes, each 132 passed.
