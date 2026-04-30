@@ -5,6 +5,10 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 /**
  * 工具执行上下文
  * <p>
@@ -43,6 +47,12 @@ public class ToolExecutionContext {
     private String sourceIp;
 
     /**
+     * 原始请求头快照。key 保留调用方传入的大小写，读取时按 HTTP 头规则大小写不敏感匹配。
+     */
+    @Builder.Default
+    private Map<String, String> headers = new LinkedHashMap<>();
+
+    /**
      * 创建简单上下文
      */
     public static ToolExecutionContext of(String traceId, String authorization) {
@@ -50,5 +60,29 @@ public class ToolExecutionContext {
                 .traceId(traceId)
                 .authorization(authorization)
                 .build();
+    }
+
+    public Map<String, String> getHeaders() {
+        return headers == null ? Collections.emptyMap() : headers;
+    }
+
+    public String getHeader(String name) {
+        if (name == null || name.isBlank()) {
+            return null;
+        }
+        Map<String, String> headerMap = getHeaders();
+        String direct = headerMap.get(name);
+        if (direct != null) {
+            return direct;
+        }
+        for (Map.Entry<String, String> entry : headerMap.entrySet()) {
+            if (entry.getKey() != null && entry.getKey().equalsIgnoreCase(name)) {
+                return entry.getValue();
+            }
+        }
+        if ("Authorization".equalsIgnoreCase(name)) {
+            return authorization;
+        }
+        return null;
     }
 }

@@ -50,6 +50,11 @@ public class SqlExpContext {
      */
     private final Map<String, CalculatedDbColumn> calculatedColumns = new LinkedHashMap<>();
 
+    /**
+     * Query context required by restricted CALCULATE lowering.
+     */
+    private CalculateQueryContext calculateQueryContext;
+
     public SqlExpContext(JdbcQueryModel queryModel, FDialect dialect, ApplicationContext appCtx) {
         this.queryModel = queryModel;
         this.dialect = dialect;

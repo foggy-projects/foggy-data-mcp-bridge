@@ -5,9 +5,11 @@ import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.db.model.common.query.CondType;
 import com.foggyframework.dataset.db.model.def.query.request.*;
+import com.foggyframework.dataset.db.dialect.DbType;
 import com.foggyframework.dataset.db.model.engine.expression.InlineExpressionParser;
 import com.foggyframework.dataset.db.model.engine.expression.SliceExpressionProcessor;
 import com.foggyframework.dataset.db.dialect.FDialect;
+import com.foggyframework.dataset.db.model.engine.expression.CalculateQueryContext;
 import com.foggyframework.dataset.db.model.engine.expression.SqlCalculatedFieldProcessor;
 import com.foggyframework.dataset.db.model.engine.expression.SqlExpContext;
 import com.foggyframework.dataset.db.model.engine.formula.SqlFormulaService;
@@ -33,8 +35,10 @@ import org.springframework.context.ApplicationContext;
 
 import java.sql.Types;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -1144,6 +1148,10 @@ public class JdbcModelQueryEngine implements QueryEngine {
             return;
         }
 
+        if (processor instanceof SqlCalculatedFieldProcessor sqlProcessor) {
+            sqlProcessor.setCalculateQueryContext(buildCalculateQueryContext(queryRequest, context));
+        }
+
         // 处理所有计算字段
         this.calculatedColumns = processor.processCalculatedFields(
                 queryRequest.getCalculatedFields(),
@@ -1166,6 +1174,60 @@ public class JdbcModelQueryEngine implements QueryEngine {
                 log.debug("  {} = {}", column.getName(), column.getDeclare());
             }
         }
+    }
+
+    private CalculateQueryContext buildCalculateQueryContext(DbQueryRequestDef queryRequest, ModelResultContext context) {
+        List<String> groupByFields = queryRequest.getGroupBy() == null
+                ? List.of()
+                : queryRequest.getGroupBy().stream()
+                .map(GroupRequestDef::getField)
+                .filter(StringUtils::isNotEmpty)
+                .collect(Collectors.toList());
+
+        Set<String> systemSliceFields = new LinkedHashSet<>();
+        if (context != null && context.getSystemSlice() != null) {
+            for (SliceRequestDef slice : context.getSystemSlice()) {
+                collectSliceFields(slice, systemSliceFields);
+            }
+        }
+
+        return new CalculateQueryContext(
+                groupByFields,
+                systemSliceFields,
+                supportsGroupedAggregateWindow(),
+                isTimeWindowPostCalculatedFields(context)
+        );
+    }
+
+    private void collectSliceFields(CondRequestDef cond, Set<String> fields) {
+        if (cond == null) {
+            return;
+        }
+        if (StringUtils.isNotEmpty(cond.getField())) {
+            fields.add(cond.getField());
+        }
+        if (cond.getOr() != null) {
+            for (CondRequestDef item : cond.getOr()) {
+                collectSliceFields(item, fields);
+            }
+        }
+        if (cond.getAnd() != null) {
+            for (CondRequestDef item : cond.getAnd()) {
+                collectSliceFields(item, fields);
+            }
+        }
+    }
+
+    private boolean supportsGroupedAggregateWindow() {
+        FDialect dialect = jdbcQueryModel != null ? jdbcQueryModel.getDialect() : null;
+        return dialect == null || dialect.getDbType() != DbType.MYSQL;
+    }
+
+    private boolean isTimeWindowPostCalculatedFields(ModelResultContext context) {
+        if (context == null || context.getExtData() == null) {
+            return false;
+        }
+        return Boolean.TRUE.equals(context.getExtData().get("timeWindowPostCalculatedFields"));
     }
 
     /**

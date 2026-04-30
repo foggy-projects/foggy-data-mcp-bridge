@@ -13,12 +13,12 @@
       "properties": {
         "calculatedFields": {
           "type": "array",
-          "description": "计算字段定义（复杂表达式、窗口函数或需指定 agg 时使用）",
+          "description": "计算字段定义（复杂表达式、窗口函数、跨当前分组占比或需指定 agg 时使用）。跨维度占比使用 CALCULATE(SUM(metric), REMOVE(groupByDim))，分母必须写 NULLIF(CALCULATE(...), 0)。同比、环比、累计、滚动继续使用 timeWindow；与 timeWindow 联用时，只支持作用于 timeWindow 输出列的后置标量表达式，不要设置 agg、窗口字段或 CALCULATE。",
           "items": {
             "type": "object",
             "properties": {
               "name": { "type": "string", "description": "字段名称，在 columns 中引用" },
-              "expression": { "type": "string", "description": "表达式，支持算术运算、函数、窗口函数(RANK/ROW_NUMBER/LAG等)" },
+              "expression": { "type": "string", "description": "表达式，支持算术运算、函数、窗口函数(RANK/ROW_NUMBER/LAG等)，以及受限 CALCULATE(SUM(metric), REMOVE(groupByDim))" },
               "agg": { "type": "string", "enum": ["SUM", "AVG", "MAX", "MIN", "COUNT", "COUNT_DISTINCT", "STDDEV_POP", "STDDEV_SAMP", "VAR_POP", "VAR_SAMP"], "description": "聚合类型，groupBy 场景使用" },
               "partitionBy": { "type": "array", "items": { "type": "string" }, "description": "窗口函数 PARTITION BY 字段列表" },
               "windowOrderBy": { "type": "array", "items": { "type": "object", "properties": { "field": { "type": "string" }, "dir": { "type": "string", "enum": ["asc", "desc"] } } }, "description": "窗口函数 ORDER BY" },

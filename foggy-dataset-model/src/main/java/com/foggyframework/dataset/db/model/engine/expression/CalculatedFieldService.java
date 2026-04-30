@@ -4,9 +4,11 @@ import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.engine.expression.sql.SqlBinaryExp;
+import com.foggyframework.dataset.db.model.engine.expression.sql.SqlCalculateExp;
 import com.foggyframework.dataset.db.model.engine.expression.sql.SqlColumnRefExp;
 import com.foggyframework.dataset.db.model.engine.expression.sql.SqlFunctionExp;
 import com.foggyframework.dataset.db.model.engine.expression.sql.SqlListExp;
+import com.foggyframework.dataset.db.model.engine.expression.sql.SqlRemoveExp;
 import com.foggyframework.dataset.db.model.engine.expression.sql.SqlUnaryExp;
 import com.foggyframework.dataset.db.model.engine.expression.SqlExpHolder;
 import com.foggyframework.dataset.db.model.spi.support.CalculatedDbColumn;
@@ -315,6 +317,14 @@ public final class CalculatedFieldService {
             for (Exp arg : ((SqlFunctionExp) exp).getArgs()) {
                 extractColumnReferences(arg, refs);
             }
+        } else if (exp instanceof SqlCalculateExp) {
+            for (Exp arg : ((SqlCalculateExp) exp).getArgs()) {
+                extractColumnReferences(arg, refs);
+            }
+        } else if (exp instanceof SqlRemoveExp) {
+            for (String field : ((SqlRemoveExp) exp).getFieldNames()) {
+                refs.add(field);
+            }
         } else if (exp instanceof SqlListExp) {
             // IN / NOT IN 的 RHS 列表。典型内容是字面量（SqlLiteralExp 会自动忽略），
             // 但也允许 `x in (col1, col2)` 这种列组合场景，此时 col1 / col2 需要被收为依赖。
@@ -356,6 +366,7 @@ public final class CalculatedFieldService {
             } else if (log.isDebugEnabled()) {
                 log.debug("Reusing pre-compiled AST for field: {}", fieldDef.getName());
             }
+            CalculateExpressionAnalyzer.validate(compiledExp);
 
             // 2. 执行表达式得到 SQL 片段
             SqlFragment sqlFragment = evaluateExpression(compiledExp, context, appCtx);

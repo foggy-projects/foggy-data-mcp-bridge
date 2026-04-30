@@ -164,6 +164,13 @@ public class SqlExpFactory extends DefaultExpFactory {
                 log.debug("SqlExpFactory.createExpFunCall: funcName='{}', args.size={}", funcName, args.size());
             }
 
+            if ("CALCULATE".equals(upperName)) {
+                return new SqlExpFunCallWrapper(new SqlCalculateExp(new ArrayList<>(args)));
+            }
+            if ("REMOVE".equals(upperName)) {
+                return new SqlExpFunCallWrapper(new SqlRemoveExp(new ArrayList<>(args)));
+            }
+
             // 检查是否是允许的 SQL 函数
             if (AllowedFunctions.isAllowed(upperName)) {
                 List<Exp> argList = new ArrayList<>(args);
@@ -241,6 +248,12 @@ public class SqlExpFactory extends DefaultExpFactory {
 
         // 允许的函数
         String upperName = name.toUpperCase();
+        if ("CALCULATE".equals(upperName)) {
+            return new SqlCalculateExp(args);
+        }
+        if ("REMOVE".equals(upperName)) {
+            return new SqlRemoveExp(args);
+        }
         if (AllowedFunctions.isAllowed(upperName)) {
             return new SqlFunctionExp(upperName, args);
         }

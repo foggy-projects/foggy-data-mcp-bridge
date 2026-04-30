@@ -19,19 +19,29 @@ import java.util.Set;
 public final class CapabilityPolicy {
 
     private static final CapabilityPolicy EMPTY = new CapabilityPolicy(
-            Set.of(), Map.of(), Set.of());
+            Set.of(), Map.of(), Set.of(), false);
 
     private final Set<String> allowedFunctions;
     private final Map<String, Set<String>> allowedObjects;
     private final Set<String> allowedScopes;
+    private final boolean allowScriptPause;
 
     public CapabilityPolicy(
             Set<String> allowedFunctions,
             Map<String, Set<String>> allowedObjects,
             Set<String> allowedScopes) {
+        this(allowedFunctions, allowedObjects, allowedScopes, false);
+    }
+
+    public CapabilityPolicy(
+            Set<String> allowedFunctions,
+            Map<String, Set<String>> allowedObjects,
+            Set<String> allowedScopes,
+            boolean allowScriptPause) {
         this.allowedFunctions = allowedFunctions == null ? Set.of() : Set.copyOf(allowedFunctions);
         this.allowedObjects = allowedObjects == null ? Map.of() : Map.copyOf(allowedObjects);
         this.allowedScopes = allowedScopes == null ? Set.of() : Set.copyOf(allowedScopes);
+        this.allowScriptPause = allowScriptPause;
     }
 
     /** Return the default empty policy — no capabilities allowed. */
@@ -55,6 +65,11 @@ public final class CapabilityPolicy {
 
     public boolean isScopeAllowed(String scope) {
         return allowedScopes.contains(scope);
+    }
+
+    /** Whether the optional {@code runtime.pause(...)} script API is enabled. Default false. */
+    public boolean isScriptPauseAllowed() {
+        return allowScriptPause;
     }
 
     public Set<String> getAllowedFunctions() { return allowedFunctions; }

@@ -109,13 +109,24 @@ export const model = {
         { column: 'move_name', caption: 'Journal Entry Number', type: 'STRING', description: 'Parent entry reference (e.g. INV/2025/0001)' },
         { column: 'name', caption: 'Label', type: 'STRING', description: 'Line description' },
         { column: 'ref', caption: 'Reference', type: 'STRING' },
-        { column: 'parent_state', caption: 'Parent Status', type: 'STRING', dictRef: dicts.account_move_state },
+        { column: 'parent_state', caption: 'Parent Status', type: 'STRING', dictRef: dicts.account_move_state,
+          description: 'Parent journal entry status (denormalized from account.move.state). '
+              + 'enum: draft / posted / cancel. AR / AP queries should filter parent_state=posted '
+              + 'to exclude unposted drafts — mirrors move.state when queried through the move '
+              + 'dimension ($move$state).' },
         { column: 'display_type', caption: 'Display Type', type: 'STRING', dictRef: dicts.move_line_display_type },
         { column: 'date', caption: 'Date', type: 'DAY' },
         { column: 'invoice_date', caption: 'Invoice Date', type: 'DAY' },
-        { column: 'date_maturity', caption: 'Due Date', type: 'DAY' },
+        { column: 'date_maturity', caption: 'Due Date', type: 'DAY',
+          description: 'Maturity / due date for this AR or AP line (matches account.move.line.'
+              + 'date_maturity). Compared against now() to detect overdue rows — a line is '
+              + 'considered overdue when date_maturity < now() AND amount_residual > 0 AND '
+              + 'parent_state = posted.' },
         { column: 'matching_number', caption: 'Matching Number', type: 'STRING' },
-        { column: 'reconciled', caption: 'Reconciled', type: 'BOOL' },
+        { column: 'reconciled', caption: 'Reconciled', type: 'BOOL',
+          description: 'TRUE once this line is fully reconciled against one or more payment '
+              + 'lines. Reconciled lines have amount_residual = 0 and parent move.payment_state '
+              + 'in (paid, reversed); they are excluded from AR / AP aging reports.' },
         { column: 'create_date', caption: 'Created On', type: 'DATETIME' },
         { column: 'write_date', caption: 'Last Updated', type: 'DATETIME' }
     ],
@@ -125,7 +136,11 @@ export const model = {
         { column: 'credit', caption: 'Credit', type: 'MONEY', aggregation: 'sum' },
         { column: 'balance', caption: 'Balance', type: 'MONEY', aggregation: 'sum', description: 'debit - credit' },
         { column: 'amount_currency', caption: 'Amount in Currency', type: 'MONEY', aggregation: 'sum' },
-        { column: 'amount_residual', caption: 'Residual Amount', type: 'MONEY', aggregation: 'sum' },
+        { column: 'amount_residual', caption: 'Residual Amount', type: 'MONEY', aggregation: 'sum',
+          description: 'Outstanding balance on this line in company currency. Positive for both '
+              + 'AR and AP while unpaid; drops to 0 once reconciled. The canonical AR "open '
+              + 'balance" measure. Combine with parent_state=posted and move.payment_state in '
+              + '(not_paid, partial, in_payment) to compute AR outstanding / overdue totals.' },
         { column: 'quantity', caption: 'Quantity', type: 'NUMBER', aggregation: 'sum' },
         { column: 'price_unit', caption: 'Unit Price', type: 'MONEY' },
         { column: 'price_subtotal', caption: 'Subtotal', type: 'MONEY', aggregation: 'sum' },

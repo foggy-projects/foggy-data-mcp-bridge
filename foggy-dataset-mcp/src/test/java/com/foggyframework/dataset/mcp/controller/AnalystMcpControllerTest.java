@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.dataset.mcp.enums.UserRole;
 import com.foggyframework.dataset.mcp.schema.McpError;
 import com.foggyframework.dataset.mcp.schema.McpRequest;
+import com.foggyframework.dataset.mcp.schema.McpRequestContext;
 import com.foggyframework.dataset.mcp.schema.McpResponse;
 import com.foggyframework.dataset.mcp.service.McpService;
 import com.foggyframework.dataset.mcp.service.McpToolDispatcher;
@@ -127,7 +128,7 @@ class AnalystMcpControllerTest {
                     ))
             ));
 
-            when(mcpService.handleToolsCall(any(McpRequest.class), eq(UserRole.ANALYST), any(), any(), any(), any()))
+            when(mcpService.handleToolsCall(any(McpRequest.class), any(McpRequestContext.class)))
                     .thenReturn(mockResponse);
 
             mockMvc.perform(post("/mcp/analyst/rpc")
@@ -158,7 +159,7 @@ class AnalystMcpControllerTest {
                     ))
             ));
 
-            when(mcpService.handleToolsCall(any(McpRequest.class), eq(UserRole.ANALYST), any(), any(), any(), any()))
+            when(mcpService.handleToolsCall(any(McpRequest.class), any(McpRequestContext.class)))
                     .thenReturn(mockResponse);
 
             mockMvc.perform(post("/mcp/analyst/rpc")
@@ -189,7 +190,7 @@ class AnalystMcpControllerTest {
                     ))
             ));
 
-            when(mcpService.handleToolsCall(any(McpRequest.class), eq(UserRole.ANALYST), any(), any(), any(), any()))
+            when(mcpService.handleToolsCall(any(McpRequest.class), any(McpRequestContext.class)))
                     .thenReturn(mockResponse);
 
             mockMvc.perform(post("/mcp/analyst/rpc")
@@ -223,7 +224,7 @@ class AnalystMcpControllerTest {
                     ))
             ));
 
-            when(mcpService.handleToolsCall(any(McpRequest.class), eq(UserRole.ANALYST), any(), any(), any(), any()))
+            when(mcpService.handleToolsCall(any(McpRequest.class), any(McpRequestContext.class)))
                     .thenReturn(mockResponse);
 
             mockMvc.perform(post("/mcp/analyst/rpc")
@@ -253,7 +254,7 @@ class AnalystMcpControllerTest {
             McpResponse mockResponse = McpResponse.error("1", McpError.METHOD_NOT_FOUND,
                     "Tool not found or access denied: dataset_nl.query");
 
-            when(mcpService.handleToolsCall(any(McpRequest.class), eq(UserRole.ANALYST), any(), any(), any(), any()))
+            when(mcpService.handleToolsCall(any(McpRequest.class), any(McpRequestContext.class)))
                     .thenReturn(mockResponse);
 
             mockMvc.perform(post("/mcp/analyst/rpc")
@@ -323,7 +324,7 @@ class AnalystMcpControllerTest {
                     ))
             ));
 
-            when(mcpService.handleToolsCall(any(McpRequest.class), eq(UserRole.ANALYST), any(), any(), any(), any()))
+            when(mcpService.handleToolsCall(any(McpRequest.class), any(McpRequestContext.class)))
                     .thenReturn(mockResponse);
 
             mockMvc.perform(post("/mcp/analyst/rpc")

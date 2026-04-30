@@ -63,7 +63,13 @@ export const queryModel = {
                 {
                     name: 'completionRate',
                     caption: 'Completion Rate (%)',
-                    formula: '(taskCount WHERE state = "1_done") / taskCount * 100',
+                    // v1.4 M5.4: rewritten to Spec v1 legal syntax.
+                    // Old form "(taskCount WHERE state = ...) / taskCount * 100"
+                    // was a non-Spec pseudo-syntax that failed the v1.4 formula
+                    // audit. Spec v1 equivalent uses `sum(if(cond, 1, 0))` for
+                    // the conditional count, mirroring the pattern documented
+                    // in docs/v1.4/formula-spec-v1/.
+                    formula: 'sum(if(state == "1_done", 1, 0)) / taskCount * 100',
                     type: 'NUMBER',
                     description: 'Percentage of tasks in Done state (use as reference formula only)'
                 }

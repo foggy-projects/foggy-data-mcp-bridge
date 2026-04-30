@@ -101,6 +101,11 @@ public final class ObjectFacadeProxy {
         String methodName = methodDesc.getName();
         int timeoutMs = methodDesc.getTimeoutMs();
 
+        // Capture the current run context for child thread propagation (P2.5)
+        com.foggyframework.dataset.db.model.engine.compose.runtime.ScriptRunContext
+                parentRunCtx = com.foggyframework.dataset.db.model.engine.compose.runtime
+                .ScriptRunContextHolder.current();
+
         ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
             Thread t = new Thread(r, "capability-facade-" + descriptor.getObjectName() + "." + methodName);
             t.setDaemon(true);
@@ -109,22 +114,36 @@ public final class ObjectFacadeProxy {
 
         try {
             Future<Object> future = executor.submit(() -> {
-                // Find and invoke the method on target
-                Method[] methods = target.getClass().getMethods();
-                for (Method m : methods) {
-                    if (m.getName().equals(methodName) && m.getParameterCount() == (args == null ? 0 : args.length)) {
-                        m.setAccessible(true);
-                        return m.invoke(target, args);
+                // Propagate run context to child thread (P2.5)
+                com.foggyframework.dataset.db.model.engine.compose.runtime.ScriptRunContextHolder.Token
+                        ctxToken = null;
+                if (parentRunCtx != null) {
+                    ctxToken = com.foggyframework.dataset.db.model.engine.compose.runtime
+                            .ScriptRunContextHolder.set(parentRunCtx);
+                }
+                try {
+                    // Find and invoke the method on target
+                    Method[] methods = target.getClass().getMethods();
+                    for (Method m : methods) {
+                        if (m.getName().equals(methodName) && m.getParameterCount() == (args == null ? 0 : args.length)) {
+                            m.setAccessible(true);
+                            return m.invoke(target, args);
+                        }
+                    }
+                    // Fallback: find by name only
+                    for (Method m : methods) {
+                        if (m.getName().equals(methodName)) {
+                            m.setAccessible(true);
+                            return m.invoke(target, args);
+                        }
+                    }
+                    throw new NoSuchMethodException(methodName);
+                } finally {
+                    if (ctxToken != null) {
+                        com.foggyframework.dataset.db.model.engine.compose.runtime
+                                .ScriptRunContextHolder.pop(ctxToken);
                     }
                 }
-                // Fallback: find by name only
-                for (Method m : methods) {
-                    if (m.getName().equals(methodName)) {
-                        m.setAccessible(true);
-                        return m.invoke(target, args);
-                    }
-                }
-                throw new NoSuchMethodException(methodName);
             });
 
             Object result;
@@ -136,6 +155,15 @@ public final class ObjectFacadeProxy {
                         "Method '" + methodName + "' on object '"
                                 + descriptor.getObjectName() + "' exceeded timeout.");
             } catch (ExecutionException e) {
+                // P2.5: Pass through ScriptSuspendException without sanitizing
+                Throwable cause = e.getCause();
+                if (cause instanceof java.lang.reflect.InvocationTargetException ite) {
+                    cause = ite.getCause();
+                }
+                if (cause instanceof com.foggyframework.dataset.db.model.engine.compose.runtime
+                        .ScriptSuspendException sse) {
+                    throw sse;
+                }
                 // Sanitize — do not expose internal details
                 throw new CapabilityException.MethodNotDeclared(
                         "Method '" + methodName + "' on object '"

@@ -1,6 +1,7 @@
 package com.foggyframework.dataset.mcp.tools;
 
 import com.foggyframework.dataset.db.model.engine.compose.compilation.ComposeCompileException;
+import com.foggyframework.dataset.db.model.engine.compose.authority.AuthorityBindingResolver;
 import com.foggyframework.dataset.db.model.engine.compose.context.ComposeQueryContext;
 import com.foggyframework.dataset.db.model.engine.compose.runtime.ScriptRuntime;
 import com.foggyframework.dataset.db.model.engine.compose.sandbox.ComposeSandboxViolationException;
@@ -57,6 +58,10 @@ import java.util.function.Function;
 @ConditionalOnBean(name = "composeAuthorityResolverFactory")
 public class ComposeScriptTool implements McpTool {
 
+    static final String AUTHORITY_BINDING_ARGUMENT = "__foggyAuthorityBinding";
+    static final String REMOTE_COMPOSE_HEADER = "X-Foggy-Remote-Compose";
+    static final String REMOTE_COMPOSE_NAMESPACE = "odoo";
+
     private final SemanticQueryServiceV3 semanticService;
     private final Function<ToolExecutionContext, AuthorityResolver> resolverFactory;
     private final String defaultDialect;
@@ -85,13 +90,21 @@ public class ComposeScriptTool implements McpTool {
 
     @Override
     public Object execute(Map<String, Object> arguments, ToolExecutionContext toolCtx) {
-        String script = (String) arguments.get("script");
+        Map<String, Object> visibleArguments = arguments == null
+                ? new LinkedHashMap<>()
+                : new LinkedHashMap<>(arguments);
+        Object authorityBinding = visibleArguments.remove(AUTHORITY_BINDING_ARGUMENT);
+        removeHostPrivateArgument(arguments);
+
+        String script = (String) visibleArguments.get("script");
         if (script == null || script.isBlank()) {
             return errorPayload("missing-script", "internal",
                     "parameter 'script' is required and must be non-blank", null);
         }
         try {
-            AuthorityResolver resolver = resolverFactory.apply(toolCtx);
+            AuthorityResolver resolver = isRemoteCompose(toolCtx)
+                    ? new AuthorityBindingResolver(authorityBinding, REMOTE_COMPOSE_NAMESPACE)
+                    : resolverFactory.apply(toolCtx);
             if (resolver == null) {
                 return errorPayload("host-misconfig", "internal",
                         "authority resolver factory returned null for this ToolExecutionContext", null);
@@ -132,6 +145,22 @@ public class ComposeScriptTool implements McpTool {
             log.error("compose_script unexpected error", e);
             return errorPayload("internal-error", "internal",
                     e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName(), null);
+        }
+    }
+
+    private static boolean isRemoteCompose(ToolExecutionContext toolCtx) {
+        return toolCtx != null && "1".equals(toolCtx.getHeader(REMOTE_COMPOSE_HEADER));
+    }
+
+    private static void removeHostPrivateArgument(Map<String, Object> arguments) {
+        if (arguments == null || !arguments.containsKey(AUTHORITY_BINDING_ARGUMENT)) {
+            return;
+        }
+        try {
+            arguments.remove(AUTHORITY_BINDING_ARGUMENT);
+        } catch (UnsupportedOperationException ignored) {
+            // Some tests and embedded callers pass immutable maps; the script
+            // still receives only the sanitized copy above.
         }
     }
 

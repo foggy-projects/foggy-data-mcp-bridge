@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.dataset.mcp.enums.UserRole;
 import com.foggyframework.dataset.mcp.schema.McpError;
 import com.foggyframework.dataset.mcp.schema.McpRequest;
+import com.foggyframework.dataset.mcp.schema.McpRequestContext;
 import com.foggyframework.dataset.mcp.schema.McpResponse;
 import com.foggyframework.dataset.mcp.service.McpService;
 import com.foggyframework.dataset.mcp.service.McpToolDispatcher;
@@ -98,7 +99,7 @@ class BusinessMcpControllerTest {
                     ))
             ));
 
-            when(mcpService.handleToolsCall(any(McpRequest.class), eq(UserRole.BUSINESS), any(), any(), any(), any()))
+            when(mcpService.handleToolsCall(any(McpRequest.class), any(McpRequestContext.class)))
                     .thenReturn(mockResponse);
 
             mockMvc.perform(post("/mcp/business/rpc")
@@ -118,7 +119,7 @@ class BusinessMcpControllerTest {
                     .andExpect(jsonPath("$.result.content").isArray())
                     .andExpect(jsonPath("$.error").doesNotExist());
 
-            verify(mcpService).handleToolsCall(any(McpRequest.class), eq(UserRole.BUSINESS), any(), any(), any(), any());
+            verify(mcpService).handleToolsCall(any(McpRequest.class), any(McpRequestContext.class));
         }
 
         @Test
@@ -128,7 +129,7 @@ class BusinessMcpControllerTest {
             McpResponse mockResponse = McpResponse.error("1", McpError.METHOD_NOT_FOUND,
                     "Tool not found or access denied: dataset.query_model");
 
-            when(mcpService.handleToolsCall(any(McpRequest.class), eq(UserRole.BUSINESS), any(), any(), any(), any()))
+            when(mcpService.handleToolsCall(any(McpRequest.class), any(McpRequestContext.class)))
                     .thenReturn(mockResponse);
 
             mockMvc.perform(post("/mcp/business/rpc")
@@ -156,7 +157,7 @@ class BusinessMcpControllerTest {
             McpResponse mockResponse = McpResponse.error("1", McpError.METHOD_NOT_FOUND,
                     "Tool not found or access denied: dataset.get_metadata");
 
-            when(mcpService.handleToolsCall(any(McpRequest.class), eq(UserRole.BUSINESS), any(), any(), any(), any()))
+            when(mcpService.handleToolsCall(any(McpRequest.class), any(McpRequestContext.class)))
                     .thenReturn(mockResponse);
 
             mockMvc.perform(post("/mcp/business/rpc")
@@ -183,7 +184,7 @@ class BusinessMcpControllerTest {
             McpResponse mockResponse = McpResponse.error("1", McpError.METHOD_NOT_FOUND,
                     "Tool not found or access denied: chart.generate");
 
-            when(mcpService.handleToolsCall(any(McpRequest.class), eq(UserRole.BUSINESS), any(), any(), any(), any()))
+            when(mcpService.handleToolsCall(any(McpRequest.class), any(McpRequestContext.class)))
                     .thenReturn(mockResponse);
 
             mockMvc.perform(post("/mcp/business/rpc")

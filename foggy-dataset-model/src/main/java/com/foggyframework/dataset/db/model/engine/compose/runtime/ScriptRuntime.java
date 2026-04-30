@@ -114,6 +114,51 @@ public final class ScriptRuntime {
     }
 
     /**
+     * Execute a Compose Query fsscript with capability injection and suspension support.
+     *
+     * @since 8.5.0 (P2.5)
+     */
+    public static ScriptResult runScript(
+            String script,
+            ComposeQueryContext ctx,
+            SemanticQueryServiceV3 semanticService,
+            String dialect,
+            boolean previewMode,
+            CapabilityRegistry capabilityRegistry,
+            CapabilityPolicy capabilityPolicy,
+            SuspensionManager suspensionManager) {
+        if (ctx == null) throw new IllegalArgumentException("ctx must not be null");
+        if (semanticService == null) throw new IllegalArgumentException("semanticService must not be null");
+
+        // P2.5: set up run context and manager
+        ScriptRunContext runCtx = new ScriptRunContext();
+        ScriptRunContextHolder.Token runToken = null;
+        if (suspensionManager != null) {
+            suspensionManager.registerRun(runCtx);
+            runToken = ScriptRunContextHolder.set(runCtx);
+            ComposePause.CURRENT_MANAGER.set(suspensionManager);
+        }
+
+        try {
+            return doRunScript(script, ctx, semanticService, dialect,
+                    previewMode, capabilityRegistry, capabilityPolicy, suspensionManager);
+        } finally {
+            if (suspensionManager != null) {
+                ComposePause.CURRENT_MANAGER.remove();
+                ScriptRunContextHolder.pop(runToken);
+                // Complete or abort depending on state
+                if (!runCtx.isTerminal()) {
+                    try {
+                        suspensionManager.completeRun(runCtx.getRunId());
+                    } catch (Exception ignored) {
+                        // run may already have been cleaned up
+                    }
+                }
+            }
+        }
+    }
+
+    /**
      * Execute a Compose Query fsscript with optional preview mode and capability injection.
      */
     public static ScriptResult runScript(
@@ -124,6 +169,19 @@ public final class ScriptRuntime {
             boolean previewMode,
             CapabilityRegistry capabilityRegistry,
             CapabilityPolicy capabilityPolicy) {
+        return runScript(script, ctx, semanticService, dialect,
+                previewMode, capabilityRegistry, capabilityPolicy, null);
+    }
+
+    private static ScriptResult doRunScript(
+            String script,
+            ComposeQueryContext ctx,
+            SemanticQueryServiceV3 semanticService,
+            String dialect,
+            boolean previewMode,
+            CapabilityRegistry capabilityRegistry,
+            CapabilityPolicy capabilityPolicy,
+            SuspensionManager suspensionManager) {
         if (ctx == null) throw new IllegalArgumentException("ctx must not be null");
         if (semanticService == null) throw new IllegalArgumentException("semanticService must not be null");
 
@@ -236,6 +294,33 @@ public final class ScriptRuntime {
             }
 
             injectCapabilities(evaluator, capabilityRegistry, capabilityPolicy);
+
+            // P2.5: Inject optional runtime.pause when policy allows
+            if (capabilityPolicy != null && capabilityPolicy.isScriptPauseAllowed()
+                    && suspensionManager != null) {
+                java.util.Map<String, Object> runtimeObj = new java.util.LinkedHashMap<>();
+                runtimeObj.put("pause", (java.util.function.Function<Object[], Object>) rawArgs -> {
+                    if (rawArgs == null || rawArgs.length != 1 || !(rawArgs[0] instanceof Map)) {
+                        throw new IllegalArgumentException("runtime.pause must be called with an options object");
+                    }
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> opts = (Map<String, Object>) rawArgs[0];
+                    Object reason = opts.get("reason");
+                    if (!(reason instanceof String) || ((String) reason).isEmpty()) {
+                        throw new IllegalArgumentException("runtime.pause requires 'reason'");
+                    }
+                    Object timeoutMs = opts.get("timeout_ms");
+                    if (!(timeoutMs instanceof Number)) {
+                        throw new IllegalArgumentException("runtime.pause requires 'timeout_ms'");
+                    }
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> summary = opts.containsKey("summary")
+                            ? (Map<String, Object>) opts.get("summary") : Map.of();
+                    return ComposePause.pause((String) reason, summary,
+                            ((Number) timeoutMs).intValue());
+                });
+                evaluator.setVar("runtime", Collections.unmodifiableMap(runtimeObj));
+            }
 
             // 5. Execute
             Object result = fsscript.evalResult(evaluator);

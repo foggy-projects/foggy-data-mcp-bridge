@@ -90,12 +90,25 @@ export const model = {
     properties: [
         { column: 'id', caption: 'ID', type: 'INTEGER' },
         { column: 'name', caption: 'Number', type: 'STRING', description: 'Invoice/entry number' },
-        { column: 'move_type', caption: 'Type', type: 'STRING', dictRef: dicts.account_move_type },
-        { column: 'state', caption: 'Status', type: 'STRING', dictRef: dicts.account_move_state },
+        { column: 'move_type', caption: 'Type', type: 'STRING', dictRef: dicts.account_move_type,
+          description: 'Journal entry type. enum: out_invoice (customer invoice) / in_invoice '
+              + '(vendor bill) / out_refund (customer credit note) / in_refund (vendor refund) / '
+              + 'entry (misc journal entry) / out_receipt (sales receipt) / in_receipt (purchase receipt). '
+              + 'AR / AP reports filter by out_invoice and in_invoice respectively.' },
+        { column: 'state', caption: 'Status', type: 'STRING', dictRef: dicts.account_move_state,
+          description: 'Entry posting status. enum: draft (not posted) / posted (posted to GL) / '
+              + 'cancel (cancelled). Only posted entries contribute to AR / AP balances.' },
         { column: 'date', caption: 'Accounting Date', type: 'DAY' },
         { column: 'invoice_date', caption: 'Invoice Date', type: 'DAY' },
-        { column: 'invoice_date_due', caption: 'Due Date', type: 'DAY' },
-        { column: 'payment_state', caption: 'Payment Status', type: 'STRING', dictRef: dicts.account_payment_state },
+        { column: 'invoice_date_due', caption: 'Due Date', type: 'DAY',
+          description: 'Invoice due date (mapped to account.move.line.date_maturity on the '
+              + 'receivable/payable line — use dateMaturity via the move dimension when querying '
+              + 'AR/AP aging).' },
+        { column: 'payment_state', caption: 'Payment Status', type: 'STRING', dictRef: dicts.account_payment_state,
+          description: 'Payment reconciliation status. enum: not_paid / in_payment (bank sync pending) / '
+              + 'paid (fully reconciled) / partial (partially reconciled) / reversed / invoicing_legacy '
+              + '(pre-migration). AR outstanding uses not_paid + partial + in_payment; paid / reversed / '
+              + 'invoicing_legacy are excluded from aging.' },
         { column: 'ref', caption: 'Reference', type: 'STRING' },
         { column: 'invoice_origin', caption: 'Source Document', type: 'STRING' },
         { column: 'narration', caption: 'Internal Note', type: 'STRING' },
@@ -107,7 +120,12 @@ export const model = {
         { column: 'amount_untaxed', caption: 'Untaxed Amount', type: 'MONEY', aggregation: 'sum' },
         { column: 'amount_tax', caption: 'Tax Amount', type: 'MONEY', aggregation: 'sum' },
         { column: 'amount_total', caption: 'Total', type: 'MONEY', aggregation: 'sum' },
-        { column: 'amount_residual', caption: 'Amount Due', type: 'MONEY', aggregation: 'sum' },
+        { column: 'amount_residual', caption: 'Amount Due', type: 'MONEY', aggregation: 'sum',
+          description: 'Outstanding balance on this entry in company currency. Positive for AR '
+              + '(customer invoices with money still owed) and AP (vendor bills with money still '
+              + 'owed); drops to 0 once fully reconciled. Kept in sync with payment_state: rows '
+              + 'with state=posted and payment_state in (not_paid, partial, in_payment) carry a '
+              + 'non-zero residual; paid and reversed rows have residual = 0.' },
         { column: 'amount_untaxed_signed', caption: 'Untaxed Amount (Signed)', type: 'MONEY', aggregation: 'sum' },
         { column: 'amount_total_signed', caption: 'Total (Signed)', type: 'MONEY', aggregation: 'sum' },
         { column: 'amount_residual_signed', caption: 'Amount Due (Signed)', type: 'MONEY', aggregation: 'sum' },

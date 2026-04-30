@@ -15,6 +15,7 @@ import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -59,7 +60,8 @@ public class BusinessMcpController {
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestHeader(value = "X-Trace-Id", required = false) String traceId,
             @RequestHeader(value = "X-Request-Id", required = false) String requestId,
-            @RequestHeader(value = "X-NS", required = false) String namespace
+            @RequestHeader(value = "X-NS", required = false) String namespace,
+            @RequestHeader(value = "X-Foggy-Remote-Compose", required = false) String remoteCompose
     ) {
         // traceId: AI 会话级，如果没有则生成新的
         if (traceId == null || traceId.isBlank()) {
@@ -82,13 +84,17 @@ public class BusinessMcpController {
                     case "tools/list":
                         return ResponseEntity.ok(mcpService.handleToolsList(request, USER_ROLE));
                     case "tools/call":
-                        return ResponseEntity.ok(mcpService.handleToolsCall(request, USER_ROLE, traceId, requestId, authorization, namespace));
+                        return ResponseEntity.ok(mcpService.handleToolsCall(request,
+                                McpRequestContext.of(traceId, requestId, authorization, USER_ROLE, namespace,
+                                        remoteComposeHeaders(remoteCompose))));
                     case "ping":
                         return ResponseEntity.ok(mcpService.handlePing(request));
                     default:
                         // 尝试作为工具调用处理
                         if (request.getMethod().startsWith("dataset")) {
-                            return ResponseEntity.ok(mcpService.handleDirectToolCall(request, USER_ROLE, traceId, requestId, authorization, namespace));
+                            return ResponseEntity.ok(mcpService.handleDirectToolCall(request,
+                                    McpRequestContext.of(traceId, requestId, authorization, USER_ROLE, namespace,
+                                            remoteComposeHeaders(remoteCompose))));
                         }
                         return ResponseEntity.ok(McpResponse.error(
                                 request.getId(),
@@ -125,7 +131,8 @@ public class BusinessMcpController {
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestHeader(value = "X-Trace-Id", required = false) String traceId,
             @RequestHeader(value = "X-Request-Id", required = false) String requestId,
-            @RequestHeader(value = "X-NS", required = false) String namespace
+            @RequestHeader(value = "X-NS", required = false) String namespace,
+            @RequestHeader(value = "X-Foggy-Remote-Compose", required = false) String remoteCompose
     ) {
         // traceId: AI 会话级
         if (traceId == null || traceId.isBlank()) {
@@ -144,7 +151,8 @@ public class BusinessMcpController {
                 request.getMethod(), request.getId(), traceId, requestId, namespace);
 
         final String finalTraceId = traceId;
-        return toolDispatcher.executeWithProgress(request, traceId, authorization, namespace)
+        return toolDispatcher.executeWithProgress(request, traceId, authorization, namespace,
+                        remoteComposeHeaders(remoteCompose))
                 .map(event -> ServerSentEvent.<Object>builder()
                         .id(event.getId())
                         .event(event.getEventType())
@@ -152,5 +160,9 @@ public class BusinessMcpController {
                         .build())
                 .doOnComplete(() -> log.info("Business MCP Stream completed: traceId={}", finalTraceId))
                 .doOnError(e -> log.error("Business MCP Stream error: traceId={}, error={}", finalTraceId, e.getMessage()));
+    }
+
+    private static Map<String, String> remoteComposeHeaders(String remoteCompose) {
+        return remoteCompose == null ? Map.of() : Map.of("X-Foggy-Remote-Compose", remoteCompose);
     }
 }

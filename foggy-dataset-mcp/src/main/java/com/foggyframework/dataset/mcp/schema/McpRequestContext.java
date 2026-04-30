@@ -4,6 +4,9 @@ import com.foggyframework.dataset.mcp.enums.UserRole;
 import lombok.Builder;
 import lombok.Data;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 /**
  * MCP请求上下文
  * <p>
@@ -49,6 +52,12 @@ public class McpRequestContext {
     private String sourceIp;
 
     /**
+     * 原始请求头快照，用于工具级协议开关。
+     */
+    @Builder.Default
+    private Map<String, String> headers = new LinkedHashMap<>();
+
+    /**
      * 创建简单上下文（仅包含traceId）
      */
     public static McpRequestContext of(String traceId) {
@@ -62,12 +71,22 @@ public class McpRequestContext {
      */
     public static McpRequestContext of(String traceId, String requestId, String authorization,
                                         UserRole userRole, String namespace) {
+        return of(traceId, requestId, authorization, userRole, namespace, null);
+    }
+
+    /**
+     * 创建完整上下文（包含请求头快照）
+     */
+    public static McpRequestContext of(String traceId, String requestId, String authorization,
+                                        UserRole userRole, String namespace,
+                                        Map<String, String> headers) {
         return McpRequestContext.builder()
                 .traceId(traceId)
                 .requestId(requestId)
                 .authorization(authorization)
                 .userRole(userRole)
                 .namespace(namespace)
+                .headers(headers == null ? new LinkedHashMap<>() : new LinkedHashMap<>(headers))
                 .build();
     }
 }

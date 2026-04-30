@@ -51,6 +51,43 @@
 - 表达式中引用了其他的计算字段。
 如果只是普通的 `sum(field)` 或 `sum(if(...))`，请直接写在 `columns` 中。
 
+**跨当前分组占比：使用受限 `CALCULATE`**
+
+当用户询问“各分类占总额占比”“各产品在客户类型内占比”这类跨当前分组的分母问题，在 `calculatedFields.expression` 中使用：
+```text
+SUM(metric) / NULLIF(CALCULATE(SUM(metric), REMOVE(groupByDim)), 0)
+```
+
+示例：全国/全局占比，移除当前唯一分组维度：
+```json
+{
+  "columns": ["customer$customerType", "salesAmount", "totalShare"],
+  "groupBy": ["customer$customerType"],
+  "calculatedFields": [
+    {
+      "name": "totalShare",
+      "expression": "SUM(salesAmount) / NULLIF(CALCULATE(SUM(salesAmount), REMOVE(customer$customerType)), 0)"
+    }
+  ]
+}
+```
+
+示例：父级/组内占比，保留未移除的 groupBy 作为分区：
+```json
+{
+  "columns": ["customer$customerType", "product$categoryName", "salesAmount", "typeShare"],
+  "groupBy": ["customer$customerType", "product$categoryName"],
+  "calculatedFields": [
+    {
+      "name": "typeShare",
+      "expression": "ROUND(SUM(salesAmount) / NULLIF(CALCULATE(SUM(salesAmount), REMOVE(product$categoryName)), 0), 4)"
+    }
+  ]
+}
+```
+
+限制：`CALCULATE` 只支持 `CALCULATE(SUM(metric), REMOVE(groupByDim...))`；`REMOVE` 只能移除当前 `groupBy` 中的维度；占比分母必须使用 `NULLIF(CALCULATE(...), 0)`；不要用 `CALCULATE` 做同比、环比、累计或滚动窗口，这些需求继续使用 `timeWindow`。
+
 ### timeWindow (可选)
 声明式时间窗口分析。遇到同比、环比、周同比、年初至今、月累计、滚动 7/30/90 天这类需求，优先使用 `timeWindow`，不要手写窗口 SQL。
 

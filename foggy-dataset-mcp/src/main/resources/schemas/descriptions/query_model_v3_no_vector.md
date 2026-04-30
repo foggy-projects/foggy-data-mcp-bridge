@@ -51,6 +51,14 @@
 - 表达式中引用了其他的计算字段。
 如果只是普通的 `sum(field)` 或 `sum(if(...))`，请直接写在 `columns` 中。
 
+**跨当前分组占比：使用受限 `CALCULATE`**
+
+- 全局占比：`SUM(salesAmount) / NULLIF(CALCULATE(SUM(salesAmount), REMOVE(customer$customerType)), 0)`
+- 组内占比：`ROUND(SUM(salesAmount) / NULLIF(CALCULATE(SUM(salesAmount), REMOVE(product$categoryName)), 0), 4)`
+- 同比、环比、累计、滚动不要用 `CALCULATE`，继续使用 `timeWindow`。
+
+限制：`CALCULATE` 只支持 `CALCULATE(SUM(metric), REMOVE(groupByDim...))`；`REMOVE` 只能移除当前 `groupBy` 中的维度；占比分母必须使用 `NULLIF(CALCULATE(...), 0)`。
+
 ### timeWindow (可选)
 声明式时间窗口分析。遇到同比、环比、周同比、年初至今、月累计、滚动 7/30/90 天这类需求，优先使用 `timeWindow`，不要手写窗口 SQL。
 

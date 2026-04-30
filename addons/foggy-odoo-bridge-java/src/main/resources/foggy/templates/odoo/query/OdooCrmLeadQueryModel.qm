@@ -100,7 +100,16 @@ export const queryModel = {
                     caption: 'Weighted Pipeline',
                     formula: 'proratedRevenue',
                     type: 'MONEY',
-                    description: 'Expected revenue weighted by win probability'
+                    // v1.4 REQ-003 B1a · L1a A-01 — weightedPipeline is a
+                    // thin alias over Odoo's native `prorated_revenue`
+                    // (crm.lead.prorated_revenue, stored computed).
+                    // The alias is kept for backward compatibility only.
+                    // New queries MUST use `proratedRevenue` directly.
+                    deprecated: true,
+                    replacedBy: 'proratedRevenue',
+                    description: 'DEPRECATED (v1.4 REQ-003 B1a) — use proratedRevenue '
+                        + 'instead. Expected revenue weighted by win probability. '
+                        + 'Alias for Odoo crm.lead.prorated_revenue (stored computed).'
                 }
             ]
         }
