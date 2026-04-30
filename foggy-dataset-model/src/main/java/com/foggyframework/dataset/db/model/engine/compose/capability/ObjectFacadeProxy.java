@@ -105,6 +105,10 @@ public final class ObjectFacadeProxy {
         com.foggyframework.dataset.db.model.engine.compose.runtime.ScriptRunContext
                 parentRunCtx = com.foggyframework.dataset.db.model.engine.compose.runtime
                 .ScriptRunContextHolder.current();
+        // P2.5-fix: also capture the SuspensionManager for child thread
+        com.foggyframework.dataset.db.model.engine.compose.runtime.SuspensionManager
+                parentManager = com.foggyframework.dataset.db.model.engine.compose.runtime
+                .ComposePause.captureManager();
 
         ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
             Thread t = new Thread(r, "capability-facade-" + descriptor.getObjectName() + "." + methodName);
@@ -120,6 +124,11 @@ public final class ObjectFacadeProxy {
                 if (parentRunCtx != null) {
                     ctxToken = com.foggyframework.dataset.db.model.engine.compose.runtime
                             .ScriptRunContextHolder.set(parentRunCtx);
+                }
+                // P2.5-fix: propagate manager to child thread
+                if (parentManager != null) {
+                    com.foggyframework.dataset.db.model.engine.compose.runtime
+                            .ComposePause.setManager(parentManager);
                 }
                 try {
                     // Find and invoke the method on target
@@ -139,6 +148,11 @@ public final class ObjectFacadeProxy {
                     }
                     throw new NoSuchMethodException(methodName);
                 } finally {
+                    // P2.5-fix: strict cleanup — manager first, then context
+                    if (parentManager != null) {
+                        com.foggyframework.dataset.db.model.engine.compose.runtime
+                                .ComposePause.removeManager();
+                    }
                     if (ctxToken != null) {
                         com.foggyframework.dataset.db.model.engine.compose.runtime
                                 .ScriptRunContextHolder.pop(ctxToken);
