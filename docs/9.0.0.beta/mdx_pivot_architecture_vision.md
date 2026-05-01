@@ -8,7 +8,7 @@
 *   **动态多级透视与小计：** 用户随意拖拽行轴、列轴，并要求父级自动 Rollup 汇总。
 
 **9.0.0 的核心目标：**
-实现范式级跨越（Paradigm Shift），彻底引入 MDX 的"多维空间坐标系 (Tuple & Context)"思维，打造一套全新的 `dataset.pivot_model` 架构。
+实现范式级跨越（Paradigm Shift），彻底引入 MDX 的"多维空间坐标系 (Tuple & Context)"思维，打造一套多维透视语义，作为 `dataset.query_model` 的 `pivot` 模式扩展。
 
 ## 二、 9.0.0 必须攻克的三大核心战役
 

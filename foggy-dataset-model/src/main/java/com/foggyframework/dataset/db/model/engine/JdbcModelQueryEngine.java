@@ -5,10 +5,10 @@ import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.db.model.common.query.CondType;
 import com.foggyframework.dataset.db.model.def.query.request.*;
-import com.foggyframework.dataset.db.dialect.DbType;
 import com.foggyframework.dataset.db.model.engine.expression.InlineExpressionParser;
 import com.foggyframework.dataset.db.model.engine.expression.SliceExpressionProcessor;
 import com.foggyframework.dataset.db.dialect.FDialect;
+import com.foggyframework.dataset.db.model.engine.expression.CalculateDialectCapabilities;
 import com.foggyframework.dataset.db.model.engine.expression.CalculateQueryContext;
 import com.foggyframework.dataset.db.model.engine.expression.SqlCalculatedFieldProcessor;
 import com.foggyframework.dataset.db.model.engine.expression.SqlExpContext;
@@ -1220,7 +1220,10 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
     private boolean supportsGroupedAggregateWindow() {
         FDialect dialect = jdbcQueryModel != null ? jdbcQueryModel.getDialect() : null;
-        return dialect == null || dialect.getDbType() != DbType.MYSQL;
+        return CalculateDialectCapabilities.supportsGroupedAggregateWindow(
+                dialect,
+                jdbcQueryModel != null ? jdbcQueryModel.getDataSource() : null
+        );
     }
 
     private boolean isTimeWindowPostCalculatedFields(ModelResultContext context) {

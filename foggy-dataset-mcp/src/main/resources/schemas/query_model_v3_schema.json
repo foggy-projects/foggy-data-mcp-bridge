@@ -13,24 +13,77 @@
       "properties": {
         "calculatedFields": {
           "type": "array",
-          "description": "计算字段定义（复杂表达式、窗口函数、跨当前分组占比或需指定 agg 时使用）。跨维度占比使用 CALCULATE(SUM(metric), REMOVE(groupByDim))，分母必须写 NULLIF(CALCULATE(...), 0)。同比、环比、累计、滚动继续使用 timeWindow；与 timeWindow 联用时，只支持作用于 timeWindow 输出列的后置标量表达式，不要设置 agg、窗口字段或 CALCULATE。",
+          "description": "计算字段定义（复杂表达式、窗口函数、跨当前分组占比或需指定 agg 时使用）。全局占比使用 CALCULATE(SUM(metric), REMOVE(dim))；组内/父级占比使用 CALCULATE(SUM(metric), REMOVE(childDim)) 并保留未移除的 groupBy 作为父级分区；分母必须写 NULLIF(CALCULATE(...), 0)。同比、环比、累计、滚动继续使用 timeWindow，不要使用 CALCULATE；与 timeWindow 联用时，只支持作用于 timeWindow 输出列的后置标量表达式，不要设置 agg、窗口字段或 CALCULATE。 严禁使用未稳定函数：ROLLUP_TO、CELL_AT、AXIS_REF。严禁使用 REMOVE(dim) 推导父级占比（应放入 MCP 提示逻辑或自行构造占比公式）。",
           "items": {
             "type": "object",
             "properties": {
-              "name": { "type": "string", "description": "字段名称，在 columns 中引用" },
-              "expression": { "type": "string", "description": "表达式，支持算术运算、函数、窗口函数(RANK/ROW_NUMBER/LAG等)，以及受限 CALCULATE(SUM(metric), REMOVE(groupByDim))" },
-              "agg": { "type": "string", "enum": ["SUM", "AVG", "MAX", "MIN", "COUNT", "COUNT_DISTINCT", "STDDEV_POP", "STDDEV_SAMP", "VAR_POP", "VAR_SAMP"], "description": "聚合类型，groupBy 场景使用" },
-              "partitionBy": { "type": "array", "items": { "type": "string" }, "description": "窗口函数 PARTITION BY 字段列表" },
-              "windowOrderBy": { "type": "array", "items": { "type": "object", "properties": { "field": { "type": "string" }, "dir": { "type": "string", "enum": ["asc", "desc"] } } }, "description": "窗口函数 ORDER BY" },
-              "windowFrame": { "type": "string", "description": "窗口帧，如 ROWS BETWEEN 6 PRECEDING AND CURRENT ROW" }
+              "name": {
+                "type": "string",
+                "description": "字段名称，在 columns 中引用"
+              },
+              "expression": {
+                "type": "string",
+                "description": "表达式，支持算术运算、函数、窗口函数(RANK/ROW_NUMBER/LAG等)，以及受限 CALCULATE(SUM(metric), REMOVE(groupByDim))"
+              },
+              "agg": {
+                "type": "string",
+                "enum": [
+                  "SUM",
+                  "AVG",
+                  "MAX",
+                  "MIN",
+                  "COUNT",
+                  "COUNT_DISTINCT",
+                  "STDDEV_POP",
+                  "STDDEV_SAMP",
+                  "VAR_POP",
+                  "VAR_SAMP"
+                ],
+                "description": "聚合类型，groupBy 场景使用"
+              },
+              "partitionBy": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "窗口函数 PARTITION BY 字段列表"
+              },
+              "windowOrderBy": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "field": {
+                      "type": "string"
+                    },
+                    "dir": {
+                      "type": "string",
+                      "enum": [
+                        "asc",
+                        "desc"
+                      ]
+                    }
+                  }
+                },
+                "description": "窗口函数 ORDER BY"
+              },
+              "windowFrame": {
+                "type": "string",
+                "description": "窗口帧，如 ROWS BETWEEN 6 PRECEDING AND CURRENT ROW"
+              }
             },
-            "required": ["name", "expression"]
+            "required": [
+              "name",
+              "expression"
+            ]
           }
         },
         "columns": {
           "type": "array",
-          "items": { "type": "string" },
-          "description": "查询字段列表。\uD83D\uDCA1 提示：支持内联聚合，例如 'sum(amount)' 或 'count(orderId) as cnt'，无需单独写 groupBy。"
+          "items": {
+            "type": "string"
+          },
+          "description": "查询字段列表。💡 提示：支持内联聚合，例如 'sum(amount)' 或 'count(orderId) as cnt'，无需单独写 groupBy。"
         },
         "slice": {
           "type": "array",
@@ -41,35 +94,67 @@
                 "type": "object",
                 "description": "单个过滤条件",
                 "properties": {
-                  "field": { "type": "string", "description": "字段名" },
-                  "op": { "type": "string", "description": "操作符：=, !=, >, <, like, in, [], [), is null 等" },
-                  "value": { "description": "过滤值，is null/is not null 时不需要；字段引用用 {\"$field\": \"fieldName\"}" }
+                  "field": {
+                    "type": "string",
+                    "description": "字段名"
+                  },
+                  "op": {
+                    "type": "string",
+                    "description": "操作符：=, !=, >, <, like, in, [], [), is null 等"
+                  },
+                  "value": {
+                    "description": "过滤值，is null/is not null 时不需要；字段引用用 {\"$field\": \"fieldName\"}"
+                  }
                 },
-                "required": ["field", "op"]
+                "required": [
+                  "field",
+                  "op"
+                ]
               },
               {
                 "type": "object",
                 "description": "$expr 表达式条件：字段间比较，支持算术运算",
                 "properties": {
-                  "$expr": { "type": "string", "description": "表达式如 \"salesAmount > costAmount * 1.2\"" }
+                  "$expr": {
+                    "type": "string",
+                    "description": "表达式如 \"salesAmount > costAmount * 1.2\""
+                  }
                 },
-                "required": ["$expr"]
+                "required": [
+                  "$expr"
+                ]
               },
               {
                 "type": "object",
                 "description": "OR 条件组",
                 "properties": {
-                  "$or": { "type": "array", "description": "子条件用 OR 连接", "items": { "$ref": "#/properties/payload/properties/slice/items" } }
+                  "$or": {
+                    "type": "array",
+                    "description": "子条件用 OR 连接",
+                    "items": {
+                      "$ref": "#/properties/payload/properties/slice/items"
+                    }
+                  }
                 },
-                "required": ["$or"]
+                "required": [
+                  "$or"
+                ]
               },
               {
                 "type": "object",
                 "description": "AND 条件组",
                 "properties": {
-                  "$and": { "type": "array", "description": "子条件用 AND 连接", "items": { "$ref": "#/properties/payload/properties/slice/items" } }
+                  "$and": {
+                    "type": "array",
+                    "description": "子条件用 AND 连接",
+                    "items": {
+                      "$ref": "#/properties/payload/properties/slice/items"
+                    }
+                  }
                 },
-                "required": ["$and"]
+                "required": [
+                  "$and"
+                ]
               },
               {
                 "type": "object",
@@ -91,12 +176,30 @@
               {
                 "type": "object",
                 "properties": {
-                  "field": { "type": "string", "description": "排序字段" },
-                  "dir": { "type": "string", "enum": ["asc", "desc", "ASC", "DESC"], "default": "asc" },
-                  "nullFirst": { "type": "boolean" },
-                  "nullLast": { "type": "boolean" }
+                  "field": {
+                    "type": "string",
+                    "description": "排序字段"
+                  },
+                  "dir": {
+                    "type": "string",
+                    "enum": [
+                      "asc",
+                      "desc",
+                      "ASC",
+                      "DESC"
+                    ],
+                    "default": "asc"
+                  },
+                  "nullFirst": {
+                    "type": "boolean"
+                  },
+                  "nullLast": {
+                    "type": "boolean"
+                  }
                 },
-                "required": ["field"]
+                "required": [
+                  "field"
+                ]
               }
             ]
           }
@@ -113,10 +216,29 @@
               {
                 "type": "object",
                 "properties": {
-                  "field": { "type": "string" },
-                  "agg": { "type": "string", "enum": ["MAX", "MIN", "SUM", "AVG", "COUNT", "COUNT_DISTINCT", "STDDEV_POP", "STDDEV_SAMP", "VAR_POP", "VAR_SAMP", "PK"] }
+                  "field": {
+                    "type": "string"
+                  },
+                  "agg": {
+                    "type": "string",
+                    "enum": [
+                      "MAX",
+                      "MIN",
+                      "SUM",
+                      "AVG",
+                      "COUNT",
+                      "COUNT_DISTINCT",
+                      "STDDEV_POP",
+                      "STDDEV_SAMP",
+                      "VAR_POP",
+                      "VAR_SAMP",
+                      "PK"
+                    ]
+                  }
                 },
-                "required": ["field"]
+                "required": [
+                  "field"
+                ]
               }
             ]
           }
@@ -131,17 +253,35 @@
             },
             "grain": {
               "type": "string",
-              "enum": ["day", "week", "month", "quarter", "year"],
+              "enum": [
+                "day",
+                "week",
+                "month",
+                "quarter",
+                "year"
+              ],
               "description": "分析粒度"
             },
             "comparison": {
               "type": "string",
-              "enum": ["yoy", "mom", "wow", "ytd", "mtd", "rolling_7d", "rolling_30d", "rolling_90d"],
+              "enum": [
+                "yoy",
+                "mom",
+                "wow",
+                "ytd",
+                "mtd",
+                "rolling_7d",
+                "rolling_30d",
+                "rolling_90d"
+              ],
               "description": "时间窗口类型：yoy/mom/wow 为同期比较，ytd/mtd 为累计，rolling_* 为滚动窗口"
             },
             "range": {
               "type": "string",
-              "enum": ["[)", "[]"],
+              "enum": [
+                "[)",
+                "[]"
+              ],
               "description": "日期范围边界语义，默认 [)"
             },
             "value": {
@@ -149,30 +289,308 @@
             },
             "targetMetrics": {
               "type": "array",
-              "items": { "type": "string" },
+              "items": {
+                "type": "string"
+              },
               "description": "需要派生时间窗口列的度量字段，如 [\"salesAmount\"]。不填时默认作用于可用度量。"
             },
             "rollingAggregator": {
               "type": "string",
-              "enum": ["sum", "avg", "count"],
+              "enum": [
+                "sum",
+                "avg",
+                "count"
+              ],
               "description": "rolling_* 的聚合函数；默认 sum"
             }
           },
-          "required": ["field", "grain", "comparison"]
+          "required": [
+            "field",
+            "grain",
+            "comparison"
+          ]
         },
-        "start": { "type": "integer", "default": 0, "description": "起始行号" },
-        "limit": { "type": "integer", "default": 1000, "description": "每页记录数" },
-        "returnTotal": { "type": "boolean", "default": false, "description": "是否返回总记录数" },
-        "distinct": { "type": "boolean", "default": false, "description": "是否去重（SELECT DISTINCT）。适用于'列出所有…'类查询，与 groupBy 互斥" },
-        "withSubtotals": { "type": "boolean", "default": false, "description": "是否追加小计/总计行。对 groupBy 聚合结果追加分组小计和总计行，通过 _rowType 字段标记（data/subtotal/grandTotal）" }
-      }
+        "start": {
+          "type": "integer",
+          "default": 0,
+          "description": "起始行号"
+        },
+        "limit": {
+          "type": "integer",
+          "default": 1000,
+          "description": "每页记录数"
+        },
+        "returnTotal": {
+          "type": "boolean",
+          "default": false,
+          "description": "是否返回总记录数"
+        },
+        "distinct": {
+          "type": "boolean",
+          "default": false,
+          "description": "是否去重（SELECT DISTINCT）。适用于'列出所有…'类查询，与 groupBy 互斥"
+        },
+        "withSubtotals": {
+          "type": "boolean",
+          "default": false,
+          "description": "是否追加小计/总计行。对 groupBy 聚合结果追加分组小计和总计行，通过 _rowType 字段标记（data/subtotal/grandTotal）"
+        },
+        "pivot": {
+          "type": "object",
+          "description": "多维透视分析模型。支持行/列维度转置、树形展开、骨架补全及小计/总计。注意：开启 pivot 时，必须移除 columns 字段。",
+          "properties": {
+            "rows": {
+              "type": "array",
+              "description": "行轴维度定义。",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "field": {
+                        "type": "string"
+                      },
+                      "hierarchyMode": {
+                        "type": "string",
+                        "enum": [
+                          "flat",
+                          "tree"
+                        ]
+                      },
+                      "expandDepth": {
+                        "type": "integer"
+                      },
+                      "limit": {
+                        "type": "integer"
+                      },
+                      "orderBy": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "having": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "metric": {
+                              "type": "string"
+                            },
+                            "op": {
+                              "type": "string",
+                              "enum": [
+                                ">",
+                                ">=",
+                                "<",
+                                "<=",
+                                "=",
+                                "!="
+                              ]
+                            },
+                            "value": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "metric",
+                            "op",
+                            "value"
+                          ]
+                        }
+                      }
+                    },
+                    "required": [
+                      "field"
+                    ]
+                  }
+                ]
+              }
+            },
+            "columns": {
+              "type": "array",
+              "description": "列轴维度定义。",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "field": {
+                        "type": "string"
+                      },
+                      "hierarchyMode": {
+                        "type": "string",
+                        "enum": [
+                          "flat",
+                          "tree"
+                        ]
+                      },
+                      "expandDepth": {
+                        "type": "integer"
+                      },
+                      "limit": {
+                        "type": "integer"
+                      },
+                      "orderBy": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "having": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "metric": {
+                              "type": "string"
+                            },
+                            "op": {
+                              "type": "string",
+                              "enum": [
+                                ">",
+                                ">=",
+                                "<",
+                                "<=",
+                                "=",
+                                "!="
+                              ]
+                            },
+                            "value": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "metric",
+                            "op",
+                            "value"
+                          ]
+                        }
+                      }
+                    },
+                    "required": [
+                      "field"
+                    ]
+                  }
+                ]
+              }
+            },
+            "metrics": {
+              "type": "array",
+              "description": "在单元格中展示的度量字段名称列表。",
+              "items": {
+                "type": "string"
+              }
+            },
+            "properties": {
+              "type": "array",
+              "description": "需要随维度查出的附加属性，不改变聚合粒度。",
+              "items": {
+                "type": "string"
+              }
+            },
+            "options": {
+              "type": "object",
+              "description": "透视高级计算选项。",
+              "properties": {
+                "crossjoin": {
+                  "type": "boolean"
+                },
+                "rowSubtotals": {
+                  "type": "boolean"
+                },
+                "columnSubtotals": {
+                  "type": "boolean"
+                },
+                "grandTotal": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "layout": {
+              "type": "object",
+              "description": "客户端透视表布局参数。",
+              "properties": {
+                "metricPlacement": {
+                  "type": "string",
+                  "enum": [
+                    "columns",
+                    "rows"
+                  ]
+                }
+              }
+            },
+            "outputFormat": {
+              "type": "string",
+              "enum": [
+                "flat",
+                "tree",
+                "grid"
+              ],
+              "description": "期望格式。默认 flat。"
+            }
+          },
+          "required": [
+            "rows",
+            "metrics"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "not": {
+            "allOf": [
+              {
+                "required": [
+                  "pivot"
+                ]
+              },
+              {
+                "required": [
+                  "columns"
+                ]
+              }
+            ]
+          },
+          "errorMessage": "不能同时出现 pivot 和 columns"
+        },
+        {
+          "not": {
+            "allOf": [
+              {
+                "required": [
+                  "pivot"
+                ]
+              },
+              {
+                "required": [
+                  "timeWindow"
+                ]
+              }
+            ]
+          },
+          "errorMessage": "不能同时出现 pivot 和 timeWindow"
+        }
+      ]
     },
     "mode": {
       "type": "string",
-      "enum": ["execute", "validate"],
+      "enum": [
+        "execute",
+        "validate"
+      ],
       "default": "execute",
       "description": "execute(执行), validate(仅验证)"
     }
   },
-  "required": ["model", "payload"]
+  "required": [
+    "model",
+    "payload"
+  ]
 }

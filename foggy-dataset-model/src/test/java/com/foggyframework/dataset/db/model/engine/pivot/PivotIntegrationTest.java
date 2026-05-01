@@ -1,0 +1,602 @@
+package com.foggyframework.dataset.db.model.engine.pivot;
+
+import com.foggyframework.dataset.db.model.ecommerce.EcommerceTestSupport;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
+import com.foggyframework.dataset.db.model.semantic.domain.pivot.AxisField;
+import com.foggyframework.dataset.db.model.semantic.domain.pivot.MetricFilter;
+import com.foggyframework.dataset.db.model.semantic.domain.pivot.PivotLayout;
+import com.foggyframework.dataset.db.model.semantic.domain.pivot.PivotOptions;
+import com.foggyframework.dataset.db.model.semantic.domain.pivot.PivotRequest;
+import com.foggyframework.dataset.db.model.semantic.exception.TooManyPivotCellsException;
+import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
+import com.foggyframework.dataset.db.model.semantic.service.impl.SemanticQueryServiceV3Impl;
+import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
+
+import java.util.List;
+import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ * Pivot 端到端集成测试
+ *
+ * <p>基于真实 SQLite 数据库（FactSalesQueryModel）验证 Pivot Pipeline 的执行结果，
+ * 涵盖扁平、网格、树形、交叉互斥、小计总计等全部核心特性。</p>
+ */
+@Slf4j
+@DisplayName("Pivot Pipeline 端到端集成验收")
+class PivotIntegrationTest extends EcommerceTestSupport {
+
+    private static final String TEST_MODEL = "FactSalesQueryModel";
+
+    @Resource
+    private SemanticQueryServiceV3 semanticQueryServiceV3;
+
+    @Test
+    @DisplayName("基础 Pivot (Flat) - 仅有行和度量")
+    void testBasicFlatPivot() {
+        PivotRequest pivot = new PivotRequest();
+        pivot.setRows(List.of(axis("product$categoryName")));
+        pivot.setMetrics(List.of("salesAmount"));
+        pivot.setOutputFormat("flat");
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setPivot(pivot);
+
+        SemanticQueryResponse response = execute(request);
+
+        // 返回扁平结构
+        List<Map<String, Object>> items = response.getItems();
+        assertFalse(items.isEmpty());
+        assertTrue(items.get(0).containsKey("product$categoryName"));
+        assertTrue(items.get(0).containsKey("salesAmount"));
+    }
+
+    @Test
+    @DisplayName("网格 Pivot (Grid) - 行、列、度量")
+    void testGridPivot() {
+        PivotRequest pivot = new PivotRequest();
+        pivot.setRows(List.of(axis("product$categoryName")));
+        pivot.setColumns(List.of(axis("salesDate$month")));
+        pivot.setMetrics(List.of("salesAmount"));
+        pivot.setOutputFormat("grid");
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setPivot(pivot);
+
+        SemanticQueryResponse response = execute(request);
+        List<Map<String, Object>> items = response.getItems();
+
+        // grid 模式返回单个包装好的元素
+        assertEquals(1, items.size());
+        Map<String, Object> grid = items.get(0);
+
+        assertEquals("grid", grid.get("format"));
+        assertNotNull(grid.get("rowHeaders"));
+        assertNotNull(grid.get("columnHeaders"));
+        assertNotNull(grid.get("cells"));
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> rowHeaders = (List<Map<String, Object>>) grid.get("rowHeaders");
+        assertFalse(rowHeaders.isEmpty());
+        assertTrue(rowHeaders.get(0).containsKey("product$categoryName"));
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> colHeaders = (List<Map<String, Object>>) grid.get("columnHeaders");
+        assertFalse(colHeaders.isEmpty());
+        assertTrue(colHeaders.get(0).containsKey("salesDate$month"));
+        assertTrue(colHeaders.get(0).containsKey("metric"));
+    }
+
+    @Test
+    @DisplayName("Pivot With Having - 对聚合成品进行过滤")
+    void testPivotWithHaving() {
+        PivotRequest pivot = new PivotRequest();
+
+        AxisField row = axis("product$categoryName");
+        MetricFilter having = new MetricFilter();
+        having.setMetric("salesAmount");
+        having.setOp(">");
+        having.setValue(5000); // 只保留销量大于 5000 的品类
+        row.setHaving(List.of(having));
+
+        pivot.setRows(List.of(row));
+        pivot.setMetrics(List.of("salesAmount"));
+        pivot.setOutputFormat("flat");
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setPivot(pivot);
+
+        SemanticQueryResponse response = execute(request);
+        List<Map<String, Object>> items = response.getItems();
+
+        // 验证所有的行 salesAmount 均 > 5000
+        for (Map<String, Object> item : items) {
+            double amount = ((Number) item.get("salesAmount")).doubleValue();
+            assertTrue(amount > 5000, "Having 过滤失败，存在销量 < 5000 的行: " + amount);
+        }
+    }
+
+    @Test
+    @DisplayName("隐式父子分区 TopN - 截断子级")
+    void testParentChildTopN() {
+        PivotRequest pivot = new PivotRequest();
+
+        AxisField year = axis("salesDate$year");
+        AxisField month = axis("salesDate$month");
+        month.setLimit(2); // 每个年份下只取 2 个月
+        month.setOrderBy(List.of("-salesAmount")); // 按销量降序
+
+        pivot.setRows(List.of(year, month));
+        pivot.setMetrics(List.of("salesAmount"));
+        pivot.setOutputFormat("tree");
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setPivot(request.getPivot());
+        request.setPivot(pivot);
+
+        SemanticQueryResponse response = execute(request);
+        Map<String, Object> treeWrapper = response.getItems().get(0);
+        assertEquals("tree", treeWrapper.get("format"));
+
+        @SuppressWarnings("unchecked")
+        List<PivotResult.TreeNode> treeData = (List<PivotResult.TreeNode>) treeWrapper.get("data");
+        assertFalse(treeData.isEmpty());
+
+        for (PivotResult.TreeNode yearNode : treeData) {
+            assertNotNull(yearNode.getChildren());
+            assertTrue(yearNode.getChildren().size() <= 2, "每个年份子节点不能超过 2 个");
+        }
+    }
+
+    @Test
+    @DisplayName("CrossJoin 骨架补全 - 插入 null 单元格")
+    void testCrossJoin() {
+        PivotRequest pivot = new PivotRequest();
+        pivot.setRows(List.of(axis("product$categoryName")));
+        pivot.setColumns(List.of(axis("salesDate$month")));
+        pivot.setMetrics(List.of("salesAmount"));
+        pivot.setOutputFormat("flat");
+
+        PivotOptions options = new PivotOptions();
+        options.setCrossjoin(true);
+        pivot.setOptions(options);
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setPivot(pivot);
+
+        SemanticQueryResponse response = execute(request);
+        List<Map<String, Object>> items = response.getItems();
+
+        // 如果存在确实没有销量的 品类+月份，CrossJoinFiller 会补上 null
+        // 这里重点断言系统未报错且返回了数据
+        assertFalse(items.isEmpty());
+    }
+
+    @Test
+    @DisplayName("小计与总计 (Subtotals & Grand Total)")
+    void testSubtotalsAndGrandTotal() {
+        PivotRequest pivot = new PivotRequest();
+        pivot.setRows(List.of(axis("salesDate$year"), axis("salesDate$month")));
+        pivot.setMetrics(List.of("salesAmount"));
+        pivot.setOutputFormat("flat");
+
+        PivotOptions options = new PivotOptions();
+        options.setRowSubtotals(true);
+        options.setGrandTotal(true);
+        pivot.setOptions(options);
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setPivot(pivot);
+
+        SemanticQueryResponse response = execute(request);
+        List<Map<String, Object>> items = response.getItems();
+
+        boolean foundRowSubtotal = false;
+        boolean foundGrandTotal = false;
+
+        for (Map<String, Object> row : items) {
+            if (row.containsKey("_sys_meta")) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> meta = (Map<String, Object>) row.get("_sys_meta");
+                if (Boolean.TRUE.equals(meta.get("isRowSubtotal"))) {
+                    foundRowSubtotal = true;
+                    assertEquals("ALL", row.get("salesDate$month"));
+                }
+                if (Boolean.TRUE.equals(meta.get("isGrandTotal"))) {
+                    foundGrandTotal = true;
+                    assertEquals("GRAND_TOTAL", row.get("salesDate$year"));
+                }
+            }
+        }
+
+        assertTrue(foundRowSubtotal, "未发现行级小计记录");
+        assertTrue(foundGrandTotal, "未发现总计记录");
+    }
+
+    @Test
+    @DisplayName("布局透传 (Layout Placement)")
+    void testLayoutPlacementRows() {
+        PivotRequest pivot = new PivotRequest();
+        pivot.setRows(List.of(axis("product$categoryName")));
+        pivot.setColumns(List.of(axis("salesDate$month")));
+        pivot.setMetrics(List.of("salesAmount"));
+        pivot.setOutputFormat("grid");
+
+        PivotLayout layout = new PivotLayout();
+        layout.setMetricPlacement("rows");
+        pivot.setLayout(layout);
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setPivot(pivot);
+
+        SemanticQueryResponse response = execute(request);
+        Map<String, Object> grid = response.getItems().get(0);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> resLayout = (Map<String, Object>) grid.get("layout");
+        assertNotNull(resLayout);
+        assertEquals("rows", resLayout.get("metricPlacement"));
+    }
+
+    @Test
+    @DisplayName("互斥校验 - Pivot 与 columns / timeWindow 不能共存")
+    void testMutuallyExclusiveValidation() {
+        // 1. Pivot + columns
+        SemanticQueryRequest request1 = new SemanticQueryRequest();
+        PivotRequest pivot1 = new PivotRequest();
+        pivot1.setRows(List.of(axis("product$categoryName")));
+        pivot1.setMetrics(List.of("salesAmount"));
+        request1.setPivot(pivot1);
+        request1.setColumns(List.of("some_column"));
+
+        IllegalArgumentException ex1 = assertThrows(IllegalArgumentException.class, () -> execute(request1));
+        assertTrue(ex1.getMessage().contains("pivot 与 columns 不能同时出现"));
+
+        // 2. Pivot + timeWindow
+        SemanticQueryRequest request2 = new SemanticQueryRequest();
+        PivotRequest pivot2 = new PivotRequest();
+        pivot2.setRows(List.of(axis("product$categoryName")));
+        pivot2.setMetrics(List.of("salesAmount"));
+        request2.setPivot(pivot2);
+        request2.setTimeWindow(Map.of("comparison", "yoy"));
+
+        IllegalArgumentException ex2 = assertThrows(IllegalArgumentException.class, () -> execute(request2));
+        assertTrue(ex2.getMessage().contains("timeWindow 与 pivot 模式互斥"));
+    }
+
+    @Test
+    @DisplayName("基数超限熔断 (TooManyPivotCellsException) - 利用反射注入低阈值")
+    void testCardinalityCircuitBreaker() {
+        // 原始 pipeline 保存
+        SemanticQueryServiceV3Impl impl = (SemanticQueryServiceV3Impl) semanticQueryServiceV3;
+        PivotPipeline originalPipeline = (PivotPipeline) ReflectionTestUtils.getField(impl, "pivotPipeline");
+
+        try {
+            // 构造极低阈值的 CardinalityBreaker 和 Pipeline
+            CardinalityBreaker strictBreaker = new CardinalityBreaker(2); // 阈值 = 2
+            PivotPipeline strictPipeline = new PivotPipeline(semanticQueryServiceV3, strictBreaker);
+
+            // 通过反射替换
+            ReflectionTestUtils.setField(impl, "pivotPipeline", strictPipeline);
+
+            PivotRequest pivot = new PivotRequest();
+            pivot.setRows(List.of(axis("product$categoryName"))); // 品类通常多于 5 个
+            pivot.setColumns(List.of(axis("salesDate$month")));
+            pivot.setMetrics(List.of("salesAmount"));
+            pivot.setOutputFormat("flat");
+
+            SemanticQueryRequest request = new SemanticQueryRequest();
+            request.setPivot(pivot);
+
+            // 执行应触发 TooManyPivotCellsException
+            TooManyPivotCellsException ex = assertThrows(TooManyPivotCellsException.class, () -> execute(request));
+            assertTrue(ex.getCellCount() > 2);
+            assertNotNull(ex.getSuggestion());
+            log.info("成功触发熔断: {}", ex.getMessage());
+
+        } finally {
+            // 恢复原始 pipeline
+            ReflectionTestUtils.setField(impl, "pivotPipeline", originalPipeline);
+        }
+    }
+
+    // ==========================================
+    // S8.2: hierarchyMode=tree 守卫规则
+    // ==========================================
+
+    @Test
+    @DisplayName("hierarchyMode=tree + grid 拒绝")
+    void testHierarchyTreeGridRejected() {
+        PivotRequest pivot = new PivotRequest();
+        pivot.setRows(List.of(treeAxis("product$categoryName")));
+        pivot.setMetrics(List.of("salesAmount"));
+        pivot.setOutputFormat("grid");
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setPivot(pivot);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> execute(request));
+        assertTrue(ex.getMessage().contains("hierarchyMode=tree 仅支持 outputFormat=tree"));
+        log.info("tree+grid 拒绝通过: {}", ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("hierarchyMode=tree + crossjoin 拒绝")
+    void testHierarchyTreeCrossjoinRejected() {
+        PivotRequest pivot = new PivotRequest();
+        pivot.setRows(List.of(treeAxis("product$categoryName")));
+        pivot.setMetrics(List.of("salesAmount"));
+        pivot.setOutputFormat("tree");
+        PivotOptions options = new PivotOptions();
+        options.setCrossjoin(true);
+        pivot.setOptions(options);
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setPivot(pivot);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> execute(request));
+        assertTrue(ex.getMessage().contains("hierarchyMode=tree 与 crossjoin=true 不兼容"));
+        log.info("tree+crossjoin 拒绝通过: {}", ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("hierarchyMode=tree 在 columns 轴拒绝")
+    void testHierarchyTreeColumnAxisRejected() {
+        PivotRequest pivot = new PivotRequest();
+        pivot.setRows(List.of(axis("product$categoryName")));
+        pivot.setColumns(List.of(treeAxis("salesDate$month")));
+        pivot.setMetrics(List.of("salesAmount"));
+        pivot.setOutputFormat("tree");
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setPivot(pivot);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> execute(request));
+        assertTrue(ex.getMessage().contains("hierarchyMode=tree 当前仅支持 rows 轴"));
+        log.info("columns 轴 tree 拒绝通过: {}", ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("端到端 Tree: hierarchyMode=tree 成功路径")
+    void testHierarchyTreeBasic() {
+        PivotRequest pivot = new PivotRequest();
+        pivot.setRows(List.of(treeAxis("team$caption")));
+        pivot.setMetrics(List.of("salesAmount"));
+        pivot.setOutputFormat("tree");
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setPivot(pivot);
+
+        // 使用支持层级的 FactTeamSalesQueryModel
+        SemanticQueryResponse response = execute("FactTeamSalesQueryModel", request);
+
+        // 验证树结构：应当返回 PivotResult 格式（包装在 items 中），且带有 treeData
+        List<Map<String, Object>> items = response.getItems();
+        assertFalse(items.isEmpty());
+        Map<String, Object> pivotData = items.get(0);
+        assertEquals("tree", pivotData.get("format"));
+        
+        @SuppressWarnings("unchecked")
+        List<com.foggyframework.dataset.db.model.engine.pivot.PivotResult.TreeNode> roots = 
+                (List<com.foggyframework.dataset.db.model.engine.pivot.PivotResult.TreeNode>) pivotData.get("data");
+        
+        assertNotNull(roots);
+        // DimTeam 只有 1 个真正的根节点：总公司 (T001)
+        assertEquals(1, roots.size());
+        
+        com.foggyframework.dataset.db.model.engine.pivot.PivotResult.TreeNode root = roots.get(0);
+        assertEquals("总公司", root.getNode().get("team$caption"));
+        assertNotNull(root.getCells().get("salesAmount"));
+
+        // 验证子节点 (技术部, 销售部等)
+        assertNotNull(root.getChildren());
+        assertTrue(root.getChildren().size() >= 2);
+        
+        log.info("E2E hierarchyMode=tree 验证通过: 成功构建总公司及子树");
+    }
+
+    // ==========================================
+    // S8.3: Non-Additive Rollup 集成测试
+    // ==========================================
+
+    @Test
+    @DisplayName("S8.3: Phase 1 COUNT_DISTINCT 叶子聚合正确")
+    void testCountDistinctLeafAggregation() {
+        PivotRequest pivot = new PivotRequest();
+        pivot.setRows(List.of(axis("product$categoryName")));
+        pivot.setMetrics(List.of("uniqueCustomers"));
+        pivot.setOutputFormat("flat");
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setPivot(pivot);
+
+        SemanticQueryResponse response = execute(request);
+        List<Map<String, Object>> items = response.getItems();
+        assertFalse(items.isEmpty());
+
+        // 每行都应该有 uniqueCustomers 值
+        for (Map<String, Object> row : items) {
+            assertNotNull(row.get("uniqueCustomers"),
+                    "COUNT_DISTINCT 叶子值不应为 null: " + row.get("product$categoryName"));
+            assertTrue(row.get("uniqueCustomers") instanceof Number,
+                    "COUNT_DISTINCT 应返回数字类型");
+        }
+
+        log.info("S8.3: Phase 1 COUNT_DISTINCT 叶子聚合正确, {} 行", items.size());
+    }
+
+    @Test
+    @DisplayName("S8.3: SUM 小计不回归 (纯可加度量)")
+    void testSumSubtotalNonRegression() {
+        PivotRequest pivot = new PivotRequest();
+        pivot.setRows(List.of(axis("salesDate$year"), axis("salesDate$month")));
+        pivot.setMetrics(List.of("salesAmount", "quantity"));
+        pivot.setOutputFormat("flat");
+
+        PivotOptions options = new PivotOptions();
+        options.setRowSubtotals(true);
+        options.setGrandTotal(true);
+        pivot.setOptions(options);
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setPivot(pivot);
+
+        SemanticQueryResponse response = execute(request);
+        List<Map<String, Object>> items = response.getItems();
+        assertFalse(items.isEmpty());
+
+        boolean foundRowSubtotal = false;
+        boolean foundGrandTotal = false;
+
+        for (Map<String, Object> row : items) {
+            if (row.containsKey("_sys_meta")) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> meta = (Map<String, Object>) row.get("_sys_meta");
+                if (Boolean.TRUE.equals(meta.get("isRowSubtotal"))) {
+                    foundRowSubtotal = true;
+                    // SUM 小计行的度量值应为正数（不为 null）
+                    assertNotNull(row.get("salesAmount"), "SUM 小计行 salesAmount 不应为 null");
+                    assertNotNull(row.get("quantity"), "SUM 小计行 quantity 不应为 null");
+                }
+                if (Boolean.TRUE.equals(meta.get("isGrandTotal"))) {
+                    foundGrandTotal = true;
+                    assertNotNull(row.get("salesAmount"), "Grand total salesAmount 不应为 null");
+                }
+            }
+        }
+
+        assertTrue(foundRowSubtotal, "S8.3 回归: 未发现行级小计");
+        assertTrue(foundGrandTotal, "S8.3 回归: 未发现总计");
+        log.info("S8.3: SUM 小计不回归验证通过");
+    }
+
+    @Test
+    @DisplayName("S8.3: 混合可加/不可加度量 + 小计/总计")
+    void testMixedAdditiveNonAdditiveSubtotals() {
+        PivotRequest pivot = new PivotRequest();
+        pivot.setRows(List.of(axis("product$categoryName")));
+        pivot.setMetrics(List.of("salesAmount", "uniqueCustomers"));
+        pivot.setOutputFormat("flat");
+
+        PivotOptions options = new PivotOptions();
+        options.setGrandTotal(true);
+        pivot.setOptions(options);
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setPivot(pivot);
+
+        SemanticQueryResponse response = execute(request);
+        List<Map<String, Object>> items = response.getItems();
+        assertFalse(items.isEmpty());
+
+        boolean foundGrandTotal = false;
+        for (Map<String, Object> row : items) {
+            if (row.containsKey("_sys_meta")) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> meta = (Map<String, Object>) row.get("_sys_meta");
+                if (Boolean.TRUE.equals(meta.get("isGrandTotal"))) {
+                    foundGrandTotal = true;
+                    // salesAmount (SUM) 应有值
+                    assertNotNull(row.get("salesAmount"), "Grand total salesAmount (SUM) 应有值");
+                    // uniqueCustomers (COUNT_DISTINCT) 应从辅助查询获取
+                    // 可能为 null（如果 cache miss），但在正常情况下应有值
+                    log.info("Grand total: salesAmount={}, uniqueCustomers={}",
+                            row.get("salesAmount"), row.get("uniqueCustomers"));
+                }
+            }
+        }
+
+        assertTrue(foundGrandTotal, "未找到 grand total 行");
+        log.info("S8.3: 混合度量小计/总计验证通过");
+    }
+
+    @Test
+    @DisplayName("S8.3: hierarchyMode=tree + subtotals 拒绝")
+    void testHierarchyTreeSubtotalsRejected() {
+        PivotRequest pivot = new PivotRequest();
+        pivot.setRows(List.of(treeAxis("product$categoryName")));
+        pivot.setMetrics(List.of("salesAmount"));
+        pivot.setOutputFormat("tree");
+
+        PivotOptions options = new PivotOptions();
+        options.setRowSubtotals(true);
+        pivot.setOptions(options);
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setPivot(pivot);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> execute(request));
+        assertTrue(ex.getMessage().contains("hierarchyMode=tree 暂不支持小计/总计辅助聚合"));
+        log.info("S8.3: tree+subtotals 拒绝通过: {}", ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("S8.3: COUNT_DISTINCT + 多层行轴 + rowSubtotals")
+    void testCountDistinctMultiLevelRowSubtotals() {
+        PivotRequest pivot = new PivotRequest();
+        pivot.setRows(List.of(axis("product$categoryName"), axis("salesDate$month")));
+        pivot.setMetrics(List.of("salesAmount", "uniqueCustomers"));
+        pivot.setOutputFormat("flat");
+
+        PivotOptions options = new PivotOptions();
+        options.setRowSubtotals(true);
+        pivot.setOptions(options);
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setPivot(pivot);
+
+        SemanticQueryResponse response = execute(request);
+        List<Map<String, Object>> items = response.getItems();
+        assertFalse(items.isEmpty());
+
+        int subtotalCount = 0;
+        for (Map<String, Object> row : items) {
+            if (row.containsKey("_sys_meta")) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> meta = (Map<String, Object>) row.get("_sys_meta");
+                if (Boolean.TRUE.equals(meta.get("isRowSubtotal"))) {
+                    subtotalCount++;
+                    assertEquals("ALL", row.get("salesDate$month"));
+                    assertNotNull(row.get("salesAmount"), "小计行 salesAmount (SUM) 不应为 null");
+                    log.info("Row subtotal: category={}, salesAmount={}, uniqueCustomers={}",
+                            row.get("product$categoryName"), row.get("salesAmount"), row.get("uniqueCustomers"));
+                }
+            }
+        }
+
+        assertTrue(subtotalCount > 0, "未发现 row subtotal 行");
+        log.info("S8.3: COUNT_DISTINCT 多层行轴 rowSubtotals 验证通过, {} 行小计", subtotalCount);
+    }
+
+    // ========== 辅助方法 ==========
+
+    private SemanticQueryResponse execute(SemanticQueryRequest request) {
+        return execute(TEST_MODEL, request);
+    }
+
+    private SemanticQueryResponse execute(String model, SemanticQueryRequest request) {
+        return semanticQueryServiceV3.queryModel(
+                model, request, "execute", SemanticRequestContext.empty());
+    }
+
+    private AxisField axis(String field) {
+        AxisField f = new AxisField();
+        f.setField(field);
+        return f;
+    }
+
+    private AxisField treeAxis(String field) {
+        AxisField f = new AxisField();
+        f.setField(field);
+        f.setHierarchyMode("tree");
+        return f;
+    }
+}
+

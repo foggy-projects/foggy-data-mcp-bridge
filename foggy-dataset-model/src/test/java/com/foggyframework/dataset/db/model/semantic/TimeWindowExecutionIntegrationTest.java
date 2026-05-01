@@ -1,6 +1,7 @@
 package com.foggyframework.dataset.db.model.semantic;
 
 import com.foggyframework.dataset.db.model.ecommerce.EcommerceTestSupport;
+import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
@@ -21,6 +22,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Slf4j
@@ -223,6 +225,35 @@ class TimeWindowExecutionIntegrationTest extends EcommerceTestSupport {
         assertRowsEqual(expected, response.getItems());
     }
 
+    @Test
+    @DisplayName("timeWindow post-calc CALCULATE is rejected by full semantic pipeline")
+    void timeWindowPostCalcCalculateRejectedBySemanticPipeline() {
+        if (skipWhenWindowFunctionsUnsupported("timeWindow post-calc CALCULATE rejection")) {
+            return;
+        }
+
+        SemanticQueryRequest request = request(
+                List.of("salesDate$year", "salesDate$month", "salesAmount", "salesAmount__prior", "totalShare"),
+                List.of("salesDate$year", "salesDate$month"),
+                Map.of(
+                        "field", "salesDate$id",
+                        "grain", "month",
+                        "comparison", "yoy",
+                        "range", "[)",
+                        "value", List.of("2024-01-01", "2025-01-01"),
+                        "targetMetrics", List.of("salesAmount")
+                ));
+        request.setCalculatedFields(List.of(
+                new CalculatedFieldDef(
+                        "totalShare",
+                        "SUM(salesAmount) / NULLIF(CALCULATE(SUM(salesAmount), REMOVE(salesDate$month)), 0)"
+                )));
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+                semanticQueryServiceV3.generateSql(TEST_MODEL, request, SemanticRequestContext.empty()));
+        assertExceptionContains(ex, "CALCULATE_TIMEWINDOW_POST_CALC_UNSUPPORTED");
+    }
+
     private SemanticQueryResponse execute(SemanticQueryRequest request) {
         request.setLimit(100);
         SemanticQueryResponse response = semanticQueryServiceV3.queryModel(
@@ -239,6 +270,18 @@ class TimeWindowExecutionIntegrationTest extends EcommerceTestSupport {
         log.info("{} not executed on {} because this database does not support window functions",
                 scenario, getDialectKey());
         return true;
+    }
+
+    private static void assertExceptionContains(Throwable throwable, String expected) {
+        Throwable current = throwable;
+        while (current != null) {
+            String message = current.getMessage();
+            if (message != null && message.contains(expected)) {
+                return;
+            }
+            current = current.getCause();
+        }
+        throw new AssertionError("Expected exception chain to contain " + expected, throwable);
     }
 
     private String quoteIdentifier(String identifier) {

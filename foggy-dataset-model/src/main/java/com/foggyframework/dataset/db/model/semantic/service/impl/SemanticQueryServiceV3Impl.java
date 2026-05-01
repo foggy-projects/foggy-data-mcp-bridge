@@ -72,6 +72,22 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
     @Resource
     private DataSource dataSource;
 
+    /** Pivot 流水线（延迟初始化，避免循环依赖） */
+    private volatile com.foggyframework.dataset.db.model.engine.pivot.PivotPipeline pivotPipeline;
+
+    private com.foggyframework.dataset.db.model.engine.pivot.PivotPipeline getPivotPipeline() {
+        if (pivotPipeline == null) {
+            synchronized (this) {
+                if (pivotPipeline == null) {
+                    pivotPipeline = new com.foggyframework.dataset.db.model.engine.pivot.PivotPipeline(
+                            this, new com.foggyframework.dataset.db.model.engine.pivot.CardinalityBreaker(),
+                            queryModelLoader);
+                }
+            }
+        }
+        return pivotPipeline;
+    }
+
     @Override
     public SemanticQueryResponse queryModel(String model, SemanticQueryRequest request, String mode,
                                             SemanticRequestContext context) {
@@ -88,6 +104,11 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         Set<String> fieldAccess = reqContext.getFieldAccess();
         if ("validate".equals(mode)) {
             return validateQueryInternal(model, request, namespace);
+        }
+
+        // === 9.0.0 Pivot Pipeline 路由 ===
+        if (request.isPivotMode()) {
+            return getPivotPipeline().execute(model, request, reqContext);
         }
 
         if (request.getColumns() == null || request.getColumns().isEmpty()) {

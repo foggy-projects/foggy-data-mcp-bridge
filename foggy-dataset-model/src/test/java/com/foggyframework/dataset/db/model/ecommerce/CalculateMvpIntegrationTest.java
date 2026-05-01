@@ -1,5 +1,7 @@
 package com.foggyframework.dataset.db.model.ecommerce;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
@@ -12,6 +14,8 @@ import com.foggyframework.dataset.db.model.engine.expression.CalculateQueryConte
 import com.foggyframework.dataset.db.model.engine.expression.SqlCalculatedFieldProcessor;
 import com.foggyframework.dataset.db.model.engine.formula.SqlFormulaService;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
+import com.foggyframework.dataset.db.model.semantic.domain.DeniedPhysicalColumn;
+import com.foggyframework.dataset.db.model.service.QueryFacade;
 import com.foggyframework.dataset.db.model.spi.JdbcQueryModel;
 import jakarta.annotation.Resource;
 import org.junit.jupiter.api.DisplayName;
@@ -19,6 +23,9 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +44,9 @@ class CalculateMvpIntegrationTest extends EcommerceTestSupport {
 
     @Resource
     private SystemBundlesContext systemBundlesContext;
+
+    @Resource
+    private QueryFacade queryFacade;
 
     @Test
     @DisplayName("CALCULATE(SUM(metric), REMOVE(dim)) 下推为分组窗口总计并与原生 SQL 一致")
@@ -252,6 +262,126 @@ class CalculateMvpIntegrationTest extends EcommerceTestSupport {
         assertExceptionContains(ex, "CALCULATE_WINDOW_UNSUPPORTED");
     }
 
+    @Test
+    @DisplayName("MySQL 5.7 profile 通过引擎 capability 显式 fail-closed")
+    void calculateFailsClosedForRuntimeUnsupportedDatabase() {
+        Assumptions.assumeFalse(supportsWindowFunctions(),
+                "Only runtime databases without window functions should exercise engine fail-closed");
+        DbQueryRequestDef request = baseRequest(
+                List.of("customer$customerType", "totalShare"),
+                List.of("customer$customerType"),
+                List.of(new CalculatedFieldDef(
+                        "totalShare",
+                        "总占比",
+                        "SUM(salesAmount) / NULLIF(CALCULATE(SUM(salesAmount), REMOVE(customer$customerType)), 0)"
+                ))
+        );
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> analyze(request));
+        assertExceptionContains(ex, "CALCULATE_WINDOW_UNSUPPORTED");
+    }
+
+    @Test
+    @DisplayName("CALCULATE 依赖隐藏度量时被 fieldAccess 拒绝")
+    void calculateMetricDependencyDeniedByFieldAccess() {
+        DbQueryRequestDef request = baseRequest(
+                List.of("customer$customerType", "totalShare"),
+                List.of("customer$customerType"),
+                List.of(new CalculatedFieldDef(
+                        "totalShare",
+                        "总占比",
+                        "SUM(salesAmount) / NULLIF(CALCULATE(SUM(salesAmount), REMOVE(customer$customerType)), 0)"
+                ))
+        );
+
+        ModelResultContext context = new ModelResultContext();
+        context.setRequest(PagingRequest.buildPagingRequest(request, 100));
+        context.setFieldAccess(Set.of("customer", "totalShare"));
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> queryFacade.queryModelResult(context));
+        assertExceptionContains(ex, "salesAmount");
+    }
+
+    @Test
+    @DisplayName("CALCULATE 依赖被 deniedColumns 映射的物理列时被拒绝")
+    void calculateMetricDependencyDeniedByPhysicalColumn() {
+        DbQueryRequestDef request = baseRequest(
+                List.of("customer$customerType", "totalShare"),
+                List.of("customer$customerType"),
+                List.of(new CalculatedFieldDef(
+                        "totalShare",
+                        "总占比",
+                        "SUM(salesAmount) / NULLIF(CALCULATE(SUM(salesAmount), REMOVE(customer$customerType)), 0)"
+                ))
+        );
+
+        ModelResultContext context = new ModelResultContext();
+        context.setRequest(PagingRequest.buildPagingRequest(request, 100));
+        context.setDeniedColumns(List.of(
+                new DeniedPhysicalColumn(null, "fact_sales", "sales_amount")
+        ));
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> queryFacade.queryModelResult(context));
+        assertExceptionContains(ex, "salesAmount");
+    }
+
+    @Test
+    @DisplayName("文档 parity catalog 可执行并覆盖 Java CALCULATE 行为")
+    void parityCatalogCasesStayExecutable() throws Exception {
+        JsonNode cases = new ObjectMapper().readTree(resolveParityCatalogPath().toFile()).get("cases");
+        assertNotNull(cases, "parity catalog cases missing");
+
+        for (JsonNode item : cases) {
+            String id = item.get("id").asText();
+            String expression = item.get("expression").asText();
+            List<String> groupBy = stringList(item.path("groupBy"));
+            String expectedError = item.path("expectError").isMissingNode()
+                    || item.path("expectError").isNull()
+                    ? null
+                    : item.path("expectError").asText();
+
+            if ("calculate_mysql_57_window_unsupported".equals(id)) {
+                assertCatalogProcessorError(id, expression, groupBy, expectedError, false, false);
+                continue;
+            }
+            if (item.path("timeWindowPostCalculatedFields").asBoolean(false)) {
+                assertCatalogProcessorError(id, expression, groupBy, expectedError, true, true);
+                continue;
+            }
+            if (!supportsWindowFunctions()) {
+                continue;
+            }
+
+            DbQueryRequestDef request = baseRequest(
+                    withCalculatedAlias(groupBy, "catalogCalc"),
+                    groupBy,
+                    List.of(new CalculatedFieldDef("catalogCalc", id, expression))
+            );
+            ModelResultContext context = new ModelResultContext();
+            context.setRequest(PagingRequest.buildPagingRequest(request, 100));
+            if (item.has("systemSliceFields")) {
+                context.setSystemSlice(List.of(new SliceRequestDef("customer$customerType", "=", "会员")));
+            }
+
+            if (expectedError != null) {
+                RuntimeException ex = assertThrows(RuntimeException.class,
+                        () -> analyze(context),
+                        id + " should fail with " + expectedError);
+                assertExceptionContains(ex, expectedError);
+                continue;
+            }
+
+            JdbcModelQueryEngine engine = analyze(context);
+            String normalizedSql = normalizeSqlForCatalog(engine.getSql());
+            for (JsonNode fragmentNode : item.path("expectSqlContains")) {
+                String fragment = normalizeSqlForCatalog(fragmentNode.asText());
+                assertTrue(normalizedSql.contains(fragment),
+                        id + " SQL should contain catalog fragment <" + fragment + "> but was: "
+                                + normalizedSql);
+            }
+        }
+    }
+
     private JdbcModelQueryEngine analyze(DbQueryRequestDef request) {
         ModelResultContext context = new ModelResultContext();
         context.setRequest(PagingRequest.buildPagingRequest(request, 100));
@@ -313,8 +443,8 @@ class CalculateMvpIntegrationTest extends EcommerceTestSupport {
     }
 
     private void assumeGroupedAggregateWindowSupported() {
-        Assumptions.assumeFalse("mysql".equals(getDialectKey()),
-                "MySQL 5.7 profile intentionally rejects restricted CALCULATE with CALCULATE_WINDOW_UNSUPPORTED");
+        Assumptions.assumeTrue(supportsWindowFunctions(),
+                "Runtime database does not support grouped aggregate windows for restricted CALCULATE");
     }
 
     private void assertExceptionContains(Throwable throwable, String expected) {
@@ -327,5 +457,67 @@ class CalculateMvpIntegrationTest extends EcommerceTestSupport {
             current = current.getCause();
         }
         throw new AssertionError("Expected exception chain to contain " + expected, throwable);
+    }
+
+    private void assertCatalogProcessorError(String id,
+                                             String expression,
+                                             List<String> groupBy,
+                                             String expectedError,
+                                             boolean supportsGroupedAggregateWindow,
+                                             boolean timeWindowPostCalculatedFields) {
+        JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
+        SqlCalculatedFieldProcessor processor =
+                new SqlCalculatedFieldProcessor(queryModel, queryModel.getDialect());
+        processor.setCalculateQueryContext(new CalculateQueryContext(
+                groupBy,
+                Set.of(),
+                supportsGroupedAggregateWindow,
+                timeWindowPostCalculatedFields
+        ));
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> processor.processCalculatedField(
+                new CalculatedFieldDef("catalogCalc", id, expression),
+                appCtx
+        ));
+        assertExceptionContains(ex, expectedError);
+    }
+
+    private Path resolveParityCatalogPath() {
+        List<Path> candidates = List.of(
+                Paths.get("docs", "v1.5.1", "P1-CALCULATE-restricted-mvp-parity-catalog.json"),
+                Paths.get("..", "docs", "v1.5.1", "P1-CALCULATE-restricted-mvp-parity-catalog.json"),
+                Paths.get("..", "..", "docs", "v1.5.1", "P1-CALCULATE-restricted-mvp-parity-catalog.json")
+        );
+        for (Path candidate : candidates) {
+            if (Files.exists(candidate)) {
+                return candidate;
+            }
+        }
+        throw new AssertionError("Cannot locate P1-CALCULATE parity catalog from working directory");
+    }
+
+    private List<String> stringList(JsonNode arrayNode) {
+        List<String> result = new ArrayList<>();
+        if (arrayNode == null || !arrayNode.isArray()) {
+            return result;
+        }
+        for (JsonNode node : arrayNode) {
+            result.add(node.asText());
+        }
+        return result;
+    }
+
+    private List<String> withCalculatedAlias(List<String> groupBy, String alias) {
+        List<String> columns = new ArrayList<>(groupBy);
+        columns.add(alias);
+        return columns;
+    }
+
+    private String normalizeSqlForCatalog(String sql) {
+        return sql
+                .replaceAll("\\b\\w+\\.sales_amount\\b", "metric.sales_amount")
+                .replaceAll("\\b\\w+\\.customer_type\\b", "dim.customer_type")
+                .replaceAll("\\s+", " ")
+                .trim();
     }
 }

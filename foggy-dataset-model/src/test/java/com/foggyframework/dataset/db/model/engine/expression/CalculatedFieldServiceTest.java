@@ -1,11 +1,17 @@
 package com.foggyframework.dataset.db.model.engine.expression;
 
+import com.foggyframework.dataset.db.dialect.FDialect;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * CalculatedFieldService.extractColumnReferences(String) 单元测试
@@ -178,6 +184,64 @@ class CalculatedFieldServiceTest {
     }
 
     @Test
+    @DisplayName("CALCULATE 表达式 — 提取度量与 REMOVE 维度依赖")
+    void extractRefs_calculateIncludesMetricAndRemoveDimension() {
+        Set<String> refs = CalculatedFieldService.extractColumnReferences(
+                "SUM(salesAmount) / NULLIF(CALCULATE(SUM(salesAmount), REMOVE(customer$customerType)), 0)");
+        assertEquals(Set.of("salesAmount", "customer$customerType"), refs);
+    }
+
+    @Test
+    @DisplayName("传递展开 — CALCULATE 别名链解析到底层字段")
+    void resolveBase_calculateAliasChainIncludesBaseFields() {
+        java.util.Map<String, String> calcMap = java.util.Map.of("baseSales", "salesAmount");
+        Set<String> refs = CalculatedFieldService.resolveBaseColumnReferences(
+                "SUM(baseSales) / NULLIF(CALCULATE(SUM(baseSales), REMOVE(customer$customerType)), 0)",
+                calcMap);
+        assertEquals(Set.of("salesAmount", "customer$customerType"), refs);
+    }
+
+    @Test
+    @DisplayName("CALCULATE capability — MySQL 8+ 支持分组聚合窗口")
+    void calculateCapability_mysql8SupportsGroupedAggregateWindow() throws Exception {
+        assertTrue(CalculateDialectCapabilities.supportsGroupedAggregateWindow(
+                FDialect.MYSQL_DIALECT,
+                mysqlDataSourceWithMajorVersion(8)
+        ));
+    }
+
+    @Test
+    @DisplayName("CALCULATE capability — MySQL 5.7 继续 fail-closed")
+    void calculateCapability_mysql57FailsClosed() throws Exception {
+        assertFalse(CalculateDialectCapabilities.supportsGroupedAggregateWindow(
+                FDialect.MYSQL_DIALECT,
+                mysqlDataSourceWithMajorVersion(5)
+        ));
+    }
+
+    @Test
+    @DisplayName("CALCULATE capability — MySQL metadata 不可用时 fail-closed")
+    void calculateCapability_mysqlUnknownFailsClosed() {
+        assertFalse(CalculateDialectCapabilities.supportsGroupedAggregateWindow(
+                FDialect.MYSQL_DIALECT,
+                null
+        ));
+    }
+
+    @Test
+    @DisplayName("CALCULATE capability — 非 MySQL 方言保持窗口路径")
+    void calculateCapability_nonMysqlKeepsWindowPath() {
+        assertTrue(CalculateDialectCapabilities.supportsGroupedAggregateWindow(
+                FDialect.SQLITE_DIALECT,
+                null
+        ));
+        assertTrue(CalculateDialectCapabilities.supportsGroupedAggregateWindow(
+                FDialect.POSTGRES_DIALECT,
+                null
+        ));
+    }
+
+    @Test
     @DisplayName("传递展开 — 循环引用不死循环")
     void resolveBase_circularReference() {
         java.util.Map<String, String> calcMap = new java.util.LinkedHashMap<>();
@@ -186,5 +250,18 @@ class CalculatedFieldServiceTest {
         // 不应死循环，应正常返回（可能包含部分结果）
         Set<String> refs = CalculatedFieldService.resolveBaseColumnReferences("x", calcMap);
         assertNotNull(refs, "循环引用不应导致死循环");
+    }
+
+    private DataSource mysqlDataSourceWithMajorVersion(int majorVersion) throws Exception {
+        DatabaseMetaData metadata = mock(DatabaseMetaData.class);
+        when(metadata.getDatabaseProductName()).thenReturn("MySQL");
+        when(metadata.getDatabaseMajorVersion()).thenReturn(majorVersion);
+
+        Connection connection = mock(Connection.class);
+        when(connection.getMetaData()).thenReturn(metadata);
+
+        DataSource dataSource = mock(DataSource.class);
+        when(dataSource.getConnection()).thenReturn(connection);
+        return dataSource;
     }
 }
