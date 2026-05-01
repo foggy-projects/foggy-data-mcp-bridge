@@ -84,7 +84,25 @@ V9.0.0.beta 标志着 Foggy Dataset 对多维分析 (Pivot) 能力的全面升�
 
 Pivot V9.0.0.beta 的核心组件已经过严格测试，为了验证 SQL 生成与内存管线的可靠性，我们在三套数据库环境中建立了 SQL Oracle Parity 测试标准。
 
-要执行全量的 Pivot Parity 集成验证，请在 `foggy-data-mcp-bridge-wt-dev-compose` 根目录下运行以下命令：
+要执行完整 Release Readiness 验证，请在 `foggy-data-mcp-bridge-wt-dev-compose` 根目录下运行：
+
+```powershell
+.\scripts\verify-pivot-v9-release.ps1
+```
+
+Linux / macOS / Git Bash 环境可使用：
+
+```bash
+./scripts/verify-pivot-v9-release.sh
+```
+
+快速本地验证可跳过外部数据库：
+
+```powershell
+.\scripts\verify-pivot-v9-release.ps1 -SkipExternalDb
+```
+
+脚本会依次执行全模块回归、SQLite Parity、MCP Schema/JSON-RPC guardrail、MySQL8 Parity 和 PostgreSQL Parity。手工执行时可参考以下等价命令：
 
 **1. SQLite 本地验证 (轻量级，默认)**:
 ```bash
@@ -101,4 +119,4 @@ mvn test -pl foggy-dataset-model -Dtest=PivotSqlParityIntegrationTest -Dspring.p
 mvn test -pl foggy-dataset-model -Dtest=PivotSqlParityIntegrationTest -Dspring.profiles.active=mysql8 -P!multi-db
 ```
 
-*注意: 必须确保环境中的对应的容器 (如 `foggy-postgres` / `foggy-mysql`) 处于运行状态，才能成功执行对应的 Parity 验证。*
+*注意: MySQL8 / PostgreSQL Parity 需要 `foggy-demo-mysql8` 与 `foggy-demo-postgres` 容器处于运行状态。`docker` / MySQL 5.7 是 legacy profile，不作为 S12/S13 baselineRatio parity 签收目标。*

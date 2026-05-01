@@ -11,7 +11,7 @@ signed_off_at: 2026-05-01
 reviewed_by: N/A
 blocking_items: []
 follow_up_required: yes
-evidence_count: 13
+evidence_count: 14
 ---
 
 # Version Acceptance
@@ -37,6 +37,7 @@ evidence_count: 13
 - `docs/9.0.0.beta/detailed_design/03_guardrails_and_mcp_routing.md`
 - `docs/9.0.0.beta/detailed_design/04_non_additive_rollup_design.md`
 - `docs/9.0.0.beta/detailed_design/05_cell_at_cross_axis_evaluation.md`
+- `docs/9.0.0.beta/acceptance/s13_release_readiness.md`
 - `docs/9.0.0.beta/mdx_vs_foggy_syntax_comparison.md`
 - `docs/9.0.0.beta/test_coverage/pivot-dsl-coverage-audit.md`
 
@@ -65,6 +66,7 @@ evidence_count: 13
 - [x] REST/MCP 错误响应 envelope 及各种非法查询边界测试已全部完成 (S10)。
 - [x] S11 `pivot.metrics` 混合数组与 `parentShare` 第一版已完成补充签收：Schema 前置拒绝 `expr`/缺失 `of`/`axis=columns`，runtime 阻断隐式 columns、tree、不可加度量，且 SQLite/MySQL8/PostgreSQL SQL Parity 通过。
 - [x] S12 `baselineRatio` 派生指标已完成补充签收：Schema 与 Runtime fail-closed 拦截完备，算法消除非确定性排序与 NULL 值污染，且在 SQLite、MySQL8、PostgreSQL 三大数据库上的 SQL Parity 均已通过。
+- [x] S13 Release Readiness 已固化一键验收入口：`scripts/verify-pivot-v9-release.ps1` / `scripts/verify-pivot-v9-release.sh`。
 - [ ] Python Mirror 未验收，本签收明确排除，并已沉淀 `s10_python_parity_plan.md` 待后续跟进。
 
 ## Changelog & Known Limitations
@@ -83,6 +85,9 @@ evidence_count: 13
 ## Evidence
 
 - Test:
+  - Release readiness entrypoint:
+    - `scripts/verify-pivot-v9-release.ps1`
+    - `scripts/verify-pivot-v9-release.sh`
   - `mvn test -pl foggy-dataset-model "-Dtest=PivotIntegrationTest,PivotSqlParityIntegrationTest,ParentShareCalculatorTest,PivotMetricItemTest" "-Dspring.profiles.active=sqlite" "-P!multi-db"`
   - Result: `Tests run: 70, Failures: 0, Errors: 0, Skipped: 0`
   - `mvn test -pl foggy-dataset-model "-Dtest=PivotSqlParityIntegrationTest" "-Dspring.profiles.active=mysql8" "-P!multi-db"`
@@ -120,6 +125,7 @@ evidence_count: 13
 ## Risks / Open Items
 
 - Python Mirror 未在本轮验收中覆盖。如果 9.0.0.beta 的发布口径要求双端镜像一致，需要另开验收项 (已产出 `s10_python_parity_plan.md`)。
+- CI 尚未接入 S13 release readiness 脚本；在 CI 具备 MySQL8 / PostgreSQL 容器编排前，发布前仍需由 release owner 在本地或专用环境执行脚本。
 - `CELL_AT` / `AXIS_MEMBER`：状态为 `rejected-for-public-dsl`——不作为 LLM 可生成的公开 DSL 暴露。高频跨轴引用场景已由 S12 `baselineRatio` 结构化派生指标完全覆盖。
 - `ROLLUP_TO`：不作为公开函数字符串暴露，等价语义已通过 `pivot.metrics` 的 `parentShare` 结构化类型实现第一版。
 - 级联多层 Generate（多个层级同时设置 `limit`）：状态为 `deferred / known-limitation`。单层分组 TopN 已覆盖多数场景，级联需求频率低。当前 `AxisTopNTruncator` 在中间层的排序基于明细行而非中间聚合值，可能产生错误排名。
