@@ -155,5 +155,5 @@
 ## 六、 不进入 Pivot 主路径的能力边界
 
 1. **任意 N 成员窗口**：`LastPeriods(3, CurrentMonth)` 这类“最近 N 个时间成员”不是 Phase 3 的内存立方体操作。标准 rolling 7/30/90 day 优先走 `timeWindow`；任意 N 成员窗口应由 `compose_script` 的稳定窗口原语承接。在该原语未实现前，只能标注为能力缺口，不能在文档中假设 `window(...)` 已存在。
-2. **父级坐标导航 (`ROLLUP_TO`)**：如果计算字段需要“当前子品类占其所属大品类”，必须依赖表达式引擎识别当前单元格父级坐标。该能力不是普通 `GROUP BY` 后处理，也不能用 `REMOVE(childDim)` 代替；实现前应被 Guardrail 拦截或降级为“不支持”。
-3. **跨轴绝对坐标引用 (`AXIS_MEMBER`) — 已设计，待实现**：`CALCULATE(metric, AXIS_MEMBER('columns', 0))` 在 Phase 1 编译阶段被降维为 SQL 窗口函数 `NTH_VALUE(metric, 1) OVER (PARTITION BY rowDims ORDER BY colDims)`，属于 `calculatedFields` 的 SQL 下推路径，不需要引擎内存中持有完整坐标系。限制：仅支持按序数位置引用（第 0 个、第 N 个），不支持任意命名成员跨轴寻址。
+2. **父级坐标导航 (`ROLLUP_TO`)**：`CALCULATE(metric, ROLLUP_TO(dim))` 不作为公开 DSL 开放。如果计算字段需要“当前子品类占其所属大品类”，S11 已通过结构化 `parentShare` 第一版覆盖；该能力不能用 `REMOVE(childDim)` 代替，超出第一版边界时应被 Guardrail 拦截或降级为“不支持”。
+3. **跨轴绝对坐标引用 (`AXIS_MEMBER` / `CELL_AT`) — `rejected-for-public-dsl`**：`CALCULATE(metric, AXIS_MEMBER('columns', 0))` 不作为公开 DSL 开放。主要风险是多层轴 index 语义歧义、与 TopN/CrossJoin/Subtotal 的执行顺序不一致，以及 LLM 容易把它误用为通用 MDX 坐标漫游。高频基准引用已通过 S12 结构化 `baselineRatio` 覆盖；SQL 窗口或内存坐标索引仅作为引擎内部候选实现策略。

@@ -192,4 +192,16 @@ class MetricAdditivityAnalyzerTest {
         assertEquals(1, plans.size());
         assertEquals(RollupStrategy.UNSUPPORTED, plans.get(0).getStrategy());
     }
+
+    @Test
+    @DisplayName("S10.1: 度量元数据缺失时 fail-closed 负例测试")
+    void testMissingMetricMetadataIsFailClosed() {
+        // 请求一个在 QueryModel 中完全不存在，也没在 calculatedFields 中定义的度量
+        List<RollupMetricPlan> plans = MetricAdditivityAnalyzer.analyze(
+                List.of("unknown_metric"), null, java.util.Collections.emptyList());
+
+        assertEquals(1, plans.size());
+        assertEquals(RollupStrategy.UNSUPPORTED, plans.get(0).getStrategy(),
+                "未知度量必须 fallback 到 UNSUPPORTED，不能通过");
+    }
 }

@@ -16,9 +16,14 @@
 
 ### 非目标与能力禁用 (Out of Scope / Disabled)
 1.  **不再新增 `dataset.pivot_model` 工具**：Pivot 能力完全合并入 `dataset.query_model`，通过 JSON schema 中的 `pivot` 节点触发。
-2.  **禁用 `AXIS_MEMBER`**：因多层列轴下的语义歧义，该跨轴引用语法在 9.0.0.beta 中**禁用**（后续版本通过真实复杂报表验证后再定）。
-3.  **禁用 `timeWindow`**：当请求处于 Pivot 模式时，严禁使用 8.x 的 `timeWindow`，时间智能需通过 `calculatedFields` 表达。
-4.  **不支持任意 `Generate`**：不支持 MDX 中随意的跨集合合并与复杂遍历。
+2.  **`AXIS_MEMBER` — `rejected-for-public-dsl`**：因多层列轴下的语义歧义，该跨轴引用语法不作为 LLM 可生成的公开 DSL（等价高频场景已通过 S12 结构化 `baselineRatio` 覆盖）。
+3.  **`CELL_AT` — `rejected-for-public-dsl`**：坐标漫游复杂度过高，不适合作为 LLM 可生成接口（等价高频场景已通过 S12 结构化 `baselineRatio` 覆盖）。
+4.  **禁用 `timeWindow`**：当请求处于 Pivot 模式时，严禁使用 8.x 的 `timeWindow`，时间智能需通过 `calculatedFields` 表达。
+5.  **级联 Generate — `deferred / known-limitation`**：不支持 MDX 中随意的跨集合合并与复杂遍历，级联多层截断暂缓。
+6.  **`ROLLUP_TO` — 不作为公开函数字符串**：等价语义已通过 S11 结构化 `parentShare` 第一版覆盖。
+
+### S11 状态与后续阶段
+S11 Pivot Metrics Unification 已统一 `pivot.metrics` 为混合结构（字符串 + 对象）并签收 `parentShare`（父级占比）第一版。`baselineRatio`（基准引用）已在 S12 中完成实现与全面签收。详见 `06_s11_metrics_unification_and_derived_metrics.md` 与 `07_s12_baseline_ratio_execution_plan.md`。
 
 ## 二、 成功标准与验收契约 (Acceptance Criteria)
 
@@ -56,4 +61,4 @@
 - blocking_items: none
 - follow_up_required: yes
 
-> 本次签收范围为 Pivot DSL Java Core 与 MCP Schema。Python Mirror、网关错误响应 envelope 的端到端验证、UNION ALL 边界测试和度量元数据缺失 fail-closed 收紧作为后续跟进项。
+> 本次签收范围为 Pivot DSL Java Core 与 MCP Schema。Python Mirror 仍在本次签收范围之外；S11 的 `pivot.metrics` 对象元素与 `parentShare` 第一版已完成补充签收，S12 `baselineRatio` 已完成完全实现与签收。

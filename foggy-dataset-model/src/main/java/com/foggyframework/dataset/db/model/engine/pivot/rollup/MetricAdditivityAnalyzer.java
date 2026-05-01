@@ -90,8 +90,10 @@ public class MetricAdditivityAnalyzer {
         DbAggregation agg = resolveAggregation(metric, queryModel);
 
         if (agg == null) {
-            // 无法确定聚合类型，默认 SUM 向后兼容
-            return new RollupMetricPlan(metric, RollupStrategy.IN_MEMORY_SUM, DbAggregation.SUM);
+            // 严格的 Fail-closed 策略：如果无法在 QueryModel/TableModel 或 calculatedFields 中找到度量的聚合定义，
+            // 必须坚决拒绝，而不是默认返回 IN_MEMORY_SUM/SUM。这避免了因拼写错误或字段缺失导致的隐式静默错误。
+            logger.warn("[MetricAdditivityAnalyzer] Metric metadata missing, defaulting to UNSUPPORTED: {}", metric);
+            return new RollupMetricPlan(metric, RollupStrategy.UNSUPPORTED, DbAggregation.NONE);
         }
 
         return new RollupMetricPlan(metric, classifyAggregation(agg), agg);

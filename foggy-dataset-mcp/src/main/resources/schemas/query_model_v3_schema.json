@@ -13,7 +13,7 @@
       "properties": {
         "calculatedFields": {
           "type": "array",
-          "description": "计算字段定义（复杂表达式、窗口函数、跨当前分组占比或需指定 agg 时使用）。全局占比使用 CALCULATE(SUM(metric), REMOVE(dim))；组内/父级占比使用 CALCULATE(SUM(metric), REMOVE(childDim)) 并保留未移除的 groupBy 作为父级分区；分母必须写 NULLIF(CALCULATE(...), 0)。同比、环比、累计、滚动继续使用 timeWindow，不要使用 CALCULATE；与 timeWindow 联用时，只支持作用于 timeWindow 输出列的后置标量表达式，不要设置 agg、窗口字段或 CALCULATE。 严禁使用未稳定函数：ROLLUP_TO、CELL_AT、AXIS_REF。严禁使用 REMOVE(dim) 推导父级占比（应放入 MCP 提示逻辑或自行构造占比公式）。",
+          "description": "计算字段定义（复杂表达式、窗口函数、跨当前分组占比或需指定 agg 时使用）。全局占比可使用 CALCULATE(SUM(metric), REMOVE(dim))；分母必须写 NULLIF(CALCULATE(...), 0)。父级占比（例如子品类占大类）当前 9.0.0.beta 不支持用 REMOVE(childDim) 或 ROLLUP_TO 表达，后续 S11 将以结构化 pivot.metrics 的 parentShare 覆盖。同比、环比、累计、滚动继续使用 timeWindow，不要使用 CALCULATE；与 timeWindow 联用时，只支持作用于 timeWindow 输出列的后置标量表达式，不要设置 agg、窗口字段或 CALCULATE。严禁使用未开放函数：ROLLUP_TO、CELL_AT、AXIS_MEMBER、AXIS_REF。",
           "items": {
             "type": "object",
             "properties": {
@@ -483,9 +483,43 @@
             },
             "metrics": {
               "type": "array",
-              "description": "在单元格中展示的度量字段名称列表。",
+              "description": "度量指标列表。支持字符串（原生度量名）和对象（派生指标）。派生指标当前仅支持 parentShare（父级占比）。示例：[\"salesAmount\", {\"name\":\"share\",\"type\":\"parentShare\",\"of\":\"salesAmount\"}]",
               "items": {
-                "type": "string"
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "description": "原生度量名称"
+                  },
+                  {
+                    "type": "object",
+                    "description": "派生指标定义。支持 parentShare 和 baselineRatio。不支持 expr。严禁使用 ROLLUP_TO/CELL_AT/AXIS_MEMBER。",
+                    "oneOf": [
+                      {
+                        "properties": {
+                          "name": { "type": "string", "description": "指标名称" },
+                          "type": { "type": "string", "enum": ["parentShare"], "description": "派生类型。parentShare=子级值/父级聚合值" },
+                          "of": { "type": "string", "description": "基于哪个原生度量（parentShare 必填）" },
+                          "axis": { "type": "string", "enum": ["rows"], "description": "指定轴（第一版仅支持 rows）" },
+                          "level": { "type": "string", "description": "当前级别字段名" },
+                          "parentLevel": { "type": "string", "description": "父级字段名" }
+                        },
+                        "required": ["name", "type", "of"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "properties": {
+                          "name": { "type": "string", "description": "指标名称" },
+                          "type": { "type": "string", "enum": ["baselineRatio"], "description": "派生类型。baselineRatio=当前值/基准值" },
+                          "of": { "type": "string", "description": "基于哪个原生度量" },
+                          "axis": { "type": "string", "enum": ["columns"], "description": "指定轴（第一版仅支持 columns）" },
+                          "baseline": { "type": "string", "enum": ["first", "last"], "description": "基准（第一版支持 first/last）" }
+                        },
+                        "required": ["name", "type", "of", "axis", "baseline"],
+                        "additionalProperties": false
+                      }
+                    ]
+                  }
+                ]
               }
             },
             "properties": {

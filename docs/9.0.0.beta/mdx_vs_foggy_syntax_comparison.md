@@ -324,33 +324,30 @@
     [Measures].[Sales] / 
     ( [Measures].[Sales], [Product].[Category].CurrentMember.Parent )
     ```
-*   **Foggy 9.x 目标语义:** 
-    **等价性结论：能力待实现。** 这个 MDX 场景本质是“父级坐标导航”，不适合用 `REMOVE(product$subCategory)` 表达。`REMOVE` 更适合“全局占比”或“从当前 groupBy 中剔除某个维度”的关系型场景；这里应显式声明分母回滚到父级层级，例如：
-    ```sql
-    salesAmount / NULLIF(CALCULATE(salesAmount, ROLLUP_TO(product$category)), 0)
-    ```
-    `ROLLUP_TO(product$category)` 的含义是：从当前 `product$subCategory` 单元格回到其所属 `product$category` 父级坐标，并按父级粒度重新计算同一个度量。
-    > 注：`ROLLUP_TO` 是 9.x Pivot 语义糖占位，不是现有能力。该场景不能用占位符视为已经等价覆盖；后续必须明确命名、层级来源、父级坐标解析和编译规则。Pivot 模式下度量会依据 TM `measures` 中的默认聚合方式自动聚合，这里先保持裸度量表达。
+*   **Foggy 9.x 语义:**
+    **等价性结论：S11 已通过结构化 `parentShare` 覆盖第一版。** 这个 MDX 场景本质是“父级坐标导航”，不适合用 `REMOVE(product$subCategory)` 表达。`REMOVE` 更适合“全局占比”或“从当前 groupBy 中剔除某个维度”的关系型场景；父级占比应通过 `pivot.metrics` 对象元素声明，而不是生成 `ROLLUP_TO` 字符串函数。
 
     如果要表达“子品类占全体子品类总额”，那才是 `REMOVE(product$subCategory)` 的场景：
     ```sql
     salesAmount / NULLIF(CALCULATE(salesAmount, REMOVE(product$subCategory)), 0)
     ```
-    对应的 Pivot 上下文应显式保留父子层级，便于引擎识别当前单元格的父级坐标：
+    对应的 Pivot 结构应显式保留父子层级，便于引擎识别当前单元格的父级坐标：
     ```json
     {
-      "calculatedFields": [
-        {
-          "name": "subCategoryShareInCategory",
-          "expression": "salesAmount / NULLIF(CALCULATE(salesAmount, ROLLUP_TO(product$category)), 0)"
-        }
-      ],
       "pivot": {
         "rows": ["product$category", "product$subCategory"],
-        "metrics": ["salesAmount", "subCategoryShareInCategory"]
+        "metrics": [
+          "salesAmount",
+          {
+            "name": "subCategoryShareInCategory",
+            "type": "parentShare",
+            "of": "salesAmount"
+          }
+        ]
       }
     }
     ```
+    > 注：`parentShare` 第一版仅支持 `rows` 轴相邻层级和可加度量；显式或隐式落到 `columns`、`tree` 模式、不可加度量都会 fail-closed。`ROLLUP_TO` 不作为公开 DSL 开放。
 
 ### 3. 时间智能：同环比计算 (Time Intelligence)
 **需求：** 计算去年同期的销售额 (YoY)。
@@ -615,7 +612,7 @@
     FROM [SalesCube]
     ```
 *   **Foggy 9.x DSL:**
-    **等价性结论：能力待实现，但 DSL 设计已明确。** 采用"字段级局部挂载 (Field-Level Config)"设计：在具体的层级字段上直接定义 `orderBy` 和 `limit`，利用字段数组的隐式先后顺序自动推断分区键（排在它前面的所有字段即为 `PARTITION BY` 的分区键）。
+    **等价性结论：受控子集已支持。** 采用"字段级局部挂载 (Field-Level Config)"设计：在具体的层级字段上直接定义 `orderBy` 和 `limit`，利用字段数组的隐式先后顺序自动推断分区键（排在它前面的所有字段即为 `PARTITION BY` 的分区键）。
     ```json
     {
       "pivot": {
@@ -637,19 +634,8 @@
     - **隐式分区推断**：引擎自动将对象化字段**前面的所有字段**作为 `PARTITION BY` 分区键。无需 LLM 手动重复声明 `partitionBy`，彻底消灭冗余拼写错误。
     - **`orderBy`**：支持引用度量字段，前缀 `-` 表示降序。语义为"在每个分区内，按此度量排名"。
     - **`limit`**：每个分区内保留的最大成员数。
-    - **多级截断天然扩展**：如果需求变成"每个大区取 Top 5 城市，每个城市取 Top 3 门店"，可以无缝向下延伸：
-    ```json
-    {
-      "pivot": {
-        "rows": [
-          "region$name",
-          { "field": "city$name", "orderBy": ["-salesAmount"], "limit": 5 },
-          { "field": "store$name", "orderBy": ["-salesAmount"], "limit": 3 }
-        ],
-        "metrics": ["salesAmount"]
-      }
-    }
-    ```
+    - **当前支持范围**：仅支持**单层受控截断**——即同一轴路径上只有一个字段设置 `limit`，在其所有前置字段形成的分区内按度量排序截断。此时引擎操作的数据已经过 Phase 1 SQL 聚合，截断排序的度量值即为该粒度的聚合值，语义与 `ROW_NUMBER() OVER (PARTITION BY parent ORDER BY metric)` 严格等价。
+    - **级联多级截断的已知限制**：如果多个层级同时设置 `limit`（如"每个大区取 Top 5 城市，每个城市取 Top 3 门店"），当前实现在中间层的排序基于明细行而非中间聚合值，可能导致排名语义与预期不一致。**级联 Generate 暂未开放**，后续需引入中间聚合步骤后才能正式支持。
     - **`orderBy` 可引用 `calculatedFields`**：`orderBy` 不限于 TM 原生度量，还可以引用 `calculatedFields` 中定义的计算字段。因为 `calculatedFields` 的求值发生在字段级截断（步骤 3a'）之前，截断阶段可以安全地引用任何已计算字段。典型场景："每个品类下利润率 Top 3 的子品类"：
     ```json
     {
@@ -680,17 +666,16 @@
     **从 LLM 视角的设计优势：**
     1. **消灭冗余声明**：LLM 不需要在 `partitionBy` 里重抄前面的字段，在长上下文中重抄极易引发错漏。
     2. **极佳的局部性**：LLM 的注意力机制在推理到"需要对子品类做截断"时，直接在该字段节点下输出 `limit` 和 `orderBy` 即可，认知链路最短。
-    3. **多级场景零额外心智负担**：多级截断只需在对应层级的字段上各自挂载配置，结构自然清晰。
 
     **引擎执行管线：**
     1. **SQL 层**：提取所有字段名（无论简写还是对象化形式），按全部字段朴素 `GROUP BY` 聚合——零方言依赖。
-    2. **引擎内存层 (步骤 3a' — 逐级截断)**：
-       - 从内到外扫描 `rows` 数组，识别所有带 `limit` 的对象化字段。
-       - 对每个对象化字段：以其前面所有字段为分区键，在每个分区内按 `orderBy` 排序，截断到 `limit` 条。
-       - 多级截断按从外到内的顺序执行（先截城市，再截门店），保证外层截断不被内层膨胀。
+    2. **引擎内存层 (步骤 3a' — 截断)**：
+       - 扫描 `rows` 数组，识别带 `limit` 的对象化字段。
+       - 以该字段前面所有字段为分区键，在每个分区内按 `orderBy` 排序，截断到 `limit` 条。
+       - 当前仅支持单层截断。级联多层截断需要先对中间层做聚合再排名，属于待实现能力。
     3. **后续流程**：截断后的非均匀成员集合进入正常的 CrossJoin → Subtotal → Shaping 流程。
 
-    > 注：本质上等价于 SQL 的 `ROW_NUMBER() OVER (PARTITION BY ... ORDER BY ...) <= N`，但完全在引擎内存中执行，避免了不同数据库对窗口函数支持不一致的问题。这种"字段级局部挂载"的抽象方式与 Malloy 等现代 Headless BI 的层级设计理念一致，且与 9.0.0 架构愿景中"SQL 层只做朴素聚合，高级加工全部在引擎层"的核心原则完全吻合。
+    > 注：单层受控截断本质上等价于 SQL 的 `ROW_NUMBER() OVER (PARTITION BY ... ORDER BY ...) <= N`，但完全在引擎内存中执行，避免了不同数据库对窗口函数支持不一致的问题。
 
 ### 14. 跨轴绝对坐标引用 (Cross-Axis Reference)
 **需求：** 在当前单元格中，引用另一个轴上的绝对位置（例如，以列轴的第一个成员的值作为基准，计算后续月份相对于首月的比率）。
@@ -700,31 +685,36 @@
     [Measures].[Sales] / 
     ( [Measures].[Sales], Axis(0).Item(0) )
     ```
-*   **Foggy 9.x DSL:**
-    通过 `CALCULATE` 结合 `AXIS_MEMBER` 语义糖实现。引擎在编译阶段，巧妙地将其降维为底层关系型窗口函数进行等价推导。
+*   **Foggy 后续目标方案（未纳入当前签收）:**
+    `CALCULATE + AXIS_MEMBER` 字符串函数已被评估后 **`rejected-for-public-dsl`**（不作为 LLM 可生成的公开 DSL）。多层列轴下 index 语义天然歧义（"第 0 列"指第一年还是第一个月？），且 LLM 极易误用坐标漫游。
+
+    该场景的高频子集（基准指数）已通过结构化 `pivot.metrics` 派生指标 `baselineRatio` 完全覆盖：
     ```json
     {
-      "calculatedFields": [
-        {
-          "name": "salesIndex",
-          "expression": "salesAmount / NULLIF(CALCULATE(salesAmount, AXIS_MEMBER('columns', 0)), 0)"
-        }
-      ],
       "pivot": {
         "rows": ["product$category"],
         "columns": ["salesDate$month"],
-        "metrics": ["salesAmount", "salesIndex"]
+        "metrics": [
+          "salesAmount",
+          {
+            "name": "salesIndex",
+            "type": "baselineRatio",
+            "of": "salesAmount",
+            "axis": "columns",
+            "baseline": "first"
+          }
+        ]
       }
     }
     ```
-    **引擎底层推导逻辑**：
-    由于是在 `pivot` 上下文中，引擎清楚地知道 `columns` 对应的是 `salesDate$month`，`rows` 对应的是 `product$category`。
-    `CALCULATE(salesAmount, AXIS_MEMBER('columns', 0))` 会被引擎自动翻译为 SQL 窗口函数：
-    `NTH_VALUE(salesAmount, 1) OVER (PARTITION BY product$category ORDER BY salesDate$month)`
-    这种设计既保留了跨轴引用的多维分析能力，又无需像 MDX 那样必须在内存中持有完整的坐标系才能运算，能够下推到关系型 SQL 引擎。
+    **设计要点**：
+    - 不暴露 `AXIS_MEMBER / CELL_AT` 函数字符串，使用结构化 JSON 对象表达业务意图。
+    - 第一版支持 `baseline: "first" | "last"`，固定成员 path 作为第二阶段扩展。
+    - 引擎在内存后置计算阶段（SubtotalInjector 之后）构建坐标索引完成求值。
+    - 缺失基准、除零、null 均返回 `null`。
+    - 统一指标设计见 `detailed_design/06_s11_metrics_unification_and_derived_metrics.md`，S12 执行见 `detailed_design/07_s12_baseline_ratio_execution_plan.md`，**本能力已在 S12 中完成实现与签收**。
 
-    ⚠️ **架构风险与边界**：
-    这种"降维"设计在单层轴时很优雅，但在**多层列轴**（如 `year → quarter → month`）时存在严重的语义歧义。`ORDER BY` 子句只能线性排序列成员，"第 0 列"到底是指"第一年"、"第一季度"还是"第一个月"变得无法明确界定。因此，`AXIS_MEMBER` 目前标记为**存在多层级歧义风险**，在通过真实的复杂报表场景验证前，暂不纳入正式支持范围。
+    如果需要更复杂的跨轴坐标漫游（如跨 row + 跨 column 同时改写坐标），请降级使用 `compose_script` 手写窗口函数。
 
 ### 15. 父子维度与动态层级展开 (Parent-Child Hierarchy)
 **需求：** 按照员工汇报线、部门架构树等具有动态深度的父子结构展开透视。由于树的层级数不固定，无法在查询时写死平铺的层级字段（如 `level1`, `level2`）。
@@ -760,7 +750,7 @@
 
 以上场景可以说明 Foggy 9.x 对主流 BI 透视需求具备较高覆盖率，但不能把所有 MDX 坐标能力都宣称为已等价。以下场景需要作为设计边界或后续增强项明确记录。
 
-### 1. 分组内 TopN 展开 (Generate) — 已设计，待实现
+### 1. 分组内 TopN 展开 (Generate) — 单层受控子集已支持，级联待实现
 **MDX 场景：** 对每个大品类分别取 Top 3 子品类，并把这些非均匀成员合并成行轴集合。
 ```mdx
 Generate(
@@ -793,4 +783,4 @@ MDX 可以把 Measures 放在行轴上，Foggy 当前更自然的方式是查询
 3. **8.6.0 上下文计算引擎**：用 `CALCULATE` + `OFFSET` + `REMOVE` + 时间范围语义糖，承接了 MDX 中最复杂的时间智能和视觉占比计算。
 4. **CTE 与结果整形边界清晰**：凡是非标准移动窗口、跨模型派生、最终结果二次加工、严格报表模板转置等超出单次 Pivot 的场景，退回 `compose_script` 或结果整形层，不污染核心 Pivot DSL。
 
-因此，本手册的合理结论应是：Foggy 9.x 有望用 LLM 友好的 DSL 覆盖 80% 以上主流多维分析需求。其中 `Generate`（分组内 TopN）已通过 `topNPerGroup` 轴级原语完成设计，`跨轴绝对坐标引用` 也被成功降维至 SQL 窗口函数处理，均建议纳入 9.0.0 正式范围；对于任意嵌套元组、度量轴原生转置、任意 N 时间成员窗口等 MDX 硬场景，应明确作为设计边界或后续增强项，而不是用绕路方案假装完全等价。
+因此，本手册的合理结论应是：Foggy 9.x 已用 LLM 友好的 DSL 覆盖 85%+ 主流多维分析需求；S11 已补齐 `parentShare` 第一版，S12 `baselineRatio` 的完全签收使其覆盖率提升至 92%+。其中 `Generate`（分组内 TopN）的单层受控子集已通过 SQL Parity 验收纳入正式支持；`AXIS_MEMBER` 和通用 `CELL_AT` 已 `rejected-for-public-dsl`，其高频基准引用子集已由 S12 `baselineRatio` 完全覆盖；级联 Generate 状态为 `deferred / known-limitation`；对于任意嵌套元组、度量轴原生转置、任意 N 时间成员窗口等 MDX 硬场景，应明确作为设计边界或后续增强项，而不是用绕路方案假装完全等价。

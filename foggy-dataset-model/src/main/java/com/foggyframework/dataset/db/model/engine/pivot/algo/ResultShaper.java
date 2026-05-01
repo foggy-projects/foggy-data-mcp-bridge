@@ -86,7 +86,10 @@ public class ResultShaper {
         // 按当前层级分组（保持插入顺序）
         Map<Object, List<Map<String, Object>>> groups = rows.stream()
                 .collect(Collectors.groupingBy(
-                        row -> row.getOrDefault(currentField, "__null__"),
+                        row -> {
+                            Object value = row.get(currentField);
+                            return value != null ? value : "__null__";
+                        },
                         LinkedHashMap::new,
                         Collectors.toList()));
 

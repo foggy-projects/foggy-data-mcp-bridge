@@ -6,6 +6,7 @@ import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.db.model.semantic.domain.pivot.AxisField;
+import com.foggyframework.dataset.db.model.semantic.domain.pivot.PivotMetricItem;
 import com.foggyframework.dataset.db.model.semantic.domain.pivot.PivotOptions;
 import com.foggyframework.dataset.db.model.semantic.domain.pivot.PivotRequest;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
@@ -77,12 +78,40 @@ public class PivotPipeline {
             queryModel = queryModelLoader.getJdbcQueryModel(model, context.getNamespace());
         }
 
+        // ===== S11: parentShare non-additive guard（需 queryModel 已加载）=====
+        if (!pivot.getParentShareMetrics().isEmpty() && queryModel != null) {
+            ParentShareCalculator.validateAdditivity(pivot, queryModel);
+        }
+
+        // ===== S12: baselineRatio guard =====
+        if (!pivot.getBaselineRatioMetrics().isEmpty()) {
+            if (queryModel != null) {
+                BaselineRatioCalculator.validateAdditivity(pivot, queryModel);
+            }
+            // baselineRatio.of 必须在原生度量中声明
+            List<String> nativeMetrics = pivot.getNativeMetricNames();
+            for (PivotMetricItem br : pivot.getBaselineRatioMetrics()) {
+                if (!nativeMetrics.contains(br.getOf())) {
+                    throw new IllegalArgumentException(
+                            "baselineRatio 派生指标 '" + br.getName() + "' 依赖的原生度量 '" + br.getOf() +
+                            "' 未在 pivot.metrics 中声明");
+                }
+            }
+            // baselineRatio 第一版要求 columns 必须有层级
+            if (pivot.getColumns() == null || pivot.getColumns().isEmpty()) {
+                throw new IllegalArgumentException("使用 baselineRatio 派生指标时，columns 轴不能为空");
+            }
+        }
+
         // ===== 检测 hierarchyMode=tree =====
         HierarchyContext hierarchyCtx = HierarchyContext.detect(pivot.getRows());
+        if (hierarchyCtx.isTree() && !pivot.getBaselineRatioMetrics().isEmpty()) {
+            throw new IllegalArgumentException("当前版本不支持 hierarchyMode=tree 与 baselineRatio 派生指标同时使用");
+        }
 
         List<String> rowFields = extractFieldNames(pivot.getRows());
         List<String> colFields = extractFieldNames(pivot.getColumns());
-        List<String> metrics = pivot.getMetrics();
+        List<String> metrics = pivot.getSqlMetricNames();
 
         // 如果有 tree hierarchy，确保 Phase 1 带出 $id 字段
         if (hierarchyCtx.isTree()) {
@@ -188,21 +217,38 @@ public class PivotPipeline {
             PropertyAttacher.attach(resultSet, resolvedProps, lookupTables);
         }
 
+        // ===== Phase 2.8: ParentShare 父级占比计算 =====
+        if (!pivot.getParentShareMetrics().isEmpty()) {
+            logger.debug("[Pivot] Phase 2.8: ParentShare calculation, {} metrics",
+                    pivot.getParentShareMetrics().size());
+            ParentShareCalculator.apply(resultSet, pivot, rowFields, colFields);
+        }
+
+        // ===== Phase 2.9: BaselineRatio 基准引用计算 =====
+        if (!pivot.getBaselineRatioMetrics().isEmpty()) {
+            logger.debug("[Pivot] Phase 2.9: BaselineRatio calculation, {} metrics",
+                    pivot.getBaselineRatioMetrics().size());
+            BaselineRatioCalculator.apply(resultSet, pivot, rowFields, colFields);
+        }
+
         // ===== Phase 3: 结果整形 =====
+        // S11: Phase 3 使用所有输出指标名（含 parentShare），而非仅 SQL 指标
+        List<String> outputMetrics = pivot.getAllOutputMetricNames();
         PivotResult pivotResult;
         if (hierarchySkeleton != null && !hierarchySkeleton.isEmpty()) {
             // 使用 HierarchyTreeBuilder 替代 ResultShaper
+            // 注意：tree + parentShare 已在 validate 中 fail-closed，此处不会包含 parentShare
             logger.debug("[Pivot] Phase 3: Hierarchy tree shaping, skeleton size={}", hierarchySkeleton.size());
             List<String> displayFields = extractFieldNames(pivot.getRows());
             List<PivotResult.TreeNode> treeData = HierarchyTreeBuilder.build(
                     resultSet, hierarchySkeleton, hierarchyCtx.getIdField(),
-                    displayFields, colFields, metrics);
+                    displayFields, colFields, outputMetrics);
             pivotResult = new PivotResult();
             pivotResult.setFormat("tree");
             pivotResult.setTreeData(treeData);
         } else {
             logger.debug("[Pivot] Phase 3: Result shaping to format={}", pivot.getOutputFormat());
-            pivotResult = ResultShaper.shape(resultSet, pivot, rowFields, colFields, metrics);
+            pivotResult = ResultShaper.shape(resultSet, pivot, rowFields, colFields, outputMetrics);
         }
 
         // ===== 构建响应 =====
@@ -399,9 +445,12 @@ public class PivotPipeline {
         if (pivot.getRows() == null || pivot.getRows().isEmpty()) {
             throw new IllegalArgumentException("pivot.rows 不能为空");
         }
-        if (pivot.getMetrics() == null || pivot.getMetrics().isEmpty()) {
+        if (pivot.getMetricItems() == null || pivot.getMetricItems().isEmpty()) {
             throw new IllegalArgumentException("pivot.metrics 不能为空");
         }
+
+        // S11: 校验 metric items
+        pivot.validateMetrics();
 
         // ===== hierarchyMode=tree 守卫规则 =====
         HierarchyContext rowHierarchy = HierarchyContext.detect(pivot.getRows());
@@ -456,6 +505,16 @@ public class PivotPipeline {
         if (pivot.getOptions() != null) {
             pivot.getOptions().validate(pivot);
         }
+
+        // S11: parentShare 守卫规则
+        if (!pivot.getParentShareMetrics().isEmpty()) {
+            List<String> rowFieldNames = extractFieldNames(pivot.getRows());
+            List<String> colFieldNames = extractFieldNames(pivot.getColumns());
+            ParentShareCalculator.validateParentShareMetrics(pivot, rowFieldNames, colFieldNames);
+        }
+
+        // S11: parentShare non-additive guard（需 queryModel，在 pipeline 层执行）
+        // 注意：此处 queryModel 尚未加载，延迟到 execute() 中处理
     }
 
     /**

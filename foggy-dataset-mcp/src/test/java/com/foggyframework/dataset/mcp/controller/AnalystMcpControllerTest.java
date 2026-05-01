@@ -215,6 +215,43 @@ class AnalystMcpControllerTest {
         }
 
         @Test
+        @DisplayName("Analyst 调用 Query 工具包含非法的 pivot 参数应返回 JSON-RPC 错误")
+        void analyst_shouldReturnJsonRpcErrorOnInvalidPivot() throws Exception {
+            McpResponse mockResponse = McpResponse.error("1", McpError.INVALID_PARAMS,
+                    "Invalid pivot request: tree hierarchy mode is not compatible with subtotals");
+
+            when(mcpService.handleToolsCall(any(McpRequest.class), any(McpRequestContext.class)))
+                    .thenReturn(mockResponse);
+
+            mockMvc.perform(post("/mcp/analyst/rpc")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {
+                                      "jsonrpc":"2.0",
+                                      "id":"1",
+                                      "method":"tools/call",
+                                      "params":{
+                                        "name":"dataset.query_model",
+                                        "arguments":{
+                                          "model":"FactSalesModel",
+                                          "payload":{
+                                            "columns":["product$caption"],
+                                            "pivot": {
+                                               "rows": [{"field": "region", "hierarchyMode": "tree"}],
+                                               "options": {"withSubtotals": true}
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                    """))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.error").exists())
+                    .andExpect(jsonPath("$.error.code").value(McpError.INVALID_PARAMS))
+                    .andExpect(jsonPath("$.error.message").value(containsString("tree hierarchy mode")));
+        }
+
+        @Test
         @DisplayName("Analyst 调用 Chart 工具应成功")
         void analyst_shouldAccessChartTool() throws Exception {
             McpResponse mockResponse = McpResponse.success("1", Map.of(

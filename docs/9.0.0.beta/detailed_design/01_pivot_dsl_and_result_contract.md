@@ -250,7 +250,7 @@ public class PivotLayout {
 
 ---
 ## 三、 遗留边界明确 (Design Boundaries)
-1. **父级坐标导航 (`ROLLUP_TO`)**：`CALCULATE(metric, ROLLUP_TO(dim))` 属于表达式引擎待实现能力，不属于当前 Pivot AST 的既有字段。该能力需要明确父子层级来源、当前单元格坐标解析、冲突优先级和编译规则后才能开放给 LLM。
+1. **父级坐标导航 (`ROLLUP_TO`)**：`CALCULATE(metric, ROLLUP_TO(dim))` 不作为公开 DSL 开放。等价高频语义已在 S11 中通过 `pivot.metrics` 的结构化 `parentShare` 第一版覆盖（rows 轴相邻层级、可加度量）。
 2. **任意 `Generate` 集合生成**：`AxisField.limit` 只覆盖“明确父子轴 + 子级 TopN”的受控场景，不覆盖 MDX 任意集合遍历和集合拼接。
-3. **跨轴绝对坐标引用 (`AXIS_MEMBER`) — 存在多层级歧义风险**：通过 `CALCULATE(metric, AXIS_MEMBER('columns', 0))` 降维为 SQL 窗口函数 `NTH_VALUE(...) OVER (PARTITION BY rowDims ORDER BY colDims)` 的方案。限制：当列轴存在多个层级（如 year → quarter → month）时，`ORDER BY` 线性排序无法明确"第 0 列"是指向年、季还是月的粒度。在实现前，必须通过真实的财务报表场景验证该语义是否满足业务诉求，暂不开放给 LLM。
+3. **跨轴绝对坐标引用 (`AXIS_MEMBER` / `CELL_AT`) — `rejected-for-public-dsl`**：不作为 LLM 可生成的公开 DSL。等价高频语义已通过 S12 结构化 `baselineRatio` 覆盖；SQL 窗口或内存坐标索引只能作为引擎内部优化策略，不改变公开契约。
 4. **多指标格式化**：百分比、千分位等格式化逻辑不应污染核心 Pivot Model，由外层展示包装组件（如 `formatter` 配置）接管。

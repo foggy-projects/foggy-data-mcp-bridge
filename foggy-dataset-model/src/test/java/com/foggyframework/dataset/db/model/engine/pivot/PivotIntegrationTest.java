@@ -7,6 +7,7 @@ import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContex
 import com.foggyframework.dataset.db.model.semantic.domain.pivot.AxisField;
 import com.foggyframework.dataset.db.model.semantic.domain.pivot.MetricFilter;
 import com.foggyframework.dataset.db.model.semantic.domain.pivot.PivotLayout;
+import com.foggyframework.dataset.db.model.semantic.domain.pivot.PivotMetricItem;
 import com.foggyframework.dataset.db.model.semantic.domain.pivot.PivotOptions;
 import com.foggyframework.dataset.db.model.semantic.domain.pivot.PivotRequest;
 import com.foggyframework.dataset.db.model.semantic.exception.TooManyPivotCellsException;
@@ -18,6 +19,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -382,11 +384,11 @@ class PivotIntegrationTest extends EcommerceTestSupport {
         assertFalse(items.isEmpty());
         Map<String, Object> pivotData = items.get(0);
         assertEquals("tree", pivotData.get("format"));
-        
+
         @SuppressWarnings("unchecked")
         List<com.foggyframework.dataset.db.model.engine.pivot.PivotResult.TreeNode> roots = 
                 (List<com.foggyframework.dataset.db.model.engine.pivot.PivotResult.TreeNode>) pivotData.get("data");
-        
+
         assertNotNull(roots);
         // DimTeam 只有 1 个真正的根节点：总公司 (T001)
         assertEquals(1, roots.size());
@@ -575,6 +577,201 @@ class PivotIntegrationTest extends EcommerceTestSupport {
         log.info("S8.3: COUNT_DISTINCT 多层行轴 rowSubtotals 验证通过, {} 行小计", subtotalCount);
     }
 
+    @Test
+    @DisplayName("S10.1: UNION ALL 批量合并及列对齐机制专项测试")
+    void testUnionAllBatchMergeColumnAlignment() {
+        PivotRequest pivot = new PivotRequest();
+        // 刻意使用复杂的维度组合，产生多个不同列数的 grain
+        pivot.setRows(List.of(axis("product$categoryName"), axis("salesDate$year")));
+        pivot.setColumns(List.of(axis("customer$customerType")));
+        pivot.setMetrics(List.of("uniqueCustomers", "salesAmount")); // uniqueCustomers is COUNT_DISTINCT
+        pivot.setOutputFormat("flat");
+
+        PivotOptions options = new PivotOptions();
+        options.setRowSubtotals(true);
+        options.setColumnSubtotals(true);
+        options.setGrandTotal(true);
+        pivot.setOptions(options);
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setPivot(pivot);
+
+        // 如果列不对齐，UNION ALL 会直接抛出 SQL 语法异常。
+        // 测试能够正常返回，说明对齐逻辑（或降级逻辑）工作正常。
+        SemanticQueryResponse response = execute(request);
+        List<Map<String, Object>> items = response.getItems();
+        assertFalse(items.isEmpty());
+
+        log.info("S10.1: UNION ALL 批量合并及列对齐机制专项测试通过, 返回 {} 行", items.size());
+    }
+
+    // ==========================================
+    // S11: parentShare 集成测试
+    // ==========================================
+
+    @Test
+    @DisplayName("S11: parentShare Flat - 子品类占大类占比")
+    void testParentShareFlat() {
+        PivotRequest pivot = new PivotRequest();
+        pivot.setRows(List.of(axis("product$categoryName"), axis("salesDate$month")));
+
+        List<PivotMetricItem> items = new ArrayList<>();
+        items.add(PivotMetricItem.ofNative("salesAmount"));
+        PivotMetricItem ps = new PivotMetricItem();
+        ps.setName("monthShare");
+        ps.setType("parentShare");
+        ps.setOf("salesAmount");
+        items.add(ps);
+        pivot.setMetricItems(items);
+        pivot.setOutputFormat("flat");
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setPivot(pivot);
+
+        SemanticQueryResponse response = execute(request);
+        List<Map<String, Object>> flatItems = response.getItems();
+        assertFalse(flatItems.isEmpty());
+
+        // 每行都应有 monthShare 字段
+        boolean hasShare = false;
+        for (Map<String, Object> row : flatItems) {
+            assertTrue(row.containsKey("monthShare"), "flat 输出应包含 parentShare 字段");
+            if (row.get("monthShare") != null) {
+                double share = ((Number) row.get("monthShare")).doubleValue();
+                assertTrue(share >= 0 && share <= 1.0001, "parentShare 应在 [0,1]: " + share);
+                hasShare = true;
+            }
+        }
+        assertTrue(hasShare, "应至少有一行 parentShare 非 null");
+        log.info("S11: parentShare Flat 验证通过, {} 行", flatItems.size());
+    }
+
+    @Test
+    @DisplayName("S11: parentShare Grid - grid 输出包含 parentShare 列")
+    void testParentShareGrid() {
+        PivotRequest pivot = new PivotRequest();
+        pivot.setRows(List.of(axis("product$categoryName"), axis("salesDate$month")));
+
+        List<PivotMetricItem> items = new ArrayList<>();
+        items.add(PivotMetricItem.ofNative("salesAmount"));
+        PivotMetricItem ps = new PivotMetricItem();
+        ps.setName("monthShare");
+        ps.setType("parentShare");
+        ps.setOf("salesAmount");
+        items.add(ps);
+        pivot.setMetricItems(items);
+        pivot.setOutputFormat("grid");
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setPivot(pivot);
+
+        SemanticQueryResponse response = execute(request);
+        List<Map<String, Object>> respItems = response.getItems();
+        assertEquals(1, respItems.size());
+        Map<String, Object> grid = respItems.get(0);
+        assertEquals("grid", grid.get("format"));
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> columnHeaders = (List<Map<String, Object>>) grid.get("columnHeaders");
+        // columnHeaders 应包含 monthShare 度量
+        boolean hasMonthShareHeader = columnHeaders.stream()
+                .anyMatch(h -> "monthShare".equals(h.get("metric")));
+        assertTrue(hasMonthShareHeader, "grid columnHeaders 应包含 monthShare 度量");
+        log.info("S11: parentShare Grid 验证通过");
+    }
+
+    @Test
+    @DisplayName("S11: parentShare + non-additive (uniqueCustomers) → fail-closed")
+    void testParentShareNonAdditiveRejected() {
+        PivotRequest pivot = new PivotRequest();
+        pivot.setRows(List.of(axis("product$categoryName"), axis("salesDate$month")));
+
+        List<PivotMetricItem> items = new ArrayList<>();
+        items.add(PivotMetricItem.ofNative("uniqueCustomers"));
+        PivotMetricItem ps = new PivotMetricItem();
+        ps.setName("custShare");
+        ps.setType("parentShare");
+        ps.setOf("uniqueCustomers");
+        items.add(ps);
+        pivot.setMetricItems(items);
+        pivot.setOutputFormat("flat");
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setPivot(pivot);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> execute(request));
+        assertTrue(ex.getMessage().contains("不可加") || ex.getMessage().contains("COUNT_DISTINCT"),
+                "Should reject non-additive: " + ex.getMessage());
+        log.info("S11: parentShare non-additive 拒绝通过: {}", ex.getMessage());
+    }
+
+    // ========== S12 baselineRatio ==========
+
+    @Test
+    @DisplayName("S12: baselineRatio Flat - 基础扁平输出")
+    void testBaselineRatioFlat() {
+        PivotRequest pivot = new PivotRequest();
+        pivot.setRows(List.of(axis("product$categoryName")));
+        pivot.setColumns(List.of(axis("salesDate$month")));
+
+        List<PivotMetricItem> items = new ArrayList<>();
+        items.add(PivotMetricItem.ofNative("salesAmount"));
+        PivotMetricItem br = new PivotMetricItem();
+        br.setName("salesIndex");
+        br.setType("baselineRatio");
+        br.setOf("salesAmount");
+        br.setAxis("columns");
+        br.setBaseline("first");
+        items.add(br);
+        pivot.setMetricItems(items);
+        pivot.setOutputFormat("flat");
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setPivot(pivot);
+
+        SemanticQueryResponse response = execute(request);
+        List<Map<String, Object>> respItems = response.getItems();
+        assertFalse(respItems.isEmpty());
+        // Verify output contains the metric
+        boolean hasSalesIndex = false;
+        for (Map<String, Object> row : respItems) {
+            if (row.containsKey("salesIndex")) {
+                hasSalesIndex = true;
+                break;
+            }
+        }
+        assertTrue(hasSalesIndex, "Flat 输出应包含 salesIndex 字段");
+        log.info("S12: baselineRatio Flat 验证通过");
+    }
+
+    @Test
+    @DisplayName("S12: baselineRatio + hierarchyMode=tree → fail-closed")
+    void testBaselineRatioTreeRejected() {
+        PivotRequest pivot = new PivotRequest();
+        pivot.setRows(List.of(treeAxis("product$categoryId")));
+        pivot.setColumns(List.of(axis("salesDate$month")));
+
+        List<PivotMetricItem> items = new ArrayList<>();
+        items.add(PivotMetricItem.ofNative("salesAmount"));
+        PivotMetricItem br = new PivotMetricItem();
+        br.setName("salesIndex");
+        br.setType("baselineRatio");
+        br.setOf("salesAmount");
+        br.setAxis("columns");
+        br.setBaseline("first");
+        items.add(br);
+        pivot.setMetricItems(items);
+        pivot.setOutputFormat("tree");
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setPivot(pivot);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> execute(request));
+        assertTrue(ex.getMessage().contains("不支持 hierarchyMode=tree") || ex.getMessage().contains("tree"),
+                "Should reject tree hierarchy with baselineRatio: " + ex.getMessage());
+        log.info("S12: baselineRatio tree mode 拒绝通过");
+    }
+
     // ========== 辅助方法 ==========
 
     private SemanticQueryResponse execute(SemanticQueryRequest request) {
@@ -599,4 +796,3 @@ class PivotIntegrationTest extends EcommerceTestSupport {
         return f;
     }
 }
-
