@@ -89,6 +89,89 @@ export const queryModel = {
                     type: 'MONEY'
                 }
             ]
+        },
+        //
+        // v1.4 REQ-003 B1a · L1b #1-3 — Accounts Receivable measures.
+        //
+        // All three measures share the same base filter (posted customer
+        // invoices with an outstanding residual):
+        //   moveType == 'out_invoice'
+        //   && state == 'posted'
+        //   && paymentState in ('not_paid', 'partial', 'in_payment')
+        //
+        // The filter is INLINED in every formula (rather than expressed as a
+        // QM-level macro) because the current QM schema does not expose a
+        // shared/macro-filter primitive.  Keep the three inline filters
+        // byte-for-byte identical; any divergence is a bug.
+        //
+        // Odoo field mapping:
+        //   amountResidual  → account.move.line.amount_residual (open balance)
+        //   dateMaturity    → account.move.line.date_maturity   (invoice due date)
+        //   move$*          → account.move parent fields (move_type / state / payment_state)
+        //   partner$id      → account.move.line.partner_id (customer ref)
+        //
+        // Semantics of the "overdue" predicate:
+        //   dateMaturity < now()
+        // In SQLite now() = datetime('now'); an invoice whose dateMaturity
+        // equals today is treated as overdue once we pass midnight of the
+        // due date, which matches Odoo's aged-receivable report default.
+        //
+        // `arOverdueCustomerCount` MUST use count(distinct(if(.., null))) so
+        // that SQL's native NULL-ignoring semantics drop filtered-out rows
+        // before DISTINCT; DO NOT rewrite as count(if(..)) — that counts
+        // filtered-out rows as zeros and breaks the cardinality.
+        {
+            caption: 'AR Measures',
+            items: [
+                {
+                    name: 'arOutstandingAmount',
+                    caption: 'AR Outstanding Amount',
+                    type: 'MONEY',
+                    formula: "sum(if(move$moveType == 'out_invoice'"
+                        + " && move$state == 'posted'"
+                        + " && move$paymentState in ('not_paid', 'partial', 'in_payment'),"
+                        + " amountResidual, 0))",
+                    description: 'Current accounts-receivable balance (Odoo '
+                        + 'account.move.line.amount_residual) for posted customer '
+                        + 'invoices that are still unpaid (payment_state in '
+                        + 'not_paid / partial / in_payment). Used for cash-flow '
+                        + 'management and AR aging reports. '
+                        + 'MUST use this measure directly — DO NOT expand the '
+                        + 'inline sum(if(... state == posted ...)) form.'
+                },
+                {
+                    name: 'arOverdueAmount',
+                    caption: 'AR Overdue Amount',
+                    type: 'MONEY',
+                    formula: "sum(if(move$moveType == 'out_invoice'"
+                        + " && move$state == 'posted'"
+                        + " && move$paymentState in ('not_paid', 'partial', 'in_payment')"
+                        + " && dateMaturity < now(),"
+                        + " amountResidual, 0))",
+                    description: 'Overdue accounts-receivable amount — '
+                        + 'arOutstandingAmount restricted to rows whose '
+                        + 'dateMaturity is in the past (dateMaturity < now()). '
+                        + 'Used for AR collection prioritization. '
+                        + 'MUST use this measure directly — DO NOT rewrite the '
+                        + 'inline sum(if(... dateMaturity < ... ...)) form.'
+                },
+                {
+                    name: 'arOverdueCustomerCount',
+                    caption: 'AR Overdue Customer Count',
+                    type: 'INTEGER',
+                    formula: "count(distinct(if(move$moveType == 'out_invoice'"
+                        + " && move$state == 'posted'"
+                        + " && move$paymentState in ('not_paid', 'partial', 'in_payment')"
+                        + " && dateMaturity < now(),"
+                        + " partner$id, null)))",
+                    description: 'Distinct count of customers with at least one '
+                        + 'overdue receivable line. Uses count(distinct(if(.., '
+                        + 'null))) — the IF-false branch returns NULL and '
+                        + 'COUNT(DISTINCT) ignores NULL natively. '
+                        + 'MUST NOT rewrite as count(if(..)) (that counts '
+                        + 'filtered-out rows as zeros and breaks cardinality).'
+                }
+            ]
         }
     ],
 
