@@ -3,7 +3,7 @@ doc_role: version_overview
 doc_purpose: Track Java Pivot Engine follow-up capabilities deferred from 9.0.0.beta into 9.1.0.
 version: 9.1.0
 target: Java Pivot Engine Follow-Up Roadmap
-status: proposed
+status: phase-closeout signed-off-with-risks
 created_at: 2026-05-02
 ---
 
@@ -39,6 +39,7 @@ These remain rejected or research-only unless a separate product requirement reo
 
 - `detailed_design/00_java_pivot_engine_roadmap.md`
 - `workitems/pivot-java-engine-9.1.0-followups.md`
+- `beta-release-notes.md`
 
 Upstream 9.0.0.beta references:
 
@@ -55,3 +56,13 @@ Upstream 9.0.0.beta references:
 3. Stage 5A implementation if telemetry or product need justifies it.
 4. Stage 5B semantic design.
 5. Tree advanced semantics only after Stage 5B rules are stable.
+
+## Acceptance Status
+
+- acceptance_status: signed-off
+- acceptance_decision: accepted-with-risks
+- signed_off_by: Codex acceptance reviewer
+- signed_off_at: 2026-05-02
+- acceptance_record: `acceptance/version-phase-signoff.md`
+- blocking_items: none
+- follow_up_required: yes
