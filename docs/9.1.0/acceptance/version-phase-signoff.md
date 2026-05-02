@@ -11,7 +11,7 @@ signed_off_at: 2026-05-02
 reviewed_by: Codex acceptance reviewer
 blocking_items: []
 follow_up_required: yes
-evidence_count: 9
+evidence_count: 10
 ---
 
 # Version Acceptance
@@ -68,6 +68,7 @@ This is not a final package publication record. The release recommendation is `r
 | `git status --short --branch` | PASS | Worktree is clean after the phase closeout commit. |
 | `./scripts/verify-pivot-v9-release.ps1 -SkipFullRegression -SkipMcp` | PASS | Quick release readiness gate passed before phase commits. |
 | `./scripts/verify-pivot-v9-release.ps1` | PASS | Full release readiness gate passed on 2026-05-02, including full module regression, SQLite, MCP guardrail, MySQL8, and PostgreSQL parity. |
+| Post-commit RC final gate | PASS | `./scripts/verify-pivot-v9-release.ps1` passed after B2 commit `5992e246` on 2026-05-02. |
 | SQLite B2 gate | PASS | `PivotSqlParityIntegrationTest`, `PivotIntegrationTest`, and `MetricAdditivityAnalyzerTest` passed with 66 tests. |
 | MySQL8 B2 gate | PASS | `PivotSqlParityIntegrationTest#testLargeDomainTransportQueryModelParity` passed with `spring.profiles.active=mysql8`. |
 | PostgreSQL B2 gate | PASS | `PivotSqlParityIntegrationTest#testLargeDomainTransportQueryModelParity` passed with `spring.profiles.active=postgres`. |

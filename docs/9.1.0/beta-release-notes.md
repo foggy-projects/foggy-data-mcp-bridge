@@ -36,6 +36,7 @@ created_at: 2026-05-02
 |---|---|---|
 | SQLite release quick gate | PASS | `./scripts/verify-pivot-v9-release.ps1 -SkipFullRegression -SkipMcp` passed on 2026-05-02. |
 | Full release readiness gate | PASS | `./scripts/verify-pivot-v9-release.ps1` passed on 2026-05-02, including full module regression, SQLite, MCP guardrail, MySQL8, and PostgreSQL parity. |
+| Post-commit RC final gate | PASS | `./scripts/verify-pivot-v9-release.ps1` passed after B2 commit `5992e246`. |
 | Stage 5A SQLite large-domain parity | PASS | `PivotSqlParityIntegrationTest#testLargeDomainTransportQueryModelParity` passed under `sqlite`. |
 | Stage 5A MySQL8 large-domain parity | PASS | The same parity test passed under `mysql8`. |
 | Stage 5A PostgreSQL large-domain parity | PASS | The same parity test passed under `postgres`. |
