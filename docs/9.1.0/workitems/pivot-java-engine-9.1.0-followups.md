@@ -229,3 +229,24 @@ Acceptance Status:
 - acceptance_record: `docs/9.1.0/acceptance/version-phase-signoff.md`
 - blocking_items: none
 - follow_up_required: yes
+
+### 9.1.0 RC Handoff Readiness
+
+Status: `ready-for-release-owner-review`.
+
+Completed:
+
+- Added `docs/9.1.0/acceptance/rc-release-checklist.md` with branch, commit, tag, verification, push, and rollback guidance.
+- Added `docs/9.1.0/operations/stage5a-domain-transport-observability.md` with telemetry marker meanings, operator checks, dialect behavior, and MySQL 5.7 guardrail notes.
+- Added `docs/9.1.0/quality/pivot-stage5a-b2-production-quality.md` as a formal implementation quality review for B2 production enablement.
+- Re-ran `DomainRelationRendererTest` to confirm renderer-level MySQL 5.7 threshold refusal evidence remains green.
+
+Evidence:
+
+- `mvn test -pl foggy-dataset-model -am "-Dtest=DomainRelationRendererTest" "-P!multi-db" "-Dsurefire.failIfNoSpecifiedTests=false"` passed with 7 tests on 2026-05-02.
+
+Remaining:
+
+- Push `9.1.0` and `v9.1.0-rc.1` only after release owner approval.
+- External MySQL 5.7 live-database large-domain parity was not recorded; current MySQL 5.7 evidence is renderer-level threshold/refusal coverage plus fail-closed behavior.
+- C2 semantic review remains separate and should not block RC handoff unless product reopens scope.

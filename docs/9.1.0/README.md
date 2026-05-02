@@ -40,6 +40,8 @@ These remain rejected or research-only unless a separate product requirement reo
 - `detailed_design/00_java_pivot_engine_roadmap.md`
 - `workitems/pivot-java-engine-9.1.0-followups.md`
 - `beta-release-notes.md`
+- `acceptance/rc-release-checklist.md`
+- `operations/stage5a-domain-transport-observability.md`
 
 Upstream 9.0.0.beta references:
 
@@ -51,10 +53,11 @@ Upstream 9.0.0.beta references:
 
 9.1.0 has completed release hardening, telemetry, Stage 5A design, Stage 5A production transport, and Stage 5B semantic design. The remaining safest order is:
 
-1. Complete final release-script validation for the B2 production delta.
-2. Keep Stage 5B C2 gated until implementation approval.
-3. Evaluate tree advanced semantics only after Stage 5B rules are stable.
-4. Evaluate outer Pivot cache as a separate release track.
+1. Push the RC branch/tag when release ownership is ready.
+2. Review production telemetry after Stage 5A exposure, especially transport refusal and tuple/parameter distributions.
+3. Keep Stage 5B C2 gated until semantic review approval.
+4. Evaluate tree advanced semantics only after Stage 5B rules are stable.
+5. Evaluate outer Pivot cache as a separate release track.
 
 ## Acceptance Status
 
