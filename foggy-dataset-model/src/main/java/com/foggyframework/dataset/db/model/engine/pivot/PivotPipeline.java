@@ -1,6 +1,8 @@
 package com.foggyframework.dataset.db.model.engine.pivot;
 
 import com.foggyframework.dataset.db.model.engine.pivot.algo.*;
+import com.foggyframework.dataset.db.model.engine.pivot.cascade.PivotCascadeException;
+import com.foggyframework.dataset.db.model.engine.pivot.cascade.PivotCascadeRules;
 import com.foggyframework.dataset.db.model.engine.pivot.rollup.*;
 import com.foggyframework.dataset.db.model.engine.pivot.sql.PivotAxisDomainSqlPlanner;
 import com.foggyframework.dataset.db.model.engine.pivot.sql.PivotPushdownUnsupportedException;
@@ -95,6 +97,7 @@ public class PivotPipeline {
         if (queryModelLoader != null) {
             queryModel = queryModelLoader.getJdbcQueryModel(model, context.getNamespace());
         }
+        PivotCascadeRules.validateAdditivity(pivot, queryModel, request.getCalculatedFields());
 
         // ===== S11: parentShare non-additive guard（需 queryModel 已加载）=====
         if (!pivot.getParentShareMetrics().isEmpty() && queryModel != null) {
@@ -154,6 +157,7 @@ public class PivotPipeline {
         // ===== Phase 1: SQL 萃取（不含 properties）=====
         // 检测是否可以使用 SQL pushdown（CTE + Window Function + 有 having/limit）
         boolean sqlPushdownUsed = false;
+        boolean cascadeRequest = PivotCascadeRules.isCascadeRequest(pivot);
         List<Map<String, Object>> resultSet;
 
         String sqlPushdownSkipReason = getSqlPushdownSkipReason(pivot, hierarchyCtx);
@@ -167,13 +171,23 @@ public class PivotPipeline {
                 sqlPushdownUsed = true;
                 PivotTelemetry.sqlPushdownSucceeded(logger, model, resultSet.size(),
                         System.currentTimeMillis() - pushdownStart);
+            } catch (PivotCascadeException e) {
+                throw e;
             } catch (PivotPushdownUnsupportedException | UnsupportedOperationException e) {
+                if (cascadeRequest) {
+                    throw PivotCascadeException.sqlRequired(
+                            "Planner failure: " + e.getMessage(), e);
+                }
                 // Fail-closed: fallback to memory path
                 PivotTelemetry.sqlPushdownFallback(logger, model, e);
                 resultSet = executePhase1(model, request, context,
                         rowFields, colFields, metrics, queryModel);
             }
         } else {
+            if (cascadeRequest) {
+                throw PivotCascadeException.sqlRequired(
+                        "SQL pushdown is unavailable: " + sqlPushdownSkipReason + ".");
+            }
             PivotTelemetry.sqlPushdownSkipped(logger, model, sqlPushdownSkipReason);
             logger.debug("[Pivot] Phase 1: Memory path for model={}", model);
             resultSet = executePhase1(model, request, context,
@@ -689,6 +703,7 @@ public class PivotPipeline {
      */
     private void validatePivotRequest(SemanticQueryRequest request) {
         PivotRequest pivot = request.getPivot();
+        PivotCascadeRules.validateRequestShape(pivot);
 
         // pivot 与 columns 互斥
         if (request.getColumns() != null && !request.getColumns().isEmpty()) {

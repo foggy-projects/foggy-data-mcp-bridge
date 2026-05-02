@@ -92,7 +92,9 @@ These semantics can be achieved via Staged CTEs:
 - `_level2_domain`: Inner join `_base_relation` with `_level1_domain`, Group by Level 1 & 2, Having, Rank, Limit.
 - `_surviving_domain`: Inner join all levels.
 
-If a dialect lacks Window Functions, it falls back to memory execution. If memory execution risks memory exhaustion (e.g., domain > 500), it fails closed.
+If a dialect lacks Window Functions and the request is **single-level** TopN only, it may fall back to memory execution. If memory execution risks memory exhaustion (e.g., domain > 500), it fails closed.
+
+> **C1.1 Supersession (cascade requests)**: For Cascade Generate / multi-level TopN requests, memory fallback is **forbidden** regardless of dialect capability. C1.1 (`12_pivot_stage5b_cascade_generate_disambiguation.md`) requires that cascade requests execute only through a verified staged SQL path. Current memory execution lacks staged parent-domain filtering and cannot guarantee correct ranking grain. A future staged memory implementation may be reconsidered only if it has its own parity oracle coverage equivalent to the SQL oracle matrix.
 
 ## 13. Rejected or Gated Request Shapes
 - **Simultaneous Row and Column Multi-Level TopN**: If semantics become ambiguous or CTE generation explodes beyond dialect limits.

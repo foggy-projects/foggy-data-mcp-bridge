@@ -13,6 +13,8 @@ created_at: 2026-05-02
 
 This checklist covers the repo-level Pivot Engine 9.1.0 RC handoff after Stage 5A B2 production domain transport was enabled and verified. It is not a package publication, signing, or remote deployment record.
 
+Note: `v9.1.0-rc.1` points to commit `0c146da7`, before the later uncommitted PIVOT-91-C2 implementation/signoff changes in the working tree. If C2 is included, commit those changes and cut a new RC tag rather than moving or reusing `v9.1.0-rc.1`.
+
 ## Release Identity
 
 | Item | Value |
@@ -36,10 +38,11 @@ This checklist covers the repo-level Pivot Engine 9.1.0 RC handoff after Stage 5
 
 ## Release Owner Actions
 
-- Push the branch when ready: `git push origin 9.1.0`
-- Push the RC tag when ready: `git push origin v9.1.0-rc.1`
+- For the original B2-oriented RC, push the branch/tag when ready: `git push origin 9.1.0` and `git push origin v9.1.0-rc.1`.
+- For a C2-inclusive RC, first commit the C2 implementation/signoff changes, then cut and push a new RC tag.
 - Confirm whether external package signing, artifact publication, or release-note publication happens outside this repository.
-- Keep C2 Cascade Generate implementation out of the RC unless a separate approval changes scope.
+- Keep C2 Cascade Generate implementation out of `v9.1.0-rc.1` unless release ownership explicitly chooses to cut a new C2-inclusive RC.
+- If C2 is included, review `docs/9.1.0/acceptance/pivot-stage5b-c2-release-owner-review.md` before tagging.
 
 ## Rollback / Disable Strategy
 
@@ -51,4 +54,4 @@ This checklist covers the repo-level Pivot Engine 9.1.0 RC handoff after Stage 5
 
 - MySQL 5.7 has renderer-level threshold coverage, but no external MySQL 5.7 live-database parity run was recorded in this closeout.
 - Production telemetry should confirm real domain-size distributions before GA promotion.
-- Stage 5B C2 remains a high-complexity semantic risk and should stay gated until the separate semantic review completes.
+- Stage 5B C2 has a separate `accepted-with-risks` feature signoff after `v9.1.0-rc.1`; release ownership must decide whether it belongs in a new RC.

@@ -20,7 +20,7 @@ The 9.0.0.beta line remains the release-stability baseline. Items listed here mu
 | Area | 9.0.0.beta Status | 9.1.0 Direction |
 |---|---|---|
 | Stage 5A large-domain transport | `domain > 500` fail-closed for non-additive subtotal/grandTotal | Production-wired internal `DomainTransportPlan` / `DomainRelationRenderer` without changing Pivot DSL |
-| Stage 5B cascade Generate | deferred / known limitation | Define semantics for multi-level TopN and per-parent ranking before implementation |
+| Stage 5B cascade Generate | deferred / known limitation | C2 v1 rows two-level cascade implemented and signed off with fail-closed residual risks |
 | Tree advanced semantics | rows-only tree, no `tree + crossjoin`, no `tree + subtotals` | Evaluate tree SQL TopN and tree subtotal support as separate subprojects |
 | Outer Pivot cache | not enabled for SQL pushdown first version | Evaluate cache key, managed relation phase, and invalidation strategy |
 | Observability | benchmark evidence exists, telemetry not formalized | Add pushdown/fallback/domain-limit metrics and release dashboards |
@@ -38,9 +38,15 @@ These remain rejected or research-only unless a separate product requirement reo
 ## Primary Planning Documents
 
 - `detailed_design/00_java_pivot_engine_roadmap.md`
+- `detailed_design/12_pivot_stage5b_cascade_generate_disambiguation.md`
+- `detailed_design/13_pivot_stage5b_c2_implementation_plan.md`
 - `workitems/pivot-java-engine-9.1.0-followups.md`
+- `quality/pivot-stage5b-c2-cascade-generate-implementation-quality.md`
+- `test_coverage/pivot-stage5b-c2-cascade-generate-coverage-audit.md`
+- `acceptance/pivot-stage5b-c2-cascade-generate-acceptance.md`
 - `beta-release-notes.md`
 - `acceptance/rc-release-checklist.md`
+- `acceptance/pivot-stage5b-c2-release-owner-review.md`
 - `operations/stage5a-domain-transport-observability.md`
 
 Upstream 9.0.0.beta references:
@@ -51,12 +57,12 @@ Upstream 9.0.0.beta references:
 
 ## Current Decision
 
-9.1.0 has completed release hardening, telemetry, Stage 5A design, Stage 5A production transport, and Stage 5B semantic design. The remaining safest order is:
+9.1.0 has completed release hardening, telemetry, Stage 5A design, Stage 5A production transport, Stage 5B semantic design, and the scoped Stage 5B C2 implementation. The remaining safest order is:
 
-1. Push the RC branch/tag when release ownership is ready.
+1. Decide release scope: publish existing `v9.1.0-rc.1` without C2, or commit C2 and cut a new C2-inclusive RC tag.
 2. Review production telemetry after Stage 5A exposure, especially transport refusal and tuple/parameter distributions.
-3. Keep Stage 5B C2 gated until semantic review approval.
-4. Evaluate tree advanced semantics only after Stage 5B rules are stable.
+3. Keep C2 outside the accepted v1 subset fail-closed: SQL Server, conservative MySQL 5.7, tree mode, cross-axis cascade, three-level cascade, having-only cascade, and non-additive cascade totals remain rejected/deferred.
+4. Evaluate tree advanced semantics only after Stage 5B C2 v1 behavior has production telemetry.
 5. Evaluate outer Pivot cache as a separate release track.
 
 ## Acceptance Status
