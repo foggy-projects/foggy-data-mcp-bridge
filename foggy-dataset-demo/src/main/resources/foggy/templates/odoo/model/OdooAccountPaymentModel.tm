@@ -97,11 +97,19 @@ export const model = {
     properties: [
         { column: 'id', caption: 'ID', type: 'INTEGER' },
         { column: 'payment_type', caption: 'Payment Type', type: 'STRING', dictRef: dicts.payment_type,
-          description: 'inbound = receive money, outbound = send money' },
+          description: 'Direction of the payment. enum: inbound (receive money from a customer) / '
+              + 'outbound (send money to a vendor). AR payment statistics filter by '
+              + 'payment_type=inbound; AP statistics filter by payment_type=outbound.' },
         { column: 'partner_type', caption: 'Partner Type', type: 'STRING', dictRef: dicts.payment_partner_type,
-          description: 'customer or supplier' },
+          description: 'Role of the counterparty on this payment. enum: customer (AR — reduces '
+              + 'customer receivables) / supplier (AP — reduces vendor payables). Pair with '
+              + 'payment_type to slice: customer + inbound = customer payment received; supplier + '
+              + 'outbound = vendor payment sent.' },
         { column: 'payment_reference', caption: 'Payment Reference', type: 'STRING' },
-        { column: 'is_reconciled', caption: 'Is Reconciled', type: 'BOOL' },
+        { column: 'is_reconciled', caption: 'Is Reconciled', type: 'BOOL',
+          description: 'TRUE when this payment has been matched against one or more invoice / '
+              + 'bill lines, closing out their residual balance. Unreconciled payments do not yet '
+              + 'contribute to AR / AP aging reductions.' },
         { column: 'is_matched', caption: 'Is Matched', type: 'BOOL' },
         { column: 'is_internal_transfer', caption: 'Is Internal Transfer', type: 'BOOL' },
         { column: 'create_date', caption: 'Created On', type: 'DATETIME' },
@@ -109,7 +117,11 @@ export const model = {
     ],
 
     measures: [
-        { column: 'amount', caption: 'Amount', type: 'MONEY', aggregation: 'sum' },
+        { column: 'amount', caption: 'Amount', type: 'MONEY', aggregation: 'sum',
+          description: 'Payment amount in the payment currency (account.payment.amount). Always '
+              + 'non-negative regardless of direction — pair with payment_type to signal inflow '
+              + 'vs. outflow. Use amount_company_currency_signed when you need the signed '
+              + 'company-currency value for cross-currency consolidation.' },
         { column: 'amount_company_currency_signed', caption: 'Amount (Company Currency, Signed)', type: 'MONEY', aggregation: 'sum' },
         {
             column: 'id',
