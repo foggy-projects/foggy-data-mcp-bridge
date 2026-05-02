@@ -33,17 +33,28 @@ run_step() {
 assert_container() {
   local name="$1"
   local status
-  if ! status="$(docker inspect -f '{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}' "$name" 2>/dev/null)"; then
-    echo "Required container '$name' is not available. Start foggy-dataset-demo docker services before external DB parity." >&2
-    exit 1
-  fi
-  case "$status" in
-    running*) echo "Container OK: $name ($status)" ;;
-    *)
-      echo "Required container '$name' is not running. Current status: $status" >&2
-      exit 1
-      ;;
-  esac
+  for _ in {1..60}; do
+    status="$(docker inspect -f '{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}' "$name" 2>/dev/null || true)"
+    case "$status" in
+      "running healthy"|"running "|"running")
+        echo "Container OK: $name ($status)"
+        return 0
+        ;;
+      running*)
+        sleep 5
+        ;;
+      "")
+        echo "Required container '$name' is not available. Start foggy-dataset-demo docker services before external DB parity." >&2
+        exit 1
+        ;;
+      *)
+        sleep 5
+        ;;
+    esac
+  done
+
+  echo "Required container '$name' did not become ready. Current status: $status" >&2
+  exit 1
 }
 
 if [[ "$SKIP_FULL_REGRESSION" -eq 0 ]]; then
@@ -53,8 +64,10 @@ fi
 run_step "SQLite pivot SQL parity" \
   test \
   -pl foggy-dataset-model \
+  -am \
   -Dtest=PivotSqlParityIntegrationTest \
   -Dspring.profiles.active=sqlite \
+  -Dsurefire.failIfNoSpecifiedTests=false \
   -P!multi-db
 
 if [[ "$SKIP_MCP" -eq 0 ]]; then
@@ -72,15 +85,19 @@ if [[ "$SKIP_EXTERNAL_DB" -eq 0 ]]; then
   run_step "MySQL8 pivot SQL parity" \
     test \
     -pl foggy-dataset-model \
+    -am \
     -Dtest=PivotSqlParityIntegrationTest \
     -Dspring.profiles.active=mysql8 \
+    -Dsurefire.failIfNoSpecifiedTests=false \
     -P!multi-db
 
   run_step "PostgreSQL pivot SQL parity" \
     test \
     -pl foggy-dataset-model \
+    -am \
     -Dtest=PivotSqlParityIntegrationTest \
     -Dspring.profiles.active=postgres \
+    -Dsurefire.failIfNoSpecifiedTests=false \
     -P!multi-db
 fi
 

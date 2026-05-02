@@ -183,6 +183,9 @@ public final class DbUtils {
 			con = ds.getConnection();
 			String productName = con.getMetaData().getDatabaseProductName().toUpperCase();
 			if (isMysql(productName)) {
+				if (productName.contains("MYSQL") && con.getMetaData().getDatabaseMajorVersion() >= 8) {
+					return FDialect.MYSQL8_DIALECT;
+				}
 				return FDialect.MYSQL_DIALECT;
 			} else if (isPostgres(productName)) {
 				return FDialect.POSTGRES_DIALECT;

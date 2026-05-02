@@ -160,20 +160,21 @@ public class PivotPipeline {
         if (sqlPushdownSkipReason == null) {
             logger.debug("[Pivot] Phase 1: SQL pushdown path for model={}", model);
             try {
+                PivotTelemetry.sqlPushdownAttempted(logger, model);
+                long pushdownStart = System.currentTimeMillis();
                 resultSet = executePhase1WithSqlPushdown(model, request, context,
                         rowFields, colFields, metrics, pivot, queryModel);
                 sqlPushdownUsed = true;
-                logger.info("[Pivot] Phase 1: SQL pushdown succeeded, {} rows returned", resultSet.size());
+                PivotTelemetry.sqlPushdownSucceeded(logger, model, resultSet.size(),
+                        System.currentTimeMillis() - pushdownStart);
             } catch (PivotPushdownUnsupportedException | UnsupportedOperationException e) {
                 // Fail-closed: fallback to memory path
-                logger.info("[Pivot] Phase 1: SQL pushdown not possible, reason={}, model={}, fallback=memory",
-                        e.getMessage(), model);
+                PivotTelemetry.sqlPushdownFallback(logger, model, e);
                 resultSet = executePhase1(model, request, context,
                         rowFields, colFields, metrics, queryModel);
             }
         } else {
-            logger.debug("[Pivot] Phase 1: SQL pushdown skipped, reason={}, model={}",
-                    sqlPushdownSkipReason, model);
+            PivotTelemetry.sqlPushdownSkipped(logger, model, sqlPushdownSkipReason);
             logger.debug("[Pivot] Phase 1: Memory path for model={}", model);
             resultSet = executePhase1(model, request, context,
                     rowFields, colFields, metrics, queryModel);
@@ -247,10 +248,8 @@ public class PivotPipeline {
                     // 无法为 non-additive subtotal 生成精确 tuple 约束。
                     // 不能静默近似（静默近似会让小计包含被 TopN 过滤的成员），
                     // 因此向用户报错，要求降低 TopN limit 或关闭 rowSubtotals/grandTotal。
-                    logger.warn("[Pivot] Non-additive rollup domain limit exceeded, domainSize={}, maxAllowed={}, " +
-                                    "model={}, sqlPushdownUsed={}, rowDomainSize={}, colDomainSize={}",
-                            e.getDomainSize(), e.getMaxAllowed(), model, sqlPushdownUsed,
-                            rowDomain.size(), colDomain.size());
+                    PivotTelemetry.domainLimitExceeded(logger, model, e.getDomainSize(), e.getMaxAllowed(),
+                            sqlPushdownUsed, rowDomain.size(), colDomain.size());
                     throw new IllegalStateException(
                             "Pivot subtotal/grandTotal: non-additive metric (AVG/COUNT_DISTINCT) 的辅助查询 " +
                             "surviving domain 超过安全限制（" + e.getDomainSize() + " > " + e.getMaxAllowed() + "）。" +

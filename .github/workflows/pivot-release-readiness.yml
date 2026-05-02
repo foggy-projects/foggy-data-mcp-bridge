@@ -1,0 +1,71 @@
+name: Pivot Release Readiness
+
+on:
+  pull_request:
+    paths:
+      - 'foggy-dataset-model/**'
+      - 'foggy-dataset-mcp/**'
+      - 'foggy-dataset-demo/**'
+      - 'scripts/verify-pivot-v9-release.*'
+      - '.github/workflows/pivot-release-readiness.yml'
+  workflow_dispatch:
+  schedule:
+    - cron: '0 18 * * *'
+
+permissions:
+  contents: read
+
+env:
+  JAVA_VERSION: '17'
+
+jobs:
+  sqlite-pr-fast-path:
+    name: SQLite pivot parity fast path
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: maven
+
+      - name: SQLite profile - PivotSqlParityIntegrationTest
+        run: |
+          mvn test -pl foggy-dataset-model -am \
+            -Dtest=PivotSqlParityIntegrationTest \
+            -Dspring.profiles.active=sqlite \
+            -Dsurefire.failIfNoSpecifiedTests=false \
+            -P!multi-db
+
+  external-db-release-gate:
+    name: MySQL8/PostgreSQL pivot parity release gate
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: maven
+
+      - name: Start MySQL8 and PostgreSQL services
+        run: |
+          docker compose -f foggy-dataset-demo/docker/docker-compose.yml up -d mysql8 postgres
+
+      - name: MySQL8/PostgreSQL profiles - PivotSqlParityIntegrationTest
+        run: |
+          chmod +x scripts/verify-pivot-v9-release.sh
+          bash scripts/verify-pivot-v9-release.sh --skip-full-regression --skip-mcp
+
+      - name: Stop external DB services
+        if: always()
+        run: |
+          docker compose -f foggy-dataset-demo/docker/docker-compose.yml down -v

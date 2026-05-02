@@ -30,14 +30,20 @@ function Assert-DockerContainer {
         [Parameter(Mandatory = $true)][string]$Name
     )
 
-    $status = docker inspect -f "{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}" $Name 2>$null
-    if ($LASTEXITCODE -ne 0) {
-        throw "Required container '$Name' is not available. Start foggy-dataset-demo docker services before external DB parity."
+    $status = ""
+    for ($i = 0; $i -lt 60; $i++) {
+        $status = docker inspect -f "{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}" $Name 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            throw "Required container '$Name' is not available. Start foggy-dataset-demo docker services before external DB parity."
+        }
+        if ($status -eq "running healthy" -or $status -eq "running " -or $status -eq "running") {
+            Write-Host "Container OK: $Name ($status)" -ForegroundColor Green
+            return
+        }
+        Start-Sleep -Seconds 5
     }
-    if ($status -notmatch "^running") {
-        throw "Required container '$Name' is not running. Current status: $status"
-    }
-    Write-Host "Container OK: $Name ($status)" -ForegroundColor Green
+
+    throw "Required container '$Name' did not become ready. Current status: $status"
 }
 
 if (-not $SkipFullRegression) {
@@ -47,8 +53,10 @@ if (-not $SkipFullRegression) {
 Invoke-ReleaseStep "SQLite pivot SQL parity" @(
     "test",
     "-pl", "foggy-dataset-model",
+    "-am",
     "-Dtest=PivotSqlParityIntegrationTest",
     "-Dspring.profiles.active=sqlite",
+    "-Dsurefire.failIfNoSpecifiedTests=false",
     "-P!multi-db"
 )
 
@@ -68,16 +76,20 @@ if (-not $SkipExternalDb) {
     Invoke-ReleaseStep "MySQL8 pivot SQL parity" @(
         "test",
         "-pl", "foggy-dataset-model",
+        "-am",
         "-Dtest=PivotSqlParityIntegrationTest",
         "-Dspring.profiles.active=mysql8",
+        "-Dsurefire.failIfNoSpecifiedTests=false",
         "-P!multi-db"
     )
 
     Invoke-ReleaseStep "PostgreSQL pivot SQL parity" @(
         "test",
         "-pl", "foggy-dataset-model",
+        "-am",
         "-Dtest=PivotSqlParityIntegrationTest",
         "-Dspring.profiles.active=postgres",
+        "-Dsurefire.failIfNoSpecifiedTests=false",
         "-P!multi-db"
     )
 }

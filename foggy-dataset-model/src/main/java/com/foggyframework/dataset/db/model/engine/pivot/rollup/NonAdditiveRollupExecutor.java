@@ -2,6 +2,7 @@ package com.foggyframework.dataset.db.model.engine.pivot.rollup;
 
 import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
 import com.foggyframework.dataset.db.model.engine.pivot.CardinalityBreaker;
+import com.foggyframework.dataset.db.model.engine.pivot.PivotTelemetry;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
@@ -81,6 +82,7 @@ public class NonAdditiveRollupExecutor {
 
         logger.debug("[Pivot] NonAdditiveRollupExecutor: {} grains, {} aux metrics: {}",
                 grains.size(), auxMetrics.size(), auxMetrics);
+        PivotTelemetry.auxQueryStarted(logger, model, grains.size(), auxMetrics.size());
 
         // 尝试 UNION ALL 批量合并
         boolean batchSuccess = tryBatchExecute(
@@ -89,11 +91,14 @@ public class NonAdditiveRollupExecutor {
 
         if (!batchSuccess) {
             // 降级: 逐 grain 串行执行
+            long serialStart = System.currentTimeMillis();
             logger.info("[Pivot] Falling back to per-grain serial execution");
             for (RollupGrain grain : grains) {
                 executeGrainSerial(model, originalRequest, context, grain, auxMetrics,
                         rowFields, colFields, survivingRowDomain, survivingColDomain, cache);
             }
+            PivotTelemetry.auxQueryCompleted(logger, model, "serial", grains.size(), grains.size(),
+                    auxMetrics.size(), System.currentTimeMillis() - serialStart);
         }
 
         logger.debug("[Pivot] RollupCache built: {}", cache);
@@ -141,10 +146,12 @@ public class NonAdditiveRollupExecutor {
             long elapsed = System.currentTimeMillis() - batchStart;
             logger.info("[Pivot] UNION ALL batch completed: {} grains in {} batches, {}ms",
                     grains.size(), batches.size(), elapsed);
+            PivotTelemetry.auxQueryCompleted(logger, model, "union_all", grains.size(), batches.size(),
+                    auxMetrics.size(), elapsed);
             return true;
 
         } catch (Exception e) {
-            logger.warn("[Pivot] UNION ALL batch failed, will fallback: {}", e.getMessage());
+            PivotTelemetry.auxQueryFallback(logger, model, e);
             return false;
         }
     }
