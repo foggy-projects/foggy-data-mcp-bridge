@@ -20,10 +20,32 @@ env:
 
 jobs:
   # ─────────────────────────────────────────────
+  # Pivot V9 release readiness gate
+  # ─────────────────────────────────────────────
+  pivot-release-readiness:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: maven
+
+      - name: Verify Pivot V9 release readiness
+        run: |
+          chmod +x scripts/verify-pivot-v9-release.sh
+          bash scripts/verify-pivot-v9-release.sh --skip-external-db
+
+  # ─────────────────────────────────────────────
   # Build JAR (shared artifact for both jobs)
   # ─────────────────────────────────────────────
   build-jar:
     runs-on: ubuntu-latest
+    needs: pivot-release-readiness
     outputs:
       version: ${{ steps.version.outputs.version }}
       jar_name: ${{ steps.find-jar.outputs.jar_name }}

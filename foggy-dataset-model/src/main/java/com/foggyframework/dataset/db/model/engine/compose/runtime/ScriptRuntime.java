@@ -1,5 +1,13 @@
 package com.foggyframework.dataset.db.model.engine.compose.runtime;
 
+import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
+import com.foggyframework.dataset.db.model.engine.compose.capability.CapabilityException;
+import com.foggyframework.dataset.db.model.engine.compose.capability.CapabilityPolicy;
+import com.foggyframework.dataset.db.model.engine.compose.capability.CapabilityRegistry;
+import com.foggyframework.dataset.db.model.engine.compose.capability.FunctionDescriptor;
+import com.foggyframework.dataset.db.model.engine.compose.capability.MethodDescriptor;
+import com.foggyframework.dataset.db.model.engine.compose.capability.ObjectFacadeDescriptor;
+import com.foggyframework.dataset.db.model.engine.compose.capability.ObjectFacadeProxy;
 import com.foggyframework.dataset.db.model.engine.compose.context.ComposeQueryContext;
 import com.foggyframework.dataset.db.model.engine.compose.plan.Dsl;
 import com.foggyframework.dataset.db.model.engine.compose.plan.QueryFactory;
@@ -86,6 +94,94 @@ public final class ScriptRuntime {
             SemanticQueryServiceV3 semanticService,
             String dialect,
             boolean previewMode) {
+        return runScript(script, ctx, semanticService, dialect, previewMode, null, null);
+    }
+
+    /**
+     * Execute a Compose Query fsscript with capability injection.
+     *
+     * <p>Capabilities are only injected when both registry and policy are
+     * explicit. Existing overloads keep the default visible surface unchanged.</p>
+     */
+    public static ScriptResult runScript(
+            String script,
+            ComposeQueryContext ctx,
+            SemanticQueryServiceV3 semanticService,
+            String dialect,
+            CapabilityRegistry capabilityRegistry,
+            CapabilityPolicy capabilityPolicy) {
+        return runScript(script, ctx, semanticService, dialect, false, capabilityRegistry, capabilityPolicy);
+    }
+
+    /**
+     * Execute a Compose Query fsscript with capability injection and suspension support.
+     *
+     * @since 8.5.0 (P2.5)
+     */
+    public static ScriptResult runScript(
+            String script,
+            ComposeQueryContext ctx,
+            SemanticQueryServiceV3 semanticService,
+            String dialect,
+            boolean previewMode,
+            CapabilityRegistry capabilityRegistry,
+            CapabilityPolicy capabilityPolicy,
+            SuspensionManager suspensionManager) {
+        if (ctx == null) throw new IllegalArgumentException("ctx must not be null");
+        if (semanticService == null) throw new IllegalArgumentException("semanticService must not be null");
+
+        // P2.5: set up run context and manager
+        ScriptRunContext runCtx = new ScriptRunContext();
+        ScriptRunContextHolder.Token runToken = null;
+        if (suspensionManager != null) {
+            suspensionManager.registerRun(runCtx);
+            runToken = ScriptRunContextHolder.set(runCtx);
+            ComposePause.CURRENT_MANAGER.set(suspensionManager);
+        }
+
+        try {
+            return doRunScript(script, ctx, semanticService, dialect,
+                    previewMode, capabilityRegistry, capabilityPolicy, suspensionManager);
+        } finally {
+            if (suspensionManager != null) {
+                ComposePause.CURRENT_MANAGER.remove();
+                ScriptRunContextHolder.pop(runToken);
+                // Complete or abort depending on state
+                if (!runCtx.isTerminal()) {
+                    try {
+                        suspensionManager.completeRun(runCtx.getRunId());
+                    } catch (Exception ignored) {
+                        // run may already have been cleaned up
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Execute a Compose Query fsscript with optional preview mode and capability injection.
+     */
+    public static ScriptResult runScript(
+            String script,
+            ComposeQueryContext ctx,
+            SemanticQueryServiceV3 semanticService,
+            String dialect,
+            boolean previewMode,
+            CapabilityRegistry capabilityRegistry,
+            CapabilityPolicy capabilityPolicy) {
+        return runScript(script, ctx, semanticService, dialect,
+                previewMode, capabilityRegistry, capabilityPolicy, null);
+    }
+
+    private static ScriptResult doRunScript(
+            String script,
+            ComposeQueryContext ctx,
+            SemanticQueryServiceV3 semanticService,
+            String dialect,
+            boolean previewMode,
+            CapabilityRegistry capabilityRegistry,
+            CapabilityPolicy capabilityPolicy,
+            SuspensionManager suspensionManager) {
         if (ctx == null) throw new IllegalArgumentException("ctx must not be null");
         if (semanticService == null) throw new IllegalArgumentException("semanticService must not be null");
 
@@ -167,6 +263,11 @@ public final class ScriptRuntime {
                     List<String> orderBy = (List<String>) args.get("orderBy");
                     builder.orderBy(orderBy);
                 }
+                if (args.containsKey("calculatedFields")) {
+                    @SuppressWarnings("unchecked")
+                    List<Object> calculatedFields = (List<Object>) args.get("calculatedFields");
+                    builder.calculatedFields(toCalculatedFields(calculatedFields));
+                }
                 if (args.containsKey("limit")) {
                     builder.limit(((Number) args.get("limit")).intValue());
                 }
@@ -190,6 +291,35 @@ public final class ScriptRuntime {
                 evaluator.setVar("params", Collections.unmodifiableMap(ctxParams));
             } else {
                 evaluator.setVar("params", Collections.emptyMap());
+            }
+
+            injectCapabilities(evaluator, capabilityRegistry, capabilityPolicy);
+
+            // P2.5: Inject optional runtime.pause when policy allows
+            if (capabilityPolicy != null && capabilityPolicy.isScriptPauseAllowed()
+                    && suspensionManager != null) {
+                java.util.Map<String, Object> runtimeObj = new java.util.LinkedHashMap<>();
+                runtimeObj.put("pause", (java.util.function.Function<Object[], Object>) rawArgs -> {
+                    if (rawArgs == null || rawArgs.length != 1 || !(rawArgs[0] instanceof Map)) {
+                        throw new IllegalArgumentException("runtime.pause must be called with an options object");
+                    }
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> opts = (Map<String, Object>) rawArgs[0];
+                    Object reason = opts.get("reason");
+                    if (!(reason instanceof String) || ((String) reason).isEmpty()) {
+                        throw new IllegalArgumentException("runtime.pause requires 'reason'");
+                    }
+                    Object timeoutMs = opts.get("timeout_ms");
+                    if (!(timeoutMs instanceof Number)) {
+                        throw new IllegalArgumentException("runtime.pause requires 'timeout_ms'");
+                    }
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> summary = opts.containsKey("summary")
+                            ? (Map<String, Object>) opts.get("summary") : Map.of();
+                    return ComposePause.pause((String) reason, summary,
+                            ((Number) timeoutMs).intValue());
+                });
+                evaluator.setVar("runtime", Collections.unmodifiableMap(runtimeObj));
             }
 
             // 5. Execute
@@ -251,6 +381,112 @@ public final class ScriptRuntime {
         } finally {
             ComposeRuntimeHolder.popBundle(token);
         }
+    }
+
+    private static void injectCapabilities(
+            ExpEvaluator evaluator,
+            CapabilityRegistry registry,
+            CapabilityPolicy policy) {
+        if (registry == null || policy == null || registry.isEmpty()) {
+            return;
+        }
+
+        for (String name : policy.getAllowedFunctions()) {
+            if (!registry.hasFunction(name)) {
+                continue;
+            }
+            CapabilityRegistry.FunctionEntry entry = registry.getFunction(name);
+            FunctionDescriptor descriptor = entry.getDescriptor();
+            if (!"pure_runtime".equals(descriptor.getKind())
+                    || !descriptor.getAllowedIn().contains("compose_runtime")
+                    || entry.getHandler() == null) {
+                continue;
+            }
+            evaluator.setVar(name, (Function<Object[], Object>) rawArgs -> {
+                Object result = entry.getHandler().handle(toNamedArgs(descriptor, rawArgs));
+                ensureSafeCapabilityReturn(result, "Function '" + name + "'");
+                return result;
+            });
+        }
+
+        for (String objectName : policy.getAllowedObjects().keySet()) {
+            if (!registry.hasObject(objectName) || !policy.isObjectAllowed(objectName)) {
+                continue;
+            }
+            CapabilityRegistry.ObjectEntry entry = registry.getObject(objectName);
+            ObjectFacadeDescriptor descriptor = entry.getDescriptor();
+            ObjectFacadeProxy proxy = new ObjectFacadeProxy(descriptor, entry.getTarget(), policy);
+            Map<String, Object> methodWrappers = new LinkedHashMap<>();
+            for (MethodDescriptor method : descriptor.getMethods()) {
+                if (!policy.isMethodAllowed(objectName, method.getName())) {
+                    continue;
+                }
+                methodWrappers.put(method.getName(), (Function<Object[], Object>) rawArgs -> {
+                    Object[] args = rawArgs == null ? new Object[0] : rawArgs;
+                    Object result = proxy.invoke(method.getName(), args);
+                    ensureSafeCapabilityReturn(result,
+                            "Method '" + method.getName() + "' on object '" + objectName + "'");
+                    return result;
+                });
+            }
+            evaluator.setVar(objectName, Collections.unmodifiableMap(methodWrappers));
+        }
+    }
+
+    private static Map<String, Object> toNamedArgs(FunctionDescriptor descriptor, Object[] rawArgs) {
+        Object[] args = rawArgs == null ? new Object[0] : rawArgs;
+        List<Map<String, Object>> schema = descriptor.getArgsSchema();
+        if (args.length > schema.size()) {
+            throw new CapabilityException.InvalidDescriptor(
+                    "Function '" + descriptor.getName() + "' received too many arguments.");
+        }
+        Map<String, Object> named = new LinkedHashMap<>();
+        for (int i = 0; i < args.length; i++) {
+            Object argName = schema.get(i).get("name");
+            if (!(argName instanceof String name) || name.isEmpty()) {
+                throw new CapabilityException.InvalidDescriptor(
+                        "Function '" + descriptor.getName() + "' has invalid argsSchema[" + i + "].name.");
+            }
+            named.put(name, args[i]);
+        }
+        return Collections.unmodifiableMap(named);
+    }
+
+    private static void ensureSafeCapabilityReturn(Object result, String label) {
+        if (!ObjectFacadeProxy.isSafeReturnValue(result)) {
+            throw new CapabilityException.ReturnTypeDenied(
+                    label + " returned a value of disallowed type.");
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<CalculatedFieldDef> toCalculatedFields(List<Object> raw) {
+        if (raw == null || raw.isEmpty()) {
+            return List.of();
+        }
+        List<CalculatedFieldDef> out = new ArrayList<>(raw.size());
+        for (Object item : raw) {
+            if (item instanceof CalculatedFieldDef def) {
+                out.add(def);
+                continue;
+            }
+            if (item instanceof Map<?, ?> map) {
+                out.add(toCalculatedField((Map<String, Object>) map));
+                continue;
+            }
+            throw new IllegalArgumentException("calculatedFields entries must be objects");
+        }
+        return out;
+    }
+
+    private static CalculatedFieldDef toCalculatedField(Map<String, Object> map) {
+        CalculatedFieldDef def = new CalculatedFieldDef();
+        def.setName((String) map.get("name"));
+        def.setCaption((String) map.get("caption"));
+        def.setExpression((String) map.get("expression"));
+        def.setDescription((String) map.get("description"));
+        def.setAgg((String) map.get("agg"));
+        return def;
     }
 
     /**

@@ -1,5 +1,6 @@
 package com.foggyframework.dataset.db.model.engine.compose.plan;
 
+import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -31,6 +32,7 @@ class BaseModelPlanTest {
             assertTrue(p.slice().isEmpty());
             assertTrue(p.groupBy().isEmpty());
             assertTrue(p.orderBy().isEmpty());
+            assertTrue(p.calculatedFields().isEmpty());
             assertNull(p.limit());
             assertNull(p.start());
             assertFalse(p.distinct());
@@ -88,6 +90,18 @@ class BaseModelPlanTest {
             assertEquals(0, BaseModelPlan.builder().model("X").columns(List.of("id"))
                     .start(0).build().start());
         }
+
+        @Test
+        @DisplayName("calculatedFields 保存到 BaseModelPlan")
+        void calculatedFieldsStored() {
+            CalculatedFieldDef cf = new CalculatedFieldDef("genderCopy", "gender");
+            BaseModelPlan p = BaseModelPlan.builder()
+                    .model("X")
+                    .columns(List.of("name"))
+                    .calculatedFields(List.of(cf))
+                    .build();
+            assertEquals(List.of(cf), p.calculatedFields());
+        }
     }
 
     @Nested
@@ -100,6 +114,18 @@ class BaseModelPlanTest {
             BaseModelPlan p = BaseModelPlan.builder()
                     .model("X").columns(List.of("id", "name")).build();
             assertThrows(UnsupportedOperationException.class, () -> p.columns().add("x"));
+        }
+
+        @Test
+        @DisplayName("calculatedFields 返回不可变副本")
+        void calculatedFieldsUnmodifiable() {
+            BaseModelPlan p = BaseModelPlan.builder()
+                    .model("X")
+                    .columns(List.of("id"))
+                    .calculatedFields(List.of(new CalculatedFieldDef("copy", "id")))
+                    .build();
+            assertThrows(UnsupportedOperationException.class,
+                    () -> p.calculatedFields().add(new CalculatedFieldDef("other", "name")));
         }
 
         @Test

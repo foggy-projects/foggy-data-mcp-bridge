@@ -189,6 +189,170 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
     }
 
     /**
+     * 准备受管关系代数
+     *
+     * <p>该阶段会构建基础 SQL，并执行允许在 PREPARE_MANAGED_RELATION 阶段运行的
+     * beforeExecute steps（例如物理列权限校验、预聚合重写）。
+     * 不会执行数据库查询。返回被加工好的 ManagedSqlRelation（含 capability metadata）。</p>
+     *
+     * @param systemBundlesContext 系统上下文
+     * @param context              查询上下文
+     * @param options              准备选项
+     * @return 准备好的受管关系代数
+     */
+    public com.foggyframework.dataset.db.model.plugins.query_execution.ManagedSqlRelation prepareManagedRelation(
+            SystemBundlesContext systemBundlesContext, ModelResultContext context, 
+            com.foggyframework.dataset.db.model.plugins.query_execution.ManagedRelationOptions options) {
+        
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(this, sqlFormulaService);
+        queryEngine.analysisQueryRequest(systemBundlesContext, context);
+
+        QueryExecutionContext execCtx = createExecutionContext(systemBundlesContext, context, queryEngine);
+        execCtx.setManagedRelationOptions(options);
+
+        if (queryExecutionStepExecutor != null && queryExecutionStepExecutor.hasSteps()) {
+            queryExecutionStepExecutor.executeBeforeExecute(com.foggyframework.dataset.db.model.plugins.query_execution.QueryExecutionPhase.PREPARE_MANAGED_RELATION, execCtx);
+        }
+
+        // ===== Dialect capability validation =====
+        FDialect dialect = getDialect();
+        if (options != null && options.getRequiredDialectCapabilities() != null) {
+            for (com.foggyframework.dataset.db.model.plugins.query_execution.ManagedRelationOptions.DialectCapability cap 
+                    : options.getRequiredDialectCapabilities()) {
+                switch (cap) {
+                    case CTE:
+                        if (!dialect.supportsCte()) {
+                            throw new UnsupportedOperationException(
+                                "Dialect " + dialect.getProductName() + " does not support CTE, required by purpose: " +
+                                (options.getPurpose() != null ? options.getPurpose() : "unknown"));
+                        }
+                        break;
+                    case WINDOW_FUNCTION:
+                        if (!dialect.supportsWindowFunctions()) {
+                            throw new UnsupportedOperationException(
+                                "Dialect " + dialect.getProductName() + " does not support Window Functions, required by purpose: " +
+                                (options.getPurpose() != null ? options.getPurpose() : "unknown"));
+                        }
+                        break;
+                }
+            }
+        }
+
+        // ===== Capability metadata =====
+        // permissionValidated: default false (fail-closed). PhysicalColumnPermissionStep
+        // sets "permissionValidated" = true when it completes successfully.
+        boolean permissionValidated = Boolean.TRUE.equals(execCtx.getExtData("permissionValidated"));
+        // preAggUsed: PreAggRewriteStep stores the preAgg name as a String, not Boolean
+        boolean preAggApplied = execCtx.getExtData("preAggUsed") != null;
+        boolean wrappable = permissionValidated && dialect.supportsCte();
+
+        // Build metric metadata from queryModel measures
+        java.util.List<com.foggyframework.dataset.db.model.plugins.query_execution.ManagedMetricMetadata> metricMetadataList =
+                buildMetricMetadata(context);
+
+        // 注意：prepare 阶段不短路执行，即使缓存命中也会继续，除非外层决定使用它。
+        return new com.foggyframework.dataset.db.model.plugins.query_execution.ManagedSqlRelation(
+                execCtx.getSql(),
+                execCtx.getParams(),
+                dialect,
+                queryEngine,
+                execCtx,
+                wrappable,
+                permissionValidated,
+                preAggApplied,
+                metricMetadataList
+        );
+    }
+
+    /**
+     * 从 queryModel 度量元数据构建 ManagedMetricMetadata 列表
+     */
+    private java.util.List<com.foggyframework.dataset.db.model.plugins.query_execution.ManagedMetricMetadata> buildMetricMetadata(
+            ModelResultContext context) {
+        java.util.List<com.foggyframework.dataset.db.model.plugins.query_execution.ManagedMetricMetadata> result = new java.util.ArrayList<>();
+        // Iterate over all measures in the queryModel
+        for (TableModel tm : getJdbcModelList()) {
+            if (tm.getMeasures() == null) continue;
+            for (DbMeasure measure : tm.getMeasures()) {
+                DbAggregation agg = measure.getAggregation();
+                com.foggyframework.dataset.db.model.plugins.query_execution.AdditiveKind kind;
+                String aggFunc;
+                if (agg == null || agg == DbAggregation.NONE || agg == DbAggregation.PK) {
+                    kind = com.foggyframework.dataset.db.model.plugins.query_execution.AdditiveKind.UNKNOWN;
+                    aggFunc = "SUM";
+                } else {
+                    switch (agg) {
+                        case SUM:
+                        case COUNT:
+                        case MIN:
+                        case MAX:
+                            kind = com.foggyframework.dataset.db.model.plugins.query_execution.AdditiveKind.ADDITIVE;
+                            break;
+                        case AVG:
+                        case COUNT_DISTINCT:
+                            kind = com.foggyframework.dataset.db.model.plugins.query_execution.AdditiveKind.NON_ADDITIVE;
+                            break;
+                        default:
+                            kind = com.foggyframework.dataset.db.model.plugins.query_execution.AdditiveKind.UNKNOWN;
+                            break;
+                    }
+                    aggFunc = agg.name();
+                }
+                result.add(com.foggyframework.dataset.db.model.plugins.query_execution.ManagedMetricMetadata.builder()
+                        .metricName(measure.getName())
+                        .additiveKind(kind)
+                        .aggregationFunction(aggFunc)
+                        .build());
+            }
+        }
+        return result;
+    }
+
+    /**
+     * 执行受管关系代数
+     *
+     * <p>外层将 ManagedSqlRelation 包装成新的 SQL 后，调用此方法真正执行数据库查询。
+     * 将会触发执行后的错误脱敏、数据格式化，以及 EXECUTE_MANAGED_RELATION 阶段的 afterExecute steps。</p>
+     *
+     * @param executionContext 之前准备阶段的上下文
+     * @param finalSql         外层包装后的最终 SQL
+     * @param finalParams      外层包装后的最终参数
+     * @return 查询结果
+     */
+    public DbQueryResult executeManagedRelation(QueryExecutionContext executionContext, String finalSql, List<Object> finalParams) {
+        executionContext.setSql(finalSql);
+        executionContext.setParams(finalParams);
+        PagingRequest<DbQueryRequestDef> form = executionContext.getModelResultContext().getRequest();
+        JdbcModelQueryEngine queryEngine = executionContext.getQueryEngine();
+
+        // 重新生成分页 SQL，因为最终 SQL 已被外层替换
+        String pagingSql = getDialect().generatePagingSql(finalSql, form.getStart(), form.getLimit());
+        executionContext.setPagingSql(pagingSql);
+
+        if (executionContext.isSkipExecution() && executionContext.getCachedResult() != null) {
+            return DbQueryResult.of(executionContext.getCachedResult(), queryEngine);
+        }
+
+        PagingResultImpl result;
+        try {
+            result = executeSql(executionContext, form, queryEngine);
+        } catch (RuntimeException e) {
+            String sanitized = QueryErrorSanitizer.sanitize(e.getMessage(), this);
+            if (sanitized != null && !sanitized.isEmpty() && !sanitized.equals(e.getMessage())) {
+                throw new SanitizedQueryExecutionException(sanitized, e);
+            }
+            throw e;
+        }
+        executionContext.setExecutionResult(result);
+
+        if (queryExecutionStepExecutor != null && queryExecutionStepExecutor.hasSteps()) {
+            queryExecutionStepExecutor.executeAfterExecute(com.foggyframework.dataset.db.model.plugins.query_execution.QueryExecutionPhase.EXECUTE_MANAGED_RELATION, executionContext);
+        }
+
+        return DbQueryResult.of(result, queryEngine);
+    }
+
+    /**
      * 创建查询执行上下文
      */
     @SuppressWarnings("unchecked")

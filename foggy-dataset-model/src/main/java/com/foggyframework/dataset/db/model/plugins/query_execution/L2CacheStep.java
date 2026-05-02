@@ -43,6 +43,12 @@ public class L2CacheStep implements QueryExecutionStep {
     }
 
     @Override
+    public boolean supports(QueryExecutionPhase phase, QueryExecutionContext ctx) {
+        // Prepare 阶段也可以读缓存（虽不短路但可记录命中状态），但不建议在此阶段执行 afterExecute（不写缓存）
+        return phase == QueryExecutionPhase.NORMAL_QUERY || phase == QueryExecutionPhase.PREPARE_MANAGED_RELATION;
+    }
+
+    @Override
     public int beforeExecute(QueryExecutionContext ctx) {
         ModelResultContext modelCtx = ctx.getModelResultContext();
 
@@ -72,9 +78,16 @@ public class L2CacheStep implements QueryExecutionStep {
             // 标记缓存命中
             QueryCacheProvider.markL2Hit(modelCtx);
 
-            // 设置缓存结果并跳过执行
-            ctx.setCachedResult(cached);
-            ctx.setSkipExecution(true);
+            // 检查是否在 prepare 阶段禁用了短路
+            if (ctx.getManagedRelationOptions() != null && ctx.getManagedRelationOptions().isDisableInnerCacheShortCircuit()) {
+                if (log.isDebugEnabled()) {
+                    log.debug("L2 cache short-circuit is disabled by ManagedRelationOptions for model={}", modelName);
+                }
+            } else {
+                // 设置缓存结果并跳过执行
+                ctx.setCachedResult(cached);
+                ctx.setSkipExecution(true);
+            }
 
             return CONTINUE;
         } else {
@@ -87,7 +100,11 @@ public class L2CacheStep implements QueryExecutionStep {
     }
 
     @Override
-    public int afterExecute(QueryExecutionContext ctx) {
+    public int afterExecute(QueryExecutionPhase phase, QueryExecutionContext ctx) {
+        if (phase == QueryExecutionPhase.PREPARE_MANAGED_RELATION) {
+            return CONTINUE;
+        }
+
         ModelResultContext modelCtx = ctx.getModelResultContext();
 
         // 检查是否启用 L2 缓存

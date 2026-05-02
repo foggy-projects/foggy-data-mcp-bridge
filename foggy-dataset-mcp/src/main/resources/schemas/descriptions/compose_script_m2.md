@@ -1,121 +1,215 @@
-# dataset.compose_script (M2 DSL)
+# dataset.compose_script (SemanticDSL)
 
-Use this tool to orchestrate multi-model queries, complex aggregations, and JOINs. The script runs in a secure sandbox.
-**Language**: FSScript (syntax identical to JavaScript ES5). Only `Query`, `dsl`, `JSON`, `console.log` are available — no file I/O, no network, no `eval`.
-The recommended standard is the **Object-Oriented Chain API** (`Query.from(...)`). For very simple extractions, the legacy `dsl({...})` is still supported.
+Use this tool to orchestrate complex queries through SemanticDSL scripts. The script runs in a secure FSScript sandbox.
 
-## Core API: `Query.from()`
+## When to Use This Tool
+**Use `compose_script` ONLY IF your task requires:**
+- **Cross-model Join / Union**: Combining data from multiple query models.
+- **Derived Queries**: Processing the results of a previous aggregation (e.g., filtering on an aggregated alias, or double aggregation).
+- **Time-Window Analysis**: Calculating YoY, MoM, WoW, YTD, MTD, or rolling averages using the `timeWindow` configuration.
+- **Multiple Result Plans**: Returning multiple separate query plans at once.
 
-`Query.from("ModelName")` returns a `QueryPlan` representing the base physical model.
-**All fields should be referenced via the plan object**: `plan.fieldName`.
+**OTHERWISE**, if you are just querying a single model with basic filters, grouping, and aggregations, **use `dataset.query_model` instead.**
 
-You can chain `.where()`, `.groupBy()`, `.orderBy()`, `.limit()`, and `.offset()` to build logic.
+> **Note**: For comprehensive SemanticDSL syntax (including all supported `slice` operators, `calculatedFields` expressions, and column definitions), please refer to the `dataset.query_model` tool documentation or the `query_model_v3` schema.
 
-**Semantic Invariants**:
-1. **`.select()` cuts a new schema stage**: After `.select()`, only the projected columns exist. Field references are **bound to their stage**; after `.select()` creates a new stage, the new plan exposes new field references (e.g. `orderSummary.totalAmount`).
-2. **`.where()` syntax**: ALWAYS uses an array of JSON slice objects (`[{ field: "str", op: "=", value: 1 }]`). This is the ONLY method that uses string field names. **The `field` string refers to the current stage's output column name (i.e. alias)**, not the underlying physical field name.
-3. **`.where()` on Derived Plans**: Calling `.where()` AFTER `.select()` applies an outer `WHERE` on the derived table (CTE/subquery). In aggregation scenarios, this is **effect-equivalent** to SQL `HAVING`, but the engine does not generate `HAVING` — it always wraps as an outer filter.
-4. **`.orderBy()` uses strings (not FieldRef)**: Because sorting never involves cross-table disambiguation — it always operates on the current single stage's output columns. You can only order by a field that exists in the current schema. If ordering by an alias, you MUST `.orderBy()` AFTER `.select()`.
-5. **Special field names**: Fields containing `$` (like `category_id$caption`) work as normal JS property access. For other special chars (like `-`), use `plan["field-name"]`.
-6. **UNION field inheritance**: After `.union()`, the resulting plan's field references **inherit from the left-side schema**. Right-side aligns by position but does not expose separate references.
+## AI-Facing Entry Points
 
-### 1. Simple Extraction & Aggregation
-```javascript
-const sales = Query.from("OdooSaleOrderModel");
+Expose only these 3 entry points in generated scripts:
 
-const orderSummary = sales
-    .where([{ field: "status", op: "=", value: "done" }])
-    .groupBy(sales.partnerId)
-    .select(
-        sales.partnerId, 
-        sales.amountTotal.sum().as("totalAmount", "Total Amount") // Object-oriented aggregation!
-    )
-    .orderBy("-totalAmount")
-    .limit(10);
+| Entry | Trigger Scenario | Example |
+|---|---|---|
+| `dsl({...})` | Start a new query from a model, OR filter/process an existing plan (derived query) | `dsl({ model: "SalesQM", columns: [...] })` |
+| `.join(other, type, on)` | Combine two plans side-by-side | `a.join(b, "inner", [{ left, op, right }])` |
+| `.union(other, options)` | Append one plan's rows to another | `a.union(b, { all: true })` |
 
-return orderSummary.execute();
-```
+## Base Query
 
-**Supported aggregations on columns**: `.sum()`, `.count()`, `.avg()`, `.max()`, `.min()`.
+Use `dsl({...})` with `model` as a query model name:
 
-### 2. Derived Query (Two-stage aggregation)
-```javascript
-// Step 1: Sales per customer
-const sales = Query.from("OdooSaleOrderModel");
-const customerSales = sales
-    .groupBy(sales.partnerId)
-    .select(sales.partnerId, sales.amountTotal.sum().as("totalSpent"));
-
-// Step 2: Distribution of top spenders
-// NOTE: .where() here applies outer WHERE on derived table; effect-equivalent to SQL HAVING
-return customerSales
-    .where([{ field: "totalSpent", op: ">", value: 100000 }])
-    .select(customerSales.partnerId.count().as("premiumCount"))
-    .execute();
-```
-
-### 3. JOINing Multiple Models
-**Golden Rule (Aggregate First, Join Later)**: To prevent cartesian explosion, ALWAYS aggregate data in separate `QueryPlan`s BEFORE joining them. Direct 1:N JOINs without aggregation will inflate metrics (e.g. `customer.creditLimit` will sum up N times!).
-
-```javascript
-const customers = Query.from("OdooResPartnerModel");
-const orders = Query.from("OdooSaleOrderModel");
-
-// 1. Pre-aggregate facts
-const groupedOrders = orders
-    .groupBy(orders.partnerId, orders.companyId)
-    .select(
-        orders.partnerId, 
-        orders.companyId, 
-        orders.amountTotal.sum().as("totalSales")
-    );
-
-// 2. Perform Join
-const joined = customers.leftJoin(groupedOrders)
-    .on(customers.id, groupedOrders.partnerId)
-    .and(customers.companyId, groupedOrders.companyId); // Multiple conditions supported
-
-// 3. Disambiguate and Select
-const result = joined
-    .select(
-        customers.id,
-        customers.name.as("customerName"),
-        groupedOrders.totalSales
-    )
-    .orderBy("-totalSales") // .orderBy MUST come after .select if using alias
-    .execute();
-
-return result;
-```
-Supported Joins: `.leftJoin(other)`, `.innerJoin(other)`, `.rightJoin(other)`, `.fullJoin(other)`.
-
-### 4. UNION
-**WARNING**: When performing UNION, ALWAYS ensure the metrics have the exact same business meaning (e.g., do not union `amountTaxed` with `amountUntaxed` into the same column).
-```javascript
-const a = Query.from("ModelA");
-const b = Query.from("ModelB");
-const q1 = a.select(a.id, a.amount);
-const q2 = b.select(b.id, b.amount);
-return q1.union(q2, { all: true }).execute();
-```
-
-## Legacy API: `dsl({...})` / `base.query({...})`
-For simple single-table fetch:
-```javascript
-return dsl({
-    model: 'SaleOrderQM',
-    columns: ['partner$id', 'sum(amountTotal) as total'],
-    slice: [{ field: 'status', op: '=', value: 'done' }],
-    orderBy: ['-total'],
+```fsscript
+const sales = dsl({
+    model: "OdooSaleOrderModel",
+    columns: ["partnerId", "SUM(amountTotal) AS totalAmount"],
+    slice: [{ field: "status", op: "=", value: "done" }],
+    groupBy: ["partnerId"],
+    orderBy: ["-totalAmount"],
     limit: 10
-}).execute();
+});
+
+return { plans: sales };
 ```
 
-## Future Capabilities (Do not use yet)
-- **Window Functions**: `sales.amount.sum().over({ partitionBy: sales.partnerId })` is planned for 8.3.0.
-- **WHERE EXISTS**: Not supported currently.
+Common fields:
 
-## Execution Rules
-- Always end with `.execute()` to trigger DB compilation and return a `DataSetResult`.
-- The `DataSetResult` has methods: `.toList()`, `.column('field')`, `.first()`, `.size()`, `.isEmpty()`.
-- Use `.joinInMemory(other, 'LEFT', 'key')` on `DataSetResult` ONLY if joining across different DB types (MySQL vs PG). Otherwise, always use CTE `A.leftJoin(B)`.
+| Field | Type | Notes |
+|---|---|---|
+| `model` | `string | QueryPlan` | Query model name for base queries, or a previous plan for derived queries |
+| `columns` | `string[] | object[]` | Projected columns and aliases |
+| `slice` | `object[]` | Filters: `{ field, op, value }` |
+| `groupBy` | `string[]` | Grouping columns |
+| `orderBy` | `string[]` | Prefix `-` for descending |
+| `limit` | `number` | Row limit |
+| `start` | `number` | Offset |
+| `distinct` | `boolean` | SELECT DISTINCT |
+| `calculatedFields` | `object[]` | Post/base calculated fields when supported by the query model |
+| `timeWindow` | `object` | Time-window expansion |
+
+## Derived Query
+
+Use `dsl({...})` with `model` set to a previous plan. Derived queries may only reference columns already projected by the previous stage.
+
+```fsscript
+const grouped = dsl({
+    model: "FactSalesQueryModel",
+    columns: ["product$id", "SUM(amount) AS totalSales"],
+    groupBy: ["product$id"]
+});
+
+const topProducts = dsl({
+    model: grouped,
+    slice: [{ field: "totalSales", op: ">", value: 50000 }],
+    columns: ["product$id", "totalSales"],
+    orderBy: ["-totalSales"]
+});
+
+return { plans: topProducts };
+```
+
+## Join
+
+Build each side first, aggregate before joining 1:N facts, then use `.join(other, type, on)`.
+
+```fsscript
+const customers = dsl({
+    model: "OdooResPartnerModel",
+    columns: ["id", "name AS customerName"]
+});
+
+const orders = dsl({
+    model: "OdooSaleOrderModel",
+    columns: ["partnerId", "companyId", "SUM(amountTotal) AS totalSales"],
+    groupBy: ["partnerId", "companyId"]
+});
+
+const joined = customers.join(orders, "left", [
+    { left: "id", op: "=", right: "partnerId" }
+]);
+
+const result = dsl({
+    model: joined,
+    columns: ["id", "customerName", "totalSales"],
+    orderBy: ["-totalSales"],
+    limit: 20
+});
+
+return { plans: result };
+```
+
+Supported join types: `"inner"`, `"left"`, `"right"`, `"full"` where the SQL dialect supports them. Join conditions are AND-only arrays using field names visible on each side.
+
+When two joined plans have same-name columns, rename them in the source plans or with supported column object forms before the final projection.
+
+## Union
+
+Use `.union(...)` only when both sides expose compatible columns with the same business meaning.
+
+```fsscript
+const online = dsl({
+    model: "OnlineSalesQueryModel",
+    columns: ["orderId", "customerName", "amount"]
+});
+
+const offline = dsl({
+    model: "OfflineSalesQueryModel",
+    columns: ["orderId", "customerName", "amount"]
+});
+
+return { plans: online.union(offline, { all: true }) };
+```
+
+After union, the result exposes the left-side schema.
+
+## Time Window
+
+Use `timeWindow` as a top-level field on `dsl({...})` for YoY, MoM, WoW, YTD, MTD, and rolling 7/30/90 day analysis. Prefer `timeWindow`; do not hand-write window SQL.
+
+> **WARNING**: Before writing a timeWindow script, **always** inspect the model using `dataset.describe_model_internal`. Look for the field marked with `timeRole=business_date`. You MUST use this field's `$id` as `timeWindow.field` (e.g., `salesDate$id`). Do NOT guess time fields, and DO NOT use system fields like `created_at` or `write_date` unless explicitly requested.
+
+### Choosing the Time Field
+
+| Time definition | How to use it | Notes |
+|---|---|---|
+| Standard time dimension | Use the dimension id field as `timeWindow.field`, for example `salesDate$id` | Preferred. It is usually marked `timeRole=business_date` and may expose attributes such as `salesDate$year`, `salesDate$month`, `salesDate$quarter`, and `salesDate$caption` for grouping or display. |
+| Plain Date/DateTime field | Use the raw field name, for example `orderDate` | Use only when it is the actual business or event time. The engine can bucket by `grain`, but the model may not expose rich calendar attributes. |
+| System time field | Usually avoid | Do not use `created_at`, `updated_at`, or `write_date` for business trend analysis. |
+
+```fsscript
+const monthlyYoy = dsl({
+    model: "FactSalesQueryModel",
+    columns: [
+        "salesDate$year",
+        "salesDate$month",
+        "salesAmount",
+        "salesAmount__prior",
+        "salesAmount__diff",
+        "salesAmount__ratio"
+    ],
+    groupBy: ["salesDate$year", "salesDate$month"],
+    timeWindow: {
+        field: "salesDate$id",
+        grain: "month",
+        comparison: "yoy",
+        targetMetrics: ["salesAmount"]
+    }
+});
+
+return { plans: monthlyYoy };
+```
+
+Supported grains: `day`, `week`, `month`, `quarter`, `year`.
+
+Supported comparisons:
+
+| comparison | Output columns |
+|---|---|
+| `yoy`, `mom`, `wow` | `{metric}__prior`, `{metric}__diff`, `{metric}__ratio` |
+| `ytd`, `mtd` | `{metric}__ytd`, `{metric}__mtd` |
+| `rolling_7d`, `rolling_30d`, `rolling_90d` | `{metric}__rolling_7d`, `{metric}__rolling_30d`, `{metric}__rolling_90d` |
+
+`targetMetrics` must name metric output columns from the current query stage. Do not point `targetMetrics` at `calculatedFields`.
+
+Post time-window scalar fields are allowed when they only reference final output columns:
+
+```fsscript
+const yoy = dsl({
+    model: "FactSalesQueryModel",
+    columns: ["salesDate$year", "salesDate$month", "salesAmount", "growthPercent"],
+    groupBy: ["salesDate$year", "salesDate$month"],
+    timeWindow: {
+        field: "salesDate$id",
+        grain: "month",
+        comparison: "yoy",
+        targetMetrics: ["salesAmount"]
+    },
+    calculatedFields: [
+        { name: "growthPercent", expression: "salesAmount__ratio * 100" }
+    ]
+});
+
+return { plans: yoy };
+```
+
+## Execution Rules & Constraints
+
+- **Return Shape**: End query plans by returning an envelope object: `return { plans: yourPlan };`
+- **Output Statements**: Always use `return` to output the final value. ES module `export` is NOT supported.
+- **Execution Control**: Do not use `.execute()` directly unless specifically instructed. Let the host handle execution via the returned plan envelope.
+- **SQL / CTE**: Do not hand-write raw SQL or CTE syntax (`WITH ...`). Use `dsl()` and plan composition instead.
+- **Host Context**: Do not pass host-controlled security parameters such as user identity, system slice, denied columns, or datasource routing fields inside the script.
+- **Outer Aggregation / Windowing Restrictions**: Do not use aggregate functions or window functions (`partitionBy`, `windowOrderBy`, `windowFrame`) in the `calculatedFields` of a **derived query**. Keep derived queries simple and prefer scalar calculated fields.
+- **Plan Clarity**: Keep intermediate plans explicit and assigned to descriptive variables. This preserves schema metadata and helps repair errors.
+
+## Schema Discovery
+
+If you are uncertain about model fields or the primary time axis, first use `dataset.list_models` to discover models, then use `dataset.describe_model_internal` to inspect the exact schema and `timeRole` attributes before writing the script.

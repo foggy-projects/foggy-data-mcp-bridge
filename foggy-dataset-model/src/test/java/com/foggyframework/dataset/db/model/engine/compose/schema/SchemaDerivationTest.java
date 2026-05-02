@@ -1,5 +1,6 @@
 package com.foggyframework.dataset.db.model.engine.compose.schema;
 
+import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.engine.compose.plan.Dsl;
 import com.foggyframework.dataset.db.model.engine.compose.plan.JoinOn;
 import com.foggyframework.dataset.db.model.engine.compose.plan.JoinPlan;
@@ -73,6 +74,21 @@ class SchemaDerivationTest {
                     List.of("orderId", "SUM(amount) AS total", "COUNT(*) AS orderCount"));
             OutputSchema schema = SchemaDerivation.derive(plan);
             assertEquals(List.of("orderId", "total", "orderCount"), schema.names());
+        }
+
+        @Test
+        @DisplayName("calculatedFields 成为 BaseModelPlan 输出字段")
+        void calculatedFieldsAreDeclaredOutputs() {
+            QueryPlan plan = Dsl.from(Dsl.FromOptions.builder()
+                    .model("SaleOrderQM")
+                    .columns(List.of("name"))
+                    .calculatedFields(List.of(new CalculatedFieldDef("genderCopy", "gender")))
+                    .build());
+            OutputSchema schema = SchemaDerivation.derive(plan);
+            assertEquals(List.of("name", "genderCopy"), schema.names());
+            ColumnSpec spec = schema.get("genderCopy");
+            assertEquals("gender", spec.expression());
+            assertEquals("SaleOrderQM", spec.sourceModel());
         }
 
         @Test

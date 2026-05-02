@@ -1,5 +1,7 @@
 package com.foggyframework.dataset.db.model.engine.compose.plan;
 
+import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
+
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -24,6 +26,7 @@ public final class BaseModelPlan extends QueryPlan {
     private final List<Object> slice;
     private final List<String> groupBy;
     private final List<String> orderBy;
+    private final List<CalculatedFieldDef> calculatedFields;
     private final Integer limit;
     private final Integer start;
     private final boolean distinct;
@@ -48,6 +51,7 @@ public final class BaseModelPlan extends QueryPlan {
         this.slice = b.slice == null ? List.of() : List.copyOf(b.slice);
         this.groupBy = b.groupBy == null ? List.of() : List.copyOf(b.groupBy);
         this.orderBy = b.orderBy == null ? List.of() : List.copyOf(b.orderBy);
+        this.calculatedFields = b.calculatedFields == null ? List.of() : List.copyOf(b.calculatedFields);
         this.limit = b.limit;
         this.start = b.start;
         this.distinct = b.distinct;
@@ -58,6 +62,7 @@ public final class BaseModelPlan extends QueryPlan {
     public List<Object> slice() { return slice; }
     public List<String> groupBy() { return groupBy; }
     public List<String> orderBy() { return orderBy; }
+    public List<CalculatedFieldDef> calculatedFields() { return calculatedFields; }
     public Integer limit() { return limit; }
     public Integer start() { return start; }
     public boolean distinct() { return distinct; }
@@ -83,6 +88,7 @@ public final class BaseModelPlan extends QueryPlan {
         private List<Object> slice;
         private List<String> groupBy;
         private List<String> orderBy;
+        private List<CalculatedFieldDef> calculatedFields;
         private Integer limit;
         private Integer start;
         private boolean distinct;
@@ -101,6 +107,7 @@ public final class BaseModelPlan extends QueryPlan {
         public Builder slice(List<Object> v) { this.slice = v; return this; }
         public Builder groupBy(List<String> v) { this.groupBy = v; return this; }
         public Builder orderBy(List<String> v) { this.orderBy = v; return this; }
+        public Builder calculatedFields(List<CalculatedFieldDef> v) { this.calculatedFields = v; return this; }
         public Builder limit(Integer v) { this.limit = v; return this; }
         public Builder start(Integer v) { this.start = v; return this; }
         public Builder distinct(boolean v) { this.distinct = v; return this; }
@@ -119,6 +126,7 @@ public final class BaseModelPlan extends QueryPlan {
                 && Objects.equals(slice, p.slice)
                 && Objects.equals(groupBy, p.groupBy)
                 && Objects.equals(orderBy, p.orderBy)
+                && Objects.equals(calculatedFields, p.calculatedFields)
                 && Objects.equals(limit, p.limit)
                 && Objects.equals(start, p.start);
     }
@@ -126,7 +134,7 @@ public final class BaseModelPlan extends QueryPlan {
     @Override
     public int hashCode() {
         return Objects.hash(model, columns, slice, groupBy, orderBy,
-                limit, start, distinct);
+                calculatedFields, limit, start, distinct);
     }
 
     @Override
@@ -136,6 +144,7 @@ public final class BaseModelPlan extends QueryPlan {
                 + ", sliceSize=" + slice.size()
                 + ", groupBy=" + groupBy
                 + ", orderBy=" + orderBy
+                + ", calculatedFields=" + calculatedFields
                 + ", limit=" + limit
                 + ", start=" + start
                 + ", distinct=" + distinct

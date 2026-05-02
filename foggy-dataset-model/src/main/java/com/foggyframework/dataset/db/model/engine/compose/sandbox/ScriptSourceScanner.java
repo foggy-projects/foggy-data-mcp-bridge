@@ -55,6 +55,7 @@ public final class ScriptSourceScanner {
             Pattern.compile("\\bwindow\\b"),
             Pattern.compile("\\bself\\b"),
             Pattern.compile("\\bReflect\\b"),
+            Pattern.compile("\\.\\s*getClass\\s*\\("),
             Pattern.compile("\\bObject\\s*\\.\\s*getPrototypeOf\\s*\\("),
             Pattern.compile("\\bObject\\s*\\.\\s*keys\\s*\\("),
             Pattern.compile("\\bObject\\s*\\.\\s*defineProperty\\s*\\(")

@@ -1,6 +1,7 @@
 package com.foggyframework.dataset.db.model.engine.compose;
 
 import com.foggyframework.dataset.db.dialect.FDialect;
+import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.engine.compose.plan.ColumnObjectNormalizer;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
@@ -164,6 +165,11 @@ public class ComposedDataSetResult implements PropertyFunction {
             request.setTimeWindow(new LinkedHashMap<>((Map<String, Object>) timeWindow));
         }
 
+        Object calculatedFields = params.get("calculatedFields");
+        if (calculatedFields instanceof List) {
+            request.setCalculatedFields(convertCalculatedFields((List<?>) calculatedFields));
+        }
+
         Object limit = params.get("limit");
         if (limit instanceof Number) {
             request.setLimit(((Number) limit).intValue());
@@ -238,6 +244,29 @@ public class ComposedDataSetResult implements PropertyFunction {
             }
         }
         return result;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<CalculatedFieldDef> convertCalculatedFields(List<?> rawCalculatedFields) {
+        List<CalculatedFieldDef> result = new ArrayList<>();
+        for (Object item : rawCalculatedFields) {
+            if (item instanceof CalculatedFieldDef def) {
+                result.add(def);
+            } else if (item instanceof Map) {
+                result.add(convertCalculatedField((Map<String, Object>) item));
+            }
+        }
+        return result;
+    }
+
+    private CalculatedFieldDef convertCalculatedField(Map<String, Object> map) {
+        CalculatedFieldDef def = new CalculatedFieldDef();
+        def.setName((String) map.get("name"));
+        def.setCaption((String) map.get("caption"));
+        def.setExpression((String) map.get("expression"));
+        def.setDescription((String) map.get("description"));
+        def.setAgg((String) map.get("agg"));
+        return def;
     }
 
     /**

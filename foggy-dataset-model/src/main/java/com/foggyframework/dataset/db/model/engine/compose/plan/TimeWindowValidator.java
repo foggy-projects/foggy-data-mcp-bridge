@@ -1,5 +1,9 @@
 package com.foggyframework.dataset.db.model.engine.compose.plan;
 
+import com.foggyframework.dataset.db.model.engine.expression.CalculateExpressionAnalyzer;
+import com.foggyframework.dataset.db.model.engine.expression.CalculatedFieldService;
+import com.foggyframework.fsscript.parser.spi.Exp;
+
 import java.util.*;
 
 /**
@@ -26,6 +30,7 @@ public final class TimeWindowValidator {
     public static final String POST_CALC_FIELD_NOT_FOUND = "TIMEWINDOW_POST_CALCULATED_FIELD_NOT_FOUND";
     public static final String POST_CALC_FIELD_AGG_UNSUPPORTED = "TIMEWINDOW_POST_CALCULATED_FIELD_AGG_UNSUPPORTED";
     public static final String POST_CALC_FIELD_WINDOW_UNSUPPORTED = "TIMEWINDOW_POST_CALCULATED_FIELD_WINDOW_UNSUPPORTED";
+    public static final String POST_CALC_CALCULATE_UNSUPPORTED = "CALCULATE_TIMEWINDOW_POST_CALC_UNSUPPORTED";
 
     private static final Set<String> VALID_GRAINS = Set.of("day", "week", "month", "quarter", "year");
     private static final Set<String> VALID_COMPARISONS = Set.of(
@@ -223,10 +228,19 @@ public final class TimeWindowValidator {
                     return POST_CALC_FIELD_WINDOW_UNSUPPORTED;
                 }
 
+                Exp compiledExp = cf.getCompiledExp();
+                if (compiledExp == null && cf.getExpression() != null) {
+                    compiledExp = CalculatedFieldService.compileExpression(cf.getExpression());
+                    cf.setCompiledExp(compiledExp);
+                }
+                if (CalculateExpressionAnalyzer.containsCalculate(compiledExp)) {
+                    return POST_CALC_CALCULATE_UNSUPPORTED;
+                }
+
                 // 4. expression column references must be in timeWindowOutputColumns
                 if (cf.getExpression() != null && timeWindowOutputColumns != null && !timeWindowOutputColumns.isEmpty()) {
-                    Set<String> refs = com.foggyframework.dataset.db.model.engine.expression
-                            .CalculatedFieldService.extractColumnReferences(cf.getExpression());
+                    Set<String> refs = new LinkedHashSet<>();
+                    CalculatedFieldService.extractColumnReferences(compiledExp, refs);
                     for (String ref : refs) {
                         // Allow references to other calc field names (inter-calc-field dependency)
                         if (!timeWindowOutputColumns.contains(ref) && !calculatedFieldNames.contains(ref)) {

@@ -1,5 +1,6 @@
 package com.foggyframework.dataset.db.model.engine.compose.plan;
 
+import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -123,12 +124,14 @@ class FromEntryTest {
         @Test
         @DisplayName("slice/groupBy/orderBy 全部透传")
         void sliceGroupByOrderByPropagated() {
+            CalculatedFieldDef cf = new CalculatedFieldDef("grossAmount", "amount * 1.2");
             BaseModelPlan p = (BaseModelPlan) Dsl.from(Dsl.FromOptions.builder()
                     .model("SaleOrderQM")
                     .columns(List.of("id", "amount"))
                     .slice(List.of(Map.of("field", "state", "op", "=", "value", "paid")))
                     .groupBy(List.of("id"))
                     .orderBy(List.of("-amount"))
+                    .calculatedFields(List.of(cf))
                     .limit(50)
                     .start(0)
                     .distinct(true)
@@ -137,6 +140,7 @@ class FromEntryTest {
                     p.slice());
             assertEquals(List.of("id"), p.groupBy());
             assertEquals(List.of("-amount"), p.orderBy());
+            assertEquals(List.of(cf), p.calculatedFields());
             assertEquals(50, p.limit());
             assertEquals(0, p.start());
             assertTrue(p.distinct());

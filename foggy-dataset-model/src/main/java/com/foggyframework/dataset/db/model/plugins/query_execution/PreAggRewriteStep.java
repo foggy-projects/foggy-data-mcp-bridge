@@ -46,6 +46,11 @@ public class PreAggRewriteStep implements QueryExecutionStep {
     }
 
     @Override
+    public boolean supports(QueryExecutionPhase phase, QueryExecutionContext ctx) {
+        return phase == QueryExecutionPhase.NORMAL_QUERY || phase == QueryExecutionPhase.PREPARE_MANAGED_RELATION;
+    }
+
+    @Override
     public int beforeExecute(QueryExecutionContext ctx) {
         // 检查是否禁用预聚合
         if (isPreAggDisabled(ctx)) {

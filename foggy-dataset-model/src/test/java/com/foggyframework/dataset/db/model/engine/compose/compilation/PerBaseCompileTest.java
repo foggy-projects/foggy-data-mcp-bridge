@@ -1,5 +1,6 @@
 package com.foggyframework.dataset.db.model.engine.compose.compilation;
 
+import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.db.model.engine.compose.ComposedSql;
 import com.foggyframework.dataset.db.model.engine.compose.compilation.CompileTestHelpers.FakeSemanticService;
@@ -231,6 +232,31 @@ class PerBaseCompileTest {
                         .dialect("sqlite")
                         .build());
         assertEquals(List.of("a", "b"), svc.invocations.get(0).request.getColumns());
+    }
+
+    @Test
+    @DisplayName("plan.calculatedFields 透传到 SemanticQueryRequest")
+    void calculatedFieldsForwarded() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT name FROM t");
+        CalculatedFieldDef cf = new CalculatedFieldDef("genderCopy", "gender");
+        BaseModelPlan plan = BaseModelPlan.builder()
+                .model("M")
+                .columns(List.of("name"))
+                .calculatedFields(List.of(cf))
+                .build();
+        Map<String, ModelBinding> bindings = Map.of("M", CompileTestHelpers.emptyBinding());
+
+        ComposeSqlCompiler.compilePlanToSql(
+                plan,
+                CompileTestHelpers.context(CompileTestHelpers.resolverFor(bindings)),
+                ComposeSqlCompiler.CompileOptions.builder()
+                        .semanticService(svc)
+                        .bindings(bindings)
+                        .dialect("sqlite")
+                        .build());
+        assertEquals(1, svc.invocations.size());
+        assertEquals(List.of(cf), svc.invocations.get(0).request.getCalculatedFields());
     }
 
     @Test

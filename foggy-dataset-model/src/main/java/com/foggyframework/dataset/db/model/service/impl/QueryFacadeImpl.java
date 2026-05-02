@@ -218,4 +218,62 @@ public class QueryFacadeImpl implements QueryFacade {
             NamespaceContext.clear();
         }
     }
+
+    @Override
+    public com.foggyframework.dataset.db.model.plugins.query_execution.ManagedSqlRelation prepareManagedRelation(
+            ModelResultContext context,
+            com.foggyframework.dataset.db.model.plugins.query_execution.ManagedRelationOptions options) {
+        try {
+            if (context.getNamespace() != null) {
+                NamespaceContext.setNamespace(context.getNamespace());
+            }
+
+            PagingRequest<DbQueryRequestDef> form = context.getRequest();
+            String queryModelName = form.getParam().getQueryModel();
+            QueryModel queryModel = queryModelLoader.getJdbcQueryModel(queryModelName, context.getNamespace());
+            context.setQueryModel(queryModel);
+
+            // beforeQuery: Authorization, AutoGroupBy, InlineExpression, systemSlice, etc.
+            dataSetResultFilterManager.beforeQuery(context);
+
+            if (context.isSkipQuery()) {
+                throw new com.foggyframework.dataset.db.model.engine.pivot.sql.PivotPushdownUnsupportedException(
+                        "prepareManagedRelation does not support skipQuery (e.g. TimeWindow intercept). Fallback to memory path.");
+            }
+
+            if (queryModel instanceof JdbcQueryModelImpl jdbcImpl) {
+                return jdbcImpl.prepareManagedRelation(systemBundlesContext, context, options);
+            }
+
+            throw new com.foggyframework.dataset.db.model.engine.pivot.sql.PivotPushdownUnsupportedException(
+                    "prepareManagedRelation only supports JDBC query models, got: " + queryModel.getClass().getName());
+        } finally {
+            NamespaceContext.clear();
+        }
+    }
+
+    @Override
+    public DbQueryResult executeManagedRelation(
+            com.foggyframework.dataset.db.model.plugins.query_execution.ManagedSqlRelation relation,
+            String finalSql, java.util.List<Object> finalParams) {
+        try {
+            if (relation.getExecutionContext() != null
+                    && relation.getExecutionContext().getModelResultContext() != null
+                    && relation.getExecutionContext().getModelResultContext().getNamespace() != null) {
+                NamespaceContext.setNamespace(
+                        relation.getExecutionContext().getModelResultContext().getNamespace());
+            }
+
+            com.foggyframework.dataset.db.model.spi.QueryModel qm =
+                    relation.getQueryEngine().getJdbcQueryModel();
+            if (qm instanceof JdbcQueryModelImpl jdbcImpl) {
+                return jdbcImpl.executeManagedRelation(relation.getExecutionContext(), finalSql, finalParams);
+            }
+
+            throw new UnsupportedOperationException(
+                    "executeManagedRelation only supports JDBC query models.");
+        } finally {
+            NamespaceContext.clear();
+        }
+    }
 }

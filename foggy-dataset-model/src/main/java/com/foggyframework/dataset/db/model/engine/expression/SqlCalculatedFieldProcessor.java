@@ -30,6 +30,7 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
     private final JdbcQueryModel queryModel;
     private final FDialect dialect;
     private SqlExpContext context;
+    private CalculateQueryContext calculateQueryContext;
 
     public SqlCalculatedFieldProcessor(JdbcQueryModel queryModel, FDialect dialect) {
         this.queryModel = queryModel;
@@ -46,6 +47,7 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
 
         // 创建 SQL 表达式上下文
         this.context = new SqlExpContext(queryModel, dialect, appCtx);
+        this.context.setCalculateQueryContext(calculateQueryContext);
 
         // 按依赖关系排序（委托 CalculatedFieldService）
         List<CalculatedFieldDef> sortedFields = CalculatedFieldService.sortByDependencies(calculatedFields);
@@ -67,6 +69,7 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
         // 如果上下文不存在，创建一个新的
         if (this.context == null) {
             this.context = new SqlExpContext(queryModel, dialect, appCtx);
+            this.context.setCalculateQueryContext(calculateQueryContext);
         }
         return doProcessCalculatedField(fieldDef, appCtx);
     }
@@ -98,6 +101,7 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
             } else if (log.isDebugEnabled()) {
                 log.debug("Reusing pre-compiled AST for field: {}", fieldDef.getName());
             }
+            CalculateExpressionAnalyzer.validate(compiledExp);
 
             // 2. 执行表达式得到 SQL 片段（委托 CalculatedFieldService）
             SqlFragment sqlFragment = CalculatedFieldService.evaluateExpression(compiledExp, context, appCtx);
@@ -231,5 +235,12 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
      */
     public SqlExpContext getContext() {
         return context;
+    }
+
+    public void setCalculateQueryContext(CalculateQueryContext calculateQueryContext) {
+        this.calculateQueryContext = calculateQueryContext;
+        if (this.context != null) {
+            this.context.setCalculateQueryContext(calculateQueryContext);
+        }
     }
 }
