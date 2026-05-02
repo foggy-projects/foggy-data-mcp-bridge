@@ -1,6 +1,7 @@
 ---
 doc_role: feature_acceptance
 doc_purpose: Sign off the PIVOT-91-C2 Cascade Generate implementation plan for 9.1.0 without authorizing implementation completion.
+superseded_by: docs/9.1.0/acceptance/pivot-stage5b-c2-cascade-generate-acceptance.md
 acceptance_scope: feature
 version: 9.1.0
 target: PIVOT-91-C2 Cascade Generate implementation plan
@@ -16,11 +17,13 @@ evidence_count: 8
 
 # Feature Acceptance
 
+Historical note: this record accepted the implementation plan before code work. The C2 implementation itself is now signed off in `docs/9.1.0/acceptance/pivot-stage5b-c2-cascade-generate-acceptance.md`.
+
 ## Background
 
 PIVOT-91-C2 is the future implementation track for Stage 5B Cascade Generate and multi-level TopN. C1 and C1.1 are already signed off with risks as semantic and LLM-safe design gates. This acceptance reviews only the C2 implementation planning document, not Java implementation, tests, or runtime behavior.
 
-The purpose of the C2 plan is to convert the signed-off C1.1 boundaries into a test-first implementation sequence with concrete test classes, phase exit criteria, and hard fail-closed rules. PIVOT-91-C2 implementation remains gated after this acceptance.
+The purpose of the C2 plan was to convert the signed-off C1.1 boundaries into a test-first implementation sequence with concrete test classes, phase exit criteria, and hard fail-closed rules. At the time of this plan acceptance, PIVOT-91-C2 implementation remained gated; that gate was later satisfied before implementation and feature signoff.
 
 ## Acceptance Basis
 

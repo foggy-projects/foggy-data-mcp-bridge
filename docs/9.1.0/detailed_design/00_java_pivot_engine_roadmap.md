@@ -144,7 +144,7 @@ Candidate 9.1.0 work:
 
 Recommendation:
 
-- Keep this behind design only until Stage 5B ranking semantics are stable.
+- Deferred to 9.2.0 as PIVOT-92-D1. Keep tree + cascade fail-closed until parent/child ranking, descendant aggregation, visible-domain totals, and subtotal behavior have accepted oracle cases.
 
 ## 7. Track E: Outer Pivot Cache
 
@@ -158,7 +158,7 @@ Open questions:
 
 Recommendation:
 
-- Do not start before telemetry identifies repeated expensive Pivot queries.
+- Deferred to 9.2.0 as PIVOT-92-E1. Do not start before telemetry identifies repeated expensive Pivot queries.
 
 ## 8. Not Planned Unless Reopened
 

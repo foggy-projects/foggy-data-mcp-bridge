@@ -1,11 +1,11 @@
 ---
 doc_role: release_owner_review
-doc_purpose: Summarize the PIVOT-91-C2 Cascade Generate implementation state for release-owner inclusion decisions.
+doc_purpose: Summarize the included PIVOT-91-C2 Cascade Generate implementation state for release-owner review.
 version: 9.1.0
 target: PIVOT-91-C2 Cascade Generate release inclusion
-status: ready-for-release-owner-review
+status: included-in-rc2
 created_at: 2026-05-02
-decision_required: yes
+decision_required: no
 ---
 
 # PIVOT-91-C2 Release Owner Review
@@ -14,7 +14,7 @@ decision_required: yes
 
 - doc_type: release-owner-review
 - intended_for: release-owner | reviewer | signoff-owner
-- purpose: Provide one entry point for deciding whether the accepted C2 v1 Cascade Generate implementation should be included in the next 9.1.0 RC.
+- purpose: Provide one entry point for reviewing the accepted C2 v1 Cascade Generate implementation included in `v9.1.0-rc.2`.
 
 ## Current Position
 
@@ -28,15 +28,14 @@ PIVOT-91-C2 is implemented and feature-signed-off as `accepted-with-risks` for t
 - no current memory fallback for cascade requests;
 - explicit `PIVOT_CASCADE_*` refusal for ambiguous or unsupported shapes.
 
-The local tag `v9.1.0-rc.1` currently points to commit `0c146da7`, which predates the uncommitted C2 implementation/signoff changes in the working tree. Do not move or reuse `v9.1.0-rc.1` for C2. If C2 is included in a release candidate, commit the C2 changes and create a new RC tag.
+The earlier tag `v9.1.0-rc.1` points to commit `0c146da7` and remains the B2-oriented RC. The C2-inclusive closeout is represented by `v9.1.0-rc.2`.
 
 ## Release Owner Decision
 
-| Option | Meaning | Recommendation |
+| Decision | Meaning | Recommendation |
 |---|---|---|
-| Keep `v9.1.0-rc.1` scope | Release the existing B2-oriented RC without C2 implementation. | Safe if the release goal is only Stage 5A production transport. |
-| Include C2 in next RC | Commit the C2 implementation/signoff changes and cut a new tag such as `v9.1.0-rc.2`. | Recommended only if product wants rows two-level cascade in 9.1.0. |
-| Defer C2 after 9.1.0 | Keep C2 signed off locally but do not include it in the 9.1.0 release line. | Safe if release risk appetite is low. |
+| C2 included in `v9.1.0-rc.2` | The scoped rows two-level cascade implementation is part of the current RC candidate. | Accepted with risks; keep all unsupported shapes fail-closed. |
+| Remaining unresolved items deferred | SQL Server cascade, MySQL 5.7 live evidence, tree/cross-axis/deeper cascade, and outer Pivot cache are not 9.1.0 blockers. | Track in 9.2.0 follow-up docs. |
 
 ## Accepted C2 v1 Scope
 
@@ -81,14 +80,13 @@ The local tag `v9.1.0-rc.1` currently points to commit `0c146da7`, which predate
 | Existing parent-child TopN regression | `mvn -pl foggy-dataset-model "-Dtest=PivotIntegrationTest#testParentChildTopN" test` passed. |
 | Diff hygiene | `git diff --check` passed with only expected Windows LF-to-CRLF warnings. |
 
-## Worktree Review Notes
+## Commit / Tag Review Notes
 
-The current working tree contains both C2 changes and earlier test-supplement/documentation changes that should be reviewed together before a release commit:
+The C2 implementation is represented by:
 
-- C2 production code: `PivotPipeline.java`, `PivotAxisDomainSqlPlanner.java`, `pivot/cascade/*`.
-- C2 tests: `PivotCascadeGenerateSqlParityIntegrationTest.java`, `PivotCascadeGenerateValidationTest.java`, `PivotAxisDomainSqlPlannerCascadeTest.java`, `PivotAxisDomainSqlPlannerTest.java`.
-- Prior test supplement files: `PivotSqlParityIntegrationTest.java`, `docs/9.0.0.beta/test_coverage/pivot-sql-topn-pushdown-coverage-audit.md`.
-- C2 docs and signoff records under `docs/9.1.0`.
+- `ea8b7e48 feat(pivot): implement c2 cascade generate topn`
+- `60d9be6e test(pivot): cover preagg topn parameter order`
+- `v9.1.0-rc.2` at the C2-inclusive closeout point
 
 ## Progress Tracking
 
@@ -100,4 +98,4 @@ The current working tree contains both C2 changes and earlier test-supplement/do
 
 ## Release Recommendation
 
-If C2 is included, create a new release candidate after committing the current C2 implementation and documentation changes. The release notes must describe C2 as scoped rows two-level cascade support, not general MDX compatibility or arbitrary multi-level TopN support.
+Release notes must describe C2 as scoped rows two-level cascade support, not general MDX compatibility or arbitrary multi-level TopN support. The unsupported cases listed above must remain explicit refusals or 9.2.0 follow-ups.

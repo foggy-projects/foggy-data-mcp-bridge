@@ -3,7 +3,7 @@ doc_role: release_checklist
 doc_purpose: Track the local release-candidate handoff checklist for Foggy Pivot Engine 9.1.0.
 version: 9.1.0
 target: Foggy Pivot Engine 9.1.0 RC
-status: ready-for-release-owner-review
+status: ready-for-rc2-review
 created_at: 2026-05-02
 ---
 
@@ -11,9 +11,9 @@ created_at: 2026-05-02
 
 ## Scope
 
-This checklist covers the repo-level Pivot Engine 9.1.0 RC handoff after Stage 5A B2 production domain transport was enabled and verified. It is not a package publication, signing, or remote deployment record.
+This checklist covers the repo-level Pivot Engine 9.1.0 RC handoff after Stage 5A B2 production domain transport and the scoped Stage 5B C2 Cascade Generate implementation were enabled and verified. It is not a package publication, signing, or remote deployment record.
 
-Note: `v9.1.0-rc.1` points to commit `0c146da7`, before the later uncommitted PIVOT-91-C2 implementation/signoff changes in the working tree. If C2 is included, commit those changes and cut a new RC tag rather than moving or reusing `v9.1.0-rc.1`.
+Note: `v9.1.0-rc.1` remains the earlier B2-oriented RC tag. The C2-inclusive release-candidate tag is `v9.1.0-rc.2` and must not be confused with `v9.1.0-rc.1`.
 
 ## Release Identity
 
@@ -23,6 +23,9 @@ Note: `v9.1.0-rc.1` points to commit `0c146da7`, before the later uncommitted PI
 | B2 production commit | `5992e246 feat(pivot): enable stage5a large-domain transport` |
 | RC evidence commit | `2cfd32d3 docs(pivot): record 9.1.0 rc final gate` |
 | Local RC tag at initial handoff | `v9.1.0-rc.1` |
+| C2 production commit | `ea8b7e48 feat(pivot): implement c2 cascade generate topn` |
+| C2 evidence/test supplement commit | `60d9be6e test(pivot): cover preagg topn parameter order` |
+| Current C2-inclusive RC tag | `v9.1.0-rc.2` |
 | Recommended release label | `release candidate` |
 | Acceptance decision | `accepted-with-risks` |
 
@@ -33,16 +36,17 @@ Note: `v9.1.0-rc.1` points to commit `0c146da7`, before the later uncommitted PI
 | Baseline ancestor | PASS | `git merge-base --is-ancestor b3482490 HEAD` |
 | Full release gate | PASS | `./scripts/verify-pivot-v9-release.ps1` passed after B2 production commit. |
 | Renderer gate | PASS | `mvn test -pl foggy-dataset-model -am "-Dtest=DomainRelationRendererTest" "-P!multi-db" "-Dsurefire.failIfNoSpecifiedTests=false"` passed with 7 tests. |
+| C2 validation/refusal gate | PASS | `mvn -pl foggy-dataset-model -Dtest=PivotCascadeGenerateValidationTest test` passed. |
+| C2 staged SQL/parity gate | PASS | `mvn -pl foggy-dataset-model "-Dtest=PivotAxisDomainSqlPlannerTest,PivotAxisDomainSqlPlannerCascadeTest,PivotCascadeGenerateSqlParityIntegrationTest,PivotIntegrationTest#testParentChildTopN" test` passed. |
 | Diff hygiene | PASS | `git diff --check` passed before RC evidence commit and after B2 production commit. |
-| Worktree hygiene | PASS | Worktree was clean before this checklist update. |
+| Worktree hygiene | PASS with doc delta | Worktree was clean at `v9.1.0-rc.2`; later doc-only acceptance/routing updates are pending review. |
 
 ## Release Owner Actions
 
-- For the original B2-oriented RC, push the branch/tag when ready: `git push origin 9.1.0` and `git push origin v9.1.0-rc.1`.
-- For a C2-inclusive RC, first commit the C2 implementation/signoff changes, then cut and push a new RC tag.
+- For the C2-inclusive RC, use `v9.1.0-rc.2`.
+- Do not move or reuse `v9.1.0-rc.1`; it remains the original B2-oriented RC tag.
 - Confirm whether external package signing, artifact publication, or release-note publication happens outside this repository.
-- Keep C2 Cascade Generate implementation out of `v9.1.0-rc.1` unless release ownership explicitly chooses to cut a new C2-inclusive RC.
-- If C2 is included, review `docs/9.1.0/acceptance/pivot-stage5b-c2-release-owner-review.md` before tagging.
+- Review `docs/9.1.0/acceptance/pivot-stage5b-c2-release-owner-review.md` for the included C2 v1 boundary before publication.
 
 ## Rollback / Disable Strategy
 
@@ -54,4 +58,5 @@ Note: `v9.1.0-rc.1` points to commit `0c146da7`, before the later uncommitted PI
 
 - MySQL 5.7 has renderer-level threshold coverage, but no external MySQL 5.7 live-database parity run was recorded in this closeout.
 - Production telemetry should confirm real domain-size distributions before GA promotion.
-- Stage 5B C2 has a separate `accepted-with-risks` feature signoff after `v9.1.0-rc.1`; release ownership must decide whether it belongs in a new RC.
+- SQL Server cascade execution remains refused until dialect-specific oracle and CI evidence exist.
+- Tree + cascade, cross-axis cascade, three-level cascade, having-only cascade, non-additive cascade totals, and outer Pivot cache are deferred to 9.2.0.

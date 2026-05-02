@@ -105,3 +105,5 @@ The engine must fail closed with these rewriteable error categories:
 ## 8. Explicit Start Gate
 
 Java implementation may start **only after** this plan is reviewed. C2 code must not start until oracle/refusal tests are mapped to concrete test classes and implementation approval is explicit.
+
+Historical note: this start gate was satisfied before the C2 implementation. Current 9.1.0 status is signed off with risks for the C2 v1 rows two-level cascade subset.

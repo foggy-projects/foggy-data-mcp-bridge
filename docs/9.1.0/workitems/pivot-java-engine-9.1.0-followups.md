@@ -20,8 +20,8 @@ created_at: 2026-05-02
 | PIVOT-91-C1 | P1 | Cascade Generate semantic design | complete | Java Core / Product | Multi-level TopN semantics frozen with SQL oracle examples |
 | PIVOT-91-C1.1 | P1 | Cascade Generate LLM-safe disambiguation | signed-off-with-risks | Java Core / Product | C2 whitelist, explicit fail-closed cases, rewriteable errors, and SQL oracle requirements accepted |
 | PIVOT-91-C2 | P2 | Cascade Generate implementation | signed-off-with-risks | Java Core | C2 v1 rows two-level cascade implemented, oracle/refusal tests passing, and acceptance signed off with fail-closed residual risks |
-| PIVOT-91-D1 | P2 | Tree SQL TopN / tree subtotal feasibility | proposed | Java Core | Feasibility report with closure-table/descendant strategy decision |
-| PIVOT-91-E1 | P2 | Outer Pivot cache feasibility | proposed | Java Core / Cache | Cache key and invalidation model accepted |
+| PIVOT-91-D1 | P2 | Tree SQL TopN / tree subtotal feasibility | deferred-to-9.2.0 | Java Core | Feasibility report with closure-table/descendant strategy decision |
+| PIVOT-91-E1 | P2 | Outer Pivot cache feasibility | deferred-to-9.2.0 | Java Core / Cache | Cache key and invalidation model accepted |
 
 ## Recommended Execution Order
 
@@ -31,7 +31,7 @@ created_at: 2026-05-02
 4. PIVOT-91-B2 direct production enablement.
 5. PIVOT-91-C1 before any advanced Generate implementation.
 6. PIVOT-91-C1.1 before any C2 implementation work.
-7. PIVOT-91-D1 and PIVOT-91-E1 after ranking semantics and telemetry are clearer.
+7. PIVOT-91-D1 and PIVOT-91-E1 are moved out of 9.1.0 and tracked as 9.2.0 follow-ups.
 
 ## Guardrails
 
@@ -263,6 +263,7 @@ Remaining:
 - SQL Server remains rejected/deferred until an accepted SQL oracle and CI profile exist.
 - A dedicated live MySQL 5.7 database profile can be added later if MySQL 5.7 remains in release support scope; current behavior is fail-closed through planner refusal and a pipeline-boundary refusal test.
 - Tree mode, cross-axis cascade, three-level cascade, having-only cascade, and non-additive cascade totals remain outside C2 v1.
+- The unresolved C2 dialect evidence and advanced tree/cross-axis semantics are moved to 9.2.0; 9.1.0 keeps them fail-closed.
 
 Verification:
 - `mvn -pl foggy-dataset-model -Dtest=PivotCascadeGenerateValidationTest test` passed on 2026-05-02 with 9 tests across the default, mysql, and postgres surefire executions.
@@ -294,29 +295,32 @@ Status: `signed-off-with-risks`.
 Decision:
 
 - Current 9.1.0 Pivot Engine phase is accepted with risks.
-- Release recommendation is `release candidate` after the final release script and diff hygiene pass for this B2 production delta.
+- Release recommendation is `release candidate`; the C2-inclusive local tag is `v9.1.0-rc.2`.
 - C2 implementation is signed off with risks for the C2 v1 rows two-level cascade subset. D/E roadmap tracks remain gated or deferred.
+- LLM query routing guidance is documented in `docs/9.1.0/detailed_design/14_llm_query_tool_capability_matrix.md`.
+- Remaining unsupported dialects and advanced semantics are explicitly moved to 9.2.0 follow-up tracking.
 
 Acceptance Status:
 
 - acceptance_status: signed-off
 - acceptance_decision: accepted-with-risks
 - signed_off_by: Codex acceptance reviewer
-- signed_off_at: 2026-05-02
-- acceptance_record: `docs/9.1.0/acceptance/version-phase-signoff.md`
+- signed_off_at: 2026-05-03
+- acceptance_record: `docs/9.1.0/acceptance/version-signoff.md`
 - blocking_items: none
 - follow_up_required: yes
 
 ### 9.1.0 RC Handoff Readiness
 
-Status: `ready-for-release-owner-review`.
+Status: `ready-for-rc2-review`.
 
 Completed:
 
 - Added `docs/9.1.0/acceptance/rc-release-checklist.md` with branch, commit, tag, verification, push, and rollback guidance.
-- Added `docs/9.1.0/acceptance/pivot-stage5b-c2-release-owner-review.md` to separate the existing `v9.1.0-rc.1` scope from a possible C2-inclusive next RC.
+- Added `docs/9.1.0/acceptance/pivot-stage5b-c2-release-owner-review.md`; it now records C2 as included in `v9.1.0-rc.2`.
 - Added `docs/9.1.0/operations/stage5a-domain-transport-observability.md` with telemetry marker meanings, operator checks, dialect behavior, and MySQL 5.7 guardrail notes.
 - Added `docs/9.1.0/quality/pivot-stage5a-b2-production-quality.md` as a formal implementation quality review for B2 production enablement.
+- Added `docs/9.1.0/detailed_design/14_llm_query_tool_capability_matrix.md` with LLM routing rules for `query_model`, `timeWindow`, `pivot`, and CTE tooling.
 - Re-ran `DomainRelationRendererTest` to confirm renderer-level MySQL 5.7 threshold refusal evidence remains green.
 
 Evidence:
@@ -325,6 +329,6 @@ Evidence:
 
 Remaining:
 
-- Push `v9.1.0-rc.1` only if release ownership keeps the original B2-oriented RC scope; cut a new RC tag if C2 is included.
 - External MySQL 5.7 live-database large-domain parity was not recorded; current MySQL 5.7 evidence is renderer-level threshold/refusal coverage plus fail-closed behavior.
-- C2 implementation is separately signed off with risks after the original `v9.1.0-rc.1` tag point; release ownership should cut a new RC tag if C2 is included.
+- SQL Server cascade oracle/CI evidence is not recorded; current SQL Server cascade behavior is refused.
+- Tree + cascade, cross-axis cascade, three-level cascade, having-only cascade, non-additive cascade totals, and outer Pivot cache are moved to 9.2.0.

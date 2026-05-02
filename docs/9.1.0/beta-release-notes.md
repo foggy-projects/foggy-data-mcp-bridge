@@ -11,9 +11,9 @@ created_at: 2026-05-02
 
 ## Release Position
 
-9.1.0 is recommended for **release candidate** status after the Stage 5A B2 production transport hook passed the full Pivot V9 release readiness gate. It is not a GA publication record; package signing, external release ownership, and production telemetry review remain outside this repo-level closeout.
+9.1.0 is recommended for **release candidate** status after the Stage 5A B2 production transport hook and scoped Stage 5B C2 Cascade Generate implementation passed their repo-level gates. It is not a GA publication record; package signing, external release ownership, and production telemetry review remain outside this repo-level closeout.
 
-## Included in `v9.1.0-rc.1`
+## Included in `v9.1.0-rc.2`
 
 - Release readiness workflow/script coverage for Pivot Java Core.
 - Safe telemetry markers for SQL pushdown attempt, success, skip, fallback, domain-limit failure, and non-additive auxiliary query execution.
@@ -21,11 +21,13 @@ created_at: 2026-05-02
 - Stage 5A large-domain transport design, internal renderers, and production queryModel wiring.
 - Supported `domain > 500` non-additive subtotal/grandTotal cases now use safe domain transport instead of unconditional fail-closed behavior.
 - Stage 5B Cascade Generate / multi-level TopN semantic design.
+- Stage 5B C2 rows two-level cascade TopN implementation with explicit `PIVOT_CASCADE_*` refusal boundaries.
+- LLM query tool routing guidance for `query_model`, `timeWindow`, `pivot`, and CTE tooling.
 - Phase-level acceptance signoff with known risks.
 
-## After `v9.1.0-rc.1`
+## Earlier `v9.1.0-rc.1`
 
-PIVOT-91-C2 Cascade Generate implementation was completed and feature-signed-off after the `v9.1.0-rc.1` tag point. If release ownership wants C2 in the 9.1.0 release line, commit the C2 changes and cut a new RC tag. Do not treat the existing `v9.1.0-rc.1` tag as containing C2 implementation.
+`v9.1.0-rc.1` remains the earlier B2-oriented RC tag and does not contain C2. Use `v9.1.0-rc.2` for the C2-inclusive 9.1.0 closeout.
 
 ## Still Gated or Deferred for C2 v1
 
@@ -47,7 +49,7 @@ PIVOT-91-C2 Cascade Generate implementation was completed and feature-signed-off
 | Stage 5A MySQL8 large-domain parity | PASS | The same parity test passed under `mysql8`. |
 | Stage 5A PostgreSQL large-domain parity | PASS | The same parity test passed under `postgres`. |
 | Diff hygiene | PASS | `git diff --check` reported no diff hygiene errors for the RC delta. |
-| Feature-level acceptance | PASS with risks | B1, B2-Prep, B2 production, and C1 have acceptance records for `v9.1.0-rc.1`; C2 has a later separate `accepted-with-risks` feature signoff. |
+| Feature-level acceptance | PASS with risks | B1, B2-Prep, B2 production, C1/C1.1, and C2 have acceptance records. |
 
 ## Known Risks
 
@@ -70,4 +72,4 @@ The full release readiness script has passed once for this phase:
 ./scripts/verify-pivot-v9-release.ps1
 ```
 
-Before promoting beyond RC, release ownership should confirm external packaging/signing, review production telemetry thresholds, and decide whether the later C2 implementation is included through a new RC or remains explicitly out of scope for the 9.1.0 GA line.
+Before promoting beyond RC, release ownership should confirm external packaging/signing and review production telemetry thresholds. SQL Server cascade, MySQL 5.7 live evidence, tree/cascade advanced semantics, and outer Pivot cache are 9.2.0 follow-ups rather than 9.1.0 GA blockers.

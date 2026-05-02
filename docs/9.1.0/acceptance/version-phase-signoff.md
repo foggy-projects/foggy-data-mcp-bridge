@@ -1,6 +1,7 @@
 ---
 doc_role: acceptance_record
 doc_purpose: Formal phase-level acceptance signoff for the current 9.1.0 Pivot Engine B2 closeout.
+superseded_by: docs/9.1.0/acceptance/version-signoff.md
 acceptance_scope: version
 version: 9.1.0
 target: 9.1.0 Pivot Engine B2 Closeout
@@ -15,6 +16,8 @@ evidence_count: 10
 ---
 
 # Version Acceptance
+
+Historical note: this record signed off the earlier B2 closeout. The final 9.1.0 RC2 version signoff is `docs/9.1.0/acceptance/version-signoff.md`.
 
 ## Background
 
@@ -57,7 +60,7 @@ This is not a final package publication record. The release recommendation is `r
 | PIVOT-91-B2-Prep | signed-off | accepted-with-risks | Internal renderers exist. |
 | PIVOT-91-B2 | signed-off | accepted-with-risks | Large-domain transport is enabled behind dialect/version/threshold safety gates. |
 | PIVOT-91-C1 | signed-off | accepted-with-risks | Multi-level TopN semantics are frozen for future implementation. |
-| PIVOT-91-C2 | gated | N/A | Implementation must not start before explicit approval. |
+| PIVOT-91-C2 | historical: gated | N/A | At B2 closeout, implementation had not started; final C2 status is signed off in `docs/9.1.0/acceptance/version-signoff.md`. |
 | PIVOT-91-D/E | deferred | N/A | Tree advanced semantics and outer Pivot cache are outside this closeout. |
 
 ## Evidence
