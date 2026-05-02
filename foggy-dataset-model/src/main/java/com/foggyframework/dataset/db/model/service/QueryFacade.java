@@ -4,6 +4,8 @@ import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
 import com.foggyframework.dataset.db.model.engine.query.DbQueryResult;
+import com.foggyframework.dataset.db.model.plugins.query_execution.ManagedRelationOptions;
+import com.foggyframework.dataset.db.model.plugins.query_execution.ManagedSqlRelation;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.model.PagingResultImpl;
 
@@ -100,4 +102,29 @@ public interface QueryFacade {
      * @return SQL 生成结果（含 SQL 字符串、绑定参数）
      */
     SqlGenerationResult buildSqlOnly(ModelResultContext context);
+
+    /**
+     * 准备受管 SQL Relation（Pivot SQL Pushdown 专用）
+     *
+     * <p>完整生命周期：loadModel → beforeQuery → analysisQueryRequest → selected beforeExecute steps
+     * → return ManagedSqlRelation（含 capability metadata）。</p>
+     *
+     * <p>不执行数据库查询。返回的 ManagedSqlRelation 可被 PivotAxisDomainSqlPlanner
+     * 安全包装为外层 CTE SQL。</p>
+     *
+     * @param context 预配置的上下文（必须已设置 request、namespace、securityContext）
+     * @param options 准备选项
+     * @return 受管 SQL Relation
+     */
+    ManagedSqlRelation prepareManagedRelation(ModelResultContext context, ManagedRelationOptions options);
+
+    /**
+     * 执行受管 SQL Relation（外层包装后的最终 SQL）
+     *
+     * @param relation 之前 prepare 返回的 ManagedSqlRelation
+     * @param finalSql 外层包装后的最终 SQL
+     * @param finalParams 外层包装后的最终参数
+     * @return 查询结果
+     */
+    DbQueryResult executeManagedRelation(ManagedSqlRelation relation, String finalSql, java.util.List<Object> finalParams);
 }

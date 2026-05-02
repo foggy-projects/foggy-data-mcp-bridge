@@ -2,6 +2,10 @@ package com.foggyframework.dataset.db.model.engine.pivot;
 
 import com.foggyframework.dataset.db.model.engine.pivot.algo.*;
 import com.foggyframework.dataset.db.model.engine.pivot.rollup.*;
+import com.foggyframework.dataset.db.model.engine.pivot.sql.PivotAxisDomainSqlPlanner;
+import com.foggyframework.dataset.db.model.engine.pivot.sql.PivotPushdownUnsupportedException;
+import com.foggyframework.dataset.db.model.plugins.query_execution.ManagedRelationOptions;
+import com.foggyframework.dataset.db.model.plugins.query_execution.ManagedSqlRelation;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
@@ -10,6 +14,7 @@ import com.foggyframework.dataset.db.model.semantic.domain.pivot.PivotMetricItem
 import com.foggyframework.dataset.db.model.semantic.domain.pivot.PivotOptions;
 import com.foggyframework.dataset.db.model.semantic.domain.pivot.PivotRequest;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
+import com.foggyframework.dataset.db.model.service.QueryFacade;
 import com.foggyframework.dataset.db.model.spi.DbAggregation;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
 import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
@@ -25,12 +30,15 @@ import java.util.stream.Collectors;
  * <p>Pipeline 执行流程：</p>
  * <pre>
  *   Phase 1:   SQL 萃取 — 调用现有 QueryFacade 执行朴素 GROUP BY
+ *              （如果 dialect 支持 CTE/Window 且存在 having/limit，则 SQL 下放 having + TopN）
  *   Phase 1.5: 父子维度建树 — hierarchyMode=tree 时额外查询维度骨架
  *   Phase 2:   内存加工 — Having → TopN → Rollup规划 → 辅助查询 → CrossJoin → Subtotal(cache-aware)
+ *              （SQL 下放场景下跳过 Having 和 TopN，直接进入 Rollup）
  *   Phase 3:   结果整形 — 转换为 tree / grid / flat
  * </pre>
  *
- * <p>职责边界：SQL 层只做最朴素的聚合，所有高级加工在内存完成。</p>
+ * <p>职责边界：SQL 层只做最朴素的聚合，所有高级加工在内存完成。
+ * 当 SQL pushdown 启用时，having/TopN 被 PivotAxisDomainSqlPlanner 下放到 SQL 层。</p>
  */
 public class PivotPipeline {
 
@@ -39,22 +47,32 @@ public class PivotPipeline {
     private final SemanticQueryServiceV3 semanticQueryService;
     private final CardinalityBreaker cardinalityBreaker;
     private final QueryModelLoader queryModelLoader;
+    private final QueryFacade queryFacade;
 
     public PivotPipeline(SemanticQueryServiceV3 semanticQueryService) {
-        this(semanticQueryService, new CardinalityBreaker(), null);
+        this(semanticQueryService, new CardinalityBreaker(), null, null);
     }
 
     public PivotPipeline(SemanticQueryServiceV3 semanticQueryService, CardinalityBreaker cardinalityBreaker) {
-        this(semanticQueryService, cardinalityBreaker, null);
+        this(semanticQueryService, cardinalityBreaker, null, null);
     }
 
     public PivotPipeline(SemanticQueryServiceV3 semanticQueryService,
                          CardinalityBreaker cardinalityBreaker,
                          QueryModelLoader queryModelLoader) {
+        this(semanticQueryService, cardinalityBreaker, queryModelLoader, null);
+    }
+
+    public PivotPipeline(SemanticQueryServiceV3 semanticQueryService,
+                         CardinalityBreaker cardinalityBreaker,
+                         QueryModelLoader queryModelLoader,
+                         QueryFacade queryFacade) {
         this.semanticQueryService = semanticQueryService;
         this.cardinalityBreaker = cardinalityBreaker;
         this.queryModelLoader = queryModelLoader;
+        this.queryFacade = queryFacade;
     }
+
 
     /**
      * 执行 Pivot 透视查询
@@ -134,9 +152,32 @@ public class PivotPipeline {
         }
 
         // ===== Phase 1: SQL 萃取（不含 properties）=====
-        logger.debug("[Pivot] Phase 1: SQL aggregation for model={}", model);
-        List<Map<String, Object>> resultSet = executePhase1(model, request, context,
-                rowFields, colFields, metrics, queryModel);
+        // 检测是否可以使用 SQL pushdown（CTE + Window Function + 有 having/limit）
+        boolean sqlPushdownUsed = false;
+        List<Map<String, Object>> resultSet;
+
+        String sqlPushdownSkipReason = getSqlPushdownSkipReason(pivot, hierarchyCtx);
+        if (sqlPushdownSkipReason == null) {
+            logger.debug("[Pivot] Phase 1: SQL pushdown path for model={}", model);
+            try {
+                resultSet = executePhase1WithSqlPushdown(model, request, context,
+                        rowFields, colFields, metrics, pivot, queryModel);
+                sqlPushdownUsed = true;
+                logger.info("[Pivot] Phase 1: SQL pushdown succeeded, {} rows returned", resultSet.size());
+            } catch (PivotPushdownUnsupportedException | UnsupportedOperationException e) {
+                // Fail-closed: fallback to memory path
+                logger.info("[Pivot] Phase 1: SQL pushdown not possible, reason={}, model={}, fallback=memory",
+                        e.getMessage(), model);
+                resultSet = executePhase1(model, request, context,
+                        rowFields, colFields, metrics, queryModel);
+            }
+        } else {
+            logger.debug("[Pivot] Phase 1: SQL pushdown skipped, reason={}, model={}",
+                    sqlPushdownSkipReason, model);
+            logger.debug("[Pivot] Phase 1: Memory path for model={}", model);
+            resultSet = executePhase1(model, request, context,
+                    rowFields, colFields, metrics, queryModel);
+        }
 
         if (resultSet.isEmpty()) {
             return buildEmptyResponse(pivot, startTime);
@@ -153,13 +194,18 @@ public class PivotPipeline {
         // ===== Phase 2: 内存加工 =====
         logger.debug("[Pivot] Phase 2: Memory cube processing, {} rows", resultSet.size());
 
-        // 2.1 轴级 Having 过滤
-        resultSet = AxisHavingFilter.apply(resultSet, pivot.getRows(), metrics);
-        resultSet = AxisHavingFilter.apply(resultSet, pivot.getColumns(), metrics);
+        if (!sqlPushdownUsed) {
+            // 2.1 轴级 Having 过滤（SQL pushdown 场景已在 SQL 层完成）
+            resultSet = AxisHavingFilter.apply(resultSet, pivot.getRows(), metrics);
+            resultSet = AxisHavingFilter.apply(resultSet, pivot.getColumns(), metrics);
 
-        // 2.2 轴向 TopN 截断
-        resultSet = AxisTopNTruncator.apply(resultSet, pivot.getRows());
-        resultSet = AxisTopNTruncator.apply(resultSet, pivot.getColumns());
+            // 2.2 轴向 TopN 截断（SQL pushdown 场景已在 SQL 层完成）
+            resultSet = AxisTopNTruncator.apply(resultSet, pivot.getRows());
+            resultSet = AxisTopNTruncator.apply(resultSet, pivot.getColumns());
+        } else {
+            logger.debug("[Pivot] Phase 2: Skipping Having/TopN (already done in SQL pushdown)");
+        }
+
 
         // 提取域并执行基数熔断校验
         Set<List<Object>> rowDomain = CardinalityBreaker.extractRowDomain(resultSet, rowFields);
@@ -193,8 +239,23 @@ public class PivotPipeline {
                 logger.debug("[Pivot] Phase 2.4: Auxiliary rollup queries, {} grains", grains.size());
 
                 NonAdditiveRollupExecutor executor = new NonAdditiveRollupExecutor(semanticQueryService);
-                rollupCache = executor.execute(model, request, context,
-                        grains, rollupPlans, rowFields, colFields, rowDomain, colDomain);
+                try {
+                    rollupCache = executor.execute(model, request, context,
+                            grains, rollupPlans, rowFields, colFields, rowDomain, colDomain);
+                } catch (NonAdditiveRollupDomainTooLargeException e) {
+                    // Stage 4 fail-closed: SQL pushdown 后 surviving domain 超限，
+                    // 无法为 non-additive subtotal 生成精确 tuple 约束。
+                    // 不能静默近似（静默近似会让小计包含被 TopN 过滤的成员），
+                    // 因此向用户报错，要求降低 TopN limit 或关闭 rowSubtotals/grandTotal。
+                    logger.warn("[Pivot] Non-additive rollup domain limit exceeded, domainSize={}, maxAllowed={}, " +
+                                    "model={}, sqlPushdownUsed={}, rowDomainSize={}, colDomainSize={}",
+                            e.getDomainSize(), e.getMaxAllowed(), model, sqlPushdownUsed,
+                            rowDomain.size(), colDomain.size());
+                    throw new IllegalStateException(
+                            "Pivot subtotal/grandTotal: non-additive metric (AVG/COUNT_DISTINCT) 的辅助查询 " +
+                            "surviving domain 超过安全限制（" + e.getDomainSize() + " > " + e.getMaxAllowed() + "）。" +
+                            "请减少 TopN limit 数量，或关闭 rowSubtotals/columnSubtotals/grandTotal。", e);
+                }
             }
         }
 
@@ -299,6 +360,206 @@ public class PivotPipeline {
 
         SemanticQueryResponse response = semanticQueryService.queryModel(model, flatRequest, "execute", context);
         return response.getItems() != null ? response.getItems() : Collections.emptyList();
+    }
+
+    /**
+     * 判断当前 PivotRequest 是否可以使用 SQL pushdown
+     *
+     * <p>条件：
+     * <ol>
+     *   <li>queryFacade 必须已注入（否则无法走 managedRelation 路径）</li>
+     *   <li>至少一个轴字段有 having 或 limit（否则没有 pushdown 意义）</li>
+     *   <li>不是 hierarchyMode=tree（tree 模式的 limit 语义在父子维度层，无法简单 SQL 化）</li>
+     *   <li>不包含 parentShare/baselineRatio 派生指标（它们是后处理指标，不能参与 SQL 下放）</li>
+     * </ol></p>
+     */
+    public static boolean SQL_PUSHDOWN_ENABLED = true; // For testing
+
+    private String getSqlPushdownSkipReason(PivotRequest pivot, HierarchyContext hierarchyCtx) {
+        if (!SQL_PUSHDOWN_ENABLED) {
+            return "disabled";
+        }
+        if (queryFacade == null) {
+            return "queryFacadeUnavailable";
+        }
+        if (hierarchyCtx.isTree()) {
+            return "hierarchyTree";
+        }
+        if (!pivot.getParentShareMetrics().isEmpty() || !pivot.getBaselineRatioMetrics().isEmpty()) {
+            // parentShare/baselineRatio 依赖内存后处理，不能混用 SQL pushdown
+            // （未来如果 pushdown 和后处理可以独立分离，这个约束可以放宽）
+            return "derivedMetricPostProcessing";
+        }
+        if (!hasAxisDomainOperations(pivot.getRows()) && !hasAxisDomainOperations(pivot.getColumns())) {
+            return "noAxisHavingOrLimit";
+        }
+        return null;
+    }
+
+    /**
+     * 检查轴字段是否有 having 或 limit（需要 domain 级 SQL 下放的操作）
+     */
+    private boolean hasAxisDomainOperations(List<AxisField> fields) {
+        if (fields == null) return false;
+        for (AxisField f : fields) {
+            if (f.getLimit() != null && f.getLimit() > 0) return true;
+            if (f.getHaving() != null && !f.getHaving().isEmpty()) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Phase 1 SQL Pushdown 路径
+     *
+     * <p>使用 QueryFacade.prepareManagedRelation 获取受管基础 SQL，
+     * 然后用 PivotAxisDomainSqlPlanner 包装 Having + TopN CTE，
+     * 最后用 QueryFacade.executeManagedRelation 执行最终 SQL。</p>
+     *
+     * <p>如果 Planner 因 non-additive 或 dialect 不支持而 fail-closed，
+     * 将抛出 UnsupportedOperationException，由调用方捕获并 fallback。</p>
+     */
+    private List<Map<String, Object>> executePhase1WithSqlPushdown(
+            String model, SemanticQueryRequest originalRequest,
+            SemanticRequestContext context,
+            List<String> rowFields, List<String> colFields,
+            List<String> metrics, PivotRequest pivot, QueryModel queryModel) {
+
+        // 1. 构建与 executePhase1 相同的扁平请求
+        SemanticQueryRequest flatRequest = buildPhase1FlatRequest(originalRequest, rowFields, colFields, metrics, queryModel);
+
+        // 2. 构建 ModelResultContext（复用 SemanticQueryServiceV3 的模式）
+        com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext resultContext =
+                buildManagedRelationContext(model, flatRequest, context);
+
+        // 3. 准备受管关系代数
+        ManagedRelationOptions options = ManagedRelationOptions.builder()
+                .purpose("PivotAxisDomainSqlPlanner")
+                .wrappableRequired(true)
+                .disableInnerCacheShortCircuit(true)
+                .requireStableAliases(true)
+                .requireDialectCapability(ManagedRelationOptions.DialectCapability.CTE)
+                .requireDialectCapability(ManagedRelationOptions.DialectCapability.WINDOW_FUNCTION)
+                .build();
+
+        ManagedSqlRelation baseRelation = queryFacade.prepareManagedRelation(resultContext, options);
+
+        // 4. 用 Planner 生成包装 SQL（having + TopN CTE）
+        PivotAxisDomainSqlPlanner.PlannedSql planned = PivotAxisDomainSqlPlanner.plan(
+                baseRelation, pivot, rowFields, colFields, metrics);
+
+        // 5. 执行最终 SQL
+        com.foggyframework.dataset.db.model.engine.query.DbQueryResult dbResult =
+                queryFacade.executeManagedRelation(baseRelation, planned.getSql(), planned.getParams());
+
+        if (dbResult.getPagingResult() != null && dbResult.getPagingResult().getItems() != null) {
+            List<Map<String, Object>> items = new ArrayList<>();
+            for (Object row : dbResult.getPagingResult().getItems()) {
+                if (row instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> map = (Map<String, Object>) row;
+                    items.add(map);
+                }
+            }
+            return items;
+        }
+        return Collections.emptyList();
+    }
+
+    /**
+     * 构建 Phase 1 的扁平查询请求（复用自 executePhase1 的逻辑）
+     */
+    private SemanticQueryRequest buildPhase1FlatRequest(SemanticQueryRequest originalRequest,
+                                                        List<String> rowFields, List<String> colFields,
+                                                        List<String> metrics, QueryModel queryModel) {
+        SemanticQueryRequest flatRequest = new SemanticQueryRequest();
+        List<String> allColumns = new ArrayList<>();
+        allColumns.addAll(rowFields);
+        allColumns.addAll(colFields);
+        allColumns.addAll(metrics);
+        flatRequest.setColumns(allColumns);
+
+        List<SemanticQueryRequest.GroupByItem> groupBy = new ArrayList<>();
+        for (String dim : rowFields) {
+            groupBy.add(new SemanticQueryRequest.GroupByItem(dim, null));
+        }
+        for (String dim : colFields) {
+            groupBy.add(new SemanticQueryRequest.GroupByItem(dim, null));
+        }
+        // Use resolveMetricAggregation for consistency with the memory path
+        for (String metric : metrics) {
+            String aggStr = resolveMetricAggregation(metric, queryModel);
+            groupBy.add(new SemanticQueryRequest.GroupByItem(metric, aggStr));
+        }
+        flatRequest.setGroupBy(groupBy);
+        flatRequest.setSlice(originalRequest.getSlice());
+        flatRequest.setCalculatedFields(originalRequest.getCalculatedFields());
+        flatRequest.setLimit(CardinalityBreaker.DEFAULT_ROW_LIMIT * CardinalityBreaker.DEFAULT_COL_LIMIT);
+        flatRequest.setReturnTotal(false);
+        return flatRequest;
+    }
+
+    /**
+     * 构建用于 prepareManagedRelation 的 ModelResultContext
+     */
+    private com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext buildManagedRelationContext(
+            String model, SemanticQueryRequest flatRequest, SemanticRequestContext reqContext) {
+        // 构建 JDBC 请求
+        com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef queryDef =
+                new com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef();
+        queryDef.setQueryModel(model);
+        queryDef.setReturnTotal(false);
+        queryDef.setStrictColumns(true);
+        queryDef.setColumns(flatRequest.getColumns());
+
+        // groupBy
+        if (flatRequest.getGroupBy() != null) {
+            List<com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef> jdbcGroupBy = new ArrayList<>();
+            for (SemanticQueryRequest.GroupByItem item : flatRequest.getGroupBy()) {
+                com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef g =
+                        new com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef();
+                g.setField(item.getField());
+                g.setAgg(item.getAgg());
+                jdbcGroupBy.add(g);
+            }
+            queryDef.setGroupBy(jdbcGroupBy);
+        }
+
+        // slice
+        if (flatRequest.getSlice() != null) {
+            List<com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef> jdbcSlice = new ArrayList<>();
+            for (SemanticQueryRequest.SliceItem sliceItem : flatRequest.getSlice()) {
+                com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef s =
+                        new com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef();
+                s.setField(sliceItem.getField());
+                s.setOp(sliceItem.getOp());
+                s.setValue(sliceItem.getValue());
+                jdbcSlice.add(s);
+            }
+            queryDef.setSlice(jdbcSlice);
+        }
+
+        // calculatedFields
+        if (flatRequest.getCalculatedFields() != null) {
+            queryDef.setCalculatedFields(new ArrayList<>(flatRequest.getCalculatedFields()));
+        }
+
+        com.foggyframework.dataset.client.domain.PagingRequest<com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef> pagingRequest =
+                new com.foggyframework.dataset.client.domain.PagingRequest<>();
+        pagingRequest.setParam(queryDef);
+        pagingRequest.setStart(0);
+        pagingRequest.setPageSize(flatRequest.getLimit());
+
+        com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext resultContext =
+                new com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext();
+        resultContext.setRequest(pagingRequest);
+        resultContext.setQueryType(com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext.QueryType.SEMANTIC);
+        resultContext.setNamespace(reqContext.getNamespace());
+        resultContext.setSecurityContext(reqContext.getSecurityContext());
+        resultContext.setFieldAccess(reqContext.getFieldAccess());
+        resultContext.setDeniedColumns(reqContext.getDeniedColumns());
+        resultContext.setSystemSlice(reqContext.getSystemSlice());
+
+        return resultContext;
     }
 
     /**

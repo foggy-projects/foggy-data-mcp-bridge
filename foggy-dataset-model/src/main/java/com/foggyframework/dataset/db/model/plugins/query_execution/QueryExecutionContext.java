@@ -49,6 +49,11 @@ public class QueryExecutionContext {
      */
     private String modelName;
 
+    /**
+     * Prepare 阶段的选项
+     */
+    private ManagedRelationOptions managedRelationOptions;
+
     // ==================== SQL 相关 ====================
 
     /**

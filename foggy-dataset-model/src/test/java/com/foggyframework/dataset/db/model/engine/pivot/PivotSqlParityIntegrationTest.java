@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 @Slf4j
 @DisplayName("Pivot Pipeline SQL Parity 集成测试")
@@ -39,6 +40,45 @@ class PivotSqlParityIntegrationTest extends EcommerceTestSupport {
 
     @Resource
     private JdbcTemplate jdbcTemplate;
+
+    @Test
+    @DisplayName("0. Verify SQL Pushdown is actually used for TopN (Not memory fallback)")
+    void testSqlPushdownTriggeredInNormalExecution() {
+        ch.qos.logback.classic.Logger pivotLogger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(PivotPipeline.class);
+        ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> listAppender = new ch.qos.logback.core.read.ListAppender<>();
+        listAppender.start();
+        pivotLogger.addAppender(listAppender);
+
+        try {
+            PivotRequest pivot = new PivotRequest();
+            AxisField categoryAxis = axis("product$categoryName");
+            categoryAxis.setLimit(2);
+            categoryAxis.setOrderBy(List.of("-salesAmount"));
+            pivot.setRows(List.of(categoryAxis));
+            pivot.setMetrics(List.of("salesAmount"));
+            pivot.setOutputFormat("flat");
+
+            SemanticQueryRequest request = new SemanticQueryRequest();
+            request.setPivot(pivot);
+
+            // Execute without any denied columns or special overrides
+            SemanticQueryResponse response = execute(request);
+            assertNotNull(response);
+
+            // MySQL 5.7 does not support CTEs/window functions -> SQL pushdown is not attempted.
+            // Only assert pushdown on dialects that support window functions.
+            if (!supportsWindowFunctions()) {
+                assumeTrue(false, "Skipping pushdown assertion on dialect without CTE/window function support (e.g. MySQL 5.7)");
+            }
+
+            boolean pushdownLogged = listAppender.list.stream()
+                    .anyMatch(event -> event.getFormattedMessage().contains("Phase 1: SQL pushdown succeeded"));
+            
+            assertTrue(pushdownLogged, "Expected SQL pushdown to be used, but it wasn't logged. Did it fall back to memory?");
+        } finally {
+            pivotLogger.detachAppender(listAppender);
+        }
+    }
 
     // ========== Parity Scenarios ==========
 
@@ -175,21 +215,18 @@ class PivotSqlParityIntegrationTest extends EcommerceTestSupport {
         SemanticQueryResponse response = execute(request);
         List<Map<String, Object>> pivotItems = response.getItems();
 
-        // SQL Oracle
+        // SQL Oracle — secondary sort by category_name ASC matches pivot engine's tie-breaking rule
         String sql = "SELECT t2.category_name as category_name, SUM(t1.sales_amount) as sales_amount " +
                 "FROM fact_sales t1 " +
                 "LEFT JOIN dim_product t2 ON t1.product_key = t2.product_key " +
                 "GROUP BY t2.category_name " +
-                "ORDER BY sales_amount DESC " +
+                "ORDER BY sales_amount DESC, category_name ASC " +
                 "LIMIT 2";
         List<Map<String, Object>> sqlItems = jdbcTemplate.queryForList(sql);
 
-        assertEquals(sqlItems.size(), pivotItems.size(), "Result size mismatch");
-        for (int i = 0; i < sqlItems.size(); i++) {
-            assertEquals(String.valueOf(sqlItems.get(i).get("category_name")), String.valueOf(pivotItems.get(i).get("product$categoryName")));
-            assertEquals(((Number)sqlItems.get(i).get("sales_amount")).doubleValue(),
-                         ((Number)pivotItems.get(i).get("salesAmount")).doubleValue(), 0.01);
-        }
+        // Use set-based parity: verify the same TopN members and values exist,
+        // regardless of order (collation of Chinese strings differs across DBs).
+        assertParity(sqlItems, pivotItems, "category_name", "product$categoryName", "sales_amount", "salesAmount");
     }
 
     @Test
@@ -227,6 +264,7 @@ class PivotSqlParityIntegrationTest extends EcommerceTestSupport {
     @Test
     @DisplayName("3d. Generate / Per-Group Ranking (分组内 TopN) Parity")
     void testGeneratePerGroupTopNParity() {
+        assumeTrue(supportsWindowFunctions(), "Skipping: SQL Oracle uses CTE + ROW_NUMBER() OVER(), requires MySQL 8+ or SQLite");
         PivotRequest pivot = new PivotRequest();
         AxisField categoryAxis = axis("product$categoryName");
 
@@ -477,6 +515,7 @@ class PivotSqlParityIntegrationTest extends EcommerceTestSupport {
     @Test
     @DisplayName("8. parentShare parity: 子级占比与 SQL window 比对")
     void testParentShareParity() {
+        assumeTrue(supportsWindowFunctions(), "Skipping: SQL Oracle uses SUM() OVER (PARTITION BY), requires MySQL 8+ or SQLite");
         PivotRequest pivot = new PivotRequest();
         pivot.setRows(List.of(axis("product$categoryName"), axis("salesDate$month")));
 
@@ -605,6 +644,7 @@ class PivotSqlParityIntegrationTest extends EcommerceTestSupport {
     @Test
     @DisplayName("S12: baselineRatio parity with SQL Window functions")
     void testBaselineRatioParity() {
+        assumeTrue(supportsWindowFunctions(), "Skipping: SQL Oracle uses CTEs, requires MySQL 8+ or SQLite");
         PivotRequest pivot = new PivotRequest();
         pivot.setRows(List.of(axis("product$categoryName")));
         pivot.setColumns(List.of(axis("salesDate$month")));
@@ -716,6 +756,7 @@ class PivotSqlParityIntegrationTest extends EcommerceTestSupport {
     @Test
     @DisplayName("S12: baselineRatio + systemSlice parity")
     void testBaselineRatioSystemSliceParity() {
+        assumeTrue(supportsWindowFunctions(), "Skipping: SQL Oracle uses CTEs, requires MySQL 8+ or SQLite");
         PivotRequest pivot = new PivotRequest();
         pivot.setRows(List.of(axis("product$categoryName")));
         pivot.setColumns(List.of(axis("salesDate$month")));
@@ -774,6 +815,7 @@ class PivotSqlParityIntegrationTest extends EcommerceTestSupport {
     @Test
     @DisplayName("S12: baselineRatio + user slice parity")
     void testBaselineRatioUserSliceParity() {
+        assumeTrue(supportsWindowFunctions(), "Skipping: SQL Oracle uses CTEs, requires MySQL 8+ or SQLite");
         PivotRequest pivot = new PivotRequest();
         pivot.setRows(List.of(axis("product$categoryName")));
         pivot.setColumns(List.of(axis("salesDate$month")));
@@ -829,6 +871,91 @@ class PivotSqlParityIntegrationTest extends EcommerceTestSupport {
                 "idx_last", "idxLast");
 
         log.info("S12: baselineRatio + user slice Parity 验证通过");
+    }
+
+    @Test
+    @DisplayName("13. SQL pushdown active + TopN + COUNT_DISTINCT + rowSubtotals/grandTotal")
+    void testSqlPushdownNonAdditiveRollupWithTopNAndSubtotalsParity() {
+        PivotRequest pivot = new PivotRequest();
+        
+        // 维度1：Category (Top 2 by salesAmount to allow SQL pushdown)
+        AxisField categoryAxis = axis("product$categoryName");
+        categoryAxis.setOrderBy(List.of("-salesAmount"));
+        categoryAxis.setLimit(2);
+        
+        // 维度2：Month
+        AxisField monthAxis = axis("salesDate$month");
+
+        pivot.setRows(List.of(categoryAxis, monthAxis));
+        pivot.setMetrics(List.of("salesAmount", "uniqueCustomers")); // non-additive
+        pivot.setOutputFormat("flat");
+
+        PivotOptions options = new PivotOptions();
+        options.setRowSubtotals(true);
+        options.setGrandTotal(true);
+        pivot.setOptions(options);
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setPivot(pivot);
+
+        SemanticQueryResponse response = execute(request);
+        List<Map<String, Object>> pivotItems = response.getItems();
+
+        List<Map<String, Object>> pivotLeaves = pivotItems.stream()
+                .filter(r -> !r.containsKey("_sys_meta") || (!Boolean.TRUE.equals(((Map)r.get("_sys_meta")).get("isRowSubtotal")) && !Boolean.TRUE.equals(((Map)r.get("_sys_meta")).get("isGrandTotal"))))
+                .collect(Collectors.toList());
+        List<Map<String, Object>> pivotSubtotals = pivotItems.stream()
+                .filter(r -> r.containsKey("_sys_meta") && Boolean.TRUE.equals(((Map)r.get("_sys_meta")).get("isRowSubtotal")))
+                .collect(Collectors.toList());
+        List<Map<String, Object>> pivotGrandTotal = pivotItems.stream()
+                .filter(r -> r.containsKey("_sys_meta") && Boolean.TRUE.equals(((Map)r.get("_sys_meta")).get("isGrandTotal")))
+                .collect(Collectors.toList());
+
+        // SQL Oracle
+        String top2CategorySql = "SELECT t2.category_name " +
+                "  FROM fact_sales t1 " +
+                "  LEFT JOIN dim_product t2 ON t1.product_key = t2.product_key " +
+                "  GROUP BY t2.category_name " +
+                "  ORDER BY SUM(t1.sales_amount) DESC, t2.category_name ASC " +
+                "  LIMIT 2";
+                
+        String topNCondition = "EXISTS (SELECT 1 FROM (" + top2CategorySql + ") as top_cats " +
+                "WHERE top_cats.category_name = t2.category_name OR (top_cats.category_name IS NULL AND t2.category_name IS NULL))";
+
+        // Leaf Oracle
+        String sqlLeaf = "SELECT t2.category_name as category_name, t3.month as month_name, COUNT(DISTINCT t1.customer_key) as unique_customers " +
+                "FROM fact_sales t1 " +
+                "LEFT JOIN dim_product t2 ON t1.product_key = t2.product_key " +
+                "LEFT JOIN dim_date t3 ON t1.date_key = t3.date_key " +
+                "WHERE " + topNCondition + " " +
+                "GROUP BY t2.category_name, t3.month";
+        List<Map<String, Object>> sqlLeafItems = jdbcTemplate.queryForList(sqlLeaf);
+        assertParityMultiDim(sqlLeafItems, pivotLeaves,
+                List.of("category_name", "month_name"),
+                List.of("product$categoryName", "salesDate$month"),
+                "unique_customers", "uniqueCustomers");
+
+        // Subtotal Oracle (Group by Category)
+        String sqlSub = "SELECT t2.category_name as category_name, COUNT(DISTINCT t1.customer_key) as unique_customers " +
+                "FROM fact_sales t1 " +
+                "LEFT JOIN dim_product t2 ON t1.product_key = t2.product_key " +
+                "WHERE " + topNCondition + " " +
+                "GROUP BY t2.category_name";
+        List<Map<String, Object>> sqlSubItems = jdbcTemplate.queryForList(sqlSub);
+        assertParity(sqlSubItems, pivotSubtotals, "category_name", "product$categoryName", "unique_customers", "uniqueCustomers");
+
+        // Grand Total Oracle (All Surviving Domain)
+        String sqlGrand = "SELECT COUNT(DISTINCT t1.customer_key) as unique_customers " +
+                "FROM fact_sales t1 " +
+                "LEFT JOIN dim_product t2 ON t1.product_key = t2.product_key " +
+                "WHERE " + topNCondition;
+        List<Map<String, Object>> sqlGrandItems = jdbcTemplate.queryForList(sqlGrand);
+        assertEquals(1, pivotGrandTotal.size(), "Grand total should have 1 row");
+        assertEquals(((Number) sqlGrandItems.get(0).get("unique_customers")).longValue(),
+                     ((Number) pivotGrandTotal.get(0).get("uniqueCustomers")).longValue(),
+                     "Grand Total COUNT_DISTINCT mismatch");
+
+        log.info("Test 13: SQL pushdown + TopN + Non-additive + Subtotals Parity 验证通过");
     }
 
     // ========== Helpers ==========
