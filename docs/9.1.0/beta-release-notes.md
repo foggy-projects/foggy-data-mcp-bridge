@@ -35,10 +35,9 @@ created_at: 2026-05-02
 | Gate | Status | Notes |
 |---|---|---|
 | SQLite release quick gate | PASS | `./scripts/verify-pivot-v9-release.ps1 -SkipFullRegression -SkipMcp` passed on 2026-05-02. |
-| Diff hygiene | PASS | `git diff --check` reported only Windows CRLF conversion warnings. |
+| Full release readiness gate | PASS | `./scripts/verify-pivot-v9-release.ps1` passed on 2026-05-02, including full module regression, SQLite, MCP guardrail, MySQL8, and PostgreSQL parity. |
+| Diff hygiene | PASS | `git diff --check` reported no diff hygiene errors after the phase commits. |
 | Feature-level acceptance | PASS with risks | B1, B2-Prep, and C1 have acceptance records. |
-| Full regression | Not run in closeout | Required before any RC or release promotion. |
-| MCP schema guardrail | Not run in closeout | Required before any RC or release promotion. |
 
 ## Known Risks
 
@@ -55,10 +54,10 @@ created_at: 2026-05-02
 
 ## RC Promotion Gate
 
-Before RC, run the full release readiness script without skip flags and record evidence in version acceptance docs:
+The full release readiness script has passed once for this phase:
 
 ```powershell
 ./scripts/verify-pivot-v9-release.ps1
 ```
 
-If B2 production transport is enabled before RC, add SQLite, MySQL8, PostgreSQL, and explicit MySQL 5.7 unsupported/fallback evidence for large-domain non-additive rollups.
+Before promoting to RC, release ownership still needs to decide whether B2 production transport is in scope for 9.1.0. If B2 is enabled before RC, add SQLite, MySQL8, PostgreSQL, and explicit MySQL 5.7 unsupported/fallback evidence for large-domain non-additive rollups.

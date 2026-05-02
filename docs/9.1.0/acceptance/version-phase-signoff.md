@@ -11,7 +11,7 @@ signed_off_at: 2026-05-02
 reviewed_by: Codex acceptance reviewer
 blocking_items: []
 follow_up_required: yes
-evidence_count: 5
+evidence_count: 6
 ---
 
 # Version Acceptance
@@ -62,9 +62,10 @@ This is not a Release Candidate signoff. The release recommendation remains `bet
 | Evidence | Result | Notes |
 |---|---|---|
 | `git merge-base --is-ancestor b3482490 HEAD` | PASS | Confirmed `baseline ancestor: yes`. |
-| `git status --short --branch` | PASS | Worktree is dirty with the expected accumulated 9.1.0 changes. |
-| `./scripts/verify-pivot-v9-release.ps1 -SkipFullRegression -SkipMcp` | PASS | Script exited 0 and printed release readiness success. Full regression and MCP guardrail were intentionally skipped by flags. |
-| `git diff --check` | PASS | Only Windows CRLF conversion warnings were reported. |
+| `git status --short --branch` | PASS | Worktree is clean after the four phase commits. |
+| `./scripts/verify-pivot-v9-release.ps1 -SkipFullRegression -SkipMcp` | PASS | Quick release readiness gate passed before phase commits. |
+| `./scripts/verify-pivot-v9-release.ps1` | PASS | Full release readiness gate passed on 2026-05-02, including full module regression, SQLite, MCP guardrail, MySQL8, and PostgreSQL parity. |
+| `git diff --check` | PASS | No diff hygiene errors were reported after the phase commits. |
 | Feature-level acceptance records | PASS | B1, B2-Prep, and C1 acceptance records exist under `docs/9.1.0/acceptance/`. |
 
 ## Risks / Open Items
@@ -73,7 +74,7 @@ This is not a Release Candidate signoff. The release recommendation remains `bet
 - MySQL 8 production renderer selection still needs runtime version probing via JDBC metadata, with a safe gate for MySQL 8.0.19+ behavior.
 - MySQL 5.7 derived-table transport remains threshold-limited and must fail closed when tuple count, parameter count, or SQL length exceeds safe limits.
 - C2 Cascade Generate implementation is still gated and requires careful translation from the accepted C1 semantics into planner code.
-- Full regression and MCP schema guardrail were not part of the quick local closeout run; they remain required before any RC or release promotion.
+- The full release gate now passes, but RC promotion still requires a release-scope decision on whether Stage 5A production transport is implemented in 9.1.0 or explicitly deferred.
 
 ## Final Decision
 
