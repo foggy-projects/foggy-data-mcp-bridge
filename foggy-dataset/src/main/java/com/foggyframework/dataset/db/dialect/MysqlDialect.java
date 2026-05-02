@@ -238,4 +238,12 @@ public  class MysqlDialect extends FDialect {
     public boolean supportsCte() {
         return false;
     }
+
+    /**
+     * MySQL 5.7 不支持 Window Functions；保守默认 false。
+     */
+    @Override
+    public boolean supportsWindowFunctions() {
+        return false;
+    }
 }

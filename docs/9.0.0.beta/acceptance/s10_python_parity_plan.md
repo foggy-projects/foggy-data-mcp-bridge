@@ -39,3 +39,17 @@
 ## 3. 测试与签收
 - 所有由 Java 侧 `PivotIntegrationTest` 生成的 Snapshot JSON，必须被 Python 侧作为单元测试全部打通。
 - 提供跨语言测试脚本 `verify_parity.py`，调用同样的查询并比较 Java / Python 响应的一致性。
+
+## 4. Java Stage 5A 对 Python Mirror 的影响
+
+Java 侧正在评估 Stage 5A large-domain transport spike。该 spike 的边界是内部 SQL domain transport，不改变 Pivot DSL、JSON Schema、请求结构或结果结构。
+
+Python 9.0.0 mirror 的默认建议：
+
+- 继续以 Java Stage 1-4 已签收行为为镜像基线。
+- 对 non-additive subtotal/grandTotal 的 oversized surviving domain 保持与 Java 当前一致的 `domain > 500` fail-closed 行为。
+- Stage 5A 不应阻断 Python mirror，除非 release owner 决定 Java Stage 5A 会在 Python 签收前默认启用。
+- Python 可选择提前预留内部 `DomainTransport` 抽象，但第一版实现可以只是 fail-closed，不需要实现 `VALUES CTE` / `UNION ALL CTE` / temp table。
+- 建议补一个 oversized-domain error snapshot，确保 Java/Python 在未启用 Stage 5A 时错误语义一致。
+
+协调提示词：`docs/9.0.0.beta/acceptance/python-pivot-stage5-impact-coordination-prompt.md`

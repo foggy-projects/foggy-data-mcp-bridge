@@ -314,7 +314,8 @@ public class NonAdditiveRollupExecutor {
         }
 
         // 构建 surviving domain 过滤条件
-        addSurvivingDomainSlice(sliceItems, grainFields, rowFields, colFields,
+        // Stage 4 语义修正：使用完整 axisFields tuple 约束，grainFields 只决定 GROUP BY
+        addSurvivingDomainSlice(sliceItems, rowFields, colFields,
                 survivingRowDomain, survivingColDomain);
 
         auxRequest.setSlice(sliceItems);
@@ -414,47 +415,125 @@ public class NonAdditiveRollupExecutor {
 
     /**
      * 将 surviving domain 转换为 slice 过滤条件
+     *
+     * <p>Stage 4 语义修正：WHERE 约束始终基于完整的 axisFields tuple，
+     * 与 grainFields（GROUP BY 粒度）无关。
+     * grainFields 只决定辅助查询的 GROUP BY，不能限制 WHERE 的字段范围。</p>
      */
-    private void addSurvivingDomainSlice(
+    private static void addSurvivingDomainSlice(
             List<SemanticQueryRequest.SliceItem> sliceItems,
-            List<String> grainFields,
             List<String> rowFields,
             List<String> colFields,
             Set<List<Object>> survivingRowDomain,
             Set<List<Object>> survivingColDomain) {
 
-        addAxisDomainSlice(sliceItems, grainFields, rowFields, survivingRowDomain);
-        addAxisDomainSlice(sliceItems, grainFields, colFields, survivingColDomain);
+        addAxisDomainSlice(sliceItems, rowFields, survivingRowDomain);
+        addAxisDomainSlice(sliceItems, colFields, survivingColDomain);
     }
 
     /**
-     * 对单个轴的 surviving domain 生成 IN 过滤
+     * 对单个轴的 surviving domain 生成精确过滤条件
+     *
+     * <p>Stage 4 语义修正：</p>
+     * <ul>
+     *   <li>WHERE 约束基于完整 axisFields tuple，与 grainFields 无关。
+     *       grainFields 只决定 GROUP BY 粒度，不决定 WHERE 约束字段范围。
+     *       即使 subtotal grain=[category]，WHERE 仍然约束完整的 (category, product) tuple，
+     *       确保 AVG/COUNT_DISTINCT 辅助查询不把 TopN 过滤掉的 product 算回来。</li>
+     *   <li>单字段轴：生成 IN(非null值) + IS NULL 组合（通过 $or 连接）</li>
+     *   <li>多字段轴：生成 OR-of-AND tuple constraint，null 值用 'is null' op 表达</li>
+     *   <li>domain 超过 {@link #MAX_IN_LIST_SIZE}：fail-closed，抛出 {@link NonAdditiveRollupDomainTooLargeException}</li>
+     * </ul>
      */
-    private void addAxisDomainSlice(
+    // package-private for testing
+    static void addAxisDomainSlice(
             List<SemanticQueryRequest.SliceItem> sliceItems,
-            List<String> grainFields,
             List<String> axisFields,
             Set<List<Object>> domain) {
 
         if (domain == null || domain.isEmpty()) return;
+        if (axisFields == null || axisFields.isEmpty()) return;
 
-        for (int i = 0; i < axisFields.size(); i++) {
-            String field = axisFields.get(i);
-            if (grainFields.contains(field)) {
-                final int idx = i;
-                Set<Object> values = domain.stream()
-                        .map(tuple -> tuple.get(idx))
-                        .filter(Objects::nonNull)
-                        .collect(Collectors.toCollection(LinkedHashSet::new));
+        // domain 超限检查 — fail-closed（不能静默跳过）
+        if (domain.size() > MAX_IN_LIST_SIZE) {
+            throw new NonAdditiveRollupDomainTooLargeException(domain.size(), MAX_IN_LIST_SIZE);
+        }
 
-                if (!values.isEmpty() && values.size() <= MAX_IN_LIST_SIZE) {
-                    SemanticQueryRequest.SliceItem slice = new SemanticQueryRequest.SliceItem();
-                    slice.setField(field);
-                    slice.setOp("in");
-                    slice.setValue(new ArrayList<>(values));
-                    sliceItems.add(slice);
+        if (axisFields.size() == 1) {
+            // 单字段轴：IN(非null) + 可选 IS NULL
+            String field = axisFields.get(0);
+            Set<Object> nonNullValues = new LinkedHashSet<>();
+            boolean hasNullTuple = false;
+
+            for (List<Object> tuple : domain) {
+                Object val = tuple.get(0);
+                if (val == null) {
+                    hasNullTuple = true;
+                } else {
+                    nonNullValues.add(val);
                 }
-                // 如果 domain 太大则不限制（避免超长 IN 列表）
+            }
+
+            if (!nonNullValues.isEmpty() && !hasNullTuple) {
+                // 纯非 null 值：简单 IN
+                SemanticQueryRequest.SliceItem slice = new SemanticQueryRequest.SliceItem();
+                slice.setField(field);
+                slice.setOp("in");
+                slice.setValue(new ArrayList<>(nonNullValues));
+                sliceItems.add(slice);
+            } else if (!nonNullValues.isEmpty()) {
+                // 混合 null + 非null：OR(IN(...), IS NULL)
+                SemanticQueryRequest.SliceItem inCond = new SemanticQueryRequest.SliceItem();
+                inCond.setField(field);
+                inCond.setOp("in");
+                inCond.setValue(new ArrayList<>(nonNullValues));
+
+                SemanticQueryRequest.SliceItem isNullCond = new SemanticQueryRequest.SliceItem();
+                isNullCond.setField(field);
+                isNullCond.setOp("is null");
+
+                SemanticQueryRequest.SliceItem orGroup = new SemanticQueryRequest.SliceItem();
+                orGroup.setOr(List.of(inCond, isNullCond));
+                sliceItems.add(orGroup);
+            } else if (hasNullTuple) {
+                // 全部是 null
+                SemanticQueryRequest.SliceItem isNullCond = new SemanticQueryRequest.SliceItem();
+                isNullCond.setField(field);
+                isNullCond.setOp("is null");
+                sliceItems.add(isNullCond);
+            }
+        } else {
+            // 多字段轴：生成 OR-of-AND tuple constraint
+            // 形如: OR( AND(cat='A', prod='p1'), AND(cat='B', prod IS NULL) )
+            // 使用完整 axisFields 索引，保留所有字段的 tuple 相关性
+            List<SemanticQueryRequest.SliceItem> andGroups = new ArrayList<>();
+            for (List<Object> tuple : domain) {
+                List<SemanticQueryRequest.SliceItem> andConditions = new ArrayList<>();
+
+                for (int i = 0; i < axisFields.size(); i++) {
+                    Object val = tuple.get(i);
+                    SemanticQueryRequest.SliceItem cond = new SemanticQueryRequest.SliceItem();
+                    cond.setField(axisFields.get(i));
+                    if (val == null) {
+                        cond.setOp("is null");
+                    } else {
+                        cond.setOp("=");
+                        cond.setValue(val);
+                    }
+                    andConditions.add(cond);
+                }
+
+                if (!andConditions.isEmpty()) {
+                    SemanticQueryRequest.SliceItem andGroup = new SemanticQueryRequest.SliceItem();
+                    andGroup.setAnd(andConditions);
+                    andGroups.add(andGroup);
+                }
+            }
+
+            if (!andGroups.isEmpty()) {
+                SemanticQueryRequest.SliceItem orGroup = new SemanticQueryRequest.SliceItem();
+                orGroup.setOr(andGroups);
+                sliceItems.add(orGroup);
             }
         }
     }

@@ -545,4 +545,16 @@ public abstract class FDialect {
     public boolean supportsCte() {
         return true;
     }
+
+    /**
+     * 是否支持 Window Functions（如 ROW_NUMBER() OVER (...)）
+     *
+     * <p>默认 true（PostgreSQL, SQL Server, SQLite, MySQL 8.0+ 均支持）。
+     * MySQL 5.7 不支持。Pivot SQL 引擎依赖此方法决定是否进行 TopN pushdown。</p>
+     *
+     * @return true 如果支持窗口函数
+     */
+    public boolean supportsWindowFunctions() {
+        return true;
+    }
 }

@@ -33,6 +33,18 @@ import com.foggyframework.core.filter.FoggyStep;
 public interface QueryExecutionStep extends FoggyStep<QueryExecutionContext> {
 
     /**
+     * 判断该步骤是否支持当前的执行阶段
+     *
+     * @param phase 执行阶段
+     * @param ctx   执行上下文
+     * @return 如果支持返回 true
+     */
+    default boolean supports(QueryExecutionPhase phase, QueryExecutionContext ctx) {
+        // 默认向后兼容，只在普通查询时执行
+        return phase == QueryExecutionPhase.NORMAL_QUERY;
+    }
+
+    /**
      * SQL 执行前处理
      * <p>
      * 可在此方法中：
@@ -43,8 +55,16 @@ public interface QueryExecutionStep extends FoggyStep<QueryExecutionContext> {
      * </ul>
      * </p>
      *
+     * @param phase 当前阶段
      * @param ctx 执行上下文
      * @return CONTINUE 继续，ABORT 中止
+     */
+    default int beforeExecute(QueryExecutionPhase phase, QueryExecutionContext ctx) {
+        return beforeExecute(ctx);
+    }
+
+    /**
+     * 向后兼容的旧版方法
      */
     default int beforeExecute(QueryExecutionContext ctx) {
         return CONTINUE;
@@ -61,8 +81,16 @@ public interface QueryExecutionStep extends FoggyStep<QueryExecutionContext> {
      * </ul>
      * </p>
      *
+     * @param phase 当前阶段
      * @param ctx 执行上下文（包含执行结果）
      * @return CONTINUE 继续，ABORT 中止
+     */
+    default int afterExecute(QueryExecutionPhase phase, QueryExecutionContext ctx) {
+        return afterExecute(ctx);
+    }
+
+    /**
+     * 向后兼容的旧版方法
      */
     default int afterExecute(QueryExecutionContext ctx) {
         return CONTINUE;

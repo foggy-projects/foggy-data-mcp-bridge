@@ -81,7 +81,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                 if (pivotPipeline == null) {
                     pivotPipeline = new com.foggyframework.dataset.db.model.engine.pivot.PivotPipeline(
                             this, new com.foggyframework.dataset.db.model.engine.pivot.CardinalityBreaker(),
-                            queryModelLoader);
+                            queryModelLoader, queryFacade);
                 }
             }
         }

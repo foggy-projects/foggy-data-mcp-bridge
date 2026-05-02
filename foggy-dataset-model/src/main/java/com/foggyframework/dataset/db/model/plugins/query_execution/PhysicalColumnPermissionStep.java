@@ -45,15 +45,20 @@ public class PhysicalColumnPermissionStep implements QueryExecutionStep {
     }
 
     @Override
+    public boolean supports(QueryExecutionPhase phase, QueryExecutionContext ctx) {
+        return phase == QueryExecutionPhase.NORMAL_QUERY || phase == QueryExecutionPhase.PREPARE_MANAGED_RELATION;
+    }
+
+    @Override
     public int beforeExecute(QueryExecutionContext ctx) {
         ModelResultContext modelCtx = ctx.getModelResultContext();
         if (modelCtx == null) {
-            return CONTINUE;
+            return markPermissionValidated(ctx);
         }
 
         List<DeniedPhysicalColumn> denied = modelCtx.getDeniedColumns();
         if (denied == null || denied.isEmpty()) {
-            return CONTINUE;
+            return markPermissionValidated(ctx);
         }
 
         // 如果 QM 映射缓存可用，deniedColumns 已在 FieldAccessPermissionStep (beforeQuery)
@@ -61,12 +66,12 @@ public class PhysicalColumnPermissionStep implements QueryExecutionStep {
         if (ctx.getQueryEngine() != null
                 && ctx.getQueryEngine().getJdbcQueryModel() != null
                 && ctx.getQueryEngine().getJdbcQueryModel().getPhysicalColumnMapping() != null) {
-            return CONTINUE;
+            return markPermissionValidated(ctx);
         }
 
         JdbcQuery jdbcQuery = ctx.getQueryEngine().getJdbcQuery();
         if (jdbcQuery == null) {
-            return CONTINUE;
+            return markPermissionValidated(ctx);
         }
 
         // 构建快速匹配集合
@@ -108,6 +113,17 @@ public class PhysicalColumnPermissionStep implements QueryExecutionStep {
             log.debug("PhysicalColumnPermission check passed for model: {}", ctx.getModelName());
         }
 
+        return markPermissionValidated(ctx);
+    }
+
+    /**
+     * Mark permission as validated for ManagedSqlRelation capability metadata.
+     * If this step does not run or exits through an exception, prepare remains fail-closed.
+     */
+    private int markPermissionValidated(QueryExecutionContext ctx) {
+        if (ctx != null) {
+            ctx.setExtData("permissionValidated", Boolean.TRUE);
+        }
         return CONTINUE;
     }
 

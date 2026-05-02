@@ -7,11 +7,11 @@ doc_purpose: 记录 9.0.0.beta Pivot DSL Java Core 与 MCP Schema 的正式验�
 status: signed-off
 decision: accepted-with-risks
 signed_off_by: codex
-signed_off_at: 2026-05-01
+signed_off_at: 2026-05-02
 reviewed_by: N/A
 blocking_items: []
 follow_up_required: yes
-evidence_count: 14
+evidence_count: 20
 ---
 
 # Version Acceptance
@@ -25,7 +25,7 @@ evidence_count: 14
 ## Background
 
 - Version: 9.0.0.beta
-- Scope: Pivot DSL Java Core、MCP JSON Schema guardrails、Non-Additive Rollup。
+- Scope: Pivot DSL Java Core、MCP JSON Schema guardrails、Non-Additive Rollup、Pivot SQL TopN/Having Pushdown。
 - Goal: 为 LLM Agent 提供安全、结构化、可验收的多维透视接口，覆盖 rows/columns/metrics、axis having/topN、crossjoin、subtotals/grandTotal、properties post-join、hierarchy tree、non-additive rollup 和 schema guardrail。
 - Boundary: 本签收不覆盖 Python Mirror 的实现完成度，也不声明所有 MDX 坐标能力已等价实现。
 
@@ -38,6 +38,11 @@ evidence_count: 14
 - `docs/9.0.0.beta/detailed_design/04_non_additive_rollup_design.md`
 - `docs/9.0.0.beta/detailed_design/05_cell_at_cross_axis_evaluation.md`
 - `docs/9.0.0.beta/acceptance/s13_release_readiness.md`
+- `docs/9.0.0.beta/acceptance/pivot-sql-topn-pushdown-acceptance.md`
+- `docs/9.0.0.beta/acceptance/pivot-sql-topn-pushdown-performance-baseline.md`
+- `docs/9.0.0.beta/acceptance/pivot-sql-topn-pushdown-performance-baseline-acceptance.md`
+- `docs/9.0.0.beta/detailed_design/08_pivot_sql_topn_pushdown_refactor_plan.md`
+- `docs/9.0.0.beta/test_coverage/pivot-sql-topn-pushdown-coverage-audit.md`
 - `docs/9.0.0.beta/mdx_vs_foggy_syntax_comparison.md`
 - `docs/9.0.0.beta/test_coverage/pivot-dsl-coverage-audit.md`
 
@@ -45,7 +50,7 @@ evidence_count: 14
 
 | Module | Owner | Status | Acceptance Record | Notes |
 |---|---|---|---|---|
-| `foggy-dataset-model` | Java Core | signed-off-with-risks | `docs/9.0.0.beta/acceptance/version-signoff.md` | Pivot Pipeline、内存算法、Non-Additive Rollup、SQL Parity 已通过 SQLite/MySQL8/PostgreSQL 验证 |
+| `foggy-dataset-model` | Java Core | signed-off-with-risks | `docs/9.0.0.beta/acceptance/version-signoff.md` | Pivot Pipeline、内存算法、Non-Additive Rollup、SQL TopN/Having Pushdown、SQL Parity 已通过 SQLite/MySQL8/PostgreSQL 验证；MySQL 5.7 走受控 fallback |
 | `foggy-dataset-mcp` | MCP Gateway Schema | signed-off-with-risks | `docs/9.0.0.beta/acceptance/version-signoff.md` | JSON Schema guardrail、网关错误 envelope、权限绑定测试通过 |
 | Python Mirror | Python Engine | out-of-scope-for-this-signoff | N/A | 本次未验收，不计入本签收结论 |
 
@@ -67,6 +72,7 @@ evidence_count: 14
 - [x] S11 `pivot.metrics` 混合数组与 `parentShare` 第一版已完成补充签收：Schema 前置拒绝 `expr`/缺失 `of`/`axis=columns`，runtime 阻断隐式 columns、tree、不可加度量，且 SQLite/MySQL8/PostgreSQL SQL Parity 通过。
 - [x] S12 `baselineRatio` 派生指标已完成补充签收：Schema 与 Runtime fail-closed 拦截完备，算法消除非确定性排序与 NULL 值污染，且在 SQLite、MySQL8、PostgreSQL 三大数据库上的 SQL Parity 均已通过。
 - [x] S13 Release Readiness 已固化一键验收入口：`scripts/verify-pivot-v9-release.ps1` / `scripts/verify-pivot-v9-release.sh`。
+- [x] Pivot SQL TopN/Having Pushdown 已完成补充签收：通过 managed queryModel relation 保留权限、预聚合、物理列校验与参数绑定；Stage 4 已对齐 non-additive subtotal/grandTotal domain bounding，并在 SQLite、MySQL 5.7 fallback、PostgreSQL 上完成验证。
 - [ ] Python Mirror 未验收，本签收明确排除，并已沉淀 `s10_python_parity_plan.md` 待后续跟进。
 
 ## Changelog & Known Limitations
@@ -75,12 +81,14 @@ evidence_count: 14
 1. **S8.1 后置属性 (Properties)**: 支持在 Phase 2 的最后一步为主键挂载多语言等扩展属性，减少 DB 聚合查询带来的 `GROUP BY` 基数膨胀。
 2. **S8.2 父子层级 (Hierarchy Tree)**: 允许声明 `hierarchyMode=tree`，实现从平铺行数据到树形嵌套对象 (`TreeNode`) 的转换，支持父节点自动汇集。
 3. **S8.3 Non-Additive Rollup**: 彻底取代了旧有的盲目 `SUM` 策略，支持基于 QueryModel 分析聚合特性，使用批量 `UNION ALL` (以及安全降级机制) 生成精准的跨层级小计。
+4. **SQL TopN/Having Pushdown**: 对安全可包裹的 managed queryModel SQL 关系，将轴级 Having 与 TopN 下推到 CTE/window SQL 中执行，降低内存截断和大结果集传输风险；不满足能力条件时 fail-closed 回落到内存路径。
 
 **已知限制 (Known Limitations)**:
 1. `hierarchyMode=tree` 仅支持在 `rows` 轴使用，并且不能与 `crossjoin=true` 稀疏展开混用。
 2. `hierarchyMode=tree` 的树形模式暂不支持内存 `subtotals` 自动补全（父子关系本身已充当了 Subtotal，引擎不允许叠加开启）。
 3. 极其复杂的 CTE 模型或特定旧版方言 (如 SQL Server 早期版本) 的辅助查询中，`UNION ALL` 合并可能失败，系统会自动降级为串行查询，确保可用性但性能略有折损。
 4. 当前并不支持 `ROLLUP_TO` / `CELL_AT` 等高级 MDX 坐标系漫游函数。父级占比已通过 `parentShare` 第一版覆盖；跨轴绝对坐标引用不得用 `REMOVE(...)` 假装等价，应在 Guardrail 中明确标注为待实现或降级到 `compose_script`。
+5. SQL TopN/Having Pushdown 的 non-additive subtotal/grandTotal domain 超过 500 时按设计 fail-closed。性能基线已确认 9.0.0.beta 不需要立即启动大 domain transport；后续如 telemetry 证明需要，再单独设计 value-table / temp-table / CTE-join 域传输方案。
 
 ## Evidence
 
@@ -109,14 +117,31 @@ evidence_count: 14
   - Result: `Tests run: 50, Failures: 0, Errors: 0, Skipped: 0`
   - `mvn test -pl foggy-dataset-mcp "-Dtest=AnalystMcpControllerTest,LocalDatasetAccessorGovernanceTest,QueryModelToolTest,MetadataToolTest,ComposeScriptToolBindingTest,PivotSchemaValidationTest" "-P!multi-db"`
   - Result: `Tests run: 61, Failures: 0, Errors: 0, Skipped: 0`
+  - SQL TopN/Having Pushdown acceptance rerun:
+    - `mvn -pl foggy-dataset-model -P!multi-db "-DfailIfNoTests=false" "-Dtest=PivotSqlParityIntegrationTest#testSqlPushdownNonAdditiveRollupWithTopNAndSubtotalsParity+testSqlPushdownTriggeredInNormalExecution,PivotAxisDomainSqlPlannerTest#testBaseRelationParamsWithHavingAndLimit,NonAdditiveRollupExecutorDomainSliceTest" test`
+    - Result: `Tests run: 14, Failures: 0, Errors: 0, Skipped: 0`
+  - SQL TopN/Having Pushdown reported full regression:
+    - Result: `2392 tests run, 0 failures, 0 errors`
+  - SQL TopN/Having Pushdown cross-database verification:
+    - SQLite default path passed.
+    - MySQL 5.7 legacy profile passed through guarded memory fallback.
+    - PostgreSQL CTE/window path passed.
+  - SQL TopN/Having Pushdown performance baseline:
+    - `mvn -pl foggy-dataset-model -P!multi-db "-DfailIfNoTests=false" "-Dtest=PivotSqlPerformanceBaselineTest" test`
+    - Result: `Tests run: 1, Failures: 0, Errors: 0, Skipped: 0`
+    - Recorded benchmark evidence includes SQLite / MySQL 8.0 / PostgreSQL sampling and S5 `600 > 500` fail-closed validation.
 - Delivery Artifacts:
   - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/pivot/`
   - `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/semantic/domain/pivot/`
   - `foggy-dataset-mcp/src/main/resources/schemas/query_model_v3_schema.json`
   - `foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotSqlParityIntegrationTest.java`
   - `docs/9.0.0.beta/detailed_design/`
+- `docs/9.0.0.beta/acceptance/pivot-sql-topn-pushdown-acceptance.md`
+- `docs/9.0.0.beta/acceptance/pivot-sql-topn-pushdown-performance-baseline.md`
+- `docs/9.0.0.beta/acceptance/pivot-sql-topn-pushdown-performance-baseline-acceptance.md`
 - Coverage:
   - `docs/9.0.0.beta/test_coverage/pivot-dsl-coverage-audit.md`
+  - `docs/9.0.0.beta/test_coverage/pivot-sql-topn-pushdown-coverage-audit.md`
 
 ## Blocking Items
 
@@ -128,7 +153,9 @@ evidence_count: 14
 - CI 尚未接入 S13 release readiness 脚本；在 CI 具备 MySQL8 / PostgreSQL 容器编排前，发布前仍需由 release owner 在本地或专用环境执行脚本。
 - `CELL_AT` / `AXIS_MEMBER`：状态为 `rejected-for-public-dsl`——不作为 LLM 可生成的公开 DSL 暴露。高频跨轴引用场景已由 S12 `baselineRatio` 结构化派生指标完全覆盖。
 - `ROLLUP_TO`：不作为公开函数字符串暴露，等价语义已通过 `pivot.metrics` 的 `parentShare` 结构化类型实现第一版。
-- 级联多层 Generate（多个层级同时设置 `limit`）：状态为 `deferred / known-limitation`。单层分组 TopN 已覆盖多数场景，级联需求频率低。当前 `AxisTopNTruncator` 在中间层的排序基于明细行而非中间聚合值，可能产生错误排名。
+- 级联多层 Generate（多个层级同时设置 `limit`）：状态为 `deferred / known-limitation`。单层分组 TopN 已覆盖多数场景，级联需求频率低。当前 `AxisTopNTruncator` 在中间层的排序基于明细行而非中间聚合值，可能产生错误排名。后续支持已迁移到 `docs/9.1.0/` 路线图。
+- SQL TopN/Having Pushdown：non-additive subtotal/grandTotal 的 domain > 500 时按设计 fail-closed，避免静默错误；Stage 5A spike 结论为 No-Go for 9.0.0.beta，后续大 domain transport 已迁移到 `docs/9.1.0/` 路线图。
+- SQL TopN/Having Pushdown：MySQL 5.7 不具备所需 CTE/window 能力，验收口径为受控 fallback 到内存路径，不声明 SQL-shape parity。
 - `UNION ALL` 批量路径已有真实链路覆盖；后续仍可把断言加强为 Pivot key set 与 SQL key set 完全一致，作为非阻断测试打磨项。
 - ~~REST `RX` 与 MCP JSON-RPC Error Object 的端到端错误响应包装证据不完整，建议后续补网关层集成测试。~~ (已在 S10 收口修复)
 - ~~`UNION ALL` batch merge 已实现并有集成链路覆盖，但 fallback、分批边界和列对齐建议增加更细的单元/集成测试。~~ (列对齐 P0 Bug 已修复，相关测试已在 S10 补齐)
@@ -138,14 +165,14 @@ evidence_count: 14
 
 Decision: `accepted-with-risks`.
 
-9.0.0.beta Pivot DSL 的 Java Core 与 MCP Schema 已满足当前签收范围内的核心验收标准：功能链路完整、主要边界有 guardrail、Non-Additive Rollup 已从 correctness prototype 收口到 UNION ALL batch merge，且合法 Pivot 能力已通过 SQLite、MySQL8、PostgreSQL 的真实 SQL Parity 验收。上述风险项不阻断 Java Core + MCP Schema 的阶段性签收，但必须作为后续版本或发布前质量补强项跟踪。
+9.0.0.beta Pivot DSL 的 Java Core 与 MCP Schema 已满足当前签收范围内的核心验收标准：功能链路完整、主要边界有 guardrail、Non-Additive Rollup 已从 correctness prototype 收口到 UNION ALL batch merge，SQL TopN/Having Pushdown 已完成 managed queryModel 路径、Stage 4 non-additive rollup 对齐、跨库验证和性能基线验收，且合法 Pivot 能力已通过 SQLite、MySQL8、PostgreSQL 的真实 SQL Parity 验收。上述风险项不阻断 Java Core + MCP Schema 的阶段性签收，但必须作为后续版本或发布前质量补强项跟踪。
 
 ## Signoff Marker
 
 - acceptance_status: signed-off
 - acceptance_decision: accepted-with-risks
 - signed_off_by: codex
-- signed_off_at: 2026-05-01
+- signed_off_at: 2026-05-02
 - acceptance_record: docs/9.0.0.beta/acceptance/version-signoff.md
 - blocking_items: none
 - follow_up_required: yes

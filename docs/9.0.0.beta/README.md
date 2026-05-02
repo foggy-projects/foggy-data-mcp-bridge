@@ -7,7 +7,7 @@ V9.0.0.beta 标志着 Foggy Dataset 对多维分析 (Pivot) 能力的全面升�
 ### 核心特性：
 - **独立的 Pivot AST 与 DSL**：使用 `rows`, `columns`, `metrics` 替代旧版结构，支持网格、树状和扁平三种形态输出。
 - **动态列维度交叉与稀疏展开 (CrossJoin)**：允许智能识别列基数，实现多轴嵌套展示。
-- **高级过滤与截断 (Having / TopN)**：轴级别的结果后过滤与 TopN 截断。
+- **高级过滤与截断 (Having / TopN)**：轴级别的结果后过滤与 TopN 截断；符合能力条件时可通过 managed queryModel relation 下推到 SQL CTE/window 层执行，不满足条件时受控回落到内存路径。
 - **父子层级树 (Hierarchy Tree)**：通过 `hierarchyMode=tree` 自动组装嵌套维度树，递归汇总度量。
 - **结构化父级占比 (parentShare)**：通过 `pivot.metrics` 对象元素表达子级占父级比例，替代公开 `ROLLUP_TO` 函数字符串。
 - **Non-Additive Rollup**：基于元数据分析度量的可加性，对于 `COUNT DISTINCT` 等不可加度量，自动改写为批量 `UNION ALL` 查询以生成安全且精确的跨层级小计与总计。
@@ -19,8 +19,12 @@ V9.0.0.beta 标志着 Foggy Dataset 对多维分析 (Pivot) 能力的全面升�
 - **小计生成互斥**：当启用树形展开 (`hierarchyMode=tree`) 时，暂不支持再通过内存 `subtotals` 自动补全，因为树的父子节点本身已经起到了小计的作用。
 - **MDX 坐标能力状态**：`CELL_AT` / `AXIS_MEMBER` 状态为 `rejected-for-public-dsl`——不作为 LLM 可生成的公开 DSL。`ROLLUP_TO` 不作为公开函数字符串；父级占比已由 S11 `parentShare` 第一版覆盖。高频跨轴基准引用已由 S12 `baselineRatio` 结构化派生指标完全覆盖。
 - **级联 Generate**：状态为 `deferred / known-limitation`。单层分组 TopN 已支持，级联多层截断暂缓。
+- **SQL TopN/Having Pushdown 边界**：MySQL 5.7 等不具备 CTE/window 能力的方言走内存 fallback；non-additive subtotal/grandTotal 的 domain 超过 500 时按设计 fail-closed，避免静默错误。
+- **Stage 5A 大域传输**：9.0.0.beta 不默认启用；当前 spike 结论为 No-Go for 9.0.0.beta，后续归入 `../9.1.0/` 路线图。
 - **辅助查询性能开销**：如果在复杂的 CTE 场景或旧版方言中生成小计，`UNION ALL` 合并可能受限，系统将降级为多次串行查询执行，从而在超大数据集上可能带来额外的查询开销。
 - **Python 端功能镜像**：目前 Pivot V9.0 仅在 Java Core 与 MCP Schema 层完成冻结与 Parity 测试，Python 镜像暂未完全对齐（详见 `s10_python_parity_plan.md`）。
+
+未来计划支持但不属于 9.0.0.beta 发布阻断的 Java 引擎事项，统一迁移到 `../9.1.0/README.md` 跟踪。
 
 ## 3. 示例请求与预期响应 (Examples)
 
@@ -119,4 +123,4 @@ mvn test -pl foggy-dataset-model -Dtest=PivotSqlParityIntegrationTest -Dspring.p
 mvn test -pl foggy-dataset-model -Dtest=PivotSqlParityIntegrationTest -Dspring.profiles.active=mysql8 -P!multi-db
 ```
 
-*注意: MySQL8 / PostgreSQL Parity 需要 `foggy-demo-mysql8` 与 `foggy-demo-postgres` 容器处于运行状态。`docker` / MySQL 5.7 是 legacy profile，不作为 S12/S13 baselineRatio parity 签收目标。*
+*注意: MySQL8 / PostgreSQL Parity 需要 `foggy-demo-mysql8` 与 `foggy-demo-postgres` 容器处于运行状态。`docker` / MySQL 5.7 是 legacy profile；对 SQL TopN/Having Pushdown 的验收口径是验证其受控 fallback，而不是要求生成 CTE/window SQL。*
