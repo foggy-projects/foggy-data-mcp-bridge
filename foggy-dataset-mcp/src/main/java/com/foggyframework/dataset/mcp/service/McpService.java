@@ -107,7 +107,8 @@ public class McpService {
 
         try {
             Object result = toolDispatcher.executeTool(toolName, arguments, context.getTraceId(), context.getRequestId(),
-                    context.getAuthorization(), context.getUserRole().name(), context.getNamespace());
+                    context.getAuthorization(), context.getUserRole().name(), context.getNamespace(),
+                    context.getHeaders());
 
             return McpResponse.success(request.getId(), buildToolsCallResult(toolName, result));
 
@@ -159,7 +160,8 @@ public class McpService {
 
         try {
             Object result = toolDispatcher.executeTool(toolName, arguments, context.getTraceId(), context.getRequestId(),
-                    context.getAuthorization(), context.getUserRole().name(), context.getNamespace());
+                    context.getAuthorization(), context.getUserRole().name(), context.getNamespace(),
+                    context.getHeaders());
             return McpResponse.success(request.getId(), result);
         } catch (Exception e) {
             log.error("Direct tool call failed: name={}, role={}, error={}", toolName, context.getUserRole(), e.getMessage(), e);

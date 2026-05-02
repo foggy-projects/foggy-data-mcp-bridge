@@ -116,6 +116,7 @@ public class SqlFragment {
         f.inferredType = inferBinaryType(left.inferredType, operator, right.inferredType);
         // 继承聚合状态
         f.hasAggregate = left.hasAggregate || right.hasAggregate;
+        f.hasWindow = left.hasWindow || right.hasWindow;
         // 复合聚合表达式不设置单一聚合类型
         return f;
     }
@@ -134,6 +135,7 @@ public class SqlFragment {
         f.inferredType = "NOT".equalsIgnoreCase(operator) ? DbColumnType.BOOL : operand.inferredType;
         // 继承聚合状态
         f.hasAggregate = operand.hasAggregate;
+        f.hasWindow = operand.hasWindow;
         f.aggregationType = operand.aggregationType;
         return f;
     }
@@ -242,6 +244,7 @@ public class SqlFragment {
         f.inferredType = args.isEmpty() ? DbColumnType.UNKNOWN : args.get(0).inferredType;
         // 继承聚合状态
         f.hasAggregate = args.stream().anyMatch(SqlFragment::isHasAggregate);
+        f.hasWindow = args.stream().anyMatch(SqlFragment::isHasWindow);
         return f;
     }
 

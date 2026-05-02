@@ -6,6 +6,8 @@ import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
+import com.foggyframework.dataset.db.model.engine.compose.schema.AliasExtractor;
+import com.foggyframework.dataset.db.model.engine.compose.schema.ColumnAliasParts;
 import com.foggyframework.dataset.db.model.engine.expression.CalculatedFieldService;
 import com.foggyframework.dataset.db.model.engine.expression.InlineExpressionParser;
 import com.foggyframework.dataset.db.model.semantic.domain.DeniedPhysicalColumn;
@@ -119,6 +121,11 @@ public class FieldAccessPermissionStep implements DataSetResultStep {
 
     /**
      * 校验 columns 列表
+     * <p>
+     * G5 v2-patch-2：F4 plain-field alias-only 形态 {@code "base AS alias"} 在
+     * {@code InlineExpressionParser.parse()} 返回 null 时，由 {@link AliasExtractor}
+     * 剥离 alias，仅按 base 字段做 fieldAccess / deniedColumns 校验，alias 不进入权限维度。
+     * 函数表达式 {@code "SUM(x) AS y"} 由 {@code parse()} 接管，不走到此分支。
      */
     private void validateColumns(List<String> columns, Set<String> fieldAccess,
                                   Set<String> deniedQmFields, Map<String, String> calcFieldMap) {
@@ -130,9 +137,32 @@ public class FieldAccessPermissionStep implements DataSetResultStep {
             if (parsed != null) {
                 validateExpressionDeps(parsed.getExpression(), column, "columns", fieldAccess, deniedQmFields, calcFieldMap);
             } else {
-                String baseField = stripDimensionSuffix(column);
-                checkField(baseField, column, "columns", fieldAccess, deniedQmFields);
+                String fieldForCheck = stripAliasIfPresent(column);
+                String baseField = stripDimensionSuffix(fieldForCheck);
+                checkField(baseField, fieldForCheck, "columns", fieldAccess, deniedQmFields);
             }
+        }
+    }
+
+    /**
+     * G5 v2-patch-2：剥离 plain-field alias，仅返回 base 表达式。
+     * <p>
+     * 仅处理 {@code "base AS alias"} 形态（{@link AliasExtractor} 已限定 alias 必须是
+     * 简单 identifier）。函数表达式由 {@link InlineExpressionParser#parse(String)} 接管，
+     * 本方法不应在 {@code parse() != null} 的分支调用。
+     *
+     * <p>失败保护：{@link AliasExtractor#extract(String)} 抛 {@code IllegalArgumentException}
+     * 时（如空串、仅空白），fallback 到原始字符串，由下游校验暴露原错误信息。
+     */
+    private static String stripAliasIfPresent(String column) {
+        if (column == null) {
+            return null;
+        }
+        try {
+            ColumnAliasParts parts = AliasExtractor.extract(column);
+            return parts.hasAlias() ? parts.expression() : column;
+        } catch (IllegalArgumentException ex) {
+            return column;
         }
     }
 

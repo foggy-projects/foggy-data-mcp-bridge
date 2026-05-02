@@ -1,0 +1,15 @@
+{
+  "description": "NEGATIVE: rolling_7d × month grain is incompatible",
+  "comparison": "rolling_7d",
+  "grain": "month",
+  "label": "negative-grain-incompat",
+  "timeWindow": {
+    "field": "salesDate$id",
+    "grain": "month",
+    "comparison": "rolling_7d",
+    "range": "[)",
+    "value": ["2024-01-01", "2025-01-01"],
+    "targetMetrics": ["salesAmount"]
+  },
+  "expectedError": "TIMEWINDOW_GRAIN_INCOMPATIBLE"
+}

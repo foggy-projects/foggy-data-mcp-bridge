@@ -21,6 +21,10 @@ public class SqlLiteralExp extends AbstractExp<String> {
         super(literal);
     }
 
+    public String getLiteral() {
+        return value;
+    }
+
     @Override
     public Object evalValue(ExpEvaluator evaluator) {
         return SqlFragment.ofLiteral(value);

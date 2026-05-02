@@ -18,11 +18,11 @@ import static org.junit.jupiter.api.Assertions.*;
 class ToolConfigLoaderTest {
 
     @Test
-    @DisplayName("getBuiltinDefaults 应返回 9 个内置工具")
-    void testBuiltinDefaults_ShouldReturn8Tools() {
+    @DisplayName("getBuiltinDefaults 应返回 10 个内置工具")
+    void testBuiltinDefaults_ShouldReturn10Tools() {
         List<McpProperties.ToolConfigItem> defaults = ToolConfigLoader.getBuiltinDefaults();
 
-        assertEquals(9, defaults.size());
+        assertEquals(10, defaults.size());
 
         // 验证每个工具都有完整配置
         for (McpProperties.ToolConfigItem tool : defaults) {
@@ -47,7 +47,16 @@ class ToolConfigLoaderTest {
         assertTrue(names.contains("dataset.open_in_viewer"), "Should contain open_in_viewer");
         assertTrue(names.contains("dataset_nl.query"), "Should contain nl.query");
         assertTrue(names.contains("chart.generate"), "Should contain chart.generate");
-        assertTrue(names.contains("dataset.compose_query"), "Should contain compose_query");
+        assertTrue(names.contains("dataset.list_models"), "Should contain list_models");
+        assertTrue(names.contains("dataset.compose_script"), "Should contain compose_script");
+        assertFalse(names.contains("dataset.compose_query"), "Should not contain legacy compose_query");
+
+        McpProperties.ToolConfigItem composeScript = defaults.stream()
+                .filter(tool -> "dataset.compose_script".equals(tool.getName()))
+                .findFirst()
+                .orElseThrow();
+        assertTrue(composeScript.getDescriptionFile().contains("compose_script_m2.md"),
+                "compose_script should use the latest M2 script description");
     }
 
     @Test
@@ -78,13 +87,13 @@ class ToolConfigLoaderTest {
 
     /**
      * 模拟 application-lite.yml 场景：
-     * YAML 只配了 1 个 disabled 条目，验证合并后其他 7 个默认工具不丢失
+     * YAML 只配了 1 个 disabled 条目，验证合并后其他默认工具不丢失
      *
      * <p>这是之前的 BUG 场景：Spring Boot 用 lite profile 的 tools 列表
-     * 整体替换主 application.yml 的 8 个工具，导致只剩 1 个。
+     * 整体替换主 application.yml 的默认工具，导致只剩 1 个。
      */
     @Test
-    @DisplayName("lite profile: YAML 只禁用 open_in_viewer，其他 8 个默认工具应保留")
+    @DisplayName("lite profile: YAML 只禁用 open_in_viewer，其他默认工具应保留")
     void testLiteProfileScenario_ShouldKeepAllDefaultsExceptDisabled() {
         // 模拟 application-lite.yml 的 tools 配置
         McpProperties props = new McpProperties();
@@ -97,7 +106,7 @@ class ToolConfigLoaderTest {
         simulateMerge(props);
 
         // 验证结果
-        assertEquals(9, props.getTools().size(), "Should still have 9 tools after merge");
+        assertEquals(10, props.getTools().size(), "Should still have 10 tools after merge");
 
         // open_in_viewer 应该被禁用
         McpProperties.ToolConfigItem viewer = findTool(props, "dataset.open_in_viewer");
@@ -127,7 +136,7 @@ class ToolConfigLoaderTest {
 
         simulateMerge(props);
 
-        assertEquals(9, props.getTools().size());
+        assertEquals(10, props.getTools().size());
         for (McpProperties.ToolConfigItem tool : props.getTools()) {
             assertNotNull(tool.getDescriptionFile(), "Should have descriptionFile for " + tool.getName());
             assertNotNull(tool.getSchemaFile(), "Should have schemaFile for " + tool.getName());
@@ -166,8 +175,8 @@ class ToolConfigLoaderTest {
 
         simulateMerge(props);
 
-        assertEquals(10, props.getTools().size(), "9 defaults + 1 custom");
-        McpProperties.ToolConfigItem last = props.getTools().get(9);
+        assertEquals(11, props.getTools().size(), "10 defaults + 1 custom");
+        McpProperties.ToolConfigItem last = props.getTools().get(10);
         assertEquals("custom.my_tool", last.getName());
         assertEquals("classpath:/custom/tool.md", last.getDescriptionFile());
     }

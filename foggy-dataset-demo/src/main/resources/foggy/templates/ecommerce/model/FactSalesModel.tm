@@ -23,6 +23,8 @@ export const model = {
             caption: '销售日期',
             description: '订单发生的日期',
             keyDescription: '日期主键，格式yyyyMMdd，如20240101',
+            timeRole: 'business_date',
+            recommendedUse: 'time_axis',
 
             properties: [
                 { column: 'year', caption: '年', description: '销售发生的年份' },

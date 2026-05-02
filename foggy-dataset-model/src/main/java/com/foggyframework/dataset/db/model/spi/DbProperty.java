@@ -24,11 +24,21 @@ public interface DbProperty extends DbObject {
         return false;
     }
 
-    /**
-     * 获取字典引用ID
-     * @return 字典ID，如果未设置返回null
-     */
     default String getDictRef() {
+        return null;
+    }
+
+    /**
+     * 获取时间角色语义 (e.g. business_date, event_time, system_time)
+     */
+    default String getTimeRole() {
+        return null;
+    }
+
+    /**
+     * 获取推荐用途说明
+     */
+    default String getRecommendedUse() {
         return null;
     }
 }

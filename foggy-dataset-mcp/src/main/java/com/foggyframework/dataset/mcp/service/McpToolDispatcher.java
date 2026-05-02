@@ -141,6 +141,15 @@ public class McpToolDispatcher {
      */
     public Object executeTool(String toolName, Map<String, Object> arguments, String traceId,
                               String requestId, String authorization, String userRole, String namespace) {
+        return executeTool(toolName, arguments, traceId, requestId, authorization, userRole, namespace, null);
+    }
+
+    /**
+     * 执行工具（同步）- 完整版，支持审计、命名空间和请求头快照
+     */
+    public Object executeTool(String toolName, Map<String, Object> arguments, String traceId,
+                              String requestId, String authorization, String userRole, String namespace,
+                              Map<String, String> headers) {
         McpTool tool = toolRegistry.get(toolName);
 
         if (tool == null) {
@@ -158,6 +167,7 @@ public class McpToolDispatcher {
                     .authorization(authorization)
                     .userRole(userRole)
                     .namespace(namespace)
+                    .headers(headers == null ? new LinkedHashMap<>() : new LinkedHashMap<>(headers))
                     .build();
 
             Object result = tool.execute(arguments, context);
@@ -242,6 +252,14 @@ public class McpToolDispatcher {
      * @return 进度事件流
      */
     public Flux<ProgressEvent> executeWithProgress(McpRequest request, String traceId, String authorization, String namespace) {
+        return executeWithProgress(request, traceId, authorization, namespace, null);
+    }
+
+    /**
+     * 执行工具（带进度流），支持请求头快照
+     */
+    public Flux<ProgressEvent> executeWithProgress(McpRequest request, String traceId, String authorization,
+                                                   String namespace, Map<String, String> headers) {
         Map<String, Object> params = request.getParams();
         if (params == null) {
             return Flux.just(ProgressEvent.error("INVALID_PARAMS", "Missing params"));
@@ -274,6 +292,7 @@ public class McpToolDispatcher {
                 .traceId(traceId)
                 .authorization(authorization)
                 .namespace(namespace)
+                .headers(headers == null ? new LinkedHashMap<>() : new LinkedHashMap<>(headers))
                 .build();
 
         // 检查工具是否支持流式执行

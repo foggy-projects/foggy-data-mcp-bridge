@@ -1,0 +1,86 @@
+param(
+    [switch]$SkipFullRegression,
+    [switch]$SkipExternalDb,
+    [switch]$SkipMcp
+)
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = "Stop"
+
+$repoRoot = Split-Path -Parent $PSScriptRoot
+Set-Location $repoRoot
+
+function Invoke-ReleaseStep {
+    param(
+        [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)][string[]]$Arguments
+    )
+
+    Write-Host ""
+    Write-Host "==> $Name" -ForegroundColor Cyan
+    Write-Host "mvn $($Arguments -join ' ')" -ForegroundColor DarkGray
+    & mvn @Arguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "Step failed: $Name"
+    }
+}
+
+function Assert-DockerContainer {
+    param(
+        [Parameter(Mandatory = $true)][string]$Name
+    )
+
+    $status = docker inspect -f "{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}" $Name 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Required container '$Name' is not available. Start foggy-dataset-demo docker services before external DB parity."
+    }
+    if ($status -notmatch "^running") {
+        throw "Required container '$Name' is not running. Current status: $status"
+    }
+    Write-Host "Container OK: $Name ($status)" -ForegroundColor Green
+}
+
+if (-not $SkipFullRegression) {
+    Invoke-ReleaseStep "Full module regression" @("test", "-P!multi-db")
+}
+
+Invoke-ReleaseStep "SQLite pivot SQL parity" @(
+    "test",
+    "-pl", "foggy-dataset-model",
+    "-Dtest=PivotSqlParityIntegrationTest",
+    "-Dspring.profiles.active=sqlite",
+    "-P!multi-db"
+)
+
+if (-not $SkipMcp) {
+    Invoke-ReleaseStep "MCP schema and JSON-RPC guardrail" @(
+        "test",
+        "-pl", "foggy-dataset-mcp",
+        "-Dtest=PivotSchemaValidationTest,AnalystMcpControllerTest",
+        "-P!multi-db"
+    )
+}
+
+if (-not $SkipExternalDb) {
+    Assert-DockerContainer "foggy-demo-mysql8"
+    Assert-DockerContainer "foggy-demo-postgres"
+
+    Invoke-ReleaseStep "MySQL8 pivot SQL parity" @(
+        "test",
+        "-pl", "foggy-dataset-model",
+        "-Dtest=PivotSqlParityIntegrationTest",
+        "-Dspring.profiles.active=mysql8",
+        "-P!multi-db"
+    )
+
+    Invoke-ReleaseStep "PostgreSQL pivot SQL parity" @(
+        "test",
+        "-pl", "foggy-dataset-model",
+        "-Dtest=PivotSqlParityIntegrationTest",
+        "-Dspring.profiles.active=postgres",
+        "-P!multi-db"
+    )
+}
+
+Write-Host ""
+Write-Host "Pivot V9 release readiness verification passed." -ForegroundColor Green

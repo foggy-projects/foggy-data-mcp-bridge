@@ -1,5 +1,7 @@
 package com.foggyframework.dataset.db.model.engine.compose;
 
+import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
+import com.foggyframework.dataset.db.model.engine.compose.plan.ColumnObjectNormalizer;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
@@ -137,7 +139,7 @@ public class DslQueryFunction implements FsscriptFunction {
      * 将 fsscript 对象参数映射为 {@link SemanticQueryRequest}
      *
      * <p>支持的字段与 {@code dataset.query_model} 的 payload 一致：
-     * columns, slice, orderBy, groupBy, limit, start, returnTotal, distinct, calculatedFields</p>
+     * columns, slice, orderBy, groupBy, limit, start, returnTotal, distinct, calculatedFields, timeWindow</p>
      */
     @SuppressWarnings("unchecked")
     private SemanticQueryRequest buildRequest(Map<String, Object> params) {
@@ -165,6 +167,17 @@ public class DslQueryFunction implements FsscriptFunction {
         Object groupBy = params.get("groupBy");
         if (groupBy instanceof List) {
             request.setGroupBy(convertGroupByItems((List<?>) groupBy));
+        }
+
+        // timeWindow -- object shape matches SemanticQueryRequest.timeWindow
+        Object timeWindow = params.get("timeWindow");
+        if (timeWindow instanceof Map) {
+            request.setTimeWindow(new LinkedHashMap<>((Map<String, Object>) timeWindow));
+        }
+
+        Object calculatedFields = params.get("calculatedFields");
+        if (calculatedFields instanceof List) {
+            request.setCalculatedFields(convertCalculatedFields((List<?>) calculatedFields));
         }
 
         // limit
@@ -295,14 +308,43 @@ public class DslQueryFunction implements FsscriptFunction {
         return result;
     }
 
-    private List<String> toStringList(List<?> raw) {
-        List<String> result = new ArrayList<>(raw.size());
-        for (Object o : raw) {
-            if (o != null) {
-                result.add(o.toString());
+    @SuppressWarnings("unchecked")
+    private List<CalculatedFieldDef> convertCalculatedFields(List<?> rawCalculatedFields) {
+        List<CalculatedFieldDef> result = new ArrayList<>();
+        for (Object item : rawCalculatedFields) {
+            if (item instanceof CalculatedFieldDef def) {
+                result.add(def);
+            } else if (item instanceof Map) {
+                result.add(convertCalculatedField((Map<String, Object>) item));
             }
         }
         return result;
+    }
+
+    private CalculatedFieldDef convertCalculatedField(Map<String, Object> map) {
+        CalculatedFieldDef def = new CalculatedFieldDef();
+        def.setName((String) map.get("name"));
+        def.setCaption((String) map.get("caption"));
+        def.setExpression((String) map.get("expression"));
+        def.setDescription((String) map.get("description"));
+        def.setAgg((String) map.get("agg"));
+        return def;
+    }
+
+    /**
+     * Convert a column list to {@code List<String>} required by
+     * {@link SemanticQueryRequest#setColumns(List)}.
+     *
+     * <p>G5 Phase 1 (F4): {@link Map} entries (e.g. {@code {field, agg, as}}) are
+     * normalized to their canonical string form (e.g. {@code "SUM(amount) AS total"})
+     * via {@link ColumnObjectNormalizer}. F1-F3 string entries pass through unchanged.
+     * Other types (rare in this legacy path) fall back to {@code toString()}.</p>
+     *
+     * <p>Throws {@link IllegalArgumentException} with a {@code COLUMN_*} error-code
+     * prefix on F4 validation failure (missing field, unknown agg, etc.).</p>
+     */
+    private List<String> toStringList(List<?> raw) {
+        return ColumnObjectNormalizer.normalizeColumnsToStrings(raw);
     }
 
     // ---- FsscriptFunction 接口方法 ----

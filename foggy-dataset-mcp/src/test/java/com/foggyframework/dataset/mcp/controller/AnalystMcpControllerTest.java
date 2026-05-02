@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.dataset.mcp.enums.UserRole;
 import com.foggyframework.dataset.mcp.schema.McpError;
 import com.foggyframework.dataset.mcp.schema.McpRequest;
+import com.foggyframework.dataset.mcp.schema.McpRequestContext;
 import com.foggyframework.dataset.mcp.schema.McpResponse;
 import com.foggyframework.dataset.mcp.service.McpService;
 import com.foggyframework.dataset.mcp.service.McpToolDispatcher;
@@ -85,6 +86,30 @@ class AnalystMcpControllerTest {
 
             verify(mcpService).handleToolsList(any(McpRequest.class), eq(UserRole.ANALYST));
         }
+
+        @Test
+        @DisplayName("tools/list 应包含 dataset.list_models")
+        void toolsList_shouldContainListModels() throws Exception {
+            McpResponse mockResponse = McpResponse.success("1", Map.of(
+                    "tools", List.of(
+                            Map.of("name", "dataset.list_models", "description", "发现所有可用模型"),
+                            Map.of("name", "dataset.get_metadata", "description", "获取元数据"),
+                            Map.of("name", "dataset.query_model", "description", "查询模型")
+                    )
+            ));
+
+            when(mcpService.handleToolsList(any(McpRequest.class), eq(UserRole.ANALYST)))
+                    .thenReturn(mockResponse);
+
+            mockMvc.perform(post("/mcp/analyst/rpc")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"jsonrpc":"2.0","id":"1","method":"tools/list","params":{}}
+                                    """))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.result.tools[*].name",
+                            hasItem("dataset.list_models")));
+        }
     }
 
     // ==================== tools/call 测试 ====================
@@ -103,7 +128,7 @@ class AnalystMcpControllerTest {
                     ))
             ));
 
-            when(mcpService.handleToolsCall(any(McpRequest.class), eq(UserRole.ANALYST), any(), any(), any(), any()))
+            when(mcpService.handleToolsCall(any(McpRequest.class), any(McpRequestContext.class)))
                     .thenReturn(mockResponse);
 
             mockMvc.perform(post("/mcp/analyst/rpc")
@@ -125,6 +150,37 @@ class AnalystMcpControllerTest {
         }
 
         @Test
+        @DisplayName("Analyst 调用 list_models 工具应成功")
+        void analyst_shouldAccessListModelsTool() throws Exception {
+            McpResponse mockResponse = McpResponse.success("1", Map.of(
+                    "content", List.of(Map.of(
+                            "type", "text",
+                            "text", "{\"code\":200,\"data\":{\"format\":\"markdown\",\"content\":\"# 数据模型列表\"}}"
+                    ))
+            ));
+
+            when(mcpService.handleToolsCall(any(McpRequest.class), any(McpRequestContext.class)))
+                    .thenReturn(mockResponse);
+
+            mockMvc.perform(post("/mcp/analyst/rpc")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {
+                                      "jsonrpc":"2.0",
+                                      "id":"1",
+                                      "method":"tools/call",
+                                      "params":{
+                                        "name":"dataset.list_models",
+                                        "arguments":{}
+                                      }
+                                    }
+                                    """))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.result.content").isArray())
+                    .andExpect(jsonPath("$.error").doesNotExist());
+        }
+
+        @Test
         @DisplayName("Analyst 调用 Query 工具应成功")
         void analyst_shouldAccessQueryTool() throws Exception {
             McpResponse mockResponse = McpResponse.success("1", Map.of(
@@ -134,7 +190,7 @@ class AnalystMcpControllerTest {
                     ))
             ));
 
-            when(mcpService.handleToolsCall(any(McpRequest.class), eq(UserRole.ANALYST), any(), any(), any(), any()))
+            when(mcpService.handleToolsCall(any(McpRequest.class), any(McpRequestContext.class)))
                     .thenReturn(mockResponse);
 
             mockMvc.perform(post("/mcp/analyst/rpc")
@@ -159,6 +215,43 @@ class AnalystMcpControllerTest {
         }
 
         @Test
+        @DisplayName("Analyst 调用 Query 工具包含非法的 pivot 参数应返回 JSON-RPC 错误")
+        void analyst_shouldReturnJsonRpcErrorOnInvalidPivot() throws Exception {
+            McpResponse mockResponse = McpResponse.error("1", McpError.INVALID_PARAMS,
+                    "Invalid pivot request: tree hierarchy mode is not compatible with subtotals");
+
+            when(mcpService.handleToolsCall(any(McpRequest.class), any(McpRequestContext.class)))
+                    .thenReturn(mockResponse);
+
+            mockMvc.perform(post("/mcp/analyst/rpc")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {
+                                      "jsonrpc":"2.0",
+                                      "id":"1",
+                                      "method":"tools/call",
+                                      "params":{
+                                        "name":"dataset.query_model",
+                                        "arguments":{
+                                          "model":"FactSalesModel",
+                                          "payload":{
+                                            "columns":["product$caption"],
+                                            "pivot": {
+                                               "rows": [{"field": "region", "hierarchyMode": "tree"}],
+                                               "options": {"withSubtotals": true}
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                    """))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.error").exists())
+                    .andExpect(jsonPath("$.error.code").value(McpError.INVALID_PARAMS))
+                    .andExpect(jsonPath("$.error.message").value(containsString("tree hierarchy mode")));
+        }
+
+        @Test
         @DisplayName("Analyst 调用 Chart 工具应成功")
         void analyst_shouldAccessChartTool() throws Exception {
             McpResponse mockResponse = McpResponse.success("1", Map.of(
@@ -168,7 +261,7 @@ class AnalystMcpControllerTest {
                     ))
             ));
 
-            when(mcpService.handleToolsCall(any(McpRequest.class), eq(UserRole.ANALYST), any(), any(), any(), any()))
+            when(mcpService.handleToolsCall(any(McpRequest.class), any(McpRequestContext.class)))
                     .thenReturn(mockResponse);
 
             mockMvc.perform(post("/mcp/analyst/rpc")
@@ -198,7 +291,7 @@ class AnalystMcpControllerTest {
             McpResponse mockResponse = McpResponse.error("1", McpError.METHOD_NOT_FOUND,
                     "Tool not found or access denied: dataset_nl.query");
 
-            when(mcpService.handleToolsCall(any(McpRequest.class), eq(UserRole.ANALYST), any(), any(), any(), any()))
+            when(mcpService.handleToolsCall(any(McpRequest.class), any(McpRequestContext.class)))
                     .thenReturn(mockResponse);
 
             mockMvc.perform(post("/mcp/analyst/rpc")
@@ -268,7 +361,7 @@ class AnalystMcpControllerTest {
                     ))
             ));
 
-            when(mcpService.handleToolsCall(any(McpRequest.class), eq(UserRole.ANALYST), any(), any(), any(), any()))
+            when(mcpService.handleToolsCall(any(McpRequest.class), any(McpRequestContext.class)))
                     .thenReturn(mockResponse);
 
             mockMvc.perform(post("/mcp/analyst/rpc")

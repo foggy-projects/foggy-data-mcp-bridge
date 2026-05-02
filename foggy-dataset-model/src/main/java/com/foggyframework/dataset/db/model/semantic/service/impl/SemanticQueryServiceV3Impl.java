@@ -11,6 +11,8 @@ import com.foggyframework.dataset.db.model.def.query.request.CondRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.db.model.engine.JdbcModelQueryEngine;
 import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
+import com.foggyframework.dataset.db.model.engine.compose.schema.AliasExtractor;
+import com.foggyframework.dataset.db.model.engine.compose.schema.ColumnAliasParts;
 import com.foggyframework.dataset.db.model.engine.expression.InlineExpressionParser;
 import com.foggyframework.dataset.db.model.engine.query.DbQueryResult;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
@@ -24,10 +26,13 @@ import com.foggyframework.dataset.db.model.spi.DbQueryColumn;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
 import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
 import com.foggyframework.dataset.model.PagingResultImpl;
+import com.foggyframework.dataset.utils.DataSourceQueryUtils;
 import jakarta.annotation.Resource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+
+import javax.sql.DataSource;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -64,6 +69,25 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
     @Resource
     private DimensionMemberLoader dimensionMemberLoader;
 
+    @Resource
+    private DataSource dataSource;
+
+    /** Pivot 流水线（延迟初始化，避免循环依赖） */
+    private volatile com.foggyframework.dataset.db.model.engine.pivot.PivotPipeline pivotPipeline;
+
+    private com.foggyframework.dataset.db.model.engine.pivot.PivotPipeline getPivotPipeline() {
+        if (pivotPipeline == null) {
+            synchronized (this) {
+                if (pivotPipeline == null) {
+                    pivotPipeline = new com.foggyframework.dataset.db.model.engine.pivot.PivotPipeline(
+                            this, new com.foggyframework.dataset.db.model.engine.pivot.CardinalityBreaker(),
+                            queryModelLoader);
+                }
+            }
+        }
+        return pivotPipeline;
+    }
+
     @Override
     public SemanticQueryResponse queryModel(String model, SemanticQueryRequest request, String mode,
                                             SemanticRequestContext context) {
@@ -80,6 +104,11 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         Set<String> fieldAccess = reqContext.getFieldAccess();
         if ("validate".equals(mode)) {
             return validateQueryInternal(model, request, namespace);
+        }
+
+        // === 9.0.0 Pivot Pipeline 路由 ===
+        if (request.isPivotMode()) {
+            return getPivotPipeline().execute(model, request, reqContext);
         }
 
         if (request.getColumns() == null || request.getColumns().isEmpty()) {
@@ -113,9 +142,19 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         resultContext.setDeniedColumns(reqContext.getDeniedColumns());
         resultContext.setSystemSlice(reqContext.getSystemSlice());
 
-        // 将请求中的 hints 传递到 extData（用于 DataSetResultStep 插件）
+        // 将请求中的 hints 和 timeWindow 传递到 extData
+        Map<String, Object> extData = new HashMap<>();
         if (request.getHints() != null && !request.getHints().isEmpty()) {
-            resultContext.setExtData(new HashMap<>(request.getHints()));
+            extData.putAll(request.getHints());
+        }
+        if (request.getTimeWindow() != null && !request.getTimeWindow().isEmpty()) {
+            extData.put("timeWindow", request.getTimeWindow());
+        }
+        if (request.getCalculatedFields() != null && !request.getCalculatedFields().isEmpty()) {
+            extData.put("calculatedFields", new ArrayList<>(request.getCalculatedFields()));
+        }
+        if (!extData.isEmpty()) {
+            resultContext.setExtData(extData);
         }
 
         // 5. 使用 QueryFacade 执行完整查询生命周期（beforeQuery -> query -> process）
@@ -123,12 +162,51 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         PagingResultImpl queryResult = resultContext.getPagingResult();
         context.extData = resultContext.getExtData();
 
+        if (resultContext.isSkipQuery() && context.extData != null
+                && (context.extData.containsKey("timeWindowPlan") || context.extData.containsKey("comparativePlan"))) {
+            com.foggyframework.dataset.db.model.engine.compose.plan.QueryPlan compPlan =
+                    (com.foggyframework.dataset.db.model.engine.compose.plan.QueryPlan) context.extData.getOrDefault(
+                            "timeWindowPlan", context.extData.get("comparativePlan"));
+            com.foggyframework.dataset.db.model.engine.compose.context.Principal principal = com.foggyframework.dataset.db.model.engine.compose.context.Principal.builder()
+                .userId(securityContext != null && securityContext.getUserId() != null ? securityContext.getUserId() : "system")
+                .deptId(securityContext != null ? securityContext.getDeptId() : null)
+                .tenantId(securityContext != null ? securityContext.getTenantId() : null)
+                .build();
+            com.foggyframework.dataset.db.model.engine.compose.context.ComposeQueryContext compCtx = com.foggyframework.dataset.db.model.engine.compose.context.ComposeQueryContext.builder()
+                .principal(principal)
+                .namespace(namespace)
+                .authorityResolver(req -> {
+                    Map<String, com.foggyframework.dataset.db.model.engine.compose.security.ModelBinding> bindings = new java.util.HashMap<>();
+                    for (String m : req.modelNames()) {
+                        bindings.put(m, com.foggyframework.dataset.db.model.engine.compose.security.ModelBinding.builder().build());
+                    }
+                    return com.foggyframework.dataset.db.model.engine.compose.security.AuthorityResolution.builder().bindings(bindings).build();
+                })
+                .build();
+                
+            try {
+                // Read dialect resolved by TimeWindowInterceptor
+                String dialect = context.extData != null && context.extData.containsKey("timeWindowDialect")
+                        ? (String) context.extData.get("timeWindowDialect")
+                        : "mysql";
+                List<Map<String, Object>> rows = com.foggyframework.dataset.db.model.engine.compose.runtime.PlanExecution.executePlan(compPlan, compCtx, this, dialect);
+                
+                queryResult = new PagingResultImpl();
+                queryResult.setItems(new ArrayList<>(rows));
+                queryResult.setTotal((long)rows.size());
+                
+                dbQueryResult = DbQueryResult.of(queryResult, dbQueryResult != null ? dbQueryResult.getQueryEngine() : null);
+            } catch (Exception e) {
+                throw com.foggyframework.core.ex.RX.throwB("执行比较分析(Comparative)计划失败: " + e.getMessage(), e);
+            }
+        }
+
         // 6. 构建响应
         SemanticQueryResponse response = buildResponse(
                 jdbcRequest.getParam(),
                 queryResult,
                 context,
-                dbQueryResult.getQueryEngine().getJdbcQueryModel()
+                dbQueryResult != null && dbQueryResult.getQueryEngine() != null ? dbQueryResult.getQueryEngine().getJdbcQueryModel() : queryModelLoader.getJdbcQueryModel(model, reqContext.getNamespace())
         );
 
         // 7. 添加调试信息
@@ -176,12 +254,72 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         resultContext.setFieldAccess(context.getFieldAccess());
         resultContext.setDeniedColumns(context.getDeniedColumns());
 
+        Map<String, Object> extData = new HashMap<>();
         if (request.getHints() != null && !request.getHints().isEmpty()) {
-            resultContext.setExtData(new HashMap<>(request.getHints()));
+            extData.putAll(request.getHints());
+        }
+        if (request.getTimeWindow() != null && !request.getTimeWindow().isEmpty()) {
+            extData.put("timeWindow", request.getTimeWindow());
+        }
+        // Stage 5: pass calculatedFields to extData so TimeWindowInterceptor
+        // can build the outer post-calc projection wrapper.
+        if (request.getCalculatedFields() != null && !request.getCalculatedFields().isEmpty()) {
+            extData.put("calculatedFields", new ArrayList<>(request.getCalculatedFields()));
+        }
+        if (!extData.isEmpty()) {
+            resultContext.setExtData(extData);
         }
 
         // 5. 走 beforeQuery pipeline 然后截取 SQL（不执行）
-        return queryFacade.buildSqlOnly(resultContext);
+        SqlGenerationResult result = queryFacade.buildSqlOnly(resultContext);
+        if (resultContext.getExtData() != null
+                && (resultContext.getExtData().containsKey("timeWindowPlan")
+                || resultContext.getExtData().containsKey("comparativePlan"))) {
+            com.foggyframework.dataset.db.model.engine.compose.plan.QueryPlan timeWindowPlan =
+                    (com.foggyframework.dataset.db.model.engine.compose.plan.QueryPlan) resultContext.getExtData().getOrDefault(
+                            "timeWindowPlan", resultContext.getExtData().get("comparativePlan"));
+            com.foggyframework.dataset.db.model.engine.compose.ComposedSql composedSql =
+                    compileTimeWindowPlan(timeWindowPlan, context, resultContext.getExtData());
+            return new SqlGenerationResult(composedSql.getSql(), composedSql.getParams(), null);
+        }
+        return result;
+    }
+
+    private com.foggyframework.dataset.db.model.engine.compose.ComposedSql compileTimeWindowPlan(
+            com.foggyframework.dataset.db.model.engine.compose.plan.QueryPlan plan,
+            SemanticRequestContext requestContext,
+            Map<String, Object> extData) {
+        ModelResultContext.SecurityContext securityContext = requestContext.getSecurityContext();
+        com.foggyframework.dataset.db.model.engine.compose.context.Principal principal =
+                com.foggyframework.dataset.db.model.engine.compose.context.Principal.builder()
+                        .userId(securityContext != null && securityContext.getUserId() != null ? securityContext.getUserId() : "system")
+                        .deptId(securityContext != null ? securityContext.getDeptId() : null)
+                        .tenantId(securityContext != null ? securityContext.getTenantId() : null)
+                        .build();
+        com.foggyframework.dataset.db.model.engine.compose.context.ComposeQueryContext composeContext =
+                com.foggyframework.dataset.db.model.engine.compose.context.ComposeQueryContext.builder()
+                        .principal(principal)
+                        .namespace(requestContext.getNamespace())
+                        .authorityResolver(req -> {
+                            Map<String, com.foggyframework.dataset.db.model.engine.compose.security.ModelBinding> bindings = new HashMap<>();
+                            for (String m : req.modelNames()) {
+                                bindings.put(m, com.foggyframework.dataset.db.model.engine.compose.security.ModelBinding.builder().build());
+                            }
+                            return com.foggyframework.dataset.db.model.engine.compose.security.AuthorityResolution.builder()
+                                    .bindings(bindings)
+                                    .build();
+                        })
+                        .build();
+        String dialect = extData != null && extData.containsKey("timeWindowDialect")
+                ? (String) extData.get("timeWindowDialect")
+                : "mysql";
+        return com.foggyframework.dataset.db.model.engine.compose.compilation.ComposeSqlCompiler.compilePlanToSql(
+                plan,
+                composeContext,
+                com.foggyframework.dataset.db.model.engine.compose.compilation.ComposeSqlCompiler.CompileOptions.builder()
+                        .semanticService(this)
+                        .dialect(dialect)
+                        .build());
     }
 
     /**
@@ -786,6 +924,17 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
             InlineExpressionParser.InlineExpression inlineExpr = InlineExpressionParser.parse(col);
             if (inlineExpr != null && inlineExpr.hasAlias()) {
                 columnsSet.add(inlineExpr.getAlias());
+            } else {
+                // G5 v2-patch-2: 解析 plain alias "base AS alias"，将 base 字段名加入集合
+                // 这样 groupBy 引用 base 字段时能通过校验（如 columns=[{field:'salesAmount',as:'revenue'}], groupBy=['salesAmount']）
+                try {
+                    ColumnAliasParts parts = AliasExtractor.extract(col);
+                    if (parts.hasAlias()) {
+                        columnsSet.add(parts.expression());  // base field name
+                    }
+                } catch (IllegalArgumentException ignored) {
+                    // 解析失败 → 非 alias 列，忽略
+                }
             }
         }
 
@@ -872,5 +1021,24 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         SemanticQueryRequest originalRequest;
         Map<String, Object> extData = new HashMap<>();
         List<String> warnings = new ArrayList<>();
+    }
+
+    // ---- M7: raw-SQL execution for Compose Query ----
+
+    @Override
+    public List<Map<String, Object>> executeSql(String sql, List<Object> params, String routeModel) {
+        if (dataSource == null) {
+            throw new RuntimeException(
+                "executeSql failed: DataSource not injected into SemanticQueryServiceV3Impl;"
+                + " host must configure a primary DataSource bean");
+        }
+        try {
+            Object[] paramsArray = params == null ? new Object[0] : params.toArray(new Object[0]);
+            return DataSourceQueryUtils.getDatasetTemplate(dataSource)
+                    .getTemplate()
+                    .queryForList(sql, paramsArray);
+        } catch (Exception e) {
+            throw new RuntimeException("executeSql failed: " + e.getMessage(), e);
+        }
     }
 }

@@ -308,8 +308,8 @@ public class LocalDatasetAccessor implements DatasetAccessor {
             if (!(entry instanceof Map<?, ?> map)) {
                 continue;
             }
-            Object columnsObj = map.get("columns");
-            if (columnsObj instanceof List<?> columns) {
+            Object columnsValue = map.get("columns");
+            if (columnsValue instanceof List<?> columns) {
                 String schema = stringValue(map.get("schema"));
                 String table = stringValue(map.get("table"));
                 for (Object columnObj : columns) {
@@ -525,6 +525,14 @@ public class LocalDatasetAccessor implements DatasetAccessor {
         // withSubtotals
         if (payload.containsKey("withSubtotals")) {
             request.setWithSubtotals(Iif.check(payload.get("withSubtotals")));
+        }
+
+        // timeWindow (声明式时间窗口分析)
+        if (payload.containsKey("timeWindow")) {
+            Object tw = payload.get("timeWindow");
+            if (tw instanceof Map) {
+                request.setTimeWindow((Map<String, Object>) tw);
+            }
         }
 
         // 添加 MCP 来源标记（供 LargeResultTruncationStep 识别）

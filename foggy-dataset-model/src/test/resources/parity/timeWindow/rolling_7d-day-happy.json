@@ -1,0 +1,20 @@
+{
+  "description": "Rolling 7-day happy path",
+  "comparison": "rolling_7d",
+  "grain": "day",
+  "label": "happy",
+  "timeWindow": {
+    "field": "salesDate$id",
+    "grain": "day",
+    "comparison": "rolling_7d",
+    "range": "[)",
+    "value": ["-30D", "now"],
+    "targetMetrics": ["salesAmount"],
+    "rollingAggregator": "avg"
+  },
+  "expectedColumns": ["salesAmount__rolling_7d"],
+  "assertions": {
+    "windowFrame": "ROWS BETWEEN 6 PRECEDING AND CURRENT ROW",
+    "rollingMode": "observed"
+  }
+}

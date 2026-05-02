@@ -1,0 +1,195 @@
+package com.foggyframework.dataset.db.model.engine.compose.plan;
+
+import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+
+import java.util.Arrays;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ * M2 BaseModelPlan 不变量 — 跨仓对齐 Python test_base_model_plan.py。
+ */
+@DisplayName("M2 BaseModelPlan")
+class BaseModelPlanTest {
+
+    @Nested
+    @DisplayName("构造")
+    class Construction {
+
+        @Test
+        @DisplayName("最小构造：其他字段默认 ()/null/false")
+        void minimalValidConstruction() {
+            BaseModelPlan p = BaseModelPlan.builder()
+                    .model("SaleOrderQM")
+                    .columns(List.of("id", "name"))
+                    .build();
+            assertEquals("SaleOrderQM", p.model());
+            assertEquals(List.of("id", "name"), p.columns());
+            assertTrue(p.slice().isEmpty());
+            assertTrue(p.groupBy().isEmpty());
+            assertTrue(p.orderBy().isEmpty());
+            assertTrue(p.calculatedFields().isEmpty());
+            assertNull(p.limit());
+            assertNull(p.start());
+            assertFalse(p.distinct());
+        }
+
+        @Test
+        @DisplayName("model 必填且非空")
+        void modelRequiredNonEmpty() {
+            assertThrows(IllegalArgumentException.class,
+                    () -> BaseModelPlan.builder().model("").columns(List.of("id")).build());
+            assertThrows(IllegalArgumentException.class,
+                    () -> BaseModelPlan.builder().model(null).columns(List.of("id")).build());
+        }
+
+        @Test
+        @DisplayName("columns 为空时允许（OO API）；非空时条目必须合法")
+        void columnsEmptyAllowedForOoApi() {
+            // Empty columns allowed (OO API: columns specified later via .select())
+            assertDoesNotThrow(
+                    () -> BaseModelPlan.builder().model("X").columns(List.of()).build());
+            // Null columns also allowed
+            assertDoesNotThrow(
+                    () -> BaseModelPlan.builder().model("X").build());
+        }
+
+        @Test
+        @DisplayName("columns 条目必须非空字符串")
+        void columnsEntriesMustBeNonEmpty() {
+            assertThrows(IllegalArgumentException.class,
+                    () -> BaseModelPlan.builder().model("X")
+                            .columns(Arrays.asList("id", "")).build());
+            assertThrows(IllegalArgumentException.class,
+                    () -> BaseModelPlan.builder().model("X")
+                            .columns(Arrays.asList("id", (String) null)).build());
+        }
+
+        @Test
+        @DisplayName("limit 必须非负或 null")
+        void limitMustBeNonNegativeOrNull() {
+            assertThrows(IllegalArgumentException.class,
+                    () -> BaseModelPlan.builder().model("X").columns(List.of("id")).limit(-1).build());
+
+            // null and 0 both legal
+            assertNull(BaseModelPlan.builder().model("X").columns(List.of("id"))
+                    .limit(null).build().limit());
+            assertEquals(0, BaseModelPlan.builder().model("X").columns(List.of("id"))
+                    .limit(0).build().limit());
+        }
+
+        @Test
+        @DisplayName("start 必须非负或 null")
+        void startMustBeNonNegativeOrNull() {
+            assertThrows(IllegalArgumentException.class,
+                    () -> BaseModelPlan.builder().model("X").columns(List.of("id")).start(-1).build());
+            assertEquals(0, BaseModelPlan.builder().model("X").columns(List.of("id"))
+                    .start(0).build().start());
+        }
+
+        @Test
+        @DisplayName("calculatedFields 保存到 BaseModelPlan")
+        void calculatedFieldsStored() {
+            CalculatedFieldDef cf = new CalculatedFieldDef("genderCopy", "gender");
+            BaseModelPlan p = BaseModelPlan.builder()
+                    .model("X")
+                    .columns(List.of("name"))
+                    .calculatedFields(List.of(cf))
+                    .build();
+            assertEquals(List.of(cf), p.calculatedFields());
+        }
+    }
+
+    @Nested
+    @DisplayName("不可变性 + 等值")
+    class Immutability {
+
+        @Test
+        @DisplayName("columns 返回不可变副本")
+        void columnsUnmodifiable() {
+            BaseModelPlan p = BaseModelPlan.builder()
+                    .model("X").columns(List.of("id", "name")).build();
+            assertThrows(UnsupportedOperationException.class, () -> p.columns().add("x"));
+        }
+
+        @Test
+        @DisplayName("calculatedFields 返回不可变副本")
+        void calculatedFieldsUnmodifiable() {
+            BaseModelPlan p = BaseModelPlan.builder()
+                    .model("X")
+                    .columns(List.of("id"))
+                    .calculatedFields(List.of(new CalculatedFieldDef("copy", "id")))
+                    .build();
+            assertThrows(UnsupportedOperationException.class,
+                    () -> p.calculatedFields().add(new CalculatedFieldDef("other", "name")));
+        }
+
+        @Test
+        @DisplayName("值相等：相同字段的两个 BaseModelPlan 等价 + hash 一致")
+        void valueEquality() {
+            BaseModelPlan a = BaseModelPlan.builder()
+                    .model("X").columns(List.of("id", "name")).build();
+            BaseModelPlan b = BaseModelPlan.builder()
+                    .model("X").columns(List.of("id", "name")).build();
+            assertEquals(a, b);
+            assertEquals(a.hashCode(), b.hashCode());
+        }
+
+        @Test
+        @DisplayName("可作为 Set 元素（M6 子树去重所需）")
+        void hashableForSubtreeDedup() {
+            BaseModelPlan a = BaseModelPlan.builder().model("X").columns(List.of("id")).build();
+            BaseModelPlan b = BaseModelPlan.builder().model("X").columns(List.of("id")).build();
+            // HashSet used (not Set.of) — Set.of rejects duplicates at construction;
+            // we want to verify a.equals(b) ⇒ HashSet folds them.
+            assertEquals(1, new java.util.HashSet<>(java.util.Arrays.asList(a, b)).size());
+        }
+    }
+
+    @Nested
+    @DisplayName("base_model_plans 树遍历")
+    class TreeWalk {
+
+        @Test
+        @DisplayName("叶子节点返回自身列表")
+        void baseModelPlansReturnsSelfOnly() {
+            BaseModelPlan p = BaseModelPlan.builder().model("X").columns(List.of("id")).build();
+            assertEquals(List.of(p), p.baseModelPlans());
+        }
+    }
+
+    @Nested
+    @DisplayName("execute / toSql — M7: 无 bundle 时抛 RuntimeException")
+    class ExecuteAndToSqlWithoutBundle {
+
+        @Test
+        @DisplayName("execute() 无 ambient bundle → RuntimeException")
+        void executeRaises() {
+            BaseModelPlan p = BaseModelPlan.builder().model("X").columns(List.of("id")).build();
+            assertThrows(RuntimeException.class, p::execute);
+        }
+
+        @Test
+        @DisplayName("toSql() 无 ambient bundle → RuntimeException")
+        void toSqlRaises() {
+            BaseModelPlan p = BaseModelPlan.builder().model("X").columns(List.of("id")).build();
+            assertThrows(RuntimeException.class, p::toSql);
+        }
+    }
+
+    @Nested
+    @DisplayName("QueryPlan 多态")
+    class IsQueryPlan {
+
+        @Test
+        @DisplayName("BaseModelPlan 是 QueryPlan 的子类")
+        void baseModelPlanIsAQueryPlan() {
+            BaseModelPlan p = BaseModelPlan.builder().model("X").columns(List.of("id")).build();
+            assertTrue(p instanceof QueryPlan);
+        }
+    }
+}

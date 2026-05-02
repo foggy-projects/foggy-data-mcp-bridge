@@ -20,6 +20,8 @@ export const model = {
             captionColumn: 'full_date',
             caption: '退货日期',
             description: '退货申请的日期',
+            timeRole: 'business_date',
+            recommendedUse: 'time_axis',
 
             properties: [
                 { column: 'year', caption: '年' },

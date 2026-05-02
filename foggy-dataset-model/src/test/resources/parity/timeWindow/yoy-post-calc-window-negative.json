@@ -1,0 +1,23 @@
+{
+  "description": "Negative: post calc field uses window clause (not allowed in timeWindow context)",
+  "comparison": "yoy",
+  "grain": "month",
+  "label": "negative-post-calc-window",
+  "timeWindow": {
+    "field": "salesDate$id",
+    "grain": "month",
+    "comparison": "yoy",
+    "range": "[)",
+    "value": ["2024-01-01", "2025-01-01"],
+    "targetMetrics": ["salesAmount"]
+  },
+  "calculatedFields": [
+    {
+      "name": "rankByRatio",
+      "expression": "RANK()",
+      "partitionBy": ["product$category"],
+      "windowOrderBy": [{"field": "salesAmount__ratio", "dir": "desc"}]
+    }
+  ],
+  "expectedError": "TIMEWINDOW_POST_CALCULATED_FIELD_WINDOW_UNSUPPORTED"
+}

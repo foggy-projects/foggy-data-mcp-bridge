@@ -148,3 +148,8 @@ docs-site/.vitepress/dist/
 .tmp-gen*
 .claude/plans/
 model-manifest.json
+
+# ====================
+# Local versioned docs scratch
+# ====================
+docs/8.2.0.beta/P0-ComposeQuery-固定Schema下业务分析能力对比评估.md

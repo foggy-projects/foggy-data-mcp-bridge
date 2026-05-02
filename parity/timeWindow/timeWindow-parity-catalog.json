@@ -1,0 +1,89 @@
+{
+  "suite": "timeWindow",
+  "version": "8.3.0.beta",
+  "description": "Parity catalog for timeWindow DSL — ensures identical SQL semantics across MySQL, PostgreSQL, SQL Server, SQLite",
+  "cases": [
+    {
+      "id": "TW-R01",
+      "name": "rolling_7d_sum",
+      "description": "7-day rolling SUM with partition-by",
+      "dsl": {
+        "field": "salesDate$id",
+        "grain": "day",
+        "comparison": "rolling_7d",
+        "range": "[)",
+        "value": ["-30D", "now"],
+        "targetMetrics": ["salesAmount"],
+        "rollingAggregator": "sum"
+      },
+      "expectedSqlFragment": "SUM(salesAmount) OVER (PARTITION BY partnerId ORDER BY salesDate$id ASC ROWS BETWEEN 6 PRECEDING AND CURRENT ROW)",
+      "dialects": ["mysql8", "postgresql", "sqlserver", "sqlite"]
+    },
+    {
+      "id": "TW-R02",
+      "name": "rolling_30d_avg",
+      "description": "30-day rolling AVG without partition",
+      "dsl": {
+        "field": "salesDate$id",
+        "grain": "day",
+        "comparison": "rolling_30d",
+        "range": "[)",
+        "value": ["-60D", "now"],
+        "targetMetrics": ["salesAmount"],
+        "rollingAggregator": "avg"
+      },
+      "expectedSqlFragment": "AVG(salesAmount) OVER (ORDER BY salesDate$id ASC ROWS BETWEEN 29 PRECEDING AND CURRENT ROW)",
+      "dialects": ["mysql8", "postgresql", "sqlserver", "sqlite"]
+    },
+    {
+      "id": "TW-C01",
+      "name": "ytd_cumulative",
+      "description": "Year-to-date cumulative SUM partitioned by year",
+      "dsl": {
+        "field": "salesDate$id",
+        "grain": "month",
+        "comparison": "ytd",
+        "range": "[)",
+        "value": ["2024-01-01", "now"],
+        "targetMetrics": ["salesAmount"]
+      },
+      "expectedSqlFragment": "SUM(salesAmount) OVER (PARTITION BY salesDate$year ORDER BY salesDate$id ASC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)",
+      "dialects": ["mysql8", "postgresql", "sqlserver", "sqlite"]
+    },
+    {
+      "id": "TW-Y01",
+      "name": "yoy_month",
+      "description": "Year-over-year by month — self-join structure",
+      "dsl": {
+        "field": "salesDate$id",
+        "grain": "month",
+        "comparison": "yoy",
+        "range": "[)",
+        "value": ["2024-01-01", "2025-01-01"],
+        "targetMetrics": ["salesAmount"]
+      },
+      "expectedJoinStructure": {
+        "grainKeyField": "salesDate$month",
+        "shiftField": "salesDate$year",
+        "periodOffset": -1,
+        "offsetUnit": "YEAR"
+      },
+      "dialects": ["mysql8", "postgresql", "sqlserver", "sqlite"]
+    },
+    {
+      "id": "TW-V01",
+      "name": "validation_grain_incompatible",
+      "description": "yoy with day grain should fail validation",
+      "dsl": {
+        "field": "salesDate$id",
+        "grain": "day",
+        "comparison": "yoy",
+        "range": "[)",
+        "value": ["2024-01-01", "2025-01-01"],
+        "targetMetrics": ["salesAmount"]
+      },
+      "expectedErrorCode": "TIMEWINDOW_GRAIN_INCOMPATIBLE",
+      "dialects": ["*"]
+    }
+  ]
+}

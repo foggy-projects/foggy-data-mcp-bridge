@@ -1,0 +1,21 @@
+{
+  "description": "Negative: post calc field references column not in timeWindow output",
+  "comparison": "yoy",
+  "grain": "month",
+  "label": "negative-post-calc-not-found",
+  "timeWindow": {
+    "field": "salesDate$id",
+    "grain": "month",
+    "comparison": "yoy",
+    "range": "[)",
+    "value": ["2024-01-01", "2025-01-01"],
+    "targetMetrics": ["salesAmount"]
+  },
+  "calculatedFields": [
+    {
+      "name": "badCalc",
+      "expression": "nonExistentColumn * 100"
+    }
+  ],
+  "expectedError": "TIMEWINDOW_POST_CALCULATED_FIELD_NOT_FOUND"
+}

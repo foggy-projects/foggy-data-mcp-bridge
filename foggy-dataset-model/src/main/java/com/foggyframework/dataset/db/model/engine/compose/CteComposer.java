@@ -24,6 +24,31 @@ import java.util.List;
  * LEFT JOIN (sql₂) AS t1 ON t0.key = t1.key
  * }</pre>
  *
+ * <h3>Cross-repo API drift vs. Python (8.2.0.beta · MINOR DRIFT, intentional)</h3>
+ *
+ * <p>Python 的 {@code foggy.dataset_model.engine.compose.cte_composer.CteComposer.compose}
+ * 顶层签名带一个 {@code select_columns} 参数，可以在 compose 层"重写"外层
+ * {@code SELECT} 列；Java 这边没有这个顶层参数。功能上 Java 用两个旁路把它分担掉：</p>
+ *
+ * <ol>
+ *   <li>{@link CteUnit#getSelectColumns()} — 每个 unit 自带一份外层 SELECT 列，
+ *       {@link #buildMultiCte} / {@link #buildMultiSubquery} 按 unit 逐一展开
+ *       （{@code unit.alias.col1, unit.alias.col2, ...}）。这覆盖了"按 unit 选列"
+ *       场景，但<b>无法</b>表达 Python 那种"先 join 再统一裁列"的能力。</li>
+ *   <li>{@link com.foggyframework.dataset.db.model.engine.compose.compilation.ComposePlanner}
+ *       的 M6 编译路径在 {@code JoinPlan} 场景<b>不走本类</b>，而是自己手工组装
+ *       2-branch CTE/subquery（参见 {@code SQL assembly helpers} 段注释）。
+ *       原因是 Java 的 {@link JoinSpec} 仅支持<b>单列等值 JOIN</b>
+ *       （{@code leftKey = rightKey}），Python 的 {@code JoinSpec} 携带 raw
+ *       {@code on_condition}，能力更强。M6 为了不动这套 v1.3 / 8.2 的共享基础设施，
+ *       直接在 planner 里自带 SELECT / JOIN 组装。</li>
+ * </ol>
+ *
+ * <p>因此本类的真实使用面只有：单 base 单元件包装、以及"单列等值 join + 按 unit 选列"
+ * 的简单 compose 用例。<b>派生 / 多列条件 / 复杂 ON 子句都走 ComposePlanner，不走这里。</b>
+ * 后续若要把 API 完全对齐 Python（暴露顶层 {@code selectColumns} + raw {@code onCondition}），
+ * 需要同步升级 {@link CteUnit} 和 {@link JoinSpec} 的契约，并重写 ComposePlanner 的 M6 join 路径。</p>
+ *
  * @author Foggy Framework
  * @since 8.2.0
  */
@@ -55,14 +80,39 @@ public class CteComposer {
     }
 
     /**
-     * 组合多个 CTE 单元（链式 JOIN）
+     * 组合多个 CTE 单元（链式 JOIN）。
+     *
+     * <p><b>API drift vs. Python（参见类级 Javadoc）</b>：本签名缺少 Python 顶层
+     * {@code select_columns} 参数。"外层选列"在这里分布到每个 {@link CteUnit#getSelectColumns()}
+     * 里，由 {@link #buildMultiCte} / {@link #buildMultiSubquery} 按 unit 逐一展开。
+     * 想"先 join 再统一裁列"的调用方必须走
+     * {@link com.foggyframework.dataset.db.model.engine.compose.compilation.ComposePlanner}
+     * 的 M6 SQL assembly 路径，本方法不会满足那种诉求。</p>
      *
      * @param units     CTE 单元列表
-     * @param joinSpecs JOIN 规格列表（长度 = units.size() - 1）
+     * @param joinSpecs JOIN 规格列表（长度 = units.size() - 1，仅支持单列等值 JOIN）
      * @param useCte    是否使用 CTE 语法
      * @return 组合后的 SQL 和参数
      */
     public static ComposedSql compose(List<CteUnit> units, List<JoinSpec> joinSpecs, boolean useCte) {
+        return compose(units, joinSpecs, useCte, null);
+    }
+
+    /**
+     * 组合多个 CTE 单元（链式 JOIN），并允许调用方显式覆盖外层 SELECT 投影列。
+     *
+     * <p>{@code selectColumns} 非空时优先使用它渲染外层 SELECT；
+     * 为空时保持历史行为，按各 {@link CteUnit#getSelectColumns()} 渲染，
+     * 缺省则回退到 {@code alias.*}。</p>
+     *
+     * @param units         CTE 单元列表
+     * @param joinSpecs     JOIN 规格列表（长度 = units.size() - 1）
+     * @param useCte        是否使用 CTE 语法
+     * @param selectColumns 外层 SELECT 的显式投影列（可选）
+     * @return 组合后的 SQL 和参数
+     */
+    public static ComposedSql compose(List<CteUnit> units, List<JoinSpec> joinSpecs,
+                                      boolean useCte, List<String> selectColumns) {
         if (units.size() < 2) {
             throw new IllegalArgumentException("At least 2 CTE units required for composition");
         }
@@ -74,9 +124,9 @@ public class CteComposer {
         StringBuilder sb = new StringBuilder();
 
         if (useCte) {
-            buildMultiCte(sb, allParams, units, joinSpecs);
+            buildMultiCte(sb, allParams, units, joinSpecs, selectColumns);
         } else {
-            buildMultiSubquery(sb, allParams, units, joinSpecs);
+            buildMultiSubquery(sb, allParams, units, joinSpecs, selectColumns);
         }
 
         return new ComposedSql(sb.toString(), allParams);
@@ -102,7 +152,8 @@ public class CteComposer {
     }
 
     private static void buildMultiCte(StringBuilder sb, List<Object> allParams,
-                                       List<CteUnit> units, List<JoinSpec> joinSpecs) {
+                                       List<CteUnit> units, List<JoinSpec> joinSpecs,
+                                       List<String> selectColumns) {
         // WITH clause
         sb.append("WITH ");
         for (int i = 0; i < units.size(); i++) {
@@ -113,22 +164,7 @@ public class CteComposer {
         }
         sb.append(" ");
 
-        // SELECT clause -- select all columns from all units
-        sb.append("SELECT ");
-        boolean first = true;
-        for (CteUnit unit : units) {
-            if (unit.getSelectColumns() != null) {
-                for (String col : unit.getSelectColumns()) {
-                    if (!first) sb.append(", ");
-                    sb.append(unit.getAlias()).append(".").append(col);
-                    first = false;
-                }
-            } else {
-                if (!first) sb.append(", ");
-                sb.append(unit.getAlias()).append(".*");
-                first = false;
-            }
-        }
+        appendMultiSelectClause(sb, units, selectColumns);
 
         // FROM + chain JOINs
         sb.append(" FROM ").append(units.get(0).getAlias());
@@ -161,23 +197,10 @@ public class CteComposer {
     }
 
     private static void buildMultiSubquery(StringBuilder sb, List<Object> allParams,
-                                            List<CteUnit> units, List<JoinSpec> joinSpecs) {
+                                            List<CteUnit> units, List<JoinSpec> joinSpecs,
+                                            List<String> selectColumns) {
         // SELECT clause
-        sb.append("SELECT ");
-        boolean first = true;
-        for (CteUnit unit : units) {
-            if (unit.getSelectColumns() != null) {
-                for (String col : unit.getSelectColumns()) {
-                    if (!first) sb.append(", ");
-                    sb.append(unit.getAlias()).append(".").append(col);
-                    first = false;
-                }
-            } else {
-                if (!first) sb.append(", ");
-                sb.append(unit.getAlias()).append(".*");
-                first = false;
-            }
-        }
+        appendMultiSelectClause(sb, units, selectColumns);
 
         // FROM first subquery
         CteUnit firstUnit = units.get(0);
@@ -225,6 +248,32 @@ public class CteComposer {
         } else {
             if (!first) sb.append(", ");
             sb.append(right.getAlias()).append(".*");
+        }
+    }
+
+    private static void appendMultiSelectClause(StringBuilder sb, List<CteUnit> units, List<String> selectColumns) {
+        sb.append("SELECT ");
+        if (selectColumns != null && !selectColumns.isEmpty()) {
+            for (int i = 0; i < selectColumns.size(); i++) {
+                if (i > 0) sb.append(", ");
+                sb.append(selectColumns.get(i));
+            }
+            return;
+        }
+
+        boolean first = true;
+        for (CteUnit unit : units) {
+            if (unit.getSelectColumns() != null) {
+                for (String col : unit.getSelectColumns()) {
+                    if (!first) sb.append(", ");
+                    sb.append(unit.getAlias()).append(".").append(col);
+                    first = false;
+                }
+            } else {
+                if (!first) sb.append(", ");
+                sb.append(unit.getAlias()).append(".*");
+                first = false;
+            }
         }
     }
 

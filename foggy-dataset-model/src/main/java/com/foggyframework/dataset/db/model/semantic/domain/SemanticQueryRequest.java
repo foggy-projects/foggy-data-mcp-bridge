@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.semantic.enums.CaptionMatchMode;
 import com.foggyframework.dataset.db.model.semantic.enums.MismatchHandleStrategy;
+import com.foggyframework.dataset.db.model.semantic.domain.pivot.PivotRequest;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
 import lombok.AllArgsConstructor;
@@ -65,6 +66,21 @@ public class SemanticQueryRequest {
 
     @ApiModelProperty(value = "是否追加小计/总计行。对 groupBy 聚合结果追加分组小计和总计行，通过 _rowType 字段标记行类型", example = "true")
     private Boolean withSubtotals = false;
+
+    @ApiModelProperty(value = "时间窗口定义，用于声明式时间分析（同环比/累计/滚动）。nullable — 不指定时走常规查询", notes = "AI 通过 timeWindow DSL 表达 YoY/MoM/Rolling 等分析，引擎自动映射到 QueryPlan AST")
+    private Map<String, Object> timeWindow;
+
+    @ApiModelProperty(value = "多维透视请求（与 columns 互斥）",
+            notes = "当 pivot 非 null 时，引擎自动切换到 Pivot Pipeline（四阶段内存加工）。" +
+                    "pivot 与 columns/timeWindow 不能同时出现")
+    private PivotRequest pivot;
+
+    /**
+     * 是否为 Pivot 透视模式
+     */
+    public boolean isPivotMode() {
+        return pivot != null;
+    }
 
     /**
      * 过滤条件项

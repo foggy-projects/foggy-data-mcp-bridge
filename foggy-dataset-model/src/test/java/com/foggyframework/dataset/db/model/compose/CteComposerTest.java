@@ -235,6 +235,59 @@ class CteComposerTest {
         assertEquals("D", result.getParams().get(3));
     }
 
+    @Test
+    @Order(23)
+    @DisplayName("CTE 模式：显式 selectColumns 参数覆盖 CteUnit.selectColumns")
+    void testCteMultiExplicitSelectColumnsOverrideUnitColumns() {
+        CteUnit orders = new CteUnit("cte_0",
+                "SELECT order_id, customer_id, amount FROM orders",
+                Collections.emptyList(), Arrays.asList("order_id", "customer_id", "amount"));
+        CteUnit customers = new CteUnit("cte_1",
+                "SELECT id, name, email FROM customers",
+                Collections.emptyList(), Arrays.asList("id", "name", "email"));
+
+        ComposedSql result = CteComposer.compose(
+                Arrays.asList(orders, customers),
+                Collections.singletonList(JoinSpec.leftJoin("customer_id", "id", null, null)),
+                true,
+                Arrays.asList("cte_0.order_id", "cte_1.name"));
+        String sql = result.getSql();
+
+        assertTrue(sql.contains("SELECT cte_0.order_id, cte_1.name FROM cte_0"),
+                "显式 selectColumns 应作为外层 SELECT 投影");
+        assertFalse(sql.contains("cte_0.customer_id, cte_0.amount"),
+                "显式 selectColumns 不应继续展开 CteUnit.selectColumns");
+        assertFalse(sql.contains("cte_1.email"),
+                "显式 selectColumns 不应继续展开右侧 CteUnit.selectColumns");
+    }
+
+    @Test
+    @Order(24)
+    @DisplayName("子查询模式：显式 selectColumns 参数覆盖 CteUnit.selectColumns")
+    void testSubqueryMultiExplicitSelectColumnsOverrideUnitColumns() {
+        CteUnit orders = new CteUnit("t0",
+                "SELECT order_id, customer_id, amount FROM orders",
+                Collections.emptyList(), Arrays.asList("order_id", "customer_id", "amount"));
+        CteUnit customers = new CteUnit("t1",
+                "SELECT id, name, email FROM customers",
+                Collections.emptyList(), Arrays.asList("id", "name", "email"));
+
+        ComposedSql result = CteComposer.compose(
+                Arrays.asList(orders, customers),
+                Collections.singletonList(JoinSpec.leftJoin("customer_id", "id", null, null)),
+                false,
+                Arrays.asList("t0.amount", "t1.name"));
+        String sql = result.getSql();
+
+        assertTrue(sql.startsWith("SELECT t0.amount, t1.name FROM"),
+                "显式 selectColumns 应作为子查询模式外层 SELECT 投影");
+        assertTrue(sql.contains("FROM (SELECT order_id, customer_id, amount FROM orders) AS t0"));
+        assertFalse(sql.contains("t0.customer_id, t0.amount"),
+                "显式 selectColumns 不应继续展开 CteUnit.selectColumns");
+        assertFalse(sql.contains("t1.email"),
+                "显式 selectColumns 不应继续展开右侧 CteUnit.selectColumns");
+    }
+
     // ==========================================
     // 边界验证
     // ==========================================

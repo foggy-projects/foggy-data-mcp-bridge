@@ -122,6 +122,10 @@ foggy:
         descriptionFile: "classpath:/schemas/descriptions/dataset_nl_query.md"
         schemaFile: "classpath:/schemas/dataset_nl_query_schema.json"
         category: NATURAL_LANGUAGE
+      - name: "dataset.list_models"
+        descriptionFile: "classpath:/schemas/descriptions/list_models.md"
+        schemaFile: "classpath:/schemas/list_models_schema.json"
+        category: METADATA
       - name: "dataset.get_metadata"
         descriptionFile: "classpath:/schemas/descriptions/get_metadata.md"
         schemaFile: "classpath:/schemas/get_metadata_schema.json"

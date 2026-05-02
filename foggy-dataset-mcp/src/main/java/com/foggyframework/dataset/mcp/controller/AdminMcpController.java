@@ -16,6 +16,7 @@ import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -57,7 +58,8 @@ public class AdminMcpController {
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestHeader(value = "X-Trace-Id", required = false) String traceId,
             @RequestHeader(value = "X-Request-Id", required = false) String requestId,
-            @RequestHeader(value = "X-NS", required = false) String namespace
+            @RequestHeader(value = "X-NS", required = false) String namespace,
+            @RequestHeader(value = "X-Foggy-Remote-Compose", required = false) String remoteCompose
     ) {
         // traceId: AI 会话级，如果没有则生成新的
         if (traceId == null || traceId.isBlank()) {
@@ -72,7 +74,8 @@ public class AdminMcpController {
                 request.getMethod(), request.getId(), traceId, requestId, namespace);
 
         // 构建请求上下文
-        McpRequestContext context = McpRequestContext.of(traceId, requestId, authorization, USER_ROLE, namespace);
+        McpRequestContext context = McpRequestContext.of(traceId, requestId, authorization, USER_ROLE, namespace,
+                remoteComposeHeaders(remoteCompose));
 
         try {
             // 处理 MCP 内置方法
@@ -127,7 +130,8 @@ public class AdminMcpController {
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestHeader(value = "X-Trace-Id", required = false) String traceId,
             @RequestHeader(value = "X-Request-Id", required = false) String requestId,
-            @RequestHeader(value = "X-NS", required = false) String namespace
+            @RequestHeader(value = "X-NS", required = false) String namespace,
+            @RequestHeader(value = "X-Foggy-Remote-Compose", required = false) String remoteCompose
     ) {
         // traceId: AI 会话级
         if (traceId == null || traceId.isBlank()) {
@@ -146,7 +150,8 @@ public class AdminMcpController {
                 request.getMethod(), request.getId(), traceId, requestId, namespace);
 
         final String finalTraceId = traceId;
-        return toolDispatcher.executeWithProgress(request, traceId, authorization, namespace)
+        return toolDispatcher.executeWithProgress(request, traceId, authorization, namespace,
+                        remoteComposeHeaders(remoteCompose))
                 .map(event -> ServerSentEvent.<Object>builder()
                         .id(event.getId())
                         .event(event.getEventType())
@@ -154,5 +159,9 @@ public class AdminMcpController {
                         .build())
                 .doOnComplete(() -> log.info("Admin MCP Stream completed: traceId={}", finalTraceId))
                 .doOnError(e -> log.error("Admin MCP Stream error: traceId={}, error={}", finalTraceId, e.getMessage()));
+    }
+
+    private static Map<String, String> remoteComposeHeaders(String remoteCompose) {
+        return remoteCompose == null ? Map.of() : Map.of("X-Foggy-Remote-Compose", remoteCompose);
     }
 }

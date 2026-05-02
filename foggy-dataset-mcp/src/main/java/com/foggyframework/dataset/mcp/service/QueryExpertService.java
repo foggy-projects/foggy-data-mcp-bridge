@@ -47,7 +47,7 @@ public class QueryExpertService {
         你是一个专业的数据查询专家（M2），负责将用户的自然语言查询转换为结构化的数据查询。
 
         ## 工作流程
-        1. 首先调用 dataset_get_metadata 获取可用的数据模型列表
+        1. 首先调用 dataset_list_models 获取可用的数据模型列表
         2. 根据用户查询意图，选择合适的数据模型
         3. 如需详细字段信息，调用 dataset_describe_model_internal 获取模型详情
         4. 构建查询参数，调用 dataset_query_model 执行查询
@@ -249,7 +249,7 @@ public class QueryExpertService {
         List<McpTool> tools = new ArrayList<>();
         // 只获取核心查询相关的工具
         String[] toolNames = {
-                "dataset.get_metadata",
+                "dataset.list_models",
                 "dataset.describe_model_internal",
                 "dataset.query_model"
         };

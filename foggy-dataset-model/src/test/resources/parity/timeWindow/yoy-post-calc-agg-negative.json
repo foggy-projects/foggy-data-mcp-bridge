@@ -1,0 +1,22 @@
+{
+  "description": "Negative: post calc field uses agg (not allowed in timeWindow context)",
+  "comparison": "yoy",
+  "grain": "month",
+  "label": "negative-post-calc-agg",
+  "timeWindow": {
+    "field": "salesDate$id",
+    "grain": "month",
+    "comparison": "yoy",
+    "range": "[)",
+    "value": ["2024-01-01", "2025-01-01"],
+    "targetMetrics": ["salesAmount"]
+  },
+  "calculatedFields": [
+    {
+      "name": "avgRatio",
+      "expression": "salesAmount__ratio",
+      "agg": "AVG"
+    }
+  ],
+  "expectedError": "TIMEWINDOW_POST_CALCULATED_FIELD_AGG_UNSUPPORTED"
+}

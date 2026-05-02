@@ -1,0 +1,15 @@
+{
+  "description": "MTD + day grain happy path",
+  "comparison": "mtd",
+  "grain": "day",
+  "label": "happy",
+  "timeWindow": {
+    "field": "salesDate$id",
+    "grain": "day",
+    "comparison": "mtd",
+    "range": "[)",
+    "value": ["2024-01-01", "now"],
+    "targetMetrics": ["salesAmount"]
+  },
+  "expectedColumns": ["salesAmount__mtd"]
+}

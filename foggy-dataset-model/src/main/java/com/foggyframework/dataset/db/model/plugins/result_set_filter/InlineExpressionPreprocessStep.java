@@ -2,6 +2,8 @@ package com.foggyframework.dataset.db.model.plugins.result_set_filter;
 
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
+import com.foggyframework.dataset.db.model.engine.compose.schema.AliasExtractor;
+import com.foggyframework.dataset.db.model.engine.compose.schema.ColumnAliasParts;
 import com.foggyframework.dataset.db.model.engine.query_model.QueryModelSupport;
 import com.foggyframework.dataset.db.model.engine.expression.AllowedFunctions;
 import com.foggyframework.dataset.db.model.engine.expression.CalculatedFieldService;
@@ -10,6 +12,9 @@ import com.foggyframework.dataset.db.model.engine.expression.SqlExpHolder;
 import com.foggyframework.dataset.db.model.engine.expression.sql.SqlBinaryExp;
 import com.foggyframework.dataset.db.model.engine.expression.sql.SqlFunctionExp;
 import com.foggyframework.dataset.db.model.engine.expression.sql.SqlUnaryExp;
+import com.foggyframework.core.utils.StringUtils;
+import com.foggyframework.dataset.db.model.spi.DbDimension;
+import com.foggyframework.dataset.db.model.spi.DbQueryColumn;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
 import com.foggyframework.dataset.db.model.spi.TableModel;
 import com.foggyframework.fsscript.parser.spi.Exp;
@@ -123,9 +128,10 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
                     alias = "expr_" + autoAliasCounter++;
                 }
 
-                // 创建 CalculatedFieldDef
+                // 创建 CalculatedFieldDef（origin=INLINE_EXPRESSION，便于下游 metadata / 日志按来源分流）
                 CalculatedFieldDef calcFieldDef = new CalculatedFieldDef();
                 calcFieldDef.setName(alias);
+                calcFieldDef.setOrigin(CalculatedFieldDef.Origin.INLINE_EXPRESSION);
 
                 // 通过 AST 分析检测聚合函数，填充 agg 字段，并存储编译后的 AST
                 AggregateAnalysisResult aggResult = analyzeAggregateByAst(inlineExp.getExpression(), calcFieldDef);
@@ -144,13 +150,20 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
                 result.getColumns().add(alias);
 
                 if (log.isDebugEnabled()) {
-                    log.debug("解析内联表达式: '{}' -> alias='{}', expression='{}', agg='{}', compiledExp={}",
+                    log.debug("Inline expression converted: '{}' -> alias='{}', expression='{}', agg='{}', origin=INLINE_EXPRESSION, compiledExp={}",
                             columnDef, alias, calcFieldDef.getExpression(), calcFieldDef.getAgg(),
                             calcFieldDef.getCompiledExp() != null ? "已编译" : "未编译");
                 }
             } else {
-                // 保持原样
-                result.getColumns().add(columnDef);
+                // G5 v2-patch-2: F4 plain-field alias `"base AS alias"` → 合成 calc field
+                // (origin=PLAIN_ALIAS)。命中 alias 时本分支接管；未命中 alias 时按原样保留。
+                CalculatedFieldDef synthesized = trySynthesizePlainAlias(columnDef, queryRequest, queryModel, result);
+                if (synthesized != null) {
+                    result.getCalculatedFields().add(synthesized);
+                    result.getColumns().add(synthesized.getName());
+                } else {
+                    result.getColumns().add(columnDef);
+                }
             }
         }
 
@@ -580,5 +593,248 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
                         toInject.stream().map(CalculatedFieldDef::getName).collect(java.util.stream.Collectors.toList()));
             }
         }
+    }
+
+    /**
+     * G5 v2-patch-2 · F4 plain-field alias-only 合成 calc field（Option A）。
+     *
+     * <p>当 {@link InlineExpressionParser#parse(String)} 返回 null（即非函数表达式）
+     * 时本方法接管，识别 {@code "base AS alias"} 形态并合成
+     * {@code CalculatedFieldDef(name=alias, expression=base, origin=PLAIN_ALIAS)}。
+     * 返回 null 表示当前列不是 plain-alias，调用方应保持列原样。
+     *
+     * <h3>命名冲突 fail-fast</h3>
+     * <ul>
+     *   <li>{@code COLUMN_ALIAS_DUPLICATE} — 同请求多列 alias 重复</li>
+     *   <li>{@code COLUMN_ALIAS_COLLIDES_WITH_CALCULATED_FIELD} — alias 命中 QM 预定义或 request.calculatedFields 同名 calc field</li>
+     *   <li>{@code COLUMN_ALIAS_COLLIDES_WITH_PHYSICAL_FIELD} — alias 命中 QM 物理字段名</li>
+     *   <li>{@code COLUMN_FIELD_NOT_FOUND} — base 字段在 QM 不存在（错误信息以 alias 视角输出）</li>
+     * </ul>
+     *
+     * <h3>元数据继承</h3>
+     * <p>合成时主动从 base 列拷贝 {@code caption} / {@code description}，避免
+     * alias 后字段语义降级（type / formatter 由 SqlFragment 推断链路自动继承）。
+     *
+     * @param columnDef     原始列字符串
+     * @param queryRequest  当前请求（含 QM 预定义 + 用户 calc fields）
+     * @param queryModel    当前 QM
+     * @param result        累计的 ParsedInlineExpressions（含本批次已合成的 calc）
+     * @return 合成的 CalculatedFieldDef；列不是 plain-alias 时返回 null
+     * @throws IllegalArgumentException 命名冲突或字段不存在时抛出，消息以 {@code COLUMN_*} 短码起头
+     */
+    private CalculatedFieldDef trySynthesizePlainAlias(
+            String columnDef,
+            DbQueryRequestDef queryRequest,
+            QueryModel queryModel,
+            ModelResultContext.ParsedInlineExpressions result) {
+
+        if (columnDef == null || columnDef.indexOf(' ') < 0) {
+            // 无空格 → 不可能含 AS → 不可能是 plain-alias
+            return null;
+        }
+
+        ColumnAliasParts parts;
+        try {
+            parts = AliasExtractor.extract(columnDef);
+        } catch (IllegalArgumentException ex) {
+            // 解析失败（空白等异常输入）：不合成，交回原路径暴露原错误
+            return null;
+        }
+        if (!parts.hasAlias()) {
+            return null;
+        }
+
+        String baseField = parts.expression();
+        String aliasName = parts.outputName();
+
+        // base 必须是简单 identifier 或 dim$attr 引用；否则不合成，回退原路径
+        if (!isSimpleFieldOrDimAttrRef(baseField)) {
+            return null;
+        }
+
+        // C3：同请求 alias 重复（含本批次已合成的）
+        for (CalculatedFieldDef existing : result.getCalculatedFields()) {
+            if (aliasName.equals(existing.getName())) {
+                throw new IllegalArgumentException(
+                        "COLUMN_ALIAS_DUPLICATE: column '" + columnDef
+                                + "' alias '" + aliasName
+                                + "' is already used by another column in this request");
+            }
+        }
+
+        // C1：alias 命中已有 calc field（QM 预定义 + request 用户声明）
+        List<CalculatedFieldDef> existingCalcFields = queryRequest.getCalculatedFields();
+        if (existingCalcFields != null) {
+            for (CalculatedFieldDef existing : existingCalcFields) {
+                if (aliasName.equals(existing.getName())) {
+                    throw new IllegalArgumentException(
+                            "COLUMN_ALIAS_COLLIDES_WITH_CALCULATED_FIELD: column '" + columnDef
+                                    + "' alias '" + aliasName
+                                    + "' collides with an existing calculated field "
+                                    + "(declared in QueryModel or in request.calculatedFields). "
+                                    + "Use a different alias.");
+                }
+            }
+        }
+        // C1-ext：alias 命中 QM 预定义 calc field（可能未注入到 request.calculatedFields）
+        if (queryModel instanceof QueryModelSupport) {
+            List<CalculatedFieldDef> predefined = ((QueryModelSupport) queryModel).getPredefinedCalculatedFields();
+            if (predefined != null) {
+                for (CalculatedFieldDef pd : predefined) {
+                    if (aliasName.equals(pd.getName())) {
+                        throw new IllegalArgumentException(
+                                "COLUMN_ALIAS_COLLIDES_WITH_CALCULATED_FIELD: column '" + columnDef
+                                        + "' alias '" + aliasName
+                                        + "' collides with a predefined calculated field in QueryModel. "
+                                        + "Use a different alias.");
+                    }
+                }
+            }
+        }
+
+        // C2：alias 命中 QM 物理字段（防止静默 shadow）+ base 存在性校验 + 元数据探测
+        DbQueryColumn baseColumn = null;
+        if (queryModel instanceof QueryModelSupport) {
+            QueryModelSupport qms = (QueryModelSupport) queryModel;
+
+            DbQueryColumn aliasCollision = qms.findJdbcColumnForSelectByName(aliasName, false);
+            if (aliasCollision != null) {
+                // C2-refinement: 如果冲突列实际是公式度量（TM 级 formulaDef），
+                // 应报 COLUMN_ALIAS_COLLIDES_WITH_CALCULATED_FIELD 而非 PHYSICAL_FIELD，
+                // 因为公式度量从用户视角是 "计算字段"。
+                boolean isFormulaMeasure = false;
+                for (TableModel tm : qms.getJdbcModelList()) {
+                    com.foggyframework.dataset.db.model.spi.DbMeasure measure = tm.findJdbcMeasureByName(aliasName);
+                    if (measure != null) {
+                        com.foggyframework.dataset.db.model.impl.measure.DbMeasureSupport ms =
+                                measure.getDecorate(com.foggyframework.dataset.db.model.impl.measure.DbMeasureSupport.class);
+                        if (ms != null && ms.getFormulaBuilder() != null) {
+                            isFormulaMeasure = true;
+                        }
+                        break;
+                    }
+                }
+                if (isFormulaMeasure) {
+                    throw new IllegalArgumentException(
+                            "COLUMN_ALIAS_COLLIDES_WITH_CALCULATED_FIELD: column '" + columnDef
+                                    + "' alias '" + aliasName
+                                    + "' collides with a formula-derived field in the QueryModel. "
+                                    + "Use a different alias.");
+                }
+                throw new IllegalArgumentException(
+                        "COLUMN_ALIAS_COLLIDES_WITH_PHYSICAL_FIELD: column '" + columnDef
+                                + "' alias '" + aliasName
+                                + "' collides with a physical field declared in the QueryModel. "
+                                + "Use a different alias to avoid silent shadowing.");
+            }
+
+
+            // 先检查 base 是否是本批次已合成的 calc field（支持链式 alias，如 a→x→y）
+            boolean baseIsSynthesized = false;
+            for (CalculatedFieldDef synth : result.getCalculatedFields()) {
+                if (baseField.equals(synth.getName())) {
+                    baseIsSynthesized = true;
+                    break;
+                }
+            }
+
+            if (!baseIsSynthesized) {
+                baseColumn = qms.findJdbcColumnForSelectByName(baseField, false);
+                if (baseColumn == null) {
+                    // 8.4.0.beta backlog B-03 FU-2 · 当 baseField 实际命中模型上
+                    // 的 DbDimension 时，给出"维度不可直接投影 → $caption"提示，
+                    // 让 LLM/用户的 copy-paste 修复保留用户 alias。其他情况保留
+                    // 原有 generic 错误消息。
+                    DbDimension dim = null;
+                    try {
+                        dim = qms.findDimension(baseField);
+                    } catch (Exception ignore) {
+                        // findDimension may throw on rare model shapes; treat
+                        // as "not a dim" and fall back to the generic message.
+                    }
+                    if (dim != null) {
+                        String hintCaption = baseField + "$caption";
+                        String hintId = baseField + "$id";
+                        throw new IllegalArgumentException(
+                                "COLUMN_FIELD_NOT_FOUND: column '" + columnDef
+                                        + "' references dimension '" + baseField
+                                        + "' directly. Dimensions are not projectable; "
+                                        + "reference an attribute (e.g. '" + hintCaption
+                                        + "' or '" + hintId + "'). "
+                                        + "Hint: did you mean '" + hintCaption + " AS "
+                                        + aliasName + "'?");
+                    }
+                    throw new IllegalArgumentException(
+                            "COLUMN_FIELD_NOT_FOUND: field '" + baseField
+                                    + "' (referenced by alias '" + aliasName
+                                    + "') not found in QueryModel");
+                }
+            }
+        }
+
+        // 合成 CalculatedFieldDef（origin=PLAIN_ALIAS）
+        CalculatedFieldDef synth = new CalculatedFieldDef();
+        synth.setName(aliasName);
+        synth.setExpression(baseField);
+        synth.setOrigin(CalculatedFieldDef.Origin.PLAIN_ALIAS);
+
+        // 元数据继承（spec §3.1.2）：从 base 列拷贝 caption / description；
+        // type / formatter 由 SqlFragment.inferColumnType 推断链路自动继承，无需显式拷贝。
+        if (baseColumn != null) {
+            if (StringUtils.isNotEmpty(baseColumn.getCaption())) {
+                synth.setCaption(baseColumn.getCaption());
+            }
+            if (StringUtils.isNotEmpty(baseColumn.getDescription())) {
+                synth.setDescription(baseColumn.getDescription());
+            }
+        }
+
+        if (log.isDebugEnabled()) {
+            log.debug("Plain field alias rewritten: '{}' -> alias='{}', base='{}', origin=PLAIN_ALIAS",
+                    columnDef, aliasName, baseField);
+        }
+
+        return synth;
+    }
+
+    /**
+     * 判断是否为"简单字段引用"或"维度属性引用"。
+     * <p>
+     * 排除：嵌套维度（含 {@code .}）、多级 {@code $}、函数 / 操作符 / 空格等。
+     * {@code "name"} / {@code "customerId"} / {@code "_internal"} 通过；
+     * {@code "product$id"} / {@code "product$caption"} 通过；
+     * {@code "product.name"} / {@code "product$caption$zh"} / {@code "SUM(x)"} 不通过。
+     */
+    private static boolean isSimpleFieldOrDimAttrRef(String s) {
+        if (s == null || s.isEmpty()) {
+            return false;
+        }
+        int dollar = s.indexOf('$');
+        if (dollar < 0) {
+            return isSimpleIdentifier(s);
+        }
+        if (dollar == 0 || dollar == s.length() - 1 || dollar != s.lastIndexOf('$')) {
+            return false;
+        }
+        return isSimpleIdentifier(s.substring(0, dollar))
+                && isSimpleIdentifier(s.substring(dollar + 1));
+    }
+
+    private static boolean isSimpleIdentifier(String s) {
+        if (s == null || s.isEmpty()) {
+            return false;
+        }
+        char first = s.charAt(0);
+        if (!Character.isLetter(first) && first != '_') {
+            return false;
+        }
+        for (int i = 1; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (Character.isLetterOrDigit(c) || c == '_') {
+                continue;
+            }
+            return false;
+        }
+        return true;
     }
 }

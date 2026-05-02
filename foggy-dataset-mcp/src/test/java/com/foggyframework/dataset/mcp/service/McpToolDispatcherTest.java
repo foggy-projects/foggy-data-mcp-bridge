@@ -5,12 +5,14 @@ import com.foggyframework.dataset.mcp.base.MockToolFactory;
 import com.foggyframework.dataset.mcp.schema.McpRequest;
 import com.foggyframework.mcp.spi.McpTool;
 import com.foggyframework.mcp.spi.ProgressEvent;
+import com.foggyframework.mcp.spi.ToolExecutionContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
@@ -25,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 
 /**
  * McpToolDispatcher 单元测试
@@ -228,6 +231,24 @@ class McpToolDispatcherTest extends BaseMcpTest {
             dispatcher.executeTool("dataset.query_model", args, "trace-2", "Bearer token");
 
             // 验证参数传递（通过 Mock 的 when 配置隐式验证）
+        }
+
+        @Test
+        @DisplayName("应透传远程 compose header")
+        void shouldPassRemoteComposeHeader() {
+            Map<String, Object> args = Map.of("script", "return 1;");
+            Map<String, String> headers = Map.of("X-Foggy-Remote-Compose", "1");
+            ArgumentCaptor<ToolExecutionContext> ctxCaptor =
+                    ArgumentCaptor.forClass(ToolExecutionContext.class);
+
+            when(queryTool.execute(any(), any())).thenReturn(Map.of("success", true));
+
+            dispatcher.executeTool("dataset.query_model", args, "trace-2", "req-1",
+                    "Bearer token", "ADMIN", "odoo", headers);
+
+            verify(queryTool).execute(any(), ctxCaptor.capture());
+            assertEquals("1", ctxCaptor.getValue().getHeader("X-Foggy-Remote-Compose"));
+            assertEquals("1", ctxCaptor.getValue().getHeader("x-foggy-remote-compose"));
         }
     }
 

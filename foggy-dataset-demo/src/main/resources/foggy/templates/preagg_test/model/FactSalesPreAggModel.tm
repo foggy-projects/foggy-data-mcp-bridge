@@ -22,6 +22,8 @@ export const model = {
             captionColumn: 'full_date',
             caption: '销售日期',
             description: '订单发生的日期',
+            timeRole: 'business_date',
+            recommendedUse: 'time_axis',
 
             properties: [
                 { column: 'year', caption: '年' },
