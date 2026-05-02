@@ -213,6 +213,24 @@ public final class DbUtils {
 
 	}
 
+	public static String getDatabaseProductVersion(DataSource ds) {
+		Connection con = null;
+		try {
+			con = ds.getConnection();
+			return con.getMetaData().getDatabaseProductVersion();
+		} catch (Throwable e) {
+			throw RX.throwB(e);
+		} finally {
+			if (con != null) {
+				try {
+					con.close();
+				} catch (SQLException e) {
+					throw RX.throwB(e);
+				}
+			}
+		}
+	}
+
 	public List<SqlTableSupport> getTableAndViews(final DataSource ds) {
 		final List<SqlTableSupport> x = new ArrayList<SqlTableSupport>();
 

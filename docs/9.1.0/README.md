@@ -3,7 +3,7 @@ doc_role: version_overview
 doc_purpose: Track Java Pivot Engine follow-up capabilities deferred from 9.0.0.beta into 9.1.0.
 version: 9.1.0
 target: Java Pivot Engine Follow-Up Roadmap
-status: phase-closeout signed-off-with-risks
+status: release-candidate signed-off-with-risks
 created_at: 2026-05-02
 ---
 
@@ -19,7 +19,7 @@ The 9.0.0.beta line remains the release-stability baseline. Items listed here mu
 
 | Area | 9.0.0.beta Status | 9.1.0 Direction |
 |---|---|---|
-| Stage 5A large-domain transport | `domain > 500` fail-closed for non-additive subtotal/grandTotal | Design and implement internal `DomainTransportPlan` / `DomainRelationRenderer` without changing Pivot DSL |
+| Stage 5A large-domain transport | `domain > 500` fail-closed for non-additive subtotal/grandTotal | Production-wired internal `DomainTransportPlan` / `DomainRelationRenderer` without changing Pivot DSL |
 | Stage 5B cascade Generate | deferred / known limitation | Define semantics for multi-level TopN and per-parent ranking before implementation |
 | Tree advanced semantics | rows-only tree, no `tree + crossjoin`, no `tree + subtotals` | Evaluate tree SQL TopN and tree subtotal support as separate subprojects |
 | Outer Pivot cache | not enabled for SQL pushdown first version | Evaluate cache key, managed relation phase, and invalidation strategy |
@@ -49,13 +49,12 @@ Upstream 9.0.0.beta references:
 
 ## Current Decision
 
-9.1.0 should start with design and hardening work, not a broad semantic expansion. The safest order is:
+9.1.0 has completed release hardening, telemetry, Stage 5A design, Stage 5A production transport, and Stage 5B semantic design. The remaining safest order is:
 
-1. Observability and CI gates.
-2. Stage 5A production design.
-3. Stage 5A implementation if telemetry or product need justifies it.
-4. Stage 5B semantic design.
-5. Tree advanced semantics only after Stage 5B rules are stable.
+1. Complete final release-script validation for the B2 production delta.
+2. Keep Stage 5B C2 gated until implementation approval.
+3. Evaluate tree advanced semantics only after Stage 5B rules are stable.
+4. Evaluate outer Pivot cache as a separate release track.
 
 ## Acceptance Status
 

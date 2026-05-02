@@ -1,6 +1,10 @@
 package com.foggyframework.dataset.db.model.engine.pivot;
 
 import com.foggyframework.dataset.db.model.ecommerce.EcommerceTestSupport;
+import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
+import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTransportField;
+import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTransportPlan;
+import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTransportTuple;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
@@ -958,7 +962,58 @@ class PivotSqlParityIntegrationTest extends EcommerceTestSupport {
         log.info("Test 13: SQL pushdown + TopN + Non-additive + Subtotals Parity 验证通过");
     }
 
+    @Test
+    @DisplayName("14. Stage 5A large-domain transport queryModel parity")
+    void testLargeDomainTransportQueryModelParity() {
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(List.of("product$categoryName", "uniqueCustomers"));
+        request.setGroupBy(List.of(
+                new SemanticQueryRequest.GroupByItem("product$categoryName", null),
+                new SemanticQueryRequest.GroupByItem("uniqueCustomers", null)
+        ));
+        request.setLimit(1000);
+        request.setReturnTotal(false);
+
+        DomainTransportPlan plan = DomainTransportPlan.builder()
+                .relationName("_pivot_domain_transport_test")
+                .fields(List.of(new DomainTransportField("product$categoryName")))
+                .tuples(buildLargeSingleFieldDomain("数码电器", 501))
+                .build();
+        SemanticRequestContext ctx = SemanticRequestContext.empty()
+                .withDomainTransportPlans(List.of(plan));
+
+        SqlGenerationResult generatedSql = semanticQueryServiceV3.generateSql(TEST_MODEL, request, ctx);
+        assertNotNull(generatedSql);
+        assertTrue(generatedSql.getSql().contains("_pivot_domain_transport_test"),
+                "Generated SQL should contain the large-domain transport relation");
+        assertEquals(501, generatedSql.getParams().size(),
+                "Large-domain transport params should be preserved and ordered");
+
+        SemanticQueryResponse response = execute(TEST_MODEL, request, ctx);
+        List<Map<String, Object>> actual = response.getItems();
+
+        String sql = "SELECT t2.category_name as category_name, COUNT(DISTINCT t1.customer_key) as unique_customers " +
+                "FROM fact_sales t1 " +
+                "LEFT JOIN dim_product t2 ON t1.product_key = t2.product_key " +
+                "WHERE t2.category_name = '数码电器' " +
+                "GROUP BY t2.category_name";
+        List<Map<String, Object>> expected = jdbcTemplate.queryForList(sql);
+
+        assertParity(expected, actual,
+                "category_name", "product$categoryName",
+                "unique_customers", "uniqueCustomers");
+    }
+
     // ========== Helpers ==========
+
+    private List<DomainTransportTuple> buildLargeSingleFieldDomain(String matchingValue, int size) {
+        List<DomainTransportTuple> tuples = new ArrayList<>();
+        tuples.add(new DomainTransportTuple(List.of(matchingValue)));
+        for (int i = 1; i < size; i++) {
+            tuples.add(new DomainTransportTuple(List.of("__missing_domain_" + i)));
+        }
+        return tuples;
+    }
 
     private void assertParity(List<Map<String, Object>> sqlItems, List<Map<String, Object>> pivotItems,
                               String sqlDimKey, String pivotDimKey, String sqlMetricKey, String pivotMetricKey) {

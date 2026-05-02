@@ -56,7 +56,7 @@ public class Mysql8ValuesDomainRenderer implements DomainRelationRenderer {
         }
 
         StringBuilder sql = new StringBuilder();
-        sql.append("_pivot_domain_transport(");
+        sql.append(plan.getRelationName()).append("(");
         List<String> fieldNames = new ArrayList<>();
         for (DomainTransportField field : plan.getFields()) {
             fieldNames.add(dialect.quoteIdentifier(field.getName()));

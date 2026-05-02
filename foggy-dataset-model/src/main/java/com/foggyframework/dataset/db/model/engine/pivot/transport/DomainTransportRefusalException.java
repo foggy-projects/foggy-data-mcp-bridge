@@ -7,4 +7,8 @@ public class DomainTransportRefusalException extends RuntimeException {
     public DomainTransportRefusalException(String message) {
         super(message);
     }
+
+    public DomainTransportRefusalException(String message, Throwable cause) {
+        super(message, cause);
+    }
 }

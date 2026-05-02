@@ -72,6 +72,43 @@ public final class PivotTelemetry {
                 model, cause.getClass().getSimpleName(), safeReason(cause));
     }
 
+    public static void domainTransportPlanned(Logger logger,
+                                              String model,
+                                              String relationName,
+                                              int fieldCount,
+                                              int tupleCount,
+                                              int parameterCount) {
+        logger.info("[Pivot] Large-domain transport planned, " +
+                        "event=pivot.domain_transport.planned, model={}, relation={}, fieldCount={}, " +
+                        "tupleCount={}, parameterCount={}",
+                model, relationName, fieldCount, tupleCount, parameterCount);
+    }
+
+    public static void domainTransportApplied(Logger logger,
+                                              String model,
+                                              String relationName,
+                                              String dialect,
+                                              String placement,
+                                              int fieldCount,
+                                              int tupleCount,
+                                              int parameterCount) {
+        logger.info("[Pivot] Large-domain transport applied, " +
+                        "event=pivot.domain_transport.applied, model={}, relation={}, dialect={}, " +
+                        "placement={}, fieldCount={}, tupleCount={}, parameterCount={}",
+                model, relationName, dialect, placement, fieldCount, tupleCount, parameterCount);
+    }
+
+    public static void domainTransportRefused(Logger logger,
+                                              String model,
+                                              String relationName,
+                                              String dialect,
+                                              Throwable cause) {
+        logger.warn("[Pivot] Large-domain transport refused, " +
+                        "event=pivot.domain_transport.refused, model={}, relation={}, dialect={}, " +
+                        "reasonClass={}, reason={}",
+                model, relationName, dialect, cause.getClass().getSimpleName(), safeReason(cause));
+    }
+
     private static String safeReason(Throwable cause) {
         String message = cause.getMessage();
         if (message == null || message.isBlank()) {

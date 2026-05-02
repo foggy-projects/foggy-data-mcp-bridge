@@ -1,7 +1,6 @@
 package com.foggyframework.dataset.db.model.engine.pivot.transport;
 
 import com.foggyframework.dataset.db.dialect.FDialect;
-import com.foggyframework.dataset.db.dialect.Mysql8Dialect;
 import com.foggyframework.dataset.db.dialect.MysqlDialect;
 import com.foggyframework.dataset.db.dialect.PostgresDialect;
 import com.foggyframework.dataset.db.dialect.SqliteDialect;
@@ -73,7 +72,7 @@ class DomainRelationRendererTest {
 
     @Test
     void testMysql8ValuesRenderer_VersionGate() {
-        Mysql8Dialect dialect = new Mysql8Dialect();
+        FDialect dialect = new MysqlDialect();
         DomainRelationRenderer renderer = new Mysql8ValuesDomainRenderer();
 
         assertThrows(DomainTransportRefusalException.class, () -> renderer.render(dialect, "8.0.18", createSingleFieldPlan()));

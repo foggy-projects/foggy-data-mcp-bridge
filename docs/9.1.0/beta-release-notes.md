@@ -1,34 +1,34 @@
 ---
 doc_role: release_notes
-doc_purpose: Beta release notes and release gating guidance for the 9.1.0 Pivot Engine phase closeout.
+doc_purpose: Release candidate notes and release gating guidance for the 9.1.0 Pivot Engine phase closeout.
 version: 9.1.0
-target: Java Pivot Engine Beta
-status: beta-ready-with-risks
+target: Java Pivot Engine Release Candidate
+status: release-candidate-with-risks
 created_at: 2026-05-02
 ---
 
-# Foggy Pivot Engine 9.1.0 Beta Release Notes
+# Foggy Pivot Engine 9.1.0 Release Candidate Notes
 
 ## Release Position
 
-9.1.0 is recommended for **beta** only. It should not be promoted to Release Candidate until the release owner either enables and verifies Stage 5A production transport, or explicitly defers it with updated acceptance criteria.
+9.1.0 is recommended for **release candidate** status after the Stage 5A B2 production transport hook passed the full Pivot V9 release readiness gate. It is not a GA publication record; package signing, external release ownership, and production telemetry review remain outside this repo-level closeout.
 
-## Included in This Beta
+## Included in This RC
 
 - Release readiness workflow/script coverage for Pivot Java Core.
 - Safe telemetry markers for SQL pushdown attempt, success, skip, fallback, domain-limit failure, and non-additive auxiliary query execution.
 - MySQL 8 dialect capability detection for CTE/window-function SQL pushdown parity.
-- Stage 5A large-domain transport design and internal renderer skeletons.
+- Stage 5A large-domain transport design, internal renderers, and production queryModel wiring.
+- Supported `domain > 500` non-additive subtotal/grandTotal cases now use safe domain transport instead of unconditional fail-closed behavior.
 - Stage 5B Cascade Generate / multi-level TopN semantic design.
 - Phase-level acceptance signoff with known risks.
 
-## Not Enabled
+## Still Gated or Deferred
 
-- Stage 5A production domain transport is not wired into runtime query execution.
-- `domain > 500` non-additive subtotal/grandTotal cases still fail closed in production paths.
 - Cascade Generate implementation is not started.
 - Tree advanced semantics and outer Pivot cache remain deferred.
 - No public Pivot DSL changes are included.
+- Unsupported dialects, unsafe renderer thresholds, and MySQL 8 versions before 8.0.19 still fail closed for large-domain transport.
 
 ## Verification Snapshot
 
@@ -36,23 +36,26 @@ created_at: 2026-05-02
 |---|---|---|
 | SQLite release quick gate | PASS | `./scripts/verify-pivot-v9-release.ps1 -SkipFullRegression -SkipMcp` passed on 2026-05-02. |
 | Full release readiness gate | PASS | `./scripts/verify-pivot-v9-release.ps1` passed on 2026-05-02, including full module regression, SQLite, MCP guardrail, MySQL8, and PostgreSQL parity. |
-| Diff hygiene | PASS | `git diff --check` reported no diff hygiene errors after the phase commits. |
-| Feature-level acceptance | PASS with risks | B1, B2-Prep, and C1 have acceptance records. |
+| Stage 5A SQLite large-domain parity | PASS | `PivotSqlParityIntegrationTest#testLargeDomainTransportQueryModelParity` passed under `sqlite`. |
+| Stage 5A MySQL8 large-domain parity | PASS | The same parity test passed under `mysql8`. |
+| Stage 5A PostgreSQL large-domain parity | PASS | The same parity test passed under `postgres`. |
+| Diff hygiene | PASS | `git diff --check` reported no diff hygiene errors for the RC delta. |
+| Feature-level acceptance | PASS with risks | B1, B2-Prep, B2 production, and C1 have acceptance records. |
 
 ## Known Risks
 
-- Stage 5A production enablement still needs runtime MySQL 8.0.19+ version probing and safe renderer selection.
-- MySQL 5.7 large-domain derived-table fallback must remain threshold guarded.
+- Operational thresholds for Stage 5A transport should be revisited after production telemetry confirms real domain sizes.
+- MySQL 5.7 large-domain derived-table fallback remains threshold guarded and may still refuse very large domains.
 - C2 implementation will require careful CTE planner work and SQL size controls.
-- Product telemetry should confirm real `domain > 500` demand before enabling Stage 5A production behavior.
+- Product telemetry should confirm sustained `domain > 500` demand before considering GA hardening or wider public messaging.
 
 ## Upgrade Notes
 
 - No public Pivot DSL migration is required.
-- Existing fail-closed behavior for unsupported large-domain non-additive rollups is preserved.
-- Consumers should treat new telemetry as operational visibility, not as a behavior change.
+- Existing fail-closed behavior for unsupported or unsafe large-domain non-additive rollups is preserved.
+- Consumers should treat new telemetry as operational visibility for pushdown and transport behavior.
 
-## RC Promotion Gate
+## GA Promotion Gate
 
 The full release readiness script has passed once for this phase:
 
@@ -60,4 +63,4 @@ The full release readiness script has passed once for this phase:
 ./scripts/verify-pivot-v9-release.ps1
 ```
 
-Before promoting to RC, release ownership still needs to decide whether B2 production transport is in scope for 9.1.0. If B2 is enabled before RC, add SQLite, MySQL8, PostgreSQL, and explicit MySQL 5.7 unsupported/fallback evidence for large-domain non-additive rollups.
+Before promoting beyond RC, release ownership should confirm external packaging/signing, review production telemetry thresholds, and decide whether C2 remains explicitly out of scope for the 9.1.0 GA line.

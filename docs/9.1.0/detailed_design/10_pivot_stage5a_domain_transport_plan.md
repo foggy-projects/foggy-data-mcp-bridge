@@ -9,7 +9,7 @@
 **非目标 (Non-Goals):**
 - 不改变公开的 Pivot DSL。
 - 不绕过 `queryModel` 的核心生命周期，必须保留 permissions、preAgg、physical column checks、sanitizer 和 logging 等机制。
-- 不把 Stage 5A production 行为直接打开（本轮仅做 Design-Ready）。
+- Stage 5A production 行为已在 B2 里打开，但仅通过内部 carrier 生效；公共 Pivot DSL 不变。
 - 不引入级联 Generate (Cascade Generate) 和多级 TopN (Multi-level TopN) 语义（此为 Stage 5B 内容）。
 
 ## 2. 为什么不能绕过 queryModel 生命周期
@@ -149,9 +149,20 @@ INNER JOIN _pivot_domain_transport _d
 ## 7. B2 Implementation Contract
 
 ### Internal Carrier
-To avoid leaking the transport mechanism into the public DSL or `SemanticQueryRequest` API, the `DomainTransportPlan` will be passed via `SemanticRequestContext.setAttribute("_domain_transport_plan", plan)`. This ensures:
+To avoid leaking the transport mechanism into the public DSL or `SemanticQueryRequest` API, `DomainTransportPlan` is carried by `SemanticRequestContext` and forwarded through `ModelResultContext.extData` under an internal key. This ensures:
 - Full decoupling from API serialization.
 - Preservation of the existing queryModel lifecycle and `JdbcModelQueryEngine` isolation.
+- Existing permission, systemSlice, preAgg, parameterization, SQL logging, and sanitizer paths still execute before the SQL is rendered.
+
+### Production Hook
+
+B2 wires the plan in the non-additive subtotal/grandTotal auxiliary query path:
+
+1. `NonAdditiveRollupExecutor` keeps the existing `domain <= 500` `OR-of-AND` slice path.
+2. For `domain > 500`, it creates one or more internal `DomainTransportPlan` instances and attaches them to the derived `SemanticRequestContext`.
+3. `SemanticQueryServiceV3Impl` forwards the plans into `ModelResultContext.extData`.
+4. `JdbcModelQueryEngine` renders each plan and injects a `WHERE EXISTS` semi-join against the base relation before grouping and aggregation.
+5. Renderer refusal propagates as a fail-closed domain transport error; it does not silently fall back to an unbounded in-memory query.
 
 ### MySQL 8.0 Version Gate
 The `VALUES ROW(...)` syntax is only supported in MySQL 8.0.19 and later.
@@ -172,3 +183,10 @@ The `DomainRelationRenderer` will return a `DomainRelationRenderResult` containi
 - **Join Predicate**: The ON clause (e.g., `base.col <=> _d.col`) to be injected into the base relation.
 - **Placement**: An indicator (e.g., `CTE` or `DERIVED_TABLE`) so the query engine knows where to inject the fragment and params.
 - **Refusal Reason**: If rendering is unsupported or unsafe, a clear reason why (e.g., "Too many parameters for MySQL 5.7").
+
+### Verification Evidence
+
+- SQLite queryModel parity for the large-domain transport path passed with real SQL oracle comparison.
+- MySQL8 large-domain parity passed with JDBC metadata version-gated renderer selection.
+- PostgreSQL large-domain parity passed with CTE transport.
+- Existing direct `addAxisDomainSlice` tests still assert fail-closed behavior for callers that try to build an oversized in-memory slice directly.
