@@ -24,6 +24,7 @@ import java.util.Map;
 
 public abstract class FDialect {
     public static MysqlDialect MYSQL_DIALECT;
+    public static Mysql8Dialect MYSQL8_DIALECT;
     public static PostgresDialect POSTGRES_DIALECT;
     public static SqlServerDialect SQLSERVER_DIALECT;
     public static SqliteDialect SQLITE_DIALECT;
@@ -31,6 +32,7 @@ public abstract class FDialect {
     static {
         try {
             MYSQL_DIALECT = new MysqlDialect();
+            MYSQL8_DIALECT = new Mysql8Dialect();
             POSTGRES_DIALECT = new PostgresDialect();
             SQLSERVER_DIALECT = new SqlServerDialect();
             SQLITE_DIALECT = new SqliteDialect();

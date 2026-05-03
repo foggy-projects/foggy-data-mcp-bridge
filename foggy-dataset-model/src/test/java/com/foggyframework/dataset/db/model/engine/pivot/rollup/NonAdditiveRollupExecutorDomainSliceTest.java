@@ -299,6 +299,28 @@ class NonAdditiveRollupExecutorDomainSliceTest {
         }, "多字段 tuple domain 超限时应 fail-closed");
     }
 
+    @Test
+    @DisplayName("Stage 5A: 生产约束中超限 domain → 生成 DomainTransportPlan")
+    void testLargeDomainConstraintBuildsTransportPlan() {
+        List<String> axisFields = List.of("category");
+
+        Set<List<Object>> largeDomain = new LinkedHashSet<>();
+        for (int i = 0; i < 501; i++) {
+            largeDomain.add(List.of("Category-" + i));
+        }
+
+        TestableNonAdditiveRollupExecutor.DomainConstraintResult result =
+                TestableNonAdditiveRollupExecutor.exposedAddAxisDomainConstraint(axisFields, largeDomain);
+
+        assertTrue(result.sliceItems().isEmpty(),
+                "Large domain should not generate OR-of-AND slice");
+        assertEquals(1, result.transportPlans().size(),
+                "Large domain should generate one transport plan");
+        assertEquals("_pivot_domain_transport_0", result.transportPlans().get(0).getRelationName());
+        assertEquals(501, result.transportPlans().get(0).getTuples().size());
+        assertEquals("category", result.transportPlans().get(0).getFields().get(0).getName());
+    }
+
     // =========================================================
     // Test 9: null 或空 domain → 不生成过滤
     // =========================================================

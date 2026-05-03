@@ -16,6 +16,18 @@ import com.foggyframework.dataset.db.model.engine.formula.SqlFormulaService;
 import com.foggyframework.dataset.db.model.engine.formula.hierarchy.HierarchyOperator;
 import com.foggyframework.dataset.db.model.engine.formula.hierarchy.HierarchyOperatorService;
 import com.foggyframework.dataset.db.model.engine.join.JoinGraph;
+import com.foggyframework.dataset.db.model.engine.pivot.PivotTelemetry;
+import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainRelationRenderResult;
+import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainRelationRenderer;
+import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTransportField;
+import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTransportPlacement;
+import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTransportPlan;
+import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTransportRefusalException;
+import com.foggyframework.dataset.db.model.engine.pivot.transport.Mysql57DerivedTableDomainRenderer;
+import com.foggyframework.dataset.db.model.engine.pivot.transport.Mysql8ValuesDomainRenderer;
+import com.foggyframework.dataset.db.model.engine.pivot.transport.PostgresCteDomainRenderer;
+import com.foggyframework.dataset.db.model.engine.pivot.transport.SqliteCteDomainRenderer;
+import com.foggyframework.dataset.db.model.engine.pivot.transport.UnsupportedDomainRenderer;
 import com.foggyframework.dataset.db.model.engine.query.JdbcQuery;
 import com.foggyframework.dataset.db.model.engine.query.SimpleSqlJdbcQueryVisitor;
 import com.foggyframework.dataset.db.model.i18n.DatasetMessages;
@@ -33,6 +45,7 @@ import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 
+import java.sql.Connection;
 import java.sql.Types;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -89,6 +102,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
     List values;
     private static final String PATTERN = "^[a-zA-Z\\s]+$";
     private static final Pattern PATTERN_OBJECT = Pattern.compile(PATTERN);
+    private static final Pattern SAFE_INTERNAL_IDENTIFIER = Pattern.compile("^[A-Za-z_][A-Za-z0-9_]*$");
 
     public static void validate(String v) {
         if (StringUtils.isEmpty(v)) {
@@ -296,13 +310,26 @@ public class JdbcModelQueryEngine implements QueryEngine {
         // 4.生成明细查询语句
         this.jdbcQuery = jdbcQuery;
 
+        DomainTransportSqlInjection domainTransportInjection = applyDomainTransportPlans(context, jdbcQuery);
+
         SimpleSqlJdbcQueryVisitor v = new SimpleSqlJdbcQueryVisitor(systemBundlesContext.getApplicationContext(), jdbcQueryModel, queryRequest);
 
 
         jdbcQuery.accept(v);
-        values = v.getValues();
-        this.innerSql = v.getSql();
-        this.innerSqlWithoutOrder = v.getSqlWithoutOrder();
+        List visitorValues = v.getValues();
+        if (domainTransportInjection.hasCte()) {
+            String ctePrefix = "with " + String.join(",\n", domainTransportInjection.cteFragments()) + "\n";
+            this.innerSql = ctePrefix + v.getSql();
+            this.innerSqlWithoutOrder = ctePrefix + v.getSqlWithoutOrder();
+            List<Object> mergedValues = new ArrayList<>();
+            mergedValues.addAll(domainTransportInjection.cteParams());
+            mergedValues.addAll(visitorValues);
+            values = mergedValues;
+        } else {
+            values = visitorValues;
+            this.innerSql = v.getSql();
+            this.innerSqlWithoutOrder = v.getSqlWithoutOrder();
+        }
         this.sql = this.innerSql;
 
         // 构建聚合SQL（支持优化）
@@ -331,6 +358,188 @@ public class JdbcModelQueryEngine implements QueryEngine {
             log.debug(values == null ? "无" : values.toString());
         }
 
+    }
+
+    @SuppressWarnings("unchecked")
+    private DomainTransportSqlInjection applyDomainTransportPlans(ModelResultContext context, JdbcQuery jdbcQuery) {
+        if (context == null || context.getExtData() == null) {
+            return DomainTransportSqlInjection.empty();
+        }
+        Object rawPlans = context.getExtData().get(DomainTransportPlan.EXT_DATA_KEY);
+        if (!(rawPlans instanceof List<?> rawList) || rawList.isEmpty()) {
+            return DomainTransportSqlInjection.empty();
+        }
+
+        List<DomainTransportPlan> plans = rawList.stream()
+                .filter(DomainTransportPlan.class::isInstance)
+                .map(DomainTransportPlan.class::cast)
+                .collect(Collectors.toList());
+        if (plans.isEmpty()) {
+            return DomainTransportSqlInjection.empty();
+        }
+
+        FDialect dialect = jdbcQueryModel.getDialect();
+        String databaseVersion = null;
+        if (jdbcQueryModel.getDataSource() != null) {
+            databaseVersion = getDatabaseProductVersion();
+        }
+            DomainRelationRenderer renderer = selectDomainRelationRenderer(dialect, databaseVersion);
+        String modelName = jdbcQueryModel != null ? jdbcQueryModel.getName() : null;
+
+        List<String> cteFragments = new ArrayList<>();
+        List<Object> cteParams = new ArrayList<>();
+        for (DomainTransportPlan plan : plans) {
+            try {
+                validateInternalRelationName(plan.getRelationName());
+                DomainRelationRenderResult rendered = renderer.render(dialect, databaseVersion, plan);
+                String predicate = buildDomainTransportPredicate(jdbcQuery, plan, dialect);
+                if (rendered.getPlacement() == DomainTransportPlacement.CTE) {
+                    cteFragments.add(rendered.getSqlFragment());
+                    for (Object param : rendered.getParams()) {
+                        cteParams.add(dialect.convertParameterValue(param));
+                    }
+                    jdbcQuery.getWhere().addRawSql("AND",
+                            "exists (select 1 from " + plan.getRelationName() + " _d where " + predicate + ")");
+                } else if (rendered.getPlacement() == DomainTransportPlacement.DERIVED_TABLE) {
+                    jdbcQuery.getWhere().andList(
+                            "exists (select 1 from " + rendered.getSqlFragment() + " _d where " + predicate + ")",
+                            rendered.getParams());
+                } else {
+                    throw new DomainTransportRefusalException("Unsupported domain transport placement: " + rendered.getPlacement());
+                }
+                PivotTelemetry.domainTransportApplied(log, modelName, plan.getRelationName(),
+                        dialect.getProductName(), rendered.getPlacement().name(), plan.getFields().size(),
+                        plan.getTuples().size(), plan.parameterCount());
+            } catch (DomainTransportRefusalException e) {
+                PivotTelemetry.domainTransportRefused(log, modelName, plan.getRelationName(),
+                        dialect.getProductName(), e);
+                throw e;
+            }
+        }
+
+        return new DomainTransportSqlInjection(cteFragments, cteParams);
+    }
+
+    private DomainRelationRenderer selectDomainRelationRenderer(FDialect dialect, String databaseVersion) {
+        if (dialect == null) {
+            return new UnsupportedDomainRenderer();
+        }
+        if (dialect == FDialect.POSTGRES_DIALECT || "PostgreSQL".equalsIgnoreCase(dialect.getProductName())) {
+            return new PostgresCteDomainRenderer();
+        }
+        if (dialect == FDialect.SQLITE_DIALECT || "SQLite".equalsIgnoreCase(dialect.getProductName())) {
+            return new SqliteCteDomainRenderer();
+        }
+        if (dialect.getClass().getSimpleName().contains("Mysql8")
+                || ("MySQL".equalsIgnoreCase(dialect.getProductName()) && supportsMysqlValuesRow(databaseVersion))) {
+            return new Mysql8ValuesDomainRenderer();
+        }
+        if (dialect == FDialect.MYSQL_DIALECT || "MySQL".equalsIgnoreCase(dialect.getProductName())) {
+            return new Mysql57DerivedTableDomainRenderer();
+        }
+        return new UnsupportedDomainRenderer();
+    }
+
+    private boolean supportsMysqlValuesRow(String databaseVersion) {
+        if (databaseVersion == null || databaseVersion.isEmpty()) {
+            return false;
+        }
+        String[] parts = databaseVersion.split("\\.");
+        if (parts.length < 3) {
+            return false;
+        }
+        try {
+            int major = parseLeadingInt(parts[0]);
+            int minor = parseLeadingInt(parts[1]);
+            int patch = parseLeadingInt(parts[2]);
+            return major > 8 || (major == 8 && (minor > 0 || (minor == 0 && patch >= 19)));
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
+
+    private int parseLeadingInt(String value) {
+        int end = 0;
+        while (end < value.length() && Character.isDigit(value.charAt(end))) {
+            end++;
+        }
+        if (end == 0) {
+            throw new NumberFormatException(value);
+        }
+        return Integer.parseInt(value.substring(0, end));
+    }
+
+    private String buildDomainTransportPredicate(JdbcQuery jdbcQuery, DomainTransportPlan plan, FDialect dialect) {
+        List<String> predicates = new ArrayList<>();
+        for (DomainTransportField field : plan.getFields()) {
+            DbColumn jdbcColumn = resolveDomainTransportColumn(field.getName());
+            if (jdbcColumn.isCalculatedField()) {
+                if (jdbcColumn instanceof CalculatedDbColumn calcColumn && calcColumn.hasAggregate()) {
+                    throw new DomainTransportRefusalException(
+                            "Domain transport does not support aggregate calculated field: " + field.getName());
+                }
+                joinReferencedColumns(jdbcQuery, jdbcColumn);
+            } else if (jdbcColumn.getQueryObject() != null
+                    && !jdbcQuery.getFrom().getFromObject().isRootEqual(jdbcColumn.getQueryObject())) {
+                jdbcQuery.join(jdbcColumn.getQueryObject());
+            }
+
+            String alias = jdbcColumn.getQueryObject() != null ? jdbcQueryModel.getAlias(jdbcColumn.getQueryObject()) : null;
+            String baseSql = buildColumnSql(jdbcColumn, alias);
+            String domainSql = "_d." + dialect.quoteIdentifier(field.getName());
+            predicates.add(buildNullSafeEquality(baseSql, domainSql, dialect));
+        }
+        return String.join(" AND ", predicates);
+    }
+
+    private DbColumn resolveDomainTransportColumn(String fieldName) {
+        DbColumn jdbcColumn = jdbcQueryModel.findJdbcColumnForCond(fieldName, false, true);
+        if (jdbcColumn == null) {
+            jdbcColumn = findCalculatedColumn(fieldName);
+        }
+        if (jdbcColumn == null) {
+            throw new DomainTransportRefusalException("Domain transport field not found: " + fieldName);
+        }
+        return jdbcColumn;
+    }
+
+    private String buildNullSafeEquality(String leftSql, String rightSql, FDialect dialect) {
+        String productName = dialect != null ? dialect.getProductName() : "";
+        if ("PostgreSQL".equalsIgnoreCase(productName)) {
+            return leftSql + " IS NOT DISTINCT FROM " + rightSql;
+        }
+        if ("SQLite".equalsIgnoreCase(productName)) {
+            return leftSql + " IS " + rightSql;
+        }
+        if ("MySQL".equalsIgnoreCase(productName) || dialect == FDialect.MYSQL_DIALECT
+                || dialect.getClass().getSimpleName().contains("Mysql8")) {
+            return leftSql + " <=> " + rightSql;
+        }
+        throw new DomainTransportRefusalException("Null-safe domain transport predicate unsupported for dialect: " + productName);
+    }
+
+    private String getDatabaseProductVersion() {
+        try (Connection connection = jdbcQueryModel.getDataSource().getConnection()) {
+            return connection.getMetaData().getDatabaseProductVersion();
+        } catch (Exception e) {
+            throw new DomainTransportRefusalException("Failed to detect database version for domain transport", e);
+        }
+    }
+
+    private void validateInternalRelationName(String relationName) {
+        if (relationName == null || !SAFE_INTERNAL_IDENTIFIER.matcher(relationName).matches()) {
+            throw new DomainTransportRefusalException("Unsafe domain transport relation name");
+        }
+    }
+
+    private record DomainTransportSqlInjection(List<String> cteFragments, List<Object> cteParams) {
+        private static DomainTransportSqlInjection empty() {
+            return new DomainTransportSqlInjection(List.of(), List.of());
+        }
+
+        private boolean hasCte() {
+            return cteFragments != null && !cteFragments.isEmpty();
+        }
     }
 
     private String buildGroupBy(SystemBundlesContext systemBundlesContext, DbQueryRequestDef queryRequest) {

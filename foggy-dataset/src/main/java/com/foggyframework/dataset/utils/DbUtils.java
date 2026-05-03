@@ -183,6 +183,9 @@ public final class DbUtils {
 			con = ds.getConnection();
 			String productName = con.getMetaData().getDatabaseProductName().toUpperCase();
 			if (isMysql(productName)) {
+				if (productName.contains("MYSQL") && con.getMetaData().getDatabaseMajorVersion() >= 8) {
+					return FDialect.MYSQL8_DIALECT;
+				}
 				return FDialect.MYSQL_DIALECT;
 			} else if (isPostgres(productName)) {
 				return FDialect.POSTGRES_DIALECT;
@@ -208,6 +211,24 @@ public final class DbUtils {
 			}
 		}
 
+	}
+
+	public static String getDatabaseProductVersion(DataSource ds) {
+		Connection con = null;
+		try {
+			con = ds.getConnection();
+			return con.getMetaData().getDatabaseProductVersion();
+		} catch (Throwable e) {
+			throw RX.throwB(e);
+		} finally {
+			if (con != null) {
+				try {
+					con.close();
+				} catch (SQLException e) {
+					throw RX.throwB(e);
+				}
+			}
+		}
 	}
 
 	public List<SqlTableSupport> getTableAndViews(final DataSource ds) {

@@ -1,6 +1,18 @@
 package com.foggyframework.dataset.db.model.engine.pivot;
 
+import com.foggyframework.dataset.client.domain.PagingRequest;
+import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
+import com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef;
 import com.foggyframework.dataset.db.model.ecommerce.EcommerceTestSupport;
+import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
+import com.foggyframework.dataset.db.model.engine.pivot.sql.PivotAxisDomainSqlPlanner;
+import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTransportField;
+import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTransportPlan;
+import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTransportTuple;
+import com.foggyframework.dataset.db.model.plugins.query_execution.ManagedRelationOptions;
+import com.foggyframework.dataset.db.model.plugins.query_execution.ManagedSqlRelation;
+import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
+import com.foggyframework.dataset.db.model.service.QueryFacade;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
@@ -41,6 +53,9 @@ class PivotSqlParityIntegrationTest extends EcommerceTestSupport {
     @Resource
     private JdbcTemplate jdbcTemplate;
 
+    @Resource
+    private QueryFacade queryFacade;
+
     @Test
     @DisplayName("0. Verify SQL Pushdown is actually used for TopN (Not memory fallback)")
     void testSqlPushdownTriggeredInNormalExecution() {
@@ -78,6 +93,79 @@ class PivotSqlParityIntegrationTest extends EcommerceTestSupport {
         } finally {
             pivotLogger.detachAppender(listAppender);
         }
+    }
+
+    @Test
+    @DisplayName("0.1 PreAgg + systemSlice + TopN keeps final SQL params order")
+    void testPreAggHitWithSystemSliceAndLimitKeepsFinalParamOrder() {
+        assumeTrue(supportsWindowFunctions(), "Skipping: SQL pushdown requires CTE + ROW_NUMBER() OVER()");
+
+        DbQueryRequestDef queryDef = new DbQueryRequestDef();
+        queryDef.setQueryModel("FactSalesPreAggQueryModel");
+        queryDef.setReturnTotal(false);
+        queryDef.setStrictColumns(true);
+        queryDef.setColumns(List.of("product$categoryName", "salesAmount"));
+        queryDef.setGroupBy(List.of(
+                group("product$categoryName", null),
+                group("salesAmount", "SUM")
+        ));
+
+        SliceRequestDef systemDateSlice = new SliceRequestDef();
+        systemDateSlice.setField("salesDate$id");
+        systemDateSlice.setOp("[)");
+        systemDateSlice.setValue(List.of(20240101, 20240331));
+
+        PagingRequest<DbQueryRequestDef> pagingRequest = new PagingRequest<>();
+        pagingRequest.setParam(queryDef);
+        pagingRequest.setStart(0);
+        pagingRequest.setLimit(10_000);
+        pagingRequest.setPageSize(10_000);
+
+        ModelResultContext resultContext = new ModelResultContext();
+        resultContext.setRequest(pagingRequest);
+        resultContext.setQueryType(ModelResultContext.QueryType.SEMANTIC);
+        resultContext.setSystemSlice(List.of(systemDateSlice));
+
+        ManagedSqlRelation baseRelation = queryFacade.prepareManagedRelation(resultContext,
+                ManagedRelationOptions.builder()
+                        .purpose("pivot-sql-preagg-param-order-regression")
+                        .wrappableRequired(true)
+                        .disableInnerCacheShortCircuit(true)
+                        .requireStableAliases(true)
+                        .requireDialectCapability(ManagedRelationOptions.DialectCapability.CTE)
+                        .requireDialectCapability(ManagedRelationOptions.DialectCapability.WINDOW_FUNCTION)
+                        .build());
+
+        assertTrue(baseRelation.isPreAggApplied(), "preAgg should be applied before outer Pivot CTE wrapping");
+        assertTrue(baseRelation.getSql().contains("preagg_"), "base SQL should query a preAgg table: " + baseRelation.getSql());
+        assertIterableEquals(List.of(20240101, 20240331), baseRelation.getParams(),
+                "base relation params should come from the systemSlice after preAgg rewrite");
+
+        int topNLimit = 2;
+        AxisField categoryAxis = axis("product$categoryName");
+        categoryAxis.setLimit(topNLimit);
+        categoryAxis.setOrderBy(List.of("-salesAmount"));
+
+        PivotRequest pivot = new PivotRequest();
+        pivot.setRows(List.of(categoryAxis));
+        pivot.setMetrics(List.of("salesAmount"));
+        pivot.setOutputFormat("flat");
+
+        PivotAxisDomainSqlPlanner.PlannedSql planned = PivotAxisDomainSqlPlanner.plan(
+                baseRelation,
+                pivot,
+                List.of("product$categoryName"),
+                List.of(),
+                List.of("salesAmount"));
+
+        List<Object> finalParams = planned.getParams();
+        int baseParamCount = baseRelation.getParams().size();
+        assertEquals(baseParamCount + 1, finalParams.size(),
+                "outer TopN should append exactly one rn limit param after preAgg/systemSlice params");
+        assertEquals(baseRelation.getParams(), finalParams.subList(0, baseParamCount),
+                "preAgg/systemSlice params must remain before outer domain CTE params");
+        assertEquals(topNLimit, finalParams.get(baseParamCount),
+                "rn <= ? limit param must be appended after base relation params");
     }
 
     // ========== Parity Scenarios ==========
@@ -958,7 +1046,58 @@ class PivotSqlParityIntegrationTest extends EcommerceTestSupport {
         log.info("Test 13: SQL pushdown + TopN + Non-additive + Subtotals Parity 验证通过");
     }
 
+    @Test
+    @DisplayName("14. Stage 5A large-domain transport queryModel parity")
+    void testLargeDomainTransportQueryModelParity() {
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(List.of("product$categoryName", "uniqueCustomers"));
+        request.setGroupBy(List.of(
+                new SemanticQueryRequest.GroupByItem("product$categoryName", null),
+                new SemanticQueryRequest.GroupByItem("uniqueCustomers", null)
+        ));
+        request.setLimit(1000);
+        request.setReturnTotal(false);
+
+        DomainTransportPlan plan = DomainTransportPlan.builder()
+                .relationName("_pivot_domain_transport_test")
+                .fields(List.of(new DomainTransportField("product$categoryName")))
+                .tuples(buildLargeSingleFieldDomain("数码电器", 501))
+                .build();
+        SemanticRequestContext ctx = SemanticRequestContext.empty()
+                .withDomainTransportPlans(List.of(plan));
+
+        SqlGenerationResult generatedSql = semanticQueryServiceV3.generateSql(TEST_MODEL, request, ctx);
+        assertNotNull(generatedSql);
+        assertTrue(generatedSql.getSql().contains("_pivot_domain_transport_test"),
+                "Generated SQL should contain the large-domain transport relation");
+        assertEquals(501, generatedSql.getParams().size(),
+                "Large-domain transport params should be preserved and ordered");
+
+        SemanticQueryResponse response = execute(TEST_MODEL, request, ctx);
+        List<Map<String, Object>> actual = response.getItems();
+
+        String sql = "SELECT t2.category_name as category_name, COUNT(DISTINCT t1.customer_key) as unique_customers " +
+                "FROM fact_sales t1 " +
+                "LEFT JOIN dim_product t2 ON t1.product_key = t2.product_key " +
+                "WHERE t2.category_name = '数码电器' " +
+                "GROUP BY t2.category_name";
+        List<Map<String, Object>> expected = jdbcTemplate.queryForList(sql);
+
+        assertParity(expected, actual,
+                "category_name", "product$categoryName",
+                "unique_customers", "uniqueCustomers");
+    }
+
     // ========== Helpers ==========
+
+    private List<DomainTransportTuple> buildLargeSingleFieldDomain(String matchingValue, int size) {
+        List<DomainTransportTuple> tuples = new ArrayList<>();
+        tuples.add(new DomainTransportTuple(List.of(matchingValue)));
+        for (int i = 1; i < size; i++) {
+            tuples.add(new DomainTransportTuple(List.of("__missing_domain_" + i)));
+        }
+        return tuples;
+    }
 
     private void assertParity(List<Map<String, Object>> sqlItems, List<Map<String, Object>> pivotItems,
                               String sqlDimKey, String pivotDimKey, String sqlMetricKey, String pivotMetricKey) {
@@ -1023,5 +1162,12 @@ class PivotSqlParityIntegrationTest extends EcommerceTestSupport {
         AxisField f = new AxisField();
         f.setField(field);
         return f;
+    }
+
+    private GroupRequestDef group(String field, String agg) {
+        GroupRequestDef g = new GroupRequestDef();
+        g.setField(field);
+        g.setAgg(agg);
+        return g;
     }
 }

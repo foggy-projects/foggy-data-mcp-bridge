@@ -1,6 +1,7 @@
 package com.foggyframework.dataset.db.model.engine.pivot.rollup;
 
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
+import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTransportPlan;
 
 import java.util.*;
 
@@ -22,5 +23,20 @@ public class TestableNonAdditiveRollupExecutor {
         List<SemanticQueryRequest.SliceItem> sliceItems = new ArrayList<>();
         NonAdditiveRollupExecutor.addAxisDomainSlice(sliceItems, axisFields, domain);
         return sliceItems;
+    }
+
+    public static DomainConstraintResult exposedAddAxisDomainConstraint(
+            List<String> axisFields,
+            Set<List<Object>> domain) {
+
+        List<SemanticQueryRequest.SliceItem> sliceItems = new ArrayList<>();
+        List<DomainTransportPlan> transportPlans = new ArrayList<>();
+        NonAdditiveRollupExecutor.addAxisDomainConstraint(sliceItems, axisFields, domain, transportPlans);
+        return new DomainConstraintResult(sliceItems, transportPlans);
+    }
+
+    public record DomainConstraintResult(
+            List<SemanticQueryRequest.SliceItem> sliceItems,
+            List<DomainTransportPlan> transportPlans) {
     }
 }

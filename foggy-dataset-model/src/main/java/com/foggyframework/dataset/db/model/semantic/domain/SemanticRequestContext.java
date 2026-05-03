@@ -3,6 +3,7 @@ package com.foggyframework.dataset.db.model.semantic.domain;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
+import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTransportPlan;
 
 import java.util.Collections;
 import java.util.List;
@@ -32,22 +33,25 @@ import java.util.Set;
  */
 public class SemanticRequestContext {
 
-    private static final SemanticRequestContext EMPTY = new SemanticRequestContext(null, null, null, null, null);
+    private static final SemanticRequestContext EMPTY = new SemanticRequestContext(null, null, null, null, null, null);
 
     private final String namespace;
     private final ModelResultContext.SecurityContext securityContext;
     private final Set<String> fieldAccess;
     private final List<DeniedPhysicalColumn> deniedColumns;
     private final List<SliceRequestDef> systemSlice;
+    private final List<DomainTransportPlan> domainTransportPlans;
 
     private SemanticRequestContext(String namespace, ModelResultContext.SecurityContext securityContext,
                                    Set<String> fieldAccess, List<DeniedPhysicalColumn> deniedColumns,
-                                   List<SliceRequestDef> systemSlice) {
+                                   List<SliceRequestDef> systemSlice,
+                                   List<DomainTransportPlan> domainTransportPlans) {
         this.namespace = namespace;
         this.securityContext = securityContext;
         this.fieldAccess = fieldAccess != null ? Collections.unmodifiableSet(Set.copyOf(fieldAccess)) : null;
         this.deniedColumns = deniedColumns != null ? List.copyOf(deniedColumns) : null;
         this.systemSlice = systemSlice != null ? List.copyOf(systemSlice) : null;
+        this.domainTransportPlans = domainTransportPlans != null ? List.copyOf(domainTransportPlans) : null;
     }
 
     /** 空上下文 -- 无命名空间、无安全信息、无列权限限制 */
@@ -60,7 +64,7 @@ public class SemanticRequestContext {
         if (namespace == null) {
             return EMPTY;
         }
-        return new SemanticRequestContext(namespace, null, null, null, null);
+        return new SemanticRequestContext(namespace, null, null, null, null, null);
     }
 
     /** 从 authorization 字符串自动构建 SecurityContext */
@@ -69,12 +73,12 @@ public class SemanticRequestContext {
         if (authorization != null && !authorization.isEmpty()) {
             sc = ModelResultContext.SecurityContext.fromAuthorization(authorization);
         }
-        return new SemanticRequestContext(namespace, sc, null, null, null);
+        return new SemanticRequestContext(namespace, sc, null, null, null, null);
     }
 
     /** 显式传入 SecurityContext */
     public static SemanticRequestContext of(String namespace, ModelResultContext.SecurityContext securityContext) {
-        return new SemanticRequestContext(namespace, securityContext, null, null, null);
+        return new SemanticRequestContext(namespace, securityContext, null, null, null, null);
     }
 
     /**
@@ -87,7 +91,7 @@ public class SemanticRequestContext {
      */
     public static SemanticRequestContext of(String namespace, ModelResultContext.SecurityContext securityContext,
                                             Set<String> fieldAccess) {
-        return new SemanticRequestContext(namespace, securityContext, fieldAccess, null, null);
+        return new SemanticRequestContext(namespace, securityContext, fieldAccess, null, null, null);
     }
 
     /**
@@ -101,7 +105,7 @@ public class SemanticRequestContext {
     public static SemanticRequestContext ofDeniedColumns(String namespace,
                                                          ModelResultContext.SecurityContext securityContext,
                                                          List<DeniedPhysicalColumn> deniedColumns) {
-        return new SemanticRequestContext(namespace, securityContext, null, deniedColumns, null);
+        return new SemanticRequestContext(namespace, securityContext, null, deniedColumns, null, null);
     }
 
     /**
@@ -115,7 +119,7 @@ public class SemanticRequestContext {
      */
     public static SemanticRequestContext of(String namespace, ModelResultContext.SecurityContext securityContext,
                                             Set<String> fieldAccess, List<DeniedPhysicalColumn> deniedColumns) {
-        return new SemanticRequestContext(namespace, securityContext, fieldAccess, deniedColumns, null);
+        return new SemanticRequestContext(namespace, securityContext, fieldAccess, deniedColumns, null, null);
     }
 
     /**
@@ -131,7 +135,7 @@ public class SemanticRequestContext {
     public static SemanticRequestContext of(String namespace, ModelResultContext.SecurityContext securityContext,
                                             Set<String> fieldAccess, List<DeniedPhysicalColumn> deniedColumns,
                                             List<SliceRequestDef> systemSlice) {
-        return new SemanticRequestContext(namespace, securityContext, fieldAccess, deniedColumns, systemSlice);
+        return new SemanticRequestContext(namespace, securityContext, fieldAccess, deniedColumns, systemSlice, null);
     }
 
     public String getNamespace() {
@@ -172,6 +176,30 @@ public class SemanticRequestContext {
         return systemSlice;
     }
 
+    /**
+     * 获取 Pivot 内部大域传输计划。
+     *
+     * @return domain transport plans；null 表示无大域传输
+     * @since 9.1.0
+     */
+    public List<DomainTransportPlan> getDomainTransportPlans() {
+        return domainTransportPlans;
+    }
+
+    /**
+     * 返回带有 Pivot 内部大域传输计划的新上下文，保留原有权限和 systemSlice。
+     *
+     * @param domainTransportPlans 大域传输计划；null 或空列表表示清空
+     * @return 新上下文
+     * @since 9.1.0
+     */
+    public SemanticRequestContext withDomainTransportPlans(List<DomainTransportPlan> domainTransportPlans) {
+        List<DomainTransportPlan> plans = domainTransportPlans != null && !domainTransportPlans.isEmpty()
+                ? domainTransportPlans
+                : null;
+        return new SemanticRequestContext(namespace, securityContext, fieldAccess, deniedColumns, systemSlice, plans);
+    }
+
     /** 便捷方法：委托给 securityContext.getAuthorization() */
     public String getAuthorization() {
         return securityContext != null ? securityContext.getAuthorization() : null;
@@ -181,6 +209,7 @@ public class SemanticRequestContext {
     public String toString() {
         return "SemanticRequestContext{namespace='" + namespace + "'" +
                 (fieldAccess != null ? ", fieldAccess=" + fieldAccess.size() + " fields" : "") +
-                (deniedColumns != null ? ", deniedColumns=" + deniedColumns.size() + " cols" : "") + "}";
+                (deniedColumns != null ? ", deniedColumns=" + deniedColumns.size() + " cols" : "") +
+                (domainTransportPlans != null ? ", domainTransportPlans=" + domainTransportPlans.size() : "") + "}";
     }
 }
