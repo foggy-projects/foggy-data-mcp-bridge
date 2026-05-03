@@ -42,6 +42,7 @@ follow_up_required: yes
 | SQL pushdown actually triggers in normal execution | critical | no | yes | no | no | yes | `PivotSqlParityIntegrationTest.testSqlPushdownTriggeredInNormalExecution` | covered |
 | Having is applied before TopN in SQL planner | critical | yes | partial | no | no | yes | `PivotAxisDomainSqlPlannerTest.testHavingBeforeTopN` | covered |
 | Having / limit SQL params are parameterized and appended in correct order | critical | yes | no | no | no | yes | `PivotAxisDomainSqlPlannerTest.testBaseRelationParamsWithHavingAndLimit` | covered |
+| PreAgg hit + systemSlice + TopN final SQL params preserve binding order | critical | partial | yes | no | no | yes | `PivotSqlParityIntegrationTest.testPreAggHitWithSystemSliceAndLimitKeepsFinalParamOrder` | covered |
 | AdditiveKind / non-additive pushdown fail-closed | critical | yes | partial | no | no | yes | `PivotAxisDomainSqlPlannerTest`, `MetricAdditivityAnalyzerTest`, `PivotPipeline` fallback path | covered |
 | Dialect capability guards prevent unsupported SQL pushdown | major | yes | partial | no | no | yes | `FDialect`, `MysqlDialect`, planner defensive tests | covered |
 | TopN SQL parity for additive metric | critical | yes | yes | no | no | yes | `PivotSqlParityIntegrationTest.testTopNAndOrderByParity`, `testGeneratePerGroupTopNParity` | covered |
@@ -59,7 +60,8 @@ follow_up_required: yes
 
 - Stage 1-3 quality blockers are covered by planner, phase executor, managed relation, and SQL parity tests:
   - SQL pushdown entry is guarded by an integration test that checks `Phase 1: SQL pushdown succeeded`.
-  - `preAgg/systemSlice + having + limit` param ordering is covered by a dedicated planner unit test.
+  - Planner-level `base params + having + limit` ordering is covered by a dedicated unit test.
+  - Real prepare/rewrite/planner integration now covers `preAgg hit + numeric systemSlice date params + TopN limit`, asserting final params remain `[systemSlice..., rnLimit]`.
   - permission / wrappable capability defensive assertions are covered at planner level.
 - Stage 4 core semantic risks are now covered by focused unit tests:
   - complete axis tuple OR-of-AND generation;

@@ -1,6 +1,8 @@
 package com.foggyframework.dataset.db.model.engine.pivot.sql;
 
 import com.foggyframework.dataset.db.dialect.FDialect;
+import com.foggyframework.dataset.db.dialect.PostgresDialect;
+import com.foggyframework.dataset.db.dialect.SqlServerDialect;
 import com.foggyframework.dataset.db.dialect.SqliteDialect;
 import com.foggyframework.dataset.db.dialect.MysqlDialect;
 import com.foggyframework.dataset.db.model.plugins.query_execution.AdditiveKind;
@@ -56,9 +58,10 @@ public class PivotAxisDomainSqlPlannerTest {
 
         assertTrue(sql.contains("WITH _base_relation AS"));
         assertTrue(sql.contains("_row_domain_1 AS"));
-        assertTrue(sql.contains("SUM(\"salesAmount\") AS _agg_salesAmount"));
+        assertTrue(sql.contains("SUM(b.\"salesAmount\") AS _agg_salesAmount"));
         assertTrue(sql.contains("ROW_NUMBER() OVER"));
         assertTrue(sql.contains("_agg_salesAmount DESC"));
+        assertTrue(sql.contains("CASE WHEN \"dim1\" IS NULL THEN 1 ELSE 0 END ASC, \"dim1\" ASC"));
         assertTrue(sql.contains("rn <= ?"));
         assertTrue(sql.contains("INNER JOIN _row_filtered_1"));
         // Verify parameterization: limit value should be in params
@@ -226,6 +229,27 @@ public class PivotAxisDomainSqlPlannerTest {
     }
 
     @Test
+    public void testC2DialectWhitelist() {
+        assertTrue(PivotAxisDomainSqlPlanner.isSupported(new SqliteDialect()));
+        assertTrue(PivotAxisDomainSqlPlanner.isSupported(new PostgresDialect()));
+        assertTrue(PivotAxisDomainSqlPlanner.isSupported(new Mysql8TestDialect()));
+        assertFalse(PivotAxisDomainSqlPlanner.isSupported(new MysqlDialect()));
+        assertFalse(PivotAxisDomainSqlPlanner.isSupported(new SqlServerDialect()));
+    }
+
+    private static class Mysql8TestDialect extends MysqlDialect {
+        @Override
+        public boolean supportsCte() {
+            return true;
+        }
+
+        @Override
+        public boolean supportsWindowFunctions() {
+            return true;
+        }
+    }
+
+    @Test
     public void testNoLimitNoHavingPassthrough() {
         FDialect dialect = new SqliteDialect();
         String baseSql = "SELECT dim1, SUM(salesAmount) as salesAmount FROM tbl GROUP BY dim1";
@@ -273,8 +297,8 @@ public class PivotAxisDomainSqlPlannerTest {
         System.out.println(sql);
 
         // Domain CTE must compute BOTH metrics
-        assertTrue(sql.contains("SUM(\"salesAmount\") AS _agg_salesAmount"));
-        assertTrue(sql.contains("SUM(\"orderCount\") AS _agg_orderCount"));
+        assertTrue(sql.contains("SUM(b.\"salesAmount\") AS _agg_salesAmount"));
+        assertTrue(sql.contains("SUM(b.\"orderCount\") AS _agg_orderCount"));
         // Having on orderCount (parameterized)
         assertTrue(sql.contains("_agg_orderCount > ?"));
         // OrderBy on salesAmount

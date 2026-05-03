@@ -121,6 +121,10 @@ Acceptance before implementation:
 - SQL oracle examples for at least two-level TopN.
 - Explicit mismatch cases showing why old memory behavior is insufficient.
 - Guardrails for ambiguous requests.
+- C1.1 LLM-safe disambiguation accepted, including C2 whitelist, explicit fail-closed cases, rewriteable errors, and a ban on current memory fallback for cascade requests.
+- `13_pivot_stage5b_c2_implementation_plan.md` created to map semantics to an execution pipeline and test matrix.
+- C2 v1 rows two-level cascade implementation accepted with risks after oracle/refusal tests, quality gate, coverage audit, and feature acceptance signoff.
+- C2 behavior outside the accepted v1 subset remains fail-closed: SQL Server, conservative MySQL 5.7, tree mode, cross-axis cascade, three-level cascade, having-only cascade, and non-additive cascade totals are rejected/deferred.
 
 ## 6. Track D: Tree Advanced Semantics
 
@@ -140,7 +144,7 @@ Candidate 9.1.0 work:
 
 Recommendation:
 
-- Keep this behind design only until Stage 5B ranking semantics are stable.
+- Deferred to 9.2.0 as PIVOT-92-D1. Keep tree + cascade fail-closed until parent/child ranking, descendant aggregation, visible-domain totals, and subtotal behavior have accepted oracle cases.
 
 ## 7. Track E: Outer Pivot Cache
 
@@ -154,7 +158,7 @@ Open questions:
 
 Recommendation:
 
-- Do not start before telemetry identifies repeated expensive Pivot queries.
+- Deferred to 9.2.0 as PIVOT-92-E1. Do not start before telemetry identifies repeated expensive Pivot queries.
 
 ## 8. Not Planned Unless Reopened
 

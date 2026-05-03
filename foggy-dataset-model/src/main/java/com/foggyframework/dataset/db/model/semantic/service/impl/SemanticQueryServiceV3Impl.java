@@ -14,6 +14,7 @@ import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
 import com.foggyframework.dataset.db.model.engine.compose.schema.AliasExtractor;
 import com.foggyframework.dataset.db.model.engine.compose.schema.ColumnAliasParts;
 import com.foggyframework.dataset.db.model.engine.expression.InlineExpressionParser;
+import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTransportPlan;
 import com.foggyframework.dataset.db.model.engine.query.DbQueryResult;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
@@ -153,6 +154,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         if (request.getCalculatedFields() != null && !request.getCalculatedFields().isEmpty()) {
             extData.put("calculatedFields", new ArrayList<>(request.getCalculatedFields()));
         }
+        putDomainTransportPlans(extData, reqContext);
         if (!extData.isEmpty()) {
             resultContext.setExtData(extData);
         }
@@ -253,6 +255,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         resultContext.setNamespace(namespace);
         resultContext.setFieldAccess(context.getFieldAccess());
         resultContext.setDeniedColumns(context.getDeniedColumns());
+        resultContext.setSystemSlice(context.getSystemSlice());
 
         Map<String, Object> extData = new HashMap<>();
         if (request.getHints() != null && !request.getHints().isEmpty()) {
@@ -266,6 +269,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         if (request.getCalculatedFields() != null && !request.getCalculatedFields().isEmpty()) {
             extData.put("calculatedFields", new ArrayList<>(request.getCalculatedFields()));
         }
+        putDomainTransportPlans(extData, context);
         if (!extData.isEmpty()) {
             resultContext.setExtData(extData);
         }
@@ -283,6 +287,14 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
             return new SqlGenerationResult(composedSql.getSql(), composedSql.getParams(), null);
         }
         return result;
+    }
+
+    private void putDomainTransportPlans(Map<String, Object> extData, SemanticRequestContext context) {
+        if (context != null
+                && context.getDomainTransportPlans() != null
+                && !context.getDomainTransportPlans().isEmpty()) {
+            extData.put(DomainTransportPlan.EXT_DATA_KEY, new ArrayList<>(context.getDomainTransportPlans()));
+        }
     }
 
     private com.foggyframework.dataset.db.model.engine.compose.ComposedSql compileTimeWindowPlan(

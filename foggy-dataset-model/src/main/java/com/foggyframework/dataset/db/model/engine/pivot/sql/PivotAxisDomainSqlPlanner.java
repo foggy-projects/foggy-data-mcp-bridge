@@ -1,6 +1,7 @@
 package com.foggyframework.dataset.db.model.engine.pivot.sql;
 
 import com.foggyframework.dataset.db.dialect.FDialect;
+import com.foggyframework.dataset.db.dialect.DbType;
 import com.foggyframework.dataset.db.model.plugins.query_execution.AdditiveKind;
 import com.foggyframework.dataset.db.model.plugins.query_execution.ManagedMetricMetadata;
 import com.foggyframework.dataset.db.model.plugins.query_execution.ManagedSqlRelation;
@@ -40,7 +41,14 @@ public class PivotAxisDomainSqlPlanner {
      * 判断当前环境是否支持 Pivot SQL 推导
      */
     public static boolean isSupported(FDialect dialect) {
-        return dialect != null && dialect.supportsCte() && dialect.supportsWindowFunctions();
+        if (dialect == null || !dialect.supportsCte() || !dialect.supportsWindowFunctions()) {
+            return false;
+        }
+        DbType dbType = dialect.getDbType();
+        if (dbType == DbType.SQLITE || dbType == DbType.POSTGRESQL) {
+            return true;
+        }
+        return dbType == DbType.MYSQL && dialect.getClass().getSimpleName().contains("Mysql8");
     }
 
     /**
@@ -58,6 +66,9 @@ public class PivotAxisDomainSqlPlanner {
                                   List<String> rowFields,
                                   List<String> colFields,
                                   List<String> metrics) {
+
+        // Cascade detection and Phase 1 fallback guard are handled in PivotPipeline.
+        // The planner natively supports the allowed C2 whitelist (e.g. rows two-level).
 
         // ===== Defensive assertions on capability metadata =====
         if (!baseRelation.isWrappable()) {
@@ -255,8 +266,10 @@ public class PivotAxisDomainSqlPlanner {
 
     private static int processPlans(StringBuilder sql, List<Object> finalParams,
                                      List<DomainPlanDef> plans, String prefix,
-                                    int startIndex, List<String> joinConditions, FDialect dialect) {
+                                    int startIndex, List<String> globalJoinConditions, FDialect dialect) {
         int cteIndex = startIndex;
+        List<String> currentAxisJoinConditions = new ArrayList<>();
+
         for (DomainPlanDef plan : plans) {
             String domainCte = "_" + prefix + "_domain_" + cteIndex;
             String domainFilteredCte = "_" + prefix + "_domain_filtered_" + cteIndex;
@@ -265,10 +278,15 @@ public class PivotAxisDomainSqlPlanner {
 
             // ---- Domain CTE ----
             List<String> selectFields = new ArrayList<>();
+            List<String> groupByFields = new ArrayList<>();
             for (String pk : plan.partitionKeys) {
-                selectFields.add(dialect.quoteIdentifier(pk));
+                String q = dialect.quoteIdentifier(pk);
+                selectFields.add("b." + q + " AS " + q);
+                groupByFields.add("b." + q);
             }
-            selectFields.add(dialect.quoteIdentifier(plan.targetKey));
+            String targetQ = dialect.quoteIdentifier(plan.targetKey);
+            selectFields.add("b." + targetQ + " AS " + targetQ);
+            groupByFields.add("b." + targetQ);
 
             sql.append(",\n").append(domainCte).append(" AS (\n");
             sql.append("  SELECT ");
@@ -279,13 +297,19 @@ public class PivotAxisDomainSqlPlanner {
                 sql.append(", ");
                 List<String> aggExprs = new ArrayList<>();
                 for (AggregateEntry entry : plan.aggregateRegistry) {
-                    aggExprs.add(entry.aggFunction + "(" + dialect.quoteIdentifier(entry.metricName) + ") AS " + entry.registryAlias);
+                    aggExprs.add(entry.aggFunction + "(b." + dialect.quoteIdentifier(entry.metricName) + ") AS " + entry.registryAlias);
                 }
                 sql.append(String.join(", ", aggExprs));
             }
 
-            sql.append("\n  FROM _base_relation\n");
-            sql.append("  GROUP BY ").append(String.join(", ", selectFields)).append("\n");
+            sql.append("\n  FROM _base_relation b\n");
+
+            // Add previous filtered CTE joins for THIS axis (Cascade surviving domain filtering)
+            for (String joinCond : currentAxisJoinConditions) {
+                sql.append("  ").append(joinCond).append("\n");
+            }
+
+            sql.append("  GROUP BY ").append(String.join(", ", groupByFields)).append("\n");
             sql.append(")");
 
             // ---- Domain Filtered CTE (Having) ----
@@ -322,10 +346,15 @@ public class PivotAxisDomainSqlPlanner {
                 sql.append(" ORDER BY ");
                 List<String> orderClauses = new ArrayList<>();
                 for (OrderSpec spec : plan.orderSpecs) {
+                    // NULL bucket for deterministic tie-breaking
+                    orderClauses.add("CASE WHEN " + spec.registryAlias + " IS NULL THEN 1 ELSE 0 END ASC");
                     orderClauses.add(spec.registryAlias + (spec.desc ? " DESC" : " ASC"));
                 }
-                // Tie-breaker
-                orderClauses.add(dialect.quoteIdentifier(plan.targetKey) + " ASC");
+                // Tie-breakers: full prefix key and current key with explicit NULL buckets.
+                for (String pk : plan.partitionKeys) {
+                    addDimensionTieBreaker(orderClauses, dialect.quoteIdentifier(pk));
+                }
+                addDimensionTieBreaker(orderClauses, targetQ);
                 sql.append(String.join(", ", orderClauses));
                 sql.append(") AS rn\n  FROM ").append(sourceForRanked).append("\n");
                 sql.append(")");
@@ -333,7 +362,12 @@ public class PivotAxisDomainSqlPlanner {
                 // Filtered CTE
                 sql.append(",\n").append(filteredCte).append(" AS (\n");
                 sql.append("  SELECT ");
-                sql.append(String.join(", ", selectFields));
+                List<String> finalSelectFields = new ArrayList<>();
+                for (String pk : plan.partitionKeys) {
+                    finalSelectFields.add(dialect.quoteIdentifier(pk));
+                }
+                finalSelectFields.add(targetQ);
+                sql.append(String.join(", ", finalSelectFields));
                 sql.append("\n  FROM ").append(rankedCte);
                 sql.append("\n  WHERE rn <= ?").append("\n");
                 finalParams.add(plan.limit);
@@ -343,7 +377,7 @@ public class PivotAxisDomainSqlPlanner {
                 filteredCte = sourceForRanked;
             }
 
-            // ---- Join condition ----
+            // ---- Join condition for NEXT level and FINAL assembly ----
             StringBuilder joinCond = new StringBuilder();
             joinCond.append("INNER JOIN ").append(filteredCte).append(" ").append(filteredCte).append(" ON ");
             List<String> joinOn = new ArrayList<>();
@@ -351,14 +385,21 @@ public class PivotAxisDomainSqlPlanner {
                 String q = dialect.quoteIdentifier(field);
                 joinOn.add("(b." + q + " = " + filteredCte + "." + q + " OR (b." + q + " IS NULL AND " + filteredCte + "." + q + " IS NULL))");
             }
-            String tq = dialect.quoteIdentifier(plan.targetKey);
-            joinOn.add("(b." + tq + " = " + filteredCte + "." + tq + " OR (b." + tq + " IS NULL AND " + filteredCte + "." + tq + " IS NULL))");
+            joinOn.add("(b." + targetQ + " = " + filteredCte + "." + targetQ + " OR (b." + targetQ + " IS NULL AND " + filteredCte + "." + targetQ + " IS NULL))");
             joinCond.append(String.join(" AND ", joinOn));
-            joinConditions.add(joinCond.toString());
+
+            String currentJoin = joinCond.toString();
+            currentAxisJoinConditions.add(currentJoin);
+            globalJoinConditions.add(currentJoin);
 
             cteIndex++;
         }
         return cteIndex;
+    }
+
+    private static void addDimensionTieBreaker(List<String> orderClauses, String quotedKey) {
+        orderClauses.add("CASE WHEN " + quotedKey + " IS NULL THEN 1 ELSE 0 END ASC");
+        orderClauses.add(quotedKey + " ASC");
     }
 
     private static AggregateEntry findRegistryEntry(List<AggregateEntry> registry, String metricName) {

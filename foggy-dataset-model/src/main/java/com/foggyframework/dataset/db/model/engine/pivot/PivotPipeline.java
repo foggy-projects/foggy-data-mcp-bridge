@@ -1,6 +1,8 @@
 package com.foggyframework.dataset.db.model.engine.pivot;
 
 import com.foggyframework.dataset.db.model.engine.pivot.algo.*;
+import com.foggyframework.dataset.db.model.engine.pivot.cascade.PivotCascadeException;
+import com.foggyframework.dataset.db.model.engine.pivot.cascade.PivotCascadeRules;
 import com.foggyframework.dataset.db.model.engine.pivot.rollup.*;
 import com.foggyframework.dataset.db.model.engine.pivot.sql.PivotAxisDomainSqlPlanner;
 import com.foggyframework.dataset.db.model.engine.pivot.sql.PivotPushdownUnsupportedException;
@@ -95,6 +97,7 @@ public class PivotPipeline {
         if (queryModelLoader != null) {
             queryModel = queryModelLoader.getJdbcQueryModel(model, context.getNamespace());
         }
+        PivotCascadeRules.validateAdditivity(pivot, queryModel, request.getCalculatedFields());
 
         // ===== S11: parentShare non-additive guard（需 queryModel 已加载）=====
         if (!pivot.getParentShareMetrics().isEmpty() && queryModel != null) {
@@ -154,26 +157,38 @@ public class PivotPipeline {
         // ===== Phase 1: SQL 萃取（不含 properties）=====
         // 检测是否可以使用 SQL pushdown（CTE + Window Function + 有 having/limit）
         boolean sqlPushdownUsed = false;
+        boolean cascadeRequest = PivotCascadeRules.isCascadeRequest(pivot);
         List<Map<String, Object>> resultSet;
 
         String sqlPushdownSkipReason = getSqlPushdownSkipReason(pivot, hierarchyCtx);
         if (sqlPushdownSkipReason == null) {
             logger.debug("[Pivot] Phase 1: SQL pushdown path for model={}", model);
             try {
+                PivotTelemetry.sqlPushdownAttempted(logger, model);
+                long pushdownStart = System.currentTimeMillis();
                 resultSet = executePhase1WithSqlPushdown(model, request, context,
                         rowFields, colFields, metrics, pivot, queryModel);
                 sqlPushdownUsed = true;
-                logger.info("[Pivot] Phase 1: SQL pushdown succeeded, {} rows returned", resultSet.size());
+                PivotTelemetry.sqlPushdownSucceeded(logger, model, resultSet.size(),
+                        System.currentTimeMillis() - pushdownStart);
+            } catch (PivotCascadeException e) {
+                throw e;
             } catch (PivotPushdownUnsupportedException | UnsupportedOperationException e) {
+                if (cascadeRequest) {
+                    throw PivotCascadeException.sqlRequired(
+                            "Planner failure: " + e.getMessage(), e);
+                }
                 // Fail-closed: fallback to memory path
-                logger.info("[Pivot] Phase 1: SQL pushdown not possible, reason={}, model={}, fallback=memory",
-                        e.getMessage(), model);
+                PivotTelemetry.sqlPushdownFallback(logger, model, e);
                 resultSet = executePhase1(model, request, context,
                         rowFields, colFields, metrics, queryModel);
             }
         } else {
-            logger.debug("[Pivot] Phase 1: SQL pushdown skipped, reason={}, model={}",
-                    sqlPushdownSkipReason, model);
+            if (cascadeRequest) {
+                throw PivotCascadeException.sqlRequired(
+                        "SQL pushdown is unavailable: " + sqlPushdownSkipReason + ".");
+            }
+            PivotTelemetry.sqlPushdownSkipped(logger, model, sqlPushdownSkipReason);
             logger.debug("[Pivot] Phase 1: Memory path for model={}", model);
             resultSet = executePhase1(model, request, context,
                     rowFields, colFields, metrics, queryModel);
@@ -247,10 +262,8 @@ public class PivotPipeline {
                     // 无法为 non-additive subtotal 生成精确 tuple 约束。
                     // 不能静默近似（静默近似会让小计包含被 TopN 过滤的成员），
                     // 因此向用户报错，要求降低 TopN limit 或关闭 rowSubtotals/grandTotal。
-                    logger.warn("[Pivot] Non-additive rollup domain limit exceeded, domainSize={}, maxAllowed={}, " +
-                                    "model={}, sqlPushdownUsed={}, rowDomainSize={}, colDomainSize={}",
-                            e.getDomainSize(), e.getMaxAllowed(), model, sqlPushdownUsed,
-                            rowDomain.size(), colDomain.size());
+                    PivotTelemetry.domainLimitExceeded(logger, model, e.getDomainSize(), e.getMaxAllowed(),
+                            sqlPushdownUsed, rowDomain.size(), colDomain.size());
                     throw new IllegalStateException(
                             "Pivot subtotal/grandTotal: non-additive metric (AVG/COUNT_DISTINCT) 的辅助查询 " +
                             "surviving domain 超过安全限制（" + e.getDomainSize() + " > " + e.getMaxAllowed() + "）。" +
@@ -690,6 +703,7 @@ public class PivotPipeline {
      */
     private void validatePivotRequest(SemanticQueryRequest request) {
         PivotRequest pivot = request.getPivot();
+        PivotCascadeRules.validateRequestShape(pivot);
 
         // pivot 与 columns 互斥
         if (request.getColumns() != null && !request.getColumns().isEmpty()) {

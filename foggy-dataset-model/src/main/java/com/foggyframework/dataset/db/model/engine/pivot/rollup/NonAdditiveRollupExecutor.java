@@ -2,6 +2,10 @@ package com.foggyframework.dataset.db.model.engine.pivot.rollup;
 
 import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
 import com.foggyframework.dataset.db.model.engine.pivot.CardinalityBreaker;
+import com.foggyframework.dataset.db.model.engine.pivot.PivotTelemetry;
+import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTransportField;
+import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTransportPlan;
+import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTransportTuple;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
@@ -81,6 +85,7 @@ public class NonAdditiveRollupExecutor {
 
         logger.debug("[Pivot] NonAdditiveRollupExecutor: {} grains, {} aux metrics: {}",
                 grains.size(), auxMetrics.size(), auxMetrics);
+        PivotTelemetry.auxQueryStarted(logger, model, grains.size(), auxMetrics.size());
 
         // 尝试 UNION ALL 批量合并
         boolean batchSuccess = tryBatchExecute(
@@ -89,11 +94,14 @@ public class NonAdditiveRollupExecutor {
 
         if (!batchSuccess) {
             // 降级: 逐 grain 串行执行
+            long serialStart = System.currentTimeMillis();
             logger.info("[Pivot] Falling back to per-grain serial execution");
             for (RollupGrain grain : grains) {
                 executeGrainSerial(model, originalRequest, context, grain, auxMetrics,
                         rowFields, colFields, survivingRowDomain, survivingColDomain, cache);
             }
+            PivotTelemetry.auxQueryCompleted(logger, model, "serial", grains.size(), grains.size(),
+                    auxMetrics.size(), System.currentTimeMillis() - serialStart);
         }
 
         logger.debug("[Pivot] RollupCache built: {}", cache);
@@ -141,10 +149,12 @@ public class NonAdditiveRollupExecutor {
             long elapsed = System.currentTimeMillis() - batchStart;
             logger.info("[Pivot] UNION ALL batch completed: {} grains in {} batches, {}ms",
                     grains.size(), batches.size(), elapsed);
+            PivotTelemetry.auxQueryCompleted(logger, model, "union_all", grains.size(), batches.size(),
+                    auxMetrics.size(), elapsed);
             return true;
 
         } catch (Exception e) {
-            logger.warn("[Pivot] UNION ALL batch failed, will fallback: {}", e.getMessage());
+            PivotTelemetry.auxQueryFallback(logger, model, e);
             return false;
         }
     }
@@ -262,11 +272,14 @@ public class NonAdditiveRollupExecutor {
             Set<List<Object>> survivingRowDomain,
             Set<List<Object>> survivingColDomain) {
 
+        List<DomainTransportPlan> domainTransportPlans = new ArrayList<>();
         SemanticQueryRequest auxRequest = buildGrainRequest(
                 grain, auxMetrics, originalRequest, rowFields, colFields,
-                survivingRowDomain, survivingColDomain);
+                survivingRowDomain, survivingColDomain, domainTransportPlans);
+        logDomainTransportPlans(model, domainTransportPlans);
 
-        SqlGenerationResult sqlResult = semanticQueryService.generateSql(model, auxRequest, context);
+        SqlGenerationResult sqlResult = semanticQueryService.generateSql(model, auxRequest,
+                withDomainTransportPlans(context, domainTransportPlans));
         if (sqlResult == null || sqlResult.getSql() == null || sqlResult.getSql().isBlank()) {
             logger.warn("[Pivot] generateSql returned null for grain={}", grain.getGrainKey());
             return null;
@@ -286,7 +299,8 @@ public class NonAdditiveRollupExecutor {
             List<String> rowFields,
             List<String> colFields,
             Set<List<Object>> survivingRowDomain,
-            Set<List<Object>> survivingColDomain) {
+            Set<List<Object>> survivingColDomain,
+            List<DomainTransportPlan> domainTransportPlans) {
 
         List<String> grainFields = grain.getGroupByFields();
 
@@ -315,8 +329,8 @@ public class NonAdditiveRollupExecutor {
 
         // 构建 surviving domain 过滤条件
         // Stage 4 语义修正：使用完整 axisFields tuple 约束，grainFields 只决定 GROUP BY
-        addSurvivingDomainSlice(sliceItems, rowFields, colFields,
-                survivingRowDomain, survivingColDomain);
+        addSurvivingDomainConstraints(sliceItems, rowFields, colFields,
+                survivingRowDomain, survivingColDomain, domainTransportPlans);
 
         auxRequest.setSlice(sliceItems);
         auxRequest.setCalculatedFields(originalRequest.getCalculatedFields());
@@ -343,14 +357,16 @@ public class NonAdditiveRollupExecutor {
             Set<List<Object>> survivingColDomain,
             RollupCache cache) {
 
+        List<DomainTransportPlan> domainTransportPlans = new ArrayList<>();
         SemanticQueryRequest auxRequest = buildGrainRequest(
                 grain, auxMetrics, originalRequest, rowFields, colFields,
-                survivingRowDomain, survivingColDomain);
+                survivingRowDomain, survivingColDomain, domainTransportPlans);
+        logDomainTransportPlans(model, domainTransportPlans);
 
         logger.debug("[Pivot] Serial aux query: grain={}, fields={}", grain.getGrainKey(), grain.getGroupByFields());
 
         SemanticQueryResponse response = semanticQueryService.queryModel(
-                model, auxRequest, "execute", context);
+                model, auxRequest, "execute", withDomainTransportPlans(context, domainTransportPlans));
 
         List<Map<String, Object>> rows = response.getItems() != null
                 ? response.getItems() : Collections.emptyList();
@@ -429,6 +445,81 @@ public class NonAdditiveRollupExecutor {
 
         addAxisDomainSlice(sliceItems, rowFields, survivingRowDomain);
         addAxisDomainSlice(sliceItems, colFields, survivingColDomain);
+    }
+
+    private static void addSurvivingDomainConstraints(
+            List<SemanticQueryRequest.SliceItem> sliceItems,
+            List<String> rowFields,
+            List<String> colFields,
+            Set<List<Object>> survivingRowDomain,
+            Set<List<Object>> survivingColDomain,
+            List<DomainTransportPlan> domainTransportPlans) {
+
+        addAxisDomainConstraint(sliceItems, rowFields, survivingRowDomain, domainTransportPlans);
+        addAxisDomainConstraint(sliceItems, colFields, survivingColDomain, domainTransportPlans);
+    }
+
+    // package-private for Stage 5A tests
+    static void addAxisDomainConstraint(
+            List<SemanticQueryRequest.SliceItem> sliceItems,
+            List<String> axisFields,
+            Set<List<Object>> domain,
+            List<DomainTransportPlan> domainTransportPlans) {
+
+        if (domain == null || domain.isEmpty()) return;
+        if (axisFields == null || axisFields.isEmpty()) return;
+        if (domain.size() <= MAX_IN_LIST_SIZE) {
+            addAxisDomainSlice(sliceItems, axisFields, domain);
+            return;
+        }
+        domainTransportPlans.add(buildDomainTransportPlan(axisFields, domain, domainTransportPlans.size()));
+    }
+
+    private static DomainTransportPlan buildDomainTransportPlan(
+            List<String> axisFields,
+            Set<List<Object>> domain,
+            int index) {
+
+        List<DomainTransportField> fields = axisFields.stream()
+                .map(DomainTransportField::new)
+                .collect(Collectors.toList());
+        List<DomainTransportTuple> tuples = domain.stream()
+                .map(tuple -> new DomainTransportTuple(new ArrayList<>(tuple)))
+                .collect(Collectors.toList());
+
+        return DomainTransportPlan.builder()
+                .relationName("_pivot_domain_transport_" + index)
+                .fields(fields)
+                .tuples(tuples)
+                .build();
+    }
+
+    private static SemanticRequestContext withDomainTransportPlans(
+            SemanticRequestContext context,
+            List<DomainTransportPlan> domainTransportPlans) {
+
+        if (domainTransportPlans == null || domainTransportPlans.isEmpty()) {
+            return context;
+        }
+        if (context == null) {
+            context = SemanticRequestContext.empty();
+        }
+        List<DomainTransportPlan> merged = new ArrayList<>();
+        if (context.getDomainTransportPlans() != null) {
+            merged.addAll(context.getDomainTransportPlans());
+        }
+        merged.addAll(domainTransportPlans);
+        return context.withDomainTransportPlans(merged);
+    }
+
+    private void logDomainTransportPlans(String model, List<DomainTransportPlan> domainTransportPlans) {
+        if (domainTransportPlans == null || domainTransportPlans.isEmpty()) {
+            return;
+        }
+        for (DomainTransportPlan plan : domainTransportPlans) {
+            PivotTelemetry.domainTransportPlanned(logger, model, plan.getRelationName(),
+                    plan.getFields().size(), plan.getTuples().size(), plan.parameterCount());
+        }
     }
 
     /**
