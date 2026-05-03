@@ -176,6 +176,8 @@
 
 ### orderBy (可选)
 排序规则。简写格式：`"field"`(升序)、`"field desc"`(降序)、`"-field"`(降序)。**必须使用 columns 中定义的别名**，如 `year` 而非 `YEAR(createdAt)`。
+
+开启 `pivot` 时，顶层 `orderBy` 不是透视轴排序或 TopN 控制；不要生成 `payload.pivot` + 顶层 `orderBy` 的组合。需要轴内排序时，使用 `pivot.rows[*].orderBy` 或 `pivot.columns[*].orderBy`。
 ```json
 ["-totalSales", "orderId"]
 ```
@@ -183,7 +185,7 @@
 ### 其他控制参数
 | 参数 | 类型 | 默认值 | 互斥/依赖关系 |
 |---|---|---|---|
-| `limit` | number | 无 | 分页大小 |
+| `limit` | number | 无 | 普通查询分页大小；`pivot` 轴裁剪请使用 `pivot.rows[*].limit` / `pivot.columns[*].limit` |
 | `start` | number | `0` | 偏移量 |
 | `returnTotal` | boolean | `true` | 是否返回总行数 |
 | `distinct` | boolean | `false` | 与 `groupBy` 和聚合函数互斥 |
@@ -212,6 +214,7 @@
 边界：
 - `pivot` 与 `columns` 互斥；开启 `pivot` 时不要传 `columns`。
 - `pivot` 与 `timeWindow` 互斥；同比/环比需求改用 `timeWindow`，或拆成两个查询。
+- 顶层 `orderBy` / `limit` 不作为透视轴排序或 TopN 控制；需要排序或裁剪行/列成员时，写在对应 `pivot.rows[*]` / `pivot.columns[*]` 轴对象上。
 - `hierarchyMode=tree` 仅支持 rows 轴和 `outputFormat=tree`，不能与 `crossjoin`、`rowSubtotals`、`columnSubtotals`、`grandTotal` 同用。
 - `parentShare` 只支持 rows 相邻层级和可加原生度量，不支持 tree/cascade/having/orderBy/limit。
 - `baselineRatio` 只支持 columns 轴 `baseline=first/last`，不支持 tree/cascade/having/orderBy/limit。

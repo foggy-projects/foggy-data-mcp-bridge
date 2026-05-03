@@ -166,7 +166,7 @@
         },
         "orderBy": {
           "type": "array",
-          "description": "排序规则。支持简写：\"field\"(升序)、\"field desc\"(降序)、\"-field\"(降序)",
+          "description": "普通查询排序规则。支持简写：\"field\"(升序)、\"field desc\"(降序)、\"-field\"(降序)。pivot 模式下不要依赖顶层 orderBy 裁剪透视轴；如需 TopN 或轴内排序，请使用 pivot.rows[*].orderBy 或 pivot.columns[*].orderBy。",
           "items": {
             "oneOf": [
               {
@@ -326,7 +326,7 @@
         "limit": {
           "type": "integer",
           "default": 1000,
-          "description": "每页记录数"
+          "description": "普通查询每页记录数。pivot 模式下不要依赖顶层 limit 裁剪透视轴；如需限制行/列成员数量，请使用 pivot.rows[*].limit 或 pivot.columns[*].limit，并通过 slice 收窄数据域。"
         },
         "returnTotal": {
           "type": "boolean",

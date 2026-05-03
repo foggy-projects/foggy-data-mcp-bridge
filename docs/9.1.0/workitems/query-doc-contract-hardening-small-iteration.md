@@ -3,8 +3,9 @@ doc_role: workitem
 doc_purpose: Track a small follow-up iteration for query documentation, schema guardrails, and generated description maintainability discovered during the 9.1.0 docs/code alignment review.
 version: 9.1.0
 target: Query Docs Contract Hardening
-status: proposed
+status: completed
 created_at: 2026-05-03
+updated_at: 2026-05-03
 source_type: optimization
 ---
 
@@ -41,6 +42,16 @@ source_type: optimization
 | QDOC-91-01 | P1 | Pivot 顶层 `orderBy` / `limit` 边界硬化 | MCP Schema / Java Pivot | 明确 pivot 模式下顶层排序分页是否 fail-fast；如果保持兼容，也必须在 schema description 和错误提示中明确建议使用轴级 `orderBy` / `limit` |
 | QDOC-91-02 | P1 | timeWindow schema guardrail 测试补强 | MCP Schema Tests | 覆盖 `value` 两元素数组、`rollingAggregator=min/max` 合法、非法聚合拒绝，并与 Java validator 行为对齐 |
 | QDOC-91-03 | P2 | query_model 描述文档去重复 | MCP Tool Docs | 建立单一源文档或生成脚本，生成 `full/basic/no_vector` 三个 variant，减少重复编辑导致的漂移 |
+
+## Evaluation Result
+
+2026-05-03 评估结论：本 workitem 可以合并为一个小迭代直接处理，不需要另拆独立任务。
+
+执行策略：
+
+- QDOC-91-01 采用兼容策略，不新增 runtime fail-fast。原因是顶层 `orderBy` / `limit` 可能已有历史请求依赖；本轮通过 schema description 和三份 query_model tool description 明确约束 AI 不生成 `payload.pivot` + 顶层排序分页的组合，并要求使用轴级 `pivot.rows[*]` / `pivot.columns[*]` 控制排序和裁剪。
+- QDOC-91-02 直接补 MCP schema 测试，覆盖 `timeWindow.value` 缺省、两元素合法、过短/过长非法，以及 `rollingAggregator=min/max` 合法、未开放枚举非法。
+- QDOC-91-03 暂不引入生成脚本，先落地一致性检查测试，固定三份描述文档必须同时包含关键能力边界片段。该方案成本低，能直接防止本次关注的边界漂移；后续如果文档继续膨胀，再升级为片段生成流程。
 
 ## Non-Goals
 
@@ -109,18 +120,20 @@ source_type: optimization
 
 | Item | Status | Notes |
 |---|---|---|
-| QDOC-91-01 | proposed | 等待小迭代开工时决策 fail-fast 或兼容策略 |
-| QDOC-91-02 | proposed | 建议优先补测试，避免 schema 与 Java validator 再次漂移 |
-| QDOC-91-03 | proposed | 建议先做生成/检查脚本方案评估，再落地 |
+| QDOC-91-01 | completed | 已采用兼容策略；`query_model_v3_schema.json` 与 `query_model_v3.md` / `query_model_v3_basic.md` / `query_model_v3_no_vector.md` 均明确 pivot 模式下顶层 `orderBy` / `limit` 不是透视轴排序或 TopN 控制 |
+| QDOC-91-02 | completed | 已扩展 `PivotSchemaValidationTest`，覆盖 `timeWindow.value` 数组长度和 `rollingAggregator` 合法/非法枚举 |
+| QDOC-91-03 | completed | 已新增 `QueryModelDescriptionConsistencyTest`，校验三份 query_model 描述文件的关键能力边界片段一致存在 |
 
 ### Testing Progress
 
 | Test Area | Required | Status |
 |---|---:|---|
-| MCP schema JSON parse | yes | not-run |
-| `PivotSchemaValidationTest` | yes | not-run |
-| timeWindow schema validation tests | yes | not-run |
-| docs-site build | yes | not-run |
+| MCP schema JSON parse | yes | passed: `Get-Content ...query_model_v3_schema.json \| ConvertFrom-Json` |
+| `PivotSchemaValidationTest` | yes | passed: `mvn -pl foggy-dataset-mcp "-Dtest=PivotSchemaValidationTest,QueryModelDescriptionConsistencyTest" test` |
+| timeWindow schema validation tests | yes | passed: included in `PivotSchemaValidationTest` |
+| query_model description consistency test | yes | passed: included in `QueryModelDescriptionConsistencyTest` |
+| docs-site build | yes | passed: `npm run build` in `docs-site` |
+| whitespace check | yes | passed: `git diff --check` |
 
 ### Experience Progress
 
@@ -130,7 +143,7 @@ Reason: 本小迭代仅涉及 schema、AI tool description、文档生成/检查
 
 ## Acceptance Readiness
 
-- current_status: proposed
-- ready_for_execution: yes
+- current_status: completed
+- ready_for_execution: no, already completed in this small iteration
 - requires_formal_quality_gate: no, unless runtime fail-fast logic is added beyond schema/docs tests
-- signoff_requirement: lightweight reviewer check after tests pass
+- signoff_requirement: lightweight reviewer check; test evidence is complete for this scoped compatibility strategy

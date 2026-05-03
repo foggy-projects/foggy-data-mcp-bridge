@@ -206,6 +206,8 @@ SUM(metric) / NULLIF(CALCULATE(SUM(metric), REMOVE(groupByDim)), 0)
 
 ### orderBy (可选)
 排序规则。简写格式：`"field"`(升序)、`"field desc"`(降序)、`"-field"`(降序)。**必须使用 columns 中定义的别名**，如 `year` 而非 `YEAR(createdAt)`。
+
+开启 `pivot` 时，顶层 `orderBy` 不是透视轴排序或 TopN 控制；不要生成 `payload.pivot` + 顶层 `orderBy` 的组合。需要轴内排序时，使用 `pivot.rows[*].orderBy` 或 `pivot.columns[*].orderBy`。
 ```json
 ["-totalSales", "orderId"]
 ```
@@ -213,7 +215,7 @@ SUM(metric) / NULLIF(CALCULATE(SUM(metric), REMOVE(groupByDim)), 0)
 ### 其他控制参数
 | 参数 | 类型 | 默认值 | 互斥/依赖关系 |
 |---|---|---|---|
-| `limit` | number | 无 | 分页大小 |
+| `limit` | number | 无 | 普通查询分页大小；`pivot` 轴裁剪请使用 `pivot.rows[*].limit` / `pivot.columns[*].limit` |
 | `start` | number | `0` | 偏移量 |
 | `returnTotal` | boolean | `true` | 是否返回总行数 |
 | `distinct` | boolean | `false` | 与 `groupBy` 和聚合函数互斥 |
@@ -227,6 +229,7 @@ SUM(metric) / NULLIF(CALCULATE(SUM(metric), REMOVE(groupByDim)), 0)
 > - `pivot` 与 `timeWindow` 互斥。同比/环比/YTD/rolling 使用 `timeWindow`；行列透视使用 `pivot`。用户同时要求时，拆成两个查询或先回答当前无法在一个请求里同时表达。
 > - 普通列表或简单分组聚合不要用 `pivot`。
 > - 跨模型 Join / Union / 派生查询不要用 `pivot` 硬拼，退回 `dataset.compose_script`。
+> - 顶层 `orderBy` / `limit` 不作为透视轴排序或 TopN 控制；需要排序或裁剪行/列成员时，写在对应 `pivot.rows[*]` / `pivot.columns[*]` 轴对象上。
 
 ### Pivot 请求结构
 
