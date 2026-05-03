@@ -14,7 +14,7 @@
 |------|------|:----:|------|
 | `model` | string | ✅ | 查询模型名称 |
 | `payload` | object | ✅ | 查询参数对象 |
-| `mode` | string | ❌ | 执行模式：`execute`（默认）或 `explain` |
+| `mode` | string | ❌ | 执行模式：`execute`（默认）或 `validate` |
 
 ### payload 参数详解
 
@@ -25,9 +25,13 @@
 | `orderBy` | array | 排序规则 |
 | `groupBy` | array | 分组字段（通常自动处理） |
 | `calculatedFields` | array | 计算字段定义 |
+| `timeWindow` | object | 时间窗口分析，支持同比、环比、累计、滚动窗口 |
+| `pivot` | object | 多维透视分析，支持行轴、列轴、指标、小计、总计 |
 | `start` | number | 起始行号（从 0 开始） |
 | `limit` | number | 返回记录数 |
 | `returnTotal` | boolean | 是否返回总数 |
+
+> `pivot` 与 `columns` 互斥，`pivot` 与 `timeWindow` 互斥。需要透视表时使用 `pivot`；需要同比、环比、滚动窗口时使用 `timeWindow`。
 
 ## 字段使用规则
 
@@ -140,6 +144,96 @@
   "columns": ["customer$caption", "netAmount", "taxAmount"]
 }
 ```
+
+### 时间窗口 (timeWindow)
+
+`timeWindow` 用于表达同比、环比、年初至今、月初至今和滚动窗口等分析。它会基于 `targetMetrics` 自动追加后缀列。
+
+```json
+{
+  "model": "FactSalesQueryModel",
+  "payload": {
+    "columns": ["salesDate$id", "salesAmount"],
+    "groupBy": ["salesDate$id"],
+    "timeWindow": {
+      "field": "salesDate$id",
+      "grain": "month",
+      "comparison": "yoy",
+      "value": ["2025-01-01", "2026-01-01"],
+      "targetMetrics": ["salesAmount"]
+    }
+  }
+}
+```
+
+同比、环比、周环比会追加：
+
+- `salesAmount__prior`：前期值
+- `salesAmount__diff`：差值
+- `salesAmount__ratio`：增长率
+
+`ytd` / `mtd` / `rolling_7d` / `rolling_30d` / `rolling_90d` 会分别追加累计或滚动窗口后缀。完整规则见 [Compose Query DSL 手册](../../dataset-model/compose-query/dsl-manual.md#9-时间窗口语义层高层快捷方式)。
+
+### 多维透视 (pivot)
+
+`pivot` 用于生成透视表结果。开启后不要再传 `columns`。
+
+```json
+{
+  "model": "FactSalesQueryModel",
+  "payload": {
+    "pivot": {
+      "rows": ["region$caption"],
+      "columns": ["salesDate$month"],
+      "metrics": ["salesAmount"],
+      "options": {
+        "rowSubtotals": true,
+        "columnSubtotals": true,
+        "grandTotal": true
+      },
+      "outputFormat": "grid"
+    },
+    "slice": [
+      { "field": "salesDate$id", "op": "[)", "value": ["2025-01-01", "2026-01-01"] }
+    ]
+  }
+}
+```
+
+Pivot 支持受限派生指标：
+
+```json
+{
+  "pivot": {
+    "rows": [
+      "region$caption",
+      "city$caption"
+    ],
+    "columns": ["salesDate$month"],
+    "metrics": [
+      "salesAmount",
+      {
+        "name": "salesParentShare",
+        "type": "parentShare",
+        "of": "salesAmount",
+        "axis": "rows",
+        "level": "city$caption",
+        "parentLevel": "region$caption"
+      },
+      {
+        "name": "salesVsFirstMonth",
+        "type": "baselineRatio",
+        "of": "salesAmount",
+        "axis": "columns",
+        "baseline": "first"
+      }
+    ],
+    "outputFormat": "grid"
+  }
+}
+```
+
+`parentShare` 当前用于 rows 父级占比，不能与 `hierarchyMode=tree`、cascade TopN、轴级 `having` / `orderBy` / `limit` 混用；`baselineRatio` 当前用于 columns 首项或末项基准比值，不能与 tree/cascade/having/orderBy/limit 混用。超出边界时移除派生指标返回普通 pivot，不要生成隐藏函数。完整字段见 [Pivot 多维透视](../../dataset-model/compose-query/pivot.md)。
 
 ## 排序 (orderBy)
 
@@ -340,9 +434,14 @@ foggy:
 3. **复杂计算用 `calculatedFields`**
 4. **大数据量使用分页**：设置合理的 `limit`
 5. **添加过滤条件**：避免全表扫描
+6. **同比 / 环比使用 `timeWindow`**：不要手写多段日期 SQL
+7. **透视表使用 `pivot`**：不要同时传 `columns` 或 `timeWindow`
+8. **Pivot 派生指标使用白名单**：当前只使用 `parentShare` / `baselineRatio`，不要生成 `ROLLUP_TO` / `CELL_AT` / `AXIS_MEMBER`
 
 ## 下一步
 
 - [元数据工具](./metadata.md) - 获取模型字段信息
+- [Compose Query DSL 手册](../../dataset-model/compose-query/dsl-manual.md) - timeWindow、CTE、派生、Join、Union
+- [Pivot 多维透视](../../dataset-model/compose-query/pivot.md) - 透视表 DSL
 - [自然语言查询](./nl-query.md) - 智能数据查询
 - [工具概述](./overview.md) - 返回工具列表

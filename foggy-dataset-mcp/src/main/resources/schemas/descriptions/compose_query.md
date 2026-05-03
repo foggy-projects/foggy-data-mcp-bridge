@@ -1,4 +1,8 @@
-Use fsscript to orchestrate multi-model queries. The script runs in a sandbox with only the `dsl()` function available.
+Use FSScript only when the request needs cross-model Join/Union, a derived query over a previous plan, multiple returned plans, or a timeWindow query combined with those composition flows. For a single-model query with filters, grouping, aggregations, calculatedFields, timeWindow, or pivot, use `dataset.query_model` instead.
+
+Do not use this tool just to access Pivot. Single-model cross-tab, subtotal/grandTotal, hierarchy tree, parentShare, or baselineRatio are `dataset.query_model.payload.pivot` capabilities. If the requested Pivot shape exceeds the supported boundary, return the base metrics or explain the unsupported part; do not recreate it with hidden functions or ad hoc script expressions.
+
+The script runs in a sandbox with only the `dsl()` function available.
 
 ## dsl() function
 

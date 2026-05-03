@@ -104,7 +104,16 @@ export default defineConfig({
                 { text: 'QM 语法手册', link: '/zh/dataset-model/tm-qm/qm-syntax' },
                 { text: 'JSON 查询 DSL', link: '/zh/dataset-model/tm-qm/query-dsl' },
                 { text: '计算字段', link: '/zh/dataset-model/tm-qm/calculated-fields' },
-                { text: '父子维度', link: '/zh/dataset-model/tm-qm/parent-child' }
+                { text: '父子维度', link: '/zh/dataset-model/tm-qm/parent-child' },
+                { text: '高级分析能力', link: '/zh/dataset-model/tm-qm/advanced-analytics' }
+              ]
+            },
+            {
+              text: 'Compose Query',
+              items: [
+                { text: 'DSL 配置式手册', link: '/zh/dataset-model/compose-query/dsl-manual' },
+                { text: '链式 API 手册', link: '/zh/dataset-model/compose-query/api-manual' },
+                { text: 'Pivot 多维透视', link: '/zh/dataset-model/compose-query/pivot' }
               ]
             },
             {

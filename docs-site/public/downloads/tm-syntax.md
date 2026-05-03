@@ -191,23 +191,38 @@ dimensions: [
 | `foreignKey` | **重要**：嵌套维度的 foreignKey 指向父维度表上的列 |
 | `dimensions` | 子维度列表，可继续嵌套形成多层结构 |
 
-**QM 中访问嵌套维度**：
+**语法设计原则**：嵌套维度引用使用两种分隔符，各管一件事：
+
+| 分隔符 | 职责 | 示例 |
+|--------|------|------|
+| `.`（点号） | **维度层级导航** — 定位到哪个维度 | `product.category.group` |
+| `$`（美元符） | **属性访问** — 取维度的哪个字段 | `category$caption` |
+
+组合使用：`product.category$caption` = 沿 product → category 路径，取 caption 属性。**不能用多个 `$` 替代 `.`**（如 ~~`product$category$caption`~~），否则解析器无法区分维度路径和属性名。
+
+**QM 中引用嵌套维度**（三种等效写法）：
 
 ```javascript
-// 方式1：使用别名（推荐）
-columns: [
-    'product$caption',           // 一级维度
-    'productCategory$caption',   // 二级维度（通过 alias）
-    'categoryGroup$caption'      // 三级维度（通过 alias）
-]
+// 写法1：别名（推荐，简短直观）
+// 需在 TM 中定义 alias，如 alias: 'productCategory'
+{ ref: fs.productCategory$caption }
+{ ref: fs.categoryGroup$caption }
 
-// 方式2：使用完整路径
-columns: [
-    'product$caption',
-    'product.category$caption',
-    'product.category.group$caption'
-]
+// 写法2：完整路径（精确，无需 alias）
+{ ref: fs.product.category$caption }
+{ ref: fs.product.category.group$caption }
+
+// 写法3：DSL 查询中使用下划线格式（输出列名格式）
+columns: ["product_category$caption", "product_category_group$caption"]
 ```
+
+**输出列名转换**：路径中的 `.` 在输出时自动转为 `_`，避免 JavaScript 属性名冲突：
+
+| QM 引用 | 输出列名 |
+|---------|---------|
+| `product$caption` | `product$caption` |
+| `product.category$caption` | `product_category$caption` |
+| `product.category.group$caption` | `product_category_group$caption` |
 
 **生成的 SQL JOIN**：
 
@@ -387,7 +402,16 @@ properties: [
 ]
 ```
 
-> **方言注意**：`builder` 生成的是原生 SQL。JSON 提取等方言差异语法见下方 3.3.1。通用函数（`CONCAT`、`COALESCE`、`ROUND` 等）可安全跨方言使用。
+::: warning 方言注意
+`builder` 生成的是**原生 SQL**，直接嵌入查询。涉及 JSON 提取等方言差异时，需按目标数据库编写：
+
+| 场景 | MySQL | PostgreSQL | SQL Server |
+|------|-------|-----------|------------|
+| JSON 文本提取 | `col ->> '$.key'` | `col ->> 'key'` | `JSON_VALUE(col, '$.key')` |
+| 类型转换 | `CAST(col AS SIGNED)` | `col::integer` | `CAST(col AS INT)` |
+
+通用函数（`CONCAT`、`COALESCE`、`ROUND` 等）在所有方言下可安全使用。
+:::
 
 ### 3.4 属性字段说明
 

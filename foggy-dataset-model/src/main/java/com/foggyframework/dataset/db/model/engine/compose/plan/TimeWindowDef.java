@@ -24,7 +24,7 @@ public record TimeWindowDef(
         String range,               // "[)" (default) or "[]"
         List<String> value,         // [start, end] — absolute dates or relative expressions
         List<String> targetMetrics, // nullable — measures to apply the window to
-        String rollingAggregator    // nullable — sum | avg | count | min | max (defaults to measure's native agg)
+        String rollingAggregator    // nullable — sum | avg | count | min | max (defaults to SUM)
 ) {
 
     /**
