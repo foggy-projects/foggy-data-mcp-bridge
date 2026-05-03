@@ -49,6 +49,7 @@ These remain rejected or research-only unless a separate product requirement reo
 - `acceptance/rc-release-checklist.md`
 - `acceptance/pivot-stage5b-c2-release-owner-review.md`
 - `operations/stage5a-domain-transport-observability.md`
+- `workitems/query-doc-contract-hardening-small-iteration.md`
 
 Upstream 9.0.0.beta references:
 

@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vitepress dev",
     "build": "node scripts/copy-downloads.js && vitepress build",
+    "downloads:check": "node scripts/copy-downloads.js --check",
     "preview": "vitepress preview"
   },
   "devDependencies": {
