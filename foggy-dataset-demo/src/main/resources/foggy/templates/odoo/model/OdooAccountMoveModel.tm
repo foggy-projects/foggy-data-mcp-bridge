@@ -32,6 +32,19 @@ export const model = {
             ]
         },
         {
+            name: 'partnerCountry',
+            tableName: 'res_country',
+            foreignKey: 'country_id',
+            primaryKey: 'id',
+            joinTo: 'partner',
+            captionDef: jsonbCaption(),
+            caption: 'Partner Country',
+            description: 'Country of the customer or vendor',
+            properties: [
+                { column: 'code', caption: 'Country Code', type: 'STRING' }
+            ]
+        },
+        {
             name: 'journal',
             tableName: 'account_journal',
             foreignKey: 'journal_id',
@@ -98,12 +111,15 @@ export const model = {
         { column: 'state', caption: 'Status', type: 'STRING', dictRef: dicts.account_move_state,
           description: 'Entry posting status. enum: draft (not posted) / posted (posted to GL) / '
               + 'cancel (cancelled). Only posted entries contribute to AR / AP balances.' },
-        { column: 'date', caption: 'Accounting Date', type: 'DAY' },
-        { column: 'invoice_date', caption: 'Invoice Date', type: 'DAY' },
+        { column: 'date', caption: 'Accounting Date', type: 'DAY',
+          timeRole: 'posting_date', recommendedUse: 'Use for GL posting-period analysis.' },
+        { column: 'invoice_date', caption: 'Invoice Date', type: 'DAY',
+          timeRole: 'business_date', recommendedUse: 'Primary invoice/bill business date for timeWindow, revenue, AP, and period pivot queries.' },
         { column: 'invoice_date_due', caption: 'Due Date', type: 'DAY',
           description: 'Invoice due date (mapped to account.move.line.date_maturity on the '
               + 'receivable/payable line — use dateMaturity via the move dimension when querying '
-              + 'AR/AP aging).' },
+              + 'AR/AP aging).',
+          timeRole: 'due_date', recommendedUse: 'Use for AR/AP aging and overdue analysis.' },
         { column: 'payment_state', caption: 'Payment Status', type: 'STRING', dictRef: dicts.account_payment_state,
           description: 'Payment reconciliation status. enum: not_paid / in_payment (bank sync pending) / '
               + 'paid (fully reconciled) / partial (partially reconciled) / reversed / invoicing_legacy '

@@ -37,6 +37,17 @@ export const queryModel = {
             ]
         },
         {
+            caption: 'Customer',
+            items: [
+                { ref: sol.orderPartner },
+                { ref: sol.orderPartner$email },
+                { ref: sol.orderPartner$city },
+                { ref: sol.orderPartnerCountry },
+                { ref: sol.orderPartnerCountry$code },
+                { ref: sol.orderPartner$isCompany }
+            ]
+        },
+        {
             caption: 'Product',
             items: [
                 { ref: sol.product },

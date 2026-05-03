@@ -32,6 +32,19 @@ export const model = {
             ]
         },
         {
+            name: 'partnerCountry',
+            tableName: 'res_country',
+            foreignKey: 'country_id',
+            primaryKey: 'id',
+            joinTo: 'partner',
+            captionDef: jsonbCaption(),
+            caption: 'Customer Country',
+            description: 'Country of the sale order customer',
+            properties: [
+                { column: 'code', caption: 'Country Code', type: 'STRING' }
+            ]
+        },
+        {
             name: 'salesperson',
             tableName: 'res_users',
             foreignKey: 'user_id',
@@ -85,8 +98,10 @@ export const model = {
         { column: 'id', caption: 'ID', type: 'INTEGER' },
         { column: 'name', caption: 'Order Reference', type: 'STRING', description: 'Order number (e.g. S00001)' },
         { column: 'state', caption: 'Status', type: 'STRING', dictRef: dicts.sale_order_state },
-        { column: 'date_order', caption: 'Order Date', type: 'DATETIME', description: 'Quotation/order date' },
-        { column: 'commitment_date', caption: 'Delivery Date', type: 'DATETIME', description: 'Expected delivery date' },
+        { column: 'date_order', caption: 'Order Date', type: 'DATETIME', description: 'Quotation/order date',
+          timeRole: 'business_date', recommendedUse: 'Primary sales order business date for timeWindow, trend, and period pivot queries.' },
+        { column: 'commitment_date', caption: 'Delivery Date', type: 'DATETIME', description: 'Expected delivery date',
+          timeRole: 'planned_delivery_date', recommendedUse: 'Use for promised delivery or commitment-date analysis, not for sales booking period.' },
         { column: 'invoice_status', caption: 'Invoice Status', type: 'STRING', dictRef: dicts.sale_invoice_status },
         { column: 'client_order_ref', caption: 'Customer Reference', type: 'STRING' },
         { column: 'origin', caption: 'Source Document', type: 'STRING' },
