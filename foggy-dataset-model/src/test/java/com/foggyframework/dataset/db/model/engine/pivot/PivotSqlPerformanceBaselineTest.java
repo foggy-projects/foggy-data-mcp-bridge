@@ -199,7 +199,12 @@ public class PivotSqlPerformanceBaselineTest extends EcommerceTestSupport {
         options.setGrandTotal(true);
         s4Push.setOptions(options);
         s4Push.setOutputFormat("flat");
-        measure("S4_Pushdown_Subtotals", s4Push, false);
+        try {
+            measure("S4_Pushdown_Subtotals", s4Push, false);
+        } catch (Exception e) {
+            // C2 cascade rules reject non-additive + multi-level TopN + subtotals
+            log.info("[Benchmark Result] S4_Pushdown_Subtotals -> REJECTED: {}", e.getMessage());
+        }
         
         log.info("--- S4: Memory Subtotals+COUNT_DISTINCT ---");
         PivotRequest s4Mem = new PivotRequest();
@@ -211,6 +216,9 @@ public class PivotSqlPerformanceBaselineTest extends EcommerceTestSupport {
         PivotPipeline.SQL_PUSHDOWN_ENABLED = false;
         try {
             measure("S4_Memory_Subtotals", s4Mem, true);
+        } catch (Exception e) {
+            // C2 cascade rules reject non-additive + multi-level TopN + subtotals
+            log.info("[Benchmark Result] S4_Memory_Subtotals -> REJECTED: {}", e.getMessage());
         } finally {
             PivotPipeline.SQL_PUSHDOWN_ENABLED = true;
         }

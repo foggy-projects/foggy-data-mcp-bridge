@@ -3,6 +3,7 @@ package com.foggyframework.dataset.db.model.engine.pivot;
 import com.foggyframework.dataset.db.model.engine.pivot.algo.*;
 import com.foggyframework.dataset.db.model.engine.pivot.cascade.PivotCascadeException;
 import com.foggyframework.dataset.db.model.engine.pivot.cascade.PivotCascadeRules;
+import com.foggyframework.dataset.db.model.engine.pivot.phase.*;
 import com.foggyframework.dataset.db.model.engine.pivot.rollup.*;
 import com.foggyframework.dataset.db.model.engine.pivot.sql.PivotAxisDomainSqlPlanner;
 import com.foggyframework.dataset.db.model.engine.pivot.sql.PivotPushdownUnsupportedException;
@@ -206,104 +207,19 @@ public class PivotPipeline {
                     model, request, context, hierarchyCtx.getDimName(), hierarchyCtx.getIdField());
         }
 
-        // ===== Phase 2: 内存加工 =====
+        // ===== Phase 2: 内存加工（处理器链） =====
         logger.debug("[Pivot] Phase 2: Memory cube processing, {} rows", resultSet.size());
 
-        if (!sqlPushdownUsed) {
-            // 2.1 轴级 Having 过滤（SQL pushdown 场景已在 SQL 层完成）
-            resultSet = AxisHavingFilter.apply(resultSet, pivot.getRows(), metrics);
-            resultSet = AxisHavingFilter.apply(resultSet, pivot.getColumns(), metrics);
+        PivotPhase2Context phase2Ctx = new PivotPhase2Context(
+                model, request, context, pivot, queryModel,
+                rowFields, colFields, metrics, sqlPushdownUsed,
+                resolvedProps, resultSet, logger);
 
-            // 2.2 轴向 TopN 截断（SQL pushdown 场景已在 SQL 层完成）
-            resultSet = AxisTopNTruncator.apply(resultSet, pivot.getRows());
-            resultSet = AxisTopNTruncator.apply(resultSet, pivot.getColumns());
-        } else {
-            logger.debug("[Pivot] Phase 2: Skipping Having/TopN (already done in SQL pushdown)");
+        for (PivotPhase2Processor processor : buildPhase2Processors(model, request, context)) {
+            processor.process(phase2Ctx);
         }
 
-
-        // 提取域并执行基数熔断校验
-        Set<List<Object>> rowDomain = CardinalityBreaker.extractRowDomain(resultSet, rowFields);
-        Set<List<Object>> colDomain = CardinalityBreaker.extractColumnDomain(resultSet, colFields);
-        cardinalityBreaker.checkEstimate(rowDomain.size(), colDomain.size(), pivot);
-
-        PivotOptions options = pivot.getOptions() != null ? pivot.getOptions() : new PivotOptions();
-        boolean needsSubtotal = options.isRowSubtotals() || options.isColumnSubtotals() || options.isGrandTotal();
-
-        // 2.3 Rollup 规划与辅助查询（仅在需要小计/总计时执行）
-        List<RollupMetricPlan> rollupPlans = Collections.emptyList();
-        RollupCache rollupCache = new RollupCache();
-        if (needsSubtotal) {
-            rollupPlans = MetricAdditivityAnalyzer.analyze(
-                    metrics, queryModel, request.getCalculatedFields());
-            logger.debug("[Pivot] Phase 2.3: Rollup plans: {}", rollupPlans);
-
-            // 检查是否有不支持的 metric 参与 subtotal
-            for (RollupMetricPlan plan : rollupPlans) {
-                if (plan.getStrategy() == RollupStrategy.UNSUPPORTED) {
-                    throw new IllegalArgumentException(
-                            "度量 '" + plan.getMetricName() + "' 的聚合类型（" +
-                            plan.getAggregation() + "）不支持参与小计/总计。" +
-                            "请移除该度量或关闭 rowSubtotals/columnSubtotals/grandTotal");
-                }
-            }
-
-            // 如果有 non-additive metrics，执行辅助查询
-            if (MetricAdditivityAnalyzer.hasNonAdditiveMetrics(rollupPlans)) {
-                List<RollupGrain> grains = RollupGrainEnumerator.enumerate(rowFields, colFields, options);
-                logger.debug("[Pivot] Phase 2.4: Auxiliary rollup queries, {} grains", grains.size());
-
-                NonAdditiveRollupExecutor executor = new NonAdditiveRollupExecutor(semanticQueryService);
-                try {
-                    rollupCache = executor.execute(model, request, context,
-                            grains, rollupPlans, rowFields, colFields, rowDomain, colDomain);
-                } catch (NonAdditiveRollupDomainTooLargeException e) {
-                    // Stage 4 fail-closed: SQL pushdown 后 surviving domain 超限，
-                    // 无法为 non-additive subtotal 生成精确 tuple 约束。
-                    // 不能静默近似（静默近似会让小计包含被 TopN 过滤的成员），
-                    // 因此向用户报错，要求降低 TopN limit 或关闭 rowSubtotals/grandTotal。
-                    PivotTelemetry.domainLimitExceeded(logger, model, e.getDomainSize(), e.getMaxAllowed(),
-                            sqlPushdownUsed, rowDomain.size(), colDomain.size());
-                    throw new IllegalStateException(
-                            "Pivot subtotal/grandTotal: non-additive metric (AVG/COUNT_DISTINCT) 的辅助查询 " +
-                            "surviving domain 超过安全限制（" + e.getDomainSize() + " > " + e.getMaxAllowed() + "）。" +
-                            "请减少 TopN limit 数量，或关闭 rowSubtotals/columnSubtotals/grandTotal。", e);
-                }
-            }
-        }
-
-        // 2.5 骨架补全
-        if (options.isCrossjoin()) {
-            resultSet = CrossJoinFiller.apply(resultSet, rowFields, colFields, metrics, rowDomain, colDomain);
-        }
-
-        // 2.6 小计/总计注入 (cache-aware)
-        if (needsSubtotal) {
-            resultSet = SubtotalInjector.apply(resultSet, rowFields, colFields, metrics, options,
-                    rollupPlans, rollupCache);
-        }
-
-        // ===== Phase 2.7: Properties 后置贴合 =====
-        if (!resolvedProps.isEmpty()) {
-            logger.debug("[Pivot] Phase 2.7: Property attachment for {} properties", resolvedProps.size());
-            Map<String, Map<Object, Map<String, Object>>> lookupTables =
-                    executePropertyLookup(model, request, context, resolvedProps);
-            PropertyAttacher.attach(resultSet, resolvedProps, lookupTables);
-        }
-
-        // ===== Phase 2.8: ParentShare 父级占比计算 =====
-        if (!pivot.getParentShareMetrics().isEmpty()) {
-            logger.debug("[Pivot] Phase 2.8: ParentShare calculation, {} metrics",
-                    pivot.getParentShareMetrics().size());
-            ParentShareCalculator.apply(resultSet, pivot, rowFields, colFields);
-        }
-
-        // ===== Phase 2.9: BaselineRatio 基准引用计算 =====
-        if (!pivot.getBaselineRatioMetrics().isEmpty()) {
-            logger.debug("[Pivot] Phase 2.9: BaselineRatio calculation, {} metrics",
-                    pivot.getBaselineRatioMetrics().size());
-            BaselineRatioCalculator.apply(resultSet, pivot, rowFields, colFields);
-        }
+        resultSet = phase2Ctx.getResultSet();
 
         // ===== Phase 3: 结果整形 =====
         // S11: Phase 3 使用所有输出指标名（含 parentShare），而非仅 SQL 指标
@@ -516,63 +432,8 @@ public class PivotPipeline {
      */
     private com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext buildManagedRelationContext(
             String model, SemanticQueryRequest flatRequest, SemanticRequestContext reqContext) {
-        // 构建 JDBC 请求
-        com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef queryDef =
-                new com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef();
-        queryDef.setQueryModel(model);
-        queryDef.setReturnTotal(false);
-        queryDef.setStrictColumns(true);
-        queryDef.setColumns(flatRequest.getColumns());
-
-        // groupBy
-        if (flatRequest.getGroupBy() != null) {
-            List<com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef> jdbcGroupBy = new ArrayList<>();
-            for (SemanticQueryRequest.GroupByItem item : flatRequest.getGroupBy()) {
-                com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef g =
-                        new com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef();
-                g.setField(item.getField());
-                g.setAgg(item.getAgg());
-                jdbcGroupBy.add(g);
-            }
-            queryDef.setGroupBy(jdbcGroupBy);
-        }
-
-        // slice
-        if (flatRequest.getSlice() != null) {
-            List<com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef> jdbcSlice = new ArrayList<>();
-            for (SemanticQueryRequest.SliceItem sliceItem : flatRequest.getSlice()) {
-                com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef s =
-                        new com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef();
-                s.setField(sliceItem.getField());
-                s.setOp(sliceItem.getOp());
-                s.setValue(sliceItem.getValue());
-                jdbcSlice.add(s);
-            }
-            queryDef.setSlice(jdbcSlice);
-        }
-
-        // calculatedFields
-        if (flatRequest.getCalculatedFields() != null) {
-            queryDef.setCalculatedFields(new ArrayList<>(flatRequest.getCalculatedFields()));
-        }
-
-        com.foggyframework.dataset.client.domain.PagingRequest<com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef> pagingRequest =
-                new com.foggyframework.dataset.client.domain.PagingRequest<>();
-        pagingRequest.setParam(queryDef);
-        pagingRequest.setStart(0);
-        pagingRequest.setPageSize(flatRequest.getLimit());
-
-        com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext resultContext =
-                new com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext();
-        resultContext.setRequest(pagingRequest);
-        resultContext.setQueryType(com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext.QueryType.SEMANTIC);
-        resultContext.setNamespace(reqContext.getNamespace());
-        resultContext.setSecurityContext(reqContext.getSecurityContext());
-        resultContext.setFieldAccess(reqContext.getFieldAccess());
-        resultContext.setDeniedColumns(reqContext.getDeniedColumns());
-        resultContext.setSystemSlice(reqContext.getSystemSlice());
-
-        return resultContext;
+        return com.foggyframework.dataset.db.model.engine.pivot.sql.ManagedRelationContextBuilder.build(
+                model, flatRequest, reqContext);
     }
 
     /**
@@ -867,5 +728,26 @@ public class PivotPipeline {
         response.setDebug(debugInfo);
 
         return response;
+    }
+
+    /**
+     * 构建 Phase 2 处理器链。
+     *
+     * <p>处理器按注册顺序串行执行。9.2.0 可在此处插入新步骤。</p>
+     */
+    private List<PivotPhase2Processor> buildPhase2Processors(
+            String model, SemanticQueryRequest request, SemanticRequestContext context) {
+        List<PivotPhase2Processor> processors = new ArrayList<>();
+        processors.add(new AxisHavingProcessor());
+        processors.add(new AxisTopNProcessor());
+        processors.add(new DomainExtractionProcessor(cardinalityBreaker));
+        processors.add(new RollupPlanningProcessor(semanticQueryService));
+        processors.add(new CrossJoinProcessor());
+        processors.add(new SubtotalInjectionProcessor());
+        processors.add(new PropertyAttachmentProcessor(
+                props -> executePropertyLookup(model, request, context, props)));
+        processors.add(new ParentShareProcessor());
+        processors.add(new BaselineRatioProcessor());
+        return processors;
     }
 }

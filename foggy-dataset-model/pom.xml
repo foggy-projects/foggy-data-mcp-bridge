@@ -20,6 +20,37 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
             </plugin>
+            <!-- Mutation Testing: mvn -pl foggy-dataset-model pitest:mutationCoverage -P!multi-db -->
+            <plugin>
+                <groupId>org.pitest</groupId>
+                <artifactId>pitest-maven</artifactId>
+                <version>1.15.3</version>
+                <configuration>
+                    <targetClasses>
+                        <param>com.foggyframework.dataset.db.model.engine.pivot.*</param>
+                    </targetClasses>
+                    <targetTests>
+                        <param>com.foggyframework.dataset.db.model.engine.pivot.*</param>
+                    </targetTests>
+                    <mutators>
+                        <mutator>DEFAULTS</mutator>
+                    </mutators>
+                    <outputFormats>
+                        <outputFormat>HTML</outputFormat>
+                    </outputFormats>
+                    <timestampedReports>false</timestampedReports>
+                    <excludedTestClasses>
+                        <param>*IntegrationTest</param>
+                    </excludedTestClasses>
+                </configuration>
+                <dependencies>
+                    <dependency>
+                        <groupId>org.pitest</groupId>
+                        <artifactId>pitest-junit5-plugin</artifactId>
+                        <version>1.2.1</version>
+                    </dependency>
+                </dependencies>
+            </plugin>
         </plugins>
     </build>
 
@@ -115,6 +146,15 @@
                                 <configuration>
                                     <systemPropertyVariables>
                                         <spring.profiles.active>postgres</spring.profiles.active>
+                                    </systemPropertyVariables>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>test-mysql57</id>
+                                <goals><goal>test</goal></goals>
+                                <configuration>
+                                    <systemPropertyVariables>
+                                        <spring.profiles.active>mysql57</spring.profiles.active>
                                     </systemPropertyVariables>
                                 </configuration>
                             </execution>

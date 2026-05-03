@@ -962,16 +962,17 @@ class PivotSqlParityIntegrationTest extends EcommerceTestSupport {
     }
 
     @Test
-    @DisplayName("13. SQL pushdown active + TopN + COUNT_DISTINCT + rowSubtotals/grandTotal")
+    @DisplayName("13. SQL pushdown + TopN + COUNT_DISTINCT + subtotals → C2 cascade REJECTED")
     void testSqlPushdownNonAdditiveRollupWithTopNAndSubtotalsParity() {
+        // C2 cascade rules (9.1.0): multi-level rows with TopN + non-additive metrics
+        // + subtotals is explicitly rejected because correctness cannot be guaranteed
+        // for ranking with non-additive aggregation in a cascade context.
         PivotRequest pivot = new PivotRequest();
-        
-        // 维度1：Category (Top 2 by salesAmount to allow SQL pushdown)
+
         AxisField categoryAxis = axis("product$categoryName");
         categoryAxis.setOrderBy(List.of("-salesAmount"));
         categoryAxis.setLimit(2);
-        
-        // 维度2：Month
+
         AxisField monthAxis = axis("salesDate$month");
 
         pivot.setRows(List.of(categoryAxis, monthAxis));
@@ -986,64 +987,12 @@ class PivotSqlParityIntegrationTest extends EcommerceTestSupport {
         SemanticQueryRequest request = new SemanticQueryRequest();
         request.setPivot(pivot);
 
-        SemanticQueryResponse response = execute(request);
-        List<Map<String, Object>> pivotItems = response.getItems();
-
-        List<Map<String, Object>> pivotLeaves = pivotItems.stream()
-                .filter(r -> !r.containsKey("_sys_meta") || (!Boolean.TRUE.equals(((Map)r.get("_sys_meta")).get("isRowSubtotal")) && !Boolean.TRUE.equals(((Map)r.get("_sys_meta")).get("isGrandTotal"))))
-                .collect(Collectors.toList());
-        List<Map<String, Object>> pivotSubtotals = pivotItems.stream()
-                .filter(r -> r.containsKey("_sys_meta") && Boolean.TRUE.equals(((Map)r.get("_sys_meta")).get("isRowSubtotal")))
-                .collect(Collectors.toList());
-        List<Map<String, Object>> pivotGrandTotal = pivotItems.stream()
-                .filter(r -> r.containsKey("_sys_meta") && Boolean.TRUE.equals(((Map)r.get("_sys_meta")).get("isGrandTotal")))
-                .collect(Collectors.toList());
-
-        // SQL Oracle
-        String top2CategorySql = "SELECT t2.category_name " +
-                "  FROM fact_sales t1 " +
-                "  LEFT JOIN dim_product t2 ON t1.product_key = t2.product_key " +
-                "  GROUP BY t2.category_name " +
-                "  ORDER BY SUM(t1.sales_amount) DESC, t2.category_name ASC " +
-                "  LIMIT 2";
-                
-        String topNCondition = "EXISTS (SELECT 1 FROM (" + top2CategorySql + ") as top_cats " +
-                "WHERE top_cats.category_name = t2.category_name OR (top_cats.category_name IS NULL AND t2.category_name IS NULL))";
-
-        // Leaf Oracle
-        String sqlLeaf = "SELECT t2.category_name as category_name, t3.month as month_name, COUNT(DISTINCT t1.customer_key) as unique_customers " +
-                "FROM fact_sales t1 " +
-                "LEFT JOIN dim_product t2 ON t1.product_key = t2.product_key " +
-                "LEFT JOIN dim_date t3 ON t1.date_key = t3.date_key " +
-                "WHERE " + topNCondition + " " +
-                "GROUP BY t2.category_name, t3.month";
-        List<Map<String, Object>> sqlLeafItems = jdbcTemplate.queryForList(sqlLeaf);
-        assertParityMultiDim(sqlLeafItems, pivotLeaves,
-                List.of("category_name", "month_name"),
-                List.of("product$categoryName", "salesDate$month"),
-                "unique_customers", "uniqueCustomers");
-
-        // Subtotal Oracle (Group by Category)
-        String sqlSub = "SELECT t2.category_name as category_name, COUNT(DISTINCT t1.customer_key) as unique_customers " +
-                "FROM fact_sales t1 " +
-                "LEFT JOIN dim_product t2 ON t1.product_key = t2.product_key " +
-                "WHERE " + topNCondition + " " +
-                "GROUP BY t2.category_name";
-        List<Map<String, Object>> sqlSubItems = jdbcTemplate.queryForList(sqlSub);
-        assertParity(sqlSubItems, pivotSubtotals, "category_name", "product$categoryName", "unique_customers", "uniqueCustomers");
-
-        // Grand Total Oracle (All Surviving Domain)
-        String sqlGrand = "SELECT COUNT(DISTINCT t1.customer_key) as unique_customers " +
-                "FROM fact_sales t1 " +
-                "LEFT JOIN dim_product t2 ON t1.product_key = t2.product_key " +
-                "WHERE " + topNCondition;
-        List<Map<String, Object>> sqlGrandItems = jdbcTemplate.queryForList(sqlGrand);
-        assertEquals(1, pivotGrandTotal.size(), "Grand total should have 1 row");
-        assertEquals(((Number) sqlGrandItems.get(0).get("unique_customers")).longValue(),
-                     ((Number) pivotGrandTotal.get(0).get("uniqueCustomers")).longValue(),
-                     "Grand Total COUNT_DISTINCT mismatch");
-
-        log.info("Test 13: SQL pushdown + TopN + Non-additive + Subtotals Parity 验证通过");
+        // Should be rejected by C2 cascade rules
+        Exception ex = assertThrows(Exception.class, () -> execute(request));
+        String msg = ex.getCause() != null ? ex.getCause().getMessage() : ex.getMessage();
+        assertTrue(msg != null && msg.contains("NON_ADDITIVE_REJECTED"),
+                "Expected PIVOT_CASCADE_NON_ADDITIVE_REJECTED, got: " + msg);
+        log.info("Test 13: C2 cascade non-additive rejection 验证通过");
     }
 
     @Test
