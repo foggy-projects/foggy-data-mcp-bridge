@@ -95,6 +95,8 @@ jacoco.exec
 test-*.json
 test-*.sh
 test-*.bat
+benchmark_results.txt
+benchmark_results_final.txt
 
 # ====================
 # Node.js (if used in frontend)
