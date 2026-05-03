@@ -2,9 +2,9 @@
 
 > 功能名称：**Compose Query**
 > 包路径：`foggy-dataset-model/.../engine/compose/`
-> MCP 工具：`dataset.compose_query`
+> MCP 工具：`dataset.compose_script`
 > 分支：`dev-compose`
-> 最后更新：2026-04-26
+> 最后更新：2026-05-03
 
 ## 一、功能定位
 
@@ -38,7 +38,7 @@ Compose Query 解决的核心问题：**单个 QM 查询无法满足的多步分
 
 ```
 MCP 层（foggy-dataset-mcp）
-  └─ ComposeQueryTool        ← MCP 工具入口，接收 fsscript 脚本
+  └─ ComposeScriptTool       ← MCP 工具入口，接收 fsscript 脚本
        └─ DslQueryFunction   ← fsscript 内置函数 dsl()
             └─ SemanticQueryServiceV3.queryModel()    ← 执行查询
             └─ SemanticQueryServiceV3.generateSql()   ← 仅生成 SQL（CTE 用）
@@ -162,7 +162,7 @@ SQL Server 支持顶层 CTE，但当前 `QueryPlan` lowering 可能把一个编�
 
 | Phase | 状态 | 内容 |
 |---|---|---|
-| **P1 — MVP** | ✅ | `dsl()` 桥接、`DataSetResult` 基础包装、`ComposeQueryTool` MCP 工具 |
+| **P1 — MVP** | ✅ | `dsl()` 桥接、`DataSetResult` 基础包装、`ComposeScriptTool` MCP 工具 |
 | **P2 — CTE 组合** | ✅ | `generateSql()` 模式、`CteComposer`、`withJoin` 延迟执行、`FDialect.supportsCte()` |
 | **P2.5 — QueryPlan 编排** | ✅ | `BaseModelPlan / DerivedQueryPlan / UnionPlan / JoinPlan`、`ComposePlanner`、方言 CTE / 子查询 fallback |
 | **P3 — 二次计算** | ✅ | `filter()` / `sort()` / `compute()` 内存操作 |
@@ -184,8 +184,8 @@ SQL Server 支持顶层 CTE，但当前 `QueryPlan` lowering 可能把一个编�
 | `SqlGenerationResult.java` | dataset-model | generateSql() 返回值 |
 | `plan/QueryPlan.java` 等 | dataset-model | QueryPlan 关系节点对象模型 |
 | `compilation/ComposePlanner.java` | dataset-model | QueryPlan SQL lowering |
-| `ComposeQueryTool.java` | dataset-mcp | MCP 工具入口 |
-| `compose_query.md` | dataset-mcp | AI 工具说明文档 |
+| `ComposeScriptTool.java` | dataset-mcp | MCP 工具入口 |
+| `compose_script_m2.md` | dataset-mcp | AI 工具说明文档 |
 
 ### 修改文件
 
@@ -249,12 +249,11 @@ SQL Server 支持顶层 CTE，但当前 `QueryPlan` lowering 可能把一个编�
 | 组件 | 类型 | 优先级 |
 |---|---|---|
 | 多方言 CTE/子查询 | MySQL 8 lane | P2 |
-| legacy ComposeQueryTool | 旧 2-way join MCP 工具 cleanup / 端到端补充 | P4 |
 
 ## 七、下一步工作
 
 1. **MySQL 8 lane**：补齐窗口函数环境下的 CTE + timeWindow 真实 SQL parity
 2. **元数据 dataSourceGroup**：在模型元数据中暴露 dataSource 归属，供 LLM 判断 withJoin 或 joinInMemory
-3. **legacy ComposeQueryTool cleanup**：保留旧工具兼容性，后续决定是否标记 deprecated 或迁移到 `dataset.compose_script`
+3. **工具描述维护**：`dataset.compose_script` 使用 `compose_script_m2.md` 作为唯一 AI-facing 工具描述
 
 执行拆分见 `docs/8.2.0.beta/M11-CTE-TimeWindow-Coverage-Closure-Plan.md`；Python 对齐提示词见 `docs/8.2.0.beta/M10-Python-CTE-TimeWindow-Coverage-Alignment-Prompt.md`。
