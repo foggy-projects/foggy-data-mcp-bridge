@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
-  "description": "对指定模型执行数据查询（V3版本：支持内联聚合表达式，系统自动处理 groupBy）",
+  "description": "对指定单模型执行数据查询（V3版本）。普通列表、过滤、排序、简单分组聚合优先使用 columns；复杂标量/窗口表达式使用 calculatedFields；同比/环比/YTD/MTD/rolling 使用 timeWindow；交叉表、小计/总计、树形行轴、父级占比或列基准比值使用 pivot。跨模型 Join/Union、派生查询、多 Plan 返回请改用 dataset.compose_script。",
   "properties": {
     "model": {
       "type": "string",
@@ -13,7 +13,7 @@
       "properties": {
         "calculatedFields": {
           "type": "array",
-          "description": "计算字段定义（复杂表达式、窗口函数、跨当前分组占比或需指定 agg 时使用）。全局占比可使用 CALCULATE(SUM(metric), REMOVE(dim))；分母必须写 NULLIF(CALCULATE(...), 0)。父级占比（例如子品类占大类）当前 9.0.0.beta 不支持用 REMOVE(childDim) 或 ROLLUP_TO 表达，后续 S11 将以结构化 pivot.metrics 的 parentShare 覆盖。同比、环比、累计、滚动继续使用 timeWindow，不要使用 CALCULATE；与 timeWindow 联用时，只支持作用于 timeWindow 输出列的后置标量表达式，不要设置 agg、窗口字段或 CALCULATE。严禁使用未开放函数：ROLLUP_TO、CELL_AT、AXIS_MEMBER、AXIS_REF。",
+          "description": "计算字段定义（复杂表达式、窗口函数、跨当前分组占比或需指定 agg 时使用）。全局/当前分组占比可使用 CALCULATE(SUM(metric), REMOVE(dim))；分母必须写 NULLIF(CALCULATE(...), 0)。父级占比（如子品类占大类）不要用 REMOVE(childDim) 或 ROLLUP_TO，使用 pivot.metrics 的 parentShare。跨列首列/末列基准比值不要用 CELL_AT/AXIS_MEMBER，使用 pivot.metrics 的 baselineRatio。同比、环比、累计、滚动使用 timeWindow，不要使用 CALCULATE；与 timeWindow 联用时，只支持作用于 timeWindow 输出列的后置标量表达式，不要设置 agg、窗口字段或 CALCULATE。严禁使用未开放函数：ROLLUP_TO、CELL_AT、AXIS_MEMBER、AXIS_REF。",
           "items": {
             "type": "object",
             "properties": {
@@ -83,7 +83,7 @@
           "items": {
             "type": "string"
           },
-          "description": "查询字段列表。💡 提示：支持内联聚合，例如 'sum(amount)' 或 'count(orderId) as cnt'，无需单独写 groupBy。"
+          "description": "普通查询字段列表；开启 pivot 时不要传 columns。支持内联聚合，例如 'sum(amount)' 或 'count(orderId) as cnt'，无需单独写 groupBy。交叉表、小计/总计、树形行轴、parentShare、baselineRatio 应改用 pivot。"
         },
         "slice": {
           "type": "array",
@@ -285,7 +285,13 @@
               "description": "日期范围边界语义，默认 [)"
             },
             "value": {
-              "description": "可选日期范围或相对日期表达式，如 [\"20250101\", \"20260101\"]、\"-1Y\""
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 2,
+              "maxItems": 2,
+              "description": "可选当前期间 [start, end]。不传则由查询条件和引擎窗口规则决定；传入时必须恰好两个日期或相对表达式，如 [\"2025-01-01\", \"2026-01-01\"]、[\"-1Y\", \"now\"]。"
             },
             "targetMetrics": {
               "type": "array",
@@ -299,9 +305,11 @@
               "enum": [
                 "sum",
                 "avg",
-                "count"
+                "count",
+                "min",
+                "max"
               ],
-              "description": "rolling_* 的聚合函数；默认 sum"
+              "description": "rolling_* / ytd / mtd 的窗口聚合函数；默认 sum"
             }
           },
           "required": [
@@ -337,11 +345,11 @@
         },
         "pivot": {
           "type": "object",
-          "description": "多维透视分析模型。支持行/列维度转置、树形展开、骨架补全及小计/总计。注意：开启 pivot 时，必须移除 columns 字段。",
+          "description": "多维透视分析模型。用于交叉表、行/列维度转置、小计/总计、树形 rows 轴、父级占比 parentShare、列基准比值 baselineRatio。开启 pivot 时必须移除 columns，且不能与 timeWindow 同用；如用户同时要求同比/环比和透视，应先拆成两个查询或优先 timeWindow 普通聚合。",
           "properties": {
             "rows": {
               "type": "array",
-              "description": "行轴维度定义。",
+              "description": "行轴维度定义。需要层级树时只能在 rows 轴设置 hierarchyMode=tree，并使用 outputFormat=tree。",
               "items": {
                 "oneOf": [
                   {
@@ -412,7 +420,7 @@
             },
             "columns": {
               "type": "array",
-              "description": "列轴维度定义。",
+              "description": "列轴维度定义。columns 轴不支持 hierarchyMode=tree；需要跨列首列/末列基准比较时配合 baselineRatio。",
               "items": {
                 "oneOf": [
                   {
@@ -483,7 +491,7 @@
             },
             "metrics": {
               "type": "array",
-              "description": "度量指标列表。支持字符串（原生度量名）和对象（派生指标）。派生指标当前仅支持 parentShare（父级占比）。示例：[\"salesAmount\", {\"name\":\"share\",\"type\":\"parentShare\",\"of\":\"salesAmount\"}]",
+              "description": "度量指标列表。支持字符串（原生度量名）和对象（受控派生指标）。派生指标当前支持 parentShare（rows 轴父级占比）和 baselineRatio（columns 轴 first/last 基准比值）；不支持 expr、ROLLUP_TO、CELL_AT、AXIS_MEMBER。示例：[\"salesAmount\", {\"name\":\"share\",\"type\":\"parentShare\",\"of\":\"salesAmount\"}, {\"name\":\"index\",\"type\":\"baselineRatio\",\"of\":\"salesAmount\",\"axis\":\"columns\",\"baseline\":\"first\"}]",
               "items": {
                 "oneOf": [
                   {
@@ -497,7 +505,7 @@
                       {
                         "properties": {
                           "name": { "type": "string", "description": "指标名称" },
-                          "type": { "type": "string", "enum": ["parentShare"], "description": "派生类型。parentShare=子级值/父级聚合值" },
+                          "type": { "type": "string", "enum": ["parentShare"], "description": "派生类型。parentShare=子级值/父级聚合值；仅 rows 轴相邻层级，不支持 tree/cascade/having/orderBy/limit" },
                           "of": { "type": "string", "description": "基于哪个原生度量（parentShare 必填）" },
                           "axis": { "type": "string", "enum": ["rows"], "description": "指定轴（第一版仅支持 rows）" },
                           "level": { "type": "string", "description": "当前级别字段名" },
@@ -509,7 +517,7 @@
                       {
                         "properties": {
                           "name": { "type": "string", "description": "指标名称" },
-                          "type": { "type": "string", "enum": ["baselineRatio"], "description": "派生类型。baselineRatio=当前值/基准值" },
+                          "type": { "type": "string", "enum": ["baselineRatio"], "description": "派生类型。baselineRatio=当前值/基准值；仅 columns 轴 first/last 基准，不支持 tree/cascade/having/orderBy/limit" },
                           "of": { "type": "string", "description": "基于哪个原生度量" },
                           "axis": { "type": "string", "enum": ["columns"], "description": "指定轴（第一版仅支持 columns）" },
                           "baseline": { "type": "string", "enum": ["first", "last"], "description": "基准（第一版支持 first/last）" }
@@ -531,19 +539,23 @@
             },
             "options": {
               "type": "object",
-              "description": "透视高级计算选项。",
+              "description": "透视高级计算选项。hierarchyMode=tree 与 crossjoin、rowSubtotals、columnSubtotals、grandTotal 互斥；parentShare/baselineRatio 不能参与 having/orderBy/limit/cascade TopN。",
               "properties": {
                 "crossjoin": {
-                  "type": "boolean"
+                  "type": "boolean",
+                  "description": "补齐行列轴笛卡尔骨架。不能与 hierarchyMode=tree 同用；域值过大时引擎会 fail-closed，应收窄 slice 或降低轴 limit。"
                 },
                 "rowSubtotals": {
-                  "type": "boolean"
+                  "type": "boolean",
+                  "description": "行小计。不能与 hierarchyMode=tree 同用。"
                 },
                 "columnSubtotals": {
-                  "type": "boolean"
+                  "type": "boolean",
+                  "description": "列小计。不能与 hierarchyMode=tree 同用。"
                 },
                 "grandTotal": {
-                  "type": "boolean"
+                  "type": "boolean",
+                  "description": "总计。不能与 hierarchyMode=tree 同用。"
                 }
               }
             },

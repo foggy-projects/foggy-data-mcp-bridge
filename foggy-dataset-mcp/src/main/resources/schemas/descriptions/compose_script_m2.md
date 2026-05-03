@@ -6,10 +6,12 @@ Use this tool to orchestrate complex queries through SemanticDSL scripts. The sc
 **Use `compose_script` ONLY IF your task requires:**
 - **Cross-model Join / Union**: Combining data from multiple query models.
 - **Derived Queries**: Processing the results of a previous aggregation (e.g., filtering on an aggregated alias, or double aggregation).
-- **Time-Window Analysis**: Calculating YoY, MoM, WoW, YTD, MTD, or rolling averages using the `timeWindow` configuration.
+- **Composed Time-Window Analysis**: Using `timeWindow` together with derived queries, Join/Union, or multiple returned plans. For a single-model YoY/MoM/WoW/YTD/MTD/rolling query, use `dataset.query_model` with `payload.timeWindow` instead.
 - **Multiple Result Plans**: Returning multiple separate query plans at once.
 
-**OTHERWISE**, if you are just querying a single model with basic filters, grouping, and aggregations, **use `dataset.query_model` instead.**
+**OTHERWISE**, if you are querying a single model with filters, grouping, aggregations, calculatedFields, timeWindow, or pivot, **use `dataset.query_model` instead.**
+
+**Do not use `compose_script` just to access Pivot.** Pivot is exposed through `dataset.query_model.payload.pivot`. If a user asks for a cross-tab, subtotals/grandTotal, hierarchy tree, parentShare, or baselineRatio on one model, call `dataset.query_model`. Use `compose_script` only when that Pivot result must be combined with other query plans, and prefer returning separate plans rather than manually recreating Pivot logic.
 
 > **Note**: For comprehensive SemanticDSL syntax (including all supported `slice` operators, `calculatedFields` expressions, and column definitions), please refer to the `dataset.query_model` tool documentation or the `query_model_v3` schema.
 

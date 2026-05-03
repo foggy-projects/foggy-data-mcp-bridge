@@ -1,11 +1,11 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
-  "description": "Execute a compose script to orchestrate multiple query models",
+  "description": "Execute a SemanticDSL compose script. Use this tool only for cross-model Join/Union, derived queries over a previous plan, composed timeWindow with Join/Union/derived flow, or returning multiple plans. For single-model filters, grouping, calculatedFields, timeWindow, or pivot, use dataset.query_model instead. Do not manually recreate pivot, parentShare, baselineRatio, or hidden functions in compose scripts.",
   "properties": {
     "script": {
       "type": "string",
-      "description": "FSScript code for dataset.compose_script. Use the AI-facing SemanticDSL style: dsl({...}) for base/derived plans, plus .join(...) and .union(...) for plan composition. End query plans by returning an envelope such as return { plans: plan }; do not call .execute() directly unless specifically instructed."
+      "description": "FSScript code for dataset.compose_script. Use AI-facing SemanticDSL only: dsl({...}) for base or derived plans, plus .join(...) and .union(...) for plan composition. Use this when the request needs cross-model Join/Union, derived query, multiple plans, or timeWindow combined with those flows. If the request is a single-model query, single-model timeWindow, or single-model pivot/cross-tab/subtotal/tree/parentShare/baselineRatio, call dataset.query_model instead. End by returning an envelope such as return { plans: plan }; do not call .execute() directly unless specifically instructed."
     }
   },
   "required": ["script"]

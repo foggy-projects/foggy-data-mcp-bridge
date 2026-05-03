@@ -713,7 +713,7 @@ public class PivotPipeline {
         // pivot 与 timeWindow 互斥
         if (request.getTimeWindow() != null && !request.getTimeWindow().isEmpty()) {
             throw new IllegalArgumentException(
-                    "timeWindow 与 pivot 模式互斥。时间智能需求请使用 calculatedFields + CALCULATE/OFFSET 表达");
+                    "timeWindow 与 pivot 模式互斥。时间智能需求请使用 timeWindow 普通聚合；行列透视请使用 pivot；同时需要时请拆成两个查询");
         }
 
         // 基本完整性校验
