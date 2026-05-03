@@ -60,6 +60,15 @@ class ToolConfigLoaderTest {
     }
 
     @Test
+    @DisplayName("legacy compose_query 描述资源不再随 MCP 包发布")
+    void testLegacyComposeQueryDescription_ShouldNotBePackaged() {
+        assertNull(
+                ToolConfigLoaderTest.class.getResource("/schemas/descriptions/compose_query.md"),
+                "legacy compose_query.md should not be packaged; use compose_script_m2.md"
+        );
+    }
+
+    @Test
     @DisplayName("getBuiltinDefaults chart.generate 和 inspect_table 默认禁用")
     void testBuiltinDefaults_ChartAndInspectDisabledByDefault() {
         List<McpProperties.ToolConfigItem> defaults = ToolConfigLoader.getBuiltinDefaults();
