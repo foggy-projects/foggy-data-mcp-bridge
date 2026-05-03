@@ -182,7 +182,7 @@ export default defineConfig({
             text: 'Docs',
             items: [
               { text: 'FSScript Engine', link: '/en/fsscript/guide/introduction' },
-              { text: 'Dataset Modeling', link: '/en/dataset/guide/introduction' },
+              { text: 'Dataset Modeling', link: '/en/dataset-model/guide/introduction' },
               { text: 'MCP Service', link: '/en/mcp/guide/introduction' }
             ]
           },
@@ -226,31 +226,48 @@ export default defineConfig({
               ]
             }
           ],
-          '/en/dataset/': [
+          '/en/dataset-model/': [
             {
               text: 'Getting Started',
               items: [
-                { text: 'Introduction', link: '/en/dataset/guide/introduction' },
-                { text: 'Quick Start', link: '/en/dataset/guide/quick-start' },
-                { text: 'Core Concepts', link: '/en/dataset/guide/concepts' },
-                { text: 'Claude Skills', link: '/en/dataset/guide/claude-skills' }
+                { text: 'Introduction', link: '/en/dataset-model/guide/introduction' },
+                { text: 'Quick Start', link: '/en/dataset-model/guide/quick-start' },
+                { text: 'Core Concepts', link: '/en/dataset-model/guide/concepts' },
+                { text: 'Claude Skills', link: '/en/dataset-model/guide/claude-skills' }
               ]
             },
             {
               text: 'TM/QM Modeling',
               items: [
-                { text: 'TM Syntax Manual', link: '/en/dataset/tm-qm/tm-syntax' },
-                { text: 'QM Syntax Manual', link: '/en/dataset/tm-qm/qm-syntax' },
-                { text: 'Calculated Fields', link: '/en/dataset/tm-qm/calculated-fields' },
-                { text: 'Parent-Child Dimension', link: '/en/dataset/tm-qm/parent-child' }
+                { text: 'TM Syntax Manual', link: '/en/dataset-model/tm-qm/tm-syntax' },
+                { text: 'QM Syntax Manual', link: '/en/dataset-model/tm-qm/qm-syntax' },
+                { text: 'JSON Query DSL', link: '/en/dataset-model/tm-qm/query-dsl' },
+                { text: 'Calculated Fields', link: '/en/dataset-model/tm-qm/calculated-fields' },
+                { text: 'Parent-Child Dimension', link: '/en/dataset-model/tm-qm/parent-child' },
+                { text: 'Advanced Analytics', link: '/en/dataset-model/tm-qm/advanced-analytics' }
+              ]
+            },
+            {
+              text: 'Compose Query',
+              items: [
+                { text: 'DSL Manual', link: '/en/dataset-model/compose-query/dsl-manual' },
+                { text: 'Chain API Manual', link: '/en/dataset-model/compose-query/api-manual' },
+                { text: 'Pivot', link: '/en/dataset-model/compose-query/pivot' }
               ]
             },
             {
               text: 'API Reference',
               items: [
-                { text: 'Query API', link: '/en/dataset/api/query-api' },
-                { text: 'Authorization (QM)', link: '/en/dataset/api/authorization' },
-                { text: 'Java Authorization', link: '/en/dataset/api/java-authorization' }
+                { text: 'Query API', link: '/en/dataset-model/api/query-api' },
+                { text: 'Authorization (QM)', link: '/en/dataset-model/api/authorization' },
+                { text: 'Java Authorization', link: '/en/dataset-model/api/java-authorization' }
+              ]
+            },
+            {
+              text: 'Advanced',
+              items: [
+                { text: 'Query Cache', link: '/en/dataset-model/advanced/cache' },
+                { text: 'Pre-Aggregation', link: '/en/dataset-model/advanced/pre-aggregation' }
               ]
             }
           ],

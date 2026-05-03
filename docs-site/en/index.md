@@ -19,17 +19,17 @@ features:
   - icon: 🔒
     title: Security First
     details: DSL-based queries eliminate SQL injection risks. Field-level access control with read-only design.
-    link: /en/dataset/api/authorization
+    link: /en/dataset-model/api/authorization
     linkText: Access Control
   - icon: 🎯
     title: Model-as-Code
     details: Define semantic layer using FSScript (JavaScript-like syntax). Functions, imports, and dynamic logic.
-    link: /en/dataset/tm-qm/tm-syntax
+    link: /en/dataset-model/tm-qm/tm-syntax
     linkText: TM/QM Syntax
   - icon: 🌐
     title: Multi-Database
     details: MySQL, PostgreSQL, SQL Server, SQLite, MongoDB - same DSL query works everywhere.
-    link: /en/dataset/guide/introduction
+    link: /en/dataset-model/guide/introduction
     linkText: Database Support
   - icon: 🤖
     title: AI-Native MCP
