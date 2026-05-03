@@ -157,6 +157,141 @@ class PivotSchemaValidationTest {
     }
 
     @Test
+    @DisplayName("合规：timeWindow value 缺省")
+    void testValidTimeWindowWithoutValue() throws Exception {
+        String json = """
+        {
+          "model": "FactSales",
+          "payload": {
+            "columns": ["salesAmount", "salesAmount__prior", "salesAmount__ratio"],
+            "timeWindow": {
+              "field": "salesDate$id",
+              "grain": "month",
+              "comparison": "yoy",
+              "targetMetrics": ["salesAmount"]
+            }
+          }
+        }
+        """;
+        Set<ValidationMessage> errors = validate(json);
+        assertTrue(errors.isEmpty(), "timeWindow.value 缺省应通过 schema 验证: " + errors);
+    }
+
+    @Test
+    @DisplayName("合规：timeWindow value 恰好两个元素")
+    void testValidTimeWindowWithTwoValueElements() throws Exception {
+        String json = """
+        {
+          "model": "FactSales",
+          "payload": {
+            "columns": ["salesAmount", "salesAmount__rolling_7d"],
+            "timeWindow": {
+              "field": "salesDate$id",
+              "grain": "day",
+              "comparison": "rolling_7d",
+              "value": ["-30d", "now"],
+              "targetMetrics": ["salesAmount"]
+            }
+          }
+        }
+        """;
+        Set<ValidationMessage> errors = validate(json);
+        assertTrue(errors.isEmpty(), "timeWindow.value 两元素数组应通过 schema 验证: " + errors);
+    }
+
+    @Test
+    @DisplayName("违规：timeWindow value 少于两个元素")
+    void testInvalidTimeWindowValueTooShort() throws Exception {
+        String json = """
+        {
+          "model": "FactSales",
+          "payload": {
+            "timeWindow": {
+              "field": "salesDate$id",
+              "grain": "month",
+              "comparison": "yoy",
+              "value": ["2025-01-01"]
+            }
+          }
+        }
+        """;
+        Set<ValidationMessage> errors = validate(json);
+        assertFalse(errors.isEmpty(), "timeWindow.value 少于两个元素应被 schema 拒绝");
+        assertTrue(errors.stream().anyMatch(e -> e.getMessage().contains("timeWindow.value") && e.getMessage().contains("至少")),
+                "应报告 minItems 错误: " + errors);
+    }
+
+    @Test
+    @DisplayName("违规：timeWindow value 多于两个元素")
+    void testInvalidTimeWindowValueTooLong() throws Exception {
+        String json = """
+        {
+          "model": "FactSales",
+          "payload": {
+            "timeWindow": {
+              "field": "salesDate$id",
+              "grain": "month",
+              "comparison": "yoy",
+              "value": ["2025-01-01", "2025-02-01", "2025-03-01"]
+            }
+          }
+        }
+        """;
+        Set<ValidationMessage> errors = validate(json);
+        assertFalse(errors.isEmpty(), "timeWindow.value 多于两个元素应被 schema 拒绝");
+        assertTrue(errors.stream().anyMatch(e -> e.getMessage().contains("timeWindow.value") && e.getMessage().contains("最多")),
+                "应报告 maxItems 错误: " + errors);
+    }
+
+    @Test
+    @DisplayName("合规：timeWindow rollingAggregator 支持 min/max")
+    void testValidTimeWindowRollingAggregatorMinMax() throws Exception {
+        String template = """
+        {
+          "model": "FactSales",
+          "payload": {
+            "timeWindow": {
+              "field": "salesDate$id",
+              "grain": "day",
+              "comparison": "rolling_30d",
+              "rollingAggregator": "%s",
+              "targetMetrics": ["salesAmount"]
+            }
+          }
+        }
+        """;
+
+        Set<ValidationMessage> minErrors = validate(String.format(template, "min"));
+        Set<ValidationMessage> maxErrors = validate(String.format(template, "max"));
+
+        assertTrue(minErrors.isEmpty(), "rollingAggregator=min 应通过 schema 验证: " + minErrors);
+        assertTrue(maxErrors.isEmpty(), "rollingAggregator=max 应通过 schema 验证: " + maxErrors);
+    }
+
+    @Test
+    @DisplayName("违规：timeWindow rollingAggregator 拒绝未开放枚举")
+    void testInvalidTimeWindowRollingAggregator() throws Exception {
+        String json = """
+        {
+          "model": "FactSales",
+          "payload": {
+            "timeWindow": {
+              "field": "salesDate$id",
+              "grain": "day",
+              "comparison": "rolling_30d",
+              "rollingAggregator": "median",
+              "targetMetrics": ["salesAmount"]
+            }
+          }
+        }
+        """;
+        Set<ValidationMessage> errors = validate(json);
+        assertFalse(errors.isEmpty(), "未开放 rollingAggregator 应被 schema 拒绝");
+        assertTrue(errors.stream().anyMatch(e -> e.getMessage().contains("rollingAggregator") && e.getMessage().contains("枚举")),
+                "应报告 rollingAggregator enum 错误: " + errors);
+    }
+
+    @Test
     @DisplayName("违规：非法的 metricPlacement 枚举")
     void testInvalidMetricPlacement() throws Exception {
         String json = """

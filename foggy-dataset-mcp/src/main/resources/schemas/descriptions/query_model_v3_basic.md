@@ -4,6 +4,17 @@
 
 > **Note**: 本工具适用于单模型查询。如果遇到单模型 DSL 无法解决的复杂查询（如跨模型 Join、Union、派生查询、或者需要返回多个 Plan 的场景），请使用 `dataset.compose_script` 工具。
 
+## AI 能力选择
+
+| 场景 | 使用 | 边界与退化 |
+|---|---|---|
+| 明细、过滤、排序、简单聚合 | `columns` / `slice` / `orderBy` | 字段不确定先用 `dataset.describe_model_internal` |
+| 条件聚合 | `sum/avg/count(if(...)) as alias` | 不要生成 `sum_if`、`count_if`、SQL `case when` |
+| 复杂表达式、窗口排名、显式 agg | `calculatedFields` | 简单 `sum(field)` 留在 `columns` |
+| 同比、环比、YTD、MTD、rolling | `timeWindow` | 不要用 `CALCULATE`；不能和 `pivot` 同用，必要时拆成两个查询 |
+| 交叉表、小计/总计、树形 rows、父级占比、列基准比 | `pivot` | 不要同时传 `columns`；普通分组退回 `columns`；跨模型退回 `dataset.compose_script` |
+| 跨模型 Join / Union / 派生查询 | `dataset.compose_script` | 单个 `query_model` 不表达这些计划图 |
+
 ## 字段规则
 
 **直接使用 `dataset.describe_model_internal` 返回的字段名**
@@ -17,7 +28,7 @@
 
 ## 参数
 
-### columns (必填)
+### columns (普通查询必填；pivot 查询不要传)
 声明要查询的列，支持普通字段或简单的内联聚合表达式（系统自动处理 groupBy）：
 ```json
 ["product$categoryName", "sum(salesAmount) as totalSales", "count(orderId) as orderCount"]
@@ -49,11 +60,15 @@
 - 全局占比：`SUM(salesAmount) / NULLIF(CALCULATE(SUM(salesAmount), REMOVE(customer$customerType)), 0)`
 - 组内占比：`ROUND(SUM(salesAmount) / NULLIF(CALCULATE(SUM(salesAmount), REMOVE(product$categoryName)), 0), 4)`
 - 同比、环比、累计、滚动不要用 `CALCULATE`，继续使用 `timeWindow`。
+- 父级占比不要用 `ROLLUP_TO` 或 `REMOVE(childDim)`，使用 `pivot.metrics.parentShare`。
+- 跨列首/末基准比较不要用 `CELL_AT` 或 `AXIS_MEMBER`，使用 `pivot.metrics.baselineRatio`。
 
 限制：`CALCULATE` 只支持 `CALCULATE(SUM(metric), REMOVE(groupByDim...))`；`REMOVE` 只能移除当前 `groupBy` 中的维度；占比分母必须使用 `NULLIF(CALCULATE(...), 0)`。
 
 ### timeWindow (可选)
 声明式时间窗口分析。同比、环比、周同比、年初至今、月累计、滚动 7/30/90 天优先使用 `timeWindow`。
+
+`value` 可选；传入时必须是两个元素的数组 `[start, end]`，每个元素为合法日期或相对表达式。`rollingAggregator` 支持 `sum` / `avg` / `count` / `min` / `max`，不填默认 `sum`。
 
 ```json
 {
@@ -130,6 +145,8 @@ timeWindow 结果列可再接后置标量 `calculatedFields`：
 
 ### orderBy (可选)
 排序规则。简写格式：`"field"`(升序)、`"field desc"`(降序)、`"-field"`(降序)。**必须使用 columns 中定义的别名**，如 `year` 而非 `YEAR(createdAt)`。
+
+开启 `pivot` 时，顶层 `orderBy` 不是透视轴排序或 TopN 控制；不要生成 `payload.pivot` + 顶层 `orderBy` 的组合。需要轴内排序时，使用 `pivot.rows[*].orderBy` 或 `pivot.columns[*].orderBy`。
 ```json
 ["-totalSales", "orderId"]
 ```
@@ -137,11 +154,40 @@ timeWindow 结果列可再接后置标量 `calculatedFields`：
 ### 其他控制参数
 | 参数 | 类型 | 默认值 | 互斥/依赖关系 |
 |---|---|---|---|
-| `limit` | number | 无 | 分页大小 |
+| `limit` | number | 无 | 普通查询分页大小；`pivot` 轴裁剪请使用 `pivot.rows[*].limit` / `pivot.columns[*].limit` |
 | `start` | number | `0` | 偏移量 |
 | `returnTotal` | boolean | `true` | 是否返回总行数 |
 | `distinct` | boolean | `false` | 与 `groupBy` 和聚合函数互斥 |
 | `withSubtotals` | boolean | `false` | 仅在有 `groupBy` 时生效（Rollup计算） |
+
+## Pivot 透视表查询
+
+当用户需要行列交叉表、小计/总计、树形 rows 轴、父级占比或列基准比值时使用 `pivot`。
+
+```json
+{
+  "pivot": {
+    "rows": ["region$caption", "city$caption"],
+    "columns": ["salesDate$month"],
+    "metrics": [
+      "salesAmount",
+      {"name": "share", "type": "parentShare", "of": "salesAmount"},
+      {"name": "index", "type": "baselineRatio", "of": "salesAmount", "axis": "columns", "baseline": "first"}
+    ],
+    "outputFormat": "grid",
+    "options": {"rowSubtotals": true, "grandTotal": true}
+  }
+}
+```
+
+边界：
+- `pivot` 与 `columns` 互斥；开启 `pivot` 时不要传 `columns`。
+- `pivot` 与 `timeWindow` 互斥；同比/环比需求改用 `timeWindow`，或拆成两个查询。
+- 顶层 `orderBy` / `limit` 不作为透视轴排序或 TopN 控制；需要排序或裁剪行/列成员时，写在对应 `pivot.rows[*]` / `pivot.columns[*]` 轴对象上。
+- `hierarchyMode=tree` 仅支持 rows 轴和 `outputFormat=tree`，不能与 `crossjoin`、`rowSubtotals`、`columnSubtotals`、`grandTotal` 同用。
+- `parentShare` 只支持 rows 相邻层级和可加原生度量，不支持 tree/cascade/having/orderBy/limit。
+- `baselineRatio` 只支持 columns 轴 `baseline=first/last`，不支持 tree/cascade/having/orderBy/limit。
+- 不要生成 `ROLLUP_TO`、`CELL_AT`、`AXIS_MEMBER`、`AXIS_REF` 或 `expr` 类型 pivot metric；超出边界时退回普通 pivot、普通聚合或明确说明不支持。
 
 ## 错误处理指南
 如果在调用 `query_model` 时遇到报错，请按以下思路进行修复：
@@ -149,3 +195,4 @@ timeWindow 结果列可再接后置标量 `calculatedFields`：
 2. **函数未定义**：如果是 `count_if` / `sum_if` 报错，请改为 `sum/avg/count(if(...))`。
 3. **不支持在 columns 中使用复杂表达式**：将该带有计算逻辑的表达式（比如加减乘除、窗口函数等）移到 `calculatedFields` 中定义别名，再放入 `columns`。
 4. **语法错误**：检查 JSON 结构是否闭合，特别是 `slice` 中的 `$or` 是否正确嵌套。
+5. **Pivot 互斥或边界错误**：移除 `columns` 或 `timeWindow`；tree 错误时移除 `crossjoin`/`rowSubtotals`/`columnSubtotals`/`grandTotal`；派生指标错误时移除 `parentShare`/`baselineRatio` 或改为普通 pivot。

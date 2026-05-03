@@ -4,6 +4,19 @@
 
 > **Note**: 本工具适用于单模型查询。如果遇到单模型 DSL 无法解决的复杂查询（如跨模型 Join、Union、派生查询、或者需要返回多个 Plan 的场景），请使用 `dataset.compose_script` 工具。
 
+## AI 能力路由与退化策略
+
+| 用户意图 | 首选能力 | 不要这样做 | 超出边界后如何退化 |
+|---|---|---|---|
+| 明细列表、过滤、排序、简单聚合 | `columns` + `slice` + `orderBy` | 不要为普通 `sum(field)` 创建 `calculatedFields` | 字段不确定时先调用 `dataset.describe_model_internal` |
+| 条件聚合 | `columns` 内 `sum/avg/count(if(...)) as alias` | 不要生成 `sum_if`、`count_if`、SQL `case when` | 改成 `if(条件, 值, 0/null)` 形式 |
+| 复杂标量表达式、窗口排名、显式 agg | `calculatedFields` | 不要把复杂表达式直接塞进 `columns` | 先定义计算字段别名，再在 `columns` 中引用 |
+| 同比、环比、周环比、YTD、MTD、rolling 7/30/90 | `timeWindow` | 不要用 `CALCULATE`、手写 SQL 窗口或多段日期拼接 | 如果还要透视表，拆成独立查询；本工具不支持 `pivot + timeWindow` |
+| 行列交叉表、小计/总计、树形 rows 轴 | `pivot` | 不要同时传 `pivot` 和 `columns` | 简单分组退回普通 `columns`；跨模型分析退回 `dataset.compose_script` |
+| 子级占父级比例 | `pivot.metrics[].type = "parentShare"` | 不要生成 `ROLLUP_TO` 或 `REMOVE(childDim)` 假装父级导航 | 仅 rows 相邻层级和可加度量；遇到 tree/cascade/不可加度量时去掉派生指标或说明当前不支持 |
+| 当前列相对首列/末列基准 | `pivot.metrics[].type = "baselineRatio"` | 不要生成 `CELL_AT`、`AXIS_MEMBER` 或坐标索引 | 仅 columns 轴 `baseline=first/last`；遇到 tree/cascade 时去掉派生指标或说明当前不支持 |
+| 跨模型 Join、Union、派生查询、多 Plan 返回 | `dataset.compose_script` | 不要用单个 `query_model` 硬拼 | 用 SemanticDSL `dsl({model: prevPlan})`、`.join()`、`.union()` |
+
 ## 字段规则
 
 **直接使用 `dataset.describe_model_internal` 返回的字段名**
@@ -24,7 +37,7 @@
 
 ## 参数
 
-### columns (必填)
+### columns (普通查询必填；pivot 查询不要传)
 声明要查询的列，支持普通字段或简单的内联聚合表达式（系统自动处理 groupBy）：
 ```json
 ["product$categoryName", "sum(salesAmount) as totalSales", "count(orderId) as orderCount"]
@@ -86,10 +99,12 @@ SUM(metric) / NULLIF(CALCULATE(SUM(metric), REMOVE(groupByDim)), 0)
 }
 ```
 
-限制：`CALCULATE` 只支持 `CALCULATE(SUM(metric), REMOVE(groupByDim...))`；`REMOVE` 只能移除当前 `groupBy` 中的维度；占比分母必须使用 `NULLIF(CALCULATE(...), 0)`；不要用 `CALCULATE` 做同比、环比、累计或滚动窗口，这些需求继续使用 `timeWindow`。
+限制：`CALCULATE` 只支持 `CALCULATE(SUM(metric), REMOVE(groupByDim...))`；`REMOVE` 只能移除当前 `groupBy` 中的维度；占比分母必须使用 `NULLIF(CALCULATE(...), 0)`；不要用 `CALCULATE` 做同比、环比、累计或滚动窗口，这些需求继续使用 `timeWindow`。父级占比使用 `pivot.metrics.parentShare`，跨列首/末基准比较使用 `pivot.metrics.baselineRatio`。
 
 ### timeWindow (可选)
 声明式时间窗口分析。遇到同比、环比、周同比、年初至今、月累计、滚动 7/30/90 天这类需求，优先使用 `timeWindow`，不要手写窗口 SQL。
+
+`value` 可选；传入时必须是两个元素的数组 `[start, end]`，每个元素为合法日期或相对表达式。`rollingAggregator` 支持 `sum` / `avg` / `count` / `min` / `max`，不填默认 `sum`。
 
 ```json
 {
@@ -191,6 +206,8 @@ SUM(metric) / NULLIF(CALCULATE(SUM(metric), REMOVE(groupByDim)), 0)
 
 ### orderBy (可选)
 排序规则。简写格式：`"field"`(升序)、`"field desc"`(降序)、`"-field"`(降序)。**必须使用 columns 中定义的别名**，如 `year` 而非 `YEAR(createdAt)`。
+
+开启 `pivot` 时，顶层 `orderBy` 不是透视轴排序或 TopN 控制；不要生成 `payload.pivot` + 顶层 `orderBy` 的组合。需要轴内排序时，使用 `pivot.rows[*].orderBy` 或 `pivot.columns[*].orderBy`。
 ```json
 ["-totalSales", "orderId"]
 ```
@@ -198,19 +215,21 @@ SUM(metric) / NULLIF(CALCULATE(SUM(metric), REMOVE(groupByDim)), 0)
 ### 其他控制参数
 | 参数 | 类型 | 默认值 | 互斥/依赖关系 |
 |---|---|---|---|
-| `limit` | number | 无 | 分页大小 |
+| `limit` | number | 无 | 普通查询分页大小；`pivot` 轴裁剪请使用 `pivot.rows[*].limit` / `pivot.columns[*].limit` |
 | `start` | number | `0` | 偏移量 |
 | `returnTotal` | boolean | `true` | 是否返回总行数 |
 | `distinct` | boolean | `false` | 与 `groupBy` 和聚合函数互斥 |
 
 ## Pivot 透视表查询 (Pivot)
 
-当用户需要**交叉表、多层分组小计、树形层级展示**时，请使用 `pivot` 替代常规的 `columns` + `groupBy`。
-> **注意边界**：何时使用 `pivot`？
-> - 需要将某个维度的值展开为列（例如：按年份作为行，各产品分类作为列，展示销售额）。
-> - 需要行级或列级**小计 (Subtotals)**。
-> - 需要以**树形结构 (Tree)** 展现组织架构或父子层级。
-> - 如果只是普通的列表查询或简单的分组聚合（无行列交叉、无小计），请继续使用常规 `query_model`；如果涉及跨表 Join，请退回 `compose_script`。
+当用户需要**交叉表、多层分组小计、树形层级展示、父级占比、列基准比较**时，请使用 `pivot` 替代常规的 `columns` + `groupBy`。
+
+> **硬边界**：
+> - `pivot` 与 `columns` 互斥。开启 `pivot` 时不要传 `columns`。
+> - `pivot` 与 `timeWindow` 互斥。同比/环比/YTD/rolling 使用 `timeWindow`；行列透视使用 `pivot`。用户同时要求时，拆成两个查询或先回答当前无法在一个请求里同时表达。
+> - 普通列表或简单分组聚合不要用 `pivot`。
+> - 跨模型 Join / Union / 派生查询不要用 `pivot` 硬拼，退回 `dataset.compose_script`。
+> - 顶层 `orderBy` / `limit` 不作为透视轴排序或 TopN 控制；需要排序或裁剪行/列成员时，写在对应 `pivot.rows[*]` / `pivot.columns[*]` 轴对象上。
 
 ### Pivot 请求结构
 
@@ -231,8 +250,8 @@ SUM(metric) / NULLIF(CALCULATE(SUM(metric), REMOVE(groupByDim)), 0)
 ```
 
 - **rows / columns**: 行/列轴定义，可以仅传字段名。
-  - 支持将具有父子关系的维度设为树形结构：`{"field": "org$caption", "hierarchyMode": "tree"}`（注意：`tree` 模式下仅限 `rows` 轴，不支持 `options.rowSubtotals` 与 `crossjoin`）。
-- **metrics**: 度量字段列表。支持字符串（原生度量名）和对象（派生指标）混合。对象形式可声明派生指标（如 `parentShare`），字符串直接引用原生度量。
+  - 支持将具有父子关系的维度设为树形结构：`{"field": "org$caption", "hierarchyMode": "tree"}`（注意：`tree` 模式下仅限 `rows` 轴，不支持 `crossjoin`、`options.rowSubtotals`、`options.columnSubtotals`、`options.grandTotal`）。
+- **metrics**: 度量字段列表。支持字符串（原生度量名）和对象（受控派生指标）混合。对象形式当前只支持 `parentShare` 和 `baselineRatio`；不支持 `expr`。
 - **outputFormat**: 输出格式。支持 `flat`（平铺，默认）、`grid`（网格交叉表）、`tree`（树形层级嵌套）。
 - **options**: 补充选项，支持小计、总计和 `crossjoin` 稀疏补全。
 
@@ -283,11 +302,11 @@ SUM(metric) / NULLIF(CALCULATE(SUM(metric), REMOVE(groupByDim)), 0)
 {"name": "share", "type": "parentShare", "of": "salesAmount", "axis": "rows", "level": "subCategory", "parentLevel": "category"}
 ```
 
-限制：
-- parentShare 不支持与 `hierarchyMode=tree` 同时使用。
-- `of` 必须引用同一 metrics 中的原生度量，且该度量必须为可加聚合（SUM/COUNT/MIN/MAX），不支持 AVG/COUNT_DISTINCT。
-- `axis` 第一版仅支持 `rows`（默认），不支持 `columns`。
-- 不支持 `expr` 类型的计算指标。如需行内计算，请使用 `calculatedFields`。
+限制与退化：
+- parentShare 只支持 rows 轴相邻层级；`axis` 只能是 `rows`。
+- parentShare 不支持 `hierarchyMode=tree`、cascade TopN，也不能参与 `having` / `orderBy` / `limit`。
+- `of` 必须引用同一 metrics 中的原生可加度量，不支持 AVG/COUNT_DISTINCT 等不可加度量。
+- 超出边界时，移除 parentShare 只返回原生度量，或明确说明当前版本不支持该占比形态；不要改用 `ROLLUP_TO`、`REMOVE(childDim)` 或自造 `expr`。
 
 ### 基准比较 (baselineRatio)
 
@@ -309,6 +328,8 @@ SUM(metric) / NULLIF(CALCULATE(SUM(metric), REMOVE(groupByDim)), 0)
 - `baseline` 可选值为 `"first"` 或 `"last"`。
 - 第一版 `baselineRatio` 的 `axis` 强制只能为 `"columns"`。且 `columns` 轴不能为空。
 - `of` 必须引用可加的原生度量，不支持树形模式。
+- baselineRatio 不能参与 `having` / `orderBy` / `limit`，不能与 cascade TopN 组合。
+- 超出边界时，移除 baselineRatio 只返回原生度量，或明确说明当前版本不支持该基准比较形态；不要改用 `CELL_AT`、`AXIS_MEMBER` 或坐标索引。
 
 ### 高级函数警告 (Fail-closed)
 > **WARNING**:
@@ -320,6 +341,7 @@ SUM(metric) / NULLIF(CALCULATE(SUM(metric), REMOVE(groupByDim)), 0)
 > 如果需要**父级占比**（子品类占大类），使用 `pivot.metrics` 的 `parentShare`（见上方示例），不要尝试 `REMOVE(childDim)` 或 `ROLLUP_TO`。
 > 如果需要**跨列首末基准比较**，使用 `pivot.metrics` 的 `baselineRatio`（见上方示例），不要尝试 `CELL_AT` 或坐标推导。
 > 如果需要**同环比、累计**，使用 `timeWindow`，不要用 `CALCULATE` 模拟。
+> 如果用户同时要求 `pivot + timeWindow`，拆成两个查询；如果用户要求任意 MDX 集合代数、多层跨轴坐标或三层级联 TopN，请说明当前公开 DSL 不支持，不要生成隐藏函数。
 
 ## 错误处理指南
 如果在调用 `query_model` 时遇到报错，请按以下思路进行修复：
@@ -327,4 +349,7 @@ SUM(metric) / NULLIF(CALCULATE(SUM(metric), REMOVE(groupByDim)), 0)
 2. **函数未定义**：如果是 `count_if` / `sum_if` 报错，请改为 `sum/avg/count(if(...))`。
 3. **不支持在 columns 中使用复杂表达式**：将该带有计算逻辑的表达式（比如加减乘除、窗口函数等）移到 `calculatedFields` 中定义别名，再放入 `columns`。
 4. **语法错误**：检查 JSON 结构是否闭合，特别是 `slice` 中的 `$or` 是否正确嵌套。
-5. **Pivot 互斥错误**：如果使用 `pivot` 并报错 `tree hierarchy mode is not compatible`，请移除 `options.rowSubtotals`。
+5. **Pivot 互斥错误**：`pivot` 不能与 `columns` 或 `timeWindow` 同时出现。移除 `columns`，或把同比/环比需求拆成单独 `timeWindow` 查询。
+6. **Pivot tree 错误**：`hierarchyMode=tree` 仅支持 rows 轴和 `outputFormat=tree`，不能与 `crossjoin`、`rowSubtotals`、`columnSubtotals`、`grandTotal` 同用。
+7. **Pivot 派生指标错误**：`parentShare` / `baselineRatio` 不能与 tree/cascade 混用，也不能参与 having/orderBy/limit；移除派生指标或降低为普通 pivot。
+8. **Pivot 域值过大**：收窄 `slice`、减少轴层级、增加轴 `limit`，或改为普通分页明细查询。

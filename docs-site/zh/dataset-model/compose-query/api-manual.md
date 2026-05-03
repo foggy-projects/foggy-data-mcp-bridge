@@ -1,13 +1,13 @@
 # Compose Query · 链式 API 手册（Manual B）
 
-> **状态**：Draft skeleton · 持续补齐中
+> **状态**：8.x 同步版 · 已同步派生 / Join / Union / CTE 复用；链式入口长期策略仍以 Manual A 为准
 > **风格定位**：以 `Query.from(...)` 为入口的 fluent / chained API；面向 SDK 调用方、需要 IDE 补全和静态分析的开发者
 > **镜像手册**：[DSL 配置式手册（Manual A）](./dsl-manual.md)
-> **缺口跟踪**：[compose-query-manuals-gap-tracker.md](../../../../docs/8.3.0.beta/compose-query-manuals-gap-tracker.md)
-> **优先级**：本手册晚于 Manual A 落稿（用户决策："先对齐 DSL，再考虑链式 API"）；当前为骨架占位
+> **缺口跟踪**：`docs/8.3.0.beta/compose-query-manuals-gap-tracker.md`
+> **优先级**：本手册晚于 Manual A 落稿（用户决策："先对齐 DSL，再考虑链式 API"）；新能力优先以 DSL 手册作为规范入口
 
 ::: tip 关于"🚧 待补"标记
-本手册采用骨架先行策略，章节标题已固定，能力随 spec 补齐分批落稿。看到 🚧 表示对应章节有未关闭的 gap，按编号跳到 [gap tracker](../../../../docs/8.3.0.beta/compose-query-manuals-gap-tracker.md) 查看上下文与目标版本。
+本手册采用骨架先行策略，章节标题已固定，能力随 spec 补齐分批落稿。看到 🚧 表示对应章节有未关闭的 gap，可在 `docs/8.3.0.beta/compose-query-manuals-gap-tracker.md` 查看上下文与目标版本。
 :::
 
 ::: info 决策契约
@@ -24,7 +24,7 @@
 - timeWindow 比较模式展开（`comparison: "yoy"` 等）在编译器层完成，与链式 API 无关
 - `dsl({...})` 返回的 plan 对象上的 `.join()` / `.where()` 等方法属于 plan-level 能力，移除链式入口时**保留**
 
-完整结论与证据见 [G7 closure note](../../../../docs/8.3.0.beta/compose-query-manuals-gap-tracker.md#g7--dsl-与链式-api-是否互不依赖架构验证--closed)；移除级别选择见 [G8](../../../../docs/8.3.0.beta/compose-query-manuals-gap-tracker.md#g8--移除链式-api-时的级别选择level-1-vs-level-2)。
+完整结论与证据见 `docs/8.3.0.beta/compose-query-manuals-gap-tracker.md` 的 G7 closure note；移除级别选择见同文件 G8。
 :::
 
 ---
@@ -80,7 +80,7 @@ const sales = salesBase
 
 ## 4. 计算字段
 
-🚧 **待补**：参考 [G6](../../../../docs/8.3.0.beta/compose-query-manuals-gap-tracker.md#g6--计算字段在-timewindow-上下文里的语义)
+🚧 **待补**：参考 `docs/8.3.0.beta/compose-query-manuals-gap-tracker.md` 的 G6。
 
 要覆盖的：
 - 表达式风格：`base.salesAmount.minus(base.returnAmount).as("netAmount")`
@@ -91,9 +91,7 @@ const sales = salesBase
 
 ## 5. 派生查询：`prev.where(...).select(...)`
 
-🚧 **待补**：与 Manual A §5 对仗
-
-预览：
+链式 API 中，任何已构造出的 plan 都可以继续 `.where()` / `.select()` / `.orderBy()`，形成派生查询。派生层只能引用上一层已投影出的列。
 
 ```javascript
 const base = Query.from("OdooSaleOrderModel").groupBy(...).select(...);
@@ -102,21 +100,24 @@ const filtered = base
   .select(base.teamId$caption, base.totalSales);
 ```
 
-要覆盖的：
-- 派生 plan 上的列引用（alias 提升为 first-class 属性）
-- 派生 vs 重新 `Query.from()` 的语义差异
+约束与 Manual A §5 一致：
+
+- 聚合后的 alias 会成为派生层可引用字段
+- 未投影字段不能越层引用
+- 字段权限按底层依赖字段追溯校验
+- 重新 `Query.from(model)` 是从 QM 开始的新查询；对已有 plan 继续调用方法是派生查询
 
 ---
 
-## 6. Join：`a.innerJoin(b).on(...)`
+## 6. Join：`a.join(b, type, on)`
 
-🚧 **待补**：与 Manual A §6 对仗
-
-预览（来源：8.2.0.beta CTE 手册）：
+plan-level Join 入口与 DSL 返回的 plan 对象一致：
 
 ```javascript
-const joined = premiumCustomers.innerJoin(pendingOrders)
-  .on(premiumCustomers.id, pendingOrders.partnerId);
+const joined = premiumCustomers.join(pendingOrders, "inner", [
+  { left: "id", op: "=", right: "partnerId" }
+]);
+
 const finalPlan = joined.select(
   premiumCustomers.name.as("customer_name"),
   pendingOrders.name.as("order_number"),
@@ -124,63 +125,86 @@ const finalPlan = joined.select(
 );
 ```
 
-要覆盖的：
-- `.innerJoin / .leftJoin / .rightJoin / .fullJoin / .crossJoin`
-- 多键 ON：`.on(a.x, b.x).and(a.y, b.y)`
-- 非等值 join
+约束：
+
+- join 类型支持 `inner` / `left` / `right` / `full`
+- `on` 只支持等值条件，可写多键
+- 不支持公开非等值 join、自连接、跨数据源 join
+- 不提供 `crossJoin` 作为公开组合入口
 
 ---
 
 ## 7. Union：`a.union(b)`
 
-🚧 **待补**
+```javascript
+const allOrders = onlineOrders.union(offlineOrders, { all: true });
+const allChannels = onlineOrders.union([offlineOrders, partnerOrders], { all: true });
+```
 
-要覆盖的：
-- `.union()` vs `.unionAll()`
-- 列对齐策略
+约束：
+
+- 默认按 `UNION` 去重；`{ all: true }` 对应 `UNION ALL`
+- 列按左侧 plan 的输出 schema 对齐
+- 所有分支列数和兼容类型必须一致
+- Union 后仍可继续作为派生 plan 追加过滤、排序或聚合
 
 ---
 
 ## 8. CTE 复用与命名 plans
 
-🚧 **待补**
+CTE 复用是编译器内部能力。链式 API 中同一个 plan 被多个下游 plan 引用时，引擎会自动识别公共子计划，在支持 CTE 的方言上编译为 `WITH ... AS (...)`，否则退回派生子查询。
 
-要覆盖的：
-- 多次引用同一 plan 时引擎自动 CTE 化
-- 顶层返回 `{ plans: { name1: planA, name2: planB } }` 多 plan 返回
+公开边界：
 
-来源：8.2.0.beta P0-ComposeQuery-CTE使用参考手册（已有，可直接迁移并精简）
+- 不支持手写 CTE 名称
+- 顶层多 plan 返回中的业务名称只用于结果映射，不等于 SQL CTE 名称
+- 不支持递归 CTE 或注入任意 SQL 文本
 
 ---
 
 ## 9. 时间窗口语义层（高层快捷方式）
 
-🚧 **待补**：参考 [G1](../../../../docs/8.3.0.beta/compose-query-manuals-gap-tracker.md#g1--链式-api-缺时间窗口语义层)
-
-形态候选（**spec 未确定**）：
+链式入口目前不作为 timeWindow 的首选公开写法。需要稳定的 AI 生成和 MCP 调用时，请使用 Manual A 的 DSL 形态：
 
 ```javascript
-// 候选 A：方法链 helper
-const yoy = base.compareTo("yoy", { grain: "month", targetMetrics: ["salesAmount"] });
+dsl({
+  model: "FactSalesQueryModel",
+  columns: ["salesDate$id", "salesAmount"],
+  groupBy: ["salesDate$id"],
+  timeWindow: {
+    field: "salesDate$id",
+    grain: "month",
+    comparison: "yoy",
+    value: ["2025-01-01", "2026-01-01"],
+    targetMetrics: ["salesAmount"]
+  }
+});
+```
 
-// 候选 B：配置对象
+如 SDK 后续保留链式 helper，语义必须与 DSL 完全一致，包含：
+
+- `grain × comparison` 兼容矩阵
+- `targetMetrics` 只指向原生聚合度量
+- 输出后缀：`__prior` / `__diff` / `__ratio` / `__ytd` / `__mtd` / `__rolling_{N}{unit}`
+- timeWindow + calculatedFields 的执行顺序：先窗口展开，再外层标量计算
+
+候选 helper 仅供 SDK 设计参考：
+
+```javascript
 const yoy = base.timeWindow({
   field: "salesDate$id",
   grain: "month",
   comparison: "yoy",
+  value: ["2025-01-01", "2026-01-01"],
   targetMetrics: ["salesAmount"]
 });
 ```
-
-要决定的事：
-- 形态选择（决策 1：功能对齐即可，不要求和 DSL 字面对仗）
-- 是否沿用 DSL 同款后缀规约（建议是，见 G4）
 
 ---
 
 ## 10. 时间窗口原语层（底层窗口函数）
 
-🚧 **待补**：参考 [G3](../../../../docs/8.3.0.beta/compose-query-manuals-gap-tracker.md#g3--双侧缺底层窗口原语暴露-lag--lead--rolling--over)
+🚧 **待补**：参考 `docs/8.3.0.beta/compose-query-manuals-gap-tracker.md` 的 G3。
 
 形态候选：
 
@@ -201,9 +225,16 @@ const withLag = base.select(
 
 ## 11. 输出后缀规约
 
-🚧 **待补**：参考 [G4](../../../../docs/8.3.0.beta/compose-query-manuals-gap-tracker.md#g4--输出后缀规约链式侧未继承)
+链式 API 如暴露 timeWindow helper，必须沿用 Manual A §11 的默认后缀：
 
-建议沿用 DSL 同款后缀（默认值），允许 `.as("custom")` override。
+| 后缀 | 含义 |
+|------|------|
+| `__prior` | 前期值 |
+| `__diff` | 差值 |
+| `__ratio` | 增长率 |
+| `__ytd` | 年初至今累计 |
+| `__mtd` | 月初至今累计 |
+| `__rolling_{N}{unit}` | 滚动窗口值 |
 
 ---
 
@@ -245,3 +276,4 @@ const withLag = base.select(
 | 日期 | 操作 | 备注 |
 |------|------|------|
 | 2026-04-26 | 创建骨架 | 初始化 13 节占位，与 Manual A 章节严格对仗 |
+| 2026-05-03 | 同步 8.x 已验收能力 | 补齐派生查询 / Join / Union / CTE 复用，并明确 timeWindow 以 DSL 为稳定公开入口 |

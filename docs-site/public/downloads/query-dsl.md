@@ -43,25 +43,40 @@ JSON 查询 DSL 是一种声明式的查询语言，通过 JSON 格式描述查�
 
 ### 2.2 嵌套维度引用
 
-对于多级嵌套的维度，使用 `.` 分隔路径：
+嵌套维度引用使用两种分隔符：**`.` 负责维度层级导航，`$` 负责属性访问**。
 
 ```json
 {
     "columns": [
         "product$caption",                    // 一级维度
-        "product.category$caption",           // 二级维度
+        "product.category$caption",           // 二级维度（.分隔层级）
         "product.category.group$caption"      // 三级维度
     ]
 }
 ```
 
-**输出列名映射**：
+如果 TM 中定义了 `alias`，也可以使用别名引用：
 
-| 引用格式 | 输出列名 |
+```json
+{
+    "columns": [
+        "product$caption",                    // 一级维度
+        "productCategory$caption",            // 二级维度（通过 alias）
+        "categoryGroup$caption"               // 三级维度（通过 alias）
+    ]
+}
+```
+
+> **注意**：不能用多个 `$` 代替 `.`（如 ~~`product$category$caption`~~），`$` 只用于分隔维度和属性。
+
+**输出列名映射**：路径中的 `.` 在响应数据中自动转为 `_`：
+
+| DSL 引用 | 响应中的列名 |
 |---------|---------|
 | `product$caption` | `product$caption` |
 | `product.category$caption` | `product_category$caption` |
 | `product.category.group$caption` | `product_category_group$caption` |
+| `productCategory$caption`（别名） | `productCategory$caption` |
 
 ---
 
