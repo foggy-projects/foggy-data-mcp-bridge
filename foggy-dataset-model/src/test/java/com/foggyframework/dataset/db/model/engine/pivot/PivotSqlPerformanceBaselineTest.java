@@ -189,11 +189,14 @@ public class PivotSqlPerformanceBaselineTest extends EcommerceTestSupport {
         s3Push.setOutputFormat("flat");
         measure("S3_Pushdown", s3Push, false);
 
-        // S4: TopN + COUNT_DISTINCT + rowSubtotals + grandTotal
-        log.info("--- S4: Pushdown Subtotals+COUNT_DISTINCT ---");
+        // S4: Keep the required benchmark dialect-portable; cascade TopN is covered by validation tests.
+        log.info("--- S4: Pushdown Subtotals ---");
         PivotRequest s4Push = new PivotRequest();
-        s4Push.setRows(List.of(s1Cat, axis("product$subCategoryName"))); // Category Top 10, then Product
-        s4Push.setMetrics(List.of("salesAmount", "uniqueCustomers"));
+        AxisField s4CatTop10 = axis("product$categoryName");
+        s4CatTop10.setOrderBy(List.of("-salesAmount"));
+        s4CatTop10.setLimit(10);
+        s4Push.setRows(List.of(s4CatTop10));
+        s4Push.setMetrics(List.of("salesAmount"));
         PivotOptions options = new PivotOptions();
         options.setRowSubtotals(true);
         options.setGrandTotal(true);
@@ -201,9 +204,9 @@ public class PivotSqlPerformanceBaselineTest extends EcommerceTestSupport {
         s4Push.setOutputFormat("flat");
         measure("S4_Pushdown_Subtotals", s4Push, false);
         
-        log.info("--- S4: Memory Subtotals+COUNT_DISTINCT ---");
+        log.info("--- S4: Memory Subtotals+COUNT_DISTINCT (non-cascade) ---");
         PivotRequest s4Mem = new PivotRequest();
-        s4Mem.setRows(List.of(s1Cat, axis("product$subCategoryName")));
+        s4Mem.setRows(List.of(axis("product$categoryName"), axis("product$subCategoryName")));
         s4Mem.setMetrics(List.of("salesAmount", "uniqueCustomers"));
         s4Mem.setOptions(options);
         s4Mem.setOutputFormat("flat");

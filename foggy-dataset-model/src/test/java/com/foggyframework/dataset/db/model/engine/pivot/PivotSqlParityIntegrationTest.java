@@ -5,6 +5,8 @@ import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef;
 import com.foggyframework.dataset.db.model.ecommerce.EcommerceTestSupport;
 import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
+import com.foggyframework.dataset.db.model.engine.pivot.cascade.PivotCascadeErrorCode;
+import com.foggyframework.dataset.db.model.engine.pivot.cascade.PivotCascadeException;
 import com.foggyframework.dataset.db.model.engine.pivot.sql.PivotAxisDomainSqlPlanner;
 import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTransportField;
 import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTransportPlan;
@@ -962,8 +964,8 @@ class PivotSqlParityIntegrationTest extends EcommerceTestSupport {
     }
 
     @Test
-    @DisplayName("13. SQL pushdown active + TopN + COUNT_DISTINCT + rowSubtotals/grandTotal")
-    void testSqlPushdownNonAdditiveRollupWithTopNAndSubtotalsParity() {
+    @DisplayName("13. Cascade TopN + COUNT_DISTINCT + totals fails closed")
+    void testCascadeTopNNonAdditiveTotalsRejected() {
         PivotRequest pivot = new PivotRequest();
         
         // 维度1：Category (Top 2 by salesAmount to allow SQL pushdown)
@@ -986,64 +988,9 @@ class PivotSqlParityIntegrationTest extends EcommerceTestSupport {
         SemanticQueryRequest request = new SemanticQueryRequest();
         request.setPivot(pivot);
 
-        SemanticQueryResponse response = execute(request);
-        List<Map<String, Object>> pivotItems = response.getItems();
-
-        List<Map<String, Object>> pivotLeaves = pivotItems.stream()
-                .filter(r -> !r.containsKey("_sys_meta") || (!Boolean.TRUE.equals(((Map)r.get("_sys_meta")).get("isRowSubtotal")) && !Boolean.TRUE.equals(((Map)r.get("_sys_meta")).get("isGrandTotal"))))
-                .collect(Collectors.toList());
-        List<Map<String, Object>> pivotSubtotals = pivotItems.stream()
-                .filter(r -> r.containsKey("_sys_meta") && Boolean.TRUE.equals(((Map)r.get("_sys_meta")).get("isRowSubtotal")))
-                .collect(Collectors.toList());
-        List<Map<String, Object>> pivotGrandTotal = pivotItems.stream()
-                .filter(r -> r.containsKey("_sys_meta") && Boolean.TRUE.equals(((Map)r.get("_sys_meta")).get("isGrandTotal")))
-                .collect(Collectors.toList());
-
-        // SQL Oracle
-        String top2CategorySql = "SELECT t2.category_name " +
-                "  FROM fact_sales t1 " +
-                "  LEFT JOIN dim_product t2 ON t1.product_key = t2.product_key " +
-                "  GROUP BY t2.category_name " +
-                "  ORDER BY SUM(t1.sales_amount) DESC, t2.category_name ASC " +
-                "  LIMIT 2";
-                
-        String topNCondition = "EXISTS (SELECT 1 FROM (" + top2CategorySql + ") as top_cats " +
-                "WHERE top_cats.category_name = t2.category_name OR (top_cats.category_name IS NULL AND t2.category_name IS NULL))";
-
-        // Leaf Oracle
-        String sqlLeaf = "SELECT t2.category_name as category_name, t3.month as month_name, COUNT(DISTINCT t1.customer_key) as unique_customers " +
-                "FROM fact_sales t1 " +
-                "LEFT JOIN dim_product t2 ON t1.product_key = t2.product_key " +
-                "LEFT JOIN dim_date t3 ON t1.date_key = t3.date_key " +
-                "WHERE " + topNCondition + " " +
-                "GROUP BY t2.category_name, t3.month";
-        List<Map<String, Object>> sqlLeafItems = jdbcTemplate.queryForList(sqlLeaf);
-        assertParityMultiDim(sqlLeafItems, pivotLeaves,
-                List.of("category_name", "month_name"),
-                List.of("product$categoryName", "salesDate$month"),
-                "unique_customers", "uniqueCustomers");
-
-        // Subtotal Oracle (Group by Category)
-        String sqlSub = "SELECT t2.category_name as category_name, COUNT(DISTINCT t1.customer_key) as unique_customers " +
-                "FROM fact_sales t1 " +
-                "LEFT JOIN dim_product t2 ON t1.product_key = t2.product_key " +
-                "WHERE " + topNCondition + " " +
-                "GROUP BY t2.category_name";
-        List<Map<String, Object>> sqlSubItems = jdbcTemplate.queryForList(sqlSub);
-        assertParity(sqlSubItems, pivotSubtotals, "category_name", "product$categoryName", "unique_customers", "uniqueCustomers");
-
-        // Grand Total Oracle (All Surviving Domain)
-        String sqlGrand = "SELECT COUNT(DISTINCT t1.customer_key) as unique_customers " +
-                "FROM fact_sales t1 " +
-                "LEFT JOIN dim_product t2 ON t1.product_key = t2.product_key " +
-                "WHERE " + topNCondition;
-        List<Map<String, Object>> sqlGrandItems = jdbcTemplate.queryForList(sqlGrand);
-        assertEquals(1, pivotGrandTotal.size(), "Grand total should have 1 row");
-        assertEquals(((Number) sqlGrandItems.get(0).get("unique_customers")).longValue(),
-                     ((Number) pivotGrandTotal.get(0).get("uniqueCustomers")).longValue(),
-                     "Grand Total COUNT_DISTINCT mismatch");
-
-        log.info("Test 13: SQL pushdown + TopN + Non-additive + Subtotals Parity 验证通过");
+        PivotCascadeException ex = assertThrows(PivotCascadeException.class, () -> execute(request));
+        assertEquals(PivotCascadeErrorCode.PIVOT_CASCADE_NON_ADDITIVE_REJECTED, ex.getCode());
+        assertTrue(ex.getMessage().contains("uniqueCustomers"));
     }
 
     @Test
@@ -1068,8 +1015,11 @@ class PivotSqlParityIntegrationTest extends EcommerceTestSupport {
 
         SqlGenerationResult generatedSql = semanticQueryServiceV3.generateSql(TEST_MODEL, request, ctx);
         assertNotNull(generatedSql);
-        assertTrue(generatedSql.getSql().contains("_pivot_domain_transport_test"),
-                "Generated SQL should contain the large-domain transport relation");
+        String sqlText = generatedSql.getSql();
+        assertTrue(sqlText.contains("_pivot_domain_transport_test")
+                        || (sqlText.contains("exists (select 1 from (")
+                        && sqlText.contains("product$categoryName")),
+                "Generated SQL should contain an inline large-domain transport relation");
         assertEquals(501, generatedSql.getParams().size(),
                 "Large-domain transport params should be preserved and ordered");
 
