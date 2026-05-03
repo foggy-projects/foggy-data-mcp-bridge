@@ -8,7 +8,7 @@ Foggy MCP provides a series of data query and analysis tools for AI assistants t
 |------|-------------|----------|
 | [`dataset.get_metadata`](./metadata.md#get_metadata) | Get user-accessible model list | Metadata |
 | [`dataset.describe_model_internal`](./metadata.md#describe_model_internal) | Get model field details | Metadata |
-| [`dataset.query_model`](./query.md) | Execute structured data query | Query |
+| [`dataset.query_model`](./query.md) | Execute structured query, timeWindow, and pivot | Query |
 | [`dataset_nl.query`](./nl-query.md) | Natural language data query | Natural Language |
 | `chart.generate` | Generate data charts | Visualization |
 | `dataset.export_with_chart` | Export data and charts | Export |
@@ -28,7 +28,7 @@ Suitable for understanding data structure before querying.
 
 Used to execute structured data queries:
 
-- **query_model** - Supports complex filtering, sorting, grouping, aggregation
+- **query_model** - Supports filtering, sorting, grouping, aggregation, calculated fields, `timeWindow`, and `pivot`
 
 Requires understanding of semantic layer models and query syntax, provides precise query control.
 
@@ -82,7 +82,7 @@ Different endpoints provide different tool sets:
 ```
 1. get_metadata          → Get available model list
 2. describe_model_internal → View model field details
-3. query_model        → Execute data query
+3. query_model           → Execute data query
 4. chart.generate        → Generate chart (optional)
 ```
 
@@ -155,9 +155,11 @@ Tool calls may return the following errors:
 2. **Use pagination**: Use `start` and `limit` parameters for large data queries
 3. **Add filter conditions**: Avoid full table scans, use `slice` to filter data
 4. **Select necessary fields**: Only query needed `columns` to reduce data transfer
+5. **Use the right advanced mode**: Use `timeWindow` for YoY/MoM/rolling analysis and `pivot` for cross-tabs; do not combine them in one request
 
 ## Next Steps
 
 - [Metadata Tools](./metadata.md) - Get model and field information
 - [Query Tools](./query.md) - Execute structured queries
 - [Natural Language Query](./nl-query.md) - Intelligent data queries
+- [Extensions](./extensions.md) - Data Viewer and optional extensions
