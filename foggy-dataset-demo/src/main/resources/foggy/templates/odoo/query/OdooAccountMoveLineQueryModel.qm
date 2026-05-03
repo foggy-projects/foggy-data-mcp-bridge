@@ -63,6 +63,8 @@ export const queryModel = {
                 { ref: aml.partner },
                 { ref: aml.partner$email },
                 { ref: aml.partner$city },
+                { ref: aml.partnerCountry },
+                { ref: aml.partnerCountry$code },
                 { ref: aml.partner$isCompany },
                 { ref: aml.product },
                 { ref: aml.company }

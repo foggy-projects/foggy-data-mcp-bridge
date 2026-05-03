@@ -54,6 +54,42 @@ public class SystemBundlesContextImpl implements SystemBundlesContext, Initializ
         return name2BundleDefinition.get(name);
     }
 
+    private BundleDefinition resolveBundleDefinition(Bundle bundle) {
+        BundleDefinition bundleDef = getBundleDefinitionByName(bundle.getName());
+        if (bundleDef != null) {
+            return bundleDef;
+        }
+        return bundle.getDefinition();
+    }
+
+    private void addBundleDefinition(BundleDefinition definition) {
+        if (definition == null) {
+            return;
+        }
+        if (name2BundleDefinition == null) {
+            name2BundleDefinition = new HashMap<>();
+        }
+        name2BundleDefinition.put(definition.getName(), definition);
+
+        if (bundleDefinitions == null) {
+            bundleDefinitions = new ArrayList<>();
+        }
+        boolean exists = bundleDefinitions.stream()
+                .anyMatch(existing -> StringUtils.equals(existing.getName(), definition.getName()));
+        if (!exists) {
+            bundleDefinitions.add(definition);
+        }
+    }
+
+    private void removeBundleDefinition(String bundleName) {
+        if (name2BundleDefinition != null) {
+            name2BundleDefinition.remove(bundleName);
+        }
+        if (bundleDefinitions != null) {
+            bundleDefinitions.removeIf(definition -> StringUtils.equals(definition.getName(), bundleName));
+        }
+    }
+
     @Override
     public Bundle getBundleByPackageName(String packageName) {
 
@@ -316,7 +352,7 @@ public class SystemBundlesContextImpl implements SystemBundlesContext, Initializ
         List<BundleResource> finds = new ArrayList<>(1);
         for (Bundle bundle : bundleList) {
             // 获取bundle的namespace
-            BundleDefinition bundleDef = getBundleDefinitionByName(bundle.getName());
+            BundleDefinition bundleDef = resolveBundleDefinition(bundle);
             if (bundleDef == null) {
                 continue;
             }
@@ -399,6 +435,7 @@ public class SystemBundlesContextImpl implements SystemBundlesContext, Initializ
 
             // 注册Bundle
             regBundle(bundle);
+            addBundleDefinition(definition);
 
             log.info("动态添加外部Bundle成功: {} -> {} (namespace: {})", name, path, namespace);
 
@@ -455,6 +492,7 @@ public class SystemBundlesContextImpl implements SystemBundlesContext, Initializ
 
         // 移除Bundle
         bundleList.remove(targetBundle);
+        removeBundleDefinition(bundleName);
         log.info("移除外部Bundle成功: {}", bundleName);
         return true;
     }

@@ -24,7 +24,36 @@ export const model = {
             description: 'Parent sale order',
             properties: [
                 { column: 'state', caption: 'Order Status', type: 'STRING', dictRef: dicts.sale_order_state },
-                { column: 'date_order', caption: 'Order Date', type: 'DATETIME' }
+                { column: 'date_order', caption: 'Order Date', type: 'DATETIME',
+                  timeRole: 'business_date', recommendedUse: 'Primary sales line business date inherited from the parent sale order.' }
+            ]
+        },
+        {
+            name: 'orderPartner',
+            tableName: 'res_partner',
+            foreignKey: 'partner_id',
+            primaryKey: 'id',
+            joinTo: 'order',
+            captionColumn: 'name',
+            caption: 'Order Customer',
+            description: 'Customer on the parent sale order',
+            properties: [
+                { column: 'email', caption: 'Email', type: 'STRING' },
+                { column: 'city', caption: 'City', type: 'STRING' },
+                { column: 'is_company', caption: 'Is Company', type: 'BOOL' }
+            ]
+        },
+        {
+            name: 'orderPartnerCountry',
+            tableName: 'res_country',
+            foreignKey: 'country_id',
+            primaryKey: 'id',
+            joinTo: 'orderPartner',
+            captionDef: jsonbCaption(),
+            caption: 'Order Customer Country',
+            description: 'Country of the customer on the parent sale order',
+            properties: [
+                { column: 'code', caption: 'Country Code', type: 'STRING' }
             ]
         },
         {

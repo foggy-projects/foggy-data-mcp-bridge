@@ -1,6 +1,7 @@
 package com.foggyframework.bundle.dynamic;
 
 import com.foggyframework.bundle.SystemBundlesContextImpl;
+import com.foggyframework.bundle.BundleResource;
 import com.foggyframework.core.bundle.BundleDefinition;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -57,6 +58,26 @@ public class DynamicBundleManagementTest {
 
         assertTrue(success, "添加bundle应该成功");
         assertTrue(context.containBundle("test-bundle"), "bundle应该存在");
+    }
+
+    @Test
+    public void testAddedExternalBundleCanBeFoundByNamespace() throws IOException {
+        Path bundlePath = tempDir.resolve("namespace-bundle");
+        Path modelPath = bundlePath.resolve("model");
+        Files.createDirectories(modelPath);
+        Files.writeString(modelPath.resolve("TestModel.tm"), "export const model = {};");
+
+        boolean success = context.addExternalBundle(
+                "namespace-bundle",
+                "odoo",
+                bundlePath.toString(),
+                false
+        );
+
+        assertTrue(success);
+        BundleResource resource = context.findResourceByName("TestModel.tm", "odoo", true);
+        assertNotNull(resource);
+        assertEquals("namespace-bundle", resource.getBundle().getName());
     }
 
     @Test

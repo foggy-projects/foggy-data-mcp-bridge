@@ -42,6 +42,8 @@ export const queryModel = {
                 { ref: am.partner$email },
                 { ref: am.partner$phone },
                 { ref: am.partner$city },
+                { ref: am.partnerCountry },
+                { ref: am.partnerCountry$code },
                 { ref: am.partner$isCompany }
             ]
         },

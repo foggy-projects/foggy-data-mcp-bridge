@@ -25,7 +25,8 @@ export const model = {
             description: 'Linked journal entry',
             properties: [
                 { column: 'company_id', caption: 'Company ID', type: 'INTEGER' },
-                { column: 'date', caption: 'Accounting Date', type: 'DAY' },
+                { column: 'date', caption: 'Accounting Date', type: 'DAY',
+                  timeRole: 'business_date', recommendedUse: 'Primary payment business date for payment trend and period pivot queries.' },
                 { column: 'state', caption: 'Entry Status', type: 'STRING' }
             ]
         },
@@ -58,10 +59,11 @@ export const model = {
             name: 'company',
             tableName: 'res_company',
             foreignKey: 'company_id',
+            joinTo: 'move',
             primaryKey: 'id',
             captionColumn: 'name',
             caption: 'Company',
-            description: 'Operating company',
+            description: 'Operating company inherited from the linked journal entry',
             closureTableName: 'res_company_closure',
             parentKey: 'parent_id',
             childKey: 'company_id'

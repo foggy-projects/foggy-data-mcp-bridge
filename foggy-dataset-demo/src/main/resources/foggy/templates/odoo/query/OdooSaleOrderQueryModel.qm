@@ -39,6 +39,8 @@ export const queryModel = {
                 { ref: so.partner$email },
                 { ref: so.partner$phone },
                 { ref: so.partner$city },
+                { ref: so.partnerCountry },
+                { ref: so.partnerCountry$code },
                 { ref: so.partner$isCompany },
                 { ref: so.partner$customerRank }
             ]
