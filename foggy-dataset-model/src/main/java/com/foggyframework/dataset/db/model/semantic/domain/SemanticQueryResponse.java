@@ -45,6 +45,9 @@ public class SemanticQueryResponse {
     @ApiModelProperty(value = "数据截断信息（仅在 MCP 查询且数据量过大时返回）")
     private Map<String, Object> truncationInfo;
 
+    @ApiModelProperty(value = "结果语义提示，帮助上游区分成功但无匹配数据等终态")
+    private SemanticInfo semantic;
+
     /**
      * 分页信息
      */
@@ -71,6 +74,20 @@ public class SemanticQueryResponse {
         @ApiModelProperty(value = "数据范围说明（人类可读）", example = "显示第 1-10 条，共 156 条",
                 notes = "帮助 AI 向用户解释当前数据范围")
         private String rangeDescription;
+    }
+
+    @Data
+    @ApiModel("结果语义提示")
+    public static class SemanticInfo {
+
+        @ApiModelProperty(value = "是否为空结果")
+        private Boolean emptyResult;
+
+        @ApiModelProperty(value = "空结果原因")
+        private String emptyReason;
+
+        @ApiModelProperty(value = "上游是否应直接回答而不是继续探查")
+        private Boolean shouldAnswerDirectly;
     }
     
     /**
@@ -135,6 +152,9 @@ public class SemanticQueryResponse {
             
             @ApiModelProperty(value = "归一化后的过滤条件")
             private List<SemanticQueryRequest.SliceItem> slice;
+
+            @ApiModelProperty(value = "归一化后的聚合后过滤条件")
+            private List<SemanticQueryRequest.SliceItem> having;
             
             @ApiModelProperty(value = "归一化后的分组字段")
             private List<SemanticQueryRequest.GroupByItem> groupBy;

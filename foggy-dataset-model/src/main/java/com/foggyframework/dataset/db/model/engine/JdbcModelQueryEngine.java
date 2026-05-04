@@ -206,7 +206,16 @@ public class JdbcModelQueryEngine implements QueryEngine {
         // 2.加入切片条件,注意，切片暂时不考虑or
         if (queryRequest.getSlice() != null) {
             for (SliceRequestDef sliceDef : queryRequest.getSlice()) {
+                rejectAggregateConditionInSlice(sliceDef);
                 buildSlice(jdbcQueryModel, jdbcQuery, sliceDef);
+            }
+        }
+        if (queryRequest.getHaving() != null && !queryRequest.getHaving().isEmpty()) {
+            if (!queryRequest.hasGroupBy()) {
+                throw RX.throwAUserTip("HAVING_REQUIRES_GROUP_BY: request.having is only supported for grouped aggregate queries. Add groupBy/aggregate columns or move row-level filters to slice.");
+            }
+            for (SliceRequestDef havingDef : queryRequest.getHaving()) {
+                buildHaving(jdbcQueryModel, jdbcQuery, havingDef);
             }
         }
 
@@ -748,6 +757,10 @@ public class JdbcModelQueryEngine implements QueryEngine {
         buildSlice(jdbcQueryModel, jdbcQuery, jdbcQuery.getWhere(), sliceDef, 0);
     }
 
+    private void buildHaving(JdbcQueryModel jdbcQueryModel, JdbcQuery jdbcQuery, SliceRequestDef havingDef) {
+        buildHaving(jdbcQueryModel, jdbcQuery, jdbcQuery.getHaving(), havingDef, 0, "AND");
+    }
+
     private void buildSlice(JdbcQueryModel jdbcQueryModel, JdbcQuery jdbcQuery, JdbcQuery.JdbcListCond listCond, CondRequestDef sliceDef, int level) {
         buildSlice(jdbcQueryModel, jdbcQuery, listCond, sliceDef, level, "AND");
     }
@@ -776,7 +789,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
             }
 
             // 第一层不加连接符，全部用 AND 连接到父条件
-            JdbcQuery.JdbcGroupCond gc = jdbcQuery.getWhere().newGroupCond(level > 0 ? parentLink : "");
+            JdbcQuery.JdbcGroupCond gc = listCond.newGroupCond(level > 0 ? parentLink : "");
 
             for (CondRequestDef child : children) {
                 // 递归时传递当前组的连接类型
@@ -786,14 +799,44 @@ public class JdbcModelQueryEngine implements QueryEngine {
             listCond.addCond(gc);
         } else {
             // 这是一个普通条件
-            buildSingleCondition(jdbcQueryModel, jdbcQuery, listCond, sliceDef, level, parentLink);
+            buildSingleCondition(jdbcQueryModel, jdbcQuery, listCond, sliceDef, level, parentLink, false);
         }
+    }
+
+    private void buildHaving(JdbcQueryModel jdbcQueryModel, JdbcQuery jdbcQuery, JdbcQuery.JdbcListCond listCond,
+                             CondRequestDef havingDef, int level, String parentLink) {
+        if (havingDef._isExpressionCondition() || havingDef._isFieldReference()) {
+            throw RX.throwAUserTip("UNSUPPORTED_HAVING_CONDITION: request.having supports field/op/value and $and/$or groups over aggregate fields; move row-level expressions to slice.");
+        }
+
+        if (havingDef._isLogicalGroup()) {
+            String groupLink = havingDef._getGroupLink();
+            List<CondRequestDef> children = havingDef._getGroupChildren();
+            JdbcQuery.JdbcGroupCond gc = listCond.newGroupCond(level > 0 ? parentLink : "");
+            for (CondRequestDef child : children) {
+                buildHaving(jdbcQueryModel, jdbcQuery, gc, child, level + 1, groupLink);
+            }
+            listCond.addCond(gc);
+            return;
+        }
+
+        if (!isAggregateCondition(havingDef.getField())) {
+            throw RX.throwAUserTip("HAVING_REQUIRES_AGGREGATE_FIELD: request.having field '" + havingDef.getField()
+                    + "' is not an aggregate measure. Use slice for row-level filters.");
+        }
+        buildSingleCondition(jdbcQueryModel, jdbcQuery, listCond, havingDef, level, parentLink, true);
     }
 
     /**
      * 构建单个条件（非逻辑组合）
      */
     private void buildSingleCondition(JdbcQueryModel jdbcQueryModel, JdbcQuery jdbcQuery, JdbcQuery.JdbcListCond listCond, CondRequestDef sliceDef, int level, String parentLink) {
+        buildSingleCondition(jdbcQueryModel, jdbcQuery, listCond, sliceDef, level, parentLink, false);
+    }
+
+    private void buildSingleCondition(JdbcQueryModel jdbcQueryModel, JdbcQuery jdbcQuery, JdbcQuery.JdbcListCond listCond,
+                                      CondRequestDef sliceDef, int level, String parentLink,
+                                      boolean forceCurrentListCondForAggregate) {
         DbColumn jdbcColumn = jdbcQueryModel.findJdbcColumnForCond(sliceDef.getField(), false, true);
 
         // 如果在模型中找不到，尝试从计算字段中查找
@@ -813,7 +856,8 @@ public class JdbcModelQueryEngine implements QueryEngine {
             joinReferencedColumns(jdbcQuery, jdbcColumn);
             // 聚合条件需要添加到HAVING，否则添加到WHERE
             if (isAggregateCondition) {
-                sqlFormulaService.buildAndAddToJdbcCond(jdbcQuery.getHaving(), sliceDef.getOp(), jdbcColumn, null, sliceDef.getValue(), parentLink);
+                JdbcQuery.JdbcListCond target = forceCurrentListCondForAggregate ? listCond : jdbcQuery.getHaving();
+                sqlFormulaService.buildAndAddToJdbcCond(target, sliceDef.getOp(), jdbcColumn, null, sliceDef.getValue(), parentLink);
             } else {
                 sqlFormulaService.buildAndAddToJdbcCond(listCond, sliceDef.getOp(), jdbcColumn, null, sliceDef.getValue(), parentLink);
             }
@@ -879,9 +923,31 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
         // 聚合条件需要添加到HAVING，否则添加到WHERE
         if (isAggregateCondition) {
-            sqlFormulaService.buildAndAddToJdbcCond(jdbcQuery.getHaving(), sliceDef.getOp(), jdbcColumn, alias, sliceDef.getValue(), parentLink);
+            JdbcQuery.JdbcListCond target = forceCurrentListCondForAggregate ? listCond : jdbcQuery.getHaving();
+            sqlFormulaService.buildAndAddToJdbcCond(target, sliceDef.getOp(), jdbcColumn, alias, sliceDef.getValue(), parentLink);
         } else {
             sqlFormulaService.buildAndAddToJdbcCond(listCond, sliceDef.getOp(), jdbcColumn, alias, sliceDef.getValue(), parentLink);
+        }
+    }
+
+    private void rejectAggregateConditionInSlice(CondRequestDef sliceDef) {
+        if (sliceDef == null) {
+            return;
+        }
+        if (sliceDef._isLogicalGroup()) {
+            List<CondRequestDef> children = sliceDef._getGroupChildren();
+            if (children != null) {
+                for (CondRequestDef child : children) {
+                    rejectAggregateConditionInSlice(child);
+                }
+            }
+            return;
+        }
+        String field = sliceDef.getField();
+        if (field != null && isAggregateCondition(field)) {
+            throw RX.throwAUserTip("AGGREGATE_MEASURE_IN_SLICE: field '" + field
+                    + "' is an aggregate measure. Move this condition from slice to request.having, for example having: [{field:'"
+                    + field + "', op:'" + sliceDef.getOp() + "', value:" + sliceDef.getValue() + "}].");
         }
     }
 

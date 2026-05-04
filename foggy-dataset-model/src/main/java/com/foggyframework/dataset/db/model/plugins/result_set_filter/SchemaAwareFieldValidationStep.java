@@ -57,6 +57,7 @@ public class SchemaAwareFieldValidationStep implements DataSetResultStep {
         validateColumns(request.getColumns(), queryModel, schemaFields, calcFieldMap);
         validateGroupBy(request.getGroupBy(), queryModel, schemaFields);
         validateSlice(request.getSlice(), queryModel, schemaFields);
+        validateSlice(request.getHaving(), queryModel, schemaFields);
         validateOrderBy(request.getOrderBy(), queryModel, schemaFields, calcFieldMap);
         validateCalculatedFields(request.getCalculatedFields(), queryModel, schemaFields, calcFieldMap);
         return CONTINUE;

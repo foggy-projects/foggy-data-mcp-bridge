@@ -139,7 +139,7 @@ public class DslQueryFunction implements FsscriptFunction {
      * 将 fsscript 对象参数映射为 {@link SemanticQueryRequest}
      *
      * <p>支持的字段与 {@code dataset.query_model} 的 payload 一致：
-     * columns, slice, orderBy, groupBy, limit, start, returnTotal, distinct, calculatedFields, timeWindow</p>
+     * columns, slice, having, orderBy, groupBy, limit, start, returnTotal, distinct, calculatedFields, timeWindow</p>
      */
     @SuppressWarnings("unchecked")
     private SemanticQueryRequest buildRequest(Map<String, Object> params) {
@@ -155,6 +155,11 @@ public class DslQueryFunction implements FsscriptFunction {
         Object slice = params.get("slice");
         if (slice instanceof List) {
             request.setSlice(convertSliceItems((List<?>) slice));
+        }
+
+        Object having = params.get("having");
+        if (having instanceof List) {
+            request.setHaving(convertSliceItems((List<?>) having));
         }
 
         // orderBy -- 支持简写：'-field' → {field, dir:'desc'}，'field' → {field, dir:'asc'}

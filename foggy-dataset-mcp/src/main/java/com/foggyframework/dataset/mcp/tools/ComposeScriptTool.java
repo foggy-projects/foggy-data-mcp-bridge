@@ -112,9 +112,10 @@ public class ComposeScriptTool implements McpTool {
             ComposeQueryContext ctx = ContextBridge.toComposeContext(toolCtx, resolver);
             ScriptRuntime.ScriptResult result = ScriptRuntime.runScript(
                     script, ctx, semanticService, defaultDialect);
+            Object value = withEmptyResultSemantic(result.value());
 
             Map<String, Object> data = new LinkedHashMap<>();
-            data.put("value", result.value());
+            data.put("value", value);
             data.put("sql", result.sql() != null ? result.sql() : "");
             data.put("params", result.params() != null ? result.params() : List.of());
             Map<String, Object> resp = new LinkedHashMap<>();
@@ -162,6 +163,30 @@ public class ComposeScriptTool implements McpTool {
             // Some tests and embedded callers pass immutable maps; the script
             // still receives only the sanitized copy above.
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Object withEmptyResultSemantic(Object value) {
+        if (!(value instanceof Map<?, ?> raw)) {
+            return value;
+        }
+        Map<String, Object> map = raw instanceof LinkedHashMap<?, ?>
+                ? (Map<String, Object>) raw
+                : new LinkedHashMap<>((Map<String, Object>) raw);
+        if (map.containsKey("semantic")) {
+            return map;
+        }
+        Object plans = map.get("plans");
+        boolean emptyPlans = plans instanceof List<?> list && list.isEmpty();
+        if (!emptyPlans) {
+            return map;
+        }
+        Map<String, Object> semantic = new LinkedHashMap<>();
+        semantic.put("emptyResult", true);
+        semantic.put("emptyReason", "NO_MATCHING_ROWS_AFTER_COMPOSE");
+        semantic.put("shouldAnswerDirectly", true);
+        map.put("semantic", semantic);
+        return map;
     }
 
     private static Map<String, Object> errorPayload(String code, String phase,

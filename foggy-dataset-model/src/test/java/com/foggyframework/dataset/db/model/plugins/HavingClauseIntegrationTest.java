@@ -97,7 +97,7 @@ class HavingClauseIntegrationTest extends EcommerceTestSupport {
         slice.setOp(">");
         slice.setValue(1000);
         slices.add(slice);
-        request.setSlice(slices);
+        request.setHaving(slices);
 
         PagingResultImpl result = queryFacade.queryModelData(
                 PagingRequest.buildPagingRequest(request, 100));
@@ -147,7 +147,8 @@ class HavingClauseIntegrationTest extends EcommerceTestSupport {
         havingSlice.setValue(1000);
         slices.add(havingSlice);
 
-        request.setSlice(slices);
+        request.setSlice(List.of(whereSlice));
+        request.setHaving(List.of(havingSlice));
 
         PagingResultImpl result = queryFacade.queryModelData(
                 PagingRequest.buildPagingRequest(request, 100));
@@ -190,7 +191,7 @@ class HavingClauseIntegrationTest extends EcommerceTestSupport {
         slice.setOp(">=");
         slice.setValue(500);
         slices.add(slice);
-        request.setSlice(slices);
+        request.setHaving(slices);
 
         try {
             PagingResultImpl result = queryFacade.queryModelData(
@@ -250,7 +251,8 @@ class HavingClauseIntegrationTest extends EcommerceTestSupport {
         havingSlice.setValue(2000);
         slices.add(havingSlice);
 
-        request.setSlice(slices);
+        request.setSlice(List.of(whereSlice));
+        request.setHaving(List.of(havingSlice));
 
         PagingResultImpl result = queryFacade.queryModelData(
                 PagingRequest.buildPagingRequest(request, 100));
@@ -279,9 +281,9 @@ class HavingClauseIntegrationTest extends EcommerceTestSupport {
 
     @Test
     @Order(6)
-    @DisplayName("OR混合条件应该抛出明确错误")
+    @DisplayName("slice 中聚合条件应该抛出明确纠错")
     void testOrMixedConditionShouldFail() {
-        // 测试：OR 连接聚合字段和普通字段应该抛出清晰的错误
+        // 测试：聚合字段放在 slice 中应该提示迁移到 having
 
         DbQueryRequestDef request = new DbQueryRequestDef();
         request.setQueryModel("FactOrderQueryModel");
@@ -311,24 +313,20 @@ class HavingClauseIntegrationTest extends EcommerceTestSupport {
         slices.add(orGroup);
         request.setSlice(slices);
 
-        // 执行查询，应该抛出异常
         Exception exception = assertThrows(Exception.class, () -> {
             queryFacade.queryModelData(PagingRequest.buildPagingRequest(request, 100));
-        }, "OR 连接聚合字段和普通字段应该抛出异常");
+        }, "聚合字段放在 slice 中应该抛出异常");
 
         // 验证错误消息包含关键信息
         String errorMessage = exception.getMessage();
         log.info("捕获到错误消息:\n{}", errorMessage);
 
-        assertTrue(errorMessage.contains("OR") || errorMessage.contains("or"),
-                "错误消息应该包含 'OR'，实际消息：" + errorMessage);
+        assertTrue(errorMessage.contains("AGGREGATE_MEASURE_IN_SLICE"),
+                "错误消息应该包含 AGGREGATE_MEASURE_IN_SLICE，实际消息：" + errorMessage);
         assertTrue(errorMessage.contains("totalAmount"),
                 "错误消息应该包含聚合字段名，实际消息：" + errorMessage);
-        assertTrue(errorMessage.contains("customer$customerType") || errorMessage.contains("customerType"),
-                "错误消息应该包含普通字段名，实际消息：" + errorMessage);
-        assertTrue(errorMessage.contains("HAVING") || errorMessage.contains("WHERE") ||
-                   errorMessage.contains("聚合") || errorMessage.contains("普通"),
-                "错误消息应该说明 WHERE/HAVING 的区别，实际消息：" + errorMessage);
+        assertTrue(errorMessage.contains("having"),
+                "错误消息应该提示使用 having，实际消息：" + errorMessage);
     }
 
     // ==========================================

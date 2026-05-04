@@ -1,6 +1,7 @@
 package com.foggyframework.dataset.db.model.plugins.result_set_filter;
 
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
+import com.foggyframework.dataset.db.model.def.query.request.CondRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.engine.compose.schema.AliasExtractor;
 import com.foggyframework.dataset.db.model.engine.compose.schema.ColumnAliasParts;
@@ -590,11 +591,12 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
             }
         }
 
-        // 收集 columns 中引用到的名称
+        // 收集请求中引用到的名称。slice 中的预定义聚合只用于前置校验/纠错；
+        // 真正的聚合后过滤必须走 request.having。
         Set<String> referencedColumns = new HashSet<>();
-        if (queryRequest.getColumns() != null) {
-            referencedColumns.addAll(queryRequest.getColumns());
-        }
+        collectColumnReferences(queryRequest.getColumns(), referencedColumns);
+        collectConditionFields(queryRequest.getSlice(), referencedColumns);
+        collectConditionFields(queryRequest.getHaving(), referencedColumns);
 
         // 注入引用到的、且未被 DSL 覆盖的预定义字段
         List<CalculatedFieldDef> toInject = new ArrayList<>();
@@ -618,6 +620,46 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
                         toInject.stream().map(CalculatedFieldDef::getName).collect(java.util.stream.Collectors.toList()));
             }
         }
+    }
+
+    private void collectColumnReferences(List<String> columns, Set<String> out) {
+        if (columns == null || columns.isEmpty()) {
+            return;
+        }
+        for (String column : columns) {
+            if (column == null || column.isBlank()) {
+                continue;
+            }
+            out.add(column);
+            try {
+                ColumnAliasParts parts = AliasExtractor.extract(column);
+                if (parts.hasAlias()) {
+                    out.add(parts.expression());
+                }
+            } catch (IllegalArgumentException ignore) {
+                // Keep original field; downstream validation will report malformed aliases.
+            }
+        }
+    }
+
+    private void collectConditionFields(List<? extends CondRequestDef> conditions, Set<String> out) {
+        if (conditions == null || conditions.isEmpty()) {
+            return;
+        }
+        for (CondRequestDef item : conditions) {
+            collectConditionField(item, out);
+        }
+    }
+
+    private void collectConditionField(CondRequestDef item, Set<String> out) {
+        if (item == null) {
+            return;
+        }
+        if (item.getField() != null && !item.getField().isBlank()) {
+            out.add(item.getField());
+        }
+        collectConditionFields(item.getAnd(), out);
+        collectConditionFields(item.getOr(), out);
     }
 
     /**

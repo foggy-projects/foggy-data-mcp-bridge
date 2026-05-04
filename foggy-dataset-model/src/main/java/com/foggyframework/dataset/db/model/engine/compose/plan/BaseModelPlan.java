@@ -24,6 +24,7 @@ public final class BaseModelPlan extends QueryPlan {
     private final String model;
     private final List<Object> columns;
     private final List<Object> slice;
+    private final List<Object> having;
     private final List<String> groupBy;
     private final List<String> orderBy;
     private final List<CalculatedFieldDef> calculatedFields;
@@ -49,6 +50,7 @@ public final class BaseModelPlan extends QueryPlan {
         this.model = b.model;
         this.columns = b.columns == null ? List.of() : List.copyOf(b.columns);
         this.slice = b.slice == null ? List.of() : List.copyOf(b.slice);
+        this.having = b.having == null ? List.of() : List.copyOf(b.having);
         this.groupBy = b.groupBy == null ? List.of() : List.copyOf(b.groupBy);
         this.orderBy = b.orderBy == null ? List.of() : List.copyOf(b.orderBy);
         this.calculatedFields = b.calculatedFields == null ? List.of() : List.copyOf(b.calculatedFields);
@@ -60,6 +62,7 @@ public final class BaseModelPlan extends QueryPlan {
     public String model() { return model; }
     public List<Object> columns() { return columns; }
     public List<Object> slice() { return slice; }
+    public List<Object> having() { return having; }
     public List<String> groupBy() { return groupBy; }
     public List<String> orderBy() { return orderBy; }
     public List<CalculatedFieldDef> calculatedFields() { return calculatedFields; }
@@ -86,6 +89,7 @@ public final class BaseModelPlan extends QueryPlan {
         private String model;
         private List<Object> columns;
         private List<Object> slice;
+        private List<Object> having;
         private List<String> groupBy;
         private List<String> orderBy;
         private List<CalculatedFieldDef> calculatedFields;
@@ -105,6 +109,7 @@ public final class BaseModelPlan extends QueryPlan {
         }
 
         public Builder slice(List<Object> v) { this.slice = v; return this; }
+        public Builder having(List<Object> v) { this.having = v; return this; }
         public Builder groupBy(List<String> v) { this.groupBy = v; return this; }
         public Builder orderBy(List<String> v) { this.orderBy = v; return this; }
         public Builder calculatedFields(List<CalculatedFieldDef> v) { this.calculatedFields = v; return this; }
@@ -124,6 +129,7 @@ public final class BaseModelPlan extends QueryPlan {
                 && Objects.equals(model, p.model)
                 && Objects.equals(columns, p.columns)
                 && Objects.equals(slice, p.slice)
+                && Objects.equals(having, p.having)
                 && Objects.equals(groupBy, p.groupBy)
                 && Objects.equals(orderBy, p.orderBy)
                 && Objects.equals(calculatedFields, p.calculatedFields)
@@ -133,7 +139,7 @@ public final class BaseModelPlan extends QueryPlan {
 
     @Override
     public int hashCode() {
-        return Objects.hash(model, columns, slice, groupBy, orderBy,
+        return Objects.hash(model, columns, slice, having, groupBy, orderBy,
                 calculatedFields, limit, start, distinct);
     }
 
@@ -142,6 +148,7 @@ public final class BaseModelPlan extends QueryPlan {
         return "BaseModelPlan{model=" + model
                 + ", columns=" + columns
                 + ", sliceSize=" + slice.size()
+                + ", havingSize=" + having.size()
                 + ", groupBy=" + groupBy
                 + ", orderBy=" + orderBy
                 + ", calculatedFields=" + calculatedFields

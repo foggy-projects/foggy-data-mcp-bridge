@@ -68,8 +68,9 @@ public class FieldAccessPermissionStep implements DataSetResultStep {
         // 2. 校验 calculatedFields
         validateCalculatedFields(request.getCalculatedFields(), fieldAccess, deniedQmFields, calcFieldMap);
 
-        // 3. 校验 slice（只校验用户 slice，system_slice 在 SystemSliceMergeStep 中后续合并）
-        validateSlice(request.getSlice(), fieldAccess, deniedQmFields);
+        // 3. 校验 slice/having（只校验用户 slice，system_slice 在 SystemSliceMergeStep 中后续合并）
+        validateSlice(request.getSlice(), fieldAccess, deniedQmFields, calcFieldMap, "slice");
+        validateSlice(request.getHaving(), fieldAccess, deniedQmFields, calcFieldMap, "having");
 
         // 4. 校验 orderBy
         validateOrderBy(request.getOrderBy(), fieldAccess, deniedQmFields, calcFieldMap);
@@ -188,14 +189,39 @@ public class FieldAccessPermissionStep implements DataSetResultStep {
      * 校验 slice 条件列表（只校验用户 slice，不含 system_slice）
      */
     private void validateSlice(List<SliceRequestDef> slice, Set<String> fieldAccess,
-                                Set<String> deniedQmFields) {
+                                Set<String> deniedQmFields, Map<String, String> calcFieldMap,
+                                String clause) {
         if (slice == null || slice.isEmpty()) {
             return;
         }
         for (SliceRequestDef item : slice) {
-            if (item.getField() != null) {
-                String baseField = stripDimensionSuffix(item.getField());
-                checkField(baseField, item.getField(), "slice", fieldAccess, deniedQmFields);
+            validateCondItem(item, fieldAccess, deniedQmFields, calcFieldMap, clause);
+        }
+    }
+
+    private void validateCondItem(com.foggyframework.dataset.db.model.def.query.request.CondRequestDef item,
+                                  Set<String> fieldAccess, Set<String> deniedQmFields,
+                                  Map<String, String> calcFieldMap, String clause) {
+        if (item == null) {
+            return;
+        }
+        if (item.getField() != null) {
+            String field = item.getField();
+            if (calcFieldMap.containsKey(field)) {
+                validateExpressionDeps(calcFieldMap.get(field), field, clause, fieldAccess, deniedQmFields, calcFieldMap);
+            } else {
+                String baseField = stripDimensionSuffix(field);
+                checkField(baseField, field, clause, fieldAccess, deniedQmFields);
+            }
+        }
+        if (item.getAnd() != null) {
+            for (com.foggyframework.dataset.db.model.def.query.request.CondRequestDef child : item.getAnd()) {
+                validateCondItem(child, fieldAccess, deniedQmFields, calcFieldMap, clause);
+            }
+        }
+        if (item.getOr() != null) {
+            for (com.foggyframework.dataset.db.model.def.query.request.CondRequestDef child : item.getOr()) {
+                validateCondItem(child, fieldAccess, deniedQmFields, calcFieldMap, clause);
             }
         }
     }

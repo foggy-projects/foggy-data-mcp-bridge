@@ -33,6 +33,9 @@ public class SemanticQueryRequest {
     @ApiModelProperty(value = "过滤条件")
     private List<SliceItem> slice;
 
+    @ApiModelProperty(value = "聚合后过滤条件。仅用于 groupBy/聚合查询后的 HAVING；普通明细字段过滤继续使用 slice")
+    private List<SliceItem> having;
+
     @ApiModelProperty(value = "分组字段，可含 $caption", example = "[\"team$caption\"]")
     private List<GroupByItem> groupBy;
 

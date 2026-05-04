@@ -173,5 +173,18 @@ class ComposeScriptToolTest {
             Map<String, Object> result = executeWithBundle("return 1;");
             assertEquals("success", result.get("status"));
         }
+
+        @Test
+        @DisplayName("empty plans result carries terminal semantic")
+        void emptyPlansSemantic_success() {
+            Map<String, Object> result = executeWithBundle("return {plans: []};");
+            assertEquals("success", result.get("status"));
+            Map<String, Object> data = (Map<String, Object>) result.get("data");
+            Map<String, Object> value = (Map<String, Object>) data.get("value");
+            Map<String, Object> semantic = (Map<String, Object>) value.get("semantic");
+            assertEquals(Boolean.TRUE, semantic.get("emptyResult"));
+            assertEquals("NO_MATCHING_ROWS_AFTER_COMPOSE", semantic.get("emptyReason"));
+            assertEquals(Boolean.TRUE, semantic.get("shouldAnswerDirectly"));
+        }
     }
 }
