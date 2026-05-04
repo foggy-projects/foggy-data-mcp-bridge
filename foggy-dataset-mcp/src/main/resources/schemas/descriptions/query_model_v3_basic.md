@@ -26,6 +26,8 @@
 | 属性/度量 | 直接使用字段名 |
 
 
+只使用 describe 返回的完整字段名，不要自己拼接多跳字段，例如不要把 `move$invoiceUserId` 猜成 `move$invoiceUserId$caption`，也不要把关系字段简写成 `caption`。字段未暴露时，省略该列或改用暴露该字段的模型。
+
 ## 参数
 
 ### columns (普通查询必填；pivot 查询不要传)
@@ -36,7 +38,11 @@
 支持的聚合函数：`sum`、`avg`、`count`、`max`、`min`、`group_concat`、`countd`(去重计数)、`stddev_pop`、`stddev_samp`、`var_pop`、`var_samp`。
 
 > **WARNING**:
-> - 当使用聚合表达式后，系统自动推断 groupBy，通常无需手动指定。
+> - 引擎可以推断部分 `groupBy`，但为了避免首轮 GROUP BY 错误，只要 `columns` 同时包含维度和聚合表达式/模型预定义聚合 measure，就必须显式传 `groupBy`。
+> - `groupBy` 必须包含每个非聚合维度列；展示 `partner$caption` 时通常同时查询并分组 `partner$id` 和 `partner$caption`，例如 `columns: ["partner$id", "partner$caption", "arOverdueAmount"], groupBy: ["partner$id", "partner$caption"]`。
+> - 使用 `partner$caption` 等维度分组时，`columns` 只放这些分组维度和聚合指标。不要为了解释或排查额外混入 `move$caption`、`moveName`、`lineCount` 等未分组明细字段；除非用户明确要求统计行数，否则不要添加 `lineCount`。
+> - 如果模型说明提供 AR 业务指标（如 `arOverdueAmount`、`arOutstandingAmount`、`arOverdueCustomerCount`），优先直接作为 measure 使用；不要再包装 `sum(...)`，也不要同时加入不属于该分组口径的明细列。
+> - 不要把聚合表达式或预定义聚合 measure 放进 `slice` 当作 WHERE 条件，例如不要写 `{"field": "arOutstandingAmount", "op": ">", "value": 0}`。如果主查询已经返回 0 或空结果，直接回答；如确需对聚合结果二次过滤，使用 `dataset.compose_script` 在结果 plan 上 `.query({...})`。
 > - `columns` 仅用于简单的单层聚合：`agg(field) as alias`。
 > - **条件聚合** 统一使用 `sum/avg/count(if(条件, 满足时的值, 不满足时的值))` 写法，例如：`sum(if(state == "sale", amountTotal, 0)) as confirmed`。**绝对不要**生成 `count_if`、`sum_if` 之类的未定义函数，也绝对不要生成 SQL 风格的 `case when`。
 
@@ -94,6 +100,11 @@ timeWindow 结果列可再接后置标量 `calculatedFields`：
 ```
 
 限制：`targetMetrics` 不可引用 calculatedFields；后置 calculatedFields 不能设置 `agg` 或窗口字段。
+
+### 日期分桶与 SQL 函数边界
+普通“按月/按周/按年分组”不要在 `columns`、`groupBy`、`orderBy` 中生成 `DATE_TRUNC(...)`、`YEAR(...)`、`MONTH(...)` 等 SQL 函数字段，也不要把 `DATE_TRUNC` 当字段名。先调用 `dataset.describe_model_internal`，只使用返回的日期粒度字段（如 `salesDate$year`、`salesDate$month`、`salesDate$week`）进行展示、分组和排序。
+
+如果模型没有暴露所需日期粒度字段，不要自造 SQL 函数；改用已有日期字段过滤、`timeWindow`，或说明当前模型未提供该粒度。同比、环比、YTD、MTD、rolling 继续使用 `timeWindow`。
 
 
 ### slice (可选)
@@ -160,6 +171,12 @@ timeWindow 结果列可再接后置标量 `calculatedFields`：
 | `distinct` | boolean | `false` | 与 `groupBy` 和聚合函数互斥 |
 | `withSubtotals` | boolean | `false` | 仅在有 `groupBy` 时生效（Rollup计算） |
 
+## 结果使用纪律
+
+- 查询返回的 `items`、`schema`、`pagination` 已足够回答题面时，直接最终回答。
+- 不要为了确认空结果、0 值或已满足条件的主查询而重复查询全表、所有月份或所有状态；除非用户明确要求审计、排查数据质量或解释异常。
+- 对口径明确的问题，按题目限定的期间、状态、对象回答，不主动扩展到其他期间或其他状态。
+
 ## Pivot 透视表查询
 
 当用户需要行列交叉表、小计/总计、树形 rows 轴、父级占比或列基准比值时使用 `pivot`。
@@ -194,5 +211,6 @@ timeWindow 结果列可再接后置标量 `calculatedFields`：
 1. **字段不存在**：检查字段名是否写错。外键必须使用 `xxx$id` 或 `xxx$caption` 访问，不要直接用关联模型的自身名称。如果不确定，先调用 `dataset.describe_model_internal`。
 2. **函数未定义**：如果是 `count_if` / `sum_if` 报错，请改为 `sum/avg/count(if(...))`。
 3. **不支持在 columns 中使用复杂表达式**：将该带有计算逻辑的表达式（比如加减乘除、窗口函数等）移到 `calculatedFields` 中定义别名，再放入 `columns`。
-4. **语法错误**：检查 JSON 结构是否闭合，特别是 `slice` 中的 `$or` 是否正确嵌套。
-5. **Pivot 互斥或边界错误**：移除 `columns` 或 `timeWindow`；tree 错误时移除 `crossjoin`/`rowSubtotals`/`columnSubtotals`/`grandTotal`；派生指标错误时移除 `parentShare`/`baselineRatio` 或改为普通 pivot。
+4. **GROUP BY 错误**：移除未分组明细列，或把该普通字段加入 `groupBy`；预定义聚合 measure 与维度一起使用时，只保留分组维度和 measure。
+5. **语法错误**：检查 JSON 结构是否闭合，特别是 `slice` 中的 `$or` 是否正确嵌套。
+6. **Pivot 互斥或边界错误**：移除 `columns` 或 `timeWindow`；tree 错误时移除 `crossjoin`/`rowSubtotals`/`columnSubtotals`/`grandTotal`；派生指标错误时移除 `parentShare`/`baselineRatio` 或改为普通 pivot。
