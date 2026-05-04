@@ -540,6 +540,37 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             md.append("\n");
         }
 
+        // ========== 预定义公式字段（columnGroups.formula）==========
+        List<CalculatedFieldDef> predefinedCalcs = queryModel.getPredefinedCalculatedFields();
+        if (predefinedCalcs != null && !predefinedCalcs.isEmpty()) {
+            List<CalculatedFieldDef> filteredCalcs = new ArrayList<>();
+            Map<String, String> calcFieldMap = buildPredefinedCalcFieldMap(predefinedCalcs);
+            for (CalculatedFieldDef calc : predefinedCalcs) {
+                if (!isCalculatedFieldAccessible(calc, fieldAccess, calcFieldMap)) {
+                    continue;
+                }
+                filteredCalcs.add(calc);
+            }
+            if (!filteredCalcs.isEmpty()) {
+                md.append("## 预定义公式字段\n");
+                md.append("> 这些是预聚合度量。直接在 `columns[]` 中引用字段名，不要在 `calculatedFields[]` 中重复定义。\n\n");
+                md.append("| 字段名 | 名称 | 类型 | 说明 |\n");
+                md.append("|--------|------|------|------|\n");
+                for (CalculatedFieldDef calc : filteredCalcs) {
+                    String calcName = calc.getName();
+                    String calcCaption = calc.getCaption() != null ? calc.getCaption() : calcName;
+                    String calcType = calc.getType() != null ? calc.getType() : "NUMBER";
+                    String calcDesc = calc.getDescription() != null ? calc.getDescription() : "";
+                    md.append("| ").append(calcName)
+                            .append(" | ").append(calcCaption)
+                            .append(" | ").append(calcType)
+                            .append(" | ").append(escapeMarkdownTable(calcDesc))
+                            .append(" |\n");
+                }
+                md.append("\n");
+            }
+        }
+
         // ========== 字典定义 ==========
         if (!referencedDictIds.isEmpty() || !referencedDictClasses.isEmpty()) {
             md.append("## 字典定义\n");
@@ -1738,9 +1769,19 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         }
 
         Map<String, Object> modelInfo = new LinkedHashMap<>();
-        modelInfo.put("description", (calc.getCaption() != null ? calc.getCaption() : calc.getName())
-                + " (公式: " + calc.getExpression() + ")");
-        modelInfo.put("usage", "预定义计算字段，直接在 columns 中引用即可，不要在 calculatedFields 中重复定义");
+        String descFromDef = calc.getDescription();
+        String modelDescription = (descFromDef != null && !descFromDef.isEmpty())
+                ? descFromDef
+                : (calc.getCaption() != null ? calc.getCaption() : calc.getName())
+                    + " (公式: " + calc.getExpression() + ")";
+        modelInfo.put("description", modelDescription);
+        modelInfo.put("usage", "Reference directly in columns[]; do not redefine in calculatedFields[]");
+
+        // Top-level usage marker for AI/LLM consumption
+        fieldInfo.put("usage", "predefined_formula");
+        if (descFromDef != null && !descFromDef.isEmpty()) {
+            fieldInfo.put("description", descFromDef);
+        }
 
         Map<String, Object> models = new LinkedHashMap<>();
         models.put(modelName, modelInfo);

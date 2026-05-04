@@ -75,6 +75,15 @@
 | taxAmount2 | 税额*2 | 金额 | SUM | 用于测试计算字段 |
 | uniqueCustomers | 独立客户数 | 文本 | COUNT_DISTINCT | 去重客户数量（COUNT DISTINCT） |
 
+## 预定义公式字段
+> 这些是预聚合度量。直接在 `columns[]` 中引用字段名，不要在 `calculatedFields[]` 中重复定义。
+
+| 字段名 | 名称 | 类型 | 说明 |
+|--------|------|------|------|
+| profitRate | 利润率(%) | NUMBER |  |
+| salesRank | 品类销售排名 | INTEGER |  |
+| ma7 | 7日移动平均 | NUMBER |  |
+
 ## 字典定义
 | ID | 名称 | 取值 |
 |----|------|------|
