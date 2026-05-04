@@ -78,6 +78,7 @@ public final class Dsl {
                     .model(model)
                     .columns(opts.columns())
                     .slice(opts.slice())
+                    .having(opts.having())
                     .groupBy(opts.groupBy())
                     .orderBy(opts.orderBy())
                     .calculatedFields(opts.calculatedFields())
@@ -85,6 +86,11 @@ public final class Dsl {
                     .start(opts.start())
                     .distinct(opts.distinct())
                     .build();
+        }
+
+        if (opts.having() != null && !opts.having().isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Dsl.from(source=...) does not accept having; use source.query({slice:[...]}) for derived-plan post filters");
         }
 
         return DerivedQueryPlan.builder()
@@ -113,6 +119,7 @@ public final class Dsl {
         private final QueryPlan source;
         private final List<Object> columns;
         private final List<Object> slice;
+        private final List<Object> having;
         private final List<String> groupBy;
         private final List<String> orderBy;
         private final List<CalculatedFieldDef> calculatedFields;
@@ -125,6 +132,7 @@ public final class Dsl {
             this.source = b.source;
             this.columns = b.columns;
             this.slice = b.slice;
+            this.having = b.having;
             this.groupBy = b.groupBy;
             this.orderBy = b.orderBy;
             this.calculatedFields = b.calculatedFields;
@@ -137,6 +145,7 @@ public final class Dsl {
         public QueryPlan source() { return source; }
         public List<Object> columns() { return columns; }
         public List<Object> slice() { return slice; }
+        public List<Object> having() { return having; }
         public List<String> groupBy() { return groupBy; }
         public List<String> orderBy() { return orderBy; }
         public List<CalculatedFieldDef> calculatedFields() { return calculatedFields; }
@@ -151,6 +160,7 @@ public final class Dsl {
             private QueryPlan source;
             private List<Object> columns;
             private List<Object> slice;
+            private List<Object> having;
             private List<String> groupBy;
             private List<String> orderBy;
             private List<CalculatedFieldDef> calculatedFields;
@@ -170,6 +180,7 @@ public final class Dsl {
             }
 
             public Builder slice(List<Object> v) { this.slice = v; return this; }
+            public Builder having(List<Object> v) { this.having = v; return this; }
             public Builder groupBy(List<String> v) { this.groupBy = v; return this; }
             public Builder orderBy(List<String> v) { this.orderBy = v; return this; }
             public Builder calculatedFields(List<CalculatedFieldDef> v) { this.calculatedFields = v; return this; }

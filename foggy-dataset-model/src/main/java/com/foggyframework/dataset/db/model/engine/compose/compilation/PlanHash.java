@@ -132,6 +132,7 @@ public final class PlanHash {
                     p.model(),
                     canonical(p.columns()),
                     canonical(p.slice()),
+                    canonical(p.having()),
                     canonical(p.groupBy()),
                     canonical(p.orderBy()),
                     canonical(p.calculatedFields()),

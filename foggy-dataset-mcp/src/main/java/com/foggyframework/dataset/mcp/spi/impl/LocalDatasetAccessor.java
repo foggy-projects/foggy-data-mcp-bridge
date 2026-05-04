@@ -450,6 +450,16 @@ public class LocalDatasetAccessor implements DatasetAccessor {
                 request.setSlice(sliceItems);
             }
         }
+        if (payload.containsKey("having")) {
+            Object having = payload.get("having");
+            if (having instanceof List) {
+                List<Map<String, Object>> havingList = (List<Map<String, Object>>) having;
+                List<SemanticQueryRequest.SliceItem> havingItems = havingList.stream()
+                        .map(this::convertToSliceItem)
+                        .toList();
+                request.setHaving(havingItems);
+            }
+        }
 
         // groupBy - 需要转换为 List<GroupByItem>
         if (payload.containsKey("groupBy")) {

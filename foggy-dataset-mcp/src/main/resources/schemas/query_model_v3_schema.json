@@ -164,6 +164,13 @@
             ]
           }
         },
+        "having": {
+          "type": "array",
+          "description": "聚合后过滤条件（SQL HAVING）。只放预定义聚合 measure 或聚合表达式别名，例如 {\"field\":\"arOverdueAmount\",\"op\":\">\",\"value\":0}；普通明细字段过滤必须继续使用 slice。",
+          "items": {
+            "$ref": "#/properties/payload/properties/slice/items"
+          }
+        },
         "orderBy": {
           "type": "array",
           "description": "普通查询排序规则。支持简写：\"field\"(升序)、\"field desc\"(降序)、\"-field\"(降序)。pivot 模式下不要依赖顶层 orderBy 裁剪透视轴；如需 TopN 或轴内排序，请使用 pivot.rows[*].orderBy 或 pivot.columns[*].orderBy。",

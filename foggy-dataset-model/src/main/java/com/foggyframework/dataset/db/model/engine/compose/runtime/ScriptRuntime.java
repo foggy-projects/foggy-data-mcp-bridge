@@ -253,6 +253,12 @@ public final class ScriptRuntime {
                     ExpressionWhitelistValidator.validateSlice(slice, "script-eval");
                     builder.slice(slice);
                 }
+                if (args.containsKey("having")) {
+                    @SuppressWarnings("unchecked")
+                    List<Object> having = (List<Object>) args.get("having");
+                    ExpressionWhitelistValidator.validateSlice(having, "script-eval");
+                    builder.having(having);
+                }
                 if (args.containsKey("groupBy")) {
                     @SuppressWarnings("unchecked")
                     List<String> groupBy = (List<String>) args.get("groupBy");

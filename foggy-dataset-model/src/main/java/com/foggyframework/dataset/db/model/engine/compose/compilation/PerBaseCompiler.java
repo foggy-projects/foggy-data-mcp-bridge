@@ -156,6 +156,14 @@ final class PerBaseCompiler {
             req.setSlice(slice);
         }
 
+        if (!plan.having().isEmpty()) {
+            List<SemanticQueryRequest.SliceItem> having = new ArrayList<>(plan.having().size());
+            for (Object raw : plan.having()) {
+                having.add(toSliceItem(raw));
+            }
+            req.setHaving(having);
+        }
+
         if (!plan.groupBy().isEmpty()) {
             List<SemanticQueryRequest.GroupByItem> gb = new ArrayList<>(plan.groupBy().size());
             for (String field : plan.groupBy()) {

@@ -132,6 +132,10 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
             List<SliceRequestDef> processedSlice = processSliceValues(model, request.getSlice(), request, context);
             jdbcRequest.getParam().setSlice(processedSlice);
         }
+        if (request.getHaving() != null) {
+            List<SliceRequestDef> processedHaving = processSliceValues(model, request.getHaving(), request, context);
+            jdbcRequest.getParam().setHaving(processedHaving);
+        }
 
         // 4. 创建ModelResultContext，标记为语义查询，设置SecurityContext、Namespace和列权限
         ModelResultContext resultContext = new ModelResultContext();
@@ -364,6 +368,13 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                 }
             }
         }
+        if (request.getHaving() != null) {
+            for (SemanticQueryRequest.SliceItem having : request.getHaving()) {
+                if (!having._isLogicalGroup() && StringUtils.isEmpty(having.getField())) {
+                    throw RX.throwB(JsonUtils.toJson(having) + "中的name字段不能为空");
+                }
+            }
+        }
 
         // 检查 groupBy 和 columns 的对齐
         if (request.getGroupBy() != null && request.getColumns() != null) {
@@ -421,6 +432,12 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                     .map(this::convertToJdbcSlice)
                     .collect(Collectors.toList());
             queryDef.setSlice(jdbcSlice);
+        }
+        if (request.getHaving() != null) {
+            List<SliceRequestDef> jdbcHaving = request.getHaving().stream()
+                    .map(this::convertToJdbcSlice)
+                    .collect(Collectors.toList());
+            queryDef.setHaving(jdbcHaving);
         }
 
         // 转换分组（V3：字段名直接使用）
@@ -566,6 +583,14 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         pagination.setHasMore(hasMore);
         pagination.setRangeDescription(buildRangeDescription(actualStart, returnedCount,actualLimit, totalCount, hasMore));
         response.setPagination(pagination);
+
+        if (returnedCount == 0) {
+            SemanticQueryResponse.SemanticInfo semantic = new SemanticQueryResponse.SemanticInfo();
+            semantic.setEmptyResult(true);
+            semantic.setEmptyReason("NO_MATCHING_ROWS");
+            semantic.setShouldAnswerDirectly(true);
+            response.setSemantic(semantic);
+        }
 
         // 设置分页信息（保留原有字段以保持兼容性）
         response.setTotal(queryResult.getTotal());
@@ -756,6 +781,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
 
         SemanticQueryResponse.DebugInfo.NormalizedRequest normalized = new SemanticQueryResponse.DebugInfo.NormalizedRequest();
         normalized.setSlice(toSemanticSliceItems(normalizedRequest.getSlice()));
+        normalized.setHaving(toSemanticSliceItems(normalizedRequest.getHaving()));
         normalized.setGroupBy(toSemanticGroupByItems(normalizedRequest.getGroupBy()));
         normalized.setOrderBy(toSemanticOrderItems(normalizedRequest.getOrderBy()));
         debugInfo.setNormalized(normalized);

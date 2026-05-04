@@ -98,6 +98,7 @@ public class QueryRequestValidationStep implements DataSetResultStep {
 
         // 1. 校验 slice 条件
         validateSlice(queryRequest.getSlice());
+        validateSlice(queryRequest.getHaving());
 
         // 2. 校验 groupBy
         validateGroupBy(queryRequest.getGroupBy());

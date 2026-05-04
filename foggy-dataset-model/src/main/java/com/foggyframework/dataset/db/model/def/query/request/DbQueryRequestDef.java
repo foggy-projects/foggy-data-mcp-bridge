@@ -27,6 +27,10 @@ public class DbQueryRequestDef implements DbQueryRequest {
     @JsonDeserialize(using = SliceRequestDefListDeserializer.class)
     List<SliceRequestDef> slice;
 
+    @ApiModelProperty(value = "聚合后过滤条件", notes = "仅用于 groupBy/聚合后的 HAVING；聚合 measure 不应放入 slice")
+    @JsonDeserialize(using = SliceRequestDefListDeserializer.class)
+    List<SliceRequestDef> having;
+
     @ApiModelProperty(value = "", notes = "排序，使用方式见https://sdsh.yuque.com/xl6fiq/mbuyho/pq81w1gpz4k3mysk?singleDoc# 《后端Api》")
     @JsonDeserialize(using = OrderRequestDefListDeserializer.class)
     List<OrderRequestDef> orderBy;
