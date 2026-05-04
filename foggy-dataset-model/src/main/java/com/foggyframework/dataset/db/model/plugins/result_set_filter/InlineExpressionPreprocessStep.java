@@ -113,6 +113,16 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
         result.setAliasToExpression(new LinkedHashMap<>());
         result.setColumnAggregations(new LinkedHashMap<>());
 
+        Set<String> predefinedFormulaNames = new HashSet<>();
+        if (queryModel instanceof QueryModelSupport) {
+            List<CalculatedFieldDef> predefined = ((QueryModelSupport) queryModel).getPredefinedCalculatedFields();
+            if (predefined != null) {
+                for (CalculatedFieldDef calc : predefined) {
+                    predefinedFormulaNames.add(calc.getName());
+                }
+            }
+        }
+
         int autoAliasCounter = 1;
         boolean hasAnyAggregate = false;
 
@@ -135,6 +145,21 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
 
                 // 通过 AST 分析检测聚合函数，填充 agg 字段，并存储编译后的 AST
                 AggregateAnalysisResult aggResult = analyzeAggregateByAst(inlineExp.getExpression(), calcFieldDef);
+
+                if (aggResult.hasAggregate && !predefinedFormulaNames.isEmpty()) {
+                    try {
+                        Set<String> deps = CalculatedFieldService.resolveBaseColumnReferences(inlineExp.getExpression(), Collections.emptyMap());
+                        for (String dep : deps) {
+                            if (predefinedFormulaNames.contains(dep)) {
+                                throw new IllegalArgumentException("ILLEGAL_DOUBLE_AGGREGATION: Cannot wrap predefined calculated field '" + dep + "' in an aggregate function.");
+                            }
+                        }
+                    } catch (IllegalArgumentException e) {
+                        throw e;
+                    } catch (Exception e) {
+                        // ignore parsing errors here, fail-closed downstream
+                    }
+                }
 
                 // 保持表达式原样
                 calcFieldDef.setExpression(inlineExp.getExpression());

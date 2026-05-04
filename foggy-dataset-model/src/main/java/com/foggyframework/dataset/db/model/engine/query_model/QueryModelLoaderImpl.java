@@ -520,6 +520,7 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
                         calc.setCaption(item.getCaption());
                         calc.setExpression(item.getFormula());
                         calc.setType(item.getType());
+                        calc.setDescription(item.getDescription());
                         calc.setPartitionBy(item.getPartitionBy());
                         calc.setWindowOrderBy(convertWindowOrderBy(item.getWindowOrderBy()));
                         calc.setWindowFrame(item.getWindowFrame());

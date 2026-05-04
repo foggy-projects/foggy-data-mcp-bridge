@@ -57,6 +57,8 @@ public class SelectColumnDef {
     List<Map<String, Object>> windowOrderBy;
     /** 窗口帧 */
     String windowFrame;
+    /** 业务描述（QM formula items 的使用说明，用于 AI/LLM 元数据输出） */
+    String description;
 
     /**
      * 获取字符串形式的 ref（别名格式，使用 _ 分隔）

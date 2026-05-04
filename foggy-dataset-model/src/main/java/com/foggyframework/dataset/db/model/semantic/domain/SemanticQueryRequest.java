@@ -1,7 +1,9 @@
 package com.foggyframework.dataset.db.model.semantic.domain;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
+import com.foggyframework.dataset.db.model.semantic.domain.deserializer.OrderItemListDeserializer;
 import com.foggyframework.dataset.db.model.semantic.enums.CaptionMatchMode;
 import com.foggyframework.dataset.db.model.semantic.enums.MismatchHandleStrategy;
 import com.foggyframework.dataset.db.model.semantic.domain.pivot.PivotRequest;
@@ -35,6 +37,7 @@ public class SemanticQueryRequest {
     private List<GroupByItem> groupBy;
 
     @ApiModelProperty(value = "排序字段")
+    @JsonDeserialize(using = OrderItemListDeserializer.class)
     private List<OrderItem> orderBy;
 
     @ApiModelProperty(value = "起始位置，用于分页，默认0", example = "0")
