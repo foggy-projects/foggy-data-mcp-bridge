@@ -15,6 +15,7 @@ import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -67,7 +68,13 @@ public class AnalystMcpController {
             @RequestHeader(value = "X-Trace-Id", required = false) String traceId,
             @RequestHeader(value = "X-Request-Id", required = false) String requestId,
             @RequestHeader(value = "X-NS", required = false) String namespace,
-            @RequestHeader(value = "X-Foggy-Remote-Compose", required = false) String remoteCompose
+            @RequestHeader(value = "X-Foggy-Remote-Compose", required = false) String remoteCompose,
+            @RequestHeader(value = "X-User-Id", required = false) String userId,
+            @RequestHeader(value = "X-Namespace", required = false) String remoteNamespace,
+            @RequestHeader(value = "X-Roles", required = false) String roles,
+            @RequestHeader(value = "X-Dept-Id", required = false) String deptId,
+            @RequestHeader(value = "X-Tenant-Id", required = false) String tenantId,
+            @RequestHeader(value = "X-Policy-Snapshot-Id", required = false) String policySnapshotId
     ) {
         // traceId: AI 会话级，如果没有则生成新的
         if (traceId == null || traceId.isBlank()) {
@@ -96,7 +103,10 @@ public class AnalystMcpController {
                     case "tools/call":
                         return ResponseEntity.ok(mcpService.handleToolsCall(request,
                                 McpRequestContext.of(traceId, requestId, authorization, USER_ROLE, namespace,
-                                        remoteComposeHeaders(remoteCompose))));
+                                        remoteComposeHeaders(
+                                                remoteCompose, traceId, authorization, userId,
+                                                remoteNamespace, namespace, roles, deptId, tenantId,
+                                                policySnapshotId))));
                     case "ping":
                         return ResponseEntity.ok(mcpService.handlePing(request));
                     default:
@@ -104,7 +114,10 @@ public class AnalystMcpController {
                         if (request.getMethod().startsWith("dataset") || request.getMethod().startsWith("olap")) {
                             return ResponseEntity.ok(mcpService.handleDirectToolCall(request,
                                     McpRequestContext.of(traceId, requestId, authorization, USER_ROLE, namespace,
-                                            remoteComposeHeaders(remoteCompose))));
+                                            remoteComposeHeaders(
+                                                    remoteCompose, traceId, authorization, userId,
+                                                    remoteNamespace, namespace, roles, deptId, tenantId,
+                                                    policySnapshotId))));
                         }
                         return ResponseEntity.ok(McpResponse.error(
                                 request.getId(),
@@ -142,7 +155,13 @@ public class AnalystMcpController {
             @RequestHeader(value = "X-Trace-Id", required = false) String traceId,
             @RequestHeader(value = "X-Request-Id", required = false) String requestId,
             @RequestHeader(value = "X-NS", required = false) String namespace,
-            @RequestHeader(value = "X-Foggy-Remote-Compose", required = false) String remoteCompose
+            @RequestHeader(value = "X-Foggy-Remote-Compose", required = false) String remoteCompose,
+            @RequestHeader(value = "X-User-Id", required = false) String userId,
+            @RequestHeader(value = "X-Namespace", required = false) String remoteNamespace,
+            @RequestHeader(value = "X-Roles", required = false) String roles,
+            @RequestHeader(value = "X-Dept-Id", required = false) String deptId,
+            @RequestHeader(value = "X-Tenant-Id", required = false) String tenantId,
+            @RequestHeader(value = "X-Policy-Snapshot-Id", required = false) String policySnapshotId
     ) {
         // traceId: AI 会话级
         if (traceId == null || traceId.isBlank()) {
@@ -162,7 +181,10 @@ public class AnalystMcpController {
 
         final String finalTraceId = traceId;
         return toolDispatcher.executeWithProgress(request, traceId, authorization, namespace,
-                        remoteComposeHeaders(remoteCompose))
+                        remoteComposeHeaders(
+                                remoteCompose, traceId, authorization, userId,
+                                remoteNamespace, namespace, roles, deptId, tenantId,
+                                policySnapshotId))
                 .map(event -> ServerSentEvent.<Object>builder()
                         .id(event.getId())
                         .event(event.getEventType())
@@ -172,7 +194,37 @@ public class AnalystMcpController {
                 .doOnError(e -> log.error("Analyst MCP Stream error: traceId={}, error={}", finalTraceId, e.getMessage()));
     }
 
-    private static Map<String, String> remoteComposeHeaders(String remoteCompose) {
-        return remoteCompose == null ? Map.of() : Map.of("X-Foggy-Remote-Compose", remoteCompose);
+    private static Map<String, String> remoteComposeHeaders(
+            String remoteCompose,
+            String traceId,
+            String authorization,
+            String userId,
+            String remoteNamespace,
+            String namespace,
+            String roles,
+            String deptId,
+            String tenantId,
+            String policySnapshotId) {
+        if (remoteCompose == null) {
+            return Map.of();
+        }
+        Map<String, String> headers = new LinkedHashMap<>();
+        putIfNotBlank(headers, "X-Foggy-Remote-Compose", remoteCompose);
+        putIfNotBlank(headers, "X-User-Id", userId);
+        putIfNotBlank(headers, "X-Namespace", remoteNamespace);
+        putIfNotBlank(headers, "X-NS", namespace);
+        putIfNotBlank(headers, "X-Roles", roles);
+        putIfNotBlank(headers, "X-Dept-Id", deptId);
+        putIfNotBlank(headers, "X-Tenant-Id", tenantId);
+        putIfNotBlank(headers, "X-Policy-Snapshot-Id", policySnapshotId);
+        putIfNotBlank(headers, "X-Trace-Id", traceId);
+        putIfNotBlank(headers, "Authorization", authorization);
+        return headers;
+    }
+
+    private static void putIfNotBlank(Map<String, String> headers, String name, String value) {
+        if (value != null && !value.isBlank()) {
+            headers.put(name, value);
+        }
     }
 }

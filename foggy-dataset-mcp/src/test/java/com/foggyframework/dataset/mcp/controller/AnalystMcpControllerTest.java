@@ -11,6 +11,7 @@ import com.foggyframework.dataset.mcp.service.McpToolDispatcher;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -22,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
@@ -212,6 +214,56 @@ class AnalystMcpControllerTest {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.result.content").isArray())
                     .andExpect(jsonPath("$.error").doesNotExist());
+        }
+
+        @Test
+        @DisplayName("remote compose 应透传 request-scoped authority headers")
+        void remoteCompose_shouldForwardAuthorityHeaders() throws Exception {
+            McpResponse mockResponse = McpResponse.success("1", Map.of(
+                    "content", List.of(Map.of(
+                            "type", "text",
+                            "text", "{\"status\":\"success\"}"
+                    ))
+            ));
+            ArgumentCaptor<McpRequestContext> contextCaptor = ArgumentCaptor.forClass(McpRequestContext.class);
+
+            when(mcpService.handleToolsCall(any(McpRequest.class), any(McpRequestContext.class)))
+                    .thenReturn(mockResponse);
+
+            mockMvc.perform(post("/mcp/analyst/rpc")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .header("Authorization", "Bearer token")
+                            .header("X-Trace-Id", "trace-1")
+                            .header("X-NS", "odoo")
+                            .header("X-Foggy-Remote-Compose", "1")
+                            .header("X-User-Id", "7")
+                            .header("X-Namespace", "odoo")
+                            .header("X-Roles", "Sales")
+                            .header("X-Dept-Id", "3")
+                            .content("""
+                                    {
+                                      "jsonrpc":"2.0",
+                                      "id":"1",
+                                      "method":"tools/call",
+                                      "params":{
+                                        "name":"dataset.compose_script",
+                                        "arguments":{"script":"return 1;"}
+                                      }
+                                    }
+                                    """))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.result.content").isArray());
+
+            verify(mcpService).handleToolsCall(any(McpRequest.class), contextCaptor.capture());
+            McpRequestContext context = contextCaptor.getValue();
+            assertEquals("1", context.getHeaders().get("X-Foggy-Remote-Compose"));
+            assertEquals("7", context.getHeaders().get("X-User-Id"));
+            assertEquals("odoo", context.getHeaders().get("X-Namespace"));
+            assertEquals("odoo", context.getHeaders().get("X-NS"));
+            assertEquals("Sales", context.getHeaders().get("X-Roles"));
+            assertEquals("3", context.getHeaders().get("X-Dept-Id"));
+            assertEquals("trace-1", context.getHeaders().get("X-Trace-Id"));
+            assertEquals("Bearer token", context.getHeaders().get("Authorization"));
         }
 
         @Test
