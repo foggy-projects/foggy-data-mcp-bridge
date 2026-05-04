@@ -21,7 +21,8 @@ Expose only these 3 entry points in generated scripts:
 
 | Entry | Trigger Scenario | Example |
 |---|---|---|
-| `dsl({...})` | Start a new query from a model, OR filter/process an existing plan (derived query) | `dsl({ model: "SalesQM", columns: [...] })` |
+| `dsl({...})` | Start a new query from a query model name string | `dsl({ model: "SalesQM", columns: [...] })` |
+| `plan.query({...})` | Filter/process an existing plan (derived query) | `grouped.query({ columns: [...], orderBy: [...] })` |
 | `.join(other, type, on)` | Combine two plans side-by-side | `a.join(b, "inner", [{ left, op, right }])` |
 | `.union(other, options)` | Append one plan's rows to another | `a.union(b, { all: true })` |
 
@@ -46,7 +47,7 @@ Common fields:
 
 | Field | Type | Notes |
 |---|---|---|
-| `model` | `string | QueryPlan` | Query model name for base queries, or a previous plan for derived queries |
+| `model` | `string` | Query model name for base queries. Do not pass a QueryPlan here. |
 | `columns` | `string[] | object[]` | Projected columns and aliases |
 | `slice` | `object[]` | Filters: `{ field, op, value }` |
 | `groupBy` | `string[]` | Grouping columns |
@@ -59,7 +60,7 @@ Common fields:
 
 ## Derived Query
 
-Use `dsl({...})` with `model` set to a previous plan. Derived queries may only reference columns already projected by the previous stage.
+Use `previousPlan.query({...})` for derived queries. Derived queries may only reference columns already projected by the previous stage. The lower-level form is `dsl({ source: previousPlan, ... })`; do not pass an existing plan through the `model` field.
 
 ```fsscript
 const grouped = dsl({
@@ -68,8 +69,7 @@ const grouped = dsl({
     groupBy: ["product$id"]
 });
 
-const topProducts = dsl({
-    model: grouped,
+const topProducts = grouped.query({
     slice: [{ field: "totalSales", op: ">", value: 50000 }],
     columns: ["product$id", "totalSales"],
     orderBy: ["-totalSales"]
@@ -90,16 +90,15 @@ const customers = dsl({
 
 const orders = dsl({
     model: "OdooSaleOrderModel",
-    columns: ["partnerId", "companyId", "SUM(amountTotal) AS totalSales"],
+    columns: ["partnerId AS orderPartnerId", "companyId", "SUM(amountTotal) AS totalSales"],
     groupBy: ["partnerId", "companyId"]
 });
 
 const joined = customers.join(orders, "left", [
-    { left: "id", op: "=", right: "partnerId" }
+    { left: "id", op: "=", right: "orderPartnerId" }
 ]);
 
-const result = dsl({
-    model: joined,
+const result = joined.query({
     columns: ["id", "customerName", "totalSales"],
     orderBy: ["-totalSales"],
     limit: 20
@@ -108,7 +107,7 @@ const result = dsl({
 return { plans: result };
 ```
 
-Supported join types: `"inner"`, `"left"`, `"right"`, `"full"` where the SQL dialect supports them. Join conditions are AND-only arrays using field names visible on each side.
+Supported join types: `"inner"`, `"left"`, `"right"`, `"full"` where the SQL dialect supports them. Join conditions are AND-only arrays using field names visible on each side. If no post-join projection, ordering, or paging is needed, return the joined plan directly: `return { plans: joined };`.
 
 When two joined plans have same-name columns, rename them in the source plans or with supported column object forms before the final projection.
 
@@ -210,6 +209,7 @@ return { plans: yoy };
 - **SQL / CTE**: Do not hand-write raw SQL or CTE syntax (`WITH ...`). Use `dsl()` and plan composition instead.
 - **Host Context**: Do not pass host-controlled security parameters such as user identity, system slice, denied columns, or datasource routing fields inside the script.
 - **Outer Aggregation / Windowing Restrictions**: Do not use aggregate functions or window functions (`partitionBy`, `windowOrderBy`, `windowFrame`) in the `calculatedFields` of a **derived query**. Keep derived queries simple and prefer scalar calculated fields.
+- **Derived Plan Syntax**: `dsl({ model: ... })` requires a non-empty string model name. For an existing plan, use `.query({...})` or `dsl({ source: plan, ... })`.
 - **Plan Clarity**: Keep intermediate plans explicit and assigned to descriptive variables. This preserves schema metadata and helps repair errors.
 
 ## Schema Discovery

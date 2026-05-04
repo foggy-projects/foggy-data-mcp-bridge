@@ -1,8 +1,10 @@
 package com.foggyframework.dataset.db.model.engine.expression;
 
+import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -85,5 +87,43 @@ class CalculatedFieldServiceFormulaTest {
     void emptyExpressionReturnsEmptySet() {
         assertTrue(CalculatedFieldService.extractColumnReferences("").isEmpty());
         assertTrue(CalculatedFieldService.extractColumnReferences(null).isEmpty());
+    }
+
+    @Test
+    @DisplayName("emptyDefault 包裹已有聚合公式为 COALESCE")
+    void emptyDefaultWrapsExistingAggregateFormula() {
+        CalculatedFieldDef def = new CalculatedFieldDef();
+        def.setName("qualifiedAmount");
+        def.setExpression("sum(amountTotal)");
+        def.setEmptyDefault(0);
+
+        SqlFragment sumFragment = SqlFragment.function(
+                "SUM",
+                List.of(SqlFragment.ofLiteral("t.amount_total"))
+        );
+
+        SqlFragment wrapped = CalculatedFieldService.applyEmptyDefault(sumFragment, def);
+
+        assertEquals("COALESCE(SUM(t.amount_total), 0)", wrapped.getSql());
+        assertTrue(wrapped.isHasAggregate());
+        assertEquals("SUM", wrapped.getAggregationType());
+    }
+
+    @Test
+    @DisplayName("emptyDefault + agg 推断应包裹聚合结果而不是聚合输入")
+    void emptyDefaultWithInferredAggWrapsAggregateResult() {
+        CalculatedFieldDef def = new CalculatedFieldDef();
+        def.setName("qualifiedAmount");
+        def.setExpression("amountTotal");
+        def.setAgg("SUM");
+        def.setEmptyDefault(0);
+
+        SqlFragment amountFragment = SqlFragment.ofLiteral("t.amount_total");
+
+        SqlFragment wrapped = CalculatedFieldService.applyEmptyDefault(amountFragment, def);
+
+        assertEquals("COALESCE(SUM(t.amount_total), 0)", wrapped.getSql());
+        assertTrue(wrapped.isHasAggregate());
+        assertEquals("SUM", wrapped.getAggregationType());
     }
 }

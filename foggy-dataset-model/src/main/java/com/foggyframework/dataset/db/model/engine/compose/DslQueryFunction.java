@@ -333,6 +333,7 @@ public class DslQueryFunction implements FsscriptFunction {
         def.setExpression((String) map.get("expression"));
         def.setDescription((String) map.get("description"));
         def.setAgg((String) map.get("agg"));
+        def.setEmptyDefault(map.get("emptyDefault"));
         return def;
     }
 

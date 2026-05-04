@@ -3,7 +3,9 @@
  *
  * @caption Journal Items Analysis
  * @description Query journal items (invoice lines, debit/credit entries) by account, journal,
- *              partner, product, and time period.
+ *              partner, product, and time period. Preferred model for AR aging
+ *              and overdue receivable metrics because it exposes predefined
+ *              measures such as arOverdueAmount and arOverdueCustomerCount.
  *              Permissions enforced via payload.slice injection from Odoo MCP Gateway.
  */
 const aml = loadTableModel('OdooAccountMoveLineModel');
@@ -12,6 +14,8 @@ export const queryModel = {
     name: 'OdooAccountMoveLineQueryModel',
     caption: 'Journal Items Analysis',
     description: 'Analyze journal items by GL account, journal, partner, product, and date. '
+        + 'Preferred for AR aging, overdue receivable amount, overdue customer count, and collection-priority analysis; '
+        + 'use predefined AR measures such as arOverdueAmount, arOutstandingAmount, and arOverdueCustomerCount directly. '
         + 'Filter by display_type="product" for invoice product lines only. '
         + 'Filter by parent_state="posted" for confirmed entries.',
     loader: 'v2',
@@ -129,6 +133,7 @@ export const queryModel = {
                     name: 'arOutstandingAmount',
                     caption: 'AR Outstanding Amount',
                     type: 'MONEY',
+                    emptyDefault: 0,
                     formula: "sum(if(move$moveType == 'out_invoice'"
                         + " && move$state == 'posted'"
                         + " && move$paymentState in ('not_paid', 'partial', 'in_payment'),"
@@ -145,6 +150,7 @@ export const queryModel = {
                     name: 'arOverdueAmount',
                     caption: 'AR Overdue Amount',
                     type: 'MONEY',
+                    emptyDefault: 0,
                     formula: "sum(if(move$moveType == 'out_invoice'"
                         + " && move$state == 'posted'"
                         + " && move$paymentState in ('not_paid', 'partial', 'in_payment')"
