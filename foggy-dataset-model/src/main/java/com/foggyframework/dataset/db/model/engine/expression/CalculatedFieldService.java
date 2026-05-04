@@ -381,6 +381,7 @@ public final class CalculatedFieldService {
                             fieldDef.getName(), fieldDef.getAgg());
                 }
             }
+            sqlFragment = applyEmptyDefault(sqlFragment, fieldDef);
 
             // 3. 创建 CalculatedJdbcColumn
             String caption = StringUtils.isNotEmpty(fieldDef.getCaption()) ? fieldDef.getCaption() : fieldDef.getName();
@@ -408,6 +409,54 @@ public final class CalculatedFieldService {
             String errorMsg = "编译计算字段表达式失败 [" + fieldDef.getName() + "]: " + e.getMessage();
             throw RX.throwAUserTip(errorMsg, errorMsg, null, e);
         }
+    }
+
+    /**
+     * 对计算字段应用空值默认值。
+     * <p>
+     * 当表达式依靠 {@code agg} 推断聚合时，必须先包裹聚合函数，再套 COALESCE，
+     * 避免生成 {@code SUM(COALESCE(amount, 0))} 这类改变业务语义的 SQL。
+     * </p>
+     */
+    public static SqlFragment applyEmptyDefault(SqlFragment sqlFragment, CalculatedFieldDef fieldDef) {
+        if (sqlFragment == null || fieldDef == null || fieldDef.getEmptyDefault() == null) {
+            return sqlFragment;
+        }
+
+        String sql = sqlFragment.getSql();
+        String aggregationType = sqlFragment.getAggregationType();
+        boolean hasAggregate = sqlFragment.isHasAggregate();
+        boolean hasWindow = sqlFragment.isHasWindow();
+
+        if (!hasAggregate && !hasWindow && fieldDef.getAgg() != null) {
+            aggregationType = fieldDef.getAgg().toUpperCase();
+            sql = aggregationType + "(" + sql + ")";
+            hasAggregate = true;
+        }
+
+        SqlFragment wrapped = SqlFragment.ofLiteral(
+                "COALESCE(" + sql + ", " + toSqlLiteral(fieldDef.getEmptyDefault()) + ")",
+                sqlFragment.getInferredType()
+        );
+        wrapped.getReferencedColumns().addAll(sqlFragment.getReferencedColumns());
+        wrapped.setHasAggregate(hasAggregate);
+        wrapped.setHasWindow(hasWindow);
+        wrapped.setAggregationType(aggregationType);
+        return wrapped;
+    }
+
+    private static String toSqlLiteral(Object value) {
+        if (value instanceof Number) {
+            return value.toString();
+        }
+        if (value instanceof Boolean bool) {
+            return bool ? "TRUE" : "FALSE";
+        }
+        String text = String.valueOf(value);
+        if (text.startsWith("'") && text.endsWith("'")) {
+            return text;
+        }
+        return "'" + text.replace("'", "''") + "'";
     }
 
     /**

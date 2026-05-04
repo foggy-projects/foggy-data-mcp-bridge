@@ -124,6 +124,7 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
                             fieldDef.getName(), fieldDef.getAgg());
                 }
             }
+            sqlFragment = CalculatedFieldService.applyEmptyDefault(sqlFragment, fieldDef);
 
             // 3. 创建 CalculatedJdbcColumn
             String caption = StringUtils.isNotEmpty(fieldDef.getCaption()) ? fieldDef.getCaption() : fieldDef.getName();

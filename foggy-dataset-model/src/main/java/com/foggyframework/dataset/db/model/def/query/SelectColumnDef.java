@@ -51,6 +51,8 @@ public class SelectColumnDef {
     String formula;
     /** 计算字段返回类型 */
     String type;
+    /** 计算字段空值默认值，用于将聚合或表达式结果包裹为 COALESCE(expr, emptyDefault) */
+    Object emptyDefault;
     /** 窗口函数 PARTITION BY */
     List<String> partitionBy;
     /** 窗口函数 ORDER BY */

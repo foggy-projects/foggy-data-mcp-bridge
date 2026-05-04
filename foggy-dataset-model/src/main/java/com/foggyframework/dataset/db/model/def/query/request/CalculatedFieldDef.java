@@ -123,6 +123,17 @@ public class CalculatedFieldDef {
     private String type;
 
     /**
+     * 空结果默认值
+     * <p>
+     * 设置后，计算字段 SQL 会被包装为 {@code COALESCE(expression, emptyDefault)}。
+     * 如果同时设置 {@link #agg}，会先对表达式应用聚合，再包裹默认值，
+     * 如 {@code COALESCE(SUM(amount), 0)}。
+     * </p>
+     */
+    @ApiModelProperty(value = "空值默认值", notes = "如 0，用于 COALESCE 包裹聚合或表达式结果")
+    private Object emptyDefault;
+
+    /**
      * 编译后的 AST，运行时使用
      */
     @JsonIgnore
