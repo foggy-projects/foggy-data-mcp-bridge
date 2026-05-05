@@ -1,6 +1,7 @@
 package com.foggyframework.dataset.db.model.engine.compose.compilation;
 
 import com.foggyframework.dataset.db.model.engine.compose.CteUnit;
+import com.foggyframework.dataset.db.model.engine.compose.ComposeOrderByNormalizer;
 import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
 import com.foggyframework.dataset.db.model.engine.compose.plan.BaseModelPlan;
 import com.foggyframework.dataset.db.model.engine.compose.security.ModelBinding;
@@ -201,23 +202,9 @@ final class PerBaseCompiler {
         return item;
     }
 
-    /** Order-by entry accepts {@code "name"} / {@code "name:desc"}. */
+    /** Order-by entry accepts the same shorthand strings as query_model. */
     private static SemanticQueryRequest.OrderItem toOrderItem(String entry) {
-        SemanticQueryRequest.OrderItem item = new SemanticQueryRequest.OrderItem();
-        if (entry.contains(":")) {
-            int idx = entry.indexOf(':');
-            String name = entry.substring(0, idx).trim();
-            String direction = entry.substring(idx + 1).trim().toLowerCase(java.util.Locale.ROOT);
-            if (!"asc".equals(direction) && !"desc".equals(direction)) {
-                direction = "asc";
-            }
-            item.setField(name);
-            item.setDir(direction);
-        } else {
-            item.setField(entry);
-            item.setDir("asc");
-        }
-        return item;
+        return ComposeOrderByNormalizer.toOrderItem(entry);
     }
 
     /** Build a {@link SemanticRequestContext} that carries the binding's

@@ -1,6 +1,7 @@
 package com.foggyframework.dataset.db.model.engine.compose.compilation;
 
 import com.foggyframework.dataset.db.model.engine.compose.ComposeFeatureFlags;
+import com.foggyframework.dataset.db.model.engine.compose.ComposeOrderByNormalizer;
 import com.foggyframework.dataset.db.model.engine.compose.ComposedSql;
 import com.foggyframework.dataset.db.model.engine.compose.CteUnit;
 import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
@@ -14,7 +15,6 @@ import com.foggyframework.dataset.db.model.engine.compose.security.PlanFieldAcce
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
@@ -1170,28 +1170,7 @@ public final class ComposePlanner {
     }
 
     private static String renderOrderEntry(String entry, String dialect) {
-        String trimmed = entry.trim();
-        String name = trimmed;
-        String dir = "ASC";
-        if (trimmed.contains(":")) {
-            String[] parts = trimmed.split(":", 2);
-            name = parts[0].trim();
-            dir = parts[1].trim().toUpperCase(Locale.ROOT);
-        } else if (trimmed.startsWith("-")) {
-            name = trimmed.substring(1).trim();
-            dir = "DESC";
-        } else {
-            String upper = trimmed.toUpperCase(Locale.ROOT);
-            if (upper.endsWith(" DESC")) {
-                name = trimmed.substring(0, trimmed.length() - 5).trim();
-                dir = "DESC";
-            } else if (upper.endsWith(" ASC")) {
-                name = trimmed.substring(0, trimmed.length() - 4).trim();
-            }
-        }
-        if (!Arrays.asList("ASC", "DESC").contains(dir)) {
-            dir = "ASC";
-        }
-        return quoteColumnExpr(unquoteIdentifier(name), dialect) + " " + dir;
+        ComposeOrderByNormalizer.OrderSpec spec = ComposeOrderByNormalizer.parse(entry);
+        return quoteColumnExpr(unquoteIdentifier(spec.field()), dialect) + " " + spec.dirUpper();
     }
 }
