@@ -50,7 +50,7 @@ return { plans: top };
 
 常用字段：`model`、`columns`、`slice`、`having`、`groupBy`、`orderBy`、`limit`、`start`、`distinct`、`calculatedFields`、`timeWindow`。字段语法与 `dataset.query_model` 一致。`model` 只接收查询模型名字符串；不得传已有 plan 或 join 结果。已有 plan 的二阶段处理使用 `previousPlan.query({...})`，内核形式是 `dsl({ source: previousPlan, ... })`。
 
-基础 `dsl({...})` 的 `slice` 只能过滤明细字段或维度字段；不要把聚合表达式或预定义聚合 measure 放进基础 `slice` 当作 WHERE 条件，例如不要写 `{"field": "arOverdueAmount", "op": ">", "value": 0}`。需要在基础聚合阶段过滤 measure 时使用顶层 `having` 并显式传 `groupBy`；需要对 Join/Union/上一阶段输出继续过滤时，使用聚合后的 plan `.query({ slice: [...] })`。
+基础 `dsl({...})` 的 `slice` 是语义过滤：明细/维度字段下推为 WHERE，预定义或已选聚合 measure（如 `{"field": "arOverdueAmount", "op": ">", "value": 0}`）会由引擎提升为 HAVING。不要在同一个 `$or` / `$and` 逻辑组里混合明细字段和聚合 measure；需要对 Join/Union/上一阶段输出继续过滤时，使用聚合后的 plan `.query({ slice: [...] })`。
 
 ## Join / Union
 

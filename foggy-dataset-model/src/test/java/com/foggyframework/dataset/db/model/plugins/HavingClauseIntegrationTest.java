@@ -281,9 +281,39 @@ class HavingClauseIntegrationTest extends EcommerceTestSupport {
 
     @Test
     @Order(6)
-    @DisplayName("slice 中聚合条件应该抛出明确纠错")
+    @DisplayName("slice 中纯聚合条件默认自动提升为 HAVING")
+    void testAggregateSliceShouldLiftToHaving() {
+        DbQueryRequestDef request = new DbQueryRequestDef();
+        request.setQueryModel("FactOrderQueryModel");
+        request.setAutoGroupBy(true);
+        request.setColumns(List.of(
+                "customer$customerType",
+                "sum(amount) as totalAmount"
+        ));
+
+        SliceRequestDef aggregateSlice = new SliceRequestDef();
+        aggregateSlice.setField("totalAmount");
+        aggregateSlice.setOp(">");
+        aggregateSlice.setValue(1000);
+        request.setSlice(List.of(aggregateSlice));
+
+        PagingResultImpl result = queryFacade.queryModelData(
+                PagingRequest.buildPagingRequest(request, 100));
+        List<Map<String, Object>> items = result.getItems();
+
+        assertTrue(items.size() > 0, "应该有查询结果");
+        for (Map<String, Object> item : items) {
+            BigDecimal totalAmount = toBigDecimal(item.get("totalAmount"));
+            assertTrue(totalAmount.compareTo(BigDecimal.valueOf(1000)) > 0,
+                    "slice 中的聚合条件应该按 HAVING 生效，实际: " + totalAmount);
+        }
+    }
+
+    @Test
+    @Order(7)
+    @DisplayName("slice 中行级与聚合条件混在同一个逻辑组时应该抛出明确纠错")
     void testOrMixedConditionShouldFail() {
-        // 测试：聚合字段放在 slice 中应该提示迁移到 having
+        // 测试：同一个逻辑组内混合行级字段与聚合字段无法安全拆分到 WHERE/HAVING
 
         DbQueryRequestDef request = new DbQueryRequestDef();
         request.setQueryModel("FactOrderQueryModel");
@@ -321,12 +351,47 @@ class HavingClauseIntegrationTest extends EcommerceTestSupport {
         String errorMessage = exception.getMessage();
         log.info("捕获到错误消息:\n{}", errorMessage);
 
-        assertTrue(errorMessage.contains("AGGREGATE_MEASURE_IN_SLICE"),
-                "错误消息应该包含 AGGREGATE_MEASURE_IN_SLICE，实际消息：" + errorMessage);
+        assertTrue(errorMessage.contains("MIXED_ROW_AND_AGGREGATE_SLICE"),
+                "错误消息应该包含 MIXED_ROW_AND_AGGREGATE_SLICE，实际消息：" + errorMessage);
         assertTrue(errorMessage.contains("totalAmount"),
                 "错误消息应该包含聚合字段名，实际消息：" + errorMessage);
-        assertTrue(errorMessage.contains("having"),
-                "错误消息应该提示使用 having，实际消息：" + errorMessage);
+        assertTrue(errorMessage.contains("WHERE") && errorMessage.contains("HAVING"),
+                "错误消息应该提示 WHERE/HAVING 拆分边界，实际消息：" + errorMessage);
+    }
+
+    @Test
+    @Order(8)
+    @DisplayName("关闭开关后 slice 中聚合条件保持旧版拒绝行为")
+    void testAggregateSliceShouldRejectWhenSwitchOff() {
+        String property = "foggy.dataset.auto-lift-aggregate-slice-to-having";
+        String previous = System.getProperty(property);
+        System.setProperty(property, "false");
+        try {
+            DbQueryRequestDef request = new DbQueryRequestDef();
+            request.setQueryModel("FactOrderQueryModel");
+            request.setAutoGroupBy(true);
+            request.setColumns(List.of(
+                    "customer$customerType",
+                    "sum(amount) as totalAmount"
+            ));
+
+            SliceRequestDef aggregateSlice = new SliceRequestDef();
+            aggregateSlice.setField("totalAmount");
+            aggregateSlice.setOp(">");
+            aggregateSlice.setValue(1000);
+            request.setSlice(List.of(aggregateSlice));
+
+            Exception exception = assertThrows(Exception.class, () ->
+                    queryFacade.queryModelData(PagingRequest.buildPagingRequest(request, 100)));
+            assertTrue(exception.getMessage().contains("AGGREGATE_MEASURE_IN_SLICE"),
+                    "关闭开关后应保持旧版错误，实际消息：" + exception.getMessage());
+        } finally {
+            if (previous == null) {
+                System.clearProperty(property);
+            } else {
+                System.setProperty(property, previous);
+            }
+        }
     }
 
     // ==========================================

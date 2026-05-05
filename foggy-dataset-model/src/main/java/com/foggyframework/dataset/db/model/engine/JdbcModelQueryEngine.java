@@ -59,6 +59,11 @@ import java.util.stream.Collectors;
 @Slf4j
 @Data
 public class JdbcModelQueryEngine implements QueryEngine {
+    private static final String AUTO_LIFT_AGGREGATE_SLICE_TO_HAVING_PROPERTY =
+            "foggy.dataset.auto-lift-aggregate-slice-to-having";
+    private static final String AUTO_LIFT_AGGREGATE_SLICE_TO_HAVING_ENV =
+            "FOGGY_DATASET_AUTO_LIFT_AGGREGATE_SLICE_TO_HAVING";
+
     JdbcQueryModel jdbcQueryModel;
 
     JdbcQuery jdbcQuery;
@@ -85,6 +90,15 @@ public class JdbcModelQueryEngine implements QueryEngine {
      * 用于判断slice条件是否为聚合条件（需要放入HAVING而非WHERE）
      */
     ModelResultContext.ParsedInlineExpressions parsedInlineExpressions;
+
+    /**
+     * 是否将 slice 中的纯聚合条件自动提升到 HAVING。
+     * <p>
+     * 默认开启，可通过系统属性 foggy.dataset.auto-lift-aggregate-slice-to-having
+     * 或环境变量 FOGGY_DATASET_AUTO_LIFT_AGGREGATE_SLICE_TO_HAVING 关闭。
+     * </p>
+     */
+    boolean autoLiftAggregateSliceToHaving = resolveAutoLiftAggregateSliceToHavingDefault();
 
     /**
      * 不含 ORDER BY 的基础SQL，用于聚合查询的子查询
@@ -118,6 +132,14 @@ public class JdbcModelQueryEngine implements QueryEngine {
     public JdbcModelQueryEngine(JdbcQueryModel jdbcQueryModel, SqlFormulaService sqlFormulaService) {
         this.jdbcQueryModel = jdbcQueryModel;
         this.sqlFormulaService = sqlFormulaService;
+    }
+
+    private static boolean resolveAutoLiftAggregateSliceToHavingDefault() {
+        String value = System.getProperty(AUTO_LIFT_AGGREGATE_SLICE_TO_HAVING_PROPERTY);
+        if (value == null || value.isBlank()) {
+            value = System.getenv(AUTO_LIFT_AGGREGATE_SLICE_TO_HAVING_ENV);
+        }
+        return value == null || value.isBlank() || Boolean.parseBoolean(value);
     }
 
     /**
@@ -203,12 +225,26 @@ public class JdbcModelQueryEngine implements QueryEngine {
             jdbcQuery.getSelect().setDistinct(true);
         }
 
-        // 2.加入切片条件,注意，切片暂时不考虑or
+        // 2. 加入切片条件。纯聚合 slice 视为聚合后过滤，自动写入 HAVING。
+        boolean hasLiftedAggregateSlice = false;
         if (queryRequest.getSlice() != null) {
             for (SliceRequestDef sliceDef : queryRequest.getSlice()) {
-                rejectAggregateConditionInSlice(sliceDef);
-                buildSlice(jdbcQueryModel, jdbcQuery, sliceDef);
+                if (autoLiftAggregateSliceToHaving) {
+                    SliceConditionPhase phase = classifySliceConditionPhase(sliceDef);
+                    if (phase == SliceConditionPhase.AGGREGATE) {
+                        hasLiftedAggregateSlice = true;
+                        buildHaving(jdbcQueryModel, jdbcQuery, sliceDef);
+                    } else {
+                        buildSlice(jdbcQueryModel, jdbcQuery, sliceDef);
+                    }
+                } else {
+                    rejectAggregateConditionInSlice(sliceDef);
+                    buildSlice(jdbcQueryModel, jdbcQuery, sliceDef);
+                }
             }
+        }
+        if (hasLiftedAggregateSlice && !queryRequest.hasGroupBy()) {
+            throw RX.throwAUserTip("HAVING_REQUIRES_GROUP_BY: aggregate slice filters are only supported for grouped aggregate queries. Add groupBy/aggregate columns or move row-level filters to slice.");
         }
         if (queryRequest.getHaving() != null && !queryRequest.getHaving().isEmpty()) {
             if (!queryRequest.hasGroupBy()) {
@@ -949,6 +985,50 @@ public class JdbcModelQueryEngine implements QueryEngine {
                     + "' is an aggregate measure. Move this condition from slice to request.having, for example having: [{field:'"
                     + field + "', op:'" + sliceDef.getOp() + "', value:" + sliceDef.getValue() + "}].");
         }
+    }
+
+    private enum SliceConditionPhase {
+        ROW,
+        AGGREGATE
+    }
+
+    private SliceConditionPhase classifySliceConditionPhase(CondRequestDef sliceDef) {
+        if (sliceDef == null) {
+            return SliceConditionPhase.ROW;
+        }
+        if (sliceDef._isExpressionCondition() || sliceDef._isFieldReference()) {
+            return SliceConditionPhase.ROW;
+        }
+        if (!sliceDef._isLogicalGroup()) {
+            String field = sliceDef.getField();
+            return field != null && isAggregateCondition(field)
+                    ? SliceConditionPhase.AGGREGATE
+                    : SliceConditionPhase.ROW;
+        }
+
+        List<CondRequestDef> children = sliceDef._getGroupChildren();
+        if (children == null || children.isEmpty()) {
+            return SliceConditionPhase.ROW;
+        }
+
+        SliceConditionPhase phase = null;
+        for (CondRequestDef child : children) {
+            SliceConditionPhase childPhase = classifySliceConditionPhase(child);
+            if (phase == null) {
+                phase = childPhase;
+                continue;
+            }
+            if (phase != childPhase) {
+                List<String> aggregateFields = new ArrayList<>();
+                List<String> normalFields = new ArrayList<>();
+                collectFieldsByType(sliceDef, aggregateFields, normalFields);
+                throw RX.throwAUserTip("MIXED_ROW_AND_AGGREGATE_SLICE: a single logical slice group cannot mix row-level fields ("
+                        + String.join(", ", normalFields) + ") and aggregate measures ("
+                        + String.join(", ", aggregateFields)
+                        + ") because it cannot be safely split between WHERE and HAVING. Keep row-level filters in slice and aggregate filters in having or separate top-level slice entries.");
+            }
+        }
+        return phase == null ? SliceConditionPhase.ROW : phase;
     }
 
     /**
