@@ -311,6 +311,33 @@ class HavingClauseIntegrationTest extends EcommerceTestSupport {
 
     @Test
     @Order(7)
+    @DisplayName("无 groupBy 的全局聚合 slice 条件应该提升为 HAVING")
+    void testGlobalAggregateSliceShouldLiftToHavingWithoutGroupBy() {
+        DbQueryRequestDef request = new DbQueryRequestDef();
+        request.setQueryModel("FactOrderQueryModel");
+        request.setAutoGroupBy(false);
+        request.setColumns(List.of(
+                "sum(amount) as totalAmount"
+        ));
+
+        SliceRequestDef aggregateSlice = new SliceRequestDef();
+        aggregateSlice.setField("totalAmount");
+        aggregateSlice.setOp(">");
+        aggregateSlice.setValue(1000);
+        request.setSlice(List.of(aggregateSlice));
+
+        PagingResultImpl result = queryFacade.queryModelData(
+                PagingRequest.buildPagingRequest(request, 100));
+        List<Map<String, Object>> items = result.getItems();
+
+        assertEquals(1, items.size(), "全局聚合应该返回一行结果");
+        BigDecimal totalAmount = toBigDecimal(items.get(0).get("totalAmount"));
+        assertTrue(totalAmount.compareTo(BigDecimal.valueOf(1000)) > 0,
+                "全局聚合 slice 应该按 HAVING 生效，实际: " + totalAmount);
+    }
+
+    @Test
+    @Order(8)
     @DisplayName("slice 中行级与聚合条件混在同一个逻辑组时应该抛出明确纠错")
     void testOrMixedConditionShouldFail() {
         // 测试：同一个逻辑组内混合行级字段与聚合字段无法安全拆分到 WHERE/HAVING
@@ -360,7 +387,7 @@ class HavingClauseIntegrationTest extends EcommerceTestSupport {
     }
 
     @Test
-    @Order(8)
+    @Order(9)
     @DisplayName("关闭开关后 slice 中聚合条件保持旧版拒绝行为")
     void testAggregateSliceShouldRejectWhenSwitchOff() {
         String property = "foggy.dataset.auto-lift-aggregate-slice-to-having";
