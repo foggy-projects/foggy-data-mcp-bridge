@@ -9,6 +9,7 @@ import com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.CondRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
+import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.engine.JdbcModelQueryEngine;
 import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
 import com.foggyframework.dataset.db.model.engine.compose.schema.AliasExtractor;
@@ -414,6 +415,11 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
             for (DbQueryColumn col : queryModel.getJdbcQueryColumns()) {
                 if (col.getName() != null) {
                     fieldNames.add(col.getName());
+                }
+            }
+            for (CalculatedFieldDef calc : queryModel.getPredefinedCalculatedFields()) {
+                if (calc.getName() != null) {
+                    fieldNames.add(calc.getName());
                 }
             }
             CaseInsensitiveFieldResolver ciResolver = new CaseInsensitiveFieldResolver(fieldNames);
@@ -1104,15 +1110,26 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
      */
     private static final java.util.regex.Pattern BARE_FIELD_RE =
             java.util.regex.Pattern.compile("^[A-Za-z_]\\w*(?:\\$\\w+)?$");
+    private static final java.util.regex.Pattern BARE_ALIAS_RE =
+            java.util.regex.Pattern.compile("^\\s*([A-Za-z_]\\w*(?:\\$\\w+)?)\\s+as\\s+([A-Za-z_]\\w*)\\s*$",
+                    java.util.regex.Pattern.CASE_INSENSITIVE);
 
     private void resolveRequestFieldsCaseInsensitive(SemanticQueryRequest request,
                                                       CaseInsensitiveFieldResolver resolver) {
-        // 1. columns (only bare identifiers; skip inline expressions like "sum(amount) as x")
+        // 1. columns (bare identifiers and bare aliases; skip expressions like "sum(amount) as x")
         if (request.getColumns() != null) {
             List<String> resolved = new ArrayList<>();
             for (String col : request.getColumns()) {
-                if (col != null && BARE_FIELD_RE.matcher(col.trim()).matches()) {
-                    resolved.add(resolver.resolve(col.trim()));
+                if (col == null) {
+                    resolved.add(null);
+                    continue;
+                }
+                String trimmed = col.trim();
+                java.util.regex.Matcher aliasMatch = BARE_ALIAS_RE.matcher(trimmed);
+                if (BARE_FIELD_RE.matcher(trimmed).matches()) {
+                    resolved.add(resolver.resolve(trimmed));
+                } else if (aliasMatch.matches()) {
+                    resolved.add(resolver.resolve(aliasMatch.group(1)) + " AS " + aliasMatch.group(2));
                 } else {
                     resolved.add(col);
                 }
