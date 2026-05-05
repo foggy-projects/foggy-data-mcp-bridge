@@ -91,6 +91,39 @@ class FluentApiCompileTest {
             String sqlStr = sql.getSql().toUpperCase();
             assertTrue(sqlStr.contains("ORDER BY"), "Should contain ORDER BY");
             assertTrue(sqlStr.contains("LIMIT"), "Should contain LIMIT 20");
+            assertTrue(sql.getSql().contains("ORDER BY totalAmount DESC"),
+                    "Shorthand '-totalAmount' should render as ORDER BY totalAmount DESC. Got: "
+                            + sql.getSql());
+        }
+
+        @Test
+        @DisplayName("outer CTE orderBy +field renders ASC instead of raw +field")
+        void twoStageAggregation_orderByPlusShorthand_mysql8() {
+            semanticService.stub("SaleOrderQM",
+                    "SELECT partner_id, amount_total FROM sale_order WHERE state='done'");
+
+            BaseModelPlan sales = BaseModelPlan.builder()
+                    .model("SaleOrderQM")
+                    .columns(List.of("partnerId", "amountTotal"))
+                    .build();
+
+            PlanColumnRef partnerId = new PlanColumnRef(sales, "partnerId");
+            PlanColumnRef amountTotal = new PlanColumnRef(sales, "amountTotal");
+
+            DerivedQueryPlan grouped = sales
+                    .fluentGroupBy(partnerId)
+                    .fluentSelect(partnerId, amountTotal.sum().as("totalAmount"));
+
+            DerivedQueryPlan result = grouped
+                    .fluentOrderBy("+totalAmount")
+                    .fluentLimit(20);
+
+            ComposedSql sql = compile(result, "mysql8");
+            assertNotNull(sql);
+            assertTrue(sql.getSql().contains("ORDER BY totalAmount ASC"),
+                    "Shorthand '+totalAmount' should render as ORDER BY totalAmount ASC. Got: "
+                            + sql.getSql());
+            assertFalse(sql.getSql().contains("+totalAmount"));
         }
 
         @Test

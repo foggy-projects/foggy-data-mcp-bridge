@@ -2,6 +2,7 @@ package com.foggyframework.dataset.db.model.engine.compose.schema;
 
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.engine.compose.ComposeFeatureFlags;
+import com.foggyframework.dataset.db.model.engine.compose.ComposeOrderByNormalizer;
 import com.foggyframework.dataset.db.model.engine.compose.compilation.ComposePlanner;
 import com.foggyframework.dataset.db.model.engine.compose.plan.AggregateColumn;
 import com.foggyframework.dataset.db.model.engine.compose.plan.BaseModelPlan;
@@ -392,8 +393,7 @@ public final class SchemaDerivation {
                     "this plan's output columns", planPath, "group_by");
         }
         for (String ob : orderBy) {
-            // strip leading '-' for desc sort
-            String stripped = ob.startsWith("-") ? ob.substring(1) : ob;
+            String stripped = ComposeOrderByNormalizer.fieldName(ob);
             assertReferenceVisible(stripped, outputNames,
                     "this plan's output columns", planPath, "order_by");
         }

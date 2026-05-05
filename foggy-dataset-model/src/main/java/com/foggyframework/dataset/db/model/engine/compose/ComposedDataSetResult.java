@@ -213,18 +213,11 @@ public class ComposedDataSetResult implements PropertyFunction {
     private List<SemanticQueryRequest.OrderItem> convertOrderItems(List<?> rawOrderBy) {
         List<SemanticQueryRequest.OrderItem> result = new ArrayList<>();
         for (Object item : rawOrderBy) {
-            SemanticQueryRequest.OrderItem oi = new SemanticQueryRequest.OrderItem();
-            if (item instanceof String str) {
-                str = str.trim();
-                if (str.startsWith("-")) {
-                    oi.setField(str.substring(1));
-                    oi.setDir("desc");
-                } else {
-                    oi.setField(str);
-                    oi.setDir("asc");
-                }
+            try {
+                result.add(ComposeOrderByNormalizer.toOrderItem(item));
+            } catch (IllegalArgumentException ex) {
+                // Preserve legacy permissiveness for unsupported entries.
             }
-            result.add(oi);
         }
         return result;
     }

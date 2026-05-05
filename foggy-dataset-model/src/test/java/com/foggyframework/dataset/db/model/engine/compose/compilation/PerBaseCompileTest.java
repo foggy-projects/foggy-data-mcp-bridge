@@ -9,6 +9,8 @@ import com.foggyframework.dataset.db.model.engine.compose.security.ModelBinding;
 import com.foggyframework.dataset.db.model.semantic.domain.DeniedPhysicalColumn;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import java.util.List;
 import java.util.Map;
@@ -302,6 +304,92 @@ class PerBaseCompileTest {
                         .dialect("sqlite")
                         .build());
         assertEquals("asc", svc.invocations.get(0).request.getOrderBy().get(0).getDir());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "'-name', name, desc",
+            "'+name', name, asc",
+            "name, name, asc",
+            "'name desc', name, desc",
+            "'name asc', name, asc"
+    })
+    @DisplayName("compose base DSL orderBy shorthand normalizes before v1.3 validation")
+    void orderByShorthandNormalizesBeforeValidation(
+            String rawOrderBy,
+            String expectedField,
+            String expectedDir) {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT * FROM t");
+        BaseModelPlan plan = BaseModelPlan.builder()
+                .model("M").columns(List.of("id", "name"))
+                .orderBy(List.of(rawOrderBy))
+                .build();
+        Map<String, ModelBinding> bindings = Map.of("M", CompileTestHelpers.emptyBinding());
+
+        ComposeSqlCompiler.compilePlanToSql(
+                plan,
+                CompileTestHelpers.context(CompileTestHelpers.resolverFor(bindings)),
+                ComposeSqlCompiler.CompileOptions.builder()
+                        .semanticService(svc)
+                        .bindings(bindings)
+                        .dialect("sqlite")
+                        .build());
+
+        assertEquals(expectedField, svc.invocations.get(0).request.getOrderBy().get(0).getField());
+        assertEquals(expectedDir, svc.invocations.get(0).request.getOrderBy().get(0).getDir());
+    }
+
+    @Test
+    @DisplayName("invalid shorthand orderBy forwards normalized field to validator")
+    void orderByInvalidFieldForwardedWithoutPrefix() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT * FROM t");
+        BaseModelPlan plan = BaseModelPlan.builder()
+                .model("M").columns(List.of("id", "missingField"))
+                .orderBy(List.of("-missingField"))
+                .build();
+        Map<String, ModelBinding> bindings = Map.of("M", CompileTestHelpers.emptyBinding());
+
+        ComposeSqlCompiler.compilePlanToSql(
+                plan,
+                CompileTestHelpers.context(CompileTestHelpers.resolverFor(bindings)),
+                ComposeSqlCompiler.CompileOptions.builder()
+                        .semanticService(svc)
+                        .bindings(bindings)
+                        .dialect("sqlite")
+                        .build());
+
+        assertEquals("missingField", svc.invocations.get(0).request.getOrderBy().get(0).getField());
+        assertFalse(svc.invocations.get(0).request.getOrderBy().get(0).getField().startsWith("-"));
+    }
+
+    @Test
+    @DisplayName("fieldAccess governance sees normalized orderBy field")
+    void orderByFieldAccessUsesNormalizedField() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT id FROM t");
+        ModelBinding binding = ModelBinding.builder()
+                .fieldAccess(List.of("id"))
+                .build();
+        BaseModelPlan plan = BaseModelPlan.builder()
+                .model("M").columns(List.of("id", "secretAmount"))
+                .orderBy(List.of("-secretAmount"))
+                .build();
+        Map<String, ModelBinding> bindings = Map.of("M", binding);
+
+        ComposeSqlCompiler.compilePlanToSql(
+                plan,
+                CompileTestHelpers.context(CompileTestHelpers.resolverFor(bindings)),
+                ComposeSqlCompiler.CompileOptions.builder()
+                        .semanticService(svc)
+                        .bindings(bindings)
+                        .dialect("sqlite")
+                        .build());
+
+        assertEquals("secretAmount", svc.invocations.get(0).request.getOrderBy().get(0).getField());
+        assertTrue(svc.invocations.get(0).context.getFieldAccess().contains("id"));
+        assertFalse(svc.invocations.get(0).context.getFieldAccess().contains("secretAmount"));
     }
 
     @Test

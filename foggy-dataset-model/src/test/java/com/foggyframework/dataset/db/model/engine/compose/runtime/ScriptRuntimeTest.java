@@ -514,6 +514,53 @@ class ScriptRuntimeTest {
     }
 
     @Test
+    @DisplayName("dataset.compose_script dsl() normalizes orderBy shorthand into SemanticQueryRequest")
+    void scriptRuntimeDsl_normalizesOrderByShorthandIntoRequest() {
+        AtomicReference<SemanticQueryRequest> captured = new AtomicReference<>();
+        SemanticQueryServiceV3 fakeSvc = new SemanticQueryServiceV3() {
+            @Override
+            public com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult generateSql(
+                    String model, SemanticQueryRequest req, SemanticRequestContext ctx) {
+                captured.set(req);
+                return new com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult(
+                        "SELECT id, name, date_order FROM employee", List.of(), null);
+            }
+
+            @Override
+            public com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse queryModel(
+                    String model, SemanticQueryRequest req, String mode, SemanticRequestContext ctx) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse validateQuery(
+                    String model, SemanticQueryRequest req, SemanticRequestContext ctx) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public List<Map<String, Object>> executeSql(String sql, List<Object> params, String routeModel) {
+                throw new AssertionError("preview mode must not execute SQL");
+            }
+        };
+
+        ScriptRuntime.runScript(
+                "return dsl({model: 'EmployeeQM', columns: ['id', 'name', 'dateOrder'], "
+                        + "orderBy: ['-dateOrder', '+id', 'name', 'dateOrder desc']});",
+                dummyCtx(), fakeSvc, "mysql8", true);
+
+        assertNotNull(captured.get());
+        assertEquals("dateOrder", captured.get().getOrderBy().get(0).getField());
+        assertEquals("desc", captured.get().getOrderBy().get(0).getDir());
+        assertEquals("id", captured.get().getOrderBy().get(1).getField());
+        assertEquals("asc", captured.get().getOrderBy().get(1).getDir());
+        assertEquals("name", captured.get().getOrderBy().get(2).getField());
+        assertEquals("asc", captured.get().getOrderBy().get(2).getDir());
+        assertEquals("dateOrder", captured.get().getOrderBy().get(3).getField());
+        assertEquals("desc", captured.get().getOrderBy().get(3).getDir());
+    }
+
+    @Test
     @DisplayName("dsl() maps timeWindow into SemanticQueryRequest")
     void dslFunction_mapsTimeWindowIntoRequest() {
         AtomicReference<com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest> captured =
