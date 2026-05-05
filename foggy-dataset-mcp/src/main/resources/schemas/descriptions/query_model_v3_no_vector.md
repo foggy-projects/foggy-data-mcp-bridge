@@ -26,7 +26,7 @@
 | 属性/度量 | 直接使用字段名 |
 
 
-只使用 describe 返回的完整字段名，不要自己拼接多跳字段，例如不要把 `move$invoiceUserId` 猜成 `move$invoiceUserId$caption`，也不要把关系字段简写成 `caption`。字段未暴露时，省略该列或改用暴露该字段的模型。
+字段名是闭集：只使用 describe 返回的完整字段名。模型没返回就不要拼、不要推导、不要自己拼接多跳字段，例如不要把 `move$invoiceUserId` 猜成 `move$invoiceUserId$caption`，也不要把关系字段简写成 `caption`。遇到 `invoiceDate` 这类普通属性时，不要追加 `$year` / `$month`；只有 describe 明确返回 `invoiceDate$year` / `invoiceDate$month` 时才可使用。字段未暴露时，省略该列、改用暴露该字段的模型，或说明当前模型未提供该粒度。
 
 ### 父子维度 (Parent-Child Dimension)
 层级结构维度（如组织架构、公司层级）支持两种访问视角：
@@ -119,7 +119,7 @@
 限制：`targetMetrics` 不可引用 calculatedFields；后置 calculatedFields 不能设置 `agg` 或窗口字段。
 
 ### 日期分桶与 SQL 函数边界
-普通“按月/按周/按年分组”不要在 `columns`、`groupBy`、`orderBy` 中生成 `DATE_TRUNC(...)`、`YEAR(...)`、`MONTH(...)` 等 SQL 函数字段，也不要把 `DATE_TRUNC` 当字段名。先调用 `dataset.describe_model_internal`，只使用返回的日期粒度字段（如 `salesDate$year`、`salesDate$month`、`salesDate$week`）进行展示、分组和排序。
+普通“按月/按周/按年分组”不要在 `columns`、`groupBy`、`orderBy` 中生成 `DATE_TRUNC(...)`、`YEAR(...)`、`MONTH(...)` 等 SQL 函数字段，也不要把 `DATE_TRUNC` 当字段名。先调用 `dataset.describe_model_internal`，只使用返回的日期粒度字段（如 `salesDate$year`、`salesDate$month`、`salesDate$week`）进行展示、分组和排序。不要把普通日期属性自行映射成 `$year` / `$month`；例如只返回 `invoiceDate` 时，不要生成 `invoiceDate$year`。
 
 如果模型没有暴露所需日期粒度字段，不要自造 SQL 函数；改用已有日期字段过滤、`timeWindow`，或说明当前模型未提供该粒度。同比、环比、YTD、MTD、rolling 继续使用 `timeWindow`。
 
