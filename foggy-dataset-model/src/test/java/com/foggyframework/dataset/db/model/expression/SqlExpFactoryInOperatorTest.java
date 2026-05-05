@@ -176,6 +176,29 @@ class SqlExpFactoryInOperatorTest {
     }
 
     @Test
+    @DisplayName("方括号列表 `status in ['a', 'b']` 在 IN RHS 中规范化为 SqlListExp")
+    void parseInWithSquareBracketList() throws Exception {
+        Exp exp = parser.compileEl(null, "status in ['not_paid', 'partial', 'in_payment']");
+        SqlBinaryExp bin = unwrapBinary(exp);
+        assertEquals("IN", bin.getOperator());
+        assertTrue(bin.getRight() instanceof SqlListExp);
+        assertEquals(3, ((SqlListExp) bin.getRight()).size());
+    }
+
+    @Test
+    @DisplayName("if(... in [...]) 不把 IN 列表逗号误拆为 IIF 参数")
+    void compileIfWithSquareBracketInList() {
+        Exp exp = CalculatedFieldService.compileExpression(
+                "if(status in ['not_paid', 'partial', 'in_payment'], 1, 0)");
+        String rendering = exp.toString();
+        assertTrue(rendering.toUpperCase().contains("IF"));
+        assertTrue(rendering.toUpperCase().contains("IN"));
+        assertTrue(rendering.contains("'not_paid'"));
+        assertTrue(rendering.contains("'partial'"));
+        assertTrue(rendering.contains("'in_payment'"));
+    }
+
+    @Test
     @DisplayName("`(a + b)` 单元素表达式括号仍按分组语义处理（向后兼容）")
     void singleGroupingParenStillWorks() throws Exception {
         Exp exp = parser.compileEl(null, "(a + b) * c");

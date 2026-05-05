@@ -35,6 +35,12 @@ import java.util.stream.Collectors;
 @Slf4j
 public class SqlExpFactory extends DefaultExpFactory {
 
+    @Override
+    public Exp createArray(ListExp is) {
+        fixArray(is);
+        return new SqlListExp(new ArrayList<>(is));
+    }
+
     /**
      * 创建标识符表达式
      * <p>
