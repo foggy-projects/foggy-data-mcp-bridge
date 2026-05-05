@@ -26,6 +26,7 @@ import com.foggyframework.dataset.db.model.service.QueryFacade;
 import com.foggyframework.dataset.db.model.spi.DbQueryColumn;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
 import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
+import com.foggyframework.dataset.db.model.semantic.util.CaseInsensitiveFieldResolver;
 import com.foggyframework.dataset.model.PagingResultImpl;
 import com.foggyframework.dataset.utils.DataSourceQueryUtils;
 import jakarta.annotation.Resource;
@@ -406,6 +407,18 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
 
         // 获取模型定义用于字段校验（带命名空间）
         QueryModel queryModel = queryModelLoader.getJdbcQueryModel(model, namespace);
+
+        // --- Case-insensitive canonical field resolution ---
+        if (CaseInsensitiveFieldResolver.isEnabled() && queryModel != null) {
+            Set<String> fieldNames = new LinkedHashSet<>();
+            for (DbQueryColumn col : queryModel.getJdbcQueryColumns()) {
+                if (col.getName() != null) {
+                    fieldNames.add(col.getName());
+                }
+            }
+            CaseInsensitiveFieldResolver ciResolver = new CaseInsensitiveFieldResolver(fieldNames);
+            resolveRequestFieldsCaseInsensitive(request, ciResolver);
+        }
 
         // 复制 columns 和 groupBy 以便修改
         List<String> columns = new ArrayList<>(request.getColumns());
@@ -1077,6 +1090,72 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                     .queryForList(sql, paramsArray);
         } catch (Exception e) {
             throw new RuntimeException("executeSql failed: " + e.getMessage(), e);
+        }
+    }
+
+    // ---- Case-insensitive field resolution helper ----
+
+    /**
+     * Resolve field names in the request to their canonical casing.
+     * <p>
+     * Mutates the request in-place: columns, slice/having field keys,
+     * orderBy fields, and groupBy fields are resolved.
+     * </p>
+     */
+    private static final java.util.regex.Pattern BARE_FIELD_RE =
+            java.util.regex.Pattern.compile("^[A-Za-z_]\\w*(?:\\$\\w+)?$");
+
+    private void resolveRequestFieldsCaseInsensitive(SemanticQueryRequest request,
+                                                      CaseInsensitiveFieldResolver resolver) {
+        // 1. columns (only bare identifiers; skip inline expressions like "sum(amount) as x")
+        if (request.getColumns() != null) {
+            List<String> resolved = new ArrayList<>();
+            for (String col : request.getColumns()) {
+                if (col != null && BARE_FIELD_RE.matcher(col.trim()).matches()) {
+                    resolved.add(resolver.resolve(col.trim()));
+                } else {
+                    resolved.add(col);
+                }
+            }
+            request.setColumns(resolved);
+        }
+
+        // 2. slice
+        resolveSliceFieldNames(request.getSlice(), resolver);
+        resolveSliceFieldNames(request.getHaving(), resolver);
+
+        // 3. orderBy
+        if (request.getOrderBy() != null) {
+            for (SemanticQueryRequest.OrderItem item : request.getOrderBy()) {
+                if (item.getField() != null) {
+                    item.setField(resolver.resolve(item.getField()));
+                }
+            }
+        }
+
+        // 4. groupBy
+        if (request.getGroupBy() != null) {
+            for (SemanticQueryRequest.GroupByItem item : request.getGroupBy()) {
+                if (item.getField() != null) {
+                    item.setField(resolver.resolve(item.getField()));
+                }
+            }
+        }
+    }
+
+    private void resolveSliceFieldNames(List<SemanticQueryRequest.SliceItem> items,
+                                         CaseInsensitiveFieldResolver resolver) {
+        if (items == null) return;
+        for (SemanticQueryRequest.SliceItem item : items) {
+            if (item.getField() != null) {
+                item.setField(resolver.resolve(item.getField()));
+            }
+            if (item.getOr() != null) {
+                resolveSliceFieldNames(item.getOr(), resolver);
+            }
+            if (item.getAnd() != null) {
+                resolveSliceFieldNames(item.getAnd(), resolver);
+            }
         }
     }
 }
