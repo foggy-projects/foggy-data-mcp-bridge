@@ -4,6 +4,8 @@ import com.foggyframework.dataset.db.model.engine.compose.ComposedSql;
 import com.foggyframework.dataset.db.model.engine.compose.compilation.CompileTestHelpers.FakeSemanticService;
 import com.foggyframework.dataset.db.model.engine.compose.plan.BaseModelPlan;
 import com.foggyframework.dataset.db.model.engine.compose.plan.DerivedQueryPlan;
+import com.foggyframework.dataset.db.model.engine.compose.schema.ComposeSchemaErrorCodes;
+import com.foggyframework.dataset.db.model.engine.compose.schema.ComposeSchemaException;
 import com.foggyframework.dataset.db.model.engine.compose.security.ModelBinding;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -100,7 +102,7 @@ class DerivedLoweringTest {
     void groupByEmitted() {
         FakeSemanticService svc = new FakeSemanticService();
         svc.stub("M", "SELECT * FROM tbl");
-        BaseModelPlan base = CompileTestHelpers.base("M", "id");
+        BaseModelPlan base = CompileTestHelpers.base("M", "id", "dept");
         DerivedQueryPlan derived = DerivedQueryPlan.builder()
                 .source(base).columns(List.of("dept"))
                 .groupBy(List.of("dept"))
@@ -235,5 +237,44 @@ class DerivedLoweringTest {
 
         ComposedSql sql = compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "sqlite");
         assertTrue(sql.getSql().contains("a = ? AND b = ?"));
+    }
+
+    @Test
+    @DisplayName("derived 引用不存在的 $ 字段时编译期拒绝")
+    void unknownDollarFieldRejectedBeforeSql() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT id, amount FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "id", "amount");
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(base)
+                .columns(List.of("salesperson$id"))
+                .build();
+
+        ComposeSchemaException ex = assertThrows(ComposeSchemaException.class,
+                () -> compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "postgres"));
+        assertEquals(ComposeSchemaErrorCodes.DERIVED_QUERY_UNKNOWN_FIELD, ex.code());
+        assertEquals("salesperson$id", ex.offendingField());
+    }
+
+    @Test
+    @DisplayName("derived slice IN 列表展开为多个占位符")
+    void sliceInListExpandsPlaceholders() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT id, status FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "id", "status");
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(base)
+                .columns(List.of("id"))
+                .slice(List.of(Map.of(
+                        "field", "status",
+                        "op", "in",
+                        "value", List.of("draft", "done"))))
+                .build();
+
+        ComposedSql sql = compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "postgres");
+
+        assertTrue(sql.getSql().contains("WHERE status IN (?, ?)"));
+        assertTrue(!sql.getSql().contains(" IN ?"));
+        assertEquals(List.of("draft", "done"), sql.getParams());
     }
 }
