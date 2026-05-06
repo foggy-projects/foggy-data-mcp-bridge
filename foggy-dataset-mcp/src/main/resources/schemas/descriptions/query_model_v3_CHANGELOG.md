@@ -2,6 +2,30 @@
 
 This file records why the `dataset.query_model` prompt contract changed. Java is the source of truth; Python and Odoo bridge copies synchronize from this directory unless an explicit exception is documented.
 
+## 2026-05-06 - Date Difference Cutoff Filtering Boundary
+
+Status: implemented
+
+Problem:
+AR-003 focused benchmark retries did not reproduce the earlier chat timeout, but repeatedly produced avoidable query errors. Two runs created `calculatedFields` with SQL-style `DATEDIFF('2026-05-06', dateMaturity)` and one run misspelled the predefined AR measure as `arOutdueAmount`. The engine correctly rejected the unknown function/field, but the query prompt did not clearly state how to express "overdue more than N days" without inventing a date-diff column.
+
+Contract change:
+- `calculatedFields.expression` uses Foggy expression DSL, not database SQL.
+- Do not generate SQL dialect functions or fragments such as `DATEDIFF(...)`, `DATE_TRUNC(...)`, `YEAR(...)`, `MONTH(...)`, or `CASE WHEN` unless the tool documentation explicitly lists the supported Foggy expression syntax.
+- For "older than N days", "overdue more than N days", and similar date-difference filters, compute the absolute cutoff date before the tool call and filter the exposed date field in `slice`.
+- Example: on 2026-05-06, "overdue more than 30 days" should use `{"field": "dateMaturity", "op": "<", "value": "2026-04-06"}` instead of `overdueDays` or `DATEDIFF(...)`.
+- Only create a date-difference `calculatedFields` column when the user explicitly asks to display the date-difference value and the supported expression syntax is documented.
+
+Files changed:
+- `query_model_v3.md`
+- `query_model_v3_basic.md`
+- `query_model_v3_no_vector.md`
+
+Validation:
+- Sync Java canonical prompt files to Python and Odoo runtime copies.
+- Run prompt/description contract tests.
+- Run AR-003 focused benchmark and check absence of `DATEDIFF`, `overdueDays`, and `arOutdueAmount`.
+
 ## 2026-05-05 - Closed Field Names For Date Grain Suffixes
 
 Status: implemented
