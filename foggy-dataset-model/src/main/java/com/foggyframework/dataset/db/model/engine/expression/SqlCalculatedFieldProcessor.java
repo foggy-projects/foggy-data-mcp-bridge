@@ -193,7 +193,35 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
             overClause.append("ORDER BY ");
             List<String> orderSqls = new ArrayList<>();
             for (WindowOrderDef orderDef : fieldDef.getWindowOrderBy()) {
-                DbQueryColumn col = context.resolveColumn(orderDef.getField());
+                String orderField = orderDef.getField();
+                // Fail-closed: validate the field reference before SQL generation.
+                // Raw expressions (containing '(') are never field names and must be
+                // rejected immediately to prevent leaking physical-column SQL hints.
+                if (orderField != null && orderField.contains("(")) {
+                    throw new IllegalArgumentException(
+                        "COMPOSE_WINDOW_ORDER_BY_UNRESOLVABLE: calculatedFields["
+                        + fieldDef.getName() + "].windowOrderBy field "
+                        + orderField + " looks like a raw SQL expression (contains '('). "
+                        + "Only QM field names (measures, dimensions, or prior calc-field "
+                        + "names) are valid here. Use a base model measure field instead."
+                    );
+                }
+                // Use tryResolveColumn (non-throwing) to check resolvability before
+                // committing to the SQL build path.
+                DbQueryColumn col = context.tryResolveColumn(orderField);
+                if (col == null) {
+                    throw new IllegalArgumentException(
+                        "COMPOSE_WINDOW_ORDER_BY_UNRESOLVABLE: calculatedFields["
+                        + fieldDef.getName() + "].windowOrderBy field "
+                        + orderField + " cannot be resolved as a QM measure, "
+                        + "dimension, or prior calc-field name. "
+                        + "If it is an alias defined by another calculatedField in "
+                        + "this same query, it is not available in the OVER clause at "
+                        + "this stage. Use a base model measure field or wrap the "
+                        + "aggregation in a preceding query stage before applying the "
+                        + "window function."
+                    );
+                }
                 String alias = context.getAlias(col);
                 String colSql = resolveColumnSql(col, alias, appCtx);
                 orderSqls.add(colSql + " " + orderDef.getNormalizedDir());

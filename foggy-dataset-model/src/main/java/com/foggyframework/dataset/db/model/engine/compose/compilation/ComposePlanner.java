@@ -410,6 +410,42 @@ public final class ComposePlanner {
         return Collections.emptyList();
     }
 
+    private static Iterable<Object> iterSliceEntries(Iterable<?> slice) {
+        if (slice == null) return Collections.emptyList();
+        List<Object> out = new ArrayList<>();
+        for (Object entry : slice) {
+            if (!(entry instanceof Map<?, ?> map)) continue;
+            if (map.size() == 1) {
+                Map.Entry<?, ?> e = map.entrySet().iterator().next();
+                Object key = e.getKey();
+                if (SYMMETRIC_LOGICAL_OPS.contains(key)) {
+                    Object val = e.getValue();
+                    if (val instanceof Iterable<?> it) {
+                        for (Object sub : iterSliceEntries(it)) {
+                            out.add(sub);
+                        }
+                    }
+                    continue;
+                }
+                if ("$not".equals(key)) {
+                    Object val = e.getValue();
+                    if (val instanceof Map) {
+                        for (Object sub : iterSliceEntries(Collections.singletonList(val))) {
+                            out.add(sub);
+                        }
+                    } else if (val instanceof Iterable<?> it) {
+                        for (Object sub : iterSliceEntries(it)) {
+                            out.add(sub);
+                        }
+                    }
+                    continue;
+                }
+            }
+            out.add(entry);
+        }
+        return out;
+    }
+
     private static void validateDerivedOutputRefs(DerivedQueryPlan plan, List<String> sourceColumns) {
         if (sourceColumns == null || sourceColumns.isEmpty()) {
             return;
@@ -426,6 +462,34 @@ public final class ComposePlanner {
                             ComposeSchemaErrorCodes.PHASE_SCHEMA_DERIVE,
                             "DerivedQueryPlan",
                             unquoted);
+                }
+            }
+        }
+        for (Object entry : iterSliceEntries(plan.slice())) {
+            String fieldName = sliceFieldName(entry);
+            if (fieldName != null) {
+                String fieldStr = fieldName.trim();
+                if (DOTTED_REF.matcher(fieldStr).matches()) {
+                    String aliasPart = fieldStr.split("\\.")[0];
+                    throw new ComposeSchemaException(
+                            ComposeSchemaErrorCodes.DERIVED_QUERY_UNKNOWN_FIELD,
+                            "derived query slice references unknown field '" + aliasPart
+                                    + "' not present in source output schema (available: " + sourceNames + ")",
+                            ComposeSchemaErrorCodes.PHASE_SCHEMA_DERIVE,
+                            "DerivedQueryPlan",
+                            aliasPart);
+                }
+                for (String ident : extractUnquotedIdentifiers(fieldStr)) {
+                    String unquoted = unquoteIdentifier(ident);
+                    if (!sourceNames.contains(unquoted)) {
+                        throw new ComposeSchemaException(
+                                ComposeSchemaErrorCodes.DERIVED_QUERY_UNKNOWN_FIELD,
+                                "derived query slice references unknown field '" + unquoted
+                                        + "' not present in source output schema (available: " + sourceNames + ")",
+                                ComposeSchemaErrorCodes.PHASE_SCHEMA_DERIVE,
+                                "DerivedQueryPlan",
+                                unquoted);
+                    }
                 }
             }
         }
@@ -532,6 +596,21 @@ public final class ComposePlanner {
      *  query. */
     private static final Pattern EXPR_TOKEN_PATTERN =
             Pattern.compile("[A-Za-z_$][A-Za-z0-9_$]*|[^A-Za-z_$]+");
+
+    private static final Pattern DOTTED_REF =
+            Pattern.compile("^[A-Za-z_][A-Za-z0-9_$]*\\.[A-Za-z_][A-Za-z0-9_$]*$");
+
+    /**
+     * Slice DSL operators whose value is a list of sub-conditions joined with
+     * the operator's own semantics (OR / AND).  Kept as a constant so that
+     * {@link #iterSliceEntries} (validation path) and {@link #renderSliceEntry}
+     * (SQL render path) share the same authoritative source — adding a new
+     * operator only requires updating these two sets.
+     */
+    private static final Set<String> SYMMETRIC_LOGICAL_OPS = Set.of("$or", "$and");
+
+    /** All logical grouping operators including negation. */
+    private static final Set<String> ALL_LOGICAL_OPS = Set.of("$or", "$and", "$not");
 
     private static List<String> extractUnquotedIdentifiers(String expr) {
         if (expr == null || expr.isBlank()) {
@@ -1334,9 +1413,14 @@ public final class ComposePlanner {
         if (!plan.slice().isEmpty()) {
             List<String> frags = new ArrayList<>();
             for (Object entry : plan.slice()) {
-                frags.add(renderSliceEntry(entry, outerParams, dialect, innerAlias));
+                String subSql = renderSliceEntry(entry, outerParams, dialect, innerAlias);
+                if (subSql != null && !subSql.isEmpty()) {
+                    frags.add(subSql);
+                }
             }
-            sb.append("\nWHERE ").append(String.join(" AND ", frags));
+            if (!frags.isEmpty()) {
+                sb.append("\nWHERE ").append(String.join(" AND ", frags));
+            }
         }
 
         if (!plan.groupBy().isEmpty()) {
@@ -1370,6 +1454,43 @@ public final class ComposePlanner {
 
     private static String renderSliceEntry(
             Object entry, List<Object> outerParams, String dialect, String innerAlias) {
+        if (entry instanceof Map<?, ?> map && map.size() == 1) {
+            Map.Entry<?, ?> e = map.entrySet().iterator().next();
+            Object key = e.getKey();
+            if (SYMMETRIC_LOGICAL_OPS.contains(key)) {
+                Object val = e.getValue();
+                if (!(val instanceof Iterable<?>)) {
+                    throw new ComposeCompileException(
+                            ComposeCompileErrorCodes.UNSUPPORTED_PLAN_SHAPE,
+                            ComposeCompileErrorCodes.PHASE_PLAN_LOWER,
+                            "Logical operator '" + key + "' requires a list.");
+                }
+                List<String> subFrags = new ArrayList<>();
+                for (Object sub : (Iterable<?>) val) {
+                    String subSql = renderSliceEntry(sub, outerParams, dialect, innerAlias);
+                    if (subSql != null && !subSql.isEmpty()) {
+                        subFrags.add(subSql);
+                    }
+                }
+                if (subFrags.isEmpty()) return "";
+                if (subFrags.size() == 1) return subFrags.get(0);
+                String op = "$or".equals(key) ? " OR " : " AND ";
+                return "(" + String.join(op, subFrags) + ")";
+            }
+            if ("$not".equals(key)) {
+                Object val = e.getValue();
+                Iterable<?> it = val instanceof Iterable<?> ? (Iterable<?>) val : Collections.singletonList(val);
+                List<String> subFrags = new ArrayList<>();
+                for (Object sub : it) {
+                    String subSql = renderSliceEntry(sub, outerParams, dialect, innerAlias);
+                    if (subSql != null && !subSql.isEmpty()) {
+                        subFrags.add(subSql);
+                    }
+                }
+                if (subFrags.isEmpty()) return "";
+                return "NOT (" + String.join(" AND ", subFrags) + ")";
+            }
+        }
         SliceShape s = SliceShape.parse(entry);
         String fieldSql = renderDerivedSliceField(innerAlias, s.field, dialect);
         String op = normalizeSliceOp(s.op);
@@ -1377,6 +1498,9 @@ public final class ComposePlanner {
             String ref = s.fieldReferenceValue();
             return fieldSql + " " + op + " "
                     + renderDerivedSliceField(innerAlias, ref, dialect);
+        }
+        if ("IS NULL".equals(op) || "IS NOT NULL".equals(op)) {
+            return fieldSql + " " + op;
         }
         if ("IN".equals(op) || "NOT IN".equals(op)) {
             if (!(s.value instanceof Collection<?> values) || values.isEmpty()) {
@@ -1429,7 +1553,7 @@ public final class ComposePlanner {
         if (currentStageAliases.isEmpty()) {
             return;
         }
-        for (Object entry : plan.slice()) {
+        for (Object entry : iterSliceEntries(plan.slice())) {
             String fieldName = sliceFieldName(entry);
             if (fieldName != null && currentStageAliases.contains(fieldName)) {
                 throw new ComposeSchemaException(
