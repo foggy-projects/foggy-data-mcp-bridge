@@ -3,6 +3,7 @@ package com.foggyframework.dataset.db.model.plugins;
 import com.foggyframework.dataset.client.domain.PagingRequest;
 import com.foggyframework.dataset.db.model.def.query.request.CondRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
+import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.db.model.ecommerce.EcommerceTestSupport;
 import com.foggyframework.dataset.db.model.service.QueryFacade;
@@ -306,6 +307,46 @@ class HavingClauseIntegrationTest extends EcommerceTestSupport {
             BigDecimal totalAmount = toBigDecimal(item.get("totalAmount"));
             assertTrue(totalAmount.compareTo(BigDecimal.valueOf(1000)) > 0,
                     "slice 中的聚合条件应该按 HAVING 生效，实际: " + totalAmount);
+        }
+    }
+
+    @Test
+    @Order(6)
+    @DisplayName("Odoo-like variant: inline aggregate alias slice with orderBy")
+    void testAggregateSliceShouldLiftToHavingOdooVariant() {
+        DbQueryRequestDef request = new DbQueryRequestDef();
+        request.setQueryModel("FactOrderQueryModel");
+        request.setAutoGroupBy(true);
+        request.setColumns(List.of(
+                "customer$customerType",
+                "sum(amount) as totalSales"
+        ));
+
+        SliceRequestDef aggregateSlice = new SliceRequestDef();
+        aggregateSlice.setField("totalSales");
+        aggregateSlice.setOp(">");
+        aggregateSlice.setValue(1000);
+        request.setSlice(List.of(aggregateSlice));
+
+        OrderRequestDef orderBy = new OrderRequestDef();
+        orderBy.setField("totalSales");
+        orderBy.setDir("desc");
+        request.setOrderBy(List.of(orderBy));
+
+        PagingResultImpl result = queryFacade.queryModelData(
+                PagingRequest.buildPagingRequest(request, 100));
+        List<Map<String, Object>> items = result.getItems();
+
+        assertTrue(items.size() > 0, "应该有查询结果");
+        java.math.BigDecimal previousAmount = null;
+        for (Map<String, Object> item : items) {
+            java.math.BigDecimal totalSales = toBigDecimal(item.get("totalSales"));
+            assertTrue(totalSales.compareTo(java.math.BigDecimal.valueOf(1000)) > 0,
+                    "slice 中的聚合条件应该按 HAVING 生效，实际: " + totalSales);
+            if (previousAmount != null) {
+                assertTrue(previousAmount.compareTo(totalSales) >= 0, "排序应该为降序");
+            }
+            previousAmount = totalSales;
         }
     }
 
