@@ -28,6 +28,7 @@ class ComposeSchemaExceptionTest {
      */
     private static final Set<String> EXPECTED_CODES = Set.of(
             "compose-schema-error/derived-query/unknown-field",
+            "compose-schema-error/derived-query/same-stage-alias",
             "compose-schema-error/column-spec/malformed",
             "compose-schema-error/duplicate-output-column",
             "compose-schema-error/union/column-count-mismatch",
@@ -55,8 +56,8 @@ class ComposeSchemaExceptionTest {
     @DisplayName("ALL_CODES 与跨仓冻结的字符串集合逐字符一致")
     void allCodesMatchesExpected() {
         assertEquals(EXPECTED_CODES, ComposeSchemaErrorCodes.ALL_CODES);
-        assertEquals(16, ComposeSchemaErrorCodes.ALL_CODES.size(),
-                "M4 baseline 7 + G10 PR2 新增 2 + G10 PR4 新增 3 + G5 F5 新增 2 + S7a 新增 2 = 16 条");
+        assertEquals(17, ComposeSchemaErrorCodes.ALL_CODES.size(),
+                "M4 baseline 7 + same-stage alias + G10 PR2 新增 2 + G10 PR4 新增 3 + G5 F5 新增 2 + S7a 新增 2 = 17 条");
     }
 
     @Test
@@ -64,6 +65,8 @@ class ComposeSchemaExceptionTest {
     void eachConstantMatchesNamespaceForm() {
         assertEquals("compose-schema-error/derived-query/unknown-field",
                 ComposeSchemaErrorCodes.DERIVED_QUERY_UNKNOWN_FIELD);
+        assertEquals("compose-schema-error/derived-query/same-stage-alias",
+                ComposeSchemaErrorCodes.DERIVED_QUERY_SAME_STAGE_ALIAS);
         assertEquals("compose-schema-error/column-spec/malformed",
                 ComposeSchemaErrorCodes.COLUMN_SPEC_MALFORMED);
         assertEquals("compose-schema-error/duplicate-output-column",

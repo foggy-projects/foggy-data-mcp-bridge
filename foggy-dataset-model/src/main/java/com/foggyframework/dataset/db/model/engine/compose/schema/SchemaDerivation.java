@@ -20,6 +20,7 @@ import com.foggyframework.dataset.db.model.engine.compose.plan.expr.ColumnExpr;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
@@ -146,6 +147,7 @@ public final class SchemaDerivation {
         List<ColumnSpec> specs = partsToSpecs(partsList, null, currentPath);
         OutputSchema output = OutputSchema.of(specs);
         validateGroupAndOrderBy(plan.groupBy(), plan.orderBy(), output, currentPath);
+        validateSliceNotSameStageAlias(plan.slice(), partsList, sourceNames, currentPath);
         return output;
     }
 
@@ -473,6 +475,54 @@ public final class SchemaDerivation {
                     planPath,
                     fieldName);
         }
+    }
+
+    private static void validateSliceNotSameStageAlias(
+            List<Object> slice, List<ColumnAliasParts> partsList,
+            Set<String> sourceNames, String planPath) {
+        if (slice.isEmpty()) {
+            return;
+        }
+
+        Set<String> currentStageAliases = new LinkedHashSet<>();
+        for (ColumnAliasParts parts : partsList) {
+            if (parts.hasAlias() && !sourceNames.contains(parts.outputName())) {
+                currentStageAliases.add(parts.outputName());
+            }
+        }
+        if (currentStageAliases.isEmpty()) {
+            return;
+        }
+
+        for (Object entry : slice) {
+            String fieldName = sliceFieldName(entry);
+            if (fieldName != null && currentStageAliases.contains(fieldName)) {
+                throw new ComposeSchemaException(
+                        ComposeSchemaErrorCodes.DERIVED_QUERY_SAME_STAGE_ALIAS,
+                        "field '" + fieldName + "' is created by this derived "
+                                + "query's SELECT and cannot be filtered in the same "
+                                + "stage; add another .query({ slice: "
+                                + "[{field: '" + fieldName + "', ...}] }) stage",
+                        ComposeSchemaErrorCodes.PHASE_SCHEMA_DERIVE,
+                        planPath,
+                        fieldName);
+            }
+        }
+    }
+
+    private static String sliceFieldName(Object entry) {
+        if (!(entry instanceof Map<?, ?> map)) {
+            return null;
+        }
+        Object canonical = map.get("field");
+        if (canonical instanceof String s) {
+            return s;
+        }
+        if (canonical != null || map.size() != 1) {
+            return null;
+        }
+        Object key = map.keySet().iterator().next();
+        return key instanceof String s ? s : null;
     }
 
     // ------------------------------------------------------------------

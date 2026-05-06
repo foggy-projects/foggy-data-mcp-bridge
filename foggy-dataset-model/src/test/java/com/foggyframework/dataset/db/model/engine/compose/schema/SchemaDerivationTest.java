@@ -207,6 +207,78 @@ class SchemaDerivationTest {
         }
 
         @Test
+        @DisplayName("同层 slice 引用本层新建聚合 alias → DERIVED_QUERY_SAME_STAGE_ALIAS")
+        void sliceOnSameStageAggregateAliasRejected() {
+            QueryPlan base = baseOf("X",
+                    List.of("partner$id", "invoiceDate$month", "arOverdueAmount"),
+                    List.of("partner$id", "invoiceDate$month"),
+                    List.of());
+            QueryPlan derived = base.query(QueryOptions.builder()
+                    .columns(List.of(
+                            "partner$id",
+                            "count(invoiceDate$month) AS overdue_months"))
+                    .groupBy(List.of("partner$id"))
+                    .slice(List.<Object>of(Map.of(
+                            "field", "overdue_months",
+                            "op", ">=",
+                            "value", 2)))
+                    .build());
+
+            ComposeSchemaException ex = assertThrows(ComposeSchemaException.class,
+                    () -> SchemaDerivation.derive(derived));
+            assertEquals(ComposeSchemaErrorCodes.DERIVED_QUERY_SAME_STAGE_ALIAS, ex.code());
+            assertEquals("overdue_months", ex.offendingField());
+            assertTrue(ex.getMessage().contains("another .query("));
+        }
+
+        @Test
+        @DisplayName("同层 slice 过滤 source 字段仍允许")
+        void sliceOnSourceColumnAllowed() {
+            QueryPlan base = baseOf("X",
+                    List.of("partner$id", "invoiceDate$month", "arOverdueAmount"),
+                    List.of("partner$id", "invoiceDate$month"),
+                    List.of());
+            QueryPlan derived = base.query(QueryOptions.builder()
+                    .columns(List.of(
+                            "partner$id",
+                            "count(invoiceDate$month) AS overdue_months"))
+                    .groupBy(List.of("partner$id"))
+                    .slice(List.<Object>of(Map.of(
+                            "field", "arOverdueAmount",
+                            "op", ">",
+                            "value", 0)))
+                    .build());
+
+            OutputSchema schema = SchemaDerivation.derive(derived);
+            assertEquals(List.of("partner$id", "overdue_months"), schema.names());
+        }
+
+        @Test
+        @DisplayName("聚合后一层再 slice 过滤 alias 是正确两段式")
+        void twoStageSliceOnAggregateAliasAllowed() {
+            QueryPlan base = baseOf("X",
+                    List.of("partner$id", "invoiceDate$month", "arOverdueAmount"),
+                    List.of("partner$id", "invoiceDate$month"),
+                    List.of());
+            QueryPlan grouped = base.query(QueryOptions.builder()
+                    .columns(List.of(
+                            "partner$id",
+                            "count(invoiceDate$month) AS overdue_months"))
+                    .groupBy(List.of("partner$id"))
+                    .build());
+            QueryPlan filtered = grouped.query(QueryOptions.builder()
+                    .columns(List.of("partner$id", "overdue_months"))
+                    .slice(List.<Object>of(Map.of(
+                            "field", "overdue_months",
+                            "op", ">=",
+                            "value", 2)))
+                    .build());
+
+            OutputSchema schema = SchemaDerivation.derive(filtered);
+            assertEquals(List.of("partner$id", "overdue_months"), schema.names());
+        }
+
+        @Test
         @DisplayName("base 层 group_by 引用不存在字段 → DERIVED_QUERY_UNKNOWN_FIELD")
         void baseGroupByReferencesValidated() {
             QueryPlan plan = baseOf("X",
