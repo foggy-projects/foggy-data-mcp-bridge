@@ -1,10 +1,13 @@
 package com.foggyframework.dataset.mcp.tools;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.dataset.db.model.impl.AiObject;
 import com.foggyframework.dataset.db.model.spi.DbDimension;
 import com.foggyframework.dataset.db.model.spi.DbQueryDimension;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
 import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
+import com.foggyframework.dataset.mcp.service.ModelCatalogService;
 import com.foggyframework.dataset.mcp.spi.SemanticServiceResolver;
 import com.foggyframework.mcp.spi.ToolCategory;
 import com.foggyframework.mcp.spi.ToolExecutionContext;
@@ -39,7 +42,9 @@ class ListModelsToolTest {
 
     @BeforeEach
     void setUp() {
-        listModelsTool = new ListModelsTool(semanticServiceResolver, queryModelLoader);
+        listModelsTool = new ListModelsTool(
+                new ModelCatalogService(semanticServiceResolver, queryModelLoader, new ObjectMapper())
+        );
     }
 
     // ==================== 基本属性测试 ====================
@@ -69,7 +74,7 @@ class ListModelsToolTest {
     class ExecuteSuccessTest {
 
         @Test
-        @DisplayName("无参调用应返回 code=200 和 markdown 格式")
+        @DisplayName("无参调用应返回 code=200 和 markdown catalog")
         void shouldReturnMarkdownWithCode200() {
             when(semanticServiceResolver.getAllModelNames()).thenReturn(List.of());
 
@@ -86,7 +91,49 @@ class ListModelsToolTest {
             Map<String, Object> dataMap = (Map<String, Object>) resultMap.get("data");
             assertEquals("markdown", dataMap.get("format"));
             assertNotNull(dataMap.get("content"));
-            assertNull(dataMap.get("data"));
+            assertNotNull(dataMap.get("data"));
+        }
+
+        @Test
+        @DisplayName("MCP list_models 应忽略 arguments，程序化参数走 Controller")
+        void shouldIgnoreArgumentsBecauseProgrammaticCallersUseController() {
+            when(semanticServiceResolver.getAllModelNames()).thenReturn(List.of("FactSalesQueryModel"));
+            QueryModel mockQm = mockQueryModel("FS", "销售明细查询", "销售额、销量分析", null, null);
+            when(queryModelLoader.getJdbcQueryModel(eq("FactSalesQueryModel"), any()))
+                    .thenReturn(mockQm);
+            SemanticMetadataResponse metadata = new SemanticMetadataResponse();
+            Map<String, Object> fieldInfo = new java.util.LinkedHashMap<>();
+            fieldInfo.put("models", Map.of("FactSalesQueryModel", Map.of("description", "订单号")));
+            metadata.setData(Map.of(
+                    "fields", Map.of("orderId", fieldInfo),
+                    "models", Map.of("FactSalesQueryModel", Map.of("name", "销售明细查询"))
+            ));
+            when(semanticServiceResolver.getMetadata(any(), eq("json"), any())).thenReturn(metadata);
+
+            Object result = listModelsTool.execute(
+                    Map.of(
+                            "format", "markdown",
+                            "modelNames", List.of("FactSalesQueryModel"),
+                            "visibleFields", List.of("orderId"),
+                            "deniedColumns", List.of(Map.of("table", "fact_sales", "column", "secret_amount")),
+                            "fieldLimit", 0
+                    ),
+                    ToolExecutionContext.of("trace-markdown", null)
+            );
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> resultMap = (Map<String, Object>) result;
+            @SuppressWarnings("unchecked")
+            Map<String, Object> dataMap = (Map<String, Object>) resultMap.get("data");
+            assertEquals("markdown", dataMap.get("format"));
+            assertTrue(((String) dataMap.get("content")).contains("FactSalesQueryModel"));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> catalog = (Map<String, Object>) dataMap.get("data");
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> items = (List<Map<String, Object>>) catalog.get("items");
+            assertEquals(List.of("orderId"), items.get(0).get("fieldPreview"));
+            assertEquals(1, items.get(0).get("fieldCount"));
+            verify(semanticServiceResolver).getAllModelNames();
         }
 
         @Test
@@ -105,6 +152,44 @@ class ListModelsToolTest {
             assertTrue(content.contains("FS"), "应包含简称");
             assertTrue(content.contains("销售明细查询"), "应包含说明");
             assertTrue(content.contains("dataset.describe_model_internal"), "应包含推荐下一步");
+        }
+
+        @Test
+        @DisplayName("应返回兼容 models 数组并新增 rich items")
+        void shouldReturnModelsAndRichItems() {
+            when(semanticServiceResolver.getAllModelNames()).thenReturn(List.of("FactSalesQueryModel", "HiddenModel"));
+            QueryModel mockQm = mockQueryModel("FS", "销售明细查询", "销售额、销量分析", null, null);
+            when(queryModelLoader.getJdbcQueryModel(eq("FactSalesQueryModel"), any()))
+                    .thenReturn(mockQm);
+
+            SemanticMetadataResponse metadata = new SemanticMetadataResponse();
+            Map<String, Object> fieldInfo = new java.util.LinkedHashMap<>();
+            fieldInfo.put("models", Map.of("FactSalesQueryModel", Map.of("description", "订单号")));
+            metadata.setData(Map.of(
+                    "fields", Map.of("orderId", fieldInfo),
+                    "models", Map.of("FactSalesQueryModel", Map.of("name", "销售明细查询"))
+            ));
+            when(semanticServiceResolver.getMetadata(any(), eq("json"), any())).thenReturn(metadata);
+
+            Object result = listModelsTool.execute(
+                    Map.of(),
+                    ToolExecutionContext.of("trace-rich", null)
+            );
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> resultMap = (Map<String, Object>) result;
+            @SuppressWarnings("unchecked")
+            Map<String, Object> dataMap = (Map<String, Object>) resultMap.get("data");
+            @SuppressWarnings("unchecked")
+            Map<String, Object> catalog = (Map<String, Object>) dataMap.get("data");
+
+            assertEquals(List.of("FactSalesQueryModel"), catalog.get("models"));
+            assertEquals(1, catalog.get("count"));
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> items = (List<Map<String, Object>>) catalog.get("items");
+            assertEquals("FactSalesQueryModel", items.get(0).get("model"));
+            assertEquals(List.of("orderId"), items.get(0).get("fieldPreview"));
+            assertEquals(1, items.get(0).get("fieldCount"));
         }
 
         @Test
@@ -130,9 +215,8 @@ class ListModelsToolTest {
             Object result = listModelsTool.execute(Map.of(), ToolExecutionContext.of("trace-4", null));
 
             String content = extractContent(result);
-            assertTrue(content.contains("# 数据模型列表"), "应包含标题");
-            assertTrue(content.contains("| 模型 |"), "应包含表头");
-            // 表头 + 分隔线 + 使用规则，但无数据行
+            assertTrue(content.contains("# Model Catalog"), "应包含标题");
+            assertTrue(content.contains("No data models available."), "应提示无可用模型");
             assertFalse(content.contains("FactSalesQueryModel"), "不应包含模型数据行");
         }
 

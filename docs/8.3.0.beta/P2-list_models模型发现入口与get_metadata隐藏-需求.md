@@ -71,6 +71,42 @@
 }
 ```
 
+### 2026-05-06 discovery catalog 补充契约
+
+后续设计评审确认：不新增独立 `dataset.describe_models`，`dataset.list_models` 继续作为 LLM 首次获取系统可用模型的唯一入口。MCP public schema 暂时保持无参，避免外部 LLM 在首轮发现阶段理解和选择参数。
+
+规则如下：
+
+- `dataset.list_models` schema 仍为空对象，不向 LLM 暴露 `format`、`models`、`modelNames`、`visibleFields`、`deniedColumns`、`fieldLimit`、`llmHints` 或 `detail`。
+- 兼容保留顶层 `models: string[]` 和 `count`。
+- 可新增 `items`，用于桥接层和 LLM 路由消费，但它只能是模型级 discovery catalog。
+- `fieldPreview` 是轻量字段预览，不是完整字段 metadata；字段详情仍调用 `dataset.describe_model_internal`。
+- Java 工具可继续在 `data.content` 中提供 Markdown，并在 `data.data` 中返回 structured catalog DTO。
+- Host / bridge 作为程序化调用方不通过 MCP tool arguments，而使用标准 Controller POST 入口 `POST /semantic/v3/list-models`，在 body 中传固定 `format=markdown`、`fieldLimit=20`、principal-specific `modelNames` / `visibleFields` / `deniedColumns`。
+- Host-specific routing hints 暂不进入 engine public schema；Odoo Bridge Pro 可在桥接层继续维护业务提示。
+
+Canonical DTO 示例：
+
+```json
+{
+  "models": ["OdooAccountMoveQueryModel"],
+  "count": 1,
+  "recommendedNext": "dataset.describe_model_internal",
+  "items": [
+    {
+      "model": "OdooAccountMoveQueryModel",
+      "caption": "Invoice & Billing Analysis",
+      "description": "Invoice and bill headers...",
+      "namespace": "odoo",
+      "physicalTables": ["account_move"],
+      "recommendedNext": "dataset.describe_model_internal",
+      "fieldPreview": ["id", "name", "moveType", "invoiceDate"],
+      "fieldCount": 42
+    }
+  ]
+}
+```
+
 Markdown 建议格式：
 
 ```markdown
@@ -264,6 +300,11 @@ foggy-dataset-mcp/src/test/resources/ai-test-cases/ecommerce-tests.json
 
 ### Controller / MCP 测试
 
+- `POST /semantic/v3/list-models`
+  - 支持 `format=markdown|json`
+  - 支持 `modelNames` / `models`、`visibleFields`、`deniedColumns`、`fieldLimit`
+  - 返回 `{format, content, data}`，其中 `data` 为 canonical catalog DTO
+
 - `/mcp/analyst/rpc` `tools/list`
   - Phase 1：返回 `dataset.list_models`，仍返回 `dataset.get_metadata`（描述文件含 deprecation 文本）
   - Phase 2 验收时再补：不返回 `dataset.get_metadata`
@@ -324,8 +365,9 @@ foggy-dataset-mcp/src/test/resources/ai-test-cases/ecommerce-tests.json
 
 | 项目 | 状态 | 说明 |
 |------|------|------|
-| 需求决策 | done | 已确认新增 `dataset.list_models`，复用 `enabled` 字段分阶段下线 `dataset.get_metadata` |
-| 工具实现 | pending | 待新增 `ListModelsTool` 与 accessor 能力 |
+| 需求决策 | done | 已确认新增 `dataset.list_models`，复用 `enabled` 字段分阶段下线 `dataset.get_metadata`；2026-05-06 进一步确认不新增 `describe_models` |
+| 工具实现 | done | `ListModelsTool` 保持无参 MCP 首轮发现入口 |
+| Host Controller | done | `POST /semantic/v3/list-models` 作为程序化参数化入口 |
 | 工具注册 | pending | 待更新默认工具配置与 launcher 配置 |
 | Phase 1 deprecation 提示 | pending | 待更新 `get_metadata` 描述文件首段加 deprecation 文案 |
 | AI 流程切换 | pending | 待更新 QueryExpertService、测试提示词与 AI 测试基线 |
@@ -337,7 +379,8 @@ foggy-dataset-mcp/src/test/resources/ai-test-cases/ecommerce-tests.json
 | 测试项 | 状态 | 说明 |
 |--------|------|------|
 | 单元测试 | pending | 待实现后新增/更新 |
-| MCP controller 测试 | pending | 待覆盖 tools/list 与 tools/call |
+| MCP controller 测试 | partial-passed | list_models targeted tests passed；完整 controller 回归按发布前计划执行 |
+| Host Controller 测试 | passed | `ListModelsCatalogControllerTest` 覆盖 markdown/json 和权限参数传递 |
 | AI 流程测试 | pending | 待切换 expected_tool |
 | 手工验证 | pending | 待启动服务后调用 `dataset.list_models` |
 

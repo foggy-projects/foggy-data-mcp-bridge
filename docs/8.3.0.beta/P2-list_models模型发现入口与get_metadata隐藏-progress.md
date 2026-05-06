@@ -4,6 +4,19 @@
 
 ## 里程碑
 
+### Phase 1.1: discovery catalog 补齐 (2026-05-06)
+
+- [x] `dataset.list_models` 补充 canonical catalog DTO：保留 `models/count`，新增 `recommendedNext/items`。
+- [x] `items` 支持 `caption/description/namespace/physicalTables/fieldPreview/fieldCount` 等轻量模型级发现信息。
+- [x] 设计评审调整：MCP public schema 暂时保持无参，不向 LLM 暴露 `format`、`modelNames`、`visibleFields`、`deniedColumns`、`fieldLimit`、`llmHints` 等参数。
+- [x] 字段预览从 metadata JSON 中派生；不解析 Markdown。
+- [x] Java 工具在 wrapper `data.content` 中保留 Markdown，在 `data.data` 中保留 structured DTO；MCP 执行层忽略 arguments，仅作为 LLM 首轮发现入口。
+- [x] 新增标准 host API：`POST /semantic/v3/list-models`，供 Odoo Bridge Pro 等程序化调用方固定 `format=markdown`、`fieldLimit=20` 和权限裁剪输入。
+- [x] 抽出 `ModelCatalogService`，Controller 与 MCP 工具共用同一 DTO / Markdown builder。
+- [x] Java targeted verification after adjustment: `mvn -pl foggy-dataset-mcp -Dtest=ListModelsToolTest test` -> 13 passed.
+- [x] Java reactor-aware targeted verification: `mvn -pl foggy-dataset-mcp -am -Dtest=ListModelsToolTest '-Dsurefire.failIfNoSpecifiedTests=false' test` -> 13 passed, dependent modules recompiled.
+- [x] Java controller-aware targeted verification: `mvn -pl foggy-dataset-mcp -am '-Dtest=ListModelsToolTest,ListModelsCatalogControllerTest' '-Dsurefire.failIfNoSpecifiedTests=false' test` -> 15 passed, dependent modules recompiled.
+
 ### Phase 1: 发现入口分离 (8.3.0.beta)
 
 - [x] **M1**: 创建 `list_models_schema.json` (无参数 schema)
@@ -36,6 +49,7 @@
 | 测试类 | 用例数 | 状态 | 仓库 |
 |--------|--------|------|------|
 | `ListModelsToolTest` | 11 | ✅ 全绿 | Java |
+| `ListModelsCatalogControllerTest` | 2 | ✅ 全绿 | Java |
 | `AnalystMcpControllerTest` (+2 list_models) | 2 | ✅ 全绿 | Java |
 | `ToolConfigLoaderTest` (含 list_models 断言) | 已更新 | ✅ 全绿 | Java |
 | `test_list_models_tool.py` | 11 | ✅ 全绿 | Python |
