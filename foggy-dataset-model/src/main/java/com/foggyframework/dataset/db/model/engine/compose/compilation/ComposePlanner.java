@@ -19,6 +19,7 @@ import com.foggyframework.dataset.db.model.engine.compose.security.PlanFieldAcce
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
@@ -358,6 +359,82 @@ public final class ComposePlanner {
         return out;
     }
 
+    private static List<String> sourceOutputColumnsForDerived(QueryPlan source, CteUnit innerUnit) {
+        List<String> cols = innerUnit.getSelectColumns();
+        if (cols != null && !cols.isEmpty()) {
+            List<String> out = new ArrayList<>(cols.size());
+            for (String col : cols) {
+                out.add(unquoteIdentifier(extractOutputColName(col)));
+            }
+            return out;
+        }
+        if (source instanceof UnionPlan) {
+            return SchemaDerivation.derive(source).names();
+        }
+        return declaredOutputColumnsForPlan(source);
+    }
+
+    private static List<String> declaredOutputColumnsForPlan(QueryPlan plan) {
+        if (plan instanceof BaseModelPlan base) {
+            List<String> out = new ArrayList<>(base.columns().size());
+            for (String col : extractStringCols(base.columns())) {
+                out.add(unquoteIdentifier(extractOutputColName(col)));
+            }
+            return out;
+        }
+        if (plan instanceof DerivedQueryPlan derived) {
+            if (derived.columns().isEmpty()) {
+                return declaredOutputColumnsForPlan(derived.source());
+            }
+            List<String> out = new ArrayList<>(derived.columns().size());
+            for (String col : extractStringCols(derived.columns())) {
+                out.add(unquoteIdentifier(extractOutputColName(col)));
+            }
+            return out;
+        }
+        if (plan instanceof JoinPlan join) {
+            List<String> left = declaredOutputColumnsForPlan(join.left());
+            List<String> right = declaredOutputColumnsForPlan(join.right());
+            Set<String> seen = new LinkedHashSet<>(left);
+            List<String> out = new ArrayList<>(left);
+            for (String col : right) {
+                if (seen.add(col)) {
+                    out.add(col);
+                }
+            }
+            return out;
+        }
+        if (plan instanceof UnionPlan) {
+            return SchemaDerivation.derive(plan).names();
+        }
+        return Collections.emptyList();
+    }
+
+    private static void validateDerivedOutputRefs(DerivedQueryPlan plan, List<String> sourceColumns) {
+        if (sourceColumns == null || sourceColumns.isEmpty()) {
+            return;
+        }
+        Set<String> sourceNames = new LinkedHashSet<>(sourceColumns);
+        for (String col : extractStringCols(plan.columns())) {
+            String expr = extractBaseColName(col);
+            if ("*".equals(expr.trim())) {
+                continue;
+            }
+            for (String ident : extractUnquotedIdentifiers(expr)) {
+                String unquoted = unquoteIdentifier(ident);
+                if (!sourceNames.contains(unquoted)) {
+                    throw new ComposeSchemaException(
+                            ComposeSchemaErrorCodes.DERIVED_QUERY_UNKNOWN_FIELD,
+                            "derived query references unknown field '" + unquoted
+                                    + "' not present in source output schema",
+                            ComposeSchemaErrorCodes.PHASE_SCHEMA_DERIVE,
+                            "DerivedQueryPlan",
+                            unquoted);
+                }
+            }
+        }
+    }
+
     /** SQL keywords that should NOT be quoted when found as bare tokens */
     private static final Set<String> SQL_KEYWORDS = Set.of(
             "CASE", "WHEN", "THEN", "ELSE", "END", "IS", "NULL", "OR", "AND", "NOT",
@@ -375,6 +452,33 @@ public final class ComposePlanner {
      *  query. */
     private static final Pattern EXPR_TOKEN_PATTERN =
             Pattern.compile("[A-Za-z_$][A-Za-z0-9_$]*|[^A-Za-z_$]+");
+
+    private static List<String> extractUnquotedIdentifiers(String expr) {
+        if (expr == null || expr.isBlank()) {
+            return Collections.emptyList();
+        }
+        List<String> out = new ArrayList<>();
+        Matcher m = EXPR_TOKEN_PATTERN.matcher(expr);
+        while (m.find()) {
+            String token = m.group();
+            if (token.isEmpty()) continue;
+            char first = token.charAt(0);
+            if (!(first == '_' || (first >= 'A' && first <= 'Z') || (first >= 'a' && first <= 'z'))) {
+                continue;
+            }
+            String upper = token.toUpperCase(Locale.ROOT);
+            if (SQL_KEYWORDS.contains(upper) || isNumericLiteral(token)) {
+                continue;
+            }
+            char prev = m.start() > 0 ? expr.charAt(m.start() - 1) : '\0';
+            char next = m.end() < expr.length() ? expr.charAt(m.end()) : '\0';
+            if (prev == '.' || next == '.') {
+                continue;
+            }
+            out.add(token);
+        }
+        return out;
+    }
 
     /** Quote bare identifiers within a SQL expression.
      *  Splits the expression into tokens and quotes those that look like
@@ -710,6 +814,9 @@ public final class ComposePlanner {
             innerUnit = (CteUnit) inner;
         }
         validateDerivedSliceNotSameStageAlias(plan, innerUnit.getSelectColumns());
+
+        List<String> sourceColumns = sourceOutputColumnsForDerived(plan.source(), innerUnit);
+        validateDerivedOutputRefs(plan, sourceColumns);
 
         List<Object> outerParams = new ArrayList<>();
         String outerSql = renderOuterSelect(plan, innerUnit.getAlias(), innerUnit.getSql(), outerParams, state);
@@ -1172,13 +1279,32 @@ public final class ComposePlanner {
             Object entry, List<Object> outerParams, String dialect, String innerAlias) {
         SliceShape s = SliceShape.parse(entry);
         String fieldSql = renderDerivedSliceField(innerAlias, s.field, dialect);
+        String op = normalizeSliceOp(s.op);
         if (s.hasFieldReferenceValue()) {
             String ref = s.fieldReferenceValue();
-            return fieldSql + " " + s.op + " "
+            return fieldSql + " " + op + " "
                     + renderDerivedSliceField(innerAlias, ref, dialect);
         }
+        if ("IN".equals(op) || "NOT IN".equals(op)) {
+            if (!(s.value instanceof Collection<?> values) || values.isEmpty()) {
+                throw new ComposeCompileException(
+                        ComposeCompileErrorCodes.UNSUPPORTED_PLAN_SHAPE,
+                        ComposeCompileErrorCodes.PHASE_PLAN_LOWER,
+                        "Derived slice operator '" + op + "' requires a non-empty collection value.");
+            }
+            outerParams.addAll(values);
+            return fieldSql + " " + op + " ("
+                    + String.join(", ", Collections.nCopies(values.size(), "?"))
+                    + ")";
+        }
         outerParams.add(s.value);
-        return fieldSql + " " + s.op + " ?";
+        return fieldSql + " " + op + " ?";
+    }
+
+    private static String normalizeSliceOp(Object op) {
+        return op == null
+                ? "="
+                : op.toString().trim().replaceAll("\\s+", " ").toUpperCase(Locale.ROOT);
     }
 
     private static String renderDerivedSliceField(String innerAlias, String field, String dialect) {
