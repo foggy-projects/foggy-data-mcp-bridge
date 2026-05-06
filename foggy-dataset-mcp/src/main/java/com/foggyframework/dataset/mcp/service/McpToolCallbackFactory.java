@@ -191,6 +191,12 @@ public class McpToolCallbackFactory {
                 ToolExecutionContext context = ToolExecutionContext.of(traceId, authorization);
                 result = mcpTool.execute(arguments, context);
 
+                // dataset.query_model 执行成功后，将结构化结果写入 ThreadLocal 捕获槽，
+                // 供 QueryExpertService.processQuery() 在 Spring AI call() 返回后读取。
+                if ("dataset.query_model".equals(originalToolName)) {
+                    QueryExpertService.captureQueryResult(result);
+                }
+
                 // 转换结果为 JSON
                 String jsonResult = objectMapper.writeValueAsString(result);
                 log.info("[MCP Tool Result] {}: {} chars", springToolName, jsonResult.length());

@@ -9,7 +9,6 @@ import com.foggyframework.mcp.spi.McpTool;
 import com.foggyframework.mcp.spi.ProgressEvent;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
@@ -41,6 +40,32 @@ public class QueryExpertService {
 
     // 会话管理
     private final Map<String, SessionContext> sessions = new ConcurrentHashMap<>();
+
+    /**
+     * 线程级 query_model 执行结果捕获槽。
+     *
+     * <p>由 {@link McpToolCallbackFactory} 在执行 {@code dataset.query_model} 工具后写入，
+     * 由 {@link #processQuery} 在 Spring AI call() 返回后读取，随后立即清理。
+     * 这样无需修改 Spring AI 内部工具调用链，即可将结构化结果传递回调用方。
+     */
+    static final ThreadLocal<Map<String, Object>> LAST_QUERY_RESULT = new ThreadLocal<>();
+
+    /**
+     * 由 {@link McpToolCallbackFactory} 调用，将 dataset.query_model 的结构化结果写入当前线程捕获槽。
+     */
+    @SuppressWarnings("unchecked")
+    public static void captureQueryResult(Object result) {
+        if (result instanceof Map<?, ?> map) {
+            LAST_QUERY_RESULT.set((Map<String, Object>) map);
+        }
+    }
+
+    /**
+     * 清理当前线程的捕获槽（call 结束后必须调用，防止线程池复用时数据残留）。
+     */
+    public static void clearCapture() {
+        LAST_QUERY_RESULT.remove();
+    }
 
     // 系统提示词
     private static final String SYSTEM_PROMPT = """
@@ -116,51 +141,40 @@ public class QueryExpertService {
             // 构建用户消息
             String userMessage = buildUserMessage(request);
 
-            // 获取核心查询工具并转换为 ToolCallback（使用 schemas/ 目录的定义）
+            // 获取核心查询工具并转换为 ToolCallback
             List<McpTool> queryTools = getQueryTools();
             ToolCallback[] toolCallbacks = toolCallbackFactory.createToolCallbacks(queryTools, traceId, authorization);
 
-            log.info("Registered {} tools for query", toolCallbacks.length);
+            log.info("Registered {} tools for query, traceId={}", toolCallbacks.length, traceId);
 
-            // 创建带函数调用的 ChatClient (Spring AI 1.0.1+)
             ChatClient chatClient = chatClientBuilder
                     .defaultSystem(SYSTEM_PROMPT)
                     .build();
 
-            // 迭代执行（处理多轮工具调用）
-            int maxIterations = mcpProperties.getAgent().getM2QueryExpert().getMaxIterations();
-            int iteration = 0;
-            String lastResponse = null;
+            // Spring AI 在单次 call() 内会自动驱动完整的工具调用链
+            // （LLM 发起 tool call → 框架执行工具 → 结果回传 LLM → LLM 生成最终回复），
+            // 无需外层 while 循环手动重试。
+            String aiResponse = chatClient.prompt()
+                    .user(userMessage)
+                    .tools(toolCallbacks)
+                    .call()
+                    .content();
 
-            while (iteration < maxIterations) {
-                iteration++;
-                log.info("Iteration {}/{}, traceId={}", iteration, maxIterations, traceId);
-
-                // 调用 AI（使用 tools() 注册工具）
-                String response = chatClient.prompt()
-                        .user(userMessage)
-                        .tools(toolCallbacks)
-                        .call()
-                        .content();
-
-                lastResponse = response;
-                log.debug("AI Response (iteration {}): {}", iteration, response);
-
-                // 检查是否完成（没有更多工具调用请求）
-                if (!containsToolCallRequest(response)) {
-                    break;
-                }
-
-                // 更新用户消息为继续执行
-                userMessage = "请继续完成查询";
+            // 读取 McpToolCallbackFactory 在工具执行期间写入的结构化查询结果
+            Map<String, Object> captured = LAST_QUERY_RESULT.get();
+            if (captured != null) {
+                context.setLastQueryResult(captured);
             }
 
-            // 解析最终响应
-            return parseResponse(lastResponse, context, traceId);
+            log.debug("AI response, traceId={}, length={}", traceId, aiResponse != null ? aiResponse.length() : 0);
+            return parseResponse(aiResponse, context, traceId);
 
         } catch (Exception e) {
             log.error("Query processing failed: {}, traceId={}", e.getMessage(), traceId, e);
             return DatasetNLQueryResponse.error("QUERY_FAILED", e.getMessage(), null);
+        } finally {
+            // 清理 ThreadLocal，防止线程池复用时数据残留
+            clearCapture();
         }
     }
 
@@ -188,49 +202,31 @@ public class QueryExpertService {
                 String userMessage = buildUserMessage(request);
                 sink.next(ProgressEvent.progress("plan", 20));
 
-                // 获取核心查询工具
                 List<McpTool> queryTools = getQueryTools();
                 ToolCallback[] toolCallbacks = toolCallbackFactory.createToolCallbacks(queryTools, traceId, authorization);
 
-                // 创建带函数调用的 ChatClient (Spring AI 1.0.1+)
                 ChatClient chatClient = chatClientBuilder
                         .defaultSystem(SYSTEM_PROMPT)
                         .build();
 
-                int maxIterations = mcpProperties.getAgent().getM2QueryExpert().getMaxIterations();
-                int iteration = 0;
-                String lastResponse = null;
+                sink.next(ProgressEvent.progress("tool_call", 40));
 
-                while (iteration < maxIterations) {
-                    iteration++;
-                    int progress = 20 + (iteration * 60 / maxIterations);
-                    sink.next(ProgressEvent.progress("tool_call", Math.min(progress, 80)));
+                // Spring AI 单次 call() 内自动驱动完整工具调用链
+                String aiResponse = chatClient.prompt()
+                        .user(userMessage)
+                        .tools(toolCallbacks)
+                        .call()
+                        .content();
 
-                    String response = chatClient.prompt()
-                            .user(userMessage)
-                            .tools(toolCallbacks)
-                            .call()
-                            .content();
-
-                    lastResponse = response;
-
-                    // 发送部分结果
-                    sink.next(ProgressEvent.partialResult(Map.of(
-                            "iteration", iteration,
-                            "status", "processing"
-                    )));
-
-                    if (!containsToolCallRequest(response)) {
-                        break;
-                    }
-
-                    userMessage = "请继续完成查询";
+                // 读取工具执行期间捕获的结构化查询结果
+                Map<String, Object> captured = LAST_QUERY_RESULT.get();
+                if (captured != null) {
+                    context.setLastQueryResult(captured);
                 }
 
                 sink.next(ProgressEvent.progress("format", 90));
 
-                DatasetNLQueryResponse result = parseResponse(lastResponse, context, traceId);
-
+                DatasetNLQueryResponse result = parseResponse(aiResponse, context, traceId);
                 sink.next(ProgressEvent.complete(result));
                 sink.complete();
 
@@ -238,6 +234,8 @@ public class QueryExpertService {
                 log.error("Query processing failed with progress: {}", e.getMessage(), e);
                 sink.next(ProgressEvent.error("QUERY_FAILED", e.getMessage()));
                 sink.complete();
+            } finally {
+                clearCapture();
             }
         });
     }
@@ -304,17 +302,6 @@ public class QueryExpertService {
     }
 
     /**
-     * 检查响应是否包含工具调用请求
-     */
-    private boolean containsToolCallRequest(String response) {
-        if (response == null) return false;
-        // 简单检查：如果 AI 表示需要调用工具，则继续
-        return response.contains("我需要") && response.contains("获取") ||
-               response.contains("让我") && response.contains("查询") ||
-               response.contains("正在调用");
-    }
-
-    /**
      * 解析 AI 响应为结构化结果
      */
     private DatasetNLQueryResponse parseResponse(String aiResponse, SessionContext context, String traceId) {
@@ -375,13 +362,15 @@ public class QueryExpertService {
 
     /**
      * 会话上下文
+     *
+     * <p>{@code lastQueryResult} 由 {@link #captureQueryResult} + {@link #processQuery} 协作写入，
+     * 记录本次对话中最后一次 dataset.query_model 调用的结构化返回值，
+     * 供 {@link #parseResponse} 构建结构化响应。
      */
     public static class SessionContext {
         private final String sessionId;
         private String traceId;
         private String authorization;
-        private final List<Message> history = new ArrayList<>();
-        private Map<String, Object> metadata;
         private Map<String, Object> lastQueryResult;
 
         public SessionContext(String sessionId, String traceId) {
@@ -394,9 +383,6 @@ public class QueryExpertService {
         public void setTraceId(String traceId) { this.traceId = traceId; }
         public String getAuthorization() { return authorization; }
         public void setAuthorization(String authorization) { this.authorization = authorization; }
-        public List<Message> getHistory() { return history; }
-        public Map<String, Object> getMetadata() { return metadata; }
-        public void setMetadata(Map<String, Object> metadata) { this.metadata = metadata; }
         public Map<String, Object> getLastQueryResult() { return lastQueryResult; }
         public void setLastQueryResult(Map<String, Object> result) { this.lastQueryResult = result; }
     }
