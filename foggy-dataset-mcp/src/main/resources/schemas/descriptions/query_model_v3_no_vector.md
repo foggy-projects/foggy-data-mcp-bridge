@@ -26,7 +26,7 @@
 | 属性/度量 | 直接使用字段名 |
 
 
-只使用 describe 返回的完整字段名，不要自己拼接多跳字段，例如不要把 `move$invoiceUserId` 猜成 `move$invoiceUserId$caption`，也不要把关系字段简写成 `caption`。字段未暴露时，省略该列或改用暴露该字段的模型。
+字段名是闭集：只使用 describe 返回的完整字段名。模型没返回就不要拼、不要推导、不要自己拼接多跳字段，例如不要把 `move$invoiceUserId` 猜成 `move$invoiceUserId$caption`，也不要把关系字段简写成 `caption`。遇到 `invoiceDate` 这类普通属性时，不要追加 `$year` / `$month`；只有 describe 明确返回 `invoiceDate$year` / `invoiceDate$month` 时才可使用。字段未暴露时，省略该列、改用暴露该字段的模型，或说明当前模型未提供该粒度。
 
 ### 父子维度 (Parent-Child Dimension)
 层级结构维度（如组织架构、公司层级）支持两种访问视角：
@@ -67,6 +67,10 @@
 - 需要显式指定 `agg` 参数。
 - 表达式中引用了其他的计算字段。
 如果只是普通的 `sum(field)` 或 `sum(if(...))`，请直接写在 `columns` 中。
+
+`calculatedFields.expression` 使用 Foggy 表达式 DSL，不是数据库 SQL。不要生成 SQL 方言函数名或语句片段，例如 `DATEDIFF(...)`、`DATE_TRUNC(...)`、`YEAR(...)`、`MONTH(...)`、`CASE WHEN`；如果本文档没有明确列出某个函数，就不要猜函数名。
+
+对“超过 N 天 / older than N days / overdue more than N days”这类过滤，优先在调用工具前计算截止日期，然后用已暴露的日期字段做 `slice`。例如当前日期为 2026-05-06，“逾期超过 30 天”表达为 `{"field": "dateMaturity", "op": "<", "value": "2026-04-06"}`。除非用户明确要求展示天数且已确认支持的表达式语法，否则不要创建 `overdueDays`、`DATEDIFF(...)` 或日期差 calculatedFields。
 
 **跨当前分组占比：使用受限 `CALCULATE`**
 
@@ -119,9 +123,11 @@
 限制：`targetMetrics` 不可引用 calculatedFields；后置 calculatedFields 不能设置 `agg` 或窗口字段。
 
 ### 日期分桶与 SQL 函数边界
-普通“按月/按周/按年分组”不要在 `columns`、`groupBy`、`orderBy` 中生成 `DATE_TRUNC(...)`、`YEAR(...)`、`MONTH(...)` 等 SQL 函数字段，也不要把 `DATE_TRUNC` 当字段名。先调用 `dataset.describe_model_internal`，只使用返回的日期粒度字段（如 `salesDate$year`、`salesDate$month`、`salesDate$week`）进行展示、分组和排序。
+普通“按月/按周/按年分组”不要在 `columns`、`groupBy`、`orderBy` 中生成 `DATE_TRUNC(...)`、`YEAR(...)`、`MONTH(...)` 等 SQL 函数字段，也不要把 `DATE_TRUNC` 当字段名。先调用 `dataset.describe_model_internal`，只使用返回的日期粒度字段（如 `salesDate$year`、`salesDate$month`、`salesDate$week`）进行展示、分组和排序。不要把普通日期属性自行映射成 `$year` / `$month`；例如只返回 `invoiceDate` 时，不要生成 `invoiceDate$year`。
 
 如果模型没有暴露所需日期粒度字段，不要自造 SQL 函数；改用已有日期字段过滤、`timeWindow`，或说明当前模型未提供该粒度。同比、环比、YTD、MTD、rolling 继续使用 `timeWindow`。
+
+普通日期差过滤也不要自造 SQL 函数。对“最近 N 天”“超过 N 天未处理”“逾期超过 N 天”等条件，先算出绝对日期边界，再在 `slice` 中比较已暴露日期字段；只有在用户明确要求输出日期差数值、且工具文档明确支持对应 Foggy 表达式时，才使用 `calculatedFields`。
 
 
 ### slice (可选)

@@ -34,7 +34,12 @@ class QueryModelDescriptionConsistencyTest {
             "ROLLUP_TO",
             "CELL_AT",
             "AXIS_MEMBER",
-            "AXIS_REF"
+            "AXIS_REF",
+            "Foggy 表达式 DSL",
+            "DATEDIFF(...)",
+            "dateMaturity",
+            "2026-04-06",
+            "overdueDays"
     );
 
     @Test
