@@ -440,6 +440,37 @@ class PerBaseCompileTest {
     }
 
     @Test
+    @DisplayName("同一 model/binding 的不同 base query shape 不能复用 governance-cache")
+    void governanceCacheIncludesBasePlanShape() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT id FROM t");
+        BaseModelPlan current = BaseModelPlan.builder()
+                .model("M")
+                .columns(List.of("id", "current_amount"))
+                .slice(List.of(Map.of("field", "period", "op", "=", "value", "current")))
+                .build();
+        BaseModelPlan previous = BaseModelPlan.builder()
+                .model("M")
+                .columns(List.of("id", "previous_amount"))
+                .slice(List.of(Map.of("field", "period", "op", "=", "value", "previous")))
+                .build();
+        Map<String, ModelBinding> bindings = Map.of("M", CompileTestHelpers.emptyBinding());
+
+        ComposeSqlCompiler.compilePlanToSql(
+                current.union(previous),
+                CompileTestHelpers.context(CompileTestHelpers.resolverFor(bindings)),
+                ComposeSqlCompiler.CompileOptions.builder()
+                        .semanticService(svc)
+                        .bindings(bindings)
+                        .dialect("sqlite")
+                        .build());
+
+        assertEquals(2, svc.invocations.size());
+        assertEquals("current", svc.invocations.get(0).request.getSlice().get(0).getValue());
+        assertEquals("previous", svc.invocations.get(1).request.getSlice().get(0).getValue());
+    }
+
+    @Test
     @DisplayName("plan.distinct 透传到 Request.distinct")
     void distinctForwarded() {
         FakeSemanticService svc = new FakeSemanticService();

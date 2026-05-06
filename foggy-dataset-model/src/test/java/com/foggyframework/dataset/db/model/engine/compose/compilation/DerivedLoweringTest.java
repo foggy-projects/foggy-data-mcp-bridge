@@ -5,6 +5,8 @@ import com.foggyframework.dataset.db.model.engine.compose.compilation.CompileTes
 import com.foggyframework.dataset.db.model.engine.compose.plan.BaseModelPlan;
 import com.foggyframework.dataset.db.model.engine.compose.plan.DerivedQueryPlan;
 import com.foggyframework.dataset.db.model.engine.compose.security.ModelBinding;
+import com.foggyframework.dataset.db.model.engine.compose.schema.ComposeSchemaErrorCodes;
+import com.foggyframework.dataset.db.model.engine.compose.schema.ComposeSchemaException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -75,7 +77,7 @@ class DerivedLoweringTest {
                 .build();
 
         ComposedSql sql = compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "sqlite");
-        assertTrue(sql.getSql().contains("WHERE amount > ?"));
+        assertTrue(sql.getSql().contains("WHERE cte_0.amount > ?"));
         assertEquals(List.of(100), sql.getParams());
     }
 
@@ -91,7 +93,7 @@ class DerivedLoweringTest {
                 .build();
 
         ComposedSql sql = compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "sqlite");
-        assertTrue(sql.getSql().contains("WHERE status = ?"));
+        assertTrue(sql.getSql().contains("WHERE cte_0.status = ?"));
         assertEquals(List.of("open"), sql.getParams());
     }
 
@@ -170,6 +172,44 @@ class DerivedLoweringTest {
     }
 
     @Test
+    @DisplayName("WHERE 支持 {'$field': rhs} 字段对字段比较")
+    void whereSupportsFieldReferenceValue() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT left_amount, right_amount FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "left_amount", "right_amount");
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(base)
+                .columns(List.of("left_amount", "right_amount"))
+                .slice(List.of(Map.of(
+                        "field", "left_amount",
+                        "op", "<",
+                        "value", Map.of("$field", "right_amount"))))
+                .build();
+
+        ComposedSql sql = compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "sqlite");
+        assertTrue(sql.getSql().contains("cte_0.left_amount < cte_0.right_amount"));
+        assertTrue(sql.getParams().stream().noneMatch(Map.class::isInstance));
+    }
+
+    @Test
+    @DisplayName("同一层新建 alias 不能立刻用于 slice")
+    void sameStageAliasSliceRejectedAtCompile() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT partner_id, amount FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "partner_id", "amount");
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(base)
+                .columns(List.of("partner_id", "amount - 100 AS decrease_amount"))
+                .slice(List.of(Map.of("field", "decrease_amount", "op", ">", "value", 0)))
+                .build();
+
+        ComposeSchemaException ex = assertThrows(ComposeSchemaException.class,
+                () -> compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "sqlite"));
+        assertEquals(ComposeSchemaErrorCodes.DERIVED_QUERY_SAME_STAGE_ALIAS, ex.code());
+        assertEquals("decrease_amount", ex.offendingField());
+    }
+
+    @Test
     @DisplayName("derived-over-derived 链式嵌套支持")
     void chainedDerivedSupported() {
         FakeSemanticService svc = new FakeSemanticService();
@@ -234,6 +274,6 @@ class DerivedLoweringTest {
                 .build();
 
         ComposedSql sql = compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "sqlite");
-        assertTrue(sql.getSql().contains("a = ? AND b = ?"));
+        assertTrue(sql.getSql().contains("cte_0.a = ? AND cte_0.b = ?"));
     }
 }

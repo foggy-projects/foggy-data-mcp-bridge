@@ -7,6 +7,10 @@ import com.foggyframework.dataset.db.model.engine.compose.CteUnit;
 import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
 import com.foggyframework.dataset.db.model.engine.compose.plan.*;
 import com.foggyframework.dataset.db.model.engine.compose.plan.expr.*;
+import com.foggyframework.dataset.db.model.engine.compose.schema.AliasExtractor;
+import com.foggyframework.dataset.db.model.engine.compose.schema.ColumnAliasParts;
+import com.foggyframework.dataset.db.model.engine.compose.schema.ComposeSchemaErrorCodes;
+import com.foggyframework.dataset.db.model.engine.compose.schema.ComposeSchemaException;
 import com.foggyframework.dataset.db.model.engine.compose.schema.OutputSchema;
 import com.foggyframework.dataset.db.model.engine.compose.schema.SchemaDerivation;
 import com.foggyframework.dataset.db.model.engine.compose.security.ComposePlanAwarePermissionValidator;
@@ -705,6 +709,7 @@ public final class ComposePlanner {
         } else {
             innerUnit = (CteUnit) inner;
         }
+        validateDerivedSliceNotSameStageAlias(plan, innerUnit.getSelectColumns());
 
         List<Object> outerParams = new ArrayList<>();
         String outerSql = renderOuterSelect(plan, innerUnit.getAlias(), innerUnit.getSql(), outerParams, state);
@@ -1025,7 +1030,7 @@ public final class ComposePlanner {
         return trimmed;
     }
 
-    private static boolean isSimpleOutputColumn(String col) {
+    static boolean isSimpleOutputColumn(String col) {
         return col != null
                 && !col.contains(" ")
                 && !col.contains("(")
@@ -1129,7 +1134,7 @@ public final class ComposePlanner {
         if (!plan.slice().isEmpty()) {
             List<String> frags = new ArrayList<>();
             for (Object entry : plan.slice()) {
-                frags.add(renderSliceEntry(entry, outerParams, dialect));
+                frags.add(renderSliceEntry(entry, outerParams, dialect, innerAlias));
             }
             sb.append("\nWHERE ").append(String.join(" AND ", frags));
         }
@@ -1163,10 +1168,77 @@ public final class ComposePlanner {
         return sb.toString();
     }
 
-    private static String renderSliceEntry(Object entry, List<Object> outerParams, String dialect) {
+    private static String renderSliceEntry(
+            Object entry, List<Object> outerParams, String dialect, String innerAlias) {
         SliceShape s = SliceShape.parse(entry);
+        String fieldSql = renderDerivedSliceField(innerAlias, s.field, dialect);
+        if (s.hasFieldReferenceValue()) {
+            String ref = s.fieldReferenceValue();
+            return fieldSql + " " + s.op + " "
+                    + renderDerivedSliceField(innerAlias, ref, dialect);
+        }
         outerParams.add(s.value);
-        return quoteColumnExpr(unquoteIdentifier(s.field), dialect) + " " + s.op + " ?";
+        return fieldSql + " " + s.op + " ?";
+    }
+
+    private static String renderDerivedSliceField(String innerAlias, String field, String dialect) {
+        String unquoted = unquoteIdentifier(field);
+        if (isSimpleOutputColumn(unquoted)) {
+            return innerAlias + "." + quoteColumnExpr(unquoted, dialect);
+        }
+        return quoteColumnExpr(unquoted, dialect);
+    }
+
+    private static void validateDerivedSliceNotSameStageAlias(
+            DerivedQueryPlan plan, List<String> sourceColumns) {
+        if (plan.slice().isEmpty()) {
+            return;
+        }
+        Set<String> sourceNames = new LinkedHashSet<>();
+        if (sourceColumns != null) {
+            for (String col : sourceColumns) {
+                sourceNames.add(unquoteIdentifier(extractOutputColName(col)));
+            }
+        }
+        Set<String> currentStageAliases = new LinkedHashSet<>();
+        for (Object col : plan.columns()) {
+            ColumnAliasParts parts = AliasExtractor.extract(extractStringCols(List.of(col)).get(0));
+            if (parts.hasAlias() && !sourceNames.contains(parts.outputName())) {
+                currentStageAliases.add(parts.outputName());
+            }
+        }
+        if (currentStageAliases.isEmpty()) {
+            return;
+        }
+        for (Object entry : plan.slice()) {
+            String fieldName = sliceFieldName(entry);
+            if (fieldName != null && currentStageAliases.contains(fieldName)) {
+                throw new ComposeSchemaException(
+                        ComposeSchemaErrorCodes.DERIVED_QUERY_SAME_STAGE_ALIAS,
+                        "field '" + fieldName + "' is created by this derived "
+                                + "query's SELECT and cannot be filtered in the same "
+                                + "stage; add another .query({ slice: "
+                                + "[{field: '" + fieldName + "', ...}] }) stage",
+                        ComposeSchemaErrorCodes.PHASE_SCHEMA_DERIVE,
+                        "DerivedQueryPlan",
+                        fieldName);
+            }
+        }
+    }
+
+    private static String sliceFieldName(Object entry) {
+        if (!(entry instanceof Map<?, ?> map)) {
+            return null;
+        }
+        Object canonical = map.get("field");
+        if (canonical instanceof String s) {
+            return s;
+        }
+        if (canonical != null || map.size() != 1) {
+            return null;
+        }
+        Object key = map.keySet().iterator().next();
+        return key instanceof String s ? s : null;
     }
 
     private static String renderOrderEntry(String entry, String dialect) {

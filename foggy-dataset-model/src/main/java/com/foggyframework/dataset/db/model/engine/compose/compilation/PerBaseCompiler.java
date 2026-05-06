@@ -55,10 +55,10 @@ final class PerBaseCompiler {
      *                         typically {@code ComposeQueryContext.namespace()}
      * @param alias            alias for the resulting {@link CteUnit}
      *                         (caller owns numbering)
-     * @param governanceCache  optional cache; {@code (model, identityOf(binding))}
-     *                         → cached {@link SqlGenerationResult}. Skips
-     *                         re-running v1.3 governance for self-join /
-     *                         self-union cases within a single compile pass.
+     * @param governanceCache  optional cache; {@code (model, identityOf(binding),
+     *                         planHash)} → cached {@link SqlGenerationResult}.
+     *                         Skips re-running v1.3 governance for identical
+     *                         base query shapes within a single compile pass.
      * @return {@link CteUnit} carrying {@code alias}, {@code sql}, {@code params}
      *         and the plan's declared {@code columns} as
      *         {@code selectColumns}.
@@ -79,7 +79,8 @@ final class PerBaseCompiler {
             String alias,
             Map<String, SqlGenerationResult> governanceCache) {
 
-        String cacheKey = plan.model() + ":" + System.identityHashCode(binding);
+        String cacheKey = plan.model() + ":" + System.identityHashCode(binding)
+                + ":" + PlanHash.planHash(plan);
         SqlGenerationResult buildResult = null;
         if (governanceCache != null) {
             buildResult = governanceCache.get(cacheKey);
