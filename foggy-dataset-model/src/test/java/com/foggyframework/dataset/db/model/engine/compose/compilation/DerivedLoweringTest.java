@@ -4,6 +4,9 @@ import com.foggyframework.dataset.db.model.engine.compose.ComposedSql;
 import com.foggyframework.dataset.db.model.engine.compose.compilation.CompileTestHelpers.FakeSemanticService;
 import com.foggyframework.dataset.db.model.engine.compose.plan.BaseModelPlan;
 import com.foggyframework.dataset.db.model.engine.compose.plan.DerivedQueryPlan;
+import com.foggyframework.dataset.db.model.engine.compose.plan.ProjectedColumn;
+import com.foggyframework.dataset.db.model.engine.compose.plan.expr.BinaryExpr;
+import com.foggyframework.dataset.db.model.engine.compose.plan.expr.ColumnExpr;
 import com.foggyframework.dataset.db.model.engine.compose.schema.ComposeSchemaErrorCodes;
 import com.foggyframework.dataset.db.model.engine.compose.schema.ComposeSchemaException;
 import com.foggyframework.dataset.db.model.engine.compose.security.ModelBinding;
@@ -254,6 +257,26 @@ class DerivedLoweringTest {
                 () -> compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "postgres"));
         assertEquals(ComposeSchemaErrorCodes.DERIVED_QUERY_UNKNOWN_FIELD, ex.code());
         assertEquals("salesperson$id", ex.offendingField());
+    }
+
+    @Test
+    @DisplayName("derived ProjectedColumn(BinaryExpr) 校验表达式操作数而不是对象 toString")
+    void projectedBinaryExprValidatesOperandsInsteadOfClassName() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT amount, tax FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "amount", "tax");
+        ProjectedColumn total = new ProjectedColumn(
+                new BinaryExpr(new ColumnExpr("amount"), "+", new ColumnExpr("tax")),
+                "total",
+                null);
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(base)
+                .columns(List.of(total))
+                .build();
+
+        ComposedSql sql = compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "sqlite");
+
+        assertTrue(sql.getSql().contains("(amount + tax) AS total"));
     }
 
     @Test

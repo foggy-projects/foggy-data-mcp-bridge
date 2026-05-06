@@ -413,12 +413,8 @@ public final class ComposePlanner {
             return;
         }
         Set<String> sourceNames = new LinkedHashSet<>(sourceColumns);
-        for (String col : extractStringCols(plan.columns())) {
-            String expr = extractBaseColName(col);
-            if ("*".equals(expr.trim())) {
-                continue;
-            }
-            for (String ident : extractUnquotedIdentifiers(expr)) {
+        for (Object col : plan.columns()) {
+            for (String ident : columnInputRefs(col)) {
                 String unquoted = unquoteIdentifier(ident);
                 if (!sourceNames.contains(unquoted)) {
                     throw new ComposeSchemaException(
@@ -429,6 +425,90 @@ public final class ComposePlanner {
                             "DerivedQueryPlan",
                             unquoted);
                 }
+            }
+        }
+    }
+
+    private static List<String> columnInputRefs(Object col) {
+        if (col instanceof String s) {
+            String expr = extractBaseColName(s);
+            if ("*".equals(expr.trim())) {
+                return Collections.emptyList();
+            }
+            return extractUnquotedIdentifiers(expr);
+        }
+        if (col instanceof PlanExpression expr) {
+            List<String> out = new ArrayList<>();
+            collectExpressionInputRefs(expr, out);
+            return out;
+        }
+        return extractUnquotedIdentifiers(extractBaseColName(String.valueOf(col)));
+    }
+
+    private static void collectExpressionInputRefs(PlanExpression expr, List<String> out) {
+        if (expr == null) {
+            return;
+        }
+        if (expr instanceof ColumnExpr col) {
+            out.add(col.name());
+            return;
+        }
+        if (expr instanceof PlanColumnRef ref) {
+            out.add(ref.name());
+            return;
+        }
+        if (expr instanceof ProjectedColumn projected) {
+            collectExpressionInputRefs(projected.expr(), out);
+            return;
+        }
+        if (expr instanceof BinaryExpr binary) {
+            collectExpressionInputRefs(binary.left(), out);
+            collectExpressionInputRefs(binary.right(), out);
+            return;
+        }
+        if (expr instanceof CaseWhenExpr caseWhen) {
+            for (CaseWhenExpr.WhenThen whenThen : caseWhen.whens()) {
+                collectExpressionInputRefs(whenThen.condition(), out);
+                collectExpressionInputRefs(whenThen.result(), out);
+            }
+            collectExpressionInputRefs(caseWhen.elseExpr(), out);
+            return;
+        }
+        if (expr instanceof AggregateColumn aggregate) {
+            collectExpressionInputRefs(aggregate.ref(), out);
+            return;
+        }
+        if (expr instanceof WindowColumn window) {
+            collectExpressionInputRefs(window.ref(), out);
+            collectWindowClauseRefs(window, out);
+            return;
+        }
+        if (expr instanceof RawExpr raw) {
+            out.addAll(extractUnquotedIdentifiers(raw.expression()));
+            return;
+        }
+        if (expr instanceof LiteralExpr) {
+            return;
+        }
+        out.addAll(extractUnquotedIdentifiers(expr.toString()));
+    }
+
+    private static void collectWindowClauseRefs(WindowColumn window, List<String> out) {
+        OverClause over = window.over();
+        if (over == null) {
+            return;
+        }
+        if (over.getPartitionBy() != null) {
+            for (String entry : over.getPartitionBy()) {
+                out.addAll(extractUnquotedIdentifiers(entry));
+            }
+        }
+        if (over.getOrderBy() != null) {
+            for (String entry : over.getOrderBy()) {
+                String normalized = entry != null && entry.startsWith("-")
+                        ? entry.substring(1)
+                        : entry;
+                out.addAll(extractUnquotedIdentifiers(normalized));
             }
         }
     }
@@ -473,9 +553,22 @@ public final class ComposePlanner {
             if (prev == '.' || next == '.') {
                 continue;
             }
+            if (nextNonWhitespace(expr, m.end()) == '(') {
+                continue;
+            }
             out.add(token);
         }
         return out;
+    }
+
+    private static char nextNonWhitespace(String text, int start) {
+        for (int i = start; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (!Character.isWhitespace(c)) {
+                return c;
+            }
+        }
+        return '\0';
     }
 
     /** Quote bare identifiers within a SQL expression.
