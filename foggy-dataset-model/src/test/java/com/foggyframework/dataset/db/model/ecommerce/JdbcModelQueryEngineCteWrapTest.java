@@ -138,6 +138,33 @@ class JdbcModelQueryEngineCteWrapTest extends EcommerceTestSupport {
         assertTrue(cteEnd > 0 && orderByIdx > cteEnd,
                 "ORDER BY should be elevated to outer query (after FROM stage1): " + sql);
     }
+    @Test
+    @Order(5)
+    @DisplayName("Regex edge case: Substring collision prevention in CTE rewriting")
+    void testRegexSubstringCollision() {
+        String sql = "SUM(t1.sales) / MAX(t1.sales_tax) + t1.sales";
+        String physicalSql = "t1.sales";
+        String aliasSql = "\"sales\"";
+
+        String regex = "(?<![\\\\p{L}0-9_$])" + java.util.regex.Pattern.quote(physicalSql) + "(?![\\\\p{L}0-9_$])";
+        String replaced = sql.replaceAll(regex, java.util.regex.Matcher.quoteReplacement(aliasSql));
+
+        assertEquals("SUM(\"sales\") / MAX(t1.sales_tax) + \"sales\"", replaced, 
+                "Should only replace exact matches on word boundaries");
+
+        // Edge case: end of string
+        assertEquals("\"sales\"", "t1.sales".replaceAll(regex, aliasSql));
+
+        // Edge case: start of string
+        assertEquals("\"sales\" / 2", "t1.sales / 2".replaceAll(regex, aliasSql));
+        
+        // Edge case: unicode letters
+        String unicodeSql = "t1.销售额 + t1.销售额_tax";
+        String unicodePhysical = "t1.销售额";
+        String unicodeAlias = "\"sales\"";
+        String unicodeRegex = "(?<![\\\\p{L}0-9_$])" + java.util.regex.Pattern.quote(unicodePhysical) + "(?![\\\\p{L}0-9_$])";
+        assertEquals("\"sales\" + t1.销售额_tax", unicodeSql.replaceAll(unicodeRegex, unicodeAlias));
+    }
 
     // ==========================================
     // Execution Correctness
