@@ -127,7 +127,7 @@ public class DbPropertyImpl extends DbObjectSupport implements DbProperty, DbDat
 
         public PropertyDbColumn() {
             super(initSqlColumn(dbDimension, tableModel, column, name, type));
-            this.queryObjRef = dbDimension == null
+            this.queryObjRef = dbDimension == null || dbDimension.getQueryObject() == null
                     ? tableModel.getQueryObject()
                     : dbDimension.getQueryObject();
         }
@@ -139,7 +139,7 @@ public class DbPropertyImpl extends DbObjectSupport implements DbProperty, DbDat
                                                 String column, String name, DbColumnType type) {
             try {
                 // 确定查询对象
-                QueryObject queryObject = dbDimension == null
+                QueryObject queryObject = dbDimension == null || dbDimension.getQueryObject() == null
                         ? tableModel.getQueryObject()
                         : dbDimension.getQueryObject();
 

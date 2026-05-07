@@ -277,7 +277,9 @@ public abstract class DbDimensionSupport extends DbObjectSupport implements DbDi
 
         @Override
         public QueryObject getQueryObject() {
-            return DbDimensionSupport.this.queryObject;
+            return DbDimensionSupport.this.queryObject == null
+                    ? jdbcModel.getQueryObject()
+                    : DbDimensionSupport.this.queryObject;
         }
 
         @Override
@@ -290,7 +292,10 @@ public abstract class DbDimensionSupport extends DbObjectSupport implements DbDi
             if (alias == null) {
                 // 使用维度的别名路径（下划线分隔，支持嵌套维度）来构建属性列名
                 String fullPathAlias = getFullPathForAlias();
-                alias = fullPathAlias + "$" + property.getPropertyDbColumn().getAlias();
+                String propertyAlias = StringUtils.isNotEmpty(property.getName())
+                        ? property.getName()
+                        : property.getPropertyDbColumn().getAlias();
+                alias = fullPathAlias + "$" + propertyAlias;
             }
             return alias;
         }
@@ -364,6 +369,28 @@ public abstract class DbDimensionSupport extends DbObjectSupport implements DbDi
         @Override
         public void setFormulaBuilder(FsscriptFunction builder) {
             this.formulaBuilder = builder;
+        }
+
+        @Override
+        public String getDeclare(ApplicationContext appCtx, String alias) {
+            if (formulaBuilder != null) {
+                DefaultExpEvaluator expEvaluator = DefaultExpEvaluator.newInstance(appCtx);
+                expEvaluator.setVar("alias", StringUtils.isEmpty(alias) ? getQueryObject().getAlias() : alias);
+                expEvaluator.setVar("def", this);
+                return (String) formulaBuilder.autoApply(expEvaluator);
+            }
+            return property.getPropertyDbColumn().getDeclare(appCtx, alias);
+        }
+
+        @Override
+        public String getDeclare() {
+            if (formulaBuilder != null) {
+                DefaultExpEvaluator expEvaluator = DefaultExpEvaluator.newInstance(null);
+                expEvaluator.setVar("alias", getQueryObject().getAlias());
+                expEvaluator.setVar("def", this);
+                return (String) formulaBuilder.autoApply(expEvaluator);
+            }
+            return property.getPropertyDbColumn().getDeclare();
         }
     }
 
@@ -629,7 +656,7 @@ public abstract class DbDimensionSupport extends DbObjectSupport implements DbDi
         List<DbColumn> ll = new ArrayList<>();
         ll.add(this.foreignKeyDbColumn);
 
-        if (this.captionDbColumn != null && this.foreignKeyDbColumn.getSqlColumn() != this.captionDbColumn.getSqlColumn()) {
+        if (this.captionDbColumn != null && !StringUtils.equals(this.foreignKeyDbColumn.getName(), this.captionDbColumn.getName())) {
             ll.add(this.captionDbColumn);
         }
 

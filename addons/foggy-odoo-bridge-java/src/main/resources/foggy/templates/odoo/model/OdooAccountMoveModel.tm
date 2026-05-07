@@ -97,6 +97,25 @@ export const model = {
             captionDef: jsonbCaption(),
             caption: 'Sales Team',
             description: 'Sales team responsible'
+        },
+        {
+            name: 'invoiceDate',
+            tableName: 'dim_date',
+            foreignKey: 'invoice_date',
+            primaryKey: 'full_date',
+            captionColumn: 'year_month',
+            caption: 'Invoice Date',
+            description: 'Calendar dimension for the account.move invoice_date field.',
+            type: 'DATE',
+            properties: [
+                { column: 'year', caption: 'Invoice Year', type: 'INTEGER' },
+                { column: 'quarter', caption: 'Invoice Quarter', type: 'INTEGER' },
+                { column: 'month', caption: 'Invoice Month', type: 'INTEGER' },
+                { column: 'week_of_year', name: 'week', caption: 'Invoice Week', type: 'INTEGER' },
+                { column: 'day_of_month', name: 'dayOfMonth', caption: 'Invoice Day of Month', type: 'INTEGER' },
+                { column: 'year_month', name: 'yearMonth', caption: 'Invoice Year-Month', type: 'STRING' },
+                { column: 'year_quarter', name: 'yearQuarter', caption: 'Invoice Year-Quarter', type: 'STRING' }
+            ]
         }
     ],
 

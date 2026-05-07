@@ -10,9 +10,17 @@ const ap = loadTableModel('OdooAccountPaymentModel');
 export const queryModel = {
     name: 'OdooAccountPaymentQueryModel',
     caption: 'Payment Analysis',
-    description: 'Analyze payments by partner, type, currency, and time period. '
-        + 'Filter by payment_type: "inbound" for received payments, "outbound" for sent payments. '
-        + 'Filter by partner_type: "customer" or "supplier".',
+    description: `Analyze payments by partner, type, currency, and time period.
+Filter by payment_type: "inbound" for received payments (客户回款/AR collection), "outbound" for sent payments.
+Filter by partner_type: "customer" or "supplier".
+▶ Payment business date (回款入账日期): use move$date — this is the accounting entry date from the linked journal entry.
+For current-month / prior-month period queries, use absolute date range slice on move$date: {"field": "move$date", "op": "[]", "value": ["YYYY-MM-01", "YYYY-MM-31"]}.
+▶ Date comparison guidance: prefer explicit absolute date range slices on move$date for current-month vs prior-month questions.
+For single-model current-month vs prior-month payment amount comparison, do NOT use dataset.compose_script, union, cross join, or literal month columns; use dataset.query_model once per absolute move$date range and compute the difference/growth in the answer.
+timeWindow.field=move$date may be used only when describe_model_internal exposes it as a time field and the requested mode does not require missing calendar grain aliases.
+▶ FORBIDDEN patterns — DO NOT USE:
+(1) move$date$year, move$date$month, createDate$year, createDate$month — no calendar dimension alias exists for these;
+(2) createDate as payment business date — createDate is system record creation time, not payment accounting date.`,
     loader: 'v2',
 
     model: ap,

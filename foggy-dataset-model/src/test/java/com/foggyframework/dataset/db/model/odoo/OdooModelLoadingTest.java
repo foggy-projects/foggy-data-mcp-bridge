@@ -1,10 +1,20 @@
 package com.foggyframework.dataset.db.model.odoo;
 
+import com.foggyframework.bundle.SystemBundlesContext;
+import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
+import com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef;
 import com.foggyframework.dataset.db.model.ecommerce.EcommerceTestSupport;
+import com.foggyframework.dataset.db.model.engine.JdbcModelQueryEngine;
+import com.foggyframework.dataset.db.model.engine.formula.SqlFormulaService;
 import com.foggyframework.dataset.db.model.spi.JdbcQueryModel;
 import com.foggyframework.dataset.db.model.spi.TableModel;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.*;
+
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -20,6 +30,12 @@ import static org.junit.jupiter.api.Assertions.*;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @DisplayName("Odoo 模型加载测试")
 class OdooModelLoadingTest extends EcommerceTestSupport {
+
+    @Resource
+    private SqlFormulaService sqlFormulaService;
+
+    @Resource
+    private SystemBundlesContext systemBundlesContext;
 
     // ==========================================
     // TM 模型加载测试
@@ -184,6 +200,60 @@ class OdooModelLoadingTest extends EcommerceTestSupport {
         assertNotNull(queryModel.getColumnGroups(), "列组定义为空");
         assertTrue(queryModel.getColumnGroups().size() >= 3, "列组数量不足");
         log.info("OdooSaleOrderQueryModel 加载成功: 列组数={}", queryModel.getColumnGroups().size());
+    }
+
+    @Test
+    @Order(201)
+    @DisplayName("SaleOrder self date dimension 应暴露 dateOrder 粒度字段")
+    void testSaleOrderSelfDateDimensionFields() {
+        JdbcQueryModel queryModel = getQueryModel("OdooSaleOrderQueryModel");
+        assertNotNull(queryModel.findDimension("dateOrder"));
+        assertNotNull(queryModel.findJdbcColumnForSelectByName("dateOrder$caption", true));
+        assertNotNull(queryModel.findJdbcColumnForSelectByName("dateOrder$year", true));
+        assertNotNull(queryModel.findJdbcColumnForSelectByName("dateOrder$month", true));
+        assertNotNull(queryModel.findJdbcColumnForSelectByName("dateOrder$yearMonth", true));
+    }
+
+    @Test
+    @Order(202)
+    @DisplayName("SaleOrder self date dimension 粒度查询应生成主表表达式 SQL")
+    void testSaleOrderSelfDateDimensionQueryUsesFactExpression() {
+        JdbcQueryModel queryModel = getQueryModel("OdooSaleOrderQueryModel");
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("OdooSaleOrderQueryModel");
+        queryRequest.setColumns(Arrays.asList(
+            "dateOrder$year",
+            "dateOrder$month",
+            "dateOrder$yearMonth",
+            "sum(amountTotal) as totalSales"
+        ));
+
+        GroupRequestDef yearGroup = new GroupRequestDef();
+        yearGroup.setField("dateOrder$year");
+        GroupRequestDef monthGroup = new GroupRequestDef();
+        monthGroup.setField("dateOrder$month");
+        GroupRequestDef yearMonthGroup = new GroupRequestDef();
+        yearMonthGroup.setField("dateOrder$yearMonth");
+        queryRequest.setGroupBy(Arrays.asList(yearGroup, monthGroup, yearMonthGroup));
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+        String sql = queryEngine.getSql();
+
+        log.info("SaleOrder self date dimension SQL: {}", sql);
+        assertNotNull(sql, "生成的 SQL 不应为空");
+        assertFalse(sql.toLowerCase().contains("dim_date"),
+            "self date dimension 不应 join dim_date: " + sql);
+        assertTrue(sql.toLowerCase().contains("date_order"),
+            "dateOrder 粒度字段应使用主表 date_order 表达式: " + sql);
+
+        if (sql.toLowerCase().contains("strftime")) {
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, queryEngine.getValues().toArray());
+            assertFalse(rows.isEmpty(), "dateOrder 粒度聚合应返回数据");
+            assertTrue(rows.stream().anyMatch(row -> Integer.valueOf(2025).equals(row.get("dateOrder$year"))),
+                "测试数据应包含 2025 年销售订单");
+        }
     }
 
     @Test
