@@ -38,6 +38,18 @@ public final class ComposeSchemaErrorCodes {
     public static final String DERIVED_QUERY_UNKNOWN_FIELD =
             NAMESPACE + "/derived-query/unknown-field";
 
+    /**
+     * Derived query's {@code slice} references a column alias created by
+     * the same derived query's {@code columns}, not a column from the
+     * source plan's output schema.
+     *
+     * <p>This cannot be rendered as a WHERE clause against the inner
+     * subquery. The caller must add another {@code .query({slice: [...]})}
+     * stage to filter on the newly-created alias.</p>
+     */
+    public static final String DERIVED_QUERY_SAME_STAGE_ALIAS =
+            NAMESPACE + "/derived-query/same-stage-alias";
+
     /** Column spec whose expression references the empty alias slot
      *  ({@code ... AS}) or similar malformed shape. */
     public static final String COLUMN_SPEC_MALFORMED =
@@ -191,6 +203,7 @@ public final class ComposeSchemaErrorCodes {
             NAMESPACE + "/relation/column-reference-unsupported";
     public static final Set<String> ALL_CODES = Set.of(
             DERIVED_QUERY_UNKNOWN_FIELD,
+            DERIVED_QUERY_SAME_STAGE_ALIAS,
             COLUMN_SPEC_MALFORMED,
             DUPLICATE_OUTPUT_COLUMN,
             UNION_COLUMN_COUNT_MISMATCH,

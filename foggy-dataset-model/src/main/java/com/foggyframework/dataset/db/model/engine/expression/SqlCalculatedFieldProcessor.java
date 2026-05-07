@@ -12,6 +12,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * SQL 计算字段处理器
@@ -107,6 +109,7 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
             SqlFragment sqlFragment = CalculatedFieldService.evaluateExpression(compiledExp, context, appCtx);
 
             // 2.1 如果有 partitionBy/windowOrderBy，包装窗口子句
+            boolean wrappedWithWindowClause = false;
             if (fieldDef.getPartitionBy() != null || fieldDef.getWindowOrderBy() != null) {
                 if (log.isDebugEnabled()) {
                     log.debug("Window clause for {}: partitionBy={}, windowOrderBy={}, windowFrame={}",
@@ -114,6 +117,7 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
                             fieldDef.getWindowOrderBy(), fieldDef.getWindowFrame());
                 }
                 sqlFragment = wrapWithWindowClause(sqlFragment, fieldDef, context, appCtx);
+                wrappedWithWindowClause = true;
             }
 
             // 2.2 如果推断了聚合类型，传递到 SqlFragment
@@ -134,6 +138,11 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
                     sqlFragment,
                     fieldDef.getDescription()
             );
+
+            // Mark the column as needing CTE wrapping if it went through wrapWithWindowClause
+            if (wrappedWithWindowClause) {
+                column.setNeedsCteWrapping(true);
+            }
 
             // 4. 注册到上下文（支持后续字段引用）
             context.registerCalculatedColumn(fieldDef.getName(), column);
@@ -177,8 +186,8 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
             List<String> partitionSqls = new ArrayList<>();
             for (String colName : fieldDef.getPartitionBy()) {
                 DbQueryColumn col = context.resolveColumn(colName);
-                String alias = context.getAlias(col);
-                String colSql = resolveColumnSql(col, alias, appCtx);
+                String partAlias = context.getAlias(col);
+                String colSql = resolveColumnSql(col, partAlias, appCtx, true);
                 partitionSqls.add(colSql);
                 refs.add(col);
             }
@@ -193,9 +202,17 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
             overClause.append("ORDER BY ");
             List<String> orderSqls = new ArrayList<>();
             for (WindowOrderDef orderDef : fieldDef.getWindowOrderBy()) {
-                DbQueryColumn col = context.resolveColumn(orderDef.getField());
+                String orderField = orderDef.getField();
+                // In CTE Wrapping architecture, Window CFs are evaluated in Stage 2.
+                // We resolve the column and reference it by its alias (which will be projected by Stage 1).
+                DbQueryColumn col = context.tryResolveColumn(orderField);
+                if (col == null) {
+                    throw RX.throwAUserTip("COMPOSE_WINDOW_ORDER_BY_UNRESOLVABLE: calculatedFields["
+                            + fieldDef.getName() + "].windowOrderBy field '"
+                            + orderField + "' cannot be resolved. Use a valid base model measure, dimension, or prior calc-field name.");
+                }
                 String alias = context.getAlias(col);
-                String colSql = resolveColumnSql(col, alias, appCtx);
+                String colSql = resolveColumnSql(col, alias, appCtx, true);
                 orderSqls.add(colSql + " " + orderDef.getNormalizedDir());
                 refs.add(col);
             }
@@ -210,8 +227,14 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
             overClause.append(fieldDef.getWindowFrame());
         }
 
+        // ── CTE Wrapping: rewrite base expression to use alias-based column references ──
+        // In two-stage CTE architecture, the base expression (before OVER) must reference
+        // columns by their projected alias from Stage 1, not physical table expressions.
+        // e.g., AVG(t1.sales_amount) → AVG("salesAmount")
+        String rewrittenBaseSql = rewriteBaseExpressionForCte(baseSql, context, appCtx);
+
         return SqlFragment.windowFunction(
-                baseSql.getSql(),
+                rewrittenBaseSql,
                 overClause.toString(),
                 refs,
                 baseSql.getInferredType()
@@ -222,13 +245,77 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
      * 解析列的 SQL 表达式
      */
     private String resolveColumnSql(DbQueryColumn col, String alias, ApplicationContext appCtx) {
-        if (col instanceof CalculatedDbColumn) {
-            return ((CalculatedDbColumn) col).getDeclare();
+        return resolveColumnSql(col, alias, appCtx, false);
+    }
+
+    /**
+     * 解析列的 SQL 表达式
+     * <p>
+     * 在 CTE Wrapping 架构中，如果当前正在生成 Stage 2（外层）的窗口函数，
+     * 需要设置 asAlias=true，这样它引用的内层列（如 SUM(...)）会直接引用其投影出的别名/名称，
+     * 而不是展开为内层的物理表达式。
+     * </p>
+     */
+    private String resolveColumnSql(DbQueryColumn col, String alias, ApplicationContext appCtx, boolean asAlias) {
+        if (asAlias) {
+            if (col instanceof CalculatedDbColumn) {
+                return dialect.quoteIdentifier(((CalculatedDbColumn) col).getName());
+            }
+            if (col.getSelectColumn() != null) {
+                return dialect.quoteIdentifier(col.getSelectColumn().getAlias());
+            }
+            return dialect.quoteIdentifier(col.getAlias());
+        } else {
+            if (col instanceof CalculatedDbColumn) {
+                return ((CalculatedDbColumn) col).getDeclare();
+            }
+            if (col.getSelectColumn() != null) {
+                return col.getSelectColumn().getDeclare(appCtx, alias);
+            }
+            return alias != null ? alias + "." + col.getAlias() : col.getAlias();
         }
-        if (col.getSelectColumn() != null) {
-            return col.getSelectColumn().getDeclare(appCtx, alias);
+    }
+
+    /**
+     * Rewrite the base SQL expression for CTE wrapping.
+     * <p>
+     * Replaces physical column references (e.g., {@code t1.sales_amount}) with
+     * their projected alias (e.g., {@code "salesAmount"}) so the expression is
+     * valid in Stage 2 of a CTE-wrapped query.
+     * </p>
+     * <p>
+     * Uses the SqlFragment's referenced columns to build a mapping from
+     * physical SQL declare → alias SQL, then performs string replacement.
+     * Falls back to the original SQL if no replacements can be made.
+     * </p>
+     */
+    private String rewriteBaseExpressionForCte(SqlFragment baseSql, SqlExpContext context, ApplicationContext appCtx) {
+        String sql = baseSql.getSql();
+        Set<DbQueryColumn> refs = baseSql.getReferencedColumns();
+        if (refs == null || refs.isEmpty()) {
+            return sql;
         }
-        return alias != null ? alias + "." + col.getAlias() : col.getAlias();
+
+        for (DbQueryColumn col : refs) {
+            String tableAlias = context.getAlias(col);
+            // Get the physical SQL declare (e.g., "t1.sales_amount")
+            String physicalSql = resolveColumnSql(col, tableAlias, appCtx, false);
+            // Get the alias-based SQL declare (e.g., "\"salesAmount\"")
+            String aliasSql = resolveColumnSql(col, tableAlias, appCtx, true);
+
+            if (physicalSql != null && aliasSql != null && !physicalSql.equals(aliasSql)) {
+                // Use lookaround assertions to prevent substring matching.
+                // Ensures we only match the physical SQL if it's not immediately preceded or followed by an identifier character [\\p{L}0-9_$].
+                String regex = "(?<![\\\\p{L}0-9_$])" + Pattern.quote(physicalSql) + "(?![\\\\p{L}0-9_$])";
+                sql = sql.replaceAll(regex, Matcher.quoteReplacement(aliasSql));
+            }
+        }
+
+        if (log.isDebugEnabled() && !sql.equals(baseSql.getSql())) {
+            log.debug("CTE rewrite: {} → {}", baseSql.getSql(), sql);
+        }
+
+        return sql;
     }
 
     /**

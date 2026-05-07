@@ -17,6 +17,7 @@ import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryService
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -99,10 +100,16 @@ final class CompileTestHelpers {
     static final class CannedResult {
         final String sql;
         final List<Object> params;
+        final List<SqlGenerationResult.CteStage> stages;
 
         CannedResult(String sql, List<Object> params) {
+            this(sql, params, Collections.emptyList());
+        }
+
+        CannedResult(String sql, List<Object> params, List<SqlGenerationResult.CteStage> stages) {
             this.sql = sql;
             this.params = params;
+            this.stages = stages;
         }
     }
 
@@ -132,6 +139,12 @@ final class CompileTestHelpers {
 
         FakeSemanticService stub(String model, String sql, Object... params) {
             canned.put(model, new CannedResult(sql, new ArrayList<>(Arrays.asList(params))));
+            return this;
+        }
+
+        /** M8: stub with structured CTE stages (for CTE Flattening tests). */
+        FakeSemanticService stubWithCtes(String model, String outerSql, List<SqlGenerationResult.CteStage> stages, Object... params) {
+            canned.put(model, new CannedResult(outerSql, new ArrayList<>(Arrays.asList(params)), stages));
             return this;
         }
 
@@ -167,7 +180,7 @@ final class CompileTestHelpers {
             if (c == null) {
                 throw new RuntimeException("Model not found: " + model);
             }
-            return new SqlGenerationResult(c.sql, c.params, null);
+            return new SqlGenerationResult(c.sql, c.params, null, c.stages);
         }
 
         @Override

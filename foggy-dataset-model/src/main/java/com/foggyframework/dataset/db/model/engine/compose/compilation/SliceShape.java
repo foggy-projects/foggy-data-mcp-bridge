@@ -64,4 +64,25 @@ final class SliceShape {
         Map.Entry<String, Object> e = entry.entrySet().iterator().next();
         return new SliceShape(e.getKey(), "=", e.getValue());
     }
+
+    boolean hasFieldReferenceValue() {
+        return value instanceof Map<?, ?> map
+                && map.size() == 1
+                && map.containsKey("$field");
+    }
+
+    String fieldReferenceValue() {
+        if (!hasFieldReferenceValue()) {
+            return null;
+        }
+        Object ref = ((Map<?, ?>) value).get("$field");
+        if (!(ref instanceof String) || !ComposePlanner.isSimpleOutputColumn((String) ref)) {
+            throw new ComposeCompileException(
+                    ComposeCompileErrorCodes.UNSUPPORTED_PLAN_SHAPE,
+                    ComposeCompileErrorCodes.PHASE_PLAN_LOWER,
+                    "Derived slice value {'$field': ...} requires a simple "
+                            + "output field name, got " + ref);
+        }
+        return (String) ref;
+    }
 }

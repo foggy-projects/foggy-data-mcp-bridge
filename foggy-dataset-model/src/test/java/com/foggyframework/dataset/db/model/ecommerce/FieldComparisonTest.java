@@ -8,6 +8,8 @@ import com.foggyframework.dataset.db.model.def.query.request.CondRequestDef;
 import com.foggyframework.dataset.db.model.engine.JdbcModelQueryEngine;
 import com.foggyframework.dataset.db.model.engine.formula.SqlFormulaService;
 import com.foggyframework.dataset.db.model.spi.JdbcQueryModel;
+import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
+import com.foggyframework.dataset.client.domain.PagingRequest;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.*;
@@ -218,6 +220,76 @@ class FieldComparisonTest extends EcommerceTestSupport {
         List<Map<String, Object>> results = jdbcTemplate.queryForList(paginateSql(sql, 10));
         log.info("查询结果数量: {}", results.size());
         assertTrue(results.size() > 0, "应该有不相等的记录");
+    }
+
+    @Test
+    @Order(5)
+    @DisplayName("$field 引用 - HAVING 聚合比较 (salesAmount > costAmount)")
+    void testHavingFieldReference_AggregateComparison() {
+        JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("FactSalesQueryModel");
+        queryRequest.setColumns(Arrays.asList("product$categoryName", "salesAgg", "costAgg"));
+        
+        // Define calculated aggregate fields for HAVING to use
+        queryRequest.setCalculatedFields(Arrays.asList(
+            new com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef("salesAgg", "sum(salesAmount)"),
+            new com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef("costAgg", "sum(costAmount)")
+        ));
+        
+        // Group by product category
+        List<com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef> groupBy = new ArrayList<>();
+        com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef group = new com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef();
+        group.setField("product$categoryName");
+        groupBy.add(group);
+        queryRequest.setGroupBy(groupBy);
+
+        // 使用 HAVING $field 引用: salesAgg > costAgg
+        List<SliceRequestDef> havingConds = new ArrayList<>();
+        SliceRequestDef havingCond = new SliceRequestDef();
+        havingCond.setField("salesAgg");
+        havingCond.setOp(">");
+        Map<String, Object> fieldRef = new HashMap<>();
+        fieldRef.put("$field", "costAgg");
+        havingCond.setValue(fieldRef);
+        havingConds.add(havingCond);
+        queryRequest.setHaving(havingConds);
+
+        // Mock ModelResultContext with ParsedInlineExpressions so isAggregateCondition works
+        ModelResultContext context = new ModelResultContext();
+        context.setRequest(new PagingRequest<>());
+        context.getRequest().setParam(queryRequest);
+
+        ModelResultContext.ParsedInlineExpressions parsed = new ModelResultContext.ParsedInlineExpressions();
+        Map<String, String> columnAggs = new HashMap<>();
+        columnAggs.put("salesAgg", "SUM");
+        columnAggs.put("costAgg", "SUM");
+        parsed.setColumnAggregations(columnAggs);
+        parsed.setColumns(queryRequest.getColumns());
+        context.setParsedInlineExpressions(parsed);
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, context);
+
+        String sql = queryEngine.getSql();
+        assertNotNull(sql, "SQL生成失败");
+        printSql(sql, "HAVING $field 引用 - salesAgg > costAgg");
+
+        // 验证 SQL 包含 HAVING 子句
+        String lowerSql = sql.toLowerCase();
+        assertTrue(lowerSql.contains("having"), "SQL应包含 HAVING 子句");
+
+        // 执行查询
+        List<Map<String, Object>> results = jdbcTemplate.queryForList(paginateSql(sql, 10));
+        log.info("查询结果数量: {}", results.size());
+        
+        for (Map<String, Object> row : results) {
+            BigDecimal salesAgg = toBigDecimal(row.get("salesAgg"));
+            BigDecimal costAgg = toBigDecimal(row.get("costAgg"));
+            assertTrue(salesAgg.compareTo(costAgg) > 0,
+                    String.format("聚合销售金额(%s)应大于聚合成本金额(%s)", salesAgg, costAgg));
+        }
     }
 
     // ==========================================

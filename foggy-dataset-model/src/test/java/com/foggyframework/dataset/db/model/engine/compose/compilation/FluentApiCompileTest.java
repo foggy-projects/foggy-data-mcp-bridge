@@ -248,8 +248,11 @@ class FluentApiCompileTest {
                     "SELECT partner_id, amount_total FROM sale_order");
 
             BaseModelPlan sales = CompileTestHelpers.base("SaleOrderQM", "partnerId", "amountTotal");
+            // Note: field must be declared in the BaseModelPlan columns.
+            // "status" was previously accepted before strict slice schema
+            // validation was introduced; after the fix it is correctly rejected.
             DerivedQueryPlan filtered = sales
-                    .fluentWhere(List.of(Map.of("field", "status", "op", "=", "value", "done")));
+                    .fluentWhere(List.of(Map.of("field", "partnerId", "op", "=", "value", 123)));
 
             ComposedSql sql = compile(filtered, "mysql8");
             assertNotNull(sql);

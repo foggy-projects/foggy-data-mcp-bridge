@@ -136,6 +136,46 @@ class DialectFallbackTest {
         assertFalse(sql.getSql().startsWith("WITH "));
     }
 
+    @Test
+    @DisplayName("single-base mysql57 with prerequisites → RELATION_CTE_HOIST_UNSUPPORTED")
+    void singleBaseMysql57WithPrereqsRejected() {
+        CompileTestHelpers.FakeSemanticService svc = new CompileTestHelpers.FakeSemanticService();
+        List<com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult.CteStage> stages = List.of(
+            new com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult.CteStage("stage1", "SELECT id FROM ta", java.util.Collections.emptyList())
+        );
+        svc.stubWithCtes("A", "SELECT id FROM stage1", stages);
+        Map<String, ModelBinding> bindings = Map.of("A", CompileTestHelpers.emptyBinding());
+        BaseModelPlan a = CompileTestHelpers.base("A", "id");
+
+        ComposeCompileException ex = assertThrows(ComposeCompileException.class,
+                () -> compile(a, svc, bindings, "mysql57"));
+        assertEquals(ComposeCompileErrorCodes.RELATION_CTE_HOIST_UNSUPPORTED, ex.code());
+        assertEquals(ComposeCompileErrorCodes.PHASE_COMPILE, ex.phase());
+        assertTrue(ex.getMessage().contains("Dialect 'mysql57' does not support CTEs"));
+    }
+
+    @Test
+    @DisplayName("join · mssql with prerequisites → RELATION_CTE_HOIST_UNSUPPORTED")
+    void joinMssqlWithPrereqsRejected() {
+        CompileTestHelpers.FakeSemanticService svc = new CompileTestHelpers.FakeSemanticService();
+        List<com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult.CteStage> stages = List.of(
+            new com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult.CteStage("stage1", "SELECT id FROM ta", java.util.Collections.emptyList())
+        );
+        svc.stubWithCtes("A", "SELECT id FROM stage1", stages);
+        svc.stub("B", "SELECT id FROM tb");
+        Map<String, ModelBinding> bindings = Map.of("A", CompileTestHelpers.emptyBinding(), "B", CompileTestHelpers.emptyBinding());
+
+        QueryPlan plan = CompileTestHelpers.base("A", "id").join(
+                CompileTestHelpers.base("B", "id"), JoinType.INNER,
+                List.of(JoinOn.of("id", "=", "id")));
+
+        ComposeCompileException ex = assertThrows(ComposeCompileException.class,
+                () -> compile(plan, svc, bindings, "mssql"));
+        assertEquals(ComposeCompileErrorCodes.RELATION_CTE_HOIST_UNSUPPORTED, ex.code());
+        assertEquals(ComposeCompileErrorCodes.PHASE_COMPILE, ex.phase());
+        assertTrue(ex.getMessage().contains("Dialect 'mssql' does not support CTEs"));
+    }
+
     // ---------- join across dialects ----------
 
     @Test

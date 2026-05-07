@@ -7,6 +7,8 @@ import com.foggyframework.dataset.db.model.engine.compose.CteUnit;
 import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
 import com.foggyframework.dataset.db.model.engine.compose.plan.*;
 import com.foggyframework.dataset.db.model.engine.compose.plan.expr.*;
+import com.foggyframework.dataset.db.model.engine.compose.schema.AliasExtractor;
+import com.foggyframework.dataset.db.model.engine.compose.schema.ColumnAliasParts;
 import com.foggyframework.dataset.db.model.engine.compose.schema.ComposeSchemaErrorCodes;
 import com.foggyframework.dataset.db.model.engine.compose.schema.ComposeSchemaException;
 import com.foggyframework.dataset.db.model.engine.compose.schema.OutputSchema;
@@ -408,6 +410,42 @@ public final class ComposePlanner {
         return Collections.emptyList();
     }
 
+    private static Iterable<Object> iterSliceEntries(Iterable<?> slice) {
+        if (slice == null) return Collections.emptyList();
+        List<Object> out = new ArrayList<>();
+        for (Object entry : slice) {
+            if (!(entry instanceof Map<?, ?> map)) continue;
+            if (map.size() == 1) {
+                Map.Entry<?, ?> e = map.entrySet().iterator().next();
+                Object key = e.getKey();
+                if (SYMMETRIC_LOGICAL_OPS.contains(key)) {
+                    Object val = e.getValue();
+                    if (val instanceof Iterable<?> it) {
+                        for (Object sub : iterSliceEntries(it)) {
+                            out.add(sub);
+                        }
+                    }
+                    continue;
+                }
+                if ("$not".equals(key)) {
+                    Object val = e.getValue();
+                    if (val instanceof Map) {
+                        for (Object sub : iterSliceEntries(Collections.singletonList(val))) {
+                            out.add(sub);
+                        }
+                    } else if (val instanceof Iterable<?> it) {
+                        for (Object sub : iterSliceEntries(it)) {
+                            out.add(sub);
+                        }
+                    }
+                    continue;
+                }
+            }
+            out.add(entry);
+        }
+        return out;
+    }
+
     private static void validateDerivedOutputRefs(DerivedQueryPlan plan, List<String> sourceColumns) {
         if (sourceColumns == null || sourceColumns.isEmpty()) {
             return;
@@ -424,6 +462,34 @@ public final class ComposePlanner {
                             ComposeSchemaErrorCodes.PHASE_SCHEMA_DERIVE,
                             "DerivedQueryPlan",
                             unquoted);
+                }
+            }
+        }
+        for (Object entry : iterSliceEntries(plan.slice())) {
+            String fieldName = sliceFieldName(entry);
+            if (fieldName != null) {
+                String fieldStr = fieldName.trim();
+                if (DOTTED_REF.matcher(fieldStr).matches()) {
+                    String aliasPart = fieldStr.split("\\.")[0];
+                    throw new ComposeSchemaException(
+                            ComposeSchemaErrorCodes.DERIVED_QUERY_UNKNOWN_FIELD,
+                            "derived query slice references unknown field '" + aliasPart
+                                    + "' not present in source output schema (available: " + sourceNames + ")",
+                            ComposeSchemaErrorCodes.PHASE_SCHEMA_DERIVE,
+                            "DerivedQueryPlan",
+                            aliasPart);
+                }
+                for (String ident : extractUnquotedIdentifiers(fieldStr)) {
+                    String unquoted = unquoteIdentifier(ident);
+                    if (!sourceNames.contains(unquoted)) {
+                        throw new ComposeSchemaException(
+                                ComposeSchemaErrorCodes.DERIVED_QUERY_UNKNOWN_FIELD,
+                                "derived query slice references unknown field '" + unquoted
+                                        + "' not present in source output schema (available: " + sourceNames + ")",
+                                ComposeSchemaErrorCodes.PHASE_SCHEMA_DERIVE,
+                                "DerivedQueryPlan",
+                                unquoted);
+                    }
                 }
             }
         }
@@ -530,6 +596,21 @@ public final class ComposePlanner {
      *  query. */
     private static final Pattern EXPR_TOKEN_PATTERN =
             Pattern.compile("[A-Za-z_$][A-Za-z0-9_$]*|[^A-Za-z_$]+");
+
+    private static final Pattern DOTTED_REF =
+            Pattern.compile("^[A-Za-z_][A-Za-z0-9_$]*\\.[A-Za-z_][A-Za-z0-9_$]*$");
+
+    /**
+     * Slice DSL operators whose value is a list of sub-conditions joined with
+     * the operator's own semantics (OR / AND).  Kept as a constant so that
+     * {@link #iterSliceEntries} (validation path) and {@link #renderSliceEntry}
+     * (SQL render path) share the same authoritative source — adding a new
+     * operator only requires updating these two sets.
+     */
+    private static final Set<String> SYMMETRIC_LOGICAL_OPS = Set.of("$or", "$and");
+
+    /** All logical grouping operators including negation. */
+    private static final Set<String> ALL_LOGICAL_OPS = Set.of("$or", "$and", "$not");
 
     private static List<String> extractUnquotedIdentifiers(String expr) {
         if (expr == null || expr.isBlank()) {
@@ -677,6 +758,12 @@ public final class ComposePlanner {
          * legacy emit path then falls back to bare-name rendering.</p>
          */
         final IdentityHashMap<QueryPlan, String> planAliasMap = new IdentityHashMap<>();
+        /**
+         * CTE Wrapping (9.2.0+): prerequisite CTE units that must be emitted
+         * BEFORE the main CTE/subquery in the final SQL assembly.
+         * Populated when a BaseModelPlan uses two-stage CTE wrapping for window CFs.
+         */
+        final List<CteUnit> prerequisiteCtes = new ArrayList<>();
         int currentDepth = 0;
 
         CompileState(Map<String, ModelBinding> bindings, SemanticQueryServiceV3 semanticService,
@@ -736,13 +823,13 @@ public final class ComposePlanner {
             runPlanAwarePermissionCheck(plan, bindings);
         }
         Object result = compileAny(plan, state);
-        if (result instanceof ComposedSql) {
-            return (ComposedSql) result;
+        if (result instanceof ComposedSql composed) {
+            return prependPrerequisiteCtes(composed, state.prerequisiteCtes, state.useCte, state.dialect);
         }
         // Top-level CteUnit (base / derived) — wrap as a single-unit CTE
         // or inline subquery for dialect-consistent output.
         CteUnit unit = (CteUnit) result;
-        return wrapSingleUnit(unit, state.useCte, state.dialect);
+        return wrapSingleUnit(unit, state.useCte, state.dialect, state.prerequisiteCtes);
     }
 
     /**
@@ -881,8 +968,17 @@ public final class ComposePlanner {
         }
         String alias = state.nextAlias();
         registerPlanAlias(state, plan, alias);
-        return PerBaseCompiler.compileBaseModel(
+        List<CteUnit> units = PerBaseCompiler.compileBaseModel(
                 plan, binding, state.semanticService, state.namespace, alias, state.governanceCache);
+
+        if (units.size() == 1) {
+            return units.get(0); // legacy single-unit path
+        }
+        // Multi-unit (CTE wrapping): register prerequisite CTEs, return the final outer unit
+        for (int i = 0; i < units.size() - 1; i++) {
+            state.prerequisiteCtes.add(units.get(i));
+        }
+        return units.get(units.size() - 1);
     }
 
     /** Register {@code plan → alias} when the G10 flag is on. Skipping the
@@ -904,6 +1000,7 @@ public final class ComposePlanner {
         } else {
             innerUnit = (CteUnit) inner;
         }
+        validateDerivedSliceNotSameStageAlias(plan, innerUnit.getSelectColumns());
 
         List<String> sourceColumns = sourceOutputColumnsForDerived(plan.source(), innerUnit);
         validateDerivedOutputRefs(plan, sourceColumns);
@@ -1061,23 +1158,105 @@ public final class ComposePlanner {
 
     /** Wrap a single CteUnit as either a one-clause CTE or an inline
      *  subquery SELECT — matches Python CteComposer behaviour for the
-     *  single-unit, zero-joinSpecs case. */
-    private static ComposedSql wrapSingleUnit(CteUnit unit, boolean useCte, String dialect) {
+     *  single-unit, zero-joinSpecs case.
+     *
+     *  <p>When prerequisite CTEs are present (from CTE-wrapped window CFs),
+     *  they are emitted as sibling WITH clauses before the main unit.
+     *  If we're in subquery mode but prerequisites exist, we force CTE mode
+     *  because nested WITH inside FROM(...) is illegal on MSSQL/MySQL5.7.</p>
+     */
+    private static ComposedSql wrapSingleUnit(CteUnit unit, boolean useCte, String dialect,
+                                               List<CteUnit> prerequisiteCtes) {
         List<Object> params = new ArrayList<>();
-        if (unit.getParams() != null) params.addAll(unit.getParams());
+        boolean hasPrereqs = prerequisiteCtes != null && !prerequisiteCtes.isEmpty();
+
+        if (hasPrereqs && !useCte) {
+            throw new ComposeCompileException(
+                    ComposeCompileErrorCodes.RELATION_CTE_HOIST_UNSUPPORTED,
+                    ComposeCompileErrorCodes.PHASE_COMPILE,
+                    "Dialect '" + dialect + "' does not support CTEs, which are required to hoist complex window functions or multi-stage subqueries.");
+        }
+
+        // Force CTE mode if prerequisites exist — subquery mode can't host WITH clauses
+        boolean effectiveUseCte = useCte || hasPrereqs;
+
         StringBuilder sb = new StringBuilder();
-        if (useCte) {
-            sb.append("WITH ").append(unit.getAlias()).append(" AS (")
-                    .append(unit.getSql()).append(")\n");
+        if (effectiveUseCte) {
+            sb.append("WITH ");
+            // Emit prerequisite CTEs first (e.g., cte_0_stage1 AS (...))
+            int cteIndex = 0;
+            if (hasPrereqs) {
+                for (CteUnit prereq : prerequisiteCtes) {
+                    if (cteIndex > 0) sb.append(",\n");
+                    sb.append(prereq.getAlias()).append(" AS (").append(prereq.getSql()).append(")");
+                    if (prereq.getParams() != null) params.addAll(prereq.getParams());
+                    cteIndex++;
+                }
+            }
+            // Emit main unit CTE
+            if (cteIndex > 0) sb.append(",\n");
+            sb.append(unit.getAlias()).append(" AS (").append(unit.getSql()).append(")\n");
+            if (unit.getParams() != null) params.addAll(unit.getParams());
+
             sb.append(appendSelectColumns("SELECT ", unit.getAlias(), unit.getSelectColumns(), dialect))
                     .append("\n");
             sb.append("FROM ").append(unit.getAlias());
         } else {
+            if (unit.getParams() != null) params.addAll(unit.getParams());
             sb.append(appendSelectColumns("SELECT ", "t0", unit.getSelectColumns(), dialect))
                     .append("\n");
             sb.append("FROM (").append(unit.getSql()).append(") AS t0");
         }
         return new ComposedSql(sb.toString(), params);
+    }
+
+    /**
+     * Prepend prerequisite CTEs to an already-assembled ComposedSql.
+     *
+     * <p>When a ComposedSql (from join/union) already has its own WITH clause,
+     * we insert the prerequisite CTEs at the beginning of the WITH block.
+     * When it has no WITH clause, we prepend a new WITH block.</p>
+     */
+    private static ComposedSql prependPrerequisiteCtes(ComposedSql composed,
+                                                        List<CteUnit> prerequisiteCtes,
+                                                        boolean useCte,
+                                                        String dialect) {
+        if (prerequisiteCtes == null || prerequisiteCtes.isEmpty()) {
+            return composed;
+        }
+
+        if (!useCte) {
+            throw new ComposeCompileException(
+                    ComposeCompileErrorCodes.RELATION_CTE_HOIST_UNSUPPORTED,
+                    ComposeCompileErrorCodes.PHASE_COMPILE,
+                    "Dialect '" + dialect + "' does not support CTEs, which are required to hoist complex window functions or multi-stage subqueries.");
+        }
+
+        List<Object> params = new ArrayList<>();
+        StringBuilder prereqBlock = new StringBuilder();
+        for (int i = 0; i < prerequisiteCtes.size(); i++) {
+            if (i > 0) prereqBlock.append(",\n");
+            CteUnit prereq = prerequisiteCtes.get(i);
+            prereqBlock.append(prereq.getAlias()).append(" AS (").append(prereq.getSql()).append(")");
+            if (prereq.getParams() != null) params.addAll(prereq.getParams());
+        }
+
+        String sql = composed.getSql();
+        if (composed.getParams() != null) params.addAll(composed.getParams());
+
+        // Check if the composed SQL already starts with WITH
+        String trimmed = sql.stripLeading();
+        if (trimmed.regionMatches(true, 0, "WITH ", 0, 5)) {
+            // Insert prerequisite CTEs after "WITH "
+            int withIdx = sql.indexOf(trimmed);
+            String afterWith = sql.substring(withIdx + 5); // everything after "WITH "
+            String newSql = sql.substring(0, withIdx) + "WITH " + prereqBlock + ",\n" + afterWith;
+            return new ComposedSql(newSql, params);
+        } else {
+            // Wrap with a new WITH block — wrap the existing SQL in a subquery
+            String newSql = "WITH " + prereqBlock + "\n" + sql;
+            return new ComposedSql(newSql, params);
+        }
     }
 
     /** Assemble join SQL for anchors + on-condition. Two anchors per join
@@ -1227,7 +1406,7 @@ public final class ComposePlanner {
         return trimmed;
     }
 
-    private static boolean isSimpleOutputColumn(String col) {
+    static boolean isSimpleOutputColumn(String col) {
         return col != null
                 && !col.contains(" ")
                 && !col.contains("(")
@@ -1331,9 +1510,14 @@ public final class ComposePlanner {
         if (!plan.slice().isEmpty()) {
             List<String> frags = new ArrayList<>();
             for (Object entry : plan.slice()) {
-                frags.add(renderSliceEntry(entry, outerParams, dialect));
+                String subSql = renderSliceEntry(entry, outerParams, dialect, innerAlias);
+                if (subSql != null && !subSql.isEmpty()) {
+                    frags.add(subSql);
+                }
             }
-            sb.append("\nWHERE ").append(String.join(" AND ", frags));
+            if (!frags.isEmpty()) {
+                sb.append("\nWHERE ").append(String.join(" AND ", frags));
+            }
         }
 
         if (!plan.groupBy().isEmpty()) {
@@ -1365,9 +1549,56 @@ public final class ComposePlanner {
         return sb.toString();
     }
 
-    private static String renderSliceEntry(Object entry, List<Object> outerParams, String dialect) {
+    private static String renderSliceEntry(
+            Object entry, List<Object> outerParams, String dialect, String innerAlias) {
+        if (entry instanceof Map<?, ?> map && map.size() == 1) {
+            Map.Entry<?, ?> e = map.entrySet().iterator().next();
+            Object key = e.getKey();
+            if (SYMMETRIC_LOGICAL_OPS.contains(key)) {
+                Object val = e.getValue();
+                if (!(val instanceof Iterable<?>)) {
+                    throw new ComposeCompileException(
+                            ComposeCompileErrorCodes.UNSUPPORTED_PLAN_SHAPE,
+                            ComposeCompileErrorCodes.PHASE_PLAN_LOWER,
+                            "Logical operator '" + key + "' requires a list.");
+                }
+                List<String> subFrags = new ArrayList<>();
+                for (Object sub : (Iterable<?>) val) {
+                    String subSql = renderSliceEntry(sub, outerParams, dialect, innerAlias);
+                    if (subSql != null && !subSql.isEmpty()) {
+                        subFrags.add(subSql);
+                    }
+                }
+                if (subFrags.isEmpty()) return "";
+                if (subFrags.size() == 1) return subFrags.get(0);
+                String op = "$or".equals(key) ? " OR " : " AND ";
+                return "(" + String.join(op, subFrags) + ")";
+            }
+            if ("$not".equals(key)) {
+                Object val = e.getValue();
+                Iterable<?> it = val instanceof Iterable<?> ? (Iterable<?>) val : Collections.singletonList(val);
+                List<String> subFrags = new ArrayList<>();
+                for (Object sub : it) {
+                    String subSql = renderSliceEntry(sub, outerParams, dialect, innerAlias);
+                    if (subSql != null && !subSql.isEmpty()) {
+                        subFrags.add(subSql);
+                    }
+                }
+                if (subFrags.isEmpty()) return "";
+                return "NOT (" + String.join(" AND ", subFrags) + ")";
+            }
+        }
         SliceShape s = SliceShape.parse(entry);
+        String fieldSql = renderDerivedSliceField(innerAlias, s.field, dialect);
         String op = normalizeSliceOp(s.op);
+        if (s.hasFieldReferenceValue()) {
+            String ref = s.fieldReferenceValue();
+            return fieldSql + " " + op + " "
+                    + renderDerivedSliceField(innerAlias, ref, dialect);
+        }
+        if ("IS NULL".equals(op) || "IS NOT NULL".equals(op)) {
+            return fieldSql + " " + op;
+        }
         if ("IN".equals(op) || "NOT IN".equals(op)) {
             if (!(s.value instanceof Collection<?> values) || values.isEmpty()) {
                 throw new ComposeCompileException(
@@ -1376,19 +1607,78 @@ public final class ComposePlanner {
                         "Derived slice operator '" + op + "' requires a non-empty collection value.");
             }
             outerParams.addAll(values);
-            return quoteColumnExpr(unquoteIdentifier(s.field), dialect)
-                    + " " + op + " ("
+            return fieldSql + " " + op + " ("
                     + String.join(", ", Collections.nCopies(values.size(), "?"))
                     + ")";
         }
         outerParams.add(s.value);
-        return quoteColumnExpr(unquoteIdentifier(s.field), dialect) + " " + op + " ?";
+        return fieldSql + " " + op + " ?";
     }
 
     private static String normalizeSliceOp(Object op) {
         return op == null
                 ? "="
                 : op.toString().trim().replaceAll("\\s+", " ").toUpperCase(Locale.ROOT);
+    }
+
+    private static String renderDerivedSliceField(String innerAlias, String field, String dialect) {
+        String unquoted = unquoteIdentifier(field);
+        if (isSimpleOutputColumn(unquoted)) {
+            return innerAlias + "." + quoteColumnExpr(unquoted, dialect);
+        }
+        return quoteColumnExpr(unquoted, dialect);
+    }
+
+    private static void validateDerivedSliceNotSameStageAlias(
+            DerivedQueryPlan plan, List<String> sourceColumns) {
+        if (plan.slice().isEmpty()) {
+            return;
+        }
+        Set<String> sourceNames = new LinkedHashSet<>();
+        if (sourceColumns != null) {
+            for (String col : sourceColumns) {
+                sourceNames.add(unquoteIdentifier(extractOutputColName(col)));
+            }
+        }
+        Set<String> currentStageAliases = new LinkedHashSet<>();
+        for (Object col : plan.columns()) {
+            ColumnAliasParts parts = AliasExtractor.extract(extractStringCols(List.of(col)).get(0));
+            if (parts.hasAlias() && !sourceNames.contains(parts.outputName())) {
+                currentStageAliases.add(parts.outputName());
+            }
+        }
+        if (currentStageAliases.isEmpty()) {
+            return;
+        }
+        for (Object entry : iterSliceEntries(plan.slice())) {
+            String fieldName = sliceFieldName(entry);
+            if (fieldName != null && currentStageAliases.contains(fieldName)) {
+                throw new ComposeSchemaException(
+                        ComposeSchemaErrorCodes.DERIVED_QUERY_SAME_STAGE_ALIAS,
+                        "field '" + fieldName + "' is created by this derived "
+                                + "query's SELECT and cannot be filtered in the same "
+                                + "stage; add another .query({ slice: "
+                                + "[{field: '" + fieldName + "', ...}] }) stage",
+                        ComposeSchemaErrorCodes.PHASE_SCHEMA_DERIVE,
+                        "DerivedQueryPlan",
+                        fieldName);
+            }
+        }
+    }
+
+    private static String sliceFieldName(Object entry) {
+        if (!(entry instanceof Map<?, ?> map)) {
+            return null;
+        }
+        Object canonical = map.get("field");
+        if (canonical instanceof String s) {
+            return s;
+        }
+        if (canonical != null || map.size() != 1) {
+            return null;
+        }
+        Object key = map.keySet().iterator().next();
+        return key instanceof String s ? s : null;
     }
 
     private static String renderOrderEntry(String entry, String dialect) {

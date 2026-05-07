@@ -55,10 +55,10 @@ final class PerBaseCompiler {
      *                         typically {@code ComposeQueryContext.namespace()}
      * @param alias            alias for the resulting {@link CteUnit}
      *                         (caller owns numbering)
-     * @param governanceCache  optional cache; {@code (model, identityOf(binding))}
-     *                         → cached {@link SqlGenerationResult}. Skips
-     *                         re-running v1.3 governance for self-join /
-     *                         self-union cases within a single compile pass.
+     * @param governanceCache  optional cache; {@code (model, identityOf(binding),
+     *                         planHash)} → cached {@link SqlGenerationResult}.
+     *                         Skips re-running v1.3 governance for identical
+     *                         base query shapes within a single compile pass.
      * @return {@link CteUnit} carrying {@code alias}, {@code sql}, {@code params}
      *         and the plan's declared {@code columns} as
      *         {@code selectColumns}.
@@ -71,7 +71,7 @@ final class PerBaseCompiler {
      *           raises during SQL build. Original exception preserved on
      *           {@code cause}.
      */
-    static CteUnit compileBaseModel(
+    static List<CteUnit> compileBaseModel(
             BaseModelPlan plan,
             ModelBinding binding,
             SemanticQueryServiceV3 semanticService,
@@ -79,7 +79,8 @@ final class PerBaseCompiler {
             String alias,
             Map<String, SqlGenerationResult> governanceCache) {
 
-        String cacheKey = plan.model() + ":" + System.identityHashCode(binding);
+        String cacheKey = plan.model() + ":" + System.identityHashCode(binding)
+                + ":" + PlanHash.planHash(plan);
         SqlGenerationResult buildResult = null;
         if (governanceCache != null) {
             buildResult = governanceCache.get(cacheKey);
@@ -113,16 +114,46 @@ final class PerBaseCompiler {
             }
         }
 
+        List<String> selectColumns = ComposePlanner.extractStringCols(plan.columns());
+
+        // ── CTE Wrapping: return flattened sibling CteUnits when structured stages exist ──
+        if (buildResult.hasCteStages()) {
+            List<CteUnit> units = new ArrayList<>();
+            for (SqlGenerationResult.CteStage stage : buildResult.getCteStages()) {
+                // Prerequisite CTE: alias is scoped to the base plan (e.g., cte_0_stage1)
+                String stageAlias = alias + "_" + stage.alias();
+                List<Object> stageParams = new ArrayList<>();
+                if (stage.params() != null) stageParams.addAll(stage.params());
+                units.add(new CteUnit(stageAlias, stage.sql(), stageParams, List.of()));
+            }
+            // Outer SELECT: replace the original stage alias references with the scoped alias
+            String outerSql = buildResult.getSql();
+            for (SqlGenerationResult.CteStage stage : buildResult.getCteStages()) {
+                String scopedAlias = alias + "_" + stage.alias();
+                // Replace references: FROM stage1 → FROM cte_0_stage1, stage1."col" → cte_0_stage1."col"
+                // Using regex \b to prevent partial substring matches (e.g. percent_stage1)
+                outerSql = outerSql.replaceAll("(?i)\\b" + java.util.regex.Pattern.quote(stage.alias() + "."), 
+                        java.util.regex.Matcher.quoteReplacement(scopedAlias + "."));
+                outerSql = outerSql.replaceAll("(?i)\\bFROM\\s+" + java.util.regex.Pattern.quote(stage.alias()) + "\\b", 
+                        "FROM " + java.util.regex.Matcher.quoteReplacement(scopedAlias));
+            }
+            List<Object> outerParams = new ArrayList<>();
+            if (buildResult.getParams() != null) outerParams.addAll(buildResult.getParams());
+            units.add(new CteUnit(alias, outerSql, outerParams, selectColumns));
+            return units;
+        }
+
+        // ── Legacy single-pass: return single CteUnit ──
         List<Object> params = new ArrayList<>();
         if (buildResult.getParams() != null) {
             params.addAll(buildResult.getParams());
         }
 
-        return new CteUnit(
+        return List.of(new CteUnit(
                 alias,
                 buildResult.getSql(),
                 params,
-                ComposePlanner.extractStringCols(plan.columns()));
+                selectColumns));
     }
 
     /** Recognise the "Model not found" branch of v1.3 / semantic-service

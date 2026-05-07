@@ -183,6 +183,8 @@ SUM(metric) / NULLIF(CALCULATE(SUM(metric), REMOVE(groupByDim)), 0)
 
 ### Pivot 请求结构
 
+#### 普通 pivot（支持 grandTotal；rowSubtotals 静默忽略；columnSubtotals 不支持）
+
 ```json
 {
   "pivot": {
@@ -190,10 +192,33 @@ SUM(metric) / NULLIF(CALCULATE(SUM(metric), REMOVE(groupByDim)), 0)
     "columns": [{"field": "salesDate$year"}],
     "metrics": ["salesAmount", "profitRate"],
     "outputFormat": "grid",
-    "options": {"rowSubtotals": true, "columnSubtotals": true, "grandTotal": true}
+    "options": {"grandTotal": true}
   }
 }
 ```
+
+> 普通 pivot 能力边界：
+> - `grandTotal: true` — 支持，在结果末尾追加全列汇总行（度量必须是可加 SUM/COUNT 聚合）。
+> - `rowSubtotals: true` — 静默忽略（单层行轴小计无实际意义）。
+> - `columnSubtotals: true` — 拒绝并报错，任何情况下都不支持，移除后重试。
+
+#### 二层 cascade pivot（支持 rowSubtotals / grandTotal）
+
+```json
+{
+  "pivot": {
+    "rows": [
+      {"field": "salesTeam$caption", "orderBy": ["-salesAmount"], "limit": 3},
+      {"field": "salesperson$caption", "orderBy": ["-salesAmount"], "limit": 5}
+    ],
+    "metrics": ["salesAmount"],
+    "outputFormat": "flat",
+    "options": {"rowSubtotals": true, "grandTotal": true}
+  }
+}
+```
+
+> `rowSubtotals` 和 `grandTotal` 在 rows 轴恰好两层 cascade（两个都带 `limit`）时支持，度量必须是可加聚合（SUM / COUNT）。`columnSubtotals` 始终不支持。
 
 - `rows` / `columns`：行列轴，可传字段名或对象。树形层级仅支持 rows 轴：`{"field": "org$caption", "hierarchyMode": "tree"}`，且不能与 `crossjoin`、小计、总计组合。
 - `metrics`：原生度量名，或受控派生指标对象。对象形式当前只支持 `parentShare` 和 `baselineRatio`；不支持 `expr`。
@@ -261,4 +286,5 @@ SUM(metric) / NULLIF(CALCULATE(SUM(metric), REMOVE(groupByDim)), 0)
 6. Pivot 互斥错误：`pivot` 不能与 `columns` 或 `timeWindow` 同时出现。
 7. Pivot tree 错误：`hierarchyMode=tree` 仅支持 rows 轴和 `outputFormat=tree`，不能与 `crossjoin`、小计、总计同用。
 8. Pivot 派生指标错误：`parentShare` / `baselineRatio` 不能与 tree/cascade 混用，也不能参与 having/orderBy/limit。
-9. Pivot 域值过大：收窄 `slice`、减少轴层级、增加轴 `limit`，或改为普通分页明细查询。
+9. Pivot 小计/总计被拒绝：`columnSubtotals` 在任何情况下都不支持，移除后重试。普通 pivot 的 `rowSubtotals` 会静默忽略；`grandTotal` 在普通 pivot 和二层 cascade 下均支持（度量须为可加聚合）。
+10. Pivot 域值过大：收窄 `slice`、减少轴层级、增加轴 `limit`，或改为普通分页明细查询。

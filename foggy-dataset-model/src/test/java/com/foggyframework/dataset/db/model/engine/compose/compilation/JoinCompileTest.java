@@ -3,6 +3,7 @@ package com.foggyframework.dataset.db.model.engine.compose.compilation;
 import com.foggyframework.dataset.db.model.engine.compose.ComposedSql;
 import com.foggyframework.dataset.db.model.engine.compose.compilation.CompileTestHelpers.FakeSemanticService;
 import com.foggyframework.dataset.db.model.engine.compose.plan.BaseModelPlan;
+import com.foggyframework.dataset.db.model.engine.compose.plan.DerivedQueryPlan;
 import com.foggyframework.dataset.db.model.engine.compose.plan.JoinOn;
 import com.foggyframework.dataset.db.model.engine.compose.plan.JoinPlan;
 import com.foggyframework.dataset.db.model.engine.compose.plan.JoinType;
@@ -90,6 +91,31 @@ class JoinCompileTest {
                 List.of(JoinOn.of("id", "=", "id")));
         ComposedSql sql = compile(j, twoModelSvc(), twoModelBindings(), "postgres");
         assertTrue(sql.getSql().contains("RIGHT JOIN"));
+    }
+
+    @Test
+    @DisplayName("PostgreSQL · 隐式 $ 输出列跨 CTE/join/outer select 保持引号")
+    void postgresImplicitDollarOutputQuotedAcrossCteLayers() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("L", "SELECT \"orderStatus$caption\" FROM tl");
+        svc.stub("R", "SELECT \"orderStatus$caption\" FROM tr");
+
+        BaseModelPlan left = CompileTestHelpers.base("L", "orderStatus$caption");
+        BaseModelPlan right = CompileTestHelpers.base("R", "orderStatus$caption");
+        JoinPlan joined = left.join(right, JoinType.INNER,
+                List.of(JoinOn.of("orderStatus$caption", "=", "orderStatus$caption")));
+        DerivedQueryPlan result = DerivedQueryPlan.builder()
+                .source(joined)
+                .columns(List.of("orderStatus$caption"))
+                .orderBy(List.of("orderStatus$caption"))
+                .build();
+
+        ComposedSql sql = compile(result, svc, twoModelBindings(), "postgres");
+        assertTrue(sql.getSql().contains("cte_0.\"orderStatus$caption\""));
+        assertTrue(sql.getSql().contains("cte_1.\"orderStatus$caption\""));
+        assertTrue(sql.getSql().contains("\"orderStatus$caption\""));
+        assertTrue(sql.getSql().contains("ORDER BY \"orderStatus$caption\" ASC"));
+        assertTrue(!sql.getSql().contains(".orderStatus$caption"));
     }
 
     @Test
