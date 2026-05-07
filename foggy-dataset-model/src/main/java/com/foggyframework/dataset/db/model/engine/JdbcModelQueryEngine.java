@@ -1114,8 +1114,22 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
     private void buildHaving(JdbcQueryModel jdbcQueryModel, JdbcQuery jdbcQuery, JdbcQuery.JdbcListCond listCond,
                              CondRequestDef havingDef, int level, String parentLink) {
-        if (havingDef._isExpressionCondition() || havingDef._isFieldReference()) {
+        if (havingDef._isExpressionCondition()) {
             throw RX.throwAUserTip("UNSUPPORTED_HAVING_CONDITION: request.having supports field/op/value and $and/$or groups over aggregate fields; move row-level expressions to slice.");
+        }
+
+        // 处理 $field 字段引用
+        if (havingDef._isFieldReference()) {
+            if (!isAggregateCondition(havingDef.getField())) {
+                throw RX.throwAUserTip("HAVING_REQUIRES_AGGREGATE_FIELD: request.having field '" + havingDef.getField()
+                        + "' is not an aggregate measure. Use slice for row-level filters.");
+            }
+            if (!isAggregateCondition(havingDef._getReferencedField())) {
+                throw RX.throwAUserTip("HAVING_REQUIRES_AGGREGATE_FIELD: request.having $field reference '" + havingDef._getReferencedField()
+                        + "' is not an aggregate measure.");
+            }
+            buildFieldReferenceCondition(jdbcQueryModel, jdbcQuery, listCond, havingDef, level, parentLink);
+            return;
         }
 
         if (havingDef._isLogicalGroup()) {

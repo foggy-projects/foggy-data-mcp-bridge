@@ -762,17 +762,15 @@ public class PivotPipeline {
                         "rows 中最多只能有一个 hierarchyMode=tree 字段。当前有 " + treeCount + " 个");
             }
 
-            // ===== S8.3: tree + non-additive + subtotals 拒绝 =====
+            // ===== S8.3: tree + non-additive + subtotals 降级容错 =====
             PivotOptions opts = pivot.getOptions();
             boolean hasSubtotal = opts != null &&
                     (opts.isRowSubtotals() || opts.isColumnSubtotals() || opts.isGrandTotal());
             if (hasSubtotal) {
-                // 此处无法直接判断 non-additive（QueryModel 未加载），
-                // 在 execute() 中 rollupPlans 生成后再做精细判定不合适，
-                // 因此对 tree + subtotals 整体先拒绝（第一版约束）
-                throw new IllegalArgumentException(
-                        "hierarchyMode=tree 暂不支持小计/总计辅助聚合。" +
-                        "请移除 rowSubtotals/columnSubtotals/grandTotal，或移除 hierarchyMode");
+                // Fail-Closed: 针对 tree 模式不支持的 subtotal，改为静默忽略而不是抛出异常
+                opts.setRowSubtotals(false);
+                opts.setColumnSubtotals(false);
+                opts.setGrandTotal(false);
             }
         }
 

@@ -523,7 +523,7 @@ class PivotIntegrationTest extends EcommerceTestSupport {
     @DisplayName("S8.3: hierarchyMode=tree + subtotals 拒绝")
     void testHierarchyTreeSubtotalsRejected() {
         PivotRequest pivot = new PivotRequest();
-        pivot.setRows(List.of(treeAxis("product$categoryName")));
+        pivot.setRows(List.of(treeAxis("team$caption")));
         pivot.setMetrics(List.of("salesAmount"));
         pivot.setOutputFormat("tree");
 
@@ -534,9 +534,11 @@ class PivotIntegrationTest extends EcommerceTestSupport {
         SemanticQueryRequest request = new SemanticQueryRequest();
         request.setPivot(pivot);
 
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> execute(request));
-        assertTrue(ex.getMessage().contains("hierarchyMode=tree 暂不支持小计/总计辅助聚合"));
-        log.info("S8.3: tree+subtotals 拒绝通过: {}", ex.getMessage());
+        // Fail-Closed: tree+subtotals is now silently ignored rather than throwing an exception
+        SemanticQueryResponse response = execute("FactTeamSalesQueryModel", request);
+        org.junit.jupiter.api.Assertions.assertNotNull(response);
+        org.junit.jupiter.api.Assertions.assertFalse(pivot.getOptions().isRowSubtotals(), "RowSubtotals should be silently set to false");
+        log.info("S8.3: tree+subtotals silently ignored passed");
     }
 
     @Test

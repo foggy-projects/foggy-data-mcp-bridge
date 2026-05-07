@@ -131,8 +131,11 @@ final class PerBaseCompiler {
             for (SqlGenerationResult.CteStage stage : buildResult.getCteStages()) {
                 String scopedAlias = alias + "_" + stage.alias();
                 // Replace references: FROM stage1 → FROM cte_0_stage1, stage1."col" → cte_0_stage1."col"
-                outerSql = outerSql.replace(stage.alias() + ".", scopedAlias + ".");
-                outerSql = outerSql.replace("FROM " + stage.alias(), "FROM " + scopedAlias);
+                // Using regex \b to prevent partial substring matches (e.g. percent_stage1)
+                outerSql = outerSql.replaceAll("(?i)\\b" + java.util.regex.Pattern.quote(stage.alias() + "."), 
+                        java.util.regex.Matcher.quoteReplacement(scopedAlias + "."));
+                outerSql = outerSql.replaceAll("(?i)\\bFROM\\s+" + java.util.regex.Pattern.quote(stage.alias()) + "\\b", 
+                        "FROM " + java.util.regex.Matcher.quoteReplacement(scopedAlias));
             }
             List<Object> outerParams = new ArrayList<>();
             if (buildResult.getParams() != null) outerParams.addAll(buildResult.getParams());
