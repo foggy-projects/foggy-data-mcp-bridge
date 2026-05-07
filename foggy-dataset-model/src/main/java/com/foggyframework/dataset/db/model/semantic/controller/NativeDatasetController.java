@@ -1,0 +1,131 @@
+package com.foggyframework.dataset.db.model.semantic.controller;
+
+import com.foggyframework.core.ex.RX;
+import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
+import com.foggyframework.dataset.db.model.semantic.service.NativeComposeQueryService;
+import com.foggyframework.dataset.db.model.semantic.service.SemanticModelCatalogService;
+import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
+import com.foggyframework.dataset.db.model.semantic.support.SemanticQueryPayloadMapper;
+import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiOperation;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * Native HTTP endpoints for dataset query capabilities without MCP/JSON-RPC.
+ */
+@Slf4j
+@Api(tags = "Dataset Native REST API")
+@RestController
+@RequestMapping("/semantic/v3/dataset")
+@RequiredArgsConstructor
+public class NativeDatasetController {
+
+    private final SemanticQueryServiceV3 semanticQueryServiceV3;
+    private final NativeComposeQueryService nativeComposeQueryService;
+    private final SemanticModelCatalogService catalogService;
+    private final SemanticQueryPayloadMapper payloadMapper;
+
+    @ApiOperation("执行单模型查询（MCP-free）")
+    @PostMapping(value = "/query", produces = MediaType.APPLICATION_JSON_VALUE)
+    public RX<SemanticQueryResponse> query(
+            @RequestBody Map<String, Object> request,
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestHeader(value = "X-NS", required = false) String namespace) {
+        String model = stringValue(request != null ? request.get("model") : null);
+        if (model == null || model.isBlank()) {
+            return RX.failB("缺少必要参数: model");
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Object> payload = request != null && request.get("payload") instanceof Map<?, ?> payloadMap
+                ? (Map<String, Object>) payloadMap
+                : Collections.emptyMap();
+        String mode = stringOr(request.get("mode"), "execute");
+
+        SemanticQueryRequest queryRequest = payloadMapper.toQueryRequest(payload);
+        SemanticRequestContext context = buildContext(request, namespace, authorization);
+        SemanticQueryResponse response = semanticQueryServiceV3.queryModel(model, queryRequest, mode, context);
+        return RX.ok(response);
+    }
+
+    @ApiOperation("执行复杂编排脚本（MCP-free）")
+    @PostMapping(value = "/compose", produces = MediaType.APPLICATION_JSON_VALUE)
+    public RX<Map<String, Object>> compose(
+            @RequestBody(required = false) Map<String, Object> request,
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestHeader(value = "X-NS", required = false) String namespace,
+            @RequestHeader Map<String, String> headers) {
+        Map<String, Object> response = nativeComposeQueryService.execute(
+                request != null ? request : Collections.emptyMap(),
+                namespace,
+                authorization,
+                headers != null ? new LinkedHashMap<>(headers) : Collections.emptyMap());
+        return RX.ok(response);
+    }
+
+    @ApiOperation("获取模型列表（MCP-free）")
+    @PostMapping(value = {"/list_models", "/list-models"}, produces = MediaType.APPLICATION_JSON_VALUE)
+    public RX<Map<String, Object>> listModels(
+            @RequestBody(required = false) Map<String, Object> request,
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestHeader(value = "X-NS", required = false) String namespace) {
+        Map<String, Object> response = catalogService.buildCatalogResponse(
+                request != null ? request : Collections.emptyMap(),
+                namespace,
+                authorization);
+        return RX.ok(response);
+    }
+
+    @ApiOperation("获取模型列表（MCP-free GET）")
+    @GetMapping(value = "/models", produces = MediaType.APPLICATION_JSON_VALUE)
+    public RX<Map<String, Object>> models(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestHeader(value = "X-NS", required = false) String namespace) {
+        return RX.ok(catalogService.buildCatalogResponse(Collections.emptyMap(), namespace, authorization));
+    }
+
+    private SemanticRequestContext buildContext(Map<String, Object> request, String namespace, String authorization) {
+        ModelResultContext.SecurityContext securityContext = authorization != null && !authorization.isBlank()
+                ? ModelResultContext.SecurityContext.fromAuthorization(authorization)
+                : null;
+        Set<String> fieldAccess = payloadMapper.optionalStringSet(firstPresent(request, "visibleFields", "fieldAccess"));
+        return SemanticRequestContext.of(
+                namespace,
+                securityContext,
+                fieldAccess,
+                payloadMapper.extractDeniedColumns(request),
+                payloadMapper.extractSystemSlice(request)
+        );
+    }
+
+    private static Object firstPresent(Map<String, Object> map, String first, String second) {
+        if (map == null) {
+            return null;
+        }
+        return map.containsKey(first) ? map.get(first) : map.get(second);
+    }
+
+    private static String stringOr(Object value, String fallback) {
+        String text = stringValue(value);
+        return text == null || text.isBlank() ? fallback : text;
+    }
+
+    private static String stringValue(Object value) {
+        return value != null ? value.toString() : null;
+    }
+}
