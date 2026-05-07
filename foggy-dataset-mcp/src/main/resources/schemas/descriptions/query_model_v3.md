@@ -48,7 +48,7 @@
 - `groupBy` 必须包含每个非聚合维度列；展示 `partner$caption` 时通常同时查询并分组 `partner$id` 和 `partner$caption`，例如 `columns: ["partner$id", "partner$caption", "arOverdueAmount"], groupBy: ["partner$id", "partner$caption"]`。
 - 使用 `partner$caption` 等维度分组时，`columns` 只放这些分组维度和聚合指标。不要为了解释或排查额外混入 `move$caption`、`moveName`、`lineCount` 等未分组明细字段；除非用户明确要求统计行数，否则不要添加 `lineCount`。
 - 如果模型说明提供 AR 业务指标（如 `arOverdueAmount`、`arOutstandingAmount`、`arOverdueCustomerCount`），优先直接作为 measure 使用；不要再包装 `sum(...)`，也不要同时加入不属于该分组口径的明细列。
-- `slice` 是语义过滤：明细/维度字段下推为 WHERE，预定义或已选聚合 measure（如 `{"field": "arOutstandingAmount", "op": ">", "value": 0}`）会由引擎提升为 HAVING。不要在同一个 `$or` / `$and` 逻辑组里混合明细字段和聚合 measure；复杂二阶段结果过滤使用 `dataset.compose_script` 的 plan `.query({...})`。如果主查询已经返回 0 或空结果，直接回答。
+- `slice` 是语义过滤：明细/维度字段下推为 WHERE，预定义或已选聚合 measure（如 `{"field": "arOutstandingAmount", "op": ">", "value": 0}`）会由引擎提升为 HAVING。聚合 measure 比较支持跨列引用 `$field`（如 `{"field": "salesAgg", "op": ">", "value": {"$field": "costAgg"}}`），但等式两端必须均为聚合 measure。不要在同一个 `$or` / `$and` 逻辑组里混合明细字段和聚合 measure；复杂二阶段结果过滤使用 `dataset.compose_script` 的 plan `.query({...})`。如果主查询已经返回 0 或空结果，直接回答。
 - `columns` 只放简单单层聚合：`agg(field) as alias`。
 - 条件聚合统一写成 `sum/avg/count(if(条件, 满足时的值, 不满足时的值))`，不要生成 `count_if`、`sum_if` 或 SQL `case when`。
 
@@ -284,7 +284,7 @@ SUM(metric) / NULLIF(CALCULATE(SUM(metric), REMOVE(groupByDim)), 0)
 4. GROUP BY 错误：移除未分组明细列，或把该普通字段加入 `groupBy`；预定义聚合 measure 与维度一起使用时，只保留分组维度和 measure。
 5. slice 语法错误：检查 `$or` 嵌套，复杂逻辑统一使用标准格式。
 6. Pivot 互斥错误：`pivot` 不能与 `columns` 或 `timeWindow` 同时出现。
-7. Pivot tree 错误：`hierarchyMode=tree` 仅支持 rows 轴和 `outputFormat=tree`，不能与 `crossjoin`、小计、总计同用。
+7. Pivot tree 错误：`hierarchyMode=tree` 仅支持 rows 轴和 `outputFormat=tree`，不能与 `crossjoin` 同用。在 tree 模式下，小计/总计（如 `rowSubtotals`）会被静默忽略。
 8. Pivot 派生指标错误：`parentShare` / `baselineRatio` 不能与 tree/cascade 混用，也不能参与 having/orderBy/limit。
 9. Pivot 小计/总计被拒绝：`columnSubtotals` 在任何情况下都不支持，移除后重试。普通 pivot 的 `rowSubtotals` 会静默忽略；`grandTotal` 在普通 pivot 和二层 cascade 下均支持（度量须为可加聚合）。
 10. Pivot 域值过大：收窄 `slice`、减少轴层级、增加轴 `limit`，或改为普通分页明细查询。

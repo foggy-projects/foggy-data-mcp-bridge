@@ -2,6 +2,18 @@
 
 This file records why the `dataset.query_model` prompt contract changed. Java is the source of truth; Python and Odoo bridge copies synchronize from this directory unless an explicit exception is documented.
 
+
+## 2026-05-07 - HAVING `$field` Comparison and Pivot Tree Fail-closed
+
+Status: implemented
+
+Problem:
+During Phase 3 alignment, we found that aggregate measures needed cross-field comparison support directly in the `query_model` without relying solely on `compose_script`. In addition, `hierarchyMode=tree` Pivot subtotal options threw a 500 error instead of silently falling back.
+
+Contract change:
+- Added explicit documentation that `HAVING` (`slice` elevated for aggregate measures) supports `$field` cross-referencing, provided BOTH fields are aggregate measures.
+- Clarified that `rowSubtotals` in Pivot `hierarchyMode=tree` is safely silently ignored rather than throwing an error, adhering to our Fail-Closed governance model.
+
 ## 2026-05-06 - Date Difference Cutoff Filtering Boundary
 
 Status: implemented
