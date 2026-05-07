@@ -12,6 +12,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * SQL 计算字段处理器
@@ -302,7 +304,10 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
             String aliasSql = resolveColumnSql(col, tableAlias, appCtx, true);
 
             if (physicalSql != null && aliasSql != null && !physicalSql.equals(aliasSql)) {
-                sql = sql.replace(physicalSql, aliasSql);
+                // Use lookaround assertions to prevent substring matching.
+                // Ensures we only match the physical SQL if it's not immediately preceded or followed by an identifier character [\\p{L}0-9_$].
+                String regex = "(?<![\\\\p{L}0-9_$])" + Pattern.quote(physicalSql) + "(?![\\\\p{L}0-9_$])";
+                sql = sql.replaceAll(regex, Matcher.quoteReplacement(aliasSql));
             }
         }
 
