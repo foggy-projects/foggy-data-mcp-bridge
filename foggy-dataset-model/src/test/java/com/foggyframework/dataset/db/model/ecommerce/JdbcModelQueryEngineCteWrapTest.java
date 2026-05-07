@@ -431,4 +431,34 @@ class JdbcModelQueryEngineCteWrapTest extends EcommerceTestSupport {
     private JdbcModelQueryEngine analyze(JdbcModelQueryEngine engine) {
         return engine;
     }
+
+    @Test
+    @Order(100)
+    @DisplayName("测试隐式依赖注入：Window CF 引用了未在 columns 选中的字段")
+    void testHiddenDependencyInWindowFunction() throws Exception {
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("FactSalesQueryModel");
+        // Request DOES NOT explicitly ask for product$categoryName, but explicitly asks for dimension product$caption and metric salesAmount
+        queryRequest.setColumns(new ArrayList<>(Arrays.asList("product$caption", "salesAmount", "salesRank")));
+
+        CalculatedFieldDef cf = new CalculatedFieldDef();
+        cf.setName("salesRank");
+        cf.setExpression("RANK()");
+        // Hidden dependency: product$categoryName is NOT in columns
+        cf.setPartitionBy(Arrays.asList("product$categoryName"));
+        cf.setWindowOrderBy(Arrays.asList(new WindowOrderDef("salesAmount", "desc")));
+        queryRequest.setCalculatedFields(new ArrayList<>(Arrays.asList(cf)));
+
+        JdbcModelQueryEngine engine = analyze(queryRequest);
+        String sql = engine.getSql();
+        log.debug("执行SQL: {}", sql);
+
+        assertTrue(sql.contains("PARTITION BY") && sql.contains("product$categoryName"),
+                "Outer stage must use correct projected alias for hidden dependency. Actual SQL:\n" + sql);
+        assertTrue(sql.contains("category_name") &&
+                        (sql.contains("\"product$categoryName\"") || sql.contains("`product$categoryName`")),
+                "Stage 1 must project the hidden dependency. Actual SQL:\n" + sql);
+        assertFalse(sql.contains("stage1.\"product$categoryName\"") || sql.contains("stage1.`product$categoryName`"),
+                "Hidden dependency must not be exposed as a final output column. Actual SQL:\n" + sql);
+    }
 }
