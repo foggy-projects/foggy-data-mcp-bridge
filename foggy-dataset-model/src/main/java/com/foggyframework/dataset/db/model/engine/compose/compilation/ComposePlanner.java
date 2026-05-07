@@ -758,6 +758,12 @@ public final class ComposePlanner {
          * legacy emit path then falls back to bare-name rendering.</p>
          */
         final IdentityHashMap<QueryPlan, String> planAliasMap = new IdentityHashMap<>();
+        /**
+         * CTE Wrapping (9.2.0+): prerequisite CTE units that must be emitted
+         * BEFORE the main CTE/subquery in the final SQL assembly.
+         * Populated when a BaseModelPlan uses two-stage CTE wrapping for window CFs.
+         */
+        final List<CteUnit> prerequisiteCtes = new ArrayList<>();
         int currentDepth = 0;
 
         CompileState(Map<String, ModelBinding> bindings, SemanticQueryServiceV3 semanticService,
@@ -817,13 +823,13 @@ public final class ComposePlanner {
             runPlanAwarePermissionCheck(plan, bindings);
         }
         Object result = compileAny(plan, state);
-        if (result instanceof ComposedSql) {
-            return (ComposedSql) result;
+        if (result instanceof ComposedSql composed) {
+            return prependPrerequisiteCtes(composed, state.prerequisiteCtes, state.useCte, state.dialect);
         }
         // Top-level CteUnit (base / derived) — wrap as a single-unit CTE
         // or inline subquery for dialect-consistent output.
         CteUnit unit = (CteUnit) result;
-        return wrapSingleUnit(unit, state.useCte, state.dialect);
+        return wrapSingleUnit(unit, state.useCte, state.dialect, state.prerequisiteCtes);
     }
 
     /**
@@ -962,8 +968,17 @@ public final class ComposePlanner {
         }
         String alias = state.nextAlias();
         registerPlanAlias(state, plan, alias);
-        return PerBaseCompiler.compileBaseModel(
+        List<CteUnit> units = PerBaseCompiler.compileBaseModel(
                 plan, binding, state.semanticService, state.namespace, alias, state.governanceCache);
+
+        if (units.size() == 1) {
+            return units.get(0); // legacy single-unit path
+        }
+        // Multi-unit (CTE wrapping): register prerequisite CTEs, return the final outer unit
+        for (int i = 0; i < units.size() - 1; i++) {
+            state.prerequisiteCtes.add(units.get(i));
+        }
+        return units.get(units.size() - 1);
     }
 
     /** Register {@code plan → alias} when the G10 flag is on. Skipping the
@@ -1143,23 +1158,105 @@ public final class ComposePlanner {
 
     /** Wrap a single CteUnit as either a one-clause CTE or an inline
      *  subquery SELECT — matches Python CteComposer behaviour for the
-     *  single-unit, zero-joinSpecs case. */
-    private static ComposedSql wrapSingleUnit(CteUnit unit, boolean useCte, String dialect) {
+     *  single-unit, zero-joinSpecs case.
+     *
+     *  <p>When prerequisite CTEs are present (from CTE-wrapped window CFs),
+     *  they are emitted as sibling WITH clauses before the main unit.
+     *  If we're in subquery mode but prerequisites exist, we force CTE mode
+     *  because nested WITH inside FROM(...) is illegal on MSSQL/MySQL5.7.</p>
+     */
+    private static ComposedSql wrapSingleUnit(CteUnit unit, boolean useCte, String dialect,
+                                               List<CteUnit> prerequisiteCtes) {
         List<Object> params = new ArrayList<>();
-        if (unit.getParams() != null) params.addAll(unit.getParams());
+        boolean hasPrereqs = prerequisiteCtes != null && !prerequisiteCtes.isEmpty();
+
+        if (hasPrereqs && !useCte) {
+            throw new ComposeCompileException(
+                    ComposeCompileErrorCodes.RELATION_CTE_HOIST_UNSUPPORTED,
+                    ComposeCompileErrorCodes.PHASE_COMPILE,
+                    "Dialect '" + dialect + "' does not support CTEs, which are required to hoist complex window functions or multi-stage subqueries.");
+        }
+
+        // Force CTE mode if prerequisites exist — subquery mode can't host WITH clauses
+        boolean effectiveUseCte = useCte || hasPrereqs;
+
         StringBuilder sb = new StringBuilder();
-        if (useCte) {
-            sb.append("WITH ").append(unit.getAlias()).append(" AS (")
-                    .append(unit.getSql()).append(")\n");
+        if (effectiveUseCte) {
+            sb.append("WITH ");
+            // Emit prerequisite CTEs first (e.g., cte_0_stage1 AS (...))
+            int cteIndex = 0;
+            if (hasPrereqs) {
+                for (CteUnit prereq : prerequisiteCtes) {
+                    if (cteIndex > 0) sb.append(",\n");
+                    sb.append(prereq.getAlias()).append(" AS (").append(prereq.getSql()).append(")");
+                    if (prereq.getParams() != null) params.addAll(prereq.getParams());
+                    cteIndex++;
+                }
+            }
+            // Emit main unit CTE
+            if (cteIndex > 0) sb.append(",\n");
+            sb.append(unit.getAlias()).append(" AS (").append(unit.getSql()).append(")\n");
+            if (unit.getParams() != null) params.addAll(unit.getParams());
+
             sb.append(appendSelectColumns("SELECT ", unit.getAlias(), unit.getSelectColumns(), dialect))
                     .append("\n");
             sb.append("FROM ").append(unit.getAlias());
         } else {
+            if (unit.getParams() != null) params.addAll(unit.getParams());
             sb.append(appendSelectColumns("SELECT ", "t0", unit.getSelectColumns(), dialect))
                     .append("\n");
             sb.append("FROM (").append(unit.getSql()).append(") AS t0");
         }
         return new ComposedSql(sb.toString(), params);
+    }
+
+    /**
+     * Prepend prerequisite CTEs to an already-assembled ComposedSql.
+     *
+     * <p>When a ComposedSql (from join/union) already has its own WITH clause,
+     * we insert the prerequisite CTEs at the beginning of the WITH block.
+     * When it has no WITH clause, we prepend a new WITH block.</p>
+     */
+    private static ComposedSql prependPrerequisiteCtes(ComposedSql composed,
+                                                        List<CteUnit> prerequisiteCtes,
+                                                        boolean useCte,
+                                                        String dialect) {
+        if (prerequisiteCtes == null || prerequisiteCtes.isEmpty()) {
+            return composed;
+        }
+
+        if (!useCte) {
+            throw new ComposeCompileException(
+                    ComposeCompileErrorCodes.RELATION_CTE_HOIST_UNSUPPORTED,
+                    ComposeCompileErrorCodes.PHASE_COMPILE,
+                    "Dialect '" + dialect + "' does not support CTEs, which are required to hoist complex window functions or multi-stage subqueries.");
+        }
+
+        List<Object> params = new ArrayList<>();
+        StringBuilder prereqBlock = new StringBuilder();
+        for (int i = 0; i < prerequisiteCtes.size(); i++) {
+            if (i > 0) prereqBlock.append(",\n");
+            CteUnit prereq = prerequisiteCtes.get(i);
+            prereqBlock.append(prereq.getAlias()).append(" AS (").append(prereq.getSql()).append(")");
+            if (prereq.getParams() != null) params.addAll(prereq.getParams());
+        }
+
+        String sql = composed.getSql();
+        if (composed.getParams() != null) params.addAll(composed.getParams());
+
+        // Check if the composed SQL already starts with WITH
+        String trimmed = sql.stripLeading();
+        if (trimmed.regionMatches(true, 0, "WITH ", 0, 5)) {
+            // Insert prerequisite CTEs after "WITH "
+            int withIdx = sql.indexOf(trimmed);
+            String afterWith = sql.substring(withIdx + 5); // everything after "WITH "
+            String newSql = sql.substring(0, withIdx) + "WITH " + prereqBlock + ",\n" + afterWith;
+            return new ComposedSql(newSql, params);
+        } else {
+            // Wrap with a new WITH block — wrap the existing SQL in a subquery
+            String newSql = "WITH " + prereqBlock + "\n" + sql;
+            return new ComposedSql(newSql, params);
+        }
     }
 
     /** Assemble join SQL for anchors + on-condition. Two anchors per join

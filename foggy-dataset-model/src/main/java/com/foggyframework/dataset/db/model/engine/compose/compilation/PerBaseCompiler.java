@@ -71,7 +71,7 @@ final class PerBaseCompiler {
      *           raises during SQL build. Original exception preserved on
      *           {@code cause}.
      */
-    static CteUnit compileBaseModel(
+    static List<CteUnit> compileBaseModel(
             BaseModelPlan plan,
             ModelBinding binding,
             SemanticQueryServiceV3 semanticService,
@@ -114,16 +114,43 @@ final class PerBaseCompiler {
             }
         }
 
+        List<String> selectColumns = ComposePlanner.extractStringCols(plan.columns());
+
+        // ── CTE Wrapping: return flattened sibling CteUnits when structured stages exist ──
+        if (buildResult.hasCteStages()) {
+            List<CteUnit> units = new ArrayList<>();
+            for (SqlGenerationResult.CteStage stage : buildResult.getCteStages()) {
+                // Prerequisite CTE: alias is scoped to the base plan (e.g., cte_0_stage1)
+                String stageAlias = alias + "_" + stage.alias();
+                List<Object> stageParams = new ArrayList<>();
+                if (stage.params() != null) stageParams.addAll(stage.params());
+                units.add(new CteUnit(stageAlias, stage.sql(), stageParams, List.of()));
+            }
+            // Outer SELECT: replace the original stage alias references with the scoped alias
+            String outerSql = buildResult.getSql();
+            for (SqlGenerationResult.CteStage stage : buildResult.getCteStages()) {
+                String scopedAlias = alias + "_" + stage.alias();
+                // Replace references: FROM stage1 → FROM cte_0_stage1, stage1."col" → cte_0_stage1."col"
+                outerSql = outerSql.replace(stage.alias() + ".", scopedAlias + ".");
+                outerSql = outerSql.replace("FROM " + stage.alias(), "FROM " + scopedAlias);
+            }
+            List<Object> outerParams = new ArrayList<>();
+            if (buildResult.getParams() != null) outerParams.addAll(buildResult.getParams());
+            units.add(new CteUnit(alias, outerSql, outerParams, selectColumns));
+            return units;
+        }
+
+        // ── Legacy single-pass: return single CteUnit ──
         List<Object> params = new ArrayList<>();
         if (buildResult.getParams() != null) {
             params.addAll(buildResult.getParams());
         }
 
-        return new CteUnit(
+        return List.of(new CteUnit(
                 alias,
                 buildResult.getSql(),
                 params,
-                ComposePlanner.extractStringCols(plan.columns()));
+                selectColumns));
     }
 
     /** Recognise the "Model not found" branch of v1.3 / semantic-service

@@ -113,6 +113,38 @@ public class JdbcModelQueryEngine implements QueryEngine {
      */
     AggSqlOptimizer.OptimizationResult aggSqlOptimizationResult;
 
+    // ── CTE Wrapping structured fields (9.2.0+) ──
+    // Populated by generateWithCteWrapping() so that callers can access
+    // the inner CTE stage and outer SELECT separately for flat CTE assembly.
+
+    /**
+     * Whether the engine generated two-stage CTE wrapping for window CFs.
+     */
+    boolean cteWrapped = false;
+
+    /**
+     * Stage 1 (inner CTE) SQL — base aggregations/dimensions, no window CFs.
+     * Only populated when {@link #cteWrapped} is true.
+     */
+    String cteStage1Sql;
+
+    /**
+     * Stage 1 bind parameters.
+     */
+    List<Object> cteStage1Params;
+
+    /**
+     * The CTE alias used for Stage 1 (e.g., "stage1").
+     */
+    String cteStage1Alias;
+
+    /**
+     * Stage 2 (outer SELECT) SQL — references stage1 by alias, adds window CFs + ORDER BY.
+     * Does NOT include the {@code WITH stage1 AS (...)} prefix.
+     * Only populated when {@link #cteWrapped} is true.
+     */
+    String cteOuterSelectSql;
+
     List values;
     private static final String PATTERN = "^[a-zA-Z\\s]+$";
     private static final Pattern PATTERN_OBJECT = Pattern.compile(PATTERN);
@@ -548,17 +580,12 @@ public class JdbcModelQueryEngine implements QueryEngine {
             stage1Params = mergedParams;
         }
 
-        // ── Stage 2: Build outer SELECT wrapping Stage 1 in a CTE ──
+        // ── Stage 2: Build outer SELECT referencing Stage 1 CTE ──
         String cteAlias = "stage1";
-        StringBuilder outerSql = new StringBuilder();
-
-        // CTE definition
-        outerSql.append("WITH ").append(cteAlias).append(" AS (\n");
-        outerSql.append(stage1Sql);
-        outerSql.append("\n)\n");
+        StringBuilder outerSelect = new StringBuilder();
 
         // Outer SELECT: reference all Stage 1 columns by alias, then add window CFs
-        outerSql.append("SELECT ");
+        outerSelect.append("SELECT ");
         List<String> outerColumnExprs = new ArrayList<>();
 
         // Stage 1 columns: reference by alias
@@ -575,14 +602,14 @@ public class JdbcModelQueryEngine implements QueryEngine {
             outerColumnExprs.add(windowExpr + " " + windowAlias);
         }
 
-        outerSql.append(String.join(",\n\t", outerColumnExprs));
-        outerSql.append("\nFROM ").append(cteAlias);
+        outerSelect.append(String.join(",\n\t", outerColumnExprs));
+        outerSelect.append("\nFROM ").append(cteAlias);
 
         // ── Elevate ORDER BY to Stage 2 ──
-        String outerSqlWithoutOrder = outerSql.toString();
+        String outerSelectWithoutOrder = outerSelect.toString();
 
         if (savedOrder != null && !savedOrder.getOrders().isEmpty()) {
-            outerSql.append("\nORDER BY ");
+            outerSelect.append("\nORDER BY ");
             List<String> orderExprs = new ArrayList<>();
             for (DbQueryOrderColumnImpl order : savedOrder.getOrders()) {
                 DbColumn orderCol = order.getSelectColumn();
@@ -610,15 +637,23 @@ public class JdbcModelQueryEngine implements QueryEngine {
                 }
                 orderExprs.add(orderRef);
             }
-            outerSql.append(String.join(", ", orderExprs));
+            outerSelect.append(String.join(", ", orderExprs));
         }
 
         // Note: LIMIT/OFFSET is handled by the upper-layer pagination framework
         // (Spring JDBC PagingQuery), not in the engine's SQL string generation.
 
-        // ── Set engine SQL fields ──
-        this.innerSql = outerSql.toString();
-        this.innerSqlWithoutOrder = outerSqlWithoutOrder;
+        // ── Populate structured CTE fields for ComposePlanner flattening ──
+        this.cteWrapped = true;
+        this.cteStage1Alias = cteAlias;
+        this.cteStage1Sql = stage1Sql;
+        this.cteStage1Params = stage1Params;
+        this.cteOuterSelectSql = outerSelect.toString();
+
+        // ── Set engine SQL fields (assembled for direct execution) ──
+        String ctePrefix = "WITH " + cteAlias + " AS (\n" + stage1Sql + "\n)\n";
+        this.innerSql = ctePrefix + outerSelect;
+        this.innerSqlWithoutOrder = ctePrefix + outerSelectWithoutOrder;
         this.sql = this.innerSql;
         this.values = stage1Params;
 
@@ -626,7 +661,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
         boolean countToSum = queryRequest.hasGroupBy();
         if (queryRequest.isOptimizeAggSqlEnabled()) {
             AggSqlOptimizer optimizer = new AggSqlOptimizer(jdbcQueryModel, jdbcQuery, systemBundlesContext, queryRequest);
-            this.aggSqlOptimizationResult = optimizer.buildOptimizedAggSql(outerSqlWithoutOrder, countToSum);
+            this.aggSqlOptimizationResult = optimizer.buildOptimizedAggSql(ctePrefix + outerSelectWithoutOrder, countToSum);
             this.aggSql = this.aggSqlOptimizationResult.getOptimizedSql();
             if (log.isDebugEnabled() && this.aggSqlOptimizationResult.isOptimizationApplied()) {
                 log.debug("聚合SQL优化 (CTE wrapped): {}", this.aggSqlOptimizationResult.getSummary());
