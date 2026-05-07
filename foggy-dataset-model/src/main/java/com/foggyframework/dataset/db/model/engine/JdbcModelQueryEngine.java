@@ -357,9 +357,72 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
         DomainTransportSqlInjection domainTransportInjection = applyDomainTransportPlans(context, jdbcQuery);
 
-        SimpleSqlJdbcQueryVisitor v = new SimpleSqlJdbcQueryVisitor(systemBundlesContext.getApplicationContext(), jdbcQueryModel, queryRequest);
+        // ── CTE Wrapping: detect window CFs and split into two stages ──
+        // Window calculated fields (e.g., RANK() OVER(...), ROW_NUMBER() OVER(...))
+        // cannot safely reference aliases defined at the same SELECT level in standard SQL.
+        // When detected, we generate a two-stage SQL:
+        //   Stage 1 (CTE): base aggregations + dimensions (no window CFs, no ORDER BY)
+        //   Stage 2 (outer): SELECT stage1.*, windowCF1, windowCF2 FROM stage1 ORDER BY ... LIMIT ...
+        boolean hasWindowCf = hasWindowCalculatedFields(queryRequest);
 
+        if (hasWindowCf) {
+            generateWithCteWrapping(systemBundlesContext, queryRequest, jdbcQuery, domainTransportInjection);
+        } else {
+            generateSinglePass(systemBundlesContext, queryRequest, jdbcQuery, domainTransportInjection);
+        }
 
+        if (log.isDebugEnabled()) {
+            log.debug("生成查询SQL");
+            log.debug(this.sql);
+            log.debug("聚合SQL");
+            log.debug(this.aggSql);
+            log.debug("参数");
+            log.debug(values == null ? "无" : values.toString());
+        }
+
+    }
+
+    // ------------------------------------------------------------------
+    // CTE Wrapping: Two-Stage SQL generation for Window Calculated Fields
+    // ------------------------------------------------------------------
+
+    /**
+     * Check whether the current SELECT list contains any window calculated fields.
+     * <p>
+     * Window CFs are identified by the {@code DbAggregation.WINDOW} type on their
+     * wrapping {@link AggregationDbColumn}, or by the {@code hasWindow()} flag on
+     * a raw {@link CalculatedDbColumn}.
+     * </p>
+     */
+    private boolean hasWindowCalculatedFields(DbQueryRequestDef queryRequest) {
+        if (calculatedColumns == null || calculatedColumns.isEmpty()) {
+            return false;
+        }
+        // CTE wrapping is only needed for window CFs that were processed through
+        // wrapWithWindowClause (i.e., have explicit partitionBy/windowOrderBy).
+        // CALCULATE-generated windows (SUM(SUM(x)) OVER(...)) are self-contained
+        // and work in single-pass mode — they are NOT flagged for CTE wrapping.
+        for (CalculatedDbColumn col : calculatedColumns) {
+            if (col.isNeedsCteWrapping()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Legacy single-pass SQL generation (original path, no CTE wrapping).
+     * <p>
+     * Used when no window calculated fields are present in the query.
+     * </p>
+     */
+    @SuppressWarnings("unchecked")
+    private void generateSinglePass(SystemBundlesContext systemBundlesContext,
+                                     DbQueryRequestDef queryRequest,
+                                     JdbcQuery jdbcQuery,
+                                     DomainTransportSqlInjection domainTransportInjection) {
+        SimpleSqlJdbcQueryVisitor v = new SimpleSqlJdbcQueryVisitor(
+                systemBundlesContext.getApplicationContext(), jdbcQueryModel, queryRequest);
         jdbcQuery.accept(v);
         List visitorValues = v.getValues();
         if (domainTransportInjection.hasCte()) {
@@ -380,30 +443,205 @@ public class JdbcModelQueryEngine implements QueryEngine {
         // 构建聚合SQL（支持优化）
         boolean countToSum = queryRequest.hasGroupBy();
         if (queryRequest.isOptimizeAggSqlEnabled()) {
-            // 使用优化器构建精简的聚合SQL
             AggSqlOptimizer optimizer = new AggSqlOptimizer(jdbcQueryModel, jdbcQuery, systemBundlesContext, queryRequest);
             this.aggSqlOptimizationResult = optimizer.buildOptimizedAggSql(this.innerSqlWithoutOrder, countToSum);
             this.aggSql = this.aggSqlOptimizationResult.getOptimizedSql();
-
             if (log.isDebugEnabled() && this.aggSqlOptimizationResult.isOptimizationApplied()) {
                 log.debug("聚合SQL优化: {}", this.aggSqlOptimizationResult.getSummary());
             }
         } else {
-            // 使用原始方式构建聚合SQL
             this.aggSql = buildAggSql(systemBundlesContext, null, null, false, countToSum);
             this.aggSqlOptimizationResult = null;
         }
+    }
 
-        if (log.isDebugEnabled()) {
-            log.debug("生成查询SQL");
-            log.debug(this.sql);
-            log.debug("聚合SQL");
-            log.debug(this.aggSql);
-            log.debug("参数");
-            log.debug(values == null ? "无" : values.toString());
+    /**
+     * Two-stage CTE wrapping SQL generation for queries with Window Calculated Fields.
+     * <p>
+     * Architecture (per OPT-compose-cte-wrapping-design.md):
+     * <pre>
+     * WITH stage1 AS (
+     *   SELECT dimension_cols, agg_cols, base_calc_cols
+     *   FROM table t
+     *   WHERE ...
+     *   GROUP BY ...
+     *   HAVING ...
+     * )
+     * SELECT stage1.*, window_cf_1 AS alias1, window_cf_2 AS alias2
+     * FROM stage1
+     * ORDER BY ...
+     * LIMIT ... OFFSET ...
+     * </pre>
+     * </p>
+     * <p>
+     * Stage 1 contains all non-window columns (dimensions, measures, base CFs) plus
+     * WHERE/GROUP BY/HAVING. Stage 2 references Stage 1 columns by alias and appends
+     * window CF expressions (whose OVER clauses reference aliases, not raw expressions)
+     * plus the global ORDER BY and LIMIT/OFFSET.
+     * </p>
+     */
+    @SuppressWarnings("unchecked")
+    private void generateWithCteWrapping(SystemBundlesContext systemBundlesContext,
+                                          DbQueryRequestDef queryRequest,
+                                          JdbcQuery jdbcQuery,
+                                          DomainTransportSqlInjection domainTransportInjection) {
+        FDialect dialect = jdbcQueryModel != null ? jdbcQueryModel.getDialect() : FDialect.MYSQL_DIALECT;
+
+        // ── Identify window CF columns in the SELECT list ──
+        // Snapshot columns and indices before mutation
+        List<DbColumn> originalSelectCols = new ArrayList<>(jdbcQuery.getSelect().getColumns());
+        List<WindowColumnInfo> windowColumns = new ArrayList<>();
+        List<DbColumn> stage1SelectCols = new ArrayList<>();
+
+        for (int i = 0; i < originalSelectCols.size(); i++) {
+            DbColumn col = originalSelectCols.get(i);
+            boolean isWindowCf = false;
+            if (col instanceof AggregationDbColumn agg && agg.getAggregation() == DbAggregation.WINDOW) {
+                isWindowCf = true;
+            } else if (col instanceof CalculatedDbColumn calc && calc.hasWindow()) {
+                isWindowCf = true;
+            }
+            if (isWindowCf) {
+                windowColumns.add(new WindowColumnInfo(i, col));
+            } else {
+                stage1SelectCols.add(col);
+            }
         }
 
+        if (windowColumns.isEmpty()) {
+            // Fallback: no window CFs found (shouldn't happen since hasWindowCF was true)
+            generateSinglePass(systemBundlesContext, queryRequest, jdbcQuery, domainTransportInjection);
+            return;
+        }
+
+        if (log.isDebugEnabled()) {
+            log.debug("CTE Wrapping: {} window CFs detected, generating two-stage SQL", windowColumns.size());
+            for (WindowColumnInfo wci : windowColumns) {
+                log.debug("  Window CF: alias={}, declare={}", wci.column.getAlias(), wci.column.getDeclare());
+            }
+        }
+
+        // ── Stage 1: Generate inner SQL WITHOUT window CFs and WITHOUT ORDER BY ──
+        // Temporarily replace SELECT columns with stage1-only columns
+        jdbcQuery.getSelect().setColumns(stage1SelectCols);
+
+        // Temporarily clear ORDER BY for Stage 1 (will be elevated to Stage 2)
+        JdbcQuery.JdbcOrder savedOrder = jdbcQuery.getOrder();
+        jdbcQuery.setOrder(null);
+
+        SimpleSqlJdbcQueryVisitor v1 = new SimpleSqlJdbcQueryVisitor(
+                systemBundlesContext.getApplicationContext(), jdbcQueryModel, queryRequest);
+        jdbcQuery.accept(v1);
+        String stage1Sql = v1.getSql();
+        List<Object> stage1Params = new ArrayList<>(v1.getValues());
+
+        // Restore original select columns and order (for downstream consumers like aggSql)
+        jdbcQuery.getSelect().setColumns(new ArrayList<>(originalSelectCols));
+        jdbcQuery.setOrder(savedOrder);
+
+        // ── Apply domain transport CTE prefix if present ──
+        if (domainTransportInjection.hasCte()) {
+            stage1Sql = "with " + String.join(",\n", domainTransportInjection.cteFragments()) + "\n" + stage1Sql;
+            List<Object> mergedParams = new ArrayList<>();
+            mergedParams.addAll(domainTransportInjection.cteParams());
+            mergedParams.addAll(stage1Params);
+            stage1Params = mergedParams;
+        }
+
+        // ── Stage 2: Build outer SELECT wrapping Stage 1 in a CTE ──
+        String cteAlias = "stage1";
+        StringBuilder outerSql = new StringBuilder();
+
+        // CTE definition
+        outerSql.append("WITH ").append(cteAlias).append(" AS (\n");
+        outerSql.append(stage1Sql);
+        outerSql.append("\n)\n");
+
+        // Outer SELECT: reference all Stage 1 columns by alias, then add window CFs
+        outerSql.append("SELECT ");
+        List<String> outerColumnExprs = new ArrayList<>();
+
+        // Stage 1 columns: reference by alias
+        for (DbColumn col : stage1SelectCols) {
+            String colAlias = col.getAlias();
+            String quotedAlias = dialect.quoteIdentifier(colAlias);
+            outerColumnExprs.add(cteAlias + "." + quotedAlias);
+        }
+
+        // Window CF columns: use the full window expression (which now references aliases)
+        for (WindowColumnInfo wci : windowColumns) {
+            String windowExpr = wci.column.getDeclare();
+            String windowAlias = dialect.quoteIdentifier(wci.column.getAlias());
+            outerColumnExprs.add(windowExpr + " " + windowAlias);
+        }
+
+        outerSql.append(String.join(",\n\t", outerColumnExprs));
+        outerSql.append("\nFROM ").append(cteAlias);
+
+        // ── Elevate ORDER BY to Stage 2 ──
+        String outerSqlWithoutOrder = outerSql.toString();
+
+        if (savedOrder != null && !savedOrder.getOrders().isEmpty()) {
+            outerSql.append("\nORDER BY ");
+            List<String> orderExprs = new ArrayList<>();
+            for (DbQueryOrderColumnImpl order : savedOrder.getOrders()) {
+                DbColumn orderCol = order.getSelectColumn();
+                String orderColAlias = dialect.quoteIdentifier(orderCol.getAlias());
+
+                // Check if it's a window CF — reference by alias directly
+                // Otherwise reference via cteAlias.colAlias
+                String orderRef;
+                boolean isWindowCol = false;
+                for (WindowColumnInfo wci : windowColumns) {
+                    if (wci.column.getAlias().equals(orderCol.getAlias())) {
+                        isWindowCol = true;
+                        break;
+                    }
+                }
+                orderRef = isWindowCol ? orderColAlias : cteAlias + "." + orderColAlias;
+
+                // Handle NULL ordering
+                if (order.isNullLast() || order.isNullFirst()) {
+                    orderRef = dialect.buildNullOrderClause(orderRef, order.isNullFirst());
+                }
+
+                if (StringUtils.isNotEmpty(order.getOrder())) {
+                    orderRef += " " + order.getOrder();
+                }
+                orderExprs.add(orderRef);
+            }
+            outerSql.append(String.join(", ", orderExprs));
+        }
+
+        // Note: LIMIT/OFFSET is handled by the upper-layer pagination framework
+        // (Spring JDBC PagingQuery), not in the engine's SQL string generation.
+
+        // ── Set engine SQL fields ──
+        this.innerSql = outerSql.toString();
+        this.innerSqlWithoutOrder = outerSqlWithoutOrder;
+        this.sql = this.innerSql;
+        this.values = stage1Params;
+
+        // 构建聚合SQL（基于 Stage 1，不含窗口函数和排序）
+        boolean countToSum = queryRequest.hasGroupBy();
+        if (queryRequest.isOptimizeAggSqlEnabled()) {
+            AggSqlOptimizer optimizer = new AggSqlOptimizer(jdbcQueryModel, jdbcQuery, systemBundlesContext, queryRequest);
+            this.aggSqlOptimizationResult = optimizer.buildOptimizedAggSql(outerSqlWithoutOrder, countToSum);
+            this.aggSql = this.aggSqlOptimizationResult.getOptimizedSql();
+            if (log.isDebugEnabled() && this.aggSqlOptimizationResult.isOptimizationApplied()) {
+                log.debug("聚合SQL优化 (CTE wrapped): {}", this.aggSqlOptimizationResult.getSummary());
+            }
+        } else {
+            this.aggSql = buildAggSql(systemBundlesContext, null, null, false, countToSum);
+            this.aggSqlOptimizationResult = null;
+        }
     }
+
+    /**
+     * Holds a window CF column and its original index in the SELECT list.
+     * Used during CTE wrapping to preserve column ordering.
+     */
+    private record WindowColumnInfo(int originalIndex, DbColumn column) {}
 
     @SuppressWarnings("unchecked")
     private DomainTransportSqlInjection applyDomainTransportPlans(ModelResultContext context, JdbcQuery jdbcQuery) {

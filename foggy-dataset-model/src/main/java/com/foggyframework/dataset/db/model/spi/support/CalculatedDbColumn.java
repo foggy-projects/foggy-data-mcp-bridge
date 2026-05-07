@@ -217,6 +217,24 @@ public class CalculatedDbColumn extends AbstractDecorate implements DbQueryColum
         return sqlFragment != null && sqlFragment.isHasWindow();
     }
 
+    /**
+     * Whether this window CF requires CTE wrapping.
+     * <p>
+     * Set to {@code true} when the CF was processed via {@code wrapWithWindowClause}
+     * (i.e., has explicit partitionBy/windowOrderBy that reference other columns by alias).
+     * CALCULATE-generated windows are self-contained and do NOT set this flag.
+     * </p>
+     */
+    private boolean needsCteWrapping = false;
+
+    public boolean isNeedsCteWrapping() {
+        return needsCteWrapping;
+    }
+
+    public void setNeedsCteWrapping(boolean needsCteWrapping) {
+        this.needsCteWrapping = needsCteWrapping;
+    }
+
     @Override
     public String toString() {
         return "CalculatedJdbcColumn{" +
