@@ -2,6 +2,29 @@
 
 This file records why the `dataset.query_model` prompt contract changed. Java is the source of truth; Python and Odoo bridge copies synchronize from this directory unless an explicit exception is documented.
 
+## 2026-05-08 - Aggregate Threshold Uses Post-Group Alias
+
+Status: implemented
+
+Problem:
+A release-oriented benchmark sample for `PIVOT-011` asked for groups whose aggregated sales exceeded a threshold. One model generated a row-level filter (`amountTotal > 10000`) instead of filtering the grouped aggregate alias, changing the business meaning from "countries with total sales over 10000" to "orders over 10000 before country aggregation".
+
+Contract change:
+- Added a generic rule for grouped threshold questions: when the user asks to group by a dimension and keep only groups whose aggregated metric is above/below a threshold, filter the aggregate alias after aggregation.
+- Example: define `sum(amountTotal) as totalSales`, then filter/HAVING on `totalSales > 10000`.
+- Do not push the condition down to the raw row-level metric (`amountTotal > 10000`) unless the user explicitly asks to filter individual records before aggregation.
+- Added the same boundary for Pivot axis member thresholds: top-level `slice` remains pre-aggregation domain filtering; member thresholds should use `pivot.rows[*].having` / `pivot.columns[*].having` or fall back to ordinary grouped aggregate alias filtering.
+
+Files changed:
+- `query_model_v3.md`
+- `query_model_v3_basic.md`
+- `query_model_v3_no_vector.md`
+
+Validation:
+- Sync Java canonical prompt files to Python and Odoo runtime copies.
+- Run prompt/description contract tests.
+- Optionally rerun `PIVOT-011` with models that previously confused row-level and aggregate thresholds.
+
 ## 2026-05-08 - Native parentShare Pivot Example and Formula Boundary
 
 Status: implemented

@@ -49,6 +49,7 @@
 - 使用 `partner$caption` 等维度分组时，`columns` 只放这些分组维度和聚合指标。不要为了解释或排查额外混入 `move$caption`、`moveName`、`lineCount` 等未分组明细字段；除非用户明确要求统计行数，否则不要添加 `lineCount`。
 - 如果模型说明提供 AR 业务指标（如 `arOverdueAmount`、`arOutstandingAmount`、`arOverdueCustomerCount`），优先直接作为 measure 使用；不要再包装 `sum(...)`，也不要同时加入不属于该分组口径的明细列。
 - `slice` 是语义过滤：明细/维度字段下推为 WHERE，预定义或已选聚合 measure（如 `{"field": "arOutstandingAmount", "op": ">", "value": 0}`）会由引擎提升为 HAVING。聚合 measure 比较支持跨列引用 `$field`（如 `{"field": "salesAgg", "op": ">", "value": {"$field": "costAgg"}}`），但等式两端必须均为聚合 measure。不要在同一个 `$or` / `$and` 逻辑组里混合明细字段和聚合 measure；复杂二阶段结果过滤使用 `dataset.compose_script` 的 plan `.query({...})`。如果主查询已经返回 0 或空结果，直接回答。
+- 分组后的聚合阈值必须过滤聚合 alias，而不是过滤明细字段。用户说“按某维度汇总后，只显示销售额/金额/数量超过 N 的组”时，先写 `sum(amountTotal) as totalSales`，再用 `slice`/HAVING 语义过滤 `totalSales > 10000`；不要把条件下推成行级 `amountTotal > 10000`，除非用户明确要求“先过滤单笔/单行金额超过 N，再汇总”。
 - `columns` 只放简单单层聚合：`agg(field) as alias`。
 - 条件聚合统一写成 `sum/avg/count(if(条件, 满足时的值, 不满足时的值))`，不要生成 `count_if`、`sum_if` 或 SQL `case when`。
 
@@ -180,6 +181,7 @@ SUM(metric) / NULLIF(CALCULATE(SUM(metric), REMOVE(groupByDim)), 0)
 > - 普通列表或简单分组聚合不要用 `pivot`。
 > - 跨模型 Join / Union / 派生查询不要用 `pivot` 硬拼，退回 `dataset.compose_script`。
 > - 顶层 `orderBy` / `limit` 不作为透视轴排序或 TopN 控制；需要排序或裁剪行/列成员时，写在对应 `pivot.rows[*]` / `pivot.columns[*]` 轴对象上。
+> - Pivot 轴成员阈值是聚合后过滤。用户要求“只显示销售额/金额/数量超过 N 的国家/客户/产品”等成员筛选时，不要把原生度量写入顶层 `slice`（如 `amountTotal > 10000`）；顶层 `slice` 只用于聚合前的数据域过滤（日期、状态、公司、类别等）。优先在对应轴对象上使用 `pivot.rows[*].having` / `pivot.columns[*].having`，例如 `{"field": "partnerCountry$caption", "having": [{"metric": "amountTotal", "op": ">", "value": 10000}]}`；如果轴级 `having` 不适合，改用普通 `columns + groupBy` 并通过聚合 alias/HAVING 过滤，如 `sum(amountTotal) as totalSales` + `totalSales > 10000`。
 
 ### Pivot 请求结构
 

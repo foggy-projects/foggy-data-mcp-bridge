@@ -43,6 +43,8 @@
 > - 使用 `partner$caption` 等维度分组时，`columns` 只放这些分组维度和聚合指标。不要为了解释或排查额外混入 `move$caption`、`moveName`、`lineCount` 等未分组明细字段；除非用户明确要求统计行数，否则不要添加 `lineCount`。
 > - 如果模型说明提供 AR 业务指标（如 `arOverdueAmount`、`arOutstandingAmount`、`arOverdueCustomerCount`），优先直接作为 measure 使用；不要再包装 `sum(...)`，也不要同时加入不属于该分组口径的明细列。
 > - `slice` 是语义过滤：明细/维度字段下推为 WHERE，预定义或已选聚合 measure（如 `{"field": "arOutstandingAmount", "op": ">", "value": 0}`）会由引擎提升为 HAVING。聚合 measure 比较支持跨列引用 `$field`（如 `{"field": "salesAgg", "op": ">", "value": {"$field": "costAgg"}}`），但等式两端必须均为聚合 measure。不要在同一个 `$or` / `$and` 逻辑组里混合明细字段和聚合 measure；如果主查询已经返回 0 或空结果，直接回答；复杂二阶段过滤使用 `dataset.compose_script` 在结果 plan 上 `.query({...})`。
+> - 分组后的聚合阈值必须过滤聚合 alias，而不是过滤明细字段。用户说“按某维度汇总后，只显示销售额/金额/数量超过 N 的组”时，先写 `sum(amountTotal) as totalSales`，再用 `slice`/HAVING 语义过滤 `totalSales > 10000`；不要把条件下推成行级 `amountTotal > 10000`，除非用户明确要求“先过滤单笔/单行金额超过 N，再汇总”。
+> - Pivot 轴成员阈值同样是聚合后过滤。不要把原生度量阈值写入顶层 `slice`；顶层 `slice` 只用于聚合前的数据域过滤。优先使用 `pivot.rows[*].having` / `pivot.columns[*].having`，例如 `{"field": "partnerCountry$caption", "having": [{"metric": "amountTotal", "op": ">", "value": 10000}]}`；如果轴级 `having` 不适合，改用普通 `columns + groupBy` 并过滤聚合 alias，如 `sum(amountTotal) as totalSales` + `totalSales > 10000`。
 > - `columns` 仅用于简单的单层聚合：`agg(field) as alias`。
 > - **条件聚合** 统一使用 `sum/avg/count(if(条件, 满足时的值, 不满足时的值))` 写法，例如：`sum(if(state == "sale", amountTotal, 0)) as confirmed`。**绝对不要**生成 `count_if`、`sum_if` 之类的未定义函数，也绝对不要生成 SQL 风格的 `case when`。
 
