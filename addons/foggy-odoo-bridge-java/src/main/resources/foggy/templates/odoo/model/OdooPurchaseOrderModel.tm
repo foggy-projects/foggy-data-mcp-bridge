@@ -15,6 +15,55 @@ export const model = {
 
     dimensions: [
         {
+            name: 'dateOrder',
+            foreignKey: 'date_order',
+            primaryKey: 'date_order',
+            captionColumn: 'date_order',
+            caption: 'Order Date',
+            description: 'Self date dimension backed by purchase_order.date_order without joining dim_date',
+            type: 'DATETIME',
+            timeRole: 'business_date',
+            recommendedUse: 'Primary purchase order business date for procurement trend and period pivot queries.',
+            properties: [
+                {
+                    column: 'date_order',
+                    name: 'year',
+                    caption: 'Order Year',
+                    type: 'INTEGER',
+                    dialectFormulaDef: {
+                        sqlite: { builder: (alias) => { return `CAST(strftime('%Y', ${alias}.date_order) AS INTEGER)`; } },
+                        postgresql: { builder: (alias) => { return `EXTRACT(YEAR FROM ${alias}.date_order)`; } },
+                        mysql: { builder: (alias) => { return `YEAR(${alias}.date_order)`; } },
+                        sqlserver: { builder: (alias) => { return `DATEPART(year, ${alias}.date_order)`; } }
+                    }
+                },
+                {
+                    column: 'date_order',
+                    name: 'month',
+                    caption: 'Order Month',
+                    type: 'INTEGER',
+                    dialectFormulaDef: {
+                        sqlite: { builder: (alias) => { return `CAST(strftime('%m', ${alias}.date_order) AS INTEGER)`; } },
+                        postgresql: { builder: (alias) => { return `EXTRACT(MONTH FROM ${alias}.date_order)`; } },
+                        mysql: { builder: (alias) => { return `MONTH(${alias}.date_order)`; } },
+                        sqlserver: { builder: (alias) => { return `DATEPART(month, ${alias}.date_order)`; } }
+                    }
+                },
+                {
+                    column: 'date_order',
+                    name: 'yearMonth',
+                    caption: 'Order Year-Month',
+                    type: 'STRING',
+                    dialectFormulaDef: {
+                        sqlite: { builder: (alias) => { return `strftime('%Y-%m', ${alias}.date_order)`; } },
+                        postgresql: { builder: (alias) => { return `TO_CHAR(${alias}.date_order, 'YYYY-MM')`; } },
+                        mysql: { builder: (alias) => { return `DATE_FORMAT(${alias}.date_order, '%Y-%m')`; } },
+                        sqlserver: { builder: (alias) => { return `CONVERT(char(7), ${alias}.date_order, 120)`; } }
+                    }
+                }
+            ]
+        },
+        {
             name: 'vendor',
             tableName: 'res_partner',
             foreignKey: 'partner_id',
@@ -76,8 +125,6 @@ export const model = {
         { column: 'id', caption: 'ID', type: 'INTEGER' },
         { column: 'name', caption: 'Order Reference', type: 'STRING', description: 'PO number (e.g. P00001)' },
         { column: 'state', caption: 'Status', type: 'STRING', dictRef: dicts.purchase_order_state },
-        { column: 'date_order', caption: 'Order Deadline', type: 'DATETIME',
-          timeRole: 'business_date', recommendedUse: 'Primary purchase order business date for procurement trend and period pivot queries.' },
         { column: 'date_approve', caption: 'Confirmation Date', type: 'DATETIME',
           timeRole: 'approval_date', recommendedUse: 'Use for purchase order confirmation-cycle analysis.' },
         { column: 'date_planned', caption: 'Expected Arrival', type: 'DATETIME',
