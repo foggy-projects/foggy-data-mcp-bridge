@@ -349,7 +349,7 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
     }
 
     private boolean isGroupedMeasureFormula(CalculatedFieldDef fieldDef) {
-        if (!groupedQuery || fieldDef == null || StringUtils.isEmpty(fieldDef.getExpression())) {
+        if (fieldDef == null || StringUtils.isEmpty(fieldDef.getExpression())) {
             return false;
         }
         if (fieldDef.getAgg() != null || fieldDef.getPartitionBy() != null || fieldDef.getWindowOrderBy() != null) {

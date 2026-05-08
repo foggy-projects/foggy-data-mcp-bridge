@@ -372,7 +372,8 @@ public class JdbcModelQueryEngine implements QueryEngine {
             }
 
             //加模QM型默认排序
-            if (jdbcQueryModel.getOrders() != null && !jdbcQueryModel.getOrders().isEmpty()) {
+            if (jdbcQueryModel.getOrders() != null && !jdbcQueryModel.getOrders().isEmpty()
+                    && !hasAggregateSelect(jdbcQuery)) {
                 jdbcQuery.addOrders(jdbcQueryModel.getOrders());
                 for (DbQueryOrderColumnImpl order : jdbcQuery.getOrder().getOrders()) {
                     if (jdbcQuery.containSelect(order.getSelectColumn())) {
@@ -435,6 +436,21 @@ public class JdbcModelQueryEngine implements QueryEngine {
             log.debug(values == null ? "无" : values.toString());
         }
 
+    }
+
+    private boolean hasAggregateSelect(JdbcQuery jdbcQuery) {
+        if (jdbcQuery == null || jdbcQuery.getSelect() == null || jdbcQuery.getSelect().getColumns() == null) {
+            return false;
+        }
+        for (DbColumn column : jdbcQuery.getSelect().getColumns()) {
+            if (column instanceof AggregationDbColumn) {
+                return true;
+            }
+            if (column instanceof CalculatedDbColumn calcColumn && calcColumn.hasAggregate()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // ------------------------------------------------------------------

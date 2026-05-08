@@ -307,6 +307,27 @@ class OdooModelLoadingTest extends EcommerceTestSupport {
         assertTrue(normalizedSql.contains("WHERE \"salesShare\" > ?"), sql);
     }
 
+    @Test
+    @Order(205)
+    @DisplayName("全局 predefined ratio measure 应聚合 measure 依赖")
+    void testGlobalPredefinedRatioMeasureAggregatesDependencies() {
+        JdbcQueryModel queryModel = getQueryModel("OdooAccountMoveQueryModel");
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("OdooAccountMoveQueryModel");
+        queryRequest.setColumns(List.of("collectionRate"));
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+        String sql = queryEngine.getSql();
+
+        assertTrue(sql.contains("SUM(t1.amount_total)") || sql.contains("SUM(t.amount_total)"), sql);
+        assertTrue(sql.contains("SUM(t1.amount_residual)") || sql.contains("SUM(t.amount_residual)"), sql);
+        assertFalse(sql.contains("t.amount_total - t.amount_residual"), sql);
+        assertFalse(sql.toUpperCase().contains("GROUP BY"), sql);
+        assertFalse(sql.toUpperCase().contains("ORDER BY"), sql);
+    }
+
     private DbQueryRequestDef postAggregateSalesShareRequest() {
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("OdooSaleOrderQueryModel");
