@@ -374,6 +374,17 @@ public final class ComposePlanner {
         return declaredOutputColumnsForPlan(source);
     }
 
+    private static List<String> derivedOutputColumns(DerivedQueryPlan plan, List<String> sourceColumns) {
+        if (plan.columns().isEmpty()) {
+            return sourceColumns == null ? Collections.emptyList() : new ArrayList<>(sourceColumns);
+        }
+        List<String> out = new ArrayList<>(plan.columns().size());
+        for (String col : extractStringCols(plan.columns())) {
+            out.add(unquoteIdentifier(extractOutputColName(col)));
+        }
+        return out;
+    }
+
     private static List<String> declaredOutputColumnsForPlan(QueryPlan plan) {
         if (plan instanceof BaseModelPlan base) {
             List<String> out = new ArrayList<>(base.columns().size());
@@ -1043,7 +1054,7 @@ public final class ComposePlanner {
                 derivedAlias,
                 outerSql,
                 merged,
-                extractStringCols(plan.columns()));
+                derivedOutputColumns(plan, sourceColumns));
     }
 
     private static ComposedSql compileJoin(JoinPlan plan, CompileState state) {

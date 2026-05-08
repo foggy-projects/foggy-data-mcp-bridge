@@ -398,6 +398,29 @@ class DerivedLoweringTest {
     }
 
     @Test
+    @DisplayName("derived alias output schema uses alias in join projection")
+    void derivedAliasOutputSchemaUsesAliasInJoinProjection() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT status FROM tbl");
+        BaseModelPlan left = CompileTestHelpers.base("M", "status AS current_status");
+        DerivedQueryPlan right = DerivedQueryPlan.builder()
+                .source(CompileTestHelpers.base("M", "status"))
+                .columns(List.of("status as prior_status"))
+                .build();
+        JoinPlan joined = JoinPlan.builder()
+                .left(left)
+                .right(right)
+                .type("left")
+                .on(List.of(JoinOn.of("current_status", "=", "prior_status")))
+                .build();
+
+        ComposedSql sql = compile(joined, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "postgres");
+
+        assertTrue(!sql.getSql().contains("cte_2.\"status as prior_status\""));
+        assertTrue(sql.getSql().contains("cte_2.prior_status"));
+    }
+
+    @Test
     @DisplayName("nested logical slice condition with is null")
     void derivedSliceNestedOrWithIsNull() {
         FakeSemanticService svc = new FakeSemanticService();
