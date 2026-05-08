@@ -166,12 +166,12 @@ public final class ComposePlanner {
         if (asIdx > 0) {
             String base = col.substring(0, asIdx).trim();
             String alias = col.substring(asIdx + 4).trim();
-            String quotedBase = quoteExpressionTokens(base, dialect);
+            String quotedBase = quoteExpressionTokens(rewriteSafeDivision(base), dialect);
             String quotedAlias = needsQuoting(alias, dialect) ? quoteIdent(alias, dialect) : alias;
             return quotedBase + " AS " + quotedAlias;
         }
         // No AS — simple column or expression
-        return quoteExpressionTokens(col, dialect);
+        return quoteExpressionTokens(rewriteSafeDivision(col), dialect);
     }
 
     /** Compile an AST node or raw string into SQL.
@@ -227,9 +227,12 @@ public final class ComposePlanner {
             return "'" + lit.value().toString().replace("'", "''") + "'";
         }
         if (expr instanceof BinaryExpr bin) {
-            return "(" + compileExpression(bin.left(), dialect, planAliasMap)
-                    + " " + bin.op() + " "
-                    + compileExpression(bin.right(), dialect, planAliasMap) + ")";
+            String left = compileExpression(bin.left(), dialect, planAliasMap);
+            String right = compileExpression(bin.right(), dialect, planAliasMap);
+            if ("/".equals(bin.op().trim())) {
+                right = "NULLIF(" + right + ", 0)";
+            }
+            return "(" + left + " " + bin.op() + " " + right + ")";
         }
         if (expr instanceof CaseWhenExpr caseWhen) {
             StringBuilder sb = new StringBuilder("CASE");
@@ -615,6 +618,7 @@ public final class ComposePlanner {
             "GROUP", "BY", "ORDER", "HAVING", "LIMIT", "OFFSET", "UNION", "ALL",
             "JOIN", "LEFT", "RIGHT", "INNER", "OUTER", "FULL", "CROSS", "ON",
             "AS", "EXISTS", "CAST", "COALESCE", "IFNULL", "ISNULL",
+            "NULLIF",
             "OVER", "PARTITION", "ROWS", "RANGE", "PRECEDING", "FOLLOWING", "UNBOUNDED", "CURRENT", "ROW",
             "SUM", "COUNT", "AVG", "MAX", "MIN"
     );
@@ -720,6 +724,168 @@ public final class ComposePlanner {
             }
         }
         return sb.toString();
+    }
+
+    private static String rewriteSafeDivision(String expr) {
+        if (expr == null || expr.indexOf('/') < 0) return expr;
+        StringBuilder out = new StringBuilder(expr.length() + 24);
+        int i = 0;
+        while (i < expr.length()) {
+            char ch = expr.charAt(i);
+            if (ch == '\'') {
+                int end = consumeSingleQuoted(expr, i);
+                out.append(expr, i, end);
+                i = end;
+                continue;
+            }
+            if (ch == '"') {
+                int end = consumeDoubleQuoted(expr, i);
+                out.append(expr, i, end);
+                i = end;
+                continue;
+            }
+            if (ch == '`') {
+                int end = consumeBacktickQuoted(expr, i);
+                out.append(expr, i, end);
+                i = end;
+                continue;
+            }
+            if (ch != '/') {
+                out.append(ch);
+                i++;
+                continue;
+            }
+            int rhsStart = skipWs(expr, i + 1);
+            if (startsFunctionCall(expr, rhsStart, "NULLIF")) {
+                out.append(ch);
+                i++;
+                continue;
+            }
+            int rhsEnd = consumeDivisionDenominator(expr, rhsStart);
+            if (rhsEnd <= rhsStart) {
+                out.append(ch);
+                i++;
+                continue;
+            }
+            out.append("/ NULLIF(")
+                    .append(expr.substring(rhsStart, rhsEnd).trim())
+                    .append(", 0)");
+            i = rhsEnd;
+        }
+        return out.toString();
+    }
+
+    private static int skipWs(String text, int start) {
+        int i = start;
+        while (i < text.length() && Character.isWhitespace(text.charAt(i))) {
+            i++;
+        }
+        return i;
+    }
+
+    private static boolean startsFunctionCall(String text, int start, String name) {
+        int end = start + name.length();
+        if (end > text.length()) return false;
+        if (!text.regionMatches(true, start, name, 0, name.length())) return false;
+        if (end < text.length()) {
+            char ch = text.charAt(end);
+            if (Character.isLetterOrDigit(ch) || ch == '_' || ch == '$') return false;
+        }
+        int paren = skipWs(text, end);
+        return paren < text.length() && text.charAt(paren) == '(';
+    }
+
+    private static int consumeDivisionDenominator(String text, int start) {
+        if (start >= text.length()) return start;
+        if (text.charAt(start) == '+' || text.charAt(start) == '-') {
+            start = skipWs(text, start + 1);
+        }
+        if (start >= text.length()) return start;
+        char ch = text.charAt(start);
+        if (ch == '(') return consumeBalancedParentheses(text, start);
+        if (ch == '\'') return consumeSingleQuoted(text, start);
+        if (ch == '"') return consumeDoubleQuoted(text, start);
+        if (ch == '`') return consumeBacktickQuoted(text, start);
+        int i = start;
+        while (i < text.length()) {
+            char c = text.charAt(i);
+            if (!(Character.isLetterOrDigit(c) || c == '_' || c == '$' || c == '.')) {
+                break;
+            }
+            i++;
+        }
+        int callStart = skipWs(text, i);
+        if (callStart < text.length() && text.charAt(callStart) == '(') {
+            return consumeBalancedParentheses(text, callStart);
+        }
+        return i;
+    }
+
+    private static int consumeBalancedParentheses(String text, int start) {
+        int depth = 0;
+        int i = start;
+        while (i < text.length()) {
+            char ch = text.charAt(i);
+            if (ch == '\'') {
+                i = consumeSingleQuoted(text, i);
+                continue;
+            }
+            if (ch == '"') {
+                i = consumeDoubleQuoted(text, i);
+                continue;
+            }
+            if (ch == '`') {
+                i = consumeBacktickQuoted(text, i);
+                continue;
+            }
+            if (ch == '(') {
+                depth++;
+            } else if (ch == ')') {
+                depth--;
+                if (depth == 0) return i + 1;
+            }
+            i++;
+        }
+        return text.length();
+    }
+
+    private static int consumeSingleQuoted(String text, int start) {
+        int i = start + 1;
+        while (i < text.length()) {
+            if (text.charAt(i) == '\'' && i + 1 < text.length() && text.charAt(i + 1) == '\'') {
+                i += 2;
+                continue;
+            }
+            if (text.charAt(i) == '\'') return i + 1;
+            i++;
+        }
+        return text.length();
+    }
+
+    private static int consumeDoubleQuoted(String text, int start) {
+        int i = start + 1;
+        while (i < text.length()) {
+            if (text.charAt(i) == '"' && i + 1 < text.length() && text.charAt(i + 1) == '"') {
+                i += 2;
+                continue;
+            }
+            if (text.charAt(i) == '"') return i + 1;
+            i++;
+        }
+        return text.length();
+    }
+
+    private static int consumeBacktickQuoted(String text, int start) {
+        int i = start + 1;
+        while (i < text.length()) {
+            if (text.charAt(i) == '`' && i + 1 < text.length() && text.charAt(i + 1) == '`') {
+                i += 2;
+                continue;
+            }
+            if (text.charAt(i) == '`') return i + 1;
+            i++;
+        }
+        return text.length();
     }
 
     private static boolean isNumericLiteral(String s) {

@@ -219,6 +219,54 @@ class DerivedLoweringTest {
     }
 
     @Test
+    @DisplayName("derived ratio expression wraps denominator with NULLIF")
+    void derivedRatioExpressionWrapsDenominatorWithNullif() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT customer_name, sales_amount, overdue_amount FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "customer_name", "sales_amount", "overdue_amount");
+        DerivedQueryPlan withRatio = DerivedQueryPlan.builder()
+                .source(base)
+                .columns(List.of(
+                        "customer_name",
+                        "sales_amount",
+                        "overdue_amount",
+                        "sales_amount / overdue_amount AS sales_to_overdue_ratio"))
+                .build();
+        DerivedQueryPlan result = DerivedQueryPlan.builder()
+                .source(withRatio)
+                .columns(List.of("customer_name", "sales_to_overdue_ratio"))
+                .slice(List.of(Map.of("field", "sales_to_overdue_ratio", "op", ">", "value", 3)))
+                .build();
+
+        ComposedSql sql = compile(result, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "sqlite");
+
+        assertTrue(sql.getSql().contains("sales_amount / NULLIF(overdue_amount, 0)"));
+        assertTrue(!sql.getSql().toLowerCase().contains("division by zero"));
+        assertEquals(List.of(3), sql.getParams());
+    }
+
+    @Test
+    @DisplayName("derived ratio expression keeps existing NULLIF")
+    void derivedRatioExpressionKeepsExistingNullif() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT customer_name, sales_amount, overdue_amount FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "customer_name", "sales_amount", "overdue_amount");
+        DerivedQueryPlan withRatio = DerivedQueryPlan.builder()
+                .source(base)
+                .columns(List.of(
+                        "customer_name",
+                        "sales_amount",
+                        "overdue_amount",
+                        "sales_amount / NULLIF(overdue_amount, 0) AS sales_to_overdue_ratio"))
+                .build();
+
+        ComposedSql sql = compile(withRatio, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "sqlite");
+
+        assertEquals(1, countOccurrences(sql.getSql().toUpperCase(), "NULLIF("));
+        assertTrue(!sql.getSql().toUpperCase().contains("NULLIF(NULLIF"));
+    }
+
+    @Test
     @DisplayName("同一层新建 alias 不能立刻用于 slice")
     void sameStageAliasSliceRejectedAtCompile() {
         FakeSemanticService svc = new FakeSemanticService();
@@ -590,5 +638,15 @@ class DerivedLoweringTest {
 
         assertTrue(!sql.getSql().contains("WHERE"), "Empty $or must not emit a WHERE clause");
         assertTrue(sql.getParams().isEmpty(), "No params from empty logical block");
+    }
+
+    private static int countOccurrences(String text, String needle) {
+        int count = 0;
+        int index = 0;
+        while ((index = text.indexOf(needle, index)) >= 0) {
+            count++;
+            index += needle.length();
+        }
+        return count;
     }
 }
