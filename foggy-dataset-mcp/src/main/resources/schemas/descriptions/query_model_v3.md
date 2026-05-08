@@ -137,7 +137,7 @@ SUM(metric) / NULLIF(CALCULATE(SUM(metric), REMOVE(groupByDim)), 0)
 ]
 ```
 
-等值简写仅限简单等值：`[{"status": "done"}]`。使用 `$or` 嵌套逻辑时不要混用简写。
+Legacy 等值简写仅为兼容旧调用：`[{"status": "done"}]`。LLM-facing payload 必须统一使用标准格式，不要生成 `{"status": "done"}`、`{"paymentType": "inbound"}` 这类简写对象；在 `$or` / `$and` 嵌套逻辑中混用简写尤其容易导致结构混淆。
 
 | 类型 | 操作符 |
 |---|---|

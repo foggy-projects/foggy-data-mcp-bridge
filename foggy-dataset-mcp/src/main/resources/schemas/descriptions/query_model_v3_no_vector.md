@@ -143,12 +143,12 @@
 ]
 ```
 
-**等值简写格式**（仅限等值判断）：
+**Legacy 等值简写**（仅为兼容旧调用，不要生成）：
 ```json
 [{"status": "done"}]
 ```
 等价于 `{"field": "status", "op": "=", "value": "done"}`。
-> **WARNING**: 在使用 `$or` 嵌套逻辑时，强烈建议**全部使用标准格式**，以免结构混淆导致语法错误。
+> **WARNING**: LLM-facing payload 必须统一使用标准格式。不要生成 `{"status": "done"}`、`{"paymentType": "inbound"}` 这类简写对象；在 `$or` / `$and` 嵌套逻辑中混用简写尤其容易导致结构混淆。
 
 **逻辑组合**：
 ```json
