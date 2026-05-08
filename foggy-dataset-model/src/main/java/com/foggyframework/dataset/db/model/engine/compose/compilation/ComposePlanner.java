@@ -465,6 +465,23 @@ public final class ComposePlanner {
                 }
             }
         }
+        Set<String> orderByNames = new LinkedHashSet<>(sourceNames);
+        for (Object col : plan.columns()) {
+            orderByNames.add(extractOutputColName(String.valueOf(col)));
+        }
+        for (String entry : plan.orderBy()) {
+            String fieldName = unquoteIdentifier(ComposeOrderByNormalizer.parse(entry).field());
+            if (!orderByNames.contains(fieldName)) {
+                throw new ComposeSchemaException(
+                        ComposeSchemaErrorCodes.DERIVED_QUERY_UNKNOWN_FIELD,
+                        "derived query order_by references unknown field '" + fieldName
+                                + "' not present in source output schema or this derived query's output columns "
+                                + "(available: " + orderByNames + ")",
+                        ComposeSchemaErrorCodes.PHASE_SCHEMA_DERIVE,
+                        "DerivedQueryPlan",
+                        fieldName);
+            }
+        }
         for (Object entry : iterSliceEntries(plan.slice())) {
             String fieldName = sliceFieldName(entry);
             if (fieldName != null) {

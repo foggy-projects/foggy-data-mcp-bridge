@@ -122,7 +122,7 @@ class DerivedLoweringTest {
     void orderByDescEmitted() {
         FakeSemanticService svc = new FakeSemanticService();
         svc.stub("M", "SELECT * FROM tbl");
-        BaseModelPlan base = CompileTestHelpers.base("M", "id");
+        BaseModelPlan base = CompileTestHelpers.base("M", "id", "name");
         DerivedQueryPlan derived = DerivedQueryPlan.builder()
                 .source(base).columns(List.of("id"))
                 .orderBy(List.of("name:desc"))
@@ -137,7 +137,7 @@ class DerivedLoweringTest {
     void orderByBareEmitted() {
         FakeSemanticService svc = new FakeSemanticService();
         svc.stub("M", "SELECT * FROM tbl");
-        BaseModelPlan base = CompileTestHelpers.base("M", "id");
+        BaseModelPlan base = CompileTestHelpers.base("M", "id", "name");
         DerivedQueryPlan derived = DerivedQueryPlan.builder()
                 .source(base).columns(List.of("id"))
                 .orderBy(List.of("name"))
@@ -212,6 +212,25 @@ class DerivedLoweringTest {
                 () -> compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "sqlite"));
         assertEquals(ComposeSchemaErrorCodes.DERIVED_QUERY_SAME_STAGE_ALIAS, ex.code());
         assertEquals("decrease_amount", ex.offendingField());
+    }
+
+    @Test
+    @DisplayName("derived orderBy 未知字段在编译期拒绝")
+    void unknownOrderByFieldRejectedBeforeSql() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT id, amount FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "id", "amount");
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(base)
+                .columns(List.of("id", "amount"))
+                .orderBy(List.of("collection_rate ASC"))
+                .build();
+
+        ComposeSchemaException ex = assertThrows(ComposeSchemaException.class,
+                () -> compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "postgres"));
+        assertEquals(ComposeSchemaErrorCodes.DERIVED_QUERY_UNKNOWN_FIELD, ex.code());
+        assertEquals("collection_rate", ex.offendingField());
+        assertTrue(ex.getMessage().contains("order_by"));
     }
 
     @Test

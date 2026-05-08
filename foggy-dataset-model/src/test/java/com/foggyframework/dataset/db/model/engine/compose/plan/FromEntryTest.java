@@ -46,6 +46,22 @@ class FromEntryTest {
         }
 
         @Test
+        @DisplayName("source 派生查询不接受 calculatedFields")
+        void sourceCalculatedFieldsRejected() {
+            QueryPlan base = Dsl.from(Dsl.FromOptions.builder()
+                    .model("X").columns(List.of("id", "amount")).build());
+
+            IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                    () -> Dsl.from(Dsl.FromOptions.builder()
+                            .source(base)
+                            .columns(List.of("id", "amount"))
+                            .calculatedFields(List.of(
+                                    new CalculatedFieldDef("rate", "amount / 100")))
+                            .build()));
+            assertTrue(ex.getMessage().contains("calculatedFields"));
+        }
+
+        @Test
         @DisplayName("同时 model 和 source 被拒绝")
         void bothModelAndSourceRejected() {
             QueryPlan base = Dsl.from(Dsl.FromOptions.builder()

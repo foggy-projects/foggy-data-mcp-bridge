@@ -92,6 +92,10 @@ public final class Dsl {
             throw new IllegalArgumentException(
                     "Dsl.from(source=...) does not accept having; use source.query({slice:[...]}) for derived-plan post filters");
         }
+        if (opts.calculatedFields() != null && !opts.calculatedFields().isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Dsl.from(source=...) does not accept calculatedFields; project derived expressions in columns with AS aliases, then add another .query(...) stage for post-result filtering or ordering.");
+        }
 
         return DerivedQueryPlan.builder()
                 .source(source)
