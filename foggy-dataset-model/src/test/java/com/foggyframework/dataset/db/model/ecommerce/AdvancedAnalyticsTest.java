@@ -326,7 +326,7 @@ class AdvancedAnalyticsTest extends EcommerceTestSupport {
     // ==========================================
 
     @Test
-    @Order(20)
+    @Order(24)
     @DisplayName("QM 预定义普通计算字段 (profitRate)")
     void testQmPredefinedFormulaField() {
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
@@ -351,6 +351,32 @@ class AdvancedAnalyticsTest extends EcommerceTestSupport {
         List<Map<String, Object>> results = executeQuery(sql);
         assertFalse(results.isEmpty());
         printResults(results);
+    }
+
+    @Test
+    @Order(20)
+    @DisplayName("QM 预定义比率字段 - 分组查询中应聚合 measure 依赖")
+    void testGroupedQmPredefinedRatioFormulaAggregatesMeasureDependencies() {
+        JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("FactSalesQueryModel");
+        queryRequest.setColumns(Arrays.asList(
+                "customer$customerType", "profitRate"
+        ));
+        queryRequest.setGroupBy(buildGroupBy("customer$customerType"));
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+        String sql = queryEngine.getSql();
+        assertNotNull(sql);
+        printSql(sql, "QM grouped predefined profitRate");
+
+        String upperSql = sql.toUpperCase();
+        assertTrue(upperSql.contains("GROUP BY"), "SQL 应包含 GROUP BY: " + sql);
+        assertTrue(upperSql.contains("SUM("), "公式中的 measure 依赖应展开为聚合表达式: " + sql);
+        assertFalse(sql.contains("t1.profit_amount / t1.sales_amount"),
+                "分组比率公式不应引用裸物理列: " + sql);
     }
 
     @Test

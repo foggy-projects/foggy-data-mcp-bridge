@@ -55,6 +55,12 @@ public class SqlExpContext {
      */
     private CalculateQueryContext calculateQueryContext;
 
+    /**
+     * When compiling a grouped formula metric, measure references should resolve
+     * to their grouped aggregate SQL, for example salesAmount -> SUM(t.amount).
+     */
+    private boolean aggregateMeasureReferences;
+
     public SqlExpContext(JdbcQueryModel queryModel, FDialect dialect, ApplicationContext appCtx) {
         this.queryModel = queryModel;
         this.dialect = dialect;

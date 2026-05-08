@@ -2,6 +2,7 @@ package com.foggyframework.dataset.db.model.engine.expression.sql;
 
 import com.foggyframework.dataset.db.model.engine.expression.SqlExpContext;
 import com.foggyframework.dataset.db.model.engine.expression.SqlFragment;
+import com.foggyframework.dataset.db.model.spi.DbAggregation;
 import com.foggyframework.dataset.db.model.spi.DbQueryColumn;
 import com.foggyframework.dataset.db.model.spi.support.CalculatedDbColumn;
 import com.foggyframework.fsscript.exp.AbstractExp;
@@ -61,8 +62,27 @@ public class SqlColumnRefExp extends AbstractExp<String> {
             log.debug("SqlColumnRefExp.evalValue: sqlDeclare='{}'", sqlDeclare);
         }
 
+        if (ctx.isAggregateMeasureReferences()
+                && !(column instanceof CalculatedDbColumn)
+                && column.isMeasure()
+                && column.getAggregation() != null
+                && column.getAggregation() != DbAggregation.NONE) {
+            sqlDeclare = buildAggregateSql(ctx, column.getAggregation(), sqlDeclare);
+            if (log.isDebugEnabled()) {
+                log.debug("SqlColumnRefExp.evalValue: aggregated measure ref='{}'", sqlDeclare);
+            }
+        }
+
         // 构建 SqlFragment
         SqlFragment fragment = SqlFragment.ofColumn(column, sqlDeclare);
+        if (ctx.isAggregateMeasureReferences()
+                && !(column instanceof CalculatedDbColumn)
+                && column.isMeasure()
+                && column.getAggregation() != null
+                && column.getAggregation() != DbAggregation.NONE) {
+            fragment.setHasAggregate(true);
+            fragment.setAggregationType(column.getAggregation().name());
+        }
 
         // 如果是计算字段，需要合并其依赖的列和聚合状态
         if (column instanceof CalculatedDbColumn) {
@@ -75,6 +95,23 @@ public class SqlColumnRefExp extends AbstractExp<String> {
         }
 
         return fragment;
+    }
+
+    private String buildAggregateSql(SqlExpContext ctx, DbAggregation aggregation, String sqlDeclare) {
+        return switch (aggregation) {
+            case COUNT -> "COUNT(*)";
+            case COUNT_DISTINCT -> "COUNT(DISTINCT " + sqlDeclare + ")";
+            case GROUP_CONCAT -> "GROUP_CONCAT(" + sqlDeclare + " SEPARATOR ',')";
+            case PK -> "MAX(" + sqlDeclare + ")";
+            case STDDEV_POP, STDDEV_SAMP, VAR_POP, VAR_SAMP -> {
+                if (ctx != null && ctx.getDialect() != null) {
+                    yield ctx.getDialect().buildStatFunction(aggregation.name(), sqlDeclare);
+                }
+                yield aggregation.name() + "(" + sqlDeclare + ")";
+            }
+            case CUSTOM, WINDOW, NONE -> sqlDeclare;
+            default -> aggregation.name() + "(" + sqlDeclare + ")";
+        };
     }
 
     @Override

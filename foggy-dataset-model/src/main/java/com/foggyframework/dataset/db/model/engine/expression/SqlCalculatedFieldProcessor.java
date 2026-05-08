@@ -29,10 +29,15 @@ import java.util.regex.Pattern;
 @Slf4j
 public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
 
+    private static final Pattern AGGREGATE_FUNCTION_CALL = Pattern.compile(
+            "\\b(sum|avg|count|countd|count_distinct|min|max|stddev_pop|stddev_samp|var_pop|var_samp)\\s*\\(",
+            Pattern.CASE_INSENSITIVE);
+
     private final JdbcQueryModel queryModel;
     private final FDialect dialect;
     private SqlExpContext context;
     private CalculateQueryContext calculateQueryContext;
+    private boolean groupedQuery;
 
     public SqlCalculatedFieldProcessor(JdbcQueryModel queryModel, FDialect dialect) {
         this.queryModel = queryModel;
@@ -106,7 +111,14 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
             CalculateExpressionAnalyzer.validate(compiledExp);
 
             // 2. 执行表达式得到 SQL 片段（委托 CalculatedFieldService）
-            SqlFragment sqlFragment = CalculatedFieldService.evaluateExpression(compiledExp, context, appCtx);
+            boolean aggregateMeasureFormula = isGroupedMeasureFormula(fieldDef);
+            context.setAggregateMeasureReferences(aggregateMeasureFormula);
+            SqlFragment sqlFragment;
+            try {
+                sqlFragment = CalculatedFieldService.evaluateExpression(compiledExp, context, appCtx);
+            } finally {
+                context.setAggregateMeasureReferences(false);
+            }
 
             // 2.1 如果有 partitionBy/windowOrderBy，包装窗口子句
             boolean wrappedWithWindowClause = false;
@@ -330,5 +342,31 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
         if (this.context != null) {
             this.context.setCalculateQueryContext(calculateQueryContext);
         }
+    }
+
+    public void setGroupedQuery(boolean groupedQuery) {
+        this.groupedQuery = groupedQuery;
+    }
+
+    private boolean isGroupedMeasureFormula(CalculatedFieldDef fieldDef) {
+        if (!groupedQuery || fieldDef == null || StringUtils.isEmpty(fieldDef.getExpression())) {
+            return false;
+        }
+        if (fieldDef.getAgg() != null || fieldDef.getPartitionBy() != null || fieldDef.getWindowOrderBy() != null) {
+            return false;
+        }
+        if (AGGREGATE_FUNCTION_CALL.matcher(fieldDef.getExpression()).find()) {
+            return false;
+        }
+        for (String ref : CalculatedFieldService.extractColumnReferences(fieldDef.getExpression())) {
+            DbQueryColumn column = context.tryResolveColumn(ref);
+            if (column != null
+                    && column.isMeasure()
+                    && column.getAggregation() != null
+                    && column.getAggregation() != DbAggregation.NONE) {
+                return true;
+            }
+        }
+        return false;
     }
 }

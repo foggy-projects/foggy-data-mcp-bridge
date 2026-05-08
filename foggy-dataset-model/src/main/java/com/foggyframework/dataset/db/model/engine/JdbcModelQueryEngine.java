@@ -1792,6 +1792,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
         if (processor instanceof SqlCalculatedFieldProcessor sqlProcessor) {
             sqlProcessor.setCalculateQueryContext(buildCalculateQueryContext(queryRequest, context));
+            sqlProcessor.setGroupedQuery(queryRequest.hasGroupBy());
         }
 
         // 处理所有计算字段
