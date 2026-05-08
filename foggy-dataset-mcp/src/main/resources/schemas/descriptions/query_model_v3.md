@@ -253,7 +253,39 @@ SUM(metric) / NULLIF(CALCULATE(SUM(metric), REMOVE(groupByDim)), 0)
 
 可显式消歧：`{"name": "share", "type": "parentShare", "of": "salesAmount", "axis": "rows", "level": "subCategory", "parentLevel": "category"}`。
 
-限制：只支持 rows 轴相邻层级；`of` 必须引用同一 metrics 中的原生可加度量；不支持 `hierarchyMode=tree`、cascade TopN，也不能参与 `having` / `orderBy` / `limit`。超出边界时移除该派生指标或说明不支持，不要改用 `ROLLUP_TO`、`REMOVE(childDim)` 或自造 `expr`。
+Odoo 销售团队内销售员占比示例：直接使用模型返回的原生度量 `amountTotal`，不要写 `sum(amountTotal)` 或手工公式。
+```json
+{
+  "pivot": {
+    "rows": [{"field": "salesTeam$caption"}, {"field": "salesperson$caption"}],
+    "metrics": [
+      "amountTotal",
+      {
+        "name": "teamShare",
+        "type": "parentShare",
+        "of": "amountTotal",
+        "axis": "rows",
+        "level": "salesperson$caption",
+        "parentLevel": "salesTeam$caption"
+      }
+    ],
+    "outputFormat": "flat",
+    "options": {"grandTotal": true}
+  },
+  "slice": [
+    {"field": "dateOrder$year", "op": "=", "value": 2026},
+    {
+      "$or": [
+        {"field": "dateOrder$month", "op": "=", "value": 4},
+        {"field": "dateOrder$month", "op": "=", "value": 5},
+        {"field": "dateOrder$month", "op": "=", "value": 6}
+      ]
+    }
+  ]
+}
+```
+
+限制：只支持 rows 轴相邻层级；`of` 必须引用同一 metrics 中的原生可加度量；不支持 `hierarchyMode=tree`、cascade TopN，也不能参与 `having` / `orderBy` / `limit`。不要在 `columns`、`groupBy`、`calculatedFields`、顶层 `orderBy` 或 Compose 中手工重算父级占比。不要使用 `sum(amountTotal)`、`CALCULATE` 或 inline formula；不要改用 `ROLLUP_TO`、`REMOVE(childDim)` 或自造 `expr` 来替代 `parentShare`。超出边界时移除该派生指标或说明不支持。
 
 ### 基准比较 (baselineRatio)
 

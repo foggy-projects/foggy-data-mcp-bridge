@@ -224,11 +224,7 @@
   "pivot": {
     "rows": ["region$caption", "city$caption"],
     "columns": ["salesDate$month"],
-    "metrics": [
-      "salesAmount",
-      {"name": "share", "type": "parentShare", "of": "salesAmount"},
-      {"name": "index", "type": "baselineRatio", "of": "salesAmount", "axis": "columns", "baseline": "first"}
-    ],
+    "metrics": ["salesAmount"],
     "outputFormat": "grid",
     "options": {"grandTotal": true}
   }
@@ -236,6 +232,30 @@
 ```
 
 > 普通 pivot 能力边界：`grandTotal: true` 支持（度量须为可加聚合）；`rowSubtotals: true` 静默忽略（单层行轴小计无实际意义）；`columnSubtotals: true` 拒绝并报错。
+
+**父级占比 parentShare（rows 相邻层级）：**
+```json
+{
+  "pivot": {
+    "rows": [{"field": "salesTeam$caption"}, {"field": "salesperson$caption"}],
+    "metrics": [
+      "amountTotal",
+      {
+        "name": "teamShare",
+        "type": "parentShare",
+        "of": "amountTotal",
+        "axis": "rows",
+        "level": "salesperson$caption",
+        "parentLevel": "salesTeam$caption"
+      }
+    ],
+    "outputFormat": "flat",
+    "options": {"grandTotal": true}
+  }
+}
+```
+
+> `parentShare.of` 必须引用同一 `metrics` 中的原生可加度量，例如 Odoo 销售用 `amountTotal`；不要写 `sum(amountTotal)`、`CALCULATE`、inline formula 或 `calculatedFields` 来手工重算父级占比。
 
 **二层 cascade pivot（rowSubtotals + grandTotal）：**
 ```json

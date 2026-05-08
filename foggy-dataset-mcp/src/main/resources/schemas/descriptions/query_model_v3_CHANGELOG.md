@@ -2,6 +2,27 @@
 
 This file records why the `dataset.query_model` prompt contract changed. Java is the source of truth; Python and Odoo bridge copies synchronize from this directory unless an explicit exception is documented.
 
+## 2026-05-08 - Native parentShare Pivot Example and Formula Boundary
+
+Status: implemented
+
+Problem:
+PIVOT-012 benchmark runs eventually used native `pivot.metrics[].type="parentShare"`, but some models first tried invalid range syntax, inline formulas, restricted `CALCULATE`, or `sum(amountTotal)` as a metric reference. The previous prompt described `parentShare` abstractly and mixed derived pivot metric examples into the ordinary pivot section, which made the native path less obvious.
+
+Contract change:
+- Added a concrete Odoo Sales example for sales-team / salesperson share that uses `OdooSaleOrderQueryModel` fields and the native additive metric `amountTotal`.
+- Clarified that `parentShare.of` references the native metric name in the same `metrics` list, not `sum(metric)`, aliases, inline formulas, `CALCULATE`, `calculatedFields`, or Compose post-processing.
+- Split `parentShare` out of the ordinary pivot examples in the compact prompt variants, keeping ordinary pivot examples focused on native additive metrics.
+
+Files changed:
+- `query_model_v3.md`
+- `query_model_v3_basic.md`
+- `query_model_v3_no_vector.md`
+
+Validation:
+- Sync Java canonical prompt files to Python and Odoo runtime copies.
+- Run prompt/description contract tests.
+- Run a PIVOT-012 focused benchmark and check whether the model selects native `parentShare` earlier and avoids `CALCULATE` / `sum(amountTotal)` retries.
 
 ## 2026-05-07 - HAVING `$field` Comparison and Pivot Tree Fail-closed
 
