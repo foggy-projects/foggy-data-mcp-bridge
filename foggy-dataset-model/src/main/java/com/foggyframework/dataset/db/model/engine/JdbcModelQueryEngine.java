@@ -257,6 +257,8 @@ public class JdbcModelQueryEngine implements QueryEngine {
             jdbcQuery.getSelect().setDistinct(true);
         }
 
+        rejectWindowCalculatedFieldSlice(queryRequest);
+
         // 2. 加入切片条件。纯聚合 slice 视为聚合后过滤，自动写入 HAVING。
         boolean hasLiftedAggregateSlice = false;
         if (queryRequest.getSlice() != null) {
@@ -440,6 +442,57 @@ public class JdbcModelQueryEngine implements QueryEngine {
             }
         }
         return false;
+    }
+
+    private void rejectWindowCalculatedFieldSlice(DbQueryRequestDef queryRequest) {
+        if (queryRequest.getSlice() == null || queryRequest.getSlice().isEmpty()
+                || calculatedColumns == null || calculatedColumns.isEmpty()) {
+            return;
+        }
+
+        Set<String> windowAliases = calculatedColumns.stream()
+                .filter(col -> col.hasWindow() || col.isNeedsCteWrapping())
+                .map(CalculatedDbColumn::getAlias)
+                .filter(StringUtils::isNotEmpty)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (windowAliases.isEmpty()) {
+            return;
+        }
+
+        Set<String> sliceFields = new LinkedHashSet<>();
+        for (SliceRequestDef slice : queryRequest.getSlice()) {
+            collectSliceFields(slice, sliceFields);
+        }
+
+        List<String> matched = sliceFields.stream()
+                .filter(windowAliases::contains)
+                .toList();
+        if (matched.isEmpty()) {
+            return;
+        }
+
+        throw RX.throwAUserTip(
+                "WINDOW_CALCULATED_FIELD_SLICE_NOT_SUPPORTED: query_model slice cannot reference window calculated field alias "
+                        + matched
+                        + " from the same request. Return the window field and filter result rows, or use compose_script with a base dsl(...) window calculatedFields query followed by a derived .query({slice:[...]}) stage.");
+    }
+
+    private void collectSliceFields(CondRequestDef sliceDef, Set<String> target) {
+        if (sliceDef == null) {
+            return;
+        }
+        if (sliceDef._isLogicalGroup()) {
+            List<CondRequestDef> children = sliceDef._getGroupChildren();
+            if (children != null) {
+                for (CondRequestDef child : children) {
+                    collectSliceFields(child, target);
+                }
+            }
+            return;
+        }
+        if (StringUtils.isNotEmpty(sliceDef.getField())) {
+            target.add(sliceDef.getField());
+        }
     }
 
     /**

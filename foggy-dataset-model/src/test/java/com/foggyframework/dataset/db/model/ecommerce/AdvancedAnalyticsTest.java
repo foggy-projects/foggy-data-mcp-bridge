@@ -233,6 +233,47 @@ class AdvancedAnalyticsTest extends EcommerceTestSupport {
     }
 
     @Test
+    @Order(111)
+    @DisplayName("窗口计算字段别名不能在同一 query_model slice 中过滤")
+    void testWindowCalculatedFieldSliceRejectedBeforeSql() {
+        if (!supportsWindowFunctions()) {
+            log.info("当前数据库不支持窗口函数，跳过");
+            return;
+        }
+        JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("FactSalesQueryModel");
+
+        List<CalculatedFieldDef> calculatedFields = new ArrayList<>();
+        CalculatedFieldDef rank = new CalculatedFieldDef();
+        rank.setName("salesRank");
+        rank.setCaption("销售排名");
+        rank.setExpression("RANK()");
+        rank.setPartitionBy(Arrays.asList("product$categoryName"));
+        rank.setWindowOrderBy(Arrays.asList(
+                new WindowOrderDef("salesAmount", "desc")
+        ));
+        calculatedFields.add(rank);
+        queryRequest.setCalculatedFields(calculatedFields);
+        queryRequest.setColumns(Arrays.asList(
+                "product$categoryName", "product$caption", "salesAmount", "salesRank"
+        ));
+
+        SliceRequestDef slice = new SliceRequestDef();
+        slice.setField("salesRank");
+        slice.setOp("=");
+        slice.setValue(1);
+        queryRequest.setSlice(List.of(slice));
+
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest));
+        assertTrue(ex.getMessage().contains("WINDOW_CALCULATED_FIELD_SLICE_NOT_SUPPORTED"));
+        assertTrue(ex.getMessage().contains("salesRank"));
+    }
+
+    @Test
     @Order(12)
     @DisplayName("LAG 窗口函数 — 环比计算")
     void testLagWindow() {
