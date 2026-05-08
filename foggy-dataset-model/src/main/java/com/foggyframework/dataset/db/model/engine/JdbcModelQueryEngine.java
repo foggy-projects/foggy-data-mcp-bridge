@@ -84,6 +84,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
      * 处理后的计算字段列表
      */
     List<CalculatedDbColumn> calculatedColumns;
+    List<SliceRequestDef> postAggregateSlice = new ArrayList<>();
 
     /**
      * 内联表达式解析结果（包含聚合信息）
@@ -149,6 +150,8 @@ public class JdbcModelQueryEngine implements QueryEngine {
     private static final String PATTERN = "^[a-zA-Z\\s]+$";
     private static final Pattern PATTERN_OBJECT = Pattern.compile(PATTERN);
     private static final Pattern SAFE_INTERNAL_IDENTIFIER = Pattern.compile("^[A-Za-z_][A-Za-z0-9_]*$");
+    private static final Pattern RATIO_TO_TOTAL_SUGAR_PATTERN = Pattern.compile(
+            "(?i)^\\s*(?:ratio_to_total|ratioToTotal)\\s*\\(\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*\\)\\s*$");
 
     public static void validate(String v) {
         if (StringUtils.isEmpty(v)) {
@@ -215,6 +218,10 @@ public class JdbcModelQueryEngine implements QueryEngine {
         // 如果 context 中已有预处理结果，则跳过
         preprocessInlineExpressions(queryRequest, context);
 
+        // 0.05 将聚合后计算字段与同层 calculatedFields 分离。
+        normalizePostAggregateCalculations(queryRequest);
+        Set<String> postAggregateNames = postAggregateNames(queryRequest);
+
         // 0.1 处理动态计算字段
         processCalculatedFields(systemBundlesContext, queryRequest, context);
 
@@ -229,6 +236,9 @@ public class JdbcModelQueryEngine implements QueryEngine {
             //前端传了查询的列名
             selectColumns = new ArrayList<>(queryRequest.getColumns().size());
             for (String columnName : queryRequest.getColumns()) {
+                if (postAggregateNames.contains(columnName)) {
+                    continue;
+                }
                 // 先查找计算字段
                 DbColumn calcColumn = findCalculatedColumn(columnName);
                 if (calcColumn != null) {
@@ -261,8 +271,13 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
         // 2. 加入切片条件。纯聚合 slice 视为聚合后过滤，自动写入 HAVING。
         boolean hasLiftedAggregateSlice = false;
+        List<SliceRequestDef> innerSlice = new ArrayList<>();
+        this.postAggregateSlice = new ArrayList<>();
         if (queryRequest.getSlice() != null) {
-            for (SliceRequestDef sliceDef : queryRequest.getSlice()) {
+            splitPostAggregateSlice(queryRequest.getSlice(), postAggregateNames, innerSlice, this.postAggregateSlice);
+        }
+        if (!innerSlice.isEmpty()) {
+            for (SliceRequestDef sliceDef : innerSlice) {
                 if (autoLiftAggregateSliceToHaving) {
                     SliceConditionPhase phase = classifySliceConditionPhase(sliceDef);
                     if (phase == SliceConditionPhase.AGGREGATE) {
@@ -398,8 +413,14 @@ public class JdbcModelQueryEngine implements QueryEngine {
         //   Stage 1 (CTE): base aggregations + dimensions (no window CFs, no ORDER BY)
         //   Stage 2 (outer): SELECT stage1.*, windowCF1, windowCF2 FROM stage1 ORDER BY ... LIMIT ...
         boolean hasWindowCf = hasWindowCalculatedFields(queryRequest);
+        boolean hasPostAggregateCalculations = hasPostAggregateCalculations(queryRequest);
 
-        if (hasWindowCf) {
+        if (hasPostAggregateCalculations) {
+            if (hasWindowCf) {
+                throw RX.throwAUserTip("POST_AGGREGATE_WINDOW_MIX_UNSUPPORTED: postAggregateCalculations and window calculatedFields cannot be planned together in v1.6.");
+            }
+            generateWithPostAggregateWrapping(systemBundlesContext, queryRequest, jdbcQuery, domainTransportInjection);
+        } else if (hasWindowCf) {
             generateWithCteWrapping(systemBundlesContext, queryRequest, jdbcQuery, domainTransportInjection);
         } else {
             generateSinglePass(systemBundlesContext, queryRequest, jdbcQuery, domainTransportInjection);
@@ -419,6 +440,117 @@ public class JdbcModelQueryEngine implements QueryEngine {
     // ------------------------------------------------------------------
     // CTE Wrapping: Two-Stage SQL generation for Window Calculated Fields
     // ------------------------------------------------------------------
+
+    private void normalizePostAggregateCalculations(DbQueryRequestDef queryRequest) {
+        List<PostAggregateCalculationDef> normalized = queryRequest.getPostAggregateCalculations() == null
+                ? new ArrayList<>()
+                : new ArrayList<>(queryRequest.getPostAggregateCalculations());
+        Set<String> seen = normalized.stream()
+                .map(PostAggregateCalculationDef::getName)
+                .filter(StringUtils::isNotEmpty)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        if (queryRequest.getCalculatedFields() != null && !queryRequest.getCalculatedFields().isEmpty()) {
+            List<CalculatedFieldDef> remaining = new ArrayList<>();
+            for (CalculatedFieldDef cf : queryRequest.getCalculatedFields()) {
+                Matcher matcher = RATIO_TO_TOTAL_SUGAR_PATTERN.matcher(cf.getExpression() == null ? "" : cf.getExpression());
+                if (!matcher.matches()) {
+                    remaining.add(cf);
+                    continue;
+                }
+                String alias = cf.getName();
+                if (!seen.add(alias)) {
+                    throw RX.throwAUserTip("POST_AGGREGATE_CALCULATION_DUPLICATE: duplicate postAggregateCalculations name '" + alias + "'.");
+                }
+                normalized.add(new PostAggregateCalculationDef(
+                        alias,
+                        "ratioToTotal",
+                        matcher.group(1),
+                        "grandTotal",
+                        "ratio"));
+            }
+            queryRequest.setCalculatedFields(remaining);
+        }
+
+        validatePostAggregateCalculations(queryRequest, normalized);
+        queryRequest.setPostAggregateCalculations(normalized);
+    }
+
+    private void validatePostAggregateCalculations(
+            DbQueryRequestDef queryRequest,
+            List<PostAggregateCalculationDef> items) {
+        if (items == null || items.isEmpty()) {
+            return;
+        }
+        Set<String> aggregateAliases = selectedAggregateAliases(queryRequest);
+        for (PostAggregateCalculationDef item : items) {
+            if (StringUtils.isEmpty(item.getName())) {
+                throw RX.throwAUserTip("POST_AGGREGATE_CALCULATION_INVALID: postAggregateCalculations entries require a non-empty name.");
+            }
+            if (!"ratioToTotal".equals(item.getKind())) {
+                throw RX.throwAUserTip("POST_AGGREGATE_CALCULATION_UNSUPPORTED: only kind='ratioToTotal' is supported in v1.6; got '" + item.getKind() + "' for '" + item.getName() + "'.");
+            }
+            String scope = StringUtils.isEmpty(item.getScope()) ? "grandTotal" : item.getScope();
+            if (!"grandTotal".equals(scope)) {
+                throw RX.throwAUserTip("POST_AGGREGATE_CALCULATION_UNSUPPORTED: only scope='grandTotal' is supported in v1.6; got '" + scope + "' for '" + item.getName() + "'.");
+            }
+            String format = StringUtils.isEmpty(item.getFormat()) ? "ratio" : item.getFormat();
+            if (!"ratio".equals(format) && !"percent".equals(format)) {
+                throw RX.throwAUserTip("POST_AGGREGATE_CALCULATION_UNSUPPORTED: format must be 'ratio' or 'percent'; got '" + format + "' for '" + item.getName() + "'.");
+            }
+            if (!aggregateAliases.contains(item.getMeasure())) {
+                throw RX.throwAUserTip("POST_AGGREGATE_MEASURE_NOT_FOUND: ratioToTotal '" + item.getName()
+                        + "' measure '" + item.getMeasure() + "' must reference a selected aggregate alias from columns[].");
+            }
+        }
+    }
+
+    private Set<String> selectedAggregateAliases(DbQueryRequestDef queryRequest) {
+        Set<String> aliases = new LinkedHashSet<>();
+        List<String> columns = queryRequest == null ? null : queryRequest.getColumns();
+        if (columns == null) {
+            columns = List.of();
+        }
+        Pattern pattern = Pattern.compile(
+                "(?i)\\b(?:sum|avg|count|countd|count_distinct|min|max|stddev_pop|stddev_samp|var_pop|var_samp)\\s*\\([^)]*\\)\\s+(?:as\\s+)?([A-Za-z_][A-Za-z0-9_]*)\\b");
+        Pattern aggregateExpression = Pattern.compile(
+                "(?i)\\b(?:sum|avg|count|countd|count_distinct|min|max|stddev_pop|stddev_samp|var_pop|var_samp)\\s*\\(");
+        for (String column : columns) {
+            if (column == null) {
+                continue;
+            }
+            Matcher matcher = pattern.matcher(column);
+            if (matcher.find()) {
+                aliases.add(matcher.group(1));
+            }
+        }
+        if (queryRequest != null && queryRequest.getCalculatedFields() != null) {
+            for (CalculatedFieldDef field : queryRequest.getCalculatedFields()) {
+                if (field == null || StringUtils.isEmpty(field.getName()) || StringUtils.isEmpty(field.getExpression())) {
+                    continue;
+                }
+                if (aggregateExpression.matcher(field.getExpression()).find()) {
+                    aliases.add(field.getName());
+                }
+            }
+        }
+        return aliases;
+    }
+
+    private boolean hasPostAggregateCalculations(DbQueryRequestDef queryRequest) {
+        return queryRequest.getPostAggregateCalculations() != null
+                && !queryRequest.getPostAggregateCalculations().isEmpty();
+    }
+
+    private Set<String> postAggregateNames(DbQueryRequestDef queryRequest) {
+        if (!hasPostAggregateCalculations(queryRequest)) {
+            return Set.of();
+        }
+        return queryRequest.getPostAggregateCalculations().stream()
+                .map(PostAggregateCalculationDef::getName)
+                .filter(StringUtils::isNotEmpty)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
 
     /**
      * Check whether the current SELECT list contains any window calculated fields.
@@ -475,24 +607,6 @@ public class JdbcModelQueryEngine implements QueryEngine {
                 "WINDOW_CALCULATED_FIELD_SLICE_NOT_SUPPORTED: query_model slice cannot reference window calculated field alias "
                         + matched
                         + " from the same request. Return the window field and filter result rows, or use compose_script with a base dsl(...) window calculatedFields query followed by a derived .query({slice:[...]}) stage.");
-    }
-
-    private void collectSliceFields(CondRequestDef sliceDef, Set<String> target) {
-        if (sliceDef == null) {
-            return;
-        }
-        if (sliceDef._isLogicalGroup()) {
-            List<CondRequestDef> children = sliceDef._getGroupChildren();
-            if (children != null) {
-                for (CondRequestDef child : children) {
-                    collectSliceFields(child, target);
-                }
-            }
-            return;
-        }
-        if (StringUtils.isNotEmpty(sliceDef.getField())) {
-            target.add(sliceDef.getField());
-        }
     }
 
     /**
@@ -723,6 +837,144 @@ public class JdbcModelQueryEngine implements QueryEngine {
             this.aggSql = buildAggSql(systemBundlesContext, null, null, false, countToSum);
             this.aggSqlOptimizationResult = null;
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void generateWithPostAggregateWrapping(SystemBundlesContext systemBundlesContext,
+                                                   DbQueryRequestDef queryRequest,
+                                                   JdbcQuery jdbcQuery,
+                                                   DomainTransportSqlInjection domainTransportInjection) {
+        FDialect dialect = jdbcQueryModel != null ? jdbcQueryModel.getDialect() : FDialect.MYSQL_DIALECT;
+
+        List<DbColumn> originalSelectCols = new ArrayList<>(jdbcQuery.getSelect().getColumns());
+        JdbcQuery.JdbcOrder savedOrder = jdbcQuery.getOrder();
+        jdbcQuery.setOrder(null);
+
+        SimpleSqlJdbcQueryVisitor v1 = new SimpleSqlJdbcQueryVisitor(
+                systemBundlesContext.getApplicationContext(), jdbcQueryModel, queryRequest);
+        jdbcQuery.accept(v1);
+        String stage1Sql = v1.getSql();
+        List<Object> stage1Params = new ArrayList<>(v1.getValues());
+
+        jdbcQuery.getSelect().setColumns(new ArrayList<>(originalSelectCols));
+        jdbcQuery.setOrder(savedOrder);
+
+        if (domainTransportInjection.hasCte()) {
+            stage1Sql = "with " + String.join(",\n", domainTransportInjection.cteFragments()) + "\n" + stage1Sql;
+            List<Object> mergedParams = new ArrayList<>();
+            mergedParams.addAll(domainTransportInjection.cteParams());
+            mergedParams.addAll(stage1Params);
+            stage1Params = mergedParams;
+        }
+
+        String stage1Alias = "stage1";
+        String postAlias = "post_stage";
+        List<String> postSelects = new ArrayList<>();
+        Set<String> finalAliases = new LinkedHashSet<>();
+
+        for (DbColumn col : originalSelectCols) {
+            String alias = col.getAlias();
+            finalAliases.add(alias);
+            String quoted = dialect.quoteIdentifier(alias);
+            postSelects.add(stage1Alias + "." + quoted);
+        }
+
+        for (PostAggregateCalculationDef calc : queryRequest.getPostAggregateCalculations()) {
+            String measureRef = stage1Alias + "." + dialect.quoteIdentifier(calc.getMeasure());
+            String expr = measureRef + " / NULLIF(SUM(" + measureRef + ") OVER (), 0)";
+            if ("percent".equals(calc.getFormat())) {
+                expr = "(" + expr + ") * 100";
+            }
+            postSelects.add(expr + " AS " + dialect.quoteIdentifier(calc.getName()));
+            finalAliases.add(calc.getName());
+        }
+
+        String postStageSql = "SELECT " + String.join(",\n\t", postSelects)
+                + "\nFROM " + stage1Alias;
+
+        StringBuilder finalSelect = new StringBuilder();
+        finalSelect.append("SELECT ");
+        List<String> finalSelects = finalAliases.stream()
+                .map(dialect::quoteIdentifier)
+                .collect(Collectors.toList());
+        finalSelect.append(String.join(",\n\t", finalSelects));
+        finalSelect.append("\nFROM ").append(postAlias);
+
+        List<Object> finalParams = new ArrayList<>();
+        if (postAggregateSlice != null && !postAggregateSlice.isEmpty()) {
+            List<String> filters = new ArrayList<>();
+            for (SliceRequestDef slice : postAggregateSlice) {
+                filters.add(buildPostAggregateFilterSql(slice, dialect, finalAliases, finalParams));
+            }
+            finalSelect.append("\nWHERE ").append(String.join(" AND ", filters));
+        }
+
+        String finalSelectWithoutOrder = finalSelect.toString();
+        if (queryRequest.getOrderBy() != null && !queryRequest.getOrderBy().isEmpty()) {
+            List<String> orderExprs = new ArrayList<>();
+            for (OrderRequestDef order : queryRequest.getOrderBy()) {
+                if (!finalAliases.contains(order.getField())) {
+                    continue;
+                }
+                String orderRef = dialect.quoteIdentifier(order.getField());
+                if (StringUtils.isNotEmpty(order.getDir())) {
+                    orderRef += " " + order.getDir().toUpperCase();
+                }
+                orderExprs.add(orderRef);
+            }
+            if (!orderExprs.isEmpty()) {
+                finalSelect.append("\nORDER BY ").append(String.join(", ", orderExprs));
+            }
+        }
+
+        this.cteWrapped = true;
+        this.cteStage1Alias = stage1Alias;
+        this.cteStage1Sql = stage1Sql;
+        this.cteStage1Params = stage1Params;
+        this.cteOuterSelectSql = finalSelect.toString();
+
+        this.innerSql = "WITH " + stage1Alias + " AS (\n" + stage1Sql + "\n),\n"
+                + postAlias + " AS (\n" + postStageSql + "\n)\n"
+                + finalSelect;
+        this.innerSqlWithoutOrder = "WITH " + stage1Alias + " AS (\n" + stage1Sql + "\n),\n"
+                + postAlias + " AS (\n" + postStageSql + "\n)\n"
+                + finalSelectWithoutOrder;
+        this.sql = this.innerSql;
+        List<Object> mergedValues = new ArrayList<>();
+        mergedValues.addAll(stage1Params);
+        mergedValues.addAll(finalParams);
+        this.values = mergedValues;
+
+        boolean countToSum = queryRequest.hasGroupBy();
+        if (queryRequest.isOptimizeAggSqlEnabled()) {
+            AggSqlOptimizer optimizer = new AggSqlOptimizer(jdbcQueryModel, jdbcQuery, systemBundlesContext, queryRequest);
+            this.aggSqlOptimizationResult = optimizer.buildOptimizedAggSql(this.innerSqlWithoutOrder, countToSum);
+            this.aggSql = this.aggSqlOptimizationResult.getOptimizedSql();
+        } else {
+            this.aggSql = buildAggSql(systemBundlesContext, null, null, false, countToSum);
+            this.aggSqlOptimizationResult = null;
+        }
+    }
+
+    private String buildPostAggregateFilterSql(
+            CondRequestDef slice,
+            FDialect dialect,
+            Set<String> availableAliases,
+            List<Object> params) {
+        if (slice._isLogicalGroup()) {
+            List<String> parts = new ArrayList<>();
+            for (CondRequestDef child : slice._getGroupChildren()) {
+                parts.add(buildPostAggregateFilterSql(child, dialect, availableAliases, params));
+            }
+            String link = " " + slice._getGroupLink() + " ";
+            return "(" + String.join(link, parts) + ")";
+        }
+        String field = slice.getField();
+        if (!availableAliases.contains(field)) {
+            throw RX.throwAUserTip("POST_AGGREGATE_SLICE_FIELD_NOT_SELECTED: slice field '" + field + "' is not available in the post-aggregate stage.");
+        }
+        params.add(slice.getValue());
+        return dialect.quoteIdentifier(field) + " " + normalizeOperator(slice.getOp()) + " ?";
     }
 
     /**
@@ -1330,6 +1582,58 @@ public class JdbcModelQueryEngine implements QueryEngine {
     private enum SliceConditionPhase {
         ROW,
         AGGREGATE
+    }
+
+    private enum PostAggregateSlicePhase {
+        INNER,
+        POST
+    }
+
+    private void splitPostAggregateSlice(
+            List<SliceRequestDef> sliceItems,
+            Set<String> postAggregateNames,
+            List<SliceRequestDef> inner,
+            List<SliceRequestDef> post) {
+        if (sliceItems == null || sliceItems.isEmpty()) {
+            return;
+        }
+        for (SliceRequestDef item : sliceItems) {
+            PostAggregateSlicePhase phase = classifyPostAggregateSlicePhase(item, postAggregateNames);
+            if (phase == PostAggregateSlicePhase.POST) {
+                post.add(item);
+            } else {
+                inner.add(item);
+            }
+        }
+    }
+
+    private PostAggregateSlicePhase classifyPostAggregateSlicePhase(
+            CondRequestDef sliceDef,
+            Set<String> postAggregateNames) {
+        if (sliceDef == null || postAggregateNames == null || postAggregateNames.isEmpty()) {
+            return PostAggregateSlicePhase.INNER;
+        }
+        if (!sliceDef._isLogicalGroup()) {
+            return postAggregateNames.contains(sliceDef.getField())
+                    ? PostAggregateSlicePhase.POST
+                    : PostAggregateSlicePhase.INNER;
+        }
+        List<CondRequestDef> children = sliceDef._getGroupChildren();
+        if (children == null || children.isEmpty()) {
+            return PostAggregateSlicePhase.INNER;
+        }
+        PostAggregateSlicePhase phase = null;
+        for (CondRequestDef child : children) {
+            PostAggregateSlicePhase childPhase = classifyPostAggregateSlicePhase(child, postAggregateNames);
+            if (phase == null) {
+                phase = childPhase;
+                continue;
+            }
+            if (phase != childPhase) {
+                throw RX.throwAUserTip("MIXED_INNER_AND_POST_AGGREGATE_SLICE: a single logical slice group cannot mix base/aggregate fields and postAggregateCalculations aliases because it cannot be safely split across query stages.");
+            }
+        }
+        return phase == null ? PostAggregateSlicePhase.INNER : phase;
     }
 
     private SliceConditionPhase classifySliceConditionPhase(CondRequestDef sliceDef) {
@@ -1981,6 +2285,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
         List<DbColumn> selectColumns = jdbcQuery.getSelect().getColumns();
         List<String> requestColumns = queryRequest.getColumns();
         Map<String, DbColumn> columnNameMap = new java.util.HashMap<>();
+        Set<String> postAggregateNames = postAggregateNames(queryRequest);
 
         if (requestColumns != null && requestColumns.size() == selectColumns.size()) {
             for (int i = 0; i < requestColumns.size(); i++) {
@@ -2001,6 +2306,9 @@ public class JdbcModelQueryEngine implements QueryEngine {
         if (queryRequest.getOrderBy() != null) {
             for (OrderRequestDef orderRequestDef : queryRequest.getOrderBy()) {
                 String fieldName = orderRequestDef.getField();
+                if (postAggregateNames.contains(fieldName)) {
+                    continue;
+                }
 
                 // 查找匹配的 SELECT 列
                 DbColumn selectColumn = columnNameMap.get(fieldName);

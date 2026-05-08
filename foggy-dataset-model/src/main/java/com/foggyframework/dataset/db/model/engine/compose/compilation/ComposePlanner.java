@@ -1624,6 +1624,13 @@ public final class ComposePlanner {
             return fieldSql + " " + op + " "
                     + renderDerivedSliceField(innerAlias, ref, dialect);
         }
+        if (s.value instanceof Map<?, ?>) {
+            throw new ComposeCompileException(
+                    ComposeCompileErrorCodes.UNSUPPORTED_PLAN_SHAPE,
+                    ComposeCompileErrorCodes.PHASE_PLAN_LOWER,
+                    "Derived slice object values are unsupported except {'$field': '<output_field>'}; "
+                            + "raw expression objects such as {'$expr': ...} are not a public DSL feature.");
+        }
         if ("IS NULL".equals(op) || "IS NOT NULL".equals(op)) {
             return fieldSql + " " + op;
         }
@@ -1633,6 +1640,13 @@ public final class ComposePlanner {
                         ComposeCompileErrorCodes.UNSUPPORTED_PLAN_SHAPE,
                         ComposeCompileErrorCodes.PHASE_PLAN_LOWER,
                         "Derived slice operator '" + op + "' requires a non-empty collection value.");
+            }
+            if (values.stream().anyMatch(Map.class::isInstance)) {
+                throw new ComposeCompileException(
+                        ComposeCompileErrorCodes.UNSUPPORTED_PLAN_SHAPE,
+                        ComposeCompileErrorCodes.PHASE_PLAN_LOWER,
+                        "Derived slice operator '" + op + "' does not support object values; "
+                                + "raw expression objects such as {'$expr': ...} are not a public DSL feature.");
             }
             outerParams.addAll(values);
             return fieldSql + " " + op + " ("

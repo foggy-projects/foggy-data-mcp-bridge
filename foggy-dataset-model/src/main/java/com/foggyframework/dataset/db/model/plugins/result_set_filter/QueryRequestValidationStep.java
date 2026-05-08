@@ -3,10 +3,12 @@ package com.foggyframework.dataset.db.model.plugins.result_set_filter;
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.db.model.config.DatasetProperties;
+import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.def.query.request.CondRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
+import com.foggyframework.dataset.db.model.def.query.request.PostAggregateCalculationDef;
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.db.model.engine.formula.SqlFormulaService;
 import com.foggyframework.dataset.db.model.i18n.DatasetMessages;
@@ -17,8 +19,12 @@ import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -88,6 +94,20 @@ public class QueryRequestValidationStep implements DataSetResultStep {
             "isnullandempty", "isnotnullandempty"
     );
 
+    private static final Pattern INLINE_AGG_ALIAS_PATTERN = Pattern.compile(
+            "(?i)\\b(?:sum|avg|count|countd|count_distinct|min|max|stddev_pop|stddev_samp|var_pop|var_samp)\\s*\\([^)]*\\)\\s+(?:as\\s+)?([A-Za-z_][A-Za-z0-9_]*)\\b");
+
+    private static final Pattern IDENT_PATTERN = Pattern.compile("[A-Za-z_][A-Za-z0-9_$]*");
+    private static final Pattern RATIO_TO_TOTAL_SUGAR_PATTERN = Pattern.compile(
+            "(?i)^\\s*(?:ratio_to_total|ratioToTotal)\\s*\\(\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*\\)\\s*$");
+
+    private static final Set<String> FORMULA_KEYWORDS = Set.of(
+            "and", "or", "not", "null", "true", "false", "case", "when", "then", "else", "end",
+            "sum", "avg", "count", "countd", "count_distinct", "min", "max", "round", "nullif",
+            "coalesce", "calculate", "remove", "rank", "dense_rank", "row_number", "over", "partition", "by",
+            "ratio_to_total", "ratiototal"
+    );
+
     @Override
     public int beforeQuery(ModelResultContext ctx) {
         DbQueryRequestDef queryRequest = ctx.getRequest().getParam();
@@ -105,6 +125,9 @@ public class QueryRequestValidationStep implements DataSetResultStep {
 
         // 3. 校验 orderBy
         validateOrderBy(queryRequest.getOrderBy());
+
+        validatePostAggregateCalculations(queryRequest);
+        validatePostAggregateCalculatedFields(queryRequest);
 
         if (log.isDebugEnabled()) {
             log.debug("=== Query Request Validation Passed ===");
@@ -280,6 +303,100 @@ public class QueryRequestValidationStep implements DataSetResultStep {
                 }
             }
         }
+    }
+
+    private void validatePostAggregateCalculatedFields(DbQueryRequestDef queryRequest) {
+        if (queryRequest.getCalculatedFields() == null || queryRequest.getCalculatedFields().isEmpty()
+                || queryRequest.getGroupBy() == null || queryRequest.getGroupBy().isEmpty()) {
+            return;
+        }
+
+        Set<String> selectedAggregateAliases = selectedAggregateAliases(queryRequest.getColumns());
+        for (CalculatedFieldDef cf : queryRequest.getCalculatedFields()) {
+            String alias = cf.getName();
+            String expression = cf.getExpression() == null ? "" : cf.getExpression();
+            if (RATIO_TO_TOTAL_SUGAR_PATTERN.matcher(expression).matches()) {
+                continue;
+            }
+            Set<String> deps = extractFormulaIdentifiers(expression);
+            Set<String> matchedAliases = new LinkedHashSet<>(deps);
+            matchedAliases.retainAll(selectedAggregateAliases);
+            if (!matchedAliases.isEmpty()) {
+                throw RX.throwAUserTip(
+                        "POST_AGGREGATE_CALCULATED_FIELD_UNSUPPORTED: query_model calculatedFields entry '"
+                                + alias + "' references selected aggregate alias " + matchedAliases
+                                + " from the same grouped query. Free-form post-aggregate expressions are "
+                                + "not supported in v1.6. For share-of-total metrics use "
+                                + "postAggregateCalculations kind='ratioToTotal' or calculatedFields "
+                                + "expression ratio_to_total(<aggregateAlias>).");
+            }
+        }
+    }
+
+    private void validatePostAggregateCalculations(DbQueryRequestDef queryRequest) {
+        List<PostAggregateCalculationDef> items = queryRequest.getPostAggregateCalculations();
+        if (items == null || items.isEmpty()) {
+            return;
+        }
+        Set<String> selectedAggregateAliases = selectedAggregateAliases(queryRequest.getColumns());
+        Set<String> seen = new LinkedHashSet<>();
+        for (PostAggregateCalculationDef item : items) {
+            String name = item.getName();
+            if (StringUtils.isEmpty(name)) {
+                throw RX.throwAUserTip("POST_AGGREGATE_CALCULATION_INVALID: postAggregateCalculations entries require a non-empty name.");
+            }
+            if (!seen.add(name)) {
+                throw RX.throwAUserTip("POST_AGGREGATE_CALCULATION_DUPLICATE: duplicate postAggregateCalculations name '" + name + "'.");
+            }
+            String kind = StringUtils.isEmpty(item.getKind()) ? "" : item.getKind();
+            if (!"ratioToTotal".equals(kind)) {
+                throw RX.throwAUserTip("POST_AGGREGATE_CALCULATION_UNSUPPORTED: only kind='ratioToTotal' is supported in v1.6; got '" + kind + "' for '" + name + "'.");
+            }
+            String scope = StringUtils.isEmpty(item.getScope()) ? "grandTotal" : item.getScope();
+            if (!"grandTotal".equals(scope)) {
+                throw RX.throwAUserTip("POST_AGGREGATE_CALCULATION_UNSUPPORTED: only scope='grandTotal' is supported in v1.6; got '" + scope + "' for '" + name + "'.");
+            }
+            String format = StringUtils.isEmpty(item.getFormat()) ? "ratio" : item.getFormat();
+            if (!"ratio".equals(format) && !"percent".equals(format)) {
+                throw RX.throwAUserTip("POST_AGGREGATE_CALCULATION_UNSUPPORTED: format must be 'ratio' or 'percent'; got '" + format + "' for '" + name + "'.");
+            }
+            if (StringUtils.isEmpty(item.getMeasure())) {
+                throw RX.throwAUserTip("POST_AGGREGATE_MEASURE_REQUIRED: ratioToTotal '" + name + "' requires measure.");
+            }
+            if (!selectedAggregateAliases.contains(item.getMeasure())) {
+                throw RX.throwAUserTip("POST_AGGREGATE_MEASURE_NOT_FOUND: ratioToTotal '" + name
+                        + "' measure '" + item.getMeasure() + "' must reference a selected aggregate alias from columns[].");
+            }
+        }
+    }
+
+    private Set<String> selectedAggregateAliases(List<String> columns) {
+        Set<String> aliases = new LinkedHashSet<>();
+        if (columns == null) {
+            return aliases;
+        }
+        for (String column : columns) {
+            if (column == null) {
+                continue;
+            }
+            Matcher matcher = INLINE_AGG_ALIAS_PATTERN.matcher(column);
+            if (matcher.find()) {
+                aliases.add(matcher.group(1));
+            }
+        }
+        return aliases;
+    }
+
+    private Set<String> extractFormulaIdentifiers(String expression) {
+        Set<String> identifiers = new LinkedHashSet<>();
+        Matcher matcher = IDENT_PATTERN.matcher(expression == null ? "" : expression);
+        while (matcher.find()) {
+            String ident = matcher.group();
+            if (!FORMULA_KEYWORDS.contains(ident.toLowerCase(Locale.ROOT))) {
+                identifiers.add(ident);
+            }
+        }
+        return identifiers;
     }
 
     // ==========================================

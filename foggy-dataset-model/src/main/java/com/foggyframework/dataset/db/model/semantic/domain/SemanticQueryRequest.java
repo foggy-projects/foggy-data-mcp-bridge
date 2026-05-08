@@ -3,6 +3,7 @@ package com.foggyframework.dataset.db.model.semantic.domain;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
+import com.foggyframework.dataset.db.model.def.query.request.PostAggregateCalculationDef;
 import com.foggyframework.dataset.db.model.semantic.domain.deserializer.OrderItemListDeserializer;
 import com.foggyframework.dataset.db.model.semantic.enums.CaptionMatchMode;
 import com.foggyframework.dataset.db.model.semantic.enums.MismatchHandleStrategy;
@@ -75,6 +76,9 @@ public class SemanticQueryRequest {
 
     @ApiModelProperty(value = "时间窗口定义，用于声明式时间分析（同环比/累计/滚动）。nullable — 不指定时走常规查询", notes = "AI 通过 timeWindow DSL 表达 YoY/MoM/Rolling 等分析，引擎自动映射到 QueryPlan AST")
     private Map<String, Object> timeWindow;
+
+    @ApiModelProperty(value = "聚合后计算字段", notes = "在 groupBy 聚合结果外层计算，首期支持 ratioToTotal")
+    private List<PostAggregateCalculationDef> postAggregateCalculations;
 
     @ApiModelProperty(value = "多维透视请求（与 columns 互斥）",
             notes = "当 pivot 非 null 时，引擎自动切换到 Pivot Pipeline（四阶段内存加工）。" +

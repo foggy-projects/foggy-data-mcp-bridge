@@ -42,6 +42,9 @@ public class DbQueryRequestDef implements DbQueryRequest {
     @ApiModelProperty(value = "动态计算字段", notes = "在查询时定义的计算字段，可在 columns/groupBy 中引用")
     List<CalculatedFieldDef> calculatedFields;
 
+    @ApiModelProperty(value = "聚合后计算字段", notes = "在 groupBy 聚合结果外层计算，首期支持 ratioToTotal")
+    List<PostAggregateCalculationDef> postAggregateCalculations;
+
     @ApiModelProperty("是否返回总数及合计")
     boolean returnTotal;
 

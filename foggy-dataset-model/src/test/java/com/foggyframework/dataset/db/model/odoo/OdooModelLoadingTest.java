@@ -1,8 +1,12 @@
 package com.foggyframework.dataset.db.model.odoo;
 
 import com.foggyframework.bundle.SystemBundlesContext;
+import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef;
+import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
+import com.foggyframework.dataset.db.model.def.query.request.PostAggregateCalculationDef;
+import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.db.model.ecommerce.EcommerceTestSupport;
 import com.foggyframework.dataset.db.model.engine.JdbcModelQueryEngine;
 import com.foggyframework.dataset.db.model.engine.formula.SqlFormulaService;
@@ -12,6 +16,7 @@ import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.*;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -254,6 +259,80 @@ class OdooModelLoadingTest extends EcommerceTestSupport {
             assertTrue(rows.stream().anyMatch(row -> Integer.valueOf(2025).equals(row.get("dateOrder$year"))),
                 "测试数据应包含 2025 年销售订单");
         }
+    }
+
+    @Test
+    @Order(203)
+    @DisplayName("postAggregateCalculations ratioToTotal 生成外层过滤阶段")
+    void testPostAggregateRatioToTotalUsesOuterFilterStage() {
+        JdbcQueryModel queryModel = getQueryModel("OdooSaleOrderQueryModel");
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        DbQueryRequestDef queryRequest = postAggregateSalesShareRequest();
+        queryRequest.setPostAggregateCalculations(new ArrayList<>(List.of(new PostAggregateCalculationDef(
+                "salesShare", "ratioToTotal", "teamSales", "grandTotal", "ratio"
+        ))));
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+        String sql = queryEngine.getSql();
+        String normalizedSql = sql.replace('`', '"');
+
+        assertTrue(normalizedSql.contains("WITH stage1 AS"), sql);
+        assertTrue(normalizedSql.contains("post_stage AS"), sql);
+        assertTrue(normalizedSql.contains("stage1.\"teamSales\" / NULLIF(SUM(stage1.\"teamSales\") OVER (), 0) AS \"salesShare\""), sql);
+        assertTrue(normalizedSql.contains("FROM post_stage"), sql);
+        assertTrue(normalizedSql.contains("WHERE \"salesShare\" > ?"), sql);
+        assertTrue(normalizedSql.contains("ORDER BY \"teamSales\" DESC, \"salesShare\" DESC"), sql);
+        assertEquals(0.2, queryEngine.getValues().get(queryEngine.getValues().size() - 1));
+    }
+
+    @Test
+    @Order(204)
+    @DisplayName("calculatedFields ratio_to_total 语法糖归一为 postAggregateCalculations")
+    void testCalculatedFieldsRatioToTotalSugarNormalizesToPostAggregate() {
+        JdbcQueryModel queryModel = getQueryModel("OdooSaleOrderQueryModel");
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        DbQueryRequestDef queryRequest = postAggregateSalesShareRequest();
+        queryRequest.setCalculatedFields(new ArrayList<>(List.of(new CalculatedFieldDef(
+                "salesShare", "ratio_to_total(teamSales)"
+        ))));
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+        String sql = queryEngine.getSql();
+        String normalizedSql = sql.replace('`', '"');
+
+        assertTrue(normalizedSql.contains("post_stage AS"), sql);
+        assertTrue(normalizedSql.contains("AS \"salesShare\""), sql);
+        assertTrue(normalizedSql.contains("WHERE \"salesShare\" > ?"), sql);
+    }
+
+    private DbQueryRequestDef postAggregateSalesShareRequest() {
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("OdooSaleOrderQueryModel");
+        queryRequest.setColumns(Arrays.asList(
+                "salesTeam$id",
+                "salesTeam$caption",
+                "sum(amountTotal) as teamSales",
+                "salesShare"
+        ));
+
+        GroupRequestDef group1 = new GroupRequestDef();
+        group1.setField("salesTeam$id");
+        GroupRequestDef group2 = new GroupRequestDef();
+        group2.setField("salesTeam$caption");
+        queryRequest.setGroupBy(Arrays.asList(group1, group2));
+
+        queryRequest.setSlice(List.of(new SliceRequestDef("salesShare", ">", 0.2)));
+
+        OrderRequestDef order1 = new OrderRequestDef();
+        order1.setField("teamSales");
+        order1.setDir("desc");
+        OrderRequestDef order2 = new OrderRequestDef();
+        order2.setField("salesShare");
+        order2.setDir("desc");
+        queryRequest.setOrderBy(List.of(order1, order2));
+        return queryRequest;
     }
 
     @Test

@@ -11,6 +11,7 @@ import org.mockito.Mockito;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.when;
@@ -42,6 +43,7 @@ class QueryRequestValidationStepTest {
 
         // 配置支持的操作符
         when(mockSqlFormulaService.supports("=")).thenReturn(true);
+        when(mockSqlFormulaService.supports(">")).thenReturn(true);
         when(mockSqlFormulaService.supports(">=")).thenReturn(true);
         when(mockSqlFormulaService.supports("in")).thenReturn(true);
         when(mockSqlFormulaService.supports("like")).thenReturn(true);
@@ -83,6 +85,41 @@ class QueryRequestValidationStepTest {
 
         assertDoesNotThrow(() -> validationStep.beforeQuery(ctx));
         log.info("正常 slice 条件校验通过");
+    }
+
+    @Test
+    @Order(7)
+    @DisplayName("grouped calculatedFields 引用同层聚合别名并被 slice 过滤应提前拒绝")
+    void testPostAggregateCalculatedFieldAliasSliceRejectedBeforeSql() {
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setColumns(List.of(
+                "salesTeam$id",
+                "salesTeam$caption",
+                "sum(amountTotal) as teamSales",
+                "salesShare"));
+
+        GroupRequestDef group1 = new GroupRequestDef();
+        group1.setField("salesTeam$id");
+        GroupRequestDef group2 = new GroupRequestDef();
+        group2.setField("salesTeam$caption");
+        queryRequest.setGroupBy(List.of(group1, group2));
+
+        queryRequest.setCalculatedFields(List.of(new CalculatedFieldDef(
+                "salesShare",
+                "teamSales / NULLIF(CALCULATE(SUM(amountTotal), REMOVE(salesTeam$id)), 0)")));
+        queryRequest.setSlice(List.of(new SliceRequestDef("salesShare", ">", 0.2)));
+
+        OrderRequestDef order = new OrderRequestDef();
+        order.setField("teamSales");
+        order.setDir("desc");
+        queryRequest.setOrderBy(List.of(order));
+
+        ModelResultContext ctx = createContext(queryRequest);
+
+        Exception exception = assertThrows(RuntimeException.class, () -> validationStep.beforeQuery(ctx));
+        assertTrue(exception.getMessage().contains("POST_AGGREGATE_CALCULATED_FIELD_UNSUPPORTED"));
+        assertTrue(exception.getMessage().contains("teamSales"));
+        assertFalse(exception.getMessage().toLowerCase().contains("column \"teamsales\""));
     }
 
     @Test

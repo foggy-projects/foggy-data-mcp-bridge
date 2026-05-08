@@ -197,6 +197,28 @@ class DerivedLoweringTest {
     }
 
     @Test
+    @DisplayName("WHERE 拒绝 {'$expr': ...} 对象 value")
+    void whereRejectsExpressionObjectValue() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT sales_amount FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "sales_amount");
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(base)
+                .columns(List.of("sales_amount"))
+                .slice(List.of(Map.of(
+                        "field", "sales_amount",
+                        "op", ">",
+                        "value", Map.of("$expr", "COALESCE(arOverdueAmount, 0) * 3"))))
+                .build();
+
+        ComposeCompileException ex = assertThrows(ComposeCompileException.class,
+                () -> compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "sqlite"));
+        assertEquals(ComposeCompileErrorCodes.UNSUPPORTED_PLAN_SHAPE, ex.code());
+        assertTrue(ex.getMessage().contains("$field"));
+        assertTrue(ex.getMessage().contains("$expr"));
+    }
+
+    @Test
     @DisplayName("同一层新建 alias 不能立刻用于 slice")
     void sameStageAliasSliceRejectedAtCompile() {
         FakeSemanticService svc = new FakeSemanticService();
