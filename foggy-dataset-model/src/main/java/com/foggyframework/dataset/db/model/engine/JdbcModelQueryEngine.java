@@ -2209,6 +2209,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
         return new CalculateQueryContext(
                 groupByFields,
+                queryRequest.getColumns() == null ? List.of() : queryRequest.getColumns(),
                 systemSliceFields,
                 supportsGroupedAggregateWindow(),
                 isTimeWindowPostCalculatedFields(context)

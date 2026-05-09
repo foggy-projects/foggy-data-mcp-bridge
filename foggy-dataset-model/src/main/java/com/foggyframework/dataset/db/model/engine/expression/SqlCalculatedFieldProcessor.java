@@ -352,6 +352,12 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
         if (fieldDef == null || StringUtils.isEmpty(fieldDef.getExpression())) {
             return false;
         }
+        if (fieldDef.getOrigin() == CalculatedFieldDef.Origin.PLAIN_ALIAS) {
+            return false;
+        }
+        if (!groupedQuery && !isSoleSelectedPredefinedCalculatedField(fieldDef)) {
+            return false;
+        }
         if (fieldDef.getAgg() != null || fieldDef.getPartitionBy() != null || fieldDef.getWindowOrderBy() != null) {
             return false;
         }
@@ -364,6 +370,20 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
                     && column.isMeasure()
                     && column.getAggregation() != null
                     && column.getAggregation() != DbAggregation.NONE) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isSoleSelectedPredefinedCalculatedField(CalculatedFieldDef fieldDef) {
+        if (calculateQueryContext == null
+                || calculateQueryContext.getSelectedFields().size() != 1
+                || !fieldDef.getName().equals(calculateQueryContext.getSelectedFields().get(0))) {
+            return false;
+        }
+        for (CalculatedFieldDef predefined : queryModel.getPredefinedCalculatedFields()) {
+            if (fieldDef.getName().equals(predefined.getName())) {
                 return true;
             }
         }

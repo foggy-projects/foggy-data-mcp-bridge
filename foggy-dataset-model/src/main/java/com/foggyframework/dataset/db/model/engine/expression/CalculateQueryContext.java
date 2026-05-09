@@ -12,6 +12,7 @@ import java.util.Set;
 public final class CalculateQueryContext {
 
     private final List<String> groupByFields;
+    private final List<String> selectedFields;
     private final Set<String> systemSliceFields;
     private final boolean supportsGroupedAggregateWindow;
     private final boolean timeWindowPostCalculatedFields;
@@ -21,9 +22,22 @@ public final class CalculateQueryContext {
             Set<String> systemSliceFields,
             boolean supportsGroupedAggregateWindow,
             boolean timeWindowPostCalculatedFields) {
+        this(groupByFields, Collections.emptyList(), systemSliceFields,
+                supportsGroupedAggregateWindow, timeWindowPostCalculatedFields);
+    }
+
+    public CalculateQueryContext(
+            List<String> groupByFields,
+            List<String> selectedFields,
+            Set<String> systemSliceFields,
+            boolean supportsGroupedAggregateWindow,
+            boolean timeWindowPostCalculatedFields) {
         this.groupByFields = groupByFields == null
                 ? Collections.emptyList()
                 : Collections.unmodifiableList(new ArrayList<>(groupByFields));
+        this.selectedFields = selectedFields == null
+                ? Collections.emptyList()
+                : Collections.unmodifiableList(new ArrayList<>(selectedFields));
         this.systemSliceFields = systemSliceFields == null
                 ? Collections.emptySet()
                 : Collections.unmodifiableSet(new LinkedHashSet<>(systemSliceFields));
@@ -33,6 +47,10 @@ public final class CalculateQueryContext {
 
     public List<String> getGroupByFields() {
         return groupByFields;
+    }
+
+    public List<String> getSelectedFields() {
+        return selectedFields;
     }
 
     public Set<String> getSystemSliceFields() {
