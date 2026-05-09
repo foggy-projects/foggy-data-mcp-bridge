@@ -72,6 +72,7 @@ public final class ComposeSqlCompiler {
         if (opts.semanticService == null) {
             throw new IllegalArgumentException("CompileOptions.semanticService is required");
         }
+        QueryPlan.validatePlanSliceValues(plan);
 
         Map<String, ModelBinding> bindings = opts.bindings;
         if (bindings == null) {

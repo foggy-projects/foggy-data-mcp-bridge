@@ -35,6 +35,7 @@ public final class DerivedQueryPlan extends QueryPlan {
         validateColumnElements(b.columns, "DerivedQueryPlan.columns");
         validateStringList(b.groupBy, "DerivedQueryPlan.groupBy");
         validateStringList(b.orderBy, "DerivedQueryPlan.orderBy");
+        validateSliceValues(b.slice, "DerivedQueryPlan.slice");
         validatePagination(b.limit, b.start, "DerivedQueryPlan");
         // G5 Phase 2 (F5) — visibility lineage = source.collectVisiblePlans()
         // (already includes source itself). Self-reference (plan === source)
@@ -63,7 +64,9 @@ public final class DerivedQueryPlan extends QueryPlan {
 
     @Override
     public List<BaseModelPlan> baseModelPlans() {
-        return source.baseModelPlans();
+        List<BaseModelPlan> out = new java.util.ArrayList<>(source.baseModelPlans());
+        out.addAll(sliceSubqueryBaseModelPlans(slice));
+        return List.copyOf(out);
     }
 
     @Override

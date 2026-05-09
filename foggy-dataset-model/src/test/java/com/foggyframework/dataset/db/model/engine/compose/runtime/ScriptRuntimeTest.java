@@ -88,15 +88,15 @@ class ScriptRuntimeTest {
     }
 
     @Test
-    @DisplayName("ALLOWED_SCRIPT_GLOBALS is exactly {from, dsl, Query}")
+    @DisplayName("ALLOWED_SCRIPT_GLOBALS is exactly {from, dsl, Query, subquery}")
     void allowedGlobals_frozen() {
-        assertEquals(Set.of("from", "dsl", "Query"), ScriptRuntime.ALLOWED_SCRIPT_GLOBALS);
+        assertEquals(Set.of("from", "dsl", "Query", "subquery"), ScriptRuntime.ALLOWED_SCRIPT_GLOBALS);
     }
 
     @Test
-    @DisplayName("ALLOWED_SCRIPT_GLOBALS has exactly 3 elements")
+    @DisplayName("ALLOWED_SCRIPT_GLOBALS has exactly 4 elements")
     void allowedGlobals_size() {
-        assertEquals(3, ScriptRuntime.ALLOWED_SCRIPT_GLOBALS.size());
+        assertEquals(4, ScriptRuntime.ALLOWED_SCRIPT_GLOBALS.size());
     }
 
     @Test

@@ -4,9 +4,11 @@ import com.foggyframework.dataset.db.model.engine.compose.ComposedSql;
 import com.foggyframework.dataset.db.model.engine.compose.compilation.CompileTestHelpers.FakeSemanticService;
 import com.foggyframework.dataset.db.model.engine.compose.plan.BaseModelPlan;
 import com.foggyframework.dataset.db.model.engine.compose.plan.DerivedQueryPlan;
+import com.foggyframework.dataset.db.model.engine.compose.plan.Dsl;
 import com.foggyframework.dataset.db.model.engine.compose.plan.JoinOn;
 import com.foggyframework.dataset.db.model.engine.compose.plan.JoinPlan;
 import com.foggyframework.dataset.db.model.engine.compose.plan.ProjectedColumn;
+import com.foggyframework.dataset.db.model.engine.compose.plan.QueryPlan;
 import com.foggyframework.dataset.db.model.engine.compose.plan.expr.BinaryExpr;
 import com.foggyframework.dataset.db.model.engine.compose.plan.expr.ColumnExpr;
 import com.foggyframework.dataset.db.model.engine.compose.schema.ComposeSchemaErrorCodes;
@@ -19,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -177,6 +180,129 @@ class DerivedLoweringTest {
     }
 
     @Test
+    @DisplayName("WHERE QueryPlan value lowers to SQL subquery for IN/NOT IN")
+    void whereQueryPlanValueLowersToSqlSubquery() {
+        for (String op : List.of("in", "not in")) {
+            FakeSemanticService svc = new FakeSemanticService();
+            svc.stub("CurrentM", "SELECT id, amount FROM current_tbl");
+            svc.stub("PriorM", "SELECT id FROM prior_tbl WHERE flag = ?", 100);
+            BaseModelPlan current = CompileTestHelpers.base("CurrentM", "id", "amount");
+            BaseModelPlan prior = CompileTestHelpers.base("PriorM", "id");
+            DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                    .source(current)
+                    .columns(List.of("id", "amount"))
+                    .slice(List.of(Map.of("field", "id", "op", op, "value", prior)))
+                    .build();
+
+            ComposedSql sql = compile(derived, svc,
+                    Map.of("CurrentM", CompileTestHelpers.emptyBinding(),
+                            "PriorM", CompileTestHelpers.emptyBinding()),
+                    "sqlite");
+
+            assertTrue(sql.getSql().contains(op.toUpperCase() + " (SELECT"));
+            assertTrue(sql.getSql().contains("prior_tbl"));
+            assertTrue(sql.getSql().contains("IS NOT NULL)"));
+            assertEquals(List.of(100), sql.getParams());
+        }
+    }
+
+    @Test
+    @DisplayName("WHERE explicit subquery(plan, field) lowers multi-column plan")
+    void whereExplicitSubqueryFieldLowersMultiColumnPlan() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("CurrentM", "SELECT id, amount FROM current_tbl");
+        svc.stub("PriorM", "SELECT id, name FROM prior_tbl");
+        BaseModelPlan current = CompileTestHelpers.base("CurrentM", "id", "amount");
+        BaseModelPlan prior = CompileTestHelpers.base("PriorM", "id", "name");
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(current)
+                .columns(List.of("id", "amount"))
+                .slice(List.of(Map.of(
+                        "field", "id",
+                        "op", "not in",
+                        "value", Dsl.subquery(prior, "id"))))
+                .build();
+
+        ComposedSql sql = compile(derived, svc,
+                Map.of("CurrentM", CompileTestHelpers.emptyBinding(),
+                        "PriorM", CompileTestHelpers.emptyBinding()),
+                "sqlite");
+
+        assertTrue(sql.getSql().contains("NOT IN (SELECT"));
+        assertTrue(sql.getSql().contains("prior_tbl"));
+        assertTrue(sql.getSql().contains("IS NOT NULL)"));
+    }
+
+    @Test
+    @DisplayName("WHERE implicit multi-column QueryPlan requires subquery field")
+    void whereImplicitMultiColumnPlanRequiresSubqueryField() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("CurrentM", "SELECT id, amount FROM current_tbl");
+        svc.stub("PriorM", "SELECT id, name FROM prior_tbl");
+        BaseModelPlan current = CompileTestHelpers.base("CurrentM", "id", "amount");
+        BaseModelPlan prior = CompileTestHelpers.base("PriorM", "id", "name");
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(current)
+                .columns(List.of("id"))
+                .slice(List.of(Map.of("field", "id", "op", "in", "value", prior)))
+                .build();
+
+        ComposeCompileException ex = assertThrows(ComposeCompileException.class,
+                () -> compile(derived, svc,
+                        Map.of("CurrentM", CompileTestHelpers.emptyBinding(),
+                                "PriorM", CompileTestHelpers.emptyBinding()),
+                        "sqlite"));
+        assertTrue(ex.getMessage().contains("COMPOSE_SUBQUERY_FIELD_AMBIGUOUS"));
+    }
+
+    @Test
+    @DisplayName("WHERE explicit subquery field must exist")
+    void whereExplicitSubqueryFieldMustExist() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("CurrentM", "SELECT id, amount FROM current_tbl");
+        svc.stub("PriorM", "SELECT id FROM prior_tbl");
+        BaseModelPlan current = CompileTestHelpers.base("CurrentM", "id", "amount");
+        BaseModelPlan prior = CompileTestHelpers.base("PriorM", "id");
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(current)
+                .columns(List.of("id"))
+                .slice(List.of(Map.of(
+                        "field", "id",
+                        "op", "in",
+                        "value", Dsl.subquery(prior, "missing"))))
+                .build();
+
+        ComposeCompileException ex = assertThrows(ComposeCompileException.class,
+                () -> compile(derived, svc,
+                        Map.of("CurrentM", CompileTestHelpers.emptyBinding(),
+                                "PriorM", CompileTestHelpers.emptyBinding()),
+                        "sqlite"));
+        assertTrue(ex.getMessage().contains("COMPOSE_SUBQUERY_FIELD_NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("base having QueryPlan value fails stable at compile preflight")
+    void baseHavingQueryPlanValueFailsStableAtCompilePreflight() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("CurrentM", "SELECT id FROM current_tbl");
+        svc.stub("PriorM", "SELECT id FROM prior_tbl");
+        BaseModelPlan prior = CompileTestHelpers.base("PriorM", "id");
+        BaseModelPlan current = BaseModelPlan.builder()
+                .model("CurrentM")
+                .columns(List.of("id"))
+                .having(List.of(Map.of("field", "id", "op", "in", "value", prior)))
+                .build();
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> compile(current, svc,
+                        Map.of("CurrentM", CompileTestHelpers.emptyBinding(),
+                                "PriorM", CompileTestHelpers.emptyBinding()),
+                        "sqlite"));
+        assertTrue(ex.getMessage().contains(QueryPlan.SUBQUERY_VALUE_UNSUPPORTED_CODE));
+        assertFalse(ex.getMessage().contains("unhashable type"));
+    }
+
+    @Test
     @DisplayName("WHERE 支持 {'$field': rhs} 字段对字段比较")
     void whereSupportsFieldReferenceValue() {
         FakeSemanticService svc = new FakeSemanticService();
@@ -199,23 +325,20 @@ class DerivedLoweringTest {
     @Test
     @DisplayName("WHERE 拒绝 {'$expr': ...} 对象 value")
     void whereRejectsExpressionObjectValue() {
-        FakeSemanticService svc = new FakeSemanticService();
-        svc.stub("M", "SELECT sales_amount FROM tbl");
         BaseModelPlan base = CompileTestHelpers.base("M", "sales_amount");
-        DerivedQueryPlan derived = DerivedQueryPlan.builder()
-                .source(base)
-                .columns(List.of("sales_amount"))
-                .slice(List.of(Map.of(
-                        "field", "sales_amount",
-                        "op", ">",
-                        "value", Map.of("$expr", "COALESCE(arOverdueAmount, 0) * 3"))))
-                .build();
 
-        ComposeCompileException ex = assertThrows(ComposeCompileException.class,
-                () -> compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "sqlite"));
-        assertEquals(ComposeCompileErrorCodes.UNSUPPORTED_PLAN_SHAPE, ex.code());
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> DerivedQueryPlan.builder()
+                        .source(base)
+                        .columns(List.of("sales_amount"))
+                        .slice(List.of(Map.of(
+                                "field", "sales_amount",
+                                "op", ">",
+                                "value", Map.of("$expr", "COALESCE(arOverdueAmount, 0) * 3"))))
+                        .build());
+        assertTrue(ex.getMessage().contains(QueryPlan.SLICE_VALUE_UNSUPPORTED_CODE));
         assertTrue(ex.getMessage().contains("$field"));
-        assertTrue(ex.getMessage().contains("$expr"));
+        assertTrue(!ex.getMessage().contains("unhashable type"));
     }
 
     @Test

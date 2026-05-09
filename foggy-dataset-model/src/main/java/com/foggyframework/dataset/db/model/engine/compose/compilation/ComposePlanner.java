@@ -632,6 +632,10 @@ public final class ComposePlanner {
     private static final Pattern DOTTED_REF =
             Pattern.compile("^[A-Za-z_][A-Za-z0-9_$]*\\.[A-Za-z_][A-Za-z0-9_$]*$");
 
+    private static final Pattern CLAUSE_BOUNDARY =
+            Pattern.compile("\\bGROUP\\s+BY\\b|\\bHAVING\\b|\\bORDER\\s+BY\\b|\\bLIMIT\\b",
+                    Pattern.CASE_INSENSITIVE);
+
     /**
      * Slice DSL operators whose value is a list of sub-conditions joined with
      * the operator's own semantics (OR / AND).  Kept as a constant so that
@@ -1009,6 +1013,9 @@ public final class ComposePlanner {
         assertDialect(dialect);
         CompileState state = new CompileState(bindings, semanticService, namespace, dialect,
                 datasourceIds);
+        if (planContainsSliceSubquery(plan)) {
+            checkCrossDatasource(plan, state, "slice subquery");
+        }
         // G10 PR4 · plan-aware permission validation. Runs only when the
         // G10 flag is on; under flag=off the legacy single-QM
         // FieldAccessPermissionStep continues to enforce flat-whitelist
@@ -1066,6 +1073,7 @@ public final class ComposePlanner {
         }
         if (plan instanceof DerivedQueryPlan d) {
             collectPlanBindings(d.source(), bindings, ctxBuilder, visited);
+            collectSliceSubqueryPlanBindings(d.slice(), bindings, ctxBuilder, visited);
             return;
         }
         if (plan instanceof JoinPlan j) {
@@ -1076,6 +1084,59 @@ public final class ComposePlanner {
         if (plan instanceof UnionPlan u) {
             collectPlanBindings(u.left(), bindings, ctxBuilder, visited);
             collectPlanBindings(u.right(), bindings, ctxBuilder, visited);
+        }
+    }
+
+    private static void collectSliceSubqueryPlanBindings(
+            List<?> slice,
+            Map<String, ModelBinding> bindings,
+            PlanFieldAccessContext.Builder ctxBuilder,
+            Set<QueryPlan> visited) {
+        if (slice == null || slice.isEmpty()) {
+            return;
+        }
+        for (Object entry : slice) {
+            collectSliceSubqueryPlanBindingsFromEntry(entry, bindings, ctxBuilder, visited);
+        }
+    }
+
+    private static void collectSliceSubqueryPlanBindingsFromEntry(
+            Object raw,
+            Map<String, ModelBinding> bindings,
+            PlanFieldAccessContext.Builder ctxBuilder,
+            Set<QueryPlan> visited) {
+        if (!(raw instanceof Map<?, ?> entry)) {
+            return;
+        }
+        if (entry.size() == 1) {
+            Map.Entry<?, ?> only = entry.entrySet().iterator().next();
+            Object key = only.getKey();
+            if (SYMMETRIC_LOGICAL_OPS.contains(key)) {
+                if (only.getValue() instanceof Iterable<?> nested) {
+                    for (Object sub : nested) {
+                        collectSliceSubqueryPlanBindingsFromEntry(sub, bindings, ctxBuilder, visited);
+                    }
+                }
+                return;
+            }
+            if ("$not".equals(key)) {
+                Object value = only.getValue();
+                if (value instanceof Iterable<?> nested) {
+                    for (Object sub : nested) {
+                        collectSliceSubqueryPlanBindingsFromEntry(sub, bindings, ctxBuilder, visited);
+                    }
+                } else {
+                    collectSliceSubqueryPlanBindingsFromEntry(value, bindings, ctxBuilder, visited);
+                }
+                return;
+            }
+        }
+        Object value = entry.containsKey("field")
+                ? entry.get("value")
+                : entry.size() == 1 ? entry.values().iterator().next() : null;
+        PlanSubqueryRef subquery = coercePlanSubquery(value);
+        if (subquery != null) {
+            collectPlanBindings(subquery.plan(), bindings, ctxBuilder, visited);
         }
     }
 
@@ -1160,10 +1221,17 @@ public final class ComposePlanner {
                             + "'. Ensure AuthorityResolutionPipeline.resolve was called "
                             + "on the same plan tree and its result is passed via bindings=...");
         }
+        BaseSliceSubqueryPartition slicePartition = partitionBaseSubquerySlices(plan.slice());
+        BaseModelPlan perBasePlan = slicePartition.subquerySlices().isEmpty()
+                ? plan
+                : basePlanWithSlice(plan, slicePartition.scalarSlices());
         String alias = state.nextAlias();
         registerPlanAlias(state, plan, alias);
         List<CteUnit> units = PerBaseCompiler.compileBaseModel(
-                plan, binding, state.semanticService, state.namespace, alias, state.governanceCache);
+                perBasePlan, binding, state.semanticService, state.namespace, alias, state.governanceCache);
+        if (!slicePartition.subquerySlices().isEmpty()) {
+            units = injectBaseSubquerySlices(units, slicePartition.subquerySlices(), plan, binding, state);
+        }
 
         if (units.size() == 1) {
             return units.get(0); // legacy single-unit path
@@ -1173,6 +1241,222 @@ public final class ComposePlanner {
             state.prerequisiteCtes.add(units.get(i));
         }
         return units.get(units.size() - 1);
+    }
+
+    private static BaseSliceSubqueryPartition partitionBaseSubquerySlices(List<Object> slice) {
+        if (slice == null || slice.isEmpty()) {
+            return new BaseSliceSubqueryPartition(List.of(), List.of());
+        }
+        List<Object> scalar = new ArrayList<>();
+        List<Object> subquery = new ArrayList<>();
+        for (Object entry : slice) {
+            if (sliceEntryContainsSubquery(entry)) {
+                subquery.add(entry);
+            } else {
+                scalar.add(entry);
+            }
+        }
+        return new BaseSliceSubqueryPartition(List.copyOf(scalar), List.copyOf(subquery));
+    }
+
+    private static BaseModelPlan basePlanWithSlice(BaseModelPlan plan, List<Object> scalarSlices) {
+        return BaseModelPlan.builder()
+                .model(plan.model())
+                .columns(plan.columns())
+                .slice(scalarSlices)
+                .having(plan.having())
+                .groupBy(plan.groupBy())
+                .orderBy(plan.orderBy())
+                .calculatedFields(plan.calculatedFields())
+                .limit(plan.limit())
+                .start(plan.start())
+                .distinct(plan.distinct())
+                .build();
+    }
+
+    private static List<CteUnit> injectBaseSubquerySlices(
+            List<CteUnit> units,
+            List<Object> subquerySlices,
+            BaseModelPlan plan,
+            ModelBinding binding,
+            CompileState state) {
+        if (units == null || units.isEmpty() || subquerySlices == null || subquerySlices.isEmpty()) {
+            return units;
+        }
+        BaseSubqueryWhere where = renderBaseSubqueryWhereFragments(subquerySlices, plan, binding, state);
+        CteUnit finalUnit = units.get(units.size() - 1);
+        WhereInjection injected = injectWhereFragmentsAtPosition(finalUnit.getSql(), where.fragments());
+        List<Object> mergedParams = mergeParamsAtSqlPosition(
+                finalUnit.getSql(),
+                finalUnit.getParams(),
+                where.params(),
+                injected.insertPos());
+        CteUnit patched = new CteUnit(
+                finalUnit.getAlias(),
+                injected.sql(),
+                mergedParams,
+                finalUnit.getSelectColumns());
+        List<CteUnit> patchedUnits = new ArrayList<>(units);
+        patchedUnits.set(patchedUnits.size() - 1, patched);
+        return List.copyOf(patchedUnits);
+    }
+
+    private static BaseSubqueryWhere renderBaseSubqueryWhereFragments(
+            List<Object> subquerySlices,
+            BaseModelPlan plan,
+            ModelBinding binding,
+            CompileState state) {
+        List<String> fragments = new ArrayList<>();
+        List<Object> params = new ArrayList<>();
+        for (Object entry : subquerySlices) {
+            if (isBaseSubqueryCompoundEntry(entry)) {
+                throw new ComposeCompileException(
+                        ComposeCompileErrorCodes.UNSUPPORTED_PLAN_SHAPE,
+                        ComposeCompileErrorCodes.PHASE_PLAN_LOWER,
+                        QueryPlan.SUBQUERY_VALUE_UNSUPPORTED_CODE
+                                + ": base model subquery slices must be top-level simple "
+                                + "{field, op, value} entries in Phase 2. Split compound "
+                                + "$and/$or/$not filters into separate top-level slice entries.");
+            }
+            SliceShape s = SliceShape.parse(entry);
+            String op = normalizeSliceOp(s.op);
+            if (!"IN".equals(op) && !"NOT IN".equals(op)) {
+                throw new ComposeCompileException(
+                        ComposeCompileErrorCodes.UNSUPPORTED_PLAN_SHAPE,
+                        ComposeCompileErrorCodes.PHASE_PLAN_LOWER,
+                        QueryPlan.SUBQUERY_VALUE_UNSUPPORTED_CODE
+                                + ": base model slice subquery is only supported for IN / NOT IN, got "
+                                + op + ".");
+            }
+            PlanSubqueryRef subquery = coercePlanSubquery(s.value);
+            if (subquery == null) {
+                throw new ComposeCompileException(
+                        ComposeCompileErrorCodes.UNSUPPORTED_PLAN_SHAPE,
+                        ComposeCompileErrorCodes.PHASE_PLAN_LOWER,
+                        QueryPlan.SUBQUERY_VALUE_UNSUPPORTED_CODE
+                                + ": expected QueryPlan or subquery(plan, field) slice.value.");
+            }
+            String lhs = renderBaseSubquerySliceField(s.field, plan, binding, state);
+            SubquerySql rhs = renderPlanSubqueryValue(subquery.plan(), subquery.field(), state);
+            fragments.add(lhs + " " + op + " " + rhs.sql());
+            params.addAll(rhs.params());
+        }
+        return new BaseSubqueryWhere(List.copyOf(fragments), List.copyOf(params));
+    }
+
+    private static boolean isBaseSubqueryCompoundEntry(Object entry) {
+        if (!(entry instanceof Map<?, ?> map) || map.size() != 1) {
+            return false;
+        }
+        Object key = map.keySet().iterator().next();
+        return "$and".equals(key) || "$or".equals(key) || "$not".equals(key);
+    }
+
+    private static String renderBaseSubquerySliceField(
+            String field,
+            BaseModelPlan plan,
+            ModelBinding binding,
+            CompileState state) {
+        if (field == null || field.isBlank()) {
+            throw new ComposeCompileException(
+                    ComposeCompileErrorCodes.UNSUPPORTED_PLAN_SHAPE,
+                    ComposeCompileErrorCodes.PHASE_PLAN_LOWER,
+                    "COMPOSE_SUBQUERY_FIELD_NOT_FOUND: base model subquery slice field must be non-empty.");
+        }
+        List<String> fieldAccess = binding.fieldAccess();
+        if (fieldAccess != null && !fieldAccess.contains(field)) {
+            throw new ComposeCompileException(
+                    ComposeCompileErrorCodes.UNSUPPORTED_PLAN_SHAPE,
+                    ComposeCompileErrorCodes.PHASE_PLAN_LOWER,
+                    "COMPOSE_SUBQUERY_FIELD_NOT_FOUND: base model subquery slice field '"
+                            + field + "' is not visible on model '" + plan.model() + "'.");
+        }
+        Optional<String> resolved = state.semanticService.resolveFieldSqlExpression(
+                plan.model(), field, state.namespace);
+        if (resolved.isPresent()) {
+            return resolved.get();
+        }
+        if (semanticServiceOverridesFieldResolver(state.semanticService)) {
+            throw new ComposeCompileException(
+                    ComposeCompileErrorCodes.UNSUPPORTED_PLAN_SHAPE,
+                    ComposeCompileErrorCodes.PHASE_PLAN_LOWER,
+                    "COMPOSE_SUBQUERY_FIELD_NOT_FOUND: base model subquery slice field '"
+                            + field + "' cannot be resolved on model '" + plan.model() + "'.");
+        }
+        return quoteColumnExpr(unquoteIdentifier(field), state.dialect);
+    }
+
+    private static boolean semanticServiceOverridesFieldResolver(SemanticQueryServiceV3 service) {
+        try {
+            return service.getClass()
+                    .getMethod("resolveFieldSqlExpression", String.class, String.class, String.class)
+                    .getDeclaringClass() != SemanticQueryServiceV3.class;
+        } catch (NoSuchMethodException e) {
+            return false;
+        }
+    }
+
+    private static WhereInjection injectWhereFragmentsAtPosition(String baseSql, List<String> fragments) {
+        if (fragments == null || fragments.isEmpty()) {
+            return new WhereInjection(baseSql, baseSql.length());
+        }
+        String extraCondition = String.join(" AND ", fragments);
+        Matcher where = Pattern.compile("\\bWHERE\\b", Pattern.CASE_INSENSITIVE).matcher(baseSql);
+        if (where.find()) {
+            Matcher boundary = CLAUSE_BOUNDARY.matcher(baseSql);
+            if (boundary.find(where.end())) {
+                int insertPos = boundary.start();
+                return new WhereInjection(
+                        baseSql.substring(0, insertPos).stripTrailing()
+                                + " AND " + extraCondition + "\n"
+                                + baseSql.substring(insertPos),
+                        insertPos);
+            }
+            int insertPos = baseSql.length();
+            return new WhereInjection(
+                    baseSql.stripTrailing() + " AND " + extraCondition,
+                    insertPos);
+        }
+        Matcher boundary = CLAUSE_BOUNDARY.matcher(baseSql);
+        if (boundary.find()) {
+            int insertPos = boundary.start();
+            return new WhereInjection(
+                    baseSql.substring(0, insertPos).stripTrailing()
+                            + "\nWHERE " + extraCondition + "\n"
+                            + baseSql.substring(insertPos),
+                    insertPos);
+        }
+        int insertPos = baseSql.length();
+        return new WhereInjection(
+                baseSql.stripTrailing() + "\nWHERE " + extraCondition,
+                insertPos);
+    }
+
+    private static List<Object> mergeParamsAtSqlPosition(
+            String baseSql,
+            List<Object> baseParams,
+            List<Object> injectedParams,
+            int insertPos) {
+        List<Object> params = baseParams == null ? List.of() : baseParams;
+        if (injectedParams == null || injectedParams.isEmpty()) {
+            return List.copyOf(params);
+        }
+        int insertParamIndex = countQuestionMarks(baseSql.substring(0, insertPos));
+        List<Object> merged = new ArrayList<>(params.size() + injectedParams.size());
+        merged.addAll(params.subList(0, Math.min(insertParamIndex, params.size())));
+        merged.addAll(injectedParams);
+        merged.addAll(params.subList(Math.min(insertParamIndex, params.size()), params.size()));
+        return List.copyOf(merged);
+    }
+
+    private static int countQuestionMarks(String sqlPrefix) {
+        int count = 0;
+        for (int i = 0; i < sqlPrefix.length(); i++) {
+            if (sqlPrefix.charAt(i) == '?') {
+                count++;
+            }
+        }
+        return count;
     }
 
     /** Register {@code plan → alias} when the G10 flag is on. Skipping the
@@ -1704,7 +1988,7 @@ public final class ComposePlanner {
         if (!plan.slice().isEmpty()) {
             List<String> frags = new ArrayList<>();
             for (Object entry : plan.slice()) {
-                String subSql = renderSliceEntry(entry, outerParams, dialect, innerAlias);
+                String subSql = renderSliceEntry(entry, outerParams, state, innerAlias);
                 if (subSql != null && !subSql.isEmpty()) {
                     frags.add(subSql);
                 }
@@ -1744,7 +2028,8 @@ public final class ComposePlanner {
     }
 
     private static String renderSliceEntry(
-            Object entry, List<Object> outerParams, String dialect, String innerAlias) {
+            Object entry, List<Object> outerParams, CompileState state, String innerAlias) {
+        String dialect = state.dialect;
         if (entry instanceof Map<?, ?> map && map.size() == 1) {
             Map.Entry<?, ?> e = map.entrySet().iterator().next();
             Object key = e.getKey();
@@ -1758,7 +2043,7 @@ public final class ComposePlanner {
                 }
                 List<String> subFrags = new ArrayList<>();
                 for (Object sub : (Iterable<?>) val) {
-                    String subSql = renderSliceEntry(sub, outerParams, dialect, innerAlias);
+                    String subSql = renderSliceEntry(sub, outerParams, state, innerAlias);
                     if (subSql != null && !subSql.isEmpty()) {
                         subFrags.add(subSql);
                     }
@@ -1773,7 +2058,7 @@ public final class ComposePlanner {
                 Iterable<?> it = val instanceof Iterable<?> ? (Iterable<?>) val : Collections.singletonList(val);
                 List<String> subFrags = new ArrayList<>();
                 for (Object sub : it) {
-                    String subSql = renderSliceEntry(sub, outerParams, dialect, innerAlias);
+                    String subSql = renderSliceEntry(sub, outerParams, state, innerAlias);
                     if (subSql != null && !subSql.isEmpty()) {
                         subFrags.add(subSql);
                     }
@@ -1789,6 +2074,20 @@ public final class ComposePlanner {
             String ref = s.fieldReferenceValue();
             return fieldSql + " " + op + " "
                     + renderDerivedSliceField(innerAlias, ref, dialect);
+        }
+        PlanSubqueryRef subquery = coercePlanSubquery(s.value);
+        if (subquery != null) {
+            if (!"IN".equals(op) && !"NOT IN".equals(op)) {
+                throw new ComposeCompileException(
+                        ComposeCompileErrorCodes.UNSUPPORTED_PLAN_SHAPE,
+                        ComposeCompileErrorCodes.PHASE_PLAN_LOWER,
+                        QueryPlan.SUBQUERY_VALUE_UNSUPPORTED_CODE
+                                + ": slice.value QueryPlan/subquery(plan, field) "
+                                + "is only supported for IN and NOT IN filters.");
+            }
+            SubquerySql rendered = renderPlanSubqueryValue(subquery.plan(), subquery.field(), state);
+            outerParams.addAll(rendered.params());
+            return fieldSql + " " + op + " " + rendered.sql();
         }
         if (s.value instanceof Map<?, ?>) {
             throw new ComposeCompileException(
@@ -1822,6 +2121,124 @@ public final class ComposePlanner {
         outerParams.add(s.value);
         return fieldSql + " " + op + " ?";
     }
+
+    private static PlanSubqueryRef coercePlanSubquery(Object value) {
+        if (value instanceof QueryPlan plan) {
+            return new PlanSubqueryRef(plan, null);
+        }
+        if (value instanceof PlanSubquery subquery) {
+            return new PlanSubqueryRef(subquery.plan(), subquery.field());
+        }
+        return null;
+    }
+
+    private static SubquerySql renderPlanSubqueryValue(
+            QueryPlan plan, String explicitField, CompileState state) {
+        OutputSchema schema = SchemaDerivation.derive(plan);
+        String field;
+        if (explicitField == null) {
+            if (schema.names().size() != 1) {
+                throw new ComposeCompileException(
+                        ComposeCompileErrorCodes.UNSUPPORTED_PLAN_SHAPE,
+                        ComposeCompileErrorCodes.PHASE_PLAN_LOWER,
+                        "COMPOSE_SUBQUERY_FIELD_AMBIGUOUS: slice.value QueryPlan "
+                                + "must project exactly one output column, got "
+                                + schema.names()
+                                + ". Use subquery(plan, '<field>') to select one field.");
+            }
+            field = schema.names().get(0);
+        } else {
+            field = explicitField;
+            if (!schema.nameSet().contains(field)) {
+                throw new ComposeCompileException(
+                        ComposeCompileErrorCodes.UNSUPPORTED_PLAN_SHAPE,
+                        ComposeCompileErrorCodes.PHASE_PLAN_LOWER,
+                        "COMPOSE_SUBQUERY_FIELD_NOT_FOUND: subquery field '"
+                                + field + "' is not present in plan output columns "
+                                + schema.names() + ".");
+            }
+        }
+
+        Object compiled = compileAny(plan, state);
+        String sql = extractSql(compiled);
+        List<Object> params = extractParams(compiled);
+        String alias = state.nextAlias();
+        String fieldSql = alias + "." + quoteColumnExpr(field, state.dialect);
+        String wrapped = "(SELECT " + fieldSql
+                + " FROM (" + sql + ") AS " + alias
+                + " WHERE " + fieldSql + " IS NOT NULL)";
+        return new SubquerySql(wrapped, params);
+    }
+
+    private static boolean planContainsSliceSubquery(QueryPlan plan) {
+        if (plan instanceof BaseModelPlan base) {
+            return sliceContainsSubquery(base.slice()) || sliceContainsSubquery(base.having());
+        }
+        if (plan instanceof DerivedQueryPlan derived) {
+            return sliceContainsSubquery(derived.slice()) || planContainsSliceSubquery(derived.source());
+        }
+        if (plan instanceof JoinPlan join) {
+            return planContainsSliceSubquery(join.left()) || planContainsSliceSubquery(join.right());
+        }
+        if (plan instanceof UnionPlan union) {
+            return planContainsSliceSubquery(union.left()) || planContainsSliceSubquery(union.right());
+        }
+        return false;
+    }
+
+    private static boolean sliceContainsSubquery(List<?> slice) {
+        if (slice == null || slice.isEmpty()) {
+            return false;
+        }
+        for (Object entry : slice) {
+            if (sliceEntryContainsSubquery(entry)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean sliceEntryContainsSubquery(Object raw) {
+        if (!(raw instanceof Map<?, ?> entry)) {
+            return false;
+        }
+        if (entry.size() == 1) {
+            Map.Entry<?, ?> only = entry.entrySet().iterator().next();
+            Object key = only.getKey();
+            if (SYMMETRIC_LOGICAL_OPS.contains(key)) {
+                if (only.getValue() instanceof Iterable<?> nested) {
+                    for (Object sub : nested) {
+                        if (sliceEntryContainsSubquery(sub)) {
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }
+            if ("$not".equals(key)) {
+                Object value = only.getValue();
+                if (value instanceof Iterable<?> nested) {
+                    for (Object sub : nested) {
+                        if (sliceEntryContainsSubquery(sub)) {
+                            return true;
+                        }
+                    }
+                    return false;
+                }
+                return sliceEntryContainsSubquery(value);
+            }
+        }
+        Object value = entry.containsKey("field")
+                ? entry.get("value")
+                : entry.size() == 1 ? entry.values().iterator().next() : null;
+        return coercePlanSubquery(value) != null;
+    }
+
+    private record PlanSubqueryRef(QueryPlan plan, String field) { }
+    private record SubquerySql(String sql, List<Object> params) { }
+    private record BaseSliceSubqueryPartition(List<Object> scalarSlices, List<Object> subquerySlices) { }
+    private record BaseSubqueryWhere(List<String> fragments, List<Object> params) { }
+    private record WhereInjection(String sql, int insertPos) { }
 
     private static String normalizeSliceOp(Object op) {
         return op == null

@@ -30,7 +30,7 @@ import java.util.function.Function;
 
 /**
  * M7 Compose Query script runtime — parse + evaluate fsscript with a
- * sandboxed visible surface ({@code from}, {@code dsl}, {@code Query}).
+ * sandboxed visible surface ({@code from}, {@code dsl}, {@code Query}, {@code subquery}).
  *
  * <p><b>Sandbox strategy (Java — simpler than Python).</b>
  * Java {@link DefaultExpEvaluator} does NOT pre-inject any builtins when
@@ -40,8 +40,8 @@ import java.util.function.Function;
  * beans". Passing {@code appCtx=null} blocks all {@code @FsscriptExp}
  * bean injection.</p>
  *
- * <p>{@link #ALLOWED_SCRIPT_GLOBALS} is {@code Set.of("from", "dsl", "Query")}
- * — exactly 3 items. Tests hard-assert this equals the evaluator's
+ * <p>{@link #ALLOWED_SCRIPT_GLOBALS} is {@code Set.of("from", "dsl", "Query", "subquery")}
+ * — exactly 4 items. Tests hard-assert this equals the evaluator's
  * actual visible surface after injection.</p>
  *
  * <p>Cross-repo invariant: mirrors Python
@@ -57,7 +57,7 @@ public final class ScriptRuntime {
      * Exact set of global names injected into the script evaluator.
      * Tests hard-assert this equals the evaluator's actual visible surface.
      */
-    public static final Set<String> ALLOWED_SCRIPT_GLOBALS = Set.of("from", "dsl", "Query");
+    public static final Set<String> ALLOWED_SCRIPT_GLOBALS = Set.of("from", "dsl", "Query", "subquery");
 
     /**
      * Execute a Compose Query fsscript.
@@ -287,6 +287,16 @@ public final class ScriptRuntime {
             };
             evaluator.setVar("from", fromFunction);
             evaluator.setVar("dsl", fromFunction);  // dsl is an alias for from
+            evaluator.setVar("subquery", (Function<Object[], Object>) rawArgs -> {
+                if (rawArgs == null || rawArgs.length == 0 || rawArgs.length > 2) {
+                    throw new IllegalArgumentException("subquery(plan[, field]) requires 1 or 2 arguments");
+                }
+                QueryPlan plan = (QueryPlan) rawArgs[0];
+                String field = rawArgs.length == 2 && rawArgs[1] != null
+                        ? String.valueOf(rawArgs[1])
+                        : null;
+                return Dsl.subquery(plan, field);
+            });
 
             // 4a. Inject the new OO entry point: Query.from("ModelName")
             evaluator.setVar("Query", QueryFactory.INSTANCE);

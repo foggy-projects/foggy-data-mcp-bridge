@@ -12,6 +12,7 @@ import com.foggyframework.fsscript.exp.PropertyFunction;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.PropertyHolder;
 
+import java.time.temporal.TemporalAccessor;
 import java.util.*;
 
 /**
@@ -44,6 +45,35 @@ import java.util.*;
  * @since 8.2.0.beta
  */
 public abstract class QueryPlan implements PropertyHolder, PropertyFunction {
+
+    public static final String SLICE_VALUE_UNSUPPORTED_CODE =
+            "COMPOSE_SLICE_VALUE_UNSUPPORTED";
+
+    public static final String SUBQUERY_VALUE_UNSUPPORTED_CODE =
+            "COMPOSE_SUBQUERY_VALUE_UNSUPPORTED";
+
+    private static final String SLICE_VALUE_QUERY_PLAN_MESSAGE =
+            SLICE_VALUE_UNSUPPORTED_CODE
+                    + ": slice.value cannot be a QueryPlan; join/anti-join support "
+                    + "is not available in this form. Use a staged aggregate and "
+                    + "filter the derived result, or return separate plans.";
+
+    private static final String SLICE_VALUE_OBJECT_MESSAGE =
+            SLICE_VALUE_UNSUPPORTED_CODE
+                    + ": slice.value must be a scalar or a list of scalar values; "
+                    + "object values are not supported. Use {'$field': '<output_field>'} "
+                    + "only for derived field-to-field comparisons.";
+
+    private static final String SUBQUERY_VALUE_OPERATOR_MESSAGE =
+            SUBQUERY_VALUE_UNSUPPORTED_CODE
+                    + ": slice.value QueryPlan/subquery(plan, field) is only supported "
+                    + "for IN and NOT IN filters.";
+
+    private static final String BASE_SUBQUERY_VALUE_MESSAGE =
+            SUBQUERY_VALUE_UNSUPPORTED_CODE
+                    + ": base model having.value cannot be a QueryPlan or "
+                    + "subquery(plan, field); base aggregate filters do not support "
+                    + "plan-aware subquery lowering.";
 
     /** Package-private constructor — subclasses are restricted to this
      *  package so the Layer-C whitelist cannot be bypassed by external
@@ -557,6 +587,287 @@ public abstract class QueryPlan implements PropertyHolder, PropertyFunction {
                         fieldName + "[" + i + "] must be a non-empty string, got: " + v);
             }
         }
+    }
+
+    public static void validatePlanSliceValues(QueryPlan plan) {
+        if (plan instanceof BaseModelPlan base) {
+            validateSliceValues(base.slice(), "BaseModelPlan.slice");
+            validateSliceValues(base.having(), "BaseModelPlan.having");
+            rejectBaseSliceSubqueries(base.having());
+            validateSliceSubqueryPlans(base.slice());
+            validateSliceSubqueryPlans(base.having());
+        } else if (plan instanceof DerivedQueryPlan derived) {
+            validateSliceValues(derived.slice(), "DerivedQueryPlan.slice");
+            validateSliceSubqueryPlans(derived.slice());
+            validatePlanSliceValues(derived.source());
+        } else if (plan instanceof JoinPlan join) {
+            validatePlanSliceValues(join.left());
+            validatePlanSliceValues(join.right());
+        } else if (plan instanceof UnionPlan union) {
+            validatePlanSliceValues(union.left());
+            validatePlanSliceValues(union.right());
+        }
+    }
+
+    static void validateSliceValues(List<?> slice, String fieldName) {
+        if (slice == null || slice.isEmpty()) return;
+        for (int i = 0; i < slice.size(); i++) {
+            validateSliceEntry(slice.get(i), fieldName + "[" + i + "]");
+        }
+    }
+
+    private static void validateSliceEntry(Object raw, String path) {
+        if (!(raw instanceof Map<?, ?> entry)) {
+            return;
+        }
+        if (entry.size() == 1) {
+            Map.Entry<?, ?> only = entry.entrySet().iterator().next();
+            Object key = only.getKey();
+            if ("$and".equals(key) || "$or".equals(key)) {
+                Object value = only.getValue();
+                if (value instanceof Iterable<?> nested) {
+                    int i = 0;
+                    for (Object sub : nested) {
+                        validateSliceEntry(sub, path + "." + key + "[" + i + "]");
+                        i++;
+                    }
+                }
+                return;
+            }
+            if ("$not".equals(key)) {
+                Object value = only.getValue();
+                if (value instanceof Iterable<?> nested) {
+                    int i = 0;
+                    for (Object sub : nested) {
+                        validateSliceEntry(sub, path + ".$not[" + i + "]");
+                        i++;
+                    }
+                } else {
+                    validateSliceEntry(value, path + ".$not");
+                }
+                return;
+            }
+        }
+        if (entry.containsKey("field")) {
+            validateSliceValue(entry.get("value"), path + ".value", entry.get("op"));
+            return;
+        }
+        if (entry.size() == 1) {
+            validateSliceValue(entry.values().iterator().next(), path + ".value", "=");
+        }
+    }
+
+    private static void validateSliceValue(Object value, String path, Object op) {
+        if (isFieldReferenceValue(value) || isScalarSliceValue(value)) {
+            return;
+        }
+        if (isPlanSubqueryValue(value)) {
+            if (isInOperator(op)) {
+                return;
+            }
+            throw new IllegalArgumentException(SUBQUERY_VALUE_OPERATOR_MESSAGE);
+        }
+        if (value instanceof Map<?, ?>) {
+            throw new IllegalArgumentException(SLICE_VALUE_OBJECT_MESSAGE);
+        }
+        if (value instanceof Collection<?> values) {
+            int i = 0;
+            for (Object item : values) {
+                validateSliceListElement(item, path + "[" + i + "]");
+                i++;
+            }
+            return;
+        }
+        throw new IllegalArgumentException(SLICE_VALUE_OBJECT_MESSAGE);
+    }
+
+    private static void validateSliceListElement(Object value, String path) {
+        if (isScalarSliceValue(value)) {
+            return;
+        }
+        if (value instanceof QueryPlan || value instanceof PlanSubquery) {
+            throw new IllegalArgumentException(SLICE_VALUE_QUERY_PLAN_MESSAGE);
+        }
+        if (value instanceof Map<?, ?> || value instanceof Collection<?>) {
+            throw new IllegalArgumentException(SLICE_VALUE_OBJECT_MESSAGE);
+        }
+        throw new IllegalArgumentException(SLICE_VALUE_OBJECT_MESSAGE);
+    }
+
+    private static boolean isFieldReferenceValue(Object value) {
+        return value instanceof Map<?, ?> map
+                && map.size() == 1
+                && map.containsKey("$field")
+                && map.get("$field") instanceof String;
+    }
+
+    private static boolean isScalarSliceValue(Object value) {
+        return value == null
+                || value instanceof CharSequence
+                || value instanceof Number
+                || value instanceof Boolean
+                || value instanceof Character
+                || value instanceof Enum<?>
+                || value instanceof Date
+                || value instanceof TemporalAccessor
+                || value instanceof UUID;
+    }
+
+    private static boolean isPlanSubqueryValue(Object value) {
+        return value instanceof QueryPlan || value instanceof PlanSubquery;
+    }
+
+    private static boolean isInOperator(Object op) {
+        String normalized = op == null
+                ? "="
+                : op.toString().trim().replaceAll("\\s+", " ").toUpperCase(Locale.ROOT);
+        return "IN".equals(normalized) || "NOT IN".equals(normalized);
+    }
+
+    private static void rejectBaseSliceSubqueries(List<?> slice) {
+        if (slice == null || slice.isEmpty()) {
+            return;
+        }
+        for (Object entry : slice) {
+            rejectBaseSliceSubqueryEntry(entry);
+        }
+    }
+
+    private static void rejectBaseSliceSubqueryEntry(Object raw) {
+        if (!(raw instanceof Map<?, ?> entry)) {
+            return;
+        }
+        if (entry.size() == 1) {
+            Map.Entry<?, ?> only = entry.entrySet().iterator().next();
+            Object key = only.getKey();
+            if ("$and".equals(key) || "$or".equals(key)) {
+                if (only.getValue() instanceof Iterable<?> nested) {
+                    for (Object sub : nested) {
+                        rejectBaseSliceSubqueryEntry(sub);
+                    }
+                }
+                return;
+            }
+            if ("$not".equals(key)) {
+                Object value = only.getValue();
+                if (value instanceof Iterable<?> nested) {
+                    for (Object sub : nested) {
+                        rejectBaseSliceSubqueryEntry(sub);
+                    }
+                } else {
+                    rejectBaseSliceSubqueryEntry(value);
+                }
+                return;
+            }
+        }
+        Object value = entry.containsKey("field")
+                ? entry.get("value")
+                : entry.size() == 1 ? entry.values().iterator().next() : null;
+        if (isPlanSubqueryValue(value)) {
+            throw new IllegalArgumentException(BASE_SUBQUERY_VALUE_MESSAGE);
+        }
+    }
+
+    private static void validateSliceSubqueryPlans(List<?> slice) {
+        if (slice == null || slice.isEmpty()) {
+            return;
+        }
+        for (Object entry : slice) {
+            validateSliceSubqueryPlanEntry(entry);
+        }
+    }
+
+    private static void validateSliceSubqueryPlanEntry(Object raw) {
+        if (!(raw instanceof Map<?, ?> entry)) {
+            return;
+        }
+        if (entry.size() == 1) {
+            Map.Entry<?, ?> only = entry.entrySet().iterator().next();
+            Object key = only.getKey();
+            if ("$and".equals(key) || "$or".equals(key)) {
+                if (only.getValue() instanceof Iterable<?> nested) {
+                    for (Object sub : nested) {
+                        validateSliceSubqueryPlanEntry(sub);
+                    }
+                }
+                return;
+            }
+            if ("$not".equals(key)) {
+                Object value = only.getValue();
+                if (value instanceof Iterable<?> nested) {
+                    for (Object sub : nested) {
+                        validateSliceSubqueryPlanEntry(sub);
+                    }
+                } else {
+                    validateSliceSubqueryPlanEntry(value);
+                }
+                return;
+            }
+        }
+        Object value = entry.containsKey("field")
+                ? entry.get("value")
+                : entry.size() == 1 ? entry.values().iterator().next() : null;
+        QueryPlan subqueryPlan = sliceSubqueryPlan(value);
+        if (subqueryPlan != null) {
+            validatePlanSliceValues(subqueryPlan);
+        }
+    }
+
+    static List<BaseModelPlan> sliceSubqueryBaseModelPlans(List<?> slice) {
+        if (slice == null || slice.isEmpty()) {
+            return List.of();
+        }
+        List<BaseModelPlan> out = new ArrayList<>();
+        for (Object entry : slice) {
+            collectSliceSubqueryBaseModelPlans(entry, out);
+        }
+        return out;
+    }
+
+    private static void collectSliceSubqueryBaseModelPlans(Object raw, List<BaseModelPlan> out) {
+        if (!(raw instanceof Map<?, ?> entry)) {
+            return;
+        }
+        if (entry.size() == 1) {
+            Map.Entry<?, ?> only = entry.entrySet().iterator().next();
+            Object key = only.getKey();
+            if ("$and".equals(key) || "$or".equals(key)) {
+                if (only.getValue() instanceof Iterable<?> nested) {
+                    for (Object sub : nested) {
+                        collectSliceSubqueryBaseModelPlans(sub, out);
+                    }
+                }
+                return;
+            }
+            if ("$not".equals(key)) {
+                Object value = only.getValue();
+                if (value instanceof Iterable<?> nested) {
+                    for (Object sub : nested) {
+                        collectSliceSubqueryBaseModelPlans(sub, out);
+                    }
+                } else {
+                    collectSliceSubqueryBaseModelPlans(value, out);
+                }
+                return;
+            }
+        }
+        Object value = entry.containsKey("field")
+                ? entry.get("value")
+                : entry.size() == 1 ? entry.values().iterator().next() : null;
+        QueryPlan subqueryPlan = sliceSubqueryPlan(value);
+        if (subqueryPlan != null) {
+            out.addAll(subqueryPlan.baseModelPlans());
+        }
+    }
+
+    private static QueryPlan sliceSubqueryPlan(Object value) {
+        if (value instanceof QueryPlan plan) {
+            return plan;
+        }
+        if (value instanceof PlanSubquery subquery) {
+            return subquery.plan();
+        }
+        return null;
     }
 
     static void validatePagination(Integer limit, Integer start, String owner) {

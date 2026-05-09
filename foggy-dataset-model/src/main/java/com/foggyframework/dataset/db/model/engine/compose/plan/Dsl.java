@@ -109,6 +109,16 @@ public final class Dsl {
                 .build();
     }
 
+    /** Build an explicit plan-aware slice subquery value. */
+    public static PlanSubquery subquery(QueryPlan plan, String field) {
+        return new PlanSubquery(plan, field);
+    }
+
+    /** Build an implicit single-column plan-aware slice subquery value. */
+    public static PlanSubquery subquery(QueryPlan plan) {
+        return new PlanSubquery(plan, null);
+    }
+
     /**
      * Options carrier for {@link #from(FromOptions)}.
      *

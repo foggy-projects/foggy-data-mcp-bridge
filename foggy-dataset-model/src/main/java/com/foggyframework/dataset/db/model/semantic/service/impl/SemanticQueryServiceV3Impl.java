@@ -23,7 +23,9 @@ import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.db.model.semantic.service.DimensionMemberLoader;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
+import com.foggyframework.dataset.db.model.spi.DbColumn;
 import com.foggyframework.dataset.db.model.service.QueryFacade;
+import com.foggyframework.dataset.db.model.spi.DbQueryCondition;
 import com.foggyframework.dataset.db.model.spi.DbQueryColumn;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
 import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
@@ -293,6 +295,37 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
             return new SqlGenerationResult(composedSql.getSql(), composedSql.getParams(), null);
         }
         return result;
+    }
+
+    @Override
+    public Optional<String> resolveFieldSqlExpression(String model, String field, String namespace) {
+        if (StringUtils.isEmpty(model) || StringUtils.isEmpty(field)) {
+            return Optional.empty();
+        }
+        QueryModel queryModel = queryModelLoader.getJdbcQueryModel(model, namespace);
+        if (queryModel == null) {
+            return Optional.empty();
+        }
+
+        DbColumn column = null;
+        DbQueryCondition condition = queryModel.findJdbcQueryCondByField(field);
+        if (condition != null) {
+            column = condition.getColumn();
+        }
+        if (column == null) {
+            DbQueryColumn queryColumn = queryModel.findJdbcQueryColumnByName(field, false);
+            if (queryColumn != null) {
+                column = queryColumn.getSelectColumn() != null
+                        ? queryColumn.getSelectColumn()
+                        : queryColumn;
+            }
+        }
+        if (column == null) {
+            return Optional.empty();
+        }
+
+        String alias = queryModel.getAlias(column.getQueryObject());
+        return Optional.of(column.getDeclare(null, alias));
     }
 
     private void putDomainTransportPlans(Map<String, Object> extData, SemanticRequestContext context) {

@@ -39,6 +39,8 @@ public final class BaseModelPlan extends QueryPlan {
         validateColumnElements(b.columns, "BaseModelPlan.columns");
         validateStringList(b.groupBy, "BaseModelPlan.groupBy");
         validateStringList(b.orderBy, "BaseModelPlan.orderBy");
+        validateSliceValues(b.slice, "BaseModelPlan.slice");
+        validateSliceValues(b.having, "BaseModelPlan.having");
         validatePagination(b.limit, b.start, "BaseModelPlan");
         // G5 Phase 2 (F5) — base plans have no lineage children and the
         // plan-being-built does not yet exist, so any F5 plan-qualified
@@ -72,7 +74,11 @@ public final class BaseModelPlan extends QueryPlan {
 
     @Override
     public List<BaseModelPlan> baseModelPlans() {
-        return List.of(this);
+        List<BaseModelPlan> out = new java.util.ArrayList<>();
+        out.add(this);
+        out.addAll(sliceSubqueryBaseModelPlans(slice));
+        out.addAll(sliceSubqueryBaseModelPlans(having));
+        return List.copyOf(out);
     }
 
     @Override

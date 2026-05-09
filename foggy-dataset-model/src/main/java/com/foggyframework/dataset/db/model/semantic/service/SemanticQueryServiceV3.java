@@ -7,6 +7,7 @@ import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContex
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * V3版本语义查询服务接口
@@ -62,6 +63,19 @@ public interface SemanticQueryServiceV3 {
      */
     SqlGenerationResult generateSql(String model, SemanticQueryRequest request,
                                     SemanticRequestContext context);
+
+    /**
+     * Resolve a semantic QM field to the physical SQL expression used inside
+     * base-model SQL, for compose-side expression injection.
+     *
+     * <p>Implementations that cannot expose model metadata may return empty;
+     * compose tests/fakes then fall back to the field name. Production
+     * implementations should fail closed by returning empty when the field is
+     * unknown.</p>
+     */
+    default Optional<String> resolveFieldSqlExpression(String model, String field, String namespace) {
+        return Optional.empty();
+    }
 
     /**
      * Execute raw SQL compiled by M6 {@link com.foggyframework.dataset.db.model.engine.compose.compilation.ComposeSqlCompiler}

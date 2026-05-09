@@ -4,6 +4,7 @@ import com.foggyframework.dataset.db.model.engine.compose.plan.BaseModelPlan;
 import com.foggyframework.dataset.db.model.engine.compose.plan.DerivedQueryPlan;
 import com.foggyframework.dataset.db.model.engine.compose.plan.JoinOn;
 import com.foggyframework.dataset.db.model.engine.compose.plan.JoinPlan;
+import com.foggyframework.dataset.db.model.engine.compose.plan.PlanSubquery;
 import com.foggyframework.dataset.db.model.engine.compose.plan.QueryPlan;
 import com.foggyframework.dataset.db.model.engine.compose.plan.UnionPlan;
 
@@ -75,6 +76,12 @@ public final class PlanHash {
      * </ul>
      */
     public static Object canonical(Object value) {
+        if (value instanceof PlanSubquery subquery) {
+            return List.of("subquery", planHash(subquery.plan()), boxNull(subquery.field()));
+        }
+        if (value instanceof QueryPlan plan) {
+            return List.of("plan", planHash(plan));
+        }
         if (value instanceof Map<?, ?>) {
             // sort by key toString, map value through canonical
             Map<?, ?> map = (Map<?, ?>) value;
