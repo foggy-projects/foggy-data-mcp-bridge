@@ -9,12 +9,18 @@ import com.foggyframework.dataset.db.model.engine.query_model.JdbcQueryModelImpl
 import com.foggyframework.dataset.db.model.engine.query_model.QueryModelSupport;
 import com.foggyframework.dataset.db.model.impl.AiObject;
 import com.foggyframework.dataset.db.model.impl.DbColumnDelegate;
+import com.foggyframework.dataset.db.model.impl.dimension.DbDimensionSupport;
 import com.foggyframework.dataset.db.model.impl.dimension.DbModelParentChildDimensionImpl;
 import com.foggyframework.dataset.db.model.impl.model.DbTableModelImpl;
 import com.foggyframework.dataset.db.model.impl.query.DbQueryConditionImpl;
 import com.foggyframework.dataset.db.model.impl.query.DbQueryColumnImpl;
 import com.foggyframework.dataset.db.model.interceptor.SqlLoggingInterceptor;
 import com.foggyframework.dataset.db.model.plugins.query_execution.QueryExecutionStepExecutor;
+import com.foggyframework.dataset.db.model.semantic.member.permission.MemberPermissionDef;
+import com.foggyframework.dataset.db.model.semantic.member.permission.MemberPermissionSliceDef;
+import com.foggyframework.dataset.db.model.semantic.member.permission.QmMemberPermissionDef;
+import com.foggyframework.dataset.db.model.semantic.member.permission.SyntheticMemberEffectivePermission;
+import com.foggyframework.dataset.db.model.semantic.member.permission.SyntheticMemberPermissionResolver;
 import com.foggyframework.dataset.db.model.spi.*;
 import com.foggyframework.dataset.db.table.SqlColumn;
 import jakarta.annotation.Resource;
@@ -44,6 +50,8 @@ public class SyntheticMemberQueryModelFactory {
     @Resource
     private QueryExecutionStepExecutor queryExecutionStepExecutor;
 
+    private final SyntheticMemberPermissionResolver permissionResolver = new SyntheticMemberPermissionResolver();
+
     public QueryModelSupport build(QueryModel sourceModel,
                                    SyntheticMemberQueryModelDescriptor descriptor) {
         Objects.requireNonNull(sourceModel, "sourceModel cannot be null");
@@ -55,6 +63,7 @@ public class SyntheticMemberQueryModelFactory {
         RX.notNull(sourceJdbcModel, "synthetic member-QM 目前仅支持 JDBC QueryModel");
 
         DbDimension rootDimension = resolveRootDimension(sourceModel.getJdbcModel(), descriptor.dimensionFieldBase());
+        validateForcedSliceFields(sourceSupport, descriptor, rootDimension);
         Map<String, DbDimension> pathToDimension = buildNodeDimensionIndex(rootDimension);
 
         DbTableModelImpl runtimeTableModel = buildRuntimeTableModel(descriptor, rootDimension, pathToDimension);
@@ -249,6 +258,53 @@ public class SyntheticMemberQueryModelFactory {
             }
         }
         throw RX.throwAUserTip("无法解析 synthetic member-QM 根维度: " + dimFieldBase);
+    }
+
+    private void validateForcedSliceFields(QueryModelSupport sourceSupport,
+                                           SyntheticMemberQueryModelDescriptor descriptor,
+                                           DbDimension rootDimension) {
+        MemberPermissionDef tmPermission = rootDimension instanceof DbDimensionSupport support
+                ? support.getMemberPermission()
+                : null;
+        QmMemberPermissionDef qmPermission = resolveQmPermission(sourceSupport, descriptor.dimensionFieldBase());
+        if (tmPermission == null && qmPermission == null) {
+            return;
+        }
+
+        SyntheticMemberEffectivePermission effective = permissionResolver.resolve(tmPermission, qmPermission);
+        if (effective == null || effective.getForcedSlice() == null || effective.getForcedSlice().isEmpty()) {
+            return;
+        }
+
+        Map<String, SyntheticMemberFieldSchema> fieldIndex = descriptor.schema().fieldIndex();
+        for (MemberPermissionSliceDef sliceDef : effective.getForcedSlice()) {
+            String field = sliceDef == null ? null : sliceDef.getField();
+            if (StringUtils.isEmpty(field) || fieldIndex == null || !fieldIndex.containsKey(field)) {
+                throw RX.throwAUserTip(buildForcedSliceFieldMissingMessage(
+                        field,
+                        descriptor.sourceModelName(),
+                        descriptor.dimensionFieldBase()
+                ));
+            }
+        }
+    }
+
+    private QmMemberPermissionDef resolveQmPermission(QueryModelSupport sourceSupport, String dimFieldBase) {
+        if (sourceSupport == null || sourceSupport.getMemberPermissions() == null) {
+            return null;
+        }
+        for (QmMemberPermissionDef def : sourceSupport.getMemberPermissions()) {
+            if (def != null && StringUtils.equals(def.getDimension(), dimFieldBase)) {
+                return def;
+            }
+        }
+        return null;
+    }
+
+    private String buildForcedSliceFieldMissingMessage(String field, String sourceModelName, String dimFieldBase) {
+        return "synthetic member-QM 内部权限字段不存在: field=" + field
+                + ", qmModel=" + sourceModelName
+                + ", memberField=" + dimFieldBase + SyntheticMemberQueryModelResolver.FIELD_SEPARATOR + "caption";
     }
 
     private Map<String, DbDimension> buildNodeDimensionIndex(DbDimension rootDimension) {

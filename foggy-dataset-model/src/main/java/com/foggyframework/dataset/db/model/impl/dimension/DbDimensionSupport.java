@@ -2,6 +2,7 @@ package com.foggyframework.dataset.db.model.impl.dimension;
 
 import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.core.ex.RX;
+import com.foggyframework.core.trans.ObjectTransFormatter;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.db.model.common.result.DbDataItem;
 import com.foggyframework.dataset.db.model.engine.query.JdbcQuery;
@@ -185,7 +186,11 @@ public abstract class DbDimensionSupport extends DbObjectSupport implements DbDi
     }
 
     public void init() {
-        RX.hasText(foreignKey, "主表的foreignKey不能为空");
+        if (StringUtils.isEmpty(foreignKey)) {
+            if (queryObject != null || jdbcProperties.isEmpty()) {
+                throw RX.throwAUserTip("主表的foreignKey不能为空，除非这是只暴露 properties 的无表维度");
+            }
+        }
 
 
         if (queryObject != null) {
@@ -228,11 +233,11 @@ public abstract class DbDimensionSupport extends DbObjectSupport implements DbDi
             this.joinTo = parentDimension.getName();
         }
 
-        if (StringUtils.isEmpty(joinTo)) {
+        if (StringUtils.isEmpty(joinTo) && StringUtils.isNotEmpty(foreignKey)) {
             // 顶层维度：外键在主表上
             foreignKeyDbColumn = new DimensionDbColumn(jdbcModel.getQueryObject().getSqlColumn(foreignKey, true));
 
-        } else if (queryObject != null) {
+        } else if (StringUtils.isNotEmpty(joinTo) && queryObject != null) {
             // 嵌套维度或 joinTo 维度：外键在父维度表上
             QueryObject parentQueryObject;
             if (parentDimension != null) {
@@ -277,7 +282,23 @@ public abstract class DbDimensionSupport extends DbObjectSupport implements DbDi
 
         @Override
         public QueryObject getQueryObject() {
-            return DbDimensionSupport.this.queryObject;
+            QueryObject propertyQueryObject = property.getPropertyDbColumn().getQueryObject();
+            if (propertyQueryObject != null) {
+                return propertyQueryObject;
+            }
+            return DbDimensionSupport.this.queryObject == null
+                    ? jdbcModel.getQueryObject()
+                    : DbDimensionSupport.this.queryObject;
+        }
+
+        @Override
+        public String getDeclare(ApplicationContext appCtx, String alias) {
+            return property.getPropertyDbColumn().getDeclare(appCtx, alias);
+        }
+
+        @Override
+        public String getDeclare() {
+            return property.getPropertyDbColumn().getDeclare();
         }
 
         @Override
@@ -290,7 +311,7 @@ public abstract class DbDimensionSupport extends DbObjectSupport implements DbDi
             if (alias == null) {
                 // 使用维度的别名路径（下划线分隔，支持嵌套维度）来构建属性列名
                 String fullPathAlias = getFullPathForAlias();
-                alias = fullPathAlias + "$" + property.getPropertyDbColumn().getAlias();
+                alias = fullPathAlias + "$" + property.getName();
             }
             return alias;
         }
@@ -314,6 +335,16 @@ public abstract class DbDimensionSupport extends DbObjectSupport implements DbDi
         @Override
         public DbColumnType getType() {
             return property.getType();
+        }
+
+        @Override
+        public ObjectTransFormatter<?> getFormatter() {
+            return property.getPropertyDbColumn().getFormatter();
+        }
+
+        @Override
+        public ObjectTransFormatter<?> getFormatter(boolean errorIfNull) {
+            return property.getPropertyDbColumn().getFormatter(errorIfNull);
         }
 
         @Override
@@ -627,9 +658,14 @@ public abstract class DbDimensionSupport extends DbObjectSupport implements DbDi
     @Override
     public List<DbColumn> getAllDbColumns() {
         List<DbColumn> ll = new ArrayList<>();
-        ll.add(this.foreignKeyDbColumn);
+        if (this.foreignKeyDbColumn != null) {
+            ll.add(this.foreignKeyDbColumn);
+        }
 
-        if (this.captionDbColumn != null && this.foreignKeyDbColumn.getSqlColumn() != this.captionDbColumn.getSqlColumn()) {
+        if (this.captionDbColumn != null
+                && (this.foreignKeyDbColumn == null
+                || this.foreignKeyDbColumn.getSqlColumn() != this.captionDbColumn.getSqlColumn()
+                || !StringUtils.equals(this.foreignKeyDbColumn.getName(), this.captionDbColumn.getName()))) {
             ll.add(this.captionDbColumn);
         }
 

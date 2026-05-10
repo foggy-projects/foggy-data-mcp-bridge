@@ -2,6 +2,8 @@ package com.foggyframework.dataset.db.model.spi;
 
 import com.foggyframework.fsscript.exp.FsscriptFunction;
 
+import java.math.BigDecimal;
+
 public interface DbProperty extends DbObject {
 
     DbColumn getPropertyDbColumn();
@@ -39,6 +41,18 @@ public interface DbProperty extends DbObject {
      * 获取推荐用途说明
      */
     default String getRecommendedUse() {
+        return null;
+    }
+
+    default BigDecimal getSemanticScaleFactor() {
+        return null;
+    }
+
+    default String getSemanticUnit() {
+        return null;
+    }
+
+    default String getSemanticUnitLabel() {
         return null;
     }
 }

@@ -8,6 +8,7 @@ import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 import org.springframework.beans.BeanUtils;
 
+import java.math.BigDecimal;
 import java.util.Map;
 
 @Data
@@ -29,6 +30,15 @@ public class DbMeasureDef extends DbDefSupport {
 
     @ApiModelProperty(value = "方言专属公式", notes = "key 为方言标识（postgresql/mysql/sqlserver/sqlite/oracle），value 为该方言的公式定义。优先级高于 formulaDef")
     Map<String, DbFormulaDef> dialectFormulaDef;
+
+    @ApiModelProperty(value = "语义缩放因子", notes = "用于物理金额列按语义单位读取，例如分转元配置 100；不能与 formulaDef/dialectFormulaDef 同时使用")
+    BigDecimal semanticScaleFactor;
+
+    @ApiModelProperty(value = "语义单位编码", notes = "例如 CNY、USD、percent")
+    String semanticUnit;
+
+    @ApiModelProperty(value = "语义单位显示名", notes = "例如 元、美元、百分比")
+    String semanticUnitLabel;
 
     public void apply(DbMeasureSupport measure) {
         super.apply(measure);

@@ -72,7 +72,7 @@ public class SyntheticMemberInternalPatchStep implements DataSetResultStep {
 
         // --- patch 应用 ---
         applyVisibleColumns(queryRequest, effective.getVisibleColumns(), schemaFields);
-        applyForcedSlice(queryRequest, effective.getForcedSlice(), schemaFields, ctx);
+        applyForcedSlice(queryRequest, effective.getForcedSlice(), schemaFields, ctx, sourceModelName, dimFieldBase);
         applyForcedOrderBy(queryRequest, effective.getVisibleColumns(), effective.getForcedOrderBy(), schemaFields);
         applyHierarchyCheck(queryRequest, effective, schemaFields);
 
@@ -175,7 +175,9 @@ public class SyntheticMemberInternalPatchStep implements DataSetResultStep {
     private void applyForcedSlice(DbQueryRequestDef queryRequest,
                                    List<MemberPermissionSliceDef> forcedSlice,
                                    LinkedHashSet<String> schemaFields,
-                                   ModelResultContext ctx) {
+                                   ModelResultContext ctx,
+                                   String sourceModelName,
+                                   String dimFieldBase) {
         if (forcedSlice == null || forcedSlice.isEmpty()) {
             return;
         }
@@ -187,8 +189,9 @@ public class SyntheticMemberInternalPatchStep implements DataSetResultStep {
         for (MemberPermissionSliceDef sliceDef : forcedSlice) {
             String field = sliceDef.getField();
             if (StringUtils.isEmpty(field) || !schemaFields.contains(field)) {
-                log.warn("内部成员权限 forcedSlice 字段不在 schema 中，跳过: {}", field);
-                continue;
+                throw RX.throwAUserTip("synthetic member-QM 内部权限字段不存在: field=" + field
+                        + ", qmModel=" + sourceModelName
+                        + ", memberField=" + dimFieldBase + SyntheticMemberQueryModelResolver.FIELD_SEPARATOR + "caption");
             }
 
             Object resolvedValue = sliceDef.resolveValue(valueContext);

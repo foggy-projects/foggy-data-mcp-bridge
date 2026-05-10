@@ -1,0 +1,45 @@
+/**
+ * semanticScaleFactor query model.
+ */
+const fs = loadTableModel('FactSalesSemanticScaleModel');
+
+export const queryModel = {
+    name: 'FactSalesSemanticScaleQueryModel',
+    caption: '语义缩放销售查询',
+    loader: 'v2',
+
+    model: fs,
+
+    columnGroups: [
+        {
+            caption: '日期',
+            items: [
+                { ref: fs.salesDate },
+                { ref: fs.salesDate$year },
+                { ref: fs.salesDate$month }
+            ]
+        },
+        {
+            caption: '订单',
+            items: [
+                { ref: fs.orderId }
+            ]
+        },
+        {
+            caption: '商品',
+            items: [
+                { ref: fs.product },
+                { ref: fs.product$categoryName },
+                { ref: fs.product$unitPriceYuan }
+            ]
+        },
+        {
+            caption: '度量',
+            items: [
+                { ref: fs.salesAmountYuan }
+            ]
+        }
+    ],
+
+    accesses: []
+};

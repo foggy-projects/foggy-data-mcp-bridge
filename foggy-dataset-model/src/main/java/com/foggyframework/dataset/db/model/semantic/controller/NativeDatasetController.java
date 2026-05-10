@@ -2,12 +2,15 @@ package com.foggyframework.dataset.db.model.semantic.controller;
 
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataRequest;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.db.model.semantic.service.NativeComposeQueryService;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticModelCatalogService;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
+import com.foggyframework.dataset.db.model.semantic.service.SemanticServiceV3;
 import com.foggyframework.dataset.db.model.semantic.support.SemanticQueryPayloadMapper;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
@@ -37,6 +40,7 @@ import java.util.Set;
 public class NativeDatasetController {
 
     private final SemanticQueryServiceV3 semanticQueryServiceV3;
+    private final SemanticServiceV3 semanticServiceV3;
     private final NativeComposeQueryService nativeComposeQueryService;
     private final SemanticModelCatalogService catalogService;
     private final SemanticQueryPayloadMapper payloadMapper;
@@ -88,6 +92,28 @@ public class NativeDatasetController {
                 request != null ? request : Collections.emptyMap(),
                 namespace,
                 authorization);
+        return RX.ok(response);
+    }
+
+    @ApiOperation("获取单模型完整元数据（MCP-free）")
+    @PostMapping(value = {"/describe_model_internal", "/describe-model-internal"}, produces = MediaType.APPLICATION_JSON_VALUE)
+    public RX<SemanticMetadataResponse> describeModel(
+            @RequestBody(required = false) Map<String, Object> request,
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestHeader(value = "X-NS", required = false) String namespace) {
+        String model = stringValue(request != null ? request.get("model") : null);
+        if (model == null || model.isBlank()) {
+            return RX.failB("缺少必要参数: model");
+        }
+        String format = stringOr(request != null ? request.get("format") : null, "json");
+
+        SemanticMetadataRequest metadataRequest = new SemanticMetadataRequest();
+        metadataRequest.setQmModels(Collections.singletonList(model));
+        SemanticMetadataResponse response = semanticServiceV3.getMetadata(
+                metadataRequest,
+                format,
+                buildContext(request != null ? request : Collections.emptyMap(), namespace, authorization)
+        );
         return RX.ok(response);
     }
 
