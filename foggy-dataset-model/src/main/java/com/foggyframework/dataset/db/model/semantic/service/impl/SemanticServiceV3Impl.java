@@ -270,8 +270,12 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                 // $id 字段
                 String idFieldName = dimName + "$id";
                 dimensionFieldNames.add(idFieldName);
-                String idDesc = escapeMarkdownTable(
-                        dimension.getKeyDescription() != null ? dimension.getKeyDescription() : "");
+                String idDesc = dimension.getKeyDescription() != null ? dimension.getKeyDescription() : "";
+                if (isDateDimensionRoot(dimension)) {
+                    String idFormatHint = getIdFormatHint(dimension);
+                    idDesc = StringUtils.isNotEmpty(idDesc) ? idDesc + " " + idFormatHint : idFormatHint;
+                }
+                idDesc = escapeMarkdownTable(idDesc);
                 md.append("| ").append(idFieldName)
                         .append(" | ").append(dimCaption).append("(ID)")
                         .append(" | ").append(getIdTypeDescription(dimension))
@@ -398,12 +402,17 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                     // $id 字段
                     String idFieldName = dimName + "$id";
                     dimensionFieldNames.add(idFieldName);
+                    String idDesc = dimension.getKeyDescription() != null ? dimension.getKeyDescription() : "";
+                    if (isDateDimensionRoot(dimension)) {
+                        String idFormatHint = getIdFormatHint(dimension);
+                        idDesc = StringUtils.isNotEmpty(idDesc) ? idDesc + " " + idFormatHint : idFormatHint;
+                    }
                     md.append("| ").append(idFieldName)
                             .append(" | ").append(dimCaption).append("(ID)")
                             .append(" | 维度ID")
                             .append(" | ").append(role)
                             .append(" | ").append(recUse)
-                            .append(" | ").append(escapeMarkdownTable(dimension.getKeyDescription() != null ? dimension.getKeyDescription() : ""))
+                            .append(" | ").append(escapeMarkdownTable(idDesc))
                             .append(" |\n");
                             
                     // $caption 字段
@@ -1093,6 +1102,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
     private Map<String, Object> createDimensionIdFieldInfo(DbDimension dimension, String modelName) {
         Map<String, Object> fieldInfo = new LinkedHashMap<>();
         String baseName = dimension.getEffectiveName();
+        boolean dateDimensionRoot = isDateDimensionRoot(dimension);
 
         fieldInfo.put("name", (dimension.getCaption() != null ? dimension.getCaption() : baseName) + "(ID)");
         fieldInfo.put("fieldName", baseName + "$id");
@@ -1101,7 +1111,9 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         String idType = getIdTypeDescription(dimension);
         String idFormatHint = getIdFormatHint(dimension);
 
-        String metaStr = "维度ID | " + idType + (idFormatHint != null ? " | " + idFormatHint : "");
+        String metaStr = (dateDimensionRoot ? "日期维度键 | " : "维度ID | ")
+                + idType
+                + (idFormatHint != null ? " | " + idFormatHint : "");
         if (isHierarchicalDimension(dimension)) {
             metaStr += " | 层级维度(selfAndDescendantsOf/selfAndAncestorsOf)";
         }
@@ -1109,7 +1121,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
 
         // 前端需要的字段
         fieldInfo.put("type", getJdbcColumnType(dimension));
-        fieldInfo.put("filterType", "dimension");
+        fieldInfo.put("filterType", dateDimensionRoot ? "date" : "dimension");
         fieldInfo.put("filterable", true);
         fieldInfo.put("measure", false);
         fieldInfo.put("aggregatable", false);
@@ -1130,9 +1142,13 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
 
         Map<String, Object> modelInfo = new LinkedHashMap<>();
         modelInfo.put("description", buildIdDescription(dimension));
-        modelInfo.put("usage", isHierarchicalDimension(dimension)
-                ? "用于精确查询、层级查询（如查某节点及其所有子节点）、作为外键关联、排序"
-                : "用于精确查询、作为外键关联、排序");
+        if (dateDimensionRoot) {
+            modelInfo.put("usage", "用于绝对日期过滤、范围过滤、聚合和排序；值使用 ISO 日期/时间字符串");
+        } else {
+            modelInfo.put("usage", isHierarchicalDimension(dimension)
+                    ? "用于精确查询、层级查询（如查某节点及其所有子节点）、作为外键关联、排序"
+                    : "用于精确查询、作为外键关联、排序");
+        }
 
         Map<String, Object> models = new LinkedHashMap<>();
         models.put(modelName, modelInfo);
@@ -1232,6 +1248,11 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         return "数值/文本";
     }
 
+    private boolean isDateDimensionRoot(DbDimension dimension) {
+        DbDimensionType type = dimension.getType();
+        return DbDimensionType.DATETIME == type || DbDimensionType.DAY == type;
+    }
+
     /**
      * 判断维度是否为层级维度（父子维度）
      */
@@ -1261,10 +1282,8 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
 
         // 基于维度类型推断（仅类型，不基于名称）
         DbDimensionType type = dimension.getType();
-        if (DbDimensionType.DATETIME == type) {
-            return "格式: yyyyMMddHHmmss";
-        } else if (DbDimensionType.DAY == type) {
-            return "格式: yyyyMMdd";
+        if (DbDimensionType.DATETIME == type || DbDimensionType.DAY == type) {
+            return "Use ISO date/datetime string values such as 2026-05-01; do not use numeric YYYYMMDD values.";
         }
 
         // 不再基于名称推断，返回 null

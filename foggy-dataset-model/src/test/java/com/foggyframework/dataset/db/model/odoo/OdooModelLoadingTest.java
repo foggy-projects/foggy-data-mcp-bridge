@@ -10,6 +10,10 @@ import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.db.model.ecommerce.EcommerceTestSupport;
 import com.foggyframework.dataset.db.model.engine.JdbcModelQueryEngine;
 import com.foggyframework.dataset.db.model.engine.formula.SqlFormulaService;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataRequest;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
+import com.foggyframework.dataset.db.model.semantic.service.SemanticServiceV3;
 import com.foggyframework.dataset.db.model.spi.JdbcQueryModel;
 import com.foggyframework.dataset.db.model.spi.TableModel;
 import jakarta.annotation.Resource;
@@ -41,6 +45,9 @@ class OdooModelLoadingTest extends EcommerceTestSupport {
 
     @Resource
     private SystemBundlesContext systemBundlesContext;
+
+    @Resource
+    private SemanticServiceV3 semanticServiceV3;
 
     // ==========================================
     // TM 模型加载测试
@@ -217,6 +224,33 @@ class OdooModelLoadingTest extends EcommerceTestSupport {
         assertNotNull(queryModel.findJdbcColumnForSelectByName("dateOrder$year", true));
         assertNotNull(queryModel.findJdbcColumnForSelectByName("dateOrder$month", true));
         assertNotNull(queryModel.findJdbcColumnForSelectByName("dateOrder$yearMonth", true));
+    }
+
+    @Test
+    @Order(2011)
+    @DisplayName("SaleOrder self date dimension metadata 不应把 dateOrder$id 暴露为整数日期")
+    void testSaleOrderSelfDateDimensionIdMetadataUsesDateType() {
+        SemanticMetadataRequest request = new SemanticMetadataRequest();
+        request.setQmModels(List.of("OdooSaleOrderQueryModel"));
+
+        SemanticMetadataResponse jsonResponse = semanticServiceV3.getMetadata(
+                request, "json", SemanticRequestContext.empty());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> fields = (Map<String, Object>) jsonResponse.getData().get("fields");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> dateOrderId = (Map<String, Object>) fields.get("dateOrder$id");
+
+        assertNotNull(dateOrderId, "metadata 应包含 dateOrder$id");
+        assertEquals("DATETIME", dateOrderId.get("type"));
+        assertEquals("date", dateOrderId.get("filterType"));
+        assertTrue(dateOrderId.get("meta").toString().contains("ISO date/datetime string values"));
+        assertTrue(dateOrderId.get("meta").toString().contains("do not use numeric YYYYMMDD values"));
+
+        SemanticMetadataResponse markdownResponse = semanticServiceV3.getMetadata(
+                request, "markdown", SemanticRequestContext.empty());
+        assertTrue(markdownResponse.getContent().contains("dateOrder$id"));
+        assertTrue(markdownResponse.getContent().contains("ISO date/datetime string values"));
+        assertTrue(markdownResponse.getContent().contains("do not use numeric YYYYMMDD values"));
     }
 
     @Test
