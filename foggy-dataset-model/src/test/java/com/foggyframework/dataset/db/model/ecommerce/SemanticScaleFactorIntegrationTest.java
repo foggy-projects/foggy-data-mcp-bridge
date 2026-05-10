@@ -105,6 +105,27 @@ class SemanticScaleFactorIntegrationTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("同名模型在默认 namespace 与禁用 namespace 下缓存隔离")
+    void loadModel_disabledNamespaceDoesNotPolluteDefaultNamespace() {
+        String namespace = registerPhysicalNamespace();
+
+        TableModel physicalModel = tableModelLoaderManager.load(TABLE_MODEL, namespace);
+        TableModel defaultModel = tableModelLoaderManager.load(TABLE_MODEL);
+        TableModel physicalModelAgain = tableModelLoaderManager.load(TABLE_MODEL, namespace);
+
+        DbMeasure physicalMeasure = physicalModel.findJdbcMeasureByName("salesAmountYuan");
+        DbMeasure defaultMeasure = defaultModel.findJdbcMeasureByName("salesAmountYuan");
+        DbMeasure physicalMeasureAgain = physicalModelAgain.findJdbcMeasureByName("salesAmountYuan");
+
+        assertNotNull(physicalMeasure);
+        assertNotNull(defaultMeasure);
+        assertNotNull(physicalMeasureAgain);
+        assertNull(physicalMeasure.getSemanticScaleFactor());
+        assertEquals(0, new BigDecimal("100").compareTo(defaultMeasure.getSemanticScaleFactor()));
+        assertNull(physicalMeasureAgain.getSemanticScaleFactor());
+    }
+
+    @Test
     @DisplayName("禁用 namespace 查询使用物理值，不执行语义缩放")
     void disabledNamespace_queryUsesPhysicalValues() {
         String namespace = registerPhysicalNamespace();
@@ -130,6 +151,126 @@ class SemanticScaleFactorIntegrationTest extends EcommerceTestSupport {
         List<Map<String, Object>> actualRows = queryRows(request, null, null, namespace);
 
         assertRowsMatch(expectedRows, actualRows, "orderId", "salesAmountYuan");
+    }
+
+    @Test
+    @DisplayName("禁用 namespace 维度属性使用物理值")
+    void disabledNamespace_dimensionPropertyUsesPhysicalValues() {
+        String namespace = registerPhysicalNamespace();
+        String expectedSql = paginateSql("""
+                SELECT fs.order_id AS orderId,
+                       dp.unit_price AS unitPriceYuan
+                FROM fact_sales fs
+                JOIN dim_product dp ON fs.product_key = dp.product_key
+                ORDER BY fs.order_id ASC, unitPriceYuan ASC
+                """, 20);
+        List<Map<String, Object>> expectedRows = executeQuery(expectedSql);
+        assertFalse(expectedRows.isEmpty(), "physical namespace dimension property smoke should return rows");
+
+        DbQueryRequestDef request = new DbQueryRequestDef();
+        request.setQueryModel(QUERY_MODEL);
+        request.setColumns(List.of("orderId", "product$unitPriceYuan"));
+        request.setOrderBy(List.of(
+                order("orderId", "ASC"),
+                order("product$unitPriceYuan", "ASC")
+        ));
+
+        List<Map<String, Object>> actualRows = queryRows(request, null, null, namespace);
+
+        assertEquals(expectedRows.size(), actualRows.size());
+        for (int i = 0; i < expectedRows.size(); i++) {
+            assertEquals(String.valueOf(expectedRows.get(i).get("orderId")),
+                    String.valueOf(actualRows.get(i).get("orderId")));
+            assertDecimalEquals(expectedRows.get(i).get("unitPriceYuan"),
+                    actualRows.get(i).get("product$unitPriceYuan"));
+        }
+    }
+
+    @Test
+    @DisplayName("禁用 namespace 聚合使用物理值")
+    void disabledNamespace_groupedAggregationUsesPhysicalValues() {
+        String namespace = registerPhysicalNamespace();
+        String expectedSql = paginateSql("""
+                SELECT fs.order_id AS orderId,
+                       SUM(fs.sales_amount) AS salesAmountYuan
+                FROM fact_sales fs
+                GROUP BY fs.order_id
+                ORDER BY salesAmountYuan DESC, fs.order_id ASC
+                """, 20);
+        List<Map<String, Object>> expectedRows = executeQuery(expectedSql);
+        assertFalse(expectedRows.isEmpty(), "physical namespace aggregation smoke should return rows");
+
+        DbQueryRequestDef request = new DbQueryRequestDef();
+        request.setQueryModel(QUERY_MODEL);
+        request.setColumns(List.of("orderId", "salesAmountYuan"));
+        request.setGroupBy(List.of(group("orderId")));
+        request.setOrderBy(List.of(
+                order("salesAmountYuan", "DESC"),
+                order("orderId", "ASC")
+        ));
+
+        List<Map<String, Object>> actualRows = queryRows(request, null, null, namespace);
+
+        assertRowsMatch(expectedRows, actualRows, "orderId", "salesAmountYuan");
+    }
+
+    @Test
+    @DisplayName("禁用 namespace having 使用物理值过滤")
+    void disabledNamespace_havingUsesPhysicalValues() {
+        String namespace = registerPhysicalNamespace();
+        String expectedSql = paginateSql("""
+                SELECT fs.order_id AS orderId,
+                       SUM(fs.sales_amount) AS totalSalesAmountYuan
+                FROM fact_sales fs
+                GROUP BY fs.order_id
+                HAVING SUM(fs.sales_amount) > 1000
+                ORDER BY totalSalesAmountYuan ASC, fs.order_id ASC
+                """, 20);
+        List<Map<String, Object>> expectedRows = executeQuery(expectedSql);
+        assertFalse(expectedRows.isEmpty(), "physical namespace having smoke should return rows");
+
+        DbQueryRequestDef request = new DbQueryRequestDef();
+        request.setQueryModel(QUERY_MODEL);
+        request.setColumns(List.of("orderId", "sum(salesAmountYuan) as totalSalesAmountYuan"));
+        request.setGroupBy(List.of(group("orderId")));
+        request.setHaving(List.of(new SliceRequestDef("totalSalesAmountYuan", ">", 1000)));
+        request.setOrderBy(List.of(
+                order("totalSalesAmountYuan", "ASC"),
+                order("orderId", "ASC")
+        ));
+
+        List<Map<String, Object>> actualRows = queryRows(request, null, null, namespace);
+
+        assertRowsMatch(expectedRows, actualRows, "orderId", "totalSalesAmountYuan");
+    }
+
+    @Test
+    @DisplayName("禁用 namespace calculatedFields 使用物理叶子值")
+    void disabledNamespace_calculatedFieldUsesPhysicalLeafValue() {
+        String namespace = registerPhysicalNamespace();
+        String expectedSql = paginateSql("""
+                SELECT fs.order_id AS orderId,
+                       fs.sales_amount + 10 AS salesAmountPlusTen
+                FROM fact_sales fs
+                ORDER BY fs.order_id ASC, fs.sales_amount ASC
+                """, 20);
+        List<Map<String, Object>> expectedRows = executeQuery(expectedSql);
+        assertFalse(expectedRows.isEmpty(), "physical namespace calculated field smoke should return rows");
+
+        DbQueryRequestDef request = new DbQueryRequestDef();
+        request.setQueryModel(QUERY_MODEL);
+        request.setColumns(List.of("orderId", "salesAmountYuan", "salesAmountPlusTen"));
+        request.setCalculatedFields(List.of(
+                new CalculatedFieldDef("salesAmountPlusTen", "salesAmountYuan + 10")
+        ));
+        request.setOrderBy(List.of(
+                order("orderId", "ASC"),
+                order("salesAmountYuan", "ASC")
+        ));
+
+        List<Map<String, Object>> actualRows = queryRows(request, null, null, namespace);
+
+        assertRowsMatch(expectedRows, actualRows, "orderId", "salesAmountPlusTen");
     }
 
     @Test

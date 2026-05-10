@@ -84,7 +84,7 @@
 目标：
 
 - 同一套 TM/QM 文件注册成 semantic/physical 两个 namespace。
-- 覆盖默认 semantic 查询和 physical namespace select/slice。
+- 覆盖默认 semantic 查询和 physical namespace select/slice/维度属性/聚合/having/calculatedFields。
 
 建议用例：
 
@@ -94,6 +94,9 @@
 | physical namespace select | SQL 不出现 `/ factor` |
 | semantic namespace slice | 过滤值按元理解 |
 | physical namespace slice | 过滤值按分理解 |
+| physical namespace dimension property | 使用原始维度物理列 |
+| physical namespace aggregate | `SUM(column)` 不自动除以 factor |
+| physical namespace having | having 阈值按物理单位比较 |
 | calculatedFields | 两个 namespace 都不需要特殊上下文 |
 | cache isolation | 两个 namespace 不串模型 |
 
@@ -138,19 +141,24 @@
 | `DatasetProperties.java` | 新增 `semanticScale.defaultEnabled=true` 与 `semanticScale.disabledNamespaces=[]` |
 | `DbModelAutoConfiguration.java` | 注入 `DatasetProperties` 到 `TableModelLoaderManagerImpl` |
 | `TableModelLoaderManagerImpl.java` | 在 `DbModelDef` 转换后、初始化前按 namespace 清空 `semanticScaleFactor` |
-| `SemanticScaleFactorIntegrationTest.java` | 新增 physical namespace 元数据与 queryModel 查询用例 |
+| `SemanticScaleFactorIntegrationTest.java` | 新增 physical namespace 元数据、select/slice、维度属性、聚合、having、calculatedFields、cache isolation 查询用例 |
+| `docs/dev-guide/bundle-namespace.md` | 补充同一 TM/QM 双 namespace + semantic-scale 配置示例 |
 
 测试命令：
 
 ```powershell
 mvn -pl foggy-dataset-model -Dtest=SemanticScaleFactorIntegrationTest test
 mvn -pl foggy-dataset-model -Dtest=SemanticScaleFactorIntegrationTest#disabledNamespace_queryUsesPhysicalValues test
+mvn -pl foggy-dataset-model -Dtest=SemanticScaleFactorIntegrationTest#disabledNamespace_dimensionPropertyUsesPhysicalValues+disabledNamespace_groupedAggregationUsesPhysicalValues+disabledNamespace_havingUsesPhysicalValues+disabledNamespace_calculatedFieldUsesPhysicalLeafValue test
+mvn -pl foggy-dataset-model -Dtest=SemanticScaleFactorIntegrationTest#loadModel_disabledNamespaceDoesNotPolluteDefaultNamespace test
 ```
 
 测试结果：
 
-- `SemanticScaleFactorIntegrationTest`: 15 tests, 0 failures, 0 errors.
-- physical namespace 查询生成 `t1.sales_amount` 与 `t1.sales_amount > ?`，未出现 `/100.0`。
+- `SemanticScaleFactorIntegrationTest`: 20 tests, 0 failures, 0 errors.
+- 新增 physical namespace 4 用例单独执行通过：4 tests, 0 failures, 0 errors.
+- namespace cache isolation 用例单独执行通过：1 test, 0 failures, 0 errors.
+- physical namespace 查询生成 `t1.sales_amount`、`dp.unit_price`、`SUM(t1.sales_amount)`、`t1.sales_amount + 10`，未出现 `/100.0`。
 - default semantic namespace 既有用例继续生成 `/100.0`。
 
 ---
@@ -162,4 +170,5 @@ mvn -pl foggy-dataset-model -Dtest=SemanticScaleFactorIntegrationTest#disabledNa
 - 确认没有恢复 runtime `applySemanticScale`。
 - 确认 namespace policy 只影响加载期。
 - 确认测试覆盖 semantic/physical 两个 namespace。
+- 确认同一模型在 semantic/physical namespace 间不会缓存串扰。
 - 确认 README 和部署样例同步。

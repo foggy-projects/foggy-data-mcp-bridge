@@ -82,8 +82,9 @@ foggy:
 1. `DatasetProperties` 已增加 namespace policy 配置。
 2. `TableModelLoaderManagerImpl` 已在加载 `DbModelDef` 后，根据 namespace policy 归一化定义。
 3. physical namespace 下会清空 measure/property 以及嵌套 dimension property 的 `semanticScaleFactor`。
-4. `SemanticScaleFactorIntegrationTest` 已增加 physical namespace 元数据与 queryModel 查询用例。
+4. `SemanticScaleFactorIntegrationTest` 已增加 physical namespace 元数据、select/slice、维度属性、聚合、having、calculatedFields、cache isolation 查询用例。
 5. `OPT-semantic-scale-application-control-progress.md` 已记录测试证据。
+6. `docs/dev-guide/bundle-namespace.md` 已补充双 namespace 与 `foggy.dataset.semantic-scale` 配置示例。
 
 ---
 
@@ -98,4 +99,4 @@ foggy:
 
 ## 接续建议
 
-后续继续开发时不要恢复 `applySemanticScale` 请求参数或 runtime 上下文传递。下一步重点是上游接入文档与实际部署 namespace 配置示例，不再改查询执行期单位切换。
+后续继续开发时不要恢复 `applySemanticScale` 请求参数或 runtime 上下文传递。下一步可转向真实上游 namespace 接入验证；Python 仍保持 deferred，等 Java 侧契约稳定后再评估移植。

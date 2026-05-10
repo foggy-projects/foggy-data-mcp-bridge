@@ -180,15 +180,18 @@ foggy:
 - `TableModelLoaderManagerImpl` 在加载期按 namespace policy 处理 `DbModelDef`。
 - physical namespace 下清空 measure/property 以及嵌套 dimension property 的 `semanticScaleFactor`。
 - 查询执行阶段不新增 runtime 分支，不新增 `applySemanticScale` 请求字段。
+- `docs/dev-guide/bundle-namespace.md` 补充同一 TM/QM 双 namespace + semantic-scale 配置示例。
 
 验证：
 
 ```powershell
 mvn -pl foggy-dataset-model -Dtest=SemanticScaleFactorIntegrationTest test
 mvn -pl foggy-dataset-model -Dtest=SemanticScaleFactorIntegrationTest#disabledNamespace_queryUsesPhysicalValues test
+mvn -pl foggy-dataset-model -Dtest=SemanticScaleFactorIntegrationTest#disabledNamespace_dimensionPropertyUsesPhysicalValues+disabledNamespace_groupedAggregationUsesPhysicalValues+disabledNamespace_havingUsesPhysicalValues+disabledNamespace_calculatedFieldUsesPhysicalLeafValue test
+mvn -pl foggy-dataset-model -Dtest=SemanticScaleFactorIntegrationTest#loadModel_disabledNamespaceDoesNotPolluteDefaultNamespace test
 ```
 
-结果：测试通过；physical namespace 查询 SQL 使用原始物理列 `sales_amount`，default semantic namespace 继续使用 `/100.0`。
+结果：测试通过；`SemanticScaleFactorIntegrationTest` 共 20 tests。physical namespace 查询 SQL 使用原始物理列和聚合表达式，例如 `sales_amount`、`unit_price`、`SUM(sales_amount)`、`sales_amount + 10`，default semantic namespace 继续使用 `/100.0`，semantic/physical namespace 加载缓存不串扰。
 
 ---
 
@@ -198,3 +201,4 @@ mvn -pl foggy-dataset-model -Dtest=SemanticScaleFactorIntegrationTest#disabledNa
 - 2026-05-10：确认采用 namespace 隔离，同一套 TM/QM 文件通过 `ExternalBundleProperties` 注册到不同 namespace。
 - 2026-05-10：确认 `semantic-scale` 默认 true，仅显式 physical namespace 禁用。
 - 2026-05-10：完成 Java engine 加载期 namespace policy，实现与测试证据见进度文档。
+- 2026-05-10：补齐 physical namespace 维度属性、聚合、having、calculatedFields、cache isolation 回归用例，并补通用配置示例。

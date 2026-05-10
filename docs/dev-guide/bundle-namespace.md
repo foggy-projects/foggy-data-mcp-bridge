@@ -29,6 +29,47 @@ foggy:
           watch: false
 ```
 
+### 金额语义单位 Namespace 示例
+
+当同一套 TM/QM 需要同时服务两类契约时，建议用不同 namespace 隔离：
+
+- 业务前后台继续使用物理单位，例如数据库保存“分”，查询也按“分”理解。
+- AI Agent / MCP / LLM 使用语义单位，例如金额统一按“元”理解。
+
+`ExternalBundleProperties` 只负责把同一路径注册到不同 namespace；dataset-model 通过 `foggy.dataset.semantic-scale` 决定哪些 namespace 禁用 `semanticScaleFactor`。
+
+```yaml
+foggy:
+  bundle:
+    external:
+      enabled: true
+      bundles:
+        - name: tms-models-physical
+          namespace: tms-biz
+          path: /data/tms-models
+          watch: true
+
+        - name: tms-models-semantic
+          namespace: tms-ai
+          path: /data/tms-models
+          watch: true
+
+  dataset:
+    semantic-scale:
+      default-enabled: true
+      disabled-namespaces:
+        - tms-biz
+```
+
+在这个配置下：
+
+| Namespace | 使用方 | 金额字段契约 |
+|-----------|--------|--------------|
+| `tms-ai` | AI Agent / MCP / LLM | 保留 `semanticScaleFactor`，字段值按元 |
+| `tms-biz` | 业务前后台 / 既有调用 | 忽略 `semanticScaleFactor`，字段值按分 |
+
+查询入口只需要稳定传递 namespace，不需要额外传递单位开关。
+
 ### Java 配置示例
 
 ```java
