@@ -105,6 +105,9 @@ function genTableSchema(meta) {
   const visibleCols = meta.defaults?.visibleColumns || meta.fields.filter(f => f.uiHints?.visible !== false).map(f => f.name)
   const searchFields = meta.defaults?.searchFields || []
   const pageSize = meta.defaults?.pageSize || 50
+  const queryMode = ['panel', 'column', 'combined', 'none'].includes(meta.defaults?.queryMode)
+    ? meta.defaults.queryMode
+    : null
 
   const lines = [
     `/**`,
@@ -148,9 +151,9 @@ function genTableSchema(meta) {
   lines.push(`  columns: allColumns.filter(c => defaultVisibleColumns.includes(c.name)),`)
   lines.push(`  searchableFields: defaultSearchFields.length > 0 ? defaultSearchFields : undefined,`)
   lines.push(`  pageSize: ${pageSize},`)
+  if (queryMode) lines.push(`  queryMode: '${queryMode}',`)
   lines.push(`  showFilters: true,`)
   lines.push(`  showPager: true,`)
-  lines.push(`  showSearchToolbar: true,`)
   lines.push(`}`)
 
   return lines.join('\n') + '\n'
@@ -279,7 +282,7 @@ function genVue(meta) {
 <script setup lang="ts">
 import { computed } from 'vue'
 import { DataTableWithSearch, fetchMemberOptions } from 'foggy-data-viewer'
-import type { SliceRequestDef, QueryHooks, EnhancedColumnSchema } from 'foggy-data-viewer'
+import type { SliceRequestDef, QueryHooks, EnhancedColumnSchema, QueryMode } from 'foggy-data-viewer'
 import { tableSchema } from './${prefix}.table.schema'
 import { querySchema } from './${prefix}.query.schema'
 import { query${prefix} } from './${prefix}.api'
@@ -297,6 +300,7 @@ const props = withDefaults(defineProps<{
   initialSlices?: SliceRequestDef[]
   columnOverrides?: Record<string, BusinessColumnOverride>
   queryHooks?: QueryHooks
+  queryMode?: QueryMode
   showQueryPanel?: boolean
 }>(), { showQueryPanel: false })
 
@@ -323,6 +327,7 @@ const mergedSchema = computed(() => {
     :schema="mergedSchema"
     :fetch-data="query${prefix}"
     :query-schema="querySchema"
+    :query-mode="queryMode"
     :show-query-panel="showQueryPanel"
     :qm-model="${constName}"
     :filter-member-loader="fetchMemberOptions"

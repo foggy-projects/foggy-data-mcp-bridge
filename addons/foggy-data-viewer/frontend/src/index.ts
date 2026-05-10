@@ -64,6 +64,8 @@ export type {
   EnhancedColumnSchema,
   TableConfig,
   TableSchema,
+  CellCopyConfig,
+  QueryMode,
   ColumnCustomization,
   QueryMetaResponse,
   ViewerQueryRequest,

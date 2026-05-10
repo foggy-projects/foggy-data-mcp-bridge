@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, watch, provide, h, useAttrs } from 'vue'
 import type { VxeGridInstance, VxeGridProps, VxeGridListeners } from 'vxe-table'
-import type { EnhancedColumnSchema, PaginationState, SortState, SliceRequestDef, FilterOption } from '@/types'
+import { ElMessage } from 'element-plus'
+import type { EnhancedColumnSchema, PaginationState, SortState, SliceRequestDef, FilterOption, CellCopyConfig } from '@/types'
 import { TextFilter, NumberRangeFilter, DateRangeFilter, SelectFilter, BoolFilter } from './filters'
 import { useTableSelection, useTableSummary } from './composables'
 
@@ -47,6 +48,8 @@ interface Props {
   filterOptionsLoader?: (columnName: string) => Promise<FilterOption[]>
   /** 自定义过滤器组件映射 */
   customFilterComponents?: Record<string, unknown>
+  /** 普通单元格悬浮复制配置 */
+  cellCopy?: CellCopyConfig
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -85,6 +88,8 @@ const slots = defineSlots<{
 }>()
 
 const gridRef = ref<VxeGridInstance>()
+
+const hoveredCopyCell = ref<{ row: Record<string, unknown>; field: string } | null>(null)
 
 // 分页状态
 const pagination = ref<PaginationState>({
@@ -328,24 +333,15 @@ function emitFilterChange() {
   emit('filter-change', allSlices)
 }
 
-// 根据字段类型获取格式化配置
-function getColumnFormatter(col: EnhancedColumnSchema): Partial<VxeGridProps['columns']>[number] {
-  // 优先使用自定义格式化器
+function formatCellDisplayValue(col: EnhancedColumnSchema, cellValue: unknown): string {
   if (col.customFormatter) {
-    return {
-      formatter: ({ cellValue }) => col.customFormatter!(cellValue)
-    }
+    return col.customFormatter(cellValue)
   }
 
-  // 字典列：value → label 映射（优先级高于 type 默认 formatter）
   if (col.dictItems && col.dictItems.length > 0) {
     const labelMap = new Map(col.dictItems.map(item => [String(item.value), item.label]))
-    return {
-      formatter: ({ cellValue }) => {
-        if (cellValue == null) return ''
-        return labelMap.get(String(cellValue)) ?? String(cellValue)
-      }
-    }
+    if (cellValue == null) return ''
+    return labelMap.get(String(cellValue)) ?? String(cellValue)
   }
 
   const type = col.type?.toUpperCase()
@@ -353,51 +349,153 @@ function getColumnFormatter(col: EnhancedColumnSchema): Partial<VxeGridProps['co
     case 'MONEY':
     case 'NUMBER':
     case 'BIGDECIMAL':
-      return {
-        formatter: ({ cellValue }) => {
-          if (cellValue == null) return ''
-          return typeof cellValue === 'number'
-            ? cellValue.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-            : cellValue
-        }
-      }
+      if (cellValue == null) return ''
+      return typeof cellValue === 'number'
+        ? cellValue.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        : String(cellValue)
     case 'INTEGER':
     case 'BIGINT':
     case 'LONG':
-      return {
-        formatter: ({ cellValue }) => {
-          if (cellValue == null) return ''
-          return typeof cellValue === 'number'
-            ? cellValue.toLocaleString('zh-CN')
-            : cellValue
-        }
-      }
+      if (cellValue == null) return ''
+      return typeof cellValue === 'number'
+        ? cellValue.toLocaleString('zh-CN')
+        : String(cellValue)
     case 'DAY':
     case 'DATE':
-      return {
-        formatter: ({ cellValue }) => {
-          if (!cellValue) return ''
-          return String(cellValue).split('T')[0]
-        }
-      }
+      if (!cellValue) return ''
+      return String(cellValue).split('T')[0]
     case 'DATETIME':
-      return {
-        minWidth: 160,
-        formatter: ({ cellValue }) => {
-          if (!cellValue) return ''
-          return String(cellValue).replace('T', ' ').substring(0, 19)
-        }
-      }
+      if (!cellValue) return ''
+      return String(cellValue).replace('T', ' ').substring(0, 19)
+    case 'BOOL':
+    case 'BOOLEAN':
+      return cellValue === true ? '是' : cellValue === false ? '否' : ''
+    default:
+      return cellValue == null ? '' : String(cellValue)
+  }
+}
+
+// 根据字段类型获取格式化配置
+function getColumnFormatter(col: EnhancedColumnSchema): Partial<VxeGridProps['columns']>[number] {
+  const formatter = ({ cellValue }: { cellValue: unknown }) => formatCellDisplayValue(col, cellValue)
+  const type = col.type?.toUpperCase()
+
+  if (type === 'DATETIME') {
+    return {
+      minWidth: 160,
+      formatter
+    }
+  }
+
+  if (col.customFormatter || (col.dictItems && col.dictItems.length > 0)) {
+    return { formatter }
+  }
+
+  switch (type) {
+    case 'MONEY':
+    case 'NUMBER':
+    case 'BIGDECIMAL':
+    case 'INTEGER':
+    case 'BIGINT':
+    case 'LONG':
+    case 'DAY':
+    case 'DATE':
     case 'BOOL':
     case 'BOOLEAN':
       return {
-        formatter: ({ cellValue }) => {
-          return cellValue === true ? '是' : cellValue === false ? '否' : ''
-        }
+        formatter
       }
     default:
       return {}
   }
+}
+
+function stringifyCopyValue(value: unknown): string {
+  if (value == null) return ''
+  if (['string', 'number', 'boolean', 'bigint'].includes(typeof value)) {
+    return String(value)
+  }
+  return ''
+}
+
+function isCellCopyEnabled(col: EnhancedColumnSchema, value: unknown): boolean {
+  if (col.name === '_actions') return false
+  const copyable = col.copyable ?? (props.cellCopy?.enabled !== false)
+  if (!copyable) return false
+  return stringifyCopyValue(value) !== ''
+}
+
+function isCopyCellActive(row: Record<string, unknown>, field: string): boolean {
+  return hoveredCopyCell.value?.row === row && hoveredCopyCell.value.field === field
+}
+
+function stopCopyEvent(event: Event) {
+  event.preventDefault()
+  event.stopPropagation()
+}
+
+async function copyCellText(event: Event, value: unknown) {
+  stopCopyEvent(event)
+  const text = stringifyCopyValue(value)
+  if (!text) return
+
+  try {
+    await navigator.clipboard.writeText(text)
+  } catch (error) {
+    console.warn('Failed to copy cell value:', error)
+    ElMessage.warning('复制失败，请手动复制')
+  }
+}
+
+function renderCopyIcon() {
+  return h('svg', {
+    class: 'cell-copy-icon',
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    'stroke-width': '2',
+    'stroke-linecap': 'round',
+    'stroke-linejoin': 'round',
+    'aria-hidden': 'true'
+  }, [
+    h('rect', { x: '9', y: '9', width: '13', height: '13', rx: '2', ry: '2' }),
+    h('path', { d: 'M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1' })
+  ])
+}
+
+function renderDefaultCell(col: EnhancedColumnSchema, row: Record<string, unknown>) {
+  const rawValue = row[col.name]
+  const displayValue = formatCellDisplayValue(col, rawValue)
+  const copyEnabled = isCellCopyEnabled(col, rawValue)
+
+  if (!copyEnabled) {
+    return h('span', { class: 'data-table-cell-text' }, displayValue)
+  }
+
+  return h('div', {
+    class: 'data-table-copyable-cell',
+    onMouseenter: () => {
+      hoveredCopyCell.value = { row, field: col.name }
+    },
+    onMouseleave: () => {
+      if (isCopyCellActive(row, col.name)) {
+        hoveredCopyCell.value = null
+      }
+    }
+  }, [
+    h('span', { class: 'data-table-cell-text' }, displayValue),
+    isCopyCellActive(row, col.name) && h('button', {
+      type: 'button',
+      class: 'cell-copy-button',
+      title: '复制',
+      'aria-label': '复制单元格内容',
+      onMousedown: stopCopyEvent,
+      onPointerdown: stopCopyEvent,
+      onClick: (event: Event) => copyCellText(event, rawValue)
+    }, [
+      renderCopyIcon()
+    ])
+  ])
 }
 
 // 切换排序
@@ -476,6 +574,11 @@ const tableColumns = computed<VxeGridProps['columns']>(() => {
         default: ({ row }: { row: Record<string, unknown> }) => {
           return col.customRender!({ row, value: row[col.name] })
         }
+      }
+    } else {
+      colConfig.slots = {
+        ...colConfig.slots as object,
+        default: ({ row }: { row: Record<string, unknown> }) => renderDefaultCell(col, row)
       }
     }
 
@@ -753,6 +856,50 @@ provide('dataTableContext', {
   flex: 1;
   min-height: 0;
   overflow: auto;
+}
+
+.data-table-cell-text {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.data-table-copyable-cell {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding-right: 24px;
+}
+
+.cell-copy-button {
+  position: absolute;
+  top: 50%;
+  right: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  color: #606266;
+  cursor: pointer;
+  background: #fff;
+  border: 1px solid #dcdfe6;
+  border-radius: 3px;
+  transform: translateY(-50%);
+}
+
+.cell-copy-button:hover {
+  color: #409eff;
+  border-color: #409eff;
+}
+
+.cell-copy-icon {
+  width: 13px;
+  height: 13px;
 }
 
 /* 表头内嵌过滤器样式 */

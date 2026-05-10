@@ -16,6 +16,8 @@ export interface ColumnSchema {
   width?: number
   filterable?: boolean
   aggregatable?: boolean
+  /** 是否允许悬浮复制该列普通单元格内容 */
+  copyable?: boolean
 
   // 过滤器元数据
   filterType?: 'text' | 'number' | 'date' | 'datetime' | 'dict' | 'dimension' | 'bool' | 'custom'
@@ -146,6 +148,24 @@ export interface EnhancedColumnSchema extends ColumnSchema {
 }
 
 /**
+ * 单元格复制配置
+ */
+export interface CellCopyConfig {
+  /** 是否启用普通单元格悬浮复制，默认 true */
+  enabled?: boolean
+}
+
+/**
+ * DataTableWithSearch 内置查询入口模式
+ *
+ * - panel: 只显示组件面板查询，不显示列头筛选
+ * - column: 只显示列头筛选，不显示组件面板查询
+ * - combined: 组件面板查询和列头筛选同时显示
+ * - none: 不显示组件内置查询入口，供业务页完全自定义
+ */
+export type QueryMode = 'panel' | 'column' | 'combined' | 'none'
+
+/**
  * 表格配置
  */
 export interface TableConfig {
@@ -165,6 +185,10 @@ export interface TableConfig {
 export interface TableSchema {
   /** 列配置 */
   columns: EnhancedColumnSchema[]
+  /** 单元格复制配置 */
+  cellCopy?: CellCopyConfig
+  /** 内置查询入口模式；设置后优先于 showFilters 等旧开关 */
+  queryMode?: QueryMode
   /** 搜索工具栏显示的字段（不指定则从 columns 中筛选 uiConfig.showInToolbar=true 的列） */
   searchableFields?: string[]
   /** 每页大小 */
@@ -173,8 +197,6 @@ export interface TableSchema {
   showFilters?: boolean
   /** 是否显示分页栏（默认 true） */
   showPager?: boolean
-  /** 是否显示搜索工具栏 */
-  showSearchToolbar?: boolean
   /** 搜索工具栏布局 */
   searchLayout?: 'horizontal' | 'vertical'
 }
@@ -328,6 +350,8 @@ export interface DefaultsMeta {
   visibleColumns?: string[]
   searchFields?: string[]
   pageSize?: number
+  /** 生成到 TableSchema.queryMode，优先级高于生成组件的 queryMode prop */
+  queryMode?: QueryMode
   orderBy?: Array<{ field: string; order: 'asc' | 'desc' }>
 }
 

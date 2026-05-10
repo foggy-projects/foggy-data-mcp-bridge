@@ -165,7 +165,7 @@ function handleFilterChange(slices: SliceRequestDef[]) {
     :data="data"
     :total="total"
     :loading="loading"
-    :show-search-toolbar="true"
+    query-mode="panel"
     :searchable-fields="['customerName', 'amount']"
     @filter-change="handleFilterChange"
   />
@@ -174,19 +174,57 @@ function handleFilterChange(slices: SliceRequestDef[]) {
 
 ### Props
 
-DataTableWithSearch 继承了 DataTable 和 SearchToolbar 的所有 Props，并新增以下配置：
+DataTableWithSearch 继承了 DataTable 的所有 Props，并在 `queryMode` 需要 SearchToolbar 时透传 SearchToolbar 相关配置。
 
 | 属性 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| showSearchToolbar | `boolean` | `true` | 是否显示搜索工具栏 |
+| queryMode | `'panel' \| 'column' \| 'combined' \| 'none'` | - | 内置查询入口模式 |
 | searchableFields | `string[]` | - | 搜索工具栏可搜索字段 |
 | searchLayout | `'horizontal' \| 'vertical'` | `'horizontal'` | 搜索工具栏布局 |
 | showSearchActions | `boolean` | `true` | 是否显示搜索按钮 |
 | filterMergeMode | `'replace' \| 'merge'` | `'merge'` | 筛选条件合并模式 |
 
+### 查询入口模式
+
+推荐新页面优先使用 `queryMode`，避免同时配置多个查询入口开关后语义不清。
+
+| 模式 | 显示内容 | 适用场景 |
+|------|----------|----------|
+| `panel` | 只显示组件面板查询；不显示列头筛选 | 页面需要一个表格上方查询 Form |
+| `column` | 只显示列头筛选；不显示组件面板查询 | 页面希望筛选入口贴近列头 |
+| `combined` | 组件面板查询和列头筛选同时显示 | 明确需要组合查询 |
+| `none` | 不显示组件内置查询入口 | 业务页面已有自定义查询 Form |
+
+当传入 `querySchema` 时，`panel`/`combined` 使用 `QueryPanel` 作为面板查询入口；未传 `querySchema` 时使用 `SearchToolbar` 作为面板查询入口。
+
+未设置 `queryMode` 时不显示 SearchToolbar；旧的 `showQueryPanel` 仍只控制 `QueryPanel`，`showFilters` 仍只控制列头筛选。Schema 模式下 `schema.queryMode` 优先于 `queryMode` prop，`schema.showFilters` 优先于同名 prop。
+
 **筛选条件合并模式说明：**
 - `merge`：合并搜索工具栏和表头过滤器的条件（默认）
 - `replace`：搜索工具栏优先，如果为空则使用表头筛选
+
+`combined` 模式下合并规则与 `filterMergeMode` 一致：默认 `merge` 按 QueryPanel、SearchToolbar、列头筛选的顺序合并，同字段保留先出现的条件；`replace` 模式下 QueryPanel 条件始终保留，其余条件优先使用 SearchToolbar，SearchToolbar 为空时使用列头筛选。
+
+```vue
+<!-- 只保留列头筛选 -->
+<DataTableWithSearch query-mode="column" />
+
+<!-- 业务页面已有自定义查询 Form，关闭组件内置查询入口 -->
+<DataTableWithSearch query-mode="none" />
+
+<!-- 使用组件查询面板，不显示列头筛选 -->
+<DataTableWithSearch
+  query-mode="panel"
+  :query-schema="querySchema"
+/>
+
+<!-- 组件查询面板与列头筛选同时使用 -->
+<DataTableWithSearch
+  query-mode="combined"
+  :query-schema="querySchema"
+  filter-merge-mode="merge"
+/>
+```
 
 ### Events
 
@@ -364,7 +402,7 @@ function handleFilterChange(slices: SliceRequestDef[]) {
     :data="data"
     :total="total"
     :loading="loading"
-    :show-search-toolbar="true"
+    query-mode="panel"
     :searchable-fields="['customerName', 'orderDate', 'amount']"
     :search-layout="'horizontal'"
     :filter-merge-mode="'merge'"
@@ -399,7 +437,15 @@ SearchToolbar 适合放置常用的筛选字段：
 - **merge 模式**：搜索工具栏 + 表头过滤器同时使用，适合复杂查询场景
 - **replace 模式**：只使用搜索工具栏筛选，表头过滤器作为备选，适合简单查询场景
 
-### 4. 性能优化
+### 4. 查询入口选择
+
+- 页面只有组件查询入口：使用 `query-mode="panel"` 或 `query-mode="column"`
+- 页面已有业务自定义查询 Form：使用 `query-mode="none"`
+- 确实需要面板查询和列头筛选同时存在：使用 `query-mode="combined"` 并确认合并规则
+
+`show-search-toolbar` 已移除；查询入口统一使用 `queryMode` 表达。`show-filters` 仍只控制列头筛选。
+
+### 5. 性能优化
 
 ```vue
 <DataTableWithSearch
@@ -407,8 +453,7 @@ SearchToolbar 适合放置常用的筛选字段：
   :data="data"
   :total="total"
   :loading="loading"
-  :show-filters="false"  <!-- 如果使用 SearchToolbar，可以关闭表头过滤器 -->
-  :show-search-toolbar="true"
+  query-mode="panel"
 />
 ```
 
@@ -429,8 +474,25 @@ SearchToolbar 适合放置常用的筛选字段：
 **A:**
 ```vue
 <DataTableWithSearch
-  :show-filters="false"
-  :show-search-toolbar="true"
+  query-mode="panel"
+/>
+```
+
+### Q: 如何只使用列头筛选，不显示面板查询？
+
+**A:**
+```vue
+<DataTableWithSearch
+  query-mode="column"
+/>
+```
+
+### Q: 业务页面已有自己的查询 Form，组件内置查询入口应该怎么关？
+
+**A:**
+```vue
+<DataTableWithSearch
+  query-mode="none"
 />
 ```
 
@@ -459,6 +521,7 @@ const columns = buildTableColumns(qmSchema, {
 <DataTableWithSearch
   :columns="columns"
   :filter-options-loader="loadDimensionOptions"
+  query-mode="panel"
 />
 ```
 

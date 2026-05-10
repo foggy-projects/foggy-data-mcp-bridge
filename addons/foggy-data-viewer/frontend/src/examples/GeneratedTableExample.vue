@@ -68,7 +68,6 @@ async function loadMeta() {
       pageSize: meta.defaults?.pageSize ?? 50,
       showFilters: true,
       showPager: true,
-      showSearchToolbar: true,
     }
 
     // 构建查询 schema（仅 filterable + form placement 字段）
