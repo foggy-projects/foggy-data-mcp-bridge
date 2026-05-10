@@ -163,8 +163,8 @@ public class BusinessMcpController {
         }
 
         if (namespace == null || namespace.isBlank()) {
-            log.warn("Business MCP Stream: X-NS header is MISSING -- will use default namespace. " +
-                    "For Odoo models, set header X-NS: odoo");
+            log.warn("Business MCP Stream: X-NS header is missing; configured request default namespace may be applied downstream. " +
+                    "Set X-NS explicitly to override.");
         }
         log.info("Business MCP Stream request received: method={}, id={}, traceId={}, requestId={}, namespace={}",
                 request.getMethod(), request.getId(), traceId, requestId, namespace);

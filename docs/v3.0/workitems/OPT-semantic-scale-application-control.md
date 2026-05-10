@@ -95,6 +95,30 @@ foggy:
 - `disabled-namespaces` 中的 namespace 按 physical profile 加载。
 - 查询执行阶段不再允许用请求参数覆盖单位契约。
 
+### 请求入口默认 namespace
+
+底层模型加载仍保留原有默认 namespace 语义：`null` / `""` 表示空 namespace，不在存储层强行改写。
+
+为了让 AI Agent / MCP / REST 调用可以在未传 `X-NS` 或 namespace 参数时进入 semantic namespace，新增请求入口默认值：
+
+```yaml
+foggy:
+  dataset:
+    request:
+      default-namespace: tms-ai
+    semantic-scale:
+      default-enabled: true
+      disabled-namespaces:
+        - tms-biz
+```
+
+规则：
+
+- 显式传入的 namespace 优先，且会 trim 后使用。
+- 未传或传空 namespace 时，如果 `foggy.dataset.request.default-namespace` 非空，则入口层替换为该默认值。
+- 如果未配置 `request.default-namespace`，继续向下传递原始 `null` / `""`，保持兼容。
+- 该配置只作用于 API/MCP/Local accessor 请求入口，不改变 `ExternalBundleProperties` 和底层模型缓存的 namespace 语义。
+
 ---
 
 ## 加载期行为
@@ -148,7 +172,7 @@ foggy:
 5. **MCP/REST 入口**
    - 不注入 scale 开关。
    - 入口只负责传递 namespace。
-   - MCP 默认使用 semantic namespace。
+   - 可通过 `foggy.dataset.request.default-namespace` 让未传 namespace 的 MCP/REST 请求默认进入 semantic namespace。
 
 ### 测试
 
@@ -177,10 +201,12 @@ foggy:
 2026-05-10 已完成 Java engine 第一阶段实现：
 
 - `DatasetProperties` 增加 `foggy.dataset.semantic-scale.default-enabled` 与 `disabled-namespaces`。
+- `DatasetProperties` 增加 `foggy.dataset.request.default-namespace`，用于请求入口缺省 namespace。
 - `TableModelLoaderManagerImpl` 在加载期按 namespace policy 处理 `DbModelDef`。
 - physical namespace 下清空 measure/property 以及嵌套 dimension property 的 `semanticScaleFactor`。
 - 查询执行阶段不新增 runtime 分支，不新增 `applySemanticScale` 请求字段。
-- `docs/dev-guide/bundle-namespace.md` 补充同一 TM/QM 双 namespace + semantic-scale 配置示例。
+- REST / MCP / Local accessor 入口在缺失 namespace 时按 request default 解析，不改变底层默认 namespace。
+- `docs/dev-guide/bundle-namespace.md` 补充同一 TM/QM 双 namespace + semantic-scale + request default namespace 配置示例。
 
 验证：
 
@@ -202,3 +228,4 @@ mvn -pl foggy-dataset-model -Dtest=SemanticScaleFactorIntegrationTest#loadModel_
 - 2026-05-10：确认 `semantic-scale` 默认 true，仅显式 physical namespace 禁用。
 - 2026-05-10：完成 Java engine 加载期 namespace policy，实现与测试证据见进度文档。
 - 2026-05-10：补齐 physical namespace 维度属性、聚合、having、calculatedFields、cache isolation 回归用例，并补通用配置示例。
+- 2026-05-10：确认新增请求入口默认 namespace，API/MCP 未传 namespace 时可进入配置的 semantic namespace；底层空 namespace 兼容语义不变。

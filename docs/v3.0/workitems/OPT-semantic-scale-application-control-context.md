@@ -40,6 +40,8 @@ foggy:
           watch: true
 
   dataset:
+    request:
+      default-namespace: tms-ai
     semantic-scale:
       default-enabled: true
       disabled-namespaces:
@@ -47,6 +49,8 @@ foggy:
 ```
 
 `ExternalBundleProperties` 不需要知道 semantic scale；它只负责把同一路径注册到不同 namespace。
+
+`foggy.dataset.request.default-namespace` 只作用在 REST / MCP / Local accessor 请求入口。上游未传 `X-NS` 或 namespace 参数时，入口层使用该默认值；底层 `null` / `""` 仍表示空 namespace，保持历史兼容。
 
 ---
 
@@ -60,7 +64,7 @@ foggy:
 | `SemanticRequestContext.applySemanticScale` | 不再添加 |
 | `ModelResultContext.applySemanticScale` | 不再添加 |
 | `DatasetProperties.mcpDefault/restDefault` | 不再添加 |
-| MCP/REST 入口默认值注入 | 不再添加 |
+| MCP/REST 入口 scale 开关默认值注入 | 不再添加 |
 
 ---
 
@@ -70,7 +74,11 @@ foggy:
 |------|--------|
 | `foggy-fsscript/src/main/java/com/foggyframework/bundle/external/ExternalBundleProperties.java` | 已支持 `name / namespace / path / watch` |
 | `foggy-fsscript/src/main/java/com/foggyframework/bundle/SystemBundlesContextImpl.java` | `findResourceByName(name, namespace, ...)` 已按 namespace 过滤 |
-| `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/impl/loader/TableModelLoaderManagerImpl.java` | 建议加入加载期 scale policy |
+| `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/impl/loader/TableModelLoaderManagerImpl.java` | 加载期 scale policy |
+| `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/config/DatasetRequestNamespaceResolver.java` | 请求入口默认 namespace 解析 |
+| `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/semantic/controller/NativeDatasetController.java` | REST native API 入口 namespace 默认值 |
+| `foggy-dataset-mcp/src/main/java/com/foggyframework/dataset/mcp/service/McpToolDispatcher.java` | MCP tool context namespace 默认值 |
+| `foggy-dataset-mcp/src/main/java/com/foggyframework/dataset/mcp/spi/impl/LocalDatasetAccessor.java` | Local accessor namespace 默认值 |
 | `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/impl/property/DbPropertyImpl.java` | 已按 `semanticScaleFactor` 生成 scaled declare |
 | `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/impl/measure/DbMeasureSupport.java` | 已按 `semanticScaleFactor` 生成 scaled declare |
 | `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/impl/SemanticScaleSqlSupport.java` | SQL 缩放 helper |
@@ -83,8 +91,10 @@ foggy:
 2. `TableModelLoaderManagerImpl` 已在加载 `DbModelDef` 后，根据 namespace policy 归一化定义。
 3. physical namespace 下会清空 measure/property 以及嵌套 dimension property 的 `semanticScaleFactor`。
 4. `SemanticScaleFactorIntegrationTest` 已增加 physical namespace 元数据、select/slice、维度属性、聚合、having、calculatedFields、cache isolation 查询用例。
-5. `OPT-semantic-scale-application-control-progress.md` 已记录测试证据。
-6. `docs/dev-guide/bundle-namespace.md` 已补充双 namespace 与 `foggy.dataset.semantic-scale` 配置示例。
+5. `DatasetRequestNamespaceResolver` 已增加 request default namespace 解析：显式 namespace 优先，缺失时使用 `foggy.dataset.request.default-namespace`，未配置时保留原值。
+6. REST native API、MCP dispatcher、LocalDatasetAccessor 已接入 request default namespace。
+7. `OPT-semantic-scale-application-control-progress.md` 已记录测试证据。
+8. `docs/dev-guide/bundle-namespace.md` 已补充双 namespace、`foggy.dataset.semantic-scale` 与 `foggy.dataset.request.default-namespace` 配置示例。
 
 ---
 
@@ -94,6 +104,7 @@ foggy:
 - 所有缓存、metadata、describeModel、queryModel 都必须传递同一个 namespace。
 - 不允许同一个 compose/query 混用 semantic 和 physical namespace。
 - MCP/LLM 不应暴露 physical namespace。
+- 如果上游希望不传 namespace 即进入 AI 语义契约，必须配置 `foggy.dataset.request.default-namespace` 指向 semantic namespace；不要改底层空 namespace 语义。
 
 ---
 

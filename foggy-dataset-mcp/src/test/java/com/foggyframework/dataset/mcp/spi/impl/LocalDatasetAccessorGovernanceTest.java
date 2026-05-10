@@ -1,6 +1,7 @@
 package com.foggyframework.dataset.mcp.spi.impl;
 
 import com.foggyframework.core.ex.RX;
+import com.foggyframework.dataset.db.model.config.DatasetProperties;
 import com.foggyframework.dataset.db.model.def.query.request.CondRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.db.model.semantic.domain.DeniedPhysicalColumn;
@@ -228,6 +229,25 @@ class LocalDatasetAccessorGovernanceTest {
         assertNull(queryContext.getDeniedColumns());
         assertNull(queryContext.getSystemSlice());
         assertNull(queryContext.getSecurityContext());
+    }
+
+    @Test
+    @DisplayName("未传 namespace 时应使用 request.defaultNamespace")
+    void missingNamespaceShouldUseRequestDefaultNamespace() {
+        DatasetProperties datasetProperties = new DatasetProperties();
+        datasetProperties.getRequest().setDefaultNamespace("tms-ai");
+        accessor = new LocalDatasetAccessor(semanticServiceResolver, createMcpProperties(), datasetProperties);
+
+        when(semanticServiceResolver.getAllModelNames()).thenReturn(List.of("SemanticModel"));
+        when(semanticServiceResolver.getMetadata(any(SemanticMetadataRequest.class), eq("markdown"), any(SemanticRequestContext.class)))
+                .thenReturn(new SemanticMetadataResponse());
+
+        RX<SemanticMetadataResponse> result = accessor.getMetadata("trace-default-ns", null, null);
+
+        assertNotNull(result.getData());
+        ArgumentCaptor<SemanticRequestContext> contextCaptor = ArgumentCaptor.forClass(SemanticRequestContext.class);
+        verify(semanticServiceResolver).getMetadata(any(SemanticMetadataRequest.class), eq("markdown"), contextCaptor.capture());
+        assertEquals("tms-ai", contextCaptor.getValue().getNamespace());
     }
 
     @Test

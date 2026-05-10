@@ -1,6 +1,8 @@
 package com.foggyframework.dataset.db.model.semantic.controller;
 
 import com.foggyframework.core.ex.RX;
+import com.foggyframework.dataset.db.model.config.DatasetProperties;
+import com.foggyframework.dataset.db.model.config.DatasetRequestNamespaceResolver;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
@@ -44,6 +46,7 @@ public class NativeDatasetController {
     private final NativeComposeQueryService nativeComposeQueryService;
     private final SemanticModelCatalogService catalogService;
     private final SemanticQueryPayloadMapper payloadMapper;
+    private final DatasetProperties datasetProperties;
 
     @ApiOperation("执行单模型查询（MCP-free）")
     @PostMapping(value = "/query", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -76,7 +79,7 @@ public class NativeDatasetController {
             @RequestHeader Map<String, String> headers) {
         Map<String, Object> response = nativeComposeQueryService.execute(
                 request != null ? request : Collections.emptyMap(),
-                namespace,
+                resolveNamespace(namespace),
                 authorization,
                 headers != null ? new LinkedHashMap<>(headers) : Collections.emptyMap());
         return RX.ok(response);
@@ -90,7 +93,7 @@ public class NativeDatasetController {
             @RequestHeader(value = "X-NS", required = false) String namespace) {
         Map<String, Object> response = catalogService.buildCatalogResponse(
                 request != null ? request : Collections.emptyMap(),
-                namespace,
+                resolveNamespace(namespace),
                 authorization);
         return RX.ok(response);
     }
@@ -122,7 +125,7 @@ public class NativeDatasetController {
     public RX<Map<String, Object>> models(
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestHeader(value = "X-NS", required = false) String namespace) {
-        return RX.ok(catalogService.buildCatalogResponse(Collections.emptyMap(), namespace, authorization));
+        return RX.ok(catalogService.buildCatalogResponse(Collections.emptyMap(), resolveNamespace(namespace), authorization));
     }
 
     private SemanticRequestContext buildContext(Map<String, Object> request, String namespace, String authorization) {
@@ -131,12 +134,16 @@ public class NativeDatasetController {
                 : null;
         Set<String> fieldAccess = payloadMapper.optionalStringSet(firstPresent(request, "visibleFields", "fieldAccess"));
         return SemanticRequestContext.of(
-                namespace,
+                resolveNamespace(namespace),
                 securityContext,
                 fieldAccess,
                 payloadMapper.extractDeniedColumns(request),
                 payloadMapper.extractSystemSlice(request)
         );
+    }
+
+    private String resolveNamespace(String namespace) {
+        return DatasetRequestNamespaceResolver.resolve(datasetProperties, namespace);
     }
 
     private static Object firstPresent(Map<String, Object> map, String first, String second) {

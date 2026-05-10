@@ -6,7 +6,7 @@
 
 ### 命名空间规则
 
-- 未传或传空字符串：使用默认命名空间
+- 未传或传空字符串：默认保持空 namespace；如果配置了 `foggy.dataset.request.default-namespace`，API/MCP 请求入口会先替换为该默认 namespace
 - 传 `dev`：查询 dev 命名空间下的模型（如 `dev:OrderModel`）
 - 传 `test`：查询 test 命名空间下的模型（如 `test:OrderModel`）
 
@@ -55,6 +55,8 @@ foggy:
           watch: true
 
   dataset:
+    request:
+      default-namespace: tms-ai
     semantic-scale:
       default-enabled: true
       disabled-namespaces:
@@ -68,7 +70,9 @@ foggy:
 | `tms-ai` | AI Agent / MCP / LLM | 保留 `semanticScaleFactor`，字段值按元 |
 | `tms-biz` | 业务前后台 / 既有调用 | 忽略 `semanticScaleFactor`，字段值按分 |
 
-查询入口只需要稳定传递 namespace，不需要额外传递单位开关。
+查询入口只需要稳定传递 namespace，不需要额外传递单位开关。如果 AI/MCP 入口不方便显式传 `X-NS: tms-ai`，可以配置 `foggy.dataset.request.default-namespace: tms-ai`，让缺失 namespace 的 API/MCP 请求默认进入 semantic namespace。
+
+注意：`request.default-namespace` 是请求入口默认值，不是 bundle 默认 namespace。未配置时，底层 `null` / `""` 仍表示空 namespace，保持兼容。
 
 ### Java 配置示例
 

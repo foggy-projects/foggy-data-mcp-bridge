@@ -1,6 +1,8 @@
 package com.foggyframework.dataset.mcp.spi.impl;
 
 import com.foggyframework.core.ex.RX;
+import com.foggyframework.dataset.db.model.config.DatasetProperties;
+import com.foggyframework.dataset.db.model.config.DatasetRequestNamespaceResolver;
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.def.query.request.CondRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
@@ -54,6 +56,11 @@ public class LocalDatasetAccessor implements DatasetAccessor {
 
     private final SemanticServiceResolver semanticServiceResolver;
     private final McpProperties mcpProperties;
+    private final DatasetProperties datasetProperties;
+
+    public LocalDatasetAccessor(SemanticServiceResolver semanticServiceResolver, McpProperties mcpProperties) {
+        this(semanticServiceResolver, mcpProperties, new DatasetProperties());
+    }
 
     @Override
     public RX<SemanticMetadataResponse> getMetadata(String traceId, String authorization, String namespace) {
@@ -67,7 +74,8 @@ public class LocalDatasetAccessor implements DatasetAccessor {
             String namespace,
             Map<String, Object> options
     ) {
-        log.debug("[Local] Fetching metadata, traceId={}, namespace={}", traceId, namespace);
+        String effectiveNamespace = resolveNamespace(namespace);
+        log.debug("[Local] Fetching metadata, traceId={}, namespace={}", traceId, effectiveNamespace);
 
         try {
             SemanticMetadataRequest request = new SemanticMetadataRequest();
@@ -114,10 +122,10 @@ public class LocalDatasetAccessor implements DatasetAccessor {
             request.setLevels(levels);
 
             log.debug("[Local] Fetching metadata for models: {}, levels: {}, traceId={}, namespace={}",
-                    availableModels, levels, traceId, namespace);
+                    availableModels, levels, traceId, effectiveNamespace);
 
             // 使用版本解析器获取元数据（传递 namespace）
-            SemanticRequestContext ctx = buildMetadataContext(namespace, authorization, options);
+            SemanticRequestContext ctx = buildMetadataContext(effectiveNamespace, authorization, options);
             SemanticMetadataResponse response = semanticServiceResolver.getMetadata(request, "markdown", ctx);
 
             log.debug("[Local] Metadata fetched successfully, traceId={}", traceId);
@@ -162,8 +170,9 @@ public class LocalDatasetAccessor implements DatasetAccessor {
             String namespace,
             Map<String, Object> options
     ) {
+        String effectiveNamespace = resolveNamespace(namespace);
         log.debug("[Local] Describing model: {}, format={}, traceId={}, namespace={}",
-                model, format, traceId, namespace);
+                model, format, traceId, effectiveNamespace);
 
         try {
             SemanticMetadataRequest request = new SemanticMetadataRequest();
@@ -179,11 +188,11 @@ public class LocalDatasetAccessor implements DatasetAccessor {
             request.setLevels(levels);
 
             log.debug("[Local] Describing model: {}, levels: {}, traceId={}, namespace={}",
-                    model, levels, traceId, namespace);
+                    model, levels, traceId, effectiveNamespace);
 
             String outputFormat = format != null ? format : "json";
             // 使用版本解析器获取元数据（传递 namespace）
-            SemanticRequestContext ctx = buildMetadataContext(namespace, authorization, options);
+            SemanticRequestContext ctx = buildMetadataContext(effectiveNamespace, authorization, options);
             SemanticMetadataResponse response = semanticServiceResolver.getMetadata(request, outputFormat, ctx);
 
             log.debug("[Local] Model description fetched: {}, traceId={}", model, traceId);
@@ -232,15 +241,16 @@ public class LocalDatasetAccessor implements DatasetAccessor {
             String namespace,
             Map<String, Object> options
     ) {
+        String effectiveNamespace = resolveNamespace(namespace);
         log.debug("[Local] Querying model: {}, mode={}, traceId={}, namespace={}",
-                model, mode, traceId, namespace);
+                model, mode, traceId, effectiveNamespace);
 
         try {
             SemanticQueryRequest request = buildQueryRequest(payload);
             String queryMode = mode != null ? mode : "execute";
 
             // 构建请求上下文（namespace + 安全信息）
-            SemanticRequestContext ctx = buildQueryContext(namespace, authorization, options);
+            SemanticRequestContext ctx = buildQueryContext(effectiveNamespace, authorization, options);
 
             // 使用版本解析器执行查询
             SemanticQueryResponse response = semanticServiceResolver.queryModel(model, request, queryMode, ctx);
@@ -408,6 +418,10 @@ public class LocalDatasetAccessor implements DatasetAccessor {
 
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private String resolveNamespace(String namespace) {
+        return DatasetRequestNamespaceResolver.resolve(datasetProperties, namespace);
     }
 
     /**

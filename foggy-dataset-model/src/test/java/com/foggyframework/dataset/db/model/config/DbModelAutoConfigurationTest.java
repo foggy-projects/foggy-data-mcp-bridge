@@ -84,6 +84,8 @@ class DbModelAutoConfigurationTest {
     void testDatasetPropertiesRegistered() {
         DatasetProperties props = applicationContext.getBean(DatasetProperties.class);
         assertNotNull(props, "DatasetProperties should be registered");
+        assertNotNull(props.getRequest(), "DatasetProperties.request should be registered");
+        assertEquals("", props.getRequest().getDefaultNamespace());
     }
 
     // ==========================================
