@@ -1,6 +1,8 @@
 package com.foggyframework.dataset.db.model.ecommerce;
 
+import com.foggyframework.bundle.SystemBundlesContext;
 import com.foggyframework.dataset.client.domain.PagingRequest;
+import com.foggyframework.dataset.db.model.config.DatasetProperties;
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef;
@@ -28,6 +30,9 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -48,6 +53,12 @@ class SemanticScaleFactorIntegrationTest extends EcommerceTestSupport {
 
     @Resource
     private SemanticQueryServiceV3 semanticQueryServiceV3;
+
+    @Resource
+    private SystemBundlesContext systemBundlesContext;
+
+    @Resource
+    private DatasetProperties datasetProperties;
 
     @Test
     @DisplayName("加载 TM 时保留 semanticScaleFactor / semanticUnit 元数据")
@@ -70,6 +81,55 @@ class SemanticScaleFactorIntegrationTest extends EcommerceTestSupport {
         assertEquals(0, new BigDecimal("100").compareTo(property.getSemanticScaleFactor()));
         assertEquals("CNY", property.getSemanticUnit());
         assertEquals("元", property.getSemanticUnitLabel());
+    }
+
+    @Test
+    @DisplayName("禁用 namespace 加载同一套 TM 时忽略 semanticScaleFactor")
+    void loadModel_disabledNamespaceClearsSemanticScaleMetadata() {
+        String namespace = registerPhysicalNamespace();
+
+        TableModel model = tableModelLoaderManager.load(TABLE_MODEL, namespace);
+
+        DbMeasure measure = model.findJdbcMeasureByName("salesAmountYuan");
+        assertNotNull(measure);
+        assertNull(measure.getSemanticScaleFactor());
+
+        DbDimension product = model.findJdbcDimensionByName("product");
+        assertNotNull(product);
+        DbProperty property = ((DbDimensionSupport) product).getJdbcProperties().stream()
+                .filter(p -> "unitPriceYuan".equals(p.getName()))
+                .findFirst()
+                .orElse(null);
+        assertNotNull(property);
+        assertNull(property.getSemanticScaleFactor());
+    }
+
+    @Test
+    @DisplayName("禁用 namespace 查询使用物理值，不执行语义缩放")
+    void disabledNamespace_queryUsesPhysicalValues() {
+        String namespace = registerPhysicalNamespace();
+        String expectedSql = paginateSql("""
+                SELECT fs.order_id AS orderId,
+                       fs.sales_amount AS salesAmountYuan
+                FROM fact_sales fs
+                WHERE fs.sales_amount > 1000
+                ORDER BY salesAmountYuan ASC, fs.order_id ASC
+                """, 20);
+        List<Map<String, Object>> expectedRows = executeQuery(expectedSql);
+        assertFalse(expectedRows.isEmpty(), "physical namespace smoke should exercise non-empty rows");
+
+        DbQueryRequestDef request = new DbQueryRequestDef();
+        request.setQueryModel(QUERY_MODEL);
+        request.setColumns(List.of("orderId", "salesAmountYuan"));
+        request.setSlice(List.of(new SliceRequestDef("salesAmountYuan", ">", 1000)));
+        request.setOrderBy(List.of(
+                order("salesAmountYuan", "ASC"),
+                order("orderId", "ASC")
+        ));
+
+        List<Map<String, Object>> actualRows = queryRows(request, null, null, namespace);
+
+        assertRowsMatch(expectedRows, actualRows, "orderId", "salesAmountYuan");
     }
 
     @Test
@@ -403,10 +463,18 @@ class SemanticScaleFactorIntegrationTest extends EcommerceTestSupport {
     private List<Map<String, Object>> queryRows(DbQueryRequestDef request,
                                                 List<DeniedPhysicalColumn> deniedColumns,
                                                 Set<String> fieldAccess) {
+        return queryRows(request, deniedColumns, fieldAccess, null);
+    }
+
+    private List<Map<String, Object>> queryRows(DbQueryRequestDef request,
+                                                List<DeniedPhysicalColumn> deniedColumns,
+                                                Set<String> fieldAccess,
+                                                String namespace) {
         ModelResultContext ctx = new ModelResultContext();
         ctx.setRequest(PagingRequest.buildPagingRequest(request, 20));
         ctx.setDeniedColumns(deniedColumns);
         ctx.setFieldAccess(fieldAccess);
+        ctx.setNamespace(namespace);
         DbQueryResult dbResult = queryFacade.queryModelResult(ctx);
         PagingResultImpl result = dbResult.getPagingResult();
         return castItems(result);
@@ -482,5 +550,37 @@ class SemanticScaleFactorIntegrationTest extends EcommerceTestSupport {
     private BigDecimal toBigDecimal(Object value) {
         assertNotNull(value);
         return new BigDecimal(String.valueOf(value));
+    }
+
+    private String registerPhysicalNamespace() {
+        String namespace = "semantic-scale-physical-" + System.nanoTime();
+        DatasetProperties.SemanticScaleConfig config = datasetProperties.getSemanticScale();
+        config.setDefaultEnabled(true);
+        List<String> disabledNamespaces = config.getDisabledNamespaces() == null
+                ? new ArrayList<>()
+                : new ArrayList<>(config.getDisabledNamespaces());
+        disabledNamespaces.add(namespace);
+        config.setDisabledNamespaces(disabledNamespaces);
+
+        String bundleName = "semantic-scale-test-" + System.nanoTime();
+        assertTrue(systemBundlesContext.addExternalBundle(bundleName, namespace, ecommerceBundlePath(), false));
+        tableModelLoaderManager.clearByNamespace(namespace);
+        queryModelLoader.clearByNamespace(namespace);
+        return namespace;
+    }
+
+    private String ecommerceBundlePath() {
+        Path path = Paths.get("foggy-dataset-model", "src", "test", "resources", "foggy", "templates", "ecommerce");
+        if (!Files.isDirectory(path)) {
+            path = Paths.get("src", "test", "resources", "foggy", "templates", "ecommerce");
+        }
+        if (!Files.isDirectory(path)) {
+            path = Paths.get("..", "foggy-dataset-demo", "src", "main", "resources", "foggy", "templates", "ecommerce");
+        }
+        if (!Files.isDirectory(path)) {
+            path = Paths.get("foggy-dataset-demo", "src", "main", "resources", "foggy", "templates", "ecommerce");
+        }
+        assertTrue(Files.isDirectory(path), "ecommerce test bundle path should exist: " + path.toAbsolutePath());
+        return path.toAbsolutePath().normalize().toString();
     }
 }

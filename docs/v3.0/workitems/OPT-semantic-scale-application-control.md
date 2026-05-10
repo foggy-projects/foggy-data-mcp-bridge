@@ -5,7 +5,7 @@
 | doc_type | workitem (design decision) |
 | intended_for | Java engine team, MCP integration team |
 | purpose | 记录 semanticScaleFactor 按 namespace 加载期隔离的设计决策 |
-| status | replanned |
+| status | implemented |
 
 ---
 
@@ -167,8 +167,28 @@ foggy:
 
 ## 状态
 
-- Java: replanned（待按 namespace loading policy 实现）
+- Java: implemented（namespace loading policy 已实现并通过集成测试）
 - Python: deferred（Java 稳定后再评估是否需要同构）
+
+---
+
+## 实现记录
+
+2026-05-10 已完成 Java engine 第一阶段实现：
+
+- `DatasetProperties` 增加 `foggy.dataset.semantic-scale.default-enabled` 与 `disabled-namespaces`。
+- `TableModelLoaderManagerImpl` 在加载期按 namespace policy 处理 `DbModelDef`。
+- physical namespace 下清空 measure/property 以及嵌套 dimension property 的 `semanticScaleFactor`。
+- 查询执行阶段不新增 runtime 分支，不新增 `applySemanticScale` 请求字段。
+
+验证：
+
+```powershell
+mvn -pl foggy-dataset-model -Dtest=SemanticScaleFactorIntegrationTest test
+mvn -pl foggy-dataset-model -Dtest=SemanticScaleFactorIntegrationTest#disabledNamespace_queryUsesPhysicalValues test
+```
+
+结果：测试通过；physical namespace 查询 SQL 使用原始物理列 `sales_amount`，default semantic namespace 继续使用 `/100.0`。
 
 ---
 
@@ -177,3 +197,4 @@ foggy:
 - 2026-05-10：确认 runtime `applySemanticScale` 风险过高，废弃该方案。
 - 2026-05-10：确认采用 namespace 隔离，同一套 TM/QM 文件通过 `ExternalBundleProperties` 注册到不同 namespace。
 - 2026-05-10：确认 `semantic-scale` 默认 true，仅显式 physical namespace 禁用。
+- 2026-05-10：完成 Java engine 加载期 namespace policy，实现与测试证据见进度文档。

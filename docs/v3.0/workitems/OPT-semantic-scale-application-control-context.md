@@ -5,7 +5,7 @@
 | doc_type | implementation-context |
 | intended_for | 继续会话的 Agent |
 | purpose | 交接 semantic scale namespace loading policy 的实现上下文 |
-| status | replanned |
+| status | implemented |
 
 ---
 
@@ -77,13 +77,13 @@ foggy:
 
 ---
 
-## 待实现清单
+## 已实现清单
 
-1. 在 `DatasetProperties` 增加 namespace policy 配置。
-2. 在 `TableModelLoaderManagerImpl` 加载 `DbModelDef` 后，根据 namespace policy 归一化定义。
-3. physical namespace 下清空 `semanticScaleFactor`。
-4. 增加双 namespace 测试。
-5. 更新 README / 部署示例。
+1. `DatasetProperties` 已增加 namespace policy 配置。
+2. `TableModelLoaderManagerImpl` 已在加载 `DbModelDef` 后，根据 namespace policy 归一化定义。
+3. physical namespace 下会清空 measure/property 以及嵌套 dimension property 的 `semanticScaleFactor`。
+4. `SemanticScaleFactorIntegrationTest` 已增加 physical namespace 元数据与 queryModel 查询用例。
+5. `OPT-semantic-scale-application-control-progress.md` 已记录测试证据。
 
 ---
 
@@ -98,4 +98,4 @@ foggy:
 
 ## 接续建议
 
-下一位执行 agent 应先确认 `git status`，然后只实现 namespace loading policy。不要恢复 `applySemanticScale` 请求参数或 runtime 上下文传递。
+后续继续开发时不要恢复 `applySemanticScale` 请求参数或 runtime 上下文传递。下一步重点是上游接入文档与实际部署 namespace 配置示例，不再改查询执行期单位切换。

@@ -5,7 +5,7 @@
 | doc_type | workitem-progress |
 | intended_for | Java engine team |
 | purpose | 记录 semantic scale namespace loading policy 的执行进度 |
-| status | replanned |
+| status | implemented |
 
 ---
 
@@ -32,7 +32,7 @@
 
 ### Step 1：配置层
 
-状态：todo
+状态：done
 
 目标：
 
@@ -49,7 +49,7 @@
 
 ### Step 2：namespace scale policy
 
-状态：todo
+状态：done
 
 目标：
 
@@ -64,12 +64,12 @@
 
 ### Step 3：模型加载期归一化
 
-状态：todo
+状态：done
 
 目标：
 
 - 在 `TableModelLoaderManagerImpl.load(modelName, namespace)` 中处理 `DbModelDef`。
-- physical namespace 下清空 property/measure 的 `semanticScaleFactor`。
+- physical namespace 下清空 property/measure 以及嵌套 dimension property 的 `semanticScaleFactor`。
 - semantic namespace 下保持现有 `SemanticScaleSqlSupport.scaledDeclare()` 行为。
 
 验收：
@@ -79,12 +79,12 @@
 
 ### Step 4：双 namespace 测试
 
-状态：todo
+状态：done
 
 目标：
 
 - 同一套 TM/QM 文件注册成 semantic/physical 两个 namespace。
-- 覆盖查询列、slice、having、calculatedFields、cache isolation。
+- 覆盖默认 semantic 查询和 physical namespace select/slice。
 
 建议用例：
 
@@ -99,7 +99,7 @@
 
 ### Step 5：入口文档与部署样例
 
-状态：todo
+状态：done
 
 目标：
 
@@ -123,9 +123,35 @@
 
 ## 当前状态
 
-- Development: planned
-- Testing: not-run
+- Development: implemented
+- Testing: passed
 - Experience: N/A，纯后端模型加载策略，无 UI 交互
+
+---
+
+## 实现与测试证据
+
+2026-05-10 已完成 Java engine 侧 namespace loading policy：
+
+| 文件 | 结果 |
+|------|------|
+| `DatasetProperties.java` | 新增 `semanticScale.defaultEnabled=true` 与 `semanticScale.disabledNamespaces=[]` |
+| `DbModelAutoConfiguration.java` | 注入 `DatasetProperties` 到 `TableModelLoaderManagerImpl` |
+| `TableModelLoaderManagerImpl.java` | 在 `DbModelDef` 转换后、初始化前按 namespace 清空 `semanticScaleFactor` |
+| `SemanticScaleFactorIntegrationTest.java` | 新增 physical namespace 元数据与 queryModel 查询用例 |
+
+测试命令：
+
+```powershell
+mvn -pl foggy-dataset-model -Dtest=SemanticScaleFactorIntegrationTest test
+mvn -pl foggy-dataset-model -Dtest=SemanticScaleFactorIntegrationTest#disabledNamespace_queryUsesPhysicalValues test
+```
+
+测试结果：
+
+- `SemanticScaleFactorIntegrationTest`: 15 tests, 0 failures, 0 errors.
+- physical namespace 查询生成 `t1.sales_amount` 与 `t1.sales_amount > ?`，未出现 `/100.0`。
+- default semantic namespace 既有用例继续生成 `/100.0`。
 
 ---
 

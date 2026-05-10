@@ -40,8 +40,14 @@ public class DbModelAutoConfiguration {
         return new JdbcTableModelLoaderImpl(systemBundlesContext, fileFsscriptLoader );
     }
     @Bean
-    public TableModelLoaderManagerImpl tableModelLoaderManager(SystemBundlesContext systemBundlesContext, FileFsscriptLoader fileFsscriptLoader, List<DbModelLoadProcessor> processors, List<TableModelLoader> loaders, @org.springframework.beans.factory.annotation.Autowired(required = false) com.foggyframework.dataset.db.model.spi.NamedDataSourceResolver namedDataSourceResolver) {
-        return new TableModelLoaderManagerImpl(systemBundlesContext, fileFsscriptLoader, processors, loaders, namedDataSourceResolver);
+    public TableModelLoaderManagerImpl tableModelLoaderManager(SystemBundlesContext systemBundlesContext,
+                                                               FileFsscriptLoader fileFsscriptLoader,
+                                                               List<DbModelLoadProcessor> processors,
+                                                               List<TableModelLoader> loaders,
+                                                               @org.springframework.beans.factory.annotation.Autowired(required = false) com.foggyframework.dataset.db.model.spi.NamedDataSourceResolver namedDataSourceResolver,
+                                                               DatasetProperties datasetProperties) {
+        return new TableModelLoaderManagerImpl(systemBundlesContext, fileFsscriptLoader, processors, loaders,
+                namedDataSourceResolver, datasetProperties);
     }
     @Bean
     public QueryModelLoaderImpl jdbcQueryModelLoader(TableModelLoaderManager tableModelLoaderManager,
