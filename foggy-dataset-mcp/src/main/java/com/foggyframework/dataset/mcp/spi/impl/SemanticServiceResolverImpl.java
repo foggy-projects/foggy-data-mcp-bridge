@@ -247,7 +247,7 @@ public class SemanticServiceResolverImpl implements SemanticServiceResolver, Dir
      * 扫描所有 bundle 中的 QM 文件
      */
     private List<String> scanAllModelNames() {
-        List<String> modelNames = new ArrayList<>();
+        java.util.Set<String> modelNames = new java.util.LinkedHashSet<>();
         List<BundleResource> qmFiles = new ArrayList<>();
 
         try {
@@ -281,6 +281,6 @@ public class SemanticServiceResolverImpl implements SemanticServiceResolver, Dir
             log.warn("查找 QM 文件时出错: {}", e.getMessage());
         }
 
-        return modelNames;
+        return List.copyOf(modelNames);
     }
 }

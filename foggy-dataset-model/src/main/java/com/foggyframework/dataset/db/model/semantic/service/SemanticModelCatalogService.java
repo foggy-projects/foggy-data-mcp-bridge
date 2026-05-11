@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -45,8 +46,15 @@ public class SemanticModelCatalogService {
 
         Map<String, Object> dataMap = new LinkedHashMap<>();
         dataMap.put("format", format);
-        dataMap.put("content", "markdown".equalsIgnoreCase(format) ? renderCatalogMarkdown(catalog) : toJson(catalog));
-        dataMap.put("data", catalog);
+        if ("markdown".equalsIgnoreCase(format)) {
+            dataMap.put("content", renderCatalogMarkdown(catalog));
+        } else if ("all".equalsIgnoreCase(format)) {
+            dataMap.put("content", renderCatalogMarkdown(catalog));
+            dataMap.put("data", catalog);
+        } else {
+            dataMap.put("content", toJson(catalog));
+            dataMap.put("data", catalog);
+        }
         return dataMap;
     }
 
@@ -60,6 +68,7 @@ public class SemanticModelCatalogService {
         if (modelNames == null) {
             modelNames = getAllModelNames();
         }
+        modelNames = dedupe(modelNames);
 
         int fieldLimit = Math.max(0, intOr(safeOptions.get("fieldLimit"), 10));
         Map<String, Object> metadata = fetchCatalogMetadata(modelNames, namespace, authorization, safeOptions);
@@ -94,17 +103,18 @@ public class SemanticModelCatalogService {
                 if (itemNamespace != null) {
                     item.put("namespace", itemNamespace);
                 }
-                String primaryTimeField = primaryTimeField(qm);
-                if (primaryTimeField != null && !primaryTimeField.isBlank()) {
-                    item.put("primaryTimeField", primaryTimeField);
-                }
                 List<String> physicalTables = physicalTables(qm);
                 if (!physicalTables.isEmpty()) {
                     item.put("physicalTables", physicalTables);
                 }
-                item.put("recommendedNext", "dataset.describe_model_internal");
-                item.put("fieldPreview", fieldPreview(fields, modelName, fieldLimit));
-                item.put("fieldCount", fieldCount(fields, modelName));
+                if (fieldLimit > 0) {
+                    String primaryTimeField = primaryTimeField(qm);
+                    if (primaryTimeField != null && !primaryTimeField.isBlank()) {
+                        item.put("primaryTimeField", primaryTimeField);
+                    }
+                    item.put("fieldPreview", fieldPreview(fields, modelName, fieldLimit));
+                    item.put("fieldCount", fieldCount(fields, modelName));
+                }
                 visibleModels.add(modelName);
                 items.add(item);
             } catch (Exception e) {
@@ -157,7 +167,7 @@ public class SemanticModelCatalogService {
     }
 
     private List<String> scanAllModelNames() {
-        List<String> modelNames = new ArrayList<>();
+        LinkedHashSet<String> modelNames = new LinkedHashSet<>();
         try {
             systemBundlesContext.getBundleList().forEach(bundle -> {
                 try {
@@ -219,23 +229,6 @@ public class SemanticModelCatalogService {
             if (shortAlias != null && !shortAlias.isBlank()) {
                 markdown.append("  - Short alias: ").append(sanitizeMarkdownLine(shortAlias)).append("\n");
             }
-            String primaryTimeField = stringValue(item.get("primaryTimeField"));
-            if (primaryTimeField != null && !primaryTimeField.isBlank()) {
-                markdown.append("  - Primary time field: ").append(primaryTimeField).append("\n");
-            }
-            Object fieldPreview = item.get("fieldPreview");
-            if (fieldPreview instanceof List<?> fields && !fields.isEmpty()) {
-                markdown.append("  - Field preview: ");
-                markdown.append(String.join(", ", fields.stream().map(Object::toString).toList()));
-                Object fieldCount = item.get("fieldCount");
-                if (fieldCount instanceof Number n && n.intValue() > fields.size()) {
-                    markdown.append(" ... (").append(n.intValue()).append(" fields total)");
-                }
-                markdown.append("\n");
-            }
-            markdown.append("  - Recommended next: ");
-            markdown.append(stringOr(item.get("recommendedNext"), stringValue(catalog.get("recommendedNext"))));
-            markdown.append("\n");
         }
         return markdown.toString();
     }
@@ -343,6 +336,19 @@ public class SemanticModelCatalogService {
             }
         }
         return result.isEmpty() ? null : List.copyOf(result);
+    }
+
+    private static List<String> dedupe(List<String> values) {
+        if (values == null || values.isEmpty()) {
+            return List.of();
+        }
+        LinkedHashSet<String> seen = new LinkedHashSet<>();
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                seen.add(value);
+            }
+        }
+        return List.copyOf(seen);
     }
 
     private static String stringOr(Object value, String fallback) {
