@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -79,13 +80,8 @@ class ListModelsCatalogControllerTest {
 
         assertEquals("markdown", response.get("format"));
         assertTrue(((String) response.get("content")).contains("FactSalesQueryModel"));
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> catalog = (Map<String, Object>) response.get("data");
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> items = (List<Map<String, Object>>) catalog.get("items");
-        assertEquals(List.of(), items.get(0).get("fieldPreview"));
-        assertEquals(1, items.get(0).get("fieldCount"));
+        assertFalse(response.containsKey("data"));
+        assertFalse(response.containsKey("items"));
 
         ArgumentCaptor<SemanticRequestContext> contextCaptor = ArgumentCaptor.forClass(SemanticRequestContext.class);
         verify(semanticServiceResolver).getMetadata(any(), eq("json"), contextCaptor.capture());
@@ -98,6 +94,67 @@ class ListModelsCatalogControllerTest {
         assertEquals("fact_sales", deniedColumns.get(0).getTable());
         assertEquals("secret_amount", deniedColumns.get(0).getColumn());
         verify(semanticServiceResolver, never()).getAllModelNames();
+    }
+
+    @Test
+    @DisplayName("format=json 且 fieldLimit=0 时不返回字段级 catalog")
+    void jsonFieldLimitZeroShouldOmitFieldDetails() {
+        QueryModel qm = mockQueryModel("销售明细查询", "销售额、销量分析");
+        when(queryModelLoader.getJdbcQueryModel(eq("FactSalesQueryModel"), eq("odoo"))).thenReturn(qm);
+        when(semanticServiceResolver.getMetadata(any(), eq("json"), any(SemanticRequestContext.class)))
+                .thenReturn(metadataWithOrderId());
+
+        Map<String, Object> response = controller.listModels(
+                Map.of(
+                        "format", "json",
+                        "modelNames", List.of("FactSalesQueryModel"),
+                        "fieldLimit", 0
+                ),
+                null,
+                "odoo"
+        );
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> catalog = (Map<String, Object>) response.get("data");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> items = (List<Map<String, Object>>) catalog.get("items");
+        Map<String, Object> item = items.get(0);
+        assertFalse(item.containsKey("fields"));
+        assertFalse(item.containsKey("fieldPreview"));
+        assertFalse(item.containsKey("fieldCount"));
+        assertFalse(item.containsKey("primaryTimeField"));
+    }
+
+    @Test
+    @DisplayName("format=all 返回 markdown content 和 JSON catalog")
+    void allShouldReturnMarkdownAndCatalog() {
+        QueryModel qm = mockQueryModel("销售明细查询", "销售额、销量分析");
+        when(queryModelLoader.getJdbcQueryModel(eq("FactSalesQueryModel"), eq("odoo"))).thenReturn(qm);
+        when(semanticServiceResolver.getMetadata(any(), eq("json"), any(SemanticRequestContext.class)))
+                .thenReturn(metadataWithOrderId());
+
+        Map<String, Object> response = controller.listModels(
+                Map.of(
+                        "format", "all",
+                        "modelNames", List.of("FactSalesQueryModel"),
+                        "fieldLimit", 0
+                ),
+                null,
+                "odoo"
+        );
+
+        assertEquals("all", response.get("format"));
+        assertTrue(((String) response.get("content")).contains("FactSalesQueryModel"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> catalog = (Map<String, Object>) response.get("data");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> items = (List<Map<String, Object>>) catalog.get("items");
+        Map<String, Object> item = items.get(0);
+        assertEquals("FactSalesQueryModel", item.get("model"));
+        assertFalse(item.containsKey("fields"));
+        assertFalse(item.containsKey("fieldPreview"));
+        assertFalse(item.containsKey("fieldCount"));
+        assertFalse(item.containsKey("primaryTimeField"));
     }
 
     @Test
@@ -134,8 +191,8 @@ class ListModelsCatalogControllerTest {
         QueryModel qm = mock(QueryModel.class);
         when(qm.getCaption()).thenReturn(caption);
         lenient().when(qm.getDescription()).thenReturn(description);
-        when(qm.getAi()).thenReturn(null);
-        when(qm.getQueryDimensions()).thenReturn(List.of());
+        lenient().when(qm.getAi()).thenReturn(null);
+        lenient().when(qm.getQueryDimensions()).thenReturn(List.of());
         return qm;
     }
 }
