@@ -114,7 +114,9 @@ foggy:
 
 规则：
 
-- 显式传入的 namespace 优先，且会 trim 后使用。
+- Dataset Native REST 显式 namespace 优先级为 `X-NS header > body.namespace > request.default-namespace`，且显式值会 trim 后使用。
+- `body.namespace` 只读取请求 body 顶层字段，不从 `payload.namespace`、compose script 或其他嵌套参数推断。
+- MCP / Local accessor 入口没有 REST body namespace 契约，仍按显式入参优先。
 - 未传或传空 namespace 时，如果 `foggy.dataset.request.default-namespace` 非空，则入口层替换为该默认值。
 - 如果未配置 `request.default-namespace`，继续向下传递原始 `null` / `""`，保持兼容。
 - 该配置只作用于 API/MCP/Local accessor 请求入口，不改变 `ExternalBundleProperties` 和底层模型缓存的 namespace 语义。

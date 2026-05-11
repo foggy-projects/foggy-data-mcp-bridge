@@ -123,13 +123,17 @@
 实现规则：
 
 - 新增 `foggy.dataset.request.default-namespace`，默认空字符串。
-- 显式 namespace 优先；未传或空白 namespace 才使用 request default。
+- Dataset Native REST namespace 优先级为 `X-NS header > body.namespace > request default`。
+- `body.namespace` 只读取请求 body 顶层字段，不读取 `payload.namespace` 或 compose script 内部字段。
+- MCP dispatcher、LocalDatasetAccessor 仍按显式 namespace 入参优先；未传或空白 namespace 才使用 request default。
 - REST native API、MCP dispatcher、LocalDatasetAccessor 在请求入口统一解析 effective namespace。
 
 验收：
 
 - 未配置 request default 时，旧调用继续保留 `null` / `""`。
 - 配置 `default-namespace=tms-ai` 后，缺失 namespace 的入口请求进入 `tms-ai`。
+- REST body 顶层 `namespace=tms-biz` 且无 `X-NS` 时进入 `tms-biz`。
+- REST 同时传 `X-NS=tms-ai` 与 body `namespace=tms-biz` 时进入 `tms-ai`。
 - Python 侧暂不改动。
 
 ---
@@ -161,10 +165,10 @@
 | 文件 | 结果 |
 |------|------|
 | `DatasetProperties.java` | 新增 `semanticScale.defaultEnabled=true` 与 `semanticScale.disabledNamespaces=[]` |
-| `DatasetRequestNamespaceResolver.java` | 新增请求入口 namespace 默认值解析 |
+| `DatasetRequestNamespaceResolver.java` | 新增请求入口 `X-NS / body.namespace / default` 解析 |
 | `DbModelAutoConfiguration.java` | 注入 `DatasetProperties` 到 `TableModelLoaderManagerImpl` |
 | `TableModelLoaderManagerImpl.java` | 在 `DbModelDef` 转换后、初始化前按 namespace 清空 `semanticScaleFactor` |
-| `NativeDatasetController.java` | REST native API 未传 `X-NS` 时应用 request default namespace |
+| `NativeDatasetController.java` | REST native API 支持 `X-NS > body.namespace > request default` |
 | `McpToolDispatcher.java` | MCP tool context 未传 namespace 时应用 request default namespace |
 | `LocalDatasetAccessor.java` | local accessor metadata / describeModel / queryModel 未传 namespace 时应用 request default namespace |
 | `SemanticScaleFactorIntegrationTest.java` | 新增 physical namespace 元数据、select/slice、维度属性、聚合、having、calculatedFields、cache isolation 查询用例 |
@@ -188,8 +192,22 @@ mvn -pl foggy-dataset-mcp -am "-Dtest=McpToolDispatcherTest,LocalDatasetAccessor
 - namespace cache isolation 用例单独执行通过：1 test, 0 failures, 0 errors.
 - physical namespace 查询生成 `t1.sales_amount`、`dp.unit_price`、`SUM(t1.sales_amount)`、`t1.sales_amount + 10`，未出现 `/100.0`。
 - default semantic namespace 既有用例继续生成 `/100.0`。
-- request default namespace 定向测试通过：model 模块 13 tests，MCP reactor 28 tests，0 failures，0 errors。
-- request default namespace 覆盖 resolver、配置默认值、REST native controller、MCP dispatcher 和 LocalDatasetAccessor 入口传递。
+- request default namespace 定向测试通过：model 模块 21 tests，MCP reactor 28 tests，0 failures，0 errors。
+- request namespace 覆盖 resolver、配置默认值、REST native controller、MCP dispatcher 和 LocalDatasetAccessor 入口传递。
+
+2026-05-11 补齐 Dataset Native REST body namespace 契约：
+
+- `/semantic/v3/dataset/query`、`/compose`、`/list_models`、`/describe_model_internal` 均支持 body 顶层 `namespace`。
+- 有效 namespace 优先级固定为 `X-NS header > body.namespace > foggy.dataset.request.default-namespace`。
+- `X-NS` 与 body namespace 冲突时，`X-NS` 生效并记录冲突解析日志。
+- 定向测试命令：
+
+```powershell
+mvn -pl foggy-dataset-model "-Dtest=DatasetRequestNamespaceResolverTest,DbModelAutoConfigurationTest,NativeDatasetControllerTest" test
+mvn -pl foggy-dataset-mcp -am "-Dtest=McpToolDispatcherTest,LocalDatasetAccessorGovernanceTest" "-Dsurefire.failIfNoSpecifiedTests=false" test
+```
+
+- 测试结果：model 模块 21 tests，MCP reactor 28 tests，0 failures，0 errors。
 
 ---
 

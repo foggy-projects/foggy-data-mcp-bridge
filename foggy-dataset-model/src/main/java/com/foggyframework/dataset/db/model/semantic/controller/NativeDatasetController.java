@@ -79,7 +79,7 @@ public class NativeDatasetController {
             @RequestHeader Map<String, String> headers) {
         Map<String, Object> response = nativeComposeQueryService.execute(
                 request != null ? request : Collections.emptyMap(),
-                resolveNamespace(namespace),
+                resolveNamespace(namespace, request),
                 authorization,
                 headers != null ? new LinkedHashMap<>(headers) : Collections.emptyMap());
         return RX.ok(response);
@@ -93,7 +93,7 @@ public class NativeDatasetController {
             @RequestHeader(value = "X-NS", required = false) String namespace) {
         Map<String, Object> response = catalogService.buildCatalogResponse(
                 request != null ? request : Collections.emptyMap(),
-                resolveNamespace(namespace),
+                resolveNamespace(namespace, request),
                 authorization);
         return RX.ok(response);
     }
@@ -134,7 +134,7 @@ public class NativeDatasetController {
                 : null;
         Set<String> fieldAccess = payloadMapper.optionalStringSet(firstPresent(request, "visibleFields", "fieldAccess"));
         return SemanticRequestContext.of(
-                resolveNamespace(namespace),
+                resolveNamespace(namespace, request),
                 securityContext,
                 fieldAccess,
                 payloadMapper.extractDeniedColumns(request),
@@ -144,6 +144,22 @@ public class NativeDatasetController {
 
     private String resolveNamespace(String namespace) {
         return DatasetRequestNamespaceResolver.resolve(datasetProperties, namespace);
+    }
+
+    private String resolveNamespace(String headerNamespace, Map<String, Object> request) {
+        String bodyNamespace = stringValue(request != null ? request.get("namespace") : null);
+        String resolved = DatasetRequestNamespaceResolver.resolve(datasetProperties, headerNamespace, bodyNamespace);
+        logNamespaceConflict(headerNamespace, bodyNamespace, resolved);
+        return resolved;
+    }
+
+    private static void logNamespaceConflict(String headerNamespace, String bodyNamespace, String resolved) {
+        String header = blankToNull(headerNamespace);
+        String body = blankToNull(bodyNamespace);
+        if (header != null && body != null && !header.equals(body)) {
+            log.info("Dataset REST namespace conflict resolved by X-NS header: header={}, body={}, effective={}",
+                    header, body, resolved);
+        }
     }
 
     private static Object firstPresent(Map<String, Object> map, String first, String second) {
@@ -160,5 +176,13 @@ public class NativeDatasetController {
 
     private static String stringValue(Object value) {
         return value != null ? value.toString() : null;
+    }
+
+    private static String blankToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 }

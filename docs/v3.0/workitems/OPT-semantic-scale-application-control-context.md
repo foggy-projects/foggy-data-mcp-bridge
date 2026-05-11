@@ -50,7 +50,7 @@ foggy:
 
 `ExternalBundleProperties` 不需要知道 semantic scale；它只负责把同一路径注册到不同 namespace。
 
-`foggy.dataset.request.default-namespace` 只作用在 REST / MCP / Local accessor 请求入口。上游未传 `X-NS` 或 namespace 参数时，入口层使用该默认值；底层 `null` / `""` 仍表示空 namespace，保持历史兼容。
+`foggy.dataset.request.default-namespace` 只作用在 REST / MCP / Local accessor 请求入口。Dataset Native REST 有效 namespace 优先级为 `X-NS header > body.namespace > request.default-namespace`；`body.namespace` 只读取请求 body 顶层字段。MCP / Local accessor 没有 REST body namespace 契约，仍按显式 namespace 入参优先。底层 `null` / `""` 仍表示空 namespace，保持历史兼容。
 
 ---
 
@@ -75,8 +75,8 @@ foggy:
 | `foggy-fsscript/src/main/java/com/foggyframework/bundle/external/ExternalBundleProperties.java` | 已支持 `name / namespace / path / watch` |
 | `foggy-fsscript/src/main/java/com/foggyframework/bundle/SystemBundlesContextImpl.java` | `findResourceByName(name, namespace, ...)` 已按 namespace 过滤 |
 | `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/impl/loader/TableModelLoaderManagerImpl.java` | 加载期 scale policy |
-| `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/config/DatasetRequestNamespaceResolver.java` | 请求入口默认 namespace 解析 |
-| `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/semantic/controller/NativeDatasetController.java` | REST native API 入口 namespace 默认值 |
+| `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/config/DatasetRequestNamespaceResolver.java` | 请求入口 header/body/default namespace 解析 |
+| `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/semantic/controller/NativeDatasetController.java` | REST native API 入口 `X-NS > body.namespace > default` |
 | `foggy-dataset-mcp/src/main/java/com/foggyframework/dataset/mcp/service/McpToolDispatcher.java` | MCP tool context namespace 默认值 |
 | `foggy-dataset-mcp/src/main/java/com/foggyframework/dataset/mcp/spi/impl/LocalDatasetAccessor.java` | Local accessor namespace 默认值 |
 | `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/impl/property/DbPropertyImpl.java` | 已按 `semanticScaleFactor` 生成 scaled declare |
@@ -92,7 +92,7 @@ foggy:
 3. physical namespace 下会清空 measure/property 以及嵌套 dimension property 的 `semanticScaleFactor`。
 4. `SemanticScaleFactorIntegrationTest` 已增加 physical namespace 元数据、select/slice、维度属性、聚合、having、calculatedFields、cache isolation 查询用例。
 5. `DatasetRequestNamespaceResolver` 已增加 request default namespace 解析：显式 namespace 优先，缺失时使用 `foggy.dataset.request.default-namespace`，未配置时保留原值。
-6. REST native API、MCP dispatcher、LocalDatasetAccessor 已接入 request default namespace。
+6. REST native API 已接入 `X-NS header > body.namespace > request.default-namespace`；MCP dispatcher、LocalDatasetAccessor 已接入 request default namespace。
 7. `OPT-semantic-scale-application-control-progress.md` 已记录测试证据。
 8. `docs/dev-guide/bundle-namespace.md` 已补充双 namespace、`foggy.dataset.semantic-scale` 与 `foggy.dataset.request.default-namespace` 配置示例。
 

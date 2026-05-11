@@ -19,6 +19,24 @@ class DatasetRequestNamespaceResolverTest {
     }
 
     @Test
+    @DisplayName("X-NS header 优先于 body.namespace")
+    void headerNamespaceWinsOverBodyNamespace() {
+        DatasetProperties properties = new DatasetProperties();
+        properties.getRequest().setDefaultNamespace("tms-default");
+
+        assertEquals("tms-ai", DatasetRequestNamespaceResolver.resolve(properties, " tms-ai ", " tms-biz "));
+    }
+
+    @Test
+    @DisplayName("缺少 X-NS 时使用 body.namespace")
+    void bodyNamespaceWinsOverRequestDefault() {
+        DatasetProperties properties = new DatasetProperties();
+        properties.getRequest().setDefaultNamespace("tms-ai");
+
+        assertEquals("tms-biz", DatasetRequestNamespaceResolver.resolve(properties, null, " tms-biz "));
+    }
+
+    @Test
     @DisplayName("空 namespace 使用 request.defaultNamespace")
     void blankNamespaceUsesRequestDefault() {
         DatasetProperties properties = new DatasetProperties();

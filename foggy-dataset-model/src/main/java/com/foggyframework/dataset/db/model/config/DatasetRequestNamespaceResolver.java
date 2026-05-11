@@ -10,6 +10,22 @@ public final class DatasetRequestNamespaceResolver {
     }
 
     public static String resolve(DatasetProperties properties, String namespace) {
+        return resolve(properties, namespace, null);
+    }
+
+    public static String resolve(DatasetProperties properties, String headerNamespace, String bodyNamespace) {
+        String normalizedHeader = blankToNull(headerNamespace);
+        if (normalizedHeader != null) {
+            return normalizedHeader;
+        }
+        String normalizedBody = blankToNull(bodyNamespace);
+        if (normalizedBody != null) {
+            return normalizedBody;
+        }
+        return resolveDefault(properties, headerNamespace != null ? headerNamespace : bodyNamespace);
+    }
+
+    private static String resolveDefault(DatasetProperties properties, String namespace) {
         String normalized = blankToNull(namespace);
         if (normalized != null) {
             return normalized;
