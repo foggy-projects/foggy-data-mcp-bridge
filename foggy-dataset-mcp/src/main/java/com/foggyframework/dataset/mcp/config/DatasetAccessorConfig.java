@@ -1,5 +1,6 @@
 package com.foggyframework.dataset.mcp.config;
 
+import com.foggyframework.dataset.db.model.config.DatasetProperties;
 import com.foggyframework.dataset.mcp.spi.DatasetAccessor;
 import com.foggyframework.dataset.mcp.spi.SemanticServiceResolver;
 import com.foggyframework.dataset.mcp.spi.impl.LocalDatasetAccessor;
@@ -56,7 +57,8 @@ public class DatasetAccessorConfig {
     @ConditionalOnProperty(name = "foggy.mcp.dataset.access-mode", havingValue = "local",matchIfMissing = true)
     public DatasetAccessor localDatasetAccessor(
             SemanticServiceResolver semanticServiceResolver,
-            McpProperties mcpProperties) {
+            McpProperties mcpProperties,
+            DatasetProperties datasetProperties) {
 
         log.info("============================================");
         log.info("MCP Dataset Access Mode: LOCAL");
@@ -64,7 +66,7 @@ public class DatasetAccessorConfig {
         log.info("可用模型: {}", mcpProperties.getSemantic().getModelList());
         log.info("============================================");
 
-        return new LocalDatasetAccessor(semanticServiceResolver, mcpProperties);
+        return new LocalDatasetAccessor(semanticServiceResolver, mcpProperties, datasetProperties);
     }
 
     /**

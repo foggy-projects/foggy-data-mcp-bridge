@@ -21,11 +21,20 @@ vi.mock('./SearchToolbar.vue', () => ({
   }
 }))
 
+vi.mock('./QueryPanel.vue', () => ({
+  default: {
+    name: 'QueryPanel',
+    template: '<div class="query-panel-mock"><slot /></div>',
+    props: ['schema', 'modelValue', 'filterMemberLoader', 'qmModel'],
+    emits: ['update:modelValue', 'search', 'reset']
+  }
+}))
+
 vi.mock('./DataTable.vue', () => ({
   default: {
     name: 'DataTable',
     template: '<div class="data-table-mock"><slot name="toolbar" /><slot name="footer" /><slot name="empty" /><slot name="column-_actions" :row="{}" :column="{}" :value="null" /><slot /></div>',
-    props: ['columns', 'data', 'total', 'loading', 'pageSize', 'showFilters', 'initialSlice', 'serverSummary'],
+    props: ['columns', 'data', 'total', 'loading', 'pageSize', 'showFilters', 'initialSlice', 'serverSummary', 'cellCopy'],
     emits: ['page-change', 'sort-change', 'filter-change', 'row-click', 'row-dblclick', 'checkbox-change', 'checkbox-all'],
     methods: {
       resetPagination() {
@@ -69,6 +78,24 @@ describe('DataTableWithSearch', () => {
     loading: false
   }
 
+  const toolbarProps = {
+    ...defaultProps,
+    queryMode: 'panel' as const
+  }
+
+  const mockQuerySchema = {
+    fields: [
+      {
+        key: 'name',
+        label: '名称',
+        sourceField: 'name',
+        placement: 'form' as const,
+        component: 'text' as const
+      }
+    ],
+    submitMode: 'manual' as const
+  }
+
   describe('Rendering', () => {
     it('should render successfully', () => {
       const wrapper = mount(DataTableWithSearch, {
@@ -79,23 +106,52 @@ describe('DataTableWithSearch', () => {
       expect(wrapper.find('.data-table-with-search').exists()).toBe(true)
     })
 
-    it('should render SearchToolbar by default', () => {
+    it('should not render SearchToolbar without queryMode', () => {
       const wrapper = mount(DataTableWithSearch, {
         props: defaultProps
+      })
+
+      expect(wrapper.find('.search-toolbar-mock').exists()).toBe(false)
+    })
+
+    it('should render SearchToolbar when queryMode is panel and querySchema is absent', () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          ...defaultProps,
+          queryMode: 'panel'
+        }
       })
 
       expect(wrapper.find('.search-toolbar-mock').exists()).toBe(true)
     })
 
-    it('should hide SearchToolbar when showSearchToolbar is false', () => {
+    it('should render legacy QueryPanel only when showQueryPanel is true', () => {
       const wrapper = mount(DataTableWithSearch, {
         props: {
           ...defaultProps,
-          showSearchToolbar: false
+          querySchema: mockQuerySchema,
+          showQueryPanel: true
         }
       })
 
+      expect(wrapper.find('.query-panel-mock').exists()).toBe(true)
       expect(wrapper.find('.search-toolbar-mock').exists()).toBe(false)
+    })
+
+    it('should only hide legacy QueryPanel when showQueryPanel is false', () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          ...defaultProps,
+          querySchema: mockQuerySchema,
+          showQueryPanel: false,
+          showFilters: true
+        }
+      })
+
+      const dataTable = wrapper.findComponent({ name: 'DataTable' })
+      expect(wrapper.find('.query-panel-mock').exists()).toBe(false)
+      expect(wrapper.find('.search-toolbar-mock').exists()).toBe(false)
+      expect(dataTable.props('showFilters')).toBe(true)
     })
 
     it('should always render DataTable', () => {
@@ -110,7 +166,7 @@ describe('DataTableWithSearch', () => {
   describe('Props Passthrough', () => {
     it('should pass columns to both SearchToolbar and DataTable', () => {
       const wrapper = mount(DataTableWithSearch, {
-        props: defaultProps
+        props: toolbarProps
       })
 
       const searchToolbar = wrapper.findComponent({ name: 'SearchToolbar' })
@@ -182,7 +238,7 @@ describe('DataTableWithSearch', () => {
 
       const wrapper = mount(DataTableWithSearch, {
         props: {
-          ...defaultProps,
+          ...toolbarProps,
           searchableFields
         }
       })
@@ -194,7 +250,7 @@ describe('DataTableWithSearch', () => {
     it('should pass searchLayout to SearchToolbar as layout prop', () => {
       const wrapper = mount(DataTableWithSearch, {
         props: {
-          ...defaultProps,
+          ...toolbarProps,
           searchLayout: 'vertical'
         }
       })
@@ -206,7 +262,7 @@ describe('DataTableWithSearch', () => {
     it('should pass showSearchActions to SearchToolbar as showActions prop', () => {
       const wrapper = mount(DataTableWithSearch, {
         props: {
-          ...defaultProps,
+          ...toolbarProps,
           showSearchActions: false
         }
       })
@@ -227,6 +283,207 @@ describe('DataTableWithSearch', () => {
 
       const dataTable = wrapper.findComponent({ name: 'DataTable' })
       expect(dataTable.props('serverSummary')).toEqual(serverSummary)
+    })
+
+    it('should pass cellCopy to DataTable', () => {
+      const cellCopy = { enabled: false }
+
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          ...defaultProps,
+          cellCopy
+        }
+      })
+
+      const dataTable = wrapper.findComponent({ name: 'DataTable' })
+      expect(dataTable.props('cellCopy')).toEqual(cellCopy)
+    })
+  })
+
+  describe('Query Mode', () => {
+    it('should keep only column filters when queryMode is column', () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          ...defaultProps,
+          queryMode: 'column',
+          querySchema: mockQuerySchema
+        }
+      })
+
+      const dataTable = wrapper.findComponent({ name: 'DataTable' })
+      expect(wrapper.find('.query-panel-mock').exists()).toBe(false)
+      expect(wrapper.find('.search-toolbar-mock').exists()).toBe(false)
+      expect(dataTable.props('showFilters')).toBe(true)
+    })
+
+    it('should keep only QueryPanel when queryMode is panel and querySchema exists', () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          ...defaultProps,
+          queryMode: 'panel',
+          querySchema: mockQuerySchema,
+          showFilters: true
+        }
+      })
+
+      const dataTable = wrapper.findComponent({ name: 'DataTable' })
+      expect(wrapper.find('.query-panel-mock').exists()).toBe(true)
+      expect(wrapper.find('.search-toolbar-mock').exists()).toBe(false)
+      expect(dataTable.props('showFilters')).toBe(false)
+    })
+
+    it('should use SearchToolbar as panel entrance when queryMode is panel without querySchema', () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          ...defaultProps,
+          queryMode: 'panel',
+          showFilters: true
+        }
+      })
+
+      const dataTable = wrapper.findComponent({ name: 'DataTable' })
+      expect(wrapper.find('.query-panel-mock').exists()).toBe(false)
+      expect(wrapper.find('.search-toolbar-mock').exists()).toBe(true)
+      expect(dataTable.props('showFilters')).toBe(false)
+    })
+
+    it('should keep QueryPanel and column filters when queryMode is combined', () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          ...defaultProps,
+          queryMode: 'combined',
+          querySchema: mockQuerySchema
+        }
+      })
+
+      const dataTable = wrapper.findComponent({ name: 'DataTable' })
+      expect(wrapper.find('.query-panel-mock').exists()).toBe(true)
+      expect(wrapper.find('.search-toolbar-mock').exists()).toBe(false)
+      expect(dataTable.props('showFilters')).toBe(true)
+    })
+
+    it('should keep SearchToolbar and column filters when queryMode is combined without querySchema', () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          ...defaultProps,
+          queryMode: 'combined'
+        }
+      })
+
+      const dataTable = wrapper.findComponent({ name: 'DataTable' })
+      expect(wrapper.find('.query-panel-mock').exists()).toBe(false)
+      expect(wrapper.find('.search-toolbar-mock').exists()).toBe(true)
+      expect(dataTable.props('showFilters')).toBe(true)
+    })
+
+    it('should hide all built-in query entrances when queryMode is none', () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          ...defaultProps,
+          queryMode: 'none',
+          querySchema: mockQuerySchema,
+          showFilters: true
+        }
+      })
+
+      const dataTable = wrapper.findComponent({ name: 'DataTable' })
+      expect(wrapper.find('.query-panel-mock').exists()).toBe(false)
+      expect(wrapper.find('.search-toolbar-mock').exists()).toBe(false)
+      expect(dataTable.props('showFilters')).toBe(false)
+    })
+
+    it('should let schema queryMode override prop queryMode and legacy switches', () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          schema: {
+            columns: mockColumns,
+            queryMode: 'none',
+            showFilters: true
+          },
+          fetchData: vi.fn().mockResolvedValue({ items: [], total: 0 }),
+          queryMode: 'column',
+          showFilters: true
+        }
+      })
+
+      const dataTable = wrapper.findComponent({ name: 'DataTable' })
+      expect(wrapper.find('.query-panel-mock').exists()).toBe(false)
+      expect(wrapper.find('.search-toolbar-mock').exists()).toBe(false)
+      expect(dataTable.props('showFilters')).toBe(false)
+    })
+
+    it('should submit QueryPanel slices in panel mode', async () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          ...defaultProps,
+          queryMode: 'panel',
+          querySchema: mockQuerySchema
+        }
+      })
+
+      const queryPanel = wrapper.findComponent({ name: 'QueryPanel' })
+      const querySlices: SliceRequestDef[] = [
+        { field: 'name', op: '=', value: 'from-panel' }
+      ]
+
+      await queryPanel.vm.$emit('update:modelValue', querySlices)
+      await queryPanel.vm.$emit('search')
+
+      const filterChangeEvents = wrapper.emitted('filter-change')
+      expect(filterChangeEvents).toBeTruthy()
+      expect(filterChangeEvents![0][0]).toEqual(querySlices)
+    })
+
+    it('should submit column slices in column mode', async () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          ...defaultProps,
+          queryMode: 'column'
+        }
+      })
+
+      const dataTable = wrapper.findComponent({ name: 'DataTable' })
+      const tableSlices: SliceRequestDef[] = [
+        { field: 'amount', op: '>=', value: 100 }
+      ]
+
+      await dataTable.vm.$emit('filter-change', tableSlices)
+
+      const filterChangeEvents = wrapper.emitted('filter-change')
+      expect(filterChangeEvents).toBeTruthy()
+      expect(filterChangeEvents![0][0]).toEqual(tableSlices)
+    })
+
+    it('should merge QueryPanel and column slices in combined mode', async () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          ...defaultProps,
+          queryMode: 'combined',
+          querySchema: mockQuerySchema,
+          filterMergeMode: 'merge'
+        }
+      })
+
+      const queryPanel = wrapper.findComponent({ name: 'QueryPanel' })
+      const dataTable = wrapper.findComponent({ name: 'DataTable' })
+      const querySlices: SliceRequestDef[] = [
+        { field: 'name', op: '=', value: 'from-panel' }
+      ]
+      const tableSlices: SliceRequestDef[] = [
+        { field: 'amount', op: '>=', value: 100 }
+      ]
+
+      await queryPanel.vm.$emit('update:modelValue', querySlices)
+      await queryPanel.vm.$emit('search')
+      await dataTable.vm.$emit('filter-change', tableSlices)
+
+      const filterChangeEvents = wrapper.emitted('filter-change')
+      expect(filterChangeEvents).toBeTruthy()
+
+      const lastEmit = filterChangeEvents![filterChangeEvents!.length - 1][0] as SliceRequestDef[]
+      expect(lastEmit).toHaveLength(2)
+      expect(lastEmit.find(s => s.field === 'name')?.value).toBe('from-panel')
+      expect(lastEmit.find(s => s.field === 'amount')?.value).toBe(100)
     })
   })
 
@@ -312,7 +569,7 @@ describe('DataTableWithSearch', () => {
 
     it('should emit search event from SearchToolbar', async () => {
       const wrapper = mount(DataTableWithSearch, {
-        props: defaultProps
+        props: toolbarProps
       })
 
       const searchToolbar = wrapper.findComponent({ name: 'SearchToolbar' })
@@ -323,7 +580,7 @@ describe('DataTableWithSearch', () => {
 
     it('should emit reset event from SearchToolbar', async () => {
       const wrapper = mount(DataTableWithSearch, {
-        props: defaultProps
+        props: toolbarProps
       })
 
       const searchToolbar = wrapper.findComponent({ name: 'SearchToolbar' })
@@ -337,7 +594,7 @@ describe('DataTableWithSearch', () => {
     it('should merge search and table filters in merge mode', async () => {
       const wrapper = mount(DataTableWithSearch, {
         props: {
-          ...defaultProps,
+          ...toolbarProps,
           filterMergeMode: 'merge',
           showSearchActions: false  // 实时筛选模式
         }
@@ -369,7 +626,7 @@ describe('DataTableWithSearch', () => {
     it('should replace table filters with search filters in replace mode', async () => {
       const wrapper = mount(DataTableWithSearch, {
         props: {
-          ...defaultProps,
+          ...toolbarProps,
           filterMergeMode: 'replace',
           showSearchActions: false  // 实时筛选模式
         }
@@ -424,7 +681,7 @@ describe('DataTableWithSearch', () => {
     it('should not duplicate filters for same field in merge mode', async () => {
       const wrapper = mount(DataTableWithSearch, {
         props: {
-          ...defaultProps,
+          ...toolbarProps,
           filterMergeMode: 'merge',
           showSearchActions: false  // 实时筛选模式
         }
@@ -456,7 +713,7 @@ describe('DataTableWithSearch', () => {
   describe('Exposed Methods', () => {
     it('should expose getSearchToolbar method', () => {
       const wrapper = mount(DataTableWithSearch, {
-        props: defaultProps
+        props: toolbarProps
       })
 
       const vm = wrapper.vm as any
@@ -547,7 +804,7 @@ describe('DataTableWithSearch', () => {
     it('should work in complete workflow with button mode', async () => {
       const wrapper = mount(DataTableWithSearch, {
         props: {
-          ...defaultProps,
+          ...toolbarProps,
           showSearchActions: true  // 按钮模式（默认）
         }
       })
@@ -583,7 +840,7 @@ describe('DataTableWithSearch', () => {
     it('should handle rapid filter changes in realtime mode', async () => {
       const wrapper = mount(DataTableWithSearch, {
         props: {
-          ...defaultProps,
+          ...toolbarProps,
           showSearchActions: false  // 实时筛选模式
         }
       })
@@ -607,7 +864,7 @@ describe('DataTableWithSearch', () => {
     it('should handle undefined searchableFields', () => {
       const wrapper = mount(DataTableWithSearch, {
         props: {
-          ...defaultProps,
+          ...toolbarProps,
           searchableFields: undefined
         }
       })

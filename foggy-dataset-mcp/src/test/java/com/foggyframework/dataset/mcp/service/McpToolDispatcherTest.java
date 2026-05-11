@@ -2,6 +2,7 @@ package com.foggyframework.dataset.mcp.service;
 
 import com.foggyframework.dataset.mcp.base.BaseMcpTest;
 import com.foggyframework.dataset.mcp.base.MockToolFactory;
+import com.foggyframework.dataset.db.model.config.DatasetProperties;
 import com.foggyframework.dataset.mcp.schema.McpRequest;
 import com.foggyframework.mcp.spi.McpTool;
 import com.foggyframework.mcp.spi.ProgressEvent;
@@ -249,6 +250,24 @@ class McpToolDispatcherTest extends BaseMcpTest {
             verify(queryTool).execute(any(), ctxCaptor.capture());
             assertEquals("1", ctxCaptor.getValue().getHeader("X-Foggy-Remote-Compose"));
             assertEquals("1", ctxCaptor.getValue().getHeader("x-foggy-remote-compose"));
+        }
+
+        @Test
+        @DisplayName("未传 namespace 时应使用 request.defaultNamespace")
+        void shouldApplyRequestDefaultNamespace() {
+            DatasetProperties properties = new DatasetProperties();
+            properties.getRequest().setDefaultNamespace("tms-ai");
+            dispatcher.setDatasetProperties(properties);
+            ArgumentCaptor<ToolExecutionContext> ctxCaptor =
+                    ArgumentCaptor.forClass(ToolExecutionContext.class);
+
+            when(queryTool.execute(any(), any())).thenReturn(Map.of("success", true));
+
+            dispatcher.executeTool("dataset.query_model", Map.of("model", "TestModel"), "trace-3", "req-3",
+                    "Bearer token", "ADMIN", null, Map.of());
+
+            verify(queryTool).execute(any(), ctxCaptor.capture());
+            assertEquals("tms-ai", ctxCaptor.getValue().getNamespace());
         }
     }
 

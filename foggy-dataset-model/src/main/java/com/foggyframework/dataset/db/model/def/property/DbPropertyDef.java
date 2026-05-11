@@ -9,6 +9,7 @@ import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 import org.springframework.beans.BeanUtils;
 
+import java.math.BigDecimal;
 import java.util.Map;
 
 @Data
@@ -32,6 +33,15 @@ public class DbPropertyDef extends DbDefSupport {
 
     @ApiModelProperty(value = "字典引用", notes = "引用通过 registerDict 注册的字典ID，用于将数据库中的值转换为显示标签")
     String dictRef;
+
+    @ApiModelProperty(value = "语义缩放因子", notes = "用于物理金额列按语义单位读取，例如分转元配置 100；不能与 formulaDef/dialectFormulaDef 同时使用")
+    BigDecimal semanticScaleFactor;
+
+    @ApiModelProperty(value = "语义单位编码", notes = "例如 CNY、USD、percent")
+    String semanticUnit;
+
+    @ApiModelProperty(value = "语义单位显示名", notes = "例如 元、美元、百分比")
+    String semanticUnitLabel;
 
     /**
      * 向量维度（仅用于 VECTOR 类型字段）

@@ -5,6 +5,7 @@ import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.def.query.request.WindowOrderDef;
+import com.foggyframework.dataset.db.model.engine.JdbcModelQueryEngine;
 import com.foggyframework.dataset.db.model.spi.*;
 import com.foggyframework.dataset.db.model.spi.support.CalculatedDbColumn;
 import com.foggyframework.fsscript.parser.spi.Exp;
@@ -270,13 +271,7 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
      */
     private String resolveColumnSql(DbQueryColumn col, String alias, ApplicationContext appCtx, boolean asAlias) {
         if (asAlias) {
-            if (col instanceof CalculatedDbColumn) {
-                return dialect.quoteIdentifier(((CalculatedDbColumn) col).getName());
-            }
-            if (col.getSelectColumn() != null) {
-                return dialect.quoteIdentifier(col.getSelectColumn().getAlias());
-            }
-            return dialect.quoteIdentifier(col.getAlias());
+            return dialect.quoteIdentifier(JdbcModelQueryEngine.getCteProjectionAlias(col));
         } else {
             if (col instanceof CalculatedDbColumn) {
                 return ((CalculatedDbColumn) col).getDeclare();

@@ -1,5 +1,7 @@
 package com.foggyframework.dataset.mcp.service;
 
+import com.foggyframework.dataset.db.model.config.DatasetProperties;
+import com.foggyframework.dataset.db.model.config.DatasetRequestNamespaceResolver;
 import com.foggyframework.dataset.mcp.audit.ToolAuditService;
 import com.foggyframework.dataset.mcp.schema.McpRequest;
 import com.foggyframework.mcp.spi.McpTool;
@@ -38,6 +40,9 @@ public class McpToolDispatcher {
      */
     @Autowired(required = false)
     private ToolAuditService auditService;
+
+    @Autowired(required = false)
+    private DatasetProperties datasetProperties;
 
     private final Map<String, McpTool> toolRegistry = new ConcurrentHashMap<>();
 
@@ -151,13 +156,14 @@ public class McpToolDispatcher {
                               String requestId, String authorization, String userRole, String namespace,
                               Map<String, String> headers) {
         McpTool tool = toolRegistry.get(toolName);
+        String effectiveNamespace = resolveNamespace(namespace);
 
         if (tool == null) {
             throw new IllegalArgumentException("Unknown tool: " + toolName);
         }
 
         log.info("Executing tool: name={}, traceId={}, requestId={}, namespace={}",
-                toolName, traceId, requestId, namespace);
+                toolName, traceId, requestId, effectiveNamespace);
         long startTime = System.currentTimeMillis();
 
         try {
@@ -166,7 +172,7 @@ public class McpToolDispatcher {
                     .traceId(traceId)
                     .authorization(authorization)
                     .userRole(userRole)
-                    .namespace(namespace)
+                    .namespace(effectiveNamespace)
                     .headers(headers == null ? new LinkedHashMap<>() : new LinkedHashMap<>(headers))
                     .build();
 
@@ -260,6 +266,7 @@ public class McpToolDispatcher {
      */
     public Flux<ProgressEvent> executeWithProgress(McpRequest request, String traceId, String authorization,
                                                    String namespace, Map<String, String> headers) {
+        String effectiveNamespace = resolveNamespace(namespace);
         Map<String, Object> params = request.getParams();
         if (params == null) {
             return Flux.just(ProgressEvent.error("INVALID_PARAMS", "Missing params"));
@@ -285,13 +292,13 @@ public class McpToolDispatcher {
             return Flux.just(ProgressEvent.error("TOOL_NOT_FOUND", "Unknown tool: " + toolName));
         }
 
-        log.info("Stream executeWithProgress: tool={}, traceId={}, namespace={}", toolName, traceId, namespace);
+        log.info("Stream executeWithProgress: tool={}, traceId={}, namespace={}", toolName, traceId, effectiveNamespace);
 
         // 创建执行上下文（含命名空间）
         ToolExecutionContext context = ToolExecutionContext.builder()
                 .traceId(traceId)
                 .authorization(authorization)
-                .namespace(namespace)
+                .namespace(effectiveNamespace)
                 .headers(headers == null ? new LinkedHashMap<>() : new LinkedHashMap<>(headers))
                 .build();
 
@@ -345,5 +352,13 @@ public class McpToolDispatcher {
         return toolRegistry.values().stream()
                 .filter(tool -> !tool.getName().equals("dataset_nl.query"))
                 .collect(Collectors.toList());
+    }
+
+    void setDatasetProperties(DatasetProperties datasetProperties) {
+        this.datasetProperties = datasetProperties;
+    }
+
+    private String resolveNamespace(String namespace) {
+        return DatasetRequestNamespaceResolver.resolve(datasetProperties, namespace);
     }
 }

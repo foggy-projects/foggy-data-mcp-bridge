@@ -374,8 +374,8 @@ onMounted(async () => {
     }),
     searchableFields: ['customer$caption'],
     pageSize: 50,
-    showFilters: true,
-    showSearchToolbar: true
+    queryMode: 'combined',
+    showFilters: true
   }
 })
 
@@ -413,7 +413,7 @@ async function fetchData(params) {
 - `total`
 - `loading`
 
-这种模式下它更像是 `SearchToolbar + DataTable` 的组合壳。
+这种模式下它更像是按 `queryMode` 组合查询入口和 `DataTable` 的外壳。
 
 ### 它额外提供的能力
 

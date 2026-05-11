@@ -955,6 +955,14 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                 continue;
             }
 
+            // 时间维度根字段：dateOrder 本身用于绝对日期过滤和 timeWindow。
+            if ((DbDimensionType.DATETIME == dimension.getType() || DbDimensionType.DAY == dimension.getType())
+                    && queryModel.findJdbcQueryColumnByName(baseName, false) != null) {
+                dimensionFieldNames.add(baseName);
+                Map<String, Object> rootFieldInfo = createTimeDimensionRootFieldInfo(dimension, queryModel.getName());
+                mergeFieldInfo(fields, baseName, rootFieldInfo);
+            }
+
             // 展开为两个独立字段
             // 1. $id 字段
             dimensionFieldNames.add(idFieldName);
@@ -1099,6 +1107,33 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
     /**
      * 创建维度 $id 字段信息
      */
+    private Map<String, Object> createTimeDimensionRootFieldInfo(DbDimension dimension, String modelName) {
+        Map<String, Object> fieldInfo = new LinkedHashMap<>();
+        String baseName = dimension.getEffectiveName();
+
+        fieldInfo.put("name", dimension.getCaption() != null ? dimension.getCaption() : baseName);
+        fieldInfo.put("fieldName", baseName);
+        fieldInfo.put("meta", "时间维度根字段 | " + (dimension.getType() == DbDimensionType.DATETIME ? "DATETIME" : "DATE"));
+        fieldInfo.put("type", dimension.getType() == DbDimensionType.DATETIME ? "DATETIME" : "DATE");
+        fieldInfo.put("filterType", "date");
+        fieldInfo.put("filterable", true);
+        fieldInfo.put("measure", false);
+        fieldInfo.put("aggregatable", false);
+        if (dimension.getCaptionDbColumn() != null) {
+            fieldInfo.put("sourceColumn", dimension.getCaptionDbColumn().getSqlColumnName());
+        }
+
+        Map<String, Object> modelInfo = new LinkedHashMap<>();
+        modelInfo.put("description", dimension.getDescription() != null ? dimension.getDescription() : baseName);
+        modelInfo.put("usage", "用于绝对日期过滤和 timeWindow");
+
+        Map<String, Object> models = new LinkedHashMap<>();
+        models.put(modelName, modelInfo);
+        fieldInfo.put("models", models);
+
+        return fieldInfo;
+    }
+
     private Map<String, Object> createDimensionIdFieldInfo(DbDimension dimension, String modelName) {
         Map<String, Object> fieldInfo = new LinkedHashMap<>();
         String baseName = dimension.getEffectiveName();

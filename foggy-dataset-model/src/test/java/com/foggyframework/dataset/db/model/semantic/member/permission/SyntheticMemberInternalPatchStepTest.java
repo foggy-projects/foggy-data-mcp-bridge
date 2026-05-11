@@ -166,10 +166,10 @@ class SyntheticMemberInternalPatchStepTest {
     }
 
     @Test
-    @DisplayName("forcedSlice 字段不在 schema 中时跳过")
-    void forcedSlice_fieldNotInSchema_skipped() {
+    @DisplayName("forcedSlice 字段不在 schema 中时抛模型配置异常")
+    void forcedSlice_fieldNotInSchema_throws() {
         MemberPermissionSliceDef slice = new MemberPermissionSliceDef();
-        slice.setField("nonExistentField");
+        slice.setField("tenantId");
         slice.setOp("=");
         slice.setValue(1);
 
@@ -183,11 +183,46 @@ class SyntheticMemberInternalPatchStepTest {
         when(mockLoader.getJdbcQueryModel(eq("TestQM"), any())).thenReturn(sourceModel);
 
         ModelResultContext ctx = buildCtx("TestQM#product", List.of("id"));
-        step.beforeQuery(ctx);
 
-        // 非法字段被跳过，不应注入
-        List<SliceRequestDef> resultSlice = ctx.getRequest().getParam().getSlice();
-        assertTrue(resultSlice == null || resultSlice.isEmpty());
+        Exception ex = assertThrows(Exception.class, () -> step.beforeQuery(ctx));
+        assertTrue(ex.getMessage().contains("synthetic member-QM 内部权限字段不存在"));
+        assertTrue(ex.getMessage().contains("field=tenantId"));
+        assertTrue(ex.getMessage().contains("qmModel=TestQM"));
+        assertTrue(ex.getMessage().contains("memberField=product$caption"));
+        assertTrue(ctx.getRequest().getParam().getSlice() == null
+                        || ctx.getRequest().getParam().getSlice().isEmpty(),
+                "缺少 forcedSlice 字段时不应部分注入 queryRequest.slice");
+    }
+
+    @Test
+    @DisplayName("多个 forcedSlice 中任一字段不在 schema 中时抛异常且不部分跳过")
+    void forcedSlice_anyFieldNotInSchema_throwsWithoutPartialSkip() {
+        MemberPermissionSliceDef validSlice = new MemberPermissionSliceDef();
+        validSlice.setField("id");
+        validSlice.setOp("=");
+        validSlice.setValue(42);
+
+        MemberPermissionSliceDef invalidSlice = new MemberPermissionSliceDef();
+        invalidSlice.setField("tenantId");
+        invalidSlice.setOp("=");
+        invalidSlice.setValue(1);
+
+        MemberPermissionPatchDef tmPatch = new MemberPermissionPatchDef();
+        tmPatch.setForcedSlice(List.of(validSlice, invalidSlice));
+
+        MemberPermissionDef tmPerm = new MemberPermissionDef();
+        tmPerm.setPatch(tmPatch);
+
+        QueryModel sourceModel = buildSourceModel("product", tmPerm, null);
+        when(mockLoader.getJdbcQueryModel(eq("TestQM"), any())).thenReturn(sourceModel);
+
+        ModelResultContext ctx = buildCtx("TestQM#product", List.of("id"));
+
+        Exception ex = assertThrows(Exception.class, () -> step.beforeQuery(ctx));
+        assertTrue(ex.getMessage().contains("field=tenantId"));
+        assertTrue(ctx.getRequest().getParam().getSlice() == null
+                        || ctx.getRequest().getParam().getSlice().isEmpty(),
+                "任一强制字段缺失时不允许把其他 forcedSlice 部分写入请求");
     }
 
     // ==================== forcedOrderBy 注入 ====================

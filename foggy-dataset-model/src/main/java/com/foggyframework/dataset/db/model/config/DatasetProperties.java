@@ -3,6 +3,9 @@ package com.foggyframework.dataset.db.model.config;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Foggy Dataset Model 配置属性
  * <p>
@@ -112,5 +115,40 @@ public class DatasetProperties {
     /**
      * 当查询请求中，没有指定 limit 时，默认的 limit 值
      */
-    private int defaultLimit=1000;
+    private int defaultLimit = 1000;
+
+    /**
+     * 请求入口默认值。
+     */
+    private RequestConfig request = new RequestConfig();
+
+    /**
+     * 语义缩放加载策略。
+     * <p>默认启用 semanticScaleFactor；需要保留物理单位的命名空间显式加入 disabledNamespaces。</p>
+     */
+    private SemanticScaleConfig semanticScale = new SemanticScaleConfig();
+
+    @Data
+    public static class RequestConfig {
+
+        /**
+         * API/MCP 调用未传 namespace 时使用的默认 namespace。
+         * <p>默认空字符串，保持底层默认命名空间兼容语义。</p>
+         */
+        private String defaultNamespace = "";
+    }
+
+    @Data
+    public static class SemanticScaleConfig {
+
+        /**
+         * semanticScaleFactor 默认是否启用。
+         */
+        private boolean defaultEnabled = true;
+
+        /**
+         * 禁用 semanticScaleFactor 的命名空间列表。
+         */
+        private List<String> disabledNamespaces = new ArrayList<>();
+    }
 }

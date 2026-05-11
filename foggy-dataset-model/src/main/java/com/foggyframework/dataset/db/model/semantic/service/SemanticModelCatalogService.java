@@ -167,7 +167,7 @@ public class SemanticModelCatalogService {
     }
 
     private List<String> scanAllModelNames() {
-        List<String> modelNames = new ArrayList<>();
+        LinkedHashSet<String> modelNames = new LinkedHashSet<>();
         try {
             systemBundlesContext.getBundleList().forEach(bundle -> {
                 try {

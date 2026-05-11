@@ -30,24 +30,27 @@ public final class DerivedQueryPlan extends QueryPlan {
 
     private DerivedQueryPlan(Builder b) {
         requirePlan(b.source, "DerivedQueryPlan.source");
+        PlanQualifiedFieldResolver.NormalizedDerivedOptions normalized =
+                PlanQualifiedFieldResolver.normalizeDerivedOptions(
+                        b.source, b.columns, b.slice, b.groupBy, b.orderBy);
         // Columns may be null/empty for intermediate fluent stages
         // (where, groupBy, orderBy, limit before select()).
-        validateColumnElements(b.columns, "DerivedQueryPlan.columns");
-        validateStringList(b.groupBy, "DerivedQueryPlan.groupBy");
-        validateStringList(b.orderBy, "DerivedQueryPlan.orderBy");
-        validateSliceValues(b.slice, "DerivedQueryPlan.slice");
+        validateColumnElements(normalized.columns(), "DerivedQueryPlan.columns");
+        validateStringList(normalized.groupBy(), "DerivedQueryPlan.groupBy");
+        validateStringList(normalized.orderBy(), "DerivedQueryPlan.orderBy");
+        validateSliceValues(normalized.slice(), "DerivedQueryPlan.slice");
         validatePagination(b.limit, b.start, "DerivedQueryPlan");
         // G5 Phase 2 (F5) — visibility lineage = source.collectVisiblePlans()
         // (already includes source itself). Self-reference (plan === source)
         // is allowed per spec §5.2.
-        validateF5PlanVisibility(b.columns, b.source.collectVisiblePlans(),
+        validateF5PlanVisibility(normalized.columns(), b.source.collectVisiblePlans(),
                 "DerivedQueryPlan.columns");
 
         this.source = b.source;
-        this.columns = b.columns == null ? List.of() : List.copyOf(b.columns);
-        this.slice = b.slice == null ? List.of() : List.copyOf(b.slice);
-        this.groupBy = b.groupBy == null ? List.of() : List.copyOf(b.groupBy);
-        this.orderBy = b.orderBy == null ? List.of() : List.copyOf(b.orderBy);
+        this.columns = normalized.columns() == null ? List.of() : List.copyOf(normalized.columns());
+        this.slice = normalized.slice() == null ? List.of() : List.copyOf(normalized.slice());
+        this.groupBy = normalized.groupBy() == null ? List.of() : List.copyOf(normalized.groupBy());
+        this.orderBy = normalized.orderBy() == null ? List.of() : List.copyOf(normalized.orderBy());
         this.limit = b.limit;
         this.start = b.start;
         this.distinct = b.distinct;

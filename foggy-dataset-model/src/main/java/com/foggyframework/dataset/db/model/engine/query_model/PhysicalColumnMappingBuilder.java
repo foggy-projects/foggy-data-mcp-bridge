@@ -108,6 +108,9 @@ public final class PhysicalColumnMappingBuilder {
             DbColumn captionCol = dim.getCaptionDbColumn();
             if (captionCol != null && captionCol.getSqlColumnName() != null) {
                 addMapping(qmToPhysical, physicalToQm, dimName + "$caption", dimTable, captionCol.getSqlColumnName());
+                if (dim.getType() == DbDimensionType.DATETIME || dim.getType() == DbDimensionType.DAY) {
+                    addMapping(qmToPhysical, physicalToQm, dimName, dimTable, captionCol.getSqlColumnName());
+                }
             }
 
             // 维度属性 → dimension table columns

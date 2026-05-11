@@ -552,7 +552,8 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
                     // 使用 aliasRef 作为列名和列查找（使用 _ 分隔，因为列索引用alias格式）
                     String columnName = hasRef ? aliasRef : item.getName();
 
-                    DbDimension dimension = qm.findDimension(dimRef);
+                    DbColumn exactColumn = qm.findJdbcColumn(columnName);
+                    DbDimension dimension = exactColumn == null ? qm.findDimension(dimRef) : null;
                     if (dimension != null) {
                         //维度，自动展开 $id + $caption + 所有属性 + 嵌套子维度（递归）
                         expandDimension(qm, group, dimension, columnName, item, hasRef, explicitColumnNames, explicitDimensionRefs);
@@ -622,7 +623,7 @@ public class QueryModelLoaderImpl extends LoaderSupport implements QueryModelLoa
             if (!hasExplicitProps) {
                 // 无显式属性引用 → 自动展开全部属性
                 for (DbProperty prop : ((DbDimensionSupport) dimension).getJdbcProperties()) {
-                    String propColumnName = basePath + "$" + prop.getPropertyDbColumn().getAlias();
+                    String propColumnName = basePath + "$" + prop.getName();
                     addColumn(qm, group, propColumnName, createAutoExpandedPropertyItem(item, propColumnName), hasRef);
                 }
             }

@@ -31,6 +31,8 @@ import com.foggyframework.dataset.db.model.engine.pivot.transport.UnsupportedDom
 import com.foggyframework.dataset.db.model.engine.query.JdbcQuery;
 import com.foggyframework.dataset.db.model.engine.query.SimpleSqlJdbcQueryVisitor;
 import com.foggyframework.dataset.db.model.i18n.DatasetMessages;
+import com.foggyframework.dataset.db.model.impl.AiObject;
+import com.foggyframework.dataset.db.model.impl.DbColumnDelegate;
 import com.foggyframework.dataset.db.model.impl.dimension.DbModelParentChildDimensionImpl;
 import com.foggyframework.dataset.db.model.impl.query.DbQueryOrderColumnImpl;
 import com.foggyframework.dataset.db.model.impl.utils.SqlQueryObject;
@@ -695,6 +697,44 @@ public class JdbcModelQueryEngine implements QueryEngine {
      * plus the global ORDER BY and LIMIT/OFFSET.
      * </p>
      */
+    public static String getCteProjectionAlias(DbColumn col) {
+        if (col instanceof DbQueryColumn && StringUtils.isNotEmpty(col.getName())) {
+            return col.getName();
+        }
+        if (StringUtils.isNotEmpty(col.getAlias())) {
+            return col.getAlias();
+        }
+        return col.getName();
+    }
+
+    private static class CteProjectedColumn extends DbColumnDelegate {
+        public CteProjectedColumn(DbColumn delegate) {
+            super(delegate);
+        }
+        @Override
+        public String getAlias() {
+            return getCteProjectionAlias(delegate);
+        }
+        @Override
+        public AiObject getAi() {
+            return delegate.getAi();
+        }
+        @Override
+        public Object getExtData() {
+            return delegate.getExtData();
+        }
+    }
+
+    private static boolean containsCteProjectionAlias(List<DbColumn> columns, DbColumn candidate) {
+        String candidateAlias = getCteProjectionAlias(candidate);
+        for (DbColumn column : columns) {
+            if (candidateAlias.equals(getCteProjectionAlias(column))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @SuppressWarnings("unchecked")
     private void generateWithCteWrapping(SystemBundlesContext systemBundlesContext,
                                           DbQueryRequestDef queryRequest,
@@ -707,6 +747,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
         List<DbColumn> originalSelectCols = new ArrayList<>(jdbcQuery.getSelect().getColumns());
         List<WindowColumnInfo> windowColumns = new ArrayList<>();
         List<DbColumn> stage1SelectCols = new ArrayList<>();
+        List<DbColumn> outerStage1OutputCols = new ArrayList<>();
 
         for (int i = 0; i < originalSelectCols.size(); i++) {
             DbColumn col = originalSelectCols.get(i);
@@ -720,6 +761,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
                 windowColumns.add(new WindowColumnInfo(i, col));
             } else {
                 stage1SelectCols.add(col);
+                outerStage1OutputCols.add(col);
             }
         }
 
@@ -736,9 +778,23 @@ public class JdbcModelQueryEngine implements QueryEngine {
             }
         }
 
+        for (WindowColumnInfo wci : windowColumns) {
+            if (wci.column instanceof CalculatedDbColumn calc && calc.getReferencedColumns() != null) {
+                for (DbQueryColumn ref : calc.getReferencedColumns()) {
+                    if (!containsCteProjectionAlias(stage1SelectCols, ref)) {
+                        stage1SelectCols.add(ref);
+                    }
+                }
+            }
+        }
+
         // ── Stage 1: Generate inner SQL WITHOUT window CFs and WITHOUT ORDER BY ──
-        // Temporarily replace SELECT columns with stage1-only columns
-        jdbcQuery.getSelect().setColumns(stage1SelectCols);
+        // Temporarily replace SELECT columns with stage1-only columns wrapped to ensure correct alias
+        List<DbColumn> stage1WrappedCols = new ArrayList<>();
+        for (DbColumn col : stage1SelectCols) {
+            stage1WrappedCols.add(new CteProjectedColumn(col));
+        }
+        jdbcQuery.getSelect().setColumns(stage1WrappedCols);
 
         // Temporarily clear ORDER BY for Stage 1 (will be elevated to Stage 2)
         JdbcQuery.JdbcOrder savedOrder = jdbcQuery.getOrder();
@@ -771,9 +827,9 @@ public class JdbcModelQueryEngine implements QueryEngine {
         outerSelect.append("SELECT ");
         List<String> outerColumnExprs = new ArrayList<>();
 
-        // Stage 1 columns: reference by alias
-        for (DbColumn col : stage1SelectCols) {
-            String colAlias = col.getAlias();
+        // Stage 1 columns: reference by unified CTE alias
+        for (DbColumn col : outerStage1OutputCols) {
+            String colAlias = getCteProjectionAlias(col);
             String quotedAlias = dialect.quoteIdentifier(colAlias);
             outerColumnExprs.add(cteAlias + "." + quotedAlias);
         }
@@ -796,7 +852,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
             List<String> orderExprs = new ArrayList<>();
             for (DbQueryOrderColumnImpl order : savedOrder.getOrders()) {
                 DbColumn orderCol = order.getSelectColumn();
-                String orderColAlias = dialect.quoteIdentifier(orderCol.getAlias());
+                String orderColAlias = dialect.quoteIdentifier(getCteProjectionAlias(orderCol));
 
                 // Check if it's a window CF — reference by alias directly
                 // Otherwise reference via cteAlias.colAlias

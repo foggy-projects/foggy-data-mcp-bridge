@@ -110,7 +110,7 @@ function handlePageChange(page: number, pageSize: number) {
 |------|------|------|
 | **DataTable** | 基础数据表格组件（表头过滤器、分页、排序、汇总） | [见下方 API](#datatable-props) |
 | **SearchToolbar** | 独立搜索工具栏组件（字段级快速筛选） | [完整文档](./docs/SearchToolbar.md) |
-| **DataTableWithSearch** | 组合组件（SearchToolbar + DataTable + 属性透传） | [完整文档](./docs/SearchToolbar.md#datatablewithsearch-使用) |
+| **DataTableWithSearch** | 组合组件（SearchToolbar + DataTable + 属性透传，支持 queryMode 查询入口模式） | [完整文档](./docs/SearchToolbar.md#datatablewithsearch-使用) |
 | **DataViewer** | 高层封装组件（集成 API 调用、元数据管理） | 待完善 |
 
 ### 工具函数

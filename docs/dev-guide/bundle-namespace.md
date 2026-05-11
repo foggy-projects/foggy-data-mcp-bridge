@@ -6,9 +6,17 @@
 
 ### 命名空间规则
 
-- 未传或传空字符串：使用默认命名空间
+- 未传或传空字符串：默认保持空 namespace；如果配置了 `foggy.dataset.request.default-namespace`，API/MCP 请求入口会先替换为该默认 namespace
 - 传 `dev`：查询 dev 命名空间下的模型（如 `dev:OrderModel`）
 - 传 `test`：查询 test 命名空间下的模型（如 `test:OrderModel`）
+
+Dataset Native REST API 同时支持 `X-NS` header 和请求 body 顶层 `namespace` 字段。有效 namespace 优先级固定为：
+
+```text
+X-NS header > body.namespace > foggy.dataset.request.default-namespace > 空 namespace
+```
+
+`body.namespace` 仅指请求 body 顶层字段，不从 `payload.namespace`、compose script 或其他嵌套参数中推断。`X-NS` 与 `body.namespace` 同时存在且不一致时，`X-NS` 优先。
 
 ### YAML 配置示例
 
@@ -28,6 +36,51 @@ foggy:
           path: /data/ecommerce-test
           watch: false
 ```
+
+### 金额语义单位 Namespace 示例
+
+当同一套 TM/QM 需要同时服务两类契约时，建议用不同 namespace 隔离：
+
+- 业务前后台继续使用物理单位，例如数据库保存“分”，查询也按“分”理解。
+- AI Agent / MCP / LLM 使用语义单位，例如金额统一按“元”理解。
+
+`ExternalBundleProperties` 只负责把同一路径注册到不同 namespace；dataset-model 通过 `foggy.dataset.semantic-scale` 决定哪些 namespace 禁用 `semanticScaleFactor`。
+
+```yaml
+foggy:
+  bundle:
+    external:
+      enabled: true
+      bundles:
+        - name: tms-models-physical
+          namespace: tms-biz
+          path: /data/tms-models
+          watch: true
+
+        - name: tms-models-semantic
+          namespace: tms-ai
+          path: /data/tms-models
+          watch: true
+
+  dataset:
+    request:
+      default-namespace: tms-ai
+    semantic-scale:
+      default-enabled: true
+      disabled-namespaces:
+        - tms-biz
+```
+
+在这个配置下：
+
+| Namespace | 使用方 | 金额字段契约 |
+|-----------|--------|--------------|
+| `tms-ai` | AI Agent / MCP / LLM | 保留 `semanticScaleFactor`，字段值按元 |
+| `tms-biz` | 业务前后台 / 既有调用 | 忽略 `semanticScaleFactor`，字段值按分 |
+
+查询入口只需要稳定传递 namespace，不需要额外传递单位开关。如果 AI/MCP 入口不方便显式传 `X-NS: tms-ai`，可以配置 `foggy.dataset.request.default-namespace: tms-ai`，让缺失 namespace 的 API/MCP 请求默认进入 semantic namespace。Dataset Native REST 也可以通过 body 顶层 `namespace` 显式指定命名空间，但系统入口强制注入的 `X-NS` 始终优先。
+
+注意：`request.default-namespace` 是请求入口默认值，不是 bundle 默认 namespace。未配置时，底层 `null` / `""` 仍表示空 namespace，保持兼容。
 
 ### Java 配置示例
 

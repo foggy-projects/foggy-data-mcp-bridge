@@ -1,13 +1,18 @@
 package com.foggyframework.dataset.db.model.semantic.controller;
 
 import com.foggyframework.core.ex.RX;
+import com.foggyframework.dataset.db.model.config.DatasetProperties;
+import com.foggyframework.dataset.db.model.config.DatasetRequestNamespaceResolver;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataRequest;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.db.model.semantic.service.NativeComposeQueryService;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticModelCatalogService;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
+import com.foggyframework.dataset.db.model.semantic.service.SemanticServiceV3;
 import com.foggyframework.dataset.db.model.semantic.support.SemanticQueryPayloadMapper;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
@@ -37,9 +42,11 @@ import java.util.Set;
 public class NativeDatasetController {
 
     private final SemanticQueryServiceV3 semanticQueryServiceV3;
+    private final SemanticServiceV3 semanticServiceV3;
     private final NativeComposeQueryService nativeComposeQueryService;
     private final SemanticModelCatalogService catalogService;
     private final SemanticQueryPayloadMapper payloadMapper;
+    private final DatasetProperties datasetProperties;
 
     @ApiOperation("执行单模型查询（MCP-free）")
     @PostMapping(value = "/query", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -72,7 +79,7 @@ public class NativeDatasetController {
             @RequestHeader Map<String, String> headers) {
         Map<String, Object> response = nativeComposeQueryService.execute(
                 request != null ? request : Collections.emptyMap(),
-                namespace,
+                resolveNamespace(namespace, request),
                 authorization,
                 headers != null ? new LinkedHashMap<>(headers) : Collections.emptyMap());
         return RX.ok(response);
@@ -86,8 +93,30 @@ public class NativeDatasetController {
             @RequestHeader(value = "X-NS", required = false) String namespace) {
         Map<String, Object> response = catalogService.buildCatalogResponse(
                 request != null ? request : Collections.emptyMap(),
-                namespace,
+                resolveNamespace(namespace, request),
                 authorization);
+        return RX.ok(response);
+    }
+
+    @ApiOperation("获取单模型完整元数据（MCP-free）")
+    @PostMapping(value = {"/describe_model_internal", "/describe-model-internal"}, produces = MediaType.APPLICATION_JSON_VALUE)
+    public RX<SemanticMetadataResponse> describeModel(
+            @RequestBody(required = false) Map<String, Object> request,
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestHeader(value = "X-NS", required = false) String namespace) {
+        String model = stringValue(request != null ? request.get("model") : null);
+        if (model == null || model.isBlank()) {
+            return RX.failB("缺少必要参数: model");
+        }
+        String format = stringOr(request != null ? request.get("format") : null, "json");
+
+        SemanticMetadataRequest metadataRequest = new SemanticMetadataRequest();
+        metadataRequest.setQmModels(Collections.singletonList(model));
+        SemanticMetadataResponse response = semanticServiceV3.getMetadata(
+                metadataRequest,
+                format,
+                buildContext(request != null ? request : Collections.emptyMap(), namespace, authorization)
+        );
         return RX.ok(response);
     }
 
@@ -96,7 +125,7 @@ public class NativeDatasetController {
     public RX<Map<String, Object>> models(
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestHeader(value = "X-NS", required = false) String namespace) {
-        return RX.ok(catalogService.buildCatalogResponse(Collections.emptyMap(), namespace, authorization));
+        return RX.ok(catalogService.buildCatalogResponse(Collections.emptyMap(), resolveNamespace(namespace), authorization));
     }
 
     private SemanticRequestContext buildContext(Map<String, Object> request, String namespace, String authorization) {
@@ -105,12 +134,32 @@ public class NativeDatasetController {
                 : null;
         Set<String> fieldAccess = payloadMapper.optionalStringSet(firstPresent(request, "visibleFields", "fieldAccess"));
         return SemanticRequestContext.of(
-                namespace,
+                resolveNamespace(namespace, request),
                 securityContext,
                 fieldAccess,
                 payloadMapper.extractDeniedColumns(request),
                 payloadMapper.extractSystemSlice(request)
         );
+    }
+
+    private String resolveNamespace(String namespace) {
+        return DatasetRequestNamespaceResolver.resolve(datasetProperties, namespace);
+    }
+
+    private String resolveNamespace(String headerNamespace, Map<String, Object> request) {
+        String bodyNamespace = stringValue(request != null ? request.get("namespace") : null);
+        String resolved = DatasetRequestNamespaceResolver.resolve(datasetProperties, headerNamespace, bodyNamespace);
+        logNamespaceConflict(headerNamespace, bodyNamespace, resolved);
+        return resolved;
+    }
+
+    private static void logNamespaceConflict(String headerNamespace, String bodyNamespace, String resolved) {
+        String header = blankToNull(headerNamespace);
+        String body = blankToNull(bodyNamespace);
+        if (header != null && body != null && !header.equals(body)) {
+            log.info("Dataset REST namespace conflict resolved by X-NS header: header={}, body={}, effective={}",
+                    header, body, resolved);
+        }
     }
 
     private static Object firstPresent(Map<String, Object> map, String first, String second) {
@@ -127,5 +176,13 @@ public class NativeDatasetController {
 
     private static String stringValue(Object value) {
         return value != null ? value.toString() : null;
+    }
+
+    private static String blankToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 }

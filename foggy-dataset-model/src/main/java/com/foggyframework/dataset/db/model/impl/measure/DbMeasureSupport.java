@@ -7,6 +7,7 @@ import com.foggyframework.dataset.db.model.def.measure.DbMeasureDef;
 import com.foggyframework.dataset.db.model.impl.AiObject;
 import com.foggyframework.dataset.db.model.impl.DbColumnSupport;
 import com.foggyframework.dataset.db.model.impl.DbObjectSupport;
+import com.foggyframework.dataset.db.model.impl.SemanticScaleSqlSupport;
 import com.foggyframework.dataset.db.model.impl.column.InvalidDbColumn;
 import com.foggyframework.dataset.db.model.impl.model.TableModelSupport;
 import com.foggyframework.dataset.db.model.spi.*;
@@ -17,6 +18,9 @@ import com.foggyframework.fsscript.exp.FsscriptFunction;
 import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 import org.springframework.context.ApplicationContext;
+
+import java.math.BigDecimal;
+import java.util.Map;
 
 @Data
 public abstract class DbMeasureSupport extends DbObjectSupport implements DbMeasure {
@@ -41,6 +45,12 @@ public abstract class DbMeasureSupport extends DbObjectSupport implements DbMeas
 
     FsscriptFunction formulaBuilder;
 
+    BigDecimal semanticScaleFactor;
+
+    String semanticUnit;
+
+    String semanticUnitLabel;
+
     public void init(TableModel jdbcModel, DbMeasureDef measureDef) {
         this.jdbcModel = jdbcModel;
         if (StringUtils.isEmpty(column) && StringUtils.equalsIgnoreCase(measureDef.getAggregation(), "COUNT")) {
@@ -48,6 +58,7 @@ public abstract class DbMeasureSupport extends DbObjectSupport implements DbMeas
             column = jdbcModel.getIdColumn();
         }
         RX.hasText(column, "列名不得为空:" + this.caption + "," + this.alias + ",model:" + jdbcModel.getName());
+        validateSemanticScaleContract(measureDef);
         if (StringUtils.isEmpty(alias)) {
             alias = JdbcModelNamedUtils.toAliasName(column);
         }
@@ -59,6 +70,17 @@ public abstract class DbMeasureSupport extends DbObjectSupport implements DbMeas
         // 使用安全方式获取 SqlColumn，支持错误收集
         SqlColumn sqlColumn = initSqlColumn();
         jdbcColumn = new MeasureDbColumn(sqlColumn);
+    }
+
+    private void validateSemanticScaleContract(DbMeasureDef measureDef) {
+        boolean hasFormula = measureDef != null
+                && (measureDef.getFormulaDef() != null || hasDialectFormula(measureDef.getDialectFormulaDef()));
+        SemanticScaleSqlSupport.validate(semanticScaleFactor, column, hasFormula,
+                StringUtils.isEmpty(name) ? column : name);
+    }
+
+    private boolean hasDialectFormula(Map<String, DbFormulaDef> dialectFormulaDef) {
+        return dialectFormulaDef != null && !dialectFormulaDef.isEmpty();
     }
 
     /**
@@ -210,13 +232,17 @@ public abstract class DbMeasureSupport extends DbObjectSupport implements DbMeas
 
         @Override
         public String getDeclare() {
-            return getQueryObject().getAlias() + "." + column;
+            return SemanticScaleSqlSupport.scaledDeclare(
+                    getQueryObject().getAlias() + "." + column,
+                    semanticScaleFactor);
         }
 
         @Override
         public String getDeclare(ApplicationContext appCtx, String alias) {
             if (formulaBuilder == null) {
-                return (StringUtils.isEmpty(alias) ? getQueryObject().getAlias() : alias) + "." + getSqlColumnName();
+                String baseDeclare = (StringUtils.isEmpty(alias) ? getQueryObject().getAlias() : alias)
+                        + "." + getSqlColumnName();
+                return SemanticScaleSqlSupport.scaledDeclare(baseDeclare, semanticScaleFactor);
             } else {
                 DefaultExpEvaluator expEvaluator = DefaultExpEvaluator.newInstance(appCtx);
                 expEvaluator.setVar("alias", alias);
@@ -232,7 +258,7 @@ public abstract class DbMeasureSupport extends DbObjectSupport implements DbMeas
 
         @Override
         public String getDeclareOrder(ApplicationContext appCtx, String alias) {
-            return (StringUtils.isEmpty(alias) ? getQueryObject().getAlias() : alias) + "." + getSqlColumnName();
+            return getDeclare(appCtx, alias);
         }
 
         @Override

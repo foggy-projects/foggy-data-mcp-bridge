@@ -183,6 +183,29 @@ class ListModelsToolTest {
             assertEquals("FactSalesQueryModel", items.get(0).get("model"));
             assertEquals(List.of("orderId"), items.get(0).get("fieldPreview"));
             assertEquals(1, items.get(0).get("fieldCount"));
+            assertFalse(items.get(0).containsKey("recommendedNext"));
+        }
+
+        @Test
+        @DisplayName("重复模型名应保序去重且 Markdown 不返回结构化 catalog")
+        void duplicateModels_shouldBeDedupedAndRecommendNextOnce() {
+            when(semanticServiceResolver.getAllModelNames())
+                    .thenReturn(List.of("FactSalesQueryModel", "FactSalesQueryModel"));
+            QueryModel mockQm = mockQueryModel("FS", "销售明细查询", "销售额、销量分析", null, null);
+            when(queryModelLoader.getJdbcQueryModel(eq("FactSalesQueryModel"), any()))
+                    .thenReturn(mockQm);
+
+            Object result = listModelsTool.execute(Map.of(), ToolExecutionContext.of("trace-dedupe", null));
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> resultMap = (Map<String, Object>) result;
+            @SuppressWarnings("unchecked")
+            Map<String, Object> dataMap = (Map<String, Object>) resultMap.get("data");
+            assertFalse(dataMap.containsKey("data"));
+
+            String content = (String) dataMap.get("content");
+            assertEquals(1, occurrences(content, "FactSalesQueryModel"));
+            assertEquals(0, occurrences(content, "dataset.describe_model_internal"));
         }
 
         @Test
@@ -370,5 +393,15 @@ class ListModelsToolTest {
         Map<String, Object> resultMap = (Map<String, Object>) result;
         Map<String, Object> dataMap = (Map<String, Object>) resultMap.get("data");
         return (String) dataMap.get("content");
+    }
+
+    private static int occurrences(String text, String target) {
+        int count = 0;
+        int index = 0;
+        while ((index = text.indexOf(target, index)) >= 0) {
+            count++;
+            index += target.length();
+        }
+        return count;
     }
 }

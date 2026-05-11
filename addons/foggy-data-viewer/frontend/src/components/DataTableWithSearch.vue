@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, useAttrs, useSlots } from 'vue'
-import type { EnhancedColumnSchema, SliceRequestDef, FilterOption, TableSchema, FetchDataParams, FetchDataResult, OrderRequestDef, QueryHooks, MemberQueryRequest, MemberQueryResponse } from '@/types'
+import type { EnhancedColumnSchema, SliceRequestDef, FilterOption, TableSchema, FetchDataParams, FetchDataResult, OrderRequestDef, QueryHooks, MemberQueryRequest, MemberQueryResponse, CellCopyConfig, QueryMode } from '@/types'
 import SearchToolbar from './SearchToolbar.vue'
 import QueryPanel from './QueryPanel.vue'
 import type { QuerySchema } from './QueryPanel.vue'
@@ -52,10 +52,12 @@ interface Props {
   filterOptionsLoader?: (columnName: string) => Promise<FilterOption[]>
   /** 自定义过滤器组件映射 */
   customFilterComponents?: Record<string, unknown>
+  /** 普通单元格悬浮复制配置 */
+  cellCopy?: CellCopyConfig
+  /** 内置查询入口模式；设置后优先于 showQueryPanel/showFilters */
+  queryMode?: QueryMode
 
   // ========== SearchToolbar Props ==========
-  /** 是否显示搜索工具栏 */
-  showSearchToolbar?: boolean
   /** 搜索工具栏可搜索字段 */
   searchableFields?: string[]
   /** 搜索工具栏布局 */
@@ -92,7 +94,6 @@ const props = withDefaults(defineProps<Props>(), {
   pageSize: 50,
   showFilters: true,
   showPager: true,
-  showSearchToolbar: true,
   searchLayout: 'horizontal',
   showSearchActions: true,
   filterMergeMode: 'merge',
@@ -192,7 +193,30 @@ const effectivePageSize = computed(() => {
   return props.pageSize
 })
 
+const effectiveQueryMode = computed<QueryMode | undefined>(() => {
+  if (isSchemaMode.value && props.schema?.queryMode !== undefined) {
+    return props.schema.queryMode
+  }
+  return props.queryMode
+})
+
+const hasExplicitQueryMode = computed(() => effectiveQueryMode.value !== undefined)
+
+const usesPanelQueryEntrance = computed(() => {
+  return effectiveQueryMode.value === 'panel' || effectiveQueryMode.value === 'combined'
+})
+
+const effectiveShowQueryPanel = computed(() => {
+  if (hasExplicitQueryMode.value) {
+    return usesPanelQueryEntrance.value && !!props.querySchema
+  }
+  return !!props.showQueryPanel && !!props.querySchema
+})
+
 const effectiveShowFilters = computed(() => {
+  if (hasExplicitQueryMode.value) {
+    return effectiveQueryMode.value === 'column' || effectiveQueryMode.value === 'combined'
+  }
   if (isSchemaMode.value && props.schema?.showFilters !== undefined) {
     return props.schema.showFilters
   }
@@ -207,10 +231,17 @@ const effectiveShowPager = computed(() => {
 })
 
 const effectiveShowSearchToolbar = computed(() => {
-  if (isSchemaMode.value && props.schema?.showSearchToolbar !== undefined) {
-    return props.schema.showSearchToolbar
+  if (hasExplicitQueryMode.value) {
+    return usesPanelQueryEntrance.value && !props.querySchema
   }
-  return props.showSearchToolbar
+  return false
+})
+
+const effectiveCellCopy = computed(() => {
+  if (isSchemaMode.value && props.schema?.cellCopy) {
+    return props.schema.cellCopy
+  }
+  return props.cellCopy
 })
 
 const effectiveSearchLayout = computed(() => {
@@ -251,9 +282,23 @@ const dynamicSlots = computed(() => {
 })
 
 // ========== 组件引用 ==========
-const searchToolbarRef = ref<InstanceType<typeof SearchToolbar>>()
-const queryPanelRef = ref<InstanceType<typeof QueryPanel>>()
-const dataTableRef = ref<InstanceType<typeof DataTable>>()
+interface SearchToolbarExpose {
+  clearFilters: () => void
+  getFilters: () => SliceRequestDef[]
+}
+
+interface DataTableExpose {
+  resetPagination: () => void
+  clearFilters: () => void
+  getGridInstance: () => unknown
+  getSelectedRows: () => Record<string, unknown>[]
+  getSelectedCount: () => number
+  clearSelection: () => void
+}
+
+const searchToolbarRef = ref<SearchToolbarExpose>()
+const queryPanelRef = ref<unknown>()
+const dataTableRef = ref<DataTableExpose>()
 
 // ========== 筛选状态 ==========
 const searchSlices = ref<SliceRequestDef[]>([])
@@ -415,6 +460,7 @@ const dataTableProps = computed(() => {
     serverSummary: effectiveServerSummary.value,
     filterOptionsLoader: props.filterOptionsLoader,
     customFilterComponents: props.customFilterComponents,
+    cellCopy: effectiveCellCopy.value,
     ...userProps
   }
 })
@@ -541,7 +587,7 @@ defineExpose({
 <template>
   <div class="data-table-with-search">
     <!-- 传统查询区 -->
-    <div v-if="showQueryPanel && querySchema" class="query-panel-wrapper">
+    <div v-if="effectiveShowQueryPanel" class="query-panel-wrapper">
       <QueryPanel
         ref="queryPanelRef"
         :schema="querySchema"

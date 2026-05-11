@@ -1,8 +1,53 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
-import { h } from 'vue'
+import { defineComponent, h } from 'vue'
+import type { PropType } from 'vue'
 import DataTable from './DataTable.vue'
 import type { EnhancedColumnSchema } from '@/types'
+
+const elMessageWarning = vi.hoisted(() => vi.fn())
+
+vi.mock('element-plus', () => ({
+  ElMessage: {
+    warning: elMessageWarning
+  }
+}))
+
+interface TestGridColumn {
+  field?: string
+  slots?: {
+    default?: (params: { row: Record<string, unknown>; column: TestGridColumn; cellValue: unknown }) => unknown
+  }
+}
+
+const VxeGridRenderStub = defineComponent({
+  name: 'vxe-grid',
+  props: {
+    columns: {
+      type: Array as PropType<TestGridColumn[]>,
+      default: () => []
+    },
+    data: {
+      type: Array as PropType<Record<string, unknown>[]>,
+      default: () => []
+    }
+  },
+  emits: ['cellClick'],
+  setup(props, { emit }) {
+    return () => h('div', { class: 'vxe-grid-render-stub' }, props.data.map((row, rowIndex) =>
+      h('div', { class: 'stub-row', 'data-row-index': String(rowIndex) }, props.columns
+        .filter(column => column.field)
+        .map(column => h('div', {
+          class: ['stub-cell', `stub-cell-${String(column.field)}`],
+          onClick: () => emit('cellClick', { row, column })
+        }, column.slots?.default
+          ? column.slots.default({ row, column, cellValue: row[column.field as string] })
+          : String(row[column.field as string] ?? '')
+        ))
+      )
+    ))
+  }
+})
 
 describe('DataTable', () => {
   const mockColumns: EnhancedColumnSchema[] = [
@@ -37,10 +82,30 @@ describe('DataTable', () => {
   const globalConfig = {
     global: {
       stubs: {
-        'vxe-grid': true  // 使用stub避免需要实际的vxe-table组件
+        'vxe-grid': true,  // 使用stub避免需要实际的vxe-table组件
+        'vxe-pager': true
       }
     }
   }
+
+  const renderGridConfig = {
+    global: {
+      stubs: {
+        'vxe-grid': VxeGridRenderStub,
+        'vxe-pager': true
+      }
+    }
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    Object.defineProperty(navigator, 'clipboard', {
+      value: {
+        writeText: vi.fn().mockResolvedValue(undefined)
+      },
+      configurable: true
+    })
+  })
 
   describe('Basic Rendering', () => {
     it('should render table with columns and data', () => {
@@ -599,6 +664,105 @@ describe('DataTable', () => {
       })
 
       expect(wrapper.exists()).toBe(true)
+    })
+  })
+
+  describe('Cell Copy', () => {
+    it('should show copy button when hovering a non-empty default text cell', async () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: [{ name: 'name', type: 'TEXT', title: '名称' }],
+          data: [{ name: '目的服务区域名称很长很长' }],
+          total: 1,
+          loading: false
+        },
+        ...renderGridConfig
+      })
+
+      expect(wrapper.find('.cell-copy-button').exists()).toBe(false)
+
+      await wrapper.find('.data-table-copyable-cell').trigger('mouseenter')
+
+      expect(wrapper.find('.cell-copy-button').exists()).toBe(true)
+    })
+
+    it('should copy the complete raw cell value when clicking copy button', async () => {
+      const writeText = vi.fn().mockResolvedValue(undefined)
+      Object.defineProperty(navigator, 'clipboard', {
+        value: { writeText },
+        configurable: true
+      })
+
+      const fullValue = '完整目的服务区域名称-不应复制省略文本'
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: [{ name: 'name', type: 'TEXT', title: '名称' }],
+          data: [{ name: fullValue }],
+          total: 1,
+          loading: false
+        },
+        ...renderGridConfig
+      })
+
+      await wrapper.find('.data-table-copyable-cell').trigger('mouseenter')
+      await wrapper.find('.cell-copy-button').trigger('click')
+
+      expect(writeText).toHaveBeenCalledWith(fullValue)
+    })
+
+    it('should stop copy button click from bubbling to row-click', async () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: [{ name: 'name', type: 'TEXT', title: '名称' }],
+          data: [{ name: 'Test 1' }],
+          total: 1,
+          loading: false
+        },
+        ...renderGridConfig
+      })
+
+      await wrapper.find('.data-table-copyable-cell').trigger('mouseenter')
+      await wrapper.find('.cell-copy-button').trigger('click')
+
+      expect(wrapper.emitted('row-click')).toBeUndefined()
+    })
+
+    it('should not show copy button for empty values or action columns', async () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: [
+            { name: 'name', type: 'TEXT', title: '名称' },
+            { name: '_actions', type: 'TEXT', title: '操作' }
+          ],
+          data: [{ name: '', _actions: '编辑' }],
+          total: 1,
+          loading: false
+        },
+        ...renderGridConfig
+      })
+
+      expect(wrapper.find('.stub-cell-name .data-table-copyable-cell').exists()).toBe(false)
+      expect(wrapper.find('.stub-cell-_actions .data-table-copyable-cell').exists()).toBe(false)
+      expect(wrapper.find('.cell-copy-button').exists()).toBe(false)
+    })
+
+    it('should support global disable with column-level copyable override', async () => {
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: [
+            { name: 'disabledName', type: 'TEXT', title: '禁用列' },
+            { name: 'enabledName', type: 'TEXT', title: '启用列', copyable: true }
+          ],
+          data: [{ disabledName: '不可复制', enabledName: '可复制' }],
+          total: 1,
+          loading: false,
+          cellCopy: { enabled: false }
+        },
+        ...renderGridConfig
+      })
+
+      expect(wrapper.find('.stub-cell-disabledName .data-table-copyable-cell').exists()).toBe(false)
+      expect(wrapper.find('.stub-cell-enabledName .data-table-copyable-cell').exists()).toBe(true)
     })
   })
 

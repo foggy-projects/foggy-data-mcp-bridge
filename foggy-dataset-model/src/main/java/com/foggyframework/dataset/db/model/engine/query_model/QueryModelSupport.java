@@ -445,6 +445,7 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
             nameToJdbcQueryColumn.put(captionName, captionColumn);
             dbQueryColumns.add(captionColumn);
         }
+        registerTimeDimensionRootAlias(dbDimension, path, captionJdbcColumn, caption);
 
         // 同时用 UNDERSCORE 格式注册（用于前端友好的列名）
         String aliasPath = dimPath.toUnderscoreFormat();
@@ -459,6 +460,7 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
             DbQueryColumn aliasCaptionColumn = new DbQueryColumnImpl(captionJdbcColumn, aliasCaptionName, caption, aliasCaptionName);
             nameToJdbcQueryColumn.put(aliasCaptionName, aliasCaptionColumn);
         }
+        registerTimeDimensionRootAlias(dbDimension, aliasPath, captionJdbcColumn, caption);
 
         // 如果有别名，也用别名注册
         String alias = dbDimension.getAlias();
@@ -473,10 +475,24 @@ public  abstract class QueryModelSupport extends DbObjectSupport implements Quer
                 DbQueryColumn aliasCaptionCol = new DbQueryColumnImpl(captionJdbcColumn, aliasBasedCaptionName, caption, aliasBasedCaptionName);
                 nameToJdbcQueryColumn.put(aliasBasedCaptionName, aliasCaptionCol);
             }
+            registerTimeDimensionRootAlias(dbDimension, alias, captionJdbcColumn, caption);
         }
 
         // 为父子维度注册 hierarchy 视角的列（team$hierarchy$id, team$hierarchy$caption, team$hierarchy$xxx）
         registerParentChildHierarchyColumns(dbDimension, path, aliasPath, alias, caption);
+    }
+
+    private void registerTimeDimensionRootAlias(DbDimension dbDimension, String fieldName, DbColumn captionJdbcColumn, String caption) {
+        if (StringUtils.isEmpty(fieldName) || captionJdbcColumn == null || nameToJdbcQueryColumn.containsKey(fieldName)) {
+            return;
+        }
+        DbDimensionType type = dbDimension.getType();
+        if (type != DbDimensionType.DATETIME && type != DbDimensionType.DAY) {
+            return;
+        }
+        DbQueryColumn rootDateColumn = new DbQueryColumnImpl(captionJdbcColumn, fieldName, caption, fieldName);
+        nameToJdbcQueryColumn.put(fieldName, rootDateColumn);
+        dbQueryColumns.add(rootDateColumn);
     }
 
     /**

@@ -10,6 +10,7 @@ import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.db.model.engine.expression.CalculatedFieldService;
 import com.foggyframework.dataset.db.model.engine.expression.InlineExpressionParser;
 import com.foggyframework.dataset.db.model.spi.DbDimension;
+import com.foggyframework.dataset.db.model.spi.DbDimensionType;
 import com.foggyframework.dataset.db.model.spi.DbQueryColumn;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
 import org.springframework.core.annotation.Order;
@@ -253,8 +254,10 @@ public class SchemaAwareFieldValidationStep implements DataSetResultStep {
         if (field == null || field.isBlank()) {
             return;
         }
-        // QM contract: dimensions are not directly projectable; bare-dim
-        // refs (with or without trailing "AS alias") fail-loud here.
+        // QM contract: ordinary dimensions are not directly projectable; bare-dim
+        // refs (with or without trailing "AS alias") fail-loud here. Time
+        // dimension roots registered as real query columns are allowed for date
+        // filtering/timeWindow semantics.
         // Runs before the schemaFields lookup so the error code unifies
         // to COLUMN_FIELD_NOT_FOUND regardless of whether the bare name
         // happens to be registered (FK-style dims aren't, self-attribute
@@ -302,6 +305,9 @@ public class SchemaAwareFieldValidationStep implements DataSetResultStep {
         if (dim == null) {
             return false;
         }
+        if (isProjectableTimeDimensionRoot(field, dim, queryModel)) {
+            return false;
+        }
         try {
             if (queryModel.findProperty(field, false) != null) {
                 return false;
@@ -311,6 +317,18 @@ public class SchemaAwareFieldValidationStep implements DataSetResultStep {
             // "no shadow property" and keep isBare=true.
         }
         return true;
+    }
+
+    private boolean isProjectableTimeDimensionRoot(String field, DbDimension dim, QueryModel queryModel) {
+        DbDimensionType type = dim.getType();
+        if (type != DbDimensionType.DATETIME && type != DbDimensionType.DAY) {
+            return false;
+        }
+        try {
+            return queryModel.findJdbcQueryColumnByName(field, false) != null;
+        } catch (Exception ignore) {
+            return false;
+        }
     }
 
     /**

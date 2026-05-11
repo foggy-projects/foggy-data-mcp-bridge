@@ -1,10 +1,13 @@
 package com.foggyframework.dataset.db.model.impl.property;
 
 import com.foggyframework.core.ex.RX;
+import com.foggyframework.core.trans.ObjectTransFormatter;
 import com.foggyframework.core.utils.StringUtils;
+import com.foggyframework.dataset.db.model.def.measure.DbFormulaDef;
 import com.foggyframework.dataset.db.model.impl.AiObject;
 import com.foggyframework.dataset.db.model.impl.DbColumnSupport;
 import com.foggyframework.dataset.db.model.impl.DbObjectSupport;
+import com.foggyframework.dataset.db.model.impl.SemanticScaleSqlSupport;
 import com.foggyframework.dataset.db.model.impl.column.InvalidDbColumn;
 import com.foggyframework.dataset.db.model.impl.model.TableModelSupport;
 import com.foggyframework.dataset.db.model.spi.*;
@@ -16,6 +19,7 @@ import lombok.Getter;
 import lombok.Setter;
 import org.springframework.context.ApplicationContext;
 
+import java.math.BigDecimal;
 import java.util.Map;
 
 @Getter
@@ -46,6 +50,12 @@ public class DbPropertyImpl extends DbObjectSupport implements DbProperty, DbDat
     boolean bit;
 
     FsscriptFunction formulaBuilder;
+
+    BigDecimal semanticScaleFactor;
+
+    String semanticUnit;
+
+    String semanticUnitLabel;
 
     /**
      * 字典引用ID，引用通过 registerDict 注册的字典
@@ -116,6 +126,13 @@ public class DbPropertyImpl extends DbObjectSupport implements DbProperty, DbDat
         }
     }
 
+    public void validateSemanticScaleContract(DbFormulaDef formulaDef,
+                                              Map<String, DbFormulaDef> dialectFormulaDef) {
+        boolean hasFormula = formulaDef != null || (dialectFormulaDef != null && !dialectFormulaDef.isEmpty());
+        SemanticScaleSqlSupport.validate(semanticScaleFactor, column, hasFormula,
+                StringUtils.isEmpty(name) ? column : name);
+    }
+
 //    @Override
 //    public List<JdbcColumn> getVisibleSelectColumns() {
 //
@@ -127,9 +144,14 @@ public class DbPropertyImpl extends DbObjectSupport implements DbProperty, DbDat
 
         public PropertyDbColumn() {
             super(initSqlColumn(dbDimension, tableModel, column, name, type));
-            this.queryObjRef = dbDimension == null || dbDimension.getQueryObject() == null
-                    ? tableModel.getQueryObject()
-                    : dbDimension.getQueryObject();
+            this.queryObjRef = resolveQueryObject(dbDimension, tableModel);
+        }
+
+        private static QueryObject resolveQueryObject(DbDimension dbDimension, TableModel tableModel) {
+            if (dbDimension == null || dbDimension.getQueryObject() == null) {
+                return tableModel.getQueryObject();
+            }
+            return dbDimension.getQueryObject();
         }
 
         /**
@@ -139,9 +161,7 @@ public class DbPropertyImpl extends DbObjectSupport implements DbProperty, DbDat
                                                 String column, String name, DbColumnType type) {
             try {
                 // 确定查询对象
-                QueryObject queryObject = dbDimension == null || dbDimension.getQueryObject() == null
-                        ? tableModel.getQueryObject()
-                        : dbDimension.getQueryObject();
+                QueryObject queryObject = resolveQueryObject(dbDimension, tableModel);
 
                 // 使用安全方式获取 SqlColumn
                 SqlColumn sqlColumn = queryObject.getSqlColumn(column, false);
@@ -226,13 +246,27 @@ public class DbPropertyImpl extends DbObjectSupport implements DbProperty, DbDat
         @Override
         public String getDeclare(ApplicationContext appCtx, String alias) {
             if (formulaBuilder == null) {
-                return super.getDeclare(appCtx, alias);
+                return SemanticScaleSqlSupport.scaledDeclare(
+                        super.getDeclare(appCtx, alias),
+                        semanticScaleFactor);
             } else {
                 DefaultExpEvaluator expEvaluator = DefaultExpEvaluator.newInstance(appCtx);
-                expEvaluator.setVar("alias", alias);
+                String effectiveAlias = StringUtils.isEmpty(alias) ? queryObjRef.getAlias() : alias;
+                expEvaluator.setVar("alias", effectiveAlias);
                 expEvaluator.setVar("def", this);
                 return (String) formulaBuilder.autoApply(expEvaluator);
             }
+        }
+
+        @Override
+        public String getDeclare() {
+            if (formulaBuilder == null) {
+                return SemanticScaleSqlSupport.scaledDeclare(super.getDeclare(), semanticScaleFactor);
+            }
+            DefaultExpEvaluator expEvaluator = DefaultExpEvaluator.newInstance(null);
+            expEvaluator.setVar("alias", queryObjRef.getAlias());
+            expEvaluator.setVar("def", this);
+            return (String) formulaBuilder.autoApply(expEvaluator);
         }
 
         @Override
@@ -252,12 +286,29 @@ public class DbPropertyImpl extends DbObjectSupport implements DbProperty, DbDat
 
         @Override
         public QueryObject getQueryObject() {
-            return tableModel.getQueryObject();
+            return queryObjRef;
         }
 
         @Override
         public DbColumnType getType() {
             return type;
+        }
+
+        @Override
+        public ObjectTransFormatter<?> getFormatter() {
+            return getPropertyFormatter(super.getFormatter());
+        }
+
+        @Override
+        public ObjectTransFormatter<?> getFormatter(boolean errorIfNull) {
+            return getPropertyFormatter(super.getFormatter(errorIfNull));
+        }
+
+        private ObjectTransFormatter<?> getPropertyFormatter(ObjectTransFormatter<?> fallback) {
+            if (type != null && type != DbColumnType.UNKNOWN) {
+                return type.getFormatter();
+            }
+            return fallback;
         }
 
         @Override

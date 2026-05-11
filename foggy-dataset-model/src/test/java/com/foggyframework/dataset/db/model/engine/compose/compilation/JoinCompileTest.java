@@ -7,7 +7,11 @@ import com.foggyframework.dataset.db.model.engine.compose.plan.DerivedQueryPlan;
 import com.foggyframework.dataset.db.model.engine.compose.plan.JoinOn;
 import com.foggyframework.dataset.db.model.engine.compose.plan.JoinPlan;
 import com.foggyframework.dataset.db.model.engine.compose.plan.JoinType;
+import com.foggyframework.dataset.db.model.engine.compose.plan.PlanAliasSupport;
+import com.foggyframework.dataset.db.model.engine.compose.plan.QueryOptions;
 import com.foggyframework.dataset.db.model.engine.compose.plan.QueryPlan;
+import com.foggyframework.dataset.db.model.engine.compose.schema.ComposeSchemaErrorCodes;
+import com.foggyframework.dataset.db.model.engine.compose.schema.ComposeSchemaException;
 import com.foggyframework.dataset.db.model.engine.compose.security.ModelBinding;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -232,6 +236,97 @@ class JoinCompileTest {
                 List.of(JoinOn.of("id", "!=", "id")));
         ComposedSql sql = compile(j, twoModelSvc(), twoModelBindings(), "sqlite");
         assertTrue(sql.getSql().contains(".id != "));
+    }
+
+    @Test
+    @DisplayName("post-join query accepts unique unqualified columns when join key overlaps")
+    void postJoinQueryAcceptsUniqueUnqualifiedColumnsWithOverlappingJoinKey() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("L", "SELECT partner_id, partner_name, first_order_date FROM left_orders");
+        svc.stub("R", "SELECT partner_id, order_count, total_amount FROM right_orders");
+
+        QueryPlan left = CompileTestHelpers.base("L",
+                "partner$id", "partner$caption", "firstOrderDate");
+        QueryPlan right = CompileTestHelpers.base("R",
+                "partner$id", "orderCount", "totalAmount");
+        QueryPlan joined = left.join(right, JoinType.LEFT,
+                List.of(JoinOn.of("partner$id", "=", "partner$id")));
+        QueryPlan result = joined.query(QueryOptions.builder()
+                .columns(List.of("partner$caption", "firstOrderDate", "orderCount", "totalAmount"))
+                .orderBy(List.of("-totalAmount"))
+                .build());
+
+        ComposedSql sql = compile(result, svc, twoModelBindings(), "sqlite");
+        assertTrue(sql.getSql().contains("partner$caption"));
+        assertTrue(sql.getSql().contains("ORDER BY"));
+        assertTrue(sql.getSql().contains("totalAmount"));
+    }
+
+    @Test
+    @DisplayName("post-join query normalizes left/right and source-alias qualified fields")
+    void postJoinQueryNormalizesQualifiedFields() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("L", "SELECT partner_id, partner_name, first_order_date FROM left_orders");
+        svc.stub("R", "SELECT partner_id, order_count, total_amount FROM right_orders");
+
+        QueryPlan firstOrders = CompileTestHelpers.base("L",
+                "partner$id", "partner$caption", "firstOrderDate");
+        PlanAliasSupport.bindAlias(firstOrders, "firstOrders");
+        QueryPlan mayFirstCustomers = firstOrders.query(QueryOptions.builder()
+                .columns(List.of("partner$id", "partner$caption", "firstOrderDate"))
+                .slice(List.of(Map.of("field", "firstOrderDate", "op", ">=", "value", "2026-05-01")))
+                .build());
+        PlanAliasSupport.bindAlias(mayFirstCustomers, "mayFirstCustomers");
+        QueryPlan mayOrders = CompileTestHelpers.base("R",
+                "partner$id", "orderCount", "totalAmount");
+        PlanAliasSupport.bindAlias(mayOrders, "mayOrders");
+
+        QueryPlan joined = mayFirstCustomers.join(mayOrders, JoinType.LEFT,
+                List.of(JoinOn.of("left.partner$id", "=", "right.partner$id")));
+        DerivedQueryPlan result = joined.query(QueryOptions.builder()
+                .columns(List.of(
+                        "firstOrders.partner$caption",
+                        "left.firstOrderDate",
+                        "mayOrders.orderCount",
+                        "right.totalAmount"))
+                .orderBy(List.of("-mayOrders.totalAmount"))
+                .build());
+
+        assertEquals(List.of("partner$caption", "firstOrderDate", "orderCount", "totalAmount"),
+                result.columns());
+        assertEquals(List.of("-totalAmount"), result.orderBy());
+
+        ComposedSql sql = compile(result, svc, twoModelBindings(), "sqlite");
+        assertTrue(sql.getSql().contains("partner$caption"));
+        assertTrue(sql.getSql().contains("ORDER BY"));
+        assertTrue(sql.getSql().contains("totalAmount"));
+        assertTrue(!sql.getSql().contains("firstOrders.partner$caption"));
+        assertTrue(!sql.getSql().contains("mayOrders.totalAmount"));
+    }
+
+    @Test
+    @DisplayName("source aliases do not expose columns dropped by an intermediate derived query")
+    void sourceAliasDoesNotExposeDroppedColumns() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("L", "SELECT partner_id, partner_name, first_order_date FROM left_orders");
+        svc.stub("R", "SELECT partner_id, order_count, total_amount FROM right_orders");
+
+        QueryPlan firstOrders = CompileTestHelpers.base("L",
+                "partner$id", "partner$caption", "firstOrderDate");
+        PlanAliasSupport.bindAlias(firstOrders, "firstOrders");
+        QueryPlan dropped = firstOrders.query(QueryOptions.builder()
+                .columns(List.of("partner$id"))
+                .build());
+        QueryPlan mayOrders = CompileTestHelpers.base("R",
+                "partner$id", "orderCount", "totalAmount");
+        QueryPlan joined = dropped.join(mayOrders, JoinType.LEFT,
+                List.of(JoinOn.of("partner$id", "=", "partner$id")));
+
+        ComposeSchemaException ex = assertThrows(ComposeSchemaException.class,
+                () -> joined.query(QueryOptions.builder()
+                        .columns(List.of("firstOrders.partner$caption", "orderCount"))
+                        .build()));
+        assertEquals(ComposeSchemaErrorCodes.DERIVED_QUERY_UNKNOWN_FIELD, ex.code());
     }
 
     // ------------------------------------------------------------------

@@ -6,6 +6,7 @@ import com.foggyframework.conversion.FsscriptConversionService;
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.ErrorUtils;
 import com.foggyframework.core.utils.StringUtils;
+import com.foggyframework.dataset.db.model.config.DatasetProperties;
 import com.foggyframework.dataset.db.model.def.DbModelDef;
 import com.foggyframework.dataset.db.model.def.dimension.DbCaptionDef;
 import com.foggyframework.dataset.db.model.def.dimension.DbDimensionDef;
@@ -66,6 +67,7 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
 
     DbModelFileChangeHandler fileChangeHandler;
     List<DbModelLoadProcessor> processors;
+    DatasetProperties datasetProperties;
 
     Map<String, TableModel> name2JdbcModel = new HashMap<>();
     Map<String, TableModelLoader> typeName2Loader = new HashMap<>();
@@ -75,12 +77,25 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
     public TableModelLoaderManagerImpl(SystemBundlesContext systemBundlesContext, FileFsscriptLoader fileFsscriptLoader, List<DbModelLoadProcessor> processors, List<TableModelLoader> loaders) {
         super(systemBundlesContext, fileFsscriptLoader);
         this.processors = processors;
+        this.datasetProperties = new DatasetProperties();
         loaders.forEach(loader -> typeName2Loader.put(loader.getTypeName(), loader));
     }
 
     public TableModelLoaderManagerImpl(SystemBundlesContext systemBundlesContext, FileFsscriptLoader fileFsscriptLoader, List<DbModelLoadProcessor> processors, List<TableModelLoader> loaders, NamedDataSourceResolver namedDataSourceResolver) {
+        this(systemBundlesContext, fileFsscriptLoader, processors, loaders, namedDataSourceResolver, null);
+    }
+
+    public TableModelLoaderManagerImpl(SystemBundlesContext systemBundlesContext,
+                                       FileFsscriptLoader fileFsscriptLoader,
+                                       List<DbModelLoadProcessor> processors,
+                                       List<TableModelLoader> loaders,
+                                       NamedDataSourceResolver namedDataSourceResolver,
+                                       DatasetProperties datasetProperties) {
         this(systemBundlesContext, fileFsscriptLoader, processors, loaders);
         this.namedDataSourceResolver = namedDataSourceResolver;
+        if (datasetProperties != null) {
+            this.datasetProperties = datasetProperties;
+        }
     }
 
     @Override
@@ -134,6 +149,7 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
         }
         Bundle bundle = fScript.getFsscriptClosureDefinition().getFsscriptClosureDefinitionSpace().getBundle();
         DbModelDef def = FsscriptConversionService.getSharedInstance().convert(model, DbModelDef.class);
+        applySemanticScalePolicy(def, namespace);
         fix(def);
 
         // Resolve data source before loading (needed by JdbcTableModelLoaderImpl)
@@ -163,10 +179,86 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
      * @return 完整名称（格式：namespace:modelName 或 modelName）
      */
     private String buildFullName(String namespace, String modelName) {
-        if (namespace == null || namespace.trim().isEmpty()) {
+        String normalizedNs = normalizeNamespace(namespace);
+        if (normalizedNs.isEmpty()) {
             return modelName;
         }
-        return namespace.trim() + ":" + modelName;
+        return normalizedNs + ":" + modelName;
+    }
+
+    private void applySemanticScalePolicy(DbModelDef def, String namespace) {
+        if (isSemanticScaleEnabled(namespace)) {
+            return;
+        }
+        clearSemanticScale(def);
+        if (log.isDebugEnabled()) {
+            log.debug("semanticScaleFactor disabled for namespace [{}], model [{}]",
+                    normalizeNamespace(namespace), def.getName());
+        }
+    }
+
+    private boolean isSemanticScaleEnabled(String namespace) {
+        DatasetProperties.SemanticScaleConfig config = datasetProperties == null
+                ? null
+                : datasetProperties.getSemanticScale();
+        if (config == null) {
+            return true;
+        }
+
+        String normalizedNs = normalizeNamespace(namespace);
+        List<String> disabledNamespaces = config.getDisabledNamespaces();
+        if (disabledNamespaces != null) {
+            for (String disabledNamespace : disabledNamespaces) {
+                if (normalizedNs.equals(normalizeNamespace(disabledNamespace))) {
+                    return false;
+                }
+            }
+        }
+        return config.isDefaultEnabled();
+    }
+
+    private String normalizeNamespace(String namespace) {
+        return namespace == null || namespace.trim().isEmpty() ? "" : namespace.trim();
+    }
+
+    private void clearSemanticScale(DbModelDef def) {
+        if (def.getProperties() != null) {
+            for (DbPropertyDef property : def.getProperties()) {
+                if (property != null) {
+                    property.setSemanticScaleFactor(null);
+                }
+            }
+        }
+        if (def.getMeasures() != null) {
+            for (DbMeasureDef measure : def.getMeasures()) {
+                if (measure != null) {
+                    measure.setSemanticScaleFactor(null);
+                }
+            }
+        }
+        if (def.getDimensions() != null) {
+            for (DbDimensionDef dimension : def.getDimensions()) {
+                clearSemanticScale(dimension);
+            }
+        }
+    }
+
+    private void clearSemanticScale(DbDimensionDef dimension) {
+        if (dimension == null) {
+            return;
+        }
+        if (dimension.getProperties() != null) {
+            for (DbPropertyDef property : dimension.getProperties()) {
+                if (property != null) {
+                    property.setSemanticScaleFactor(null);
+                }
+            }
+        }
+        if (dimension.getDimensions() != null) {
+            for (DbDimensionDef child : dimension.getDimensions()) {
+                clearSemanticScale(child);
+            }
+        }
     }
 
     /**
@@ -619,6 +711,7 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
 
         property.setTableModel(context.getJdbcModel());
         property.setDbDimension(dimension);
+        property.validateSemanticScaleContract(propertyDef.getFormulaDef(), propertyDef.getDialectFormulaDef());
         property.init();
 
         processJdbcDataProvider(property.getDataProvider());

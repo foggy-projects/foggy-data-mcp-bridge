@@ -12,8 +12,13 @@ import com.foggyframework.dataset.db.model.engine.JdbcModelQueryEngine;
 import com.foggyframework.dataset.db.model.engine.formula.SqlFormulaService;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
+import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticServiceV3;
+import com.foggyframework.dataset.db.model.spi.DbColumn;
+import com.foggyframework.dataset.db.model.spi.DbDimension;
 import com.foggyframework.dataset.db.model.spi.JdbcQueryModel;
 import com.foggyframework.dataset.db.model.spi.TableModel;
 import jakarta.annotation.Resource;
@@ -49,6 +54,9 @@ class OdooModelLoadingTest extends EcommerceTestSupport {
     @Resource
     private SemanticServiceV3 semanticServiceV3;
 
+    @Resource
+    private SemanticQueryServiceV3 semanticQueryServiceV3;
+
     // ==========================================
     // TM 模型加载测试
     // ==========================================
@@ -64,7 +72,7 @@ class OdooModelLoadingTest extends EcommerceTestSupport {
         assertEquals("id", model.getIdColumn());
 
         assertNotNull(model.getDimensions(), "维度定义为空");
-        assertTrue(model.getDimensions().size() >= 6, "维度数量不足（预期>=6: partner, salesperson, company, salesTeam, pricelist, warehouse）");
+        assertTrue(model.getDimensions().size() >= 7, "维度数量不足（预期>=7: dateOrder, partner, salesperson, company, salesTeam, pricelist, warehouse）");
 
         assertNotNull(model.getMeasures(), "度量定义为空");
         assertTrue(model.getMeasures().size() >= 4, "度量数量不足（预期>=4）");
@@ -478,6 +486,136 @@ class OdooModelLoadingTest extends EcommerceTestSupport {
             log.info("  度量 {}: 类型={}, 聚合={}",
                 measure.getName(), measure.getType(), measure.getAggregation());
         });
+    }
+
+    @Test
+    @Order(32)
+    @DisplayName("验证 SaleOrder dateOrder 无表维度属性")
+    void testSaleOrderDateOrderTablelessDimensionProperties() {
+        TableModel model = tableModelLoaderManager.load("OdooSaleOrderModel");
+        assertNotNull(model);
+
+        DbDimension dateOrder = model.findJdbcDimensionByName("dateOrder");
+        assertNotNull(dateOrder, "dateOrder 维度必须存在");
+        assertNull(dateOrder.getQueryObject(), "dateOrder 是 self/tableless 维度，不应生成维表 QueryObject");
+        assertEquals("date_order", dateOrder.getForeignKey());
+
+        assertNull(model.findJdbcPropertyByName("dateOrder"), "dateOrder 不应再作为顶层普通属性注册");
+        DbColumn year = model.findJdbcColumnByName("dateOrder$year");
+        DbColumn month = model.findJdbcColumnByName("dateOrder$month");
+        DbColumn yearMonth = model.findJdbcColumnByName("dateOrder$yearMonth");
+        assertNotNull(year, "dateOrder$year 必须可解析");
+        assertNotNull(month, "dateOrder$month 必须可解析");
+        assertNotNull(yearMonth, "dateOrder$yearMonth 必须可解析");
+
+        assertTrue(year.getQueryObject().isRootEqual(model.getQueryObject()), "dateOrder$year 应绑定主表");
+        assertTrue(month.getQueryObject().isRootEqual(model.getQueryObject()), "dateOrder$month 应绑定主表");
+        assertTrue(yearMonth.getQueryObject().isRootEqual(model.getQueryObject()), "dateOrder$yearMonth 应绑定主表");
+
+        String alias = model.getQueryObject().getAlias();
+        String yearDeclare = year.getDeclare(appCtx, alias);
+        String monthDeclare = month.getDeclare(appCtx, alias);
+        String yearMonthDeclare = yearMonth.getDeclare(appCtx, alias);
+
+        assertTrue(yearDeclare.contains("date_order"), "year 表达式应引用主表 date_order");
+        assertTrue(monthDeclare.contains("date_order"), "month 表达式应引用主表 date_order");
+        assertTrue(yearMonthDeclare.contains("date_order"), "yearMonth 表达式应引用主表 date_order");
+        assertFalse(yearDeclare.toLowerCase().contains("dim_date"), "year 表达式不应引用 dim_date");
+        assertFalse(monthDeclare.toLowerCase().contains("dim_date"), "month 表达式不应引用 dim_date");
+        assertFalse(yearMonthDeclare.toLowerCase().contains("dim_date"), "yearMonth 表达式不应引用 dim_date");
+    }
+
+    @Test
+    @Order(33)
+    @DisplayName("验证 SaleOrder dateOrder grain 字段元数据与查询 SQL")
+    void testSaleOrderDateOrderTablelessDimensionSemanticQuery() {
+        SemanticMetadataRequest metadataRequest = new SemanticMetadataRequest();
+        metadataRequest.setQmModels(List.of("OdooSaleOrderQueryModel"));
+
+        SemanticMetadataResponse metadata = semanticServiceV3.getMetadata(
+                metadataRequest, "json", SemanticRequestContext.empty());
+        assertNotNull(metadata);
+        assertNotNull(metadata.getData());
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> fields = (Map<String, Object>) metadata.getData().get("fields");
+        assertNotNull(fields);
+        assertTrue(fields.containsKey("dateOrder"), "metadata 应暴露 dateOrder 时间维度根字段");
+        assertTrue(fields.containsKey("dateOrder$year"), "metadata 应暴露 dateOrder$year");
+        assertTrue(fields.containsKey("dateOrder$month"), "metadata 应暴露 dateOrder$month");
+        assertTrue(fields.containsKey("dateOrder$yearMonth"), "metadata 应暴露 dateOrder$yearMonth");
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(List.of("dateOrder$year", "dateOrder$month", "amountTotal"));
+        request.setGroupBy(List.of(
+                new SemanticQueryRequest.GroupByItem("dateOrder$year", null),
+                new SemanticQueryRequest.GroupByItem("dateOrder$month", null)
+        ));
+        SemanticQueryRequest.OrderItem orderItem = new SemanticQueryRequest.OrderItem();
+        orderItem.setField("dateOrder$year");
+        orderItem.setDir("ASC");
+        request.setOrderBy(List.of(orderItem));
+
+        SemanticQueryRequest.SliceItem slice = new SemanticQueryRequest.SliceItem();
+        slice.setField("dateOrder");
+        slice.setOp(">=");
+        slice.setValue("2024-01-01");
+        request.setSlice(List.of(slice));
+        request.setLimit(10);
+
+        SemanticQueryResponse response = semanticQueryServiceV3.queryModel(
+                "OdooSaleOrderQueryModel", request, "execute", SemanticRequestContext.empty());
+        assertNotNull(response);
+        assertNotNull(response.getDebug());
+        assertNotNull(response.getDebug().getExtra());
+
+        String sql = String.valueOf(response.getDebug().getExtra().get("sql")).toLowerCase();
+        assertTrue(sql.contains("date_order"), "SQL 应引用主表 date_order");
+        assertTrue(sql.contains("group by"), "SQL 应按 dateOrder grain 分组");
+        assertFalse(sql.contains("dim_date"), "SQL 不应引用 dim_date");
+        assertFalse(sql.contains("join dim_date"), "SQL 不应 JOIN dim_date");
+    }
+
+    @Test
+    @Order(34)
+    @DisplayName("验证 SaleOrder dateOrder self grain 字段可用于过滤")
+    void testSaleOrderDateOrderTablelessDimensionPropertySlice() {
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(List.of("dateOrder$yearMonth", "amountTotal"));
+        request.setGroupBy(List.of(
+                new SemanticQueryRequest.GroupByItem("dateOrder$yearMonth", null)
+        ));
+
+        SemanticQueryRequest.SliceItem yearSlice = new SemanticQueryRequest.SliceItem();
+        yearSlice.setField("dateOrder$year");
+        yearSlice.setOp("=");
+        yearSlice.setValue(2024);
+
+        SemanticQueryRequest.SliceItem monthSlice = new SemanticQueryRequest.SliceItem();
+        monthSlice.setField("dateOrder$month");
+        monthSlice.setOp("in");
+        monthSlice.setValue(List.of(1, 2));
+
+        SemanticQueryRequest.SliceItem yearMonthSlice = new SemanticQueryRequest.SliceItem();
+        yearMonthSlice.setField("dateOrder$yearMonth");
+        yearMonthSlice.setOp("=");
+        yearMonthSlice.setValue("2024-01");
+
+        request.setSlice(List.of(yearSlice, monthSlice, yearMonthSlice));
+        request.setLimit(10);
+
+        SemanticQueryResponse response = semanticQueryServiceV3.queryModel(
+                "OdooSaleOrderQueryModel", request, "execute", SemanticRequestContext.empty());
+        assertNotNull(response);
+        assertNotNull(response.getDebug());
+        assertNotNull(response.getDebug().getExtra());
+
+        String sql = String.valueOf(response.getDebug().getExtra().get("sql")).toLowerCase();
+        assertTrue(sql.contains("where"), "SQL 应包含 dateOrder grain 过滤条件");
+        assertTrue(sql.contains("date_order"), "SQL 应使用主表 date_order 生成 grain 过滤表达式");
+        assertTrue(sql.contains("amount_total"), "SQL 应保留普通度量查询");
+        assertFalse(sql.contains("dim_date"), "self grain 过滤不应引用 dim_date");
+        assertFalse(sql.contains("join dim_date"), "self grain 过滤不应 JOIN dim_date");
     }
 
     // ==========================================
