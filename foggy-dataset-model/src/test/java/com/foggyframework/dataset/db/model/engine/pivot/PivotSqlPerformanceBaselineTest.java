@@ -21,7 +21,6 @@ import org.junit.jupiter.api.TestInstance;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 @Slf4j
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -29,6 +28,7 @@ import java.util.UUID;
 public class PivotSqlPerformanceBaselineTest extends EcommerceTestSupport {
 
     private static final String TEST_MODEL = "FactSalesQueryModel";
+    private static final String BENCHMARK_ORDER_PREFIX = "ORD-PIVOT-";
 
     @Resource
     private SemanticQueryServiceV3 semanticQueryServiceV3;
@@ -41,6 +41,8 @@ public class PivotSqlPerformanceBaselineTest extends EcommerceTestSupport {
     @BeforeAll
     public void setupData() {
         log.info("Generating synthetic data for performance baseline...");
+        cleanupBenchmarkRows();
+
         Integer currentCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM fact_sales", Integer.class);
         if (currentCount != null && currentCount >= TARGET_ROWS) {
             log.info("Data already generated. Count: " + currentCount);
@@ -49,14 +51,15 @@ public class PivotSqlPerformanceBaselineTest extends EcommerceTestSupport {
 
         // Generate synthetic data
         int batchSize = 2000;
+        int rowsToInsert = TARGET_ROWS - (currentCount == null ? 0 : currentCount);
         List<Object[]> batchArgs = new ArrayList<>();
         
         // Let's assume we have 50 products and 1000 customers
-        for (int i = 0; i < TARGET_ROWS; i++) {
+        for (int i = 0; i < rowsToInsert; i++) {
             int productKey = (i % 50) + 1; // 1 to 50
             int customerKey = (i % 1000) + 1; // 1 to 1000
             batchArgs.add(new Object[]{
-                    "ORD-" + UUID.randomUUID().toString().substring(0, 8),
+                    BENCHMARK_ORDER_PREFIX + i,
                     1,
                     20240101 + (i % 30), // date_key
                     productKey,
@@ -85,13 +88,17 @@ public class PivotSqlPerformanceBaselineTest extends EcommerceTestSupport {
             insertBatch(batchArgs);
         }
         
-        log.info("Synthetic data generation completed. Target rows: " + TARGET_ROWS);
+        log.info("Synthetic data generation completed. Inserted rows: " + rowsToInsert);
     }
 
     @org.junit.jupiter.api.AfterAll
     public void cleanupBenchmarkData() {
-        // Benchmark 插入的数据 order_id 格式为 'ORD-xxxxxxxx' (UUID)，
-        // 原始测试数据格式为 'ORD20240101000001'（日期格式），不会被误删。
+        cleanupBenchmarkRows();
+    }
+
+    private void cleanupBenchmarkRows() {
+        // Benchmark 插入的数据 order_id 格式为 'ORD-PIVOT-n'。
+        // 兼容清理旧版本测试生成的 'ORD-xxxxxxxx'，原始测试数据为 'ORD20240101000001'，不会被误删。
         int deleted = jdbcTemplate.update("DELETE FROM fact_sales WHERE order_id LIKE 'ORD-%'");
         log.info("Cleaned up {} benchmark rows from fact_sales", deleted);
     }
