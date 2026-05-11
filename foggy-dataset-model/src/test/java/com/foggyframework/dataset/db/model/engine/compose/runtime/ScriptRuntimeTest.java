@@ -7,6 +7,7 @@ import com.foggyframework.dataset.db.model.engine.compose.capability.CapabilityR
 import com.foggyframework.dataset.db.model.engine.compose.capability.FunctionDescriptor;
 import com.foggyframework.dataset.db.model.engine.compose.capability.MethodDescriptor;
 import com.foggyframework.dataset.db.model.engine.compose.capability.ObjectFacadeDescriptor;
+import com.foggyframework.dataset.db.model.engine.compose.ComposedSql;
 import com.foggyframework.dataset.db.model.engine.compose.ComposedDataSetResult;
 import com.foggyframework.dataset.db.model.engine.compose.DslQueryFunction;
 import com.foggyframework.dataset.db.model.engine.compose.context.ComposeQueryContext;
@@ -91,6 +92,58 @@ class ScriptRuntimeTest {
     @DisplayName("ALLOWED_SCRIPT_GLOBALS is exactly {from, dsl, Query}")
     void allowedGlobals_frozen() {
         assertEquals(Set.of("from", "dsl", "Query"), ScriptRuntime.ALLOWED_SCRIPT_GLOBALS);
+    }
+
+    @Test
+    @DisplayName("script variable aliases resolve post-join qualified field strings")
+    void scriptVariableAliasesResolvePostJoinQualifiedFieldStrings() {
+        String script = """
+                const firstOrders = dsl({
+                  model: "OdooSaleOrderQueryModel",
+                  columns: ["partner$id", "partner$caption", "MIN(dateOrder$id) as firstOrderDate"],
+                  groupBy: ["partner$id", "partner$caption"]
+                });
+
+                const mayFirstCustomers = firstOrders.query({
+                  slice: [
+                    {"field": "firstOrderDate", "op": ">=", "value": "2026-05-01"},
+                    {"field": "firstOrderDate", "op": "<", "value": "2026-06-01"}
+                  ]
+                });
+
+                const mayOrders = dsl({
+                  model: "OdooSaleOrderQueryModel",
+                  columns: ["partner$id", "count(id) as orderCount", "sum(amountTotal) as totalAmount"],
+                  slice: [
+                    {"field": "dateOrder$id", "op": ">=", "value": "2026-05-01"},
+                    {"field": "dateOrder$id", "op": "<", "value": "2026-06-01"}
+                  ],
+                  groupBy: ["partner$id"]
+                });
+
+                const joined = mayFirstCustomers.join(mayOrders, "left", [{"left": "partner$id", "op": "=", "right": "partner$id"}]);
+
+                const result = joined.query({
+                  columns: ["firstOrders.partner$caption", "left.firstOrderDate", "mayOrders.orderCount", "right.totalAmount"],
+                  orderBy: ["-mayOrders.totalAmount"]
+                });
+
+                return { plans: result };
+                """;
+
+        ScriptRuntime.ScriptResult result = ScriptRuntime.runScript(
+                script, dummyCtx(), previewOnlySemanticService(), "sqlite", true);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> value = (Map<String, Object>) result.value();
+        Object plans = value.get("plans");
+        assertInstanceOf(ComposedSql.class, plans);
+        ComposedSql sql = (ComposedSql) plans;
+        assertTrue(sql.getSql().contains("partner$caption"));
+        assertTrue(sql.getSql().contains("ORDER BY"));
+        assertTrue(sql.getSql().contains("totalAmount"));
+        assertFalse(sql.getSql().contains("firstOrders.partner$caption"));
+        assertFalse(sql.getSql().contains("mayOrders.totalAmount"));
     }
 
     @Test

@@ -45,10 +45,23 @@ import java.util.*;
  */
 public abstract class QueryPlan implements PropertyHolder, PropertyFunction {
 
+    private final Set<String> composeSourceAliases = new LinkedHashSet<>();
+
     /** Package-private constructor — subclasses are restricted to this
      *  package so the Layer-C whitelist cannot be bypassed by external
      *  subclassing. */
     QueryPlan() {
+    }
+
+    final void addComposeSourceAlias(String alias) {
+        if (alias == null || alias.isBlank()) {
+            return;
+        }
+        composeSourceAliases.add(alias);
+    }
+
+    final Set<String> composeSourceAliases() {
+        return Collections.unmodifiableSet(composeSourceAliases);
     }
 
     // ------------------------------------------------------------------
@@ -81,6 +94,7 @@ public abstract class QueryPlan implements PropertyHolder, PropertyFunction {
             case "orderBy" -> fluentOrderBy(args);
             case "limit" -> fluentLimit(args);
             case "offset" -> fluentOffset(args);
+            case "query" -> query(queryOptionsFromArgs(args));
             case "leftJoin" -> leftJoin((QueryPlan) args[0]);
             case "innerJoin" -> innerJoin((QueryPlan) args[0]);
             case "rightJoin" -> rightJoin((QueryPlan) args[0]);
@@ -325,7 +339,8 @@ public abstract class QueryPlan implements PropertyHolder, PropertyFunction {
                     "JoinPlan.on must be non-empty; cross joins are not "
                             + "supported in 8.2.0.beta M2");
         }
-        List<JoinOn> coerced = coerceJoinOnList(on);
+        List<JoinOn> coerced = PlanQualifiedFieldResolver.normalizeJoinOn(
+                this, other, coerceJoinOnList(on));
         return JoinPlan.builder()
                 .left(this)
                 .right(other)
@@ -591,6 +606,39 @@ public abstract class QueryPlan implements PropertyHolder, PropertyFunction {
             }
         }
         return out;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static QueryOptions queryOptionsFromArgs(Object[] args) {
+        if (args == null || args.length == 0 || !(args[0] instanceof Map<?, ?> raw)) {
+            throw new IllegalArgumentException(
+                    "QueryPlan.query(opts): opts must be an object");
+        }
+        Map<String, Object> map = (Map<String, Object>) raw;
+        QueryOptions.Builder builder = QueryOptions.builder();
+        Object columns = map.get("columns");
+        builder.columns(columns instanceof List<?> list ? list : List.of());
+        if (map.containsKey("slice") && map.get("slice") instanceof List<?> list) {
+            builder.slice((List<Object>) list);
+        }
+        if (map.containsKey("groupBy") && map.get("groupBy") instanceof List<?> list) {
+            builder.groupBy((List<String>) list);
+        }
+        if (map.containsKey("orderBy") && map.get("orderBy") instanceof List<?> list) {
+            builder.orderBy((List<String>) list);
+        }
+        if (map.get("limit") instanceof Number n) {
+            builder.limit(n.intValue());
+        }
+        if (map.get("start") instanceof Number n) {
+            builder.start(n.intValue());
+        } else if (map.get("offset") instanceof Number n) {
+            builder.start(n.intValue());
+        }
+        if (map.containsKey("distinct")) {
+            builder.distinct(Boolean.TRUE.equals(map.get("distinct")));
+        }
+        return builder.build();
     }
 
     // ------------------------------------------------------------------

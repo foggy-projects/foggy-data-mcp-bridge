@@ -10,6 +10,7 @@ import com.foggyframework.dataset.db.model.engine.compose.capability.ObjectFacad
 import com.foggyframework.dataset.db.model.engine.compose.capability.ObjectFacadeProxy;
 import com.foggyframework.dataset.db.model.engine.compose.context.ComposeQueryContext;
 import com.foggyframework.dataset.db.model.engine.compose.plan.Dsl;
+import com.foggyframework.dataset.db.model.engine.compose.plan.PlanAliasSupport;
 import com.foggyframework.dataset.db.model.engine.compose.plan.QueryFactory;
 import com.foggyframework.dataset.db.model.engine.compose.plan.QueryPlan;
 import com.foggyframework.dataset.db.model.engine.compose.sandbox.ExpressionWhitelistValidator;
@@ -21,6 +22,7 @@ import com.foggyframework.fsscript.closure.SimpleFsscriptClosureDefinitionSpace;
 import com.foggyframework.fsscript.parser.spi.Exp;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import com.foggyframework.fsscript.parser.spi.Fsscript;
+import com.foggyframework.fsscript.parser.spi.FsscriptClosure;
 import com.foggyframework.fsscript.parser.spi.FsscriptClosureDefinition;
 import com.foggyframework.fsscript.support.FsscriptImpl;
 import com.foggyframework.fsscript.utils.ExpUtils;
@@ -209,8 +211,7 @@ public final class ScriptRuntime {
             Fsscript fsscript = new FsscriptImpl(def, exp);
 
             // 3. Create evaluator with appCtx=null (sandbox: blocks @FsscriptExp beans)
-            ExpEvaluator evaluator = DefaultExpEvaluator.newInstance(null,
-                    def.newFoggyClosure());
+            ExpEvaluator evaluator = new AliasBindingExpEvaluator(def.newFoggyClosure());
 
             // 4. Inject the two allowed globals: from and dsl (both aliases for Dsl.from)
             //    fsscript engine calls Function<Object[], Object>.apply(evalArgs)
@@ -386,6 +387,22 @@ public final class ScriptRuntime {
 
         } finally {
             ComposeRuntimeHolder.popBundle(token);
+        }
+    }
+
+    private static final class AliasBindingExpEvaluator extends DefaultExpEvaluator {
+
+        private AliasBindingExpEvaluator(FsscriptClosure closure) {
+            super(null, closure);
+        }
+
+        @Override
+        public Object setVar(String name, Object value) {
+            Object result = super.setVar(name, value);
+            if (value instanceof QueryPlan plan) {
+                PlanAliasSupport.bindAlias(plan, name);
+            }
+            return result;
         }
     }
 
