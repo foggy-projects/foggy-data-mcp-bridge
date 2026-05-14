@@ -49,6 +49,10 @@ public class SemanticQueryRequest {
     @JsonProperty("executable_plan")
     private Object executablePlan;
 
+    @ApiModelProperty(value = "虚拟语义 SQL。仅允许引用当前虚拟语义模型和 TM/QM 暴露字段")
+    @JsonProperty("semantic_sql")
+    private String semanticSql;
+
     @ApiModelProperty(value = "计算字段定义列表，支持动态创建基于表达式的虚拟字段")
     private List<CalculatedFieldDef> calculatedFields;
 

@@ -119,6 +119,14 @@ public class SemanticQueryResponse {
         @JsonProperty("executable_plan")
         private Object executablePlan;
 
+        @ApiModelProperty(value = "虚拟语义 SQL。仅作为表达增强 contract，不表示物理 SQL 已执行")
+        @JsonProperty("semantic_sql")
+        private String semanticSql;
+
+        @ApiModelProperty(value = "虚拟语义 SQL AST 白名单校验证据")
+        @JsonProperty("ast_validation")
+        private Map<String, Object> astValidation;
+
         @ApiModelProperty(value = "错误码")
         @JsonProperty("error_code")
         private String errorCode;

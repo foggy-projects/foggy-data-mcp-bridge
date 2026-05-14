@@ -575,6 +575,7 @@ public class LocalDatasetAccessor implements DatasetAccessor {
         request.setClarifyingQuestions(optionalStringList(firstPresent(payload, "clarifying_questions", "clarifyingQuestions")));
         request.setWhy(optionalStringList(payload.get("why")));
         request.setExecutablePlan(firstPresent(payload, "executable_plan", "executablePlan"));
+        request.setSemanticSql(stringValue(firstPresent(payload, "semantic_sql", "semanticSql")));
 
         // 添加 MCP 来源标记（供 LargeResultTruncationStep 识别）
         Map<String, Object> hints = new HashMap<>();

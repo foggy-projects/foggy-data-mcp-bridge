@@ -23,6 +23,7 @@ import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.db.model.semantic.service.DimensionMemberLoader;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
+import com.foggyframework.dataset.db.model.semantic.support.SemanticSqlWhitelistValidator;
 import com.foggyframework.dataset.db.model.spi.DbColumn;
 import com.foggyframework.dataset.db.model.service.QueryFacade;
 import com.foggyframework.dataset.db.model.spi.DbQueryCondition;
@@ -99,6 +100,10 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         SemanticQueryResponse terminal = terminalResponseIfAny(request);
         if (terminal != null) {
             return terminal;
+        }
+        SemanticQueryResponse semanticSqlPlan = semanticSqlPlanResponseIfAny(model, request, context);
+        if (semanticSqlPlan != null) {
+            return semanticSqlPlan;
         }
         return queryModelInternal(model, request, mode, context);
     }
@@ -236,6 +241,10 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         if (terminal != null) {
             return terminal;
         }
+        SemanticQueryResponse semanticSqlPlan = semanticSqlPlanResponseIfAny(model, request, context);
+        if (semanticSqlPlan != null) {
+            return semanticSqlPlan;
+        }
         return validateQueryInternal(model, request, context.getNamespace());
     }
 
@@ -244,6 +253,10 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                                            SemanticRequestContext context) {
         if (isTerminalPlan(request)) {
             throw RX.throwB("TERMINAL_PLAN_NOT_EXECUTABLE: CLARIFY/REJECT terminal plans must not enter SQL generation.");
+        }
+        if (isSemanticSqlPlan(request)) {
+            semanticSqlAstValidation(model, request, context);
+            throw RX.throwB("SEMANTIC_SQL_EXECUTION_NOT_IMPLEMENTED: Semantic SQL AST whitelist passed, but SQL-to-DSL compilation is not part of P0.");
         }
         if (request.getColumns() == null || request.getColumns().isEmpty()) {
             throw RX.throwB("请指定查询字段");
@@ -387,6 +400,50 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
             return false;
         }
         return normalizeTerminal(request.getStatus()) != null || normalizeTerminal(request.getRoute()) != null;
+    }
+
+    private SemanticQueryResponse semanticSqlPlanResponseIfAny(String model, SemanticQueryRequest request,
+                                                               SemanticRequestContext context) {
+        if (!isSemanticSqlPlan(request)) {
+            return null;
+        }
+        Map<String, Object> astValidation = semanticSqlAstValidation(model, request, context);
+        SemanticQueryResponse response = new SemanticQueryResponse();
+        response.setItems(List.of());
+        response.setWarnings(List.of());
+
+        SemanticQueryResponse.ExecutionInfo execution = new SemanticQueryResponse.ExecutionInfo();
+        execution.setRoute(firstNonBlank(request.getRoute(), "SEMANTIC_SQL"));
+        execution.setStatus(firstNonBlank(request.getStatus(), "PLAN_READY"));
+        execution.setRiskFlags(request.getRiskFlags() != null ? List.copyOf(request.getRiskFlags()) : List.of());
+        execution.setWhy(request.getWhy() != null ? List.copyOf(request.getWhy()) : List.of());
+        execution.setClarifyingQuestions(List.of());
+        execution.setExecutablePlan(request.getExecutablePlan());
+        execution.setSemanticSql(request.getSemanticSql());
+        execution.setAstValidation(astValidation);
+        execution.setErrorCode(null);
+        response.setExecution(execution);
+        return response;
+    }
+
+    private Map<String, Object> semanticSqlAstValidation(String model, SemanticQueryRequest request,
+                                                          SemanticRequestContext context) {
+        if (request == null || StringUtils.isEmpty(request.getSemanticSql())) {
+            throw RX.throwB("SEMANTIC_SQL_FIELD_NOT_DECLARED: semantic_sql must be provided for SEMANTIC_SQL route.");
+        }
+        QueryModel queryModel = queryModelLoader.getJdbcQueryModel(model, context.getNamespace());
+        return SemanticSqlWhitelistValidator.validate(model, request.getSemanticSql(), queryModel, context);
+    }
+
+    private boolean isSemanticSqlPlan(SemanticQueryRequest request) {
+        if (request == null) {
+            return false;
+        }
+        if (!StringUtils.isEmpty(request.getSemanticSql())) {
+            return true;
+        }
+        String route = request.getRoute();
+        return route != null && "SEMANTIC_SQL".equals(route.trim().toUpperCase(Locale.ROOT));
     }
 
     private String normalizeTerminal(String value) {
