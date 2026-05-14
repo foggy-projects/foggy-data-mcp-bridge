@@ -62,6 +62,7 @@ public final class SemanticSqlWhitelistValidator {
         }
 
         PlainSelect select = parsePlainSelect(stripComments(sql).trim());
+        validatePlainSelectShape(select);
         if (select.getJoins() != null && !select.getJoins().isEmpty()) {
             throw RX.throwB(JOIN_NOT_DECLARED + ": free SQL JOIN is not declared for Semantic SQL phase 1.");
         }
@@ -131,6 +132,12 @@ public final class SemanticSqlWhitelistValidator {
             throw RX.throwB(JOIN_NOT_DECLARED + ": only single SELECT semantic SQL is allowed in phase 1.");
         }
         return plainSelect;
+    }
+
+    private static void validatePlainSelectShape(PlainSelect select) {
+        if (select.getIntoTables() != null && !select.getIntoTables().isEmpty()) {
+            throw RX.throwB(FUNCTION_NOT_ALLOWED + ": SELECT INTO output tables are not allowed in Semantic SQL phase 1.");
+        }
     }
 
     private static String parseSingleFromModel(FromItem fromItem) {

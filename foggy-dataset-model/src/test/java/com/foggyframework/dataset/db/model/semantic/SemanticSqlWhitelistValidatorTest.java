@@ -136,6 +136,32 @@ class SemanticSqlWhitelistValidatorTest {
     }
 
     @Test
+    @DisplayName("SEMANTIC_SQL rejects subqueries")
+    void rejectsSubqueries() {
+        SemanticQueryRequest request = semanticSql("""
+                SELECT orderId
+                FROM SaleOrder
+                WHERE EXISTS (SELECT orderId FROM SaleOrder)
+                """);
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+                service.validateQuery("SaleOrder", request, SemanticRequestContext.empty()));
+
+        assertTrue(ex.getMessage().contains("SEMANTIC_SQL_JOIN_NOT_DECLARED"));
+    }
+
+    @Test
+    @DisplayName("SEMANTIC_SQL rejects SELECT INTO output tables")
+    void rejectsSelectIntoOutputTables() {
+        SemanticQueryRequest request = semanticSql("SELECT orderId INTO temp_order FROM SaleOrder");
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+                service.validateQuery("SaleOrder", request, SemanticRequestContext.empty()));
+
+        assertTrue(ex.getMessage().contains("SEMANTIC_SQL_FUNCTION_NOT_ALLOWED"));
+    }
+
+    @Test
     @DisplayName("SEMANTIC_SQL rejects functions outside the whitelist")
     void rejectsUnsupportedFunction() {
         SemanticQueryRequest request = semanticSql("SELECT orderId FROM SaleOrder WHERE RANDOM() > 0.5");
