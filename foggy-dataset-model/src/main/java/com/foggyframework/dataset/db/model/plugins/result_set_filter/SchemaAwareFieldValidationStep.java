@@ -59,6 +59,7 @@ public class SchemaAwareFieldValidationStep implements DataSetResultStep {
         validateGroupBy(request.getGroupBy(), queryModel, schemaFields);
         validateSlice(request.getSlice(), queryModel, schemaFields);
         validateSlice(request.getHaving(), queryModel, schemaFields);
+        validateSlice(request.getPostSlice(), queryModel, schemaFields);
         validateOrderBy(request.getOrderBy(), queryModel, schemaFields, calcFieldMap);
         validateCalculatedFields(request.getCalculatedFields(), queryModel, schemaFields, calcFieldMap);
         return CONTINUE;
@@ -88,6 +89,21 @@ public class SchemaAwareFieldValidationStep implements DataSetResultStep {
             for (CalculatedFieldDef field : request.getCalculatedFields()) {
                 if (field != null && field.getName() != null && !field.getName().isBlank()) {
                     fields.add(field.getName());
+                }
+            }
+        }
+        if (request.getPostAggregateCalculations() != null) {
+            for (var field : request.getPostAggregateCalculations()) {
+                if (field != null && field.getName() != null && !field.getName().isBlank()) {
+                    fields.add(field.getName());
+                }
+            }
+        }
+        if (request.getColumns() != null) {
+            for (String column : request.getColumns()) {
+                InlineExpressionParser.InlineExpression parsed = InlineExpressionParser.parse(column);
+                if (parsed != null && parsed.getAlias() != null && !parsed.getAlias().isBlank()) {
+                    fields.add(parsed.getAlias());
                 }
             }
         }

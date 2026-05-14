@@ -5,6 +5,7 @@ import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.dataset.db.model.common.query.CondType;
 import com.foggyframework.dataset.db.model.def.query.request.*;
+import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
 import com.foggyframework.dataset.db.model.engine.expression.InlineExpressionParser;
 import com.foggyframework.dataset.db.model.engine.expression.SliceExpressionProcessor;
 import com.foggyframework.dataset.db.dialect.FDialect;
@@ -147,6 +148,16 @@ public class JdbcModelQueryEngine implements QueryEngine {
      * Only populated when {@link #cteWrapped} is true.
      */
     String cteOuterSelectSql;
+
+    /**
+     * Structured CTE stages for multi-stage result wrappers.
+     */
+    List<SqlGenerationResult.CteStage> cteStages;
+
+    /**
+     * Params that belong to {@link #cteOuterSelectSql} only.
+     */
+    List<Object> cteOuterSelectParams = List.of();
 
     List values;
     private static final String PATTERN = "^[a-zA-Z\\s]+$";
@@ -367,7 +378,12 @@ public class JdbcModelQueryEngine implements QueryEngine {
                 for (OrderRequestDef orderRequestDef : queryRequest.getOrderBy()) {
 
                     validate(orderRequestDef.getDir());
-                    DbColumn jdbcColumn = jdbcQueryModel.findJdbcColumnForCond(orderRequestDef.getField(), true);
+                    DbColumn jdbcColumn = findCalculatedColumn(orderRequestDef.getField());
+                    if (jdbcColumn != null) {
+                        joinReferencedColumns(jdbcQuery, jdbcColumn);
+                    } else {
+                        jdbcColumn = jdbcQueryModel.findJdbcColumnForCond(orderRequestDef.getField(), true);
+                    }
                     jdbcQuery.addOrder(new DbQueryOrderColumnImpl(jdbcColumn, orderRequestDef.getDir(), orderRequestDef.isNullLast(), orderRequestDef.isNullFirst()));
 
                 }
@@ -417,6 +433,11 @@ public class JdbcModelQueryEngine implements QueryEngine {
         //   Stage 2 (outer): SELECT stage1.*, windowCF1, windowCF2 FROM stage1 ORDER BY ... LIMIT ...
         boolean hasWindowCf = hasWindowCalculatedFields(queryRequest);
         boolean hasPostAggregateCalculations = hasPostAggregateCalculations(queryRequest);
+        boolean hasPostSlice = hasPostSlice(queryRequest);
+
+        if (hasPostSlice && !hasPostAggregateCalculations && !hasWindowCf) {
+            throw RX.throwAUserTip("POST_SLICE_REQUIRES_RESULT_STAGE: postSlice requires a result-stage query such as window calculatedFields or postAggregateCalculations.");
+        }
 
         if (hasPostAggregateCalculations) {
             if (hasWindowCf) {
@@ -558,6 +579,12 @@ public class JdbcModelQueryEngine implements QueryEngine {
     private boolean hasPostAggregateCalculations(DbQueryRequestDef queryRequest) {
         return queryRequest.getPostAggregateCalculations() != null
                 && !queryRequest.getPostAggregateCalculations().isEmpty();
+    }
+
+    private boolean hasPostSlice(DbQueryRequestDef queryRequest) {
+        return queryRequest != null
+                && queryRequest.getPostSlice() != null
+                && !queryRequest.getPostSlice().isEmpty();
     }
 
     private Set<String> postAggregateNames(DbQueryRequestDef queryRequest) {
@@ -846,37 +873,56 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
         // ── Elevate ORDER BY to Stage 2 ──
         String outerSelectWithoutOrder = outerSelect.toString();
+        Set<String> finalAliases = new LinkedHashSet<>();
+        for (DbColumn col : outerStage1OutputCols) {
+            finalAliases.add(getCteProjectionAlias(col));
+        }
+        for (WindowColumnInfo wci : windowColumns) {
+            finalAliases.add(wci.column.getAlias());
+        }
 
-        if (savedOrder != null && !savedOrder.getOrders().isEmpty()) {
-            outerSelect.append("\nORDER BY ");
-            List<String> orderExprs = new ArrayList<>();
-            for (DbQueryOrderColumnImpl order : savedOrder.getOrders()) {
-                DbColumn orderCol = order.getSelectColumn();
-                String orderColAlias = dialect.quoteIdentifier(getCteProjectionAlias(orderCol));
+        List<String> unqualifiedOrderExprs = buildWindowResultOrderExprs(savedOrder, windowColumns, dialect, null);
+        List<String> cteQualifiedOrderExprs = buildWindowResultOrderExprs(savedOrder, windowColumns, dialect, cteAlias);
 
-                // Check if it's a window CF — reference by alias directly
-                // Otherwise reference via cteAlias.colAlias
-                String orderRef;
-                boolean isWindowCol = false;
-                for (WindowColumnInfo wci : windowColumns) {
-                    if (wci.column.getAlias().equals(orderCol.getAlias())) {
-                        isWindowCol = true;
-                        break;
-                    }
-                }
-                orderRef = isWindowCol ? orderColAlias : cteAlias + "." + orderColAlias;
+        List<Object> finalParams = new ArrayList<>();
+        String finalSelectWithoutOrder;
+        String finalSelectSql;
+        String ctePrefix;
 
-                // Handle NULL ordering
-                if (order.isNullLast() || order.isNullFirst()) {
-                    orderRef = dialect.buildNullOrderClause(orderRef, order.isNullFirst());
-                }
+        if (hasPostSlice(queryRequest)) {
+            String postResultAlias = "__POST_RESULT_STAGE__";
+            StringBuilder finalSelect = new StringBuilder();
+            finalSelect.append("SELECT ");
+            finalSelect.append(finalAliases.stream()
+                    .map(dialect::quoteIdentifier)
+                    .collect(Collectors.joining(",\n\t")));
+            finalSelect.append("\nFROM ").append(postResultAlias);
 
-                if (StringUtils.isNotEmpty(order.getOrder())) {
-                    orderRef += " " + order.getOrder();
-                }
-                orderExprs.add(orderRef);
+            List<String> filters = new ArrayList<>();
+            for (SliceRequestDef slice : queryRequest.getPostSlice()) {
+                filters.add(buildPostAggregateFilterSql(slice, dialect, finalAliases, finalParams));
             }
-            outerSelect.append(String.join(", ", orderExprs));
+            finalSelect.append("\nWHERE ").append(String.join(" AND ", filters));
+            finalSelectWithoutOrder = finalSelect.toString();
+            if (!unqualifiedOrderExprs.isEmpty()) {
+                finalSelect.append("\nORDER BY ").append(String.join(", ", unqualifiedOrderExprs));
+            }
+            finalSelectSql = finalSelect.toString();
+
+            this.cteStages = List.of(
+                    new SqlGenerationResult.CteStage(cteAlias, stage1Sql, stage1Params),
+                    new SqlGenerationResult.CteStage(postResultAlias, outerSelectWithoutOrder, List.of())
+            );
+            ctePrefix = "WITH " + cteAlias + " AS (\n" + stage1Sql + "\n),\n"
+                    + postResultAlias + " AS (\n" + outerSelectWithoutOrder + "\n)\n";
+        } else {
+            if (!cteQualifiedOrderExprs.isEmpty()) {
+                outerSelect.append("\nORDER BY ").append(String.join(", ", cteQualifiedOrderExprs));
+            }
+            finalSelectWithoutOrder = outerSelectWithoutOrder;
+            finalSelectSql = outerSelect.toString();
+            this.cteStages = List.of(new SqlGenerationResult.CteStage(cteAlias, stage1Sql, stage1Params));
+            ctePrefix = "WITH " + cteAlias + " AS (\n" + stage1Sql + "\n)\n";
         }
 
         // Note: LIMIT/OFFSET is handled by the upper-layer pagination framework
@@ -887,14 +933,17 @@ public class JdbcModelQueryEngine implements QueryEngine {
         this.cteStage1Alias = cteAlias;
         this.cteStage1Sql = stage1Sql;
         this.cteStage1Params = stage1Params;
-        this.cteOuterSelectSql = outerSelect.toString();
+        this.cteOuterSelectSql = finalSelectSql;
+        this.cteOuterSelectParams = finalParams;
 
         // ── Set engine SQL fields (assembled for direct execution) ──
-        String ctePrefix = "WITH " + cteAlias + " AS (\n" + stage1Sql + "\n)\n";
-        this.innerSql = ctePrefix + outerSelect;
-        this.innerSqlWithoutOrder = ctePrefix + outerSelectWithoutOrder;
+        this.innerSql = ctePrefix + finalSelectSql;
+        this.innerSqlWithoutOrder = ctePrefix + finalSelectWithoutOrder;
         this.sql = this.innerSql;
-        this.values = stage1Params;
+        List<Object> mergedValues = new ArrayList<>();
+        mergedValues.addAll(stage1Params);
+        mergedValues.addAll(finalParams);
+        this.values = mergedValues;
 
         // 构建聚合SQL（基于 Stage 1，不含窗口函数和排序）
         boolean countToSum = queryRequest.hasGroupBy();
@@ -909,6 +958,44 @@ public class JdbcModelQueryEngine implements QueryEngine {
             this.aggSql = buildAggSql(systemBundlesContext, null, null, false, countToSum);
             this.aggSqlOptimizationResult = null;
         }
+    }
+
+    private List<String> buildWindowResultOrderExprs(
+            JdbcQuery.JdbcOrder savedOrder,
+            List<WindowColumnInfo> windowColumns,
+            FDialect dialect,
+            String nonWindowQualifier) {
+        if (savedOrder == null || savedOrder.getOrders().isEmpty()) {
+            return List.of();
+        }
+        List<String> orderExprs = new ArrayList<>();
+        for (DbQueryOrderColumnImpl order : savedOrder.getOrders()) {
+            DbColumn orderCol = order.getSelectColumn();
+            String orderColAlias = dialect.quoteIdentifier(getCteProjectionAlias(orderCol));
+
+            boolean isWindowCol = false;
+            for (WindowColumnInfo wci : windowColumns) {
+                if (wci.column.getAlias().equals(orderCol.getAlias())) {
+                    isWindowCol = true;
+                    break;
+                }
+            }
+
+            String orderRef = orderColAlias;
+            if (!isWindowCol && StringUtils.isNotEmpty(nonWindowQualifier)) {
+                orderRef = nonWindowQualifier + "." + orderColAlias;
+            }
+
+            if (order.isNullLast() || order.isNullFirst()) {
+                orderRef = dialect.buildNullOrderClause(orderRef, order.isNullFirst());
+            }
+
+            if (StringUtils.isNotEmpty(order.getOrder())) {
+                orderRef += " " + order.getOrder();
+            }
+            orderExprs.add(orderRef);
+        }
+        return orderExprs;
     }
 
     @SuppressWarnings("unchecked")
@@ -973,9 +1060,16 @@ public class JdbcModelQueryEngine implements QueryEngine {
         finalSelect.append("\nFROM ").append(postAlias);
 
         List<Object> finalParams = new ArrayList<>();
+        List<SliceRequestDef> resultStageSlice = new ArrayList<>();
         if (postAggregateSlice != null && !postAggregateSlice.isEmpty()) {
+            resultStageSlice.addAll(postAggregateSlice);
+        }
+        if (queryRequest.getPostSlice() != null && !queryRequest.getPostSlice().isEmpty()) {
+            resultStageSlice.addAll(queryRequest.getPostSlice());
+        }
+        if (!resultStageSlice.isEmpty()) {
             List<String> filters = new ArrayList<>();
-            for (SliceRequestDef slice : postAggregateSlice) {
+            for (SliceRequestDef slice : resultStageSlice) {
                 filters.add(buildPostAggregateFilterSql(slice, dialect, finalAliases, finalParams));
             }
             finalSelect.append("\nWHERE ").append(String.join(" AND ", filters));
@@ -1004,6 +1098,11 @@ public class JdbcModelQueryEngine implements QueryEngine {
         this.cteStage1Sql = stage1Sql;
         this.cteStage1Params = stage1Params;
         this.cteOuterSelectSql = finalSelect.toString();
+        this.cteOuterSelectParams = finalParams;
+        this.cteStages = List.of(
+                new SqlGenerationResult.CteStage(stage1Alias, stage1Sql, stage1Params),
+                new SqlGenerationResult.CteStage(postAlias, postStageSql, List.of())
+        );
 
         this.innerSql = "WITH " + stage1Alias + " AS (\n" + stage1Sql + "\n),\n"
                 + postAlias + " AS (\n" + postStageSql + "\n)\n"

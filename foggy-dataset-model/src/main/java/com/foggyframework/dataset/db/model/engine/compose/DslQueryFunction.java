@@ -162,6 +162,11 @@ public class DslQueryFunction implements FsscriptFunction {
             request.setHaving(convertSliceItems((List<?>) having));
         }
 
+        Object postSlice = params.get("postSlice");
+        if (postSlice instanceof List) {
+            request.setPostSlice(convertSliceItems((List<?>) postSlice));
+        }
+
         // orderBy -- 支持简写：'-field' → {field, dir:'desc'}，'field' → {field, dir:'asc'}
         Object orderBy = params.get("orderBy");
         if (orderBy instanceof List) {

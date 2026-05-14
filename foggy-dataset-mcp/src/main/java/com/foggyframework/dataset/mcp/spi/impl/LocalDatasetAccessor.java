@@ -412,7 +412,7 @@ public class LocalDatasetAccessor implements DatasetAccessor {
         return result.isEmpty() ? null : result;
     }
 
-    private String stringValue(Object value) {
+    private static String stringValue(Object value) {
         return value instanceof String text ? text : null;
     }
 
@@ -472,6 +472,16 @@ public class LocalDatasetAccessor implements DatasetAccessor {
                         .map(this::convertToSliceItem)
                         .toList();
                 request.setHaving(havingItems);
+            }
+        }
+        if (payload.containsKey("postSlice")) {
+            Object postSlice = payload.get("postSlice");
+            if (postSlice instanceof List) {
+                List<Map<String, Object>> postSliceList = (List<Map<String, Object>>) postSlice;
+                List<SemanticQueryRequest.SliceItem> postSliceItems = postSliceList.stream()
+                        .map(this::convertToSliceItem)
+                        .toList();
+                request.setPostSlice(postSliceItems);
             }
         }
 
@@ -558,6 +568,13 @@ public class LocalDatasetAccessor implements DatasetAccessor {
                 request.setTimeWindow((Map<String, Object>) tw);
             }
         }
+
+        request.setRoute(stringValue(payload.get("route")));
+        request.setStatus(stringValue(payload.get("status")));
+        request.setRiskFlags(optionalStringList(firstPresent(payload, "risk_flags", "riskFlags")));
+        request.setClarifyingQuestions(optionalStringList(firstPresent(payload, "clarifying_questions", "clarifyingQuestions")));
+        request.setWhy(optionalStringList(payload.get("why")));
+        request.setExecutablePlan(firstPresent(payload, "executable_plan", "executablePlan"));
 
         // 添加 MCP 来源标记（供 LargeResultTruncationStep 识别）
         Map<String, Object> hints = new HashMap<>();
@@ -647,6 +664,27 @@ public class LocalDatasetAccessor implements DatasetAccessor {
         }
 
         return item;
+    }
+
+    private static Object firstPresent(Map<String, Object> map, String first, String second) {
+        if (map == null) {
+            return null;
+        }
+        return map.containsKey(first) ? map.get(first) : map.get(second);
+    }
+
+    private static List<String> optionalStringList(Object value) {
+        if (!(value instanceof List<?> list) || list.isEmpty()) {
+            return null;
+        }
+        List<String> result = new ArrayList<>();
+        for (Object item : list) {
+            String text = stringValue(item);
+            if (text != null && !text.isBlank()) {
+                result.add(text);
+            }
+        }
+        return result.isEmpty() ? null : result;
     }
 
     private SemanticQueryRequest.GroupByItem convertToGroupByItem(Map<String, Object> map) {

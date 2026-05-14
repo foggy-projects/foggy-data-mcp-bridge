@@ -28,6 +28,27 @@ public class SemanticQueryRequest {
     @ApiModelProperty(value = "查询列，可含 $caption", example = "[\"customerName\", \"team$caption\", \"totalAmount\"]")
     private List<String> columns;
 
+    @ApiModelProperty(value = "LLM 路由结果。CLARIFY/REJECT 会作为执行期终态处理，不进入查询编译")
+    private String route;
+
+    @ApiModelProperty(value = "执行计划状态。CLARIFY/REJECT 会作为执行期终态处理")
+    private String status;
+
+    @ApiModelProperty(value = "治理或语义风险标签")
+    @JsonProperty("risk_flags")
+    private List<String> riskFlags;
+
+    @ApiModelProperty(value = "澄清问题。仅用于 CLARIFY 终态")
+    @JsonProperty("clarifying_questions")
+    private List<String> clarifyingQuestions;
+
+    @ApiModelProperty(value = "拒绝或澄清原因")
+    private List<String> why;
+
+    @ApiModelProperty(value = "可执行计划。CLARIFY/REJECT 终态必须为空")
+    @JsonProperty("executable_plan")
+    private Object executablePlan;
+
     @ApiModelProperty(value = "计算字段定义列表，支持动态创建基于表达式的虚拟字段")
     private List<CalculatedFieldDef> calculatedFields;
 
@@ -36,6 +57,9 @@ public class SemanticQueryRequest {
 
     @ApiModelProperty(value = "聚合后过滤条件。仅用于 groupBy/聚合查询后的 HAVING；普通明细字段过滤继续使用 slice")
     private List<SliceItem> having;
+
+    @ApiModelProperty(value = "结果阶段过滤条件。仅用于窗口计算字段或 postAggregateCalculations 生成的外层结果集别名过滤；不会自动从 slice 下推")
+    private List<SliceItem> postSlice;
 
     @ApiModelProperty(value = "分组字段，可含 $caption", example = "[\"team$caption\"]")
     private List<GroupByItem> groupBy;

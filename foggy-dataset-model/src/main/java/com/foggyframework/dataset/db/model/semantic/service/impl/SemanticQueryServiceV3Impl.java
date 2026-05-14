@@ -96,6 +96,10 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
     @Override
     public SemanticQueryResponse queryModel(String model, SemanticQueryRequest request, String mode,
                                             SemanticRequestContext context) {
+        SemanticQueryResponse terminal = terminalResponseIfAny(request);
+        if (terminal != null) {
+            return terminal;
+        }
         return queryModelInternal(model, request, mode, context);
     }
 
@@ -228,12 +232,19 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
     @Override
     public SemanticQueryResponse validateQuery(String model, SemanticQueryRequest request,
                                                SemanticRequestContext context) {
+        SemanticQueryResponse terminal = terminalResponseIfAny(request);
+        if (terminal != null) {
+            return terminal;
+        }
         return validateQueryInternal(model, request, context.getNamespace());
     }
 
     @Override
     public SqlGenerationResult generateSql(String model, SemanticQueryRequest request,
                                            SemanticRequestContext context) {
+        if (isTerminalPlan(request)) {
+            throw RX.throwB("TERMINAL_PLAN_NOT_EXECUTABLE: CLARIFY/REJECT terminal plans must not enter SQL generation.");
+        }
         if (request.getColumns() == null || request.getColumns().isEmpty()) {
             throw RX.throwB("请指定查询字段");
         }
@@ -336,6 +347,68 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         }
     }
 
+    private SemanticQueryResponse terminalResponseIfAny(SemanticQueryRequest request) {
+        if (!isTerminalPlan(request)) {
+            return null;
+        }
+        if (request.getExecutablePlan() != null) {
+            throw RX.throwB("TERMINAL_PLAN_MUST_NOT_HAVE_EXECUTABLE_PLAN: CLARIFY/REJECT terminal plans must not carry executable_plan.");
+        }
+        String terminal = normalizeTerminal(request.getStatus());
+        if (terminal == null) {
+            terminal = normalizeTerminal(request.getRoute());
+        }
+        SemanticQueryResponse response = new SemanticQueryResponse();
+        response.setItems(List.of());
+        response.setWarnings(List.of());
+
+        SemanticQueryResponse.ExecutionInfo execution = new SemanticQueryResponse.ExecutionInfo();
+        execution.setRoute(firstNonBlank(request.getRoute(), terminal));
+        execution.setStatus(terminal);
+        execution.setRiskFlags(request.getRiskFlags() != null ? List.copyOf(request.getRiskFlags()) : List.of());
+        execution.setWhy(request.getWhy() != null ? List.copyOf(request.getWhy()) : List.of());
+        execution.setClarifyingQuestions(request.getClarifyingQuestions() != null
+                ? List.copyOf(request.getClarifyingQuestions())
+                : List.of());
+        execution.setExecutablePlan(null);
+        execution.setErrorCode(terminal + "_TERMINAL");
+        response.setExecution(execution);
+
+        SemanticQueryResponse.SemanticInfo semantic = new SemanticQueryResponse.SemanticInfo();
+        semantic.setEmptyResult(true);
+        semantic.setEmptyReason(terminal + "_TERMINAL");
+        semantic.setShouldAnswerDirectly(true);
+        response.setSemantic(semantic);
+        return response;
+    }
+
+    private boolean isTerminalPlan(SemanticQueryRequest request) {
+        if (request == null) {
+            return false;
+        }
+        return normalizeTerminal(request.getStatus()) != null || normalizeTerminal(request.getRoute()) != null;
+    }
+
+    private String normalizeTerminal(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String normalized = value.trim().toUpperCase(Locale.ROOT);
+        return "CLARIFY".equals(normalized) || "REJECT".equals(normalized) ? normalized : null;
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return null;
+    }
+
     private com.foggyframework.dataset.db.model.engine.compose.ComposedSql compileTimeWindowPlan(
             com.foggyframework.dataset.db.model.engine.compose.plan.QueryPlan plan,
             SemanticRequestContext requestContext,
@@ -410,6 +483,13 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                 }
             }
         }
+        if (request.getPostSlice() != null) {
+            for (SemanticQueryRequest.SliceItem postSlice : request.getPostSlice()) {
+                if (!postSlice._isLogicalGroup() && StringUtils.isEmpty(postSlice.getField())) {
+                    throw RX.throwB(JsonUtils.toJson(postSlice) + "中的name字段不能为空");
+                }
+            }
+        }
 
         // 检查 groupBy 和 columns 的对齐
         if (request.getGroupBy() != null && request.getColumns() != null) {
@@ -455,6 +535,20 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                     fieldNames.add(calc.getName());
                 }
             }
+            if (request.getCalculatedFields() != null) {
+                for (CalculatedFieldDef calc : request.getCalculatedFields()) {
+                    if (calc.getName() != null) {
+                        fieldNames.add(calc.getName());
+                    }
+                }
+            }
+            if (request.getPostAggregateCalculations() != null) {
+                for (var calc : request.getPostAggregateCalculations()) {
+                    if (calc.getName() != null) {
+                        fieldNames.add(calc.getName());
+                    }
+                }
+            }
             CaseInsensitiveFieldResolver ciResolver = new CaseInsensitiveFieldResolver(fieldNames);
             resolveRequestFieldsCaseInsensitive(request, ciResolver);
         }
@@ -493,6 +587,12 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                     .map(this::convertToJdbcSlice)
                     .collect(Collectors.toList());
             queryDef.setHaving(jdbcHaving);
+        }
+        if (request.getPostSlice() != null) {
+            List<SliceRequestDef> jdbcPostSlice = request.getPostSlice().stream()
+                    .map(this::convertToJdbcSlice)
+                    .collect(Collectors.toList());
+            queryDef.setPostSlice(jdbcPostSlice);
         }
 
         // 转换分组（V3：字段名直接使用）
@@ -1176,6 +1276,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         // 2. slice
         resolveSliceFieldNames(request.getSlice(), resolver);
         resolveSliceFieldNames(request.getHaving(), resolver);
+        resolveSliceFieldNames(request.getPostSlice(), resolver);
 
         // 3. orderBy
         if (request.getOrderBy() != null) {

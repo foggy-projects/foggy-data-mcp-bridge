@@ -1,5 +1,6 @@
 package com.foggyframework.dataset.db.model.semantic.domain;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.foggyframework.dataset.db.model.spi.DbColumnType;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
@@ -48,6 +49,9 @@ public class SemanticQueryResponse {
     @ApiModelProperty(value = "结果语义提示，帮助上游区分成功但无匹配数据等终态")
     private SemanticInfo semantic;
 
+    @ApiModelProperty(value = "执行计划终态或路由信息")
+    private ExecutionInfo execution;
+
     /**
      * 分页信息
      */
@@ -88,6 +92,36 @@ public class SemanticQueryResponse {
 
         @ApiModelProperty(value = "上游是否应直接回答而不是继续探查")
         private Boolean shouldAnswerDirectly;
+    }
+
+    @Data
+    @ApiModel("执行计划信息")
+    public static class ExecutionInfo {
+
+        @ApiModelProperty(value = "路由结果，如 DSL_CTE、SEMANTIC_SQL、CLARIFY、REJECT")
+        private String route;
+
+        @ApiModelProperty(value = "执行计划状态，如 PLAN_READY、CLARIFY、REJECT、COMPILE_ERROR")
+        private String status;
+
+        @ApiModelProperty(value = "治理或语义风险标签")
+        @JsonProperty("risk_flags")
+        private List<String> riskFlags;
+
+        @ApiModelProperty(value = "拒绝或澄清原因")
+        private List<String> why;
+
+        @ApiModelProperty(value = "澄清问题")
+        @JsonProperty("clarifying_questions")
+        private List<String> clarifyingQuestions;
+
+        @ApiModelProperty(value = "可执行计划。CLARIFY/REJECT 终态必须为空")
+        @JsonProperty("executable_plan")
+        private Object executablePlan;
+
+        @ApiModelProperty(value = "错误码")
+        @JsonProperty("error_code")
+        private String errorCode;
     }
     
     /**

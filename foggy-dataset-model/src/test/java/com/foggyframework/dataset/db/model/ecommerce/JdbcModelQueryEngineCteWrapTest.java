@@ -138,8 +138,47 @@ class JdbcModelQueryEngineCteWrapTest extends EcommerceTestSupport {
         assertTrue(cteEnd > 0 && orderByIdx > cteEnd,
                 "ORDER BY should be elevated to outer query (after FROM stage1): " + sql);
     }
+
     @Test
     @Order(5)
+    @DisplayName("postSlice over window alias creates explicit result filter stage")
+    void testPostSliceOverWindowAliasCreatesResultStage() {
+        if (!supportsWindowFunctions()) {
+            return;
+        }
+        DbQueryRequestDef request = buildRankWindowRequest();
+        request.setPostSlice(new ArrayList<>(List.of(new SliceRequestDef("salesRank", "=", 1))));
+        request.setOrderBy(new ArrayList<>(List.of(orderDesc("salesRank"))));
+
+        JdbcModelQueryEngine engine = analyze(request);
+        String sql = engine.getSql();
+        String normalizedSql = sql.replace('`', '"');
+
+        assertTrue(normalizedSql.contains("WITH stage1 AS"), sql);
+        assertTrue(normalizedSql.contains("__POST_RESULT_STAGE__ AS"), sql);
+        assertTrue(normalizedSql.contains("FROM __POST_RESULT_STAGE__"), sql);
+        assertTrue(normalizedSql.contains("WHERE \"salesRank\" = ?"), sql);
+        assertTrue(normalizedSql.contains("ORDER BY \"salesRank\" DESC"), sql);
+        assertEquals(1, engine.getValues().get(engine.getValues().size() - 1));
+        assertEquals(2, engine.getCteStages().size());
+        assertEquals(List.of(1), engine.getCteOuterSelectParams());
+    }
+
+    @Test
+    @Order(6)
+    @DisplayName("postSlice without result stage is rejected")
+    void testPostSliceWithoutResultStageRejected() {
+        DbQueryRequestDef request = new DbQueryRequestDef();
+        request.setQueryModel("FactSalesQueryModel");
+        request.setColumns(new ArrayList<>(List.of("product$caption", "salesAmount")));
+        request.setPostSlice(new ArrayList<>(List.of(new SliceRequestDef("salesAmount", ">", 100))));
+
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> analyze(request));
+        assertTrue(exception.getMessage().contains("POST_SLICE_REQUIRES_RESULT_STAGE"));
+    }
+
+    @Test
+    @Order(7)
     @DisplayName("Regex edge case: Substring collision prevention in CTE rewriting")
     void testRegexSubstringCollision() {
         String sql = "SUM(t1.sales) / MAX(t1.sales_tax) + t1.sales";

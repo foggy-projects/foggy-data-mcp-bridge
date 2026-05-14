@@ -330,6 +330,30 @@ class OdooModelLoadingTest extends EcommerceTestSupport {
 
     @Test
     @Order(204)
+    @DisplayName("postAggregateCalculations 支持显式 postSlice 结果阶段过滤")
+    void testPostAggregateRatioToTotalSupportsExplicitPostSlice() {
+        JdbcQueryModel queryModel = getQueryModel("OdooSaleOrderQueryModel");
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        DbQueryRequestDef queryRequest = postAggregateSalesShareRequest();
+        queryRequest.setSlice(null);
+        queryRequest.setPostSlice(List.of(new SliceRequestDef("salesShare", ">", 0.2)));
+        queryRequest.setPostAggregateCalculations(new ArrayList<>(List.of(new PostAggregateCalculationDef(
+                "salesShare", "ratioToTotal", "teamSales", "grandTotal", "ratio"
+        ))));
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+        String sql = queryEngine.getSql();
+        String normalizedSql = sql.replace('`', '"');
+
+        assertTrue(normalizedSql.contains("post_stage AS"), sql);
+        assertTrue(normalizedSql.contains("FROM post_stage"), sql);
+        assertTrue(normalizedSql.contains("WHERE \"salesShare\" > ?"), sql);
+        assertEquals(0.2, queryEngine.getValues().get(queryEngine.getValues().size() - 1));
+    }
+
+    @Test
+    @Order(205)
     @DisplayName("calculatedFields ratio_to_total 语法糖归一为 postAggregateCalculations")
     void testCalculatedFieldsRatioToTotalSugarNormalizesToPostAggregate() {
         JdbcQueryModel queryModel = getQueryModel("OdooSaleOrderQueryModel");
@@ -350,7 +374,7 @@ class OdooModelLoadingTest extends EcommerceTestSupport {
     }
 
     @Test
-    @Order(205)
+    @Order(206)
     @DisplayName("全局 predefined ratio measure 应聚合 measure 依赖")
     void testGlobalPredefinedRatioMeasureAggregatesDependencies() {
         JdbcQueryModel queryModel = getQueryModel("OdooAccountMoveQueryModel");
