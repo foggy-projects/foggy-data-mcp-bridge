@@ -108,6 +108,34 @@ class SemanticSqlWhitelistValidatorTest {
     }
 
     @Test
+    @DisplayName("SEMANTIC_SQL rejects virtual model aliases")
+    void rejectsVirtualModelAlias() {
+        SemanticQueryRequest request = semanticSql("SELECT orderId FROM SaleOrder so WHERE so.status = 'shipped'");
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+                service.validateQuery("SaleOrder", request, SemanticRequestContext.empty()));
+
+        assertTrue(ex.getMessage().contains("SEMANTIC_SQL_JOIN_NOT_DECLARED"));
+    }
+
+    @Test
+    @DisplayName("SEMANTIC_SQL rejects CTE and set operations")
+    void rejectsCteAndSetOperations() {
+        RuntimeException cte = assertThrows(RuntimeException.class, () ->
+                service.validateQuery("SaleOrder",
+                        semanticSql("WITH recent AS (SELECT orderId FROM SaleOrder) SELECT orderId FROM recent"),
+                        SemanticRequestContext.empty()));
+
+        RuntimeException union = assertThrows(RuntimeException.class, () ->
+                service.validateQuery("SaleOrder",
+                        semanticSql("SELECT orderId FROM SaleOrder UNION SELECT orderId FROM SaleOrder"),
+                        SemanticRequestContext.empty()));
+
+        assertTrue(cte.getMessage().contains("SEMANTIC_SQL_JOIN_NOT_DECLARED"));
+        assertTrue(union.getMessage().contains("SEMANTIC_SQL_JOIN_NOT_DECLARED"));
+    }
+
+    @Test
     @DisplayName("SEMANTIC_SQL rejects functions outside the whitelist")
     void rejectsUnsupportedFunction() {
         SemanticQueryRequest request = semanticSql("SELECT orderId FROM SaleOrder WHERE RANDOM() > 0.5");
@@ -122,6 +150,17 @@ class SemanticSqlWhitelistValidatorTest {
     @DisplayName("SEMANTIC_SQL rejects wildcard projections")
     void rejectsWildcardProjection() {
         SemanticQueryRequest request = semanticSql("SELECT * FROM SaleOrder");
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+                service.validateQuery("SaleOrder", request, SemanticRequestContext.empty()));
+
+        assertTrue(ex.getMessage().contains("SEMANTIC_SQL_FIELD_NOT_DECLARED"));
+    }
+
+    @Test
+    @DisplayName("SEMANTIC_SQL rejects table wildcard projections")
+    void rejectsTableWildcardProjection() {
+        SemanticQueryRequest request = semanticSql("SELECT SaleOrder.* FROM SaleOrder");
 
         RuntimeException ex = assertThrows(RuntimeException.class, () ->
                 service.validateQuery("SaleOrder", request, SemanticRequestContext.empty()));
