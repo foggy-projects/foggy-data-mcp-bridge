@@ -53,6 +53,10 @@ public class SemanticQueryRequest {
     @JsonProperty("semantic_sql")
     private String semanticSql;
 
+    @ApiModelProperty(value = "Memory Grid 二次分析计划。P0 仅做受治理、有界输入 guardrail")
+    @JsonProperty("memory_grid_plan")
+    private Map<String, Object> memoryGridPlan;
+
     @ApiModelProperty(value = "计算字段定义列表，支持动态创建基于表达式的虚拟字段")
     private List<CalculatedFieldDef> calculatedFields;
 

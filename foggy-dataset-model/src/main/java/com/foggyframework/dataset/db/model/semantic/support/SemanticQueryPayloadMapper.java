@@ -65,6 +65,7 @@ public class SemanticQueryPayloadMapper {
         request.setWhy(optionalStringList(payload.get("why")));
         request.setExecutablePlan(firstPresent(payload, "executable_plan", "executablePlan"));
         request.setSemanticSql(stringValue(firstPresent(payload, "semantic_sql", "semanticSql")));
+        request.setMemoryGridPlan(convertMap(firstPresent(payload, "memory_grid_plan", "memoryGridPlan")));
 
         String captionMatchMode = stringValue(payload.get("captionMatchMode"));
         if (captionMatchMode != null && !captionMatchMode.isBlank()) {

@@ -576,6 +576,7 @@ public class LocalDatasetAccessor implements DatasetAccessor {
         request.setWhy(optionalStringList(payload.get("why")));
         request.setExecutablePlan(firstPresent(payload, "executable_plan", "executablePlan"));
         request.setSemanticSql(stringValue(firstPresent(payload, "semantic_sql", "semanticSql")));
+        request.setMemoryGridPlan(convertMap(firstPresent(payload, "memory_grid_plan", "memoryGridPlan")));
 
         // 添加 MCP 来源标记（供 LargeResultTruncationStep 识别）
         Map<String, Object> hints = new HashMap<>();
@@ -672,6 +673,14 @@ public class LocalDatasetAccessor implements DatasetAccessor {
             return null;
         }
         return map.containsKey(first) ? map.get(first) : map.get(second);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> convertMap(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            return (Map<String, Object>) map;
+        }
+        return null;
     }
 
     private static List<String> optionalStringList(Object value) {

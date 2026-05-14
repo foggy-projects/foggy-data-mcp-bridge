@@ -23,6 +23,7 @@ import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.db.model.semantic.service.DimensionMemberLoader;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
+import com.foggyframework.dataset.db.model.semantic.support.MemoryGridGuardrailValidator;
 import com.foggyframework.dataset.db.model.semantic.support.SemanticSqlWhitelistValidator;
 import com.foggyframework.dataset.db.model.spi.DbColumn;
 import com.foggyframework.dataset.db.model.service.QueryFacade;
@@ -104,6 +105,10 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         SemanticQueryResponse semanticSqlPlan = semanticSqlPlanResponseIfAny(model, request, context);
         if (semanticSqlPlan != null) {
             return semanticSqlPlan;
+        }
+        SemanticQueryResponse memoryGridPlan = memoryGridPlanResponseIfAny(request, context);
+        if (memoryGridPlan != null) {
+            return memoryGridPlan;
         }
         return queryModelInternal(model, request, mode, context);
     }
@@ -245,6 +250,10 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         if (semanticSqlPlan != null) {
             return semanticSqlPlan;
         }
+        SemanticQueryResponse memoryGridPlan = memoryGridPlanResponseIfAny(request, context);
+        if (memoryGridPlan != null) {
+            return memoryGridPlan;
+        }
         return validateQueryInternal(model, request, context.getNamespace());
     }
 
@@ -257,6 +266,10 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         if (isSemanticSqlPlan(request)) {
             semanticSqlAstValidation(model, request, context);
             throw RX.throwB("SEMANTIC_SQL_EXECUTION_NOT_IMPLEMENTED: Semantic SQL AST whitelist passed, but SQL-to-DSL compilation is not part of P0.");
+        }
+        if (isMemoryGridPlan(request)) {
+            memoryGridValidation(request, context);
+            throw RX.throwB("MEMORY_GRID_EXECUTION_NOT_IMPLEMENTED: Memory Grid guardrail passed, but in-memory execution is not part of P0.");
         }
         if (request.getColumns() == null || request.getColumns().isEmpty()) {
             throw RX.throwB("请指定查询字段");
@@ -444,6 +457,49 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         }
         String route = request.getRoute();
         return route != null && "SEMANTIC_SQL".equals(route.trim().toUpperCase(Locale.ROOT));
+    }
+
+    private SemanticQueryResponse memoryGridPlanResponseIfAny(SemanticQueryRequest request,
+                                                              SemanticRequestContext context) {
+        if (!isMemoryGridPlan(request)) {
+            return null;
+        }
+        Map<String, Object> validation = memoryGridValidation(request, context);
+        SemanticQueryResponse response = new SemanticQueryResponse();
+        response.setItems(List.of());
+        response.setWarnings(List.of());
+
+        SemanticQueryResponse.ExecutionInfo execution = new SemanticQueryResponse.ExecutionInfo();
+        execution.setRoute(firstNonBlank(request.getRoute(), "MEMORY_GRID"));
+        execution.setStatus(firstNonBlank(request.getStatus(), "PLAN_READY"));
+        execution.setRiskFlags(request.getRiskFlags() != null ? List.copyOf(request.getRiskFlags()) : List.of());
+        execution.setWhy(request.getWhy() != null ? List.copyOf(request.getWhy()) : List.of());
+        execution.setClarifyingQuestions(List.of());
+        execution.setExecutablePlan(request.getExecutablePlan());
+        execution.setMemoryGridPlan(request.getMemoryGridPlan());
+        execution.setMemoryGridValidation(validation);
+        execution.setErrorCode(null);
+        response.setExecution(execution);
+        return response;
+    }
+
+    private Map<String, Object> memoryGridValidation(SemanticQueryRequest request,
+                                                     SemanticRequestContext context) {
+        if (request == null || request.getMemoryGridPlan() == null || request.getMemoryGridPlan().isEmpty()) {
+            throw RX.throwB("MEMORY_GRID_UNBOUNDED_INPUT: memory_grid_plan must be provided for MEMORY_GRID route.");
+        }
+        return MemoryGridGuardrailValidator.validate(request.getMemoryGridPlan(), context);
+    }
+
+    private boolean isMemoryGridPlan(SemanticQueryRequest request) {
+        if (request == null) {
+            return false;
+        }
+        if (request.getMemoryGridPlan() != null && !request.getMemoryGridPlan().isEmpty()) {
+            return true;
+        }
+        String route = request.getRoute();
+        return route != null && "MEMORY_GRID".equals(route.trim().toUpperCase(Locale.ROOT));
     }
 
     private String normalizeTerminal(String value) {

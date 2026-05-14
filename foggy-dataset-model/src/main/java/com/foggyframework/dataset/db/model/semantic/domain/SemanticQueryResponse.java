@@ -127,6 +127,14 @@ public class SemanticQueryResponse {
         @JsonProperty("ast_validation")
         private Map<String, Object> astValidation;
 
+        @ApiModelProperty(value = "Memory Grid 二次分析计划。仅表示 guardrail 通过，不表示已执行")
+        @JsonProperty("memory_grid_plan")
+        private Map<String, Object> memoryGridPlan;
+
+        @ApiModelProperty(value = "Memory Grid guardrail 校验证据")
+        @JsonProperty("memory_grid_validation")
+        private Map<String, Object> memoryGridValidation;
+
         @ApiModelProperty(value = "错误码")
         @JsonProperty("error_code")
         private String errorCode;
