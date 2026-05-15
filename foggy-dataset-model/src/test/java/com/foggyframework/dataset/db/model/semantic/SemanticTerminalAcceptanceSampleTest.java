@@ -38,6 +38,18 @@ class SemanticTerminalAcceptanceSampleTest {
                 List.of("请定义线索质量指标、统计时间范围、分母和阈值。"),
                 List.of("线索质量缺少业务规则和指标公式。")
         ));
+        assertTerminal(sample(
+                "CLARIFY",
+                List.of("result_size_risk", "governance_risk", "grain_mismatch"),
+                List.of("请先将历史订单和应收明细分别聚合到受治理的小结果集，并声明时间范围、行数上限和客户对齐键。"),
+                List.of("请求要求无界历史明细进入内存并临时合并，缺少规模边界和治理来源。")
+        ));
+        assertTerminal(sample(
+                "CLARIFY",
+                List.of("result_size_risk", "governance_risk", "grain_mismatch"),
+                List.of("请确认时间范围、每个来源的聚合口径、行数上限，以及按客户名合并是否为受治理对齐键。"),
+                List.of("无界明细自由合并不能直接进入 Memory Grid。")
+        ));
     }
 
     @Test
