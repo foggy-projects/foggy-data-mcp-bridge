@@ -23,6 +23,7 @@ import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.db.model.semantic.service.DimensionMemberLoader;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
+import com.foggyframework.dataset.db.model.semantic.support.DslCtePlanValidator;
 import com.foggyframework.dataset.db.model.semantic.support.MemoryGridGuardrailValidator;
 import com.foggyframework.dataset.db.model.semantic.support.SemanticSqlWhitelistValidator;
 import com.foggyframework.dataset.db.model.spi.DbColumn;
@@ -109,6 +110,10 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         SemanticQueryResponse memoryGridPlan = memoryGridPlanResponseIfAny(request, context);
         if (memoryGridPlan != null) {
             return memoryGridPlan;
+        }
+        SemanticQueryResponse dslCtePlan = dslCtePlanResponseIfAny(request);
+        if (dslCtePlan != null) {
+            return dslCtePlan;
         }
         return queryModelInternal(model, request, mode, context);
     }
@@ -254,6 +259,10 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         if (memoryGridPlan != null) {
             return memoryGridPlan;
         }
+        SemanticQueryResponse dslCtePlan = dslCtePlanResponseIfAny(request);
+        if (dslCtePlan != null) {
+            return dslCtePlan;
+        }
         return validateQueryInternal(model, request, context.getNamespace());
     }
 
@@ -270,6 +279,10 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         if (isMemoryGridPlan(request)) {
             memoryGridValidation(request, context);
             throw RX.throwB("MEMORY_GRID_EXECUTION_NOT_IMPLEMENTED: Memory Grid guardrail passed, but in-memory execution is not part of P0.");
+        }
+        if (isDslCtePlan(request)) {
+            dslCteValidation(request);
+            throw RX.throwB("DSL_CTE_EXECUTION_NOT_IMPLEMENTED: DSL_CTE stage contract passed, but staged SQL execution is not part of P0.");
         }
         if (request.getColumns() == null || request.getColumns().isEmpty()) {
             throw RX.throwB("请指定查询字段");
@@ -500,6 +513,43 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         }
         String route = request.getRoute();
         return route != null && "MEMORY_GRID".equals(route.trim().toUpperCase(Locale.ROOT));
+    }
+
+    private SemanticQueryResponse dslCtePlanResponseIfAny(SemanticQueryRequest request) {
+        if (!isDslCtePlan(request)) {
+            return null;
+        }
+        Map<String, Object> validation = dslCteValidation(request);
+        SemanticQueryResponse response = new SemanticQueryResponse();
+        response.setItems(List.of());
+        response.setWarnings(List.of());
+
+        SemanticQueryResponse.ExecutionInfo execution = new SemanticQueryResponse.ExecutionInfo();
+        execution.setRoute(firstNonBlank(request.getRoute(), "DSL_CTE"));
+        execution.setStatus(firstNonBlank(request.getStatus(), "PLAN_READY"));
+        execution.setRiskFlags(request.getRiskFlags() != null ? List.copyOf(request.getRiskFlags()) : List.of());
+        execution.setWhy(request.getWhy() != null ? List.copyOf(request.getWhy()) : List.of());
+        execution.setClarifyingQuestions(List.of());
+        execution.setExecutablePlan(request.getExecutablePlan());
+        execution.setDslCteValidation(validation);
+        execution.setErrorCode(null);
+        response.setExecution(execution);
+        return response;
+    }
+
+    private Map<String, Object> dslCteValidation(SemanticQueryRequest request) {
+        if (request == null || request.getExecutablePlan() == null) {
+            throw RX.throwB("DSL_CTE_PLAN_NOT_DECLARED: executable_plan.cte_plan must be provided for DSL_CTE route.");
+        }
+        return DslCtePlanValidator.validate(request.getExecutablePlan());
+    }
+
+    private boolean isDslCtePlan(SemanticQueryRequest request) {
+        if (request == null) {
+            return false;
+        }
+        String route = request.getRoute();
+        return route != null && "DSL_CTE".equals(route.trim().toUpperCase(Locale.ROOT));
     }
 
     private String normalizeTerminal(String value) {

@@ -119,6 +119,10 @@ public class SemanticQueryResponse {
         @JsonProperty("executable_plan")
         private Object executablePlan;
 
+        @ApiModelProperty(value = "DSL_CTE 阶段计划校验证据。仅表示 P0 contract 通过，不表示已执行")
+        @JsonProperty("dsl_cte_validation")
+        private Map<String, Object> dslCteValidation;
+
         @ApiModelProperty(value = "虚拟语义 SQL。仅作为表达增强 contract，不表示物理 SQL 已执行")
         @JsonProperty("semantic_sql")
         private String semanticSql;
