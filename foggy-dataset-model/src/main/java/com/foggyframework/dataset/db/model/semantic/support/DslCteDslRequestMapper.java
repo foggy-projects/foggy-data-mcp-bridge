@@ -9,18 +9,22 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Converts a narrow DSL_CTE stage contract into the existing DSL request shape.
  *
  * <p>This bridge is intentionally smaller than {@link DslCtePlanValidator}.
- * P0.7 only proves that common post-aggregate stage plans can reuse the current
- * DSL SQL generator without opening arbitrary CTE compilation.</p>
+ * It only maps signed stage templates to existing DSL execution paths without
+ * opening arbitrary CTE compilation.</p>
  */
 public final class DslCteDslRequestMapper {
 
     public static final String STATUS_READY = "BRIDGE_READY";
     public static final String STATUS_DEFERRED = "BRIDGE_DEFERRED";
+    private static final Pattern ROLLING_SUM_PATTERN = Pattern.compile(
+            "(?i)^\\s*sum\\s*\\(\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*\\)\\s+over\\s+last\\s+(\\d+)\\s+rows\\s*$");
 
     private DslCteDslRequestMapper() {
     }
@@ -52,6 +56,8 @@ public final class DslCteDslRequestMapper {
         MetricMapping metrics = metrics(aggregate.get("metrics"), unsupported);
         List<PostAggregateCalculationDef> postAgg = new ArrayList<>();
         List<SemanticQueryRequest.SliceItem> postSlice = null;
+        Map<String, String> outputAliasOverride = new LinkedHashMap<>();
+        boolean hasWindowBridge = false;
 
         for (int i = 1; i < stages.size(); i++) {
             Map<String, Object> stage = stages.get(i);
@@ -60,12 +66,26 @@ public final class DslCteDslRequestMapper {
                 postAgg.addAll(postAggregateCalculations(stage.get("derived"), metrics.aliases(), unsupported));
             } else if ("postSlice".equals(type)) {
                 postSlice = sliceItems(stage.get("filters"), unsupported);
+            } else if ("window_derive".equals(type)) {
+                WindowBridge windowBridge = rollingWindowBridge(stage, aggregate, metrics.aliases(), unsupported);
+                if (windowBridge != null) {
+                    request.setTimeWindow(windowBridge.timeWindow());
+                    outputAliasOverride.putAll(windowBridge.outputAliasOverride());
+                    hasWindowBridge = true;
+                }
             } else {
                 unsupported.add("DSL_CTE bridge v1 does not execute stage type: " + type);
             }
         }
+        if (hasWindowBridge && postSlice != null) {
+            unsupported.add("DSL_CTE rolling window bridge does not support postSlice in this cut");
+        }
+        if (hasWindowBridge && !postAgg.isEmpty()) {
+            unsupported.add("DSL_CTE rolling window bridge does not support postAggregate calculations in this cut");
+        }
 
-        request.setColumns(outputColumns(ctePlan.get("output"), aggregate.get("groupBy"), metrics, postAgg, unsupported));
+        request.setColumns(outputColumns(ctePlan.get("output"), aggregate.get("groupBy"), metrics, postAgg,
+                outputAliasOverride, unsupported));
         request.setPostAggregateCalculations(postAgg.isEmpty() ? null : postAgg);
         request.setPostSlice(postSlice);
         request.setReturnTotal(false);
@@ -108,6 +128,7 @@ public final class DslCteDslRequestMapper {
 
     private static List<String> outputColumns(Object rawOutput, Object rawGroupBy, MetricMapping metrics,
                                               List<PostAggregateCalculationDef> postAgg,
+                                              Map<String, String> outputAliasOverride,
                                               List<String> unsupported) {
         List<String> outputs = stringList(rawOutput);
         if (outputs.isEmpty()) {
@@ -119,13 +140,101 @@ public final class DslCteDslRequestMapper {
         }
         List<String> columns = new ArrayList<>();
         for (String output : outputs) {
+            String override = outputAliasOverride.get(output);
             String metricExpr = metrics.columnByAlias().get(output);
-            columns.add(metricExpr == null ? output : metricExpr);
+            if (override != null) {
+                columns.add(override);
+            } else {
+                columns.add(metricExpr == null ? output : metricExpr);
+            }
         }
         if (columns.stream().anyMatch(col -> col == null || col.isBlank())) {
             unsupported.add("output columns must be non-blank");
         }
         return columns;
+    }
+
+    private static WindowBridge rollingWindowBridge(Map<String, Object> stage, Map<String, Object> aggregate,
+                                                    List<String> metricAliases, List<String> unsupported) {
+        List<String> inputs = stringList(stage.get("inputs"));
+        String aggregateName = stringValue(aggregate.get("name"));
+        if (inputs.size() != 1 || aggregateName == null || !aggregateName.equals(inputs.get(0))) {
+            unsupported.add("window_derive must reference the first aggregate stage for DSL_CTE rolling bridge");
+            return null;
+        }
+
+        Map<String, Object> window = mapValue(stage.get("window"));
+        if (window == null) {
+            unsupported.add("window_derive must declare window for DSL_CTE rolling bridge");
+            return null;
+        }
+        if (!stringList(window.get("partitionBy")).isEmpty()) {
+            unsupported.add("DSL_CTE rolling bridge does not support partitionBy in this cut");
+            return null;
+        }
+        List<Map<String, Object>> orderBy = mapList(window.get("orderBy"));
+        if (orderBy.size() != 1) {
+            unsupported.add("DSL_CTE rolling bridge requires exactly one window orderBy field");
+            return null;
+        }
+        String orderField = stringValue(orderBy.get(0).get("field"));
+        String orderDir = stringValue(orderBy.get(0).get("dir"));
+        if (orderField == null || (orderDir != null && !"ASC".equalsIgnoreCase(orderDir))) {
+            unsupported.add("DSL_CTE rolling bridge requires ASC orderBy field");
+            return null;
+        }
+        if (!stringList(aggregate.get("groupBy")).contains(orderField)) {
+            unsupported.add("DSL_CTE rolling bridge orderBy field must be part of aggregate groupBy");
+            return null;
+        }
+
+        Map<String, Object> frame = mapValue(window.get("frame"));
+        Integer frameStart = intValue(frame == null ? null : frame.get("start"));
+        Integer frameEnd = intValue(frame == null ? null : frame.get("end"));
+        if (frameStart == null || frameEnd == null || frameEnd != 0 || frameStart >= 0) {
+            unsupported.add("DSL_CTE rolling bridge requires rows frame ending at current row");
+            return null;
+        }
+        int windowSize = Math.abs(frameStart) + 1;
+        if (windowSize != 7 && windowSize != 30 && windowSize != 90) {
+            unsupported.add("DSL_CTE rolling bridge supports only 7/30/90 row windows");
+            return null;
+        }
+
+        List<Map<String, Object>> derived = mapList(stage.get("derived"));
+        if (derived.size() != 1) {
+            unsupported.add("DSL_CTE rolling bridge requires exactly one derived rolling metric");
+            return null;
+        }
+        String derivedName = stringValue(derived.get(0).get("name"));
+        String expr = stringValue(derived.get(0).get("expr"));
+        Matcher matcher = ROLLING_SUM_PATTERN.matcher(expr == null ? "" : expr);
+        if (derivedName == null || !matcher.matches()) {
+            unsupported.add("window_derive formula is not executable through DSL_CTE rolling bridge: " + derived);
+            return null;
+        }
+        String measure = matcher.group(1);
+        int exprWindowSize = Integer.parseInt(matcher.group(2));
+        if (!metricAliases.contains(measure) || exprWindowSize != windowSize) {
+            unsupported.add("window_derive rolling formula must reference an aggregate metric and matching frame");
+            return null;
+        }
+
+        String grain = grain(orderField);
+        if (!"day".equals(grain)) {
+            unsupported.add("DSL_CTE rolling bridge supports only day-grain rolling windows in this cut");
+            return null;
+        }
+        String comparison = "rolling_" + windowSize + "d";
+        Map<String, Object> timeWindow = new LinkedHashMap<>();
+        timeWindow.put("field", orderField);
+        timeWindow.put("grain", grain);
+        timeWindow.put("comparison", comparison);
+        timeWindow.put("targetMetrics", List.of(measure));
+        timeWindow.put("rollingAggregator", "sum");
+
+        Map<String, String> aliasOverride = Map.of(derivedName, measure + "__" + comparison);
+        return new WindowBridge(timeWindow, aliasOverride);
     }
 
     private static MetricMapping metrics(Object raw, List<String> unsupported) {
@@ -249,10 +358,44 @@ public final class DslCteDslRequestMapper {
         return value == null ? null : String.valueOf(value).trim();
     }
 
+    private static Integer intValue(Object value) {
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        if (value instanceof String text) {
+            try {
+                return Integer.parseInt(text.trim());
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private static String grain(String field) {
+        if (field == null) {
+            return null;
+        }
+        String lower = field.toLowerCase(Locale.ROOT);
+        if (lower.endsWith(".day") || lower.endsWith("$id")) {
+            return "day";
+        }
+        if (lower.endsWith(".month") || lower.endsWith("$month")) {
+            return "month";
+        }
+        if (lower.endsWith(".year") || lower.endsWith("$year")) {
+            return "year";
+        }
+        return null;
+    }
+
     private record MetricMapping(Map<String, String> columnByAlias) {
         List<String> aliases() {
             return new ArrayList<>(columnByAlias.keySet());
         }
+    }
+
+    private record WindowBridge(Map<String, Object> timeWindow, Map<String, String> outputAliasOverride) {
     }
 
     public record BridgeResult(String status, String model, SemanticQueryRequest request, List<String> unsupported) {

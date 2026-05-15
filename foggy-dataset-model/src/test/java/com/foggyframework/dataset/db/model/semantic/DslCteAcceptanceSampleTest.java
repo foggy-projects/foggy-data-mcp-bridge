@@ -95,6 +95,21 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
+    @DisplayName("DSL_CTE validation marks rolling window plan as bridge-ready")
+    void validationShowsBridgeReadyForRollingWindow() {
+        SemanticQueryResponse response = service.validateQuery(
+                "SaleOrder", dslCtePlan(biz004()), SemanticRequestContext.empty());
+
+        assertEquals("BRIDGE_READY", response.getExecution().getDslCteValidation().get("dsl_bridge_status"));
+        SemanticQueryRequest dslRequest = (SemanticQueryRequest) response.getExecution()
+                .getDslCteValidation().get("dsl_request");
+        assertNotNull(dslRequest);
+        assertEquals("rolling_7d", dslRequest.getTimeWindow().get("comparison"));
+        assertEquals(List.of("salesAmount"), dslRequest.getTimeWindow().get("targetMetrics"));
+        assertTrue(dslRequest.getColumns().contains("salesAmount__rolling_7d"));
+    }
+
+    @Test
     @DisplayName("DSL_CTE validation keeps bridge deferred when aggregate input model is missing")
     void validationDefersBridgeWhenInputModelMissing() {
         Map<String, Object> plan = biz005();
@@ -148,9 +163,39 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
-    @DisplayName("DSL_CTE generateSql opt-in still fails closed for window stages")
-    void generateSqlOptInDefersWindowStages() {
+    @DisplayName("DSL_CTE generateSql can opt in to rolling window timeWindow bridge")
+    void generateSqlOptInUsesDslBridgeForRollingWindow() {
+        QueryFacade queryFacade = mock(QueryFacade.class);
+        when(queryFacade.buildSqlOnly(any(ModelResultContext.class)))
+                .thenReturn(new SqlGenerationResult(
+                        "WITH daily AS (...) SELECT salesAmount__rolling_7d FROM daily",
+                        List.of(),
+                        null));
+        ReflectionTestUtils.setField(service, "queryFacade", queryFacade);
+
         SemanticQueryRequest request = dslCtePlan(biz004());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SqlGenerationResult result = service.generateSql("SaleOrder", request, SemanticRequestContext.empty());
+
+        assertTrue(result.getSql().contains("salesAmount__rolling_7d"));
+        org.mockito.ArgumentCaptor<ModelResultContext> captor = org.mockito.ArgumentCaptor.forClass(ModelResultContext.class);
+        verify(queryFacade).buildSqlOnly(captor.capture());
+        assertEquals(List.of("orderDate.day", "sum(amount) AS salesAmount", "salesAmount__rolling_7d"),
+                captor.getValue().getRequest().getParam().getColumns());
+        assertEquals(Map.of(
+                        "field", "orderDate.day",
+                        "grain", "day",
+                        "comparison", "rolling_7d",
+                        "targetMetrics", List.of("salesAmount"),
+                        "rollingAggregator", "sum"),
+                captor.getValue().getExtData().get("timeWindow"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE generateSql opt-in still fails closed for unsupported window stages")
+    void generateSqlOptInDefersUnsupportedWindowStages() {
+        SemanticQueryRequest request = dslCtePlan(biz006());
         request.setHints(Map.of("dslCteCompileToDsl", true));
 
         RuntimeException ex = assertThrows(RuntimeException.class, () ->
