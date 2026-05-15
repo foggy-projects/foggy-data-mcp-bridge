@@ -5,6 +5,7 @@ import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContex
 
 import java.math.BigDecimal;
 import java.math.MathContext;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -17,6 +18,9 @@ import java.util.Map;
 public final class MemoryGridExecutor {
 
     public static final String RESULT_HANDLE_NOT_FOUND = "MEMORY_GRID_RESULT_HANDLE_NOT_FOUND";
+    public static final String RESULT_HANDLE_EXPIRED = "MEMORY_GRID_RESULT_HANDLE_EXPIRED";
+    public static final String NAMESPACE_MISMATCH = "MEMORY_GRID_RESULT_NAMESPACE_MISMATCH";
+    public static final String SOURCE_ROUTE_MISMATCH = "MEMORY_GRID_RESULT_SOURCE_ROUTE_MISMATCH";
     public static final String SCHEMA_MISMATCH = "MEMORY_GRID_RESULT_SCHEMA_MISMATCH";
     public static final String GOVERNANCE_MISMATCH = "MEMORY_GRID_RESULT_GOVERNANCE_MISMATCH";
 
@@ -37,8 +41,8 @@ public final class MemoryGridExecutor {
         MemoryGridResultResolver.ResolvedResult right = resolve(rightInput, resolver, context);
 
         String joinKey = bridgePlan.joinKeys().get(0);
-        validateResolvedInput(leftInput, left, joinKey);
-        validateResolvedInput(rightInput, right, joinKey);
+        validateResolvedInput(leftInput, left, joinKey, context);
+        validateResolvedInput(rightInput, right, joinKey, context);
         validateGlobalColumns(left, right, bridgePlan);
 
         Map<Object, List<Map<String, Object>>> rightRowsByKey = rowsByKey(right.rows(), joinKey);
@@ -85,18 +89,20 @@ public final class MemoryGridExecutor {
 
     private static void validateResolvedInput(Map<String, Object> input,
                                               MemoryGridResultResolver.ResolvedResult result,
-                                              String joinKey) {
+                                              String joinKey,
+                                              SemanticRequestContext context) {
         String handle = stringValue(input.get("result_handle"));
         if (!handle.equals(result.resultHandle())) {
             throw RX.throwB(GOVERNANCE_MISMATCH + ": resolver returned mismatched result_handle.");
         }
+        validateMetadata(input, result, context);
         String expectedRoute = normalize(input.get("source_route"));
         String actualRoute = normalize(result.sourceRoute());
         if (expectedRoute == null || expectedRoute.isBlank()) {
             throw RX.throwB(GOVERNANCE_MISMATCH + ": input source_route is missing for " + handle + ".");
         }
         if (actualRoute != null && !expectedRoute.equals(actualRoute)) {
-            throw RX.throwB(GOVERNANCE_MISMATCH + ": resolver returned mismatched source_route for " + handle + ".");
+            throw RX.throwB(SOURCE_ROUTE_MISMATCH + ": resolver returned mismatched source_route for " + handle + ".");
         }
         Integer rowLimit = intValue(input.get("row_limit"));
         if (rowLimit != null && result.rows().size() > rowLimit) {
@@ -105,6 +111,41 @@ public final class MemoryGridExecutor {
         requireColumn(result, joinKey, true, false, true);
         for (String metric : metricNames(input)) {
             requireColumn(result, metric, false, true, true);
+        }
+    }
+
+    private static void validateMetadata(Map<String, Object> input,
+                                         MemoryGridResultResolver.ResolvedResult result,
+                                         SemanticRequestContext context) {
+        MemoryGridResultResolver.ResultHandleMetadata metadata = result.metadata();
+        if (metadata == null) {
+            return;
+        }
+        String handle = stringValue(input.get("result_handle"));
+        if (metadata.handleId() == null || !metadata.handleId().equals(result.resultHandle())) {
+            throw RX.throwB(GOVERNANCE_MISMATCH + ": resolver metadata handle_id mismatch for " + handle + ".");
+        }
+        if (metadata.expiresAt() != null && metadata.expiresAt().isBefore(Instant.now())) {
+            throw RX.throwB(RESULT_HANDLE_EXPIRED + ": " + handle);
+        }
+        String requestNamespace = normalizeNamespace(context == null ? null : context.getNamespace());
+        String resultNamespace = normalizeNamespace(firstNonBlank(metadata.namespace(), result.namespace()));
+        if (resultNamespace != null && !resultNamespace.equals(requestNamespace)) {
+            throw RX.throwB(NAMESPACE_MISMATCH + ": resolver namespace does not match request namespace for " + handle + ".");
+        }
+        String expectedRoute = normalize(input.get("source_route"));
+        String metadataRoute = normalize(firstNonBlank(metadata.sourceRoute(), result.sourceRoute()));
+        if (expectedRoute != null && metadataRoute != null && !expectedRoute.equals(metadataRoute)) {
+            throw RX.throwB(SOURCE_ROUTE_MISMATCH + ": resolver metadata source_route mismatch for " + handle + ".");
+        }
+        if (metadata.rowCount() >= 0 && metadata.rowCount() != result.rows().size()) {
+            throw RX.throwB(GOVERNANCE_MISMATCH + ": resolver metadata row_count mismatch for " + handle + ".");
+        }
+        if (metadata.rowLimit() >= 0 && result.rows().size() > metadata.rowLimit()) {
+            throw RX.throwB(GOVERNANCE_MISMATCH + ": resolver rows exceed metadata row_limit for " + handle + ".");
+        }
+        if (metadata.storageRef() == null || metadata.storageRef().isBlank()) {
+            throw RX.throwB(GOVERNANCE_MISMATCH + ": resolver metadata storage_ref is missing for " + handle + ".");
         }
     }
 
@@ -131,6 +172,9 @@ public final class MemoryGridExecutor {
         }
         if (join && !column.joinAllowed()) {
             throw RX.throwB(GOVERNANCE_MISMATCH + ": column is not join-allowed: " + name);
+        }
+        if (column.sensitive() && (derived || output)) {
+            throw RX.throwB(GOVERNANCE_MISMATCH + ": sensitive column cannot be used in Memory Grid output or derived expression: " + name);
         }
         if (derived && !column.derivedAllowed()) {
             throw RX.throwB(GOVERNANCE_MISMATCH + ": column is not derived-allowed: " + name);
@@ -215,7 +259,27 @@ public final class MemoryGridExecutor {
         summary.put("derived", bridgePlan.derived().stream().map(MemoryGridExecutablePlanner.DerivedFormula::name).toList());
         summary.put("output_rows", outputRows);
         summary.put("output_limited", outputLimited);
+        summary.put("resolver_audit", List.of(audit(left), audit(right)));
         return summary;
+    }
+
+    private static Map<String, Object> audit(MemoryGridResultResolver.ResolvedResult result) {
+        Map<String, Object> audit = new LinkedHashMap<>();
+        audit.put("result_handle", result.resultHandle());
+        audit.put("row_count", result.rows().size());
+        MemoryGridResultResolver.ResultHandleMetadata metadata = result.metadata();
+        if (metadata != null) {
+            audit.put("source_route", firstNonBlank(metadata.sourceRoute(), result.sourceRoute()));
+            audit.put("namespace", firstNonBlank(metadata.namespace(), result.namespace()));
+            audit.put("query_hash", metadata.queryHash());
+            audit.put("storage_ref", metadata.storageRef());
+            audit.put("expires_at", metadata.expiresAt() == null ? null : metadata.expiresAt().toString());
+            audit.put("source_model_refs", metadata.sourceModelRefs());
+        } else {
+            audit.put("source_route", result.sourceRoute());
+            audit.put("namespace", result.namespace());
+        }
+        return audit;
     }
 
     private static List<String> metricNames(Map<String, Object> input) {
@@ -251,6 +315,14 @@ public final class MemoryGridExecutor {
     private static String normalize(Object value) {
         String text = stringValue(value);
         return text == null ? null : text.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private static String normalizeNamespace(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private static String firstNonBlank(String first, String second) {
+        return first != null && !first.isBlank() ? first : second;
     }
 
     private static String stringValue(Object value) {

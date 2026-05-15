@@ -4,11 +4,13 @@ import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.db.model.semantic.service.impl.SemanticQueryServiceV3Impl;
+import com.foggyframework.dataset.db.model.semantic.support.MemoryGridRegistryResultResolver;
 import com.foggyframework.dataset.db.model.semantic.support.MemoryGridResultResolver;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -66,6 +68,10 @@ class MemoryGridAcceptanceSampleTest {
         assertEquals(1.2, (Double) response.getItems().get(0).get("targetAchievementRate"), 0.0001);
         assertEquals("BRIDGE_READY", response.getExecution().getMemoryGridExecutionSummary()
                 .get("memory_grid_bridge_status"));
+        assertNotNull(response.getExecution().getMemoryGridExecutionSummary().get("resolver_audit"));
+        List<Map<String, Object>> audit = audit(response);
+        assertEquals("hash_dsl_cte_result_actual_by_team_2026_05", audit.get(0).get("query_hash"));
+        assertEquals("memory://result/dsl_cte_result_actual_by_team_2026_05", audit.get(0).get("storage_ref"));
     }
 
     @Test
@@ -118,8 +124,50 @@ class MemoryGridAcceptanceSampleTest {
         RuntimeException ex = assertThrows(RuntimeException.class, () ->
                 service.queryModel("SaleOrder", request, "execute", SemanticRequestContext.empty()));
 
-        assertTrue(ex.getMessage().contains("MEMORY_GRID_RESULT_GOVERNANCE_MISMATCH"));
+        assertTrue(ex.getMessage().contains("MEMORY_GRID_RESULT_SOURCE_ROUTE_MISMATCH"));
         assertTrue(ex.getMessage().contains("mismatched source_route"));
+    }
+
+    @Test
+    @DisplayName("Memory Grid production resolver fails closed when result handle expired")
+    void executionRequiresUnexpiredResultHandle() {
+        ReflectionTestUtils.setField(service, "memoryGridResultResolver",
+                third009Resolver(Instant.now().minusSeconds(60), null));
+        SemanticQueryRequest request = memoryGridPlan(third009Plan());
+        request.setHints(Map.of("memoryGridExecute", true));
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+                service.queryModel("SaleOrder", request, "execute", SemanticRequestContext.empty()));
+
+        assertTrue(ex.getMessage().contains("MEMORY_GRID_RESULT_HANDLE_EXPIRED"));
+    }
+
+    @Test
+    @DisplayName("Memory Grid production resolver fails closed when namespace mismatches request")
+    void executionRequiresNamespaceToMatchContext() {
+        ReflectionTestUtils.setField(service, "memoryGridResultResolver",
+                third009Resolver(Instant.now().plusSeconds(3600), "tenant-a"));
+        SemanticQueryRequest request = memoryGridPlan(third009Plan());
+        request.setHints(Map.of("memoryGridExecute", true));
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+                service.queryModel("SaleOrder", request, "execute", SemanticRequestContext.ofNamespace("tenant-b")));
+
+        assertTrue(ex.getMessage().contains("MEMORY_GRID_RESULT_NAMESPACE_MISMATCH"));
+    }
+
+    @Test
+    @DisplayName("Memory Grid production resolver fails closed when metadata storage ref is missing")
+    void executionRequiresStorageRefInMetadata() {
+        ReflectionTestUtils.setField(service, "memoryGridResultResolver", resolverWithMissingStorageRef());
+        SemanticQueryRequest request = memoryGridPlan(third009Plan());
+        request.setHints(Map.of("memoryGridExecute", true));
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+                service.queryModel("SaleOrder", request, "execute", SemanticRequestContext.empty()));
+
+        assertTrue(ex.getMessage().contains("MEMORY_GRID_RESULT_GOVERNANCE_MISMATCH"));
+        assertTrue(ex.getMessage().contains("storage_ref"));
     }
 
     private SemanticQueryRequest memoryGridPlan(Map<String, Object> plan) {
@@ -201,37 +249,35 @@ class MemoryGridAcceptanceSampleTest {
     }
 
     private MemoryGridResultResolver third009Resolver() {
-        return (resultHandle, context) -> {
-            if ("dsl_cte_result_actual_by_team_2026_05".equals(resultHandle)) {
-                return new MemoryGridResultResolver.ResolvedResult(
-                        resultHandle,
+        return third009Resolver(Instant.now().plusSeconds(3600), null);
+    }
+
+    private MemoryGridResultResolver third009Resolver(Instant expiresAt, String namespace) {
+        return new MemoryGridRegistryResultResolver()
+                .register(resolvedResult(
+                        "dsl_cte_result_actual_by_team_2026_05",
                         "DSL_CTE",
-                        null,
-                        List.of("salesTeam.name"),
-                        schema("salesTeam.name", "actualSalesAmount"),
+                        namespace,
+                        "SaleOrder",
+                        "salesTeam.name",
+                        "actualSalesAmount",
                         List.of(
                                 row("salesTeam.name", "Team A", "actualSalesAmount", 120),
                                 row("salesTeam.name", "Team B", "actualSalesAmount", 80)
                         ),
-                        Map.of("model", "SaleOrder")
-                );
-            }
-            if ("dsl_result_target_by_team_2026_05_approved".equals(resultHandle)) {
-                return new MemoryGridResultResolver.ResolvedResult(
-                        resultHandle,
+                        expiresAt))
+                .register(resolvedResult(
+                        "dsl_result_target_by_team_2026_05_approved",
                         "DSL",
-                        null,
-                        List.of("salesTeam.name"),
-                        schema("salesTeam.name", "targetSalesAmount"),
+                        namespace,
+                        "SalesTarget",
+                        "salesTeam.name",
+                        "targetSalesAmount",
                         List.of(
                                 row("salesTeam.name", "Team A", "targetSalesAmount", 100),
                                 row("salesTeam.name", "Team C", "targetSalesAmount", 50)
                         ),
-                        Map.of("model", "SalesTarget")
-                );
-            }
-            return null;
-        };
+                        expiresAt));
     }
 
     private MemoryGridResultResolver resolverWithMissingActualMetricSchema() {
@@ -269,6 +315,81 @@ class MemoryGridAcceptanceSampleTest {
             }
             return third009Resolver().resolve(resultHandle, context);
         };
+    }
+
+    private MemoryGridResultResolver resolverWithMissingStorageRef() {
+        return new MemoryGridRegistryResultResolver()
+                .register(resolvedResult(
+                        "dsl_cte_result_actual_by_team_2026_05",
+                        "DSL_CTE",
+                        null,
+                        "SaleOrder",
+                        "salesTeam.name",
+                        "actualSalesAmount",
+                        List.of(row("salesTeam.name", "Team A", "actualSalesAmount", 120)),
+                        Instant.now().plusSeconds(3600),
+                        null))
+                .register(resolvedResult(
+                        "dsl_result_target_by_team_2026_05_approved",
+                        "DSL",
+                        null,
+                        "SalesTarget",
+                        "salesTeam.name",
+                        "targetSalesAmount",
+                        List.of(row("salesTeam.name", "Team A", "targetSalesAmount", 100)),
+                        Instant.now().plusSeconds(3600)));
+    }
+
+    private MemoryGridResultResolver.ResolvedResult resolvedResult(String handle,
+                                                                   String sourceRoute,
+                                                                   String namespace,
+                                                                   String model,
+                                                                   String joinKey,
+                                                                   String metric,
+                                                                   List<Map<String, Object>> rows,
+                                                                   Instant expiresAt) {
+        return resolvedResult(handle, sourceRoute, namespace, model, joinKey, metric, rows, expiresAt,
+                "memory://result/" + handle);
+    }
+
+    private MemoryGridResultResolver.ResolvedResult resolvedResult(String handle,
+                                                                   String sourceRoute,
+                                                                   String namespace,
+                                                                   String model,
+                                                                   String joinKey,
+                                                                   String metric,
+                                                                   List<Map<String, Object>> rows,
+                                                                   Instant expiresAt,
+                                                                   String storageRef) {
+        return new MemoryGridResultResolver.ResolvedResult(
+                handle,
+                sourceRoute,
+                namespace,
+                List.of(joinKey),
+                schema(joinKey, metric),
+                rows,
+                Map.of("model", model),
+                new MemoryGridResultResolver.ResultHandleMetadata(
+                        handle,
+                        namespace,
+                        sourceRoute,
+                        List.of(model),
+                        "hash_" + handle,
+                        Instant.now().minusSeconds(60),
+                        expiresAt,
+                        rows.size(),
+                        200,
+                        Map.of("model", model),
+                        storageRef
+                )
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> audit(SemanticQueryResponse response) {
+        return (List<Map<String, Object>>) response.getExecution()
+                .getMemoryGridExecutionSummary()
+                .get("resolver_audit");
     }
 
     private Map<String, MemoryGridResultResolver.Column> schema(String joinKey, String metric) {
