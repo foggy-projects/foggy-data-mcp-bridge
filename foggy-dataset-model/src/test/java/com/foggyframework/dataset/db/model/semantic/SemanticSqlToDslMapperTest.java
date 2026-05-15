@@ -4,6 +4,9 @@ import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.db.model.semantic.service.impl.SemanticQueryServiceV3Impl;
+import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
+import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
+import com.foggyframework.dataset.db.model.service.QueryFacade;
 import com.foggyframework.dataset.db.model.spi.DbQueryColumn;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
 import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
@@ -19,6 +22,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -64,6 +69,8 @@ class SemanticSqlToDslMapperTest {
         List<String> columns = (List<String>) plan.get("columns");
         assertTrue(columns.containsAll(List.of("orderId", "amount", "customer.name", "orderDate", "shipDate")));
         assertTrue(plan.get("slice").toString().contains("fieldRef=shipDate"));
+        assertEquals("BRIDGE_READY", plan.get("dsl_bridge_status"));
+        assertNotNull(plan.get("dsl_request"));
     }
 
     @Test
@@ -94,6 +101,7 @@ class SemanticSqlToDslMapperTest {
                         && "totalAmount".equals(metric.get("alias"))));
         assertTrue(plan.get("having").toString().contains("SUM(amount)"));
         assertTrue(plan.get("orderBy").toString().contains("dir=desc"));
+        assertEquals("BRIDGE_DEFERRED", plan.get("dsl_bridge_status"));
     }
 
     @Test
@@ -112,6 +120,41 @@ class SemanticSqlToDslMapperTest {
         assertEquals("DEFERRED", plan.get("mapping_status"));
         assertEquals(true, plan.get("requires_declared_relation"));
         assertTrue(plan.get("relation_control_reasons").toString().contains("relation_membership"));
+    }
+
+    @Test
+    @DisplayName("SEMANTIC_SQL generateSql can opt in to DSL bridge for executable v1 subset")
+    void generateSqlOptInUsesDslBridge() {
+        QueryFacade queryFacade = mock(QueryFacade.class);
+        when(queryFacade.buildSqlOnly(any(ModelResultContext.class)))
+                .thenReturn(new SqlGenerationResult("SELECT order_id FROM sale_order WHERE status = ?", List.of("shipped"), null));
+        ReflectionTestUtils.setField(service, "queryFacade", queryFacade);
+
+        SemanticQueryRequest request = semanticSql("SELECT orderId FROM SaleOrder WHERE status = 'shipped' LIMIT 5");
+        request.setHints(Map.of("semanticSqlCompileToDsl", true));
+
+        SqlGenerationResult result = service.generateSql("SaleOrder", request, SemanticRequestContext.empty());
+
+        assertEquals("SELECT order_id FROM sale_order WHERE status = ?", result.getSql());
+        org.mockito.ArgumentCaptor<ModelResultContext> captor = org.mockito.ArgumentCaptor.forClass(ModelResultContext.class);
+        verify(queryFacade).buildSqlOnly(captor.capture());
+        assertEquals(List.of("orderId"), captor.getValue().getRequest().getParam().getColumns());
+        assertEquals(5, captor.getValue().getRequest().getPageSize());
+    }
+
+    @Test
+    @DisplayName("SEMANTIC_SQL generateSql opt-in still fails closed for non-bridgeable expressions")
+    void generateSqlOptInDefersExpressionPredicates() {
+        SemanticQueryRequest request = semanticSql("""
+                SELECT orderId FROM SaleOrder
+                WHERE DATE_DIFF('day', orderDate, shipDate) > 10
+                """);
+        request.setHints(Map.of("semanticSqlCompileToDsl", true));
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+                service.generateSql("SaleOrder", request, SemanticRequestContext.empty()));
+
+        assertTrue(ex.getMessage().contains("SEMANTIC_SQL_DSL_BRIDGE_NOT_SUPPORTED"));
     }
 
     @Test

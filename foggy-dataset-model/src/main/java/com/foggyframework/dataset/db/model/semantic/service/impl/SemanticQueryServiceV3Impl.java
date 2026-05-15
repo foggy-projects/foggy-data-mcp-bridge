@@ -25,6 +25,7 @@ import com.foggyframework.dataset.db.model.semantic.service.DimensionMemberLoade
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.dataset.db.model.semantic.support.DslCtePlanValidator;
 import com.foggyframework.dataset.db.model.semantic.support.MemoryGridGuardrailValidator;
+import com.foggyframework.dataset.db.model.semantic.support.SemanticSqlDslRequestMapper;
 import com.foggyframework.dataset.db.model.semantic.support.SemanticSqlToDslMapper;
 import com.foggyframework.dataset.db.model.semantic.support.SemanticSqlWhitelistValidator;
 import com.foggyframework.dataset.db.model.spi.DbColumn;
@@ -274,7 +275,17 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
             throw RX.throwB("TERMINAL_PLAN_NOT_EXECUTABLE: CLARIFY/REJECT terminal plans must not enter SQL generation.");
         }
         if (isSemanticSqlPlan(request)) {
-            semanticSqlAstValidation(model, request, context);
+            QueryModel queryModel = queryModelLoader.getJdbcQueryModel(model, context.getNamespace());
+            semanticSqlAstValidation(model, request, queryModel, context);
+            Map<String, Object> dslPlan = SemanticSqlToDslMapper.map(model, request.getSemanticSql(), queryModel, context);
+            if (semanticSqlCompileToDslEnabled(request)) {
+                SemanticSqlDslRequestMapper.BridgeResult bridge =
+                        SemanticSqlDslRequestMapper.toDslRequest(model, dslPlan);
+                bridge.requireReady();
+                SemanticQueryRequest dslRequest = bridge.request();
+                dslRequest.setHints(request.getHints() == null ? null : new HashMap<>(request.getHints()));
+                return generateSql(model, dslRequest, context);
+            }
             throw RX.throwB("SEMANTIC_SQL_EXECUTION_NOT_IMPLEMENTED: Semantic SQL AST whitelist passed, but SQL-to-DSL compilation is not part of P0.");
         }
         if (isMemoryGridPlan(request)) {
@@ -437,6 +448,13 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         QueryModel queryModel = queryModelLoader.getJdbcQueryModel(model, context.getNamespace());
         Map<String, Object> astValidation = semanticSqlAstValidation(model, request, queryModel, context);
         Map<String, Object> dslPlan = SemanticSqlToDslMapper.map(model, request.getSemanticSql(), queryModel, context);
+        SemanticSqlDslRequestMapper.BridgeResult bridge = SemanticSqlDslRequestMapper.toDslRequest(model, dslPlan);
+        dslPlan.put("dsl_bridge_status", bridge.status());
+        if (bridge.ready()) {
+            dslPlan.put("dsl_request", bridge.request());
+        } else {
+            dslPlan.put("dsl_bridge_unsupported", bridge.unsupported());
+        }
         SemanticQueryResponse response = new SemanticQueryResponse();
         response.setItems(List.of());
         response.setWarnings(List.of());
@@ -463,6 +481,14 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         }
         QueryModel queryModel = queryModelLoader.getJdbcQueryModel(model, context.getNamespace());
         return SemanticSqlWhitelistValidator.validate(model, request.getSemanticSql(), queryModel, context);
+    }
+
+    private boolean semanticSqlCompileToDslEnabled(SemanticQueryRequest request) {
+        if (request == null || request.getHints() == null) {
+            return false;
+        }
+        Object value = request.getHints().get("semanticSqlCompileToDsl");
+        return Boolean.TRUE.equals(value) || (value instanceof String text && "true".equalsIgnoreCase(text));
     }
 
     private Map<String, Object> semanticSqlAstValidation(String model, SemanticQueryRequest request,
