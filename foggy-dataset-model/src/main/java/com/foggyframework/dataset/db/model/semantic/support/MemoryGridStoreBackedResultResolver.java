@@ -15,10 +15,18 @@ public final class MemoryGridStoreBackedResultResolver implements MemoryGridResu
 
     private final ResultHandleStore store;
     private final ResultStorageAdapter storageAdapter;
+    private final MemoryGridAuthReplayPolicy authReplayPolicy;
 
     public MemoryGridStoreBackedResultResolver(ResultHandleStore store, ResultStorageAdapter storageAdapter) {
+        this(store, storageAdapter, MemoryGridAuthReplayPolicy.strict());
+    }
+
+    public MemoryGridStoreBackedResultResolver(ResultHandleStore store,
+                                               ResultStorageAdapter storageAdapter,
+                                               MemoryGridAuthReplayPolicy authReplayPolicy) {
         this.store = Objects.requireNonNull(store, "store");
         this.storageAdapter = Objects.requireNonNull(storageAdapter, "storageAdapter");
+        this.authReplayPolicy = Objects.requireNonNull(authReplayPolicy, "authReplayPolicy");
     }
 
     @Override
@@ -38,6 +46,7 @@ public final class MemoryGridStoreBackedResultResolver implements MemoryGridResu
             throw RX.throwB(MemoryGridExecutor.GOVERNANCE_MISMATCH
                     + ": resolver read_count exceeds max_read_count for " + resultHandle + ".");
         }
+        authReplayPolicy.verify(stored, context);
         List<Map<String, Object>> rows = storageAdapter.read(metadata.storageRef());
         store.incrementReadCount(resultHandle);
         ResultHandleRecord refreshed = store.find(resultHandle).orElse(record);

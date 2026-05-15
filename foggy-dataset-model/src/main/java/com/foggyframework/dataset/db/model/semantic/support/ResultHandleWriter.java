@@ -4,8 +4,6 @@ import com.foggyframework.core.ex.RX;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -72,7 +70,7 @@ public final class ResultHandleWriter {
                 new MemoryGridResultResolver.ResultHandleMetadata(
                         handle,
                         namespace(context),
-                        ownerContextHash(context),
+                        MemoryGridPolicySupport.ownerContextHash(context),
                         request.sourceRoute(),
                         request.sourceModelRefs() == null ? List.of() : List.copyOf(request.sourceModelRefs()),
                         request.queryHash(),
@@ -86,7 +84,14 @@ public final class ResultHandleWriter {
                         request.lineage() == null ? Map.of() : new LinkedHashMap<>(request.lineage()),
                         storageRef,
                         0,
-                        request.maxReadCount()
+                        request.maxReadCount(),
+                        new MemoryGridResultResolver.PolicySnapshot(
+                                MemoryGridPolicySupport.ownerContextHash(context),
+                                MemoryGridPolicySupport.fieldAccessHash(context),
+                                MemoryGridPolicySupport.schemaHash(request.schema()),
+                                request.policyVersion(),
+                                request.schemaVersion()
+                        )
                 );
         MemoryGridResultResolver.ResolvedResult result = new MemoryGridResultResolver.ResolvedResult(
                 handle,
@@ -114,23 +119,6 @@ public final class ResultHandleWriter {
         return context == null ? null : context.getNamespace();
     }
 
-    private static String ownerContextHash(SemanticRequestContext context) {
-        String seed = context == null ? "" : String.valueOf(context.getNamespace()) + "|"
-                + String.valueOf(context.getAuthorization()) + "|"
-                + String.valueOf(context.getFieldAccess());
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(seed.getBytes(StandardCharsets.UTF_8));
-            StringBuilder hex = new StringBuilder(hash.length * 2);
-            for (byte b : hash) {
-                hex.append(String.format("%02x", b));
-            }
-            return "sha256:" + hex;
-        } catch (NoSuchAlgorithmException e) {
-            throw RX.throwB(MemoryGridExecutor.GOVERNANCE_MISMATCH + ": SHA-256 is unavailable.", e);
-        }
-    }
-
     private static int cellCount(List<Map<String, Object>> rows) {
         int count = 0;
         for (Map<String, Object> row : rows) {
@@ -153,6 +141,22 @@ public final class ResultHandleWriter {
                                int rowLimit,
                                int cellLimit,
                                Duration ttl,
-                               int maxReadCount) {
+                               int maxReadCount,
+                               String policyVersion,
+                               String schemaVersion) {
+        public WriteRequest(String sourceRoute,
+                            List<String> sourceModelRefs,
+                            String queryHash,
+                            List<String> grain,
+                            Map<String, MemoryGridResultResolver.Column> schema,
+                            List<Map<String, Object>> rows,
+                            Map<String, Object> lineage,
+                            int rowLimit,
+                            int cellLimit,
+                            Duration ttl,
+                            int maxReadCount) {
+            this(sourceRoute, sourceModelRefs, queryHash, grain, schema, rows, lineage, rowLimit, cellLimit,
+                    ttl, maxReadCount, null, null);
+        }
     }
 }

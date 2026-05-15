@@ -10,6 +10,7 @@ import com.foggyframework.dataset.db.model.semantic.support.MemoryGridExecutor;
 import com.foggyframework.dataset.db.model.semantic.support.MemoryGridRegistryResultResolver;
 import com.foggyframework.dataset.db.model.semantic.support.MemoryGridResultResolver;
 import com.foggyframework.dataset.db.model.semantic.support.MemoryGridStoreBackedResultResolver;
+import com.foggyframework.dataset.db.model.semantic.support.ResultHandleRecord;
 import com.foggyframework.dataset.db.model.semantic.support.ResultHandleWriter;
 import com.foggyframework.dataset.db.model.semantic.support.ResultStorageAdapter;
 import org.junit.jupiter.api.DisplayName;
@@ -21,6 +22,7 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -78,7 +80,8 @@ class MemoryGridAcceptanceSampleTest {
         assertNotNull(response.getExecution().getMemoryGridExecutionSummary().get("resolver_audit"));
         List<Map<String, Object>> audit = audit(response);
         assertEquals("hash_dsl_cte_result_actual_by_team_2026_05", audit.get(0).get("query_hash"));
-        assertEquals("memory://result/dsl_cte_result_actual_by_team_2026_05", audit.get(0).get("storage_ref"));
+        assertEquals(true, audit.get(0).get("storage_ref_redacted"));
+        assertTrue(!audit.get(0).containsKey("storage_ref"));
     }
 
     @Test
@@ -124,9 +127,123 @@ class MemoryGridAcceptanceSampleTest {
         assertEquals(1.2, (Double) response.getItems().get(0).get("targetAchievementRate"), 0.0001);
         List<Map<String, Object>> audit = audit(response);
         assertEquals(actualHandle, audit.get(0).get("result_handle"));
-        assertTrue(String.valueOf(audit.get(0).get("storage_ref")).startsWith("memory-grid://result/mgr_"));
+        assertEquals(true, audit.get(0).get("storage_ref_redacted"));
+        assertTrue(!audit.get(0).containsKey("storage_ref"));
         assertEquals(1, audit.get(0).get("read_count"));
         assertEquals(4, audit.get(0).get("cell_count"));
+    }
+
+    @Test
+    @DisplayName("Memory Grid store-backed resolver rejects owner context changes")
+    void storeBackedResolverRejectsOwnerContextChange() {
+        InMemoryResultHandleStore store = new InMemoryResultHandleStore();
+        InMemoryResultStorageAdapter storage = new InMemoryResultStorageAdapter();
+        ResultHandleWriter writer = new ResultHandleWriter(store, storage);
+        SemanticRequestContext writeContext = SemanticRequestContext.of("tenant-a", "Bearer writer");
+        String actualHandle = writer.write(writeRequest(
+                "DSL_CTE",
+                "SaleOrder",
+                "salesTeam.name",
+                "actualSalesAmount",
+                List.of(row("salesTeam.name", "Team A", "actualSalesAmount", 120))
+        ), writeContext);
+        String targetHandle = writer.write(writeRequest(
+                "DSL",
+                "SalesTarget",
+                "salesTeam.name",
+                "targetSalesAmount",
+                List.of(row("salesTeam.name", "Team A", "targetSalesAmount", 100))
+        ), writeContext);
+
+        ReflectionTestUtils.setField(service, "memoryGridResultResolver",
+                new MemoryGridStoreBackedResultResolver(store, storage));
+        SemanticQueryRequest request = memoryGridPlan(third009Plan(actualHandle, targetHandle));
+        request.setHints(Map.of("memoryGridExecute", true));
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+                service.queryModel("SaleOrder", request, "execute",
+                        SemanticRequestContext.of("tenant-a", "Bearer reader")));
+
+        assertTrue(ex.getMessage().contains("MEMORY_GRID_RESULT_AUTH_REPLAY_MISMATCH"));
+    }
+
+    @Test
+    @DisplayName("Memory Grid store-backed resolver rejects narrowed field access")
+    void storeBackedResolverRejectsNarrowedFieldAccess() {
+        InMemoryResultHandleStore store = new InMemoryResultHandleStore();
+        InMemoryResultStorageAdapter storage = new InMemoryResultStorageAdapter();
+        ResultHandleWriter writer = new ResultHandleWriter(store, storage);
+        SemanticRequestContext writeContext = SemanticRequestContext.of("tenant-a", null,
+                Set.of("salesTeam.name", "actualSalesAmount", "targetSalesAmount"));
+        String actualHandle = writer.write(writeRequest(
+                "DSL_CTE",
+                "SaleOrder",
+                "salesTeam.name",
+                "actualSalesAmount",
+                List.of(row("salesTeam.name", "Team A", "actualSalesAmount", 120))
+        ), writeContext);
+        String targetHandle = writer.write(writeRequest(
+                "DSL",
+                "SalesTarget",
+                "salesTeam.name",
+                "targetSalesAmount",
+                List.of(row("salesTeam.name", "Team A", "targetSalesAmount", 100))
+        ), writeContext);
+
+        ReflectionTestUtils.setField(service, "memoryGridResultResolver",
+                new MemoryGridStoreBackedResultResolver(store, storage));
+        SemanticQueryRequest request = memoryGridPlan(third009Plan(actualHandle, targetHandle));
+        request.setHints(Map.of("memoryGridExecute", true));
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+                service.queryModel("SaleOrder", request, "execute",
+                        SemanticRequestContext.of("tenant-a", null, Set.of("salesTeam.name", "targetSalesAmount"))));
+
+        assertTrue(ex.getMessage().contains("MEMORY_GRID_RESULT_AUTH_REPLAY_MISMATCH"));
+    }
+
+    @Test
+    @DisplayName("Memory Grid store-backed resolver rejects schema snapshot drift")
+    void storeBackedResolverRejectsSchemaSnapshotDrift() {
+        InMemoryResultHandleStore store = new InMemoryResultHandleStore();
+        InMemoryResultStorageAdapter storage = new InMemoryResultStorageAdapter();
+        ResultHandleWriter writer = new ResultHandleWriter(store, storage);
+        SemanticRequestContext context = SemanticRequestContext.ofNamespace("tenant-a");
+        String actualHandle = writer.write(writeRequest(
+                "DSL_CTE",
+                "SaleOrder",
+                "salesTeam.name",
+                "actualSalesAmount",
+                List.of(row("salesTeam.name", "Team A", "actualSalesAmount", 120))
+        ), context);
+        String targetHandle = writer.write(writeRequest(
+                "DSL",
+                "SalesTarget",
+                "salesTeam.name",
+                "targetSalesAmount",
+                List.of(row("salesTeam.name", "Team A", "targetSalesAmount", 100))
+        ), context);
+        ResultHandleRecord record = store.find(actualHandle).orElseThrow();
+        MemoryGridResultResolver.ResultHandleMetadata metadata = record.result().metadata();
+        MemoryGridResultResolver.PolicySnapshot snapshot = metadata.policySnapshot();
+        MemoryGridResultResolver.PolicySnapshot driftedSnapshot = new MemoryGridResultResolver.PolicySnapshot(
+                snapshot.ownerContextHash(),
+                snapshot.fieldAccessHash(),
+                "sha256:drifted",
+                snapshot.policyVersion(),
+                snapshot.schemaVersion()
+        );
+        store.save(new ResultHandleRecord(record.result().withMetadata(metadataWithSnapshot(metadata, driftedSnapshot))));
+
+        ReflectionTestUtils.setField(service, "memoryGridResultResolver",
+                new MemoryGridStoreBackedResultResolver(store, storage));
+        SemanticQueryRequest request = memoryGridPlan(third009Plan(actualHandle, targetHandle));
+        request.setHints(Map.of("memoryGridExecute", true));
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+                service.queryModel("SaleOrder", request, "execute", context));
+
+        assertTrue(ex.getMessage().contains("MEMORY_GRID_RESULT_SCHEMA_DRIFT"));
     }
 
     @Test
@@ -594,6 +711,31 @@ class MemoryGridAcceptanceSampleTest {
                         Map.of("model", model),
                         storageRef
                 )
+        );
+    }
+
+    private MemoryGridResultResolver.ResultHandleMetadata metadataWithSnapshot(
+            MemoryGridResultResolver.ResultHandleMetadata metadata,
+            MemoryGridResultResolver.PolicySnapshot snapshot) {
+        return new MemoryGridResultResolver.ResultHandleMetadata(
+                metadata.handleId(),
+                metadata.namespace(),
+                metadata.ownerContextHash(),
+                metadata.sourceRoute(),
+                metadata.sourceModelRefs(),
+                metadata.queryHash(),
+                metadata.createdAt(),
+                metadata.expiresAt(),
+                metadata.invalidatedAt(),
+                metadata.rowCount(),
+                metadata.rowLimit(),
+                metadata.cellCount(),
+                metadata.byteSize(),
+                metadata.lineage(),
+                metadata.storageRef(),
+                metadata.readCount(),
+                metadata.maxReadCount(),
+                snapshot
         );
     }
 

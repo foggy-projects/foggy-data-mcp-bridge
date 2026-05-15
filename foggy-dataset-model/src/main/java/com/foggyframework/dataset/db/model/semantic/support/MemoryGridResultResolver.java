@@ -74,7 +74,30 @@ public interface MemoryGridResultResolver {
                                 Map<String, Object> lineage,
                                 String storageRef,
                                 int readCount,
-                                int maxReadCount) {
+                                int maxReadCount,
+                                PolicySnapshot policySnapshot) {
+        public ResultHandleMetadata(String handleId,
+                                    String namespace,
+                                    String ownerContextHash,
+                                    String sourceRoute,
+                                    List<String> sourceModelRefs,
+                                    String queryHash,
+                                    Instant createdAt,
+                                    Instant expiresAt,
+                                    Instant invalidatedAt,
+                                    int rowCount,
+                                    int rowLimit,
+                                    int cellCount,
+                                    long byteSize,
+                                    Map<String, Object> lineage,
+                                    String storageRef,
+                                    int readCount,
+                                    int maxReadCount) {
+            this(handleId, namespace, ownerContextHash, sourceRoute, sourceModelRefs, queryHash, createdAt,
+                    expiresAt, invalidatedAt, rowCount, rowLimit, cellCount, byteSize, lineage, storageRef,
+                    readCount, maxReadCount, null);
+        }
+
         public ResultHandleMetadata(String handleId,
                                     String namespace,
                                     String sourceRoute,
@@ -87,19 +110,26 @@ public interface MemoryGridResultResolver {
                                     Map<String, Object> lineage,
                                     String storageRef) {
             this(handleId, namespace, null, sourceRoute, sourceModelRefs, queryHash, createdAt, expiresAt,
-                    null, rowCount, rowLimit, -1, -1L, lineage, storageRef, 0, -1);
+                    null, rowCount, rowLimit, -1, -1L, lineage, storageRef, 0, -1, null);
         }
 
         public ResultHandleMetadata withReadCount(int readCount) {
             return new ResultHandleMetadata(handleId, namespace, ownerContextHash, sourceRoute, sourceModelRefs,
                     queryHash, createdAt, expiresAt, invalidatedAt, rowCount, rowLimit, cellCount, byteSize,
-                    lineage, storageRef, readCount, maxReadCount);
+                    lineage, storageRef, readCount, maxReadCount, policySnapshot);
         }
 
         public ResultHandleMetadata withInvalidatedAt(Instant invalidatedAt) {
             return new ResultHandleMetadata(handleId, namespace, ownerContextHash, sourceRoute, sourceModelRefs,
                     queryHash, createdAt, expiresAt, invalidatedAt, rowCount, rowLimit, cellCount, byteSize,
-                    lineage, storageRef, readCount, maxReadCount);
+                    lineage, storageRef, readCount, maxReadCount, policySnapshot);
         }
+    }
+
+    record PolicySnapshot(String ownerContextHash,
+                          String fieldAccessHash,
+                          String schemaHash,
+                          String policyVersion,
+                          String schemaVersion) {
     }
 }

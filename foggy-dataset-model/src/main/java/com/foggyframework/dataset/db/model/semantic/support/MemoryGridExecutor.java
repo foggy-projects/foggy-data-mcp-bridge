@@ -22,6 +22,8 @@ public final class MemoryGridExecutor {
     public static final String NAMESPACE_MISMATCH = "MEMORY_GRID_RESULT_NAMESPACE_MISMATCH";
     public static final String SOURCE_ROUTE_MISMATCH = "MEMORY_GRID_RESULT_SOURCE_ROUTE_MISMATCH";
     public static final String SCHEMA_MISMATCH = "MEMORY_GRID_RESULT_SCHEMA_MISMATCH";
+    public static final String SCHEMA_DRIFT = "MEMORY_GRID_RESULT_SCHEMA_DRIFT";
+    public static final String AUTH_REPLAY_MISMATCH = "MEMORY_GRID_RESULT_AUTH_REPLAY_MISMATCH";
     public static final String GOVERNANCE_MISMATCH = "MEMORY_GRID_RESULT_GOVERNANCE_MISMATCH";
     public static final String STORAGE_UNAVAILABLE = "MEMORY_GRID_RESULT_STORAGE_UNAVAILABLE";
 
@@ -274,24 +276,7 @@ public final class MemoryGridExecutor {
     }
 
     private static Map<String, Object> audit(MemoryGridResultResolver.ResolvedResult result) {
-        Map<String, Object> audit = new LinkedHashMap<>();
-        audit.put("result_handle", result.resultHandle());
-        audit.put("row_count", result.rows().size());
-        MemoryGridResultResolver.ResultHandleMetadata metadata = result.metadata();
-        if (metadata != null) {
-            audit.put("source_route", firstNonBlank(metadata.sourceRoute(), result.sourceRoute()));
-            audit.put("namespace", firstNonBlank(metadata.namespace(), result.namespace()));
-            audit.put("query_hash", metadata.queryHash());
-            audit.put("storage_ref", metadata.storageRef());
-            audit.put("expires_at", metadata.expiresAt() == null ? null : metadata.expiresAt().toString());
-            audit.put("source_model_refs", metadata.sourceModelRefs());
-            audit.put("read_count", metadata.readCount());
-            audit.put("cell_count", metadata.cellCount());
-        } else {
-            audit.put("source_route", result.sourceRoute());
-            audit.put("namespace", result.namespace());
-        }
-        return audit;
+        return MemoryGridAuditExposurePolicy.externalSafe().expose(result.metadata(), result);
     }
 
     private static int cellCount(List<Map<String, Object>> rows) {
