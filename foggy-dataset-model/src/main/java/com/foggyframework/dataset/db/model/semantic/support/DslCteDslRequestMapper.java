@@ -70,13 +70,17 @@ public final class DslCteDslRequestMapper {
         request.setPostSlice(postSlice);
         request.setReturnTotal(false);
 
+        String model = sourceModel(fallbackModel, aggregate);
+        if (model == null || model.isBlank()) {
+            unsupported.add("aggregate input model must be declared for DSL_CTE bridge v1");
+        }
         if (request.getColumns() == null || request.getColumns().isEmpty()) {
             unsupported.add("DSL_CTE bridge request must have output columns");
         }
         if (!unsupported.isEmpty()) {
             return BridgeResult.deferred(unsupported);
         }
-        return BridgeResult.ready(sourceModel(fallbackModel, aggregate), request);
+        return BridgeResult.ready(model, request);
     }
 
     private static Map<String, Object> ctePlan(Object executablePlan, List<String> unsupported) {
@@ -193,6 +197,10 @@ public final class DslCteDslRequestMapper {
             String op = stringValue(filter.get("op"));
             if (field == null || op == null) {
                 unsupported.add("filter must declare field and op: " + filter);
+                continue;
+            }
+            if (filter.containsKey("valueField")) {
+                unsupported.add("filter valueField is not executable through DSL_CTE bridge v1: " + filter);
                 continue;
             }
             SemanticQueryRequest.SliceItem item = new SemanticQueryRequest.SliceItem();

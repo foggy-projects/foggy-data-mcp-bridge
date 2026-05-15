@@ -6,6 +6,7 @@ import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.db.model.semantic.service.impl.SemanticQueryServiceV3Impl;
+import com.foggyframework.dataset.db.model.semantic.support.DslCteDslRequestMapper;
 import com.foggyframework.dataset.db.model.service.QueryFacade;
 import com.foggyframework.dataset.db.model.spi.DbQueryColumn;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
@@ -21,6 +22,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -90,6 +92,34 @@ class DslCteAcceptanceSampleTest {
         assertEquals("BRIDGE_READY", response.getExecution().getDslCteValidation().get("dsl_bridge_status"));
         assertEquals("SaleOrder", response.getExecution().getDslCteValidation().get("dsl_bridge_model"));
         assertNotNull(response.getExecution().getDslCteValidation().get("dsl_request"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE validation keeps bridge deferred when aggregate input model is missing")
+    void validationDefersBridgeWhenInputModelMissing() {
+        Map<String, Object> plan = biz005();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(0).put("input", m());
+
+        SemanticQueryResponse response = service.validateQuery(
+                "SaleOrder", dslCtePlan(plan), SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_DEFERRED", validation.get("dsl_bridge_status"));
+        @SuppressWarnings("unchecked")
+        List<String> unsupported = (List<String>) validation.get("dsl_bridge_unsupported");
+        assertTrue(unsupported.stream().anyMatch(msg -> msg.contains("aggregate input model")));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE DSL bridge defers valueField postSlice filters")
+    void bridgeDefersValueFieldPostSliceFilters() {
+        DslCteDslRequestMapper.BridgeResult bridge =
+                DslCteDslRequestMapper.toDslRequest(null, m("cte_plan", aggregateValueFieldPostSlice()));
+
+        assertFalse(bridge.ready());
+        assertTrue(bridge.unsupported().stream().anyMatch(msg -> msg.contains("valueField")));
     }
 
     @Test
@@ -289,6 +319,21 @@ class DslCteAcceptanceSampleTest {
                 ),
                 List.of("product.categoryName", "salesAmount", "salesShare"),
                 List.of(m("field", "salesShare", "from", "slice", "to", "postSlice", "reason", "derived_alias"))
+        );
+    }
+
+    private Map<String, Object> aggregateValueFieldPostSlice() {
+        return plan(
+                List.of(
+                        stage("category_sales", "aggregate",
+                                "input", model("SaleOrder"),
+                                "groupBy", List.of("product.categoryName"),
+                                "metrics", List.of(metric("salesAmount", "sum(amount)"))),
+                        stage("filtered", "postSlice",
+                                "inputs", List.of("category_sales"),
+                                "filters", List.of(m("field", "salesAmount", "op", ">", "valueField", "targetSalesAmount")))
+                ),
+                List.of("product.categoryName", "salesAmount")
         );
     }
 
