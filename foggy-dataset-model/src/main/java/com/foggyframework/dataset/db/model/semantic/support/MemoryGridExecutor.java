@@ -130,7 +130,7 @@ public final class MemoryGridExecutor {
         }
         String requestNamespace = normalizeNamespace(context == null ? null : context.getNamespace());
         String resultNamespace = normalizeNamespace(firstNonBlank(metadata.namespace(), result.namespace()));
-        if (resultNamespace != null && !resultNamespace.equals(requestNamespace)) {
+        if (!namespacesMatch(resultNamespace, requestNamespace)) {
             throw RX.throwB(NAMESPACE_MISMATCH + ": resolver namespace does not match request namespace for " + handle + ".");
         }
         String expectedRoute = normalize(input.get("source_route"));
@@ -195,12 +195,12 @@ public final class MemoryGridExecutor {
 
     private static boolean containsDerived(MemoryGridResultResolver.ResolvedResult result, String name) {
         MemoryGridResultResolver.Column column = result.schema().get(name);
-        return column != null && column.derivedAllowed();
+        return column != null && column.derivedAllowed() && !column.sensitive();
     }
 
     private static boolean containsOutput(MemoryGridResultResolver.ResolvedResult result, String name) {
         MemoryGridResultResolver.Column column = result.schema().get(name);
-        return column != null && column.outputAllowed();
+        return column != null && column.outputAllowed() && !column.sensitive();
     }
 
     private static Map<Object, List<Map<String, Object>>> rowsByKey(List<Map<String, Object>> rows, String joinKey) {
@@ -319,6 +319,10 @@ public final class MemoryGridExecutor {
 
     private static String normalizeNamespace(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private static boolean namespacesMatch(String resultNamespace, String requestNamespace) {
+        return resultNamespace == null ? requestNamespace == null : resultNamespace.equals(requestNamespace);
     }
 
     private static String firstNonBlank(String first, String second) {

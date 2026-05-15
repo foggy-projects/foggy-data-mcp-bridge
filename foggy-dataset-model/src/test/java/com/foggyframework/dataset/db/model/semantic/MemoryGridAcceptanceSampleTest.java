@@ -157,6 +157,34 @@ class MemoryGridAcceptanceSampleTest {
     }
 
     @Test
+    @DisplayName("Memory Grid production resolver fails closed when default namespace handle is read from named namespace")
+    void executionRequiresDefaultHandleToStayInDefaultNamespace() {
+        ReflectionTestUtils.setField(service, "memoryGridResultResolver", third009Resolver());
+        SemanticQueryRequest request = memoryGridPlan(third009Plan());
+        request.setHints(Map.of("memoryGridExecute", true));
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+                service.queryModel("SaleOrder", request, "execute", SemanticRequestContext.ofNamespace("tenant-a")));
+
+        assertTrue(ex.getMessage().contains("MEMORY_GRID_RESULT_NAMESPACE_MISMATCH"));
+    }
+
+    @Test
+    @DisplayName("Memory Grid production resolver fails closed when derived operand is sensitive")
+    void executionRejectsSensitiveDerivedOperand() {
+        ReflectionTestUtils.setField(service, "memoryGridResultResolver", resolverWithSensitiveActualMetric());
+        SemanticQueryRequest request = memoryGridPlan(third009Plan());
+        request.setHints(Map.of("memoryGridExecute", true));
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+                service.queryModel("SaleOrder", request, "execute", SemanticRequestContext.empty()));
+
+        assertTrue(ex.getMessage().contains("MEMORY_GRID_RESULT_SCHEMA_MISMATCH")
+                || ex.getMessage().contains("MEMORY_GRID_RESULT_GOVERNANCE_MISMATCH"));
+        assertTrue(ex.getMessage().contains("actualSalesAmount"));
+    }
+
+    @Test
     @DisplayName("Memory Grid production resolver fails closed when metadata storage ref is missing")
     void executionRequiresStorageRefInMetadata() {
         ReflectionTestUtils.setField(service, "memoryGridResultResolver", resolverWithMissingStorageRef());
@@ -338,6 +366,26 @@ class MemoryGridAcceptanceSampleTest {
                         "targetSalesAmount",
                         List.of(row("salesTeam.name", "Team A", "targetSalesAmount", 100)),
                         Instant.now().plusSeconds(3600)));
+    }
+
+    private MemoryGridResultResolver resolverWithSensitiveActualMetric() {
+        return (resultHandle, context) -> {
+            if ("dsl_cte_result_actual_by_team_2026_05".equals(resultHandle)) {
+                Map<String, MemoryGridResultResolver.Column> schema = schema("salesTeam.name", "actualSalesAmount");
+                schema.put("actualSalesAmount",
+                        new MemoryGridResultResolver.Column("actualSalesAmount", "number", false, true, true, true));
+                return new MemoryGridResultResolver.ResolvedResult(
+                        resultHandle,
+                        "DSL_CTE",
+                        null,
+                        List.of("salesTeam.name"),
+                        schema,
+                        List.of(row("salesTeam.name", "Team A", "actualSalesAmount", 120)),
+                        Map.of("model", "SaleOrder")
+                );
+            }
+            return third009Resolver().resolve(resultHandle, context);
+        };
     }
 
     private MemoryGridResultResolver.ResolvedResult resolvedResult(String handle,
