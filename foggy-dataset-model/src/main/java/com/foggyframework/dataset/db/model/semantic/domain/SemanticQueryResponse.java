@@ -131,6 +131,10 @@ public class SemanticQueryResponse {
         @JsonProperty("ast_validation")
         private Map<String, Object> astValidation;
 
+        @ApiModelProperty(value = "虚拟语义 SQL 到 DSL v1 子集映射证据。仅表示计划可审计，不表示已执行")
+        @JsonProperty("semantic_sql_dsl_plan")
+        private Map<String, Object> semanticSqlDslPlan;
+
         @ApiModelProperty(value = "Memory Grid 二次分析计划。仅表示 guardrail 通过，不表示已执行")
         @JsonProperty("memory_grid_plan")
         private Map<String, Object> memoryGridPlan;

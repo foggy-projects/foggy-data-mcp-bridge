@@ -25,6 +25,7 @@ import com.foggyframework.dataset.db.model.semantic.service.DimensionMemberLoade
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.dataset.db.model.semantic.support.DslCtePlanValidator;
 import com.foggyframework.dataset.db.model.semantic.support.MemoryGridGuardrailValidator;
+import com.foggyframework.dataset.db.model.semantic.support.SemanticSqlToDslMapper;
 import com.foggyframework.dataset.db.model.semantic.support.SemanticSqlWhitelistValidator;
 import com.foggyframework.dataset.db.model.spi.DbColumn;
 import com.foggyframework.dataset.db.model.service.QueryFacade;
@@ -433,7 +434,9 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         if (!isSemanticSqlPlan(request)) {
             return null;
         }
-        Map<String, Object> astValidation = semanticSqlAstValidation(model, request, context);
+        QueryModel queryModel = queryModelLoader.getJdbcQueryModel(model, context.getNamespace());
+        Map<String, Object> astValidation = semanticSqlAstValidation(model, request, queryModel, context);
+        Map<String, Object> dslPlan = SemanticSqlToDslMapper.map(model, request.getSemanticSql(), queryModel, context);
         SemanticQueryResponse response = new SemanticQueryResponse();
         response.setItems(List.of());
         response.setWarnings(List.of());
@@ -447,6 +450,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         execution.setExecutablePlan(request.getExecutablePlan());
         execution.setSemanticSql(request.getSemanticSql());
         execution.setAstValidation(astValidation);
+        execution.setSemanticSqlDslPlan(dslPlan);
         execution.setErrorCode(null);
         response.setExecution(execution);
         return response;
@@ -458,6 +462,15 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
             throw RX.throwB("SEMANTIC_SQL_FIELD_NOT_DECLARED: semantic_sql must be provided for SEMANTIC_SQL route.");
         }
         QueryModel queryModel = queryModelLoader.getJdbcQueryModel(model, context.getNamespace());
+        return SemanticSqlWhitelistValidator.validate(model, request.getSemanticSql(), queryModel, context);
+    }
+
+    private Map<String, Object> semanticSqlAstValidation(String model, SemanticQueryRequest request,
+                                                          QueryModel queryModel,
+                                                          SemanticRequestContext context) {
+        if (request == null || StringUtils.isEmpty(request.getSemanticSql())) {
+            throw RX.throwB("SEMANTIC_SQL_FIELD_NOT_DECLARED: semantic_sql must be provided for SEMANTIC_SQL route.");
+        }
         return SemanticSqlWhitelistValidator.validate(model, request.getSemanticSql(), queryModel, context);
     }
 
