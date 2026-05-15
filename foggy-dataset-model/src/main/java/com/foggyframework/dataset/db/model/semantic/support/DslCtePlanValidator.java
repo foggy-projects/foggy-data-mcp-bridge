@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -43,6 +44,7 @@ public final class DslCtePlanValidator {
 
         Set<String> names = new LinkedHashSet<>();
         Set<String> stageTypes = new LinkedHashSet<>();
+        Map<String, StageOutput> stageOutputs = new LinkedHashMap<>();
         List<Map<String, Object>> stageEvidence = new ArrayList<>();
         boolean hasPostSlice = false;
 
@@ -59,15 +61,15 @@ public final class DslCtePlanValidator {
             }
 
             validateStageShape(stage, type, names, i);
+            StageOutput output = inferStageOutput(stage, type, stageOutputs);
             names.add(name);
+            stageOutputs.put(name, output);
             stageTypes.add(type);
             hasPostSlice = hasPostSlice || "postSlice".equals(type);
-            stageEvidence.add(Map.of(
-                    "name", name,
-                    "type", type,
-                    "source", stageSource(stage)
-            ));
+            stageEvidence.add(stageEvidence(name, type, stage, output));
         }
+
+        validatePlanOutput(outputs, stages, stageOutputs);
 
         List<Map<String, Object>> sliceLowering = mapList(ctePlan.get("sliceLowering"));
         for (Map<String, Object> lowering : sliceLowering) {
@@ -153,6 +155,293 @@ public final class DslCtePlanValidator {
         }
     }
 
+    private static StageOutput inferStageOutput(Map<String, Object> stage, String type,
+                                                Map<String, StageOutput> stageOutputs) {
+        return switch (type) {
+            case "aggregate" -> aggregateOutput(stage);
+            case "derive", "window_derive" -> derivedOutput(stage, stageOutputs);
+            case "postSlice" -> postSliceOutput(stage, stageOutputs);
+            case "join_align" -> joinAlignOutput(stage, stageOutputs);
+            default -> StageOutput.incomplete(Set.of());
+        };
+    }
+
+    private static StageOutput aggregateOutput(Map<String, Object> stage) {
+        Set<String> fields = new LinkedHashSet<>(stringList(stage.get("groupBy")));
+        Object rawMetrics = stage.get("metrics");
+        if (rawMetrics instanceof List<?> metrics) {
+            for (Object item : metrics) {
+                Map<String, Object> metric = mapValue(item);
+                if (metric != null) {
+                    String name = stringValue(metric.get("name"));
+                    if (name != null && !name.isBlank()) {
+                        fields.add(name);
+                    }
+                    continue;
+                }
+                String alias = metricAlias(stringValue(item));
+                if (alias != null && !alias.isBlank()) {
+                    fields.add(alias);
+                }
+            }
+        }
+        return StageOutput.complete(fields);
+    }
+
+    private static StageOutput derivedOutput(Map<String, Object> stage, Map<String, StageOutput> stageOutputs) {
+        StageOutput base = mergedInputOutput(stage, stageOutputs);
+        Set<String> fields = new LinkedHashSet<>(base.fields());
+        for (Map<String, Object> derived : mapList(stage.get("derived"))) {
+            String name = stringValue(derived.get("name"));
+            if (name != null && !name.isBlank()) {
+                fields.add(name);
+            }
+        }
+        return new StageOutput(fields, base.complete());
+    }
+
+    private static StageOutput postSliceOutput(Map<String, Object> stage, Map<String, StageOutput> stageOutputs) {
+        StageOutput base = mergedInputOutput(stage, stageOutputs);
+        if (base.complete()) {
+            for (Map<String, Object> filter : mapList(stage.get("filters"))) {
+                validateAvailableField(base, filter.get("field"), "postSlice field");
+                validateAvailableField(base, filter.get("valueField"), "postSlice valueField");
+            }
+        }
+        return base;
+    }
+
+    private static StageOutput joinAlignOutput(Map<String, Object> stage, Map<String, StageOutput> stageOutputs) {
+        Set<String> fields = new LinkedHashSet<>();
+        for (String input : stringList(stage.get("inputs"))) {
+            StageOutput output = stageOutputs.get(input);
+            if (output != null) {
+                fields.addAll(output.fields());
+            }
+        }
+        return StageOutput.incomplete(fields);
+    }
+
+    private static StageOutput mergedInputOutput(Map<String, Object> stage, Map<String, StageOutput> stageOutputs) {
+        List<String> inputs = stringList(stage.get("inputs"));
+        if (inputs.isEmpty()) {
+            return StageOutput.incomplete(Set.of());
+        }
+        Set<String> fields = new LinkedHashSet<>();
+        boolean complete = true;
+        for (String input : inputs) {
+            StageOutput output = stageOutputs.get(input);
+            if (output == null) {
+                complete = false;
+            } else {
+                fields.addAll(output.fields());
+                complete = complete && output.complete();
+            }
+        }
+        return new StageOutput(fields, complete);
+    }
+
+    private static void validatePlanOutput(List<String> outputs, List<Map<String, Object>> stages,
+                                           Map<String, StageOutput> stageOutputs) {
+        String finalStageName = stringValue(stages.get(stages.size() - 1).get("name"));
+        StageOutput finalOutput = finalStageName == null ? null : stageOutputs.get(finalStageName);
+        if (finalOutput == null || !finalOutput.complete()) {
+            return;
+        }
+        for (String output : outputs) {
+            if (!finalOutput.fields().contains(output)) {
+                throw RX.throwB(STAGE_INVALID + ": cte_plan.output references unavailable field '" + output + "'.");
+            }
+        }
+    }
+
+    private static void validateAvailableField(StageOutput output, Object rawField, String usage) {
+        String field = stringValue(rawField);
+        if (field != null && !field.isBlank() && !output.fields().contains(field)) {
+            throw RX.throwB(POST_SLICE_INVALID + ": " + usage + " references unavailable field '" + field + "'.");
+        }
+    }
+
+    private static Map<String, Object> stageEvidence(String name, String type, Map<String, Object> stage,
+                                                     StageOutput output) {
+        Map<String, Object> evidence = new LinkedHashMap<>();
+        evidence.put("name", name);
+        evidence.put("type", type);
+        evidence.put("source", stageSource(stage));
+        evidence.put("output_fields", new ArrayList<>(output.fields()));
+        evidence.put("output_complete", output.complete());
+        if ("window_derive".equals(type)) {
+            evidence.put("window_contract", windowContractEvidence(stage));
+        } else if ("derive".equals(type)) {
+            Map<String, Object> deriveContract = deriveContractEvidence(stage);
+            if (!deriveContract.isEmpty()) {
+                evidence.put("derive_contract", deriveContract);
+            }
+        } else if ("aggregate".equals(type)) {
+            Map<String, Object> aggregateContract = aggregateContractEvidence(stage);
+            if (!aggregateContract.isEmpty()) {
+                evidence.put("aggregate_contract", aggregateContract);
+            }
+        }
+        return evidence;
+    }
+
+    private static Map<String, Object> deriveContractEvidence(Map<String, Object> stage) {
+        List<Map<String, Object>> derived = mapList(stage.get("derived"));
+        Map<String, Object> evidence = new LinkedHashMap<>();
+        boolean preAggregate = mapValue(stage.get("input")) != null;
+        boolean hasDuration = false;
+        boolean hasBooleanPredicate = false;
+        boolean hasMetricRatio = false;
+        for (Map<String, Object> item : derived) {
+            String expr = stringValue(item.get("expr"));
+            if (expr == null) {
+                continue;
+            }
+            String normalized = expr.toLowerCase(Locale.ROOT);
+            hasDuration = hasDuration || normalized.contains("hours_between(");
+            hasBooleanPredicate = hasBooleanPredicate
+                    || normalized.contains(" is null")
+                    || normalized.contains(" is not null")
+                    || normalized.contains(" and ")
+                    || normalized.contains(" or ");
+            hasMetricRatio = hasMetricRatio || isMetricToMetricRatio(expr);
+        }
+        if (preAggregate && (hasDuration || hasBooleanPredicate)) {
+            evidence.put("kind", "sla_row_level_derived");
+            evidence.put("bridge_scope", "row_level_calculatedFields");
+            evidence.put("bridge_signed", false);
+            evidence.put("required_capabilities", List.of(
+                    "governed_duration_function_mapping",
+                    "row_level_boolean_predicate",
+                    "null_handling_predicate",
+                    "conditional_numerator_source"));
+            return evidence;
+        }
+        if (!preAggregate && hasMetricRatio) {
+            evidence.put("kind", "metric_to_metric_ratio");
+            evidence.put("bridge_scope", "post_aggregate_calculation");
+            evidence.put("bridge_signed", false);
+            evidence.put("required_capabilities", List.of(
+                    "post_aggregate_metric_reference",
+                    "division_by_zero_policy",
+                    "postSlice_on_derived_rate"));
+            return evidence;
+        }
+        return evidence;
+    }
+
+    private static Map<String, Object> aggregateContractEvidence(Map<String, Object> stage) {
+        Map<String, Object> evidence = new LinkedHashMap<>();
+        boolean hasConditionalMetric = false;
+        Object rawMetrics = stage.get("metrics");
+        if (rawMetrics instanceof List<?> metrics) {
+            for (Object item : metrics) {
+                Map<String, Object> metric = mapValue(item);
+                if (metric == null) {
+                    continue;
+                }
+                String expr = stringValue(metric.get("expr"));
+                hasConditionalMetric = hasConditionalMetric
+                        || (expr != null && expr.toLowerCase(Locale.ROOT).contains("case when"));
+            }
+        }
+        if (hasConditionalMetric) {
+            evidence.put("kind", "conditional_numerator_aggregation");
+            evidence.put("bridge_scope", "aggregate_metrics");
+            evidence.put("bridge_signed", false);
+            evidence.put("required_capabilities", List.of(
+                    "case_when_over_row_level_derived",
+                    "boolean_metric_sum",
+                    "governed_denominator_alignment"));
+        }
+        return evidence;
+    }
+
+    private static Map<String, Object> windowContractEvidence(Map<String, Object> stage) {
+        List<Map<String, Object>> derived = mapList(stage.get("derived"));
+        Map<String, Object> evidence = new LinkedHashMap<>();
+        if (containsLagOrLead(derived)) {
+            evidence.put("kind", "period_over_period_lag");
+            evidence.put("bridge_scope", "timeWindow");
+            evidence.put("bridge_signed", true);
+            evidence.put("required_capabilities", List.of("aggregate_metric_lag", "period_ratio", "time_grain_alignment"));
+            return evidence;
+        }
+        if (containsRankOrCumulativeContribution(derived)) {
+            evidence.put("kind", "cumulative_contribution");
+            evidence.put("bridge_scope", "result_stage_window");
+            evidence.put("bridge_signed", true);
+            evidence.put("required_capabilities", List.of(
+                    "rank_over_aggregate_metric_order",
+                    "running_total_ratio",
+                    "deterministic_result_ordering",
+                    "postSlice_on_window_alias"));
+            return evidence;
+        }
+        if (containsRollingSum(derived)) {
+            evidence.put("kind", "rolling_sum");
+            evidence.put("bridge_scope", "timeWindow");
+            evidence.put("bridge_signed", true);
+            evidence.put("required_capabilities", List.of("aggregate_time_series", "bounded_rows_frame"));
+            return evidence;
+        }
+        evidence.put("kind", "generic_window");
+        evidence.put("bridge_scope", "result_stage_window");
+        evidence.put("bridge_signed", false);
+        evidence.put("required_capabilities", List.of("window_function_contract"));
+        return evidence;
+    }
+
+    private static boolean containsLagOrLead(List<Map<String, Object>> derived) {
+        for (Map<String, Object> item : derived) {
+            String expr = stringValue(item.get("expr"));
+            if (expr != null && expr.toLowerCase(Locale.ROOT).matches(".*\\b(lag|lead)\\s*\\(.*")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean containsRankOrCumulativeContribution(List<Map<String, Object>> derived) {
+        for (Map<String, Object> item : derived) {
+            String expr = stringValue(item.get("expr"));
+            if (expr == null) {
+                continue;
+            }
+            String normalized = expr.toLowerCase(Locale.ROOT).replaceAll("\\s+", "");
+            if ("rank()".equals(normalized) || normalized.contains("overorder")
+                    || normalized.contains("overall")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean containsRollingSum(List<Map<String, Object>> derived) {
+        for (Map<String, Object> item : derived) {
+            String expr = stringValue(item.get("expr"));
+            if (expr == null) {
+                continue;
+            }
+            String normalized = expr.toLowerCase(Locale.ROOT).replaceAll("\\s+", "");
+            if (normalized.matches("sum\\([a-z_][a-z0-9_$]*\\)overlast\\d+rows")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isMetricToMetricRatio(String expr) {
+        if (expr == null) {
+            return false;
+        }
+        String normalized = expr.toLowerCase(Locale.ROOT).replaceAll("\\s+", "");
+        return normalized.matches("[a-z_][a-z0-9_$]*(?:\\.[a-z_][a-z0-9_$]*)?/[a-z_][a-z0-9_$]*(?:\\.[a-z_][a-z0-9_$]*)?")
+                && !normalized.contains("sum(")
+                && !normalized.contains("over(");
+    }
+
     private static void requireSource(Map<String, Object> stage, Set<String> knownStageNames, int index) {
         if (mapValue(stage.get("input")) != null) {
             return;
@@ -234,5 +523,23 @@ public final class DslCtePlanValidator {
 
     private static String stringValue(Object value) {
         return value == null ? null : String.valueOf(value).trim();
+    }
+
+    private static String metricAlias(String metric) {
+        if (metric == null) {
+            return null;
+        }
+        String[] parts = metric.split("(?i)\\s+as\\s+");
+        return parts.length == 2 ? parts[1].trim() : null;
+    }
+
+    private record StageOutput(Set<String> fields, boolean complete) {
+        private static StageOutput complete(Set<String> fields) {
+            return new StageOutput(new LinkedHashSet<>(fields), true);
+        }
+
+        private static StageOutput incomplete(Set<String> fields) {
+            return new StageOutput(new LinkedHashSet<>(fields), false);
+        }
     }
 }

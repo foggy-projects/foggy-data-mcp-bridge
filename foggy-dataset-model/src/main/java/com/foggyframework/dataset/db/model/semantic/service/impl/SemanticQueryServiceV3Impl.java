@@ -307,10 +307,29 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
             if (dslCteCompileToDslEnabled(request)) {
                 DslCteDslRequestMapper.BridgeResult bridge =
                         DslCteDslRequestMapper.toDslRequest(model, request.getExecutablePlan());
-                bridge.requireReady();
-                SemanticQueryRequest dslRequest = bridge.request();
-                dslRequest.setHints(request.getHints() == null ? null : new HashMap<>(request.getHints()));
-                return generateSql(bridge.model(), dslRequest, context);
+                if (bridge.ready()) {
+                    SemanticQueryRequest dslRequest = bridge.request();
+                    dslRequest.setHints(request.getHints() == null ? null : new HashMap<>(request.getHints()));
+                    return generateSql(bridge.model(), dslRequest, context);
+                }
+                DslCteDslRequestMapper.ResultStageWindowBridgeResult resultStageBridge =
+                        DslCteDslRequestMapper.toResultStageWindowBridge(model, request.getExecutablePlan());
+                if (resultStageBridge.ready()) {
+                    SemanticQueryRequest baseRequest = resultStageBridge.baseRequest();
+                    baseRequest.setHints(request.getHints() == null ? null : new HashMap<>(request.getHints()));
+                    SqlGenerationResult baseSql = generateSql(resultStageBridge.model(), baseRequest, context);
+                    return resultStageBridge.wrap(baseSql);
+                }
+                DslCteDslRequestMapper.ResultStageMetricRatioBridgeResult metricRatioBridge =
+                        DslCteDslRequestMapper.toResultStageMetricRatioBridge(model, request.getExecutablePlan());
+                if (metricRatioBridge.ready()) {
+                    SemanticQueryRequest baseRequest = metricRatioBridge.baseRequest();
+                    baseRequest.setHints(request.getHints() == null ? null : new HashMap<>(request.getHints()));
+                    SqlGenerationResult baseSql = generateSql(metricRatioBridge.model(), baseRequest, context);
+                    return metricRatioBridge.wrap(baseSql);
+                }
+                throw RX.throwB("DSL_CTE_DSL_BRIDGE_NOT_SUPPORTED: "
+                        + combinedDslCteUnsupported(bridge, resultStageBridge, metricRatioBridge));
             }
             throw RX.throwB("DSL_CTE_EXECUTION_NOT_IMPLEMENTED: DSL_CTE stage contract passed, but staged SQL execution is not part of P0.");
         }
@@ -638,12 +657,31 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         Map<String, Object> validation = dslCteValidation(request);
         DslCteDslRequestMapper.BridgeResult bridge =
                 DslCteDslRequestMapper.toDslRequest(null, request.getExecutablePlan());
-        validation.put("dsl_bridge_status", bridge.status());
         if (bridge.ready()) {
+            validation.put("dsl_bridge_status", bridge.status());
             validation.put("dsl_bridge_model", bridge.model());
             validation.put("dsl_request", bridge.request());
         } else {
-            validation.put("dsl_bridge_unsupported", bridge.unsupported());
+            DslCteDslRequestMapper.ResultStageWindowBridgeResult resultStageBridge =
+                    DslCteDslRequestMapper.toResultStageWindowBridge(null, request.getExecutablePlan());
+            if (resultStageBridge.ready()) {
+                validation.put("dsl_bridge_status", resultStageBridge.status());
+                validation.put("dsl_bridge_model", resultStageBridge.model());
+                validation.put("dsl_request", resultStageBridge.baseRequest());
+                validation.put("dsl_result_stage_window", resultStageBridge.summary());
+            } else {
+                DslCteDslRequestMapper.ResultStageMetricRatioBridgeResult metricRatioBridge =
+                        DslCteDslRequestMapper.toResultStageMetricRatioBridge(null, request.getExecutablePlan());
+                validation.put("dsl_bridge_status", metricRatioBridge.ready() ? metricRatioBridge.status() : bridge.status());
+                if (metricRatioBridge.ready()) {
+                    validation.put("dsl_bridge_model", metricRatioBridge.model());
+                    validation.put("dsl_request", metricRatioBridge.baseRequest());
+                    validation.put("dsl_result_stage_metric_ratio", metricRatioBridge.summary());
+                } else {
+                    validation.put("dsl_bridge_unsupported",
+                            combinedDslCteUnsupported(bridge, resultStageBridge, metricRatioBridge));
+                }
+            }
         }
         SemanticQueryResponse response = new SemanticQueryResponse();
         response.setItems(List.of());
@@ -660,6 +698,27 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         execution.setErrorCode(null);
         response.setExecution(execution);
         return response;
+    }
+
+    private List<String> combinedDslCteUnsupported(DslCteDslRequestMapper.BridgeResult bridge,
+                                                   DslCteDslRequestMapper.ResultStageWindowBridgeResult resultStageBridge) {
+        return combinedDslCteUnsupported(bridge, resultStageBridge, null);
+    }
+
+    private List<String> combinedDslCteUnsupported(DslCteDslRequestMapper.BridgeResult bridge,
+                                                   DslCteDslRequestMapper.ResultStageWindowBridgeResult resultStageBridge,
+                                                   DslCteDslRequestMapper.ResultStageMetricRatioBridgeResult metricRatioBridge) {
+        Set<String> unsupported = new LinkedHashSet<>();
+        if (bridge != null && bridge.unsupported() != null) {
+            unsupported.addAll(bridge.unsupported());
+        }
+        if (resultStageBridge != null && resultStageBridge.unsupported() != null) {
+            unsupported.addAll(resultStageBridge.unsupported());
+        }
+        if (metricRatioBridge != null && metricRatioBridge.unsupported() != null) {
+            unsupported.addAll(metricRatioBridge.unsupported());
+        }
+        return List.copyOf(unsupported);
     }
 
     private Map<String, Object> dslCteValidation(SemanticQueryRequest request) {

@@ -57,6 +57,35 @@ public final class DialectAwareFunctionExp {
     }
 
     /**
+     * 渲染 {@code hours_between(start, end)} · 返回 end - start 的小数小时数。
+     */
+    public static SqlFragment renderHoursBetween(SqlExpContext ctx, List<SqlFragment> argFragments) {
+        if (argFragments.size() != 2) {
+            throw new IllegalArgumentException(
+                    "hours_between function requires exactly 2 arguments (start, end), got " + argFragments.size());
+        }
+        String startSql = argFragments.get(0).getSql();
+        String endSql = argFragments.get(1).getSql();
+
+        String dialectSql = buildHoursBetweenSql(ctx, startSql, endSql);
+        return SqlFragment.customFunction(dialectSql, "HOURS_BETWEEN", argFragments);
+    }
+
+    private static String buildHoursBetweenSql(SqlExpContext ctx, String startSql, String endSql) {
+        String productName = ctx != null && ctx.getDialect() != null ? ctx.getDialect().getProductName() : null;
+        if (productName == null) {
+            return "(TIMESTAMPDIFF(SECOND, " + startSql + ", " + endSql + ") / 3600.0)";
+        }
+        return switch (productName.toUpperCase()) {
+            case "SQLITE" -> "((julianday(" + endSql + ") - julianday(" + startSql + ")) * 24.0)";
+            case "POSTGRESQL", "POSTGRES" -> "(EXTRACT(EPOCH FROM (" + endSql + " - " + startSql + ")) / 3600.0)";
+            case "SQLSERVER", "SQL_SERVER", "MICROSOFT SQL SERVER" ->
+                    "(DATEDIFF(second, " + startSql + ", " + endSql + ") / 3600.0)";
+            default -> "(TIMESTAMPDIFF(SECOND, " + startSql + ", " + endSql + ") / 3600.0)";
+        };
+    }
+
+    /**
      * 渲染 {@code date_add(d, n, unit)} · 返回方言特定的日期加法 SQL。
      * <p>
      * unit 必须是编译期字符串字面量（{@code 'day'} / {@code 'month'} / {@code 'year'}），

@@ -80,6 +80,9 @@ public class SqlFunctionExp extends AbstractExp<String> {
         if ("DATE_DIFF".equals(upper)) {
             return DialectAwareFunctionExp.renderDateDiff(ctx, argFragments);
         }
+        if ("HOURS_BETWEEN".equals(upper)) {
+            return DialectAwareFunctionExp.renderHoursBetween(ctx, argFragments);
+        }
         if ("DATE_ADD".equals(upper)) {
             return DialectAwareFunctionExp.renderDateAdd(ctx, argFragments);
         }

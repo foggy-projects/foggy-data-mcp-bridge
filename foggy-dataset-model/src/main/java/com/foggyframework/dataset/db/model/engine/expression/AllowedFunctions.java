@@ -153,6 +153,7 @@ public final class AllowedFunctions {
         date.add("DATE_SUB");
         date.add("DATEDIFF");
         date.add("TIMESTAMPDIFF");
+        date.add("HOURS_BETWEEN");
         date.add("DATE_FORMAT");
         date.add("STR_TO_DATE");
         date.add("EXTRACT");

@@ -1,7 +1,9 @@
 package com.foggyframework.dataset.db.model.semantic.support;
 
 import com.foggyframework.core.ex.RX;
+import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.def.query.request.PostAggregateCalculationDef;
+import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 
 import java.util.ArrayList;
@@ -23,8 +25,21 @@ public final class DslCteDslRequestMapper {
 
     public static final String STATUS_READY = "BRIDGE_READY";
     public static final String STATUS_DEFERRED = "BRIDGE_DEFERRED";
+    private static final Pattern LAG_PATTERN = Pattern.compile(
+            "(?i)^\\s*lag\\s*\\(\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*(?:,\\s*1\\s*)?\\)\\s*$");
     private static final Pattern ROLLING_SUM_PATTERN = Pattern.compile(
             "(?i)^\\s*sum\\s*\\(\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*\\)\\s+over\\s+last\\s+(\\d+)\\s+rows\\s*$");
+    private static final Pattern CUMULATIVE_SHARE_PATTERN = Pattern.compile(
+            "(?i)^\\s*sum\\s*\\(\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*\\)\\s+over\\s+order\\s*/\\s*sum\\s*\\(\\s*\\1\\s*\\)\\s+over\\s+all\\s*$");
+    private static final Pattern SAFE_ALIAS_PATTERN = Pattern.compile("[A-Za-z_][A-Za-z0-9_$.]*");
+    private static final Pattern HOURS_BETWEEN_PATTERN = Pattern.compile(
+            "(?i)^\\s*hours_between\\s*\\(\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*,\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*\\)\\s*$");
+    private static final Pattern SLA_HIT_PATTERN = Pattern.compile(
+            "(?i)^\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s+is\\s+not\\s+null\\s+and\\s+([A-Za-z_][A-Za-z0-9_$]*)\\s*<=\\s*(\\d+(?:\\.\\d+)?)\\s*$");
+    private static final Pattern SUM_ALIAS_PATTERN = Pattern.compile(
+            "(?i)^\\s*sum\\s*\\(\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*\\)\\s*$");
+    private static final Pattern METRIC_RATIO_PATTERN = Pattern.compile(
+            "(?i)^\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*/\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*$");
 
     private DslCteDslRequestMapper() {
     }
@@ -43,7 +58,20 @@ public final class DslCteDslRequestMapper {
 
         Map<String, Object> aggregate = stages.get(0);
         if (!"aggregate".equals(stringValue(aggregate.get("type")))) {
-            unsupported.add("DSL_CTE bridge v1 requires the first stage to be aggregate");
+            String firstType = stringValue(aggregate.get("type"));
+            String firstName = stringValue(aggregate.get("name"));
+            if ("derive".equals(firstType) && mapValue(aggregate.get("input")) != null) {
+                BridgeResult rowLevelBridge = rowLevelDerivedAggregateBridge(fallbackModel, ctePlan, stages);
+                if (rowLevelBridge.ready()) {
+                    return rowLevelBridge;
+                }
+                unsupported.addAll(rowLevelBridge.unsupported());
+            }
+            unsupported.add("DSL_CTE bridge v1 requires the first stage to be aggregate; pre-aggregate "
+                    + firstType + " stage is not executable in this cut: " + firstName);
+            if ("derive".equals(firstType) && mapValue(aggregate.get("input")) != null) {
+                addPreAggregateDeriveDiagnostics(stages, aggregate, unsupported);
+            }
             return BridgeResult.deferred(unsupported);
         }
 
@@ -103,6 +131,218 @@ public final class DslCteDslRequestMapper {
         return BridgeResult.ready(model, request);
     }
 
+    public static ResultStageWindowBridgeResult toResultStageWindowBridge(String fallbackModel, Object executablePlan) {
+        List<String> unsupported = new ArrayList<>();
+        Map<String, Object> ctePlan = ctePlan(executablePlan, unsupported);
+        if (ctePlan == null) {
+            return ResultStageWindowBridgeResult.deferred(unsupported);
+        }
+        List<Map<String, Object>> stages = mapList(ctePlan.get("stages"));
+        if (stages.size() < 2 || stages.size() > 3) {
+            unsupported.add("result-stage window bridge requires aggregate -> window_derive -> optional postSlice");
+            return ResultStageWindowBridgeResult.deferred(unsupported);
+        }
+
+        Map<String, Object> aggregate = stages.get(0);
+        Map<String, Object> windowStage = stages.get(1);
+        if (!"aggregate".equals(stringValue(aggregate.get("type")))
+                || !"window_derive".equals(stringValue(windowStage.get("type")))) {
+            unsupported.add("result-stage window bridge requires aggregate followed by window_derive");
+            return ResultStageWindowBridgeResult.deferred(unsupported);
+        }
+        if (stages.size() == 3 && !"postSlice".equals(stringValue(stages.get(2).get("type")))) {
+            unsupported.add("result-stage window bridge supports only postSlice after window_derive");
+            return ResultStageWindowBridgeResult.deferred(unsupported);
+        }
+
+        List<String> inputs = stringList(windowStage.get("inputs"));
+        String aggregateName = stringValue(aggregate.get("name"));
+        if (inputs.size() != 1 || aggregateName == null || !aggregateName.equals(inputs.get(0))) {
+            unsupported.add("result-stage window_derive must reference the first aggregate stage");
+            return ResultStageWindowBridgeResult.deferred(unsupported);
+        }
+
+        MetricMapping metrics = metrics(aggregate.get("metrics"), unsupported);
+        List<String> metricAliases = metrics.aliases();
+        if (metricAliases.size() != 1) {
+            unsupported.add("result-stage cumulative contribution bridge requires exactly one aggregate metric");
+            return ResultStageWindowBridgeResult.deferred(unsupported);
+        }
+        String metricAlias = metricAliases.get(0);
+        List<String> groupBy = stringList(aggregate.get("groupBy"));
+        if (groupBy.isEmpty()) {
+            unsupported.add("result-stage cumulative contribution bridge requires at least one grouping field for deterministic tie-breaking");
+            return ResultStageWindowBridgeResult.deferred(unsupported);
+        }
+        if (!allSafeAliases(groupBy, metricAliases)) {
+            unsupported.add("result-stage window bridge supports only governed field aliases");
+            return ResultStageWindowBridgeResult.deferred(unsupported);
+        }
+
+        Map<String, Object> window = mapValue(windowStage.get("window"));
+        if (window == null || !stringList(window.get("partitionBy")).isEmpty()) {
+            unsupported.add("result-stage cumulative contribution bridge does not support partitionBy in this cut");
+            return ResultStageWindowBridgeResult.deferred(unsupported);
+        }
+        if (mapValue(window.get("frame")) != null) {
+            unsupported.add("result-stage cumulative contribution bridge does not support explicit frames");
+            return ResultStageWindowBridgeResult.deferred(unsupported);
+        }
+        List<Map<String, Object>> orderBy = mapList(window.get("orderBy"));
+        if (orderBy.size() != 1) {
+            unsupported.add("result-stage cumulative contribution bridge requires exactly one orderBy metric");
+            return ResultStageWindowBridgeResult.deferred(unsupported);
+        }
+        String orderField = stringValue(orderBy.get(0).get("field"));
+        String orderDir = stringValue(orderBy.get(0).get("dir"));
+        if (!metricAlias.equals(orderField) || !"DESC".equalsIgnoreCase(orderDir)) {
+            unsupported.add("result-stage cumulative contribution bridge requires DESC orderBy on the aggregate metric");
+            return ResultStageWindowBridgeResult.deferred(unsupported);
+        }
+
+        CumulativeDerived cumulative = cumulativeDerived(windowStage.get("derived"), metricAlias, unsupported);
+        if (cumulative == null) {
+            return ResultStageWindowBridgeResult.deferred(unsupported);
+        }
+
+        List<ResultStageFilter> filters = resultStageFilters(
+                stages.size() == 3 ? stages.get(2).get("filters") : null,
+                cumulative.cumulativeAlias(), unsupported);
+        if (!unsupported.isEmpty()) {
+            return ResultStageWindowBridgeResult.deferred(unsupported);
+        }
+
+        SemanticQueryRequest baseRequest = new SemanticQueryRequest();
+        baseRequest.setRoute("DSL");
+        baseRequest.setStatus("PLAN_READY");
+        baseRequest.setGroupBy(groupByItems(aggregate.get("groupBy")));
+        baseRequest.setSlice(sliceItems(aggregate.get("filters"), unsupported));
+        baseRequest.setColumns(outputColumns(null, aggregate.get("groupBy"), metrics, List.of(), Map.of(), unsupported));
+        baseRequest.setReturnTotal(false);
+
+        String model = sourceModel(fallbackModel, aggregate);
+        if (model == null || model.isBlank()) {
+            unsupported.add("aggregate input model must be declared for result-stage window bridge");
+        }
+        List<String> output = stringList(ctePlan.get("output"));
+        if (output.isEmpty()) {
+            output.addAll(groupBy);
+            output.add(metricAlias);
+            output.add(cumulative.rankAlias());
+            output.add(cumulative.cumulativeAlias());
+        }
+        if (!allSafeAliases(output, List.of(cumulative.rankAlias(), cumulative.cumulativeAlias()))) {
+            unsupported.add("result-stage window output supports only governed field aliases");
+        }
+        if (!unsupported.isEmpty()) {
+            return ResultStageWindowBridgeResult.deferred(unsupported);
+        }
+
+        ResultStageWindowPlan plan = new ResultStageWindowPlan(
+                output, groupBy, metricAlias, cumulative.rankAlias(), cumulative.cumulativeAlias(), filters);
+        return ResultStageWindowBridgeResult.ready(model, baseRequest, plan);
+    }
+
+    public static ResultStageMetricRatioBridgeResult toResultStageMetricRatioBridge(String fallbackModel,
+                                                                                   Object executablePlan) {
+        List<String> unsupported = new ArrayList<>();
+        Map<String, Object> ctePlan = ctePlan(executablePlan, unsupported);
+        if (ctePlan == null) {
+            return ResultStageMetricRatioBridgeResult.deferred(unsupported);
+        }
+        List<Map<String, Object>> stages = mapList(ctePlan.get("stages"));
+        if (stages.size() < 3 || stages.size() > 4) {
+            unsupported.add("result-stage SLA metric ratio bridge requires derive(input) -> aggregate -> derive -> optional postSlice");
+            return ResultStageMetricRatioBridgeResult.deferred(unsupported);
+        }
+
+        Map<String, Object> derive = stages.get(0);
+        Map<String, Object> aggregate = stages.get(1);
+        Map<String, Object> ratioStage = stages.get(2);
+        if (!"derive".equals(stringValue(derive.get("type")))
+                || mapValue(derive.get("input")) == null
+                || !"aggregate".equals(stringValue(aggregate.get("type")))
+                || !"derive".equals(stringValue(ratioStage.get("type")))) {
+            unsupported.add("result-stage SLA metric ratio bridge requires derive(input) -> aggregate -> derive");
+            return ResultStageMetricRatioBridgeResult.deferred(unsupported);
+        }
+        if (stages.size() == 4 && !"postSlice".equals(stringValue(stages.get(3).get("type")))) {
+            unsupported.add("result-stage SLA metric ratio bridge supports only postSlice after the ratio derive");
+            return ResultStageMetricRatioBridgeResult.deferred(unsupported);
+        }
+
+        String deriveName = stringValue(derive.get("name"));
+        String aggregateName = stringValue(aggregate.get("name"));
+        String ratioName = stringValue(ratioStage.get("name"));
+        if (deriveName == null || aggregateName == null || ratioName == null) {
+            unsupported.add("result-stage SLA metric ratio bridge requires named stages");
+            return ResultStageMetricRatioBridgeResult.deferred(unsupported);
+        }
+        if (!List.of(deriveName).equals(stringList(aggregate.get("inputs")))
+                || !List.of(aggregateName).equals(stringList(ratioStage.get("inputs")))) {
+            unsupported.add("result-stage SLA metric ratio bridge requires linear stage inputs");
+            return ResultStageMetricRatioBridgeResult.deferred(unsupported);
+        }
+        if (stages.size() == 4 && !List.of(ratioName).equals(stringList(stages.get(3).get("inputs")))) {
+            unsupported.add("result-stage SLA metric ratio postSlice must reference the ratio derive stage");
+            return ResultStageMetricRatioBridgeResult.deferred(unsupported);
+        }
+
+        List<CalculatedFieldDef> calculatedFields = rowLevelSlaCalculatedFields(derive.get("derived"), unsupported);
+        MetricMapping metrics = rowLevelAggregateMetrics(aggregate.get("metrics"), calculatedFields, unsupported);
+        MetricRatioDerived ratio = slaMetricRatioDerived(ratioStage.get("derived"), metrics.aliases(), unsupported);
+        if (ratio == null) {
+            return ResultStageMetricRatioBridgeResult.deferred(unsupported);
+        }
+        List<ResultStageFilter> filters = resultStageAliasFilters(
+                stages.size() == 4 ? stages.get(3).get("filters") : null,
+                ratio.ratioAlias(), "result-stage SLA metric ratio bridge", unsupported);
+        if (!unsupported.isEmpty()) {
+            return ResultStageMetricRatioBridgeResult.deferred(unsupported);
+        }
+
+        SemanticQueryRequest baseRequest = new SemanticQueryRequest();
+        baseRequest.setRoute("DSL");
+        baseRequest.setStatus("PLAN_READY");
+        baseRequest.setCalculatedFields(calculatedFields.isEmpty() ? null : calculatedFields);
+        baseRequest.setGroupBy(groupByItems(aggregate.get("groupBy")));
+        baseRequest.setSlice(sliceItems(derive.get("filters"), unsupported));
+        baseRequest.setColumns(outputColumns(null, aggregate.get("groupBy"), metrics, List.of(), Map.of(), unsupported));
+        baseRequest.setReturnTotal(false);
+
+        String model = sourceModel(fallbackModel, derive);
+        if (model == null || model.isBlank()) {
+            unsupported.add("derive input model must be declared for result-stage SLA metric ratio bridge");
+        }
+        List<String> groupBy = stringList(aggregate.get("groupBy"));
+        List<String> output = stringList(ctePlan.get("output"));
+        if (output.isEmpty()) {
+            output.addAll(groupBy);
+            output.addAll(metrics.aliases());
+            output.add(ratio.ratioAlias());
+        }
+        if (!allSafeAliases(output, groupBy, metrics.aliases(), List.of(ratio.ratioAlias()))) {
+            unsupported.add("result-stage SLA metric ratio output supports only governed field aliases");
+        }
+        List<String> availableOutput = new ArrayList<>();
+        availableOutput.addAll(groupBy);
+        availableOutput.addAll(metrics.aliases());
+        availableOutput.add(ratio.ratioAlias());
+        for (String field : output) {
+            if (!availableOutput.contains(field)) {
+                unsupported.add("result-stage SLA metric ratio output references unavailable field: " + field);
+            }
+        }
+        if (!unsupported.isEmpty()) {
+            return ResultStageMetricRatioBridgeResult.deferred(unsupported);
+        }
+
+        ResultStageMetricRatioPlan plan = new ResultStageMetricRatioPlan(
+                output, groupBy, metrics.aliases(), ratio.numeratorAlias(), ratio.denominatorAlias(),
+                ratio.ratioAlias(), filters);
+        return ResultStageMetricRatioBridgeResult.ready(model, baseRequest, plan);
+    }
+
     private static Map<String, Object> ctePlan(Object executablePlan, List<String> unsupported) {
         Map<String, Object> root = mapValue(executablePlan);
         if (root == null || root.isEmpty()) {
@@ -124,6 +364,138 @@ public final class DslCteDslRequestMapper {
         Map<String, Object> input = mapValue(aggregate.get("input"));
         String model = input == null ? null : stringValue(input.get("model"));
         return model == null || model.isBlank() ? fallbackModel : model;
+    }
+
+    private static BridgeResult rowLevelDerivedAggregateBridge(String fallbackModel, Map<String, Object> ctePlan,
+                                                               List<Map<String, Object>> stages) {
+        List<String> unsupported = new ArrayList<>();
+        if (stages.size() != 2) {
+            unsupported.add("row-level SLA bridge requires exactly derive(input) -> aggregate in this cut");
+            return BridgeResult.deferred(unsupported);
+        }
+
+        Map<String, Object> derive = stages.get(0);
+        Map<String, Object> aggregate = stages.get(1);
+        if (!"aggregate".equals(stringValue(aggregate.get("type")))) {
+            unsupported.add("row-level SLA bridge requires aggregate after pre-aggregate derive");
+            return BridgeResult.deferred(unsupported);
+        }
+        String deriveName = stringValue(derive.get("name"));
+        List<String> aggregateInputs = stringList(aggregate.get("inputs"));
+        if (deriveName == null || aggregateInputs.size() != 1 || !deriveName.equals(aggregateInputs.get(0))) {
+            unsupported.add("row-level SLA aggregate must reference the pre-aggregate derive stage");
+            return BridgeResult.deferred(unsupported);
+        }
+
+        List<CalculatedFieldDef> calculatedFields = rowLevelSlaCalculatedFields(derive.get("derived"), unsupported);
+        MetricMapping metrics = rowLevelAggregateMetrics(aggregate.get("metrics"), calculatedFields, unsupported);
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setRoute("DSL");
+        request.setStatus("PLAN_READY");
+        request.setCalculatedFields(calculatedFields.isEmpty() ? null : calculatedFields);
+        request.setGroupBy(groupByItems(aggregate.get("groupBy")));
+        request.setSlice(sliceItems(derive.get("filters"), unsupported));
+        request.setColumns(outputColumns(ctePlan.get("output"), aggregate.get("groupBy"), metrics,
+                List.of(), Map.of(), unsupported));
+        request.setReturnTotal(false);
+
+        String model = sourceModel(fallbackModel, derive);
+        if (model == null || model.isBlank()) {
+            unsupported.add("derive input model must be declared for row-level SLA bridge");
+        }
+        if (request.getColumns() == null || request.getColumns().isEmpty()) {
+            unsupported.add("row-level SLA bridge request must have output columns");
+        }
+        if (!unsupported.isEmpty()) {
+            return BridgeResult.deferred(unsupported);
+        }
+        return BridgeResult.ready(model, request);
+    }
+
+    private static List<CalculatedFieldDef> rowLevelSlaCalculatedFields(Object rawDerived, List<String> unsupported) {
+        List<CalculatedFieldDef> result = new ArrayList<>();
+        List<String> durationAliases = new ArrayList<>();
+        for (Map<String, Object> derived : mapList(rawDerived)) {
+            String name = stringValue(derived.get("name"));
+            String expr = stringValue(derived.get("expr"));
+            if (name == null || !SAFE_ALIAS_PATTERN.matcher(name).matches() || expr == null) {
+                unsupported.add("row-level SLA derived fields must declare governed name and expr: " + derived);
+                continue;
+            }
+
+            Matcher duration = HOURS_BETWEEN_PATTERN.matcher(expr);
+            if (duration.matches()) {
+                String start = duration.group(1);
+                String end = duration.group(2);
+                if (!"createdAt".equals(start) || !"firstResponseAt".equals(end)) {
+                    unsupported.add("row-level SLA bridge supports hours_between(createdAt, firstResponseAt) only");
+                    continue;
+                }
+                result.add(new CalculatedFieldDef(name, "首响小时数", "hours_between(createdAt, firstResponseAt)"));
+                durationAliases.add(name);
+                continue;
+            }
+
+            Matcher slaHit = SLA_HIT_PATTERN.matcher(expr);
+            if (slaHit.matches()) {
+                String nullableField = slaHit.group(1);
+                String durationAlias = slaHit.group(2);
+                String thresholdHours = slaHit.group(3);
+                if (!"firstResponseAt".equals(nullableField) || !durationAliases.contains(durationAlias)) {
+                    unsupported.add("row-level SLA hit predicate must use firstResponseAt and the signed duration alias");
+                    continue;
+                }
+                result.add(new CalculatedFieldDef(name, "SLA命中标记",
+                        "iif(is_not_null(firstResponseAt) && " + durationAlias + " <= "
+                                + thresholdHours + ", 1, 0)"));
+                continue;
+            }
+
+            unsupported.add("row-level SLA bridge supports only hours_between duration and SLA hit threshold predicate: "
+                    + name);
+        }
+        if (result.isEmpty()) {
+            unsupported.add("row-level SLA bridge requires signed calculatedFields");
+        }
+        return result;
+    }
+
+    private static MetricMapping rowLevelAggregateMetrics(Object raw, List<CalculatedFieldDef> calculatedFields,
+                                                          List<String> unsupported) {
+        List<String> calculatedNames = calculatedFields.stream()
+                .map(CalculatedFieldDef::getName)
+                .toList();
+        List<Map<String, Object>> metricMaps = mapList(raw);
+        Map<String, String> columnByAlias = new LinkedHashMap<>();
+        for (Map<String, Object> metric : metricMaps) {
+            String name = stringValue(metric.get("name"));
+            String expr = stringValue(metric.get("expr"));
+            if (name == null || expr == null || !SAFE_ALIAS_PATTERN.matcher(name).matches()) {
+                unsupported.add("row-level SLA aggregate metric must declare governed name and expr: " + metric);
+                continue;
+            }
+            String normalized = expr.toLowerCase(Locale.ROOT).replaceAll("\\s+", "");
+            if ("count(*)".equals(normalized)) {
+                if ("ticketCount".equals(name)) {
+                    columnByAlias.put(name, "count(ticketId) AS " + name);
+                } else {
+                    unsupported.add("row-level SLA count(*) metric must use the signed ticketCount alias");
+                }
+                continue;
+            }
+            Matcher sumAlias = SUM_ALIAS_PATTERN.matcher(expr);
+            if (sumAlias.matches() && calculatedNames.contains(sumAlias.group(1))) {
+                columnByAlias.put(name, expr + " AS " + name);
+                continue;
+            }
+            unsupported.add("row-level SLA bridge supports only count(*) or sum(signedCalculatedField) metrics: "
+                    + name);
+        }
+        if (columnByAlias.isEmpty()) {
+            unsupported.add("row-level SLA aggregate must declare object metrics");
+        }
+        return new MetricMapping(columnByAlias);
     }
 
     private static List<String> outputColumns(Object rawOutput, Object rawGroupBy, MetricMapping metrics,
@@ -168,6 +540,14 @@ public final class DslCteDslRequestMapper {
             unsupported.add("window_derive must declare window for DSL_CTE rolling bridge");
             return null;
         }
+        List<Map<String, Object>> derived = mapList(stage.get("derived"));
+        if (containsLagOrLead(derived)) {
+            return periodOverPeriodBridge(stage, aggregate, metricAliases, derived, window, unsupported);
+        }
+        if (containsRankOrCumulativeContribution(derived)) {
+            addCumulativeContributionDiagnostics(derived, unsupported);
+            return null;
+        }
         if (!stringList(window.get("partitionBy")).isEmpty()) {
             unsupported.add("DSL_CTE rolling bridge does not support partitionBy in this cut");
             return null;
@@ -201,7 +581,6 @@ public final class DslCteDslRequestMapper {
             return null;
         }
 
-        List<Map<String, Object>> derived = mapList(stage.get("derived"));
         if (derived.size() != 1) {
             unsupported.add("DSL_CTE rolling bridge requires exactly one derived rolling metric");
             return null;
@@ -235,6 +614,170 @@ public final class DslCteDslRequestMapper {
 
         Map<String, String> aliasOverride = Map.of(derivedName, measure + "__" + comparison);
         return new WindowBridge(timeWindow, aliasOverride);
+    }
+
+    private static WindowBridge periodOverPeriodBridge(Map<String, Object> stage, Map<String, Object> aggregate,
+                                                       List<String> metricAliases,
+                                                       List<Map<String, Object>> derived,
+                                                       Map<String, Object> window,
+                                                       List<String> unsupported) {
+        List<String> inputs = stringList(stage.get("inputs"));
+        String aggregateName = stringValue(aggregate.get("name"));
+        if (inputs.size() != 1 || aggregateName == null || !aggregateName.equals(inputs.get(0))) {
+            unsupported.add("window_derive must reference the first aggregate stage for DSL_CTE period-over-period bridge");
+            return null;
+        }
+        if (derived.size() != 2) {
+            unsupported.add("DSL_CTE period-over-period bridge requires lag metric and growth ratio derived fields");
+            return null;
+        }
+
+        List<String> partitionBy = stringList(window.get("partitionBy"));
+        if (partitionBy.isEmpty()) {
+            unsupported.add("DSL_CTE period-over-period bridge requires partitionBy fields");
+            return null;
+        }
+        List<String> groupBy = stringList(aggregate.get("groupBy"));
+        if (!groupBy.containsAll(partitionBy)) {
+            unsupported.add("DSL_CTE period-over-period partitionBy fields must be part of aggregate groupBy");
+            return null;
+        }
+        List<Map<String, Object>> orderBy = mapList(window.get("orderBy"));
+        if (orderBy.size() != 1) {
+            unsupported.add("DSL_CTE period-over-period bridge requires exactly one window orderBy field");
+            return null;
+        }
+        String orderField = stringValue(orderBy.get(0).get("field"));
+        String orderDir = stringValue(orderBy.get(0).get("dir"));
+        if (orderField == null || (orderDir != null && !"ASC".equalsIgnoreCase(orderDir))) {
+            unsupported.add("DSL_CTE period-over-period bridge requires ASC orderBy field");
+            return null;
+        }
+        if (!groupBy.contains(orderField)) {
+            unsupported.add("DSL_CTE period-over-period orderBy field must be part of aggregate groupBy");
+            return null;
+        }
+        if (mapValue(window.get("frame")) != null) {
+            unsupported.add("DSL_CTE period-over-period bridge does not support explicit frames");
+            return null;
+        }
+
+        Map<String, Object> lagDerived = derived.get(0);
+        String priorAlias = stringValue(lagDerived.get("name"));
+        String lagExpr = stringValue(lagDerived.get("expr"));
+        Matcher lagMatcher = LAG_PATTERN.matcher(lagExpr == null ? "" : lagExpr);
+        if (priorAlias == null || !lagMatcher.matches()) {
+            unsupported.add("DSL_CTE period-over-period bridge requires first derived field to be lag(metric)");
+            return null;
+        }
+        String measure = lagMatcher.group(1);
+        if (!metricAliases.contains(measure)) {
+            unsupported.add("DSL_CTE period-over-period lag metric must reference an aggregate metric");
+            return null;
+        }
+
+        Map<String, Object> ratioDerived = derived.get(1);
+        String ratioAlias = stringValue(ratioDerived.get("name"));
+        String ratioExpr = stringValue(ratioDerived.get("expr"));
+        if (ratioAlias == null || !matchesPeriodGrowthExpr(ratioExpr, measure, priorAlias)) {
+            unsupported.add("DSL_CTE period-over-period bridge requires growth formula (metric - lagAlias) / lagAlias");
+            return null;
+        }
+
+        String grain = grain(orderField);
+        if (!"month".equals(grain)) {
+            unsupported.add("DSL_CTE period-over-period bridge supports only month-grain MoM in this cut");
+            return null;
+        }
+        Map<String, Object> timeWindow = new LinkedHashMap<>();
+        timeWindow.put("field", orderField);
+        timeWindow.put("grain", grain);
+        timeWindow.put("comparison", "mom");
+        timeWindow.put("targetMetrics", List.of(measure));
+
+        Map<String, String> aliasOverride = new LinkedHashMap<>();
+        aliasOverride.put(priorAlias, measure + "__prior");
+        aliasOverride.put(ratioAlias, measure + "__ratio");
+        return new WindowBridge(timeWindow, aliasOverride);
+    }
+
+    private static boolean matchesPeriodGrowthExpr(String expr, String measure, String priorAlias) {
+        if (expr == null || measure == null || priorAlias == null) {
+            return false;
+        }
+        String normalized = expr.toLowerCase(Locale.ROOT).replaceAll("\\s+", "");
+        String current = measure.toLowerCase(Locale.ROOT);
+        String prior = priorAlias.toLowerCase(Locale.ROOT);
+        String canonical = "(" + current + "-" + prior + ")/" + prior;
+        String canonicalWithEnginePrior = "(" + current + "-" + current + "__prior)/" + current + "__prior";
+        return canonical.equals(normalized) || canonicalWithEnginePrior.equals(normalized);
+    }
+
+    private static void addPreAggregateDeriveDiagnostics(List<Map<String, Object>> stages,
+                                                         Map<String, Object> firstStage,
+                                                         List<String> unsupported) {
+        addUnsupported(unsupported,
+                "pre-aggregate derive requires a signed row-level calculatedFields bridge; current cut keeps it deferred: "
+                        + stringValue(firstStage.get("name")));
+        for (Map<String, Object> derived : mapList(firstStage.get("derived"))) {
+            String expr = stringValue(derived.get("expr"));
+            if (expr == null) {
+                continue;
+            }
+            String normalized = expr.toLowerCase(Locale.ROOT);
+            if (normalized.contains("hours_between(")) {
+                addUnsupported(unsupported,
+                        "pre-aggregate SLA duration function hours_between(...) is not signed; needs a governed DATE_DIFF-style mapping");
+            }
+            if (normalized.contains(" is null")
+                    || normalized.contains(" is not null")
+                    || normalized.contains(" and ")
+                    || normalized.contains(" or ")) {
+                addUnsupported(unsupported,
+                        "pre-aggregate boolean/null-handling predicate is not signed as a row-level derived field");
+            }
+        }
+        for (int i = 1; i < stages.size(); i++) {
+            Map<String, Object> stage = stages.get(i);
+            String type = stringValue(stage.get("type"));
+            if ("aggregate".equals(type)) {
+                for (Map<String, Object> metric : mapList(stage.get("metrics"))) {
+                    String expr = stringValue(metric.get("expr"));
+                    if (expr != null && expr.toLowerCase(Locale.ROOT).contains("case when")) {
+                        addUnsupported(unsupported,
+                                "conditional numerator aggregation with CASE WHEN over row-level derived fields is not signed");
+                    }
+                }
+            } else if ("derive".equals(type)) {
+                for (Map<String, Object> derived : mapList(stage.get("derived"))) {
+                    String expr = stringValue(derived.get("expr"));
+                    if (isMetricToMetricRatio(expr)) {
+                        addUnsupported(unsupported,
+                                "metric-to-metric post-aggregate ratio is not executable through DSL_CTE bridge v1: "
+                                        + stringValue(derived.get("name")));
+                    }
+                }
+            } else if ("postSlice".equals(type)) {
+                addUnsupported(unsupported,
+                        "postSlice after a pre-aggregate business metric remains deferred until the derived metric bridge is signed");
+            }
+        }
+    }
+
+    private static boolean isMetricToMetricRatio(String expr) {
+        if (expr == null) {
+            return false;
+        }
+        String normalized = expr.toLowerCase(Locale.ROOT).replaceAll("\\s+", "");
+        return normalized.matches("[a-z_][a-z0-9_$]*(?:\\.[a-z_][a-z0-9_$]*)?/[a-z_][a-z0-9_$]*(?:\\.[a-z_][a-z0-9_$]*)?")
+                && !normalized.contains("sum(")
+                && !normalized.contains("over(");
+    }
+
+    private static void addUnsupported(List<String> unsupported, String message) {
+        if (!unsupported.contains(message)) {
+            unsupported.add(message);
+        }
     }
 
     private static MetricMapping metrics(Object raw, List<String> unsupported) {
@@ -284,6 +827,195 @@ public final class DslCteDslRequestMapper {
             }
         }
         return null;
+    }
+
+    private static CumulativeDerived cumulativeDerived(Object rawDerived, String metricAlias,
+                                                       List<String> unsupported) {
+        String rankAlias = null;
+        String cumulativeAlias = null;
+        for (Map<String, Object> item : mapList(rawDerived)) {
+            String name = stringValue(item.get("name"));
+            String expr = stringValue(item.get("expr"));
+            if (name == null || !SAFE_ALIAS_PATTERN.matcher(name).matches()) {
+                unsupported.add("result-stage cumulative contribution derived fields must declare governed aliases");
+                continue;
+            }
+            String normalized = expr == null ? "" : expr.toLowerCase(Locale.ROOT).replaceAll("\\s+", "");
+            if ("rank()".equals(normalized)) {
+                rankAlias = name;
+                continue;
+            }
+            Matcher matcher = CUMULATIVE_SHARE_PATTERN.matcher(expr == null ? "" : expr);
+            if (matcher.matches() && metricAlias.equals(matcher.group(1))) {
+                cumulativeAlias = name;
+                continue;
+            }
+            unsupported.add("result-stage cumulative contribution bridge supports only rank() and cumulative share formulas");
+        }
+        if (rankAlias == null || cumulativeAlias == null) {
+            unsupported.add("result-stage cumulative contribution bridge requires rank() and cumulative share derived fields");
+            return null;
+        }
+        return new CumulativeDerived(rankAlias, cumulativeAlias);
+    }
+
+    private static MetricRatioDerived slaMetricRatioDerived(Object rawDerived, List<String> metricAliases,
+                                                            List<String> unsupported) {
+        List<Map<String, Object>> derived = mapList(rawDerived);
+        if (derived.size() != 1) {
+            unsupported.add("result-stage SLA metric ratio bridge requires exactly one ratio derived field");
+            return null;
+        }
+        Map<String, Object> item = derived.get(0);
+        String name = stringValue(item.get("name"));
+        String expr = stringValue(item.get("expr"));
+        if (name == null || !SAFE_ALIAS_PATTERN.matcher(name).matches()) {
+            unsupported.add("result-stage SLA metric ratio derived field must declare a governed alias");
+            return null;
+        }
+        Matcher matcher = METRIC_RATIO_PATTERN.matcher(expr == null ? "" : expr);
+        if (!matcher.matches()) {
+            unsupported.add("result-stage SLA metric ratio bridge supports only numerator / denominator formulas");
+            return null;
+        }
+        String numerator = matcher.group(1);
+        String denominator = matcher.group(2);
+        if (!"slaHitCount".equals(numerator) || !"ticketCount".equals(denominator)) {
+            unsupported.add("result-stage SLA metric ratio bridge supports only slaHitCount / ticketCount");
+            return null;
+        }
+        if (!metricAliases.contains(numerator) || !metricAliases.contains(denominator)) {
+            unsupported.add("result-stage SLA metric ratio must reference signed aggregate metric aliases");
+            return null;
+        }
+        return new MetricRatioDerived(name, numerator, denominator);
+    }
+
+    private static List<ResultStageFilter> resultStageFilters(Object rawFilters, String cumulativeAlias,
+                                                              List<String> unsupported) {
+        return resultStageAliasFilters(rawFilters, cumulativeAlias,
+                "result-stage cumulative contribution bridge",
+                "postSlice only on cumulative share alias",
+                "supports only < or <= cumulative share filters",
+                List.of("<", "<="), unsupported);
+    }
+
+    private static List<ResultStageFilter> resultStageAliasFilters(Object rawFilters, String signedAlias,
+                                                                  String bridgeName,
+                                                                  List<String> unsupported) {
+        return resultStageAliasFilters(rawFilters, signedAlias, bridgeName,
+                "postSlice only on signed derived alias",
+                "supports only simple comparison postSlice filters",
+                List.of("=", "!=", "<>", "<", "<=", ">", ">="), unsupported);
+    }
+
+    private static List<ResultStageFilter> resultStageAliasFilters(Object rawFilters, String signedAlias,
+                                                                  String bridgeName,
+                                                                  String aliasMessage,
+                                                                  String operatorMessage,
+                                                                  List<String> allowedOps,
+                                                                  List<String> unsupported) {
+        List<ResultStageFilter> result = new ArrayList<>();
+        for (Map<String, Object> filter : mapList(rawFilters)) {
+            String field = stringValue(filter.get("field"));
+            String op = stringValue(filter.get("op"));
+            if (!signedAlias.equals(field)) {
+                unsupported.add(bridgeName + " " + aliasMessage);
+                continue;
+            }
+            if (filter.containsKey("valueField")) {
+                unsupported.add(bridgeName + " does not support valueField postSlice");
+                continue;
+            }
+            String sqlOp = sqlOperator(op);
+            if (sqlOp == null || !allowedOps.contains(sqlOp)) {
+                unsupported.add(bridgeName + " " + operatorMessage);
+                continue;
+            }
+            Object value = filter.get("value");
+            if (!(value instanceof Number)) {
+                unsupported.add(bridgeName + " postSlice value must be numeric");
+                continue;
+            }
+            result.add(new ResultStageFilter(field, sqlOp, value));
+        }
+        return result;
+    }
+
+    @SafeVarargs
+    private static boolean allSafeAliases(List<String>... aliases) {
+        for (List<String> aliasList : aliases) {
+            for (String alias : aliasList) {
+                if (alias == null || !SAFE_ALIAS_PATTERN.matcher(alias).matches()) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    private static String sqlOperator(String op) {
+        if (op == null) {
+            return null;
+        }
+        return switch (op.trim()) {
+            case "=", "!=", "<>", "<", "<=", ">", ">=" -> op.trim();
+            default -> null;
+        };
+    }
+
+    private static String quoteAlias(String alias) {
+        if (alias == null || !SAFE_ALIAS_PATTERN.matcher(alias).matches()) {
+            throw RX.throwB("DSL_CTE_RESULT_STAGE_UNSAFE_ALIAS: " + alias);
+        }
+        return "\"" + alias.replace("\"", "\"\"") + "\"";
+    }
+
+    private static boolean containsLagOrLead(List<Map<String, Object>> derived) {
+        for (Map<String, Object> item : derived) {
+            String expr = stringValue(item.get("expr"));
+            if (expr == null) {
+                continue;
+            }
+            String normalized = expr.toLowerCase(Locale.ROOT);
+            if (normalized.matches(".*\\b(lag|lead)\\s*\\(.*")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean containsRankOrCumulativeContribution(List<Map<String, Object>> derived) {
+        for (Map<String, Object> item : derived) {
+            String expr = stringValue(item.get("expr"));
+            if (expr == null) {
+                continue;
+            }
+            String normalized = expr.toLowerCase(Locale.ROOT).replaceAll("\\s+", "");
+            if ("rank()".equals(normalized) || normalized.contains("overorder")
+                    || normalized.contains("overall")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static void addCumulativeContributionDiagnostics(List<Map<String, Object>> derived,
+                                                            List<String> unsupported) {
+        for (Map<String, Object> item : derived) {
+            String name = stringValue(item.get("name"));
+            String expr = stringValue(item.get("expr"));
+            String normalized = expr == null ? "" : expr.toLowerCase(Locale.ROOT).replaceAll("\\s+", "");
+            if ("rank()".equals(normalized)) {
+                addUnsupported(unsupported,
+                        "rank() over aggregate metric order is not signed through DSL_CTE bridge v1: " + name);
+            } else if (normalized.contains("overorder") || normalized.contains("overall")) {
+                addUnsupported(unsupported,
+                        "cumulative contribution window ratio is not signed through DSL_CTE bridge v1: " + name);
+            }
+        }
+        addUnsupported(unsupported,
+                "cumulative contribution requires result-stage ranking, running-total ratio, deterministic ordering, and postSlice semantics before execution can be signed");
     }
 
     private static List<SemanticQueryRequest.GroupByItem> groupByItems(Object raw) {
@@ -396,6 +1128,235 @@ public final class DslCteDslRequestMapper {
     }
 
     private record WindowBridge(Map<String, Object> timeWindow, Map<String, String> outputAliasOverride) {
+    }
+
+    private record CumulativeDerived(String rankAlias, String cumulativeAlias) {
+    }
+
+    private record MetricRatioDerived(String ratioAlias, String numeratorAlias, String denominatorAlias) {
+    }
+
+    public record ResultStageFilter(String field, String op, Object value) {
+    }
+
+    public record ResultStageWindowPlan(List<String> output, List<String> groupBy, String metricAlias,
+                                        String rankAlias, String cumulativeAlias,
+                                        List<ResultStageFilter> filters) {
+
+        Map<String, Object> summary() {
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("kind", "cumulative_contribution");
+            result.put("bridge_scope", "result_stage_window");
+            result.put("bridge_signed", true);
+            result.put("metric", metricAlias);
+            result.put("rank_alias", rankAlias);
+            result.put("cumulative_alias", cumulativeAlias);
+            result.put("deterministic_tie_breakers", groupBy);
+            result.put("postSlice_filters", filters.size());
+            return result;
+        }
+
+        SqlGenerationResult wrap(SqlGenerationResult base) {
+            if (base == null || base.getSql() == null || base.getSql().isBlank()) {
+                throw RX.throwB("DSL_CTE_RESULT_STAGE_BASE_SQL_MISSING");
+            }
+            String baseSql = base.getSql().trim();
+            if (!base.hasCteStages() && baseSql.regionMatches(true, 0, "WITH ", 0, 5)) {
+                throw RX.throwB("DSL_CTE_RESULT_STAGE_BASE_WITH_UNSUPPORTED: base SQL must expose structured CTE stages");
+            }
+
+            List<Object> params = new ArrayList<>();
+            StringBuilder sql = new StringBuilder("WITH ");
+            if (base.hasCteStages()) {
+                for (int i = 0; i < base.getCteStages().size(); i++) {
+                    if (i > 0) {
+                        sql.append(",\n");
+                    }
+                    SqlGenerationResult.CteStage stage = base.getCteStages().get(i);
+                    sql.append(stage.alias()).append(" AS (\n").append(stage.sql()).append("\n)");
+                    params.addAll(stage.params());
+                }
+                sql.append(",\n");
+            }
+            params.addAll(base.getParams());
+
+            String baseAlias = "dsl_cte_base";
+            String windowAlias = "dsl_cte_window";
+            sql.append(baseAlias).append(" AS (\n").append(baseSql).append("\n),\n");
+            sql.append(windowAlias).append(" AS (\n");
+            sql.append("SELECT ");
+            List<String> selectItems = new ArrayList<>();
+            for (String field : groupBy) {
+                selectItems.add(quoteAlias(field));
+            }
+            selectItems.add(quoteAlias(metricAlias));
+            selectItems.add("RANK() OVER (ORDER BY " + quoteAlias(metricAlias) + " DESC) AS " + quoteAlias(rankAlias));
+            selectItems.add("(1.0 * SUM(" + quoteAlias(metricAlias) + ") OVER (ORDER BY "
+                    + deterministicOrderBy()
+                    + " ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) / NULLIF(SUM("
+                    + quoteAlias(metricAlias) + ") OVER (), 0)) AS " + quoteAlias(cumulativeAlias));
+            sql.append(String.join(", ", selectItems));
+            sql.append("\nFROM ").append(baseAlias).append("\n)\n");
+
+            sql.append("SELECT ");
+            sql.append(String.join(", ", output.stream().map(DslCteDslRequestMapper::quoteAlias).toList()));
+            sql.append("\nFROM ").append(windowAlias);
+            if (!filters.isEmpty()) {
+                sql.append("\nWHERE ");
+                List<String> whereParts = new ArrayList<>();
+                for (ResultStageFilter filter : filters) {
+                    whereParts.add(quoteAlias(filter.field()) + " " + filter.op() + " ?");
+                    params.add(filter.value());
+                }
+                sql.append(String.join(" AND ", whereParts));
+            }
+            sql.append("\nORDER BY ").append(deterministicOrderBy());
+            return new SqlGenerationResult(sql.toString(), params, null);
+        }
+
+        private String deterministicOrderBy() {
+            List<String> order = new ArrayList<>();
+            order.add(quoteAlias(metricAlias) + " DESC");
+            for (String field : groupBy) {
+                order.add(quoteAlias(field) + " ASC");
+            }
+            return String.join(", ", order);
+        }
+    }
+
+    public record ResultStageMetricRatioPlan(List<String> output, List<String> groupBy, List<String> metricAliases,
+                                             String numeratorAlias, String denominatorAlias, String ratioAlias,
+                                             List<ResultStageFilter> filters) {
+
+        Map<String, Object> summary() {
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("kind", "sla_metric_ratio");
+            result.put("bridge_scope", "result_stage_metric_ratio");
+            result.put("bridge_signed", true);
+            result.put("numerator", numeratorAlias);
+            result.put("denominator", denominatorAlias);
+            result.put("ratio_alias", ratioAlias);
+            result.put("postSlice_filters", filters.size());
+            return result;
+        }
+
+        SqlGenerationResult wrap(SqlGenerationResult base) {
+            if (base == null || base.getSql() == null || base.getSql().isBlank()) {
+                throw RX.throwB("DSL_CTE_RESULT_STAGE_BASE_SQL_MISSING");
+            }
+            String baseSql = base.getSql().trim();
+            if (!base.hasCteStages() && baseSql.regionMatches(true, 0, "WITH ", 0, 5)) {
+                throw RX.throwB("DSL_CTE_RESULT_STAGE_BASE_WITH_UNSUPPORTED: base SQL must expose structured CTE stages");
+            }
+
+            List<Object> params = new ArrayList<>();
+            StringBuilder sql = new StringBuilder("WITH ");
+            if (base.hasCteStages()) {
+                for (int i = 0; i < base.getCteStages().size(); i++) {
+                    if (i > 0) {
+                        sql.append(",\n");
+                    }
+                    SqlGenerationResult.CteStage stage = base.getCteStages().get(i);
+                    sql.append(stage.alias()).append(" AS (\n").append(stage.sql()).append("\n)");
+                    params.addAll(stage.params());
+                }
+                sql.append(",\n");
+            }
+            params.addAll(base.getParams());
+
+            String baseAlias = "dsl_cte_base";
+            String ratioAliasName = "dsl_cte_metric_ratio";
+            sql.append(baseAlias).append(" AS (\n").append(baseSql).append("\n),\n");
+            sql.append(ratioAliasName).append(" AS (\n");
+            sql.append("SELECT ");
+            List<String> selectItems = new ArrayList<>();
+            for (String field : groupBy) {
+                selectItems.add(quoteAlias(field));
+            }
+            for (String metric : metricAliases) {
+                selectItems.add(quoteAlias(metric));
+            }
+            selectItems.add("(1.0 * " + quoteAlias(numeratorAlias) + " / NULLIF("
+                    + quoteAlias(denominatorAlias) + ", 0)) AS " + quoteAlias(ratioAlias));
+            sql.append(String.join(", ", selectItems));
+            sql.append("\nFROM ").append(baseAlias).append("\n)\n");
+
+            sql.append("SELECT ");
+            sql.append(String.join(", ", output.stream().map(DslCteDslRequestMapper::quoteAlias).toList()));
+            sql.append("\nFROM ").append(ratioAliasName);
+            if (!filters.isEmpty()) {
+                sql.append("\nWHERE ");
+                List<String> whereParts = new ArrayList<>();
+                for (ResultStageFilter filter : filters) {
+                    whereParts.add(quoteAlias(filter.field()) + " " + filter.op() + " ?");
+                    params.add(filter.value());
+                }
+                sql.append(String.join(" AND ", whereParts));
+            }
+            if (!groupBy.isEmpty()) {
+                sql.append("\nORDER BY ");
+                sql.append(groupBy.stream()
+                        .map(field -> quoteAlias(field) + " ASC")
+                        .collect(java.util.stream.Collectors.joining(", ")));
+            }
+            return new SqlGenerationResult(sql.toString(), params, null);
+        }
+    }
+
+    public record ResultStageWindowBridgeResult(String status, String model, SemanticQueryRequest baseRequest,
+                                                ResultStageWindowPlan plan, List<String> unsupported) {
+        static ResultStageWindowBridgeResult ready(String model, SemanticQueryRequest baseRequest,
+                                                   ResultStageWindowPlan plan) {
+            return new ResultStageWindowBridgeResult(STATUS_READY, model, baseRequest, plan, List.of());
+        }
+
+        static ResultStageWindowBridgeResult deferred(List<String> unsupported) {
+            return new ResultStageWindowBridgeResult(STATUS_DEFERRED, null, null, null, List.copyOf(unsupported));
+        }
+
+        public boolean ready() {
+            return STATUS_READY.equals(status);
+        }
+
+        public Map<String, Object> summary() {
+            return plan == null ? Map.of() : plan.summary();
+        }
+
+        public SqlGenerationResult wrap(SqlGenerationResult base) {
+            if (!ready()) {
+                throw RX.throwB("DSL_CTE_RESULT_STAGE_WINDOW_NOT_SUPPORTED: " + unsupported);
+            }
+            return plan.wrap(base);
+        }
+    }
+
+    public record ResultStageMetricRatioBridgeResult(String status, String model, SemanticQueryRequest baseRequest,
+                                                     ResultStageMetricRatioPlan plan,
+                                                     List<String> unsupported) {
+        static ResultStageMetricRatioBridgeResult ready(String model, SemanticQueryRequest baseRequest,
+                                                        ResultStageMetricRatioPlan plan) {
+            return new ResultStageMetricRatioBridgeResult(STATUS_READY, model, baseRequest, plan, List.of());
+        }
+
+        static ResultStageMetricRatioBridgeResult deferred(List<String> unsupported) {
+            return new ResultStageMetricRatioBridgeResult(STATUS_DEFERRED, null, null, null,
+                    List.copyOf(unsupported));
+        }
+
+        public boolean ready() {
+            return STATUS_READY.equals(status);
+        }
+
+        public Map<String, Object> summary() {
+            return plan == null ? Map.of() : plan.summary();
+        }
+
+        public SqlGenerationResult wrap(SqlGenerationResult base) {
+            if (!ready()) {
+                throw RX.throwB("DSL_CTE_RESULT_STAGE_METRIC_RATIO_NOT_SUPPORTED: " + unsupported);
+            }
+            return plan.wrap(base);
+        }
     }
 
     public record BridgeResult(String status, String model, SemanticQueryRequest request, List<String> unsupported) {
