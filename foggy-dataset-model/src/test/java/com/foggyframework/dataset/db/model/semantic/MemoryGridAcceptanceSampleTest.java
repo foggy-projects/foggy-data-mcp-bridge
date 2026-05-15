@@ -4,12 +4,19 @@ import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.db.model.semantic.service.impl.SemanticQueryServiceV3Impl;
+import com.foggyframework.dataset.db.model.semantic.support.InMemoryResultHandleStore;
+import com.foggyframework.dataset.db.model.semantic.support.InMemoryResultStorageAdapter;
+import com.foggyframework.dataset.db.model.semantic.support.MemoryGridExecutor;
 import com.foggyframework.dataset.db.model.semantic.support.MemoryGridRegistryResultResolver;
 import com.foggyframework.dataset.db.model.semantic.support.MemoryGridResultResolver;
+import com.foggyframework.dataset.db.model.semantic.support.MemoryGridStoreBackedResultResolver;
+import com.foggyframework.dataset.db.model.semantic.support.ResultHandleWriter;
+import com.foggyframework.dataset.db.model.semantic.support.ResultStorageAdapter;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -72,6 +79,129 @@ class MemoryGridAcceptanceSampleTest {
         List<Map<String, Object>> audit = audit(response);
         assertEquals("hash_dsl_cte_result_actual_by_team_2026_05", audit.get(0).get("query_hash"));
         assertEquals("memory://result/dsl_cte_result_actual_by_team_2026_05", audit.get(0).get("storage_ref"));
+    }
+
+    @Test
+    @DisplayName("third-009 Memory Grid executes with store-backed production handles")
+    void third009ExecutesWithStoreBackedProductionHandles() {
+        InMemoryResultHandleStore store = new InMemoryResultHandleStore();
+        InMemoryResultStorageAdapter storage = new InMemoryResultStorageAdapter();
+        ResultHandleWriter writer = new ResultHandleWriter(store, storage);
+        SemanticRequestContext context = SemanticRequestContext.ofNamespace("tenant-a");
+
+        String actualHandle = writer.write(writeRequest(
+                "DSL_CTE",
+                "SaleOrder",
+                "salesTeam.name",
+                "actualSalesAmount",
+                List.of(
+                        row("salesTeam.name", "Team A", "actualSalesAmount", 120),
+                        row("salesTeam.name", "Team B", "actualSalesAmount", 80)
+                )), context);
+        String targetHandle = writer.write(writeRequest(
+                "DSL",
+                "SalesTarget",
+                "salesTeam.name",
+                "targetSalesAmount",
+                List.of(
+                        row("salesTeam.name", "Team A", "targetSalesAmount", 100),
+                        row("salesTeam.name", "Team C", "targetSalesAmount", 50)
+                )), context);
+
+        assertTrue(actualHandle.startsWith("mgr_"));
+        assertTrue(targetHandle.startsWith("mgr_"));
+
+        ReflectionTestUtils.setField(service, "memoryGridResultResolver",
+                new MemoryGridStoreBackedResultResolver(store, storage));
+        SemanticQueryRequest request = memoryGridPlan(third009Plan(actualHandle, targetHandle));
+        request.setHints(Map.of("memoryGridExecute", true));
+
+        SemanticQueryResponse response = service.queryModel("SaleOrder", request, "execute", context);
+
+        assertEquals("EXECUTED", response.getExecution().getStatus());
+        assertEquals(1, response.getItems().size());
+        assertEquals("Team A", response.getItems().get(0).get("salesTeam.name"));
+        assertEquals(1.2, (Double) response.getItems().get(0).get("targetAchievementRate"), 0.0001);
+        List<Map<String, Object>> audit = audit(response);
+        assertEquals(actualHandle, audit.get(0).get("result_handle"));
+        assertTrue(String.valueOf(audit.get(0).get("storage_ref")).startsWith("memory-grid://result/mgr_"));
+        assertEquals(1, audit.get(0).get("read_count"));
+        assertEquals(4, audit.get(0).get("cell_count"));
+    }
+
+    @Test
+    @DisplayName("Memory Grid store-backed resolver fails closed when handle is invalidated")
+    void storeBackedResolverRejectsInvalidatedHandle() {
+        InMemoryResultHandleStore store = new InMemoryResultHandleStore();
+        InMemoryResultStorageAdapter storage = new InMemoryResultStorageAdapter();
+        ResultHandleWriter writer = new ResultHandleWriter(store, storage);
+        String actualHandle = writer.write(writeRequest(
+                "DSL_CTE",
+                "SaleOrder",
+                "salesTeam.name",
+                "actualSalesAmount",
+                List.of(row("salesTeam.name", "Team A", "actualSalesAmount", 120))
+        ), SemanticRequestContext.empty());
+        String targetHandle = writer.write(writeRequest(
+                "DSL",
+                "SalesTarget",
+                "salesTeam.name",
+                "targetSalesAmount",
+                List.of(row("salesTeam.name", "Team A", "targetSalesAmount", 100))
+        ), SemanticRequestContext.empty());
+        store.invalidate(actualHandle);
+
+        ReflectionTestUtils.setField(service, "memoryGridResultResolver",
+                new MemoryGridStoreBackedResultResolver(store, storage));
+        SemanticQueryRequest request = memoryGridPlan(third009Plan(actualHandle, targetHandle));
+        request.setHints(Map.of("memoryGridExecute", true));
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+                service.queryModel("SaleOrder", request, "execute", SemanticRequestContext.empty()));
+
+        assertTrue(ex.getMessage().contains("MEMORY_GRID_RESULT_HANDLE_EXPIRED"));
+    }
+
+    @Test
+    @DisplayName("Memory Grid store-backed resolver fails closed when storage rows are unavailable")
+    void storeBackedResolverRejectsUnavailableStorage() {
+        InMemoryResultHandleStore store = new InMemoryResultHandleStore();
+        InMemoryResultStorageAdapter storage = new InMemoryResultStorageAdapter();
+        ResultHandleWriter writer = new ResultHandleWriter(store, storage);
+        String actualHandle = writer.write(writeRequest(
+                "DSL_CTE",
+                "SaleOrder",
+                "salesTeam.name",
+                "actualSalesAmount",
+                List.of(row("salesTeam.name", "Team A", "actualSalesAmount", 120))
+        ), SemanticRequestContext.empty());
+        String targetHandle = writer.write(writeRequest(
+                "DSL",
+                "SalesTarget",
+                "salesTeam.name",
+                "targetSalesAmount",
+                List.of(row("salesTeam.name", "Team A", "targetSalesAmount", 100))
+        ), SemanticRequestContext.empty());
+        ResultStorageAdapter unavailableStorage = new ResultStorageAdapter() {
+            @Override
+            public void write(String storageRef, List<Map<String, Object>> rows) {
+            }
+
+            @Override
+            public List<Map<String, Object>> read(String storageRef) {
+                throw new RuntimeException(MemoryGridExecutor.STORAGE_UNAVAILABLE + ": " + storageRef);
+            }
+        };
+
+        ReflectionTestUtils.setField(service, "memoryGridResultResolver",
+                new MemoryGridStoreBackedResultResolver(store, unavailableStorage));
+        SemanticQueryRequest request = memoryGridPlan(third009Plan(actualHandle, targetHandle));
+        request.setHints(Map.of("memoryGridExecute", true));
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+                service.queryModel("SaleOrder", request, "execute", SemanticRequestContext.empty()));
+
+        assertTrue(ex.getMessage().contains("MEMORY_GRID_RESULT_STORAGE_UNAVAILABLE"));
     }
 
     @Test
@@ -241,13 +371,27 @@ class MemoryGridAcceptanceSampleTest {
         return third009Plan(200, 200, 200);
     }
 
+    private Map<String, Object> third009Plan(String actualHandle, String targetHandle) {
+        return third009Plan(200, 200, 200, actualHandle, targetHandle);
+    }
+
     private Map<String, Object> third009Plan(int actualRowLimit, int targetRowLimit, int outputLimit) {
+        return third009Plan(actualRowLimit, targetRowLimit, outputLimit,
+                "dsl_cte_result_actual_by_team_2026_05",
+                "dsl_result_target_by_team_2026_05_approved");
+    }
+
+    private Map<String, Object> third009Plan(int actualRowLimit,
+                                             int targetRowLimit,
+                                             int outputLimit,
+                                             String actualHandle,
+                                             String targetHandle) {
         return Map.of(
                 "inputs", List.of(
                         Map.of(
                                 "name", "actual_by_team",
                                 "source_route", "DSL_CTE",
-                                "result_handle", "dsl_cte_result_actual_by_team_2026_05",
+                                "result_handle", actualHandle,
                                 "model", "SaleOrder",
                                 "grain", List.of("salesTeam.name"),
                                 "filters", List.of(Map.of("field", "orderDate", "op", "month", "value", "2026-05")),
@@ -258,7 +402,7 @@ class MemoryGridAcceptanceSampleTest {
                         Map.of(
                                 "name", "target_by_team",
                                 "source_route", "DSL",
-                                "result_handle", "dsl_result_target_by_team_2026_05_approved",
+                                "result_handle", targetHandle,
                                 "model", "SalesTarget",
                                 "grain", List.of("salesTeam.name"),
                                 "filters", List.of(
@@ -273,6 +417,26 @@ class MemoryGridAcceptanceSampleTest {
                 "join", Map.of("keys", List.of("salesTeam.name"), "type", "inner"),
                 "derived", List.of(Map.of("name", "targetAchievementRate", "expr", "actualSalesAmount / targetSalesAmount")),
                 "output_limit", outputLimit
+        );
+    }
+
+    private ResultHandleWriter.WriteRequest writeRequest(String sourceRoute,
+                                                         String model,
+                                                         String joinKey,
+                                                         String metric,
+                                                         List<Map<String, Object>> rows) {
+        return new ResultHandleWriter.WriteRequest(
+                sourceRoute,
+                List.of(model),
+                "hash_" + sourceRoute + "_" + model + "_" + metric,
+                List.of(joinKey),
+                schema(joinKey, metric),
+                rows,
+                Map.of("model", model),
+                200,
+                10_000,
+                Duration.ofHours(1),
+                5
         );
     }
 

@@ -33,6 +33,14 @@ public interface MemoryGridResultResolver {
                               Map<String, Object> lineage) {
             this(resultHandle, sourceRoute, namespace, grain, schema, rows, lineage, null);
         }
+
+        public ResolvedResult withRows(List<Map<String, Object>> rows) {
+            return new ResolvedResult(resultHandle, sourceRoute, namespace, grain, schema, rows, lineage, metadata);
+        }
+
+        public ResolvedResult withMetadata(ResultHandleMetadata metadata) {
+            return new ResolvedResult(resultHandle, sourceRoute, namespace, grain, schema, rows, lineage, metadata);
+        }
     }
 
     record Column(String name,
@@ -52,14 +60,46 @@ public interface MemoryGridResultResolver {
 
     record ResultHandleMetadata(String handleId,
                                 String namespace,
+                                String ownerContextHash,
                                 String sourceRoute,
                                 List<String> sourceModelRefs,
                                 String queryHash,
                                 Instant createdAt,
                                 Instant expiresAt,
+                                Instant invalidatedAt,
                                 int rowCount,
                                 int rowLimit,
+                                int cellCount,
+                                long byteSize,
                                 Map<String, Object> lineage,
-                                String storageRef) {
+                                String storageRef,
+                                int readCount,
+                                int maxReadCount) {
+        public ResultHandleMetadata(String handleId,
+                                    String namespace,
+                                    String sourceRoute,
+                                    List<String> sourceModelRefs,
+                                    String queryHash,
+                                    Instant createdAt,
+                                    Instant expiresAt,
+                                    int rowCount,
+                                    int rowLimit,
+                                    Map<String, Object> lineage,
+                                    String storageRef) {
+            this(handleId, namespace, null, sourceRoute, sourceModelRefs, queryHash, createdAt, expiresAt,
+                    null, rowCount, rowLimit, -1, -1L, lineage, storageRef, 0, -1);
+        }
+
+        public ResultHandleMetadata withReadCount(int readCount) {
+            return new ResultHandleMetadata(handleId, namespace, ownerContextHash, sourceRoute, sourceModelRefs,
+                    queryHash, createdAt, expiresAt, invalidatedAt, rowCount, rowLimit, cellCount, byteSize,
+                    lineage, storageRef, readCount, maxReadCount);
+        }
+
+        public ResultHandleMetadata withInvalidatedAt(Instant invalidatedAt) {
+            return new ResultHandleMetadata(handleId, namespace, ownerContextHash, sourceRoute, sourceModelRefs,
+                    queryHash, createdAt, expiresAt, invalidatedAt, rowCount, rowLimit, cellCount, byteSize,
+                    lineage, storageRef, readCount, maxReadCount);
+        }
     }
 }

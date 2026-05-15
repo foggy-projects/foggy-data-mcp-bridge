@@ -23,6 +23,7 @@ public final class MemoryGridExecutor {
     public static final String SOURCE_ROUTE_MISMATCH = "MEMORY_GRID_RESULT_SOURCE_ROUTE_MISMATCH";
     public static final String SCHEMA_MISMATCH = "MEMORY_GRID_RESULT_SCHEMA_MISMATCH";
     public static final String GOVERNANCE_MISMATCH = "MEMORY_GRID_RESULT_GOVERNANCE_MISMATCH";
+    public static final String STORAGE_UNAVAILABLE = "MEMORY_GRID_RESULT_STORAGE_UNAVAILABLE";
 
     private MemoryGridExecutor() {
     }
@@ -128,6 +129,9 @@ public final class MemoryGridExecutor {
         if (metadata.expiresAt() != null && metadata.expiresAt().isBefore(Instant.now())) {
             throw RX.throwB(RESULT_HANDLE_EXPIRED + ": " + handle);
         }
+        if (metadata.invalidatedAt() != null) {
+            throw RX.throwB(RESULT_HANDLE_EXPIRED + ": " + handle + " is invalidated.");
+        }
         String requestNamespace = normalizeNamespace(context == null ? null : context.getNamespace());
         String resultNamespace = normalizeNamespace(firstNonBlank(metadata.namespace(), result.namespace()));
         if (!namespacesMatch(resultNamespace, requestNamespace)) {
@@ -143,6 +147,12 @@ public final class MemoryGridExecutor {
         }
         if (metadata.rowLimit() >= 0 && result.rows().size() > metadata.rowLimit()) {
             throw RX.throwB(GOVERNANCE_MISMATCH + ": resolver rows exceed metadata row_limit for " + handle + ".");
+        }
+        if (metadata.cellCount() >= 0 && metadata.cellCount() != cellCount(result.rows())) {
+            throw RX.throwB(GOVERNANCE_MISMATCH + ": resolver metadata cell_count mismatch for " + handle + ".");
+        }
+        if (metadata.maxReadCount() >= 0 && metadata.readCount() > metadata.maxReadCount()) {
+            throw RX.throwB(GOVERNANCE_MISMATCH + ": resolver read_count exceeds max_read_count for " + handle + ".");
         }
         if (metadata.storageRef() == null || metadata.storageRef().isBlank()) {
             throw RX.throwB(GOVERNANCE_MISMATCH + ": resolver metadata storage_ref is missing for " + handle + ".");
@@ -275,11 +285,21 @@ public final class MemoryGridExecutor {
             audit.put("storage_ref", metadata.storageRef());
             audit.put("expires_at", metadata.expiresAt() == null ? null : metadata.expiresAt().toString());
             audit.put("source_model_refs", metadata.sourceModelRefs());
+            audit.put("read_count", metadata.readCount());
+            audit.put("cell_count", metadata.cellCount());
         } else {
             audit.put("source_route", result.sourceRoute());
             audit.put("namespace", result.namespace());
         }
         return audit;
+    }
+
+    private static int cellCount(List<Map<String, Object>> rows) {
+        int count = 0;
+        for (Map<String, Object> row : rows) {
+            count += row == null ? 0 : row.size();
+        }
+        return count;
     }
 
     private static List<String> metricNames(Map<String, Object> input) {
