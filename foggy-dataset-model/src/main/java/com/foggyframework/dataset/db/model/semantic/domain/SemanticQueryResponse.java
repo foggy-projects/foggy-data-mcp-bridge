@@ -143,6 +143,10 @@ public class SemanticQueryResponse {
         @JsonProperty("memory_grid_validation")
         private Map<String, Object> memoryGridValidation;
 
+        @ApiModelProperty(value = "Memory Grid 最小执行闭环摘要。仅在显式执行且 resolver 解析成功时返回")
+        @JsonProperty("memory_grid_execution_summary")
+        private Map<String, Object> memoryGridExecutionSummary;
+
         @ApiModelProperty(value = "错误码")
         @JsonProperty("error_code")
         private String errorCode;
