@@ -23,6 +23,7 @@ import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.db.model.semantic.service.DimensionMemberLoader;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
+import com.foggyframework.dataset.db.model.semantic.support.DslCteDslRequestMapper;
 import com.foggyframework.dataset.db.model.semantic.support.DslCtePlanValidator;
 import com.foggyframework.dataset.db.model.semantic.support.MemoryGridGuardrailValidator;
 import com.foggyframework.dataset.db.model.semantic.support.SemanticSqlDslRequestMapper;
@@ -294,6 +295,14 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         }
         if (isDslCtePlan(request)) {
             dslCteValidation(request);
+            if (dslCteCompileToDslEnabled(request)) {
+                DslCteDslRequestMapper.BridgeResult bridge =
+                        DslCteDslRequestMapper.toDslRequest(model, request.getExecutablePlan());
+                bridge.requireReady();
+                SemanticQueryRequest dslRequest = bridge.request();
+                dslRequest.setHints(request.getHints() == null ? null : new HashMap<>(request.getHints()));
+                return generateSql(bridge.model(), dslRequest, context);
+            }
             throw RX.throwB("DSL_CTE_EXECUTION_NOT_IMPLEMENTED: DSL_CTE stage contract passed, but staged SQL execution is not part of P0.");
         }
         if (request.getColumns() == null || request.getColumns().isEmpty()) {
@@ -559,6 +568,15 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
             return null;
         }
         Map<String, Object> validation = dslCteValidation(request);
+        DslCteDslRequestMapper.BridgeResult bridge =
+                DslCteDslRequestMapper.toDslRequest(null, request.getExecutablePlan());
+        validation.put("dsl_bridge_status", bridge.status());
+        if (bridge.ready()) {
+            validation.put("dsl_bridge_model", bridge.model());
+            validation.put("dsl_request", bridge.request());
+        } else {
+            validation.put("dsl_bridge_unsupported", bridge.unsupported());
+        }
         SemanticQueryResponse response = new SemanticQueryResponse();
         response.setItems(List.of());
         response.setWarnings(List.of());
@@ -581,6 +599,14 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
             throw RX.throwB("DSL_CTE_PLAN_NOT_DECLARED: executable_plan.cte_plan must be provided for DSL_CTE route.");
         }
         return DslCtePlanValidator.validate(request.getExecutablePlan());
+    }
+
+    private boolean dslCteCompileToDslEnabled(SemanticQueryRequest request) {
+        if (request == null || request.getHints() == null) {
+            return false;
+        }
+        Object value = request.getHints().get("dslCteCompileToDsl");
+        return Boolean.TRUE.equals(value) || (value instanceof String text && "true".equalsIgnoreCase(text));
     }
 
     private boolean isDslCtePlan(SemanticQueryRequest request) {

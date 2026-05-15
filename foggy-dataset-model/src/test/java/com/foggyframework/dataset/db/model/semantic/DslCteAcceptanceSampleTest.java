@@ -1,11 +1,19 @@
 package com.foggyframework.dataset.db.model.semantic;
 
+import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
+import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.db.model.semantic.service.impl.SemanticQueryServiceV3Impl;
+import com.foggyframework.dataset.db.model.service.QueryFacade;
+import com.foggyframework.dataset.db.model.spi.DbQueryColumn;
+import com.foggyframework.dataset.db.model.spi.QueryModel;
+import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -16,10 +24,25 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class DslCteAcceptanceSampleTest {
 
-    private final SemanticQueryServiceV3Impl service = new SemanticQueryServiceV3Impl();
+    private SemanticQueryServiceV3Impl service;
+
+    @BeforeEach
+    void setUp() {
+        service = new SemanticQueryServiceV3Impl();
+        QueryModelLoader loader = mock(QueryModelLoader.class);
+        QueryModel saleOrder = queryModel(
+                "SaleOrder", "product.categoryName", "amount"
+        );
+        when(loader.getJdbcQueryModel("SaleOrder", null)).thenReturn(saleOrder);
+        ReflectionTestUtils.setField(service, "queryModelLoader", loader);
+    }
 
     @Test
     @DisplayName("DSL_CTE acceptance samples pass normalized stage contract")
@@ -56,6 +79,54 @@ class DslCteAcceptanceSampleTest {
                 service.generateSql("SaleOrder", dslCtePlan(biz005()), SemanticRequestContext.empty()));
 
         assertTrue(ex.getMessage().contains("DSL_CTE_EXECUTION_NOT_IMPLEMENTED"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE validation marks ratio postSlice plan as bridge-ready")
+    void validationShowsBridgeReadyForRatioPostSlice() {
+        SemanticQueryResponse response = service.validateQuery(
+                "SaleOrder", dslCtePlan(biz005()), SemanticRequestContext.empty());
+
+        assertEquals("BRIDGE_READY", response.getExecution().getDslCteValidation().get("dsl_bridge_status"));
+        assertEquals("SaleOrder", response.getExecution().getDslCteValidation().get("dsl_bridge_model"));
+        assertNotNull(response.getExecution().getDslCteValidation().get("dsl_request"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE generateSql can opt in to DSL bridge for aggregate derive postSlice")
+    void generateSqlOptInUsesDslBridgeForRatioPostSlice() {
+        QueryFacade queryFacade = mock(QueryFacade.class);
+        when(queryFacade.buildSqlOnly(any(ModelResultContext.class)))
+                .thenReturn(new SqlGenerationResult(
+                        "WITH post_stage AS (...) SELECT * FROM post_stage WHERE salesShare > ?",
+                        List.of(0.05),
+                        null));
+        ReflectionTestUtils.setField(service, "queryFacade", queryFacade);
+
+        SemanticQueryRequest request = dslCtePlan(biz005());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SqlGenerationResult result = service.generateSql("SaleOrder", request, SemanticRequestContext.empty());
+
+        assertTrue(result.getSql().contains("post_stage"));
+        org.mockito.ArgumentCaptor<ModelResultContext> captor = org.mockito.ArgumentCaptor.forClass(ModelResultContext.class);
+        verify(queryFacade).buildSqlOnly(captor.capture());
+        assertEquals(List.of("product.categoryName", "sum(amount) AS salesAmount", "salesShare"),
+                captor.getValue().getRequest().getParam().getColumns());
+        assertEquals(1, captor.getValue().getRequest().getParam().getPostAggregateCalculations().size());
+        assertEquals("salesShare", captor.getValue().getRequest().getParam().getPostSlice().get(0).getField());
+    }
+
+    @Test
+    @DisplayName("DSL_CTE generateSql opt-in still fails closed for window stages")
+    void generateSqlOptInDefersWindowStages() {
+        SemanticQueryRequest request = dslCtePlan(biz004());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+                service.generateSql("SaleOrder", request, SemanticRequestContext.empty()));
+
+        assertTrue(ex.getMessage().contains("DSL_CTE_DSL_BRIDGE_NOT_SUPPORTED"));
     }
 
     private void assertDslCteReady(String sampleId, Map<String, Object> ctePlan, Set<String> expectedTypes) {
@@ -340,5 +411,23 @@ class DslCteAcceptanceSampleTest {
             result.put(String.valueOf(entries[i]), entries[i + 1]);
         }
         return result;
+    }
+
+    private QueryModel queryModel(String name, String... fields) {
+        QueryModel qm = mock(QueryModel.class);
+        List<DbQueryColumn> columns = List.of(fields).stream()
+                .map(this::column)
+                .toList();
+        when(qm.getName()).thenReturn(name);
+        when(qm.getShortAlias()).thenReturn(name);
+        when(qm.getJdbcQueryColumns()).thenReturn(columns);
+        when(qm.getPredefinedCalculatedFields()).thenReturn(List.of());
+        return qm;
+    }
+
+    private DbQueryColumn column(String name) {
+        DbQueryColumn col = mock(DbQueryColumn.class);
+        when(col.getName()).thenReturn(name);
+        return col;
     }
 }
