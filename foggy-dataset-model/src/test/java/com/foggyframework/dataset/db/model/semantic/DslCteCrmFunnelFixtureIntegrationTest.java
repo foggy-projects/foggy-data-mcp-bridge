@@ -50,6 +50,23 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("CrmLead converted order ids align to FactOrder business order ids")
+    void crmLeadConvertedOrderFixtureAlignsToFactOrderIds() {
+        Map<String, Object> row = jdbcTemplate.queryForMap("""
+                SELECT COUNT(*) AS convertedOrderRefs,
+                       SUM(CASE WHEN fo.order_id IS NOT NULL THEN 1 ELSE 0 END) AS matchedOrderRefs,
+                       SUM(CASE WHEN fo.order_status = 'COMPLETED' THEN 1 ELSE 0 END) AS completedOrderRefs
+                FROM crm_lead cl
+                LEFT JOIN fact_order fo ON cl.converted_order_id = fo.order_id
+                WHERE cl.converted_order_id IS NOT NULL
+                """);
+
+        assertEquals(4, ((Number) row.get("convertedOrderRefs")).intValue());
+        assertEquals(4, ((Number) row.get("matchedOrderRefs")).intValue());
+        assertEquals(4, ((Number) row.get("completedOrderRefs")).intValue());
+    }
+
+    @Test
     @DisplayName("DSL_CTE CRM lead funnel bridge executes and matches manual baseline")
     void crmLeadFunnelBridgeSqlMatchesManualBaseline() {
         List<Map<String, Object>> manualRows = crmLeadFunnelManualRows();

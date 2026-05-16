@@ -38,6 +38,7 @@ export const model = {
         {
             column: 'order_id',
             caption: '订单ID',
+            description: '业务订单号，可与 CrmLead.convertedOrderId 对齐；用于受治理跨模型漏斗关系评估',
             type: 'STRING'
         },
         {

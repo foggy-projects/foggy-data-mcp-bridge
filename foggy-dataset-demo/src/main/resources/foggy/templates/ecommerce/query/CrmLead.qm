@@ -9,7 +9,7 @@ const lead = loadTableModel('CrmLeadModel');
 export const queryModel = {
     name: 'CrmLead',
     caption: 'CRM线索查询',
-    description: 'CRM线索事实表查询模型，支持按来源统计已定义线索漏斗转化率',
+    description: 'CRM线索事实表查询模型，支持按来源统计已定义线索漏斗转化率；convertedOrderId 是与 FactOrderQueryModel.orderId 对齐的业务订单号，但跨模型执行仍需要受治理关系签名',
     loader: 'v2',
 
     model: lead,

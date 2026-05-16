@@ -243,15 +243,15 @@ INSERT INTO service_ticket (ticket_id, team_id, created_at, first_response_at, r
 
 -- 16. CRM线索事实数据（CRM DSL_CTE parity fixture）
 INSERT INTO crm_lead (lead_id, created_at, lead_source, converted_opportunity_id, converted_order_id) VALUES
-('CRM-001', '2026-05-01 09:00:00', 'WEB', 'OPP-001', 'SO-001'),
+('CRM-001', '2026-05-01 09:00:00', 'WEB', 'OPP-001', 'ORD20240101000001'),
 ('CRM-002', '2026-05-02 10:00:00', 'WEB', 'OPP-002', NULL),
 ('CRM-003', '2026-05-03 11:00:00', 'WEB', NULL, NULL),
-('CRM-004', '2026-05-04 12:00:00', 'APP', 'OPP-004', 'SO-004'),
-('CRM-005', '2026-05-05 13:00:00', 'APP', 'OPP-005', 'SO-005'),
+('CRM-004', '2026-05-04 12:00:00', 'APP', 'OPP-004', 'ORD20240104000007'),
+('CRM-005', '2026-05-05 13:00:00', 'APP', 'OPP-005', 'ORD20240105000010'),
 ('CRM-006', '2026-05-06 14:00:00', 'APP', NULL, NULL),
 ('CRM-007', '2026-05-07 15:00:00', 'PHONE', 'OPP-007', NULL),
 ('CRM-008', '2026-05-08 16:00:00', 'PHONE', NULL, NULL),
-('CRM-009', '2026-04-30 17:00:00', 'WEB', 'OPP-009', 'SO-009');
+('CRM-009', '2026-04-30 17:00:00', 'WEB', 'OPP-009', 'ORD20240101000002');
 
 -- ============================================
 -- 嵌套维度测试数据 (Nested Dimension / Snowflake Schema)

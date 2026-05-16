@@ -36,7 +36,7 @@ export const model = {
         {
             column: 'converted_order_id',
             caption: '转化订单ID',
-            description: '非空表示该线索已转化为订单；P0.16 CRM漏斗签名字段',
+            description: '非空表示该线索已转化为订单；业务值对齐 FactOrderQueryModel.orderId，用于后续受治理跨模型漏斗关系评估；P0.16 CRM漏斗签名字段',
             type: 'STRING'
         }
     ],
