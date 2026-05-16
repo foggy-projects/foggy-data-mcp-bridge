@@ -99,6 +99,37 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
         }
     }
 
+    @Test
+    @DisplayName("DSL_CTE CRM lead funnel drop-off leaderboard executes and matches manual baseline")
+    void crmLeadFunnelDropOffLeaderboardBridgeSqlMatchesManualBaseline() {
+        List<Map<String, Object>> manualRows = crmLeadFunnelDropOffManualRows();
+        manualRows.sort(Comparator.<Map<String, Object>>comparingDouble(row ->
+                        ((Number) row.get("opportunityToOrderDropOffRate")).doubleValue())
+                .reversed()
+                .thenComparing(row -> String.valueOf(row.get("leadSource"))));
+        manualRows = manualRows.subList(0, 2);
+
+        SemanticQueryRequest request = dslCtePlan(crmLeadFunnelDropOffLeaderboardPlan());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SqlGenerationResult generated = semanticQueryServiceV3.generateSql(
+                "CrmLead", request, SemanticRequestContext.empty());
+
+        assertNotNull(generated);
+        assertNotNull(generated.getSql());
+        assertTrue(generated.getSql().contains(
+                "ORDER BY \"opportunityToOrderDropOffRate\" DESC, \"leadSource\" ASC"), generated.getSql());
+        assertTrue(generated.getSql().contains("LIMIT ?"), generated.getSql());
+
+        List<Map<String, Object>> rows = new ArrayList<>(jdbcTemplate.queryForList(
+                generated.getSql(), generated.getParams().toArray(new Object[0])));
+
+        assertEquals(manualRows.size(), rows.size());
+        for (int i = 0; i < manualRows.size(); i++) {
+            assertGeneratedCrmFunnelDropOffRowMatchesManual(rows.get(i), manualRows.get(i));
+        }
+    }
+
     private List<Map<String, Object>> crmLeadFunnelManualRows() {
         List<Map<String, Object>> rows = new ArrayList<>(jdbcTemplate.queryForList("""
                 SELECT lead_source AS leadSource,
@@ -271,6 +302,15 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
                 "output", List.of("leadSource", "leadCount", "convertedOpportunityCount",
                         "convertedOrderCount", "opportunityDropOffCount", "opportunityToOrderDropOffRate")
         );
+    }
+
+    private static Map<String, Object> crmLeadFunnelDropOffLeaderboardPlan() {
+        Map<String, Object> result = crmLeadFunnelDropOffPlan();
+        result.put("orderBy", List.of(
+                m("field", "opportunityToOrderDropOffRate", "dir", "DESC"),
+                m("field", "leadSource", "dir", "ASC")));
+        result.put("limit", 2);
+        return result;
     }
 
     private static Map<String, Object> stage(String name, String type, Object... rest) {

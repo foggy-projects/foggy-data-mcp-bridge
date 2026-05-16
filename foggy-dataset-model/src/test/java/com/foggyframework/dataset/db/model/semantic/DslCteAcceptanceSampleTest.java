@@ -438,6 +438,24 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
+    @DisplayName("DSL_CTE validation marks CRM funnel drop-off leaderboard as bridge-ready")
+    void validationShowsBridgeReadyForCrmLeadFunnelDropOffLeaderboard() {
+        SemanticQueryResponse response = service.validateQuery(
+                "CrmLead", dslCtePlan(third013DropOffLeaderboard()), SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_READY", validation.get("dsl_bridge_status"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> ratioBridge = (Map<String, Object>) validation.get("dsl_result_stage_metric_ratio");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> orderBy = (List<Map<String, Object>>) ratioBridge.get("orderBy");
+        assertEquals("funnel_drop_off", ratioBridge.get("kind"));
+        assertEquals(2, ratioBridge.get("limit"));
+        assertEquals("opportunityToOrderDropOffRate", orderBy.get(0).get("field"));
+        assertEquals("desc", orderBy.get(0).get("dir"));
+    }
+
+    @Test
     @DisplayName("DSL_CTE CRM funnel drop-off defers unsigned arithmetic")
     void validationDefersUnsignedCrmLeadFunnelDropOffArithmetic() {
         Map<String, Object> plan = third013DropOff();
@@ -452,6 +470,21 @@ class DslCteAcceptanceSampleTest {
 
         assertTrue(unsupported.stream()
                 .anyMatch(msg -> msg.contains("signed CRM funnel drop-off count formulas")));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE CRM funnel drop-off leaderboard defers expression orderBy")
+    void validationDefersCrmLeadFunnelDropOffExpressionOrderBy() {
+        Map<String, Object> plan = third013DropOffLeaderboard();
+        plan.put("orderBy", List.of(m("expr", "opportunityToOrderDropOffRate + 1", "dir", "DESC")));
+
+        SemanticQueryResponse response = service.validateQuery(
+                "CrmLead", dslCtePlan(plan), SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_DEFERRED", validation.get("dsl_bridge_status"));
+        assertTrue(validation.get("dsl_bridge_unsupported").toString()
+                .contains("does not support expression orderBy"));
     }
 
     @Test
@@ -1145,6 +1178,31 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
+    @DisplayName("DSL_CTE generateSql can opt in to CRM funnel drop-off leaderboard")
+    void generateSqlOptInUsesCrmLeadFunnelDropOffLeaderboardBridge() {
+        QueryFacade queryFacade = mock(QueryFacade.class);
+        when(queryFacade.buildSqlOnly(any(ModelResultContext.class)))
+                .thenReturn(new SqlGenerationResult(
+                        "SELECT \"leadSource\", COUNT(lead_id) AS \"leadCount\", "
+                                + "SUM(convertedOpportunity) AS \"convertedOpportunityCount\", "
+                                + "SUM(convertedOrder) AS \"convertedOrderCount\" "
+                                + "FROM crm_lead GROUP BY \"leadSource\"",
+                        List.of(),
+                        null));
+        ReflectionTestUtils.setField(service, "queryFacade", queryFacade);
+
+        SemanticQueryRequest request = dslCtePlan(third013DropOffLeaderboard());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SqlGenerationResult result = service.generateSql("CrmLead", request, SemanticRequestContext.empty());
+
+        assertTrue(result.getSql().contains(
+                "ORDER BY \"opportunityToOrderDropOffRate\" DESC, \"leadSource\" ASC"));
+        assertTrue(result.getSql().contains("LIMIT ?"));
+        assertEquals(2, result.getParams().get(result.getParams().size() - 1));
+    }
+
+    @Test
     @DisplayName("DSL_CTE generateSql can opt in to priority-aware SLA rate grouped by team and priority")
     void generateSqlOptInUsesPriorityAwareSlaRateByTeamPriorityBridge() {
         QueryFacade queryFacade = mock(QueryFacade.class);
@@ -1419,6 +1477,15 @@ class DslCteAcceptanceSampleTest {
                 List.of("leadSource", "leadCount", "convertedOpportunityCount",
                         "convertedOrderCount", "opportunityDropOffCount", "opportunityToOrderDropOffRate")
         );
+    }
+
+    private Map<String, Object> third013DropOffLeaderboard() {
+        Map<String, Object> result = third013DropOff();
+        result.put("orderBy", List.of(
+                m("field", "opportunityToOrderDropOffRate", "dir", "DESC"),
+                m("field", "leadSource", "dir", "ASC")));
+        result.put("limit", 2);
+        return result;
     }
 
     private Map<String, Object> third022() {

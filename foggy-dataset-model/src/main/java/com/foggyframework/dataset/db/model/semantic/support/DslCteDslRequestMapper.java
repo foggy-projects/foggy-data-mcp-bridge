@@ -354,12 +354,15 @@ public final class DslCteDslRequestMapper {
                 unsupported.add("result-stage SLA metric ratio output references unavailable field: " + field);
             }
         }
+        List<SemanticQueryRequest.OrderItem> orderBy = orderItems(ctePlan.get("orderBy"), availableOutput, unsupported);
+        Integer resultLimit = limit(ctePlan.get("limit"), unsupported);
         if (!unsupported.isEmpty()) {
             return ResultStageMetricRatioBridgeResult.deferred(unsupported);
         }
 
         ResultStageMetricRatioPlan plan = new ResultStageMetricRatioPlan(
-                output, groupBy, metrics.aliases(), derivedMetrics.ratios(), derivedMetrics.arithmetic(), filters);
+                output, groupBy, metrics.aliases(), derivedMetrics.ratios(), derivedMetrics.arithmetic(), filters,
+                orderBy == null ? List.of() : orderBy, resultLimit);
         return ResultStageMetricRatioBridgeResult.ready(model, baseRequest, plan);
     }
 
@@ -1688,7 +1691,9 @@ public final class DslCteDslRequestMapper {
     public record ResultStageMetricRatioPlan(List<String> output, List<String> groupBy, List<String> metricAliases,
                                              List<MetricRatioDerived> ratios,
                                              List<MetricArithmeticDerived> arithmetic,
-                                             List<ResultStageFilter> filters) {
+                                             List<ResultStageFilter> filters,
+                                             List<SemanticQueryRequest.OrderItem> orderBy,
+                                             Integer limit) {
 
         Map<String, Object> summary() {
             Map<String, Object> result = new LinkedHashMap<>();
@@ -1724,6 +1729,15 @@ public final class DslCteDslRequestMapper {
                     })
                     .toList());
             result.put("postSlice_filters", filters.size());
+            result.put("orderBy", orderBy.stream()
+                    .map(item -> {
+                        Map<String, Object> order = new LinkedHashMap<>();
+                        order.put("field", item.getField());
+                        order.put("dir", item.getDir());
+                        return order;
+                    })
+                    .toList());
+            result.put("limit", limit);
             return result;
         }
 
@@ -1785,11 +1799,20 @@ public final class DslCteDslRequestMapper {
                 }
                 sql.append(String.join(" AND ", whereParts));
             }
-            if (!groupBy.isEmpty()) {
+            if (!orderBy.isEmpty()) {
+                sql.append("\nORDER BY ");
+                sql.append(orderBy.stream()
+                        .map(item -> quoteAlias(item.getField()) + " " + item.getDir().toUpperCase(Locale.ROOT))
+                        .collect(java.util.stream.Collectors.joining(", ")));
+            } else if (!groupBy.isEmpty()) {
                 sql.append("\nORDER BY ");
                 sql.append(groupBy.stream()
                         .map(field -> quoteAlias(field) + " ASC")
                         .collect(java.util.stream.Collectors.joining(", ")));
+            }
+            if (limit != null) {
+                sql.append("\nLIMIT ?");
+                params.add(limit);
             }
             return new SqlGenerationResult(sql.toString(), params, null);
         }
