@@ -5,6 +5,7 @@ import com.foggyframework.bundle.event.BundleRemovedEvent;
 import com.foggyframework.bundle.event.SystemBundlesContextRefreshedEvent;
 import com.foggyframework.bundle.external.ExternalBundleDefinition;
 import com.foggyframework.bundle.external.ExternalFileBundle;
+import com.foggyframework.bundle.external.ExternalBundleResourceSupport;
 import com.foggyframework.bundle.loader.BundleLoader;
 import com.foggyframework.core.bundle.BundleDefinition;
 import com.foggyframework.core.ex.RX;
@@ -402,18 +403,8 @@ public class SystemBundlesContextImpl implements SystemBundlesContext, Initializ
             return false;
         }
 
-        // 验证路径
-        java.io.File dir = new java.io.File(path);
-        if (!dir.exists()) {
-            log.warn("路径不存在: {}", path);
-            return false;
-        }
-        if (!dir.isDirectory()) {
-            log.warn("路径不是目录: {}", path);
-            return false;
-        }
-        if (!dir.canRead()) {
-            log.warn("路径无读取权限: {}", path);
+        if (!ExternalBundleResourceSupport.isReadableBundleRoot(path)) {
+            log.warn("路径不存在、不是可读目录，或Resource location不可读: {}", path);
             return false;
         }
 

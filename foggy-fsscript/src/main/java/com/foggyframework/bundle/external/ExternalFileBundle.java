@@ -24,11 +24,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 外部文件系统Bundle实现
+ * 外部资源Bundle实现
  *
- * <p>支持从外部文件系统目录加载数据模型文件（.tm, .qm, .fsscript等）。
- * 与 {@link com.foggyframework.bundle.BundleImpl} 不同，此实现直接操作文件系统，
- * 而不是通过Spring的Resource抽象访问classpath资源。
+ * <p>支持从外部文件系统目录或 Spring Resource location 加载数据模型文件
+ * （.tm, .qm, .fsscript等）。
  *
  * <h3>目录结构约定：</h3>
  * <pre>
@@ -102,6 +101,22 @@ public class ExternalFileBundle implements Bundle {
 
     @Override
     public Resource[] findResources(String pattern) {
+        if (ExternalBundleResourceSupport.isSpringResourceLocation(basePath)) {
+            try {
+                Resource[] resources = ExternalBundleResourceSupport.getResources(
+                        ExternalBundleResourceSupport.toPatternLocation(basePath, pattern));
+                if (log.isDebugEnabled()) {
+                    for (Resource resource : resources) {
+                        log.debug("找到外部Resource资源: {}", resource.getURL());
+                    }
+                }
+                return resources;
+            } catch (IOException e) {
+                log.error("查找外部Resource资源失败: basePath={}, pattern={}", basePath, pattern, e);
+                return new Resource[0];
+            }
+        }
+
         List<Resource> resources = new ArrayList<>();
         Path baseDir = Paths.get(basePath);
 
