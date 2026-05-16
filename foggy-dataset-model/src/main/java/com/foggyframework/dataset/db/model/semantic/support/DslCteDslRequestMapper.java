@@ -427,7 +427,7 @@ public final class DslCteDslRequestMapper {
 
     private static List<CalculatedFieldDef> rowLevelSlaCalculatedFields(Object rawDerived, List<String> unsupported) {
         List<CalculatedFieldDef> result = new ArrayList<>();
-        List<String> durationAliases = new ArrayList<>();
+        Map<String, String> durationEndByAlias = new LinkedHashMap<>();
         List<String> thresholdAliases = new ArrayList<>();
         for (Map<String, Object> derived : mapList(rawDerived)) {
             String name = stringValue(derived.get("name"));
@@ -441,12 +441,15 @@ public final class DslCteDslRequestMapper {
             if (duration.matches()) {
                 String start = duration.group(1);
                 String end = duration.group(2);
-                if (!"createdAt".equals(start) || !"firstResponseAt".equals(end)) {
-                    unsupported.add("row-level SLA bridge supports hours_between(createdAt, firstResponseAt) only");
+                if (!"createdAt".equals(start)
+                        || (!"firstResponseAt".equals(end) && !"resolvedAt".equals(end))) {
+                    unsupported.add("row-level SLA bridge supports hours_between(createdAt, firstResponseAt) "
+                            + "or hours_between(createdAt, resolvedAt) only");
                     continue;
                 }
-                result.add(new CalculatedFieldDef(name, "首响小时数", "hours_between(createdAt, firstResponseAt)"));
-                durationAliases.add(name);
+                String caption = "resolvedAt".equals(end) ? "解决小时数" : "首响小时数";
+                result.add(new CalculatedFieldDef(name, caption, "hours_between(createdAt, " + end + ")"));
+                durationEndByAlias.put(name, end);
                 continue;
             }
 
@@ -472,12 +475,14 @@ public final class DslCteDslRequestMapper {
                 String nullableField = slaHit.group(1);
                 String durationAlias = slaHit.group(2);
                 String thresholdHours = slaHit.group(3);
-                if (!"firstResponseAt".equals(nullableField) || !durationAliases.contains(durationAlias)) {
-                    unsupported.add("row-level SLA hit predicate must use firstResponseAt and the signed duration alias");
+                String durationEnd = durationEndByAlias.get(durationAlias);
+                if (durationEnd == null || !durationEnd.equals(nullableField)) {
+                    unsupported.add("row-level SLA hit predicate must use the signed duration end field "
+                            + "and signed duration alias");
                     continue;
                 }
                 result.add(new CalculatedFieldDef(name, "SLA命中标记",
-                        "iif(is_not_null(firstResponseAt) && " + durationAlias + " <= "
+                        "iif(is_not_null(" + durationEnd + ") && " + durationAlias + " <= "
                                 + thresholdHours + ", 1, 0)"));
                 continue;
             }
@@ -487,14 +492,16 @@ public final class DslCteDslRequestMapper {
                 String nullableField = slaHitThresholdAlias.group(1);
                 String durationAlias = slaHitThresholdAlias.group(2);
                 String thresholdAlias = slaHitThresholdAlias.group(3);
-                if (!"firstResponseAt".equals(nullableField)
-                        || !durationAliases.contains(durationAlias)
+                String durationEnd = durationEndByAlias.get(durationAlias);
+                if (durationEnd == null
+                        || !durationEnd.equals(nullableField)
                         || !thresholdAliases.contains(thresholdAlias)) {
-                    unsupported.add("priority-aware SLA hit predicate must use firstResponseAt, signed duration alias, and signed threshold alias");
+                    unsupported.add("priority-aware SLA hit predicate must use the signed duration end field, "
+                            + "signed duration alias, and signed threshold alias");
                     continue;
                 }
                 result.add(new CalculatedFieldDef(name, "SLA命中标记",
-                        "iif(is_not_null(firstResponseAt) && " + durationAlias + " <= "
+                        "iif(is_not_null(" + durationEnd + ") && " + durationAlias + " <= "
                                 + thresholdAlias + ", 1, 0)"));
                 continue;
             }
@@ -504,12 +511,14 @@ public final class DslCteDslRequestMapper {
                 String nullableField = slaOverdue.group(1);
                 String durationAlias = slaOverdue.group(2);
                 String thresholdHours = slaOverdue.group(3);
-                if (!"firstResponseAt".equals(nullableField) || !durationAliases.contains(durationAlias)) {
-                    unsupported.add("row-level SLA overdue predicate must use firstResponseAt and the signed duration alias");
+                String durationEnd = durationEndByAlias.get(durationAlias);
+                if (durationEnd == null || !durationEnd.equals(nullableField)) {
+                    unsupported.add("row-level SLA overdue predicate must use the signed duration end field "
+                            + "and signed duration alias");
                     continue;
                 }
                 result.add(new CalculatedFieldDef(name, "SLA超时标记",
-                        "iif(is_null(firstResponseAt) || " + durationAlias + " > "
+                        "iif(is_null(" + durationEnd + ") || " + durationAlias + " > "
                                 + thresholdHours + ", 1, 0)"));
                 continue;
             }
@@ -519,14 +528,16 @@ public final class DslCteDslRequestMapper {
                 String nullableField = slaOverdueThresholdAlias.group(1);
                 String durationAlias = slaOverdueThresholdAlias.group(2);
                 String thresholdAlias = slaOverdueThresholdAlias.group(3);
-                if (!"firstResponseAt".equals(nullableField)
-                        || !durationAliases.contains(durationAlias)
+                String durationEnd = durationEndByAlias.get(durationAlias);
+                if (durationEnd == null
+                        || !durationEnd.equals(nullableField)
                         || !thresholdAliases.contains(thresholdAlias)) {
-                    unsupported.add("priority-aware SLA overdue predicate must use firstResponseAt, signed duration alias, and signed threshold alias");
+                    unsupported.add("priority-aware SLA overdue predicate must use the signed duration end field, "
+                            + "signed duration alias, and signed threshold alias");
                     continue;
                 }
                 result.add(new CalculatedFieldDef(name, "SLA超时标记",
-                        "iif(is_null(firstResponseAt) || " + durationAlias + " > "
+                        "iif(is_null(" + durationEnd + ") || " + durationAlias + " > "
                                 + thresholdAlias + ", 1, 0)"));
                 continue;
             }
