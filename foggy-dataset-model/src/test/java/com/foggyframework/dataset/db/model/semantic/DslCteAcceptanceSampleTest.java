@@ -256,6 +256,21 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
+    @DisplayName("DSL_CTE validation keeps priority as a signed SLA grouping dimension")
+    void validationShowsBridgeReadyForPriorityAwareSlaRateByTeamPriorityPostSlice() {
+        SemanticQueryResponse response = service.validateQuery(
+                "ServiceTicketQueryModel", dslCtePlan(priorityAwareSlaRateByTeamPriorityPostSlicePlan()),
+                SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_READY", validation.get("dsl_bridge_status"));
+        SemanticQueryRequest dslRequest = (SemanticQueryRequest) validation.get("dsl_request");
+        assertNotNull(dslRequest);
+        assertEquals(List.of("team$caption", "priority", "count(ticketId) AS ticketCount", "sum(slaHit) AS slaHitCount"),
+                dslRequest.getColumns());
+    }
+
+    @Test
     @DisplayName("DSL_CTE priority-aware SLA bridge defers missing priority thresholds")
     void validationDefersPriorityAwareSlaMissingThreshold() {
         Map<String, Object> plan = priorityAwareSlaRatePostSlicePlan();
@@ -672,6 +687,33 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
+    @DisplayName("DSL_CTE generateSql can opt in to priority-aware SLA rate grouped by team and priority")
+    void generateSqlOptInUsesPriorityAwareSlaRateByTeamPriorityBridge() {
+        QueryFacade queryFacade = mock(QueryFacade.class);
+        when(queryFacade.buildSqlOnly(any(ModelResultContext.class)))
+                .thenReturn(new SqlGenerationResult(
+                        "SELECT \"team$caption\", \"priority\", COUNT(ticket_id) AS \"ticketCount\", "
+                                + "SUM(slaHit) AS \"slaHitCount\" FROM service_ticket "
+                                + "GROUP BY \"team$caption\", \"priority\"",
+                        List.of(),
+                        null));
+        ReflectionTestUtils.setField(service, "queryFacade", queryFacade);
+
+        SemanticQueryRequest request = dslCtePlan(priorityAwareSlaRateByTeamPriorityPostSlicePlan());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SqlGenerationResult result = service.generateSql(
+                "ServiceTicketQueryModel", request, SemanticRequestContext.empty());
+
+        assertTrue(result.getSql().contains("\"priority\""));
+        assertTrue(result.getSql().contains("ORDER BY \"team$caption\" ASC, \"priority\" ASC"));
+        org.mockito.ArgumentCaptor<ModelResultContext> captor = org.mockito.ArgumentCaptor.forClass(ModelResultContext.class);
+        verify(queryFacade).buildSqlOnly(captor.capture());
+        assertEquals(List.of("team$caption", "priority", "count(ticketId) AS ticketCount", "sum(slaHit) AS slaHitCount"),
+                captor.getValue().getRequest().getParam().getColumns());
+    }
+
+    @Test
     @DisplayName("DSL_CTE generateSql can opt in to cumulative contribution result-stage window")
     void generateSqlOptInUsesResultStageWindowForCumulativeContribution() {
         QueryFacade queryFacade = mock(QueryFacade.class);
@@ -1070,6 +1112,35 @@ class DslCteAcceptanceSampleTest {
                                 "filters", List.of(filter("slaAchievementRate", "<", 0.85)))
                 ),
                 List.of("team$caption", "ticketCount", "slaHitCount", "slaAchievementRate")
+        );
+    }
+
+    private Map<String, Object> priorityAwareSlaRateByTeamPriorityPostSlicePlan() {
+        return plan(
+                List.of(
+                        stage("ticket_scope", "derive",
+                                "input", model("ServiceTicketQueryModel"),
+                                "filters", List.of(
+                                        filter("createdAt", ">=", "2026-05-01 00:00:00"),
+                                        filter("createdAt", "<", "2026-06-01 00:00:00")),
+                                "derived", List.of(
+                                        derived("firstResponseHours", "hours_between(createdAt, firstResponseAt)"),
+                                        derived("slaThresholdHours", "priority_threshold(priority, P1=4, P2=24, P3=48)"),
+                                        derived("slaHit", "firstResponseAt is not null and firstResponseHours <= slaThresholdHours"))),
+                        stage("team_priority_sla", "aggregate",
+                                "inputs", List.of("ticket_scope"),
+                                "groupBy", List.of("team$caption", "priority"),
+                                "metrics", List.of(
+                                        metric("ticketCount", "count(*)"),
+                                        metric("slaHitCount", "sum(slaHit)"))),
+                        stage("team_priority_sla_rate", "derive",
+                                "inputs", List.of("team_priority_sla"),
+                                "derived", List.of(derived("slaAchievementRate", "slaHitCount / ticketCount"))),
+                        stage("low_sla_team_priorities", "postSlice",
+                                "inputs", List.of("team_priority_sla_rate"),
+                                "filters", List.of(filter("slaAchievementRate", "<", 0.85)))
+                ),
+                List.of("team$caption", "priority", "ticketCount", "slaHitCount", "slaAchievementRate")
         );
     }
 

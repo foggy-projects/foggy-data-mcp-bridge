@@ -143,6 +143,34 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("DSL_CTE priority-aware SLA rate bridge supports team and priority grouping")
+    void priorityAwareSlaRateByTeamPriorityPostSliceBridgeSqlMatchesManualBaseline() {
+        List<Map<String, Object>> manualRows = priorityAwareByTeamPriorityManualRows(0.85);
+
+        SemanticQueryRequest request = dslCtePlan(priorityAwareSlaRateByTeamPriorityPostSlicePlan());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SqlGenerationResult generated = semanticQueryServiceV3.generateSql(
+                "ServiceTicketQueryModel", request, SemanticRequestContext.empty());
+
+        assertNotNull(generated);
+        assertNotNull(generated.getSql());
+        assertTrue(generated.getSql().contains("\"priority\""), generated.getSql());
+        assertTrue(generated.getSql().contains("ORDER BY \"team$caption\" ASC, \"priority\" ASC"), generated.getSql());
+
+        List<Map<String, Object>> rows = new ArrayList<>(jdbcTemplate.queryForList(
+                generated.getSql(), generated.getParams().toArray(new Object[0])));
+        rows.sort(Comparator
+                .comparing((Map<String, Object> row) -> String.valueOf(value(row, "team$caption", "teamName")))
+                .thenComparing(row -> String.valueOf(value(row, "priority"))));
+
+        assertEquals(manualRows.size(), rows.size());
+        for (int i = 0; i < manualRows.size(); i++) {
+            assertGeneratedSlaRateByPriorityRowMatchesManual(rows.get(i), manualRows.get(i));
+        }
+    }
+
+    @Test
     @DisplayName("DSL_CTE minimal SLA rate postSlice can filter low-achievement teams")
     void minimalSlaRatePostSliceBridgeFiltersLowAchievementTeams() {
         Map<String, Object> plan = minimalSlaRatePostSlicePlan();
@@ -205,6 +233,50 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
         return rows;
     }
 
+    private List<Map<String, Object>> priorityAwareByTeamPriorityManualRows(double lowRateThreshold) {
+        List<Map<String, Object>> rows = new ArrayList<>(jdbcTemplate.queryForList("""
+                SELECT *
+                FROM (
+                    SELECT dt.team_name AS teamName,
+                           st.priority AS priority,
+                           COUNT(*) AS ticketCount,
+                           SUM(CASE
+                                   WHEN st.first_response_at IS NOT NULL
+                                        AND ((julianday(st.first_response_at) - julianday(st.created_at)) * 24.0) <=
+                                            CASE
+                                                WHEN st.priority = 'P1' THEN 4.0
+                                                WHEN st.priority = 'P2' THEN 24.0
+                                                WHEN st.priority = 'P3' THEN 48.0
+                                                ELSE NULL
+                                            END
+                                   THEN 1 ELSE 0
+                               END) AS slaHitCount,
+                           1.0 * SUM(CASE
+                                   WHEN st.first_response_at IS NOT NULL
+                                        AND ((julianday(st.first_response_at) - julianday(st.created_at)) * 24.0) <=
+                                            CASE
+                                                WHEN st.priority = 'P1' THEN 4.0
+                                                WHEN st.priority = 'P2' THEN 24.0
+                                                WHEN st.priority = 'P3' THEN 48.0
+                                                ELSE NULL
+                                            END
+                                   THEN 1 ELSE 0
+                               END) / NULLIF(COUNT(*), 0) AS slaAchievementRate
+                    FROM service_ticket st
+                    LEFT JOIN dim_team dt ON st.team_id = dt.team_id
+                    WHERE st.created_at >= '2026-05-01 00:00:00'
+                      AND st.created_at < '2026-06-01 00:00:00'
+                    GROUP BY dt.team_name, st.priority
+                )
+                WHERE slaAchievementRate < ?
+                ORDER BY teamName, priority
+                """, lowRateThreshold));
+        rows.sort(Comparator
+                .comparing((Map<String, Object> row) -> String.valueOf(row.get("teamName")))
+                .thenComparing(row -> String.valueOf(row.get("priority"))));
+        return rows;
+    }
+
     private static void assertSlaRow(Map<String, Object> row, String teamName, int ticketCount,
                                      int slaHitCount, double slaAchievementRate) {
         assertEquals(teamName, row.get("teamName"));
@@ -218,6 +290,19 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
     private static void assertGeneratedSlaRateRowMatchesManual(Map<String, Object> generated,
                                                                Map<String, Object> manual) {
         assertEquals(manual.get("teamName"), value(generated, "team$caption", "teamName"));
+        assertEquals(((Number) manual.get("ticketCount")).intValue(),
+                ((Number) value(generated, "ticketCount")).intValue());
+        assertEquals(((Number) manual.get("slaHitCount")).intValue(),
+                ((Number) value(generated, "slaHitCount")).intValue());
+        assertTrue(BigDecimal.valueOf(((Number) value(generated, "slaAchievementRate")).doubleValue())
+                .subtract(BigDecimal.valueOf(((Number) manual.get("slaAchievementRate")).doubleValue())).abs()
+                .compareTo(BigDecimal.valueOf(0.000001)) <= 0);
+    }
+
+    private static void assertGeneratedSlaRateByPriorityRowMatchesManual(Map<String, Object> generated,
+                                                                         Map<String, Object> manual) {
+        assertEquals(manual.get("teamName"), value(generated, "team$caption", "teamName"));
+        assertEquals(manual.get("priority"), value(generated, "priority"));
         assertEquals(((Number) manual.get("ticketCount")).intValue(),
                 ((Number) value(generated, "ticketCount")).intValue());
         assertEquals(((Number) manual.get("slaHitCount")).intValue(),
@@ -343,6 +428,39 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
                                         m("field", "slaAchievementRate", "op", "<", "value", 0.85)))
                 ),
                 "output", List.of("team$caption", "ticketCount", "slaHitCount", "slaAchievementRate")
+        );
+    }
+
+    private static Map<String, Object> priorityAwareSlaRateByTeamPriorityPostSlicePlan() {
+        return m(
+                "stages", List.of(
+                        stage("ticket_scope", "derive",
+                                "input", m("model", "ServiceTicketQueryModel"),
+                                "filters", List.of(
+                                        m("field", "createdAt", "op", ">=", "value", "2026-05-01 00:00:00"),
+                                        m("field", "createdAt", "op", "<", "value", "2026-06-01 00:00:00")),
+                                "derived", List.of(
+                                        m("name", "firstResponseHours", "expr", "hours_between(createdAt, firstResponseAt)"),
+                                        m("name", "slaThresholdHours", "expr",
+                                                "priority_threshold(priority, P1=4, P2=24, P3=48)"),
+                                        m("name", "slaHit", "expr",
+                                                "firstResponseAt is not null and firstResponseHours <= slaThresholdHours"))),
+                        stage("team_priority_sla", "aggregate",
+                                "inputs", List.of("ticket_scope"),
+                                "groupBy", List.of("team$caption", "priority"),
+                                "metrics", List.of(
+                                        m("name", "ticketCount", "expr", "count(*)"),
+                                        m("name", "slaHitCount", "expr", "sum(slaHit)"))),
+                        stage("team_priority_sla_rate", "derive",
+                                "inputs", List.of("team_priority_sla"),
+                                "derived", List.of(
+                                        m("name", "slaAchievementRate", "expr", "slaHitCount / ticketCount"))),
+                        stage("low_sla_team_priorities", "postSlice",
+                                "inputs", List.of("team_priority_sla_rate"),
+                                "filters", List.of(
+                                        m("field", "slaAchievementRate", "op", "<", "value", 0.85)))
+                ),
+                "output", List.of("team$caption", "priority", "ticketCount", "slaHitCount", "slaAchievementRate")
         );
     }
 
