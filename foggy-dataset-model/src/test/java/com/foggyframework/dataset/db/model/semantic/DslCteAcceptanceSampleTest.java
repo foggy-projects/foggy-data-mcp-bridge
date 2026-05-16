@@ -50,12 +50,16 @@ class DslCteAcceptanceSampleTest {
         QueryModel crmLead = queryModel(
                 "CrmLead", "leadId", "createdAt", "leadSource", "convertedOpportunityId", "convertedOrderId"
         );
+        QueryModel factOrder = queryModel(
+                "FactOrderQueryModel", "orderId", "orderStatus", "orderTime"
+        );
         QueryModel leadLike = queryModel(
                 "LeadLikeModel", "leadId", "createdAt", "leadSource", "convertedOpportunityId", "convertedOrderId"
         );
         when(loader.getJdbcQueryModel("SaleOrder", null)).thenReturn(saleOrder);
         when(loader.getJdbcQueryModel("ServiceTicketQueryModel", null)).thenReturn(serviceTicket);
         when(loader.getJdbcQueryModel("CrmLead", null)).thenReturn(crmLead);
+        when(loader.getJdbcQueryModel("FactOrderQueryModel", null)).thenReturn(factOrder);
         when(loader.getJdbcQueryModel("LeadLikeModel", null)).thenReturn(leadLike);
         ReflectionTestUtils.setField(service, "queryModelLoader", loader);
     }
@@ -740,6 +744,28 @@ class DslCteAcceptanceSampleTest {
 
         assertTrue(unsupported.stream().anyMatch(msg -> msg.contains("join_align")));
         assertTrue(unsupported.stream().anyMatch(msg -> msg.contains("valueField")));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE cross-model CRM order funnel stays contract-only")
+    void validationKeepsCrossModelCrmOrderFunnelContractOnly() {
+        SemanticQueryResponse response = service.validateQuery(
+                "CrmLead", dslCtePlan(crossModelCrmOrderFunnel()), SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_DEFERRED", validation.get("dsl_bridge_status"));
+        assertTrue(validation.get("dsl_bridge_unsupported").toString().contains("join_align"));
+
+        Map<String, Object> joinAlignContract = stageContract(response, "verified_order_align",
+                "join_align_contract");
+        assertEquals("cross_stage_alignment", joinAlignContract.get("kind"));
+        assertEquals("stage_contract_only", joinAlignContract.get("bridge_scope"));
+        assertEquals(false, joinAlignContract.get("bridge_signed"));
+        assertEquals(List.of("convertedOrderId=orderId"), joinAlignContract.get("keys"));
+        @SuppressWarnings("unchecked")
+        List<String> requiredCapabilities = (List<String>) joinAlignContract.get("required_capabilities");
+        assertTrue(requiredCapabilities.contains("declared_alignment_key_mapping"));
+        assertTrue(requiredCapabilities.contains("join_cardinality_guard"));
     }
 
     @Test
@@ -1504,6 +1530,32 @@ class DslCteAcceptanceSampleTest {
                                 "filters", List.of(m("field", "gpa", "op", ">", "valueField", "departmentAvgGpa")))
                 ),
                 List.of("studentName", "department.name", "gpa", "departmentAvgGpa")
+        );
+    }
+
+    private Map<String, Object> crossModelCrmOrderFunnel() {
+        return plan(
+                List.of(
+                        stage("lead_orders", "aggregate",
+                                "input", model("CrmLead"),
+                                "filters", List.of(filter("createdAt", "this_quarter", null)),
+                                "groupBy", List.of("leadSource", "convertedOrderId"),
+                                "metrics", List.of(metric("leadCount", "count(*)"))),
+                        stage("completed_orders", "aggregate",
+                                "input", model("FactOrderQueryModel"),
+                                "filters", List.of(filter("orderStatus", "eq", "COMPLETED")),
+                                "groupBy", List.of("orderId"),
+                                "metrics", List.of(metric("matchedOrderCount", "count(*)"))),
+                        stage("verified_order_align", "join_align",
+                                "inputs", List.of("lead_orders", "completed_orders"),
+                                "keys", List.of("convertedOrderId=orderId"),
+                                "joinType", "declared_key_align"),
+                        stage("source_verified_funnel", "derive",
+                                "inputs", List.of("verified_order_align"),
+                                "derived", List.of(derived("verifiedOrderConversionRate",
+                                        "matchedOrderCount / leadCount")))
+                ),
+                List.of("leadSource", "leadCount", "matchedOrderCount", "verifiedOrderConversionRate")
         );
     }
 

@@ -282,7 +282,25 @@ public final class DslCtePlanValidator {
             if (!aggregateContract.isEmpty()) {
                 evidence.put("aggregate_contract", aggregateContract);
             }
+        } else if ("join_align".equals(type)) {
+            evidence.put("join_align_contract", joinAlignContractEvidence(stage));
         }
+        return evidence;
+    }
+
+    private static Map<String, Object> joinAlignContractEvidence(Map<String, Object> stage) {
+        Map<String, Object> evidence = new LinkedHashMap<>();
+        evidence.put("kind", "cross_stage_alignment");
+        evidence.put("bridge_scope", "stage_contract_only");
+        evidence.put("bridge_signed", false);
+        evidence.put("inputs", stringList(stage.get("inputs")));
+        evidence.put("keys", stringList(stage.get("keys")));
+        evidence.put("joinType", stringValue(stage.get("joinType")));
+        evidence.put("required_capabilities", List.of(
+                "declared_alignment_key_mapping",
+                "join_cardinality_guard",
+                "cross_model_governance_replay",
+                "complete_output_schema_derivation"));
         return evidence;
     }
 
