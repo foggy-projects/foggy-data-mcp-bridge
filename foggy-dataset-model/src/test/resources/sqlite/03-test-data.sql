@@ -241,17 +241,29 @@ INSERT INTO service_ticket (ticket_id, team_id, created_at, first_response_at, r
 ('SLA-009', 'T008', '2026-05-07 14:00:00', NULL, NULL, 'P2', 'OPEN', 'APP'),
 ('SLA-010', 'T002', '2026-04-29 09:00:00', '2026-04-29 10:00:00', '2026-04-30 18:00:00', 'P2', 'RESOLVED', 'WEB');
 
+-- 16. CRM线索事实数据（CRM DSL_CTE parity fixture）
+INSERT INTO crm_lead (lead_id, created_at, lead_source, converted_opportunity_id, converted_order_id) VALUES
+('CRM-001', '2026-05-01 09:00:00', 'WEB', 'OPP-001', 'SO-001'),
+('CRM-002', '2026-05-02 10:00:00', 'WEB', 'OPP-002', NULL),
+('CRM-003', '2026-05-03 11:00:00', 'WEB', NULL, NULL),
+('CRM-004', '2026-05-04 12:00:00', 'APP', 'OPP-004', 'SO-004'),
+('CRM-005', '2026-05-05 13:00:00', 'APP', 'OPP-005', 'SO-005'),
+('CRM-006', '2026-05-06 14:00:00', 'APP', NULL, NULL),
+('CRM-007', '2026-05-07 15:00:00', 'PHONE', 'OPP-007', NULL),
+('CRM-008', '2026-05-08 16:00:00', 'PHONE', NULL, NULL),
+('CRM-009', '2026-04-30 17:00:00', 'WEB', 'OPP-009', 'SO-009');
+
 -- ============================================
 -- 嵌套维度测试数据 (Nested Dimension / Snowflake Schema)
 -- ============================================
 
--- 16. 品类组维度数据（三级维度）
+-- 17. 品类组维度数据（三级维度）
 INSERT INTO dim_category_group (group_id, group_name, group_type, status) VALUES
 ('GRP001', '电子产品组', '高价值', 'ACTIVE'),
 ('GRP002', '日用品组', '快消品', 'ACTIVE'),
 ('GRP003', '服装配饰组', '时尚', 'ACTIVE');
 
--- 16. 品类维度数据（二级维度，关联品类组）
+-- 17. 品类维度数据（二级维度，关联品类组）
 INSERT INTO dim_category_nested (category_id, category_name, category_level, group_key, status) VALUES
 ('CAT001', '数码电器', 1, 1, 'ACTIVE'),
 ('CAT002', '手机通讯', 2, 1, 'ACTIVE'),

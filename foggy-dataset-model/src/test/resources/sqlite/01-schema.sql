@@ -330,11 +330,24 @@ CREATE TABLE service_ticket
 CREATE INDEX idx_service_ticket_team_id ON service_ticket (team_id);
 CREATE INDEX idx_service_ticket_created_at ON service_ticket (created_at);
 
+-- 19. CRM线索事实表（CRM DSL_CTE parity fixture）
+DROP TABLE IF EXISTS crm_lead;
+CREATE TABLE crm_lead
+(
+    lead_id                  TEXT NOT NULL PRIMARY KEY,
+    created_at               TEXT NOT NULL,
+    lead_source              TEXT NOT NULL,
+    converted_opportunity_id TEXT,
+    converted_order_id       TEXT
+);
+CREATE INDEX idx_crm_lead_created_at ON crm_lead (created_at);
+CREATE INDEX idx_crm_lead_source ON crm_lead (lead_source);
+
 -- ============================================
 -- 嵌套维度测试表 (Nested Dimension / Snowflake Schema)
 -- ============================================
 
--- 19. 品类组维度表（三级维度）
+-- 20. 品类组维度表（三级维度）
 DROP TABLE IF EXISTS dim_category_group;
 CREATE TABLE dim_category_group
 (
@@ -346,7 +359,7 @@ CREATE TABLE dim_category_group
     created_at TEXT DEFAULT (datetime('now', 'localtime'))
 );
 
--- 19. 品类维度表（二级维度，关联品类组）
+-- 20. 品类维度表（二级维度，关联品类组）
 DROP TABLE IF EXISTS dim_category_nested;
 CREATE TABLE dim_category_nested
 (
