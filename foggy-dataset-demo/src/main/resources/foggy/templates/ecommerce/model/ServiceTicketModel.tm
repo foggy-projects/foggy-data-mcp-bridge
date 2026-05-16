@@ -45,7 +45,7 @@ export const model = {
         {
             column: 'created_at',
             caption: '创建时间',
-            description: '工单创建时间，用于SLA时间范围过滤和首响耗时计算',
+            description: '工单创建时间，用于SLA时间范围过滤、首响耗时计算和解决时效计算',
             type: 'DATETIME'
         },
         {
@@ -57,6 +57,7 @@ export const model = {
         {
             column: 'resolved_at',
             caption: '解决时间',
+            description: '工单解决时间；为空表示尚未解决，不计为解决时效SLA达成',
             type: 'DATETIME'
         },
         {
