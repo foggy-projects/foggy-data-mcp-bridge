@@ -47,8 +47,16 @@ class DslCteAcceptanceSampleTest {
                 "ServiceTicketQueryModel", "team$caption", "ticketId", "createdAt", "firstResponseAt",
                 "resolvedAt", "priority"
         );
+        QueryModel crmLead = queryModel(
+                "CrmLead", "leadId", "createdAt", "leadSource", "convertedOpportunityId", "convertedOrderId"
+        );
+        QueryModel leadLike = queryModel(
+                "LeadLikeModel", "leadId", "createdAt", "leadSource", "convertedOpportunityId", "convertedOrderId"
+        );
         when(loader.getJdbcQueryModel("SaleOrder", null)).thenReturn(saleOrder);
         when(loader.getJdbcQueryModel("ServiceTicketQueryModel", null)).thenReturn(serviceTicket);
+        when(loader.getJdbcQueryModel("CrmLead", null)).thenReturn(crmLead);
+        when(loader.getJdbcQueryModel("LeadLikeModel", null)).thenReturn(leadLike);
         ReflectionTestUtils.setField(service, "queryModelLoader", loader);
     }
 
@@ -321,6 +329,64 @@ class DslCteAcceptanceSampleTest {
         Map<String, Object> ratioBridge = (Map<String, Object>) validation.get("dsl_result_stage_metric_ratio");
         assertEquals("combinedSlaHitCount", ratioBridge.get("numerator"));
         assertEquals("combinedSlaRate", ratioBridge.get("ratio_alias"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE validation marks defined CRM lead funnel as bridge-ready")
+    void validationShowsBridgeReadyForDefinedCrmLeadFunnel() {
+        SemanticQueryResponse response = service.validateQuery(
+                "CrmLead", dslCtePlan(third013()), SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_READY", validation.get("dsl_bridge_status"));
+        assertEquals("CrmLead", validation.get("dsl_bridge_model"));
+        SemanticQueryRequest dslRequest = (SemanticQueryRequest) validation.get("dsl_request");
+        assertNotNull(dslRequest);
+        assertEquals(List.of("leadSource", "count(leadId) AS leadCount",
+                        "sum(convertedOpportunity) AS convertedOpportunityCount",
+                        "sum(convertedOrder) AS convertedOrderCount"),
+                dslRequest.getColumns());
+        assertEquals(2, dslRequest.getCalculatedFields().size());
+        assertEquals("iif(is_not_null(convertedOpportunityId), 1, 0)",
+                dslRequest.getCalculatedFields().get(0).getExpression());
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> ratioBridge = (Map<String, Object>) validation.get("dsl_result_stage_metric_ratio");
+        assertEquals("funnel_conversion_rate", ratioBridge.get("kind"));
+        assertEquals("convertedOrderCount", ratioBridge.get("numerator"));
+        assertEquals("leadToOrderConversionRate", ratioBridge.get("ratio_alias"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE CRM lead funnel defers unsigned converted field")
+    void validationDefersUnsignedCrmLeadFunnelConvertedField() {
+        Map<String, Object> plan = third013();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(0).put("derived", List.of(
+                derived("convertedOpportunity", "opportunityId is not null"),
+                derived("convertedOrder", "convertedOrderId is not null")));
+
+        List<String> unsupported = bridgeUnsupported(plan);
+
+        assertTrue(unsupported.stream()
+                .anyMatch(msg -> msg.contains("signed CRM funnel non-null predicate")));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE CRM lead funnel defers on non-CrmLead models")
+    void validationDefersCrmLeadFunnelOnOtherModel() {
+        Map<String, Object> plan = third013();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> input = (Map<String, Object>) stages.get(0).get("input");
+        input.put("model", "LeadLikeModel");
+
+        List<String> unsupported = bridgeUnsupported(plan);
+
+        assertTrue(unsupported.stream()
+                .anyMatch(msg -> msg.contains("signed CRM funnel non-null predicate")));
     }
 
     @Test
@@ -955,6 +1021,38 @@ class DslCteAcceptanceSampleTest {
         assertEquals(List.of("team$caption", "count(ticketId) AS ticketCount",
                         "sum(combinedSlaHit) AS combinedSlaHitCount"),
                 captor.getValue().getRequest().getParam().getColumns());
+    }
+
+    @Test
+    @DisplayName("DSL_CTE generateSql can opt in to defined CRM lead funnel conversion rate")
+    void generateSqlOptInUsesDefinedCrmLeadFunnelBridge() {
+        QueryFacade queryFacade = mock(QueryFacade.class);
+        when(queryFacade.buildSqlOnly(any(ModelResultContext.class)))
+                .thenReturn(new SqlGenerationResult(
+                        "SELECT \"leadSource\", COUNT(lead_id) AS \"leadCount\", "
+                                + "SUM(convertedOpportunity) AS \"convertedOpportunityCount\", "
+                                + "SUM(convertedOrder) AS \"convertedOrderCount\" "
+                                + "FROM crm_lead GROUP BY \"leadSource\"",
+                        List.of(),
+                        null));
+        ReflectionTestUtils.setField(service, "queryFacade", queryFacade);
+
+        SemanticQueryRequest request = dslCtePlan(third013());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SqlGenerationResult result = service.generateSql("CrmLead", request, SemanticRequestContext.empty());
+
+        assertTrue(result.getSql().contains("dsl_cte_metric_ratio"));
+        assertTrue(result.getSql().contains("leadToOrderConversionRate"));
+        org.mockito.ArgumentCaptor<ModelResultContext> captor = org.mockito.ArgumentCaptor.forClass(ModelResultContext.class);
+        verify(queryFacade).buildSqlOnly(captor.capture());
+        assertEquals(List.of("leadSource", "count(leadId) AS leadCount",
+                        "sum(convertedOpportunity) AS convertedOpportunityCount",
+                        "sum(convertedOrder) AS convertedOrderCount"),
+                captor.getValue().getRequest().getParam().getColumns());
+        List<CalculatedFieldDef> calculatedFields = captor.getValue().getRequest().getParam().getCalculatedFields();
+        assertEquals(2, calculatedFields.size());
+        assertEquals("convertedOrder", calculatedFields.get(1).getName());
     }
 
     @Test
