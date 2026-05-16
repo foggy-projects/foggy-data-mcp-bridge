@@ -299,13 +299,14 @@ public final class DslCteDslRequestMapper {
 
         List<CalculatedFieldDef> calculatedFields = rowLevelSlaCalculatedFields(derive.get("derived"), unsupported);
         MetricMapping metrics = rowLevelAggregateMetrics(aggregate.get("metrics"), calculatedFields, unsupported);
-        MetricRatioDerived ratio = slaMetricRatioDerived(ratioStage.get("derived"), metrics.aliases(), unsupported);
-        if (ratio == null) {
+        List<MetricRatioDerived> ratios = slaMetricRatioDerived(ratioStage.get("derived"), metrics.aliases(), unsupported);
+        if (ratios.isEmpty()) {
             return ResultStageMetricRatioBridgeResult.deferred(unsupported);
         }
+        List<String> ratioAliases = ratios.stream().map(MetricRatioDerived::ratioAlias).toList();
         List<ResultStageFilter> filters = resultStageAliasFilters(
                 stages.size() == 4 ? stages.get(3).get("filters") : null,
-                ratio.ratioAlias(), "result-stage SLA metric ratio bridge", unsupported);
+                ratioAliases, "result-stage SLA metric ratio bridge", unsupported);
         if (!unsupported.isEmpty()) {
             return ResultStageMetricRatioBridgeResult.deferred(unsupported);
         }
@@ -328,15 +329,15 @@ public final class DslCteDslRequestMapper {
         if (output.isEmpty()) {
             output.addAll(groupBy);
             output.addAll(metrics.aliases());
-            output.add(ratio.ratioAlias());
+            output.addAll(ratioAliases);
         }
-        if (!allSafeAliases(output, groupBy, metrics.aliases(), List.of(ratio.ratioAlias()))) {
+        if (!allSafeAliases(output, groupBy, metrics.aliases(), ratioAliases)) {
             unsupported.add("result-stage SLA metric ratio output supports only governed field aliases");
         }
         List<String> availableOutput = new ArrayList<>();
         availableOutput.addAll(groupBy);
         availableOutput.addAll(metrics.aliases());
-        availableOutput.add(ratio.ratioAlias());
+        availableOutput.addAll(ratioAliases);
         for (String field : output) {
             if (!availableOutput.contains(field)) {
                 unsupported.add("result-stage SLA metric ratio output references unavailable field: " + field);
@@ -347,8 +348,7 @@ public final class DslCteDslRequestMapper {
         }
 
         ResultStageMetricRatioPlan plan = new ResultStageMetricRatioPlan(
-                output, groupBy, metrics.aliases(), ratio.numeratorAlias(), ratio.denominatorAlias(),
-                ratio.ratioAlias(), filters);
+                output, groupBy, metrics.aliases(), ratios, filters);
         return ResultStageMetricRatioBridgeResult.ready(model, baseRequest, plan);
     }
 
@@ -989,36 +989,55 @@ public final class DslCteDslRequestMapper {
         return new CumulativeDerived(rankAlias, cumulativeAlias);
     }
 
-    private static MetricRatioDerived slaMetricRatioDerived(Object rawDerived, List<String> metricAliases,
-                                                            List<String> unsupported) {
+    private static List<MetricRatioDerived> slaMetricRatioDerived(Object rawDerived, List<String> metricAliases,
+                                                                  List<String> unsupported) {
         List<Map<String, Object>> derived = mapList(rawDerived);
-        if (derived.size() != 1) {
-            unsupported.add("result-stage SLA metric ratio bridge requires exactly one ratio derived field");
-            return null;
+        if (derived.isEmpty() || derived.size() > 2) {
+            unsupported.add("result-stage SLA metric ratio bridge requires one or two ratio derived fields");
+            return List.of();
         }
-        Map<String, Object> item = derived.get(0);
-        String name = stringValue(item.get("name"));
-        String expr = stringValue(item.get("expr"));
-        if (name == null || !SAFE_ALIAS_PATTERN.matcher(name).matches()) {
-            unsupported.add("result-stage SLA metric ratio derived field must declare a governed alias");
-            return null;
+        List<MetricRatioDerived> result = new ArrayList<>();
+        for (Map<String, Object> item : derived) {
+            String name = stringValue(item.get("name"));
+            String expr = stringValue(item.get("expr"));
+            if (name == null || !SAFE_ALIAS_PATTERN.matcher(name).matches()) {
+                unsupported.add("result-stage SLA metric ratio derived field must declare a governed alias");
+                continue;
+            }
+            Matcher matcher = METRIC_RATIO_PATTERN.matcher(expr == null ? "" : expr);
+            if (!matcher.matches()) {
+                unsupported.add("result-stage SLA metric ratio bridge supports only numerator / denominator formulas");
+                continue;
+            }
+            String numerator = matcher.group(1);
+            String denominator = matcher.group(2);
+            if (!signedSlaRatioAlias(numerator, denominator, name)) {
+                unsupported.add("result-stage SLA metric ratio bridge supports only signed SLA numerator / ticketCount ratios");
+                continue;
+            }
+            if (!metricAliases.contains(numerator) || !metricAliases.contains(denominator)) {
+                unsupported.add("result-stage SLA metric ratio must reference signed aggregate metric aliases");
+                continue;
+            }
+            if (result.stream().anyMatch(existing -> existing.ratioAlias().equals(name))) {
+                unsupported.add("result-stage SLA metric ratio aliases must be unique");
+                continue;
+            }
+            result.add(new MetricRatioDerived(name, numerator, denominator));
         }
-        Matcher matcher = METRIC_RATIO_PATTERN.matcher(expr == null ? "" : expr);
-        if (!matcher.matches()) {
-            unsupported.add("result-stage SLA metric ratio bridge supports only numerator / denominator formulas");
-            return null;
+        return unsupported.isEmpty() ? result : List.of();
+    }
+
+    private static boolean signedSlaRatioAlias(String numerator, String denominator, String ratioAlias) {
+        if (!"ticketCount".equals(denominator)) {
+            return false;
         }
-        String numerator = matcher.group(1);
-        String denominator = matcher.group(2);
-        if (!"slaHitCount".equals(numerator) || !"ticketCount".equals(denominator)) {
-            unsupported.add("result-stage SLA metric ratio bridge supports only slaHitCount / ticketCount");
-            return null;
-        }
-        if (!metricAliases.contains(numerator) || !metricAliases.contains(denominator)) {
-            unsupported.add("result-stage SLA metric ratio must reference signed aggregate metric aliases");
-            return null;
-        }
-        return new MetricRatioDerived(name, numerator, denominator);
+        return switch (numerator) {
+            case "slaHitCount" -> "slaAchievementRate".equals(ratioAlias);
+            case "firstResponseSlaHitCount" -> "firstResponseSlaRate".equals(ratioAlias);
+            case "resolutionSlaHitCount" -> "resolutionSlaRate".equals(ratioAlias);
+            default -> false;
+        };
     }
 
     private static List<ResultStageFilter> resultStageFilters(Object rawFilters, String cumulativeAlias,
@@ -1033,7 +1052,13 @@ public final class DslCteDslRequestMapper {
     private static List<ResultStageFilter> resultStageAliasFilters(Object rawFilters, String signedAlias,
                                                                   String bridgeName,
                                                                   List<String> unsupported) {
-        return resultStageAliasFilters(rawFilters, signedAlias, bridgeName,
+        return resultStageAliasFilters(rawFilters, List.of(signedAlias), bridgeName, unsupported);
+    }
+
+    private static List<ResultStageFilter> resultStageAliasFilters(Object rawFilters, List<String> signedAliases,
+                                                                  String bridgeName,
+                                                                  List<String> unsupported) {
+        return resultStageAliasFilters(rawFilters, signedAliases, bridgeName,
                 "postSlice only on signed derived alias",
                 "supports only simple comparison postSlice filters",
                 List.of("=", "!=", "<>", "<", "<=", ">", ">="), unsupported);
@@ -1045,11 +1070,21 @@ public final class DslCteDslRequestMapper {
                                                                   String operatorMessage,
                                                                   List<String> allowedOps,
                                                                   List<String> unsupported) {
+        return resultStageAliasFilters(rawFilters, List.of(signedAlias), bridgeName, aliasMessage, operatorMessage,
+                allowedOps, unsupported);
+    }
+
+    private static List<ResultStageFilter> resultStageAliasFilters(Object rawFilters, List<String> signedAliases,
+                                                                  String bridgeName,
+                                                                  String aliasMessage,
+                                                                  String operatorMessage,
+                                                                  List<String> allowedOps,
+                                                                  List<String> unsupported) {
         List<ResultStageFilter> result = new ArrayList<>();
         for (Map<String, Object> filter : mapList(rawFilters)) {
             String field = stringValue(filter.get("field"));
             String op = stringValue(filter.get("op"));
-            if (!signedAlias.equals(field)) {
+            if (!signedAliases.contains(field)) {
                 unsupported.add(bridgeName + " " + aliasMessage);
                 continue;
             }
@@ -1353,7 +1388,7 @@ public final class DslCteDslRequestMapper {
     private record CumulativeDerived(String rankAlias, String cumulativeAlias) {
     }
 
-    private record MetricRatioDerived(String ratioAlias, String numeratorAlias, String denominatorAlias) {
+    public record MetricRatioDerived(String ratioAlias, String numeratorAlias, String denominatorAlias) {
     }
 
     public record ResultStageFilter(String field, String op, Object value) {
@@ -1445,17 +1480,27 @@ public final class DslCteDslRequestMapper {
     }
 
     public record ResultStageMetricRatioPlan(List<String> output, List<String> groupBy, List<String> metricAliases,
-                                             String numeratorAlias, String denominatorAlias, String ratioAlias,
+                                             List<MetricRatioDerived> ratios,
                                              List<ResultStageFilter> filters) {
 
         Map<String, Object> summary() {
+            MetricRatioDerived primaryRatio = ratios.get(0);
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("kind", "sla_metric_ratio");
             result.put("bridge_scope", "result_stage_metric_ratio");
             result.put("bridge_signed", true);
-            result.put("numerator", numeratorAlias);
-            result.put("denominator", denominatorAlias);
-            result.put("ratio_alias", ratioAlias);
+            result.put("numerator", primaryRatio.numeratorAlias());
+            result.put("denominator", primaryRatio.denominatorAlias());
+            result.put("ratio_alias", primaryRatio.ratioAlias());
+            result.put("ratios", ratios.stream()
+                    .map(ratio -> {
+                        Map<String, Object> item = new LinkedHashMap<>();
+                        item.put("numerator", ratio.numeratorAlias());
+                        item.put("denominator", ratio.denominatorAlias());
+                        item.put("ratio_alias", ratio.ratioAlias());
+                        return item;
+                    })
+                    .toList());
             result.put("postSlice_filters", filters.size());
             return result;
         }
@@ -1496,8 +1541,10 @@ public final class DslCteDslRequestMapper {
             for (String metric : metricAliases) {
                 selectItems.add(quoteAlias(metric));
             }
-            selectItems.add("(1.0 * " + quoteAlias(numeratorAlias) + " / NULLIF("
-                    + quoteAlias(denominatorAlias) + ", 0)) AS " + quoteAlias(ratioAlias));
+            for (MetricRatioDerived ratio : ratios) {
+                selectItems.add("(1.0 * " + quoteAlias(ratio.numeratorAlias()) + " / NULLIF("
+                        + quoteAlias(ratio.denominatorAlias()) + ", 0)) AS " + quoteAlias(ratio.ratioAlias()));
+            }
             sql.append(String.join(", ", selectItems));
             sql.append("\nFROM ").append(baseAlias).append("\n)\n");
 

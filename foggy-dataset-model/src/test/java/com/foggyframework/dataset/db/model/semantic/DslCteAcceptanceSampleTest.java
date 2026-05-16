@@ -44,7 +44,8 @@ class DslCteAcceptanceSampleTest {
                 "SaleOrder", "product.categoryName", "amount"
         );
         QueryModel serviceTicket = queryModel(
-                "ServiceTicketQueryModel", "team$caption", "ticketId", "createdAt", "firstResponseAt", "priority"
+                "ServiceTicketQueryModel", "team$caption", "ticketId", "createdAt", "firstResponseAt",
+                "resolvedAt", "priority"
         );
         when(loader.getJdbcQueryModel("SaleOrder", null)).thenReturn(saleOrder);
         when(loader.getJdbcQueryModel("ServiceTicketQueryModel", null)).thenReturn(serviceTicket);
@@ -276,6 +277,31 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
+    @DisplayName("DSL_CTE validation marks dual first-response and resolution SLA rates as result-stage bridge-ready")
+    void validationShowsBridgeReadyForPriorityAwareDualSlaRates() {
+        SemanticQueryResponse response = service.validateQuery(
+                "ServiceTicketQueryModel", dslCtePlan(priorityAwareDualSlaRatePlan()),
+                SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_READY", validation.get("dsl_bridge_status"));
+        SemanticQueryRequest dslRequest = (SemanticQueryRequest) validation.get("dsl_request");
+        assertNotNull(dslRequest);
+        assertEquals(6, dslRequest.getCalculatedFields().size());
+        assertEquals("firstResponseSlaHit", dslRequest.getCalculatedFields().get(2).getName());
+        assertEquals("resolutionSlaHit", dslRequest.getCalculatedFields().get(5).getName());
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> ratioBridge = (Map<String, Object>) validation.get("dsl_result_stage_metric_ratio");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> ratios = (List<Map<String, Object>>) ratioBridge.get("ratios");
+        assertEquals(2, ratios.size());
+        assertEquals("firstResponseSlaRate", ratios.get(0).get("ratio_alias"));
+        assertEquals("resolutionSlaRate", ratios.get(1).get("ratio_alias"));
+        assertEquals(1, ratioBridge.get("postSlice_filters"));
+    }
+
+    @Test
     @DisplayName("DSL_CTE validation keeps priority as a signed SLA grouping dimension")
     void validationShowsBridgeReadyForPriorityAwareSlaRateByTeamPriorityPostSlice() {
         SemanticQueryResponse response = service.validateQuery(
@@ -448,7 +474,24 @@ class DslCteAcceptanceSampleTest {
 
         List<String> unsupported = bridgeUnsupported(plan);
 
-        assertTrue(unsupported.stream().anyMatch(msg -> msg.contains("slaHitCount / ticketCount")));
+        assertTrue(unsupported.stream()
+                .anyMatch(msg -> msg.contains("signed SLA numerator / ticketCount ratios")));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE SLA rate bridge defers unsigned dual ratio aliases")
+    void validationDefersUnsignedDualSlaRatioAliases() {
+        Map<String, Object> plan = priorityAwareDualSlaRatePlan();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(2).put("derived", List.of(
+                derived("firstResponseSlaRate", "firstResponseSlaHitCount / ticketCount"),
+                derived("resolutionSlaRate", "ticketCount / resolutionSlaHitCount")));
+
+        List<String> unsupported = bridgeUnsupported(plan);
+
+        assertTrue(unsupported.stream()
+                .anyMatch(msg -> msg.contains("signed SLA numerator / ticketCount ratios")));
     }
 
     @Test
@@ -803,6 +846,38 @@ class DslCteAcceptanceSampleTest {
         assertEquals("hours_between(createdAt, resolvedAt)", calculatedFields.get(0).getExpression());
         assertEquals("iif(is_not_null(resolvedAt) && resolutionHours <= slaThresholdHours, 1, 0)",
                 calculatedFields.get(2).getExpression());
+    }
+
+    @Test
+    @DisplayName("DSL_CTE generateSql can opt in to dual first-response and resolution SLA rates")
+    void generateSqlOptInUsesPriorityAwareDualSlaRateBridge() {
+        QueryFacade queryFacade = mock(QueryFacade.class);
+        when(queryFacade.buildSqlOnly(any(ModelResultContext.class)))
+                .thenReturn(new SqlGenerationResult(
+                        "SELECT \"team$caption\", COUNT(ticket_id) AS \"ticketCount\", "
+                                + "SUM(firstResponseSlaHit) AS \"firstResponseSlaHitCount\", "
+                                + "SUM(resolutionSlaHit) AS \"resolutionSlaHitCount\" "
+                                + "FROM service_ticket GROUP BY \"team$caption\"",
+                        List.of(),
+                        null));
+        ReflectionTestUtils.setField(service, "queryFacade", queryFacade);
+
+        SemanticQueryRequest request = dslCtePlan(priorityAwareDualSlaRatePlan());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SqlGenerationResult result = service.generateSql(
+                "ServiceTicketQueryModel", request, SemanticRequestContext.empty());
+
+        assertTrue(result.getSql().contains("firstResponseSlaRate"));
+        assertTrue(result.getSql().contains("resolutionSlaRate"));
+        assertTrue(result.getSql().contains("WHERE \"resolutionSlaRate\" < ?"));
+        assertEquals(List.of(0.90), result.getParams());
+        org.mockito.ArgumentCaptor<ModelResultContext> captor = org.mockito.ArgumentCaptor.forClass(ModelResultContext.class);
+        verify(queryFacade).buildSqlOnly(captor.capture());
+        assertEquals(List.of("team$caption", "count(ticketId) AS ticketCount",
+                        "sum(firstResponseSlaHit) AS firstResponseSlaHitCount",
+                        "sum(resolutionSlaHit) AS resolutionSlaHitCount"),
+                captor.getValue().getRequest().getParam().getColumns());
     }
 
     @Test
@@ -1319,6 +1394,45 @@ class DslCteAcceptanceSampleTest {
                                 "filters", List.of(filter("slaAchievementRate", "<", 0.90)))
                 ),
                 List.of("team$caption", "ticketCount", "slaHitCount", "slaAchievementRate")
+        );
+    }
+
+    private Map<String, Object> priorityAwareDualSlaRatePlan() {
+        return plan(
+                List.of(
+                        stage("ticket_scope", "derive",
+                                "input", model("ServiceTicketQueryModel"),
+                                "filters", List.of(
+                                        filter("createdAt", ">=", "2026-05-01 00:00:00"),
+                                        filter("createdAt", "<", "2026-06-01 00:00:00")),
+                                "derived", List.of(
+                                        derived("firstResponseHours", "hours_between(createdAt, firstResponseAt)"),
+                                        derived("firstResponseThresholdHours",
+                                                "priority_threshold(priority, P1=4, P2=24, P3=48)"),
+                                        derived("firstResponseSlaHit",
+                                                "firstResponseAt is not null and firstResponseHours <= firstResponseThresholdHours"),
+                                        derived("resolutionHours", "hours_between(createdAt, resolvedAt)"),
+                                        derived("resolutionThresholdHours",
+                                                "priority_threshold(priority, P1=8, P2=48, P3=72)"),
+                                        derived("resolutionSlaHit",
+                                                "resolvedAt is not null and resolutionHours <= resolutionThresholdHours"))),
+                        stage("team_dual_sla", "aggregate",
+                                "inputs", List.of("ticket_scope"),
+                                "groupBy", List.of("team$caption"),
+                                "metrics", List.of(
+                                        metric("ticketCount", "count(*)"),
+                                        metric("firstResponseSlaHitCount", "sum(firstResponseSlaHit)"),
+                                        metric("resolutionSlaHitCount", "sum(resolutionSlaHit)"))),
+                        stage("team_dual_sla_rate", "derive",
+                                "inputs", List.of("team_dual_sla"),
+                                "derived", List.of(
+                                        derived("firstResponseSlaRate", "firstResponseSlaHitCount / ticketCount"),
+                                        derived("resolutionSlaRate", "resolutionSlaHitCount / ticketCount"))),
+                        stage("low_dual_sla_teams", "postSlice",
+                                "inputs", List.of("team_dual_sla_rate"),
+                                "filters", List.of(filter("resolutionSlaRate", "<", 0.90)))
+                ),
+                List.of("team$caption", "ticketCount", "firstResponseSlaRate", "resolutionSlaRate")
         );
     }
 
