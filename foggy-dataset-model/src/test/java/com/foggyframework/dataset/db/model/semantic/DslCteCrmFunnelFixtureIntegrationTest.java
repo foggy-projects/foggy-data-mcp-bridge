@@ -74,6 +74,31 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
         }
     }
 
+    @Test
+    @DisplayName("DSL_CTE CRM lead funnel drop-off bridge executes and matches manual baseline")
+    void crmLeadFunnelDropOffBridgeSqlMatchesManualBaseline() {
+        List<Map<String, Object>> manualRows = crmLeadFunnelDropOffManualRows();
+        SemanticQueryRequest request = dslCtePlan(crmLeadFunnelDropOffPlan());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SqlGenerationResult generated = semanticQueryServiceV3.generateSql(
+                "CrmLead", request, SemanticRequestContext.empty());
+
+        assertNotNull(generated);
+        assertNotNull(generated.getSql());
+        assertTrue(generated.getSql().contains("opportunityDropOffCount"), generated.getSql());
+        assertTrue(generated.getSql().contains("opportunityToOrderDropOffRate"), generated.getSql());
+
+        List<Map<String, Object>> rows = new ArrayList<>(jdbcTemplate.queryForList(
+                generated.getSql(), generated.getParams().toArray(new Object[0])));
+        rows.sort(Comparator.comparing(row -> String.valueOf(value(row, "leadSource"))));
+
+        assertEquals(manualRows.size(), rows.size());
+        for (int i = 0; i < manualRows.size(); i++) {
+            assertGeneratedCrmFunnelDropOffRowMatchesManual(rows.get(i), manualRows.get(i));
+        }
+    }
+
     private List<Map<String, Object>> crmLeadFunnelManualRows() {
         List<Map<String, Object>> rows = new ArrayList<>(jdbcTemplate.queryForList("""
                 SELECT lead_source AS leadSource,
@@ -82,6 +107,29 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
                        SUM(CASE WHEN converted_order_id IS NOT NULL THEN 1 ELSE 0 END) AS convertedOrderCount,
                        1.0 * SUM(CASE WHEN converted_order_id IS NOT NULL THEN 1 ELSE 0 END)
                            / NULLIF(COUNT(*), 0) AS leadToOrderConversionRate
+                FROM crm_lead
+                WHERE created_at >= '2026-05-01 00:00:00'
+                  AND created_at < '2026-06-01 00:00:00'
+                GROUP BY lead_source
+                ORDER BY leadSource
+                """));
+        rows.sort(Comparator.comparing(row -> String.valueOf(row.get("leadSource"))));
+        return rows;
+    }
+
+    private List<Map<String, Object>> crmLeadFunnelDropOffManualRows() {
+        List<Map<String, Object>> rows = new ArrayList<>(jdbcTemplate.queryForList("""
+                SELECT lead_source AS leadSource,
+                       COUNT(*) AS leadCount,
+                       SUM(CASE WHEN converted_opportunity_id IS NOT NULL THEN 1 ELSE 0 END) AS convertedOpportunityCount,
+                       SUM(CASE WHEN converted_order_id IS NOT NULL THEN 1 ELSE 0 END) AS convertedOrderCount,
+                       SUM(CASE WHEN converted_opportunity_id IS NOT NULL THEN 1 ELSE 0 END)
+                           - SUM(CASE WHEN converted_order_id IS NOT NULL THEN 1 ELSE 0 END) AS opportunityDropOffCount,
+                       1.0 * (
+                           SUM(CASE WHEN converted_opportunity_id IS NOT NULL THEN 1 ELSE 0 END)
+                           - SUM(CASE WHEN converted_order_id IS NOT NULL THEN 1 ELSE 0 END)
+                       ) / NULLIF(SUM(CASE WHEN converted_opportunity_id IS NOT NULL THEN 1 ELSE 0 END), 0)
+                           AS opportunityToOrderDropOffRate
                 FROM crm_lead
                 WHERE created_at >= '2026-05-01 00:00:00'
                   AND created_at < '2026-06-01 00:00:00'
@@ -103,6 +151,26 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
                 ((Number) value(generated, "convertedOrderCount")).intValue());
         assertClose(((Number) manual.get("leadToOrderConversionRate")).doubleValue(),
                 ((Number) value(generated, "leadToOrderConversionRate")).doubleValue());
+    }
+
+    private static void assertGeneratedCrmFunnelDropOffRowMatchesManual(Map<String, Object> generated,
+                                                                        Map<String, Object> manual) {
+        assertGeneratedCrmFunnelCountsMatchManual(generated, manual);
+        assertEquals(((Number) manual.get("opportunityDropOffCount")).intValue(),
+                ((Number) value(generated, "opportunityDropOffCount")).intValue());
+        assertClose(((Number) manual.get("opportunityToOrderDropOffRate")).doubleValue(),
+                ((Number) value(generated, "opportunityToOrderDropOffRate")).doubleValue());
+    }
+
+    private static void assertGeneratedCrmFunnelCountsMatchManual(Map<String, Object> generated,
+                                                                  Map<String, Object> manual) {
+        assertEquals(manual.get("leadSource"), value(generated, "leadSource"));
+        assertEquals(((Number) manual.get("leadCount")).intValue(),
+                ((Number) value(generated, "leadCount")).intValue());
+        assertEquals(((Number) manual.get("convertedOpportunityCount")).intValue(),
+                ((Number) value(generated, "convertedOpportunityCount")).intValue());
+        assertEquals(((Number) manual.get("convertedOrderCount")).intValue(),
+                ((Number) value(generated, "convertedOrderCount")).intValue());
     }
 
     private static void assertCrmFunnelRow(Map<String, Object> row, String leadSource, int leadCount,
@@ -167,6 +235,41 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
                 ),
                 "output", List.of("leadSource", "leadCount", "convertedOpportunityCount",
                         "convertedOrderCount", "leadToOrderConversionRate")
+        );
+    }
+
+    private static Map<String, Object> crmLeadFunnelDropOffPlan() {
+        return m(
+                "stages", List.of(
+                        stage("lead_scope", "derive",
+                                "input", m("model", "CrmLead"),
+                                "filters", List.of(
+                                        m("field", "createdAt", "op", ">=", "value", "2026-05-01 00:00:00"),
+                                        m("field", "createdAt", "op", "<", "value", "2026-06-01 00:00:00")),
+                                "derived", List.of(
+                                        m("name", "convertedOpportunity", "expr",
+                                                "convertedOpportunityId is not null"),
+                                        m("name", "convertedOrder", "expr",
+                                                "convertedOrderId is not null"))),
+                        stage("source_funnel", "aggregate",
+                                "inputs", List.of("lead_scope"),
+                                "groupBy", List.of("leadSource"),
+                                "metrics", List.of(
+                                        m("name", "leadCount", "expr", "count(*)"),
+                                        m("name", "convertedOpportunityCount", "expr",
+                                                "sum(case when convertedOpportunity then 1 else 0 end)"),
+                                        m("name", "convertedOrderCount", "expr",
+                                                "sum(case when convertedOrder then 1 else 0 end)"))),
+                        stage("source_drop_off", "derive",
+                                "inputs", List.of("source_funnel"),
+                                "derived", List.of(
+                                        m("name", "opportunityDropOffCount",
+                                                "expr", "convertedOpportunityCount - convertedOrderCount"),
+                                        m("name", "opportunityToOrderDropOffRate",
+                                                "expr", "(convertedOpportunityCount - convertedOrderCount) / convertedOpportunityCount")))
+                ),
+                "output", List.of("leadSource", "leadCount", "convertedOpportunityCount",
+                        "convertedOrderCount", "opportunityDropOffCount", "opportunityToOrderDropOffRate")
         );
     }
 

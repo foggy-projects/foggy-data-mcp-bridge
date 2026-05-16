@@ -390,6 +390,71 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
+    @DisplayName("DSL_CTE validation marks defined CRM funnel drop-off as bridge-ready")
+    void validationShowsBridgeReadyForDefinedCrmLeadFunnelDropOff() {
+        SemanticQueryResponse response = service.validateQuery(
+                "CrmLead", dslCtePlan(third013DropOff()), SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_READY", validation.get("dsl_bridge_status"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> ratioBridge = (Map<String, Object>) validation.get("dsl_result_stage_metric_ratio");
+        assertEquals("funnel_drop_off", ratioBridge.get("kind"));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> arithmetic = (List<Map<String, Object>>) ratioBridge.get("arithmetic");
+        assertEquals(2, arithmetic.size());
+        assertTrue(arithmetic.stream().anyMatch(item -> "opportunityDropOffCount".equals(item.get("alias"))));
+        assertTrue(arithmetic.stream().anyMatch(item -> "opportunityToOrderDropOffRate".equals(item.get("alias"))));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE validation accepts all signed CRM funnel drop-off aliases")
+    void validationShowsBridgeReadyForAllSignedCrmLeadFunnelDropOffAliases() {
+        Map<String, Object> plan = third013DropOff();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(2).put("derived", List.of(
+                derived("leadToOpportunityDropOffCount", "leadCount - convertedOpportunityCount"),
+                derived("opportunityDropOffCount", "convertedOpportunityCount - convertedOrderCount"),
+                derived("leadToOrderDropOffCount", "leadCount - convertedOrderCount"),
+                derived("leadToOpportunityDropOffRate", "(leadCount - convertedOpportunityCount) / leadCount"),
+                derived("opportunityToOrderDropOffRate",
+                        "(convertedOpportunityCount - convertedOrderCount) / convertedOpportunityCount"),
+                derived("leadToOrderDropOffRate", "(leadCount - convertedOrderCount) / leadCount")));
+        plan.put("output", List.of("leadSource", "leadToOpportunityDropOffCount", "opportunityDropOffCount",
+                "leadToOrderDropOffCount", "leadToOpportunityDropOffRate", "opportunityToOrderDropOffRate",
+                "leadToOrderDropOffRate"));
+
+        SemanticQueryResponse response = service.validateQuery(
+                "CrmLead", dslCtePlan(plan), SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_READY", validation.get("dsl_bridge_status"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> ratioBridge = (Map<String, Object>) validation.get("dsl_result_stage_metric_ratio");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> arithmetic = (List<Map<String, Object>>) ratioBridge.get("arithmetic");
+        assertEquals(6, arithmetic.size());
+    }
+
+    @Test
+    @DisplayName("DSL_CTE CRM funnel drop-off defers unsigned arithmetic")
+    void validationDefersUnsignedCrmLeadFunnelDropOffArithmetic() {
+        Map<String, Object> plan = third013DropOff();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(2).put("derived", List.of(
+                derived("opportunityDropOffCount", "convertedOrderCount - convertedOpportunityCount")));
+        plan.put("output", List.of("leadSource", "leadCount", "convertedOpportunityCount",
+                "convertedOrderCount", "opportunityDropOffCount"));
+
+        List<String> unsupported = bridgeUnsupported(plan);
+
+        assertTrue(unsupported.stream()
+                .anyMatch(msg -> msg.contains("signed CRM funnel drop-off count formulas")));
+    }
+
+    @Test
     @DisplayName("DSL_CTE validation keeps priority as a signed SLA grouping dimension")
     void validationShowsBridgeReadyForPriorityAwareSlaRateByTeamPriorityPostSlice() {
         SemanticQueryResponse response = service.validateQuery(
@@ -1056,6 +1121,30 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
+    @DisplayName("DSL_CTE generateSql can opt in to defined CRM funnel drop-off")
+    void generateSqlOptInUsesDefinedCrmLeadFunnelDropOffBridge() {
+        QueryFacade queryFacade = mock(QueryFacade.class);
+        when(queryFacade.buildSqlOnly(any(ModelResultContext.class)))
+                .thenReturn(new SqlGenerationResult(
+                        "SELECT \"leadSource\", COUNT(lead_id) AS \"leadCount\", "
+                                + "SUM(convertedOpportunity) AS \"convertedOpportunityCount\", "
+                                + "SUM(convertedOrder) AS \"convertedOrderCount\" "
+                                + "FROM crm_lead GROUP BY \"leadSource\"",
+                        List.of(),
+                        null));
+        ReflectionTestUtils.setField(service, "queryFacade", queryFacade);
+
+        SemanticQueryRequest request = dslCtePlan(third013DropOff());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SqlGenerationResult result = service.generateSql("CrmLead", request, SemanticRequestContext.empty());
+
+        assertTrue(result.getSql().contains("opportunityDropOffCount"));
+        assertTrue(result.getSql().contains("opportunityToOrderDropOffRate"));
+        assertTrue(result.getSql().contains("\"convertedOpportunityCount\" - \"convertedOrderCount\""));
+    }
+
+    @Test
     @DisplayName("DSL_CTE generateSql can opt in to priority-aware SLA rate grouped by team and priority")
     void generateSqlOptInUsesPriorityAwareSlaRateByTeamPriorityBridge() {
         QueryFacade queryFacade = mock(QueryFacade.class);
@@ -1300,6 +1389,35 @@ class DslCteAcceptanceSampleTest {
                 ),
                 List.of("leadSource", "leadCount", "convertedOpportunityCount",
                         "convertedOrderCount", "leadToOrderConversionRate")
+        );
+    }
+
+    private Map<String, Object> third013DropOff() {
+        return plan(
+                List.of(
+                        stage("lead_scope", "derive",
+                                "input", model("CrmLead"),
+                                "filters", List.of(filter("createdAt", "this_quarter", null)),
+                                "derived", List.of(
+                                        derived("convertedOpportunity", "convertedOpportunityId is not null"),
+                                        derived("convertedOrder", "convertedOrderId is not null"))),
+                        stage("source_funnel", "aggregate",
+                                "inputs", List.of("lead_scope"),
+                                "groupBy", List.of("leadSource"),
+                                "metrics", List.of(
+                                        metric("leadCount", "count(*)"),
+                                        metric("convertedOpportunityCount", "sum(case when convertedOpportunity then 1 else 0 end)"),
+                                        metric("convertedOrderCount", "sum(case when convertedOrder then 1 else 0 end)"))),
+                        stage("source_drop_off", "derive",
+                                "inputs", List.of("source_funnel"),
+                                "derived", List.of(
+                                        derived("opportunityDropOffCount",
+                                                "convertedOpportunityCount - convertedOrderCount"),
+                                        derived("opportunityToOrderDropOffRate",
+                                                "(convertedOpportunityCount - convertedOrderCount) / convertedOpportunityCount")))
+                ),
+                List.of("leadSource", "leadCount", "convertedOpportunityCount",
+                        "convertedOrderCount", "opportunityDropOffCount", "opportunityToOrderDropOffRate")
         );
     }
 

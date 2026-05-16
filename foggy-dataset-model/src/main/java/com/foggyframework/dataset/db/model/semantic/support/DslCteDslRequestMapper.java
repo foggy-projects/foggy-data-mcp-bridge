@@ -54,6 +54,10 @@ public final class DslCteDslRequestMapper {
             "(?i)^\\s*sum\\s*\\(\\s*case\\s+when\\s+([A-Za-z_][A-Za-z0-9_$]*)\\s+then\\s+1\\s+else\\s+0\\s+end\\s*\\)\\s*$");
     private static final Pattern METRIC_RATIO_PATTERN = Pattern.compile(
             "(?i)^\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*/\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*$");
+    private static final Pattern METRIC_DIFFERENCE_PATTERN = Pattern.compile(
+            "(?i)^\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*-\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*$");
+    private static final Pattern METRIC_DIFFERENCE_RATIO_PATTERN = Pattern.compile(
+            "(?i)^\\s*\\(?\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*-\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*\\)?\\s*/\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*$");
     private static final List<String> SIGNED_PRIORITY_CODES = List.of("P1", "P2", "P3");
 
     private DslCteDslRequestMapper() {
@@ -306,15 +310,15 @@ public final class DslCteDslRequestMapper {
         String model = sourceModel(fallbackModel, derive);
         List<CalculatedFieldDef> calculatedFields = rowLevelSlaCalculatedFields(derive.get("derived"), model, unsupported);
         MetricMapping metrics = rowLevelAggregateMetrics(aggregate.get("metrics"), model, calculatedFields, unsupported);
-        List<MetricRatioDerived> ratios = slaMetricRatioDerived(ratioStage.get("derived"), model,
+        ResultStageDerivedMetrics derivedMetrics = resultStageMetricDerived(ratioStage.get("derived"), model,
                 metrics.aliases(), unsupported);
-        if (ratios.isEmpty()) {
+        if (derivedMetrics.empty()) {
             return ResultStageMetricRatioBridgeResult.deferred(unsupported);
         }
-        List<String> ratioAliases = ratios.stream().map(MetricRatioDerived::ratioAlias).toList();
+        List<String> derivedAliases = derivedMetrics.aliases();
         List<ResultStageFilter> filters = resultStageAliasFilters(
                 stages.size() == 4 ? stages.get(3).get("filters") : null,
-                ratioAliases, "result-stage SLA metric ratio bridge", unsupported);
+                derivedAliases, "result-stage SLA metric ratio bridge", unsupported);
         if (!unsupported.isEmpty()) {
             return ResultStageMetricRatioBridgeResult.deferred(unsupported);
         }
@@ -336,15 +340,15 @@ public final class DslCteDslRequestMapper {
         if (output.isEmpty()) {
             output.addAll(groupBy);
             output.addAll(metrics.aliases());
-            output.addAll(ratioAliases);
+            output.addAll(derivedAliases);
         }
-        if (!allSafeAliases(output, groupBy, metrics.aliases(), ratioAliases)) {
+        if (!allSafeAliases(output, groupBy, metrics.aliases(), derivedAliases)) {
             unsupported.add("result-stage SLA metric ratio output supports only governed field aliases");
         }
         List<String> availableOutput = new ArrayList<>();
         availableOutput.addAll(groupBy);
         availableOutput.addAll(metrics.aliases());
-        availableOutput.addAll(ratioAliases);
+        availableOutput.addAll(derivedAliases);
         for (String field : output) {
             if (!availableOutput.contains(field)) {
                 unsupported.add("result-stage SLA metric ratio output references unavailable field: " + field);
@@ -355,7 +359,7 @@ public final class DslCteDslRequestMapper {
         }
 
         ResultStageMetricRatioPlan plan = new ResultStageMetricRatioPlan(
-                output, groupBy, metrics.aliases(), ratios, filters);
+                output, groupBy, metrics.aliases(), derivedMetrics.ratios(), derivedMetrics.arithmetic(), filters);
         return ResultStageMetricRatioBridgeResult.ready(model, baseRequest, plan);
     }
 
@@ -1057,15 +1061,16 @@ public final class DslCteDslRequestMapper {
         return new CumulativeDerived(rankAlias, cumulativeAlias);
     }
 
-    private static List<MetricRatioDerived> slaMetricRatioDerived(Object rawDerived, String model,
-                                                                  List<String> metricAliases,
-                                                                  List<String> unsupported) {
+    private static ResultStageDerivedMetrics resultStageMetricDerived(Object rawDerived, String model,
+                                                                      List<String> metricAliases,
+                                                                      List<String> unsupported) {
         List<Map<String, Object>> derived = mapList(rawDerived);
-        if (derived.isEmpty() || derived.size() > 2) {
-            unsupported.add("result-stage SLA metric ratio bridge requires one or two ratio derived fields");
-            return List.of();
+        if (derived.isEmpty() || derived.size() > 6) {
+            unsupported.add("result-stage SLA metric ratio bridge requires one to six signed derived fields");
+            return ResultStageDerivedMetrics.emptyMetrics();
         }
-        List<MetricRatioDerived> result = new ArrayList<>();
+        List<MetricRatioDerived> ratios = new ArrayList<>();
+        List<MetricArithmeticDerived> arithmetic = new ArrayList<>();
         for (Map<String, Object> item : derived) {
             String name = stringValue(item.get("name"));
             String expr = stringValue(item.get("expr"));
@@ -1074,28 +1079,88 @@ public final class DslCteDslRequestMapper {
                 continue;
             }
             Matcher matcher = METRIC_RATIO_PATTERN.matcher(expr == null ? "" : expr);
-            if (!matcher.matches()) {
-                unsupported.add("result-stage SLA metric ratio bridge supports only numerator / denominator formulas");
+            if (matcher.matches()) {
+                String numerator = matcher.group(1);
+                String denominator = matcher.group(2);
+                if (!signedMetricRatioAlias(numerator, denominator, name, model)) {
+                    unsupported.add("result-stage SLA metric ratio bridge supports only signed SLA numerator / ticketCount ratios "
+                            + "or signed CRM funnel conversion ratios");
+                    continue;
+                }
+                if (!metricAliases.contains(numerator) || !metricAliases.contains(denominator)) {
+                    unsupported.add("result-stage SLA metric ratio must reference signed aggregate metric aliases");
+                    continue;
+                }
+                if (aliasAlreadyUsed(name, ratios, arithmetic)) {
+                    unsupported.add("result-stage SLA metric ratio aliases must be unique");
+                    continue;
+                }
+                ratios.add(new MetricRatioDerived(name, numerator, denominator));
                 continue;
             }
-            String numerator = matcher.group(1);
-            String denominator = matcher.group(2);
-            if (!signedMetricRatioAlias(numerator, denominator, name, model)) {
-                unsupported.add("result-stage SLA metric ratio bridge supports only signed SLA numerator / ticketCount ratios "
-                        + "or signed CRM funnel conversion ratios");
+
+            MetricArithmeticDerived arithmeticDerived = signedFunnelArithmeticDerived(name, expr, model,
+                    metricAliases, unsupported);
+            if (arithmeticDerived != null) {
+                if (aliasAlreadyUsed(name, ratios, arithmetic)) {
+                    unsupported.add("result-stage SLA metric ratio aliases must be unique");
+                    continue;
+                }
+                arithmetic.add(arithmeticDerived);
                 continue;
             }
-            if (!metricAliases.contains(numerator) || !metricAliases.contains(denominator)) {
-                unsupported.add("result-stage SLA metric ratio must reference signed aggregate metric aliases");
-                continue;
-            }
-            if (result.stream().anyMatch(existing -> existing.ratioAlias().equals(name))) {
-                unsupported.add("result-stage SLA metric ratio aliases must be unique");
-                continue;
-            }
-            result.add(new MetricRatioDerived(name, numerator, denominator));
+            unsupported.add("result-stage SLA metric ratio bridge supports only numerator / denominator formulas "
+                    + "or signed CRM funnel drop-off formulas");
         }
-        return unsupported.isEmpty() ? result : List.of();
+        return unsupported.isEmpty() ? new ResultStageDerivedMetrics(ratios, arithmetic)
+                : ResultStageDerivedMetrics.emptyMetrics();
+    }
+
+    private static MetricArithmeticDerived signedFunnelArithmeticDerived(String name, String expr, String model,
+                                                                         List<String> metricAliases,
+                                                                         List<String> unsupported) {
+        if (!isCrmLeadModel(model)) {
+            return null;
+        }
+        Matcher differenceMatcher = METRIC_DIFFERENCE_PATTERN.matcher(expr == null ? "" : expr);
+        if (differenceMatcher.matches()) {
+            String left = differenceMatcher.group(1);
+            String right = differenceMatcher.group(2);
+            if (!signedFunnelDropOffCountAlias(left, right, name)) {
+                unsupported.add("result-stage SLA metric ratio bridge supports only signed CRM funnel drop-off count formulas");
+                return null;
+            }
+            if (!metricAliases.contains(left) || !metricAliases.contains(right)) {
+                unsupported.add("result-stage CRM funnel drop-off must reference signed aggregate metric aliases");
+                return null;
+            }
+            return new MetricArithmeticDerived(name, quoteAlias(left) + " - " + quoteAlias(right),
+                    "funnel_drop_off_count");
+        }
+
+        Matcher ratioMatcher = METRIC_DIFFERENCE_RATIO_PATTERN.matcher(expr == null ? "" : expr);
+        if (ratioMatcher.matches()) {
+            String left = ratioMatcher.group(1);
+            String right = ratioMatcher.group(2);
+            String denominator = ratioMatcher.group(3);
+            if (!signedFunnelDropOffRateAlias(left, right, denominator, name)) {
+                unsupported.add("result-stage SLA metric ratio bridge supports only signed CRM funnel drop-off rate formulas");
+                return null;
+            }
+            if (!metricAliases.contains(left) || !metricAliases.contains(right) || !metricAliases.contains(denominator)) {
+                unsupported.add("result-stage CRM funnel drop-off must reference signed aggregate metric aliases");
+                return null;
+            }
+            return new MetricArithmeticDerived(name, "(1.0 * (" + quoteAlias(left) + " - " + quoteAlias(right)
+                    + ") / NULLIF(" + quoteAlias(denominator) + ", 0))", "funnel_drop_off_rate");
+        }
+        return null;
+    }
+
+    private static boolean aliasAlreadyUsed(String alias, List<MetricRatioDerived> ratios,
+                                            List<MetricArithmeticDerived> arithmetic) {
+        return ratios.stream().anyMatch(existing -> existing.ratioAlias().equals(alias))
+                || arithmetic.stream().anyMatch(existing -> existing.alias().equals(alias));
     }
 
     private static boolean signedSlaRatioAlias(String numerator, String denominator, String ratioAlias) {
@@ -1127,6 +1192,35 @@ public final class DslCteDslRequestMapper {
         if ("convertedOrderCount".equals(numerator) && "leadCount".equals(denominator)) {
             return "leadToOrderRate".equals(ratioAlias)
                     || "leadToOrderConversionRate".equals(ratioAlias);
+        }
+        return false;
+    }
+
+    private static boolean signedFunnelDropOffCountAlias(String left, String right, String alias) {
+        if ("leadCount".equals(left) && "convertedOpportunityCount".equals(right)) {
+            return "leadToOpportunityDropOffCount".equals(alias);
+        }
+        if ("convertedOpportunityCount".equals(left) && "convertedOrderCount".equals(right)) {
+            return "opportunityDropOffCount".equals(alias);
+        }
+        if ("leadCount".equals(left) && "convertedOrderCount".equals(right)) {
+            return "leadToOrderDropOffCount".equals(alias);
+        }
+        return false;
+    }
+
+    private static boolean signedFunnelDropOffRateAlias(String left, String right, String denominator, String alias) {
+        if ("leadCount".equals(left) && "convertedOpportunityCount".equals(right)
+                && "leadCount".equals(denominator)) {
+            return "leadToOpportunityDropOffRate".equals(alias);
+        }
+        if ("convertedOpportunityCount".equals(left) && "convertedOrderCount".equals(right)
+                && "convertedOpportunityCount".equals(denominator)) {
+            return "opportunityToOrderDropOffRate".equals(alias);
+        }
+        if ("leadCount".equals(left) && "convertedOrderCount".equals(right)
+                && "leadCount".equals(denominator)) {
+            return "leadToOrderDropOffRate".equals(alias);
         }
         return false;
     }
@@ -1482,6 +1576,27 @@ public final class DslCteDslRequestMapper {
     public record MetricRatioDerived(String ratioAlias, String numeratorAlias, String denominatorAlias) {
     }
 
+    public record MetricArithmeticDerived(String alias, String sqlExpression, String kind) {
+    }
+
+    public record ResultStageDerivedMetrics(List<MetricRatioDerived> ratios,
+                                            List<MetricArithmeticDerived> arithmetic) {
+        static ResultStageDerivedMetrics emptyMetrics() {
+            return new ResultStageDerivedMetrics(List.of(), List.of());
+        }
+
+        boolean empty() {
+            return ratios.isEmpty() && arithmetic.isEmpty();
+        }
+
+        List<String> aliases() {
+            List<String> result = new ArrayList<>();
+            result.addAll(ratios.stream().map(MetricRatioDerived::ratioAlias).toList());
+            result.addAll(arithmetic.stream().map(MetricArithmeticDerived::alias).toList());
+            return result;
+        }
+    }
+
     public record ResultStageFilter(String field, String op, Object value) {
     }
 
@@ -1572,26 +1687,39 @@ public final class DslCteDslRequestMapper {
 
     public record ResultStageMetricRatioPlan(List<String> output, List<String> groupBy, List<String> metricAliases,
                                              List<MetricRatioDerived> ratios,
+                                             List<MetricArithmeticDerived> arithmetic,
                                              List<ResultStageFilter> filters) {
 
         Map<String, Object> summary() {
-            MetricRatioDerived primaryRatio = ratios.get(0);
             Map<String, Object> result = new LinkedHashMap<>();
-            result.put("kind", ratios.stream().anyMatch(ratio -> signedFunnelRatioAlias(
+            result.put("kind", arithmetic.stream().anyMatch(item -> item.kind().startsWith("funnel_drop_off"))
+                    ? "funnel_drop_off"
+                    : ratios.stream().anyMatch(ratio -> signedFunnelRatioAlias(
                     ratio.numeratorAlias(), ratio.denominatorAlias(), ratio.ratioAlias()))
                     ? "funnel_conversion_rate"
                     : "sla_metric_ratio");
             result.put("bridge_scope", "result_stage_metric_ratio");
             result.put("bridge_signed", true);
-            result.put("numerator", primaryRatio.numeratorAlias());
-            result.put("denominator", primaryRatio.denominatorAlias());
-            result.put("ratio_alias", primaryRatio.ratioAlias());
+            if (!ratios.isEmpty()) {
+                MetricRatioDerived primaryRatio = ratios.get(0);
+                result.put("numerator", primaryRatio.numeratorAlias());
+                result.put("denominator", primaryRatio.denominatorAlias());
+                result.put("ratio_alias", primaryRatio.ratioAlias());
+            }
             result.put("ratios", ratios.stream()
                     .map(ratio -> {
                         Map<String, Object> item = new LinkedHashMap<>();
                         item.put("numerator", ratio.numeratorAlias());
                         item.put("denominator", ratio.denominatorAlias());
                         item.put("ratio_alias", ratio.ratioAlias());
+                        return item;
+                    })
+                    .toList());
+            result.put("arithmetic", arithmetic.stream()
+                    .map(derived -> {
+                        Map<String, Object> item = new LinkedHashMap<>();
+                        item.put("alias", derived.alias());
+                        item.put("kind", derived.kind());
                         return item;
                     })
                     .toList());
@@ -1638,6 +1766,9 @@ public final class DslCteDslRequestMapper {
             for (MetricRatioDerived ratio : ratios) {
                 selectItems.add("(1.0 * " + quoteAlias(ratio.numeratorAlias()) + " / NULLIF("
                         + quoteAlias(ratio.denominatorAlias()) + ", 0)) AS " + quoteAlias(ratio.ratioAlias()));
+            }
+            for (MetricArithmeticDerived derived : arithmetic) {
+                selectItems.add(derived.sqlExpression() + " AS " + quoteAlias(derived.alias()));
             }
             sql.append(String.join(", ", selectItems));
             sql.append("\nFROM ").append(baseAlias).append("\n)\n");
