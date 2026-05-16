@@ -117,6 +117,32 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("DSL_CTE priority-aware SLA rate bridge executes and matches manual baseline")
+    void priorityAwareSlaRatePostSliceBridgeSqlMatchesManualBaseline() {
+        List<Map<String, Object>> manualRows = priorityAwareManualRows(0.85);
+
+        SemanticQueryRequest request = dslCtePlan(priorityAwareSlaRatePostSlicePlan());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SqlGenerationResult generated = semanticQueryServiceV3.generateSql(
+                "ServiceTicketQueryModel", request, SemanticRequestContext.empty());
+
+        assertNotNull(generated);
+        assertNotNull(generated.getSql());
+        assertTrue(generated.getSql().contains("dsl_cte_metric_ratio"), generated.getSql());
+        assertTrue(generated.getSql().contains("priority"), generated.getSql());
+
+        List<Map<String, Object>> rows = new ArrayList<>(jdbcTemplate.queryForList(
+                generated.getSql(), generated.getParams().toArray(new Object[0])));
+        rows.sort(Comparator.comparing(row -> String.valueOf(value(row, "team$caption", "teamName"))));
+
+        assertEquals(manualRows.size(), rows.size());
+        for (int i = 0; i < manualRows.size(); i++) {
+            assertGeneratedSlaRateRowMatchesManual(rows.get(i), manualRows.get(i));
+        }
+    }
+
+    @Test
     @DisplayName("DSL_CTE minimal SLA rate postSlice can filter low-achievement teams")
     void minimalSlaRatePostSliceBridgeFiltersLowAchievementTeams() {
         Map<String, Object> plan = minimalSlaRatePostSlicePlan();
@@ -138,6 +164,47 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
         assertSlaRateRow(rows.get(1), "技术部", 4, 0.5);
     }
 
+    private List<Map<String, Object>> priorityAwareManualRows(double lowRateThreshold) {
+        List<Map<String, Object>> rows = new ArrayList<>(jdbcTemplate.queryForList("""
+                SELECT *
+                FROM (
+                    SELECT dt.team_name AS teamName,
+                           COUNT(*) AS ticketCount,
+                           SUM(CASE
+                                   WHEN st.first_response_at IS NOT NULL
+                                        AND ((julianday(st.first_response_at) - julianday(st.created_at)) * 24.0) <=
+                                            CASE
+                                                WHEN st.priority = 'P1' THEN 4.0
+                                                WHEN st.priority = 'P2' THEN 24.0
+                                                WHEN st.priority = 'P3' THEN 48.0
+                                                ELSE NULL
+                                            END
+                                   THEN 1 ELSE 0
+                               END) AS slaHitCount,
+                           1.0 * SUM(CASE
+                                   WHEN st.first_response_at IS NOT NULL
+                                        AND ((julianday(st.first_response_at) - julianday(st.created_at)) * 24.0) <=
+                                            CASE
+                                                WHEN st.priority = 'P1' THEN 4.0
+                                                WHEN st.priority = 'P2' THEN 24.0
+                                                WHEN st.priority = 'P3' THEN 48.0
+                                                ELSE NULL
+                                            END
+                                   THEN 1 ELSE 0
+                               END) / NULLIF(COUNT(*), 0) AS slaAchievementRate
+                    FROM service_ticket st
+                    LEFT JOIN dim_team dt ON st.team_id = dt.team_id
+                    WHERE st.created_at >= '2026-05-01 00:00:00'
+                      AND st.created_at < '2026-06-01 00:00:00'
+                    GROUP BY dt.team_name
+                )
+                WHERE slaAchievementRate < ?
+                ORDER BY teamName
+                """, lowRateThreshold));
+        rows.sort(Comparator.comparing(row -> String.valueOf(row.get("teamName"))));
+        return rows;
+    }
+
     private static void assertSlaRow(Map<String, Object> row, String teamName, int ticketCount,
                                      int slaHitCount, double slaAchievementRate) {
         assertEquals(teamName, row.get("teamName"));
@@ -145,6 +212,18 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
         assertEquals(slaHitCount, ((Number) row.get("slaHitCount")).intValue());
         assertTrue(BigDecimal.valueOf(((Number) row.get("slaAchievementRate")).doubleValue())
                 .subtract(BigDecimal.valueOf(slaAchievementRate)).abs()
+                .compareTo(BigDecimal.valueOf(0.000001)) <= 0);
+    }
+
+    private static void assertGeneratedSlaRateRowMatchesManual(Map<String, Object> generated,
+                                                               Map<String, Object> manual) {
+        assertEquals(manual.get("teamName"), value(generated, "team$caption", "teamName"));
+        assertEquals(((Number) manual.get("ticketCount")).intValue(),
+                ((Number) value(generated, "ticketCount")).intValue());
+        assertEquals(((Number) manual.get("slaHitCount")).intValue(),
+                ((Number) value(generated, "slaHitCount")).intValue());
+        assertTrue(BigDecimal.valueOf(((Number) value(generated, "slaAchievementRate")).doubleValue())
+                .subtract(BigDecimal.valueOf(((Number) manual.get("slaAchievementRate")).doubleValue())).abs()
                 .compareTo(BigDecimal.valueOf(0.000001)) <= 0);
     }
 
@@ -231,6 +310,39 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
                                         m("field", "slaAchievementRate", "op", "<", "value", 0.85)))
                 ),
                 "output", List.of("team$caption", "ticketCount", "slaAchievementRate")
+        );
+    }
+
+    private static Map<String, Object> priorityAwareSlaRatePostSlicePlan() {
+        return m(
+                "stages", List.of(
+                        stage("ticket_scope", "derive",
+                                "input", m("model", "ServiceTicketQueryModel"),
+                                "filters", List.of(
+                                        m("field", "createdAt", "op", ">=", "value", "2026-05-01 00:00:00"),
+                                        m("field", "createdAt", "op", "<", "value", "2026-06-01 00:00:00")),
+                                "derived", List.of(
+                                        m("name", "firstResponseHours", "expr", "hours_between(createdAt, firstResponseAt)"),
+                                        m("name", "slaThresholdHours", "expr",
+                                                "priority_threshold(priority, P1=4, P2=24, P3=48)"),
+                                        m("name", "slaHit", "expr",
+                                                "firstResponseAt is not null and firstResponseHours <= slaThresholdHours"))),
+                        stage("team_sla", "aggregate",
+                                "inputs", List.of("ticket_scope"),
+                                "groupBy", List.of("team$caption"),
+                                "metrics", List.of(
+                                        m("name", "ticketCount", "expr", "count(*)"),
+                                        m("name", "slaHitCount", "expr", "sum(slaHit)"))),
+                        stage("team_sla_rate", "derive",
+                                "inputs", List.of("team_sla"),
+                                "derived", List.of(
+                                        m("name", "slaAchievementRate", "expr", "slaHitCount / ticketCount"))),
+                        stage("low_sla_teams", "postSlice",
+                                "inputs", List.of("team_sla_rate"),
+                                "filters", List.of(
+                                        m("field", "slaAchievementRate", "op", "<", "value", 0.85)))
+                ),
+                "output", List.of("team$caption", "ticketCount", "slaHitCount", "slaAchievementRate")
         );
     }
 

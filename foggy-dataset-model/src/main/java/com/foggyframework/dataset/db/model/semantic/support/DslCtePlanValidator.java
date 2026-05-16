@@ -293,6 +293,7 @@ public final class DslCtePlanValidator {
         boolean hasDuration = false;
         boolean hasBooleanPredicate = false;
         boolean hasMetricRatio = false;
+        boolean hasPriorityThreshold = false;
         for (Map<String, Object> item : derived) {
             String expr = stringValue(item.get("expr"));
             if (expr == null) {
@@ -306,16 +307,21 @@ public final class DslCtePlanValidator {
                     || normalized.contains(" and ")
                     || normalized.contains(" or ");
             hasMetricRatio = hasMetricRatio || isMetricToMetricRatio(expr);
+            hasPriorityThreshold = hasPriorityThreshold || normalized.contains("priority_threshold(");
         }
-        if (preAggregate && (hasDuration || hasBooleanPredicate)) {
+        if (preAggregate && (hasDuration || hasBooleanPredicate || hasPriorityThreshold)) {
             evidence.put("kind", "sla_row_level_derived");
             evidence.put("bridge_scope", "row_level_calculatedFields");
             evidence.put("bridge_signed", false);
-            evidence.put("required_capabilities", List.of(
+            List<String> capabilities = new ArrayList<>(List.of(
                     "governed_duration_function_mapping",
                     "row_level_boolean_predicate",
                     "null_handling_predicate",
                     "conditional_numerator_source"));
+            if (hasPriorityThreshold) {
+                capabilities.add("priority_threshold_mapping");
+            }
+            evidence.put("required_capabilities", capabilities);
             return evidence;
         }
         if (!preAggregate && hasMetricRatio) {

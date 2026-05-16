@@ -62,6 +62,7 @@ export const model = {
         {
             column: 'priority',
             caption: '优先级',
+            description: '工单优先级枚举：P1=最高优先级，P2=普通高优先级，P3=标准优先级；用于显式SLA阈值映射，不表示工单生命周期状态。',
             type: 'STRING'
         },
         {

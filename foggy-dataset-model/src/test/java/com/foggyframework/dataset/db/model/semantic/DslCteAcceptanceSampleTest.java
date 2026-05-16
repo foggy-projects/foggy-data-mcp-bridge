@@ -44,7 +44,7 @@ class DslCteAcceptanceSampleTest {
                 "SaleOrder", "product.categoryName", "amount"
         );
         QueryModel serviceTicket = queryModel(
-                "ServiceTicketQueryModel", "team$caption", "ticketId", "createdAt", "firstResponseAt"
+                "ServiceTicketQueryModel", "team$caption", "ticketId", "createdAt", "firstResponseAt", "priority"
         );
         when(loader.getJdbcQueryModel("SaleOrder", null)).thenReturn(saleOrder);
         when(loader.getJdbcQueryModel("ServiceTicketQueryModel", null)).thenReturn(serviceTicket);
@@ -230,6 +230,77 @@ class DslCteAcceptanceSampleTest {
         assertEquals("ticketCount", ratioBridge.get("denominator"));
         assertEquals("slaAchievementRate", ratioBridge.get("ratio_alias"));
         assertEquals(1, ratioBridge.get("postSlice_filters"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE validation marks priority-aware SLA rate postSlice as result-stage bridge-ready")
+    void validationShowsBridgeReadyForPriorityAwareSlaRatePostSlice() {
+        SemanticQueryResponse response = service.validateQuery(
+                "ServiceTicketQueryModel", dslCtePlan(priorityAwareSlaRatePostSlicePlan()),
+                SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_READY", validation.get("dsl_bridge_status"));
+        SemanticQueryRequest dslRequest = (SemanticQueryRequest) validation.get("dsl_request");
+        assertNotNull(dslRequest);
+        assertEquals(3, dslRequest.getCalculatedFields().size());
+        assertEquals("iif(priority == 'P1', 4, iif(priority == 'P2', 24, iif(priority == 'P3', 48, null)))",
+                dslRequest.getCalculatedFields().get(1).getExpression());
+        assertEquals("iif(is_not_null(firstResponseAt) && firstResponseHours <= slaThresholdHours, 1, 0)",
+                dslRequest.getCalculatedFields().get(2).getExpression());
+
+        Map<String, Object> rowLevelContract = stageContract(response, "ticket_scope", "derive_contract");
+        @SuppressWarnings("unchecked")
+        List<String> rowCapabilities = (List<String>) rowLevelContract.get("required_capabilities");
+        assertTrue(rowCapabilities.contains("priority_threshold_mapping"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE priority-aware SLA bridge defers missing priority thresholds")
+    void validationDefersPriorityAwareSlaMissingThreshold() {
+        Map<String, Object> plan = priorityAwareSlaRatePostSlicePlan();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(0).put("derived", List.of(
+                derived("firstResponseHours", "hours_between(createdAt, firstResponseAt)"),
+                derived("slaThresholdHours", "priority_threshold(priority, P1=4, P2=24)"),
+                derived("slaHit", "firstResponseAt is not null and firstResponseHours <= slaThresholdHours")));
+
+        List<String> unsupported = bridgeUnsupported(plan);
+
+        assertTrue(unsupported.stream().anyMatch(msg -> msg.contains("thresholds for P1/P2/P3")));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE priority-aware SLA bridge defers unknown priority thresholds")
+    void validationDefersPriorityAwareSlaUnknownThresholdCode() {
+        Map<String, Object> plan = priorityAwareSlaRatePostSlicePlan();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(0).put("derived", List.of(
+                derived("firstResponseHours", "hours_between(createdAt, firstResponseAt)"),
+                derived("slaThresholdHours", "priority_threshold(priority, P1=4, P2=24, P4=72)"),
+                derived("slaHit", "firstResponseAt is not null and firstResponseHours <= slaThresholdHours")));
+
+        List<String> unsupported = bridgeUnsupported(plan);
+
+        assertTrue(unsupported.stream().anyMatch(msg -> msg.contains("priority code: P4")));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE priority-aware SLA bridge defers non-numeric priority thresholds")
+    void validationDefersPriorityAwareSlaNonNumericThreshold() {
+        Map<String, Object> plan = priorityAwareSlaRatePostSlicePlan();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(0).put("derived", List.of(
+                derived("firstResponseHours", "hours_between(createdAt, firstResponseAt)"),
+                derived("slaThresholdHours", "priority_threshold(priority, P1=4, P2=24, P3=fast)"),
+                derived("slaHit", "firstResponseAt is not null and firstResponseHours <= slaThresholdHours")));
+
+        List<String> unsupported = bridgeUnsupported(plan);
+
+        assertTrue(unsupported.stream().anyMatch(msg -> msg.contains("numeric hours: P3=fast")));
     }
 
     @Test
@@ -571,6 +642,33 @@ class DslCteAcceptanceSampleTest {
         verify(queryFacade).buildSqlOnly(captor.capture());
         assertEquals(List.of("team$caption", "count(ticketId) AS ticketCount", "sum(slaHit) AS slaHitCount"),
                 captor.getValue().getRequest().getParam().getColumns());
+    }
+
+    @Test
+    @DisplayName("DSL_CTE generateSql can opt in to priority-aware SLA rate result-stage bridge")
+    void generateSqlOptInUsesPriorityAwareSlaRatePostSliceBridge() {
+        QueryFacade queryFacade = mock(QueryFacade.class);
+        when(queryFacade.buildSqlOnly(any(ModelResultContext.class)))
+                .thenReturn(new SqlGenerationResult(
+                        "SELECT \"team$caption\", COUNT(ticket_id) AS \"ticketCount\", SUM(slaHit) AS \"slaHitCount\" FROM service_ticket GROUP BY \"team$caption\"",
+                        List.of(),
+                        null));
+        ReflectionTestUtils.setField(service, "queryFacade", queryFacade);
+
+        SemanticQueryRequest request = dslCtePlan(priorityAwareSlaRatePostSlicePlan());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SqlGenerationResult result = service.generateSql(
+                "ServiceTicketQueryModel", request, SemanticRequestContext.empty());
+
+        assertTrue(result.getSql().contains("dsl_cte_metric_ratio"));
+        org.mockito.ArgumentCaptor<ModelResultContext> captor = org.mockito.ArgumentCaptor.forClass(ModelResultContext.class);
+        verify(queryFacade).buildSqlOnly(captor.capture());
+        List<CalculatedFieldDef> calculatedFields = captor.getValue().getRequest().getParam().getCalculatedFields();
+        assertEquals(3, calculatedFields.size());
+        assertEquals("slaThresholdHours", calculatedFields.get(1).getName());
+        assertEquals("iif(priority == 'P1', 4, iif(priority == 'P2', 24, iif(priority == 'P3', 48, null)))",
+                calculatedFields.get(1).getExpression());
     }
 
     @Test
@@ -943,6 +1041,35 @@ class DslCteAcceptanceSampleTest {
                                 "filters", List.of(filter("slaAchievementRate", "<", 0.85)))
                 ),
                 List.of("team$caption", "ticketCount", "slaAchievementRate")
+        );
+    }
+
+    private Map<String, Object> priorityAwareSlaRatePostSlicePlan() {
+        return plan(
+                List.of(
+                        stage("ticket_scope", "derive",
+                                "input", model("ServiceTicketQueryModel"),
+                                "filters", List.of(
+                                        filter("createdAt", ">=", "2026-05-01 00:00:00"),
+                                        filter("createdAt", "<", "2026-06-01 00:00:00")),
+                                "derived", List.of(
+                                        derived("firstResponseHours", "hours_between(createdAt, firstResponseAt)"),
+                                        derived("slaThresholdHours", "priority_threshold(priority, P1=4, P2=24, P3=48)"),
+                                        derived("slaHit", "firstResponseAt is not null and firstResponseHours <= slaThresholdHours"))),
+                        stage("team_sla", "aggregate",
+                                "inputs", List.of("ticket_scope"),
+                                "groupBy", List.of("team$caption"),
+                                "metrics", List.of(
+                                        metric("ticketCount", "count(*)"),
+                                        metric("slaHitCount", "sum(slaHit)"))),
+                        stage("team_sla_rate", "derive",
+                                "inputs", List.of("team_sla"),
+                                "derived", List.of(derived("slaAchievementRate", "slaHitCount / ticketCount"))),
+                        stage("low_sla_teams", "postSlice",
+                                "inputs", List.of("team_sla_rate"),
+                                "filters", List.of(filter("slaAchievementRate", "<", 0.85)))
+                ),
+                List.of("team$caption", "ticketCount", "slaHitCount", "slaAchievementRate")
         );
     }
 

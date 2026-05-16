@@ -36,10 +36,15 @@ public final class DslCteDslRequestMapper {
             "(?i)^\\s*hours_between\\s*\\(\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*,\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*\\)\\s*$");
     private static final Pattern SLA_HIT_PATTERN = Pattern.compile(
             "(?i)^\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s+is\\s+not\\s+null\\s+and\\s+([A-Za-z_][A-Za-z0-9_$]*)\\s*<=\\s*(\\d+(?:\\.\\d+)?)\\s*$");
+    private static final Pattern SLA_HIT_THRESHOLD_ALIAS_PATTERN = Pattern.compile(
+            "(?i)^\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s+is\\s+not\\s+null\\s+and\\s+([A-Za-z_][A-Za-z0-9_$]*)\\s*<=\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*$");
+    private static final Pattern PRIORITY_THRESHOLD_PATTERN = Pattern.compile(
+            "(?i)^\\s*priority_threshold\\s*\\(\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*,\\s*(.+)\\s*\\)\\s*$");
     private static final Pattern SUM_ALIAS_PATTERN = Pattern.compile(
             "(?i)^\\s*sum\\s*\\(\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*\\)\\s*$");
     private static final Pattern METRIC_RATIO_PATTERN = Pattern.compile(
             "(?i)^\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*/\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*$");
+    private static final List<String> SIGNED_PRIORITY_CODES = List.of("P1", "P2", "P3");
 
     private DslCteDslRequestMapper() {
     }
@@ -416,6 +421,7 @@ public final class DslCteDslRequestMapper {
     private static List<CalculatedFieldDef> rowLevelSlaCalculatedFields(Object rawDerived, List<String> unsupported) {
         List<CalculatedFieldDef> result = new ArrayList<>();
         List<String> durationAliases = new ArrayList<>();
+        List<String> thresholdAliases = new ArrayList<>();
         for (Map<String, Object> derived : mapList(rawDerived)) {
             String name = stringValue(derived.get("name"));
             String expr = stringValue(derived.get("expr"));
@@ -437,6 +443,23 @@ public final class DslCteDslRequestMapper {
                 continue;
             }
 
+            Matcher priorityThreshold = PRIORITY_THRESHOLD_PATTERN.matcher(expr);
+            if (priorityThreshold.matches()) {
+                String field = priorityThreshold.group(1);
+                if (!"priority".equals(field)) {
+                    unsupported.add("priority-aware SLA bridge supports priority_threshold(priority, ...) only");
+                    continue;
+                }
+                Map<String, String> thresholds = priorityThresholds(priorityThreshold.group(2), unsupported);
+                if (thresholds.isEmpty()) {
+                    continue;
+                }
+                result.add(new CalculatedFieldDef(name, "SLA优先级阈值小时数",
+                        priorityThresholdExpression(thresholds)));
+                thresholdAliases.add(name);
+                continue;
+            }
+
             Matcher slaHit = SLA_HIT_PATTERN.matcher(expr);
             if (slaHit.matches()) {
                 String nullableField = slaHit.group(1);
@@ -452,13 +475,70 @@ public final class DslCteDslRequestMapper {
                 continue;
             }
 
-            unsupported.add("row-level SLA bridge supports only hours_between duration and SLA hit threshold predicate: "
-                    + name);
+            Matcher slaHitThresholdAlias = SLA_HIT_THRESHOLD_ALIAS_PATTERN.matcher(expr);
+            if (slaHitThresholdAlias.matches()) {
+                String nullableField = slaHitThresholdAlias.group(1);
+                String durationAlias = slaHitThresholdAlias.group(2);
+                String thresholdAlias = slaHitThresholdAlias.group(3);
+                if (!"firstResponseAt".equals(nullableField)
+                        || !durationAliases.contains(durationAlias)
+                        || !thresholdAliases.contains(thresholdAlias)) {
+                    unsupported.add("priority-aware SLA hit predicate must use firstResponseAt, signed duration alias, and signed threshold alias");
+                    continue;
+                }
+                result.add(new CalculatedFieldDef(name, "SLA命中标记",
+                        "iif(is_not_null(firstResponseAt) && " + durationAlias + " <= "
+                                + thresholdAlias + ", 1, 0)"));
+                continue;
+            }
+
+            unsupported.add("row-level SLA bridge supports only hours_between duration, priority_threshold mapping, "
+                    + "and SLA hit threshold predicate: " + name);
         }
         if (result.isEmpty()) {
             unsupported.add("row-level SLA bridge requires signed calculatedFields");
         }
         return result;
+    }
+
+    private static Map<String, String> priorityThresholds(String raw, List<String> unsupported) {
+        Map<String, String> thresholds = new LinkedHashMap<>();
+        for (String item : raw.split(",")) {
+            String entry = item.trim();
+            if (entry.isEmpty() || !entry.contains("=")) {
+                unsupported.add("priority-aware SLA bridge requires priority_threshold(priority, P1=..., P2=..., P3=...)");
+                return Map.of();
+            }
+            String[] parts = entry.split("=", 2);
+            String code = parts[0].trim().toUpperCase(Locale.ROOT);
+            String value = parts[1].trim();
+            if (!SIGNED_PRIORITY_CODES.contains(code)) {
+                unsupported.add("priority-aware SLA bridge does not support priority code: " + code);
+                return Map.of();
+            }
+            if (!value.matches("\\d+(?:\\.\\d+)?")) {
+                unsupported.add("priority-aware SLA threshold must be numeric hours: " + entry);
+                return Map.of();
+            }
+            if (thresholds.put(code, value) != null) {
+                unsupported.add("priority-aware SLA bridge contains duplicate priority code: " + code);
+                return Map.of();
+            }
+        }
+        if (!thresholds.keySet().containsAll(SIGNED_PRIORITY_CODES) || thresholds.size() != SIGNED_PRIORITY_CODES.size()) {
+            unsupported.add("priority-aware SLA bridge requires thresholds for P1/P2/P3");
+            return Map.of();
+        }
+        return thresholds;
+    }
+
+    private static String priorityThresholdExpression(Map<String, String> thresholds) {
+        String expr = "null";
+        for (int i = SIGNED_PRIORITY_CODES.size() - 1; i >= 0; i--) {
+            String code = SIGNED_PRIORITY_CODES.get(i);
+            expr = "iif(priority == '" + code + "', " + thresholds.get(code) + ", " + expr + ")";
+        }
+        return expr;
     }
 
     private static MetricMapping rowLevelAggregateMetrics(Object raw, List<CalculatedFieldDef> calculatedFields,
