@@ -310,7 +310,9 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                 if (bridge.ready()) {
                     SemanticQueryRequest dslRequest = bridge.request();
                     dslRequest.setHints(request.getHints() == null ? null : new HashMap<>(request.getHints()));
-                    return generateSql(bridge.model(), dslRequest, context);
+                    SqlGenerationResult baseSql = generateSql(bridge.model(), dslRequest, context);
+                    return DslCteDslRequestMapper.applyTopLevelLimitIfDeclared(
+                            baseSql, request.getExecutablePlan());
                 }
                 DslCteDslRequestMapper.ResultStageWindowBridgeResult resultStageBridge =
                         DslCteDslRequestMapper.toResultStageWindowBridge(model, request.getExecutablePlan());

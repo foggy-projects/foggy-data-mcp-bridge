@@ -171,6 +171,32 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("DSL_CTE P1 first-response overdue leaderboard executes and matches manual baseline")
+    void p1FirstResponseOverdueLeaderboardBridgeSqlMatchesManualBaseline() {
+        List<Map<String, Object>> manualRows = p1FirstResponseOverdueLeaderboardManualRows(5);
+
+        SemanticQueryRequest request = dslCtePlan(p1FirstResponseOverdueLeaderboardPlan());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SqlGenerationResult generated = semanticQueryServiceV3.generateSql(
+                "ServiceTicketQueryModel", request, SemanticRequestContext.empty());
+
+        assertNotNull(generated);
+        assertNotNull(generated.getSql());
+        assertTrue(generated.getSql().contains("overdueTicketCount"), generated.getSql());
+        assertTrue(generated.getSql().toUpperCase().contains("ORDER BY"), generated.getSql());
+        assertTrue(generated.getSql().toUpperCase().contains("LIMIT"), generated.getSql());
+
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                generated.getSql(), generated.getParams().toArray(new Object[0]));
+
+        assertEquals(manualRows.size(), rows.size());
+        for (int i = 0; i < manualRows.size(); i++) {
+            assertGeneratedP1OverdueRowMatchesManual(rows.get(i), manualRows.get(i));
+        }
+    }
+
+    @Test
     @DisplayName("DSL_CTE minimal SLA rate postSlice can filter low-achievement teams")
     void minimalSlaRatePostSliceBridgeFiltersLowAchievementTeams() {
         Map<String, Object> plan = minimalSlaRatePostSlicePlan();
@@ -277,6 +303,26 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
         return rows;
     }
 
+    private List<Map<String, Object>> p1FirstResponseOverdueLeaderboardManualRows(int limit) {
+        return jdbcTemplate.queryForList("""
+                SELECT dt.team_name AS teamName,
+                       COUNT(*) AS ticketCount,
+                       SUM(CASE
+                               WHEN st.first_response_at IS NULL
+                                    OR ((julianday(st.first_response_at) - julianday(st.created_at)) * 24.0) > 4.0
+                               THEN 1 ELSE 0
+                           END) AS overdueTicketCount
+                FROM service_ticket st
+                LEFT JOIN dim_team dt ON st.team_id = dt.team_id
+                WHERE st.created_at >= '2026-05-01 00:00:00'
+                  AND st.created_at < '2026-06-01 00:00:00'
+                  AND st.priority = 'P1'
+                GROUP BY dt.team_name
+                ORDER BY overdueTicketCount DESC, teamName ASC
+                LIMIT ?
+                """, limit);
+    }
+
     private static void assertSlaRow(Map<String, Object> row, String teamName, int ticketCount,
                                      int slaHitCount, double slaAchievementRate) {
         assertEquals(teamName, row.get("teamName"));
@@ -310,6 +356,15 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
         assertTrue(BigDecimal.valueOf(((Number) value(generated, "slaAchievementRate")).doubleValue())
                 .subtract(BigDecimal.valueOf(((Number) manual.get("slaAchievementRate")).doubleValue())).abs()
                 .compareTo(BigDecimal.valueOf(0.000001)) <= 0);
+    }
+
+    private static void assertGeneratedP1OverdueRowMatchesManual(Map<String, Object> generated,
+                                                                 Map<String, Object> manual) {
+        assertEquals(manual.get("teamName"), value(generated, "team$caption", "teamName"));
+        assertEquals(((Number) manual.get("ticketCount")).intValue(),
+                ((Number) value(generated, "ticketCount")).intValue());
+        assertEquals(((Number) manual.get("overdueTicketCount")).intValue(),
+                ((Number) value(generated, "overdueTicketCount")).intValue());
     }
 
     private static void assertSlaAggregateRow(Map<String, Object> row, String teamName, int ticketCount,
@@ -462,6 +517,35 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
                 ),
                 "output", List.of("team$caption", "priority", "ticketCount", "slaHitCount", "slaAchievementRate")
         );
+    }
+
+    private static Map<String, Object> p1FirstResponseOverdueLeaderboardPlan() {
+        Map<String, Object> result = m(
+                "stages", List.of(
+                        stage("p1_ticket_scope", "derive",
+                                "input", m("model", "ServiceTicketQueryModel"),
+                                "filters", List.of(
+                                        m("field", "createdAt", "op", ">=", "value", "2026-05-01 00:00:00"),
+                                        m("field", "createdAt", "op", "<", "value", "2026-06-01 00:00:00"),
+                                        m("field", "priority", "op", "=", "value", "P1")),
+                                "derived", List.of(
+                                        m("name", "firstResponseHours", "expr", "hours_between(createdAt, firstResponseAt)"),
+                                        m("name", "slaOverdue", "expr",
+                                                "firstResponseAt is null or firstResponseHours > 4"))),
+                        stage("team_p1_overdue", "aggregate",
+                                "inputs", List.of("p1_ticket_scope"),
+                                "groupBy", List.of("team$caption"),
+                                "metrics", List.of(
+                                        m("name", "ticketCount", "expr", "count(*)"),
+                                        m("name", "overdueTicketCount", "expr", "sum(slaOverdue)")))
+                ),
+                "output", List.of("team$caption", "ticketCount", "overdueTicketCount")
+        );
+        result.put("orderBy", List.of(
+                m("field", "overdueTicketCount", "dir", "DESC"),
+                m("field", "team$caption", "dir", "ASC")));
+        result.put("limit", 5);
+        return result;
     }
 
     private static Map<String, Object> stage(String name, String type, Object... rest) {

@@ -38,6 +38,10 @@ public final class DslCteDslRequestMapper {
             "(?i)^\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s+is\\s+not\\s+null\\s+and\\s+([A-Za-z_][A-Za-z0-9_$]*)\\s*<=\\s*(\\d+(?:\\.\\d+)?)\\s*$");
     private static final Pattern SLA_HIT_THRESHOLD_ALIAS_PATTERN = Pattern.compile(
             "(?i)^\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s+is\\s+not\\s+null\\s+and\\s+([A-Za-z_][A-Za-z0-9_$]*)\\s*<=\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*$");
+    private static final Pattern SLA_OVERDUE_PATTERN = Pattern.compile(
+            "(?i)^\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s+is\\s+null\\s+or\\s+([A-Za-z_][A-Za-z0-9_$]*)\\s*>\\s*(\\d+(?:\\.\\d+)?)\\s*$");
+    private static final Pattern SLA_OVERDUE_THRESHOLD_ALIAS_PATTERN = Pattern.compile(
+            "(?i)^\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s+is\\s+null\\s+or\\s+([A-Za-z_][A-Za-z0-9_$]*)\\s*>\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*$");
     private static final Pattern PRIORITY_THRESHOLD_PATTERN = Pattern.compile(
             "(?i)^\\s*priority_threshold\\s*\\(\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*,\\s*(.+)\\s*\\)\\s*$");
     private static final Pattern SUM_ALIAS_PATTERN = Pattern.compile(
@@ -403,6 +407,9 @@ public final class DslCteDslRequestMapper {
         request.setSlice(sliceItems(derive.get("filters"), unsupported));
         request.setColumns(outputColumns(ctePlan.get("output"), aggregate.get("groupBy"), metrics,
                 List.of(), Map.of(), unsupported));
+        request.setOrderBy(orderItems(ctePlan.get("orderBy"), availableFields(
+                ctePlan.get("output"), aggregate.get("groupBy"), metrics.aliases()), unsupported));
+        request.setLimit(limit(ctePlan.get("limit"), unsupported));
         request.setReturnTotal(false);
 
         String model = sourceModel(fallbackModel, derive);
@@ -492,8 +499,40 @@ public final class DslCteDslRequestMapper {
                 continue;
             }
 
+            Matcher slaOverdue = SLA_OVERDUE_PATTERN.matcher(expr);
+            if (slaOverdue.matches()) {
+                String nullableField = slaOverdue.group(1);
+                String durationAlias = slaOverdue.group(2);
+                String thresholdHours = slaOverdue.group(3);
+                if (!"firstResponseAt".equals(nullableField) || !durationAliases.contains(durationAlias)) {
+                    unsupported.add("row-level SLA overdue predicate must use firstResponseAt and the signed duration alias");
+                    continue;
+                }
+                result.add(new CalculatedFieldDef(name, "SLA超时标记",
+                        "iif(is_null(firstResponseAt) || " + durationAlias + " > "
+                                + thresholdHours + ", 1, 0)"));
+                continue;
+            }
+
+            Matcher slaOverdueThresholdAlias = SLA_OVERDUE_THRESHOLD_ALIAS_PATTERN.matcher(expr);
+            if (slaOverdueThresholdAlias.matches()) {
+                String nullableField = slaOverdueThresholdAlias.group(1);
+                String durationAlias = slaOverdueThresholdAlias.group(2);
+                String thresholdAlias = slaOverdueThresholdAlias.group(3);
+                if (!"firstResponseAt".equals(nullableField)
+                        || !durationAliases.contains(durationAlias)
+                        || !thresholdAliases.contains(thresholdAlias)) {
+                    unsupported.add("priority-aware SLA overdue predicate must use firstResponseAt, signed duration alias, and signed threshold alias");
+                    continue;
+                }
+                result.add(new CalculatedFieldDef(name, "SLA超时标记",
+                        "iif(is_null(firstResponseAt) || " + durationAlias + " > "
+                                + thresholdAlias + ", 1, 0)"));
+                continue;
+            }
+
             unsupported.add("row-level SLA bridge supports only hours_between duration, priority_threshold mapping, "
-                    + "and SLA hit threshold predicate: " + name);
+                    + "SLA hit threshold predicate, and SLA overdue threshold predicate: " + name);
         }
         if (result.isEmpty()) {
             unsupported.add("row-level SLA bridge requires signed calculatedFields");
@@ -1131,6 +1170,96 @@ public final class DslCteDslRequestMapper {
             result.add(item);
         }
         return result;
+    }
+
+    private static List<SemanticQueryRequest.OrderItem> orderItems(Object raw, List<String> availableFields,
+                                                                   List<String> unsupported) {
+        if (raw == null) {
+            return null;
+        }
+        List<Map<String, Object>> orderMaps = mapList(raw);
+        if (orderMaps.isEmpty()) {
+            unsupported.add("DSL_CTE bridge orderBy must be a non-empty object list");
+            return null;
+        }
+        List<SemanticQueryRequest.OrderItem> orderBy = new ArrayList<>();
+        for (Map<String, Object> order : orderMaps) {
+            if (order.containsKey("expr")) {
+                unsupported.add("DSL_CTE bridge does not support expression orderBy: " + order.get("expr"));
+                continue;
+            }
+            String field = stringValue(order.get("field"));
+            String dir = stringValue(order.getOrDefault("dir", "asc"));
+            if (field == null || !availableFields.contains(field)) {
+                unsupported.add("DSL_CTE bridge orderBy field must reference output/group/metric alias: " + field);
+                continue;
+            }
+            if (dir == null || (!"asc".equalsIgnoreCase(dir) && !"desc".equalsIgnoreCase(dir))) {
+                unsupported.add("DSL_CTE bridge orderBy dir must be ASC or DESC: " + order);
+                continue;
+            }
+            SemanticQueryRequest.OrderItem item = new SemanticQueryRequest.OrderItem();
+            item.setField(field);
+            item.setDir(dir.toLowerCase(Locale.ROOT));
+            orderBy.add(item);
+        }
+        return orderBy.isEmpty() ? null : orderBy;
+    }
+
+    private static Integer limit(Object raw, List<String> unsupported) {
+        if (raw == null) {
+            return null;
+        }
+        Integer value = intValue(raw);
+        if (value == null || value <= 0 || value > 1000) {
+            unsupported.add("DSL_CTE bridge limit must be a positive integer <= 1000: " + raw);
+            return null;
+        }
+        return value;
+    }
+
+    private static List<String> availableFields(Object rawOutput, Object rawGroupBy, List<String> metricAliases) {
+        List<String> fields = stringList(rawOutput);
+        for (String field : stringList(rawGroupBy)) {
+            if (!fields.contains(field)) {
+                fields.add(field);
+            }
+        }
+        for (String alias : metricAliases) {
+            if (!fields.contains(alias)) {
+                fields.add(alias);
+            }
+        }
+        return fields;
+    }
+
+    public static SqlGenerationResult applyTopLevelLimitIfDeclared(SqlGenerationResult base, Object executablePlan) {
+        List<String> unsupported = new ArrayList<>();
+        Map<String, Object> ctePlan = ctePlan(executablePlan, unsupported);
+        if (ctePlan == null || !unsupported.isEmpty()) {
+            return base;
+        }
+        Integer value = intValue(ctePlan.get("limit"));
+        if (value == null) {
+            return base;
+        }
+        if (value <= 0 || value > 1000) {
+            throw RX.throwB("DSL_CTE bridge limit must be a positive integer <= 1000: " + ctePlan.get("limit"));
+        }
+        String sql = base.getSql() == null ? "" : base.getSql().stripTrailing();
+        if (containsTrailingLimit(sql)) {
+            return base;
+        }
+        List<Object> params = new ArrayList<>();
+        if (base.getParams() != null) {
+            params.addAll(base.getParams());
+        }
+        params.add(value);
+        return new SqlGenerationResult(sql + "\nLIMIT ?", params, base.getQueryEngine(), base.getCteStages());
+    }
+
+    private static boolean containsTrailingLimit(String sql) {
+        return Pattern.compile("(?is).*\\blimit\\s+(?:\\?|\\d+)\\s*$").matcher(sql).matches();
     }
 
     private static List<Map<String, Object>> mapList(Object value) {

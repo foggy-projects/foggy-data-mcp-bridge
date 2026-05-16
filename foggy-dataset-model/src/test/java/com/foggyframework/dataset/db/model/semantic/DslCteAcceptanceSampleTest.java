@@ -271,6 +271,57 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
+    @DisplayName("DSL_CTE validation marks P1 first-response overdue leaderboard as bridge-ready")
+    void validationShowsBridgeReadyForP1FirstResponseOverdueLeaderboard() {
+        SemanticQueryResponse response = service.validateQuery(
+                "ServiceTicketQueryModel", dslCtePlan(p1FirstResponseOverdueLeaderboardPlan()),
+                SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_READY", validation.get("dsl_bridge_status"));
+        SemanticQueryRequest dslRequest = (SemanticQueryRequest) validation.get("dsl_request");
+        assertNotNull(dslRequest);
+        assertEquals(List.of("team$caption", "count(ticketId) AS ticketCount", "sum(slaOverdue) AS overdueTicketCount"),
+                dslRequest.getColumns());
+        assertEquals("iif(is_null(firstResponseAt) || firstResponseHours > 4, 1, 0)",
+                dslRequest.getCalculatedFields().get(1).getExpression());
+        assertEquals(5, dslRequest.getLimit());
+        assertEquals("overdueTicketCount", dslRequest.getOrderBy().get(0).getField());
+        assertEquals("desc", dslRequest.getOrderBy().get(0).getDir());
+        assertEquals("team$caption", dslRequest.getOrderBy().get(1).getField());
+    }
+
+    @Test
+    @DisplayName("DSL_CTE P1 overdue leaderboard defers expression orderBy")
+    void validationDefersP1OverdueLeaderboardExpressionOrderBy() {
+        Map<String, Object> plan = p1FirstResponseOverdueLeaderboardPlan();
+        plan.put("orderBy", List.of(m("expr", "sum(slaOverdue)", "dir", "DESC")));
+
+        SemanticQueryResponse response = service.validateQuery(
+                "ServiceTicketQueryModel", dslCtePlan(plan), SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_DEFERRED", validation.get("dsl_bridge_status"));
+        assertTrue(validation.get("dsl_bridge_unsupported").toString()
+                .contains("does not support expression orderBy"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE P1 overdue leaderboard defers invalid limit")
+    void validationDefersP1OverdueLeaderboardInvalidLimit() {
+        Map<String, Object> plan = p1FirstResponseOverdueLeaderboardPlan();
+        plan.put("limit", 1001);
+
+        SemanticQueryResponse response = service.validateQuery(
+                "ServiceTicketQueryModel", dslCtePlan(plan), SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_DEFERRED", validation.get("dsl_bridge_status"));
+        assertTrue(validation.get("dsl_bridge_unsupported").toString()
+                .contains("limit must be a positive integer <= 1000"));
+    }
+
+    @Test
     @DisplayName("DSL_CTE priority-aware SLA bridge defers missing priority thresholds")
     void validationDefersPriorityAwareSlaMissingThreshold() {
         Map<String, Object> plan = priorityAwareSlaRatePostSlicePlan();
@@ -714,6 +765,36 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
+    @DisplayName("DSL_CTE generateSql can opt in to P1 first-response overdue leaderboard")
+    void generateSqlOptInUsesP1FirstResponseOverdueLeaderboardBridge() {
+        QueryFacade queryFacade = mock(QueryFacade.class);
+        when(queryFacade.buildSqlOnly(any(ModelResultContext.class)))
+                .thenReturn(new SqlGenerationResult(
+                        "SELECT \"team$caption\", COUNT(ticket_id) AS \"ticketCount\", "
+                                + "SUM(slaOverdue) AS \"overdueTicketCount\" FROM service_ticket "
+                                + "WHERE priority = ? GROUP BY \"team$caption\" "
+                                + "ORDER BY \"overdueTicketCount\" DESC, \"team$caption\" ASC",
+                        List.of("P1"),
+                        null));
+        ReflectionTestUtils.setField(service, "queryFacade", queryFacade);
+
+        SemanticQueryRequest request = dslCtePlan(p1FirstResponseOverdueLeaderboardPlan());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SqlGenerationResult result = service.generateSql(
+                "ServiceTicketQueryModel", request, SemanticRequestContext.empty());
+
+        assertTrue(result.getSql().contains("overdueTicketCount"));
+        assertTrue(result.getSql().toUpperCase().contains("LIMIT ?"));
+        assertEquals(List.of("P1", 5), result.getParams());
+        org.mockito.ArgumentCaptor<ModelResultContext> captor = org.mockito.ArgumentCaptor.forClass(ModelResultContext.class);
+        verify(queryFacade).buildSqlOnly(captor.capture());
+        assertEquals("overdueTicketCount",
+                captor.getValue().getRequest().getParam().getOrderBy().get(0).getField());
+        assertEquals("desc", captor.getValue().getRequest().getParam().getOrderBy().get(0).getDir());
+    }
+
+    @Test
     @DisplayName("DSL_CTE generateSql can opt in to cumulative contribution result-stage window")
     void generateSqlOptInUsesResultStageWindowForCumulativeContribution() {
         QueryFacade queryFacade = mock(QueryFacade.class);
@@ -1142,6 +1223,32 @@ class DslCteAcceptanceSampleTest {
                 ),
                 List.of("team$caption", "priority", "ticketCount", "slaHitCount", "slaAchievementRate")
         );
+    }
+
+    private Map<String, Object> p1FirstResponseOverdueLeaderboardPlan() {
+        Map<String, Object> result = plan(
+                List.of(
+                        stage("p1_ticket_scope", "derive",
+                                "input", model("ServiceTicketQueryModel"),
+                                "filters", List.of(
+                                        filter("createdAt", ">=", "2026-05-01 00:00:00"),
+                                        filter("createdAt", "<", "2026-06-01 00:00:00"),
+                                        filter("priority", "=", "P1")),
+                                "derived", List.of(
+                                        derived("firstResponseHours", "hours_between(createdAt, firstResponseAt)"),
+                                        derived("slaOverdue", "firstResponseAt is null or firstResponseHours > 4"))),
+                        stage("team_p1_overdue", "aggregate",
+                                "inputs", List.of("p1_ticket_scope"),
+                                "groupBy", List.of("team$caption"),
+                                "metrics", List.of(
+                                        metric("ticketCount", "count(*)"),
+                                        metric("overdueTicketCount", "sum(slaOverdue)")))
+                ),
+                List.of("team$caption", "ticketCount", "overdueTicketCount")
+        );
+        result.put("orderBy", List.of(order("overdueTicketCount", "DESC"), order("team$caption", "ASC")));
+        result.put("limit", 5);
+        return result;
     }
 
     private Map<String, Object> plan(List<?> stages, List<String> output) {
