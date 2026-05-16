@@ -195,6 +195,31 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("DSL_CTE combined first-response and resolution SLA rate executes and matches manual baseline")
+    void priorityAwareCombinedSlaRateBridgeSqlMatchesManualBaseline() {
+        List<Map<String, Object>> manualRows = priorityAwareCombinedSlaManualRows(0.85);
+
+        SemanticQueryRequest request = dslCtePlan(priorityAwareCombinedSlaRatePlan());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SqlGenerationResult generated = semanticQueryServiceV3.generateSql(
+                "ServiceTicketQueryModel", request, SemanticRequestContext.empty());
+
+        assertNotNull(generated);
+        assertNotNull(generated.getSql());
+        assertTrue(generated.getSql().contains("combinedSlaRate"), generated.getSql());
+
+        List<Map<String, Object>> rows = new ArrayList<>(jdbcTemplate.queryForList(
+                generated.getSql(), generated.getParams().toArray(new Object[0])));
+        rows.sort(Comparator.comparing(row -> String.valueOf(value(row, "team$caption", "teamName"))));
+
+        assertEquals(manualRows.size(), rows.size());
+        for (int i = 0; i < manualRows.size(); i++) {
+            assertGeneratedCombinedSlaRateRowMatchesManual(rows.get(i), manualRows.get(i));
+        }
+    }
+
+    @Test
     @DisplayName("DSL_CTE priority-aware SLA rate bridge supports team and priority grouping")
     void priorityAwareSlaRateByTeamPriorityPostSliceBridgeSqlMatchesManualBaseline() {
         List<Map<String, Object>> manualRows = priorityAwareByTeamPriorityManualRows(0.85);
@@ -393,6 +418,44 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
         return rows;
     }
 
+    private List<Map<String, Object>> priorityAwareCombinedSlaManualRows(double lowRateThreshold) {
+        List<Map<String, Object>> rows = new ArrayList<>(jdbcTemplate.queryForList("""
+                SELECT *
+                FROM (
+                    SELECT dt.team_name AS teamName,
+                           COUNT(*) AS ticketCount,
+                           1.0 * SUM(CASE
+                                   WHEN st.first_response_at IS NOT NULL
+                                        AND ((julianday(st.first_response_at) - julianday(st.created_at)) * 24.0) <=
+                                            CASE
+                                                WHEN st.priority = 'P1' THEN 4.0
+                                                WHEN st.priority = 'P2' THEN 24.0
+                                                WHEN st.priority = 'P3' THEN 48.0
+                                                ELSE NULL
+                                            END
+                                        AND st.resolved_at IS NOT NULL
+                                        AND ((julianday(st.resolved_at) - julianday(st.created_at)) * 24.0) <=
+                                            CASE
+                                                WHEN st.priority = 'P1' THEN 8.0
+                                                WHEN st.priority = 'P2' THEN 48.0
+                                                WHEN st.priority = 'P3' THEN 72.0
+                                                ELSE NULL
+                                            END
+                                   THEN 1 ELSE 0
+                               END) / NULLIF(COUNT(*), 0) AS combinedSlaRate
+                    FROM service_ticket st
+                    LEFT JOIN dim_team dt ON st.team_id = dt.team_id
+                    WHERE st.created_at >= '2026-05-01 00:00:00'
+                      AND st.created_at < '2026-06-01 00:00:00'
+                    GROUP BY dt.team_name
+                )
+                WHERE combinedSlaRate < ?
+                ORDER BY teamName
+                """, lowRateThreshold));
+        rows.sort(Comparator.comparing(row -> String.valueOf(row.get("teamName"))));
+        return rows;
+    }
+
     private List<Map<String, Object>> priorityAwareByTeamPriorityManualRows(double lowRateThreshold) {
         List<Map<String, Object>> rows = new ArrayList<>(jdbcTemplate.queryForList("""
                 SELECT *
@@ -502,6 +565,16 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
                 .compareTo(BigDecimal.valueOf(0.000001)) <= 0);
         assertTrue(BigDecimal.valueOf(((Number) value(generated, "resolutionSlaRate")).doubleValue())
                 .subtract(BigDecimal.valueOf(((Number) manual.get("resolutionSlaRate")).doubleValue())).abs()
+                .compareTo(BigDecimal.valueOf(0.000001)) <= 0);
+    }
+
+    private static void assertGeneratedCombinedSlaRateRowMatchesManual(Map<String, Object> generated,
+                                                                       Map<String, Object> manual) {
+        assertEquals(manual.get("teamName"), value(generated, "team$caption", "teamName"));
+        assertEquals(((Number) manual.get("ticketCount")).intValue(),
+                ((Number) value(generated, "ticketCount")).intValue());
+        assertTrue(BigDecimal.valueOf(((Number) value(generated, "combinedSlaRate")).doubleValue())
+                .subtract(BigDecimal.valueOf(((Number) manual.get("combinedSlaRate")).doubleValue())).abs()
                 .compareTo(BigDecimal.valueOf(0.000001)) <= 0);
     }
 
@@ -740,6 +813,48 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
                                         m("field", "resolutionSlaRate", "op", "<", "value", 0.90)))
                 ),
                 "output", List.of("team$caption", "ticketCount", "firstResponseSlaRate", "resolutionSlaRate")
+        );
+    }
+
+    private static Map<String, Object> priorityAwareCombinedSlaRatePlan() {
+        return m(
+                "stages", List.of(
+                        stage("ticket_scope", "derive",
+                                "input", m("model", "ServiceTicketQueryModel"),
+                                "filters", List.of(
+                                        m("field", "createdAt", "op", ">=", "value", "2026-05-01 00:00:00"),
+                                        m("field", "createdAt", "op", "<", "value", "2026-06-01 00:00:00")),
+                                "derived", List.of(
+                                        m("name", "firstResponseHours", "expr",
+                                                "hours_between(createdAt, firstResponseAt)"),
+                                        m("name", "firstResponseThresholdHours", "expr",
+                                                "priority_threshold(priority, P1=4, P2=24, P3=48)"),
+                                        m("name", "firstResponseSlaHit", "expr",
+                                                "firstResponseAt is not null and firstResponseHours <= firstResponseThresholdHours"),
+                                        m("name", "resolutionHours", "expr",
+                                                "hours_between(createdAt, resolvedAt)"),
+                                        m("name", "resolutionThresholdHours", "expr",
+                                                "priority_threshold(priority, P1=8, P2=48, P3=72)"),
+                                        m("name", "resolutionSlaHit", "expr",
+                                                "resolvedAt is not null and resolutionHours <= resolutionThresholdHours"),
+                                        m("name", "combinedSlaHit", "expr",
+                                                "firstResponseSlaHit = 1 and resolutionSlaHit = 1"))),
+                        stage("team_combined_sla", "aggregate",
+                                "inputs", List.of("ticket_scope"),
+                                "groupBy", List.of("team$caption"),
+                                "metrics", List.of(
+                                        m("name", "ticketCount", "expr", "count(*)"),
+                                        m("name", "combinedSlaHitCount", "expr", "sum(combinedSlaHit)"))),
+                        stage("team_combined_sla_rate", "derive",
+                                "inputs", List.of("team_combined_sla"),
+                                "derived", List.of(
+                                        m("name", "combinedSlaRate", "expr", "combinedSlaHitCount / ticketCount"))),
+                        stage("low_combined_sla_teams", "postSlice",
+                                "inputs", List.of("team_combined_sla_rate"),
+                                "filters", List.of(
+                                        m("field", "combinedSlaRate", "op", "<", "value", 0.85)))
+                ),
+                "output", List.of("team$caption", "ticketCount", "combinedSlaRate")
         );
     }
 

@@ -42,6 +42,8 @@ public final class DslCteDslRequestMapper {
             "(?i)^\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s+is\\s+null\\s+or\\s+([A-Za-z_][A-Za-z0-9_$]*)\\s*>\\s*(\\d+(?:\\.\\d+)?)\\s*$");
     private static final Pattern SLA_OVERDUE_THRESHOLD_ALIAS_PATTERN = Pattern.compile(
             "(?i)^\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s+is\\s+null\\s+or\\s+([A-Za-z_][A-Za-z0-9_$]*)\\s*>\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*$");
+    private static final Pattern COMBINED_SLA_HIT_PATTERN = Pattern.compile(
+            "(?i)^\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*(?:=|==)\\s*1\\s+and\\s+([A-Za-z_][A-Za-z0-9_$]*)\\s*(?:=|==)\\s*1\\s*$");
     private static final Pattern PRIORITY_THRESHOLD_PATTERN = Pattern.compile(
             "(?i)^\\s*priority_threshold\\s*\\(\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*,\\s*(.+)\\s*\\)\\s*$");
     private static final Pattern SUM_ALIAS_PATTERN = Pattern.compile(
@@ -429,6 +431,7 @@ public final class DslCteDslRequestMapper {
         List<CalculatedFieldDef> result = new ArrayList<>();
         Map<String, String> durationEndByAlias = new LinkedHashMap<>();
         List<String> thresholdAliases = new ArrayList<>();
+        List<String> hitAliases = new ArrayList<>();
         for (Map<String, Object> derived : mapList(rawDerived)) {
             String name = stringValue(derived.get("name"));
             String expr = stringValue(derived.get("expr"));
@@ -484,6 +487,7 @@ public final class DslCteDslRequestMapper {
                 result.add(new CalculatedFieldDef(name, "SLA命中标记",
                         "iif(is_not_null(" + durationEnd + ") && " + durationAlias + " <= "
                                 + thresholdHours + ", 1, 0)"));
+                hitAliases.add(name);
                 continue;
             }
 
@@ -503,6 +507,25 @@ public final class DslCteDslRequestMapper {
                 result.add(new CalculatedFieldDef(name, "SLA命中标记",
                         "iif(is_not_null(" + durationEnd + ") && " + durationAlias + " <= "
                                 + thresholdAlias + ", 1, 0)"));
+                hitAliases.add(name);
+                continue;
+            }
+
+            Matcher combinedSlaHit = COMBINED_SLA_HIT_PATTERN.matcher(expr);
+            if (combinedSlaHit.matches()) {
+                String left = combinedSlaHit.group(1);
+                String right = combinedSlaHit.group(2);
+                if (!"combinedSlaHit".equals(name)
+                        || !hitAliases.contains("firstResponseSlaHit")
+                        || !hitAliases.contains("resolutionSlaHit")
+                        || !signedCombinedSlaHitInputs(left, right)) {
+                    unsupported.add("combined SLA hit predicate must use signed firstResponseSlaHit "
+                            + "and resolutionSlaHit aliases");
+                    continue;
+                }
+                result.add(new CalculatedFieldDef(name, "SLA组合命中标记",
+                        "iif(firstResponseSlaHit == 1 && resolutionSlaHit == 1, 1, 0)"));
+                hitAliases.add(name);
                 continue;
             }
 
@@ -543,7 +566,8 @@ public final class DslCteDslRequestMapper {
             }
 
             unsupported.add("row-level SLA bridge supports only hours_between duration, priority_threshold mapping, "
-                    + "SLA hit threshold predicate, and SLA overdue threshold predicate: " + name);
+                    + "SLA hit threshold predicate, combined SLA hit predicate, "
+                    + "and SLA overdue threshold predicate: " + name);
         }
         if (result.isEmpty()) {
             unsupported.add("row-level SLA bridge requires signed calculatedFields");
@@ -589,6 +613,11 @@ public final class DslCteDslRequestMapper {
             expr = "iif(priority == '" + code + "', " + thresholds.get(code) + ", " + expr + ")";
         }
         return expr;
+    }
+
+    private static boolean signedCombinedSlaHitInputs(String left, String right) {
+        return ("firstResponseSlaHit".equals(left) && "resolutionSlaHit".equals(right))
+                || ("resolutionSlaHit".equals(left) && "firstResponseSlaHit".equals(right));
     }
 
     private static MetricMapping rowLevelAggregateMetrics(Object raw, List<CalculatedFieldDef> calculatedFields,
@@ -1036,6 +1065,7 @@ public final class DslCteDslRequestMapper {
             case "slaHitCount" -> "slaAchievementRate".equals(ratioAlias);
             case "firstResponseSlaHitCount" -> "firstResponseSlaRate".equals(ratioAlias);
             case "resolutionSlaHitCount" -> "resolutionSlaRate".equals(ratioAlias);
+            case "combinedSlaHitCount" -> "combinedSlaRate".equals(ratioAlias);
             default -> false;
         };
     }
