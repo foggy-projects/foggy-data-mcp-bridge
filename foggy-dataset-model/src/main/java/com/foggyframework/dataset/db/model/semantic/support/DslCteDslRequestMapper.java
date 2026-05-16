@@ -889,15 +889,15 @@ public final class DslCteDslRequestMapper {
             return null;
         }
 
-        String grain = grain(orderField);
-        if (!"month".equals(grain)) {
-            unsupported.add("DSL_CTE period-over-period bridge supports only month-grain MoM in this cut");
+        PeriodComparison periodComparison = periodComparison(orderField, partitionBy);
+        if (periodComparison == null) {
+            unsupported.add("DSL_CTE period-over-period bridge supports only signed month-grain MoM or YoY templates in this cut");
             return null;
         }
         Map<String, Object> timeWindow = new LinkedHashMap<>();
-        timeWindow.put("field", orderField);
-        timeWindow.put("grain", grain);
-        timeWindow.put("comparison", "mom");
+        timeWindow.put("field", periodComparison.field());
+        timeWindow.put("grain", periodComparison.grain());
+        timeWindow.put("comparison", periodComparison.comparison());
         timeWindow.put("targetMetrics", List.of(measure));
 
         Map<String, String> aliasOverride = new LinkedHashMap<>();
@@ -916,6 +916,47 @@ public final class DslCteDslRequestMapper {
         String canonical = "(" + current + "-" + prior + ")/" + prior;
         String canonicalWithEnginePrior = "(" + current + "-" + current + "__prior)/" + current + "__prior";
         return canonical.equals(normalized) || canonicalWithEnginePrior.equals(normalized);
+    }
+
+    private static PeriodComparison periodComparison(String orderField, List<String> partitionBy) {
+        String grain = grain(orderField);
+        if ("month".equals(grain)) {
+            return new PeriodComparison(orderField, "month", "mom");
+        }
+        if (!"year".equals(grain)) {
+            return null;
+        }
+        String root = temporalRoot(orderField, "year");
+        if (root == null || partitionBy == null) {
+            return null;
+        }
+        for (String partitionField : partitionBy) {
+            if ("month".equals(grain(partitionField))
+                    && root.equals(temporalRoot(partitionField, "month"))) {
+                return new PeriodComparison(root + temporalSeparator(orderField) + "id", "month", "yoy");
+            }
+        }
+        return null;
+    }
+
+    private static String temporalRoot(String field, String suffix) {
+        if (field == null || suffix == null) {
+            return null;
+        }
+        String lower = field.toLowerCase(Locale.ROOT);
+        String dotSuffix = "." + suffix;
+        String dollarSuffix = "$" + suffix;
+        if (lower.endsWith(dotSuffix)) {
+            return field.substring(0, field.length() - dotSuffix.length());
+        }
+        if (lower.endsWith(dollarSuffix)) {
+            return field.substring(0, field.length() - dollarSuffix.length());
+        }
+        return null;
+    }
+
+    private static String temporalSeparator(String field) {
+        return field != null && field.contains("$") ? "$" : ".";
     }
 
     private static void addPreAggregateDeriveDiagnostics(List<Map<String, Object>> stages,
@@ -1571,6 +1612,9 @@ public final class DslCteDslRequestMapper {
     }
 
     private record WindowBridge(Map<String, Object> timeWindow, Map<String, String> outputAliasOverride) {
+    }
+
+    private record PeriodComparison(String field, String grain, String comparison) {
     }
 
     private record CumulativeDerived(String rankAlias, String cumulativeAlias) {

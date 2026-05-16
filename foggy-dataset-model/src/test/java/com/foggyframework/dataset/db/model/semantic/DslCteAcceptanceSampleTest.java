@@ -53,6 +53,9 @@ class DslCteAcceptanceSampleTest {
         QueryModel factOrder = queryModel(
                 "FactOrderQueryModel", "orderId", "orderStatus", "orderTime"
         );
+        QueryModel factSales = queryModel(
+                "FactSalesQueryModel", "salesDate$id", "salesDate$year", "salesDate$month", "salesAmount"
+        );
         QueryModel leadLike = queryModel(
                 "LeadLikeModel", "leadId", "createdAt", "leadSource", "convertedOpportunityId", "convertedOrderId"
         );
@@ -60,6 +63,7 @@ class DslCteAcceptanceSampleTest {
         when(loader.getJdbcQueryModel("ServiceTicketQueryModel", null)).thenReturn(serviceTicket);
         when(loader.getJdbcQueryModel("CrmLead", null)).thenReturn(crmLead);
         when(loader.getJdbcQueryModel("FactOrderQueryModel", null)).thenReturn(factOrder);
+        when(loader.getJdbcQueryModel("FactSalesQueryModel", null)).thenReturn(factSales);
         when(loader.getJdbcQueryModel("LeadLikeModel", null)).thenReturn(leadLike);
         ReflectionTestUtils.setField(service, "queryModelLoader", loader);
     }
@@ -723,6 +727,23 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
+    @DisplayName("DSL_CTE validation marks monthly YoY period-over-period plan as bridge-ready")
+    void validationShowsBridgeReadyForMonthlyYoyPeriodOverPeriod() {
+        SemanticQueryResponse response = service.validateQuery(
+                "FactSalesQueryModel", dslCtePlan(monthlyYoySalesGrowthPlan()), SemanticRequestContext.empty());
+
+        assertEquals("BRIDGE_READY", response.getExecution().getDslCteValidation().get("dsl_bridge_status"));
+        SemanticQueryRequest dslRequest = (SemanticQueryRequest) response.getExecution()
+                .getDslCteValidation().get("dsl_request");
+        assertNotNull(dslRequest);
+        assertEquals("salesDate$id", dslRequest.getTimeWindow().get("field"));
+        assertEquals("month", dslRequest.getTimeWindow().get("grain"));
+        assertEquals("yoy", dslRequest.getTimeWindow().get("comparison"));
+        assertEquals(List.of("salesAmount"), dslRequest.getTimeWindow().get("targetMetrics"));
+        assertTrue(dslRequest.getColumns().contains("salesAmount__ratio"));
+    }
+
+    @Test
     @DisplayName("DSL_CTE bridge defers unsupported lag period-over-period formulas")
     void validationDefersUnsupportedLagPeriodOverPeriodBridge() {
         Map<String, Object> plan = third031();
@@ -731,6 +752,22 @@ class DslCteAcceptanceSampleTest {
         stages.get(1).put("derived", List.of(
                 derived("previousMonthBalance", "lag(balanceAmount)"),
                 derived("monthOverMonthGrowthRate", "balanceAmount / previousMonthBalance")));
+
+        List<String> unsupported = bridgeUnsupported(plan);
+
+        assertTrue(unsupported.stream().anyMatch(msg -> msg.contains("period-over-period")));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE bridge defers YoY period-over-period without month partition")
+    void validationDefersYoyPeriodOverPeriodWithoutMonthPartition() {
+        Map<String, Object> plan = monthlyYoySalesGrowthPlan();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(0).put("groupBy", List.of("salesDate$year", "salesDate$id"));
+        stages.get(1).put("window", window(List.of("salesDate$id"),
+                List.of(order("salesDate$year", "ASC")), null));
+        plan.put("output", List.of("salesDate$year", "salesDate$id", "salesAmount", "yearOverYearGrowthRate"));
 
         List<String> unsupported = bridgeUnsupported(plan);
 
@@ -969,6 +1006,37 @@ class DslCteAcceptanceSampleTest {
                         "grain", "month",
                         "comparison", "mom",
                         "targetMetrics", List.of("balanceAmount")),
+                captor.getValue().getExtData().get("timeWindow"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE generateSql can opt in to monthly YoY period-over-period timeWindow bridge")
+    void generateSqlOptInUsesDslBridgeForMonthlyYoyPeriodOverPeriod() {
+        QueryFacade queryFacade = mock(QueryFacade.class);
+        when(queryFacade.buildSqlOnly(any(ModelResultContext.class)))
+                .thenReturn(new SqlGenerationResult(
+                        "WITH monthly AS (...) SELECT salesAmount__ratio FROM monthly",
+                        List.of(),
+                        null));
+        ReflectionTestUtils.setField(service, "queryFacade", queryFacade);
+
+        SemanticQueryRequest request = dslCtePlan(monthlyYoySalesGrowthPlan());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SqlGenerationResult result = service.generateSql(
+                "FactSalesQueryModel", request, SemanticRequestContext.empty());
+
+        assertTrue(result.getSql().contains("salesAmount__ratio"));
+        org.mockito.ArgumentCaptor<ModelResultContext> captor = org.mockito.ArgumentCaptor.forClass(ModelResultContext.class);
+        verify(queryFacade).buildSqlOnly(captor.capture());
+        assertEquals(List.of("salesDate$year", "salesDate$month", "sum(salesAmount) AS salesAmount",
+                        "salesAmount__ratio"),
+                captor.getValue().getRequest().getParam().getColumns());
+        assertEquals(Map.of(
+                        "field", "salesDate$id",
+                        "grain", "month",
+                        "comparison", "yoy",
+                        "targetMetrics", List.of("salesAmount")),
                 captor.getValue().getExtData().get("timeWindow"));
     }
 
@@ -1622,6 +1690,26 @@ class DslCteAcceptanceSampleTest {
                                         derived("monthOverMonthGrowthRate", "(balanceAmount - previousMonthBalance) / previousMonthBalance")))
                 ),
                 List.of("branch.name", "balanceDate.month", "balanceAmount", "monthOverMonthGrowthRate")
+        );
+    }
+
+    private Map<String, Object> monthlyYoySalesGrowthPlan() {
+        return plan(
+                List.of(
+                        stage("monthly_sales", "aggregate",
+                                "input", model("FactSalesQueryModel"),
+                                "groupBy", List.of("salesDate$year", "salesDate$month"),
+                                "metrics", List.of(metric("salesAmount", "sum(salesAmount)"))),
+                        stage("monthly_yoy_growth", "window_derive",
+                                "inputs", List.of("monthly_sales"),
+                                "window", window(List.of("salesDate$month"),
+                                        List.of(order("salesDate$year", "ASC")), null),
+                                "derived", List.of(
+                                        derived("previousYearSalesAmount", "lag(salesAmount)"),
+                                        derived("yearOverYearGrowthRate",
+                                                "(salesAmount - previousYearSalesAmount) / previousYearSalesAmount")))
+                ),
+                List.of("salesDate$year", "salesDate$month", "salesAmount", "yearOverYearGrowthRate")
         );
     }
 
