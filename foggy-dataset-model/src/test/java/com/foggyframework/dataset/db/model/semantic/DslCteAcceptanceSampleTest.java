@@ -853,6 +853,24 @@ class DslCteAcceptanceSampleTest {
         assertEquals("completed_orders", right.get("stage"));
         assertEquals("FactOrderQueryModel", right.get("model"));
         assertEquals("orderId", right.get("field"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> runtimeGuard = (Map<String, Object>) joinAlignContract.get("runtime_guard");
+        assertNotNull(runtimeGuard);
+        assertEquals(true, joinAlignContract.get("runtime_guard_signed"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> cardinalityGuard = (Map<String, Object>) runtimeGuard.get("cardinality");
+        assertEquals(true, cardinalityGuard.get("enforce"));
+        assertEquals("fail_closed", cardinalityGuard.get("policy"));
+        assertEquals("many", cardinalityGuard.get("leftMultiplicity"));
+        assertEquals("one", cardinalityGuard.get("rightMultiplicity"));
+        assertEquals("exclude_unmatched", cardinalityGuard.get("nullKeyPolicy"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> timeGuard = (Map<String, Object>) runtimeGuard.get("timeAttribution");
+        assertEquals(true, timeGuard.get("enforce"));
+        assertEquals("fail_closed", timeGuard.get("policy"));
+        assertEquals("lead_orders", timeGuard.get("sourceStage"));
+        assertEquals("createdAt", timeGuard.get("sourceField"));
+        assertEquals("reject_null", timeGuard.get("nullPolicy"));
         assertEquals(List.of("leadSource", "convertedOrderId", "leadCount",
                 "orderId", "matchedOrderCount"), joinAlignContract.get("output_schema"));
 
@@ -940,6 +958,43 @@ class DslCteAcceptanceSampleTest {
                 service.validateQuery("CrmLead", dslCtePlan(plan), SemanticRequestContext.empty()));
 
         assertTrue(ex.getMessage().contains("timeAttribution.field references unavailable source field"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE signed join_align rejects runtime cardinality guard mismatch")
+    void validationRejectsSignedJoinAlignRuntimeCardinalityGuardMismatch() {
+        Map<String, Object> plan = signedCrossModelCrmOrderFunnel();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> runtimeGuard = (Map<String, Object>) stages.get(2).get("runtimeGuard");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> cardinality = (Map<String, Object>) runtimeGuard.get("cardinality");
+        cardinality.put("rightMultiplicity", "many");
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+                service.validateQuery("CrmLead", dslCtePlan(plan), SemanticRequestContext.empty()));
+
+        assertTrue(ex.getMessage().contains("runtimeGuard.cardinality must match signed cardinality"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE signed join_align rejects unavailable runtime time attribution target field")
+    void validationRejectsSignedJoinAlignRuntimeTimeAttributionTargetField() {
+        Map<String, Object> plan = signedCrossModelCrmOrderFunnel();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> runtimeGuard = (Map<String, Object>) stages.get(2).get("runtimeGuard");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> timeAttribution = (Map<String, Object>) runtimeGuard.get("timeAttribution");
+        timeAttribution.put("targetStage", "completed_orders");
+        timeAttribution.put("targetField", "missingOrderTime");
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+                service.validateQuery("CrmLead", dslCtePlan(plan), SemanticRequestContext.empty()));
+
+        assertTrue(ex.getMessage().contains("runtimeGuard.timeAttribution.targetField"));
     }
 
     @Test
@@ -1814,6 +1869,19 @@ class DslCteAcceptanceSampleTest {
                         "stage", "completed_orders",
                         "model", "FactOrderQueryModel",
                         "field", "orderId")));
+        stages.get(2).put("runtimeGuard", m(
+                "cardinality", m(
+                        "enforce", true,
+                        "policy", "fail_closed",
+                        "leftMultiplicity", "many",
+                        "rightMultiplicity", "one",
+                        "nullKeyPolicy", "exclude_unmatched"),
+                "timeAttribution", m(
+                        "enforce", true,
+                        "policy", "fail_closed",
+                        "sourceStage", "lead_orders",
+                        "sourceField", "createdAt",
+                        "nullPolicy", "reject_null")));
         stages.get(2).put("output", List.of(
                 "leadSource", "convertedOrderId", "leadCount",
                 "orderId", "matchedOrderCount"));

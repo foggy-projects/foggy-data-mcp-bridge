@@ -67,6 +67,55 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("CrmLead converted order fixture satisfies many-to-one runtime guard baseline")
+    void crmLeadConvertedOrderFixtureSatisfiesRuntimeCardinalityGuardBaseline() {
+        Map<String, Object> row = jdbcTemplate.queryForMap("""
+                SELECT
+                    (SELECT COUNT(*)
+                     FROM (
+                         SELECT order_id
+                         FROM fact_order
+                         WHERE order_status = 'COMPLETED'
+                         GROUP BY order_id
+                         HAVING COUNT(*) > 1
+                     ) duplicate_right_keys) AS duplicateRightKeys,
+                    (SELECT COUNT(*)
+                     FROM crm_lead cl
+                     LEFT JOIN fact_order fo
+                            ON cl.converted_order_id = fo.order_id
+                           AND fo.order_status = 'COMPLETED'
+                     WHERE cl.converted_order_id IS NOT NULL
+                       AND fo.order_id IS NULL) AS unmatchedConvertedKeys,
+                    (SELECT COUNT(*)
+                     FROM crm_lead
+                     WHERE converted_order_id IS NULL) AS excludedNullLeftKeys
+                """);
+
+        assertEquals(0, ((Number) row.get("duplicateRightKeys")).intValue());
+        assertEquals(0, ((Number) row.get("unmatchedConvertedKeys")).intValue());
+        assertEquals(5, ((Number) row.get("excludedNullLeftKeys")).intValue());
+    }
+
+    @Test
+    @DisplayName("CrmLead converted order fixture satisfies lead-created time attribution guard baseline")
+    void crmLeadConvertedOrderFixtureSatisfiesRuntimeTimeAttributionGuardBaseline() {
+        Map<String, Object> row = jdbcTemplate.queryForMap("""
+                SELECT COUNT(*) AS matchedConvertedRows,
+                       SUM(CASE WHEN cl.created_at IS NOT NULL THEN 1 ELSE 0 END) AS attributedRows,
+                       SUM(CASE WHEN cl.created_at IS NULL THEN 1 ELSE 0 END) AS missingAttributionRows
+                FROM crm_lead cl
+                JOIN fact_order fo
+                  ON cl.converted_order_id = fo.order_id
+                 AND fo.order_status = 'COMPLETED'
+                WHERE cl.converted_order_id IS NOT NULL
+                """);
+
+        assertEquals(4, ((Number) row.get("matchedConvertedRows")).intValue());
+        assertEquals(4, ((Number) row.get("attributedRows")).intValue());
+        assertEquals(0, ((Number) row.get("missingAttributionRows")).intValue());
+    }
+
+    @Test
     @DisplayName("DSL_CTE CRM lead funnel bridge executes and matches manual baseline")
     void crmLeadFunnelBridgeSqlMatchesManualBaseline() {
         List<Map<String, Object>> manualRows = crmLeadFunnelManualRows();

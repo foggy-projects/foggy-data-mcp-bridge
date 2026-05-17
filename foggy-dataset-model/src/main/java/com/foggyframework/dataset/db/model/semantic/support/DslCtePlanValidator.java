@@ -28,6 +28,9 @@ public final class DslCtePlanValidator {
     private static final Set<String> ALLOWED_STAGE_TYPES = Set.of(
             "aggregate", "derive", "window_derive", "postSlice", "join_align"
     );
+    private static final Set<String> SIGNED_JOIN_ALIGN_CARDINALITIES = Set.of(
+            "one_to_one", "one_to_many", "many_to_one"
+    );
     private static final Pattern IDENTIFIER_PATTERN =
             Pattern.compile("[A-Za-z_][A-Za-z0-9_$]*(?:\\.[A-Za-z_][A-Za-z0-9_$]*)?");
     private static final Set<String> EXPRESSION_KEYWORDS = Set.of(
@@ -294,6 +297,7 @@ public final class DslCtePlanValidator {
         }
         validateSignedJoinAlignTimeAttribution(stage, stageOutputs);
         validateTypedRelationContract(stage, stageOutputs);
+        validateRuntimeGuardContract(stage, stageOutputs);
     }
 
     private static void validateSignedJoinAlignTimeAttribution(Map<String, Object> stage,
@@ -382,6 +386,158 @@ public final class DslCtePlanValidator {
         }
     }
 
+    private static void validateRuntimeGuardContract(Map<String, Object> stage,
+                                                     Map<String, StageOutput> stageOutputs) {
+        Map<String, Object> guard = mapValue(stage.get("runtimeGuard"));
+        if (guard == null) {
+            return;
+        }
+        Map<String, Object> cardinality = mapValue(guard.get("cardinality"));
+        Map<String, Object> timeAttribution = mapValue(guard.get("timeAttribution"));
+        if (cardinality == null && timeAttribution == null) {
+            throw RX.throwB(STAGE_INVALID
+                    + ": signed join_align.runtimeGuard must declare cardinality or timeAttribution guard.");
+        }
+        if (cardinality != null) {
+            validateRuntimeCardinalityGuard(stage, cardinality);
+        }
+        if (timeAttribution != null) {
+            validateRuntimeTimeAttributionGuard(stage, timeAttribution, stageOutputs);
+        }
+    }
+
+    private static void validateRuntimeCardinalityGuard(Map<String, Object> stage,
+                                                        Map<String, Object> cardinality) {
+        requireRuntimeGuardEnforced(cardinality, "runtimeGuard.cardinality");
+        requireRuntimeGuardFailClosed(cardinality, "runtimeGuard.cardinality");
+
+        String leftMultiplicity = stringValue(cardinality.get("leftMultiplicity"));
+        String rightMultiplicity = stringValue(cardinality.get("rightMultiplicity"));
+        if (!isOneOrMany(leftMultiplicity) || !isOneOrMany(rightMultiplicity)) {
+            throw RX.throwB(STAGE_INVALID
+                    + ": signed join_align.runtimeGuard.cardinality must declare one/many multiplicities.");
+        }
+
+        String declared = stringValue(stage.get("cardinality"));
+        boolean matches = switch (declared) {
+            case "one_to_one" -> "one".equals(leftMultiplicity) && "one".equals(rightMultiplicity);
+            case "one_to_many" -> "one".equals(leftMultiplicity) && "many".equals(rightMultiplicity);
+            case "many_to_one" -> "many".equals(leftMultiplicity) && "one".equals(rightMultiplicity);
+            default -> false;
+        };
+        if (!matches) {
+            throw RX.throwB(STAGE_INVALID
+                    + ": signed join_align.runtimeGuard.cardinality must match signed cardinality '"
+                    + declared + "'.");
+        }
+
+        String nullKeyPolicy = stringValue(cardinality.get("nullKeyPolicy"));
+        if (!"exclude_unmatched".equals(nullKeyPolicy) && !"reject_null".equals(nullKeyPolicy)) {
+            throw RX.throwB(STAGE_INVALID
+                    + ": signed join_align.runtimeGuard.cardinality.nullKeyPolicy must be exclude_unmatched or reject_null.");
+        }
+    }
+
+    private static void validateRuntimeTimeAttributionGuard(Map<String, Object> stage,
+                                                            Map<String, Object> timeGuard,
+                                                            Map<String, StageOutput> stageOutputs) {
+        requireRuntimeGuardEnforced(timeGuard, "runtimeGuard.timeAttribution");
+        requireRuntimeGuardFailClosed(timeGuard, "runtimeGuard.timeAttribution");
+
+        String sourceStage = stringValue(timeGuard.get("sourceStage"));
+        String sourceField = stringValue(timeGuard.get("sourceField"));
+        if (sourceStage == null || sourceStage.isBlank()
+                || sourceField == null || sourceField.isBlank()) {
+            throw RX.throwB(STAGE_INVALID
+                    + ": signed join_align.runtimeGuard.timeAttribution must declare sourceStage and sourceField.");
+        }
+
+        Map<String, Object> signedTimeAttribution = mapValue(stage.get("timeAttribution"));
+        if (signedTimeAttribution != null) {
+            String signedSourceStage = stringValue(signedTimeAttribution.get("sourceStage"));
+            String signedField = stringValue(signedTimeAttribution.get("field"));
+            if (signedSourceStage != null && !signedSourceStage.equals(sourceStage)) {
+                throw RX.throwB(STAGE_INVALID
+                        + ": signed join_align.runtimeGuard.timeAttribution.sourceStage must match timeAttribution.sourceStage.");
+            }
+            if (signedField != null && !signedField.equals(sourceField)) {
+                throw RX.throwB(STAGE_INVALID
+                        + ": signed join_align.runtimeGuard.timeAttribution.sourceField must match timeAttribution.field.");
+            }
+        }
+
+        validateRuntimeTimeField(stage, stageOutputs, sourceStage, sourceField,
+                "runtimeGuard.timeAttribution.sourceField");
+
+        String nullPolicy = stringValue(timeGuard.get("nullPolicy"));
+        if (!"reject_null".equals(nullPolicy)) {
+            throw RX.throwB(STAGE_INVALID
+                    + ": signed join_align.runtimeGuard.timeAttribution.nullPolicy must be reject_null.");
+        }
+
+        String targetStage = stringValue(timeGuard.get("targetStage"));
+        String targetField = stringValue(timeGuard.get("targetField"));
+        if (targetStage != null || targetField != null) {
+            if (targetStage == null || targetStage.isBlank()
+                    || targetField == null || targetField.isBlank()) {
+                throw RX.throwB(STAGE_INVALID
+                        + ": signed join_align.runtimeGuard.timeAttribution target guard must declare targetStage and targetField.");
+            }
+            validateRuntimeTimeField(stage, stageOutputs, targetStage, targetField,
+                    "runtimeGuard.timeAttribution.targetField");
+        }
+
+        String order = stringValue(timeGuard.get("order"));
+        if (order != null
+                && !Set.of("source_timestamp_authoritative", "source_at_or_before_target").contains(order)) {
+            throw RX.throwB(STAGE_INVALID
+                    + ": signed join_align.runtimeGuard.timeAttribution.order must be source_timestamp_authoritative or source_at_or_before_target.");
+        }
+        if ("source_at_or_before_target".equals(order) && (targetStage == null || targetStage.isBlank())) {
+            throw RX.throwB(STAGE_INVALID
+                    + ": signed join_align.runtimeGuard.timeAttribution.order source_at_or_before_target requires targetStage and targetField.");
+        }
+    }
+
+    private static boolean isOneOrMany(String value) {
+        return "one".equals(value) || "many".equals(value);
+    }
+
+    private static void validateRuntimeTimeField(Map<String, Object> stage,
+                                                 Map<String, StageOutput> stageOutputs,
+                                                 String stageName,
+                                                 String field,
+                                                 String usage) {
+        if (!stringList(stage.get("inputs")).contains(stageName)) {
+            throw RX.throwB(STAGE_INVALID
+                    + ": signed join_align." + usage + " stage must reference a join input stage.");
+        }
+        StageOutput output = stageOutputs.get(stageName);
+        if (output == null) {
+            throw RX.throwB(STAGE_REFERENCE_INVALID
+                    + ": signed join_align." + usage + " stage must reference a prior stage.");
+        }
+        if (!fieldAvailableInStageSource(output, field)) {
+            throw RX.throwB(STAGE_INVALID
+                    + ": signed join_align." + usage + " references unavailable source field '"
+                    + field + "' in stage '" + stageName + "'.");
+        }
+    }
+
+    private static void requireRuntimeGuardEnforced(Map<String, Object> guard, String usage) {
+        if (!Boolean.TRUE.equals(guard.get("enforce"))) {
+            throw RX.throwB(STAGE_INVALID
+                    + ": signed join_align." + usage + ".enforce must be true.");
+        }
+    }
+
+    private static void requireRuntimeGuardFailClosed(Map<String, Object> guard, String usage) {
+        if (!"fail_closed".equals(stringValue(guard.get("policy")))) {
+            throw RX.throwB(STAGE_INVALID
+                    + ": signed join_align." + usage + ".policy must be fail_closed.");
+        }
+    }
+
     private static void validatePlanOutput(List<String> outputs, List<Map<String, Object>> stages,
                                            Map<String, StageOutput> stageOutputs) {
         String finalStageName = stringValue(stages.get(stages.size() - 1).get("name"));
@@ -446,11 +602,17 @@ public final class DslCtePlanValidator {
             if (relation != null) {
                 evidence.put("typed_relation", relation);
             }
+            Map<String, Object> runtimeGuard = mapValue(stage.get("runtimeGuard"));
+            if (runtimeGuard != null) {
+                evidence.put("runtime_guard", runtimeGuard);
+                evidence.put("runtime_guard_signed", true);
+            }
             evidence.put("output_schema", stringList(stage.get("output")));
         }
         evidence.put("required_capabilities", List.of(
                 "declared_alignment_key_mapping",
                 "join_cardinality_guard",
+                "fail_closed_runtime_guard_declaration",
                 "cross_model_governance_replay",
                 "complete_output_schema_derivation"));
         return evidence;
@@ -464,7 +626,7 @@ public final class DslCtePlanValidator {
             throw RX.throwB(STAGE_INVALID + ": signed join_align must declare relationRef.");
         }
         String cardinality = stringValue(stage.get("cardinality"));
-        if (cardinality == null || !Set.of("one_to_one", "one_to_many", "many_to_one").contains(cardinality)) {
+        if (cardinality == null || !SIGNED_JOIN_ALIGN_CARDINALITIES.contains(cardinality)) {
             throw RX.throwB(STAGE_INVALID
                     + ": signed join_align.cardinality must be one_to_one, one_to_many, or many_to_one.");
         }
@@ -493,6 +655,7 @@ public final class DslCtePlanValidator {
                 || stage.containsKey("cardinality")
                 || stage.containsKey("timeAttribution")
                 || stage.containsKey("relation")
+                || stage.containsKey("runtimeGuard")
                 || stage.containsKey("output");
     }
 
