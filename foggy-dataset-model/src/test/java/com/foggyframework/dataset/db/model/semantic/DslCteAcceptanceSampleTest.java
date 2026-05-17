@@ -52,7 +52,7 @@ class DslCteAcceptanceSampleTest {
                 "CrmLead", "leadId", "createdAt", "leadSource", "convertedOpportunityId", "convertedOrderId"
         );
         QueryModel factOrder = queryModel(
-                "FactOrderQueryModel", "orderId", "orderStatus", "orderTime"
+                "FactOrderQueryModel", "orderId", "orderStatus", "orderDate", "orderDate$caption", "orderTime"
         );
         QueryModel factSales = queryModel(
                 "FactSalesQueryModel", "salesDate$id", "salesDate$year", "salesDate$quarter",
@@ -958,6 +958,130 @@ class DslCteAcceptanceSampleTest {
         assertEquals("BRIDGE_DEFERRED", validation.get("dsl_bridge_status"));
         assertTrue(validation.get("dsl_bridge_unsupported").toString()
                 .contains("denominator must group by leadSource only"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE signed cross-model time-attribution funnel marks target-event window bridge-ready")
+    void validationShowsBridgeReadyForSignedCrossModelFunnelTimeAttribution() {
+        SemanticQueryResponse response = service.validateQuery(
+                "CrmLead", dslCtePlan(signedCrossModelCrmOrderTimeAttributionContract()),
+                SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_READY", validation.get("dsl_bridge_status"));
+        assertNotNull(validation.get("dsl_denominator_request"));
+        assertNotNull(validation.get("dsl_left_request"));
+        assertNotNull(validation.get("dsl_right_request"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> models = (Map<String, Object>) validation.get("dsl_bridge_models");
+        assertEquals("CrmLead", models.get("denominator"));
+        assertEquals("CrmLead", models.get("left"));
+        assertEquals("FactOrderQueryModel", models.get("right"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> contract =
+                (Map<String, Object>) validation.get("dsl_cross_model_funnel_time_attribution");
+        assertEquals("cross_model_funnel_time_attribution", contract.get("kind"));
+        assertEquals("runtime_guarded_target_event_window", contract.get("bridge_scope"));
+        assertEquals(true, contract.get("execution_bridge"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> sourceCohort = (Map<String, Object>) contract.get("source_cohort");
+        assertEquals("createdAt", sourceCohort.get("field"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> targetEvent = (Map<String, Object>) contract.get("target_event");
+        assertEquals("orderDate$caption", targetEvent.get("field"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> window = (Map<String, Object>) contract.get("conversion_window");
+        assertEquals(30, window.get("size"));
+        assertEquals("source_at_or_before_target", window.get("order"));
+        assertEquals("inclusive_start_exclusive_end", window.get("boundary"));
+        assertEquals("leadToOrderConversionRate", contract.get("ratio_alias"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE signed cross-model time-attribution funnel defers missing target event")
+    void validationDefersCrossModelFunnelTimeAttributionMissingTargetEventField() {
+        Map<String, Object> plan = signedCrossModelCrmOrderTimeAttributionContract();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> contract = (Map<String, Object>) plan.get("timeAttributionContract");
+        contract.remove("target");
+
+        SemanticQueryResponse response = service.validateQuery(
+                "CrmLead", dslCtePlan(plan), SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_DEFERRED", validation.get("dsl_bridge_status"));
+        assertTrue(validation.get("dsl_bridge_unsupported").toString()
+                .contains("target event field"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE signed cross-model time-attribution funnel defers missing conversion window")
+    void validationDefersCrossModelFunnelTimeAttributionMissingWindow() {
+        Map<String, Object> plan = signedCrossModelCrmOrderTimeAttributionContract();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> contract = (Map<String, Object>) plan.get("timeAttributionContract");
+        contract.remove("window");
+
+        SemanticQueryResponse response = service.validateQuery(
+                "CrmLead", dslCtePlan(plan), SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_DEFERRED", validation.get("dsl_bridge_status"));
+        assertTrue(validation.get("dsl_bridge_unsupported").toString()
+                .contains("conversion window"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE signed cross-model time-attribution funnel defers unsigned quality attribution")
+    void validationDefersCrossModelFunnelTimeAttributionWithQualityAttribution() {
+        Map<String, Object> plan = signedCrossModelCrmOrderTimeAttributionContract();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> contract = (Map<String, Object>) plan.get("timeAttributionContract");
+        contract.put("orderSelection", "highest_amount_order");
+
+        SemanticQueryResponse response = service.validateQuery(
+                "CrmLead", dslCtePlan(plan), SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_DEFERRED", validation.get("dsl_bridge_status"));
+        assertTrue(validation.get("dsl_bridge_unsupported").toString()
+                .contains("does not sign quality, amount, or order-selection attribution"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE signed cross-model time-attribution funnel can opt in to target-event window SQL")
+    void generateSqlOptInUsesCrossModelFunnelTimeAttributionBridge() {
+        QueryFacade queryFacade = mock(QueryFacade.class);
+        when(queryFacade.buildSqlOnly(any(ModelResultContext.class)))
+                .thenReturn(
+                        new SqlGenerationResult(
+                                "SELECT \"leadSource\", COUNT(lead_id) AS \"totalLeadCount\" "
+                                        + "FROM crm_lead GROUP BY \"leadSource\"",
+                                List.of(),
+                                null),
+                        new SqlGenerationResult(
+                                "SELECT \"leadSource\", \"convertedOrderId\", \"createdAt\", "
+                                        + "COUNT(lead_id) AS \"leadCount\" FROM crm_lead "
+                                        + "GROUP BY \"leadSource\", \"convertedOrderId\", \"createdAt\"",
+                                List.of(),
+                                null),
+                        new SqlGenerationResult(
+                                "SELECT \"orderId\", \"orderDate$caption\", COUNT(order_id) AS \"matchedOrderCount\" "
+                                        + "FROM fact_order GROUP BY \"orderId\", \"orderDate$caption\"",
+                                List.of(),
+                                null));
+        ReflectionTestUtils.setField(service, "queryFacade", queryFacade);
+
+        SemanticQueryRequest request = dslCtePlan(signedCrossModelCrmOrderTimeAttributionContract());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SqlGenerationResult result = service.generateSql("CrmLead", request, SemanticRequestContext.empty());
+
+        assertTrue(result.getSql().contains("dsl_cte_funnel_window_matched"), result.getSql());
+        assertTrue(result.getSql().contains("targetBeforeSourceRows"), result.getSql());
+        assertTrue(result.getSql().contains("date(r.\"orderDate$caption\") < date(l.\"createdAt\", '+' || ? || ' days')"),
+                result.getSql());
+        assertEquals(List.of(30), result.getParams());
     }
 
     @Test
@@ -2101,6 +2225,50 @@ class DslCteAcceptanceSampleTest {
         plan.put("stages", stages);
         plan.put("output", List.of("leadSource", "totalLeadCount", "matchedLeadCount",
                 "leadToOrderConversionRate"));
+        return plan;
+    }
+
+    private Map<String, Object> signedCrossModelCrmOrderTimeAttributionContract() {
+        Map<String, Object> plan = signedCrossModelCrmOrderSourceRateBridge();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(1).put("groupBy", List.of("orderId", "orderDate$caption"));
+        stages.get(2).put("timeAttribution", m(
+                "basis", "source_cohort_target_event_window",
+                "field", "createdAt",
+                "sourceStage", "lead_orders",
+                "targetStage", "completed_orders",
+                "targetField", "orderDate$caption"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> runtimeGuard = (Map<String, Object>) stages.get(2).get("runtimeGuard");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> runtimeTimeAttribution =
+                (Map<String, Object>) runtimeGuard.get("timeAttribution");
+        runtimeTimeAttribution.put("targetStage", "completed_orders");
+        runtimeTimeAttribution.put("targetField", "orderDate$caption");
+        runtimeTimeAttribution.put("order", "source_at_or_before_target");
+        stages.get(2).put("output", List.of(
+                "leadSource", "convertedOrderId", "createdAt", "leadCount",
+                "orderId", "orderDate$caption", "matchedOrderCount"));
+        plan.put("timeAttributionContract", m(
+                "kind", "source_cohort_target_event_window",
+                "relationRef", "CrmLead.convertedOrderId -> FactOrderQueryModel.orderId",
+                "source", m(
+                        "stage", "lead_orders",
+                        "model", "CrmLead",
+                        "field", "createdAt"),
+                "target", m(
+                        "stage", "completed_orders",
+                        "model", "FactOrderQueryModel",
+                        "field", "orderDate$caption"),
+                "window", m(
+                        "unit", "day",
+                        "size", 30,
+                        "order", "source_at_or_before_target"),
+                "groupBy", List.of("leadSource"),
+                "denominator", "totalLeadCount",
+                "numerator", "matchedLeadCount",
+                "ratio", "leadToOrderConversionRate"));
         return plan;
     }
 

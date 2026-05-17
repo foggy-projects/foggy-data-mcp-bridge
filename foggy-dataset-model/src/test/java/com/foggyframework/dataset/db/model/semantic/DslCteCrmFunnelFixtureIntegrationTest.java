@@ -173,6 +173,46 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("DSL_CTE cross-model target-event window bridge executes guarded SQL and matches manual baseline")
+    void crossModelCrmOrderTimeAttributionBridgeSqlMatchesManualBaseline() {
+        insertTimeAttributionFixture();
+        try {
+            List<Map<String, Object>> manualRows = crossModelCrmOrderTimeAttributionManualRows();
+            SemanticQueryRequest request = dslCtePlan(crossModelCrmOrderTimeAttributionBridgePlan());
+            request.setHints(Map.of("dslCteCompileToDsl", true));
+
+            SqlGenerationResult generated = semanticQueryServiceV3.generateSql(
+                    "CrmLead", request, SemanticRequestContext.empty());
+
+            assertNotNull(generated);
+            assertNotNull(generated.getSql());
+            assertTrue(generated.getSql().contains("dsl_cte_funnel_denominator"), generated.getSql());
+            assertTrue(generated.getSql().contains("dsl_cte_funnel_window_matched"), generated.getSql());
+            assertTrue(generated.getSql().contains("targetBeforeSourceRows"), generated.getSql());
+            assertTrue(generated.getSql().contains("date(r.\"orderDate$caption\") < date(l.\"createdAt\", '+' || ? || ' days')"),
+                    generated.getSql());
+            assertEquals(List.of(
+                    "2026-07-01 00:00:00",
+                    "2026-08-01 00:00:00",
+                    "2026-07-01 00:00:00",
+                    "2026-08-01 00:00:00",
+                    "COMPLETED",
+                    30), generated.getParams());
+
+            List<Map<String, Object>> rows = new ArrayList<>(jdbcTemplate.queryForList(
+                    generated.getSql(), generated.getParams().toArray(new Object[0])));
+            rows.sort(Comparator.comparing(row -> String.valueOf(value(row, "leadSource"))));
+
+            assertEquals(manualRows.size(), rows.size());
+            for (int i = 0; i < manualRows.size(); i++) {
+                assertGeneratedCrossModelSourceRateRowMatchesManual(rows.get(i), manualRows.get(i));
+            }
+        } finally {
+            deleteTimeAttributionFixture();
+        }
+    }
+
+    @Test
     @DisplayName("DSL_CTE CRM lead funnel bridge executes and matches manual baseline")
     void crmLeadFunnelBridgeSqlMatchesManualBaseline() {
         List<Map<String, Object>> manualRows = crmLeadFunnelManualRows();
@@ -378,6 +418,101 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
                 """));
         rows.sort(Comparator.comparing(row -> String.valueOf(row.get("leadSource"))));
         return rows;
+    }
+
+    private List<Map<String, Object>> crossModelCrmOrderTimeAttributionManualRows() {
+        List<Map<String, Object>> rows = new ArrayList<>(jdbcTemplate.queryForList("""
+                WITH source_total_leads AS (
+                    SELECT lead_source AS leadSource,
+                           COUNT(lead_id) AS totalLeadCount
+                    FROM crm_lead
+                    WHERE created_at >= '2026-07-01 00:00:00'
+                      AND created_at < '2026-08-01 00:00:00'
+                    GROUP BY lead_source
+                ),
+                lead_orders AS (
+                    SELECT lead_source AS leadSource,
+                           converted_order_id AS convertedOrderId,
+                           created_at AS createdAt,
+                           COUNT(lead_id) AS leadCount
+                    FROM crm_lead
+                    WHERE created_at >= '2026-07-01 00:00:00'
+                      AND created_at < '2026-08-01 00:00:00'
+                    GROUP BY lead_source, converted_order_id, created_at
+                ),
+                completed_orders AS (
+                    SELECT fo.order_id AS orderId,
+                           dd.full_date AS "orderDate$caption",
+                           COUNT(fo.order_id) AS matchedOrderCount
+                    FROM fact_order fo
+                    JOIN dim_date dd ON fo.date_key = dd.date_key
+                    WHERE fo.order_status = 'COMPLETED'
+                    GROUP BY fo.order_id, dd.full_date
+                ),
+                source_matched_orders AS (
+                    SELECT l.leadSource AS leadSource,
+                           SUM(l.leadCount) AS matchedLeadCount
+                    FROM lead_orders l
+                    JOIN completed_orders r
+                      ON l.convertedOrderId = r.orderId
+                    WHERE l.convertedOrderId IS NOT NULL
+                      AND date(r."orderDate$caption") >= date(l.createdAt)
+                      AND date(r."orderDate$caption") < date(l.createdAt, '+30 days')
+                    GROUP BY l.leadSource
+                )
+                SELECT d.leadSource AS leadSource,
+                       d.totalLeadCount AS totalLeadCount,
+                       COALESCE(m.matchedLeadCount, 0) AS matchedLeadCount,
+                       1.0 * COALESCE(m.matchedLeadCount, 0)
+                           / NULLIF(d.totalLeadCount, 0) AS leadToOrderConversionRate
+                FROM source_total_leads d
+                LEFT JOIN source_matched_orders m
+                  ON d.leadSource = m.leadSource
+                ORDER BY leadSource
+                """));
+        rows.sort(Comparator.comparing(row -> String.valueOf(row.get("leadSource"))));
+        return rows;
+    }
+
+    private void insertTimeAttributionFixture() {
+        deleteTimeAttributionFixture();
+        jdbcTemplate.update("""
+                INSERT INTO dim_date
+                    (date_key, full_date, year, quarter, month, month_name, week_of_year, day_of_month,
+                     day_of_week, day_name, is_weekend, is_holiday, fiscal_year, fiscal_quarter)
+                VALUES
+                    (20260702, '2026-07-02', 2026, 3, 7, '七月', 27, 2, 4, '星期四', 0, 0, 2026, 3),
+                    (20260710, '2026-07-10', 2026, 3, 7, '七月', 28, 10, 5, '星期五', 0, 0, 2026, 3),
+                    (20260820, '2026-08-20', 2026, 3, 8, '八月', 34, 20, 4, '星期四', 0, 0, 2026, 3)
+                """);
+        jdbcTemplate.update("""
+                INSERT INTO fact_order
+                    (order_id, date_key, customer_key, store_key, channel_key, promotion_key, total_quantity,
+                     total_amount, discount_amount, freight_amount, pay_amount, order_status, payment_status,
+                     order_time)
+                VALUES
+                    ('P031-ORD-001', 20260702, 1, 1, 1, 1, 1, 100.00, 0, 0, 100.00,
+                     'COMPLETED', 'PAID', '2026-07-02 10:00:00'),
+                    ('P031-ORD-002', 20260820, 2, 2, 2, 1, 1, 200.00, 0, 0, 200.00,
+                     'COMPLETED', 'PAID', '2026-08-20 10:00:00'),
+                    ('P031-ORD-003', 20260710, 3, 3, 1, 1, 1, 300.00, 0, 0, 300.00,
+                     'COMPLETED', 'PAID', '2026-07-10 10:00:00')
+                """);
+        jdbcTemplate.update("""
+                INSERT INTO crm_lead (lead_id, created_at, lead_source, converted_opportunity_id, converted_order_id)
+                VALUES
+                    ('P031-CRM-001', '2026-07-01 09:00:00', 'WEB', 'P031-OPP-001', 'P031-ORD-001'),
+                    ('P031-CRM-002', '2026-07-03 10:00:00', 'WEB', 'P031-OPP-002', 'P031-ORD-002'),
+                    ('P031-CRM-003', '2026-07-04 11:00:00', 'APP', 'P031-OPP-003', 'P031-ORD-003'),
+                    ('P031-CRM-004', '2026-07-05 12:00:00', 'APP', NULL, NULL),
+                    ('P031-CRM-005', '2026-07-06 13:00:00', 'PHONE', NULL, NULL)
+                """);
+    }
+
+    private void deleteTimeAttributionFixture() {
+        jdbcTemplate.update("DELETE FROM crm_lead WHERE lead_id LIKE 'P031-CRM-%'");
+        jdbcTemplate.update("DELETE FROM fact_order WHERE order_id LIKE 'P031-ORD-%'");
+        jdbcTemplate.update("DELETE FROM dim_date WHERE date_key IN (20260702, 20260710, 20260820)");
     }
 
     private static void assertGeneratedCrmFunnelRowMatchesManual(Map<String, Object> generated,
@@ -623,6 +758,56 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
         plan.put("stages", stages);
         plan.put("output", List.of("leadSource", "totalLeadCount", "matchedLeadCount",
                 "leadToOrderConversionRate"));
+        return plan;
+    }
+
+    private static Map<String, Object> crossModelCrmOrderTimeAttributionBridgePlan() {
+        Map<String, Object> plan = crossModelCrmOrderSourceRateBridgePlan();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(0).put("filters", List.of(
+                m("field", "createdAt", "op", ">=", "value", "2026-07-01 00:00:00"),
+                m("field", "createdAt", "op", "<", "value", "2026-08-01 00:00:00")));
+        stages.get(1).put("groupBy", List.of("orderId", "orderDate$caption"));
+        stages.get(2).put("timeAttribution", m(
+                "basis", "source_cohort_target_event_window",
+                "field", "createdAt",
+                "sourceStage", "lead_orders",
+                "targetStage", "completed_orders",
+                "targetField", "orderDate$caption"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> runtimeGuard = (Map<String, Object>) stages.get(2).get("runtimeGuard");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> runtimeTimeAttribution =
+                (Map<String, Object>) runtimeGuard.get("timeAttribution");
+        runtimeTimeAttribution.put("targetStage", "completed_orders");
+        runtimeTimeAttribution.put("targetField", "orderDate$caption");
+        runtimeTimeAttribution.put("order", "source_at_or_before_target");
+        stages.get(2).put("output", List.of(
+                "leadSource", "convertedOrderId", "createdAt", "leadCount",
+                "orderId", "orderDate$caption", "matchedOrderCount"));
+        stages.get(4).put("filters", List.of(
+                m("field", "createdAt", "op", ">=", "value", "2026-07-01 00:00:00"),
+                m("field", "createdAt", "op", "<", "value", "2026-08-01 00:00:00")));
+        plan.put("timeAttributionContract", m(
+                "kind", "source_cohort_target_event_window",
+                "relationRef", "CrmLead.convertedOrderId -> FactOrderQueryModel.orderId",
+                "source", m(
+                        "stage", "lead_orders",
+                        "model", "CrmLead",
+                        "field", "createdAt"),
+                "target", m(
+                        "stage", "completed_orders",
+                        "model", "FactOrderQueryModel",
+                        "field", "orderDate$caption"),
+                "window", m(
+                        "unit", "day",
+                        "size", 30,
+                        "order", "source_at_or_before_target"),
+                "groupBy", List.of("leadSource"),
+                "denominator", "totalLeadCount",
+                "numerator", "matchedLeadCount",
+                "ratio", "leadToOrderConversionRate"));
         return plan;
     }
 
