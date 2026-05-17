@@ -935,6 +935,10 @@ public final class DslCteDslRequestMapper {
                     && root.equals(temporalRoot(partitionField, "month"))) {
                 return new PeriodComparison(root + temporalSeparator(orderField) + "id", "month", "yoy");
             }
+            if ("quarter".equals(grain(partitionField))
+                    && root.equals(temporalRoot(partitionField, "quarter"))) {
+                return new PeriodComparison(root + temporalSeparator(orderField) + "id", "quarter", "yoy");
+            }
         }
         return null;
     }
@@ -1598,6 +1602,9 @@ public final class DslCteDslRequestMapper {
         }
         if (lower.endsWith(".month") || lower.endsWith("$month")) {
             return "month";
+        }
+        if (lower.endsWith(".quarter") || lower.endsWith("$quarter")) {
+            return "quarter";
         }
         if (lower.endsWith(".year") || lower.endsWith("$year")) {
             return "year";

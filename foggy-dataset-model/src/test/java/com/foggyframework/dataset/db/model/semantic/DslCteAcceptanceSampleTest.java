@@ -54,7 +54,8 @@ class DslCteAcceptanceSampleTest {
                 "FactOrderQueryModel", "orderId", "orderStatus", "orderTime"
         );
         QueryModel factSales = queryModel(
-                "FactSalesQueryModel", "salesDate$id", "salesDate$year", "salesDate$month", "salesAmount"
+                "FactSalesQueryModel", "salesDate$id", "salesDate$year", "salesDate$quarter",
+                "salesDate$month", "salesAmount"
         );
         QueryModel leadLike = queryModel(
                 "LeadLikeModel", "leadId", "createdAt", "leadSource", "convertedOpportunityId", "convertedOrderId"
@@ -744,6 +745,23 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
+    @DisplayName("DSL_CTE validation marks quarterly YoY period-over-period plan as bridge-ready")
+    void validationShowsBridgeReadyForQuarterlyYoyPeriodOverPeriod() {
+        SemanticQueryResponse response = service.validateQuery(
+                "FactSalesQueryModel", dslCtePlan(quarterlyYoySalesGrowthPlan()), SemanticRequestContext.empty());
+
+        assertEquals("BRIDGE_READY", response.getExecution().getDslCteValidation().get("dsl_bridge_status"));
+        SemanticQueryRequest dslRequest = (SemanticQueryRequest) response.getExecution()
+                .getDslCteValidation().get("dsl_request");
+        assertNotNull(dslRequest);
+        assertEquals("salesDate$id", dslRequest.getTimeWindow().get("field"));
+        assertEquals("quarter", dslRequest.getTimeWindow().get("grain"));
+        assertEquals("yoy", dslRequest.getTimeWindow().get("comparison"));
+        assertEquals(List.of("salesAmount"), dslRequest.getTimeWindow().get("targetMetrics"));
+        assertTrue(dslRequest.getColumns().contains("salesAmount__ratio"));
+    }
+
+    @Test
     @DisplayName("DSL_CTE bridge defers unsupported lag period-over-period formulas")
     void validationDefersUnsupportedLagPeriodOverPeriodBridge() {
         Map<String, Object> plan = third031();
@@ -1035,6 +1053,37 @@ class DslCteAcceptanceSampleTest {
         assertEquals(Map.of(
                         "field", "salesDate$id",
                         "grain", "month",
+                        "comparison", "yoy",
+                        "targetMetrics", List.of("salesAmount")),
+                captor.getValue().getExtData().get("timeWindow"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE generateSql can opt in to quarterly YoY period-over-period timeWindow bridge")
+    void generateSqlOptInUsesDslBridgeForQuarterlyYoyPeriodOverPeriod() {
+        QueryFacade queryFacade = mock(QueryFacade.class);
+        when(queryFacade.buildSqlOnly(any(ModelResultContext.class)))
+                .thenReturn(new SqlGenerationResult(
+                        "WITH quarterly AS (...) SELECT salesAmount__ratio FROM quarterly",
+                        List.of(),
+                        null));
+        ReflectionTestUtils.setField(service, "queryFacade", queryFacade);
+
+        SemanticQueryRequest request = dslCtePlan(quarterlyYoySalesGrowthPlan());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SqlGenerationResult result = service.generateSql(
+                "FactSalesQueryModel", request, SemanticRequestContext.empty());
+
+        assertTrue(result.getSql().contains("salesAmount__ratio"));
+        org.mockito.ArgumentCaptor<ModelResultContext> captor = org.mockito.ArgumentCaptor.forClass(ModelResultContext.class);
+        verify(queryFacade).buildSqlOnly(captor.capture());
+        assertEquals(List.of("salesDate$year", "salesDate$quarter", "sum(salesAmount) AS salesAmount",
+                        "salesAmount__ratio"),
+                captor.getValue().getRequest().getParam().getColumns());
+        assertEquals(Map.of(
+                        "field", "salesDate$id",
+                        "grain", "quarter",
                         "comparison", "yoy",
                         "targetMetrics", List.of("salesAmount")),
                 captor.getValue().getExtData().get("timeWindow"));
@@ -1710,6 +1759,26 @@ class DslCteAcceptanceSampleTest {
                                                 "(salesAmount - previousYearSalesAmount) / previousYearSalesAmount")))
                 ),
                 List.of("salesDate$year", "salesDate$month", "salesAmount", "yearOverYearGrowthRate")
+        );
+    }
+
+    private Map<String, Object> quarterlyYoySalesGrowthPlan() {
+        return plan(
+                List.of(
+                        stage("quarterly_sales", "aggregate",
+                                "input", model("FactSalesQueryModel"),
+                                "groupBy", List.of("salesDate$year", "salesDate$quarter"),
+                                "metrics", List.of(metric("salesAmount", "sum(salesAmount)"))),
+                        stage("quarterly_yoy_growth", "window_derive",
+                                "inputs", List.of("quarterly_sales"),
+                                "window", window(List.of("salesDate$quarter"),
+                                        List.of(order("salesDate$year", "ASC")), null),
+                                "derived", List.of(
+                                        derived("previousYearSalesAmount", "lag(salesAmount)"),
+                                        derived("yearOverYearGrowthRate",
+                                                "(salesAmount - previousYearSalesAmount) / previousYearSalesAmount")))
+                ),
+                List.of("salesDate$year", "salesDate$quarter", "salesAmount", "yearOverYearGrowthRate")
         );
     }
 
