@@ -761,7 +761,8 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                             validation.put("dsl_cross_model_funnel_source_rate", funnelSourceRateBridge.summary());
                         } else {
                             DslCteDslRequestMapper.CrossModelJoinAlignBridgeResult joinAlignBridge =
-                                    DslCteDslRequestMapper.toCrossModelJoinAlignBridge(null, request.getExecutablePlan());
+                                    DslCteDslRequestMapper.toCrossModelJoinAlignBridge(
+                                            null, request.getExecutablePlan());
                             validation.put("dsl_bridge_status",
                                     joinAlignBridge.ready() ? joinAlignBridge.status() : bridge.status());
                             if (joinAlignBridge.ready()) {

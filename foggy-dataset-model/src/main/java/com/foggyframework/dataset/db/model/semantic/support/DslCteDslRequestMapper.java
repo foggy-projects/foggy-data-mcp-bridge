@@ -27,6 +27,7 @@ public final class DslCteDslRequestMapper {
     public static final String STATUS_DEFERRED = "BRIDGE_DEFERRED";
     public static final String STATUS_CONTRACT_READY = "CONTRACT_READY";
     private static final String FACT_ORDER_EVENT_DATE_FIELD = "orderDate$caption";
+    private static final String FACT_ORDER_TARGET_MONTH_FIELD = "FactOrderQueryModel.orderDate$month";
     private static final Pattern LAG_PATTERN = Pattern.compile(
             "(?i)^\\s*lag\\s*\\(\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*(?:,\\s*1\\s*)?\\)\\s*$");
     private static final Pattern ROLLING_SUM_PATTERN = Pattern.compile(
@@ -526,7 +527,8 @@ public final class DslCteDslRequestMapper {
         List<Map<String, Object>> stages = mapList(ctePlan.get("stages"));
         if (stages.size() != 6) {
             unsupported.add("cross-model funnel time-attribution contract requires signed join_align plus matched numerator, denominator, and final rate stages");
-            return CrossModelFunnelTimeAttributionContractResult.deferred(true, unsupported);
+            return CrossModelFunnelTimeAttributionContractResult.deferred(
+                    true, unsupported, declaresTargetPeriodFunnelAttribution(ctePlan));
         }
 
         Map<String, Object> leftAggregate = stages.get(0);
@@ -542,7 +544,8 @@ public final class DslCteDslRequestMapper {
                 || !"aggregate".equals(stringValue(denominatorAggregate.get("type")))
                 || !"derive".equals(stringValue(finalDerive.get("type")))) {
             unsupported.add("cross-model funnel time-attribution contract requires aggregate -> aggregate -> join_align -> aggregate -> aggregate -> derive");
-            return CrossModelFunnelTimeAttributionContractResult.deferred(true, unsupported);
+            return CrossModelFunnelTimeAttributionContractResult.deferred(
+                    true, unsupported, declaresTargetPeriodFunnelAttribution(ctePlan));
         }
 
         String leftStageName = stringValue(leftAggregate.get("name"));
@@ -581,6 +584,12 @@ public final class DslCteDslRequestMapper {
         }
         if (!stringList(rightAggregate.get("groupBy")).contains(FACT_ORDER_EVENT_DATE_FIELD)) {
             unsupported.add("cross-model funnel time-attribution contract requires target event field orderDate$caption in the right aggregate groupBy");
+        }
+        TargetPeriodContract targetPeriod = targetPeriodContract(ctePlan, contract, matchedAggregate, unsupported);
+        boolean targetPeriodAttribution = targetPeriod.declared();
+        if (targetPeriodAttribution && !stringList(rightAggregate.get("groupBy")).contains(targetPeriod.stageField())) {
+            unsupported.add("cross-model funnel target-month attribution requires target period field "
+                    + targetPeriod.stageField() + " in the right aggregate groupBy");
         }
 
         Map<String, Object> window = mapValue(contract.get("window"));
@@ -638,8 +647,17 @@ public final class DslCteDslRequestMapper {
         if (joinStageName == null || !List.of(joinStageName).equals(stringList(matchedAggregate.get("inputs")))) {
             unsupported.add("cross-model funnel time-attribution numerator must aggregate the signed join_align stage");
         }
-        if (!List.of("leadSource").equals(stringList(matchedAggregate.get("groupBy")))
-                || !List.of("leadSource").equals(stringList(denominatorAggregate.get("groupBy")))) {
+        List<String> matchedGroupBy = stringList(matchedAggregate.get("groupBy"));
+        List<String> denominatorGroupBy = stringList(denominatorAggregate.get("groupBy"));
+        if (targetPeriodAttribution) {
+            if (!List.of("leadSource", targetPeriod.stageField()).equals(matchedGroupBy)) {
+                unsupported.add("cross-model funnel target-month attribution numerator must group by leadSource and targetPeriod only");
+            }
+            if (!List.of("leadSource").equals(denominatorGroupBy)) {
+                unsupported.add("cross-model funnel target-month attribution denominator must stay fixed at leadSource only");
+            }
+        } else if (!List.of("leadSource").equals(matchedGroupBy)
+                || !List.of("leadSource").equals(denominatorGroupBy)) {
             unsupported.add("cross-model funnel time-attribution numerator and denominator must group by leadSource only");
         }
         if (denominatorStageName == null || matchedStageName == null
@@ -660,11 +678,17 @@ public final class DslCteDslRequestMapper {
         List<String> output = stringList(ctePlan.get("output"));
         if (output.isEmpty()) {
             output.add("leadSource");
+            if (targetPeriodAttribution) {
+                output.add(targetPeriod.stageField());
+            }
             output.add("totalLeadCount");
             output.add(matchedMetric);
             output.add(rateAlias);
         }
-        List<String> available = List.of("leadSource", "totalLeadCount", matchedMetric, rateAlias);
+        List<String> available = new ArrayList<>(List.of("leadSource", "totalLeadCount", matchedMetric, rateAlias));
+        if (targetPeriodAttribution) {
+            available.add(1, targetPeriod.stageField());
+        }
         for (String field : output) {
             if (!available.contains(field)) {
                 unsupported.add("cross-model funnel time-attribution output references unavailable field: " + field);
@@ -674,7 +698,8 @@ public final class DslCteDslRequestMapper {
             unsupported.add("cross-model funnel time-attribution contract supports only governed field aliases");
         }
         if (!unsupported.isEmpty()) {
-            return CrossModelFunnelTimeAttributionContractResult.deferred(true, unsupported);
+            return CrossModelFunnelTimeAttributionContractResult.deferred(
+                    true, unsupported, targetPeriodAttribution);
         }
 
         CrossModelFunnelTimeAttributionContractPlan plan = new CrossModelFunnelTimeAttributionContractPlan(
@@ -692,7 +717,11 @@ public final class DslCteDslRequestMapper {
                 "leadSource",
                 denominatorMetrics.aliases().get(0),
                 matchedMetric,
-                rateAlias);
+                rateAlias,
+                targetPeriodAttribution ? targetPeriod.semanticField() : null,
+                targetPeriodAttribution ? targetPeriod.grain() : null,
+                targetPeriodAttribution ? targetPeriod.stageField() : null,
+                targetPeriodAttribution ? targetPeriod.outputField() : null);
         return CrossModelFunnelTimeAttributionContractResult.ready(plan);
     }
 
@@ -776,6 +805,16 @@ public final class DslCteDslRequestMapper {
         if (!joinOutput.contains(contractPlan.sourceField()) || !joinOutput.contains(contractPlan.targetField())) {
             unsupported.add("cross-model funnel time-attribution bridge requires source and target event fields in join output");
         }
+        if (contractPlan.targetPeriodAttribution()) {
+            if (!rightFields.contains(contractPlan.targetPeriodStageField())) {
+                unsupported.add("cross-model funnel target-month attribution bridge requires target period field "
+                        + contractPlan.targetPeriodStageField() + " in right SQL output");
+            }
+            if (!joinOutput.contains(contractPlan.targetPeriodStageField())) {
+                unsupported.add("cross-model funnel target-month attribution bridge requires target period field "
+                        + contractPlan.targetPeriodStageField() + " in join output");
+            }
+        }
         if (!allSafeAliases(leftFields, rightFields, joinOutput, contractPlan.output())) {
             unsupported.add("cross-model funnel time-attribution bridge supports only governed field aliases");
         }
@@ -806,7 +845,10 @@ public final class DslCteDslRequestMapper {
                 contractPlan.groupKey(),
                 contractPlan.denominatorMetric(),
                 contractPlan.matchedMetric(),
-                contractPlan.rateAlias());
+                contractPlan.rateAlias(),
+                contractPlan.targetPeriodStageField(),
+                contractPlan.targetPeriodGrain(),
+                contractPlan.targetPeriodOutputField());
         return CrossModelFunnelTimeAttributionBridgeResult.ready(denominatorModel, denominatorRequest,
                 leftStageName, leftModel, leftRequest, rightStageName, rightModel, rightRequest, plan);
     }
@@ -1032,6 +1074,121 @@ public final class DslCteDslRequestMapper {
 
     private static boolean declaresCrossModelFunnelTimeAttribution(Map<String, Object> ctePlan) {
         return ctePlan != null && mapValue(ctePlan.get("timeAttributionContract")) != null;
+    }
+
+    private static boolean declaresTargetPeriodFunnelAttribution(Map<String, Object> ctePlan) {
+        if (ctePlan == null) {
+            return false;
+        }
+        if (ctePlan.containsKey("targetPeriod") || ctePlan.containsKey("outputGrain")) {
+            return true;
+        }
+        Map<String, Object> contract = mapValue(ctePlan.get("timeAttributionContract"));
+        Map<String, Object> target = contract == null ? null : mapValue(contract.get("target"));
+        return target != null && target.containsKey("targetPeriod");
+    }
+
+    private static TargetPeriodContract targetPeriodContract(Map<String, Object> ctePlan,
+                                                             Map<String, Object> contract,
+                                                             Map<String, Object> matchedAggregate,
+                                                             List<String> unsupported) {
+        if (!declaresTargetPeriodFunnelAttribution(ctePlan)) {
+            return TargetPeriodContract.notDeclared();
+        }
+
+        Map<String, Object> target = contract == null ? null : mapValue(contract.get("target"));
+        Object rawTargetPeriod = ctePlan.get("targetPeriod");
+        if (rawTargetPeriod == null && target != null) {
+            rawTargetPeriod = target.get("targetPeriod");
+        }
+        if (!validTargetPeriod(rawTargetPeriod)) {
+            unsupported.add("cross-model funnel target-month attribution requires targetPeriod on FactOrderQueryModel.orderDate with grain=month");
+        }
+
+        Object rawOutputGrain = ctePlan.get("outputGrain");
+        OutputGrainContract outputGrain = outputGrainContract(rawOutputGrain);
+        if (!outputGrain.valid()) {
+            unsupported.add("cross-model funnel target-month attribution requires outputGrain sourceFields=[CrmLead.leadSource] and targetPeriodFields=[FactOrderQueryModel.orderDate$month]");
+        }
+
+        String stageField = targetPeriodStageField(stringList(matchedAggregate.get("groupBy")));
+        if (stageField == null) {
+            stageField = "orderDate$month";
+        }
+        String outputField = outputGrain.targetOutputField();
+        if (outputField == null) {
+            outputField = FACT_ORDER_TARGET_MONTH_FIELD;
+        }
+        return new TargetPeriodContract(true, stageField,
+                "FactOrderQueryModel.orderDate", "month", outputField);
+    }
+
+    private static boolean validTargetPeriod(Object rawTargetPeriod) {
+        Map<String, Object> targetPeriod = mapValue(rawTargetPeriod);
+        if (targetPeriod != null) {
+            String field = stringValue(targetPeriod.get("field"));
+            String grain = stringValue(targetPeriod.get("grain"));
+            return targetPeriodSemanticFieldMatches(field) && "month".equals(grain);
+        }
+        String text = stringValue(rawTargetPeriod);
+        return targetPeriodOutputFieldMatches(text);
+    }
+
+    private static OutputGrainContract outputGrainContract(Object rawOutputGrain) {
+        List<String> sourceFields = new ArrayList<>();
+        List<String> targetPeriodFields = new ArrayList<>();
+        Map<String, Object> outputGrain = mapValue(rawOutputGrain);
+        if (outputGrain != null) {
+            sourceFields.addAll(stringList(outputGrain.get("sourceFields")));
+            targetPeriodFields.addAll(stringList(outputGrain.get("targetPeriodFields")));
+        } else {
+            for (String field : stringList(rawOutputGrain)) {
+                if (sourceLeadFieldMatches(field)) {
+                    sourceFields.add(field);
+                }
+                if (targetPeriodOutputFieldMatches(field)) {
+                    targetPeriodFields.add(field);
+                }
+            }
+        }
+        boolean sourceOk = sourceFields.stream().anyMatch(DslCteDslRequestMapper::sourceLeadFieldMatches);
+        String targetOutputField = targetPeriodFields.stream()
+                .filter(DslCteDslRequestMapper::targetPeriodOutputFieldMatches)
+                .findFirst()
+                .orElse(null);
+        return new OutputGrainContract(sourceOk && targetOutputField != null,
+                normalizeTargetPeriodOutputField(targetOutputField));
+    }
+
+    private static String targetPeriodStageField(List<String> groupBy) {
+        return groupBy.stream()
+                .filter(DslCteDslRequestMapper::targetPeriodOutputFieldMatches)
+                .findFirst()
+                .orElse(null);
+    }
+
+    private static boolean sourceLeadFieldMatches(String field) {
+        return "leadSource".equals(field) || "CrmLead.leadSource".equals(field);
+    }
+
+    private static boolean targetPeriodSemanticFieldMatches(String field) {
+        return "FactOrderQueryModel.orderDate".equals(field) || "orderDate".equals(field);
+    }
+
+    private static boolean targetPeriodOutputFieldMatches(String field) {
+        if (field == null) {
+            return false;
+        }
+        String normalized = field.trim();
+        return "orderDate$month".equals(normalized)
+                || "FactOrderQueryModel.orderDate$month".equals(normalized)
+                || "orderDate.month".equals(normalized)
+                || "FactOrderQueryModel.orderDate.month".equals(normalized)
+                || "targetPeriod".equals(normalized);
+    }
+
+    private static String normalizeTargetPeriodOutputField(String field) {
+        return targetPeriodOutputFieldMatches(field) ? FACT_ORDER_TARGET_MONTH_FIELD : field;
     }
 
     private static Integer timeAttributionWindowDays(Map<String, Object> window) {
@@ -2895,12 +3052,19 @@ public final class DslCteDslRequestMapper {
                                                             String groupKey,
                                                             String denominatorMetric,
                                                             String matchedMetric,
-                                                            String rateAlias) {
+                                                            String rateAlias,
+                                                            String targetPeriodStageField,
+                                                            String targetPeriodGrain,
+                                                            String targetPeriodOutputField) {
 
         Map<String, Object> summary() {
             Map<String, Object> result = new LinkedHashMap<>();
-            result.put("kind", "cross_model_funnel_time_attribution");
-            result.put("bridge_scope", "runtime_guarded_target_event_window");
+            result.put("kind", targetPeriodAttribution()
+                    ? "cross_model_funnel_target_month_attribution"
+                    : "cross_model_funnel_time_attribution");
+            result.put("bridge_scope", targetPeriodAttribution()
+                    ? "runtime_guarded_target_month_attribution"
+                    : "runtime_guarded_target_event_window");
             result.put("bridge_signed", true);
             result.put("execution_bridge", true);
             result.put("relationRef", joinPlan.relationRef());
@@ -2915,7 +3079,17 @@ public final class DslCteDslRequestMapper {
                     "size", windowDays,
                     "order", windowOrder,
                     "boundary", "inclusive_start_exclusive_end"));
-            result.put("groupBy", List.of(groupKey));
+            if (targetPeriodAttribution()) {
+                result.put("targetPeriod", Map.of(
+                        "stageField", targetPeriodStageField,
+                        "grain", targetPeriodGrain,
+                        "outputField", targetPeriodOutputField));
+                result.put("denominator_scope", "fixed_per_source_group");
+                result.put("numerator_bucket", "targetPeriod");
+                result.put("groupBy", List.of(groupKey, targetPeriodStageField));
+            } else {
+                result.put("groupBy", List.of(groupKey));
+            }
             result.put("denominator", denominatorMetric);
             result.put("numerator", matchedMetric);
             result.put("ratio_alias", rateAlias);
@@ -2924,6 +3098,12 @@ public final class DslCteDslRequestMapper {
             result.put("time_boundary_guard", true);
             result.put("output", output);
             return result;
+        }
+
+        private boolean targetPeriodAttribution() {
+            return targetPeriodStageField != null && !targetPeriodStageField.isBlank()
+                    && targetPeriodGrain != null && !targetPeriodGrain.isBlank()
+                    && targetPeriodOutputField != null && !targetPeriodOutputField.isBlank();
         }
 
         SqlGenerationResult wrap(SqlGenerationResult denominatorBase,
@@ -2959,22 +3139,56 @@ public final class DslCteDslRequestMapper {
             params.add(windowDays);
             sql.append(",\n");
             sql.append(matchedAlias).append(" AS (\n");
-            sql.append("SELECT ").append(quoteAlias(groupKey)).append(", SUM(")
-                    .append(quoteAlias(joinPlan.leftMetric())).append(") AS ").append(quoteAlias(matchedMetric))
-                    .append("\nFROM ").append(joinAlias).append("\nGROUP BY ").append(quoteAlias(groupKey))
+            List<String> matchedGroupKeys = new ArrayList<>();
+            matchedGroupKeys.add(groupKey);
+            if (targetPeriodAttribution()) {
+                matchedGroupKeys.add(targetPeriodStageField);
+            }
+            sql.append("SELECT ");
+            List<String> matchedSelectItems = new ArrayList<>();
+            for (String groupField : matchedGroupKeys) {
+                matchedSelectItems.add(quoteAlias(groupField));
+            }
+            matchedSelectItems.add("SUM(" + quoteAlias(joinPlan.leftMetric()) + ") AS " + quoteAlias(matchedMetric));
+            sql.append(String.join(", ", matchedSelectItems))
+                    .append("\nFROM ").append(joinAlias).append("\nGROUP BY ")
+                    .append(matchedGroupKeys.stream().map(DslCteDslRequestMapper::quoteAlias)
+                            .collect(java.util.stream.Collectors.joining(", ")))
                     .append("\n),\n");
             sql.append(rateAliasName).append(" AS (\n");
-            sql.append("SELECT d.").append(quoteAlias(groupKey)).append(" AS ").append(quoteAlias(groupKey))
-                    .append(", d.").append(quoteAlias(denominatorMetric)).append(" AS ")
+            appendRateCte(sql, denominatorAlias, matchedAlias, guardAlias);
+
+            sql.append("SELECT ");
+            sql.append(String.join(", ", output.stream().map(DslCteDslRequestMapper::quoteAlias).toList()));
+            sql.append("\nFROM ").append(rateAliasName);
+            sql.append("\nORDER BY ").append(quoteAlias(groupKey)).append(" ASC");
+            if (targetPeriodAttribution()) {
+                sql.append(", ").append(quoteAlias(targetPeriodStageField)).append(" ASC");
+            }
+            return new SqlGenerationResult(sql.toString(), params, null);
+        }
+
+        private void appendRateCte(StringBuilder sql, String denominatorAlias, String matchedAlias, String guardAlias) {
+            sql.append("SELECT d.").append(quoteAlias(groupKey)).append(" AS ").append(quoteAlias(groupKey));
+            if (targetPeriodAttribution()) {
+                sql.append(", m.").append(quoteAlias(targetPeriodStageField)).append(" AS ")
+                        .append(quoteAlias(targetPeriodStageField));
+            }
+            sql.append(", d.").append(quoteAlias(denominatorMetric)).append(" AS ")
                     .append(quoteAlias(denominatorMetric))
                     .append(", COALESCE(m.").append(quoteAlias(matchedMetric)).append(", 0) AS ")
                     .append(quoteAlias(matchedMetric))
                     .append(", (1.0 * COALESCE(m.").append(quoteAlias(matchedMetric)).append(", 0) / NULLIF(d.")
                     .append(quoteAlias(denominatorMetric)).append(", 0)) AS ").append(quoteAlias(rateAlias))
-                    .append("\nFROM ").append(denominatorAlias).append(" d\n")
-                    .append("LEFT JOIN ").append(matchedAlias).append(" m ON d.").append(quoteAlias(groupKey))
-                    .append(" = m.").append(quoteAlias(groupKey)).append("\n")
-                    .append("CROSS JOIN ").append(guardAlias).append(" g\n")
+                    .append("\nFROM ").append(denominatorAlias).append(" d\n");
+            if (targetPeriodAttribution()) {
+                sql.append("JOIN ").append(matchedAlias).append(" m ON d.").append(quoteAlias(groupKey))
+                        .append(" = m.").append(quoteAlias(groupKey)).append("\n");
+            } else {
+                sql.append("LEFT JOIN ").append(matchedAlias).append(" m ON d.").append(quoteAlias(groupKey))
+                        .append(" = m.").append(quoteAlias(groupKey)).append("\n");
+            }
+            sql.append("CROSS JOIN ").append(guardAlias).append(" g\n")
                     .append("WHERE g.").append(quoteAlias("duplicateRightKeys")).append(" = 0\n")
                     .append("  AND g.").append(quoteAlias("unmatchedLeftKeys")).append(" = 0\n")
                     .append("  AND g.").append(quoteAlias("rejectedNullLeftKeys")).append(" = 0\n")
@@ -2982,12 +3196,6 @@ public final class DslCteDslRequestMapper {
                     .append("  AND g.").append(quoteAlias("missingTargetAttributionRows")).append(" = 0\n")
                     .append("  AND g.").append(quoteAlias("targetBeforeSourceRows")).append(" = 0\n")
                     .append(")\n");
-
-            sql.append("SELECT ");
-            sql.append(String.join(", ", output.stream().map(DslCteDslRequestMapper::quoteAlias).toList()));
-            sql.append("\nFROM ").append(rateAliasName);
-            sql.append("\nORDER BY ").append(quoteAlias(groupKey)).append(" ASC");
-            return new SqlGenerationResult(sql.toString(), params, null);
         }
 
         private void appendGuardCte(StringBuilder sql, String leftAlias, String rightAlias, String guardAlias) {
@@ -3097,11 +3305,17 @@ public final class DslCteDslRequestMapper {
                                                               String groupKey,
                                                               String denominatorMetric,
                                                               String matchedMetric,
-                                                              String rateAlias) {
+                                                              String rateAlias,
+                                                              String targetPeriodField,
+                                                              String targetPeriodGrain,
+                                                              String targetPeriodStageField,
+                                                              String targetPeriodOutputField) {
 
         Map<String, Object> summary() {
             Map<String, Object> result = new LinkedHashMap<>();
-            result.put("kind", "cross_model_funnel_time_attribution");
+            result.put("kind", targetPeriodAttribution()
+                    ? "cross_model_funnel_target_month_attribution"
+                    : "cross_model_funnel_time_attribution");
             result.put("bridge_scope", "validation_only");
             result.put("bridge_signed", true);
             result.put("execution_bridge", false);
@@ -3120,6 +3334,19 @@ public final class DslCteDslRequestMapper {
                     "size", windowDays,
                     "order", windowOrder));
             result.put("groupBy", List.of(groupKey));
+            if (targetPeriodAttribution()) {
+                result.put("targetPeriod", Map.of(
+                        "model", targetModel,
+                        "field", targetPeriodField,
+                        "grain", targetPeriodGrain,
+                        "stageField", targetPeriodStageField,
+                        "outputField", targetPeriodOutputField));
+                result.put("outputGrain", Map.of(
+                        "sourceFields", List.of("CrmLead.leadSource"),
+                        "targetPeriodFields", List.of(targetPeriodOutputField)));
+                result.put("denominator_scope", "fixed_per_source_group");
+                result.put("numerator_bucket", "targetPeriod");
+            }
             result.put("denominator", denominatorMetric);
             result.put("numerator", matchedMetric);
             result.put("ratio_alias", rateAlias);
@@ -3130,6 +3357,26 @@ public final class DslCteDslRequestMapper {
                     "cross_model_governance_replay"));
             return result;
         }
+
+        public boolean targetPeriodAttribution() {
+            return targetPeriodField != null && !targetPeriodField.isBlank()
+                    && targetPeriodGrain != null && !targetPeriodGrain.isBlank()
+                    && targetPeriodStageField != null && !targetPeriodStageField.isBlank()
+                    && targetPeriodOutputField != null && !targetPeriodOutputField.isBlank();
+        }
+    }
+
+    private record TargetPeriodContract(boolean declared,
+                                        String stageField,
+                                        String semanticField,
+                                        String grain,
+                                        String outputField) {
+        static TargetPeriodContract notDeclared() {
+            return new TargetPeriodContract(false, null, null, null, null);
+        }
+    }
+
+    private record OutputGrainContract(boolean valid, String targetOutputField) {
     }
 
     public record CrossModelJoinAlignBridgeResult(String status,
@@ -3265,17 +3512,24 @@ public final class DslCteDslRequestMapper {
     public record CrossModelFunnelTimeAttributionContractResult(String status,
                                                                 CrossModelFunnelTimeAttributionContractPlan plan,
                                                                 List<String> unsupported,
-                                                                boolean relevant) {
+                                                                boolean relevant,
+                                                                boolean targetPeriodRelevant) {
         static CrossModelFunnelTimeAttributionContractResult ready(
                 CrossModelFunnelTimeAttributionContractPlan plan) {
             return new CrossModelFunnelTimeAttributionContractResult(
-                    STATUS_CONTRACT_READY, plan, List.of(), true);
+                    STATUS_CONTRACT_READY, plan, List.of(), true, plan.targetPeriodAttribution());
         }
 
         static CrossModelFunnelTimeAttributionContractResult deferred(boolean relevant,
                                                                       List<String> unsupported) {
+            return deferred(relevant, unsupported, false);
+        }
+
+        static CrossModelFunnelTimeAttributionContractResult deferred(boolean relevant,
+                                                                      List<String> unsupported,
+                                                                      boolean targetPeriodRelevant) {
             return new CrossModelFunnelTimeAttributionContractResult(
-                    STATUS_DEFERRED, null, List.copyOf(unsupported), relevant);
+                    STATUS_DEFERRED, null, List.copyOf(unsupported), relevant, targetPeriodRelevant);
         }
 
         public boolean ready() {
@@ -3284,6 +3538,10 @@ public final class DslCteDslRequestMapper {
 
         public Map<String, Object> summary() {
             return plan == null ? Map.of() : plan.summary();
+        }
+
+        public boolean targetPeriodAttribution() {
+            return plan != null && plan.targetPeriodAttribution();
         }
     }
 
