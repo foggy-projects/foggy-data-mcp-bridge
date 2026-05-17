@@ -824,6 +824,63 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
+    @DisplayName("DSL_CTE cross-model CRM order funnel can sign relation contract without execution bridge")
+    void validationSignsCrossModelCrmOrderFunnelRelationContract() {
+        SemanticQueryResponse response = service.validateQuery(
+                "CrmLead", dslCtePlan(signedCrossModelCrmOrderFunnel()), SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_DEFERRED", validation.get("dsl_bridge_status"));
+        assertTrue(validation.get("dsl_bridge_unsupported").toString().contains("join_align"));
+
+        Map<String, Object> joinAlignContract = stageContract(response, "verified_order_align",
+                "join_align_contract");
+        assertEquals("signed_relation_contract", joinAlignContract.get("bridge_scope"));
+        assertEquals(true, joinAlignContract.get("bridge_signed"));
+        assertEquals("CrmLead.convertedOrderId -> FactOrderQueryModel.orderId",
+                joinAlignContract.get("relationRef"));
+        assertEquals("many_to_one", joinAlignContract.get("cardinality"));
+        assertEquals(List.of("leadSource", "convertedOrderId", "leadCount",
+                "orderId", "matchedOrderCount"), joinAlignContract.get("output_schema"));
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) validation.get("stages");
+        Map<String, Object> joinStage = stages.stream()
+                .filter(stage -> "verified_order_align".equals(stage.get("name")))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(true, joinStage.get("output_complete"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE signed join_align rejects missing cardinality")
+    void validationRejectsSignedJoinAlignMissingCardinality() {
+        Map<String, Object> plan = signedCrossModelCrmOrderFunnel();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(2).remove("cardinality");
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+                service.validateQuery("CrmLead", dslCtePlan(plan), SemanticRequestContext.empty()));
+
+        assertTrue(ex.getMessage().contains("signed join_align.cardinality"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE signed join_align rejects unavailable output field")
+    void validationRejectsSignedJoinAlignUnavailableOutputField() {
+        Map<String, Object> plan = signedCrossModelCrmOrderFunnel();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(2).put("output", List.of("leadSource", "missingOrderMetric"));
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+                service.validateQuery("CrmLead", dslCtePlan(plan), SemanticRequestContext.empty()));
+
+        assertTrue(ex.getMessage().contains("join_align output references unavailable field 'missingOrderMetric'"));
+    }
+
+    @Test
     @DisplayName("DSL_CTE validation marks cumulative contribution as result-stage bridge-ready")
     void validationShowsBridgeReadyForCumulativeContribution() {
         SemanticQueryResponse response = service.validateQuery(
@@ -1674,6 +1731,22 @@ class DslCteAcceptanceSampleTest {
                 ),
                 List.of("leadSource", "leadCount", "matchedOrderCount", "verifiedOrderConversionRate")
         );
+    }
+
+    private Map<String, Object> signedCrossModelCrmOrderFunnel() {
+        Map<String, Object> plan = crossModelCrmOrderFunnel();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(2).put("relationRef", "CrmLead.convertedOrderId -> FactOrderQueryModel.orderId");
+        stages.get(2).put("cardinality", "many_to_one");
+        stages.get(2).put("timeAttribution", m(
+                "basis", "lead_created",
+                "field", "createdAt",
+                "sourceStage", "lead_orders"));
+        stages.get(2).put("output", List.of(
+                "leadSource", "convertedOrderId", "leadCount",
+                "orderId", "matchedOrderCount"));
+        return plan;
     }
 
     private Map<String, Object> third025() {

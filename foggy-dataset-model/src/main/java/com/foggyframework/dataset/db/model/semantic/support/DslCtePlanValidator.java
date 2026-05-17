@@ -150,6 +150,7 @@ public final class DslCtePlanValidator {
                 if (joinType == null || joinType.isBlank()) {
                     throw RX.throwB(STAGE_INVALID + ": join_align stage must declare joinType.");
                 }
+                validateSignedJoinAlignShape(stage);
             }
             default -> throw RX.throwB(STAGE_INVALID + ": unsupported stage type '" + type + "'.");
         }
@@ -213,13 +214,30 @@ public final class DslCtePlanValidator {
 
     private static StageOutput joinAlignOutput(Map<String, Object> stage, Map<String, StageOutput> stageOutputs) {
         Set<String> fields = new LinkedHashSet<>();
+        boolean complete = true;
         for (String input : stringList(stage.get("inputs"))) {
             StageOutput output = stageOutputs.get(input);
             if (output != null) {
                 fields.addAll(output.fields());
+                complete = complete && output.complete();
+            } else {
+                complete = false;
             }
         }
-        return StageOutput.incomplete(fields);
+        List<String> declaredOutput = stringList(stage.get("output"));
+        if (declaredOutput.isEmpty()) {
+            return StageOutput.incomplete(fields);
+        }
+        if (complete) {
+            for (String field : declaredOutput) {
+                if (!fields.contains(field)) {
+                    throw RX.throwB(STAGE_INVALID
+                            + ": join_align output references unavailable field '" + field + "'.");
+                }
+            }
+            return StageOutput.complete(new LinkedHashSet<>(declaredOutput));
+        }
+        return StageOutput.incomplete(new LinkedHashSet<>(declaredOutput));
     }
 
     private static StageOutput mergedInputOutput(Map<String, Object> stage, Map<String, StageOutput> stageOutputs) {
@@ -290,18 +308,64 @@ public final class DslCtePlanValidator {
 
     private static Map<String, Object> joinAlignContractEvidence(Map<String, Object> stage) {
         Map<String, Object> evidence = new LinkedHashMap<>();
+        boolean signed = signedJoinAlign(stage);
         evidence.put("kind", "cross_stage_alignment");
-        evidence.put("bridge_scope", "stage_contract_only");
-        evidence.put("bridge_signed", false);
+        evidence.put("bridge_scope", signed ? "signed_relation_contract" : "stage_contract_only");
+        evidence.put("bridge_signed", signed);
         evidence.put("inputs", stringList(stage.get("inputs")));
         evidence.put("keys", stringList(stage.get("keys")));
         evidence.put("joinType", stringValue(stage.get("joinType")));
+        if (signed) {
+            evidence.put("relationRef", stringValue(stage.get("relationRef")));
+            evidence.put("cardinality", stringValue(stage.get("cardinality")));
+            evidence.put("timeAttribution", mapValue(stage.get("timeAttribution")));
+            evidence.put("output_schema", stringList(stage.get("output")));
+        }
         evidence.put("required_capabilities", List.of(
                 "declared_alignment_key_mapping",
                 "join_cardinality_guard",
                 "cross_model_governance_replay",
                 "complete_output_schema_derivation"));
         return evidence;
+    }
+
+    private static void validateSignedJoinAlignShape(Map<String, Object> stage) {
+        if (!signedJoinAlignCandidate(stage)) {
+            return;
+        }
+        if (isBlank(stage.get("relationRef"))) {
+            throw RX.throwB(STAGE_INVALID + ": signed join_align must declare relationRef.");
+        }
+        String cardinality = stringValue(stage.get("cardinality"));
+        if (cardinality == null || !Set.of("one_to_one", "one_to_many", "many_to_one").contains(cardinality)) {
+            throw RX.throwB(STAGE_INVALID
+                    + ": signed join_align.cardinality must be one_to_one, one_to_many, or many_to_one.");
+        }
+        Map<String, Object> timeAttribution = mapValue(stage.get("timeAttribution"));
+        if (timeAttribution == null
+                || isBlank(timeAttribution.get("basis"))
+                || isBlank(timeAttribution.get("field"))) {
+            throw RX.throwB(STAGE_INVALID
+                    + ": signed join_align.timeAttribution must declare basis and field.");
+        }
+        if (stringList(stage.get("output")).isEmpty()) {
+            throw RX.throwB(STAGE_INVALID + ": signed join_align must declare output schema.");
+        }
+    }
+
+    private static boolean signedJoinAlign(Map<String, Object> stage) {
+        return signedJoinAlignCandidate(stage)
+                && !isBlank(stage.get("relationRef"))
+                && !isBlank(stage.get("cardinality"))
+                && mapValue(stage.get("timeAttribution")) != null
+                && !stringList(stage.get("output")).isEmpty();
+    }
+
+    private static boolean signedJoinAlignCandidate(Map<String, Object> stage) {
+        return stage.containsKey("relationRef")
+                || stage.containsKey("cardinality")
+                || stage.containsKey("timeAttribution")
+                || stage.containsKey("output");
     }
 
     private static Map<String, Object> deriveContractEvidence(Map<String, Object> stage) {
@@ -547,6 +611,11 @@ public final class DslCtePlanValidator {
 
     private static String stringValue(Object value) {
         return value == null ? null : String.valueOf(value).trim();
+    }
+
+    private static boolean isBlank(Object value) {
+        String text = stringValue(value);
+        return text == null || text.isBlank();
     }
 
     private static String metricAlias(String metric) {
