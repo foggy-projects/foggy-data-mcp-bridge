@@ -145,6 +145,34 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("DSL_CTE cross-model source-rate bridge executes guarded SQL and matches manual baseline")
+    void crossModelCrmOrderSourceRateBridgeSqlMatchesManualBaseline() {
+        List<Map<String, Object>> manualRows = crossModelCrmOrderSourceRateManualRows();
+        SemanticQueryRequest request = dslCtePlan(crossModelCrmOrderSourceRateBridgePlan());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SqlGenerationResult generated = semanticQueryServiceV3.generateSql(
+                "CrmLead", request, SemanticRequestContext.empty());
+
+        assertNotNull(generated);
+        assertNotNull(generated.getSql());
+        assertTrue(generated.getSql().contains("dsl_cte_funnel_denominator"), generated.getSql());
+        assertTrue(generated.getSql().contains("dsl_cte_join_guard"), generated.getSql());
+        assertTrue(generated.getSql().contains("dsl_cte_funnel_matched"), generated.getSql());
+        assertTrue(generated.getSql().contains("dsl_cte_funnel_rate"), generated.getSql());
+        assertTrue(generated.getSql().contains("leadToOrderConversionRate"), generated.getSql());
+
+        List<Map<String, Object>> rows = new ArrayList<>(jdbcTemplate.queryForList(
+                generated.getSql(), generated.getParams().toArray(new Object[0])));
+        rows.sort(Comparator.comparing(row -> String.valueOf(value(row, "leadSource"))));
+
+        assertEquals(manualRows.size(), rows.size());
+        for (int i = 0; i < manualRows.size(); i++) {
+            assertGeneratedCrossModelSourceRateRowMatchesManual(rows.get(i), manualRows.get(i));
+        }
+    }
+
+    @Test
     @DisplayName("DSL_CTE CRM lead funnel bridge executes and matches manual baseline")
     void crmLeadFunnelBridgeSqlMatchesManualBaseline() {
         List<Map<String, Object>> manualRows = crmLeadFunnelManualRows();
@@ -302,6 +330,56 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
         return rows;
     }
 
+    private List<Map<String, Object>> crossModelCrmOrderSourceRateManualRows() {
+        List<Map<String, Object>> rows = new ArrayList<>(jdbcTemplate.queryForList("""
+                WITH source_total_leads AS (
+                    SELECT lead_source AS leadSource,
+                           COUNT(lead_id) AS totalLeadCount
+                    FROM crm_lead
+                    WHERE created_at >= '2026-05-01 00:00:00'
+                      AND created_at < '2026-06-01 00:00:00'
+                    GROUP BY lead_source
+                ),
+                lead_orders AS (
+                    SELECT lead_source AS leadSource,
+                           converted_order_id AS convertedOrderId,
+                           created_at AS createdAt,
+                           COUNT(lead_id) AS leadCount
+                    FROM crm_lead
+                    WHERE created_at >= '2026-05-01 00:00:00'
+                      AND created_at < '2026-06-01 00:00:00'
+                    GROUP BY lead_source, converted_order_id, created_at
+                ),
+                completed_orders AS (
+                    SELECT order_id AS orderId,
+                           COUNT(order_id) AS matchedOrderCount
+                    FROM fact_order
+                    WHERE order_status = 'COMPLETED'
+                    GROUP BY order_id
+                ),
+                source_matched_orders AS (
+                    SELECT l.leadSource AS leadSource,
+                           SUM(l.leadCount) AS matchedLeadCount
+                    FROM lead_orders l
+                    JOIN completed_orders r
+                      ON l.convertedOrderId = r.orderId
+                    WHERE l.convertedOrderId IS NOT NULL
+                    GROUP BY l.leadSource
+                )
+                SELECT d.leadSource AS leadSource,
+                       d.totalLeadCount AS totalLeadCount,
+                       COALESCE(m.matchedLeadCount, 0) AS matchedLeadCount,
+                       1.0 * COALESCE(m.matchedLeadCount, 0)
+                           / NULLIF(d.totalLeadCount, 0) AS leadToOrderConversionRate
+                FROM source_total_leads d
+                LEFT JOIN source_matched_orders m
+                  ON d.leadSource = m.leadSource
+                ORDER BY leadSource
+                """));
+        rows.sort(Comparator.comparing(row -> String.valueOf(row.get("leadSource"))));
+        return rows;
+    }
+
     private static void assertGeneratedCrmFunnelRowMatchesManual(Map<String, Object> generated,
                                                                  Map<String, Object> manual) {
         assertEquals(manual.get("leadSource"), value(generated, "leadSource"));
@@ -333,6 +411,17 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
         assertEquals(manual.get("orderId"), value(generated, "orderId"));
         assertEquals(((Number) manual.get("matchedOrderCount")).intValue(),
                 ((Number) value(generated, "matchedOrderCount")).intValue());
+    }
+
+    private static void assertGeneratedCrossModelSourceRateRowMatchesManual(Map<String, Object> generated,
+                                                                            Map<String, Object> manual) {
+        assertEquals(manual.get("leadSource"), value(generated, "leadSource"));
+        assertEquals(((Number) manual.get("totalLeadCount")).intValue(),
+                ((Number) value(generated, "totalLeadCount")).intValue());
+        assertEquals(((Number) manual.get("matchedLeadCount")).intValue(),
+                ((Number) value(generated, "matchedLeadCount")).intValue());
+        assertClose(((Number) manual.get("leadToOrderConversionRate")).doubleValue(),
+                ((Number) value(generated, "leadToOrderConversionRate")).doubleValue());
     }
 
     private static void assertGeneratedCrmFunnelCountsMatchManual(Map<String, Object> generated,
@@ -508,6 +597,32 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
                 ),
                 "output", List.of("leadSource", "convertedOrderId", "leadCount", "orderId", "matchedOrderCount")
         );
+        return plan;
+    }
+
+    private static Map<String, Object> crossModelCrmOrderSourceRateBridgePlan() {
+        Map<String, Object> plan = crossModelCrmOrderJoinAlignBridgePlan();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> baseStages = (List<Map<String, Object>>) plan.get("stages");
+        List<Map<String, Object>> stages = new ArrayList<>(baseStages);
+        stages.add(stage("source_matched_orders", "aggregate",
+                "inputs", List.of("verified_order_align"),
+                "groupBy", List.of("leadSource"),
+                "metrics", List.of(m("name", "matchedLeadCount", "expr", "sum(leadCount)"))));
+        stages.add(stage("source_total_leads", "aggregate",
+                "input", m("model", "CrmLead"),
+                "filters", List.of(
+                        m("field", "createdAt", "op", ">=", "value", "2026-05-01 00:00:00"),
+                        m("field", "createdAt", "op", "<", "value", "2026-06-01 00:00:00")),
+                "groupBy", List.of("leadSource"),
+                "metrics", List.of(m("name", "totalLeadCount", "expr", "count(*)"))));
+        stages.add(stage("source_order_rate", "derive",
+                "inputs", List.of("source_total_leads", "source_matched_orders"),
+                "derived", List.of(m("name", "leadToOrderConversionRate",
+                        "expr", "matchedLeadCount / totalLeadCount"))));
+        plan.put("stages", stages);
+        plan.put("output", List.of("leadSource", "totalLeadCount", "matchedLeadCount",
+                "leadToOrderConversionRate"));
         return plan;
     }
 

@@ -17,6 +17,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -909,6 +910,54 @@ class DslCteAcceptanceSampleTest {
         assertEquals("createdAt", joinBridge.get("time_attribution_source_field"));
         assertEquals(List.of("leadSource", "convertedOrderId", "leadCount",
                 "orderId", "matchedOrderCount"), joinBridge.get("output"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE signed cross-model source-rate marks runtime-guarded bridge-ready")
+    void validationShowsBridgeReadyForSignedCrossModelFunnelSourceRate() {
+        SemanticQueryResponse response = service.validateQuery(
+                "CrmLead", dslCtePlan(signedCrossModelCrmOrderSourceRateBridge()), SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_READY", validation.get("dsl_bridge_status"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> models = (Map<String, Object>) validation.get("dsl_bridge_models");
+        assertEquals("CrmLead", models.get("denominator"));
+        assertEquals("CrmLead", models.get("left"));
+        assertEquals("FactOrderQueryModel", models.get("right"));
+        assertNotNull(validation.get("dsl_denominator_request"));
+        assertNotNull(validation.get("dsl_left_request"));
+        assertNotNull(validation.get("dsl_right_request"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> rateBridge =
+                (Map<String, Object>) validation.get("dsl_cross_model_funnel_source_rate");
+        assertEquals("cross_model_funnel_source_rate", rateBridge.get("kind"));
+        assertEquals("runtime_guarded_source_rate", rateBridge.get("bridge_scope"));
+        assertEquals(true, rateBridge.get("bridge_signed"));
+        assertEquals(true, rateBridge.get("runtime_guard_sql"));
+        assertEquals("totalLeadCount", rateBridge.get("denominator"));
+        assertEquals("matchedLeadCount", rateBridge.get("numerator"));
+        assertEquals("leadToOrderConversionRate", rateBridge.get("ratio_alias"));
+        assertEquals(List.of("leadSource"), rateBridge.get("groupBy"));
+        assertEquals(List.of("leadSource", "totalLeadCount", "matchedLeadCount",
+                "leadToOrderConversionRate"), rateBridge.get("output"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE signed cross-model source-rate defers non-source denominator")
+    void validationDefersSignedCrossModelFunnelSourceRateWithWrongDenominator() {
+        Map<String, Object> plan = signedCrossModelCrmOrderSourceRateBridge();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(4).put("groupBy", List.of("createdAt"));
+
+        SemanticQueryResponse response = service.validateQuery(
+                "CrmLead", dslCtePlan(plan), SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_DEFERRED", validation.get("dsl_bridge_status"));
+        assertTrue(validation.get("dsl_bridge_unsupported").toString()
+                .contains("denominator must group by leadSource only"));
     }
 
     @Test
@@ -2026,6 +2075,32 @@ class DslCteAcceptanceSampleTest {
         stages.get(2).put("output", List.of(
                 "leadSource", "convertedOrderId", "leadCount",
                 "orderId", "matchedOrderCount"));
+        return plan;
+    }
+
+    private Map<String, Object> signedCrossModelCrmOrderSourceRateBridge() {
+        Map<String, Object> plan = signedCrossModelCrmOrderJoinAlignBridge();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> baseStages = (List<Map<String, Object>>) plan.get("stages");
+        List<Map<String, Object>> stages = new ArrayList<>(baseStages);
+        stages.add(stage("source_matched_orders", "aggregate",
+                "inputs", List.of("verified_order_align"),
+                "groupBy", List.of("leadSource"),
+                "metrics", List.of(metric("matchedLeadCount", "sum(leadCount)"))));
+        stages.add(stage("source_total_leads", "aggregate",
+                "input", model("CrmLead"),
+                "filters", List.of(
+                        filter("createdAt", ">=", "2026-05-01 00:00:00"),
+                        filter("createdAt", "<", "2026-06-01 00:00:00")),
+                "groupBy", List.of("leadSource"),
+                "metrics", List.of(metric("totalLeadCount", "count(*)"))));
+        stages.add(stage("source_order_rate", "derive",
+                "inputs", List.of("source_total_leads", "source_matched_orders"),
+                "derived", List.of(derived("leadToOrderConversionRate",
+                        "matchedLeadCount / totalLeadCount"))));
+        plan.put("stages", stages);
+        plan.put("output", List.of("leadSource", "totalLeadCount", "matchedLeadCount",
+                "leadToOrderConversionRate"));
         return plan;
     }
 

@@ -497,6 +497,116 @@ public final class DslCteDslRequestMapper {
         return CrossModelJoinAlignBridgeResult.ready(leftModel, leftRequest, rightModel, rightRequest, plan);
     }
 
+    public static CrossModelFunnelSourceRateBridgeResult toCrossModelFunnelSourceRateBridge(String fallbackModel,
+                                                                                            Object executablePlan) {
+        List<String> unsupported = new ArrayList<>();
+        Map<String, Object> ctePlan = ctePlan(executablePlan, unsupported);
+        if (ctePlan == null) {
+            return CrossModelFunnelSourceRateBridgeResult.deferred(unsupported);
+        }
+        List<Map<String, Object>> stages = mapList(ctePlan.get("stages"));
+        if (stages.size() != 6) {
+            unsupported.add("cross-model funnel source-rate bridge requires signed join_align plus matched numerator, denominator, and final rate stages");
+            return CrossModelFunnelSourceRateBridgeResult.deferred(unsupported);
+        }
+
+        Map<String, Object> leftAggregate = stages.get(0);
+        Map<String, Object> rightAggregate = stages.get(1);
+        Map<String, Object> joinAlign = stages.get(2);
+        Map<String, Object> matchedAggregate = stages.get(3);
+        Map<String, Object> denominatorAggregate = stages.get(4);
+        Map<String, Object> finalDerive = stages.get(5);
+        if (!"aggregate".equals(stringValue(leftAggregate.get("type")))
+                || !"aggregate".equals(stringValue(rightAggregate.get("type")))
+                || !"join_align".equals(stringValue(joinAlign.get("type")))
+                || !"aggregate".equals(stringValue(matchedAggregate.get("type")))
+                || !"aggregate".equals(stringValue(denominatorAggregate.get("type")))
+                || !"derive".equals(stringValue(finalDerive.get("type")))) {
+            unsupported.add("cross-model funnel source-rate bridge requires aggregate -> aggregate -> join_align -> aggregate -> aggregate -> derive");
+            return CrossModelFunnelSourceRateBridgeResult.deferred(unsupported);
+        }
+
+        Map<String, Object> joinOnlyPlan = new LinkedHashMap<>();
+        joinOnlyPlan.put("stages", new ArrayList<>(stages.subList(0, 3)));
+        joinOnlyPlan.put("output", stringList(joinAlign.get("output")));
+        CrossModelJoinAlignBridgeResult joinBridge =
+                toCrossModelJoinAlignBridge(fallbackModel, Map.of("cte_plan", joinOnlyPlan));
+        if (!joinBridge.ready()) {
+            unsupported.addAll(joinBridge.unsupported());
+            return CrossModelFunnelSourceRateBridgeResult.deferred(unsupported);
+        }
+
+        String joinStageName = stringValue(joinAlign.get("name"));
+        String matchedStageName = stringValue(matchedAggregate.get("name"));
+        String denominatorStageName = stringValue(denominatorAggregate.get("name"));
+        if (joinStageName == null || matchedStageName == null || denominatorStageName == null) {
+            unsupported.add("cross-model funnel source-rate bridge requires named join, numerator, and denominator stages");
+        }
+        if (!List.of(joinStageName).equals(stringList(matchedAggregate.get("inputs")))) {
+            unsupported.add("cross-model funnel source-rate numerator must aggregate the signed join_align stage");
+        }
+        if (!List.of("leadSource").equals(stringList(matchedAggregate.get("groupBy")))) {
+            unsupported.add("cross-model funnel source-rate numerator must group by leadSource only");
+        }
+        if (!List.of("leadSource").equals(stringList(denominatorAggregate.get("groupBy")))) {
+            unsupported.add("cross-model funnel source-rate denominator must group by leadSource only");
+        }
+        if (!List.of("leadSource").equals(stringList(finalDerive.get("groupBy")))) {
+            if (finalDerive.containsKey("groupBy")) {
+                unsupported.add("cross-model funnel source-rate final derive must not declare a different groupBy");
+            }
+        }
+        if (!List.of(denominatorStageName, matchedStageName).equals(stringList(finalDerive.get("inputs")))) {
+            unsupported.add("cross-model funnel source-rate final derive must combine denominator then matched numerator");
+        }
+
+        String denominatorModel = sourceModel(fallbackModel, denominatorAggregate);
+        if (!"CrmLead".equals(denominatorModel)) {
+            unsupported.add("cross-model funnel source-rate denominator must use CrmLead");
+        }
+        if (!sameFilterSet(leftAggregate.get("filters"), denominatorAggregate.get("filters"))) {
+            unsupported.add("cross-model funnel source-rate numerator and denominator must use the same lead source filters");
+        }
+
+        MetricMapping denominatorMetrics = crossModelFunnelDenominatorMetrics(denominatorAggregate, denominatorModel,
+                unsupported);
+        String matchedMetric = crossModelFunnelMatchedMetric(matchedAggregate, unsupported);
+        String rateAlias = crossModelFunnelRateAlias(finalDerive, unsupported);
+        SemanticQueryRequest denominatorRequest =
+                aggregateBridgeRequest(denominatorAggregate, denominatorMetrics, unsupported);
+
+        List<String> output = stringList(ctePlan.get("output"));
+        if (output.isEmpty()) {
+            output.add("leadSource");
+            output.add("totalLeadCount");
+            output.add(matchedMetric);
+            output.add(rateAlias);
+        }
+        List<String> available = List.of("leadSource", "totalLeadCount", matchedMetric, rateAlias);
+        for (String field : output) {
+            if (!available.contains(field)) {
+                unsupported.add("cross-model funnel source-rate output references unavailable field: " + field);
+            }
+        }
+        if (!allSafeAliases(output, available)) {
+            unsupported.add("cross-model funnel source-rate bridge supports only governed field aliases");
+        }
+        if (!unsupported.isEmpty()) {
+            return CrossModelFunnelSourceRateBridgeResult.deferred(unsupported);
+        }
+
+        CrossModelFunnelSourceRatePlan plan = new CrossModelFunnelSourceRatePlan(
+                output,
+                joinBridge.plan(),
+                "leadSource",
+                "totalLeadCount",
+                matchedMetric,
+                rateAlias);
+        return CrossModelFunnelSourceRateBridgeResult.ready(denominatorModel, denominatorRequest,
+                joinBridge.leftModel(), joinBridge.leftRequest(), joinBridge.rightModel(), joinBridge.rightRequest(),
+                plan);
+    }
+
     private static SemanticQueryRequest aggregateBridgeRequest(Map<String, Object> aggregate,
                                                                MetricMapping metrics,
                                                                List<String> unsupported) {
@@ -541,6 +651,75 @@ public final class DslCteDslRequestMapper {
             columnByAlias.put(name, "count(orderId) AS " + name);
         }
         return new MetricMapping(columnByAlias);
+    }
+
+    private static MetricMapping crossModelFunnelDenominatorMetrics(Map<String, Object> aggregate,
+                                                                    String model,
+                                                                    List<String> unsupported) {
+        List<Map<String, Object>> metricMaps = mapList(aggregate.get("metrics"));
+        Map<String, String> columnByAlias = new LinkedHashMap<>();
+        if (metricMaps.size() != 1) {
+            unsupported.add("cross-model funnel source-rate denominator requires exactly one metric");
+            return new MetricMapping(columnByAlias);
+        }
+        Map<String, Object> metric = metricMaps.get(0);
+        String name = stringValue(metric.get("name"));
+        String expr = stringValue(metric.get("expr"));
+        if (!"CrmLead".equals(model) || !"totalLeadCount".equals(name) || !isCountAll(expr)) {
+            unsupported.add("cross-model funnel source-rate denominator must expose totalLeadCount=count(*) on CrmLead");
+            return new MetricMapping(columnByAlias);
+        }
+        columnByAlias.put(name, "count(leadId) AS " + name);
+        return new MetricMapping(columnByAlias);
+    }
+
+    private static String crossModelFunnelMatchedMetric(Map<String, Object> aggregate, List<String> unsupported) {
+        List<Map<String, Object>> metricMaps = mapList(aggregate.get("metrics"));
+        if (metricMaps.size() != 1) {
+            unsupported.add("cross-model funnel source-rate matched numerator requires exactly one metric");
+            return "matchedLeadCount";
+        }
+        Map<String, Object> metric = metricMaps.get(0);
+        String name = stringValue(metric.get("name"));
+        String expr = stringValue(metric.get("expr"));
+        Matcher sumAlias = SUM_ALIAS_PATTERN.matcher(expr == null ? "" : expr);
+        if (!"matchedLeadCount".equals(name) || !sumAlias.matches() || !"leadCount".equals(sumAlias.group(1))) {
+            unsupported.add("cross-model funnel source-rate numerator must expose matchedLeadCount=sum(leadCount)");
+        }
+        return name == null ? "matchedLeadCount" : name;
+    }
+
+    private static String crossModelFunnelRateAlias(Map<String, Object> derive, List<String> unsupported) {
+        List<Map<String, Object>> derived = mapList(derive.get("derived"));
+        if (derived.size() != 1) {
+            unsupported.add("cross-model funnel source-rate final derive requires exactly one rate formula");
+            return "leadToOrderConversionRate";
+        }
+        Map<String, Object> item = derived.get(0);
+        String name = stringValue(item.get("name"));
+        String expr = stringValue(item.get("expr"));
+        Matcher ratio = METRIC_RATIO_PATTERN.matcher(expr == null ? "" : expr);
+        if (!"leadToOrderConversionRate".equals(name)
+                || !ratio.matches()
+                || !"matchedLeadCount".equals(ratio.group(1))
+                || !"totalLeadCount".equals(ratio.group(2))) {
+            unsupported.add("cross-model funnel source-rate final formula must be leadToOrderConversionRate=matchedLeadCount / totalLeadCount");
+        }
+        return name == null ? "leadToOrderConversionRate" : name;
+    }
+
+    private static boolean sameFilterSet(Object leftRaw, Object rightRaw) {
+        return filterSignatures(leftRaw).equals(filterSignatures(rightRaw));
+    }
+
+    private static List<String> filterSignatures(Object raw) {
+        return mapList(raw).stream()
+                .map(filter -> String.valueOf(stringValue(filter.get("field"))) + "|"
+                        + String.valueOf(stringValue(filter.get("op"))) + "|"
+                        + String.valueOf(filter.get("value")) + "|"
+                        + String.valueOf(filter.get("valueField")))
+                .sorted()
+                .toList();
     }
 
     private static boolean isCountAll(String expr) {
@@ -2211,6 +2390,165 @@ public final class DslCteDslRequestMapper {
         }
     }
 
+    public record CrossModelFunnelSourceRatePlan(List<String> output,
+                                                 CrossModelJoinAlignPlan joinPlan,
+                                                 String groupKey,
+                                                 String denominatorMetric,
+                                                 String matchedMetric,
+                                                 String rateAlias) {
+
+        Map<String, Object> summary() {
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("kind", "cross_model_funnel_source_rate");
+            result.put("bridge_scope", "runtime_guarded_source_rate");
+            result.put("bridge_signed", true);
+            result.put("relationRef", joinPlan.relationRef());
+            result.put("cardinality", joinPlan.cardinality());
+            result.put("groupBy", List.of(groupKey));
+            result.put("denominator", denominatorMetric);
+            result.put("numerator", matchedMetric);
+            result.put("ratio_alias", rateAlias);
+            result.put("runtime_guard_sql", true);
+            result.put("null_key_policy", joinPlan.nullKeyPolicy());
+            result.put("time_attribution_source_field", joinPlan.sourceField());
+            result.put("output", output);
+            return result;
+        }
+
+        SqlGenerationResult wrap(SqlGenerationResult denominatorBase,
+                                 SqlGenerationResult leftBase,
+                                 SqlGenerationResult rightBase) {
+            validateBaseSql(denominatorBase, "DENOMINATOR");
+            validateBaseSql(leftBase, "LEFT");
+            validateBaseSql(rightBase, "RIGHT");
+
+            String denominatorSql = denominatorBase.getSql().trim();
+            String leftSql = leftBase.getSql().trim();
+            String rightSql = rightBase.getSql().trim();
+            List<Object> params = new ArrayList<>();
+            params.addAll(denominatorBase.getParams());
+            params.addAll(leftBase.getParams());
+            params.addAll(rightBase.getParams());
+
+            String denominatorAlias = "dsl_cte_funnel_denominator";
+            String leftAlias = "dsl_cte_join_left";
+            String rightAlias = "dsl_cte_join_right";
+            String guardAlias = "dsl_cte_join_guard";
+            String joinAlias = "dsl_cte_join_align";
+            String matchedAlias = "dsl_cte_funnel_matched";
+            String rateAliasName = "dsl_cte_funnel_rate";
+
+            StringBuilder sql = new StringBuilder("WITH ");
+            sql.append(denominatorAlias).append(" AS (\n").append(denominatorSql).append("\n),\n");
+            sql.append(leftAlias).append(" AS (\n").append(leftSql).append("\n),\n");
+            sql.append(rightAlias).append(" AS (\n").append(rightSql).append("\n),\n");
+            appendGuardCte(sql, leftAlias, rightAlias, guardAlias);
+            sql.append(",\n");
+            appendJoinAlignCte(sql, leftAlias, rightAlias, guardAlias, joinAlias);
+            sql.append(",\n");
+            sql.append(matchedAlias).append(" AS (\n");
+            sql.append("SELECT ").append(quoteAlias(groupKey)).append(", SUM(")
+                    .append(quoteAlias(joinPlan.leftMetric())).append(") AS ").append(quoteAlias(matchedMetric))
+                    .append("\nFROM ").append(joinAlias).append("\nGROUP BY ").append(quoteAlias(groupKey))
+                    .append("\n),\n");
+            sql.append(rateAliasName).append(" AS (\n");
+            sql.append("SELECT d.").append(quoteAlias(groupKey)).append(" AS ").append(quoteAlias(groupKey))
+                    .append(", d.").append(quoteAlias(denominatorMetric)).append(" AS ")
+                    .append(quoteAlias(denominatorMetric))
+                    .append(", COALESCE(m.").append(quoteAlias(matchedMetric)).append(", 0) AS ")
+                    .append(quoteAlias(matchedMetric))
+                    .append(", (1.0 * COALESCE(m.").append(quoteAlias(matchedMetric)).append(", 0) / NULLIF(d.")
+                    .append(quoteAlias(denominatorMetric)).append(", 0)) AS ").append(quoteAlias(rateAlias))
+                    .append("\nFROM ").append(denominatorAlias).append(" d\n")
+                    .append("LEFT JOIN ").append(matchedAlias).append(" m ON d.").append(quoteAlias(groupKey))
+                    .append(" = m.").append(quoteAlias(groupKey)).append("\n")
+                    .append("CROSS JOIN ").append(guardAlias).append(" g\n")
+                    .append("WHERE g.").append(quoteAlias("duplicateRightKeys")).append(" = 0\n")
+                    .append("  AND g.").append(quoteAlias("unmatchedLeftKeys")).append(" = 0\n")
+                    .append("  AND g.").append(quoteAlias("rejectedNullLeftKeys")).append(" = 0\n")
+                    .append("  AND g.").append(quoteAlias("missingAttributionRows")).append(" = 0\n")
+                    .append(")\n");
+
+            sql.append("SELECT ");
+            sql.append(String.join(", ", output.stream().map(DslCteDslRequestMapper::quoteAlias).toList()));
+            sql.append("\nFROM ").append(rateAliasName);
+            sql.append("\nORDER BY ").append(quoteAlias(groupKey)).append(" ASC");
+            return new SqlGenerationResult(sql.toString(), params, null);
+        }
+
+        private void appendGuardCte(StringBuilder sql, String leftAlias, String rightAlias, String guardAlias) {
+            sql.append(guardAlias).append(" AS (\n");
+            sql.append("SELECT ");
+            sql.append("(SELECT COUNT(*) FROM ").append(rightAlias)
+                    .append(" WHERE ").append(quoteAlias(joinPlan.rightMetric())).append(" > 1) AS ")
+                    .append(quoteAlias("duplicateRightKeys")).append(", ");
+            sql.append("(SELECT COUNT(*) FROM ").append(leftAlias).append(" l LEFT JOIN ").append(rightAlias)
+                    .append(" r ON l.").append(quoteAlias(joinPlan.leftKey())).append(" = r.")
+                    .append(quoteAlias(joinPlan.rightKey()))
+                    .append(" WHERE l.").append(quoteAlias(joinPlan.leftKey())).append(" IS NOT NULL AND r.")
+                    .append(quoteAlias(joinPlan.rightKey())).append(" IS NULL) AS ")
+                    .append(quoteAlias("unmatchedLeftKeys")).append(", ");
+            sql.append("(SELECT COUNT(*) FROM ").append(leftAlias)
+                    .append(" WHERE ").append(quoteAlias(joinPlan.leftKey())).append(" IS NULL) AS ")
+                    .append(quoteAlias("nullLeftKeys")).append(", ");
+            if (joinPlan.rejectNullLeftKeys()) {
+                sql.append("(SELECT COUNT(*) FROM ").append(leftAlias)
+                        .append(" WHERE ").append(quoteAlias(joinPlan.leftKey())).append(" IS NULL) AS ")
+                        .append(quoteAlias("rejectedNullLeftKeys")).append(", ");
+            } else {
+                sql.append("0 AS ").append(quoteAlias("rejectedNullLeftKeys")).append(", ");
+            }
+            sql.append("(SELECT COUNT(*) FROM ").append(leftAlias).append(" l JOIN ").append(rightAlias)
+                    .append(" r ON l.").append(quoteAlias(joinPlan.leftKey())).append(" = r.")
+                    .append(quoteAlias(joinPlan.rightKey()))
+                    .append(" WHERE l.").append(quoteAlias(joinPlan.sourceField())).append(" IS NULL) AS ")
+                    .append(quoteAlias("missingAttributionRows")).append("\n");
+            sql.append(")");
+        }
+
+        private void appendJoinAlignCte(StringBuilder sql, String leftAlias, String rightAlias,
+                                        String guardAlias, String joinAlias) {
+            sql.append(joinAlias).append(" AS (\n");
+            sql.append("SELECT ");
+            List<String> selectItems = new ArrayList<>();
+            for (String field : joinPlan.joinOutput()) {
+                selectItems.add(qualifiedJoinField(field) + " AS " + quoteAlias(field));
+            }
+            sql.append(String.join(", ", selectItems));
+            sql.append("\nFROM ").append(leftAlias).append(" l\n");
+            sql.append("JOIN ").append(rightAlias).append(" r ON l.")
+                    .append(quoteAlias(joinPlan.leftKey())).append(" = r.")
+                    .append(quoteAlias(joinPlan.rightKey())).append("\n");
+            sql.append("CROSS JOIN ").append(guardAlias).append(" g\n");
+            sql.append("WHERE l.").append(quoteAlias(joinPlan.leftKey())).append(" IS NOT NULL\n");
+            sql.append("  AND g.").append(quoteAlias("duplicateRightKeys")).append(" = 0\n");
+            sql.append("  AND g.").append(quoteAlias("unmatchedLeftKeys")).append(" = 0\n");
+            sql.append("  AND g.").append(quoteAlias("rejectedNullLeftKeys")).append(" = 0\n");
+            sql.append("  AND g.").append(quoteAlias("missingAttributionRows")).append(" = 0\n");
+            sql.append(")");
+        }
+
+        private String qualifiedJoinField(String field) {
+            if (joinPlan.leftFields().contains(field)) {
+                return "l." + quoteAlias(field);
+            }
+            if (joinPlan.rightFields().contains(field)) {
+                return "r." + quoteAlias(field);
+            }
+            throw RX.throwB("DSL_CTE_FUNNEL_SOURCE_RATE_UNAVAILABLE_FIELD: " + field);
+        }
+
+        private static void validateBaseSql(SqlGenerationResult base, String side) {
+            if (base == null || base.getSql() == null || base.getSql().isBlank()) {
+                throw RX.throwB("DSL_CTE_FUNNEL_SOURCE_RATE_" + side + "_BASE_SQL_MISSING");
+            }
+            String sql = base.getSql().trim();
+            if (base.hasCteStages() || sql.regionMatches(true, 0, "WITH ", 0, 5)) {
+                throw RX.throwB("DSL_CTE_FUNNEL_SOURCE_RATE_" + side + "_BASE_WITH_UNSUPPORTED");
+            }
+        }
+    }
+
     public record CrossModelJoinAlignBridgeResult(String status,
                                                   String leftModel,
                                                   SemanticQueryRequest leftRequest,
@@ -2245,6 +2583,49 @@ public final class DslCteDslRequestMapper {
                 throw RX.throwB("DSL_CTE_CROSS_MODEL_JOIN_ALIGN_NOT_SUPPORTED: " + unsupported);
             }
             return plan.wrap(leftBase, rightBase);
+        }
+    }
+
+    public record CrossModelFunnelSourceRateBridgeResult(String status,
+                                                         String denominatorModel,
+                                                         SemanticQueryRequest denominatorRequest,
+                                                         String leftModel,
+                                                         SemanticQueryRequest leftRequest,
+                                                         String rightModel,
+                                                         SemanticQueryRequest rightRequest,
+                                                         CrossModelFunnelSourceRatePlan plan,
+                                                         List<String> unsupported) {
+        static CrossModelFunnelSourceRateBridgeResult ready(String denominatorModel,
+                                                            SemanticQueryRequest denominatorRequest,
+                                                            String leftModel,
+                                                            SemanticQueryRequest leftRequest,
+                                                            String rightModel,
+                                                            SemanticQueryRequest rightRequest,
+                                                            CrossModelFunnelSourceRatePlan plan) {
+            return new CrossModelFunnelSourceRateBridgeResult(STATUS_READY, denominatorModel, denominatorRequest,
+                    leftModel, leftRequest, rightModel, rightRequest, plan, List.of());
+        }
+
+        static CrossModelFunnelSourceRateBridgeResult deferred(List<String> unsupported) {
+            return new CrossModelFunnelSourceRateBridgeResult(STATUS_DEFERRED, null, null, null, null, null,
+                    null, null, List.copyOf(unsupported));
+        }
+
+        public boolean ready() {
+            return STATUS_READY.equals(status);
+        }
+
+        public Map<String, Object> summary() {
+            return plan == null ? Map.of() : plan.summary();
+        }
+
+        public SqlGenerationResult wrap(SqlGenerationResult denominatorBase,
+                                        SqlGenerationResult leftBase,
+                                        SqlGenerationResult rightBase) {
+            if (!ready()) {
+                throw RX.throwB("DSL_CTE_CROSS_MODEL_FUNNEL_SOURCE_RATE_NOT_SUPPORTED: " + unsupported);
+            }
+            return plan.wrap(denominatorBase, leftBase, rightBase);
         }
     }
 
