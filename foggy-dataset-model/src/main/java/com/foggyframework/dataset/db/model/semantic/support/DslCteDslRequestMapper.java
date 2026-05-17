@@ -366,6 +366,211 @@ public final class DslCteDslRequestMapper {
         return ResultStageMetricRatioBridgeResult.ready(model, baseRequest, plan);
     }
 
+    public static CrossModelJoinAlignBridgeResult toCrossModelJoinAlignBridge(String fallbackModel,
+                                                                              Object executablePlan) {
+        List<String> unsupported = new ArrayList<>();
+        Map<String, Object> ctePlan = ctePlan(executablePlan, unsupported);
+        if (ctePlan == null) {
+            return CrossModelJoinAlignBridgeResult.deferred(unsupported);
+        }
+        List<Map<String, Object>> stages = mapList(ctePlan.get("stages"));
+        if (stages.size() != 3) {
+            unsupported.add("cross-model join_align bridge requires exactly left aggregate -> right aggregate -> signed join_align; post-join stages remain deferred");
+            return CrossModelJoinAlignBridgeResult.deferred(unsupported);
+        }
+
+        Map<String, Object> leftAggregate = stages.get(0);
+        Map<String, Object> rightAggregate = stages.get(1);
+        Map<String, Object> joinAlign = stages.get(2);
+        if (!"aggregate".equals(stringValue(leftAggregate.get("type")))
+                || !"aggregate".equals(stringValue(rightAggregate.get("type")))
+                || !"join_align".equals(stringValue(joinAlign.get("type")))) {
+            unsupported.add("cross-model join_align bridge requires aggregate -> aggregate -> join_align");
+            return CrossModelJoinAlignBridgeResult.deferred(unsupported);
+        }
+
+        String leftStageName = stringValue(leftAggregate.get("name"));
+        String rightStageName = stringValue(rightAggregate.get("name"));
+        List<String> inputs = stringList(joinAlign.get("inputs"));
+        if (leftStageName == null || rightStageName == null
+                || !List.of(leftStageName, rightStageName).equals(inputs)) {
+            unsupported.add("cross-model join_align bridge requires join inputs to match the two aggregate stages in order");
+            return CrossModelJoinAlignBridgeResult.deferred(unsupported);
+        }
+
+        String relationRef = stringValue(joinAlign.get("relationRef"));
+        String cardinality = stringValue(joinAlign.get("cardinality"));
+        if (!"many_to_one".equals(cardinality)) {
+            unsupported.add("cross-model join_align bridge supports only signed many_to_one cardinality in this cut");
+        }
+        if (!"declared_key_align".equals(stringValue(joinAlign.get("joinType")))) {
+            unsupported.add("cross-model join_align bridge supports only declared_key_align joinType");
+        }
+
+        Map<String, Object> relation = mapValue(joinAlign.get("relation"));
+        Map<String, Object> leftEndpoint = relation == null ? null : mapValue(relation.get("left"));
+        Map<String, Object> rightEndpoint = relation == null ? null : mapValue(relation.get("right"));
+        String leftModel = sourceModel(fallbackModel, leftAggregate);
+        String rightModel = sourceModel(null, rightAggregate);
+        String leftKey = stringValue(leftEndpoint == null ? null : leftEndpoint.get("field"));
+        String rightKey = stringValue(rightEndpoint == null ? null : rightEndpoint.get("field"));
+        if (!signedCrmOrderJoinEndpoint(leftEndpoint, leftStageName, "CrmLead", "convertedOrderId")
+                || !"CrmLead".equals(leftModel)
+                || !signedCrmOrderJoinEndpoint(rightEndpoint, rightStageName, "FactOrderQueryModel", "orderId")
+                || !"FactOrderQueryModel".equals(rightModel)
+                || !"CrmLead.convertedOrderId -> FactOrderQueryModel.orderId".equals(relationRef)) {
+            unsupported.add("cross-model join_align bridge supports only signed CrmLead.convertedOrderId -> FactOrderQueryModel.orderId");
+        }
+        if (!singleAlignmentKeyMatches(stringList(joinAlign.get("keys")), leftKey, rightKey)) {
+            unsupported.add("cross-model join_align bridge requires a single convertedOrderId=orderId alignment key");
+        }
+
+        DslCteJoinAlignRuntimeGuardContract runtimeGuard =
+                DslCteJoinAlignRuntimeGuardContract.parseNullable(joinAlign.get("runtimeGuard"));
+        if (runtimeGuard == null || runtimeGuard.cardinality() == null || runtimeGuard.timeAttribution() == null) {
+            unsupported.add("cross-model join_align bridge requires signed cardinality and timeAttribution runtimeGuard");
+            return CrossModelJoinAlignBridgeResult.deferred(unsupported);
+        }
+        DslCteJoinAlignRuntimeGuardContract.Cardinality guardCardinality = runtimeGuard.cardinality();
+        if (!"many".equals(guardCardinality.leftMultiplicity())
+                || !"one".equals(guardCardinality.rightMultiplicity())) {
+            unsupported.add("cross-model join_align bridge runtime cardinality must be many-to-one");
+        }
+        String nullKeyPolicy = guardCardinality.nullKeyPolicy();
+        if (!"exclude_unmatched".equals(nullKeyPolicy) && !"reject_null".equals(nullKeyPolicy)) {
+            unsupported.add("cross-model join_align bridge supports only exclude_unmatched or reject_null null key policy");
+        }
+        DslCteJoinAlignRuntimeGuardContract.TimeAttribution timeGuard = runtimeGuard.timeAttribution();
+        if (!leftStageName.equals(timeGuard.sourceStage())) {
+            unsupported.add("cross-model join_align bridge requires time attribution sourceStage on the left aggregate");
+        }
+        if (!stringList(leftAggregate.get("groupBy")).contains(timeGuard.sourceField())) {
+            unsupported.add("cross-model join_align bridge runtime time attribution SQL guard requires sourceField in left aggregate groupBy");
+        }
+
+        MetricMapping leftMetrics = crossModelJoinAggregateMetrics(leftAggregate, leftModel, true, unsupported);
+        MetricMapping rightMetrics = crossModelJoinAggregateMetrics(rightAggregate, rightModel, false, unsupported);
+        SemanticQueryRequest leftRequest = aggregateBridgeRequest(leftAggregate, leftMetrics, unsupported);
+        SemanticQueryRequest rightRequest = aggregateBridgeRequest(rightAggregate, rightMetrics, unsupported);
+
+        List<String> leftFields = availableFields(null, leftAggregate.get("groupBy"), leftMetrics.aliases());
+        List<String> rightFields = availableFields(null, rightAggregate.get("groupBy"), rightMetrics.aliases());
+        List<String> joinOutput = stringList(joinAlign.get("output"));
+        if (joinOutput.isEmpty()) {
+            unsupported.add("cross-model join_align bridge requires signed join output schema");
+        }
+        for (String field : joinOutput) {
+            if (!leftFields.contains(field) && !rightFields.contains(field)) {
+                unsupported.add("cross-model join_align output references unavailable field: " + field);
+            }
+        }
+        List<String> output = stringList(ctePlan.get("output"));
+        if (output.isEmpty()) {
+            output.addAll(joinOutput);
+        }
+        for (String field : output) {
+            if (!joinOutput.contains(field)) {
+                unsupported.add("cross-model join_align bridge output must be a subset of signed join output: " + field);
+            }
+        }
+        if (!allSafeAliases(leftFields, rightFields, joinOutput, output)) {
+            unsupported.add("cross-model join_align bridge supports only governed field aliases");
+        }
+        if (!unsupported.isEmpty()) {
+            return CrossModelJoinAlignBridgeResult.deferred(unsupported);
+        }
+
+        CrossModelJoinAlignPlan plan = new CrossModelJoinAlignPlan(
+                output,
+                joinOutput,
+                leftFields,
+                rightFields,
+                leftKey,
+                rightKey,
+                leftMetrics.aliases().get(0),
+                rightMetrics.aliases().get(0),
+                timeGuard.sourceField(),
+                "reject_null".equals(nullKeyPolicy),
+                relationRef,
+                cardinality,
+                nullKeyPolicy);
+        return CrossModelJoinAlignBridgeResult.ready(leftModel, leftRequest, rightModel, rightRequest, plan);
+    }
+
+    private static SemanticQueryRequest aggregateBridgeRequest(Map<String, Object> aggregate,
+                                                               MetricMapping metrics,
+                                                               List<String> unsupported) {
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setRoute("DSL");
+        request.setStatus("PLAN_READY");
+        request.setGroupBy(groupByItems(aggregate.get("groupBy")));
+        request.setSlice(sliceItems(aggregate.get("filters"), unsupported));
+        request.setColumns(outputColumns(null, aggregate.get("groupBy"), metrics, List.of(), Map.of(), unsupported));
+        request.setReturnTotal(false);
+        return request;
+    }
+
+    private static MetricMapping crossModelJoinAggregateMetrics(Map<String, Object> aggregate,
+                                                                String model,
+                                                                boolean left,
+                                                                List<String> unsupported) {
+        List<Map<String, Object>> metricMaps = mapList(aggregate.get("metrics"));
+        Map<String, String> columnByAlias = new LinkedHashMap<>();
+        if (metricMaps.size() != 1) {
+            unsupported.add("cross-model join_align bridge requires exactly one aggregate metric per side");
+            return new MetricMapping(columnByAlias);
+        }
+        Map<String, Object> metric = metricMaps.get(0);
+        String name = stringValue(metric.get("name"));
+        String expr = stringValue(metric.get("expr"));
+        if (!isCountAll(expr)) {
+            unsupported.add("cross-model join_align bridge supports only count(*) aggregate metrics");
+            return new MetricMapping(columnByAlias);
+        }
+        if (left) {
+            if (!"CrmLead".equals(model) || !"leadCount".equals(name)) {
+                unsupported.add("cross-model join_align left aggregate must expose leadCount=count(*) on CrmLead");
+                return new MetricMapping(columnByAlias);
+            }
+            columnByAlias.put(name, "count(leadId) AS " + name);
+        } else {
+            if (!"FactOrderQueryModel".equals(model) || !"matchedOrderCount".equals(name)) {
+                unsupported.add("cross-model join_align right aggregate must expose matchedOrderCount=count(*) on FactOrderQueryModel");
+                return new MetricMapping(columnByAlias);
+            }
+            columnByAlias.put(name, "count(orderId) AS " + name);
+        }
+        return new MetricMapping(columnByAlias);
+    }
+
+    private static boolean isCountAll(String expr) {
+        return expr != null && "count(*)".equals(expr.toLowerCase(Locale.ROOT).replaceAll("\\s+", ""));
+    }
+
+    private static boolean signedCrmOrderJoinEndpoint(Map<String, Object> endpoint,
+                                                      String stage,
+                                                      String model,
+                                                      String field) {
+        return endpoint != null
+                && stage != null
+                && stage.equals(stringValue(endpoint.get("stage")))
+                && model.equals(stringValue(endpoint.get("model")))
+                && field.equals(stringValue(endpoint.get("field")));
+    }
+
+    private static boolean singleAlignmentKeyMatches(List<String> keys, String leftKey, String rightKey) {
+        if (keys.size() != 1 || leftKey == null || rightKey == null) {
+            return false;
+        }
+        String[] parts = keys.get(0).split("=", 2);
+        if (parts.length != 2) {
+            return false;
+        }
+        String left = parts[0].trim();
+        String right = parts[1].trim();
+        return leftKey.equals(left) && rightKey.equals(right);
+    }
+
     private static Map<String, Object> ctePlan(Object executablePlan, List<String> unsupported) {
         Map<String, Object> root = mapValue(executablePlan);
         if (root == null || root.isEmpty()) {
@@ -1866,6 +2071,180 @@ public final class DslCteDslRequestMapper {
                 params.add(limit);
             }
             return new SqlGenerationResult(sql.toString(), params, null);
+        }
+    }
+
+    public record CrossModelJoinAlignPlan(List<String> output,
+                                          List<String> joinOutput,
+                                          List<String> leftFields,
+                                          List<String> rightFields,
+                                          String leftKey,
+                                          String rightKey,
+                                          String leftMetric,
+                                          String rightMetric,
+                                          String sourceField,
+                                          boolean rejectNullLeftKeys,
+                                          String relationRef,
+                                          String cardinality,
+                                          String nullKeyPolicy) {
+
+        Map<String, Object> summary() {
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("kind", "cross_model_join_align");
+            result.put("bridge_scope", "runtime_guarded_join_align");
+            result.put("bridge_signed", true);
+            result.put("relationRef", relationRef);
+            result.put("cardinality", cardinality);
+            result.put("leftKey", leftKey);
+            result.put("rightKey", rightKey);
+            result.put("runtime_guard_sql", true);
+            result.put("null_key_policy", nullKeyPolicy);
+            result.put("time_attribution_source_field", sourceField);
+            result.put("output", output);
+            return result;
+        }
+
+        SqlGenerationResult wrap(SqlGenerationResult leftBase, SqlGenerationResult rightBase) {
+            validateBaseSql(leftBase, "LEFT");
+            validateBaseSql(rightBase, "RIGHT");
+
+            String leftSql = leftBase.getSql().trim();
+            String rightSql = rightBase.getSql().trim();
+            List<Object> params = new ArrayList<>();
+            params.addAll(leftBase.getParams());
+            params.addAll(rightBase.getParams());
+
+            String leftAlias = "dsl_cte_join_left";
+            String rightAlias = "dsl_cte_join_right";
+            String guardAlias = "dsl_cte_join_guard";
+            String joinAlias = "dsl_cte_join_align";
+
+            StringBuilder sql = new StringBuilder("WITH ");
+            sql.append(leftAlias).append(" AS (\n").append(leftSql).append("\n),\n");
+            sql.append(rightAlias).append(" AS (\n").append(rightSql).append("\n),\n");
+            sql.append(guardAlias).append(" AS (\n");
+            sql.append("SELECT ");
+            sql.append("(SELECT COUNT(*) FROM ").append(rightAlias)
+                    .append(" WHERE ").append(quoteAlias(rightMetric)).append(" > 1) AS ")
+                    .append(quoteAlias("duplicateRightKeys")).append(", ");
+            sql.append("(SELECT COUNT(*) FROM ").append(leftAlias).append(" l LEFT JOIN ").append(rightAlias)
+                    .append(" r ON l.").append(quoteAlias(leftKey)).append(" = r.").append(quoteAlias(rightKey))
+                    .append(" WHERE l.").append(quoteAlias(leftKey)).append(" IS NOT NULL AND r.")
+                    .append(quoteAlias(rightKey)).append(" IS NULL) AS ")
+                    .append(quoteAlias("unmatchedLeftKeys")).append(", ");
+            sql.append("(SELECT COUNT(*) FROM ").append(leftAlias)
+                    .append(" WHERE ").append(quoteAlias(leftKey)).append(" IS NULL) AS ")
+                    .append(quoteAlias("nullLeftKeys")).append(", ");
+            if (rejectNullLeftKeys) {
+                sql.append("(SELECT COUNT(*) FROM ").append(leftAlias)
+                        .append(" WHERE ").append(quoteAlias(leftKey)).append(" IS NULL) AS ")
+                        .append(quoteAlias("rejectedNullLeftKeys")).append(", ");
+            } else {
+                sql.append("0 AS ").append(quoteAlias("rejectedNullLeftKeys")).append(", ");
+            }
+            sql.append("(SELECT COUNT(*) FROM ").append(leftAlias).append(" l JOIN ").append(rightAlias)
+                    .append(" r ON l.").append(quoteAlias(leftKey)).append(" = r.").append(quoteAlias(rightKey))
+                    .append(" WHERE l.").append(quoteAlias(sourceField)).append(" IS NULL) AS ")
+                    .append(quoteAlias("missingAttributionRows")).append("\n");
+            sql.append("),\n");
+
+            sql.append(joinAlias).append(" AS (\n");
+            sql.append("SELECT ");
+            List<String> selectItems = new ArrayList<>();
+            for (String field : joinOutput) {
+                selectItems.add(qualifiedField(field) + " AS " + quoteAlias(field));
+            }
+            sql.append(String.join(", ", selectItems));
+            sql.append("\nFROM ").append(leftAlias).append(" l\n");
+            sql.append("JOIN ").append(rightAlias).append(" r ON l.")
+                    .append(quoteAlias(leftKey)).append(" = r.").append(quoteAlias(rightKey)).append("\n");
+            sql.append("CROSS JOIN ").append(guardAlias).append(" g\n");
+            sql.append("WHERE l.").append(quoteAlias(leftKey)).append(" IS NOT NULL\n");
+            sql.append("  AND g.").append(quoteAlias("duplicateRightKeys")).append(" = 0\n");
+            sql.append("  AND g.").append(quoteAlias("unmatchedLeftKeys")).append(" = 0\n");
+            sql.append("  AND g.").append(quoteAlias("rejectedNullLeftKeys")).append(" = 0\n");
+            sql.append("  AND g.").append(quoteAlias("missingAttributionRows")).append(" = 0\n");
+            sql.append(")\n");
+
+            sql.append("SELECT ");
+            sql.append(String.join(", ", output.stream().map(DslCteDslRequestMapper::quoteAlias).toList()));
+            sql.append("\nFROM ").append(joinAlias);
+            List<String> orderBy = deterministicOrderBy();
+            if (!orderBy.isEmpty()) {
+                sql.append("\nORDER BY ").append(String.join(", ", orderBy));
+            }
+            return new SqlGenerationResult(sql.toString(), params, null);
+        }
+
+        private static void validateBaseSql(SqlGenerationResult base, String side) {
+            if (base == null || base.getSql() == null || base.getSql().isBlank()) {
+                throw RX.throwB("DSL_CTE_JOIN_ALIGN_" + side + "_BASE_SQL_MISSING");
+            }
+            String sql = base.getSql().trim();
+            if (base.hasCteStages() || sql.regionMatches(true, 0, "WITH ", 0, 5)) {
+                throw RX.throwB("DSL_CTE_JOIN_ALIGN_" + side + "_BASE_WITH_UNSUPPORTED");
+            }
+        }
+
+        private String qualifiedField(String field) {
+            if (leftFields.contains(field)) {
+                return "l." + quoteAlias(field);
+            }
+            if (rightFields.contains(field)) {
+                return "r." + quoteAlias(field);
+            }
+            throw RX.throwB("DSL_CTE_JOIN_ALIGN_UNAVAILABLE_FIELD: " + field);
+        }
+
+        private List<String> deterministicOrderBy() {
+            List<String> order = new ArrayList<>();
+            if (joinOutput.contains("leadSource")) {
+                order.add(quoteAlias("leadSource") + " ASC");
+            }
+            if (joinOutput.contains(leftKey)) {
+                order.add(quoteAlias(leftKey) + " ASC");
+            }
+            if (!leftKey.equals(rightKey) && joinOutput.contains(rightKey)) {
+                order.add(quoteAlias(rightKey) + " ASC");
+            }
+            return order;
+        }
+    }
+
+    public record CrossModelJoinAlignBridgeResult(String status,
+                                                  String leftModel,
+                                                  SemanticQueryRequest leftRequest,
+                                                  String rightModel,
+                                                  SemanticQueryRequest rightRequest,
+                                                  CrossModelJoinAlignPlan plan,
+                                                  List<String> unsupported) {
+        static CrossModelJoinAlignBridgeResult ready(String leftModel,
+                                                     SemanticQueryRequest leftRequest,
+                                                     String rightModel,
+                                                     SemanticQueryRequest rightRequest,
+                                                     CrossModelJoinAlignPlan plan) {
+            return new CrossModelJoinAlignBridgeResult(STATUS_READY, leftModel, leftRequest, rightModel,
+                    rightRequest, plan, List.of());
+        }
+
+        static CrossModelJoinAlignBridgeResult deferred(List<String> unsupported) {
+            return new CrossModelJoinAlignBridgeResult(STATUS_DEFERRED, null, null, null, null, null,
+                    List.copyOf(unsupported));
+        }
+
+        public boolean ready() {
+            return STATUS_READY.equals(status);
+        }
+
+        public Map<String, Object> summary() {
+            return plan == null ? Map.of() : plan.summary();
+        }
+
+        public SqlGenerationResult wrap(SqlGenerationResult leftBase, SqlGenerationResult rightBase) {
+            if (!ready()) {
+                throw RX.throwB("DSL_CTE_CROSS_MODEL_JOIN_ALIGN_NOT_SUPPORTED: " + unsupported);
+            }
+            return plan.wrap(leftBase, rightBase);
         }
     }
 

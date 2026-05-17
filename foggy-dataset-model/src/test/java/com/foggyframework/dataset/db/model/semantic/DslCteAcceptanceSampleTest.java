@@ -886,6 +886,32 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
+    @DisplayName("DSL_CTE signed cross-model join_align marks runtime-guarded bridge-ready")
+    void validationShowsBridgeReadyForSignedCrossModelJoinAlign() {
+        SemanticQueryResponse response = service.validateQuery(
+                "CrmLead", dslCtePlan(signedCrossModelCrmOrderJoinAlignBridge()), SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_READY", validation.get("dsl_bridge_status"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> models = (Map<String, Object>) validation.get("dsl_bridge_models");
+        assertEquals("CrmLead", models.get("left"));
+        assertEquals("FactOrderQueryModel", models.get("right"));
+        assertNotNull(validation.get("dsl_left_request"));
+        assertNotNull(validation.get("dsl_right_request"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> joinBridge = (Map<String, Object>) validation.get("dsl_cross_model_join_align");
+        assertEquals("cross_model_join_align", joinBridge.get("kind"));
+        assertEquals("runtime_guarded_join_align", joinBridge.get("bridge_scope"));
+        assertEquals(true, joinBridge.get("bridge_signed"));
+        assertEquals(true, joinBridge.get("runtime_guard_sql"));
+        assertEquals("exclude_unmatched", joinBridge.get("null_key_policy"));
+        assertEquals("createdAt", joinBridge.get("time_attribution_source_field"));
+        assertEquals(List.of("leadSource", "convertedOrderId", "leadCount",
+                "orderId", "matchedOrderCount"), joinBridge.get("output"));
+    }
+
+    @Test
     @DisplayName("DSL_CTE signed join_align rejects missing cardinality")
     void validationRejectsSignedJoinAlignMissingCardinality() {
         Map<String, Object> plan = signedCrossModelCrmOrderFunnel();
@@ -1909,6 +1935,64 @@ class DslCteAcceptanceSampleTest {
 
     private Map<String, Object> signedCrossModelCrmOrderFunnel() {
         Map<String, Object> plan = crossModelCrmOrderFunnel();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(2).put("relationRef", "CrmLead.convertedOrderId -> FactOrderQueryModel.orderId");
+        stages.get(2).put("cardinality", "many_to_one");
+        stages.get(2).put("timeAttribution", m(
+                "basis", "lead_created",
+                "field", "createdAt",
+                "sourceStage", "lead_orders"));
+        stages.get(2).put("relation", m(
+                "left", m(
+                        "stage", "lead_orders",
+                        "model", "CrmLead",
+                        "field", "convertedOrderId"),
+                "right", m(
+                        "stage", "completed_orders",
+                        "model", "FactOrderQueryModel",
+                        "field", "orderId")));
+        stages.get(2).put("runtimeGuard", m(
+                "cardinality", m(
+                        "enforce", true,
+                        "policy", "fail_closed",
+                        "leftMultiplicity", "many",
+                        "rightMultiplicity", "one",
+                        "nullKeyPolicy", "exclude_unmatched"),
+                "timeAttribution", m(
+                        "enforce", true,
+                        "policy", "fail_closed",
+                        "sourceStage", "lead_orders",
+                        "sourceField", "createdAt",
+                        "nullPolicy", "reject_null")));
+        stages.get(2).put("output", List.of(
+                "leadSource", "convertedOrderId", "leadCount",
+                "orderId", "matchedOrderCount"));
+        return plan;
+    }
+
+    private Map<String, Object> signedCrossModelCrmOrderJoinAlignBridge() {
+        Map<String, Object> plan = plan(
+                List.of(
+                        stage("lead_orders", "aggregate",
+                                "input", model("CrmLead"),
+                                "filters", List.of(
+                                        filter("createdAt", ">=", "2026-05-01 00:00:00"),
+                                        filter("createdAt", "<", "2026-06-01 00:00:00")),
+                                "groupBy", List.of("leadSource", "convertedOrderId", "createdAt"),
+                                "metrics", List.of(metric("leadCount", "count(*)"))),
+                        stage("completed_orders", "aggregate",
+                                "input", model("FactOrderQueryModel"),
+                                "filters", List.of(filter("orderStatus", "=", "COMPLETED")),
+                                "groupBy", List.of("orderId"),
+                                "metrics", List.of(metric("matchedOrderCount", "count(*)"))),
+                        stage("verified_order_align", "join_align",
+                                "inputs", List.of("lead_orders", "completed_orders"),
+                                "keys", List.of("convertedOrderId=orderId"),
+                                "joinType", "declared_key_align")
+                ),
+                List.of("leadSource", "convertedOrderId", "leadCount", "orderId", "matchedOrderCount")
+        );
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
         stages.get(2).put("relationRef", "CrmLead.convertedOrderId -> FactOrderQueryModel.orderId");

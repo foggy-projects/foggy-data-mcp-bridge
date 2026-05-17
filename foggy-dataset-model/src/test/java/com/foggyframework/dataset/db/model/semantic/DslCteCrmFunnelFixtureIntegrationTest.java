@@ -116,6 +116,35 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("DSL_CTE cross-model join_align bridge executes guarded SQL and matches manual baseline")
+    void crossModelCrmOrderJoinAlignBridgeSqlMatchesManualBaseline() {
+        List<Map<String, Object>> manualRows = crossModelCrmOrderJoinAlignManualRows();
+        SemanticQueryRequest request = dslCtePlan(crossModelCrmOrderJoinAlignBridgePlan());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SqlGenerationResult generated = semanticQueryServiceV3.generateSql(
+                "CrmLead", request, SemanticRequestContext.empty());
+
+        assertNotNull(generated);
+        assertNotNull(generated.getSql());
+        assertTrue(generated.getSql().contains("dsl_cte_join_guard"), generated.getSql());
+        assertTrue(generated.getSql().contains("dsl_cte_join_align"), generated.getSql());
+        assertTrue(generated.getSql().contains("duplicateRightKeys"), generated.getSql());
+        assertTrue(generated.getSql().contains("missingAttributionRows"), generated.getSql());
+
+        List<Map<String, Object>> rows = new ArrayList<>(jdbcTemplate.queryForList(
+                generated.getSql(), generated.getParams().toArray(new Object[0])));
+        rows.sort(Comparator
+                .comparing((Map<String, Object> row) -> String.valueOf(value(row, "leadSource")))
+                .thenComparing(row -> String.valueOf(value(row, "convertedOrderId"))));
+
+        assertEquals(manualRows.size(), rows.size());
+        for (int i = 0; i < manualRows.size(); i++) {
+            assertGeneratedCrossModelJoinAlignRowMatchesManual(rows.get(i), manualRows.get(i));
+        }
+    }
+
+    @Test
     @DisplayName("DSL_CTE CRM lead funnel bridge executes and matches manual baseline")
     void crmLeadFunnelBridgeSqlMatchesManualBaseline() {
         List<Map<String, Object>> manualRows = crmLeadFunnelManualRows();
@@ -237,6 +266,42 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
         return rows;
     }
 
+    private List<Map<String, Object>> crossModelCrmOrderJoinAlignManualRows() {
+        List<Map<String, Object>> rows = new ArrayList<>(jdbcTemplate.queryForList("""
+                WITH lead_orders AS (
+                    SELECT lead_source AS leadSource,
+                           converted_order_id AS convertedOrderId,
+                           created_at AS createdAt,
+                           COUNT(lead_id) AS leadCount
+                    FROM crm_lead
+                    WHERE created_at >= '2026-05-01 00:00:00'
+                      AND created_at < '2026-06-01 00:00:00'
+                    GROUP BY lead_source, converted_order_id, created_at
+                ),
+                completed_orders AS (
+                    SELECT order_id AS orderId,
+                           COUNT(order_id) AS matchedOrderCount
+                    FROM fact_order
+                    WHERE order_status = 'COMPLETED'
+                    GROUP BY order_id
+                )
+                SELECT l.leadSource AS leadSource,
+                       l.convertedOrderId AS convertedOrderId,
+                       l.leadCount AS leadCount,
+                       r.orderId AS orderId,
+                       r.matchedOrderCount AS matchedOrderCount
+                FROM lead_orders l
+                JOIN completed_orders r
+                  ON l.convertedOrderId = r.orderId
+                WHERE l.convertedOrderId IS NOT NULL
+                ORDER BY leadSource, convertedOrderId
+                """));
+        rows.sort(Comparator
+                .comparing((Map<String, Object> row) -> String.valueOf(row.get("leadSource")))
+                .thenComparing(row -> String.valueOf(row.get("convertedOrderId"))));
+        return rows;
+    }
+
     private static void assertGeneratedCrmFunnelRowMatchesManual(Map<String, Object> generated,
                                                                  Map<String, Object> manual) {
         assertEquals(manual.get("leadSource"), value(generated, "leadSource"));
@@ -257,6 +322,17 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
                 ((Number) value(generated, "opportunityDropOffCount")).intValue());
         assertClose(((Number) manual.get("opportunityToOrderDropOffRate")).doubleValue(),
                 ((Number) value(generated, "opportunityToOrderDropOffRate")).doubleValue());
+    }
+
+    private static void assertGeneratedCrossModelJoinAlignRowMatchesManual(Map<String, Object> generated,
+                                                                           Map<String, Object> manual) {
+        assertEquals(manual.get("leadSource"), value(generated, "leadSource"));
+        assertEquals(manual.get("convertedOrderId"), value(generated, "convertedOrderId"));
+        assertEquals(((Number) manual.get("leadCount")).intValue(),
+                ((Number) value(generated, "leadCount")).intValue());
+        assertEquals(manual.get("orderId"), value(generated, "orderId"));
+        assertEquals(((Number) manual.get("matchedOrderCount")).intValue(),
+                ((Number) value(generated, "matchedOrderCount")).intValue());
     }
 
     private static void assertGeneratedCrmFunnelCountsMatchManual(Map<String, Object> generated,
@@ -377,6 +453,62 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
                 m("field", "leadSource", "dir", "ASC")));
         result.put("limit", 2);
         return result;
+    }
+
+    private static Map<String, Object> crossModelCrmOrderJoinAlignBridgePlan() {
+        Map<String, Object> plan = m(
+                "stages", List.of(
+                        stage("lead_orders", "aggregate",
+                                "input", m("model", "CrmLead"),
+                                "filters", List.of(
+                                        m("field", "createdAt", "op", ">=", "value", "2026-05-01 00:00:00"),
+                                        m("field", "createdAt", "op", "<", "value", "2026-06-01 00:00:00")),
+                                "groupBy", List.of("leadSource", "convertedOrderId", "createdAt"),
+                                "metrics", List.of(m("name", "leadCount", "expr", "count(*)"))),
+                        stage("completed_orders", "aggregate",
+                                "input", m("model", "FactOrderQueryModel"),
+                                "filters", List.of(m("field", "orderStatus", "op", "=", "value", "COMPLETED")),
+                                "groupBy", List.of("orderId"),
+                                "metrics", List.of(m("name", "matchedOrderCount", "expr", "count(*)"))),
+                        stage("verified_order_align", "join_align",
+                                "inputs", List.of("lead_orders", "completed_orders"),
+                                "keys", List.of("convertedOrderId=orderId"),
+                                "joinType", "declared_key_align",
+                                "relationRef", "CrmLead.convertedOrderId -> FactOrderQueryModel.orderId",
+                                "cardinality", "many_to_one",
+                                "timeAttribution", m(
+                                        "basis", "lead_created",
+                                        "field", "createdAt",
+                                        "sourceStage", "lead_orders"),
+                                "relation", m(
+                                        "left", m(
+                                                "stage", "lead_orders",
+                                                "model", "CrmLead",
+                                                "field", "convertedOrderId"),
+                                        "right", m(
+                                                "stage", "completed_orders",
+                                                "model", "FactOrderQueryModel",
+                                                "field", "orderId")),
+                                "runtimeGuard", m(
+                                        "cardinality", m(
+                                                "enforce", true,
+                                                "policy", "fail_closed",
+                                                "leftMultiplicity", "many",
+                                                "rightMultiplicity", "one",
+                                                "nullKeyPolicy", "exclude_unmatched"),
+                                        "timeAttribution", m(
+                                                "enforce", true,
+                                                "policy", "fail_closed",
+                                                "sourceStage", "lead_orders",
+                                                "sourceField", "createdAt",
+                                                "nullPolicy", "reject_null")),
+                                "output", List.of(
+                                        "leadSource", "convertedOrderId", "leadCount",
+                                        "orderId", "matchedOrderCount"))
+                ),
+                "output", List.of("leadSource", "convertedOrderId", "leadCount", "orderId", "matchedOrderCount")
+        );
+        return plan;
     }
 
     private static Map<String, Object> stage(String name, String type, Object... rest) {
