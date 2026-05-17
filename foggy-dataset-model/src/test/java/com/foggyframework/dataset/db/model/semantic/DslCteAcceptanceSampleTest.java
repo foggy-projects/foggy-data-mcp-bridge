@@ -840,6 +840,19 @@ class DslCteAcceptanceSampleTest {
         assertEquals("CrmLead.convertedOrderId -> FactOrderQueryModel.orderId",
                 joinAlignContract.get("relationRef"));
         assertEquals("many_to_one", joinAlignContract.get("cardinality"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> typedRelation = (Map<String, Object>) joinAlignContract.get("typed_relation");
+        assertNotNull(typedRelation);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> left = (Map<String, Object>) typedRelation.get("left");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> right = (Map<String, Object>) typedRelation.get("right");
+        assertEquals("lead_orders", left.get("stage"));
+        assertEquals("CrmLead", left.get("model"));
+        assertEquals("convertedOrderId", left.get("field"));
+        assertEquals("completed_orders", right.get("stage"));
+        assertEquals("FactOrderQueryModel", right.get("model"));
+        assertEquals("orderId", right.get("field"));
         assertEquals(List.of("leadSource", "convertedOrderId", "leadCount",
                 "orderId", "matchedOrderCount"), joinAlignContract.get("output_schema"));
 
@@ -878,6 +891,55 @@ class DslCteAcceptanceSampleTest {
                 service.validateQuery("CrmLead", dslCtePlan(plan), SemanticRequestContext.empty()));
 
         assertTrue(ex.getMessage().contains("join_align output references unavailable field 'missingOrderMetric'"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE signed join_align rejects typed relation key mismatch")
+    void validationRejectsSignedJoinAlignRelationKeyMismatch() {
+        Map<String, Object> plan = signedCrossModelCrmOrderFunnel();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(2).put("keys", List.of("leadSource=orderId"));
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+                service.validateQuery("CrmLead", dslCtePlan(plan), SemanticRequestContext.empty()));
+
+        assertTrue(ex.getMessage().contains("relation fields must match an explicit alignment key"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE signed join_align rejects typed relation model mismatch")
+    void validationRejectsSignedJoinAlignRelationModelMismatch() {
+        Map<String, Object> plan = signedCrossModelCrmOrderFunnel();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> relation = (Map<String, Object>) stages.get(2).get("relation");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> left = (Map<String, Object>) relation.get("left");
+        left.put("model", "LeadLikeModel");
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+                service.validateQuery("CrmLead", dslCtePlan(plan), SemanticRequestContext.empty()));
+
+        assertTrue(ex.getMessage().contains("relation.left.model 'LeadLikeModel' does not match stage"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE signed join_align rejects unavailable time attribution source field")
+    void validationRejectsSignedJoinAlignUnavailableTimeAttributionField() {
+        Map<String, Object> plan = signedCrossModelCrmOrderFunnel();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(2).put("timeAttribution", m(
+                "basis", "lead_created",
+                "field", "missingCreatedAt",
+                "sourceStage", "lead_orders"));
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+                service.validateQuery("CrmLead", dslCtePlan(plan), SemanticRequestContext.empty()));
+
+        assertTrue(ex.getMessage().contains("timeAttribution.field references unavailable source field"));
     }
 
     @Test
@@ -1743,6 +1805,15 @@ class DslCteAcceptanceSampleTest {
                 "basis", "lead_created",
                 "field", "createdAt",
                 "sourceStage", "lead_orders"));
+        stages.get(2).put("relation", m(
+                "left", m(
+                        "stage", "lead_orders",
+                        "model", "CrmLead",
+                        "field", "convertedOrderId"),
+                "right", m(
+                        "stage", "completed_orders",
+                        "model", "FactOrderQueryModel",
+                        "field", "orderId")));
         stages.get(2).put("output", List.of(
                 "leadSource", "convertedOrderId", "leadCount",
                 "orderId", "matchedOrderCount"));

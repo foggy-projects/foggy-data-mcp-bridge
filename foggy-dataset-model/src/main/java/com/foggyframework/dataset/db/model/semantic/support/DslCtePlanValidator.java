@@ -9,6 +9,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Phase-1 contract validator for normalized DSL_CTE stage plans.
@@ -26,6 +28,14 @@ public final class DslCtePlanValidator {
     private static final Set<String> ALLOWED_STAGE_TYPES = Set.of(
             "aggregate", "derive", "window_derive", "postSlice", "join_align"
     );
+    private static final Pattern IDENTIFIER_PATTERN =
+            Pattern.compile("[A-Za-z_][A-Za-z0-9_$]*(?:\\.[A-Za-z_][A-Za-z0-9_$]*)?");
+    private static final Set<String> EXPRESSION_KEYWORDS = Set.of(
+            "and", "or", "is", "not", "null", "true", "false",
+            "case", "when", "then", "else", "end", "as", "over", "rows",
+            "current", "row", "preceding", "following",
+            "count", "sum", "avg", "min", "max", "iif", "hours_between",
+            "priority_threshold", "lag", "lead", "rank");
 
     private DslCtePlanValidator() {
     }
@@ -62,6 +72,7 @@ public final class DslCtePlanValidator {
 
             validateStageShape(stage, type, names, i);
             StageOutput output = inferStageOutput(stage, type, stageOutputs);
+            validateStageContractConsistency(stage, type, stageOutputs);
             names.add(name);
             stageOutputs.put(name, output);
             stageTypes.add(type);
@@ -163,12 +174,14 @@ public final class DslCtePlanValidator {
             case "derive", "window_derive" -> derivedOutput(stage, stageOutputs);
             case "postSlice" -> postSliceOutput(stage, stageOutputs);
             case "join_align" -> joinAlignOutput(stage, stageOutputs);
-            default -> StageOutput.incomplete(Set.of());
+            default -> StageOutput.incomplete(Set.of(), sourceModels(stage), sourceFields(stage));
         };
     }
 
     private static StageOutput aggregateOutput(Map<String, Object> stage) {
         Set<String> fields = new LinkedHashSet<>(stringList(stage.get("groupBy")));
+        Set<String> sourceFields = new LinkedHashSet<>(fields);
+        collectFilterFields(stage.get("filters"), sourceFields);
         Object rawMetrics = stage.get("metrics");
         if (rawMetrics instanceof List<?> metrics) {
             for (Object item : metrics) {
@@ -178,27 +191,34 @@ public final class DslCtePlanValidator {
                     if (name != null && !name.isBlank()) {
                         fields.add(name);
                     }
+                    collectExpressionFields(stringValue(metric.get("expr")), sourceFields);
                     continue;
                 }
-                String alias = metricAlias(stringValue(item));
+                String metricText = stringValue(item);
+                collectExpressionFields(metricText, sourceFields);
+                String alias = metricAlias(metricText);
                 if (alias != null && !alias.isBlank()) {
                     fields.add(alias);
                 }
             }
         }
-        return StageOutput.complete(fields);
+        return StageOutput.complete(fields, sourceModels(stage), sourceFields);
     }
 
     private static StageOutput derivedOutput(Map<String, Object> stage, Map<String, StageOutput> stageOutputs) {
         StageOutput base = mergedInputOutput(stage, stageOutputs);
         Set<String> fields = new LinkedHashSet<>(base.fields());
+        Set<String> sourceFields = new LinkedHashSet<>(base.sourceFields());
+        collectFilterFields(stage.get("filters"), sourceFields);
         for (Map<String, Object> derived : mapList(stage.get("derived"))) {
             String name = stringValue(derived.get("name"));
             if (name != null && !name.isBlank()) {
                 fields.add(name);
             }
+            collectExpressionFields(stringValue(derived.get("expr")), sourceFields);
         }
-        return new StageOutput(fields, base.complete());
+        Set<String> sourceModels = base.sourceModels().isEmpty() ? sourceModels(stage) : base.sourceModels();
+        return new StageOutput(fields, base.complete(), sourceModels, sourceFields);
     }
 
     private static StageOutput postSliceOutput(Map<String, Object> stage, Map<String, StageOutput> stageOutputs) {
@@ -214,11 +234,15 @@ public final class DslCtePlanValidator {
 
     private static StageOutput joinAlignOutput(Map<String, Object> stage, Map<String, StageOutput> stageOutputs) {
         Set<String> fields = new LinkedHashSet<>();
+        Set<String> sourceModels = new LinkedHashSet<>();
+        Set<String> sourceFields = new LinkedHashSet<>();
         boolean complete = true;
         for (String input : stringList(stage.get("inputs"))) {
             StageOutput output = stageOutputs.get(input);
             if (output != null) {
                 fields.addAll(output.fields());
+                sourceModels.addAll(output.sourceModels());
+                sourceFields.addAll(output.sourceFields());
                 complete = complete && output.complete();
             } else {
                 complete = false;
@@ -226,7 +250,7 @@ public final class DslCtePlanValidator {
         }
         List<String> declaredOutput = stringList(stage.get("output"));
         if (declaredOutput.isEmpty()) {
-            return StageOutput.incomplete(fields);
+            return StageOutput.incomplete(fields, sourceModels, sourceFields);
         }
         if (complete) {
             for (String field : declaredOutput) {
@@ -235,17 +259,19 @@ public final class DslCtePlanValidator {
                             + ": join_align output references unavailable field '" + field + "'.");
                 }
             }
-            return StageOutput.complete(new LinkedHashSet<>(declaredOutput));
+            return StageOutput.complete(new LinkedHashSet<>(declaredOutput), sourceModels, sourceFields);
         }
-        return StageOutput.incomplete(new LinkedHashSet<>(declaredOutput));
+        return StageOutput.incomplete(new LinkedHashSet<>(declaredOutput), sourceModels, sourceFields);
     }
 
     private static StageOutput mergedInputOutput(Map<String, Object> stage, Map<String, StageOutput> stageOutputs) {
         List<String> inputs = stringList(stage.get("inputs"));
         if (inputs.isEmpty()) {
-            return StageOutput.incomplete(Set.of());
+            return StageOutput.incomplete(Set.of(), sourceModels(stage), sourceFields(stage));
         }
         Set<String> fields = new LinkedHashSet<>();
+        Set<String> sourceModels = new LinkedHashSet<>();
+        Set<String> sourceFields = new LinkedHashSet<>();
         boolean complete = true;
         for (String input : inputs) {
             StageOutput output = stageOutputs.get(input);
@@ -253,10 +279,107 @@ public final class DslCtePlanValidator {
                 complete = false;
             } else {
                 fields.addAll(output.fields());
+                sourceModels.addAll(output.sourceModels());
+                sourceFields.addAll(output.sourceFields());
                 complete = complete && output.complete();
             }
         }
-        return new StageOutput(fields, complete);
+        return new StageOutput(fields, complete, sourceModels, sourceFields);
+    }
+
+    private static void validateStageContractConsistency(Map<String, Object> stage, String type,
+                                                         Map<String, StageOutput> stageOutputs) {
+        if (!"join_align".equals(type) || !signedJoinAlign(stage)) {
+            return;
+        }
+        validateSignedJoinAlignTimeAttribution(stage, stageOutputs);
+        validateTypedRelationContract(stage, stageOutputs);
+    }
+
+    private static void validateSignedJoinAlignTimeAttribution(Map<String, Object> stage,
+                                                               Map<String, StageOutput> stageOutputs) {
+        Map<String, Object> timeAttribution = mapValue(stage.get("timeAttribution"));
+        if (timeAttribution == null || isBlank(timeAttribution.get("sourceStage"))) {
+            return;
+        }
+        String sourceStage = stringValue(timeAttribution.get("sourceStage"));
+        if (!stringList(stage.get("inputs")).contains(sourceStage)) {
+            throw RX.throwB(STAGE_INVALID
+                    + ": signed join_align.timeAttribution.sourceStage must reference a join input stage.");
+        }
+        StageOutput source = stageOutputs.get(sourceStage);
+        if (source == null) {
+            throw RX.throwB(STAGE_REFERENCE_INVALID
+                    + ": signed join_align.timeAttribution.sourceStage must reference a prior stage.");
+        }
+        String field = stringValue(timeAttribution.get("field"));
+        if (!fieldAvailableInStageSource(source, field)) {
+            throw RX.throwB(STAGE_INVALID
+                    + ": signed join_align.timeAttribution.field references unavailable source field '"
+                    + field + "' in stage '" + sourceStage + "'.");
+        }
+    }
+
+    private static void validateTypedRelationContract(Map<String, Object> stage,
+                                                      Map<String, StageOutput> stageOutputs) {
+        Map<String, Object> relation = mapValue(stage.get("relation"));
+        if (relation == null) {
+            return;
+        }
+        RelationEndpoint left = relationEndpoint(relation, "left");
+        RelationEndpoint right = relationEndpoint(relation, "right");
+        List<String> inputs = stringList(stage.get("inputs"));
+        if (!inputs.contains(left.stage()) || !inputs.contains(right.stage())) {
+            throw RX.throwB(STAGE_INVALID
+                    + ": signed join_align.relation endpoints must reference join input stages.");
+        }
+        if (left.stage().equals(right.stage())) {
+            throw RX.throwB(STAGE_INVALID
+                    + ": signed join_align.relation endpoints must reference two different stages.");
+        }
+        validateRelationEndpoint("left", left, stageOutputs);
+        validateRelationEndpoint("right", right, stageOutputs);
+        if (!alignmentKeyMatches(stringList(stage.get("keys")), left.field(), right.field())) {
+            throw RX.throwB(STAGE_INVALID
+                    + ": signed join_align.relation fields must match an explicit alignment key '"
+                    + left.field() + "=" + right.field() + "'.");
+        }
+        validateRelationRefMatchesTypedEndpoints(stage, left, right);
+    }
+
+    private static void validateRelationEndpoint(String side, RelationEndpoint endpoint,
+                                                 Map<String, StageOutput> stageOutputs) {
+        StageOutput output = stageOutputs.get(endpoint.stage());
+        if (output == null) {
+            throw RX.throwB(STAGE_REFERENCE_INVALID
+                    + ": signed join_align.relation." + side + ".stage must reference a prior stage.");
+        }
+        if (!output.sourceModels().isEmpty() && !output.sourceModels().contains(endpoint.model())) {
+            throw RX.throwB(STAGE_INVALID
+                    + ": signed join_align.relation." + side + ".model '"
+                    + endpoint.model() + "' does not match stage '" + endpoint.stage() + "'.");
+        }
+        if (output.complete() && !output.fields().contains(endpoint.field())) {
+            throw RX.throwB(STAGE_INVALID
+                    + ": signed join_align.relation." + side
+                    + ".field references unavailable output field '" + endpoint.field()
+                    + "' in stage '" + endpoint.stage() + "'.");
+        }
+    }
+
+    private static void validateRelationRefMatchesTypedEndpoints(Map<String, Object> stage,
+                                                                 RelationEndpoint left,
+                                                                 RelationEndpoint right) {
+        String relationRef = stringValue(stage.get("relationRef"));
+        if (relationRef == null || relationRef.isBlank()) {
+            return;
+        }
+        String forward = left.model() + "." + left.field() + " -> " + right.model() + "." + right.field();
+        String reverse = right.model() + "." + right.field() + " -> " + left.model() + "." + left.field();
+        if (!relationRef.equals(forward) && !relationRef.equals(reverse)) {
+            throw RX.throwB(STAGE_INVALID
+                    + ": signed join_align.relationRef must match typed relation endpoints.");
+        }
     }
 
     private static void validatePlanOutput(List<String> outputs, List<Map<String, Object>> stages,
@@ -319,6 +442,10 @@ public final class DslCtePlanValidator {
             evidence.put("relationRef", stringValue(stage.get("relationRef")));
             evidence.put("cardinality", stringValue(stage.get("cardinality")));
             evidence.put("timeAttribution", mapValue(stage.get("timeAttribution")));
+            Map<String, Object> relation = mapValue(stage.get("relation"));
+            if (relation != null) {
+                evidence.put("typed_relation", relation);
+            }
             evidence.put("output_schema", stringList(stage.get("output")));
         }
         evidence.put("required_capabilities", List.of(
@@ -365,7 +492,47 @@ public final class DslCtePlanValidator {
         return stage.containsKey("relationRef")
                 || stage.containsKey("cardinality")
                 || stage.containsKey("timeAttribution")
+                || stage.containsKey("relation")
                 || stage.containsKey("output");
+    }
+
+    private static RelationEndpoint relationEndpoint(Map<String, Object> relation, String side) {
+        Map<String, Object> endpoint = mapValue(relation.get(side));
+        if (endpoint == null) {
+            throw RX.throwB(STAGE_INVALID + ": signed join_align.relation must declare " + side + " endpoint.");
+        }
+        String stage = stringValue(endpoint.get("stage"));
+        String model = stringValue(endpoint.get("model"));
+        String field = stringValue(endpoint.get("field"));
+        if (stage == null || stage.isBlank()
+                || model == null || model.isBlank()
+                || field == null || field.isBlank()) {
+            throw RX.throwB(STAGE_INVALID
+                    + ": signed join_align.relation." + side + " must declare stage, model, and field.");
+        }
+        return new RelationEndpoint(stage, model, field);
+    }
+
+    private static boolean alignmentKeyMatches(List<String> keys, String leftField, String rightField) {
+        for (String key : keys) {
+            String[] parts = key.split("=", 2);
+            if (parts.length != 2) {
+                continue;
+            }
+            String left = parts[0].trim();
+            String right = parts[1].trim();
+            if ((leftField.equals(left) && rightField.equals(right))
+                    || (leftField.equals(right) && rightField.equals(left))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean fieldAvailableInStageSource(StageOutput source, String field) {
+        return field != null
+                && !field.isBlank()
+                && (source.sourceFields().contains(field) || source.fields().contains(field));
     }
 
     private static Map<String, Object> deriveContractEvidence(Map<String, Object> stage) {
@@ -559,6 +726,73 @@ public final class DslCtePlanValidator {
         return inputs.isEmpty() ? "unknown" : String.join(",", inputs);
     }
 
+    private static Set<String> sourceModels(Map<String, Object> stage) {
+        Map<String, Object> input = mapValue(stage.get("input"));
+        if (input == null) {
+            return Set.of();
+        }
+        String model = stringValue(input.get("model"));
+        if (model == null || model.isBlank()) {
+            return Set.of();
+        }
+        return new LinkedHashSet<>(List.of(model));
+    }
+
+    private static Set<String> sourceFields(Map<String, Object> stage) {
+        Set<String> fields = new LinkedHashSet<>(stringList(stage.get("groupBy")));
+        collectFilterFields(stage.get("filters"), fields);
+        collectMetricSourceFields(stage.get("metrics"), fields);
+        for (Map<String, Object> derived : mapList(stage.get("derived"))) {
+            collectExpressionFields(stringValue(derived.get("expr")), fields);
+        }
+        return fields;
+    }
+
+    private static void collectMetricSourceFields(Object rawMetrics, Set<String> fields) {
+        if (!(rawMetrics instanceof List<?> metrics)) {
+            return;
+        }
+        for (Object item : metrics) {
+            Map<String, Object> metric = mapValue(item);
+            if (metric != null) {
+                collectExpressionFields(stringValue(metric.get("expr")), fields);
+                continue;
+            }
+            String metricExpr = stringValue(item);
+            if (metricExpr != null) {
+                collectExpressionFields(metricExpr, fields);
+            }
+        }
+    }
+
+    private static void collectFilterFields(Object rawFilters, Set<String> fields) {
+        for (Map<String, Object> filter : mapList(rawFilters)) {
+            addFieldName(fields, filter.get("field"));
+            addFieldName(fields, filter.get("valueField"));
+        }
+    }
+
+    private static void collectExpressionFields(String expr, Set<String> fields) {
+        if (expr == null || expr.isBlank()) {
+            return;
+        }
+        String withoutQuotedStrings = expr.replaceAll("'[^']*'", " ");
+        Matcher matcher = IDENTIFIER_PATTERN.matcher(withoutQuotedStrings);
+        while (matcher.find()) {
+            String token = matcher.group();
+            if (!EXPRESSION_KEYWORDS.contains(token.toLowerCase(Locale.ROOT))) {
+                fields.add(token);
+            }
+        }
+    }
+
+    private static void addFieldName(Set<String> fields, Object raw) {
+        String field = stringValue(raw);
+        if (field != null && !field.isBlank()) {
+            fields.add(field);
+        }
+    }
+
     private static String requiredString(Map<String, Object> stage, String key, int index) {
         String value = stringValue(stage.get(key));
         if (value == null || value.isBlank()) {
@@ -626,13 +860,19 @@ public final class DslCtePlanValidator {
         return parts.length == 2 ? parts[1].trim() : null;
     }
 
-    private record StageOutput(Set<String> fields, boolean complete) {
-        private static StageOutput complete(Set<String> fields) {
-            return new StageOutput(new LinkedHashSet<>(fields), true);
+    private record StageOutput(Set<String> fields, boolean complete,
+                               Set<String> sourceModels, Set<String> sourceFields) {
+        private static StageOutput complete(Set<String> fields, Set<String> sourceModels, Set<String> sourceFields) {
+            return new StageOutput(new LinkedHashSet<>(fields), true,
+                    new LinkedHashSet<>(sourceModels), new LinkedHashSet<>(sourceFields));
         }
 
-        private static StageOutput incomplete(Set<String> fields) {
-            return new StageOutput(new LinkedHashSet<>(fields), false);
+        private static StageOutput incomplete(Set<String> fields, Set<String> sourceModels, Set<String> sourceFields) {
+            return new StageOutput(new LinkedHashSet<>(fields), false,
+                    new LinkedHashSet<>(sourceModels), new LinkedHashSet<>(sourceFields));
         }
+    }
+
+    private record RelationEndpoint(String stage, String model, String field) {
     }
 }
