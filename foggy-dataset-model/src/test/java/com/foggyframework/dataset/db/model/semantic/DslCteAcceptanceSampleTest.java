@@ -857,6 +857,8 @@ class DslCteAcceptanceSampleTest {
         Map<String, Object> runtimeGuard = (Map<String, Object>) joinAlignContract.get("runtime_guard");
         assertNotNull(runtimeGuard);
         assertEquals(true, joinAlignContract.get("runtime_guard_signed"));
+        assertEquals("typed_fail_closed", joinAlignContract.get("runtime_guard_contract"));
+        assertEquals(true, joinAlignContract.get("runtime_guard_normalized"));
         @SuppressWarnings("unchecked")
         Map<String, Object> cardinalityGuard = (Map<String, Object>) runtimeGuard.get("cardinality");
         assertEquals(true, cardinalityGuard.get("enforce"));
@@ -995,6 +997,61 @@ class DslCteAcceptanceSampleTest {
                 service.validateQuery("CrmLead", dslCtePlan(plan), SemanticRequestContext.empty()));
 
         assertTrue(ex.getMessage().contains("runtimeGuard.timeAttribution.targetField"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE signed join_align rejects malformed runtime guard")
+    void validationRejectsSignedJoinAlignMalformedRuntimeGuard() {
+        Map<String, Object> plan = signedCrossModelCrmOrderFunnel();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(2).put("runtimeGuard", "not-an-object");
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+                service.validateQuery("CrmLead", dslCtePlan(plan), SemanticRequestContext.empty()));
+
+        assertTrue(ex.getMessage().contains("runtimeGuard must be an object"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE signed join_align rejects malformed runtime guard nested contract")
+    void validationRejectsSignedJoinAlignMalformedRuntimeGuardNestedContract() {
+        Map<String, Object> plan = signedCrossModelCrmOrderFunnel();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> runtimeGuard = (Map<String, Object>) stages.get(2).get("runtimeGuard");
+        runtimeGuard.put("cardinality", "not-an-object");
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+                service.validateQuery("CrmLead", dslCtePlan(plan), SemanticRequestContext.empty()));
+
+        assertTrue(ex.getMessage().contains("runtimeGuard.cardinality must be an object"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE signed join_align normalizes runtime guard evidence")
+    void validationNormalizesSignedJoinAlignRuntimeGuardEvidence() {
+        Map<String, Object> plan = signedCrossModelCrmOrderFunnel();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> runtimeGuard = (Map<String, Object>) stages.get(2).get("runtimeGuard");
+        runtimeGuard.put("debug", "ignored");
+
+        SemanticQueryResponse response = service.validateQuery(
+                "CrmLead", dslCtePlan(plan), SemanticRequestContext.empty());
+
+        Map<String, Object> joinAlignContract = stageContract(response, "verified_order_align",
+                "join_align_contract");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> normalizedRuntimeGuard =
+                (Map<String, Object>) joinAlignContract.get("runtime_guard");
+        assertEquals("typed_fail_closed", joinAlignContract.get("runtime_guard_contract"));
+        assertEquals(true, joinAlignContract.get("runtime_guard_normalized"));
+        assertFalse(normalizedRuntimeGuard.containsKey("debug"));
+        assertTrue(normalizedRuntimeGuard.containsKey("cardinality"));
+        assertTrue(normalizedRuntimeGuard.containsKey("timeAttribution"));
     }
 
     @Test
