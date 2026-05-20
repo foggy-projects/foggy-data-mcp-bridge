@@ -1,7 +1,10 @@
 package com.foggyframework.dataset.mcp.experience;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 public class ExperienceRecipeRegistryEvent {
     private String eventId = UUID.randomUUID().toString();
@@ -18,6 +21,7 @@ public class ExperienceRecipeRegistryEvent {
     private ExperienceRecipeStatus responseStatus = ExperienceRecipeStatus.NONE;
     private boolean responseActiveForDiscovery;
     private boolean responseDiscoverable;
+    private List<ExperienceRecipeEvidenceArtifact> evidenceArtifacts = new ArrayList<>();
     private String reason;
     private Instant createdAt = Instant.now();
 
@@ -131,6 +135,23 @@ public class ExperienceRecipeRegistryEvent {
 
     public void setResponseDiscoverable(boolean responseDiscoverable) {
         this.responseDiscoverable = responseDiscoverable;
+    }
+
+    public List<ExperienceRecipeEvidenceArtifact> getEvidenceArtifacts() {
+        return evidenceArtifacts.stream()
+                .map(ExperienceRecipeEvidenceArtifact::copy)
+                .toList();
+    }
+
+    public void setEvidenceArtifacts(List<ExperienceRecipeEvidenceArtifact> evidenceArtifacts) {
+        if (evidenceArtifacts == null) {
+            this.evidenceArtifacts = new ArrayList<>();
+            return;
+        }
+        this.evidenceArtifacts = evidenceArtifacts.stream()
+                .filter(artifact -> artifact != null)
+                .map(ExperienceRecipeEvidenceArtifact::copy)
+                .collect(Collectors.toCollection(ArrayList::new));
     }
 
     public String getReason() {

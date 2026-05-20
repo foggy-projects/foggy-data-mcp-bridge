@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS experience_recipe_registry_event (
     response_status VARCHAR(32) NOT NULL,
     response_active_for_discovery INTEGER NOT NULL,
     response_discoverable INTEGER NOT NULL,
+    evidence_artifacts_json TEXT,
     reason VARCHAR(1000),
     created_at TIMESTAMP NOT NULL
 );

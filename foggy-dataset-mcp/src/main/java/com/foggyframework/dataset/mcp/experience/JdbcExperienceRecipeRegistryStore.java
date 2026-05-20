@@ -1,5 +1,8 @@
 package com.foggyframework.dataset.mcp.experience;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -12,12 +15,15 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Component
 @ConditionalOnBean(JdbcTemplate.class)
 @ConditionalOnProperty(prefix = "foggy.mcp.experience-recipe.registry", name = "store", havingValue = "jdbc")
 public class JdbcExperienceRecipeRegistryStore implements ExperienceRecipeRegistryStore {
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
     private static final RowMapper<ExperienceRecipeRegistryEntry> ENTRY_ROW_MAPPER = (rs, rowNum) -> {
         ExperienceRecipeRegistryEntry entry = new ExperienceRecipeRegistryEntry();
         entry.setRegistryKey(rs.getString("registry_key"));
@@ -56,6 +62,7 @@ public class JdbcExperienceRecipeRegistryStore implements ExperienceRecipeRegist
         event.setResponseStatus(ExperienceRecipeStatus.fromWireValue(rs.getString("response_status")));
         event.setResponseActiveForDiscovery(rs.getInt("response_active_for_discovery") == 1);
         event.setResponseDiscoverable(rs.getInt("response_discoverable") == 1);
+        event.setEvidenceArtifacts(readEvidenceArtifacts(rs.getString("evidence_artifacts_json")));
         event.setReason(rs.getString("reason"));
         event.setCreatedAt(toInstant(rs.getTimestamp("created_at")));
         return event;
@@ -104,7 +111,8 @@ public class JdbcExperienceRecipeRegistryStore implements ExperienceRecipeRegist
         List<ExperienceRecipeRegistryEvent> rows = jdbcTemplate.query("""
                 SELECT event_id, registry_key, idempotency_key, operation, actor_role, api_result, failure_stage,
                        from_status, to_status, from_active_for_discovery, to_active_for_discovery,
-                       response_status, response_active_for_discovery, response_discoverable, reason, created_at
+                       response_status, response_active_for_discovery, response_discoverable,
+                       evidence_artifacts_json, reason, created_at
                 FROM experience_recipe_registry_event
                 WHERE idempotency_key = ?
                 """, EVENT_ROW_MAPPER, idempotencyKey);
@@ -181,15 +189,17 @@ public class JdbcExperienceRecipeRegistryStore implements ExperienceRecipeRegist
                 INSERT INTO experience_recipe_registry_event(
                     event_id, registry_key, idempotency_key, operation, actor_role, api_result, failure_stage,
                     from_status, to_status, from_active_for_discovery, to_active_for_discovery,
-                    response_status, response_active_for_discovery, response_discoverable, reason, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    response_status, response_active_for_discovery, response_discoverable,
+                    evidence_artifacts_json, reason, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 event.getEventId(), event.getRegistryKey(), event.getIdempotencyKey(),
                 event.getOperation().wireValue(), event.getActorRole(), event.getApiResult().name(),
                 event.getFailureStage().wireValue(), event.getFromStatus().wireValue(), event.getToStatus().wireValue(),
                 bool(event.isFromActiveForDiscovery()), bool(event.isToActiveForDiscovery()),
                 event.getResponseStatus().wireValue(), bool(event.isResponseActiveForDiscovery()),
-                bool(event.isResponseDiscoverable()), event.getReason(), Timestamp.from(event.getCreatedAt()));
+                bool(event.isResponseDiscoverable()), writeEvidenceArtifacts(event.getEvidenceArtifacts()),
+                event.getReason(), Timestamp.from(event.getCreatedAt()));
     }
 
     @Override
@@ -211,5 +221,35 @@ public class JdbcExperienceRecipeRegistryStore implements ExperienceRecipeRegist
 
     private static Instant toInstant(Timestamp timestamp) {
         return timestamp == null ? null : timestamp.toInstant();
+    }
+
+    private static String writeEvidenceArtifacts(List<ExperienceRecipeEvidenceArtifact> artifacts) {
+        try {
+            List<Map<String, Object>> artifactMaps = artifacts == null
+                    ? List.of()
+                    : artifacts.stream()
+                            .map(ExperienceRecipeEvidenceArtifact::toResponseMap)
+                            .toList();
+            return OBJECT_MAPPER.writeValueAsString(artifactMaps);
+        } catch (JsonProcessingException ex) {
+            throw new IllegalStateException("Failed to serialize experience recipe evidence artifacts", ex);
+        }
+    }
+
+    private static List<ExperienceRecipeEvidenceArtifact> readEvidenceArtifacts(String json) {
+        if (json == null || json.isBlank()) {
+            return List.of();
+        }
+        try {
+            List<Map<String, Object>> rows = OBJECT_MAPPER.readValue(
+                    json,
+                    new TypeReference<>() {
+                    });
+            return rows.stream()
+                    .map(ExperienceRecipeEvidenceArtifact::fromMap)
+                    .toList();
+        } catch (JsonProcessingException ex) {
+            throw new IllegalStateException("Failed to deserialize experience recipe evidence artifacts", ex);
+        }
     }
 }

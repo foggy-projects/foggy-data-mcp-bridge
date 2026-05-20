@@ -40,6 +40,7 @@ final class ExperienceRecipeRegistrySchemaInitializer {
         ensureRegistryTextColumn("namespace_scope");
         ensureRegistryTextColumn("tenant_scope");
         ensureRegistryTextColumn("permission_tags");
+        ensureEventTextColumn("evidence_artifacts_json");
         createIndexIfMissing(
                 "experience_recipe_registry",
                 "idx_exp_recipe_registry_discovery",
@@ -147,6 +148,14 @@ final class ExperienceRecipeRegistrySchemaInitializer {
             return;
         }
         jdbcTemplate.execute("ALTER TABLE experience_recipe_registry ADD COLUMN " + columnName + " VARCHAR(1000)");
+    }
+
+    private void ensureEventTextColumn(String columnName) {
+        if (!tableExists("experience_recipe_registry_event")
+                || columnExists("experience_recipe_registry_event", columnName)) {
+            return;
+        }
+        jdbcTemplate.execute("ALTER TABLE experience_recipe_registry_event ADD COLUMN " + columnName + " TEXT");
     }
 
     private boolean tableExists(String tableName) {

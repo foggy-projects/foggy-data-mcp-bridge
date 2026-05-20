@@ -18,6 +18,8 @@ Governance rules:
 - The MCP actor must be `registry_admin`. Production callers should pass this through MCP context or the `X-Registry-Actor-Role` header. The `actorRole` argument is only a local/evaluation fallback.
 - Every mutation requires `idempotencyKey`.
 - Use `expectedFromStatus`, `expectedFromActiveForDiscovery`, and `expectedRecordVersion` when the caller has read the current row and wants compare-and-set protection.
-- `publish_validated` requires all publish gate evidence fields to be `passed`; otherwise the registry writes a blocked event and does not publish the recipe.
+- `publish_validated` requires all publish gate evidence fields to be `passed` and requires these evidence artifact types: `owner_signoff`, `schema_validation`, `validation_report`, `positive_negative_examples`, `permission_scope`.
+- Each evidence artifact must include `artifactType`, `artifactUri`, and `artifactHash`. `artifactId`, `signedBy`, and `signedAt` should be provided when the caller has them.
+- If publish evidence is incomplete, the registry writes a blocked event and does not publish the recipe.
 
 Do not use this tool to search or select recipes for user questions.

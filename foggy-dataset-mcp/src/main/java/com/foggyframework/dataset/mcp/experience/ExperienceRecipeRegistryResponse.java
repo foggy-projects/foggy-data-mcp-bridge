@@ -19,12 +19,22 @@ public class ExperienceRecipeRegistryResponse {
     private Map<String, Integer> governanceFilteredCounts = new LinkedHashMap<>();
     private String failureStage = ExperienceRecipeFailureStage.NONE.wireValue();
     private String message;
+    private List<ExperienceRecipeEvidenceArtifact> evidenceArtifacts = new ArrayList<>();
 
     public static ExperienceRecipeRegistryResponse fromEntry(
             ExperienceRecipeApiResult apiResult,
             ExperienceRecipeRegistryEntry entry,
             ExperienceRecipeFailureStage failureStage,
             String message) {
+        return fromEntry(apiResult, entry, failureStage, message, List.of());
+    }
+
+    public static ExperienceRecipeRegistryResponse fromEntry(
+            ExperienceRecipeApiResult apiResult,
+            ExperienceRecipeRegistryEntry entry,
+            ExperienceRecipeFailureStage failureStage,
+            String message,
+            List<ExperienceRecipeEvidenceArtifact> evidenceArtifacts) {
         ExperienceRecipeRegistryResponse response = new ExperienceRecipeRegistryResponse();
         response.apiResult = apiResult;
         response.registryKey = entry == null ? null : entry.getRegistryKey();
@@ -34,6 +44,7 @@ public class ExperienceRecipeRegistryResponse {
         response.recordVersion = entry == null ? null : entry.getRecordVersion();
         response.failureStage = (failureStage == null ? ExperienceRecipeFailureStage.NONE : failureStage).wireValue();
         response.message = message;
+        response.setEvidenceArtifacts(evidenceArtifacts);
         if (entry != null && entry.discoverable()) {
             response.recipes = List.of(entry.copy());
         }
@@ -81,6 +92,9 @@ public class ExperienceRecipeRegistryResponse {
         map.put("candidateCanonicalGroups", candidateCanonicalGroups);
         map.put("governanceFilteredCounts", governanceFilteredCounts);
         map.put("returnedRegistryKeys", returnedRegistryKeys());
+        map.put("evidenceArtifacts", evidenceArtifacts.stream()
+                .map(ExperienceRecipeEvidenceArtifact::toResponseMap)
+                .toList());
         map.put("recipes", recipes.stream()
                 .map(ExperienceRecipeRegistryEntry::toResponseMap)
                 .toList());
@@ -195,5 +209,22 @@ public class ExperienceRecipeRegistryResponse {
 
     public void setMessage(String message) {
         this.message = message;
+    }
+
+    public List<ExperienceRecipeEvidenceArtifact> getEvidenceArtifacts() {
+        return evidenceArtifacts.stream()
+                .map(ExperienceRecipeEvidenceArtifact::copy)
+                .toList();
+    }
+
+    public void setEvidenceArtifacts(List<ExperienceRecipeEvidenceArtifact> evidenceArtifacts) {
+        if (evidenceArtifacts == null) {
+            this.evidenceArtifacts = new ArrayList<>();
+            return;
+        }
+        this.evidenceArtifacts = evidenceArtifacts.stream()
+                .filter(artifact -> artifact != null)
+                .map(ExperienceRecipeEvidenceArtifact::copy)
+                .toList();
     }
 }

@@ -5,8 +5,10 @@ import com.foggyframework.mcp.spi.ToolCategory;
 import com.foggyframework.mcp.spi.ToolExecutionContext;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -82,6 +84,7 @@ public class ExperienceRecipeRegistryManageTool implements McpTool {
             evidence.setValidationEvidenceStatus(stringValue(map.get("validationEvidenceStatus")));
             evidence.setPositiveNegativeExamplesStatus(stringValue(map.get("positiveNegativeExamplesStatus")));
             evidence.setPermissionScopeStatus(stringValue(map.get("permissionScopeStatus")));
+            evidence.setEvidenceArtifacts(evidenceArtifacts(map.get("evidenceArtifacts")));
             return evidence;
         }
         evidence.setOwnerSignoffStatus(stringValue(args.get("ownerSignoffStatus")));
@@ -89,7 +92,21 @@ public class ExperienceRecipeRegistryManageTool implements McpTool {
         evidence.setValidationEvidenceStatus(stringValue(args.get("validationEvidenceStatus")));
         evidence.setPositiveNegativeExamplesStatus(stringValue(args.get("positiveNegativeExamplesStatus")));
         evidence.setPermissionScopeStatus(stringValue(args.get("permissionScopeStatus")));
+        evidence.setEvidenceArtifacts(evidenceArtifacts(args.get("evidenceArtifacts")));
         return evidence;
+    }
+
+    private static List<ExperienceRecipeEvidenceArtifact> evidenceArtifacts(Object value) {
+        if (!(value instanceof Iterable<?> iterable)) {
+            return List.of();
+        }
+        List<ExperienceRecipeEvidenceArtifact> artifacts = new ArrayList<>();
+        for (Object item : iterable) {
+            if (item instanceof Map<?, ?> map) {
+                artifacts.add(ExperienceRecipeEvidenceArtifact.fromMap(map));
+            }
+        }
+        return artifacts;
     }
 
     private static String resolveActorRole(Map<String, Object> args, ToolExecutionContext context) {

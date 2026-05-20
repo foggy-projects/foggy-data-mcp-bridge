@@ -181,7 +181,8 @@ class ExperienceRecipeSearchToolWiringTest {
                                 "schemaValidationStatus", "passed",
                                 "validationEvidenceStatus", "passed",
                                 "positiveNegativeExamplesStatus", "passed",
-                                "permissionScopeStatus", "passed")),
+                                "permissionScopeStatus", "passed",
+                                "evidenceArtifacts", evidenceArtifactArgs())),
                 "trace-manage-publish",
                 "req-manage-publish",
                 null,
@@ -193,6 +194,7 @@ class ExperienceRecipeSearchToolWiringTest {
         assertEquals("UPDATED", publishData.get("apiResult"));
         assertEquals("validated", publishData.get("status"));
         assertEquals(true, publishData.get("discoverable"));
+        assertEquals(5, ((List<?>) publishData.get("evidenceArtifacts")).size());
 
         Object searchedRaw = dispatcher.executeTool(
                 "dataset.search_experience_recipes",
@@ -364,5 +366,22 @@ class ExperienceRecipeSearchToolWiringTest {
 
     private static Map.Entry<String, Object> entry(String key, Object value) {
         return Map.entry(key, value);
+    }
+
+    private static List<Map<String, Object>> evidenceArtifactArgs() {
+        return List.of(
+                evidenceArtifactArg("owner_signoff"),
+                evidenceArtifactArg("schema_validation"),
+                evidenceArtifactArg("validation_report"),
+                evidenceArtifactArg("positive_negative_examples"),
+                evidenceArtifactArg("permission_scope"));
+    }
+
+    private static Map<String, Object> evidenceArtifactArg(String artifactType) {
+        return Map.of(
+                "artifactType", artifactType,
+                "artifactUri", "foggy://experience-recipes/evidence/" + artifactType,
+                "artifactHash", "sha256:" + artifactType,
+                "signedBy", "registry_admin");
     }
 }

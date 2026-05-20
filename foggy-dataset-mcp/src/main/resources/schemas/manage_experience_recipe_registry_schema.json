@@ -140,9 +140,55 @@
             "passed",
             "failed"
           ]
+        },
+        "evidenceArtifacts": {
+          "type": "array",
+          "description": "Evidence artifact references required by publish_validated. All five artifactType values must be present with artifactUri and artifactHash.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "artifactType",
+              "artifactUri",
+              "artifactHash"
+            ],
+            "properties": {
+              "artifactId": {
+                "type": "string",
+                "description": "Stable artifact id or external evidence id."
+              },
+              "artifactType": {
+                "type": "string",
+                "enum": [
+                  "owner_signoff",
+                  "schema_validation",
+                  "validation_report",
+                  "positive_negative_examples",
+                  "permission_scope"
+                ],
+                "description": "Evidence type. publish_validated requires one valid artifact for every enum value."
+              },
+              "artifactUri": {
+                "type": "string",
+                "description": "URI or storage key pointing to the signed evidence artifact."
+              },
+              "artifactHash": {
+                "type": "string",
+                "description": "Content hash, for example sha256:<digest>."
+              },
+              "signedBy": {
+                "type": "string",
+                "description": "Actor or role that signed the artifact."
+              },
+              "signedAt": {
+                "type": "string",
+                "description": "Optional signing timestamp."
+              }
+            }
+          }
         }
       },
-      "description": "Publish gate evidence. publish_validated requires every status to be passed."
+      "description": "Publish gate evidence. publish_validated requires every status to be passed and every required evidence artifact type to be present."
     }
   }
 }

@@ -92,6 +92,10 @@ class ExperienceRecipeRegistryServiceTest {
         assertEquals(1, autoInitJdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM pragma_table_info('experience_recipe_registry') WHERE name = 'permission_tags'",
                 Integer.class));
+        assertEquals(1, autoInitJdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM pragma_table_info('experience_recipe_registry_event') "
+                        + "WHERE name = 'evidence_artifacts_json'",
+                Integer.class));
     }
 
     @Test
@@ -234,9 +238,16 @@ class ExperienceRecipeRegistryServiceTest {
         assertEquals(ExperienceRecipeStatus.VALIDATED, published.getStatus());
         assertTrue(published.isActiveForDiscovery());
         assertTrue(published.isDiscoverable());
+        assertEquals(5, published.getEvidenceArtifacts().size());
         assertEquals("validated", statusOf(PUBLISH_KEY));
         assertEquals(1, search.returnedRegistryKeys().size());
         assertEquals(PUBLISH_KEY, search.returnedRegistryKeys().get(0));
+        String eventArtifactsJson = jdbcTemplate.queryForObject(
+                "SELECT evidence_artifacts_json FROM experience_recipe_registry_event WHERE idempotency_key = ?",
+                String.class,
+                "idem:publish:sales-team-target");
+        assertNotNull(eventArtifactsJson);
+        assertTrue(eventArtifactsJson.contains("owner_signoff"));
     }
 
     @Test
@@ -304,6 +315,27 @@ class ExperienceRecipeRegistryServiceTest {
         assertEquals(ExperienceRecipeStatus.CANDIDATE, blocked.getStatus());
         assertEquals(ExperienceRecipeFailureStage.GATE_VALIDATION.wireValue(), blocked.getFailureStage());
         assertFalse(blocked.isDiscoverable());
+        assertEquals("candidate", statusOf(DRAFT_KEY));
+        assertEquals(3, count("experience_recipe_registry_event"));
+    }
+
+    @Test
+    @DisplayName("publish_validated blocks passed statuses without required evidence artifacts")
+    void shouldBlockPublishWithoutEvidenceArtifacts() {
+        seedCandidate(DRAFT_KEY);
+        ExperienceRecipeGovernanceEvidence evidence = ExperienceRecipeGovernanceEvidence.passed();
+        evidence.setEvidenceArtifacts(List.of());
+
+        ExperienceRecipeRegistryResponse blocked = service.mutate(publishRequest(
+                DRAFT_KEY,
+                "idem:publish:blocked-artifacts",
+                "registry_admin",
+                evidence));
+
+        assertEquals(ExperienceRecipeApiResult.BLOCKED, blocked.getApiResult());
+        assertEquals(ExperienceRecipeStatus.CANDIDATE, blocked.getStatus());
+        assertEquals(ExperienceRecipeFailureStage.GATE_VALIDATION.wireValue(), blocked.getFailureStage());
+        assertTrue(blocked.getEvidenceArtifacts().isEmpty());
         assertEquals("candidate", statusOf(DRAFT_KEY));
         assertEquals(3, count("experience_recipe_registry_event"));
     }

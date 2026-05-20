@@ -132,7 +132,8 @@ public class ExperienceRecipeRegistryService {
                     ExperienceRecipeApiResult.BLOCKED,
                     current,
                     ExperienceRecipeFailureStage.GATE_VALIDATION,
-                    "publish_validated blocked by registry governance gate");
+                    "publish_validated blocked by registry governance gate",
+                    request.getGovernanceEvidence().getEvidenceArtifacts());
         }
         return transition(
                 request,
@@ -167,7 +168,8 @@ public class ExperienceRecipeRegistryService {
                     ExperienceRecipeApiResult.ROLLED_BACK,
                     current,
                     ExperienceRecipeFailureStage.REGISTRY_EVENT_APPEND,
-                    "registry/event transaction rolled back");
+                    "registry/event transaction rolled back",
+                    request.getGovernanceEvidence().getEvidenceArtifacts());
         }
 
         saveWithVersionGuard(target, current);
@@ -182,7 +184,8 @@ public class ExperienceRecipeRegistryService {
                 apiResult,
                 target,
                 ExperienceRecipeFailureStage.NONE,
-                request.getReason());
+                request.getReason(),
+                request.getGovernanceEvidence().getEvidenceArtifacts());
     }
 
     private void saveWithVersionGuard(
@@ -216,6 +219,7 @@ public class ExperienceRecipeRegistryService {
         event.setResponseStatus(responseEntry == null ? ExperienceRecipeStatus.NONE : responseEntry.getStatus());
         event.setResponseActiveForDiscovery(responseEntry != null && responseEntry.isActiveForDiscovery());
         event.setResponseDiscoverable(responseEntry != null && responseEntry.discoverable());
+        event.setEvidenceArtifacts(request.getGovernanceEvidence().getEvidenceArtifacts());
         event.setReason(reason);
         return event;
     }
@@ -229,7 +233,8 @@ public class ExperienceRecipeRegistryService {
                 ExperienceRecipeApiResult.IDEMPOTENT_REPLAY,
                 replayEntry,
                 ExperienceRecipeFailureStage.IDEMPOTENCY_REPLAY,
-                "idempotent replay returns prior response");
+                "idempotent replay returns prior response",
+                event.getEvidenceArtifacts());
     }
 
     private <T> T runInTransaction(Function<TransactionStatus, T> action) {
