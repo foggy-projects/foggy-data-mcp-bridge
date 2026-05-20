@@ -267,6 +267,53 @@ class AnalystMcpControllerTest {
         }
 
         @Test
+        @DisplayName("普通 tools/call 也应透传 request-scoped authority headers")
+        void normalToolsCall_shouldForwardAuthorityHeadersWithoutRemoteCompose() throws Exception {
+            McpResponse mockResponse = McpResponse.success("1", Map.of(
+                    "content", List.of(Map.of(
+                            "type", "text",
+                            "text", "{\"status\":\"success\"}"
+                    ))
+            ));
+            ArgumentCaptor<McpRequestContext> contextCaptor = ArgumentCaptor.forClass(McpRequestContext.class);
+
+            when(mcpService.handleToolsCall(any(McpRequest.class), any(McpRequestContext.class)))
+                    .thenReturn(mockResponse);
+
+            mockMvc.perform(post("/mcp/analyst/rpc")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .header("Authorization", "Bearer token")
+                            .header("X-Trace-Id", "trace-2")
+                            .header("X-NS", "odoo")
+                            .header("X-Roles", "crm:read")
+                            .header("X-Permission-Tags", "crm:read,finance:read")
+                            .header("X-Recipe-Owner-Roles", "finance_owner")
+                            .header("X-Tenant-Id", "tenant-a")
+                            .content("""
+                                    {
+                                      "jsonrpc":"2.0",
+                                      "id":"1",
+                                      "method":"tools/call",
+                                      "params":{
+                                        "name":"dataset.search_experience_recipes",
+                                        "arguments":{"businessType":"crm_single_model_funnel"}
+                                      }
+                                    }
+                                    """))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.result.content").isArray());
+
+            verify(mcpService).handleToolsCall(any(McpRequest.class), contextCaptor.capture());
+            McpRequestContext context = contextCaptor.getValue();
+            assertEquals("odoo", context.getHeaders().get("X-NS"));
+            assertEquals("crm:read", context.getHeaders().get("X-Roles"));
+            assertEquals("crm:read,finance:read", context.getHeaders().get("X-Permission-Tags"));
+            assertEquals("finance_owner", context.getHeaders().get("X-Recipe-Owner-Roles"));
+            assertEquals("tenant-a", context.getHeaders().get("X-Tenant-Id"));
+            assertEquals("Bearer token", context.getHeaders().get("Authorization"));
+        }
+
+        @Test
         @DisplayName("Analyst 调用 Query 工具包含非法的 pivot 参数应返回 JSON-RPC 错误")
         void analyst_shouldReturnJsonRpcErrorOnInvalidPivot() throws Exception {
             McpResponse mockResponse = McpResponse.error("1", McpError.INVALID_PARAMS,

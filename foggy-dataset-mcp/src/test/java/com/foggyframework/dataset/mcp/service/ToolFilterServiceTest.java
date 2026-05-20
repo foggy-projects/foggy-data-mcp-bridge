@@ -226,6 +226,19 @@ class ToolFilterServiceTest extends BaseMcpTest {
 
             assertTrue(filterService.canAccessTool(exportTool, UserRole.ANALYST));
         }
+
+        @Test
+        @DisplayName("Admin-only 工具只能由 Admin 角色访问")
+        void adminOnlyTool_shouldBeRejectedForNonAdminRoles() {
+            McpTool adminTool = MockToolFactory.createToolWithResult(
+                    "dataset.manage_experience_recipe_registry",
+                    ToolCategory.ADMIN,
+                    Map.of("status", "ok"));
+
+            assertTrue(filterService.canAccessTool(adminTool, UserRole.ADMIN));
+            assertFalse(filterService.canAccessTool(adminTool, UserRole.ANALYST));
+            assertFalse(filterService.canAccessTool(adminTool, UserRole.BUSINESS));
+        }
     }
 
     // ==================== 边界条件测试 ====================

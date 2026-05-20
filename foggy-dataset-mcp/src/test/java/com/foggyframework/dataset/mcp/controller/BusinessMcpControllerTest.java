@@ -11,6 +11,7 @@ import com.foggyframework.dataset.mcp.service.McpToolDispatcher;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -22,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
@@ -120,6 +122,53 @@ class BusinessMcpControllerTest {
                     .andExpect(jsonPath("$.error").doesNotExist());
 
             verify(mcpService).handleToolsCall(any(McpRequest.class), any(McpRequestContext.class));
+        }
+
+        @Test
+        @DisplayName("Business 普通 tools/call 应透传 request-scoped authority headers")
+        void normalToolsCall_shouldForwardAuthorityHeadersWithoutRemoteCompose() throws Exception {
+            McpResponse mockResponse = McpResponse.success("1", Map.of(
+                    "content", List.of(Map.of(
+                            "type", "text",
+                            "text", "{\"status\":\"success\"}"
+                    ))
+            ));
+            ArgumentCaptor<McpRequestContext> contextCaptor = ArgumentCaptor.forClass(McpRequestContext.class);
+
+            when(mcpService.handleToolsCall(any(McpRequest.class), any(McpRequestContext.class)))
+                    .thenReturn(mockResponse);
+
+            mockMvc.perform(post("/mcp/business/rpc")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .header("Authorization", "Bearer token")
+                            .header("X-Trace-Id", "trace-business")
+                            .header("X-NS", "odoo")
+                            .header("X-Roles", "business_user")
+                            .header("X-Permission-Tags", "crm:read")
+                            .header("X-Recipe-Owner-Roles", "crm_owner")
+                            .header("X-Tenant-Id", "tenant-a")
+                            .content("""
+                                    {
+                                      "jsonrpc":"2.0",
+                                      "id":"1",
+                                      "method":"tools/call",
+                                      "params":{
+                                        "name":"dataset_nl.query",
+                                        "arguments":{"query":"最近一周的销售数据"}
+                                      }
+                                    }
+                                    """))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.result.content").isArray());
+
+            verify(mcpService).handleToolsCall(any(McpRequest.class), contextCaptor.capture());
+            McpRequestContext context = contextCaptor.getValue();
+            assertEquals("odoo", context.getHeaders().get("X-NS"));
+            assertEquals("business_user", context.getHeaders().get("X-Roles"));
+            assertEquals("crm:read", context.getHeaders().get("X-Permission-Tags"));
+            assertEquals("crm_owner", context.getHeaders().get("X-Recipe-Owner-Roles"));
+            assertEquals("tenant-a", context.getHeaders().get("X-Tenant-Id"));
+            assertEquals("Bearer token", context.getHeaders().get("Authorization"));
         }
 
         @Test

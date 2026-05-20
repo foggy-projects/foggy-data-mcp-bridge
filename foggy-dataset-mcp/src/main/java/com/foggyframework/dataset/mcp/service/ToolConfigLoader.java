@@ -131,6 +131,8 @@ public class ToolConfigLoader {
         defaults.add(createToolConfig("dataset.inspect_table", "classpath:/schemas/descriptions/inspect_table.md", "classpath:/schemas/inspect_table_schema.json", "ADMIN", false));
         defaults.add(createToolConfig("dataset.open_in_viewer", "classpath:/schemas/descriptions/open_in_viewer.md", "classpath:/schemas/open_in_viewer_schema.json", "EXPORT"));
         defaults.add(createToolConfig("dataset.compose_script", "classpath:/schemas/descriptions/compose_script_m2.md", "classpath:/schemas/compose_query_schema.json", "QUERY"));
+        defaults.add(createToolConfig("dataset.search_experience_recipes", "classpath:/schemas/descriptions/search_experience_recipes.md", "classpath:/schemas/search_experience_recipes_schema.json", "QUERY"));
+        defaults.add(createToolConfig("dataset.manage_experience_recipe_registry", "classpath:/schemas/descriptions/manage_experience_recipe_registry.md", "classpath:/schemas/manage_experience_recipe_registry_schema.json", "ADMIN"));
         return defaults;
     }
 
