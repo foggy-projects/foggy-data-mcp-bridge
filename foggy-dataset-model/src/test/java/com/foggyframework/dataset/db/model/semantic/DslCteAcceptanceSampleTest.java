@@ -1339,6 +1339,92 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
+    @DisplayName("DSL_CTE cross-model funnel defers zero-fill calendar with fiscal calendar source")
+    void validationDefersCrossModelFunnelZeroFillCalendarWithFiscalCalendarSource() {
+        Map<String, Object> plan = signedCrossModelCrmOrderTargetYearMonthZeroFillCalendarContract();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> calendarScaffold = (Map<String, Object>) plan.get("calendarScaffold");
+        calendarScaffold.put("source", "fiscal_445");
+
+        List<String> unsupported = bridgeUnsupported(plan);
+
+        assertTrue(unsupported.stream()
+                .anyMatch(msg -> msg.contains("calendarScaffold.source must be natural_gregorian_year_month")));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE cross-model funnel defers zero-fill calendar without zero fill policy")
+    void validationDefersCrossModelFunnelZeroFillCalendarWithoutFillPolicy() {
+        Map<String, Object> plan = signedCrossModelCrmOrderTargetYearMonthZeroFillCalendarContract();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> calendarScaffold = (Map<String, Object>) plan.get("calendarScaffold");
+        calendarScaffold.remove("fillPolicy");
+
+        List<String> unsupported = bridgeUnsupported(plan);
+
+        assertTrue(unsupported.stream()
+                .anyMatch(msg -> msg.contains("calendarScaffold.fillPolicy must be zero")));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE cross-model funnel defers zero-fill calendar with full dictionary scaffold")
+    void validationDefersCrossModelFunnelZeroFillCalendarWithFullDictionaryScaffold() {
+        Map<String, Object> plan = signedCrossModelCrmOrderTargetYearMonthZeroFillCalendarContract();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> calendarScaffold = (Map<String, Object>) plan.get("calendarScaffold");
+        calendarScaffold.put("fullDictionary", "true");
+
+        List<String> unsupported = bridgeUnsupported(plan);
+
+        assertTrue(unsupported.stream()
+                .anyMatch(msg -> msg.contains("must not expand from full target dictionary")));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE cross-model funnel defers zero-fill calendar with ownerTeam source group")
+    void validationDefersCrossModelFunnelZeroFillCalendarWithOwnerTeamGroupBy() {
+        Map<String, Object> plan = signedCrossModelCrmOrderTargetYearMonthZeroFillCalendarContract();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(3).put("groupBy", List.of("ownerTeam.name", "orderDate$year", "orderDate$month"));
+
+        List<String> unsupported = bridgeUnsupported(plan);
+
+        assertTrue(unsupported.stream()
+                .anyMatch(msg -> msg.contains("numerator must group by leadSource and targetPeriod only")));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE cross-model funnel defers zero-fill calendar with amount attribution")
+    void validationDefersCrossModelFunnelZeroFillCalendarWithAmountAttribution() {
+        Map<String, Object> plan = signedCrossModelCrmOrderTargetYearMonthZeroFillCalendarContract();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> contract = (Map<String, Object>) plan.get("timeAttributionContract");
+        contract.put("amountAttribution", m(
+                "field", "FactOrderQueryModel.amount",
+                "policy", "sum_matched_orders"));
+
+        List<String> unsupported = bridgeUnsupported(plan);
+
+        assertTrue(unsupported.stream()
+                .anyMatch(msg -> msg.contains("does not sign quality, amount, or order-selection attribution")));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE cross-model funnel defers zero-fill calendar with free join")
+    void validationDefersCrossModelFunnelZeroFillCalendarWithFreeJoin() {
+        Map<String, Object> plan = signedCrossModelCrmOrderTargetYearMonthZeroFillCalendarContract();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(2).put("joinType", "free_sql_join");
+
+        List<String> unsupported = bridgeUnsupported(plan);
+
+        assertTrue(unsupported.stream()
+                .anyMatch(msg -> msg.contains("supports only declared_key_align joinType")));
+    }
+
+    @Test
     @DisplayName("DSL_CTE signed cross-model target-month attribution can opt in to target-month SQL")
     void generateSqlOptInUsesCrossModelFunnelTargetMonthAttributionBridge() {
         QueryFacade queryFacade = mock(QueryFacade.class);

@@ -1329,7 +1329,7 @@ public final class DslCteDslRequestMapper {
                     "cross-model funnel zero-fill calendarScaffold.scaffoldScope must use source cohort groups");
             valid = false;
         }
-        if (Boolean.TRUE.equals(scaffold.get("fullDictionary"))) {
+        if (truthySemanticBoolean(scaffold.get("fullDictionary"))) {
             addUnsupported(unsupported,
                     "cross-model funnel zero-fill calendarScaffold must not expand from full target dictionary");
             valid = false;
@@ -1590,6 +1590,17 @@ public final class DslCteDslRequestMapper {
         String normalized = normalizedSemanticToken(stringValue(value));
         return !List.of("", "false", "no", "none", "null", "off", "matchedonly", "disabled")
                 .contains(normalized);
+    }
+
+    private static boolean truthySemanticBoolean(Object value) {
+        if (value instanceof Boolean bool) {
+            return bool;
+        }
+        if (value instanceof Number number) {
+            return number.doubleValue() != 0;
+        }
+        String normalized = normalizedSemanticToken(stringValue(value));
+        return List.of("true", "yes", "on", "enabled", "1").contains(normalized);
     }
 
     private static boolean zeroFillPolicyValue(Object value) {
