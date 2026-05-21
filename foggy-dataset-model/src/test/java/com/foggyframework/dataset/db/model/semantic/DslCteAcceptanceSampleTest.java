@@ -1116,6 +1116,34 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
+    @DisplayName("DSL_CTE signed cross-model target year-month attribution marks runtime-guarded bridge-ready")
+    void validationShowsBridgeReadyForSignedCrossModelFunnelTargetYearMonthAttribution() {
+        SemanticQueryResponse response = service.validateQuery(
+                "CrmLead", dslCtePlan(signedCrossModelCrmOrderTargetYearMonthAttributionContract()),
+                SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_READY", validation.get("dsl_bridge_status"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> contract =
+                (Map<String, Object>) validation.get("dsl_cross_model_funnel_time_attribution");
+        assertEquals("cross_model_funnel_target_year_month_attribution", contract.get("kind"));
+        assertEquals("runtime_guarded_target_year_month_attribution", contract.get("bridge_scope"));
+        assertEquals(true, contract.get("execution_bridge"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> targetPeriod = (Map<String, Object>) contract.get("targetPeriod");
+        assertEquals("year_month", targetPeriod.get("grain"));
+        assertEquals(List.of("orderDate$year", "orderDate$month"), targetPeriod.get("stageFields"));
+        assertEquals(List.of("FactOrderQueryModel.orderDate$year", "FactOrderQueryModel.orderDate$month"),
+                targetPeriod.get("outputFields"));
+        assertEquals("fixed_per_source_group", contract.get("denominator_scope"));
+        assertEquals("targetPeriod", contract.get("numerator_bucket"));
+        assertEquals(List.of("leadSource", "orderDate$year", "orderDate$month"), contract.get("groupBy"));
+        assertEquals(List.of("leadSource", "orderDate$year", "orderDate$month", "totalLeadCount",
+                "matchedLeadCount", "leadToOrderConversionRate"), contract.get("output"));
+    }
+
+    @Test
     @DisplayName("DSL_CTE signed cross-model target-month attribution defers missing targetPeriod")
     void validationDefersCrossModelFunnelTargetMonthAttributionMissingTargetPeriod() {
         Map<String, Object> plan = signedCrossModelCrmOrderTargetMonthAttributionContract();
@@ -1145,6 +1173,128 @@ class DslCteAcceptanceSampleTest {
         assertEquals("BRIDGE_DEFERRED", validation.get("dsl_bridge_status"));
         assertTrue(validation.get("dsl_bridge_unsupported").toString()
                 .contains("numerator must group by leadSource and targetPeriod only"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE cross-model funnel defers explicit year-month targetPeriod")
+    void validationDefersCrossModelFunnelYearMonthTargetPeriod() {
+        Map<String, Object> plan = signedCrossModelCrmOrderTargetMonthAttributionContract();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(1).put("groupBy", List.of("orderId", "orderDate$caption", "orderDate$yearMonth"));
+        stages.get(2).put("output", List.of(
+                "leadSource", "convertedOrderId", "createdAt", "leadCount",
+                "orderId", "orderDate$caption", "orderDate$yearMonth", "matchedOrderCount"));
+        stages.get(3).put("groupBy", List.of("leadSource", "orderDate$yearMonth"));
+        plan.put("targetPeriod", m(
+                "field", "FactOrderQueryModel.orderDate",
+                "grain", "year_month",
+                "calendar", "natural"));
+        plan.put("outputGrain", m(
+                "sourceFields", List.of("CrmLead.leadSource"),
+                "targetPeriodFields", List.of("FactOrderQueryModel.orderDate$yearMonth")));
+        plan.put("output", List.of("leadSource", "orderDate$yearMonth", "totalLeadCount",
+                "matchedLeadCount", "leadToOrderConversionRate"));
+
+        List<String> unsupported = bridgeUnsupported(plan);
+
+        assertTrue(unsupported.stream()
+                .anyMatch(msg -> msg.contains("year-month targetPeriod is not signed")));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE cross-model funnel defers year plus month targetPeriod fields")
+    void validationDefersCrossModelFunnelYearAndMonthTargetPeriodFields() {
+        Map<String, Object> plan = signedCrossModelCrmOrderTargetMonthAttributionContract();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(1).put("groupBy", List.of("orderId", "orderDate$caption",
+                "orderDate$year", "orderDate$month"));
+        stages.get(2).put("output", List.of(
+                "leadSource", "convertedOrderId", "createdAt", "leadCount",
+                "orderId", "orderDate$caption", "orderDate$year", "orderDate$month", "matchedOrderCount"));
+        stages.get(3).put("groupBy", List.of("leadSource", "orderDate$year", "orderDate$month"));
+        plan.put("outputGrain", m(
+                "sourceFields", List.of("CrmLead.leadSource"),
+                "targetPeriodFields", List.of(
+                        "FactOrderQueryModel.orderDate$year",
+                        "FactOrderQueryModel.orderDate$month")));
+        plan.put("output", List.of("leadSource", "orderDate$year", "orderDate$month", "totalLeadCount",
+                "matchedLeadCount", "leadToOrderConversionRate"));
+
+        List<String> unsupported = bridgeUnsupported(plan);
+
+        assertTrue(unsupported.stream()
+                .anyMatch(msg -> msg.contains("year-month targetPeriod is not signed")));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE cross-model funnel defers ambiguous targetPeriod alias")
+    void validationDefersCrossModelFunnelAmbiguousTargetPeriodAlias() {
+        Map<String, Object> plan = signedCrossModelCrmOrderTargetMonthAttributionContract();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(1).put("groupBy", List.of("orderId", "orderDate$caption", "targetPeriod"));
+        stages.get(2).put("output", List.of(
+                "leadSource", "convertedOrderId", "createdAt", "leadCount",
+                "orderId", "orderDate$caption", "targetPeriod", "matchedOrderCount"));
+        stages.get(3).put("groupBy", List.of("leadSource", "targetPeriod"));
+        plan.put("outputGrain", m(
+                "sourceFields", List.of("CrmLead.leadSource"),
+                "targetPeriodFields", List.of("targetPeriod")));
+        plan.put("output", List.of("leadSource", "targetPeriod", "totalLeadCount",
+                "matchedLeadCount", "leadToOrderConversionRate"));
+
+        List<String> unsupported = bridgeUnsupported(plan);
+
+        assertTrue(unsupported.stream()
+                .anyMatch(msg -> msg.contains("generic targetPeriod aliases are not signed")));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE cross-model funnel defers year-month targetPeriod filter values")
+    void validationDefersCrossModelFunnelYearMonthTargetPeriodFilterValues() {
+        Map<String, Object> plan = signedCrossModelCrmOrderTargetMonthAttributionContract();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(3).put("filters", List.of(m(
+                "field", "orderDate$month",
+                "op", "in",
+                "values", List.of("2026-12", "2027-01"))));
+
+        List<String> unsupported = bridgeUnsupported(plan);
+
+        assertTrue(unsupported.stream()
+                .anyMatch(msg -> msg.contains("year-month targetPeriod is not signed")));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE cross-model funnel defers zero-filled target-month calendar")
+    void validationDefersCrossModelFunnelZeroFilledTargetMonthCalendar() {
+        Map<String, Object> plan = signedCrossModelCrmOrderTargetMonthAttributionContract();
+        plan.put("calendarScaffold", m(
+                "field", "FactOrderQueryModel.orderDate$month",
+                "range", m("from", "2026-07", "to", "2026-09"),
+                "fillPolicy", "zero"));
+
+        List<String> unsupported = bridgeUnsupported(plan);
+
+        assertTrue(unsupported.stream()
+                .anyMatch(msg -> msg.contains("zero-filled target-month calendar is not signed")));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE cross-model funnel defers targetPeriod zero-fill policy")
+    void validationDefersCrossModelFunnelTargetPeriodZeroFillPolicy() {
+        Map<String, Object> plan = signedCrossModelCrmOrderTargetMonthAttributionContract();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> targetPeriod = (Map<String, Object>) plan.get("targetPeriod");
+        targetPeriod.put("fillMissingTargetPeriods", true);
+
+        List<String> unsupported = bridgeUnsupported(plan);
+
+        assertTrue(unsupported.stream()
+                .anyMatch(msg -> msg.contains("zero-filled target-month calendar is not signed")));
     }
 
     @Test
@@ -1184,6 +1334,47 @@ class DslCteAcceptanceSampleTest {
                 result.getSql());
         assertTrue(result.getSql().contains("m.\"orderDate$month\" AS \"orderDate$month\""), result.getSql());
         assertTrue(result.getSql().contains("ORDER BY \"leadSource\" ASC, \"orderDate$month\" ASC"), result.getSql());
+        assertEquals(List.of(30), result.getParams());
+    }
+
+    @Test
+    @DisplayName("DSL_CTE signed cross-model target year-month attribution can opt in to SQL")
+    void generateSqlOptInUsesCrossModelFunnelTargetYearMonthAttributionBridge() {
+        QueryFacade queryFacade = mock(QueryFacade.class);
+        when(queryFacade.buildSqlOnly(any(ModelResultContext.class)))
+                .thenReturn(
+                        new SqlGenerationResult(
+                                "SELECT \"leadSource\", COUNT(lead_id) AS \"totalLeadCount\" "
+                                        + "FROM crm_lead GROUP BY \"leadSource\"",
+                                List.of(),
+                                null),
+                        new SqlGenerationResult(
+                                "SELECT \"leadSource\", \"convertedOrderId\", \"createdAt\", "
+                                        + "COUNT(lead_id) AS \"leadCount\" FROM crm_lead "
+                                        + "GROUP BY \"leadSource\", \"convertedOrderId\", \"createdAt\"",
+                                List.of(),
+                                null),
+                        new SqlGenerationResult(
+                                "SELECT \"orderId\", \"orderDate$caption\", \"orderDate$year\", \"orderDate$month\", "
+                                        + "COUNT(order_id) AS \"matchedOrderCount\" FROM fact_order "
+                                        + "GROUP BY \"orderId\", \"orderDate$caption\", \"orderDate$year\", \"orderDate$month\"",
+                                List.of(),
+                                null));
+        ReflectionTestUtils.setField(service, "queryFacade", queryFacade);
+
+        SemanticQueryRequest request = dslCtePlan(signedCrossModelCrmOrderTargetYearMonthAttributionContract());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SqlGenerationResult result = service.generateSql("CrmLead", request, SemanticRequestContext.empty());
+
+        assertTrue(result.getSql().contains("dsl_cte_funnel_window_matched"), result.getSql());
+        assertTrue(result.getSql().contains(
+                "SELECT \"leadSource\", \"orderDate$year\", \"orderDate$month\", SUM(\"leadCount\")"),
+                result.getSql());
+        assertTrue(result.getSql().contains("m.\"orderDate$year\" AS \"orderDate$year\""), result.getSql());
+        assertTrue(result.getSql().contains("m.\"orderDate$month\" AS \"orderDate$month\""), result.getSql());
+        assertTrue(result.getSql().contains("ORDER BY \"leadSource\" ASC, \"orderDate$year\" ASC, \"orderDate$month\" ASC"),
+                result.getSql());
         assertEquals(List.of(30), result.getParams());
     }
 
@@ -2392,6 +2583,30 @@ class DslCteAcceptanceSampleTest {
                 "sourceFields", List.of("CrmLead.leadSource"),
                 "targetPeriodFields", List.of("FactOrderQueryModel.orderDate$month")));
         plan.put("output", List.of("leadSource", "orderDate$month", "totalLeadCount",
+                "matchedLeadCount", "leadToOrderConversionRate"));
+        return plan;
+    }
+
+    private Map<String, Object> signedCrossModelCrmOrderTargetYearMonthAttributionContract() {
+        Map<String, Object> plan = signedCrossModelCrmOrderTargetMonthAttributionContract();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(1).put("groupBy", List.of("orderId", "orderDate$caption",
+                "orderDate$year", "orderDate$month"));
+        stages.get(2).put("output", List.of(
+                "leadSource", "convertedOrderId", "createdAt", "leadCount",
+                "orderId", "orderDate$caption", "orderDate$year", "orderDate$month", "matchedOrderCount"));
+        stages.get(3).put("groupBy", List.of("leadSource", "orderDate$year", "orderDate$month"));
+        plan.put("targetPeriod", m(
+                "field", "FactOrderQueryModel.orderDate",
+                "grain", "year_month",
+                "calendar", "natural"));
+        plan.put("outputGrain", m(
+                "sourceFields", List.of("CrmLead.leadSource"),
+                "targetPeriodFields", List.of(
+                        "FactOrderQueryModel.orderDate$year",
+                        "FactOrderQueryModel.orderDate$month")));
+        plan.put("output", List.of("leadSource", "orderDate$year", "orderDate$month", "totalLeadCount",
                 "matchedLeadCount", "leadToOrderConversionRate"));
         return plan;
     }
