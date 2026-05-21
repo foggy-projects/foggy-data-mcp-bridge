@@ -124,7 +124,26 @@ export const model = {
           description: 'Payment reconciliation status. enum: not_paid / in_payment (bank sync pending) / '
               + 'paid (fully reconciled) / partial (partially reconciled) / reversed / invoicing_legacy '
               + '(pre-migration). AR outstanding uses not_paid + partial + in_payment; paid / reversed / '
-              + 'invoicing_legacy are excluded from aging.' },
+              + 'invoicing_legacy are excluded from aging.',
+          dictionaryDiscovery: {
+              enabled: true,
+              strategy: 'group_by',
+              maxValues: 20,
+              refreshTtlSeconds: 3600,
+              exposeToLlm: true,
+              sensitive: false,
+              aliases: {
+                  open_receivable: {
+                      values: ['not_paid', 'partial', 'in_payment'],
+                      description: 'Receivable entries that are not fully settled'
+                  },
+                  closed_receivable: {
+                      values: ['paid', 'reversed', 'invoicing_legacy'],
+                      description: 'Receivable entries excluded from open aging'
+                  }
+              }
+          }
+        },
         { column: 'ref', caption: 'Reference', type: 'STRING' },
         { column: 'invoice_origin', caption: 'Source Document', type: 'STRING' },
         { column: 'narration', caption: 'Internal Note', type: 'STRING' },

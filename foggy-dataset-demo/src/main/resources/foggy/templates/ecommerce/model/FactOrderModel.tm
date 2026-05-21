@@ -44,14 +44,48 @@ export const model = {
         {
             column: 'order_status',
             caption: '订单状态',
+            description: '订单生命周期状态。打开订单通常指待处理、已确认或处理中，不包括已发货、已完成、已取消或已退款。',
             type: 'STRING',
-            dictRef: dicts.order_status
+            dictRef: dicts.order_status,
+            dictionaryDiscovery: {
+                enabled: true,
+                strategy: 'group_by',
+                maxValues: 20,
+                refreshTtlSeconds: 3600,
+                exposeToLlm: true,
+                sensitive: false,
+                aliases: {
+                    open_order: {
+                        values: ['PENDING', 'CONFIRMED', 'PROCESSING'],
+                        description: '打开订单，不包括已发货、已完成、已取消或已退款'
+                    }
+                }
+            }
         },
         {
             column: 'payment_status',
             caption: '支付状态',
+            description: '订单支付结算状态，与订单生命周期状态不同；用于描述未支付、部分支付、已支付、退款中或已退款等支付进度。',
             type: 'STRING',
-            dictRef: dicts.payment_status
+            dictRef: dicts.payment_status,
+            dictionaryDiscovery: {
+                enabled: true,
+                strategy: 'group_by',
+                maxValues: 20,
+                refreshTtlSeconds: 3600,
+                exposeToLlm: true,
+                sensitive: false,
+                aliases: {
+                    not_fully_paid: {
+                        values: ['UNPAID', 'PARTIAL'],
+                        description: '未完全支付订单'
+                    },
+                    settled_or_refunded: {
+                        values: ['PAID', 'REFUNDED'],
+                        description: '已完成支付或已退款订单'
+                    }
+                }
+            }
         },
         {
             column: 'order_time',
