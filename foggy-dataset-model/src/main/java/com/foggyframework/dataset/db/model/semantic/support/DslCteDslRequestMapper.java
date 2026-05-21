@@ -31,6 +31,10 @@ public final class DslCteDslRequestMapper {
     private static final String FACT_ORDER_STAGE_MONTH_FIELD = "orderDate$month";
     private static final String FACT_ORDER_TARGET_YEAR_FIELD = "FactOrderQueryModel.orderDate$year";
     private static final String FACT_ORDER_TARGET_MONTH_FIELD = "FactOrderQueryModel.orderDate$month";
+    private static final String ZERO_FILL_TARGET_PERIOD_UNSUPPORTED_MESSAGE =
+            "cross-model funnel zero-filled target-month calendar is not signed; "
+                    + "use CLARIFY until calendar scaffold and zero policy are explicit";
+    private static final int ZERO_FILL_CALENDAR_MAX_PERIODS = 36;
     private static final Pattern YEAR_MONTH_LITERAL_PATTERN = Pattern.compile("^(?:\\d{4}[-/]\\d{1,2}|\\d{6})$");
     private static final Pattern LAG_PATTERN = Pattern.compile(
             "(?i)^\\s*lag\\s*\\(\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*(?:,\\s*1\\s*)?\\)\\s*$");
@@ -591,6 +595,8 @@ public final class DslCteDslRequestMapper {
         }
         TargetPeriodContract targetPeriod = targetPeriodContract(ctePlan, contract, matchedAggregate, unsupported);
         boolean targetPeriodAttribution = targetPeriod.declared();
+        ZeroFillCalendarScaffoldContract zeroFillCalendarScaffold =
+                zeroFillCalendarScaffoldContract(ctePlan, targetPeriod, unsupported);
         if (targetPeriodAttribution
                 && !stringList(rightAggregate.get("groupBy")).containsAll(targetPeriod.stageFields())) {
             unsupported.add("cross-model funnel target-period attribution requires target period fields "
@@ -726,7 +732,8 @@ public final class DslCteDslRequestMapper {
                 targetPeriodAttribution ? targetPeriod.semanticField() : null,
                 targetPeriodAttribution ? targetPeriod.grain() : null,
                 targetPeriodAttribution ? targetPeriod.stageFields() : List.of(),
-                targetPeriodAttribution ? targetPeriod.outputFields() : List.of());
+                targetPeriodAttribution ? targetPeriod.outputFields() : List.of(),
+                zeroFillCalendarScaffold);
         return CrossModelFunnelTimeAttributionContractResult.ready(plan);
     }
 
@@ -853,7 +860,8 @@ public final class DslCteDslRequestMapper {
                 contractPlan.rateAlias(),
                 contractPlan.targetPeriodStageFields(),
                 contractPlan.targetPeriodGrain(),
-                contractPlan.targetPeriodOutputFields());
+                contractPlan.targetPeriodOutputFields(),
+                contractPlan.zeroFillCalendarScaffold());
         return CrossModelFunnelTimeAttributionBridgeResult.ready(denominatorModel, denominatorRequest,
                 leftStageName, leftModel, leftRequest, rightStageName, rightModel, rightRequest, plan);
     }
@@ -1241,9 +1249,160 @@ public final class DslCteDslRequestMapper {
                 || usesAmbiguousTargetPeriodFilterAlias(ctePlan)) {
             addUnsupported(unsupported, "cross-model funnel target-month attribution requires explicit FactOrderQueryModel.orderDate$month; generic targetPeriod aliases are not signed");
         }
-        if (usesZeroFilledTargetPeriodCalendar(ctePlan)) {
-            addUnsupported(unsupported, "cross-model funnel zero-filled target-month calendar is not signed; use CLARIFY until calendar scaffold and zero policy are explicit");
+    }
+
+    private static ZeroFillCalendarScaffoldContract zeroFillCalendarScaffoldContract(
+            Map<String, Object> ctePlan,
+            TargetPeriodContract targetPeriod,
+            List<String> unsupported) {
+        Map<String, Object> scaffold = mapValue(ctePlan == null ? null : ctePlan.get("calendarScaffold"));
+        if (scaffold == null) {
+            if (usesZeroFilledTargetPeriodCalendar(ctePlan)) {
+                addUnsupported(unsupported, ZERO_FILL_TARGET_PERIOD_UNSUPPORTED_MESSAGE);
+            }
+            return ZeroFillCalendarScaffoldContract.notDeclared();
         }
+
+        boolean valid = true;
+        if (targetPeriod == null || !targetPeriod.declared()
+                || !"year_month".equals(targetPeriod.grain())) {
+            addUnsupported(unsupported, ZERO_FILL_TARGET_PERIOD_UNSUPPORTED_MESSAGE);
+            valid = false;
+        }
+        String field = stringValue(scaffold.get("field"));
+        if (!targetPeriodSemanticFieldMatches(field)) {
+            addUnsupported(unsupported,
+                    "cross-model funnel zero-fill calendarScaffold.field must be FactOrderQueryModel.orderDate");
+            valid = false;
+        }
+        String grain = firstNonBlank(stringValue(scaffold.get("grain")),
+                stringValue(scaffold.get("bucketGrain")),
+                targetPeriod == null ? null : targetPeriod.grain());
+        if (!isYearMonthGrain(grain)) {
+            addUnsupported(unsupported,
+                    "cross-model funnel zero-fill calendarScaffold requires grain=year_month");
+            valid = false;
+        }
+        String source = firstNonBlank(stringValue(scaffold.get("source")), stringValue(scaffold.get("calendar")));
+        if (!naturalYearMonthCalendarSource(source)) {
+            addUnsupported(unsupported,
+                    "cross-model funnel zero-fill calendarScaffold.source must be natural_gregorian_year_month");
+            valid = false;
+        }
+        String rangePolicy = firstNonBlank(stringValue(scaffold.get("rangePolicy")), "explicit");
+        if (!"explicit".equals(normalizedSemanticToken(rangePolicy))) {
+            addUnsupported(unsupported,
+                    "cross-model funnel zero-fill calendarScaffold.rangePolicy supports explicit only in this cut");
+            valid = false;
+        }
+        Map<String, Object> range = mapValue(scaffold.get("range"));
+        YearMonthPeriod from = parseYearMonthPeriod(range == null ? null : stringValue(range.get("from")));
+        YearMonthPeriod to = parseYearMonthPeriod(range == null ? null : stringValue(range.get("to")));
+        if (from == null || to == null) {
+            addUnsupported(unsupported,
+                    "cross-model funnel zero-fill calendarScaffold.range requires from/to year-month literals");
+            valid = false;
+        } else if (from.after(to)) {
+            addUnsupported(unsupported,
+                    "cross-model funnel zero-fill calendarScaffold.range from must be <= to");
+            valid = false;
+        }
+        String fillPolicy = stringValue(scaffold.get("fillPolicy"));
+        if (!zeroFillPolicyValue(fillPolicy)) {
+            addUnsupported(unsupported,
+                    "cross-model funnel zero-fill calendarScaffold.fillPolicy must be zero");
+            valid = false;
+        }
+        String denominatorScope = stringValue(scaffold.get("denominatorScope"));
+        if (denominatorScope != null && !denominatorScope.isBlank()
+                && !"fixedpersourcegroup".equals(normalizedSemanticToken(denominatorScope))) {
+            addUnsupported(unsupported,
+                    "cross-model funnel zero-fill calendarScaffold.denominatorScope must be fixed_per_source_group");
+            valid = false;
+        }
+        String scaffoldScope = firstNonBlank(stringValue(scaffold.get("scaffoldScope")),
+                stringValue(scaffold.get("sourceGroupScope")),
+                "source_groups_from_source_cohort");
+        String normalizedScope = normalizedSemanticToken(scaffoldScope);
+        if (!List.of("sourcegroupsfromsourcecohort", "sourcecohortgroups").contains(normalizedScope)) {
+            addUnsupported(unsupported,
+                    "cross-model funnel zero-fill calendarScaffold.scaffoldScope must use source cohort groups");
+            valid = false;
+        }
+        if (Boolean.TRUE.equals(scaffold.get("fullDictionary"))) {
+            addUnsupported(unsupported,
+                    "cross-model funnel zero-fill calendarScaffold must not expand from full target dictionary");
+            valid = false;
+        }
+        List<YearMonthPeriod> periods = from == null || to == null ? List.of() : yearMonthPeriods(from, to);
+        if (periods.size() > ZERO_FILL_CALENDAR_MAX_PERIODS) {
+            addUnsupported(unsupported,
+                    "cross-model funnel zero-fill calendarScaffold.range exceeds "
+                            + ZERO_FILL_CALENDAR_MAX_PERIODS + " months");
+            valid = false;
+        }
+        if (!valid) {
+            return ZeroFillCalendarScaffoldContract.notDeclared();
+        }
+        return new ZeroFillCalendarScaffoldContract(
+                true,
+                "natural_gregorian_year_month",
+                "explicit",
+                periods,
+                "zero",
+                "source_groups_from_source_cohort");
+    }
+
+    private static boolean naturalYearMonthCalendarSource(String source) {
+        String normalized = normalizedSemanticToken(source);
+        return "natural".equals(normalized)
+                || "naturalgregorian".equals(normalized)
+                || "naturalgregorianyearmonth".equals(normalized)
+                || "gregorianyearmonth".equals(normalized);
+    }
+
+    private static String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private static YearMonthPeriod parseYearMonthPeriod(String value) {
+        if (!isYearMonthLiteral(value)) {
+            return null;
+        }
+        String normalized = value.trim().replace("/", "-");
+        try {
+            int year;
+            int month;
+            if (normalized.contains("-")) {
+                String[] parts = normalized.split("-", 2);
+                year = Integer.parseInt(parts[0]);
+                month = Integer.parseInt(parts[1]);
+            } else {
+                year = Integer.parseInt(normalized.substring(0, 4));
+                month = Integer.parseInt(normalized.substring(4, 6));
+            }
+            if (month < 1 || month > 12) {
+                return null;
+            }
+            return new YearMonthPeriod(year, month);
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+    }
+
+    private static List<YearMonthPeriod> yearMonthPeriods(YearMonthPeriod from, YearMonthPeriod to) {
+        List<YearMonthPeriod> periods = new ArrayList<>();
+        YearMonthPeriod cursor = from;
+        while (!cursor.after(to) && periods.size() <= ZERO_FILL_CALENDAR_MAX_PERIODS) {
+            periods.add(cursor);
+            cursor = cursor.next();
+        }
+        return periods;
     }
 
     private static List<String> targetPeriodFields(Object rawOutputGrain) {
@@ -3384,7 +3543,8 @@ public final class DslCteDslRequestMapper {
                                                             String rateAlias,
                                                             List<String> targetPeriodStageFields,
                                                             String targetPeriodGrain,
-                                                            List<String> targetPeriodOutputFields) {
+                                                            List<String> targetPeriodOutputFields,
+                                                            ZeroFillCalendarScaffoldContract zeroFillCalendarScaffold) {
 
         Map<String, Object> summary() {
             Map<String, Object> result = new LinkedHashMap<>();
@@ -3418,6 +3578,12 @@ public final class DslCteDslRequestMapper {
                 result.put("denominator_scope", "fixed_per_source_group");
                 result.put("numerator_bucket", "targetPeriod");
                 result.put("groupBy", expectedTargetPeriodGroupBy(groupKey, targetPeriodStageFields));
+                if (zeroFillTargetYearMonthCalendar()) {
+                    result.put("calendarScaffold", zeroFillCalendarScaffold.summary(
+                            targetPeriodStageFields, targetPeriodOutputFields));
+                    result.put("fill_policy", zeroFillCalendarScaffold.fillPolicy());
+                    result.put("scaffold_scope", zeroFillCalendarScaffold.scaffoldScope());
+                }
             } else {
                 result.put("groupBy", List.of(groupKey));
             }
@@ -3437,13 +3603,25 @@ public final class DslCteDslRequestMapper {
                     && targetPeriodOutputFields != null && !targetPeriodOutputFields.isEmpty();
         }
 
+        private boolean zeroFillTargetYearMonthCalendar() {
+            return targetPeriodAttribution()
+                    && zeroFillCalendarScaffold != null
+                    && zeroFillCalendarScaffold.declared();
+        }
+
         private String targetPeriodKindSummary() {
+            if (zeroFillTargetYearMonthCalendar()) {
+                return "cross_model_funnel_target_year_month_zero_fill_calendar";
+            }
             return "year_month".equals(targetPeriodGrain)
                     ? "cross_model_funnel_target_year_month_attribution"
                     : "cross_model_funnel_target_month_attribution";
         }
 
         private String targetPeriodBridgeScope() {
+            if (zeroFillTargetYearMonthCalendar()) {
+                return "runtime_guarded_target_year_month_zero_fill_calendar";
+            }
             return "year_month".equals(targetPeriodGrain)
                     ? "runtime_guarded_target_year_month_attribution"
                     : "runtime_guarded_target_month_attribution";
@@ -3470,7 +3648,11 @@ public final class DslCteDslRequestMapper {
             String guardAlias = "dsl_cte_join_guard";
             String joinAlias = "dsl_cte_join_align";
             String matchedAlias = "dsl_cte_funnel_window_matched";
-            String rateAliasName = "dsl_cte_funnel_rate";
+            String calendarAlias = "dsl_cte_calendar_periods";
+            String sourcePeriodGridAlias = "dsl_cte_source_period_grid";
+            String rateAliasName = zeroFillTargetYearMonthCalendar()
+                    ? "dsl_cte_funnel_zero_fill_rate"
+                    : "dsl_cte_funnel_rate";
 
             StringBuilder sql = new StringBuilder("WITH ");
             sql.append(denominatorAlias).append(" AS (\n").append(denominatorSql).append("\n),\n");
@@ -3497,9 +3679,16 @@ public final class DslCteDslRequestMapper {
                     .append("\nFROM ").append(joinAlias).append("\nGROUP BY ")
                     .append(matchedGroupKeys.stream().map(DslCteDslRequestMapper::quoteAlias)
                             .collect(java.util.stream.Collectors.joining(", ")))
-                    .append("\n),\n");
+                    .append("\n)");
+            if (zeroFillTargetYearMonthCalendar()) {
+                sql.append(",\n");
+                appendCalendarPeriodsCte(sql, calendarAlias);
+                sql.append(",\n");
+                appendSourcePeriodGridCte(sql, denominatorAlias, calendarAlias, sourcePeriodGridAlias);
+            }
+            sql.append(",\n");
             sql.append(rateAliasName).append(" AS (\n");
-            appendRateCte(sql, denominatorAlias, matchedAlias, guardAlias);
+            appendRateCte(sql, denominatorAlias, matchedAlias, guardAlias, sourcePeriodGridAlias);
 
             sql.append("SELECT ");
             sql.append(String.join(", ", output.stream().map(DslCteDslRequestMapper::quoteAlias).toList()));
@@ -3513,7 +3702,42 @@ public final class DslCteDslRequestMapper {
             return new SqlGenerationResult(sql.toString(), params, null);
         }
 
-        private void appendRateCte(StringBuilder sql, String denominatorAlias, String matchedAlias, String guardAlias) {
+        private void appendCalendarPeriodsCte(StringBuilder sql, String calendarAlias) {
+            sql.append(calendarAlias).append(" AS (\n");
+            for (int i = 0; i < zeroFillCalendarScaffold.periods().size(); i++) {
+                YearMonthPeriod period = zeroFillCalendarScaffold.periods().get(i);
+                if (i > 0) {
+                    sql.append("\nUNION ALL\n");
+                }
+                sql.append("SELECT ").append(period.year()).append(" AS ")
+                        .append(quoteAlias(targetPeriodStageFields.get(0)))
+                        .append(", ").append(period.month()).append(" AS ")
+                        .append(quoteAlias(targetPeriodStageFields.get(1)));
+            }
+            sql.append("\n)");
+        }
+
+        private void appendSourcePeriodGridCte(StringBuilder sql, String denominatorAlias,
+                                               String calendarAlias, String sourcePeriodGridAlias) {
+            sql.append(sourcePeriodGridAlias).append(" AS (\n");
+            sql.append("SELECT d.").append(quoteAlias(groupKey)).append(" AS ").append(quoteAlias(groupKey));
+            for (String targetPeriodStageField : targetPeriodStageFields) {
+                sql.append(", c.").append(quoteAlias(targetPeriodStageField)).append(" AS ")
+                        .append(quoteAlias(targetPeriodStageField));
+            }
+            sql.append(", d.").append(quoteAlias(denominatorMetric)).append(" AS ")
+                    .append(quoteAlias(denominatorMetric))
+                    .append("\nFROM ").append(denominatorAlias).append(" d\n")
+                    .append("CROSS JOIN ").append(calendarAlias).append(" c\n")
+                    .append(")");
+        }
+
+        private void appendRateCte(StringBuilder sql, String denominatorAlias, String matchedAlias,
+                                   String guardAlias, String sourcePeriodGridAlias) {
+            if (zeroFillTargetYearMonthCalendar()) {
+                appendZeroFillRateCte(sql, matchedAlias, guardAlias, sourcePeriodGridAlias);
+                return;
+            }
             sql.append("SELECT d.").append(quoteAlias(groupKey)).append(" AS ").append(quoteAlias(groupKey));
             if (targetPeriodAttribution()) {
                 for (String targetPeriodStageField : targetPeriodStageFields) {
@@ -3536,6 +3760,36 @@ public final class DslCteDslRequestMapper {
                         .append(" = m.").append(quoteAlias(groupKey)).append("\n");
             }
             sql.append("CROSS JOIN ").append(guardAlias).append(" g\n")
+                    .append("WHERE g.").append(quoteAlias("duplicateRightKeys")).append(" = 0\n")
+                    .append("  AND g.").append(quoteAlias("unmatchedLeftKeys")).append(" = 0\n")
+                    .append("  AND g.").append(quoteAlias("rejectedNullLeftKeys")).append(" = 0\n")
+                    .append("  AND g.").append(quoteAlias("missingSourceAttributionRows")).append(" = 0\n")
+                    .append("  AND g.").append(quoteAlias("missingTargetAttributionRows")).append(" = 0\n")
+                    .append("  AND g.").append(quoteAlias("targetBeforeSourceRows")).append(" = 0\n")
+                    .append(")\n");
+        }
+
+        private void appendZeroFillRateCte(StringBuilder sql, String matchedAlias, String guardAlias,
+                                           String sourcePeriodGridAlias) {
+            sql.append("SELECT sp.").append(quoteAlias(groupKey)).append(" AS ").append(quoteAlias(groupKey));
+            for (String targetPeriodStageField : targetPeriodStageFields) {
+                sql.append(", sp.").append(quoteAlias(targetPeriodStageField)).append(" AS ")
+                        .append(quoteAlias(targetPeriodStageField));
+            }
+            sql.append(", sp.").append(quoteAlias(denominatorMetric)).append(" AS ")
+                    .append(quoteAlias(denominatorMetric))
+                    .append(", COALESCE(m.").append(quoteAlias(matchedMetric)).append(", 0) AS ")
+                    .append(quoteAlias(matchedMetric))
+                    .append(", (1.0 * COALESCE(m.").append(quoteAlias(matchedMetric)).append(", 0) / NULLIF(sp.")
+                    .append(quoteAlias(denominatorMetric)).append(", 0)) AS ").append(quoteAlias(rateAlias))
+                    .append("\nFROM ").append(sourcePeriodGridAlias).append(" sp\n")
+                    .append("LEFT JOIN ").append(matchedAlias).append(" m ON sp.").append(quoteAlias(groupKey))
+                    .append(" = m.").append(quoteAlias(groupKey));
+            for (String targetPeriodStageField : targetPeriodStageFields) {
+                sql.append(" AND sp.").append(quoteAlias(targetPeriodStageField))
+                        .append(" = m.").append(quoteAlias(targetPeriodStageField));
+            }
+            sql.append("\nCROSS JOIN ").append(guardAlias).append(" g\n")
                     .append("WHERE g.").append(quoteAlias("duplicateRightKeys")).append(" = 0\n")
                     .append("  AND g.").append(quoteAlias("unmatchedLeftKeys")).append(" = 0\n")
                     .append("  AND g.").append(quoteAlias("rejectedNullLeftKeys")).append(" = 0\n")
@@ -3656,7 +3910,8 @@ public final class DslCteDslRequestMapper {
                                                               String targetPeriodField,
                                                               String targetPeriodGrain,
                                                               List<String> targetPeriodStageFields,
-                                                              List<String> targetPeriodOutputFields) {
+                                                              List<String> targetPeriodOutputFields,
+                                                              ZeroFillCalendarScaffoldContract zeroFillCalendarScaffold) {
 
         Map<String, Object> summary() {
             Map<String, Object> result = new LinkedHashMap<>();
@@ -3695,6 +3950,12 @@ public final class DslCteDslRequestMapper {
                         "targetPeriodFields", targetPeriodOutputFields));
                 result.put("denominator_scope", "fixed_per_source_group");
                 result.put("numerator_bucket", "targetPeriod");
+                if (zeroFillTargetYearMonthCalendar()) {
+                    result.put("calendarScaffold", zeroFillCalendarScaffold.summary(
+                            targetPeriodStageFields, targetPeriodOutputFields));
+                    result.put("fill_policy", zeroFillCalendarScaffold.fillPolicy());
+                    result.put("scaffold_scope", zeroFillCalendarScaffold.scaffoldScope());
+                }
             }
             result.put("denominator", denominatorMetric);
             result.put("numerator", matchedMetric);
@@ -3722,10 +3983,65 @@ public final class DslCteDslRequestMapper {
             return firstOrNull(targetPeriodOutputFields);
         }
 
+        private boolean zeroFillTargetYearMonthCalendar() {
+            return targetPeriodAttribution()
+                    && zeroFillCalendarScaffold != null
+                    && zeroFillCalendarScaffold.declared();
+        }
+
         private String targetPeriodKindSummary() {
+            if (zeroFillTargetYearMonthCalendar()) {
+                return "cross_model_funnel_target_year_month_zero_fill_calendar";
+            }
             return "year_month".equals(targetPeriodGrain)
                     ? "cross_model_funnel_target_year_month_attribution"
                     : "cross_model_funnel_target_month_attribution";
+        }
+    }
+
+    private record YearMonthPeriod(int year, int month) {
+        boolean after(YearMonthPeriod other) {
+            return year > other.year || (year == other.year && month > other.month);
+        }
+
+        YearMonthPeriod next() {
+            if (month == 12) {
+                return new YearMonthPeriod(year + 1, 1);
+            }
+            return new YearMonthPeriod(year, month + 1);
+        }
+
+        String label() {
+            return String.format(Locale.ROOT, "%04d-%02d", year, month);
+        }
+    }
+
+    private record ZeroFillCalendarScaffoldContract(boolean declared,
+                                                    String source,
+                                                    String rangePolicy,
+                                                    List<YearMonthPeriod> periods,
+                                                    String fillPolicy,
+                                                    String scaffoldScope) {
+        static ZeroFillCalendarScaffoldContract notDeclared() {
+            return new ZeroFillCalendarScaffoldContract(false, null, null, List.of(), null, null);
+        }
+
+        Map<String, Object> summary(List<String> stageFields, List<String> outputFields) {
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("source", source);
+            result.put("rangePolicy", rangePolicy);
+            result.put("range", Map.of(
+                    "from", periods.isEmpty() ? null : periods.get(0).label(),
+                    "to", periods.isEmpty() ? null : periods.get(periods.size() - 1).label()));
+            result.put("period_count", periods.size());
+            result.put("grain", "year_month");
+            result.put("stageFields", stageFields);
+            result.put("outputFields", outputFields);
+            result.put("fillPolicy", fillPolicy);
+            result.put("fillTarget", "matchedLeadCount");
+            result.put("denominatorScope", "fixed_per_source_group");
+            result.put("scaffoldScope", scaffoldScope);
+            return result;
         }
     }
 

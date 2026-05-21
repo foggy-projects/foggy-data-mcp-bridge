@@ -1144,6 +1144,31 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
+    @DisplayName("DSL_CTE signed cross-model target year-month zero-fill calendar marks runtime bridge-ready")
+    void validationShowsBridgeReadyForSignedCrossModelFunnelTargetYearMonthZeroFillCalendar() {
+        SemanticQueryResponse response = service.validateQuery(
+                "CrmLead", dslCtePlan(signedCrossModelCrmOrderTargetYearMonthZeroFillCalendarContract()),
+                SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_READY", validation.get("dsl_bridge_status"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> contract =
+                (Map<String, Object>) validation.get("dsl_cross_model_funnel_time_attribution");
+        assertEquals("cross_model_funnel_target_year_month_zero_fill_calendar", contract.get("kind"));
+        assertEquals("runtime_guarded_target_year_month_zero_fill_calendar", contract.get("bridge_scope"));
+        assertEquals("fixed_per_source_group", contract.get("denominator_scope"));
+        assertEquals("targetPeriod", contract.get("numerator_bucket"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> calendarScaffold = (Map<String, Object>) contract.get("calendarScaffold");
+        assertEquals("natural_gregorian_year_month", calendarScaffold.get("source"));
+        assertEquals("explicit", calendarScaffold.get("rangePolicy"));
+        assertEquals(3, calendarScaffold.get("period_count"));
+        assertEquals("zero", calendarScaffold.get("fillPolicy"));
+        assertEquals("source_groups_from_source_cohort", calendarScaffold.get("scaffoldScope"));
+    }
+
+    @Test
     @DisplayName("DSL_CTE signed cross-model target-month attribution defers missing targetPeriod")
     void validationDefersCrossModelFunnelTargetMonthAttributionMissingTargetPeriod() {
         Map<String, Object> plan = signedCrossModelCrmOrderTargetMonthAttributionContract();
@@ -1298,6 +1323,22 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
+    @DisplayName("DSL_CTE cross-model funnel defers zero-fill calendar without explicit range")
+    void validationDefersCrossModelFunnelZeroFillCalendarWithoutExplicitRange() {
+        Map<String, Object> plan = signedCrossModelCrmOrderTargetYearMonthZeroFillCalendarContract();
+        plan.put("calendarScaffold", m(
+                "field", "FactOrderQueryModel.orderDate",
+                "grain", "year_month",
+                "source", "natural_gregorian_year_month",
+                "fillPolicy", "zero"));
+
+        List<String> unsupported = bridgeUnsupported(plan);
+
+        assertTrue(unsupported.stream()
+                .anyMatch(msg -> msg.contains("calendarScaffold.range requires from/to year-month literals")));
+    }
+
+    @Test
     @DisplayName("DSL_CTE signed cross-model target-month attribution can opt in to target-month SQL")
     void generateSqlOptInUsesCrossModelFunnelTargetMonthAttributionBridge() {
         QueryFacade queryFacade = mock(QueryFacade.class);
@@ -1373,6 +1414,54 @@ class DslCteAcceptanceSampleTest {
                 result.getSql());
         assertTrue(result.getSql().contains("m.\"orderDate$year\" AS \"orderDate$year\""), result.getSql());
         assertTrue(result.getSql().contains("m.\"orderDate$month\" AS \"orderDate$month\""), result.getSql());
+        assertTrue(result.getSql().contains("ORDER BY \"leadSource\" ASC, \"orderDate$year\" ASC, \"orderDate$month\" ASC"),
+                result.getSql());
+        assertEquals(List.of(30), result.getParams());
+    }
+
+    @Test
+    @DisplayName("DSL_CTE signed cross-model target year-month zero-fill calendar can opt in to SQL")
+    void generateSqlOptInUsesCrossModelFunnelTargetYearMonthZeroFillCalendarBridge() {
+        QueryFacade queryFacade = mock(QueryFacade.class);
+        when(queryFacade.buildSqlOnly(any(ModelResultContext.class)))
+                .thenReturn(
+                        new SqlGenerationResult(
+                                "SELECT \"leadSource\", COUNT(lead_id) AS \"totalLeadCount\" "
+                                        + "FROM crm_lead GROUP BY \"leadSource\"",
+                                List.of(),
+                                null),
+                        new SqlGenerationResult(
+                                "SELECT \"leadSource\", \"convertedOrderId\", \"createdAt\", "
+                                        + "COUNT(lead_id) AS \"leadCount\" FROM crm_lead "
+                                        + "GROUP BY \"leadSource\", \"convertedOrderId\", \"createdAt\"",
+                                List.of(),
+                                null),
+                        new SqlGenerationResult(
+                                "SELECT \"orderId\", \"orderDate$caption\", \"orderDate$year\", \"orderDate$month\", "
+                                        + "COUNT(order_id) AS \"matchedOrderCount\" FROM fact_order "
+                                        + "GROUP BY \"orderId\", \"orderDate$caption\", \"orderDate$year\", \"orderDate$month\"",
+                                List.of(),
+                                null));
+        ReflectionTestUtils.setField(service, "queryFacade", queryFacade);
+
+        SemanticQueryRequest request = dslCtePlan(signedCrossModelCrmOrderTargetYearMonthZeroFillCalendarContract());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SqlGenerationResult result = service.generateSql("CrmLead", request, SemanticRequestContext.empty());
+
+        assertTrue(result.getSql().contains("dsl_cte_calendar_periods"), result.getSql());
+        assertTrue(result.getSql().contains(
+                "SELECT 2026 AS \"orderDate$year\", 12 AS \"orderDate$month\""), result.getSql());
+        assertTrue(result.getSql().contains(
+                "UNION ALL\nSELECT 2027 AS \"orderDate$year\", 1 AS \"orderDate$month\""), result.getSql());
+        assertTrue(result.getSql().contains("dsl_cte_source_period_grid"), result.getSql());
+        assertTrue(result.getSql().contains("CROSS JOIN dsl_cte_calendar_periods c"), result.getSql());
+        assertTrue(result.getSql().contains("LEFT JOIN dsl_cte_funnel_window_matched m ON sp.\"leadSource\" = m.\"leadSource\""),
+                result.getSql());
+        assertTrue(result.getSql().contains("sp.\"orderDate$year\" = m.\"orderDate$year\""), result.getSql());
+        assertTrue(result.getSql().contains("sp.\"orderDate$month\" = m.\"orderDate$month\""), result.getSql());
+        assertTrue(result.getSql().contains("COALESCE(m.\"matchedLeadCount\", 0) AS \"matchedLeadCount\""),
+                result.getSql());
         assertTrue(result.getSql().contains("ORDER BY \"leadSource\" ASC, \"orderDate$year\" ASC, \"orderDate$month\" ASC"),
                 result.getSql());
         assertEquals(List.of(30), result.getParams());
@@ -2608,6 +2697,21 @@ class DslCteAcceptanceSampleTest {
                         "FactOrderQueryModel.orderDate$month")));
         plan.put("output", List.of("leadSource", "orderDate$year", "orderDate$month", "totalLeadCount",
                 "matchedLeadCount", "leadToOrderConversionRate"));
+        return plan;
+    }
+
+    private Map<String, Object> signedCrossModelCrmOrderTargetYearMonthZeroFillCalendarContract() {
+        Map<String, Object> plan = signedCrossModelCrmOrderTargetYearMonthAttributionContract();
+        plan.put("calendarScaffold", m(
+                "field", "FactOrderQueryModel.orderDate",
+                "grain", "year_month",
+                "source", "natural_gregorian_year_month",
+                "rangePolicy", "explicit",
+                "range", m("from", "2026-12", "to", "2027-02"),
+                "fillPolicy", "zero",
+                "fillTarget", "matchedLeadCount",
+                "denominatorScope", "fixed_per_source_group",
+                "scaffoldScope", "source_groups_from_source_cohort"));
         return plan;
     }
 

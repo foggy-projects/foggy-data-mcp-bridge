@@ -251,6 +251,42 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("DSL_CTE cross-model target year-month zero-fill calendar bridge executes guarded SQL")
+    void crossModelCrmOrderTargetYearMonthZeroFillCalendarBridgeSqlMatchesManualBaseline() {
+        insertTimeAttributionFixture();
+        try {
+            List<Map<String, Object>> manualRows =
+                    crossModelCrmOrderTargetYearMonthZeroFillCalendarManualRows();
+            SemanticQueryRequest request =
+                    dslCtePlan(crossModelCrmOrderTargetYearMonthZeroFillCalendarBridgePlan());
+            request.setHints(Map.of("dslCteCompileToDsl", true));
+
+            SqlGenerationResult generated = semanticQueryServiceV3.generateSql(
+                    "CrmLead", request, SemanticRequestContext.empty());
+
+            assertNotNull(generated);
+            assertNotNull(generated.getSql());
+            assertTrue(generated.getSql().contains("dsl_cte_calendar_periods"), generated.getSql());
+            assertTrue(generated.getSql().contains("dsl_cte_source_period_grid"), generated.getSql());
+            assertTrue(generated.getSql().contains("LEFT JOIN dsl_cte_funnel_window_matched m"),
+                    generated.getSql());
+            assertTrue(generated.getSql().contains("COALESCE(m.\"matchedLeadCount\", 0) AS \"matchedLeadCount\""),
+                    generated.getSql());
+
+            List<Map<String, Object>> rows = new ArrayList<>(jdbcTemplate.queryForList(
+                    generated.getSql(), generated.getParams().toArray(new Object[0])));
+            rows.sort(targetYearMonthOrder());
+
+            assertEquals(manualRows.size(), rows.size());
+            for (int i = 0; i < manualRows.size(); i++) {
+                assertGeneratedCrossModelTargetYearMonthAttributionRowMatchesManual(rows.get(i), manualRows.get(i));
+            }
+        } finally {
+            deleteTimeAttributionFixture();
+        }
+    }
+
+    @Test
     @DisplayName("DSL_CTE CRM lead funnel bridge executes and matches manual baseline")
     void crmLeadFunnelBridgeSqlMatchesManualBaseline() {
         List<Map<String, Object>> manualRows = crmLeadFunnelManualRows();
@@ -571,6 +607,83 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
         return rows;
     }
 
+    private List<Map<String, Object>> crossModelCrmOrderTargetYearMonthZeroFillCalendarManualRows() {
+        List<Map<String, Object>> rows = new ArrayList<>(jdbcTemplate.queryForList("""
+                WITH source_total_leads AS (
+                    SELECT lead_source AS leadSource,
+                           COUNT(lead_id) AS totalLeadCount
+                    FROM crm_lead
+                    WHERE created_at >= '2026-07-01 00:00:00'
+                      AND created_at < '2026-08-01 00:00:00'
+                    GROUP BY lead_source
+                ),
+                lead_orders AS (
+                    SELECT lead_source AS leadSource,
+                           converted_order_id AS convertedOrderId,
+                           created_at AS createdAt,
+                           COUNT(lead_id) AS leadCount
+                    FROM crm_lead
+                    WHERE created_at >= '2026-07-01 00:00:00'
+                      AND created_at < '2026-08-01 00:00:00'
+                    GROUP BY lead_source, converted_order_id, created_at
+                ),
+                completed_orders AS (
+                    SELECT fo.order_id AS orderId,
+                           dd.full_date AS "orderDate$caption",
+                           dd.year AS "orderDate$year",
+                           dd.month AS "orderDate$month",
+                           COUNT(fo.order_id) AS matchedOrderCount
+                    FROM fact_order fo
+                    JOIN dim_date dd ON fo.date_key = dd.date_key
+                    WHERE fo.order_status = 'COMPLETED'
+                    GROUP BY fo.order_id, dd.full_date, dd.year, dd.month
+                ),
+                source_matched_orders AS (
+                    SELECT l.leadSource AS leadSource,
+                           r."orderDate$year" AS "orderDate$year",
+                           r."orderDate$month" AS "orderDate$month",
+                           SUM(l.leadCount) AS matchedLeadCount
+                    FROM lead_orders l
+                    JOIN completed_orders r
+                      ON l.convertedOrderId = r.orderId
+                    WHERE l.convertedOrderId IS NOT NULL
+                      AND date(r."orderDate$caption") >= date(l.createdAt)
+                      AND date(r."orderDate$caption") < date(l.createdAt, '+30 days')
+                    GROUP BY l.leadSource, r."orderDate$year", r."orderDate$month"
+                ),
+                calendar_periods AS (
+                    SELECT 2026 AS "orderDate$year", 7 AS "orderDate$month"
+                    UNION ALL
+                    SELECT 2026 AS "orderDate$year", 8 AS "orderDate$month"
+                    UNION ALL
+                    SELECT 2026 AS "orderDate$year", 9 AS "orderDate$month"
+                ),
+                source_period_grid AS (
+                    SELECT d.leadSource AS leadSource,
+                           c."orderDate$year" AS "orderDate$year",
+                           c."orderDate$month" AS "orderDate$month",
+                           d.totalLeadCount AS totalLeadCount
+                    FROM source_total_leads d
+                    CROSS JOIN calendar_periods c
+                )
+                SELECT sp.leadSource AS leadSource,
+                       sp."orderDate$year" AS "orderDate$year",
+                       sp."orderDate$month" AS "orderDate$month",
+                       sp.totalLeadCount AS totalLeadCount,
+                       COALESCE(m.matchedLeadCount, 0) AS matchedLeadCount,
+                       1.0 * COALESCE(m.matchedLeadCount, 0)
+                           / NULLIF(sp.totalLeadCount, 0) AS leadToOrderConversionRate
+                FROM source_period_grid sp
+                LEFT JOIN source_matched_orders m
+                  ON sp.leadSource = m.leadSource
+                 AND sp."orderDate$year" = m."orderDate$year"
+                 AND sp."orderDate$month" = m."orderDate$month"
+                ORDER BY leadSource, "orderDate$year", "orderDate$month"
+                """));
+        rows.sort(targetYearMonthOrder());
+        return rows;
+    }
+
     private void insertTimeAttributionFixture() {
         deleteTimeAttributionFixture();
         jdbcTemplate.update("""
@@ -668,6 +781,16 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
                 ((Number) value(generated, "orderDate$month")).intValue());
     }
 
+    private static void assertGeneratedCrossModelTargetYearMonthAttributionRowMatchesManual(
+            Map<String, Object> generated,
+            Map<String, Object> manual) {
+        assertGeneratedCrossModelSourceRateRowMatchesManual(generated, manual);
+        assertEquals(((Number) manual.get("orderDate$year")).intValue(),
+                ((Number) value(generated, "orderDate$year")).intValue());
+        assertEquals(((Number) manual.get("orderDate$month")).intValue(),
+                ((Number) value(generated, "orderDate$month")).intValue());
+    }
+
     private static void assertGeneratedCrmFunnelCountsMatchManual(Map<String, Object> generated,
                                                                   Map<String, Object> manual) {
         assertEquals(manual.get("leadSource"), value(generated, "leadSource"));
@@ -702,6 +825,13 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
             }
         }
         throw new AssertionError("Missing keys " + List.of(keys) + " in " + row);
+    }
+
+    private static Comparator<Map<String, Object>> targetYearMonthOrder() {
+        return Comparator
+                .comparing((Map<String, Object> row) -> String.valueOf(value(row, "leadSource")))
+                .thenComparing(row -> ((Number) value(row, "orderDate$year")).intValue())
+                .thenComparing(row -> ((Number) value(row, "orderDate$month")).intValue());
     }
 
     private static SemanticQueryRequest dslCtePlan(Map<String, Object> ctePlan) {
@@ -938,6 +1068,45 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
                 "targetPeriodFields", List.of("FactOrderQueryModel.orderDate$month")));
         plan.put("output", List.of("leadSource", "orderDate$month", "totalLeadCount",
                 "matchedLeadCount", "leadToOrderConversionRate"));
+        return plan;
+    }
+
+    private static Map<String, Object> crossModelCrmOrderTargetYearMonthAttributionBridgePlan() {
+        Map<String, Object> plan = crossModelCrmOrderTargetMonthAttributionBridgePlan();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(1).put("groupBy", List.of("orderId", "orderDate$caption",
+                "orderDate$year", "orderDate$month"));
+        stages.get(2).put("output", List.of(
+                "leadSource", "convertedOrderId", "createdAt", "leadCount",
+                "orderId", "orderDate$caption", "orderDate$year", "orderDate$month", "matchedOrderCount"));
+        stages.get(3).put("groupBy", List.of("leadSource", "orderDate$year", "orderDate$month"));
+        plan.put("targetPeriod", m(
+                "field", "FactOrderQueryModel.orderDate",
+                "grain", "year_month",
+                "calendar", "natural"));
+        plan.put("outputGrain", m(
+                "sourceFields", List.of("CrmLead.leadSource"),
+                "targetPeriodFields", List.of(
+                        "FactOrderQueryModel.orderDate$year",
+                        "FactOrderQueryModel.orderDate$month")));
+        plan.put("output", List.of("leadSource", "orderDate$year", "orderDate$month", "totalLeadCount",
+                "matchedLeadCount", "leadToOrderConversionRate"));
+        return plan;
+    }
+
+    private static Map<String, Object> crossModelCrmOrderTargetYearMonthZeroFillCalendarBridgePlan() {
+        Map<String, Object> plan = crossModelCrmOrderTargetYearMonthAttributionBridgePlan();
+        plan.put("calendarScaffold", m(
+                "field", "FactOrderQueryModel.orderDate",
+                "grain", "year_month",
+                "source", "natural_gregorian_year_month",
+                "rangePolicy", "explicit",
+                "range", m("from", "2026-07", "to", "2026-09"),
+                "fillPolicy", "zero",
+                "fillTarget", "matchedLeadCount",
+                "denominatorScope", "fixed_per_source_group",
+                "scaffoldScope", "source_groups_from_source_cohort"));
         return plan;
     }
 
