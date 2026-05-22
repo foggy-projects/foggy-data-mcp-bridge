@@ -21,6 +21,8 @@ import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResult
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
+import com.foggyframework.dataset.db.model.semantic.memorygrid.GridSqlContractValidator;
+import com.foggyframework.dataset.db.model.semantic.memorygrid.MemoryGridDialectDescriptor;
 import com.foggyframework.dataset.db.model.semantic.memorygrid.MemoryGridEngine;
 import com.foggyframework.dataset.db.model.semantic.memorygrid.MemoryGridExecutionResult;
 import com.foggyframework.dataset.db.model.semantic.memorygrid.MemoryGridRequest;
@@ -304,7 +306,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
             }
             throw RX.throwB("SEMANTIC_SQL_EXECUTION_NOT_IMPLEMENTED: Semantic SQL AST whitelist passed, but SQL-to-DSL compilation is not part of P0.");
         }
-        if (isMemoryGridPlan(request)) {
+        if (isMemoryGridRequest(request)) {
             memoryGridValidation(request, context);
             throw RX.throwB("MEMORY_GRID_EXECUTION_NOT_IMPLEMENTED: Memory Grid guardrail passed, but in-memory execution is not part of P0.");
         }
@@ -629,7 +631,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
 
     private SemanticQueryResponse memoryGridPlanResponseIfAny(SemanticQueryRequest request,
                                                               SemanticRequestContext context) {
-        if (!isMemoryGridPlan(request)) {
+        if (!isMemoryGridRequest(request)) {
             return null;
         }
         Map<String, Object> validation = memoryGridValidation(request, context);
@@ -645,6 +647,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         execution.setClarifyingQuestions(List.of());
         execution.setExecutablePlan(request.getExecutablePlan());
         execution.setMemoryGridPlan(request.getMemoryGridPlan());
+        execution.setGridSql(request.getGridSql());
         execution.setMemoryGridValidation(validation);
         execution.setErrorCode(null);
         response.setExecution(execution);
@@ -653,11 +656,13 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
 
     private SemanticQueryResponse memoryGridExecutionResponseIfAny(SemanticQueryRequest request,
                                                                    SemanticRequestContext context) {
-        if (!isMemoryGridPlan(request) || !memoryGridExecuteEnabled(request)) {
+        if (!isMemoryGridRequest(request) || !memoryGridExecuteEnabled(request)) {
             return null;
         }
-        MemoryGridExecutionResult result = memoryGridEngine().execute(memoryGridRequest(request), context);
-        Map<String, Object> validation = new LinkedHashMap<>(result.validation());
+        MemoryGridRequest memoryGridRequest = memoryGridRequest(request);
+        Map<String, Object> validation = memoryGridValidation(request, context);
+        MemoryGridExecutionResult result = memoryGridEngine().execute(memoryGridRequest, context);
+        validation.putAll(result.validation());
 
         SemanticQueryResponse response = new SemanticQueryResponse();
         response.setItems(result.rows());
@@ -671,6 +676,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         execution.setWhy(request.getWhy() != null ? List.copyOf(request.getWhy()) : List.of());
         execution.setClarifyingQuestions(List.of());
         execution.setMemoryGridPlan(request.getMemoryGridPlan());
+        execution.setGridSql(request.getGridSql());
         execution.setMemoryGridValidation(validation);
         execution.setMemoryGridExecutionSummary(result.summary());
         execution.setErrorCode(null);
@@ -680,11 +686,27 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
 
     private Map<String, Object> memoryGridValidation(SemanticQueryRequest request,
                                                      SemanticRequestContext context) {
-        if (request == null || request.getMemoryGridPlan() == null || request.getMemoryGridPlan().isEmpty()) {
-            throw RX.throwB("MEMORY_GRID_UNBOUNDED_INPUT: memory_grid_plan must be provided for MEMORY_GRID route.");
+        MemoryGridRequest memoryGridRequest = memoryGridRequest(request);
+        MemoryGridEngine engine = memoryGridEngine();
+        MemoryGridDialectDescriptor dialect = engine.dialect();
+        Map<String, Object> validationEvidence = new LinkedHashMap<>();
+        appendMemoryGridDialectEvidence(validationEvidence, dialect);
+
+        if (hasGridSql(request)) {
+            if (dialect == null || !dialect.gridSqlSupported()) {
+                throw RX.throwB("MEMORY_GRID_GRID_SQL_NOT_SUPPORTED: "
+                        + firstNonBlank(dialect == null ? null : dialect.engineId(), "configured MemoryGridEngine")
+                        + " does not support grid_sql.");
+            }
+            validationEvidence.putAll(GridSqlContractValidator.validate(memoryGridRequest));
+        } else if (!hasMemoryGridPlan(request)) {
+            throw RX.throwB("MEMORY_GRID_UNBOUNDED_INPUT: memory_grid_plan or grid_sql must be provided for MEMORY_GRID route.");
         }
-        MemoryGridValidation validation = memoryGridEngine().validate(memoryGridRequest(request), context);
-        return new LinkedHashMap<>(validation.evidence());
+
+        MemoryGridValidation validation = engine.validate(memoryGridRequest, context);
+        validationEvidence.putAll(validation.evidence());
+        appendMemoryGridDialectEvidence(validationEvidence, dialect);
+        return validationEvidence;
     }
 
     private MemoryGridEngine memoryGridEngine() {
@@ -695,7 +717,15 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
     }
 
     private MemoryGridRequest memoryGridRequest(SemanticQueryRequest request) {
-        return MemoryGridRequest.fromPlan(request.getMemoryGridPlan(), request.getHints(), request.getExecutablePlan());
+        if (request == null) {
+            return new MemoryGridRequest(Map.of(), null, List.of(), Map.of(), null);
+        }
+        return new MemoryGridRequest(
+                request.getMemoryGridPlan(),
+                request.getGridSql(),
+                request.getMemoryGridBindings(),
+                request.getHints(),
+                request.getExecutablePlan());
     }
 
     private boolean memoryGridExecuteEnabled(SemanticQueryRequest request) {
@@ -706,15 +736,36 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         return Boolean.TRUE.equals(value) || (value instanceof String text && "true".equalsIgnoreCase(text));
     }
 
-    private boolean isMemoryGridPlan(SemanticQueryRequest request) {
+    private boolean isMemoryGridRequest(SemanticQueryRequest request) {
         if (request == null) {
             return false;
         }
-        if (request.getMemoryGridPlan() != null && !request.getMemoryGridPlan().isEmpty()) {
+        if (hasMemoryGridPlan(request) || hasGridSql(request)) {
             return true;
         }
         String route = request.getRoute();
         return route != null && "MEMORY_GRID".equals(route.trim().toUpperCase(Locale.ROOT));
+    }
+
+    private boolean hasMemoryGridPlan(SemanticQueryRequest request) {
+        return request != null
+                && request.getMemoryGridPlan() != null
+                && !request.getMemoryGridPlan().isEmpty();
+    }
+
+    private boolean hasGridSql(SemanticQueryRequest request) {
+        return request != null && !StringUtils.isTrimEmpty(request.getGridSql());
+    }
+
+    private void appendMemoryGridDialectEvidence(Map<String, Object> validationEvidence,
+                                                 MemoryGridDialectDescriptor dialect) {
+        if (dialect == null) {
+            return;
+        }
+        validationEvidence.put("memory_grid_engine", dialect.engineId());
+        validationEvidence.put("memory_grid_dialect", dialect.dialectId());
+        validationEvidence.put("memory_grid_plan_supported", dialect.planSupported());
+        validationEvidence.put("memory_grid_grid_sql_supported", dialect.gridSqlSupported());
     }
 
     private SemanticQueryResponse dslCtePlanResponseIfAny(SemanticQueryRequest request) {

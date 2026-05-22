@@ -10,6 +10,7 @@ import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.enums.CaptionMatchMode;
 import com.foggyframework.dataset.db.model.semantic.enums.MismatchHandleStrategy;
 import com.foggyframework.dataset.db.model.semantic.domain.pivot.PivotRequest;
+import com.foggyframework.dataset.db.model.semantic.memorygrid.MemoryGridInputBinding;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -66,6 +67,9 @@ public class SemanticQueryPayloadMapper {
         request.setExecutablePlan(firstPresent(payload, "executable_plan", "executablePlan"));
         request.setSemanticSql(stringValue(firstPresent(payload, "semantic_sql", "semanticSql")));
         request.setMemoryGridPlan(convertMap(firstPresent(payload, "memory_grid_plan", "memoryGridPlan")));
+        request.setGridSql(stringValue(firstPresent(payload, "grid_sql", "gridSql")));
+        request.setMemoryGridBindings(convertList(firstPresent(payload, "bindings", "memoryGridBindings"),
+                MemoryGridInputBinding.class));
 
         String captionMatchMode = stringValue(payload.get("captionMatchMode"));
         if (captionMatchMode != null && !captionMatchMode.isBlank()) {

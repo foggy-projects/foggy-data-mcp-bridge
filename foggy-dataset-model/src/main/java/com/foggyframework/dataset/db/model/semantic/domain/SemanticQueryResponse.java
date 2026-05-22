@@ -139,6 +139,10 @@ public class SemanticQueryResponse {
         @JsonProperty("memory_grid_plan")
         private Map<String, Object> memoryGridPlan;
 
+        @ApiModelProperty(value = "Memory Grid SQL。仅作为受治理小结果二次分析 contract，不表示默认可执行")
+        @JsonProperty("grid_sql")
+        private String gridSql;
+
         @ApiModelProperty(value = "Memory Grid guardrail 校验证据")
         @JsonProperty("memory_grid_validation")
         private Map<String, Object> memoryGridValidation;

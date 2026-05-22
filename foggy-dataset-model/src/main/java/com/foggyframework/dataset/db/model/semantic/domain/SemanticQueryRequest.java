@@ -8,6 +8,7 @@ import com.foggyframework.dataset.db.model.semantic.domain.deserializer.OrderIte
 import com.foggyframework.dataset.db.model.semantic.enums.CaptionMatchMode;
 import com.foggyframework.dataset.db.model.semantic.enums.MismatchHandleStrategy;
 import com.foggyframework.dataset.db.model.semantic.domain.pivot.PivotRequest;
+import com.foggyframework.dataset.db.model.semantic.memorygrid.MemoryGridInputBinding;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
 import lombok.AllArgsConstructor;
@@ -56,6 +57,14 @@ public class SemanticQueryRequest {
     @ApiModelProperty(value = "Memory Grid 二次分析计划。P0 仅做受治理、有界输入 guardrail")
     @JsonProperty("memory_grid_plan")
     private Map<String, Object> memoryGridPlan;
+
+    @ApiModelProperty(value = "Memory Grid SQL。仅允许引用 bindings 中声明的 result handle alias")
+    @JsonProperty("grid_sql")
+    private String gridSql;
+
+    @ApiModelProperty(value = "Memory Grid SQL 输入绑定。外部字段名为 bindings，内部限定为 memoryGridBindings")
+    @JsonProperty("bindings")
+    private List<MemoryGridInputBinding> memoryGridBindings;
 
     @ApiModelProperty(value = "计算字段定义列表，支持动态创建基于表达式的虚拟字段")
     private List<CalculatedFieldDef> calculatedFields;
