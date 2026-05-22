@@ -53,7 +53,7 @@ class DslCteAcceptanceSampleTest {
         );
         QueryModel factOrder = queryModel(
                 "FactOrderQueryModel", "orderId", "orderStatus", "orderDate", "orderDate$caption",
-                "orderDate$month", "orderTime"
+                "orderDate$year", "orderDate$month", "orderTime", "paymentStatus", "amount"
         );
         QueryModel factSales = queryModel(
                 "FactSalesQueryModel", "salesDate$id", "salesDate$year", "salesDate$quarter",
@@ -1144,6 +1144,77 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
+    @DisplayName("DSL_CTE signed cross-model target year-month money attribution marks bridge-ready")
+    void validationShowsBridgeReadyForSignedCrossModelFunnelMoneyAttribution() {
+        SemanticQueryResponse response = service.validateQuery(
+                "CrmLead", dslCtePlan(signedCrossModelCrmOrderTargetYearMonthMoneyAttributionContract()),
+                SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_READY", validation.get("dsl_bridge_status"));
+        assertNotNull(validation.get("dsl_left_request"));
+        assertNotNull(validation.get("dsl_right_request"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> models = (Map<String, Object>) validation.get("dsl_bridge_models");
+        assertFalse(models.containsKey("denominator"));
+        assertEquals("CrmLead", models.get("left"));
+        assertEquals("FactOrderQueryModel", models.get("right"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> contract =
+                (Map<String, Object>) validation.get("dsl_cross_model_funnel_money_attribution");
+        assertEquals("cross_model_funnel_target_year_month_money_attribution", contract.get("kind"));
+        assertEquals("runtime_guarded_target_year_month_money_attribution", contract.get("bridge_scope"));
+        assertEquals(true, contract.get("execution_bridge"));
+        assertEquals("completed_paid_orders", contract.get("orderStatusScope"));
+        assertEquals("dedupe_order_id_after_signed_relation", contract.get("deduplication"));
+        assertEquals("single_currency_no_conversion", contract.get("currencyScope"));
+        assertEquals(true, contract.get("cross_source_duplicate_order_guard"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> amount = (Map<String, Object>) contract.get("amount");
+        assertEquals("FactOrderQueryModel.amount", amount.get("field"));
+        assertEquals("sum", amount.get("aggregation"));
+        assertEquals("orderAmount", amount.get("source_metric"));
+        assertEquals("convertedAmount", amount.get("metric"));
+        assertEquals(List.of("leadSource", "orderDate$year", "orderDate$month"), contract.get("groupBy"));
+        assertEquals(List.of("leadSource", "orderDate$year", "orderDate$month", "convertedAmount"),
+                contract.get("output"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE signed cross-model money attribution defers missing completed-paid scope")
+    void validationDefersCrossModelFunnelMoneyAttributionMissingCompletedPaidScope() {
+        Map<String, Object> plan = signedCrossModelCrmOrderTargetYearMonthMoneyAttributionContract();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(1).put("filters", List.of(filter("orderStatus", "=", "COMPLETED")));
+
+        SemanticQueryResponse response = service.validateQuery(
+                "CrmLead", dslCtePlan(plan), SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_DEFERRED", validation.get("dsl_bridge_status"));
+        assertTrue(validation.get("dsl_bridge_unsupported").toString()
+                .contains("completed_paid_orders scope"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE signed cross-model money attribution defers wrong converted amount metric")
+    void validationDefersCrossModelFunnelMoneyAttributionWrongMetric() {
+        Map<String, Object> plan = signedCrossModelCrmOrderTargetYearMonthMoneyAttributionContract();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(3).put("metrics", List.of(metric("convertedAmount", "sum(matchedOrderCount)")));
+
+        SemanticQueryResponse response = service.validateQuery(
+                "CrmLead", dslCtePlan(plan), SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_DEFERRED", validation.get("dsl_bridge_status"));
+        assertTrue(validation.get("dsl_bridge_unsupported").toString()
+                .contains("convertedAmount=sum(orderAmount)"));
+    }
+
+    @Test
     @DisplayName("DSL_CTE signed cross-model target year-month zero-fill calendar marks runtime bridge-ready")
     void validationShowsBridgeReadyForSignedCrossModelFunnelTargetYearMonthZeroFillCalendar() {
         SemanticQueryResponse response = service.validateQuery(
@@ -1502,6 +1573,44 @@ class DslCteAcceptanceSampleTest {
         assertTrue(result.getSql().contains("m.\"orderDate$month\" AS \"orderDate$month\""), result.getSql());
         assertTrue(result.getSql().contains("ORDER BY \"leadSource\" ASC, \"orderDate$year\" ASC, \"orderDate$month\" ASC"),
                 result.getSql());
+        assertEquals(List.of(30), result.getParams());
+    }
+
+    @Test
+    @DisplayName("DSL_CTE signed cross-model target year-month money attribution can opt in to SQL")
+    void generateSqlOptInUsesCrossModelFunnelMoneyAttributionBridge() {
+        QueryFacade queryFacade = mock(QueryFacade.class);
+        when(queryFacade.buildSqlOnly(any(ModelResultContext.class)))
+                .thenReturn(
+                        new SqlGenerationResult(
+                                "SELECT \"leadSource\", \"convertedOrderId\", \"createdAt\", "
+                                        + "COUNT(lead_id) AS \"leadCount\" FROM crm_lead "
+                                        + "GROUP BY \"leadSource\", \"convertedOrderId\", \"createdAt\"",
+                                List.of(),
+                                null),
+                        new SqlGenerationResult(
+                                "SELECT \"orderId\", \"orderDate$caption\", \"orderDate$year\", \"orderDate$month\", "
+                                        + "COUNT(order_id) AS \"matchedOrderCount\", SUM(amount) AS \"orderAmount\" "
+                                        + "FROM fact_order WHERE order_status = 'COMPLETED' AND payment_status = 'PAID' "
+                                        + "GROUP BY \"orderId\", \"orderDate$caption\", \"orderDate$year\", \"orderDate$month\"",
+                                List.of(),
+                                null));
+        ReflectionTestUtils.setField(service, "queryFacade", queryFacade);
+
+        SemanticQueryRequest request = dslCtePlan(signedCrossModelCrmOrderTargetYearMonthMoneyAttributionContract());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SqlGenerationResult result = service.generateSql("CrmLead", request, SemanticRequestContext.empty());
+
+        assertTrue(result.getSql().contains("dsl_cte_funnel_amount_guard"), result.getSql());
+        assertTrue(result.getSql().contains("crossSourceDuplicateOrders"), result.getSql());
+        assertTrue(result.getSql().contains("dsl_cte_funnel_order_deduped"), result.getSql());
+        assertTrue(result.getSql().contains("MAX(j.\"orderAmount\") AS \"dedupedOrderAmount\""), result.getSql());
+        assertTrue(result.getSql().contains("SUM(\"dedupedOrderAmount\") AS \"convertedAmount\""), result.getSql());
+        assertTrue(result.getSql().contains(
+                "date(r.\"orderDate$caption\") < date(l.\"createdAt\", '+' || ? || ' days')"),
+                result.getSql());
+        assertFalse(result.getSql().contains("leadToOrderConversionRate"), result.getSql());
         assertEquals(List.of(30), result.getParams());
     }
 
@@ -2783,6 +2892,114 @@ class DslCteAcceptanceSampleTest {
                         "FactOrderQueryModel.orderDate$month")));
         plan.put("output", List.of("leadSource", "orderDate$year", "orderDate$month", "totalLeadCount",
                 "matchedLeadCount", "leadToOrderConversionRate"));
+        return plan;
+    }
+
+    private Map<String, Object> signedCrossModelCrmOrderTargetYearMonthMoneyAttributionContract() {
+        Map<String, Object> plan = plan(
+                List.of(
+                        stage("lead_orders", "aggregate",
+                                "input", model("CrmLead"),
+                                "filters", List.of(
+                                        filter("createdAt", ">=", "2026-05-01 00:00:00"),
+                                        filter("createdAt", "<", "2026-06-01 00:00:00")),
+                                "groupBy", List.of("leadSource", "convertedOrderId", "createdAt"),
+                                "metrics", List.of(metric("leadCount", "count(*)"))),
+                        stage("completed_orders", "aggregate",
+                                "input", model("FactOrderQueryModel"),
+                                "filters", List.of(
+                                        filter("orderStatus", "=", "COMPLETED"),
+                                        filter("paymentStatus", "=", "PAID")),
+                                "groupBy", List.of("orderId", "orderDate$caption",
+                                        "orderDate$year", "orderDate$month"),
+                                "metrics", List.of(
+                                        metric("matchedOrderCount", "count(*)"),
+                                        metric("orderAmount", "sum(amount)"))),
+                        stage("verified_order_align", "join_align",
+                                "inputs", List.of("lead_orders", "completed_orders"),
+                                "keys", List.of("convertedOrderId=orderId"),
+                                "joinType", "declared_key_align"),
+                        stage("source_converted_amount", "aggregate",
+                                "inputs", List.of("verified_order_align"),
+                                "groupBy", List.of("leadSource", "orderDate$year", "orderDate$month"),
+                                "metrics", List.of(metric("convertedAmount", "sum(orderAmount)")))
+                ),
+                List.of("leadSource", "orderDate$year", "orderDate$month", "convertedAmount")
+        );
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(2).put("relationRef", "CrmLead.convertedOrderId -> FactOrderQueryModel.orderId");
+        stages.get(2).put("cardinality", "many_to_one");
+        stages.get(2).put("timeAttribution", m(
+                "basis", "source_cohort_target_event_window",
+                "field", "createdAt",
+                "sourceStage", "lead_orders",
+                "targetStage", "completed_orders",
+                "targetField", "orderDate$caption"));
+        stages.get(2).put("relation", m(
+                "left", m(
+                        "stage", "lead_orders",
+                        "model", "CrmLead",
+                        "field", "convertedOrderId"),
+                "right", m(
+                        "stage", "completed_orders",
+                        "model", "FactOrderQueryModel",
+                        "field", "orderId")));
+        stages.get(2).put("runtimeGuard", m(
+                "cardinality", m(
+                        "enforce", true,
+                        "policy", "fail_closed",
+                        "leftMultiplicity", "many",
+                        "rightMultiplicity", "one",
+                        "nullKeyPolicy", "exclude_unmatched"),
+                "timeAttribution", m(
+                        "enforce", true,
+                        "policy", "fail_closed",
+                        "sourceStage", "lead_orders",
+                        "sourceField", "createdAt",
+                        "targetStage", "completed_orders",
+                        "targetField", "orderDate$caption",
+                        "order", "source_at_or_before_target",
+                        "nullPolicy", "reject_null")));
+        stages.get(2).put("output", List.of(
+                "leadSource", "convertedOrderId", "createdAt", "leadCount",
+                "orderId", "orderDate$caption", "orderDate$year", "orderDate$month",
+                "matchedOrderCount", "orderAmount"));
+        plan.put("targetPeriod", m(
+                "field", "FactOrderQueryModel.orderDate",
+                "grain", "year_month",
+                "calendar", "natural"));
+        plan.put("outputGrain", m(
+                "sourceFields", List.of("CrmLead.leadSource"),
+                "targetPeriodFields", List.of(
+                        "FactOrderQueryModel.orderDate$year",
+                        "FactOrderQueryModel.orderDate$month")));
+        plan.put("moneyAttributionContract", m(
+                "kind", "source_cohort_target_year_month_converted_amount",
+                "relationRef", "CrmLead.convertedOrderId -> FactOrderQueryModel.orderId",
+                "source", m(
+                        "stage", "lead_orders",
+                        "model", "CrmLead",
+                        "field", "createdAt"),
+                "target", m(
+                        "stage", "completed_orders",
+                        "model", "FactOrderQueryModel",
+                        "field", "orderDate$caption"),
+                "window", m(
+                        "unit", "day",
+                        "size", 30,
+                        "order", "source_at_or_before_target"),
+                "groupBy", List.of("leadSource"),
+                "amount", m(
+                        "metric", "convertedAmount",
+                        "field", "FactOrderQueryModel.amount",
+                        "stageField", "amount",
+                        "aggregation", "sum",
+                        "sourceMetric", "orderAmount"),
+                "orderSelection", "converted_order_id_only",
+                "deduplication", "dedupe_order_id_after_signed_relation",
+                "orderStatusScope", "completed_paid_orders",
+                "currencyScope", "single_currency_no_conversion"));
         return plan;
     }
 

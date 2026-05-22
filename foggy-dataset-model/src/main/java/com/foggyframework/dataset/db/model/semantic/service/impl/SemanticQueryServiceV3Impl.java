@@ -330,6 +330,21 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                     SqlGenerationResult baseSql = generateSql(metricRatioBridge.model(), baseRequest, context);
                     return metricRatioBridge.wrap(baseSql);
                 }
+                DslCteDslRequestMapper.CrossModelFunnelMoneyAttributionBridgeResult moneyAttributionBridge =
+                        DslCteDslRequestMapper.toCrossModelFunnelMoneyAttributionBridge(
+                                model, request.getExecutablePlan());
+                if (moneyAttributionBridge.ready()) {
+                    SemanticQueryRequest leftRequest = moneyAttributionBridge.leftRequest();
+                    leftRequest.setHints(request.getHints() == null ? null : new HashMap<>(request.getHints()));
+                    SemanticQueryRequest rightRequest = moneyAttributionBridge.rightRequest();
+                    rightRequest.setHints(request.getHints() == null ? null : new HashMap<>(request.getHints()));
+                    SqlGenerationResult leftSql = generateSql(moneyAttributionBridge.leftModel(), leftRequest, context);
+                    SqlGenerationResult rightSql = generateSql(moneyAttributionBridge.rightModel(), rightRequest, context);
+                    return moneyAttributionBridge.wrap(leftSql, rightSql);
+                }
+                if (moneyAttributionBridge.relevant()) {
+                    throw RX.throwB("DSL_CTE_DSL_BRIDGE_NOT_SUPPORTED: " + moneyAttributionBridge.unsupported());
+                }
                 DslCteDslRequestMapper.CrossModelFunnelTimeAttributionBridgeResult timeAttributionBridge =
                         DslCteDslRequestMapper.toCrossModelFunnelTimeAttributionBridge(
                                 model, request.getExecutablePlan());
@@ -377,7 +392,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                 }
                 throw RX.throwB("DSL_CTE_DSL_BRIDGE_NOT_SUPPORTED: "
                         + combinedDslCteUnsupported(bridge, resultStageBridge, metricRatioBridge,
-                        timeAttributionBridge, funnelSourceRateBridge, joinAlignBridge));
+                        moneyAttributionBridge, timeAttributionBridge, funnelSourceRateBridge, joinAlignBridge));
             }
             throw RX.throwB("DSL_CTE_EXECUTION_NOT_IMPLEMENTED: DSL_CTE stage contract passed, but staged SQL execution is not part of P0.");
         }
@@ -726,57 +741,76 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                     validation.put("dsl_request", metricRatioBridge.baseRequest());
                     validation.put("dsl_result_stage_metric_ratio", metricRatioBridge.summary());
                 } else {
-                    DslCteDslRequestMapper.CrossModelFunnelTimeAttributionBridgeResult timeAttributionBridge =
-                            DslCteDslRequestMapper.toCrossModelFunnelTimeAttributionBridge(
+                    DslCteDslRequestMapper.CrossModelFunnelMoneyAttributionBridgeResult moneyAttributionBridge =
+                            DslCteDslRequestMapper.toCrossModelFunnelMoneyAttributionBridge(
                                     null, request.getExecutablePlan());
-                    if (timeAttributionBridge.ready()) {
-                        validation.put("dsl_bridge_status", timeAttributionBridge.status());
+                    if (moneyAttributionBridge.ready()) {
+                        validation.put("dsl_bridge_status", moneyAttributionBridge.status());
                         Map<String, Object> models = new LinkedHashMap<>();
-                        models.put("denominator", timeAttributionBridge.denominatorModel());
-                        models.put("left", timeAttributionBridge.leftModel());
-                        models.put("right", timeAttributionBridge.rightModel());
+                        models.put("left", moneyAttributionBridge.leftModel());
+                        models.put("right", moneyAttributionBridge.rightModel());
                         validation.put("dsl_bridge_models", models);
-                        validation.put("dsl_denominator_request", timeAttributionBridge.denominatorRequest());
-                        validation.put("dsl_left_request", timeAttributionBridge.leftRequest());
-                        validation.put("dsl_right_request", timeAttributionBridge.rightRequest());
-                        validation.put("dsl_cross_model_funnel_time_attribution",
-                                timeAttributionBridge.summary());
-                    } else if (timeAttributionBridge.relevant()) {
-                        validation.put("dsl_bridge_status", timeAttributionBridge.status());
-                        validation.put("dsl_bridge_unsupported", timeAttributionBridge.unsupported());
+                        validation.put("dsl_left_request", moneyAttributionBridge.leftRequest());
+                        validation.put("dsl_right_request", moneyAttributionBridge.rightRequest());
+                        validation.put("dsl_cross_model_funnel_money_attribution",
+                                moneyAttributionBridge.summary());
+                    } else if (moneyAttributionBridge.relevant()) {
+                        validation.put("dsl_bridge_status", moneyAttributionBridge.status());
+                        validation.put("dsl_bridge_unsupported", moneyAttributionBridge.unsupported());
                     } else {
-                        DslCteDslRequestMapper.CrossModelFunnelSourceRateBridgeResult funnelSourceRateBridge =
-                                DslCteDslRequestMapper.toCrossModelFunnelSourceRateBridge(
+                        DslCteDslRequestMapper.CrossModelFunnelTimeAttributionBridgeResult timeAttributionBridge =
+                                DslCteDslRequestMapper.toCrossModelFunnelTimeAttributionBridge(
                                         null, request.getExecutablePlan());
-                        if (funnelSourceRateBridge.ready()) {
-                            validation.put("dsl_bridge_status", funnelSourceRateBridge.status());
+                        if (timeAttributionBridge.ready()) {
+                            validation.put("dsl_bridge_status", timeAttributionBridge.status());
                             Map<String, Object> models = new LinkedHashMap<>();
-                            models.put("denominator", funnelSourceRateBridge.denominatorModel());
-                            models.put("left", funnelSourceRateBridge.leftModel());
-                            models.put("right", funnelSourceRateBridge.rightModel());
+                            models.put("denominator", timeAttributionBridge.denominatorModel());
+                            models.put("left", timeAttributionBridge.leftModel());
+                            models.put("right", timeAttributionBridge.rightModel());
                             validation.put("dsl_bridge_models", models);
-                            validation.put("dsl_denominator_request", funnelSourceRateBridge.denominatorRequest());
-                            validation.put("dsl_left_request", funnelSourceRateBridge.leftRequest());
-                            validation.put("dsl_right_request", funnelSourceRateBridge.rightRequest());
-                            validation.put("dsl_cross_model_funnel_source_rate", funnelSourceRateBridge.summary());
+                            validation.put("dsl_denominator_request", timeAttributionBridge.denominatorRequest());
+                            validation.put("dsl_left_request", timeAttributionBridge.leftRequest());
+                            validation.put("dsl_right_request", timeAttributionBridge.rightRequest());
+                            validation.put("dsl_cross_model_funnel_time_attribution",
+                                    timeAttributionBridge.summary());
+                        } else if (timeAttributionBridge.relevant()) {
+                            validation.put("dsl_bridge_status", timeAttributionBridge.status());
+                            validation.put("dsl_bridge_unsupported", timeAttributionBridge.unsupported());
                         } else {
-                            DslCteDslRequestMapper.CrossModelJoinAlignBridgeResult joinAlignBridge =
-                                    DslCteDslRequestMapper.toCrossModelJoinAlignBridge(
+                            DslCteDslRequestMapper.CrossModelFunnelSourceRateBridgeResult funnelSourceRateBridge =
+                                    DslCteDslRequestMapper.toCrossModelFunnelSourceRateBridge(
                                             null, request.getExecutablePlan());
-                            validation.put("dsl_bridge_status",
-                                    joinAlignBridge.ready() ? joinAlignBridge.status() : bridge.status());
-                            if (joinAlignBridge.ready()) {
+                            if (funnelSourceRateBridge.ready()) {
+                                validation.put("dsl_bridge_status", funnelSourceRateBridge.status());
                                 Map<String, Object> models = new LinkedHashMap<>();
-                                models.put("left", joinAlignBridge.leftModel());
-                                models.put("right", joinAlignBridge.rightModel());
+                                models.put("denominator", funnelSourceRateBridge.denominatorModel());
+                                models.put("left", funnelSourceRateBridge.leftModel());
+                                models.put("right", funnelSourceRateBridge.rightModel());
                                 validation.put("dsl_bridge_models", models);
-                                validation.put("dsl_left_request", joinAlignBridge.leftRequest());
-                                validation.put("dsl_right_request", joinAlignBridge.rightRequest());
-                                validation.put("dsl_cross_model_join_align", joinAlignBridge.summary());
+                                validation.put("dsl_denominator_request", funnelSourceRateBridge.denominatorRequest());
+                                validation.put("dsl_left_request", funnelSourceRateBridge.leftRequest());
+                                validation.put("dsl_right_request", funnelSourceRateBridge.rightRequest());
+                                validation.put("dsl_cross_model_funnel_source_rate", funnelSourceRateBridge.summary());
                             } else {
-                                validation.put("dsl_bridge_unsupported",
-                                        combinedDslCteUnsupported(bridge, resultStageBridge, metricRatioBridge,
-                                                timeAttributionBridge, funnelSourceRateBridge, joinAlignBridge));
+                                DslCteDslRequestMapper.CrossModelJoinAlignBridgeResult joinAlignBridge =
+                                        DslCteDslRequestMapper.toCrossModelJoinAlignBridge(
+                                                null, request.getExecutablePlan());
+                                validation.put("dsl_bridge_status",
+                                        joinAlignBridge.ready() ? joinAlignBridge.status() : bridge.status());
+                                if (joinAlignBridge.ready()) {
+                                    Map<String, Object> models = new LinkedHashMap<>();
+                                    models.put("left", joinAlignBridge.leftModel());
+                                    models.put("right", joinAlignBridge.rightModel());
+                                    validation.put("dsl_bridge_models", models);
+                                    validation.put("dsl_left_request", joinAlignBridge.leftRequest());
+                                    validation.put("dsl_right_request", joinAlignBridge.rightRequest());
+                                    validation.put("dsl_cross_model_join_align", joinAlignBridge.summary());
+                                } else {
+                                    validation.put("dsl_bridge_unsupported",
+                                            combinedDslCteUnsupported(bridge, resultStageBridge, metricRatioBridge,
+                                                    moneyAttributionBridge, timeAttributionBridge,
+                                                    funnelSourceRateBridge, joinAlignBridge));
+                                }
                             }
                         }
                     }
@@ -815,7 +849,8 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                                                    DslCteDslRequestMapper.ResultStageWindowBridgeResult resultStageBridge,
                                                    DslCteDslRequestMapper.ResultStageMetricRatioBridgeResult metricRatioBridge,
                                                    DslCteDslRequestMapper.CrossModelJoinAlignBridgeResult joinAlignBridge) {
-        return combinedDslCteUnsupported(bridge, resultStageBridge, metricRatioBridge, null, joinAlignBridge);
+        return combinedDslCteUnsupported(bridge, resultStageBridge, metricRatioBridge, null, null, null,
+                joinAlignBridge);
     }
 
     private List<String> combinedDslCteUnsupported(DslCteDslRequestMapper.BridgeResult bridge,
@@ -823,13 +858,14 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                                                    DslCteDslRequestMapper.ResultStageMetricRatioBridgeResult metricRatioBridge,
                                                    DslCteDslRequestMapper.CrossModelFunnelSourceRateBridgeResult funnelSourceRateBridge,
                                                    DslCteDslRequestMapper.CrossModelJoinAlignBridgeResult joinAlignBridge) {
-        return combinedDslCteUnsupported(bridge, resultStageBridge, metricRatioBridge, null,
+        return combinedDslCteUnsupported(bridge, resultStageBridge, metricRatioBridge, null, null,
                 funnelSourceRateBridge, joinAlignBridge);
     }
 
     private List<String> combinedDslCteUnsupported(DslCteDslRequestMapper.BridgeResult bridge,
                                                    DslCteDslRequestMapper.ResultStageWindowBridgeResult resultStageBridge,
                                                    DslCteDslRequestMapper.ResultStageMetricRatioBridgeResult metricRatioBridge,
+                                                   DslCteDslRequestMapper.CrossModelFunnelMoneyAttributionBridgeResult moneyAttributionBridge,
                                                    DslCteDslRequestMapper.CrossModelFunnelTimeAttributionBridgeResult timeAttributionBridge,
                                                    DslCteDslRequestMapper.CrossModelFunnelSourceRateBridgeResult funnelSourceRateBridge,
                                                    DslCteDslRequestMapper.CrossModelJoinAlignBridgeResult joinAlignBridge) {
@@ -842,6 +878,9 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         }
         if (metricRatioBridge != null && metricRatioBridge.unsupported() != null) {
             unsupported.addAll(metricRatioBridge.unsupported());
+        }
+        if (moneyAttributionBridge != null && moneyAttributionBridge.unsupported() != null) {
+            unsupported.addAll(moneyAttributionBridge.unsupported());
         }
         if (timeAttributionBridge != null && timeAttributionBridge.unsupported() != null) {
             unsupported.addAll(timeAttributionBridge.unsupported());
