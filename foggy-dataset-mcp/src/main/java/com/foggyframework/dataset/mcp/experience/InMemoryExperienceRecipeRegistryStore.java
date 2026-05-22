@@ -1,6 +1,5 @@
 package com.foggyframework.dataset.mcp.experience;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -11,7 +10,6 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Component
-@ConditionalOnMissingBean(ExperienceRecipeRegistryStore.class)
 @ConditionalOnProperty(prefix = "foggy.mcp.experience-recipe.registry", name = "store", havingValue = "memory", matchIfMissing = true)
 public class InMemoryExperienceRecipeRegistryStore implements ExperienceRecipeRegistryStore {
     private final Map<String, ExperienceRecipeRegistryEntry> registry = new ConcurrentHashMap<>();

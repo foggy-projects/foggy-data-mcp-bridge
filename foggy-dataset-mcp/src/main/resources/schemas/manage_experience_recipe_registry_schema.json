@@ -143,7 +143,7 @@
         },
         "evidenceArtifacts": {
           "type": "array",
-          "description": "Evidence artifact references required by publish_validated. All five artifactType values must be present with artifactUri and artifactHash.",
+          "description": "Evidence artifact references required by publish_validated. All five artifactType values must be present with a supported artifactUri scheme and a sha256 hash. When artifact URI policy is enabled server-side, every artifactUri must start with an allowed prefix expanded from the effective publication context. When artifact object metadata policy is enabled server-side, each artifact must provide objectVersion or objectEtag and objectMetadata values matching namespace, tenant, owner, registryKey, canonicalRecipeId, version, artifactType, and artifactHash. When resolved object metadata is required server-side, object identity and metadata returned by the configured artifact resolver are used as trusted facts; caller-declared metadata alone is not accepted. The built-in remote HTTP resolver can map internal artifact service response headers X-Foggy-Artifact-Object-Version, X-Foggy-Artifact-Object-Etag, X-Foggy-Artifact-Hash, X-Foggy-Artifact-Size, and X-Foggy-Artifact-Metadata-* into trusted artifact resolution facts. When artifact resolution is enabled server-side, the artifact content must resolve and recompute to the declared hash. When artifact signature verification is enabled, the configured server-side verifier must accept the artifact content and signature metadata; the built-in Ed25519 verifier expects sig:v1:ed25519:<keyId>:<base64url(signature)> and binds the signature to the recipe publication context and artifact metadata.",
           "items": {
             "type": "object",
             "additionalProperties": false,
@@ -170,11 +170,18 @@
               },
               "artifactUri": {
                 "type": "string",
-                "description": "URI or storage key pointing to the signed evidence artifact."
+                "pattern": "^(foggy|https|s3|oss)://[^\\s]+$",
+                "description": "URI pointing to the signed evidence artifact. Supported schemes are foggy, https, s3, and oss. The built-in local resolver handles foggy:// references when configured with an artifact root. The built-in remote HTTP resolver handles https:// references only when remote-http.enabled=true and the target host is in remote-http.allowed-hosts; internal artifact services can return X-Foggy-Artifact-* headers for trusted object facts. When artifact-uri-policy.enabled=true, the URI must also match an allowed context-bound prefix such as a tenant/owner/recipe object path."
               },
               "artifactHash": {
                 "type": "string",
-                "description": "Content hash, for example sha256:<digest>."
+                "pattern": "^sha256:[A-Fa-f0-9]{64}$",
+                "description": "Content hash in sha256:<64 hex digest> format. When server-side artifact resolution is required, this hash is recomputed from artifact content before publish."
+              },
+              "artifactSignature": {
+                "type": "string",
+                "pattern": "^sig:v1:[A-Za-z0-9_-]+:[A-Za-z0-9._-]+:[A-Za-z0-9_-]+$",
+                "description": "Optional signature payload for server-side artifact signature verifier. The built-in verifier uses sig:v1:ed25519:<keyId>:<base64url(signature)>."
               },
               "signedBy": {
                 "type": "string",
@@ -182,7 +189,23 @@
               },
               "signedAt": {
                 "type": "string",
-                "description": "Optional signing timestamp."
+                "format": "date-time",
+                "description": "Optional signing timestamp. Required by the built-in Ed25519 verifier."
+              },
+              "objectVersion": {
+                "type": "string",
+                "description": "Optional object storage version or generation identifier. Required with objectEtag alternative when artifact-object-metadata-policy.enabled=true."
+              },
+              "objectEtag": {
+                "type": "string",
+                "description": "Optional object storage ETag or checkpoint identifier. Required with objectVersion alternative when artifact-object-metadata-policy.enabled=true."
+              },
+              "objectMetadata": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "description": "Declared object metadata expected to match the server-side publication context when artifact-object-metadata-policy.enabled=true. Required keys are namespace, tenant, owner, registryKey, canonicalRecipeId, version, artifactType, and artifactHash."
               }
             }
           }

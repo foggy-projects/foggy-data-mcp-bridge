@@ -67,28 +67,32 @@ public class ExperienceRecipeGovernanceEvidence {
                 ExperienceRecipeEvidenceArtifact.of(
                         OWNER_SIGNOFF_ARTIFACT,
                         "foggy://experience-recipes/evidence/owner-signoff",
-                        "sha256:owner-signoff",
+                        fixedSha256('1'),
                         "registry_admin"),
                 ExperienceRecipeEvidenceArtifact.of(
                         SCHEMA_VALIDATION_ARTIFACT,
                         "foggy://experience-recipes/evidence/schema-validation",
-                        "sha256:schema-validation",
+                        fixedSha256('2'),
                         "registry_admin"),
                 ExperienceRecipeEvidenceArtifact.of(
                         VALIDATION_REPORT_ARTIFACT,
                         "foggy://experience-recipes/evidence/validation-report",
-                        "sha256:validation-report",
+                        fixedSha256('3'),
                         "registry_admin"),
                 ExperienceRecipeEvidenceArtifact.of(
                         POSITIVE_NEGATIVE_EXAMPLES_ARTIFACT,
                         "foggy://experience-recipes/evidence/positive-negative-examples",
-                        "sha256:positive-negative-examples",
+                        fixedSha256('4'),
                         "registry_admin"),
                 ExperienceRecipeEvidenceArtifact.of(
                         PERMISSION_SCOPE_ARTIFACT,
                         "foggy://experience-recipes/evidence/permission-scope",
-                        "sha256:permission-scope",
+                        fixedSha256('5'),
                         "registry_admin"));
+    }
+
+    private static String fixedSha256(char hexDigit) {
+        return "sha256:" + String.valueOf(hexDigit).repeat(64);
     }
 
     public String getOwnerSignoffStatus() {

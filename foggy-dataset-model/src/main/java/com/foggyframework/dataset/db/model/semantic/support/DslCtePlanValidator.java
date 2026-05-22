@@ -83,7 +83,7 @@ public final class DslCtePlanValidator {
             stageEvidence.add(stageEvidence(name, type, stage, output));
         }
 
-        validatePlanOutput(outputs, stages, stageOutputs);
+        validatePlanOutput(outputs, stages, stageOutputs, ctePlan);
 
         List<Map<String, Object>> sliceLowering = mapList(ctePlan.get("sliceLowering"));
         for (Map<String, Object> lowering : sliceLowering) {
@@ -467,17 +467,51 @@ public final class DslCtePlanValidator {
     }
 
     private static void validatePlanOutput(List<String> outputs, List<Map<String, Object>> stages,
-                                           Map<String, StageOutput> stageOutputs) {
+                                           Map<String, StageOutput> stageOutputs,
+                                           Map<String, Object> ctePlan) {
         String finalStageName = stringValue(stages.get(stages.size() - 1).get("name"));
         StageOutput finalOutput = finalStageName == null ? null : stageOutputs.get(finalStageName);
         if (finalOutput == null || !finalOutput.complete()) {
             return;
         }
+        Set<String> planLevelOutputs = planLevelDerivedOutputFields(ctePlan);
         for (String output : outputs) {
-            if (!finalOutput.fields().contains(output)) {
+            if (!finalOutput.fields().contains(output) && !planLevelOutputs.contains(output)) {
                 throw RX.throwB(STAGE_INVALID + ": cte_plan.output references unavailable field '" + output + "'.");
             }
         }
+    }
+
+    private static Set<String> planLevelDerivedOutputFields(Map<String, Object> ctePlan) {
+        Set<String> fields = new LinkedHashSet<>();
+        Map<String, Object> moneyDerivedMetric = mapValue(ctePlan.get("moneyDerivedMetricContract"));
+        if (moneyDerivedMetric == null) {
+            return fields;
+        }
+        String kind = stringValue(moneyDerivedMetric.get("kind"));
+        if (!"source_cohort_target_year_month_amount_share".equals(kind)
+                && !"source_cohort_target_year_month_amount_per_lead".equals(kind)) {
+            return fields;
+        }
+        String denominatorMetric = stringValue(moneyDerivedMetric.get("denominatorMetric"));
+        if (safeIdentifier(denominatorMetric)) {
+            fields.add(denominatorMetric);
+        }
+        String metric = stringValue(moneyDerivedMetric.get("metric"));
+        if (metric == null) {
+            metric = stringValue(moneyDerivedMetric.get("ratioAlias"));
+        }
+        if (metric == null) {
+            metric = stringValue(moneyDerivedMetric.get("name"));
+        }
+        if (safeIdentifier(metric)) {
+            fields.add(metric);
+        }
+        return fields;
+    }
+
+    private static boolean safeIdentifier(String value) {
+        return value != null && IDENTIFIER_PATTERN.matcher(value).matches();
     }
 
     private static void validateAvailableField(StageOutput output, Object rawField, String usage) {

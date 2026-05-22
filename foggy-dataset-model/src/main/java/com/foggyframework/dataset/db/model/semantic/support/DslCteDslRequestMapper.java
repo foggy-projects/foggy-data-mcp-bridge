@@ -1029,14 +1029,54 @@ public final class DslCteDslRequestMapper {
         MetricMapping leftMetrics = crossModelJoinAggregateMetrics(leftAggregate, leftModel, true, unsupported);
         MetricMapping rightMetrics = crossModelMoneyAttributionRightMetrics(rightAggregate, rightModel, unsupported);
         String amountMetric = crossModelMoneyAttributionMetric(amountAggregate, unsupported);
+        MoneyAmountShareContract amountShareContract = moneyAmountShareContract(ctePlan, amountMetric, unsupported);
+        MoneyAmountPerLeadContract amountPerLeadContract =
+                moneyAmountPerLeadContract(ctePlan, amountMetric, unsupported);
+        if (mapValue(ctePlan.get("moneyDerivedMetricContract")) != null
+                && !amountShareContract.declared()
+                && !amountPerLeadContract.declared()) {
+            unsupported.add("cross-model funnel money-derived contract kind must be "
+                    + "source_cohort_target_year_month_amount_share or "
+                    + "source_cohort_target_year_month_amount_per_lead");
+        }
         List<String> output = stringList(ctePlan.get("output"));
         if (output.isEmpty()) {
             output.add("leadSource");
             output.addAll(targetPeriod.stageFields());
-            output.add(amountMetric);
+            if (amountShareContract.declared()
+                    && amountShareContract.denominatorMetric() != null
+                    && amountShareContract.ratioAlias() != null) {
+                output.add(amountMetric);
+                output.add(amountShareContract.denominatorMetric());
+                output.add(amountShareContract.ratioAlias());
+            } else if (amountPerLeadContract.declared()
+                    && amountPerLeadContract.denominatorMetric() != null
+                    && amountPerLeadContract.ratioAlias() != null) {
+                output.add(amountMetric);
+                output.add(amountPerLeadContract.denominatorMetric());
+                output.add(amountPerLeadContract.ratioAlias());
+            } else {
+                output.add(amountMetric);
+            }
         }
         List<String> available = new ArrayList<>(expectedTargetPeriodGroupBy("leadSource", targetPeriod.stageFields()));
         available.add(amountMetric);
+        if (amountShareContract.declared()) {
+            if (amountShareContract.denominatorMetric() != null) {
+                available.add(amountShareContract.denominatorMetric());
+            }
+            if (amountShareContract.ratioAlias() != null) {
+                available.add(amountShareContract.ratioAlias());
+            }
+        }
+        if (amountPerLeadContract.declared()) {
+            if (amountPerLeadContract.denominatorMetric() != null) {
+                available.add(amountPerLeadContract.denominatorMetric());
+            }
+            if (amountPerLeadContract.ratioAlias() != null) {
+                available.add(amountPerLeadContract.ratioAlias());
+            }
+        }
         for (String field : output) {
             if (!available.contains(field)) {
                 unsupported.add("cross-model funnel money-attribution output references unavailable field: " + field);
@@ -1067,7 +1107,9 @@ public final class DslCteDslRequestMapper {
                 targetPeriod.semanticField(),
                 targetPeriod.grain(),
                 targetPeriod.stageFields(),
-                targetPeriod.outputFields());
+                targetPeriod.outputFields(),
+                amountShareContract,
+                amountPerLeadContract);
         return CrossModelFunnelMoneyAttributionContractResult.ready(plan);
     }
 
@@ -1123,6 +1165,8 @@ public final class DslCteDslRequestMapper {
         MetricMapping rightMetrics = crossModelMoneyAttributionRightMetrics(rightAggregate, rightModel, unsupported);
         SemanticQueryRequest leftRequest = aggregateBridgeRequest(leftAggregate, leftMetrics, unsupported);
         SemanticQueryRequest rightRequest = aggregateBridgeRequest(rightAggregate, rightMetrics, unsupported);
+        SemanticQueryRequest denominatorRequest = null;
+        String denominatorModel = null;
 
         List<String> leftFields = availableFields(null, leftAggregate.get("groupBy"), leftMetrics.aliases());
         List<String> rightFields = availableFields(null, rightAggregate.get("groupBy"), rightMetrics.aliases());
@@ -1161,6 +1205,20 @@ public final class DslCteDslRequestMapper {
         if (!allSafeAliases(leftFields, rightFields, joinOutput, contractPlan.output())) {
             unsupported.add("cross-model funnel money-attribution bridge supports only governed field aliases");
         }
+        if (contractPlan.amountPerLeadContract().declared()) {
+            denominatorModel = "CrmLead";
+            MetricMapping denominatorMetrics = moneyAmountPerLeadDenominatorMetrics(
+                    contractPlan.amountPerLeadContract(), unsupported);
+            Map<String, Object> denominatorAggregate = new LinkedHashMap<>();
+            denominatorAggregate.put("type", "aggregate");
+            denominatorAggregate.put("input", Map.of("model", denominatorModel));
+            denominatorAggregate.put("filters", leftAggregate.get("filters"));
+            denominatorAggregate.put("groupBy", List.of(contractPlan.groupKey()));
+            denominatorAggregate.put("metrics", List.of(Map.of(
+                    "name", contractPlan.amountPerLeadContract().denominatorMetric(),
+                    "expr", "count(*)")));
+            denominatorRequest = aggregateBridgeRequest(denominatorAggregate, denominatorMetrics, unsupported);
+        }
         if (!unsupported.isEmpty()) {
             return CrossModelFunnelMoneyAttributionBridgeResult.deferred(true, unsupported);
         }
@@ -1190,8 +1248,11 @@ public final class DslCteDslRequestMapper {
                 contractPlan.convertedAmountMetric(),
                 contractPlan.targetPeriodStageFields(),
                 contractPlan.targetPeriodGrain(),
-                contractPlan.targetPeriodOutputFields());
+                contractPlan.targetPeriodOutputFields(),
+                contractPlan.amountShareContract(),
+                contractPlan.amountPerLeadContract());
         return CrossModelFunnelMoneyAttributionBridgeResult.ready(
+                denominatorModel, denominatorRequest,
                 leftStageName, leftModel, leftRequest, rightStageName, rightModel, rightRequest, plan);
     }
 
@@ -1372,6 +1433,17 @@ public final class DslCteDslRequestMapper {
             return new MetricMapping(columnByAlias);
         }
         columnByAlias.put(name, "count(leadId) AS " + name);
+        return new MetricMapping(columnByAlias);
+    }
+
+    private static MetricMapping moneyAmountPerLeadDenominatorMetrics(MoneyAmountPerLeadContract contract,
+                                                                       List<String> unsupported) {
+        Map<String, String> columnByAlias = new LinkedHashMap<>();
+        if (!contract.declared() || contract.denominatorMetric() == null) {
+            unsupported.add("cross-model funnel amount-per-lead denominator requires distinctLeadCount");
+            return new MetricMapping(columnByAlias);
+        }
+        columnByAlias.put(contract.denominatorMetric(), "count(leadId) AS " + contract.denominatorMetric());
         return new MetricMapping(columnByAlias);
     }
 
@@ -2147,6 +2219,108 @@ public final class DslCteDslRequestMapper {
                 || (sourceMetric != null && !"orderAmount".equals(sourceMetric))) {
             unsupported.add("cross-model funnel money-attribution amount mapping must be convertedAmount=sum(FactOrderQueryModel.amount)");
         }
+    }
+
+    private static MoneyAmountShareContract moneyAmountShareContract(Map<String, Object> ctePlan,
+                                                                     String convertedAmountMetric,
+                                                                     List<String> unsupported) {
+        Map<String, Object> contract = mapValue(ctePlan.get("moneyDerivedMetricContract"));
+        if (contract == null) {
+            return MoneyAmountShareContract.notDeclared();
+        }
+
+        String kind = stringValue(contract.get("kind"));
+        if (!"source_cohort_target_year_month_amount_share".equals(kind)) {
+            return MoneyAmountShareContract.notDeclared();
+        }
+        String baseMetric = stringValue(contract.get("baseMetric"));
+        String numeratorMetric = stringValue(contract.get("numeratorMetric"));
+        String denominatorMetric = stringValue(contract.get("denominatorMetric"));
+        String denominatorScope = stringValue(contract.get("denominatorScope"));
+        String ratioAlias = stringValue(contract.get("metric"));
+        if (ratioAlias == null) {
+            ratioAlias = stringValue(contract.get("ratioAlias"));
+        }
+        if (ratioAlias == null) {
+            ratioAlias = stringValue(contract.get("name"));
+        }
+        String formula = stringValue(contract.get("formula"));
+
+        if (baseMetric != null && !convertedAmountMetric.equals(baseMetric)) {
+            unsupported.add("cross-model funnel amount-share contract baseMetric must match convertedAmount");
+        }
+        if (!convertedAmountMetric.equals(numeratorMetric)) {
+            unsupported.add("cross-model funnel amount-share contract numeratorMetric must be convertedAmount");
+        }
+        if (!"denominatorConvertedAmount".equals(denominatorMetric)) {
+            unsupported.add("cross-model funnel amount-share contract denominatorMetric must be denominatorConvertedAmount");
+        }
+        if (!"same_target_period_all_source_groups".equals(denominatorScope)) {
+            unsupported.add("cross-model funnel amount-share contract requires denominatorScope=same_target_period_all_source_groups");
+        }
+        if (!"amountShare".equals(ratioAlias)) {
+            unsupported.add("cross-model funnel amount-share contract metric must be amountShare");
+        }
+        String expectedFormula = "amountShare=" + convertedAmountMetric + "/denominatorConvertedAmount";
+        String normalizedFormula = formula == null ? null : formula.replaceAll("\\s+", "");
+        if (!expectedFormula.equals(normalizedFormula)) {
+            unsupported.add("cross-model funnel amount-share contract formula must be "
+                    + expectedFormula);
+        }
+
+        return new MoneyAmountShareContract(true, numeratorMetric, denominatorMetric,
+                denominatorScope, ratioAlias, formula);
+    }
+
+    private static MoneyAmountPerLeadContract moneyAmountPerLeadContract(Map<String, Object> ctePlan,
+                                                                         String convertedAmountMetric,
+                                                                         List<String> unsupported) {
+        Map<String, Object> contract = mapValue(ctePlan.get("moneyDerivedMetricContract"));
+        if (contract == null) {
+            return MoneyAmountPerLeadContract.notDeclared();
+        }
+
+        String kind = stringValue(contract.get("kind"));
+        if (!"source_cohort_target_year_month_amount_per_lead".equals(kind)) {
+            return MoneyAmountPerLeadContract.notDeclared();
+        }
+        String baseMetric = stringValue(contract.get("baseMetric"));
+        String numeratorMetric = stringValue(contract.get("numeratorMetric"));
+        String denominatorMetric = stringValue(contract.get("denominatorMetric"));
+        String denominatorScope = stringValue(contract.get("denominatorScope"));
+        String ratioAlias = stringValue(contract.get("metric"));
+        if (ratioAlias == null) {
+            ratioAlias = stringValue(contract.get("ratioAlias"));
+        }
+        if (ratioAlias == null) {
+            ratioAlias = stringValue(contract.get("name"));
+        }
+        String formula = stringValue(contract.get("formula"));
+
+        if (baseMetric != null && !convertedAmountMetric.equals(baseMetric)) {
+            unsupported.add("cross-model funnel amount-per-lead contract baseMetric must match convertedAmount");
+        }
+        if (!convertedAmountMetric.equals(numeratorMetric)) {
+            unsupported.add("cross-model funnel amount-per-lead contract numeratorMetric must be convertedAmount");
+        }
+        if (!"distinctLeadCount".equals(denominatorMetric)) {
+            unsupported.add("cross-model funnel amount-per-lead contract denominatorMetric must be distinctLeadCount");
+        }
+        if (!"fixed_per_source_group".equals(denominatorScope)) {
+            unsupported.add("cross-model funnel amount-per-lead contract requires denominatorScope=fixed_per_source_group");
+        }
+        if (!"amountPerLead".equals(ratioAlias)) {
+            unsupported.add("cross-model funnel amount-per-lead contract metric must be amountPerLead");
+        }
+        String expectedFormula = "amountPerLead=" + convertedAmountMetric + "/distinctLeadCount";
+        String normalizedFormula = formula == null ? null : formula.replaceAll("\\s+", "");
+        if (!expectedFormula.equals(normalizedFormula)) {
+            unsupported.add("cross-model funnel amount-per-lead contract formula must be "
+                    + expectedFormula);
+        }
+
+        return new MoneyAmountPerLeadContract(true, numeratorMetric, denominatorMetric,
+                denominatorScope, ratioAlias, formula);
     }
 
     private static boolean isCountAll(String expr) {
@@ -3986,12 +4160,20 @@ public final class DslCteDslRequestMapper {
                                                              String convertedAmountMetric,
                                                              List<String> targetPeriodStageFields,
                                                              String targetPeriodGrain,
-                                                             List<String> targetPeriodOutputFields) {
+                                                             List<String> targetPeriodOutputFields,
+                                                             MoneyAmountShareContract amountShareContract,
+                                                             MoneyAmountPerLeadContract amountPerLeadContract) {
 
         Map<String, Object> summary() {
             Map<String, Object> result = new LinkedHashMap<>();
-            result.put("kind", "cross_model_funnel_target_year_month_money_attribution");
-            result.put("bridge_scope", "runtime_guarded_target_year_month_money_attribution");
+            result.put("kind", moneyAttributionKind(
+                    "cross_model_funnel_target_year_month_money_attribution",
+                    amountShareContract,
+                    amountPerLeadContract));
+            result.put("bridge_scope", moneyAttributionKind(
+                    "runtime_guarded_target_year_month_money_attribution",
+                    amountShareContract,
+                    amountPerLeadContract));
             result.put("bridge_signed", true);
             result.put("execution_bridge", true);
             result.put("relationRef", joinPlan.relationRef());
@@ -4026,29 +4208,68 @@ public final class DslCteDslRequestMapper {
             result.put("null_key_policy", joinPlan.nullKeyPolicy());
             result.put("time_boundary_guard", true);
             result.put("cross_source_duplicate_order_guard", true);
+            if (amountShareContract.declared()) {
+                result.put("derivedMetric", amountShareContract.summary());
+                result.put("denominator_scope", amountShareContract.denominatorScope());
+                result.put("numerator", amountShareContract.numeratorMetric());
+                result.put("denominator", amountShareContract.denominatorMetric());
+                result.put("ratio_alias", amountShareContract.ratioAlias());
+            } else if (amountPerLeadContract.declared()) {
+                result.put("derivedMetric", amountPerLeadContract.summary());
+                result.put("denominator_scope", amountPerLeadContract.denominatorScope());
+                result.put("numerator", amountPerLeadContract.numeratorMetric());
+                result.put("denominator", amountPerLeadContract.denominatorMetric());
+                result.put("ratio_alias", amountPerLeadContract.ratioAlias());
+                result.put("source_denominator", Map.of(
+                        "model", "CrmLead",
+                        "grain", "one_row_per_lead",
+                        "groupBy", List.of(groupKey),
+                        "execution_metric", "count(leadId)",
+                        "semantic_metric", amountPerLeadContract.denominatorMetric()));
+            }
             result.put("output", output);
             return result;
         }
 
         SqlGenerationResult wrap(SqlGenerationResult leftBase, SqlGenerationResult rightBase) {
+            return wrap(null, leftBase, rightBase);
+        }
+
+        SqlGenerationResult wrap(SqlGenerationResult denominatorBase,
+                                 SqlGenerationResult leftBase,
+                                 SqlGenerationResult rightBase) {
+            if (amountPerLeadContract.declared()) {
+                validateBaseSql(denominatorBase, "DENOMINATOR");
+            }
             validateBaseSql(leftBase, "LEFT");
             validateBaseSql(rightBase, "RIGHT");
 
+            String denominatorSql = amountPerLeadContract.declared()
+                    ? denominatorBase.getSql().trim()
+                    : null;
             String leftSql = leftBase.getSql().trim();
             String rightSql = rightBase.getSql().trim();
             List<Object> params = new ArrayList<>();
+            if (amountPerLeadContract.declared()) {
+                params.addAll(denominatorBase.getParams());
+            }
             params.addAll(leftBase.getParams());
             params.addAll(rightBase.getParams());
 
+            String denominatorAlias = "dsl_cte_source_denominator";
             String leftAlias = "dsl_cte_join_left";
             String rightAlias = "dsl_cte_join_right";
             String guardAlias = "dsl_cte_join_guard";
             String joinAlias = "dsl_cte_join_align";
             String amountGuardAlias = "dsl_cte_funnel_amount_guard";
             String dedupedAlias = "dsl_cte_funnel_order_deduped";
-            String finalAlias = "dsl_cte_funnel_converted_amount";
+            String convertedAmountAlias = "dsl_cte_funnel_converted_amount";
+            String finalAlias = convertedAmountAlias;
 
             StringBuilder sql = new StringBuilder("WITH ");
+            if (amountPerLeadContract.declared()) {
+                sql.append(denominatorAlias).append(" AS (\n").append(denominatorSql).append("\n),\n");
+            }
             sql.append(leftAlias).append(" AS (\n").append(leftSql).append("\n),\n");
             sql.append(rightAlias).append(" AS (\n").append(rightSql).append("\n),\n");
             appendGuardCte(sql, leftAlias, rightAlias, guardAlias);
@@ -4060,7 +4281,16 @@ public final class DslCteDslRequestMapper {
             sql.append(",\n");
             appendOrderDedupedCte(sql, joinAlias, amountGuardAlias, dedupedAlias);
             sql.append(",\n");
-            appendConvertedAmountCte(sql, dedupedAlias, finalAlias);
+            appendConvertedAmountCte(sql, dedupedAlias, convertedAmountAlias);
+            if (amountShareContract.declared()) {
+                finalAlias = "dsl_cte_funnel_amount_share";
+                sql.append(",\n");
+                appendAmountShareCte(sql, convertedAmountAlias, finalAlias);
+            } else if (amountPerLeadContract.declared()) {
+                finalAlias = "dsl_cte_funnel_amount_per_lead";
+                sql.append(",\n");
+                appendAmountPerLeadCte(sql, denominatorAlias, convertedAmountAlias, finalAlias);
+            }
 
             sql.append("SELECT ");
             sql.append(String.join(", ", output.stream().map(DslCteDslRequestMapper::quoteAlias).toList()));
@@ -4124,6 +4354,49 @@ public final class DslCteDslRequestMapper {
                     .append("\nFROM ").append(dedupedAlias).append("\nGROUP BY ")
                     .append(groupFields.stream().map(DslCteDslRequestMapper::quoteAlias)
                             .collect(java.util.stream.Collectors.joining(", ")))
+                    .append("\n)");
+        }
+
+        private void appendAmountShareCte(StringBuilder sql, String convertedAmountAlias, String shareAlias) {
+            sql.append(shareAlias).append(" AS (\n");
+            List<String> groupFields = new ArrayList<>();
+            groupFields.add(groupKey);
+            groupFields.addAll(targetPeriodStageFields);
+            List<String> selectItems = new ArrayList<>();
+            for (String field : groupFields) {
+                selectItems.add(quoteAlias(field));
+            }
+            selectItems.add(quoteAlias(convertedAmountMetric));
+            String denominatorExpr = "SUM(" + quoteAlias(convertedAmountMetric) + ") OVER (PARTITION BY "
+                    + targetPeriodStageFields.stream().map(DslCteDslRequestMapper::quoteAlias)
+                    .collect(java.util.stream.Collectors.joining(", ")) + ")";
+            selectItems.add(denominatorExpr + " AS " + quoteAlias(amountShareContract.denominatorMetric()));
+            selectItems.add("(1.0 * " + quoteAlias(convertedAmountMetric) + " / NULLIF("
+                    + denominatorExpr + ", 0)) AS " + quoteAlias(amountShareContract.ratioAlias()));
+            sql.append("SELECT ").append(String.join(", ", selectItems))
+                    .append("\nFROM ").append(convertedAmountAlias)
+                    .append("\n)");
+        }
+
+        private void appendAmountPerLeadCte(StringBuilder sql, String denominatorAlias,
+                                            String convertedAmountAlias, String amountPerLeadAlias) {
+            sql.append(amountPerLeadAlias).append(" AS (\n");
+            List<String> selectItems = new ArrayList<>();
+            selectItems.add("m." + quoteAlias(groupKey) + " AS " + quoteAlias(groupKey));
+            for (String field : targetPeriodStageFields) {
+                selectItems.add("m." + quoteAlias(field) + " AS " + quoteAlias(field));
+            }
+            selectItems.add("m." + quoteAlias(convertedAmountMetric) + " AS "
+                    + quoteAlias(convertedAmountMetric));
+            selectItems.add("d." + quoteAlias(amountPerLeadContract.denominatorMetric()) + " AS "
+                    + quoteAlias(amountPerLeadContract.denominatorMetric()));
+            selectItems.add("(1.0 * m." + quoteAlias(convertedAmountMetric) + " / NULLIF(d."
+                    + quoteAlias(amountPerLeadContract.denominatorMetric()) + ", 0)) AS "
+                    + quoteAlias(amountPerLeadContract.ratioAlias()));
+            sql.append("SELECT ").append(String.join(", ", selectItems))
+                    .append("\nFROM ").append(convertedAmountAlias).append(" m\n")
+                    .append("JOIN ").append(denominatorAlias).append(" d ON d.")
+                    .append(quoteAlias(groupKey)).append(" = m.").append(quoteAlias(groupKey))
                     .append("\n)");
         }
 
@@ -4704,11 +4977,16 @@ public final class DslCteDslRequestMapper {
                                                                String targetPeriodField,
                                                                String targetPeriodGrain,
                                                                List<String> targetPeriodStageFields,
-                                                               List<String> targetPeriodOutputFields) {
+                                                               List<String> targetPeriodOutputFields,
+                                                               MoneyAmountShareContract amountShareContract,
+                                                               MoneyAmountPerLeadContract amountPerLeadContract) {
 
         Map<String, Object> summary() {
             Map<String, Object> result = new LinkedHashMap<>();
-            result.put("kind", "cross_model_funnel_target_year_month_money_attribution");
+            result.put("kind", moneyAttributionKind(
+                    "cross_model_funnel_target_year_month_money_attribution",
+                    amountShareContract,
+                    amountPerLeadContract));
             result.put("bridge_scope", "validation_only");
             result.put("bridge_signed", true);
             result.put("execution_bridge", false);
@@ -4744,6 +5022,25 @@ public final class DslCteDslRequestMapper {
             result.put("deduplication", "dedupe_order_id_after_signed_relation");
             result.put("orderStatusScope", "completed_paid_orders");
             result.put("currencyScope", "single_currency_no_conversion");
+            if (amountShareContract.declared()) {
+                result.put("derivedMetric", amountShareContract.summary());
+                result.put("denominator_scope", amountShareContract.denominatorScope());
+                result.put("numerator", amountShareContract.numeratorMetric());
+                result.put("denominator", amountShareContract.denominatorMetric());
+                result.put("ratio_alias", amountShareContract.ratioAlias());
+            } else if (amountPerLeadContract.declared()) {
+                result.put("derivedMetric", amountPerLeadContract.summary());
+                result.put("denominator_scope", amountPerLeadContract.denominatorScope());
+                result.put("numerator", amountPerLeadContract.numeratorMetric());
+                result.put("denominator", amountPerLeadContract.denominatorMetric());
+                result.put("ratio_alias", amountPerLeadContract.ratioAlias());
+                result.put("source_denominator", Map.of(
+                        "model", "CrmLead",
+                        "grain", "one_row_per_lead",
+                        "groupBy", List.of(groupKey),
+                        "execution_metric", "count(leadId)",
+                        "semantic_metric", amountPerLeadContract.denominatorMetric()));
+            }
             result.put("output", output);
             result.put("required_execution_capabilities", List.of(
                     "target_event_window_join",
@@ -4809,6 +5106,66 @@ public final class DslCteDslRequestMapper {
         static TargetPeriodContract notDeclared() {
             return new TargetPeriodContract(false, List.of(), null, null, List.of());
         }
+    }
+
+    private record MoneyAmountShareContract(boolean declared,
+                                            String numeratorMetric,
+                                            String denominatorMetric,
+                                            String denominatorScope,
+                                            String ratioAlias,
+                                            String formula) {
+        static MoneyAmountShareContract notDeclared() {
+            return new MoneyAmountShareContract(false, null, null, null, null, null);
+        }
+
+        Map<String, Object> summary() {
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("kind", "source_cohort_target_year_month_amount_share");
+            result.put("metric", ratioAlias);
+            result.put("numeratorMetric", numeratorMetric);
+            result.put("denominatorMetric", denominatorMetric);
+            result.put("denominatorScope", denominatorScope);
+            result.put("formula", formula);
+            return result;
+        }
+    }
+
+    private record MoneyAmountPerLeadContract(boolean declared,
+                                              String numeratorMetric,
+                                              String denominatorMetric,
+                                              String denominatorScope,
+                                              String ratioAlias,
+                                              String formula) {
+        static MoneyAmountPerLeadContract notDeclared() {
+            return new MoneyAmountPerLeadContract(false, null, null, null, null, null);
+        }
+
+        Map<String, Object> summary() {
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("kind", "source_cohort_target_year_month_amount_per_lead");
+            result.put("metric", ratioAlias);
+            result.put("numeratorMetric", numeratorMetric);
+            result.put("denominatorMetric", denominatorMetric);
+            result.put("denominatorScope", denominatorScope);
+            result.put("formula", formula);
+            result.put("denominatorSemantics", "count_distinct(CrmLead.leadId) at source cohort grain");
+            result.put("executionAssumption", "CrmLead grain is one row per lead, so count(leadId) is distinctLeadCount");
+            return result;
+        }
+    }
+
+    private static String moneyAttributionKind(String base,
+                                               MoneyAmountShareContract amountShareContract,
+                                               MoneyAmountPerLeadContract amountPerLeadContract) {
+        if (amountShareContract.declared()) {
+            return base.replace("target_year_month_money_attribution",
+                    "target_year_month_amount_share");
+        }
+        if (amountPerLeadContract.declared()) {
+            return base.replace("target_year_month_money_attribution",
+                    "target_year_month_amount_per_lead");
+        }
+        return base;
     }
 
     private record OutputGrainContract(boolean valid, List<String> targetOutputFields) {
@@ -4895,6 +5252,8 @@ public final class DslCteDslRequestMapper {
     }
 
     public record CrossModelFunnelMoneyAttributionBridgeResult(String status,
+                                                               String denominatorModel,
+                                                               SemanticQueryRequest denominatorRequest,
                                                                String leftStage,
                                                                String leftModel,
                                                                SemanticQueryRequest leftRequest,
@@ -4904,21 +5263,24 @@ public final class DslCteDslRequestMapper {
                                                                CrossModelFunnelMoneyAttributionBridgePlan plan,
                                                                List<String> unsupported,
                                                                boolean relevant) {
-        static CrossModelFunnelMoneyAttributionBridgeResult ready(String leftStage,
+        static CrossModelFunnelMoneyAttributionBridgeResult ready(String denominatorModel,
+                                                                  SemanticQueryRequest denominatorRequest,
+                                                                  String leftStage,
                                                                   String leftModel,
                                                                   SemanticQueryRequest leftRequest,
                                                                   String rightStage,
                                                                   String rightModel,
                                                                   SemanticQueryRequest rightRequest,
                                                                   CrossModelFunnelMoneyAttributionBridgePlan plan) {
-            return new CrossModelFunnelMoneyAttributionBridgeResult(STATUS_READY, leftStage, leftModel,
+            return new CrossModelFunnelMoneyAttributionBridgeResult(STATUS_READY, denominatorModel,
+                    denominatorRequest, leftStage, leftModel,
                     leftRequest, rightStage, rightModel, rightRequest, plan, List.of(), true);
         }
 
         static CrossModelFunnelMoneyAttributionBridgeResult deferred(boolean relevant,
                                                                      List<String> unsupported) {
             return new CrossModelFunnelMoneyAttributionBridgeResult(STATUS_DEFERRED, null, null, null,
-                    null, null, null, null, List.copyOf(unsupported), relevant);
+                    null, null, null, null, null, null, List.copyOf(unsupported), relevant);
         }
 
         public boolean ready() {
@@ -4934,6 +5296,15 @@ public final class DslCteDslRequestMapper {
                 throw RX.throwB("DSL_CTE_CROSS_MODEL_FUNNEL_MONEY_ATTRIBUTION_NOT_SUPPORTED: " + unsupported);
             }
             return plan.wrap(leftBase, rightBase);
+        }
+
+        public SqlGenerationResult wrap(SqlGenerationResult denominatorBase,
+                                        SqlGenerationResult leftBase,
+                                        SqlGenerationResult rightBase) {
+            if (!ready()) {
+                throw RX.throwB("DSL_CTE_CROSS_MODEL_FUNNEL_MONEY_ATTRIBUTION_NOT_SUPPORTED: " + unsupported);
+            }
+            return plan.wrap(denominatorBase, leftBase, rightBase);
         }
     }
 

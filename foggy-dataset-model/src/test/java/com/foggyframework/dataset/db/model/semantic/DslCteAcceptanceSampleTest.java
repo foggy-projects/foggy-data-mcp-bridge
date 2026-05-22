@@ -1181,6 +1181,139 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
+    @DisplayName("DSL_CTE signed cross-model target year-month amount share marks bridge-ready")
+    void validationShowsBridgeReadyForSignedCrossModelFunnelAmountShare() {
+        SemanticQueryResponse response = service.validateQuery(
+                "CrmLead", dslCtePlan(signedCrossModelCrmOrderTargetYearMonthAmountShareContract()),
+                SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_READY", validation.get("dsl_bridge_status"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> contract =
+                (Map<String, Object>) validation.get("dsl_cross_model_funnel_money_attribution");
+        assertEquals("cross_model_funnel_target_year_month_amount_share", contract.get("kind"));
+        assertEquals("runtime_guarded_target_year_month_amount_share", contract.get("bridge_scope"));
+        assertEquals("same_target_period_all_source_groups", contract.get("denominator_scope"));
+        assertEquals("convertedAmount", contract.get("numerator"));
+        assertEquals("denominatorConvertedAmount", contract.get("denominator"));
+        assertEquals("amountShare", contract.get("ratio_alias"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> derivedMetric = (Map<String, Object>) contract.get("derivedMetric");
+        assertEquals("source_cohort_target_year_month_amount_share", derivedMetric.get("kind"));
+        assertEquals("convertedAmount", derivedMetric.get("numeratorMetric"));
+        assertEquals("denominatorConvertedAmount", derivedMetric.get("denominatorMetric"));
+        assertEquals("amountShare=convertedAmount/denominatorConvertedAmount", derivedMetric.get("formula"));
+        assertEquals(List.of("leadSource", "orderDate$year", "orderDate$month",
+                "convertedAmount", "denominatorConvertedAmount", "amountShare"), contract.get("output"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE signed cross-model amount share defers wrong denominator scope")
+    void validationDefersCrossModelFunnelAmountShareWrongDenominatorScope() {
+        Map<String, Object> plan = signedCrossModelCrmOrderTargetYearMonthAmountShareContract();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> derived = (Map<String, Object>) plan.get("moneyDerivedMetricContract");
+        derived.put("denominatorScope", "grand_total");
+
+        SemanticQueryResponse response = service.validateQuery(
+                "CrmLead", dslCtePlan(plan), SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_DEFERRED", validation.get("dsl_bridge_status"));
+        assertTrue(validation.get("dsl_bridge_unsupported").toString()
+                .contains("denominatorScope=same_target_period_all_source_groups"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE signed cross-model amount share defers wrong formula")
+    void validationDefersCrossModelFunnelAmountShareWrongFormula() {
+        Map<String, Object> plan = signedCrossModelCrmOrderTargetYearMonthAmountShareContract();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> derived = (Map<String, Object>) plan.get("moneyDerivedMetricContract");
+        derived.put("formula", "amountShare=denominatorConvertedAmount/convertedAmount");
+
+        SemanticQueryResponse response = service.validateQuery(
+                "CrmLead", dslCtePlan(plan), SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_DEFERRED", validation.get("dsl_bridge_status"));
+        assertTrue(validation.get("dsl_bridge_unsupported").toString()
+                .contains("formula must be amountShare=convertedAmount/denominatorConvertedAmount"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE signed cross-model target year-month amount per lead marks bridge-ready")
+    void validationShowsBridgeReadyForSignedCrossModelFunnelAmountPerLead() {
+        SemanticQueryResponse response = service.validateQuery(
+                "CrmLead", dslCtePlan(signedCrossModelCrmOrderTargetYearMonthAmountPerLeadContract()),
+                SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_READY", validation.get("dsl_bridge_status"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> models = (Map<String, Object>) validation.get("dsl_bridge_models");
+        assertEquals("CrmLead", models.get("denominator"));
+        assertNotNull(validation.get("dsl_denominator_request"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> contract =
+                (Map<String, Object>) validation.get("dsl_cross_model_funnel_money_attribution");
+        assertEquals("cross_model_funnel_target_year_month_amount_per_lead", contract.get("kind"));
+        assertEquals("runtime_guarded_target_year_month_amount_per_lead", contract.get("bridge_scope"));
+        assertEquals("fixed_per_source_group", contract.get("denominator_scope"));
+        assertEquals("convertedAmount", contract.get("numerator"));
+        assertEquals("distinctLeadCount", contract.get("denominator"));
+        assertEquals("amountPerLead", contract.get("ratio_alias"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> derivedMetric = (Map<String, Object>) contract.get("derivedMetric");
+        assertEquals("source_cohort_target_year_month_amount_per_lead", derivedMetric.get("kind"));
+        assertEquals("convertedAmount", derivedMetric.get("numeratorMetric"));
+        assertEquals("distinctLeadCount", derivedMetric.get("denominatorMetric"));
+        assertEquals("amountPerLead=convertedAmount/distinctLeadCount", derivedMetric.get("formula"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> sourceDenominator = (Map<String, Object>) contract.get("source_denominator");
+        assertEquals("CrmLead", sourceDenominator.get("model"));
+        assertEquals("one_row_per_lead", sourceDenominator.get("grain"));
+        assertEquals("count(leadId)", sourceDenominator.get("execution_metric"));
+        assertEquals(List.of("leadSource", "orderDate$year", "orderDate$month",
+                "convertedAmount", "distinctLeadCount", "amountPerLead"), contract.get("output"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE signed cross-model amount per lead defers wrong denominator scope")
+    void validationDefersCrossModelFunnelAmountPerLeadWrongDenominatorScope() {
+        Map<String, Object> plan = signedCrossModelCrmOrderTargetYearMonthAmountPerLeadContract();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> derived = (Map<String, Object>) plan.get("moneyDerivedMetricContract");
+        derived.put("denominatorScope", "same_target_period_all_source_groups");
+
+        SemanticQueryResponse response = service.validateQuery(
+                "CrmLead", dslCtePlan(plan), SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_DEFERRED", validation.get("dsl_bridge_status"));
+        assertTrue(validation.get("dsl_bridge_unsupported").toString()
+                .contains("denominatorScope=fixed_per_source_group"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE signed cross-model amount per lead defers wrong formula")
+    void validationDefersCrossModelFunnelAmountPerLeadWrongFormula() {
+        Map<String, Object> plan = signedCrossModelCrmOrderTargetYearMonthAmountPerLeadContract();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> derived = (Map<String, Object>) plan.get("moneyDerivedMetricContract");
+        derived.put("formula", "amountPerLead=distinctLeadCount/convertedAmount");
+
+        SemanticQueryResponse response = service.validateQuery(
+                "CrmLead", dslCtePlan(plan), SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_DEFERRED", validation.get("dsl_bridge_status"));
+        assertTrue(validation.get("dsl_bridge_unsupported").toString()
+                .contains("formula must be amountPerLead=convertedAmount/distinctLeadCount"));
+    }
+
+    @Test
     @DisplayName("DSL_CTE signed cross-model money attribution defers missing completed-paid scope")
     void validationDefersCrossModelFunnelMoneyAttributionMissingCompletedPaidScope() {
         Map<String, Object> plan = signedCrossModelCrmOrderTargetYearMonthMoneyAttributionContract();
@@ -1727,6 +1860,97 @@ class DslCteAcceptanceSampleTest {
                 "date(r.\"orderDate$caption\") < date(l.\"createdAt\", '+' || ? || ' days')"),
                 result.getSql());
         assertFalse(result.getSql().contains("leadToOrderConversionRate"), result.getSql());
+        assertEquals(List.of(30), result.getParams());
+    }
+
+    @Test
+    @DisplayName("DSL_CTE signed cross-model target year-month amount share can opt in to SQL")
+    void generateSqlOptInUsesCrossModelFunnelAmountShareBridge() {
+        QueryFacade queryFacade = mock(QueryFacade.class);
+        when(queryFacade.buildSqlOnly(any(ModelResultContext.class)))
+                .thenReturn(
+                        new SqlGenerationResult(
+                                "SELECT \"leadSource\", \"convertedOrderId\", \"createdAt\", "
+                                        + "COUNT(lead_id) AS \"leadCount\" FROM crm_lead "
+                                        + "GROUP BY \"leadSource\", \"convertedOrderId\", \"createdAt\"",
+                                List.of(),
+                                null),
+                        new SqlGenerationResult(
+                                "SELECT \"orderId\", \"orderDate$caption\", \"orderDate$year\", \"orderDate$month\", "
+                                        + "COUNT(order_id) AS \"matchedOrderCount\", SUM(amount) AS \"orderAmount\" "
+                                        + "FROM fact_order WHERE order_status = 'COMPLETED' AND payment_status = 'PAID' "
+                                        + "GROUP BY \"orderId\", \"orderDate$caption\", \"orderDate$year\", \"orderDate$month\"",
+                                List.of(),
+                                null));
+        ReflectionTestUtils.setField(service, "queryFacade", queryFacade);
+
+        SemanticQueryRequest request = dslCtePlan(signedCrossModelCrmOrderTargetYearMonthAmountShareContract());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SqlGenerationResult result = service.generateSql("CrmLead", request, SemanticRequestContext.empty());
+
+        assertTrue(result.getSql().contains("dsl_cte_funnel_amount_guard"), result.getSql());
+        assertTrue(result.getSql().contains("dsl_cte_funnel_order_deduped"), result.getSql());
+        assertTrue(result.getSql().contains("dsl_cte_funnel_converted_amount"), result.getSql());
+        assertTrue(result.getSql().contains("dsl_cte_funnel_amount_share"), result.getSql());
+        assertTrue(result.getSql().contains("SUM(\"dedupedOrderAmount\") AS \"convertedAmount\""), result.getSql());
+        assertTrue(result.getSql().contains(
+                "SUM(\"convertedAmount\") OVER (PARTITION BY \"orderDate$year\", \"orderDate$month\") AS \"denominatorConvertedAmount\""),
+                result.getSql());
+        assertTrue(result.getSql().contains(
+                "(1.0 * \"convertedAmount\" / NULLIF(SUM(\"convertedAmount\") OVER (PARTITION BY \"orderDate$year\", \"orderDate$month\"), 0)) AS \"amountShare\""),
+                result.getSql());
+        assertTrue(result.getSql().contains("FROM dsl_cte_funnel_amount_share"), result.getSql());
+        assertFalse(result.getSql().contains("leadToOrderConversionRate"), result.getSql());
+        assertEquals(List.of(30), result.getParams());
+    }
+
+    @Test
+    @DisplayName("DSL_CTE signed cross-model target year-month amount per lead can opt in to SQL")
+    void generateSqlOptInUsesCrossModelFunnelAmountPerLeadBridge() {
+        QueryFacade queryFacade = mock(QueryFacade.class);
+        when(queryFacade.buildSqlOnly(any(ModelResultContext.class)))
+                .thenReturn(
+                        new SqlGenerationResult(
+                                "SELECT \"leadSource\", COUNT(lead_id) AS \"distinctLeadCount\" FROM crm_lead "
+                                        + "GROUP BY \"leadSource\"",
+                                List.of(),
+                                null),
+                        new SqlGenerationResult(
+                                "SELECT \"leadSource\", \"convertedOrderId\", \"createdAt\", "
+                                        + "COUNT(lead_id) AS \"leadCount\" FROM crm_lead "
+                                        + "GROUP BY \"leadSource\", \"convertedOrderId\", \"createdAt\"",
+                                List.of(),
+                                null),
+                        new SqlGenerationResult(
+                                "SELECT \"orderId\", \"orderDate$caption\", \"orderDate$year\", \"orderDate$month\", "
+                                        + "COUNT(order_id) AS \"matchedOrderCount\", SUM(amount) AS \"orderAmount\" "
+                                        + "FROM fact_order WHERE order_status = 'COMPLETED' AND payment_status = 'PAID' "
+                                        + "GROUP BY \"orderId\", \"orderDate$caption\", \"orderDate$year\", \"orderDate$month\"",
+                                List.of(),
+                                null));
+        ReflectionTestUtils.setField(service, "queryFacade", queryFacade);
+
+        SemanticQueryRequest request = dslCtePlan(signedCrossModelCrmOrderTargetYearMonthAmountPerLeadContract());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SqlGenerationResult result = service.generateSql("CrmLead", request, SemanticRequestContext.empty());
+
+        assertTrue(result.getSql().contains("dsl_cte_source_denominator"), result.getSql());
+        assertTrue(result.getSql().contains("dsl_cte_funnel_amount_guard"), result.getSql());
+        assertTrue(result.getSql().contains("dsl_cte_funnel_order_deduped"), result.getSql());
+        assertTrue(result.getSql().contains("dsl_cte_funnel_converted_amount"), result.getSql());
+        assertTrue(result.getSql().contains("dsl_cte_funnel_amount_per_lead"), result.getSql());
+        assertTrue(result.getSql().contains("SUM(\"dedupedOrderAmount\") AS \"convertedAmount\""), result.getSql());
+        assertTrue(result.getSql().contains(
+                "d.\"distinctLeadCount\" AS \"distinctLeadCount\""), result.getSql());
+        assertTrue(result.getSql().contains(
+                "(1.0 * m.\"convertedAmount\" / NULLIF(d.\"distinctLeadCount\", 0)) AS \"amountPerLead\""),
+                result.getSql());
+        assertTrue(result.getSql().contains(
+                "JOIN dsl_cte_source_denominator d ON d.\"leadSource\" = m.\"leadSource\""), result.getSql());
+        assertTrue(result.getSql().contains("FROM dsl_cte_funnel_amount_per_lead"), result.getSql());
+        assertFalse(result.getSql().contains("amountShare"), result.getSql());
         assertEquals(List.of(30), result.getParams());
     }
 
@@ -3116,6 +3340,36 @@ class DslCteAcceptanceSampleTest {
                 "deduplication", "dedupe_order_id_after_signed_relation",
                 "orderStatusScope", "completed_paid_orders",
                 "currencyScope", "single_currency_no_conversion"));
+        return plan;
+    }
+
+    private Map<String, Object> signedCrossModelCrmOrderTargetYearMonthAmountShareContract() {
+        Map<String, Object> plan = signedCrossModelCrmOrderTargetYearMonthMoneyAttributionContract();
+        plan.put("moneyDerivedMetricContract", m(
+                "kind", "source_cohort_target_year_month_amount_share",
+                "baseMetric", "convertedAmount",
+                "numeratorMetric", "convertedAmount",
+                "denominatorMetric", "denominatorConvertedAmount",
+                "denominatorScope", "same_target_period_all_source_groups",
+                "metric", "amountShare",
+                "formula", "amountShare=convertedAmount/denominatorConvertedAmount"));
+        plan.put("output", List.of("leadSource", "orderDate$year", "orderDate$month",
+                "convertedAmount", "denominatorConvertedAmount", "amountShare"));
+        return plan;
+    }
+
+    private Map<String, Object> signedCrossModelCrmOrderTargetYearMonthAmountPerLeadContract() {
+        Map<String, Object> plan = signedCrossModelCrmOrderTargetYearMonthMoneyAttributionContract();
+        plan.put("moneyDerivedMetricContract", m(
+                "kind", "source_cohort_target_year_month_amount_per_lead",
+                "baseMetric", "convertedAmount",
+                "numeratorMetric", "convertedAmount",
+                "denominatorMetric", "distinctLeadCount",
+                "denominatorScope", "fixed_per_source_group",
+                "metric", "amountPerLead",
+                "formula", "amountPerLead=convertedAmount/distinctLeadCount"));
+        plan.put("output", List.of("leadSource", "orderDate$year", "orderDate$month",
+                "convertedAmount", "distinctLeadCount", "amountPerLead"));
         return plan;
     }
 

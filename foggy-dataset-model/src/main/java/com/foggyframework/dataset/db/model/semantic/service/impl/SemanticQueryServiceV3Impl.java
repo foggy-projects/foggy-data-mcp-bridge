@@ -340,12 +340,22 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                         DslCteDslRequestMapper.toCrossModelFunnelMoneyAttributionBridge(
                                 model, request.getExecutablePlan());
                 if (moneyAttributionBridge.ready()) {
+                    SqlGenerationResult denominatorSql = null;
+                    if (moneyAttributionBridge.denominatorRequest() != null) {
+                        SemanticQueryRequest denominatorRequest = moneyAttributionBridge.denominatorRequest();
+                        denominatorRequest.setHints(request.getHints() == null ? null : new HashMap<>(request.getHints()));
+                        denominatorSql = generateSql(
+                                moneyAttributionBridge.denominatorModel(), denominatorRequest, context);
+                    }
                     SemanticQueryRequest leftRequest = moneyAttributionBridge.leftRequest();
                     leftRequest.setHints(request.getHints() == null ? null : new HashMap<>(request.getHints()));
                     SemanticQueryRequest rightRequest = moneyAttributionBridge.rightRequest();
                     rightRequest.setHints(request.getHints() == null ? null : new HashMap<>(request.getHints()));
                     SqlGenerationResult leftSql = generateSql(moneyAttributionBridge.leftModel(), leftRequest, context);
                     SqlGenerationResult rightSql = generateSql(moneyAttributionBridge.rightModel(), rightRequest, context);
+                    if (denominatorSql != null) {
+                        return moneyAttributionBridge.wrap(denominatorSql, leftSql, rightSql);
+                    }
                     return moneyAttributionBridge.wrap(leftSql, rightSql);
                 }
                 if (moneyAttributionBridge.relevant()) {
@@ -741,9 +751,15 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                     if (moneyAttributionBridge.ready()) {
                         validation.put("dsl_bridge_status", moneyAttributionBridge.status());
                         Map<String, Object> models = new LinkedHashMap<>();
+                        if (moneyAttributionBridge.denominatorModel() != null) {
+                            models.put("denominator", moneyAttributionBridge.denominatorModel());
+                        }
                         models.put("left", moneyAttributionBridge.leftModel());
                         models.put("right", moneyAttributionBridge.rightModel());
                         validation.put("dsl_bridge_models", models);
+                        if (moneyAttributionBridge.denominatorRequest() != null) {
+                            validation.put("dsl_denominator_request", moneyAttributionBridge.denominatorRequest());
+                        }
                         validation.put("dsl_left_request", moneyAttributionBridge.leftRequest());
                         validation.put("dsl_right_request", moneyAttributionBridge.rightRequest());
                         validation.put("dsl_cross_model_funnel_money_attribution",

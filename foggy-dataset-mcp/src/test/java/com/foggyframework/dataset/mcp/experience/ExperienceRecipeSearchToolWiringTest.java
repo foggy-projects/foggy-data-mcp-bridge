@@ -381,7 +381,7 @@ class ExperienceRecipeSearchToolWiringTest {
         return Map.of(
                 "artifactType", artifactType,
                 "artifactUri", "foggy://experience-recipes/evidence/" + artifactType,
-                "artifactHash", "sha256:" + artifactType,
+                "artifactHash", "sha256:" + "a".repeat(64),
                 "signedBy", "registry_admin");
     }
 }

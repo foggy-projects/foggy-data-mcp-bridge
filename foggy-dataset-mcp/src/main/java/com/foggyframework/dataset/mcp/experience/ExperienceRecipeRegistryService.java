@@ -15,6 +15,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -23,12 +24,58 @@ import java.util.function.Function;
 public class ExperienceRecipeRegistryService {
     private final ExperienceRecipeRegistryStore store;
     private final PlatformTransactionManager transactionManager;
+    private final List<ExperienceRecipeArtifactResolver> artifactResolvers;
+    private final ExperienceRecipeArtifactSignatureVerifier artifactSignatureVerifier;
+    private final ExperienceRecipeRegistryProperties properties;
+    private final ExperienceRecipeArtifactUriPolicy artifactUriPolicy;
+    private final ExperienceRecipeArtifactObjectMetadataPolicy artifactObjectMetadataPolicy;
 
     public ExperienceRecipeRegistryService(
             ExperienceRecipeRegistryStore store,
             @Autowired(required = false) PlatformTransactionManager transactionManager) {
+        this(store, transactionManager, List.of(), null, new ExperienceRecipeRegistryProperties());
+    }
+
+    public ExperienceRecipeRegistryService(
+            ExperienceRecipeRegistryStore store,
+            PlatformTransactionManager transactionManager,
+            ExperienceRecipeArtifactResolver artifactResolver,
+            ExperienceRecipeRegistryProperties properties) {
+        this(store, transactionManager, artifactResolver, null, properties);
+    }
+
+    public ExperienceRecipeRegistryService(
+            ExperienceRecipeRegistryStore store,
+            PlatformTransactionManager transactionManager,
+            ExperienceRecipeArtifactResolver artifactResolver,
+            ExperienceRecipeArtifactSignatureVerifier artifactSignatureVerifier,
+            ExperienceRecipeRegistryProperties properties) {
+        this(
+                store,
+                transactionManager,
+                artifactResolver == null ? List.of() : List.of(artifactResolver),
+                artifactSignatureVerifier,
+                properties);
+    }
+
+    @Autowired
+    public ExperienceRecipeRegistryService(
+            ExperienceRecipeRegistryStore store,
+            @Autowired(required = false) PlatformTransactionManager transactionManager,
+            @Autowired(required = false) List<ExperienceRecipeArtifactResolver> artifactResolvers,
+            @Autowired(required = false) ExperienceRecipeArtifactSignatureVerifier artifactSignatureVerifier,
+            ExperienceRecipeRegistryProperties properties) {
         this.store = store;
         this.transactionManager = transactionManager;
+        this.artifactResolvers = artifactResolvers == null
+                ? List.of()
+                : artifactResolvers.stream()
+                        .filter(Objects::nonNull)
+                        .toList();
+        this.artifactSignatureVerifier = artifactSignatureVerifier;
+        this.properties = properties == null ? new ExperienceRecipeRegistryProperties() : properties;
+        this.artifactUriPolicy = new ExperienceRecipeArtifactUriPolicy(this.properties);
+        this.artifactObjectMetadataPolicy = new ExperienceRecipeArtifactObjectMetadataPolicy(this.properties);
     }
 
     public ExperienceRecipeRegistryResponse mutate(ExperienceRecipeRegistryMutationRequest request) {
@@ -119,20 +166,21 @@ public class ExperienceRecipeRegistryService {
             ExperienceRecipeRegistryEntry current,
             TransactionStatus transactionStatus) {
         requireCurrentStatus(current, ExperienceRecipeStatus.CANDIDATE, request.getRegistryKey());
-        if (!"registry_admin".equals(normalizeRole(request.getActorRole()))
-                || !request.getGovernanceEvidence().publishGatePassed()) {
+        PublishGateDecision publishGate = evaluatePublishGate(request, current);
+        if (!publishGate.allowed()) {
+            String reason = firstNonBlank(request.getReason(), publishGate.reason());
             store.appendEvent(eventFor(
                     request,
                     current,
                     current,
                     ExperienceRecipeApiResult.BLOCKED,
                     ExperienceRecipeFailureStage.GATE_VALIDATION,
-                    firstNonBlank(request.getReason(), "publish_validated blocked by registry governance gate")));
+                    reason));
             return ExperienceRecipeRegistryResponse.fromEntry(
                     ExperienceRecipeApiResult.BLOCKED,
                     current,
                     ExperienceRecipeFailureStage.GATE_VALIDATION,
-                    "publish_validated blocked by registry governance gate",
+                    reason,
                     request.getGovernanceEvidence().getEvidenceArtifacts());
         }
         return transition(
@@ -143,6 +191,129 @@ public class ExperienceRecipeRegistryService {
                 true,
                 ExperienceRecipeApiResult.UPDATED,
                 transactionStatus);
+    }
+
+    private PublishGateDecision evaluatePublishGate(
+            ExperienceRecipeRegistryMutationRequest request,
+            ExperienceRecipeRegistryEntry current) {
+        if (!"registry_admin".equals(normalizeRole(request.getActorRole()))
+                || !request.getGovernanceEvidence().publishGatePassed()) {
+            return PublishGateDecision.blocked("publish_validated blocked by registry governance gate");
+        }
+        ExperienceRecipeArtifactVerificationResult artifactVerification = verifyArtifactContents(
+                request.getGovernanceEvidence().getEvidenceArtifacts(),
+                signatureContextFor(request, current));
+        if (!artifactVerification.verified()) {
+            return PublishGateDecision.blocked(artifactVerification.reason());
+        }
+        return PublishGateDecision.passed();
+    }
+
+    private ExperienceRecipeArtifactVerificationResult verifyArtifactContents(
+            List<ExperienceRecipeEvidenceArtifact> artifacts,
+            ExperienceRecipeArtifactSignatureContext signatureContext) {
+        boolean requireResolution = properties.isRequireArtifactResolution();
+        boolean requireSignature = properties.isRequireArtifactSignatureVerification();
+        boolean requireResolvedObjectMetadata = artifactObjectMetadataPolicy.requireResolvedObjectMetadata();
+        boolean requiresResolver = requireResolution || requireSignature || requireResolvedObjectMetadata;
+        if (!requireResolution
+                && !requireSignature
+                && !artifactUriPolicy.enabled()
+                && !artifactObjectMetadataPolicy.enabled()) {
+            return ExperienceRecipeArtifactVerificationResult.passed();
+        }
+        ExperienceRecipeArtifactVerificationResult uriPolicyResult =
+                artifactUriPolicy.validate(artifacts, signatureContext);
+        if (!uriPolicyResult.verified()) {
+            return uriPolicyResult;
+        }
+        if (!requireResolvedObjectMetadata) {
+            ExperienceRecipeArtifactVerificationResult metadataPolicyResult =
+                    artifactObjectMetadataPolicy.validate(artifacts, signatureContext);
+            if (!metadataPolicyResult.verified()) {
+                return metadataPolicyResult;
+            }
+        }
+        if (!requiresResolver) {
+            return ExperienceRecipeArtifactVerificationResult.passed();
+        }
+        if (artifactResolvers.isEmpty()) {
+            return ExperienceRecipeArtifactVerificationResult.failed(
+                    "publish_validated blocked because evidence artifact resolver is not configured");
+        }
+        if (requireSignature && artifactSignatureVerifier == null) {
+            return ExperienceRecipeArtifactVerificationResult.failed(
+                    "publish_validated blocked because evidence artifact signature verifier is not configured");
+        }
+        for (ExperienceRecipeEvidenceArtifact artifact : artifacts) {
+            if (artifact == null || !artifact.validForPublishGate()) {
+                continue;
+            }
+            Optional<ExperienceRecipeArtifactResolution> resolution = resolveArtifact(artifact);
+            if (resolution.isEmpty()) {
+                return ExperienceRecipeArtifactVerificationResult.failed(
+                        "publish_validated blocked because evidence artifact cannot be resolved: "
+                                + artifact.getArtifactUri());
+            }
+            ExperienceRecipeArtifactResolution resolvedArtifact = resolution.get();
+            if (requireResolvedObjectMetadata) {
+                ExperienceRecipeArtifactVerificationResult metadataPolicyResult =
+                        artifactObjectMetadataPolicy.validate(
+                                List.of(resolvedArtifact.toTrustedObjectArtifact(artifact)),
+                                signatureContext);
+                if (!metadataPolicyResult.verified()) {
+                    return metadataPolicyResult;
+                }
+            }
+            byte[] artifactContent = resolvedArtifact.content();
+            if (requireResolution) {
+                String actualHash = ExperienceRecipeArtifactHash.sha256(artifactContent);
+                if (!actualHash.equalsIgnoreCase(artifact.getArtifactHash().trim())) {
+                    return ExperienceRecipeArtifactVerificationResult.failed(
+                            "publish_validated blocked because evidence artifact hash mismatched: "
+                                    + artifact.getArtifactUri());
+                }
+            }
+            if (requireSignature) {
+                ExperienceRecipeArtifactVerificationResult signatureVerification =
+                        artifactSignatureVerifier.verify(artifact, artifactContent, signatureContext);
+                if (signatureVerification == null || !signatureVerification.verified()) {
+                    String reason = signatureVerification == null
+                            ? "signature verifier returned no result"
+                            : signatureVerification.reason();
+                    return ExperienceRecipeArtifactVerificationResult.failed(
+                            "publish_validated blocked because evidence artifact signature verification failed: "
+                                    + firstNonBlank(reason, artifact.getArtifactUri()));
+                }
+            }
+        }
+        return ExperienceRecipeArtifactVerificationResult.passed();
+    }
+
+    private Optional<ExperienceRecipeArtifactResolution> resolveArtifact(ExperienceRecipeEvidenceArtifact artifact) {
+        for (ExperienceRecipeArtifactResolver resolver : artifactResolvers) {
+            Optional<ExperienceRecipeArtifactResolution> resolution = resolver.resolveArtifact(artifact);
+            if (resolution.isPresent()) {
+                return resolution;
+            }
+        }
+        return Optional.empty();
+    }
+
+    private static ExperienceRecipeArtifactSignatureContext signatureContextFor(
+            ExperienceRecipeRegistryMutationRequest request,
+            ExperienceRecipeRegistryEntry current) {
+        ExperienceRecipeRegistryEntry effective = current == null
+                ? entryFromRequest(request)
+                : current.copy();
+        applyMutableRequestFields(effective, request);
+        return new ExperienceRecipeArtifactSignatureContext(
+                effective.getNamespaceScope(),
+                effective.getTenantScope(),
+                effective.getRegistryKey(),
+                effective.getCanonicalRecipeId(),
+                effective.getRecipeVersion(),
+                effective.getOwnerRole());
     }
 
     private ExperienceRecipeRegistryResponse transition(
@@ -492,5 +663,15 @@ public class ExperienceRecipeRegistryService {
             List<ExperienceRecipeRegistryEntry> dedupedRows,
             List<String> candidateCanonicalGroups,
             Map<String, Integer> filteredCounts) {
+    }
+
+    private record PublishGateDecision(boolean allowed, String reason) {
+        static PublishGateDecision passed() {
+            return new PublishGateDecision(true, null);
+        }
+
+        static PublishGateDecision blocked(String reason) {
+            return new PublishGateDecision(false, reason);
+        }
     }
 }
