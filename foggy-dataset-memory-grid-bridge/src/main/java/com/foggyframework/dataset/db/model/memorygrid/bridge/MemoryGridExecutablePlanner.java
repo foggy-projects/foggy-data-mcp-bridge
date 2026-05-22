@@ -1,4 +1,4 @@
-package com.foggyframework.dataset.db.model.semantic.support;
+package com.foggyframework.dataset.db.model.memorygrid.bridge;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;

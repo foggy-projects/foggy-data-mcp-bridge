@@ -4,18 +4,19 @@ import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.db.model.semantic.service.impl.SemanticQueryServiceV3Impl;
-import com.foggyframework.dataset.db.model.semantic.support.InMemoryResultHandleStore;
-import com.foggyframework.dataset.db.model.semantic.support.InMemoryResultStorageAdapter;
-import com.foggyframework.dataset.db.model.semantic.support.MemoryGridExecutor;
-import com.foggyframework.dataset.db.model.semantic.support.MemoryGridRegistryResultResolver;
-import com.foggyframework.dataset.db.model.semantic.support.MemoryGridResultResolver;
-import com.foggyframework.dataset.db.model.semantic.support.MemoryGridStoreBackedResultResolver;
-import com.foggyframework.dataset.db.model.semantic.support.ResultHandleRecord;
-import com.foggyframework.dataset.db.model.semantic.support.ResultHandleWriter;
-import com.foggyframework.dataset.db.model.semantic.support.ResultStorageAdapter;
+import com.foggyframework.dataset.db.model.memorygrid.bridge.BridgeMemoryGridEngine;
+import com.foggyframework.dataset.db.model.memorygrid.bridge.InMemoryResultHandleStore;
+import com.foggyframework.dataset.db.model.memorygrid.bridge.InMemoryResultStorageAdapter;
+import com.foggyframework.dataset.db.model.memorygrid.bridge.MemoryGridExecutor;
+import com.foggyframework.dataset.db.model.memorygrid.bridge.MemoryGridRegistryResultResolver;
+import com.foggyframework.dataset.db.model.memorygrid.bridge.MemoryGridResultResolver;
+import com.foggyframework.dataset.db.model.memorygrid.bridge.MemoryGridStoreBackedResultResolver;
+import com.foggyframework.dataset.db.model.memorygrid.bridge.ResultHandleRecord;
+import com.foggyframework.dataset.db.model.memorygrid.bridge.ResultHandleWriter;
+import com.foggyframework.dataset.db.model.memorygrid.bridge.ResultStorageAdapter;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -32,6 +33,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class MemoryGridAcceptanceSampleTest {
 
     private final SemanticQueryServiceV3Impl service = new SemanticQueryServiceV3Impl();
+    private BridgeMemoryGridEngine bridgeEngine;
+
+    @BeforeEach
+    void setUp() {
+        bridgeEngine = new BridgeMemoryGridEngine();
+        service.setMemoryGridEngine(bridgeEngine);
+    }
+
+    private void setResultResolver(MemoryGridResultResolver resolver) {
+        bridgeEngine.setResultResolver(resolver);
+    }
 
     @Test
     @DisplayName("third-011 Memory Grid sample accepts two governed result handles")
@@ -64,7 +76,7 @@ class MemoryGridAcceptanceSampleTest {
     @Test
     @DisplayName("third-009 Memory Grid executes inner join with resolver when opt-in")
     void third009ExecutesWithResolverWhenOptIn() {
-        ReflectionTestUtils.setField(service, "memoryGridResultResolver", third009Resolver());
+        setResultResolver(third009Resolver());
         SemanticQueryRequest request = memoryGridPlan(third009Plan());
         request.setHints(Map.of("memoryGridExecute", true));
 
@@ -114,8 +126,7 @@ class MemoryGridAcceptanceSampleTest {
         assertTrue(actualHandle.startsWith("mgr_"));
         assertTrue(targetHandle.startsWith("mgr_"));
 
-        ReflectionTestUtils.setField(service, "memoryGridResultResolver",
-                new MemoryGridStoreBackedResultResolver(store, storage));
+        setResultResolver(new MemoryGridStoreBackedResultResolver(store, storage));
         SemanticQueryRequest request = memoryGridPlan(third009Plan(actualHandle, targetHandle));
         request.setHints(Map.of("memoryGridExecute", true));
 
@@ -155,8 +166,7 @@ class MemoryGridAcceptanceSampleTest {
                 List.of(row("salesTeam.name", "Team A", "targetSalesAmount", 100))
         ), writeContext);
 
-        ReflectionTestUtils.setField(service, "memoryGridResultResolver",
-                new MemoryGridStoreBackedResultResolver(store, storage));
+        setResultResolver(new MemoryGridStoreBackedResultResolver(store, storage));
         SemanticQueryRequest request = memoryGridPlan(third009Plan(actualHandle, targetHandle));
         request.setHints(Map.of("memoryGridExecute", true));
 
@@ -190,8 +200,7 @@ class MemoryGridAcceptanceSampleTest {
                 List.of(row("salesTeam.name", "Team A", "targetSalesAmount", 100))
         ), writeContext);
 
-        ReflectionTestUtils.setField(service, "memoryGridResultResolver",
-                new MemoryGridStoreBackedResultResolver(store, storage));
+        setResultResolver(new MemoryGridStoreBackedResultResolver(store, storage));
         SemanticQueryRequest request = memoryGridPlan(third009Plan(actualHandle, targetHandle));
         request.setHints(Map.of("memoryGridExecute", true));
 
@@ -235,8 +244,7 @@ class MemoryGridAcceptanceSampleTest {
         );
         store.save(new ResultHandleRecord(record.result().withMetadata(metadataWithSnapshot(metadata, driftedSnapshot))));
 
-        ReflectionTestUtils.setField(service, "memoryGridResultResolver",
-                new MemoryGridStoreBackedResultResolver(store, storage));
+        setResultResolver(new MemoryGridStoreBackedResultResolver(store, storage));
         SemanticQueryRequest request = memoryGridPlan(third009Plan(actualHandle, targetHandle));
         request.setHints(Map.of("memoryGridExecute", true));
 
@@ -268,8 +276,7 @@ class MemoryGridAcceptanceSampleTest {
         ), SemanticRequestContext.empty());
         store.invalidate(actualHandle);
 
-        ReflectionTestUtils.setField(service, "memoryGridResultResolver",
-                new MemoryGridStoreBackedResultResolver(store, storage));
+        setResultResolver(new MemoryGridStoreBackedResultResolver(store, storage));
         SemanticQueryRequest request = memoryGridPlan(third009Plan(actualHandle, targetHandle));
         request.setHints(Map.of("memoryGridExecute", true));
 
@@ -310,8 +317,7 @@ class MemoryGridAcceptanceSampleTest {
             }
         };
 
-        ReflectionTestUtils.setField(service, "memoryGridResultResolver",
-                new MemoryGridStoreBackedResultResolver(store, unavailableStorage));
+        setResultResolver(new MemoryGridStoreBackedResultResolver(store, unavailableStorage));
         SemanticQueryRequest request = memoryGridPlan(third009Plan(actualHandle, targetHandle));
         request.setHints(Map.of("memoryGridExecute", true));
 
@@ -336,7 +342,7 @@ class MemoryGridAcceptanceSampleTest {
     @Test
     @DisplayName("Memory Grid execution fails closed when resolver schema misses declared metric")
     void executionRequiresDeclaredMetricSchema() {
-        ReflectionTestUtils.setField(service, "memoryGridResultResolver", resolverWithMissingActualMetricSchema());
+        setResultResolver(resolverWithMissingActualMetricSchema());
         SemanticQueryRequest request = memoryGridPlan(third009Plan());
         request.setHints(Map.of("memoryGridExecute", true));
 
@@ -350,7 +356,7 @@ class MemoryGridAcceptanceSampleTest {
     @Test
     @DisplayName("Memory Grid execution fails closed when resolver rows exceed declared limit")
     void executionRequiresResolverRowsWithinDeclaredLimit() {
-        ReflectionTestUtils.setField(service, "memoryGridResultResolver", third009Resolver());
+        setResultResolver(third009Resolver());
         SemanticQueryRequest request = memoryGridPlan(third009Plan(1, 200, 200));
         request.setHints(Map.of("memoryGridExecute", true));
 
@@ -364,7 +370,7 @@ class MemoryGridAcceptanceSampleTest {
     @Test
     @DisplayName("Memory Grid execution fails closed when resolver source route mismatches plan")
     void executionRequiresResolverSourceRouteToMatchPlan() {
-        ReflectionTestUtils.setField(service, "memoryGridResultResolver", resolverWithMismatchedActualSourceRoute());
+        setResultResolver(resolverWithMismatchedActualSourceRoute());
         SemanticQueryRequest request = memoryGridPlan(third009Plan());
         request.setHints(Map.of("memoryGridExecute", true));
 
@@ -378,8 +384,7 @@ class MemoryGridAcceptanceSampleTest {
     @Test
     @DisplayName("Memory Grid production resolver fails closed when result handle expired")
     void executionRequiresUnexpiredResultHandle() {
-        ReflectionTestUtils.setField(service, "memoryGridResultResolver",
-                third009Resolver(Instant.now().minusSeconds(60), null));
+        setResultResolver(third009Resolver(Instant.now().minusSeconds(60), null));
         SemanticQueryRequest request = memoryGridPlan(third009Plan());
         request.setHints(Map.of("memoryGridExecute", true));
 
@@ -392,8 +397,7 @@ class MemoryGridAcceptanceSampleTest {
     @Test
     @DisplayName("Memory Grid production resolver fails closed when namespace mismatches request")
     void executionRequiresNamespaceToMatchContext() {
-        ReflectionTestUtils.setField(service, "memoryGridResultResolver",
-                third009Resolver(Instant.now().plusSeconds(3600), "tenant-a"));
+        setResultResolver(third009Resolver(Instant.now().plusSeconds(3600), "tenant-a"));
         SemanticQueryRequest request = memoryGridPlan(third009Plan());
         request.setHints(Map.of("memoryGridExecute", true));
 
@@ -406,7 +410,7 @@ class MemoryGridAcceptanceSampleTest {
     @Test
     @DisplayName("Memory Grid production resolver fails closed when default namespace handle is read from named namespace")
     void executionRequiresDefaultHandleToStayInDefaultNamespace() {
-        ReflectionTestUtils.setField(service, "memoryGridResultResolver", third009Resolver());
+        setResultResolver(third009Resolver());
         SemanticQueryRequest request = memoryGridPlan(third009Plan());
         request.setHints(Map.of("memoryGridExecute", true));
 
@@ -419,7 +423,7 @@ class MemoryGridAcceptanceSampleTest {
     @Test
     @DisplayName("Memory Grid production resolver fails closed when derived operand is sensitive")
     void executionRejectsSensitiveDerivedOperand() {
-        ReflectionTestUtils.setField(service, "memoryGridResultResolver", resolverWithSensitiveActualMetric());
+        setResultResolver(resolverWithSensitiveActualMetric());
         SemanticQueryRequest request = memoryGridPlan(third009Plan());
         request.setHints(Map.of("memoryGridExecute", true));
 
@@ -434,7 +438,7 @@ class MemoryGridAcceptanceSampleTest {
     @Test
     @DisplayName("Memory Grid production resolver fails closed when metadata storage ref is missing")
     void executionRequiresStorageRefInMetadata() {
-        ReflectionTestUtils.setField(service, "memoryGridResultResolver", resolverWithMissingStorageRef());
+        setResultResolver(resolverWithMissingStorageRef());
         SemanticQueryRequest request = memoryGridPlan(third009Plan());
         request.setHints(Map.of("memoryGridExecute", true));
 

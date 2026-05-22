@@ -4,6 +4,9 @@ import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.db.model.semantic.service.impl.SemanticQueryServiceV3Impl;
+import com.foggyframework.dataset.db.model.memorygrid.bridge.BridgeMemoryGridEngine;
+import com.foggyframework.dataset.db.model.semantic.memorygrid.MemoryGridRequest;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -19,6 +22,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class MemoryGridGuardrailValidatorTest {
 
     private final SemanticQueryServiceV3Impl service = new SemanticQueryServiceV3Impl();
+
+    @BeforeEach
+    void setUp() {
+        service.setMemoryGridEngine(new BridgeMemoryGridEngine());
+    }
 
     @Test
     @DisplayName("MEMORY_GRID accepts bounded governed inputs")
@@ -110,6 +118,17 @@ class MemoryGridGuardrailValidatorTest {
                 service.validateQuery("SaleOrder", memoryGridPlan(plan), SemanticRequestContext.empty()));
 
         assertTrue(ex.getMessage().contains("MEMORY_GRID_LIMIT_EXCEEDED"));
+    }
+
+    @Test
+    @DisplayName("Bridge engine rejects grid_sql until a Grid SQL contract is implemented")
+    void rejectsGridSqlUntilContractIsImplemented() {
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+                new BridgeMemoryGridEngine().validate(
+                        new MemoryGridRequest(Map.of(), "select * from actual", List.of(), Map.of(), null),
+                        SemanticRequestContext.empty()));
+
+        assertTrue(ex.getMessage().contains("MEMORY_GRID_GRID_SQL_NOT_SUPPORTED"));
     }
 
     @Test
