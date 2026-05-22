@@ -2106,13 +2106,13 @@ public final class DslCteDslRequestMapper {
         boolean completed = false;
         boolean paid = false;
         for (Map<String, Object> filter : mapList(rawFilters)) {
-            completed = completed || equalityFilter(filter, FACT_ORDER_STATUS_FIELD, "COMPLETED");
-            paid = paid || equalityFilter(filter, FACT_ORDER_PAYMENT_STATUS_FIELD, "PAID");
+            completed = completed || strictEqualityFilter(filter, FACT_ORDER_STATUS_FIELD, "COMPLETED");
+            paid = paid || strictEqualityFilter(filter, FACT_ORDER_PAYMENT_STATUS_FIELD, "PAID");
         }
         return completed && paid;
     }
 
-    private static boolean equalityFilter(Map<String, Object> filter, String field, String value) {
+    private static boolean strictEqualityFilter(Map<String, Object> filter, String field, String value) {
         if (!field.equals(stringValue(filter.get("field")))) {
             return false;
         }
@@ -2123,7 +2123,7 @@ public final class DslCteDslRequestMapper {
             return value.equalsIgnoreCase(String.valueOf(rawValue));
         }
         if ("in".equalsIgnoreCase(op) && rawValues instanceof List<?> values) {
-            return values.stream().anyMatch(item -> value.equalsIgnoreCase(String.valueOf(item)));
+            return values.size() == 1 && value.equalsIgnoreCase(String.valueOf(values.get(0)));
         }
         return false;
     }

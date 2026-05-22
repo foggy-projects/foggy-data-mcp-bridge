@@ -1198,6 +1198,25 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
+    @DisplayName("DSL_CTE signed cross-model money attribution defers expanded completed-paid scope")
+    void validationDefersCrossModelFunnelMoneyAttributionExpandedCompletedPaidScope() {
+        Map<String, Object> plan = signedCrossModelCrmOrderTargetYearMonthMoneyAttributionContract();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(1).put("filters", List.of(
+                m("field", "orderStatus", "op", "in", "values", List.of("COMPLETED", "CANCELLED")),
+                filter("paymentStatus", "=", "PAID")));
+
+        SemanticQueryResponse response = service.validateQuery(
+                "CrmLead", dslCtePlan(plan), SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_DEFERRED", validation.get("dsl_bridge_status"));
+        assertTrue(validation.get("dsl_bridge_unsupported").toString()
+                .contains("completed_paid_orders scope"));
+    }
+
+    @Test
     @DisplayName("DSL_CTE signed cross-model money attribution defers wrong converted amount metric")
     void validationDefersCrossModelFunnelMoneyAttributionWrongMetric() {
         Map<String, Object> plan = signedCrossModelCrmOrderTargetYearMonthMoneyAttributionContract();
