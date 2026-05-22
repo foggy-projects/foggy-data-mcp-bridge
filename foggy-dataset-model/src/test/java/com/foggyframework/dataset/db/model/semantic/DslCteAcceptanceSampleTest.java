@@ -1234,6 +1234,101 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
+    @DisplayName("DSL_CTE signed cross-model money attribution defers wrong amount field")
+    void validationDefersCrossModelFunnelMoneyAttributionWrongAmountField() {
+        Map<String, Object> plan = signedCrossModelCrmOrderTargetYearMonthMoneyAttributionContract();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> contract = (Map<String, Object>) plan.get("moneyAttributionContract");
+        contract.put("amount", m(
+                "metric", "convertedAmount",
+                "field", "FactOrderQueryModel.payAmount",
+                "stageField", "payAmount",
+                "aggregation", "sum",
+                "sourceMetric", "orderAmount"));
+
+        SemanticQueryResponse response = service.validateQuery(
+                "CrmLead", dslCtePlan(plan), SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_DEFERRED", validation.get("dsl_bridge_status"));
+        assertTrue(validation.get("dsl_bridge_unsupported").toString()
+                .contains("convertedAmount=sum(FactOrderQueryModel.amount)"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE signed cross-model money attribution defers unsupported order selection")
+    void validationDefersCrossModelFunnelMoneyAttributionWrongOrderSelection() {
+        Map<String, Object> plan = signedCrossModelCrmOrderTargetYearMonthMoneyAttributionContract();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> contract = (Map<String, Object>) plan.get("moneyAttributionContract");
+        contract.put("orderSelection", "first_order_after_lead");
+
+        SemanticQueryResponse response = service.validateQuery(
+                "CrmLead", dslCtePlan(plan), SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_DEFERRED", validation.get("dsl_bridge_status"));
+        assertTrue(validation.get("dsl_bridge_unsupported").toString()
+                .contains("orderSelection must be converted_order_id_only"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE signed cross-model money attribution defers unsupported currency scope")
+    void validationDefersCrossModelFunnelMoneyAttributionWrongCurrencyScope() {
+        Map<String, Object> plan = signedCrossModelCrmOrderTargetYearMonthMoneyAttributionContract();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> contract = (Map<String, Object>) plan.get("moneyAttributionContract");
+        contract.put("currencyScope", "multi_currency_convert_to_cny");
+
+        SemanticQueryResponse response = service.validateQuery(
+                "CrmLead", dslCtePlan(plan), SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_DEFERRED", validation.get("dsl_bridge_status"));
+        assertTrue(validation.get("dsl_bridge_unsupported").toString()
+                .contains("currencyScope must be single_currency_no_conversion"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE signed cross-model money attribution defers zero-fill amount calendar")
+    void validationDefersCrossModelFunnelMoneyAttributionZeroFillCalendar() {
+        Map<String, Object> plan = signedCrossModelCrmOrderTargetYearMonthMoneyAttributionContract();
+        plan.put("calendarScaffold", m(
+                "field", "FactOrderQueryModel.orderDate",
+                "grain", "year_month",
+                "rangePolicy", "explicit",
+                "range", m("from", "2026-05", "to", "2026-06"),
+                "fillPolicy", "zero",
+                "fillTarget", "convertedAmount"));
+
+        SemanticQueryResponse response = service.validateQuery(
+                "CrmLead", dslCtePlan(plan), SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_DEFERRED", validation.get("dsl_bridge_status"));
+        assertTrue(validation.get("dsl_bridge_unsupported").toString()
+                .contains("does not sign zero-filled target-period calendars"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE signed cross-model money attribution defers non year-month target period")
+    void validationDefersCrossModelFunnelMoneyAttributionWrongTargetPeriod() {
+        Map<String, Object> plan = signedCrossModelCrmOrderTargetYearMonthMoneyAttributionContract();
+        plan.put("targetPeriod", m(
+                "field", "FactOrderQueryModel.orderDate",
+                "grain", "month",
+                "calendar", "natural"));
+
+        SemanticQueryResponse response = service.validateQuery(
+                "CrmLead", dslCtePlan(plan), SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_DEFERRED", validation.get("dsl_bridge_status"));
+        assertTrue(validation.get("dsl_bridge_unsupported").toString()
+                .contains("explicit year_month targetPeriod"));
+    }
+
+    @Test
     @DisplayName("DSL_CTE signed cross-model target year-month zero-fill calendar marks runtime bridge-ready")
     void validationShowsBridgeReadyForSignedCrossModelFunnelTargetYearMonthZeroFillCalendar() {
         SemanticQueryResponse response = service.validateQuery(
@@ -1623,7 +1718,9 @@ class DslCteAcceptanceSampleTest {
 
         assertTrue(result.getSql().contains("dsl_cte_funnel_amount_guard"), result.getSql());
         assertTrue(result.getSql().contains("crossSourceDuplicateOrders"), result.getSql());
+        assertTrue(result.getSql().contains("HAVING COUNT(DISTINCT \"leadSource\") > 1"), result.getSql());
         assertTrue(result.getSql().contains("dsl_cte_funnel_order_deduped"), result.getSql());
+        assertTrue(result.getSql().contains("WHERE ag.\"crossSourceDuplicateOrders\" = 0"), result.getSql());
         assertTrue(result.getSql().contains("MAX(j.\"orderAmount\") AS \"dedupedOrderAmount\""), result.getSql());
         assertTrue(result.getSql().contains("SUM(\"dedupedOrderAmount\") AS \"convertedAmount\""), result.getSql());
         assertTrue(result.getSql().contains(
