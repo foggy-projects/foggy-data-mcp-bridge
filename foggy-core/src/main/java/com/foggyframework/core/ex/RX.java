@@ -851,6 +851,20 @@ public class RX<T> implements Serializable {
         this.data = data;
     }
 
+    /**
+     * Legacy alias for callers compiled against the previous core API.
+     */
+    public T getItem() {
+        return data;
+    }
+
+    /**
+     * Legacy alias for callers compiled against the previous core API.
+     */
+    public void setItem(T item) {
+        this.data = item;
+    }
+
     public LocalDateTime getTimestamp() {
         return timestamp;
     }
