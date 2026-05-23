@@ -1,4 +1,4 @@
-package com.foggyframework.dataset.db.model.memorygrid.bridge;
+package com.foggyframework.dataset.db.model.semantic.memorygrid;
 
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 

@@ -9,11 +9,11 @@ import com.foggyframework.dataset.db.model.memorygrid.bridge.InMemoryResultHandl
 import com.foggyframework.dataset.db.model.memorygrid.bridge.InMemoryResultStorageAdapter;
 import com.foggyframework.dataset.db.model.memorygrid.bridge.MemoryGridExecutor;
 import com.foggyframework.dataset.db.model.memorygrid.bridge.MemoryGridRegistryResultResolver;
-import com.foggyframework.dataset.db.model.memorygrid.bridge.MemoryGridResultResolver;
 import com.foggyframework.dataset.db.model.memorygrid.bridge.MemoryGridStoreBackedResultResolver;
 import com.foggyframework.dataset.db.model.memorygrid.bridge.ResultHandleRecord;
 import com.foggyframework.dataset.db.model.memorygrid.bridge.ResultHandleWriter;
 import com.foggyframework.dataset.db.model.memorygrid.bridge.ResultStorageAdapter;
+import com.foggyframework.dataset.db.model.semantic.memorygrid.MemoryGridResultResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

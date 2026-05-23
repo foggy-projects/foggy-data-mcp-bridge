@@ -6,6 +6,7 @@ import com.foggyframework.dataset.db.model.semantic.memorygrid.MemoryGridDialect
 import com.foggyframework.dataset.db.model.semantic.memorygrid.MemoryGridEngine;
 import com.foggyframework.dataset.db.model.semantic.memorygrid.MemoryGridExecutionResult;
 import com.foggyframework.dataset.db.model.semantic.memorygrid.MemoryGridRequest;
+import com.foggyframework.dataset.db.model.semantic.memorygrid.MemoryGridResultResolver;
 import com.foggyframework.dataset.db.model.semantic.memorygrid.MemoryGridValidation;
 
 import java.util.LinkedHashMap;

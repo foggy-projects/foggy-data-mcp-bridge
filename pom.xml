@@ -47,6 +47,7 @@
         <module>foggy-dataset-mcp</module>
         <module>foggy-dataset-model</module>
         <module>foggy-dataset-memory-grid-bridge</module>
+        <module>foggy-dataset-memory-grid-duckdb</module>
         <module>foggy-fsscript</module>
         <module>foggy-mcp-launcher</module>
         <!-- Addons: 可选扩展模块 -->
@@ -88,6 +89,7 @@
         <java-cup.version>11b-20160615</java-cup.version>
         <dateparser.version>1.0.11</dateparser.version>
         <jsqlparser.version>5.3</jsqlparser.version>
+        <duckdb-jdbc.version>1.5.3.0</duckdb-jdbc.version>
         <mysql-connector-java.version>8.0.28</mysql-connector-java.version>
     </properties>
 
@@ -127,6 +129,11 @@
             <dependency>
                 <groupId>com.foggysource</groupId>
                 <artifactId>foggy-dataset-memory-grid-bridge</artifactId>
+                <version>${foggy-framework.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.foggysource</groupId>
+                <artifactId>foggy-dataset-memory-grid-duckdb</artifactId>
                 <version>${foggy-framework.version}</version>
             </dependency>
             <dependency>
@@ -238,6 +245,11 @@
                 <groupId>com.github.jsqlparser</groupId>
                 <artifactId>jsqlparser</artifactId>
                 <version>${jsqlparser.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.duckdb</groupId>
+                <artifactId>duckdb_jdbc</artifactId>
+                <version>${duckdb-jdbc.version}</version>
             </dependency>
 
             <!-- ==================== 测试 ==================== -->

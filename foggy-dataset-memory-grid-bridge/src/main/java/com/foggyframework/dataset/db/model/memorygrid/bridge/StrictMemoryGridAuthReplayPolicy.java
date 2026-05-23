@@ -2,6 +2,7 @@ package com.foggyframework.dataset.db.model.memorygrid.bridge;
 
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
+import com.foggyframework.dataset.db.model.semantic.memorygrid.MemoryGridResultResolver;
 
 import java.util.Set;
 

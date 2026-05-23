@@ -1,5 +1,7 @@
 package com.foggyframework.dataset.db.model.memorygrid.bridge;
 
+import com.foggyframework.dataset.db.model.semantic.memorygrid.MemoryGridResultResolver;
+
 import java.util.LinkedHashMap;
 import java.util.Map;
 
