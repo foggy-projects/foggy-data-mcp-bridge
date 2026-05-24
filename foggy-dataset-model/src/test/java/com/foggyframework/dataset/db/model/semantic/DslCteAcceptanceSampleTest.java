@@ -163,6 +163,34 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
+    @DisplayName("DSL_CTE bridge defers non-final relation orderBy stage")
+    void bridgeDefersNonFinalRelationOrderByStage() {
+        Map<String, Object> plan = relationDeriveOrderByPlan();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = new ArrayList<>((List<Map<String, Object>>) plan.get("stages"));
+        plan.put("stages", stages);
+        stages.add(stage("after_top_filter", "postSlice",
+                "inputs", List.of("top_categories"),
+                "filters", List.of(filter("categoryShare", ">", 0.1))));
+
+        List<String> unsupported = bridgeUnsupported(plan);
+
+        assertTrue(unsupported.stream().anyMatch(msg -> msg.contains("orderBy stage must be the final")));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE bridge defers malformed relation ratio NULLIF expression")
+    void bridgeDefersMalformedRelationRatioNullifExpression() {
+        Map<String, Object> plan = relationDeriveOrderByPlan();
+        relationStage(plan, "category_share")
+                .put("derived", List.of(derived("categoryShare", "categorySalesAmount / nullif(companySalesAmount")));
+
+        List<String> unsupported = bridgeUnsupported(plan);
+
+        assertTrue(unsupported.stream().anyMatch(msg -> msg.contains("supports only numerator / denominator")));
+    }
+
+    @Test
     @DisplayName("DSL_CTE bridge keeps SLA templates deferred with pre-aggregate derive reason")
     void validationDefersSlaTemplateBridge() {
         List<String> unsupported = bridgeUnsupported(biz024());
@@ -2292,6 +2320,18 @@ class DslCteAcceptanceSampleTest {
                 "SaleOrder", dslCtePlan(relationDeriveOrderByPlan()), SemanticRequestContext.empty());
 
         Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_READY", validation.get("dsl_bridge_status"));
+        SemanticQueryRequest dslRequest = (SemanticQueryRequest) validation.get("dsl_request");
+        assertNotNull(dslRequest);
+        assertTrue(dslRequest.getColumns().contains("sum(amount) AS categorySalesAmount"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> ratioBridge = (Map<String, Object>) validation.get("dsl_result_stage_metric_ratio");
+        assertEquals("relation_metric_ratio", ratioBridge.get("kind"));
+        assertEquals(3, ratioBridge.get("limit"));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> bridgeOrderBy = (List<Map<String, Object>>) ratioBridge.get("orderBy");
+        assertEquals("categoryShare", bridgeOrderBy.get(0).get("field"));
+        assertEquals("desc", bridgeOrderBy.get(0).get("dir"));
         assertEquals(true, validation.get("post_filter_required"));
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> stages = (List<Map<String, Object>>) validation.get("stages");
@@ -2416,6 +2456,36 @@ class DslCteAcceptanceSampleTest {
                 captor.getValue().getRequest().getParam().getColumns());
         assertEquals(1, captor.getValue().getRequest().getParam().getPostAggregateCalculations().size());
         assertEquals("salesShare", captor.getValue().getRequest().getParam().getPostSlice().get(0).getField());
+    }
+
+    @Test
+    @DisplayName("DSL_CTE generateSql can opt in to final relation orderBy stage")
+    void generateSqlOptInUsesDslBridgeForRelationOrderByStage() {
+        QueryFacade queryFacade = mock(QueryFacade.class);
+        when(queryFacade.buildSqlOnly(any(ModelResultContext.class)))
+                .thenReturn(new SqlGenerationResult(
+                        "SELECT \"product.categoryName\", SUM(amount) AS \"categorySalesAmount\", "
+                                + "SUM(amount) AS \"companySalesAmount\" FROM sale_order "
+                                + "GROUP BY \"product.categoryName\"",
+                        List.of(),
+                        null));
+        ReflectionTestUtils.setField(service, "queryFacade", queryFacade);
+
+        SemanticQueryRequest request = dslCtePlan(relationDeriveOrderByPlan());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SqlGenerationResult result = service.generateSql("SaleOrder", request, SemanticRequestContext.empty());
+
+        assertTrue(result.getSql().contains("dsl_cte_metric_ratio"));
+        assertTrue(result.getSql().contains("categoryShare"));
+        assertTrue(result.getSql().contains("ORDER BY \"categoryShare\" DESC"));
+        assertTrue(result.getSql().contains("LIMIT ?"));
+        assertEquals(List.of(3), result.getParams());
+        org.mockito.ArgumentCaptor<ModelResultContext> captor = org.mockito.ArgumentCaptor.forClass(ModelResultContext.class);
+        verify(queryFacade).buildSqlOnly(captor.capture());
+        assertEquals(List.of("product.categoryName", "sum(amount) AS categorySalesAmount",
+                        "sum(amount) over all AS companySalesAmount"),
+                captor.getValue().getRequest().getParam().getColumns());
     }
 
     @Test
@@ -2918,6 +2988,15 @@ class DslCteAcceptanceSampleTest {
         Map<String, Object> validation = response.getExecution().getDslCteValidation();
         assertEquals("BRIDGE_DEFERRED", validation.get("dsl_bridge_status"));
         return (List<String>) validation.get("dsl_bridge_unsupported");
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> relationStage(Map<String, Object> ctePlan, String stageName) {
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) ctePlan.get("stages");
+        return stages.stream()
+                .filter(stage -> stageName.equals(stage.get("name")))
+                .findFirst()
+                .orElseThrow();
     }
 
     @SuppressWarnings("unchecked")
