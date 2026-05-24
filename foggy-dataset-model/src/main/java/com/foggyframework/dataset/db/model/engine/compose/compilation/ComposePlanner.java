@@ -617,7 +617,7 @@ public final class ComposePlanner {
             "ASC", "DESC", "NULLS", "FIRST", "LAST", "SELECT", "FROM", "WHERE",
             "GROUP", "BY", "ORDER", "HAVING", "LIMIT", "OFFSET", "UNION", "ALL",
             "JOIN", "LEFT", "RIGHT", "INNER", "OUTER", "FULL", "CROSS", "ON",
-            "AS", "EXISTS", "CAST", "COALESCE", "IFNULL", "ISNULL",
+            "AS", "EXISTS", "CAST", "COALESCE", "IFNULL", "ISNULL", "ROUND",
             "NULLIF",
             "OVER", "PARTITION", "ROWS", "RANGE", "PRECEDING", "FOLLOWING", "UNBOUNDED", "CURRENT", "ROW",
             "SUM", "COUNT", "AVG", "MAX", "MIN"

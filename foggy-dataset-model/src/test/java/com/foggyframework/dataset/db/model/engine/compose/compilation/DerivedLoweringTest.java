@@ -390,6 +390,23 @@ class DerivedLoweringTest {
     }
 
     @Test
+    @DisplayName("derived ROUND expression lowers without quoting the function")
+    void derivedRoundExpressionLowersWithoutQuotingFunction() {
+        FakeSemanticService svc = new FakeSemanticService();
+        svc.stub("M", "SELECT amount FROM tbl");
+        BaseModelPlan base = CompileTestHelpers.base("M", "amount");
+        DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                .source(base)
+                .columns(List.of("ROUND(amount, 2) AS roundedAmount"))
+                .build();
+
+        ComposedSql sql = compile(derived, svc, Map.of("M", CompileTestHelpers.emptyBinding()), "postgres");
+
+        assertTrue(sql.getSql().contains("ROUND(amount, 2)"));
+        assertTrue(!sql.getSql().contains("\"ROUND\""));
+    }
+
+    @Test
     @DisplayName("同一层新建 alias 不能立刻用于 slice")
     void sameStageAliasSliceRejectedAtCompile() {
         FakeSemanticService svc = new FakeSemanticService();

@@ -13,6 +13,7 @@ import com.foggyframework.dataset.db.model.engine.compose.schema.ColumnSpec;
 import com.foggyframework.dataset.db.model.engine.compose.schema.ComposeSchemaErrorCodes;
 import com.foggyframework.dataset.db.model.engine.compose.schema.ComposeSchemaException;
 import com.foggyframework.dataset.db.model.engine.compose.schema.OutputSchema;
+import com.foggyframework.dataset.db.model.engine.compose.schema.SchemaDerivation;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -296,6 +297,79 @@ class ComposePlanAwarePermissionValidatorTest {
             PlanFieldAccessContext ctx = PlanFieldAccessContext.builder()
                     .bind(order, ModelBinding.builder().fieldAccess(List.of("total")).build())
                     .build();
+            assertDoesNotThrow(() -> ComposePlanAwarePermissionValidator.validate(
+                    derived, schema, ctx));
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Relation expression dependencies
+    // ------------------------------------------------------------------
+
+    @Nested
+    @DisplayName("relation expression dependency routing")
+    class RelationExpressionDependencies {
+
+        @Test
+        @DisplayName("string expression 依赖未授权 join 字段 → FIELD_ACCESS_DENIED")
+        void expressionDependencyDeniedBySourceProvenance() {
+            ComposeFeatureFlags.overrideG10Enabled(true);
+            QueryPlan publicPlan = basePlan("PublicQM", List.of("customerId", "publicAmount"));
+            QueryPlan secretPlan = basePlan("SecretQM", List.of("customerKey", "secretAmount"));
+            JoinPlan joined = JoinPlan.builder()
+                    .left(publicPlan)
+                    .right(secretPlan)
+                    .type(JoinType.INNER)
+                    .on(List.of(JoinOn.of("customerId", "=", "customerKey")))
+                    .build();
+            DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                    .source(joined)
+                    .columns(List.of("publicAmount / NULLIF(secretAmount, 0) AS ratio"))
+                    .build();
+
+            OutputSchema schema = SchemaDerivation.derive(derived);
+            PlanFieldAccessContext ctx = PlanFieldAccessContext.builder()
+                    .bind(publicPlan, ModelBinding.builder()
+                            .fieldAccess(List.of("customerId", "publicAmount"))
+                            .build())
+                    .bind(secretPlan, ModelBinding.builder()
+                            .fieldAccess(List.of("customerKey"))
+                            .build())
+                    .build();
+
+            ComposeSchemaException ex = assertThrows(ComposeSchemaException.class,
+                    () -> ComposePlanAwarePermissionValidator.validate(derived, schema, ctx));
+            assertEquals(ComposeSchemaErrorCodes.FIELD_ACCESS_DENIED, ex.code());
+            assertEquals("secretAmount", ex.offendingField());
+        }
+
+        @Test
+        @DisplayName("string expression 依赖均授权 → 通过")
+        void expressionDependenciesAllowedBySourceProvenance() {
+            ComposeFeatureFlags.overrideG10Enabled(true);
+            QueryPlan publicPlan = basePlan("PublicQM", List.of("customerId", "publicAmount"));
+            QueryPlan secretPlan = basePlan("SecretQM", List.of("customerKey", "secretAmount"));
+            JoinPlan joined = JoinPlan.builder()
+                    .left(publicPlan)
+                    .right(secretPlan)
+                    .type(JoinType.INNER)
+                    .on(List.of(JoinOn.of("customerId", "=", "customerKey")))
+                    .build();
+            DerivedQueryPlan derived = DerivedQueryPlan.builder()
+                    .source(joined)
+                    .columns(List.of("publicAmount / NULLIF(secretAmount, 0) AS ratio"))
+                    .build();
+
+            OutputSchema schema = SchemaDerivation.derive(derived);
+            PlanFieldAccessContext ctx = PlanFieldAccessContext.builder()
+                    .bind(publicPlan, ModelBinding.builder()
+                            .fieldAccess(List.of("customerId", "publicAmount"))
+                            .build())
+                    .bind(secretPlan, ModelBinding.builder()
+                            .fieldAccess(List.of("customerKey", "secretAmount"))
+                            .build())
+                    .build();
+
             assertDoesNotThrow(() -> ComposePlanAwarePermissionValidator.validate(
                     derived, schema, ctx));
         }

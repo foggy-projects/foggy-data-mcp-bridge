@@ -11,10 +11,12 @@ import com.foggyframework.dataset.db.model.engine.compose.plan.UnionPlan;
 import com.foggyframework.dataset.db.model.engine.compose.plan.WindowColumn;
 import com.foggyframework.dataset.db.model.engine.compose.plan.expr.ColumnExpr;
 import com.foggyframework.dataset.db.model.engine.compose.schema.AliasExtractor;
+import com.foggyframework.dataset.db.model.engine.compose.schema.ColumnAliasParts;
 import com.foggyframework.dataset.db.model.engine.compose.schema.ColumnSpec;
 import com.foggyframework.dataset.db.model.engine.compose.schema.ComposeSchemaErrorCodes;
 import com.foggyframework.dataset.db.model.engine.compose.schema.ComposeSchemaException;
 import com.foggyframework.dataset.db.model.engine.compose.schema.OutputSchema;
+import com.foggyframework.dataset.db.model.engine.compose.schema.SchemaDerivation;
 
 import java.util.List;
 import java.util.Set;
@@ -70,7 +72,8 @@ public final class ComposePlanAwarePermissionValidator {
 
     /**
      * Validate every top-level column reference in {@code plan}'s output
-     * against the per-plan whitelists in {@code planCtx}.
+     * and every string-based derived expression dependency against the
+     * per-plan whitelists in {@code planCtx}.
      *
      * <p>Top-level here means the columns the user wrote in the outermost
      * plan's {@code columns}: bare strings, {@link ColumnExpr},
@@ -100,8 +103,31 @@ public final class ComposePlanAwarePermissionValidator {
             throw new IllegalArgumentException(
                     "validate expects a non-null PlanFieldAccessContext");
         }
+        if (plan instanceof DerivedQueryPlan derived) {
+            validateDerivedExpressionDependencies(derived, planCtx);
+        }
         for (Object column : topLevelColumns(plan)) {
             validateColumn(column, schema, planCtx);
+        }
+    }
+
+    private static void validateDerivedExpressionDependencies(
+            DerivedQueryPlan plan, PlanFieldAccessContext planCtx) {
+        if (plan.columns().isEmpty()) {
+            return;
+        }
+        OutputSchema sourceSchema = SchemaDerivation.derive(plan.source());
+        for (Object column : plan.columns()) {
+            if (!(column instanceof String s)) {
+                continue;
+            }
+            ColumnAliasParts parts = AliasExtractor.extract(s);
+            for (String ident : SchemaDerivation.extractBareIdentifiers(parts.expression())) {
+                if (SchemaDerivation.isReservedToken(ident)) {
+                    continue;
+                }
+                validateBareField(ident, sourceSchema, planCtx);
+            }
         }
     }
 
@@ -120,10 +146,10 @@ public final class ComposePlanAwarePermissionValidator {
         // Bare field — resolve through schema first, then permission.
         String fieldName = extractFieldName(column);
         if (fieldName == null) {
-            // Expression-only (e.g. SUM(amount)) — column reference deps
-            // are validated by the legacy FieldAccessPermissionStep in
-            // single-base contexts; the Compose multi-plan path defers
-            // to that step for now (deferred PR; spec §6.4 step 3).
+            // Non-string expression-only shapes without a single output
+            // field are still covered by the schema derivation guard. The
+            // string-expression dependency path above handles the LLM-facing
+            // relation expression contract used in v3.6 P0.
             return;
         }
         validateBareField(fieldName, schema, planCtx);
