@@ -50,6 +50,34 @@ class DslCteRelationMetricFixtureIntegrationTest extends EcommerceTestSupport {
         }
     }
 
+    @Test
+    @DisplayName("DSL_CTE relation metric difference orderBy bridge executes and matches SQLite baseline")
+    void relationMetricDifferenceOrderByBridgeSqlMatchesManualBaseline() {
+        List<Map<String, Object>> manualRows = categoryNonProfitAmountLeaderboardManualRows();
+        SemanticQueryRequest request = dslCtePlan(categoryNonProfitAmountLeaderboardPlan());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SqlGenerationResult generated = semanticQueryServiceV3.generateSql(
+                "FactSalesQueryModel", request, SemanticRequestContext.empty());
+
+        assertNotNull(generated);
+        assertNotNull(generated.getSql());
+        assertTrue(generated.getSql().contains("dsl_cte_metric_ratio"), generated.getSql());
+        assertTrue(generated.getSql().contains("\"salesAmount\" - \"profitAmount\" AS \"nonProfitAmount\""),
+                generated.getSql());
+        assertTrue(generated.getSql().contains("ORDER BY \"nonProfitAmount\" DESC"), generated.getSql());
+        assertTrue(generated.getSql().contains("LIMIT ?"), generated.getSql());
+        assertEquals(List.of(2), generated.getParams());
+
+        List<Map<String, Object>> rows = new ArrayList<>(jdbcTemplate.queryForList(
+                generated.getSql(), generated.getParams().toArray(new Object[0])));
+
+        assertEquals(manualRows.size(), rows.size());
+        for (int i = 0; i < manualRows.size(); i++) {
+            assertGeneratedCategoryNonProfitAmountRowMatchesManual(rows.get(i), manualRows.get(i));
+        }
+    }
+
     private List<Map<String, Object>> categoryProfitRateLeaderboardManualRows() {
         return jdbcTemplate.queryForList("""
                 SELECT dp.category_name AS categoryName,
@@ -64,12 +92,34 @@ class DslCteRelationMetricFixtureIntegrationTest extends EcommerceTestSupport {
                 """);
     }
 
+    private List<Map<String, Object>> categoryNonProfitAmountLeaderboardManualRows() {
+        return jdbcTemplate.queryForList("""
+                SELECT dp.category_name AS categoryName,
+                       SUM(fs.sales_amount) AS salesAmount,
+                       SUM(fs.profit_amount) AS profitAmount,
+                       SUM(fs.sales_amount) - SUM(fs.profit_amount) AS nonProfitAmount
+                FROM fact_sales fs
+                LEFT JOIN dim_product dp ON fs.product_key = dp.product_key
+                GROUP BY dp.category_name
+                ORDER BY nonProfitAmount DESC
+                LIMIT 2
+                """);
+    }
+
     private static void assertGeneratedCategoryProfitRateRowMatchesManual(Map<String, Object> generated,
                                                                           Map<String, Object> manual) {
         assertEquals(manual.get("categoryName"), value(generated, "product$categoryName"));
         assertDecimalClose(manual.get("salesAmount"), value(generated, "salesAmount"));
         assertDecimalClose(manual.get("profitAmount"), value(generated, "profitAmount"));
         assertDecimalClose(manual.get("profitRate"), value(generated, "profitRate"));
+    }
+
+    private static void assertGeneratedCategoryNonProfitAmountRowMatchesManual(Map<String, Object> generated,
+                                                                               Map<String, Object> manual) {
+        assertEquals(manual.get("categoryName"), value(generated, "product$categoryName"));
+        assertDecimalClose(manual.get("salesAmount"), value(generated, "salesAmount"));
+        assertDecimalClose(manual.get("profitAmount"), value(generated, "profitAmount"));
+        assertDecimalClose(manual.get("nonProfitAmount"), value(generated, "nonProfitAmount"));
     }
 
     private static SemanticQueryRequest dslCtePlan(Map<String, Object> ctePlan) {
@@ -99,6 +149,29 @@ class DslCteRelationMetricFixtureIntegrationTest extends EcommerceTestSupport {
                                 "limit", 2)
                 ),
                 "output", List.of("product$categoryName", "salesAmount", "profitAmount", "profitRate")
+        );
+    }
+
+    private static Map<String, Object> categoryNonProfitAmountLeaderboardPlan() {
+        return m(
+                "stages", List.of(
+                        stage("category_profit", "aggregate",
+                                "input", m("model", "FactSalesQueryModel"),
+                                "groupBy", List.of("product$categoryName"),
+                                "metrics", List.of(
+                                        m("name", "salesAmount", "expr", "sum(salesAmount)"),
+                                        m("name", "profitAmount", "expr", "sum(profitAmount)"))),
+                        stage("category_non_profit_amount", "derive",
+                                "inputs", List.of("category_profit"),
+                                "derived", List.of(
+                                        m("name", "nonProfitAmount", "expr", "salesAmount - profitAmount"))),
+                        stage("top_categories", "orderBy",
+                                "inputs", List.of("category_non_profit_amount"),
+                                "orderBy", List.of(
+                                        m("field", "nonProfitAmount", "dir", "DESC")),
+                                "limit", 2)
+                ),
+                "output", List.of("product$categoryName", "salesAmount", "profitAmount", "nonProfitAmount")
         );
     }
 

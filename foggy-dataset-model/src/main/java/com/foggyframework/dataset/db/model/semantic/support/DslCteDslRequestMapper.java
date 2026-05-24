@@ -3295,36 +3295,54 @@ public final class DslCteDslRequestMapper {
                                                                               List<String> unsupported) {
         List<Map<String, Object>> derived = mapList(rawDerived);
         if (derived.isEmpty() || derived.size() > 6) {
-            unsupported.add("relation result-stage metric ratio bridge requires one to six derived fields");
+            unsupported.add("relation result-stage metric bridge requires one to six derived fields");
             return ResultStageDerivedMetrics.emptyMetrics();
         }
         List<MetricRatioDerived> ratios = new ArrayList<>();
+        List<MetricArithmeticDerived> arithmetic = new ArrayList<>();
         for (Map<String, Object> item : derived) {
             String name = stringValue(item.get("name"));
             String expr = stringValue(item.get("expr"));
             if (name == null || !SAFE_ALIAS_PATTERN.matcher(name).matches()) {
-                unsupported.add("relation result-stage metric ratio derived field must declare a governed alias");
+                unsupported.add("relation result-stage metric derived field must declare a governed alias");
                 continue;
             }
             Matcher matcher = METRIC_SAFE_RATIO_PATTERN.matcher(expr == null ? "" : expr);
-            if (!matcher.matches()) {
-                unsupported.add("relation result-stage metric ratio bridge supports only numerator / denominator "
-                        + "or numerator / NULLIF(denominator, 0) formulas");
+            if (matcher.matches()) {
+                String numerator = matcher.group(1);
+                String denominator = matcher.group(2) == null ? matcher.group(3) : matcher.group(2);
+                if (!metricAliases.contains(numerator) || !metricAliases.contains(denominator)) {
+                    unsupported.add("relation result-stage metric ratio must reference aggregate metric aliases");
+                    continue;
+                }
+                if (aliasAlreadyUsed(name, ratios, arithmetic)) {
+                    unsupported.add("relation result-stage metric derived aliases must be unique");
+                    continue;
+                }
+                ratios.add(new MetricRatioDerived(name, numerator, denominator));
                 continue;
             }
-            String numerator = matcher.group(1);
-            String denominator = matcher.group(2) == null ? matcher.group(3) : matcher.group(2);
-            if (!metricAliases.contains(numerator) || !metricAliases.contains(denominator)) {
-                unsupported.add("relation result-stage metric ratio must reference aggregate metric aliases");
+
+            Matcher differenceMatcher = METRIC_DIFFERENCE_PATTERN.matcher(expr == null ? "" : expr);
+            if (differenceMatcher.matches()) {
+                String left = differenceMatcher.group(1);
+                String right = differenceMatcher.group(2);
+                if (!metricAliases.contains(left) || !metricAliases.contains(right)) {
+                    unsupported.add("relation result-stage metric difference must reference aggregate metric aliases");
+                    continue;
+                }
+                if (aliasAlreadyUsed(name, ratios, arithmetic)) {
+                    unsupported.add("relation result-stage metric derived aliases must be unique");
+                    continue;
+                }
+                arithmetic.add(new MetricArithmeticDerived(name, quoteAlias(left) + " - " + quoteAlias(right),
+                        "relation_metric_difference"));
                 continue;
             }
-            if (aliasAlreadyUsed(name, ratios, List.of())) {
-                unsupported.add("relation result-stage metric ratio aliases must be unique");
-                continue;
-            }
-            ratios.add(new MetricRatioDerived(name, numerator, denominator));
+
+            unsupported.add("relation result-stage metric bridge supports only metric ratio or metric difference formulas");
         }
-        return unsupported.isEmpty() ? new ResultStageDerivedMetrics(ratios, List.of())
+        return unsupported.isEmpty() ? new ResultStageDerivedMetrics(ratios, arithmetic)
                 : ResultStageDerivedMetrics.emptyMetrics();
     }
 
@@ -3920,6 +3938,8 @@ public final class DslCteDslRequestMapper {
                     : ratios.stream().anyMatch(ratio -> signedSlaRatioAlias(
                     ratio.numeratorAlias(), ratio.denominatorAlias(), ratio.ratioAlias()))
                     ? "sla_metric_ratio"
+                    : !arithmetic.isEmpty()
+                    ? "relation_metric_arithmetic"
                     : "relation_metric_ratio");
             result.put("bridge_scope", "result_stage_metric_ratio");
             result.put("bridge_signed", true);

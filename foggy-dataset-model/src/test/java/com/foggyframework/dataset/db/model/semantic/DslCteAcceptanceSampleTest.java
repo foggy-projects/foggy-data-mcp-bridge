@@ -187,7 +187,8 @@ class DslCteAcceptanceSampleTest {
 
         List<String> unsupported = bridgeUnsupported(plan);
 
-        assertTrue(unsupported.stream().anyMatch(msg -> msg.contains("supports only numerator / denominator")));
+        assertTrue(unsupported.stream().anyMatch(msg -> msg.contains(
+                "supports only metric ratio or metric difference formulas")));
     }
 
     @Test
@@ -2353,6 +2354,49 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
+    @DisplayName("DSL_CTE validation accepts relation metric difference as result-stage arithmetic")
+    void validationAcceptsRelationMetricDifferenceStage() {
+        SemanticQueryResponse response = service.validateQuery(
+                "SaleOrder", dslCtePlan(relationMetricDifferenceOrderByPlan()), SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_READY", validation.get("dsl_bridge_status"));
+        SemanticQueryRequest dslRequest = (SemanticQueryRequest) validation.get("dsl_request");
+        assertNotNull(dslRequest);
+        assertTrue(dslRequest.getColumns().contains("sum(amount) AS salesAmount"));
+        assertTrue(dslRequest.getColumns().contains("sum(amount) AS discountAmount"));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> ratioBridge = (Map<String, Object>) validation.get("dsl_result_stage_metric_ratio");
+        assertEquals("relation_metric_arithmetic", ratioBridge.get("kind"));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> arithmetic = (List<Map<String, Object>>) ratioBridge.get("arithmetic");
+        assertEquals(1, arithmetic.size());
+        assertEquals("netSalesAmount", arithmetic.get(0).get("alias"));
+        assertEquals("relation_metric_difference", arithmetic.get(0).get("kind"));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> bridgeOrderBy = (List<Map<String, Object>>) ratioBridge.get("orderBy");
+        assertEquals("netSalesAmount", bridgeOrderBy.get(0).get("field"));
+        assertEquals("desc", bridgeOrderBy.get(0).get("dir"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE relation metric difference bridge defers non-metric operands")
+    void validationDefersRelationMetricDifferenceOnNonMetricOperand() {
+        Map<String, Object> plan = relationMetricDifferenceOrderByPlan();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(0).put("groupBy", List.of("amount"));
+        plan.put("output", List.of("amount", "salesAmount", "discountAmount", "netSalesAmount"));
+        stages.get(1).put("derived", List.of(derived("netSalesAmount", "salesAmount - amount")));
+
+        List<String> unsupported = bridgeUnsupported(plan);
+
+        assertTrue(unsupported.stream()
+                .anyMatch(msg -> msg.contains("metric difference must reference aggregate metric aliases")));
+    }
+
+    @Test
     @DisplayName("DSL_CTE validation rejects unavailable relation orderBy fields")
     void validationRejectsUnknownRelationOrderByField() {
         Map<String, Object> plan = relationDeriveOrderByPlan();
@@ -2486,6 +2530,31 @@ class DslCteAcceptanceSampleTest {
         assertEquals(List.of("product.categoryName", "sum(amount) AS categorySalesAmount",
                         "sum(amount) over all AS companySalesAmount"),
                 captor.getValue().getRequest().getParam().getColumns());
+    }
+
+    @Test
+    @DisplayName("DSL_CTE generateSql can opt in to relation metric difference stage")
+    void generateSqlOptInUsesDslBridgeForRelationMetricDifferenceStage() {
+        QueryFacade queryFacade = mock(QueryFacade.class);
+        when(queryFacade.buildSqlOnly(any(ModelResultContext.class)))
+                .thenReturn(new SqlGenerationResult(
+                        "SELECT \"product.categoryName\", SUM(amount) AS \"salesAmount\", "
+                                + "SUM(amount) AS \"discountAmount\" FROM sale_order "
+                                + "GROUP BY \"product.categoryName\"",
+                        List.of(),
+                        null));
+        ReflectionTestUtils.setField(service, "queryFacade", queryFacade);
+
+        SemanticQueryRequest request = dslCtePlan(relationMetricDifferenceOrderByPlan());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SqlGenerationResult result = service.generateSql("SaleOrder", request, SemanticRequestContext.empty());
+
+        assertTrue(result.getSql().contains("dsl_cte_metric_ratio"));
+        assertTrue(result.getSql().contains("\"salesAmount\" - \"discountAmount\" AS \"netSalesAmount\""));
+        assertTrue(result.getSql().contains("ORDER BY \"netSalesAmount\" DESC"));
+        assertTrue(result.getSql().contains("LIMIT ?"));
+        assertEquals(List.of(5), result.getParams());
     }
 
     @Test
@@ -3683,6 +3752,27 @@ class DslCteAcceptanceSampleTest {
                                 "limit", 3)
                 ),
                 List.of("product.categoryName", "categorySalesAmount", "companySalesAmount", "categoryShare")
+        );
+    }
+
+    private Map<String, Object> relationMetricDifferenceOrderByPlan() {
+        return plan(
+                List.of(
+                        stage("category_sales", "aggregate",
+                                "input", model("SaleOrder"),
+                                "groupBy", List.of("product.categoryName"),
+                                "metrics", List.of(
+                                        metric("salesAmount", "sum(amount)"),
+                                        metric("discountAmount", "sum(amount)"))),
+                        stage("category_net_sales", "derive",
+                                "inputs", List.of("category_sales"),
+                                "derived", List.of(derived("netSalesAmount", "salesAmount - discountAmount"))),
+                        stage("top_categories", "orderBy",
+                                "inputs", List.of("category_net_sales"),
+                                "orderBy", List.of(order("netSalesAmount", "DESC")),
+                                "limit", 5)
+                ),
+                List.of("product.categoryName", "salesAmount", "discountAmount", "netSalesAmount")
         );
     }
 
