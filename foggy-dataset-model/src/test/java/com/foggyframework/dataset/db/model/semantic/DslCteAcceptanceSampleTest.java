@@ -2286,6 +2286,62 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
+    @DisplayName("DSL_CTE validation accepts relation orderBy as output-preserving result stage")
+    void validationAcceptsRelationOrderByStage() {
+        SemanticQueryResponse response = service.validateQuery(
+                "SaleOrder", dslCtePlan(relationDeriveOrderByPlan()), SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals(true, validation.get("post_filter_required"));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) validation.get("stages");
+        Map<String, Object> orderStage = stages.stream()
+                .filter(stage -> "top_categories".equals(stage.get("name")))
+                .findFirst()
+                .orElseThrow();
+
+        assertEquals(true, orderStage.get("output_complete"));
+        @SuppressWarnings("unchecked")
+        List<String> outputFields = (List<String>) orderStage.get("output_fields");
+        assertTrue(outputFields.contains("categoryShare"));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> orderByContract = (Map<String, Object>) orderStage.get("orderBy_contract");
+        assertEquals("result_stage_ordering", orderByContract.get("kind"));
+        assertEquals("preflight_only", orderByContract.get("bridge_scope"));
+        assertEquals(3, orderByContract.get("limit"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE validation rejects unavailable relation orderBy fields")
+    void validationRejectsUnknownRelationOrderByField() {
+        Map<String, Object> plan = relationDeriveOrderByPlan();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(2).put("orderBy", List.of(order("amount", "DESC")));
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+                service.validateQuery("SaleOrder", dslCtePlan(plan), SemanticRequestContext.empty()));
+
+        assertTrue(ex.getMessage().contains("orderBy field references unavailable field 'amount'"));
+        assertTrue(ex.getMessage().contains("DSL_CTE_STAGE_INVALID"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE validation rejects relation expression orderBy")
+    void validationRejectsRelationExpressionOrderBy() {
+        Map<String, Object> plan = relationDeriveOrderByPlan();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(2).put("orderBy", List.of(m("expr", "categoryShare + 1", "dir", "DESC")));
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+                service.validateQuery("SaleOrder", dslCtePlan(plan), SemanticRequestContext.empty()));
+
+        assertTrue(ex.getMessage().contains("orderBy stage does not support expression orderBy"));
+    }
+
+    @Test
     @DisplayName("DSL_CTE validation infers aliases from string metrics")
     void validationInfersStringMetricAliases() {
         SemanticQueryResponse response = service.validateQuery(
@@ -3525,6 +3581,29 @@ class DslCteAcceptanceSampleTest {
                                 "filters", List.of(filter("collectionRate", ">", 0.8)))
                 ),
                 List.of("product.categoryName", "paidAmount", "orderAmount", "collectionRate", "riskLevel")
+        );
+    }
+
+    private Map<String, Object> relationDeriveOrderByPlan() {
+        return plan(
+                List.of(
+                        stage("category_sales", "aggregate",
+                                "input", model("SaleOrder"),
+                                "groupBy", List.of("product.categoryName"),
+                                "metrics", List.of(
+                                        metric("categorySalesAmount", "sum(amount)"),
+                                        metric("companySalesAmount", "sum(amount) over all"))),
+                        stage("category_share", "derive",
+                                "inputs", List.of("category_sales"),
+                                "derived", List.of(derived(
+                                        "categoryShare",
+                                        "categorySalesAmount / nullif(companySalesAmount, 0)"))),
+                        stage("top_categories", "orderBy",
+                                "inputs", List.of("category_share"),
+                                "orderBy", List.of(order("categoryShare", "DESC")),
+                                "limit", 3)
+                ),
+                List.of("product.categoryName", "categorySalesAmount", "companySalesAmount", "categoryShare")
         );
     }
 

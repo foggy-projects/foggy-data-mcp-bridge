@@ -26,7 +26,7 @@ public final class DslCtePlanValidator {
     public static final String POST_SLICE_INVALID = "DSL_CTE_POST_SLICE_INVALID";
 
     private static final Set<String> ALLOWED_STAGE_TYPES = Set.of(
-            "aggregate", "derive", "window_derive", "postSlice", "join_align"
+            "aggregate", "derive", "window_derive", "postSlice", "orderBy", "join_align"
     );
     private static final Set<String> SIGNED_JOIN_ALIGN_CARDINALITIES = Set.of(
             "one_to_one", "one_to_many", "many_to_one"
@@ -60,7 +60,7 @@ public final class DslCtePlanValidator {
         Set<String> stageTypes = new LinkedHashSet<>();
         Map<String, StageOutput> stageOutputs = new LinkedHashMap<>();
         List<Map<String, Object>> stageEvidence = new ArrayList<>();
-        boolean hasPostSlice = false;
+        boolean hasPostResultStage = false;
 
         for (int i = 0; i < stages.size(); i++) {
             Map<String, Object> stage = stages.get(i);
@@ -80,7 +80,7 @@ public final class DslCtePlanValidator {
             names.add(name);
             stageOutputs.put(name, output);
             stageTypes.add(type);
-            hasPostSlice = hasPostSlice || "postSlice".equals(type);
+            hasPostResultStage = hasPostResultStage || "postSlice".equals(type) || "orderBy".equals(type);
             stageEvidence.add(stageEvidence(name, type, stage, output));
         }
 
@@ -99,7 +99,7 @@ public final class DslCtePlanValidator {
         validation.put("stage_types", new ArrayList<>(stageTypes));
         validation.put("stages", stageEvidence);
         validation.put("output", outputs);
-        validation.put("post_filter_required", hasPostSlice || !sliceLowering.isEmpty());
+        validation.put("post_filter_required", hasPostResultStage || !sliceLowering.isEmpty());
         validation.put("slice_lowering_count", sliceLowering.size());
         validation.put("execution_supported", false);
         validation.put("execution_note", "P0 validates normalized DSL_CTE stage contracts; SQL execution is not enabled here.");
@@ -153,6 +153,13 @@ public final class DslCtePlanValidator {
                     throw RX.throwB(POST_SLICE_INVALID + ": postSlice stage must declare filters.");
                 }
             }
+            case "orderBy" -> {
+                requirePriorInputs(stage, knownStageNames, index);
+                if (mapList(stage.get("orderBy")).isEmpty()) {
+                    throw RX.throwB(STAGE_INVALID + ": orderBy stage must declare orderBy.");
+                }
+                validateLimit(stage);
+            }
             case "join_align" -> {
                 List<String> inputs = stringList(stage.get("inputs"));
                 if (inputs.size() < 2) {
@@ -178,6 +185,7 @@ public final class DslCtePlanValidator {
             case "derive" -> derivedOutput(stage, stageOutputs, true);
             case "window_derive" -> derivedOutput(stage, stageOutputs, false);
             case "postSlice" -> postSliceOutput(stage, stageOutputs);
+            case "orderBy" -> orderByOutput(stage, stageOutputs);
             case "join_align" -> joinAlignOutput(stage, stageOutputs);
             default -> StageOutput.incomplete(Set.of(), sourceModels(stage), sourceFields(stage));
         };
@@ -250,6 +258,25 @@ public final class DslCtePlanValidator {
             for (Map<String, Object> filter : mapList(stage.get("filters"))) {
                 validateAvailableField(base, filter.get("field"), "postSlice field");
                 validateAvailableField(base, filter.get("valueField"), "postSlice valueField");
+            }
+        }
+        return base;
+    }
+
+    private static StageOutput orderByOutput(Map<String, Object> stage, Map<String, StageOutput> stageOutputs) {
+        StageOutput base = mergedInputOutput(stage, stageOutputs);
+        for (Map<String, Object> order : mapList(stage.get("orderBy"))) {
+            if (order.containsKey("expr")) {
+                throw RX.throwB(STAGE_INVALID + ": orderBy stage does not support expression orderBy.");
+            }
+            if (base.complete()) {
+                validateAvailableField(base, order.get("field"), "orderBy field", STAGE_INVALID);
+            }
+            String dir = stringValue(order.get("dir"));
+            if (dir != null && !dir.isBlank()
+                    && !"asc".equalsIgnoreCase(dir)
+                    && !"desc".equalsIgnoreCase(dir)) {
+                throw RX.throwB(STAGE_INVALID + ": orderBy dir must be ASC or DESC.");
             }
         }
         return base;
@@ -535,9 +562,13 @@ public final class DslCtePlanValidator {
     }
 
     private static void validateAvailableField(StageOutput output, Object rawField, String usage) {
+        validateAvailableField(output, rawField, usage, POST_SLICE_INVALID);
+    }
+
+    private static void validateAvailableField(StageOutput output, Object rawField, String usage, String errorCode) {
         String field = stringValue(rawField);
         if (field != null && !field.isBlank() && !output.fields().contains(field)) {
-            throw RX.throwB(POST_SLICE_INVALID + ": " + usage + " references unavailable field '" + field + "'.");
+            throw RX.throwB(errorCode + ": " + usage + " references unavailable field '" + field + "'.");
         }
     }
 
@@ -556,6 +587,8 @@ public final class DslCtePlanValidator {
             if (!deriveContract.isEmpty()) {
                 evidence.put("derive_contract", deriveContract);
             }
+        } else if ("orderBy".equals(type)) {
+            evidence.put("orderBy_contract", orderByContractEvidence(stage));
         } else if ("aggregate".equals(type)) {
             Map<String, Object> aggregateContract = aggregateContractEvidence(stage);
             if (!aggregateContract.isEmpty()) {
@@ -564,6 +597,23 @@ public final class DslCtePlanValidator {
         } else if ("join_align".equals(type)) {
             evidence.put("join_align_contract", joinAlignContractEvidence(stage));
         }
+        return evidence;
+    }
+
+    private static Map<String, Object> orderByContractEvidence(Map<String, Object> stage) {
+        Map<String, Object> evidence = new LinkedHashMap<>();
+        evidence.put("kind", "result_stage_ordering");
+        evidence.put("bridge_scope", "preflight_only");
+        evidence.put("bridge_signed", false);
+        evidence.put("orderBy", mapList(stage.get("orderBy")));
+        Integer limit = intValue(stage.get("limit"));
+        if (limit != null) {
+            evidence.put("limit", limit);
+        }
+        evidence.put("required_capabilities", List.of(
+                "post_result_ordering",
+                "bounded_result_limit",
+                "order_field_output_schema_validation"));
         return evidence;
     }
 
@@ -941,6 +991,16 @@ public final class DslCtePlanValidator {
         }
     }
 
+    private static void validateLimit(Map<String, Object> stage) {
+        if (!stage.containsKey("limit") || stage.get("limit") == null) {
+            return;
+        }
+        Integer limit = intValue(stage.get("limit"));
+        if (limit == null || limit <= 0 || limit > 1000) {
+            throw RX.throwB(STAGE_INVALID + ": orderBy limit must be a positive integer <= 1000.");
+        }
+    }
+
     private static String requiredString(Map<String, Object> stage, String key, int index) {
         String value = stringValue(stage.get(key));
         if (value == null || value.isBlank()) {
@@ -993,6 +1053,21 @@ public final class DslCtePlanValidator {
 
     private static String stringValue(Object value) {
         return value == null ? null : String.valueOf(value).trim();
+    }
+
+    private static Integer intValue(Object value) {
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        String text = stringValue(value);
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(text);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 
     private static boolean isBlank(Object value) {
