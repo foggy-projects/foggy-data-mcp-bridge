@@ -23,6 +23,7 @@ export interface QueryFieldSchema {
   defaultValue?: unknown
   columnRef?: string
   dictId?: string
+  /** 远程成员查询使用的展示/lookup 字段，如 customer$caption */
   lookupRef?: string
   order?: number
   span?: number
@@ -133,9 +134,17 @@ function getFilterComponent(field: QueryFieldSchema) {
   }
 }
 
+function getSliceField(field: QueryFieldSchema): string {
+  return field.sourceField || field.key
+}
+
+function getMemberLookupField(field: QueryFieldSchema): string {
+  return field.lookupRef || field.key
+}
+
 function getFilterProps(field: QueryFieldSchema): Record<string, unknown> {
   const baseProps: Record<string, unknown> = {
-    field: field.sourceField || field.key,
+    field: getSliceField(field),
     modelValue: fieldValues.value[field.key] || null,
     'onUpdate:modelValue': (val: SliceRequestDef[] | null) => updateField(field.key, val)
   }
@@ -154,7 +163,8 @@ function getFilterProps(field: QueryFieldSchema): Record<string, unknown> {
     case 'qmLookupSelect':
       return {
         ...baseProps,
-        selectionField: field.sourceField,
+        field: getMemberLookupField(field),
+        selectionField: getSliceField(field),
         remoteLoader: props.filterMemberLoader,
         qmModel: props.qmModel,
         options: [],
