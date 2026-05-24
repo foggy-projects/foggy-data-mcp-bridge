@@ -408,6 +408,24 @@ CREATE INDEX idx_fact_team_sales_date_key ON fact_team_sales (date_key);
 
 COMMENT ON TABLE fact_team_sales IS '团队销售事实表';
 
+-- 18. 客服工单事实表（SLA DSL_CTE parity fixture）
+DROP TABLE IF EXISTS service_ticket CASCADE;
+CREATE TABLE service_ticket (
+    ticket_id         VARCHAR(32) NOT NULL,
+    team_id           VARCHAR(32) NOT NULL,
+    created_at        TIMESTAMP NOT NULL,
+    first_response_at TIMESTAMP,
+    resolved_at       TIMESTAMP,
+    priority          VARCHAR(20) NOT NULL,
+    status            VARCHAR(20) NOT NULL,
+    channel           VARCHAR(20) NOT NULL,
+    PRIMARY KEY (ticket_id)
+);
+CREATE INDEX idx_service_ticket_team_id ON service_ticket (team_id);
+CREATE INDEX idx_service_ticket_created_at ON service_ticket (created_at);
+
+COMMENT ON TABLE service_ticket IS '客服工单事实表（SLA DSL_CTE parity fixture）';
+
 -- ==========================================
 -- 嵌套维度测试表 (Nested Dimension / Snowflake Schema)
 -- ==========================================

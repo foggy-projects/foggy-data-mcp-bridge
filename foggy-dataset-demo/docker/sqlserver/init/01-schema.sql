@@ -407,6 +407,23 @@ CREATE INDEX idx_fact_team_sales_team_id ON fact_team_sales (team_id);
 CREATE INDEX idx_fact_team_sales_date_key ON fact_team_sales (date_key);
 GO
 
+-- 18. 客服工单事实表（SLA DSL_CTE parity fixture）
+CREATE TABLE service_ticket (
+    ticket_id         VARCHAR(32) NOT NULL,
+    team_id           VARCHAR(32) NOT NULL,
+    created_at        DATETIME NOT NULL,
+    first_response_at DATETIME,
+    resolved_at       DATETIME,
+    priority          VARCHAR(20) NOT NULL,
+    [status]          VARCHAR(20) NOT NULL,
+    channel           VARCHAR(20) NOT NULL,
+    CONSTRAINT pk_service_ticket PRIMARY KEY (ticket_id)
+);
+GO
+CREATE INDEX idx_service_ticket_team_id ON service_ticket (team_id);
+CREATE INDEX idx_service_ticket_created_at ON service_ticket (created_at);
+GO
+
 -- ==========================================
 -- 嵌套维度测试表 (Nested Dimension / Snowflake Schema)
 -- ==========================================

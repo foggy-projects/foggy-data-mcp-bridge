@@ -521,6 +521,20 @@ INSERT INTO fact_team_sales (team_id, date_key, sales_amount, sales_count) VALUE
 ('T009', 20250101, 45000.00, 9), ('T009', 20250102, 52000.00, 11);
 GO
 
+-- 14. 客服工单事实数据（SLA DSL_CTE parity fixture）
+INSERT INTO service_ticket (ticket_id, team_id, created_at, first_response_at, resolved_at, priority, [status], channel) VALUES
+('SLA-001', 'T002', '2026-05-01 08:00:00', '2026-05-01 10:00:00', '2026-05-02 09:00:00', 'P1', 'RESOLVED', 'WEB'),
+('SLA-002', 'T002', '2026-05-01 09:00:00', '2026-05-03 10:00:00', '2026-05-04 11:00:00', 'P2', 'RESOLVED', 'APP'),
+('SLA-003', 'T002', '2026-05-02 11:00:00', NULL, NULL, 'P1', 'OPEN', 'PHONE'),
+('SLA-004', 'T002', '2026-05-03 12:00:00', '2026-05-05 11:00:00', '2026-05-06 09:00:00', 'P3', 'RESOLVED', 'WEB'),
+('SLA-005', 'T005', '2026-05-01 08:30:00', '2026-05-01 09:00:00', '2026-05-01 18:00:00', 'P2', 'RESOLVED', 'APP'),
+('SLA-006', 'T005', '2026-05-04 08:00:00', '2026-05-05 07:00:00', '2026-05-05 20:00:00', 'P2', 'RESOLVED', 'WEB'),
+('SLA-007', 'T005', '2026-05-05 10:00:00', '2026-05-08 10:30:00', '2026-05-09 10:00:00', 'P1', 'RESOLVED', 'PHONE'),
+('SLA-008', 'T008', '2026-05-02 08:00:00', '2026-05-02 12:00:00', '2026-05-03 12:00:00', 'P3', 'RESOLVED', 'WEB'),
+('SLA-009', 'T008', '2026-05-07 14:00:00', NULL, NULL, 'P2', 'OPEN', 'APP'),
+('SLA-010', 'T002', '2026-04-29 09:00:00', '2026-04-29 10:00:00', '2026-04-30 18:00:00', 'P2', 'RESOLVED', 'WEB');
+GO
+
 PRINT 'Parent-Child dimension data generated.';
 GO
 
@@ -625,6 +639,7 @@ PRINT '===== Parent-Child & Nested Dimension Data =====';
 SELECT 'dim_team' AS table_name, COUNT(*) AS row_count FROM dim_team
 UNION ALL SELECT 'team_closure', COUNT(*) FROM team_closure
 UNION ALL SELECT 'fact_team_sales', COUNT(*) FROM fact_team_sales
+UNION ALL SELECT 'service_ticket', COUNT(*) FROM service_ticket
 UNION ALL SELECT 'dim_category_group', COUNT(*) FROM dim_category_group
 UNION ALL SELECT 'dim_category_nested', COUNT(*) FROM dim_category_nested
 UNION ALL SELECT 'dim_product_nested', COUNT(*) FROM dim_product_nested

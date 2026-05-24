@@ -375,6 +375,22 @@ CREATE TABLE `fact_team_sales` (
     INDEX `idx_team_sales_date_key` (`date_key`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='团队销售事实表';
 
+-- 18. 客服工单事实表（SLA DSL_CTE parity fixture）
+DROP TABLE IF EXISTS `service_ticket`;
+CREATE TABLE `service_ticket` (
+    `ticket_id`         VARCHAR(32) NOT NULL COMMENT '工单ID',
+    `team_id`           VARCHAR(32) NOT NULL COMMENT '团队ID',
+    `created_at`        DATETIME NOT NULL COMMENT '创建时间',
+    `first_response_at` DATETIME COMMENT '首次响应时间',
+    `resolved_at`       DATETIME COMMENT '解决时间',
+    `priority`          VARCHAR(20) NOT NULL COMMENT '优先级',
+    `status`            VARCHAR(20) NOT NULL COMMENT '状态',
+    `channel`           VARCHAR(20) NOT NULL COMMENT '渠道',
+    PRIMARY KEY (`ticket_id`),
+    INDEX `idx_service_ticket_team_id` (`team_id`),
+    INDEX `idx_service_ticket_created_at` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='客服工单事实表（SLA DSL_CTE parity fixture）';
+
 -- ==========================================
 -- 嵌套维度测试表 (Nested Dimension / Snowflake Schema)
 -- ==========================================
