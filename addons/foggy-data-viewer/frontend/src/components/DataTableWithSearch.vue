@@ -3,7 +3,7 @@ import { ref, computed, onMounted, useAttrs, useSlots } from 'vue'
 import type { EnhancedColumnSchema, SliceRequestDef, FilterOption, TableSchema, FetchDataParams, FetchDataResult, OrderRequestDef, QueryHooks, MemberQueryRequest, MemberQueryResponse, CellCopyConfig, QueryMode } from '@/types'
 import SearchToolbar from './SearchToolbar.vue'
 import QueryPanel from './QueryPanel.vue'
-import type { QuerySchema } from './QueryPanel.vue'
+import type { QueryPanelExpose, QuerySchema } from './QueryPanel.vue'
 import DataTable from './DataTable.vue'
 import { useTableQuery } from './composables/useTableQuery'
 
@@ -297,7 +297,7 @@ interface DataTableExpose {
 }
 
 const searchToolbarRef = ref<SearchToolbarExpose>()
-const queryPanelRef = ref<unknown>()
+const queryPanelRef = ref<QueryPanelExpose>()
 const dataTableRef = ref<DataTableExpose>()
 
 // ========== 筛选状态 ==========
@@ -375,6 +375,14 @@ function handleQueryPanelSearch() {
 function handleQueryPanelReset() {
   queryPanelSlices.value = []
   handleFilterChange()
+}
+
+function searchQueryPanel() {
+  queryPanelRef.value?.search()
+}
+
+function resetQueryPanel() {
+  queryPanelRef.value?.reset()
 }
 
 // 处理搜索工具栏筛选变化（v-model 更新）
@@ -519,14 +527,22 @@ const dataTableEvents = computed(() => {
 defineExpose({
   /** 获取 SearchToolbar 实例 */
   getSearchToolbar: () => searchToolbarRef.value,
+  /** 获取 QueryPanel 实例 */
+  getQueryPanel: () => queryPanelRef.value,
   /** 获取 DataTable 实例 */
   getDataTable: () => dataTableRef.value,
   /** 清空搜索工具栏筛选 */
   clearSearchFilters: () => searchToolbarRef.value?.clearFilters(),
   /** 清空表头筛选 */
   clearTableFilters: () => dataTableRef.value?.clearFilters(),
+  /** 触发 QueryPanel 查询，提交当前表单值 */
+  searchQueryPanel,
+  /** 重置 QueryPanel 并刷新筛选 */
+  resetQueryPanel,
   /** 清空所有筛选 */
   clearAllFilters: () => {
+    queryPanelSlices.value = []
+    resetQueryPanel()
     searchToolbarRef.value?.clearFilters()
     dataTableRef.value?.clearFilters()
   },

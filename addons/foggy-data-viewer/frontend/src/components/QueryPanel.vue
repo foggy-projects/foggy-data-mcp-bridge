@@ -47,6 +47,12 @@ export interface QuerySchema {
   layout?: QueryPanelLayoutSchema
 }
 
+export interface QueryPanelExpose {
+  search: () => void
+  reset: () => void
+  getSlices: () => SliceRequestDef[]
+}
+
 interface Props {
   /** 查询 Schema */
   schema: QuerySchema

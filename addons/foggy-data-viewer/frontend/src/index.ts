@@ -10,6 +10,13 @@ export { default as SearchToolbar } from './components/SearchToolbar.vue'
 export { default as DataTableWithSearch } from './components/DataTableWithSearch.vue'
 export { default as QueryPanel } from './components/QueryPanel.vue'
 
+export type {
+  QueryFieldSchema,
+  QueryPanelLayoutSchema,
+  QueryPanelExpose,
+  QuerySchema
+} from './components/QueryPanel.vue'
+
 // 导出过滤器组件
 export * from './components/filters'
 

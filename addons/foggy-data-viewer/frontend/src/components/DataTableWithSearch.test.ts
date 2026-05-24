@@ -26,7 +26,26 @@ vi.mock('./QueryPanel.vue', () => ({
     name: 'QueryPanel',
     template: '<div class="query-panel-mock"><slot /></div>',
     props: ['schema', 'modelValue', 'filterMemberLoader', 'qmModel'],
-    emits: ['update:modelValue', 'search', 'reset']
+    emits: ['update:modelValue', 'search', 'reset'],
+    data() {
+      return {
+        pendingSlices: []
+      }
+    },
+    methods: {
+      search() {
+        this.$emit('update:modelValue', this.pendingSlices)
+        this.$emit('search')
+      },
+      reset() {
+        this.pendingSlices = []
+        this.$emit('update:modelValue', [])
+        this.$emit('reset')
+      },
+      getSlices() {
+        return this.pendingSlices
+      }
+    }
   }
 }))
 
@@ -735,6 +754,20 @@ describe('DataTableWithSearch', () => {
       expect(dataTable).toBeDefined()
     })
 
+    it('should expose getQueryPanel method', () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          ...defaultProps,
+          queryMode: 'panel',
+          querySchema: mockQuerySchema
+        }
+      })
+
+      const vm = wrapper.vm as any
+      expect(vm.getQueryPanel).toBeDefined()
+      expect(vm.getQueryPanel()).toBeDefined()
+    })
+
     it('should expose clearSearchFilters method', () => {
       const wrapper = mount(DataTableWithSearch, {
         props: defaultProps
@@ -761,6 +794,56 @@ describe('DataTableWithSearch', () => {
       expect(filterChangeEvents).toBeTruthy()
     })
 
+    it('should expose searchQueryPanel and submit current QueryPanel values', async () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          ...defaultProps,
+          queryMode: 'panel',
+          querySchema: mockQuerySchema
+        }
+      })
+
+      const vm = wrapper.vm as any
+      const queryPanel = vm.getQueryPanel()
+      const querySlices: SliceRequestDef[] = [
+        { field: 'name', op: '=', value: 'pending-panel-value' }
+      ]
+
+      queryPanel.pendingSlices = querySlices
+      vm.searchQueryPanel()
+      await wrapper.vm.$nextTick()
+
+      const filterChangeEvents = wrapper.emitted('filter-change')
+      expect(filterChangeEvents).toBeTruthy()
+      expect(filterChangeEvents![filterChangeEvents!.length - 1][0]).toEqual(querySlices)
+    })
+
+    it('should expose resetQueryPanel and clear QueryPanel filters', async () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          ...defaultProps,
+          queryMode: 'panel',
+          querySchema: mockQuerySchema
+        }
+      })
+
+      const vm = wrapper.vm as any
+      const queryPanel = vm.getQueryPanel()
+      queryPanel.pendingSlices = [
+        { field: 'name', op: '=', value: 'pending-panel-value' }
+      ]
+
+      vm.searchQueryPanel()
+      await wrapper.vm.$nextTick()
+      vm.resetQueryPanel()
+      await wrapper.vm.$nextTick()
+
+      const filterChangeEvents = wrapper.emitted('filter-change')
+      expect(filterChangeEvents).toBeTruthy()
+      expect(filterChangeEvents![filterChangeEvents!.length - 1][0]).toEqual([])
+      expect(queryPanel.getSlices()).toEqual([])
+    })
+
     it('should expose clearAllFilters method', () => {
       const wrapper = mount(DataTableWithSearch, {
         props: defaultProps
@@ -773,6 +856,37 @@ describe('DataTableWithSearch', () => {
 
       const filterChangeEvents = wrapper.emitted('filter-change')
       expect(filterChangeEvents).toBeTruthy()
+    })
+
+    it('should reset QueryPanel when clearAllFilters is called', async () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          ...defaultProps,
+          queryMode: 'combined',
+          querySchema: mockQuerySchema
+        }
+      })
+
+      const vm = wrapper.vm as any
+      const queryPanel = vm.getQueryPanel()
+      const dataTable = wrapper.findComponent({ name: 'DataTable' })
+
+      queryPanel.pendingSlices = [
+        { field: 'name', op: '=', value: 'from-panel' }
+      ]
+      vm.searchQueryPanel()
+      await dataTable.vm.$emit('filter-change', [
+        { field: 'amount', op: '>=', value: 100 }
+      ])
+
+      vm.clearAllFilters()
+      await wrapper.vm.$nextTick()
+
+      const filterChangeEvents = wrapper.emitted('filter-change')
+      expect(filterChangeEvents).toBeTruthy()
+      expect(filterChangeEvents![filterChangeEvents!.length - 1][0]).toEqual([])
+      expect(queryPanel.getSlices()).toEqual([])
+      expect(vm.getMergedFilters()).toEqual([])
     })
 
     it('should expose getMergedFilters method', () => {
