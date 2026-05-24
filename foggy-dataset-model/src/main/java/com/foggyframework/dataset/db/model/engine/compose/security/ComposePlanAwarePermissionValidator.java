@@ -4,12 +4,18 @@ import com.foggyframework.dataset.db.model.engine.compose.plan.AggregateColumn;
 import com.foggyframework.dataset.db.model.engine.compose.plan.BaseModelPlan;
 import com.foggyframework.dataset.db.model.engine.compose.plan.DerivedQueryPlan;
 import com.foggyframework.dataset.db.model.engine.compose.plan.JoinPlan;
+import com.foggyframework.dataset.db.model.engine.compose.plan.OverClause;
 import com.foggyframework.dataset.db.model.engine.compose.plan.PlanColumnRef;
 import com.foggyframework.dataset.db.model.engine.compose.plan.ProjectedColumn;
 import com.foggyframework.dataset.db.model.engine.compose.plan.QueryPlan;
 import com.foggyframework.dataset.db.model.engine.compose.plan.UnionPlan;
 import com.foggyframework.dataset.db.model.engine.compose.plan.WindowColumn;
+import com.foggyframework.dataset.db.model.engine.compose.plan.expr.BinaryExpr;
+import com.foggyframework.dataset.db.model.engine.compose.plan.expr.CaseWhenExpr;
 import com.foggyframework.dataset.db.model.engine.compose.plan.expr.ColumnExpr;
+import com.foggyframework.dataset.db.model.engine.compose.plan.expr.LiteralExpr;
+import com.foggyframework.dataset.db.model.engine.compose.plan.expr.PlanExpression;
+import com.foggyframework.dataset.db.model.engine.compose.plan.expr.RawExpr;
 import com.foggyframework.dataset.db.model.engine.compose.schema.AliasExtractor;
 import com.foggyframework.dataset.db.model.engine.compose.schema.ColumnAliasParts;
 import com.foggyframework.dataset.db.model.engine.compose.schema.ColumnSpec;
@@ -18,6 +24,7 @@ import com.foggyframework.dataset.db.model.engine.compose.schema.ComposeSchemaEx
 import com.foggyframework.dataset.db.model.engine.compose.schema.OutputSchema;
 import com.foggyframework.dataset.db.model.engine.compose.schema.SchemaDerivation;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -72,7 +79,7 @@ public final class ComposePlanAwarePermissionValidator {
 
     /**
      * Validate every top-level column reference in {@code plan}'s output
-     * and every string-based derived expression dependency against the
+     * and every derived expression dependency against the
      * per-plan whitelists in {@code planCtx}.
      *
      * <p>Top-level here means the columns the user wrote in the outermost
@@ -118,16 +125,24 @@ public final class ComposePlanAwarePermissionValidator {
         }
         OutputSchema sourceSchema = SchemaDerivation.derive(plan.source());
         for (Object column : plan.columns()) {
-            if (!(column instanceof String s)) {
+            validateDerivedColumnDependencies(column, sourceSchema, planCtx);
+        }
+    }
+
+    private static void validateDerivedColumnDependencies(
+            Object column, OutputSchema sourceSchema, PlanFieldAccessContext planCtx) {
+        for (PlanColumnRef ref : collectPlanRefs(column)) {
+            if (ref.plan() != null) {
+                validatePlanQualified(ref, planCtx);
+            } else {
+                validateBareField(ref.name(), sourceSchema, planCtx);
+            }
+        }
+        for (String ident : collectBareDependencyNames(column)) {
+            if (SchemaDerivation.isReservedToken(ident)) {
                 continue;
             }
-            ColumnAliasParts parts = AliasExtractor.extract(s);
-            for (String ident : SchemaDerivation.extractBareIdentifiers(parts.expression())) {
-                if (SchemaDerivation.isReservedToken(ident)) {
-                    continue;
-                }
-                validateBareField(ident, sourceSchema, planCtx);
-            }
+            validateBareField(ident, sourceSchema, planCtx);
         }
     }
 
@@ -274,6 +289,136 @@ public final class ComposePlanAwarePermissionValidator {
             return pc.alias();
         }
         return null;
+    }
+
+    private static List<PlanColumnRef> collectPlanRefs(Object column) {
+        List<PlanColumnRef> out = new ArrayList<>();
+        if (column instanceof PlanExpression expr) {
+            collectPlanRefs(expr, out);
+        }
+        return out;
+    }
+
+    private static void collectPlanRefs(PlanExpression expr, List<PlanColumnRef> out) {
+        if (expr == null) {
+            return;
+        }
+        if (expr instanceof PlanColumnRef ref) {
+            out.add(ref);
+            return;
+        }
+        if (expr instanceof ProjectedColumn pc) {
+            collectPlanRefs(pc.expr(), out);
+            return;
+        }
+        if (expr instanceof AggregateColumn agg) {
+            collectPlanRefs(agg.ref(), out);
+            return;
+        }
+        if (expr instanceof WindowColumn win) {
+            collectPlanRefs(win.ref(), out);
+            return;
+        }
+        if (expr instanceof BinaryExpr bin) {
+            collectPlanRefs(bin.left(), out);
+            collectPlanRefs(bin.right(), out);
+            return;
+        }
+        if (expr instanceof CaseWhenExpr cw) {
+            for (CaseWhenExpr.WhenThen wt : cw.whens()) {
+                collectPlanRefs(wt.condition(), out);
+                collectPlanRefs(wt.result(), out);
+            }
+            collectPlanRefs(cw.elseExpr(), out);
+        }
+    }
+
+    private static List<String> collectBareDependencyNames(Object column) {
+        List<String> out = new ArrayList<>();
+        if (column instanceof String s) {
+            ColumnAliasParts parts = AliasExtractor.extract(s);
+            collectBareIdentifiers(parts.expression(), out);
+            return out;
+        }
+        if (column instanceof PlanExpression expr) {
+            collectBareDependencyNames(expr, out);
+        }
+        return out;
+    }
+
+    private static void collectBareDependencyNames(PlanExpression expr, List<String> out) {
+        if (expr == null) {
+            return;
+        }
+        if (expr instanceof ColumnExpr ce) {
+            out.add(ce.name());
+            return;
+        }
+        if (expr instanceof PlanColumnRef) {
+            return;
+        }
+        if (expr instanceof ProjectedColumn pc) {
+            collectBareDependencyNames(pc.expr(), out);
+            return;
+        }
+        if (expr instanceof AggregateColumn agg) {
+            collectBareDependencyNames(agg.ref(), out);
+            return;
+        }
+        if (expr instanceof WindowColumn win) {
+            collectBareDependencyNames(win.ref(), out);
+            collectWindowClauseRefs(win.over(), out);
+            return;
+        }
+        if (expr instanceof BinaryExpr bin) {
+            collectBareDependencyNames(bin.left(), out);
+            collectBareDependencyNames(bin.right(), out);
+            return;
+        }
+        if (expr instanceof CaseWhenExpr cw) {
+            for (CaseWhenExpr.WhenThen wt : cw.whens()) {
+                collectBareDependencyNames(wt.condition(), out);
+                collectBareDependencyNames(wt.result(), out);
+            }
+            collectBareDependencyNames(cw.elseExpr(), out);
+            return;
+        }
+        if (expr instanceof RawExpr raw) {
+            collectBareIdentifiers(raw.expression(), out);
+            return;
+        }
+        if (expr instanceof LiteralExpr) {
+            return;
+        }
+        throw new ComposeSchemaException(
+                ComposeSchemaErrorCodes.FIELD_ACCESS_DENIED,
+                "Unrecognised PlanExpression subtype during permission dependency validation: "
+                        + expr.getClass().getName(),
+                ComposeSchemaErrorCodes.PHASE_PERMISSION_VALIDATE,
+                null,
+                null);
+    }
+
+    private static void collectWindowClauseRefs(OverClause over, List<String> out) {
+        if (over == null) {
+            return;
+        }
+        for (String entry : over.getPartitionBy()) {
+            collectBareIdentifiers(entry, out);
+        }
+        for (String entry : over.getOrderBy()) {
+            String normalized = entry != null && entry.startsWith("-")
+                    ? entry.substring(1)
+                    : entry;
+            collectBareIdentifiers(normalized, out);
+        }
+    }
+
+    private static void collectBareIdentifiers(String expression, List<String> out) {
+        if (expression == null || expression.isBlank()) {
+            return;
+        }
+        out.addAll(SchemaDerivation.extractBareIdentifiers(expression));
     }
 
     /** Drop the {@code $caption} / {@code $id} dimension suffix used by

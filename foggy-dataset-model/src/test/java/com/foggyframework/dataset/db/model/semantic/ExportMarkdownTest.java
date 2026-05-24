@@ -9,6 +9,7 @@ import jakarta.annotation.Resource;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
 
@@ -26,8 +27,9 @@ public class ExportMarkdownTest extends EcommerceTestSupport {
         
         String content = response.getContent();
         
-        Files.createDirectories(Paths.get("d:/foggy-projects/foggy-data-mcp/foggy-data-mcp-bridge-wt-dev-compose/docs/8.3.0.beta"));
-        Files.writeString(Paths.get("d:/foggy-projects/foggy-data-mcp/foggy-data-mcp-bridge-wt-dev-compose/docs/8.3.0.beta/qm_describe.md"), content);
+        Path outputDir = Paths.get("target/generated-test-docs/8.3.0.beta");
+        Files.createDirectories(outputDir);
+        Files.writeString(outputDir.resolve("qm_describe.md"), content);
         
         System.out.println("Exported successfully to qm_describe.md");
     }
