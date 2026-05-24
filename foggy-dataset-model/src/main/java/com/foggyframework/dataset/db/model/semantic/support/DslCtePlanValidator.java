@@ -36,8 +36,9 @@ public final class DslCtePlanValidator {
     private static final Set<String> EXPRESSION_KEYWORDS = Set.of(
             "and", "or", "is", "not", "null", "true", "false",
             "case", "when", "then", "else", "end", "as", "over", "rows",
-            "current", "row", "preceding", "following",
-            "count", "sum", "avg", "min", "max", "iif", "hours_between",
+            "current", "row", "preceding", "following", "order", "all", "last",
+            "count", "sum", "avg", "min", "max", "iif", "if", "coalesce", "nullif", "round",
+            "hours_between",
             "priority_threshold", "lag", "lead", "rank");
 
     private DslCtePlanValidator() {
@@ -174,7 +175,8 @@ public final class DslCtePlanValidator {
                                                 Map<String, StageOutput> stageOutputs) {
         return switch (type) {
             case "aggregate" -> aggregateOutput(stage);
-            case "derive", "window_derive" -> derivedOutput(stage, stageOutputs);
+            case "derive" -> derivedOutput(stage, stageOutputs, true);
+            case "window_derive" -> derivedOutput(stage, stageOutputs, false);
             case "postSlice" -> postSliceOutput(stage, stageOutputs);
             case "join_align" -> joinAlignOutput(stage, stageOutputs);
             default -> StageOutput.incomplete(Set.of(), sourceModels(stage), sourceFields(stage));
@@ -208,20 +210,38 @@ public final class DslCtePlanValidator {
         return StageOutput.complete(fields, sourceModels(stage), sourceFields);
     }
 
-    private static StageOutput derivedOutput(Map<String, Object> stage, Map<String, StageOutput> stageOutputs) {
+    private static StageOutput derivedOutput(Map<String, Object> stage, Map<String, StageOutput> stageOutputs,
+                                             boolean validateVisibleInputs) {
         StageOutput base = mergedInputOutput(stage, stageOutputs);
         Set<String> fields = new LinkedHashSet<>(base.fields());
         Set<String> sourceFields = new LinkedHashSet<>(base.sourceFields());
         collectFilterFields(stage.get("filters"), sourceFields);
         for (Map<String, Object> derived : mapList(stage.get("derived"))) {
             String name = stringValue(derived.get("name"));
+            String expr = stringValue(derived.get("expr"));
+            if (validateVisibleInputs && base.complete()) {
+                validateDerivedExpressionReferences(name, expr, base);
+            }
             if (name != null && !name.isBlank()) {
                 fields.add(name);
             }
-            collectExpressionFields(stringValue(derived.get("expr")), sourceFields);
+            collectExpressionFields(expr, sourceFields);
         }
         Set<String> sourceModels = base.sourceModels().isEmpty() ? sourceModels(stage) : base.sourceModels();
         return new StageOutput(fields, base.complete(), sourceModels, sourceFields);
+    }
+
+    private static void validateDerivedExpressionReferences(String name, String expr, StageOutput base) {
+        Set<String> dependencies = new LinkedHashSet<>();
+        collectExpressionFields(expr, dependencies);
+        for (String dependency : dependencies) {
+            if (!base.fields().contains(dependency)) {
+                String alias = name == null || name.isBlank() ? "<unnamed>" : name;
+                throw RX.throwB(STAGE_INVALID + ": derive expression '" + alias
+                        + "' references unavailable input field '" + dependency
+                        + "'; split dependent aliases into a later derive stage.");
+            }
+        }
     }
 
     private static StageOutput postSliceOutput(Map<String, Object> stage, Map<String, StageOutput> stageOutputs) {

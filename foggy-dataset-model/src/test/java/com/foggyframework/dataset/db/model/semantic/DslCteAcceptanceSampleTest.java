@@ -2239,6 +2239,53 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
+    @DisplayName("DSL_CTE validation rejects relation derive expressions outside prior output")
+    void validationRejectsRelationDeriveExpressionOutsidePriorOutput() {
+        Map<String, Object> plan = biz005();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(1).put("derived", List.of(derived("salesShare", "amount / salesAmount")));
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+                service.validateQuery("SaleOrder", dslCtePlan(plan), SemanticRequestContext.empty()));
+
+        assertTrue(ex.getMessage().contains(
+                "derive expression 'salesShare' references unavailable input field 'amount'"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE validation rejects same-stage relation derive alias references")
+    void validationRejectsSameStageRelationDeriveAliasReference() {
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+                service.validateQuery("SaleOrder", dslCtePlan(sameStageRelationDeriveAliasPlan()),
+                        SemanticRequestContext.empty()));
+
+        assertTrue(ex.getMessage().contains(
+                "derive expression 'riskLevel' references unavailable input field 'collectionRate'"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE validation accepts split-stage relation derive alias references")
+    void validationAcceptsSplitStageRelationDeriveAliasReference() {
+        SemanticQueryResponse response = service.validateQuery(
+                "SaleOrder", dslCtePlan(splitStageRelationDeriveAliasPlan()), SemanticRequestContext.empty());
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) response.getExecution()
+                .getDslCteValidation().get("stages");
+        Map<String, Object> riskStage = stages.stream()
+                .filter(stage -> "risk_band".equals(stage.get("name")))
+                .findFirst()
+                .orElseThrow();
+
+        assertEquals(true, riskStage.get("output_complete"));
+        @SuppressWarnings("unchecked")
+        List<String> outputFields = (List<String>) riskStage.get("output_fields");
+        assertTrue(outputFields.contains("collectionRate"));
+        assertTrue(outputFields.contains("riskLevel"));
+    }
+
+    @Test
     @DisplayName("DSL_CTE validation infers aliases from string metrics")
     void validationInfersStringMetricAliases() {
         SemanticQueryResponse response = service.validateQuery(
@@ -3432,6 +3479,52 @@ class DslCteAcceptanceSampleTest {
                                 "metrics", List.of("sum(amount) AS salesAmount"))
                 ),
                 List.of("product.categoryName", "salesAmount")
+        );
+    }
+
+    private Map<String, Object> sameStageRelationDeriveAliasPlan() {
+        return plan(
+                List.of(
+                        stage("customer_collection", "aggregate",
+                                "input", model("SaleOrder"),
+                                "groupBy", List.of("product.categoryName"),
+                                "metrics", List.of(
+                                        metric("paidAmount", "sum(amount)"),
+                                        metric("orderAmount", "sum(amount)"))),
+                        stage("risk_band", "derive",
+                                "inputs", List.of("customer_collection"),
+                                "derived", List.of(
+                                        derived("collectionRate", "paidAmount / nullif(orderAmount, 0)"),
+                                        derived("riskLevel",
+                                                "case when collectionRate < 0.8 then 'low' else 'normal' end")))
+                ),
+                List.of("product.categoryName", "paidAmount", "orderAmount", "collectionRate", "riskLevel")
+        );
+    }
+
+    private Map<String, Object> splitStageRelationDeriveAliasPlan() {
+        return plan(
+                List.of(
+                        stage("customer_collection", "aggregate",
+                                "input", model("SaleOrder"),
+                                "groupBy", List.of("product.categoryName"),
+                                "metrics", List.of(
+                                        metric("paidAmount", "sum(amount)"),
+                                        metric("orderAmount", "sum(amount)"))),
+                        stage("collection_rate", "derive",
+                                "inputs", List.of("customer_collection"),
+                                "derived", List.of(
+                                        derived("collectionRate", "paidAmount / nullif(orderAmount, 0)"))),
+                        stage("risk_band", "derive",
+                                "inputs", List.of("collection_rate"),
+                                "derived", List.of(
+                                        derived("riskLevel",
+                                                "case when collectionRate < 0.8 then 'low' else 'normal' end"))),
+                        stage("filtered", "postSlice",
+                                "inputs", List.of("risk_band"),
+                                "filters", List.of(filter("collectionRate", ">", 0.8)))
+                ),
+                List.of("product.categoryName", "paidAmount", "orderAmount", "collectionRate", "riskLevel")
         );
     }
 
