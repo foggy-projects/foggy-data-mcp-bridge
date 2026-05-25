@@ -70,6 +70,10 @@ public final class DslCteDslRequestMapper {
             "(?i)^\\s*sum\\s*\\(\\s*case\\s+when\\s+([A-Za-z_][A-Za-z0-9_$.]*)\\s+is\\s+not\\s+null\\s+then\\s+1\\s+else\\s+0\\s+end\\s*\\)\\s*$");
     private static final Pattern CASE_WHEN_STRING_COMPARE_COUNT_PATTERN = Pattern.compile(
             "(?i)^\\s*sum\\s*\\(\\s*case\\s+when\\s+([A-Za-z_][A-Za-z0-9_$.]*)\\s*(=|==|!=|<>)\\s*'((?:[^']|'')*)'\\s+then\\s+1\\s+else\\s+0\\s+end\\s*\\)\\s*$");
+    private static final Pattern CASE_WHEN_NOT_NULL_VALUE_SUM_PATTERN = Pattern.compile(
+            "(?i)^\\s*sum\\s*\\(\\s*case\\s+when\\s+([A-Za-z_][A-Za-z0-9_$.]*)\\s+is\\s+not\\s+null\\s+then\\s+([A-Za-z_][A-Za-z0-9_$.]*)\\s+else\\s+0(?:\\.0+)?\\s+end\\s*\\)\\s*$");
+    private static final Pattern CASE_WHEN_STRING_COMPARE_VALUE_SUM_PATTERN = Pattern.compile(
+            "(?i)^\\s*sum\\s*\\(\\s*case\\s+when\\s+([A-Za-z_][A-Za-z0-9_$.]*)\\s*(=|==|!=|<>)\\s*'((?:[^']|'')*)'\\s+then\\s+([A-Za-z_][A-Za-z0-9_$.]*)\\s+else\\s+0(?:\\.0+)?\\s+end\\s*\\)\\s*$");
     private static final Pattern METRIC_RATIO_PATTERN = Pattern.compile(
             "(?i)^\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*/\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*$");
     private static final Pattern METRIC_SAFE_RATIO_PATTERN = Pattern.compile(
@@ -177,6 +181,7 @@ public final class DslCteDslRequestMapper {
 
         request.setColumns(outputColumns(ctePlan.get("output"), aggregate.get("groupBy"), metrics, postAgg,
                 outputAliasOverride, unsupported));
+        request.setCalculatedFields(metrics.calculatedFields().isEmpty() ? null : metrics.calculatedFields());
         request.setPostAggregateCalculations(postAgg.isEmpty() ? null : postAgg);
         request.setPostSlice(postSlice);
         request.setOrderBy(resultOrderBy);
@@ -283,6 +288,7 @@ public final class DslCteDslRequestMapper {
         baseRequest.setGroupBy(groupByItems(aggregate.get("groupBy")));
         baseRequest.setSlice(sliceItems(aggregate.get("filters"), unsupported));
         baseRequest.setColumns(outputColumns(null, aggregate.get("groupBy"), metrics, List.of(), Map.of(), unsupported));
+        baseRequest.setCalculatedFields(metrics.calculatedFields().isEmpty() ? null : metrics.calculatedFields());
         baseRequest.setReturnTotal(false);
 
         String model = sourceModel(fallbackModel, aggregate);
@@ -377,10 +383,10 @@ public final class DslCteDslRequestMapper {
         SemanticQueryRequest baseRequest = new SemanticQueryRequest();
         baseRequest.setRoute("DSL");
         baseRequest.setStatus("PLAN_READY");
-        baseRequest.setCalculatedFields(calculatedFields.isEmpty() ? null : calculatedFields);
         baseRequest.setGroupBy(groupByItems(aggregate.get("groupBy")));
         baseRequest.setSlice(sliceItems(derive.get("filters"), unsupported));
         baseRequest.setColumns(outputColumns(null, aggregate.get("groupBy"), metrics, List.of(), Map.of(), unsupported));
+        baseRequest.setCalculatedFields(mergeCalculatedFields(calculatedFields, metrics.calculatedFields()));
         baseRequest.setReturnTotal(false);
 
         if (model == null || model.isBlank()) {
@@ -530,6 +536,7 @@ public final class DslCteDslRequestMapper {
         baseRequest.setGroupBy(groupByItems(aggregate.get("groupBy")));
         baseRequest.setSlice(sliceItems(aggregate.get("filters"), unsupported));
         baseRequest.setColumns(outputColumns(null, aggregate.get("groupBy"), metrics, List.of(), Map.of(), unsupported));
+        baseRequest.setCalculatedFields(metrics.calculatedFields().isEmpty() ? null : metrics.calculatedFields());
         baseRequest.setReturnTotal(false);
 
         if (model == null || model.isBlank()) {
@@ -1546,6 +1553,7 @@ public final class DslCteDslRequestMapper {
         request.setGroupBy(groupByItems(aggregate.get("groupBy")));
         request.setSlice(sliceItems(aggregate.get("filters"), unsupported));
         request.setColumns(outputColumns(null, aggregate.get("groupBy"), metrics, List.of(), Map.of(), unsupported));
+        request.setCalculatedFields(metrics.calculatedFields().isEmpty() ? null : metrics.calculatedFields());
         request.setReturnTotal(false);
         return request;
     }
@@ -2569,11 +2577,11 @@ public final class DslCteDslRequestMapper {
         SemanticQueryRequest request = new SemanticQueryRequest();
         request.setRoute("DSL");
         request.setStatus("PLAN_READY");
-        request.setCalculatedFields(calculatedFields.isEmpty() ? null : calculatedFields);
         request.setGroupBy(groupByItems(aggregate.get("groupBy")));
         request.setSlice(sliceItems(derive.get("filters"), unsupported));
         request.setColumns(outputColumns(ctePlan.get("output"), aggregate.get("groupBy"), metrics,
                 List.of(), Map.of(), unsupported));
+        request.setCalculatedFields(mergeCalculatedFields(calculatedFields, metrics.calculatedFields()));
         request.setOrderBy(orderItems(ctePlan.get("orderBy"), availableFields(
                 ctePlan.get("output"), aggregate.get("groupBy"), metrics.aliases()), unsupported));
         request.setLimit(limit(ctePlan.get("limit"), unsupported));
@@ -2984,8 +2992,8 @@ public final class DslCteDslRequestMapper {
             unsupported.add("window_derive must reference the first aggregate stage for DSL_CTE period-over-period bridge");
             return null;
         }
-        if (derived.size() != 2) {
-            unsupported.add("DSL_CTE period-over-period bridge requires lag metric and growth ratio derived fields");
+        if (derived.size() < 2 || derived.size() > 3) {
+            unsupported.add("DSL_CTE period-over-period bridge requires lag metric and difference or growth derived fields");
             return null;
         }
 
@@ -3033,14 +3041,6 @@ public final class DslCteDslRequestMapper {
             return null;
         }
 
-        Map<String, Object> ratioDerived = derived.get(1);
-        String ratioAlias = stringValue(ratioDerived.get("name"));
-        String ratioExpr = stringValue(ratioDerived.get("expr"));
-        if (ratioAlias == null || !matchesPeriodGrowthExpr(ratioExpr, measure, priorAlias)) {
-            unsupported.add("DSL_CTE period-over-period bridge requires growth formula (metric - lagAlias) / lagAlias");
-            return null;
-        }
-
         PeriodComparison periodComparison = periodComparison(orderField, partitionBy);
         if (periodComparison == null) {
             unsupported.add("DSL_CTE period-over-period bridge supports only signed month-grain MoM or YoY templates in this cut");
@@ -3054,8 +3054,58 @@ public final class DslCteDslRequestMapper {
 
         Map<String, String> aliasOverride = new LinkedHashMap<>();
         aliasOverride.put(priorAlias, measure + "__prior");
-        aliasOverride.put(ratioAlias, measure + "__ratio");
+        boolean hasDiff = false;
+        boolean hasRatio = false;
+        for (int i = 1; i < derived.size(); i++) {
+            Map<String, Object> currentDerived = derived.get(i);
+            String alias = stringValue(currentDerived.get("name"));
+            String expr = stringValue(currentDerived.get("expr"));
+            if (alias == null) {
+                unsupported.add("DSL_CTE period-over-period bridge requires named derived fields");
+                return null;
+            }
+            if (matchesPeriodDiffExpr(expr, measure, priorAlias)) {
+                if (hasDiff) {
+                    unsupported.add("DSL_CTE period-over-period bridge supports only one difference derived field");
+                    return null;
+                }
+                aliasOverride.put(alias, measure + "__diff");
+                hasDiff = true;
+            } else if (matchesPeriodGrowthExpr(expr, measure, priorAlias)) {
+                if (hasRatio) {
+                    unsupported.add("DSL_CTE period-over-period bridge supports only one growth ratio derived field");
+                    return null;
+                }
+                aliasOverride.put(alias, measure + "__ratio");
+                hasRatio = true;
+            } else {
+                unsupported.add("DSL_CTE period-over-period bridge requires difference formula metric - lagAlias "
+                        + "or growth formula (metric - lagAlias) / lagAlias");
+                return null;
+            }
+        }
+        if (!hasDiff && !hasRatio) {
+            unsupported.add("DSL_CTE period-over-period bridge requires difference or growth derived field");
+            return null;
+        }
         return new WindowBridge(timeWindow, aliasOverride);
+    }
+
+    private static boolean matchesPeriodDiffExpr(String expr, String measure, String priorAlias) {
+        if (expr == null || measure == null || priorAlias == null) {
+            return false;
+        }
+        String normalized = expr.toLowerCase(Locale.ROOT).replaceAll("\\s+", "");
+        String current = measure.toLowerCase(Locale.ROOT);
+        String prior = priorAlias.toLowerCase(Locale.ROOT);
+        String canonical = current + "-" + prior;
+        String parenthesized = "(" + canonical + ")";
+        String canonicalWithEnginePrior = current + "-" + current + "__prior";
+        String parenthesizedWithEnginePrior = "(" + canonicalWithEnginePrior + ")";
+        return canonical.equals(normalized)
+                || parenthesized.equals(normalized)
+                || canonicalWithEnginePrior.equals(normalized)
+                || parenthesizedWithEnginePrior.equals(normalized);
     }
 
     private static boolean matchesPeriodGrowthExpr(String expr, String measure, String priorAlias) {
@@ -3182,9 +3232,32 @@ public final class DslCteDslRequestMapper {
         }
     }
 
+    private static List<CalculatedFieldDef> mergeCalculatedFields(List<CalculatedFieldDef> first,
+                                                                  List<CalculatedFieldDef> second) {
+        if ((first == null || first.isEmpty()) && (second == null || second.isEmpty())) {
+            return null;
+        }
+        List<CalculatedFieldDef> result = new ArrayList<>();
+        if (first != null) {
+            result.addAll(first);
+        }
+        if (second != null) {
+            result.addAll(second);
+        }
+        return result;
+    }
+
+    private static CalculatedFieldDef aggregateCalculatedField(String name, String caption,
+                                                              String expression, String agg) {
+        CalculatedFieldDef def = new CalculatedFieldDef(name, caption, expression);
+        def.setAgg(agg);
+        return def;
+    }
+
     private static MetricMapping metrics(Object raw, List<String> unsupported) {
         List<Map<String, Object>> metricMaps = mapList(raw);
         Map<String, String> columnByAlias = new LinkedHashMap<>();
+        List<CalculatedFieldDef> calculatedFields = new ArrayList<>();
         for (Map<String, Object> metric : metricMaps) {
             String name = stringValue(metric.get("name"));
             String expr = stringValue(metric.get("expr"));
@@ -3193,13 +3266,30 @@ public final class DslCteDslRequestMapper {
                 continue;
             }
             String normalizedConditionalCount = normalizeConditionalCountMetric(expr, unsupported);
-            columnByAlias.put(name, (normalizedConditionalCount == null ? expr : normalizedConditionalCount)
-                    + " AS " + name);
+            if (normalizedConditionalCount != null) {
+                columnByAlias.put(name, normalizedConditionalCount + " AS " + name);
+                continue;
+            }
+            ConditionalValueSum conditionalValueSum = conditionalValueSumMetric(expr, unsupported);
+            if (conditionalValueSum != null) {
+                calculatedFields.add(aggregateCalculatedField(
+                        name,
+                        name + "条件金额行值",
+                        conditionalValueSum.formula(),
+                        "SUM"));
+                columnByAlias.put(name, name);
+                continue;
+            }
+            if (expr.toLowerCase(Locale.ROOT).contains("case when")) {
+                unsupported.add("aggregate CASE metric is not signed for DSL_CTE bridge v1: " + name);
+                continue;
+            }
+            columnByAlias.put(name, expr + " AS " + name);
         }
         if (columnByAlias.isEmpty()) {
             unsupported.add("aggregate stage must declare object metrics for DSL_CTE bridge v1");
         }
-        return new MetricMapping(columnByAlias);
+        return new MetricMapping(columnByAlias, calculatedFields);
     }
 
     private static String normalizeConditionalCountMetric(String expr, List<String> unsupported) {
@@ -3216,6 +3306,26 @@ public final class DslCteDslRequestMapper {
             }
             return "sum(if(" + stringCompare.group(1) + " " + formulaOperator(stringCompare.group(2))
                     + " " + quoteStringLiteral(value) + ", 1, 0))";
+        }
+        return null;
+    }
+
+    private static ConditionalValueSum conditionalValueSumMetric(String expr, List<String> unsupported) {
+        Matcher notNull = CASE_WHEN_NOT_NULL_VALUE_SUM_PATTERN.matcher(expr == null ? "" : expr);
+        if (notNull.matches()) {
+            return new ConditionalValueSum(
+                    "if(is_not_null(" + notNull.group(1) + "), " + notNull.group(2) + ", 0)");
+        }
+        Matcher stringCompare = CASE_WHEN_STRING_COMPARE_VALUE_SUM_PATTERN.matcher(expr == null ? "" : expr);
+        if (stringCompare.matches()) {
+            String value = unescapeSqlStringLiteral(stringCompare.group(3));
+            if (!safeCaseLabelLiteral(value)) {
+                unsupported.add("conditional value SUM CASE literal must be a short single-line string");
+                return null;
+            }
+            return new ConditionalValueSum(
+                    "if(" + stringCompare.group(1) + " " + formulaOperator(stringCompare.group(2))
+                            + " " + quoteStringLiteral(value) + ", " + stringCompare.group(4) + ", 0)");
         }
         return null;
     }
@@ -3907,10 +4017,17 @@ public final class DslCteDslRequestMapper {
         return null;
     }
 
-    private record MetricMapping(Map<String, String> columnByAlias) {
+    private record MetricMapping(Map<String, String> columnByAlias, List<CalculatedFieldDef> calculatedFields) {
+        MetricMapping(Map<String, String> columnByAlias) {
+            this(columnByAlias, List.of());
+        }
+
         List<String> aliases() {
             return new ArrayList<>(columnByAlias.keySet());
         }
+    }
+
+    private record ConditionalValueSum(String formula) {
     }
 
     private record WindowBridge(Map<String, Object> timeWindow, Map<String, String> outputAliasOverride) {

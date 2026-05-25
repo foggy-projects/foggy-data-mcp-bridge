@@ -37,6 +37,10 @@ public final class DslCtePlanValidator {
             "(?i)^\\s*sum\\s*\\(\\s*case\\s+when\\s+[A-Za-z_][A-Za-z0-9_$.]*\\s+"
                     + "(?:is\\s+not\\s+null|(?:=|==|!=|<>)\\s*'(?:[^']|'')*')"
                     + "\\s+then\\s+1\\s+else\\s+0\\s+end\\s*\\)\\s*$");
+    private static final Pattern SIGNED_CONDITIONAL_VALUE_SUM_PATTERN = Pattern.compile(
+            "(?i)^\\s*sum\\s*\\(\\s*case\\s+when\\s+[A-Za-z_][A-Za-z0-9_$.]*\\s+"
+                    + "(?:is\\s+not\\s+null|(?:=|==|!=|<>)\\s*'(?:[^']|'')*')"
+                    + "\\s+then\\s+[A-Za-z_][A-Za-z0-9_$.]*\\s+else\\s+0(?:\\.0+)?\\s+end\\s*\\)\\s*$");
     private static final Set<String> EXPRESSION_KEYWORDS = Set.of(
             "and", "or", "is", "not", "null", "true", "false",
             "case", "when", "then", "else", "end", "as", "over", "rows",
@@ -791,6 +795,7 @@ public final class DslCtePlanValidator {
     private static Map<String, Object> aggregateContractEvidence(Map<String, Object> stage) {
         Map<String, Object> evidence = new LinkedHashMap<>();
         boolean hasConditionalMetric = false;
+        boolean hasConditionalValueSumMetric = false;
         boolean allConditionalMetricsSigned = true;
         Object rawMetrics = stage.get("metrics");
         if (rawMetrics instanceof List<?> metrics) {
@@ -802,23 +807,39 @@ public final class DslCtePlanValidator {
                 String expr = stringValue(metric.get("expr"));
                 if (expr != null && expr.toLowerCase(Locale.ROOT).contains("case when")) {
                     hasConditionalMetric = true;
+                    boolean signedCount = SIGNED_CONDITIONAL_COUNT_PATTERN.matcher(expr).matches();
+                    boolean signedValueSum = SIGNED_CONDITIONAL_VALUE_SUM_PATTERN.matcher(expr).matches();
+                    hasConditionalValueSumMetric = hasConditionalValueSumMetric || signedValueSum;
                     allConditionalMetricsSigned = allConditionalMetricsSigned
-                            && SIGNED_CONDITIONAL_COUNT_PATTERN.matcher(expr).matches();
+                            && (signedCount || signedValueSum);
                 }
             }
         }
         if (hasConditionalMetric) {
-            evidence.put("kind", "conditional_numerator_aggregation");
+            evidence.put("kind", hasConditionalValueSumMetric
+                    ? "conditional_value_aggregation"
+                    : "conditional_numerator_aggregation");
             evidence.put("bridge_scope", "aggregate_metrics");
             evidence.put("bridge_signed", allConditionalMetricsSigned);
             evidence.put("required_capabilities", allConditionalMetricsSigned
-                    ? List.of("conditional_count_normalization", "governed_field_predicate")
+                    ? conditionalAggregateCapabilities(hasConditionalValueSumMetric)
                     : List.of(
                             "case_when_over_row_level_derived",
                             "boolean_metric_sum",
                             "governed_denominator_alignment"));
         }
         return evidence;
+    }
+
+    private static List<String> conditionalAggregateCapabilities(boolean hasConditionalValueSumMetric) {
+        if (hasConditionalValueSumMetric) {
+            return List.of(
+                    "conditional_value_sum_normalization",
+                    "governed_field_predicate",
+                    "governed_value_field",
+                    "semantic_unit_guard");
+        }
+        return List.of("conditional_count_normalization", "governed_field_predicate");
     }
 
     private static Map<String, Object> windowContractEvidence(Map<String, Object> stage) {

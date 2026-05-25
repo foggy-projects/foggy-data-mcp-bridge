@@ -3,6 +3,7 @@ package com.foggyframework.dataset.db.model.semantic;
 import com.foggyframework.dataset.db.model.ecommerce.EcommerceTestSupport;
 import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import jakarta.annotation.Resource;
@@ -112,6 +113,48 @@ class DslCteRelationMetricFixtureIntegrationTest extends EcommerceTestSupport {
         }
     }
 
+    @Test
+    @DisplayName("DSL_CTE conditional value aggregate difference bridge executes and matches SQLite baseline")
+    void conditionalValueAggregateDifferenceBridgeSqlMatchesManualBaseline() {
+        assumeCommonTableExpressionsSupported();
+
+        List<Map<String, Object>> manualRows = categoryNonCompletedSalesLeaderboardManualRows();
+        SemanticQueryRequest request = dslCtePlan(categoryNonCompletedSalesLeaderboardPlan());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SemanticQueryResponse response = semanticQueryServiceV3.validateQuery(
+                "FactSalesQueryModel", request, SemanticRequestContext.empty());
+        Map<String, Object> aggregateContract = stageContract(response, "category_completed_sales",
+                "aggregate_contract");
+        assertEquals("conditional_value_aggregation", aggregateContract.get("kind"));
+        assertEquals(true, aggregateContract.get("bridge_signed"));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> resultStageBridge = (Map<String, Object>) response.getExecution()
+                .getDslCteValidation().get("dsl_result_stage_metric_ratio");
+        assertEquals("relation_metric_arithmetic", resultStageBridge.get("kind"));
+
+        SqlGenerationResult generated = semanticQueryServiceV3.generateSql(
+                "FactSalesQueryModel", request, SemanticRequestContext.empty());
+
+        assertNotNull(generated);
+        assertNotNull(generated.getSql());
+        assertTrue(generated.getSql().contains("completedSalesAmount"), generated.getSql());
+        assertTrue(generated.getSql().contains(
+                "\"totalSalesAmount\" - \"completedSalesAmount\" AS \"nonCompletedSalesAmount\""),
+                generated.getSql());
+        assertTrue(generated.getSql().contains(
+                "ORDER BY \"nonCompletedSalesAmount\" DESC, \"product$categoryName\" ASC"), generated.getSql());
+
+        List<Map<String, Object>> rows = new ArrayList<>(jdbcTemplate.queryForList(
+                generated.getSql(), generated.getParams().toArray(new Object[0])));
+
+        assertEquals(manualRows.size(), rows.size());
+        for (int i = 0; i < manualRows.size(); i++) {
+            assertGeneratedCategoryNonCompletedSalesRowMatchesManual(rows.get(i), manualRows.get(i));
+        }
+    }
+
     private List<Map<String, Object>> categoryProfitRateLeaderboardManualRows() {
         return jdbcTemplate.queryForList("""
                 SELECT dp.category_name AS categoryName,
@@ -156,6 +199,26 @@ class DslCteRelationMetricFixtureIntegrationTest extends EcommerceTestSupport {
                 """);
     }
 
+    private List<Map<String, Object>> categoryNonCompletedSalesLeaderboardManualRows() {
+        return jdbcTemplate.queryForList("""
+                SELECT *
+                FROM (
+                    SELECT dp.category_name AS categoryName,
+                           SUM(fs.sales_amount) AS totalSalesAmount,
+                           SUM(CASE WHEN fs.order_status = 'COMPLETED' THEN fs.sales_amount ELSE 0 END)
+                               AS completedSalesAmount,
+                           SUM(fs.sales_amount)
+                               - SUM(CASE WHEN fs.order_status = 'COMPLETED' THEN fs.sales_amount ELSE 0 END)
+                               AS nonCompletedSalesAmount
+                    FROM fact_sales fs
+                    LEFT JOIN dim_product dp ON fs.product_key = dp.product_key
+                    GROUP BY dp.category_name
+                )
+                ORDER BY nonCompletedSalesAmount DESC, categoryName ASC
+                LIMIT 3
+                """);
+    }
+
     private static void assertGeneratedCategoryProfitRateRowMatchesManual(Map<String, Object> generated,
                                                                           Map<String, Object> manual) {
         assertEquals(manual.get("categoryName"), value(generated, "product$categoryName"));
@@ -179,6 +242,31 @@ class DslCteRelationMetricFixtureIntegrationTest extends EcommerceTestSupport {
         assertDecimalClose(manual.get("profitAmount"), value(generated, "profitAmount"));
         assertDecimalClose(manual.get("profitRate"), value(generated, "profitRate"));
         assertEquals(manual.get("profitBand"), value(generated, "profitBand"));
+    }
+
+    private static void assertGeneratedCategoryNonCompletedSalesRowMatchesManual(Map<String, Object> generated,
+                                                                                 Map<String, Object> manual) {
+        assertEquals(manual.get("categoryName"), value(generated, "product$categoryName"));
+        assertDecimalClose(manual.get("totalSalesAmount"), value(generated, "totalSalesAmount"));
+        assertDecimalClose(manual.get("completedSalesAmount"), value(generated, "completedSalesAmount"));
+        assertDecimalClose(manual.get("nonCompletedSalesAmount"), value(generated, "nonCompletedSalesAmount"));
+    }
+
+    private static Map<String, Object> stageContract(SemanticQueryResponse response,
+                                                     String stageName,
+                                                     String contractKey) {
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) response.getExecution()
+                .getDslCteValidation().get("stages");
+        return stages.stream()
+                .filter(stage -> stageName.equals(stage.get("name")))
+                .findFirst()
+                .map(stage -> {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> contract = (Map<String, Object>) stage.get(contractKey);
+                    return contract;
+                })
+                .orElseThrow(() -> new AssertionError("Missing contract " + contractKey + " for stage " + stageName));
     }
 
     private static SemanticQueryRequest dslCtePlan(Map<String, Object> ctePlan) {
@@ -260,6 +348,34 @@ class DslCteRelationMetricFixtureIntegrationTest extends EcommerceTestSupport {
                 ),
                 "output", List.of("product$categoryName", "salesAmount", "profitAmount", "profitRate",
                         "profitBand")
+        );
+    }
+
+    private static Map<String, Object> categoryNonCompletedSalesLeaderboardPlan() {
+        return m(
+                "stages", List.of(
+                        stage("category_completed_sales", "aggregate",
+                                "input", m("model", "FactSalesQueryModel"),
+                                "groupBy", List.of("product$categoryName"),
+                                "metrics", List.of(
+                                        m("name", "totalSalesAmount", "expr", "sum(salesAmount)"),
+                                        m("name", "completedSalesAmount", "expr",
+                                                "sum(case when orderStatus = 'COMPLETED' "
+                                                        + "then salesAmount else 0 end)"))),
+                        stage("category_non_completed_sales", "derive",
+                                "inputs", List.of("category_completed_sales"),
+                                "derived", List.of(
+                                        m("name", "nonCompletedSalesAmount",
+                                                "expr", "totalSalesAmount - completedSalesAmount"))),
+                        stage("top_non_completed_categories", "orderBy",
+                                "inputs", List.of("category_non_completed_sales"),
+                                "orderBy", List.of(
+                                        m("field", "nonCompletedSalesAmount", "dir", "DESC"),
+                                        m("field", "product$categoryName", "dir", "ASC")),
+                                "limit", 3)
+                ),
+                "output", List.of("product$categoryName", "totalSalesAmount", "completedSalesAmount",
+                        "nonCompletedSalesAmount")
         );
     }
 

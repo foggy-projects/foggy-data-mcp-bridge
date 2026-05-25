@@ -192,6 +192,22 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
+    @DisplayName("DSL_CTE bridge defers unsigned aggregate CASE metrics")
+    void bridgeDefersUnsignedAggregateCaseMetric() {
+        Map<String, Object> plan = relationMetricDifferenceOrderByPlan();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(0).put("metrics", List.of(
+                metric("salesAmount", "sum(amount)"),
+                metric("discountAmount", "sum(case when status = 'PAID' and amount > 0 then amount else 0 end)")));
+
+        List<String> unsupported = bridgeUnsupported(plan);
+
+        assertTrue(unsupported.stream()
+                .anyMatch(msg -> msg.contains("aggregate CASE metric is not signed")));
+    }
+
+    @Test
     @DisplayName("DSL_CTE bridge keeps SLA templates deferred with pre-aggregate derive reason")
     void validationDefersSlaTemplateBridge() {
         List<String> unsupported = bridgeUnsupported(biz024());
@@ -756,6 +772,21 @@ class DslCteAcceptanceSampleTest {
         assertEquals("mom", dslRequest.getTimeWindow().get("comparison"));
         assertEquals(List.of("balanceAmount"), dslRequest.getTimeWindow().get("targetMetrics"));
         assertTrue(dslRequest.getColumns().contains("balanceAmount__ratio"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE validation marks lag difference period-over-period plan as bridge-ready")
+    void validationShowsBridgeReadyForLagDifferencePeriodOverPeriod() {
+        SemanticQueryResponse response = service.validateQuery(
+                "AccountBalance", dslCtePlan(third031Difference()), SemanticRequestContext.empty());
+
+        assertEquals("BRIDGE_READY", response.getExecution().getDslCteValidation().get("dsl_bridge_status"));
+        SemanticQueryRequest dslRequest = (SemanticQueryRequest) response.getExecution()
+                .getDslCteValidation().get("dsl_request");
+        assertNotNull(dslRequest);
+        assertEquals("mom", dslRequest.getTimeWindow().get("comparison"));
+        assertEquals(List.of("balanceAmount"), dslRequest.getTimeWindow().get("targetMetrics"));
+        assertTrue(dslRequest.getColumns().contains("balanceAmount__diff"));
     }
 
     @Test
@@ -2671,6 +2702,36 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
+    @DisplayName("DSL_CTE generateSql can opt in to MoM difference timeWindow bridge")
+    void generateSqlOptInUsesDslBridgeForLagDifferencePeriodOverPeriod() {
+        QueryFacade queryFacade = mock(QueryFacade.class);
+        when(queryFacade.buildSqlOnly(any(ModelResultContext.class)))
+                .thenReturn(new SqlGenerationResult(
+                        "WITH monthly AS (...) SELECT balanceAmount__diff FROM monthly",
+                        List.of(),
+                        null));
+        ReflectionTestUtils.setField(service, "queryFacade", queryFacade);
+
+        SemanticQueryRequest request = dslCtePlan(third031Difference());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SqlGenerationResult result = service.generateSql("AccountBalance", request, SemanticRequestContext.empty());
+
+        assertTrue(result.getSql().contains("balanceAmount__diff"));
+        org.mockito.ArgumentCaptor<ModelResultContext> captor = org.mockito.ArgumentCaptor.forClass(ModelResultContext.class);
+        verify(queryFacade).buildSqlOnly(captor.capture());
+        assertEquals(List.of("branch.name", "balanceDate.month", "sum(balanceAmount) AS balanceAmount",
+                        "balanceAmount__diff"),
+                captor.getValue().getRequest().getParam().getColumns());
+        assertEquals(Map.of(
+                        "field", "balanceDate.month",
+                        "grain", "month",
+                        "comparison", "mom",
+                        "targetMetrics", List.of("balanceAmount")),
+                captor.getValue().getExtData().get("timeWindow"));
+    }
+
+    @Test
     @DisplayName("DSL_CTE generateSql can opt in to monthly YoY period-over-period timeWindow bridge")
     void generateSqlOptInUsesDslBridgeForMonthlyYoyPeriodOverPeriod() {
         QueryFacade queryFacade = mock(QueryFacade.class);
@@ -3845,6 +3906,25 @@ class DslCteAcceptanceSampleTest {
                                         derived("monthOverMonthGrowthRate", "(balanceAmount - previousMonthBalance) / previousMonthBalance")))
                 ),
                 List.of("branch.name", "balanceDate.month", "balanceAmount", "monthOverMonthGrowthRate")
+        );
+    }
+
+    private Map<String, Object> third031Difference() {
+        return plan(
+                List.of(
+                        stage("monthly_branch_balance", "aggregate",
+                                "input", model("AccountBalance"),
+                                "filters", List.of(filter("balanceDate", "year", "2026")),
+                                "groupBy", List.of("branch.name", "balanceDate.month"),
+                                "metrics", List.of(metric("balanceAmount", "sum(balanceAmount)"))),
+                        stage("monthly_difference", "window_derive",
+                                "inputs", List.of("monthly_branch_balance"),
+                                "window", window(List.of("branch.name"), List.of(order("balanceDate.month", "ASC")), null),
+                                "derived", List.of(
+                                        derived("previousMonthBalance", "lag(balanceAmount)"),
+                                        derived("monthOverMonthDifference", "balanceAmount - previousMonthBalance")))
+                ),
+                List.of("branch.name", "balanceDate.month", "balanceAmount", "monthOverMonthDifference")
         );
     }
 
