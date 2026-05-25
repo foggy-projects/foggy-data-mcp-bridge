@@ -2356,8 +2356,8 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
-    @DisplayName("DSL_CTE relation CASE label bridge defers unsigned multi-branch CASE")
-    void validationDefersRelationCaseLabelWithMultipleBranches() {
+    @DisplayName("DSL_CTE validation accepts relation ordered numeric bucket")
+    void validationAcceptsRelationOrderedNumericBucket() {
         Map<String, Object> plan = splitStageRelationDeriveAliasPlan();
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
@@ -2366,10 +2366,35 @@ class DslCteAcceptanceSampleTest {
                         "case when collectionRate < 0.8 then 'low' "
                                 + "when collectionRate > 1 then 'high' else 'normal' end")));
 
+        SemanticQueryResponse response = service.validateQuery(
+                "SaleOrder", dslCtePlan(plan), SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_READY", validation.get("dsl_bridge_status"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> ratioBridge = (Map<String, Object>) validation.get("dsl_result_stage_metric_ratio");
+        assertEquals("relation_metric_ordered_bucket", ratioBridge.get("kind"));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> arithmetic = (List<Map<String, Object>>) ratioBridge.get("arithmetic");
+        assertEquals("riskLevel", arithmetic.get(0).get("alias"));
+        assertEquals("relation_metric_ordered_bucket", arithmetic.get(0).get("kind"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE relation ordered bucket defers multi-field CASE")
+    void validationDefersRelationOrderedBucketWithMultipleFields() {
+        Map<String, Object> plan = splitStageRelationDeriveAliasPlan();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(2).put("derived", List.of(
+                derived("riskLevel",
+                        "case when collectionRate < 0.8 then 'low' "
+                                + "when paidAmount > 100 then 'high' else 'normal' end")));
+
         List<String> unsupported = bridgeUnsupported(plan);
 
         assertTrue(unsupported.stream()
-                .anyMatch(msg -> msg.contains("signed CASE bucket label formulas")));
+                .anyMatch(msg -> msg.contains("ordered bucket must compare one visible numeric alias")));
     }
 
     @Test
@@ -2636,6 +2661,40 @@ class DslCteAcceptanceSampleTest {
         assertTrue(result.getSql().contains("dsl_cte_metric_ratio_1"), result.getSql());
         assertTrue(result.getSql().contains(
                 "CASE WHEN \"collectionRate\" < 0.8 THEN 'low' ELSE 'normal' END AS \"riskLevel\""),
+                result.getSql());
+        assertTrue(result.getSql().contains("WHERE \"collectionRate\" > ?"), result.getSql());
+        assertEquals(List.of(0.8), result.getParams());
+    }
+
+    @Test
+    @DisplayName("DSL_CTE generateSql can opt in to split-stage ordered numeric bucket")
+    void generateSqlOptInUsesDslBridgeForOrderedNumericBucket() {
+        QueryFacade queryFacade = mock(QueryFacade.class);
+        when(queryFacade.buildSqlOnly(any(ModelResultContext.class)))
+                .thenReturn(new SqlGenerationResult(
+                        "SELECT \"product.categoryName\", SUM(amount) AS \"paidAmount\", "
+                                + "SUM(amount) AS \"orderAmount\" FROM sale_order "
+                                + "GROUP BY \"product.categoryName\"",
+                        List.of(),
+                        null));
+        ReflectionTestUtils.setField(service, "queryFacade", queryFacade);
+
+        Map<String, Object> plan = splitStageRelationDeriveAliasPlan();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(2).put("derived", List.of(
+                derived("riskLevel",
+                        "case when collectionRate < 0.8 then 'low' "
+                                + "when collectionRate > 1 then 'high' else 'normal' end")));
+        SemanticQueryRequest request = dslCtePlan(plan);
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SqlGenerationResult result = service.generateSql("SaleOrder", request, SemanticRequestContext.empty());
+
+        assertTrue(result.getSql().contains("dsl_cte_metric_ratio_1"), result.getSql());
+        assertTrue(result.getSql().contains(
+                        "CASE WHEN \"collectionRate\" < 0.8 THEN 'low' "
+                                + "WHEN \"collectionRate\" > 1 THEN 'high' ELSE 'normal' END AS \"riskLevel\""),
                 result.getSql());
         assertTrue(result.getSql().contains("WHERE \"collectionRate\" > ?"), result.getSql());
         assertEquals(List.of(0.8), result.getParams());

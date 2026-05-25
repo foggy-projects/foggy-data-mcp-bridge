@@ -86,6 +86,11 @@ public final class DslCteDslRequestMapper {
             "(?i)^\\s*case\\s+when\\s+([A-Za-z_][A-Za-z0-9_$]*)\\s*(<=|>=|<>|!=|==|=|<|>)\\s*"
                     + "(-?\\d+(?:\\.\\d+)?)\\s+then\\s*'((?:[^']|'')*)'\\s+else\\s*'((?:[^']|'')*)'"
                     + "\\s+end\\s*$");
+    private static final Pattern METRIC_ORDERED_BUCKET_PATTERN = Pattern.compile(
+            "(?i)^\\s*case\\s+(.+)\\s+else\\s*'((?:[^']|'')*)'\\s+end\\s*$");
+    private static final Pattern METRIC_ORDERED_BUCKET_WHEN_PATTERN = Pattern.compile(
+            "(?i)\\G\\s*when\\s+([A-Za-z_][A-Za-z0-9_$]*)\\s*(<=|>=|<>|!=|==|=|<|>)\\s*"
+                    + "(-?\\d+(?:\\.\\d+)?)\\s+then\\s*'((?:[^']|'')*)'\\s*");
     private static final Pattern METRIC_DIFFERENCE_RATIO_PATTERN = Pattern.compile(
             "(?i)^\\s*\\(?\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*-\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*\\)?\\s*/\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*$");
     private static final List<String> SIGNED_PRIORITY_CODES = List.of("P1", "P2", "P3");
@@ -3511,6 +3516,12 @@ public final class DslCteDslRequestMapper {
                 arithmetic.add(caseLabel);
                 continue;
             }
+            MetricArithmeticDerived orderedBucket = relationOrderedBucketDerived(name, expr, availableFormulaAliases,
+                    unsupported);
+            if (orderedBucket != null) {
+                arithmetic.add(orderedBucket);
+                continue;
+            }
 
             unsupported.add("relation result-stage metric bridge supports only metric ratio or metric difference formulas, "
                     + "or signed CASE bucket label formulas");
@@ -3547,6 +3558,71 @@ public final class DslCteDslRequestMapper {
                 + " THEN " + quoteStringLiteral(thenLabel)
                 + " ELSE " + quoteStringLiteral(elseLabel) + " END";
         return new MetricArithmeticDerived(name, sql, "relation_metric_case_label");
+    }
+
+    private static MetricArithmeticDerived relationOrderedBucketDerived(String name, String expr,
+                                                                        List<String> availableFormulaAliases,
+                                                                        List<String> unsupported) {
+        Matcher matcher = METRIC_ORDERED_BUCKET_PATTERN.matcher(expr == null ? "" : expr);
+        if (!matcher.matches()) {
+            return null;
+        }
+        String body = matcher.group(1);
+        String elseLabel = unescapeSqlStringLiteral(matcher.group(2));
+        if (!safeCaseLabelLiteral(elseLabel)) {
+            unsupported.add("relation result-stage ordered bucket labels must be short single-line strings");
+            return null;
+        }
+
+        Matcher whenMatcher = METRIC_ORDERED_BUCKET_WHEN_PATTERN.matcher(body);
+        List<OrderedBucketCondition> conditions = new ArrayList<>();
+        String field = null;
+        int end = 0;
+        while (whenMatcher.find()) {
+            if (whenMatcher.start() != end) {
+                unsupported.add("relation result-stage ordered bucket supports only simple numeric WHEN clauses");
+                return null;
+            }
+            String currentField = whenMatcher.group(1);
+            if (field == null) {
+                field = currentField;
+            } else if (!field.equals(currentField)) {
+                unsupported.add("relation result-stage ordered bucket must compare one visible numeric alias");
+                return null;
+            }
+            String label = unescapeSqlStringLiteral(whenMatcher.group(4));
+            if (!safeCaseLabelLiteral(label)) {
+                unsupported.add("relation result-stage ordered bucket labels must be short single-line strings");
+                return null;
+            }
+            String op = sqlOperator(whenMatcher.group(2));
+            if (op == null) {
+                unsupported.add("relation result-stage ordered bucket comparison operator is unsupported");
+                return null;
+            }
+            conditions.add(new OrderedBucketCondition(op, whenMatcher.group(3), label));
+            end = whenMatcher.end();
+        }
+        if (end != body.length()) {
+            unsupported.add("relation result-stage ordered bucket supports only simple numeric WHEN clauses");
+            return null;
+        }
+        if (conditions.size() < 2) {
+            return null;
+        }
+        if (!availableFormulaAliases.contains(field)) {
+            unsupported.add("relation result-stage ordered bucket must reference a visible aggregate or prior derived alias");
+            return null;
+        }
+
+        StringBuilder sql = new StringBuilder("CASE");
+        for (OrderedBucketCondition condition : conditions) {
+            sql.append(" WHEN ").append(quoteAlias(field)).append(" ").append(condition.op())
+                    .append(" ").append(condition.threshold())
+                    .append(" THEN ").append(quoteStringLiteral(condition.label()));
+        }
+        sql.append(" ELSE ").append(quoteStringLiteral(elseLabel)).append(" END");
+        return new MetricArithmeticDerived(name, sql.toString(), "relation_metric_ordered_bucket");
     }
 
     private static MetricArithmeticDerived signedFunnelArithmeticDerived(String name, String expr, String model,
@@ -4030,6 +4106,9 @@ public final class DslCteDslRequestMapper {
     private record ConditionalValueSum(String formula) {
     }
 
+    private record OrderedBucketCondition(String op, String threshold, String label) {
+    }
+
     private record WindowBridge(Map<String, Object> timeWindow, Map<String, String> outputAliasOverride) {
     }
 
@@ -4191,6 +4270,8 @@ public final class DslCteDslRequestMapper {
             Map<String, Object> result = new LinkedHashMap<>();
             boolean hasCaseLabel = arithmetic.stream()
                     .anyMatch(item -> "relation_metric_case_label".equals(item.kind()));
+            boolean hasOrderedBucket = arithmetic.stream()
+                    .anyMatch(item -> "relation_metric_ordered_bucket".equals(item.kind()));
             result.put("kind", arithmetic.stream().anyMatch(item -> item.kind().startsWith("funnel_drop_off"))
                     ? "funnel_drop_off"
                     : ratios.stream().anyMatch(ratio -> signedFunnelRatioAlias(
@@ -4199,6 +4280,8 @@ public final class DslCteDslRequestMapper {
                     : ratios.stream().anyMatch(ratio -> signedSlaRatioAlias(
                     ratio.numeratorAlias(), ratio.denominatorAlias(), ratio.ratioAlias()))
                     ? "sla_metric_ratio"
+                    : hasOrderedBucket
+                    ? "relation_metric_ordered_bucket"
                     : hasCaseLabel
                     ? "relation_metric_case_label"
                     : !arithmetic.isEmpty()
