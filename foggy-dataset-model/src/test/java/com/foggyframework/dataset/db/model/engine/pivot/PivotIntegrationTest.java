@@ -881,6 +881,106 @@ class PivotIntegrationTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("v3.7: column domainSlice 只选择列轴域，并约束最终 cell 查询")
+    void testColumnDomainSliceSelectsColumnDomain() {
+        insertPivotDomainSliceFixture();
+        try {
+            AxisField column = axis("product$caption");
+            column.setDomainSlice(List.of(slice("discountAmount", ">", 0)));
+            column.setOrderBy(List.of("product$caption"));
+
+            PivotRequest pivot = new PivotRequest();
+            pivot.setRows(List.of(axis("orderId")));
+            pivot.setColumns(List.of(column));
+            pivot.setMetrics(List.of("salesAmount", "discountAmount"));
+            pivot.setOutputFormat("flat");
+
+            SemanticQueryRequest request = new SemanticQueryRequest();
+            request.setSlice(List.of(slice("orderId", "in", List.of("PDS_O1", "PDS_O2"))));
+            request.setPivot(pivot);
+
+            SemanticQueryResponse response = execute(request);
+
+            assertEquals(1, response.getItems().size(), "只有满足列轴 domainSlice 的商品列应进入 cell 结果");
+            Map<String, Object> row = response.getItems().get(0);
+            assertEquals("PDS_O1", row.get("orderId"));
+            assertEquals("华为 手机通讯商品2", row.get("product$caption"));
+            assertEquals(80d, ((Number) row.get("salesAmount")).doubleValue(), 0.001d);
+        } finally {
+            deletePivotDomainSliceFixture();
+        }
+    }
+
+    @Test
+    @DisplayName("v3.7: rows 与 columns 同时使用 domainSlice 时按两个 surviving domains 计算 cell")
+    void testRowAndColumnDomainSliceConstrainCellsTogether() {
+        insertPivotDomainSliceFixture();
+        try {
+            AxisField row = axis("orderId");
+            row.setDomainSlice(List.of(slice("discountAmount", ">", 0)));
+
+            AxisField column = axis("product$caption");
+            column.setDomainSlice(List.of(slice("discountAmount", ">", 0)));
+
+            PivotRequest pivot = new PivotRequest();
+            pivot.setRows(List.of(row));
+            pivot.setColumns(List.of(column));
+            pivot.setMetrics(List.of("salesAmount", "discountAmount"));
+            pivot.setOutputFormat("flat");
+
+            SemanticQueryRequest request = new SemanticQueryRequest();
+            request.setSlice(List.of(slice("orderId", "in", List.of("PDS_O1", "PDS_O2"))));
+            request.setPivot(pivot);
+
+            SemanticQueryResponse response = execute(request);
+
+            assertEquals(1, response.getItems().size());
+            Map<String, Object> onlyCell = response.getItems().get(0);
+            assertEquals("PDS_O1", onlyCell.get("orderId"));
+            assertEquals("华为 手机通讯商品2", onlyCell.get("product$caption"));
+            assertEquals(80d, ((Number) onlyCell.get("discountAmount")).doubleValue(), 0.001d);
+        } finally {
+            deletePivotDomainSliceFixture();
+        }
+    }
+
+    @Test
+    @DisplayName("v3.7: domainSlice 在 grid 输出中仍按轴域语义生效")
+    void testDomainSliceGridOutput() {
+        insertPivotDomainSliceFixture();
+        try {
+            AxisField row = axis("orderId");
+            row.setDomainSlice(List.of(slice("discountAmount", ">", 0)));
+
+            PivotRequest pivot = new PivotRequest();
+            pivot.setRows(List.of(row));
+            pivot.setColumns(List.of(axis("product$caption")));
+            pivot.setMetrics(List.of("salesAmount"));
+            pivot.setOutputFormat("grid");
+
+            SemanticQueryRequest request = new SemanticQueryRequest();
+            request.setSlice(List.of(slice("orderId", "in", List.of("PDS_O1", "PDS_O2"))));
+            request.setPivot(pivot);
+
+            SemanticQueryResponse response = execute(request);
+            assertEquals(1, response.getItems().size());
+            Map<String, Object> grid = response.getItems().get(0);
+            assertEquals("grid", grid.get("format"));
+
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> rowHeaders = (List<Map<String, Object>>) grid.get("rowHeaders");
+            assertEquals(1, rowHeaders.size());
+            assertEquals("PDS_O1", rowHeaders.get(0).get("orderId"));
+
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> columnHeaders = (List<Map<String, Object>>) grid.get("columnHeaders");
+            assertEquals(2, columnHeaders.size(), "PDS_O1 下两个商品 cell 都应参与 grid 列头");
+        } finally {
+            deletePivotDomainSliceFixture();
+        }
+    }
+
+    @Test
     @DisplayName("v3.7: start/offset 轴域分页必须配合正数 limit，且不能冲突")
     void testAxisDomainPaginationValidation() {
         PivotRequest noLimitPivot = new PivotRequest();

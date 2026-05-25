@@ -403,16 +403,22 @@ public class PivotPipeline {
             List<String> rowFields, List<String> colFields,
             List<String> metrics, PivotRequest pivot, QueryModel queryModel) {
 
-        List<Map<String, Object>> cellRows = executePhase1(model, originalRequest, context,
-                rowFields, colFields, metrics, queryModel);
-        if (cellRows.isEmpty()) {
-            return cellRows;
-        }
-
         Set<Object> rowDomain = executeAxisDomainSelection(model, originalRequest, context,
                 pivot.getRows(), metrics, queryModel);
         Set<Object> columnDomain = executeAxisDomainSelection(model, originalRequest, context,
                 pivot.getColumns(), metrics, queryModel);
+
+        if ((rowDomain != null && rowDomain.isEmpty()) || (columnDomain != null && columnDomain.isEmpty())) {
+            return Collections.emptyList();
+        }
+
+        SemanticQueryRequest cellRequest = buildAxisDomainConstrainedCellRequest(
+                originalRequest, pivot, rowDomain, columnDomain);
+        List<Map<String, Object>> cellRows = executePhase1(model, cellRequest, context,
+                rowFields, colFields, metrics, queryModel);
+        if (cellRows.isEmpty()) {
+            return cellRows;
+        }
 
         List<Map<String, Object>> filtered = cellRows;
         if (rowDomain != null) {
@@ -422,6 +428,41 @@ public class PivotPipeline {
             filtered = filterByAxisDomain(filtered, pivot.getColumns().get(0).getField(), columnDomain);
         }
         return filtered;
+    }
+
+    private SemanticQueryRequest buildAxisDomainConstrainedCellRequest(
+            SemanticQueryRequest originalRequest, PivotRequest pivot,
+            Set<Object> rowDomain, Set<Object> columnDomain) {
+
+        SemanticQueryRequest cellRequest = new SemanticQueryRequest();
+        cellRequest.setSlice(buildAxisDomainConstrainedSlice(originalRequest, pivot, rowDomain, columnDomain));
+        cellRequest.setCalculatedFields(originalRequest.getCalculatedFields());
+        return cellRequest;
+    }
+
+    private List<SemanticQueryRequest.SliceItem> buildAxisDomainConstrainedSlice(
+            SemanticQueryRequest originalRequest, PivotRequest pivot,
+            Set<Object> rowDomain, Set<Object> columnDomain) {
+
+        List<SemanticQueryRequest.SliceItem> slices = new ArrayList<>();
+        if (originalRequest.getSlice() != null) {
+            slices.addAll(originalRequest.getSlice());
+        }
+        if (rowDomain != null) {
+            slices.add(inSlice(pivot.getRows().get(0).getField(), rowDomain));
+        }
+        if (columnDomain != null) {
+            slices.add(inSlice(pivot.getColumns().get(0).getField(), columnDomain));
+        }
+        return slices.isEmpty() ? null : slices;
+    }
+
+    private SemanticQueryRequest.SliceItem inSlice(String field, Set<Object> values) {
+        SemanticQueryRequest.SliceItem item = new SemanticQueryRequest.SliceItem();
+        item.setField(field);
+        item.setOp("in");
+        item.setValue(new ArrayList<>(values));
+        return item;
     }
 
     /**
