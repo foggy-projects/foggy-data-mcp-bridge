@@ -1,5 +1,7 @@
 package com.foggyframework.dataset.db.model.semantic.domain.pivot;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
@@ -35,10 +37,13 @@ public class AxisField {
     private Integer limit;
 
     @ApiModelProperty(value = "分页起始偏移", notes = "用于分页的起始行偏移，默认 0")
+    @JsonAlias({"start", "offset"})
     private Integer offset;
 
     @ApiModelProperty(value = "轴级成员域过滤（Before GroupBy）",
             notes = "在当前分组前，对底表记录进行过滤，用于决定哪些成员存活并在此基础上完整计算 Cell 事实。")
+    @JsonProperty("slice")
+    @JsonAlias({"slice", "domainSlice"})
     private List<SemanticQueryRequest.SliceItem> domainSlice;
 
     @ApiModelProperty(value = "轴级过滤（Having）",
