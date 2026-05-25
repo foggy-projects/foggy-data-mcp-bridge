@@ -210,6 +210,10 @@ public class PivotPipeline {
         logger.debug("[Pivot] Phase 2: Memory cube processing, {} rows", resultSet.size());
 
         if (!sqlPushdownUsed) {
+            // 2.0 轴级 domainSlice 过滤（SQL pushdown 场景已在 SQL 层完成）
+            resultSet = AxisDomainSliceFilter.apply(resultSet, pivot.getRows());
+            resultSet = AxisDomainSliceFilter.apply(resultSet, pivot.getColumns());
+
             // 2.1 轴级 Having 过滤（SQL pushdown 场景已在 SQL 层完成）
             resultSet = AxisHavingFilter.apply(resultSet, pivot.getRows(), metrics);
             resultSet = AxisHavingFilter.apply(resultSet, pivot.getColumns(), metrics);
@@ -218,7 +222,7 @@ public class PivotPipeline {
             resultSet = AxisTopNTruncator.apply(resultSet, pivot.getRows());
             resultSet = AxisTopNTruncator.apply(resultSet, pivot.getColumns());
         } else {
-            logger.debug("[Pivot] Phase 2: Skipping Having/TopN (already done in SQL pushdown)");
+            logger.debug("[Pivot] Phase 2: Skipping domainSlice/Having/TopN (already done in SQL pushdown)");
         }
 
 
@@ -347,6 +351,14 @@ public class PivotPipeline {
         allColumns.addAll(rowFields);
         allColumns.addAll(colFields);
         allColumns.addAll(metrics);
+        
+        // Dynamically inject any extra fields from domainSlice
+        Set<String> extraFields = collectDomainSliceExtraFields(originalRequest.getPivot());
+        for (String f : extraFields) {
+            if (!allColumns.contains(f)) {
+                allColumns.add(f);
+            }
+        }
         flatRequest.setColumns(allColumns);
 
         // groupBy = rows + columns (维度字段)，metrics 用度量元数据中的聚合类型
@@ -356,6 +368,11 @@ public class PivotPipeline {
         }
         for (String dim : colFields) {
             groupBy.add(new SemanticQueryRequest.GroupByItem(dim, null));
+        }
+        for (String f : extraFields) {
+            if (!rowFields.contains(f) && !colFields.contains(f)) {
+                groupBy.add(new SemanticQueryRequest.GroupByItem(f, null));
+            }
         }
         for (String metric : metrics) {
             String aggStr = resolveMetricAggregation(metric, queryModel);
@@ -476,6 +493,47 @@ public class PivotPipeline {
             return items;
         }
         return Collections.emptyList();
+    }
+
+    private Set<String> collectDomainSliceExtraFields(PivotRequest pivot) {
+        Set<String> fields = new LinkedHashSet<>();
+        if (pivot == null) return fields;
+        if (pivot.getRows() != null) {
+            for (AxisField af : pivot.getRows()) {
+                if (af.getDomainSlice() != null) {
+                    for (SemanticQueryRequest.SliceItem item : af.getDomainSlice()) {
+                        collectSliceFields(item, fields);
+                    }
+                }
+            }
+        }
+        if (pivot.getColumns() != null) {
+            for (AxisField af : pivot.getColumns()) {
+                if (af.getDomainSlice() != null) {
+                    for (SemanticQueryRequest.SliceItem item : af.getDomainSlice()) {
+                        collectSliceFields(item, fields);
+                    }
+                }
+            }
+        }
+        return fields;
+    }
+
+    private void collectSliceFields(SemanticQueryRequest.SliceItem item, Set<String> fields) {
+        if (item == null) return;
+        if (item._isOrGroup()) {
+            for (SemanticQueryRequest.SliceItem sub : item.getOr()) {
+                collectSliceFields(sub, fields);
+            }
+        } else if (item._isAndGroup()) {
+            for (SemanticQueryRequest.SliceItem sub : item.getAnd()) {
+                collectSliceFields(sub, fields);
+            }
+        } else {
+            if (item.getField() != null) {
+                fields.add(item.getField());
+            }
+        }
     }
 
     /**
@@ -698,11 +756,76 @@ public class PivotPipeline {
     }
 
 
+    private void normalizeAndValidatePagination(List<AxisField> fields, String axisName) {
+        if (fields == null || fields.isEmpty()) {
+            return;
+        }
+
+        boolean hasOffsetAnywhere = false;
+        int paginationCount = 0;
+        int targetIndex = -1;
+        Integer limitValue = null;
+        Integer offsetValue = null;
+
+        for (int i = 0; i < fields.size(); i++) {
+            AxisField field = fields.get(i);
+            boolean hasLimit = field.getLimit() != null;
+            boolean hasOffset = field.getOffset() != null;
+            if (hasOffset) {
+                hasOffsetAnywhere = true;
+            }
+            if (hasLimit || hasOffset) {
+                paginationCount++;
+                targetIndex = i;
+                if (hasLimit) limitValue = field.getLimit();
+                if (hasOffset) offsetValue = field.getOffset();
+            }
+        }
+
+        // Only enforce single pagination and perform auto-migration if offset is present.
+        // Otherwise, keep standard Top-N / Cascade Top-N semantics.
+        if (!hasOffsetAnywhere) {
+            return;
+        }
+
+        if (paginationCount > 1) {
+            throw new IllegalArgumentException(axisName + " 轴上最多只能指定一个分页定义（limit/offset）");
+        }
+
+        if (paginationCount == 1) {
+            if (limitValue != null && limitValue <= 0) {
+                throw new IllegalArgumentException("分页 limit 必须大于 0");
+            }
+            if (offsetValue != null && offsetValue < 0) {
+                throw new IllegalArgumentException("分页 offset 不能小于 0");
+            }
+
+            if (targetIndex > 0) {
+                AxisField outermost = fields.get(0);
+                AxisField inner = fields.get(targetIndex);
+
+                logger.info("[Pivot] Auto-migrating pagination from inner field '{}' to outermost field '{}' on {} axis: limit={}, offset={}",
+                        inner.getField(), outermost.getField(), axisName, limitValue, offsetValue);
+
+                outermost.setLimit(limitValue);
+                outermost.setOffset(offsetValue);
+
+                inner.setLimit(null);
+                inner.setOffset(null);
+            }
+        }
+    }
+
     /**
      * 前置校验
      */
     private void validatePivotRequest(SemanticQueryRequest request) {
         PivotRequest pivot = request.getPivot();
+        
+        // Auto-migrate and validate pagination on rows and columns axes
+        normalizeAndValidatePagination(pivot.getRows(), "rows");
+        normalizeAndValidatePagination(pivot.getColumns(), "columns");
+
         PivotCascadeRules.validateRequestShape(pivot);
 
         // pivot 与 columns 互斥

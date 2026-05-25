@@ -345,4 +345,111 @@ public class PivotAxisDomainSqlPlannerTest {
         assertEquals(1000, params.get(2), "Having param mismatch"); // having value
         assertEquals(5, params.get(3), "Limit param mismatch"); // limit value
     }
+
+    @Test
+    public void testDomainSliceFiltering() {
+        FDialect dialect = new SqliteDialect();
+        ManagedSqlRelation rel = buildRelation(dialect,
+                "SELECT dim1, SUM(salesAmount) as salesAmount FROM tbl GROUP BY dim1",
+                defaultMetrics(), true, true);
+
+        PivotRequest pivot = new PivotRequest();
+        AxisField f1 = new AxisField();
+        f1.setField("dim1");
+        
+        com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest.SliceItem slice = 
+                new com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest.SliceItem();
+        slice.setField("orderStatus");
+        slice.setOp("=");
+        slice.setValue("paid");
+        
+        f1.setDomainSlice(Arrays.asList(slice));
+        pivot.setRows(Arrays.asList(f1));
+        pivot.setColumns(Collections.emptyList());
+
+        PivotAxisDomainSqlPlanner.PlannedSql result = PivotAxisDomainSqlPlanner.plan(
+                rel, pivot, Arrays.asList("dim1"), Collections.emptyList(), Arrays.asList("salesAmount"));
+
+        String sql = result.getSql();
+        System.out.println(sql);
+
+        // Verification
+        assertTrue(sql.contains("WHERE b.\"orderStatus\" = ?"));
+        assertEquals(1, result.getParams().size());
+        assertEquals("paid", result.getParams().get(0));
+    }
+
+    @Test
+    public void testPaginationWithOffset() {
+        FDialect dialect = new SqliteDialect();
+        ManagedSqlRelation rel = buildRelation(dialect,
+                "SELECT dim1, SUM(salesAmount) as salesAmount FROM tbl GROUP BY dim1",
+                defaultMetrics(), true, true);
+
+        PivotRequest pivot = new PivotRequest();
+        AxisField f1 = new AxisField();
+        f1.setField("dim1");
+        f1.setLimit(5);
+        f1.setOffset(10);
+        f1.setOrderBy(Arrays.asList("-salesAmount"));
+        
+        pivot.setRows(Arrays.asList(f1));
+        pivot.setColumns(Collections.emptyList());
+
+        PivotAxisDomainSqlPlanner.PlannedSql result = PivotAxisDomainSqlPlanner.plan(
+                rel, pivot, Arrays.asList("dim1"), Collections.emptyList(), Arrays.asList("salesAmount"));
+
+        String sql = result.getSql();
+        System.out.println(sql);
+
+        // Verification
+        assertTrue(sql.contains("WHERE rn > ? AND rn <= ?"));
+        assertEquals(2, result.getParams().size());
+        assertEquals(10, result.getParams().get(0)); // offset
+        assertEquals(15, result.getParams().get(1)); // offset + limit
+    }
+
+    @Test
+    public void testDomainSliceNestingAndOr() {
+        FDialect dialect = new SqliteDialect();
+        ManagedSqlRelation rel = buildRelation(dialect,
+                "SELECT dim1, SUM(salesAmount) as salesAmount FROM tbl GROUP BY dim1",
+                defaultMetrics(), true, true);
+
+        PivotRequest pivot = new PivotRequest();
+        AxisField f1 = new AxisField();
+        f1.setField("dim1");
+
+        com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest.SliceItem s1 = 
+                new com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest.SliceItem();
+        s1.setField("orderStatus");
+        s1.setOp("=");
+        s1.setValue("paid");
+
+        com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest.SliceItem s2 = 
+                new com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest.SliceItem();
+        s2.setField("amount");
+        s2.setOp(">");
+        s2.setValue(100);
+
+        com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest.SliceItem orGroup = 
+                new com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest.SliceItem();
+        orGroup.setOr(Arrays.asList(s1, s2));
+
+        f1.setDomainSlice(Arrays.asList(orGroup));
+        pivot.setRows(Arrays.asList(f1));
+        pivot.setColumns(Collections.emptyList());
+
+        PivotAxisDomainSqlPlanner.PlannedSql result = PivotAxisDomainSqlPlanner.plan(
+                rel, pivot, Arrays.asList("dim1"), Collections.emptyList(), Arrays.asList("salesAmount"));
+
+        String sql = result.getSql();
+        System.out.println(sql);
+
+        // Verification
+        assertTrue(sql.contains("(b.\"orderStatus\" = ? OR b.\"amount\" > ?)"));
+        assertEquals(2, result.getParams().size());
+        assertEquals("paid", result.getParams().get(0));
+        assertEquals(100, result.getParams().get(1));
+    }
 }

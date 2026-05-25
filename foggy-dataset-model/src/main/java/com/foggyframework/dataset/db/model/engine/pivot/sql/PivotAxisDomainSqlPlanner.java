@@ -5,6 +5,7 @@ import com.foggyframework.dataset.db.dialect.DbType;
 import com.foggyframework.dataset.db.model.plugins.query_execution.AdditiveKind;
 import com.foggyframework.dataset.db.model.plugins.query_execution.ManagedMetricMetadata;
 import com.foggyframework.dataset.db.model.plugins.query_execution.ManagedSqlRelation;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.pivot.AxisField;
 import com.foggyframework.dataset.db.model.semantic.domain.pivot.MetricFilter;
 import com.foggyframework.dataset.db.model.semantic.domain.pivot.PivotRequest;
@@ -146,9 +147,11 @@ public class PivotAxisDomainSqlPlanner {
 
         for (AxisField af : axisFields) {
             boolean hasLimit = af.getLimit() != null && af.getLimit() > 0;
+            boolean hasOffset = af.getOffset() != null && af.getOffset() > 0;
             boolean hasHaving = af.getHaving() != null && !af.getHaving().isEmpty();
+            boolean hasDomainSlice = af.getDomainSlice() != null && !af.getDomainSlice().isEmpty();
 
-            if (!hasLimit && !hasHaving) {
+            if (!hasLimit && !hasOffset && !hasHaving && !hasDomainSlice) {
                 currentPartitions.add(af.getField());
                 continue;
             }
@@ -156,7 +159,9 @@ public class PivotAxisDomainSqlPlanner {
             DomainPlanDef plan = new DomainPlanDef();
             plan.partitionKeys = new ArrayList<>(currentPartitions);
             plan.targetKey = af.getField();
-            plan.limit = hasLimit ? af.getLimit() : -1; // -1 means no limit, only having
+            plan.limit = hasLimit ? af.getLimit() : -1;
+            plan.offset = hasOffset ? af.getOffset() : 0;
+            plan.domainSlice = hasDomainSlice ? af.getDomainSlice() : Collections.emptyList();
             plan.havingFilters = hasHaving ? af.getHaving() : Collections.emptyList();
 
             // ===== Domain Aggregate Registry =====
@@ -264,6 +269,132 @@ public class PivotAxisDomainSqlPlanner {
 
     // ========== CTE SQL Generation ==========
 
+    private static String compileSliceItem(SemanticQueryRequest.SliceItem item, List<Object> finalParams, FDialect dialect) {
+        if (item == null) return "";
+        if (item._isOrGroup()) {
+            List<String> subClauses = new ArrayList<>();
+            for (SemanticQueryRequest.SliceItem sub : item.getOr()) {
+                String subSql = compileSliceItem(sub, finalParams, dialect);
+                if (subSql != null && !subSql.trim().isEmpty()) {
+                    subClauses.add(subSql);
+                }
+            }
+            if (subClauses.isEmpty()) return "";
+            return "(" + String.join(" OR ", subClauses) + ")";
+        }
+        if (item._isAndGroup()) {
+            List<String> subClauses = new ArrayList<>();
+            for (SemanticQueryRequest.SliceItem sub : item.getAnd()) {
+                String subSql = compileSliceItem(sub, finalParams, dialect);
+                if (subSql != null && !subSql.trim().isEmpty()) {
+                    subClauses.add(subSql);
+                }
+            }
+            if (subClauses.isEmpty()) return "";
+            return "(" + String.join(" AND ", subClauses) + ")";
+        }
+
+        String field = item.getField();
+        if (field == null) return "";
+        String quotedField = "b." + dialect.quoteIdentifier(field);
+        String op = item.getOp();
+        if (op == null) return "";
+        Object val = item.getValue();
+
+        switch (op.toLowerCase()) {
+            case "=":
+            case "eq":
+                if (val == null) {
+                    return quotedField + " IS NULL";
+                } else {
+                    finalParams.add(val);
+                    return quotedField + " = ?";
+                }
+            case "!=":
+            case "ne":
+                if (val == null) {
+                    return quotedField + " IS NOT NULL";
+                } else {
+                    finalParams.add(val);
+                    return quotedField + " != ?";
+                }
+            case ">":
+            case "gt":
+                finalParams.add(val);
+                return quotedField + " > ?";
+            case ">=":
+            case "ge":
+                finalParams.add(val);
+                return quotedField + " >= ?";
+            case "<":
+            case "lt":
+                finalParams.add(val);
+                return quotedField + " < ?";
+            case "<=":
+            case "le":
+                finalParams.add(val);
+                return quotedField + " <= ?";
+            case "in":
+                if (val instanceof Collection) {
+                    Collection<?> coll = (Collection<?>) val;
+                    if (coll.isEmpty()) return "1=0";
+                    List<String> placeholders = new ArrayList<>();
+                    for (Object elem : coll) {
+                        placeholders.add("?");
+                        finalParams.add(elem);
+                    }
+                    return quotedField + " IN (" + String.join(", ", placeholders) + ")";
+                } else if (val != null && val.getClass().isArray()) {
+                    Object[] arr = (Object[]) val;
+                    if (arr.length == 0) return "1=0";
+                    List<String> placeholders = new ArrayList<>();
+                    for (Object elem : arr) {
+                        placeholders.add("?");
+                        finalParams.add(elem);
+                    }
+                    return quotedField + " IN (" + String.join(", ", placeholders) + ")";
+                } else {
+                    finalParams.add(val);
+                    return quotedField + " = ?";
+                }
+            case "not in":
+            case "not_in":
+                if (val instanceof Collection) {
+                    Collection<?> coll = (Collection<?>) val;
+                    if (coll.isEmpty()) return "1=1";
+                    List<String> placeholders = new ArrayList<>();
+                    for (Object elem : coll) {
+                        placeholders.add("?");
+                        finalParams.add(elem);
+                    }
+                    return quotedField + " NOT IN (" + String.join(", ", placeholders) + ")";
+                } else if (val != null && val.getClass().isArray()) {
+                    Object[] arr = (Object[]) val;
+                    if (arr.length == 0) return "1=1";
+                    List<String> placeholders = new ArrayList<>();
+                    for (Object elem : arr) {
+                        placeholders.add("?");
+                        finalParams.add(elem);
+                    }
+                    return quotedField + " NOT IN (" + String.join(", ", placeholders) + ")";
+                } else {
+                    finalParams.add(val);
+                    return quotedField + " != ?";
+                }
+            case "like":
+                finalParams.add(val);
+                return quotedField + " LIKE ?";
+            case "is null":
+            case "isnull":
+                return quotedField + " IS NULL";
+            case "is not null":
+            case "notnull":
+                return quotedField + " IS NOT NULL";
+            default:
+                throw new UnsupportedOperationException("Unsupported domainSlice operator: " + op);
+        }
+    }
+
     private static int processPlans(StringBuilder sql, List<Object> finalParams,
                                      List<DomainPlanDef> plans, String prefix,
                                     int startIndex, List<String> globalJoinConditions, FDialect dialect) {
@@ -309,6 +440,19 @@ public class PivotAxisDomainSqlPlanner {
                 sql.append("  ").append(joinCond).append("\n");
             }
 
+            // Append domainSlice filters if present
+            if (plan.domainSlice != null && !plan.domainSlice.isEmpty()) {
+                sql.append("  WHERE ");
+                List<String> sliceClauses = new ArrayList<>();
+                for (SemanticQueryRequest.SliceItem item : plan.domainSlice) {
+                    String compiled = compileSliceItem(item, finalParams, dialect);
+                    if (compiled != null && !compiled.trim().isEmpty()) {
+                        sliceClauses.add(compiled);
+                    }
+                }
+                sql.append(String.join(" AND ", sliceClauses)).append("\n");
+            }
+
             sql.append("  GROUP BY ").append(String.join(", ", groupByFields)).append("\n");
             sql.append(")");
 
@@ -332,7 +476,7 @@ public class PivotAxisDomainSqlPlanner {
             }
 
             // ---- Ranked CTE ----
-            if (plan.limit > 0) {
+            if (plan.limit > 0 || plan.offset > 0) {
                 sql.append(",\n").append(rankedCte).append(" AS (\n");
                 sql.append("  SELECT *, ROW_NUMBER() OVER (");
                 if (!plan.partitionKeys.isEmpty()) {
@@ -369,11 +513,21 @@ public class PivotAxisDomainSqlPlanner {
                 finalSelectFields.add(targetQ);
                 sql.append(String.join(", ", finalSelectFields));
                 sql.append("\n  FROM ").append(rankedCte);
-                sql.append("\n  WHERE rn <= ?").append("\n");
-                finalParams.add(plan.limit);
+                
+                if (plan.limit > 0 && plan.offset > 0) {
+                    sql.append("\n  WHERE rn > ? AND rn <= ?").append("\n");
+                    finalParams.add(plan.offset);
+                    finalParams.add(plan.offset + plan.limit);
+                } else if (plan.limit > 0) {
+                    sql.append("\n  WHERE rn <= ?").append("\n");
+                    finalParams.add(plan.limit);
+                } else {
+                    sql.append("\n  WHERE rn > ?").append("\n");
+                    finalParams.add(plan.offset);
+                }
                 sql.append(")");
             } else {
-                // Having-only, no limit → use domainFilteredCte directly as the filtered source
+                // Having-only, no limit or offset → use domainFilteredCte directly as the filtered source
                 filteredCte = sourceForRanked;
             }
 
@@ -416,6 +570,8 @@ public class PivotAxisDomainSqlPlanner {
         private List<String> partitionKeys;
         private String targetKey;
         private int limit; // -1 = no limit (having-only)
+        private int offset; // defaults to 0
+        private List<SemanticQueryRequest.SliceItem> domainSlice;
         private List<MetricFilter> havingFilters;
         private List<AggregateEntry> aggregateRegistry;
         private List<OrderSpec> orderSpecs;

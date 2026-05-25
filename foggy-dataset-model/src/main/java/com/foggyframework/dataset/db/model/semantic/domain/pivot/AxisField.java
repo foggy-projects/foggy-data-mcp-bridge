@@ -1,5 +1,6 @@
 package com.foggyframework.dataset.db.model.semantic.domain.pivot;
 
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
@@ -32,6 +33,13 @@ public class AxisField {
             notes = "在其所有父级分组（即在 rows 数组中排在它前面的所有字段）确定的上下文中，取 Top N。" +
                     "当 hierarchyMode=tree 时，语义变为：每个父节点下取 Top N 子节点（逐层截断）")
     private Integer limit;
+
+    @ApiModelProperty(value = "分页起始偏移", notes = "用于分页的起始行偏移，默认 0")
+    private Integer offset;
+
+    @ApiModelProperty(value = "轴级成员域过滤（Before GroupBy）",
+            notes = "在当前分组前，对底表记录进行过滤，用于决定哪些成员存活并在此基础上完整计算 Cell 事实。")
+    private List<SemanticQueryRequest.SliceItem> domainSlice;
 
     @ApiModelProperty(value = "轴级过滤（Having）",
             notes = "在当前分组粒度完成基础聚合后，过滤掉不符合条件的成员。" +

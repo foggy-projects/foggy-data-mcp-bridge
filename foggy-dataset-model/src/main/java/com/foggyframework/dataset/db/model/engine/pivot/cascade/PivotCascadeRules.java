@@ -138,6 +138,14 @@ public final class PivotCascadeRules {
             return result;
         }
 
+        boolean hasOffset = false;
+        for (AxisField field : fields) {
+            if (field.getOffset() != null) {
+                hasOffset = true;
+                break;
+            }
+        }
+
         int operationCount = 0;
         boolean nonLeafOperation = false;
         for (int i = 0; i < fields.size(); i++) {
@@ -156,7 +164,11 @@ public final class PivotCascadeRules {
             }
         }
 
-        result.cascade = fields.size() > 1 && (operationCount >= 2 || nonLeafOperation);
+        if (hasOffset) {
+            result.cascade = false;
+        } else {
+            result.cascade = fields.size() > 1 && (operationCount >= 2 || nonLeafOperation);
+        }
         result.havingOnlyCascade = result.cascade && result.hasHaving && !result.hasLimit;
         return result;
     }
