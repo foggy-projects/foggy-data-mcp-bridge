@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, useAttrs, useSlots } from 'vue'
-import type { EnhancedColumnSchema, SliceRequestDef, FilterOption, TableSchema, FetchDataParams, FetchDataResult, OrderRequestDef, QueryHooks, MemberQueryRequest, MemberQueryResponse, CellCopyConfig, QueryMode } from '@/types'
+import type { EnhancedColumnSchema, SliceRequestDef, FilterOption, TableSchema, FetchDataParams, FetchDataResult, OrderRequestDef, QueryHooks, MemberQueryRequest, MemberQueryResponse, CellCopyConfig, QueryMode, ListViewState, ColumnViewSetting, ListPresetConfig, ListPresetDef } from '@/types'
 import SearchToolbar from './SearchToolbar.vue'
 import QueryPanel from './QueryPanel.vue'
 import type { QueryPanelExpose, QuerySchema } from './QueryPanel.vue'
 import DataTable from './DataTable.vue'
+import ListPresetManager from './list-preset/ListPresetManager.vue'
 import { useTableQuery } from './composables/useTableQuery'
+import { getDefaultListPreset } from '@/api/listPreset'
 
 // 禁用自动继承属性
 defineOptions({
@@ -88,6 +90,8 @@ interface Props {
   // ========== 保存查询功能 ==========
   /** 启用保存查询功能 */
   enableSavedQuery?: boolean
+  /** 自定义列表配置 */
+  listPreset?: boolean | ListPresetConfig
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -133,14 +137,85 @@ const query = useTableQuery(
   }
 )
 
+const activeListViewState = ref<ListViewState | null>(null)
+const activePageSize = ref<number | undefined>(undefined)
+
+const baseColumns = computed(() => {
+  if (isSchemaMode.value && props.schema) {
+    return props.schema.columns
+  }
+  return props.columns || []
+})
+
+function applyColumnSetting(col: EnhancedColumnSchema, setting?: ColumnViewSetting): EnhancedColumnSchema {
+  if (!setting) return col
+
+  return {
+    ...col,
+    width: setting.width ?? col.width,
+    minWidth: setting.minWidth ?? col.minWidth,
+    fixed: setting.fixed ?? col.fixed
+  }
+}
+
+function deriveColumnsByListViewState(columns: EnhancedColumnSchema[], state: ListViewState | null): EnhancedColumnSchema[] {
+  if (!state) return columns
+
+  const columnMap = new Map(columns.map(col => [col.name, col]))
+  const settingMap = new Map((state.columnSettings || []).map(setting => [setting.name, setting]))
+  const visibleNames = new Set(state.columns || [])
+  const hasVisibleColumns = visibleNames.size > 0
+  const orderedNames: string[] = []
+
+  if (state.columnSettings && state.columnSettings.length > 0) {
+    orderedNames.push(...state.columnSettings
+      .slice()
+      .sort((a, b) => a.order - b.order)
+      .map(setting => setting.name))
+  }
+
+  for (const name of state.columns || []) {
+    if (!orderedNames.includes(name)) {
+      orderedNames.push(name)
+    }
+  }
+
+  const result: EnhancedColumnSchema[] = []
+  const usedNames = new Set<string>()
+
+  for (const name of orderedNames) {
+    const col = columnMap.get(name)
+    if (!col || usedNames.has(name)) {
+      if (!col) {
+        console.warn(`[DataTableWithSearch] Ignore unknown list preset column: ${name}`)
+      }
+      continue
+    }
+
+    const setting = settingMap.get(name)
+    const visible = setting?.visible !== false && (!hasVisibleColumns || visibleNames.has(name))
+    if (!visible) continue
+
+    result.push(applyColumnSetting(col, setting))
+    usedNames.add(name)
+  }
+
+  if (!hasVisibleColumns) {
+    for (const col of columns) {
+      if (usedNames.has(col.name)) continue
+      const setting = settingMap.get(col.name)
+      if (setting?.visible === false) continue
+      result.push(applyColumnSetting(col, setting))
+      usedNames.add(col.name)
+    }
+  }
+
+  return result.length > 0 ? result : columns
+}
+
 // ========== 计算属性：根据模式选择数据源 ==========
 const effectiveColumns = computed(() => {
-  let cols: EnhancedColumnSchema[]
-  if (isSchemaMode.value && props.schema) {
-    cols = props.schema.columns
-  } else {
-    cols = props.columns || []
-  }
+  const cols = deriveColumnsByListViewState(baseColumns.value, activeListViewState.value)
 
   // 当用户提供 row-actions 插槽时，自动注入一个 actions 列（除非已有同名列）
   if (parentSlots['row-actions'] && !cols.some(c => c.name === '_actions')) {
@@ -187,6 +262,9 @@ const effectiveServerSummary = computed(() => {
 })
 
 const effectivePageSize = computed(() => {
+  if (activePageSize.value && activePageSize.value > 0) {
+    return activePageSize.value
+  }
   if (isSchemaMode.value && props.schema?.pageSize) {
     return props.schema.pageSize
   }
@@ -244,11 +322,45 @@ const effectiveCellCopy = computed(() => {
   return props.cellCopy
 })
 
+const effectiveInitialSlice = computed(() => {
+  if (activeListViewState.value) {
+    return activeListViewState.value.slice || []
+  }
+  return props.initialSlice
+})
+
 const effectiveSearchLayout = computed(() => {
   if (isSchemaMode.value && props.schema?.searchLayout) {
     return props.schema.searchLayout
   }
   return props.searchLayout
+})
+
+const normalizedListPresetConfig = computed<ListPresetConfig | null>(() => {
+  const config = props.listPreset
+  if (!config) return null
+
+  if (config === true) {
+    console.warn('[DataTableWithSearch] listPreset=true requires object config with userId and model')
+    return null
+  }
+
+  if (config.enabled === false) return null
+  if (!config.userId || !config.model) {
+    console.warn('[DataTableWithSearch] listPreset requires userId and model')
+    return null
+  }
+  return {
+    autoLoadDefault: true,
+    placement: 'toolbar-right',
+    ...config,
+    enabled: true
+  }
+})
+
+const shouldRenderListPresetManager = computed(() => {
+  const config = normalizedListPresetConfig.value
+  return !!config && config.placement !== 'external'
 })
 
 // 计算搜索工具栏显示的字段
@@ -270,7 +382,7 @@ const effectiveSearchableFields = computed(() => {
 })
 
 // ========== 动态插槽：仅透传 column-* / filter-* 前缀插槽 ==========
-const STANDARD_SLOTS = new Set(['toolbar', 'footer', 'empty', 'row-actions'])
+const STANDARD_SLOTS = new Set(['toolbar', 'toolbar-right', 'footer', 'empty', 'row-actions'])
 const dynamicSlots = computed(() => {
   const result: Record<string, unknown> = {}
   for (const name of Object.keys(parentSlots)) {
@@ -354,8 +466,37 @@ async function loadData(trigger: 'mount' | 'filter' | 'sort' | 'page' | 'refresh
   }
 }
 
+function presetToListViewState(preset: ListPresetDef): ListViewState {
+  return {
+    columns: preset.columns,
+    columnSettings: preset.columnSettings,
+    slice: preset.query?.slice || [],
+    orderBy: preset.query?.orderBy || [],
+    pageSize: preset.pageSize
+  }
+}
+
+async function applyDefaultListPresetIfNeeded() {
+  const config = normalizedListPresetConfig.value
+  if (!config || config.autoLoadDefault === false) return
+
+  try {
+    const preset = await getDefaultListPreset({
+      userId: config.userId,
+      model: config.model,
+      businessKey: config.businessKey
+    })
+    if (preset) {
+      applyListViewState(presetToListViewState(preset))
+    }
+  } catch (error) {
+    console.warn('[DataTableWithSearch] Failed to load default list preset:', error)
+  }
+}
+
 // Schema 模式下，初始化时加载数据
-onMounted(() => {
+onMounted(async () => {
+  await applyDefaultListPresetIfNeeded()
   if (isSchemaMode.value) {
     loadData('mount')
   }
@@ -427,6 +568,7 @@ function handleFilterChange() {
 // 处理分页变化
 function handlePageChange(page: number, size: number) {
   emit('page-change', page, size)
+  activePageSize.value = size
 
   // Schema 模式下，更新分页并重新加载
   if (isSchemaMode.value) {
@@ -450,6 +592,74 @@ function handleSortChange(field: string | null, order: 'asc' | 'desc' | null) {
   }
 }
 
+function getListViewState(): ListViewState {
+  const presetColumns = effectiveColumns.value.filter(col => col.name !== '_actions')
+  const columns = presetColumns.map(c => c.name)
+  const columnSettings = presetColumns.map((col, index) => ({
+    name: col.name,
+    visible: true,
+    width: col.width,
+    minWidth: col.minWidth,
+    fixed: col.fixed,
+    order: index
+  }))
+
+  return {
+    columns,
+    columnSettings,
+    slice: mergedSlices.value,
+    orderBy: query.currentOrderBy.value ?? [],
+    pageSize: effectivePageSize.value
+  }
+}
+
+function applyListViewState(state: ListViewState, options: { reload?: boolean } = {}) {
+  activeListViewState.value = {
+    columns: state.columns || [],
+    columnSettings: state.columnSettings,
+    slice: state.slice || [],
+    orderBy: state.orderBy || [],
+    pageSize: state.pageSize
+  }
+  activePageSize.value = state.pageSize && state.pageSize > 0 ? state.pageSize : undefined
+
+  searchSlices.value = []
+  queryPanelSlices.value = []
+  tableSlices.value = state.slice || []
+
+  query.setSort(state.orderBy || [])
+
+  if (isSchemaMode.value) {
+    query.setPage(1, effectivePageSize.value)
+    if (options.reload) {
+      loadData('reload')
+    }
+  }
+}
+
+function resetListViewState(options: { reload?: boolean } = {}) {
+  activeListViewState.value = null
+  activePageSize.value = undefined
+  searchSlices.value = []
+  queryPanelSlices.value = []
+  tableSlices.value = []
+  query.setSort([])
+
+  if (isSchemaMode.value) {
+    query.setPage(1, effectivePageSize.value)
+    if (options.reload) {
+      loadData('reload')
+    }
+  }
+}
+
+async function reloadAfterListPresetApply() {
+  if (isSchemaMode.value) {
+    query.currentPage.value = 1
+    await loadData('reload')
+  }
+}
+
 // ========== DataTable props 和 events ==========
 const dataTableProps = computed(() => {
   const userProps = Object.keys(attrs)
@@ -464,7 +674,7 @@ const dataTableProps = computed(() => {
     pageSize: effectivePageSize.value,
     showFilters: effectiveShowFilters.value,
     showPager: effectiveShowPager.value,
-    initialSlice: props.initialSlice,
+    initialSlice: effectiveInitialSlice.value,
     serverSummary: effectiveServerSummary.value,
     filterOptionsLoader: props.filterOptionsLoader,
     customFilterComponents: props.customFilterComponents,
@@ -577,23 +787,17 @@ defineExpose({
   getQuery: () => query,
 
   // ========== 保存查询功能方法 ==========
+  /** 获取当前列表视图状态（用于保存自定义列表） */
+  getListViewState,
+  /** 应用列表视图状态（用于加载自定义列表） */
+  applyListViewState,
+  /** 重置列表视图状态 */
+  resetListViewState,
   /** 获取当前查询状态（用于保存查询） */
-  getQueryState: () => ({
-    columns: effectiveColumns.value.map(c => c.name),
-    slice: mergedSlices.value,
-    orderBy: query.currentOrderBy.value
-  }),
+  getQueryState: getListViewState,
   /** 应用查询状态（用于加载保存的查询） */
   applyQueryState: (state: { columns: string[]; slice: SliceRequestDef[]; orderBy: OrderRequestDef[] }) => {
-    // 应用筛选条件
-    searchSlices.value = []
-    tableSlices.value = state.slice || []
-
-    // 应用排序
-    query.setSort(state.orderBy || [])
-
-    // 注意：列的应用需要由父组件处理，因为 schema 是从 props 传入的
-    // 这里只是更新查询状态
+    applyListViewState(state)
   },
   /** 获取列 Schema（用于保存查询对话框） */
   getSchema: () => effectiveColumns.value
@@ -642,8 +846,27 @@ defineExpose({
         v-on="dataTableEvents"
       >
         <!-- 显式透传标准插槽，保证 HMR 热更新稳定 -->
-        <template v-if="$slots.toolbar" #toolbar>
+        <template v-if="$slots.toolbar || (shouldRenderListPresetManager && normalizedListPresetConfig?.placement !== 'toolbar-right')" #toolbar>
           <slot name="toolbar" />
+          <ListPresetManager
+            v-if="shouldRenderListPresetManager && normalizedListPresetConfig && normalizedListPresetConfig.placement !== 'toolbar-right'"
+            :config="normalizedListPresetConfig"
+            :get-state="getListViewState"
+            :apply-state="applyListViewState"
+            :available-columns="baseColumns"
+            :reload="reloadAfterListPresetApply"
+          />
+        </template>
+        <template v-if="$slots['toolbar-right'] || (shouldRenderListPresetManager && normalizedListPresetConfig?.placement === 'toolbar-right')" #toolbar-right>
+          <slot name="toolbar-right" />
+          <ListPresetManager
+            v-if="shouldRenderListPresetManager && normalizedListPresetConfig && normalizedListPresetConfig.placement === 'toolbar-right'"
+            :config="normalizedListPresetConfig"
+            :get-state="getListViewState"
+            :apply-state="applyListViewState"
+            :available-columns="baseColumns"
+            :reload="reloadAfterListPresetApply"
+          />
         </template>
         <template v-if="$slots.footer" #footer>
           <slot name="footer" />
@@ -677,6 +900,12 @@ defineExpose({
 
 .query-panel-wrapper {
   flex-shrink: 0;
+}
+
+.query-panel-wrapper :deep(.placeholder-text) {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .search-toolbar-wrapper {

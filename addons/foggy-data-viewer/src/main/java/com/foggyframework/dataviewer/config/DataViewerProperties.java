@@ -43,6 +43,11 @@ public class DataViewerProperties {
      */
     private ScopeConstraintProperties scopeConstraints = new ScopeConstraintProperties();
 
+    /**
+     * 自定义列表配置
+     */
+    private ListPresetProperties listPreset = new ListPresetProperties();
+
     @Data
     public static class CacheProperties {
         /**
@@ -117,5 +122,28 @@ public class DataViewerProperties {
          * 最大允许的查询天数
          */
         private int maxDurationDays = 31;
+    }
+
+    @Data
+    public static class ListPresetProperties {
+        /**
+         * 自定义列表存储策略。
+         * <p>
+         * AUTO: 配置了 spring.data.mongodb.uri 时使用 Mongo，否则使用文件系统。
+         * MONGO: 显式使用 Mongo，运行时不可用时降级到文件系统。
+         * FILE: 只使用文件系统。
+         */
+        private Storage storage = Storage.AUTO;
+
+        /**
+         * 文件系统降级存储根目录。
+         */
+        private String fileBaseDir = "data-viewer/list-presets";
+
+        public enum Storage {
+            AUTO,
+            MONGO,
+            FILE
+        }
     }
 }

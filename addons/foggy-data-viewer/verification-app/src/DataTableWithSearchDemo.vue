@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { DataTableWithSearch, buildTableColumns } from 'foggy-data-viewer'
-import type { EnhancedColumnSchema, SliceRequestDef } from 'foggy-data-viewer'
+import type { DataTableWithSearchRef, EnhancedColumnSchema, SliceRequestDef } from 'foggy-data-viewer'
 
 // 模拟 QM Schema
 const qmSchema = [
@@ -27,7 +27,7 @@ const serverSummary = ref({
 
 // 选中行计数（响应式）
 const selectedCount = ref(0)
-const tableRef = ref<InstanceType<typeof DataTableWithSearch> | null>(null)
+const tableRef = ref<DataTableWithSearchRef | null>(null)
 
 function refreshSelectedCount() {
   selectedCount.value = tableRef.value?.getSelectedCount?.() ?? 0

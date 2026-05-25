@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref } from 'vue'
 import {
   DataViewer,
   DataTable,
@@ -17,15 +17,15 @@ import type {
   SliceRequestDef,
   ColumnSchema,
   CreateQueryRequest,
-  ViewerQueryRequest,
   QueryMetaResponse,
   TableSchema,
   FetchDataParams,
-  FetchDataResult
+  FetchDataResult,
+  DataTableWithSearchRef
 } from 'foggy-data-viewer'
 
 // ============ 场景切换 ============
-type SceneType = 'home' | 'dataviewer' | 'toolbar' | 'custom-actions' | 'combined' | 'schema-mode' | 'saved-query'
+type SceneType = 'home' | 'dataviewer' | 'toolbar' | 'custom-actions' | 'combined' | 'schema-mode' | 'custom-list' | 'saved-query'
 const currentScene = ref<SceneType>('home')
 
 // ============ DataViewer 场景 ============
@@ -375,7 +375,7 @@ const schemaQueryId = ref<string | null>(null)
 const schemaTableSchema = ref<TableSchema | null>(null)
 const schemaModeFetchData = ref<((params: FetchDataParams) => Promise<FetchDataResult>) | null>(null)
 const schemaModeInitialized = ref(false)
-const schemaTableRef = ref<InstanceType<typeof DataTableWithSearch>>()
+const schemaTableRef = ref<DataTableWithSearchRef>()
 
 // Schema 模式的 toolbar 按钮处理
 function handleAdd() {
@@ -384,6 +384,14 @@ function handleAdd() {
 
 function handleExport() {
   alert('点击了导出按钮\n\n这里可以触发数据导出逻辑')
+}
+
+function handleLoadSuccess(result: FetchDataResult) {
+  console.log('加载成功:', result)
+}
+
+function handleLoadError(error: Error) {
+  console.error('加载失败:', error)
 }
 
 async function initSchemaScene() {
@@ -450,8 +458,74 @@ async function initSchemaScene() {
   }
 }
 
+// ============ 自定义列表场景 ============
+const customListTableRef = ref<DataTableWithSearchRef>()
+const customListSchema = ref<TableSchema | null>(null)
+const customListFetchData = ref<((params: FetchDataParams) => Promise<FetchDataResult>) | null>(null)
+const customListInitialized = ref(false)
+const customListQueryId = ref<string | null>(null)
+
+async function initCustomListScene() {
+  if (customListInitialized.value) return
+
+  try {
+    const response = await createQuery({
+      model: 'FactSalesQueryModel',
+      title: '自定义列表测试 - 销售明细',
+      payload: {
+        columns: ['orderId', 'salesDate$caption', 'product$caption', 'customer$caption', 'store$caption', 'quantity', 'salesAmount', 'profitAmount'],
+        slice: [],
+        orderBy: [{ field: 'salesDate$caption', order: 'desc' }]
+      }
+    })
+
+    if (!response.success || !response.queryId) {
+      console.error('创建查询失败:', response.error)
+      return
+    }
+
+    customListQueryId.value = response.queryId
+
+    const meta = await fetchQueryMeta(response.queryId)
+
+    if (meta?.tableConfig?.qmModel) {
+      const qmSchema = await fetchQmSchema(meta.tableConfig.qmModel)
+      const columns = buildTableColumns(qmSchema, meta.tableConfig)
+
+      customListSchema.value = {
+        columns,
+        searchableFields: ['product$caption', 'customer$caption', 'store$caption', 'salesDate$caption'],
+        pageSize: 50,
+        showFilters: true,
+        showSearchToolbar: true,
+        searchLayout: 'horizontal'
+      }
+
+      const queryId = response.queryId
+      customListFetchData.value = async (params: FetchDataParams): Promise<FetchDataResult> => {
+        const dataResponse = await fetchQueryData(queryId, {
+          start: (params.page - 1) * params.pageSize,
+          limit: params.pageSize,
+          slice: params.slice,
+          orderBy: params.orderBy
+        })
+
+        return {
+          items: dataResponse.items,
+          total: dataResponse.total,
+          totalData: dataResponse.totalData
+        }
+      }
+
+      customListInitialized.value = true
+    }
+  } catch (e) {
+    console.error('初始化自定义列表场景失败:', e)
+  }
+}
+
 // ============ 保存查询场景 ============
-const savedQueryTableRef = ref<InstanceType<typeof DataTableWithSearch>>()
+const savedQueryTableRef = ref<DataTableWithSearchRef>()
 const savedQuerySchema = ref<TableSchema | null>(null)
 const savedQueryFetchData = ref<((params: FetchDataParams) => Promise<FetchDataResult>) | null>(null)
 const savedQueryInitialized = ref(false)
@@ -533,6 +607,8 @@ function goToScene(scene: SceneType) {
     initCombinedScene()
   } else if (scene === 'schema-mode' && !schemaModeInitialized.value) {
     initSchemaScene()
+  } else if (scene === 'custom-list' && !customListInitialized.value) {
+    initCustomListScene()
   } else if (scene === 'saved-query' && !savedQueryInitialized.value) {
     initSavedQueryScene()
   }
@@ -607,6 +683,18 @@ function goHome() {
             <li>手动管理分页状态</li>
             <li>手动监听事件并加载数据</li>
             <li>适合需要完全控制的场景</li>
+          </ul>
+        </div>
+
+        <div class="scene-card highlight" @click="goToScene('custom-list')">
+          <div class="scene-icon">🧩</div>
+          <h3>自定义列表（新）</h3>
+          <p>保存列、筛选、排序和默认列表配置</p>
+          <ul>
+            <li>保存当前列表视图</li>
+            <li>编辑和覆盖已有方案</li>
+            <li>按用户和业务隔离</li>
+            <li>支持默认方案自动加载</li>
           </ul>
         </div>
 
@@ -819,8 +907,8 @@ function goHome() {
             ref="schemaTableRef"
             :schema="schemaTableSchema"
             :fetch-data="schemaModeFetchData"
-            @load-success="(result) => console.log('加载成功:', result)"
-            @load-error="(error) => console.error('加载失败:', error)"
+            @load-success="handleLoadSuccess"
+            @load-error="handleLoadError"
           >
             <!-- toolbar 插槽：左侧放置自定义按钮 -->
             <template #toolbar>
@@ -832,6 +920,68 @@ function goHome() {
               </button>
               <button class="toolbar-btn" @click="schemaTableRef?.refresh()">
                 刷新
+              </button>
+            </template>
+          </DataTableWithSearch>
+        </div>
+
+        <div v-else class="loading-placeholder">
+          <p>正在初始化...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 自定义列表场景（新功能） -->
+    <div v-else-if="currentScene === 'custom-list'" class="scene-page">
+      <div class="scene-header">
+        <button class="back-btn" @click="goHome">← 返回首页</button>
+        <h2>自定义列表功能测试（新功能）</h2>
+      </div>
+
+      <div class="scene-content">
+        <div class="feature-info success">
+          <p><strong>自定义列表：</strong>允许用户保存当前列、筛选条件、排序规则和分页大小，并可设为默认列表</p>
+        </div>
+
+        <div class="code-example">
+          <h4>使用示例</h4>
+          <pre><code>&lt;DataTableWithSearch
+  :schema="schema"
+  :fetch-data="fetchData"
+  :list-preset="{
+    userId: 'verification_user_001',
+    model: 'FactSalesQueryModel',
+    businessKey: 'sales-custom-list-demo'
+  }"
+/&gt;</code></pre>
+        </div>
+
+        <div class="feature-info">
+          <p><strong>操作指南：</strong>调整筛选条件或列状态后点击右上角“自定义列表”，可保存、应用、编辑、覆盖和设置默认方案</p>
+        </div>
+
+        <div v-if="customListSchema && customListFetchData" class="table-container combined">
+          <DataTableWithSearch
+            ref="customListTableRef"
+            :schema="customListSchema"
+            :fetch-data="customListFetchData"
+            :list-preset="{
+              userId: 'verification_user_001',
+              model: 'FactSalesQueryModel',
+              businessKey: 'sales-custom-list-demo',
+              allowShared: true,
+              buttonText: '自定义列表',
+              placement: 'toolbar-right'
+            }"
+            @load-success="handleLoadSuccess"
+            @load-error="handleLoadError"
+          >
+            <template #toolbar>
+              <button class="toolbar-btn" @click="customListTableRef?.refresh()">
+                刷新数据
+              </button>
+              <button class="toolbar-btn" @click="customListTableRef?.clearAllFilters()">
+                清空筛选
               </button>
             </template>
           </DataTableWithSearch>
@@ -906,8 +1056,8 @@ function goHome() {
             :schema="savedQuerySchema"
             :fetch-data="savedQueryFetchData"
             enable-saved-query
-            @load-success="(result) => console.log('加载成功:', result)"
-            @load-error="(error) => console.error('加载失败:', error)"
+            @load-success="handleLoadSuccess"
+            @load-error="handleLoadError"
           >
             <!-- toolbar 插槽 -->
             <template #toolbar>

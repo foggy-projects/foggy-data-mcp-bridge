@@ -380,6 +380,27 @@ describe('DataTable', () => {
 
       expect(wrapper.exists()).toBe(true)
     })
+
+    it('should clear filter state when initial slice becomes empty', async () => {
+      const initialSlice = [{ field: 'status', op: '=', value: 'active' }]
+      const wrapper = mount(DataTable, {
+        props: {
+          columns: mockColumns,
+          data: mockData,
+          total: 3,
+          loading: false,
+          initialSlice
+        },
+        ...globalConfig
+      })
+
+      const vm = wrapper.vm as unknown as { getFilters: () => typeof initialSlice }
+      expect(vm.getFilters()).toEqual(initialSlice)
+
+      await wrapper.setProps({ initialSlice: [] })
+
+      expect(vm.getFilters()).toEqual([])
+    })
   })
 
   describe('Events', () => {

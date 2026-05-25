@@ -1,16 +1,25 @@
 package com.foggyframework.dataviewer.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.foggyframework.dataviewer.controller.ListPresetController;
 import com.foggyframework.dataviewer.controller.SavedQueryController;
 import com.foggyframework.dataviewer.controller.ViewerApiController;
 import com.foggyframework.dataviewer.controller.ViewerPageController;
 import com.foggyframework.dataviewer.mcp.OpenInViewerTool;
 import com.foggyframework.dataviewer.repository.CachedQueryRepository;
+import com.foggyframework.dataviewer.repository.ListPresetRepository;
+import com.foggyframework.dataviewer.service.ListPresetService;
 import com.foggyframework.dataviewer.service.MemberQueryService;
 import com.foggyframework.dataviewer.service.QueryCacheService;
 import com.foggyframework.dataviewer.service.QueryScopeConstraintService;
 import com.foggyframework.dataviewer.service.SavedQueryService;
+import com.foggyframework.dataviewer.service.listpreset.FallbackListPresetStore;
+import com.foggyframework.dataviewer.service.listpreset.FileSystemListPresetStore;
+import com.foggyframework.dataviewer.service.listpreset.ListPresetFieldValidator;
+import com.foggyframework.dataviewer.service.listpreset.ListPresetStore;
+import com.foggyframework.dataviewer.service.listpreset.MongoListPresetStore;
 import com.foggyframework.dataset.db.model.service.QueryFacade;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -20,8 +29,11 @@ import org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfigurat
 import org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.repository.config.EnableMongoRepositories;
+import org.springframework.core.env.Environment;
+import org.springframework.util.StringUtils;
 
 /**
  * 数据浏览器自动配置
@@ -90,5 +102,62 @@ public class DataViewerAutoConfiguration {
     @ConditionalOnMissingBean
     public SavedQueryController savedQueryController(SavedQueryService savedQueryService) {
         return new SavedQueryController(savedQueryService);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public MongoListPresetStore mongoListPresetStore(ListPresetRepository repository) {
+        return new MongoListPresetStore(repository);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public FileSystemListPresetStore fileSystemListPresetStore(DataViewerProperties properties,
+                                                                ObjectMapper objectMapper) {
+        return new FileSystemListPresetStore(properties, objectMapper);
+    }
+
+    @Bean
+    @Primary
+    @ConditionalOnMissingBean(name = "listPresetStore")
+    public ListPresetStore listPresetStore(ObjectProvider<MongoListPresetStore> mongoStore,
+                                           FileSystemListPresetStore fileStore,
+                                           DataViewerProperties properties,
+                                           Environment environment) {
+        DataViewerProperties.ListPresetProperties.Storage storage = properties.getListPreset().getStorage();
+        if (!shouldUseMongoListPresetStore(storage, environment)) {
+            return fileStore;
+        }
+        return new FallbackListPresetStore(mongoStore.getIfAvailable(), fileStore);
+    }
+
+    static boolean shouldUseMongoListPresetStore(DataViewerProperties.ListPresetProperties.Storage storage,
+                                                 Environment environment) {
+        if (storage == DataViewerProperties.ListPresetProperties.Storage.FILE) {
+            return false;
+        }
+        if (storage == DataViewerProperties.ListPresetProperties.Storage.MONGO) {
+            return true;
+        }
+        return StringUtils.hasText(environment.getProperty("spring.data.mongodb.uri"));
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public ListPresetFieldValidator listPresetFieldValidator() {
+        return ListPresetFieldValidator.noop();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public ListPresetService listPresetService(ListPresetStore listPresetStore,
+                                               ListPresetFieldValidator listPresetFieldValidator) {
+        return new ListPresetService(listPresetStore, listPresetFieldValidator);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public ListPresetController listPresetController(ListPresetService listPresetService) {
+        return new ListPresetController(listPresetService);
     }
 }
