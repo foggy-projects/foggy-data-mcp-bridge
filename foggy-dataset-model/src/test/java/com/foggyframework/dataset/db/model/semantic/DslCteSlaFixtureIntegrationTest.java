@@ -3,6 +3,7 @@ package com.foggyframework.dataset.db.model.semantic;
 import com.foggyframework.dataset.db.model.ecommerce.EcommerceTestSupport;
 import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.dataset.db.model.spi.JdbcQueryModel;
@@ -119,6 +120,48 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
         assertSlaRateRow(rows.get(0), "华东区", 2, 0.5);
         assertSlaRateRow(rows.get(1), "技术部", 4, 0.5);
         assertSlaRateRow(rows.get(2), "销售部", 3, 2.0 / 3.0);
+    }
+
+    @Test
+    @DisplayName("DSL_CTE conditional aggregate difference bridge executes and matches manual baseline")
+    void conditionalAggregateDifferenceBridgeSqlMatchesManualBaseline() {
+        assumeCommonTableExpressionsSupported();
+
+        SemanticQueryRequest request = dslCtePlan(unresolvedTicketLeaderboardPlan());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SemanticQueryResponse response = semanticQueryServiceV3.validateQuery(
+                "ServiceTicketQueryModel", request, SemanticRequestContext.empty());
+        Map<String, Object> aggregateContract = stageContract(response, "team_ticket_status", "aggregate_contract");
+        assertEquals("conditional_numerator_aggregation", aggregateContract.get("kind"));
+        assertEquals(true, aggregateContract.get("bridge_signed"));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> resultStageBridge = (Map<String, Object>) response.getExecution()
+                .getDslCteValidation().get("dsl_result_stage_metric_ratio");
+        assertEquals("relation_metric_arithmetic", resultStageBridge.get("kind"));
+
+        SqlGenerationResult generated = semanticQueryServiceV3.generateSql(
+                "ServiceTicketQueryModel", request, SemanticRequestContext.empty());
+
+        assertNotNull(generated);
+        assertNotNull(generated.getSql());
+        assertTrue(generated.getSql().contains("dsl_cte_metric_ratio"), generated.getSql());
+        assertTrue(generated.getSql().contains("is_not_null")
+                || generated.getSql().toLowerCase().contains(" is not null"), generated.getSql());
+        assertTrue(generated.getSql().contains("\"ticketCount\" - \"resolvedTicketCount\" AS \"unresolvedTicketCount\""),
+                generated.getSql());
+        assertTrue(generated.getSql().contains(
+                "ORDER BY \"unresolvedTicketCount\" DESC, \"team$caption\" ASC"), generated.getSql());
+
+        List<Map<String, Object>> manualRows = unresolvedTicketLeaderboardManualRows();
+        List<Map<String, Object>> rows = new ArrayList<>(jdbcTemplate.queryForList(
+                generated.getSql(), generated.getParams().toArray(new Object[0])));
+
+        assertEquals(manualRows.size(), rows.size());
+        for (int i = 0; i < manualRows.size(); i++) {
+            assertGeneratedUnresolvedTicketRowMatchesManual(rows.get(i), manualRows.get(i));
+        }
     }
 
     @Test
@@ -648,11 +691,87 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
         throw new AssertionError("Missing keys " + List.of(keys) + " in " + row);
     }
 
+    private static Map<String, Object> stageContract(SemanticQueryResponse response,
+                                                     String stageName,
+                                                     String contractKey) {
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) response.getExecution()
+                .getDslCteValidation().get("stages");
+        return stages.stream()
+                .filter(stage -> stageName.equals(stage.get("name")))
+                .findFirst()
+                .map(stage -> {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> contract = (Map<String, Object>) stage.get(contractKey);
+                    return contract;
+                })
+                .orElseThrow(() -> new AssertionError("Missing contract " + contractKey + " for stage " + stageName));
+    }
+
     private static SemanticQueryRequest dslCtePlan(Map<String, Object> ctePlan) {
         SemanticQueryRequest request = new SemanticQueryRequest();
         request.setRoute("DSL_CTE");
         request.setExecutablePlan(m("cte_plan", ctePlan));
         return request;
+    }
+
+    private List<Map<String, Object>> unresolvedTicketLeaderboardManualRows() {
+        return jdbcTemplate.queryForList("""
+                SELECT *
+                FROM (
+                    SELECT dt.team_name AS teamName,
+                           COUNT(*) AS ticketCount,
+                           SUM(CASE WHEN st.resolved_at IS NOT NULL THEN 1 ELSE 0 END) AS resolvedTicketCount,
+                           COUNT(*) - SUM(CASE WHEN st.resolved_at IS NOT NULL THEN 1 ELSE 0 END) AS unresolvedTicketCount
+                    FROM service_ticket st
+                    LEFT JOIN dim_team dt ON st.team_id = dt.team_id
+                    GROUP BY dt.team_name
+                )
+                WHERE unresolvedTicketCount > 0
+                ORDER BY unresolvedTicketCount DESC, teamName ASC
+                LIMIT 5
+                """);
+    }
+
+    private static void assertGeneratedUnresolvedTicketRowMatchesManual(Map<String, Object> generated,
+                                                                        Map<String, Object> manual) {
+        assertEquals(manual.get("teamName"), value(generated, "team$caption", "teamName"));
+        assertEquals(((Number) manual.get("ticketCount")).intValue(),
+                ((Number) value(generated, "ticketCount")).intValue());
+        assertEquals(((Number) manual.get("resolvedTicketCount")).intValue(),
+                ((Number) value(generated, "resolvedTicketCount")).intValue());
+        assertEquals(((Number) manual.get("unresolvedTicketCount")).intValue(),
+                ((Number) value(generated, "unresolvedTicketCount")).intValue());
+    }
+
+    private static Map<String, Object> unresolvedTicketLeaderboardPlan() {
+        return m(
+                "stages", List.of(
+                        stage("team_ticket_status", "aggregate",
+                                "input", m("model", "ServiceTicketQueryModel"),
+                                "groupBy", List.of("team$caption"),
+                                "metrics", List.of(
+                                        m("name", "ticketCount", "expr", "count(ticketId)"),
+                                        m("name", "resolvedTicketCount", "expr",
+                                                "sum(case when resolvedAt is not null then 1 else 0 end)"))),
+                        stage("team_ticket_gap", "derive",
+                                "inputs", List.of("team_ticket_status"),
+                                "derived", List.of(
+                                        m("name", "unresolvedTicketCount",
+                                                "expr", "ticketCount - resolvedTicketCount"))),
+                        stage("teams_with_unresolved_tickets", "postSlice",
+                                "inputs", List.of("team_ticket_gap"),
+                                "filters", List.of(
+                                        m("field", "unresolvedTicketCount", "op", ">", "value", 0))),
+                        stage("unresolved_ticket_leaderboard", "orderBy",
+                                "inputs", List.of("teams_with_unresolved_tickets"),
+                                "orderBy", List.of(
+                                        m("field", "unresolvedTicketCount", "dir", "DESC"),
+                                        m("field", "team$caption", "dir", "ASC")),
+                                "limit", 5)
+                ),
+                "output", List.of("team$caption", "ticketCount", "resolvedTicketCount", "unresolvedTicketCount")
+        );
     }
 
     private static Map<String, Object> minimalRowLevelSlaPlan() {

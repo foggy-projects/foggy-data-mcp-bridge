@@ -66,6 +66,10 @@ public final class DslCteDslRequestMapper {
             "(?i)^\\s*sum\\s*\\(\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*\\)\\s*$");
     private static final Pattern CASE_WHEN_ALIAS_PATTERN = Pattern.compile(
             "(?i)^\\s*sum\\s*\\(\\s*case\\s+when\\s+([A-Za-z_][A-Za-z0-9_$]*)\\s+then\\s+1\\s+else\\s+0\\s+end\\s*\\)\\s*$");
+    private static final Pattern CASE_WHEN_NOT_NULL_COUNT_PATTERN = Pattern.compile(
+            "(?i)^\\s*sum\\s*\\(\\s*case\\s+when\\s+([A-Za-z_][A-Za-z0-9_$.]*)\\s+is\\s+not\\s+null\\s+then\\s+1\\s+else\\s+0\\s+end\\s*\\)\\s*$");
+    private static final Pattern CASE_WHEN_STRING_COMPARE_COUNT_PATTERN = Pattern.compile(
+            "(?i)^\\s*sum\\s*\\(\\s*case\\s+when\\s+([A-Za-z_][A-Za-z0-9_$.]*)\\s*(=|==|!=|<>)\\s*'((?:[^']|'')*)'\\s+then\\s+1\\s+else\\s+0\\s+end\\s*\\)\\s*$");
     private static final Pattern METRIC_RATIO_PATTERN = Pattern.compile(
             "(?i)^\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*/\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*$");
     private static final Pattern METRIC_SAFE_RATIO_PATTERN = Pattern.compile(
@@ -3188,12 +3192,42 @@ public final class DslCteDslRequestMapper {
                 unsupported.add("aggregate metric must declare name and expr: " + metric);
                 continue;
             }
-            columnByAlias.put(name, expr + " AS " + name);
+            String normalizedConditionalCount = normalizeConditionalCountMetric(expr, unsupported);
+            columnByAlias.put(name, (normalizedConditionalCount == null ? expr : normalizedConditionalCount)
+                    + " AS " + name);
         }
         if (columnByAlias.isEmpty()) {
             unsupported.add("aggregate stage must declare object metrics for DSL_CTE bridge v1");
         }
         return new MetricMapping(columnByAlias);
+    }
+
+    private static String normalizeConditionalCountMetric(String expr, List<String> unsupported) {
+        Matcher notNull = CASE_WHEN_NOT_NULL_COUNT_PATTERN.matcher(expr == null ? "" : expr);
+        if (notNull.matches()) {
+            return "sum(if(is_not_null(" + notNull.group(1) + "), 1, 0))";
+        }
+        Matcher stringCompare = CASE_WHEN_STRING_COMPARE_COUNT_PATTERN.matcher(expr == null ? "" : expr);
+        if (stringCompare.matches()) {
+            String value = unescapeSqlStringLiteral(stringCompare.group(3));
+            if (!safeCaseLabelLiteral(value)) {
+                unsupported.add("conditional count CASE literal must be a short single-line string");
+                return null;
+            }
+            return "sum(if(" + stringCompare.group(1) + " " + formulaOperator(stringCompare.group(2))
+                    + " " + quoteStringLiteral(value) + ", 1, 0))";
+        }
+        return null;
+    }
+
+    private static String formulaOperator(String op) {
+        if ("=".equals(op)) {
+            return "==";
+        }
+        if ("<>".equals(op)) {
+            return "!=";
+        }
+        return op;
     }
 
     private static List<PostAggregateCalculationDef> postAggregateCalculations(Object rawDerived,

@@ -33,6 +33,10 @@ public final class DslCtePlanValidator {
     );
     private static final Pattern IDENTIFIER_PATTERN =
             Pattern.compile("[A-Za-z_][A-Za-z0-9_$]*(?:\\.[A-Za-z_][A-Za-z0-9_$]*)?");
+    private static final Pattern SIGNED_CONDITIONAL_COUNT_PATTERN = Pattern.compile(
+            "(?i)^\\s*sum\\s*\\(\\s*case\\s+when\\s+[A-Za-z_][A-Za-z0-9_$.]*\\s+"
+                    + "(?:is\\s+not\\s+null|(?:=|==|!=|<>)\\s*'(?:[^']|'')*')"
+                    + "\\s+then\\s+1\\s+else\\s+0\\s+end\\s*\\)\\s*$");
     private static final Set<String> EXPRESSION_KEYWORDS = Set.of(
             "and", "or", "is", "not", "null", "true", "false",
             "case", "when", "then", "else", "end", "as", "over", "rows",
@@ -787,6 +791,7 @@ public final class DslCtePlanValidator {
     private static Map<String, Object> aggregateContractEvidence(Map<String, Object> stage) {
         Map<String, Object> evidence = new LinkedHashMap<>();
         boolean hasConditionalMetric = false;
+        boolean allConditionalMetricsSigned = true;
         Object rawMetrics = stage.get("metrics");
         if (rawMetrics instanceof List<?> metrics) {
             for (Object item : metrics) {
@@ -795,18 +800,23 @@ public final class DslCtePlanValidator {
                     continue;
                 }
                 String expr = stringValue(metric.get("expr"));
-                hasConditionalMetric = hasConditionalMetric
-                        || (expr != null && expr.toLowerCase(Locale.ROOT).contains("case when"));
+                if (expr != null && expr.toLowerCase(Locale.ROOT).contains("case when")) {
+                    hasConditionalMetric = true;
+                    allConditionalMetricsSigned = allConditionalMetricsSigned
+                            && SIGNED_CONDITIONAL_COUNT_PATTERN.matcher(expr).matches();
+                }
             }
         }
         if (hasConditionalMetric) {
             evidence.put("kind", "conditional_numerator_aggregation");
             evidence.put("bridge_scope", "aggregate_metrics");
-            evidence.put("bridge_signed", false);
-            evidence.put("required_capabilities", List.of(
-                    "case_when_over_row_level_derived",
-                    "boolean_metric_sum",
-                    "governed_denominator_alignment"));
+            evidence.put("bridge_signed", allConditionalMetricsSigned);
+            evidence.put("required_capabilities", allConditionalMetricsSigned
+                    ? List.of("conditional_count_normalization", "governed_field_predicate")
+                    : List.of(
+                            "case_when_over_row_level_derived",
+                            "boolean_metric_sum",
+                            "governed_denominator_alignment"));
         }
         return evidence;
     }
