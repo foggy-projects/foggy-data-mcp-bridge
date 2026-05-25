@@ -74,6 +74,10 @@ public final class DslCteDslRequestMapper {
                     + "([A-Za-z_][A-Za-z0-9_$]*)\\s*,\\s*0(?:\\.0+)?\\s*\\))\\s*$");
     private static final Pattern METRIC_DIFFERENCE_PATTERN = Pattern.compile(
             "(?i)^\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*-\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*$");
+    private static final Pattern METRIC_CASE_LABEL_PATTERN = Pattern.compile(
+            "(?i)^\\s*case\\s+when\\s+([A-Za-z_][A-Za-z0-9_$]*)\\s*(<=|>=|<>|!=|==|=|<|>)\\s*"
+                    + "(-?\\d+(?:\\.\\d+)?)\\s+then\\s*'((?:[^']|'')*)'\\s+else\\s*'((?:[^']|'')*)'"
+                    + "\\s+end\\s*$");
     private static final Pattern METRIC_DIFFERENCE_RATIO_PATTERN = Pattern.compile(
             "(?i)^\\s*\\(?\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*-\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*\\)?\\s*/\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*$");
     private static final List<String> SIGNED_PRIORITY_CODES = List.of("P1", "P2", "P3");
@@ -412,20 +416,26 @@ public final class DslCteDslRequestMapper {
     private static ResultStageMetricRatioBridgeResult toRelationResultStageMetricRatioBridge(
             String fallbackModel, Map<String, Object> ctePlan, List<Map<String, Object>> stages) {
         List<String> unsupported = new ArrayList<>();
-        if (stages.size() < 2 || stages.size() > 4) {
-            unsupported.add("relation result-stage metric ratio bridge requires aggregate -> derive -> optional postSlice -> optional orderBy");
+        if (stages.size() < 2 || stages.size() > 8) {
+            unsupported.add("relation result-stage metric ratio bridge requires aggregate -> derive+ -> optional postSlice -> optional orderBy");
             return ResultStageMetricRatioBridgeResult.deferred(unsupported);
         }
 
         Map<String, Object> aggregate = stages.get(0);
-        Map<String, Object> ratioStage = stages.get(1);
-        if (!"aggregate".equals(stringValue(aggregate.get("type")))
-                || !"derive".equals(stringValue(ratioStage.get("type")))) {
-            unsupported.add("relation result-stage metric ratio bridge requires aggregate followed by derive");
+        if (!"aggregate".equals(stringValue(aggregate.get("type")))) {
+            unsupported.add("relation result-stage metric ratio bridge requires aggregate followed by derive stages");
             return ResultStageMetricRatioBridgeResult.deferred(unsupported);
         }
 
-        int cursor = 2;
+        int cursor = 1;
+        List<Map<String, Object>> deriveStages = new ArrayList<>();
+        while (cursor < stages.size() && "derive".equals(stringValue(stages.get(cursor).get("type")))) {
+            deriveStages.add(stages.get(cursor++));
+        }
+        if (deriveStages.isEmpty()) {
+            unsupported.add("relation result-stage metric ratio bridge requires at least one derive stage");
+            return ResultStageMetricRatioBridgeResult.deferred(unsupported);
+        }
         Map<String, Object> postSliceStage = null;
         Map<String, Object> orderByStage = null;
         if (cursor < stages.size() && "postSlice".equals(stringValue(stages.get(cursor).get("type")))) {
@@ -435,25 +445,28 @@ public final class DslCteDslRequestMapper {
             orderByStage = stages.get(cursor++);
         }
         if (cursor != stages.size()) {
-            unsupported.add("relation result-stage metric ratio bridge supports only aggregate -> derive -> optional postSlice -> optional orderBy");
+            unsupported.add("relation result-stage metric ratio bridge supports only aggregate -> derive+ -> optional postSlice -> optional orderBy");
             return ResultStageMetricRatioBridgeResult.deferred(unsupported);
         }
 
         String aggregateName = stringValue(aggregate.get("name"));
-        String ratioName = stringValue(ratioStage.get("name"));
-        if (aggregateName == null || ratioName == null) {
+        if (aggregateName == null) {
             unsupported.add("relation result-stage metric ratio bridge requires named aggregate and derive stages");
             return ResultStageMetricRatioBridgeResult.deferred(unsupported);
         }
-        if (!List.of(aggregateName).equals(stringList(ratioStage.get("inputs")))) {
-            unsupported.add("relation result-stage metric ratio derive must reference the aggregate stage");
-            return ResultStageMetricRatioBridgeResult.deferred(unsupported);
+        String previousName = aggregateName;
+        for (Map<String, Object> deriveStage : deriveStages) {
+            String deriveName = stringValue(deriveStage.get("name"));
+            if (deriveName == null || !List.of(previousName).equals(stringList(deriveStage.get("inputs")))) {
+                unsupported.add("relation result-stage metric ratio derive stages must form a linear chain");
+                return ResultStageMetricRatioBridgeResult.deferred(unsupported);
+            }
+            previousName = deriveName;
         }
-        String previousName = ratioName;
         if (postSliceStage != null) {
             String postSliceName = stringValue(postSliceStage.get("name"));
             if (postSliceName == null || !List.of(previousName).equals(stringList(postSliceStage.get("inputs")))) {
-                unsupported.add("relation result-stage metric ratio postSlice must reference the derive stage");
+                unsupported.add("relation result-stage metric ratio postSlice must reference the previous result stage");
                 return ResultStageMetricRatioBridgeResult.deferred(unsupported);
             }
             previousName = postSliceName;
@@ -465,12 +478,19 @@ public final class DslCteDslRequestMapper {
 
         String model = sourceModel(fallbackModel, aggregate);
         MetricMapping metrics = metrics(aggregate.get("metrics"), unsupported);
-        ResultStageDerivedMetrics derivedMetrics = relationResultStageMetricDerived(
-                ratioStage.get("derived"), metrics.aliases(), unsupported);
-        if (derivedMetrics.empty()) {
-            return ResultStageMetricRatioBridgeResult.deferred(unsupported);
+        List<ResultStageDerivedMetrics> derivedMetricStages = new ArrayList<>();
+        List<String> derivedAliases = new ArrayList<>();
+        List<String> formulaAliases = new ArrayList<>(metrics.aliases());
+        for (Map<String, Object> deriveStage : deriveStages) {
+            ResultStageDerivedMetrics derivedMetrics = relationResultStageMetricDerived(
+                    deriveStage.get("derived"), metrics.aliases(), formulaAliases, derivedAliases, unsupported);
+            if (derivedMetrics.empty()) {
+                return ResultStageMetricRatioBridgeResult.deferred(unsupported);
+            }
+            derivedMetricStages.add(derivedMetrics);
+            derivedAliases.addAll(derivedMetrics.aliases());
+            formulaAliases.addAll(derivedMetrics.aliases());
         }
-        List<String> derivedAliases = derivedMetrics.aliases();
         List<ResultStageFilter> filters = resultStageAliasFilters(
                 postSliceStage == null ? null : postSliceStage.get("filters"),
                 derivedAliases, "relation result-stage metric ratio bridge", unsupported);
@@ -516,8 +536,10 @@ public final class DslCteDslRequestMapper {
         }
 
         ResultStageMetricRatioPlan plan = new ResultStageMetricRatioPlan(
-                output, groupBy, metrics.aliases(), derivedMetrics.ratios(), derivedMetrics.arithmetic(), filters,
-                orderBy == null ? List.of() : orderBy, resultLimit);
+                output, groupBy, metrics.aliases(),
+                derivedMetricStages.stream().flatMap(stage -> stage.ratios().stream()).toList(),
+                derivedMetricStages.stream().flatMap(stage -> stage.arithmetic().stream()).toList(),
+                derivedMetricStages, filters, orderBy == null ? List.of() : orderBy, resultLimit);
         return ResultStageMetricRatioBridgeResult.ready(model, baseRequest, plan);
     }
 
@@ -3292,6 +3314,8 @@ public final class DslCteDslRequestMapper {
 
     private static ResultStageDerivedMetrics relationResultStageMetricDerived(Object rawDerived,
                                                                               List<String> metricAliases,
+                                                                              List<String> availableFormulaAliases,
+                                                                              List<String> existingDerivedAliases,
                                                                               List<String> unsupported) {
         List<Map<String, Object>> derived = mapList(rawDerived);
         if (derived.isEmpty() || derived.size() > 6) {
@@ -3307,16 +3331,17 @@ public final class DslCteDslRequestMapper {
                 unsupported.add("relation result-stage metric derived field must declare a governed alias");
                 continue;
             }
+            if (metricAliases.contains(name) || existingDerivedAliases.contains(name)
+                    || aliasAlreadyUsed(name, ratios, arithmetic)) {
+                unsupported.add("relation result-stage metric derived aliases must be unique");
+                continue;
+            }
             Matcher matcher = METRIC_SAFE_RATIO_PATTERN.matcher(expr == null ? "" : expr);
             if (matcher.matches()) {
                 String numerator = matcher.group(1);
                 String denominator = matcher.group(2) == null ? matcher.group(3) : matcher.group(2);
                 if (!metricAliases.contains(numerator) || !metricAliases.contains(denominator)) {
                     unsupported.add("relation result-stage metric ratio must reference aggregate metric aliases");
-                    continue;
-                }
-                if (aliasAlreadyUsed(name, ratios, arithmetic)) {
-                    unsupported.add("relation result-stage metric derived aliases must be unique");
                     continue;
                 }
                 ratios.add(new MetricRatioDerived(name, numerator, denominator));
@@ -3331,19 +3356,53 @@ public final class DslCteDslRequestMapper {
                     unsupported.add("relation result-stage metric difference must reference aggregate metric aliases");
                     continue;
                 }
-                if (aliasAlreadyUsed(name, ratios, arithmetic)) {
-                    unsupported.add("relation result-stage metric derived aliases must be unique");
-                    continue;
-                }
                 arithmetic.add(new MetricArithmeticDerived(name, quoteAlias(left) + " - " + quoteAlias(right),
                         "relation_metric_difference"));
                 continue;
             }
 
-            unsupported.add("relation result-stage metric bridge supports only metric ratio or metric difference formulas");
+            MetricArithmeticDerived caseLabel = relationCaseLabelDerived(name, expr, availableFormulaAliases,
+                    unsupported);
+            if (caseLabel != null) {
+                arithmetic.add(caseLabel);
+                continue;
+            }
+
+            unsupported.add("relation result-stage metric bridge supports only metric ratio or metric difference formulas, "
+                    + "or signed CASE bucket label formulas");
         }
         return unsupported.isEmpty() ? new ResultStageDerivedMetrics(ratios, arithmetic)
                 : ResultStageDerivedMetrics.emptyMetrics();
+    }
+
+    private static MetricArithmeticDerived relationCaseLabelDerived(String name, String expr,
+                                                                    List<String> availableFormulaAliases,
+                                                                    List<String> unsupported) {
+        Matcher matcher = METRIC_CASE_LABEL_PATTERN.matcher(expr == null ? "" : expr);
+        if (!matcher.matches()) {
+            return null;
+        }
+        String field = matcher.group(1);
+        if (!availableFormulaAliases.contains(field)) {
+            unsupported.add("relation result-stage CASE label must reference a visible aggregate or prior derived alias");
+            return null;
+        }
+        String op = sqlOperator(matcher.group(2));
+        if (op == null) {
+            unsupported.add("relation result-stage CASE label comparison operator is unsupported");
+            return null;
+        }
+        String threshold = matcher.group(3);
+        String thenLabel = unescapeSqlStringLiteral(matcher.group(4));
+        String elseLabel = unescapeSqlStringLiteral(matcher.group(5));
+        if (!safeCaseLabelLiteral(thenLabel) || !safeCaseLabelLiteral(elseLabel)) {
+            unsupported.add("relation result-stage CASE label literals must be short single-line strings");
+            return null;
+        }
+        String sql = "CASE WHEN " + quoteAlias(field) + " " + op + " " + threshold
+                + " THEN " + quoteStringLiteral(thenLabel)
+                + " ELSE " + quoteStringLiteral(elseLabel) + " END";
+        return new MetricArithmeticDerived(name, sql, "relation_metric_case_label");
     }
 
     private static MetricArithmeticDerived signedFunnelArithmeticDerived(String name, String expr, String model,
@@ -3539,6 +3598,7 @@ public final class DslCteDslRequestMapper {
             return null;
         }
         return switch (op.trim()) {
+            case "==" -> "=";
             case "=", "!=", "<>", "<", "<=", ">", ">=" -> op.trim();
             default -> null;
         };
@@ -3549,6 +3609,25 @@ public final class DslCteDslRequestMapper {
             throw RX.throwB("DSL_CTE_RESULT_STAGE_UNSAFE_ALIAS: " + alias);
         }
         return "\"" + alias.replace("\"", "\"\"") + "\"";
+    }
+
+    private static String quoteStringLiteral(String value) {
+        if (!safeCaseLabelLiteral(value)) {
+            throw RX.throwB("DSL_CTE_RESULT_STAGE_UNSAFE_LABEL: " + value);
+        }
+        return "'" + value.replace("'", "''") + "'";
+    }
+
+    private static String unescapeSqlStringLiteral(String value) {
+        return value == null ? null : value.replace("''", "'");
+    }
+
+    private static boolean safeCaseLabelLiteral(String value) {
+        return value != null
+                && value.length() <= 64
+                && !value.contains("\n")
+                && !value.contains("\r")
+                && !value.contains("\u0000");
     }
 
     private static boolean containsLagOrLead(List<Map<String, Object>> derived) {
@@ -3924,12 +4003,43 @@ public final class DslCteDslRequestMapper {
     public record ResultStageMetricRatioPlan(List<String> output, List<String> groupBy, List<String> metricAliases,
                                              List<MetricRatioDerived> ratios,
                                              List<MetricArithmeticDerived> arithmetic,
+                                             List<ResultStageDerivedMetrics> derivedStages,
                                              List<ResultStageFilter> filters,
                                              List<SemanticQueryRequest.OrderItem> orderBy,
                                              Integer limit) {
 
+        public ResultStageMetricRatioPlan(List<String> output, List<String> groupBy, List<String> metricAliases,
+                                          List<MetricRatioDerived> ratios,
+                                          List<MetricArithmeticDerived> arithmetic,
+                                          List<ResultStageFilter> filters,
+                                          List<SemanticQueryRequest.OrderItem> orderBy,
+                                          Integer limit) {
+            this(output, groupBy, metricAliases, ratios, arithmetic,
+                    List.of(new ResultStageDerivedMetrics(ratios == null ? List.of() : ratios,
+                            arithmetic == null ? List.of() : arithmetic)),
+                    filters, orderBy, limit);
+        }
+
+        public ResultStageMetricRatioPlan {
+            output = output == null ? List.of() : List.copyOf(output);
+            groupBy = groupBy == null ? List.of() : List.copyOf(groupBy);
+            metricAliases = metricAliases == null ? List.of() : List.copyOf(metricAliases);
+            ratios = ratios == null ? List.of() : List.copyOf(ratios);
+            arithmetic = arithmetic == null ? List.of() : List.copyOf(arithmetic);
+            List<ResultStageDerivedMetrics> normalizedStages = derivedStages == null ? List.of()
+                    : derivedStages.stream().filter(stage -> stage != null && !stage.empty()).toList();
+            if (normalizedStages.isEmpty() && (!ratios.isEmpty() || !arithmetic.isEmpty())) {
+                normalizedStages = List.of(new ResultStageDerivedMetrics(ratios, arithmetic));
+            }
+            derivedStages = List.copyOf(normalizedStages);
+            filters = filters == null ? List.of() : List.copyOf(filters);
+            orderBy = orderBy == null ? List.of() : List.copyOf(orderBy);
+        }
+
         Map<String, Object> summary() {
             Map<String, Object> result = new LinkedHashMap<>();
+            boolean hasCaseLabel = arithmetic.stream()
+                    .anyMatch(item -> "relation_metric_case_label".equals(item.kind()));
             result.put("kind", arithmetic.stream().anyMatch(item -> item.kind().startsWith("funnel_drop_off"))
                     ? "funnel_drop_off"
                     : ratios.stream().anyMatch(ratio -> signedFunnelRatioAlias(
@@ -3938,6 +4048,8 @@ public final class DslCteDslRequestMapper {
                     : ratios.stream().anyMatch(ratio -> signedSlaRatioAlias(
                     ratio.numeratorAlias(), ratio.denominatorAlias(), ratio.ratioAlias()))
                     ? "sla_metric_ratio"
+                    : hasCaseLabel
+                    ? "relation_metric_case_label"
                     : !arithmetic.isEmpty()
                     ? "relation_metric_arithmetic"
                     : "relation_metric_ratio");
@@ -3963,6 +4075,15 @@ public final class DslCteDslRequestMapper {
                         Map<String, Object> item = new LinkedHashMap<>();
                         item.put("alias", derived.alias());
                         item.put("kind", derived.kind());
+                        return item;
+                    })
+                    .toList());
+            result.put("derived_stages", derivedStages.stream()
+                    .map(stage -> {
+                        Map<String, Object> item = new LinkedHashMap<>();
+                        item.put("ratios", stage.ratios().stream().map(MetricRatioDerived::ratioAlias).toList());
+                        item.put("arithmetic", stage.arithmetic().stream()
+                                .map(MetricArithmeticDerived::alias).toList());
                         return item;
                     })
                     .toList());
@@ -4004,30 +4125,45 @@ public final class DslCteDslRequestMapper {
             params.addAll(base.getParams());
 
             String baseAlias = "dsl_cte_base";
-            String ratioAliasName = "dsl_cte_metric_ratio";
             sql.append(baseAlias).append(" AS (\n").append(baseSql).append("\n),\n");
-            sql.append(ratioAliasName).append(" AS (\n");
-            sql.append("SELECT ");
-            List<String> selectItems = new ArrayList<>();
-            for (String field : groupBy) {
-                selectItems.add(quoteAlias(field));
+            String currentAlias = baseAlias;
+            List<String> visibleFields = new ArrayList<>();
+            visibleFields.addAll(groupBy);
+            visibleFields.addAll(metricAliases);
+            List<ResultStageDerivedMetrics> stagesToRender = derivedStages.isEmpty()
+                    ? List.of(new ResultStageDerivedMetrics(ratios, arithmetic))
+                    : derivedStages;
+            for (int i = 0; i < stagesToRender.size(); i++) {
+                if (i > 0) {
+                    sql.append(",\n");
+                }
+                ResultStageDerivedMetrics stage = stagesToRender.get(i);
+                String stageAlias = i == stagesToRender.size() - 1
+                        ? "dsl_cte_metric_ratio"
+                        : "dsl_cte_metric_ratio_" + (i + 1);
+                sql.append(stageAlias).append(" AS (\n");
+                sql.append("SELECT ");
+                List<String> selectItems = new ArrayList<>();
+                for (String field : visibleFields) {
+                    selectItems.add(quoteAlias(field));
+                }
+                for (MetricRatioDerived ratio : stage.ratios()) {
+                    selectItems.add("(1.0 * " + quoteAlias(ratio.numeratorAlias()) + " / NULLIF("
+                            + quoteAlias(ratio.denominatorAlias()) + ", 0)) AS " + quoteAlias(ratio.ratioAlias()));
+                }
+                for (MetricArithmeticDerived derived : stage.arithmetic()) {
+                    selectItems.add(derived.sqlExpression() + " AS " + quoteAlias(derived.alias()));
+                }
+                sql.append(String.join(", ", selectItems));
+                sql.append("\nFROM ").append(currentAlias).append("\n)");
+                visibleFields.addAll(stage.aliases());
+                currentAlias = stageAlias;
             }
-            for (String metric : metricAliases) {
-                selectItems.add(quoteAlias(metric));
-            }
-            for (MetricRatioDerived ratio : ratios) {
-                selectItems.add("(1.0 * " + quoteAlias(ratio.numeratorAlias()) + " / NULLIF("
-                        + quoteAlias(ratio.denominatorAlias()) + ", 0)) AS " + quoteAlias(ratio.ratioAlias()));
-            }
-            for (MetricArithmeticDerived derived : arithmetic) {
-                selectItems.add(derived.sqlExpression() + " AS " + quoteAlias(derived.alias()));
-            }
-            sql.append(String.join(", ", selectItems));
-            sql.append("\nFROM ").append(baseAlias).append("\n)\n");
+            sql.append("\n");
 
             sql.append("SELECT ");
             sql.append(String.join(", ", output.stream().map(DslCteDslRequestMapper::quoteAlias).toList()));
-            sql.append("\nFROM ").append(ratioAliasName);
+            sql.append("\nFROM ").append(currentAlias);
             if (!filters.isEmpty()) {
                 sql.append("\nWHERE ");
                 List<String> whereParts = new ArrayList<>();

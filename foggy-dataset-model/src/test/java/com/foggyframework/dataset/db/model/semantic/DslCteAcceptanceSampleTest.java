@@ -2299,9 +2299,19 @@ class DslCteAcceptanceSampleTest {
         SemanticQueryResponse response = service.validateQuery(
                 "SaleOrder", dslCtePlan(splitStageRelationDeriveAliasPlan()), SemanticRequestContext.empty());
 
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_READY", validation.get("dsl_bridge_status"));
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> stages = (List<Map<String, Object>>) response.getExecution()
-                .getDslCteValidation().get("stages");
+        Map<String, Object> ratioBridge = (Map<String, Object>) validation.get("dsl_result_stage_metric_ratio");
+        assertEquals("relation_metric_case_label", ratioBridge.get("kind"));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> derivedStages = (List<Map<String, Object>>) ratioBridge.get("derived_stages");
+        assertEquals(2, derivedStages.size());
+        assertEquals(List.of("collectionRate"), derivedStages.get(0).get("ratios"));
+        assertEquals(List.of("riskLevel"), derivedStages.get(1).get("arithmetic"));
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) validation.get("stages");
         Map<String, Object> riskStage = stages.stream()
                 .filter(stage -> "risk_band".equals(stage.get("name")))
                 .findFirst()
@@ -2312,6 +2322,23 @@ class DslCteAcceptanceSampleTest {
         List<String> outputFields = (List<String>) riskStage.get("output_fields");
         assertTrue(outputFields.contains("collectionRate"));
         assertTrue(outputFields.contains("riskLevel"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE relation CASE label bridge defers unsigned multi-branch CASE")
+    void validationDefersRelationCaseLabelWithMultipleBranches() {
+        Map<String, Object> plan = splitStageRelationDeriveAliasPlan();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(2).put("derived", List.of(
+                derived("riskLevel",
+                        "case when collectionRate < 0.8 then 'low' "
+                                + "when collectionRate > 1 then 'high' else 'normal' end")));
+
+        List<String> unsupported = bridgeUnsupported(plan);
+
+        assertTrue(unsupported.stream()
+                .anyMatch(msg -> msg.contains("signed CASE bucket label formulas")));
     }
 
     @Test
@@ -2555,6 +2582,32 @@ class DslCteAcceptanceSampleTest {
         assertTrue(result.getSql().contains("ORDER BY \"netSalesAmount\" DESC"));
         assertTrue(result.getSql().contains("LIMIT ?"));
         assertEquals(List.of(5), result.getParams());
+    }
+
+    @Test
+    @DisplayName("DSL_CTE generateSql can opt in to split-stage relation CASE label")
+    void generateSqlOptInUsesDslBridgeForSplitStageRelationCaseLabel() {
+        QueryFacade queryFacade = mock(QueryFacade.class);
+        when(queryFacade.buildSqlOnly(any(ModelResultContext.class)))
+                .thenReturn(new SqlGenerationResult(
+                        "SELECT \"product.categoryName\", SUM(amount) AS \"paidAmount\", "
+                                + "SUM(amount) AS \"orderAmount\" FROM sale_order "
+                                + "GROUP BY \"product.categoryName\"",
+                        List.of(),
+                        null));
+        ReflectionTestUtils.setField(service, "queryFacade", queryFacade);
+
+        SemanticQueryRequest request = dslCtePlan(splitStageRelationDeriveAliasPlan());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SqlGenerationResult result = service.generateSql("SaleOrder", request, SemanticRequestContext.empty());
+
+        assertTrue(result.getSql().contains("dsl_cte_metric_ratio_1"), result.getSql());
+        assertTrue(result.getSql().contains(
+                "CASE WHEN \"collectionRate\" < 0.8 THEN 'low' ELSE 'normal' END AS \"riskLevel\""),
+                result.getSql());
+        assertTrue(result.getSql().contains("WHERE \"collectionRate\" > ?"), result.getSql());
+        assertEquals(List.of(0.8), result.getParams());
     }
 
     @Test

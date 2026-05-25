@@ -53,6 +53,36 @@ class DslCteRelationMetricFixtureIntegrationTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("DSL_CTE relation CASE label bridge executes split derive stages and matches SQLite baseline")
+    void relationCaseLabelBridgeSqlMatchesManualBaseline() {
+        assumeCommonTableExpressionsSupported();
+
+        List<Map<String, Object>> manualRows = categoryProfitBandLeaderboardManualRows();
+        SemanticQueryRequest request = dslCtePlan(categoryProfitBandLeaderboardPlan());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SqlGenerationResult generated = semanticQueryServiceV3.generateSql(
+                "FactSalesQueryModel", request, SemanticRequestContext.empty());
+
+        assertNotNull(generated);
+        assertNotNull(generated.getSql());
+        assertTrue(generated.getSql().contains("dsl_cte_metric_ratio_1"), generated.getSql());
+        assertTrue(generated.getSql().contains(
+                "CASE WHEN \"profitRate\" < 0.2 THEN 'low' ELSE 'normal' END AS \"profitBand\""),
+                generated.getSql());
+        assertTrue(generated.getSql().contains("ORDER BY \"profitRate\" DESC"), generated.getSql());
+        assertEquals(List.of(2), generated.getParams());
+
+        List<Map<String, Object>> rows = new ArrayList<>(jdbcTemplate.queryForList(
+                generated.getSql(), generated.getParams().toArray(new Object[0])));
+
+        assertEquals(manualRows.size(), rows.size());
+        for (int i = 0; i < manualRows.size(); i++) {
+            assertGeneratedCategoryProfitBandRowMatchesManual(rows.get(i), manualRows.get(i));
+        }
+    }
+
+    @Test
     @DisplayName("DSL_CTE relation metric difference orderBy bridge executes and matches SQLite baseline")
     void relationMetricDifferenceOrderByBridgeSqlMatchesManualBaseline() {
         assumeCommonTableExpressionsSupported();
@@ -110,6 +140,22 @@ class DslCteRelationMetricFixtureIntegrationTest extends EcommerceTestSupport {
                 """);
     }
 
+    private List<Map<String, Object>> categoryProfitBandLeaderboardManualRows() {
+        return jdbcTemplate.queryForList("""
+                SELECT dp.category_name AS categoryName,
+                       SUM(fs.sales_amount) AS salesAmount,
+                       SUM(fs.profit_amount) AS profitAmount,
+                       1.0 * SUM(fs.profit_amount) / NULLIF(SUM(fs.sales_amount), 0) AS profitRate,
+                       CASE WHEN 1.0 * SUM(fs.profit_amount) / NULLIF(SUM(fs.sales_amount), 0) < 0.2
+                            THEN 'low' ELSE 'normal' END AS profitBand
+                FROM fact_sales fs
+                LEFT JOIN dim_product dp ON fs.product_key = dp.product_key
+                GROUP BY dp.category_name
+                ORDER BY profitRate DESC
+                LIMIT 2
+                """);
+    }
+
     private static void assertGeneratedCategoryProfitRateRowMatchesManual(Map<String, Object> generated,
                                                                           Map<String, Object> manual) {
         assertEquals(manual.get("categoryName"), value(generated, "product$categoryName"));
@@ -124,6 +170,15 @@ class DslCteRelationMetricFixtureIntegrationTest extends EcommerceTestSupport {
         assertDecimalClose(manual.get("salesAmount"), value(generated, "salesAmount"));
         assertDecimalClose(manual.get("profitAmount"), value(generated, "profitAmount"));
         assertDecimalClose(manual.get("nonProfitAmount"), value(generated, "nonProfitAmount"));
+    }
+
+    private static void assertGeneratedCategoryProfitBandRowMatchesManual(Map<String, Object> generated,
+                                                                          Map<String, Object> manual) {
+        assertEquals(manual.get("categoryName"), value(generated, "product$categoryName"));
+        assertDecimalClose(manual.get("salesAmount"), value(generated, "salesAmount"));
+        assertDecimalClose(manual.get("profitAmount"), value(generated, "profitAmount"));
+        assertDecimalClose(manual.get("profitRate"), value(generated, "profitRate"));
+        assertEquals(manual.get("profitBand"), value(generated, "profitBand"));
     }
 
     private static SemanticQueryRequest dslCtePlan(Map<String, Object> ctePlan) {
@@ -176,6 +231,35 @@ class DslCteRelationMetricFixtureIntegrationTest extends EcommerceTestSupport {
                                 "limit", 2)
                 ),
                 "output", List.of("product$categoryName", "salesAmount", "profitAmount", "nonProfitAmount")
+        );
+    }
+
+    private static Map<String, Object> categoryProfitBandLeaderboardPlan() {
+        return m(
+                "stages", List.of(
+                        stage("category_profit", "aggregate",
+                                "input", m("model", "FactSalesQueryModel"),
+                                "groupBy", List.of("product$categoryName"),
+                                "metrics", List.of(
+                                        m("name", "salesAmount", "expr", "sum(salesAmount)"),
+                                        m("name", "profitAmount", "expr", "sum(profitAmount)"))),
+                        stage("category_profit_rate", "derive",
+                                "inputs", List.of("category_profit"),
+                                "derived", List.of(
+                                        m("name", "profitRate", "expr", "profitAmount / nullif(salesAmount, 0)"))),
+                        stage("category_profit_band", "derive",
+                                "inputs", List.of("category_profit_rate"),
+                                "derived", List.of(
+                                        m("name", "profitBand",
+                                                "expr", "case when profitRate < 0.2 then 'low' else 'normal' end"))),
+                        stage("top_categories", "orderBy",
+                                "inputs", List.of("category_profit_band"),
+                                "orderBy", List.of(
+                                        m("field", "profitRate", "dir", "DESC")),
+                                "limit", 2)
+                ),
+                "output", List.of("product$categoryName", "salesAmount", "profitAmount", "profitRate",
+                        "profitBand")
         );
     }
 
