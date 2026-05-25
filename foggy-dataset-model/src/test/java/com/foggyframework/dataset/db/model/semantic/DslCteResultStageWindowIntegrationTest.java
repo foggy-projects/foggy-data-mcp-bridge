@@ -34,6 +34,8 @@ class DslCteResultStageWindowIntegrationTest extends EcommerceTestSupport {
     @Test
     @DisplayName("cumulative contribution result-stage window SQL executes and matches hand-written SQL")
     void cumulativeContributionResultStageWindowSqlMatchesHandWrittenSql() {
+        assumeCommonTableExpressionsSupported();
+
         if (!supportsWindowFunctions()) {
             log.info("cumulative contribution result-stage window parity not executed on {}", getDialectKey());
             return;

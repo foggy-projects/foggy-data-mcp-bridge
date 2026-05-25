@@ -43,6 +43,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class F4ColumnObjectIntegrationTest extends EcommerceTestSupport {
 
     private static final String SALES_MODEL = "FactSalesQueryModel";
+    private static final int LARGE_ROW_LIMIT = 50000;
 
     @Resource
     private SemanticQueryServiceV3 semanticQueryServiceV3;
@@ -146,12 +147,14 @@ class F4ColumnObjectIntegrationTest extends EcommerceTestSupport {
         DataSetResult actual = dsl(Map.of(
                 "model", SALES_MODEL,
                 "columns", List.of(aliasEntry),
-                "limit", 50000));
+                "orderBy", List.of("salesAmount"),
+                "limit", LARGE_ROW_LIMIT));
 
-        List<Map<String, Object>> expected = executeQuery("""
+        List<Map<String, Object>> expected = executeQuery(("""
                 SELECT fs.sales_amount AS %s
                 FROM fact_sales fs
-                """.formatted(q("revenue")));
+                ORDER BY fs.sales_amount ASC
+                """.formatted(q("revenue"))) + limitClause(LARGE_ROW_LIMIT));
 
         assertRowsEqual(expected, actual.toList(), true);
     }
@@ -208,12 +211,14 @@ class F4ColumnObjectIntegrationTest extends EcommerceTestSupport {
         DataSetResult actual = dsl(Map.of(
                 "model", SALES_MODEL,
                 "columns", List.of(first, second),
-                "limit", 50000));
+                "orderBy", List.of("salesAmount"),
+                "limit", LARGE_ROW_LIMIT));
 
-        List<Map<String, Object>> expected = executeQuery("""
+        List<Map<String, Object>> expected = executeQuery(("""
                 SELECT fs.sales_amount AS %s, fs.sales_amount AS %s
                 FROM fact_sales fs
-                """.formatted(q("x"), q("y")));
+                ORDER BY fs.sales_amount ASC
+                """.formatted(q("x"), q("y"))) + limitClause(LARGE_ROW_LIMIT));
 
         assertRowsEqual(expected, actual.toList(), true);
     }
@@ -274,12 +279,14 @@ class F4ColumnObjectIntegrationTest extends EcommerceTestSupport {
         DataSetResult actual = dsl(Map.of(
                 "model", SALES_MODEL,
                 "columns", List.of(aliasEntry),
-                "limit", 50000));
+                "orderBy", List.of("product$id"),
+                "limit", LARGE_ROW_LIMIT));
 
-        List<Map<String, Object>> expected = executeQuery("""
+        List<Map<String, Object>> expected = executeQuery(("""
                 SELECT fs.product_key AS %s
                 FROM fact_sales fs
-                """.formatted(q("productId")));
+                ORDER BY fs.product_key ASC
+                """.formatted(q("productId"))) + limitClause(LARGE_ROW_LIMIT));
 
         assertRowsEqual(expected, actual.toList(), true);
     }
@@ -417,6 +424,13 @@ class F4ColumnObjectIntegrationTest extends EcommerceTestSupport {
             return "[" + identifier + "]";
         }
         return "\"" + identifier + "\"";
+    }
+
+    private String limitClause(int limit) {
+        if (getDialectKey().contains("sqlserver")) {
+            return " OFFSET 0 ROWS FETCH NEXT " + limit + " ROWS ONLY";
+        }
+        return " LIMIT " + limit;
     }
 
     private static void assertRowsEqual(List<Map<String, Object>> expected,

@@ -23,6 +23,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
 
+    private static final BigDecimal RATIO_TOLERANCE = BigDecimal.valueOf(0.00001);
+
     @Resource
     private SemanticQueryServiceV3 semanticQueryServiceV3;
 
@@ -41,17 +43,18 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
     @Test
     @DisplayName("ServiceTicket SLA manual SQL establishes SQLite parity baseline")
     void serviceTicketSlaManualSqlBaseline() {
+        String firstResponseHours = hoursBetweenSql("st.created_at", "st.first_response_at");
         List<Map<String, Object>> rows = executeQuery("""
                 SELECT dt.team_name AS teamName,
                        COUNT(*) AS ticketCount,
                        SUM(CASE
                                WHEN st.first_response_at IS NOT NULL
-                                    AND ((julianday(st.first_response_at) - julianday(st.created_at)) * 24.0) <= 48.0
+                                    AND %s <= 48.0
                                THEN 1 ELSE 0
                            END) AS slaHitCount,
                        1.0 * SUM(CASE
                                WHEN st.first_response_at IS NOT NULL
-                                    AND ((julianday(st.first_response_at) - julianday(st.created_at)) * 24.0) <= 48.0
+                                    AND %s <= 48.0
                                THEN 1 ELSE 0
                            END) / NULLIF(COUNT(*), 0) AS slaAchievementRate
                 FROM service_ticket st
@@ -60,7 +63,7 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
                   AND st.created_at < '2026-06-01 00:00:00'
                 GROUP BY dt.team_name
                 ORDER BY teamName
-                """);
+                """.formatted(firstResponseHours, firstResponseHours));
 
         assertEquals(3, rows.size());
         assertSlaRow(rows.get(0), "华东区", 2, 1, 0.5);
@@ -79,7 +82,7 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
 
         assertNotNull(generated);
         assertNotNull(generated.getSql());
-        assertTrue(generated.getSql().contains("julianday"), generated.getSql());
+        assertSlaDateDiffMatchesDialect(generated.getSql());
         assertTrue(generated.getSql().contains("slaHitCount"), generated.getSql());
 
         List<Map<String, Object>> rows = new ArrayList<>(jdbcTemplate.queryForList(
@@ -95,6 +98,8 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
     @Test
     @DisplayName("DSL_CTE minimal SLA rate postSlice bridge executes and matches manual baseline")
     void minimalSlaRatePostSliceBridgeSqlMatchesManualBaseline() {
+        assumeCommonTableExpressionsSupported();
+
         SemanticQueryRequest request = dslCtePlan(minimalSlaRatePostSlicePlan());
         request.setHints(Map.of("dslCteCompileToDsl", true));
 
@@ -119,6 +124,8 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
     @Test
     @DisplayName("DSL_CTE priority-aware SLA rate bridge executes and matches manual baseline")
     void priorityAwareSlaRatePostSliceBridgeSqlMatchesManualBaseline() {
+        assumeCommonTableExpressionsSupported();
+
         List<Map<String, Object>> manualRows = priorityAwareManualRows(0.85);
 
         SemanticQueryRequest request = dslCtePlan(priorityAwareSlaRatePostSlicePlan());
@@ -145,6 +152,8 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
     @Test
     @DisplayName("DSL_CTE priority-aware resolution SLA rate bridge executes and matches manual baseline")
     void priorityAwareResolutionSlaRatePostSliceBridgeSqlMatchesManualBaseline() {
+        assumeCommonTableExpressionsSupported();
+
         List<Map<String, Object>> manualRows = priorityAwareResolutionManualRows(0.90);
 
         SemanticQueryRequest request = dslCtePlan(priorityAwareResolutionSlaRatePostSlicePlan());
@@ -171,6 +180,8 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
     @Test
     @DisplayName("DSL_CTE dual first-response and resolution SLA rates execute and match manual baseline")
     void priorityAwareDualSlaRateBridgeSqlMatchesManualBaseline() {
+        assumeCommonTableExpressionsSupported();
+
         List<Map<String, Object>> manualRows = priorityAwareDualSlaManualRows(0.90);
 
         SemanticQueryRequest request = dslCtePlan(priorityAwareDualSlaRatePlan());
@@ -197,6 +208,8 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
     @Test
     @DisplayName("DSL_CTE combined first-response and resolution SLA rate executes and matches manual baseline")
     void priorityAwareCombinedSlaRateBridgeSqlMatchesManualBaseline() {
+        assumeCommonTableExpressionsSupported();
+
         List<Map<String, Object>> manualRows = priorityAwareCombinedSlaManualRows(0.85);
 
         SemanticQueryRequest request = dslCtePlan(priorityAwareCombinedSlaRatePlan());
@@ -222,6 +235,8 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
     @Test
     @DisplayName("DSL_CTE priority-aware SLA rate bridge supports team and priority grouping")
     void priorityAwareSlaRateByTeamPriorityPostSliceBridgeSqlMatchesManualBaseline() {
+        assumeCommonTableExpressionsSupported();
+
         List<Map<String, Object>> manualRows = priorityAwareByTeamPriorityManualRows(0.85);
 
         SemanticQueryRequest request = dslCtePlan(priorityAwareSlaRateByTeamPriorityPostSlicePlan());
@@ -250,6 +265,8 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
     @Test
     @DisplayName("DSL_CTE P1 first-response overdue leaderboard executes and matches manual baseline")
     void p1FirstResponseOverdueLeaderboardBridgeSqlMatchesManualBaseline() {
+        assumeCommonTableExpressionsSupported();
+
         List<Map<String, Object>> manualRows = p1FirstResponseOverdueLeaderboardManualRows(5);
 
         SemanticQueryRequest request = dslCtePlan(p1FirstResponseOverdueLeaderboardPlan());
@@ -276,6 +293,8 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
     @Test
     @DisplayName("DSL_CTE minimal SLA rate postSlice can filter low-achievement teams")
     void minimalSlaRatePostSliceBridgeFiltersLowAchievementTeams() {
+        assumeCommonTableExpressionsSupported();
+
         Map<String, Object> plan = minimalSlaRatePostSlicePlan();
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
@@ -293,6 +312,23 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
         assertEquals(2, rows.size());
         assertSlaRateRow(rows.get(0), "华东区", 2, 0.5);
         assertSlaRateRow(rows.get(1), "技术部", 4, 0.5);
+    }
+
+    private String hoursBetweenSql(String startExpr, String endExpr) {
+        return switch (getDialectKey()) {
+            case "mysql" -> "(TIMESTAMPDIFF(SECOND, " + startExpr + ", " + endExpr + ") / 3600.0)";
+            case "postgresql" -> "(EXTRACT(EPOCH FROM (" + endExpr + " - " + startExpr + ")) / 3600.0)";
+            case "sqlserver" -> "(DATEDIFF(second, " + startExpr + ", " + endExpr + ") / 3600.0)";
+            default -> "((julianday(" + endExpr + ") - julianday(" + startExpr + ")) * 24.0)";
+        };
+    }
+
+    private void assertSlaDateDiffMatchesDialect(String sql) {
+        if ("mysql".equals(getDialectKey())) {
+            assertTrue(sql.contains("TIMESTAMPDIFF"), sql);
+            return;
+        }
+        assertTrue(sql.contains("julianday"), sql);
     }
 
     private List<Map<String, Object>> priorityAwareManualRows(double lowRateThreshold) {
@@ -527,7 +563,7 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
         assertEquals(slaHitCount, ((Number) row.get("slaHitCount")).intValue());
         assertTrue(BigDecimal.valueOf(((Number) row.get("slaAchievementRate")).doubleValue())
                 .subtract(BigDecimal.valueOf(slaAchievementRate)).abs()
-                .compareTo(BigDecimal.valueOf(0.000001)) <= 0);
+                .compareTo(RATIO_TOLERANCE) <= 0);
     }
 
     private static void assertGeneratedSlaRateRowMatchesManual(Map<String, Object> generated,
@@ -539,7 +575,7 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
                 ((Number) value(generated, "slaHitCount")).intValue());
         assertTrue(BigDecimal.valueOf(((Number) value(generated, "slaAchievementRate")).doubleValue())
                 .subtract(BigDecimal.valueOf(((Number) manual.get("slaAchievementRate")).doubleValue())).abs()
-                .compareTo(BigDecimal.valueOf(0.000001)) <= 0);
+                .compareTo(RATIO_TOLERANCE) <= 0);
     }
 
     private static void assertGeneratedSlaRateByPriorityRowMatchesManual(Map<String, Object> generated,
@@ -552,7 +588,7 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
                 ((Number) value(generated, "slaHitCount")).intValue());
         assertTrue(BigDecimal.valueOf(((Number) value(generated, "slaAchievementRate")).doubleValue())
                 .subtract(BigDecimal.valueOf(((Number) manual.get("slaAchievementRate")).doubleValue())).abs()
-                .compareTo(BigDecimal.valueOf(0.000001)) <= 0);
+                .compareTo(RATIO_TOLERANCE) <= 0);
     }
 
     private static void assertGeneratedDualSlaRateRowMatchesManual(Map<String, Object> generated,
@@ -562,10 +598,10 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
                 ((Number) value(generated, "ticketCount")).intValue());
         assertTrue(BigDecimal.valueOf(((Number) value(generated, "firstResponseSlaRate")).doubleValue())
                 .subtract(BigDecimal.valueOf(((Number) manual.get("firstResponseSlaRate")).doubleValue())).abs()
-                .compareTo(BigDecimal.valueOf(0.000001)) <= 0);
+                .compareTo(RATIO_TOLERANCE) <= 0);
         assertTrue(BigDecimal.valueOf(((Number) value(generated, "resolutionSlaRate")).doubleValue())
                 .subtract(BigDecimal.valueOf(((Number) manual.get("resolutionSlaRate")).doubleValue())).abs()
-                .compareTo(BigDecimal.valueOf(0.000001)) <= 0);
+                .compareTo(RATIO_TOLERANCE) <= 0);
     }
 
     private static void assertGeneratedCombinedSlaRateRowMatchesManual(Map<String, Object> generated,
@@ -575,7 +611,7 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
                 ((Number) value(generated, "ticketCount")).intValue());
         assertTrue(BigDecimal.valueOf(((Number) value(generated, "combinedSlaRate")).doubleValue())
                 .subtract(BigDecimal.valueOf(((Number) manual.get("combinedSlaRate")).doubleValue())).abs()
-                .compareTo(BigDecimal.valueOf(0.000001)) <= 0);
+                .compareTo(RATIO_TOLERANCE) <= 0);
     }
 
     private static void assertGeneratedP1OverdueRowMatchesManual(Map<String, Object> generated,
@@ -600,7 +636,7 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
         assertEquals(ticketCount, ((Number) value(row, "ticketCount")).intValue());
         assertTrue(BigDecimal.valueOf(((Number) value(row, "slaAchievementRate")).doubleValue())
                 .subtract(BigDecimal.valueOf(slaAchievementRate)).abs()
-                .compareTo(BigDecimal.valueOf(0.000001)) <= 0);
+                .compareTo(RATIO_TOLERANCE) <= 0);
     }
 
     private static Object value(Map<String, Object> row, String... keys) {

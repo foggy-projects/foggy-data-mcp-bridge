@@ -535,6 +535,35 @@ INSERT INTO service_ticket (ticket_id, team_id, created_at, first_response_at, r
 ('SLA-010', 'T002', '2026-04-29 09:00:00', '2026-04-29 10:00:00', '2026-04-30 18:00:00', 'P2', 'RESOLVED', 'WEB');
 GO
 
+-- 15. CRM线索事实数据（CRM DSL_CTE parity fixture）
+DELETE FROM fact_return
+WHERE order_id IN ('ORD20240101000001', 'ORD20240101000002', 'ORD20240104000007', 'ORD20240105000010');
+DELETE FROM fact_payment
+WHERE order_id IN ('ORD20240101000001', 'ORD20240101000002', 'ORD20240104000007', 'ORD20240105000010');
+DELETE FROM fact_sales
+WHERE order_id IN ('ORD20240101000001', 'ORD20240101000002', 'ORD20240104000007', 'ORD20240105000010');
+DELETE FROM fact_order
+WHERE order_id IN ('ORD20240101000001', 'ORD20240101000002', 'ORD20240104000007', 'ORD20240105000010');
+
+INSERT INTO fact_order (order_id, date_key, customer_key, store_key, channel_key, promotion_key, total_quantity, total_amount, discount_amount, freight_amount, pay_amount, order_status, payment_status, order_time) VALUES
+('ORD20240101000001', 20240101, 1, 1, 1, 2, 2, 10998.00, 1099.80, 0, 9898.20, 'COMPLETED', 'PAID', '2024-01-01 10:30:00'),
+('ORD20240101000002', 20240101, 2, 2, 2, 1, 1, 4599.00, 0, 0, 4599.00, 'COMPLETED', 'PAID', '2024-01-01 14:20:00'),
+('ORD20240104000007', 20240104, 7, 4, 1, 1, 2, 798.00, 0, 10, 808.00, 'COMPLETED', 'PAID', '2024-01-04 10:00:00'),
+('ORD20240105000010', 20240105, 10, 2, 1, 2, 3, 7697.00, 769.70, 0, 6927.30, 'COMPLETED', 'PAID', '2024-01-05 16:00:00');
+GO
+
+INSERT INTO crm_lead (lead_id, created_at, lead_source, converted_opportunity_id, converted_order_id) VALUES
+('CRM-001', '2026-05-01 09:00:00', 'WEB', 'OPP-001', 'ORD20240101000001'),
+('CRM-002', '2026-05-02 10:00:00', 'WEB', 'OPP-002', NULL),
+('CRM-003', '2026-05-03 11:00:00', 'WEB', NULL, NULL),
+('CRM-004', '2026-05-04 12:00:00', 'APP', 'OPP-004', 'ORD20240104000007'),
+('CRM-005', '2026-05-05 13:00:00', 'APP', 'OPP-005', 'ORD20240105000010'),
+('CRM-006', '2026-05-06 14:00:00', 'APP', NULL, NULL),
+('CRM-007', '2026-05-07 15:00:00', 'PHONE', 'OPP-007', NULL),
+('CRM-008', '2026-05-08 16:00:00', 'PHONE', NULL, NULL),
+('CRM-009', '2026-04-30 17:00:00', 'WEB', 'OPP-009', 'ORD20240101000002');
+GO
+
 PRINT 'Parent-Child dimension data generated.';
 GO
 
@@ -640,6 +669,7 @@ SELECT 'dim_team' AS table_name, COUNT(*) AS row_count FROM dim_team
 UNION ALL SELECT 'team_closure', COUNT(*) FROM team_closure
 UNION ALL SELECT 'fact_team_sales', COUNT(*) FROM fact_team_sales
 UNION ALL SELECT 'service_ticket', COUNT(*) FROM service_ticket
+UNION ALL SELECT 'crm_lead', COUNT(*) FROM crm_lead
 UNION ALL SELECT 'dim_category_group', COUNT(*) FROM dim_category_group
 UNION ALL SELECT 'dim_category_nested', COUNT(*) FROM dim_category_nested
 UNION ALL SELECT 'dim_product_nested', COUNT(*) FROM dim_product_nested

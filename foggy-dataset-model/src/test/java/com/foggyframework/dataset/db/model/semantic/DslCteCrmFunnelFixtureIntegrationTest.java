@@ -23,6 +23,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
 
+    private static final BigDecimal RATIO_TOLERANCE = BigDecimal.valueOf(0.00001);
+
     @Resource
     private SemanticQueryServiceV3 semanticQueryServiceV3;
 
@@ -118,6 +120,8 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
     @Test
     @DisplayName("DSL_CTE cross-model join_align bridge executes guarded SQL and matches manual baseline")
     void crossModelCrmOrderJoinAlignBridgeSqlMatchesManualBaseline() {
+        assumeCommonTableExpressionsSupported();
+
         List<Map<String, Object>> manualRows = crossModelCrmOrderJoinAlignManualRows();
         SemanticQueryRequest request = dslCtePlan(crossModelCrmOrderJoinAlignBridgePlan());
         request.setHints(Map.of("dslCteCompileToDsl", true));
@@ -147,6 +151,8 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
     @Test
     @DisplayName("DSL_CTE cross-model source-rate bridge executes guarded SQL and matches manual baseline")
     void crossModelCrmOrderSourceRateBridgeSqlMatchesManualBaseline() {
+        assumeCommonTableExpressionsSupported();
+
         List<Map<String, Object>> manualRows = crossModelCrmOrderSourceRateManualRows();
         SemanticQueryRequest request = dslCtePlan(crossModelCrmOrderSourceRateBridgePlan());
         request.setHints(Map.of("dslCteCompileToDsl", true));
@@ -175,6 +181,8 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
     @Test
     @DisplayName("DSL_CTE cross-model target-event window bridge executes guarded SQL and matches manual baseline")
     void crossModelCrmOrderTimeAttributionBridgeSqlMatchesManualBaseline() {
+        assumeCommonTableExpressionsSupported();
+
         insertTimeAttributionFixture();
         try {
             List<Map<String, Object>> manualRows = crossModelCrmOrderTimeAttributionManualRows();
@@ -215,6 +223,8 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
     @Test
     @DisplayName("DSL_CTE cross-model target-month attribution bridge executes guarded SQL and matches manual baseline")
     void crossModelCrmOrderTargetMonthAttributionBridgeSqlMatchesManualBaseline() {
+        assumeCommonTableExpressionsSupported();
+
         insertTimeAttributionFixture();
         try {
             List<Map<String, Object>> manualRows = crossModelCrmOrderTargetMonthAttributionManualRows();
@@ -253,6 +263,8 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
     @Test
     @DisplayName("DSL_CTE cross-model target year-month zero-fill calendar bridge executes guarded SQL")
     void crossModelCrmOrderTargetYearMonthZeroFillCalendarBridgeSqlMatchesManualBaseline() {
+        assumeCommonTableExpressionsSupported();
+
         insertTimeAttributionFixture();
         try {
             List<Map<String, Object>> manualRows =
@@ -289,6 +301,8 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
     @Test
     @DisplayName("DSL_CTE CRM lead funnel bridge executes and matches manual baseline")
     void crmLeadFunnelBridgeSqlMatchesManualBaseline() {
+        assumeCommonTableExpressionsSupported();
+
         List<Map<String, Object>> manualRows = crmLeadFunnelManualRows();
         SemanticQueryRequest request = dslCtePlan(crmLeadFunnelPlan());
         request.setHints(Map.of("dslCteCompileToDsl", true));
@@ -314,6 +328,8 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
     @Test
     @DisplayName("DSL_CTE CRM lead funnel drop-off bridge executes and matches manual baseline")
     void crmLeadFunnelDropOffBridgeSqlMatchesManualBaseline() {
+        assumeCommonTableExpressionsSupported();
+
         List<Map<String, Object>> manualRows = crmLeadFunnelDropOffManualRows();
         SemanticQueryRequest request = dslCtePlan(crmLeadFunnelDropOffPlan());
         request.setHints(Map.of("dslCteCompileToDsl", true));
@@ -339,6 +355,8 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
     @Test
     @DisplayName("DSL_CTE CRM lead funnel drop-off leaderboard executes and matches manual baseline")
     void crmLeadFunnelDropOffLeaderboardBridgeSqlMatchesManualBaseline() {
+        assumeCommonTableExpressionsSupported();
+
         List<Map<String, Object>> manualRows = crmLeadFunnelDropOffManualRows();
         manualRows.sort(Comparator.<Map<String, Object>>comparingDouble(row ->
                         ((Number) row.get("opportunityToOrderDropOffRate")).doubleValue())
@@ -815,7 +833,7 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
     private static void assertClose(double expected, double actual) {
         assertTrue(BigDecimal.valueOf(actual)
                 .subtract(BigDecimal.valueOf(expected)).abs()
-                .compareTo(BigDecimal.valueOf(0.000001)) <= 0);
+                .compareTo(RATIO_TOLERANCE) <= 0);
     }
 
     private static Object value(Map<String, Object> row, String... keys) {

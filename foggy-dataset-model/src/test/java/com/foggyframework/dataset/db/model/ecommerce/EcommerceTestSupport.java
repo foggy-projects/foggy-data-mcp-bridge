@@ -174,6 +174,32 @@ public abstract class EcommerceTestSupport {
     }
 
     /**
+     * 检查当前数据库是否支持公共表表达式（WITH）。
+     * MySQL 8.0+、PostgreSQL、SQL Server、SQLite 均支持；MySQL 5.7 不支持。
+     */
+    protected boolean supportsCommonTableExpressions() {
+        try {
+            DataSource ds = jdbcTemplate.getDataSource();
+            FDialect dialect = DbUtils.getDialect(ds);
+            if (dialect.getDbType() == DbType.MYSQL) {
+                try (Connection conn = ds.getConnection()) {
+                    return conn.getMetaData().getDatabaseMajorVersion() >= 8;
+                }
+            }
+            return true;
+        } catch (Exception e) {
+            log.warn("无法检测 CTE 支持: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    protected void assumeCommonTableExpressionsSupported() {
+        org.junit.jupiter.api.Assumptions.assumeTrue(
+                supportsCommonTableExpressions(),
+                "Current database does not support common table expressions");
+    }
+
+    /**
      * 使用当前数据库方言生成分页SQL。
      * <p>将 MySQL LIMIT 语法替换为各数据库通用的分页语法。</p>
      *

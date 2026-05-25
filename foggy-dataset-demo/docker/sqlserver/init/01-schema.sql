@@ -424,6 +424,20 @@ CREATE INDEX idx_service_ticket_team_id ON service_ticket (team_id);
 CREATE INDEX idx_service_ticket_created_at ON service_ticket (created_at);
 GO
 
+-- 19. CRM线索事实表（CRM DSL_CTE parity fixture）
+CREATE TABLE crm_lead (
+    lead_id                  VARCHAR(32) NOT NULL,
+    created_at               DATETIME NOT NULL,
+    lead_source              VARCHAR(32) NOT NULL,
+    converted_opportunity_id VARCHAR(32),
+    converted_order_id       VARCHAR(32),
+    CONSTRAINT pk_crm_lead PRIMARY KEY (lead_id)
+);
+GO
+CREATE INDEX idx_crm_lead_created_at ON crm_lead (created_at);
+CREATE INDEX idx_crm_lead_source ON crm_lead (lead_source);
+GO
+
 -- ==========================================
 -- 嵌套维度测试表 (Nested Dimension / Snowflake Schema)
 -- ==========================================

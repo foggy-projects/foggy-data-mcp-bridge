@@ -391,6 +391,19 @@ CREATE TABLE `service_ticket` (
     INDEX `idx_service_ticket_created_at` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='客服工单事实表（SLA DSL_CTE parity fixture）';
 
+-- 19. CRM线索事实表（CRM DSL_CTE parity fixture）
+DROP TABLE IF EXISTS `crm_lead`;
+CREATE TABLE `crm_lead` (
+    `lead_id`                  VARCHAR(32) NOT NULL COMMENT '线索ID',
+    `created_at`               DATETIME NOT NULL COMMENT '创建时间',
+    `lead_source`              VARCHAR(32) NOT NULL COMMENT '线索来源',
+    `converted_opportunity_id` VARCHAR(32) COMMENT '转化商机ID',
+    `converted_order_id`       VARCHAR(32) COMMENT '转化订单ID',
+    PRIMARY KEY (`lead_id`),
+    INDEX `idx_crm_lead_created_at` (`created_at`),
+    INDEX `idx_crm_lead_source` (`lead_source`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CRM线索事实表（CRM DSL_CTE parity fixture）';
+
 -- ==========================================
 -- 嵌套维度测试表 (Nested Dimension / Snowflake Schema)
 -- ==========================================

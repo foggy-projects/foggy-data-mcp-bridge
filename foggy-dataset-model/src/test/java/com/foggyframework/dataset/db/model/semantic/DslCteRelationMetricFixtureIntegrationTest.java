@@ -27,6 +27,8 @@ class DslCteRelationMetricFixtureIntegrationTest extends EcommerceTestSupport {
     @Test
     @DisplayName("DSL_CTE relation metric ratio orderBy bridge executes and matches SQLite baseline")
     void relationMetricRatioOrderByBridgeSqlMatchesManualBaseline() {
+        assumeCommonTableExpressionsSupported();
+
         List<Map<String, Object>> manualRows = categoryProfitRateLeaderboardManualRows();
         SemanticQueryRequest request = dslCtePlan(categoryProfitRateLeaderboardPlan());
         request.setHints(Map.of("dslCteCompileToDsl", true));
@@ -53,6 +55,8 @@ class DslCteRelationMetricFixtureIntegrationTest extends EcommerceTestSupport {
     @Test
     @DisplayName("DSL_CTE relation metric difference orderBy bridge executes and matches SQLite baseline")
     void relationMetricDifferenceOrderByBridgeSqlMatchesManualBaseline() {
+        assumeCommonTableExpressionsSupported();
+
         List<Map<String, Object>> manualRows = categoryNonProfitAmountLeaderboardManualRows();
         SemanticQueryRequest request = dslCtePlan(categoryNonProfitAmountLeaderboardPlan());
         request.setHints(Map.of("dslCteCompileToDsl", true));
