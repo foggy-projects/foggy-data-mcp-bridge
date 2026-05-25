@@ -352,7 +352,7 @@ public final class CalculatedFieldService {
         RX.hasText(fieldDef.getExpression(), "计算字段表达式不能为空: " + fieldDef.getName());
 
         // 检查名称是否已存在
-        if (context.hasColumn(fieldDef.getName())) {
+        if (context.hasColumn(fieldDef.getName()) && !isInlineAggregateAlias(fieldDef)) {
             throw RX.throwAUserTip("计算字段名称已存在: " + fieldDef.getName());
         }
 
@@ -409,6 +409,11 @@ public final class CalculatedFieldService {
             String errorMsg = "编译计算字段表达式失败 [" + fieldDef.getName() + "]: " + e.getMessage();
             throw RX.throwAUserTip(errorMsg, errorMsg, null, e);
         }
+    }
+
+    private static boolean isInlineAggregateAlias(CalculatedFieldDef fieldDef) {
+        return fieldDef.getOrigin() == CalculatedFieldDef.Origin.INLINE_EXPRESSION
+                && StringUtils.isNotEmpty(fieldDef.getAgg());
     }
 
     /**

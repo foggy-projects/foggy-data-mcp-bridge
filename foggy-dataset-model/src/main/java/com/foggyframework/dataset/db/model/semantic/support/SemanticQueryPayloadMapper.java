@@ -10,6 +10,7 @@ import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.enums.CaptionMatchMode;
 import com.foggyframework.dataset.db.model.semantic.enums.MismatchHandleStrategy;
 import com.foggyframework.dataset.db.model.semantic.domain.pivot.PivotRequest;
+import com.foggyframework.dataset.db.model.semantic.memorygrid.MemoryGridInputBinding;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -46,6 +47,7 @@ public class SemanticQueryPayloadMapper {
         request.setCalculatedFields(convertList(payload.get("calculatedFields"), CalculatedFieldDef.class));
         request.setSlice(convertSliceItems(payload.get("slice")));
         request.setHaving(convertSliceItems(payload.get("having")));
+        request.setPostSlice(convertSliceItems(payload.get("postSlice")));
         request.setGroupBy(convertGroupBy(payload.get("groupBy")));
         request.setOrderBy(convertOrderBy(payload.get("orderBy")));
         request.setStart(intValue(payload.get("start")));
@@ -57,6 +59,17 @@ public class SemanticQueryPayloadMapper {
         request.setDistinct(boolOrDefault(payload.get("distinct"), request.getDistinct()));
         request.setWithSubtotals(boolOrDefault(payload.get("withSubtotals"), request.getWithSubtotals()));
         request.setTimeWindow(convertMap(payload.get("timeWindow")));
+        request.setRoute(stringValue(payload.get("route")));
+        request.setStatus(stringValue(payload.get("status")));
+        request.setRiskFlags(optionalStringList(firstPresent(payload, "risk_flags", "riskFlags")));
+        request.setClarifyingQuestions(optionalStringList(firstPresent(payload, "clarifying_questions", "clarifyingQuestions")));
+        request.setWhy(optionalStringList(payload.get("why")));
+        request.setExecutablePlan(firstPresent(payload, "executable_plan", "executablePlan"));
+        request.setSemanticSql(stringValue(firstPresent(payload, "semantic_sql", "semanticSql")));
+        request.setMemoryGridPlan(convertMap(firstPresent(payload, "memory_grid_plan", "memoryGridPlan")));
+        request.setGridSql(stringValue(firstPresent(payload, "grid_sql", "gridSql")));
+        request.setMemoryGridBindings(convertList(firstPresent(payload, "bindings", "memoryGridBindings"),
+                MemoryGridInputBinding.class));
 
         String captionMatchMode = stringValue(payload.get("captionMatchMode"));
         if (captionMatchMode != null && !captionMatchMode.isBlank()) {
@@ -342,6 +355,13 @@ public class SemanticQueryPayloadMapper {
     private static Boolean boolOrDefault(Object value, Boolean fallback) {
         Boolean bool = boolValue(value);
         return bool != null ? bool : fallback;
+    }
+
+    private static Object firstPresent(Map<String, Object> map, String first, String second) {
+        if (map == null) {
+            return null;
+        }
+        return map.containsKey(first) ? map.get(first) : map.get(second);
     }
 
     private static String stringOr(Object value, String fallback) {

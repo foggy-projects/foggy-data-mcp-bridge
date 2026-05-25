@@ -9,6 +9,14 @@ export { default as DataViewer } from './components/DataViewer.vue'
 export { default as SearchToolbar } from './components/SearchToolbar.vue'
 export { default as DataTableWithSearch } from './components/DataTableWithSearch.vue'
 export { default as QueryPanel } from './components/QueryPanel.vue'
+export { default as ListPresetManager } from './components/list-preset/ListPresetManager.vue'
+
+export type {
+  QueryFieldSchema,
+  QueryPanelLayoutSchema,
+  QueryPanelExpose,
+  QuerySchema
+} from './components/QueryPanel.vue'
 
 // 导出过滤器组件
 export * from './components/filters'
@@ -58,6 +66,25 @@ export type {
   QueryVisibility
 } from './api/savedQuery'
 
+// 导出自定义列表 API
+export {
+  listPresets,
+  getDefaultListPreset,
+  createListPreset,
+  getListPreset,
+  updateListPreset,
+  deleteListPreset,
+  setDefaultListPreset,
+  clearDefaultListPreset
+} from './api/listPreset'
+
+// 导出自定义列表 API 类型
+export type {
+  ListPresetScope,
+  SaveListPresetRequest,
+  UpdateListPresetRequest
+} from './api/listPreset'
+
 // 导出类型定义
 export type {
   ColumnSchema,
@@ -87,6 +114,13 @@ export type {
   AfterQueryHookFn,
   ErrorQueryHookFn,
   MaybePromise,
+  ListPresetVisibility,
+  ListPresetPlacement,
+  ListPresetConfig,
+  ColumnViewSetting,
+  QueryConditionPreset,
+  ListViewState,
+  ListPresetDef,
   // Frontend Meta v1
   FrontendMeta,
   FieldMeta,

@@ -713,6 +713,9 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
         property.setDbDimension(dimension);
         property.validateSemanticScaleContract(propertyDef.getFormulaDef(), propertyDef.getDialectFormulaDef());
         property.init();
+        if (property.getDictionaryDiscovery() != null) {
+            property.getDictionaryDiscovery().validate("property " + context.getJdbcModel().getName() + "." + property.getName());
+        }
 
         processJdbcDataProvider(property.getDataProvider());
 

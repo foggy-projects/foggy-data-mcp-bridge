@@ -8,6 +8,7 @@ import com.foggyframework.dataset.db.model.semantic.domain.deserializer.OrderIte
 import com.foggyframework.dataset.db.model.semantic.enums.CaptionMatchMode;
 import com.foggyframework.dataset.db.model.semantic.enums.MismatchHandleStrategy;
 import com.foggyframework.dataset.db.model.semantic.domain.pivot.PivotRequest;
+import com.foggyframework.dataset.db.model.semantic.memorygrid.MemoryGridInputBinding;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
 import lombok.AllArgsConstructor;
@@ -28,6 +29,43 @@ public class SemanticQueryRequest {
     @ApiModelProperty(value = "查询列，可含 $caption", example = "[\"customerName\", \"team$caption\", \"totalAmount\"]")
     private List<String> columns;
 
+    @ApiModelProperty(value = "LLM 路由结果。CLARIFY/REJECT 会作为执行期终态处理，不进入查询编译")
+    private String route;
+
+    @ApiModelProperty(value = "执行计划状态。CLARIFY/REJECT 会作为执行期终态处理")
+    private String status;
+
+    @ApiModelProperty(value = "治理或语义风险标签")
+    @JsonProperty("risk_flags")
+    private List<String> riskFlags;
+
+    @ApiModelProperty(value = "澄清问题。仅用于 CLARIFY 终态")
+    @JsonProperty("clarifying_questions")
+    private List<String> clarifyingQuestions;
+
+    @ApiModelProperty(value = "拒绝或澄清原因")
+    private List<String> why;
+
+    @ApiModelProperty(value = "可执行计划。CLARIFY/REJECT 终态必须为空")
+    @JsonProperty("executable_plan")
+    private Object executablePlan;
+
+    @ApiModelProperty(value = "虚拟语义 SQL。仅允许引用当前虚拟语义模型和 TM/QM 暴露字段")
+    @JsonProperty("semantic_sql")
+    private String semanticSql;
+
+    @ApiModelProperty(value = "Memory Grid 二次分析计划。P0 仅做受治理、有界输入 guardrail")
+    @JsonProperty("memory_grid_plan")
+    private Map<String, Object> memoryGridPlan;
+
+    @ApiModelProperty(value = "Memory Grid SQL。仅允许引用 bindings 中声明的 result handle alias")
+    @JsonProperty("grid_sql")
+    private String gridSql;
+
+    @ApiModelProperty(value = "Memory Grid SQL 输入绑定。外部字段名为 bindings，内部限定为 memoryGridBindings")
+    @JsonProperty("bindings")
+    private List<MemoryGridInputBinding> memoryGridBindings;
+
     @ApiModelProperty(value = "计算字段定义列表，支持动态创建基于表达式的虚拟字段")
     private List<CalculatedFieldDef> calculatedFields;
 
@@ -36,6 +74,9 @@ public class SemanticQueryRequest {
 
     @ApiModelProperty(value = "聚合后过滤条件。仅用于 groupBy/聚合查询后的 HAVING；普通明细字段过滤继续使用 slice")
     private List<SliceItem> having;
+
+    @ApiModelProperty(value = "结果阶段过滤条件。仅用于窗口计算字段或 postAggregateCalculations 生成的外层结果集别名过滤；不会自动从 slice 下推")
+    private List<SliceItem> postSlice;
 
     @ApiModelProperty(value = "分组字段，可含 $caption", example = "[\"team$caption\"]")
     private List<GroupByItem> groupBy;

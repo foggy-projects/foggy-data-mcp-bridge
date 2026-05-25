@@ -146,7 +146,31 @@ export const model = {
     properties: [
         { column: 'id', caption: 'ID', type: 'INTEGER' },
         { column: 'name', caption: 'Order Reference', type: 'STRING', description: 'Order number (e.g. S00001)' },
-        { column: 'state', caption: 'Status', type: 'STRING', dictRef: dicts.sale_order_state },
+        {
+            column: 'state',
+            caption: 'Status',
+            type: 'STRING',
+            dictRef: dicts.sale_order_state,
+            description: 'Odoo sale.order lifecycle state. draft/sent are quotations, sale is confirmed sales order, done is locked, and cancel is cancelled.',
+            dictionaryDiscovery: {
+                enabled: true,
+                strategy: 'group_by',
+                maxValues: 20,
+                refreshTtlSeconds: 3600,
+                exposeToLlm: true,
+                sensitive: false,
+                aliases: {
+                    active_sales_order: {
+                        values: ['sale', 'done'],
+                        description: 'Confirmed or locked sales orders'
+                    },
+                    quotation: {
+                        values: ['draft', 'sent'],
+                        description: 'Quotation states before confirmed sales order'
+                    }
+                }
+            }
+        },
         { column: 'commitment_date', caption: 'Delivery Date', type: 'DATETIME', description: 'Expected delivery date',
           timeRole: 'planned_delivery_date', recommendedUse: 'Use for promised delivery or commitment-date analysis, not for sales booking period.' },
         { column: 'invoice_status', caption: 'Invoice Status', type: 'STRING', dictRef: dicts.sale_invoice_status },

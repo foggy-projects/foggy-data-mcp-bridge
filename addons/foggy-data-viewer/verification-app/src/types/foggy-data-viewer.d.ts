@@ -1,0 +1,124 @@
+declare module 'foggy-data-viewer' {
+  import type { DefineComponent } from 'vue'
+
+  export type DataTableWithSearchRef = {
+    refresh: () => void
+    clearAllFilters: () => void
+    getSelectedRows: () => Record<string, unknown>[]
+    getSelectedCount: () => number
+  }
+
+  export type SliceRequestDef = {
+    field: string
+    op: string
+    value?: unknown
+  }
+
+  export type OrderRequestDef = {
+    field: string
+    order: 'asc' | 'desc'
+  }
+
+  export type ColumnSchema = {
+    name: string
+    type: string
+    title?: string
+    filterType?: string
+    filterable?: boolean
+    aggregatable?: boolean
+    measure?: boolean
+  }
+
+  export type EnhancedColumnSchema = ColumnSchema & {
+    width?: number
+    minWidth?: number
+    fixed?: 'left' | 'right'
+  }
+
+  export type TableConfig = {
+    qmModel?: string
+    visibleColumns?: string[]
+    customizations?: Array<{
+      name: string
+      width?: number
+      minWidth?: number
+      fixed?: 'left' | 'right'
+    }>
+  }
+
+  export type TableSchema = {
+    columns: EnhancedColumnSchema[]
+    searchableFields?: string[]
+    pageSize?: number
+    showFilters?: boolean
+    showSearchToolbar?: boolean
+    searchLayout?: 'horizontal' | 'vertical'
+  }
+
+  export type FetchDataParams = {
+    page: number
+    pageSize: number
+    slice: SliceRequestDef[]
+    orderBy: OrderRequestDef[]
+  }
+
+  export type FetchDataResult = {
+    items: Record<string, unknown>[]
+    total: number
+    totalData?: Record<string, unknown> | null
+  }
+
+  export type CreateQueryRequest = {
+    model: string
+    title?: string
+    payload: {
+      columns: string[]
+      slice?: SliceRequestDef[]
+      orderBy?: OrderRequestDef[]
+    }
+  }
+
+  export type CreateQueryResponse = {
+    success: boolean
+    queryId?: string
+    error?: string
+  }
+
+  export type QueryMetaResponse = {
+    title?: string
+    tableConfig?: TableConfig
+    estimatedRowCount?: number
+  }
+
+  export type ViewerQueryRequest = {
+    start?: number
+    limit?: number
+    slice?: SliceRequestDef[]
+    orderBy?: OrderRequestDef[]
+  }
+
+  export type ViewerDataResponse = {
+    success: boolean
+    items: Record<string, unknown>[]
+    total: number
+    totalData?: Record<string, unknown> | null
+    error?: string
+  }
+
+  export const DataViewer: DefineComponent<Record<string, unknown>>
+  export const DataTable: DefineComponent<Record<string, unknown>>
+  export const SearchToolbar: DefineComponent<Record<string, unknown>>
+  export const DataTableWithSearch: DefineComponent<Record<string, unknown>>
+  export const SavedQueryManager: DefineComponent<Record<string, unknown>>
+
+  export function buildTableColumns(schema: ColumnSchema[], config?: TableConfig): EnhancedColumnSchema[]
+  export function createQuery(request: CreateQueryRequest): Promise<CreateQueryResponse>
+  export function fetchQueryMeta(queryId: string): Promise<QueryMetaResponse>
+  export function fetchQueryMeta(model: string, queryId: string): Promise<QueryMetaResponse>
+  export function fetchQmSchema(model: string): Promise<ColumnSchema[]>
+  export function fetchQueryData(queryId: string, request: ViewerQueryRequest): Promise<ViewerDataResponse>
+  export function fetchQueryData(model: string, queryId: string, request: ViewerQueryRequest): Promise<ViewerDataResponse>
+}
+
+declare module 'foggy-data-viewer/style.css' {}
+

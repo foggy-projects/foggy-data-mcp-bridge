@@ -774,6 +774,144 @@ class PivotIntegrationTest extends EcommerceTestSupport {
         log.info("S12: baselineRatio tree mode 拒绝通过");
     }
 
+    // ========== v3.7 axis domainSlice/start/offset ==========
+
+    @Test
+    @DisplayName("v3.7: domainSlice 只选择行轴域，不删除同一行轴下不满足 domainSlice 的 cell")
+    void testDomainSliceSelectsRowDomainWithoutDroppingCells() {
+        insertPivotDomainSliceFixture();
+        try {
+            AxisField row = axis("orderId");
+            row.setDomainSlice(List.of(slice("discountAmount", ">", 0)));
+            row.setOrderBy(List.of("orderId"));
+
+            PivotRequest pivot = new PivotRequest();
+            pivot.setRows(List.of(row));
+            pivot.setColumns(List.of(axis("product$caption")));
+            pivot.setMetrics(List.of("salesAmount", "discountAmount"));
+            pivot.setOutputFormat("flat");
+
+            SemanticQueryRequest request = new SemanticQueryRequest();
+            request.setSlice(List.of(slice("orderId", "in", List.of("PDS_O1", "PDS_O2"))));
+            request.setPivot(pivot);
+
+            SemanticQueryResponse response = execute(request);
+            List<Map<String, Object>> items = response.getItems();
+
+            List<Map<String, Object>> orderRows = rowsForOrder(items, "PDS_O1");
+            assertEquals(2, orderRows.size(), "PDS_O1 的两个商品 cell 都应保留");
+            assertTrue(rowsForOrder(items, "PDS_O2").isEmpty(), "PDS_O2 不满足行轴 domainSlice，应被排除");
+
+            boolean hasZeroDiscountCell = false;
+            double salesTotal = 0;
+            for (Map<String, Object> rowItem : orderRows) {
+                Number discount = (Number) rowItem.get("discountAmount");
+                Number sales = (Number) rowItem.get("salesAmount");
+                if (discount != null && discount.doubleValue() == 0d) {
+                    hasZeroDiscountCell = true;
+                }
+                if (sales != null) {
+                    salesTotal += sales.doubleValue();
+                }
+            }
+            assertTrue(hasZeroDiscountCell, "domainSlice 不能把同一 orderId 下 discountAmount=0 的 cell 删除");
+            assertEquals(180d, salesTotal, 0.001d);
+        } finally {
+            deletePivotDomainSliceFixture();
+        }
+    }
+
+    @Test
+    @DisplayName("v3.7: 顶层 slice 仍会作用于 cell 聚合，作为 domainSlice 的负面对照")
+    void testGlobalSliceStillFiltersCells() {
+        insertPivotDomainSliceFixture();
+        try {
+            PivotRequest pivot = new PivotRequest();
+            pivot.setRows(List.of(axis("orderId")));
+            pivot.setColumns(List.of(axis("product$caption")));
+            pivot.setMetrics(List.of("salesAmount", "discountAmount"));
+            pivot.setOutputFormat("flat");
+
+            SemanticQueryRequest request = new SemanticQueryRequest();
+            request.setSlice(List.of(
+                    slice("orderId", "in", List.of("PDS_O1", "PDS_O2")),
+                    slice("discountAmount", ">", 0)
+            ));
+            request.setPivot(pivot);
+
+            SemanticQueryResponse response = execute(request);
+            List<Map<String, Object>> orderRows = rowsForOrder(response.getItems(), "PDS_O1");
+
+            assertEquals(1, orderRows.size(), "顶层 slice 会删除 PDS_O1 下 discountAmount=0 的 cell");
+            assertEquals(80d, ((Number) orderRows.get(0).get("salesAmount")).doubleValue(), 0.001d);
+        } finally {
+            deletePivotDomainSliceFixture();
+        }
+    }
+
+    @Test
+    @DisplayName("v3.7: start/limit 在行轴域上分页，不按最终 cell 行分页")
+    void testAxisDomainStartPaginatesRowDomain() {
+        insertPivotDomainSliceFixture();
+        try {
+            AxisField row = axis("orderId");
+            row.setStart(1);
+            row.setLimit(1);
+            row.setOrderBy(List.of("orderId"));
+
+            PivotRequest pivot = new PivotRequest();
+            pivot.setRows(List.of(row));
+            pivot.setColumns(List.of(axis("product$caption")));
+            pivot.setMetrics(List.of("salesAmount"));
+            pivot.setOutputFormat("flat");
+
+            SemanticQueryRequest request = new SemanticQueryRequest();
+            request.setSlice(List.of(slice("orderId", "in", List.of("PDS_O1", "PDS_O2"))));
+            request.setPivot(pivot);
+
+            SemanticQueryResponse response = execute(request);
+
+            assertTrue(rowsForOrder(response.getItems(), "PDS_O1").isEmpty(),
+                    "start=1 应跳过第一个行轴成员 PDS_O1，而不是跳过最终 cell 第一行");
+            assertEquals(1, rowsForOrder(response.getItems(), "PDS_O2").size(),
+                    "PDS_O2 只有一个商品 cell，应作为第二个行轴成员完整返回");
+        } finally {
+            deletePivotDomainSliceFixture();
+        }
+    }
+
+    @Test
+    @DisplayName("v3.7: start/offset 轴域分页必须配合正数 limit，且不能冲突")
+    void testAxisDomainPaginationValidation() {
+        PivotRequest noLimitPivot = new PivotRequest();
+        AxisField rowWithoutLimit = axis("orderId");
+        rowWithoutLimit.setStart(20);
+        noLimitPivot.setRows(List.of(rowWithoutLimit));
+        noLimitPivot.setMetrics(List.of("salesAmount"));
+
+        SemanticQueryRequest noLimitRequest = new SemanticQueryRequest();
+        noLimitRequest.setPivot(noLimitPivot);
+
+        IllegalArgumentException noLimit = assertThrows(IllegalArgumentException.class,
+                () -> execute(noLimitRequest));
+        assertTrue(noLimit.getMessage().contains("必须同时指定正数 limit"));
+
+        PivotRequest conflictPivot = new PivotRequest();
+        AxisField conflictRow = axis("orderId");
+        conflictRow.setStart(20);
+        conflictRow.setOffset(30);
+        conflictRow.setLimit(10);
+        conflictPivot.setRows(List.of(conflictRow));
+        conflictPivot.setMetrics(List.of("salesAmount"));
+
+        SemanticQueryRequest conflictRequest = new SemanticQueryRequest();
+        conflictRequest.setPivot(conflictPivot);
+
+        IllegalArgumentException conflict = assertThrows(IllegalArgumentException.class,
+                () -> execute(conflictRequest));
+        assertTrue(conflict.getMessage().contains("不能同时指定不同的 start 和 offset"));
+    }
+
     // ========== 辅助方法 ==========
 
     private SemanticQueryResponse execute(SemanticQueryRequest request) {
@@ -783,6 +921,56 @@ class PivotIntegrationTest extends EcommerceTestSupport {
     private SemanticQueryResponse execute(String model, SemanticQueryRequest request) {
         return semanticQueryServiceV3.queryModel(
                 model, request, "execute", SemanticRequestContext.empty());
+    }
+
+    private SemanticQueryRequest.SliceItem slice(String field, String op, Object value) {
+        SemanticQueryRequest.SliceItem item = new SemanticQueryRequest.SliceItem();
+        item.setField(field);
+        item.setOp(op);
+        item.setValue(value);
+        return item;
+    }
+
+    private List<Map<String, Object>> rowsForOrder(List<Map<String, Object>> rows, String orderId) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Map<String, Object> row : rows) {
+            if (orderId.equals(row.get("orderId"))) {
+                result.add(row);
+            }
+        }
+        return result;
+    }
+
+    private void insertPivotDomainSliceFixture() {
+        deletePivotDomainSliceFixture();
+        jdbcTemplate.update("""
+                INSERT INTO fact_sales
+                (order_id, order_line_no, date_key, product_key, customer_key, store_key, channel_key, promotion_key,
+                 quantity, unit_price, unit_cost, discount_amount, sales_amount, cost_amount, profit_amount,
+                 order_status, payment_method)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, "PDS_O1", 1, 20240101, 1, 1, 1, 1, null,
+                1, 100d, 60d, 0d, 100d, 60d, 40d, "COMPLETED", "ALIPAY");
+        jdbcTemplate.update("""
+                INSERT INTO fact_sales
+                (order_id, order_line_no, date_key, product_key, customer_key, store_key, channel_key, promotion_key,
+                 quantity, unit_price, unit_cost, discount_amount, sales_amount, cost_amount, profit_amount,
+                 order_status, payment_method)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, "PDS_O1", 2, 20240101, 2, 1, 1, 1, null,
+                1, 80d, 50d, 80d, 80d, 50d, 30d, "COMPLETED", "ALIPAY");
+        jdbcTemplate.update("""
+                INSERT INTO fact_sales
+                (order_id, order_line_no, date_key, product_key, customer_key, store_key, channel_key, promotion_key,
+                 quantity, unit_price, unit_cost, discount_amount, sales_amount, cost_amount, profit_amount,
+                 order_status, payment_method)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, "PDS_O2", 1, 20240101, 1, 1, 1, 1, null,
+                1, 50d, 30d, 0d, 50d, 30d, 20d, "COMPLETED", "ALIPAY");
+    }
+
+    private void deletePivotDomainSliceFixture() {
+        jdbcTemplate.update("DELETE FROM fact_sales WHERE order_id IN ('PDS_O1', 'PDS_O2')");
     }
 
     private AxisField axis(String field) {

@@ -1,0 +1,57 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "businessType": {
+      "type": "string",
+      "description": "Optional business problem type filter, for example crm_single_model_funnel or service_sla."
+    },
+    "route": {
+      "type": "string",
+      "description": "Optional preferred route filter, for example DSL_CTE, SQL, or MEMORY_GRID."
+    },
+    "namespace": {
+      "type": "string",
+      "description": "Optional local/eval fallback namespace. Production callers should pass namespace through MCP context."
+    },
+    "tenantId": {
+      "type": "string",
+      "description": "Optional local/eval fallback tenant id. Production callers should pass X-Tenant-Id through MCP headers."
+    },
+    "permissionTags": {
+      "oneOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "description": "Optional local/eval fallback permission tags. Production authorization should come from X-Roles or X-Permission-Tags headers."
+    },
+    "ownerRoles": {
+      "oneOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "description": "Optional owner/delegation filter. Production delegation should come from X-Recipe-Owner-Roles header."
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100,
+      "description": "Maximum number of discoverable experience recipes to return."
+    }
+  }
+}

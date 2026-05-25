@@ -1,5 +1,6 @@
 package com.foggyframework.dataset.db.model.spi;
 
+import com.foggyframework.dataset.db.model.def.dict.DbDictionaryDiscoveryDef;
 import com.foggyframework.fsscript.exp.FsscriptFunction;
 
 import java.math.BigDecimal;
@@ -27,6 +28,10 @@ public interface DbProperty extends DbObject {
     }
 
     default String getDictRef() {
+        return null;
+    }
+
+    default DbDictionaryDiscoveryDef getDictionaryDiscovery() {
         return null;
     }
 

@@ -228,17 +228,42 @@ INSERT INTO fact_team_sales (team_id, date_key, sales_amount, sales_count) VALUE
 ('T009', 20240101, 40000.00, 8),
 ('T009', 20240102, 48000.00, 10);
 
+-- 15. 客服工单事实数据（SLA DSL_CTE parity fixture）
+INSERT INTO service_ticket (ticket_id, team_id, created_at, first_response_at, resolved_at, priority, status, channel) VALUES
+('SLA-001', 'T002', '2026-05-01 08:00:00', '2026-05-01 10:00:00', '2026-05-02 09:00:00', 'P1', 'RESOLVED', 'WEB'),
+('SLA-002', 'T002', '2026-05-01 09:00:00', '2026-05-03 10:00:00', '2026-05-04 11:00:00', 'P2', 'RESOLVED', 'APP'),
+('SLA-003', 'T002', '2026-05-02 11:00:00', NULL, NULL, 'P1', 'OPEN', 'PHONE'),
+('SLA-004', 'T002', '2026-05-03 12:00:00', '2026-05-05 11:00:00', '2026-05-06 09:00:00', 'P3', 'RESOLVED', 'WEB'),
+('SLA-005', 'T005', '2026-05-01 08:30:00', '2026-05-01 09:00:00', '2026-05-01 18:00:00', 'P2', 'RESOLVED', 'APP'),
+('SLA-006', 'T005', '2026-05-04 08:00:00', '2026-05-05 07:00:00', '2026-05-05 20:00:00', 'P2', 'RESOLVED', 'WEB'),
+('SLA-007', 'T005', '2026-05-05 10:00:00', '2026-05-08 10:30:00', '2026-05-09 10:00:00', 'P1', 'RESOLVED', 'PHONE'),
+('SLA-008', 'T008', '2026-05-02 08:00:00', '2026-05-02 12:00:00', '2026-05-03 12:00:00', 'P3', 'RESOLVED', 'WEB'),
+('SLA-009', 'T008', '2026-05-07 14:00:00', NULL, NULL, 'P2', 'OPEN', 'APP'),
+('SLA-010', 'T002', '2026-04-29 09:00:00', '2026-04-29 10:00:00', '2026-04-30 18:00:00', 'P2', 'RESOLVED', 'WEB');
+
+-- 16. CRM线索事实数据（CRM DSL_CTE parity fixture）
+INSERT INTO crm_lead (lead_id, created_at, lead_source, converted_opportunity_id, converted_order_id) VALUES
+('CRM-001', '2026-05-01 09:00:00', 'WEB', 'OPP-001', 'ORD20240101000001'),
+('CRM-002', '2026-05-02 10:00:00', 'WEB', 'OPP-002', NULL),
+('CRM-003', '2026-05-03 11:00:00', 'WEB', NULL, NULL),
+('CRM-004', '2026-05-04 12:00:00', 'APP', 'OPP-004', 'ORD20240104000007'),
+('CRM-005', '2026-05-05 13:00:00', 'APP', 'OPP-005', 'ORD20240105000010'),
+('CRM-006', '2026-05-06 14:00:00', 'APP', NULL, NULL),
+('CRM-007', '2026-05-07 15:00:00', 'PHONE', 'OPP-007', NULL),
+('CRM-008', '2026-05-08 16:00:00', 'PHONE', NULL, NULL),
+('CRM-009', '2026-04-30 17:00:00', 'WEB', 'OPP-009', 'ORD20240101000002');
+
 -- ============================================
 -- 嵌套维度测试数据 (Nested Dimension / Snowflake Schema)
 -- ============================================
 
--- 15. 品类组维度数据（三级维度）
+-- 17. 品类组维度数据（三级维度）
 INSERT INTO dim_category_group (group_id, group_name, group_type, status) VALUES
 ('GRP001', '电子产品组', '高价值', 'ACTIVE'),
 ('GRP002', '日用品组', '快消品', 'ACTIVE'),
 ('GRP003', '服装配饰组', '时尚', 'ACTIVE');
 
--- 16. 品类维度数据（二级维度，关联品类组）
+-- 17. 品类维度数据（二级维度，关联品类组）
 INSERT INTO dim_category_nested (category_id, category_name, category_level, group_key, status) VALUES
 ('CAT001', '数码电器', 1, 1, 'ACTIVE'),
 ('CAT002', '手机通讯', 2, 1, 'ACTIVE'),
@@ -301,4 +326,3 @@ INSERT INTO fact_sales_nested (date_key, product_key, store_key, quantity, sales
 (20240103, 5, 5, 8, 2392.00, 1200.00),     -- 不锈钢炒锅 @ 广州天河店
 (20240103, 7, 6, 15, 1485.00, 600.00),     -- 休闲T恤 @ 深圳华强北店
 (20240103, 9, 2, 4, 1596.00, 800.00);      -- 连衣裙 @ 杭州滨江店
-

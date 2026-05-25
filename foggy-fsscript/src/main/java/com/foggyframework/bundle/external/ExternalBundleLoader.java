@@ -5,14 +5,13 @@ import com.foggyframework.bundle.loader.BundleLoader;
 import com.foggyframework.core.utils.StringUtils;
 import lombok.extern.slf4j.Slf4j;
 
-import java.io.File;
 import java.util.List;
 import java.util.stream.Collectors;
 
 /**
  * 外部Bundle加载器
  *
- * <p>负责将配置的外部目录注册为Bundle，使其可以被系统的模型加载机制识别。
+ * <p>负责将配置的外部目录或 Spring Resource location 注册为Bundle，使其可以被系统的模型加载机制识别。
  *
  * <h3>工作流程：</h3>
  * <ol>
@@ -81,19 +80,9 @@ public class ExternalBundleLoader extends BundleLoader<ExternalBundleDefinition>
             return false;
         }
 
-        File dir = new File(item.getPath());
-        if (!dir.exists()) {
-            log.warn("外部Bundle[{}]路径不存在: {}，{}，已跳过", item.getName(), item.getPath(),dir.getAbsolutePath());
-            return false;
-        }
-
-        if (!dir.isDirectory()) {
-            log.warn("外部Bundle[{}]路径不是目录: {}，已跳过", item.getName(), item.getPath());
-            return false;
-        }
-
-        if (!dir.canRead()) {
-            log.warn("外部Bundle[{}]路径无读取权限: {}，已跳过", item.getName(), item.getPath());
+        if (!ExternalBundleResourceSupport.isReadableBundleRoot(item.getPath())) {
+            log.warn("外部Bundle[{}]路径不存在、不是可读目录，或Resource location不可读: {}，已跳过",
+                    item.getName(), item.getPath());
             return false;
         }
 

@@ -48,6 +48,16 @@ class TimeWindowValidatorTest {
         }
 
         @Test
+        @DisplayName("yoy + quarter passes")
+        void yoyQuarter() {
+            TimeWindowDef tw = new TimeWindowDef(
+                    "salesDate$id", "quarter", "yoy", "[)",
+                    List.of("2024-01-01", "2025-01-01"),
+                    List.of("salesAmount"), null);
+            assertNull(validate(tw));
+        }
+
+        @Test
         @DisplayName("rolling_7d + day passes")
         void rolling7dDay() {
             TimeWindowDef tw = new TimeWindowDef(

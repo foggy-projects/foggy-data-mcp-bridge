@@ -1,5 +1,6 @@
 package com.foggyframework.dataset.db.model.semantic.domain;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.foggyframework.dataset.db.model.spi.DbColumnType;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
@@ -48,6 +49,9 @@ public class SemanticQueryResponse {
     @ApiModelProperty(value = "结果语义提示，帮助上游区分成功但无匹配数据等终态")
     private SemanticInfo semantic;
 
+    @ApiModelProperty(value = "执行计划终态或路由信息")
+    private ExecutionInfo execution;
+
     /**
      * 分页信息
      */
@@ -88,6 +92,68 @@ public class SemanticQueryResponse {
 
         @ApiModelProperty(value = "上游是否应直接回答而不是继续探查")
         private Boolean shouldAnswerDirectly;
+    }
+
+    @Data
+    @ApiModel("执行计划信息")
+    public static class ExecutionInfo {
+
+        @ApiModelProperty(value = "路由结果，如 DSL_CTE、SEMANTIC_SQL、CLARIFY、REJECT")
+        private String route;
+
+        @ApiModelProperty(value = "执行计划状态，如 PLAN_READY、CLARIFY、REJECT、COMPILE_ERROR")
+        private String status;
+
+        @ApiModelProperty(value = "治理或语义风险标签")
+        @JsonProperty("risk_flags")
+        private List<String> riskFlags;
+
+        @ApiModelProperty(value = "拒绝或澄清原因")
+        private List<String> why;
+
+        @ApiModelProperty(value = "澄清问题")
+        @JsonProperty("clarifying_questions")
+        private List<String> clarifyingQuestions;
+
+        @ApiModelProperty(value = "可执行计划。CLARIFY/REJECT 终态必须为空")
+        @JsonProperty("executable_plan")
+        private Object executablePlan;
+
+        @ApiModelProperty(value = "DSL_CTE 阶段计划校验证据。仅表示 P0 contract 通过，不表示已执行")
+        @JsonProperty("dsl_cte_validation")
+        private Map<String, Object> dslCteValidation;
+
+        @ApiModelProperty(value = "虚拟语义 SQL。仅作为表达增强 contract，不表示物理 SQL 已执行")
+        @JsonProperty("semantic_sql")
+        private String semanticSql;
+
+        @ApiModelProperty(value = "虚拟语义 SQL AST 白名单校验证据")
+        @JsonProperty("ast_validation")
+        private Map<String, Object> astValidation;
+
+        @ApiModelProperty(value = "虚拟语义 SQL 到 DSL v1 子集映射证据。仅表示计划可审计，不表示已执行")
+        @JsonProperty("semantic_sql_dsl_plan")
+        private Map<String, Object> semanticSqlDslPlan;
+
+        @ApiModelProperty(value = "Memory Grid 二次分析计划。仅表示 guardrail 通过，不表示已执行")
+        @JsonProperty("memory_grid_plan")
+        private Map<String, Object> memoryGridPlan;
+
+        @ApiModelProperty(value = "Memory Grid SQL。仅作为受治理小结果二次分析 contract，不表示默认可执行")
+        @JsonProperty("grid_sql")
+        private String gridSql;
+
+        @ApiModelProperty(value = "Memory Grid guardrail 校验证据")
+        @JsonProperty("memory_grid_validation")
+        private Map<String, Object> memoryGridValidation;
+
+        @ApiModelProperty(value = "Memory Grid 最小执行闭环摘要。仅在显式执行且 resolver 解析成功时返回")
+        @JsonProperty("memory_grid_execution_summary")
+        private Map<String, Object> memoryGridExecutionSummary;
+
+        @ApiModelProperty(value = "错误码")
+        @JsonProperty("error_code")
+        private String errorCode;
     }
     
     /**

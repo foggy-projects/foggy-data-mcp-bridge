@@ -24,6 +24,13 @@
             <version>${project.version}</version>
         </dependency>
 
+        <!-- Governed in-memory secondary analysis over result handles -->
+        <dependency>
+            <groupId>com.foggysource</groupId>
+            <artifactId>foggy-dataset-memory-grid-bridge</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
         <!-- Demo 数据模型（可通过 foggy.demo.enabled=false 禁用） -->
         <dependency>
             <groupId>com.foggysource</groupId>

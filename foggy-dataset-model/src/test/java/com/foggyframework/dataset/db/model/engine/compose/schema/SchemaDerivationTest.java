@@ -207,6 +207,50 @@ class SchemaDerivationTest {
         }
 
         @Test
+        @DisplayName("ROUND 标量函数不被当作字段")
+        void roundScalarTokenAllowedInDerivedExpression() {
+            QueryPlan base = baseOf("X", List.of("amount"));
+            QueryPlan derived = base.query(QueryOptions.builder()
+                    .columns(List.of("ROUND(amount, 2) AS roundedAmount"))
+                    .build());
+
+            OutputSchema schema = SchemaDerivation.derive(derived);
+            assertEquals(List.of("roundedAmount"), schema.names());
+        }
+
+        @Test
+        @DisplayName("同一层 expression alias 互引被拒绝")
+        void sameStageExpressionAliasReferenceRejected() {
+            QueryPlan base = baseOf("X", List.of("paidAmount", "orderAmount"));
+            QueryPlan derived = base.query(QueryOptions.builder()
+                    .columns(List.of(
+                            "paidAmount / NULLIF(orderAmount, 0) AS collectionRate",
+                            "CASE WHEN collectionRate < 0.8 THEN 'low' ELSE 'normal' END AS riskLevel"))
+                    .build());
+
+            ComposeSchemaException ex = assertThrows(ComposeSchemaException.class,
+                    () -> SchemaDerivation.derive(derived));
+            assertEquals(ComposeSchemaErrorCodes.DERIVED_QUERY_UNKNOWN_FIELD, ex.code());
+            assertEquals("collectionRate", ex.offendingField());
+        }
+
+        @Test
+        @DisplayName("下一层 expression 可以引用上一层 alias")
+        void twoStageExpressionAliasReferenceAllowed() {
+            QueryPlan base = baseOf("X", List.of("paidAmount", "orderAmount"));
+            QueryPlan withRate = base.query(QueryOptions.builder()
+                    .columns(List.of("paidAmount / NULLIF(orderAmount, 0) AS collectionRate"))
+                    .build());
+            QueryPlan withRisk = withRate.query(QueryOptions.builder()
+                    .columns(List.of(
+                            "CASE WHEN collectionRate < 0.8 THEN 'low' ELSE 'normal' END AS riskLevel"))
+                    .build());
+
+            OutputSchema schema = SchemaDerivation.derive(withRisk);
+            assertEquals(List.of("riskLevel"), schema.names());
+        }
+
+        @Test
         @DisplayName("同层 slice 引用本层新建聚合 alias → DERIVED_QUERY_SAME_STAGE_ALIAS")
         void sliceOnSameStageAggregateAliasRejected() {
             QueryPlan base = baseOf("X",
@@ -532,13 +576,9 @@ class SchemaDerivationTest {
     class ReservedTokensAndScanner {
 
         @Test
-        @DisplayName("28 个保留 token 与 Python 严格对齐（5 agg + 7 control + 2 coalesce + 5 cmp + 3 date + 2 logical + 3 bool + 1 DISTINCT）")
+        @DisplayName("29 个 Java relation expression 保留 token")
         void reservedTokensCount() {
-            // Python _RESERVED_TOKENS contains exactly 28 entries — see
-            // foggy.dataset_model.engine.compose.schema.derive._RESERVED_TOKENS.
-            // The execution prompt says "27"; that is an off-by-one in the
-            // prompt. Python is the source of truth.
-            assertEquals(28, SchemaDerivation.RESERVED_TOKENS.size());
+            assertEquals(29, SchemaDerivation.RESERVED_TOKENS.size());
         }
 
         @Test
@@ -547,14 +587,14 @@ class SchemaDerivationTest {
             List<String> expected = List.of(
                     "SUM", "COUNT", "AVG", "MIN", "MAX",
                     "IIF", "IF", "CASE", "WHEN", "THEN", "ELSE", "END",
-                    "COALESCE", "NULLIF",
+                    "COALESCE", "NULLIF", "ROUND",
                     "IS_NULL", "IS_NOT_NULL", "BETWEEN", "IN", "NOT",
                     "DATE_DIFF", "DATE_ADD", "NOW",
                     "AND", "OR",
                     "TRUE", "FALSE", "NULL",
                     "DISTINCT"
             );
-            assertEquals(28, expected.size());
+            assertEquals(29, expected.size());
             for (String token : expected) {
                 assertTrue(SchemaDerivation.RESERVED_TOKENS.contains(token),
                         "缺少保留 token: " + token);
@@ -567,6 +607,7 @@ class SchemaDerivationTest {
             assertTrue(SchemaDerivation.isReservedToken("SUM"));
             assertTrue(SchemaDerivation.isReservedToken("sum"));
             assertTrue(SchemaDerivation.isReservedToken("Sum"));
+            assertTrue(SchemaDerivation.isReservedToken("round"));
             assertTrue(SchemaDerivation.isReservedToken("is_null"));
             assertFalse(SchemaDerivation.isReservedToken("orderId"));
         }

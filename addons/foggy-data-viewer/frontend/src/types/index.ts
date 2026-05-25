@@ -280,6 +280,78 @@ export interface QueryHooks {
   onQueryError?: ErrorQueryHookFn
 }
 
+// ========== List Preset ==========
+
+/** 自定义列表可见范围 */
+export type ListPresetVisibility = 'PRIVATE' | 'DEPARTMENT' | 'TENANT'
+
+/** 自定义列表按钮挂载位置 */
+export type ListPresetPlacement = 'toolbar-left' | 'toolbar-right' | 'external'
+
+/**
+ * 自定义列表配置
+ *
+ * v1 中 userId 由前端显式提供，用于后端隔离配置存储命名空间。
+ * 它不是安全边界；真实数据权限仍由后端查询链路控制。
+ */
+export interface ListPresetConfig {
+  enabled?: boolean
+  model: string
+  userId: string
+  businessKey?: string
+  autoLoadDefault?: boolean
+  allowShared?: boolean
+  allowTenantShared?: boolean
+  buttonText?: string
+  placement?: ListPresetPlacement
+}
+
+/** 列视图偏好 */
+export interface ColumnViewSetting {
+  name: string
+  visible: boolean
+  width?: number
+  minWidth?: number
+  fixed?: 'left' | 'right'
+  order: number
+}
+
+/** 自定义列表中的查询条件配置 */
+export interface QueryConditionPreset {
+  slice: SliceRequestDef[]
+  orderBy: OrderRequestDef[]
+}
+
+/** DataTableWithSearch 可保存和恢复的列表视图状态 */
+export interface ListViewState {
+  columns: string[]
+  columnSettings?: ColumnViewSetting[]
+  slice: SliceRequestDef[]
+  orderBy: OrderRequestDef[]
+  pageSize?: number
+}
+
+/** 自定义列表方案 */
+export interface ListPresetDef {
+  id: string
+  model: string
+  businessKey?: string
+  title: string
+  description?: string
+  columns: string[]
+  columnSettings?: ColumnViewSetting[]
+  query: QueryConditionPreset
+  pageSize?: number
+  visibility: ListPresetVisibility
+  ownerId: string
+  ownerDeptId?: string
+  ownerTenantId?: string
+  isDefault?: boolean
+  version: 1
+  createdAt: string
+  updatedAt: string
+}
+
 // ========== Frontend Meta v1 ==========
 
 /** 前端元数据契约 (frontend-meta v1) */

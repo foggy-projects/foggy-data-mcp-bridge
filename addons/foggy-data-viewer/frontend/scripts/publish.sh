@@ -38,7 +38,11 @@ echo "  Registry: https://registry.npmjs.org"
 [ -n "$DRY_RUN" ] && echo "  Mode:    DRY RUN"
 echo ""
 
-# 构建 lib 模式
+# 测试与构建 lib 模式
+echo "Testing..."
+npm test
+echo ""
+
 echo "Building lib..."
 npm run build:lib
 echo ""

@@ -3,6 +3,7 @@ package com.foggyframework.dataset.db.model.impl.property;
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.trans.ObjectTransFormatter;
 import com.foggyframework.core.utils.StringUtils;
+import com.foggyframework.dataset.db.model.def.dict.DbDictionaryDiscoveryDef;
 import com.foggyframework.dataset.db.model.def.measure.DbFormulaDef;
 import com.foggyframework.dataset.db.model.impl.AiObject;
 import com.foggyframework.dataset.db.model.impl.DbColumnSupport;
@@ -61,6 +62,11 @@ public class DbPropertyImpl extends DbObjectSupport implements DbProperty, DbDat
      * 字典引用ID，引用通过 registerDict 注册的字典
      */
     String dictRef;
+
+    /**
+     * 运行时字典值发现配置
+     */
+    DbDictionaryDiscoveryDef dictionaryDiscovery;
 
     /**
      * 时间角色语义 (e.g. business_date, event_time, system_time)

@@ -12,6 +12,7 @@ import com.foggyframework.dataset.mcp.service.McpToolDispatcher;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -25,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
@@ -161,6 +163,59 @@ class AdminMcpControllerTest {
                     .andExpect(jsonPath("$.result.content").isArray())
                     .andExpect(jsonPath("$.result.content[0].type").value("text"))
                     .andExpect(jsonPath("$.error").doesNotExist());
+        }
+
+        @Test
+        @DisplayName("Admin tools/call 应透传 registry governance headers")
+        void shouldForwardRegistryGovernanceHeaders() throws Exception {
+            McpResponse mockResponse = McpResponse.success("1", Map.of(
+                    "content", List.of(Map.of(
+                            "type", "text",
+                            "text", "{\"status\":\"success\"}"
+                    ))
+            ));
+            ArgumentCaptor<McpRequestContext> contextCaptor = ArgumentCaptor.forClass(McpRequestContext.class);
+
+            when(mcpService.handleToolsCall(any(McpRequest.class), any(McpRequestContext.class)))
+                    .thenReturn(mockResponse);
+
+            mockMvc.perform(post("/mcp/admin/rpc")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .header("Authorization", "Bearer token")
+                            .header("X-Trace-Id", "trace-admin")
+                            .header("X-NS", "odoo")
+                            .header("X-Roles", "admin,finance")
+                            .header("X-Permission-Tags", "crm:read,finance:read")
+                            .header("X-Recipe-Owner-Roles", "finance_owner")
+                            .header("X-Registry-Actor-Role", "registry_admin")
+                            .header("X-Tenant-Id", "tenant-a")
+                            .content("""
+                                    {
+                                      "jsonrpc":"2.0",
+                                      "id":"1",
+                                      "method":"tools/call",
+                                      "params":{
+                                        "name":"dataset.manage_experience_recipe_registry",
+                                        "arguments":{
+                                          "operation":"publish_validated",
+                                          "registryKey":"recipe@v1",
+                                          "idempotencyKey":"idem:admin:publish"
+                                        }
+                                      }
+                                    }
+                                    """))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.result.content").isArray());
+
+            verify(mcpService).handleToolsCall(any(McpRequest.class), contextCaptor.capture());
+            McpRequestContext context = contextCaptor.getValue();
+            assertEquals("odoo", context.getHeaders().get("X-NS"));
+            assertEquals("admin,finance", context.getHeaders().get("X-Roles"));
+            assertEquals("crm:read,finance:read", context.getHeaders().get("X-Permission-Tags"));
+            assertEquals("finance_owner", context.getHeaders().get("X-Recipe-Owner-Roles"));
+            assertEquals("registry_admin", context.getHeaders().get("X-Registry-Actor-Role"));
+            assertEquals("tenant-a", context.getHeaders().get("X-Tenant-Id"));
+            assertEquals("Bearer token", context.getHeaders().get("Authorization"));
         }
 
         @Test

@@ -237,11 +237,11 @@ npm test
 # 测试覆盖率
 npm run test:coverage
 
-# 构建库
-npm run build:lib
-
-# 构建应用
+# 构建发布包（库产物 + 类型声明 + 入口校验）
 npm run build
+
+# 构建内嵌应用静态资源
+npm run build:app
 ```
 
 ## 测试

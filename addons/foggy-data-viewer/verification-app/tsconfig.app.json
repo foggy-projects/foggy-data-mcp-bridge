@@ -3,6 +3,10 @@
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
     "types": ["vite/client"],
+    "baseUrl": ".",
+    "paths": {
+      "foggy-data-viewer": ["src/types/foggy-data-viewer.d.ts"]
+    },
 
     /* Linting */
     "strict": true,

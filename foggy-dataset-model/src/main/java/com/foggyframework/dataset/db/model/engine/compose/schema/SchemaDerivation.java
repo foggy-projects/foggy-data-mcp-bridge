@@ -537,14 +537,14 @@ public final class SchemaDerivation {
      * Reserved tokens / functions / keywords that appear inside allowed
      * expressions and must NOT be validated as field references.
      *
-     * <p>28 tokens — exact parity with Python
-     * {@code foggy.dataset_model.engine.compose.schema.derive._RESERVED_TOKENS}.</p>
+     * <p>Java-first v3.6 token set. Python parity is handled after the Java
+     * relation-level expression contract stabilizes.</p>
      */
     static final Set<String> RESERVED_TOKENS = Set.of(
             // SQL-ish aggregate / scalar / control
             "SUM", "COUNT", "AVG", "MIN", "MAX",
             "IIF", "IF", "CASE", "WHEN", "THEN", "ELSE", "END",
-            "COALESCE", "NULLIF",
+            "COALESCE", "NULLIF", "ROUND",
             "IS_NULL", "IS_NOT_NULL", "BETWEEN", "IN", "NOT",
             "DATE_DIFF", "DATE_ADD", "NOW",
             "AND", "OR",
@@ -554,11 +554,11 @@ public final class SchemaDerivation {
             "DISTINCT"
     );
 
-    static boolean isReservedToken(String ident) {
+    public static boolean isReservedToken(String ident) {
         return RESERVED_TOKENS.contains(ident.toUpperCase());
     }
 
-    static List<String> extractBareIdentifiers(String expression) {
+    public static List<String> extractBareIdentifiers(String expression) {
         String masked = maskStringLiterals(expression);
         List<String> out = new ArrayList<>();
         Matcher m = IDENT_SCAN.matcher(masked);

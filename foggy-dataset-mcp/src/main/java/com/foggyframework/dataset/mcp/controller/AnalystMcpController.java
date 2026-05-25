@@ -72,6 +72,9 @@ public class AnalystMcpController {
             @RequestHeader(value = "X-User-Id", required = false) String userId,
             @RequestHeader(value = "X-Namespace", required = false) String remoteNamespace,
             @RequestHeader(value = "X-Roles", required = false) String roles,
+            @RequestHeader(value = "X-Permission-Tags", required = false) String permissionTags,
+            @RequestHeader(value = "X-Recipe-Owner-Roles", required = false) String recipeOwnerRoles,
+            @RequestHeader(value = "X-Registry-Actor-Role", required = false) String registryActorRole,
             @RequestHeader(value = "X-Dept-Id", required = false) String deptId,
             @RequestHeader(value = "X-Tenant-Id", required = false) String tenantId,
             @RequestHeader(value = "X-Policy-Snapshot-Id", required = false) String policySnapshotId
@@ -103,9 +106,10 @@ public class AnalystMcpController {
                     case "tools/call":
                         return ResponseEntity.ok(mcpService.handleToolsCall(request,
                                 McpRequestContext.of(traceId, requestId, authorization, USER_ROLE, namespace,
-                                        remoteComposeHeaders(
+                                        requestScopedHeaders(
                                                 remoteCompose, traceId, authorization, userId,
-                                                remoteNamespace, namespace, roles, deptId, tenantId,
+                                                remoteNamespace, namespace, roles, permissionTags,
+                                                recipeOwnerRoles, registryActorRole, deptId, tenantId,
                                                 policySnapshotId))));
                     case "ping":
                         return ResponseEntity.ok(mcpService.handlePing(request));
@@ -114,9 +118,10 @@ public class AnalystMcpController {
                         if (request.getMethod().startsWith("dataset") || request.getMethod().startsWith("olap")) {
                             return ResponseEntity.ok(mcpService.handleDirectToolCall(request,
                                     McpRequestContext.of(traceId, requestId, authorization, USER_ROLE, namespace,
-                                            remoteComposeHeaders(
+                                            requestScopedHeaders(
                                                     remoteCompose, traceId, authorization, userId,
-                                                    remoteNamespace, namespace, roles, deptId, tenantId,
+                                                    remoteNamespace, namespace, roles, permissionTags,
+                                                    recipeOwnerRoles, registryActorRole, deptId, tenantId,
                                                     policySnapshotId))));
                         }
                         return ResponseEntity.ok(McpResponse.error(
@@ -159,6 +164,9 @@ public class AnalystMcpController {
             @RequestHeader(value = "X-User-Id", required = false) String userId,
             @RequestHeader(value = "X-Namespace", required = false) String remoteNamespace,
             @RequestHeader(value = "X-Roles", required = false) String roles,
+            @RequestHeader(value = "X-Permission-Tags", required = false) String permissionTags,
+            @RequestHeader(value = "X-Recipe-Owner-Roles", required = false) String recipeOwnerRoles,
+            @RequestHeader(value = "X-Registry-Actor-Role", required = false) String registryActorRole,
             @RequestHeader(value = "X-Dept-Id", required = false) String deptId,
             @RequestHeader(value = "X-Tenant-Id", required = false) String tenantId,
             @RequestHeader(value = "X-Policy-Snapshot-Id", required = false) String policySnapshotId
@@ -181,9 +189,10 @@ public class AnalystMcpController {
 
         final String finalTraceId = traceId;
         return toolDispatcher.executeWithProgress(request, traceId, authorization, namespace,
-                        remoteComposeHeaders(
+                        requestScopedHeaders(
                                 remoteCompose, traceId, authorization, userId,
-                                remoteNamespace, namespace, roles, deptId, tenantId,
+                                remoteNamespace, namespace, roles, permissionTags,
+                                recipeOwnerRoles, registryActorRole, deptId, tenantId,
                                 policySnapshotId))
                 .map(event -> ServerSentEvent.<Object>builder()
                         .id(event.getId())
@@ -194,7 +203,7 @@ public class AnalystMcpController {
                 .doOnError(e -> log.error("Analyst MCP Stream error: traceId={}, error={}", finalTraceId, e.getMessage()));
     }
 
-    private static Map<String, String> remoteComposeHeaders(
+    private static Map<String, String> requestScopedHeaders(
             String remoteCompose,
             String traceId,
             String authorization,
@@ -202,18 +211,21 @@ public class AnalystMcpController {
             String remoteNamespace,
             String namespace,
             String roles,
+            String permissionTags,
+            String recipeOwnerRoles,
+            String registryActorRole,
             String deptId,
             String tenantId,
             String policySnapshotId) {
-        if (remoteCompose == null) {
-            return Map.of();
-        }
         Map<String, String> headers = new LinkedHashMap<>();
         putIfNotBlank(headers, "X-Foggy-Remote-Compose", remoteCompose);
         putIfNotBlank(headers, "X-User-Id", userId);
         putIfNotBlank(headers, "X-Namespace", remoteNamespace);
         putIfNotBlank(headers, "X-NS", namespace);
         putIfNotBlank(headers, "X-Roles", roles);
+        putIfNotBlank(headers, "X-Permission-Tags", permissionTags);
+        putIfNotBlank(headers, "X-Recipe-Owner-Roles", recipeOwnerRoles);
+        putIfNotBlank(headers, "X-Registry-Actor-Role", registryActorRole);
         putIfNotBlank(headers, "X-Dept-Id", deptId);
         putIfNotBlank(headers, "X-Tenant-Id", tenantId);
         putIfNotBlank(headers, "X-Policy-Snapshot-Id", policySnapshotId);

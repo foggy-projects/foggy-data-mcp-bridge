@@ -77,6 +77,8 @@ const emit = defineEmits<{
 const slots = defineSlots<{
   /** 表格上方工具栏 */
   toolbar?: () => unknown
+  /** 表格上方右侧工具栏，显示在分页器之前 */
+  'toolbar-right'?: () => unknown
   /** 表格下方区域 */
   footer?: () => unknown
   /** 空数据提示 */
@@ -137,9 +139,19 @@ watch(() => props.total, (newTotal) => {
   pagination.value.total = newTotal
 })
 
+// 监听 pageSize 变化，用于应用自定义列表或外部配置时同步分页器
+watch(() => props.pageSize, (newPageSize) => {
+  if (newPageSize && newPageSize > 0) {
+    pagination.value.pageSize = newPageSize
+  }
+})
+
 // 监听 initialSlice 变化，初始化过滤器显示
 watch(() => props.initialSlice, (slices) => {
-  if (!slices || slices.length === 0) return
+  if (!slices || slices.length === 0) {
+    filterValues.value = {}
+    return
+  }
 
   // 按 field 分组 slices
   const grouped: Record<string, SliceRequestDef[]> = {}
@@ -773,12 +785,14 @@ provide('dataTableContext', {
 <template>
   <div class="data-table">
     <!-- 工具栏：左侧插槽 + 右侧分页 -->
-    <div v-if="props.showPager || $slots.toolbar" class="data-table-toolbar">
+    <div v-if="props.showPager || $slots.toolbar || $slots['toolbar-right']" class="data-table-toolbar">
       <div class="toolbar-left">
         <slot name="toolbar" />
       </div>
-      <div v-if="props.showPager" class="toolbar-right">
+      <div v-if="props.showPager || $slots['toolbar-right']" class="toolbar-right">
+        <slot name="toolbar-right" />
         <vxe-pager
+          v-if="props.showPager"
           :current-page="pagination.currentPage"
           :page-size="pagination.pageSize"
           :total="pagination.total"
@@ -845,6 +859,7 @@ provide('dataTableContext', {
   align-items: center;
   justify-content: flex-end;
   flex: 1;
+  gap: 8px;
 }
 
 .toolbar-right :deep(.vxe-pager) {

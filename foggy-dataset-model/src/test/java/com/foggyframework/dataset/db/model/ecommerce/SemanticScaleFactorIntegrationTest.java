@@ -711,17 +711,24 @@ class SemanticScaleFactorIntegrationTest extends EcommerceTestSupport {
     }
 
     private String ecommerceBundlePath() {
-        Path path = Paths.get("foggy-dataset-model", "src", "test", "resources", "foggy", "templates", "ecommerce");
-        if (!Files.isDirectory(path)) {
-            path = Paths.get("src", "test", "resources", "foggy", "templates", "ecommerce");
+        List<Path> candidates = List.of(
+                Paths.get("foggy-dataset-demo", "src", "main", "resources", "foggy", "templates", "ecommerce"),
+                Paths.get("..", "foggy-dataset-demo", "src", "main", "resources", "foggy", "templates", "ecommerce"),
+                Paths.get("foggy-dataset-model", "src", "test", "resources", "foggy", "templates", "ecommerce"),
+                Paths.get("src", "test", "resources", "foggy", "templates", "ecommerce")
+        );
+        for (Path candidate : candidates) {
+            if (hasSemanticScaleFixture(candidate)) {
+                return candidate.toAbsolutePath().normalize().toString();
+            }
         }
-        if (!Files.isDirectory(path)) {
-            path = Paths.get("..", "foggy-dataset-demo", "src", "main", "resources", "foggy", "templates", "ecommerce");
-        }
-        if (!Files.isDirectory(path)) {
-            path = Paths.get("foggy-dataset-demo", "src", "main", "resources", "foggy", "templates", "ecommerce");
-        }
-        assertTrue(Files.isDirectory(path), "ecommerce test bundle path should exist: " + path.toAbsolutePath());
-        return path.toAbsolutePath().normalize().toString();
+        fail("ecommerce test bundle path should contain semantic scale fixtures: " + candidates);
+        return "";
+    }
+
+    private boolean hasSemanticScaleFixture(Path path) {
+        return Files.isDirectory(path)
+                && Files.isRegularFile(path.resolve("model").resolve(TABLE_MODEL + ".tm"))
+                && Files.isRegularFile(path.resolve("query").resolve(QUERY_MODEL + ".qm"));
     }
 }

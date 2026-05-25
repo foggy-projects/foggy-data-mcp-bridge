@@ -2,15 +2,18 @@ package com.foggyframework.dataset.db.model.semantic.service.impl;
 
 import com.foggyframework.core.utils.StringUtils;
 import com.foggyframework.core.utils.beanhelper.BeanInfoHelper;
+import com.foggyframework.dataset.db.model.def.dict.DbDictionaryDiscoveryDef;
 import com.foggyframework.dataset.db.model.def.dict.DbDictDef;
 import com.foggyframework.dataset.db.model.def.dict.DbDictItemDef;
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.impl.AiObject;
 import com.foggyframework.dataset.db.model.impl.dimension.DbDimensionSupport;
 import com.foggyframework.dataset.db.model.impl.dimension.DbModelParentChildDimensionImpl;
+import com.foggyframework.dataset.db.model.semantic.domain.DictionaryDiscoveryResult;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
+import com.foggyframework.dataset.db.model.semantic.service.DictionaryDiscoveryService;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticServiceV3;
 import com.foggyframework.dataset.db.model.spi.*;
 import io.swagger.annotations.ApiModelProperty;
@@ -47,6 +50,9 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
     @Autowired(required = false)
     private DbModelDictService dbModelDictService;
 
+    @Autowired(required = false)
+    private DictionaryDiscoveryService dictionaryDiscoveryService;
+
     @Override
     public SemanticMetadataResponse getMetadata(SemanticMetadataRequest request, String format,
                                                 SemanticRequestContext context) {
@@ -65,11 +71,11 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             response.setFormat(format);
 
             if ("json".equalsIgnoreCase(format)) {
-                Map<String, Object> data = buildJsonMetadata(request, namespace, fieldAccess, deniedColumns);
+                Map<String, Object> data = buildJsonMetadata(request, context, namespace, fieldAccess, deniedColumns);
                 response.setData(data);
                 response.setContent(null);
             } else {
-                String markdownContent = buildMarkdownMetadata(request, namespace, fieldAccess);
+                String markdownContent = buildMarkdownMetadata(request, namespace, fieldAccess, context);
                 response.setContent(markdownContent);
                 response.setData(null);
             }
@@ -88,7 +94,8 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
      *
      * @param fieldAccess 运行时列权限白名单（null 表示不限制）
      */
-    private Map<String, Object> buildJsonMetadata(SemanticMetadataRequest request, String namespace,
+    private Map<String, Object> buildJsonMetadata(SemanticMetadataRequest request, SemanticRequestContext context,
+                                                   String namespace,
                                                    Set<String> fieldAccess,
                                                    java.util.List<com.foggyframework.dataset.db.model.semantic.domain.DeniedPhysicalColumn> deniedColumns) {
         Map<String, Object> data = new LinkedHashMap<>();
@@ -115,7 +122,8 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                         queryModel);
 
                 // 处理字段信息（展开维度字段，按列权限裁剪）
-                processModelFieldsV3(queryModel, fields, request.getFields(), request.getLevels(), effectiveFieldAccess);
+                processModelFieldsV3(queryModel, fields, request.getFields(), request.getLevels(),
+                        effectiveFieldAccess, context);
 
                 // 处理模型信息
                 processModelInfo(queryModel, models);
@@ -156,16 +164,16 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
      * </ul>
      */
     private String buildMarkdownMetadata(SemanticMetadataRequest request, String namespace,
-                                         Set<String> fieldAccess) {
+                                         Set<String> fieldAccess, SemanticRequestContext context) {
         List<String> qmModels = request.getQmModels();
 
         // 单模型：使用详细格式
         if (qmModels != null && qmModels.size() == 1) {
-            return buildSingleModelMarkdown(qmModels.get(0), request, namespace, fieldAccess);
+            return buildSingleModelMarkdown(qmModels.get(0), request, namespace, fieldAccess, context);
         }
 
         // 多模型：使用精简索引格式
-        return buildMultiModelMarkdown(request, namespace, fieldAccess);
+        return buildMultiModelMarkdown(request, namespace, fieldAccess, context);
     }
 
     /**
@@ -181,7 +189,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
      * </ul>
      */
     private String buildSingleModelMarkdown(String modelName, SemanticMetadataRequest request, String namespace,
-                                              Set<String> fieldAccess) {
+                                              Set<String> fieldAccess, SemanticRequestContext context) {
         QueryModel queryModel = queryModelLoader.getJdbcQueryModel(modelName, namespace);
         if (queryModel == null) {
             return "# 错误\n\n模型不存在: " + modelName;
@@ -326,6 +334,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                                 propDesc = propDesc + " (字典:" + name + ")";
                             }
                         }
+                        propDesc = appendDictionaryDiscoveryMarkdown(propDesc, prop, modelName, propFieldName, context);
 
                         md.append("| ").append(propFieldName)
                                 .append(" | ").append(propCaption)
@@ -437,6 +446,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                             dimensionFieldNames.add(propFieldName);
                             String propCaption = prop.getCaption() != null ? prop.getCaption() : prop.getName();
                             String propDesc = prop.getDescription() != null ? prop.getDescription() : "";
+                            propDesc = appendDictionaryDiscoveryMarkdown(propDesc, prop, modelName, propFieldName, context);
                             
                             md.append("| ").append(propFieldName)
                                     .append(" | ").append(propCaption)
@@ -455,6 +465,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                     String fieldCaption = property.getCaption() != null ? property.getCaption() : fieldName;
                     String fieldType = getDataTypeDescription(property.getPropertyDbColumn().getType());
                     String fieldDesc = property.getDescription() != null ? property.getDescription() : "";
+                    fieldDesc = appendDictionaryDiscoveryMarkdown(fieldDesc, property, modelName, fieldName, context);
                     
                     String timeRole = property.getTimeRole();
                     if (StringUtils.isEmpty(timeRole)) {
@@ -505,6 +516,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                             fieldDesc = fieldDesc + " (字典:" + name + ")";
                         }
                     }
+                    fieldDesc = appendDictionaryDiscoveryMarkdown(fieldDesc, property, modelName, fieldName, context);
 
                     md.append("| ").append(fieldName)
                             .append(" | ").append(fieldCaption)
@@ -641,7 +653,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
      * </ol>
      */
     private String buildMultiModelMarkdown(SemanticMetadataRequest request, String namespace,
-                                           Set<String> fieldAccess) {
+                                           Set<String> fieldAccess, SemanticRequestContext context) {
         StringBuilder md = new StringBuilder();
 
         md.append("# 数据模型语义索引 V3\n\n");
@@ -660,7 +672,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             }
             modelMap.put(qmModelName, queryModel);
             collectFieldsInfoV3(queryModel, allFields, request.getFields(), request.getLevels(),
-                    referencedDictIds, referencedDictClasses, fieldAccess);
+                    referencedDictIds, referencedDictClasses, fieldAccess, context);
         }
 
         // 构建模型简称映射（使用 JdbcQueryModel 的 shortAlias）
@@ -921,7 +933,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
      */
     private void processModelFieldsV3(QueryModel queryModel, Map<String, Object> fields,
                                       List<String> fieldFilter, List<Integer> levels,
-                                      Set<String> fieldAccess) {
+                                      Set<String> fieldAccess, SemanticRequestContext context) {
         TableModel jdbcModel = queryModel.getJdbcModel();
 
         // 收集维度字段名，用于在属性字段中排除（与 markdown 方法对齐）
@@ -992,7 +1004,8 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                 // 这样可以支持用户在 QM 中使用 alias 重命名字段
                 String propFieldName = queryColumn.getName();
                 dimensionFieldNames.add(propFieldName);
-                Map<String, Object> propFieldInfo = createDimensionPropertyFieldInfo(dimension, prop, queryModel.getName(), propFieldName);
+                Map<String, Object> propFieldInfo = createDimensionPropertyFieldInfo(
+                        dimension, prop, queryModel.getName(), propFieldName, context);
                 mergeFieldInfo(fields, propFieldName, propFieldInfo);
             }
         }
@@ -1020,7 +1033,8 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                 continue;
             }
 
-            Map<String, Object> fieldInfo = createPropertyFieldInfo(property, queryModel.getName());
+            Map<String, Object> fieldInfo = createPropertyFieldInfo(
+                    property, queryModel.getName(), fieldName, context);
             mergeFieldInfo(fields, fieldName, fieldInfo);
         }
 
@@ -1226,7 +1240,9 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
     /**
      * 创建维度属性字段信息
      */
-    private Map<String, Object> createDimensionPropertyFieldInfo(DbDimension dimension, DbProperty prop, String modelName, String fieldName) {
+    private Map<String, Object> createDimensionPropertyFieldInfo(DbDimension dimension, DbProperty prop,
+                                                                 String modelName, String fieldName,
+                                                                 SemanticRequestContext context) {
         Map<String, Object> fieldInfo = new LinkedHashMap<>();
 
         fieldInfo.put("name", (prop.getCaption() != null ? prop.getCaption() : prop.getName()));
@@ -1263,11 +1279,14 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         }
 
         Map<String, Object> modelInfo = new LinkedHashMap<>();
-        modelInfo.put("description", prop.getDescription() != null ? prop.getDescription() : prop.getCaption());
+        modelInfo.put("description", appendDictionaryDiscoveryMarkdown(
+                prop.getDescription() != null ? prop.getDescription() : prop.getCaption(),
+                prop, modelName, fieldName, context));
 
         Map<String, Object> models = new LinkedHashMap<>();
         models.put(modelName, modelInfo);
         fieldInfo.put("models", models);
+        addDictionaryDiscoveryMetadata(fieldInfo, prop, modelName, fieldName, context);
 
         return fieldInfo;
     }
@@ -1402,7 +1421,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
     private void collectFieldsInfoV3(QueryModel queryModel, Map<String, FieldInfoV3> allFields,
                                      List<String> fieldFilter, List<Integer> levels,
                                      Set<String> referencedDictIds, Set<DictInfo> referencedDictClasses,
-                                     Set<String> fieldAccess) {
+                                     Set<String> fieldAccess, SemanticRequestContext context) {
         TableModel jdbcModel = queryModel.getJdbcModel();
 
         // 收集维度信息（展开为 $id 和 $caption，仅包含QM暴露的维度）
@@ -1457,8 +1476,8 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
                 // 这样可以支持用户在 QM 中使用 alias 重命名字段
                 String propFieldName = queryColumn.getName();
                 FieldInfoV3 propFieldInfo = allFields.computeIfAbsent(propFieldName, k -> new FieldInfoV3());
-                propFieldInfo.addDimensionProperty(dimension, prop, queryModel.getName(), this,
-                        referencedDictIds, referencedDictClasses);
+                propFieldInfo.addDimensionProperty(dimension, prop, queryModel.getName(), propFieldName,
+                        this, referencedDictIds, referencedDictClasses, context);
             }
         }
 
@@ -1480,8 +1499,8 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             }
 
             FieldInfoV3 fieldInfo = allFields.computeIfAbsent(fieldName, k -> new FieldInfoV3());
-            fieldInfo.addProperty(queryProperty, queryModel.getName(), this,
-                    referencedDictIds, referencedDictClasses);
+            fieldInfo.addProperty(queryProperty, queryModel.getName(), fieldName, this,
+                    referencedDictIds, referencedDictClasses, context);
         }
 
         // 收集度量信息
@@ -1725,7 +1744,8 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         models.put(queryModel.getName(), modelInfo);
     }
 
-    private Map<String, Object> createPropertyFieldInfo(DbProperty property, String modelName) {
+    private Map<String, Object> createPropertyFieldInfo(DbProperty property, String modelName, String fieldName,
+                                                        SemanticRequestContext context) {
         Map<String, Object> fieldInfo = new LinkedHashMap<>();
         fieldInfo.put("name", property.getCaption() != null ? property.getCaption() : property.getName());
         fieldInfo.put("fieldName", property.getName());
@@ -1784,11 +1804,14 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         }
 
         Map<String, Object> modelInfo = new LinkedHashMap<>();
-        modelInfo.put("description", property.getCaption());
+        modelInfo.put("description", appendDictionaryDiscoveryMarkdown(
+                property.getDescription() != null ? property.getDescription() : property.getCaption(),
+                property, modelName, fieldName, context));
 
         Map<String, Object> models = new LinkedHashMap<>();
         models.put(modelName, modelInfo);
         fieldInfo.put("models", models);
+        addDictionaryDiscoveryMetadata(fieldInfo, property, modelName, fieldName, context);
 
         return fieldInfo;
     }
@@ -1981,6 +2004,171 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         }
     }
 
+    private void addDictionaryDiscoveryMetadata(Map<String, Object> fieldInfo, DbProperty property, String modelName,
+                                                String fieldName, SemanticRequestContext context) {
+        Map<String, Object> discovery = buildDictionaryDiscoveryMetadata(property, modelName, fieldName, context);
+        if (discovery != null) {
+            fieldInfo.put("dictionaryDiscovery", discovery);
+        }
+    }
+
+    private Map<String, Object> buildDictionaryDiscoveryMetadata(DbProperty property, String modelName,
+                                                                 String fieldName, SemanticRequestContext context) {
+        DbDictionaryDiscoveryDef discovery = property.getDictionaryDiscovery();
+        if (discovery == null || !discovery.isEnabled()) {
+            return null;
+        }
+
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("enabled", true);
+        metadata.put("strategy", discovery.getEffectiveStrategy());
+        metadata.put("maxValues", discovery.getEffectiveMaxValues());
+        metadata.put("refreshTtlSeconds", discovery.getEffectiveRefreshTtlSeconds());
+        metadata.put("exposeToLlm", discovery.isExposeToLlm());
+        metadata.put("sensitive", discovery.isSensitive());
+        metadata.put("valuesSource", "runtime_observed");
+
+        if (!discovery.isLlmVisible()) {
+            metadata.put("valuesStatus", "not_exposed");
+            return metadata;
+        }
+
+        DictionaryDiscoveryResult runtime = discoverDictionaryValues(modelName, fieldName, discovery, context);
+        metadata.put("valuesStatus", runtime.getStatus());
+        if (DictionaryDiscoveryResult.STATUS_SAMPLED.equals(runtime.getStatus())) {
+            metadata.put("sampledAt", runtime.getSampledAt().toString());
+            metadata.put("truncated", runtime.isTruncated());
+            metadata.put("values", buildDictionaryDiscoveryValueMetadata(runtime.getValues()));
+        } else if (DictionaryDiscoveryResult.STATUS_FAILED.equals(runtime.getStatus())) {
+            metadata.put("error", "runtime dictionary discovery failed");
+        }
+        Map<String, Object> aliases = buildDictionaryDiscoveryAliasMetadata(discovery.getAliases());
+        if (!aliases.isEmpty()) {
+            metadata.put("aliases", aliases);
+        }
+        return metadata;
+    }
+
+    private DictionaryDiscoveryResult discoverDictionaryValues(String modelName, String fieldName,
+                                                               DbDictionaryDiscoveryDef discovery,
+                                                               SemanticRequestContext context) {
+        if (dictionaryDiscoveryService == null) {
+            return DictionaryDiscoveryResult.failed("dictionary discovery service unavailable");
+        }
+        return dictionaryDiscoveryService.discover(modelName, fieldName, discovery, context);
+    }
+
+    private List<Map<String, Object>> buildDictionaryDiscoveryValueMetadata(
+            List<DictionaryDiscoveryResult.ValueEntry> values) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        if (values == null || values.isEmpty()) {
+            return result;
+        }
+        for (DictionaryDiscoveryResult.ValueEntry value : values) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("value", value.getValue());
+            if (value.getCount() != null) {
+                item.put("count", value.getCount());
+            }
+            result.add(item);
+        }
+        return result;
+    }
+
+    private Map<String, Object> buildDictionaryDiscoveryAliasMetadata(
+            Map<String, DbDictionaryDiscoveryDef.AliasDef> aliases) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        if (aliases == null || aliases.isEmpty()) {
+            return result;
+        }
+        for (Map.Entry<String, DbDictionaryDiscoveryDef.AliasDef> entry : aliases.entrySet()) {
+            DbDictionaryDiscoveryDef.AliasDef aliasDef = entry.getValue();
+            if (aliasDef == null) {
+                continue;
+            }
+            Map<String, Object> alias = new LinkedHashMap<>();
+            alias.put("values", aliasDef.getValues());
+            if (StringUtils.isNotEmpty(aliasDef.getDescription())) {
+                alias.put("description", aliasDef.getDescription());
+            }
+            result.put(entry.getKey(), alias);
+        }
+        return result;
+    }
+
+    private String appendDictionaryDiscoveryMarkdown(String description, DbProperty property, String modelName,
+                                                     String fieldName, SemanticRequestContext context) {
+        DbDictionaryDiscoveryDef discovery = property.getDictionaryDiscovery();
+        if (discovery == null || !discovery.isLlmVisible()) {
+            return description == null ? "" : description;
+        }
+
+        StringBuilder summary = new StringBuilder();
+        summary.append("运行时字典发现: observed values by ")
+                .append(discovery.getEffectiveStrategy())
+                .append(", maxValues=")
+                .append(discovery.getEffectiveMaxValues());
+
+        DictionaryDiscoveryResult runtime = discoverDictionaryValues(modelName, fieldName, discovery, context);
+        String valuesSummary = buildDictionaryDiscoveryValuesSummary(runtime);
+        if (StringUtils.isNotEmpty(valuesSummary)) {
+            summary.append("; values: ").append(valuesSummary);
+        } else if (DictionaryDiscoveryResult.STATUS_FAILED.equals(runtime.getStatus())
+                && StringUtils.isNotEmpty(runtime.getError())) {
+            summary.append("; valuesStatus=failed");
+        }
+
+        String aliasSummary = buildDictionaryDiscoveryAliasSummary(discovery.getAliases());
+        if (StringUtils.isNotEmpty(aliasSummary)) {
+            summary.append("; aliases: ").append(aliasSummary);
+        }
+
+        if (StringUtils.isEmpty(description)) {
+            return "(" + summary + ")";
+        }
+        return description + " (" + summary + ")";
+    }
+
+    private String buildDictionaryDiscoveryValuesSummary(DictionaryDiscoveryResult runtime) {
+        if (runtime == null || runtime.getValues() == null || runtime.getValues().isEmpty()) {
+            return "";
+        }
+        List<String> parts = new ArrayList<>();
+        for (DictionaryDiscoveryResult.ValueEntry entry : runtime.getValues()) {
+            String value = String.valueOf(entry.getValue());
+            if (entry.getCount() != null) {
+                value = value + "(" + entry.getCount() + ")";
+            }
+            parts.add(value);
+        }
+        String summary = String.join(", ", parts);
+        if (runtime.isTruncated()) {
+            summary = summary + ", ...";
+        }
+        return summary;
+    }
+
+    private String buildDictionaryDiscoveryAliasSummary(Map<String, DbDictionaryDiscoveryDef.AliasDef> aliases) {
+        if (aliases == null || aliases.isEmpty()) {
+            return "";
+        }
+
+        List<String> parts = new ArrayList<>();
+        for (Map.Entry<String, DbDictionaryDiscoveryDef.AliasDef> entry : aliases.entrySet()) {
+            DbDictionaryDiscoveryDef.AliasDef aliasDef = entry.getValue();
+            if (aliasDef == null || aliasDef.getValues() == null || aliasDef.getValues().isEmpty()) {
+                continue;
+            }
+            StringBuilder part = new StringBuilder();
+            part.append(entry.getKey()).append("=").append(aliasDef.getValues());
+            if (StringUtils.isNotEmpty(aliasDef.getDescription())) {
+                part.append(" ").append(aliasDef.getDescription());
+            }
+            parts.add(part.toString());
+        }
+        return String.join("; ", parts);
+    }
+
     String getCaption(DbObject dbObject) {
         return dbObject.getCaption();
     }
@@ -2067,8 +2255,9 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         }
 
         public void addDimensionProperty(DbDimension dimension, DbProperty prop, String modelName,
-                                         SemanticServiceV3Impl service,
-                                         Set<String> referencedDictIds, Set<DictInfo> referencedDictClasses) {
+                                         String fieldName, SemanticServiceV3Impl service,
+                                         Set<String> referencedDictIds, Set<DictInfo> referencedDictClasses,
+                                         SemanticRequestContext context) {
             this.displayName = prop.getCaption() != null ? prop.getCaption() : prop.getName();
 
             String dataType = service.getDataTypeDescription(prop.getPropertyDbColumn().getType());
@@ -2087,7 +2276,9 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             }
 
             ModelUsage usage = new ModelUsage();
-            usage.setDescription(prop.getDescription() != null ? prop.getDescription() : prop.getCaption());
+            usage.setDescription(service.appendDictionaryDiscoveryMarkdown(
+                    prop.getDescription() != null ? prop.getDescription() : prop.getCaption(),
+                    prop, modelName, fieldName, context));
 
             // 处理 dictRef（fsscript 字典引用）
             String dictRef = prop.getDictRef();
@@ -2112,8 +2303,10 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             modelUsages.put(modelName, usage);
         }
 
-        public void addProperty(DbQueryProperty queryProperty, String modelName, SemanticServiceV3Impl service,
-                                Set<String> referencedDictIds, Set<DictInfo> referencedDictClasses) {
+        public void addProperty(DbQueryProperty queryProperty, String modelName, String fieldName,
+                                SemanticServiceV3Impl service,
+                                Set<String> referencedDictIds, Set<DictInfo> referencedDictClasses,
+                                SemanticRequestContext context) {
             DbProperty property = queryProperty.getProperty();
             this.displayName = service.getCaption(property);
 
@@ -2138,7 +2331,9 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
             }
 
             ModelUsage usage = new ModelUsage();
-            usage.setDescription(property.getDescription() != null ? property.getDescription() : property.getCaption());
+            usage.setDescription(service.appendDictionaryDiscoveryMarkdown(
+                    property.getDescription() != null ? property.getDescription() : property.getCaption(),
+                    property, modelName, fieldName, context));
 
             // 处理 dictRef（fsscript 字典引用）
             String dictRef = property.getDictRef();

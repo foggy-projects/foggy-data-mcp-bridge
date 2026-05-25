@@ -1,0 +1,28 @@
+const order = loadTableModel('DictionaryDiscoveryOrderModel');
+
+export const queryModel = {
+    name: 'DictionaryDiscoveryOrderQueryModel',
+    caption: '字典发现订单查询',
+    description: '用于验证字段级 dictionaryDiscovery 契约和 metadata 输出的测试查询模型',
+    loader: 'v2',
+
+    model: order,
+
+    columnGroups: [
+        {
+            caption: '订单信息',
+            items: [
+                { ref: order.orderId },
+                { ref: order.status }
+            ]
+        },
+        {
+            caption: '度量',
+            items: [
+                { ref: order.amount }
+            ]
+        }
+    ],
+
+    accesses: []
+};

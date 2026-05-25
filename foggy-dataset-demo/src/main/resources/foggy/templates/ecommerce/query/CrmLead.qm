@@ -1,0 +1,37 @@
+/**
+ * CRM 线索查询模型
+ *
+ * @caption CRM线索查询
+ * @description CRM DSL_CTE parity fixture，支持按线索来源统计线索到商机、订单的转化率。
+ */
+const lead = loadTableModel('CrmLeadModel');
+
+export const queryModel = {
+    name: 'CrmLead',
+    caption: 'CRM线索查询',
+    description: 'CRM线索事实表查询模型，支持按来源统计已定义线索漏斗转化率；convertedOrderId 是与 FactOrderQueryModel.orderId 对齐的业务订单号，但跨模型执行仍需要受治理关系签名',
+    loader: 'v2',
+
+    model: lead,
+
+    columnGroups: [
+        {
+            caption: '线索信息',
+            items: [
+                { ref: lead.leadId },
+                { ref: lead.createdAt },
+                { ref: lead.leadSource },
+                { ref: lead.convertedOpportunityId },
+                { ref: lead.convertedOrderId }
+            ]
+        },
+        {
+            caption: '度量',
+            items: [
+                { ref: lead.leadCount }
+            ]
+        }
+    ],
+
+    accesses: []
+};

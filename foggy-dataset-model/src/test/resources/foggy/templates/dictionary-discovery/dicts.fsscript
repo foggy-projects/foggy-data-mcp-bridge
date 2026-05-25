@@ -1,0 +1,17 @@
+import { registerDict } from '@jdbcModelDictService';
+
+export const dicts = {
+    order_status: registerDict({
+        id: 'dictionary_discovery_order_status',
+        caption: '订单状态',
+        items: [
+            { value: 'PENDING', label: '待处理' },
+            { value: 'CONFIRMED', label: '已确认' },
+            { value: 'PROCESSING', label: '处理中' },
+            { value: 'SHIPPED', label: '已发货' },
+            { value: 'COMPLETED', label: '已完成' },
+            { value: 'CANCELLED', label: '已取消' },
+            { value: 'REFUNDED', label: '已退款' }
+        ]
+    })
+};

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import DataTableWithSearch from './DataTableWithSearch.vue'
-import type { EnhancedColumnSchema, SliceRequestDef } from '@/types'
+import type { EnhancedColumnSchema, SliceRequestDef, ListViewState } from '@/types'
 
 // Mock child components
 vi.mock('./SearchToolbar.vue', () => ({
@@ -26,14 +26,33 @@ vi.mock('./QueryPanel.vue', () => ({
     name: 'QueryPanel',
     template: '<div class="query-panel-mock"><slot /></div>',
     props: ['schema', 'modelValue', 'filterMemberLoader', 'qmModel'],
-    emits: ['update:modelValue', 'search', 'reset']
+    emits: ['update:modelValue', 'search', 'reset'],
+    data() {
+      return {
+        pendingSlices: []
+      }
+    },
+    methods: {
+      search() {
+        this.$emit('update:modelValue', this.pendingSlices)
+        this.$emit('search')
+      },
+      reset() {
+        this.pendingSlices = []
+        this.$emit('update:modelValue', [])
+        this.$emit('reset')
+      },
+      getSlices() {
+        return this.pendingSlices
+      }
+    }
   }
 }))
 
 vi.mock('./DataTable.vue', () => ({
   default: {
     name: 'DataTable',
-    template: '<div class="data-table-mock"><slot name="toolbar" /><slot name="footer" /><slot name="empty" /><slot name="column-_actions" :row="{}" :column="{}" :value="null" /><slot /></div>',
+    template: '<div class="data-table-mock"><slot name="toolbar" /><slot name="toolbar-right" /><slot name="footer" /><slot name="empty" /><slot name="column-_actions" :row="{}" :column="{}" :value="null" /><slot /></div>',
     props: ['columns', 'data', 'total', 'loading', 'pageSize', 'showFilters', 'initialSlice', 'serverSummary', 'cellCopy'],
     emits: ['page-change', 'sort-change', 'filter-change', 'row-click', 'row-dblclick', 'checkbox-change', 'checkbox-all'],
     methods: {
@@ -57,6 +76,18 @@ vi.mock('./DataTable.vue', () => ({
       }
     }
   }
+}))
+
+vi.mock('./list-preset/ListPresetManager.vue', () => ({
+  default: {
+    name: 'ListPresetManager',
+    template: '<div class="list-preset-manager-mock" />',
+    props: ['config', 'getState', 'applyState', 'availableColumns', 'reload']
+  }
+}))
+
+vi.mock('@/api/listPreset', () => ({
+  getDefaultListPreset: vi.fn().mockResolvedValue(null)
 }))
 
 describe('DataTableWithSearch', () => {
@@ -160,6 +191,37 @@ describe('DataTableWithSearch', () => {
       })
 
       expect(wrapper.find('.data-table-mock').exists()).toBe(true)
+    })
+
+    it('should render ListPresetManager when listPreset config is enabled', () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          ...defaultProps,
+          listPreset: {
+            enabled: true,
+            model: 'TicketQueryModel',
+            userId: 'u1'
+          }
+        }
+      })
+
+      expect(wrapper.find('.list-preset-manager-mock').exists()).toBe(true)
+    })
+
+    it('should not render ListPresetManager when placement is external', () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          ...defaultProps,
+          listPreset: {
+            enabled: true,
+            model: 'TicketQueryModel',
+            userId: 'u1',
+            placement: 'external'
+          }
+        }
+      })
+
+      expect(wrapper.find('.list-preset-manager-mock').exists()).toBe(false)
     })
   })
 
@@ -735,6 +797,20 @@ describe('DataTableWithSearch', () => {
       expect(dataTable).toBeDefined()
     })
 
+    it('should expose getQueryPanel method', () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          ...defaultProps,
+          queryMode: 'panel',
+          querySchema: mockQuerySchema
+        }
+      })
+
+      const vm = wrapper.vm as any
+      expect(vm.getQueryPanel).toBeDefined()
+      expect(vm.getQueryPanel()).toBeDefined()
+    })
+
     it('should expose clearSearchFilters method', () => {
       const wrapper = mount(DataTableWithSearch, {
         props: defaultProps
@@ -761,6 +837,56 @@ describe('DataTableWithSearch', () => {
       expect(filterChangeEvents).toBeTruthy()
     })
 
+    it('should expose searchQueryPanel and submit current QueryPanel values', async () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          ...defaultProps,
+          queryMode: 'panel',
+          querySchema: mockQuerySchema
+        }
+      })
+
+      const vm = wrapper.vm as any
+      const queryPanel = vm.getQueryPanel()
+      const querySlices: SliceRequestDef[] = [
+        { field: 'name', op: '=', value: 'pending-panel-value' }
+      ]
+
+      queryPanel.pendingSlices = querySlices
+      vm.searchQueryPanel()
+      await wrapper.vm.$nextTick()
+
+      const filterChangeEvents = wrapper.emitted('filter-change')
+      expect(filterChangeEvents).toBeTruthy()
+      expect(filterChangeEvents![filterChangeEvents!.length - 1][0]).toEqual(querySlices)
+    })
+
+    it('should expose resetQueryPanel and clear QueryPanel filters', async () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          ...defaultProps,
+          queryMode: 'panel',
+          querySchema: mockQuerySchema
+        }
+      })
+
+      const vm = wrapper.vm as any
+      const queryPanel = vm.getQueryPanel()
+      queryPanel.pendingSlices = [
+        { field: 'name', op: '=', value: 'pending-panel-value' }
+      ]
+
+      vm.searchQueryPanel()
+      await wrapper.vm.$nextTick()
+      vm.resetQueryPanel()
+      await wrapper.vm.$nextTick()
+
+      const filterChangeEvents = wrapper.emitted('filter-change')
+      expect(filterChangeEvents).toBeTruthy()
+      expect(filterChangeEvents![filterChangeEvents!.length - 1][0]).toEqual([])
+      expect(queryPanel.getSlices()).toEqual([])
+    })
+
     it('should expose clearAllFilters method', () => {
       const wrapper = mount(DataTableWithSearch, {
         props: defaultProps
@@ -773,6 +899,37 @@ describe('DataTableWithSearch', () => {
 
       const filterChangeEvents = wrapper.emitted('filter-change')
       expect(filterChangeEvents).toBeTruthy()
+    })
+
+    it('should reset QueryPanel when clearAllFilters is called', async () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: {
+          ...defaultProps,
+          queryMode: 'combined',
+          querySchema: mockQuerySchema
+        }
+      })
+
+      const vm = wrapper.vm as any
+      const queryPanel = vm.getQueryPanel()
+      const dataTable = wrapper.findComponent({ name: 'DataTable' })
+
+      queryPanel.pendingSlices = [
+        { field: 'name', op: '=', value: 'from-panel' }
+      ]
+      vm.searchQueryPanel()
+      await dataTable.vm.$emit('filter-change', [
+        { field: 'amount', op: '>=', value: 100 }
+      ])
+
+      vm.clearAllFilters()
+      await wrapper.vm.$nextTick()
+
+      const filterChangeEvents = wrapper.emitted('filter-change')
+      expect(filterChangeEvents).toBeTruthy()
+      expect(filterChangeEvents![filterChangeEvents!.length - 1][0]).toEqual([])
+      expect(queryPanel.getSlices()).toEqual([])
+      expect(vm.getMergedFilters()).toEqual([])
     })
 
     it('should expose getMergedFilters method', () => {
@@ -797,6 +954,113 @@ describe('DataTableWithSearch', () => {
 
       // 不应该报错
       vm.resetPagination()
+    })
+
+    it('should expose current list view state', () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: defaultProps
+      })
+
+      const vm = wrapper.vm as unknown as {
+        getListViewState: () => ListViewState
+      }
+      const state = vm.getListViewState()
+
+      expect(state.columns).toEqual(['id', 'name', 'amount'])
+      expect(state.columnSettings?.map(setting => setting.name)).toEqual(['id', 'name', 'amount'])
+      expect(state.pageSize).toBe(50)
+    })
+
+    it('should apply list view state to columns, filters, sort and page size', async () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: defaultProps
+      })
+
+      const vm = wrapper.vm as unknown as {
+        applyListViewState: (state: ListViewState) => void
+        getListViewState: () => ListViewState
+      }
+      const slice: SliceRequestDef[] = [{ field: 'name', op: 'like', value: 'ticket' }]
+
+      vm.applyListViewState({
+        columns: ['amount', 'name'],
+        columnSettings: [
+          { name: 'id', visible: false, order: 0 },
+          { name: 'amount', visible: true, width: 180, fixed: 'right', order: 1 },
+          { name: 'name', visible: true, minWidth: 220, order: 2 }
+        ],
+        slice,
+        orderBy: [{ field: 'amount', order: 'desc' }],
+        pageSize: 100
+      })
+      await wrapper.vm.$nextTick()
+
+      const dataTable = wrapper.findComponent({ name: 'DataTable' })
+      const columns = dataTable.props('columns') as EnhancedColumnSchema[]
+      const state = vm.getListViewState()
+
+      expect(columns.map(col => col.name)).toEqual(['amount', 'name'])
+      expect(columns[0].width).toBe(180)
+      expect(columns[0].fixed).toBe('right')
+      expect(columns[1].minWidth).toBe(220)
+      expect(dataTable.props('pageSize')).toBe(100)
+      expect(dataTable.props('initialSlice')).toEqual(slice)
+      expect(state.slice).toEqual(slice)
+      expect(state.orderBy).toEqual([{ field: 'amount', order: 'desc' }])
+    })
+
+    it('should ignore unknown list view columns without blanking the table', async () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: defaultProps
+      })
+
+      const vm = wrapper.vm as unknown as {
+        applyListViewState: (state: ListViewState) => void
+      }
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+      vm.applyListViewState({
+        columns: ['missing'],
+        slice: [],
+        orderBy: []
+      })
+      await wrapper.vm.$nextTick()
+
+      const dataTable = wrapper.findComponent({ name: 'DataTable' })
+      const columns = dataTable.props('columns') as EnhancedColumnSchema[]
+
+      expect(columns.map(col => col.name)).toEqual(['id', 'name', 'amount'])
+      expect(warnSpy).toHaveBeenCalledWith('[DataTableWithSearch] Ignore unknown list preset column: missing')
+
+      warnSpy.mockRestore()
+    })
+
+    it('should reset applied list view state', async () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: defaultProps
+      })
+
+      const vm = wrapper.vm as unknown as {
+        applyListViewState: (state: ListViewState) => void
+        resetListViewState: () => void
+      }
+
+      vm.applyListViewState({
+        columns: ['amount'],
+        slice: [{ field: 'amount', op: '>=', value: 100 }],
+        orderBy: [{ field: 'amount', order: 'asc' }],
+        pageSize: 100
+      })
+      await wrapper.vm.$nextTick()
+      vm.resetListViewState()
+      await wrapper.vm.$nextTick()
+
+      const dataTable = wrapper.findComponent({ name: 'DataTable' })
+      const columns = dataTable.props('columns') as EnhancedColumnSchema[]
+
+      expect(columns.map(col => col.name)).toEqual(['id', 'name', 'amount'])
+      expect(dataTable.props('pageSize')).toBe(50)
+      expect(dataTable.props('initialSlice')).toBeUndefined()
     })
   })
 
@@ -971,6 +1235,23 @@ describe('DataTableWithSearch', () => {
       })
 
       expect(wrapper.find('.row-action-btn').exists()).toBe(true)
+    })
+
+    it('should not save synthetic row actions column into list view state', () => {
+      const wrapper = mount(DataTableWithSearch, {
+        props: defaultProps,
+        slots: {
+          'row-actions': '<button>Edit</button>'
+        }
+      })
+
+      const vm = wrapper.vm as unknown as {
+        getListViewState: () => ListViewState
+      }
+      const state = vm.getListViewState()
+
+      expect(state.columns).toEqual(['id', 'name', 'amount'])
+      expect(state.columnSettings?.map(setting => setting.name)).toEqual(['id', 'name', 'amount'])
     })
 
     it('should not inject duplicate _actions column if already present', () => {

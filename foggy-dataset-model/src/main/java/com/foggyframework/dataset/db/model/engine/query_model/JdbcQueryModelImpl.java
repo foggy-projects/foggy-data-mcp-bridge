@@ -187,19 +187,23 @@ public class JdbcQueryModelImpl extends QueryModelSupport implements JdbcQueryMo
         queryEngine.analysisQueryRequest(systemBundlesContext, context);
 
         if (queryEngine.isCteWrapped()) {
-            // Structured result: stage1 CTE body + outer SELECT are separate
-            // so ComposePlanner can flatten them as sibling CTEs
-            List<SqlGenerationResult.CteStage> stages = List.of(
-                    new SqlGenerationResult.CteStage(
-                            queryEngine.getCteStage1Alias(),
-                            queryEngine.getCteStage1Sql(),
-                            queryEngine.getCteStage1Params())
-            );
-            // Outer SELECT references stage1 by alias (no WITH prefix)
-            // Params for the outer SELECT are empty (all params are in stage1)
+            List<SqlGenerationResult.CteStage> stages = queryEngine.getCteStages();
+            if (stages == null || stages.isEmpty()) {
+                // Structured result: stage1 CTE body + outer SELECT are separate
+                // so ComposePlanner can flatten them as sibling CTEs.
+                stages = List.of(
+                        new SqlGenerationResult.CteStage(
+                                queryEngine.getCteStage1Alias(),
+                                queryEngine.getCteStage1Sql(),
+                                queryEngine.getCteStage1Params())
+                );
+            }
+            List<Object> outerParams = queryEngine.getCteOuterSelectParams() == null
+                    ? Collections.emptyList()
+                    : queryEngine.getCteOuterSelectParams();
             return new SqlGenerationResult(
                     queryEngine.getCteOuterSelectSql(),
-                    Collections.emptyList(),
+                    outerParams,
                     queryEngine,
                     stages);
         }

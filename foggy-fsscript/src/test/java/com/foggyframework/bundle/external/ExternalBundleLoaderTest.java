@@ -73,6 +73,26 @@ public class ExternalBundleLoaderTest {
     }
 
     @Test
+    public void testFromPropertiesWithClasspathResourcePath() {
+        ExternalBundleProperties properties = new ExternalBundleProperties();
+        properties.setEnabled(true);
+
+        ExternalBundleProperties.ExternalBundleItem item = new ExternalBundleProperties.ExternalBundleItem();
+        item.setName("classpath-bundle");
+        item.setPath("classpath:/external_bundle_test");
+        item.setWatch(false);
+
+        properties.setBundles(Collections.singletonList(item));
+
+        ExternalBundleLoader loader = ExternalBundleLoader.fromProperties(properties);
+
+        Assertions.assertNotNull(loader, "classpath资源目录应该返回loader");
+        Assertions.assertEquals(1, loader.getBundleDefList().size());
+        Assertions.assertEquals("classpath-bundle", loader.getBundleDefList().get(0).getName());
+        Assertions.assertEquals("classpath:/external_bundle_test", loader.getBundleDefList().get(0).getPath());
+    }
+
+    @Test
     public void testFromPropertiesWithInvalidPath() {
         ExternalBundleProperties properties = new ExternalBundleProperties();
         properties.setEnabled(true);

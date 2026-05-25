@@ -21,8 +21,19 @@ import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResult
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
+import com.foggyframework.dataset.db.model.semantic.memorygrid.GridSqlContractValidator;
+import com.foggyframework.dataset.db.model.semantic.memorygrid.MemoryGridDialectDescriptor;
+import com.foggyframework.dataset.db.model.semantic.memorygrid.MemoryGridEngine;
+import com.foggyframework.dataset.db.model.semantic.memorygrid.MemoryGridExecutionResult;
+import com.foggyframework.dataset.db.model.semantic.memorygrid.MemoryGridRequest;
+import com.foggyframework.dataset.db.model.semantic.memorygrid.MemoryGridValidation;
 import com.foggyframework.dataset.db.model.semantic.service.DimensionMemberLoader;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
+import com.foggyframework.dataset.db.model.semantic.support.DslCteDslRequestMapper;
+import com.foggyframework.dataset.db.model.semantic.support.DslCtePlanValidator;
+import com.foggyframework.dataset.db.model.semantic.support.SemanticSqlDslRequestMapper;
+import com.foggyframework.dataset.db.model.semantic.support.SemanticSqlToDslMapper;
+import com.foggyframework.dataset.db.model.semantic.support.SemanticSqlWhitelistValidator;
 import com.foggyframework.dataset.db.model.spi.DbColumn;
 import com.foggyframework.dataset.db.model.service.QueryFacade;
 import com.foggyframework.dataset.db.model.spi.DbQueryCondition;
@@ -35,6 +46,7 @@ import com.foggyframework.dataset.utils.DataSourceQueryUtils;
 import jakarta.annotation.Resource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import javax.sql.DataSource;
@@ -74,8 +86,15 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
     @Resource
     private DimensionMemberLoader dimensionMemberLoader;
 
+    private MemoryGridEngine memoryGridEngine;
+
     @Resource
     private DataSource dataSource;
+
+    @Autowired(required = false)
+    public void setMemoryGridEngine(MemoryGridEngine memoryGridEngine) {
+        this.memoryGridEngine = memoryGridEngine;
+    }
 
     /** Pivot 流水线（延迟初始化，避免循环依赖） */
     private volatile com.foggyframework.dataset.db.model.engine.pivot.PivotPipeline pivotPipeline;
@@ -96,6 +115,26 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
     @Override
     public SemanticQueryResponse queryModel(String model, SemanticQueryRequest request, String mode,
                                             SemanticRequestContext context) {
+        SemanticQueryResponse terminal = terminalResponseIfAny(request);
+        if (terminal != null) {
+            return terminal;
+        }
+        SemanticQueryResponse semanticSqlPlan = semanticSqlPlanResponseIfAny(model, request, context);
+        if (semanticSqlPlan != null) {
+            return semanticSqlPlan;
+        }
+        SemanticQueryResponse memoryGridExecution = memoryGridExecutionResponseIfAny(request, context);
+        if (memoryGridExecution != null) {
+            return memoryGridExecution;
+        }
+        SemanticQueryResponse memoryGridPlan = memoryGridPlanResponseIfAny(request, context);
+        if (memoryGridPlan != null) {
+            return memoryGridPlan;
+        }
+        SemanticQueryResponse dslCtePlan = dslCtePlanResponseIfAny(request);
+        if (dslCtePlan != null) {
+            return dslCtePlan;
+        }
         return queryModelInternal(model, request, mode, context);
     }
 
@@ -228,12 +267,153 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
     @Override
     public SemanticQueryResponse validateQuery(String model, SemanticQueryRequest request,
                                                SemanticRequestContext context) {
+        SemanticQueryResponse terminal = terminalResponseIfAny(request);
+        if (terminal != null) {
+            return terminal;
+        }
+        SemanticQueryResponse semanticSqlPlan = semanticSqlPlanResponseIfAny(model, request, context);
+        if (semanticSqlPlan != null) {
+            return semanticSqlPlan;
+        }
+        SemanticQueryResponse memoryGridPlan = memoryGridPlanResponseIfAny(request, context);
+        if (memoryGridPlan != null) {
+            return memoryGridPlan;
+        }
+        SemanticQueryResponse dslCtePlan = dslCtePlanResponseIfAny(request);
+        if (dslCtePlan != null) {
+            return dslCtePlan;
+        }
         return validateQueryInternal(model, request, context.getNamespace());
     }
 
     @Override
     public SqlGenerationResult generateSql(String model, SemanticQueryRequest request,
                                            SemanticRequestContext context) {
+        if (isTerminalPlan(request)) {
+            throw RX.throwB("TERMINAL_PLAN_NOT_EXECUTABLE: CLARIFY/REJECT terminal plans must not enter SQL generation.");
+        }
+        if (isSemanticSqlPlan(request)) {
+            QueryModel queryModel = queryModelLoader.getJdbcQueryModel(model, context.getNamespace());
+            semanticSqlAstValidation(model, request, queryModel, context);
+            Map<String, Object> dslPlan = SemanticSqlToDslMapper.map(model, request.getSemanticSql(), queryModel, context);
+            if (semanticSqlCompileToDslEnabled(request)) {
+                SemanticSqlDslRequestMapper.BridgeResult bridge =
+                        SemanticSqlDslRequestMapper.toDslRequest(model, dslPlan);
+                bridge.requireReady();
+                SemanticQueryRequest dslRequest = bridge.request();
+                dslRequest.setHints(request.getHints() == null ? null : new HashMap<>(request.getHints()));
+                return generateSql(model, dslRequest, context);
+            }
+            throw RX.throwB("SEMANTIC_SQL_EXECUTION_NOT_IMPLEMENTED: Semantic SQL AST whitelist passed, but SQL-to-DSL compilation is not part of P0.");
+        }
+        if (isMemoryGridRequest(request)) {
+            memoryGridValidation(request, context);
+            throw RX.throwB("MEMORY_GRID_EXECUTION_NOT_IMPLEMENTED: Memory Grid guardrail passed, but in-memory execution is not part of P0.");
+        }
+        if (isDslCtePlan(request)) {
+            dslCteValidation(request);
+            if (dslCteCompileToDslEnabled(request)) {
+                DslCteDslRequestMapper.BridgeResult bridge =
+                        DslCteDslRequestMapper.toDslRequest(model, request.getExecutablePlan());
+                if (bridge.ready()) {
+                    SemanticQueryRequest dslRequest = bridge.request();
+                    dslRequest.setHints(request.getHints() == null ? null : new HashMap<>(request.getHints()));
+                    SqlGenerationResult baseSql = generateSql(bridge.model(), dslRequest, context);
+                    return DslCteDslRequestMapper.applyTopLevelLimitIfDeclared(
+                            baseSql, request.getExecutablePlan());
+                }
+                DslCteDslRequestMapper.ResultStageWindowBridgeResult resultStageBridge =
+                        DslCteDslRequestMapper.toResultStageWindowBridge(model, request.getExecutablePlan());
+                if (resultStageBridge.ready()) {
+                    SemanticQueryRequest baseRequest = resultStageBridge.baseRequest();
+                    baseRequest.setHints(request.getHints() == null ? null : new HashMap<>(request.getHints()));
+                    SqlGenerationResult baseSql = generateSql(resultStageBridge.model(), baseRequest, context);
+                    return resultStageBridge.wrap(baseSql);
+                }
+                DslCteDslRequestMapper.ResultStageMetricRatioBridgeResult metricRatioBridge =
+                        DslCteDslRequestMapper.toResultStageMetricRatioBridge(model, request.getExecutablePlan());
+                if (metricRatioBridge.ready()) {
+                    SemanticQueryRequest baseRequest = metricRatioBridge.baseRequest();
+                    baseRequest.setHints(request.getHints() == null ? null : new HashMap<>(request.getHints()));
+                    SqlGenerationResult baseSql = generateSql(metricRatioBridge.model(), baseRequest, context);
+                    return metricRatioBridge.wrap(baseSql);
+                }
+                DslCteDslRequestMapper.CrossModelFunnelMoneyAttributionBridgeResult moneyAttributionBridge =
+                        DslCteDslRequestMapper.toCrossModelFunnelMoneyAttributionBridge(
+                                model, request.getExecutablePlan());
+                if (moneyAttributionBridge.ready()) {
+                    SqlGenerationResult denominatorSql = null;
+                    if (moneyAttributionBridge.denominatorRequest() != null) {
+                        SemanticQueryRequest denominatorRequest = moneyAttributionBridge.denominatorRequest();
+                        denominatorRequest.setHints(request.getHints() == null ? null : new HashMap<>(request.getHints()));
+                        denominatorSql = generateSql(
+                                moneyAttributionBridge.denominatorModel(), denominatorRequest, context);
+                    }
+                    SemanticQueryRequest leftRequest = moneyAttributionBridge.leftRequest();
+                    leftRequest.setHints(request.getHints() == null ? null : new HashMap<>(request.getHints()));
+                    SemanticQueryRequest rightRequest = moneyAttributionBridge.rightRequest();
+                    rightRequest.setHints(request.getHints() == null ? null : new HashMap<>(request.getHints()));
+                    SqlGenerationResult leftSql = generateSql(moneyAttributionBridge.leftModel(), leftRequest, context);
+                    SqlGenerationResult rightSql = generateSql(moneyAttributionBridge.rightModel(), rightRequest, context);
+                    if (denominatorSql != null) {
+                        return moneyAttributionBridge.wrap(denominatorSql, leftSql, rightSql);
+                    }
+                    return moneyAttributionBridge.wrap(leftSql, rightSql);
+                }
+                if (moneyAttributionBridge.relevant()) {
+                    throw RX.throwB("DSL_CTE_DSL_BRIDGE_NOT_SUPPORTED: " + moneyAttributionBridge.unsupported());
+                }
+                DslCteDslRequestMapper.CrossModelFunnelTimeAttributionBridgeResult timeAttributionBridge =
+                        DslCteDslRequestMapper.toCrossModelFunnelTimeAttributionBridge(
+                                model, request.getExecutablePlan());
+                if (timeAttributionBridge.ready()) {
+                    SemanticQueryRequest denominatorRequest = timeAttributionBridge.denominatorRequest();
+                    denominatorRequest.setHints(request.getHints() == null ? null : new HashMap<>(request.getHints()));
+                    SemanticQueryRequest leftRequest = timeAttributionBridge.leftRequest();
+                    leftRequest.setHints(request.getHints() == null ? null : new HashMap<>(request.getHints()));
+                    SemanticQueryRequest rightRequest = timeAttributionBridge.rightRequest();
+                    rightRequest.setHints(request.getHints() == null ? null : new HashMap<>(request.getHints()));
+                    SqlGenerationResult denominatorSql = generateSql(
+                            timeAttributionBridge.denominatorModel(), denominatorRequest, context);
+                    SqlGenerationResult leftSql = generateSql(timeAttributionBridge.leftModel(), leftRequest, context);
+                    SqlGenerationResult rightSql = generateSql(timeAttributionBridge.rightModel(), rightRequest, context);
+                    return timeAttributionBridge.wrap(denominatorSql, leftSql, rightSql);
+                }
+                if (timeAttributionBridge.relevant()) {
+                    throw RX.throwB("DSL_CTE_DSL_BRIDGE_NOT_SUPPORTED: " + timeAttributionBridge.unsupported());
+                }
+                DslCteDslRequestMapper.CrossModelFunnelSourceRateBridgeResult funnelSourceRateBridge =
+                        DslCteDslRequestMapper.toCrossModelFunnelSourceRateBridge(model, request.getExecutablePlan());
+                if (funnelSourceRateBridge.ready()) {
+                    SemanticQueryRequest denominatorRequest = funnelSourceRateBridge.denominatorRequest();
+                    denominatorRequest.setHints(request.getHints() == null ? null : new HashMap<>(request.getHints()));
+                    SemanticQueryRequest leftRequest = funnelSourceRateBridge.leftRequest();
+                    leftRequest.setHints(request.getHints() == null ? null : new HashMap<>(request.getHints()));
+                    SemanticQueryRequest rightRequest = funnelSourceRateBridge.rightRequest();
+                    rightRequest.setHints(request.getHints() == null ? null : new HashMap<>(request.getHints()));
+                    SqlGenerationResult denominatorSql = generateSql(
+                            funnelSourceRateBridge.denominatorModel(), denominatorRequest, context);
+                    SqlGenerationResult leftSql = generateSql(funnelSourceRateBridge.leftModel(), leftRequest, context);
+                    SqlGenerationResult rightSql = generateSql(funnelSourceRateBridge.rightModel(), rightRequest, context);
+                    return funnelSourceRateBridge.wrap(denominatorSql, leftSql, rightSql);
+                }
+                DslCteDslRequestMapper.CrossModelJoinAlignBridgeResult joinAlignBridge =
+                        DslCteDslRequestMapper.toCrossModelJoinAlignBridge(model, request.getExecutablePlan());
+                if (joinAlignBridge.ready()) {
+                    SemanticQueryRequest leftRequest = joinAlignBridge.leftRequest();
+                    leftRequest.setHints(request.getHints() == null ? null : new HashMap<>(request.getHints()));
+                    SemanticQueryRequest rightRequest = joinAlignBridge.rightRequest();
+                    rightRequest.setHints(request.getHints() == null ? null : new HashMap<>(request.getHints()));
+                    SqlGenerationResult leftSql = generateSql(joinAlignBridge.leftModel(), leftRequest, context);
+                    SqlGenerationResult rightSql = generateSql(joinAlignBridge.rightModel(), rightRequest, context);
+                    return joinAlignBridge.wrap(leftSql, rightSql);
+                }
+                throw RX.throwB("DSL_CTE_DSL_BRIDGE_NOT_SUPPORTED: "
+                        + combinedDslCteUnsupported(bridge, resultStageBridge, metricRatioBridge,
+                        moneyAttributionBridge, timeAttributionBridge, funnelSourceRateBridge, joinAlignBridge));
+            }
+            throw RX.throwB("DSL_CTE_EXECUTION_NOT_IMPLEMENTED: DSL_CTE stage contract passed, but staged SQL execution is not part of P0.");
+        }
         if (request.getColumns() == null || request.getColumns().isEmpty()) {
             throw RX.throwB("请指定查询字段");
         }
@@ -336,6 +516,488 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         }
     }
 
+    private SemanticQueryResponse terminalResponseIfAny(SemanticQueryRequest request) {
+        if (!isTerminalPlan(request)) {
+            return null;
+        }
+        if (request.getExecutablePlan() != null) {
+            throw RX.throwB("TERMINAL_PLAN_MUST_NOT_HAVE_EXECUTABLE_PLAN: CLARIFY/REJECT terminal plans must not carry executable_plan.");
+        }
+        String terminal = normalizeTerminal(request.getStatus());
+        if (terminal == null) {
+            terminal = normalizeTerminal(request.getRoute());
+        }
+        SemanticQueryResponse response = new SemanticQueryResponse();
+        response.setItems(List.of());
+        response.setWarnings(List.of());
+
+        SemanticQueryResponse.ExecutionInfo execution = new SemanticQueryResponse.ExecutionInfo();
+        execution.setRoute(firstNonBlank(request.getRoute(), terminal));
+        execution.setStatus(terminal);
+        execution.setRiskFlags(request.getRiskFlags() != null ? List.copyOf(request.getRiskFlags()) : List.of());
+        execution.setWhy(request.getWhy() != null ? List.copyOf(request.getWhy()) : List.of());
+        execution.setClarifyingQuestions(request.getClarifyingQuestions() != null
+                ? List.copyOf(request.getClarifyingQuestions())
+                : List.of());
+        execution.setExecutablePlan(null);
+        execution.setErrorCode(terminal + "_TERMINAL");
+        response.setExecution(execution);
+
+        SemanticQueryResponse.SemanticInfo semantic = new SemanticQueryResponse.SemanticInfo();
+        semantic.setEmptyResult(true);
+        semantic.setEmptyReason(terminal + "_TERMINAL");
+        semantic.setShouldAnswerDirectly(true);
+        response.setSemantic(semantic);
+        return response;
+    }
+
+    private boolean isTerminalPlan(SemanticQueryRequest request) {
+        if (request == null) {
+            return false;
+        }
+        return normalizeTerminal(request.getStatus()) != null || normalizeTerminal(request.getRoute()) != null;
+    }
+
+    private SemanticQueryResponse semanticSqlPlanResponseIfAny(String model, SemanticQueryRequest request,
+                                                               SemanticRequestContext context) {
+        if (!isSemanticSqlPlan(request)) {
+            return null;
+        }
+        QueryModel queryModel = queryModelLoader.getJdbcQueryModel(model, context.getNamespace());
+        Map<String, Object> astValidation = semanticSqlAstValidation(model, request, queryModel, context);
+        Map<String, Object> dslPlan = SemanticSqlToDslMapper.map(model, request.getSemanticSql(), queryModel, context);
+        SemanticSqlDslRequestMapper.BridgeResult bridge = SemanticSqlDslRequestMapper.toDslRequest(model, dslPlan);
+        dslPlan.put("dsl_bridge_status", bridge.status());
+        if (bridge.ready()) {
+            dslPlan.put("dsl_request", bridge.request());
+        } else {
+            dslPlan.put("dsl_bridge_unsupported", bridge.unsupported());
+        }
+        SemanticQueryResponse response = new SemanticQueryResponse();
+        response.setItems(List.of());
+        response.setWarnings(List.of());
+
+        SemanticQueryResponse.ExecutionInfo execution = new SemanticQueryResponse.ExecutionInfo();
+        execution.setRoute(firstNonBlank(request.getRoute(), "SEMANTIC_SQL"));
+        execution.setStatus(firstNonBlank(request.getStatus(), "PLAN_READY"));
+        execution.setRiskFlags(request.getRiskFlags() != null ? List.copyOf(request.getRiskFlags()) : List.of());
+        execution.setWhy(request.getWhy() != null ? List.copyOf(request.getWhy()) : List.of());
+        execution.setClarifyingQuestions(List.of());
+        execution.setExecutablePlan(request.getExecutablePlan());
+        execution.setSemanticSql(request.getSemanticSql());
+        execution.setAstValidation(astValidation);
+        execution.setSemanticSqlDslPlan(dslPlan);
+        execution.setErrorCode(null);
+        response.setExecution(execution);
+        return response;
+    }
+
+    private Map<String, Object> semanticSqlAstValidation(String model, SemanticQueryRequest request,
+                                                          SemanticRequestContext context) {
+        if (request == null || StringUtils.isEmpty(request.getSemanticSql())) {
+            throw RX.throwB("SEMANTIC_SQL_FIELD_NOT_DECLARED: semantic_sql must be provided for SEMANTIC_SQL route.");
+        }
+        QueryModel queryModel = queryModelLoader.getJdbcQueryModel(model, context.getNamespace());
+        return SemanticSqlWhitelistValidator.validate(model, request.getSemanticSql(), queryModel, context);
+    }
+
+    private boolean semanticSqlCompileToDslEnabled(SemanticQueryRequest request) {
+        if (request == null || request.getHints() == null) {
+            return false;
+        }
+        Object value = request.getHints().get("semanticSqlCompileToDsl");
+        return Boolean.TRUE.equals(value) || (value instanceof String text && "true".equalsIgnoreCase(text));
+    }
+
+    private Map<String, Object> semanticSqlAstValidation(String model, SemanticQueryRequest request,
+                                                          QueryModel queryModel,
+                                                          SemanticRequestContext context) {
+        if (request == null || StringUtils.isEmpty(request.getSemanticSql())) {
+            throw RX.throwB("SEMANTIC_SQL_FIELD_NOT_DECLARED: semantic_sql must be provided for SEMANTIC_SQL route.");
+        }
+        return SemanticSqlWhitelistValidator.validate(model, request.getSemanticSql(), queryModel, context);
+    }
+
+    private boolean isSemanticSqlPlan(SemanticQueryRequest request) {
+        if (request == null) {
+            return false;
+        }
+        if (!StringUtils.isEmpty(request.getSemanticSql())) {
+            return true;
+        }
+        String route = request.getRoute();
+        return route != null && "SEMANTIC_SQL".equals(route.trim().toUpperCase(Locale.ROOT));
+    }
+
+    private SemanticQueryResponse memoryGridPlanResponseIfAny(SemanticQueryRequest request,
+                                                              SemanticRequestContext context) {
+        if (!isMemoryGridRequest(request)) {
+            return null;
+        }
+        Map<String, Object> validation = memoryGridValidation(request, context);
+        SemanticQueryResponse response = new SemanticQueryResponse();
+        response.setItems(List.of());
+        response.setWarnings(List.of());
+
+        SemanticQueryResponse.ExecutionInfo execution = new SemanticQueryResponse.ExecutionInfo();
+        execution.setRoute(firstNonBlank(request.getRoute(), "MEMORY_GRID"));
+        execution.setStatus(firstNonBlank(request.getStatus(), "PLAN_READY"));
+        execution.setRiskFlags(request.getRiskFlags() != null ? List.copyOf(request.getRiskFlags()) : List.of());
+        execution.setWhy(request.getWhy() != null ? List.copyOf(request.getWhy()) : List.of());
+        execution.setClarifyingQuestions(List.of());
+        execution.setExecutablePlan(request.getExecutablePlan());
+        execution.setMemoryGridPlan(request.getMemoryGridPlan());
+        execution.setGridSql(request.getGridSql());
+        execution.setMemoryGridValidation(validation);
+        execution.setErrorCode(null);
+        response.setExecution(execution);
+        return response;
+    }
+
+    private SemanticQueryResponse memoryGridExecutionResponseIfAny(SemanticQueryRequest request,
+                                                                   SemanticRequestContext context) {
+        if (!isMemoryGridRequest(request) || !memoryGridExecuteEnabled(request)) {
+            return null;
+        }
+        MemoryGridRequest memoryGridRequest = memoryGridRequest(request);
+        Map<String, Object> validation = memoryGridValidation(request, context);
+        MemoryGridExecutionResult result = memoryGridEngine().execute(memoryGridRequest, context);
+        validation.putAll(result.validation());
+
+        SemanticQueryResponse response = new SemanticQueryResponse();
+        response.setItems(result.rows());
+        response.setTotal((long) result.rows().size());
+        response.setWarnings(List.of());
+
+        SemanticQueryResponse.ExecutionInfo execution = new SemanticQueryResponse.ExecutionInfo();
+        execution.setRoute(firstNonBlank(request.getRoute(), "MEMORY_GRID"));
+        execution.setStatus("EXECUTED");
+        execution.setRiskFlags(request.getRiskFlags() != null ? List.copyOf(request.getRiskFlags()) : List.of());
+        execution.setWhy(request.getWhy() != null ? List.copyOf(request.getWhy()) : List.of());
+        execution.setClarifyingQuestions(List.of());
+        execution.setMemoryGridPlan(request.getMemoryGridPlan());
+        execution.setGridSql(request.getGridSql());
+        execution.setMemoryGridValidation(validation);
+        execution.setMemoryGridExecutionSummary(result.summary());
+        execution.setErrorCode(null);
+        response.setExecution(execution);
+        return response;
+    }
+
+    private Map<String, Object> memoryGridValidation(SemanticQueryRequest request,
+                                                     SemanticRequestContext context) {
+        MemoryGridRequest memoryGridRequest = memoryGridRequest(request);
+        MemoryGridEngine engine = memoryGridEngine();
+        MemoryGridDialectDescriptor dialect = engine.dialect();
+        Map<String, Object> validationEvidence = new LinkedHashMap<>();
+        appendMemoryGridDialectEvidence(validationEvidence, dialect);
+
+        if (hasGridSql(request)) {
+            if (dialect == null || !dialect.gridSqlSupported()) {
+                throw RX.throwB("MEMORY_GRID_GRID_SQL_NOT_SUPPORTED: "
+                        + firstNonBlank(dialect == null ? null : dialect.engineId(), "configured MemoryGridEngine")
+                        + " does not support grid_sql.");
+            }
+            validationEvidence.putAll(GridSqlContractValidator.validate(memoryGridRequest));
+        } else if (!hasMemoryGridPlan(request)) {
+            throw RX.throwB("MEMORY_GRID_UNBOUNDED_INPUT: memory_grid_plan or grid_sql must be provided for MEMORY_GRID route.");
+        }
+
+        MemoryGridValidation validation = engine.validate(memoryGridRequest, context);
+        validationEvidence.putAll(validation.evidence());
+        appendMemoryGridDialectEvidence(validationEvidence, dialect);
+        return validationEvidence;
+    }
+
+    private MemoryGridEngine memoryGridEngine() {
+        if (memoryGridEngine == null) {
+            throw RX.throwB("MEMORY_GRID_ENGINE_NOT_CONFIGURED: no MemoryGridEngine is configured.");
+        }
+        return memoryGridEngine;
+    }
+
+    private MemoryGridRequest memoryGridRequest(SemanticQueryRequest request) {
+        if (request == null) {
+            return new MemoryGridRequest(Map.of(), null, List.of(), Map.of(), null);
+        }
+        return new MemoryGridRequest(
+                request.getMemoryGridPlan(),
+                request.getGridSql(),
+                request.getMemoryGridBindings(),
+                request.getHints(),
+                request.getExecutablePlan());
+    }
+
+    private boolean memoryGridExecuteEnabled(SemanticQueryRequest request) {
+        if (request == null || request.getHints() == null) {
+            return false;
+        }
+        Object value = request.getHints().get("memoryGridExecute");
+        return Boolean.TRUE.equals(value) || (value instanceof String text && "true".equalsIgnoreCase(text));
+    }
+
+    private boolean isMemoryGridRequest(SemanticQueryRequest request) {
+        if (request == null) {
+            return false;
+        }
+        if (hasMemoryGridPlan(request) || hasGridSql(request)) {
+            return true;
+        }
+        String route = request.getRoute();
+        return route != null && "MEMORY_GRID".equals(route.trim().toUpperCase(Locale.ROOT));
+    }
+
+    private boolean hasMemoryGridPlan(SemanticQueryRequest request) {
+        return request != null
+                && request.getMemoryGridPlan() != null
+                && !request.getMemoryGridPlan().isEmpty();
+    }
+
+    private boolean hasGridSql(SemanticQueryRequest request) {
+        return request != null && !StringUtils.isTrimEmpty(request.getGridSql());
+    }
+
+    private void appendMemoryGridDialectEvidence(Map<String, Object> validationEvidence,
+                                                 MemoryGridDialectDescriptor dialect) {
+        if (dialect == null) {
+            return;
+        }
+        validationEvidence.put("memory_grid_engine", dialect.engineId());
+        validationEvidence.put("memory_grid_dialect", dialect.dialectId());
+        validationEvidence.put("memory_grid_plan_supported", dialect.planSupported());
+        validationEvidence.put("memory_grid_grid_sql_supported", dialect.gridSqlSupported());
+    }
+
+    private SemanticQueryResponse dslCtePlanResponseIfAny(SemanticQueryRequest request) {
+        if (!isDslCtePlan(request)) {
+            return null;
+        }
+        Map<String, Object> validation = dslCteValidation(request);
+        DslCteDslRequestMapper.BridgeResult bridge =
+                DslCteDslRequestMapper.toDslRequest(null, request.getExecutablePlan());
+        if (bridge.ready()) {
+            validation.put("dsl_bridge_status", bridge.status());
+            validation.put("dsl_bridge_model", bridge.model());
+            validation.put("dsl_request", bridge.request());
+        } else {
+            DslCteDslRequestMapper.ResultStageWindowBridgeResult resultStageBridge =
+                    DslCteDslRequestMapper.toResultStageWindowBridge(null, request.getExecutablePlan());
+            if (resultStageBridge.ready()) {
+                validation.put("dsl_bridge_status", resultStageBridge.status());
+                validation.put("dsl_bridge_model", resultStageBridge.model());
+                validation.put("dsl_request", resultStageBridge.baseRequest());
+                validation.put("dsl_result_stage_window", resultStageBridge.summary());
+            } else {
+                DslCteDslRequestMapper.ResultStageMetricRatioBridgeResult metricRatioBridge =
+                        DslCteDslRequestMapper.toResultStageMetricRatioBridge(null, request.getExecutablePlan());
+                if (metricRatioBridge.ready()) {
+                    validation.put("dsl_bridge_status", metricRatioBridge.status());
+                    validation.put("dsl_bridge_model", metricRatioBridge.model());
+                    validation.put("dsl_request", metricRatioBridge.baseRequest());
+                    validation.put("dsl_result_stage_metric_ratio", metricRatioBridge.summary());
+                } else {
+                    DslCteDslRequestMapper.CrossModelFunnelMoneyAttributionBridgeResult moneyAttributionBridge =
+                            DslCteDslRequestMapper.toCrossModelFunnelMoneyAttributionBridge(
+                                    null, request.getExecutablePlan());
+                    if (moneyAttributionBridge.ready()) {
+                        validation.put("dsl_bridge_status", moneyAttributionBridge.status());
+                        Map<String, Object> models = new LinkedHashMap<>();
+                        if (moneyAttributionBridge.denominatorModel() != null) {
+                            models.put("denominator", moneyAttributionBridge.denominatorModel());
+                        }
+                        models.put("left", moneyAttributionBridge.leftModel());
+                        models.put("right", moneyAttributionBridge.rightModel());
+                        validation.put("dsl_bridge_models", models);
+                        if (moneyAttributionBridge.denominatorRequest() != null) {
+                            validation.put("dsl_denominator_request", moneyAttributionBridge.denominatorRequest());
+                        }
+                        validation.put("dsl_left_request", moneyAttributionBridge.leftRequest());
+                        validation.put("dsl_right_request", moneyAttributionBridge.rightRequest());
+                        validation.put("dsl_cross_model_funnel_money_attribution",
+                                moneyAttributionBridge.summary());
+                    } else if (moneyAttributionBridge.relevant()) {
+                        validation.put("dsl_bridge_status", moneyAttributionBridge.status());
+                        validation.put("dsl_bridge_unsupported", moneyAttributionBridge.unsupported());
+                    } else {
+                        DslCteDslRequestMapper.CrossModelFunnelTimeAttributionBridgeResult timeAttributionBridge =
+                                DslCteDslRequestMapper.toCrossModelFunnelTimeAttributionBridge(
+                                        null, request.getExecutablePlan());
+                        if (timeAttributionBridge.ready()) {
+                            validation.put("dsl_bridge_status", timeAttributionBridge.status());
+                            Map<String, Object> models = new LinkedHashMap<>();
+                            models.put("denominator", timeAttributionBridge.denominatorModel());
+                            models.put("left", timeAttributionBridge.leftModel());
+                            models.put("right", timeAttributionBridge.rightModel());
+                            validation.put("dsl_bridge_models", models);
+                            validation.put("dsl_denominator_request", timeAttributionBridge.denominatorRequest());
+                            validation.put("dsl_left_request", timeAttributionBridge.leftRequest());
+                            validation.put("dsl_right_request", timeAttributionBridge.rightRequest());
+                            validation.put("dsl_cross_model_funnel_time_attribution",
+                                    timeAttributionBridge.summary());
+                        } else if (timeAttributionBridge.relevant()) {
+                            validation.put("dsl_bridge_status", timeAttributionBridge.status());
+                            validation.put("dsl_bridge_unsupported", timeAttributionBridge.unsupported());
+                        } else {
+                            DslCteDslRequestMapper.CrossModelFunnelSourceRateBridgeResult funnelSourceRateBridge =
+                                    DslCteDslRequestMapper.toCrossModelFunnelSourceRateBridge(
+                                            null, request.getExecutablePlan());
+                            if (funnelSourceRateBridge.ready()) {
+                                validation.put("dsl_bridge_status", funnelSourceRateBridge.status());
+                                Map<String, Object> models = new LinkedHashMap<>();
+                                models.put("denominator", funnelSourceRateBridge.denominatorModel());
+                                models.put("left", funnelSourceRateBridge.leftModel());
+                                models.put("right", funnelSourceRateBridge.rightModel());
+                                validation.put("dsl_bridge_models", models);
+                                validation.put("dsl_denominator_request", funnelSourceRateBridge.denominatorRequest());
+                                validation.put("dsl_left_request", funnelSourceRateBridge.leftRequest());
+                                validation.put("dsl_right_request", funnelSourceRateBridge.rightRequest());
+                                validation.put("dsl_cross_model_funnel_source_rate", funnelSourceRateBridge.summary());
+                            } else {
+                                DslCteDslRequestMapper.CrossModelJoinAlignBridgeResult joinAlignBridge =
+                                        DslCteDslRequestMapper.toCrossModelJoinAlignBridge(
+                                                null, request.getExecutablePlan());
+                                validation.put("dsl_bridge_status",
+                                        joinAlignBridge.ready() ? joinAlignBridge.status() : bridge.status());
+                                if (joinAlignBridge.ready()) {
+                                    Map<String, Object> models = new LinkedHashMap<>();
+                                    models.put("left", joinAlignBridge.leftModel());
+                                    models.put("right", joinAlignBridge.rightModel());
+                                    validation.put("dsl_bridge_models", models);
+                                    validation.put("dsl_left_request", joinAlignBridge.leftRequest());
+                                    validation.put("dsl_right_request", joinAlignBridge.rightRequest());
+                                    validation.put("dsl_cross_model_join_align", joinAlignBridge.summary());
+                                } else {
+                                    validation.put("dsl_bridge_unsupported",
+                                            combinedDslCteUnsupported(bridge, resultStageBridge, metricRatioBridge,
+                                                    moneyAttributionBridge, timeAttributionBridge,
+                                                    funnelSourceRateBridge, joinAlignBridge));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        SemanticQueryResponse response = new SemanticQueryResponse();
+        response.setItems(List.of());
+        response.setWarnings(List.of());
+
+        SemanticQueryResponse.ExecutionInfo execution = new SemanticQueryResponse.ExecutionInfo();
+        execution.setRoute(firstNonBlank(request.getRoute(), "DSL_CTE"));
+        execution.setStatus(firstNonBlank(request.getStatus(), "PLAN_READY"));
+        execution.setRiskFlags(request.getRiskFlags() != null ? List.copyOf(request.getRiskFlags()) : List.of());
+        execution.setWhy(request.getWhy() != null ? List.copyOf(request.getWhy()) : List.of());
+        execution.setClarifyingQuestions(List.of());
+        execution.setExecutablePlan(request.getExecutablePlan());
+        execution.setDslCteValidation(validation);
+        execution.setErrorCode(null);
+        response.setExecution(execution);
+        return response;
+    }
+
+    private List<String> combinedDslCteUnsupported(DslCteDslRequestMapper.BridgeResult bridge,
+                                                   DslCteDslRequestMapper.ResultStageWindowBridgeResult resultStageBridge) {
+        return combinedDslCteUnsupported(bridge, resultStageBridge, null);
+    }
+
+    private List<String> combinedDslCteUnsupported(DslCteDslRequestMapper.BridgeResult bridge,
+                                                   DslCteDslRequestMapper.ResultStageWindowBridgeResult resultStageBridge,
+                                                   DslCteDslRequestMapper.ResultStageMetricRatioBridgeResult metricRatioBridge) {
+        return combinedDslCteUnsupported(bridge, resultStageBridge, metricRatioBridge, null);
+    }
+
+    private List<String> combinedDslCteUnsupported(DslCteDslRequestMapper.BridgeResult bridge,
+                                                   DslCteDslRequestMapper.ResultStageWindowBridgeResult resultStageBridge,
+                                                   DslCteDslRequestMapper.ResultStageMetricRatioBridgeResult metricRatioBridge,
+                                                   DslCteDslRequestMapper.CrossModelJoinAlignBridgeResult joinAlignBridge) {
+        return combinedDslCteUnsupported(bridge, resultStageBridge, metricRatioBridge, null, null, null,
+                joinAlignBridge);
+    }
+
+    private List<String> combinedDslCteUnsupported(DslCteDslRequestMapper.BridgeResult bridge,
+                                                   DslCteDslRequestMapper.ResultStageWindowBridgeResult resultStageBridge,
+                                                   DslCteDslRequestMapper.ResultStageMetricRatioBridgeResult metricRatioBridge,
+                                                   DslCteDslRequestMapper.CrossModelFunnelSourceRateBridgeResult funnelSourceRateBridge,
+                                                   DslCteDslRequestMapper.CrossModelJoinAlignBridgeResult joinAlignBridge) {
+        return combinedDslCteUnsupported(bridge, resultStageBridge, metricRatioBridge, null, null,
+                funnelSourceRateBridge, joinAlignBridge);
+    }
+
+    private List<String> combinedDslCteUnsupported(DslCteDslRequestMapper.BridgeResult bridge,
+                                                   DslCteDslRequestMapper.ResultStageWindowBridgeResult resultStageBridge,
+                                                   DslCteDslRequestMapper.ResultStageMetricRatioBridgeResult metricRatioBridge,
+                                                   DslCteDslRequestMapper.CrossModelFunnelMoneyAttributionBridgeResult moneyAttributionBridge,
+                                                   DslCteDslRequestMapper.CrossModelFunnelTimeAttributionBridgeResult timeAttributionBridge,
+                                                   DslCteDslRequestMapper.CrossModelFunnelSourceRateBridgeResult funnelSourceRateBridge,
+                                                   DslCteDslRequestMapper.CrossModelJoinAlignBridgeResult joinAlignBridge) {
+        Set<String> unsupported = new LinkedHashSet<>();
+        if (bridge != null && bridge.unsupported() != null) {
+            unsupported.addAll(bridge.unsupported());
+        }
+        if (resultStageBridge != null && resultStageBridge.unsupported() != null) {
+            unsupported.addAll(resultStageBridge.unsupported());
+        }
+        if (metricRatioBridge != null && metricRatioBridge.unsupported() != null) {
+            unsupported.addAll(metricRatioBridge.unsupported());
+        }
+        if (moneyAttributionBridge != null && moneyAttributionBridge.unsupported() != null) {
+            unsupported.addAll(moneyAttributionBridge.unsupported());
+        }
+        if (timeAttributionBridge != null && timeAttributionBridge.unsupported() != null) {
+            unsupported.addAll(timeAttributionBridge.unsupported());
+        }
+        if (funnelSourceRateBridge != null && funnelSourceRateBridge.unsupported() != null) {
+            unsupported.addAll(funnelSourceRateBridge.unsupported());
+        }
+        if (joinAlignBridge != null && joinAlignBridge.unsupported() != null) {
+            unsupported.addAll(joinAlignBridge.unsupported());
+        }
+        return List.copyOf(unsupported);
+    }
+
+    private Map<String, Object> dslCteValidation(SemanticQueryRequest request) {
+        if (request == null || request.getExecutablePlan() == null) {
+            throw RX.throwB("DSL_CTE_PLAN_NOT_DECLARED: executable_plan.cte_plan must be provided for DSL_CTE route.");
+        }
+        return DslCtePlanValidator.validate(request.getExecutablePlan());
+    }
+
+    private boolean dslCteCompileToDslEnabled(SemanticQueryRequest request) {
+        if (request == null || request.getHints() == null) {
+            return false;
+        }
+        Object value = request.getHints().get("dslCteCompileToDsl");
+        return Boolean.TRUE.equals(value) || (value instanceof String text && "true".equalsIgnoreCase(text));
+    }
+
+    private boolean isDslCtePlan(SemanticQueryRequest request) {
+        if (request == null) {
+            return false;
+        }
+        String route = request.getRoute();
+        return route != null && "DSL_CTE".equals(route.trim().toUpperCase(Locale.ROOT));
+    }
+
+    private String normalizeTerminal(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String normalized = value.trim().toUpperCase(Locale.ROOT);
+        return "CLARIFY".equals(normalized) || "REJECT".equals(normalized) ? normalized : null;
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return null;
+    }
+
     private com.foggyframework.dataset.db.model.engine.compose.ComposedSql compileTimeWindowPlan(
             com.foggyframework.dataset.db.model.engine.compose.plan.QueryPlan plan,
             SemanticRequestContext requestContext,
@@ -410,6 +1072,13 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                 }
             }
         }
+        if (request.getPostSlice() != null) {
+            for (SemanticQueryRequest.SliceItem postSlice : request.getPostSlice()) {
+                if (!postSlice._isLogicalGroup() && StringUtils.isEmpty(postSlice.getField())) {
+                    throw RX.throwB(JsonUtils.toJson(postSlice) + "中的name字段不能为空");
+                }
+            }
+        }
 
         // 检查 groupBy 和 columns 的对齐
         if (request.getGroupBy() != null && request.getColumns() != null) {
@@ -455,6 +1124,20 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                     fieldNames.add(calc.getName());
                 }
             }
+            if (request.getCalculatedFields() != null) {
+                for (CalculatedFieldDef calc : request.getCalculatedFields()) {
+                    if (calc.getName() != null) {
+                        fieldNames.add(calc.getName());
+                    }
+                }
+            }
+            if (request.getPostAggregateCalculations() != null) {
+                for (var calc : request.getPostAggregateCalculations()) {
+                    if (calc.getName() != null) {
+                        fieldNames.add(calc.getName());
+                    }
+                }
+            }
             CaseInsensitiveFieldResolver ciResolver = new CaseInsensitiveFieldResolver(fieldNames);
             resolveRequestFieldsCaseInsensitive(request, ciResolver);
         }
@@ -493,6 +1176,12 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                     .map(this::convertToJdbcSlice)
                     .collect(Collectors.toList());
             queryDef.setHaving(jdbcHaving);
+        }
+        if (request.getPostSlice() != null) {
+            List<SliceRequestDef> jdbcPostSlice = request.getPostSlice().stream()
+                    .map(this::convertToJdbcSlice)
+                    .collect(Collectors.toList());
+            queryDef.setPostSlice(jdbcPostSlice);
         }
 
         // 转换分组（V3：字段名直接使用）
@@ -1176,6 +1865,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         // 2. slice
         resolveSliceFieldNames(request.getSlice(), resolver);
         resolveSliceFieldNames(request.getHaving(), resolver);
+        resolveSliceFieldNames(request.getPostSlice(), resolver);
 
         // 3. orderBy
         if (request.getOrderBy() != null) {
