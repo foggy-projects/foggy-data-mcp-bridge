@@ -1,5 +1,6 @@
 package com.foggyframework.dataset.db.model.engine.pivot;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.dataset.db.model.semantic.domain.pivot.*;
 import org.junit.jupiter.api.*;
 
@@ -72,12 +73,59 @@ class PivotAstTest {
 
         assertFalse(field.isTreeMode());
         assertEquals(-1, field.getEffectiveExpandDepth(), "默认展开深度应为 -1（全展开）");
+        assertEquals(0, field.getEffectiveOffset(), "默认轴域分页偏移应为 0");
 
         field.setHierarchyMode("tree");
         assertTrue(field.isTreeMode());
 
         field.setExpandDepth(3);
         assertEquals(3, field.getEffectiveExpandDepth());
+
+        field.setOffset(20);
+        assertEquals(20, field.getEffectiveOffset());
+
+        field.setStart(10);
+        assertEquals(10, field.getEffectiveOffset(), "start 优先于 offset");
+    }
+
+    @Test
+    @Order(11)
+    @DisplayName("AxisField 支持 domainSlice / start / offset 反序列化")
+    void testAxisFieldDomainSliceDeserialize() throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper();
+
+        AxisField field = objectMapper.readValue("""
+                {
+                  "field": "orderId",
+                  "start": 20,
+                  "limit": 50,
+                  "domainSlice": [
+                    { "field": "noPaidValue", "op": ">", "value": 0 }
+                  ]
+                }
+                """, AxisField.class);
+
+        assertEquals("orderId", field.getField());
+        assertEquals(20, field.getEffectiveOffset());
+        assertEquals(50, field.getLimit());
+        assertNotNull(field.getDomainSlice());
+        assertEquals(1, field.getDomainSlice().size());
+        assertEquals("noPaidValue", field.getDomainSlice().get(0).getField());
+
+        AxisField aliasField = objectMapper.readValue("""
+                {
+                  "field": "orderId",
+                  "offset": 10,
+                  "limit": 20,
+                  "slice": [
+                    { "field": "noPaidValue", "op": ">", "value": 0 }
+                  ]
+                }
+                """, AxisField.class);
+
+        assertEquals(10, aliasField.getEffectiveOffset());
+        assertNotNull(aliasField.getDomainSlice());
+        assertEquals("noPaidValue", aliasField.getDomainSlice().get(0).getField());
     }
 
     // ========== MetricFilter ==========

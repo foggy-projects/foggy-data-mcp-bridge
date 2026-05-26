@@ -6,12 +6,16 @@ import com.foggyframework.dataset.db.model.engine.pivot.cascade.PivotCascadeRule
 import com.foggyframework.dataset.db.model.engine.pivot.rollup.*;
 import com.foggyframework.dataset.db.model.engine.pivot.sql.PivotAxisDomainSqlPlanner;
 import com.foggyframework.dataset.db.model.engine.pivot.sql.PivotPushdownUnsupportedException;
+import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTransportField;
+import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTransportPlan;
+import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTransportTuple;
 import com.foggyframework.dataset.db.model.plugins.query_execution.ManagedRelationOptions;
 import com.foggyframework.dataset.db.model.plugins.query_execution.ManagedSqlRelation;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.db.model.semantic.domain.pivot.AxisField;
+import com.foggyframework.dataset.db.model.semantic.domain.pivot.MetricFilter;
 import com.foggyframework.dataset.db.model.semantic.domain.pivot.PivotMetricItem;
 import com.foggyframework.dataset.db.model.semantic.domain.pivot.PivotOptions;
 import com.foggyframework.dataset.db.model.semantic.domain.pivot.PivotRequest;
@@ -45,6 +49,7 @@ import java.util.stream.Collectors;
 public class PivotPipeline {
 
     private static final Logger logger = LoggerFactory.getLogger(PivotPipeline.class);
+    private static final int AXIS_DOMAIN_TRANSPORT_THRESHOLD = 500;
 
     private final SemanticQueryServiceV3 semanticQueryService;
     private final CardinalityBreaker cardinalityBreaker;
@@ -157,11 +162,25 @@ public class PivotPipeline {
         // ===== Phase 1: SQL 萃取（不含 properties）=====
         // 检测是否可以使用 SQL pushdown（CTE + Window Function + 有 having/limit）
         boolean sqlPushdownUsed = false;
+        boolean axisDomainSelectionUsed = false;
+        boolean axisDomainSelectionRequest = hasAxisDomainSelectionRequest(pivot);
         boolean cascadeRequest = PivotCascadeRules.isCascadeRequest(pivot);
         List<Map<String, Object>> resultSet;
 
-        String sqlPushdownSkipReason = getSqlPushdownSkipReason(pivot, hierarchyCtx);
-        if (sqlPushdownSkipReason == null) {
+        String sqlPushdownSkipReason = axisDomainSelectionRequest
+                ? "axisDomainSelectionRequiresTwoPhaseQuery"
+                : getSqlPushdownSkipReason(pivot, hierarchyCtx);
+        if (axisDomainSelectionRequest) {
+            if (cascadeRequest) {
+                throw PivotCascadeException.sqlRequired(
+                        "SQL pushdown is unavailable: " + sqlPushdownSkipReason + ".");
+            }
+            PivotTelemetry.sqlPushdownSkipped(logger, model, sqlPushdownSkipReason);
+            logger.debug("[Pivot] Phase 1: Axis domain selection path for model={}", model);
+            resultSet = executePhase1WithAxisDomainSelection(model, request, context,
+                    rowFields, colFields, metrics, pivot, queryModel);
+            axisDomainSelectionUsed = true;
+        } else if (sqlPushdownSkipReason == null) {
             logger.debug("[Pivot] Phase 1: SQL pushdown path for model={}", model);
             try {
                 PivotTelemetry.sqlPushdownAttempted(logger, model);
@@ -209,7 +228,7 @@ public class PivotPipeline {
         // ===== Phase 2: 内存加工 =====
         logger.debug("[Pivot] Phase 2: Memory cube processing, {} rows", resultSet.size());
 
-        if (!sqlPushdownUsed) {
+        if (!sqlPushdownUsed && !axisDomainSelectionUsed) {
             // 2.0 轴级 domainSlice 过滤（SQL pushdown 场景已在 SQL 层完成）
             resultSet = AxisDomainSliceFilter.apply(resultSet, pivot.getRows());
             resultSet = AxisDomainSliceFilter.apply(resultSet, pivot.getColumns());
@@ -221,6 +240,8 @@ public class PivotPipeline {
             // 2.2 轴向 TopN 截断（SQL pushdown 场景已在 SQL 层完成）
             resultSet = AxisTopNTruncator.apply(resultSet, pivot.getRows());
             resultSet = AxisTopNTruncator.apply(resultSet, pivot.getColumns());
+        } else if (axisDomainSelectionUsed) {
+            logger.debug("[Pivot] Phase 2: Skipping domainSlice/Having/TopN (already done by axis domain selection)");
         } else {
             logger.debug("[Pivot] Phase 2: Skipping domainSlice/Having/TopN (already done in SQL pushdown)");
         }
@@ -393,6 +414,332 @@ public class PivotPipeline {
     }
 
     /**
+     * Phase 1: 轴域选择路径。
+     *
+     * <p>v3.7 的 domainSlice/start/offset 只用于选择轴成员集合；cell 聚合仍只使用顶层 slice。
+     * 这样可以避免“候选运单满足 noPaidValue > 0，但同一运单下 noPaidValue = 0 的科目 cell 被误删”的问题。</p>
+     */
+    private List<Map<String, Object>> executePhase1WithAxisDomainSelection(
+            String model, SemanticQueryRequest originalRequest,
+            SemanticRequestContext context,
+            List<String> rowFields, List<String> colFields,
+            List<String> metrics, PivotRequest pivot, QueryModel queryModel) {
+
+        Set<Object> rowDomain = executeAxisDomainSelection(model, originalRequest, context,
+                pivot.getRows(), metrics, queryModel);
+        Set<Object> columnDomain = executeAxisDomainSelection(model, originalRequest, context,
+                pivot.getColumns(), metrics, queryModel);
+
+        if ((rowDomain != null && rowDomain.isEmpty()) || (columnDomain != null && columnDomain.isEmpty())) {
+            return Collections.emptyList();
+        }
+
+        DomainConstrainedCellRequest cellRequest = buildAxisDomainConstrainedCellRequest(
+                originalRequest, pivot, rowDomain, columnDomain, context);
+        List<Map<String, Object>> cellRows = executePhase1(model, cellRequest.request(), cellRequest.context(),
+                rowFields, colFields, metrics, queryModel);
+        if (cellRows.isEmpty()) {
+            return cellRows;
+        }
+
+        List<Map<String, Object>> filtered = cellRows;
+        if (rowDomain != null) {
+            filtered = filterByAxisDomain(filtered, pivot.getRows().get(0).getField(), rowDomain);
+        }
+        if (columnDomain != null) {
+            filtered = filterByAxisDomain(filtered, pivot.getColumns().get(0).getField(), columnDomain);
+        }
+        return filtered;
+    }
+
+    private DomainConstrainedCellRequest buildAxisDomainConstrainedCellRequest(
+            SemanticQueryRequest originalRequest, PivotRequest pivot,
+            Set<Object> rowDomain, Set<Object> columnDomain,
+            SemanticRequestContext context) {
+
+        SemanticQueryRequest cellRequest = new SemanticQueryRequest();
+        List<DomainTransportPlan> transportPlans = new ArrayList<>();
+        cellRequest.setSlice(buildAxisDomainConstrainedSlice(originalRequest, pivot,
+                rowDomain, columnDomain, transportPlans));
+        cellRequest.setCalculatedFields(originalRequest.getCalculatedFields());
+
+        SemanticRequestContext effectiveContext = context;
+        if (!transportPlans.isEmpty()) {
+            effectiveContext = withDomainTransportPlans(context, transportPlans);
+        }
+        return new DomainConstrainedCellRequest(cellRequest, effectiveContext);
+    }
+
+    private List<SemanticQueryRequest.SliceItem> buildAxisDomainConstrainedSlice(
+            SemanticQueryRequest originalRequest, PivotRequest pivot,
+            Set<Object> rowDomain, Set<Object> columnDomain,
+            List<DomainTransportPlan> transportPlans) {
+
+        List<SemanticQueryRequest.SliceItem> slices = new ArrayList<>();
+        if (originalRequest.getSlice() != null) {
+            slices.addAll(originalRequest.getSlice());
+        }
+        if (rowDomain != null) {
+            addAxisDomainConstraint(slices, pivot.getRows().get(0).getField(),
+                    rowDomain, transportPlans, "row");
+        }
+        if (columnDomain != null) {
+            addAxisDomainConstraint(slices, pivot.getColumns().get(0).getField(),
+                    columnDomain, transportPlans, "column");
+        }
+        return slices.isEmpty() ? null : slices;
+    }
+
+    private void addAxisDomainConstraint(List<SemanticQueryRequest.SliceItem> slices,
+                                         String field,
+                                         Set<Object> domain,
+                                         List<DomainTransportPlan> transportPlans,
+                                         String axisName) {
+        if (domain.size() <= AXIS_DOMAIN_TRANSPORT_THRESHOLD) {
+            slices.add(inSlice(field, domain));
+            return;
+        }
+        transportPlans.add(buildSingleFieldDomainTransportPlan(
+                "_pivot_axis_domain_" + axisName + "_" + transportPlans.size(), field, domain));
+    }
+
+    private DomainTransportPlan buildSingleFieldDomainTransportPlan(String relationName,
+                                                                     String field,
+                                                                     Set<Object> domain) {
+        List<DomainTransportTuple> tuples = domain.stream()
+                .map(value -> new DomainTransportTuple(Collections.singletonList(value)))
+                .collect(Collectors.toList());
+        return DomainTransportPlan.builder()
+                .relationName(relationName)
+                .fields(Collections.singletonList(new DomainTransportField(field)))
+                .tuples(tuples)
+                .build();
+    }
+
+    private SemanticRequestContext withDomainTransportPlans(
+            SemanticRequestContext context,
+            List<DomainTransportPlan> transportPlans) {
+        if (transportPlans == null || transportPlans.isEmpty()) {
+            return context;
+        }
+        if (context == null) {
+            context = SemanticRequestContext.empty();
+        }
+        List<DomainTransportPlan> merged = new ArrayList<>();
+        if (context.getDomainTransportPlans() != null) {
+            merged.addAll(context.getDomainTransportPlans());
+        }
+        merged.addAll(transportPlans);
+        return context.withDomainTransportPlans(merged);
+    }
+
+    private SemanticQueryRequest.SliceItem inSlice(String field, Set<Object> values) {
+        SemanticQueryRequest.SliceItem item = new SemanticQueryRequest.SliceItem();
+        item.setField(field);
+        item.setOp("in");
+        item.setValue(new ArrayList<>(values));
+        return item;
+    }
+
+    /**
+     * 查询并裁剪单个轴的候选成员集合。
+     *
+     * <p>MVP 只支持单层 rows/columns。多层隐式父子分区分页需要独立的 domain tree/cursor 设计。</p>
+     */
+    private Set<Object> executeAxisDomainSelection(
+            String model, SemanticQueryRequest originalRequest,
+            SemanticRequestContext context,
+            List<AxisField> axisFields,
+            List<String> metrics, QueryModel queryModel) {
+
+        if (axisFields == null || axisFields.isEmpty()) {
+            return null;
+        }
+
+        AxisField axisField = axisFields.get(0);
+        if (!hasAxisDomainSelectionRequest(axisField)) {
+            return null;
+        }
+
+        String field = axisField.getField();
+        SemanticQueryRequest domainRequest = new SemanticQueryRequest();
+
+        List<String> columns = new ArrayList<>();
+        columns.add(field);
+        columns.addAll(metrics);
+        domainRequest.setColumns(columns);
+
+        List<SemanticQueryRequest.GroupByItem> groupBy = new ArrayList<>();
+        groupBy.add(new SemanticQueryRequest.GroupByItem(field, null));
+        for (String metric : metrics) {
+            groupBy.add(new SemanticQueryRequest.GroupByItem(metric, resolveMetricAggregation(metric, queryModel)));
+        }
+        domainRequest.setGroupBy(groupBy);
+        domainRequest.setSlice(mergeSlices(originalRequest.getSlice(), axisField.getDomainSlice()));
+        domainRequest.setHaving(toHavingSlices(axisField.getHaving()));
+        domainRequest.setOrderBy(buildAxisDomainOrderBy(axisField));
+        domainRequest.setStart(axisField.getEffectiveOffset());
+        domainRequest.setCalculatedFields(originalRequest.getCalculatedFields());
+        domainRequest.setLimit(resolveAxisDomainQueryLimit(axisField));
+        domainRequest.setReturnTotal(false);
+
+        SemanticQueryResponse response = semanticQueryService.queryModel(model, domainRequest, "execute", context);
+        List<Map<String, Object>> domainRows = response.getItems() != null
+                ? new ArrayList<>(response.getItems())
+                : new ArrayList<>();
+
+        domainRows = AxisHavingFilter.apply(domainRows, List.of(axisField), metrics);
+        sortAxisDomainRows(domainRows, axisField);
+        if (!isAxisDomainWindowPushedDown(axisField)) {
+            domainRows = applyAxisDomainWindow(domainRows, axisField);
+        }
+
+        Set<Object> domain = new LinkedHashSet<>();
+        for (Map<String, Object> row : domainRows) {
+            domain.add(row.get(field));
+        }
+        return domain;
+    }
+
+    private List<SemanticQueryRequest.SliceItem> toHavingSlices(List<MetricFilter> filters) {
+        if (filters == null || filters.isEmpty()) {
+            return null;
+        }
+        List<SemanticQueryRequest.SliceItem> result = new ArrayList<>();
+        for (MetricFilter filter : filters) {
+            SemanticQueryRequest.SliceItem item = new SemanticQueryRequest.SliceItem();
+            item.setField(filter.getMetric());
+            item.setOp(filter.getOp());
+            item.setValue(filter.getValue());
+            result.add(item);
+        }
+        return result;
+    }
+
+    private List<SemanticQueryRequest.OrderItem> buildAxisDomainOrderBy(AxisField axisField) {
+        List<SemanticQueryRequest.OrderItem> orderItems = new ArrayList<>();
+        Set<String> orderedFields = new LinkedHashSet<>();
+        if (axisField.getOrderBy() != null) {
+            for (String spec : axisField.getOrderBy()) {
+                SemanticQueryRequest.OrderItem item = toOrderItem(spec);
+                orderItems.add(item);
+                orderedFields.add(item.getField());
+            }
+        }
+        if (!orderedFields.contains(axisField.getField())) {
+            SemanticQueryRequest.OrderItem tieBreaker = new SemanticQueryRequest.OrderItem();
+            tieBreaker.setField(axisField.getField());
+            tieBreaker.setDir("asc");
+            orderItems.add(tieBreaker);
+        }
+        return orderItems;
+    }
+
+    private SemanticQueryRequest.OrderItem toOrderItem(String spec) {
+        SemanticQueryRequest.OrderItem item = new SemanticQueryRequest.OrderItem();
+        if (spec != null && spec.startsWith("-")) {
+            item.setField(spec.substring(1));
+            item.setDir("desc");
+        } else {
+            item.setField(spec);
+            item.setDir("asc");
+        }
+        return item;
+    }
+
+    private List<SemanticQueryRequest.SliceItem> mergeSlices(List<SemanticQueryRequest.SliceItem> globalSlice,
+                                                             List<SemanticQueryRequest.SliceItem> domainSlice) {
+        if ((globalSlice == null || globalSlice.isEmpty()) && (domainSlice == null || domainSlice.isEmpty())) {
+            return null;
+        }
+        List<SemanticQueryRequest.SliceItem> merged = new ArrayList<>();
+        if (globalSlice != null) {
+            merged.addAll(globalSlice);
+        }
+        if (domainSlice != null) {
+            merged.addAll(domainSlice);
+        }
+        return merged;
+    }
+
+    private List<Map<String, Object>> filterByAxisDomain(List<Map<String, Object>> rows,
+                                                          String field,
+                                                          Set<Object> domain) {
+        if (domain.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return rows.stream()
+                .filter(row -> domain.contains(row.get(field)))
+                .collect(Collectors.toList());
+    }
+
+    private void sortAxisDomainRows(List<Map<String, Object>> rows, AxisField axisField) {
+        Comparator<Map<String, Object>> comparator = buildAxisDomainComparator(axisField);
+        rows.sort(comparator);
+    }
+
+    private Comparator<Map<String, Object>> buildAxisDomainComparator(AxisField axisField) {
+        Comparator<Map<String, Object>> comparator = null;
+        List<String> orderBySpecs = axisField.getOrderBy();
+        if (orderBySpecs != null) {
+            for (String spec : orderBySpecs) {
+                boolean desc = spec.startsWith("-");
+                String fieldName = desc ? spec.substring(1) : spec;
+                Comparator<Map<String, Object>> fieldComparator =
+                        (a, b) -> compareAxisDomainValues(a.get(fieldName), b.get(fieldName));
+                if (desc) {
+                    fieldComparator = fieldComparator.reversed();
+                }
+                comparator = comparator == null ? fieldComparator : comparator.thenComparing(fieldComparator);
+            }
+        }
+
+        Comparator<Map<String, Object>> stableTieBreaker =
+                (a, b) -> compareAxisDomainValues(a.get(axisField.getField()), b.get(axisField.getField()));
+        return comparator == null ? stableTieBreaker : comparator.thenComparing(stableTieBreaker);
+    }
+
+    private List<Map<String, Object>> applyAxisDomainWindow(List<Map<String, Object>> rows, AxisField axisField) {
+        int start = axisField.getEffectiveOffset();
+        if (start >= rows.size()) {
+            return Collections.emptyList();
+        }
+        int end = rows.size();
+        if (axisField.getLimit() != null) {
+            end = Math.min(start + axisField.getLimit(), rows.size());
+        }
+        return new ArrayList<>(rows.subList(start, end));
+    }
+
+    private int resolveAxisDomainQueryLimit(AxisField axisField) {
+        if (axisField.getLimit() != null) {
+            return axisField.getLimit();
+        }
+        return CardinalityBreaker.DEFAULT_ROW_LIMIT;
+    }
+
+    private boolean isAxisDomainWindowPushedDown(AxisField axisField) {
+        return axisField.getLimit() != null && axisField.getLimit() > 0;
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private int compareAxisDomainValues(Object a, Object b) {
+        if (a == null && b == null) return 0;
+        if (a == null) return -1;
+        if (b == null) return 1;
+
+        if (a instanceof Number && b instanceof Number) {
+            return Double.compare(((Number) a).doubleValue(), ((Number) b).doubleValue());
+        }
+
+        if (a instanceof Comparable && b instanceof Comparable && a.getClass().isInstance(b)) {
+            return ((Comparable) a).compareTo(b);
+        }
+
+        return a.toString().compareTo(b.toString());
+    }
+
+    /**
      * 判断当前 PivotRequest 是否可以使用 SQL pushdown
      *
      * <p>条件：
@@ -436,6 +783,28 @@ public class PivotPipeline {
             if (f.getHaving() != null && !f.getHaving().isEmpty()) return true;
         }
         return false;
+    }
+
+    private boolean hasAxisDomainSelectionRequest(PivotRequest pivot) {
+        return hasAxisDomainSelectionRequest(pivot.getRows()) || hasAxisDomainSelectionRequest(pivot.getColumns());
+    }
+
+    private boolean hasAxisDomainSelectionRequest(List<AxisField> fields) {
+        if (fields == null) return false;
+        for (AxisField field : fields) {
+            if (hasAxisDomainSelectionRequest(field)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean hasAxisDomainSelectionRequest(AxisField field) {
+        return field != null && (
+                (field.getDomainSlice() != null && !field.getDomainSlice().isEmpty()) ||
+                field.getStart() != null ||
+                field.getOffset() != null
+        );
     }
 
     /**
@@ -850,6 +1219,8 @@ public class PivotPipeline {
         // S11: 校验 metric items
         pivot.validateMetrics();
 
+        validateAxisDomainSelectionRequest(pivot);
+
         // ===== hierarchyMode=tree 守卫规则 =====
         HierarchyContext rowHierarchy = HierarchyContext.detect(pivot.getRows());
         HierarchyContext colHierarchy = HierarchyContext.detect(pivot.getColumns());
@@ -913,6 +1284,56 @@ public class PivotPipeline {
         // 注意：此处 queryModel 尚未加载，延迟到 execute() 中处理
     }
 
+    private void validateAxisDomainSelectionRequest(PivotRequest pivot) {
+        validateAxisFieldsDomainSelection(pivot.getRows(), "rows");
+        validateAxisFieldsDomainSelection(pivot.getColumns(), "columns");
+
+        if (!hasAxisDomainSelectionRequest(pivot)) {
+            return;
+        }
+
+        if (pivot.getRowLevelCount() > 1 || pivot.getColumnLevelCount() > 1) {
+            throw new IllegalArgumentException(
+                    "domainSlice/start/offset 当前仅支持单层 rows 和单层 columns。多层轴分页需要显式 domain tree/cursor 语义");
+        }
+
+        if (pivot.hasHierarchyField()) {
+            throw new IllegalArgumentException("domainSlice/start/offset 当前不支持 hierarchyMode=tree");
+        }
+
+        if (!pivot.getParentShareMetrics().isEmpty() || !pivot.getBaselineRatioMetrics().isEmpty()) {
+            throw new IllegalArgumentException("domainSlice/start/offset 当前不支持 parentShare/baselineRatio 派生指标");
+        }
+    }
+
+    private void validateAxisFieldsDomainSelection(List<AxisField> fields, String axisName) {
+        if (fields == null) {
+            return;
+        }
+        for (AxisField field : fields) {
+            String fieldName = field.getField();
+            if (field.getStart() != null && field.getStart() < 0) {
+                throw new IllegalArgumentException(axisName + "." + fieldName + ".start 不能小于 0");
+            }
+            if (field.getOffset() != null && field.getOffset() < 0) {
+                throw new IllegalArgumentException(axisName + "." + fieldName + ".offset 不能小于 0");
+            }
+            if (field.getLimit() != null && field.getLimit() < 0) {
+                throw new IllegalArgumentException(axisName + "." + fieldName + ".limit 不能小于 0");
+            }
+            if ((field.getStart() != null || field.getOffset() != null) &&
+                    (field.getLimit() == null || field.getLimit() <= 0)) {
+                throw new IllegalArgumentException(axisName + "." + fieldName +
+                        " 使用 start/offset 时必须同时指定正数 limit");
+            }
+            if (field.getStart() != null && field.getOffset() != null &&
+                    !field.getStart().equals(field.getOffset())) {
+                throw new IllegalArgumentException(axisName + "." + fieldName +
+                        " 不能同时指定不同的 start 和 offset");
+            }
+        }
+    }
+
     /**
      * 从 AxisField 列表提取字段名
      */
@@ -922,6 +1343,8 @@ public class PivotPipeline {
                 .map(AxisField::getField)
                 .collect(Collectors.toList());
     }
+
+    private record DomainConstrainedCellRequest(SemanticQueryRequest request, SemanticRequestContext context) {}
 
     /**
      * 构建空结果响应
