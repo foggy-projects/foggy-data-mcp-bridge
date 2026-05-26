@@ -347,7 +347,7 @@ class DslCteRelationMetricFixtureIntegrationTest extends EcommerceTestSupport {
                     FROM fact_sales fs
                     LEFT JOIN dim_product dp ON fs.product_key = dp.product_key
                     GROUP BY dp.category_name
-                )
+                ) category_profit_bucket
                 WHERE profitBand = 'normal'
                 ORDER BY profitRate DESC, categoryName ASC
                 LIMIT 5
@@ -368,7 +368,7 @@ class DslCteRelationMetricFixtureIntegrationTest extends EcommerceTestSupport {
                     FROM fact_sales fs
                     LEFT JOIN dim_product dp ON fs.product_key = dp.product_key
                     GROUP BY dp.category_name
-                )
+                ) category_non_completed_sales
                 ORDER BY nonCompletedSalesAmount DESC, categoryName ASC
                 LIMIT 3
                 """);

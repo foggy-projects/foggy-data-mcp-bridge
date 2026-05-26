@@ -7,12 +7,15 @@ import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContex
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.dataset.db.model.spi.JdbcQueryModel;
 import jakarta.annotation.Resource;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +30,11 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
 
     @Resource
     private SemanticQueryServiceV3 semanticQueryServiceV3;
+
+    @BeforeEach
+    void resetFixture() {
+        resetCrmLeadFixture();
+    }
 
     @Test
     @DisplayName("CrmLead TM/QM loads for CRM funnel DSL_CTE fixture")
@@ -197,15 +205,14 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
             assertTrue(generated.getSql().contains("dsl_cte_funnel_denominator"), generated.getSql());
             assertTrue(generated.getSql().contains("dsl_cte_funnel_window_matched"), generated.getSql());
             assertTrue(generated.getSql().contains("targetBeforeSourceRows"), generated.getSql());
-            assertTrue(generated.getSql().contains("date(r.\"orderDate$caption\") < date(l.\"createdAt\", '+' || ? || ' days')"),
-                    generated.getSql());
+            assertAttributionWindowSql(generated.getSql());
             assertEquals(List.of(
                     "2026-07-01 00:00:00",
                     "2026-08-01 00:00:00",
                     "2026-07-01 00:00:00",
                     "2026-08-01 00:00:00",
                     "COMPLETED",
-                    30), generated.getParams());
+                    "30"), normalizedParams(generated.getParams()));
 
             List<Map<String, Object>> rows = new ArrayList<>(jdbcTemplate.queryForList(
                     generated.getSql(), generated.getParams().toArray(new Object[0])));
@@ -513,6 +520,7 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
     }
 
     private List<Map<String, Object>> crossModelCrmOrderTimeAttributionManualRows() {
+        String attributionWindow = attributionWindowSql("r.\"orderDate$caption\"", "l.createdAt", 30);
         List<Map<String, Object>> rows = new ArrayList<>(jdbcTemplate.queryForList("""
                 WITH source_total_leads AS (
                     SELECT lead_source AS leadSource,
@@ -545,12 +553,11 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
                     SELECT l.leadSource AS leadSource,
                            SUM(l.leadCount) AS matchedLeadCount
                     FROM lead_orders l
-                    JOIN completed_orders r
-                      ON l.convertedOrderId = r.orderId
-                    WHERE l.convertedOrderId IS NOT NULL
-                      AND date(r."orderDate$caption") >= date(l.createdAt)
-                      AND date(r."orderDate$caption") < date(l.createdAt, '+30 days')
-                    GROUP BY l.leadSource
+                JOIN completed_orders r
+                  ON l.convertedOrderId = r.orderId
+                WHERE l.convertedOrderId IS NOT NULL
+                  AND %s
+                GROUP BY l.leadSource
                 )
                 SELECT d.leadSource AS leadSource,
                        d.totalLeadCount AS totalLeadCount,
@@ -561,12 +568,13 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
                 LEFT JOIN source_matched_orders m
                   ON d.leadSource = m.leadSource
                 ORDER BY leadSource
-                """));
+                """.formatted(attributionWindow)));
         rows.sort(Comparator.comparing(row -> String.valueOf(row.get("leadSource"))));
         return rows;
     }
 
     private List<Map<String, Object>> crossModelCrmOrderTargetMonthAttributionManualRows() {
+        String attributionWindow = attributionWindowSql("r.\"orderDate$caption\"", "l.createdAt", 30);
         List<Map<String, Object>> rows = new ArrayList<>(jdbcTemplate.queryForList("""
                 WITH source_total_leads AS (
                     SELECT lead_source AS leadSource,
@@ -601,12 +609,11 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
                            r."orderDate$month" AS "orderDate$month",
                            SUM(l.leadCount) AS matchedLeadCount
                     FROM lead_orders l
-                    JOIN completed_orders r
-                      ON l.convertedOrderId = r.orderId
-                    WHERE l.convertedOrderId IS NOT NULL
-                      AND date(r."orderDate$caption") >= date(l.createdAt)
-                      AND date(r."orderDate$caption") < date(l.createdAt, '+30 days')
-                    GROUP BY l.leadSource, r."orderDate$month"
+                JOIN completed_orders r
+                  ON l.convertedOrderId = r.orderId
+                WHERE l.convertedOrderId IS NOT NULL
+                  AND %s
+                GROUP BY l.leadSource, r."orderDate$month"
                 )
                 SELECT d.leadSource AS leadSource,
                        m."orderDate$month" AS "orderDate$month",
@@ -618,7 +625,7 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
                 JOIN source_matched_orders m
                   ON d.leadSource = m.leadSource
                 ORDER BY leadSource, "orderDate$month"
-                """));
+                """.formatted(attributionWindow)));
         rows.sort(Comparator
                 .comparing((Map<String, Object> row) -> String.valueOf(row.get("leadSource")))
                 .thenComparing(row -> ((Number) row.get("orderDate$month")).intValue()));
@@ -626,6 +633,7 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
     }
 
     private List<Map<String, Object>> crossModelCrmOrderTargetYearMonthZeroFillCalendarManualRows() {
+        String attributionWindow = attributionWindowSql("r.\"orderDate$caption\"", "l.createdAt", 30);
         List<Map<String, Object>> rows = new ArrayList<>(jdbcTemplate.queryForList("""
                 WITH source_total_leads AS (
                     SELECT lead_source AS leadSource,
@@ -662,12 +670,11 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
                            r."orderDate$month" AS "orderDate$month",
                            SUM(l.leadCount) AS matchedLeadCount
                     FROM lead_orders l
-                    JOIN completed_orders r
-                      ON l.convertedOrderId = r.orderId
-                    WHERE l.convertedOrderId IS NOT NULL
-                      AND date(r."orderDate$caption") >= date(l.createdAt)
-                      AND date(r."orderDate$caption") < date(l.createdAt, '+30 days')
-                    GROUP BY l.leadSource, r."orderDate$year", r."orderDate$month"
+                JOIN completed_orders r
+                  ON l.convertedOrderId = r.orderId
+                WHERE l.convertedOrderId IS NOT NULL
+                  AND %s
+                GROUP BY l.leadSource, r."orderDate$year", r."orderDate$month"
                 ),
                 calendar_periods AS (
                     SELECT 2026 AS "orderDate$year", 7 AS "orderDate$month"
@@ -697,9 +704,19 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
                  AND sp."orderDate$year" = m."orderDate$year"
                  AND sp."orderDate$month" = m."orderDate$month"
                 ORDER BY leadSource, "orderDate$year", "orderDate$month"
-                """));
+                """.formatted(attributionWindow)));
         rows.sort(targetYearMonthOrder());
         return rows;
+    }
+
+    private String attributionWindowSql(String targetDateExpr, String sourceDateTimeExpr, int days) {
+        if ("postgresql".equals(getDialectKey())) {
+            return "CAST(" + targetDateExpr + " AS date) >= CAST(" + sourceDateTimeExpr + " AS date) "
+                    + "AND CAST(" + targetDateExpr + " AS date) < (CAST(" + sourceDateTimeExpr
+                    + " AS date) + INTERVAL '" + days + " days')";
+        }
+        return "date(" + targetDateExpr + ") >= date(" + sourceDateTimeExpr + ") "
+                + "AND date(" + targetDateExpr + ") < date(" + sourceDateTimeExpr + ", '+" + days + " days')";
     }
 
     private void insertTimeAttributionFixture() {
@@ -834,6 +851,27 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
         assertTrue(BigDecimal.valueOf(actual)
                 .subtract(BigDecimal.valueOf(expected)).abs()
                 .compareTo(RATIO_TOLERANCE) <= 0);
+    }
+
+    private static void assertAttributionWindowSql(String sql) {
+        assertTrue(sql.contains("date(r.\"orderDate$caption\") < date(l.\"createdAt\", '+' || ? || ' days')")
+                        || sql.contains("CAST(r.\"orderDate$caption\" AS date) < (CAST(l.\"createdAt\" AS date) + (? * INTERVAL '1 day'))")
+                        || sql.contains("DATE_ADD(date(l.\"createdAt\"), INTERVAL ? DAY)")
+                        || sql.contains("DATEADD(day, ?, CAST(l.\"createdAt\" AS date))"),
+                sql);
+    }
+
+    private static List<String> normalizedParams(List<Object> params) {
+        return params.stream()
+                .map(DslCteCrmFunnelFixtureIntegrationTest::normalizedParam)
+                .toList();
+    }
+
+    private static String normalizedParam(Object param) {
+        if (param instanceof Date date) {
+            return new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(date);
+        }
+        return String.valueOf(param);
     }
 
     private static Object value(Map<String, Object> row, String... keys) {

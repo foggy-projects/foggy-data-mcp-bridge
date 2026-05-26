@@ -8,6 +8,7 @@ import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContex
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
 import com.foggyframework.dataset.db.model.spi.JdbcQueryModel;
 import jakarta.annotation.Resource;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -28,6 +29,11 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
 
     @Resource
     private SemanticQueryServiceV3 semanticQueryServiceV3;
+
+    @BeforeEach
+    void resetFixture() {
+        resetServiceTicketFixture();
+    }
 
     @Test
     @DisplayName("ServiceTicket TM/QM loads for SLA DSL_CTE fixture")
@@ -367,14 +373,15 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
     }
 
     private void assertSlaDateDiffMatchesDialect(String sql) {
-        if ("mysql".equals(getDialectKey())) {
-            assertTrue(sql.contains("TIMESTAMPDIFF"), sql);
-            return;
+        switch (getDialectKey()) {
+            case "mysql" -> assertTrue(sql.contains("TIMESTAMPDIFF"), sql);
+            case "postgresql" -> assertTrue(sql.contains("EXTRACT(EPOCH"), sql);
+            default -> assertTrue(sql.contains("julianday"), sql);
         }
-        assertTrue(sql.contains("julianday"), sql);
     }
 
     private List<Map<String, Object>> priorityAwareManualRows(double lowRateThreshold) {
+        String firstResponseHours = hoursBetweenSql("st.created_at", "st.first_response_at");
         List<Map<String, Object>> rows = new ArrayList<>(jdbcTemplate.queryForList("""
                 SELECT *
                 FROM (
@@ -382,7 +389,7 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
                            COUNT(*) AS ticketCount,
                            SUM(CASE
                                    WHEN st.first_response_at IS NOT NULL
-                                        AND ((julianday(st.first_response_at) - julianday(st.created_at)) * 24.0) <=
+                                        AND %1$s <=
                                             CASE
                                                 WHEN st.priority = 'P1' THEN 4.0
                                                 WHEN st.priority = 'P2' THEN 24.0
@@ -393,7 +400,7 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
                                END) AS slaHitCount,
                            1.0 * SUM(CASE
                                    WHEN st.first_response_at IS NOT NULL
-                                        AND ((julianday(st.first_response_at) - julianday(st.created_at)) * 24.0) <=
+                                        AND %1$s <=
                                             CASE
                                                 WHEN st.priority = 'P1' THEN 4.0
                                                 WHEN st.priority = 'P2' THEN 24.0
@@ -407,15 +414,16 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
                     WHERE st.created_at >= '2026-05-01 00:00:00'
                       AND st.created_at < '2026-06-01 00:00:00'
                     GROUP BY dt.team_name
-                )
+                ) priority_sla
                 WHERE slaAchievementRate < ?
                 ORDER BY teamName
-                """, lowRateThreshold));
+                """.formatted(firstResponseHours), lowRateThreshold));
         rows.sort(Comparator.comparing(row -> String.valueOf(row.get("teamName"))));
         return rows;
     }
 
     private List<Map<String, Object>> priorityAwareResolutionManualRows(double lowRateThreshold) {
+        String resolutionHours = hoursBetweenSql("st.created_at", "st.resolved_at");
         List<Map<String, Object>> rows = new ArrayList<>(jdbcTemplate.queryForList("""
                 SELECT *
                 FROM (
@@ -423,7 +431,7 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
                            COUNT(*) AS ticketCount,
                            SUM(CASE
                                    WHEN st.resolved_at IS NOT NULL
-                                        AND ((julianday(st.resolved_at) - julianday(st.created_at)) * 24.0) <=
+                                        AND %1$s <=
                                             CASE
                                                 WHEN st.priority = 'P1' THEN 8.0
                                                 WHEN st.priority = 'P2' THEN 48.0
@@ -434,7 +442,7 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
                                END) AS slaHitCount,
                            1.0 * SUM(CASE
                                    WHEN st.resolved_at IS NOT NULL
-                                        AND ((julianday(st.resolved_at) - julianday(st.created_at)) * 24.0) <=
+                                        AND %1$s <=
                                             CASE
                                                 WHEN st.priority = 'P1' THEN 8.0
                                                 WHEN st.priority = 'P2' THEN 48.0
@@ -448,15 +456,17 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
                     WHERE st.created_at >= '2026-05-01 00:00:00'
                       AND st.created_at < '2026-06-01 00:00:00'
                     GROUP BY dt.team_name
-                )
+                ) priority_resolution_sla
                 WHERE slaAchievementRate < ?
                 ORDER BY teamName
-                """, lowRateThreshold));
+                """.formatted(resolutionHours), lowRateThreshold));
         rows.sort(Comparator.comparing(row -> String.valueOf(row.get("teamName"))));
         return rows;
     }
 
     private List<Map<String, Object>> priorityAwareDualSlaManualRows(double lowRateThreshold) {
+        String firstResponseHours = hoursBetweenSql("st.created_at", "st.first_response_at");
+        String resolutionHours = hoursBetweenSql("st.created_at", "st.resolved_at");
         List<Map<String, Object>> rows = new ArrayList<>(jdbcTemplate.queryForList("""
                 SELECT *
                 FROM (
@@ -464,7 +474,7 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
                            COUNT(*) AS ticketCount,
                            1.0 * SUM(CASE
                                    WHEN st.first_response_at IS NOT NULL
-                                        AND ((julianday(st.first_response_at) - julianday(st.created_at)) * 24.0) <=
+                                        AND %1$s <=
                                             CASE
                                                 WHEN st.priority = 'P1' THEN 4.0
                                                 WHEN st.priority = 'P2' THEN 24.0
@@ -475,7 +485,7 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
                                END) / NULLIF(COUNT(*), 0) AS firstResponseSlaRate,
                            1.0 * SUM(CASE
                                    WHEN st.resolved_at IS NOT NULL
-                                        AND ((julianday(st.resolved_at) - julianday(st.created_at)) * 24.0) <=
+                                        AND %2$s <=
                                             CASE
                                                 WHEN st.priority = 'P1' THEN 8.0
                                                 WHEN st.priority = 'P2' THEN 48.0
@@ -489,15 +499,17 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
                     WHERE st.created_at >= '2026-05-01 00:00:00'
                       AND st.created_at < '2026-06-01 00:00:00'
                     GROUP BY dt.team_name
-                )
+                ) priority_dual_sla
                 WHERE resolutionSlaRate < ?
                 ORDER BY teamName
-                """, lowRateThreshold));
+                """.formatted(firstResponseHours, resolutionHours), lowRateThreshold));
         rows.sort(Comparator.comparing(row -> String.valueOf(row.get("teamName"))));
         return rows;
     }
 
     private List<Map<String, Object>> priorityAwareCombinedSlaManualRows(double lowRateThreshold) {
+        String firstResponseHours = hoursBetweenSql("st.created_at", "st.first_response_at");
+        String resolutionHours = hoursBetweenSql("st.created_at", "st.resolved_at");
         List<Map<String, Object>> rows = new ArrayList<>(jdbcTemplate.queryForList("""
                 SELECT *
                 FROM (
@@ -505,7 +517,7 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
                            COUNT(*) AS ticketCount,
                            1.0 * SUM(CASE
                                    WHEN st.first_response_at IS NOT NULL
-                                        AND ((julianday(st.first_response_at) - julianday(st.created_at)) * 24.0) <=
+                                        AND %1$s <=
                                             CASE
                                                 WHEN st.priority = 'P1' THEN 4.0
                                                 WHEN st.priority = 'P2' THEN 24.0
@@ -513,7 +525,7 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
                                                 ELSE NULL
                                             END
                                         AND st.resolved_at IS NOT NULL
-                                        AND ((julianday(st.resolved_at) - julianday(st.created_at)) * 24.0) <=
+                                        AND %2$s <=
                                             CASE
                                                 WHEN st.priority = 'P1' THEN 8.0
                                                 WHEN st.priority = 'P2' THEN 48.0
@@ -527,15 +539,16 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
                     WHERE st.created_at >= '2026-05-01 00:00:00'
                       AND st.created_at < '2026-06-01 00:00:00'
                     GROUP BY dt.team_name
-                )
+                ) priority_combined_sla
                 WHERE combinedSlaRate < ?
                 ORDER BY teamName
-                """, lowRateThreshold));
+                """.formatted(firstResponseHours, resolutionHours), lowRateThreshold));
         rows.sort(Comparator.comparing(row -> String.valueOf(row.get("teamName"))));
         return rows;
     }
 
     private List<Map<String, Object>> priorityAwareByTeamPriorityManualRows(double lowRateThreshold) {
+        String firstResponseHours = hoursBetweenSql("st.created_at", "st.first_response_at");
         List<Map<String, Object>> rows = new ArrayList<>(jdbcTemplate.queryForList("""
                 SELECT *
                 FROM (
@@ -544,7 +557,7 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
                            COUNT(*) AS ticketCount,
                            SUM(CASE
                                    WHEN st.first_response_at IS NOT NULL
-                                        AND ((julianday(st.first_response_at) - julianday(st.created_at)) * 24.0) <=
+                                        AND %1$s <=
                                             CASE
                                                 WHEN st.priority = 'P1' THEN 4.0
                                                 WHEN st.priority = 'P2' THEN 24.0
@@ -555,7 +568,7 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
                                END) AS slaHitCount,
                            1.0 * SUM(CASE
                                    WHEN st.first_response_at IS NOT NULL
-                                        AND ((julianday(st.first_response_at) - julianday(st.created_at)) * 24.0) <=
+                                        AND %1$s <=
                                             CASE
                                                 WHEN st.priority = 'P1' THEN 4.0
                                                 WHEN st.priority = 'P2' THEN 24.0
@@ -569,10 +582,10 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
                     WHERE st.created_at >= '2026-05-01 00:00:00'
                       AND st.created_at < '2026-06-01 00:00:00'
                     GROUP BY dt.team_name, st.priority
-                )
+                ) priority_team_sla
                 WHERE slaAchievementRate < ?
                 ORDER BY teamName, priority
-                """, lowRateThreshold));
+                """.formatted(firstResponseHours), lowRateThreshold));
         rows.sort(Comparator
                 .comparing((Map<String, Object> row) -> String.valueOf(row.get("teamName")))
                 .thenComparing(row -> String.valueOf(row.get("priority"))));
@@ -580,12 +593,13 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
     }
 
     private List<Map<String, Object>> p1FirstResponseOverdueLeaderboardManualRows(int limit) {
+        String firstResponseHours = hoursBetweenSql("st.created_at", "st.first_response_at");
         return jdbcTemplate.queryForList("""
                 SELECT dt.team_name AS teamName,
                        COUNT(*) AS ticketCount,
                        SUM(CASE
                                WHEN st.first_response_at IS NULL
-                                    OR ((julianday(st.first_response_at) - julianday(st.created_at)) * 24.0) > 4.0
+                                    OR %s > 4.0
                                THEN 1 ELSE 0
                            END) AS overdueTicketCount
                 FROM service_ticket st
@@ -596,7 +610,7 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
                 GROUP BY dt.team_name
                 ORDER BY overdueTicketCount DESC, teamName ASC
                 LIMIT ?
-                """, limit);
+                """.formatted(firstResponseHours), limit);
     }
 
     private static void assertSlaRow(Map<String, Object> row, String teamName, int ticketCount,
@@ -726,7 +740,7 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
                     FROM service_ticket st
                     LEFT JOIN dim_team dt ON st.team_id = dt.team_id
                     GROUP BY dt.team_name
-                )
+                ) unresolved_tickets
                 WHERE unresolvedTicketCount > 0
                 ORDER BY unresolvedTicketCount DESC, teamName ASC
                 LIMIT 5

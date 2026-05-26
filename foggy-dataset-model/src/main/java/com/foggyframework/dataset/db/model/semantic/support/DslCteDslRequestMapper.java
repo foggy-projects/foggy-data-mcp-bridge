@@ -3893,6 +3893,51 @@ public final class DslCteDslRequestMapper {
         return "\"" + alias.replace("\"", "\"\"") + "\"";
     }
 
+    private static BridgeSqlDialect detectBridgeSqlDialect(SqlGenerationResult... results) {
+        StringBuilder combined = new StringBuilder();
+        if (results != null) {
+            for (SqlGenerationResult result : results) {
+                if (result != null && result.getSql() != null) {
+                    combined.append(result.getSql()).append('\n');
+                }
+            }
+        }
+        String sql = combined.toString().toUpperCase(Locale.ROOT);
+        if (sql.contains("TO_CHAR(") || sql.contains("INTERVAL '")) {
+            return BridgeSqlDialect.POSTGRESQL;
+        }
+        if (sql.contains("DATE_FORMAT(") || sql.contains("TIMESTAMPDIFF(")) {
+            return BridgeSqlDialect.MYSQL;
+        }
+        if (sql.contains("DATEADD(") || sql.contains("DATEDIFF(")) {
+            return BridgeSqlDialect.SQLSERVER;
+        }
+        return BridgeSqlDialect.SQLITE;
+    }
+
+    private static String bridgeDateOnly(String expression, BridgeSqlDialect dialect) {
+        return switch (dialect) {
+            case POSTGRESQL, SQLSERVER -> "CAST(" + expression + " AS date)";
+            case MYSQL, SQLITE -> "date(" + expression + ")";
+        };
+    }
+
+    private static String bridgeDatePlusDays(String expression, BridgeSqlDialect dialect) {
+        return switch (dialect) {
+            case POSTGRESQL -> "(" + bridgeDateOnly(expression, dialect) + " + (? * INTERVAL '1 day'))";
+            case MYSQL -> "DATE_ADD(" + bridgeDateOnly(expression, dialect) + ", INTERVAL ? DAY)";
+            case SQLSERVER -> "DATEADD(day, ?, " + bridgeDateOnly(expression, dialect) + ")";
+            case SQLITE -> "date(" + expression + ", '+' || ? || ' days')";
+        };
+    }
+
+    private enum BridgeSqlDialect {
+        MYSQL,
+        POSTGRESQL,
+        SQLSERVER,
+        SQLITE
+    }
+
     private static String quoteStringLiteral(String value) {
         if (!safeCaseLabelLiteral(value)) {
             throw RX.throwB("DSL_CTE_RESULT_STAGE_UNSAFE_LABEL: " + value);
@@ -4891,6 +4936,7 @@ public final class DslCteDslRequestMapper {
                     : null;
             String leftSql = leftBase.getSql().trim();
             String rightSql = rightBase.getSql().trim();
+            BridgeSqlDialect dialect = detectBridgeSqlDialect(denominatorBase, leftBase, rightBase);
             List<Object> params = new ArrayList<>();
             if (amountPerLeadContract.declared()) {
                 params.addAll(denominatorBase.getParams());
@@ -4914,9 +4960,9 @@ public final class DslCteDslRequestMapper {
             }
             sql.append(leftAlias).append(" AS (\n").append(leftSql).append("\n),\n");
             sql.append(rightAlias).append(" AS (\n").append(rightSql).append("\n),\n");
-            appendGuardCte(sql, leftAlias, rightAlias, guardAlias);
+            appendGuardCte(sql, leftAlias, rightAlias, guardAlias, dialect);
             sql.append(",\n");
-            appendWindowJoinAlignCte(sql, leftAlias, rightAlias, guardAlias, joinAlias);
+            appendWindowJoinAlignCte(sql, leftAlias, rightAlias, guardAlias, joinAlias, dialect);
             params.add(windowDays);
             sql.append(",\n");
             appendAmountGuardCte(sql, joinAlias, amountGuardAlias);
@@ -5042,7 +5088,8 @@ public final class DslCteDslRequestMapper {
                     .append("\n)");
         }
 
-        private void appendGuardCte(StringBuilder sql, String leftAlias, String rightAlias, String guardAlias) {
+        private void appendGuardCte(StringBuilder sql, String leftAlias, String rightAlias, String guardAlias,
+                                    BridgeSqlDialect dialect) {
             sql.append(guardAlias).append(" AS (\n");
             sql.append("SELECT ");
             sql.append("(SELECT COUNT(*) FROM (SELECT ").append(quoteAlias(joinPlan.rightKey()))
@@ -5080,14 +5127,17 @@ public final class DslCteDslRequestMapper {
                     .append(quoteAlias(joinPlan.rightKey()))
                     .append(" WHERE l.").append(quoteAlias(joinPlan.sourceField())).append(" IS NOT NULL")
                     .append(" AND r.").append(quoteAlias(targetField)).append(" IS NOT NULL")
-                    .append(" AND date(r.").append(quoteAlias(targetField)).append(") < date(l.")
-                    .append(quoteAlias(joinPlan.sourceField())).append(")) AS ")
+                    .append(" AND ")
+                    .append(bridgeDateOnly("r." + quoteAlias(targetField), dialect))
+                    .append(" < ")
+                    .append(bridgeDateOnly("l." + quoteAlias(joinPlan.sourceField()), dialect))
+                    .append(") AS ")
                     .append(quoteAlias("targetBeforeSourceRows")).append("\n");
             sql.append(")");
         }
 
         private void appendWindowJoinAlignCte(StringBuilder sql, String leftAlias, String rightAlias,
-                                              String guardAlias, String joinAlias) {
+                                              String guardAlias, String joinAlias, BridgeSqlDialect dialect) {
             sql.append(joinAlias).append(" AS (\n");
             sql.append("SELECT ");
             List<String> selectItems = new ArrayList<>();
@@ -5101,10 +5151,14 @@ public final class DslCteDslRequestMapper {
                     .append(quoteAlias(joinPlan.rightKey())).append("\n");
             sql.append("CROSS JOIN ").append(guardAlias).append(" g\n");
             sql.append("WHERE l.").append(quoteAlias(joinPlan.leftKey())).append(" IS NOT NULL\n");
-            sql.append("  AND date(r.").append(quoteAlias(targetField)).append(") >= date(l.")
-                    .append(quoteAlias(joinPlan.sourceField())).append(")\n");
-            sql.append("  AND date(r.").append(quoteAlias(targetField)).append(") < date(l.")
-                    .append(quoteAlias(joinPlan.sourceField())).append(", '+' || ? || ' days')\n");
+            sql.append("  AND ").append(bridgeDateOnly("r." + quoteAlias(targetField), dialect))
+                    .append(" >= ")
+                    .append(bridgeDateOnly("l." + quoteAlias(joinPlan.sourceField()), dialect))
+                    .append("\n");
+            sql.append("  AND ").append(bridgeDateOnly("r." + quoteAlias(targetField), dialect))
+                    .append(" < ")
+                    .append(bridgeDatePlusDays("l." + quoteAlias(joinPlan.sourceField()), dialect))
+                    .append("\n");
             sql.append("  AND g.").append(quoteAlias("duplicateRightKeys")).append(" = 0\n");
             sql.append("  AND g.").append(quoteAlias("unmatchedLeftKeys")).append(" = 0\n");
             sql.append("  AND g.").append(quoteAlias("rejectedNullLeftKeys")).append(" = 0\n");
@@ -5240,6 +5294,7 @@ public final class DslCteDslRequestMapper {
             String denominatorSql = denominatorBase.getSql().trim();
             String leftSql = leftBase.getSql().trim();
             String rightSql = rightBase.getSql().trim();
+            BridgeSqlDialect dialect = detectBridgeSqlDialect(denominatorBase, leftBase, rightBase);
             List<Object> params = new ArrayList<>();
             params.addAll(denominatorBase.getParams());
             params.addAll(leftBase.getParams());
@@ -5261,9 +5316,9 @@ public final class DslCteDslRequestMapper {
             sql.append(denominatorAlias).append(" AS (\n").append(denominatorSql).append("\n),\n");
             sql.append(leftAlias).append(" AS (\n").append(leftSql).append("\n),\n");
             sql.append(rightAlias).append(" AS (\n").append(rightSql).append("\n),\n");
-            appendGuardCte(sql, leftAlias, rightAlias, guardAlias);
+            appendGuardCte(sql, leftAlias, rightAlias, guardAlias, dialect);
             sql.append(",\n");
-            appendWindowJoinAlignCte(sql, leftAlias, rightAlias, guardAlias, joinAlias);
+            appendWindowJoinAlignCte(sql, leftAlias, rightAlias, guardAlias, joinAlias, dialect);
             params.add(windowDays);
             sql.append(",\n");
             sql.append(matchedAlias).append(" AS (\n");
@@ -5402,7 +5457,8 @@ public final class DslCteDslRequestMapper {
                     .append(")\n");
         }
 
-        private void appendGuardCte(StringBuilder sql, String leftAlias, String rightAlias, String guardAlias) {
+        private void appendGuardCte(StringBuilder sql, String leftAlias, String rightAlias, String guardAlias,
+                                    BridgeSqlDialect dialect) {
             sql.append(guardAlias).append(" AS (\n");
             sql.append("SELECT ");
             sql.append("(SELECT COUNT(*) FROM (SELECT ").append(quoteAlias(joinPlan.rightKey()))
@@ -5440,14 +5496,17 @@ public final class DslCteDslRequestMapper {
                     .append(quoteAlias(joinPlan.rightKey()))
                     .append(" WHERE l.").append(quoteAlias(joinPlan.sourceField())).append(" IS NOT NULL")
                     .append(" AND r.").append(quoteAlias(targetField)).append(" IS NOT NULL")
-                    .append(" AND date(r.").append(quoteAlias(targetField)).append(") < date(l.")
-                    .append(quoteAlias(joinPlan.sourceField())).append(")) AS ")
+                    .append(" AND ")
+                    .append(bridgeDateOnly("r." + quoteAlias(targetField), dialect))
+                    .append(" < ")
+                    .append(bridgeDateOnly("l." + quoteAlias(joinPlan.sourceField()), dialect))
+                    .append(") AS ")
                     .append(quoteAlias("targetBeforeSourceRows")).append("\n");
             sql.append(")");
         }
 
         private void appendWindowJoinAlignCte(StringBuilder sql, String leftAlias, String rightAlias,
-                                              String guardAlias, String joinAlias) {
+                                              String guardAlias, String joinAlias, BridgeSqlDialect dialect) {
             sql.append(joinAlias).append(" AS (\n");
             sql.append("SELECT ");
             List<String> selectItems = new ArrayList<>();
@@ -5461,10 +5520,14 @@ public final class DslCteDslRequestMapper {
                     .append(quoteAlias(joinPlan.rightKey())).append("\n");
             sql.append("CROSS JOIN ").append(guardAlias).append(" g\n");
             sql.append("WHERE l.").append(quoteAlias(joinPlan.leftKey())).append(" IS NOT NULL\n");
-            sql.append("  AND date(r.").append(quoteAlias(targetField)).append(") >= date(l.")
-                    .append(quoteAlias(joinPlan.sourceField())).append(")\n");
-            sql.append("  AND date(r.").append(quoteAlias(targetField)).append(") < date(l.")
-                    .append(quoteAlias(joinPlan.sourceField())).append(", '+' || ? || ' days')\n");
+            sql.append("  AND ").append(bridgeDateOnly("r." + quoteAlias(targetField), dialect))
+                    .append(" >= ")
+                    .append(bridgeDateOnly("l." + quoteAlias(joinPlan.sourceField()), dialect))
+                    .append("\n");
+            sql.append("  AND ").append(bridgeDateOnly("r." + quoteAlias(targetField), dialect))
+                    .append(" < ")
+                    .append(bridgeDatePlusDays("l." + quoteAlias(joinPlan.sourceField()), dialect))
+                    .append("\n");
             sql.append("  AND g.").append(quoteAlias("duplicateRightKeys")).append(" = 0\n");
             sql.append("  AND g.").append(quoteAlias("unmatchedLeftKeys")).append(" = 0\n");
             sql.append("  AND g.").append(quoteAlias("rejectedNullLeftKeys")).append(" = 0\n");
