@@ -6,12 +6,16 @@ import com.foggyframework.dataset.db.model.engine.pivot.cascade.PivotCascadeRule
 import com.foggyframework.dataset.db.model.engine.pivot.rollup.*;
 import com.foggyframework.dataset.db.model.engine.pivot.sql.PivotAxisDomainSqlPlanner;
 import com.foggyframework.dataset.db.model.engine.pivot.sql.PivotPushdownUnsupportedException;
+import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTransportField;
+import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTransportPlan;
+import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTransportTuple;
 import com.foggyframework.dataset.db.model.plugins.query_execution.ManagedRelationOptions;
 import com.foggyframework.dataset.db.model.plugins.query_execution.ManagedSqlRelation;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.db.model.semantic.domain.pivot.AxisField;
+import com.foggyframework.dataset.db.model.semantic.domain.pivot.MetricFilter;
 import com.foggyframework.dataset.db.model.semantic.domain.pivot.PivotMetricItem;
 import com.foggyframework.dataset.db.model.semantic.domain.pivot.PivotOptions;
 import com.foggyframework.dataset.db.model.semantic.domain.pivot.PivotRequest;
@@ -45,6 +49,7 @@ import java.util.stream.Collectors;
 public class PivotPipeline {
 
     private static final Logger logger = LoggerFactory.getLogger(PivotPipeline.class);
+    private static final int AXIS_DOMAIN_TRANSPORT_THRESHOLD = 500;
 
     private final SemanticQueryServiceV3 semanticQueryService;
     private final CardinalityBreaker cardinalityBreaker;
@@ -412,9 +417,9 @@ public class PivotPipeline {
             return Collections.emptyList();
         }
 
-        SemanticQueryRequest cellRequest = buildAxisDomainConstrainedCellRequest(
-                originalRequest, pivot, rowDomain, columnDomain);
-        List<Map<String, Object>> cellRows = executePhase1(model, cellRequest, context,
+        DomainConstrainedCellRequest cellRequest = buildAxisDomainConstrainedCellRequest(
+                originalRequest, pivot, rowDomain, columnDomain, context);
+        List<Map<String, Object>> cellRows = executePhase1(model, cellRequest.request(), cellRequest.context(),
                 rowFields, colFields, metrics, queryModel);
         if (cellRows.isEmpty()) {
             return cellRows;
@@ -430,31 +435,85 @@ public class PivotPipeline {
         return filtered;
     }
 
-    private SemanticQueryRequest buildAxisDomainConstrainedCellRequest(
+    private DomainConstrainedCellRequest buildAxisDomainConstrainedCellRequest(
             SemanticQueryRequest originalRequest, PivotRequest pivot,
-            Set<Object> rowDomain, Set<Object> columnDomain) {
+            Set<Object> rowDomain, Set<Object> columnDomain,
+            SemanticRequestContext context) {
 
         SemanticQueryRequest cellRequest = new SemanticQueryRequest();
-        cellRequest.setSlice(buildAxisDomainConstrainedSlice(originalRequest, pivot, rowDomain, columnDomain));
+        List<DomainTransportPlan> transportPlans = new ArrayList<>();
+        cellRequest.setSlice(buildAxisDomainConstrainedSlice(originalRequest, pivot,
+                rowDomain, columnDomain, transportPlans));
         cellRequest.setCalculatedFields(originalRequest.getCalculatedFields());
-        return cellRequest;
+
+        SemanticRequestContext effectiveContext = context;
+        if (!transportPlans.isEmpty()) {
+            effectiveContext = withDomainTransportPlans(context, transportPlans);
+        }
+        return new DomainConstrainedCellRequest(cellRequest, effectiveContext);
     }
 
     private List<SemanticQueryRequest.SliceItem> buildAxisDomainConstrainedSlice(
             SemanticQueryRequest originalRequest, PivotRequest pivot,
-            Set<Object> rowDomain, Set<Object> columnDomain) {
+            Set<Object> rowDomain, Set<Object> columnDomain,
+            List<DomainTransportPlan> transportPlans) {
 
         List<SemanticQueryRequest.SliceItem> slices = new ArrayList<>();
         if (originalRequest.getSlice() != null) {
             slices.addAll(originalRequest.getSlice());
         }
         if (rowDomain != null) {
-            slices.add(inSlice(pivot.getRows().get(0).getField(), rowDomain));
+            addAxisDomainConstraint(slices, pivot.getRows().get(0).getField(),
+                    rowDomain, transportPlans, "row");
         }
         if (columnDomain != null) {
-            slices.add(inSlice(pivot.getColumns().get(0).getField(), columnDomain));
+            addAxisDomainConstraint(slices, pivot.getColumns().get(0).getField(),
+                    columnDomain, transportPlans, "column");
         }
         return slices.isEmpty() ? null : slices;
+    }
+
+    private void addAxisDomainConstraint(List<SemanticQueryRequest.SliceItem> slices,
+                                         String field,
+                                         Set<Object> domain,
+                                         List<DomainTransportPlan> transportPlans,
+                                         String axisName) {
+        if (domain.size() <= AXIS_DOMAIN_TRANSPORT_THRESHOLD) {
+            slices.add(inSlice(field, domain));
+            return;
+        }
+        transportPlans.add(buildSingleFieldDomainTransportPlan(
+                "_pivot_axis_domain_" + axisName + "_" + transportPlans.size(), field, domain));
+    }
+
+    private DomainTransportPlan buildSingleFieldDomainTransportPlan(String relationName,
+                                                                     String field,
+                                                                     Set<Object> domain) {
+        List<DomainTransportTuple> tuples = domain.stream()
+                .map(value -> new DomainTransportTuple(Collections.singletonList(value)))
+                .collect(Collectors.toList());
+        return DomainTransportPlan.builder()
+                .relationName(relationName)
+                .fields(Collections.singletonList(new DomainTransportField(field)))
+                .tuples(tuples)
+                .build();
+    }
+
+    private SemanticRequestContext withDomainTransportPlans(
+            SemanticRequestContext context,
+            List<DomainTransportPlan> transportPlans) {
+        if (transportPlans == null || transportPlans.isEmpty()) {
+            return context;
+        }
+        if (context == null) {
+            context = SemanticRequestContext.empty();
+        }
+        List<DomainTransportPlan> merged = new ArrayList<>();
+        if (context.getDomainTransportPlans() != null) {
+            merged.addAll(context.getDomainTransportPlans());
+        }
+        merged.addAll(transportPlans);
+        return context.withDomainTransportPlans(merged);
     }
 
     private SemanticQueryRequest.SliceItem inSlice(String field, Set<Object> values) {
@@ -500,6 +559,9 @@ public class PivotPipeline {
         }
         domainRequest.setGroupBy(groupBy);
         domainRequest.setSlice(mergeSlices(originalRequest.getSlice(), axisField.getDomainSlice()));
+        domainRequest.setHaving(toHavingSlices(axisField.getHaving()));
+        domainRequest.setOrderBy(buildAxisDomainOrderBy(axisField));
+        domainRequest.setStart(axisField.getEffectiveOffset());
         domainRequest.setCalculatedFields(originalRequest.getCalculatedFields());
         domainRequest.setLimit(resolveAxisDomainQueryLimit(axisField));
         domainRequest.setReturnTotal(false);
@@ -511,13 +573,61 @@ public class PivotPipeline {
 
         domainRows = AxisHavingFilter.apply(domainRows, List.of(axisField), metrics);
         sortAxisDomainRows(domainRows, axisField);
-        domainRows = applyAxisDomainWindow(domainRows, axisField);
+        if (!isAxisDomainWindowPushedDown(axisField)) {
+            domainRows = applyAxisDomainWindow(domainRows, axisField);
+        }
 
         Set<Object> domain = new LinkedHashSet<>();
         for (Map<String, Object> row : domainRows) {
             domain.add(row.get(field));
         }
         return domain;
+    }
+
+    private List<SemanticQueryRequest.SliceItem> toHavingSlices(List<MetricFilter> filters) {
+        if (filters == null || filters.isEmpty()) {
+            return null;
+        }
+        List<SemanticQueryRequest.SliceItem> result = new ArrayList<>();
+        for (MetricFilter filter : filters) {
+            SemanticQueryRequest.SliceItem item = new SemanticQueryRequest.SliceItem();
+            item.setField(filter.getMetric());
+            item.setOp(filter.getOp());
+            item.setValue(filter.getValue());
+            result.add(item);
+        }
+        return result;
+    }
+
+    private List<SemanticQueryRequest.OrderItem> buildAxisDomainOrderBy(AxisField axisField) {
+        List<SemanticQueryRequest.OrderItem> orderItems = new ArrayList<>();
+        Set<String> orderedFields = new LinkedHashSet<>();
+        if (axisField.getOrderBy() != null) {
+            for (String spec : axisField.getOrderBy()) {
+                SemanticQueryRequest.OrderItem item = toOrderItem(spec);
+                orderItems.add(item);
+                orderedFields.add(item.getField());
+            }
+        }
+        if (!orderedFields.contains(axisField.getField())) {
+            SemanticQueryRequest.OrderItem tieBreaker = new SemanticQueryRequest.OrderItem();
+            tieBreaker.setField(axisField.getField());
+            tieBreaker.setDir("asc");
+            orderItems.add(tieBreaker);
+        }
+        return orderItems;
+    }
+
+    private SemanticQueryRequest.OrderItem toOrderItem(String spec) {
+        SemanticQueryRequest.OrderItem item = new SemanticQueryRequest.OrderItem();
+        if (spec != null && spec.startsWith("-")) {
+            item.setField(spec.substring(1));
+            item.setDir("desc");
+        } else {
+            item.setField(spec);
+            item.setDir("asc");
+        }
+        return item;
     }
 
     private List<SemanticQueryRequest.SliceItem> mergeSlices(List<SemanticQueryRequest.SliceItem> globalSlice,
@@ -585,11 +695,14 @@ public class PivotPipeline {
     }
 
     private int resolveAxisDomainQueryLimit(AxisField axisField) {
-        long requested = CardinalityBreaker.DEFAULT_ROW_LIMIT;
         if (axisField.getLimit() != null) {
-            requested = Math.max(requested, (long) axisField.getEffectiveOffset() + axisField.getLimit());
+            return axisField.getLimit();
         }
-        return requested > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) requested;
+        return CardinalityBreaker.DEFAULT_ROW_LIMIT;
+    }
+
+    private boolean isAxisDomainWindowPushedDown(AxisField axisField) {
+        return axisField.getLimit() != null && axisField.getLimit() > 0;
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
@@ -1107,6 +1220,8 @@ public class PivotPipeline {
                 .map(AxisField::getField)
                 .collect(Collectors.toList());
     }
+
+    private record DomainConstrainedCellRequest(SemanticQueryRequest request, SemanticRequestContext context) {}
 
     /**
      * 构建空结果响应

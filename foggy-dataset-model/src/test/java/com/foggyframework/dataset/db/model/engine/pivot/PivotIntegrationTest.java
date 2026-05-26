@@ -1,6 +1,7 @@
 package com.foggyframework.dataset.db.model.engine.pivot;
 
 import com.foggyframework.dataset.db.model.ecommerce.EcommerceTestSupport;
+import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTransportPlan;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
@@ -20,8 +21,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -36,6 +39,8 @@ import static org.junit.jupiter.api.Assertions.*;
 class PivotIntegrationTest extends EcommerceTestSupport {
 
     private static final String TEST_MODEL = "FactSalesQueryModel";
+    private static final int LARGE_AXIS_DOMAIN_SIZE = 1105;
+    private static final String LARGE_AXIS_DOMAIN_STATUS = "PDS_BIG";
 
     @Resource
     private SemanticQueryServiceV3 semanticQueryServiceV3;
@@ -881,6 +886,102 @@ class PivotIntegrationTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("v3.7: 大基数轴域 TopN 必须先在查询侧排序截断，不能被默认 1000 行预截断")
+    void testLargeAxisDomainTopNPushdownBeforeDefaultLimit() {
+        insertLargePivotDomainSliceFixture();
+        try {
+            AxisField row = axis("orderId");
+            row.setDomainSlice(List.of(slice("discountAmount", ">", 0)));
+            row.setLimit(1);
+            row.setOrderBy(List.of("-salesAmount"));
+
+            PivotRequest pivot = new PivotRequest();
+            pivot.setRows(List.of(row));
+            pivot.setMetrics(List.of("salesAmount"));
+            pivot.setOutputFormat("flat");
+
+            SemanticQueryRequest request = new SemanticQueryRequest();
+            request.setSlice(List.of(slice("orderStatus", "=", LARGE_AXIS_DOMAIN_STATUS)));
+            request.setPivot(pivot);
+
+            SemanticQueryResponse response = execute(request);
+            List<Map<String, Object>> items = response.getItems();
+
+            assertEquals(1, items.size());
+            assertEquals("PDS_BIG_1104", items.get(0).get("orderId"));
+            assertEquals(9999d, ((Number) items.get(0).get("salesAmount")).doubleValue(), 0.001d);
+        } finally {
+            deleteLargePivotDomainSliceFixture();
+        }
+    }
+
+    @Test
+    @DisplayName("v3.7: 大基数轴域 start/limit 必须在查询侧分页，不能落入默认 1000 行预截断")
+    void testLargeAxisDomainStartPushdownBeyondDefaultLimit() {
+        insertLargePivotDomainSliceFixture();
+        try {
+            AxisField row = axis("orderId");
+            row.setStart(1001);
+            row.setLimit(1);
+            row.setOrderBy(List.of("orderId"));
+
+            PivotRequest pivot = new PivotRequest();
+            pivot.setRows(List.of(row));
+            pivot.setMetrics(List.of("salesAmount"));
+            pivot.setOutputFormat("flat");
+
+            SemanticQueryRequest request = new SemanticQueryRequest();
+            request.setSlice(List.of(slice("orderStatus", "=", LARGE_AXIS_DOMAIN_STATUS)));
+            request.setPivot(pivot);
+
+            SemanticQueryResponse response = execute(request);
+            List<Map<String, Object>> items = response.getItems();
+
+            assertEquals(1, items.size());
+            assertEquals("PDS_BIG_1001", items.get(0).get("orderId"));
+        } finally {
+            deleteLargePivotDomainSliceFixture();
+        }
+    }
+
+    @Test
+    @DisplayName("v3.7: 大基数 surviving domain 使用 domain transport 下推，避免超长 IN")
+    void testLargeAxisDomainConstraintUsesDomainTransportPlan() {
+        PivotPipeline pipeline = new PivotPipeline(semanticQueryServiceV3);
+
+        PivotRequest pivot = new PivotRequest();
+        pivot.setRows(List.of(axis("orderId")));
+        pivot.setMetrics(List.of("salesAmount"));
+
+        SemanticQueryRequest originalRequest = new SemanticQueryRequest();
+        originalRequest.setSlice(List.of(slice("orderStatus", "=", LARGE_AXIS_DOMAIN_STATUS)));
+
+        Set<Object> rowDomain = new LinkedHashSet<>();
+        for (int i = 0; i < 501; i++) {
+            rowDomain.add(String.format("PDS_BIG_%04d", i));
+        }
+
+        Object constrained = ReflectionTestUtils.invokeMethod(pipeline,
+                "buildAxisDomainConstrainedCellRequest",
+                originalRequest, pivot, rowDomain, null, SemanticRequestContext.empty());
+
+        SemanticQueryRequest cellRequest = ReflectionTestUtils.invokeMethod(constrained, "request");
+        SemanticRequestContext context = ReflectionTestUtils.invokeMethod(constrained, "context");
+
+        assertNotNull(cellRequest);
+        assertNotNull(context);
+        assertEquals(1, cellRequest.getSlice().size(), "大域应放入 domain transport，不应追加 orderId IN slice");
+        assertEquals("orderStatus", cellRequest.getSlice().get(0).getField());
+        assertEquals(1, context.getDomainTransportPlans().size());
+
+        DomainTransportPlan plan = context.getDomainTransportPlans().get(0);
+        assertEquals("_pivot_axis_domain_row_0", plan.getRelationName());
+        assertEquals(1, plan.getFields().size());
+        assertEquals("orderId", plan.getFields().get(0).getName());
+        assertEquals(501, plan.getTuples().size());
+    }
+
+    @Test
     @DisplayName("v3.7: column domainSlice 只选择列轴域，并约束最终 cell 查询")
     void testColumnDomainSliceSelectsColumnDomain() {
         insertPivotDomainSliceFixture();
@@ -1012,6 +1113,118 @@ class PivotIntegrationTest extends EcommerceTestSupport {
         assertTrue(conflict.getMessage().contains("不能同时指定不同的 start 和 offset"));
     }
 
+    @Test
+    @DisplayName("v3.7: domainSlice/start/offset 与多层轴组合保持 fail-closed")
+    void testAxisDomainSelectionRejectsMultiLevelAxes() {
+        AxisField childRow = axis("orderId");
+        childRow.setDomainSlice(List.of(slice("discountAmount", ">", 0)));
+
+        PivotRequest multiRowPivot = new PivotRequest();
+        multiRowPivot.setRows(List.of(axis("product$categoryName"), childRow));
+        multiRowPivot.setMetrics(List.of("salesAmount"));
+
+        SemanticQueryRequest multiRowRequest = new SemanticQueryRequest();
+        multiRowRequest.setPivot(multiRowPivot);
+
+        IllegalArgumentException multiRow = assertThrows(IllegalArgumentException.class,
+                () -> execute(multiRowRequest));
+        assertTrue(multiRow.getMessage().contains("单层 rows 和单层 columns"),
+                "多层 rows 应明确拒绝 domainSlice/start/offset: " + multiRow.getMessage());
+
+        AxisField childColumn = axis("salesDate$month");
+        childColumn.setOffset(1);
+        childColumn.setLimit(1);
+
+        PivotRequest multiColumnPivot = new PivotRequest();
+        multiColumnPivot.setRows(List.of(axis("orderId")));
+        multiColumnPivot.setColumns(List.of(axis("product$categoryName"), childColumn));
+        multiColumnPivot.setMetrics(List.of("salesAmount"));
+
+        SemanticQueryRequest multiColumnRequest = new SemanticQueryRequest();
+        multiColumnRequest.setPivot(multiColumnPivot);
+
+        IllegalArgumentException multiColumn = assertThrows(IllegalArgumentException.class,
+                () -> execute(multiColumnRequest));
+        assertTrue(multiColumn.getMessage().contains("domain tree/cursor"),
+                "多层 columns 应说明需要显式 domain tree/cursor 语义: " + multiColumn.getMessage());
+    }
+
+    @Test
+    @DisplayName("v3.7: domainSlice/start/offset 与 hierarchyMode=tree 组合保持 fail-closed")
+    void testAxisDomainSelectionRejectsTreeMode() {
+        AxisField treeRow = treeAxis("team$caption");
+        treeRow.setDomainSlice(List.of(slice("salesAmount", ">", 0)));
+
+        PivotRequest pivot = new PivotRequest();
+        pivot.setRows(List.of(treeRow));
+        pivot.setMetrics(List.of("salesAmount"));
+        pivot.setOutputFormat("tree");
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setPivot(pivot);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> execute(request));
+        assertTrue(ex.getMessage().contains("不支持 hierarchyMode=tree"),
+                "tree + domainSlice/start/offset 应继续 fail-closed: " + ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("v3.7: domainSlice/start/offset 与 parentShare 组合保持 fail-closed")
+    void testAxisDomainSelectionRejectsParentShare() {
+        AxisField row = axis("product$categoryName");
+        row.setDomainSlice(List.of(slice("salesAmount", ">", 0)));
+
+        PivotRequest pivot = new PivotRequest();
+        pivot.setRows(List.of(row));
+
+        List<PivotMetricItem> items = new ArrayList<>();
+        items.add(PivotMetricItem.ofNative("salesAmount"));
+        PivotMetricItem ps = new PivotMetricItem();
+        ps.setName("categoryShare");
+        ps.setType("parentShare");
+        ps.setOf("salesAmount");
+        items.add(ps);
+        pivot.setMetricItems(items);
+        pivot.setOutputFormat("flat");
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setPivot(pivot);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> execute(request));
+        assertTrue(ex.getMessage().contains("parentShare/baselineRatio"),
+                "parentShare + domainSlice/start/offset 应说明派生指标 scope 尚未定义: " + ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("v3.7: domainSlice/start/offset 与 baselineRatio 组合保持 fail-closed")
+    void testAxisDomainSelectionRejectsBaselineRatio() {
+        AxisField row = axis("product$categoryName");
+        row.setDomainSlice(List.of(slice("salesAmount", ">", 0)));
+
+        PivotRequest pivot = new PivotRequest();
+        pivot.setRows(List.of(row));
+        pivot.setColumns(List.of(axis("salesDate$month")));
+
+        List<PivotMetricItem> items = new ArrayList<>();
+        items.add(PivotMetricItem.ofNative("salesAmount"));
+        PivotMetricItem br = new PivotMetricItem();
+        br.setName("salesIndex");
+        br.setType("baselineRatio");
+        br.setOf("salesAmount");
+        br.setAxis("columns");
+        br.setBaseline("first");
+        items.add(br);
+        pivot.setMetricItems(items);
+        pivot.setOutputFormat("flat");
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setPivot(pivot);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> execute(request));
+        assertTrue(ex.getMessage().contains("parentShare/baselineRatio"),
+                "baselineRatio + domainSlice/start/offset 应说明 baseline scope 尚未定义: " + ex.getMessage());
+    }
+
     // ========== 辅助方法 ==========
 
     private SemanticQueryResponse execute(SemanticQueryRequest request) {
@@ -1071,6 +1284,32 @@ class PivotIntegrationTest extends EcommerceTestSupport {
 
     private void deletePivotDomainSliceFixture() {
         jdbcTemplate.update("DELETE FROM fact_sales WHERE order_id IN ('PDS_O1', 'PDS_O2')");
+    }
+
+    private void insertLargePivotDomainSliceFixture() {
+        deleteLargePivotDomainSliceFixture();
+        String sql = """
+                INSERT INTO fact_sales
+                (order_id, order_line_no, date_key, product_key, customer_key, store_key, channel_key, promotion_key,
+                 quantity, unit_price, unit_cost, discount_amount, sales_amount, cost_amount, profit_amount,
+                 order_status, payment_method)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """;
+        List<Object[]> rows = new ArrayList<>();
+        for (int i = 0; i < LARGE_AXIS_DOMAIN_SIZE; i++) {
+            String orderId = String.format("PDS_BIG_%04d", i);
+            double salesAmount = i == LARGE_AXIS_DOMAIN_SIZE - 1 ? 9999d : 1d;
+            rows.add(new Object[] {
+                    orderId, 1, 20240101, 1, 1, 1, 1, null,
+                    1, salesAmount, 0d, 1d, salesAmount, 0d, salesAmount,
+                    LARGE_AXIS_DOMAIN_STATUS, "PDS_BIG"
+            });
+        }
+        jdbcTemplate.batchUpdate(sql, rows);
+    }
+
+    private void deleteLargePivotDomainSliceFixture() {
+        jdbcTemplate.update("DELETE FROM fact_sales WHERE order_id LIKE 'PDS_BIG_%'");
     }
 
     private AxisField axis(String field) {
