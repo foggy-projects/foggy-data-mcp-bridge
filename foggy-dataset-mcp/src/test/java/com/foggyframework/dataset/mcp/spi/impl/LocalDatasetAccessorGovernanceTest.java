@@ -273,6 +273,46 @@ class LocalDatasetAccessorGovernanceTest {
         assertEquals(Boolean.TRUE, requestCaptor.getValue().getHints().get("fromMcp"));
     }
 
+    @Test
+    @DisplayName("query payload 应透传 display-only outputFormatting")
+    void queryShouldMapOutputFormattingIntoRequest() {
+        SemanticQueryResponse response = new SemanticQueryResponse();
+        response.setItems(List.of());
+        when(semanticServiceResolver.queryModel(anyString(), any(SemanticQueryRequest.class), eq("execute"), any(SemanticRequestContext.class)))
+                .thenReturn(response);
+
+        accessor.queryModel(
+                "DisplayFormatModel",
+                Map.of(
+                        "columns", List.of("collectionRate"),
+                        "outputFormatting", List.of(Map.of(
+                                "field", "collectionRate",
+                                "kind", "decimal",
+                                "scale", 1,
+                                "mode", "HALF_UP",
+                                "scope", "display_only"
+                        ))
+                ),
+                "execute",
+                "trace-output-formatting",
+                null,
+                null
+        );
+
+        ArgumentCaptor<SemanticQueryRequest> requestCaptor = ArgumentCaptor.forClass(SemanticQueryRequest.class);
+        verify(semanticServiceResolver).queryModel(eq("DisplayFormatModel"), requestCaptor.capture(), eq("execute"), any(SemanticRequestContext.class));
+
+        List<SemanticQueryRequest.OutputFormattingItem> outputFormatting = requestCaptor.getValue().getOutputFormatting();
+        assertNotNull(outputFormatting);
+        assertEquals(1, outputFormatting.size());
+        SemanticQueryRequest.OutputFormattingItem item = outputFormatting.get(0);
+        assertEquals("collectionRate", item.getField());
+        assertEquals("decimal", item.getKind());
+        assertEquals(1, item.getScale());
+        assertEquals("HALF_UP", item.getMode());
+        assertEquals("display_only", item.getScope());
+    }
+
     private McpProperties createMcpProperties() {
         McpProperties properties = new McpProperties();
         properties.getSemantic().setUseAllModels(true);

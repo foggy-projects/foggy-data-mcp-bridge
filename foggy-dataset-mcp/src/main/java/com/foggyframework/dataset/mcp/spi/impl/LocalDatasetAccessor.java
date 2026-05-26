@@ -569,6 +569,17 @@ public class LocalDatasetAccessor implements DatasetAccessor {
             }
         }
 
+        if (payload.containsKey("outputFormatting")) {
+            Object outputFormatting = payload.get("outputFormatting");
+            if (outputFormatting instanceof List) {
+                List<SemanticQueryRequest.OutputFormattingItem> outputFormattingItems =
+                        ((List<Map<String, Object>>) outputFormatting).stream()
+                                .map(this::convertToOutputFormattingItem)
+                                .toList();
+                request.setOutputFormatting(outputFormattingItems);
+            }
+        }
+
         request.setRoute(stringValue(payload.get("route")));
         request.setStatus(stringValue(payload.get("status")));
         request.setRiskFlags(optionalStringList(firstPresent(payload, "risk_flags", "riskFlags")));
@@ -728,6 +739,19 @@ public class LocalDatasetAccessor implements DatasetAccessor {
         def.setExpression((String) map.get("expression"));
         def.setDescription((String) map.get("description"));
         return def;
+    }
+
+    private SemanticQueryRequest.OutputFormattingItem convertToOutputFormattingItem(Map<String, Object> map) {
+        SemanticQueryRequest.OutputFormattingItem item = new SemanticQueryRequest.OutputFormattingItem();
+        item.setField((String) map.get("field"));
+        item.setKind((String) map.get("kind"));
+        Object scale = map.get("scale");
+        if (scale instanceof Number) {
+            item.setScale(((Number) scale).intValue());
+        }
+        item.setMode((String) map.get("mode"));
+        item.setScope((String) map.getOrDefault("scope", "display_only"));
+        return item;
     }
 
     /**
