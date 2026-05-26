@@ -45,7 +45,7 @@ public final class DslCtePlanValidator {
             "and", "or", "is", "not", "null", "true", "false",
             "case", "when", "then", "else", "end", "as", "over", "rows",
             "current", "row", "preceding", "following", "order", "all", "last",
-            "count", "sum", "avg", "min", "max", "iif", "if", "coalesce", "nullif", "round",
+            "count", "sum", "avg", "min", "max", "iif", "if", "coalesce", "nullif", "round", "abs",
             "hours_between",
             "priority_threshold", "lag", "lead", "rank");
 

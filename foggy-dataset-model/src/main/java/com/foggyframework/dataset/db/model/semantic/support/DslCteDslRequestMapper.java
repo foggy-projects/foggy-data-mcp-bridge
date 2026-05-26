@@ -86,6 +86,11 @@ public final class DslCteDslRequestMapper {
             "(?i)^\\s*\\(\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*-\\s*([A-Za-z_][A-Za-z0-9_$]*)"
                     + "\\s*\\)\\s*/\\s*(?:([A-Za-z_][A-Za-z0-9_$]*)|nullif\\s*\\(\\s*"
                     + "([A-Za-z_][A-Za-z0-9_$]*)\\s*,\\s*0(?:\\.0+)?\\s*\\))\\s*$");
+    private static final Pattern METRIC_ABSOLUTE_DELTA_RATIO_PATTERN = Pattern.compile(
+            "(?i)^\\s*abs\\s*\\(\\s*\\(?\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*-\\s*"
+                    + "([A-Za-z_][A-Za-z0-9_$]*)\\s*\\)?\\s*\\)\\s*/\\s*(?:"
+                    + "([A-Za-z_][A-Za-z0-9_$]*)|nullif\\s*\\(\\s*"
+                    + "([A-Za-z_][A-Za-z0-9_$]*)\\s*,\\s*0(?:\\.0+)?\\s*\\))\\s*$");
     private static final Pattern METRIC_CASE_LABEL_PATTERN = Pattern.compile(
             "(?i)^\\s*case\\s+when\\s+([A-Za-z_][A-Za-z0-9_$]*)\\s*(<=|>=|<>|!=|==|=|<|>)\\s*"
                     + "(-?\\d+(?:\\.\\d+)?)\\s+then\\s*'((?:[^']|'')*)'\\s+else\\s*'((?:[^']|'')*)'"
@@ -3503,6 +3508,29 @@ public final class DslCteDslRequestMapper {
                 continue;
             }
 
+            Matcher absoluteDeltaRatioMatcher = METRIC_ABSOLUTE_DELTA_RATIO_PATTERN.matcher(expr == null ? "" : expr);
+            if (absoluteDeltaRatioMatcher.matches()) {
+                String left = absoluteDeltaRatioMatcher.group(1);
+                String right = absoluteDeltaRatioMatcher.group(2);
+                String denominator = absoluteDeltaRatioMatcher.group(3) == null
+                        ? absoluteDeltaRatioMatcher.group(4)
+                        : absoluteDeltaRatioMatcher.group(3);
+                if (!metricAliases.contains(left) || !metricAliases.contains(right)
+                        || !metricAliases.contains(denominator)) {
+                    unsupported.add("relation result-stage absolute metric delta ratio must reference aggregate metric aliases");
+                    continue;
+                }
+                if (!denominator.equals(left) && !denominator.equals(right)) {
+                    unsupported.add("relation result-stage absolute metric delta ratio denominator must match one difference operand");
+                    continue;
+                }
+                arithmetic.add(new MetricArithmeticDerived(name,
+                        "(1.0 * ABS(" + quoteAlias(left) + " - " + quoteAlias(right)
+                                + ") / NULLIF(" + quoteAlias(denominator) + ", 0))",
+                        "relation_metric_absolute_delta_ratio"));
+                continue;
+            }
+
             Matcher deltaRatioMatcher = METRIC_DELTA_RATIO_PATTERN.matcher(expr == null ? "" : expr);
             if (deltaRatioMatcher.matches()) {
                 String left = deltaRatioMatcher.group(1);
@@ -3553,7 +3581,8 @@ public final class DslCteDslRequestMapper {
             }
 
             unsupported.add("relation result-stage metric bridge supports only metric ratio or metric difference formulas, "
-                    + "metric delta ratio formulas, or signed CASE bucket label formulas");
+                    + "metric delta ratio formulas, absolute metric delta ratio formulas, "
+                    + "or signed CASE bucket label formulas");
         }
         return unsupported.isEmpty() ? new ResultStageDerivedMetrics(ratios, arithmetic)
                 : ResultStageDerivedMetrics.emptyMetrics();

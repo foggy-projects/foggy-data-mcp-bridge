@@ -212,6 +212,38 @@ class DslCteRelationMetricFixtureIntegrationTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("DSL_CTE relation absolute metric delta ratio orderBy bridge executes and matches SQLite baseline")
+    void relationAbsoluteMetricDeltaRatioOrderByBridgeSqlMatchesManualBaseline() {
+        assumeCommonTableExpressionsSupported();
+
+        List<Map<String, Object>> manualRows = categoryAbsoluteNonProfitRateLeaderboardManualRows();
+        SemanticQueryRequest request = dslCtePlan(categoryAbsoluteNonProfitRateLeaderboardPlan());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SqlGenerationResult generated = semanticQueryServiceV3.generateSql(
+                "FactSalesQueryModel", request, SemanticRequestContext.empty());
+
+        assertNotNull(generated);
+        assertNotNull(generated.getSql());
+        assertTrue(generated.getSql().contains("dsl_cte_metric_ratio"), generated.getSql());
+        assertTrue(generated.getSql().contains(
+                        "(1.0 * ABS(\"salesAmount\" - \"profitAmount\") / NULLIF(\"salesAmount\", 0)) "
+                                + "AS \"nonProfitDeviationRate\""),
+                generated.getSql());
+        assertTrue(generated.getSql().contains("ORDER BY \"nonProfitDeviationRate\" DESC"), generated.getSql());
+        assertTrue(generated.getSql().contains("LIMIT ?"), generated.getSql());
+        assertEquals(List.of(2), generated.getParams());
+
+        List<Map<String, Object>> rows = new ArrayList<>(jdbcTemplate.queryForList(
+                generated.getSql(), generated.getParams().toArray(new Object[0])));
+
+        assertEquals(manualRows.size(), rows.size());
+        for (int i = 0; i < manualRows.size(); i++) {
+            assertGeneratedCategoryAbsoluteNonProfitRateRowMatchesManual(rows.get(i), manualRows.get(i));
+        }
+    }
+
+    @Test
     @DisplayName("DSL_CTE conditional value aggregate difference bridge executes and matches SQLite baseline")
     void conditionalValueAggregateDifferenceBridgeSqlMatchesManualBaseline() {
         assumeCommonTableExpressionsSupported();
@@ -292,6 +324,21 @@ class DslCteRelationMetricFixtureIntegrationTest extends EcommerceTestSupport {
                 LEFT JOIN dim_product dp ON fs.product_key = dp.product_key
                 GROUP BY dp.category_name
                 ORDER BY nonProfitRate DESC
+                LIMIT 2
+                """);
+    }
+
+    private List<Map<String, Object>> categoryAbsoluteNonProfitRateLeaderboardManualRows() {
+        return jdbcTemplate.queryForList("""
+                SELECT dp.category_name AS categoryName,
+                       SUM(fs.sales_amount) AS salesAmount,
+                       SUM(fs.profit_amount) AS profitAmount,
+                       1.0 * ABS(SUM(fs.sales_amount) - SUM(fs.profit_amount))
+                           / NULLIF(SUM(fs.sales_amount), 0) AS nonProfitDeviationRate
+                FROM fact_sales fs
+                LEFT JOIN dim_product dp ON fs.product_key = dp.product_key
+                GROUP BY dp.category_name
+                ORDER BY nonProfitDeviationRate DESC
                 LIMIT 2
                 """);
     }
@@ -396,6 +443,14 @@ class DslCteRelationMetricFixtureIntegrationTest extends EcommerceTestSupport {
         assertDecimalClose(manual.get("salesAmount"), value(generated, "salesAmount"));
         assertDecimalClose(manual.get("profitAmount"), value(generated, "profitAmount"));
         assertDecimalClose(manual.get("nonProfitRate"), value(generated, "nonProfitRate"));
+    }
+
+    private static void assertGeneratedCategoryAbsoluteNonProfitRateRowMatchesManual(Map<String, Object> generated,
+                                                                                    Map<String, Object> manual) {
+        assertEquals(manual.get("categoryName"), value(generated, "product$categoryName"));
+        assertDecimalClose(manual.get("salesAmount"), value(generated, "salesAmount"));
+        assertDecimalClose(manual.get("profitAmount"), value(generated, "profitAmount"));
+        assertDecimalClose(manual.get("nonProfitDeviationRate"), value(generated, "nonProfitDeviationRate"));
     }
 
     private static void assertGeneratedCategoryProfitBandRowMatchesManual(Map<String, Object> generated,
@@ -506,6 +561,31 @@ class DslCteRelationMetricFixtureIntegrationTest extends EcommerceTestSupport {
                                 "limit", 2)
                 ),
                 "output", List.of("product$categoryName", "salesAmount", "profitAmount", "nonProfitRate")
+        );
+    }
+
+    private static Map<String, Object> categoryAbsoluteNonProfitRateLeaderboardPlan() {
+        return m(
+                "stages", List.of(
+                        stage("category_profit", "aggregate",
+                                "input", m("model", "FactSalesQueryModel"),
+                                "groupBy", List.of("product$categoryName"),
+                                "metrics", List.of(
+                                        m("name", "salesAmount", "expr", "sum(salesAmount)"),
+                                        m("name", "profitAmount", "expr", "sum(profitAmount)"))),
+                        stage("category_non_profit_deviation_rate", "derive",
+                                "inputs", List.of("category_profit"),
+                                "derived", List.of(
+                                        m("name", "nonProfitDeviationRate",
+                                                "expr", "abs((salesAmount - profitAmount)) "
+                                                        + "/ nullif(salesAmount, 0)"))),
+                        stage("top_categories", "orderBy",
+                                "inputs", List.of("category_non_profit_deviation_rate"),
+                                "orderBy", List.of(
+                                        m("field", "nonProfitDeviationRate", "dir", "DESC")),
+                                "limit", 2)
+                ),
+                "output", List.of("product$categoryName", "salesAmount", "profitAmount", "nonProfitDeviationRate")
         );
     }
 
