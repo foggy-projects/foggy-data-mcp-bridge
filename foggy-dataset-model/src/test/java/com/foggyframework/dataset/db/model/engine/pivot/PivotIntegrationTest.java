@@ -1239,6 +1239,23 @@ class PivotIntegrationTest extends EcommerceTestSupport {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> execute(request));
         assertTrue(ex.getMessage().contains("parentShare/baselineRatio"),
                 "parentShare + domainSlice/start/offset 应说明派生指标 scope 尚未定义: " + ex.getMessage());
+
+        AxisField pagedRow = axis("product$categoryName");
+        pagedRow.setStart(1);
+        pagedRow.setLimit(1);
+
+        PivotRequest pagedPivot = new PivotRequest();
+        pagedPivot.setRows(List.of(pagedRow));
+        pagedPivot.setMetricItems(items);
+        pagedPivot.setOutputFormat("flat");
+
+        SemanticQueryRequest pagedRequest = new SemanticQueryRequest();
+        pagedRequest.setPivot(pagedPivot);
+
+        IllegalArgumentException pagedEx = assertThrows(IllegalArgumentException.class,
+                () -> execute(pagedRequest));
+        assertTrue(pagedEx.getMessage().contains("parentShare/baselineRatio"),
+                "parentShare + start/offset 应说明 denominator scope 尚未定义: " + pagedEx.getMessage());
     }
 
     @Test
@@ -1269,6 +1286,24 @@ class PivotIntegrationTest extends EcommerceTestSupport {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> execute(request));
         assertTrue(ex.getMessage().contains("parentShare/baselineRatio"),
                 "baselineRatio + domainSlice/start/offset 应说明 baseline scope 尚未定义: " + ex.getMessage());
+
+        AxisField pagedColumn = axis("salesDate$month");
+        pagedColumn.setStart(1);
+        pagedColumn.setLimit(1);
+
+        PivotRequest pagedPivot = new PivotRequest();
+        pagedPivot.setRows(List.of(axis("product$categoryName")));
+        pagedPivot.setColumns(List.of(pagedColumn));
+        pagedPivot.setMetricItems(items);
+        pagedPivot.setOutputFormat("flat");
+
+        SemanticQueryRequest pagedRequest = new SemanticQueryRequest();
+        pagedRequest.setPivot(pagedPivot);
+
+        IllegalArgumentException pagedEx = assertThrows(IllegalArgumentException.class,
+                () -> execute(pagedRequest));
+        assertTrue(pagedEx.getMessage().contains("parentShare/baselineRatio"),
+                "baselineRatio + start/offset 应说明 baseline scope 尚未定义: " + pagedEx.getMessage());
     }
 
     // ========== 辅助方法 ==========
