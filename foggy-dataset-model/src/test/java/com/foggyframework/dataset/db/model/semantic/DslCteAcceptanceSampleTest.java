@@ -2482,6 +2482,33 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
+    @DisplayName("DSL_CTE validation accepts relation metric delta ratio as result-stage arithmetic")
+    void validationAcceptsRelationMetricDeltaRatioStage() {
+        SemanticQueryResponse response = service.validateQuery(
+                "SaleOrder", dslCtePlan(relationMetricDeltaRatioOrderByPlan()), SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_READY", validation.get("dsl_bridge_status"));
+        SemanticQueryRequest dslRequest = (SemanticQueryRequest) validation.get("dsl_request");
+        assertNotNull(dslRequest);
+        assertTrue(dslRequest.getColumns().contains("sum(amount) AS salesAmount"));
+        assertTrue(dslRequest.getColumns().contains("sum(amount) AS discountAmount"));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> ratioBridge = (Map<String, Object>) validation.get("dsl_result_stage_metric_ratio");
+        assertEquals("relation_metric_arithmetic", ratioBridge.get("kind"));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> arithmetic = (List<Map<String, Object>>) ratioBridge.get("arithmetic");
+        assertEquals(1, arithmetic.size());
+        assertEquals("discountRate", arithmetic.get(0).get("alias"));
+        assertEquals("relation_metric_delta_ratio", arithmetic.get(0).get("kind"));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> bridgeOrderBy = (List<Map<String, Object>>) ratioBridge.get("orderBy");
+        assertEquals("discountRate", bridgeOrderBy.get(0).get("field"));
+        assertEquals("desc", bridgeOrderBy.get(0).get("dir"));
+    }
+
+    @Test
     @DisplayName("DSL_CTE relation metric difference bridge defers non-metric operands")
     void validationDefersRelationMetricDifferenceOnNonMetricOperand() {
         Map<String, Object> plan = relationMetricDifferenceOrderByPlan();
@@ -2495,6 +2522,54 @@ class DslCteAcceptanceSampleTest {
 
         assertTrue(unsupported.stream()
                 .anyMatch(msg -> msg.contains("metric difference must reference aggregate metric aliases")));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE relation metric delta ratio bridge defers ambiguous numerator expression")
+    void validationDefersRelationMetricDeltaRatioWithoutExplicitNumeratorParentheses() {
+        Map<String, Object> plan = relationMetricDeltaRatioOrderByPlan();
+        relationStage(plan, "category_discount_rate")
+                .put("derived", List.of(derived("discountRate", "salesAmount - discountAmount / salesAmount")));
+
+        List<String> unsupported = bridgeUnsupported(plan);
+
+        assertTrue(unsupported.stream().anyMatch(msg -> msg.contains("metric delta ratio formulas")));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE relation metric delta ratio bridge defers non-metric operands")
+    void validationDefersRelationMetricDeltaRatioOnNonMetricOperand() {
+        Map<String, Object> plan = relationMetricDeltaRatioOrderByPlan();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(0).put("groupBy", List.of("amount"));
+        plan.put("output", List.of("amount", "salesAmount", "discountAmount", "discountRate"));
+        stages.get(1).put("derived", List.of(derived("discountRate", "(salesAmount - amount) / salesAmount")));
+
+        List<String> unsupported = bridgeUnsupported(plan);
+
+        assertTrue(unsupported.stream()
+                .anyMatch(msg -> msg.contains("metric delta ratio must reference aggregate metric aliases")));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE relation metric delta ratio bridge defers third-metric denominator")
+    void validationDefersRelationMetricDeltaRatioOnThirdMetricDenominator() {
+        Map<String, Object> plan = relationMetricDeltaRatioOrderByPlan();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(0).put("metrics", List.of(
+                metric("salesAmount", "sum(amount)"),
+                metric("discountAmount", "sum(amount)"),
+                metric("targetAmount", "sum(amount)")));
+        plan.put("output", List.of("product.categoryName", "salesAmount", "discountAmount", "targetAmount",
+                "discountRate"));
+        stages.get(1).put("derived", List.of(derived("discountRate", "(salesAmount - discountAmount) / targetAmount")));
+
+        List<String> unsupported = bridgeUnsupported(plan);
+
+        assertTrue(unsupported.stream()
+                .anyMatch(msg -> msg.contains("metric delta ratio denominator must match one difference operand")));
     }
 
     @Test
@@ -2654,6 +2729,33 @@ class DslCteAcceptanceSampleTest {
         assertTrue(result.getSql().contains("dsl_cte_metric_ratio"));
         assertTrue(result.getSql().contains("\"salesAmount\" - \"discountAmount\" AS \"netSalesAmount\""));
         assertTrue(result.getSql().contains("ORDER BY \"netSalesAmount\" DESC"));
+        assertTrue(result.getSql().contains("LIMIT ?"));
+        assertEquals(List.of(5), result.getParams());
+    }
+
+    @Test
+    @DisplayName("DSL_CTE generateSql can opt in to relation metric delta ratio stage")
+    void generateSqlOptInUsesDslBridgeForRelationMetricDeltaRatioStage() {
+        QueryFacade queryFacade = mock(QueryFacade.class);
+        when(queryFacade.buildSqlOnly(any(ModelResultContext.class)))
+                .thenReturn(new SqlGenerationResult(
+                        "SELECT \"product.categoryName\", SUM(amount) AS \"salesAmount\", "
+                                + "SUM(amount) AS \"discountAmount\" FROM sale_order "
+                                + "GROUP BY \"product.categoryName\"",
+                        List.of(),
+                        null));
+        ReflectionTestUtils.setField(service, "queryFacade", queryFacade);
+
+        SemanticQueryRequest request = dslCtePlan(relationMetricDeltaRatioOrderByPlan());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SqlGenerationResult result = service.generateSql("SaleOrder", request, SemanticRequestContext.empty());
+
+        assertTrue(result.getSql().contains("dsl_cte_metric_ratio"));
+        assertTrue(result.getSql().contains(
+                "(1.0 * (\"salesAmount\" - \"discountAmount\") / NULLIF(\"salesAmount\", 0)) "
+                        + "AS \"discountRate\""));
+        assertTrue(result.getSql().contains("ORDER BY \"discountRate\" DESC"));
         assertTrue(result.getSql().contains("LIMIT ?"));
         assertEquals(List.of(5), result.getParams());
     }
@@ -3964,6 +4066,28 @@ class DslCteAcceptanceSampleTest {
                                 "limit", 5)
                 ),
                 List.of("product.categoryName", "salesAmount", "discountAmount", "netSalesAmount")
+        );
+    }
+
+    private Map<String, Object> relationMetricDeltaRatioOrderByPlan() {
+        return plan(
+                List.of(
+                        stage("category_sales", "aggregate",
+                                "input", model("SaleOrder"),
+                                "groupBy", List.of("product.categoryName"),
+                                "metrics", List.of(
+                                        metric("salesAmount", "sum(amount)"),
+                                        metric("discountAmount", "sum(amount)"))),
+                        stage("category_discount_rate", "derive",
+                                "inputs", List.of("category_sales"),
+                                "derived", List.of(derived(
+                                        "discountRate", "(salesAmount - discountAmount) / nullif(salesAmount, 0)"))),
+                        stage("top_categories", "orderBy",
+                                "inputs", List.of("category_discount_rate"),
+                                "orderBy", List.of(order("discountRate", "DESC")),
+                                "limit", 5)
+                ),
+                List.of("product.categoryName", "salesAmount", "discountAmount", "discountRate")
         );
     }
 
