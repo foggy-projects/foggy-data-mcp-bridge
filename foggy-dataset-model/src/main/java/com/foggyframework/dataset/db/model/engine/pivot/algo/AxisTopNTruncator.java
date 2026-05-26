@@ -56,6 +56,7 @@ public class AxisTopNTruncator {
             AxisField field,
             List<String> partitionKeys) {
 
+        int offset = field.getEffectiveOffset();
         int limit = field.getLimit();
         List<String> orderBySpecs = field.getOrderBy();
 
@@ -75,8 +76,12 @@ public class AxisTopNTruncator {
             if (orderBySpecs != null && !orderBySpecs.isEmpty()) {
                 partition.sort(buildComparator(orderBySpecs));
             }
-            // 截断
-            result.addAll(partition.subList(0, Math.min(limit, partition.size())));
+            // 窗口截断：start/offset 与 limit 一起作用于每个隐式父级分区。
+            if (offset >= partition.size()) {
+                continue;
+            }
+            int end = Math.min(offset + limit, partition.size());
+            result.addAll(partition.subList(offset, end));
         }
 
         return result;

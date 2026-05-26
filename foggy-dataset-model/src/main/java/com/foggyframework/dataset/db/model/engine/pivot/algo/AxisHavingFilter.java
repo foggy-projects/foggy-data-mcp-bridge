@@ -33,20 +33,27 @@ public class AxisHavingFilter {
 
         List<Map<String, Object>> filtered = new ArrayList<>(resultSet);
 
-        for (AxisField axisField : axisFields) {
+        for (int i = 0; i < axisFields.size(); i++) {
+            AxisField axisField = axisFields.get(i);
             if (axisField.getHaving() == null || axisField.getHaving().isEmpty()) {
                 continue;
             }
 
             // 收集需要淘汰的成员值
-            String fieldName = axisField.getField();
-            Set<Object> eliminatedMembers = new HashSet<>();
+            List<String> tupleFields = new ArrayList<>();
+            for (int j = 0; j <= i; j++) {
+                tupleFields.add(axisFields.get(j).getField());
+            }
+            Set<List<Object>> eliminatedTuples = new HashSet<>();
 
-            // 按成员分组，检查每个成员是否通过所有 having 条件
-            Map<Object, List<Map<String, Object>>> groups = filtered.stream()
-                    .collect(Collectors.groupingBy(row -> row.getOrDefault(fieldName, "__null__")));
+            // 按当前轴的完整父子 tuple 分组，避免同名子成员跨父级相互影响。
+            Map<List<Object>, List<Map<String, Object>>> groups = filtered.stream()
+                    .collect(Collectors.groupingBy(
+                            row -> tupleKey(row, tupleFields),
+                            LinkedHashMap::new,
+                            Collectors.toList()));
 
-            for (Map.Entry<Object, List<Map<String, Object>>> entry : groups.entrySet()) {
+            for (Map.Entry<List<Object>, List<Map<String, Object>>> entry : groups.entrySet()) {
                 // 用该成员下所有行的度量值总和来判断
                 // （简化实现：如果是聚合后结果，每个成员通常只有一行对应该度量）
                 boolean passAll = true;
@@ -58,19 +65,27 @@ public class AxisHavingFilter {
                     }
                 }
                 if (!passAll) {
-                    eliminatedMembers.add(entry.getKey());
+                    eliminatedTuples.add(entry.getKey());
                 }
             }
 
             // 删除不满足条件的成员的所有行
-            if (!eliminatedMembers.isEmpty()) {
+            if (!eliminatedTuples.isEmpty()) {
                 filtered = filtered.stream()
-                        .filter(row -> !eliminatedMembers.contains(row.getOrDefault(fieldName, "__null__")))
+                        .filter(row -> !eliminatedTuples.contains(tupleKey(row, tupleFields)))
                         .collect(Collectors.toList());
             }
         }
 
         return filtered;
+    }
+
+    private static List<Object> tupleKey(Map<String, Object> row, List<String> fields) {
+        List<Object> key = new ArrayList<>(fields.size());
+        for (String field : fields) {
+            key.add(row.getOrDefault(field, "__null__"));
+        }
+        return key;
     }
 
     /**

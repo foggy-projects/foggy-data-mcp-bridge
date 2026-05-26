@@ -54,6 +54,7 @@ public class PivotAxisDomainSqlPlannerCascadeTest {
         AxisField f2 = new AxisField();
         f2.setField("dim2");
         f2.setLimit(3);
+        f2.setStart(1);
         f2.setOrderBy(Arrays.asList("-orderCount"));
 
         pivot.setRows(Arrays.asList(f1, f2));
@@ -83,6 +84,7 @@ public class PivotAxisDomainSqlPlannerCascadeTest {
         // Partitioned by dim1
         assertTrue(sql.contains("PARTITION BY \"dim1\" ORDER BY CASE WHEN _agg_orderCount IS NULL THEN 1 ELSE 0 END ASC, _agg_orderCount DESC, CASE WHEN \"dim1\" IS NULL THEN 1 ELSE 0 END ASC, \"dim1\" ASC, CASE WHEN \"dim2\" IS NULL THEN 1 ELSE 0 END ASC, \"dim2\" ASC"));
         assertTrue(sql.contains("_row_filtered_2 AS"));
+        assertTrue(sql.contains("WHERE rn > ? AND rn <= ?"));
 
         // Final Join
         assertTrue(sql.contains("_filtered AS"));
@@ -91,10 +93,11 @@ public class PivotAxisDomainSqlPlannerCascadeTest {
 
         // Parameter order verification
         List<Object> params = result.getParams();
-        assertEquals(4, params.size());
+        assertEquals(5, params.size());
         assertEquals("baseParam1", params.get(0));
         assertEquals(1000, params.get(1)); // Parent Having
         assertEquals(5, params.get(2));    // Parent Limit
-        assertEquals(3, params.get(3));    // Child Limit
+        assertEquals(1, params.get(3));    // Child Offset
+        assertEquals(4, params.get(4));    // Child Offset + Limit
     }
 }

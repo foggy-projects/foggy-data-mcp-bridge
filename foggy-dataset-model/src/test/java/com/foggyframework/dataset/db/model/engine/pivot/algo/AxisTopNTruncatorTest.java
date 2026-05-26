@@ -219,6 +219,42 @@ class AxisTopNTruncatorTest {
 
     @Test
     @Order(9)
+    @DisplayName("两层：子级 start/offset 在每个父级分区内分页")
+    void testTwoLevelPartitionedOffsetLimit() {
+        List<Map<String, Object>> data = List.of(
+                makeRegionCityRow("华东", "上海", 500),
+                makeRegionCityRow("华东", "杭州", 300),
+                makeRegionCityRow("华东", "南京", 200),
+                makeRegionCityRow("华北", "北京", 400),
+                makeRegionCityRow("华北", "天津", 100),
+                makeRegionCityRow("华北", "石家庄", 50)
+        );
+
+        AxisField regionField = new AxisField();
+        regionField.setField("region");
+
+        AxisField cityField = new AxisField();
+        cityField.setField("city");
+        cityField.setOrderBy(List.of("-salesAmount"));
+        cityField.setStart(1);
+        cityField.setLimit(1);
+
+        List<Map<String, Object>> result = AxisTopNTruncator.apply(
+                data, List.of(regionField, cityField));
+
+        assertEquals(2, result.size());
+        assertEquals(List.of("杭州"), result.stream()
+                .filter(r -> "华东".equals(r.get("region")))
+                .map(r -> (String) r.get("city"))
+                .collect(Collectors.toList()));
+        assertEquals(List.of("天津"), result.stream()
+                .filter(r -> "华北".equals(r.get("region")))
+                .map(r -> (String) r.get("city"))
+                .collect(Collectors.toList()));
+    }
+
+    @Test
+    @Order(10)
     @DisplayName("级联 TopN 边界：中间层 limit 按明细行排序而非聚合后排名")
     void testCascadedTopNLimitation() {
         // 场景: region -> city(limit=1) -> store

@@ -163,6 +163,29 @@ class PivotIntegrationTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("v3.7: 多层 rows 子级 start/limit 不再被单层轴域守卫拒绝")
+    void testParentChildOffsetLimitWindow() {
+        PivotRequest pivot = new PivotRequest();
+
+        AxisField year = axis("salesDate$year");
+        AxisField month = axis("salesDate$month");
+        month.setStart(1);
+        month.setLimit(1);
+        month.setOrderBy(List.of("-salesAmount"));
+
+        pivot.setRows(List.of(year, month));
+        pivot.setMetrics(List.of("salesAmount"));
+        pivot.setOutputFormat("tree");
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setPivot(pivot);
+
+        SemanticQueryResponse response = execute(request);
+        assertNotNull(response.getItems(),
+                "多层 rows 子级 start/limit 应进入 multi-level rows window 路径，而不是被 domainSlice 单层守卫误拒绝");
+    }
+
+    @Test
     @DisplayName("CrossJoin 骨架补全 - 插入 null 单元格")
     void testCrossJoin() {
         PivotRequest pivot = new PivotRequest();
@@ -1145,8 +1168,8 @@ class PivotIntegrationTest extends EcommerceTestSupport {
 
         IllegalArgumentException multiColumn = assertThrows(IllegalArgumentException.class,
                 () -> execute(multiColumnRequest));
-        assertTrue(multiColumn.getMessage().contains("domain tree/cursor"),
-                "多层 columns 应说明需要显式 domain tree/cursor 语义: " + multiColumn.getMessage());
+        assertTrue(multiColumn.getMessage().contains("单层 columns"),
+                "多层 columns start/offset 应继续 fail-closed: " + multiColumn.getMessage());
     }
 
     @Test

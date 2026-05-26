@@ -132,6 +132,39 @@ class AxisHavingFilterTest {
         assertEquals(data.size(), result.size());
     }
 
+    @Test
+    @Order(7)
+    @DisplayName("多层轴 Having 按父级 tuple 隔离同名子成员")
+    void testChildHavingUsesParentTuple() {
+        List<Map<String, Object>> data = List.of(
+                makeRegionCityRow("华东", "核心城市", 500),
+                makeRegionCityRow("华东", "共享城市", 300),
+                makeRegionCityRow("华北", "共享城市", 50),
+                makeRegionCityRow("华北", "边缘城市", 30)
+        );
+
+        AxisField region = new AxisField();
+        region.setField("region");
+
+        AxisField city = new AxisField();
+        city.setField("city");
+        MetricFilter filter = new MetricFilter();
+        filter.setMetric("salesAmount");
+        filter.setOp(">=");
+        filter.setValue(100);
+        city.setHaving(List.of(filter));
+
+        List<Map<String, Object>> result = AxisHavingFilter.apply(
+                data, List.of(region, city), List.of("salesAmount"));
+
+        assertEquals(2, result.size());
+        assertTrue(result.stream().anyMatch(row ->
+                "华东".equals(row.get("region")) && "共享城市".equals(row.get("city"))));
+        assertTrue(result.stream().noneMatch(row ->
+                "华北".equals(row.get("region")) && "共享城市".equals(row.get("city"))),
+                "华北/共享城市 不应因为华东同名城市达标而被保留");
+    }
+
     // ========== 测试数据 ==========
 
     /**
@@ -153,6 +186,14 @@ class AxisHavingFilterTest {
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("region", region);
         row.put("product", product);
+        row.put("salesAmount", sales);
+        return row;
+    }
+
+    private Map<String, Object> makeRegionCityRow(String region, String city, int sales) {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("region", region);
+        row.put("city", city);
         row.put("salesAmount", sales);
         return row;
     }

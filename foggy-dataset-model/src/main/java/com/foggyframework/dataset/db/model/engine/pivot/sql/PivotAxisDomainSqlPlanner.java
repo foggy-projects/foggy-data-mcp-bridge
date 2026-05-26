@@ -156,6 +156,7 @@ public class PivotAxisDomainSqlPlanner {
             DomainPlanDef plan = new DomainPlanDef();
             plan.partitionKeys = new ArrayList<>(currentPartitions);
             plan.targetKey = af.getField();
+            plan.offset = af.getEffectiveOffset();
             plan.limit = hasLimit ? af.getLimit() : -1; // -1 means no limit, only having
             plan.havingFilters = hasHaving ? af.getHaving() : Collections.emptyList();
 
@@ -369,8 +370,14 @@ public class PivotAxisDomainSqlPlanner {
                 finalSelectFields.add(targetQ);
                 sql.append(String.join(", ", finalSelectFields));
                 sql.append("\n  FROM ").append(rankedCte);
-                sql.append("\n  WHERE rn <= ?").append("\n");
-                finalParams.add(plan.limit);
+                if (plan.offset > 0) {
+                    sql.append("\n  WHERE rn > ? AND rn <= ?").append("\n");
+                    finalParams.add(plan.offset);
+                    finalParams.add(plan.offset + plan.limit);
+                } else {
+                    sql.append("\n  WHERE rn <= ?").append("\n");
+                    finalParams.add(plan.limit);
+                }
                 sql.append(")");
             } else {
                 // Having-only, no limit → use domainFilteredCte directly as the filtered source
@@ -415,6 +422,7 @@ public class PivotAxisDomainSqlPlanner {
     private static class DomainPlanDef {
         private List<String> partitionKeys;
         private String targetKey;
+        private int offset;
         private int limit; // -1 = no limit (having-only)
         private List<MetricFilter> havingFilters;
         private List<AggregateEntry> aggregateRegistry;

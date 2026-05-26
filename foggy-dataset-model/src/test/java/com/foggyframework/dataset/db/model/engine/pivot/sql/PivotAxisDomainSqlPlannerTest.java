@@ -69,6 +69,31 @@ public class PivotAxisDomainSqlPlannerTest {
     }
 
     @Test
+    public void testRowLimitWithOffsetUsesRankRange() {
+        FDialect dialect = new SqliteDialect();
+        ManagedSqlRelation rel = buildRelation(dialect,
+                "SELECT dim1, SUM(salesAmount) as salesAmount FROM tbl GROUP BY dim1",
+                defaultMetrics(), true, true);
+
+        PivotRequest pivot = new PivotRequest();
+        AxisField f1 = new AxisField();
+        f1.setField("dim1");
+        f1.setStart(2);
+        f1.setLimit(5);
+        f1.setOrderBy(Arrays.asList("-salesAmount"));
+        pivot.setRows(Arrays.asList(f1));
+        pivot.setColumns(Collections.emptyList());
+
+        PivotAxisDomainSqlPlanner.PlannedSql result = PivotAxisDomainSqlPlanner.plan(
+                rel, pivot, Arrays.asList("dim1"), Collections.emptyList(), Arrays.asList("salesAmount"));
+
+        assertTrue(result.getSql().contains("WHERE rn > ? AND rn <= ?"));
+        assertEquals(2, result.getParams().size());
+        assertEquals(2, result.getParams().get(0));
+        assertEquals(7, result.getParams().get(1));
+    }
+
+    @Test
     public void testHavingBeforeTopN() {
         FDialect dialect = new SqliteDialect();
         ManagedSqlRelation rel = buildRelation(dialect,

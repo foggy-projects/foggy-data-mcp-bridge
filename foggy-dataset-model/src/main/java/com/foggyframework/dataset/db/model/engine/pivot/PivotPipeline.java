@@ -769,17 +769,14 @@ public class PivotPipeline {
     }
 
     private boolean hasAxisDomainSelectionRequest(PivotRequest pivot) {
-        return hasAxisDomainSelectionRequest(pivot.getRows()) || hasAxisDomainSelectionRequest(pivot.getColumns());
-    }
-
-    private boolean hasAxisDomainSelectionRequest(List<AxisField> fields) {
-        if (fields == null) return false;
-        for (AxisField field : fields) {
-            if (hasAxisDomainSelectionRequest(field)) {
-                return true;
-            }
+        if (hasAxisDomainSliceRequest(pivot.getRows()) || hasAxisDomainSliceRequest(pivot.getColumns())) {
+            return true;
         }
-        return false;
+        // start/offset 的单层轴语义仍走独立轴域查询；多层 rows 的 start/offset
+        // 属于 per-parent window，由 SQL pushdown 或内存 AxisTopNTruncator 处理。
+        boolean singleRowAxisWindow = pivot.getRowLevelCount() <= 1 && hasAxisStartOffsetRequest(pivot.getRows());
+        boolean singleColumnAxisWindow = pivot.getColumnLevelCount() <= 1 && hasAxisStartOffsetRequest(pivot.getColumns());
+        return singleRowAxisWindow || singleColumnAxisWindow;
     }
 
     private boolean hasAxisDomainSelectionRequest(AxisField field) {
@@ -788,6 +785,26 @@ public class PivotPipeline {
                 field.getStart() != null ||
                 field.getOffset() != null
         );
+    }
+
+    private boolean hasAxisDomainSliceRequest(List<AxisField> fields) {
+        if (fields == null) return false;
+        for (AxisField field : fields) {
+            if (field.getDomainSlice() != null && !field.getDomainSlice().isEmpty()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean hasAxisStartOffsetRequest(List<AxisField> fields) {
+        if (fields == null) return false;
+        for (AxisField field : fields) {
+            if (field.getStart() != null || field.getOffset() != null) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -1165,13 +1182,21 @@ public class PivotPipeline {
         validateAxisFieldsDomainSelection(pivot.getRows(), "rows");
         validateAxisFieldsDomainSelection(pivot.getColumns(), "columns");
 
-        if (!hasAxisDomainSelectionRequest(pivot)) {
+        boolean hasDomainSlice = hasAxisDomainSliceRequest(pivot.getRows()) ||
+                hasAxisDomainSliceRequest(pivot.getColumns());
+        boolean hasStartOffset = hasAxisStartOffsetRequest(pivot.getRows()) ||
+                hasAxisStartOffsetRequest(pivot.getColumns());
+        if (!hasDomainSlice && !hasStartOffset) {
             return;
         }
 
-        if (pivot.getRowLevelCount() > 1 || pivot.getColumnLevelCount() > 1) {
+        if (hasDomainSlice && (pivot.getRowLevelCount() > 1 || pivot.getColumnLevelCount() > 1)) {
             throw new IllegalArgumentException(
                     "domainSlice/start/offset 当前仅支持单层 rows 和单层 columns。多层轴分页需要显式 domain tree/cursor 语义");
+        }
+        if (pivot.getColumnLevelCount() > 1 && hasAxisStartOffsetRequest(pivot.getColumns())) {
+            throw new IllegalArgumentException(
+                    "start/offset 当前仅支持单层 columns；多层 rows 可作为 per-parent window 使用");
         }
 
         if (pivot.hasHierarchyField()) {
