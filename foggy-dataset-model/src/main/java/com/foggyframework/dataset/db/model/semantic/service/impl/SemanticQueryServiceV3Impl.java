@@ -1091,6 +1091,8 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                 }
             }
         }
+        validateOutputFormatting(request.getOutputFormatting(),
+                request.getColumns() == null ? List.of() : request.getColumns());
 
         response.setWarnings(warnings.isEmpty() ? null : warnings);
         return response;
@@ -1138,6 +1140,14 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                     }
                 }
             }
+            if (request.getColumns() != null) {
+                for (String column : request.getColumns()) {
+                    String outputName = outputName(column);
+                    if (outputName != null) {
+                        fieldNames.add(outputName);
+                    }
+                }
+            }
             CaseInsensitiveFieldResolver ciResolver = new CaseInsensitiveFieldResolver(fieldNames);
             resolveRequestFieldsCaseInsensitive(request, ciResolver);
         }
@@ -1157,6 +1167,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         }
 
         queryDef.setColumns(columns);
+        context.outputFormattingByField = validateOutputFormatting(request.getOutputFormatting(), columns);
         queryDef.setCalculatedFields(request.getCalculatedFields() == null
                 ? null
                 : new ArrayList<>(request.getCalculatedFields()));
@@ -1350,7 +1361,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         response.setWarnings(context.warnings.isEmpty() ? null : context.warnings);
 
         // 构建 Schema 信息（包含 summary）
-        response.setSchema(buildSchemaInfo(queryModel, request, queryResult));
+        response.setSchema(buildSchemaInfo(queryModel, request, queryResult, context.outputFormattingByField));
 
         // 设置数据截断信息（如果存在）
         if (context.extData != null && context.extData.containsKey("truncationInfo")) {
@@ -1392,9 +1403,107 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
     /**
      * 构建结果集 Schema 信息（含 Markdown summary）
      */
+    private Map<String, SemanticQueryResponse.SchemaInfo.DisplayFormat> validateOutputFormatting(
+            List<SemanticQueryRequest.OutputFormattingItem> outputFormatting,
+            List<String> outputColumns) {
+        if (outputFormatting == null || outputFormatting.isEmpty()) {
+            return Map.of();
+        }
+
+        Set<String> outputNames = outputFieldNames(outputColumns);
+        Map<String, SemanticQueryResponse.SchemaInfo.DisplayFormat> result = new LinkedHashMap<>();
+        for (SemanticQueryRequest.OutputFormattingItem item : outputFormatting) {
+            if (item == null) {
+                throw RX.throwB("OUTPUT_FORMATTING_INVALID: outputFormatting item must not be null");
+            }
+            String field = item.getField() == null ? null : item.getField().trim();
+            if (StringUtils.isEmpty(field)) {
+                throw RX.throwB("OUTPUT_FORMATTING_INVALID: outputFormatting.field must be provided");
+            }
+            if (!outputNames.contains(field)) {
+                throw RX.throwB("OUTPUT_FORMATTING_FIELD_NOT_IN_OUTPUT_SCHEMA: field '" + field
+                        + "' is not present in final output columns");
+            }
+            String scope = item.getScope() == null ? null : item.getScope().trim().toLowerCase(Locale.ROOT);
+            if (!"display_only".equals(scope)) {
+                throw RX.throwB("OUTPUT_FORMATTING_SCOPE_UNSUPPORTED: outputFormatting.scope must be display_only");
+            }
+            String kind = item.getKind() == null ? null : item.getKind().trim().toLowerCase(Locale.ROOT);
+            if (!"decimal".equals(kind)) {
+                throw RX.throwB("OUTPUT_FORMATTING_KIND_UNSUPPORTED: outputFormatting.kind must be decimal");
+            }
+            Integer scale = item.getScale();
+            if (scale == null || scale < 0 || scale > 6) {
+                throw RX.throwB("OUTPUT_FORMATTING_SCALE_INVALID: decimal scale must be between 0 and 6");
+            }
+            String mode = normalizeDisplayRoundingMode(item.getMode());
+            if (result.containsKey(field)) {
+                throw RX.throwB("OUTPUT_FORMATTING_DUPLICATE_FIELD: duplicate display format for field '" + field + "'");
+            }
+            SemanticQueryResponse.SchemaInfo.DisplayFormat displayFormat =
+                    new SemanticQueryResponse.SchemaInfo.DisplayFormat();
+            displayFormat.setKind(kind);
+            displayFormat.setScale(scale);
+            displayFormat.setMode(mode);
+            displayFormat.setScope(scope);
+            result.put(field, displayFormat);
+        }
+        return result;
+    }
+
+    private Set<String> outputFieldNames(List<String> outputColumns) {
+        Set<String> names = new LinkedHashSet<>();
+        if (outputColumns == null) {
+            return names;
+        }
+        for (String column : outputColumns) {
+            if (StringUtils.isEmpty(column)) {
+                continue;
+            }
+            names.add(column.trim());
+            names.add(outputName(column));
+        }
+        return names;
+    }
+
+    private String normalizeDisplayRoundingMode(String mode) {
+        if (StringUtils.isEmpty(mode)) {
+            return null;
+        }
+        String normalized = mode.trim().toUpperCase(Locale.ROOT);
+        try {
+            java.math.RoundingMode.valueOf(normalized);
+            return normalized;
+        } catch (IllegalArgumentException ex) {
+            throw RX.throwB("OUTPUT_FORMATTING_MODE_UNSUPPORTED: unsupported rounding mode '" + mode + "'");
+        }
+    }
+
+    private SemanticQueryResponse.SchemaInfo.DisplayFormat findDisplayFormat(
+            String columnName,
+            Map<String, SemanticQueryResponse.SchemaInfo.DisplayFormat> outputFormattingByField) {
+        if (outputFormattingByField == null || outputFormattingByField.isEmpty() || StringUtils.isEmpty(columnName)) {
+            return null;
+        }
+        SemanticQueryResponse.SchemaInfo.DisplayFormat direct = outputFormattingByField.get(columnName.trim());
+        if (direct != null) {
+            return direct;
+        }
+        return outputFormattingByField.get(outputName(columnName));
+    }
+
+    private String outputName(String column) {
+        try {
+            return AliasExtractor.extract(column).outputName();
+        } catch (RuntimeException ex) {
+            return column == null ? null : column.trim();
+        }
+    }
+
     private SemanticQueryResponse.SchemaInfo buildSchemaInfo(QueryModel queryModel,
                                                              DbQueryRequestDef request,
-                                                             PagingResultImpl queryResult) {
+                                                             PagingResultImpl queryResult,
+                                                             Map<String, SemanticQueryResponse.SchemaInfo.DisplayFormat> outputFormattingByField) {
         SemanticQueryResponse.SchemaInfo schemaInfo = new SemanticQueryResponse.SchemaInfo();
         List<SemanticQueryResponse.SchemaInfo.ColumnDef> columnDefs = new ArrayList<>();
 
@@ -1410,6 +1519,11 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
                 if (queryColumn != null) {
                     columnDef.setTitle(queryColumn.getCaption());
                     columnDef.setDataType(queryColumn.getType());
+                }
+                SemanticQueryResponse.SchemaInfo.DisplayFormat displayFormat =
+                        findDisplayFormat(columnName, outputFormattingByField);
+                if (displayFormat != null) {
+                    columnDef.setDisplayFormat(displayFormat);
                 }
 
                 columnDefs.add(columnDef);
@@ -1803,6 +1917,7 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         SemanticQueryRequest originalRequest;
         Map<String, Object> extData = new HashMap<>();
         List<String> warnings = new ArrayList<>();
+        Map<String, SemanticQueryResponse.SchemaInfo.DisplayFormat> outputFormattingByField = Map.of();
     }
 
     // ---- M7: raw-SQL execution for Compose Query ----
@@ -1879,6 +1994,14 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         // 4. groupBy
         if (request.getGroupBy() != null) {
             for (SemanticQueryRequest.GroupByItem item : request.getGroupBy()) {
+                if (item.getField() != null) {
+                    item.setField(resolver.resolve(item.getField()));
+                }
+            }
+        }
+
+        if (request.getOutputFormatting() != null) {
+            for (SemanticQueryRequest.OutputFormattingItem item : request.getOutputFormatting()) {
                 if (item.getField() != null) {
                     item.setField(resolver.resolve(item.getField()));
                 }

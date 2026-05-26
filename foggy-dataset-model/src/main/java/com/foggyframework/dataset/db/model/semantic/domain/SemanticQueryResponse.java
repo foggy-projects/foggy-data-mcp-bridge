@@ -190,6 +190,26 @@ public class SemanticQueryResponse {
 
             @ApiModelProperty(value = "时间窗口派生字段的语义说明")
             private String timeWindowDesc;
+
+            @ApiModelProperty(value = "输出显示格式元数据，仅供展示层使用，不代表 raw items 值已格式化")
+            private DisplayFormat displayFormat;
+        }
+
+        @Data
+        @ApiModel("输出显示格式")
+        public static class DisplayFormat {
+
+            @ApiModelProperty(value = "显示格式类型", example = "decimal")
+            private String kind;
+
+            @ApiModelProperty(value = "显示小数位数", example = "2")
+            private Integer scale;
+
+            @ApiModelProperty(value = "显示层舍入模式", example = "HALF_UP")
+            private String mode;
+
+            @ApiModelProperty(value = "格式作用域", example = "display_only")
+            private String scope;
         }
     }
     

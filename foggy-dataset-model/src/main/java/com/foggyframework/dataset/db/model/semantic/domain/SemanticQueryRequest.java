@@ -121,6 +121,9 @@ public class SemanticQueryRequest {
     @ApiModelProperty(value = "聚合后计算字段", notes = "在 groupBy 聚合结果外层计算，首期支持 ratioToTotal")
     private List<PostAggregateCalculationDef> postAggregateCalculations;
 
+    @ApiModelProperty(value = "输出显示格式元数据", notes = "仅用于前端/报表展示，不改变 SQL、过滤、排序、分桶、派生计算或 raw items 值")
+    private List<OutputFormattingItem> outputFormatting;
+
     @ApiModelProperty(value = "多维透视请求（与 columns 互斥）",
             notes = "当 pivot 非 null 时，引擎自动切换到 Pivot Pipeline（四阶段内存加工）。" +
                     "pivot 与 columns/timeWindow 不能同时出现")
@@ -233,5 +236,28 @@ public class SemanticQueryRequest {
 
         @ApiModelProperty(value = "排序方向", required = true, example = "asc")
         private String dir;
+    }
+
+    /**
+     * 输出显示格式项。
+     */
+    @Data
+    @ApiModel("输出显示格式项")
+    public static class OutputFormattingItem {
+
+        @ApiModelProperty(value = "最终输出字段名", required = true, example = "collectionRate")
+        private String field;
+
+        @ApiModelProperty(value = "显示格式类型，首期支持 decimal", required = true, example = "decimal")
+        private String kind;
+
+        @ApiModelProperty(value = "显示小数位数，首期允许 0-6", example = "2")
+        private Integer scale;
+
+        @ApiModelProperty(value = "显示层舍入模式，可选；不影响引擎计算", example = "HALF_UP")
+        private String mode;
+
+        @ApiModelProperty(value = "格式作用域，首期只允许 display_only", example = "display_only")
+        private String scope = "display_only";
     }
 }

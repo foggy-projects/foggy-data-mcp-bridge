@@ -519,6 +519,43 @@ class SemanticScaleFactorIntegrationTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("outputFormatting 只回传显示元数据且不改写 raw items 值")
+    void outputFormatting_attachesDisplayMetadataWithoutMutatingRawValues() {
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(List.of("orderId", "salesAmountYuan"));
+        request.setOutputFormatting(List.of(decimalFormat("salesAmountYuan", 2)));
+        request.setLimit(5);
+
+        SemanticQueryResponse response = executeSemantic(request);
+
+        SemanticQueryResponse.SchemaInfo.ColumnDef amountColumn = findSchemaColumn(response, "salesAmountYuan");
+        assertNotNull(amountColumn.getDisplayFormat(), "salesAmountYuan 应带 displayFormat 元数据");
+        assertEquals("decimal", amountColumn.getDisplayFormat().getKind());
+        assertEquals(2, amountColumn.getDisplayFormat().getScale());
+        assertEquals("HALF_UP", amountColumn.getDisplayFormat().getMode());
+        assertEquals("display_only", amountColumn.getDisplayFormat().getScope());
+
+        Object rawValue = response.getItems().get(0).get("salesAmountYuan");
+        assertTrue(rawValue instanceof Number,
+                "outputFormatting 不应把 raw item 数值格式化成字符串，实际: " + rawValue);
+    }
+
+    @Test
+    @DisplayName("outputFormatting 引用非最终输出字段时 fail-closed")
+    void outputFormatting_unknownOutputFieldRejected() {
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(List.of("salesAmountYuan"));
+        request.setOutputFormatting(List.of(decimalFormat("roundedSalesAmount", 2)));
+        request.setLimit(5);
+
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> semanticQueryServiceV3.queryModel(
+                        QUERY_MODEL, request, "execute", SemanticRequestContext.empty()));
+        assertTrue(ex.getMessage().contains("OUTPUT_FORMATTING_FIELD_NOT_IN_OUTPUT_SCHEMA"),
+                "异常应包含 outputFormatting 字段闭环校验错误，实际: " + ex.getMessage());
+    }
+
+    @Test
     @DisplayName("deniedColumns 命中底层物理列时拒绝 semanticScaleFactor 字段")
     void deniedPhysicalColumn_rejectsSemanticScaledMeasure() {
         DbQueryRequestDef request = new DbQueryRequestDef();
@@ -686,6 +723,25 @@ class SemanticScaleFactorIntegrationTest extends EcommerceTestSupport {
         AxisField axis = new AxisField();
         axis.setField(field);
         return axis;
+    }
+
+    private SemanticQueryRequest.OutputFormattingItem decimalFormat(String field, int scale) {
+        SemanticQueryRequest.OutputFormattingItem item = new SemanticQueryRequest.OutputFormattingItem();
+        item.setField(field);
+        item.setKind("decimal");
+        item.setScale(scale);
+        item.setMode("HALF_UP");
+        item.setScope("display_only");
+        return item;
+    }
+
+    private SemanticQueryResponse.SchemaInfo.ColumnDef findSchemaColumn(SemanticQueryResponse response, String name) {
+        assertNotNull(response.getSchema(), "响应应包含 schema");
+        assertNotNull(response.getSchema().getColumns(), "schema 应包含 columns");
+        return response.getSchema().getColumns().stream()
+                .filter(column -> name.equals(column.getName()))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("schema column not found: " + name));
     }
 
     private SemanticQueryRequest.GroupByItem semanticGroup(String field) {
