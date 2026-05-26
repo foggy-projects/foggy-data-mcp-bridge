@@ -29,6 +29,16 @@ export * from './components/composables'
 
 // 导出工具函数
 export { buildTableColumns, calculateColumnWidth } from './utils/schemaHelper'
+export {
+  buildPivotGridColumns,
+  flattenPivotLeafNodes,
+  validatePivotHeaderTree
+} from './utils/pivotHeaderTree'
+export type {
+  BuildPivotGridColumnsOptions,
+  PivotGridColumn,
+  PivotHeaderValidationResult
+} from './utils/pivotHeaderTree'
 
 // 导出 API 函数
 export {
@@ -114,6 +124,16 @@ export type {
   AfterQueryHookFn,
   ErrorQueryHookFn,
   MaybePromise,
+  PivotAxisField,
+  PivotAxisPage,
+  PivotAxisPageScope,
+  PivotAxisRole,
+  PivotHeaderNode,
+  PivotHeaderRole,
+  PivotMetric,
+  PivotShape,
+  PivotViewMode,
+  PivotViewModel,
   ListPresetVisibility,
   ListPresetPlacement,
   ListPresetConfig,

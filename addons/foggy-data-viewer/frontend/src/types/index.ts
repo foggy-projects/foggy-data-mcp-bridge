@@ -257,6 +257,19 @@ export interface QueryHookContext {
  */
 export type BeforeQueryHookFn = (ctx: QueryHookContext) => MaybePromise<void | false | FetchDataParams>
 
+export type {
+  PivotAxisField,
+  PivotAxisPage,
+  PivotAxisPageScope,
+  PivotAxisRole,
+  PivotHeaderNode,
+  PivotHeaderRole,
+  PivotMetric,
+  PivotShape,
+  PivotViewMode,
+  PivotViewModel
+} from './pivot'
+
 /**
  * 查询后钩子函数（成功时调用）
  * - 返回 FetchDataResult 替换查询结果
