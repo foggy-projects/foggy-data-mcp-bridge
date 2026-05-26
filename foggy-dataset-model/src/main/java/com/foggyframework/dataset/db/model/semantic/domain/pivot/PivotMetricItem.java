@@ -13,7 +13,7 @@ import lombok.Data;
  * <p>S11 设计约束：
  * <ul>
  *   <li>{@code expr} 第一版不开放（无计算引擎，静默丢失），输入即拒绝</li>
- *   <li>{@code type} 第一版只允许 {@code parentShare}</li>
+ *   <li>{@code type} 支持 {@code parentShare} 和 {@code baselineRatio}</li>
  *   <li>{@code parentShare} 必须有 {@code of}</li>
  *   <li>{@code axis} 第一版只允许 {@code rows}; {@code columns} 暂缓</li>
  *   <li>不暴露 ROLLUP_TO / CELL_AT / AXIS_MEMBER 字符串函数</li>
@@ -48,6 +48,9 @@ public class PivotMetricItem {
 
     /** 基准范围（baselineRatio 与 axis domain window 组合时使用） */
     private String baselineScope;
+
+    /** 分母范围（parentShare 与 rows window 组合时使用） */
+    private String denominatorScope;
 
     // ===== Factory Methods =====
 
@@ -135,6 +138,11 @@ public class PivotMetricItem {
                             "pivot.metrics 中 '" + name + "' 的 axis='" + axis +
                             "' 当前版本不支持。第一版仅支持 axis=rows");
                 }
+                if (denominatorScope != null && !"prePageParent".equals(denominatorScope)) {
+                    throw new IllegalArgumentException(
+                            "pivot.metrics 中 parentShare 类型 '" + name + "' 的 denominatorScope='" +
+                            denominatorScope + "' 当前版本不支持。当前仅支持 prePageParent");
+                }
             } else if ("baselineRatio".equals(type)) {
                 if (of == null || of.isBlank()) {
                     throw new IllegalArgumentException(
@@ -152,6 +160,10 @@ public class PivotMetricItem {
                     throw new IllegalArgumentException(
                             "pivot.metrics 中 baselineRatio 类型 '" + name + "' 的 baselineScope='" +
                             baselineScope + "' 当前版本不支持。当前仅支持 prePageAxisDomain");
+                }
+                if (denominatorScope != null) {
+                    throw new IllegalArgumentException(
+                            "pivot.metrics 中 baselineRatio 类型 '" + name + "' 不支持 denominatorScope");
                 }
                 if (level != null || parentLevel != null) {
                     throw new IllegalArgumentException(

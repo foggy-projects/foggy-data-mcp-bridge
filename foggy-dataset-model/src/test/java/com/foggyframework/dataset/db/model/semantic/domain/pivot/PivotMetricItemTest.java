@@ -122,6 +122,31 @@ class PivotMetricItemTest {
         }
 
         @Test
+        @DisplayName("parentShare denominatorScope=prePageParent → 通过")
+        void testParentSharePrePageParentDenominatorScope() {
+            PivotMetricItem item = new PivotMetricItem();
+            item.setName("share");
+            item.setType("parentShare");
+            item.setOf("salesAmount");
+            item.setDenominatorScope("prePageParent");
+
+            assertDoesNotThrow(item::validate);
+        }
+
+        @Test
+        @DisplayName("parentShare 未支持 denominatorScope → 拒绝")
+        void testParentShareUnsupportedDenominatorScopeRejected() {
+            PivotMetricItem item = new PivotMetricItem();
+            item.setName("share");
+            item.setType("parentShare");
+            item.setOf("salesAmount");
+            item.setDenominatorScope("visiblePageParent");
+
+            IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, item::validate);
+            assertTrue(ex.getMessage().contains("denominatorScope"));
+        }
+
+        @Test
         @DisplayName("expr 含 ROLLUP_TO → 拒绝（expr 整体禁止）")
         void testExprForbiddenRollupTo() {
             PivotMetricItem item = new PivotMetricItem();

@@ -48,6 +48,21 @@ public class ParentShareCalculator {
             PivotRequest pivot,
             List<String> rowFields,
             List<String> colFields) {
+        return apply(resultSet, pivot, rowFields, colFields, Collections.emptyMap());
+    }
+
+    /**
+     * 对结果集中的每行计算 parentShare，并优先使用外部父级分母索引。
+     *
+     * <p>外部分母用于 {@code denominatorScope=prePageParent}：可在 rows window
+     * 截断前构建父级分母，再对截断后的可见行计算占比。</p>
+     */
+    public static List<Map<String, Object>> apply(
+            List<Map<String, Object>> resultSet,
+            PivotRequest pivot,
+            List<String> rowFields,
+            List<String> colFields,
+            Map<String, Map<String, Number>> externalParentAggIndex) {
 
         List<PivotMetricItem> parentShareMetrics = pivot.getParentShareMetrics();
         if (parentShareMetrics.isEmpty()) {
@@ -63,8 +78,11 @@ public class ParentShareCalculator {
                     resolved.axis, resolved.level, resolved.parentLevel);
 
             // 构建父级聚合索引：groupKey → sum of 'of' metric
-            Map<String, Double> parentAggIndex = buildParentAggIndex(
+            Map<String, Double> visibleParentAggIndex = buildParentAggIndex(
                     resultSet, resolved, colFields);
+            Map<String, Number> externalParentValues = externalParentAggIndex == null
+                    ? Collections.emptyMap()
+                    : externalParentAggIndex.getOrDefault(psMetric.getName(), Collections.emptyMap());
 
             // 对每个非 subtotal 行计算 parentShare
             for (Map<String, Object> row : resultSet) {
@@ -81,7 +99,10 @@ public class ParentShareCalculator {
                 }
 
                 String parentKey = buildParentKey(row, resolved, colFields);
-                Double parentVal = parentAggIndex.get(parentKey);
+                Number externalParentVal = externalParentValues.get(parentKey);
+                Double parentVal = externalParentVal != null
+                        ? externalParentVal.doubleValue()
+                        : visibleParentAggIndex.get(parentKey);
 
                 if (parentVal == null || parentVal == 0.0) {
                     row.put(psMetric.getName(), null);
@@ -93,6 +114,33 @@ public class ParentShareCalculator {
         }
 
         return resultSet;
+    }
+
+    /**
+     * 为 {@code denominatorScope=prePageParent} 构建外部父级分母索引。
+     */
+    public static Map<String, Map<String, Number>> buildExternalParentAggIndex(
+            List<Map<String, Object>> resultSet,
+            PivotRequest pivot,
+            List<String> rowFields,
+            List<String> colFields) {
+
+        List<PivotMetricItem> parentShareMetrics = pivot.getParentShareMetrics();
+        if (parentShareMetrics.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        Map<String, Map<String, Number>> result = new LinkedHashMap<>();
+        for (PivotMetricItem psMetric : parentShareMetrics) {
+            if (!"prePageParent".equals(psMetric.getDenominatorScope())) {
+                continue;
+            }
+            ResolvedParentShare resolved = resolve(psMetric, rowFields, colFields, pivot);
+            resolved.ofMetric = psMetric.getOf();
+            Map<String, Double> index = buildParentAggIndex(resultSet, resolved, colFields);
+            result.put(psMetric.getName(), new LinkedHashMap<>(index));
+        }
+        return result;
     }
 
     /**

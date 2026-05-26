@@ -168,6 +168,8 @@ public class PivotPipeline {
         List<Map<String, Object>> resultSet;
         Map<String, Map<String, Number>> baselineRatioExternalValues = Collections.emptyMap();
         List<Map<String, Object>> baselineRatioEvidence = Collections.emptyList();
+        Map<String, Map<String, Number>> parentShareExternalValues = Collections.emptyMap();
+        List<Map<String, Object>> parentShareEvidence = Collections.emptyList();
 
         String sqlPushdownSkipReason = axisDomainSelectionRequest
                 ? "axisDomainSelectionRequiresTwoPhaseQuery"
@@ -237,6 +239,13 @@ public class PivotPipeline {
             // 2.1 轴级 Having 过滤（SQL pushdown 场景已在 SQL 层完成）
             resultSet = AxisHavingFilter.apply(resultSet, pivot.getRows(), metrics);
             resultSet = AxisHavingFilter.apply(resultSet, pivot.getColumns(), metrics);
+
+            if (requiresPrePageParentDenominator(pivot)) {
+                parentShareExternalValues = ParentShareCalculator.buildExternalParentAggIndex(
+                        resultSet, pivot, rowFields, colFields);
+                parentShareEvidence = buildParentSharePrePageParentEvidence(
+                        pivot, rowFields, colFields, parentShareExternalValues, resultSet.size());
+            }
 
             // 2.2 轴向 TopN 截断（SQL pushdown 场景已在 SQL 层完成）
             resultSet = AxisTopNTruncator.apply(resultSet, pivot.getRows());
@@ -321,7 +330,7 @@ public class PivotPipeline {
         if (!pivot.getParentShareMetrics().isEmpty()) {
             logger.debug("[Pivot] Phase 2.8: ParentShare calculation, {} metrics",
                     pivot.getParentShareMetrics().size());
-            ParentShareCalculator.apply(resultSet, pivot, rowFields, colFields);
+            ParentShareCalculator.apply(resultSet, pivot, rowFields, colFields, parentShareExternalValues);
         }
 
         // ===== Phase 2.9: BaselineRatio 基准引用计算 =====
@@ -352,7 +361,7 @@ public class PivotPipeline {
         }
 
         // ===== 构建响应 =====
-        return buildPivotResponse(pivotResult, startTime, baselineRatioEvidence);
+        return buildPivotResponse(pivotResult, startTime, baselineRatioEvidence, parentShareEvidence);
     }
 
     /**
@@ -691,6 +700,43 @@ public class PivotPipeline {
     private boolean requiresPrePageAxisDomainBaseline(PivotRequest pivot) {
         return pivot != null && pivot.getBaselineRatioMetrics().stream()
                 .anyMatch(metric -> "prePageAxisDomain".equals(metric.getBaselineScope()));
+    }
+
+    private boolean requiresPrePageParentDenominator(PivotRequest pivot) {
+        return pivot != null && pivot.getParentShareMetrics().stream()
+                .anyMatch(metric -> "prePageParent".equals(metric.getDenominatorScope()));
+    }
+
+    private List<Map<String, Object>> buildParentSharePrePageParentEvidence(
+            PivotRequest pivot, List<String> rowFields, List<String> colFields,
+            Map<String, Map<String, Number>> parentValuesByMetric, int prePageRows) {
+
+        if (parentValuesByMetric == null || parentValuesByMetric.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<Map<String, Object>> evidence = new ArrayList<>();
+        for (PivotMetricItem metric : pivot.getParentShareMetrics()) {
+            if (!"prePageParent".equals(metric.getDenominatorScope())) {
+                continue;
+            }
+            Map<String, Number> parentValues = parentValuesByMetric.getOrDefault(
+                    metric.getName(), Collections.emptyMap());
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("metric", metric.getName());
+            item.put("of", metric.getOf());
+            item.put("axis", metric.getAxis() == null ? "rows" : metric.getAxis());
+            item.put("level", metric.getLevel());
+            item.put("parentLevel", metric.getParentLevel());
+            item.put("denominatorScope", metric.getDenominatorScope());
+            item.put("rowFields", rowFields);
+            item.put("columnFields", colFields);
+            item.put("prePageRows", prePageRows);
+            item.put("parentGroups", parentValues.size());
+            item.put("source", "preTopNParentAggIndex");
+            evidence.add(item);
+        }
+        return evidence;
     }
 
     private String buildPivotKey(Map<String, Object> row, List<String> fields) {
@@ -1335,7 +1381,15 @@ public class PivotPipeline {
         }
 
         if (!pivot.getParentShareMetrics().isEmpty()) {
-            throw new IllegalArgumentException("domainSlice/start/offset 当前不支持 parentShare 派生指标");
+            if (!allParentShareMetricsUsePrePageParent(pivot)) {
+                throw new IllegalArgumentException(
+                        "domainSlice/start/offset 与 parentShare 组合时必须显式指定 denominatorScope=prePageParent");
+            }
+            if (!isSupportedParentSharePrePageParentWindow(pivot)) {
+                throw new IllegalArgumentException(
+                        "denominatorScope=prePageParent 当前仅支持多层 rows 子级 start/offset/limit 窗口，" +
+                        "暂不支持 domainSlice 或 columns 轴窗口");
+            }
         }
         if (!pivot.getBaselineRatioMetrics().isEmpty() && !allBaselineRatioMetricsUsePrePageAxisDomain(pivot)) {
             throw new IllegalArgumentException(
@@ -1346,6 +1400,19 @@ public class PivotPipeline {
     private boolean allBaselineRatioMetricsUsePrePageAxisDomain(PivotRequest pivot) {
         return pivot.getBaselineRatioMetrics().stream()
                 .allMatch(metric -> "prePageAxisDomain".equals(metric.getBaselineScope()));
+    }
+
+    private boolean allParentShareMetricsUsePrePageParent(PivotRequest pivot) {
+        return pivot.getParentShareMetrics().stream()
+                .allMatch(metric -> "prePageParent".equals(metric.getDenominatorScope()));
+    }
+
+    private boolean isSupportedParentSharePrePageParentWindow(PivotRequest pivot) {
+        return !hasAxisDomainSliceRequest(pivot.getRows())
+                && !hasAxisDomainSliceRequest(pivot.getColumns())
+                && hasAxisStartOffsetRequest(pivot.getRows())
+                && !hasAxisStartOffsetRequest(pivot.getColumns())
+                && pivot.getRowLevelCount() >= 2;
     }
 
     private void validateAxisFieldsDomainSelection(List<AxisField> fields, String axisName) {
@@ -1422,7 +1489,8 @@ public class PivotPipeline {
      * 将 PivotResult 转换为 SemanticQueryResponse
      */
     private SemanticQueryResponse buildPivotResponse(PivotResult pivotResult, long startTime,
-            List<Map<String, Object>> baselineRatioEvidence) {
+            List<Map<String, Object>> baselineRatioEvidence,
+            List<Map<String, Object>> parentShareEvidence) {
         SemanticQueryResponse response = new SemanticQueryResponse();
 
         // 将 pivot 结果放入 items（对于 flat 模式）或专用字段
@@ -1463,6 +1531,9 @@ public class PivotPipeline {
         extra.put("format", pivotResult.getFormat());
         if (baselineRatioEvidence != null && !baselineRatioEvidence.isEmpty()) {
             extra.put("baselineRatioEvidence", baselineRatioEvidence);
+        }
+        if (parentShareEvidence != null && !parentShareEvidence.isEmpty()) {
+            extra.put("parentShareEvidence", parentShareEvidence);
         }
         debugInfo.setExtra(extra);
         response.setDebug(debugInfo);

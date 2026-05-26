@@ -42,6 +42,35 @@ class ParentShareCalculatorTest {
     }
 
     @Test
+    @DisplayName("外部分母索引用于 prePageParent：可见子集仍按截断前父级求占比")
+    void testExternalParentAggIndex() {
+        PivotMetricItem share = psMetric("share", "salesAmount");
+        share.setDenominatorScope("prePageParent");
+        PivotRequest pivot = buildPivot(
+                List.of("category", "subCategory"),
+                List.of(),
+                List.of("salesAmount"),
+                List.of(share)
+        );
+
+        List<Map<String, Object>> prePageRows = new ArrayList<>();
+        prePageRows.add(row("category", "A", "subCategory", "A1", "salesAmount", 30.0));
+        prePageRows.add(row("category", "A", "subCategory", "A2", "salesAmount", 70.0));
+
+        Map<String, Map<String, Number>> externalIndex =
+                ParentShareCalculator.buildExternalParentAggIndex(prePageRows, pivot,
+                        List.of("category", "subCategory"), List.of());
+
+        List<Map<String, Object>> visibleRows = new ArrayList<>();
+        visibleRows.add(new LinkedHashMap<>(prePageRows.get(0)));
+
+        ParentShareCalculator.apply(visibleRows, pivot,
+                List.of("category", "subCategory"), List.of(), externalIndex);
+
+        assertEquals(0.3, ((Number) visibleRows.get(0).get("share")).doubleValue(), 0.001);
+    }
+
+    @Test
     @DisplayName("除零 → null")
     void testDivideByZero() {
         PivotRequest pivot = buildPivot(

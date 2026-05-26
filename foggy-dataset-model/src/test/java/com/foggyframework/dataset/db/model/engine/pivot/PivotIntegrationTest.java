@@ -211,6 +211,58 @@ class PivotIntegrationTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("v3.7: parentShare prePageParent 按子级 window 前父级分母计算")
+    void testParentSharePrePageParentWithChildWindow() {
+        insertParentChildWindowFixture();
+        try {
+            PivotRequest pivot = new PivotRequest();
+
+            AxisField status = axis("orderStatus");
+            AxisField paymentMethod = axis("paymentMethod");
+            paymentMethod.setStart(1);
+            paymentMethod.setLimit(1);
+            paymentMethod.setOrderBy(List.of("-salesAmount"));
+
+            pivot.setRows(List.of(status, paymentMethod));
+            List<PivotMetricItem> metricItems = new ArrayList<>();
+            metricItems.add(PivotMetricItem.ofNative("salesAmount"));
+            PivotMetricItem paymentShare = new PivotMetricItem();
+            paymentShare.setName("paymentShare");
+            paymentShare.setType("parentShare");
+            paymentShare.setOf("salesAmount");
+            paymentShare.setDenominatorScope("prePageParent");
+            metricItems.add(paymentShare);
+            pivot.setMetricItems(metricItems);
+            pivot.setOutputFormat("flat");
+
+            SemanticQueryRequest request = new SemanticQueryRequest();
+            request.setSlice(List.of(slice("orderStatus", "in",
+                    List.of(PARENT_CHILD_WINDOW_STATUS_A, PARENT_CHILD_WINDOW_STATUS_B))));
+            request.setPivot(pivot);
+
+            SemanticQueryResponse response = execute(request);
+            List<Map<String, Object>> items = response.getItems();
+            assertFalse(items.isEmpty(), "parentShare + prePageParent 应返回可见子级窗口");
+
+            for (Map<String, Object> item : items) {
+                assertEquals("PDS_PAY_KEEP", item.get("paymentMethod"));
+                assertEquals(200d / 600d, ((Number) item.get("paymentShare")).doubleValue(), 0.0001,
+                        "占比应使用 window 前父级分母 300+200+100");
+            }
+
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> evidence = (List<Map<String, Object>>) response.getDebug()
+                    .getExtra().get("parentShareEvidence");
+            assertNotNull(evidence, "debug.extra 应包含 parentShareEvidence");
+            assertEquals("prePageParent", evidence.get(0).get("denominatorScope"));
+            assertEquals("preTopNParentAggIndex", evidence.get(0).get("source"));
+            assertEquals(2, ((Number) evidence.get(0).get("parentGroups")).intValue());
+        } finally {
+            deleteParentChildWindowFixture();
+        }
+    }
+
+    @Test
     @DisplayName("CrossJoin 骨架补全 - 插入 null 单元格")
     void testCrossJoin() {
         PivotRequest pivot = new PivotRequest();
@@ -1242,12 +1294,13 @@ class PivotIntegrationTest extends EcommerceTestSupport {
         assertTrue(ex.getMessage().contains("parentShare"),
                 "parentShare + domainSlice/start/offset 应说明派生指标 scope 尚未定义: " + ex.getMessage());
 
-        AxisField pagedRow = axis("product$categoryName");
+        AxisField parentRow = axis("orderStatus");
+        AxisField pagedRow = axis("paymentMethod");
         pagedRow.setStart(1);
         pagedRow.setLimit(1);
 
         PivotRequest pagedPivot = new PivotRequest();
-        pagedPivot.setRows(List.of(pagedRow));
+        pagedPivot.setRows(List.of(parentRow, pagedRow));
         pagedPivot.setMetricItems(items);
         pagedPivot.setOutputFormat("flat");
 
@@ -1256,7 +1309,7 @@ class PivotIntegrationTest extends EcommerceTestSupport {
 
         IllegalArgumentException pagedEx = assertThrows(IllegalArgumentException.class,
                 () -> execute(pagedRequest));
-        assertTrue(pagedEx.getMessage().contains("parentShare"),
+        assertTrue(pagedEx.getMessage().contains("denominatorScope=prePageParent"),
                 "parentShare + start/offset 应说明 denominator scope 尚未定义: " + pagedEx.getMessage());
     }
 
