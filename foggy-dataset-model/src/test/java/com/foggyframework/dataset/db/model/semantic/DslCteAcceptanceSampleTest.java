@@ -2381,6 +2381,24 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
+    @DisplayName("DSL_CTE relation ordered bucket defers non-equality label postSlice")
+    void validationDefersRelationOrderedBucketNonEqualityLabelPostSlice() {
+        Map<String, Object> plan = splitStageRelationDeriveAliasPlan();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(2).put("derived", List.of(
+                derived("riskLevel",
+                        "case when collectionRate < 0.8 then 'low' "
+                                + "when collectionRate > 1 then 'high' else 'normal' end")));
+        stages.get(3).put("filters", List.of(filter("riskLevel", ">", "low")));
+
+        List<String> unsupported = bridgeUnsupported(plan);
+
+        assertTrue(unsupported.stream()
+                .anyMatch(msg -> msg.contains("supports only equality postSlice filters on signed label aliases")));
+    }
+
+    @Test
     @DisplayName("DSL_CTE relation ordered bucket defers multi-field CASE")
     void validationDefersRelationOrderedBucketWithMultipleFields() {
         Map<String, Object> plan = splitStageRelationDeriveAliasPlan();

@@ -115,6 +115,41 @@ class DslCteRelationMetricFixtureIntegrationTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("DSL_CTE relation ordered numeric bucket label postSlice executes and matches SQLite baseline")
+    void relationOrderedNumericBucketLabelPostSliceSqlMatchesManualBaseline() {
+        assumeCommonTableExpressionsSupported();
+
+        List<Map<String, Object>> manualRows = categoryProfitBucketNormalRows();
+        SemanticQueryRequest request = dslCtePlan(categoryProfitBucketLabelPostSlicePlan());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SqlGenerationResult generated = semanticQueryServiceV3.generateSql(
+                "FactSalesQueryModel", request, SemanticRequestContext.empty());
+
+        assertNotNull(generated);
+        assertNotNull(generated.getSql());
+        assertTrue(generated.getSql().contains("dsl_cte_metric_ratio_1"), generated.getSql());
+        assertTrue(generated.getSql().contains(
+                        "CASE WHEN \"profitRate\" < 0.1 THEN 'very_low' "
+                                + "WHEN \"profitRate\" < 0.2 THEN 'low' ELSE 'normal' END AS \"profitBand\""),
+                generated.getSql());
+        assertTrue(generated.getSql().contains("FROM dsl_cte_metric_ratio\nWHERE \"profitBand\" = ?"),
+                generated.getSql());
+        assertTrue(generated.getSql().contains("ORDER BY \"profitRate\" DESC, \"product$categoryName\" ASC"),
+                generated.getSql());
+        assertEquals(List.of("normal", 5), generated.getParams());
+
+        List<Map<String, Object>> rows = new ArrayList<>(jdbcTemplate.queryForList(
+                generated.getSql(), generated.getParams().toArray(new Object[0])));
+
+        assertTrue(!rows.isEmpty(), "fixture should contain at least one normal profit bucket row");
+        assertEquals(manualRows.size(), rows.size());
+        for (int i = 0; i < manualRows.size(); i++) {
+            assertGeneratedCategoryProfitBandRowMatchesManual(rows.get(i), manualRows.get(i));
+        }
+    }
+
+    @Test
     @DisplayName("DSL_CTE relation metric difference orderBy bridge executes and matches SQLite baseline")
     void relationMetricDifferenceOrderByBridgeSqlMatchesManualBaseline() {
         assumeCommonTableExpressionsSupported();
@@ -246,6 +281,29 @@ class DslCteRelationMetricFixtureIntegrationTest extends EcommerceTestSupport {
                 GROUP BY dp.category_name
                 ORDER BY profitRate DESC
                 LIMIT 2
+                """);
+    }
+
+    private List<Map<String, Object>> categoryProfitBucketNormalRows() {
+        return jdbcTemplate.queryForList("""
+                SELECT *
+                FROM (
+                    SELECT dp.category_name AS categoryName,
+                           SUM(fs.sales_amount) AS salesAmount,
+                           SUM(fs.profit_amount) AS profitAmount,
+                           1.0 * SUM(fs.profit_amount) / NULLIF(SUM(fs.sales_amount), 0) AS profitRate,
+                           CASE WHEN 1.0 * SUM(fs.profit_amount) / NULLIF(SUM(fs.sales_amount), 0) < 0.1
+                                THEN 'very_low'
+                                WHEN 1.0 * SUM(fs.profit_amount) / NULLIF(SUM(fs.sales_amount), 0) < 0.2
+                                THEN 'low'
+                                ELSE 'normal' END AS profitBand
+                    FROM fact_sales fs
+                    LEFT JOIN dim_product dp ON fs.product_key = dp.product_key
+                    GROUP BY dp.category_name
+                )
+                WHERE profitBand = 'normal'
+                ORDER BY profitRate DESC, categoryName ASC
+                LIMIT 5
                 """);
     }
 
@@ -425,6 +483,41 @@ class DslCteRelationMetricFixtureIntegrationTest extends EcommerceTestSupport {
                                 "orderBy", List.of(
                                         m("field", "profitRate", "dir", "DESC")),
                                 "limit", 2)
+                ),
+                "output", List.of("product$categoryName", "salesAmount", "profitAmount", "profitRate",
+                        "profitBand")
+        );
+    }
+
+    private static Map<String, Object> categoryProfitBucketLabelPostSlicePlan() {
+        return m(
+                "stages", List.of(
+                        stage("category_profit", "aggregate",
+                                "input", m("model", "FactSalesQueryModel"),
+                                "groupBy", List.of("product$categoryName"),
+                                "metrics", List.of(
+                                        m("name", "salesAmount", "expr", "sum(salesAmount)"),
+                                        m("name", "profitAmount", "expr", "sum(profitAmount)"))),
+                        stage("category_profit_rate", "derive",
+                                "inputs", List.of("category_profit"),
+                                "derived", List.of(
+                                        m("name", "profitRate", "expr", "profitAmount / nullif(salesAmount, 0)"))),
+                        stage("category_profit_band", "derive",
+                                "inputs", List.of("category_profit_rate"),
+                                "derived", List.of(
+                                        m("name", "profitBand",
+                                                "expr", "case when profitRate < 0.1 then 'very_low' "
+                                                        + "when profitRate < 0.2 then 'low' else 'normal' end"))),
+                        stage("normal_profit_categories", "postSlice",
+                                "inputs", List.of("category_profit_band"),
+                                "filters", List.of(
+                                        m("field", "profitBand", "op", "=", "value", "normal"))),
+                        stage("top_normal_profit_categories", "orderBy",
+                                "inputs", List.of("normal_profit_categories"),
+                                "orderBy", List.of(
+                                        m("field", "profitRate", "dir", "DESC"),
+                                        m("field", "product$categoryName", "dir", "ASC")),
+                                "limit", 5)
                 ),
                 "output", List.of("product$categoryName", "salesAmount", "profitAmount", "profitRate",
                         "profitBand")

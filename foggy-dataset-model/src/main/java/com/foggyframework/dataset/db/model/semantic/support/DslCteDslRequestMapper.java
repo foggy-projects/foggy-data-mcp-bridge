@@ -495,6 +495,7 @@ public final class DslCteDslRequestMapper {
         MetricMapping metrics = metrics(aggregate.get("metrics"), unsupported);
         List<ResultStageDerivedMetrics> derivedMetricStages = new ArrayList<>();
         List<String> derivedAliases = new ArrayList<>();
+        List<String> labelAliases = new ArrayList<>();
         List<String> formulaAliases = new ArrayList<>(metrics.aliases());
         for (Map<String, Object> deriveStage : deriveStages) {
             ResultStageDerivedMetrics derivedMetrics = relationResultStageMetricDerived(
@@ -504,11 +505,12 @@ public final class DslCteDslRequestMapper {
             }
             derivedMetricStages.add(derivedMetrics);
             derivedAliases.addAll(derivedMetrics.aliases());
+            labelAliases.addAll(derivedMetrics.labelAliases());
             formulaAliases.addAll(derivedMetrics.aliases());
         }
         List<ResultStageFilter> filters = resultStageAliasFilters(
                 postSliceStage == null ? null : postSliceStage.get("filters"),
-                derivedAliases, "relation result-stage metric ratio bridge", unsupported);
+                derivedAliases, labelAliases, "relation result-stage metric ratio bridge", unsupported);
 
         List<String> groupBy = stringList(aggregate.get("groupBy"));
         List<String> output = stringList(ctePlan.get("output"));
@@ -3758,6 +3760,15 @@ public final class DslCteDslRequestMapper {
                 List.of("=", "!=", "<>", "<", "<=", ">", ">="), unsupported);
     }
 
+    private static List<ResultStageFilter> resultStageAliasFilters(Object rawFilters, List<String> signedAliases,
+                                                                  List<String> stringAliases, String bridgeName,
+                                                                  List<String> unsupported) {
+        return resultStageAliasFilters(rawFilters, signedAliases, stringAliases, bridgeName,
+                "postSlice only on signed derived alias",
+                "supports only simple comparison postSlice filters",
+                List.of("=", "!=", "<>", "<", "<=", ">", ">="), unsupported);
+    }
+
     private static List<ResultStageFilter> resultStageAliasFilters(Object rawFilters, String signedAlias,
                                                                   String bridgeName,
                                                                   String aliasMessage,
@@ -3769,6 +3780,17 @@ public final class DslCteDslRequestMapper {
     }
 
     private static List<ResultStageFilter> resultStageAliasFilters(Object rawFilters, List<String> signedAliases,
+                                                                  String bridgeName,
+                                                                  String aliasMessage,
+                                                                  String operatorMessage,
+                                                                  List<String> allowedOps,
+                                                                  List<String> unsupported) {
+        return resultStageAliasFilters(rawFilters, signedAliases, List.of(), bridgeName, aliasMessage,
+                operatorMessage, allowedOps, unsupported);
+    }
+
+    private static List<ResultStageFilter> resultStageAliasFilters(Object rawFilters, List<String> signedAliases,
+                                                                  List<String> stringAliases,
                                                                   String bridgeName,
                                                                   String aliasMessage,
                                                                   String operatorMessage,
@@ -3792,6 +3814,19 @@ public final class DslCteDslRequestMapper {
                 continue;
             }
             Object value = filter.get("value");
+            if (stringAliases.contains(field)) {
+                if (!List.of("=", "!=", "<>").contains(sqlOp)) {
+                    unsupported.add(bridgeName + " supports only equality postSlice filters on signed label aliases");
+                    continue;
+                }
+                String label = stringValue(value);
+                if (!safeCaseLabelLiteral(label)) {
+                    unsupported.add(bridgeName + " label postSlice value must be a short single-line string");
+                    continue;
+                }
+                result.add(new ResultStageFilter(field, sqlOp, label));
+                continue;
+            }
             if (!(value instanceof Number)) {
                 unsupported.add(bridgeName + " postSlice value must be numeric");
                 continue;
@@ -4139,6 +4174,14 @@ public final class DslCteDslRequestMapper {
             result.addAll(ratios.stream().map(MetricRatioDerived::ratioAlias).toList());
             result.addAll(arithmetic.stream().map(MetricArithmeticDerived::alias).toList());
             return result;
+        }
+
+        List<String> labelAliases() {
+            return arithmetic.stream()
+                    .filter(item -> "relation_metric_case_label".equals(item.kind())
+                            || "relation_metric_ordered_bucket".equals(item.kind()))
+                    .map(MetricArithmeticDerived::alias)
+                    .toList();
         }
     }
 
