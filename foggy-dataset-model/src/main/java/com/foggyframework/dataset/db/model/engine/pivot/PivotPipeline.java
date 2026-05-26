@@ -167,6 +167,7 @@ public class PivotPipeline {
         boolean cascadeRequest = PivotCascadeRules.isCascadeRequest(pivot);
         List<Map<String, Object>> resultSet;
         Map<String, Map<String, Number>> baselineRatioExternalValues = Collections.emptyMap();
+        List<Map<String, Object>> baselineRatioEvidence = Collections.emptyList();
 
         String sqlPushdownSkipReason = axisDomainSelectionRequest
                 ? "axisDomainSelectionRequiresTwoPhaseQuery"
@@ -182,6 +183,7 @@ public class PivotPipeline {
                     rowFields, colFields, metrics, pivot, queryModel);
             resultSet = axisDomainResult.rows();
             baselineRatioExternalValues = axisDomainResult.baselineRatioExternalValues();
+            baselineRatioEvidence = axisDomainResult.baselineRatioEvidence();
             axisDomainSelectionUsed = true;
         } else if (sqlPushdownSkipReason == null) {
             logger.debug("[Pivot] Phase 1: SQL pushdown path for model={}", model);
@@ -350,7 +352,7 @@ public class PivotPipeline {
         }
 
         // ===== 构建响应 =====
-        return buildPivotResponse(pivotResult, startTime);
+        return buildPivotResponse(pivotResult, startTime, baselineRatioEvidence);
     }
 
     /**
@@ -422,7 +424,7 @@ public class PivotPipeline {
         }
 
         if ((rowDomain != null && rowDomain.isEmpty()) || (columnDomain != null && columnDomain.isEmpty())) {
-            return new AxisDomainSelectionResult(Collections.emptyList(), Collections.emptyMap());
+            return new AxisDomainSelectionResult(Collections.emptyList(), Collections.emptyMap(), Collections.emptyList());
         }
 
         DomainConstrainedCellRequest cellRequest = buildAxisDomainConstrainedCellRequest(
@@ -430,7 +432,7 @@ public class PivotPipeline {
         List<Map<String, Object>> cellRows = executePhase1(model, cellRequest.request(), cellRequest.context(),
                 rowFields, colFields, metrics, queryModel);
         if (cellRows.isEmpty()) {
-            return new AxisDomainSelectionResult(cellRows, Collections.emptyMap());
+            return new AxisDomainSelectionResult(cellRows, Collections.emptyMap(), Collections.emptyList());
         }
 
         List<Map<String, Object>> filtered = cellRows;
@@ -440,10 +442,12 @@ public class PivotPipeline {
         if (columnDomain != null) {
             filtered = filterByAxisDomain(filtered, pivot.getColumns().get(0).getField(), columnDomain);
         }
-        Map<String, Map<String, Number>> baselineRatioExternalValues =
+        BaselineRatioPrePageAxisDomainResult baselineRatioPrePageResult =
                 executeBaselineRatioPrePageAxisDomain(model, originalRequest, context,
-                        rowFields, colFields, metrics, pivot, queryModel, rowDomain, prePageColumnDomain);
-        return new AxisDomainSelectionResult(filtered, baselineRatioExternalValues);
+                        rowFields, colFields, metrics, pivot, queryModel,
+                        rowDomain, columnDomain, prePageColumnDomain);
+        return new AxisDomainSelectionResult(filtered, baselineRatioPrePageResult.values(),
+                baselineRatioPrePageResult.evidence());
     }
 
     private DomainConstrainedCellRequest buildAxisDomainConstrainedCellRequest(
@@ -607,17 +611,17 @@ public class PivotPipeline {
         return domain;
     }
 
-    private Map<String, Map<String, Number>> executeBaselineRatioPrePageAxisDomain(
+    private BaselineRatioPrePageAxisDomainResult executeBaselineRatioPrePageAxisDomain(
             String model, SemanticQueryRequest originalRequest,
             SemanticRequestContext context,
             List<String> rowFields, List<String> colFields,
             List<String> metrics, PivotRequest pivot, QueryModel queryModel,
-            Set<Object> rowDomain, Set<Object> prePageColumnDomain) {
+            Set<Object> rowDomain, Set<Object> visibleColumnDomain, Set<Object> prePageColumnDomain) {
 
         if (!requiresPrePageAxisDomainBaseline(pivot) ||
                 prePageColumnDomain == null || prePageColumnDomain.isEmpty() ||
                 colFields == null || colFields.size() != 1) {
-            return Collections.emptyMap();
+            return BaselineRatioPrePageAxisDomainResult.empty();
         }
 
         List<Object> orderedColumnDomain = new ArrayList<>(prePageColumnDomain);
@@ -637,11 +641,12 @@ public class PivotPipeline {
                 baselineRequest.context(), rowFields, colFields, metrics, queryModel);
 
         if (baselineRows.isEmpty()) {
-            return Collections.emptyMap();
+            return BaselineRatioPrePageAxisDomainResult.empty();
         }
 
         String columnField = colFields.get(0);
         Map<String, Map<String, Number>> result = new LinkedHashMap<>();
+        List<Map<String, Object>> evidence = new ArrayList<>();
         for (PivotMetricItem br : pivot.getBaselineRatioMetrics()) {
             Object targetColumn = targetColumnByMetric.get(br.getName());
             Map<String, Number> byRow = new LinkedHashMap<>();
@@ -655,8 +660,32 @@ public class PivotPipeline {
                 }
             }
             result.put(br.getName(), byRow);
+            evidence.add(buildBaselineRatioPrePageAxisDomainEvidence(
+                    br, columnField, targetColumn, visibleColumnDomain, orderedColumnDomain, byRow));
         }
-        return result;
+        return new BaselineRatioPrePageAxisDomainResult(result, evidence);
+    }
+
+    private Map<String, Object> buildBaselineRatioPrePageAxisDomainEvidence(
+            PivotMetricItem metric, String columnField, Object baselineColumnKey,
+            Set<Object> visibleColumnDomain, List<Object> orderedColumnDomain,
+            Map<String, Number> baselineValuesByRow) {
+
+        Map<String, Object> evidence = new LinkedHashMap<>();
+        evidence.put("metric", metric.getName());
+        evidence.put("of", metric.getOf());
+        evidence.put("axis", metric.getAxis());
+        evidence.put("baseline", metric.getBaseline());
+        evidence.put("baselineScope", metric.getBaselineScope());
+        evidence.put("columnField", columnField);
+        evidence.put("baselineColumnKey", baselineColumnKey);
+        evidence.put("baselineColumnVisible",
+                visibleColumnDomain == null || visibleColumnDomain.contains(baselineColumnKey));
+        evidence.put("prePageAxisDomainSize", orderedColumnDomain.size());
+        evidence.put("visibleAxisDomainSize", visibleColumnDomain == null ? null : visibleColumnDomain.size());
+        evidence.put("baselineRows", baselineValuesByRow.size());
+        evidence.put("source", "auxiliaryBaselineRelation");
+        return evidence;
     }
 
     private boolean requiresPrePageAxisDomainBaseline(PivotRequest pivot) {
@@ -1360,7 +1389,15 @@ public class PivotPipeline {
     private record DomainConstrainedCellRequest(SemanticQueryRequest request, SemanticRequestContext context) {}
 
     private record AxisDomainSelectionResult(List<Map<String, Object>> rows,
-                                             Map<String, Map<String, Number>> baselineRatioExternalValues) {}
+                                             Map<String, Map<String, Number>> baselineRatioExternalValues,
+                                             List<Map<String, Object>> baselineRatioEvidence) {}
+
+    private record BaselineRatioPrePageAxisDomainResult(Map<String, Map<String, Number>> values,
+                                                        List<Map<String, Object>> evidence) {
+        private static BaselineRatioPrePageAxisDomainResult empty() {
+            return new BaselineRatioPrePageAxisDomainResult(Collections.emptyMap(), Collections.emptyList());
+        }
+    }
 
     /**
      * 构建空结果响应
@@ -1384,7 +1421,8 @@ public class PivotPipeline {
     /**
      * 将 PivotResult 转换为 SemanticQueryResponse
      */
-    private SemanticQueryResponse buildPivotResponse(PivotResult pivotResult, long startTime) {
+    private SemanticQueryResponse buildPivotResponse(PivotResult pivotResult, long startTime,
+            List<Map<String, Object>> baselineRatioEvidence) {
         SemanticQueryResponse response = new SemanticQueryResponse();
 
         // 将 pivot 结果放入 items（对于 flat 模式）或专用字段
@@ -1423,6 +1461,9 @@ public class PivotPipeline {
         Map<String, Object> extra = new LinkedHashMap<>();
         extra.put("pipeline", "pivot");
         extra.put("format", pivotResult.getFormat());
+        if (baselineRatioEvidence != null && !baselineRatioEvidence.isEmpty()) {
+            extra.put("baselineRatioEvidence", baselineRatioEvidence);
+        }
         debugInfo.setExtra(extra);
         response.setDebug(debugInfo);
 

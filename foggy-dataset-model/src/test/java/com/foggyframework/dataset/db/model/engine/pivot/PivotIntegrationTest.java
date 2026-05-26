@@ -1359,6 +1359,28 @@ class PivotIntegrationTest extends EcommerceTestSupport {
             assertEquals(2.0d, ((Number) byDayOfWeek.get(2).get("salesIndex")).doubleValue(), 0.001d,
                     "dayOfWeek=2 应除以分页前 dayOfWeek=1 的 100，而不是页内 dayOfWeek=2 的 200");
             assertEquals(3.0d, ((Number) byDayOfWeek.get(3).get("salesIndex")).doubleValue(), 0.001d);
+
+            Map<String, Object> extra = response.getDebug().getExtra();
+            assertNotNull(extra);
+            Object evidenceObject = extra.get("baselineRatioEvidence");
+            assertTrue(evidenceObject instanceof List<?>, "debug.extra 应输出 baselineRatioEvidence");
+            List<?> evidence = (List<?>) evidenceObject;
+            assertEquals(1, evidence.size());
+            assertTrue(evidence.get(0) instanceof Map<?, ?>);
+
+            Map<?, ?> baselineEvidence = (Map<?, ?>) evidence.get(0);
+            assertEquals("salesIndex", baselineEvidence.get("metric"));
+            assertEquals("salesAmount", baselineEvidence.get("of"));
+            assertEquals("columns", baselineEvidence.get("axis"));
+            assertEquals("first", baselineEvidence.get("baseline"));
+            assertEquals("prePageAxisDomain", baselineEvidence.get("baselineScope"));
+            assertEquals("salesDate$dayOfWeek", baselineEvidence.get("columnField"));
+            assertEquals(1, ((Number) baselineEvidence.get("baselineColumnKey")).intValue());
+            assertEquals(Boolean.FALSE, baselineEvidence.get("baselineColumnVisible"));
+            assertEquals(4, ((Number) baselineEvidence.get("prePageAxisDomainSize")).intValue());
+            assertEquals(2, ((Number) baselineEvidence.get("visibleAxisDomainSize")).intValue());
+            assertEquals(1, ((Number) baselineEvidence.get("baselineRows")).intValue());
+            assertEquals("auxiliaryBaselineRelation", baselineEvidence.get("source"));
         } finally {
             deleteBaselineRatioScopeFixture();
         }
