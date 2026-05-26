@@ -9,7 +9,10 @@ export { default as DataViewer } from './components/DataViewer.vue'
 export { default as SearchToolbar } from './components/SearchToolbar.vue'
 export { default as DataTableWithSearch } from './components/DataTableWithSearch.vue'
 export { default as QueryPanel } from './components/QueryPanel.vue'
+export { default as PivotViewer } from './components/PivotViewer.vue'
 export { default as PivotGrid } from './components/PivotGrid.vue'
+export { default as PivotAxisPager } from './components/PivotAxisPager.vue'
+export { default as PivotEvidencePanel } from './components/PivotEvidencePanel.vue'
 export { default as ListPresetManager } from './components/list-preset/ListPresetManager.vue'
 
 export type {
