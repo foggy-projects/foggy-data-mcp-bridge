@@ -163,26 +163,40 @@ class PivotIntegrationTest extends EcommerceTestSupport {
     }
 
     @Test
-    @DisplayName("v3.7: 多层 rows 子级 start/limit 不再被单层轴域守卫拒绝")
+    @DisplayName("v3.7: 多层 rows 子级 start/limit 按每个父级独立分页")
     void testParentChildOffsetLimitWindow() {
         PivotRequest pivot = new PivotRequest();
 
-        AxisField year = axis("salesDate$year");
-        AxisField month = axis("salesDate$month");
-        month.setStart(1);
-        month.setLimit(1);
-        month.setOrderBy(List.of("-salesAmount"));
+        AxisField category = axis("product$categoryName");
+        AxisField subCategory = axis("product$subCategoryName");
+        subCategory.setStart(1);
+        subCategory.setLimit(1);
+        subCategory.setOrderBy(List.of("-salesAmount"));
 
-        pivot.setRows(List.of(year, month));
+        pivot.setRows(List.of(category, subCategory));
         pivot.setMetrics(List.of("salesAmount"));
-        pivot.setOutputFormat("tree");
+        pivot.setOutputFormat("flat");
 
         SemanticQueryRequest request = new SemanticQueryRequest();
         request.setPivot(pivot);
 
         SemanticQueryResponse response = execute(request);
-        assertNotNull(response.getItems(),
-                "多层 rows 子级 start/limit 应进入 multi-level rows window 路径，而不是被 domainSlice 单层守卫误拒绝");
+        List<Map<String, Object>> items = response.getItems();
+        assertFalse(items.isEmpty(), "多层 rows 子级 start/limit 应返回每个父级的独立子级窗口");
+
+        Set<String> tuples = new LinkedHashSet<>();
+        for (Map<String, Object> item : items) {
+            tuples.add(item.get("product$categoryName") + "/" + item.get("product$subCategoryName"));
+        }
+
+        assertTrue(tuples.contains("数码电器/电脑办公"),
+                "数码电器按 salesAmount 降序 start=1 limit=1 后应保留第二名电脑办公: " + tuples);
+        assertTrue(tuples.contains("服装配饰/鞋靴"),
+                "服装配饰按 salesAmount 降序 start=1 limit=1 后应保留第二名鞋靴: " + tuples);
+        assertFalse(tuples.contains("数码电器/手机通讯"),
+                "数码电器第一名手机通讯应被 start=1 跳过: " + tuples);
+        assertFalse(tuples.contains("服装配饰/男装"),
+                "服装配饰第一名男装应被 start=1 跳过: " + tuples);
     }
 
     @Test
