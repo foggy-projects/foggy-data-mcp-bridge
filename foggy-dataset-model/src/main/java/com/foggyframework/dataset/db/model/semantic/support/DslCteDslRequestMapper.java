@@ -76,30 +76,8 @@ public final class DslCteDslRequestMapper {
             "(?i)^\\s*sum\\s*\\(\\s*case\\s+when\\s+([A-Za-z_][A-Za-z0-9_$.]*)\\s*(=|==|!=|<>)\\s*'((?:[^']|'')*)'\\s+then\\s+([A-Za-z_][A-Za-z0-9_$.]*)\\s+else\\s+0(?:\\.0+)?\\s+end\\s*\\)\\s*$");
     private static final Pattern METRIC_RATIO_PATTERN = Pattern.compile(
             "(?i)^\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*/\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*$");
-    private static final Pattern METRIC_SAFE_RATIO_PATTERN = Pattern.compile(
-            "(?i)^\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*/\\s*(?:"
-                    + "([A-Za-z_][A-Za-z0-9_$]*)|nullif\\s*\\(\\s*"
-                    + "([A-Za-z_][A-Za-z0-9_$]*)\\s*,\\s*0(?:\\.0+)?\\s*\\))\\s*$");
     private static final Pattern METRIC_DIFFERENCE_PATTERN = Pattern.compile(
             "(?i)^\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*-\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*$");
-    private static final Pattern METRIC_DELTA_RATIO_PATTERN = Pattern.compile(
-            "(?i)^\\s*\\(\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*-\\s*([A-Za-z_][A-Za-z0-9_$]*)"
-                    + "\\s*\\)\\s*/\\s*(?:([A-Za-z_][A-Za-z0-9_$]*)|nullif\\s*\\(\\s*"
-                    + "([A-Za-z_][A-Za-z0-9_$]*)\\s*,\\s*0(?:\\.0+)?\\s*\\))\\s*$");
-    private static final Pattern METRIC_ABSOLUTE_DELTA_RATIO_PATTERN = Pattern.compile(
-            "(?i)^\\s*abs\\s*\\(\\s*\\(?\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*-\\s*"
-                    + "([A-Za-z_][A-Za-z0-9_$]*)\\s*\\)?\\s*\\)\\s*/\\s*(?:"
-                    + "([A-Za-z_][A-Za-z0-9_$]*)|nullif\\s*\\(\\s*"
-                    + "([A-Za-z_][A-Za-z0-9_$]*)\\s*,\\s*0(?:\\.0+)?\\s*\\))\\s*$");
-    private static final Pattern METRIC_CASE_LABEL_PATTERN = Pattern.compile(
-            "(?i)^\\s*case\\s+when\\s+([A-Za-z_][A-Za-z0-9_$]*)\\s*(<=|>=|<>|!=|==|=|<|>)\\s*"
-                    + "(-?\\d+(?:\\.\\d+)?)\\s+then\\s*'((?:[^']|'')*)'\\s+else\\s*'((?:[^']|'')*)'"
-                    + "\\s+end\\s*$");
-    private static final Pattern METRIC_ORDERED_BUCKET_PATTERN = Pattern.compile(
-            "(?i)^\\s*case\\s+(.+)\\s+else\\s*'((?:[^']|'')*)'\\s+end\\s*$");
-    private static final Pattern METRIC_ORDERED_BUCKET_WHEN_PATTERN = Pattern.compile(
-            "(?i)\\G\\s*when\\s+([A-Za-z_][A-Za-z0-9_$]*)\\s*(<=|>=|<>|!=|==|=|<|>)\\s*"
-                    + "(-?\\d+(?:\\.\\d+)?)\\s+then\\s*'((?:[^']|'')*)'\\s*");
     private static final Pattern METRIC_DIFFERENCE_RATIO_PATTERN = Pattern.compile(
             "(?i)^\\s*\\(?\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*-\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*\\)?\\s*/\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*$");
     private static final List<String> SIGNED_PRIORITY_CODES = List.of("P1", "P2", "P3");
@@ -507,7 +485,7 @@ public final class DslCteDslRequestMapper {
         List<String> labelAliases = new ArrayList<>();
         List<String> formulaAliases = new ArrayList<>(metrics.aliases());
         for (Map<String, Object> deriveStage : deriveStages) {
-            ResultStageDerivedMetrics derivedMetrics = relationResultStageMetricDerived(
+            ResultStageDerivedMetrics derivedMetrics = RelationResultExpressionCompiler.compile(
                     deriveStage.get("derived"), metrics.aliases(), formulaAliases, derivedAliases, unsupported);
             if (derivedMetrics.empty()) {
                 return ResultStageMetricRatioBridgeResult.deferred(unsupported);
@@ -3472,217 +3450,6 @@ public final class DslCteDslRequestMapper {
                 : ResultStageDerivedMetrics.emptyMetrics();
     }
 
-    private static ResultStageDerivedMetrics relationResultStageMetricDerived(Object rawDerived,
-                                                                              List<String> metricAliases,
-                                                                              List<String> availableFormulaAliases,
-                                                                              List<String> existingDerivedAliases,
-                                                                              List<String> unsupported) {
-        List<Map<String, Object>> derived = mapList(rawDerived);
-        if (derived.isEmpty() || derived.size() > 6) {
-            unsupported.add("relation result-stage metric bridge requires one to six derived fields");
-            return ResultStageDerivedMetrics.emptyMetrics();
-        }
-        List<MetricRatioDerived> ratios = new ArrayList<>();
-        List<MetricArithmeticDerived> arithmetic = new ArrayList<>();
-        for (Map<String, Object> item : derived) {
-            String name = stringValue(item.get("name"));
-            String expr = stringValue(item.get("expr"));
-            if (name == null || !SAFE_ALIAS_PATTERN.matcher(name).matches()) {
-                unsupported.add("relation result-stage metric derived field must declare a governed alias");
-                continue;
-            }
-            if (metricAliases.contains(name) || existingDerivedAliases.contains(name)
-                    || aliasAlreadyUsed(name, ratios, arithmetic)) {
-                unsupported.add("relation result-stage metric derived aliases must be unique");
-                continue;
-            }
-            Matcher matcher = METRIC_SAFE_RATIO_PATTERN.matcher(expr == null ? "" : expr);
-            if (matcher.matches()) {
-                String numerator = matcher.group(1);
-                String denominator = matcher.group(2) == null ? matcher.group(3) : matcher.group(2);
-                if (!metricAliases.contains(numerator) || !metricAliases.contains(denominator)) {
-                    unsupported.add("relation result-stage metric ratio must reference aggregate metric aliases");
-                    continue;
-                }
-                ratios.add(new MetricRatioDerived(name, numerator, denominator));
-                continue;
-            }
-
-            Matcher absoluteDeltaRatioMatcher = METRIC_ABSOLUTE_DELTA_RATIO_PATTERN.matcher(expr == null ? "" : expr);
-            if (absoluteDeltaRatioMatcher.matches()) {
-                String left = absoluteDeltaRatioMatcher.group(1);
-                String right = absoluteDeltaRatioMatcher.group(2);
-                String denominator = absoluteDeltaRatioMatcher.group(3) == null
-                        ? absoluteDeltaRatioMatcher.group(4)
-                        : absoluteDeltaRatioMatcher.group(3);
-                if (!metricAliases.contains(left) || !metricAliases.contains(right)
-                        || !metricAliases.contains(denominator)) {
-                    unsupported.add("relation result-stage absolute metric delta ratio must reference aggregate metric aliases");
-                    continue;
-                }
-                if (!denominator.equals(left) && !denominator.equals(right)) {
-                    unsupported.add("relation result-stage absolute metric delta ratio denominator must match one difference operand");
-                    continue;
-                }
-                arithmetic.add(new MetricArithmeticDerived(name,
-                        "(1.0 * ABS(" + quoteAlias(left) + " - " + quoteAlias(right)
-                                + ") / NULLIF(" + quoteAlias(denominator) + ", 0))",
-                        "relation_metric_absolute_delta_ratio"));
-                continue;
-            }
-
-            Matcher deltaRatioMatcher = METRIC_DELTA_RATIO_PATTERN.matcher(expr == null ? "" : expr);
-            if (deltaRatioMatcher.matches()) {
-                String left = deltaRatioMatcher.group(1);
-                String right = deltaRatioMatcher.group(2);
-                String denominator = deltaRatioMatcher.group(3) == null
-                        ? deltaRatioMatcher.group(4)
-                        : deltaRatioMatcher.group(3);
-                if (!metricAliases.contains(left) || !metricAliases.contains(right)
-                        || !metricAliases.contains(denominator)) {
-                    unsupported.add("relation result-stage metric delta ratio must reference aggregate metric aliases");
-                    continue;
-                }
-                if (!denominator.equals(left) && !denominator.equals(right)) {
-                    unsupported.add("relation result-stage metric delta ratio denominator must match one difference operand");
-                    continue;
-                }
-                arithmetic.add(new MetricArithmeticDerived(name,
-                        "(1.0 * (" + quoteAlias(left) + " - " + quoteAlias(right)
-                                + ") / NULLIF(" + quoteAlias(denominator) + ", 0))",
-                        "relation_metric_delta_ratio"));
-                continue;
-            }
-
-            Matcher differenceMatcher = METRIC_DIFFERENCE_PATTERN.matcher(expr == null ? "" : expr);
-            if (differenceMatcher.matches()) {
-                String left = differenceMatcher.group(1);
-                String right = differenceMatcher.group(2);
-                if (!metricAliases.contains(left) || !metricAliases.contains(right)) {
-                    unsupported.add("relation result-stage metric difference must reference aggregate metric aliases");
-                    continue;
-                }
-                arithmetic.add(new MetricArithmeticDerived(name, quoteAlias(left) + " - " + quoteAlias(right),
-                        "relation_metric_difference"));
-                continue;
-            }
-
-            MetricArithmeticDerived caseLabel = relationCaseLabelDerived(name, expr, availableFormulaAliases,
-                    unsupported);
-            if (caseLabel != null) {
-                arithmetic.add(caseLabel);
-                continue;
-            }
-            MetricArithmeticDerived orderedBucket = relationOrderedBucketDerived(name, expr, availableFormulaAliases,
-                    unsupported);
-            if (orderedBucket != null) {
-                arithmetic.add(orderedBucket);
-                continue;
-            }
-
-            unsupported.add("relation result-stage metric bridge supports only metric ratio or metric difference formulas, "
-                    + "metric delta ratio formulas, absolute metric delta ratio formulas, "
-                    + "or signed CASE bucket label formulas");
-        }
-        return unsupported.isEmpty() ? new ResultStageDerivedMetrics(ratios, arithmetic)
-                : ResultStageDerivedMetrics.emptyMetrics();
-    }
-
-    private static MetricArithmeticDerived relationCaseLabelDerived(String name, String expr,
-                                                                    List<String> availableFormulaAliases,
-                                                                    List<String> unsupported) {
-        Matcher matcher = METRIC_CASE_LABEL_PATTERN.matcher(expr == null ? "" : expr);
-        if (!matcher.matches()) {
-            return null;
-        }
-        String field = matcher.group(1);
-        if (!availableFormulaAliases.contains(field)) {
-            unsupported.add("relation result-stage CASE label must reference a visible aggregate or prior derived alias");
-            return null;
-        }
-        String op = sqlOperator(matcher.group(2));
-        if (op == null) {
-            unsupported.add("relation result-stage CASE label comparison operator is unsupported");
-            return null;
-        }
-        String threshold = matcher.group(3);
-        String thenLabel = unescapeSqlStringLiteral(matcher.group(4));
-        String elseLabel = unescapeSqlStringLiteral(matcher.group(5));
-        if (!safeCaseLabelLiteral(thenLabel) || !safeCaseLabelLiteral(elseLabel)) {
-            unsupported.add("relation result-stage CASE label literals must be short single-line strings");
-            return null;
-        }
-        String sql = "CASE WHEN " + quoteAlias(field) + " " + op + " " + threshold
-                + " THEN " + quoteStringLiteral(thenLabel)
-                + " ELSE " + quoteStringLiteral(elseLabel) + " END";
-        return new MetricArithmeticDerived(name, sql, "relation_metric_case_label");
-    }
-
-    private static MetricArithmeticDerived relationOrderedBucketDerived(String name, String expr,
-                                                                        List<String> availableFormulaAliases,
-                                                                        List<String> unsupported) {
-        Matcher matcher = METRIC_ORDERED_BUCKET_PATTERN.matcher(expr == null ? "" : expr);
-        if (!matcher.matches()) {
-            return null;
-        }
-        String body = matcher.group(1);
-        String elseLabel = unescapeSqlStringLiteral(matcher.group(2));
-        if (!safeCaseLabelLiteral(elseLabel)) {
-            unsupported.add("relation result-stage ordered bucket labels must be short single-line strings");
-            return null;
-        }
-
-        Matcher whenMatcher = METRIC_ORDERED_BUCKET_WHEN_PATTERN.matcher(body);
-        List<OrderedBucketCondition> conditions = new ArrayList<>();
-        String field = null;
-        int end = 0;
-        while (whenMatcher.find()) {
-            if (whenMatcher.start() != end) {
-                unsupported.add("relation result-stage ordered bucket supports only simple numeric WHEN clauses");
-                return null;
-            }
-            String currentField = whenMatcher.group(1);
-            if (field == null) {
-                field = currentField;
-            } else if (!field.equals(currentField)) {
-                unsupported.add("relation result-stage ordered bucket must compare one visible numeric alias");
-                return null;
-            }
-            String label = unescapeSqlStringLiteral(whenMatcher.group(4));
-            if (!safeCaseLabelLiteral(label)) {
-                unsupported.add("relation result-stage ordered bucket labels must be short single-line strings");
-                return null;
-            }
-            String op = sqlOperator(whenMatcher.group(2));
-            if (op == null) {
-                unsupported.add("relation result-stage ordered bucket comparison operator is unsupported");
-                return null;
-            }
-            conditions.add(new OrderedBucketCondition(op, whenMatcher.group(3), label));
-            end = whenMatcher.end();
-        }
-        if (end != body.length()) {
-            unsupported.add("relation result-stage ordered bucket supports only simple numeric WHEN clauses");
-            return null;
-        }
-        if (conditions.size() < 2) {
-            return null;
-        }
-        if (!availableFormulaAliases.contains(field)) {
-            unsupported.add("relation result-stage ordered bucket must reference a visible aggregate or prior derived alias");
-            return null;
-        }
-
-        StringBuilder sql = new StringBuilder("CASE");
-        for (OrderedBucketCondition condition : conditions) {
-            sql.append(" WHEN ").append(quoteAlias(field)).append(" ").append(condition.op())
-                    .append(" ").append(condition.threshold())
-                    .append(" THEN ").append(quoteStringLiteral(condition.label()));
-        }
-        sql.append(" ELSE ").append(quoteStringLiteral(elseLabel)).append(" END");
-        return new MetricArithmeticDerived(name, sql.toString(), "relation_metric_ordered_bucket");
-    }
-
     private static MetricArithmeticDerived signedFunnelArithmeticDerived(String name, String expr, String model,
                                                                          List<String> metricAliases,
                                                                          List<String> unsupported) {
@@ -4195,9 +3962,6 @@ public final class DslCteDslRequestMapper {
     }
 
     private record ConditionalValueSum(String formula) {
-    }
-
-    private record OrderedBucketCondition(String op, String threshold, String label) {
     }
 
     private record WindowBridge(Map<String, Object> timeWindow, Map<String, String> outputAliasOverride) {
