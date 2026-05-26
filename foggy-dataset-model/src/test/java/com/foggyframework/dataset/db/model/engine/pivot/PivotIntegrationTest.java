@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +44,7 @@ class PivotIntegrationTest extends EcommerceTestSupport {
     private static final String LARGE_AXIS_DOMAIN_STATUS = "PDS_BIG";
     private static final String PARENT_CHILD_WINDOW_STATUS_A = "PDS_WINDOW_A";
     private static final String PARENT_CHILD_WINDOW_STATUS_B = "PDS_WINDOW_B";
+    private static final String BASELINE_RATIO_SCOPE_STATUS = "PDS_BR_SCOPE";
 
     @Resource
     private SemanticQueryServiceV3 semanticQueryServiceV3;
@@ -1237,7 +1239,7 @@ class PivotIntegrationTest extends EcommerceTestSupport {
         request.setPivot(pivot);
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> execute(request));
-        assertTrue(ex.getMessage().contains("parentShare/baselineRatio"),
+        assertTrue(ex.getMessage().contains("parentShare"),
                 "parentShare + domainSlice/start/offset 应说明派生指标 scope 尚未定义: " + ex.getMessage());
 
         AxisField pagedRow = axis("product$categoryName");
@@ -1254,7 +1256,7 @@ class PivotIntegrationTest extends EcommerceTestSupport {
 
         IllegalArgumentException pagedEx = assertThrows(IllegalArgumentException.class,
                 () -> execute(pagedRequest));
-        assertTrue(pagedEx.getMessage().contains("parentShare/baselineRatio"),
+        assertTrue(pagedEx.getMessage().contains("parentShare"),
                 "parentShare + start/offset 应说明 denominator scope 尚未定义: " + pagedEx.getMessage());
     }
 
@@ -1284,7 +1286,7 @@ class PivotIntegrationTest extends EcommerceTestSupport {
         request.setPivot(pivot);
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> execute(request));
-        assertTrue(ex.getMessage().contains("parentShare/baselineRatio"),
+        assertTrue(ex.getMessage().contains("baselineScope=prePageAxisDomain"),
                 "baselineRatio + domainSlice/start/offset 应说明 baseline scope 尚未定义: " + ex.getMessage());
 
         AxisField pagedColumn = axis("salesDate$month");
@@ -1302,8 +1304,64 @@ class PivotIntegrationTest extends EcommerceTestSupport {
 
         IllegalArgumentException pagedEx = assertThrows(IllegalArgumentException.class,
                 () -> execute(pagedRequest));
-        assertTrue(pagedEx.getMessage().contains("parentShare/baselineRatio"),
+        assertTrue(pagedEx.getMessage().contains("baselineScope=prePageAxisDomain"),
                 "baselineRatio + start/offset 应说明 baseline scope 尚未定义: " + pagedEx.getMessage());
+
+        br.setBaselineScope("visiblePage");
+        IllegalArgumentException unsupportedScopeEx = assertThrows(IllegalArgumentException.class,
+                () -> execute(pagedRequest));
+        assertTrue(unsupportedScopeEx.getMessage().contains("当前仅支持 prePageAxisDomain"),
+                "baselineScope=visiblePage 当前版本应 fail closed: " + unsupportedScopeEx.getMessage());
+    }
+
+    @Test
+    @DisplayName("v3.7: baselineRatio + column start/limit 使用分页前列域作为基准")
+    void testBaselineRatioColumnWindowUsesPrePageAxisDomain() {
+        insertBaselineRatioScopeFixture();
+        try {
+            AxisField column = axis("salesDate$dayOfWeek");
+            column.setStart(1);
+            column.setLimit(2);
+
+            PivotRequest pivot = new PivotRequest();
+            pivot.setRows(List.of(axis("orderStatus")));
+            pivot.setColumns(List.of(column));
+
+            List<PivotMetricItem> items = new ArrayList<>();
+            items.add(PivotMetricItem.ofNative("salesAmount"));
+            PivotMetricItem br = new PivotMetricItem();
+            br.setName("salesIndex");
+            br.setType("baselineRatio");
+            br.setOf("salesAmount");
+            br.setAxis("columns");
+            br.setBaseline("first");
+            br.setBaselineScope("prePageAxisDomain");
+            items.add(br);
+            pivot.setMetricItems(items);
+            pivot.setOutputFormat("flat");
+
+            SemanticQueryRequest request = new SemanticQueryRequest();
+            request.setSlice(List.of(slice("orderStatus", "=", BASELINE_RATIO_SCOPE_STATUS)));
+            request.setPivot(pivot);
+
+            SemanticQueryResponse response = execute(request);
+            List<Map<String, Object>> itemsOut = response.getItems();
+
+            assertEquals(2, itemsOut.size(), "start=1 limit=2 应只返回第 2、3 个可见列轴成员");
+            Map<Object, Map<String, Object>> byDayOfWeek = new LinkedHashMap<>();
+            for (Map<String, Object> row : itemsOut) {
+                byDayOfWeek.put(row.get("salesDate$dayOfWeek"), row);
+            }
+
+            assertTrue(byDayOfWeek.containsKey(2), "可见列应包含 dayOfWeek=2");
+            assertTrue(byDayOfWeek.containsKey(3), "可见列应包含 dayOfWeek=3");
+            assertFalse(byDayOfWeek.containsKey(1), "分页前基准列 dayOfWeek=1 不应出现在可见结果中");
+            assertEquals(2.0d, ((Number) byDayOfWeek.get(2).get("salesIndex")).doubleValue(), 0.001d,
+                    "dayOfWeek=2 应除以分页前 dayOfWeek=1 的 100，而不是页内 dayOfWeek=2 的 200");
+            assertEquals(3.0d, ((Number) byDayOfWeek.get(3).get("salesIndex")).doubleValue(), 0.001d);
+        } finally {
+            deleteBaselineRatioScopeFixture();
+        }
     }
 
     // ========== 辅助方法 ==========
@@ -1416,6 +1474,31 @@ class PivotIntegrationTest extends EcommerceTestSupport {
     private void deleteParentChildWindowFixture() {
         jdbcTemplate.update("DELETE FROM fact_sales WHERE order_status IN (?, ?)",
                 PARENT_CHILD_WINDOW_STATUS_A, PARENT_CHILD_WINDOW_STATUS_B);
+    }
+
+    private void insertBaselineRatioScopeFixture() {
+        deleteBaselineRatioScopeFixture();
+        String sql = """
+                INSERT INTO fact_sales
+                (order_id, order_line_no, date_key, product_key, customer_key, store_key, channel_key, promotion_key,
+                 quantity, unit_price, unit_cost, discount_amount, sales_amount, cost_amount, profit_amount,
+                 order_status, payment_method)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """;
+        jdbcTemplate.batchUpdate(sql, List.of(
+                new Object[] {"PDS_BR_D1", 1, 20240101, 1, 1, 1, 1, null,
+                        1, 100d, 0d, 0d, 100d, 0d, 100d, BASELINE_RATIO_SCOPE_STATUS, "PDS_BR"},
+                new Object[] {"PDS_BR_D2", 1, 20240102, 1, 1, 1, 1, null,
+                        1, 200d, 0d, 0d, 200d, 0d, 200d, BASELINE_RATIO_SCOPE_STATUS, "PDS_BR"},
+                new Object[] {"PDS_BR_D3", 1, 20240103, 1, 1, 1, 1, null,
+                        1, 300d, 0d, 0d, 300d, 0d, 300d, BASELINE_RATIO_SCOPE_STATUS, "PDS_BR"},
+                new Object[] {"PDS_BR_D4", 1, 20240104, 1, 1, 1, 1, null,
+                        1, 400d, 0d, 0d, 400d, 0d, 400d, BASELINE_RATIO_SCOPE_STATUS, "PDS_BR"}
+        ));
+    }
+
+    private void deleteBaselineRatioScopeFixture() {
+        jdbcTemplate.update("DELETE FROM fact_sales WHERE order_status = ?", BASELINE_RATIO_SCOPE_STATUS);
     }
 
     private void insertLargePivotDomainSliceFixture() {

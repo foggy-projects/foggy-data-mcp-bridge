@@ -39,6 +39,21 @@ public class BaselineRatioCalculator {
             PivotRequest pivot,
             List<String> rowFields,
             List<String> colFields) {
+        return apply(resultSet, pivot, rowFields, colFields, Collections.emptyMap());
+    }
+
+    /**
+     * 对结果集中的每行计算 baselineRatio 并写入。
+     *
+     * @param externalBaselineValues metricName -> rowKey -> baseline value. Used when the signed
+     *                               baseline scope is outside the visible result page.
+     */
+    public static List<Map<String, Object>> apply(
+            List<Map<String, Object>> resultSet,
+            PivotRequest pivot,
+            List<String> rowFields,
+            List<String> colFields,
+            Map<String, Map<String, Number>> externalBaselineValues) {
 
         List<PivotMetricItem> brMetrics = pivot.getBaselineRatioMetrics();
         if (brMetrics.isEmpty()) {
@@ -135,16 +150,19 @@ public class BaselineRatioCalculator {
                 }
 
                 String rowKey = buildKey(row, rowFields);
-                Map<String, Map<String, Object>> colMap = groupedByRow.get(rowKey);
 
-                Map<String, Object> baselineRow = colMap != null ? colMap.get(targetColKey) : null;
-                if (baselineRow == null) {
-                    // 该行分组下缺失 baseline 列数据
-                    row.put(brMetric.getName(), null);
-                    continue;
+                Object baselineValObj = externalBaselineValue(
+                        externalBaselineValues, brMetric.getName(), rowKey);
+                if (baselineValObj == null) {
+                    Map<String, Map<String, Object>> colMap = groupedByRow.get(rowKey);
+                    Map<String, Object> baselineRow = colMap != null ? colMap.get(targetColKey) : null;
+                    if (baselineRow == null) {
+                        // 该行分组下缺失 baseline 列数据
+                        row.put(brMetric.getName(), null);
+                        continue;
+                    }
+                    baselineValObj = baselineRow.get(ofMetric);
                 }
-
-                Object baselineValObj = baselineRow.get(ofMetric);
                 if (!(baselineValObj instanceof Number)) {
                     row.put(brMetric.getName(), null);
                     continue;
@@ -161,6 +179,16 @@ public class BaselineRatioCalculator {
         }
 
         return resultSet;
+    }
+
+    private static Number externalBaselineValue(Map<String, Map<String, Number>> externalBaselineValues,
+                                                String metricName,
+                                                String rowKey) {
+        if (externalBaselineValues == null || externalBaselineValues.isEmpty()) {
+            return null;
+        }
+        Map<String, Number> byRow = externalBaselineValues.get(metricName);
+        return byRow != null ? byRow.get(rowKey) : null;
     }
 
     /**

@@ -46,6 +46,9 @@ public class PivotMetricItem {
     /** 基准（baselineRatio 时必填，支持 first/last） */
     private String baseline;
 
+    /** 基准范围（baselineRatio 与 axis domain window 组合时使用） */
+    private String baselineScope;
+
     // ===== Factory Methods =====
 
     /** 创建原生度量 */
@@ -144,6 +147,11 @@ public class PivotMetricItem {
                 if (!"first".equals(baseline) && !"last".equals(baseline)) {
                     throw new IllegalArgumentException(
                             "pivot.metrics 中 baselineRatio 类型 '" + name + "' 必须指定 baseline 为 'first' 或 'last'");
+                }
+                if (baselineScope != null && !"prePageAxisDomain".equals(baselineScope)) {
+                    throw new IllegalArgumentException(
+                            "pivot.metrics 中 baselineRatio 类型 '" + name + "' 的 baselineScope='" +
+                            baselineScope + "' 当前版本不支持。当前仅支持 prePageAxisDomain");
                 }
                 if (level != null || parentLevel != null) {
                     throw new IllegalArgumentException(
