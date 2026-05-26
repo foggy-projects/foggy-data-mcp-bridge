@@ -1042,7 +1042,7 @@ class PivotIntegrationTest extends EcommerceTestSupport {
             assertEquals(1, response.getItems().size(), "只有满足列轴 domainSlice 的商品列应进入 cell 结果");
             Map<String, Object> row = response.getItems().get(0);
             assertEquals("PDS_O1", row.get("orderId"));
-            assertEquals("华为 手机通讯商品2", row.get("product$caption"));
+            assertEquals(pivotDomainSliceDiscountedProductCaption(), row.get("product$caption"));
             assertEquals(80d, ((Number) row.get("salesAmount")).doubleValue(), 0.001d);
         } finally {
             deletePivotDomainSliceFixture();
@@ -1075,7 +1075,7 @@ class PivotIntegrationTest extends EcommerceTestSupport {
             assertEquals(1, response.getItems().size());
             Map<String, Object> onlyCell = response.getItems().get(0);
             assertEquals("PDS_O1", onlyCell.get("orderId"));
-            assertEquals("华为 手机通讯商品2", onlyCell.get("product$caption"));
+            assertEquals(pivotDomainSliceDiscountedProductCaption(), onlyCell.get("product$caption"));
             assertEquals(80d, ((Number) onlyCell.get("discountAmount")).doubleValue(), 0.001d);
         } finally {
             deletePivotDomainSliceFixture();
@@ -1293,13 +1293,15 @@ class PivotIntegrationTest extends EcommerceTestSupport {
 
     private void insertPivotDomainSliceFixture() {
         deletePivotDomainSliceFixture();
+        Map<String, Object> zeroDiscountProduct = productByBrandAndSubCategory("Apple", "手机通讯");
+        Map<String, Object> discountedProduct = productByBrandAndSubCategory("华为", "手机通讯");
         jdbcTemplate.update("""
                 INSERT INTO fact_sales
                 (order_id, order_line_no, date_key, product_key, customer_key, store_key, channel_key, promotion_key,
                  quantity, unit_price, unit_cost, discount_amount, sales_amount, cost_amount, profit_amount,
                  order_status, payment_method)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, "PDS_O1", 1, 20240101, 1, 1, 1, 1, null,
+                """, "PDS_O1", 1, 20240101, productKey(zeroDiscountProduct), 1, 1, 1, null,
                 1, 100d, 60d, 0d, 100d, 60d, 40d, "COMPLETED", "ALIPAY");
         jdbcTemplate.update("""
                 INSERT INTO fact_sales
@@ -1307,7 +1309,7 @@ class PivotIntegrationTest extends EcommerceTestSupport {
                  quantity, unit_price, unit_cost, discount_amount, sales_amount, cost_amount, profit_amount,
                  order_status, payment_method)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, "PDS_O1", 2, 20240101, 2, 1, 1, 1, null,
+                """, "PDS_O1", 2, 20240101, productKey(discountedProduct), 1, 1, 1, null,
                 1, 80d, 50d, 80d, 80d, 50d, 30d, "COMPLETED", "ALIPAY");
         jdbcTemplate.update("""
                 INSERT INTO fact_sales
@@ -1315,8 +1317,27 @@ class PivotIntegrationTest extends EcommerceTestSupport {
                  quantity, unit_price, unit_cost, discount_amount, sales_amount, cost_amount, profit_amount,
                  order_status, payment_method)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, "PDS_O2", 1, 20240101, 1, 1, 1, 1, null,
+                """, "PDS_O2", 1, 20240101, productKey(zeroDiscountProduct), 1, 1, 1, null,
                 1, 50d, 30d, 0d, 50d, 30d, 20d, "COMPLETED", "ALIPAY");
+    }
+
+    private String pivotDomainSliceDiscountedProductCaption() {
+        return String.valueOf(productByBrandAndSubCategory("华为", "手机通讯").get("product_name"));
+    }
+
+    private Map<String, Object> productByBrandAndSubCategory(String brand, String subCategory) {
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(paginateSql("""
+                SELECT product_key, product_name
+                FROM dim_product
+                WHERE brand = ? AND sub_category_name = ?
+                ORDER BY product_key
+                """, 1), brand, subCategory);
+        assertFalse(rows.isEmpty(), "Missing pivot fixture product: brand=" + brand + ", subCategory=" + subCategory);
+        return rows.get(0);
+    }
+
+    private int productKey(Map<String, Object> row) {
+        return ((Number) row.get("product_key")).intValue();
     }
 
     private void deletePivotDomainSliceFixture() {
