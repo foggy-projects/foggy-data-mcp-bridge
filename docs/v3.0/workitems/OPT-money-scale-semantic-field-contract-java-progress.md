@@ -39,7 +39,7 @@ created_at: 2026-05-10
 | Step | Status | Evidence / Notes |
 |---|---|---|
 | S1 Add model definition fields | done | Added fields to `DbMeasureDef`, `DbPropertyDef`, `DbMeasure`, and `DbProperty` |
-| S2 Add loader validation | done | `SemanticScaleSqlSupport` validates factor, formula conflict, and simple-column requirement; property loader invokes validation before formula binding |
+| S2 Add loader validation | done | `SemanticScaleSqlSupport` validates factor and simple-column requirement; issue #2 follow-up allows resolved formula SQL with scale |
 | S3 Apply semantic field binding | done | Measure/property physical column declarations are wrapped as `(declare / factor)`; no public generated `formulaDef` is exposed |
 | S4 Preserve governance mapping | done | Physical mapping remains based on original `column`; deniedColumns and fieldAccess tests pass |
 | S5 Add integration fixtures and tests | done | Added ecommerce TM/QM fixtures plus `SemanticScaleFactorIntegrationTest` |
@@ -146,3 +146,48 @@ experience: N/A. This work is backend semantic engine behavior and has no UI int
 - acceptance_record: ../acceptance/OPT-money-scale-semantic-field-contract-java-acceptance.md
 - blocking_items: none
 - follow_up_required: yes
+
+## Follow-up: GitHub Issue #2 Formula Semantic Scale
+
+2026-05-26 follow-up scope:
+
+- Support `formulaDef.value + semanticScaleFactor` in the Java query engine.
+- Support `formulaDef.builder + semanticScaleFactor` by applying scale to the builder SQL return value.
+- Support `dialectFormulaDef.value + semanticScaleFactor`.
+- Keep `formulaDef.value` / `dialectFormulaDef.value` as raw SQL fragments, not parsed fsscript expressions.
+- Keep `calculatedFields[].expression` as the expression path that Java parses and compiles.
+- Document pre-aggregation behavior: formula-backed pre-aggregation columns must materialize the intended formula semantic result, because the pre-aggregation rewrite path reads materialized columns directly.
+
+Follow-up code touchpoints:
+
+| Path | Status | Notes |
+|---|---|---|
+| `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/impl/FormulaSqlSupport.java` | added | Centralizes formula SQL `alias` placeholder replacement |
+| `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/impl/loader/TableModelLoaderManagerImpl.java` | updated | Resolves builder or raw SQL formula, with dialect-specific priority and generic fallback |
+| `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/impl/measure/DbMeasureSupport.java` | updated | Applies semantic scale to resolved formula SQL / builder output; supports formula-only measures only when formula is resolved |
+| `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/impl/property/DbPropertyImpl.java` | updated | Applies semantic scale to property formula SQL / builder output |
+| `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/impl/SemanticScaleSqlSupport.java` | updated | Allows formula + scale and parenthesizes the scaled base expression |
+| `foggy-dataset-demo/src/main/resources/foggy/templates/ecommerce/model/FactSalesSemanticScaleFormulaModel.tm` | added | Demo fixture for formula-backed semantic fields |
+| `foggy-dataset-demo/src/main/resources/foggy/templates/ecommerce/query/FactSalesSemanticScaleFormulaQueryModel.qm` | added | Query model exposing formula-backed semantic fields |
+| `foggy-dataset-demo/src/main/resources/foggy/templates/ecommerce/model/FactSalesSemanticScaleFormulaUnsupportedDialectInvalidModel.tm` | added | Negative fixture for formula-only unsupported dialect |
+| `foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/ecommerce/SemanticScaleFactorIntegrationTest.java` | updated | Adds formula measure/property, enabled/disabled semantic scale, and invalid dialect coverage |
+
+Follow-up testing evidence:
+
+| Test Area | Status | Evidence |
+|---|---|---|
+| Demo fixtures install | passed | `mvn install -pl foggy-dataset-demo -DskipTests`; build success |
+| Targeted semantic scale tests | passed | `mvn test -pl foggy-dataset-model "-Dspring.profiles.active=sqlite" "-Dtest=SemanticScaleSqlSupportTest,SemanticScaleFactorIntegrationTest" "-P!multi-db"`; 27 tests, 0 failures, 0 errors |
+| Caption formula regression | passed | `mvn test -pl foggy-dataset-model "-Dspring.profiles.active=sqlite" "-Dtest=CaptionDefTest" "-P!multi-db"`; 13 tests, 0 failures, 0 errors |
+| Wider ecommerce regression | passed | `mvn test -pl foggy-dataset-model "-Dspring.profiles.active=sqlite" "-Dtest=ModelLoadingTest,PhysicalColumnMappingIntegrationTest" "-P!multi-db"`; 46 tests, 0 failures, 0 errors |
+| Full model module coverage gate | passed | `mvn verify -pl foggy-dataset-model "-Dspring.profiles.active=sqlite" "-Pcoverage,!multi-db"`; 2883 tests, 0 failures, 0 errors, 1 skipped; module line 79.14%, branch 63.09%; `SemanticScaleSqlSupport` and `FormulaSqlSupport` line/branch 100% |
+
+Follow-up acceptance notes:
+
+- Real-data evidence is covered by `SemanticScaleFactorIntegrationTest` using DSL-style `DbQueryRequestDef` execution against ecommerce SQLite fixture data:
+  - `semanticScaleWithFormula_queryDataMatchesNativeSql`: formula measure query with semantic scale enabled compared to native SQL using `/ 100.0`.
+  - `semanticScaleWithFormulaProperty_queryDataMatchesNativeSql`: formula property query with semantic scale enabled compared to native SQL using `/ 100.0`.
+  - `disabledNamespace_formulaQueryUsesPhysicalFormulaValues`: formula measure query with semantic scale disabled compared to native SQL without semantic division.
+- Pre-aggregation is documented as a materialized-column contract and is not expanded in this follow-up implementation.
+- Follow-up quality gate: `../quality/ISSUE-2-formula-semantic-scale-java-implementation-quality.md`.
+- Follow-up coverage audit: `../coverage/OPT-money-scale-semantic-field-contract-java-coverage-audit.md`, section `Follow-up: GitHub Issue #2 Formula Semantic Scale`.

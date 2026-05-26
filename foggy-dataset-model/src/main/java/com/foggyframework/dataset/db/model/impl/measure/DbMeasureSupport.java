@@ -7,6 +7,7 @@ import com.foggyframework.dataset.db.model.def.measure.DbMeasureDef;
 import com.foggyframework.dataset.db.model.impl.AiObject;
 import com.foggyframework.dataset.db.model.impl.DbColumnSupport;
 import com.foggyframework.dataset.db.model.impl.DbObjectSupport;
+import com.foggyframework.dataset.db.model.impl.FormulaSqlSupport;
 import com.foggyframework.dataset.db.model.impl.SemanticScaleSqlSupport;
 import com.foggyframework.dataset.db.model.impl.column.InvalidDbColumn;
 import com.foggyframework.dataset.db.model.impl.model.TableModelSupport;
@@ -20,7 +21,6 @@ import lombok.Data;
 import org.springframework.context.ApplicationContext;
 
 import java.math.BigDecimal;
-import java.util.Map;
 
 @Data
 public abstract class DbMeasureSupport extends DbObjectSupport implements DbMeasure {
@@ -45,6 +45,10 @@ public abstract class DbMeasureSupport extends DbObjectSupport implements DbMeas
 
     FsscriptFunction formulaBuilder;
 
+    String formulaSql;
+
+    boolean formulaOnly;
+
     BigDecimal semanticScaleFactor;
 
     String semanticUnit;
@@ -53,12 +57,18 @@ public abstract class DbMeasureSupport extends DbObjectSupport implements DbMeas
 
     public void init(TableModel jdbcModel, DbMeasureDef measureDef) {
         this.jdbcModel = jdbcModel;
+        boolean hasFormula = hasResolvedFormula();
+        if (StringUtils.isEmpty(column) && hasFormula) {
+            RX.hasText(name, "公式度量的 name 不得为空,model:" + jdbcModel.getName());
+            column = name;
+            formulaOnly = true;
+        }
         if (StringUtils.isEmpty(column) && StringUtils.equalsIgnoreCase(measureDef.getAggregation(), "COUNT")) {
             //呃，COUNT下可以不用指定列名，但简单起见，我们使用id吧
             column = jdbcModel.getIdColumn();
         }
         RX.hasText(column, "列名不得为空:" + this.caption + "," + this.alias + ",model:" + jdbcModel.getName());
-        validateSemanticScaleContract(measureDef);
+        validateSemanticScaleContract();
         if (StringUtils.isEmpty(alias)) {
             alias = JdbcModelNamedUtils.toAliasName(column);
         }
@@ -72,21 +82,22 @@ public abstract class DbMeasureSupport extends DbObjectSupport implements DbMeas
         jdbcColumn = new MeasureDbColumn(sqlColumn);
     }
 
-    private void validateSemanticScaleContract(DbMeasureDef measureDef) {
-        boolean hasFormula = measureDef != null
-                && (measureDef.getFormulaDef() != null || hasDialectFormula(measureDef.getDialectFormulaDef()));
-        SemanticScaleSqlSupport.validate(semanticScaleFactor, column, hasFormula,
+    private void validateSemanticScaleContract() {
+        SemanticScaleSqlSupport.validate(semanticScaleFactor, column, hasResolvedFormula(),
                 StringUtils.isEmpty(name) ? column : name);
     }
 
-    private boolean hasDialectFormula(Map<String, DbFormulaDef> dialectFormulaDef) {
-        return dialectFormulaDef != null && !dialectFormulaDef.isEmpty();
+    private boolean hasResolvedFormula() {
+        return formulaBuilder != null || FormulaSqlSupport.hasSql(formulaSql);
     }
 
     /**
      * 初始化 SqlColumn，使用错误收集机制
      */
     private SqlColumn initSqlColumn() {
+        if (formulaOnly) {
+            return new SqlColumn(column, "DECIMAL", java.sql.Types.DECIMAL, 18);
+        }
         try {
             // 使用安全方式获取 SqlColumn
             SqlColumn sqlColumn = jdbcModel.getQueryObject().getSqlColumn(column, false);
@@ -232,6 +243,19 @@ public abstract class DbMeasureSupport extends DbObjectSupport implements DbMeas
 
         @Override
         public String getDeclare() {
+            if (formulaBuilder != null) {
+                DefaultExpEvaluator expEvaluator = DefaultExpEvaluator.newInstance(null);
+                expEvaluator.setVar("alias", getQueryObject().getAlias());
+                expEvaluator.setVar("def", this);
+                return SemanticScaleSqlSupport.scaledDeclare(
+                        (String) formulaBuilder.autoApply(expEvaluator),
+                        semanticScaleFactor);
+            }
+            if (FormulaSqlSupport.hasSql(formulaSql)) {
+                return SemanticScaleSqlSupport.scaledDeclare(
+                        FormulaSqlSupport.applyAlias(formulaSql, getQueryObject().getAlias()),
+                        semanticScaleFactor);
+            }
             return SemanticScaleSqlSupport.scaledDeclare(
                     getQueryObject().getAlias() + "." + column,
                     semanticScaleFactor);
@@ -239,15 +263,23 @@ public abstract class DbMeasureSupport extends DbObjectSupport implements DbMeas
 
         @Override
         public String getDeclare(ApplicationContext appCtx, String alias) {
-            if (formulaBuilder == null) {
-                String baseDeclare = (StringUtils.isEmpty(alias) ? getQueryObject().getAlias() : alias)
-                        + "." + getSqlColumnName();
-                return SemanticScaleSqlSupport.scaledDeclare(baseDeclare, semanticScaleFactor);
-            } else {
+            if (formulaBuilder != null) {
                 DefaultExpEvaluator expEvaluator = DefaultExpEvaluator.newInstance(appCtx);
                 expEvaluator.setVar("alias", alias);
                 expEvaluator.setVar("def", this);
-                return (String) formulaBuilder.autoApply(expEvaluator);
+                return SemanticScaleSqlSupport.scaledDeclare(
+                        (String) formulaBuilder.autoApply(expEvaluator),
+                        semanticScaleFactor);
+            }
+            if (FormulaSqlSupport.hasSql(formulaSql)) {
+                String effectiveAlias = StringUtils.isEmpty(alias) ? getQueryObject().getAlias() : alias;
+                return SemanticScaleSqlSupport.scaledDeclare(
+                        FormulaSqlSupport.applyAlias(formulaSql, effectiveAlias),
+                        semanticScaleFactor);
+            } else {
+                String baseDeclare = (StringUtils.isEmpty(alias) ? getQueryObject().getAlias() : alias)
+                        + "." + getSqlColumnName();
+                return SemanticScaleSqlSupport.scaledDeclare(baseDeclare, semanticScaleFactor);
             }
         }
 

@@ -23,8 +23,9 @@ public final class SemanticScaleSqlSupport {
         }
         RX.isTrue(semanticScaleFactor.compareTo(BigDecimal.ZERO) > 0,
                 "semanticScaleFactor 必须大于 0: " + fieldName);
-        RX.isTrue(!hasFormula,
-                "semanticScaleFactor 不能与 formulaDef/dialectFormulaDef 同时使用: " + fieldName);
+        if (hasFormula && StringUtils.isEmpty(column)) {
+            return;
+        }
         RX.isTrue(StringUtils.isNotEmpty(column) && SIMPLE_COLUMN_NAME.matcher(column).matches(),
                 "semanticScaleFactor 字段的 column 必须是物理列名，不能是 SQL 表达式: " + fieldName);
     }
@@ -33,7 +34,7 @@ public final class SemanticScaleSqlSupport {
         if (!hasScale(semanticScaleFactor)) {
             return baseDeclare;
         }
-        return "(" + baseDeclare + " / " + sqlLiteral(semanticScaleFactor) + ")";
+        return "((" + baseDeclare + ") / " + sqlLiteral(semanticScaleFactor) + ")";
     }
 
     private static String sqlLiteral(BigDecimal semanticScaleFactor) {

@@ -7,6 +7,7 @@ import java.math.BigDecimal;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -28,9 +29,9 @@ class SemanticScaleSqlSupportTest {
     void scaledDeclare_formatsSqlLiteral() {
         assertTrue(SemanticScaleSqlSupport.hasScale(new BigDecimal("100")));
 
-        assertEquals("(t.amount / 100.0)",
+        assertEquals("((t.amount) / 100.0)",
                 SemanticScaleSqlSupport.scaledDeclare("t.amount", new BigDecimal("100")));
-        assertEquals("(t.amount / 2.5)",
+        assertEquals("((t.amount) / 2.5)",
                 SemanticScaleSqlSupport.scaledDeclare("t.amount", new BigDecimal("2.50")));
     }
 
@@ -41,11 +42,25 @@ class SemanticScaleSqlSupportTest {
                 () -> SemanticScaleSqlSupport.validate(BigDecimal.ZERO, "amount", false, "amountYuan"));
         assertThrows(RuntimeException.class,
                 () -> SemanticScaleSqlSupport.validate(new BigDecimal("-1"), "amount", false, "amountYuan"));
-        assertThrows(RuntimeException.class,
-                () -> SemanticScaleSqlSupport.validate(BigDecimal.ONE, "amount", true, "amountYuan"));
+        SemanticScaleSqlSupport.validate(BigDecimal.ONE, "amount", true, "amountYuan");
+        SemanticScaleSqlSupport.validate(BigDecimal.ONE, "", true, "amountYuan");
         assertThrows(RuntimeException.class,
                 () -> SemanticScaleSqlSupport.validate(BigDecimal.ONE, "sum(amount)", false, "amountYuan"));
         assertThrows(RuntimeException.class,
                 () -> SemanticScaleSqlSupport.validate(BigDecimal.ONE, "", false, "amountYuan"));
+    }
+
+    @Test
+    @DisplayName("公式 SQL alias 占位符替换覆盖常见写法")
+    void formulaSqlSupport_appliesAliasPlaceholders() {
+        assertFalse(FormulaSqlSupport.hasSql(""));
+        assertNull(FormulaSqlSupport.applyAlias(null, "t1"));
+        assertEquals("alias.sales_amount + 1",
+                FormulaSqlSupport.applyAlias("alias.sales_amount + 1", ""));
+        assertEquals("t1.sales_amount + t1.tax_amount + t1.discount_amount",
+                FormulaSqlSupport.applyAlias(
+                        "alias.sales_amount + ${alias}.tax_amount + {alias}.discount_amount", "t1"));
+        assertEquals("sales_alias.sales_amount + t1.tax_amount",
+                FormulaSqlSupport.applyAlias("sales_alias.sales_amount + alias.tax_amount", "t1"));
     }
 }

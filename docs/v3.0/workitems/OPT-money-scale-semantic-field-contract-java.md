@@ -57,9 +57,29 @@ Expected LLM-facing behavior:
 2. `aggregation` remains the existing aggregation field. Do not introduce `aggregate`.
 3. `semanticScaleFactor` is the divisor from physical value to semantic value. It must be a positive number.
 4. `semanticUnit` and `semanticUnitLabel` are metadata. They may be exposed through describe/metadata, but must not trigger result-stage conversion.
-5. If `formulaDef` and `semanticScaleFactor` are both configured on the same field, Java V1 must fail closed or reject model loading with a clear error. Do not guess stacking semantics.
+5. `formulaDef` / `dialectFormulaDef` may be combined with `semanticScaleFactor`. The formula is evaluated as the physical numeric expression first, then `semanticScaleFactor` is applied to the whole formula result.
 6. Conversion happens at field binding / expression compilation only. No post-query blanket conversion is allowed.
 7. Existing governance must remain intact: fieldAccess, visibleColumns, deniedColumns, systemSlice, calculated field dependency extraction, and sanitized error behavior must not be weakened.
+
+### Formula Contract Extension
+
+This section records the Java follow-up for GitHub issue #2.
+
+- `formulaDef.value` and `dialectFormulaDef.<dialect>.value` are raw SQL fragments. The Java engine does not parse them as fsscript expressions; after lightweight alias placeholder replacement, they are handed to the database as SQL.
+- `formulaDef.builder` and `dialectFormulaDef.<dialect>.builder` are fsscript functions. The function return value is still treated as a raw SQL fragment.
+- `calculatedFields[].expression` remains the custom-column expression path that the engine parses and compiles before generating SQL.
+- When `semanticScaleFactor` is configured with a formula, Java SQL generation must wrap the formula result before division, for example `((alias.sales_amount + 0) / 100.0)`.
+- Formula-only measures may omit `column` only when the loader resolves an actual formula for the current dialect. If no formula is resolved, model loading must fail closed instead of fabricating a physical column from the measure name.
+
+### Pre-Aggregation Contract
+
+The issue #2 implementation updates the base Java query path only.
+
+- The pre-aggregation rewriter reads materialized pre-aggregation columns directly.
+- It does not re-expand `formulaDef` / `dialectFormulaDef`.
+- It does not re-apply `semanticScaleFactor` on top of a matched pre-aggregation column.
+- Therefore, a formula-backed semantic measure can use pre-aggregation only if the materialized pre-aggregation column stores the intended semantic value, i.e. the formula result after the required semantic scaling, or if a future dedicated pre-aggregation formula expansion contract is introduced.
+- If a query asks for a formula-backed measure and no compatible pre-aggregation measure column exists, that pre-aggregation candidate must not match; the query should fall back to the base model path.
 
 ## Non-Goals
 
@@ -68,7 +88,7 @@ Expected LLM-facing behavior:
 - No `SUM(field / semanticScaleFactor)` to `SUM(field) / semanticScaleFactor` optimization requirement in V1.
 - No full unit algebra system.
 - No currency exchange, FX conversion, or multi-currency normalization. `semanticUnit` and `semanticUnitLabel` only describe the semantic unit of the current field.
-- No public SQL fragment field such as `physical_sql`.
+- No additional public SQL fragment field such as `physical_sql`. Existing `formulaDef.value` / `dialectFormulaDef.value` remain the model-author raw SQL extension points.
 - No UI or frontend work.
 
 ## Ownership
@@ -95,7 +115,8 @@ Java first phase is accepted only when all required cases pass with real query e
 - `pivot.metrics` money fields return semantic unit values.
 - `timeWindow.targetMetrics` money fields return semantic unit values.
 - `deniedColumns` and `fieldAccess` still fail closed for semantic fields bound to denied or inaccessible physical columns.
-- Model load rejects or clearly reports invalid `semanticScaleFactor` values and unsupported `formulaDef + semanticScaleFactor` stacking.
+- Model load rejects or clearly reports invalid `semanticScaleFactor` values, SQL expressions in `column`, and formula-only fields that have no resolved formula for the current dialect.
+- `formulaDef.value`, `formulaDef.builder`, and `dialectFormulaDef.value` fields with `semanticScaleFactor` return values matching native SQL baselines.
 
 ## Required Verification
 
@@ -117,6 +138,14 @@ Current Java V1 evidence:
 - Full `foggy-dataset-model` SQLite regression with `-P!multi-db`: passed, 2529 tests, 0 failures, 0 errors, 1 skipped.
 - Dedicated semantic-scale pivot/timeWindow fixtures: added and passed with native SQL baselines.
 - JaCoCo coverage gate with full SQLite regression: passed, 2532 tests, 0 failures, 0 errors, 1 skipped. `SemanticScaleSqlSupport` line coverage is 100% and branch coverage is 100%; module baseline gate is line >= 77% and branch >= 62%.
+
+Current issue #2 follow-up evidence:
+
+- `formulaDef.value + semanticScaleFactor`: covered by Java integration tests with native SQL baselines.
+- `formulaDef.builder + semanticScaleFactor`: covered by Java integration tests with native SQL baselines.
+- `dialectFormulaDef.value + semanticScaleFactor`: covered by Java integration tests with native SQL baselines.
+- `property + formulaDef.value + semanticScaleFactor`: covered by Java integration tests with native SQL baselines.
+- semantic scale enabled and disabled namespace behavior: covered by DSL-style `DbQueryRequestDef` query execution compared with native SQL.
 
 ## Review Flow
 
