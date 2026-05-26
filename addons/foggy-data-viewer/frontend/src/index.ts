@@ -38,6 +38,10 @@ export {
   flattenPivotLeafNodes,
   validatePivotHeaderTree
 } from './utils/pivotHeaderTree'
+export {
+  buildPivotCellField,
+  toPivotViewModel
+} from './utils/pivotViewModelAdapter'
 export type {
   BuildPivotGridColumnsOptions,
   PivotGridColumn,
@@ -135,6 +139,9 @@ export type {
   PivotHeaderNode,
   PivotHeaderRole,
   PivotMetric,
+  PivotRawAxisMember,
+  PivotRawCell,
+  PivotRawPayload,
   PivotShape,
   PivotViewMode,
   PivotViewModel,

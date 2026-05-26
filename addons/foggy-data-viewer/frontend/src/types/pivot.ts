@@ -68,3 +68,30 @@ export interface PivotViewModel {
   }
   evidence?: Record<string, unknown>
 }
+
+export interface PivotRawAxisMember {
+  key: string
+  title?: string
+  axisValue?: unknown
+  values: Record<string, unknown>
+}
+
+export interface PivotRawCell {
+  rowKey: string
+  columnKey: string
+  metricField: string
+  value: unknown
+}
+
+export interface PivotRawPayload {
+  viewMode: PivotViewMode
+  shape: PivotShape
+  rowAxes: PivotAxisField[]
+  columnAxes: PivotAxisField[]
+  metrics: PivotMetric[]
+  rowMembers: PivotRawAxisMember[]
+  columnMembers: PivotRawAxisMember[]
+  cells: PivotRawCell[]
+  axisPages?: PivotViewModel['axisPages']
+  evidence?: Record<string, unknown>
+}

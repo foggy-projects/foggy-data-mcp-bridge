@@ -265,6 +265,9 @@ export type {
   PivotHeaderNode,
   PivotHeaderRole,
   PivotMetric,
+  PivotRawAxisMember,
+  PivotRawCell,
+  PivotRawPayload,
   PivotShape,
   PivotViewMode,
   PivotViewModel
