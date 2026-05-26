@@ -1113,6 +1113,118 @@ class PivotIntegrationTest extends EcommerceTestSupport {
         assertTrue(conflict.getMessage().contains("不能同时指定不同的 start 和 offset"));
     }
 
+    @Test
+    @DisplayName("v3.7: domainSlice/start/offset 与多层轴组合保持 fail-closed")
+    void testAxisDomainSelectionRejectsMultiLevelAxes() {
+        AxisField childRow = axis("orderId");
+        childRow.setDomainSlice(List.of(slice("discountAmount", ">", 0)));
+
+        PivotRequest multiRowPivot = new PivotRequest();
+        multiRowPivot.setRows(List.of(axis("product$categoryName"), childRow));
+        multiRowPivot.setMetrics(List.of("salesAmount"));
+
+        SemanticQueryRequest multiRowRequest = new SemanticQueryRequest();
+        multiRowRequest.setPivot(multiRowPivot);
+
+        IllegalArgumentException multiRow = assertThrows(IllegalArgumentException.class,
+                () -> execute(multiRowRequest));
+        assertTrue(multiRow.getMessage().contains("单层 rows 和单层 columns"),
+                "多层 rows 应明确拒绝 domainSlice/start/offset: " + multiRow.getMessage());
+
+        AxisField childColumn = axis("salesDate$month");
+        childColumn.setOffset(1);
+        childColumn.setLimit(1);
+
+        PivotRequest multiColumnPivot = new PivotRequest();
+        multiColumnPivot.setRows(List.of(axis("orderId")));
+        multiColumnPivot.setColumns(List.of(axis("product$categoryName"), childColumn));
+        multiColumnPivot.setMetrics(List.of("salesAmount"));
+
+        SemanticQueryRequest multiColumnRequest = new SemanticQueryRequest();
+        multiColumnRequest.setPivot(multiColumnPivot);
+
+        IllegalArgumentException multiColumn = assertThrows(IllegalArgumentException.class,
+                () -> execute(multiColumnRequest));
+        assertTrue(multiColumn.getMessage().contains("domain tree/cursor"),
+                "多层 columns 应说明需要显式 domain tree/cursor 语义: " + multiColumn.getMessage());
+    }
+
+    @Test
+    @DisplayName("v3.7: domainSlice/start/offset 与 hierarchyMode=tree 组合保持 fail-closed")
+    void testAxisDomainSelectionRejectsTreeMode() {
+        AxisField treeRow = treeAxis("team$caption");
+        treeRow.setDomainSlice(List.of(slice("salesAmount", ">", 0)));
+
+        PivotRequest pivot = new PivotRequest();
+        pivot.setRows(List.of(treeRow));
+        pivot.setMetrics(List.of("salesAmount"));
+        pivot.setOutputFormat("tree");
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setPivot(pivot);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> execute(request));
+        assertTrue(ex.getMessage().contains("不支持 hierarchyMode=tree"),
+                "tree + domainSlice/start/offset 应继续 fail-closed: " + ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("v3.7: domainSlice/start/offset 与 parentShare 组合保持 fail-closed")
+    void testAxisDomainSelectionRejectsParentShare() {
+        AxisField row = axis("product$categoryName");
+        row.setDomainSlice(List.of(slice("salesAmount", ">", 0)));
+
+        PivotRequest pivot = new PivotRequest();
+        pivot.setRows(List.of(row));
+
+        List<PivotMetricItem> items = new ArrayList<>();
+        items.add(PivotMetricItem.ofNative("salesAmount"));
+        PivotMetricItem ps = new PivotMetricItem();
+        ps.setName("categoryShare");
+        ps.setType("parentShare");
+        ps.setOf("salesAmount");
+        items.add(ps);
+        pivot.setMetricItems(items);
+        pivot.setOutputFormat("flat");
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setPivot(pivot);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> execute(request));
+        assertTrue(ex.getMessage().contains("parentShare/baselineRatio"),
+                "parentShare + domainSlice/start/offset 应说明派生指标 scope 尚未定义: " + ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("v3.7: domainSlice/start/offset 与 baselineRatio 组合保持 fail-closed")
+    void testAxisDomainSelectionRejectsBaselineRatio() {
+        AxisField row = axis("product$categoryName");
+        row.setDomainSlice(List.of(slice("salesAmount", ">", 0)));
+
+        PivotRequest pivot = new PivotRequest();
+        pivot.setRows(List.of(row));
+        pivot.setColumns(List.of(axis("salesDate$month")));
+
+        List<PivotMetricItem> items = new ArrayList<>();
+        items.add(PivotMetricItem.ofNative("salesAmount"));
+        PivotMetricItem br = new PivotMetricItem();
+        br.setName("salesIndex");
+        br.setType("baselineRatio");
+        br.setOf("salesAmount");
+        br.setAxis("columns");
+        br.setBaseline("first");
+        items.add(br);
+        pivot.setMetricItems(items);
+        pivot.setOutputFormat("flat");
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setPivot(pivot);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> execute(request));
+        assertTrue(ex.getMessage().contains("parentShare/baselineRatio"),
+                "baselineRatio + domainSlice/start/offset 应说明 baseline scope 尚未定义: " + ex.getMessage());
+    }
+
     // ========== 辅助方法 ==========
 
     private SemanticQueryResponse execute(SemanticQueryRequest request) {
