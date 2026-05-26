@@ -41,6 +41,8 @@ class PivotIntegrationTest extends EcommerceTestSupport {
     private static final String TEST_MODEL = "FactSalesQueryModel";
     private static final int LARGE_AXIS_DOMAIN_SIZE = 1105;
     private static final String LARGE_AXIS_DOMAIN_STATUS = "PDS_BIG";
+    private static final String PARENT_CHILD_WINDOW_STATUS_A = "PDS_WINDOW_A";
+    private static final String PARENT_CHILD_WINDOW_STATUS_B = "PDS_WINDOW_B";
 
     @Resource
     private SemanticQueryServiceV3 semanticQueryServiceV3;
@@ -165,38 +167,45 @@ class PivotIntegrationTest extends EcommerceTestSupport {
     @Test
     @DisplayName("v3.7: 多层 rows 子级 start/limit 按每个父级独立分页")
     void testParentChildOffsetLimitWindow() {
-        PivotRequest pivot = new PivotRequest();
+        insertParentChildWindowFixture();
+        try {
+            PivotRequest pivot = new PivotRequest();
 
-        AxisField category = axis("product$categoryName");
-        AxisField subCategory = axis("product$subCategoryName");
-        subCategory.setStart(1);
-        subCategory.setLimit(1);
-        subCategory.setOrderBy(List.of("-salesAmount"));
+            AxisField status = axis("orderStatus");
+            AxisField paymentMethod = axis("paymentMethod");
+            paymentMethod.setStart(1);
+            paymentMethod.setLimit(1);
+            paymentMethod.setOrderBy(List.of("-salesAmount"));
 
-        pivot.setRows(List.of(category, subCategory));
-        pivot.setMetrics(List.of("salesAmount"));
-        pivot.setOutputFormat("flat");
+            pivot.setRows(List.of(status, paymentMethod));
+            pivot.setMetrics(List.of("salesAmount"));
+            pivot.setOutputFormat("flat");
 
-        SemanticQueryRequest request = new SemanticQueryRequest();
-        request.setPivot(pivot);
+            SemanticQueryRequest request = new SemanticQueryRequest();
+            request.setSlice(List.of(slice("orderStatus", "in",
+                    List.of(PARENT_CHILD_WINDOW_STATUS_A, PARENT_CHILD_WINDOW_STATUS_B))));
+            request.setPivot(pivot);
 
-        SemanticQueryResponse response = execute(request);
-        List<Map<String, Object>> items = response.getItems();
-        assertFalse(items.isEmpty(), "多层 rows 子级 start/limit 应返回每个父级的独立子级窗口");
+            SemanticQueryResponse response = execute(request);
+            List<Map<String, Object>> items = response.getItems();
+            assertFalse(items.isEmpty(), "多层 rows 子级 start/limit 应返回每个父级的独立子级窗口");
 
-        Set<String> tuples = new LinkedHashSet<>();
-        for (Map<String, Object> item : items) {
-            tuples.add(item.get("product$categoryName") + "/" + item.get("product$subCategoryName"));
+            Set<String> tuples = new LinkedHashSet<>();
+            for (Map<String, Object> item : items) {
+                tuples.add(item.get("orderStatus") + "/" + item.get("paymentMethod"));
+            }
+
+            assertTrue(tuples.contains(PARENT_CHILD_WINDOW_STATUS_A + "/PDS_PAY_KEEP"),
+                    "父级 A 按 salesAmount 降序 start=1 limit=1 后应保留第二名 PDS_PAY_KEEP: " + tuples);
+            assertTrue(tuples.contains(PARENT_CHILD_WINDOW_STATUS_B + "/PDS_PAY_KEEP"),
+                    "父级 B 按 salesAmount 降序 start=1 limit=1 后应保留第二名 PDS_PAY_KEEP: " + tuples);
+            assertFalse(tuples.contains(PARENT_CHILD_WINDOW_STATUS_A + "/PDS_PAY_TOP"),
+                    "父级 A 第一名 PDS_PAY_TOP 应被 start=1 跳过: " + tuples);
+            assertFalse(tuples.contains(PARENT_CHILD_WINDOW_STATUS_B + "/PDS_PAY_TOP"),
+                    "父级 B 第一名 PDS_PAY_TOP 应被 start=1 跳过: " + tuples);
+        } finally {
+            deleteParentChildWindowFixture();
         }
-
-        assertTrue(tuples.contains("数码电器/电脑办公"),
-                "数码电器按 salesAmount 降序 start=1 limit=1 后应保留第二名电脑办公: " + tuples);
-        assertTrue(tuples.contains("服装配饰/鞋靴"),
-                "服装配饰按 salesAmount 降序 start=1 limit=1 后应保留第二名鞋靴: " + tuples);
-        assertFalse(tuples.contains("数码电器/手机通讯"),
-                "数码电器第一名手机通讯应被 start=1 跳过: " + tuples);
-        assertFalse(tuples.contains("服装配饰/男装"),
-                "服装配饰第一名男装应被 start=1 跳过: " + tuples);
     }
 
     @Test
@@ -1342,6 +1351,36 @@ class PivotIntegrationTest extends EcommerceTestSupport {
 
     private void deletePivotDomainSliceFixture() {
         jdbcTemplate.update("DELETE FROM fact_sales WHERE order_id IN ('PDS_O1', 'PDS_O2')");
+    }
+
+    private void insertParentChildWindowFixture() {
+        deleteParentChildWindowFixture();
+        String sql = """
+                INSERT INTO fact_sales
+                (order_id, order_line_no, date_key, product_key, customer_key, store_key, channel_key, promotion_key,
+                 quantity, unit_price, unit_cost, discount_amount, sales_amount, cost_amount, profit_amount,
+                 order_status, payment_method)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """;
+        jdbcTemplate.batchUpdate(sql, List.of(
+                new Object[] {"PDS_WIN_A_TOP", 1, 20240101, 1, 1, 1, 1, null,
+                        1, 300d, 0d, 0d, 300d, 0d, 300d, PARENT_CHILD_WINDOW_STATUS_A, "PDS_PAY_TOP"},
+                new Object[] {"PDS_WIN_A_KEEP", 1, 20240101, 1, 1, 1, 1, null,
+                        1, 200d, 0d, 0d, 200d, 0d, 200d, PARENT_CHILD_WINDOW_STATUS_A, "PDS_PAY_KEEP"},
+                new Object[] {"PDS_WIN_A_LOW", 1, 20240101, 1, 1, 1, 1, null,
+                        1, 100d, 0d, 0d, 100d, 0d, 100d, PARENT_CHILD_WINDOW_STATUS_A, "PDS_PAY_LOW"},
+                new Object[] {"PDS_WIN_B_TOP", 1, 20240101, 1, 1, 1, 1, null,
+                        1, 300d, 0d, 0d, 300d, 0d, 300d, PARENT_CHILD_WINDOW_STATUS_B, "PDS_PAY_TOP"},
+                new Object[] {"PDS_WIN_B_KEEP", 1, 20240101, 1, 1, 1, 1, null,
+                        1, 200d, 0d, 0d, 200d, 0d, 200d, PARENT_CHILD_WINDOW_STATUS_B, "PDS_PAY_KEEP"},
+                new Object[] {"PDS_WIN_B_LOW", 1, 20240101, 1, 1, 1, 1, null,
+                        1, 100d, 0d, 0d, 100d, 0d, 100d, PARENT_CHILD_WINDOW_STATUS_B, "PDS_PAY_LOW"}
+        ));
+    }
+
+    private void deleteParentChildWindowFixture() {
+        jdbcTemplate.update("DELETE FROM fact_sales WHERE order_status IN (?, ?)",
+                PARENT_CHILD_WINDOW_STATUS_A, PARENT_CHILD_WINDOW_STATUS_B);
     }
 
     private void insertLargePivotDomainSliceFixture() {
