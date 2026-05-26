@@ -20,7 +20,7 @@ class RelationResultExpressionCompilerTest {
 
         DslCteDslRequestMapper.ResultStageDerivedMetrics result = RelationResultExpressionCompiler.compile(
                 List.of(
-                        derived("profitRate", "profitAmount / NULLIF(salesAmount, 0)"),
+                        derived("profitRate", "profitAmount / salesAmount"),
                         derived("nonProfitAmount", "salesAmount - profitAmount")
                 ),
                 List.of("salesAmount", "profitAmount"),
@@ -35,13 +35,30 @@ class RelationResultExpressionCompilerTest {
     }
 
     @Test
+    @DisplayName("normalizes explicit NULLIF denominator guard for ratio formulas")
+    void normalizesExplicitNullifRatioGuard() {
+        List<String> unsupported = new ArrayList<>();
+
+        DslCteDslRequestMapper.ResultStageDerivedMetrics result = RelationResultExpressionCompiler.compile(
+                List.of(derived("profitRate", "profitAmount / NULLIF(salesAmount, 0)")),
+                List.of("salesAmount", "profitAmount"),
+                List.of("salesAmount", "profitAmount"),
+                List.of(),
+                unsupported);
+
+        assertTrue(unsupported.isEmpty());
+        assertEquals("profitAmount", result.ratios().get(0).numeratorAlias());
+        assertEquals("salesAmount", result.ratios().get(0).denominatorAlias());
+    }
+
+    @Test
     @DisplayName("compiles absolute delta ratio with governed denominator")
     void compilesAbsoluteDeltaRatio() {
         List<String> unsupported = new ArrayList<>();
 
         DslCteDslRequestMapper.ResultStageDerivedMetrics result = RelationResultExpressionCompiler.compile(
                 List.of(derived("absoluteDeviationRate",
-                        "ABS(actualAmount - targetAmount) / NULLIF(targetAmount, 0)")),
+                        "ABS(actualAmount - targetAmount) / targetAmount")),
                 List.of("actualAmount", "targetAmount"),
                 List.of("actualAmount", "targetAmount"),
                 List.of(),
@@ -50,6 +67,24 @@ class RelationResultExpressionCompilerTest {
         assertTrue(unsupported.isEmpty());
         assertEquals("relation_metric_absolute_delta_ratio", result.arithmetic().get(0).kind());
         assertEquals("(1.0 * ABS(\"actualAmount\" - \"targetAmount\") / NULLIF(\"targetAmount\", 0))",
+                result.arithmetic().get(0).sqlExpression());
+    }
+
+    @Test
+    @DisplayName("normalizes explicit NULLIF denominator guard for delta ratios")
+    void normalizesExplicitNullifDeltaRatioGuard() {
+        List<String> unsupported = new ArrayList<>();
+
+        DslCteDslRequestMapper.ResultStageDerivedMetrics result = RelationResultExpressionCompiler.compile(
+                List.of(derived("deviationRate", "(actualAmount - targetAmount) / NULLIF(targetAmount, 0)")),
+                List.of("actualAmount", "targetAmount"),
+                List.of("actualAmount", "targetAmount"),
+                List.of(),
+                unsupported);
+
+        assertTrue(unsupported.isEmpty());
+        assertEquals("relation_metric_delta_ratio", result.arithmetic().get(0).kind());
+        assertEquals("(1.0 * (\"actualAmount\" - \"targetAmount\") / NULLIF(\"targetAmount\", 0))",
                 result.arithmetic().get(0).sqlExpression());
     }
 
@@ -104,6 +139,40 @@ class RelationResultExpressionCompilerTest {
         assertTrue(result.empty());
         assertTrue(unsupported.stream().anyMatch(message ->
                 message.contains("denominator must match one difference operand")));
+    }
+
+    @Test
+    @DisplayName("rejects arithmetic subset functions outside governed allowlist")
+    void rejectsUnsupportedArithmeticFunctions() {
+        List<String> unsupported = new ArrayList<>();
+
+        DslCteDslRequestMapper.ResultStageDerivedMetrics result = RelationResultExpressionCompiler.compile(
+                List.of(derived("roundedRate", "ROUND(profitAmount / salesAmount, 2)")),
+                List.of("salesAmount", "profitAmount"),
+                List.of("salesAmount", "profitAmount"),
+                List.of(),
+                unsupported);
+
+        assertTrue(result.empty());
+        assertTrue(unsupported.stream().anyMatch(message ->
+                message.contains("supports only metric ratio or metric difference formulas")));
+    }
+
+    @Test
+    @DisplayName("rejects qualified aliases in arithmetic subset")
+    void rejectsQualifiedArithmeticAliases() {
+        List<String> unsupported = new ArrayList<>();
+
+        DslCteDslRequestMapper.ResultStageDerivedMetrics result = RelationResultExpressionCompiler.compile(
+                List.of(derived("badRate", "Order.profitAmount / salesAmount")),
+                List.of("salesAmount", "profitAmount"),
+                List.of("salesAmount", "profitAmount"),
+                List.of(),
+                unsupported);
+
+        assertTrue(result.empty());
+        assertTrue(unsupported.stream().anyMatch(message ->
+                message.contains("supports only metric ratio or metric difference formulas")));
     }
 
     private static Map<String, Object> derived(String name, String expr) {

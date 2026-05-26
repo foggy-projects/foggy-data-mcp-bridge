@@ -1,6 +1,11 @@
 package com.foggyframework.dataset.db.model.semantic.support;
 
 import com.foggyframework.core.ex.RX;
+import com.foggyframework.dataset.db.model.semantic.support.RelationArithmeticExpressionParser.RelationAbsNode;
+import com.foggyframework.dataset.db.model.semantic.support.RelationArithmeticExpressionParser.RelationAliasNode;
+import com.foggyframework.dataset.db.model.semantic.support.RelationArithmeticExpressionParser.RelationBinaryNode;
+import com.foggyframework.dataset.db.model.semantic.support.RelationArithmeticExpressionParser.RelationDenominatorGuardNode;
+import com.foggyframework.dataset.db.model.semantic.support.RelationArithmeticExpressionParser.RelationExpressionNode;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -19,21 +24,6 @@ import java.util.regex.Pattern;
 final class RelationResultExpressionCompiler {
 
     private static final Pattern SAFE_ALIAS_PATTERN = Pattern.compile("[A-Za-z_][A-Za-z0-9_$.]*");
-    private static final Pattern METRIC_SAFE_RATIO_PATTERN = Pattern.compile(
-            "(?i)^\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*/\\s*(?:"
-                    + "([A-Za-z_][A-Za-z0-9_$]*)|nullif\\s*\\(\\s*"
-                    + "([A-Za-z_][A-Za-z0-9_$]*)\\s*,\\s*0(?:\\.0+)?\\s*\\))\\s*$");
-    private static final Pattern METRIC_DIFFERENCE_PATTERN = Pattern.compile(
-            "(?i)^\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*-\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*$");
-    private static final Pattern METRIC_DELTA_RATIO_PATTERN = Pattern.compile(
-            "(?i)^\\s*\\(\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*-\\s*([A-Za-z_][A-Za-z0-9_$]*)"
-                    + "\\s*\\)\\s*/\\s*(?:([A-Za-z_][A-Za-z0-9_$]*)|nullif\\s*\\(\\s*"
-                    + "([A-Za-z_][A-Za-z0-9_$]*)\\s*,\\s*0(?:\\.0+)?\\s*\\))\\s*$");
-    private static final Pattern METRIC_ABSOLUTE_DELTA_RATIO_PATTERN = Pattern.compile(
-            "(?i)^\\s*abs\\s*\\(\\s*\\(?\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*-\\s*"
-                    + "([A-Za-z_][A-Za-z0-9_$]*)\\s*\\)?\\s*\\)\\s*/\\s*(?:"
-                    + "([A-Za-z_][A-Za-z0-9_$]*)|nullif\\s*\\(\\s*"
-                    + "([A-Za-z_][A-Za-z0-9_$]*)\\s*,\\s*0(?:\\.0+)?\\s*\\))\\s*$");
     private static final Pattern METRIC_CASE_LABEL_PATTERN = Pattern.compile(
             "(?i)^\\s*case\\s+when\\s+([A-Za-z_][A-Za-z0-9_$]*)\\s*(<=|>=|<>|!=|==|=|<|>)\\s*"
                     + "(-?\\d+(?:\\.\\d+)?)\\s+then\\s*'((?:[^']|'')*)'\\s+else\\s*'((?:[^']|'')*)'"
@@ -72,25 +62,7 @@ final class RelationResultExpressionCompiler {
                 unsupported.add("relation result-stage metric derived aliases must be unique");
                 continue;
             }
-            if (compileRatio(name, expr, metricAliases, ratios, unsupported)) {
-                continue;
-            }
-            DslCteDslRequestMapper.MetricArithmeticDerived absoluteDeltaRatio =
-                    compileAbsoluteDeltaRatio(name, expr, metricAliases, unsupported);
-            if (absoluteDeltaRatio != null) {
-                arithmetic.add(absoluteDeltaRatio);
-                continue;
-            }
-            DslCteDslRequestMapper.MetricArithmeticDerived deltaRatio =
-                    compileDeltaRatio(name, expr, metricAliases, unsupported);
-            if (deltaRatio != null) {
-                arithmetic.add(deltaRatio);
-                continue;
-            }
-            DslCteDslRequestMapper.MetricArithmeticDerived difference =
-                    compileDifference(name, expr, metricAliases, unsupported);
-            if (difference != null) {
-                arithmetic.add(difference);
+            if (compileArithmetic(name, expr, metricAliases, ratios, arithmetic, unsupported)) {
                 continue;
             }
             DslCteDslRequestMapper.MetricArithmeticDerived caseLabel =
@@ -115,83 +87,148 @@ final class RelationResultExpressionCompiler {
                 : DslCteDslRequestMapper.ResultStageDerivedMetrics.emptyMetrics();
     }
 
-    private static boolean compileRatio(String name, String expr, List<String> metricAliases,
-                                        List<DslCteDslRequestMapper.MetricRatioDerived> ratios,
-                                        List<String> unsupported) {
-        Matcher matcher = METRIC_SAFE_RATIO_PATTERN.matcher(expr == null ? "" : expr);
-        if (!matcher.matches()) {
+    private static boolean compileArithmetic(String name,
+                                             String expr,
+                                             List<String> metricAliases,
+                                             List<DslCteDslRequestMapper.MetricRatioDerived> ratios,
+                                             List<DslCteDslRequestMapper.MetricArithmeticDerived> arithmetic,
+                                             List<String> unsupported) {
+        RelationExpressionNode node = RelationArithmeticExpressionParser.parse(expr);
+        if (node == null) {
             return false;
         }
-        String numerator = matcher.group(1);
-        String denominator = matcher.group(2) == null ? matcher.group(3) : matcher.group(2);
-        if (!metricAliases.contains(numerator) || !metricAliases.contains(denominator)) {
-            unsupported.add("relation result-stage metric ratio must reference aggregate metric aliases");
+
+        RatioShape ratio = ratioShape(node);
+        if (ratio != null) {
+            if (!metricAliases.contains(ratio.numerator()) || !metricAliases.contains(ratio.denominator())) {
+                unsupported.add("relation result-stage metric ratio must reference aggregate metric aliases");
+                return true;
+            }
+            ratios.add(new DslCteDslRequestMapper.MetricRatioDerived(
+                    name, ratio.numerator(), ratio.denominator()));
             return true;
         }
-        ratios.add(new DslCteDslRequestMapper.MetricRatioDerived(name, numerator, denominator));
-        return true;
+
+        DeltaRatioShape absoluteDeltaRatio = absoluteDeltaRatioShape(node);
+        if (absoluteDeltaRatio != null) {
+            if (!validDeltaRatioAliases(absoluteDeltaRatio, metricAliases)) {
+                unsupported.add("relation result-stage absolute metric delta ratio must reference aggregate metric aliases");
+                return true;
+            }
+            if (!denominatorMatchesDifferenceOperand(absoluteDeltaRatio)) {
+                unsupported.add("relation result-stage absolute metric delta ratio denominator must match one difference operand");
+                return true;
+            }
+            arithmetic.add(new DslCteDslRequestMapper.MetricArithmeticDerived(name,
+                    "(1.0 * ABS(" + quoteAlias(absoluteDeltaRatio.left()) + " - "
+                            + quoteAlias(absoluteDeltaRatio.right()) + ") / NULLIF("
+                            + quoteAlias(absoluteDeltaRatio.denominator()) + ", 0))",
+                    "relation_metric_absolute_delta_ratio"));
+            return true;
+        }
+
+        DeltaRatioShape deltaRatio = deltaRatioShape(node);
+        if (deltaRatio != null) {
+            if (!validDeltaRatioAliases(deltaRatio, metricAliases)) {
+                unsupported.add("relation result-stage metric delta ratio must reference aggregate metric aliases");
+                return true;
+            }
+            if (!denominatorMatchesDifferenceOperand(deltaRatio)) {
+                unsupported.add("relation result-stage metric delta ratio denominator must match one difference operand");
+                return true;
+            }
+            arithmetic.add(new DslCteDslRequestMapper.MetricArithmeticDerived(name,
+                    "(1.0 * (" + quoteAlias(deltaRatio.left()) + " - " + quoteAlias(deltaRatio.right())
+                            + ") / NULLIF(" + quoteAlias(deltaRatio.denominator()) + ", 0))",
+                    "relation_metric_delta_ratio"));
+            return true;
+        }
+
+        DifferenceShape difference = differenceShape(node);
+        if (difference != null) {
+            if (!metricAliases.contains(difference.left()) || !metricAliases.contains(difference.right())) {
+                unsupported.add("relation result-stage metric difference must reference aggregate metric aliases");
+                return true;
+            }
+            arithmetic.add(new DslCteDslRequestMapper.MetricArithmeticDerived(name,
+                    quoteAlias(difference.left()) + " - " + quoteAlias(difference.right()),
+                    "relation_metric_difference"));
+            return true;
+        }
+
+        return false;
     }
 
-    private static DslCteDslRequestMapper.MetricArithmeticDerived compileAbsoluteDeltaRatio(
-            String name, String expr, List<String> metricAliases, List<String> unsupported) {
-        Matcher matcher = METRIC_ABSOLUTE_DELTA_RATIO_PATTERN.matcher(expr == null ? "" : expr);
-        if (!matcher.matches()) {
+    private static RatioShape ratioShape(RelationExpressionNode node) {
+        if (!(node instanceof RelationBinaryNode binary) || !"/".equals(binary.op())) {
             return null;
         }
-        String left = matcher.group(1);
-        String right = matcher.group(2);
-        String denominator = matcher.group(3) == null ? matcher.group(4) : matcher.group(3);
-        if (!metricAliases.contains(left) || !metricAliases.contains(right) || !metricAliases.contains(denominator)) {
-            unsupported.add("relation result-stage absolute metric delta ratio must reference aggregate metric aliases");
+        String numerator = alias(binary.left());
+        String denominator = denominatorAlias(binary.right());
+        if (numerator == null || denominator == null) {
             return null;
         }
-        if (!denominator.equals(left) && !denominator.equals(right)) {
-            unsupported.add("relation result-stage absolute metric delta ratio denominator must match one difference operand");
-            return null;
-        }
-        return new DslCteDslRequestMapper.MetricArithmeticDerived(name,
-                "(1.0 * ABS(" + quoteAlias(left) + " - " + quoteAlias(right)
-                        + ") / NULLIF(" + quoteAlias(denominator) + ", 0))",
-                "relation_metric_absolute_delta_ratio");
+        return new RatioShape(numerator, denominator);
     }
 
-    private static DslCteDslRequestMapper.MetricArithmeticDerived compileDeltaRatio(
-            String name, String expr, List<String> metricAliases, List<String> unsupported) {
-        Matcher matcher = METRIC_DELTA_RATIO_PATTERN.matcher(expr == null ? "" : expr);
-        if (!matcher.matches()) {
+    private static DeltaRatioShape absoluteDeltaRatioShape(RelationExpressionNode node) {
+        if (!(node instanceof RelationBinaryNode binary) || !"/".equals(binary.op())) {
             return null;
         }
-        String left = matcher.group(1);
-        String right = matcher.group(2);
-        String denominator = matcher.group(3) == null ? matcher.group(4) : matcher.group(3);
-        if (!metricAliases.contains(left) || !metricAliases.contains(right) || !metricAliases.contains(denominator)) {
-            unsupported.add("relation result-stage metric delta ratio must reference aggregate metric aliases");
+        if (!(binary.left() instanceof RelationAbsNode abs)) {
             return null;
         }
-        if (!denominator.equals(left) && !denominator.equals(right)) {
-            unsupported.add("relation result-stage metric delta ratio denominator must match one difference operand");
+        DifferenceShape difference = differenceShape(abs.child());
+        String denominator = denominatorAlias(binary.right());
+        if (difference == null || denominator == null) {
             return null;
         }
-        return new DslCteDslRequestMapper.MetricArithmeticDerived(name,
-                "(1.0 * (" + quoteAlias(left) + " - " + quoteAlias(right)
-                        + ") / NULLIF(" + quoteAlias(denominator) + ", 0))",
-                "relation_metric_delta_ratio");
+        return new DeltaRatioShape(difference.left(), difference.right(), denominator);
     }
 
-    private static DslCteDslRequestMapper.MetricArithmeticDerived compileDifference(
-            String name, String expr, List<String> metricAliases, List<String> unsupported) {
-        Matcher matcher = METRIC_DIFFERENCE_PATTERN.matcher(expr == null ? "" : expr);
-        if (!matcher.matches()) {
+    private static DeltaRatioShape deltaRatioShape(RelationExpressionNode node) {
+        if (!(node instanceof RelationBinaryNode binary) || !"/".equals(binary.op())) {
             return null;
         }
-        String left = matcher.group(1);
-        String right = matcher.group(2);
-        if (!metricAliases.contains(left) || !metricAliases.contains(right)) {
-            unsupported.add("relation result-stage metric difference must reference aggregate metric aliases");
+        DifferenceShape difference = differenceShape(binary.left());
+        String denominator = denominatorAlias(binary.right());
+        if (difference == null || denominator == null) {
             return null;
         }
-        return new DslCteDslRequestMapper.MetricArithmeticDerived(name, quoteAlias(left) + " - " + quoteAlias(right),
-                "relation_metric_difference");
+        return new DeltaRatioShape(difference.left(), difference.right(), denominator);
+    }
+
+    private static DifferenceShape differenceShape(RelationExpressionNode node) {
+        if (!(node instanceof RelationBinaryNode binary) || !"-".equals(binary.op())) {
+            return null;
+        }
+        String left = alias(binary.left());
+        String right = alias(binary.right());
+        if (left == null || right == null) {
+            return null;
+        }
+        return new DifferenceShape(left, right);
+    }
+
+    private static String denominatorAlias(RelationExpressionNode node) {
+        if (node instanceof RelationDenominatorGuardNode denominator) {
+            return denominator.alias();
+        }
+        return alias(node);
+    }
+
+    private static String alias(RelationExpressionNode node) {
+        return node instanceof RelationAliasNode alias ? alias.alias() : null;
+    }
+
+    private static boolean validDeltaRatioAliases(DeltaRatioShape shape, List<String> metricAliases) {
+        return metricAliases.contains(shape.left())
+                && metricAliases.contains(shape.right())
+                && metricAliases.contains(shape.denominator());
+    }
+
+    private static boolean denominatorMatchesDifferenceOperand(DeltaRatioShape shape) {
+        return shape.denominator().equals(shape.left()) || shape.denominator().equals(shape.right());
     }
 
     private static DslCteDslRequestMapper.MetricArithmeticDerived compileCaseLabel(
@@ -351,5 +388,14 @@ final class RelationResultExpressionCompiler {
     }
 
     private record OrderedBucketCondition(String op, String threshold, String label) {
+    }
+
+    private record RatioShape(String numerator, String denominator) {
+    }
+
+    private record DifferenceShape(String left, String right) {
+    }
+
+    private record DeltaRatioShape(String left, String right, String denominator) {
     }
 }
