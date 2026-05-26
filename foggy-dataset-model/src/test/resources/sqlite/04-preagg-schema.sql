@@ -28,6 +28,7 @@ CREATE TABLE preagg_daily_product_sales (
     -- Measure columns (pre-aggregated)
     quantity_sum        INTEGER NOT NULL DEFAULT 0,
     sales_amount_sum    REAL NOT NULL DEFAULT 0,
+    sales_amount_formula_yuan_sum REAL NOT NULL DEFAULT 0,
     cost_amount_sum     REAL DEFAULT 0,
     profit_amount_sum   REAL DEFAULT 0,
 

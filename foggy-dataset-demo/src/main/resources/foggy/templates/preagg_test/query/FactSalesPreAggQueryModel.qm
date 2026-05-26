@@ -83,6 +83,7 @@ export const queryModel = {
             items: [
                 { ref: fs.quantity, description: '销售数量（预聚合可用）' },
                 { ref: fs.salesAmount, description: '销售金额（预聚合可用）' },
+                { ref: fs.salesAmountFormulaYuan, description: '销售金额公式语义值（预聚合可用，需物化最终语义结果）' },
                 { ref: fs.costAmount, description: '成本金额（预聚合可用）' },
                 { ref: fs.profitAmount, description: '利润金额（预聚合可用）' }
             ]

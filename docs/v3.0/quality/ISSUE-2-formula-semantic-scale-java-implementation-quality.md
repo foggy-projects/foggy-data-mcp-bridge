@@ -47,6 +47,7 @@ The formula SQL is evaluated as the physical numeric expression first, then the 
 | API docs | `DbMeasureDef.java`, `DbPropertyDef.java` | Removed obsolete formula conflict warning |
 | Fixtures/tests | `foggy-dataset-demo`, `SemanticScaleFactorIntegrationTest` | Added positive formula fixtures, unsupported dialect negative fixture, and real-data SQL comparisons through both `DbQueryRequestDef` and `SemanticQueryServiceV3` DSL entrypoints |
 | Pre-aggregation tests | `PreAggregationMatcherTest` | Locks formula-backed measure matching to explicit materialized pre-aggregation measure columns |
+| Pre-aggregation real data | `FactSalesPreAggModel.tm`, `04-preagg-schema.sql`, `05-preagg-data.sql`, `PreAggregationIntegrationTest` | Adds a formula-backed semantic measure, materializes its semantic result in SQLite pre-aggregation data, and compares rewritten pre-aggregation SQL with native fact-table SQL |
 
 ## Quality Checklist
 
@@ -58,7 +59,7 @@ The formula SQL is evaluated as the physical numeric expression first, then the 
 | Validation behavior | pass | Formula-only measure without resolved dialect formula still fails closed |
 | Duplication control | pass | Alias handling is consolidated in `FormulaSqlSupport`; scale wrapping remains in `SemanticScaleSqlSupport` |
 | Real-data verification | pass | Enabled and disabled semantic scale modes are compared against native SQL on ecommerce fixture data through the semantic DSL service path |
-| Pre-aggregation clarity | pass | Pre-aggregation behavior is explicitly documented and tested as a materialized-column contract |
+| Pre-aggregation clarity | pass | Pre-aggregation behavior is explicitly documented and tested as a materialized-column contract with real SQL execution evidence |
 
 ## Findings
 
@@ -68,7 +69,8 @@ Non-blocking observations:
 
 - `formulaDef.value` and `dialectFormulaDef.value` remain raw SQL fragments. This is intentional and documented; the Java engine does not parse them as fsscript expressions.
 - Formula-only measures have no simple physical `column` dependency. The implementation supports them only when a formula is resolved for the current dialect, but physical dependency inference for arbitrary raw SQL is still outside this follow-up.
-- Pre-aggregation was not changed. Formula-backed semantic measures require a materialized pre-aggregation column containing the intended semantic result; matcher coverage now verifies that a missing materialized measure does not match and an explicitly configured materialized measure can match.
+- Pre-aggregation was not changed. Formula-backed semantic measures require a materialized pre-aggregation column containing the intended semantic result; matcher coverage verifies the contract and integration coverage executes the rewritten SQL against SQLite.
+- Hybrid pre-aggregation raw-tail SQL for formula-backed semantic measures still needs dedicated follow-up coverage. The current evidence verifies the direct materialized pre-aggregation path.
 
 ## Verification
 
@@ -81,10 +83,13 @@ Non-blocking observations:
 | `mvn verify -pl foggy-dataset-model "-Dspring.profiles.active=sqlite" "-Pcoverage,!multi-db"` | passed, 2883 tests, module line 79.14%, branch 63.09%, new helpers line/branch 100% |
 | `mvn test -pl foggy-dataset-model "-Dspring.profiles.active=sqlite" "-Dtest=SemanticScaleFactorIntegrationTest" "-P!multi-db"` | passed, 26 tests; includes `SemanticQueryServiceV3` DSL enabled/disabled semantic scale comparison with native SQL |
 | `mvn test -pl foggy-dataset-model "-Dtest=PreAggregationMatcherTest" "-P!multi-db"` | passed, 12 tests; includes formula-backed pre-aggregation materialized-column contract |
+| `mvn test -pl foggy-dataset-model "-Dspring.profiles.active=sqlite" "-Dtest=PreAggregationIntegrationTest#testFormulaSemanticMeasurePreAggResultMatchesNativeSql" "-P!multi-db"` | passed; rewritten SQL reads `preagg_daily_product_sales.sales_amount_formula_yuan_sum` and matches native fact-table SQL |
+| `mvn test -pl foggy-dataset-model "-Dspring.profiles.active=sqlite" "-Dtest=PreAggregationIntegrationTest,PreAggregationDataValidationTest,SemanticScaleFactorIntegrationTest,PreAggregationMatcherTest" "-P!multi-db"` | passed, 71 tests |
+| `mvn test -pl foggy-dataset-model "-Dspring.profiles.active=sqlite" "-P!multi-db"` | passed, 2905 tests, 0 failures, 0 errors, 1 skipped |
 | `mvn test` | passed on current `main` after `git pull --ff-only`; root reactor regression green |
 
 ## Decision
 
 Decision: `ready-for-coverage-audit`.
 
-The implementation is ready for coverage audit with the documented residual risks around raw SQL dependency inference and pre-aggregation materialization.
+The implementation is ready for coverage audit with the documented residual risks around raw SQL dependency inference, pre-aggregation materialization, and hybrid raw-tail formula expansion.

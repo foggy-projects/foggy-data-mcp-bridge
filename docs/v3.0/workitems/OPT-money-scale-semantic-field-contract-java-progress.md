@@ -170,8 +170,12 @@ Follow-up code touchpoints:
 | `foggy-dataset-demo/src/main/resources/foggy/templates/ecommerce/model/FactSalesSemanticScaleFormulaModel.tm` | added | Demo fixture for formula-backed semantic fields |
 | `foggy-dataset-demo/src/main/resources/foggy/templates/ecommerce/query/FactSalesSemanticScaleFormulaQueryModel.qm` | added | Query model exposing formula-backed semantic fields |
 | `foggy-dataset-demo/src/main/resources/foggy/templates/ecommerce/model/FactSalesSemanticScaleFormulaUnsupportedDialectInvalidModel.tm` | added | Negative fixture for formula-only unsupported dialect |
+| `foggy-dataset-demo/src/main/resources/foggy/templates/preagg_test/model/FactSalesPreAggModel.tm` | updated | Adds `salesAmountFormulaYuan` as a formula-backed semantic measure and maps it to a materialized pre-aggregation column |
+| `foggy-dataset-demo/src/main/resources/foggy/templates/preagg_test/query/FactSalesPreAggQueryModel.qm` | updated | Exposes the formula-backed semantic measure in the pre-aggregation query model |
+| `foggy-dataset-model/src/test/resources/sqlite/04-preagg-schema.sql` / `05-preagg-data.sql` | updated | Adds and populates `sales_amount_formula_yuan_sum` from the final semantic formula result |
 | `foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/ecommerce/SemanticScaleFactorIntegrationTest.java` | updated | Adds formula measure/property, enabled/disabled semantic scale, invalid dialect coverage, and `SemanticQueryServiceV3` DSL-to-native-SQL comparison |
 | `foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/preagg/PreAggregationMatcherTest.java` | updated | Adds formula-backed measure materialized pre-aggregation matching coverage |
+| `foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/preagg/PreAggregationIntegrationTest.java` | updated | Executes rewritten pre-aggregation SQL against SQLite and compares it with native fact-table SQL |
 
 Follow-up testing evidence:
 
@@ -185,6 +189,9 @@ Follow-up testing evidence:
 | Main regression after pull | passed | `git pull --ff-only` to `fb5a060c`, then root `mvn test`; build success |
 | Semantic DSL real-data comparison | passed | `mvn test -pl foggy-dataset-model "-Dspring.profiles.active=sqlite" "-Dtest=SemanticScaleFactorIntegrationTest" "-P!multi-db"`; 26 tests, 0 failures, 0 errors |
 | Pre-aggregation materialized-column contract | passed | `mvn test -pl foggy-dataset-model "-Dtest=PreAggregationMatcherTest" "-P!multi-db"`; 12 tests, 0 failures, 0 errors |
+| Pre-aggregation real SQL comparison | passed | `mvn test -pl foggy-dataset-model "-Dspring.profiles.active=sqlite" "-Dtest=PreAggregationIntegrationTest#testFormulaSemanticMeasurePreAggResultMatchesNativeSql" "-P!multi-db"`; rewritten SQL reads `preagg_daily_product_sales.sales_amount_formula_yuan_sum` and matches native fact-table SQL |
+| Pre-aggregation + semantic regression set | passed | `mvn test -pl foggy-dataset-model "-Dspring.profiles.active=sqlite" "-Dtest=PreAggregationIntegrationTest,PreAggregationDataValidationTest,SemanticScaleFactorIntegrationTest,PreAggregationMatcherTest" "-P!multi-db"`; 71 tests, 0 failures, 0 errors |
+| Full model module regression after pre-aggregation fixture update | passed | `mvn test -pl foggy-dataset-model "-Dspring.profiles.active=sqlite" "-P!multi-db"`; 2905 tests, 0 failures, 0 errors, 1 skipped |
 
 Follow-up acceptance notes:
 
@@ -196,5 +203,7 @@ Follow-up acceptance notes:
 - Pre-aggregation is documented and tested as a materialized-column contract and is not expanded in this follow-up implementation.
   - `formulaMeasureWithoutMaterializedPreAggColumnDoesNotMatch`: a formula-backed measure absent from pre-aggregation measures does not match.
   - `formulaMeasureMatchesWhenMaterializedPreAggColumnConfigured`: a formula-backed measure matches only when a compatible materialized pre-aggregation column is configured.
+  - `testFormulaSemanticMeasurePreAggResultMatchesNativeSql`: the rewrite path reads a real materialized formula semantic result column and compares the result with native fact-table SQL.
+- Hybrid pre-aggregation with formula-backed semantic measures is recorded as a follow-up risk: the direct materialized pre-aggregation path is verified here; hybrid raw-tail SQL still needs dedicated formula expansion coverage before being enabled for this field shape.
 - Follow-up quality gate: `../quality/ISSUE-2-formula-semantic-scale-java-implementation-quality.md`.
 - Follow-up coverage audit: `../coverage/OPT-money-scale-semantic-field-contract-java-coverage-audit.md`, section `Follow-up: GitHub Issue #2 Formula Semantic Scale`.

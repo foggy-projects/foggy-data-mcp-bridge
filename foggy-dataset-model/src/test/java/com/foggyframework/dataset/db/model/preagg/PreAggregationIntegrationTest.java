@@ -17,8 +17,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.*;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
+import javax.sql.DataSource;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.*;
 
@@ -60,6 +64,16 @@ class PreAggregationIntegrationTest {
 
     @Resource
     private QueryModelLoader queryModelLoader;
+
+    @Resource
+    private DataSource dataSource;
+
+    private JdbcTemplate jdbcTemplate;
+
+    @BeforeEach
+    void setUp() {
+        jdbcTemplate = new JdbcTemplate(dataSource);
+    }
 
     // ==========================================
     // 预聚合配置加载测试
@@ -341,6 +355,56 @@ class PreAggregationIntegrationTest {
         assertTrue(result.getSql().contains("preagg_daily_customer_channel_sales"));
 
         log.info("客户+渠道匹配成功: {}", result.getPreAggregation().getName());
+    }
+
+    @Test
+    @Order(16)
+    @DisplayName("formulaDef语义度量命中预聚合后与真实SQL结果一致")
+    void testFormulaSemanticMeasurePreAggResultMatchesNativeSql() {
+        JdbcQueryModel queryModel = getQueryModel("FactSalesPreAggQueryModel");
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("FactSalesPreAggQueryModel");
+        queryRequest.setColumns(Arrays.asList(
+                "salesDate$caption",
+                "product$caption",
+                "salesAmountFormulaYuan"
+        ));
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+
+        PreAggregationInterceptor interceptor = new PreAggregationInterceptor(applicationContext);
+        interceptor.setHybridQueryEnabled(false);
+        PreAggRewriteResult result = interceptor.tryRewrite(queryEngine, queryModel, queryRequest);
+
+        assertTrue(result.isApplied(), "formulaDef语义度量应命中显式物化后的预聚合");
+        assertNotNull(result.getPreAggregation(), "匹配的预聚合不应为空");
+        assertEquals("daily_product_sales", result.getPreAggregation().getName(),
+                "应使用包含公式语义结果物化列的daily_product_sales");
+        assertFalse(result.isNeedsRollup(), "日+商品粒度完全匹配时不需要rollup");
+        assertTrue(result.getSql().contains("preagg_daily_product_sales"),
+                "重写SQL应读取真实预聚合表");
+        assertTrue(result.getSql().contains("sales_amount_formula_yuan_sum"),
+                "重写SQL应读取公式语义度量的物化列");
+
+        List<Map<String, Object>> preAggRows = jdbcTemplate.queryForList(
+                result.getSql(),
+                result.getParams() == null ? new Object[0] : result.getParams().toArray()
+        );
+        List<Map<String, Object>> nativeRows = jdbcTemplate.queryForList("""
+                SELECT d.full_date AS "salesDate$caption",
+                       p.product_name AS "product$caption",
+                       SUM((fs.sales_amount + 0) / 100.0) AS "salesAmountFormulaYuan"
+                FROM fact_sales fs
+                LEFT JOIN dim_date d ON fs.date_key = d.date_key
+                LEFT JOIN dim_product p ON fs.product_key = p.product_key
+                GROUP BY d.full_date, p.product_name
+                """);
+
+        assertFormulaRowsMatch(nativeRows, preAggRows);
+        log.info("formulaDef语义度量预聚合SQL结果验证通过: preAgg={}, rows={}",
+                result.getPreAggregation().getName(), preAggRows.size());
     }
 
     // ==========================================
@@ -1026,6 +1090,41 @@ class PreAggregationIntegrationTest {
             idx += sub.length();
         }
         return count;
+    }
+
+    private void assertFormulaRowsMatch(List<Map<String, Object>> expectedRows,
+                                        List<Map<String, Object>> actualRows) {
+        Map<String, BigDecimal> expected = formulaRowsByKey(expectedRows);
+        Map<String, BigDecimal> actual = formulaRowsByKey(actualRows);
+
+        assertFalse(expected.isEmpty(), "真实SQL应返回公式语义度量数据");
+        assertEquals(expected, actual,
+                "预聚合物化列结果应与原始fact表公式SQL结果一致");
+    }
+
+    private Map<String, BigDecimal> formulaRowsByKey(List<Map<String, Object>> rows) {
+        Map<String, BigDecimal> result = new TreeMap<>();
+        for (Map<String, Object> row : rows) {
+            String key = String.valueOf(row.get("salesDate$caption"))
+                    + "|"
+                    + String.valueOf(row.get("product$caption"));
+            result.put(key, toBigDecimal(row.get("salesAmountFormulaYuan")));
+        }
+        return result;
+    }
+
+    private BigDecimal toBigDecimal(Object value) {
+        if (value == null) {
+            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+        if (value instanceof BigDecimal) {
+            return ((BigDecimal) value).setScale(2, RoundingMode.HALF_UP);
+        }
+        if (value instanceof Number) {
+            return BigDecimal.valueOf(((Number) value).doubleValue())
+                    .setScale(2, RoundingMode.HALF_UP);
+        }
+        return new BigDecimal(String.valueOf(value)).setScale(2, RoundingMode.HALF_UP);
     }
 
     // ==========================================

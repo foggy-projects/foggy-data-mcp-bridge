@@ -46,7 +46,7 @@ The follow-up coverage items below confirm that formula SQL is treated as a data
 | Disabled namespace clears semantic scale and uses physical formula values | P1 | integration-test | `disabledNamespace_formulaQueryUsesPhysicalFormulaValues`; `semanticDslFormulaSemanticScaleToggle_matchesNativeSql` | covered |
 | Formula-only measure without a resolved formula fails closed | P1 | integration-test | `formulaOnlyMeasureWithoutResolvedDialect_rejectedOnModelLoad` | covered |
 | Formula-backed pre-aggregation does not match without an explicit materialized measure column | P1 | unit-test | `PreAggregationMatcherTest.formulaMeasureWithoutMaterializedPreAggColumnDoesNotMatch` | covered |
-| Formula-backed pre-aggregation can match when the materialized semantic result column is explicitly configured | P1 | unit-test | `PreAggregationMatcherTest.formulaMeasureMatchesWhenMaterializedPreAggColumnConfigured` | covered |
+| Formula-backed pre-aggregation can match when the materialized semantic result column is explicitly configured | P1 | unit + integration-test | `PreAggregationMatcherTest.formulaMeasureMatchesWhenMaterializedPreAggColumnConfigured`; `PreAggregationIntegrationTest.testFormulaSemanticMeasurePreAggResultMatchesNativeSql` | covered |
 | Existing caption formula and physical column mapping behavior remain compatible | P2 | regression-test | `CaptionDefTest`; `ModelLoadingTest`; `PhysicalColumnMappingIntegrationTest` | covered |
 
 ## Evidence Summary
@@ -59,6 +59,9 @@ The follow-up coverage items below confirm that formula SQL is treated as a data
 | `mvn test -pl foggy-dataset-model "-Dspring.profiles.active=sqlite" "-Dtest=SemanticScaleSqlSupportTest,SemanticScaleFactorIntegrationTest" "-P!multi-db"` | passed, 27 tests |
 | `mvn test -pl foggy-dataset-model "-Dspring.profiles.active=sqlite" "-Dtest=SemanticScaleFactorIntegrationTest" "-P!multi-db"` | passed, 26 tests |
 | `mvn test -pl foggy-dataset-model "-Dtest=PreAggregationMatcherTest" "-P!multi-db"` | passed, 12 tests |
+| `mvn test -pl foggy-dataset-model "-Dspring.profiles.active=sqlite" "-Dtest=PreAggregationIntegrationTest#testFormulaSemanticMeasurePreAggResultMatchesNativeSql" "-P!multi-db"` | passed; rewritten SQL reads `preagg_daily_product_sales.sales_amount_formula_yuan_sum` and matches native fact-table SQL |
+| `mvn test -pl foggy-dataset-model "-Dspring.profiles.active=sqlite" "-Dtest=PreAggregationIntegrationTest,PreAggregationDataValidationTest,SemanticScaleFactorIntegrationTest,PreAggregationMatcherTest" "-P!multi-db"` | passed, 71 tests |
+| `mvn test -pl foggy-dataset-model "-Dspring.profiles.active=sqlite" "-P!multi-db"` | passed, 2905 tests, 0 failures, 0 errors, 1 skipped |
 | `mvn test -pl foggy-dataset-model "-Dspring.profiles.active=sqlite" "-Dtest=CaptionDefTest" "-P!multi-db"` | passed, 13 tests |
 | `mvn test -pl foggy-dataset-model "-Dspring.profiles.active=sqlite" "-Dtest=ModelLoadingTest,PhysicalColumnMappingIntegrationTest" "-P!multi-db"` | passed, 46 tests |
 | `mvn verify -pl foggy-dataset-model "-Dspring.profiles.active=sqlite" "-Pcoverage,!multi-db"` | passed, 2883 tests, 0 failures, 0 errors, 1 skipped; module line 79.14%, branch 63.09%; `SemanticScaleSqlSupport` and `FormulaSqlSupport` line/branch 100% |
@@ -71,6 +74,7 @@ Residual risks:
 
 - Raw SQL dependency inference for arbitrary `formulaDef.value` / `dialectFormulaDef.value` remains outside this follow-up.
 - Pre-aggregation still relies on model authors or build jobs materializing formula-backed semantic measure results into explicit pre-aggregation columns.
+- Hybrid pre-aggregation raw-tail SQL for formula-backed semantic measures needs a dedicated follow-up; the current real-SQL evidence covers direct materialized pre-aggregation reads.
 - External database profile reruns are optional for this follow-up because the covered behavior is SQL generation and SQLite fixture execution; multi-database coverage should be rerun only when dialect-specific behavior is changed.
 
 ## Conclusion

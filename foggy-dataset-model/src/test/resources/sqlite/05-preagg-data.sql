@@ -11,7 +11,8 @@ INSERT INTO preagg_daily_product_sales
     (date_key, product_key,
      full_date, year, quarter, month, month_name,
      product_id, product_name, category_id, category_name, brand,
-     quantity_sum, sales_amount_sum, cost_amount_sum, profit_amount_sum, _preagg_row_count)
+     quantity_sum, sales_amount_sum, sales_amount_formula_yuan_sum,
+     cost_amount_sum, profit_amount_sum, _preagg_row_count)
 SELECT
     fs.date_key,
     fs.product_key,
@@ -27,6 +28,7 @@ SELECT
     p.brand,
     SUM(fs.quantity) as quantity_sum,
     SUM(fs.sales_amount) as sales_amount_sum,
+    SUM((fs.sales_amount + 0) / 100.0) as sales_amount_formula_yuan_sum,
     SUM(COALESCE(fs.cost_amount, 0)) as cost_amount_sum,
     SUM(COALESCE(fs.profit_amount, 0)) as profit_amount_sum,
     COUNT(*) as _preagg_row_count

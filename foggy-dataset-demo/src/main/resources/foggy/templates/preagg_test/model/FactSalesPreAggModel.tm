@@ -138,6 +138,18 @@ export const model = {
         { column: 'unit_cost', caption: '单位成本', type: 'MONEY' },
         { column: 'discount_amount', caption: '折扣金额', type: 'MONEY' },
         { column: 'sales_amount', name: 'salesAmount', caption: '销售金额', type: 'MONEY', aggregation: 'sum' },
+        {
+            name: 'salesAmountFormulaYuan',
+            caption: '销售金额公式语义值',
+            type: 'MONEY',
+            aggregation: 'sum',
+            semanticScaleFactor: 100,
+            semanticUnit: 'CNY',
+            semanticUnitLabel: '元',
+            formulaDef: {
+                value: 'alias.sales_amount + 0'
+            }
+        },
         { column: 'cost_amount', name: 'costAmount', caption: '成本金额', type: 'MONEY', aggregation: 'sum' },
         { column: 'profit_amount', name: 'profitAmount', caption: '利润金额', type: 'MONEY', aggregation: 'sum' },
         { column: 'tax_amount', name: 'taxAmount', caption: '税额', type: 'MONEY' }
@@ -169,6 +181,7 @@ export const model = {
             measures: [
                 { name: 'quantity', aggregation: 'SUM', columnName: 'quantity_sum' },
                 { name: 'salesAmount', aggregation: 'SUM', columnName: 'sales_amount_sum' },
+                { name: 'salesAmountFormulaYuan', aggregation: 'SUM', columnName: 'sales_amount_formula_yuan_sum' },
                 { name: 'costAmount', aggregation: 'SUM', columnName: 'cost_amount_sum' },
                 { name: 'profitAmount', aggregation: 'SUM', columnName: 'profit_amount_sum' },
                 { name: 'orderCount', aggregation: 'COUNT', columnName: 'order_count' }
