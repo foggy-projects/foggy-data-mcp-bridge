@@ -123,6 +123,48 @@ class PreAggregationMatcherTest {
     }
 
     @Test
+    @DisplayName("formulaDef 度量未物化到预聚合列时不匹配")
+    void formulaMeasureWithoutMaterializedPreAggColumnDoesNotMatch() {
+        PreAggregation preAgg = createDailyProductPreAgg();
+        List<PreAggregation> preAggregations = List.of(preAgg);
+
+        PreAggQueryRequirement requirement = new PreAggQueryRequirement();
+        requirement.setHasGroupBy(true);
+        requirement.addDimension("product");
+        requirement.addMeasure("salesAmountFormulaYuan", DbAggregation.SUM);
+
+        PreAggregationMatchResult result = matcher.findBestMatch(requirement, preAggregations);
+
+        assertFalse(result.isMatched());
+    }
+
+    @Test
+    @DisplayName("formulaDef 度量只有配置对应物化列时才可匹配")
+    void formulaMeasureMatchesWhenMaterializedPreAggColumnConfigured() {
+        PreAggregationDef def = new PreAggregationDef();
+        def.setName("daily_product_formula_sales");
+        def.setTableName("preagg_daily_product_formula_sales");
+        def.setPriority(50);
+        def.setDimensions(List.of("product"));
+        PreAggMeasureDef formulaMeasure = createMeasureDef("salesAmountFormulaYuan", "SUM");
+        formulaMeasure.setColumnName("sales_amount_formula_yuan_sum");
+        def.setMeasures(List.of(formulaMeasure));
+        def.setEnabled(true);
+
+        PreAggregation preAgg = new PreAggregationImpl(def, null);
+        PreAggQueryRequirement requirement = new PreAggQueryRequirement();
+        requirement.setHasGroupBy(true);
+        requirement.addDimension("product");
+        requirement.addMeasure("salesAmountFormulaYuan", DbAggregation.SUM);
+
+        PreAggregationMatchResult result = matcher.findBestMatch(requirement, List.of(preAgg));
+
+        assertTrue(result.isMatched());
+        assertEquals("sales_amount_formula_yuan_sum",
+                result.getPreAggregation().getMeasureColumnNames().get("salesAmountFormulaYuan"));
+    }
+
+    @Test
     @DisplayName("时间粒度 rollup - 日到月")
     void testTimeGranularityRollup() {
         PreAggregation preAgg = createDailyProductPreAgg();

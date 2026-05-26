@@ -30,6 +30,7 @@ The formula SQL is evaluated as the physical numeric expression first, then the 
 - Targeted tests:
   - `SemanticScaleSqlSupportTest`
   - `SemanticScaleFactorIntegrationTest`
+  - `PreAggregationMatcherTest`
   - `CaptionDefTest`
   - `ModelLoadingTest`
   - `PhysicalColumnMappingIntegrationTest`
@@ -44,7 +45,8 @@ The formula SQL is evaluated as the physical numeric expression first, then the 
 | Measure runtime | `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/impl/measure/DbMeasureSupport.java` | Applies scale to formula SQL / builder output and supports formula-only measure when resolved |
 | Property runtime | `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/impl/property/DbPropertyImpl.java` | Applies scale to property formula SQL / builder output |
 | API docs | `DbMeasureDef.java`, `DbPropertyDef.java` | Removed obsolete formula conflict warning |
-| Fixtures/tests | `foggy-dataset-demo`, `SemanticScaleFactorIntegrationTest` | Added positive formula fixtures, unsupported dialect negative fixture, and real-data SQL comparisons |
+| Fixtures/tests | `foggy-dataset-demo`, `SemanticScaleFactorIntegrationTest` | Added positive formula fixtures, unsupported dialect negative fixture, and real-data SQL comparisons through both `DbQueryRequestDef` and `SemanticQueryServiceV3` DSL entrypoints |
+| Pre-aggregation tests | `PreAggregationMatcherTest` | Locks formula-backed measure matching to explicit materialized pre-aggregation measure columns |
 
 ## Quality Checklist
 
@@ -55,8 +57,8 @@ The formula SQL is evaluated as the physical numeric expression first, then the 
 | SQL generation safety | pass | Formula base expressions are wrapped before division, avoiding precedence bugs |
 | Validation behavior | pass | Formula-only measure without resolved dialect formula still fails closed |
 | Duplication control | pass | Alias handling is consolidated in `FormulaSqlSupport`; scale wrapping remains in `SemanticScaleSqlSupport` |
-| Real-data verification | pass | Enabled and disabled semantic scale modes are compared against native SQL on ecommerce fixture data |
-| Pre-aggregation clarity | pass | Pre-aggregation behavior is explicitly documented as a materialized-column contract |
+| Real-data verification | pass | Enabled and disabled semantic scale modes are compared against native SQL on ecommerce fixture data through the semantic DSL service path |
+| Pre-aggregation clarity | pass | Pre-aggregation behavior is explicitly documented and tested as a materialized-column contract |
 
 ## Findings
 
@@ -66,7 +68,7 @@ Non-blocking observations:
 
 - `formulaDef.value` and `dialectFormulaDef.value` remain raw SQL fragments. This is intentional and documented; the Java engine does not parse them as fsscript expressions.
 - Formula-only measures have no simple physical `column` dependency. The implementation supports them only when a formula is resolved for the current dialect, but physical dependency inference for arbitrary raw SQL is still outside this follow-up.
-- Pre-aggregation was not changed. Formula-backed semantic measures require a materialized pre-aggregation column containing the intended semantic result, or the query must fall back to the base model path.
+- Pre-aggregation was not changed. Formula-backed semantic measures require a materialized pre-aggregation column containing the intended semantic result; matcher coverage now verifies that a missing materialized measure does not match and an explicitly configured materialized measure can match.
 
 ## Verification
 
@@ -77,6 +79,9 @@ Non-blocking observations:
 | `mvn test -pl foggy-dataset-model "-Dspring.profiles.active=sqlite" "-Dtest=CaptionDefTest" "-P!multi-db"` | passed, 13 tests |
 | `mvn test -pl foggy-dataset-model "-Dspring.profiles.active=sqlite" "-Dtest=ModelLoadingTest,PhysicalColumnMappingIntegrationTest" "-P!multi-db"` | passed, 46 tests |
 | `mvn verify -pl foggy-dataset-model "-Dspring.profiles.active=sqlite" "-Pcoverage,!multi-db"` | passed, 2883 tests, module line 79.14%, branch 63.09%, new helpers line/branch 100% |
+| `mvn test -pl foggy-dataset-model "-Dspring.profiles.active=sqlite" "-Dtest=SemanticScaleFactorIntegrationTest" "-P!multi-db"` | passed, 26 tests; includes `SemanticQueryServiceV3` DSL enabled/disabled semantic scale comparison with native SQL |
+| `mvn test -pl foggy-dataset-model "-Dtest=PreAggregationMatcherTest" "-P!multi-db"` | passed, 12 tests; includes formula-backed pre-aggregation materialized-column contract |
+| `mvn test` | passed on current `main` after `git pull --ff-only`; root reactor regression green |
 
 ## Decision
 

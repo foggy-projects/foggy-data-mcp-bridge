@@ -690,6 +690,46 @@ class SemanticScaleFactorIntegrationTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("DSL 入口启用/关闭 semanticScaleFactor 时 formulaDef 结果与真实 SQL 一致")
+    void semanticDslFormulaSemanticScaleToggle_matchesNativeSql() {
+        String semanticSql = paginateSql("""
+                SELECT fs.order_id AS orderId,
+                       SUM((fs.sales_amount + 0) / 100.0) AS salesAmountFormulaYuan,
+                       SUM((fs.sales_amount + 1) / 100.0) AS salesAmountBuilderYuan,
+                       SUM((fs.tax_amount + 0) / 100.0) AS taxDialectFormulaYuan
+                FROM fact_sales fs
+                GROUP BY fs.order_id
+                ORDER BY orderId ASC
+                """, 20);
+        List<Map<String, Object>> semanticExpectedRows = executeQuery(semanticSql);
+
+        SemanticQueryRequest semanticRequest = semanticFormulaRequest();
+        List<Map<String, Object>> semanticActualRows = executeSemantic(FORMULA_QUERY_MODEL,
+                semanticRequest, SemanticRequestContext.empty()).getItems();
+
+        assertRowsMatch(semanticExpectedRows, semanticActualRows, "orderId",
+                "salesAmountFormulaYuan", "salesAmountBuilderYuan", "taxDialectFormulaYuan");
+
+        String namespace = registerPhysicalNamespace();
+        String physicalSql = paginateSql("""
+                SELECT fs.order_id AS orderId,
+                       SUM(fs.sales_amount + 0) AS salesAmountFormulaYuan,
+                       SUM(fs.sales_amount + 1) AS salesAmountBuilderYuan,
+                       SUM(fs.tax_amount + 0) AS taxDialectFormulaYuan
+                FROM fact_sales fs
+                GROUP BY fs.order_id
+                ORDER BY orderId ASC
+                """, 20);
+        List<Map<String, Object>> physicalExpectedRows = executeQuery(physicalSql);
+
+        List<Map<String, Object>> physicalActualRows = executeSemantic(FORMULA_QUERY_MODEL,
+                semanticFormulaRequest(), SemanticRequestContext.ofNamespace(namespace)).getItems();
+
+        assertRowsMatch(physicalExpectedRows, physicalActualRows, "orderId",
+                "salesAmountFormulaYuan", "salesAmountBuilderYuan", "taxDialectFormulaYuan");
+    }
+
+    @Test
     @DisplayName("formula-only 度量在当前方言无可用公式时拒绝加载")
     void formulaOnlyMeasureWithoutResolvedDialect_rejectedOnModelLoad() {
         RuntimeException ex = assertThrows(RuntimeException.class,
@@ -750,9 +790,35 @@ class SemanticScaleFactorIntegrationTest extends EcommerceTestSupport {
         return group;
     }
 
+    private SemanticQueryRequest.OrderItem semanticOrder(String field, String dir) {
+        SemanticQueryRequest.OrderItem order = new SemanticQueryRequest.OrderItem();
+        order.setField(field);
+        order.setDir(dir);
+        return order;
+    }
+
+    private SemanticQueryRequest semanticFormulaRequest() {
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setColumns(List.of(
+                "orderId",
+                "salesAmountFormulaYuan",
+                "salesAmountBuilderYuan",
+                "taxDialectFormulaYuan"
+        ));
+        request.setGroupBy(List.of(semanticGroup("orderId")));
+        request.setOrderBy(List.of(semanticOrder("orderId", "ASC")));
+        request.setLimit(20);
+        return request;
+    }
+
     private SemanticQueryResponse executeSemantic(SemanticQueryRequest request) {
+        return executeSemantic(QUERY_MODEL, request, SemanticRequestContext.empty());
+    }
+
+    private SemanticQueryResponse executeSemantic(String model, SemanticQueryRequest request,
+                                                  SemanticRequestContext context) {
         SemanticQueryResponse response = semanticQueryServiceV3.queryModel(
-                QUERY_MODEL, request, "execute", SemanticRequestContext.empty());
+                model, request, "execute", context);
         assertNotNull(response);
         assertNotNull(response.getItems());
         assertFalse(response.getItems().isEmpty(), "semantic query should return rows");

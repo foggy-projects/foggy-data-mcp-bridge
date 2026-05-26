@@ -170,7 +170,8 @@ Follow-up code touchpoints:
 | `foggy-dataset-demo/src/main/resources/foggy/templates/ecommerce/model/FactSalesSemanticScaleFormulaModel.tm` | added | Demo fixture for formula-backed semantic fields |
 | `foggy-dataset-demo/src/main/resources/foggy/templates/ecommerce/query/FactSalesSemanticScaleFormulaQueryModel.qm` | added | Query model exposing formula-backed semantic fields |
 | `foggy-dataset-demo/src/main/resources/foggy/templates/ecommerce/model/FactSalesSemanticScaleFormulaUnsupportedDialectInvalidModel.tm` | added | Negative fixture for formula-only unsupported dialect |
-| `foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/ecommerce/SemanticScaleFactorIntegrationTest.java` | updated | Adds formula measure/property, enabled/disabled semantic scale, and invalid dialect coverage |
+| `foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/ecommerce/SemanticScaleFactorIntegrationTest.java` | updated | Adds formula measure/property, enabled/disabled semantic scale, invalid dialect coverage, and `SemanticQueryServiceV3` DSL-to-native-SQL comparison |
+| `foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/preagg/PreAggregationMatcherTest.java` | updated | Adds formula-backed measure materialized pre-aggregation matching coverage |
 
 Follow-up testing evidence:
 
@@ -181,13 +182,19 @@ Follow-up testing evidence:
 | Caption formula regression | passed | `mvn test -pl foggy-dataset-model "-Dspring.profiles.active=sqlite" "-Dtest=CaptionDefTest" "-P!multi-db"`; 13 tests, 0 failures, 0 errors |
 | Wider ecommerce regression | passed | `mvn test -pl foggy-dataset-model "-Dspring.profiles.active=sqlite" "-Dtest=ModelLoadingTest,PhysicalColumnMappingIntegrationTest" "-P!multi-db"`; 46 tests, 0 failures, 0 errors |
 | Full model module coverage gate | passed | `mvn verify -pl foggy-dataset-model "-Dspring.profiles.active=sqlite" "-Pcoverage,!multi-db"`; 2883 tests, 0 failures, 0 errors, 1 skipped; module line 79.14%, branch 63.09%; `SemanticScaleSqlSupport` and `FormulaSqlSupport` line/branch 100% |
+| Main regression after pull | passed | `git pull --ff-only` to `fb5a060c`, then root `mvn test`; build success |
+| Semantic DSL real-data comparison | passed | `mvn test -pl foggy-dataset-model "-Dspring.profiles.active=sqlite" "-Dtest=SemanticScaleFactorIntegrationTest" "-P!multi-db"`; 26 tests, 0 failures, 0 errors |
+| Pre-aggregation materialized-column contract | passed | `mvn test -pl foggy-dataset-model "-Dtest=PreAggregationMatcherTest" "-P!multi-db"`; 12 tests, 0 failures, 0 errors |
 
 Follow-up acceptance notes:
 
-- Real-data evidence is covered by `SemanticScaleFactorIntegrationTest` using DSL-style `DbQueryRequestDef` execution against ecommerce SQLite fixture data:
+- Real-data evidence is covered by `SemanticScaleFactorIntegrationTest` using both DSL-style `DbQueryRequestDef` execution and the `SemanticQueryServiceV3` DSL entrypoint against ecommerce SQLite fixture data:
   - `semanticScaleWithFormula_queryDataMatchesNativeSql`: formula measure query with semantic scale enabled compared to native SQL using `/ 100.0`.
   - `semanticScaleWithFormulaProperty_queryDataMatchesNativeSql`: formula property query with semantic scale enabled compared to native SQL using `/ 100.0`.
   - `disabledNamespace_formulaQueryUsesPhysicalFormulaValues`: formula measure query with semantic scale disabled compared to native SQL without semantic division.
-- Pre-aggregation is documented as a materialized-column contract and is not expanded in this follow-up implementation.
+- `semanticDslFormulaSemanticScaleToggle_matchesNativeSql`: `SemanticQueryServiceV3` query with semantic scale enabled and disabled namespace compared to native SQL baselines.
+- Pre-aggregation is documented and tested as a materialized-column contract and is not expanded in this follow-up implementation.
+  - `formulaMeasureWithoutMaterializedPreAggColumnDoesNotMatch`: a formula-backed measure absent from pre-aggregation measures does not match.
+  - `formulaMeasureMatchesWhenMaterializedPreAggColumnConfigured`: a formula-backed measure matches only when a compatible materialized pre-aggregation column is configured.
 - Follow-up quality gate: `../quality/ISSUE-2-formula-semantic-scale-java-implementation-quality.md`.
 - Follow-up coverage audit: `../coverage/OPT-money-scale-semantic-field-contract-java-coverage-audit.md`, section `Follow-up: GitHub Issue #2 Formula Semantic Scale`.

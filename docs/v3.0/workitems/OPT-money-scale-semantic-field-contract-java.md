@@ -145,7 +145,8 @@ Current issue #2 follow-up evidence:
 - `formulaDef.builder + semanticScaleFactor`: covered by Java integration tests with native SQL baselines.
 - `dialectFormulaDef.value + semanticScaleFactor`: covered by Java integration tests with native SQL baselines.
 - `property + formulaDef.value + semanticScaleFactor`: covered by Java integration tests with native SQL baselines.
-- semantic scale enabled and disabled namespace behavior: covered by DSL-style `DbQueryRequestDef` query execution compared with native SQL.
+- semantic scale enabled and disabled namespace behavior: covered by both `DbQueryRequestDef` execution and the `SemanticQueryServiceV3` DSL entrypoint compared with native SQL.
+- pre-aggregation materialized-column behavior: covered by matcher tests proving formula-backed measures do not match unless a compatible materialized pre-aggregation measure column is explicitly configured.
 
 ## Review Flow
 

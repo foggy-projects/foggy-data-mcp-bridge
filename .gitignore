@@ -90,6 +90,8 @@ test-output/
 surefire-reports/
 failsafe-reports/
 coverage/
+!docs/v3.0/coverage/
+!docs/v3.0/coverage/*.md
 jacoco.exec
 .coverage
 test-*.json
