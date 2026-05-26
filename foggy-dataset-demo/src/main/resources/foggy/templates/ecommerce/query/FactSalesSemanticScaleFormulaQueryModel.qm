@@ -1,0 +1,32 @@
+/**
+ * semanticScaleFactor formula query model.
+ */
+const fs = loadTableModel('FactSalesSemanticScaleFormulaModel');
+
+export const queryModel = {
+    name: 'FactSalesSemanticScaleFormulaQueryModel',
+    caption: '语义缩放公式查询',
+    loader: 'v2',
+
+    model: fs,
+
+    columnGroups: [
+        {
+            caption: '订单',
+            items: [
+                { ref: fs.orderId },
+                { ref: fs.salesAmountFormulaLeafYuan }
+            ]
+        },
+        {
+            caption: '度量',
+            items: [
+                { ref: fs.salesAmountFormulaYuan },
+                { ref: fs.salesAmountBuilderYuan },
+                { ref: fs.taxDialectFormulaYuan }
+            ]
+        }
+    ],
+
+    accesses: []
+};

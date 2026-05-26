@@ -8,6 +8,7 @@ import com.foggyframework.dataset.db.model.def.measure.DbFormulaDef;
 import com.foggyframework.dataset.db.model.impl.AiObject;
 import com.foggyframework.dataset.db.model.impl.DbColumnSupport;
 import com.foggyframework.dataset.db.model.impl.DbObjectSupport;
+import com.foggyframework.dataset.db.model.impl.FormulaSqlSupport;
 import com.foggyframework.dataset.db.model.impl.SemanticScaleSqlSupport;
 import com.foggyframework.dataset.db.model.impl.column.InvalidDbColumn;
 import com.foggyframework.dataset.db.model.impl.model.TableModelSupport;
@@ -51,6 +52,8 @@ public class DbPropertyImpl extends DbObjectSupport implements DbProperty, DbDat
     boolean bit;
 
     FsscriptFunction formulaBuilder;
+
+    String formulaSql;
 
     BigDecimal semanticScaleFactor;
 
@@ -252,6 +255,12 @@ public class DbPropertyImpl extends DbObjectSupport implements DbProperty, DbDat
         @Override
         public String getDeclare(ApplicationContext appCtx, String alias) {
             if (formulaBuilder == null) {
+                if (FormulaSqlSupport.hasSql(formulaSql)) {
+                    String effectiveAlias = StringUtils.isEmpty(alias) ? queryObjRef.getAlias() : alias;
+                    return SemanticScaleSqlSupport.scaledDeclare(
+                            FormulaSqlSupport.applyAlias(formulaSql, effectiveAlias),
+                            semanticScaleFactor);
+                }
                 return SemanticScaleSqlSupport.scaledDeclare(
                         super.getDeclare(appCtx, alias),
                         semanticScaleFactor);
@@ -260,19 +269,28 @@ public class DbPropertyImpl extends DbObjectSupport implements DbProperty, DbDat
                 String effectiveAlias = StringUtils.isEmpty(alias) ? queryObjRef.getAlias() : alias;
                 expEvaluator.setVar("alias", effectiveAlias);
                 expEvaluator.setVar("def", this);
-                return (String) formulaBuilder.autoApply(expEvaluator);
+                return SemanticScaleSqlSupport.scaledDeclare(
+                        (String) formulaBuilder.autoApply(expEvaluator),
+                        semanticScaleFactor);
             }
         }
 
         @Override
         public String getDeclare() {
             if (formulaBuilder == null) {
+                if (FormulaSqlSupport.hasSql(formulaSql)) {
+                    return SemanticScaleSqlSupport.scaledDeclare(
+                            FormulaSqlSupport.applyAlias(formulaSql, queryObjRef.getAlias()),
+                            semanticScaleFactor);
+                }
                 return SemanticScaleSqlSupport.scaledDeclare(super.getDeclare(), semanticScaleFactor);
             }
             DefaultExpEvaluator expEvaluator = DefaultExpEvaluator.newInstance(null);
             expEvaluator.setVar("alias", queryObjRef.getAlias());
             expEvaluator.setVar("def", this);
-            return (String) formulaBuilder.autoApply(expEvaluator);
+            return SemanticScaleSqlSupport.scaledDeclare(
+                    (String) formulaBuilder.autoApply(expEvaluator),
+                    semanticScaleFactor);
         }
 
         @Override

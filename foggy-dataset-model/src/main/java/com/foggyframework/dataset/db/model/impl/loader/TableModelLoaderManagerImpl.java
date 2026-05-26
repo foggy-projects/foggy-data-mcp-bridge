@@ -644,9 +644,9 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
             return;
         }
         DataSource ds = dimensionDef.getDataSource() == null ? context.getDataSource() : dimensionDef.getDataSource();
-        FsscriptFunction builder = resolveDialectFormula(ds, captionDef.getFormulaDef(), captionDef.getDialectFormulaDef());
-        if (builder != null) {
-            dimension.setCaptionFormulaBuilder(builder);
+        ResolvedFormula formula = resolveDialectFormula(ds, captionDef.getFormulaDef(), captionDef.getDialectFormulaDef());
+        if (formula.builder != null) {
+            dimension.setCaptionFormulaBuilder(formula.builder);
         }
     }
 
@@ -662,25 +662,55 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
      * @param ds                数据源（用于检测方言类型）
      * @param formulaDef        通用公式定义（可为 null）
      * @param dialectFormulaDef 方言专属公式 Map（可为 null）
-     * @return 解析后的 FsscriptFunction builder，或 null
+     * @return 解析后的公式定义，或空定义
      */
-    private FsscriptFunction resolveDialectFormula(DataSource ds, DbFormulaDef formulaDef, java.util.Map<String, DbFormulaDef> dialectFormulaDef) {
+    private ResolvedFormula resolveDialectFormula(DataSource ds, DbFormulaDef formulaDef, java.util.Map<String, DbFormulaDef> dialectFormulaDef) {
         // 1. 尝试方言专属公式
         if (dialectFormulaDef != null && !dialectFormulaDef.isEmpty()) {
             DbType dbType = DbUtils.getDialect(ds).getDbType();
             String dbTypeKey = dbType.name().toLowerCase(); // postgresql, mysql, sqlserver, sqlite, oracle
             DbFormulaDef dialectFormula = dialectFormulaDef.get(dbTypeKey);
-            if (dialectFormula != null && dialectFormula.getBuilder() != null) {
-                return dialectFormula.getBuilder();
+            ResolvedFormula resolved = resolveFormulaDef(dialectFormula);
+            if (resolved.isPresent()) {
+                return resolved;
             }
         }
 
         // 2. 回退到通用公式
-        if (formulaDef != null && formulaDef.getBuilder() != null) {
-            return formulaDef.getBuilder();
+        return resolveFormulaDef(formulaDef);
+    }
+
+    private ResolvedFormula resolveFormulaDef(DbFormulaDef formulaDef) {
+        if (formulaDef == null) {
+            return ResolvedFormula.empty();
+        }
+        if (formulaDef.getBuilder() != null) {
+            return new ResolvedFormula(formulaDef.getBuilder(), null);
+        }
+        if (StringUtils.isNotEmpty(formulaDef.getValue())) {
+            return new ResolvedFormula(null, formulaDef.getValue());
+        }
+        return ResolvedFormula.empty();
+    }
+
+    private static class ResolvedFormula {
+        private static final ResolvedFormula EMPTY = new ResolvedFormula(null, null);
+
+        private final FsscriptFunction builder;
+        private final String sql;
+
+        private ResolvedFormula(FsscriptFunction builder, String sql) {
+            this.builder = builder;
+            this.sql = sql;
         }
 
-        return null;
+        private static ResolvedFormula empty() {
+            return EMPTY;
+        }
+
+        private boolean isPresent() {
+            return builder != null || StringUtils.isNotEmpty(sql);
+        }
     }
 
     private void processJdbcDataProvider(DbDataProvider dataProvider) {
@@ -723,9 +753,12 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
 
         // 解析方言公式：dialectFormulaDef[dbType] > formulaDef > 无公式
         DataSource propDs = context.getDataSource();
-        FsscriptFunction propFormulaBuilder = resolveDialectFormula(propDs, propertyDef.getFormulaDef(), propertyDef.getDialectFormulaDef());
-        if (propFormulaBuilder != null) {
-            dbProperty.setFormulaBuilder(propFormulaBuilder);
+        ResolvedFormula propFormula = resolveDialectFormula(propDs, propertyDef.getFormulaDef(), propertyDef.getDialectFormulaDef());
+        if (propFormula.builder != null) {
+            dbProperty.setFormulaBuilder(propFormula.builder);
+        }
+        if (StringUtils.isNotEmpty(propFormula.sql)) {
+            property.setFormulaSql(propFormula.sql);
         }
 //        /**
 //         * 加入维度支持
@@ -770,9 +803,12 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
 
         // 解析方言公式：dialectFormulaDef[dbType] > formulaDef > 无公式
         DataSource measureDs = context.getDataSource();
-        FsscriptFunction measureFormulaBuilder = resolveDialectFormula(measureDs, measureDef.getFormulaDef(), measureDef.getDialectFormulaDef());
-        if (measureFormulaBuilder != null) {
-            measure.getDecorate(DbMeasureSupport.class).setFormulaBuilder(measureFormulaBuilder);
+        ResolvedFormula measureFormula = resolveDialectFormula(measureDs, measureDef.getFormulaDef(), measureDef.getDialectFormulaDef());
+        if (measureFormula.builder != null) {
+            measure.getDecorate(DbMeasureSupport.class).setFormulaBuilder(measureFormula.builder);
+        }
+        if (StringUtils.isNotEmpty(measureFormula.sql)) {
+            measure.getDecorate(DbMeasureSupport.class).setFormulaSql(measureFormula.sql);
         }
 
         measure.getDecorate(DbMeasureSupport.class).init(context.getJdbcModel(), measureDef);

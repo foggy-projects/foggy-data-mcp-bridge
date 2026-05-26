@@ -47,6 +47,8 @@ class SemanticScaleFactorIntegrationTest extends EcommerceTestSupport {
 
     private static final String TABLE_MODEL = "FactSalesSemanticScaleModel";
     private static final String QUERY_MODEL = "FactSalesSemanticScaleQueryModel";
+    private static final String FORMULA_TABLE_MODEL = "FactSalesSemanticScaleFormulaModel";
+    private static final String FORMULA_QUERY_MODEL = "FactSalesSemanticScaleFormulaQueryModel";
 
     @Resource
     private QueryFacade queryFacade;
@@ -547,11 +549,116 @@ class SemanticScaleFactorIntegrationTest extends EcommerceTestSupport {
     }
 
     @Test
-    @DisplayName("semanticScaleFactor 不能与 formulaDef 同时使用")
-    void semanticScaleWithFormula_rejectedOnModelLoad() {
+    @DisplayName("formulaDef / dialectFormulaDef 结果支持 semanticScaleFactor")
+    void semanticScaleWithFormula_queryDataMatchesNativeSql() {
+        TableModel model = tableModelLoaderManager.load(FORMULA_TABLE_MODEL);
+        assertNotNull(model.findJdbcPropertyByName("salesAmountFormulaLeafYuan"));
+        assertNotNull(model.findJdbcMeasureByName("salesAmountFormulaYuan"));
+        assertNotNull(model.findJdbcMeasureByName("salesAmountBuilderYuan"));
+        assertNotNull(model.findJdbcMeasureByName("taxDialectFormulaYuan"));
+
+        String expectedSql = paginateSql("""
+                SELECT fs.order_id AS orderId,
+                       SUM((fs.sales_amount + 0) / 100.0) AS salesAmountFormulaYuan,
+                       SUM((fs.sales_amount + 1) / 100.0) AS salesAmountBuilderYuan,
+                       SUM((fs.tax_amount + 0) / 100.0) AS taxDialectFormulaYuan
+                FROM fact_sales fs
+                GROUP BY fs.order_id
+                ORDER BY orderId ASC
+                """, 20);
+        List<Map<String, Object>> expectedRows = executeQuery(expectedSql);
+
+        DbQueryRequestDef request = new DbQueryRequestDef();
+        request.setQueryModel(FORMULA_QUERY_MODEL);
+        request.setColumns(List.of(
+                "orderId",
+                "salesAmountFormulaYuan",
+                "salesAmountBuilderYuan",
+                "taxDialectFormulaYuan"
+        ));
+        request.setGroupBy(List.of(group("orderId")));
+        request.setOrderBy(List.of(order("orderId", "ASC")));
+
+        List<Map<String, Object>> actualRows = queryRows(request, null);
+
+        assertEquals(expectedRows.size(), actualRows.size());
+        for (int i = 0; i < expectedRows.size(); i++) {
+            assertEquals(String.valueOf(expectedRows.get(i).get("orderId")),
+                    String.valueOf(actualRows.get(i).get("orderId")));
+            assertDecimalEquals(expectedRows.get(i).get("salesAmountFormulaYuan"),
+                    actualRows.get(i).get("salesAmountFormulaYuan"));
+            assertDecimalEquals(expectedRows.get(i).get("salesAmountBuilderYuan"),
+                    actualRows.get(i).get("salesAmountBuilderYuan"));
+            assertDecimalEquals(expectedRows.get(i).get("taxDialectFormulaYuan"),
+                    actualRows.get(i).get("taxDialectFormulaYuan"));
+        }
+    }
+
+    @Test
+    @DisplayName("属性 formulaDef.value 结果支持 semanticScaleFactor")
+    void semanticScaleWithFormulaProperty_queryDataMatchesNativeSql() {
+        String expectedSql = paginateSql("""
+                SELECT fs.order_id AS orderId,
+                       (fs.sales_amount + 2) / 100.0 AS salesAmountFormulaLeafYuan
+                FROM fact_sales fs
+                ORDER BY fs.order_id ASC, salesAmountFormulaLeafYuan ASC
+                """, 20);
+        List<Map<String, Object>> expectedRows = executeQuery(expectedSql);
+        assertFalse(expectedRows.isEmpty(), "formula property semantic-scale smoke should return rows");
+
+        DbQueryRequestDef request = new DbQueryRequestDef();
+        request.setQueryModel(FORMULA_QUERY_MODEL);
+        request.setColumns(List.of("orderId", "salesAmountFormulaLeafYuan"));
+        request.setOrderBy(List.of(
+                order("orderId", "ASC"),
+                order("salesAmountFormulaLeafYuan", "ASC")
+        ));
+
+        List<Map<String, Object>> actualRows = queryRows(request, null);
+
+        assertRowsMatch(expectedRows, actualRows, "orderId", "salesAmountFormulaLeafYuan");
+    }
+
+    @Test
+    @DisplayName("禁用 namespace 时 formulaDef / dialectFormulaDef 查询保留物理公式结果")
+    void disabledNamespace_formulaQueryUsesPhysicalFormulaValues() {
+        String namespace = registerPhysicalNamespace();
+        String expectedSql = paginateSql("""
+                SELECT fs.order_id AS orderId,
+                       SUM(fs.sales_amount + 0) AS salesAmountFormulaYuan,
+                       SUM(fs.sales_amount + 1) AS salesAmountBuilderYuan,
+                       SUM(fs.tax_amount + 0) AS taxDialectFormulaYuan
+                FROM fact_sales fs
+                GROUP BY fs.order_id
+                ORDER BY orderId ASC
+                """, 20);
+        List<Map<String, Object>> expectedRows = executeQuery(expectedSql);
+        assertFalse(expectedRows.isEmpty(), "formula physical namespace smoke should return rows");
+
+        DbQueryRequestDef request = new DbQueryRequestDef();
+        request.setQueryModel(FORMULA_QUERY_MODEL);
+        request.setColumns(List.of(
+                "orderId",
+                "salesAmountFormulaYuan",
+                "salesAmountBuilderYuan",
+                "taxDialectFormulaYuan"
+        ));
+        request.setGroupBy(List.of(group("orderId")));
+        request.setOrderBy(List.of(order("orderId", "ASC")));
+
+        List<Map<String, Object>> actualRows = queryRows(request, null, null, namespace);
+
+        assertRowsMatch(expectedRows, actualRows, "orderId",
+                "salesAmountFormulaYuan", "salesAmountBuilderYuan", "taxDialectFormulaYuan");
+    }
+
+    @Test
+    @DisplayName("formula-only 度量在当前方言无可用公式时拒绝加载")
+    void formulaOnlyMeasureWithoutResolvedDialect_rejectedOnModelLoad() {
         RuntimeException ex = assertThrows(RuntimeException.class,
-                () -> tableModelLoaderManager.load("FactSalesSemanticScaleFormulaInvalidModel"));
-        assertTrue(ex.getMessage().contains("semanticScaleFactor"));
+                () -> tableModelLoaderManager.load("FactSalesSemanticScaleFormulaUnsupportedDialectInvalidModel"));
+        assertTrue(ex.getMessage().contains("列名") || ex.getMessage().contains("column"),
+                "异常消息应说明无可用列或公式，实际: " + ex.getMessage());
     }
 
     @Test
@@ -634,12 +741,14 @@ class SemanticScaleFactorIntegrationTest extends EcommerceTestSupport {
     private void assertRowsMatch(List<Map<String, Object>> expectedRows,
                                  List<Map<String, Object>> actualRows,
                                  String idField,
-                                 String valueField) {
+                                 String... valueFields) {
         assertEquals(expectedRows.size(), actualRows.size());
         for (int i = 0; i < expectedRows.size(); i++) {
             assertEquals(String.valueOf(expectedRows.get(i).get(idField)),
                     String.valueOf(actualRows.get(i).get(idField)));
-            assertDecimalEquals(expectedRows.get(i).get(valueField), actualRows.get(i).get(valueField));
+            for (String valueField : valueFields) {
+                assertDecimalEquals(expectedRows.get(i).get(valueField), actualRows.get(i).get(valueField));
+            }
         }
     }
 

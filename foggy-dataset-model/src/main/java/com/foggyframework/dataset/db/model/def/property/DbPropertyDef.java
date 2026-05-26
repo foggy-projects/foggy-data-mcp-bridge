@@ -38,7 +38,7 @@ public class DbPropertyDef extends DbDefSupport {
     @ApiModelProperty(value = "运行时字典值发现配置", notes = "显式 opt-in 后由语义层受治理采样低基数字段真实取值")
     DbDictionaryDiscoveryDef dictionaryDiscovery;
 
-    @ApiModelProperty(value = "语义缩放因子", notes = "用于物理金额列按语义单位读取，例如分转元配置 100；不能与 formulaDef/dialectFormulaDef 同时使用")
+    @ApiModelProperty(value = "语义缩放因子", notes = "用于物理金额列或公式结果按语义单位读取，例如分转元配置 100")
     BigDecimal semanticScaleFactor;
 
     @ApiModelProperty(value = "语义单位编码", notes = "例如 CNY、USD、percent")
