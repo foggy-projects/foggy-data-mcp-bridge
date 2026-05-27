@@ -3,7 +3,7 @@ doc_role: workitem
 doc_purpose: Track the Java MCP adapter for LLM routing calibration guard and fresh replan enforcement.
 version: 9.1.0
 target: LLM Routing Replan Guard Java MCP Adapter
-status: implementation-done-compile-blocked
+status: ready-for-verification
 created_at: 2026-05-27
 updated_at: 2026-05-27
 source_type: cross-project-coordination
@@ -82,6 +82,18 @@ Result:
 - error: `SemanticQueryRequest.OutputFormattingItem` cannot be found
 - location: `foggy-dataset-mcp/src/main/java/com/foggyframework/dataset/mcp/spi/impl/LocalDatasetAccessor.java`
 
+Root reactor verification on 2026-05-27:
+
+```bash
+mvn -pl foggy-dataset-mcp -am -Dtest=RoutingCalibrationActionResolverTest,QueryExpertServiceRoutingCalibrationTest,NaturalLanguageQueryToolTest -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+Result:
+
+- status: passed
+- tests: 26 run, 0 failures, 0 errors, 0 skipped
+- note: the earlier module-local command used the installed/local dependency artifact; the root reactor command builds `foggy-dataset-model` first, so `SemanticQueryRequest.OutputFormattingItem` resolves correctly.
+
 Additional checks:
 
 - `git diff --check`: passed
@@ -103,10 +115,10 @@ Additional checks:
 
 | Test Area | Required | Status |
 |---|---:|---|
-| Resolver unit tests | yes | added; Maven run blocked by unrelated compile error |
-| Service fail-closed unit test | yes | added; Maven run blocked by unrelated compile error |
-| Tool hints passthrough unit test | yes | added; Maven run blocked by unrelated compile error |
-| Module targeted Maven test | yes | blocked by unrelated `OutputFormattingItem` compile error |
+| Resolver unit tests | yes | passed in root reactor command |
+| Service fail-closed unit test | yes | passed in root reactor command |
+| Tool hints passthrough unit test | yes | passed in root reactor command |
+| Module targeted Maven test | yes | passed via `-pl foggy-dataset-mcp -am`; module-local command remains unsuitable without refreshed local artifacts |
 | Whitespace check | yes | passed: `git diff --check` |
 | Secret scan | yes | passed on diff content |
 
@@ -120,11 +132,11 @@ Reason: 本次变更是 Java MCP 后端路由守卫适配，不涉及 UI 或人�
 
 - 当前 Java MCP adapter 自身不计算 Python 侧校准规则，依赖上游 runner 把 `routing_calibration_guard` 写入 `hints.extra`。
 - route-changing 且有 `calibrated_route` 的 fresh replan 通过 Spring AI 新一轮 planning prompt 约束完成；如果后续生产链路存在非 LLM 复用旧计划的路径，需要在该路径增加同等 fail-closed 检查。
-- Maven 验证需要先处理 `LocalDatasetAccessor` 与 `SemanticQueryRequest.OutputFormattingItem` 的依赖/源码不一致问题。
+- 单模块目录直接执行 Maven 可能命中旧的本地 `foggy-dataset-model` artifact；该仓库内验证应从 bridge 根使用 `-pl foggy-dataset-mcp -am`。
 
 ## Acceptance Readiness
 
-- current_status: implementation-done-compile-blocked
-- ready_for_acceptance: no
-- blocking_items: unrelated main compile error prevents targeted unit test execution
+- current_status: ready-for-verification
+- ready_for_acceptance: yes, for the scoped Java MCP adapter
+- blocking_items: none for root-reactor verification
 - follow_up_required: yes
