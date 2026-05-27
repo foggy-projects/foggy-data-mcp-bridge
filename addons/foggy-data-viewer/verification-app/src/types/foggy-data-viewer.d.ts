@@ -105,11 +105,74 @@ declare module 'foggy-data-viewer' {
     error?: string
   }
 
+  export type PivotAxisRole = 'rowAxis' | 'columnAxis'
+  export type PivotShape = 'grid' | 'flat' | 'tree'
+  export type PivotViewMode = 'pivotTable'
+
+  export type PivotAxisField = {
+    field: string
+    title?: string
+    role: PivotAxisRole
+    start?: number
+    offset?: number
+    limit?: number
+    orderBy?: string[]
+    domainSliceEnabled?: boolean
+    havingEnabled?: boolean
+  }
+
+  export type PivotMetric = {
+    field: string
+    title?: string
+    format?: string
+    aggregate?: string
+  }
+
+  export type PivotRawAxisMember = {
+    key: string
+    title?: string
+    axisValue?: unknown
+    values: Record<string, unknown>
+  }
+
+  export type PivotRawCell = {
+    rowKey: string
+    columnKey: string
+    metricField: string
+    value: unknown
+  }
+
+  export type PivotAxisPage = {
+    field: string
+    offset: number
+    limit: number
+    total?: number
+    hasMore?: boolean
+    pageScope: 'globalAxis' | 'perParent'
+  }
+
+  export type PivotRawPayload = {
+    viewMode: PivotViewMode
+    shape: PivotShape
+    rowAxes: PivotAxisField[]
+    columnAxes: PivotAxisField[]
+    metrics: PivotMetric[]
+    rowMembers: PivotRawAxisMember[]
+    columnMembers: PivotRawAxisMember[]
+    cells: PivotRawCell[]
+    axisPages?: {
+      rows?: PivotAxisPage[]
+      columns?: PivotAxisPage[]
+    }
+    evidence?: Record<string, unknown>
+  }
+
   export const DataViewer: DefineComponent<Record<string, unknown>>
   export const DataTable: DefineComponent<Record<string, unknown>>
   export const SearchToolbar: DefineComponent<Record<string, unknown>>
   export const DataTableWithSearch: DefineComponent<Record<string, unknown>>
   export const SavedQueryManager: DefineComponent<Record<string, unknown>>
+  export const PivotRawViewer: DefineComponent<Record<string, unknown>>
 
   export function buildTableColumns(schema: ColumnSchema[], config?: TableConfig): EnhancedColumnSchema[]
   export function createQuery(request: CreateQueryRequest): Promise<CreateQueryResponse>
@@ -121,4 +184,3 @@ declare module 'foggy-data-viewer' {
 }
 
 declare module 'foggy-data-viewer/style.css' {}
-

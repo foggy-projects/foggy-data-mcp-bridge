@@ -12,6 +12,7 @@ import {
   fetchQueryData,
   fetchQmSchema
 } from 'foggy-data-viewer'
+import PivotRawViewerDemo from './PivotRawViewerDemo.vue'
 import type {
   EnhancedColumnSchema,
   SliceRequestDef,
@@ -25,7 +26,7 @@ import type {
 } from 'foggy-data-viewer'
 
 // ============ 场景切换 ============
-type SceneType = 'home' | 'dataviewer' | 'toolbar' | 'custom-actions' | 'combined' | 'schema-mode' | 'custom-list' | 'saved-query'
+type SceneType = 'home' | 'dataviewer' | 'toolbar' | 'custom-actions' | 'combined' | 'schema-mode' | 'custom-list' | 'saved-query' | 'pivot-raw'
 const currentScene = ref<SceneType>('home')
 
 // ============ DataViewer 场景 ============
@@ -709,6 +710,18 @@ function goHome() {
             <li>一键应用已保存查询</li>
           </ul>
         </div>
+
+        <div class="scene-card highlight" @click="goToScene('pivot-raw')">
+          <div class="scene-icon text-icon">PVT</div>
+          <h3>Pivot Raw Viewer（新）</h3>
+          <p>验证 pivot/domainSlice 独立透视表展示</p>
+          <ul>
+            <li>二层科目表头</li>
+            <li>行轴和列轴分页证据</li>
+            <li>cell 保留全局事实范围</li>
+            <li>独立于普通 flat table</li>
+          </ul>
+        </div>
       </div>
 
       <div class="info-section">
@@ -1076,6 +1089,18 @@ function goHome() {
         </div>
       </div>
     </div>
+
+    <!-- Pivot Raw Viewer 场景（新功能） -->
+    <div v-else-if="currentScene === 'pivot-raw'" class="scene-page pivot-scene-page">
+      <div class="scene-header">
+        <button class="back-btn" @click="goHome">← 返回首页</button>
+        <h2>Pivot Raw Viewer 体验验证</h2>
+      </div>
+
+      <div class="scene-content pivot-scene-content">
+        <PivotRawViewerDemo />
+      </div>
+    </div>
   </div>
 </template>
 
@@ -1141,6 +1166,20 @@ html, body, #app {
 .scene-icon {
   font-size: 48px;
   margin-bottom: 16px;
+}
+
+.scene-icon.text-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 58px;
+  height: 44px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #409eff;
+  background: #ecf5ff;
+  border: 1px solid #b3d8ff;
+  border-radius: 6px;
 }
 
 .scene-card h3 {
@@ -1253,6 +1292,15 @@ html, body, #app {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+.pivot-scene-page {
+  min-width: 0;
+}
+
+.pivot-scene-content {
+  min-width: 0;
+  overflow: auto;
 }
 
 .feature-info {
