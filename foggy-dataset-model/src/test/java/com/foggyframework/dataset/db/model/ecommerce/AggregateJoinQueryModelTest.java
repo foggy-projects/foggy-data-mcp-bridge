@@ -28,6 +28,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -373,6 +374,42 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("aggregate relation ON 左键应支持嵌套维度路径")
+    void aggregateRelationOnLeftKeyShouldSupportNestedDimensionPath() {
+        JdbcModelQueryEngine queryEngine = buildSalesNestedCategoryAggregateRelationDimensionPathQuery();
+
+        String sql = queryEngine.getSql();
+        String normalizedSql = normalizeSql(sql).toLowerCase();
+        int productJoin = normalizedSql.indexOf("left join dim_product_nested");
+        int categoryJoin = normalizedSql.indexOf("left join dim_category_nested");
+        int aggregateJoin = normalizedSql.indexOf("left join (select");
+        assertTrue(productJoin > 0, "ON 左侧嵌套路径应先触发一级商品维表 JOIN");
+        assertTrue(categoryJoin > productJoin, "ON 左侧嵌套路径应继续触发二级品类维表 JOIN");
+        assertTrue(aggregateJoin > categoryJoin, "维度路径依赖 JOIN 应先于 aggregate derived table 生成");
+        assertFalse(sql.contains("product.category$categoryId"),
+                "aggregate relation ON 不应把嵌套路径表达式直接渲染进 SQL");
+        assertFalse(sql.contains("product_category$categoryId"),
+                "aggregate relation ON 不应把嵌套路径别名当成根表物理列渲染");
+        assertTrue(sql.contains("category_id = categoryAggByBusinessId.categoryId")
+                        || sql.contains("category_id=categoryAggByBusinessId.categoryId"),
+                "aggregate relation ON 左侧应使用二级品类维表的物理列表达式");
+
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                sql,
+                queryEngine.getValues().toArray());
+        assertFalse(rows.isEmpty(), "嵌套维度路径 aggregate relation 应返回真实数据");
+
+        Map<String, Integer> nativeCategoryLevels = nativeCategoryLevelsByProductId();
+        for (Map<String, Object> row : rows) {
+            String productId = String.valueOf(row.get("product$productId"));
+            Integer expected = nativeCategoryLevels.get(productId);
+            assertNotNull(expected, "原生查询应能按商品ID找到品类层级：" + productId);
+            assertEquals(expected.intValue(), ((Number) row.get("categoryLevel")).intValue(),
+                    "嵌套维度路径 ON 连接到的 RHS 聚合结果应与原生查询一致");
+        }
+    }
+
+    @Test
     @DisplayName("aggregate relation 应在当前数据库执行 EXPLAIN 并保留 RHS 过滤证据")
     void aggregateRelationShouldRunExplainWithPushedRightSideFilters() {
         String orderId = findOrderIdWithCompletedSales();
@@ -511,6 +548,20 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
         return queryEngine;
     }
 
+    private JdbcModelQueryEngine buildSalesNestedCategoryAggregateRelationDimensionPathQuery() {
+        JdbcQueryModel queryModel = getQueryModel("SalesNestedCategoryAggregateRelationDimensionPathQueryModel");
+        assertNotNull(queryModel, "查询模型加载失败");
+
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("SalesNestedCategoryAggregateRelationDimensionPathQueryModel");
+        queryRequest.setColumns(Arrays.asList("product$productId", "salesAmount", "categoryLevel"));
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+        return queryEngine;
+    }
+
     private DbQueryRequestDef buildOrderSalesAggregateRelationRequest() {
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("OrderSalesAggregateRelationQueryModel");
@@ -580,6 +631,22 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
                 """, String.class);
         assertFalse(orderIds.isEmpty(), "测试数据应至少包含一个 ACTIVE 门店订单");
         return orderIds.get(0);
+    }
+
+    private Map<String, Integer> nativeCategoryLevelsByProductId() {
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+                select dp.product_id productId, dc.category_level categoryLevel
+                from dim_product_nested dp
+                join dim_category_nested dc on dp.category_key = dc.category_key
+                where dc.status = 'ACTIVE'
+                """);
+        assertFalse(rows.isEmpty(), "测试数据应至少包含 ACTIVE 品类关联商品");
+
+        Map<String, Integer> result = new HashMap<>();
+        for (Map<String, Object> row : rows) {
+            result.put(String.valueOf(row.get("productId")), ((Number) row.get("categoryLevel")).intValue());
+        }
+        return result;
     }
 
     private SliceRequestDef slice(String field, String op, Object value) {

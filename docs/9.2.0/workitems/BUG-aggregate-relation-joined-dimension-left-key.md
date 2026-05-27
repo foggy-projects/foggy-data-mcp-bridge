@@ -16,7 +16,7 @@ owner_repo: foggy-data-mcp-bridge-wt-dev-compose
 owner_module: foggy-dataset-model
 ---
 
-# BUG: Aggregate Relation ON 左键支持已 join 维度字段
+# BUG: Aggregate Relation ON 左键支持已 join 维度字段和维度路径
 
 ## Background
 
@@ -30,7 +30,7 @@ rh.leftJoin(demandAgg).on(rh.stockHouse$srcId, demandAgg.srcId)
 
 ## Reproduction
 
-本地用 ecommerce fixture 复现同类形态：
+本地用 ecommerce fixture 复现同类形态。单层维度字段：
 
 ```js
 const fo = loadTableModel('FactOrderModel');
@@ -53,11 +53,28 @@ left join (...) storeAggByBusinessId
 
 这与上游报告的 `t1.stockHouse$srcId` 旧症状同属一类问题：aggregate relation 自定义 ON 条件依赖的左侧语义字段没有完整转成可执行 join plan。
 
+补齐验证嵌套维度路径：
+
+```js
+const fs = loadTableModel('FactSalesNestedDimModel');
+const categories = loadTableModel('CategoryAggregateSourceModel');
+
+const categoryAgg = categories
+    .filterEq(categories.status, 'ACTIVE')
+    .groupBy(categories.categoryId)
+    .as('categoryAggByBusinessId');
+
+fs.leftJoin(categoryAgg).on(fs.product.category$categoryId, categoryAgg.categoryId)
+```
+
+该场景要求引擎根据 ON 左侧 `product.category$categoryId` 自动补齐 `fact_sales_nested -> dim_product_nested -> dim_category_nested` join path，再 join RHS aggregate derived table。
+
 ## Expected Behavior
 
 - validate 继续通过。
 - 运行时 SQL ON 使用展开后的物理列表达式，不出现 `t1.<fieldAlias>` 或 `<dimension>$<property>`。
 - 如果 ON 左键来自已 join 维度字段，SQL 必须先 join 该维表，再 join RHS aggregate derived table。
+- 如果 ON 左键来自嵌套维度路径，SQL 必须按路径顺序补齐所有依赖维表，再 join RHS aggregate derived table。
 - root 字段 ON 与维度字段 ON 都可执行。
 - RHS pushdown 仍基于 aggregate relation 的安全 join-key mapping，不通过 raw SQL 猜测。
 
@@ -73,13 +90,16 @@ left join (...) storeAggByBusinessId
 新增集成测试：
 
 - `AggregateJoinQueryModelTest#aggregateRelationOnLeftKeyShouldSupportJoinedDimensionField`
+- `AggregateJoinQueryModelTest#aggregateRelationOnLeftKeyShouldSupportNestedDimensionPath`
 
 测试断言：
 
-- SQL 包含 `left join dim_store`。
-- SQL 不包含 `store$storeId`。
-- ON 条件使用 `d3.store_id = storeAggByBusinessId.storeId`。
-- SQL 在 SQLite 真实执行成功，结果等于原生查询：
+- 单层维度字段 SQL 包含 `left join dim_store`，不包含 `store$storeId`，ON 条件使用 `d3.store_id = storeAggByBusinessId.storeId`。
+- 嵌套维度路径 SQL 按顺序包含 `left join dim_product_nested`、`left join dim_category_nested`、`left join (select ...)`，不包含 `product.category$categoryId` 或 `product_category$categoryId`。
+- 嵌套维度路径 ON 条件使用二级品类维表物理列 `d3.category_id = categoryAggByBusinessId.categoryId`。
+- SQL 在 SQLite 真实执行成功，结果等于原生查询。
+
+单层维度字段原生对照：
 
 ```sql
 select ds.area_sqm
@@ -89,21 +109,32 @@ where fo.order_id = ?
   and ds.status = 'ACTIVE'
 ```
 
+嵌套维度路径原生对照：
+
+```sql
+select dp.product_id productId, dc.category_level categoryLevel
+from dim_product_nested dp
+join dim_category_nested dc on dp.category_key = dc.category_key
+where dc.status = 'ACTIVE'
+```
+
 ## Verification
 
 2026-05-27 已执行：
 
 ```bash
 mvn test -pl foggy-dataset-model -Dspring.profiles.active=sqlite -P'!multi-db' '-Dtest=AggregateJoinQueryModelTest#aggregateRelationOnLeftKeyShouldSupportJoinedDimensionField'
+mvn test -pl foggy-dataset-model -Dspring.profiles.active=sqlite -P'!multi-db' '-Dtest=AggregateJoinQueryModelTest#aggregateRelationOnLeftKeyShouldSupportNestedDimensionPath'
 mvn test -pl foggy-dataset-model -Dspring.profiles.active=sqlite -P'!multi-db' -Dtest=AggregateJoinQueryModelTest
 ```
 
 结果：
 
-- Targeted regression: passed, 1 test.
-- Aggregate join suite: passed, 16 tests.
+- Single-level targeted regression: passed, 1 test.
+- Nested-path targeted regression: passed, 1 test.
+- Aggregate join suite: passed, 17 tests.
 
-关键 SQL 证据：
+单层维度字段关键 SQL 证据：
 
 ```sql
 from fact_order t1
@@ -117,7 +148,22 @@ from fact_order t1
  ) storeAggByBusinessId on d3.store_id = storeAggByBusinessId.storeId
 ```
 
+嵌套维度路径关键 SQL 证据：
+
+```sql
+from fact_sales_nested t1
+ left join dim_product_nested d2 on t1.product_key=d2.product_key
+ left join dim_category_nested d3 on d2.category_key=d3.category_key
+ left join (
+   select agg_src.category_id categoryId,
+          sum(agg_src.category_level) categoryLevel
+   from dim_category_nested agg_src
+   where agg_src.status = 'ACTIVE'
+   group by agg_src.category_id
+ ) categoryAggByBusinessId on d3.category_id = categoryAggByBusinessId.categoryId
+```
+
 ## Follow-Up
 
 - TMS 可在 bridge 升级后移除为了绕过该问题临时暴露的根表 `srcId` 字段。
-- 若后续出现嵌套维度路径 ON，例如 `a.b$c`，需补同类 fixture，确认 aliasRef/path join graph 仍可覆盖。
+- 单层维度字段与嵌套维度路径 ON 已有 ecommerce fixture 覆盖；后续若出现三层以上路径或跨多个左侧路径组合，可按同一模式补更深 fixture。

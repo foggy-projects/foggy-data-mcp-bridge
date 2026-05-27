@@ -1,0 +1,44 @@
+/**
+ * 销售-嵌套品类聚合关系查询模型
+ *
+ * @caption 销售嵌套品类聚合关系查询
+ * @description aggregate relation ON 左侧使用 sales.product.category$categoryId 嵌套维度路径。
+ */
+const fs = loadTableModel('FactSalesNestedDimModel');
+const categories = loadTableModel('CategoryAggregateSourceModel');
+
+const categoryAgg = categories
+    .filterEq(categories.status, 'ACTIVE')
+    .groupBy(categories.categoryId)
+    .as('categoryAggByBusinessId');
+
+export const queryModel = {
+    name: 'SalesNestedCategoryAggregateRelationDimensionPathQueryModel',
+    caption: '销售嵌套品类聚合关系查询',
+    description: 'aggregate relation ON 左侧使用销售商品品类嵌套维度路径，右侧按品类业务ID聚合',
+    loader: 'v2',
+
+    model: fs,
+
+    joins: [
+        fs.leftJoin(categoryAgg).on(fs.product.category$categoryId, categoryAgg.categoryId)
+    ],
+
+    columnGroups: [
+        {
+            caption: '销售与商品',
+            items: [
+                { ref: fs.product$productId },
+                { ref: fs.salesAmount }
+            ]
+        },
+        {
+            caption: '品类聚合',
+            items: [
+                { ref: categoryAgg.categoryLevel, caption: '品类层级汇总' }
+            ]
+        }
+    ],
+
+    accesses: []
+};
