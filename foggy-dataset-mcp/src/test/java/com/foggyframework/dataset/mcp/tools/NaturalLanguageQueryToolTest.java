@@ -190,6 +190,33 @@ class NaturalLanguageQueryToolTest {
         }
 
         @Test
+        @DisplayName("routing_calibration_guard hint 应作为 extra 透传")
+        void routingCalibrationGuardHint_shouldPassAsExtra() {
+            when(queryExpertService.processQuery(any(DatasetNLQueryRequest.class), any(), any()))
+                    .thenReturn(DatasetNLQueryResponse.builder().type("result").build());
+
+            Map<String, Object> guard = Map.of(
+                    "raw_route", "SEMANTIC_SQL",
+                    "calibrated_route", "DSL",
+                    "requires_replan", true,
+                    "execution_allowed", false
+            );
+            Map<String, Object> args = Map.of(
+                    "query", "查询销售额",
+                    "hints", Map.of("routing_calibration_guard", guard)
+            );
+
+            nlQueryTool.execute(args, ToolExecutionContext.of("trace-routing", null));
+
+            verify(queryExpertService).processQuery(argThat(req -> {
+                DatasetNLQueryRequest.QueryHints h = req.getHints();
+                return h != null
+                        && h.getExtra() != null
+                        && guard.equals(h.getExtra().get("routing_calibration_guard"));
+            }), any(), any());
+        }
+
+        @Test
         @DisplayName("带分页游标的查询应正确传递")
         void queryWithCursor_shouldPassCorrectly() {
             when(queryExpertService.processQuery(any(DatasetNLQueryRequest.class), any(), any()))

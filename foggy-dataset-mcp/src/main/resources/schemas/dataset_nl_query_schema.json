@@ -37,6 +37,11 @@
         "time_range": {
           "type": "string",
           "description": "时间范围提示，如 last_7_days"
+        },
+        "routing_calibration_guard": {
+          "type": "object",
+          "description": "上游路由校准守卫元数据。requires_replan=true 时必须按 calibrated_route 重新规划，不得复用旧计划。",
+          "additionalProperties": true
         }
       }
     },

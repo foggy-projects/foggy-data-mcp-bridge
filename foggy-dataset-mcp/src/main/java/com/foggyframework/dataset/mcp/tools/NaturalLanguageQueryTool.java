@@ -130,10 +130,19 @@ public class NaturalLanguageQueryTool implements McpTool {
 
             hintsBuilder.dataSource((String) hintsMap.get("data_source"));
             hintsBuilder.preferredModels((List<String>) hintsMap.get("preferred_models"));
+            hintsBuilder.extra(extractExtraHints(hintsMap));
 
             builder.hints(hintsBuilder.build());
         }
 
         return builder.build();
+    }
+
+    private Map<String, Object> extractExtraHints(Map<String, Object> hintsMap) {
+        Map<String, Object> extra = new LinkedHashMap<>(hintsMap);
+        extra.remove("time_range");
+        extra.remove("data_source");
+        extra.remove("preferred_models");
+        return extra.isEmpty() ? null : extra;
     }
 }

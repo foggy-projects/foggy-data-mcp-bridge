@@ -4,6 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foggyframework.dataset.mcp.config.McpProperties;
 import com.foggyframework.dataset.mcp.schema.DatasetNLQueryRequest;
 import com.foggyframework.dataset.mcp.schema.DatasetNLQueryResponse;
+import com.foggyframework.dataset.mcp.service.routing.RoutingCalibrationAction;
+import com.foggyframework.dataset.mcp.service.routing.RoutingCalibrationActionResolver;
+import com.foggyframework.dataset.mcp.service.routing.RoutingCalibrationActionType;
 import com.foggyframework.dataset.mcp.spi.DatasetAccessor;
 import com.foggyframework.mcp.spi.McpTool;
 import com.foggyframework.mcp.spi.ProgressEvent;
@@ -37,6 +40,7 @@ public class QueryExpertService {
     private final ObjectMapper objectMapper;
     private final McpToolDispatcher mcpToolDispatcher;
     private final McpToolCallbackFactory toolCallbackFactory;
+    private final RoutingCalibrationActionResolver routingCalibrationActionResolver;
 
     // 会话管理
     private final Map<String, SessionContext> sessions = new ConcurrentHashMap<>();
@@ -105,7 +109,8 @@ public class QueryExpertService {
             McpProperties mcpProperties,
             ObjectMapper objectMapper,
             McpToolDispatcher mcpToolDispatcher,
-            McpToolCallbackFactory toolCallbackFactory
+            McpToolCallbackFactory toolCallbackFactory,
+            RoutingCalibrationActionResolver routingCalibrationActionResolver
     ) {
         this.chatClientBuilder = chatClientBuilder;
         this.datasetAccessor = datasetAccessor;
@@ -113,6 +118,7 @@ public class QueryExpertService {
         this.objectMapper = objectMapper;
         this.mcpToolDispatcher = mcpToolDispatcher;
         this.toolCallbackFactory = toolCallbackFactory;
+        this.routingCalibrationActionResolver = routingCalibrationActionResolver;
 
         log.info("QueryExpertService initialized with DatasetAccessor: {}", datasetAccessor.getAccessMode());
     }
@@ -132,6 +138,15 @@ public class QueryExpertService {
                 request.getSessionId() : UUID.randomUUID().toString();
 
         try {
+            RoutingCalibrationAction calibrationAction = routingCalibrationActionResolver.resolve(request);
+            if (calibrationAction.type() == RoutingCalibrationActionType.BLOCKED) {
+                return DatasetNLQueryResponse.error(
+                        "ROUTING_REPLAN_REQUIRED",
+                        "路由校准要求重新规划，但缺少 calibrated_route，已阻断旧计划执行。",
+                        calibrationAction.toAuditMap()
+                );
+            }
+
             // 获取或创建会话上下文
             SessionContext context = sessions.computeIfAbsent(sessionId,
                     k -> new SessionContext(sessionId, traceId));
@@ -139,7 +154,7 @@ public class QueryExpertService {
             context.setAuthorization(authorization);
 
             // 构建用户消息
-            String userMessage = buildUserMessage(request);
+            String userMessage = buildUserMessage(request, calibrationAction);
 
             // 获取核心查询工具并转换为 ToolCallback
             List<McpTool> queryTools = getQueryTools();
@@ -191,6 +206,16 @@ public class QueryExpertService {
             try {
                 sink.next(ProgressEvent.progress("analyze", 10));
 
+                RoutingCalibrationAction calibrationAction = routingCalibrationActionResolver.resolve(request);
+                if (calibrationAction.type() == RoutingCalibrationActionType.BLOCKED) {
+                    sink.next(ProgressEvent.error(
+                            "ROUTING_REPLAN_REQUIRED",
+                            "路由校准要求重新规划，但缺少 calibrated_route，已阻断旧计划执行。"
+                    ));
+                    sink.complete();
+                    return;
+                }
+
                 String sessionId = request.getSessionId() != null ?
                         request.getSessionId() : UUID.randomUUID().toString();
 
@@ -199,7 +224,7 @@ public class QueryExpertService {
                 context.setTraceId(traceId);
                 context.setAuthorization(authorization);
 
-                String userMessage = buildUserMessage(request);
+                String userMessage = buildUserMessage(request, calibrationAction);
                 sink.next(ProgressEvent.progress("plan", 20));
 
                 List<McpTool> queryTools = getQueryTools();
@@ -268,6 +293,10 @@ public class QueryExpertService {
      * 构建用户消息
      */
     private String buildUserMessage(DatasetNLQueryRequest request) {
+        return buildUserMessage(request, RoutingCalibrationAction.executeRaw());
+    }
+
+    private String buildUserMessage(DatasetNLQueryRequest request, RoutingCalibrationAction calibrationAction) {
         StringBuilder sb = new StringBuilder();
 
         // 时间上下文
@@ -292,6 +321,23 @@ public class QueryExpertService {
             if (hints.getPreferredModels() != null && !hints.getPreferredModels().isEmpty()) {
                 sb.append("\n优先模型: ").append(String.join(", ", hints.getPreferredModels()));
             }
+        }
+
+        if (calibrationAction != null
+                && calibrationAction.type() == RoutingCalibrationActionType.REPLAN_REQUIRED) {
+            sb.append("\n\n[路由校准守卫]\n");
+            sb.append("上游模型输出的路由已被校准，禁止复用旧 route 的计划、SQL、DSL、CTE、memory grid 或已生成的工具调用参数。\n");
+            if (calibrationAction.rawRoute() != null) {
+                sb.append("原始路由: ").append(calibrationAction.rawRoute()).append("\n");
+            }
+            sb.append("校准后路由: ").append(calibrationAction.calibratedRoute()).append("\n");
+            if (!calibrationAction.calibratedRisks().isEmpty()) {
+                sb.append("校准后风险: ").append(String.join(", ", calibrationAction.calibratedRisks())).append("\n");
+            }
+            if (!calibrationAction.appliedRules().isEmpty()) {
+                sb.append("命中规则: ").append(String.join(", ", calibrationAction.appliedRules())).append("\n");
+            }
+            sb.append("必须按校准后路由重新规划并重新生成工具调用参数。");
         }
 
         return sb.toString();
