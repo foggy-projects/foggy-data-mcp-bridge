@@ -6,6 +6,11 @@ import com.foggyframework.dataset.db.model.spi.QueryModel;
 import com.foggyframework.dataset.db.model.spi.TableModel;
 import lombok.Getter;
 
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
+
 /**
  * JOIN 条件对象
  *
@@ -130,7 +135,7 @@ public class JoinCondition {
             DbColumn dbColumn = findDbColumn(queryModel, columnRef);
             RX.notNull(dbColumn, "JOIN 条件字段不存在: " + columnRef.getFullRef());
             String alias = queryModel.getAlias(dbColumn.getQueryObject());
-            return alias + "." + dbColumn.getSqlColumnName();
+            return dbColumn.getDeclare(null, alias);
         }
 
         String alias = columnRef.getTableAlias();
@@ -141,18 +146,63 @@ public class JoinCondition {
         return columnRef.getColumnName();
     }
 
-    private DbColumn findDbColumn(QueryModel queryModel, ColumnRef columnRef) {
-        String modelName = columnRef.getModelName();
-        for (TableModel tableModel : queryModel.getJdbcModelList()) {
-            if (!modelName.equals(tableModel.getName())) {
-                continue;
+    /**
+     * 解析 JOIN 条件引用到的运行时列，用于补齐 ON 条件依赖的 JOIN 路径。
+     *
+     * @param queryModel 查询模型
+     * @return 条件中可解析出的列
+     */
+    public List<DbColumn> resolveReferencedColumns(QueryModel queryModel) {
+        if (queryModel == null) {
+            return List.of();
+        }
+        List<DbColumn> columns = new ArrayList<>();
+        DbColumn leftColumn = findDbColumn(queryModel, left);
+        if (leftColumn != null) {
+            columns.add(leftColumn);
+        }
+
+        ColumnRef rightRef = getRightAsColumnRef();
+        if (rightRef != null) {
+            DbColumn rightColumn = findDbColumn(queryModel, rightRef);
+            if (rightColumn != null) {
+                columns.add(rightColumn);
             }
-            DbColumn dbColumn = tableModel.findJdbcColumnByName(columnRef.getFullRef());
+        }
+        return columns;
+    }
+
+    private DbColumn findDbColumn(QueryModel queryModel, ColumnRef columnRef) {
+        if (queryModel == null || columnRef == null) {
+            return null;
+        }
+        Set<String> candidateNames = new LinkedHashSet<>();
+        candidateNames.add(columnRef.getFullRef());
+        candidateNames.add(columnRef.getAliasRef());
+        candidateNames.add(columnRef.getColumnName());
+
+        String modelName = columnRef.getModelName();
+        if (queryModel.getJdbcModelList() != null) {
+            for (TableModel tableModel : queryModel.getJdbcModelList()) {
+                if (!modelName.equals(tableModel.getName())) {
+                    continue;
+                }
+                for (String candidateName : candidateNames) {
+                    DbColumn dbColumn = tableModel.findJdbcColumnByName(candidateName);
+                    if (dbColumn != null) {
+                        return dbColumn;
+                    }
+                }
+            }
+        }
+
+        for (String candidateName : candidateNames) {
+            DbColumn dbColumn = queryModel.findJdbcColumn(candidateName);
             if (dbColumn != null) {
                 return dbColumn;
             }
         }
-        return queryModel.findJdbcColumn(columnRef.getFullRef());
+        return null;
     }
 
     /**

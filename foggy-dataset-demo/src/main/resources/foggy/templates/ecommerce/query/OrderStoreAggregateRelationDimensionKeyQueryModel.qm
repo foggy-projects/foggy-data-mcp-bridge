@@ -1,0 +1,42 @@
+/**
+ * 订单-门店聚合关系查询模型
+ *
+ * @caption 订单门店聚合关系查询
+ * @description aggregate relation ON 左侧使用订单模型已 join 门店维度属性，避免为了业务ID暴露根表物理字段。
+ */
+const fo = loadTableModel('FactOrderModel');
+const stores = loadTableModel('StoreAggregateSourceModel');
+
+const storeAgg = stores
+    .filterEq(stores.status, 'ACTIVE')
+    .groupBy(stores.storeId)
+    .as('storeAggByBusinessId');
+
+export const queryModel = {
+    name: 'OrderStoreAggregateRelationDimensionKeyQueryModel',
+    caption: '订单门店聚合关系查询',
+    description: 'aggregate relation ON 左侧使用订单门店维度属性，右侧按门店业务ID聚合',
+    loader: 'v2',
+
+    model: fo,
+
+    joins: [
+        fo.leftJoin(storeAgg).on(fo.store$storeId, storeAgg.storeId)
+    ],
+
+    columnGroups: [
+        {
+            caption: '订单信息',
+            items: [
+                { ref: fo.orderId },
+                { ref: fo.amount }
+            ]
+        },
+        {
+            caption: '门店聚合',
+            items: [
+                { ref: storeAgg.areaSqm, caption: '门店面积汇总' }
+            ]
+        }
+    ]
+};

@@ -12,6 +12,7 @@ import com.foggyframework.dataset.db.model.impl.query.DbQueryGroupColumnImpl;
 import com.foggyframework.dataset.db.model.impl.query.DbQueryOrderColumnImpl;
 import com.foggyframework.dataset.db.model.proxy.ColumnRef;
 import com.foggyframework.dataset.db.model.proxy.DimensionProxy;
+import com.foggyframework.dataset.db.model.proxy.JoinBuilderFunction;
 import com.foggyframework.dataset.db.model.spi.DbColumn;
 import com.foggyframework.dataset.db.model.spi.DbQueryRequest;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
@@ -569,15 +570,15 @@ public class JdbcQuery {
             // 按拓扑顺序添加所有边
             for (JoinEdge edge : path) {
                 // 检查是否已存在
-                boolean exists = false;
-                for (JdbcJoin existingJoin : joins) {
-                    if (existingJoin.contain(edge.getTo())) {
-                        exists = true;
-                        break;
-                    }
-                }
-                if (exists) {
+                if (containsJoin(edge.getTo())) {
                     continue;
+                }
+
+                if (edge.hasOnBuilder()) {
+                    joinOnBuilderDependencies(edge.getTo(), edge.getOnBuilder());
+                    if (containsJoin(edge.getTo())) {
+                        continue;
+                    }
                 }
 
                 // 创建新的 JdbcJoin
@@ -620,14 +621,54 @@ public class JdbcQuery {
             if (joins == null) {
                 joins = new ArrayList<>();
             }
-            for (JdbcJoin join : joins) {
-                if (join.contain(queryObject)) {
-                    return this;
-                }
+            if (containsJoin(queryObject)) {
+                return this;
             }
 
+            joinOnBuilderDependencies(queryObject, onBuilder);
+            if (containsJoin(queryObject)) {
+                return this;
+            }
             joins.add(new JdbcJoinOnBuilder(queryObject, onBuilder, joinType));
             return this;
+        }
+
+        private void joinOnBuilderDependencies(QueryObject joinTarget, FsscriptFunction onBuilder) {
+            if (queryModel == null || !(onBuilder instanceof JoinBuilderFunction joinBuilderFunction)) {
+                return;
+            }
+
+            for (QueryObject dependency : joinBuilderFunction.getReferencedQueryObjects(queryModel)) {
+                if (dependency == null
+                        || isSameQueryObject(dependency, fromObject)
+                        || isSameQueryObject(dependency, joinTarget)
+                        || containsJoin(dependency)) {
+                    continue;
+                }
+                join(dependency, (JoinType) null);
+            }
+        }
+
+        private boolean containsJoin(QueryObject queryObject) {
+            if (joins == null || queryObject == null) {
+                return false;
+            }
+            for (JdbcJoin join : joins) {
+                if (join.contain(queryObject)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private boolean isSameQueryObject(QueryObject left, QueryObject right) {
+            if (left == null || right == null) {
+                return false;
+            }
+            if (StringUtils.equals(left.getAlias(), right.getAlias())) {
+                return true;
+            }
+            return left.isRootEqual(right);
         }
 
 //        public JdbcFrom customJoin(Map mm) {

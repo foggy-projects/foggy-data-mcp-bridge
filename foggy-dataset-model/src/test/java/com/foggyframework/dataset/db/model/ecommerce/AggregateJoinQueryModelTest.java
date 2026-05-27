@@ -341,6 +341,38 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("aggregate relation ON 左键应支持已 join 维度字段")
+    void aggregateRelationOnLeftKeyShouldSupportJoinedDimensionField() {
+        String orderId = findOrderIdWithActiveStore();
+        JdbcModelQueryEngine queryEngine = buildOrderStoreAggregateRelationDimensionKeyQuery(orderId);
+
+        String sql = queryEngine.getSql();
+        String normalizedSql = normalizeSql(sql);
+        assertTrue(normalizedSql.contains("left join dim_store"),
+                "ON 左侧维度字段应触发维表 JOIN，而不是直接拼 root alias.fieldAlias");
+        assertFalse(sql.contains("store$storeId"),
+                "aggregate relation ON 不应把维度字段别名当成根表物理列渲染");
+        assertTrue(sql.contains("store_id = storeAggByBusinessId.storeId")
+                        || sql.contains("store_id=storeAggByBusinessId.storeId"),
+                "aggregate relation ON 左侧应使用已 join 维表的物理列表达式");
+
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                sql,
+                queryEngine.getValues().toArray());
+        assertEquals(1, rows.size(), "指定订单应返回一行真实数据");
+
+        BigDecimal nativeArea = jdbcTemplate.queryForObject("""
+                select ds.area_sqm
+                from fact_order fo
+                join dim_store ds on fo.store_key = ds.store_key
+                where fo.order_id = ?
+                  and ds.status = 'ACTIVE'
+                """, BigDecimal.class, orderId);
+        assertEquals(0, money(nativeArea).compareTo(money(rows.get(0).get("areaSqm"))),
+                "维度字段 ON 连接到的 RHS 聚合结果应与原生查询一致");
+    }
+
+    @Test
     @DisplayName("aggregate relation 应在当前数据库执行 EXPLAIN 并保留 RHS 过滤证据")
     void aggregateRelationShouldRunExplainWithPushedRightSideFilters() {
         String orderId = findOrderIdWithCompletedSales();
@@ -464,6 +496,21 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
         return queryEngine;
     }
 
+    private JdbcModelQueryEngine buildOrderStoreAggregateRelationDimensionKeyQuery(String orderId) {
+        JdbcQueryModel queryModel = getQueryModel("OrderStoreAggregateRelationDimensionKeyQueryModel");
+        assertNotNull(queryModel, "查询模型加载失败");
+
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("OrderStoreAggregateRelationDimensionKeyQueryModel");
+        queryRequest.setColumns(Arrays.asList("orderId", "amount", "areaSqm"));
+        queryRequest.setSlice(List.of(slice("orderId", "=", orderId)));
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+        return queryEngine;
+    }
+
     private DbQueryRequestDef buildOrderSalesAggregateRelationRequest() {
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("OrderSalesAggregateRelationQueryModel");
@@ -519,6 +566,19 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
                 limit 1
                 """, String.class);
         assertFalse(orderIds.isEmpty(), "测试数据应至少包含一个无 COMPLETED 销售明细的左侧订单");
+        return orderIds.get(0);
+    }
+
+    private String findOrderIdWithActiveStore() {
+        List<String> orderIds = jdbcTemplate.queryForList("""
+                select fo.order_id
+                from fact_order fo
+                join dim_store ds on fo.store_key = ds.store_key
+                where ds.status = 'ACTIVE'
+                order by fo.order_id
+                limit 1
+                """, String.class);
+        assertFalse(orderIds.isEmpty(), "测试数据应至少包含一个 ACTIVE 门店订单");
         return orderIds.get(0);
     }
 

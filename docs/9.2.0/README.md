@@ -55,3 +55,4 @@ The 9.1.0 rule still applies: if semantics or execution capability cannot be pro
 ## Primary Workitems
 
 - `workitems/query-model-aggregate-join.md` - Java engine initial cut, query-time RHS pushdown, structured accessBuilder join-key guard pushdown, aggregate metadata inheritance, SQLite evidence, MySQL 5.7 real database evidence, coverage audit, and accepted-with-risks signoff recorded.
+- `workitems/BUG-aggregate-relation-joined-dimension-left-key.md` - Follow-up fix for aggregate relation ON left keys that reference already-joined dimension fields; ensures ON dependencies join before the aggregate derived table.
