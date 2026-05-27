@@ -24,8 +24,14 @@ const axisItems = computed<EvidenceItem[]>(() => [
   ...buildAxisItems('列轴', props.columnAxes)
 ])
 
+const derivedMetricItems = computed<EvidenceItem[]>(() => [
+  ...buildParentShareEvidenceItems(props.evidence.parentShareEvidence),
+  ...buildBaselineRatioEvidenceItems(props.evidence.baselineRatioEvidence)
+])
+
 const evidenceItems = computed<EvidenceItem[]>(() => {
   return Object.entries(props.evidence)
+    .filter(([key]) => key !== 'parentShareEvidence' && key !== 'baselineRatioEvidence')
     .filter(([, value]) => value !== undefined && value !== null)
     .map(([key, value]) => ({
       label: key,
@@ -54,6 +60,68 @@ function formatAxisValue(axis: PivotAxisField): string {
   return parts.join(' | ')
 }
 
+function buildParentShareEvidenceItems(value: unknown): EvidenceItem[] {
+  return normalizeEvidenceArray(value).map((item, index) => ({
+    label: `parentShare ${formatEvidenceField(item.metric, index + 1)}`,
+    value: formatKeyValueParts([
+      ['of', item.of],
+      ['scope', item.denominatorScope],
+      ['axis', item.axis],
+      ['level', item.level],
+      ['parentLevel', item.parentLevel],
+      ['prePageRows', item.prePageRows],
+      ['parentGroups', item.parentGroups],
+      ['source', item.source]
+    ])
+  }))
+}
+
+function buildBaselineRatioEvidenceItems(value: unknown): EvidenceItem[] {
+  return normalizeEvidenceArray(value).map((item, index) => ({
+    label: `baselineRatio ${formatEvidenceField(item.metric, index + 1)}`,
+    value: formatKeyValueParts([
+      ['of', item.of],
+      ['scope', item.baselineScope],
+      ['axis', item.axis],
+      ['baseline', item.baseline],
+      ['columnField', item.columnField],
+      ['baselineColumnKey', item.baselineColumnKey],
+      ['baselineColumnVisible', item.baselineColumnVisible],
+      ['prePageAxisDomainSize', item.prePageAxisDomainSize],
+      ['visibleAxisDomainSize', item.visibleAxisDomainSize],
+      ['baselineRows', item.baselineRows],
+      ['source', item.source]
+    ])
+  }))
+}
+
+function normalizeEvidenceArray(value: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return value.filter(isRecord)
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function formatEvidenceField(value: unknown, fallbackIndex: number): string {
+  if (typeof value === 'string' && value.length > 0) {
+    return value
+  }
+
+  return `#${fallbackIndex}`
+}
+
+function formatKeyValueParts(parts: Array<[string, unknown]>): string {
+  return parts
+    .filter(([, value]) => value !== undefined && value !== null)
+    .map(([key, value]) => `${key}=${formatEvidenceValue(value)}`)
+    .join(' | ')
+}
+
 function formatEvidenceValue(value: unknown): string {
   if (typeof value === 'string') {
     return value
@@ -73,6 +141,16 @@ function formatEvidenceValue(value: unknown): string {
       <div class="pivot-evidence-heading">轴域范围</div>
       <dl class="pivot-evidence-list">
         <template v-for="item in axisItems" :key="item.label">
+          <dt>{{ item.label }}</dt>
+          <dd>{{ item.value }}</dd>
+        </template>
+      </dl>
+    </div>
+
+    <div v-if="derivedMetricItems.length" class="pivot-evidence-section">
+      <div class="pivot-evidence-heading">派生指标证据</div>
+      <dl class="pivot-evidence-list">
+        <template v-for="item in derivedMetricItems" :key="item.label">
           <dt>{{ item.label }}</dt>
           <dd>{{ item.value }}</dd>
         </template>

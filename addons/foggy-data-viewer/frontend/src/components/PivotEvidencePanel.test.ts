@@ -35,6 +35,56 @@ describe('PivotEvidencePanel', () => {
     expect(wrapper.text()).toContain('"value":2')
   })
 
+  it('renders parentShare and baselineRatio evidence as readable derived metric rows', () => {
+    const wrapper = mount(PivotEvidencePanel, {
+      props: {
+        evidence: {
+          parentShareEvidence: [
+            {
+              metric: 'paymentShare',
+              of: 'salesAmount',
+              axis: 'rows',
+              level: 'paymentMethod',
+              parentLevel: 'orderStatus',
+              denominatorScope: 'prePageParent',
+              prePageRows: 6,
+              parentGroups: 2,
+              source: 'preTopNParentAggIndex'
+            }
+          ],
+          baselineRatioEvidence: [
+            {
+              metric: 'salesIndex',
+              of: 'salesAmount',
+              axis: 'columns',
+              baseline: 'first',
+              baselineScope: 'prePageAxisDomain',
+              columnField: 'salesDate$dayOfWeek',
+              baselineColumnKey: 1,
+              baselineColumnVisible: false,
+              prePageAxisDomainSize: 4,
+              visibleAxisDomainSize: 2,
+              baselineRows: 1,
+              source: 'auxiliaryBaselineRelation'
+            }
+          ]
+        }
+      }
+    })
+
+    expect(wrapper.text()).toContain('派生指标证据')
+    expect(wrapper.text()).toContain('parentShare paymentShare')
+    expect(wrapper.text()).toContain('scope=prePageParent')
+    expect(wrapper.text()).toContain('parentGroups=2')
+    expect(wrapper.text()).toContain('source=preTopNParentAggIndex')
+    expect(wrapper.text()).toContain('baselineRatio salesIndex')
+    expect(wrapper.text()).toContain('scope=prePageAxisDomain')
+    expect(wrapper.text()).toContain('baselineColumnVisible=false')
+    expect(wrapper.text()).toContain('source=auxiliaryBaselineRelation')
+    expect(wrapper.text()).not.toContain('parentShareEvidence')
+    expect(wrapper.text()).not.toContain('baselineRatioEvidence')
+  })
+
   it('omits nullish evidence values', () => {
     const wrapper = mount(PivotEvidencePanel, {
       props: {
