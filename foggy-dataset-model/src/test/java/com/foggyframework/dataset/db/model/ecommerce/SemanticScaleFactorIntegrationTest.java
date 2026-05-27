@@ -739,6 +739,21 @@ class SemanticScaleFactorIntegrationTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("formulaDef 属性缺少 carrier column 时提示具体字段")
+    void formulaPropertyMissingColumn_reportsFieldPathAndCarrierColumnRule() {
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> tableModelLoaderManager.load("FactSalesFormulaPropertyMissingColumnInvalidModel"));
+
+        assertTrue(ex.getMessage().contains(
+                        "FactSalesFormulaPropertyMissingColumnInvalidModel.salesAmountFormulaLeafYuan column不能为空"),
+                "异常消息应包含模型与字段路径，实际: " + ex.getMessage());
+        assertTrue(ex.getMessage().contains("formulaDef/dialectFormulaDef"),
+                "异常消息应说明公式字段规则，实际: " + ex.getMessage());
+        assertTrue(ex.getMessage().contains("carrier column"),
+                "异常消息应说明 carrier column 规则，实际: " + ex.getMessage());
+    }
+
+    @Test
     @DisplayName("semanticScaleFactor 的 column 不能写 SQL 表达式")
     void semanticScaleWithSqlExpressionColumn_rejectedOnModelLoad() {
         RuntimeException ex = assertThrows(RuntimeException.class,

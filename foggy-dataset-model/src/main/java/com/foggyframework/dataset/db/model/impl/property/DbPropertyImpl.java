@@ -118,7 +118,9 @@ public class DbPropertyImpl extends DbObjectSupport implements DbProperty, DbDat
     }
 
     public void init() {
-        RX.hasText(column, "属性的column不能为空," + ("模型：" + tableModel));
+        if (StringUtils.isEmpty(column)) {
+            throw RX.throwAUserTip(buildMissingColumnMessage());
+        }
 
         if (StringUtils.isEmpty(alias)) {
             alias = JdbcModelNamedUtils.toAliasName(column);
@@ -133,6 +135,22 @@ public class DbPropertyImpl extends DbObjectSupport implements DbProperty, DbDat
         if (extData != null && extData.get("bit") instanceof Boolean) {
             bit = (Boolean) extData.get("bit");
         }
+    }
+
+    private String buildMissingColumnMessage() {
+        String modelName = tableModel == null ? "<unknown-model>" : tableModel.getName();
+        if (StringUtils.isEmpty(modelName)) {
+            modelName = "<unknown-model>";
+        }
+        String propertyName = StringUtils.isEmpty(name) ? alias : name;
+        if (StringUtils.isEmpty(propertyName)) {
+            propertyName = "<unnamed-property>";
+        }
+        String dimensionName = dbDimension == null ? null : dbDimension.getName();
+        String path = StringUtils.isEmpty(dimensionName)
+                ? modelName + "." + propertyName
+                : modelName + "." + dimensionName + "." + propertyName;
+        return path + " column不能为空";
     }
 
     public void validateSemanticScaleContract(DbFormulaDef formulaDef,

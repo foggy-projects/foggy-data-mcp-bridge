@@ -741,6 +741,7 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
 
         property.setTableModel(context.getJdbcModel());
         property.setDbDimension(dimension);
+        validatePropertyColumnContract(context, dimension, propertyDef, property);
         property.validateSemanticScaleContract(propertyDef.getFormulaDef(), propertyDef.getDialectFormulaDef());
         property.init();
         if (property.getDictionaryDiscovery() != null) {
@@ -774,6 +775,50 @@ public class TableModelLoaderManagerImpl extends LoaderSupport implements TableM
         }
 
         return dbProperty;
+    }
+
+    private void validatePropertyColumnContract(JdbcModelLoadContext context,
+                                                DbDimensionSupport dimension,
+                                                DbPropertyDef propertyDef,
+                                                DbPropertyImpl property) {
+        if (StringUtils.isNotEmpty(property.getColumn())) {
+            return;
+        }
+        String path = buildPropertyPath(context, dimension, propertyDef, property);
+        String message = path + " column不能为空";
+        if (hasFormula(propertyDef.getFormulaDef(), propertyDef.getDialectFormulaDef())) {
+            message += "；formulaDef/dialectFormulaDef 字段必须声明 carrier column，用于字段元数据、权限和物理列绑定";
+        }
+        throw RX.throwAUserTip(message);
+    }
+
+    private String buildPropertyPath(JdbcModelLoadContext context,
+                                     DbDimensionSupport dimension,
+                                     DbPropertyDef propertyDef,
+                                     DbPropertyImpl property) {
+        String modelName = context.getJdbcModel().getName();
+        if (StringUtils.isEmpty(modelName)) {
+            modelName = "<unknown-model>";
+        }
+        String propertyName = firstNotEmpty(propertyDef.getName(), property.getName(),
+                propertyDef.getAlias(), property.getAlias(), propertyDef.getColumn(), "<unnamed-property>");
+        if (dimension == null || StringUtils.isEmpty(dimension.getName())) {
+            return modelName + "." + propertyName;
+        }
+        return modelName + "." + dimension.getName() + "." + propertyName;
+    }
+
+    private boolean hasFormula(DbFormulaDef formulaDef, Map<String, DbFormulaDef> dialectFormulaDef) {
+        return formulaDef != null || (dialectFormulaDef != null && !dialectFormulaDef.isEmpty());
+    }
+
+    private String firstNotEmpty(String... values) {
+        for (String value : values) {
+            if (StringUtils.isNotEmpty(value)) {
+                return value;
+            }
+        }
+        return "";
     }
 
     private void loadMeasure(JdbcModelLoadContext context, DbMeasureDef measureDef) {
