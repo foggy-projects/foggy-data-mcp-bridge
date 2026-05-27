@@ -6,6 +6,8 @@ import com.foggyframework.dataset.db.model.engine.formula.JdbcLink;
 import com.foggyframework.dataset.db.model.engine.join.JoinEdge;
 import com.foggyframework.dataset.db.model.engine.join.JoinGraph;
 import com.foggyframework.dataset.db.model.i18n.DatasetMessages;
+import com.foggyframework.dataset.db.model.impl.model.AggregateRelationOutputColumn;
+import com.foggyframework.dataset.db.model.impl.model.AggregateRelationQueryObject;
 import com.foggyframework.dataset.db.model.impl.query.DbQueryGroupColumnImpl;
 import com.foggyframework.dataset.db.model.impl.query.DbQueryOrderColumnImpl;
 import com.foggyframework.dataset.db.model.proxy.ColumnRef;
@@ -14,6 +16,7 @@ import com.foggyframework.dataset.db.model.spi.DbColumn;
 import com.foggyframework.dataset.db.model.spi.DbQueryRequest;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
 import com.foggyframework.dataset.db.model.spi.QueryObject;
+import com.foggyframework.dataset.db.model.spi.TableModel;
 import com.foggyframework.dataset.db.model.spi.support.AggregationDbColumn;
 import com.foggyframework.dataset.db.model.spi.support.SimpleQueryObject;
 import com.foggyframework.dataset.db.model.spi.support.SimpleSqlJdbcColumn;
@@ -106,8 +109,10 @@ public class JdbcQuery {
      */
     public JdbcQuery and(Object fieldRef, Object value) {
         ColumnRef columnRef = toColumnRef(fieldRef);
-        String sqlFragment = resolveColumnRef(columnRef) + " = ?";
+        DbColumn dbColumn = resolveDbColumn(columnRef);
+        String sqlFragment = resolveColumnRef(dbColumn) + " = ?";
         getWhere().and(sqlFragment, value);
+        pushAggregateRelationFilterIfSafe(columnRef, dbColumn, "=", value);
         return this;
     }
 
@@ -124,9 +129,11 @@ public class JdbcQuery {
             return this;
         }
         ColumnRef columnRef = toColumnRef(fieldRef);
+        DbColumn dbColumn = resolveDbColumn(columnRef);
         String placeholders = String.join(", ", values.stream().map(v -> "?").toList());
-        String sqlFragment = resolveColumnRef(columnRef) + " in (" + placeholders + ")";
+        String sqlFragment = resolveColumnRef(dbColumn) + " in (" + placeholders + ")";
         getWhere().andList(sqlFragment, values);
+        pushAggregateRelationFilterIfSafe(columnRef, dbColumn, "in", values);
         return this;
     }
 
@@ -139,8 +146,10 @@ public class JdbcQuery {
      */
     public JdbcQuery andNe(Object fieldRef, Object value) {
         ColumnRef columnRef = toColumnRef(fieldRef);
-        String sqlFragment = resolveColumnRef(columnRef) + " != ?";
+        DbColumn dbColumn = resolveDbColumn(columnRef);
+        String sqlFragment = resolveColumnRef(dbColumn) + " != ?";
         getWhere().and(sqlFragment, value);
+        pushAggregateRelationFilterIfSafe(columnRef, dbColumn, "!=", value);
         return this;
     }
 
@@ -152,8 +161,10 @@ public class JdbcQuery {
      */
     public JdbcQuery andNotNull(Object fieldRef) {
         ColumnRef columnRef = toColumnRef(fieldRef);
-        String sqlFragment = resolveColumnRef(columnRef) + " is not null";
+        DbColumn dbColumn = resolveDbColumn(columnRef);
+        String sqlFragment = resolveColumnRef(dbColumn) + " is not null";
         getWhere().and(sqlFragment);
+        pushAggregateRelationFilterIfSafe(columnRef, dbColumn, "is not null", null);
         return this;
     }
 
@@ -165,8 +176,10 @@ public class JdbcQuery {
      */
     public JdbcQuery andNull(Object fieldRef) {
         ColumnRef columnRef = toColumnRef(fieldRef);
-        String sqlFragment = resolveColumnRef(columnRef) + " is null";
+        DbColumn dbColumn = resolveDbColumn(columnRef);
+        String sqlFragment = resolveColumnRef(dbColumn) + " is null";
         getWhere().and(sqlFragment);
+        pushAggregateRelationFilterIfSafe(columnRef, dbColumn, "is null", null);
         return this;
     }
 
@@ -189,7 +202,7 @@ public class JdbcQuery {
     /**
      * 解析字段引用为 SQL 表达式（alias.column_name）
      */
-    private String resolveColumnRef(ColumnRef columnRef) {
+    private DbColumn resolveDbColumn(ColumnRef columnRef) {
         RX.notNull(queryModel, "使用字段引用需要先设置 queryModel");
 
         // 获取字段的完整引用名（如 salesTeamId 或 customer$memberLevel）
@@ -200,12 +213,48 @@ public class JdbcQuery {
         if (dbColumn == null) {
             throw RX.throwAUserTip("字段 [" + fieldName + "] 在 QueryModel [" + queryModel.getName() + "] 中不存在");
         }
+        return dbColumn;
+    }
 
+    private String resolveColumnRef(DbColumn dbColumn) {
         // 获取表别名
         String alias = queryModel.getAlias(dbColumn.getQueryObject());
 
         // 返回 alias.column_name
         return alias + "." + dbColumn.getSqlColumnName();
+    }
+
+    private void pushAggregateRelationFilterIfSafe(ColumnRef columnRef, DbColumn dbColumn, String op, Object value) {
+        if (queryModel == null || columnRef == null || dbColumn == null) {
+            return;
+        }
+        if (dbColumn instanceof AggregateRelationOutputColumn aggregateRelationColumn) {
+            aggregateRelationColumn.pushAggregateRelationCondition(op, value);
+            return;
+        }
+        if (queryModel.getJdbcModelList() == null) {
+            return;
+        }
+        Set<String> fieldNames = columnRefKeys(columnRef);
+        for (TableModel model : queryModel.getJdbcModelList()) {
+            QueryObject queryObject = model.getQueryObject();
+            AggregateRelationQueryObject aggregateRelationQueryObject =
+                    queryObject == null ? null : queryObject.getDecorate(AggregateRelationQueryObject.class);
+            if (aggregateRelationQueryObject == null) {
+                continue;
+            }
+            for (String fieldName : fieldNames) {
+                aggregateRelationQueryObject.pushAggregateRelationJoinKeyCondition(fieldName, op, value);
+            }
+        }
+    }
+
+    private Set<String> columnRefKeys(ColumnRef columnRef) {
+        Set<String> keys = new HashSet<>();
+        keys.add(columnRef.getFullRef());
+        keys.add(columnRef.getAliasRef());
+        keys.add(columnRef.getColumnName());
+        return keys;
     }
 
     // ==================== 原生 SQL 条件方法 ====================

@@ -20,7 +20,7 @@ The 9.1.0 rule still applies: if semantics or execution capability cannot be pro
 
 | ID | Area | 9.1.0 Boundary | 9.2.0 Goal | Functional Impact Until Resolved |
 |---|---|---|---|---|
-| QM-92-AJ1 | QueryModel aggregate join | TMS-style projections currently use `viewSql` or caller-side Compose/CTE to pre-aggregate 1:N detail before join | Add a narrow Java QueryModel aggregate join capability with right-side slice pushdown, join-key grain validation, permission preservation, and dialect-safe SQL lowering | Stable business projections still risk row multiplication or black-box `viewSql` performance issues on older databases |
+| QM-92-AJ1 | QueryModel aggregate join | TMS-style projections currently use `viewSql` or caller-side Compose/CTE to pre-aggregate 1:N detail before join | Add a narrow Java QueryModel aggregate join capability with right-side slice/accessBuilder pushdown, join-key grain validation, aggregate metadata inheritance, permission preservation, and dialect-safe SQL lowering | Stable business projections still risk row multiplication or black-box `viewSql` performance issues on older databases |
 | PIVOT-92-D1 | Tree + cascade / tree subtotal semantics | Tree mode with cascade TopN is rejected | Define whether parent/child ranking, descendants, visible nodes, and totals can be made deterministic | Tree-shaped "top children per parent" reports must be rewritten as normal two-level Pivot cascade or rejected |
 | PIVOT-92-E1 | Outer Pivot cache | Not enabled | Define cache key, invalidation, managed relation phase, and telemetry | Correctness unaffected; repeated expensive Pivot queries may run without outer cache acceleration |
 | PIVOT-92-F1 | SQL Server cascade oracle | SQL Server cascade execution is refused | Add dialect-specific SQL oracle, CI profile, and parity/refusal evidence | SQL Server users cannot run C2 cascade; they must simplify to single-level TopN or use a supported dialect |
@@ -54,4 +54,4 @@ The 9.1.0 rule still applies: if semantics or execution capability cannot be pro
 
 ## Primary Workitems
 
-- `workitems/query-model-aggregate-join.md` - Java engine initial cut, query-time RHS pushdown, SQLite evidence, MySQL 5.7 real database evidence, coverage audit, and accepted-with-risks signoff recorded.
+- `workitems/query-model-aggregate-join.md` - Java engine initial cut, query-time RHS pushdown, structured accessBuilder join-key guard pushdown, aggregate metadata inheritance, SQLite evidence, MySQL 5.7 real database evidence, coverage audit, and accepted-with-risks signoff recorded.

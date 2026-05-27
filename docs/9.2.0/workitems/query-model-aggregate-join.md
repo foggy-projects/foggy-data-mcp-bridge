@@ -240,10 +240,12 @@ Known limits in this cut:
 
 - RHS fixed filters are rendered as engine-generated SQL literals because the current derived-query carrier has no parameter-binding channel. Values are escaped, but a later cut should add parameter-carrying derived relations.
 - Relation-level default aggregation currently renders all supported source TM measures in the RHS derived relation. This keeps the first cut deterministic and model-driven, but a later optimization should prune to only QM-referenced aggregate fields.
-- Query-time request slice now has an initial conservative RHS pushdown path: direct aggregate relation group-key filters are duplicated into RHS `WHERE`, aggregate measure filters are duplicated into RHS `HAVING`, and left join-key filters are mirrored into the RHS source key domain. The outer QueryModel filter is retained to preserve LEFT JOIN result semantics.
+- Query-time request slice now has a conservative RHS pushdown path: direct aggregate relation group-key filters are duplicated into RHS `WHERE`, aggregate measure filters are duplicated into RHS `HAVING`, and left join-key filters are mirrored into the RHS source key domain. Structured accessBuilder field-ref guards, for example `context.query.and(fo.orderId, ...)`, use the same safe join-key pushdown path. The outer QueryModel filter is retained to preserve LEFT JOIN result semantics.
+- Tenant/access guards can be pushed only when they are expressed as structured field refs and are safely derivable from the aggregate join graph, for example left `tenantId` is joined to right `tenantId` and the right key is part of the aggregate relation grain. Raw SQL guards and implicit tenant conditions are intentionally not parsed or guessed.
 - Query-time RHS pushdown is intentionally AND-only in this cut. OR groups, unsupported operators, and non-join-key left filters remain outer-query only.
 - Query-time duplicated RHS fragments are rendered as generated SQL literals for the same reason as fixed filters; the outer QueryModel condition remains parameterized.
-- System slice propagation through the normal QueryFacade lifecycle is covered in this cut. Dedicated field-permission/accessBuilder coverage for RHS aggregate pushdown remains a follow-up risk.
+- System slice propagation through the normal QueryFacade lifecycle is covered in this cut. AccessBuilder structured field-ref join-key pushdown is now covered; field-permission and raw-SQL guard pushdown remain follow-up risks.
+- Aggregate relation output fields now inherit TM measure captions and runtime types where safe. `COUNT` / `COUNT_DISTINCT` outputs are exposed as `BIGINT`; source-backed aggregates keep the source measure type and formatter. Output `extData.aggregateRelation` records aggregation, source column/caption/measure, semantic scale/unit metadata, and source/aggregate SQL lineage.
 - SQLite targeted execution and MySQL 5.7 real database execution-plan evidence are recorded here. PostgreSQL and target TMS database evidence remain follow-up items because local Docker is unavailable and the local PostgreSQL port is closed.
 - MCP/LLM public schema is not expanded. LLM analysis benefits from consuming stable QM fields after model authors define them, not from generating this DSL directly.
 
@@ -263,10 +265,20 @@ Initial optimization behavior:
 Optimization sequence status:
 
 1. SQL-shape tests for aggregate relation group-key condition pushdown, aggregate measure slice, left join-key key-domain pushdown, and LEFT no-match behavior: done-initial.
-2. Generated aggregate relation output metadata for group key, aggregate measure, source column lineage, source expression, and aggregate expression: done.
+2. Generated aggregate relation output metadata for group key, aggregate measure, TM caption/type inheritance, source semantic metadata, source column lineage, source expression, and aggregate expression: done.
 3. Conservative condition-phase splitter: done-initial for AND-only aggregate relation fields and join-key mirroring.
-4. Key-domain pushdown for common TMS left-filter-to-right-join-key cases: done-initial for safe operators supported by the generated aggregate relation renderer.
+4. Key-domain pushdown for common TMS left-filter-to-right-join-key cases: done-initial for safe operators supported by the generated aggregate relation renderer, including structured accessBuilder field-ref guards.
 5. SQLite SQL-shape evidence and MySQL 5.7 real database `EXPLAIN` evidence: done-initial. PostgreSQL or target TMS database `EXPLAIN` evidence remains follow-up.
+
+### TMS Feedback Hardening
+
+2026-05-27 TMS feedback identified three follow-up points after the first aggregate relation smoke test.
+
+| Feedback | Java engine status | Boundary |
+|---|---|---|
+| RHS tenant / access guard / join-key pushdown should be stronger | done-initial | Structured field-ref conditions added through `JdbcQuery.and/andIn/andNe/andNull/andNotNull` now attempt safe aggregate RHS pushdown. Left-side join-key guards are mirrored to RHS source-key `WHERE`; aggregate output guards route to RHS `WHERE` or `HAVING`. Tenant pushdown requires tenant to be an explicit aggregate join key/group key. |
+| Aggregate relation field metadata should inherit TM measure semantics | done-initial | Runtime aggregate output columns now expose TM caption, resolved output type, formatter, AI/deprecation metadata, and `extData.aggregateRelation` lineage with aggregation/source/semantic scale/unit fields. |
+| `frontend-meta` / schema aggregate field exposure should be checked | core-engine-covered, upstream-follow-up | Core QueryColumn schema now exposes inherited caption/type in tests. Query-cloud/data-viewer `frontend-meta` propagation remains a separate metadata-chain follow-up outside this Java engine cut. |
 
 ### Deferred Planning: ETL Promotion Boundary
 
@@ -289,7 +301,8 @@ ETL promotion is intentionally deferred. The current work stays on the Java engi
 | Stage 2 Planning and SQL Lowering | done-initial | Added runtime synthetic aggregate relation with inline derived table lowering, fixed RHS slice pushdown, and TM metadata based default measures. |
 | Stage 3 Field Exposure and Query Behavior | done-initial | Aggregate outputs are exposed as ordinary QM fields in both explicit-builder and relation-level fixtures; select and returnTotal paths are covered by query engine execution. |
 | Stage 4 Tests and Evidence | done-real-db-initial | Added SQLite execution parity, LEFT no-match, SQL-shape, fail-closed groupBy validation, relation-level default aggregation, query-time RHS pushdown SQL-shape, MySQL 5.7 real database execution, and ordinary multi-fact join regression. |
-| Query-Time RHS Filter Pushdown | done-initial | Aggregate relation column metadata, measure `HAVING` duplication, group/source key `WHERE` duplication, and left join-key key-domain pushdown are implemented for AND-only safe predicates. |
+| Query-Time RHS Filter Pushdown | done-initial | Aggregate relation column metadata, measure `HAVING` duplication, group/source key `WHERE` duplication, left join-key key-domain pushdown, and structured accessBuilder field-ref guard pushdown are implemented for AND-only safe predicates. |
+| Aggregate Metadata Inheritance | done-initial | Aggregate relation output columns inherit TM caption/type/formatter and expose source/aggregation/semantic lineage in `extData.aggregateRelation`; frontend-meta propagation remains upstream chain follow-up. |
 | ETL Promotion Boundary | deferred-out-of-scope | User confirmed ETL is not the current task. Development uses runtime aggregate join for semantic validation; ETL promotion can be reopened after the Java path stabilizes. |
 
 ### Testing Progress
@@ -299,9 +312,9 @@ ETL promotion is intentionally deferred. The current work stays on the Java engi
 | Contract validation unit tests | yes | done-initial: groupBy missing right join key fails closed. |
 | Real query parity test | yes | done-initial: aggregate join result equals native `fact_sales` aggregate for a fixed order. |
 | LEFT JOIN no-match behavior | yes | done-initial: left row is retained and RHS aggregate fields are null. |
-| Permission/system slice propagation | yes | partial: system slice lifecycle through QueryFacade is covered; dedicated field-permission/accessBuilder RHS aggregate pushdown coverage is deferred as an explicit risk. |
+| Permission/system slice propagation | yes | covered-initial: system slice lifecycle through QueryFacade is covered; structured accessBuilder field-ref join-key guard pushdown is covered. Field-permission and raw-SQL guard pushdown remain follow-up risks. |
 | Dialect fallback evidence | yes | done-initial: SQLite and live MySQL 5.7 profile passed; PostgreSQL and target TMS database `EXPLAIN` remain follow-up because local Docker is unavailable and local PostgreSQL is closed. |
-| Query-time RHS pushdown SQL shape | yes | done-initial: aggregate group-key condition duplicates to RHS `WHERE`; aggregate measure slice duplicates to RHS `HAVING`; left join-key slice duplicates to RHS source-key `WHERE`; outer filters remain parameterized. |
+| Query-time RHS pushdown SQL shape | yes | done-initial: aggregate group-key condition duplicates to RHS `WHERE`; aggregate measure slice duplicates to RHS `HAVING`; left join-key slice and accessBuilder field-ref guards duplicate to RHS source-key `WHERE`; outer filters remain parameterized. |
 | Query-time LEFT no-match semantics | yes | done-initial: measure slice with no RHS match returns zero rows because the outer filter is retained. |
 | Ordinary join regression | yes | done: `MultiFactTableJoinTest` passed. |
 | `mvn -pl foggy-dataset-model test` or targeted equivalent | yes | done-targeted. |
@@ -311,10 +324,10 @@ ETL promotion is intentionally deferred. The current work stays on the Java engi
 | Command | Result |
 |---|---|
 | `mvn install -pl foggy-dataset-demo -DskipTests` | success; required because model tests load demo resources from the installed demo bundle. |
-| `mvn test -pl foggy-dataset-model -Dspring.profiles.active=sqlite -P!multi-db -Dtest=AggregateJoinQueryModelTest` | success; Tests run: 14, Failures: 0, Errors: 0, Skipped: 0. |
+| `mvn test -pl foggy-dataset-model -Dspring.profiles.active=sqlite -P!multi-db -Dtest=AggregateJoinQueryModelTest` | success; Tests run: 15, Failures: 0, Errors: 0, Skipped: 0. |
 | `docker --version` | unavailable in this environment: `command not found`; local container startup could not be used for additional dialect services. |
 | `nc -z 127.0.0.1 13306`, `nc -z 127.0.0.1 15432`, `nc -z 127.0.0.1 13308` | MySQL 5.7 port `13306` reachable; PostgreSQL `15432` and MySQL 8 `13308` closed. |
-| `mvn test -pl foggy-dataset-model -Dspring.profiles.active=docker -P!multi-db -Dtest=AggregateJoinQueryModelTest` | success on live MySQL 5.7; Tests run: 14, Failures: 0, Errors: 0, Skipped: 0. |
+| `mvn test -pl foggy-dataset-model -Dspring.profiles.active=docker -P!multi-db -Dtest=AggregateJoinQueryModelTest` | success on live MySQL 5.7; Tests run: 15, Failures: 0, Errors: 0, Skipped: 0. |
 | MySQL 5.7 `EXPLAIN` for aggregate relation with pushed filters | evidence shows derived aggregate source `agg_src` uses `uk_order_line` with `type=ref`, `rows=10`, and `Using where` for the pushed `order_id`, avoiding broad full-table aggregation for the tested selective predicate. |
 | `mvn test -pl foggy-dataset-model -Dspring.profiles.active=sqlite -P!multi-db -Dtest=MultiFactTableJoinTest` | success; Tests run: 13, Failures: 0, Errors: 0, Skipped: 0. |
 

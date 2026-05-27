@@ -15,6 +15,8 @@ import com.foggyframework.dataset.db.model.proxy.AggregateJoinBuilder;
 import com.foggyframework.dataset.db.model.proxy.TableModelProxy;
 import com.foggyframework.dataset.db.model.service.QueryFacade;
 import com.foggyframework.dataset.db.model.spi.DbColumn;
+import com.foggyframework.dataset.db.model.spi.DbColumnType;
+import com.foggyframework.dataset.db.model.spi.DbQueryColumn;
 import com.foggyframework.dataset.db.model.spi.JdbcQueryModel;
 import com.foggyframework.dataset.db.model.spi.TableModel;
 import jakarta.annotation.Resource;
@@ -105,8 +107,24 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
         AggregateRelationOutputColumn salesAmount = (AggregateRelationOutputColumn) salesAmountColumn;
         assertTrue(salesAmount.isAggregateRelationMeasure(), "salesAmount 应标记为 aggregate measure");
         assertFalse(salesAmount.isAggregateRelationGroupKey(), "salesAmount 不应标记为 group key");
+        assertEquals("销售金额", salesAmountColumn.getCaption(), "aggregate measure 应继承 TM measure caption");
+        assertEquals(DbColumnType.MONEY, salesAmountColumn.getType(), "SUM 金额字段应继承 TM measure type");
         assertEquals("agg_src.sales_amount", salesAmount.getAggregateRelationSourceExpression());
         assertEquals("sum(agg_src.sales_amount)", salesAmount.getAggregateRelationAggregateExpression());
+
+        DbColumn uniqueCustomersColumn = queryModel.findJdbcColumnForCond("uniqueCustomers", true, true);
+        assertTrue(uniqueCustomersColumn instanceof AggregateRelationOutputColumn,
+                "uniqueCustomers 应来自 aggregate relation 输出列");
+        assertEquals("独立客户数", uniqueCustomersColumn.getCaption(),
+                "COUNT DISTINCT 输出列应继承 TM measure caption");
+        assertEquals(DbColumnType.BIGINT, uniqueCustomersColumn.getType(),
+                "COUNT DISTINCT 输出列运行态类型应为 BIGINT");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> uniqueCustomersExtData = (Map<String, Object>) uniqueCustomersColumn.getExtData();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> aggregateRelation = (Map<String, Object>) uniqueCustomersExtData.get("aggregateRelation");
+        assertEquals("COUNT_DISTINCT", aggregateRelation.get("aggregation"));
+        assertEquals("独立客户数", aggregateRelation.get("sourceCaption"));
 
         AggregateRelationOutputColumn groupKey = findAggregateRelationGroupKey(queryModel);
         assertEquals("agg_src.order_id", groupKey.getAggregateRelationSourceExpression());
@@ -297,6 +315,32 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("aggregate relation accessBuilder 字段引用条件应复制到右侧 WHERE")
+    void aggregateRelationAccessBuilderFieldRefShouldPushRightWhere() {
+        String orderId = "ORD20240101000001";
+        JdbcModelQueryEngine queryEngine = buildOrderSalesAggregateRelationAccessQuery();
+
+        String sql = queryEngine.getSql();
+        assertTrue(sql.contains("agg_src.order_id = '" + orderId + "'"),
+                "accessBuilder 追加的左侧 join key 守卫应复制到 RHS 聚合前 WHERE");
+        assertTrue(queryEngine.getValues().contains(orderId),
+                "外层 WHERE 仍应保留 accessBuilder 参数化条件");
+
+        JdbcQueryModel queryModel = getQueryModel("OrderSalesAggregateRelationAccessQueryModel");
+        DbQueryColumn salesAmountColumn = queryModel.findJdbcQueryColumnByName("salesAmount", true);
+        assertEquals("销售金额", salesAmountColumn.getCaption(),
+                "未显式声明 caption 的 aggregate 字段应继承 TM measure caption");
+        assertEquals(DbColumnType.MONEY, salesAmountColumn.getType(),
+                "frontend/schema 可通过 QueryColumn 读取 aggregate measure 类型");
+
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                sql,
+                queryEngine.getValues().toArray());
+        assertEquals(1, rows.size(), "accessBuilder 限定订单后应返回一行真实数据");
+        assertEquals(orderId, rows.get(0).get("orderId"));
+    }
+
+    @Test
     @DisplayName("aggregate relation 应在当前数据库执行 EXPLAIN 并保留 RHS 过滤证据")
     void aggregateRelationShouldRunExplainWithPushedRightSideFilters() {
         String orderId = findOrderIdWithCompletedSales();
@@ -401,6 +445,20 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
         if (!slices.isEmpty()) {
             queryRequest.setSlice(slices);
         }
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+        return queryEngine;
+    }
+
+    private JdbcModelQueryEngine buildOrderSalesAggregateRelationAccessQuery() {
+        JdbcQueryModel queryModel = getQueryModel("OrderSalesAggregateRelationAccessQueryModel");
+        assertNotNull(queryModel, "查询模型加载失败");
+
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("OrderSalesAggregateRelationAccessQueryModel");
+        queryRequest.setColumns(Arrays.asList("orderId", "amount", "salesAmount", "uniqueCustomers"));
 
         queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
         return queryEngine;

@@ -4,7 +4,7 @@ doc_purpose: Sign off the 9.2.0 Java QueryModel aggregate join implementation sl
 acceptance_scope: feature
 version: 9.2.0
 target: QueryModel Aggregate Join
-status: signed-off
+status: signed-off-tms-feedback-hardening
 decision: accepted-with-risks
 signed_off_by: Codex
 signed_off_at: 2026-05-27
@@ -35,7 +35,8 @@ This record signs off the Java engine QueryModel aggregate join cut for 9.2.0. T
 | Aggregate RHS before LEFT JOIN | accepted | Engine generates a structured derived aggregate relation instead of relying on `viewSql`. |
 | Main-side measure not multiplied | accepted | Query execution compares generated aggregate join with native aggregate SQL. |
 | Fixed RHS filters inside aggregate relation | accepted | Filters before `groupBy` are rendered inside the RHS relation before aggregation. |
-| Query-time RHS pushdown | accepted-with-risk | AND-only group-key, measure, and left join-key pushdown is implemented; OR/complex predicates stay outer-query only. |
+| Query-time RHS pushdown | accepted-with-risk | AND-only group-key, measure, left join-key, and structured accessBuilder field-ref guard pushdown is implemented; OR/complex predicates stay outer-query only. |
+| Aggregate field metadata inheritance | accepted-with-risk | Core QueryModel schema exposes inherited TM caption/type and aggregate lineage metadata; query-cloud/data-viewer `frontend-meta` propagation remains a separate chain check. |
 | LEFT no-match semantics | accepted | Outer filters are retained where needed; no-match behavior remains normal LEFT JOIN null behavior. |
 | Invalid grain fail-closed | accepted | Missing right join key in RHS `groupBy` is rejected. |
 | Real database evidence | accepted-with-risk | SQLite and live MySQL 5.7 passed; PostgreSQL and target TMS database evidence remain follow-up. |
@@ -47,9 +48,9 @@ This record signs off the Java engine QueryModel aggregate join cut for 9.2.0. T
 | Evidence | Result |
 |---|---|
 | `mvn install -pl foggy-dataset-demo -DskipTests` | success. |
-| `mvn test -pl foggy-dataset-model -Dspring.profiles.active=sqlite -P!multi-db -Dtest=AggregateJoinQueryModelTest` | success; Tests run: 14, Failures: 0, Errors: 0, Skipped: 0. |
+| `mvn test -pl foggy-dataset-model -Dspring.profiles.active=sqlite -P!multi-db -Dtest=AggregateJoinQueryModelTest` | success; Tests run: 15, Failures: 0, Errors: 0, Skipped: 0. |
 | SQLite explain evidence | RHS aggregate source uses indexed lookup for the pushed order key predicate. |
-| `mvn test -pl foggy-dataset-model -Dspring.profiles.active=docker -P!multi-db -Dtest=AggregateJoinQueryModelTest` | success on live MySQL 5.7; Tests run: 14, Failures: 0, Errors: 0, Skipped: 0. |
+| `mvn test -pl foggy-dataset-model -Dspring.profiles.active=docker -P!multi-db -Dtest=AggregateJoinQueryModelTest` | success on live MySQL 5.7; Tests run: 15, Failures: 0, Errors: 0, Skipped: 0. |
 | MySQL 5.7 explain evidence | Derived aggregate source `agg_src` uses `uk_order_line`, `type=ref`, `rows=10`, and `Using where` for the pushed `order_id`. |
 | `mvn test -pl foggy-dataset-model -Dspring.profiles.active=sqlite -P!multi-db -Dtest=MultiFactTableJoinTest` | success; Tests run: 13, Failures: 0, Errors: 0, Skipped: 0. |
 | Environment evidence | Docker unavailable; MySQL 5.7 local port reachable; PostgreSQL and MySQL 8 local ports closed. |
@@ -59,8 +60,10 @@ This record signs off the Java engine QueryModel aggregate join cut for 9.2.0. T
 - PostgreSQL and target TMS database `EXPLAIN` evidence is still required before claiming broad dialect optimizer confidence.
 - RHS duplicate pushdown fragments are literal-rendered until the engine has a parameter-carrying derived relation.
 - OR / complex predicate RHS pushdown is intentionally not enabled.
+- Tenant/access guard RHS pushdown requires structured field-ref conditions and an explicit aggregate join key/group key mapping; implicit tenant guards and raw SQL predicates are not guessed.
+- Query-cloud/data-viewer `frontend-meta` propagation for aggregate relation fields still needs upstream verification.
 - Relation-level default aggregate projection should be pruned to referenced QM fields in a later optimization.
-- Dedicated field-permission/accessBuilder RHS aggregate pushdown coverage remains a follow-up risk; system slice lifecycle is covered.
+- Dedicated field-permission RHS aggregate pushdown coverage remains a follow-up risk; system slice lifecycle and structured accessBuilder join-key guard coverage are covered.
 - ETL / pre-aggregated promotion is deferred and should be handled as a separate modeling/optimization work item.
 
 ## Failed Items
