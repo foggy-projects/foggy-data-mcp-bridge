@@ -410,6 +410,38 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("aggregate relation RHS 固定条件应支持右侧维度字段")
+    void aggregateRelationRhsFixedFilterShouldSupportRightDimensionField() {
+        String orderId = findOrderIdWithCompletedElectronicsSales();
+        JdbcModelQueryEngine queryEngine = buildOrderSalesAggregateRelationRhsDimensionFilterQuery(orderId);
+
+        String sql = queryEngine.getSql();
+        String normalizedSql = normalizeSql(sql).toLowerCase();
+        assertTrue(normalizedSql.contains("from fact_sales agg_src left join dim_product"),
+                "RHS 维度字段 fixed filter 应在 aggregate derived table 内补齐右侧维表 JOIN");
+        assertFalse(sql.contains("agg_src.category_id"),
+                "RHS 维度字段不应被错误渲染为 RHS 根表物理列");
+        assertTrue(sql.contains("category_id = 'CAT001'") || sql.contains("category_id='CAT001'"),
+                "RHS fixed filter 应使用右侧维表物理列表达式");
+
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                sql,
+                queryEngine.getValues().toArray());
+        assertEquals(1, rows.size(), "指定订单应返回一行真实数据");
+
+        BigDecimal nativeSalesAmount = jdbcTemplate.queryForObject("""
+                select sum(fs.sales_amount)
+                from fact_sales fs
+                join dim_product dp on fs.product_key = dp.product_key
+                where fs.order_id = ?
+                  and fs.order_status = 'COMPLETED'
+                  and dp.category_id = 'CAT001'
+                """, BigDecimal.class, orderId);
+        assertEquals(0, money(nativeSalesAmount).compareTo(money(rows.get(0).get("salesAmount"))),
+                "RHS 维度字段 fixed filter 后的聚合结果应与原生查询一致");
+    }
+
+    @Test
     @DisplayName("aggregate relation 应在当前数据库执行 EXPLAIN 并保留 RHS 过滤证据")
     void aggregateRelationShouldRunExplainWithPushedRightSideFilters() {
         String orderId = findOrderIdWithCompletedSales();
@@ -562,6 +594,21 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
         return queryEngine;
     }
 
+    private JdbcModelQueryEngine buildOrderSalesAggregateRelationRhsDimensionFilterQuery(String orderId) {
+        JdbcQueryModel queryModel = getQueryModel("OrderSalesAggregateRelationRhsDimensionFilterQueryModel");
+        assertNotNull(queryModel, "查询模型加载失败");
+
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("OrderSalesAggregateRelationRhsDimensionFilterQueryModel");
+        queryRequest.setColumns(Arrays.asList("orderId", "amount", "salesAmount"));
+        queryRequest.setSlice(List.of(slice("orderId", "=", orderId)));
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+        return queryEngine;
+    }
+
     private DbQueryRequestDef buildOrderSalesAggregateRelationRequest() {
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();
         queryRequest.setQueryModel("OrderSalesAggregateRelationQueryModel");
@@ -617,6 +664,22 @@ class AggregateJoinQueryModelTest extends EcommerceTestSupport {
                 limit 1
                 """, String.class);
         assertFalse(orderIds.isEmpty(), "测试数据应至少包含一个无 COMPLETED 销售明细的左侧订单");
+        return orderIds.get(0);
+    }
+
+    private String findOrderIdWithCompletedElectronicsSales() {
+        List<String> orderIds = jdbcTemplate.queryForList("""
+                select fs.order_id
+                from fact_sales fs
+                join dim_product dp on fs.product_key = dp.product_key
+                where fs.order_status = 'COMPLETED'
+                  and dp.category_id = 'CAT001'
+                group by fs.order_id
+                having sum(fs.sales_amount) > 0
+                order by fs.order_id
+                limit 1
+                """, String.class);
+        assertFalse(orderIds.isEmpty(), "测试数据应至少包含一个 COMPLETED 数码品类销售订单");
         return orderIds.get(0);
     }
 

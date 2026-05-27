@@ -1,0 +1,46 @@
+/**
+ * 订单-销售明细聚合关系 RHS 维度过滤查询模型
+ *
+ * @caption 订单销售聚合关系 RHS 维度过滤查询
+ * @description aggregate relation RHS fixed filter 引用右侧商品维度字段，验证 derived table 内部会补齐 RHS 维表 JOIN。
+ */
+const fo = loadTableModel('FactOrderModel');
+const sales = loadTableModel('FactSalesModel');
+
+const fs = sales
+    .filterEq(sales.orderStatus, 'COMPLETED')
+    .filterEq(sales.product$categoryId, 'CAT001')
+    .groupBy(sales.orderId)
+    .as('fsByElectronicsOrder');
+
+export const queryModel = {
+    name: 'OrderSalesAggregateRelationRhsDimensionFilterQueryModel',
+    caption: '订单销售聚合关系 RHS 维度过滤查询',
+    description: '销售明细先按订单粒度聚合，RHS 聚合前过滤引用销售商品维度字段',
+    loader: 'v2',
+
+    model: fo,
+
+    joins: [
+        fo.leftJoin(fs).on(fo.orderId, fs.orderId)
+    ],
+
+    columnGroups: [
+        {
+            caption: '订单信息',
+            items: [
+                { ref: fo.orderId },
+                { ref: fo.amount }
+            ]
+        },
+        {
+            caption: '数码销售聚合',
+            items: [
+                { ref: fs.salesAmount, caption: '数码销售金额' },
+                { ref: fs.quantity, caption: '数码销售数量' }
+            ]
+        }
+    ],
+
+    accesses: []
+};

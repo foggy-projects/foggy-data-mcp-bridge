@@ -2,6 +2,8 @@ package com.foggyframework.dataset.db.model.impl.model;
 
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.core.trans.ObjectTransFormatter;
+import com.foggyframework.dataset.db.model.engine.join.JoinEdge;
+import com.foggyframework.dataset.db.model.engine.join.JoinGraph;
 import com.foggyframework.dataset.db.model.impl.AiObject;
 import com.foggyframework.dataset.db.model.impl.utils.ViewSqlQueryObject;
 import com.foggyframework.dataset.db.model.proxy.AggregateJoinBuilder;
@@ -61,7 +63,8 @@ public class AggregateJoinTableModel extends TableModelSupport {
         this.modelType = DbModelType.jdbc;
 
         SqlTable sqlTable = new SqlTable(sourceModel.getName() + "_aggregate_join", this.caption);
-        List<OutputColumn> outputColumns = buildOutputColumns(sqlTable, input);
+        AggregateSourceSqlContext sourceSqlContext = buildSourceSqlContext(input);
+        List<OutputColumn> outputColumns = buildOutputColumns(sqlTable, input, sourceSqlContext);
         this.idColumn = outputColumns.stream()
                 .filter(OutputColumn::groupKey)
                 .map(OutputColumn::outputAlias)
@@ -71,7 +74,7 @@ public class AggregateJoinTableModel extends TableModelSupport {
             sqlTable.setIdColumn(sqlTable.getSqlColumn(this.idColumn, true));
         }
 
-        GeneratedAggregateRelationQueryObject aggregateQueryObject = buildAggregateQueryObject(sqlTable, input, outputColumns);
+        GeneratedAggregateRelationQueryObject aggregateQueryObject = buildAggregateQueryObject(sqlTable, input, outputColumns, sourceSqlContext);
         aggregateQueryObject.setName(sourceModel.getName() + "_aggregate_join");
         aggregateQueryObject.setCaption(this.caption);
         aggregateQueryObject.setAlias(input.right().getEffectiveAlias());
@@ -160,7 +163,9 @@ public class AggregateJoinTableModel extends TableModelSupport {
         return keys;
     }
 
-    private List<OutputColumn> buildOutputColumns(SqlTable sqlTable, AggregateRelationInput input) {
+    private List<OutputColumn> buildOutputColumns(SqlTable sqlTable,
+                                                  AggregateRelationInput input,
+                                                  AggregateSourceSqlContext sourceSqlContext) {
         List<OutputColumn> outputColumns = new ArrayList<>();
 
         for (ColumnRef groupByColumn : input.groupByColumns()) {
@@ -169,7 +174,7 @@ public class AggregateJoinTableModel extends TableModelSupport {
             String caption = outputCaption(alias, sourceColumn);
             SqlColumn sqlColumn = cloneSqlColumn(alias, caption, sourceColumn.getSqlColumn());
             sqlTable.addSqlColumn(sqlColumn);
-            String sourceExpression = sourceColumnSql(sourceColumn);
+            String sourceExpression = sourceColumnSql(sourceColumn, sourceSqlContext);
             outputColumns.add(new OutputColumn(true, groupByColumn.getFullRef(), groupByColumn.getAliasRef(), alias,
                     caption, sourceColumn, sqlColumn, null, sourceExpression, null));
         }
@@ -179,8 +184,8 @@ public class AggregateJoinTableModel extends TableModelSupport {
             DbColumn sourceColumn = measure.getColumn() == null ? null : resolveSourceColumn(measure.getColumn());
             String caption = outputCaption(alias, sourceColumn);
             SqlColumn sqlColumn = buildMeasureSqlColumn(alias, measure, sourceColumn);
-            String sourceExpression = sourceColumn == null ? null : sourceColumnSql(sourceColumn);
-            String aggregateExpression = renderAggregateExpression(measure);
+            String sourceExpression = sourceColumn == null ? null : sourceColumnSql(sourceColumn, sourceSqlContext);
+            String aggregateExpression = renderAggregateExpression(measure, sourceSqlContext);
             sqlTable.addSqlColumn(sqlColumn);
             outputColumns.add(new OutputColumn(false, alias, alias, alias, caption, sourceColumn, sqlColumn, measure,
                     sourceExpression, aggregateExpression));
@@ -219,7 +224,8 @@ public class AggregateJoinTableModel extends TableModelSupport {
 
     private GeneratedAggregateRelationQueryObject buildAggregateQueryObject(SqlTable sqlTable,
                                                                            AggregateRelationInput input,
-                                                                           List<OutputColumn> outputColumns) {
+                                                                           List<OutputColumn> outputColumns,
+                                                                           AggregateSourceSqlContext sourceSqlContext) {
         List<String> selectParts = new ArrayList<>();
         List<String> groupByParts = new ArrayList<>();
 
@@ -242,37 +248,143 @@ public class AggregateJoinTableModel extends TableModelSupport {
                 sqlTable,
                 selectParts,
                 sourceBody(),
-                renderFilterSql(input.filters()),
+                sourceSqlContext.joinParts(),
+                renderFilterSql(input.filters(), sourceSqlContext),
                 groupByParts,
-                buildJoinKeyPushdownMappings(input));
+                buildJoinKeyPushdownMappings(input, sourceSqlContext));
     }
 
-    private String renderAggregateExpression(AggregateJoinBuilder.AggregateMeasure measure) {
+    private AggregateSourceSqlContext buildSourceSqlContext(AggregateRelationInput input) {
+        QueryObject rootQueryObject = sourceModel.getQueryObject();
+        Map<String, String> aliases = new LinkedHashMap<>();
+        if (rootQueryObject != null && rootQueryObject.getAlias() != null) {
+            aliases.put(rootQueryObject.getAlias(), SOURCE_ALIAS);
+        }
+
+        Set<QueryObject> targets = new LinkedHashSet<>();
+        for (ColumnRef groupByColumn : input.groupByColumns()) {
+            collectSourceQueryObjectTarget(groupByColumn, targets);
+        }
+        if (input.filters() != null) {
+            for (AggregateJoinBuilder.AggregateFilter filter : input.filters()) {
+                collectSourceQueryObjectTarget(filter.getColumn(), targets);
+            }
+        }
+        for (AggregateJoinBuilder.AggregateMeasure measure : input.measures()) {
+            collectSourceQueryObjectTarget(measure.getColumn(), targets);
+        }
+        for (JoinCondition condition : input.conditions()) {
+            collectSourceQueryObjectTarget(condition.getRightAsColumnRef(), targets);
+        }
+
+        targets.removeIf(target -> isRootSourceQueryObject(rootQueryObject, target));
+        if (targets.isEmpty()) {
+            return new AggregateSourceSqlContext(aliases, List.of());
+        }
+
+        JoinGraph joinGraph = sourceModel.getJoinGraph();
+        if (joinGraph == null) {
+            throw RX.throwAUserTip("aggregate relation RHS 维度字段需要 JoinGraph 支持: " + sourceModel.getName());
+        }
+
+        List<String> joinParts = new ArrayList<>();
+        for (JoinEdge edge : joinGraph.getPath(targets)) {
+            QueryObject from = edge.getFrom();
+            QueryObject to = edge.getTo();
+            aliases.putIfAbsent(from.getAlias(), aggregateSourceAlias(rootQueryObject, from));
+            aliases.putIfAbsent(to.getAlias(), aggregateSourceAlias(rootQueryObject, to));
+            joinParts.add(renderSourceJoin(edge, aliases));
+        }
+        return new AggregateSourceSqlContext(aliases, joinParts);
+    }
+
+    private void collectSourceQueryObjectTarget(ColumnRef columnRef, Set<QueryObject> targets) {
+        if (columnRef == null) {
+            return;
+        }
+        DbColumn sourceColumn = resolveSourceColumn(columnRef);
+        QueryObject queryObject = sourceColumn.getQueryObject();
+        if (queryObject != null) {
+            targets.add(queryObject);
+        }
+    }
+
+    private boolean isRootSourceQueryObject(QueryObject rootQueryObject, QueryObject queryObject) {
+        if (rootQueryObject == null || queryObject == null) {
+            return false;
+        }
+        if (rootQueryObject.getAlias() != null && rootQueryObject.getAlias().equals(queryObject.getAlias())) {
+            return true;
+        }
+        return queryObject.isRootEqual(rootQueryObject);
+    }
+
+    private String aggregateSourceAlias(QueryObject rootQueryObject, QueryObject queryObject) {
+        if (isRootSourceQueryObject(rootQueryObject, queryObject)) {
+            return SOURCE_ALIAS;
+        }
+        return "agg_" + queryObject.getAlias();
+    }
+
+    private String renderSourceJoin(JoinEdge edge, Map<String, String> aliases) {
+        if (edge.hasOnBuilder()) {
+            throw RX.throwAUserTip("aggregate relation RHS 维度字段暂不支持自定义 onBuilder 维度: "
+                    + edge.getTo().getAlias());
+        }
+        if (edge.getForeignKey() == null || edge.getForeignKey().isBlank()) {
+            throw RX.throwAUserTip("aggregate relation RHS 维度字段缺少 join foreignKey: "
+                    + edge.getTo().getAlias());
+        }
+        if (edge.getTo().getPrimaryKey() == null || edge.getTo().getPrimaryKey().isBlank()) {
+            throw RX.throwAUserTip("aggregate relation RHS 维度字段缺少 join primaryKey: "
+                    + edge.getTo().getAlias());
+        }
+
+        String fromAlias = aliases.get(edge.getFrom().getAlias());
+        String toAlias = aliases.get(edge.getTo().getAlias());
+        return edge.getJoinTypeString()
+                + edge.getTo().getBody()
+                + " "
+                + toAlias
+                + " on "
+                + fromAlias
+                + "."
+                + edge.getForeignKey()
+                + "="
+                + toAlias
+                + "."
+                + edge.getTo().getPrimaryKey();
+    }
+
+    private String renderAggregateExpression(AggregateJoinBuilder.AggregateMeasure measure,
+                                             AggregateSourceSqlContext sourceSqlContext) {
         AggregateJoinBuilder.AggregateFunction function = measure.getFunction();
         if (function == AggregateJoinBuilder.AggregateFunction.COUNT && measure.getColumn() == null) {
             return "count(*)";
         }
 
         DbColumn sourceColumn = resolveSourceColumn(measure.getColumn());
-        String columnSql = sourceColumnSql(sourceColumn);
+        String columnSql = sourceColumnSql(sourceColumn, sourceSqlContext);
         if (function == AggregateJoinBuilder.AggregateFunction.COUNT_DISTINCT) {
             return "count(distinct " + columnSql + ")";
         }
         return function.name().toLowerCase() + "(" + columnSql + ")";
     }
 
-    private String renderFilterSql(List<AggregateJoinBuilder.AggregateFilter> filters) {
+    private String renderFilterSql(List<AggregateJoinBuilder.AggregateFilter> filters,
+                                   AggregateSourceSqlContext sourceSqlContext) {
         if (filters == null || filters.isEmpty()) {
             return "";
         }
         return filters.stream()
-                .map(this::renderFilter)
+                .map(filter -> renderFilter(filter, sourceSqlContext))
                 .collect(Collectors.joining(" and "));
     }
 
-    private String renderFilter(AggregateJoinBuilder.AggregateFilter filter) {
+    private String renderFilter(AggregateJoinBuilder.AggregateFilter filter,
+                                AggregateSourceSqlContext sourceSqlContext) {
         DbColumn sourceColumn = resolveSourceColumn(filter.getColumn());
-        String columnSql = sourceColumnSql(sourceColumn);
+        String columnSql = sourceColumnSql(sourceColumn, sourceSqlContext);
         if (filter.isMultiValue()) {
             Collection<?> values = filter.getValue() instanceof Collection<?> collection ? collection : List.of(filter.getValue());
             if (values.isEmpty()) {
@@ -294,14 +406,15 @@ public class AggregateJoinTableModel extends TableModelSupport {
         return columnSql + " " + filter.getOperator() + " " + renderLiteral(filter.getValue());
     }
 
-    private List<JoinKeyPushdownMapping> buildJoinKeyPushdownMappings(AggregateRelationInput input) {
+    private List<JoinKeyPushdownMapping> buildJoinKeyPushdownMappings(AggregateRelationInput input,
+                                                                      AggregateSourceSqlContext sourceSqlContext) {
         List<JoinKeyPushdownMapping> mappings = new ArrayList<>();
         for (JoinCondition condition : input.conditions()) {
             ColumnRef rightRef = condition.getRightAsColumnRef();
             DbColumn rightColumn = resolveSourceColumn(rightRef);
             mappings.add(new JoinKeyPushdownMapping(
                     columnRefKeys(condition.getLeft()),
-                    sourceColumnSql(rightColumn)));
+                    sourceColumnSql(rightColumn, sourceSqlContext)));
         }
         return mappings;
     }
@@ -323,8 +436,8 @@ public class AggregateJoinTableModel extends TableModelSupport {
         return dbColumn;
     }
 
-    private String sourceColumnSql(DbColumn dbColumn) {
-        return dbColumn.getDeclare(null, SOURCE_ALIAS);
+    private String sourceColumnSql(DbColumn dbColumn, AggregateSourceSqlContext sourceSqlContext) {
+        return dbColumn.getDeclare(null, sourceSqlContext.aliasFor(dbColumn.getQueryObject()));
     }
 
     private String sourceBody() {
@@ -490,9 +603,22 @@ public class AggregateJoinTableModel extends TableModelSupport {
             String rightExpression) {
     }
 
+    private record AggregateSourceSqlContext(
+            Map<String, String> aliases,
+            List<String> joinParts) {
+
+        private String aliasFor(QueryObject queryObject) {
+            if (queryObject == null || queryObject.getAlias() == null) {
+                return SOURCE_ALIAS;
+            }
+            return aliases.getOrDefault(queryObject.getAlias(), SOURCE_ALIAS);
+        }
+    }
+
     private class GeneratedAggregateRelationQueryObject extends ViewSqlQueryObject implements AggregateRelationQueryObject {
         private final List<String> selectParts;
         private final String sourceBody;
+        private final List<String> sourceJoinParts;
         private final String baseWhereSql;
         private final List<String> groupByParts;
         private final List<JoinKeyPushdownMapping> joinKeyPushdownMappings;
@@ -501,12 +627,14 @@ public class AggregateJoinTableModel extends TableModelSupport {
         GeneratedAggregateRelationQueryObject(SqlTable sqlTable,
                                               List<String> selectParts,
                                               String sourceBody,
+                                              List<String> sourceJoinParts,
                                               String baseWhereSql,
                                               List<String> groupByParts,
                                               List<JoinKeyPushdownMapping> joinKeyPushdownMappings) {
             super("", sqlTable);
             this.selectParts = List.copyOf(selectParts);
             this.sourceBody = sourceBody;
+            this.sourceJoinParts = List.copyOf(sourceJoinParts);
             this.baseWhereSql = baseWhereSql;
             this.groupByParts = List.copyOf(groupByParts);
             this.joinKeyPushdownMappings = List.copyOf(joinKeyPushdownMappings);
@@ -522,6 +650,9 @@ public class AggregateJoinTableModel extends TableModelSupport {
                     .append(sourceBody)
                     .append(" ")
                     .append(SOURCE_ALIAS);
+            if (!sourceJoinParts.isEmpty()) {
+                sql.append(String.join("", sourceJoinParts));
+            }
 
             List<String> whereParts = new ArrayList<>();
             if (baseWhereSql != null && !baseWhereSql.isBlank()) {

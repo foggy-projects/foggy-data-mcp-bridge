@@ -56,3 +56,4 @@ The 9.1.0 rule still applies: if semantics or execution capability cannot be pro
 
 - `workitems/query-model-aggregate-join.md` - Java engine initial cut, query-time RHS pushdown, structured accessBuilder join-key guard pushdown, aggregate metadata inheritance, SQLite evidence, MySQL 5.7 real database evidence, coverage audit, and accepted-with-risks signoff recorded.
 - `workitems/BUG-aggregate-relation-joined-dimension-left-key.md` - Follow-up fix for aggregate relation ON left keys that reference already-joined dimension fields or nested dimension paths; ensures ON dependencies join before the aggregate derived table.
+- `workitems/BUG-aggregate-relation-rhs-dimension-filter.md` - Follow-up fix for aggregate relation RHS fixed filters that reference right-side dimension fields; ensures the derived table joins RHS dimensions before filtering and grouping.
