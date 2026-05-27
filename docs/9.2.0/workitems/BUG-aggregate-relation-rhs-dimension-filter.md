@@ -4,7 +4,7 @@ bug_source: upstream-feedback
 version: 9.2.0
 ticket: BUG-aggregate-relation-rhs-dimension-filter
 severity: major
-status: ready-for-verification
+status: upstream-verified
 reproduction_status: confirmed
 test_strategy: integration-test
 automation_decision: required
@@ -98,7 +98,7 @@ where fs.order_id = ?
 
 ## Verification
 
-2026-05-27 已执行：
+2026-05-27 Java engine 本地验证已执行：
 
 ```bash
 mvn test -pl foggy-dataset-model -Dspring.profiles.active=sqlite -P'!multi-db' '-Dtest=AggregateJoinQueryModelTest#aggregateRelationRhsFixedFilterShouldSupportRightDimensionField'
@@ -123,7 +123,28 @@ where agg_src.order_status = 'COMPLETED'
 group by agg_src.order_id
 ```
 
+## Upstream Verification
+
+2026-05-27 TMS 在 `f72e4abf fix: support aggregate relation rhs dimension filters` 后复测通过。
+
+TMS 已恢复 `OrderStationStockProjectionQuery` RHS 维度过滤：
+
+```js
+pa.planSheet$planStatus in ['CONFIRMED', 'LOCKED']
+pa.planSheet$supersededByPlanSheetId = null
+pa.planAssignmentStatus = 'PLANNED'
+```
+
+上游验证结果：
+
+- `mvn -pl query-cloud-service "-Dtest=PlanningQueryModelTest,AggregateJoinQueryModelTest" test`: passed, 6 tests.
+- 使用最新本地 `foggy-dataset-model` / `foggy-data-viewer` jars 重建 `query-cloud-service`: passed.
+- 真实 TMS 查询选择 `plannedPieceCount` / `plannedWeight` / `plannedVolume`: returned `code=200`, `total=33`.
+- 样本订单号覆盖 `1297`、`1129`、`1128`、`1127`、`1126`。
+- TMS 不再需要移除 `planSheet` filters 的临时 fallback。
+- TMS 保持 `loader: 'v2'` 与 aggregate relation-first QM 形态，不使用 `viewSql` / raw SQL / CTE。
+
 ## Follow-Up
 
-- TMS 可恢复 RHS `planSheet` 维度条件后重新验证 `OrderStationStockProjectionQuery`。
+- TMS 已恢复 RHS `planSheet` 维度条件并完成真实查询验证；Java engine 侧本问题可收口。
 - 如 TMS RHS 维度 join 使用自定义 `onBuilder`，需要单独补 RHS inner onBuilder alias rewriting；当前实现会 fail-closed。
