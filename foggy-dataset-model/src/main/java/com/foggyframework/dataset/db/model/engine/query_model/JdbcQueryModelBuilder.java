@@ -4,6 +4,7 @@ import com.foggyframework.core.ex.RX;
 import com.foggyframework.dataset.db.model.def.query.DbQueryModelDef;
 import com.foggyframework.dataset.db.model.engine.formula.SqlFormulaService;
 import com.foggyframework.dataset.db.model.i18n.DatasetMessages;
+import com.foggyframework.dataset.db.model.impl.model.AggregateJoinTableModel;
 import com.foggyframework.dataset.db.model.impl.model.DbTableModelImpl;
 import com.foggyframework.dataset.db.model.interceptor.SqlLoggingInterceptor;
 import com.foggyframework.dataset.db.model.plugins.query_execution.QueryExecutionStepExecutor;
@@ -189,6 +190,9 @@ public class JdbcQueryModelBuilder implements QueryModelBuilder {
      */
     private int parseJoinItem(Object joinItem, List<TableModel> result,
                                int aliasCounter, String qmName) {
+        if (joinItem instanceof AggregateJoinBuilder aggregateJoinBuilder) {
+            return parseAggregateJoinBuilder(aggregateJoinBuilder, result, aliasCounter, qmName);
+        }
         if (joinItem instanceof JoinBuilder joinBuilder) {
             return parseJoinBuilder(joinBuilder, result, aliasCounter, qmName);
         }
@@ -199,13 +203,48 @@ public class JdbcQueryModelBuilder implements QueryModelBuilder {
     }
 
     /**
+     * 解析 aggregate join。
+     *
+     * <p>右表先被包装为一个运行时合成的聚合子查询模型，再复用现有 JoinGraph + onBuilder 机制。
+     */
+    private int parseAggregateJoinBuilder(AggregateJoinBuilder aggregateJoinBuilder, List<TableModel> result,
+                                          int aliasCounter, String qmName) {
+        TableModelProxy rightProxy = aggregateJoinBuilder.getRight();
+        TableModel sourceTableModel = loadTableModel(rightProxy.getModelName(), qmName);
+        if (sourceTableModel == null) return aliasCounter;
+
+        // 分配别名
+        String alias = rightProxy.hasAlias() ? rightProxy.getAlias() : "t" + aliasCounter++;
+        rightProxy.setAlias(alias);
+        getModelProxies().put(rightProxy.getModelName(), rightProxy);
+
+        // 更新左表别名（从已注册的 proxy 获取）
+        TableModelProxy leftProxy = aggregateJoinBuilder.getLeft();
+        if (!leftProxy.hasAlias()) {
+            TableModelProxy registeredLeft = getModelProxies().get(leftProxy.getModelName());
+            if (registeredLeft != null) {
+                leftProxy.setAlias(registeredLeft.getAlias());
+            }
+        }
+
+        TableModel aggregateTableModel = AggregateJoinTableModel.from(sourceTableModel, aggregateJoinBuilder);
+        JoinBuilderFunction onBuilder = new JoinBuilderFunction(aggregateJoinBuilder);
+
+        QueryModelSupport.JdbcModelDx dx = new QueryModelSupport.JdbcModelDx(
+                aggregateTableModel, aggregateTableModel.getIdColumn(), onBuilder, alias, aggregateJoinBuilder.getJoinType());
+        result.add(dx);
+
+        return aliasCounter;
+    }
+
+    /**
      * 解析 JoinBuilder
      */
     private int parseJoinBuilder(JoinBuilder joinBuilder, List<TableModel> result,
                                   int aliasCounter, String qmName) {
         TableModelProxy rightProxy = joinBuilder.getRight();
-        TableModel tm = loadTableModel(rightProxy.getModelName(), qmName);
-        if (tm == null) return aliasCounter;
+        TableModel sourceTableModel = loadTableModel(rightProxy.getModelName(), qmName);
+        if (sourceTableModel == null) return aliasCounter;
 
         // 分配别名
         String alias = rightProxy.hasAlias() ? rightProxy.getAlias() : "t" + aliasCounter++;
@@ -219,6 +258,11 @@ public class JdbcQueryModelBuilder implements QueryModelBuilder {
             if (registeredLeft != null) {
                 leftProxy.setAlias(registeredLeft.getAlias());
             }
+        }
+
+        TableModel tm = sourceTableModel;
+        if (rightProxy instanceof AggregateRelationProxy aggregateRelationProxy) {
+            tm = AggregateJoinTableModel.from(sourceTableModel, aggregateRelationProxy, joinBuilder);
         }
 
         // 创建 onBuilder 适配器

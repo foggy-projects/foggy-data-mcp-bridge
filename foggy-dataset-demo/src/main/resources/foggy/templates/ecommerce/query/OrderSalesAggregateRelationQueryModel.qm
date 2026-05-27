@@ -1,0 +1,45 @@
+/**
+ * 订单-销售明细聚合关系查询模型 (V2 aggregate relation 示例)
+ *
+ * @caption 订单销售聚合关系查询
+ * @description 销售明细先按订单粒度聚合为 relation，再作为普通 LEFT JOIN 右侧关系接入订单主表
+ */
+const fo = loadTableModel('FactOrderModel');
+const sales = loadTableModel('FactSalesModel');
+
+const fs = sales
+    .filterEq(sales.orderStatus, 'COMPLETED')
+    .groupBy(sales.orderId)
+    .as('fsByOrder');
+
+export const queryModel = {
+    name: 'OrderSalesAggregateRelationQueryModel',
+    caption: '订单销售聚合关系查询',
+    description: '销售明细先按订单粒度聚合为 relation，再作为普通 LEFT JOIN 右侧关系接入订单主表',
+    loader: 'v2',
+
+    model: fo,
+
+    joins: [
+        fo.leftJoin(fs).on(fo.orderId, fs.orderId)
+    ],
+
+    columnGroups: [
+        {
+            caption: '订单信息',
+            items: [
+                { ref: fo.orderId },
+                { ref: fo.orderStatus },
+                { ref: fo.amount }
+            ]
+        },
+        {
+            caption: '销售明细聚合',
+            items: [
+                { ref: fs.salesAmount, caption: '销售明细金额' },
+                { ref: fs.quantity, caption: '销售明细数量' },
+                { ref: fs.uniqueCustomers, caption: '独立客户数' }
+            ]
+        }
+    ]
+};

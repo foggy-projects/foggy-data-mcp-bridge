@@ -16,6 +16,8 @@ import lombok.Setter;
  *   <li>维度属性访问：{@code fo.customer$memberLevel} 返回 {@link ColumnRef}</li>
  *   <li>链式维度访问：{@code fo.product.category$categoryId} 返回 {@link ColumnRef}</li>
  *   <li>JOIN 方法：{@code fo.leftJoin(fp)} 返回 {@link JoinBuilder}</li>
+ *   <li>聚合 JOIN 方法：{@code fo.leftJoinAggregate(fs)} 返回 {@link AggregateJoinBuilder}</li>
+ *   <li>聚合关系方法：{@code fs.filterEq(...).groupBy(...)} 返回 {@link AggregateRelationProxy}</li>
  * </ul>
  *
  * <p>使用示例：
@@ -120,6 +122,7 @@ public class TableModelProxy implements PropertyHolder, PropertyFunction {
      *   <li>{@code leftJoin(other)} - 左连接</li>
      *   <li>{@code innerJoin(other)} - 内连接</li>
      *   <li>{@code rightJoin(other)} - 右连接</li>
+     *   <li>{@code leftJoinAggregate(other)} - 右表预聚合后左连接</li>
      * </ul>
      *
      * @param evaluator  表达式求值器
@@ -129,6 +132,10 @@ public class TableModelProxy implements PropertyHolder, PropertyFunction {
      */
     @Override
     public Object invoke(ExpEvaluator evaluator, String methodName, Object[] args) {
+        if (isAggregateRelationMethod(methodName)) {
+            return AggregateRelationProxy.from(this).invoke(evaluator, methodName, args);
+        }
+
         // 检查参数
         if (args == null || args.length == 0 || !(args[0] instanceof TableModelProxy)) {
             return PropertyHolder.NO_MATCH;
@@ -140,7 +147,22 @@ public class TableModelProxy implements PropertyHolder, PropertyFunction {
             case "leftJoin" -> new JoinBuilder(this, other, JoinType.LEFT);
             case "innerJoin" -> new JoinBuilder(this, other, JoinType.INNER);
             case "rightJoin" -> new JoinBuilder(this, other, JoinType.RIGHT);
+            case "leftJoinAggregate" -> new AggregateJoinBuilder(this, other, JoinType.LEFT);
             default -> PropertyHolder.NO_MATCH;
+        };
+    }
+
+    private boolean isAggregateRelationMethod(String methodName) {
+        return switch (methodName) {
+            case "groupBy", "by",
+                 "filterEq", "whereEq",
+                 "filterNeq", "whereNeq",
+                 "filterGt", "whereGt",
+                 "filterGte", "whereGte",
+                 "filterLt", "whereLt",
+                 "filterLte", "whereLte",
+                 "filterIn", "whereIn" -> true;
+            default -> false;
         };
     }
 

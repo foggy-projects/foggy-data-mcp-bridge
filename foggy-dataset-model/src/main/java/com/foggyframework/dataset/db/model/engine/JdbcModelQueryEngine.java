@@ -35,6 +35,8 @@ import com.foggyframework.dataset.db.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.db.model.impl.AiObject;
 import com.foggyframework.dataset.db.model.impl.DbColumnDelegate;
 import com.foggyframework.dataset.db.model.impl.dimension.DbModelParentChildDimensionImpl;
+import com.foggyframework.dataset.db.model.impl.model.AggregateRelationOutputColumn;
+import com.foggyframework.dataset.db.model.impl.model.AggregateRelationQueryObject;
 import com.foggyframework.dataset.db.model.impl.query.DbQueryOrderColumnImpl;
 import com.foggyframework.dataset.db.model.impl.utils.SqlQueryObject;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
@@ -218,6 +220,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
     public void analysisQueryRequest(SystemBundlesContext systemBundlesContext, ModelResultContext context) {
         DbQueryRequestDef queryRequest = context.getRequest().getParam();
         RX.notNull(queryRequest, "查询请求不得为空");
+        clearAggregateRelationPushdowns(jdbcQueryModel);
 
         JdbcQuery jdbcQuery = new JdbcQuery();
         jdbcQuery.setQueryRequest(queryRequest);
@@ -458,6 +461,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
             log.debug("参数");
             log.debug(values == null ? "无" : values.toString());
         }
+        clearAggregateRelationPushdowns(jdbcQueryModel);
 
     }
 
@@ -474,6 +478,35 @@ public class JdbcModelQueryEngine implements QueryEngine {
             }
         }
         return false;
+    }
+
+    private void clearAggregateRelationPushdowns(JdbcQueryModel jdbcQueryModel) {
+        for (AggregateRelationQueryObject queryObject : collectAggregateRelationQueryObjects(jdbcQueryModel)) {
+            queryObject.clearAggregateRelationPushdowns();
+        }
+    }
+
+    private Set<AggregateRelationQueryObject> collectAggregateRelationQueryObjects(JdbcQueryModel jdbcQueryModel) {
+        Set<AggregateRelationQueryObject> queryObjects = new LinkedHashSet<>();
+        if (jdbcQueryModel == null || jdbcQueryModel.getJdbcModelList() == null) {
+            return queryObjects;
+        }
+        for (TableModel tableModel : jdbcQueryModel.getJdbcModelList()) {
+            collectAggregateRelationQueryObject(tableModel == null ? null : tableModel.getQueryObject(), queryObjects);
+            if (tableModel == null || tableModel.getVisibleSelectColumns() == null) {
+                continue;
+            }
+            for (DbColumn column : tableModel.getVisibleSelectColumns()) {
+                collectAggregateRelationQueryObject(column == null ? null : column.getQueryObject(), queryObjects);
+            }
+        }
+        return queryObjects;
+    }
+
+    private void collectAggregateRelationQueryObject(QueryObject queryObject, Set<AggregateRelationQueryObject> queryObjects) {
+        if (queryObject instanceof AggregateRelationQueryObject aggregateRelationQueryObject) {
+            queryObjects.add(aggregateRelationQueryObject);
+        }
     }
 
     // ------------------------------------------------------------------
@@ -1720,6 +1753,8 @@ public class JdbcModelQueryEngine implements QueryEngine {
             sliceDef.setOp(CondType.BIT_IN.getCode());
         }
 
+        pushAggregateRelationFilterIfSafe(jdbcQueryModel, jdbcColumn, sliceDef, parentLink);
+
         // 聚合条件需要添加到HAVING，否则添加到WHERE
         if (isAggregateCondition) {
             JdbcQuery.JdbcListCond target = forceCurrentListCondForAggregate ? listCond : jdbcQuery.getHaving();
@@ -1727,6 +1762,31 @@ public class JdbcModelQueryEngine implements QueryEngine {
         } else {
             sqlFormulaService.buildAndAddToJdbcCond(listCond, sliceDef.getOp(), jdbcColumn, alias, sliceDef.getValue(), parentLink);
         }
+    }
+
+    private void pushAggregateRelationFilterIfSafe(JdbcQueryModel jdbcQueryModel, DbColumn jdbcColumn,
+                                                   CondRequestDef sliceDef, String parentLink) {
+        if (!isConjunctiveCondition(parentLink) || sliceDef == null || jdbcColumn == null) {
+            return;
+        }
+        if (jdbcColumn instanceof AggregateRelationOutputColumn aggregateRelationColumn) {
+            aggregateRelationColumn.pushAggregateRelationCondition(sliceDef.getOp(), sliceDef.getValue());
+            return;
+        }
+        pushAggregateRelationJoinKeyFilters(jdbcQueryModel, sliceDef.getField(), sliceDef.getOp(), sliceDef.getValue());
+    }
+
+    private void pushAggregateRelationJoinKeyFilters(JdbcQueryModel jdbcQueryModel, String fieldName, String op, Object value) {
+        if (fieldName == null || fieldName.isBlank()) {
+            return;
+        }
+        for (AggregateRelationQueryObject queryObject : collectAggregateRelationQueryObjects(jdbcQueryModel)) {
+            queryObject.pushAggregateRelationJoinKeyCondition(fieldName, op, value);
+        }
+    }
+
+    private boolean isConjunctiveCondition(String parentLink) {
+        return parentLink == null || parentLink.isBlank() || "AND".equalsIgnoreCase(parentLink);
     }
 
     private void rejectAggregateConditionInSlice(CondRequestDef sliceDef) {

@@ -1,0 +1,46 @@
+/**
+ * 订单-销售明细聚合关联查询模型 (V2 aggregate join 示例)
+ *
+ * @caption 订单销售聚合关联查询
+ * @description 订单主表 LEFT JOIN 销售明细按订单粒度预聚合结果，避免 1:N 明细连接放大订单粒度
+ */
+const fo = loadTableModel('FactOrderModel');
+const fs = loadTableModel('FactSalesModel');
+
+export const queryModel = {
+    name: 'OrderSalesAggregateJoinQueryModel',
+    caption: '订单销售聚合关联查询',
+    description: '订单主表 LEFT JOIN 销售明细按订单粒度预聚合结果，避免 1:N 明细连接放大订单粒度',
+    loader: 'v2',
+
+    model: fo,
+
+    joins: [
+        fo.leftJoinAggregate(fs)
+            .groupBy(fs.orderId)
+            .filterEq(fs.orderStatus, 'COMPLETED')
+            .sum(fs.salesAmount, 'salesAggAmount')
+            .countDistinct(fs.uniqueCustomers, 'salesCustomerCount')
+            .count('salesLineCount')
+            .on(fo.orderId, fs.orderId)
+    ],
+
+    columnGroups: [
+        {
+            caption: '订单信息',
+            items: [
+                { ref: fo.orderId },
+                { ref: fo.orderStatus },
+                { ref: fo.amount }
+            ]
+        },
+        {
+            caption: '销售明细聚合',
+            items: [
+                { ref: fs.salesAggAmount, caption: '销售明细金额' },
+                { ref: fs.salesCustomerCount, caption: '销售客户数' },
+                { ref: fs.salesLineCount, caption: '销售明细行数' }
+            ]
+        }
+    ]
+};
