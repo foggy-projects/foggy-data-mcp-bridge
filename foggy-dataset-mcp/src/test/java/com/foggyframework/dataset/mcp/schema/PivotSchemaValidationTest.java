@@ -38,6 +38,11 @@ class PivotSchemaValidationTest {
         return schema.validate(node);
     }
 
+    private static boolean hasValidationError(Set<ValidationMessage> errors, String type, String instanceLocation) {
+        return errors.stream().anyMatch(error ->
+                type.equals(error.getType()) && instanceLocation.equals(error.getInstanceLocation().toString()));
+    }
+
     @Test
     @DisplayName("合规：Flat Pivot (仅 rows + metrics)")
     void testValidFlatPivot() throws Exception {
@@ -217,7 +222,7 @@ class PivotSchemaValidationTest {
         """;
         Set<ValidationMessage> errors = validate(json);
         assertFalse(errors.isEmpty(), "timeWindow.value 少于两个元素应被 schema 拒绝");
-        assertTrue(errors.stream().anyMatch(e -> e.getMessage().contains("timeWindow.value") && e.getMessage().contains("至少")),
+        assertTrue(hasValidationError(errors, "minItems", "$.payload.timeWindow.value"),
                 "应报告 minItems 错误: " + errors);
     }
 
@@ -239,7 +244,7 @@ class PivotSchemaValidationTest {
         """;
         Set<ValidationMessage> errors = validate(json);
         assertFalse(errors.isEmpty(), "timeWindow.value 多于两个元素应被 schema 拒绝");
-        assertTrue(errors.stream().anyMatch(e -> e.getMessage().contains("timeWindow.value") && e.getMessage().contains("最多")),
+        assertTrue(hasValidationError(errors, "maxItems", "$.payload.timeWindow.value"),
                 "应报告 maxItems 错误: " + errors);
     }
 
@@ -287,7 +292,7 @@ class PivotSchemaValidationTest {
         """;
         Set<ValidationMessage> errors = validate(json);
         assertFalse(errors.isEmpty(), "未开放 rollingAggregator 应被 schema 拒绝");
-        assertTrue(errors.stream().anyMatch(e -> e.getMessage().contains("rollingAggregator") && e.getMessage().contains("枚举")),
+        assertTrue(hasValidationError(errors, "enum", "$.payload.timeWindow.rollingAggregator"),
                 "应报告 rollingAggregator enum 错误: " + errors);
     }
 
