@@ -189,7 +189,6 @@ start_and_init_services() {
 
   if [[ "$RUN_MYSQL8" -eq 1 ]]; then
     wait_container foggy-demo-mysql8
-    run_step "Initialize MySQL8 fixture" bash foggy-dataset-demo/docker/init-db.sh mysql8
   fi
   if [[ "$RUN_POSTGRES" -eq 1 ]]; then
     wait_container foggy-demo-postgres
