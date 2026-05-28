@@ -230,6 +230,16 @@ public class DialectTest {
         }
 
         @Test
+        @DisplayName("测试无ORDER BY的DISTINCT分页使用外层包装")
+        void testGeneratePagingSqlWithDistinctAndNoOrderBy() {
+            String sql = "SELECT DISTINCT name FROM users";
+            String result = dialect.generatePagingSql(sql, 0, 10);
+
+            assertTrue(result.startsWith("SELECT * FROM (\nSELECT DISTINCT name FROM users\n) __foggy_page"));
+            assertTrue(result.contains("ORDER BY (SELECT NULL) OFFSET 0 ROWS FETCH NEXT 10 ROWS ONLY"));
+        }
+
+        @Test
         @DisplayName("测试NULL排序子句 - CASE WHEN模拟")
         void testBuildNullOrderClause() {
             // NULLS FIRST

@@ -310,8 +310,8 @@ class PivotSqlParityIntegrationTest extends EcommerceTestSupport {
                 "FROM fact_sales t1 " +
                 "LEFT JOIN dim_product t2 ON t1.product_key = t2.product_key " +
                 "GROUP BY t2.category_name " +
-                "ORDER BY sales_amount DESC, category_name ASC " +
-                "LIMIT 2";
+                "ORDER BY sales_amount DESC, category_name ASC";
+        sql = paginateSql(sql, 2);
         List<Map<String, Object>> sqlItems = jdbcTemplate.queryForList(sql);
 
         // Use set-based parity: verify the same TopN members and values exist,

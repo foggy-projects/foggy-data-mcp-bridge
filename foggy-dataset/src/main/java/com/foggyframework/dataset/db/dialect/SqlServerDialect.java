@@ -63,11 +63,17 @@ public class SqlServerDialect extends FDialect {
         // SQL Server 2012+ 使用 OFFSET...FETCH 语法
         // 注意: 必须有 ORDER BY 子句
         StringBuilder sb = new StringBuilder(sql.length() + 50);
-        sb.append(sql);
 
         // 检查是否有顶层 ORDER BY（排除 OVER() 子句内的 ORDER BY）
         if (!hasTopLevelOrderBy(sql)) {
+            if (isTopLevelSelectDistinct(sql)) {
+                sb.append("SELECT * FROM (\n").append(sql).append("\n) __foggy_page");
+            } else {
+                sb.append(sql);
+            }
             sb.append(" ORDER BY (SELECT NULL)");
+        } else {
+            sb.append(sql);
         }
 
         sb.append(" OFFSET ").append(start).append(" ROWS");
@@ -102,6 +108,19 @@ public class SqlServerDialect extends FDialect {
             }
         }
         return false;
+    }
+
+    private boolean isTopLevelSelectDistinct(String sql) {
+        String trimmed = sql == null ? "" : sql.trim();
+        if (!trimmed.regionMatches(true, 0, "SELECT", 0, 6)) {
+            return false;
+        }
+        int index = 6;
+        while (index < trimmed.length() && Character.isWhitespace(trimmed.charAt(index))) {
+            index++;
+        }
+        return index + 8 <= trimmed.length() && trimmed.regionMatches(true, index, "DISTINCT", 0, 8)
+                && (index + 8 == trimmed.length() || !Character.isLetterOrDigit(trimmed.charAt(index + 8)));
     }
 
     @Override

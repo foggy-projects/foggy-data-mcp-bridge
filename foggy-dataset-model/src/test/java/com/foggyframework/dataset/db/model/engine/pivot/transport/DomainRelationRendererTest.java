@@ -3,6 +3,7 @@ package com.foggyframework.dataset.db.model.engine.pivot.transport;
 import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.db.dialect.MysqlDialect;
 import com.foggyframework.dataset.db.dialect.PostgresDialect;
+import com.foggyframework.dataset.db.dialect.SqlServerDialect;
 import com.foggyframework.dataset.db.dialect.SqliteDialect;
 import org.junit.jupiter.api.Test;
 
@@ -105,6 +106,21 @@ class DomainRelationRendererTest {
         DomainTransportPlan largePlan = createLargePlan(2001); // Exceeds MAX_TUPLES = 2000
         DomainTransportRefusalException exception = assertThrows(DomainTransportRefusalException.class, () -> renderer.render(dialect, null, largePlan));
         assertTrue(exception.getMessage().contains("tuple limit exceeded"));
+    }
+
+    @Test
+    void testSqlServerCteRenderer_TupleField() {
+        FDialect dialect = new SqlServerDialect();
+        DomainRelationRenderer renderer = new SqlServerCteDomainRenderer();
+        DomainRelationRenderResult result = renderer.render(dialect, null, createTupleFieldPlan());
+
+        assertEquals(DomainTransportPlacement.CTE, result.getPlacement());
+        assertTrue(result.getSqlFragment().contains("_pivot_domain_transport([category], [product]) AS ("));
+        assertTrue(result.getSqlFragment().contains("CAST(? AS NVARCHAR(4000)) AS [category]"));
+        assertTrue(result.getSqlFragment().contains("UNION ALL\n  SELECT CAST(? AS NVARCHAR(4000)), CAST(? AS NVARCHAR(4000))"));
+        assertTrue(result.getJoinPredicate().contains("_base.[category] = _d.[category]"));
+        assertTrue(result.getJoinPredicate().contains("_base.[product] IS NULL AND _d.[product] IS NULL"));
+        assertEquals(6, result.getParams().size());
     }
 
     @Test

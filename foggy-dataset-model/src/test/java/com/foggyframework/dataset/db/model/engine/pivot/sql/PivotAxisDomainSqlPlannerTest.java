@@ -258,8 +258,8 @@ public class PivotAxisDomainSqlPlannerTest {
         assertTrue(PivotAxisDomainSqlPlanner.isSupported(new SqliteDialect()));
         assertTrue(PivotAxisDomainSqlPlanner.isSupported(new PostgresDialect()));
         assertTrue(PivotAxisDomainSqlPlanner.isSupported(new Mysql8TestDialect()));
+        assertTrue(PivotAxisDomainSqlPlanner.isSupported(new SqlServerDialect()));
         assertFalse(PivotAxisDomainSqlPlanner.isSupported(new MysqlDialect()));
-        assertFalse(PivotAxisDomainSqlPlanner.isSupported(new SqlServerDialect()));
     }
 
     private static class Mysql8TestDialect extends MysqlDialect {

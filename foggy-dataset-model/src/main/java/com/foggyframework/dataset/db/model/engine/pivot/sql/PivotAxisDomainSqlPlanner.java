@@ -45,7 +45,7 @@ public class PivotAxisDomainSqlPlanner {
             return false;
         }
         DbType dbType = dialect.getDbType();
-        if (dbType == DbType.SQLITE || dbType == DbType.POSTGRESQL) {
+        if (dbType == DbType.SQLITE || dbType == DbType.POSTGRESQL || dbType == DbType.SQLSERVER) {
             return true;
         }
         return dbType == DbType.MYSQL && dialect.getClass().getSimpleName().contains("Mysql8");

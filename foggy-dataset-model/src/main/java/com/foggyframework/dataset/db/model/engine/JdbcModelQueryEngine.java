@@ -8,6 +8,7 @@ import com.foggyframework.dataset.db.model.def.query.request.*;
 import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
 import com.foggyframework.dataset.db.model.engine.expression.InlineExpressionParser;
 import com.foggyframework.dataset.db.model.engine.expression.SliceExpressionProcessor;
+import com.foggyframework.dataset.db.dialect.DbType;
 import com.foggyframework.dataset.db.dialect.FDialect;
 import com.foggyframework.dataset.db.model.engine.expression.CalculateDialectCapabilities;
 import com.foggyframework.dataset.db.model.engine.expression.CalculateQueryContext;
@@ -27,6 +28,7 @@ import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTranspor
 import com.foggyframework.dataset.db.model.engine.pivot.transport.Mysql57DerivedTableDomainRenderer;
 import com.foggyframework.dataset.db.model.engine.pivot.transport.Mysql8ValuesDomainRenderer;
 import com.foggyframework.dataset.db.model.engine.pivot.transport.PostgresCteDomainRenderer;
+import com.foggyframework.dataset.db.model.engine.pivot.transport.SqlServerCteDomainRenderer;
 import com.foggyframework.dataset.db.model.engine.pivot.transport.SqliteCteDomainRenderer;
 import com.foggyframework.dataset.db.model.engine.pivot.transport.UnsupportedDomainRenderer;
 import com.foggyframework.dataset.db.model.engine.query.JdbcQuery;
@@ -1257,6 +1259,10 @@ public class JdbcModelQueryEngine implements QueryEngine {
         if (dialect == FDialect.SQLITE_DIALECT || "SQLite".equalsIgnoreCase(dialect.getProductName())) {
             return new SqliteCteDomainRenderer();
         }
+        if (dialect == FDialect.SQLSERVER_DIALECT || dialect.getDbType() == DbType.SQLSERVER
+                || "SQLSERVER".equalsIgnoreCase(dialect.getProductName())) {
+            return new SqlServerCteDomainRenderer();
+        }
         if (dialect.getClass().getSimpleName().contains("Mysql8")
                 || ("MySQL".equalsIgnoreCase(dialect.getProductName()) && supportsMysqlValuesRow(databaseVersion))) {
             return new Mysql8ValuesDomainRenderer();
@@ -1341,6 +1347,10 @@ public class JdbcModelQueryEngine implements QueryEngine {
         if ("MySQL".equalsIgnoreCase(productName) || dialect == FDialect.MYSQL_DIALECT
                 || dialect.getClass().getSimpleName().contains("Mysql8")) {
             return leftSql + " <=> " + rightSql;
+        }
+        if ("SQLSERVER".equalsIgnoreCase(productName) || dialect == FDialect.SQLSERVER_DIALECT
+                || dialect.getDbType() == DbType.SQLSERVER) {
+            return "(" + leftSql + " = " + rightSql + " OR (" + leftSql + " IS NULL AND " + rightSql + " IS NULL))";
         }
         throw new DomainTransportRefusalException("Null-safe domain transport predicate unsupported for dialect: " + productName);
     }
