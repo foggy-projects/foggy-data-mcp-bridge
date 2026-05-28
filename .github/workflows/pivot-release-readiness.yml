@@ -8,6 +8,7 @@ on:
       - 'foggy-dataset-demo/**'
       - 'scripts/verify-pivot-v9-release.*'
       - 'scripts/verify-v38-engine-evidence.*'
+      - 'scripts/verify-v39-engine-production-gate.*'
       - 'scripts/collect-v38-engine-evidence-artifact.*'
       - '.github/workflows/pivot-release-readiness.yml'
   workflow_dispatch:
@@ -118,4 +119,54 @@ jobs:
         with:
           name: v38-engine-evidence-${{ github.run_id }}-${{ github.run_attempt }}
           path: build/v38-engine-evidence/
+          if-no-files-found: warn
+
+  v39-engine-production-gate-candidate:
+    name: v3.9 engine production-gate candidate
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: maven
+
+      - name: Docker preflight
+        run: |
+          docker version
+          docker compose version
+          docker info
+          df -h
+
+      - name: SQLite/MySQL8/PostgreSQL/SQL Server v3.9 production-gate candidate
+        run: |
+          mkdir -p build/v39-engine-production-gate
+          {
+            echo "# v3.9 Engine Production-gate Candidate"
+            echo
+            echo "- run_id: $GITHUB_RUN_ID"
+            echo "- run_attempt: $GITHUB_RUN_ATTEMPT"
+            echo "- workflow: $GITHUB_WORKFLOW"
+            echo "- ref: $GITHUB_REF"
+            echo "- sha: $GITHUB_SHA"
+            echo "- generated_at: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo
+            echo "This manual candidate upgrades v3.8's SQL Server weekday-only evidence toward a Maven-profile gate."
+            echo
+          } > build/v39-engine-production-gate/summary.md
+          set -o pipefail
+          bash scripts/verify-v39-engine-production-gate.sh --down-after 2>&1 | tee build/v39-engine-production-gate/verify-v39-engine-production-gate.log
+
+      - name: Upload v3.9 engine production-gate artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v39-engine-production-gate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: build/v39-engine-production-gate/
           if-no-files-found: warn
