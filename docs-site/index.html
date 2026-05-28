@@ -4,20 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex">
-    <meta http-equiv="refresh" content="3; url=https://foggy-projects.github.io/foggy-data-mcp-docs/">
     <title>Foggy Documentation Moved</title>
-    <script>
-      (function () {
-        var oldBase = '/foggy-data-mcp-bridge/';
-        var newBase = '/foggy-data-mcp-docs/';
-        var path = window.location.pathname || '';
-        var suffix = path.indexOf(oldBase) === 0 ? path.slice(oldBase.length) : '';
-        var target = 'https://foggy-projects.github.io' + newBase + suffix + window.location.search + window.location.hash;
-
-        window.__foggyDocsTarget = target;
-        window.location.replace(target);
-      })();
-    </script>
     <style>
       body {
         margin: 0;
@@ -46,6 +33,20 @@
       a {
         color: #2563eb;
       }
+
+      .actions {
+        margin-top: 28px;
+      }
+
+      .button {
+        display: inline-block;
+        padding: 10px 16px;
+        color: #fff;
+        background: #2563eb;
+        border-radius: 6px;
+        text-decoration: none;
+        font-weight: 600;
+      }
     </style>
   </head>
   <body>
@@ -53,18 +54,12 @@
       <h1>Foggy documentation moved</h1>
       <p>
         This documentation site has moved to
-        <a id="target-link" href="https://foggy-projects.github.io/foggy-data-mcp-docs/">foggy-data-mcp-docs</a>.
+        <a href="https://foggy-projects.github.io/foggy-data-mcp-docs/">foggy-data-mcp-docs</a>.
       </p>
-      <p>You will be redirected automatically.</p>
+      <p>The old Java engine repository no longer contains the VitePress documentation source.</p>
+      <p class="actions">
+        <a class="button" href="https://foggy-projects.github.io/foggy-data-mcp-docs/">Open New Documentation</a>
+      </p>
     </main>
-    <script>
-      (function () {
-        var link = document.getElementById('target-link');
-        if (link && window.__foggyDocsTarget) {
-          link.href = window.__foggyDocsTarget;
-          link.textContent = window.__foggyDocsTarget;
-        }
-      })();
-    </script>
   </body>
 </html>
