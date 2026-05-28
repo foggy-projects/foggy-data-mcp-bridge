@@ -267,7 +267,7 @@ foggy-data-mcp-bridge/
 ├── foggy-dataset-mcp/             # MCP server implementation
 ├── foggy-dataset-demo/            # Demo: E-commerce sample data
 ├── foggy-bean-copy/               # Bean mapping utilities
-├── docs-site/                     # VitePress documentation (bilingual)
+├── docs-site/                     # Documentation migration notice; source moved to foggy-data-mcp-docs
 │
 └── addons/                        # Extension modules
     ├── chart-render-service/      # Chart generation service
@@ -306,10 +306,10 @@ foggy-data-mcp-bridge/
 - [Architecture](https://foggy-projects.github.io/foggy-data-mcp-docs/en/mcp/guide/architecture) - System architecture overview
 
 ### 📗 Core Concepts
-- [TM/QM Modeling](https://foggy-projects.github.io/foggy-data-mcp-docs/en/dataset/guide/introduction) - Build semantic layer
-- [TM Syntax Manual](https://foggy-projects.github.io/foggy-data-mcp-docs/en/dataset/jm-qm/jm-syntax) - Table model reference
-- [QM Syntax Manual](https://foggy-projects.github.io/foggy-data-mcp-docs/en/dataset/jm-qm/qm-syntax) - Query model reference
-- [Query DSL API](https://foggy-projects.github.io/foggy-data-mcp-docs/en/dataset/api/query-api) - JSON query reference
+- [TM/QM Modeling](https://foggy-projects.github.io/foggy-data-mcp-docs/en/dataset-model/guide/introduction) - Build semantic layer
+- [TM Syntax Manual](https://foggy-projects.github.io/foggy-data-mcp-docs/en/dataset-model/tm-qm/tm-syntax) - Table model reference
+- [QM Syntax Manual](https://foggy-projects.github.io/foggy-data-mcp-docs/en/dataset-model/tm-qm/qm-syntax) - Query model reference
+- [Query DSL API](https://foggy-projects.github.io/foggy-data-mcp-docs/en/dataset-model/api/query-api) - JSON query reference
 
 ### 📙 FSScript Engine
 - [Why FSScript](https://foggy-projects.github.io/foggy-data-mcp-docs/en/fsscript/guide/why-fsscript) - Use cases

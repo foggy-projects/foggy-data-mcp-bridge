@@ -392,5 +392,5 @@ POST /jdbc-model/query-model/v2/FactOrderQueryModel
 
 ## 附录：相关文档
 
-- [DSL 查询语法](../../docs-site/zh/dataset-model/tm-qm/query-dsl.md)
+- [DSL 查询语法](https://foggy-projects.github.io/foggy-data-mcp-docs/zh/dataset-model/tm-qm/query-dsl)
 - [DataSetResultStep 接口](../../foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/plugins/result_set_filter/DataSetResultStep.java)

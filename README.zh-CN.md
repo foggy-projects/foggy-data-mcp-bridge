@@ -216,7 +216,7 @@ foggy-data-mcp-bridge/
 ├── foggy-dataset-mcp/             # MCP 服务端实现
 ├── foggy-dataset-demo/            # 演示：电商示例数据
 ├── foggy-bean-copy/               # Bean 映射工具
-├── docs-site/                     # VitePress 文档站点（双语）
+├── docs-site/                     # 文档迁移提示；源码已迁移到 foggy-data-mcp-docs
 │
 └── addons/                        # 扩展模块
     ├── chart-render-service/      # 图表生成服务

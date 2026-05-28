@@ -19,7 +19,7 @@
 
 - **[开发路线图](../roadmap.md)** - 版本规划与技术演进
 - [主项目 README](../../README.md)
-- [帮助手册 (VitePress)](../../docs-site/)
+- [帮助手册 (VitePress)](https://github.com/foggy-projects/foggy-data-mcp-docs)
 - [项目记忆 (CLAUDE.md)](../../CLAUDE.md)
 - [问题跟踪](../issues-tracker.md)
 

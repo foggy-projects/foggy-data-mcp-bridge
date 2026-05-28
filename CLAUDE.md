@@ -10,7 +10,7 @@
 - `foggy-dataset-demo/` - 示例项目（电商演示数据）
 - `foggy-fsscript/` - 脚本引擎（解析TM/QM文件）
 - `foggy-bean-copy/` - Bean拷贝工具
-- `docs-site/` - 帮助手册（VitePress，中英双语）
+- `docs-site/` - 文档站迁移提示；实际文档源已迁移到 `foggy-data-mcp-docs`
 - `addons/` - 扩展模块
   - `foggy-odoo-bridge-java/` - Odoo TM/QM 模型模块（内置模型，打包进 JAR，网关模式用）
   - `foggy-data-viewer/` - 数据浏览器组件
@@ -229,7 +229,7 @@ mvn test -pl foggy-dataset-model -P!multi-db
 ## 开发约定
 - 不需要运行单元测试（`-DskipTests`）
 - i18n 资源：`foggy-dataset-model/src/main/resources/i18n/messages*.properties`（UTF-8）
-- 帮助手册：`docs-site/`（VitePress 双语文档）
+- 帮助手册：`foggy-data-mcp-docs` 仓库（VitePress 双语文档）；本仓库 `docs-site/` 仅保留迁移提示
 
 ## 集成测试规范：真实 SQL 数据比对
 
