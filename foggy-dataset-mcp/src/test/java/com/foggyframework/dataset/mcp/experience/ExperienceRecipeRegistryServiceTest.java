@@ -290,6 +290,47 @@ class ExperienceRecipeRegistryServiceTest {
     }
 
     @Test
+    @DisplayName("exact registry key lookup still applies runtime governance")
+    void shouldResolveExactRegistryKeyWithRuntimeGovernance() {
+        seedPublished(PUBLISH_KEY, "odoo", "tenant-a", "crm:read,finance:read", "finance_owner");
+        seedPublished(DRAFT_KEY, "odoo", "tenant-a", "crm:read,finance:read", "finance_owner");
+        seedCandidate("service_ticket_first_response_sla@v1", "odoo", "tenant-a", "support:read", "support_owner");
+
+        ExperienceRecipeSearchRequest request = new ExperienceRecipeSearchRequest();
+        request.setRegistryKey(PUBLISH_KEY);
+        request.setNamespace("odoo");
+        request.setTenantId("tenant-a");
+        request.setPermissionTags(Set.of("crm:read", "finance:read"));
+        request.setOwnerRoles(Set.of("finance_owner"));
+        request.setLimit(10);
+
+        ExperienceRecipeRegistryResponse response = service.searchDiscoverable(request);
+
+        assertEquals(List.of(PUBLISH_KEY), response.returnedRegistryKeys());
+        assertEquals("selected", response.getGovernanceDecision());
+        assertEquals(1, response.getGovernanceFilteredCounts().get("registry_key_mismatch"));
+    }
+
+    @Test
+    @DisplayName("exact registry key lookup fails closed on permission mismatch")
+    void shouldNotResolveExactRegistryKeyWithoutPermission() {
+        seedPublished(PUBLISH_KEY, "odoo", "tenant-a", "crm:read,finance:read", "finance_owner");
+
+        ExperienceRecipeSearchRequest request = new ExperienceRecipeSearchRequest();
+        request.setRegistryKey(PUBLISH_KEY);
+        request.setNamespace("odoo");
+        request.setTenantId("tenant-a");
+        request.setPermissionTags(Set.of("crm:read"));
+        request.setOwnerRoles(Set.of("finance_owner"));
+
+        ExperienceRecipeRegistryResponse response = service.searchDiscoverable(request);
+
+        assertTrue(response.returnedRegistryKeys().isEmpty());
+        assertEquals("empty", response.getGovernanceDecision());
+        assertEquals(1, response.getGovernanceFilteredCounts().get("permission_mismatch"));
+    }
+
+    @Test
     @DisplayName("search governance dedupes same canonical recipes before limit")
     void shouldDeduplicateCanonicalRecipesBeforeLimit() {
         seedPublished("crm_source_funnel_and_stage_dropoff_dashboard@v1", null, null, null, "data_analyst");

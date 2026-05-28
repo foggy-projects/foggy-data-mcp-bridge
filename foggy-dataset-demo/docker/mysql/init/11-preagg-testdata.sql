@@ -25,13 +25,13 @@ SELECT
     END AS month_name,
     WEEK(d) AS week_of_year,
     DAY(d) AS day_of_month,
-    DAYOFWEEK(d) AS day_of_week,
-    CASE DAYOFWEEK(d)
-        WHEN 1 THEN '周日' WHEN 2 THEN '周一' WHEN 3 THEN '周二'
-        WHEN 4 THEN '周三' WHEN 5 THEN '周四' WHEN 6 THEN '周五'
-        WHEN 7 THEN '周六'
+    WEEKDAY(d) + 1 AS day_of_week,
+    CASE WEEKDAY(d) + 1
+        WHEN 1 THEN '周一' WHEN 2 THEN '周二' WHEN 3 THEN '周三'
+        WHEN 4 THEN '周四' WHEN 5 THEN '周五' WHEN 6 THEN '周六'
+        WHEN 7 THEN '周日'
     END AS day_name,
-    IF(DAYOFWEEK(d) IN (1, 7), 1, 0) AS is_weekend,
+    IF(WEEKDAY(d) + 1 IN (6, 7), 1, 0) AS is_weekend,
     0 AS is_holiday
 FROM (
     SELECT DATE('2024-01-01') + INTERVAL seq DAY AS d

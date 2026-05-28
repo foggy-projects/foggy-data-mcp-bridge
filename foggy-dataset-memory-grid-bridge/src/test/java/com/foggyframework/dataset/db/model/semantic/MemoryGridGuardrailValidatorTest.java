@@ -41,6 +41,56 @@ class MemoryGridGuardrailValidatorTest {
         assertEquals(request.getMemoryGridPlan(), response.getExecution().getMemoryGridPlan());
         assertNotNull(response.getExecution().getMemoryGridValidation());
         assertEquals(500, response.getExecution().getMemoryGridValidation().get("output_limit"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> guard = (Map<String, Object>) response.getExecution()
+                .getMemoryGridValidation()
+                .get("memory_grid_guard");
+        assertEquals("bounded-result-handle-v1", guard.get("guard_profile"));
+        assertEquals("result_handle_store", guard.get("handle_backend"));
+        assertEquals(false, guard.get("grid_sql_supported"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> limits = (Map<String, Object>) guard.get("limits");
+        assertEquals(500, limits.get("max_input_row_limit"));
+        assertEquals(3, limits.get("max_input_count"));
+        assertEquals(1000, limits.get("max_output_limit"));
+        assertEquals(50_000, limits.get("max_cell_count"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> alignmentContract = (Map<String, Object>) response.getExecution()
+                .getMemoryGridValidation()
+                .get("alignment_contract");
+        assertEquals("bounded_target_achievement_merge@v1", alignmentContract.get("template"));
+        assertEquals(true, alignmentContract.get("version_or_scenario_declared"));
+        assertEquals(Map.of("actual", "actual_by_customer", "target", "target_by_customer"),
+                alignmentContract.get("input_roles"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> crossModelContract = (Map<String, Object>) guard.get("cross_model_alignment_contract");
+        assertEquals(true, crossModelContract.get("required_for_distinct_input_models"));
+    }
+
+    @Test
+    @DisplayName("MEMORY_GRID rejects cross-model plans without alignment contract")
+    void rejectsMissingCrossModelAlignmentContract() {
+        Map<String, Object> plan = validPlan(500, 500, "customer.name");
+        plan.remove("alignment_contract");
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+                service.validateQuery("SaleOrder", memoryGridPlan(plan), SemanticRequestContext.empty()));
+
+        assertTrue(ex.getMessage().contains("MEMORY_GRID_ALIGNMENT_CONTRACT_MISSING"));
+    }
+
+    @Test
+    @DisplayName("MEMORY_GRID rejects cross-model alignment without target version or forecast scenario")
+    void rejectsCrossModelAlignmentWithoutVersionOrScenario() {
+        Map<String, Object> plan = validPlan(500, 500, "customer.name");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> contract = (Map<String, Object>) plan.get("alignment_contract");
+        contract.remove("version");
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+                service.validateQuery("SaleOrder", memoryGridPlan(plan), SemanticRequestContext.empty()));
+
+        assertTrue(ex.getMessage().contains("MEMORY_GRID_ALIGNMENT_CONTRACT_MISSING"));
     }
 
     @Test
@@ -165,28 +215,39 @@ class MemoryGridGuardrailValidatorTest {
         return new java.util.LinkedHashMap<>(Map.of(
                 "inputs", List.of(
                         new java.util.LinkedHashMap<>(Map.of(
-                                "name", "sales_by_customer",
+                                "name", "actual_by_customer",
+                                "role", "actual",
                                 "source_route", "DSL_CTE",
                                 "model", "SaleOrder",
                                 "grain", List.of(key),
-                                "metrics", List.of(Map.of("name", "salesAmount", "expr", "sum(amount)")),
+                                "metrics", List.of(Map.of("name", "actualSalesAmount", "expr", "sum(amount)")),
                                 "row_limit", rowLimit,
-                                "result_handle", "dsl_cte_result_sales_by_customer",
+                                "result_handle", "dsl_cte_result_actual_by_customer",
                                 "governed", true
                         )),
                         new java.util.LinkedHashMap<>(Map.of(
-                                "name", "ar_by_customer",
+                                "name", "target_by_customer",
+                                "role", "target",
                                 "source_route", "DSL_CTE",
-                                "model", "ArInvoice",
+                                "model", "SalesTarget",
                                 "grain", List.of(key),
-                                "metrics", List.of(Map.of("name", "unpaidAmount", "expr", "sum(unpaidAmount)")),
+                                "filters", List.of(Map.of("field", "targetVersion", "op", "=", "value", "approved")),
+                                "metrics", List.of(Map.of("name", "targetSalesAmount", "expr", "sum(targetSalesAmount)")),
                                 "row_limit", rowLimit,
-                                "result_handle", "dsl_cte_result_ar_by_customer",
+                                "result_handle", "dsl_cte_result_target_by_customer",
                                 "governed", true
                         ))
                 ),
                 "join", Map.of("keys", List.of(key), "type", "full_outer"),
-                "derived", List.of(Map.of("name", "salesArGap", "expr", "salesAmount - unpaidAmount")),
+                "derived", List.of(Map.of("name", "targetGap", "expr", "actualSalesAmount - targetSalesAmount")),
+                "alignment_contract", new java.util.LinkedHashMap<>(Map.of(
+                        "template", "bounded_target_achievement_merge@v1",
+                        "input_roles", Map.of("actual", "actual_by_customer", "target", "target_by_customer"),
+                        "match_keys", List.of(key),
+                        "grain", List.of(key),
+                        "version", "approved",
+                        "formula", "actualSalesAmount - targetSalesAmount"
+                )),
                 "output_limit", outputLimit
         ));
     }

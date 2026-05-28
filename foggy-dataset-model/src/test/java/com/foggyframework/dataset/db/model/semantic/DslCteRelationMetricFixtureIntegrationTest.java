@@ -84,6 +84,36 @@ class DslCteRelationMetricFixtureIntegrationTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("DSL_CTE relation CASE label bridge auto-layers same-stage aliases and matches SQLite baseline")
+    void relationCaseLabelSameStageAliasDagSqlMatchesManualBaseline() {
+        assumeCommonTableExpressionsSupported();
+
+        List<Map<String, Object>> manualRows = categoryProfitBandLeaderboardManualRows();
+        SemanticQueryRequest request = dslCtePlan(categoryProfitBandSameStageLeaderboardPlan());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SqlGenerationResult generated = semanticQueryServiceV3.generateSql(
+                "FactSalesQueryModel", request, SemanticRequestContext.empty());
+
+        assertNotNull(generated);
+        assertNotNull(generated.getSql());
+        assertTrue(generated.getSql().contains("dsl_cte_metric_ratio_1"), generated.getSql());
+        assertTrue(generated.getSql().contains(
+                "CASE WHEN \"profitRate\" < 0.2 THEN 'low' ELSE 'normal' END AS \"profitBand\""),
+                generated.getSql());
+        assertTrue(generated.getSql().contains("ORDER BY \"profitRate\" DESC"), generated.getSql());
+        assertEquals(List.of(2), generated.getParams());
+
+        List<Map<String, Object>> rows = new ArrayList<>(jdbcTemplate.queryForList(
+                generated.getSql(), generated.getParams().toArray(new Object[0])));
+
+        assertEquals(manualRows.size(), rows.size());
+        for (int i = 0; i < manualRows.size(); i++) {
+            assertGeneratedCategoryProfitBandRowMatchesManual(rows.get(i), manualRows.get(i));
+        }
+    }
+
+    @Test
     @DisplayName("DSL_CTE relation ordered numeric bucket bridge executes and matches SQLite baseline")
     void relationOrderedNumericBucketBridgeSqlMatchesManualBaseline() {
         assumeCommonTableExpressionsSupported();
@@ -605,6 +635,32 @@ class DslCteRelationMetricFixtureIntegrationTest extends EcommerceTestSupport {
                         stage("category_profit_band", "derive",
                                 "inputs", List.of("category_profit_rate"),
                                 "derived", List.of(
+                                        m("name", "profitBand",
+                                                "expr", "case when profitRate < 0.2 then 'low' else 'normal' end"))),
+                        stage("top_categories", "orderBy",
+                                "inputs", List.of("category_profit_band"),
+                                "orderBy", List.of(
+                                        m("field", "profitRate", "dir", "DESC")),
+                                "limit", 2)
+                ),
+                "output", List.of("product$categoryName", "salesAmount", "profitAmount", "profitRate",
+                        "profitBand")
+        );
+    }
+
+    private static Map<String, Object> categoryProfitBandSameStageLeaderboardPlan() {
+        return m(
+                "stages", List.of(
+                        stage("category_profit", "aggregate",
+                                "input", m("model", "FactSalesQueryModel"),
+                                "groupBy", List.of("product$categoryName"),
+                                "metrics", List.of(
+                                        m("name", "salesAmount", "expr", "sum(salesAmount)"),
+                                        m("name", "profitAmount", "expr", "sum(profitAmount)"))),
+                        stage("category_profit_band", "derive",
+                                "inputs", List.of("category_profit"),
+                                "derived", List.of(
+                                        m("name", "profitRate", "expr", "profitAmount / nullif(salesAmount, 0)"),
                                         m("name", "profitBand",
                                                 "expr", "case when profitRate < 0.2 then 'low' else 'normal' end"))),
                         stage("top_categories", "orderBy",

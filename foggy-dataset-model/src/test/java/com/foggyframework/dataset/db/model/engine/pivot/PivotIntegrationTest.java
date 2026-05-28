@@ -67,6 +67,23 @@ class PivotIntegrationTest extends EcommerceTestSupport {
         assertFalse(items.isEmpty());
         assertTrue(items.get(0).containsKey("product$categoryName"));
         assertTrue(items.get(0).containsKey("salesAmount"));
+
+        Map<?, ?> contract = pivotEngineContract(response);
+        assertEquals(Boolean.TRUE, contract.get("signed"));
+        Map<?, ?> treeContract = contractSection(contract, "tree_axis_contract");
+        assertEquals(Boolean.FALSE, treeContract.get("signed"));
+        assertContractListContains(treeContract, "unsupported_combinations",
+                "columns_axis_tree",
+                "output_format_not_tree",
+                "domainSlice_start_offset");
+        Map<?, ?> drilldownContract = contractSection(contract, "drilldown_contract");
+        assertEquals(Boolean.FALSE, drilldownContract.get("signed"));
+        assertContractListContains(drilldownContract, "unsigned_shapes",
+                "domain_tree_cursor",
+                "interactive_expand_collapse_state",
+                "multi_level_domainSlice",
+                "columns_multi_level_start_offset",
+                "tree_axis_domainSlice_start_offset");
     }
 
     @Test
@@ -205,6 +222,19 @@ class PivotIntegrationTest extends EcommerceTestSupport {
                     "父级 A 第一名 PDS_PAY_TOP 应被 start=1 跳过: " + tuples);
             assertFalse(tuples.contains(PARENT_CHILD_WINDOW_STATUS_B + "/PDS_PAY_TOP"),
                     "父级 B 第一名 PDS_PAY_TOP 应被 start=1 跳过: " + tuples);
+
+            Map<?, ?> contract = pivotEngineContract(response);
+            assertEquals(Boolean.TRUE, contract.get("signed"));
+            Map<?, ?> drilldown = contractSection(contract, "drilldown_contract");
+            assertEquals(Boolean.TRUE, drilldown.get("signed"));
+            assertEquals(Boolean.TRUE, drilldown.get("per_parent_window_used"));
+            assertContractListContains(drilldown, "unsigned_shapes",
+                    "domain_tree_cursor",
+                    "columns_multi_level_start_offset",
+                    "tree_axis_domainSlice_start_offset");
+            @SuppressWarnings("unchecked")
+            List<String> capabilities = (List<String>) contract.get("required_capabilities");
+            assertTrue(capabilities.contains("rows_child_per_parent_window"));
         } finally {
             deleteParentChildWindowFixture();
         }
@@ -505,6 +535,23 @@ class PivotIntegrationTest extends EcommerceTestSupport {
         // 验证子节点 (技术部, 销售部等)
         assertNotNull(root.getChildren());
         assertTrue(root.getChildren().size() >= 2);
+
+        Map<?, ?> contract = pivotEngineContract(response);
+        assertEquals(Boolean.TRUE, contract.get("signed"));
+        Map<?, ?> treeContract = contractSection(contract, "tree_axis_contract");
+        assertEquals(Boolean.TRUE, treeContract.get("signed"));
+        assertEquals("team$caption", treeContract.get("hierarchy_field"));
+        assertEquals("team$id", treeContract.get("id_field"));
+        assertTrue(((Number) treeContract.get("skeleton_nodes")).intValue() > 0);
+        assertContractListContains(treeContract, "unsupported_combinations",
+                "columns_axis_tree",
+                "crossjoin",
+                "domainSlice_start_offset",
+                "baselineRatio",
+                "cascade_generate");
+        @SuppressWarnings("unchecked")
+        List<String> capabilities = (List<String>) contract.get("required_capabilities");
+        assertTrue(capabilities.contains("rows_axis_parent_child_tree"));
         
         log.info("E2E hierarchyMode=tree 验证通过: 成功构建总公司及子树");
     }
@@ -1450,6 +1497,29 @@ class PivotIntegrationTest extends EcommerceTestSupport {
                 model, request, "execute", SemanticRequestContext.empty());
     }
 
+    private Map<?, ?> pivotEngineContract(SemanticQueryResponse response) {
+        assertNotNull(response.getDebug(), "pivot response should include debug info");
+        assertNotNull(response.getDebug().getExtra(), "pivot response should include debug.extra");
+        Object contract = response.getDebug().getExtra().get("pivotEngineContract");
+        assertTrue(contract instanceof Map<?, ?>, "debug.extra 应输出 pivotEngineContract");
+        return (Map<?, ?>) contract;
+    }
+
+    private Map<?, ?> contractSection(Map<?, ?> contract, String sectionName) {
+        Object section = contract.get(sectionName);
+        assertTrue(section instanceof Map<?, ?>, "pivot contract should include " + sectionName);
+        return (Map<?, ?>) section;
+    }
+
+    private void assertContractListContains(Map<?, ?> section, String listName, String... expectedValues) {
+        Object value = section.get(listName);
+        assertTrue(value instanceof List<?>, "pivot contract section should include list " + listName);
+        List<?> values = (List<?>) value;
+        for (String expected : expectedValues) {
+            assertTrue(values.contains(expected), listName + " should contain " + expected + ": " + values);
+        }
+    }
+
     private SemanticQueryRequest.SliceItem slice(String field, String op, Object value) {
         SemanticQueryRequest.SliceItem item = new SemanticQueryRequest.SliceItem();
         item.setField(field);
@@ -1553,6 +1623,7 @@ class PivotIntegrationTest extends EcommerceTestSupport {
 
     private void insertBaselineRatioScopeFixture() {
         deleteBaselineRatioScopeFixture();
+        normalizeBaselineRatioScopeDateDimension();
         String sql = """
                 INSERT INTO fact_sales
                 (order_id, order_line_no, date_key, product_key, customer_key, store_key, channel_key, promotion_key,
@@ -1570,6 +1641,20 @@ class PivotIntegrationTest extends EcommerceTestSupport {
                 new Object[] {"PDS_BR_D4", 1, 20240104, 1, 1, 1, 1, null,
                         1, 400d, 0d, 0d, 400d, 0d, 400d, BASELINE_RATIO_SCOPE_STATUS, "PDS_BR"}
         ));
+    }
+
+    private void normalizeBaselineRatioScopeDateDimension() {
+        List<Object[]> rows = List.of(
+                new Object[] {1, "星期一", 0, 20240101},
+                new Object[] {2, "星期二", 0, 20240102},
+                new Object[] {3, "星期三", 0, 20240103},
+                new Object[] {4, "星期四", 0, 20240104}
+        );
+        jdbcTemplate.batchUpdate("""
+                UPDATE dim_date
+                SET day_of_week = ?, day_name = ?, is_weekend = ?
+                WHERE date_key = ?
+                """, rows);
     }
 
     private void deleteBaselineRatioScopeFixture() {

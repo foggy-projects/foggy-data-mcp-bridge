@@ -119,6 +119,12 @@ public interface MemoryGridResultResolver {
                     lineage, storageRef, readCount, maxReadCount, policySnapshot);
         }
 
+        public ResultHandleMetadata withExpiresAt(Instant expiresAt) {
+            return new ResultHandleMetadata(handleId, namespace, ownerContextHash, sourceRoute, sourceModelRefs,
+                    queryHash, createdAt, expiresAt, invalidatedAt, rowCount, rowLimit, cellCount, byteSize,
+                    lineage, storageRef, readCount, maxReadCount, policySnapshot);
+        }
+
         public ResultHandleMetadata withInvalidatedAt(Instant invalidatedAt) {
             return new ResultHandleMetadata(handleId, namespace, ownerContextHash, sourceRoute, sourceModelRefs,
                     queryHash, createdAt, expiresAt, invalidatedAt, rowCount, rowLimit, cellCount, byteSize,

@@ -1,5 +1,6 @@
 package com.foggyframework.dataset.db.model.memorygrid.bridge;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -11,7 +12,15 @@ public interface ResultHandleStore {
 
     Optional<ResultHandleRecord> find(String handleId);
 
+    default List<ResultHandleRecord> list() {
+        return List.of();
+    }
+
     void incrementReadCount(String handleId);
 
     void invalidate(String handleId);
+
+    default boolean delete(String handleId) {
+        return false;
+    }
 }

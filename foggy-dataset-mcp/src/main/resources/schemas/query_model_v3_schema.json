@@ -510,6 +510,7 @@
                     "description": "派生指标定义。支持 parentShare 和 baselineRatio。不支持 expr。严禁使用 ROLLUP_TO/CELL_AT/AXIS_MEMBER。",
                     "oneOf": [
                       {
+                        "type": "object",
                         "properties": {
                           "name": { "type": "string", "description": "指标名称" },
                           "type": { "type": "string", "enum": ["parentShare"], "description": "派生类型。parentShare=子级值/父级聚合值；仅 rows 轴相邻层级，不支持 tree/cascade/having/orderBy/limit" },
@@ -522,6 +523,7 @@
                         "additionalProperties": false
                       },
                       {
+                        "type": "object",
                         "properties": {
                           "name": { "type": "string", "description": "指标名称" },
                           "type": { "type": "string", "enum": ["baselineRatio"], "description": "派生类型。baselineRatio=当前值/基准值；仅 columns 轴 first/last 基准，不支持 tree/cascade/having/orderBy/limit" },

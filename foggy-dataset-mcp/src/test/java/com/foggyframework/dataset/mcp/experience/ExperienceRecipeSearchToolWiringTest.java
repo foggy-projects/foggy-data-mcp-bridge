@@ -46,7 +46,11 @@ class ExperienceRecipeSearchToolWiringTest {
 
         Object raw = dispatcher.executeTool(
                 "dataset.search_experience_recipes",
-                Map.of("businessType", "crm_single_model_funnel", "route", "DSL_CTE", "limit", 10),
+                Map.of(
+                        "registryKey", PUBLISHED_KEY,
+                        "businessType", "crm_single_model_funnel",
+                        "route", "DSL_CTE",
+                        "limit", 10),
                 "trace-exp-recipe",
                 "req-exp-recipe",
                 null,

@@ -34,6 +34,7 @@ public class ExperienceRecipeSearchTool implements McpTool {
     public Object execute(Map<String, Object> arguments, ToolExecutionContext context) {
         Map<String, Object> args = arguments == null ? Map.of() : arguments;
         ExperienceRecipeSearchRequest request = new ExperienceRecipeSearchRequest();
+        request.setRegistryKey(stringValue(args.get("registryKey")));
         request.setBusinessType(stringValue(args.get("businessType")));
         request.setRoute(stringValue(args.get("route")));
         request.setNamespace(context == null ? stringValue(args.get("namespace")) : firstNonBlank(

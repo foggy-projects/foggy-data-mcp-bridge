@@ -3,7 +3,9 @@ package com.foggyframework.dataset.db.model.memorygrid.bridge;
 import com.foggyframework.dataset.db.model.semantic.memorygrid.MemoryGridResultResolver;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -15,17 +17,22 @@ public final class InMemoryResultHandleStore implements ResultHandleStore {
     private final Map<String, ResultHandleRecord> records = new LinkedHashMap<>();
 
     @Override
-    public void save(ResultHandleRecord record) {
+    public synchronized void save(ResultHandleRecord record) {
         records.put(record.result().metadata().handleId(), record);
     }
 
     @Override
-    public Optional<ResultHandleRecord> find(String handleId) {
+    public synchronized Optional<ResultHandleRecord> find(String handleId) {
         return Optional.ofNullable(records.get(handleId));
     }
 
     @Override
-    public void incrementReadCount(String handleId) {
+    public synchronized List<ResultHandleRecord> list() {
+        return new ArrayList<>(records.values());
+    }
+
+    @Override
+    public synchronized void incrementReadCount(String handleId) {
         ResultHandleRecord record = records.get(handleId);
         if (record == null) {
             return;
@@ -36,7 +43,7 @@ public final class InMemoryResultHandleStore implements ResultHandleStore {
     }
 
     @Override
-    public void invalidate(String handleId) {
+    public synchronized void invalidate(String handleId) {
         ResultHandleRecord record = records.get(handleId);
         if (record == null) {
             return;
@@ -44,5 +51,10 @@ public final class InMemoryResultHandleStore implements ResultHandleStore {
         MemoryGridResultResolver.ResultHandleMetadata metadata = record.result().metadata();
         records.put(handleId, new ResultHandleRecord(record.result().withMetadata(
                 metadata.withInvalidatedAt(Instant.now()))));
+    }
+
+    @Override
+    public synchronized boolean delete(String handleId) {
+        return records.remove(handleId) != null;
     }
 }

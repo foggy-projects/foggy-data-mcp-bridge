@@ -766,6 +766,9 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         validationEvidence.put("memory_grid_dialect", dialect.dialectId());
         validationEvidence.put("memory_grid_plan_supported", dialect.planSupported());
         validationEvidence.put("memory_grid_grid_sql_supported", dialect.gridSqlSupported());
+        if (dialect.productionGuard() != null && !dialect.productionGuard().isEmpty()) {
+            validationEvidence.put("memory_grid_guard", dialect.productionGuard());
+        }
     }
 
     private SemanticQueryResponse dslCtePlanResponseIfAny(SemanticQueryRequest request) {

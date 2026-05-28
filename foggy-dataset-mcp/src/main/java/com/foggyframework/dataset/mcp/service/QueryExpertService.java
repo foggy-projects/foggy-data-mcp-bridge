@@ -1,6 +1,8 @@
 package com.foggyframework.dataset.mcp.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.foggyframework.core.ex.RX;
+import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryResponse;
 import com.foggyframework.dataset.mcp.config.McpProperties;
 import com.foggyframework.dataset.mcp.schema.DatasetNLQueryRequest;
 import com.foggyframework.dataset.mcp.schema.DatasetNLQueryResponse;
@@ -54,14 +56,69 @@ public class QueryExpertService {
      */
     static final ThreadLocal<Map<String, Object>> LAST_QUERY_RESULT = new ThreadLocal<>();
 
+    private static final String ROUTING_REPLAN_REQUIRED_CODE = "ROUTING_REPLAN_REQUIRED";
+    private static final String REPLAN_RECOMMENDED_ACTION = "REPLAN_BY_CALIBRATED_ROUTE";
+    private static final List<String> STALE_PLAN_FIELDS = List.of(
+            "dsl_params",
+            "semantic_sql",
+            "cte_plan",
+            "memory_grid_plan",
+            "clarifying_questions",
+            "tool_calls"
+    );
+
     /**
      * 由 {@link McpToolCallbackFactory} 调用，将 dataset.query_model 的结构化结果写入当前线程捕获槽。
      */
     @SuppressWarnings("unchecked")
     public static void captureQueryResult(Object result) {
-        if (result instanceof Map<?, ?> map) {
-            LAST_QUERY_RESULT.set((Map<String, Object>) map);
+        Map<String, Object> normalized = normalizeQueryResult(result);
+        if (normalized != null) {
+            LAST_QUERY_RESULT.set(normalized);
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> normalizeQueryResult(Object result) {
+        if (result instanceof RX<?> rx) {
+            if (rx.getCode() != RX.SUCCESS) {
+                return null;
+            }
+            return normalizeQueryResult(rx.getData());
+        }
+        if (result instanceof SemanticQueryResponse semanticResponse) {
+            return semanticQueryResponseToMap(semanticResponse);
+        }
+        if (result instanceof Map<?, ?> map) {
+            Object data = map.get("data");
+            if (data != null) {
+                Map<String, Object> normalizedData = normalizeQueryResult(data);
+                if (normalizedData != null) {
+                    return normalizedData;
+                }
+            }
+            return (Map<String, Object>) map;
+        }
+        return null;
+    }
+
+    private static Map<String, Object> semanticQueryResponseToMap(SemanticQueryResponse response) {
+        Map<String, Object> normalized = new LinkedHashMap<>();
+        normalized.put("items", response.getItems() != null ? response.getItems() : List.of());
+        Long total = response.getTotal();
+        if (total == null && response.getPagination() != null && response.getPagination().getTotalCount() != null) {
+            total = response.getPagination().getTotalCount();
+        }
+        if (total == null) {
+            total = (long) (response.getItems() != null ? response.getItems().size() : 0);
+        }
+        normalized.put("total", total);
+        if (response.getHasNext() != null) {
+            normalized.put("hasNext", response.getHasNext());
+        } else if (response.getPagination() != null && response.getPagination().getHasMore() != null) {
+            normalized.put("hasNext", response.getPagination().getHasMore());
+        }
+        return normalized;
     }
 
     /**
@@ -140,11 +197,7 @@ public class QueryExpertService {
         try {
             RoutingCalibrationAction calibrationAction = routingCalibrationActionResolver.resolve(request);
             if (calibrationAction.type() == RoutingCalibrationActionType.BLOCKED) {
-                return DatasetNLQueryResponse.error(
-                        "ROUTING_REPLAN_REQUIRED",
-                        "路由校准要求重新规划，但缺少 calibrated_route，已阻断旧计划执行。",
-                        calibrationAction.toAuditMap()
-                );
+                return routingCalibrationReplanRequiredResponse(calibrationAction, traceId);
             }
 
             // 获取或创建会话上下文
@@ -152,13 +205,15 @@ public class QueryExpertService {
                     k -> new SessionContext(sessionId, traceId));
             context.setTraceId(traceId);
             context.setAuthorization(authorization);
+            context.setLastQueryResult(null);
 
             // 构建用户消息
             String userMessage = buildUserMessage(request, calibrationAction);
 
             // 获取核心查询工具并转换为 ToolCallback
             List<McpTool> queryTools = getQueryTools();
-            ToolCallback[] toolCallbacks = toolCallbackFactory.createToolCallbacks(queryTools, traceId, authorization);
+            ToolCallCollector collector = new ToolCallCollector(sessionId);
+            ToolCallback[] toolCallbacks = toolCallbackFactory.createToolCallbacks(queryTools, traceId, authorization, collector);
 
             log.info("Registered {} tools for query, traceId={}", toolCallbacks.length, traceId);
 
@@ -171,7 +226,7 @@ public class QueryExpertService {
             // 无需外层 while 循环手动重试。
             String aiResponse = chatClient.prompt()
                     .user(userMessage)
-                    .tools(toolCallbacks)
+                    .toolCallbacks(toolCallbacks)
                     .call()
                     .content();
 
@@ -182,7 +237,11 @@ public class QueryExpertService {
             }
 
             log.debug("AI response, traceId={}, length={}", traceId, aiResponse != null ? aiResponse.length() : 0);
-            return parseResponse(aiResponse, context, traceId);
+            DatasetNLQueryResponse response = parseResponse(aiResponse, context, traceId);
+            response = enforceRoutingReplanResultContract(response, calibrationAction);
+            response = attachQueryTraceDebug(response, traceId, sessionId, queryTools, collector, captured);
+            response = attachRoutingReplanDispatchDebug(response, calibrationAction, traceId);
+            return attachRoutingCalibrationDebug(response, calibrationAction, traceId);
 
         } catch (Exception e) {
             log.error("Query processing failed: {}, traceId={}", e.getMessage(), traceId, e);
@@ -208,10 +267,7 @@ public class QueryExpertService {
 
                 RoutingCalibrationAction calibrationAction = routingCalibrationActionResolver.resolve(request);
                 if (calibrationAction.type() == RoutingCalibrationActionType.BLOCKED) {
-                    sink.next(ProgressEvent.error(
-                            "ROUTING_REPLAN_REQUIRED",
-                            "路由校准要求重新规划，但缺少 calibrated_route，已阻断旧计划执行。"
-                    ));
+                    sink.next(routingCalibrationReplanRequiredEvent(calibrationAction, traceId));
                     sink.complete();
                     return;
                 }
@@ -223,12 +279,17 @@ public class QueryExpertService {
                         k -> new SessionContext(sessionId, traceId));
                 context.setTraceId(traceId);
                 context.setAuthorization(authorization);
+                context.setLastQueryResult(null);
 
                 String userMessage = buildUserMessage(request, calibrationAction);
+                if (calibrationAction.type() == RoutingCalibrationActionType.REPLAN_REQUIRED) {
+                    sink.next(routingCalibrationReplanDispatchEvent(calibrationAction, traceId));
+                }
                 sink.next(ProgressEvent.progress("plan", 20));
 
                 List<McpTool> queryTools = getQueryTools();
-                ToolCallback[] toolCallbacks = toolCallbackFactory.createToolCallbacks(queryTools, traceId, authorization);
+                ToolCallCollector collector = new ToolCallCollector(sessionId);
+                ToolCallback[] toolCallbacks = toolCallbackFactory.createToolCallbacks(queryTools, traceId, authorization, collector);
 
                 ChatClient chatClient = chatClientBuilder
                         .defaultSystem(SYSTEM_PROMPT)
@@ -239,7 +300,7 @@ public class QueryExpertService {
                 // Spring AI 单次 call() 内自动驱动完整工具调用链
                 String aiResponse = chatClient.prompt()
                         .user(userMessage)
-                        .tools(toolCallbacks)
+                        .toolCallbacks(toolCallbacks)
                         .call()
                         .content();
 
@@ -252,6 +313,10 @@ public class QueryExpertService {
                 sink.next(ProgressEvent.progress("format", 90));
 
                 DatasetNLQueryResponse result = parseResponse(aiResponse, context, traceId);
+                result = enforceRoutingReplanResultContract(result, calibrationAction);
+                result = attachQueryTraceDebug(result, traceId, sessionId, queryTools, collector, captured);
+                result = attachRoutingReplanDispatchDebug(result, calibrationAction, traceId);
+                result = attachRoutingCalibrationDebug(result, calibrationAction, traceId);
                 sink.next(ProgressEvent.complete(result));
                 sink.complete();
 
@@ -345,6 +410,332 @@ public class QueryExpertService {
 
     private String getDayOfWeekChinese(int dayOfWeek) {
         return new String[]{"一", "二", "三", "四", "五", "六", "日"}[dayOfWeek - 1];
+    }
+
+    static DatasetNLQueryResponse attachRoutingCalibrationDebug(
+            DatasetNLQueryResponse response,
+            RoutingCalibrationAction calibrationAction,
+            String traceId
+    ) {
+        if (response == null || calibrationAction == null || !shouldExposeCalibrationDebug(calibrationAction)) {
+            return response;
+        }
+
+        Map<String, Object> debug = new LinkedHashMap<>();
+        if (response.getDebug() != null) {
+            debug.putAll(response.getDebug());
+        }
+        if (traceId != null && !traceId.isBlank()) {
+            debug.put("trace_id", traceId);
+        }
+        debug.put("routing_calibration", calibrationAction.toAuditMap());
+        response.setDebug(debug);
+        return response;
+    }
+
+    static DatasetNLQueryResponse attachQueryTraceDebug(
+            DatasetNLQueryResponse response,
+            String traceId,
+            String sessionId,
+            List<McpTool> registeredTools,
+            ToolCallCollector collector,
+            Map<String, Object> capturedQueryResult
+    ) {
+        if (response == null) {
+            return null;
+        }
+
+        Map<String, Object> debug = new LinkedHashMap<>();
+        if (response.getDebug() != null) {
+            debug.putAll(response.getDebug());
+        }
+        if (traceId != null && !traceId.isBlank()) {
+            debug.put("trace_id", traceId);
+        }
+
+        Map<String, Object> trace = new LinkedHashMap<>();
+        trace.put("trace_id", safeString(traceId));
+        trace.put("session_id", safeString(sessionId));
+        trace.put("result_type", safeString(response.getType()));
+        trace.put("registered_tools", registeredToolNames(registeredTools));
+        trace.put("registered_tool_count", registeredTools != null ? registeredTools.size() : 0);
+
+        List<ToolCallCollector.ToolCallRecord> calls = collector != null ? collector.getToolCalls() : List.of();
+        long successCount = calls.stream().filter(ToolCallCollector.ToolCallRecord::isSuccess).count();
+        trace.put("tool_call_count", calls.size());
+        trace.put("tool_success_count", successCount);
+        trace.put("tool_failure_count", calls.size() - successCount);
+        trace.put("all_tools_success", collector == null || collector.isAllSuccess());
+        trace.put("query_result_captured", capturedQueryResult != null);
+        if (capturedQueryResult != null) {
+            trace.putAll(queryResultSummary(capturedQueryResult));
+        }
+        trace.put("tool_calls", calls.stream()
+                .map(QueryExpertService::toolCallSummary)
+                .toList());
+
+        debug.put("query_trace", trace);
+        response.setDebug(debug);
+        return response;
+    }
+
+    static DatasetNLQueryResponse attachRoutingReplanDispatchDebug(
+            DatasetNLQueryResponse response,
+            RoutingCalibrationAction calibrationAction,
+            String traceId
+    ) {
+        if (response == null
+                || calibrationAction == null
+                || calibrationAction.type() != RoutingCalibrationActionType.REPLAN_REQUIRED) {
+            return response;
+        }
+
+        Map<String, Object> debug = new LinkedHashMap<>();
+        if (response.getDebug() != null) {
+            debug.putAll(response.getDebug());
+        }
+        if (traceId != null && !traceId.isBlank()) {
+            debug.put("trace_id", traceId);
+        }
+
+        Map<String, Object> dispatch = new LinkedHashMap<>(routingCalibrationReplanDispatch(calibrationAction));
+        dispatch.put("dispatched", true);
+        dispatch.put("dispatch_mode", "actual_calibrated_route");
+        debug.put("routing_replan_dispatch", dispatch);
+        response.setDebug(debug);
+        return response;
+    }
+
+    private static DatasetNLQueryResponse enforceRoutingReplanResultContract(
+            DatasetNLQueryResponse response,
+            RoutingCalibrationAction calibrationAction
+    ) {
+        if (response == null
+                || calibrationAction == null
+                || calibrationAction.type() != RoutingCalibrationActionType.REPLAN_REQUIRED
+                || !"info".equals(response.getType())) {
+            return response;
+        }
+
+        Map<String, Object> candidates = new LinkedHashMap<>();
+        candidates.put("original_type", response.getType());
+        candidates.put("original_topic", response.getTopic());
+        candidates.put("original_note", response.getNote());
+        candidates.put("original_data", response.getData());
+        candidates.put("calibrated_route", safeString(calibrationAction.calibratedRoute()));
+        candidates.put("reason", "replan dispatch did not produce a structured query result");
+
+        return DatasetNLQueryResponse.clarify(
+                List.of("路由已按校准结果重新规划，但本次未产生可验收的结构化查询结果。请确认是否按当前模型可用字段改写查询，或补充缺失字段后重试。"),
+                candidates
+        );
+    }
+
+    private static boolean shouldExposeCalibrationDebug(RoutingCalibrationAction calibrationAction) {
+        return calibrationAction.type() != RoutingCalibrationActionType.EXECUTE_RAW
+                || calibrationAction.rawRoute() != null
+                || calibrationAction.calibratedRoute() != null
+                || !calibrationAction.appliedRules().isEmpty();
+    }
+
+    private static DatasetNLQueryResponse routingCalibrationReplanRequiredResponse(
+            RoutingCalibrationAction calibrationAction,
+            String traceId
+    ) {
+        String message = routingCalibrationReplanRequiredMessage(calibrationAction);
+        return attachRoutingCalibrationDebug(DatasetNLQueryResponse.error(
+                ROUTING_REPLAN_REQUIRED_CODE,
+                message,
+                routingCalibrationReplanRequiredDetail(calibrationAction)
+        ), calibrationAction, traceId);
+    }
+
+    private static ProgressEvent routingCalibrationReplanRequiredEvent(RoutingCalibrationAction calibrationAction, String traceId) {
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("code", ROUTING_REPLAN_REQUIRED_CODE);
+        data.put("message", routingCalibrationReplanRequiredMessage(calibrationAction));
+        data.put("recommended_action", REPLAN_RECOMMENDED_ACTION);
+        data.put("replan_required", true);
+        data.put("replan_dispatch", routingCalibrationReplanDispatch(calibrationAction));
+        data.put("debug", Map.of(
+                "trace_id", traceId != null ? traceId : "",
+                "routing_calibration", calibrationAction.toAuditMap()
+        ));
+
+        return ProgressEvent.builder()
+                .id(UUID.randomUUID().toString())
+                .eventType("error")
+                .data(data)
+                .build();
+    }
+
+    private static ProgressEvent routingCalibrationReplanDispatchEvent(RoutingCalibrationAction calibrationAction, String traceId) {
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("phase", "routing_replan");
+        data.put("percent", 15);
+        data.put("message", "按校准后路由重新规划");
+        data.put("recommended_action", REPLAN_RECOMMENDED_ACTION);
+        data.put("replan_required", true);
+        data.put("replan_dispatch", routingCalibrationReplanDispatch(calibrationAction));
+        data.put("debug", Map.of(
+                "trace_id", traceId != null ? traceId : "",
+                "routing_calibration", calibrationAction.toAuditMap()
+        ));
+
+        return ProgressEvent.builder()
+                .id(UUID.randomUUID().toString())
+                .eventType("progress")
+                .data(data)
+                .build();
+    }
+
+    private static Map<String, Object> routingCalibrationReplanRequiredDetail(RoutingCalibrationAction calibrationAction) {
+        Map<String, Object> detail = new LinkedHashMap<>();
+        detail.put("action", "REPLAN_REQUIRED");
+        detail.put("recommended_action", REPLAN_RECOMMENDED_ACTION);
+        detail.put("replan_required", true);
+        detail.put("calibrated_route", safeString(calibrationAction.calibratedRoute()));
+        detail.put("execution_allowed", false);
+        detail.put("replan_dispatch", routingCalibrationReplanDispatch(calibrationAction));
+        return detail;
+    }
+
+    private static Map<String, Object> routingCalibrationReplanDispatch(RoutingCalibrationAction calibrationAction) {
+        Map<String, Object> dispatch = new LinkedHashMap<>();
+        dispatch.put("route", safeString(calibrationAction.calibratedRoute()));
+        dispatch.put("raw_route", safeString(calibrationAction.rawRoute()));
+        dispatch.put("blocked_stale_plan", true);
+        dispatch.put("allowed_after_replan", true);
+        dispatch.put("stale_plan_fields", STALE_PLAN_FIELDS);
+        dispatch.put("applied_rules", calibrationAction.appliedRules() != null ? calibrationAction.appliedRules() : List.of());
+        dispatch.put("reason", safeString(calibrationAction.reason()));
+        return dispatch;
+    }
+
+    private static List<String> registeredToolNames(List<McpTool> registeredTools) {
+        if (registeredTools == null || registeredTools.isEmpty()) {
+            return List.of();
+        }
+        return registeredTools.stream()
+                .map(tool -> tool != null ? safeString(tool.getName()) : "")
+                .toList();
+    }
+
+    private static Map<String, Object> toolCallSummary(ToolCallCollector.ToolCallRecord call) {
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("sequence", call.getSequence());
+        summary.put("tool_name", safeString(call.getToolName()));
+        summary.put("spring_tool_name", safeString(call.getSpringToolName()));
+        summary.put("success", call.isSuccess());
+        summary.put("duration_ms", call.getDurationMs());
+        if (call.getError() != null && !call.getError().isBlank()) {
+            summary.put("error", call.getError());
+        }
+        summary.put("arguments_summary", argumentsSummary(call.getToolName(), call.getArguments()));
+        summary.put("result_summary", resultSummary(call.getResult()));
+        return summary;
+    }
+
+    private static Map<String, Object> argumentsSummary(String toolName, Map<String, Object> arguments) {
+        Map<String, Object> summary = new LinkedHashMap<>();
+        if (arguments == null || arguments.isEmpty()) {
+            summary.put("argument_keys", List.of());
+            return summary;
+        }
+        summary.put("argument_keys", new ArrayList<>(arguments.keySet()));
+        Object model = arguments.get("model");
+        if (model != null) {
+            summary.put("model", model);
+        }
+        Object format = arguments.get("format");
+        if (format != null) {
+            summary.put("format", format);
+        }
+        Object mode = arguments.get("mode");
+        if (mode != null) {
+            summary.put("mode", mode);
+        }
+        Object payload = arguments.get("payload");
+        if (payload instanceof Map<?, ?> payloadMap) {
+            summary.put("payload_keys", payloadMap.keySet().stream().map(String::valueOf).toList());
+            copyPayloadValue(summary, payloadMap, "columns", "payload_columns");
+            copyPayloadValue(summary, payloadMap, "groupBy", "payload_group_by");
+            copyPayloadValue(summary, payloadMap, "limit", "payload_limit");
+            summary.put("payload_has_slice", payloadMap.containsKey("slice"));
+        }
+        if ("dataset.query_model".equals(toolName) || "dataset_query_model".equals(toolName)) {
+            summary.putIfAbsent("payload_keys", List.of());
+        }
+        return summary;
+    }
+
+    private static void copyPayloadValue(
+            Map<String, Object> summary,
+            Map<?, ?> payloadMap,
+            String sourceKey,
+            String targetKey
+    ) {
+        Object value = payloadMap.get(sourceKey);
+        if (value != null) {
+            summary.put(targetKey, value);
+        }
+    }
+
+    private static Map<String, Object> resultSummary(Object result) {
+        Map<String, Object> summary = new LinkedHashMap<>();
+        if (result == null) {
+            summary.put("type", "null");
+            return summary;
+        }
+        if (result instanceof Map<?, ?> map) {
+            summary.put("type", "map");
+            summary.put("keys", map.keySet().stream().map(String::valueOf).toList());
+            Object error = map.get("error");
+            if (error != null) {
+                summary.put("error", error);
+            }
+            Object total = map.get("total");
+            if (total != null) {
+                summary.put("total", total);
+            }
+            Object items = map.get("items");
+            if (items instanceof List<?> itemList) {
+                summary.put("item_count", itemList.size());
+            }
+            return summary;
+        }
+        summary.put("type", result.getClass().getSimpleName());
+        summary.put("string_length", String.valueOf(result).length());
+        return summary;
+    }
+
+    private static Map<String, Object> queryResultSummary(Map<String, Object> capturedQueryResult) {
+        Map<String, Object> summary = new LinkedHashMap<>();
+        Object total = capturedQueryResult.get("total");
+        if (total != null) {
+            summary.put("query_result_total", total);
+        }
+        Object items = capturedQueryResult.get("items");
+        if (items instanceof List<?> itemList) {
+            summary.put("query_result_item_count", itemList.size());
+        }
+        Object error = capturedQueryResult.get("error");
+        if (error != null) {
+            summary.put("query_result_error", error);
+        }
+        return summary;
+    }
+
+    private static String safeString(String value) {
+        return value != null ? value : "";
+    }
+
+    private static String routingCalibrationReplanRequiredMessage(RoutingCalibrationAction calibrationAction) {
+        if (calibrationAction.calibratedRoute() == null || calibrationAction.calibratedRoute().isBlank()) {
+            return "路由校准要求重新规划，但缺少 calibrated_route，已阻断旧计划执行。";
+        }
+        return "路由校准要求按 " + calibrationAction.calibratedRoute()
+                + " 重新规划，当前入口已阻断旧计划分析和工具执行。";
     }
 
     /**

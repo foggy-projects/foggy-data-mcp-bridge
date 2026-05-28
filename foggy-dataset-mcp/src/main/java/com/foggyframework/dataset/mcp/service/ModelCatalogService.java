@@ -10,9 +10,10 @@ import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContex
 import com.foggyframework.dataset.db.model.spi.DbQueryDimension;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
 import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
+import com.foggyframework.dataset.mcp.config.McpProperties;
 import com.foggyframework.dataset.mcp.spi.SemanticServiceResolver;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -28,12 +29,33 @@ import java.util.Set;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class ModelCatalogService {
 
     private final SemanticServiceResolver semanticServiceResolver;
     private final QueryModelLoader queryModelLoader;
     private final ObjectMapper objectMapper;
+    private final McpProperties mcpProperties;
+
+    @Autowired
+    public ModelCatalogService(
+            SemanticServiceResolver semanticServiceResolver,
+            QueryModelLoader queryModelLoader,
+            ObjectMapper objectMapper,
+            McpProperties mcpProperties
+    ) {
+        this.semanticServiceResolver = semanticServiceResolver;
+        this.queryModelLoader = queryModelLoader;
+        this.objectMapper = objectMapper;
+        this.mcpProperties = mcpProperties;
+    }
+
+    public ModelCatalogService(
+            SemanticServiceResolver semanticServiceResolver,
+            QueryModelLoader queryModelLoader,
+            ObjectMapper objectMapper
+    ) {
+        this(semanticServiceResolver, queryModelLoader, objectMapper, new McpProperties());
+    }
 
     public Map<String, Object> buildCatalogResponse(Map<String, Object> options, String namespace, String authorization) {
         Map<String, Object> safeOptions = options != null ? options : Collections.emptyMap();
@@ -60,6 +82,9 @@ public class ModelCatalogService {
         List<String> modelNames = optionalStringList(safeOptions.get("modelNames"));
         if (modelNames == null) {
             modelNames = optionalStringList(safeOptions.get("models"));
+        }
+        if (modelNames == null) {
+            modelNames = configuredCatalogModelNames();
         }
         if (modelNames == null) {
             modelNames = semanticServiceResolver.getAllModelNames();
@@ -125,6 +150,25 @@ public class ModelCatalogService {
         catalog.put("recommendedNext", "dataset.describe_model_internal");
         catalog.put("items", items);
         return catalog;
+    }
+
+    private List<String> configuredCatalogModelNames() {
+        McpProperties.SemanticConfig semantic = mcpProperties.getSemantic();
+        if (semantic == null) {
+            return null;
+        }
+        Boolean useAllModels = semantic.getUseAllModels();
+        if (Boolean.TRUE.equals(useAllModels)) {
+            return null;
+        }
+        if (Boolean.FALSE.equals(useAllModels)) {
+            return Collections.emptyList();
+        }
+        List<String> configuredModels = semantic.getModelList();
+        if (configuredModels == null || configuredModels.isEmpty()) {
+            return null;
+        }
+        return configuredModels;
     }
 
     private Map<String, Object> fetchCatalogMetadata(

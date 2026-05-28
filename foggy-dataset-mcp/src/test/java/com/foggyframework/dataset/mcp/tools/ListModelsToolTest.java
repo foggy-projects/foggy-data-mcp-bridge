@@ -7,6 +7,7 @@ import com.foggyframework.dataset.db.model.spi.DbQueryDimension;
 import com.foggyframework.dataset.db.model.spi.QueryModel;
 import com.foggyframework.dataset.db.model.spi.QueryModelLoader;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticMetadataResponse;
+import com.foggyframework.dataset.mcp.config.McpProperties;
 import com.foggyframework.dataset.mcp.service.ModelCatalogService;
 import com.foggyframework.dataset.mcp.spi.SemanticServiceResolver;
 import com.foggyframework.mcp.spi.ToolCategory;
@@ -184,6 +185,38 @@ class ListModelsToolTest {
             assertEquals(List.of("orderId"), items.get(0).get("fieldPreview"));
             assertEquals(1, items.get(0).get("fieldCount"));
             assertFalse(items.get(0).containsKey("recommendedNext"));
+        }
+
+        @Test
+        @DisplayName("默认 catalog 应遵守配置的 model-list")
+        void defaultCatalog_shouldRespectConfiguredModelList() {
+            McpProperties properties = new McpProperties();
+            properties.getSemantic().setModelList(List.of("FactOrderQueryModel"));
+
+            QueryModel mockQm = mockQueryModel("FO", "订单查询", "订单事实查询", null, null);
+            when(queryModelLoader.getJdbcQueryModel(eq("FactOrderQueryModel"), any()))
+                    .thenReturn(mockQm);
+
+            SemanticMetadataResponse metadata = new SemanticMetadataResponse();
+            metadata.setData(Map.of(
+                    "fields", Map.of(),
+                    "models", Map.of("FactOrderQueryModel", Map.of("name", "订单查询"))
+            ));
+            when(semanticServiceResolver.getMetadata(any(), eq("json"), any())).thenReturn(metadata);
+
+            ModelCatalogService service = new ModelCatalogService(
+                    semanticServiceResolver,
+                    queryModelLoader,
+                    new ObjectMapper(),
+                    properties
+            );
+            @SuppressWarnings("unchecked")
+            Map<String, Object> catalog = (Map<String, Object>) service
+                    .buildCatalogResponse(Map.of("format", "json"), null, null)
+                    .get("data");
+
+            assertEquals(List.of("FactOrderQueryModel"), catalog.get("models"));
+            verify(semanticServiceResolver, never()).getAllModelNames();
         }
 
         @Test

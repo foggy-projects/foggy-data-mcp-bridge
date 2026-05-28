@@ -14,6 +14,7 @@ Before returning recipes it applies deterministic registry governance:
 
 Optional filters:
 
+- `registryKey`: performs exact runtime lookup for a known recipe key while still enforcing `validated`, `activeForDiscovery`, namespace, tenant, permission, and owner governance.
 - `businessType`: narrows results to a business problem family.
 - `route`: narrows results to a known execution route such as `DSL_CTE`, `SQL`, or `MEMORY_GRID`.
 - `namespace` / `tenantId`: local or evaluation fallback only; production callers should pass these through MCP context or headers.

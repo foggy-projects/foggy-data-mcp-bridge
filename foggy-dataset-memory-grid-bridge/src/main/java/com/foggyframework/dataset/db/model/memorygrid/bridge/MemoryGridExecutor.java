@@ -270,6 +270,9 @@ public final class MemoryGridExecutor {
         summary.put("join_type", mapValue(plan.get("join")).get("type"));
         summary.put("join_keys", bridgePlan.joinKeys());
         summary.put("derived", bridgePlan.derived().stream().map(MemoryGridExecutablePlanner.DerivedFormula::name).toList());
+        if (plan.containsKey("alignment_contract")) {
+            summary.put("alignment_contract", mapValue(plan.get("alignment_contract")));
+        }
         summary.put("output_rows", outputRows);
         summary.put("output_limited", outputLimited);
         summary.put("resolver_audit", List.of(audit(left), audit(right)));

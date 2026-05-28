@@ -71,6 +71,14 @@ class MemoryGridAcceptanceSampleTest {
         assertEquals(200, response.getExecution().getMemoryGridValidation().get("output_limit"));
         assertEquals("BRIDGE_READY", response.getExecution().getMemoryGridValidation()
                 .get("memory_grid_bridge_status"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> alignmentContract = (Map<String, Object>) response.getExecution()
+                .getMemoryGridValidation()
+                .get("alignment_contract");
+        assertEquals("bounded_target_achievement_merge@v1", alignmentContract.get("template"));
+        assertEquals(true, alignmentContract.get("version_or_scenario_declared"));
+        assertEquals(Map.of("actual", "actual_by_team", "target", "target_by_team"),
+                alignmentContract.get("input_roles"));
     }
 
     @Test
@@ -89,6 +97,18 @@ class MemoryGridAcceptanceSampleTest {
         assertEquals(1.2, (Double) response.getItems().get(0).get("targetAchievementRate"), 0.0001);
         assertEquals("BRIDGE_READY", response.getExecution().getMemoryGridExecutionSummary()
                 .get("memory_grid_bridge_status"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> executionAlignmentContract = (Map<String, Object>) response.getExecution()
+                .getMemoryGridExecutionSummary()
+                .get("alignment_contract");
+        assertEquals("bounded_target_achievement_merge@v1", executionAlignmentContract.get("template"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> guard = (Map<String, Object>) response.getExecution()
+                .getMemoryGridValidation()
+                .get("memory_grid_guard");
+        assertEquals("bounded-result-handle-v1", guard.get("guard_profile"));
+        assertEquals("strict_owner_field_schema_replay", guard.get("handle_replay_mode"));
+        assertEquals(false, guard.get("request_rows_allowed"));
         assertNotNull(response.getExecution().getMemoryGridExecutionSummary().get("resolver_audit"));
         List<Map<String, Object>> audit = audit(response);
         assertEquals("hash_dsl_cte_result_actual_by_team_2026_05", audit.get(0).get("query_hash"));
@@ -136,6 +156,15 @@ class MemoryGridAcceptanceSampleTest {
         assertEquals(1, response.getItems().size());
         assertEquals("Team A", response.getItems().get(0).get("salesTeam.name"));
         assertEquals(1.2, (Double) response.getItems().get(0).get("targetAchievementRate"), 0.0001);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> guard = (Map<String, Object>) response.getExecution()
+                .getMemoryGridValidation()
+                .get("memory_grid_guard");
+        assertEquals("result_handle_store", guard.get("handle_backend"));
+        @SuppressWarnings("unchecked")
+        List<String> failClosedCodes = (List<String>) guard.get("fail_closed_codes");
+        assertTrue(failClosedCodes.contains(MemoryGridExecutor.RESULT_HANDLE_EXPIRED));
+        assertTrue(failClosedCodes.contains(MemoryGridExecutor.AUTH_REPLAY_MISMATCH));
         List<Map<String, Object>> audit = audit(response);
         assertEquals(actualHandle, audit.get(0).get("result_handle"));
         assertEquals(true, audit.get(0).get("storage_ref_redacted"));
@@ -461,6 +490,7 @@ class MemoryGridAcceptanceSampleTest {
                 "inputs", List.of(
                         Map.of(
                                 "name", "sales_by_customer",
+                                "role", "left",
                                 "source_route", "DSL_CTE",
                                 "result_handle", "dsl_cte_result_sales_by_customer_90d",
                                 "model", "SaleOrder",
@@ -472,6 +502,7 @@ class MemoryGridAcceptanceSampleTest {
                         ),
                         Map.of(
                                 "name", "ar_by_customer",
+                                "role", "right",
                                 "source_route", "DSL_CTE",
                                 "result_handle", "dsl_cte_result_ar_by_customer_90d",
                                 "model", "ArInvoice",
@@ -484,6 +515,13 @@ class MemoryGridAcceptanceSampleTest {
                 ),
                 "join", Map.of("keys", List.of("customer.name"), "type", "full_outer"),
                 "derived", List.of(Map.of("name", "salesArGap", "expr", "salesAmount - unpaidAmount")),
+                "alignment_contract", Map.of(
+                        "template", "bounded_cross_model_metric_merge@v1",
+                        "input_roles", Map.of("left", "sales_by_customer", "right", "ar_by_customer"),
+                        "match_keys", List.of("customer.name"),
+                        "grain", List.of("customer.name"),
+                        "formula", "salesAmount - unpaidAmount"
+                ),
                 "output_limit", 500
         );
     }
@@ -511,6 +549,7 @@ class MemoryGridAcceptanceSampleTest {
                 "inputs", List.of(
                         Map.of(
                                 "name", "actual_by_team",
+                                "role", "actual",
                                 "source_route", "DSL_CTE",
                                 "result_handle", actualHandle,
                                 "model", "SaleOrder",
@@ -522,6 +561,7 @@ class MemoryGridAcceptanceSampleTest {
                         ),
                         Map.of(
                                 "name", "target_by_team",
+                                "role", "target",
                                 "source_route", "DSL",
                                 "result_handle", targetHandle,
                                 "model", "SalesTarget",
@@ -537,6 +577,14 @@ class MemoryGridAcceptanceSampleTest {
                 ),
                 "join", Map.of("keys", List.of("salesTeam.name"), "type", "inner"),
                 "derived", List.of(Map.of("name", "targetAchievementRate", "expr", "actualSalesAmount / targetSalesAmount")),
+                "alignment_contract", Map.of(
+                        "template", "bounded_target_achievement_merge@v1",
+                        "input_roles", Map.of("actual", "actual_by_team", "target", "target_by_team"),
+                        "match_keys", List.of("salesTeam.name"),
+                        "grain", List.of("salesTeam.name"),
+                        "version", "approved",
+                        "formula", "actualSalesAmount / targetSalesAmount"
+                ),
                 "output_limit", outputLimit
         );
     }

@@ -9,8 +9,10 @@ import com.foggyframework.dataset.db.model.semantic.support.RelationArithmeticEx
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -85,6 +87,64 @@ final class RelationResultExpressionCompiler {
         return unsupported.isEmpty()
                 ? new DslCteDslRequestMapper.ResultStageDerivedMetrics(ratios, arithmetic)
                 : DslCteDslRequestMapper.ResultStageDerivedMetrics.emptyMetrics();
+    }
+
+    static List<DslCteDslRequestMapper.ResultStageDerivedMetrics> compileLayered(
+            Object rawDerived,
+            List<String> metricAliases,
+            List<String> availableFormulaAliases,
+            List<String> existingDerivedAliases,
+            List<String> unsupported) {
+        List<Map<String, Object>> derived = mapList(rawDerived);
+        if (derived.isEmpty() || derived.size() > 6) {
+            unsupported.add("relation result-stage metric bridge requires one to six derived fields");
+            return List.of(DslCteDslRequestMapper.ResultStageDerivedMetrics.emptyMetrics());
+        }
+
+        Set<String> sameStageAliases = new LinkedHashSet<>();
+        for (Map<String, Object> item : derived) {
+            String name = stringValue(item.get("name"));
+            if (name == null || !SAFE_ALIAS_PATTERN.matcher(name).matches()) {
+                unsupported.add("relation result-stage metric derived field must declare a governed alias");
+                return List.of(DslCteDslRequestMapper.ResultStageDerivedMetrics.emptyMetrics());
+            }
+            if (metricAliases.contains(name) || existingDerivedAliases.contains(name) || !sameStageAliases.add(name)) {
+                unsupported.add("relation result-stage metric derived aliases must be unique");
+                return List.of(DslCteDslRequestMapper.ResultStageDerivedMetrics.emptyMetrics());
+            }
+        }
+
+        List<Map<String, Object>> pending = new ArrayList<>(derived);
+        List<String> visibleAliases = new ArrayList<>(availableFormulaAliases);
+        List<String> emittedAliases = new ArrayList<>();
+        List<DslCteDslRequestMapper.ResultStageDerivedMetrics> layers = new ArrayList<>();
+
+        while (!pending.isEmpty()) {
+            List<Map<String, Object>> ready = new ArrayList<>();
+            for (Map<String, Object> item : pending) {
+                if (visibleAliases.containsAll(sameStageDependencies(item, sameStageAliases))) {
+                    ready.add(item);
+                }
+            }
+            if (ready.isEmpty()) {
+                unsupported.add("relation result-stage same-stage alias DAG must be acyclic and reference only signed aliases");
+                return List.of(DslCteDslRequestMapper.ResultStageDerivedMetrics.emptyMetrics());
+            }
+
+            List<String> disallowedAliases = new ArrayList<>(existingDerivedAliases);
+            disallowedAliases.addAll(emittedAliases);
+            DslCteDslRequestMapper.ResultStageDerivedMetrics layer = compile(
+                    ready, metricAliases, visibleAliases, disallowedAliases, unsupported);
+            if (layer.empty()) {
+                return List.of(DslCteDslRequestMapper.ResultStageDerivedMetrics.emptyMetrics());
+            }
+            layers.add(layer);
+            emittedAliases.addAll(layer.aliases());
+            visibleAliases.addAll(layer.aliases());
+            pending.removeAll(ready);
+        }
+
+        return layers;
     }
 
     private static boolean compileArithmetic(String name,
@@ -315,14 +375,33 @@ final class RelationResultExpressionCompiler {
         }
 
         StringBuilder sql = new StringBuilder("CASE");
+        List<Map<String, Object>> conditionDescriptors = new ArrayList<>();
         for (OrderedBucketCondition condition : conditions) {
             sql.append(" WHEN ").append(quoteAlias(field)).append(" ").append(condition.op())
                     .append(" ").append(condition.threshold())
                     .append(" THEN ").append(quoteStringLiteral(condition.label()));
+            Map<String, Object> descriptor = new LinkedHashMap<>();
+            descriptor.put("op", condition.op());
+            descriptor.put("threshold", condition.threshold());
+            descriptor.put("label", condition.label());
+            conditionDescriptors.add(descriptor);
         }
         sql.append(" ELSE ").append(quoteStringLiteral(elseLabel)).append(" END");
+        Map<String, Object> descriptor = new LinkedHashMap<>();
+        descriptor.put("source_alias", field);
+        descriptor.put("conditions", conditionDescriptors);
+        descriptor.put("else_label", elseLabel);
+        descriptor.put("source_policy", "single_visible_numeric_alias");
+        descriptor.put("label_policy", "short_single_line_literal");
+        descriptor.put("postSlice_policy", "label_alias_equality_only");
+        descriptor.put("postSlice_allowed_ops", List.of("=", "!=", "<>"));
+        descriptor.put("unsupported_bucket_shapes", List.of(
+                "multi_field_case",
+                "nested_case",
+                "non_numeric_threshold",
+                "unsafe_label_literal"));
         return new DslCteDslRequestMapper.MetricArithmeticDerived(name, sql.toString(),
-                "relation_metric_ordered_bucket");
+                "relation_metric_ordered_bucket", descriptor);
     }
 
     private static boolean aliasAlreadyUsed(String alias,
@@ -330,6 +409,58 @@ final class RelationResultExpressionCompiler {
                                             List<DslCteDslRequestMapper.MetricArithmeticDerived> arithmetic) {
         return ratios.stream().anyMatch(existing -> existing.ratioAlias().equals(alias))
                 || arithmetic.stream().anyMatch(existing -> existing.alias().equals(alias));
+    }
+
+    private static List<String> sameStageDependencies(Map<String, Object> item, Set<String> sameStageAliases) {
+        List<String> result = new ArrayList<>();
+        for (String dependency : expressionReferences(stringValue(item.get("expr")))) {
+            if (sameStageAliases.contains(dependency) && !result.contains(dependency)) {
+                result.add(dependency);
+            }
+        }
+        return result;
+    }
+
+    private static List<String> expressionReferences(String expr) {
+        RelationExpressionNode node = RelationArithmeticExpressionParser.parse(expr);
+        if (node != null) {
+            List<String> refs = new ArrayList<>();
+            collectExpressionReferences(node, refs);
+            return refs;
+        }
+
+        Matcher caseMatcher = METRIC_CASE_LABEL_PATTERN.matcher(expr == null ? "" : expr);
+        if (caseMatcher.matches()) {
+            return List.of(caseMatcher.group(1));
+        }
+
+        Matcher bucketMatcher = METRIC_ORDERED_BUCKET_PATTERN.matcher(expr == null ? "" : expr);
+        if (bucketMatcher.matches()) {
+            Matcher whenMatcher = METRIC_ORDERED_BUCKET_WHEN_PATTERN.matcher(bucketMatcher.group(1));
+            List<String> refs = new ArrayList<>();
+            while (whenMatcher.find()) {
+                String field = whenMatcher.group(1);
+                if (!refs.contains(field)) {
+                    refs.add(field);
+                }
+            }
+            return refs;
+        }
+
+        return List.of();
+    }
+
+    private static void collectExpressionReferences(RelationExpressionNode node, List<String> refs) {
+        if (node instanceof RelationAliasNode alias) {
+            refs.add(alias.alias());
+        } else if (node instanceof RelationDenominatorGuardNode denominator) {
+            refs.add(denominator.alias());
+        } else if (node instanceof RelationBinaryNode binary) {
+            collectExpressionReferences(binary.left(), refs);
+            collectExpressionReferences(binary.right(), refs);
+        } else if (node instanceof RelationAbsNode abs) {
+            collectExpressionReferences(abs.child(), refs);
+        }
     }
 
     @SuppressWarnings("unchecked")

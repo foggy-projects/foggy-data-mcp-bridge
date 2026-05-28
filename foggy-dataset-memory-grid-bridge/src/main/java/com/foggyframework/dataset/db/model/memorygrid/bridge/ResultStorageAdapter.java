@@ -11,4 +11,8 @@ public interface ResultStorageAdapter {
     void write(String storageRef, List<Map<String, Object>> rows);
 
     List<Map<String, Object>> read(String storageRef);
+
+    default boolean delete(String storageRef) {
+        return false;
+    }
 }

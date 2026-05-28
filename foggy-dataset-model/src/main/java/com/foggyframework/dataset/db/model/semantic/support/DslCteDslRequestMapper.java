@@ -7,6 +7,7 @@ import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -294,6 +295,16 @@ public final class DslCteDslRequestMapper {
             output.add(cumulative.rankAlias());
             output.add(cumulative.cumulativeAlias());
         }
+        List<String> availableOutput = new ArrayList<>();
+        availableOutput.addAll(groupBy);
+        availableOutput.add(metricAlias);
+        availableOutput.add(cumulative.rankAlias());
+        availableOutput.add(cumulative.cumulativeAlias());
+        for (String field : output) {
+            if (!availableOutput.contains(field)) {
+                unsupported.add("result-stage window output references unavailable field: " + field);
+            }
+        }
         if (!allSafeAliases(output, List.of(cumulative.rankAlias(), cumulative.cumulativeAlias()))) {
             unsupported.add("result-stage window output supports only governed field aliases");
         }
@@ -485,15 +496,17 @@ public final class DslCteDslRequestMapper {
         List<String> labelAliases = new ArrayList<>();
         List<String> formulaAliases = new ArrayList<>(metrics.aliases());
         for (Map<String, Object> deriveStage : deriveStages) {
-            ResultStageDerivedMetrics derivedMetrics = RelationResultExpressionCompiler.compile(
+            List<ResultStageDerivedMetrics> derivedLayers = RelationResultExpressionCompiler.compileLayered(
                     deriveStage.get("derived"), metrics.aliases(), formulaAliases, derivedAliases, unsupported);
-            if (derivedMetrics.empty()) {
+            if (derivedLayers.isEmpty() || derivedLayers.stream().anyMatch(ResultStageDerivedMetrics::empty)) {
                 return ResultStageMetricRatioBridgeResult.deferred(unsupported);
             }
-            derivedMetricStages.add(derivedMetrics);
-            derivedAliases.addAll(derivedMetrics.aliases());
-            labelAliases.addAll(derivedMetrics.labelAliases());
-            formulaAliases.addAll(derivedMetrics.aliases());
+            for (ResultStageDerivedMetrics derivedMetrics : derivedLayers) {
+                derivedMetricStages.add(derivedMetrics);
+                derivedAliases.addAll(derivedMetrics.aliases());
+                labelAliases.addAll(derivedMetrics.labelAliases());
+                formulaAliases.addAll(derivedMetrics.aliases());
+            }
         }
         List<ResultStageFilter> filters = resultStageAliasFilters(
                 postSliceStage == null ? null : postSliceStage.get("filters"),
@@ -4021,7 +4034,17 @@ public final class DslCteDslRequestMapper {
     public record MetricRatioDerived(String ratioAlias, String numeratorAlias, String denominatorAlias) {
     }
 
-    public record MetricArithmeticDerived(String alias, String sqlExpression, String kind) {
+    public record MetricArithmeticDerived(String alias, String sqlExpression, String kind,
+                                          Map<String, Object> descriptor) {
+        public MetricArithmeticDerived(String alias, String sqlExpression, String kind) {
+            this(alias, sqlExpression, kind, Map.of());
+        }
+
+        public MetricArithmeticDerived {
+            descriptor = descriptor == null
+                    ? Map.of()
+                    : Collections.unmodifiableMap(new LinkedHashMap<>(descriptor));
+        }
     }
 
     public record ResultStageDerivedMetrics(List<MetricRatioDerived> ratios,
@@ -4067,7 +4090,28 @@ public final class DslCteDslRequestMapper {
             result.put("cumulative_alias", cumulativeAlias);
             result.put("deterministic_tie_breakers", groupBy);
             result.put("postSlice_filters", filters.size());
+            result.put("required_capabilities", List.of(
+                    "rank_over_aggregate_metric_order",
+                    "running_total_ratio",
+                    "deterministic_result_ordering",
+                    "postSlice_on_window_alias"));
+            result.put("ranking_contract", rankingContract());
             return result;
+        }
+
+        private Map<String, Object> rankingContract() {
+            Map<String, Object> contract = new LinkedHashMap<>();
+            contract.put("rank_function", "rank");
+            contract.put("allowed_rank_functions", List.of("rank"));
+            contract.put("order_metric", metricAlias);
+            contract.put("order_direction", "DESC");
+            contract.put("deterministic_tie_breakers", groupBy);
+            contract.put("running_total_frame", "rows_unbounded_preceding_to_current_row");
+            contract.put("postSlice_allowed_aliases", List.of(cumulativeAlias));
+            contract.put("postSlice_allowed_ops", List.of("<", "<="));
+            contract.put("unsupported_rank_functions", List.of(
+                    "dense_rank", "row_number", "percent_rank", "cume_dist", "ntile"));
+            return contract;
         }
 
         SqlGenerationResult wrap(SqlGenerationResult base) {
@@ -4217,9 +4261,21 @@ public final class DslCteDslRequestMapper {
                         Map<String, Object> item = new LinkedHashMap<>();
                         item.put("alias", derived.alias());
                         item.put("kind", derived.kind());
+                        if (!derived.descriptor().isEmpty()) {
+                            item.put("descriptor", derived.descriptor());
+                        }
                         return item;
                     })
                     .toList());
+            if (hasOrderedBucket) {
+                result.put("bucket_contracts", orderedBucketContracts());
+                result.put("required_capabilities", List.of(
+                        "ordered_numeric_bucket_case",
+                        "single_visible_numeric_source_alias",
+                        "short_literal_bucket_labels",
+                        "equality_only_label_postSlice",
+                        "output_schema_availability_guard"));
+            }
             result.put("derived_stages", derivedStages.stream()
                     .map(stage -> {
                         Map<String, Object> item = new LinkedHashMap<>();
@@ -4240,6 +4296,19 @@ public final class DslCteDslRequestMapper {
                     .toList());
             result.put("limit", limit);
             return result;
+        }
+
+        private List<Map<String, Object>> orderedBucketContracts() {
+            return arithmetic.stream()
+                    .filter(item -> "relation_metric_ordered_bucket".equals(item.kind()))
+                    .map(item -> {
+                        Map<String, Object> contract = new LinkedHashMap<>();
+                        contract.put("alias", item.alias());
+                        contract.put("kind", item.kind());
+                        contract.putAll(item.descriptor());
+                        return contract;
+                    })
+                    .toList();
         }
 
         SqlGenerationResult wrap(SqlGenerationResult base) {

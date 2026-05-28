@@ -41,6 +41,11 @@ public final class DslCtePlanValidator {
             "(?i)^\\s*sum\\s*\\(\\s*case\\s+when\\s+[A-Za-z_][A-Za-z0-9_$.]*\\s+"
                     + "(?:is\\s+not\\s+null|(?:=|==|!=|<>)\\s*'(?:[^']|'')*')"
                     + "\\s+then\\s+[A-Za-z_][A-Za-z0-9_$.]*\\s+else\\s+0(?:\\.0+)?\\s+end\\s*\\)\\s*$");
+    private static final Pattern ORDERED_BUCKET_PATTERN = Pattern.compile(
+            "(?i)^\\s*case\\s+(.+)\\s+else\\s*'((?:[^']|'')*)'\\s+end\\s*$");
+    private static final Pattern ORDERED_BUCKET_WHEN_PATTERN = Pattern.compile(
+            "(?i)\\G\\s*when\\s+([A-Za-z_][A-Za-z0-9_$]*)\\s*(<=|>=|<>|!=|==|=|<|>)\\s*"
+                    + "(-?\\d+(?:\\.\\d+)?)\\s+then\\s*'((?:[^']|'')*)'\\s*");
     private static final Set<String> EXPRESSION_KEYWORDS = Set.of(
             "and", "or", "is", "not", "null", "true", "false",
             "case", "when", "then", "else", "end", "as", "over", "rows",
@@ -232,11 +237,16 @@ public final class DslCtePlanValidator {
         Set<String> fields = new LinkedHashSet<>(base.fields());
         Set<String> sourceFields = new LinkedHashSet<>(base.sourceFields());
         collectFilterFields(stage.get("filters"), sourceFields);
-        for (Map<String, Object> derived : mapList(stage.get("derived"))) {
+        List<Map<String, Object>> derivedItems = mapList(stage.get("derived"));
+        Set<String> sameStageAliases = derivedAliases(derivedItems);
+        if (validateVisibleInputs && base.complete()) {
+            validateSameStageDerivedAliasDag(derivedItems, base, sameStageAliases);
+        }
+        for (Map<String, Object> derived : derivedItems) {
             String name = stringValue(derived.get("name"));
             String expr = stringValue(derived.get("expr"));
             if (validateVisibleInputs && base.complete()) {
-                validateDerivedExpressionReferences(name, expr, base);
+                validateDerivedExpressionReferences(name, expr, base, sameStageAliases);
             }
             if (name != null && !name.isBlank()) {
                 fields.add(name);
@@ -247,15 +257,55 @@ public final class DslCtePlanValidator {
         return new StageOutput(fields, base.complete(), sourceModels, sourceFields);
     }
 
-    private static void validateDerivedExpressionReferences(String name, String expr, StageOutput base) {
+    private static void validateDerivedExpressionReferences(String name, String expr, StageOutput base,
+                                                            Set<String> sameStageAliases) {
         Set<String> dependencies = new LinkedHashSet<>();
         collectExpressionFields(expr, dependencies);
         for (String dependency : dependencies) {
-            if (!base.fields().contains(dependency)) {
+            if (!base.fields().contains(dependency) && !sameStageAliases.contains(dependency)) {
                 String alias = name == null || name.isBlank() ? "<unnamed>" : name;
                 throw RX.throwB(STAGE_INVALID + ": derive expression '" + alias
                         + "' references unavailable input field '" + dependency
-                        + "'; split dependent aliases into a later derive stage.");
+                        + "'; use prior output fields or same-stage aliases that can be auto-layered.");
+            }
+        }
+    }
+
+    private static Set<String> derivedAliases(List<Map<String, Object>> derivedItems) {
+        Set<String> aliases = new LinkedHashSet<>();
+        for (Map<String, Object> derived : derivedItems) {
+            String name = stringValue(derived.get("name"));
+            if (name != null && !name.isBlank()) {
+                aliases.add(name);
+            }
+        }
+        return aliases;
+    }
+
+    private static void validateSameStageDerivedAliasDag(List<Map<String, Object>> derivedItems,
+                                                         StageOutput base,
+                                                         Set<String> sameStageAliases) {
+        Set<String> visible = new LinkedHashSet<>(base.fields());
+        Set<String> pending = new LinkedHashSet<>(sameStageAliases);
+        while (!pending.isEmpty()) {
+            boolean progressed = false;
+            for (Map<String, Object> derived : derivedItems) {
+                String name = stringValue(derived.get("name"));
+                if (name == null || !pending.contains(name)) {
+                    continue;
+                }
+                Set<String> dependencies = new LinkedHashSet<>();
+                collectExpressionFields(stringValue(derived.get("expr")), dependencies);
+                dependencies.retainAll(sameStageAliases);
+                if (visible.containsAll(dependencies)) {
+                    visible.add(name);
+                    pending.remove(name);
+                    progressed = true;
+                }
+            }
+            if (!progressed) {
+                throw RX.throwB(STAGE_INVALID
+                        + ": same-stage derive alias references must form an acyclic auto-layerable DAG.");
             }
         }
     }
@@ -749,6 +799,7 @@ public final class DslCtePlanValidator {
         boolean hasBooleanPredicate = false;
         boolean hasMetricRatio = false;
         boolean hasPriorityThreshold = false;
+        List<Map<String, Object>> orderedBucketContracts = new ArrayList<>();
         for (Map<String, Object> item : derived) {
             String expr = stringValue(item.get("expr"));
             if (expr == null) {
@@ -763,6 +814,10 @@ public final class DslCtePlanValidator {
                     || normalized.contains(" or ");
             hasMetricRatio = hasMetricRatio || isMetricToMetricRatio(expr);
             hasPriorityThreshold = hasPriorityThreshold || normalized.contains("priority_threshold(");
+            Map<String, Object> orderedBucketContract = orderedBucketContractEvidence(item, expr);
+            if (orderedBucketContract != null) {
+                orderedBucketContracts.add(orderedBucketContract);
+            }
         }
         if (preAggregate && (hasDuration || hasBooleanPredicate || hasPriorityThreshold)) {
             evidence.put("kind", "sla_row_level_derived");
@@ -789,7 +844,75 @@ public final class DslCtePlanValidator {
                     "postSlice_on_derived_rate"));
             return evidence;
         }
+        if (!preAggregate && !orderedBucketContracts.isEmpty()) {
+            evidence.put("kind", "relation_metric_ordered_bucket");
+            evidence.put("bridge_scope", "result_stage_metric_ratio");
+            evidence.put("bridge_signed", true);
+            evidence.put("bucket_contracts", orderedBucketContracts);
+            evidence.put("required_capabilities", List.of(
+                    "ordered_numeric_bucket_case",
+                    "single_visible_numeric_source_alias",
+                    "short_literal_bucket_labels",
+                    "equality_only_label_postSlice",
+                    "output_schema_availability_guard"));
+            return evidence;
+        }
         return evidence;
+    }
+
+    private static Map<String, Object> orderedBucketContractEvidence(Map<String, Object> item, String expr) {
+        Matcher matcher = ORDERED_BUCKET_PATTERN.matcher(expr == null ? "" : expr);
+        if (!matcher.matches()) {
+            return null;
+        }
+        String body = matcher.group(1);
+        String elseLabel = unescapeSqlStringLiteral(matcher.group(2));
+        if (!safeCaseLabelLiteral(elseLabel)) {
+            return null;
+        }
+        Matcher whenMatcher = ORDERED_BUCKET_WHEN_PATTERN.matcher(body);
+        List<Map<String, Object>> conditions = new ArrayList<>();
+        String sourceAlias = null;
+        int end = 0;
+        while (whenMatcher.find()) {
+            if (whenMatcher.start() != end) {
+                return null;
+            }
+            String field = whenMatcher.group(1);
+            if (sourceAlias == null) {
+                sourceAlias = field;
+            } else if (!sourceAlias.equals(field)) {
+                return null;
+            }
+            String label = unescapeSqlStringLiteral(whenMatcher.group(4));
+            if (!safeCaseLabelLiteral(label)) {
+                return null;
+            }
+            Map<String, Object> condition = new LinkedHashMap<>();
+            condition.put("op", sqlOperator(whenMatcher.group(2)));
+            condition.put("threshold", whenMatcher.group(3));
+            condition.put("label", label);
+            conditions.add(condition);
+            end = whenMatcher.end();
+        }
+        if (end != body.length() || conditions.size() < 2 || sourceAlias == null) {
+            return null;
+        }
+        Map<String, Object> contract = new LinkedHashMap<>();
+        contract.put("alias", stringValue(item.get("name")));
+        contract.put("source_alias", sourceAlias);
+        contract.put("conditions", conditions);
+        contract.put("else_label", elseLabel);
+        contract.put("source_policy", "single_visible_numeric_alias");
+        contract.put("label_policy", "short_single_line_literal");
+        contract.put("postSlice_policy", "label_alias_equality_only");
+        contract.put("postSlice_allowed_ops", List.of("=", "!=", "<>"));
+        contract.put("unsupported_bucket_shapes", List.of(
+                "multi_field_case",
+                "nested_case",
+                "non_numeric_threshold",
+                "unsafe_label_literal"));
+        return contract;
     }
 
     private static Map<String, Object> aggregateContractEvidence(Map<String, Object> stage) {
@@ -853,14 +976,18 @@ public final class DslCtePlanValidator {
             return evidence;
         }
         if (containsRankOrCumulativeContribution(derived)) {
+            boolean signed = containsExactRank(derived)
+                    && containsCumulativeContributionRatio(derived)
+                    && unsupportedRankingFunction(derived) == null;
             evidence.put("kind", "cumulative_contribution");
-            evidence.put("bridge_scope", "result_stage_window");
-            evidence.put("bridge_signed", true);
+            evidence.put("bridge_scope", signed ? "result_stage_window" : "stage_contract_only");
+            evidence.put("bridge_signed", signed);
             evidence.put("required_capabilities", List.of(
                     "rank_over_aggregate_metric_order",
                     "running_total_ratio",
                     "deterministic_result_ordering",
                     "postSlice_on_window_alias"));
+            evidence.put("ranking_contract", rankingContractEvidence(stage, derived));
             return evidence;
         }
         if (containsRollingSum(derived)) {
@@ -900,6 +1027,62 @@ public final class DslCtePlanValidator {
             }
         }
         return false;
+    }
+
+    private static boolean containsExactRank(List<Map<String, Object>> derived) {
+        for (Map<String, Object> item : derived) {
+            String expr = stringValue(item.get("expr"));
+            String normalized = expr == null ? "" : expr.toLowerCase(Locale.ROOT).replaceAll("\\s+", "");
+            if ("rank()".equals(normalized)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean containsCumulativeContributionRatio(List<Map<String, Object>> derived) {
+        for (Map<String, Object> item : derived) {
+            String expr = stringValue(item.get("expr"));
+            String normalized = expr == null ? "" : expr.toLowerCase(Locale.ROOT).replaceAll("\\s+", "");
+            if (normalized.contains("sum(") && normalized.contains("overorder")
+                    && normalized.contains("overall")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String unsupportedRankingFunction(List<Map<String, Object>> derived) {
+        for (Map<String, Object> item : derived) {
+            String expr = stringValue(item.get("expr"));
+            String normalized = expr == null ? "" : expr.toLowerCase(Locale.ROOT).replaceAll("\\s+", "");
+            for (String function : List.of("dense_rank", "row_number", "percent_rank", "cume_dist", "ntile")) {
+                if (normalized.startsWith(function + "(")) {
+                    return function;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static Map<String, Object> rankingContractEvidence(Map<String, Object> stage,
+                                                               List<Map<String, Object>> derived) {
+        Map<String, Object> contract = new LinkedHashMap<>();
+        Map<String, Object> window = mapValue(stage.get("window"));
+        contract.put("rank_function", "rank");
+        contract.put("allowed_rank_functions", List.of("rank"));
+        contract.put("partitionBy", window == null ? List.of() : stringList(window.get("partitionBy")));
+        contract.put("orderBy", window == null ? List.of() : mapList(window.get("orderBy")));
+        contract.put("explicit_frame_allowed", false);
+        contract.put("running_total_frame", "rows_unbounded_preceding_to_current_row");
+        contract.put("postSlice_policy", "cumulative_alias_only_lt_lte");
+        contract.put("unsupported_rank_functions", List.of(
+                "dense_rank", "row_number", "percent_rank", "cume_dist", "ntile"));
+        String rejected = unsupportedRankingFunction(derived);
+        if (rejected != null) {
+            contract.put("rejected_rank_function", rejected);
+        }
+        return contract;
     }
 
     private static boolean containsRollingSum(List<Map<String, Object>> derived) {
@@ -1084,6 +1267,29 @@ public final class DslCtePlanValidator {
 
     private static String stringValue(Object value) {
         return value == null ? null : String.valueOf(value).trim();
+    }
+
+    private static String sqlOperator(String op) {
+        if (op == null) {
+            return null;
+        }
+        return switch (op.trim()) {
+            case "==" -> "=";
+            case "=", "!=", "<>", "<", "<=", ">", ">=" -> op.trim();
+            default -> null;
+        };
+    }
+
+    private static String unescapeSqlStringLiteral(String value) {
+        return value == null ? null : value.replace("''", "'");
+    }
+
+    private static boolean safeCaseLabelLiteral(String value) {
+        return value != null
+                && value.length() <= 64
+                && !value.contains("\n")
+                && !value.contains("\r")
+                && !value.contains("\u0000");
     }
 
     private static Integer intValue(Object value) {

@@ -2245,6 +2245,13 @@ class DslCteAcceptanceSampleTest {
         assertEquals("cumulative_contribution", resultStageWindow.get("kind"));
         assertEquals("result_stage_window", resultStageWindow.get("bridge_scope"));
         assertEquals(true, resultStageWindow.get("bridge_signed"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> rankingContract = (Map<String, Object>) resultStageWindow.get("ranking_contract");
+        assertEquals("rank", rankingContract.get("rank_function"));
+        assertEquals("salesAmount", rankingContract.get("order_metric"));
+        assertEquals("DESC", rankingContract.get("order_direction"));
+        assertEquals(List.of("customer.name"), rankingContract.get("deterministic_tie_breakers"));
+        assertEquals(List.of("cumulativeShare"), rankingContract.get("postSlice_allowed_aliases"));
     }
 
     @Test
@@ -2263,6 +2270,33 @@ class DslCteAcceptanceSampleTest {
         assertTrue(capabilities.contains("rank_over_aggregate_metric_order"));
         assertTrue(capabilities.contains("running_total_ratio"));
         assertTrue(capabilities.contains("postSlice_on_window_alias"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> rankingContract = (Map<String, Object>) windowContract.get("ranking_contract");
+        assertEquals(List.of("rank"), rankingContract.get("allowed_rank_functions"));
+        assertEquals("cumulative_alias_only_lt_lte", rankingContract.get("postSlice_policy"));
+        assertEquals(false, rankingContract.get("explicit_frame_allowed"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE validation refuses to sign unsupported result-stage ranking functions")
+    void validationDoesNotSignUnsupportedResultStageRankingFunction() {
+        Map<String, Object> plan = biz006();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> derived = (List<Map<String, Object>>) stages.get(1).get("derived");
+        derived.get(0).put("expr", "dense_rank()");
+
+        SemanticQueryResponse response = service.validateQuery(
+                "SaleOrder", dslCtePlan(plan), SemanticRequestContext.empty());
+
+        Map<String, Object> windowContract = windowContract(response, "customer_rank_contribution");
+        assertEquals("cumulative_contribution", windowContract.get("kind"));
+        assertEquals("stage_contract_only", windowContract.get("bridge_scope"));
+        assertEquals(false, windowContract.get("bridge_signed"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> rankingContract = (Map<String, Object>) windowContract.get("ranking_contract");
+        assertEquals("dense_rank", rankingContract.get("rejected_rank_function"));
     }
 
     @Test
@@ -2314,14 +2348,21 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
-    @DisplayName("DSL_CTE validation rejects same-stage relation derive alias references")
-    void validationRejectsSameStageRelationDeriveAliasReference() {
-        RuntimeException ex = assertThrows(RuntimeException.class, () ->
-                service.validateQuery("SaleOrder", dslCtePlan(sameStageRelationDeriveAliasPlan()),
-                        SemanticRequestContext.empty()));
+    @DisplayName("DSL_CTE validation auto-layers same-stage relation derive alias references")
+    void validationAutoLayersSameStageRelationDeriveAliasReference() {
+        SemanticQueryResponse response = service.validateQuery(
+                "SaleOrder", dslCtePlan(sameStageRelationDeriveAliasPlan()), SemanticRequestContext.empty());
 
-        assertTrue(ex.getMessage().contains(
-                "derive expression 'riskLevel' references unavailable input field 'collectionRate'"));
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_READY", validation.get("dsl_bridge_status"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> ratioBridge = (Map<String, Object>) validation.get("dsl_result_stage_metric_ratio");
+        assertEquals("relation_metric_case_label", ratioBridge.get("kind"));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> derivedStages = (List<Map<String, Object>>) ratioBridge.get("derived_stages");
+        assertEquals(2, derivedStages.size());
+        assertEquals(List.of("collectionRate"), derivedStages.get(0).get("ratios"));
+        assertEquals(List.of("riskLevel"), derivedStages.get(1).get("arithmetic"));
     }
 
     @Test
@@ -2378,6 +2419,22 @@ class DslCteAcceptanceSampleTest {
         List<Map<String, Object>> arithmetic = (List<Map<String, Object>>) ratioBridge.get("arithmetic");
         assertEquals("riskLevel", arithmetic.get(0).get("alias"));
         assertEquals("relation_metric_ordered_bucket", arithmetic.get(0).get("kind"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> descriptor = (Map<String, Object>) arithmetic.get(0).get("descriptor");
+        assertEquals("collectionRate", descriptor.get("source_alias"));
+        assertEquals("label_alias_equality_only", descriptor.get("postSlice_policy"));
+        assertEquals(List.of("=", "!=", "<>"), descriptor.get("postSlice_allowed_ops"));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> bucketContracts = (List<Map<String, Object>>) ratioBridge.get("bucket_contracts");
+        assertEquals("riskLevel", bucketContracts.get(0).get("alias"));
+        assertEquals("single_visible_numeric_alias", bucketContracts.get(0).get("source_policy"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> deriveContract = stageContract(response, "risk_band", "derive_contract");
+        assertEquals("relation_metric_ordered_bucket", deriveContract.get("kind"));
+        assertEquals(true, deriveContract.get("bridge_signed"));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> evidenceBuckets = (List<Map<String, Object>>) deriveContract.get("bucket_contracts");
+        assertEquals("collectionRate", evidenceBuckets.get(0).get("source_alias"));
     }
 
     @Test

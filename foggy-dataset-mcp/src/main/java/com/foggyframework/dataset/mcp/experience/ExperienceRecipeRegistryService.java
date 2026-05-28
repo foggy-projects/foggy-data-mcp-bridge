@@ -548,6 +548,9 @@ public class ExperienceRecipeRegistryService {
         if (request == null) {
             return null;
         }
+        if (hasText(request.getRegistryKey()) && !request.getRegistryKey().equals(entry.getRegistryKey())) {
+            return "registry_key_mismatch";
+        }
         if (hasText(request.getBusinessType()) && !request.getBusinessType().equals(entry.getBusinessType())) {
             return "query_filter";
         }

@@ -4,6 +4,7 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 
 public class ExperienceRecipeSearchRequest {
+    private String registryKey;
     private String businessType;
     private String route;
     private String namespace;
@@ -11,6 +12,14 @@ public class ExperienceRecipeSearchRequest {
     private Set<String> permissionTags = new LinkedHashSet<>();
     private Set<String> ownerRoles = new LinkedHashSet<>();
     private Integer limit;
+
+    public String getRegistryKey() {
+        return registryKey;
+    }
+
+    public void setRegistryKey(String registryKey) {
+        this.registryKey = registryKey;
+    }
 
     public String getBusinessType() {
         return businessType;

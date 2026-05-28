@@ -15,7 +15,7 @@ public final class InMemoryResultStorageAdapter implements ResultStorageAdapter 
     private final Map<String, List<Map<String, Object>>> rowsByStorageRef = new LinkedHashMap<>();
 
     @Override
-    public void write(String storageRef, List<Map<String, Object>> rows) {
+    public synchronized void write(String storageRef, List<Map<String, Object>> rows) {
         if (storageRef == null || storageRef.isBlank()) {
             throw RX.throwB(MemoryGridExecutor.STORAGE_UNAVAILABLE + ": storage_ref is required.");
         }
@@ -23,7 +23,7 @@ public final class InMemoryResultStorageAdapter implements ResultStorageAdapter 
     }
 
     @Override
-    public List<Map<String, Object>> read(String storageRef) {
+    public synchronized List<Map<String, Object>> read(String storageRef) {
         if (storageRef == null || storageRef.isBlank()) {
             throw RX.throwB(MemoryGridExecutor.STORAGE_UNAVAILABLE + ": storage_ref is missing.");
         }
@@ -32,6 +32,15 @@ public final class InMemoryResultStorageAdapter implements ResultStorageAdapter 
             throw RX.throwB(MemoryGridExecutor.STORAGE_UNAVAILABLE + ": " + storageRef);
         }
         return copyRows(rows);
+    }
+
+    @Override
+    public synchronized boolean delete(String storageRef) {
+        if (storageRef == null || storageRef.isBlank()) {
+            throw RX.throwB(MemoryGridExecutor.STORAGE_UNAVAILABLE + ": storage_ref is missing.");
+        }
+        rowsByStorageRef.remove(storageRef);
+        return true;
     }
 
     private static List<Map<String, Object>> copyRows(List<Map<String, Object>> rows) {

@@ -3,6 +3,10 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
+    "registryKey": {
+      "type": "string",
+      "description": "Optional exact runtime lookup key, for example crm_source_funnel_and_stage_dropoff_dashboard@v1. The lookup still only returns validated active recipes allowed by governance filters."
+    },
     "businessType": {
       "type": "string",
       "description": "Optional business problem type filter, for example crm_single_model_funnel or service_sla."

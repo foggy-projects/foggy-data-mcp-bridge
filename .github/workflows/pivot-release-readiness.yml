@@ -7,6 +7,8 @@ on:
       - 'foggy-dataset-mcp/**'
       - 'foggy-dataset-demo/**'
       - 'scripts/verify-pivot-v9-release.*'
+      - 'scripts/verify-v38-engine-evidence.*'
+      - 'scripts/collect-v38-engine-evidence-artifact.*'
       - '.github/workflows/pivot-release-readiness.yml'
   workflow_dispatch:
   schedule:
@@ -69,3 +71,51 @@ jobs:
         if: always()
         run: |
           docker compose -f foggy-dataset-demo/docker/docker-compose.yml down -v
+
+  v38-engine-evidence-gate:
+    name: v3.8 engine environment-gated evidence
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: maven
+
+      - name: Docker preflight
+        run: |
+          docker version
+          docker compose version
+          docker info
+          df -h
+
+      - name: PostgreSQL and SQL Server v3.8 evidence
+        run: |
+          mkdir -p build/v38-engine-evidence
+          {
+            echo "# v3.8 Engine Environment-gated Evidence"
+            echo
+            echo "- run_id: $GITHUB_RUN_ID"
+            echo "- run_attempt: $GITHUB_RUN_ATTEMPT"
+            echo "- workflow: $GITHUB_WORKFLOW"
+            echo "- ref: $GITHUB_REF"
+            echo "- sha: $GITHUB_SHA"
+            echo "- generated_at: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo
+          } > build/v38-engine-evidence/summary.md
+          set -o pipefail
+          bash scripts/verify-v38-engine-evidence.sh --down-after 2>&1 | tee build/v38-engine-evidence/verify-v38-engine-evidence.log
+
+      - name: Upload v3.8 engine evidence artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v38-engine-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: build/v38-engine-evidence/
+          if-no-files-found: warn

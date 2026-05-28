@@ -24,7 +24,8 @@ public class BridgeMemoryGridEngine implements MemoryGridEngine {
             true,
             false,
             List.of("two governed result_handle inputs", "single-key inner join", "binary numeric derived formula"),
-            List.of("free grid_sql", "physical tables", "DML/DDL", "window functions", "unbounded rows"));
+            List.of("free grid_sql", "physical tables", "DML/DDL", "window functions", "unbounded rows"),
+            MemoryGridGuardrailValidator.productionGuardDescriptor());
 
     private MemoryGridResultResolver resultResolver;
 

@@ -36,13 +36,13 @@ SELECT
     END AS month_name,
     DATEPART(WEEK, DateValue) AS week_of_year,
     DAY(DateValue) AS day_of_month,
-    DATEPART(WEEKDAY, DateValue) AS day_of_week,
-    CASE DATEPART(WEEKDAY, DateValue)
-        WHEN 1 THEN N'星期日' WHEN 2 THEN N'星期一' WHEN 3 THEN N'星期二'
-        WHEN 4 THEN N'星期三' WHEN 5 THEN N'星期四' WHEN 6 THEN N'星期五'
-        WHEN 7 THEN N'星期六'
+    ((DATEPART(WEEKDAY, DateValue) + @@DATEFIRST - 2) % 7) + 1 AS day_of_week,
+    CASE ((DATEPART(WEEKDAY, DateValue) + @@DATEFIRST - 2) % 7) + 1
+        WHEN 1 THEN N'星期一' WHEN 2 THEN N'星期二' WHEN 3 THEN N'星期三'
+        WHEN 4 THEN N'星期四' WHEN 5 THEN N'星期五' WHEN 6 THEN N'星期六'
+        WHEN 7 THEN N'星期日'
     END AS day_name,
-    CASE WHEN DATEPART(WEEKDAY, DateValue) IN (1, 7) THEN 1 ELSE 0 END AS is_weekend,
+    CASE WHEN ((DATEPART(WEEKDAY, DateValue) + @@DATEFIRST - 2) % 7) + 1 IN (6, 7) THEN 1 ELSE 0 END AS is_weekend,
     0 AS is_holiday,
     YEAR(DateValue) AS fiscal_year,
     DATEPART(QUARTER, DateValue) AS fiscal_quarter

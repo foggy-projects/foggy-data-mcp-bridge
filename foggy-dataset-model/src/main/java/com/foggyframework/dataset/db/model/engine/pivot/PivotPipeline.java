@@ -221,7 +221,10 @@ public class PivotPipeline {
         }
 
         if (resultSet.isEmpty()) {
-            return buildEmptyResponse(pivot, startTime);
+            Map<String, Object> capabilityContract = buildPivotCapabilityContract(
+                    pivot, pivot.getOutputFormat(), hierarchyCtx, null, rowFields, colFields, outputMetricsForContract(pivot),
+                    sqlPushdownUsed, axisDomainSelectionUsed, cascadeRequest);
+            return buildEmptyResponse(pivot, startTime, capabilityContract);
         }
 
         // ===== Phase 1.5: 父子维度骨架查询 =====
@@ -361,7 +364,11 @@ public class PivotPipeline {
         }
 
         // ===== 构建响应 =====
-        return buildPivotResponse(pivotResult, startTime, baselineRatioEvidence, parentShareEvidence);
+        Map<String, Object> capabilityContract = buildPivotCapabilityContract(
+                pivot, pivotResult.getFormat(), hierarchyCtx, hierarchySkeleton, rowFields, colFields, outputMetrics,
+                sqlPushdownUsed, axisDomainSelectionUsed, cascadeRequest);
+        return buildPivotResponse(pivotResult, startTime, baselineRatioEvidence, parentShareEvidence,
+                capabilityContract);
     }
 
     /**
@@ -1453,6 +1460,156 @@ public class PivotPipeline {
                 .collect(Collectors.toList());
     }
 
+    private List<String> outputMetricsForContract(PivotRequest pivot) {
+        return pivot == null ? Collections.emptyList() : pivot.getAllOutputMetricNames();
+    }
+
+    private Map<String, Object> buildPivotCapabilityContract(
+            PivotRequest pivot,
+            String outputFormat,
+            HierarchyContext hierarchyCtx,
+            HierarchyTreeBuilder.Skeleton hierarchySkeleton,
+            List<String> rowFields,
+            List<String> colFields,
+            List<String> outputMetrics,
+            boolean sqlPushdownUsed,
+            boolean axisDomainSelectionUsed,
+            boolean cascadeRequest) {
+
+        Map<String, Object> contract = new LinkedHashMap<>();
+        contract.put("name", "pivot_engine_capability_contract");
+        contract.put("version", "v1");
+        contract.put("signed", true);
+        contract.put("output_format", outputFormat);
+        contract.put("row_fields", rowFields);
+        contract.put("column_fields", colFields);
+        contract.put("metrics", outputMetrics);
+
+        Map<String, Object> executionPath = new LinkedHashMap<>();
+        executionPath.put("sql_pushdown_used", sqlPushdownUsed);
+        executionPath.put("axis_domain_selection_used", axisDomainSelectionUsed);
+        executionPath.put("cascade_generate_used", cascadeRequest);
+        executionPath.put("memory_shaping_used", true);
+        contract.put("execution_path", executionPath);
+
+        contract.put("axes", buildAxisContracts(pivot));
+        contract.put("tree_axis_contract", buildTreeAxisContract(hierarchyCtx, hierarchySkeleton, outputFormat));
+        contract.put("drilldown_contract", buildDrilldownContract(pivot, axisDomainSelectionUsed, cascadeRequest));
+        contract.put("required_capabilities", buildPivotRequiredCapabilities(
+                hierarchyCtx, axisDomainSelectionUsed, cascadeRequest, hasPerParentWindowRequest(pivot)));
+        return contract;
+    }
+
+    private List<Map<String, Object>> buildAxisContracts(PivotRequest pivot) {
+        List<Map<String, Object>> axes = new ArrayList<>();
+        addAxisContracts(axes, "rows", pivot == null ? null : pivot.getRows());
+        addAxisContracts(axes, "columns", pivot == null ? null : pivot.getColumns());
+        return axes;
+    }
+
+    private void addAxisContracts(List<Map<String, Object>> axes, String axisName, List<AxisField> fields) {
+        if (fields == null) {
+            return;
+        }
+        for (int i = 0; i < fields.size(); i++) {
+            AxisField field = fields.get(i);
+            Map<String, Object> axis = new LinkedHashMap<>();
+            axis.put("axis", axisName);
+            axis.put("level", i);
+            axis.put("field", field.getField());
+            axis.put("hierarchy_mode", field.getHierarchyMode());
+            axis.put("limit", field.getLimit());
+            axis.put("start", field.getStart());
+            axis.put("offset", field.getOffset());
+            axis.put("effective_offset", field.getEffectiveOffset());
+            axis.put("has_domain_slice", field.getDomainSlice() != null && !field.getDomainSlice().isEmpty());
+            axis.put("has_having", field.getHaving() != null && !field.getHaving().isEmpty());
+            axis.put("order_by", field.getOrderBy());
+            axes.add(axis);
+        }
+    }
+
+    private Map<String, Object> buildTreeAxisContract(
+            HierarchyContext hierarchyCtx,
+            HierarchyTreeBuilder.Skeleton hierarchySkeleton,
+            String outputFormat) {
+        Map<String, Object> tree = new LinkedHashMap<>();
+        boolean active = hierarchyCtx != null && hierarchyCtx.isTree();
+        tree.put("signed", active);
+        tree.put("active", active);
+        tree.put("supported_scope", "rows_axis_parent_child_tree_only");
+        tree.put("output_format_required", "tree");
+        tree.put("output_format", outputFormat);
+        tree.put("hierarchy_field", active ? hierarchyCtx.getTreeAxisField().getField() : null);
+        tree.put("dimension", active ? hierarchyCtx.getDimName() : null);
+        tree.put("id_field", active ? hierarchyCtx.getIdField() : null);
+        tree.put("skeleton_nodes", hierarchySkeleton == null ? null : hierarchySkeleton.size());
+        tree.put("unsupported_combinations", List.of(
+                "columns_axis_tree",
+                "output_format_not_tree",
+                "crossjoin",
+                "domainSlice_start_offset",
+                "baselineRatio",
+                "cascade_generate"));
+        return tree;
+    }
+
+    private Map<String, Object> buildDrilldownContract(
+            PivotRequest pivot,
+            boolean axisDomainSelectionUsed,
+            boolean cascadeRequest) {
+        boolean perParentWindow = hasPerParentWindowRequest(pivot);
+        Map<String, Object> drilldown = new LinkedHashMap<>();
+        drilldown.put("signed", axisDomainSelectionUsed || cascadeRequest || perParentWindow);
+        drilldown.put("axis_domain_selection_used", axisDomainSelectionUsed);
+        drilldown.put("per_parent_window_used", perParentWindow);
+        drilldown.put("cascade_generate_used", cascadeRequest);
+        drilldown.put("supported_shapes", List.of(
+                "single_level_axis_domainSlice",
+                "single_level_axis_start_offset_limit",
+                "multi_level_rows_child_start_offset_limit",
+                "rows_two_level_cascade_topn_c2_v1"));
+        drilldown.put("unsigned_shapes", List.of(
+                "domain_tree_cursor",
+                "interactive_expand_collapse_state",
+                "multi_level_domainSlice",
+                "columns_multi_level_start_offset",
+                "tree_axis_domainSlice_start_offset"));
+        return drilldown;
+    }
+
+    private List<String> buildPivotRequiredCapabilities(
+            HierarchyContext hierarchyCtx,
+            boolean axisDomainSelectionUsed,
+            boolean cascadeRequest,
+            boolean perParentWindow) {
+        List<String> capabilities = new ArrayList<>();
+        capabilities.add("pivot_phase_pipeline");
+        capabilities.add("memory_result_shaping");
+        if (hierarchyCtx != null && hierarchyCtx.isTree()) {
+            capabilities.add("rows_axis_parent_child_tree");
+            capabilities.add("hierarchy_skeleton_aux_query");
+        }
+        if (axisDomainSelectionUsed) {
+            capabilities.add("axis_domain_selection_two_phase_query");
+        }
+        if (cascadeRequest) {
+            capabilities.add("rows_two_level_cascade_generate_c2_v1");
+        }
+        if (perParentWindow) {
+            capabilities.add("rows_child_per_parent_window");
+        }
+        return capabilities;
+    }
+
+    private boolean hasPerParentWindowRequest(PivotRequest pivot) {
+        return pivot != null
+                && pivot.getRowLevelCount() >= 2
+                && hasAxisStartOffsetRequest(pivot.getRows())
+                && !hasAxisDomainSliceRequest(pivot.getRows())
+                && !hasAxisStartOffsetRequest(pivot.getColumns());
+    }
+
     private record DomainConstrainedCellRequest(SemanticQueryRequest request, SemanticRequestContext context) {}
 
     private record AxisDomainSelectionResult(List<Map<String, Object>> rows,
@@ -1469,7 +1626,8 @@ public class PivotPipeline {
     /**
      * 构建空结果响应
      */
-    private SemanticQueryResponse buildEmptyResponse(PivotRequest pivot, long startTime) {
+    private SemanticQueryResponse buildEmptyResponse(PivotRequest pivot, long startTime,
+                                                     Map<String, Object> capabilityContract) {
         SemanticQueryResponse response = new SemanticQueryResponse();
         response.setItems(Collections.emptyList());
         response.setTotal(0L);
@@ -1479,6 +1637,7 @@ public class PivotPipeline {
         Map<String, Object> extra = new LinkedHashMap<>();
         extra.put("pipeline", "pivot");
         extra.put("format", pivot.getOutputFormat());
+        extra.put("pivotEngineContract", capabilityContract);
         debugInfo.setExtra(extra);
         response.setDebug(debugInfo);
 
@@ -1490,7 +1649,8 @@ public class PivotPipeline {
      */
     private SemanticQueryResponse buildPivotResponse(PivotResult pivotResult, long startTime,
             List<Map<String, Object>> baselineRatioEvidence,
-            List<Map<String, Object>> parentShareEvidence) {
+            List<Map<String, Object>> parentShareEvidence,
+            Map<String, Object> capabilityContract) {
         SemanticQueryResponse response = new SemanticQueryResponse();
 
         // 将 pivot 结果放入 items（对于 flat 模式）或专用字段
@@ -1529,6 +1689,7 @@ public class PivotPipeline {
         Map<String, Object> extra = new LinkedHashMap<>();
         extra.put("pipeline", "pivot");
         extra.put("format", pivotResult.getFormat());
+        extra.put("pivotEngineContract", capabilityContract);
         if (baselineRatioEvidence != null && !baselineRatioEvidence.isEmpty()) {
             extra.put("baselineRatioEvidence", baselineRatioEvidence);
         }

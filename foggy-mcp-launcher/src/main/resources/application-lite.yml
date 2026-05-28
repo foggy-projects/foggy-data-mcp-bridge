@@ -18,8 +18,16 @@ spring:
       - org.springframework.boot.autoconfigure.data.mongo.MongoRepositoriesAutoConfiguration
 
   datasource:
-    url: "jdbc:sqlite::memory:"
+    url: "jdbc:sqlite:file:foggy_mcp_lite?mode=memory&cache=shared"
     driver-class-name: org.sqlite.JDBC
+    hikari:
+      maximum-pool-size: 1
+
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:/db/lite-demo-schema.sql
+      data-locations: classpath:/db/lite-demo-data.sql
 
 foggy:
   # 关闭 Data Viewer（强依赖 MongoDB）
@@ -27,6 +35,10 @@ foggy:
     enabled: false
 
   mcp:
+    semantic:
+      model-list:
+        - FactOrderQueryModel
+
     # 关闭审计日志（需要 MongoDB）
     audit:
       enabled: false

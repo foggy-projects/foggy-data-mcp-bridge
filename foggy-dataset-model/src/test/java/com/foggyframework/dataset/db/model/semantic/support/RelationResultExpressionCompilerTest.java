@@ -14,6 +14,50 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class RelationResultExpressionCompilerTest {
 
     @Test
+    @DisplayName("auto-layers same-stage aliases without expanding expression subset")
+    void autoLayersSameStageAliases() {
+        List<String> unsupported = new ArrayList<>();
+
+        List<DslCteDslRequestMapper.ResultStageDerivedMetrics> layers =
+                RelationResultExpressionCompiler.compileLayered(
+                        List.of(
+                                derived("profitRate", "profitAmount / salesAmount"),
+                                derived("profitBand", "CASE WHEN profitRate < 0.2 THEN 'low' ELSE 'normal' END")
+                        ),
+                        List.of("salesAmount", "profitAmount"),
+                        List.of("salesAmount", "profitAmount"),
+                        List.of(),
+                        unsupported);
+
+        assertTrue(unsupported.isEmpty());
+        assertEquals(2, layers.size());
+        assertEquals(List.of("profitRate"), layers.get(0).aliases());
+        assertEquals(List.of("profitBand"), layers.get(1).labelAliases());
+    }
+
+    @Test
+    @DisplayName("rejects cyclic same-stage alias DAG")
+    void rejectsCyclicSameStageAliasDag() {
+        List<String> unsupported = new ArrayList<>();
+
+        List<DslCteDslRequestMapper.ResultStageDerivedMetrics> layers =
+                RelationResultExpressionCompiler.compileLayered(
+                        List.of(
+                                derived("profitBand", "CASE WHEN riskBand < 1 THEN 'low' ELSE 'normal' END"),
+                                derived("riskBand", "CASE WHEN profitBand < 1 THEN 'low' ELSE 'normal' END")
+                        ),
+                        List.of("salesAmount", "profitAmount"),
+                        List.of("salesAmount", "profitAmount"),
+                        List.of(),
+                        unsupported);
+
+        assertEquals(1, layers.size());
+        assertTrue(layers.get(0).empty());
+        assertTrue(unsupported.stream().anyMatch(message ->
+                message.contains("same-stage alias DAG must be acyclic")));
+    }
+
+    @Test
     @DisplayName("compiles signed ratio and difference formulas")
     void compilesRatioAndDifference() {
         List<String> unsupported = new ArrayList<>();
@@ -104,6 +148,8 @@ class RelationResultExpressionCompilerTest {
         assertTrue(unsupported.isEmpty());
         assertEquals(List.of("profitBand"), result.labelAliases());
         assertEquals("relation_metric_ordered_bucket", result.arithmetic().get(0).kind());
+        assertEquals("profitRate", result.arithmetic().get(0).descriptor().get("source_alias"));
+        assertEquals("label_alias_equality_only", result.arithmetic().get(0).descriptor().get("postSlice_policy"));
     }
 
     @Test

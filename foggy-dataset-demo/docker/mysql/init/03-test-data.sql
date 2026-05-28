@@ -36,9 +36,9 @@ BEGIN
             SUBSTRING_INDEX(SUBSTRING_INDEX(v_month_names, ',', MONTH(v_date)), ',', -1),
             WEEK(v_date, 1),
             DAY(v_date),
-            DAYOFWEEK(v_date),
-            SUBSTRING_INDEX(SUBSTRING_INDEX(v_day_names, ',', DAYOFWEEK(v_date)), ',', -1),
-            IF(DAYOFWEEK(v_date) IN (1, 7), 1, 0),
+            WEEKDAY(v_date) + 1,
+            SUBSTRING_INDEX(SUBSTRING_INDEX(v_day_names, ',', WEEKDAY(v_date) + 1), ',', -1),
+            IF(WEEKDAY(v_date) + 1 IN (6, 7), 1, 0),
             0,  -- 节假日需要单独处理
             YEAR(v_date),
             QUARTER(v_date)
