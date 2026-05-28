@@ -250,7 +250,7 @@ verify_mcp() {
     return 0
   fi
   run_step "MCP v3.9 schema and JSON-RPC guardrail" \
-    mvn -pl foggy-dataset-mcp test \
+    mvn -pl foggy-dataset-mcp -am test \
       -Dtest="$MCP_TESTS" \
       -Dsurefire.failIfNoSpecifiedTests=false \
       -P!multi-db
