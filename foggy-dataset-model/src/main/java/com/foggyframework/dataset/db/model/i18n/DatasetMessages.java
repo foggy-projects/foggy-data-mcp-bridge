@@ -224,6 +224,14 @@ public class DatasetMessages {
         return getMessage("error.validation.slice.value.required", index + 1, field, op);
     }
 
+    public static String validationSliceValueShapeInvalid(int index, String field, String op, String actualType) {
+        return getMessage("error.validation.slice.value.shape.invalid", index + 1, field, op, actualType);
+    }
+
+    public static String validationSliceValueFormatInvalid(String field, String op, String actualType) {
+        return getMessage("error.validation.slice.value.format.invalid", field, op, actualType);
+    }
+
     public static String validationSliceChildrenEmpty(int index, String field) {
         return getMessage("error.validation.slice.children.empty", index + 1, field);
     }

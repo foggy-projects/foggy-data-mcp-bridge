@@ -28,11 +28,24 @@ public abstract class SqlFormulaSupport implements SqlFormula {
             List<?> original = (List<?>) value;
             List<Object> v = new ArrayList<>(original.size());
             for (Object item : original) {
-                v.add(sqlColumn.getFormatter(true).format(item));
+                v.add(formatValue(sqlColumn, type, item));
             }
             return buildAndAddListSqlToJdbcCond(listCond, type, sqlColumn, alias, v, link);
         } else {
-            return buildAndAddObjectToJdbcCond(listCond, type, sqlColumn, alias, sqlColumn.isCalculatedField() ? value : sqlColumn.getFormatter(true).format(value), link);
+            return buildAndAddObjectToJdbcCond(listCond, type, sqlColumn, alias, sqlColumn.isCalculatedField() ? value : formatValue(sqlColumn, type, value), link);
+        }
+    }
+
+    private Object formatValue(DbColumn sqlColumn, String type, Object value) {
+        try {
+            return sqlColumn.getFormatter(true).format(value);
+        } catch (NumberFormatException | ClassCastException e) {
+            String actualType = value == null ? "null" : value.getClass().getSimpleName();
+            throw RX.throwAUserTip(
+                    DatasetMessages.validationSliceValueFormatInvalid(sqlColumn.getName(), type, actualType),
+                    DatasetMessages.systemException(),
+                    null,
+                    e);
         }
     }
 

@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -194,6 +195,7 @@ public class QueryRequestValidationStep implements DataSetResultStep {
         if (!isNullValueOperator(op) && isEmpty(item.getValue())) {
             throw RX.throwAUserTip(DatasetMessages.validationSliceValueRequired(index, field, op));
         }
+        validateSliceValueShape(index, field, op, item.getValue());
     }
 
     /**
@@ -243,7 +245,36 @@ public class QueryRequestValidationStep implements DataSetResultStep {
             if (!isNullValueOperator(op) && isEmpty(item.getValue())) {
                 throw RX.throwAUserTip(DatasetMessages.validationSliceValueRequired(i, field, op));
             }
+            validateSliceValueShape(i, field, op, item.getValue());
         }
+    }
+
+    private void validateSliceValueShape(int index, String field, String op, Object value) {
+        if (value == null || isNullValueOperator(op)) {
+            return;
+        }
+        if (value instanceof Map<?, ?> map) {
+            if (isFieldReferenceMap(map)) {
+                return;
+            }
+            throw RX.throwAUserTip(DatasetMessages.validationSliceValueShapeInvalid(index, field, op, value.getClass().getSimpleName()));
+        }
+        if (value instanceof List<?> list) {
+            for (Object item : list) {
+                if (item instanceof Map<?, ?> || item instanceof List<?>) {
+                    String actualType = item == null ? "null" : item.getClass().getSimpleName();
+                    throw RX.throwAUserTip(DatasetMessages.validationSliceValueShapeInvalid(index, field, op, actualType));
+                }
+            }
+        }
+    }
+
+    private boolean isFieldReferenceMap(Map<?, ?> map) {
+        if (map.size() != 1 || !map.containsKey(CondRequestDef.FIELD_REFERENCE_KEY)) {
+            return false;
+        }
+        Object fieldRef = map.get(CondRequestDef.FIELD_REFERENCE_KEY);
+        return fieldRef instanceof String s && StringUtils.isNotEmpty(s);
     }
 
     /**

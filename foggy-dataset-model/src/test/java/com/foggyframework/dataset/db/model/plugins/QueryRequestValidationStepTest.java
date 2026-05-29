@@ -12,6 +12,7 @@ import org.mockito.Mockito;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.when;
@@ -199,6 +200,53 @@ class QueryRequestValidationStepTest {
 
         assertDoesNotThrow(() -> validationStep.beforeQuery(ctx));
         log.info("null 操作符无需 value 校验通过");
+    }
+
+    @Test
+    @Order(8)
+    @DisplayName("slice.value 为普通对象应该提前拒绝")
+    void testSliceValueObjectShapeRejected() {
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setSlice(Collections.singletonList(
+            new SliceRequestDef("orderTime", "=", Map.of("field", "orderTime"))
+        ));
+
+        ModelResultContext ctx = createContext(queryRequest);
+
+        Exception exception = assertThrows(RuntimeException.class, () -> validationStep.beforeQuery(ctx));
+        assertTrue(exception.getMessage().contains("slice.value"));
+        assertTrue(exception.getMessage().contains("结构不合法") || exception.getMessage().contains("Invalid slice.value shape"));
+        assertFalse(exception.getMessage().contains("ClassCastException"));
+    }
+
+    @Test
+    @Order(9)
+    @DisplayName("slice.value 数组中的对象元素应该提前拒绝")
+    void testSliceValueListObjectElementRejected() {
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setSlice(Collections.singletonList(
+            new SliceRequestDef("orderStatus", "in", List.of("PAID", Map.of("value", "DRAFT")))
+        ));
+
+        ModelResultContext ctx = createContext(queryRequest);
+
+        Exception exception = assertThrows(RuntimeException.class, () -> validationStep.beforeQuery(ctx));
+        assertTrue(exception.getMessage().contains("slice.value"));
+        assertTrue(exception.getMessage().contains("Map") || exception.getMessage().contains("LinkedHashMap"));
+    }
+
+    @Test
+    @Order(10)
+    @DisplayName("slice.value 的 $field 字段引用对象应该通过结构校验")
+    void testSliceValueFieldReferenceShapeAccepted() {
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setSlice(Collections.singletonList(
+            new SliceRequestDef("orderTime", ">", Map.of("$field", "shipTime"))
+        ));
+
+        ModelResultContext ctx = createContext(queryRequest);
+
+        assertDoesNotThrow(() -> validationStep.beforeQuery(ctx));
     }
 
     // ==============================================
