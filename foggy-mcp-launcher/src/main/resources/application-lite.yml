@@ -21,7 +21,12 @@ spring:
     url: "jdbc:sqlite:file:foggy_mcp_lite?mode=memory&cache=shared"
     driver-class-name: org.sqlite.JDBC
     hikari:
+      pool-name: FoggyMcpLiteSQLiteHikariCP
+      minimum-idle: 1
       maximum-pool-size: 1
+      idle-timeout: 0
+      max-lifetime: 0
+      connection-test-query: SELECT 1
 
   sql:
     init:
