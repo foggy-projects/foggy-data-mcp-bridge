@@ -6,8 +6,9 @@
 #   java -jar foggy-mcp-launcher.jar --spring.profiles.active=lite
 #   或 SPRING_PROFILES_ACTIVE=lite
 #
-# 数据源：使用内存 SQLite 作为启动数据源
-# 实际业务数据源通过 DataSource API 动态配置
+# 数据源：使用可重建的本地 SQLite 文件作为启动数据源
+# 实际业务数据源通过 DataSource API 动态配置。
+# 不使用 in-memory SQLite，避免长时间 matrix 运行中连接池回收导致 demo schema 消失。
 # ============================================================
 
 spring:
@@ -18,7 +19,7 @@ spring:
       - org.springframework.boot.autoconfigure.data.mongo.MongoRepositoriesAutoConfiguration
 
   datasource:
-    url: "jdbc:sqlite:file:foggy_mcp_lite?mode=memory&cache=shared"
+    url: "jdbc:sqlite:${MCP_LITE_SQLITE_PATH:${java.io.tmpdir}/foggy_mcp_lite.db}"
     driver-class-name: org.sqlite.JDBC
     hikari:
       pool-name: FoggyMcpLiteSQLiteHikariCP

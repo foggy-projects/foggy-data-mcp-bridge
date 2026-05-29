@@ -11,11 +11,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class McpLauncherLiteProfileConfigurationTest {
 
     @Test
-    void liteProfileKeepsSingleInMemorySqliteConnectionAlive() {
+    void liteProfileUsesPersistentSqliteFileForLongRunningMatrix() {
         Properties properties = loadLiteProperties();
 
         assertEquals(
-                "jdbc:sqlite:file:foggy_mcp_lite?mode=memory&cache=shared",
+                "jdbc:sqlite:${MCP_LITE_SQLITE_PATH:${java.io.tmpdir}/foggy_mcp_lite.db}",
                 properties.getProperty("spring.datasource.url"));
         assertEquals("FoggyMcpLiteSQLiteHikariCP", properties.getProperty("spring.datasource.hikari.pool-name"));
         assertEquals("1", properties.getProperty("spring.datasource.hikari.maximum-pool-size"));
