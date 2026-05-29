@@ -33,6 +33,7 @@ import com.foggyframework.dataset.db.model.engine.pivot.transport.SqliteCteDomai
 import com.foggyframework.dataset.db.model.engine.pivot.transport.UnsupportedDomainRenderer;
 import com.foggyframework.dataset.db.model.engine.query.JdbcQuery;
 import com.foggyframework.dataset.db.model.engine.query.SimpleSqlJdbcQueryVisitor;
+import com.foggyframework.dataset.db.model.engine.query_model.PredefinedCalculatedFieldInjector;
 import com.foggyframework.dataset.db.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.db.model.impl.AiObject;
 import com.foggyframework.dataset.db.model.impl.DbColumnDelegate;
@@ -2267,92 +2268,8 @@ public class JdbcModelQueryEngine implements QueryEngine {
      * 当直接调用 analysisQueryRequest（跳过 Step 流水线）时由此方法注入。
      * </p>
      */
-    @SuppressWarnings("unchecked")
     private void injectPredefinedCalculatedFields(DbQueryRequestDef queryRequest, ModelResultContext context) {
-        if (!(jdbcQueryModel instanceof com.foggyframework.dataset.db.model.engine.query_model.QueryModelSupport)) {
-            return;
-        }
-        com.foggyframework.dataset.db.model.engine.query_model.QueryModelSupport qms =
-                (com.foggyframework.dataset.db.model.engine.query_model.QueryModelSupport) jdbcQueryModel;
-        List<CalculatedFieldDef> predefined = qms.getPredefinedCalculatedFields();
-        if (predefined == null || predefined.isEmpty()) {
-            return;
-        }
-
-        // 建立预定义字段名称索引
-        java.util.Map<String, CalculatedFieldDef> predefinedMap = new java.util.LinkedHashMap<>();
-        for (CalculatedFieldDef calc : predefined) {
-            predefinedMap.put(calc.getName(), calc);
-        }
-
-        // 处理与 QM 预定义计算字段同名的用户自定义字段（AI 常见误用）。
-        // 策略：移除用户自定义版本，后续由正常流程注入预定义版本。
-        // 这样做是安全的，因为预定义字段来自可信的 QM 模型定义；
-        // 与普通列（维度/度量/属性）同名的冲突不在此处处理，
-        // 由 CalculatedFieldService.processCalculatedField() 的 context.hasColumn() 检查拦截并报错，
-        // 防止用户通过自定义计算字段覆盖已有列（可能涉及权限控制等安全敏感字段）。
-        //
-        // 注意：用户自定义的表达式可能与预定义公式语义不同（如 COUNT(*) vs COUNT_DISTINCT(id)），
-        // 但预定义字段是模型设计者的明确意图，同名即视为引用预定义字段。
-        // 通过元数据 usage 提示 + warn 日志双重机制，帮助 AI 学习正确用法。
-        if (queryRequest.getCalculatedFields() != null) {
-            List<CalculatedFieldDef> userFields = queryRequest.getCalculatedFields();
-            List<String> replaced = new ArrayList<>();
-            userFields.removeIf(f -> {
-                if (predefinedMap.containsKey(f.getName())) {
-                    replaced.add(f.getName());
-                    return true;
-                }
-                return false;
-            });
-            if (!replaced.isEmpty()) {
-                String warning = "以下字段为预定义计算字段，已忽略您自定义的版本并使用模型预定义公式: " + replaced
-                        + "。请直接在 columns 中引用，不要在 calculatedFields 中重复定义。";
-                log.warn(warning);
-                // 写入 extData，由 SemanticQueryServiceV3Impl 收集到 response.warnings
-                if (context != null) {
-                    List<String> engineWarnings = (List<String>) context.getExtData()
-                            .computeIfAbsent("engineWarnings", k -> new ArrayList<>());
-                    engineWarnings.add(warning);
-                }
-            }
-        }
-
-        // 收集 DSL 请求中剩余的 calculatedField 名称
-        java.util.Set<String> existingNames = new java.util.HashSet<>();
-        if (queryRequest.getCalculatedFields() != null) {
-            for (CalculatedFieldDef f : queryRequest.getCalculatedFields()) {
-                existingNames.add(f.getName());
-            }
-        }
-
-        // 收集 columns 中引用到的名称
-        java.util.Set<String> referencedColumns = new java.util.HashSet<>();
-        if (queryRequest.getColumns() != null) {
-            referencedColumns.addAll(queryRequest.getColumns());
-        }
-
-        // 注入引用到的、且未被 DSL 覆盖的预定义字段
-        List<CalculatedFieldDef> toInject = new ArrayList<>();
-        for (CalculatedFieldDef calc : predefined) {
-            if (referencedColumns.contains(calc.getName()) && !existingNames.contains(calc.getName())) {
-                toInject.add(calc);
-            }
-        }
-
-        if (!toInject.isEmpty()) {
-            List<CalculatedFieldDef> existing = queryRequest.getCalculatedFields();
-            if (existing == null) {
-                existing = new ArrayList<>();
-                queryRequest.setCalculatedFields(existing);
-            }
-            existing.addAll(0, toInject);
-
-            if (log.isDebugEnabled()) {
-                log.debug("Injected {} QM predefined calculated fields: {}", toInject.size(),
-                        toInject.stream().map(CalculatedFieldDef::getName).collect(Collectors.toList()));
-            }
-        }
+        PredefinedCalculatedFieldInjector.inject(queryRequest, jdbcQueryModel, context, log);
     }
 
     /**
