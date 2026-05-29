@@ -57,6 +57,7 @@ public class QueryExpertService {
     static final ThreadLocal<Map<String, Object>> LAST_QUERY_RESULT = new ThreadLocal<>();
 
     private static final String ROUTING_REPLAN_REQUIRED_CODE = "ROUTING_REPLAN_REQUIRED";
+    private static final String QUERY_MODEL_FAILED_CODE = "QUERY_MODEL_FAILED";
     private static final String REPLAN_RECOMMENDED_ACTION = "REPLAN_BY_CALIBRATED_ROUTE";
     private static final List<String> STALE_PLAN_FIELDS = List.of(
             "dsl_params",
@@ -238,6 +239,7 @@ public class QueryExpertService {
 
             log.debug("AI response, traceId={}, length={}", traceId, aiResponse != null ? aiResponse.length() : 0);
             DatasetNLQueryResponse response = parseResponse(aiResponse, context, traceId);
+            response = enforceQueryToolFailureContract(response, collector);
             response = enforceRoutingReplanResultContract(response, calibrationAction);
             response = attachQueryTraceDebug(response, traceId, sessionId, queryTools, collector, captured);
             response = attachRoutingReplanDispatchDebug(response, calibrationAction, traceId);
@@ -313,6 +315,7 @@ public class QueryExpertService {
                 sink.next(ProgressEvent.progress("format", 90));
 
                 DatasetNLQueryResponse result = parseResponse(aiResponse, context, traceId);
+                result = enforceQueryToolFailureContract(result, collector);
                 result = enforceRoutingReplanResultContract(result, calibrationAction);
                 result = attachQueryTraceDebug(result, traceId, sessionId, queryTools, collector, captured);
                 result = attachRoutingReplanDispatchDebug(result, calibrationAction, traceId);
@@ -531,6 +534,49 @@ public class QueryExpertService {
         );
     }
 
+    private static DatasetNLQueryResponse enforceQueryToolFailureContract(
+            DatasetNLQueryResponse response,
+            ToolCallCollector collector
+    ) {
+        if (response == null || collector == null || !"info".equals(response.getType())) {
+            return response;
+        }
+
+        ToolCallCollector.ToolCallRecord failedQueryCall = lastFailedQueryModelCall(collector);
+        if (failedQueryCall == null) {
+            return response;
+        }
+
+        Map<String, Object> detail = new LinkedHashMap<>();
+        detail.put("tool_name", safeString(failedQueryCall.getToolName()));
+        detail.put("sequence", failedQueryCall.getSequence());
+        detail.put("duration_ms", failedQueryCall.getDurationMs());
+        detail.put("tool_error", safeString(failedQueryCall.getError()));
+        detail.put("arguments_summary", argumentsSummary(failedQueryCall.getToolName(), failedQueryCall.getArguments()));
+        detail.put("result_summary", resultSummary(failedQueryCall.getResult()));
+        detail.put("original_type", response.getType());
+        detail.put("original_topic", response.getTopic());
+        detail.put("original_note", response.getNote());
+        detail.put("original_data", response.getData());
+
+        return DatasetNLQueryResponse.error(
+                QUERY_MODEL_FAILED_CODE,
+                "dataset.query_model 执行失败，未产生可验收的结构化查询结果。",
+                detail
+        );
+    }
+
+    private static ToolCallCollector.ToolCallRecord lastFailedQueryModelCall(ToolCallCollector collector) {
+        List<ToolCallCollector.ToolCallRecord> queryCalls = collector.getCallsByTool("dataset.query_model");
+        for (int i = queryCalls.size() - 1; i >= 0; i--) {
+            ToolCallCollector.ToolCallRecord call = queryCalls.get(i);
+            if (call != null && !call.isSuccess()) {
+                return call;
+            }
+        }
+        return null;
+    }
+
     private static boolean shouldExposeCalibrationDebug(RoutingCalibrationAction calibrationAction) {
         return calibrationAction.type() != RoutingCalibrationActionType.EXECUTE_RAW
                 || calibrationAction.rawRoute() != null
@@ -704,6 +750,23 @@ public class QueryExpertService {
             }
             return summary;
         }
+        if (result instanceof RX<?> rx) {
+            summary.put("type", "RX");
+            summary.put("code", rx.getCode());
+            summary.put("success", rx._isSuccess());
+            String message = firstNonBlank(rx.getMsg(), rx.getUserTip(), rx.getExCode());
+            if (message != null) {
+                summary.put("message", message);
+            }
+            Object data = rx.getData();
+            if (data instanceof SemanticQueryResponse semanticResponse) {
+                summary.put("data_type", data.getClass().getSimpleName());
+                summary.putAll(queryResultSummary(semanticQueryResponseToMap(semanticResponse)));
+            } else if (data != null) {
+                summary.put("data_type", data.getClass().getSimpleName());
+            }
+            return summary;
+        }
         summary.put("type", result.getClass().getSimpleName());
         summary.put("string_length", String.valueOf(result).length());
         return summary;
@@ -728,6 +791,15 @@ public class QueryExpertService {
 
     private static String safeString(String value) {
         return value != null ? value : "";
+    }
+
+    private static String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return null;
     }
 
     private static String routingCalibrationReplanRequiredMessage(RoutingCalibrationAction calibrationAction) {

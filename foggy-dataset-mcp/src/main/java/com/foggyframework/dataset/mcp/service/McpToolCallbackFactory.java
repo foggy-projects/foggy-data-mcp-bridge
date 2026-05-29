@@ -2,6 +2,7 @@ package com.foggyframework.dataset.mcp.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.foggyframework.core.ex.RX;
 import com.foggyframework.mcp.spi.McpTool;
 import com.foggyframework.mcp.spi.ToolExecutionContext;
 import lombok.RequiredArgsConstructor;
@@ -195,6 +196,11 @@ public class McpToolCallbackFactory {
                 // 供 QueryExpertService.processQuery() 在 Spring AI call() 返回后读取。
                 if ("dataset.query_model".equals(originalToolName)) {
                     QueryExpertService.captureQueryResult(result);
+                    String queryFailure = resolveQueryModelFailureMessage(result);
+                    if (queryFailure != null) {
+                        errorType = "QUERY_MODEL_FAILED";
+                        error = queryFailure;
+                    }
                 }
 
                 // 转换结果为 JSON
@@ -304,6 +310,46 @@ public class McpToolCallbackFactory {
                     .replace("\n", "\\n")
                     .replace("\r", "\\r")
                     .replace("\t", "\\t");
+        }
+
+        private static String resolveQueryModelFailureMessage(Object result) {
+            if (result instanceof RX<?> rx) {
+                if (rx._isSuccess()) {
+                    return null;
+                }
+                return firstNonBlank(rx.getMsg(), rx.getUserTip(), rx.getExCode(), "dataset.query_model returned failed RX");
+            }
+            if (result instanceof Map<?, ?> map) {
+                Object status = map.get("status");
+                if ("failed".equals(status)) {
+                    return firstNonBlank(map.get("msg"), map.get("message"), map.get("error"),
+                            "dataset.query_model returned failed status");
+                }
+                Object code = map.get("code");
+                if (code instanceof Number number && number.intValue() != RX.SUCCESS) {
+                    return firstNonBlank(map.get("msg"), map.get("message"), map.get("error"),
+                            "dataset.query_model returned code " + number.intValue());
+                }
+                Object error = map.get("error");
+                if (Boolean.TRUE.equals(error)) {
+                    return firstNonBlank(map.get("msg"), map.get("message"), error,
+                            "dataset.query_model returned error");
+                }
+            }
+            return null;
+        }
+
+        private static String firstNonBlank(Object... values) {
+            for (Object value : values) {
+                if (value == null) {
+                    continue;
+                }
+                String text = String.valueOf(value);
+                if (!text.isBlank()) {
+                    return text;
+                }
+            }
+            return null;
         }
 
         private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(McpToolCallback.class);

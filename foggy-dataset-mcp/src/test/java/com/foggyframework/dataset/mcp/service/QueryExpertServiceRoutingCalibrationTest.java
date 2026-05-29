@@ -345,6 +345,80 @@ class QueryExpertServiceRoutingCalibrationTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    @DisplayName("query_model 工具失败且无结构化结果时应返回 error 而不是 info")
+    void queryModelFailureWithoutStructuredResult_shouldReturnErrorContract() {
+        DatasetNLQueryRequest request = DatasetNLQueryRequest.builder()
+                .query("查询订单金额大于 1000 元的客户")
+                .build();
+
+        chatClient = mock(ChatClient.class);
+        requestSpec = mock(ChatClient.ChatClientRequestSpec.class);
+        callResponseSpec = mock(ChatClient.CallResponseSpec.class);
+
+        when(chatClientBuilder.defaultSystem(anyString())).thenReturn(chatClientBuilder);
+        when(chatClientBuilder.build()).thenReturn(chatClient);
+        when(mcpToolDispatcher.getTool(anyString())).thenAnswer(invocation -> mockTool(invocation.getArgument(0)));
+        when(toolCallbackFactory.createToolCallbacks(
+                anyList(),
+                eq("trace-query-failed-1"),
+                isNull(),
+                any(ToolCallCollector.class)
+        )).thenAnswer(invocation -> {
+            ToolCallCollector collector = invocation.getArgument(3);
+            RX<Object> failed = RX.failB("Table \"FACT_ORDER\" not found");
+            collector.recordToolCall(
+                    "dataset.query_model",
+                    "dataset_query_model",
+                    Map.of(
+                            "model", "FactOrderQueryModel",
+                            "mode", "execute",
+                            "payload", Map.of(
+                                    "columns", List.of("customer$caption", "amount"),
+                                    "slice", List.of(Map.of("name", "amount", "type", ">", "value", 1000))
+                            )
+                    ),
+                    failed,
+                    "[QUERY_MODEL_FAILED] Table \"FACT_ORDER\" not found",
+                    7
+            );
+            QueryExpertService.captureQueryResult(failed);
+            return new ToolCallback[0];
+        });
+        when(chatClient.prompt()).thenReturn(requestSpec);
+        when(requestSpec.user(anyString())).thenReturn(requestSpec);
+        when(requestSpec.toolCallbacks(any(ToolCallback[].class))).thenReturn(requestSpec);
+        when(requestSpec.call()).thenReturn(callResponseSpec);
+        when(callResponseSpec.content()).thenReturn("底层数据库报错，表 FACT_ORDER 不存在。");
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-query-failed-1", null);
+
+        assertEquals("error", response.getType());
+        assertEquals("QUERY_MODEL_FAILED", response.getCode());
+        assertTrue(response.getMsg().contains("dataset.query_model 执行失败"));
+        Map<String, Object> detail = (Map<String, Object>) response.getDetail();
+        assertEquals("dataset.query_model", detail.get("tool_name"));
+        assertEquals("info", detail.get("original_type"));
+        assertTrue(String.valueOf(detail.get("tool_error")).contains("FACT_ORDER"));
+
+        Map<String, Object> queryTrace = (Map<String, Object>) response.getDebug().get("query_trace");
+        assertEquals("error", queryTrace.get("result_type"));
+        assertEquals(1, queryTrace.get("tool_call_count"));
+        assertEquals(0L, queryTrace.get("tool_success_count"));
+        assertEquals(1L, queryTrace.get("tool_failure_count"));
+        assertEquals(false, queryTrace.get("all_tools_success"));
+        assertEquals(false, queryTrace.get("query_result_captured"));
+
+        List<Map<String, Object>> toolCalls = (List<Map<String, Object>>) queryTrace.get("tool_calls");
+        assertEquals(false, toolCalls.get(0).get("success"));
+        assertTrue(String.valueOf(toolCalls.get(0).get("error")).contains("QUERY_MODEL_FAILED"));
+        Map<String, Object> resultSummary = (Map<String, Object>) toolCalls.get(0).get("result_summary");
+        assertEquals("RX", resultSummary.get("type"));
+        assertEquals(false, resultSummary.get("success"));
+        assertTrue(String.valueOf(resultSummary.get("message")).contains("FACT_ORDER"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     @DisplayName("query_model 捕获应归一化 RX 语义查询结果")
     void captureQueryResult_shouldNormalizeRxSemanticQueryResponse() {
         try {
