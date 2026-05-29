@@ -191,7 +191,7 @@ class CalculatedFieldJoinTest {
 
     @Test
     @Order(4)
-    @DisplayName("WHERE 条件中使用计算字段引用维度列应自动 JOIN 维度表")
+    @DisplayName("HAVING 条件中使用聚合计算字段引用维度列应自动 JOIN 维度表")
     void testWhereConditionWithCalculatedField() {
         JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
         assertNotNull(queryModel, "查询模型加载失败");
@@ -210,7 +210,16 @@ class CalculatedFieldJoinTest {
         ));
         queryRequest.setCalculatedFields(calculatedFields);
 
-        // 添加 WHERE 条件（使用预定义的计算字段）
+        queryRequest.setColumns(Arrays.asList(
+                "customer$caption",
+                "customerCount"
+        ));
+
+        GroupRequestDef group = new GroupRequestDef();
+        group.setField("customer$caption");
+        queryRequest.setGroupBy(Arrays.asList(group));
+
+        // 添加聚合过滤条件（使用预定义的计算字段）
         SliceRequestDef slice = new SliceRequestDef();
         slice.setField("customerCount");
         slice.setOp(">");
@@ -229,6 +238,8 @@ class CalculatedFieldJoinTest {
         // 验证 SQL 中包含 dim_customer 的 JOIN
         assertTrue(sql.toLowerCase().contains("join dim_customer"), 
                 "SQL 应包含 JOIN dim_customer");
+        assertTrue(sql.toLowerCase().contains("having"), 
+                "聚合计算字段过滤应生成 HAVING 条件");
 
         // 验证 SQL 中没有未定义的表别名
         assertNoUndefinedTableAliases(sql);
