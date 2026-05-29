@@ -90,6 +90,11 @@ Regression coverage:
   - `InlineExpressionPreprocessStepTest#injectsPredefinedCalculatedFieldReferencedByFieldReferenceValue`
 - Integration-level direct engine path:
   - `AdvancedAnalyticsTest#testQmPredefinedFormulaFieldReferencedOnlyBySlice`
+- Pivot follow-up coverage:
+  - `PivotIntegrationTest#testQmPredefinedFormulaMetricInPivotFlat`
+  - `PivotIntegrationTest#testQmPredefinedFormulaInPivotTopLevelSlice`
+  - `PivotIntegrationTest#testQmPredefinedFormulaInPivotAxisHavingAndOrderBy`
+  - `PivotIntegrationTest#testQmPredefinedFormulaMetricInPivotGrandTotal`
 
 ## Code Inventory
 
@@ -100,6 +105,7 @@ Regression coverage:
 | `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/engine/JdbcModelQueryEngine.java` | 直连 `analysisQueryRequest` 路径复用共享注入器 |
 | `foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/plugins/result_set_filter/InlineExpressionPreprocessStepTest.java` | 新增 slice-only 与 `$field` 引用注入单测 |
 | `foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/ecommerce/AdvancedAnalyticsTest.java` | 新增 direct engine slice-only 预定义公式字段集成测试 |
+| `foggy-dataset-model/src/test/java/com/foggyframework/dataset/db/model/engine/pivot/PivotIntegrationTest.java` | 新增 Pivot 高级场景覆盖测试，用于识别 semantic/pivot 链路剩余缺口 |
 
 ## Fix Checklist
 
@@ -111,6 +117,8 @@ Regression coverage:
 - [x] 保留同名用户自定义 calculatedField 被 QM 预定义字段替换时的 warning。
 - [x] 定向回归测试通过。
 - [x] 已运行根目录全量 `mvn test`，但当前被既有 aggregate join fixture 数据断言失败阻断。
+- [x] Pivot 顶层 `slice` 引用聚合型 QM formula 时，需避免将聚合表达式下推到 SQL `WHERE`。
+- [x] Pivot grandTotal/subtotal rollup 分析需在进入 `MetricAdditivityAnalyzer` 前获得 QM 预定义 calculatedFields。
 - [ ] 等待上游用 `OrderStationStockProjectionQuery.availablePieceCount` 场景复测确认。
 
 ## Verification
@@ -137,6 +145,44 @@ Result:
 - Failed in existing `AggregateJoinQueryModelTest` fixture assertions.
 - Failure reason: test data did not contain an order with `COMPLETED` sales detail.
 - No failure was observed in the new predefined formula injection regression tests.
+
+2026-05-29 Pivot follow-up 定向验证：
+
+```bash
+mvn -pl foggy-dataset-model "-Dtest=PivotIntegrationTest#testQmPredefinedFormulaMetricInPivotFlat+testQmPredefinedFormulaInPivotTopLevelSlice+testQmPredefinedFormulaInPivotAxisHavingAndOrderBy+testQmPredefinedFormulaMetricInPivotGrandTotal" test
+```
+
+Result:
+
+- `Tests run: 4, Failures: 0, Errors: 2`
+- Passed:
+  - `testQmPredefinedFormulaMetricInPivotFlat`
+  - `testQmPredefinedFormulaInPivotAxisHavingAndOrderBy`
+- Failed:
+  - `testQmPredefinedFormulaInPivotTopLevelSlice`: grouped Pivot query expands `profitRate` to `SUM(...)` expression but leaves it in SQL `WHERE`, causing SQLite `misuse of aggregate: SUM()`.
+  - `testQmPredefinedFormulaMetricInPivotGrandTotal`: rollup additivity analysis sees `profitRate` as aggregation `NONE` because Pivot pre-analysis has not received the QM predefined calculated field.
+
+2026-05-29 Pivot follow-up 修复后定向验证：
+
+```bash
+mvn -pl foggy-dataset-model "-Dtest=PivotIntegrationTest#testQmPredefinedFormulaMetricInPivotFlat+testQmPredefinedFormulaInPivotTopLevelSlice+testQmPredefinedFormulaInPivotAxisHavingAndOrderBy+testQmPredefinedFormulaMetricInPivotGrandTotal" test
+```
+
+Result:
+
+- `Tests run: 4, Failures: 0, Errors: 0`
+- Verified Pivot flat metric, top-level `slice`, axis `having/orderBy`, and `grandTotal` all receive QM predefined calculated fields before query analysis.
+
+2026-05-29 原始回归 + Pivot 补测组合验证：
+
+```bash
+mvn -pl foggy-dataset-model "-Dtest=InlineExpressionPreprocessStepTest#injectsPredefinedCalculatedFieldReferencedOnlyBySliceWithoutColumns+injectsPredefinedCalculatedFieldReferencedByFieldReferenceValue,AdvancedAnalyticsTest#testQmPredefinedFormulaFieldReferencedOnlyBySlice,PivotIntegrationTest#testQmPredefinedFormulaMetricInPivotFlat+testQmPredefinedFormulaInPivotTopLevelSlice+testQmPredefinedFormulaInPivotAxisHavingAndOrderBy+testQmPredefinedFormulaMetricInPivotGrandTotal" test
+```
+
+Result:
+
+- `Tests run: 7, Failures: 0, Errors: 0`
+- Verified the original slice-only regression path and Pivot advanced paths pass together.
 
 ## References
 

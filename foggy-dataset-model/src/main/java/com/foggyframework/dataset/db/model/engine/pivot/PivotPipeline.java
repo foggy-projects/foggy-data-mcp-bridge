@@ -9,6 +9,7 @@ import com.foggyframework.dataset.db.model.engine.pivot.sql.PivotPushdownUnsuppo
 import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTransportField;
 import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTransportPlan;
 import com.foggyframework.dataset.db.model.engine.pivot.transport.DomainTransportTuple;
+import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.plugins.query_execution.ManagedRelationOptions;
 import com.foggyframework.dataset.db.model.plugins.query_execution.ManagedSqlRelation;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
@@ -102,6 +103,7 @@ public class PivotPipeline {
         if (queryModelLoader != null) {
             queryModel = queryModelLoader.getJdbcQueryModel(model, context.getNamespace());
         }
+        injectPredefinedCalculatedFields(request, queryModel);
         PivotCascadeRules.validateAdditivity(pivot, queryModel, request.getCalculatedFields());
 
         // ===== S11: parentShare non-additive guard（需 queryModel 已加载）=====
@@ -369,6 +371,169 @@ public class PivotPipeline {
                 sqlPushdownUsed, axisDomainSelectionUsed, cascadeRequest);
         return buildPivotResponse(pivotResult, startTime, baselineRatioEvidence, parentShareEvidence,
                 capabilityContract);
+    }
+
+    private void injectPredefinedCalculatedFields(SemanticQueryRequest request, QueryModel queryModel) {
+        if (request == null || queryModel == null) {
+            return;
+        }
+        List<CalculatedFieldDef> predefined = queryModel.getPredefinedCalculatedFields();
+        if (predefined == null || predefined.isEmpty()) {
+            return;
+        }
+
+        Set<String> referencedFields = collectSemanticReferences(request);
+        if (referencedFields.isEmpty()) {
+            return;
+        }
+
+        Set<String> predefinedNames = predefined.stream()
+                .map(CalculatedFieldDef::getName)
+                .filter(name -> name != null && !name.isBlank())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (predefinedNames.isEmpty()) {
+            return;
+        }
+
+        List<CalculatedFieldDef> current = request.getCalculatedFields() == null
+                ? new ArrayList<>()
+                : new ArrayList<>(request.getCalculatedFields());
+        List<String> replaced = new ArrayList<>();
+        current.removeIf(field -> {
+            if (field != null && predefinedNames.contains(field.getName())) {
+                replaced.add(field.getName());
+                return true;
+            }
+            return false;
+        });
+        if (!replaced.isEmpty()) {
+            logger.warn("以下 Pivot calculatedFields 为 QM 预定义计算字段，已使用模型预定义公式覆盖: {}", replaced);
+        }
+
+        Set<String> existingNames = current.stream()
+                .filter(Objects::nonNull)
+                .map(CalculatedFieldDef::getName)
+                .filter(name -> name != null && !name.isBlank())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        List<CalculatedFieldDef> toInject = new ArrayList<>();
+        for (CalculatedFieldDef field : predefined) {
+            if (field == null || field.getName() == null) {
+                continue;
+            }
+            if (referencedFields.contains(field.getName()) && !existingNames.contains(field.getName())) {
+                toInject.add(field);
+            }
+        }
+        if (toInject.isEmpty() && replaced.isEmpty()) {
+            return;
+        }
+
+        current.addAll(0, toInject);
+        request.setCalculatedFields(current);
+        if (!toInject.isEmpty()) {
+            logger.debug("[Pivot] 注入了 {} 个 QM 预定义计算字段: {}", toInject.size(),
+                    toInject.stream().map(CalculatedFieldDef::getName).collect(Collectors.toList()));
+        }
+    }
+
+    private Set<String> collectSemanticReferences(SemanticQueryRequest request) {
+        Set<String> fields = new LinkedHashSet<>();
+        collectStringFields(request.getColumns(), fields);
+        collectSemanticSliceFields(request.getSlice(), fields);
+        collectSemanticSliceFields(request.getHaving(), fields);
+        collectSemanticSliceFields(request.getPostSlice(), fields);
+        if (request.getGroupBy() != null) {
+            for (SemanticQueryRequest.GroupByItem group : request.getGroupBy()) {
+                if (group != null) {
+                    addField(group.getField(), fields);
+                }
+            }
+        }
+        if (request.getOrderBy() != null) {
+            for (SemanticQueryRequest.OrderItem order : request.getOrderBy()) {
+                if (order != null) {
+                    addField(order.getField(), fields);
+                }
+            }
+        }
+
+        PivotRequest pivot = request.getPivot();
+        if (pivot != null) {
+            if (pivot.getMetricItems() != null) {
+                for (PivotMetricItem metric : pivot.getMetricItems()) {
+                    if (metric == null) {
+                        continue;
+                    }
+                    addField(metric.getName(), fields);
+                    addField(metric.getOf(), fields);
+                }
+            }
+            collectAxisReferences(pivot.getRows(), fields);
+            collectAxisReferences(pivot.getColumns(), fields);
+        }
+        return fields;
+    }
+
+    private void collectAxisReferences(List<AxisField> axisFields, Set<String> fields) {
+        if (axisFields == null) {
+            return;
+        }
+        for (AxisField axis : axisFields) {
+            if (axis == null) {
+                continue;
+            }
+            addField(axis.getField(), fields);
+            collectOrderSpecFields(axis.getOrderBy(), fields);
+            collectSemanticSliceFields(axis.getDomainSlice(), fields);
+            if (axis.getHaving() != null) {
+                for (MetricFilter filter : axis.getHaving()) {
+                    if (filter != null) {
+                        addField(filter.getMetric(), fields);
+                    }
+                }
+            }
+        }
+    }
+
+    private void collectSemanticSliceFields(List<SemanticQueryRequest.SliceItem> slices, Set<String> fields) {
+        if (slices == null) {
+            return;
+        }
+        for (SemanticQueryRequest.SliceItem slice : slices) {
+            if (slice == null) {
+                continue;
+            }
+            addField(slice.getField(), fields);
+            collectSemanticSliceFields(slice.getAnd(), fields);
+            collectSemanticSliceFields(slice.getOr(), fields);
+        }
+    }
+
+    private void collectStringFields(List<String> values, Set<String> fields) {
+        if (values == null) {
+            return;
+        }
+        for (String value : values) {
+            addField(value, fields);
+        }
+    }
+
+    private void collectOrderSpecFields(List<String> specs, Set<String> fields) {
+        if (specs == null) {
+            return;
+        }
+        for (String spec : specs) {
+            if (spec == null) {
+                continue;
+            }
+            addField(spec.startsWith("-") ? spec.substring(1) : spec, fields);
+        }
+    }
+
+    private void addField(String field, Set<String> fields) {
+        if (field != null && !field.isBlank()) {
+            fields.add(field);
+        }
     }
 
     /**

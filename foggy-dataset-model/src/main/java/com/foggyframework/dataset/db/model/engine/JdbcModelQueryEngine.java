@@ -2095,17 +2095,20 @@ public class JdbcModelQueryEngine implements QueryEngine {
      * 判断指定字段是否为聚合条件
      * <p>
      * 聚合条件指的是对聚合字段（如SUM、AVG等）的过滤，这类条件应该放在HAVING子句中。
-     * 判断依据：检查字段名是否在 parsedInlineExpressions 的聚合列映射中。
+     * 判断依据：检查字段名是否在 parsedInlineExpressions 的聚合列映射中，或对应计算字段公式是否包含聚合函数。
      * </p>
      *
      * @param fieldName 字段名
      * @return true 如果是聚合条件，需要放入HAVING；false 如果是普通条件，放入WHERE
      */
     private boolean isAggregateCondition(String fieldName) {
-        if (parsedInlineExpressions == null || parsedInlineExpressions.getColumnAggregations() == null) {
-            return false;
+        if (parsedInlineExpressions != null
+                && parsedInlineExpressions.getColumnAggregations() != null
+                && parsedInlineExpressions.getColumnAggregations().containsKey(fieldName)) {
+            return true;
         }
-        return parsedInlineExpressions.getColumnAggregations().containsKey(fieldName);
+        CalculatedDbColumn calculatedColumn = findCalculatedColumn(fieldName);
+        return calculatedColumn != null && calculatedColumn.hasAggregate();
     }
 
     /**

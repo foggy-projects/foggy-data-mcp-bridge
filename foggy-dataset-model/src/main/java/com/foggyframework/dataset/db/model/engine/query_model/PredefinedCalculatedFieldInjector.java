@@ -46,7 +46,7 @@ public final class PredefinedCalculatedFieldInjector {
             List<CalculatedFieldDef> userFields = queryRequest.getCalculatedFields();
             List<String> replaced = new ArrayList<>();
             userFields.removeIf(f -> {
-                if (predefinedNames.contains(f.getName())) {
+                if (f != null && predefinedNames.contains(f.getName()) && !isPredefinedInstance(f, predefined)) {
                     replaced.add(f.getName());
                     return true;
                 }
@@ -106,6 +106,15 @@ public final class PredefinedCalculatedFieldInjector {
         collectOrderFields(queryRequest.getOrderBy(), referencedColumns);
         collectGroupFields(queryRequest.getGroupBy(), referencedColumns);
         return referencedColumns;
+    }
+
+    private static boolean isPredefinedInstance(CalculatedFieldDef field, List<CalculatedFieldDef> predefined) {
+        for (CalculatedFieldDef predefinedField : predefined) {
+            if (field == predefinedField) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void collectColumnReferences(List<String> columns, Set<String> out) {

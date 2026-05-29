@@ -1486,6 +1486,99 @@ class PivotIntegrationTest extends EcommerceTestSupport {
         }
     }
 
+    @Test
+    @DisplayName("QM 预定义 formula 可作为 Pivot metrics")
+    void testQmPredefinedFormulaMetricInPivotFlat() {
+        PivotRequest pivot = new PivotRequest();
+        pivot.setRows(List.of(axis("product$categoryName")));
+        pivot.setMetrics(List.of("profitRate"));
+        pivot.setOutputFormat("flat");
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setPivot(pivot);
+
+        SemanticQueryResponse response = execute(request);
+        List<Map<String, Object>> items = response.getItems();
+
+        assertFalse(items.isEmpty(), "Pivot metrics 引用 QM 预定义 formula 应返回数据");
+        assertTrue(items.get(0).containsKey("profitRate"), "Pivot 输出应包含 QM 预定义 formula 指标");
+        assertTrue(items.stream().anyMatch(row -> row.get("profitRate") instanceof Number),
+                "Pivot 输出中 profitRate 应为数值");
+    }
+
+    @Test
+    @DisplayName("QM 预定义 formula 可用于 Pivot 顶层 slice")
+    void testQmPredefinedFormulaInPivotTopLevelSlice() {
+        PivotRequest pivot = new PivotRequest();
+        pivot.setRows(List.of(axis("product$categoryName")));
+        pivot.setMetrics(List.of("salesAmount"));
+        pivot.setOutputFormat("flat");
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setSlice(List.of(slice("profitRate", ">", 0)));
+        request.setPivot(pivot);
+
+        SemanticQueryResponse response = execute(request);
+        List<Map<String, Object>> items = response.getItems();
+
+        assertFalse(items.isEmpty(), "Pivot 顶层 slice 引用 QM 预定义 formula 应可执行并返回数据");
+        assertTrue(items.get(0).containsKey("salesAmount"));
+    }
+
+    @Test
+    @DisplayName("QM 预定义 formula 可用于 Pivot axis having/orderBy")
+    void testQmPredefinedFormulaInPivotAxisHavingAndOrderBy() {
+        AxisField row = axis("product$categoryName");
+        MetricFilter having = new MetricFilter();
+        having.setMetric("profitRate");
+        having.setOp(">");
+        having.setValue(0);
+        row.setHaving(List.of(having));
+        row.setOrderBy(List.of("-profitRate"));
+
+        PivotRequest pivot = new PivotRequest();
+        pivot.setRows(List.of(row));
+        pivot.setMetrics(List.of("profitRate"));
+        pivot.setOutputFormat("flat");
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setPivot(pivot);
+
+        SemanticQueryResponse response = execute(request);
+        List<Map<String, Object>> items = response.getItems();
+
+        assertFalse(items.isEmpty(), "Pivot axis having/orderBy 引用 QM 预定义 formula 应返回数据");
+        for (Map<String, Object> item : items) {
+            assertTrue(((Number) item.get("profitRate")).doubleValue() > 0,
+                    "axis having 应保留 profitRate > 0 的成员");
+        }
+    }
+
+    @Test
+    @DisplayName("QM 预定义 formula 可参与 Pivot grandTotal rollup")
+    void testQmPredefinedFormulaMetricInPivotGrandTotal() {
+        PivotRequest pivot = new PivotRequest();
+        pivot.setRows(List.of(axis("product$categoryName")));
+        pivot.setMetrics(List.of("profitRate"));
+        pivot.setOutputFormat("flat");
+
+        PivotOptions options = new PivotOptions();
+        options.setGrandTotal(true);
+        pivot.setOptions(options);
+
+        SemanticQueryRequest request = new SemanticQueryRequest();
+        request.setPivot(pivot);
+
+        SemanticQueryResponse response = execute(request);
+        List<Map<String, Object>> items = response.getItems();
+
+        assertFalse(items.isEmpty(), "Pivot grandTotal 引用 QM 预定义 formula 应返回数据");
+        assertTrue(items.stream().anyMatch(row -> {
+            Object meta = row.get("_sys_meta");
+            return meta instanceof Map<?, ?> && Boolean.TRUE.equals(((Map<?, ?>) meta).get("isGrandTotal"));
+        }), "Pivot 输出应包含 grandTotal 行");
+    }
+
     // ========== 辅助方法 ==========
 
     private SemanticQueryResponse execute(SemanticQueryRequest request) {
