@@ -11,6 +11,7 @@ import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.PostAggregateCalculationDef;
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.db.model.engine.formula.SqlFormulaService;
+import com.foggyframework.dataset.db.model.engine.postagg.PostAggregateRatioToTotalSupport;
 import com.foggyframework.dataset.db.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.db.model.spi.DbAggregation;
 import jakarta.annotation.Resource;
@@ -99,8 +100,6 @@ public class QueryRequestValidationStep implements DataSetResultStep {
             "(?i)\\b(?:sum|avg|count|countd|count_distinct|min|max|stddev_pop|stddev_samp|var_pop|var_samp)\\s*\\([^)]*\\)\\s+(?:as\\s+)?([A-Za-z_][A-Za-z0-9_]*)\\b");
 
     private static final Pattern IDENT_PATTERN = Pattern.compile("[A-Za-z_][A-Za-z0-9_$]*");
-    private static final Pattern RATIO_TO_TOTAL_SUGAR_PATTERN = Pattern.compile(
-            "(?i)^\\s*(?:ratio_to_total|ratioToTotal)\\s*\\(\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*\\)\\s*$");
 
     private static final Set<String> FORMULA_KEYWORDS = Set.of(
             "and", "or", "not", "null", "true", "false", "case", "when", "then", "else", "end",
@@ -347,7 +346,7 @@ public class QueryRequestValidationStep implements DataSetResultStep {
         for (CalculatedFieldDef cf : queryRequest.getCalculatedFields()) {
             String alias = cf.getName();
             String expression = cf.getExpression() == null ? "" : cf.getExpression();
-            if (RATIO_TO_TOTAL_SUGAR_PATTERN.matcher(expression).matches()) {
+            if (PostAggregateRatioToTotalSupport.toCalculation(alias, expression, selectedAggregateAliases) != null) {
                 continue;
             }
             Set<String> deps = extractFormulaIdentifiers(expression);

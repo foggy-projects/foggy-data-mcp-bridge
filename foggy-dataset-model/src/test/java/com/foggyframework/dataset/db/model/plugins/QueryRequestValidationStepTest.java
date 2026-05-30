@@ -124,6 +124,33 @@ class QueryRequestValidationStepTest {
     }
 
     @Test
+    @Order(8)
+    @DisplayName("grouped calculatedFields 简单总额占比公式应允许进入 postAggregate 归一化")
+    void testPostAggregateAliasRatioToTotalFormulaAllowed() {
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setColumns(List.of(
+                "salesTeam$id",
+                "salesTeam$caption",
+                "sum(amountTotal) as teamSales",
+                "salesShare"));
+
+        GroupRequestDef group1 = new GroupRequestDef();
+        group1.setField("salesTeam$id");
+        GroupRequestDef group2 = new GroupRequestDef();
+        group2.setField("salesTeam$caption");
+        queryRequest.setGroupBy(List.of(group1, group2));
+
+        queryRequest.setCalculatedFields(List.of(new CalculatedFieldDef(
+                "salesShare",
+                "teamSales / NULLIF(SUM(teamSales) OVER (), 0)")));
+        queryRequest.setSlice(List.of(new SliceRequestDef("salesShare", ">", 0.2)));
+
+        ModelResultContext ctx = createContext(queryRequest);
+
+        assertDoesNotThrow(() -> validationStep.beforeQuery(ctx));
+    }
+
+    @Test
     @Order(2)
     @DisplayName("slice 的 field 为空应该抛出异常")
     void testSliceFieldEmpty() {

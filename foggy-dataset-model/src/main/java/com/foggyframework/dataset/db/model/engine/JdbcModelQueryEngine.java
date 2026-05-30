@@ -31,6 +31,7 @@ import com.foggyframework.dataset.db.model.engine.pivot.transport.PostgresCteDom
 import com.foggyframework.dataset.db.model.engine.pivot.transport.SqlServerCteDomainRenderer;
 import com.foggyframework.dataset.db.model.engine.pivot.transport.SqliteCteDomainRenderer;
 import com.foggyframework.dataset.db.model.engine.pivot.transport.UnsupportedDomainRenderer;
+import com.foggyframework.dataset.db.model.engine.postagg.PostAggregateRatioToTotalSupport;
 import com.foggyframework.dataset.db.model.engine.query.JdbcQuery;
 import com.foggyframework.dataset.db.model.engine.query.SimpleSqlJdbcQueryVisitor;
 import com.foggyframework.dataset.db.model.i18n.DatasetMessages;
@@ -167,8 +168,6 @@ public class JdbcModelQueryEngine implements QueryEngine {
     private static final String PATTERN = "^[a-zA-Z\\s]+$";
     private static final Pattern PATTERN_OBJECT = Pattern.compile(PATTERN);
     private static final Pattern SAFE_INTERNAL_IDENTIFIER = Pattern.compile("^[A-Za-z_][A-Za-z0-9_]*$");
-    private static final Pattern RATIO_TO_TOTAL_SUGAR_PATTERN = Pattern.compile(
-            "(?i)^\\s*(?:ratio_to_total|ratioToTotal)\\s*\\(\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*\\)\\s*$");
 
     public static void validate(String v) {
         if (StringUtils.isEmpty(v)) {
@@ -526,9 +525,11 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
         if (queryRequest.getCalculatedFields() != null && !queryRequest.getCalculatedFields().isEmpty()) {
             List<CalculatedFieldDef> remaining = new ArrayList<>();
+            Set<String> aggregateAliases = selectedAggregateAliases(queryRequest);
             for (CalculatedFieldDef cf : queryRequest.getCalculatedFields()) {
-                Matcher matcher = RATIO_TO_TOTAL_SUGAR_PATTERN.matcher(cf.getExpression() == null ? "" : cf.getExpression());
-                if (!matcher.matches()) {
+                PostAggregateCalculationDef postAggregateCalculation =
+                        PostAggregateRatioToTotalSupport.toCalculation(cf.getName(), cf.getExpression(), aggregateAliases);
+                if (postAggregateCalculation == null) {
                     remaining.add(cf);
                     continue;
                 }
@@ -536,12 +537,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
                 if (!seen.add(alias)) {
                     throw RX.throwAUserTip("POST_AGGREGATE_CALCULATION_DUPLICATE: duplicate postAggregateCalculations name '" + alias + "'.");
                 }
-                normalized.add(new PostAggregateCalculationDef(
-                        alias,
-                        "ratioToTotal",
-                        matcher.group(1),
-                        "grandTotal",
-                        "ratio"));
+                normalized.add(postAggregateCalculation);
             }
             queryRequest.setCalculatedFields(remaining);
         }

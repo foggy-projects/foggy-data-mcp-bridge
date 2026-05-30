@@ -375,6 +375,30 @@ class OdooModelLoadingTest extends EcommerceTestSupport {
 
     @Test
     @Order(206)
+    @DisplayName("calculatedFields 聚合别名总额占比公式归一为 postAggregateCalculations")
+    void testCalculatedFieldsAliasRatioToTotalFormulaNormalizesToPostAggregate() {
+        JdbcQueryModel queryModel = getQueryModel("OdooSaleOrderQueryModel");
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        DbQueryRequestDef queryRequest = postAggregateSalesShareRequest();
+        queryRequest.setCalculatedFields(new ArrayList<>(List.of(new CalculatedFieldDef(
+                "salesShare", "teamSales / NULLIF(SUM(teamSales) OVER (), 0)"
+        ))));
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+        String sql = queryEngine.getSql();
+        String normalizedSql = sql.replace('`', '"');
+
+        assertTrue(normalizedSql.contains("post_stage AS"), sql);
+        assertTrue(normalizedSql.contains("stage1.\"teamSales\" / NULLIF(SUM(stage1.\"teamSales\") OVER (), 0) AS \"salesShare\""), sql);
+        assertTrue(normalizedSql.contains("WHERE \"salesShare\" > ?"), sql);
+        assertTrue(queryRequest.getCalculatedFields().stream()
+                .noneMatch(cf -> "salesShare".equals(cf.getName())));
+        assertEquals("teamSales", queryRequest.getPostAggregateCalculations().get(0).getMeasure());
+    }
+
+    @Test
+    @Order(207)
     @DisplayName("全局 predefined ratio measure 应聚合 measure 依赖")
     void testGlobalPredefinedRatioMeasureAggregatesDependencies() {
         JdbcQueryModel queryModel = getQueryModel("OdooAccountMoveQueryModel");
