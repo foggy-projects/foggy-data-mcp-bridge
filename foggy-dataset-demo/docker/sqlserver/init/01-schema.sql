@@ -438,6 +438,25 @@ CREATE INDEX idx_crm_lead_created_at ON crm_lead (created_at);
 CREATE INDEX idx_crm_lead_source ON crm_lead (lead_source);
 GO
 
+-- 20. 客户订单生命周期派生表（首购 cohort / 复购窗口 fixture）
+CREATE TABLE customer_order_lifecycle (
+    customer_id             VARCHAR(64) NOT NULL,
+    customer_name           NVARCHAR(100) NOT NULL,
+    first_order_date        DATE NOT NULL,
+    first_order_month       VARCHAR(7) NOT NULL,
+    first_order_channel     VARCHAR(32),
+    order_count             INT NOT NULL,
+    lifetime_amount         DECIMAL(18,2) NOT NULL,
+    repurchase_30d_flag     TINYINT NOT NULL DEFAULT 0,
+    repurchase_60d_flag     TINYINT NOT NULL DEFAULT 0,
+    repurchase_90d_flag     TINYINT NOT NULL DEFAULT 0,
+    CONSTRAINT pk_customer_order_lifecycle PRIMARY KEY (customer_id)
+);
+GO
+CREATE INDEX idx_customer_lifecycle_first_order_date ON customer_order_lifecycle (first_order_date);
+CREATE INDEX idx_customer_lifecycle_first_order_month ON customer_order_lifecycle (first_order_month);
+GO
+
 -- ==========================================
 -- 嵌套维度测试表 (Nested Dimension / Snowflake Schema)
 -- ==========================================
