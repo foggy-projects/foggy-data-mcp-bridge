@@ -421,6 +421,36 @@ class AdvancedAnalyticsTest extends EcommerceTestSupport {
     }
 
     @Test
+    @Order(20)
+    @DisplayName("QM 预定义普通计算字段可仅在 slice 中引用")
+    void testQmPredefinedFormulaFieldReferencedOnlyBySlice() {
+        JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("FactSalesQueryModel");
+        queryRequest.setSlice(List.of(
+                new SliceRequestDef("salesAmount", ">", 0),
+                new SliceRequestDef("profitRate", ">", 10)
+        ));
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+        String sql = queryEngine.getSql();
+        assertNotNull(sql);
+        printSql(sql, "QM predefined profitRate slice only");
+
+        assertNotNull(queryRequest.getCalculatedFields(), "slice 引用的 QM 预定义字段应注入 calculatedFields");
+        assertTrue(queryRequest.getCalculatedFields().stream()
+                        .anyMatch(field -> "profitRate".equals(field.getName())),
+                "profitRate should be injected from QM predefined calculated fields");
+        assertTrue(sql.contains("profit") && sql.contains("sales"),
+                "SQL 应包含 profitRate 公式依赖: " + sql);
+
+        List<Map<String, Object>> results = jdbcTemplate.queryForList(sql, queryEngine.getValues().toArray());
+        assertFalse(results.isEmpty());
+    }
+
+    @Test
     @Order(21)
     @DisplayName("QM 预定义窗口字段 (salesRank)")
     void testQmPredefinedWindowField() {

@@ -1,10 +1,10 @@
 package com.foggyframework.dataset.db.model.plugins.result_set_filter;
 
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
-import com.foggyframework.dataset.db.model.def.query.request.CondRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.engine.compose.schema.AliasExtractor;
 import com.foggyframework.dataset.db.model.engine.compose.schema.ColumnAliasParts;
+import com.foggyframework.dataset.db.model.engine.query_model.PredefinedCalculatedFieldInjector;
 import com.foggyframework.dataset.db.model.engine.query_model.QueryModelSupport;
 import com.foggyframework.dataset.db.model.engine.expression.AllowedFunctions;
 import com.foggyframework.dataset.db.model.engine.expression.CalculatedFieldService;
@@ -60,15 +60,15 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
         DbQueryRequestDef queryRequest = ctx.getRequest().getParam();
         List<String> columns = queryRequest.getColumns();
 
-        if (columns == null || columns.isEmpty()) {
-            return CONTINUE;
-        }
-
         // 获取 QueryModel（用于查询字段定义）
         QueryModel queryModel = ctx.getQueryModel();
 
         // 注入 QM 预定义的 calculatedFields（同时处理 AI 误传的同名字段）
-        injectPredefinedCalculatedFields(queryRequest, queryModel, ctx);
+        PredefinedCalculatedFieldInjector.inject(queryRequest, queryModel, ctx, log);
+
+        if (columns == null || columns.isEmpty()) {
+            return CONTINUE;
+        }
 
         // 解析并转换
         ModelResultContext.ParsedInlineExpressions result = parseAndConvert(columns, queryRequest, queryModel);
@@ -525,141 +525,6 @@ public class InlineExpressionPreprocessStep implements DataSetResultStep {
             this.hasAggregate = hasAggregate;
             this.aggregationType = aggregationType;
         }
-    }
-
-    /**
-     * 注入 QM 预定义的 calculatedFields
-     * <p>
-     * 仅注入查询 columns 中引用到的预定义字段。
-     * DSL 请求中同名的 calculatedField 可覆盖 QM 预定义的。
-     * </p>
-     */
-    /**
-     * 注入 QM 预定义计算字段，并处理与用户自定义字段的同名冲突。
-     *
-     * <p>安全策略：仅移除与 QM 预定义计算字段同名的用户自定义字段（AI 常见误用）。
-     * 与普通列（维度/度量/属性）同名的冲突由 CalculatedFieldService 拦截，
-     * 防止用户通过自定义计算字段覆盖已有列（可能涉及权限控制等安全敏感字段）。</p>
-     */
-    @SuppressWarnings("unchecked")
-    private void injectPredefinedCalculatedFields(DbQueryRequestDef queryRequest, QueryModel queryModel,
-                                                   ModelResultContext ctx) {
-        if (!(queryModel instanceof QueryModelSupport)) {
-            return;
-        }
-        QueryModelSupport qms = (QueryModelSupport) queryModel;
-        List<CalculatedFieldDef> predefined = qms.getPredefinedCalculatedFields();
-        if (predefined == null || predefined.isEmpty()) {
-            return;
-        }
-
-        // 建立预定义字段名称索引
-        Set<String> predefinedNames = new HashSet<>();
-        for (CalculatedFieldDef calc : predefined) {
-            predefinedNames.add(calc.getName());
-        }
-
-        // 移除与预定义字段同名的用户自定义字段，并记录 warning
-        if (queryRequest.getCalculatedFields() != null) {
-            List<CalculatedFieldDef> userFields = queryRequest.getCalculatedFields();
-            List<String> replaced = new ArrayList<>();
-            userFields.removeIf(f -> {
-                if (predefinedNames.contains(f.getName())) {
-                    replaced.add(f.getName());
-                    return true;
-                }
-                return false;
-            });
-            if (!replaced.isEmpty()) {
-                String warning = "以下字段为预定义计算字段，已忽略您自定义的版本并使用模型预定义公式: " + replaced
-                        + "。请直接在 columns 中引用，不要在 calculatedFields 中重复定义。";
-                log.warn(warning);
-                // 写入 extData，由 SemanticQueryServiceV3Impl 收集到 response.warnings
-                if (ctx != null) {
-                    List<String> engineWarnings = (List<String>) ctx.getExtData()
-                            .computeIfAbsent("engineWarnings", k -> new ArrayList<>());
-                    engineWarnings.add(warning);
-                }
-            }
-        }
-
-        // 收集 DSL 请求中剩余的 calculatedField 名称
-        Set<String> existingNames = new HashSet<>();
-        if (queryRequest.getCalculatedFields() != null) {
-            for (CalculatedFieldDef f : queryRequest.getCalculatedFields()) {
-                existingNames.add(f.getName());
-            }
-        }
-
-        // 收集请求中引用到的名称。slice 中的预定义聚合只用于前置校验/纠错；
-        // 真正的聚合后过滤必须走 request.having。
-        Set<String> referencedColumns = new HashSet<>();
-        collectColumnReferences(queryRequest.getColumns(), referencedColumns);
-        collectConditionFields(queryRequest.getSlice(), referencedColumns);
-        collectConditionFields(queryRequest.getHaving(), referencedColumns);
-
-        // 注入引用到的、且未被 DSL 覆盖的预定义字段
-        List<CalculatedFieldDef> toInject = new ArrayList<>();
-        for (CalculatedFieldDef calc : predefined) {
-            if (referencedColumns.contains(calc.getName()) && !existingNames.contains(calc.getName())) {
-                toInject.add(calc);
-            }
-        }
-
-        if (!toInject.isEmpty()) {
-            List<CalculatedFieldDef> existing = queryRequest.getCalculatedFields();
-            if (existing == null) {
-                existing = new ArrayList<>();
-                queryRequest.setCalculatedFields(existing);
-            }
-            // 预定义字段放在前面，DSL 请求中的放在后面
-            existing.addAll(0, toInject);
-
-            if (log.isDebugEnabled()) {
-                log.debug("注入了 {} 个 QM 预定义计算字段: {}", toInject.size(),
-                        toInject.stream().map(CalculatedFieldDef::getName).collect(java.util.stream.Collectors.toList()));
-            }
-        }
-    }
-
-    private void collectColumnReferences(List<String> columns, Set<String> out) {
-        if (columns == null || columns.isEmpty()) {
-            return;
-        }
-        for (String column : columns) {
-            if (column == null || column.isBlank()) {
-                continue;
-            }
-            out.add(column);
-            try {
-                ColumnAliasParts parts = AliasExtractor.extract(column);
-                if (parts.hasAlias()) {
-                    out.add(parts.expression());
-                }
-            } catch (IllegalArgumentException ignore) {
-                // Keep original field; downstream validation will report malformed aliases.
-            }
-        }
-    }
-
-    private void collectConditionFields(List<? extends CondRequestDef> conditions, Set<String> out) {
-        if (conditions == null || conditions.isEmpty()) {
-            return;
-        }
-        for (CondRequestDef item : conditions) {
-            collectConditionField(item, out);
-        }
-    }
-
-    private void collectConditionField(CondRequestDef item, Set<String> out) {
-        if (item == null) {
-            return;
-        }
-        if (item.getField() != null && !item.getField().isBlank()) {
-            out.add(item.getField());
-        }
-        collectConditionFields(item.getAnd(), out);
-        collectConditionFields(item.getOr(), out);
     }
 
     /**

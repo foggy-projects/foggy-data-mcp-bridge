@@ -62,4 +62,28 @@ public class ExpStringTest {
         Assertions.assertEquals(true,exp instanceof IdExp);
     }
 
+    @Test
+    public void nestedTemplateStringInDollarExpressionShouldExpandSqlHelper() {
+        String code = """
+                const subjectNoPaidValue = (column, subjectCode) =>
+                    `COALESCE(${column}, '${subjectCode}')`;
+
+                const accountRpItemIdsByNoPaidSign = (column, subjectCodes, operator) =>
+                    `CAST(JSON_MERGE_PRESERVE(${subjectCodes.map((subjectCode) =>
+                        `CASE WHEN ${subjectNoPaidValue(column, subjectCode)} ${operator} 0 THEN JSON_ARRAY('${subjectCode}') ELSE JSON_ARRAY() END`
+                    ).join(', ')}) AS CHAR)`;
+
+                const sql = accountRpItemIdsByNoPaidSign('revenue_settlement', ['1122-10-01', '1122-10-02'], '>');
+                export sql;
+                """;
+
+        Exp exp = new ExpParser().compileEl(code);
+        ExpEvaluator ee = DefaultExpEvaluator.newInstance(appCtx);
+        exp.evalValue(ee);
+
+        Assertions.assertEquals(
+                "CAST(JSON_MERGE_PRESERVE(CASE WHEN COALESCE(revenue_settlement, '1122-10-01') > 0 THEN JSON_ARRAY('1122-10-01') ELSE JSON_ARRAY() END, CASE WHEN COALESCE(revenue_settlement, '1122-10-02') > 0 THEN JSON_ARRAY('1122-10-02') ELSE JSON_ARRAY() END) AS CHAR)",
+                ee.getExportMap().get("sql"));
+    }
+
 }

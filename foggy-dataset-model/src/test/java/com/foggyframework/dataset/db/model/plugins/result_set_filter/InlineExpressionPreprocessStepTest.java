@@ -4,10 +4,13 @@ import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResult
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.engine.query_model.QueryModelSupport;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
+import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import org.junit.jupiter.api.Test;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -69,5 +72,61 @@ class InlineExpressionPreprocessStepTest {
 
         // Should not throw
         step.beforeQuery(context);
+    }
+
+    @Test
+    void injectsPredefinedCalculatedFieldReferencedOnlyBySliceWithoutColumns() {
+        InlineExpressionPreprocessStep step = new InlineExpressionPreprocessStep();
+
+        CalculatedFieldDef predefined = new CalculatedFieldDef();
+        predefined.setName("availablePieceCount");
+        predefined.setExpression("number - plannedPieceCount");
+
+        QueryModelSupport qm = mock(QueryModelSupport.class);
+        when(qm.getPredefinedCalculatedFields()).thenReturn(List.of(predefined));
+
+        DbQueryRequestDef request = new DbQueryRequestDef();
+        request.setSlice(List.of(new SliceRequestDef("availablePieceCount", ">", 0)));
+
+        com.foggyframework.dataset.client.domain.PagingRequest reqMock = mock(com.foggyframework.dataset.client.domain.PagingRequest.class);
+        when(reqMock.getParam()).thenReturn(request);
+        ModelResultContext context = mock(ModelResultContext.class);
+        when(context.getRequest()).thenReturn(reqMock);
+        when(context.getQueryModel()).thenReturn(qm);
+
+        step.beforeQuery(context);
+
+        assertEquals(1, request.getCalculatedFields().size());
+        assertEquals("availablePieceCount", request.getCalculatedFields().get(0).getName());
+    }
+
+    @Test
+    void injectsPredefinedCalculatedFieldReferencedByFieldReferenceValue() {
+        InlineExpressionPreprocessStep step = new InlineExpressionPreprocessStep();
+
+        CalculatedFieldDef predefined = new CalculatedFieldDef();
+        predefined.setName("availablePieceCount");
+        predefined.setExpression("number - plannedPieceCount");
+
+        QueryModelSupport qm = mock(QueryModelSupport.class);
+        when(qm.getPredefinedCalculatedFields()).thenReturn(List.of(predefined));
+
+        DbQueryRequestDef request = new DbQueryRequestDef();
+        request.setSlice(List.of(new SliceRequestDef(
+                "number",
+                ">",
+                Map.of("$field", "availablePieceCount")
+        )));
+
+        com.foggyframework.dataset.client.domain.PagingRequest reqMock = mock(com.foggyframework.dataset.client.domain.PagingRequest.class);
+        when(reqMock.getParam()).thenReturn(request);
+        ModelResultContext context = mock(ModelResultContext.class);
+        when(context.getRequest()).thenReturn(reqMock);
+        when(context.getQueryModel()).thenReturn(qm);
+
+        step.beforeQuery(context);
+
+        assertEquals(1, request.getCalculatedFields().size());
+        assertEquals("availablePieceCount", request.getCalculatedFields().get(0).getName());
     }
 }
