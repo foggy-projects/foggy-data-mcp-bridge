@@ -241,6 +241,7 @@ public class QueryExpertService {
             DatasetNLQueryResponse response = parseResponse(aiResponse, context, traceId);
             response = enforceQueryToolFailureContract(response, collector);
             response = enforceRoutingReplanResultContract(response, calibrationAction);
+            response = enforceInfoTerminalContract(response);
             response = attachQueryTraceDebug(response, traceId, sessionId, queryTools, collector, captured);
             response = attachRoutingReplanDispatchDebug(response, calibrationAction, traceId);
             return attachRoutingCalibrationDebug(response, calibrationAction, traceId);
@@ -317,6 +318,7 @@ public class QueryExpertService {
                 DatasetNLQueryResponse result = parseResponse(aiResponse, context, traceId);
                 result = enforceQueryToolFailureContract(result, collector);
                 result = enforceRoutingReplanResultContract(result, calibrationAction);
+                result = enforceInfoTerminalContract(result);
                 result = attachQueryTraceDebug(result, traceId, sessionId, queryTools, collector, captured);
                 result = attachRoutingReplanDispatchDebug(result, calibrationAction, traceId);
                 result = attachRoutingCalibrationDebug(result, calibrationAction, traceId);
@@ -564,6 +566,75 @@ public class QueryExpertService {
                 "dataset.query_model 执行失败，未产生可验收的结构化查询结果。",
                 detail
         );
+    }
+
+    private static DatasetNLQueryResponse enforceInfoTerminalContract(DatasetNLQueryResponse response) {
+        if (response == null || !"info".equals(response.getType())) {
+            return response;
+        }
+
+        Map<String, Object> detail = new LinkedHashMap<>();
+        detail.put("original_type", response.getType());
+        detail.put("original_topic", response.getTopic());
+        detail.put("original_note", response.getNote());
+        detail.put("original_data", response.getData());
+        detail.put("reason", "nl response did not produce a structured terminal result");
+
+        String text = infoResponseText(response);
+        if (looksLikeUnsupported(text)) {
+            detail.put("terminal_contract", "unsupported_by_current_model_catalog");
+            return DatasetNLQueryResponse.reject(
+                    "UNSUPPORTED_BY_CURRENT_MODEL_CATALOG",
+                    "当前模型目录或查询能力不支持该自然语言请求。",
+                    detail
+            );
+        }
+
+        detail.put("terminal_contract", "clarification_required_for_unstructured_response");
+        return DatasetNLQueryResponse.clarify(
+                List.of("本次自然语言查询没有产生可验收的结构化结果。请补充模型、字段或分析口径后重试。"),
+                detail
+        );
+    }
+
+    private static String infoResponseText(DatasetNLQueryResponse response) {
+        List<String> parts = new ArrayList<>();
+        if (response.getTopic() != null) {
+            parts.add(response.getTopic());
+        }
+        if (response.getNote() != null) {
+            parts.add(response.getNote());
+        }
+        Object data = response.getData();
+        if (data instanceof Map<?, ?> map) {
+            Object analysis = map.get("analysis");
+            if (analysis != null) {
+                parts.add(String.valueOf(analysis));
+            }
+        } else if (data != null) {
+            parts.add(String.valueOf(data));
+        }
+        return String.join("\n", parts);
+    }
+
+    private static boolean looksLikeUnsupported(String text) {
+        if (text == null || text.isBlank()) {
+            return false;
+        }
+        String normalized = text.toLowerCase(Locale.ROOT);
+        return containsAny(text,
+                "无法", "不能", "不支持", "没有接入", "未接入", "暂未接入", "没有配置",
+                "未找到", "缺少", "不包含", "没有包含", "超出当前", "缺乏", "不存在")
+                || containsAny(normalized, "unsupported", "not supported", "not found", "missing model", "missing field");
+    }
+
+    private static boolean containsAny(String text, String... tokens) {
+        for (String token : tokens) {
+            if (text.contains(token)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static ToolCallCollector.ToolCallRecord lastFailedQueryModelCall(ToolCallCollector collector) {

@@ -419,6 +419,57 @@ class QueryExpertServiceRoutingCalibrationTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    @DisplayName("无结构化结果且提示缺少模型能力时应返回 reject 而不是 info")
+    void unsupportedInfoWithoutStructuredResult_shouldReturnRejectContract() {
+        DatasetNLQueryRequest request = DatasetNLQueryRequest.builder()
+                .query("统计客服团队超 48 小时未响应工单数量")
+                .build();
+
+        mockLlmToolDispatchWithContent(
+                "trace-unsupported-info-1",
+                "当前系统没有接入客服工单模型，无法统计超 48 小时未响应工单数量。"
+        );
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-unsupported-info-1", null);
+
+        assertEquals("reject", response.getType());
+        assertEquals("UNSUPPORTED_BY_CURRENT_MODEL_CATALOG", response.getCode());
+        assertTrue(response.getMsg().contains("不支持"));
+        Map<String, Object> detail = (Map<String, Object>) response.getDetail();
+        assertEquals("info", detail.get("original_type"));
+        assertEquals("unsupported_by_current_model_catalog", detail.get("terminal_contract"));
+        assertNotNull(response.getDebug());
+        Map<String, Object> queryTrace = (Map<String, Object>) response.getDebug().get("query_trace");
+        assertEquals("reject", queryTrace.get("result_type"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    @DisplayName("无结构化结果的普通自由文本应返回 clarify 而不是 info")
+    void freeformInfoWithoutStructuredResult_shouldReturnClarifyContract() {
+        DatasetNLQueryRequest request = DatasetNLQueryRequest.builder()
+                .query("分析客户复购情况")
+                .build();
+
+        mockLlmToolDispatchWithContent(
+                "trace-freeform-info-1",
+                "已完成分析，建议补充统计口径后再试。"
+        );
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-freeform-info-1", null);
+
+        assertEquals("clarify", response.getType());
+        assertNotNull(response.getQuestions());
+        assertTrue(response.getQuestions().get(0).contains("没有产生可验收的结构化结果"));
+        Map<String, Object> candidates = (Map<String, Object>) response.getCandidates();
+        assertEquals("info", candidates.get("original_type"));
+        assertEquals("clarification_required_for_unstructured_response", candidates.get("terminal_contract"));
+        Map<String, Object> queryTrace = (Map<String, Object>) response.getDebug().get("query_trace");
+        assertEquals("clarify", queryTrace.get("result_type"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     @DisplayName("query_model 捕获应归一化 RX 语义查询结果")
     void captureQueryResult_shouldNormalizeRxSemanticQueryResponse() {
         try {
