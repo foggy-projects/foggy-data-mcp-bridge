@@ -492,6 +492,46 @@ class QueryExpertServiceRoutingCalibrationTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    @DisplayName("provider quota/cooldown 应返回稳定 PROVIDER_UNAVAILABLE 并保留 query_trace")
+    void providerUnavailable_shouldReturnStableErrorWithTrace() {
+        DatasetNLQueryRequest request = DatasetNLQueryRequest.builder()
+                .query("分析订单趋势")
+                .build();
+
+        chatClient = mock(ChatClient.class);
+        requestSpec = mock(ChatClient.ChatClientRequestSpec.class);
+
+        when(chatClientBuilder.defaultSystem(anyString())).thenReturn(chatClientBuilder);
+        when(chatClientBuilder.build()).thenReturn(chatClient);
+        when(mcpToolDispatcher.getTool(anyString())).thenAnswer(invocation -> mockTool(invocation.getArgument(0)));
+        when(toolCallbackFactory.createToolCallbacks(anyList(), eq("trace-provider-unavailable-1"), isNull(), any(ToolCallCollector.class)))
+                .thenReturn(new ToolCallback[0]);
+        when(chatClient.prompt()).thenReturn(requestSpec);
+        when(requestSpec.user(anyString())).thenReturn(requestSpec);
+        when(requestSpec.toolCallbacks(any(ToolCallback[].class))).thenReturn(requestSpec);
+        when(requestSpec.call()).thenThrow(new IllegalStateException(
+                "HTTP 429 - {\"error\":{\"code\":\"model_cooldown\",\"message\":\"All credentials for model gemini-pro-agent are cooling down via provider antigravity\"}}"
+        ));
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-provider-unavailable-1", null);
+
+        assertEquals("error", response.getType());
+        assertEquals("PROVIDER_UNAVAILABLE", response.getCode());
+        assertTrue(response.getMsg().contains("temporarily unavailable"));
+        Map<String, Object> detail = (Map<String, Object>) response.getDetail();
+        assertEquals("provider_unavailable", detail.get("reason"));
+        assertTrue(String.valueOf(detail.get("original_error")).contains("model_cooldown"));
+
+        Map<String, Object> queryTrace = (Map<String, Object>) response.getDebug().get("query_trace");
+        assertEquals("trace-provider-unavailable-1", queryTrace.get("trace_id"));
+        assertEquals("error", queryTrace.get("result_type"));
+        assertEquals(3, queryTrace.get("registered_tool_count"));
+        assertEquals(0, queryTrace.get("tool_call_count"));
+        assertEquals(false, queryTrace.get("query_result_captured"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     @DisplayName("无结构化结果且提示缺少模型能力时应返回 reject 而不是 info")
     void unsupportedInfoWithoutStructuredResult_shouldReturnRejectContract() {
         DatasetNLQueryRequest request = DatasetNLQueryRequest.builder()

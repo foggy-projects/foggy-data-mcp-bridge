@@ -61,10 +61,19 @@ public class QueryExpertService {
     private static final String ROUTING_REPLAN_REQUIRED_CODE = "ROUTING_REPLAN_REQUIRED";
     private static final String QUERY_MODEL_FAILED_CODE = "QUERY_MODEL_FAILED";
     private static final String UNKNOWN_TOOL_CALL_CODE = "UNKNOWN_TOOL_CALL";
+    private static final String PROVIDER_UNAVAILABLE_CODE = "PROVIDER_UNAVAILABLE";
     private static final String PROVIDER_RESPONSE_PARSE_FAILED_CODE = "PROVIDER_RESPONSE_PARSE_FAILED";
     private static final String REPLAN_RECOMMENDED_ACTION = "REPLAN_BY_CALIBRATED_ROUTE";
     private static final String PROVIDER_RESPONSE_PARSE_FAILED_MARKER = "Error while extracting response for type";
     private static final int QUERY_TRACE_TOOL_FAILURE_BUDGET = 10;
+    private static final List<String> PROVIDER_UNAVAILABLE_MARKERS = List.of(
+            "QUOTA_EXHAUSTED",
+            "RESOURCE_EXHAUSTED",
+            "Individual quota reached",
+            "model_cooldown",
+            "All credentials for model",
+            "provider antigravity"
+    );
     private static final Pattern UNKNOWN_TOOL_CALL_PATTERN = Pattern.compile(
             "No ToolCallback found for tool name:\\s*([A-Za-z0-9_.-]+)");
     private static final List<String> STALE_PLAN_FIELDS = List.of(
@@ -550,6 +559,9 @@ public class QueryExpertService {
             response = providerResponseParseFailureResponse(exception);
         }
         if (response == null) {
+            response = providerUnavailableResponse(exception);
+        }
+        if (response == null) {
             return null;
         }
         return attachQueryTraceDebug(response, traceId, sessionId, queryTools, collector, null);
@@ -570,6 +582,22 @@ public class QueryExpertService {
         return DatasetNLQueryResponse.reject(
                 UNKNOWN_TOOL_CALL_CODE,
                 "模型请求了当前 Java MCP 未注册的工具，已拒绝执行。",
+                detail
+        );
+    }
+
+    private static DatasetNLQueryResponse providerUnavailableResponse(Exception exception) {
+        if (!isProviderUnavailable(exception)) {
+            return null;
+        }
+
+        Map<String, Object> detail = new LinkedHashMap<>();
+        detail.put("reason", "provider_unavailable");
+        detail.put("original_error", safeString(exception.getMessage()));
+
+        return DatasetNLQueryResponse.error(
+                PROVIDER_UNAVAILABLE_CODE,
+                "LLM provider is temporarily unavailable due to quota, cooldown, or upstream capacity limits.",
                 detail
         );
     }
@@ -604,6 +632,17 @@ public class QueryExpertService {
         for (String message : exceptionMessages(throwable)) {
             if (message.contains(PROVIDER_RESPONSE_PARSE_FAILED_MARKER)) {
                 return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isProviderUnavailable(Throwable throwable) {
+        for (String message : exceptionMessages(throwable)) {
+            for (String marker : PROVIDER_UNAVAILABLE_MARKERS) {
+                if (message.contains(marker)) {
+                    return true;
+                }
             }
         }
         return false;
