@@ -44,6 +44,8 @@ foggy:
     semantic:
       model-list:
         - FactOrderQueryModel
+        - CrmLead
+        - CustomerOrderLifecycleQueryModel
 
     # 关闭审计日志（需要 MongoDB）
     audit:

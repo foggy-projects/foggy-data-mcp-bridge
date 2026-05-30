@@ -25,6 +25,15 @@ class McpLauncherLiteProfileConfigurationTest {
         assertEquals("SELECT 1", properties.getProperty("spring.datasource.hikari.connection-test-query"));
     }
 
+    @Test
+    void liteProfileExposesCoverageModelsForMediumMatrix() {
+        Properties properties = loadLiteProperties();
+
+        assertEquals("FactOrderQueryModel", properties.getProperty("foggy.mcp.semantic.model-list[0]"));
+        assertEquals("CrmLead", properties.getProperty("foggy.mcp.semantic.model-list[1]"));
+        assertEquals("CustomerOrderLifecycleQueryModel", properties.getProperty("foggy.mcp.semantic.model-list[2]"));
+    }
+
     private static Properties loadLiteProperties() {
         YamlPropertiesFactoryBean factory = new YamlPropertiesFactoryBean();
         factory.setResources(new ClassPathResource("application-lite.yml"));

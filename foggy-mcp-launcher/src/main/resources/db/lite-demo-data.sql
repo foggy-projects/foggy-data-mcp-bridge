@@ -31,3 +31,20 @@ INSERT INTO fact_order (order_id, date_key, customer_key, store_key, channel_key
 ('ORD-LITE-0003', 20240102, 3, 3, 1, 1, 3, 1298.00, 0.00, 0.00, 1298.00, 'PROCESSING', 'PARTIAL', '2024-01-02 09:15:00'),
 ('ORD-LITE-0004', 20240103, 4, 1, 3, 3, 1, 1299.00, 155.88, 0.00, 1143.12, 'PENDING', 'UNPAID', '2024-01-03 15:30:00'),
 ('ORD-LITE-0005', 20240104, 1, 2, 1, 1, 1, 19.90, 0.00, 10.00, 29.90, 'CANCELLED', 'UNPAID', '2024-01-04 09:00:00');
+
+INSERT INTO crm_lead (lead_id, created_at, lead_source, converted_opportunity_id, converted_order_id) VALUES
+('CRM-LITE-001', '2024-01-01 09:00:00', 'WEB', 'OPP-LITE-001', 'ORD-LITE-0001'),
+('CRM-LITE-002', '2024-01-01 11:00:00', 'WEB', 'OPP-LITE-002', NULL),
+('CRM-LITE-003', '2024-01-02 10:00:00', 'APP', 'OPP-LITE-003', 'ORD-LITE-0004'),
+('CRM-LITE-004', '2024-01-03 15:00:00', 'APP', NULL, NULL),
+('CRM-LITE-005', '2024-01-04 08:30:00', 'PHONE', 'OPP-LITE-005', 'ORD-LITE-0005'),
+('CRM-LITE-006', '2024-01-04 16:00:00', 'PHONE', NULL, NULL);
+
+INSERT INTO customer_order_lifecycle
+(customer_id, customer_name, first_order_date, first_order_month, first_order_channel, order_count, lifetime_amount,
+ repurchase_30d_flag, repurchase_60d_flag, repurchase_90d_flag)
+VALUES
+('CUS000001', 'Customer 1', '2024-01-01', '2024-01', 'ONLINE', 2, 11017.90, 1, 1, 1),
+('CUS000002', 'Customer 2', '2024-01-01', '2024-01', 'ONLINE', 1, 4599.00, 0, 0, 0),
+('CUS000003', 'Customer 3', '2024-01-02', '2024-01', 'ONLINE', 1, 1298.00, 0, 0, 0),
+('CUS000004', 'Customer 4', '2024-01-03', '2024-01', 'OFFLINE', 1, 1299.00, 0, 0, 0);

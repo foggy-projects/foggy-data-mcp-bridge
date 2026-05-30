@@ -1,4 +1,6 @@
 DROP TABLE IF EXISTS fact_order;
+DROP TABLE IF EXISTS customer_order_lifecycle;
+DROP TABLE IF EXISTS crm_lead;
 DROP TABLE IF EXISTS dim_promotion;
 DROP TABLE IF EXISTS dim_channel;
 DROP TABLE IF EXISTS dim_store;
@@ -107,3 +109,33 @@ CREATE INDEX idx_lite_fact_order_date_key ON fact_order (date_key);
 CREATE INDEX idx_lite_fact_order_customer_key ON fact_order (customer_key);
 CREATE INDEX idx_lite_fact_order_order_status ON fact_order (order_status);
 CREATE INDEX idx_lite_fact_order_order_time ON fact_order (order_time);
+
+CREATE TABLE crm_lead
+(
+    lead_id                  TEXT NOT NULL PRIMARY KEY,
+    created_at               TEXT NOT NULL,
+    lead_source              TEXT NOT NULL,
+    converted_opportunity_id TEXT,
+    converted_order_id       TEXT
+);
+
+CREATE INDEX idx_lite_crm_lead_created_at ON crm_lead (created_at);
+CREATE INDEX idx_lite_crm_lead_source ON crm_lead (lead_source);
+CREATE INDEX idx_lite_crm_lead_converted_order ON crm_lead (converted_order_id);
+
+CREATE TABLE customer_order_lifecycle
+(
+    customer_id           TEXT NOT NULL PRIMARY KEY,
+    customer_name         TEXT NOT NULL,
+    first_order_date      TEXT NOT NULL,
+    first_order_month     TEXT NOT NULL,
+    first_order_channel   TEXT,
+    order_count           INTEGER NOT NULL,
+    lifetime_amount       REAL NOT NULL,
+    repurchase_30d_flag   INTEGER NOT NULL DEFAULT 0,
+    repurchase_60d_flag   INTEGER NOT NULL DEFAULT 0,
+    repurchase_90d_flag   INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX idx_lite_customer_lifecycle_first_order_date ON customer_order_lifecycle (first_order_date);
+CREATE INDEX idx_lite_customer_lifecycle_first_order_month ON customer_order_lifecycle (first_order_month);
