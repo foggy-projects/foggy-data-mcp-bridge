@@ -398,6 +398,31 @@ class OdooModelLoadingTest extends EcommerceTestSupport {
     }
 
     @Test
+    @Order(206)
+    @DisplayName("postAggregate 结果别名支持从 having 安全迁移到外层过滤")
+    void testPostAggregateAliasHavingIsLiftedToResultStageFilter() {
+        JdbcQueryModel queryModel = getQueryModel("OdooSaleOrderQueryModel");
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        DbQueryRequestDef queryRequest = postAggregateSalesShareRequest();
+        queryRequest.setSlice(null);
+        queryRequest.setHaving(List.of(new SliceRequestDef("salesShare", ">", 0.2)));
+        queryRequest.setCalculatedFields(new ArrayList<>(List.of(new CalculatedFieldDef(
+                "salesShare", "teamSales / SUM(teamSales) OVER ()"
+        ))));
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+        String sql = queryEngine.getSql();
+        String normalizedSql = sql.replace('`', '"');
+
+        assertTrue(normalizedSql.contains("post_stage AS"), sql);
+        assertTrue(normalizedSql.contains("FROM post_stage"), sql);
+        assertTrue(normalizedSql.contains("WHERE \"salesShare\" > ?"), sql);
+        assertFalse(normalizedSql.contains("HAVING \"salesShare\""), sql);
+        assertEquals(0.2, queryEngine.getValues().get(queryEngine.getValues().size() - 1));
+    }
+
+    @Test
     @Order(207)
     @DisplayName("全局 predefined ratio measure 应聚合 measure 依赖")
     void testGlobalPredefinedRatioMeasureAggregatesDependencies() {

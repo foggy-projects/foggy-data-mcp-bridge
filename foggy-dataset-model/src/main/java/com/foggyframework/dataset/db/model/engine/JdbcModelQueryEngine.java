@@ -312,11 +312,15 @@ public class JdbcModelQueryEngine implements QueryEngine {
         if (hasLiftedAggregateSlice && !queryRequest.hasGroupBy()) {
             throw RX.throwAUserTip("HAVING_REQUIRES_GROUP_BY: aggregate slice filters are only supported for grouped aggregate queries. Add groupBy/aggregate columns or move row-level filters to slice.");
         }
+        List<SliceRequestDef> innerHaving = new ArrayList<>();
         if (queryRequest.getHaving() != null && !queryRequest.getHaving().isEmpty()) {
+            splitPostAggregateSlice(queryRequest.getHaving(), postAggregateNames, innerHaving, this.postAggregateSlice);
+        }
+        if (!innerHaving.isEmpty()) {
             if (!queryRequest.hasGroupBy()) {
                 throw RX.throwAUserTip("HAVING_REQUIRES_GROUP_BY: request.having is only supported for grouped aggregate queries. Add groupBy/aggregate columns or move row-level filters to slice.");
             }
-            for (SliceRequestDef havingDef : queryRequest.getHaving()) {
+            for (SliceRequestDef havingDef : innerHaving) {
                 buildHaving(jdbcQueryModel, jdbcQuery, havingDef);
             }
         }
