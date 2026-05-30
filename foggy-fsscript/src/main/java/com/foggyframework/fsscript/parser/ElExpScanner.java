@@ -625,6 +625,104 @@ public class ElExpScanner implements BaseScanner {
         return makeSymbol(i, s);
     }
 
+    private Symbol readTemplateString() throws IOException {
+        StringBuilder id = new StringBuilder();
+        advance();
+        readTemplateContent(id, false);
+        return makeSymbol(ExpSymbols.EXP_STRING, id.toString());
+    }
+
+    private void readTemplateContent(StringBuilder id, boolean includeClosingBackquote) throws IOException {
+        while (true) {
+            switch (nextChar) {
+                case '`':
+                    if (includeClosingBackquote) {
+                        id.append((char) nextChar);
+                    }
+                    advance();
+                    return;
+                case -1:
+                    return;
+                case '\\':
+                    if (lookahead(1) == '`') {
+                        advance();
+                        id.append((char) nextChar);
+                        advance();
+                        continue;
+                    }
+                    id.append((char) nextChar);
+                    advance();
+                    continue;
+                case '$':
+                    if (lookahead(1) == '{') {
+                        id.append((char) nextChar);
+                        advance();
+                        id.append((char) nextChar);
+                        advance();
+                        readTemplateDollarExpression(id);
+                        continue;
+                    }
+                    id.append((char) nextChar);
+                    advance();
+                    continue;
+                default:
+                    id.append((char) nextChar);
+                    advance();
+            }
+        }
+    }
+
+    private void readTemplateDollarExpression(StringBuilder id) throws IOException {
+        int braceDepth = 1;
+        while (braceDepth > 0) {
+            switch (nextChar) {
+                case -1:
+                    return;
+                case '\'':
+                case '"':
+                    readQuotedTemplateExpression(id, nextChar);
+                    continue;
+                case '`':
+                    id.append((char) nextChar);
+                    advance();
+                    readTemplateContent(id, true);
+                    continue;
+                case '{':
+                    braceDepth++;
+                    id.append((char) nextChar);
+                    advance();
+                    continue;
+                case '}':
+                    braceDepth--;
+                    id.append((char) nextChar);
+                    advance();
+                    continue;
+                default:
+                    id.append((char) nextChar);
+                    advance();
+            }
+        }
+    }
+
+    private void readQuotedTemplateExpression(StringBuilder id, int quote) throws IOException {
+        while (nextChar != -1) {
+            id.append((char) nextChar);
+            if (nextChar == '\\') {
+                advance();
+                if (nextChar != -1) {
+                    id.append((char) nextChar);
+                    advance();
+                }
+                continue;
+            }
+            if (nextChar == quote) {
+                advance();
+                return;
+            }
+            advance();
+        }
+    }
+
     protected int next() {
         return s.length() > (i + 0) ? s.charAt(i + 0) : -1;
     }
@@ -1387,27 +1485,7 @@ public class ElExpScanner implements BaseScanner {
                         }
                     }
                 case '`':
-                    /* parse a double-quoted string */
-                    id = new StringBuilder();
-                    for (; ; ) {
-                        advance();
-                        switch (nextChar) {
-                            case '`':
-                                advance();
-                                // end of string
-                                return makeSymbol(ExpSymbols.EXP_STRING, id.toString());
-                            case -1:
-                                return makeSymbol(ExpSymbols.EXP_STRING, id.toString());
-                            case '\\':
-                                if (lookahead(1) == '`') {
-                                    advance();
-                                    id.append((char) nextChar);
-                                    continue;
-                                }
-                            default:
-                                id.append((char) nextChar);
-                        }
-                    }
+                    return readTemplateString();
                 default:
                 case ' ':
                 case '\t':
