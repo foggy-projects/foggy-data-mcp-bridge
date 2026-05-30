@@ -124,6 +124,33 @@ class QueryRequestValidationStepTest {
     }
 
     @Test
+    @Order(8)
+    @DisplayName("grouped calculatedFields 简单总额占比公式应允许进入 postAggregate 归一化")
+    void testPostAggregateAliasRatioToTotalFormulaAllowed() {
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setColumns(List.of(
+                "salesTeam$id",
+                "salesTeam$caption",
+                "sum(amountTotal) as teamSales",
+                "salesShare"));
+
+        GroupRequestDef group1 = new GroupRequestDef();
+        group1.setField("salesTeam$id");
+        GroupRequestDef group2 = new GroupRequestDef();
+        group2.setField("salesTeam$caption");
+        queryRequest.setGroupBy(List.of(group1, group2));
+
+        queryRequest.setCalculatedFields(List.of(new CalculatedFieldDef(
+                "salesShare",
+                "teamSales / NULLIF(SUM(teamSales) OVER (), 0)")));
+        queryRequest.setSlice(List.of(new SliceRequestDef("salesShare", ">", 0.2)));
+
+        ModelResultContext ctx = createContext(queryRequest);
+
+        assertDoesNotThrow(() -> validationStep.beforeQuery(ctx));
+    }
+
+    @Test
     @Order(2)
     @DisplayName("slice 的 field 为空应该抛出异常")
     void testSliceFieldEmpty() {
@@ -200,6 +227,36 @@ class QueryRequestValidationStepTest {
 
         assertDoesNotThrow(() -> validationStep.beforeQuery(ctx));
         log.info("null 操作符无需 value 校验通过");
+    }
+
+    @Test
+    @Order(8)
+    @DisplayName("calculatedFields 缺少 name 或 expression 应提前返回稳定错误码")
+    void testCalculatedFieldMissingRequiredFieldsRejected() {
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        CalculatedFieldDef calculatedField = new CalculatedFieldDef();
+        calculatedField.setExpression("amountTotal");
+        queryRequest.setCalculatedFields(List.of(calculatedField));
+
+        ModelResultContext ctx = createContext(queryRequest);
+
+        Exception exception = assertThrows(RuntimeException.class, () -> validationStep.beforeQuery(ctx));
+        assertTrue(exception.getMessage().contains("CALCULATED_FIELD_EXPRESSION_INVALID"));
+        assertTrue(exception.getMessage().contains("name"));
+    }
+
+    @Test
+    @Order(8)
+    @DisplayName("calculatedFields expression 为空应提前返回稳定错误码")
+    void testCalculatedFieldMissingExpressionRejected() {
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setCalculatedFields(List.of(new CalculatedFieldDef("badCalc", "")));
+
+        ModelResultContext ctx = createContext(queryRequest);
+
+        Exception exception = assertThrows(RuntimeException.class, () -> validationStep.beforeQuery(ctx));
+        assertTrue(exception.getMessage().contains("CALCULATED_FIELD_EXPRESSION_INVALID"));
+        assertTrue(exception.getMessage().contains("expression"));
     }
 
     @Test

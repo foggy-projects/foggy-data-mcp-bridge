@@ -170,6 +170,22 @@ class ModelLoadingTest extends EcommerceTestSupport {
             model.getMeasures().size());
     }
 
+    @Test
+    @Order(15)
+    @DisplayName("加载客户订单生命周期派生模型")
+    void testLoadCustomerOrderLifecycleModel() {
+        TableModel model = tableModelLoaderManager.load("CustomerOrderLifecycleModel");
+        assertNotNull(model, "CustomerOrderLifecycleModel 加载失败");
+        assertEquals("CustomerOrderLifecycleModel", model.getName());
+        assertEquals("customer_order_lifecycle", model.getTableName());
+        assertEquals("customer_id", model.getIdColumn());
+        assertTrue(model.getProperties().size() >= 5, "生命周期属性数量不足");
+        assertTrue(model.getMeasures().size() >= 6, "生命周期度量数量不足");
+        log.info("CustomerOrderLifecycleModel 加载成功: 属性数={}, 度量数={}",
+                model.getProperties().size(),
+                model.getMeasures().size());
+    }
+
     // ==========================================
     // QM 查询模型加载测试
     // ==========================================
@@ -225,6 +241,29 @@ class ModelLoadingTest extends EcommerceTestSupport {
         assertNotNull(queryModel, "FactInventorySnapshotQueryModel 加载失败");
         assertEquals("FactInventorySnapshotQueryModel", queryModel.getName());
         log.info("FactInventorySnapshotQueryModel 加载成功: 列组数={}", queryModel.getColumnGroups().size());
+    }
+
+    @Test
+    @Order(25)
+    @DisplayName("加载CRM线索查询模型")
+    void testLoadCrmLeadQueryModel() {
+        JdbcQueryModel queryModel = getQueryModel("CrmLead");
+        assertNotNull(queryModel, "CrmLead 加载失败");
+        assertEquals("CrmLead", queryModel.getName());
+        assertNotNull(queryModel.getColumnGroups(), "列组定义为空");
+        log.info("CrmLead 加载成功: 列组数={}", queryModel.getColumnGroups().size());
+    }
+
+    @Test
+    @Order(26)
+    @DisplayName("加载客户订单生命周期查询模型")
+    void testLoadCustomerOrderLifecycleQueryModel() {
+        JdbcQueryModel queryModel = getQueryModel("CustomerOrderLifecycleQueryModel");
+        assertNotNull(queryModel, "CustomerOrderLifecycleQueryModel 加载失败");
+        assertEquals("CustomerOrderLifecycleQueryModel", queryModel.getName());
+        assertNotNull(queryModel.getColumnGroups(), "列组定义为空");
+        assertTrue(queryModel.getColumnGroups().size() >= 3, "列组数量不足");
+        log.info("CustomerOrderLifecycleQueryModel 加载成功: 列组数={}", queryModel.getColumnGroups().size());
     }
 
     @Test

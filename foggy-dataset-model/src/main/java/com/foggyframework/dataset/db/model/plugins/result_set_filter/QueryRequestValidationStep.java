@@ -11,6 +11,7 @@ import com.foggyframework.dataset.db.model.def.query.request.OrderRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.PostAggregateCalculationDef;
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.db.model.engine.formula.SqlFormulaService;
+import com.foggyframework.dataset.db.model.engine.postagg.PostAggregateRatioToTotalSupport;
 import com.foggyframework.dataset.db.model.i18n.DatasetMessages;
 import com.foggyframework.dataset.db.model.spi.DbAggregation;
 import jakarta.annotation.Resource;
@@ -99,8 +100,6 @@ public class QueryRequestValidationStep implements DataSetResultStep {
             "(?i)\\b(?:sum|avg|count|countd|count_distinct|min|max|stddev_pop|stddev_samp|var_pop|var_samp)\\s*\\([^)]*\\)\\s+(?:as\\s+)?([A-Za-z_][A-Za-z0-9_]*)\\b");
 
     private static final Pattern IDENT_PATTERN = Pattern.compile("[A-Za-z_][A-Za-z0-9_$]*");
-    private static final Pattern RATIO_TO_TOTAL_SUGAR_PATTERN = Pattern.compile(
-            "(?i)^\\s*(?:ratio_to_total|ratioToTotal)\\s*\\(\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*\\)\\s*$");
 
     private static final Set<String> FORMULA_KEYWORDS = Set.of(
             "and", "or", "not", "null", "true", "false", "case", "when", "then", "else", "end",
@@ -108,6 +107,7 @@ public class QueryRequestValidationStep implements DataSetResultStep {
             "coalesce", "calculate", "remove", "rank", "dense_rank", "row_number", "over", "partition", "by",
             "ratio_to_total", "ratiototal"
     );
+    private static final String CALCULATED_FIELD_EXPRESSION_INVALID = "CALCULATED_FIELD_EXPRESSION_INVALID";
 
     @Override
     public int beforeQuery(ModelResultContext ctx) {
@@ -128,6 +128,7 @@ public class QueryRequestValidationStep implements DataSetResultStep {
         // 3. 校验 orderBy
         validateOrderBy(queryRequest.getOrderBy());
 
+        validateCalculatedFields(queryRequest.getCalculatedFields());
         validatePostAggregateCalculations(queryRequest);
         validatePostAggregateCalculatedFields(queryRequest);
 
@@ -337,6 +338,33 @@ public class QueryRequestValidationStep implements DataSetResultStep {
         }
     }
 
+    private void validateCalculatedFields(List<CalculatedFieldDef> calculatedFields) {
+        if (calculatedFields == null || calculatedFields.isEmpty()) {
+            return;
+        }
+        Set<String> seen = new LinkedHashSet<>();
+        for (int i = 0; i < calculatedFields.size(); i++) {
+            CalculatedFieldDef cf = calculatedFields.get(i);
+            if (cf == null) {
+                throw RX.throwAUserTip(CALCULATED_FIELD_EXPRESSION_INVALID
+                        + ": calculatedFields[" + i + "] must be an object.");
+            }
+            String name = cf.getName();
+            if (StringUtils.isEmpty(name)) {
+                throw RX.throwAUserTip(CALCULATED_FIELD_EXPRESSION_INVALID
+                        + ": calculatedFields[" + i + "].name is required.");
+            }
+            if (!seen.add(name)) {
+                throw RX.throwAUserTip("CALCULATED_FIELD_NAME_COLLISION: duplicate calculatedFields.name '"
+                        + name + "'.");
+            }
+            if (StringUtils.isEmpty(cf.getExpression())) {
+                throw RX.throwAUserTip(CALCULATED_FIELD_EXPRESSION_INVALID
+                        + ": calculatedFields['" + name + "'].expression is required.");
+            }
+        }
+    }
+
     private void validatePostAggregateCalculatedFields(DbQueryRequestDef queryRequest) {
         if (queryRequest.getCalculatedFields() == null || queryRequest.getCalculatedFields().isEmpty()
                 || queryRequest.getGroupBy() == null || queryRequest.getGroupBy().isEmpty()) {
@@ -347,7 +375,7 @@ public class QueryRequestValidationStep implements DataSetResultStep {
         for (CalculatedFieldDef cf : queryRequest.getCalculatedFields()) {
             String alias = cf.getName();
             String expression = cf.getExpression() == null ? "" : cf.getExpression();
-            if (RATIO_TO_TOTAL_SUGAR_PATTERN.matcher(expression).matches()) {
+            if (PostAggregateRatioToTotalSupport.toCalculation(alias, expression, selectedAggregateAliases) != null) {
                 continue;
             }
             Set<String> deps = extractFormulaIdentifiers(expression);

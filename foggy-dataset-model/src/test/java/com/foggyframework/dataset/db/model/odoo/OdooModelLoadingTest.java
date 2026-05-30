@@ -375,6 +375,79 @@ class OdooModelLoadingTest extends EcommerceTestSupport {
 
     @Test
     @Order(206)
+    @DisplayName("calculatedFields 聚合别名总额占比公式归一为 postAggregateCalculations")
+    void testCalculatedFieldsAliasRatioToTotalFormulaNormalizesToPostAggregate() {
+        JdbcQueryModel queryModel = getQueryModel("OdooSaleOrderQueryModel");
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        DbQueryRequestDef queryRequest = postAggregateSalesShareRequest();
+        queryRequest.setCalculatedFields(new ArrayList<>(List.of(new CalculatedFieldDef(
+                "salesShare", "teamSales / NULLIF(SUM(teamSales) OVER (), 0)"
+        ))));
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+        String sql = queryEngine.getSql();
+        String normalizedSql = sql.replace('`', '"');
+
+        assertTrue(normalizedSql.contains("post_stage AS"), sql);
+        assertTrue(normalizedSql.contains("stage1.\"teamSales\" / NULLIF(SUM(stage1.\"teamSales\") OVER (), 0) AS \"salesShare\""), sql);
+        assertTrue(normalizedSql.contains("WHERE \"salesShare\" > ?"), sql);
+        assertTrue(queryRequest.getCalculatedFields().stream()
+                .noneMatch(cf -> "salesShare".equals(cf.getName())));
+        assertEquals("teamSales", queryRequest.getPostAggregateCalculations().get(0).getMeasure());
+    }
+
+    @Test
+    @Order(206)
+    @DisplayName("postAggregate 结果别名支持从 having 安全迁移到外层过滤")
+    void testPostAggregateAliasHavingIsLiftedToResultStageFilter() {
+        JdbcQueryModel queryModel = getQueryModel("OdooSaleOrderQueryModel");
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        DbQueryRequestDef queryRequest = postAggregateSalesShareRequest();
+        queryRequest.setSlice(null);
+        queryRequest.setHaving(List.of(new SliceRequestDef("salesShare", ">", 0.2)));
+        queryRequest.setCalculatedFields(new ArrayList<>(List.of(new CalculatedFieldDef(
+                "salesShare", "teamSales / SUM(teamSales) OVER ()"
+        ))));
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+        String sql = queryEngine.getSql();
+        String normalizedSql = sql.replace('`', '"');
+
+        assertTrue(normalizedSql.contains("post_stage AS"), sql);
+        assertTrue(normalizedSql.contains("FROM post_stage"), sql);
+        assertTrue(normalizedSql.contains("WHERE \"salesShare\" > ?"), sql);
+        assertFalse(normalizedSql.contains("HAVING \"salesShare\""), sql);
+        assertEquals(0.2, queryEngine.getValues().get(queryEngine.getValues().size() - 1));
+    }
+
+    @Test
+    @Order(207)
+    @DisplayName("calculatedFields 与已有字段同名应返回稳定错误码")
+    void testCalculatedFieldNameCollisionUsesStableErrorCode() {
+        JdbcQueryModel queryModel = getQueryModel("OdooSaleOrderQueryModel");
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("OdooSaleOrderQueryModel");
+        queryRequest.setColumns(List.of("amountTotal"));
+        queryRequest.setCalculatedFields(new ArrayList<>(List.of(new CalculatedFieldDef(
+                "amountTotal", "amountTotal + 1"
+        ))));
+
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest));
+
+        String messageChain = exception.toString()
+                + " " + (exception.getMessage() == null ? "" : exception.getMessage())
+                + " " + (exception.getCause() == null ? "" : exception.getCause().getMessage());
+        assertTrue(messageChain.contains("CALCULATED_FIELD_NAME_COLLISION"), messageChain);
+        assertTrue(messageChain.contains("amountTotal"), messageChain);
+    }
+
+    @Test
+    @Order(208)
     @DisplayName("全局 predefined ratio measure 应聚合 measure 依赖")
     void testGlobalPredefinedRatioMeasureAggregatesDependencies() {
         JdbcQueryModel queryModel = getQueryModel("OdooAccountMoveQueryModel");

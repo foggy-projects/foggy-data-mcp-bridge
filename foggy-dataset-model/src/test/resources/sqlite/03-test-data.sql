@@ -253,11 +253,21 @@ INSERT INTO crm_lead (lead_id, created_at, lead_source, converted_opportunity_id
 ('CRM-008', '2026-05-08 16:00:00', 'PHONE', NULL, NULL),
 ('CRM-009', '2026-04-30 17:00:00', 'WEB', 'OPP-009', 'ORD20240101000002');
 
+-- 17. 客户订单生命周期派生数据（首购 cohort / 复购窗口 fixture）
+INSERT INTO customer_order_lifecycle
+(customer_id, customer_name, first_order_date, first_order_month, first_order_channel, order_count, lifetime_amount,
+ repurchase_30d_flag, repurchase_60d_flag, repurchase_90d_flag)
+VALUES
+('CUS000001', '张三', '2024-01-01', '2024-01', 'ONLINE', 3, 8799.00, 1, 1, 1),
+('CUS000002', '李四', '2024-01-01', '2024-01', 'ONLINE', 1, 2999.00, 0, 0, 0),
+('CUS000003', '王五', '2024-01-02', '2024-01', 'OFFLINE', 2, 1899.00, 1, 1, 1),
+('CUS000004', '赵六', '2024-01-03', '2024-01', 'APP', 1, 1299.00, 0, 0, 0);
+
 -- ============================================
 -- 嵌套维度测试数据 (Nested Dimension / Snowflake Schema)
 -- ============================================
 
--- 17. 品类组维度数据（三级维度）
+-- 18. 品类组维度数据（三级维度）
 INSERT INTO dim_category_group (group_id, group_name, group_type, status) VALUES
 ('GRP001', '电子产品组', '高价值', 'ACTIVE'),
 ('GRP002', '日用品组', '快消品', 'ACTIVE'),

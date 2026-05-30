@@ -23,6 +23,8 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * 查询专家服务（M2）
@@ -58,7 +60,22 @@ public class QueryExpertService {
 
     private static final String ROUTING_REPLAN_REQUIRED_CODE = "ROUTING_REPLAN_REQUIRED";
     private static final String QUERY_MODEL_FAILED_CODE = "QUERY_MODEL_FAILED";
+    private static final String UNKNOWN_TOOL_CALL_CODE = "UNKNOWN_TOOL_CALL";
+    private static final String PROVIDER_UNAVAILABLE_CODE = "PROVIDER_UNAVAILABLE";
+    private static final String PROVIDER_RESPONSE_PARSE_FAILED_CODE = "PROVIDER_RESPONSE_PARSE_FAILED";
     private static final String REPLAN_RECOMMENDED_ACTION = "REPLAN_BY_CALIBRATED_ROUTE";
+    private static final String PROVIDER_RESPONSE_PARSE_FAILED_MARKER = "Error while extracting response for type";
+    private static final int QUERY_TRACE_TOOL_FAILURE_BUDGET = 10;
+    private static final List<String> PROVIDER_UNAVAILABLE_MARKERS = List.of(
+            "QUOTA_EXHAUSTED",
+            "RESOURCE_EXHAUSTED",
+            "Individual quota reached",
+            "model_cooldown",
+            "All credentials for model",
+            "provider antigravity"
+    );
+    private static final Pattern UNKNOWN_TOOL_CALL_PATTERN = Pattern.compile(
+            "No ToolCallback found for tool name:\\s*([A-Za-z0-9_.-]+)");
     private static final List<String> STALE_PLAN_FIELDS = List.of(
             "dsl_params",
             "semantic_sql",
@@ -225,11 +242,17 @@ public class QueryExpertService {
             // Spring AI 在单次 call() 内会自动驱动完整的工具调用链
             // （LLM 发起 tool call → 框架执行工具 → 结果回传 LLM → LLM 生成最终回复），
             // 无需外层 while 循环手动重试。
-            String aiResponse = chatClient.prompt()
-                    .user(userMessage)
-                    .toolCallbacks(toolCallbacks)
-                    .call()
-                    .content();
+            String aiResponse;
+            try {
+                aiResponse = callChatContentWithProviderParseRetry(chatClient, userMessage, toolCallbacks, traceId);
+            } catch (Exception e) {
+                DatasetNLQueryResponse terminal = normalizeTerminalCallException(
+                        e, traceId, sessionId, queryTools, collector);
+                if (terminal != null) {
+                    return terminal;
+                }
+                throw e;
+            }
 
             // 读取 McpToolCallbackFactory 在工具执行期间写入的结构化查询结果
             Map<String, Object> captured = LAST_QUERY_RESULT.get();
@@ -241,6 +264,7 @@ public class QueryExpertService {
             DatasetNLQueryResponse response = parseResponse(aiResponse, context, traceId);
             response = enforceQueryToolFailureContract(response, collector);
             response = enforceRoutingReplanResultContract(response, calibrationAction);
+            response = enforceInfoTerminalContract(response);
             response = attachQueryTraceDebug(response, traceId, sessionId, queryTools, collector, captured);
             response = attachRoutingReplanDispatchDebug(response, calibrationAction, traceId);
             return attachRoutingCalibrationDebug(response, calibrationAction, traceId);
@@ -300,11 +324,19 @@ public class QueryExpertService {
                 sink.next(ProgressEvent.progress("tool_call", 40));
 
                 // Spring AI 单次 call() 内自动驱动完整工具调用链
-                String aiResponse = chatClient.prompt()
-                        .user(userMessage)
-                        .toolCallbacks(toolCallbacks)
-                        .call()
-                        .content();
+                String aiResponse;
+                try {
+                    aiResponse = callChatContentWithProviderParseRetry(chatClient, userMessage, toolCallbacks, traceId);
+                } catch (Exception e) {
+                    DatasetNLQueryResponse terminal = normalizeTerminalCallException(
+                            e, traceId, sessionId, queryTools, collector);
+                    if (terminal != null) {
+                        sink.next(ProgressEvent.complete(terminal));
+                        sink.complete();
+                        return;
+                    }
+                    throw e;
+                }
 
                 // 读取工具执行期间捕获的结构化查询结果
                 Map<String, Object> captured = LAST_QUERY_RESULT.get();
@@ -317,6 +349,7 @@ public class QueryExpertService {
                 DatasetNLQueryResponse result = parseResponse(aiResponse, context, traceId);
                 result = enforceQueryToolFailureContract(result, collector);
                 result = enforceRoutingReplanResultContract(result, calibrationAction);
+                result = enforceInfoTerminalContract(result);
                 result = attachQueryTraceDebug(result, traceId, sessionId, queryTools, collector, captured);
                 result = attachRoutingReplanDispatchDebug(result, calibrationAction, traceId);
                 result = attachRoutingCalibrationDebug(result, calibrationAction, traceId);
@@ -465,9 +498,12 @@ public class QueryExpertService {
 
         List<ToolCallCollector.ToolCallRecord> calls = collector != null ? collector.getToolCalls() : List.of();
         long successCount = calls.stream().filter(ToolCallCollector.ToolCallRecord::isSuccess).count();
+        long failureCount = calls.size() - successCount;
         trace.put("tool_call_count", calls.size());
         trace.put("tool_success_count", successCount);
-        trace.put("tool_failure_count", calls.size() - successCount);
+        trace.put("tool_failure_count", failureCount);
+        trace.put("tool_failure_budget", QUERY_TRACE_TOOL_FAILURE_BUDGET);
+        trace.put("tool_failure_budget_exceeded", failureCount > QUERY_TRACE_TOOL_FAILURE_BUDGET);
         trace.put("all_tools_success", collector == null || collector.isAllSuccess());
         trace.put("query_result_captured", capturedQueryResult != null);
         if (capturedQueryResult != null) {
@@ -480,6 +516,149 @@ public class QueryExpertService {
         debug.put("query_trace", trace);
         response.setDebug(debug);
         return response;
+    }
+
+    private static String callChatContentWithProviderParseRetry(
+            ChatClient chatClient,
+            String userMessage,
+            ToolCallback[] toolCallbacks,
+            String traceId
+    ) {
+        try {
+            return callChatContent(chatClient, userMessage, toolCallbacks);
+        } catch (Exception e) {
+            if (!isProviderResponseParseFailure(e)) {
+                throw e;
+            }
+            log.warn("Provider response parse failed; retrying once, traceId={}, error={}", traceId, e.getMessage());
+            return callChatContent(chatClient, userMessage, toolCallbacks);
+        }
+    }
+
+    private static String callChatContent(
+            ChatClient chatClient,
+            String userMessage,
+            ToolCallback[] toolCallbacks
+    ) {
+        return chatClient.prompt()
+                .user(userMessage)
+                .toolCallbacks(toolCallbacks)
+                .call()
+                .content();
+    }
+
+    private static DatasetNLQueryResponse normalizeTerminalCallException(
+            Exception exception,
+            String traceId,
+            String sessionId,
+            List<McpTool> queryTools,
+            ToolCallCollector collector
+    ) {
+        DatasetNLQueryResponse response = unknownToolCallResponse(exception);
+        if (response == null) {
+            response = providerResponseParseFailureResponse(exception);
+        }
+        if (response == null) {
+            response = providerUnavailableResponse(exception);
+        }
+        if (response == null) {
+            return null;
+        }
+        return attachQueryTraceDebug(response, traceId, sessionId, queryTools, collector, null);
+    }
+
+    private static DatasetNLQueryResponse unknownToolCallResponse(Exception exception) {
+        String springToolName = extractUnknownSpringToolName(exception);
+        if (springToolName == null) {
+            return null;
+        }
+
+        Map<String, Object> detail = new LinkedHashMap<>();
+        detail.put("tool_name", springToolName.replace('_', '.'));
+        detail.put("spring_tool_name", springToolName);
+        detail.put("reason", "unregistered_tool_call");
+        detail.put("original_error", safeString(exception.getMessage()));
+
+        return DatasetNLQueryResponse.reject(
+                UNKNOWN_TOOL_CALL_CODE,
+                "模型请求了当前 Java MCP 未注册的工具，已拒绝执行。",
+                detail
+        );
+    }
+
+    private static DatasetNLQueryResponse providerUnavailableResponse(Exception exception) {
+        if (!isProviderUnavailable(exception)) {
+            return null;
+        }
+
+        Map<String, Object> detail = new LinkedHashMap<>();
+        detail.put("reason", "provider_unavailable");
+        detail.put("original_error", safeString(exception.getMessage()));
+
+        return DatasetNLQueryResponse.error(
+                PROVIDER_UNAVAILABLE_CODE,
+                "LLM provider is temporarily unavailable due to quota, cooldown, or upstream capacity limits.",
+                detail
+        );
+    }
+
+    private static DatasetNLQueryResponse providerResponseParseFailureResponse(Exception exception) {
+        if (!isProviderResponseParseFailure(exception)) {
+            return null;
+        }
+
+        Map<String, Object> detail = new LinkedHashMap<>();
+        detail.put("reason", "provider_response_parse_failed");
+        detail.put("original_error", safeString(exception.getMessage()));
+
+        return DatasetNLQueryResponse.error(
+                PROVIDER_RESPONSE_PARSE_FAILED_CODE,
+                "LLM provider response could not be parsed after retry.",
+                detail
+        );
+    }
+
+    private static String extractUnknownSpringToolName(Throwable throwable) {
+        for (String message : exceptionMessages(throwable)) {
+            Matcher matcher = UNKNOWN_TOOL_CALL_PATTERN.matcher(message);
+            if (matcher.find()) {
+                return matcher.group(1);
+            }
+        }
+        return null;
+    }
+
+    private static boolean isProviderResponseParseFailure(Throwable throwable) {
+        for (String message : exceptionMessages(throwable)) {
+            if (message.contains(PROVIDER_RESPONSE_PARSE_FAILED_MARKER)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isProviderUnavailable(Throwable throwable) {
+        for (String message : exceptionMessages(throwable)) {
+            for (String marker : PROVIDER_UNAVAILABLE_MARKERS) {
+                if (message.contains(marker)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static List<String> exceptionMessages(Throwable throwable) {
+        List<String> messages = new ArrayList<>();
+        Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        Throwable current = throwable;
+        while (current != null && seen.add(current)) {
+            if (current.getMessage() != null) {
+                messages.add(current.getMessage());
+            }
+            current = current.getCause();
+        }
+        return messages;
     }
 
     static DatasetNLQueryResponse attachRoutingReplanDispatchDebug(
@@ -564,6 +743,75 @@ public class QueryExpertService {
                 "dataset.query_model 执行失败，未产生可验收的结构化查询结果。",
                 detail
         );
+    }
+
+    private static DatasetNLQueryResponse enforceInfoTerminalContract(DatasetNLQueryResponse response) {
+        if (response == null || !"info".equals(response.getType())) {
+            return response;
+        }
+
+        Map<String, Object> detail = new LinkedHashMap<>();
+        detail.put("original_type", response.getType());
+        detail.put("original_topic", response.getTopic());
+        detail.put("original_note", response.getNote());
+        detail.put("original_data", response.getData());
+        detail.put("reason", "nl response did not produce a structured terminal result");
+
+        String text = infoResponseText(response);
+        if (looksLikeUnsupported(text)) {
+            detail.put("terminal_contract", "unsupported_by_current_model_catalog");
+            return DatasetNLQueryResponse.reject(
+                    "UNSUPPORTED_BY_CURRENT_MODEL_CATALOG",
+                    "当前模型目录或查询能力不支持该自然语言请求。",
+                    detail
+            );
+        }
+
+        detail.put("terminal_contract", "clarification_required_for_unstructured_response");
+        return DatasetNLQueryResponse.clarify(
+                List.of("本次自然语言查询没有产生可验收的结构化结果。请补充模型、字段或分析口径后重试。"),
+                detail
+        );
+    }
+
+    private static String infoResponseText(DatasetNLQueryResponse response) {
+        List<String> parts = new ArrayList<>();
+        if (response.getTopic() != null) {
+            parts.add(response.getTopic());
+        }
+        if (response.getNote() != null) {
+            parts.add(response.getNote());
+        }
+        Object data = response.getData();
+        if (data instanceof Map<?, ?> map) {
+            Object analysis = map.get("analysis");
+            if (analysis != null) {
+                parts.add(String.valueOf(analysis));
+            }
+        } else if (data != null) {
+            parts.add(String.valueOf(data));
+        }
+        return String.join("\n", parts);
+    }
+
+    private static boolean looksLikeUnsupported(String text) {
+        if (text == null || text.isBlank()) {
+            return false;
+        }
+        String normalized = text.toLowerCase(Locale.ROOT);
+        return containsAny(text,
+                "无法", "不能", "不支持", "没有接入", "未接入", "暂未接入", "没有配置",
+                "未找到", "缺少", "不包含", "没有包含", "超出当前", "缺乏", "不存在")
+                || containsAny(normalized, "unsupported", "not supported", "not found", "missing model", "missing field");
+    }
+
+    private static boolean containsAny(String text, String... tokens) {
+        for (String token : tokens) {
+            if (text.contains(token)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static ToolCallCollector.ToolCallRecord lastFailedQueryModelCall(ToolCallCollector collector) {

@@ -348,12 +348,15 @@ public final class CalculatedFieldService {
             SqlExpContext context,
             ApplicationContext appCtx) {
         // 验证必填字段
-        RX.hasText(fieldDef.getName(), "计算字段名称不能为空");
-        RX.hasText(fieldDef.getExpression(), "计算字段表达式不能为空: " + fieldDef.getName());
+        RX.hasText(fieldDef.getName(), "CALCULATED_FIELD_EXPRESSION_INVALID: calculatedFields.name is required.");
+        RX.hasText(fieldDef.getExpression(), "CALCULATED_FIELD_EXPRESSION_INVALID: calculatedFields['"
+                + fieldDef.getName() + "'].expression is required.");
 
         // 检查名称是否已存在
         if (context.hasColumn(fieldDef.getName()) && !isInlineAggregateAlias(fieldDef)) {
-            throw RX.throwAUserTip("计算字段名称已存在: " + fieldDef.getName());
+            throw RX.throwAUserTip("CALCULATED_FIELD_NAME_COLLISION: 计算字段名称已存在: "
+                    + fieldDef.getName()
+                    + "。请更换 calculatedFields.name，或直接在 columns 中引用已有字段。");
         }
 
         try {
@@ -406,7 +409,8 @@ public final class CalculatedFieldService {
             // 重新抛出安全异常
             throw e;
         } catch (Exception e) {
-            String errorMsg = "编译计算字段表达式失败 [" + fieldDef.getName() + "]: " + e.getMessage();
+            String errorMsg = "CALCULATED_FIELD_EXPRESSION_INVALID: 编译计算字段表达式失败 ["
+                    + fieldDef.getName() + "]: " + e.getMessage();
             throw RX.throwAUserTip(errorMsg, errorMsg, null, e);
         }
     }
@@ -539,7 +543,7 @@ public final class CalculatedFieldService {
         log.warn("Expression did not return SqlFragment, got: {} (type: {})",
                 result, result != null ? result.getClass().getName() : "null");
 
-        throw new RuntimeException("表达式执行结果不是 SqlFragment: " + result +
-                " (type: " + (result != null ? result.getClass().getName() : "null") + ")");
+        throw RX.throwAUserTip("CALCULATED_FIELD_EXPRESSION_INVALID: calculatedFields.expression must return SqlFragment; got "
+                + (result != null ? result.getClass().getName() : "null") + ".");
     }
 }

@@ -21,7 +21,7 @@ import java.util.Map;
 public class DatasetNLQueryResponse {
 
     /**
-     * 响应类型：result, info, clarify, partial_result, error
+     * 响应类型：result, info, clarify, reject, partial_result, error
      */
     private String type;
 
@@ -192,6 +192,18 @@ public class DatasetNLQueryResponse {
                 .type("clarify")
                 .questions(questions)
                 .candidates(candidates)
+                .build();
+    }
+
+    /**
+     * 创建拒绝响应
+     */
+    public static DatasetNLQueryResponse reject(String code, String msg, Object detail) {
+        return DatasetNLQueryResponse.builder()
+                .type("reject")
+                .code(code)
+                .msg(msg)
+                .detail(detail)
                 .build();
     }
 
