@@ -424,6 +424,30 @@ class OdooModelLoadingTest extends EcommerceTestSupport {
 
     @Test
     @Order(207)
+    @DisplayName("calculatedFields 与已有字段同名应返回稳定错误码")
+    void testCalculatedFieldNameCollisionUsesStableErrorCode() {
+        JdbcQueryModel queryModel = getQueryModel("OdooSaleOrderQueryModel");
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("OdooSaleOrderQueryModel");
+        queryRequest.setColumns(List.of("amountTotal"));
+        queryRequest.setCalculatedFields(new ArrayList<>(List.of(new CalculatedFieldDef(
+                "amountTotal", "amountTotal + 1"
+        ))));
+
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest));
+
+        String messageChain = exception.toString()
+                + " " + (exception.getMessage() == null ? "" : exception.getMessage())
+                + " " + (exception.getCause() == null ? "" : exception.getCause().getMessage());
+        assertTrue(messageChain.contains("CALCULATED_FIELD_NAME_COLLISION"), messageChain);
+        assertTrue(messageChain.contains("amountTotal"), messageChain);
+    }
+
+    @Test
+    @Order(208)
     @DisplayName("全局 predefined ratio measure 应聚合 measure 依赖")
     void testGlobalPredefinedRatioMeasureAggregatesDependencies() {
         JdbcQueryModel queryModel = getQueryModel("OdooAccountMoveQueryModel");

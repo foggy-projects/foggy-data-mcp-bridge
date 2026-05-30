@@ -97,7 +97,9 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
 
         // 检查名称是否已存在
         if (context.hasColumn(fieldDef.getName()) && !isInlineAggregateAlias(fieldDef)) {
-            throw RX.throwAUserTip("计算字段名称已存在: " + fieldDef.getName());
+            throw RX.throwAUserTip("CALCULATED_FIELD_NAME_COLLISION: 计算字段名称已存在: "
+                    + fieldDef.getName()
+                    + "。请更换 calculatedFields.name，或直接在 columns 中引用已有字段。");
         }
 
         try {
