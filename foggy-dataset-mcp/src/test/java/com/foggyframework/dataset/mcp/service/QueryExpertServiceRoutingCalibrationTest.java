@@ -329,6 +329,8 @@ class QueryExpertServiceRoutingCalibrationTest {
         assertEquals(2, queryTrace.get("tool_call_count"));
         assertEquals(2L, queryTrace.get("tool_success_count"));
         assertEquals(0L, queryTrace.get("tool_failure_count"));
+        assertEquals(10, queryTrace.get("tool_failure_budget"));
+        assertEquals(false, queryTrace.get("tool_failure_budget_exceeded"));
         assertEquals(true, queryTrace.get("all_tools_success"));
         assertEquals(true, queryTrace.get("query_result_captured"));
         assertEquals(1, queryTrace.get("query_result_total"));
@@ -405,6 +407,8 @@ class QueryExpertServiceRoutingCalibrationTest {
         assertEquals(1, queryTrace.get("tool_call_count"));
         assertEquals(0L, queryTrace.get("tool_success_count"));
         assertEquals(1L, queryTrace.get("tool_failure_count"));
+        assertEquals(10, queryTrace.get("tool_failure_budget"));
+        assertEquals(false, queryTrace.get("tool_failure_budget_exceeded"));
         assertEquals(false, queryTrace.get("all_tools_success"));
         assertEquals(false, queryTrace.get("query_result_captured"));
 
@@ -415,6 +419,75 @@ class QueryExpertServiceRoutingCalibrationTest {
         assertEquals("RX", resultSummary.get("type"));
         assertEquals(false, resultSummary.get("success"));
         assertTrue(String.valueOf(resultSummary.get("message")).contains("FACT_ORDER"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    @DisplayName("未知 Spring 工具调用应返回稳定 reject 并保留 query_trace")
+    void unknownSpringToolCall_shouldReturnRejectWithTrace() {
+        DatasetNLQueryRequest request = DatasetNLQueryRequest.builder()
+                .query("生成一个复合查询脚本")
+                .build();
+
+        chatClient = mock(ChatClient.class);
+        requestSpec = mock(ChatClient.ChatClientRequestSpec.class);
+
+        when(chatClientBuilder.defaultSystem(anyString())).thenReturn(chatClientBuilder);
+        when(chatClientBuilder.build()).thenReturn(chatClient);
+        when(mcpToolDispatcher.getTool(anyString())).thenAnswer(invocation -> mockTool(invocation.getArgument(0)));
+        when(toolCallbackFactory.createToolCallbacks(anyList(), eq("trace-unknown-tool-1"), isNull(), any(ToolCallCollector.class)))
+                .thenReturn(new ToolCallback[0]);
+        when(chatClient.prompt()).thenReturn(requestSpec);
+        when(requestSpec.user(anyString())).thenReturn(requestSpec);
+        when(requestSpec.toolCallbacks(any(ToolCallback[].class))).thenReturn(requestSpec);
+        when(requestSpec.call()).thenThrow(
+                new IllegalStateException("No ToolCallback found for tool name: dataset_compose_script"));
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-unknown-tool-1", null);
+
+        assertEquals("reject", response.getType());
+        assertEquals("UNKNOWN_TOOL_CALL", response.getCode());
+        Map<String, Object> detail = (Map<String, Object>) response.getDetail();
+        assertEquals("dataset_compose_script", detail.get("spring_tool_name"));
+        assertEquals("dataset.compose.script", detail.get("tool_name"));
+        assertEquals("unregistered_tool_call", detail.get("reason"));
+
+        Map<String, Object> queryTrace = (Map<String, Object>) response.getDebug().get("query_trace");
+        assertEquals("trace-unknown-tool-1", queryTrace.get("trace_id"));
+        assertEquals("reject", queryTrace.get("result_type"));
+        assertEquals(3, queryTrace.get("registered_tool_count"));
+        assertEquals(0, queryTrace.get("tool_call_count"));
+        assertEquals(false, queryTrace.get("query_result_captured"));
+    }
+
+    @Test
+    @DisplayName("provider response parse 失败应重试一次")
+    void providerResponseParseFailure_shouldRetryOnce() {
+        DatasetNLQueryRequest request = DatasetNLQueryRequest.builder()
+                .query("分析订单趋势")
+                .build();
+
+        chatClient = mock(ChatClient.class);
+        requestSpec = mock(ChatClient.ChatClientRequestSpec.class);
+        callResponseSpec = mock(ChatClient.CallResponseSpec.class);
+
+        when(chatClientBuilder.defaultSystem(anyString())).thenReturn(chatClientBuilder);
+        when(chatClientBuilder.build()).thenReturn(chatClient);
+        when(mcpToolDispatcher.getTool(anyString())).thenAnswer(invocation -> mockTool(invocation.getArgument(0)));
+        when(toolCallbackFactory.createToolCallbacks(anyList(), eq("trace-provider-retry-1"), isNull(), any(ToolCallCollector.class)))
+                .thenReturn(new ToolCallback[0]);
+        when(chatClient.prompt()).thenReturn(requestSpec);
+        when(requestSpec.user(anyString())).thenReturn(requestSpec);
+        when(requestSpec.toolCallbacks(any(ToolCallback[].class))).thenReturn(requestSpec);
+        when(requestSpec.call())
+                .thenThrow(new IllegalStateException("Error while extracting response for type [OpenAiApi$ChatCompletion]"))
+                .thenReturn(callResponseSpec);
+        when(callResponseSpec.content()).thenReturn("已完成分析，建议补充统计口径。");
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-provider-retry-1", null);
+
+        assertEquals("clarify", response.getType());
+        verify(requestSpec, times(2)).call();
     }
 
     @Test

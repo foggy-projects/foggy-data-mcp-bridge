@@ -107,6 +107,7 @@ public class QueryRequestValidationStep implements DataSetResultStep {
             "coalesce", "calculate", "remove", "rank", "dense_rank", "row_number", "over", "partition", "by",
             "ratio_to_total", "ratiototal"
     );
+    private static final String CALCULATED_FIELD_EXPRESSION_INVALID = "CALCULATED_FIELD_EXPRESSION_INVALID";
 
     @Override
     public int beforeQuery(ModelResultContext ctx) {
@@ -127,6 +128,7 @@ public class QueryRequestValidationStep implements DataSetResultStep {
         // 3. 校验 orderBy
         validateOrderBy(queryRequest.getOrderBy());
 
+        validateCalculatedFields(queryRequest.getCalculatedFields());
         validatePostAggregateCalculations(queryRequest);
         validatePostAggregateCalculatedFields(queryRequest);
 
@@ -332,6 +334,33 @@ public class QueryRequestValidationStep implements DataSetResultStep {
                 if (!SUPPORTED_SORT_DIRECTIONS.contains(order)) {
                     throw RX.throwAUserTip(DatasetMessages.validationOrderByDirInvalid(i, field, order));
                 }
+            }
+        }
+    }
+
+    private void validateCalculatedFields(List<CalculatedFieldDef> calculatedFields) {
+        if (calculatedFields == null || calculatedFields.isEmpty()) {
+            return;
+        }
+        Set<String> seen = new LinkedHashSet<>();
+        for (int i = 0; i < calculatedFields.size(); i++) {
+            CalculatedFieldDef cf = calculatedFields.get(i);
+            if (cf == null) {
+                throw RX.throwAUserTip(CALCULATED_FIELD_EXPRESSION_INVALID
+                        + ": calculatedFields[" + i + "] must be an object.");
+            }
+            String name = cf.getName();
+            if (StringUtils.isEmpty(name)) {
+                throw RX.throwAUserTip(CALCULATED_FIELD_EXPRESSION_INVALID
+                        + ": calculatedFields[" + i + "].name is required.");
+            }
+            if (!seen.add(name)) {
+                throw RX.throwAUserTip("CALCULATED_FIELD_NAME_COLLISION: duplicate calculatedFields.name '"
+                        + name + "'.");
+            }
+            if (StringUtils.isEmpty(cf.getExpression())) {
+                throw RX.throwAUserTip(CALCULATED_FIELD_EXPRESSION_INVALID
+                        + ": calculatedFields['" + name + "'].expression is required.");
             }
         }
     }

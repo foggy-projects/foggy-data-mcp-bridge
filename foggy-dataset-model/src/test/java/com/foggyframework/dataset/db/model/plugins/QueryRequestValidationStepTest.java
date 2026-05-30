@@ -231,6 +231,36 @@ class QueryRequestValidationStepTest {
 
     @Test
     @Order(8)
+    @DisplayName("calculatedFields 缺少 name 或 expression 应提前返回稳定错误码")
+    void testCalculatedFieldMissingRequiredFieldsRejected() {
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        CalculatedFieldDef calculatedField = new CalculatedFieldDef();
+        calculatedField.setExpression("amountTotal");
+        queryRequest.setCalculatedFields(List.of(calculatedField));
+
+        ModelResultContext ctx = createContext(queryRequest);
+
+        Exception exception = assertThrows(RuntimeException.class, () -> validationStep.beforeQuery(ctx));
+        assertTrue(exception.getMessage().contains("CALCULATED_FIELD_EXPRESSION_INVALID"));
+        assertTrue(exception.getMessage().contains("name"));
+    }
+
+    @Test
+    @Order(8)
+    @DisplayName("calculatedFields expression 为空应提前返回稳定错误码")
+    void testCalculatedFieldMissingExpressionRejected() {
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setCalculatedFields(List.of(new CalculatedFieldDef("badCalc", "")));
+
+        ModelResultContext ctx = createContext(queryRequest);
+
+        Exception exception = assertThrows(RuntimeException.class, () -> validationStep.beforeQuery(ctx));
+        assertTrue(exception.getMessage().contains("CALCULATED_FIELD_EXPRESSION_INVALID"));
+        assertTrue(exception.getMessage().contains("expression"));
+    }
+
+    @Test
+    @Order(8)
     @DisplayName("slice.value 为普通对象应该提前拒绝")
     void testSliceValueObjectShapeRejected() {
         DbQueryRequestDef queryRequest = new DbQueryRequestDef();

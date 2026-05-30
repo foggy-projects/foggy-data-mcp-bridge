@@ -23,6 +23,8 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * 查询专家服务（M2）
@@ -58,7 +60,13 @@ public class QueryExpertService {
 
     private static final String ROUTING_REPLAN_REQUIRED_CODE = "ROUTING_REPLAN_REQUIRED";
     private static final String QUERY_MODEL_FAILED_CODE = "QUERY_MODEL_FAILED";
+    private static final String UNKNOWN_TOOL_CALL_CODE = "UNKNOWN_TOOL_CALL";
+    private static final String PROVIDER_RESPONSE_PARSE_FAILED_CODE = "PROVIDER_RESPONSE_PARSE_FAILED";
     private static final String REPLAN_RECOMMENDED_ACTION = "REPLAN_BY_CALIBRATED_ROUTE";
+    private static final String PROVIDER_RESPONSE_PARSE_FAILED_MARKER = "Error while extracting response for type";
+    private static final int QUERY_TRACE_TOOL_FAILURE_BUDGET = 10;
+    private static final Pattern UNKNOWN_TOOL_CALL_PATTERN = Pattern.compile(
+            "No ToolCallback found for tool name:\\s*([A-Za-z0-9_.-]+)");
     private static final List<String> STALE_PLAN_FIELDS = List.of(
             "dsl_params",
             "semantic_sql",
@@ -225,11 +233,17 @@ public class QueryExpertService {
             // Spring AI 在单次 call() 内会自动驱动完整的工具调用链
             // （LLM 发起 tool call → 框架执行工具 → 结果回传 LLM → LLM 生成最终回复），
             // 无需外层 while 循环手动重试。
-            String aiResponse = chatClient.prompt()
-                    .user(userMessage)
-                    .toolCallbacks(toolCallbacks)
-                    .call()
-                    .content();
+            String aiResponse;
+            try {
+                aiResponse = callChatContentWithProviderParseRetry(chatClient, userMessage, toolCallbacks, traceId);
+            } catch (Exception e) {
+                DatasetNLQueryResponse terminal = normalizeTerminalCallException(
+                        e, traceId, sessionId, queryTools, collector);
+                if (terminal != null) {
+                    return terminal;
+                }
+                throw e;
+            }
 
             // 读取 McpToolCallbackFactory 在工具执行期间写入的结构化查询结果
             Map<String, Object> captured = LAST_QUERY_RESULT.get();
@@ -301,11 +315,19 @@ public class QueryExpertService {
                 sink.next(ProgressEvent.progress("tool_call", 40));
 
                 // Spring AI 单次 call() 内自动驱动完整工具调用链
-                String aiResponse = chatClient.prompt()
-                        .user(userMessage)
-                        .toolCallbacks(toolCallbacks)
-                        .call()
-                        .content();
+                String aiResponse;
+                try {
+                    aiResponse = callChatContentWithProviderParseRetry(chatClient, userMessage, toolCallbacks, traceId);
+                } catch (Exception e) {
+                    DatasetNLQueryResponse terminal = normalizeTerminalCallException(
+                            e, traceId, sessionId, queryTools, collector);
+                    if (terminal != null) {
+                        sink.next(ProgressEvent.complete(terminal));
+                        sink.complete();
+                        return;
+                    }
+                    throw e;
+                }
 
                 // 读取工具执行期间捕获的结构化查询结果
                 Map<String, Object> captured = LAST_QUERY_RESULT.get();
@@ -467,9 +489,12 @@ public class QueryExpertService {
 
         List<ToolCallCollector.ToolCallRecord> calls = collector != null ? collector.getToolCalls() : List.of();
         long successCount = calls.stream().filter(ToolCallCollector.ToolCallRecord::isSuccess).count();
+        long failureCount = calls.size() - successCount;
         trace.put("tool_call_count", calls.size());
         trace.put("tool_success_count", successCount);
-        trace.put("tool_failure_count", calls.size() - successCount);
+        trace.put("tool_failure_count", failureCount);
+        trace.put("tool_failure_budget", QUERY_TRACE_TOOL_FAILURE_BUDGET);
+        trace.put("tool_failure_budget_exceeded", failureCount > QUERY_TRACE_TOOL_FAILURE_BUDGET);
         trace.put("all_tools_success", collector == null || collector.isAllSuccess());
         trace.put("query_result_captured", capturedQueryResult != null);
         if (capturedQueryResult != null) {
@@ -482,6 +507,119 @@ public class QueryExpertService {
         debug.put("query_trace", trace);
         response.setDebug(debug);
         return response;
+    }
+
+    private static String callChatContentWithProviderParseRetry(
+            ChatClient chatClient,
+            String userMessage,
+            ToolCallback[] toolCallbacks,
+            String traceId
+    ) {
+        try {
+            return callChatContent(chatClient, userMessage, toolCallbacks);
+        } catch (Exception e) {
+            if (!isProviderResponseParseFailure(e)) {
+                throw e;
+            }
+            log.warn("Provider response parse failed; retrying once, traceId={}, error={}", traceId, e.getMessage());
+            return callChatContent(chatClient, userMessage, toolCallbacks);
+        }
+    }
+
+    private static String callChatContent(
+            ChatClient chatClient,
+            String userMessage,
+            ToolCallback[] toolCallbacks
+    ) {
+        return chatClient.prompt()
+                .user(userMessage)
+                .toolCallbacks(toolCallbacks)
+                .call()
+                .content();
+    }
+
+    private static DatasetNLQueryResponse normalizeTerminalCallException(
+            Exception exception,
+            String traceId,
+            String sessionId,
+            List<McpTool> queryTools,
+            ToolCallCollector collector
+    ) {
+        DatasetNLQueryResponse response = unknownToolCallResponse(exception);
+        if (response == null) {
+            response = providerResponseParseFailureResponse(exception);
+        }
+        if (response == null) {
+            return null;
+        }
+        return attachQueryTraceDebug(response, traceId, sessionId, queryTools, collector, null);
+    }
+
+    private static DatasetNLQueryResponse unknownToolCallResponse(Exception exception) {
+        String springToolName = extractUnknownSpringToolName(exception);
+        if (springToolName == null) {
+            return null;
+        }
+
+        Map<String, Object> detail = new LinkedHashMap<>();
+        detail.put("tool_name", springToolName.replace('_', '.'));
+        detail.put("spring_tool_name", springToolName);
+        detail.put("reason", "unregistered_tool_call");
+        detail.put("original_error", safeString(exception.getMessage()));
+
+        return DatasetNLQueryResponse.reject(
+                UNKNOWN_TOOL_CALL_CODE,
+                "模型请求了当前 Java MCP 未注册的工具，已拒绝执行。",
+                detail
+        );
+    }
+
+    private static DatasetNLQueryResponse providerResponseParseFailureResponse(Exception exception) {
+        if (!isProviderResponseParseFailure(exception)) {
+            return null;
+        }
+
+        Map<String, Object> detail = new LinkedHashMap<>();
+        detail.put("reason", "provider_response_parse_failed");
+        detail.put("original_error", safeString(exception.getMessage()));
+
+        return DatasetNLQueryResponse.error(
+                PROVIDER_RESPONSE_PARSE_FAILED_CODE,
+                "LLM provider response could not be parsed after retry.",
+                detail
+        );
+    }
+
+    private static String extractUnknownSpringToolName(Throwable throwable) {
+        for (String message : exceptionMessages(throwable)) {
+            Matcher matcher = UNKNOWN_TOOL_CALL_PATTERN.matcher(message);
+            if (matcher.find()) {
+                return matcher.group(1);
+            }
+        }
+        return null;
+    }
+
+    private static boolean isProviderResponseParseFailure(Throwable throwable) {
+        for (String message : exceptionMessages(throwable)) {
+            if (message.contains(PROVIDER_RESPONSE_PARSE_FAILED_MARKER)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static List<String> exceptionMessages(Throwable throwable) {
+        List<String> messages = new ArrayList<>();
+        Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        Throwable current = throwable;
+        while (current != null && seen.add(current)) {
+            if (current.getMessage() != null) {
+                messages.add(current.getMessage());
+            }
+            current = current.getCause();
+        }
+        return messages;
     }
 
     static DatasetNLQueryResponse attachRoutingReplanDispatchDebug(
