@@ -71,6 +71,7 @@ public class QueryExpertService {
     private static final String REPLAN_RECOMMENDED_ACTION = "REPLAN_BY_CALIBRATED_ROUTE";
     private static final String PROVIDER_RESPONSE_PARSE_FAILED_MARKER = "Error while extracting response for type";
     private static final int QUERY_TRACE_TOOL_FAILURE_BUDGET = 10;
+    private static final int QUERY_TRACE_PAYLOAD_SLICE_SIGNAL_LIMIT = 64;
     private static final List<String> PROVIDER_UNAVAILABLE_MARKERS = List.of(
             "QUOTA_EXHAUSTED",
             "RESOURCE_EXHAUSTED",
@@ -1138,6 +1139,7 @@ public class QueryExpertService {
             copyPayloadValue(summary, payloadMap, "groupBy", "payload_group_by");
             copyPayloadValue(summary, payloadMap, "limit", "payload_limit");
             summary.put("payload_has_slice", payloadMap.containsKey("slice"));
+            addPayloadSliceSummary(summary, payloadMap.get("slice"));
         }
         if ("dataset.query_model".equals(toolName) || "dataset_query_model".equals(toolName)) {
             summary.putIfAbsent("payload_keys", List.of());
@@ -1154,6 +1156,104 @@ public class QueryExpertService {
         Object value = payloadMap.get(sourceKey);
         if (value != null) {
             summary.put(targetKey, value);
+        }
+    }
+
+    private static void addPayloadSliceSummary(Map<String, Object> summary, Object slice) {
+        if (slice == null) {
+            return;
+        }
+        LinkedHashSet<String> fields = new LinkedHashSet<>();
+        LinkedHashSet<String> operators = new LinkedHashSet<>();
+        LinkedHashSet<String> fieldRefs = new LinkedHashSet<>();
+        LinkedHashSet<String> booleanGroups = new LinkedHashSet<>();
+        collectPayloadSliceSignals(slice, fields, operators, fieldRefs, booleanGroups);
+        putSignalList(summary, "payload_slice_fields", fields);
+        putSignalList(summary, "payload_slice_ops", operators);
+        putSignalList(summary, "payload_slice_field_refs", fieldRefs);
+        putSignalList(summary, "payload_slice_boolean_groups", booleanGroups);
+    }
+
+    private static void collectPayloadSliceSignals(
+            Object node,
+            LinkedHashSet<String> fields,
+            LinkedHashSet<String> operators,
+            LinkedHashSet<String> fieldRefs,
+            LinkedHashSet<String> booleanGroups
+    ) {
+        if (node instanceof Map<?, ?> map) {
+            addStringSignal(fields, firstMapValue(map, "field", "left", "leftField", "column"));
+            addStringSignal(operators, firstMapValue(map, "op", "operator", "operation"));
+
+            Object value = firstMapValue(map, "value", "right", "rightValue");
+            collectFieldRef(value, fieldRefs);
+
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                String key = String.valueOf(entry.getKey());
+                String normalizedKey = normalizeBooleanGroupKey(key);
+                if (normalizedKey != null) {
+                    addStringSignal(booleanGroups, normalizedKey);
+                }
+                collectPayloadSliceSignals(entry.getValue(), fields, operators, fieldRefs, booleanGroups);
+            }
+            return;
+        }
+        if (node instanceof Iterable<?> iterable) {
+            for (Object item : iterable) {
+                collectPayloadSliceSignals(item, fields, operators, fieldRefs, booleanGroups);
+            }
+        }
+    }
+
+    private static Object firstMapValue(Map<?, ?> map, String... keys) {
+        for (String key : keys) {
+            if (map.containsKey(key)) {
+                return map.get(key);
+            }
+        }
+        return null;
+    }
+
+    private static void collectFieldRef(Object value, LinkedHashSet<String> fieldRefs) {
+        if (value instanceof Map<?, ?> map) {
+            addStringSignal(fieldRefs, firstMapValue(map, "$field", "fieldRef", "field_ref"));
+            for (Object nestedValue : map.values()) {
+                collectFieldRef(nestedValue, fieldRefs);
+            }
+            return;
+        }
+        if (value instanceof Iterable<?> iterable) {
+            for (Object item : iterable) {
+                collectFieldRef(item, fieldRefs);
+            }
+        }
+    }
+
+    private static String normalizeBooleanGroupKey(String key) {
+        if (key == null) {
+            return null;
+        }
+        String normalized = key.trim().toLowerCase(Locale.ROOT);
+        return switch (normalized) {
+            case "$or", "or", "any" -> "or";
+            case "$and", "and", "all" -> "and";
+            default -> null;
+        };
+    }
+
+    private static void addStringSignal(LinkedHashSet<String> target, Object value) {
+        if (value == null || target.size() >= QUERY_TRACE_PAYLOAD_SLICE_SIGNAL_LIMIT) {
+            return;
+        }
+        String text = String.valueOf(value).trim();
+        if (!text.isEmpty()) {
+            target.add(text);
+        }
+    }
+
+    private static void putSignalList(Map<String, Object> summary, String key, LinkedHashSet<String> values) {
+        if (!values.isEmpty()) {
+            summary.put(key, new ArrayList<>(values));
         }
     }
 

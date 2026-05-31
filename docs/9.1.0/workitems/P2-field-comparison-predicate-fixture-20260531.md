@@ -7,7 +7,7 @@ priority: P2
 status: verified-live
 owner: java-engine
 created_at: 2026-05-31
-updated_at: 2026-05-31
+updated_at: 2026-06-01
 ---
 
 # P2 Field Comparison Predicate Fixture
@@ -31,6 +31,9 @@ the runnable MCP fixture.
   initialization scripts.
 - Added a launcher regression that verifies the lite schema, fixture row, TM mapping, and QM
   exposure stay aligned.
+- Added sanitized `dataset.query_model` trace payload-slice signals for fields, operators, field
+  references, and boolean groups so the v3.9 runner can detect semantic underexecution instead of
+  treating a structurally successful query as complete.
 
 ## Verification
 
@@ -39,6 +42,7 @@ the runnable MCP fixture.
 | Focused launcher regression | `mvn -pl foggy-mcp-launcher -am -Dtest=McpLauncherLiteProfileConfigurationTest -Dsurefire.failIfNoSpecifiedTests=false test` passed with `3/3`. |
 | Package | `mvn -pl foggy-mcp-launcher -am -DskipTests package` passed. |
 | Live direct MCP query | `dataset.query_model` on fresh lite returned `ORD-LITE-0006` for `amount is null OR customer is null OR orderDate > shipDate`. |
+| Trace summary regression | `mvn -pl foggy-dataset-mcp -am -Dtest=QueryExpertServiceRoutingCalibrationTest -Dsurefire.failIfNoSpecifiedTests=false test` passed with `18/18`; trace includes `payload_slice_fields`, `payload_slice_ops`, `payload_slice_field_refs`, and `payload_slice_boolean_groups`. |
 | Evidence artifact | `experiments/spider-routing-eval/output/v39_fieldref_or_predicate_lite_direct_20260531.json`. |
 
 ## Code Inventory
@@ -51,9 +55,11 @@ the runnable MCP fixture.
 | `foggy-dataset-demo/src/main/resources/foggy/templates/ecommerce/query/FactOrderQueryModel.qm` | QM `shipDate` exposure. |
 | `foggy-dataset-demo/docker/*/init/*.sql` | Multi-db demo fixture parity. |
 | `foggy-mcp-launcher/src/test/java/com/foggyframework/mcp/launcher/McpLauncherLiteProfileConfigurationTest.java` | Fixture alignment regression. |
+| `foggy-dataset-mcp/src/main/java/com/foggyframework/dataset/mcp/service/QueryExpertService.java` | Sanitized query payload-slice trace summary. |
+| `foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/service/QueryExpertServiceRoutingCalibrationTest.java` | Trace summary regression. |
 
 ## Follow-up
 
-This closes the runnable fixture gap for field-to-field comparison. Broader semantic-underexecution
-detection still belongs in the v3.9 evidence runner: the runner should keep comparing expected
-multi-predicate intent with observed tool payloads when new natural-language samples are added.
+This closes the runnable fixture gap for field-to-field comparison and exposes the trace signals
+needed by the v3.9 evidence runner. Broader semantic-underexecution coverage now depends on adding
+more expectation rows and natural-language samples, not on another Java trace contract change.
