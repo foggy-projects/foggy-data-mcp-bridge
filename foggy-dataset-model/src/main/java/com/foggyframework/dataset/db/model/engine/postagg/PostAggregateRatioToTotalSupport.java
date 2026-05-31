@@ -13,11 +13,11 @@ public final class PostAggregateRatioToTotalSupport {
     private static final Pattern RATIO_TO_TOTAL_SUGAR_PATTERN = Pattern.compile(
             "(?i)^\\s*(?:ratio_to_total|ratioToTotal)\\s*\\(\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*\\)\\s*$");
     private static final Pattern CUMULATIVE_RATIO_TO_TOTAL_SUGAR_PATTERN = Pattern.compile(
-            "(?i)^\\s*(?:cumulative_ratio_to_total|cumulativeRatioToTotal)\\s*\\(\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*\\)\\s*$");
+            "(?i)^\\s*(?:cumulative_ratio_to_total|cumulativeRatioToTotal)\\s*\\(\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*(?:,\\s*desc\\s*)?\\)\\s*$");
     private static final Pattern CUMULATIVE_SUM_SUGAR_PATTERN = Pattern.compile(
-            "(?i)^\\s*(?:cumulative_sum|cumulativeSum)\\s*\\(\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*\\)\\s*$");
+            "(?i)^\\s*(?:cumulative_sum|cumulativeSum)\\s*\\(\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*(?:,\\s*desc\\s*)?\\)\\s*$");
     private static final Pattern RANK_BY_MEASURE_SUGAR_PATTERN = Pattern.compile(
-            "(?i)^\\s*(?:rank_by|rankBy|rank_desc|rankDesc)\\s*\\(\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*\\)\\s*$");
+            "(?i)^\\s*(?:rank_by|rankBy|rank_desc|rankDesc)\\s*\\(\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*(?:,\\s*desc\\s*)?\\)\\s*$");
 
     private PostAggregateRatioToTotalSupport() {
     }

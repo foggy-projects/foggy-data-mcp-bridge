@@ -391,11 +391,11 @@ class OdooModelLoadingTest extends EcommerceTestSupport {
                 "cumulativeShare"
         ));
         queryRequest.setCalculatedFields(new ArrayList<>(List.of(
-                new CalculatedFieldDef("salesRank", "rank()"),
-                new CalculatedFieldDef("cumulativeSales", "cumulative_sum(teamSales)"),
+                new CalculatedFieldDef("salesRank", "rank_by(teamSales, desc)"),
+                new CalculatedFieldDef("cumulativeSales", "cumulative_sum(teamSales, desc)"),
                 new CalculatedFieldDef(
                         "cumulativeShare",
-                        "SUM(teamSales) OVER (ORDER BY teamSales DESC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) / NULLIF(SUM(teamSales) OVER (), 0)")
+                        "cumulative_ratio_to_total(teamSales, desc)")
         )));
         OrderRequestDef order = new OrderRequestDef();
         order.setField("teamSales");

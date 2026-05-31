@@ -197,11 +197,11 @@ class QueryRequestValidationStepTest {
         queryRequest.setGroupBy(List.of(group1, group2));
 
         queryRequest.setCalculatedFields(List.of(
-                new CalculatedFieldDef("salesRank", "RANK() OVER (ORDER BY teamSales DESC)"),
+                new CalculatedFieldDef("salesRank", "rank_by(teamSales, desc)"),
                 new CalculatedFieldDef(
                         "cumulativeSales",
-                        "SUM(teamSales) OVER (ORDER BY teamSales DESC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)"),
-                new CalculatedFieldDef("cumulativeShare", "cumulative_ratio_to_total(teamSales)")
+                        "cumulative_sum(teamSales, desc)"),
+                new CalculatedFieldDef("cumulativeShare", "cumulative_ratio_to_total(teamSales, desc)")
         ));
 
         ModelResultContext ctx = createContext(queryRequest);
