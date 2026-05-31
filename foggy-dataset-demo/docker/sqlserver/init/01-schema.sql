@@ -184,6 +184,7 @@ CREATE TABLE fact_order (
     order_status    VARCHAR(20) NOT NULL,
     payment_status  VARCHAR(20),
     order_time      DATETIME NOT NULL,
+    ship_date       DATE,
     created_at      DATETIME DEFAULT GETDATE(),
     CONSTRAINT pk_fact_order PRIMARY KEY (order_key),
     CONSTRAINT uk_order_id UNIQUE (order_id)
@@ -195,6 +196,7 @@ CREATE INDEX idx_fact_order_store_key ON fact_order (store_key);
 CREATE INDEX idx_fact_order_channel_key ON fact_order (channel_key);
 CREATE INDEX idx_fact_order_order_status ON fact_order (order_status);
 CREATE INDEX idx_fact_order_order_time ON fact_order (order_time);
+CREATE INDEX idx_fact_order_ship_date ON fact_order (ship_date);
 GO
 
 -- ==========================================

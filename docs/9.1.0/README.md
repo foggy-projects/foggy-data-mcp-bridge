@@ -51,6 +51,7 @@ These remain rejected or research-only unless a separate product requirement reo
 - `operations/stage5a-domain-transport-observability.md`
 - `workitems/query-doc-contract-hardening-small-iteration.md`
 - `workitems/LLM-routing-replan-guard-java-mcp-20260527.md`
+- `workitems/P2-field-comparison-predicate-fixture-20260531.md`
 
 Upstream 9.0.0.beta references:
 

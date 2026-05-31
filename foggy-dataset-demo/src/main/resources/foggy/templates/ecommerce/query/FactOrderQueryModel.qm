@@ -21,7 +21,8 @@ export const queryModel = {
                 { ref: fo.orderId },
                 { ref: fo.orderStatus },
                 { ref: fo.paymentStatus },
-                { ref: fo.orderTime }
+                { ref: fo.orderTime },
+                { ref: fo.shipDate }
             ]
         },
         {

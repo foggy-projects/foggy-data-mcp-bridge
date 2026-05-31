@@ -93,6 +93,12 @@ export const model = {
             type: 'DATETIME'
         },
         {
+            column: 'ship_date',
+            caption: '发货日期',
+            description: '订单发货日期；可用于与订单日期做字段间比较，例如订单日期晚于发货日期的异常订单',
+            type: 'DATE'
+        },
+        {
             column: 'created_at',
             caption: '创建时间',
             type: 'DATETIME'

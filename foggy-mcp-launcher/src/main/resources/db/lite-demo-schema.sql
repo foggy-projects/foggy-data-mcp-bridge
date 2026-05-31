@@ -102,6 +102,7 @@ CREATE TABLE fact_order
     order_status    TEXT    NOT NULL,
     payment_status  TEXT,
     order_time      TEXT    NOT NULL,
+    ship_date       TEXT,
     created_at      TEXT DEFAULT (datetime('now', 'localtime'))
 );
 
@@ -109,6 +110,7 @@ CREATE INDEX idx_lite_fact_order_date_key ON fact_order (date_key);
 CREATE INDEX idx_lite_fact_order_customer_key ON fact_order (customer_key);
 CREATE INDEX idx_lite_fact_order_order_status ON fact_order (order_status);
 CREATE INDEX idx_lite_fact_order_order_time ON fact_order (order_time);
+CREATE INDEX idx_lite_fact_order_ship_date ON fact_order (ship_date);
 
 CREATE TABLE crm_lead
 (

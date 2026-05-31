@@ -163,6 +163,7 @@ CREATE TABLE `fact_order` (
     `order_status`    VARCHAR(20) NOT NULL COMMENT '订单状态: PENDING/PAID/SHIPPED/COMPLETED/CANCELLED',
     `payment_status`  VARCHAR(20) COMMENT '支付状态: UNPAID/PAID/REFUNDED',
     `order_time`      DATETIME NOT NULL COMMENT '下单时间',
+    `ship_date`       DATE COMMENT '发货日期',
     `created_at`      DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     PRIMARY KEY (`order_key`),
     UNIQUE KEY `uk_order_id` (`order_id`),
@@ -171,7 +172,8 @@ CREATE TABLE `fact_order` (
     INDEX `idx_store_key` (`store_key`),
     INDEX `idx_channel_key` (`channel_key`),
     INDEX `idx_order_status` (`order_status`),
-    INDEX `idx_order_time` (`order_time`)
+    INDEX `idx_order_time` (`order_time`),
+    INDEX `idx_ship_date` (`ship_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='订单事实表（订单头）';
 
 -- ==========================================
