@@ -487,6 +487,69 @@ class QueryExpertServiceRoutingCalibrationTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    @DisplayName("query_model 空过滤字段且无结构化结果时应返回稳定 reject")
+    void queryModelEmptyFilterFieldWithoutStructuredResult_shouldReturnRejectContract() {
+        DatasetNLQueryRequest request = DatasetNLQueryRequest.builder()
+                .query("找出金额为空、客户为空、或订单日期晚于发货日期的订单。")
+                .build();
+
+        chatClient = mock(ChatClient.class);
+        requestSpec = mock(ChatClient.ChatClientRequestSpec.class);
+        callResponseSpec = mock(ChatClient.CallResponseSpec.class);
+
+        when(chatClientBuilder.defaultSystem(anyString())).thenReturn(chatClientBuilder);
+        when(chatClientBuilder.build()).thenReturn(chatClient);
+        when(mcpToolDispatcher.getTool(anyString())).thenAnswer(invocation -> mockTool(invocation.getArgument(0)));
+        when(toolCallbackFactory.createToolCallbacks(
+                anyList(),
+                eq("trace-empty-filter-field-1"),
+                isNull(),
+                any(ToolCallCollector.class)
+        )).thenAnswer(invocation -> {
+            ToolCallCollector collector = invocation.getArgument(3);
+            RX<Object> failed = RX.failB("查询执行失败: 查询条件第1项的field字段不能为空");
+            collector.recordToolCall(
+                    "dataset.query_model",
+                    "dataset_query_model",
+                    Map.of(
+                            "model", "FactOrderQueryModel",
+                            "mode", "execute",
+                            "payload", Map.of(
+                                    "columns", List.of("orderId", "orderDate$id", "customer$id", "amount"),
+                                    "slice", List.of(Map.of("field", "", "op", "isNull"))
+                            )
+                    ),
+                    failed,
+                    "[QUERY_MODEL_FAILED] 查询执行失败: 查询条件第1项的field字段不能为空",
+                    4
+            );
+            QueryExpertService.captureQueryResult(failed);
+            return new ToolCallback[0];
+        });
+        when(chatClient.prompt()).thenReturn(requestSpec);
+        when(requestSpec.user(anyString())).thenReturn(requestSpec);
+        when(requestSpec.toolCallbacks(any(ToolCallback[].class))).thenReturn(requestSpec);
+        when(requestSpec.call()).thenReturn(callResponseSpec);
+        when(callResponseSpec.content()).thenReturn("当前字段不足，无法执行该数据质量检查。");
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-empty-filter-field-1", null);
+
+        assertEquals("reject", response.getType());
+        assertEquals("INVALID_QUERY_MODEL_FILTER", response.getCode());
+        Map<String, Object> detail = (Map<String, Object>) response.getDetail();
+        assertEquals("empty_filter_field", detail.get("reason"));
+        assertEquals("empty_filter_field_in_query_model_filter", detail.get("terminal_contract"));
+        assertEquals("info", detail.get("original_type"));
+
+        Map<String, Object> queryTrace = (Map<String, Object>) response.getDebug().get("query_trace");
+        assertEquals("reject", queryTrace.get("result_type"));
+        assertEquals(1, queryTrace.get("tool_call_count"));
+        assertEquals(1L, queryTrace.get("tool_failure_count"));
+        assertEquals(false, queryTrace.get("query_result_captured"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     @DisplayName("query_model 聚合别名二次计算失败且无结构化结果时应返回稳定 reject")
     void queryModelPostAggregateAliasFailureWithoutStructuredResult_shouldReturnRejectContract() {
         DatasetNLQueryRequest request = DatasetNLQueryRequest.builder()

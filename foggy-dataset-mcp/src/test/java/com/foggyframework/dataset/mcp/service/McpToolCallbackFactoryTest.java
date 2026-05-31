@@ -78,6 +78,22 @@ class McpToolCallbackFactoryTest {
     }
 
     @Test
+    @DisplayName("query_model 空过滤字段失败应建议修复具体过滤字段或停止")
+    @SuppressWarnings("unchecked")
+    void queryModelEmptyFilterField_shouldReturnFilterRetryGuidance() throws Exception {
+        McpTool tool = mockQueryModelTool(RX.failB("查询执行失败: 查询条件第1项的field字段不能为空"));
+
+        String response = createCallback(tool).call("""
+                {"model":"FactOrderQueryModel","payload":{"columns":["orderId"],"slice":[{"field":"","op":"isNull"}]}}
+                """);
+
+        Map<String, Object> payload = new ObjectMapper().readValue(response, Map.class);
+        Map<String, Object> guidance = (Map<String, Object>) payload.get("retry_guidance");
+        assertEquals("repair_filter_field_or_stop", guidance.get("action"));
+        assertTrue(String.valueOf(guidance.get("instruction")).contains("concrete model field"));
+    }
+
+    @Test
     @DisplayName("query_model 聚合别名自由公式失败应建议改用受控 postAggregateCalculations")
     @SuppressWarnings("unchecked")
     void queryModelAggregateAliasFailure_shouldReturnPostAggregateRetryGuidance() throws Exception {

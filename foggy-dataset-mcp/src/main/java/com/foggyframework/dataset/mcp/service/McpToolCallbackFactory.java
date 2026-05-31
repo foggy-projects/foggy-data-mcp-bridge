@@ -402,6 +402,12 @@ public class McpToolCallbackFactory {
                         "instruction", "Retry only after adding payload.columns. Use describe_model_internal when the available fields are unclear."
                 );
             }
+            if (text.contains("field字段不能为空") || normalized.contains("field field must not be blank")) {
+                return Map.of(
+                        "action", "repair_filter_field_or_stop",
+                        "instruction", "A filter/slice condition has an empty field. Retry only after replacing it with a concrete model field from describe_model_internal, or return a terminal reject/clarify if the requested comparison cannot be expressed with available fields."
+                );
+            }
             if (normalized.contains("field '") && normalized.contains("not found in model")) {
                 return Map.of(
                         "action", "use_existing_model_fields",

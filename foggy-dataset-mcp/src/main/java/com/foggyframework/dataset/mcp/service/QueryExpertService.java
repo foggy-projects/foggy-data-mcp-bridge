@@ -61,6 +61,7 @@ public class QueryExpertService {
     private static final String ROUTING_REPLAN_REQUIRED_CODE = "ROUTING_REPLAN_REQUIRED";
     private static final String QUERY_MODEL_FAILED_CODE = "QUERY_MODEL_FAILED";
     private static final String FIELD_NOT_FOUND_IN_QUERY_MODEL_CODE = "FIELD_NOT_FOUND_IN_QUERY_MODEL";
+    private static final String INVALID_QUERY_MODEL_FILTER_CODE = "INVALID_QUERY_MODEL_FILTER";
     private static final String POST_AGGREGATE_ALIAS_EXPRESSION_UNSUPPORTED_CODE =
             "POST_AGGREGATE_ALIAS_EXPRESSION_UNSUPPORTED";
     private static final String UNKNOWN_TOOL_CALL_CODE = "UNKNOWN_TOOL_CALL";
@@ -796,6 +797,16 @@ public class QueryExpertService {
             );
         }
 
+        if (isEmptyFilterFieldFailure(failedQueryCall) && isUnstructuredTerminal(response)) {
+            detail.put("reason", "empty_filter_field");
+            detail.put("terminal_contract", "empty_filter_field_in_query_model_filter");
+            return DatasetNLQueryResponse.reject(
+                    INVALID_QUERY_MODEL_FILTER_CODE,
+                    "查询条件包含空字段，已拒绝执行。",
+                    detail
+            );
+        }
+
         if (!"info".equals(response.getType())) {
             return response;
         }
@@ -857,23 +868,24 @@ public class QueryExpertService {
     private record MissingModelField(String fieldName, String modelName) {
     }
 
+    private static boolean isEmptyFilterFieldFailure(ToolCallCollector.ToolCallRecord failedQueryCall) {
+        List<String> candidates = queryFailureCandidates(failedQueryCall);
+        for (String candidate : candidates) {
+            String normalized = candidate == null ? "" : candidate.toLowerCase(Locale.ROOT);
+            if (candidate != null && candidate.contains("field字段不能为空")) {
+                return true;
+            }
+            if (normalized.contains("field field must not be blank")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static PostAggregateAliasFailure extractPostAggregateAliasFailure(
             ToolCallCollector.ToolCallRecord failedQueryCall
     ) {
-        List<String> candidates = new ArrayList<>();
-        if (failedQueryCall.getError() != null) {
-            candidates.add(failedQueryCall.getError());
-        }
-        Map<String, Object> resultSummary = resultSummary(failedQueryCall.getResult());
-        Object message = resultSummary.get("message");
-        if (message != null) {
-            candidates.add(String.valueOf(message));
-        }
-        Object error = resultSummary.get("error");
-        if (error != null) {
-            candidates.add(String.valueOf(error));
-        }
-
+        List<String> candidates = queryFailureCandidates(failedQueryCall);
         for (String candidate : candidates) {
             String normalized = candidate == null ? "" : candidate;
             if (normalized.contains("POST_AGGREGATE_CALCULATED_FIELD_UNSUPPORTED")
@@ -888,6 +900,23 @@ public class QueryExpertService {
             }
         }
         return null;
+    }
+
+    private static List<String> queryFailureCandidates(ToolCallCollector.ToolCallRecord failedQueryCall) {
+        List<String> candidates = new ArrayList<>();
+        if (failedQueryCall.getError() != null) {
+            candidates.add(failedQueryCall.getError());
+        }
+        Map<String, Object> resultSummary = resultSummary(failedQueryCall.getResult());
+        Object message = resultSummary.get("message");
+        if (message != null) {
+            candidates.add(String.valueOf(message));
+        }
+        Object error = resultSummary.get("error");
+        if (error != null) {
+            candidates.add(String.valueOf(error));
+        }
+        return candidates;
     }
 
     private static String firstMatch(Pattern pattern, String value) {
