@@ -2,13 +2,20 @@ package com.foggyframework.dataset.db.model.mongo;
 
 import com.foggyframework.dataset.db.model.test.JdbcModelTestApplication;
 import lombok.extern.slf4j.Slf4j;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeEach;
 import org.bson.Document;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.core.env.Environment;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.context.ActiveProfiles;
 
 import jakarta.annotation.Resource;
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.net.URI;
 import java.util.List;
 import java.util.Map;
 
@@ -28,10 +35,68 @@ public abstract class MongoTestSupport {
     @Resource
     protected MongoTemplate mongoTemplate;
 
+    @Resource
+    private Environment environment;
+
     /**
      * MCP 审计日志集合名称
      */
     protected static final String MCP_AUDIT_COLLECTION = "mcp_tool_audit_log";
+
+    @BeforeEach
+    void assumeMongoFixtureAvailable() {
+        HostAndPort hostAndPort = resolveMongoHostAndPort();
+        try (Socket socket = new Socket()) {
+            socket.connect(new InetSocketAddress(hostAndPort.host, hostAndPort.port), 500);
+        } catch (IOException ex) {
+            Assumptions.assumeTrue(false,
+                    "MongoDB test fixture is unavailable at " + hostAndPort.host + ":" + hostAndPort.port);
+        }
+    }
+
+    private HostAndPort resolveMongoHostAndPort() {
+        String uriValue = environment.getProperty("spring.data.mongodb.uri", "mongodb://localhost:17017/foggy_test");
+        try {
+            URI uri = URI.create(uriValue);
+            String host = uri.getHost();
+            int port = uri.getPort() > 0 ? uri.getPort() : 27017;
+            if (host != null && !host.isBlank()) {
+                return new HostAndPort(host, port);
+            }
+        } catch (IllegalArgumentException ignored) {
+            // Fall through to the simple parser below.
+        }
+
+        String serverPart = uriValue
+                .replaceFirst("^mongodb(\\+srv)?://", "")
+                .split("[/?]", 2)[0]
+                .split(",", 2)[0];
+        int credentialIndex = serverPart.lastIndexOf('@');
+        if (credentialIndex >= 0) {
+            serverPart = serverPart.substring(credentialIndex + 1);
+        }
+        String[] hostAndPort = serverPart.split(":", 2);
+        String host = hostAndPort.length > 0 && !hostAndPort[0].isBlank() ? hostAndPort[0] : "localhost";
+        int port = 27017;
+        if (hostAndPort.length > 1) {
+            try {
+                port = Integer.parseInt(hostAndPort[1]);
+            } catch (NumberFormatException ignored) {
+                port = 27017;
+            }
+        }
+        return new HostAndPort(host, port);
+    }
+
+    private static final class HostAndPort {
+        private final String host;
+        private final int port;
+
+        private HostAndPort(String host, int port) {
+            this.host = host;
+            this.port = port;
+        }
+    }
 
     /**
      * 清空集合

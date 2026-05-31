@@ -60,9 +60,13 @@ public class QueryExpertService {
 
     private static final String ROUTING_REPLAN_REQUIRED_CODE = "ROUTING_REPLAN_REQUIRED";
     private static final String QUERY_MODEL_FAILED_CODE = "QUERY_MODEL_FAILED";
+    private static final String FIELD_NOT_FOUND_IN_QUERY_MODEL_CODE = "FIELD_NOT_FOUND_IN_QUERY_MODEL";
+    private static final String POST_AGGREGATE_ALIAS_EXPRESSION_UNSUPPORTED_CODE =
+            "POST_AGGREGATE_ALIAS_EXPRESSION_UNSUPPORTED";
     private static final String UNKNOWN_TOOL_CALL_CODE = "UNKNOWN_TOOL_CALL";
     private static final String PROVIDER_UNAVAILABLE_CODE = "PROVIDER_UNAVAILABLE";
     private static final String PROVIDER_RESPONSE_PARSE_FAILED_CODE = "PROVIDER_RESPONSE_PARSE_FAILED";
+    private static final String TOOL_FAILURE_BUDGET_EXCEEDED_CODE = "TOOL_FAILURE_BUDGET_EXCEEDED";
     private static final String REPLAN_RECOMMENDED_ACTION = "REPLAN_BY_CALIBRATED_ROUTE";
     private static final String PROVIDER_RESPONSE_PARSE_FAILED_MARKER = "Error while extracting response for type";
     private static final int QUERY_TRACE_TOOL_FAILURE_BUDGET = 10;
@@ -76,6 +80,12 @@ public class QueryExpertService {
     );
     private static final Pattern UNKNOWN_TOOL_CALL_PATTERN = Pattern.compile(
             "No ToolCallback found for tool name:\\s*([A-Za-z0-9_.-]+)");
+    private static final Pattern FIELD_NOT_FOUND_IN_MODEL_PATTERN = Pattern.compile(
+            "Field '([^']+)' not found in model '([^']+)'");
+    private static final Pattern CALCULATED_FIELD_NAME_PATTERN = Pattern.compile(
+            "编译计算字段表达式失败\\s*\\[([^\\]]+)]");
+    private static final Pattern MISSING_CALCULATED_FIELD_COLUMN_PATTERN = Pattern.compile(
+            "未能在查询模型[^中]*中找到列([A-Za-z_][A-Za-z0-9_$]*)");
     private static final List<String> STALE_PLAN_FIELDS = List.of(
             "dsl_params",
             "semantic_sql",
@@ -503,7 +513,7 @@ public class QueryExpertService {
         trace.put("tool_success_count", successCount);
         trace.put("tool_failure_count", failureCount);
         trace.put("tool_failure_budget", QUERY_TRACE_TOOL_FAILURE_BUDGET);
-        trace.put("tool_failure_budget_exceeded", failureCount > QUERY_TRACE_TOOL_FAILURE_BUDGET);
+        trace.put("tool_failure_budget_exceeded", failureCount >= QUERY_TRACE_TOOL_FAILURE_BUDGET);
         trace.put("all_tools_success", collector == null || collector.isAllSuccess());
         trace.put("query_result_captured", capturedQueryResult != null);
         if (capturedQueryResult != null) {
@@ -562,6 +572,9 @@ public class QueryExpertService {
             response = providerUnavailableResponse(exception);
         }
         if (response == null) {
+            response = toolFailureBudgetExceededResponse(exception);
+        }
+        if (response == null) {
             return null;
         }
         return attachQueryTraceDebug(response, traceId, sessionId, queryTools, collector, null);
@@ -618,6 +631,23 @@ public class QueryExpertService {
         );
     }
 
+    private static DatasetNLQueryResponse toolFailureBudgetExceededResponse(Exception exception) {
+        if (!isToolFailureBudgetExceeded(exception)) {
+            return null;
+        }
+
+        Map<String, Object> detail = new LinkedHashMap<>();
+        detail.put("reason", "tool_failure_budget_exceeded");
+        detail.put("tool_failure_budget", QUERY_TRACE_TOOL_FAILURE_BUDGET);
+        detail.put("original_error", safeString(exception.getMessage()));
+
+        return DatasetNLQueryResponse.error(
+                TOOL_FAILURE_BUDGET_EXCEEDED_CODE,
+                "Query tool failure budget was exceeded before a structured result was produced.",
+                detail
+        );
+    }
+
     private static String extractUnknownSpringToolName(Throwable throwable) {
         for (String message : exceptionMessages(throwable)) {
             Matcher matcher = UNKNOWN_TOOL_CALL_PATTERN.matcher(message);
@@ -643,6 +673,15 @@ public class QueryExpertService {
                 if (message.contains(marker)) {
                     return true;
                 }
+            }
+        }
+        return false;
+    }
+
+    private static boolean isToolFailureBudgetExceeded(Throwable throwable) {
+        for (String message : exceptionMessages(throwable)) {
+            if (message.contains(McpToolCallbackFactory.TOOL_FAILURE_BUDGET_EXCEEDED_MARKER)) {
+                return true;
             }
         }
         return false;
@@ -717,7 +756,7 @@ public class QueryExpertService {
             DatasetNLQueryResponse response,
             ToolCallCollector collector
     ) {
-        if (response == null || collector == null || !"info".equals(response.getType())) {
+        if (response == null || collector == null) {
             return response;
         }
 
@@ -726,6 +765,56 @@ public class QueryExpertService {
             return response;
         }
 
+        Map<String, Object> detail = queryToolFailureDetail(response, failedQueryCall);
+        MissingModelField missingField = extractMissingModelField(failedQueryCall);
+        if (missingField != null && isUnstructuredTerminal(response)) {
+            detail.put("reason", "model_field_not_found");
+            detail.put("field_name", missingField.fieldName());
+            detail.put("model_name", missingField.modelName());
+            detail.put("terminal_contract", "field_not_found_in_query_model");
+            return DatasetNLQueryResponse.reject(
+                    FIELD_NOT_FOUND_IN_QUERY_MODEL_CODE,
+                    "当前查询模型不包含请求字段，已拒绝执行。",
+                    detail
+            );
+        }
+
+        PostAggregateAliasFailure aliasFailure = extractPostAggregateAliasFailure(failedQueryCall);
+        if (aliasFailure != null && isUnstructuredTerminal(response)) {
+            detail.put("reason", "post_aggregate_alias_expression_unsupported");
+            detail.put("terminal_contract", "post_aggregate_alias_expression_unsupported");
+            if (aliasFailure.calculatedFieldName() != null) {
+                detail.put("calculated_field_name", aliasFailure.calculatedFieldName());
+            }
+            if (aliasFailure.aliasName() != null) {
+                detail.put("alias_name", aliasFailure.aliasName());
+            }
+            return DatasetNLQueryResponse.reject(
+                    POST_AGGREGATE_ALIAS_EXPRESSION_UNSUPPORTED_CODE,
+                    "当前查询包含尚不支持的聚合别名二次计算，已拒绝执行。",
+                    detail
+            );
+        }
+
+        if (!"info".equals(response.getType())) {
+            return response;
+        }
+
+        return DatasetNLQueryResponse.error(
+                QUERY_MODEL_FAILED_CODE,
+                "dataset.query_model 执行失败，未产生可验收的结构化查询结果。",
+                detail
+        );
+    }
+
+    private static boolean isUnstructuredTerminal(DatasetNLQueryResponse response) {
+        return "info".equals(response.getType()) || "clarify".equals(response.getType());
+    }
+
+    private static Map<String, Object> queryToolFailureDetail(
+            DatasetNLQueryResponse response,
+            ToolCallCollector.ToolCallRecord failedQueryCall
+    ) {
         Map<String, Object> detail = new LinkedHashMap<>();
         detail.put("tool_name", safeString(failedQueryCall.getToolName()));
         detail.put("sequence", failedQueryCall.getSequence());
@@ -737,12 +826,76 @@ public class QueryExpertService {
         detail.put("original_topic", response.getTopic());
         detail.put("original_note", response.getNote());
         detail.put("original_data", response.getData());
+        detail.put("original_questions", response.getQuestions());
+        detail.put("original_candidates", response.getCandidates());
+        return detail;
+    }
 
-        return DatasetNLQueryResponse.error(
-                QUERY_MODEL_FAILED_CODE,
-                "dataset.query_model 执行失败，未产生可验收的结构化查询结果。",
-                detail
-        );
+    private static MissingModelField extractMissingModelField(ToolCallCollector.ToolCallRecord failedQueryCall) {
+        List<String> candidates = new ArrayList<>();
+        if (failedQueryCall.getError() != null) {
+            candidates.add(failedQueryCall.getError());
+        }
+        Map<String, Object> resultSummary = resultSummary(failedQueryCall.getResult());
+        Object message = resultSummary.get("message");
+        if (message != null) {
+            candidates.add(String.valueOf(message));
+        }
+        Object error = resultSummary.get("error");
+        if (error != null) {
+            candidates.add(String.valueOf(error));
+        }
+        for (String candidate : candidates) {
+            Matcher matcher = FIELD_NOT_FOUND_IN_MODEL_PATTERN.matcher(candidate);
+            if (matcher.find()) {
+                return new MissingModelField(matcher.group(1), matcher.group(2));
+            }
+        }
+        return null;
+    }
+
+    private record MissingModelField(String fieldName, String modelName) {
+    }
+
+    private static PostAggregateAliasFailure extractPostAggregateAliasFailure(
+            ToolCallCollector.ToolCallRecord failedQueryCall
+    ) {
+        List<String> candidates = new ArrayList<>();
+        if (failedQueryCall.getError() != null) {
+            candidates.add(failedQueryCall.getError());
+        }
+        Map<String, Object> resultSummary = resultSummary(failedQueryCall.getResult());
+        Object message = resultSummary.get("message");
+        if (message != null) {
+            candidates.add(String.valueOf(message));
+        }
+        Object error = resultSummary.get("error");
+        if (error != null) {
+            candidates.add(String.valueOf(error));
+        }
+
+        for (String candidate : candidates) {
+            String normalized = candidate == null ? "" : candidate;
+            if (normalized.contains("POST_AGGREGATE_CALCULATED_FIELD_UNSUPPORTED")
+                    || normalized.contains("selected aggregate alias")
+                    || (normalized.contains("CALCULATED_FIELD_EXPRESSION_INVALID")
+                    && normalized.contains("未能在查询模型")
+                    && normalized.contains("找到列"))) {
+                return new PostAggregateAliasFailure(
+                        firstMatch(CALCULATED_FIELD_NAME_PATTERN, normalized),
+                        firstMatch(MISSING_CALCULATED_FIELD_COLUMN_PATTERN, normalized)
+                );
+            }
+        }
+        return null;
+    }
+
+    private static String firstMatch(Pattern pattern, String value) {
+        Matcher matcher = pattern.matcher(value == null ? "" : value);
+        return matcher.find() ? matcher.group(1) : null;
+    }
+
+    private record PostAggregateAliasFailure(String calculatedFieldName, String aliasName) {
     }
 
     private static DatasetNLQueryResponse enforceInfoTerminalContract(DatasetNLQueryResponse response) {

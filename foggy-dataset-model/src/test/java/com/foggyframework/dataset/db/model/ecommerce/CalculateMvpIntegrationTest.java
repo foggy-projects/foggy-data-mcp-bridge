@@ -16,6 +16,7 @@ import com.foggyframework.dataset.db.model.engine.formula.SqlFormulaService;
 import com.foggyframework.dataset.db.model.plugins.result_set_filter.ModelResultContext;
 import com.foggyframework.dataset.db.model.semantic.domain.DeniedPhysicalColumn;
 import com.foggyframework.dataset.db.model.service.QueryFacade;
+import com.foggyframework.dataset.db.model.spi.support.CalculatedDbColumn;
 import com.foggyframework.dataset.db.model.spi.JdbcQueryModel;
 import jakarta.annotation.Resource;
 import org.junit.jupiter.api.DisplayName;
@@ -90,6 +91,109 @@ class CalculateMvpIntegrationTest extends EcommerceTestSupport {
             assertDecimalEquals(nativeRow.get("sales_amount"), modelRow.get("salesAmount"));
             assertDecimalEquals(nativeRow.get("total_share"), modelRow.get("totalShare"));
         }
+    }
+
+    @Test
+    @DisplayName("CALCULATE 占比允许引用前序聚合别名")
+    void calculateRatioCanReferencePriorAggregateAlias() {
+        assumeGroupedAggregateWindowSupported();
+        CalculatedFieldDef totalAmount = new CalculatedFieldDef(
+                "totalAmount",
+                "总金额",
+                "salesAmount"
+        );
+        totalAmount.setAgg("SUM");
+
+        DbQueryRequestDef request = baseRequest(
+                List.of("customer$customerType", "totalAmount", "totalShare"),
+                List.of("customer$customerType"),
+                List.of(
+                        totalAmount,
+                        new CalculatedFieldDef(
+                                "totalShare",
+                                "总占比",
+                                "totalAmount / NULLIF(CALCULATE(SUM(totalAmount), REMOVE(customer$customerType)), 0)"
+                        )
+                )
+        );
+
+        JdbcModelQueryEngine engine = analyze(request);
+        String sql = engine.getSql();
+        assertTrue(sql.toUpperCase().contains("OVER ()"), "别名占比分母应生成全局窗口: " + sql);
+        assertTrue(sql.contains("totalShare"), "应投影 totalShare 别名: " + sql);
+        String compactSql = sql.replaceAll("\\s+", " ");
+        assertTrue(compactSql.contains("SUM(t1.sales_amount) / NULLIF"),
+                "裸 totalAmount 应在分组公式中解析为 SUM(t1.sales_amount): " + sql);
+        assertTrue(compactSql.contains("SUM(SUM(t1.sales_amount)) OVER ()"),
+                "SUM(totalAmount) 应在 CALCULATE 中解析为窗口聚合总计: " + sql);
+        String nativeSql = """
+            SELECT
+                dc.customer_type,
+                SUM(fs.sales_amount) AS total_amount,
+                SUM(fs.sales_amount) / NULLIF(SUM(SUM(fs.sales_amount)) OVER (), 0) AS total_share
+            FROM fact_sales fs
+            LEFT JOIN dim_customer dc ON fs.customer_key = dc.customer_key
+            GROUP BY dc.customer_type
+            ORDER BY dc.customer_type
+            """;
+        List<Map<String, Object>> nativeResults = executeQuery(nativeSql);
+
+        List<Map<String, Object>> modelResults =
+                jdbcTemplate.queryForList(sql, engine.getValues().toArray());
+
+        assertEquals(nativeResults.size(), modelResults.size(), "分组数量应一致");
+        for (int i = 0; i < nativeResults.size(); i++) {
+            Map<String, Object> nativeRow = nativeResults.get(i);
+            Map<String, Object> modelRow = modelResults.get(i);
+            assertEquals(nativeRow.get("customer_type"), modelRow.get("customer$customerType"));
+            assertDecimalEquals(nativeRow.get("total_amount"), modelRow.get("totalAmount"));
+            assertDecimalEquals(nativeRow.get("total_share"), modelRow.get("totalShare"));
+        }
+    }
+
+    @Test
+    @DisplayName("后聚合公式引用前序聚合别名时生成分组聚合 SQL")
+    void postAggregateFormulaReferenceToPriorAliasLowersToGroupedAggregateSql() {
+        JdbcQueryModel queryModel = getQueryModel("FactSalesQueryModel");
+        SqlCalculatedFieldProcessor processor =
+                new SqlCalculatedFieldProcessor(queryModel, queryModel.getDialect());
+        processor.setGroupedQuery(true);
+        processor.setCalculateQueryContext(new CalculateQueryContext(
+                List.of("customer$customerType"),
+                Set.of(),
+                true,
+                false
+        ));
+
+        CalculatedFieldDef totalAmount = new CalculatedFieldDef(
+                "totalAmount",
+                "总金额",
+                "salesAmount"
+        );
+        totalAmount.setAgg("SUM");
+
+        List<CalculatedDbColumn> calculatedColumns = processor.processCalculatedFields(
+                List.of(
+                        totalAmount,
+                        new CalculatedFieldDef(
+                                "totalShare",
+                                "总占比",
+                                "totalAmount / NULLIF(CALCULATE(SUM(totalAmount), REMOVE(customer$customerType)), 0)"
+                        )
+                ),
+                appCtx
+        );
+
+        CalculatedDbColumn totalShare = calculatedColumns.stream()
+                .filter(column -> "totalShare".equals(column.getName()))
+                .findFirst()
+                .orElseThrow();
+        String sql = totalShare.getDeclare();
+        String compactSql = sql.replaceAll("\\s+", " ");
+        assertTrue(compactSql.contains("SUM(t1.sales_amount) / NULLIF"),
+                "裸 totalAmount 应解析为分组聚合表达式: " + sql);
+        assertTrue(compactSql.contains("SUM(SUM(t1.sales_amount)) OVER ()"),
+                "CALCULATE(SUM(totalAmount)) 应解析为分组窗口总计: " + sql);
     }
 
     @Test

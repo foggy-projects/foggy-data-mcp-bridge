@@ -40,25 +40,34 @@ public class SqlFunctionExp extends AbstractExp<String> {
     @Override
     public Object evalValue(ExpEvaluator evaluator) {
         SqlExpContext ctx = (SqlExpContext) evaluator.getVar(SqlExpContext.CONTEXT_KEY);
+        String upper = functionName.toUpperCase();
 
         // 执行所有参数（过滤掉 EmptyExp，它代表零参数函数调用如 ROW_NUMBER()）
         // NullExp 需要显式保留为 SQL NULL，不能在这里被丢弃，否则 IF(cond, x, null) 会只剩两个参数。
         List<SqlFragment> argFragments = new ArrayList<>(args.size());
-        for (Exp arg : args) {
-            if (arg instanceof EmptyExp) {
-                continue;
+        boolean aggregateFunction = AllowedFunctions.isAggregateFunction(upper);
+        if (aggregateFunction && ctx != null) {
+            ctx.enterAggregateFunctionArgument();
+        }
+        try {
+            for (Exp arg : args) {
+                if (arg instanceof EmptyExp) {
+                    continue;
+                }
+                if (arg instanceof NullExp) {
+                    argFragments.add(SqlFragment.ofLiteral("NULL"));
+                    continue;
+                }
+                SqlFragment fragment = (SqlFragment) arg.evalResult(evaluator);
+                if (fragment != null) {
+                    argFragments.add(fragment);
+                }
             }
-            if (arg instanceof NullExp) {
-                argFragments.add(SqlFragment.ofLiteral("NULL"));
-                continue;
-            }
-            SqlFragment fragment = (SqlFragment) arg.evalResult(evaluator);
-            if (fragment != null) {
-                argFragments.add(fragment);
+        } finally {
+            if (aggregateFunction && ctx != null) {
+                ctx.exitAggregateFunctionArgument();
             }
         }
-
-        String upper = functionName.toUpperCase();
 
         // IF/IIF(cond, thenExpr, elseExpr) 在 JDBC 侧降级为标准 CASE WHEN，便于复用现有 DSL 语法支持条件聚合
         if ("IF".equals(upper) || "IIF".equals(upper)) {

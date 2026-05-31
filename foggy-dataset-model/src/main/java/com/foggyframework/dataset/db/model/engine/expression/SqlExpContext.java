@@ -61,6 +61,18 @@ public class SqlExpContext {
      */
     private boolean aggregateMeasureReferences;
 
+    /**
+     * Depth of aggregate function argument evaluation.
+     * <p>
+     * Grouped formula lowering needs to distinguish a bare aggregate alias
+     * reference ({@code totalAmount}) from the same alias used as an aggregate
+     * argument ({@code SUM(totalAmount)}). The bare form should resolve to the
+     * grouped aggregate SQL, while aggregate arguments should keep the alias'
+     * base expression so the outer aggregate function can wrap it once.
+     * </p>
+     */
+    private int aggregateFunctionArgumentDepth;
+
     public SqlExpContext(JdbcQueryModel queryModel, FDialect dialect, ApplicationContext appCtx) {
         this.queryModel = queryModel;
         this.dialect = dialect;
@@ -164,5 +176,19 @@ public class SqlExpContext {
             return funcName;
         }
         return dialect.translateFunction(funcName);
+    }
+
+    public void enterAggregateFunctionArgument() {
+        aggregateFunctionArgumentDepth++;
+    }
+
+    public void exitAggregateFunctionArgument() {
+        if (aggregateFunctionArgumentDepth > 0) {
+            aggregateFunctionArgumentDepth--;
+        }
+    }
+
+    public boolean isInsideAggregateFunctionArgument() {
+        return aggregateFunctionArgumentDepth > 0;
     }
 }

@@ -9,6 +9,8 @@ import com.foggyframework.fsscript.exp.AbstractExp;
 import com.foggyframework.fsscript.parser.spi.ExpEvaluator;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.Locale;
+
 /**
  * SQL 列引用表达式
  * <p>
@@ -62,12 +64,9 @@ public class SqlColumnRefExp extends AbstractExp<String> {
             log.debug("SqlColumnRefExp.evalValue: sqlDeclare='{}'", sqlDeclare);
         }
 
-        if (ctx.isAggregateMeasureReferences()
-                && !(column instanceof CalculatedDbColumn)
-                && column.isMeasure()
-                && column.getAggregation() != null
-                && column.getAggregation() != DbAggregation.NONE) {
-            sqlDeclare = buildAggregateSql(ctx, column.getAggregation(), sqlDeclare);
+        DbAggregation groupedAggregation = resolveGroupedAggregation(ctx, column);
+        if (groupedAggregation != null && !ctx.isInsideAggregateFunctionArgument()) {
+            sqlDeclare = buildAggregateSql(ctx, groupedAggregation, sqlDeclare);
             if (log.isDebugEnabled()) {
                 log.debug("SqlColumnRefExp.evalValue: aggregated measure ref='{}'", sqlDeclare);
             }
@@ -75,13 +74,9 @@ public class SqlColumnRefExp extends AbstractExp<String> {
 
         // 构建 SqlFragment
         SqlFragment fragment = SqlFragment.ofColumn(column, sqlDeclare);
-        if (ctx.isAggregateMeasureReferences()
-                && !(column instanceof CalculatedDbColumn)
-                && column.isMeasure()
-                && column.getAggregation() != null
-                && column.getAggregation() != DbAggregation.NONE) {
+        if (groupedAggregation != null && !ctx.isInsideAggregateFunctionArgument()) {
             fragment.setHasAggregate(true);
-            fragment.setAggregationType(column.getAggregation().name());
+            fragment.setAggregationType(groupedAggregation.name());
         }
 
         // 如果是计算字段，需要合并其依赖的列和聚合状态
@@ -92,9 +87,45 @@ public class SqlColumnRefExp extends AbstractExp<String> {
             if (calcColumn.hasAggregate()) {
                 fragment.setHasAggregate(true);
             }
+            if (fragment.getAggregationType() == null) {
+                fragment.setAggregationType(calcColumn.getAggregationType());
+            }
         }
 
         return fragment;
+    }
+
+    private DbAggregation resolveGroupedAggregation(SqlExpContext ctx, DbQueryColumn column) {
+        if (!ctx.isAggregateMeasureReferences()) {
+            return null;
+        }
+        if (column instanceof CalculatedDbColumn calcColumn) {
+            if (calcColumn.hasWindow()) {
+                return null;
+            }
+            if (calcColumn.hasAggregate()) {
+                return null;
+            }
+            return parseAggregation(calcColumn.getAggregationType());
+        }
+        if (column.isMeasure()
+                && column.getAggregation() != null
+                && column.getAggregation() != DbAggregation.NONE) {
+            return column.getAggregation();
+        }
+        return null;
+    }
+
+    private DbAggregation parseAggregation(String aggregationType) {
+        if (aggregationType == null || aggregationType.isBlank()) {
+            return null;
+        }
+        try {
+            DbAggregation aggregation = DbAggregation.valueOf(aggregationType.toUpperCase(Locale.ROOT));
+            return aggregation == DbAggregation.NONE || aggregation == DbAggregation.WINDOW ? null : aggregation;
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     private String buildAggregateSql(SqlExpContext ctx, DbAggregation aggregation, String sqlDeclare) {
