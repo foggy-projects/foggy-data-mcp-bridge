@@ -487,6 +487,77 @@ class QueryExpertServiceRoutingCalibrationTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    @DisplayName("query_model 聚合别名二次计算失败且无结构化结果时应返回稳定 reject")
+    void queryModelPostAggregateAliasFailureWithoutStructuredResult_shouldReturnRejectContract() {
+        DatasetNLQueryRequest request = DatasetNLQueryRequest.builder()
+                .query("按品类统计销售额占总销售额比例，只保留占比超过 5% 的品类")
+                .build();
+
+        chatClient = mock(ChatClient.class);
+        requestSpec = mock(ChatClient.ChatClientRequestSpec.class);
+        callResponseSpec = mock(ChatClient.CallResponseSpec.class);
+
+        when(chatClientBuilder.defaultSystem(anyString())).thenReturn(chatClientBuilder);
+        when(chatClientBuilder.build()).thenReturn(chatClient);
+        when(mcpToolDispatcher.getTool(anyString())).thenAnswer(invocation -> mockTool(invocation.getArgument(0)));
+        when(toolCallbackFactory.createToolCallbacks(
+                anyList(),
+                eq("trace-postagg-alias-1"),
+                isNull(),
+                any(ToolCallCollector.class)
+        )).thenAnswer(invocation -> {
+            ToolCallCollector collector = invocation.getArgument(3);
+            RX<Object> failed = RX.failB(
+                    "CALCULATED_FIELD_EXPRESSION_INVALID: 编译计算字段表达式失败 [totalShare]: "
+                            + "未能在查询模型FactOrderQueryModel中找到列totalSales");
+            collector.recordToolCall(
+                    "dataset.query_model",
+                    "dataset_query_model",
+                    Map.of(
+                            "model", "FactOrderQueryModel",
+                            "mode", "execute",
+                            "payload", Map.of(
+                                    "columns", List.of("promotion$promotionType", "sum(amount) as totalSales", "totalShare"),
+                                    "groupBy", List.of(Map.of("field", "promotion$promotionType")),
+                                    "calculatedFields", List.of(Map.of(
+                                            "name", "totalShare",
+                                            "expression", "totalSales / NULLIF(CALCULATE(SUM(totalSales)), 0)"
+                                    ))
+                            )
+                    ),
+                    failed,
+                    "[QUERY_MODEL_FAILED] 查询执行失败: CALCULATED_FIELD_EXPRESSION_INVALID: "
+                            + "编译计算字段表达式失败 [totalShare]: 未能在查询模型FactOrderQueryModel中找到列totalSales",
+                    5
+            );
+            QueryExpertService.captureQueryResult(failed);
+            return new ToolCallback[0];
+        });
+        when(chatClient.prompt()).thenReturn(requestSpec);
+        when(requestSpec.user(anyString())).thenReturn(requestSpec);
+        when(requestSpec.toolCallbacks(any(ToolCallback[].class))).thenReturn(requestSpec);
+        when(requestSpec.call()).thenReturn(callResponseSpec);
+        when(callResponseSpec.content()).thenReturn("请问是否改用渠道或门店类型作为维度？");
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-postagg-alias-1", null);
+
+        assertEquals("reject", response.getType());
+        assertEquals("POST_AGGREGATE_ALIAS_EXPRESSION_UNSUPPORTED", response.getCode());
+        Map<String, Object> detail = (Map<String, Object>) response.getDetail();
+        assertEquals("post_aggregate_alias_expression_unsupported", detail.get("reason"));
+        assertEquals("totalShare", detail.get("calculated_field_name"));
+        assertEquals("totalSales", detail.get("alias_name"));
+        assertEquals("clarify", detail.get("original_type"));
+
+        Map<String, Object> queryTrace = (Map<String, Object>) response.getDebug().get("query_trace");
+        assertEquals("reject", queryTrace.get("result_type"));
+        assertEquals(1, queryTrace.get("tool_call_count"));
+        assertEquals(1L, queryTrace.get("tool_failure_count"));
+        assertEquals(false, queryTrace.get("query_result_captured"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     @DisplayName("未知 Spring 工具调用应返回稳定 reject 并保留 query_trace")
     void unknownSpringToolCall_shouldReturnRejectWithTrace() {
         DatasetNLQueryRequest request = DatasetNLQueryRequest.builder()

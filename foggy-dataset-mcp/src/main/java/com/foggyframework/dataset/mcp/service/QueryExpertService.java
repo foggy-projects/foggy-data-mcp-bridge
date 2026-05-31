@@ -61,6 +61,8 @@ public class QueryExpertService {
     private static final String ROUTING_REPLAN_REQUIRED_CODE = "ROUTING_REPLAN_REQUIRED";
     private static final String QUERY_MODEL_FAILED_CODE = "QUERY_MODEL_FAILED";
     private static final String FIELD_NOT_FOUND_IN_QUERY_MODEL_CODE = "FIELD_NOT_FOUND_IN_QUERY_MODEL";
+    private static final String POST_AGGREGATE_ALIAS_EXPRESSION_UNSUPPORTED_CODE =
+            "POST_AGGREGATE_ALIAS_EXPRESSION_UNSUPPORTED";
     private static final String UNKNOWN_TOOL_CALL_CODE = "UNKNOWN_TOOL_CALL";
     private static final String PROVIDER_UNAVAILABLE_CODE = "PROVIDER_UNAVAILABLE";
     private static final String PROVIDER_RESPONSE_PARSE_FAILED_CODE = "PROVIDER_RESPONSE_PARSE_FAILED";
@@ -80,6 +82,10 @@ public class QueryExpertService {
             "No ToolCallback found for tool name:\\s*([A-Za-z0-9_.-]+)");
     private static final Pattern FIELD_NOT_FOUND_IN_MODEL_PATTERN = Pattern.compile(
             "Field '([^']+)' not found in model '([^']+)'");
+    private static final Pattern CALCULATED_FIELD_NAME_PATTERN = Pattern.compile(
+            "编译计算字段表达式失败\\s*\\[([^\\]]+)]");
+    private static final Pattern MISSING_CALCULATED_FIELD_COLUMN_PATTERN = Pattern.compile(
+            "未能在查询模型[^中]*中找到列([A-Za-z_][A-Za-z0-9_$]*)");
     private static final List<String> STALE_PLAN_FIELDS = List.of(
             "dsl_params",
             "semantic_sql",
@@ -773,6 +779,23 @@ public class QueryExpertService {
             );
         }
 
+        PostAggregateAliasFailure aliasFailure = extractPostAggregateAliasFailure(failedQueryCall);
+        if (aliasFailure != null && isUnstructuredTerminal(response)) {
+            detail.put("reason", "post_aggregate_alias_expression_unsupported");
+            detail.put("terminal_contract", "post_aggregate_alias_expression_unsupported");
+            if (aliasFailure.calculatedFieldName() != null) {
+                detail.put("calculated_field_name", aliasFailure.calculatedFieldName());
+            }
+            if (aliasFailure.aliasName() != null) {
+                detail.put("alias_name", aliasFailure.aliasName());
+            }
+            return DatasetNLQueryResponse.reject(
+                    POST_AGGREGATE_ALIAS_EXPRESSION_UNSUPPORTED_CODE,
+                    "当前查询包含尚不支持的聚合别名二次计算，已拒绝执行。",
+                    detail
+            );
+        }
+
         if (!"info".equals(response.getType())) {
             return response;
         }
@@ -832,6 +855,47 @@ public class QueryExpertService {
     }
 
     private record MissingModelField(String fieldName, String modelName) {
+    }
+
+    private static PostAggregateAliasFailure extractPostAggregateAliasFailure(
+            ToolCallCollector.ToolCallRecord failedQueryCall
+    ) {
+        List<String> candidates = new ArrayList<>();
+        if (failedQueryCall.getError() != null) {
+            candidates.add(failedQueryCall.getError());
+        }
+        Map<String, Object> resultSummary = resultSummary(failedQueryCall.getResult());
+        Object message = resultSummary.get("message");
+        if (message != null) {
+            candidates.add(String.valueOf(message));
+        }
+        Object error = resultSummary.get("error");
+        if (error != null) {
+            candidates.add(String.valueOf(error));
+        }
+
+        for (String candidate : candidates) {
+            String normalized = candidate == null ? "" : candidate;
+            if (normalized.contains("POST_AGGREGATE_CALCULATED_FIELD_UNSUPPORTED")
+                    || normalized.contains("selected aggregate alias")
+                    || (normalized.contains("CALCULATED_FIELD_EXPRESSION_INVALID")
+                    && normalized.contains("未能在查询模型")
+                    && normalized.contains("找到列"))) {
+                return new PostAggregateAliasFailure(
+                        firstMatch(CALCULATED_FIELD_NAME_PATTERN, normalized),
+                        firstMatch(MISSING_CALCULATED_FIELD_COLUMN_PATTERN, normalized)
+                );
+            }
+        }
+        return null;
+    }
+
+    private static String firstMatch(Pattern pattern, String value) {
+        Matcher matcher = pattern.matcher(value == null ? "" : value);
+        return matcher.find() ? matcher.group(1) : null;
+    }
+
+    private record PostAggregateAliasFailure(String calculatedFieldName, String aliasName) {
     }
 
     private static DatasetNLQueryResponse enforceInfoTerminalContract(DatasetNLQueryResponse response) {
