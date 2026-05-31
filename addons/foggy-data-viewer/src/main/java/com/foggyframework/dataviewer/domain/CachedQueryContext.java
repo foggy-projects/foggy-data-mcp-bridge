@@ -77,6 +77,11 @@ public class CachedQueryContext {
     private String authorization;
 
     /**
+     * 创建查询链接时的命名空间。null 或空字符串表示默认命名空间。
+     */
+    private String namespace;
+
+    /**
      * 创建时间
      */
     private Instant createdAt;

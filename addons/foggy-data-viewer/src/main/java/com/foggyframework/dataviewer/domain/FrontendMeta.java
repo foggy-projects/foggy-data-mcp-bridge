@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
@@ -73,6 +74,12 @@ public class FrontendMeta {
         private String aggregation;
         /** 底层数据库列名 */
         private String sourceColumn;
+        /** 语义单位缩放因子，例如金额分转元时为 100 */
+        private BigDecimal semanticScaleFactor;
+        /** 语义单位编码 */
+        private String semanticUnit;
+        /** 语义单位显示名 */
+        private String semanticUnitLabel;
         /** 字典标识 */
         private String dictId;
         /** 字典模式：static / remote */

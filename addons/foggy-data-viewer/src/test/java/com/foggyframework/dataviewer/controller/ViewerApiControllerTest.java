@@ -3,10 +3,13 @@ package com.foggyframework.dataviewer.controller;
 import com.foggyframework.core.ex.ExDefined;
 import com.foggyframework.core.ex.RX;
 import com.foggyframework.dataviewer.domain.CachedQueryContext;
+import com.foggyframework.dataviewer.domain.MemberQueryRequest;
+import com.foggyframework.dataviewer.domain.MemberQueryResponse;
 import com.foggyframework.dataviewer.domain.ViewerDataResponse;
 import com.foggyframework.dataviewer.domain.ViewerQueryRequest;
 import com.foggyframework.dataviewer.service.QueryCacheService;
 import com.foggyframework.dataset.client.domain.PagingRequest;
+import com.foggyframework.dataset.db.model.config.DatasetProperties;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
 import com.foggyframework.dataset.db.model.service.QueryFacade;
@@ -16,6 +19,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -29,6 +33,9 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -54,7 +61,7 @@ class ViewerApiControllerTest {
 
     @BeforeEach
     void setUp() {
-        controller = new ViewerApiController(cacheService, queryFacade, memberQueryService);
+        controller = new ViewerApiController(cacheService, queryFacade, new DatasetProperties(), memberQueryService);
 
         validContext = CachedQueryContext.builder()
                 .queryId("test-query-id")
@@ -119,14 +126,14 @@ class ViewerApiControllerTest {
             PagingResultImpl mockResult = new PagingResultImpl();
             mockResult.setItems(generateMockItems(10));
             mockResult.setTotal(100);
-            when(queryFacade.queryModelData(any(PagingRequest.class)))
+            when(queryFacade.queryModelData(any(PagingRequest.class), isNull(), isNull()))
                     .thenReturn(mockResult);
 
             ViewerQueryRequest request = new ViewerQueryRequest();
             request.setStart(0);
             request.setLimit(10);
 
-            RX response = controller.queryData("orders", "test-query-id", request);
+            RX response = controller.queryData("orders", "test-query-id", null, null, request);
 
             assertEquals(RX.SUCCESS, response.getCode());
             assertNotNull(response.getData());
@@ -144,7 +151,7 @@ class ViewerApiControllerTest {
 
             ViewerQueryRequest request = new ViewerQueryRequest();
 
-            RX response = controller.queryData("orders", "expired-query", request);
+            RX response = controller.queryData("orders", "expired-query", null, null, request);
 
             assertEquals(410, response.getCode());
             assertNotNull(response.getData());
@@ -161,14 +168,14 @@ class ViewerApiControllerTest {
             PagingResultImpl mockResult = new PagingResultImpl();
             mockResult.setItems(generateMockItems(5));
             mockResult.setTotal(100);
-            when(queryFacade.queryModelData(any(PagingRequest.class)))
+            when(queryFacade.queryModelData(any(PagingRequest.class), isNull(), isNull()))
                     .thenReturn(mockResult);
 
             ViewerQueryRequest request = new ViewerQueryRequest();
             request.setStart(20);
             request.setLimit(5);
 
-            RX response = controller.queryData("orders", "test-query-id", request);
+            RX response = controller.queryData("orders", "test-query-id", null, null, request);
 
             assertEquals(RX.SUCCESS, response.getCode());
             assertNotNull(response.getData());
@@ -187,13 +194,13 @@ class ViewerApiControllerTest {
             PagingResultImpl mockResult = new PagingResultImpl();
             mockResult.setItems(generateMockItems(50));
             mockResult.setTotal(100);
-            when(queryFacade.queryModelData(any(PagingRequest.class)))
+            when(queryFacade.queryModelData(any(PagingRequest.class), isNull(), isNull()))
                     .thenReturn(mockResult);
 
             ViewerQueryRequest request = new ViewerQueryRequest();
             // 不设置分页参数
 
-            RX response = controller.queryData("orders", "test-query-id", request);
+            RX response = controller.queryData("orders", "test-query-id", null, null, request);
 
             assertEquals(RX.SUCCESS, response.getCode());
             assertNotNull(response.getData());
@@ -207,18 +214,126 @@ class ViewerApiControllerTest {
             when(cacheService.getQuery("test-query-id"))
                     .thenReturn(Optional.of(validContext));
 
-            when(queryFacade.queryModelData(any(PagingRequest.class)))
+            when(queryFacade.queryModelData(any(PagingRequest.class), isNull(), isNull()))
                     .thenThrow(new RuntimeException("Database connection failed"));
 
             ViewerQueryRequest request = new ViewerQueryRequest();
 
-            RX response = controller.queryData("orders", "test-query-id", request);
+            RX response = controller.queryData("orders", "test-query-id", null, null, request);
 
             assertEquals(ExDefined.COMMON_ERROR_CODE, response.getCode());
             assertNotNull(response.getData());
             ViewerDataResponse data = (ViewerDataResponse) response.getData();
             assertFalse(data.isSuccess());
             assertTrue(data.getError().contains("Database connection failed"));
+        }
+
+        @Test
+        @DisplayName("应优先使用请求头namespace执行queryId查询")
+        void shouldUseHeaderNamespaceForQueryData() {
+            validContext.setNamespace("cached-ns");
+            validContext.setAuthorization("Bearer cached-token");
+            when(cacheService.getQuery("test-query-id"))
+                    .thenReturn(Optional.of(validContext));
+
+            PagingResultImpl mockResult = new PagingResultImpl();
+            mockResult.setItems(generateMockItems(1));
+            mockResult.setTotal(1);
+            when(queryFacade.queryModelData(any(PagingRequest.class), eq("Bearer request-token"), eq("header-ns")))
+                    .thenReturn(mockResult);
+
+            ViewerQueryRequest request = new ViewerQueryRequest();
+            request.setNamespace("body-ns");
+            request.setStart(0);
+            request.setLimit(10);
+
+            RX response = controller.queryData("orders", "test-query-id", "Bearer request-token", "header-ns", request);
+
+            assertEquals(RX.SUCCESS, response.getCode());
+            verify(queryFacade).queryModelData(any(PagingRequest.class), eq("Bearer request-token"), eq("header-ns"));
+        }
+
+        @Test
+        @DisplayName("应在未传请求namespace时使用缓存namespace")
+        void shouldUseCachedNamespaceWhenRequestNamespaceMissing() {
+            validContext.setNamespace("cached-ns");
+            validContext.setAuthorization("Bearer cached-token");
+            when(cacheService.getQuery("test-query-id"))
+                    .thenReturn(Optional.of(validContext));
+
+            PagingResultImpl mockResult = new PagingResultImpl();
+            mockResult.setItems(generateMockItems(1));
+            mockResult.setTotal(1);
+            when(queryFacade.queryModelData(any(PagingRequest.class), eq("Bearer cached-token"), eq("cached-ns")))
+                    .thenReturn(mockResult);
+
+            ViewerQueryRequest request = new ViewerQueryRequest();
+            request.setStart(0);
+            request.setLimit(10);
+
+            RX response = controller.queryData("orders", "test-query-id", null, null, request);
+
+            assertEquals(RX.SUCCESS, response.getCode());
+            verify(queryFacade).queryModelData(any(PagingRequest.class), eq("Bearer cached-token"), eq("cached-ns"));
+        }
+    }
+
+    @Nested
+    @DisplayName("直连查询测试")
+    class QueryDirectTests {
+
+        @Test
+        @DisplayName("应优先使用请求头namespace执行直连查询")
+        void shouldUseHeaderNamespaceForDirectQuery() {
+            PagingResultImpl mockResult = new PagingResultImpl();
+            mockResult.setItems(generateMockItems(1));
+            mockResult.setTotal(1);
+            when(queryFacade.queryModelData(any(PagingRequest.class), eq("Bearer token"), eq("header-ns")))
+                    .thenReturn(mockResult);
+
+            ViewerQueryRequest request = new ViewerQueryRequest();
+            request.setNamespace("body-ns");
+            request.setStart(0);
+            request.setLimit(10);
+            request.setColumns(List.of("orderId", "salesAmountYuan"));
+
+            RX response = controller.queryDirect("orders", "Bearer token", "header-ns", request);
+
+            assertEquals(RX.SUCCESS, response.getCode());
+            ArgumentCaptor<PagingRequest> captor = ArgumentCaptor.forClass(PagingRequest.class);
+            verify(queryFacade).queryModelData(captor.capture(), eq("Bearer token"), eq("header-ns"));
+            DbQueryRequestDef queryDef = (DbQueryRequestDef) captor.getValue().getParam();
+            assertEquals(List.of("orderId", "salesAmountYuan"), queryDef.getColumns());
+        }
+    }
+
+    @Nested
+    @DisplayName("成员查询测试")
+    class QueryMembersTests {
+
+        @Test
+        @DisplayName("应透传解析后的namespace到成员查询服务")
+        void shouldPassNamespaceToMemberQueryService() {
+            MemberQueryResponse memberResponse = MemberQueryResponse.builder()
+                    .qmModel("orders")
+                    .fieldName("customer")
+                    .items(List.of())
+                    .total(0)
+                    .build();
+            when(memberQueryService.query(any(MemberQueryRequest.class), eq("header-ns")))
+                    .thenReturn(memberResponse);
+
+            MemberQueryRequest request = new MemberQueryRequest();
+            request.setQmModel("orders");
+            request.setFieldName("customer");
+            request.setNamespace("body-ns");
+
+            RX<MemberQueryResponse> response = controller.queryMembers("header-ns", request);
+
+            assertEquals(RX.SUCCESS, response.getCode());
+            ArgumentCaptor<MemberQueryRequest> captor = ArgumentCaptor.forClass(MemberQueryRequest.class);
+            verify(memberQueryService).query(captor.capture(), eq("header-ns"));
+            assertEquals("header-ns", captor.getValue().getNamespace());
         }
     }
 

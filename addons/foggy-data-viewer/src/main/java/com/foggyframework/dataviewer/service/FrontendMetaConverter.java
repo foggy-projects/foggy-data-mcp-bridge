@@ -3,6 +3,7 @@ package com.foggyframework.dataviewer.service;
 import com.foggyframework.dataviewer.domain.FrontendMeta;
 import com.foggyframework.dataviewer.domain.FrontendMeta.*;
 
+import java.math.BigDecimal;
 import java.util.*;
 
 /**
@@ -97,6 +98,9 @@ public class FrontendMetaConverter {
         Boolean aggregatable = getBoolean(fieldData, "aggregatable");
         String aggregation = getString(fieldData, "aggregation");
         String sourceColumn = getString(fieldData, "sourceColumn");
+        BigDecimal semanticScaleFactor = getBigDecimal(fieldData, "semanticScaleFactor");
+        String semanticUnit = getString(fieldData, "semanticUnit");
+        String semanticUnitLabel = getString(fieldData, "semanticUnitLabel");
         String dictId = getString(fieldData, "dictId");
         Boolean calculated = getBoolean(fieldData, "calculated");
         Boolean hierarchical = getBoolean(fieldData, "hierarchical");
@@ -132,6 +136,9 @@ public class FrontendMetaConverter {
                 .aggregatable(aggregatable)
                 .aggregation(aggregation)
                 .sourceColumn(sourceColumn)
+                .semanticScaleFactor(semanticScaleFactor)
+                .semanticUnit(semanticUnit)
+                .semanticUnitLabel(semanticUnitLabel)
                 .dictId(dictId)
                 .dictMode(dictMode)
                 .dictItems(dictItems)
@@ -296,6 +303,20 @@ public class FrontendMetaConverter {
     private Boolean getBoolean(Map<String, Object> map, String key) {
         Object val = map.get(key);
         if (val instanceof Boolean) return (Boolean) val;
+        return null;
+    }
+
+    private BigDecimal getBigDecimal(Map<String, Object> map, String key) {
+        Object val = map.get(key);
+        if (val instanceof BigDecimal) {
+            return (BigDecimal) val;
+        }
+        if (val instanceof Number || val instanceof String) {
+            String text = String.valueOf(val);
+            if (!text.isBlank()) {
+                return new BigDecimal(text);
+            }
+        }
         return null;
     }
 

@@ -115,6 +115,23 @@ class QueryCacheServiceTest {
 
             assertEquals("Bearer my-token", result.getAuthorization());
         }
+
+        @Test
+        @DisplayName("应保存namespace")
+        void shouldSaveNamespace() {
+            QueryCacheService.OpenInViewerRequest request = new QueryCacheService.OpenInViewerRequest();
+            request.setModel("orders");
+            request.setNamespace("tms-ai");
+            request.setColumns(List.of("orderId"));
+            request.setSlice(createSlice("id", "=", "1"));
+
+            when(repository.save(any(CachedQueryContext.class)))
+                    .thenAnswer(invocation -> invocation.getArgument(0));
+
+            CachedQueryContext result = service.cacheQuery(request, null);
+
+            assertEquals("tms-ai", result.getNamespace());
+        }
     }
 
     @Nested

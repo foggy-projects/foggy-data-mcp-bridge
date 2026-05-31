@@ -48,7 +48,7 @@ public class MemberQueryService {
     @Autowired(required = false)
     private SemanticServiceV3 semanticService;
 
-    /** 缓存：qmModel -> { fieldName -> hierarchical } */
+    /** 缓存：(namespace, qmModel) -> { fieldName -> hierarchical } */
     private final ConcurrentHashMap<String, Map<String, Boolean>> hierarchyCache = new ConcurrentHashMap<>();
 
     public MemberQueryService(QueryFacade queryFacade) {
@@ -59,11 +59,18 @@ public class MemberQueryService {
      * 查询维度成员
      */
     public MemberQueryResponse query(MemberQueryRequest req) {
+        return query(req, req.getNamespace());
+    }
+
+    /**
+     * 查询维度成员
+     */
+    public MemberQueryResponse query(MemberQueryRequest req, String namespace) {
         String qmModel = req.getQmModel();
         String fieldName = req.getFieldName();
 
         // 推导维度基名、selectionFieldName、displayFieldName、hierarchical
-        FieldMapping mapping = resolveFieldMapping(qmModel, fieldName);
+        FieldMapping mapping = resolveFieldMapping(qmModel, fieldName, namespace);
         String syntheticModelName = qmModel + SYNTHETIC_SEPARATOR + mapping.dimBaseName;
 
         int start = req.getStart() != null ? req.getStart() : 0;
@@ -80,7 +87,7 @@ public class MemberQueryService {
         pagingRequest.setLimit(limit);
 
         try {
-            PagingResultImpl result = queryFacade.queryModelData(pagingRequest);
+            PagingResultImpl result = queryFacade.queryModelData(pagingRequest, namespace);
             items = mapItems(result.getItems(), mapping.hierarchyEnabled);
             total = result.getTotal() > 0 ? result.getTotal() : items.size();
         } catch (Exception e) {
@@ -91,7 +98,7 @@ public class MemberQueryService {
         // 回填已选值（单独查询）
         List<MemberOption> selectedItems = null;
         if (req.getSelectedValues() != null && !req.getSelectedValues().isEmpty()) {
-            selectedItems = querySelectedValues(syntheticModelName, req.getSelectedValues());
+            selectedItems = querySelectedValues(syntheticModelName, req.getSelectedValues(), namespace);
         }
 
         return MemberQueryResponse.builder()
@@ -156,7 +163,7 @@ public class MemberQueryService {
     /**
      * 回填已选值（通过 id in (...) 查询）
      */
-    private List<MemberOption> querySelectedValues(String syntheticModelName, List<Object> selectedValues) {
+    private List<MemberOption> querySelectedValues(String syntheticModelName, List<Object> selectedValues, String namespace) {
         try {
             DbQueryRequestDef def = new DbQueryRequestDef();
             def.setQueryModel(syntheticModelName);
@@ -173,7 +180,7 @@ public class MemberQueryService {
             pagingRequest.setStart(0);
             pagingRequest.setLimit(selectedValues.size());
 
-            PagingResultImpl result = queryFacade.queryModelData(pagingRequest);
+            PagingResultImpl result = queryFacade.queryModelData(pagingRequest, namespace);
             return mapItems(result.getItems(), false);
         } catch (Exception e) {
             log.warn("Failed to resolve selected values for {}: {}", syntheticModelName, e.getMessage());
@@ -214,7 +221,7 @@ public class MemberQueryService {
     /**
      * 推导字段映射（含 hierarchy 检测）
      */
-    private FieldMapping resolveFieldMapping(String qmModel, String fieldName) {
+    private FieldMapping resolveFieldMapping(String qmModel, String fieldName, String namespace) {
         String dimBaseName;
         String selectionFieldName;
         String displayFieldName;
@@ -231,7 +238,7 @@ public class MemberQueryService {
         }
 
         // 从 V3 元数据检查是否层级维度
-        boolean hierarchyEnabled = checkHierarchical(qmModel, fieldName);
+        boolean hierarchyEnabled = checkHierarchical(qmModel, fieldName, namespace);
 
         return new FieldMapping(dimBaseName, selectionFieldName, displayFieldName, hierarchyEnabled);
     }
@@ -240,8 +247,8 @@ public class MemberQueryService {
      * 检查字段是否层级维度（结果缓存）
      */
     @SuppressWarnings("unchecked")
-    private boolean checkHierarchical(String qmModel, String fieldName) {
-        Map<String, Boolean> fieldCache = hierarchyCache.computeIfAbsent(qmModel, k -> {
+    private boolean checkHierarchical(String qmModel, String fieldName, String namespace) {
+        Map<String, Boolean> fieldCache = hierarchyCache.computeIfAbsent(hierarchyCacheKey(namespace, qmModel), k -> {
             if (semanticService == null) return Map.of();
             try {
                 SemanticMetadataRequest request = new SemanticMetadataRequest();
@@ -249,7 +256,7 @@ public class MemberQueryService {
                 request.setLevels(List.of(1, 2, 3));
                 request.setIncludeExamples(false);
                 SemanticMetadataResponse response = semanticService.getMetadata(
-                        request, "json", SemanticRequestContext.empty());
+                        request, "json", SemanticRequestContext.ofNamespace(namespace));
                 if (response == null || response.getData() == null) return Map.of();
 
                 Map<String, Object> data = response.getData();
@@ -279,6 +286,11 @@ public class MemberQueryService {
                     || fieldCache.getOrDefault(baseName + "$caption", false);
         }
         return false;
+    }
+
+    private String hierarchyCacheKey(String namespace, String qmModel) {
+        String normalizedNamespace = namespace == null ? "" : namespace.trim();
+        return normalizedNamespace + "\u0000" + qmModel;
     }
 
     private boolean isHierarchyQuery(MemberQueryRequest req) {
