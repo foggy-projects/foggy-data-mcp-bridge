@@ -64,6 +64,16 @@ public class QueryRequestValidationStep implements DataSetResultStep {
      * 支持的排序方向
      */
     private static final Set<String> SUPPORTED_SORT_DIRECTIONS = Set.of("asc", "desc");
+    private static final Set<String> SUPPORTED_POST_AGGREGATE_KINDS = Set.of(
+            "ratioToTotal",
+            "cumulativeSum",
+            "cumulativeRatioToTotal",
+            "rankByMeasure"
+    );
+    private static final Set<String> RATIO_POST_AGGREGATE_KINDS = Set.of(
+            "ratioToTotal",
+            "cumulativeRatioToTotal"
+    );
 
     /**
      * 支持的父子维 hierarchy 操作符名称白名单。
@@ -386,9 +396,10 @@ public class QueryRequestValidationStep implements DataSetResultStep {
                         "POST_AGGREGATE_CALCULATED_FIELD_UNSUPPORTED: query_model calculatedFields entry '"
                                 + alias + "' references selected aggregate alias " + matchedAliases
                                 + " from the same grouped query. Free-form post-aggregate expressions are "
-                                + "not supported in v1.6. For share-of-total metrics use "
-                                + "postAggregateCalculations kind='ratioToTotal' or calculatedFields "
-                                + "expression ratio_to_total(<aggregateAlias>).");
+                                + "not supported in v1.6. Use postAggregateCalculations kind="
+                                + SUPPORTED_POST_AGGREGATE_KINDS + " or calculatedFields sugar such as "
+                                + "ratio_to_total(<aggregateAlias>), cumulative_sum(<aggregateAlias>), "
+                                + "cumulative_ratio_to_total(<aggregateAlias>), rank_by(<aggregateAlias>).");
             }
         }
     }
@@ -409,22 +420,23 @@ public class QueryRequestValidationStep implements DataSetResultStep {
                 throw RX.throwAUserTip("POST_AGGREGATE_CALCULATION_DUPLICATE: duplicate postAggregateCalculations name '" + name + "'.");
             }
             String kind = StringUtils.isEmpty(item.getKind()) ? "" : item.getKind();
-            if (!"ratioToTotal".equals(kind)) {
-                throw RX.throwAUserTip("POST_AGGREGATE_CALCULATION_UNSUPPORTED: only kind='ratioToTotal' is supported in v1.6; got '" + kind + "' for '" + name + "'.");
+            if (!SUPPORTED_POST_AGGREGATE_KINDS.contains(kind)) {
+                throw RX.throwAUserTip("POST_AGGREGATE_CALCULATION_UNSUPPORTED: supported kinds are "
+                        + SUPPORTED_POST_AGGREGATE_KINDS + "; got '" + kind + "' for '" + name + "'.");
             }
             String scope = StringUtils.isEmpty(item.getScope()) ? "grandTotal" : item.getScope();
             if (!"grandTotal".equals(scope)) {
                 throw RX.throwAUserTip("POST_AGGREGATE_CALCULATION_UNSUPPORTED: only scope='grandTotal' is supported in v1.6; got '" + scope + "' for '" + name + "'.");
             }
             String format = StringUtils.isEmpty(item.getFormat()) ? "ratio" : item.getFormat();
-            if (!"ratio".equals(format) && !"percent".equals(format)) {
+            if (RATIO_POST_AGGREGATE_KINDS.contains(kind) && !"ratio".equals(format) && !"percent".equals(format)) {
                 throw RX.throwAUserTip("POST_AGGREGATE_CALCULATION_UNSUPPORTED: format must be 'ratio' or 'percent'; got '" + format + "' for '" + name + "'.");
             }
             if (StringUtils.isEmpty(item.getMeasure())) {
-                throw RX.throwAUserTip("POST_AGGREGATE_MEASURE_REQUIRED: ratioToTotal '" + name + "' requires measure.");
+                throw RX.throwAUserTip("POST_AGGREGATE_MEASURE_REQUIRED: postAggregateCalculations '" + name + "' requires measure.");
             }
             if (!selectedAggregateAliases.contains(item.getMeasure())) {
-                throw RX.throwAUserTip("POST_AGGREGATE_MEASURE_NOT_FOUND: ratioToTotal '" + name
+                throw RX.throwAUserTip("POST_AGGREGATE_MEASURE_NOT_FOUND: postAggregateCalculations '" + name
                         + "' measure '" + item.getMeasure() + "' must reference a selected aggregate alias from columns[].");
             }
         }

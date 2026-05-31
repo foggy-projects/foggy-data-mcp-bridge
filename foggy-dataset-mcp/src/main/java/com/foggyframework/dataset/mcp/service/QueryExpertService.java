@@ -63,6 +63,7 @@ public class QueryExpertService {
     private static final String UNKNOWN_TOOL_CALL_CODE = "UNKNOWN_TOOL_CALL";
     private static final String PROVIDER_UNAVAILABLE_CODE = "PROVIDER_UNAVAILABLE";
     private static final String PROVIDER_RESPONSE_PARSE_FAILED_CODE = "PROVIDER_RESPONSE_PARSE_FAILED";
+    private static final String TOOL_FAILURE_BUDGET_EXCEEDED_CODE = "TOOL_FAILURE_BUDGET_EXCEEDED";
     private static final String REPLAN_RECOMMENDED_ACTION = "REPLAN_BY_CALIBRATED_ROUTE";
     private static final String PROVIDER_RESPONSE_PARSE_FAILED_MARKER = "Error while extracting response for type";
     private static final int QUERY_TRACE_TOOL_FAILURE_BUDGET = 10;
@@ -503,7 +504,7 @@ public class QueryExpertService {
         trace.put("tool_success_count", successCount);
         trace.put("tool_failure_count", failureCount);
         trace.put("tool_failure_budget", QUERY_TRACE_TOOL_FAILURE_BUDGET);
-        trace.put("tool_failure_budget_exceeded", failureCount > QUERY_TRACE_TOOL_FAILURE_BUDGET);
+        trace.put("tool_failure_budget_exceeded", failureCount >= QUERY_TRACE_TOOL_FAILURE_BUDGET);
         trace.put("all_tools_success", collector == null || collector.isAllSuccess());
         trace.put("query_result_captured", capturedQueryResult != null);
         if (capturedQueryResult != null) {
@@ -562,6 +563,9 @@ public class QueryExpertService {
             response = providerUnavailableResponse(exception);
         }
         if (response == null) {
+            response = toolFailureBudgetExceededResponse(exception);
+        }
+        if (response == null) {
             return null;
         }
         return attachQueryTraceDebug(response, traceId, sessionId, queryTools, collector, null);
@@ -618,6 +622,23 @@ public class QueryExpertService {
         );
     }
 
+    private static DatasetNLQueryResponse toolFailureBudgetExceededResponse(Exception exception) {
+        if (!isToolFailureBudgetExceeded(exception)) {
+            return null;
+        }
+
+        Map<String, Object> detail = new LinkedHashMap<>();
+        detail.put("reason", "tool_failure_budget_exceeded");
+        detail.put("tool_failure_budget", QUERY_TRACE_TOOL_FAILURE_BUDGET);
+        detail.put("original_error", safeString(exception.getMessage()));
+
+        return DatasetNLQueryResponse.error(
+                TOOL_FAILURE_BUDGET_EXCEEDED_CODE,
+                "Query tool failure budget was exceeded before a structured result was produced.",
+                detail
+        );
+    }
+
     private static String extractUnknownSpringToolName(Throwable throwable) {
         for (String message : exceptionMessages(throwable)) {
             Matcher matcher = UNKNOWN_TOOL_CALL_PATTERN.matcher(message);
@@ -643,6 +664,15 @@ public class QueryExpertService {
                 if (message.contains(marker)) {
                     return true;
                 }
+            }
+        }
+        return false;
+    }
+
+    private static boolean isToolFailureBudgetExceeded(Throwable throwable) {
+        for (String message : exceptionMessages(throwable)) {
+            if (message.contains(McpToolCallbackFactory.TOOL_FAILURE_BUDGET_EXCEEDED_MARKER)) {
+                return true;
             }
         }
         return false;

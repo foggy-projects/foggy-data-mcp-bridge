@@ -365,19 +365,22 @@ public class SqlCalculatedFieldProcessor implements CalculatedFieldProcessor {
         if (fieldDef.getAgg() != null || fieldDef.getPartitionBy() != null || fieldDef.getWindowOrderBy() != null) {
             return false;
         }
-        if (AGGREGATE_FUNCTION_CALL.matcher(fieldDef.getExpression()).find()) {
-            return false;
-        }
+        boolean baseAggregateMeasureRef = false;
         for (String ref : CalculatedFieldService.extractColumnReferences(fieldDef.getExpression())) {
             DbQueryColumn column = context.tryResolveColumn(ref);
+            if (column instanceof CalculatedDbColumn calcColumn
+                    && !calcColumn.hasWindow()
+                    && calcColumn.getAggregationType() != null) {
+                return true;
+            }
             if (column != null
                     && column.isMeasure()
                     && column.getAggregation() != null
                     && column.getAggregation() != DbAggregation.NONE) {
-                return true;
+                baseAggregateMeasureRef = true;
             }
         }
-        return false;
+        return baseAggregateMeasureRef && !AGGREGATE_FUNCTION_CALL.matcher(fieldDef.getExpression()).find();
     }
 
     private boolean isSoleSelectedPredefinedCalculatedField(CalculatedFieldDef fieldDef) {

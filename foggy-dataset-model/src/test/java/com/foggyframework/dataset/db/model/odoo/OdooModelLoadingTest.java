@@ -375,6 +375,50 @@ class OdooModelLoadingTest extends EcommerceTestSupport {
 
     @Test
     @Order(206)
+    @DisplayName("calculatedFields 累计贡献与排名语法归一为 postAggregateCalculations")
+    void testCalculatedFieldsCumulativeAndRankNormalizeToPostAggregate() {
+        JdbcQueryModel queryModel = getQueryModel("OdooSaleOrderQueryModel");
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        DbQueryRequestDef queryRequest = postAggregateSalesShareRequest();
+        queryRequest.setSlice(null);
+        queryRequest.setColumns(Arrays.asList(
+                "salesTeam$id",
+                "salesTeam$caption",
+                "sum(amountTotal) as teamSales",
+                "salesRank",
+                "cumulativeSales",
+                "cumulativeShare"
+        ));
+        queryRequest.setCalculatedFields(new ArrayList<>(List.of(
+                new CalculatedFieldDef("salesRank", "rank()"),
+                new CalculatedFieldDef("cumulativeSales", "cumulative_sum(teamSales)"),
+                new CalculatedFieldDef(
+                        "cumulativeShare",
+                        "SUM(teamSales) OVER (ORDER BY teamSales DESC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) / NULLIF(SUM(teamSales) OVER (), 0)")
+        )));
+        OrderRequestDef order = new OrderRequestDef();
+        order.setField("teamSales");
+        order.setDir("desc");
+        queryRequest.setOrderBy(List.of(order));
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+        String sql = queryEngine.getSql();
+        String normalizedSql = sql.replace('`', '"');
+
+        assertTrue(normalizedSql.contains("post_stage AS"), sql);
+        assertTrue(normalizedSql.contains("RANK() OVER (ORDER BY stage1.\"teamSales\" DESC) AS \"salesRank\""), sql);
+        assertTrue(normalizedSql.contains("SUM(stage1.\"teamSales\") OVER (ORDER BY stage1.\"teamSales\" DESC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS \"cumulativeSales\""), sql);
+        assertTrue(normalizedSql.contains("SUM(stage1.\"teamSales\") OVER (ORDER BY stage1.\"teamSales\" DESC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) / NULLIF(SUM(stage1.\"teamSales\") OVER (), 0) AS \"cumulativeShare\""), sql);
+        assertTrue(queryRequest.getCalculatedFields().stream()
+                .noneMatch(cf -> "salesRank".equals(cf.getName())
+                        || "cumulativeSales".equals(cf.getName())
+                        || "cumulativeShare".equals(cf.getName())));
+        assertEquals(3, queryRequest.getPostAggregateCalculations().size());
+    }
+
+    @Test
+    @Order(206)
     @DisplayName("calculatedFields 聚合别名总额占比公式归一为 postAggregateCalculations")
     void testCalculatedFieldsAliasRatioToTotalFormulaNormalizesToPostAggregate() {
         JdbcQueryModel queryModel = getQueryModel("OdooSaleOrderQueryModel");
@@ -424,6 +468,31 @@ class OdooModelLoadingTest extends EcommerceTestSupport {
 
     @Test
     @Order(207)
+    @DisplayName("calculatedFields CALCULATE 聚合别名占比公式归一为 postAggregateCalculations")
+    void testCalculatedFieldsAliasCalculateRatioToTotalFormulaNormalizesToPostAggregate() {
+        JdbcQueryModel queryModel = getQueryModel("OdooSaleOrderQueryModel");
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        DbQueryRequestDef queryRequest = postAggregateSalesShareRequest();
+        queryRequest.setCalculatedFields(new ArrayList<>(List.of(new CalculatedFieldDef(
+                "salesShare",
+                "teamSales / NULLIF(CALCULATE(SUM(teamSales), REMOVE(salesTeam$id, salesTeam$caption)), 0)"
+        ))));
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+        String sql = queryEngine.getSql();
+        String normalizedSql = sql.replace('`', '"');
+
+        assertTrue(normalizedSql.contains("post_stage AS"), sql);
+        assertTrue(normalizedSql.contains("stage1.\"teamSales\" / NULLIF(SUM(stage1.\"teamSales\") OVER (), 0) AS \"salesShare\""), sql);
+        assertTrue(normalizedSql.contains("WHERE \"salesShare\" > ?"), sql);
+        assertTrue(queryRequest.getCalculatedFields().stream()
+                .noneMatch(cf -> "salesShare".equals(cf.getName())));
+        assertEquals("teamSales", queryRequest.getPostAggregateCalculations().get(0).getMeasure());
+    }
+
+    @Test
+    @Order(208)
     @DisplayName("calculatedFields 与已有字段同名应返回稳定错误码")
     void testCalculatedFieldNameCollisionUsesStableErrorCode() {
         JdbcQueryModel queryModel = getQueryModel("OdooSaleOrderQueryModel");

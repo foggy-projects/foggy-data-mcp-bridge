@@ -532,6 +532,66 @@ class QueryExpertServiceRoutingCalibrationTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    @DisplayName("工具失败预算耗尽应返回稳定 TOOL_FAILURE_BUDGET_EXCEEDED 并保留 query_trace")
+    void toolFailureBudgetExceeded_shouldReturnStableErrorWithTrace() {
+        DatasetNLQueryRequest request = DatasetNLQueryRequest.builder()
+                .query("按品类统计销售额占比")
+                .build();
+
+        chatClient = mock(ChatClient.class);
+        requestSpec = mock(ChatClient.ChatClientRequestSpec.class);
+
+        when(chatClientBuilder.defaultSystem(anyString())).thenReturn(chatClientBuilder);
+        when(chatClientBuilder.build()).thenReturn(chatClient);
+        when(mcpToolDispatcher.getTool(anyString())).thenAnswer(invocation -> mockTool(invocation.getArgument(0)));
+        when(toolCallbackFactory.createToolCallbacks(
+                anyList(),
+                eq("trace-tool-budget-1"),
+                isNull(),
+                any(ToolCallCollector.class)
+        )).thenAnswer(invocation -> {
+            ToolCallCollector collector = invocation.getArgument(3);
+            for (int i = 0; i < 10; i++) {
+                collector.recordToolCall(
+                        "dataset.query_model",
+                        "dataset_query_model",
+                        Map.of(
+                                "model", "FactOrderQueryModel",
+                                "payload", Map.of("columns", List.of("sum(amount) as totalAmount", "totalShare"))
+                        ),
+                        RX.failB("CALCULATED_FIELD_EXPRESSION_INVALID"),
+                        "[QUERY_MODEL_FAILED] CALCULATED_FIELD_EXPRESSION_INVALID",
+                        3
+                );
+            }
+            return new ToolCallback[0];
+        });
+        when(chatClient.prompt()).thenReturn(requestSpec);
+        when(requestSpec.user(anyString())).thenReturn(requestSpec);
+        when(requestSpec.toolCallbacks(any(ToolCallback[].class))).thenReturn(requestSpec);
+        when(requestSpec.call()).thenThrow(new IllegalStateException(
+                McpToolCallbackFactory.TOOL_FAILURE_BUDGET_EXCEEDED_MARKER
+                        + ": tool failure budget exceeded before executing dataset.query_model"));
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-tool-budget-1", null);
+
+        assertEquals("error", response.getType());
+        assertEquals("TOOL_FAILURE_BUDGET_EXCEEDED", response.getCode());
+        Map<String, Object> detail = (Map<String, Object>) response.getDetail();
+        assertEquals("tool_failure_budget_exceeded", detail.get("reason"));
+        assertEquals(10, detail.get("tool_failure_budget"));
+
+        Map<String, Object> queryTrace = (Map<String, Object>) response.getDebug().get("query_trace");
+        assertEquals("trace-tool-budget-1", queryTrace.get("trace_id"));
+        assertEquals("error", queryTrace.get("result_type"));
+        assertEquals(10, queryTrace.get("tool_call_count"));
+        assertEquals(10L, queryTrace.get("tool_failure_count"));
+        assertEquals(true, queryTrace.get("tool_failure_budget_exceeded"));
+        assertEquals(false, queryTrace.get("query_result_captured"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     @DisplayName("无结构化结果且提示缺少模型能力时应返回 reject 而不是 info")
     void unsupportedInfoWithoutStructuredResult_shouldReturnRejectContract() {
         DatasetNLQueryRequest request = DatasetNLQueryRequest.builder()

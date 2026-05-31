@@ -179,6 +179,15 @@ public class ToolCallCollector {
     }
 
     /**
+     * 获取失败调用次数。
+     */
+    public long getFailureCount() {
+        return toolCalls.stream()
+                .filter(r -> !r.isSuccess())
+                .count();
+    }
+
+    /**
      * 清空收集器
      */
     public void clear() {

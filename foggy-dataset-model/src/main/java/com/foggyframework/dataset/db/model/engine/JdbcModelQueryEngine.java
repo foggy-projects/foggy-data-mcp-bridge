@@ -72,6 +72,16 @@ public class JdbcModelQueryEngine implements QueryEngine {
             "foggy.dataset.auto-lift-aggregate-slice-to-having";
     private static final String AUTO_LIFT_AGGREGATE_SLICE_TO_HAVING_ENV =
             "FOGGY_DATASET_AUTO_LIFT_AGGREGATE_SLICE_TO_HAVING";
+    private static final Set<String> SUPPORTED_POST_AGGREGATE_KINDS = Set.of(
+            "ratioToTotal",
+            "cumulativeSum",
+            "cumulativeRatioToTotal",
+            "rankByMeasure"
+    );
+    private static final Set<String> RATIO_POST_AGGREGATE_KINDS = Set.of(
+            "ratioToTotal",
+            "cumulativeRatioToTotal"
+    );
 
     JdbcQueryModel jdbcQueryModel;
 
@@ -562,19 +572,22 @@ public class JdbcModelQueryEngine implements QueryEngine {
             if (StringUtils.isEmpty(item.getName())) {
                 throw RX.throwAUserTip("POST_AGGREGATE_CALCULATION_INVALID: postAggregateCalculations entries require a non-empty name.");
             }
-            if (!"ratioToTotal".equals(item.getKind())) {
-                throw RX.throwAUserTip("POST_AGGREGATE_CALCULATION_UNSUPPORTED: only kind='ratioToTotal' is supported in v1.6; got '" + item.getKind() + "' for '" + item.getName() + "'.");
+            String kind = StringUtils.isEmpty(item.getKind()) ? "" : item.getKind();
+            if (!SUPPORTED_POST_AGGREGATE_KINDS.contains(kind)) {
+                throw RX.throwAUserTip("POST_AGGREGATE_CALCULATION_UNSUPPORTED: supported kinds are "
+                        + SUPPORTED_POST_AGGREGATE_KINDS + "; got '" + item.getKind()
+                        + "' for '" + item.getName() + "'.");
             }
             String scope = StringUtils.isEmpty(item.getScope()) ? "grandTotal" : item.getScope();
             if (!"grandTotal".equals(scope)) {
                 throw RX.throwAUserTip("POST_AGGREGATE_CALCULATION_UNSUPPORTED: only scope='grandTotal' is supported in v1.6; got '" + scope + "' for '" + item.getName() + "'.");
             }
             String format = StringUtils.isEmpty(item.getFormat()) ? "ratio" : item.getFormat();
-            if (!"ratio".equals(format) && !"percent".equals(format)) {
+            if (RATIO_POST_AGGREGATE_KINDS.contains(kind) && !"ratio".equals(format) && !"percent".equals(format)) {
                 throw RX.throwAUserTip("POST_AGGREGATE_CALCULATION_UNSUPPORTED: format must be 'ratio' or 'percent'; got '" + format + "' for '" + item.getName() + "'.");
             }
             if (!aggregateAliases.contains(item.getMeasure())) {
-                throw RX.throwAUserTip("POST_AGGREGATE_MEASURE_NOT_FOUND: ratioToTotal '" + item.getName()
+                throw RX.throwAUserTip("POST_AGGREGATE_MEASURE_NOT_FOUND: postAggregateCalculations '" + item.getName()
                         + "' measure '" + item.getMeasure() + "' must reference a selected aggregate alias from columns[].");
             }
         }
@@ -588,8 +601,8 @@ public class JdbcModelQueryEngine implements QueryEngine {
         }
         Pattern pattern = Pattern.compile(
                 "(?i)\\b(?:sum|avg|count|countd|count_distinct|min|max|stddev_pop|stddev_samp|var_pop|var_samp)\\s*\\([^)]*\\)\\s+(?:as\\s+)?([A-Za-z_][A-Za-z0-9_]*)\\b");
-        Pattern aggregateExpression = Pattern.compile(
-                "(?i)\\b(?:sum|avg|count|countd|count_distinct|min|max|stddev_pop|stddev_samp|var_pop|var_samp)\\s*\\(");
+        Pattern simpleAggregateExpression = Pattern.compile(
+                "(?i)^\\s*(?:sum|avg|count|countd|count_distinct|min|max|stddev_pop|stddev_samp|var_pop|var_samp)\\s*\\([^)]*\\)\\s*$");
         for (String column : columns) {
             if (column == null) {
                 continue;
@@ -604,7 +617,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
                 if (field == null || StringUtils.isEmpty(field.getName()) || StringUtils.isEmpty(field.getExpression())) {
                     continue;
                 }
-                if (aggregateExpression.matcher(field.getExpression()).find()) {
+                if (simpleAggregateExpression.matcher(field.getExpression()).find()) {
                     aliases.add(field.getName());
                 }
             }
@@ -1076,10 +1089,7 @@ public class JdbcModelQueryEngine implements QueryEngine {
 
         for (PostAggregateCalculationDef calc : queryRequest.getPostAggregateCalculations()) {
             String measureRef = stage1Alias + "." + dialect.quoteIdentifier(calc.getMeasure());
-            String expr = measureRef + " / NULLIF(SUM(" + measureRef + ") OVER (), 0)";
-            if ("percent".equals(calc.getFormat())) {
-                expr = "(" + expr + ") * 100";
-            }
+            String expr = buildPostAggregateCalculationSql(calc, measureRef);
             postSelects.add(expr + " AS " + dialect.quoteIdentifier(calc.getName()));
             finalAliases.add(calc.getName());
         }
@@ -1161,6 +1171,31 @@ public class JdbcModelQueryEngine implements QueryEngine {
             this.aggSql = buildAggSql(systemBundlesContext, null, null, false, countToSum);
             this.aggSqlOptimizationResult = null;
         }
+    }
+
+    private String buildPostAggregateCalculationSql(PostAggregateCalculationDef calc, String measureRef) {
+        String kind = StringUtils.isEmpty(calc.getKind()) ? "" : calc.getKind();
+        return switch (kind) {
+            case "ratioToTotal" -> formatRatioPostAggregate(
+                    calc, measureRef + " / NULLIF(SUM(" + measureRef + ") OVER (), 0)");
+            case "cumulativeSum" -> "SUM(" + measureRef + ") OVER (ORDER BY " + measureRef
+                    + " DESC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)";
+            case "cumulativeRatioToTotal" -> formatRatioPostAggregate(
+                    calc,
+                    "SUM(" + measureRef + ") OVER (ORDER BY " + measureRef
+                            + " DESC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)"
+                            + " / NULLIF(SUM(" + measureRef + ") OVER (), 0)");
+            case "rankByMeasure" -> "RANK() OVER (ORDER BY " + measureRef + " DESC)";
+            default -> throw RX.throwAUserTip("POST_AGGREGATE_CALCULATION_UNSUPPORTED: unsupported kind '"
+                    + kind + "' for '" + calc.getName() + "'.");
+        };
+    }
+
+    private String formatRatioPostAggregate(PostAggregateCalculationDef calc, String expr) {
+        if ("percent".equals(calc.getFormat())) {
+            return "(" + expr + ") * 100";
+        }
+        return expr;
     }
 
     private String buildPostAggregateFilterSql(

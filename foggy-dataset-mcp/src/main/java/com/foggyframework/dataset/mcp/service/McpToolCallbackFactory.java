@@ -35,6 +35,8 @@ public class McpToolCallbackFactory {
 
     private final ToolConfigLoader toolConfigLoader;
     private final ObjectMapper objectMapper;
+    private static final int QUERY_TOOL_FAILURE_BUDGET = 10;
+    static final String TOOL_FAILURE_BUDGET_EXCEEDED_MARKER = "TOOL_FAILURE_BUDGET_EXCEEDED";
 
     /**
      * 将 McpTool 转换为 Spring AI ToolCallback
@@ -188,6 +190,12 @@ public class McpToolCallbackFactory {
                         : Map.of();
                 arguments = parsedArgs;
 
+                if (collector != null && collector.getFailureCount() >= QUERY_TOOL_FAILURE_BUDGET) {
+                    errorType = TOOL_FAILURE_BUDGET_EXCEEDED_MARKER;
+                    error = "tool failure budget exceeded before executing " + originalToolName;
+                    throw new ToolFailureBudgetExceededException(error);
+                }
+
                 // 调用 MCP 工具
                 ToolExecutionContext context = ToolExecutionContext.of(traceId, authorization);
                 result = mcpTool.execute(arguments, context);
@@ -216,6 +224,10 @@ public class McpToolCallbackFactory {
                 error = "JSON参数格式错误: " + extractJsonErrorHint(e.getMessage());
                 return buildJsonParseErrorResponse(toolInput, e);
 
+            } catch (ToolFailureBudgetExceededException e) {
+                log.warn("[MCP Tool Budget Exceeded] {}: {}", springToolName, e.getMessage());
+                throw e;
+
             } catch (Exception e) {
                 log.error("[MCP Tool Error] {}: {}", springToolName, e.getMessage(), e);
                 errorType = "EXECUTION_ERROR";
@@ -235,6 +247,12 @@ public class McpToolCallbackFactory {
                             durationMs
                     );
                 }
+            }
+        }
+
+        private static class ToolFailureBudgetExceededException extends RuntimeException {
+            ToolFailureBudgetExceededException(String message) {
+                super(TOOL_FAILURE_BUDGET_EXCEEDED_MARKER + ": " + message);
             }
         }
 
