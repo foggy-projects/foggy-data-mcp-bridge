@@ -202,17 +202,19 @@ public class McpToolCallbackFactory {
 
                 // dataset.query_model 执行成功后，将结构化结果写入 ThreadLocal 捕获槽，
                 // 供 QueryExpertService.processQuery() 在 Spring AI call() 返回后读取。
+                Object toolResponse = result;
                 if ("dataset.query_model".equals(originalToolName)) {
                     QueryExpertService.captureQueryResult(result);
                     String queryFailure = resolveQueryModelFailureMessage(result);
                     if (queryFailure != null) {
                         errorType = "QUERY_MODEL_FAILED";
                         error = queryFailure;
+                        toolResponse = buildQueryModelFailureResponse(result, queryFailure);
                     }
                 }
 
                 // 转换结果为 JSON
-                String jsonResult = objectMapper.writeValueAsString(result);
+                String jsonResult = objectMapper.writeValueAsString(toolResponse);
                 log.info("[MCP Tool Result] {}: {} chars", springToolName, jsonResult.length());
 
                 return jsonResult;
@@ -355,6 +357,92 @@ public class McpToolCallbackFactory {
                 }
             }
             return null;
+        }
+
+        private static Map<String, Object> buildQueryModelFailureResponse(Object result, String message) {
+            Map<String, Object> response = new java.util.LinkedHashMap<>();
+            response.put("error", true);
+            response.put("error_type", "query_model_failed");
+            response.put("message", firstNonBlank(message, "dataset.query_model returned a failed result"));
+            response.put("retry_guidance", retryGuidanceForQueryModelFailure(message));
+            response.put("original_result_summary", queryFailureResultSummary(result));
+            return response;
+        }
+
+        private static Map<String, Object> retryGuidanceForQueryModelFailure(String message) {
+            String text = message != null ? message : "";
+            String normalized = text.toLowerCase(java.util.Locale.ROOT);
+
+            if (text.contains("HAVING_REQUIRES_AGGREGATE_FIELD")) {
+                return Map.of(
+                        "action", "move_row_level_filter_to_slice",
+                        "instruction", "having only accepts aggregate measures. Move ordinary field filters to slice and keep aggregate filters in having."
+                );
+            }
+            if (text.contains("请指定查询字段") || normalized.contains("must specify query fields")) {
+                return Map.of(
+                        "action", "add_columns_before_retry",
+                        "instruction", "Retry only after adding payload.columns. Use describe_model_internal when the available fields are unclear."
+                );
+            }
+            if (normalized.contains("field '") && normalized.contains("not found in model")) {
+                return Map.of(
+                        "action", "use_existing_model_fields",
+                        "instruction", "Do not retry with invented fields. Call describe_model_internal and either use existing fields or return a terminal reject/clarify."
+                );
+            }
+            if (text.contains("CALCULATED_FIELD_NAME_COLLISION")) {
+                return Map.of(
+                        "action", "rename_calculated_field",
+                        "instruction", "The calculated field name collides with an existing model column. Rename the calculated field before retrying."
+                );
+            }
+            if (text.contains("CALCULATED_FIELD_EXPRESSION_INVALID")
+                    && (text.contains("未能在查询模型") || normalized.contains("selected aggregate alias"))) {
+                return Map.of(
+                        "action", "avoid_free_form_aggregate_alias_expression",
+                        "instruction", "Do not repeatedly reference selected aggregate aliases inside free-form calculatedFields. Use governed postAggregateCalculations for share/rank/cumulative patterns, or return a terminal reject if the requested formula is unsupported."
+                );
+            }
+            if (text.contains("WINDOW_CALCULATED_FIELD_SLICE_NOT_SUPPORTED")) {
+                return Map.of(
+                        "action", "move_result_stage_filter",
+                        "instruction", "Do not put window or post-aggregate aliases in slice. Use the supported result-stage filter shape or return a terminal clarify/reject."
+                );
+            }
+            return Map.of(
+                    "action", "repair_or_stop",
+                    "instruction", "Retry only if a concrete schema or payload repair is available. Otherwise return a terminal clarify/reject instead of repeating the same invalid query_model call."
+            );
+        }
+
+        private static Map<String, Object> queryFailureResultSummary(Object result) {
+            Map<String, Object> summary = new java.util.LinkedHashMap<>();
+            if (result instanceof RX<?> rx) {
+                summary.put("type", "RX");
+                summary.put("code", rx.getCode());
+                summary.put("success", rx._isSuccess());
+                String message = firstNonBlank(rx.getMsg(), rx.getUserTip(), rx.getExCode());
+                if (message != null) {
+                    summary.put("message", message);
+                }
+                return summary;
+            }
+            if (result instanceof Map<?, ?> map) {
+                summary.put("type", "map");
+                summary.put("keys", map.keySet().stream().map(String::valueOf).toList());
+                Object code = map.get("code");
+                if (code != null) {
+                    summary.put("code", code);
+                }
+                Object message = firstNonBlank(map.get("msg"), map.get("message"), map.get("error"));
+                if (message != null) {
+                    summary.put("message", message);
+                }
+                return summary;
+            }
+            summary.put("type", result == null ? "null" : result.getClass().getSimpleName());
+            return summary;
         }
 
         private static String firstNonBlank(Object... values) {
