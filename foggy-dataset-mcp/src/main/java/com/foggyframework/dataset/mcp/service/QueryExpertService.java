@@ -1141,6 +1141,29 @@ public class QueryExpertService {
             if (error != null) {
                 summary.put("error", error);
             }
+            Object errorType = map.get("error_type");
+            if (errorType != null) {
+                summary.put("error_type", errorType);
+            }
+            Object message = map.get("message");
+            if (message != null) {
+                summary.put("message", message);
+            }
+            Object retryGuidance = map.get("retry_guidance");
+            if (retryGuidance instanceof Map<?, ?> guidanceMap) {
+                Object action = guidanceMap.get("action");
+                if (action != null) {
+                    summary.put("retry_guidance_action", action);
+                }
+                Object repeatCount = guidanceMap.get("failure_signature_repeat_count");
+                if (repeatCount != null) {
+                    summary.put("failure_signature_repeat_count", repeatCount);
+                }
+            }
+            Object failureSignature = map.get("failure_signature");
+            if (failureSignature != null) {
+                summary.put("failure_signature", failureSignature);
+            }
             Object total = map.get("total");
             if (total != null) {
                 summary.put("total", total);

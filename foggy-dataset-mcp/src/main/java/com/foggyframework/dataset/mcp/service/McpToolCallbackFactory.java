@@ -36,6 +36,7 @@ public class McpToolCallbackFactory {
     private final ToolConfigLoader toolConfigLoader;
     private final ObjectMapper objectMapper;
     private static final int QUERY_TOOL_FAILURE_BUDGET = 10;
+    private static final int REPEATED_QUERY_MODEL_FAILURE_SIGNATURE_BUDGET = 3;
     static final String TOOL_FAILURE_BUDGET_EXCEEDED_MARKER = "TOOL_FAILURE_BUDGET_EXCEEDED";
 
     /**
@@ -179,8 +180,10 @@ public class McpToolCallbackFactory {
             long startTime = System.currentTimeMillis();
             Map<String, Object> arguments = null;
             Object result = null;
+            Object recordedResult = null;
             String error = null;
             String errorType = null;
+            ToolFailureBudgetExceededException deferredBudgetExceeded = null;
 
             try {
                 // 解析输入参数
@@ -199,6 +202,7 @@ public class McpToolCallbackFactory {
                 // 调用 MCP 工具
                 ToolExecutionContext context = ToolExecutionContext.of(traceId, authorization);
                 result = mcpTool.execute(arguments, context);
+                recordedResult = result;
 
                 // dataset.query_model 执行成功后，将结构化结果写入 ThreadLocal 捕获槽，
                 // 供 QueryExpertService.processQuery() 在 Spring AI call() 返回后读取。
@@ -209,7 +213,17 @@ public class McpToolCallbackFactory {
                     if (queryFailure != null) {
                         errorType = "QUERY_MODEL_FAILED";
                         error = queryFailure;
-                        toolResponse = buildQueryModelFailureResponse(result, queryFailure);
+                        Map<String, Object> failureResponse = buildQueryModelFailureResponse(result, queryFailure);
+                        int repeatedCount = repeatedQueryModelFailureSignatureCount(collector, queryFailure) + 1;
+                        enrichRepeatedQueryModelFailureGuidance(failureResponse, queryFailure, repeatedCount);
+                        toolResponse = failureResponse;
+                        recordedResult = failureResponse;
+                        if (repeatedCount >= REPEATED_QUERY_MODEL_FAILURE_SIGNATURE_BUDGET) {
+                            deferredBudgetExceeded = new ToolFailureBudgetExceededException(
+                                    "repeated dataset.query_model failure signature reached "
+                                            + repeatedCount + "/" + REPEATED_QUERY_MODEL_FAILURE_SIGNATURE_BUDGET
+                                            + ": " + queryModelFailureSignature(queryFailure));
+                        }
                     }
                 }
 
@@ -217,6 +231,9 @@ public class McpToolCallbackFactory {
                 String jsonResult = objectMapper.writeValueAsString(toolResponse);
                 log.info("[MCP Tool Result] {}: {} chars", springToolName, jsonResult.length());
 
+                if (deferredBudgetExceeded != null) {
+                    throw deferredBudgetExceeded;
+                }
                 return jsonResult;
 
             } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
@@ -244,7 +261,7 @@ public class McpToolCallbackFactory {
                             originalToolName,
                             springToolName,
                             arguments,
-                            result,
+                            recordedResult,
                             error != null ? "[" + errorType + "] " + error : null,
                             durationMs
                     );
@@ -397,6 +414,13 @@ public class McpToolCallbackFactory {
                         "instruction", "The calculated field name collides with an existing model column. Rename the calculated field before retrying."
                 );
             }
+            if (text.contains("POST_AGGREGATE_CALCULATED_FIELD_UNSUPPORTED")
+                    || normalized.contains("free-form post-aggregate expressions are not supported")) {
+                return Map.of(
+                        "action", "avoid_free_form_aggregate_alias_expression",
+                        "instruction", "Do not repeatedly reference selected aggregate aliases inside free-form calculatedFields. Use governed postAggregateCalculations for share/rank/cumulative patterns, or return a terminal reject if the requested formula is unsupported."
+                );
+            }
             if (text.contains("CALCULATED_FIELD_EXPRESSION_INVALID")
                     && (text.contains("未能在查询模型") || normalized.contains("selected aggregate alias"))) {
                 return Map.of(
@@ -443,6 +467,76 @@ public class McpToolCallbackFactory {
             }
             summary.put("type", result == null ? "null" : result.getClass().getSimpleName());
             return summary;
+        }
+
+        @SuppressWarnings("unchecked")
+        private static void enrichRepeatedQueryModelFailureGuidance(
+                Map<String, Object> failureResponse,
+                String message,
+                int repeatedCount
+        ) {
+            failureResponse.put("failure_signature", queryModelFailureSignature(message));
+            failureResponse.put("failure_signature_repeat_count", repeatedCount);
+            failureResponse.put("failure_signature_budget", REPEATED_QUERY_MODEL_FAILURE_SIGNATURE_BUDGET);
+
+            Object guidance = failureResponse.get("retry_guidance");
+            if (guidance instanceof Map<?, ?> guidanceMap) {
+                Map<String, Object> enrichedGuidance = new java.util.LinkedHashMap<>((Map<String, Object>) guidanceMap);
+                enrichedGuidance.put("failure_signature_repeat_count", repeatedCount);
+                enrichedGuidance.put("failure_signature_budget", REPEATED_QUERY_MODEL_FAILURE_SIGNATURE_BUDGET);
+                if (repeatedCount >= REPEATED_QUERY_MODEL_FAILURE_SIGNATURE_BUDGET - 1) {
+                    enrichedGuidance.put("repeat_warning",
+                            "This exact query_model failure signature is repeating. Stop retrying the same shape; use a different supported payload or return a terminal reject/clarify.");
+                }
+                failureResponse.put("retry_guidance", enrichedGuidance);
+            }
+        }
+
+        private static int repeatedQueryModelFailureSignatureCount(ToolCallCollector collector, String message) {
+            if (collector == null) {
+                return 0;
+            }
+            String signature = queryModelFailureSignature(message);
+            int count = 0;
+            for (ToolCallCollector.ToolCallRecord call : collector.getCallsByTool("dataset.query_model")) {
+                if (call.isSuccess()) {
+                    continue;
+                }
+                String candidate = firstNonBlank(extractQueryModelFailureMessage(call.getResult()), call.getError());
+                if (signature.equals(queryModelFailureSignature(candidate))) {
+                    count++;
+                }
+            }
+            return count;
+        }
+
+        private static String extractQueryModelFailureMessage(Object result) {
+            if (result instanceof Map<?, ?> map) {
+                Object message = firstNonBlank(map.get("message"), map.get("msg"), map.get("error"));
+                if (message != null) {
+                    return String.valueOf(message);
+                }
+                Object originalSummary = map.get("original_result_summary");
+                if (originalSummary instanceof Map<?, ?> summary) {
+                    Object originalMessage = firstNonBlank(summary.get("message"), summary.get("msg"), summary.get("error"));
+                    if (originalMessage != null) {
+                        return String.valueOf(originalMessage);
+                    }
+                }
+            }
+            if (result instanceof RX<?> rx) {
+                return firstNonBlank(rx.getMsg(), rx.getUserTip(), rx.getExCode());
+            }
+            return null;
+        }
+
+        private static String queryModelFailureSignature(String message) {
+            String normalized = message != null ? message.trim() : "";
+            normalized = normalized.replaceAll("\\s+", " ");
+            if (normalized.length() > 240) {
+                normalized = normalized.substring(0, 240);
+            }
+            return retryGuidanceForQueryModelFailure(normalized).get("action") + ":" + normalized;
         }
 
         private static String firstNonBlank(Object... values) {

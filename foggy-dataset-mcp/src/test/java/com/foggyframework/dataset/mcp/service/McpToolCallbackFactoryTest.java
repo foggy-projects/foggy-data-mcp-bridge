@@ -57,6 +57,7 @@ class McpToolCallbackFactoryTest {
         assertFalse(call.isSuccess());
         assertTrue(call.getError().contains("QUERY_MODEL_FAILED"));
         assertTrue(call.getError().contains("FACT_ORDER"));
+        assertInstanceOf(Map.class, call.getResult());
     }
 
     @Test
@@ -93,12 +94,68 @@ class McpToolCallbackFactoryTest {
         assertTrue(String.valueOf(guidance.get("instruction")).contains("postAggregateCalculations"));
     }
 
+    @Test
+    @DisplayName("query_model post-aggregate alias unsupported 应返回聚合别名重试建议")
+    @SuppressWarnings("unchecked")
+    void queryModelPostAggregateUnsupported_shouldReturnPostAggregateRetryGuidance() throws Exception {
+        McpTool tool = mockQueryModelTool(RX.failB(
+                "查询执行失败: POST_AGGREGATE_CALCULATED_FIELD_UNSUPPORTED: query_model calculatedFields entry 'totalShare' references selected aggregate alias [amount] from the same grouped query. Free-form post-aggregate expressions are not supported in v1.6."));
+
+        String response = createCallback(tool).call("""
+                {"model":"FactOrderQueryModel","payload":{"columns":["sum(amount) as amount","totalShare"]}}
+                """);
+
+        Map<String, Object> payload = new ObjectMapper().readValue(response, Map.class);
+        Map<String, Object> guidance = (Map<String, Object>) payload.get("retry_guidance");
+        assertEquals("avoid_free_form_aggregate_alias_expression", guidance.get("action"));
+        assertTrue(String.valueOf(guidance.get("instruction")).contains("postAggregateCalculations"));
+    }
+
+    @Test
+    @DisplayName("query_model 同一失败签名重复达到阈值时应中止工具循环并保留失败响应摘要")
+    @SuppressWarnings("unchecked")
+    void repeatedQueryModelFailureSignature_shouldStopToolLoop() throws Exception {
+        String failureMessage = "查询执行失败: POST_AGGREGATE_CALCULATED_FIELD_UNSUPPORTED: "
+                + "query_model calculatedFields entry 'totalShare' references selected aggregate alias [amount] from the same grouped query. "
+                + "Free-form post-aggregate expressions are not supported in v1.6.";
+        McpTool tool = mockQueryModelTool(RX.failB(failureMessage));
+        ToolCallCollector collector = new ToolCallCollector("session-1");
+        ToolCallback callback = createCallback(tool, collector);
+
+        String firstResponse = callback.call("""
+                {"model":"FactOrderQueryModel","payload":{"columns":["sum(amount) as amount","totalShare"]}}
+                """);
+        String secondResponse = callback.call("""
+                {"model":"FactOrderQueryModel","payload":{"columns":["sum(amount) as amount","totalShare"]}}
+                """);
+
+        Map<String, Object> firstPayload = new ObjectMapper().readValue(firstResponse, Map.class);
+        Map<String, Object> secondPayload = new ObjectMapper().readValue(secondResponse, Map.class);
+        assertEquals(1, firstPayload.get("failure_signature_repeat_count"));
+        assertEquals(2, secondPayload.get("failure_signature_repeat_count"));
+
+        RuntimeException thrown = assertThrows(RuntimeException.class, () -> callback.call("""
+                {"model":"FactOrderQueryModel","payload":{"columns":["sum(amount) as amount","totalShare"]}}
+                """));
+        assertTrue(thrown.getMessage().contains(McpToolCallbackFactory.TOOL_FAILURE_BUDGET_EXCEEDED_MARKER));
+        assertEquals(3, collector.getToolCalls().size());
+        ToolCallCollector.ToolCallRecord lastCall = collector.getLastCall();
+        assertFalse(lastCall.isSuccess());
+        assertInstanceOf(Map.class, lastCall.getResult());
+        Map<String, Object> lastPayload = (Map<String, Object>) lastCall.getResult();
+        assertEquals(3, lastPayload.get("failure_signature_repeat_count"));
+        assertTrue(String.valueOf(lastPayload.get("failure_signature")).contains("avoid_free_form_aggregate_alias_expression"));
+    }
+
     private ToolCallback createCallback(McpTool tool) {
+        return createCallback(tool, new ToolCallCollector("session-1"));
+    }
+
+    private ToolCallback createCallback(McpTool tool, ToolCallCollector collector) {
         ToolConfigLoader toolConfigLoader = mock(ToolConfigLoader.class);
         when(toolConfigLoader.getDescription("dataset.query_model")).thenReturn("query model");
         when(toolConfigLoader.getSchema("dataset.query_model")).thenReturn(Map.of("type", "object"));
 
-        ToolCallCollector collector = new ToolCallCollector("session-1");
         McpToolCallbackFactory factory = new McpToolCallbackFactory(toolConfigLoader, new ObjectMapper());
         return factory.createToolCallback(tool, "trace-1", null, collector);
     }
