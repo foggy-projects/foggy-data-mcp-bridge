@@ -60,6 +60,7 @@ public class QueryExpertService {
 
     private static final String ROUTING_REPLAN_REQUIRED_CODE = "ROUTING_REPLAN_REQUIRED";
     private static final String QUERY_MODEL_FAILED_CODE = "QUERY_MODEL_FAILED";
+    private static final String FIELD_NOT_FOUND_IN_QUERY_MODEL_CODE = "FIELD_NOT_FOUND_IN_QUERY_MODEL";
     private static final String UNKNOWN_TOOL_CALL_CODE = "UNKNOWN_TOOL_CALL";
     private static final String PROVIDER_UNAVAILABLE_CODE = "PROVIDER_UNAVAILABLE";
     private static final String PROVIDER_RESPONSE_PARSE_FAILED_CODE = "PROVIDER_RESPONSE_PARSE_FAILED";
@@ -77,6 +78,8 @@ public class QueryExpertService {
     );
     private static final Pattern UNKNOWN_TOOL_CALL_PATTERN = Pattern.compile(
             "No ToolCallback found for tool name:\\s*([A-Za-z0-9_.-]+)");
+    private static final Pattern FIELD_NOT_FOUND_IN_MODEL_PATTERN = Pattern.compile(
+            "Field '([^']+)' not found in model '([^']+)'");
     private static final List<String> STALE_PLAN_FIELDS = List.of(
             "dsl_params",
             "semantic_sql",
@@ -747,7 +750,7 @@ public class QueryExpertService {
             DatasetNLQueryResponse response,
             ToolCallCollector collector
     ) {
-        if (response == null || collector == null || !"info".equals(response.getType())) {
+        if (response == null || collector == null) {
             return response;
         }
 
@@ -756,6 +759,39 @@ public class QueryExpertService {
             return response;
         }
 
+        Map<String, Object> detail = queryToolFailureDetail(response, failedQueryCall);
+        MissingModelField missingField = extractMissingModelField(failedQueryCall);
+        if (missingField != null && isUnstructuredTerminal(response)) {
+            detail.put("reason", "model_field_not_found");
+            detail.put("field_name", missingField.fieldName());
+            detail.put("model_name", missingField.modelName());
+            detail.put("terminal_contract", "field_not_found_in_query_model");
+            return DatasetNLQueryResponse.reject(
+                    FIELD_NOT_FOUND_IN_QUERY_MODEL_CODE,
+                    "当前查询模型不包含请求字段，已拒绝执行。",
+                    detail
+            );
+        }
+
+        if (!"info".equals(response.getType())) {
+            return response;
+        }
+
+        return DatasetNLQueryResponse.error(
+                QUERY_MODEL_FAILED_CODE,
+                "dataset.query_model 执行失败，未产生可验收的结构化查询结果。",
+                detail
+        );
+    }
+
+    private static boolean isUnstructuredTerminal(DatasetNLQueryResponse response) {
+        return "info".equals(response.getType()) || "clarify".equals(response.getType());
+    }
+
+    private static Map<String, Object> queryToolFailureDetail(
+            DatasetNLQueryResponse response,
+            ToolCallCollector.ToolCallRecord failedQueryCall
+    ) {
         Map<String, Object> detail = new LinkedHashMap<>();
         detail.put("tool_name", safeString(failedQueryCall.getToolName()));
         detail.put("sequence", failedQueryCall.getSequence());
@@ -767,12 +803,35 @@ public class QueryExpertService {
         detail.put("original_topic", response.getTopic());
         detail.put("original_note", response.getNote());
         detail.put("original_data", response.getData());
+        detail.put("original_questions", response.getQuestions());
+        detail.put("original_candidates", response.getCandidates());
+        return detail;
+    }
 
-        return DatasetNLQueryResponse.error(
-                QUERY_MODEL_FAILED_CODE,
-                "dataset.query_model 执行失败，未产生可验收的结构化查询结果。",
-                detail
-        );
+    private static MissingModelField extractMissingModelField(ToolCallCollector.ToolCallRecord failedQueryCall) {
+        List<String> candidates = new ArrayList<>();
+        if (failedQueryCall.getError() != null) {
+            candidates.add(failedQueryCall.getError());
+        }
+        Map<String, Object> resultSummary = resultSummary(failedQueryCall.getResult());
+        Object message = resultSummary.get("message");
+        if (message != null) {
+            candidates.add(String.valueOf(message));
+        }
+        Object error = resultSummary.get("error");
+        if (error != null) {
+            candidates.add(String.valueOf(error));
+        }
+        for (String candidate : candidates) {
+            Matcher matcher = FIELD_NOT_FOUND_IN_MODEL_PATTERN.matcher(candidate);
+            if (matcher.find()) {
+                return new MissingModelField(matcher.group(1), matcher.group(2));
+            }
+        }
+        return null;
+    }
+
+    private record MissingModelField(String fieldName, String modelName) {
     }
 
     private static DatasetNLQueryResponse enforceInfoTerminalContract(DatasetNLQueryResponse response) {
