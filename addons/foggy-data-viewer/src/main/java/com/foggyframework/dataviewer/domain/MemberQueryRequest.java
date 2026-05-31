@@ -12,6 +12,9 @@ import java.util.List;
 @Data
 public class MemberQueryRequest {
 
+    /** 可选命名空间。HTTP X-NS header 优先于此字段。 */
+    private String namespace;
+
     /** 业务 QM 名称（如 FactOrderQueryModel） */
     private String qmModel;
 

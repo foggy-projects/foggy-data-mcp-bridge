@@ -209,6 +209,7 @@ public class LargeResultTruncationStep implements DataSetResultStep {
             request.setOrderBy(param.getOrderBy());
             request.setCalculatedFields(param.getCalculatedFields());
             request.setTitle("查询结果 - " + model);
+            request.setNamespace(ctx.getNamespace());
         }
 
         return request;

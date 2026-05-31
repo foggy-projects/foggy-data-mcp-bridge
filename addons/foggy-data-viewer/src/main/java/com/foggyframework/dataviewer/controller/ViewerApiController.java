@@ -12,6 +12,8 @@ import com.foggyframework.dataviewer.service.FrontendMetaConverter;
 import com.foggyframework.dataviewer.service.MemberQueryService;
 import com.foggyframework.dataviewer.service.QueryCacheService;
 import com.foggyframework.dataset.client.domain.PagingRequest;
+import com.foggyframework.dataset.db.model.config.DatasetProperties;
+import com.foggyframework.dataset.db.model.config.DatasetRequestNamespaceResolver;
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef;
@@ -33,7 +35,6 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -53,6 +54,7 @@ public class ViewerApiController {
 
     private final QueryCacheService cacheService;
     private final QueryFacade queryFacade;
+    private final DatasetProperties datasetProperties;
 
     @Autowired(required = false)
     private SemanticServiceV3 semanticService;
@@ -87,7 +89,11 @@ public class ViewerApiController {
      * 返回完整的 QM 模型字段元数据，可保存为 JSON 文件
      */
     @GetMapping("/schema/download/{qmModel}")
-    public ResponseEntity<String> downloadQmSchema(@PathVariable String qmModel) {
+    public ResponseEntity<String> downloadQmSchema(
+            @PathVariable String qmModel,
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestHeader(value = "X-NS", required = false) String headerNamespace,
+            @RequestParam(value = "namespace", required = false) String queryNamespace) {
         if (semanticService == null) {
             return ResponseEntity.status(503)
                     .body("{\"error\": \"SemanticService not available\"}");
@@ -101,7 +107,9 @@ public class ViewerApiController {
             request.setIncludeExamples(true); // 包含示例数据
 
             // 获取 JSON 格式的元数据
-            SemanticMetadataResponse response = semanticService.getMetadata(request, "json", SemanticRequestContext.empty());
+            String namespace = resolveNamespace(headerNamespace, queryNamespace);
+            SemanticMetadataResponse response = semanticService.getMetadata(
+                    request, "json", SemanticRequestContext.of(namespace, authorization));
 
             if (response == null || response.getContent() == null) {
                 return ResponseEntity.notFound().build();
@@ -130,7 +138,11 @@ public class ViewerApiController {
      * 返回 QM 模型的字段元数据，用于前端构建列配置
      */
     @GetMapping("/schema/{qmModel}")
-    public RX<SemanticMetadataResponse> getQmSchema(@PathVariable String qmModel) {
+    public RX<SemanticMetadataResponse> getQmSchema(
+            @PathVariable String qmModel,
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestHeader(value = "X-NS", required = false) String headerNamespace,
+            @RequestParam(value = "namespace", required = false) String queryNamespace) {
         if (semanticService == null) {
             return RX.status(HttpStatusCode.valueOf(503))
                     .msg(" SemanticService not available").build();
@@ -144,7 +156,9 @@ public class ViewerApiController {
             request.setIncludeExamples(false); // 不需要示例数据
 
             // 获取 JSON 格式的元数据
-            SemanticMetadataResponse response = semanticService.getMetadata(request, "json", SemanticRequestContext.empty());
+            String namespace = resolveNamespace(headerNamespace, queryNamespace);
+            SemanticMetadataResponse response = semanticService.getMetadata(
+                    request, "json", SemanticRequestContext.of(namespace, authorization));
 
             if (response == null || response.getData() == null) {
                 return RX.notFound().build();
@@ -167,7 +181,11 @@ public class ViewerApiController {
      * fields 为有序数组、自动推导 memberLookup、新增 category/sortable/uiHints。
      */
     @GetMapping("/frontend-meta/{qmModel}")
-    public RX<FrontendMeta> getFrontendMeta(@PathVariable String qmModel) {
+    public RX<FrontendMeta> getFrontendMeta(
+            @PathVariable String qmModel,
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestHeader(value = "X-NS", required = false) String headerNamespace,
+            @RequestParam(value = "namespace", required = false) String queryNamespace) {
         if (semanticService == null) {
             return RX.status(HttpStatusCode.valueOf(503))
                     .msg("SemanticService not available").build();
@@ -179,8 +197,9 @@ public class ViewerApiController {
             request.setLevels(Arrays.asList(1, 2, 3));
             request.setIncludeExamples(false);
 
+            String namespace = resolveNamespace(headerNamespace, queryNamespace);
             SemanticMetadataResponse response = semanticService.getMetadata(
-                    request, "json", SemanticRequestContext.empty());
+                    request, "json", SemanticRequestContext.of(namespace, authorization));
 
             if (response == null || response.getData() == null) {
                 return RX.notFound().build();
@@ -204,7 +223,11 @@ public class ViewerApiController {
      * 供代码生成器离线使用或 CI 快照
      */
     @GetMapping("/frontend-meta/download/{qmModel}")
-    public ResponseEntity<String> downloadFrontendMeta(@PathVariable String qmModel) {
+    public ResponseEntity<String> downloadFrontendMeta(
+            @PathVariable String qmModel,
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestHeader(value = "X-NS", required = false) String headerNamespace,
+            @RequestParam(value = "namespace", required = false) String queryNamespace) {
         if (semanticService == null) {
             return ResponseEntity.status(503)
                     .body("{\"error\": \"SemanticService not available\"}");
@@ -216,8 +239,9 @@ public class ViewerApiController {
             request.setLevels(Arrays.asList(1, 2, 3));
             request.setIncludeExamples(false);
 
+            String namespace = resolveNamespace(headerNamespace, queryNamespace);
             SemanticMetadataResponse response = semanticService.getMetadata(
-                    request, "json", SemanticRequestContext.empty());
+                    request, "json", SemanticRequestContext.of(namespace, authorization));
 
             if (response == null || response.getData() == null) {
                 return ResponseEntity.notFound().build();
@@ -253,7 +277,9 @@ public class ViewerApiController {
      * 返回的 selectionFieldName 是前端生成 DSL slice 时必须使用的字段。
      */
     @PostMapping("/members/query")
-    public RX<MemberQueryResponse> queryMembers(@RequestBody MemberQueryRequest request) {
+    public RX<MemberQueryResponse> queryMembers(
+            @RequestHeader(value = "X-NS", required = false) String headerNamespace,
+            @RequestBody MemberQueryRequest request) {
         if (request.getQmModel() == null || request.getQmModel().isBlank()) {
             return RX.failB("qmModel 不能为空", null);
         }
@@ -262,7 +288,9 @@ public class ViewerApiController {
         }
 
         try {
-            MemberQueryResponse response = memberQueryService.query(request);
+            String namespace = resolveNamespace(headerNamespace, request.getNamespace());
+            request.setNamespace(namespace);
+            MemberQueryResponse response = memberQueryService.query(request, namespace);
             return RX.ok(response);
         } catch (Exception e) {
             log.error("Error querying members for {}.{}: {}",
@@ -283,7 +311,9 @@ public class ViewerApiController {
     public RX getFilterOptions(
             @PathVariable String model,
             @PathVariable String queryId,
-            @PathVariable String columnName) {
+            @PathVariable String columnName,
+            @RequestHeader(value = "X-NS", required = false) String headerNamespace,
+            @RequestParam(value = "namespace", required = false) String queryNamespace) {
 
         // 验证 queryId 有效（复用缓存上下文获取 qmModel）
         Optional<CachedQueryContext> ctxOpt = cacheService.getQuery(queryId);
@@ -304,8 +334,10 @@ public class ViewerApiController {
             memberReq.setFieldName(columnName);
             memberReq.setStart(0);
             memberReq.setLimit(100);
+            String namespace = resolveNamespace(headerNamespace, firstNonBlank(queryNamespace, ctx.getNamespace()));
+            memberReq.setNamespace(namespace);
 
-            MemberQueryResponse memberResp = memberQueryService.query(memberReq);
+            MemberQueryResponse memberResp = memberQueryService.query(memberReq, namespace);
 
             // 转换为旧的 FilterOption 格式 { options: [{value, label}], total }
             List<java.util.Map<String, Object>> options = new ArrayList<>();
@@ -343,13 +375,19 @@ public class ViewerApiController {
     @PostMapping("/query/direct/{qmModel}")
     public RX<ViewerDataResponse> queryDirect(
             @PathVariable String qmModel,
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestHeader(value = "X-NS", required = false) String headerNamespace,
             @RequestBody ViewerQueryRequest request) {
         try {
+            String namespace = resolveNamespace(headerNamespace, request.getNamespace());
             DbQueryRequestDef queryDef = new DbQueryRequestDef();
             queryDef.setQueryModel(qmModel);
             queryDef.setReturnTotal(true);
 
             // 直接使用前端传入的 slice / orderBy / groupBy
+            if (request.getColumns() != null) {
+                queryDef.setColumns(request.getColumns());
+            }
             if (request.getSlice() != null) {
                 queryDef.setSlice(request.getSlice());
             }
@@ -365,7 +403,7 @@ public class ViewerApiController {
             pagingRequest.setStart(request.getStart() != null ? request.getStart() : 0);
             pagingRequest.setLimit(request.getLimit() != null ? request.getLimit() : 50);
 
-            PagingResultImpl result = queryFacade.queryModelData(pagingRequest);
+            PagingResultImpl result = queryFacade.queryModelData(pagingRequest, authorization, namespace);
 
             return RX.ok(ViewerDataResponse.success(
                     result.getItems(),
@@ -387,6 +425,8 @@ public class ViewerApiController {
     public RX<ViewerDataResponse> queryData(
             @PathVariable String model,
             @PathVariable String queryId,
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestHeader(value = "X-NS", required = false) String headerNamespace,
             @RequestBody ViewerQueryRequest request) {
 
         Optional<CachedQueryContext> ctxOpt = cacheService.getQuery(queryId);
@@ -402,6 +442,9 @@ public class ViewerApiController {
         }
 
         try {
+            String namespace = resolveNamespace(headerNamespace, firstNonBlank(request.getNamespace(), ctx.getNamespace()));
+            String effectiveAuthorization = firstNonBlank(authorization, ctx.getAuthorization());
+
             // 构建查询请求，合并缓存参数与用户覆盖
             DbQueryRequestDef queryDef = buildQueryDef(ctx, request);
 
@@ -412,7 +455,7 @@ public class ViewerApiController {
             pagingRequest.setLimit(request.getLimit());
 
             // 使用 QueryFacade 执行查询
-            PagingResultImpl result = queryFacade.queryModelData(pagingRequest);
+            PagingResultImpl result = queryFacade.queryModelData(pagingRequest, effectiveAuthorization, namespace);
 
             return RX.ok(ViewerDataResponse.success(
                     result.getItems(),
@@ -434,6 +477,8 @@ public class ViewerApiController {
      */
     @PostMapping("/query/create")
     public RX<CreateQueryResponse> createQuery(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestHeader(value = "X-NS", required = false) String headerNamespace,
             @RequestBody CreateQueryFromFrontendRequest frontendRequest) {
         try {
             // 验证必要参数
@@ -465,9 +510,10 @@ public class ViewerApiController {
             request.setGroupBy(payload.getGroupBy());
             request.setOrderBy(payload.getOrderBy());
             request.setCalculatedFields(payload.getCalculatedFields());
+            request.setNamespace(resolveNamespace(headerNamespace, frontendRequest.getNamespace()));
 
             // 缓存查询
-            CachedQueryContext ctx = cacheService.cacheQuery(request, null);
+            CachedQueryContext ctx = cacheService.cacheQuery(request, authorization);
 
             return RX.ok(new CreateQueryResponse(
                     true,
@@ -490,6 +536,7 @@ public class ViewerApiController {
         private String model;
         private CreateQueryPayload payload;
         private String title;
+        private String namespace;
     }
 
     /**
@@ -539,6 +586,22 @@ public class ViewerApiController {
 
         def.setReturnTotal(true);
         return def;
+    }
+
+    private String resolveNamespace(String headerNamespace, String bodyNamespace) {
+        return DatasetRequestNamespaceResolver.resolve(datasetProperties, headerNamespace, bodyNamespace);
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (value != null && !value.trim().isEmpty()) {
+                return value.trim();
+            }
+        }
+        return null;
     }
 
     /**

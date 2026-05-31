@@ -50,6 +50,7 @@ public class QueryCacheService {
                 .calculatedFields(request.getCalculatedFields())
                 .title(request.getTitle())
                 .authorization(authorization)
+                .namespace(request.getNamespace())
                 .createdAt(Instant.now())
                 .expiresAt(Instant.now().plus(properties.getCache().getTtlMinutes(), ChronoUnit.MINUTES))
                 .build();
@@ -118,6 +119,7 @@ public class QueryCacheService {
         private List<OrderRequestDef> orderBy;
         private List<CalculatedFieldDef> calculatedFields;
         private String title;
+        private String namespace;
 
         /**
          * 可选的列定制配置

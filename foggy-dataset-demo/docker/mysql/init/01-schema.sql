@@ -404,6 +404,24 @@ CREATE TABLE `crm_lead` (
     INDEX `idx_crm_lead_source` (`lead_source`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='CRM线索事实表（CRM DSL_CTE parity fixture）';
 
+-- 20. 客户订单生命周期派生表（首购 cohort / 复购窗口 fixture）
+DROP TABLE IF EXISTS `customer_order_lifecycle`;
+CREATE TABLE `customer_order_lifecycle` (
+    `customer_id`              VARCHAR(64) NOT NULL COMMENT '客户ID',
+    `customer_name`            VARCHAR(100) NOT NULL COMMENT '客户名称',
+    `first_order_date`         DATE NOT NULL COMMENT '首购日期',
+    `first_order_month`        VARCHAR(7) NOT NULL COMMENT '首购月份',
+    `first_order_channel`      VARCHAR(32) COMMENT '首购渠道类型',
+    `order_count`              INT NOT NULL COMMENT '订单数',
+    `lifetime_amount`          DECIMAL(18,2) NOT NULL COMMENT '生命周期订单金额',
+    `repurchase_30d_flag`      TINYINT NOT NULL DEFAULT 0 COMMENT '30天复购标记',
+    `repurchase_60d_flag`      TINYINT NOT NULL DEFAULT 0 COMMENT '60天复购标记',
+    `repurchase_90d_flag`      TINYINT NOT NULL DEFAULT 0 COMMENT '90天复购标记',
+    PRIMARY KEY (`customer_id`),
+    INDEX `idx_customer_lifecycle_first_order_date` (`first_order_date`),
+    INDEX `idx_customer_lifecycle_first_order_month` (`first_order_month`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='客户订单生命周期派生表';
+
 -- ==========================================
 -- 嵌套维度测试表 (Nested Dimension / Snowflake Schema)
 -- ==========================================

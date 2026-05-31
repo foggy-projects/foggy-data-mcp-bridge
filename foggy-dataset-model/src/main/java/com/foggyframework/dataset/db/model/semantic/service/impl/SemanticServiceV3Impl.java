@@ -27,6 +27,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.lang.reflect.Field;
+import java.math.BigDecimal;
 import java.util.*;
 
 /**
@@ -1258,6 +1259,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         fieldInfo.put("filterable", true);
         fieldInfo.put("measure", false);
         fieldInfo.put("aggregatable", false);
+        addSemanticScaleMetadata(fieldInfo, prop);
 
         // 如果是字典类型，添加字典信息
         if (StringUtils.isNotEmpty(prop.getDictRef())) {
@@ -1760,6 +1762,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         fieldInfo.put("filterable", true);
         fieldInfo.put("measure", false);
         fieldInfo.put("aggregatable", false);
+        addSemanticScaleMetadata(fieldInfo, property);
 
         if (columnType == DbColumnType.DAY || columnType == DbColumnType.DATETIME) {
             if (StringUtils.isNotEmpty(property.getTimeRole())) {
@@ -1883,6 +1886,7 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         fieldInfo.put("measure", true);
         fieldInfo.put("aggregatable", true);
         fieldInfo.put("aggregation", aggregation);
+        addSemanticScaleMetadata(fieldInfo, measure);
 
         // 输出源列名（供外部系统做 DB列名→QM字段 自动映射）
         String sqlCol = measure.getJdbcColumn().getSqlColumnName();
@@ -1898,6 +1902,41 @@ public class SemanticServiceV3Impl implements SemanticServiceV3 {
         fieldInfo.put("models", models);
 
         return fieldInfo;
+    }
+
+    private void addSemanticScaleMetadata(Map<String, Object> fieldInfo, DbProperty property) {
+        if (property == null) {
+            return;
+        }
+        addSemanticScaleMetadata(fieldInfo,
+                property.getSemanticScaleFactor(),
+                property.getSemanticUnit(),
+                property.getSemanticUnitLabel());
+    }
+
+    private void addSemanticScaleMetadata(Map<String, Object> fieldInfo, DbMeasure measure) {
+        if (measure == null) {
+            return;
+        }
+        addSemanticScaleMetadata(fieldInfo,
+                measure.getSemanticScaleFactor(),
+                measure.getSemanticUnit(),
+                measure.getSemanticUnitLabel());
+    }
+
+    private void addSemanticScaleMetadata(Map<String, Object> fieldInfo,
+                                          BigDecimal semanticScaleFactor,
+                                          String semanticUnit,
+                                          String semanticUnitLabel) {
+        if (semanticScaleFactor != null) {
+            fieldInfo.put("semanticScaleFactor", semanticScaleFactor.stripTrailingZeros().toPlainString());
+        }
+        if (StringUtils.isNotEmpty(semanticUnit)) {
+            fieldInfo.put("semanticUnit", semanticUnit);
+        }
+        if (StringUtils.isNotEmpty(semanticUnitLabel)) {
+            fieldInfo.put("semanticUnitLabel", semanticUnitLabel);
+        }
     }
 
     private String getDataTypeDescription(DbColumnType dbColumnType) {

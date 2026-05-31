@@ -18,6 +18,7 @@ import com.foggyframework.dataviewer.service.listpreset.FileSystemListPresetStor
 import com.foggyframework.dataviewer.service.listpreset.ListPresetFieldValidator;
 import com.foggyframework.dataviewer.service.listpreset.ListPresetStore;
 import com.foggyframework.dataviewer.service.listpreset.MongoListPresetStore;
+import com.foggyframework.dataset.db.model.config.DatasetProperties;
 import com.foggyframework.dataset.db.model.service.QueryFacade;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
@@ -82,8 +83,9 @@ public class DataViewerAutoConfiguration {
     @ConditionalOnMissingBean
     public ViewerApiController viewerApiController(QueryCacheService cacheService,
                                                     QueryFacade queryFacade,
+                                                    DatasetProperties datasetProperties,
                                                     MemberQueryService memberQueryService) {
-        return new ViewerApiController(cacheService, queryFacade, memberQueryService);
+        return new ViewerApiController(cacheService, queryFacade, datasetProperties, memberQueryService);
     }
 
     @Bean

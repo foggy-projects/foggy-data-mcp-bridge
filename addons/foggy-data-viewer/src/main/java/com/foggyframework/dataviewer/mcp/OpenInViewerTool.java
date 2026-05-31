@@ -65,6 +65,7 @@ public class OpenInViewerTool implements McpTool {
 
         // 解析请求参数
         OpenInViewerRequest request = parseRequest(arguments);
+        request.setNamespace(resolveNamespace(context, arguments));
 
         // 验证并强制执行范围约束
         List<SliceRequestDef> constrainedSlice = constraintService.enforceConstraints(
@@ -155,6 +156,24 @@ public class OpenInViewerTool implements McpTool {
         }
 
         return request;
+    }
+
+    private String resolveNamespace(ToolExecutionContext context, Map<String, Object> arguments) {
+        Object explicit = arguments.get("namespace");
+        if (explicit instanceof String ns && !ns.isBlank()) {
+            return ns.trim();
+        }
+        if (context == null) {
+            return null;
+        }
+        String headerNamespace = context.getHeader("X-NS");
+        if (headerNamespace != null && !headerNamespace.isBlank()) {
+            return headerNamespace.trim();
+        }
+        String contextNamespace = context.getNamespace();
+        return contextNamespace != null && !contextNamespace.isBlank()
+                ? contextNamespace.trim()
+                : contextNamespace;
     }
 
     /**

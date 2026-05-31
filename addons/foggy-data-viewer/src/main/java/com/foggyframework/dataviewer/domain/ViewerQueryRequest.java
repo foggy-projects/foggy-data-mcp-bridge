@@ -17,6 +17,11 @@ import java.util.List;
 public class ViewerQueryRequest {
 
     /**
+     * 可选命名空间。HTTP X-NS header 优先于此字段。
+     */
+    private String namespace;
+
+    /**
      * 起始位置
      */
     private Integer start = 0;
@@ -25,6 +30,11 @@ public class ViewerQueryRequest {
      * 每页大小
      */
     private Integer limit = 50;
+
+    /**
+     * 查询列。为空时由底层查询模型使用默认列。
+     */
+    private List<String> columns;
 
     /**
      * 用户过滤条件 (DSL slice 格式)

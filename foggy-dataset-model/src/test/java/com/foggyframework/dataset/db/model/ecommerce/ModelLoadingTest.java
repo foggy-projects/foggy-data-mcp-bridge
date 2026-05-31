@@ -286,6 +286,18 @@ class ModelLoadingTest extends EcommerceTestSupport {
         log.info("SalesReturnJoinQueryModel 加载成功: 列组数={}", queryModel.getColumnGroups().size());
     }
 
+    @Test
+    @Order(32)
+    @DisplayName("加载无 loader 声明的 V2 联合查询模型")
+    void testLoadV2QueryModelWithoutLoaderDeclaration() {
+        JdbcQueryModel queryModel = getQueryModel("OrderPaymentJoinNoLoaderQueryModel");
+        assertNotNull(queryModel, "OrderPaymentJoinNoLoaderQueryModel 加载失败");
+        assertEquals("OrderPaymentJoinNoLoaderQueryModel", queryModel.getName());
+        assertNotNull(queryModel.getColumnGroups(), "列组定义为空");
+        assertEquals(2, queryModel.getColumnGroups().size());
+        log.info("OrderPaymentJoinNoLoaderQueryModel 加载成功: 列组数={}", queryModel.getColumnGroups().size());
+    }
+
     // ==========================================
     // 模型验证测试
     // ==========================================

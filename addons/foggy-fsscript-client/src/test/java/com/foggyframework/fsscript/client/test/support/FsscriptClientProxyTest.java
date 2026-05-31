@@ -17,6 +17,7 @@ import org.springframework.context.ApplicationContext;
 
 import jakarta.annotation.Resource;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -51,7 +52,7 @@ public class FsscriptClientProxyTest extends FsscriptClientTestSupport {
             iix[i] = UuidUtils.newUuid();
         }
 
-        List<Boolean> oo = new ArrayList<>();
+        List<Boolean> oo = Collections.synchronizedList(new ArrayList<>(iix.length));
 
         for (String s : iix) {
             executor.execute(() -> {
@@ -63,6 +64,7 @@ public class FsscriptClientProxyTest extends FsscriptClientTestSupport {
         }
 
         executor.waitAllCompleted(true);
+        Assertions.assertEquals(iix.length, oo.size());
         for (Boolean aBoolean : oo) {
             Assertions.assertTrue(aBoolean);
         }

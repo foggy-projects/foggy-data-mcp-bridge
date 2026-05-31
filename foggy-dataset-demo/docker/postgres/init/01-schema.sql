@@ -441,6 +441,26 @@ CREATE INDEX idx_crm_lead_source ON crm_lead (lead_source);
 
 COMMENT ON TABLE crm_lead IS 'CRM线索事实表（CRM DSL_CTE parity fixture）';
 
+-- 20. 客户订单生命周期派生表（首购 cohort / 复购窗口 fixture）
+DROP TABLE IF EXISTS customer_order_lifecycle CASCADE;
+CREATE TABLE customer_order_lifecycle (
+    customer_id             VARCHAR(64) NOT NULL,
+    customer_name           VARCHAR(100) NOT NULL,
+    first_order_date        DATE NOT NULL,
+    first_order_month       VARCHAR(7) NOT NULL,
+    first_order_channel     VARCHAR(32),
+    order_count             INT NOT NULL,
+    lifetime_amount         DECIMAL(18,2) NOT NULL,
+    repurchase_30d_flag     SMALLINT NOT NULL DEFAULT 0,
+    repurchase_60d_flag     SMALLINT NOT NULL DEFAULT 0,
+    repurchase_90d_flag     SMALLINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (customer_id)
+);
+CREATE INDEX idx_customer_lifecycle_first_order_date ON customer_order_lifecycle (first_order_date);
+CREATE INDEX idx_customer_lifecycle_first_order_month ON customer_order_lifecycle (first_order_month);
+
+COMMENT ON TABLE customer_order_lifecycle IS '客户订单生命周期派生表';
+
 -- ==========================================
 -- 嵌套维度测试表 (Nested Dimension / Snowflake Schema)
 -- ==========================================
