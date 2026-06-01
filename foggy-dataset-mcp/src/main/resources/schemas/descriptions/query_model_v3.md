@@ -15,6 +15,7 @@
 | 行列交叉表、小计/总计、树形 rows 轴 | `pivot` | 不要同时传 `pivot` 和 `columns` | 简单分组退回普通 `columns`；跨模型分析退回 `dataset.compose_script` |
 | 子级占父级比例 | `pivot.metrics[].type = "parentShare"` | 不要生成 `ROLLUP_TO` 或 `REMOVE(childDim)` 假装父级导航 | 仅 rows 相邻层级和可加度量；遇到 tree/cascade/不可加度量时去掉派生指标或说明当前不支持 |
 | 当前列相对首列/末列基准 | `pivot.metrics[].type = "baselineRatio"` | 不要生成 `CELL_AT`、`AXIS_MEMBER` 或坐标索引 | 仅 columns 轴 `baseline=first/last`；遇到 tree/cascade 时去掉派生指标或说明当前不支持 |
+| 服务工单 SLA、日期差标记后聚合、NULL-safe rate | `route: "DSL_CTE"` + `executable_plan.cte_plan` | 不要在 `calculatedFields` 里生成 `DATEDIFF`、`CASE WHEN` 或聚合别名自由公式 | 只使用受控 stage contract；超出签名模板时说明当前 recipe 未覆盖 |
 | 跨模型 Join、Union、派生查询、多 Plan 返回 | `dataset.compose_script` | 不要用单个 `query_model` 硬拼 | 用 SemanticDSL `prevPlan.query({...})`、`.join()`、`.union()` |
 
 ## 字段规则
@@ -122,6 +123,68 @@ SUM(metric) / NULLIF(CALCULATE(SUM(metric), REMOVE(groupByDim)), 0)
 如果模型没有暴露所需日期粒度字段，不要自造 SQL 函数；改用已有日期字段过滤、`timeWindow`，或说明当前模型未提供该粒度。同比、环比、YTD、MTD、rolling 继续使用 `timeWindow`。
 
 普通日期差过滤也不要自造 SQL 函数。对“最近 N 天”“超过 N 天未处理”“逾期超过 N 天”等条件，先算出绝对日期边界，再在 `slice` 中比较已暴露日期字段；只有在用户明确要求输出日期差数值、且工具文档明确支持对应 Foggy 表达式时，才使用 `calculatedFields`。
+
+### DSL_CTE 受控 recipe (可选)
+
+单模型服务工单 SLA 这类“先做行级日期差/命中标记，再按团队聚合，再计算达成率”的问题，使用 `route: "DSL_CTE"` 和 `executable_plan.cte_plan`，不要用自由 `calculatedFields` 拼 `DATEDIFF`、`CASE WHEN` 或 `alias / NULLIF(...)`。当前签名模板只开放这些受控形状：
+
+- 行级 SLA 时长：`hours_between(createdAt, firstResponseAt|resolvedAt)`。
+- 行级 SLA 命中：`firstResponseAt is not null and firstResponseHours <= 48`，或 priority-aware `priority_threshold(priority, P1=..., P2=..., P3=...)`。
+- 未响应超时标记：`firstResponseAt is null and createdAt < '<cutoff>'`，或 `firstResponseAt is null and hours_between(createdAt, '<referenceTime>') > 48`。
+- 条件计数：`sum(slaHit)`、`sum(case when overdueUnresponded then 1 else 0 end)`、`sum(overdueUnresponded)`。
+- 结果阶段派生：`slaHitCount / ticketCount` 会按 NULL-safe rate 执行；`ticketCount - slaHitCount` 只可用于 `notHitCount` / `slaMissCount` 等 SLA 未达成数，不要冒充“未响应数”。
+
+如果用户同时要求“超 48 小时未响应工单数”，输出字段必须包含明确的 `overdueUnrespondedCount`，并由 `firstResponseAt is null` 与 cutoff/referenceTime 阈值标记聚合得到；不要只在最终文字里用 `ticketCount - slaHitCount` 解释或补算未响应数。
+
+服务工单首响 SLA 示例：
+```json
+{
+  "model": "ServiceTicketQueryModel",
+  "payload": {
+    "route": "DSL_CTE",
+    "executable_plan": {
+      "cte_plan": {
+        "stages": [
+          {
+            "name": "ticket_scope",
+            "type": "derive",
+            "input": {"model": "ServiceTicketQueryModel"},
+            "filters": [
+              {"field": "createdAt", "op": ">=", "value": "2026-05-01 00:00:00"},
+              {"field": "createdAt", "op": "<", "value": "2026-06-01 00:00:00"}
+            ],
+            "derived": [
+              {"name": "firstResponseHours", "expr": "hours_between(createdAt, firstResponseAt)"},
+              {"name": "slaHit", "expr": "firstResponseAt is not null and firstResponseHours <= 48"},
+              {"name": "overdueUnresponded", "expr": "firstResponseAt is null and hours_between(createdAt, '2026-06-01 20:37:15') > 48"}
+            ]
+          },
+          {
+            "name": "team_sla",
+            "type": "aggregate",
+            "inputs": ["ticket_scope"],
+            "groupBy": ["team$caption"],
+            "metrics": [
+              {"name": "ticketCount", "expr": "count(*)"},
+              {"name": "slaHitCount", "expr": "sum(slaHit)"},
+              {"name": "overdueUnrespondedCount", "expr": "sum(case when overdueUnresponded then 1 else 0 end)"}
+            ]
+          },
+          {
+            "name": "team_sla_rate",
+            "type": "derive",
+            "inputs": ["team_sla"],
+            "derived": [
+              {"name": "slaAchievementRate", "expr": "slaHitCount / ticketCount"}
+            ]
+          }
+        ],
+        "output": ["team$caption", "ticketCount", "overdueUnrespondedCount", "slaAchievementRate"]
+      }
+    }
+  }
+}
+```
 
 ### slice (可选)
 

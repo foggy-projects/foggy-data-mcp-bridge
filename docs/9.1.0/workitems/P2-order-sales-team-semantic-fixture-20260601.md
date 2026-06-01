@@ -51,14 +51,17 @@ v3.9 semantic-underexecution gate 已能检查 trace-visible query payload signa
 | Fresh Java lite fixture smoke on `localhost:8066` | passed: `calls=2`, `transport_errors=0`, `mcp_errors=0`, `query_rows=3`. |
 | Direct MCP sales-team aggregation | passed: generated SQL joined `dim_sales_team`; returned three teams with total amount and distinct order count. |
 | Direct MCP backlog by sales team and stage | passed: generated SQL joined `dim_sales_team`, filtered `orderStatus in PENDING/CONFIRMED/PROCESSING`, and grouped by `salesTeam` plus `orderStatus`. |
+| `python3 experiments/spider-routing-eval/scripts/test_score_order_sales_team_semantic_gate.py` | passed: scorer accepts stable semantic rows, rejects missing semantic contracts, and reports missing expected model rows. |
+| `make gate-v39-order-sales-team-semantic-stable` | passed: `biz-002/biz-018` scored `stable_gate_ok=6/6` with residuals `0` from the promoted v3.9 evidence matrix. |
 
 ## Progress Tracking
 
 | Dimension | Status | Notes |
 |---|---|---|
 | Development | complete | Governed order sales-team dimension and file-backed lite seed data are implemented. |
-| Testing | complete | Focused launcher regression, package build, fixture smoke, and direct MCP semantic probes passed. |
+| Testing | complete | Focused launcher regression, package build, fixture smoke, direct MCP semantic probes, and promoted semantic gate passed. |
 | Experience | N/A | Pure backend/model fixture change; no UI surface. |
+| Semantic promotion | ready | `biz-002` and `biz-018` are now covered by `gate-v39-order-sales-team-semantic-stable`; this is the second business-domain stable gate after ServiceTicket SLA. |
 
 ## Execution Check-in
 
@@ -69,8 +72,8 @@ v3.9 semantic-underexecution gate 已能检查 trace-visible query payload signa
 | Code paths listed | yes |
 | Basic self-review completed | yes |
 | Test status recorded | pass |
-| Acceptance readiness | self-check-only; ready for targeted `biz-002` / `biz-018` replay before stable semantic promotion. |
+| Acceptance readiness | promoted-gate-ready; `biz-002` / `biz-018` have three-model semantic gate evidence, while broader order-domain signoff remains separate. |
 
 ## Follow-up
 
-Run a targeted dynamic replay for `biz-002` and `biz-018` using the current Java lite runtime. If successful traces consistently use `salesTeam` and `orderStatus`, add successful-only semantic expectations; otherwise keep them in discovery backlog and classify the remaining gap by actual payload signal.
+Continue order-domain expansion beyond `biz-002` / `biz-018`. The current gate proves governed `salesTeam` aggregation and backlog-by-team/stage semantics; it is not yet a full order-domain acceptance package.

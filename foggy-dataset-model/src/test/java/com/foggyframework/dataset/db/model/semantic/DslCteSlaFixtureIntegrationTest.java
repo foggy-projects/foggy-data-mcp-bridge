@@ -129,6 +129,46 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("DSL_CTE execute mode with bridge hint returns structured SLA rows")
+    void dslCteExecuteModeWithBridgeHintReturnsRows() {
+        assumeCommonTableExpressionsSupported();
+
+        SemanticQueryRequest request = dslCtePlan(minimalSlaRatePostSlicePlan());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SemanticQueryResponse response = semanticQueryServiceV3.queryModel(
+                "ServiceTicketQueryModel", request, "execute", SemanticRequestContext.empty());
+
+        List<Map<String, Object>> rows = new ArrayList<>(response.getItems());
+        rows.sort(Comparator.comparing(row -> String.valueOf(value(row, "team$caption", "teamName"))));
+
+        assertEquals(3, rows.size());
+        assertSlaRateRow(rows.get(0), "华东区", 2, 0.5);
+        assertSlaRateRow(rows.get(1), "技术部", 4, 0.5);
+        assertSlaRateRow(rows.get(2), "销售部", 3, 2.0 / 3.0);
+    }
+
+    @Test
+    @DisplayName("DSL_CTE execute mode returns SLA rate with unresponded cutoff count")
+    void dslCteExecuteModeReturnsSlaRateWithUnrespondedCutoffCount() {
+        assumeCommonTableExpressionsSupported();
+
+        SemanticQueryRequest request = dslCtePlan(unrespondedCutoffSlaRatePlan());
+        request.setHints(Map.of("dslCteCompileToDsl", true));
+
+        SemanticQueryResponse response = semanticQueryServiceV3.queryModel(
+                "ServiceTicketQueryModel", request, "execute", SemanticRequestContext.empty());
+
+        List<Map<String, Object>> rows = new ArrayList<>(response.getItems());
+        rows.sort(Comparator.comparing(row -> String.valueOf(value(row, "team$caption", "teamName"))));
+
+        assertEquals(3, rows.size());
+        assertSlaRateAndUnrespondedRow(rows.get(0), "华东区", 2, 0.5, 1);
+        assertSlaRateAndUnrespondedRow(rows.get(1), "技术部", 4, 0.5, 1);
+        assertSlaRateAndUnrespondedRow(rows.get(2), "销售部", 3, 2.0 / 3.0, 0);
+    }
+
+    @Test
     @DisplayName("DSL_CTE conditional aggregate difference bridge executes and matches manual baseline")
     void conditionalAggregateDifferenceBridgeSqlMatchesManualBaseline() {
         assumeCommonTableExpressionsSupported();
@@ -696,6 +736,12 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
                 .compareTo(RATIO_TOLERANCE) <= 0);
     }
 
+    private static void assertSlaRateAndUnrespondedRow(Map<String, Object> row, String teamName, int ticketCount,
+                                                       double slaAchievementRate, int overdueUnrespondedCount) {
+        assertSlaRateRow(row, teamName, ticketCount, slaAchievementRate);
+        assertEquals(overdueUnrespondedCount, ((Number) value(row, "overdueUnrespondedCount")).intValue());
+    }
+
     private static Object value(Map<String, Object> row, String... keys) {
         for (String key : keys) {
             if (row.containsKey(key)) {
@@ -839,6 +885,37 @@ class DslCteSlaFixtureIntegrationTest extends EcommerceTestSupport {
                                         m("field", "slaAchievementRate", "op", "<", "value", 0.85)))
                 ),
                 "output", List.of("team$caption", "ticketCount", "slaAchievementRate")
+        );
+    }
+
+    private static Map<String, Object> unrespondedCutoffSlaRatePlan() {
+        return m(
+                "stages", List.of(
+                        stage("ticket_scope", "derive",
+                                "input", m("model", "ServiceTicketQueryModel"),
+                                "filters", List.of(
+                                        m("field", "createdAt", "op", ">=", "value", "2026-05-01 00:00:00"),
+                                        m("field", "createdAt", "op", "<", "value", "2026-06-01 00:00:00")),
+                                "derived", List.of(
+                                        m("name", "firstResponseHours", "expr", "hours_between(createdAt, firstResponseAt)"),
+                                        m("name", "slaHit", "expr",
+                                                "firstResponseAt is not null and firstResponseHours <= 48"),
+                                        m("name", "overdueUnresponded", "expr",
+                                                "firstResponseAt is null and createdAt < '2026-05-30 00:00:00'"))),
+                        stage("team_sla", "aggregate",
+                                "inputs", List.of("ticket_scope"),
+                                "groupBy", List.of("team$caption"),
+                                "metrics", List.of(
+                                        m("name", "ticketCount", "expr", "count(*)"),
+                                        m("name", "slaHitCount", "expr", "sum(slaHit)"),
+                                        m("name", "overdueUnrespondedCount", "expr",
+                                                "sum(case when overdueUnresponded then 1 else 0 end)"))),
+                        stage("team_sla_rate", "derive",
+                                "inputs", List.of("team_sla"),
+                                "derived", List.of(
+                                        m("name", "slaAchievementRate", "expr", "slaHitCount / ticketCount")))
+                ),
+                "output", List.of("team$caption", "ticketCount", "slaAchievementRate", "overdueUnrespondedCount")
         );
     }
 

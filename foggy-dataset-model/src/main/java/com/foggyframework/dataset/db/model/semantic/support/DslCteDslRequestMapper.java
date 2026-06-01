@@ -6,6 +6,10 @@ import com.foggyframework.dataset.db.model.def.query.request.PostAggregateCalcul
 import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -57,6 +61,14 @@ public final class DslCteDslRequestMapper {
             "(?i)^\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s+is\\s+null\\s+or\\s+([A-Za-z_][A-Za-z0-9_$]*)\\s*>\\s*(\\d+(?:\\.\\d+)?)\\s*$");
     private static final Pattern SLA_OVERDUE_THRESHOLD_ALIAS_PATTERN = Pattern.compile(
             "(?i)^\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s+is\\s+null\\s+or\\s+([A-Za-z_][A-Za-z0-9_$]*)\\s*>\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*$");
+    private static final Pattern SLA_UNRESPONDED_CUTOFF_PATTERN = Pattern.compile(
+            "(?i)^\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s+is\\s+null\\s+and\\s+createdAt\\s*(<|<=)\\s*('(?:\\d{4}-\\d{2}-\\d{2}|\\d{4}-\\d{2}-\\d{2}[ T]\\d{2}:\\d{2}(?::\\d{2})?)'|now\\s*\\(\\s*\\))\\s*$");
+    private static final Pattern SLA_UNRESPONDED_CUTOFF_REVERSED_PATTERN = Pattern.compile(
+            "(?i)^\\s*createdAt\\s*(<|<=)\\s*('(?:\\d{4}-\\d{2}-\\d{2}|\\d{4}-\\d{2}-\\d{2}[ T]\\d{2}:\\d{2}(?::\\d{2})?)'|now\\s*\\(\\s*\\))\\s+and\\s+([A-Za-z_][A-Za-z0-9_$]*)\\s+is\\s+null\\s*$");
+    private static final Pattern SLA_UNRESPONDED_REFERENCE_HOURS_PATTERN = Pattern.compile(
+            "(?i)^\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s+is\\s+null\\s+and\\s+hours_between\\s*\\(\\s*createdAt\\s*,\\s*'((?:\\d{4}-\\d{2}-\\d{2}|\\d{4}-\\d{2}-\\d{2}[ T]\\d{2}:\\d{2}(?::\\d{2})?))'\\s*\\)\\s*(>|>=)\\s*(\\d+(?:\\.\\d+)?)\\s*$");
+    private static final Pattern SLA_UNRESPONDED_REFERENCE_HOURS_REVERSED_PATTERN = Pattern.compile(
+            "(?i)^\\s*hours_between\\s*\\(\\s*createdAt\\s*,\\s*'((?:\\d{4}-\\d{2}-\\d{2}|\\d{4}-\\d{2}-\\d{2}[ T]\\d{2}:\\d{2}(?::\\d{2})?))'\\s*\\)\\s*(>|>=)\\s*(\\d+(?:\\.\\d+)?)\\s+and\\s+([A-Za-z_][A-Za-z0-9_$]*)\\s+is\\s+null\\s*$");
     private static final Pattern COMBINED_SLA_HIT_PATTERN = Pattern.compile(
             "(?i)^\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*(?:=|==)\\s*1\\s+and\\s+([A-Za-z_][A-Za-z0-9_$]*)\\s*(?:=|==)\\s*1\\s*$");
     private static final Pattern NOT_NULL_PATTERN = Pattern.compile(
@@ -2559,8 +2571,8 @@ public final class DslCteDslRequestMapper {
     private static BridgeResult rowLevelDerivedAggregateBridge(String fallbackModel, Map<String, Object> ctePlan,
                                                                List<Map<String, Object>> stages) {
         List<String> unsupported = new ArrayList<>();
-        if (stages.size() != 2) {
-            unsupported.add("row-level SLA bridge requires exactly derive(input) -> aggregate in this cut");
+        if (stages.size() < 2) {
+            unsupported.add("row-level SLA bridge requires derive(input) -> aggregate in this cut");
             return BridgeResult.deferred(unsupported);
         }
 
@@ -2580,6 +2592,34 @@ public final class DslCteDslRequestMapper {
         String model = sourceModel(fallbackModel, derive);
         List<CalculatedFieldDef> calculatedFields = rowLevelSlaCalculatedFields(derive.get("derived"), model, unsupported);
         MetricMapping metrics = rowLevelAggregateMetrics(aggregate.get("metrics"), model, calculatedFields, unsupported);
+        List<PostAggregateCalculationDef> postAgg = new ArrayList<>();
+        List<SemanticQueryRequest.SliceItem> postSlice = null;
+        String previousStageName = stringValue(aggregate.get("name"));
+        for (int i = 2; i < stages.size(); i++) {
+            Map<String, Object> resultStage = stages.get(i);
+            String type = stringValue(resultStage.get("type"));
+            String stageName = stringValue(resultStage.get("name"));
+            List<String> inputs = stringList(resultStage.get("inputs"));
+            if (inputs.size() != 1 || previousStageName == null || !previousStageName.equals(inputs.get(0))) {
+                unsupported.add("row-level SLA result stage must reference previous signed stage: " + stageName);
+                continue;
+            }
+            if ("derive".equals(type)) {
+                postAgg.addAll(postAggregateCalculations(resultStage.get("derived"), metrics.aliases(), unsupported));
+                previousStageName = stageName;
+            } else if ("postSlice".equals(type)) {
+                if (postSlice != null) {
+                    unsupported.add("row-level SLA bridge supports only one postSlice stage in this cut");
+                }
+                if (i != stages.size() - 1) {
+                    unsupported.add("row-level SLA postSlice stage must be final in this cut");
+                }
+                postSlice = sliceItems(resultStage.get("filters"), unsupported);
+                previousStageName = stageName;
+            } else {
+                unsupported.add("row-level SLA bridge does not execute result stage type: " + type);
+            }
+        }
 
         SemanticQueryRequest request = new SemanticQueryRequest();
         request.setRoute("DSL");
@@ -2587,8 +2627,10 @@ public final class DslCteDslRequestMapper {
         request.setGroupBy(groupByItems(aggregate.get("groupBy")));
         request.setSlice(sliceItems(derive.get("filters"), unsupported));
         request.setColumns(outputColumns(ctePlan.get("output"), aggregate.get("groupBy"), metrics,
-                List.of(), Map.of(), unsupported));
+                postAgg, Map.of(), unsupported));
         request.setCalculatedFields(mergeCalculatedFields(calculatedFields, metrics.calculatedFields()));
+        request.setPostAggregateCalculations(postAgg.isEmpty() ? null : postAgg);
+        request.setPostSlice(postSlice);
         request.setOrderBy(orderItems(ctePlan.get("orderBy"), availableFields(
                 ctePlan.get("output"), aggregate.get("groupBy"), metrics.aliases()), unsupported));
         request.setLimit(limit(ctePlan.get("limit"), unsupported));
@@ -2753,14 +2795,105 @@ public final class DslCteDslRequestMapper {
                 continue;
             }
 
+            Matcher unrespondedCutoff = SLA_UNRESPONDED_CUTOFF_PATTERN.matcher(expr);
+            if (unrespondedCutoff.matches()) {
+                addUnrespondedCutoffCalculatedField(result, name, unrespondedCutoff.group(1),
+                        unrespondedCutoff.group(2), unrespondedCutoff.group(3), unsupported);
+                continue;
+            }
+
+            Matcher unrespondedCutoffReversed = SLA_UNRESPONDED_CUTOFF_REVERSED_PATTERN.matcher(expr);
+            if (unrespondedCutoffReversed.matches()) {
+                addUnrespondedCutoffCalculatedField(result, name, unrespondedCutoffReversed.group(3),
+                        unrespondedCutoffReversed.group(1), unrespondedCutoffReversed.group(2), unsupported);
+                continue;
+            }
+
+            Matcher unrespondedReferenceHours = SLA_UNRESPONDED_REFERENCE_HOURS_PATTERN.matcher(expr);
+            if (unrespondedReferenceHours.matches()) {
+                addUnrespondedReferenceHoursCalculatedField(result, name, unrespondedReferenceHours.group(1),
+                        unrespondedReferenceHours.group(2), unrespondedReferenceHours.group(3),
+                        unrespondedReferenceHours.group(4), unsupported);
+                continue;
+            }
+
+            Matcher unrespondedReferenceHoursReversed = SLA_UNRESPONDED_REFERENCE_HOURS_REVERSED_PATTERN.matcher(expr);
+            if (unrespondedReferenceHoursReversed.matches()) {
+                addUnrespondedReferenceHoursCalculatedField(result, name, unrespondedReferenceHoursReversed.group(4),
+                        unrespondedReferenceHoursReversed.group(1), unrespondedReferenceHoursReversed.group(2),
+                        unrespondedReferenceHoursReversed.group(3), unsupported);
+                continue;
+            }
+
             unsupported.add("row-level SLA bridge supports only hours_between duration, priority_threshold mapping, "
                     + "SLA hit threshold predicate, combined SLA hit predicate, signed CRM funnel non-null predicate, "
-                    + "and SLA overdue threshold predicate: " + name);
+                    + "SLA overdue threshold predicate, unresponded cutoff predicate, and unresponded reference-time "
+                    + "threshold predicate: " + name);
         }
         if (result.isEmpty()) {
             unsupported.add("row-level SLA bridge requires signed calculatedFields");
         }
         return result;
+    }
+
+    private static void addUnrespondedCutoffCalculatedField(List<CalculatedFieldDef> result, String name,
+                                                           String nullableField, String op, String cutoff,
+                                                           List<String> unsupported) {
+        if (!"firstResponseAt".equals(nullableField) && !"resolvedAt".equals(nullableField)) {
+            unsupported.add("row-level SLA unresponded cutoff predicate supports firstResponseAt/resolvedAt only: "
+                    + name);
+            return;
+        }
+        String normalizedCutoff = cutoff.replaceAll("\\s+", "");
+        if ("now()".equalsIgnoreCase(normalizedCutoff)) {
+            cutoff = "now()";
+        }
+        result.add(new CalculatedFieldDef(name, "SLA未响应超时标记",
+                "iif(is_null(" + nullableField + ") && createdAt " + op + " " + cutoff + ", 1, 0)"));
+    }
+
+    private static void addUnrespondedReferenceHoursCalculatedField(List<CalculatedFieldDef> result, String name,
+                                                                    String nullableField, String referenceTime,
+                                                                    String thresholdOp, String thresholdHours,
+                                                                    List<String> unsupported) {
+        if (!"firstResponseAt".equals(nullableField) && !"resolvedAt".equals(nullableField)) {
+            unsupported.add("row-level SLA unresponded reference-time predicate supports firstResponseAt/resolvedAt only: "
+                    + name);
+            return;
+        }
+        String cutoff = referenceTimeMinusHours(referenceTime, thresholdHours, unsupported);
+        if (cutoff == null) {
+            return;
+        }
+        String createdAtOp = ">=".equals(thresholdOp) ? "<=" : "<";
+        result.add(new CalculatedFieldDef(name, "SLA未响应超时标记",
+                "iif(is_null(" + nullableField + ") && createdAt " + createdAtOp + " '" + cutoff + "', 1, 0)"));
+    }
+
+    private static String referenceTimeMinusHours(String referenceTime, String thresholdHours,
+                                                  List<String> unsupported) {
+        try {
+            long minutes = Math.round(Double.parseDouble(thresholdHours) * 60.0d);
+            LocalDateTime value = parseReferenceDateTime(referenceTime);
+            return value.minusMinutes(minutes).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        } catch (NumberFormatException ex) {
+            unsupported.add("row-level SLA unresponded reference-time threshold must be numeric hours");
+            return null;
+        } catch (DateTimeParseException ex) {
+            unsupported.add("row-level SLA unresponded reference-time literal must be yyyy-MM-dd or yyyy-MM-dd HH:mm[:ss]");
+            return null;
+        }
+    }
+
+    private static LocalDateTime parseReferenceDateTime(String referenceTime) {
+        String normalized = referenceTime.replace('T', ' ');
+        if (normalized.length() == 10) {
+            return LocalDate.parse(normalized, DateTimeFormatter.ISO_LOCAL_DATE).atStartOfDay();
+        }
+        DateTimeFormatter formatter = normalized.length() == 16
+                ? DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
+                : DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+        return LocalDateTime.parse(normalized, formatter);
     }
 
     private static boolean signedFunnelConvertedAlias(String name, String nullableField, String model) {
@@ -2850,8 +2983,7 @@ public final class DslCteDslRequestMapper {
                 continue;
             }
             Matcher caseWhenAlias = CASE_WHEN_ALIAS_PATTERN.matcher(expr);
-            if (caseWhenAlias.matches() && signedFunnelCountAlias(name, caseWhenAlias.group(1), model)
-                    && calculatedNames.contains(caseWhenAlias.group(1))) {
+            if (caseWhenAlias.matches() && calculatedNames.contains(caseWhenAlias.group(1))) {
                 columnByAlias.put(name, "sum(" + caseWhenAlias.group(1) + ") AS " + name);
                 continue;
             }
@@ -2862,12 +2994,6 @@ public final class DslCteDslRequestMapper {
             unsupported.add("row-level SLA aggregate must declare object metrics");
         }
         return new MetricMapping(columnByAlias);
-    }
-
-    private static boolean signedFunnelCountAlias(String name, String calculatedAlias, String model) {
-        return isCrmLeadModel(model)
-                && (("convertedOpportunityCount".equals(name) && "convertedOpportunity".equals(calculatedAlias))
-                || ("convertedOrderCount".equals(name) && "convertedOrder".equals(calculatedAlias)));
     }
 
     private static List<String> outputColumns(Object rawOutput, Object rawGroupBy, MetricMapping metrics,
@@ -3446,7 +3572,7 @@ public final class DslCteDslRequestMapper {
                 continue;
             }
 
-            MetricArithmeticDerived arithmeticDerived = signedFunnelArithmeticDerived(name, expr, model,
+            MetricArithmeticDerived arithmeticDerived = signedSlaArithmeticDerived(name, expr,
                     metricAliases, unsupported);
             if (arithmeticDerived != null) {
                 if (aliasAlreadyUsed(name, ratios, arithmetic)) {
@@ -3456,11 +3582,42 @@ public final class DslCteDslRequestMapper {
                 arithmetic.add(arithmeticDerived);
                 continue;
             }
-            unsupported.add("result-stage SLA metric ratio bridge supports only numerator / denominator formulas "
-                    + "or signed CRM funnel drop-off formulas");
+
+            arithmeticDerived = signedFunnelArithmeticDerived(name, expr, model,
+                    metricAliases, unsupported);
+            if (arithmeticDerived != null) {
+                if (aliasAlreadyUsed(name, ratios, arithmetic)) {
+                    unsupported.add("result-stage SLA metric ratio aliases must be unique");
+                    continue;
+                }
+                arithmetic.add(arithmeticDerived);
+                continue;
+            }
+            unsupported.add("result-stage SLA metric ratio bridge supports only numerator / denominator formulas, "
+                    + "signed SLA miss-count formulas, or signed CRM funnel drop-off formulas");
         }
         return unsupported.isEmpty() ? new ResultStageDerivedMetrics(ratios, arithmetic)
                 : ResultStageDerivedMetrics.emptyMetrics();
+    }
+
+    private static MetricArithmeticDerived signedSlaArithmeticDerived(String name, String expr,
+                                                                      List<String> metricAliases,
+                                                                      List<String> unsupported) {
+        Matcher differenceMatcher = METRIC_DIFFERENCE_PATTERN.matcher(expr == null ? "" : expr);
+        if (!differenceMatcher.matches()) {
+            return null;
+        }
+        String left = differenceMatcher.group(1);
+        String right = differenceMatcher.group(2);
+        if (!signedSlaMissCountAlias(left, right, name)) {
+            return null;
+        }
+        if (!metricAliases.contains(left) || !metricAliases.contains(right)) {
+            unsupported.add("result-stage SLA miss count must reference signed aggregate metric aliases");
+            return null;
+        }
+        return new MetricArithmeticDerived(name, quoteAlias(left) + " - " + quoteAlias(right),
+                "sla_miss_count");
     }
 
     private static MetricArithmeticDerived signedFunnelArithmeticDerived(String name, String expr, String model,
@@ -3527,6 +3684,19 @@ public final class DslCteDslRequestMapper {
                                                   String model) {
         return signedSlaRatioAlias(numerator, denominator, ratioAlias)
                 || (isCrmLeadModel(model) && signedFunnelRatioAlias(numerator, denominator, ratioAlias));
+    }
+
+    private static boolean signedSlaMissCountAlias(String left, String right, String alias) {
+        if (!"ticketCount".equals(left)) {
+            return false;
+        }
+        if (!List.of("notHitCount", "slaMissCount", "slaMissedCount", "slaViolationCount").contains(alias)) {
+            return false;
+        }
+        return switch (right) {
+            case "slaHitCount", "firstResponseSlaHitCount", "resolutionSlaHitCount", "combinedSlaHitCount" -> true;
+            default -> false;
+        };
     }
 
     private static boolean signedFunnelRatioAlias(String numerator, String denominator, String ratioAlias) {

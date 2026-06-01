@@ -132,8 +132,11 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
             return memoryGridPlan;
         }
         SemanticQueryResponse dslCtePlan = dslCtePlanResponseIfAny(request);
-        if (dslCtePlan != null) {
+        if (dslCtePlan != null && !dslCteCompileToDslEnabled(request)) {
             return dslCtePlan;
+        }
+        if (dslCtePlan != null && isExecuteMode(mode)) {
+            return executeCompiledDslCte(model, request, context);
         }
         return queryModelInternal(model, request, mode, context);
     }
@@ -898,6 +901,49 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         return response;
     }
 
+    private SemanticQueryResponse executeCompiledDslCte(String model, SemanticQueryRequest request,
+                                                       SemanticRequestContext context) {
+        Map<String, Object> validation = dslCteValidation(request);
+        SqlGenerationResult compiled = generateSql(model, request, context);
+        List<Map<String, Object>> rows = executeSql(compiled.getSql(), compiled.getParams(), model);
+
+        SemanticQueryResponse response = new SemanticQueryResponse();
+        response.setItems(rows);
+        response.setTotal((long) rows.size());
+        response.setHasNext(false);
+        response.setWarnings(List.of());
+
+        SemanticQueryResponse.PaginationInfo pagination = new SemanticQueryResponse.PaginationInfo();
+        pagination.setStart(0);
+        pagination.setLimit(rows.size());
+        pagination.setReturned(rows.size());
+        pagination.setTotalCount((long) rows.size());
+        pagination.setHasMore(false);
+        pagination.setRangeDescription(buildRangeDescription(0, rows.size(), rows.size(), (long) rows.size(), false));
+        response.setPagination(pagination);
+
+        SemanticQueryResponse.ExecutionInfo execution = new SemanticQueryResponse.ExecutionInfo();
+        execution.setRoute(firstNonBlank(request.getRoute(), "DSL_CTE"));
+        execution.setStatus("EXECUTED");
+        execution.setRiskFlags(request.getRiskFlags() != null ? List.copyOf(request.getRiskFlags()) : List.of());
+        execution.setWhy(request.getWhy() != null ? List.copyOf(request.getWhy()) : List.of());
+        execution.setClarifyingQuestions(List.of());
+        execution.setExecutablePlan(request.getExecutablePlan());
+        execution.setDslCteValidation(validation);
+        execution.setErrorCode(null);
+        response.setExecution(execution);
+
+        SemanticQueryResponse.DebugInfo debug = new SemanticQueryResponse.DebugInfo();
+        debug.setDurationMs(null);
+        Map<String, Object> extra = new LinkedHashMap<>();
+        extra.put("sql", normalizeDebugSql(compiled.getSql()));
+        extra.put("params", compiled.getParams() == null ? List.of() : compiled.getParams());
+        extra.put("dsl_cte_compile_to_dsl", true);
+        debug.setExtra(extra);
+        response.setDebug(debug);
+        return response;
+    }
+
     private List<String> combinedDslCteUnsupported(DslCteDslRequestMapper.BridgeResult bridge,
                                                    DslCteDslRequestMapper.ResultStageWindowBridgeResult resultStageBridge) {
         return combinedDslCteUnsupported(bridge, resultStageBridge, null);
@@ -971,6 +1017,10 @@ public class SemanticQueryServiceV3Impl implements SemanticQueryServiceV3 {
         }
         Object value = request.getHints().get("dslCteCompileToDsl");
         return Boolean.TRUE.equals(value) || (value instanceof String text && "true".equalsIgnoreCase(text));
+    }
+
+    private boolean isExecuteMode(String mode) {
+        return mode == null || "execute".equalsIgnoreCase(mode.trim());
     }
 
     private boolean isDslCtePlan(SemanticQueryRequest request) {

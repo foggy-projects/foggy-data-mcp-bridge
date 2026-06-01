@@ -574,9 +574,19 @@ public class LocalDatasetAccessor implements DatasetAccessor {
         // 添加 MCP 来源标记（供 LargeResultTruncationStep 识别）
         Map<String, Object> hints = new HashMap<>();
         hints.put("fromMcp", true);
+        if (isDslCtePayload(request)) {
+            hints.put("dslCteCompileToDsl", true);
+        }
         request.setHints(hints);
 
         return request;
+    }
+
+    private static boolean isDslCtePayload(SemanticQueryRequest request) {
+        return request != null
+                && request.getRoute() != null
+                && "DSL_CTE".equalsIgnoreCase(request.getRoute().trim())
+                && request.getExecutablePlan() != null;
     }
 
     /**

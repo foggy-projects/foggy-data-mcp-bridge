@@ -276,6 +276,68 @@ class LocalDatasetAccessorGovernanceTest {
     }
 
     @Test
+    @DisplayName("DSL_CTE query payload 应自动启用受控 DSL bridge 执行")
+    void dslCteQueryShouldEnableCompileBridgeHint() {
+        SemanticQueryResponse response = new SemanticQueryResponse();
+        response.setItems(List.of());
+        when(semanticServiceResolver.queryModel(anyString(), any(SemanticQueryRequest.class), eq("execute"), any(SemanticRequestContext.class)))
+                .thenReturn(response);
+
+        Map<String, Object> ctePlan = Map.of(
+                "stages", List.of(
+                        Map.of(
+                                "name", "ticket_scope",
+                                "type", "derive",
+                                "input", Map.of("model", "ServiceTicketQueryModel"),
+                                "derived", List.of(
+                                        Map.of("name", "firstResponseHours",
+                                                "expr", "hours_between(createdAt, firstResponseAt)"),
+                                        Map.of("name", "slaHit",
+                                                "expr", "firstResponseAt is not null and firstResponseHours <= 48")
+                                )
+                        ),
+                        Map.of(
+                                "name", "team_sla",
+                                "type", "aggregate",
+                                "inputs", List.of("ticket_scope"),
+                                "groupBy", List.of("team$caption"),
+                                "metrics", List.of(
+                                        Map.of("name", "ticketCount", "expr", "count(*)"),
+                                        Map.of("name", "slaHitCount", "expr", "sum(slaHit)")
+                                )
+                        )
+                ),
+                "output", List.of("team$caption", "ticketCount", "slaHitCount")
+        );
+
+        accessor.queryModel(
+                "ServiceTicketQueryModel",
+                Map.of(
+                        "route", "DSL_CTE",
+                        "executable_plan", Map.of("cte_plan", ctePlan)
+                ),
+                "execute",
+                "trace-dsl-cte",
+                null,
+                null
+        );
+
+        ArgumentCaptor<SemanticQueryRequest> requestCaptor = ArgumentCaptor.forClass(SemanticQueryRequest.class);
+        verify(semanticServiceResolver).queryModel(
+                eq("ServiceTicketQueryModel"),
+                requestCaptor.capture(),
+                eq("execute"),
+                any(SemanticRequestContext.class)
+        );
+
+        SemanticQueryRequest request = requestCaptor.getValue();
+        assertEquals("DSL_CTE", request.getRoute());
+        assertNotNull(request.getExecutablePlan());
+        assertEquals(Boolean.TRUE, request.getHints().get("fromMcp"));
+        assertEquals(Boolean.TRUE, request.getHints().get("dslCteCompileToDsl"));
+    }
+
+    @Test
     @DisplayName("query payload 应透传 display-only outputFormatting")
     void queryShouldMapOutputFormattingIntoRequest() {
         SemanticQueryResponse response = new SemanticQueryResponse();

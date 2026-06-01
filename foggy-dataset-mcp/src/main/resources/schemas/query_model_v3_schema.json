@@ -11,6 +11,21 @@
       "type": "object",
       "description": "查询参数",
       "properties": {
+        "route": {
+          "type": "string",
+          "enum": [
+            "DSL_CTE"
+          ],
+          "description": "仅用于受控单模型 DSL_CTE recipe/stage contract。普通查询不要传；需要服务工单 SLA、行级日期差标记后再聚合、聚合后 NULL-safe ratio 时，可传 DSL_CTE 并配套 executable_plan.cte_plan。"
+        },
+        "executable_plan": {
+          "type": "object",
+          "description": "DSL_CTE 受控阶段计划。仅 route=DSL_CTE 时使用，必须包含 cte_plan.stages；不要放 raw SQL、数据库函数或自由公式。"
+        },
+        "executablePlan": {
+          "type": "object",
+          "description": "executable_plan 的 camelCase 兼容字段。仅 route=DSL_CTE 时使用。"
+        },
         "calculatedFields": {
           "type": "array",
           "description": "计算字段定义（复杂表达式、窗口函数、跨当前分组占比或需指定 agg 时使用）。全局/当前分组占比可使用 CALCULATE(SUM(metric), REMOVE(dim))；分母必须写 NULLIF(CALCULATE(...), 0)。父级占比（如子品类占大类）不要用 REMOVE(childDim) 或 ROLLUP_TO，使用 pivot.metrics 的 parentShare。跨列首列/末列基准比值不要用 CELL_AT/AXIS_MEMBER，使用 pivot.metrics 的 baselineRatio。同比、环比、累计、滚动使用 timeWindow，不要使用 CALCULATE；与 timeWindow 联用时，只支持作用于 timeWindow 输出列的后置标量表达式，不要设置 agg、窗口字段或 CALCULATE。严禁使用未开放函数：ROLLUP_TO、CELL_AT、AXIS_MEMBER、AXIS_REF。",

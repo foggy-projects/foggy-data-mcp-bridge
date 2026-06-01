@@ -208,26 +208,29 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
-    @DisplayName("DSL_CTE bridge keeps SLA templates deferred with pre-aggregate derive reason")
-    void validationDefersSlaTemplateBridge() {
-        List<String> unsupported = bridgeUnsupported(biz024());
+    @DisplayName("DSL_CTE bridge signs SLA templates through row-level calculatedFields")
+    void validationSignsSlaTemplateBridge() {
+        SemanticQueryResponse response = service.validateQuery(
+                "ServiceTicket", dslCtePlan(biz024()), SemanticRequestContext.empty());
 
-        assertTrue(unsupported.stream().anyMatch(msg -> msg.contains("pre-aggregate derive")));
-        assertTrue(unsupported.stream().anyMatch(msg -> msg.contains("ticket_scope")));
-        assertTrue(unsupported.stream().anyMatch(msg -> msg.contains("row-level calculatedFields bridge")));
-        assertTrue(unsupported.stream().anyMatch(msg -> msg.contains("hours_between")));
-        assertTrue(unsupported.stream().anyMatch(msg -> msg.contains("conditional numerator aggregation")));
-        assertTrue(unsupported.stream().anyMatch(msg -> msg.contains("metric-to-metric post-aggregate ratio")));
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_READY", validation.get("dsl_bridge_status"));
+        assertNotNull(validation.get("dsl_request"));
+        assertNotNull(validation.get("dsl_result_stage_metric_ratio"));
     }
 
     @Test
-    @DisplayName("DSL_CTE bridge explains SLA post-filter templates as deferred")
-    void validationDefersSlaPostFilterTemplateBridge() {
-        List<String> unsupported = bridgeUnsupported(third004());
+    @DisplayName("DSL_CTE bridge signs SLA post-filter templates through result-stage ratio")
+    void validationSignsSlaPostFilterTemplateBridge() {
+        SemanticQueryResponse response = service.validateQuery(
+                "ServiceTicket", dslCtePlan(third004()), SemanticRequestContext.empty());
 
-        assertTrue(unsupported.stream().anyMatch(msg -> msg.contains("pre-aggregate derive")));
-        assertTrue(unsupported.stream().anyMatch(msg -> msg.contains("row-level calculatedFields bridge")));
-        assertTrue(unsupported.stream().anyMatch(msg -> msg.contains("postSlice after a pre-aggregate business metric")));
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_READY", validation.get("dsl_bridge_status"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> ratioBridge = (Map<String, Object>) validation.get("dsl_result_stage_metric_ratio");
+        assertEquals("sla_metric_ratio", ratioBridge.get("kind"));
+        assertEquals(1, ratioBridge.get("postSlice_filters"));
     }
 
     @Test
@@ -577,6 +580,54 @@ class DslCteAcceptanceSampleTest {
         assertEquals("overdueTicketCount", dslRequest.getOrderBy().get(0).getField());
         assertEquals("desc", dslRequest.getOrderBy().get(0).getDir());
         assertEquals("team$caption", dslRequest.getOrderBy().get(1).getField());
+    }
+
+    @Test
+    @DisplayName("DSL_CTE validation signs unresponded cutoff SLA conditional counts")
+    void validationShowsBridgeReadyForUnrespondedCutoffSlaConditionalCount() {
+        SemanticQueryResponse response = service.validateQuery(
+                "ServiceTicketQueryModel", dslCtePlan(unrespondedCutoffSlaRatePlan()),
+                SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_READY", validation.get("dsl_bridge_status"));
+        SemanticQueryRequest dslRequest = (SemanticQueryRequest) validation.get("dsl_request");
+        assertNotNull(dslRequest);
+        assertEquals(List.of("team$caption", "count(ticketId) AS ticketCount", "sum(slaHit) AS slaHitCount",
+                        "sum(overdueUnresponded) AS overdueUnrespondedCount"),
+                dslRequest.getColumns());
+        assertEquals("iif(is_null(firstResponseAt) && createdAt < '2026-05-30 00:00:00', 1, 0)",
+                dslRequest.getCalculatedFields().get(2).getExpression());
+    }
+
+    @Test
+    @DisplayName("DSL_CTE validation signs SLA post-aggregate miss count")
+    void validationShowsBridgeReadyForSlaPostAggregateMissCount() {
+        SemanticQueryResponse response = service.validateQuery(
+                "ServiceTicketQueryModel", dslCtePlan(slaRateWithMissCountPlan()),
+                SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_READY", validation.get("dsl_bridge_status"));
+        Map<?, ?> ratioBridge = (Map<?, ?>) validation.get("dsl_result_stage_metric_ratio");
+        assertNotNull(ratioBridge);
+        assertTrue(ratioBridge.get("kind").toString().contains("sla"));
+        assertTrue(ratioBridge.get("arithmetic").toString().contains("notHitCount"));
+    }
+
+    @Test
+    @DisplayName("DSL_CTE validation signs unresponded reference-time SLA threshold")
+    void validationShowsBridgeReadyForUnrespondedReferenceTimeThreshold() {
+        SemanticQueryResponse response = service.validateQuery(
+                "ServiceTicketQueryModel", dslCtePlan(unrespondedReferenceTimeSlaRatePlan()),
+                SemanticRequestContext.empty());
+
+        Map<String, Object> validation = response.getExecution().getDslCteValidation();
+        assertEquals("BRIDGE_READY", validation.get("dsl_bridge_status"));
+        SemanticQueryRequest dslRequest = (SemanticQueryRequest) validation.get("dsl_request");
+        assertNotNull(dslRequest);
+        assertEquals("iif(is_null(firstResponseAt) && createdAt < '2026-05-30 20:37:15', 1, 0)",
+                dslRequest.getCalculatedFields().get(2).getExpression());
     }
 
     @Test
@@ -4435,6 +4486,91 @@ class DslCteAcceptanceSampleTest {
                                 "filters", List.of(filter("slaAchievementRate", "<", 0.85)))
                 ),
                 List.of("team$caption", "ticketCount", "slaAchievementRate")
+        );
+    }
+
+    private Map<String, Object> unrespondedCutoffSlaRatePlan() {
+        return plan(
+                List.of(
+                        stage("ticket_scope", "derive",
+                                "input", model("ServiceTicketQueryModel"),
+                                "filters", List.of(
+                                        filter("createdAt", ">=", "2026-05-01 00:00:00"),
+                                        filter("createdAt", "<", "2026-06-01 00:00:00")),
+                                "derived", List.of(
+                                        derived("firstResponseHours", "hours_between(createdAt, firstResponseAt)"),
+                                        derived("slaHit", "firstResponseAt is not null and firstResponseHours <= 48"),
+                                        derived("overdueUnresponded",
+                                                "firstResponseAt is null and createdAt < '2026-05-30 00:00:00'"))),
+                        stage("team_sla", "aggregate",
+                                "inputs", List.of("ticket_scope"),
+                                "groupBy", List.of("team$caption"),
+                                "metrics", List.of(
+                                        metric("ticketCount", "count(*)"),
+                                        metric("slaHitCount", "sum(slaHit)"),
+                                        metric("overdueUnrespondedCount",
+                                                "sum(case when overdueUnresponded then 1 else 0 end)"))),
+                        stage("team_sla_rate", "derive",
+                                "inputs", List.of("team_sla"),
+                                "derived", List.of(derived("slaAchievementRate", "slaHitCount / ticketCount")))
+                ),
+                List.of("team$caption", "ticketCount", "slaAchievementRate", "overdueUnrespondedCount")
+        );
+    }
+
+    private Map<String, Object> slaRateWithMissCountPlan() {
+        return plan(
+                List.of(
+                        stage("ticket_scope", "derive",
+                                "input", model("ServiceTicketQueryModel"),
+                                "filters", List.of(
+                                        filter("createdAt", ">=", "2026-06-01 00:00:00"),
+                                        filter("createdAt", "<", "2026-07-01 00:00:00")),
+                                "derived", List.of(
+                                        derived("firstResponseHours", "hours_between(createdAt, firstResponseAt)"),
+                                        derived("slaHit", "firstResponseAt is not null and firstResponseHours <= 48"))),
+                        stage("team_sla", "aggregate",
+                                "inputs", List.of("ticket_scope"),
+                                "groupBy", List.of("team$caption"),
+                                "metrics", List.of(
+                                        metric("ticketCount", "count(*)"),
+                                        metric("slaHitCount", "sum(slaHit)"))),
+                        stage("team_sla_rate", "derive",
+                                "inputs", List.of("team_sla"),
+                                "derived", List.of(
+                                        derived("slaAchievementRate", "slaHitCount / ticketCount"),
+                                        derived("notHitCount", "ticketCount - slaHitCount")))
+                ),
+                List.of("team$caption", "ticketCount", "slaHitCount", "notHitCount", "slaAchievementRate")
+        );
+    }
+
+    private Map<String, Object> unrespondedReferenceTimeSlaRatePlan() {
+        return plan(
+                List.of(
+                        stage("ticket_scope", "derive",
+                                "input", model("ServiceTicketQueryModel"),
+                                "filters", List.of(
+                                        filter("createdAt", ">=", "2026-06-01 00:00:00"),
+                                        filter("createdAt", "<", "2026-07-01 00:00:00")),
+                                "derived", List.of(
+                                        derived("firstResponseHours", "hours_between(createdAt, firstResponseAt)"),
+                                        derived("slaHit", "firstResponseAt is not null and firstResponseHours <= 48"),
+                                        derived("unresponsiveOver48h",
+                                                "firstResponseAt is null and hours_between(createdAt, '2026-06-01 20:37:15') > 48"))),
+                        stage("team_sla", "aggregate",
+                                "inputs", List.of("ticket_scope"),
+                                "groupBy", List.of("team$caption"),
+                                "metrics", List.of(
+                                        metric("ticketCount", "count(*)"),
+                                        metric("slaHitCount", "sum(slaHit)"),
+                                        metric("unresponsiveOver48hCount", "sum(unresponsiveOver48h)"))),
+                        stage("team_sla_rate", "derive",
+                                "inputs", List.of("team_sla"),
+                                "derived", List.of(derived("slaAchievementRate", "slaHitCount / ticketCount")))
+                ),
+                List.of("team$caption", "ticketCount", "slaHitCount", "slaAchievementRate",
+                        "unresponsiveOver48hCount")
         );
     }
 

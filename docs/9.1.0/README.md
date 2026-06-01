@@ -54,6 +54,9 @@ These remain rejected or research-only unless a separate product requirement reo
 - `workitems/P2-field-comparison-predicate-fixture-20260531.md`
 - `workitems/P2-query-trace-orderby-limit-observability-20260601.md`
 - `workitems/P2-order-sales-team-semantic-fixture-20260601.md`
+- `workitems/P2-service-ticket-lite-semantic-fixture-20260601.md`
+- `quality/service-ticket-sla-semantic-fixture-implementation-quality.md`
+- `acceptance/service-ticket-sla-semantic-fixture-acceptance.md`
 
 Upstream 9.0.0.beta references:
 

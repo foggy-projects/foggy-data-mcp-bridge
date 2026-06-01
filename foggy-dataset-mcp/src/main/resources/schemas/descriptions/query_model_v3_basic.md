@@ -13,6 +13,7 @@
 | 复杂表达式、窗口排名、显式 agg | `calculatedFields` | 简单 `sum(field)` 留在 `columns` |
 | 同比、环比、YTD、MTD、rolling | `timeWindow` | 不要用 `CALCULATE`；不能和 `pivot` 同用，必要时拆成两个查询 |
 | 交叉表、小计/总计、树形 rows、父级占比、列基准比 | `pivot` | 不要同时传 `columns`；普通分组退回 `columns`；跨模型退回 `dataset.compose_script` |
+| 服务工单 SLA、日期差标记后聚合、NULL-safe rate | `route: "DSL_CTE"` + `executable_plan.cte_plan` | 只用受控 stage contract，不要拼 `DATEDIFF`、`CASE WHEN` 或聚合别名自由公式 |
 | 跨模型 Join / Union / 派生查询 | `dataset.compose_script` | 单个 `query_model` 不表达这些计划图 |
 
 ## 字段规则
@@ -114,6 +115,12 @@ timeWindow 结果列可再接后置标量 `calculatedFields`：
 
 普通日期差过滤也不要自造 SQL 函数。对“最近 N 天”“超过 N 天未处理”“逾期超过 N 天”等条件，先算出绝对日期边界，再在 `slice` 中比较已暴露日期字段；只有在用户明确要求输出日期差数值、且工具文档明确支持对应 Foggy 表达式时，才使用 `calculatedFields`。
 
+### DSL_CTE 受控 recipe (可选)
+服务工单 SLA 这类“先做行级日期差/命中标记，再按团队聚合，再计算达成率”的问题，使用 `route: "DSL_CTE"` 和 `executable_plan.cte_plan`，不要用自由 `calculatedFields` 拼 `DATEDIFF`、`CASE WHEN` 或 `alias / NULLIF(...)`。
+
+当前签名模板只开放这些受控形状：`hours_between(createdAt, firstResponseAt|resolvedAt)`、`firstResponseAt is not null and firstResponseHours <= 48`、`firstResponseAt is null and createdAt < '<cutoff>'`、`firstResponseAt is null and hours_between(createdAt, '<referenceTime>') > 48`、`sum(slaHit)`、`sum(case when overdueUnresponded then 1 else 0 end)` / `sum(overdueUnresponded)`、`slaHitCount / ticketCount`。`ticketCount - slaHitCount` 只表示 `notHitCount` / `slaMissCount` 这类 SLA 未达成数，不要作为“超时未响应数”。
+
+用户要求“超 48 小时未响应工单数”时，输出必须包含 `overdueUnrespondedCount`，不要只在最终文字中用 `ticketCount - slaHitCount` 补算。
 
 ### slice (可选)
 数组形式的过滤条件。

@@ -68,6 +68,8 @@ public class QueryExpertService {
     private static final String PROVIDER_UNAVAILABLE_CODE = "PROVIDER_UNAVAILABLE";
     private static final String PROVIDER_RESPONSE_PARSE_FAILED_CODE = "PROVIDER_RESPONSE_PARSE_FAILED";
     private static final String TOOL_FAILURE_BUDGET_EXCEEDED_CODE = "TOOL_FAILURE_BUDGET_EXCEEDED";
+    private static final String SERVICE_TICKET_BOUNDARY_REJECT_CODE = "SERVICE_TICKET_SLA_BOUNDARY_REJECTED";
+    private static final String SERVICE_TICKET_PARAMETER_CLARIFY_CODE = "SERVICE_TICKET_SLA_PARAMETER_CLARIFY";
     private static final String REPLAN_RECOMMENDED_ACTION = "REPLAN_BY_CALIBRATED_ROUTE";
     private static final String PROVIDER_RESPONSE_PARSE_FAILED_MARKER = "Error while extracting response for type";
     private static final int QUERY_TRACE_TOOL_FAILURE_BUDGET = 10;
@@ -229,6 +231,10 @@ public class QueryExpertService {
             if (calibrationAction.type() == RoutingCalibrationActionType.BLOCKED) {
                 return routingCalibrationReplanRequiredResponse(calibrationAction, traceId);
             }
+            DatasetNLQueryResponse preflightResponse = serviceTicketSlaPreflightResponse(request, traceId);
+            if (preflightResponse != null) {
+                return attachRoutingCalibrationDebug(preflightResponse, calibrationAction, traceId);
+            }
 
             // 获取或创建会话上下文
             SessionContext context = sessions.computeIfAbsent(sessionId,
@@ -306,6 +312,12 @@ public class QueryExpertService {
                 RoutingCalibrationAction calibrationAction = routingCalibrationActionResolver.resolve(request);
                 if (calibrationAction.type() == RoutingCalibrationActionType.BLOCKED) {
                     sink.next(routingCalibrationReplanRequiredEvent(calibrationAction, traceId));
+                    sink.complete();
+                    return;
+                }
+                DatasetNLQueryResponse preflightResponse = serviceTicketSlaPreflightResponse(request, traceId);
+                if (preflightResponse != null) {
+                    sink.next(ProgressEvent.complete(attachRoutingCalibrationDebug(preflightResponse, calibrationAction, traceId)));
                     sink.complete();
                     return;
                 }
@@ -458,6 +470,122 @@ public class QueryExpertService {
 
     private String getDayOfWeekChinese(int dayOfWeek) {
         return new String[]{"一", "二", "三", "四", "五", "六", "日"}[dayOfWeek - 1];
+    }
+
+    private static DatasetNLQueryResponse serviceTicketSlaPreflightResponse(
+            DatasetNLQueryRequest request,
+            String traceId
+    ) {
+        String query = request != null ? request.getQuery() : null;
+        ServiceTicketSlaBoundary boundary = serviceTicketSlaBoundary(query);
+        if (boundary == null) {
+            return null;
+        }
+
+        DatasetNLQueryResponse response;
+        Map<String, Object> detail = serviceTicketSlaBoundaryDetail(boundary, query);
+        if (boundary.resultType().equals("clarify")) {
+            response = DatasetNLQueryResponse.builder()
+                    .type("clarify")
+                    .questions(boundary.questions())
+                    .detail(detail)
+                    .code(SERVICE_TICKET_PARAMETER_CLARIFY_CODE)
+                    .msg(boundary.message())
+                    .build();
+        } else {
+            response = DatasetNLQueryResponse.reject(SERVICE_TICKET_BOUNDARY_REJECT_CODE, boundary.message(), detail);
+        }
+        response.setDebug(Map.of(
+                "trace_id", safeString(traceId),
+                "preflight_guard", Map.of(
+                        "domain", "service_ticket_first_response_sla",
+                        "boundary", boundary.boundary(),
+                        "action", boundary.resultType(),
+                        "query_model_execution_allowed", false
+                )
+        ));
+        return response;
+    }
+
+    private static ServiceTicketSlaBoundary serviceTicketSlaBoundary(String query) {
+        if (query == null || query.isBlank()) {
+            return null;
+        }
+        String normalized = query.toLowerCase(Locale.ROOT);
+        boolean serviceTicketDomain = containsAny(query, "工单", "客服团队", "首响", "首次响应", "解决时效")
+                || containsAny(normalized, "service_ticket");
+        boolean slaIntent = containsAny(normalized, "sla", "service_ticket")
+                || containsAny(query, "超时率", "达成率", "解决时效", "首响", "首次响应");
+        boolean ticketSla = serviceTicketDomain && slaIntent;
+        if (!ticketSla) {
+            return null;
+        }
+
+        if (containsAny(normalized, "service_ticket", "physical table")
+                || containsAny(query, "物理表", "直接查询", "直接 join", "直接join", "用 SQL", "写 SQL")) {
+            return ServiceTicketSlaBoundary.reject(
+                    "physical_table_sql",
+                    "不能直接查询 service_ticket 物理表或执行自由 SQL；请改用受治理的 ServiceTicketQueryModel 语义字段。"
+            );
+        }
+        if (containsAny(query, "预测", "原因", "因果", "人员调整", "调岗", "排班建议")) {
+            return ServiceTicketSlaBoundary.reject(
+                    "unsupported_prediction_or_causality",
+                    "当前查询引擎只执行已建模事实统计，不支持预测、因果归因或人员调整建议。"
+            );
+        }
+        if (containsAny(query, "解决时效", "解决 SLA", "解决SLA", "合同", "工作日历", "节假日", "工作时间")) {
+            return ServiceTicketSlaBoundary.clarify(
+                    "resolution_or_contract_calendar_sla_out_of_scope",
+                    "当前 ServiceTicket SLA 运行时只覆盖首次响应 SLA；解决 SLA、客户合同 SLA 和工作日历 SLA 需要单独模型或口径。",
+                    List.of("请确认是否改为首次响应 SLA 统计，并给出 SLA 阈值小时数、分母和未响应处理口径。")
+            );
+        }
+        if (containsAny(query, "首响", "首次响应")
+                && containsAny(query, "达成率", "SLA")
+                && !containsSlaThreshold(query)) {
+            return ServiceTicketSlaBoundary.clarify(
+                    "missing_sla_threshold",
+                    "首次响应 SLA 达成率缺少明确 SLA 阈值，不能默认执行。",
+                    List.of("请补充首次响应 SLA 阈值小时数，例如 2 小时或 48 小时。")
+            );
+        }
+        return null;
+    }
+
+    private static boolean containsSlaThreshold(String query) {
+        return Pattern.compile("\\d+(?:\\.\\d+)?\\s*(?:小时|h|hour|hours)", Pattern.CASE_INSENSITIVE)
+                .matcher(query)
+                .find()
+                || containsAny(query, "阈值", "threshold")
+                && Pattern.compile("\\d+").matcher(query).find();
+    }
+
+    private static Map<String, Object> serviceTicketSlaBoundaryDetail(
+            ServiceTicketSlaBoundary boundary,
+            String query
+    ) {
+        Map<String, Object> detail = new LinkedHashMap<>();
+        detail.put("terminal_contract", "service_ticket_sla_preflight_guard");
+        detail.put("boundary", boundary.boundary());
+        detail.put("query_model_execution_allowed", false);
+        detail.put("query", safeString(query));
+        return detail;
+    }
+
+    private record ServiceTicketSlaBoundary(
+            String resultType,
+            String boundary,
+            String message,
+            List<String> questions
+    ) {
+        static ServiceTicketSlaBoundary reject(String boundary, String message) {
+            return new ServiceTicketSlaBoundary("reject", boundary, message, List.of());
+        }
+
+        static ServiceTicketSlaBoundary clarify(String boundary, String message, List<String> questions) {
+            return new ServiceTicketSlaBoundary("clarify", boundary, message, questions);
+        }
     }
 
     static DatasetNLQueryResponse attachRoutingCalibrationDebug(

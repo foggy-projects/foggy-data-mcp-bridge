@@ -94,6 +94,80 @@ class QueryExpertServiceRoutingCalibrationTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    @DisplayName("ServiceTicket SLA 缺阈值应在 LLM/工具链前澄清")
+    void serviceTicketSlaMissingThreshold_shouldClarifyBeforeTools() {
+        DatasetNLQueryRequest request = DatasetNLQueryRequest.builder()
+                .query("按团队统计本月创建工单的首次响应 SLA 达成率，分母为工单数，未响应不达标。")
+                .build();
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-sla-missing-threshold", null);
+
+        assertEquals("clarify", response.getType());
+        assertEquals("SERVICE_TICKET_SLA_PARAMETER_CLARIFY", response.getCode());
+        assertNotNull(response.getQuestions());
+        assertTrue(response.getQuestions().get(0).contains("阈值"));
+        Map<String, Object> detail = (Map<String, Object>) response.getDetail();
+        assertEquals("missing_sla_threshold", detail.get("boundary"));
+        assertEquals(false, detail.get("query_model_execution_allowed"));
+        assertNotNull(response.getDebug());
+        verifyNoInteractions(chatClientBuilder, mcpToolDispatcher, toolCallbackFactory);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    @DisplayName("ServiceTicket 物理表 SQL 应在 LLM/工具链前拒绝")
+    void serviceTicketPhysicalSql_shouldRejectBeforeTools() {
+        DatasetNLQueryRequest request = DatasetNLQueryRequest.builder()
+                .query("直接查询 service_ticket 物理表，用 SQL 算每个团队 P1 工单首响超时率。")
+                .build();
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-sla-physical-sql", null);
+
+        assertEquals("reject", response.getType());
+        assertEquals("SERVICE_TICKET_SLA_BOUNDARY_REJECTED", response.getCode());
+        Map<String, Object> detail = (Map<String, Object>) response.getDetail();
+        assertEquals("physical_table_sql", detail.get("boundary"));
+        assertEquals(false, detail.get("query_model_execution_allowed"));
+        verifyNoInteractions(chatClientBuilder, mcpToolDispatcher, toolCallbackFactory);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    @DisplayName("ServiceTicket 解决/合同日历 SLA 越界应在 LLM/工具链前澄清")
+    void serviceTicketResolutionCalendarSla_shouldClarifyBeforeTools() {
+        DatasetNLQueryRequest request = DatasetNLQueryRequest.builder()
+                .query("按团队统计本月创建工单的解决时效 SLA 达成率，客户合同 SLA 和工作日历都要生效。")
+                .build();
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-sla-resolution-calendar", null);
+
+        assertEquals("clarify", response.getType());
+        assertEquals("SERVICE_TICKET_SLA_PARAMETER_CLARIFY", response.getCode());
+        Map<String, Object> detail = (Map<String, Object>) response.getDetail();
+        assertEquals("resolution_or_contract_calendar_sla_out_of_scope", detail.get("boundary"));
+        assertEquals(false, detail.get("query_model_execution_allowed"));
+        verifyNoInteractions(chatClientBuilder, mcpToolDispatcher, toolCallbackFactory);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    @DisplayName("ServiceTicket 预测因果请求应在 LLM/工具链前拒绝")
+    void serviceTicketPrediction_shouldRejectBeforeTools() {
+        DatasetNLQueryRequest request = DatasetNLQueryRequest.builder()
+                .query("预测下个月各客服团队首响 SLA 变差的原因，并给出人员调整建议。")
+                .build();
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-sla-prediction", null);
+
+        assertEquals("reject", response.getType());
+        assertEquals("SERVICE_TICKET_SLA_BOUNDARY_REJECTED", response.getCode());
+        Map<String, Object> detail = (Map<String, Object>) response.getDetail();
+        assertEquals("unsupported_prediction_or_causality", detail.get("boundary"));
+        verifyNoInteractions(chatClientBuilder, mcpToolDispatcher, toolCallbackFactory);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     @DisplayName("route 变化的 replan guard 应按校准路由进入 LLM/工具链重新调度")
     void replanGuardWithCalibratedRoute_shouldRedispatchByCalibratedRoute() {
         DatasetNLQueryRequest request = replanRequestWithCalibratedRoute();
