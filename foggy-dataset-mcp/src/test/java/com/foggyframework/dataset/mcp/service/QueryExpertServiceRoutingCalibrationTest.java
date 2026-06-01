@@ -300,6 +300,10 @@ class QueryExpertServiceRoutingCalibrationTest {
                             "mode", "execute",
                             "payload", Map.of(
                                     "columns", List.of("orderId"),
+                                    "calculatedFields", List.of(Map.of(
+                                            "name", "lateShipRisk",
+                                            "expression", "if(shipDate > orderDate$id, 1, 0)"
+                                    )),
                                     "slice", Map.of(
                                             "$or", List.of(
                                                     Map.of("field", "amount", "op", "is null"),
@@ -353,6 +357,8 @@ class QueryExpertServiceRoutingCalibrationTest {
         Map<String, Object> arguments = (Map<String, Object>) toolCalls.get(1).get("arguments_summary");
         assertEquals("FactOrderQueryModel", arguments.get("model"));
         assertEquals(List.of("orderId"), arguments.get("payload_columns"));
+        assertEquals(List.of("lateShipRisk"), arguments.get("payload_calculated_field_names"));
+        assertEquals(List.of("if(shipDate > orderDate$id, 1, 0)"), arguments.get("payload_calculated_field_expressions"));
         assertEquals(20, arguments.get("payload_limit"));
         assertEquals(List.of("amount", "customer$caption", "orderDate$caption"), arguments.get("payload_slice_fields"));
         assertEquals(List.of("is null", ">"), arguments.get("payload_slice_ops"));

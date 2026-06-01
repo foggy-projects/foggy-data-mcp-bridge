@@ -1138,6 +1138,7 @@ public class QueryExpertService {
             copyPayloadValue(summary, payloadMap, "columns", "payload_columns");
             copyPayloadValue(summary, payloadMap, "groupBy", "payload_group_by");
             copyPayloadValue(summary, payloadMap, "limit", "payload_limit");
+            addPayloadCalculatedFieldsSummary(summary, payloadMap.get("calculatedFields"));
             summary.put("payload_has_slice", payloadMap.containsKey("slice"));
             addPayloadSliceSummary(summary, payloadMap.get("slice"));
         }
@@ -1156,6 +1157,34 @@ public class QueryExpertService {
         Object value = payloadMap.get(sourceKey);
         if (value != null) {
             summary.put(targetKey, value);
+        }
+    }
+
+    private static void addPayloadCalculatedFieldsSummary(Map<String, Object> summary, Object calculatedFields) {
+        if (calculatedFields == null) {
+            return;
+        }
+        LinkedHashSet<String> names = new LinkedHashSet<>();
+        LinkedHashSet<String> expressions = new LinkedHashSet<>();
+        collectPayloadCalculatedFieldSignals(calculatedFields, names, expressions);
+        putSignalList(summary, "payload_calculated_field_names", names);
+        putSignalList(summary, "payload_calculated_field_expressions", expressions);
+    }
+
+    private static void collectPayloadCalculatedFieldSignals(
+            Object node,
+            LinkedHashSet<String> names,
+            LinkedHashSet<String> expressions
+    ) {
+        if (node instanceof Map<?, ?> map) {
+            addStringSignal(names, firstMapValue(map, "name", "alias"));
+            addStringSignal(expressions, firstMapValue(map, "expression", "formula"));
+            return;
+        }
+        if (node instanceof Iterable<?> iterable) {
+            for (Object item : iterable) {
+                collectPayloadCalculatedFieldSignals(item, names, expressions);
+            }
         }
     }
 
