@@ -5,7 +5,7 @@ version: 9.1.0
 target: ServiceTicketQueryModel lite fixture semantics
 status: recipe-runtime-ready-negative-gated
 created_at: 2026-06-01
-updated_at: 2026-06-01
+updated_at: 2026-06-02
 source_type: optimization
 ---
 
@@ -40,12 +40,12 @@ source_type: optimization
 | `foggy-mcp-launcher/src/main/resources/db/lite-demo-schema.sql` | Added `dim_team`, `service_ticket`, and indexes for team and created time. |
 | `foggy-mcp-launcher/src/main/resources/db/lite-demo-data.sql` | Seeded support teams and service-ticket SLA rows for June 2026 plus one May row outside the current-month window. |
 | `foggy-mcp-launcher/src/test/java/com/foggyframework/mcp/launcher/McpLauncherLiteProfileConfigurationTest.java` | Added regression coverage for visible model-list, schema/data fixtures, and ServiceTicket TM/QM exposure. |
-| `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/semantic/support/DslCteDslRequestMapper.java` | Added signed SLA recipe mapping for elapsed hours, SLA hit flags, overdue-unresponded cutoff/reference-time predicates, conditional counts, NULL-safe ratios, SLA miss-count aliases, and derive/aggregate/result-stage plans. |
+| `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/semantic/support/DslCteDslRequestMapper.java` | Added signed SLA recipe mapping for elapsed hours, SLA hit flags, overdue-unresponded cutoff/reference-time predicates, conditional counts, NULL-safe ratios, SLA miss-count aliases, and derive/aggregate/result-stage plans. 2026-06-02 amendment: ambiguous `ticketCount - slaHitCount` arithmetic now reports an explicit deferred reason when used as an unresponded-count alias. |
 | `foggy-dataset-model/src/main/java/com/foggyframework/dataset/db/model/semantic/service/impl/SemanticQueryServiceV3Impl.java` | Added DSL_CTE compile-to-DSL execution path so signed recipes can return structured rows through the normal semantic query service. |
 | `foggy-dataset-mcp/src/main/java/com/foggyframework/dataset/mcp/spi/impl/LocalDatasetAccessor.java` | Enables the compile bridge hint for executable DSL_CTE payloads from MCP. |
 | `foggy-dataset-mcp/src/main/resources/schemas/query_model_v3_schema.json` and description docs | Exposed `route`, `executable_plan` / `executablePlan`, and documented the controlled service-ticket SLA recipe boundary. |
 | `DslCteAcceptanceSampleTest`, `DslCteSlaFixtureIntegrationTest`, `LocalDatasetAccessorGovernanceTest` | Added regression coverage for validation, direct fixture execution, compile hint propagation, NULL-safe rates, and guarded unsupported shapes. |
-| `experiments/spider-routing-eval/scripts/score_biz024_semantic_gate.py` | Added replay-side semantic gate scoring for required model, DSL_CTE evidence, row count, structured output fields, failed tool calls, and forbidden ambiguous unresponded-count mappings. |
+| `experiments/spider-routing-eval/scripts/score_biz024_semantic_gate.py` | Added replay-side semantic gate scoring for required model, DSL_CTE evidence, row count, structured output fields, failed tool calls, and forbidden ambiguous unresponded-count mappings. The scorer regression now also fails rows whose structured fields are present but whose explanation exposes `overdueUnrespondedCount = ticketCount - slaHitCount`. |
 | `experiments/spider-routing-eval/Makefile` and `README.md` | Added reusable `score-v39-biz024-semantic-gate` and strict `gate-v39-biz024-semantic-stable` targets, plus runbook notes for promotion gating. |
 | `foggy-dataset-mcp/src/main/java/com/foggyframework/dataset/mcp/service/QueryExpertService.java` | Added ServiceTicket SLA preflight guard before LLM/tool dispatch for missing first-response SLA threshold, unsupported resolution/contract-calendar SLA, direct physical table SQL, and prediction/causality/personnel-advice requests. |
 | `foggy-dataset-mcp/src/test/java/com/foggyframework/dataset/mcp/service/QueryExpertServiceRoutingCalibrationTest.java` | Added fail-closed regression coverage proving negative ServiceTicket SLA cases return `clarify` or `reject` before `ChatClient` and MCP tool dispatch. |
@@ -65,12 +65,12 @@ source_type: optimization
 | Fresh Java lite health on `localhost:8066` | passed: actuator status `UP`. |
 | Fresh Java lite fixture smoke | passed: `calls=2`, `transport_errors=0`, `mcp_errors=0`, `catalog_models=CustomerOrderLifecycleQueryModel,FactOrderQueryModel,ServiceTicketQueryModel`, `query_rows=3`. |
 | Direct analyst MCP service-ticket aggregation | passed: grouped query returned `North Support Team=3`, `Online Support Team=2`, and `South Support Team=2` for June 2026 tickets. |
-| `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -Dtest=DslCteAcceptanceSampleTest,DslCteSlaFixtureIntegrationTest -Dsurefire.failIfNoSpecifiedTests=false test -P'!multi-db'` | passed: `Tests run: 175, Failures: 0, Errors: 0, Skipped: 0`. |
+| `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-model -am -Dtest=DslCteAcceptanceSampleTest,DslCteSlaFixtureIntegrationTest -Dsurefire.failIfNoSpecifiedTests=false test -P'!multi-db'` | passed: latest 2026-06-02 run `Tests run: 176, Failures: 0, Errors: 0, Skipped: 0`; includes regression coverage that defers `overdueUnrespondedCount = ticketCount - slaHitCount`. |
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-dataset-mcp -am -Dtest=LocalDatasetAccessorGovernanceTest,QueryModelDescriptionConsistencyTest -Dsurefire.failIfNoSpecifiedTests=false test -P'!multi-db'` | passed: `Tests run: 10, Failures: 0, Errors: 0, Skipped: 0`. |
 | `JAVA_HOME=/Users/fengjianguang/.jdk/temurin-17/Contents/Home mvn -pl foggy-mcp-launcher -am -DskipTests package -P'!multi-db'` | passed: launcher package reactor build after recipe bridge changes. |
 | Direct MCP DSL_CTE execution | passed: returned structured team rows with `ticketCount`, `slaHitCount`, `slaAchievementRate`, and `overdueUnrespondedCount`; execution status was `EXECUTED`, with NULL-safe ratio SQL generated by the engine. |
 | Targeted `biz-024` replay after result-stage bridge | completed: `rows=3`, `transport_errors=0`, `mcp_errors=0`; `gpt-oss-120b-medium` completed without failed tool calls, while `gemini-pro-agent` and `claude-sonnet-4-6` recovered to rows but each produced one failed attempt using an unsafe `over48hMissCount = ticketCount - slaHitCount` variant. |
-| `python3 experiments/spider-routing-eval/scripts/test_score_biz024_semantic_gate.py` | passed: scorer accepts structured `overdueUnrespondedCount` and rejects missing/ambiguous `ticketCount - slaHitCount` unresponded mappings. |
+| `python3 experiments/spider-routing-eval/scripts/test_score_biz024_semantic_gate.py` | passed: scorer accepts structured `overdueUnrespondedCount`, rejects missing/ambiguous `ticketCount - slaHitCount` unresponded mappings, and rejects rows whose explanation exposes the ambiguous formula even when the output field is present. |
 | `python3 experiments/spider-routing-eval/scripts/score_biz024_semantic_gate.py --input experiments/spider-routing-eval/output/v39_biz024_service_ticket_recipe_invocation_gemini_runtime_20260601_after_result_stage_bridge.jsonl ...` | completed: `stable_gate_ok=0/3`, residuals `16`; generated semantic score and residual artifacts under `experiments/spider-routing-eval/output/`. |
 | `make score-v39-biz024-semantic-gate` | completed: target is wired to the same scored output/residual/summary artifacts; current replay remains `stable_gate_ok=0/3`. |
 | Java lite restart with `OPENAI_BASE_URL=https://codex2.qlfloor.com:7443` | passed: Spring AI appends `/v1`; using the Python-style `/v1` URL caused internal `HTTP 404 - 404 page not found` during `dataset_nl.query`. |
@@ -89,6 +89,7 @@ source_type: optimization
 | `python3 experiments/spider-routing-eval/scripts/test_build_service_ticket_sla_gate_suite_summary.py` | passed: suite summary counts stable rows, residuals, and failure reasons correctly. |
 | `python3 -m py_compile experiments/spider-routing-eval/scripts/build_service_ticket_sla_gate_suite_summary.py experiments/spider-routing-eval/scripts/test_build_service_ticket_sla_gate_suite_summary.py` | passed: suite summary scripts compile. |
 | `make gate-v39-service-ticket-sla-stable-suite` | passed: `biz-024=3/3`, holdout `6/6`, negative `4/4`; combined suite `stable_gate_ok=13/13`, residuals `0`, summary `output/v39_service_ticket_sla_stable_suite_20260601.md`. |
+| `make -C experiments/spider-routing-eval gate-v39-semantic-promoted-offline-ci` | passed on 2026-06-02 after unresponded-count canonicalization hardening: order `6/6`, ServiceTicket suite `13/13`, residuals `0`. |
 
 ## Replay Findings
 
@@ -98,6 +99,7 @@ source_type: optimization
 | Runtime now supports the governed DSL_CTE SLA recipe for row-level `hours_between`, SLA hit predicates, unresponded cutoff/reference-time predicates, conditional counts, NULL-safe ratios, and SLA miss-count aliases. | The original engine capability gap is closed for the signed recipe shapes. |
 | Direct MCP execution returns structured SLA rows without LLM detail post-processing. | This is acceptable engine evidence for the supported recipe contract. |
 | `over48hMissCount = ticketCount - slaHitCount` appeared in replay repairs. | Keep this unsigned: it is a generic SLA miss count, not necessarily “超 48 小时未响应数”. Supporting it as an unresponded count would encode the wrong business meaning. |
+| Some replay shapes can include the expected `overdueUnrespondedCount` field while explaining it as `ticketCount - slaHitCount`. | The scorer now treats the explanation itself as semantic evidence and fails this row shape; Java validation also emits a specific deferred reason for this contract violation. |
 | Earlier semantic gate scorer reported `stable_gate_ok=0/3`. | The failing replay is retained as a regression sample for missing structured `overdueUnrespondedCount` and ambiguous unresponded-count derivations. |
 | After correcting the Java launcher base URL, targeted replay reached `stable_gate_ok=3/3`. | The remaining blocker was environment URL shape, not an engine semantic gap; `biz-024` can enter the stable semantic gate. |
 | `holdout-005/006` need different semantic expectations from `biz-024`. | The scorer now uses case profiles: `holdout-005` accepts the May SLA-rate row shape, while `holdout-006` requires a signed SLA miss-count alias instead of the `biz-024` unresponded-count field. |
@@ -143,7 +145,7 @@ Continue sample-driven calibration of the governed DSL_CTE / recipe contract:
 | Capability | Needed Contract |
 |---|---|
 | Failure variant collection | Keep collecting `biz-024` retry payloads from `gemini-pro-agent`, `claude-sonnet-4-6`, and `gpt-oss-120b-medium`; add recipe normalization only when semantic identity is clear. |
-| Unresponded count canonicalization | Prefer explicit `firstResponseAt is null and createdAt < '<cutoff>'` or `firstResponseAt is null and hours_between(createdAt, '<referenceTime>') > 48`; reject ambiguous `ticketCount - slaHitCount` aliases when the requested metric is “未响应数”. |
+| Unresponded count canonicalization | Enforced for current signed shape: prefer explicit `firstResponseAt is null and createdAt < '<cutoff>'` or `firstResponseAt is null and hours_between(createdAt, '<referenceTime>') > 48`; Java bridge and replay scorer reject ambiguous `ticketCount - slaHitCount` aliases when the requested metric is “未响应数”. Continue collecting variants for additional canonical spellings. |
 | Stable gate promotion | Promote `biz-024` using `output/v39_biz024_service_ticket_invocation_20260601_after_docs_base_no_v1.jsonl`; promote holdouts using `output/v39_service_ticket_sla_holdout_invocation_20260601_after_docs_base_no_v1.jsonl`; keep the earlier `0/3` replay as a residual regression sample. |
 | Semantic scoring | Done for `biz-024` and ServiceTicket SLA holdouts; both strict semantic gates now pass on the corrected replay baselines. |
 | Negative runtime scoring | Done for missing-threshold, resolution/calendar out-of-scope, physical SQL, and prediction/personnel-advice cases; keep the preflight `0/4` baseline as regression evidence and promote the post-preflight `4/4` baseline. |

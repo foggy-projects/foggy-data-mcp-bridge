@@ -616,6 +616,23 @@ class DslCteAcceptanceSampleTest {
     }
 
     @Test
+    @DisplayName("DSL_CTE SLA bridge defers miss-count arithmetic used as unresponded count")
+    void validationDefersSlaMissArithmeticAsUnrespondedCount() {
+        Map<String, Object> plan = slaRateWithMissCountPlan();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) plan.get("stages");
+        stages.get(2).put("derived", List.of(
+                derived("slaAchievementRate", "slaHitCount / ticketCount"),
+                derived("overdueUnrespondedCount", "ticketCount - slaHitCount")));
+        plan.put("output", List.of("team$caption", "ticketCount", "slaHitCount",
+                "overdueUnrespondedCount", "slaAchievementRate"));
+
+        List<String> unsupported = bridgeUnsupported(plan);
+
+        assertTrue(unsupported.stream().anyMatch(msg -> msg.contains("cannot be used as unresponded count")));
+    }
+
+    @Test
     @DisplayName("DSL_CTE validation signs unresponded reference-time SLA threshold")
     void validationShowsBridgeReadyForUnrespondedReferenceTimeThreshold() {
         SemanticQueryResponse response = service.validateQuery(

@@ -3610,6 +3610,10 @@ public final class DslCteDslRequestMapper {
         String left = differenceMatcher.group(1);
         String right = differenceMatcher.group(2);
         if (!signedSlaMissCountAlias(left, right, name)) {
+            if ("ticketCount".equals(left) && signedSlaHitAlias(right)) {
+                unsupported.add("result-stage SLA miss-count arithmetic cannot be used as unresponded count; "
+                        + "use an explicit firstResponseAt-null cutoff/reference-time predicate");
+            }
             return null;
         }
         if (!metricAliases.contains(left) || !metricAliases.contains(right)) {
@@ -3694,6 +3698,13 @@ public final class DslCteDslRequestMapper {
             return false;
         }
         return switch (right) {
+            case "slaHitCount", "firstResponseSlaHitCount", "resolutionSlaHitCount", "combinedSlaHitCount" -> true;
+            default -> false;
+        };
+    }
+
+    private static boolean signedSlaHitAlias(String alias) {
+        return switch (alias) {
             case "slaHitCount", "firstResponseSlaHitCount", "resolutionSlaHitCount", "combinedSlaHitCount" -> true;
             default -> false;
         };
