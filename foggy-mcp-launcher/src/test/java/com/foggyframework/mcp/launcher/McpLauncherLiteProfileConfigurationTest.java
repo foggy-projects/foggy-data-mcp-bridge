@@ -35,6 +35,7 @@ class McpLauncherLiteProfileConfigurationTest {
         assertEquals("FactOrderQueryModel", properties.getProperty("foggy.mcp.semantic.model-list[0]"));
         assertEquals("CrmLead", properties.getProperty("foggy.mcp.semantic.model-list[1]"));
         assertEquals("CustomerOrderLifecycleQueryModel", properties.getProperty("foggy.mcp.semantic.model-list[2]"));
+        assertEquals("ServiceTicketQueryModel", properties.getProperty("foggy.mcp.semantic.model-list[3]"));
     }
 
     @Test
@@ -65,6 +66,27 @@ class McpLauncherLiteProfileConfigurationTest {
         assertTrue(orderModel.contains("name: 'salesTeam'"), "FactOrderModel should map salesTeam dimension");
         assertTrue(orderQueryModel.contains("{ ref: fo.salesTeam }"), "FactOrderQueryModel should expose salesTeam");
         assertTrue(orderQueryModel.contains("{ ref: fo.salesTeam$managerName }"), "FactOrderQueryModel should expose sales team owner");
+    }
+
+    @Test
+    void liteServiceTicketFixtureExposesSlaCoverageModel() throws IOException {
+        String liteSchema = classpathText("db/lite-demo-schema.sql");
+        String liteData = classpathText("db/lite-demo-data.sql");
+        String ticketModel = classpathText("foggy/templates/ecommerce/model/ServiceTicketModel.tm");
+        String ticketQueryModel = classpathText("foggy/templates/ecommerce/query/ServiceTicketQueryModel.qm");
+
+        assertTrue(liteSchema.contains("CREATE TABLE dim_team"), "lite schema should define service team dimension");
+        assertTrue(liteSchema.contains("CREATE TABLE service_ticket"), "lite schema should define service ticket fact");
+        assertTrue(liteSchema.contains("first_response_at"), "lite service ticket schema should expose first response time");
+        assertTrue(liteData.contains("INSERT INTO service_ticket"), "lite fixture should seed service tickets");
+        assertTrue(liteData.contains("SLA-LITE-003"), "lite fixture should include an unresponded service ticket row");
+        assertTrue(liteData.contains("North Support Team"), "lite fixture should include governed service team captions");
+        assertTrue(ticketModel.contains("name: 'team'"), "ServiceTicketModel should map team dimension");
+        assertTrue(ticketModel.contains("column: 'first_response_at'"), "ServiceTicketModel should map first_response_at");
+        assertTrue(ticketQueryModel.contains("name: 'ServiceTicketQueryModel'"), "ServiceTicketQueryModel should be available");
+        assertTrue(ticketQueryModel.contains("{ ref: st.team }"), "ServiceTicketQueryModel should expose service team");
+        assertTrue(ticketQueryModel.contains("{ ref: st.firstResponseAt }"), "ServiceTicketQueryModel should expose firstResponseAt");
+        assertTrue(ticketQueryModel.contains("{ ref: st.ticketCount }"), "ServiceTicketQueryModel should expose ticket denominator");
     }
 
     private static Properties loadLiteProperties() {

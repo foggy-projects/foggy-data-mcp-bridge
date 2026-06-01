@@ -18,6 +18,12 @@ INSERT INTO dim_sales_team (team_id, team_name, team_region, manager_name, statu
 ('TEAM002', 'Central Retail Sales Team', 'Central China', 'Team Manager B', 'ACTIVE'),
 ('TEAM003', 'Online Growth Sales Team', 'Online', 'Team Manager C', 'ACTIVE');
 
+INSERT INTO dim_team (team_id, team_name, parent_id, team_level, manager_name, status) VALUES
+('T001', 'Customer Service Center', NULL, 1, 'Support Director', 'ACTIVE'),
+('T002', 'North Support Team', 'T001', 2, 'Support Manager A', 'ACTIVE'),
+('T003', 'South Support Team', 'T001', 2, 'Support Manager B', 'ACTIVE'),
+('T004', 'Online Support Team', 'T001', 2, 'Support Manager C', 'ACTIVE');
+
 INSERT INTO dim_customer (customer_id, customer_name, customer_type, gender, age_group, province, city, district, register_date, member_level, status) VALUES
 ('CUS000001', 'Customer 1', 'VIP', 'M', '25-34', 'Zhejiang', 'Hangzhou', 'Xihu', '2020-01-10', 'DIAMOND', 'ACTIVE'),
 ('CUS000002', 'Customer 2', 'VIP', 'F', '25-34', 'Jiangsu', 'Nanjing', 'Xuanwu', '2020-02-15', 'PLATINUM', 'ACTIVE'),
@@ -45,6 +51,16 @@ INSERT INTO crm_lead (lead_id, created_at, lead_source, converted_opportunity_id
 ('CRM-LITE-004', '2024-01-03 15:00:00', 'APP', NULL, NULL),
 ('CRM-LITE-005', '2024-01-04 08:30:00', 'PHONE', 'OPP-LITE-005', 'ORD-LITE-0005'),
 ('CRM-LITE-006', '2024-01-04 16:00:00', 'PHONE', NULL, NULL);
+
+INSERT INTO service_ticket (ticket_id, team_id, created_at, first_response_at, resolved_at, priority, status, channel) VALUES
+('SLA-LITE-001', 'T002', '2026-06-01 08:00:00', '2026-06-01 10:00:00', '2026-06-02 09:00:00', 'P1', 'RESOLVED', 'WEB'),
+('SLA-LITE-002', 'T002', '2026-06-01 09:00:00', '2026-06-03 10:00:00', '2026-06-04 11:00:00', 'P2', 'RESOLVED', 'APP'),
+('SLA-LITE-003', 'T002', '2026-06-02 11:00:00', NULL, NULL, 'P1', 'OPEN', 'PHONE'),
+('SLA-LITE-004', 'T003', '2026-06-01 08:30:00', '2026-06-01 09:00:00', '2026-06-01 18:00:00', 'P3', 'RESOLVED', 'WEB'),
+('SLA-LITE-005', 'T003', '2026-06-02 12:00:00', '2026-06-04 13:00:00', NULL, 'P2', 'OPEN', 'APP'),
+('SLA-LITE-006', 'T004', '2026-06-03 10:00:00', '2026-06-03 14:00:00', '2026-06-05 10:00:00', 'P1', 'RESOLVED', 'PHONE'),
+('SLA-LITE-007', 'T004', '2026-06-04 10:00:00', NULL, NULL, 'P3', 'OPEN', 'WEB'),
+('SLA-LITE-008', 'T003', '2026-05-20 10:00:00', '2026-05-20 12:00:00', '2026-05-21 09:00:00', 'P2', 'RESOLVED', 'WEB');
 
 INSERT INTO customer_order_lifecycle
 (customer_id, customer_name, first_order_date, first_order_month, first_order_channel, order_count, lifetime_amount,

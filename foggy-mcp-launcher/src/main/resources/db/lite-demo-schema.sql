@@ -1,9 +1,11 @@
 DROP TABLE IF EXISTS fact_order;
+DROP TABLE IF EXISTS service_ticket;
 DROP TABLE IF EXISTS customer_order_lifecycle;
 DROP TABLE IF EXISTS crm_lead;
 DROP TABLE IF EXISTS dim_promotion;
 DROP TABLE IF EXISTS dim_channel;
 DROP TABLE IF EXISTS dim_sales_team;
+DROP TABLE IF EXISTS dim_team;
 DROP TABLE IF EXISTS dim_store;
 DROP TABLE IF EXISTS dim_customer;
 DROP TABLE IF EXISTS dim_date;
@@ -73,6 +75,16 @@ CREATE TABLE dim_sales_team
     created_at     TEXT DEFAULT (datetime('now', 'localtime'))
 );
 
+CREATE TABLE dim_team
+(
+    team_id      TEXT NOT NULL PRIMARY KEY,
+    team_name    TEXT NOT NULL,
+    parent_id    TEXT,
+    team_level   INTEGER NOT NULL,
+    manager_name TEXT,
+    status       TEXT NOT NULL DEFAULT 'ACTIVE'
+);
+
 CREATE TABLE dim_channel
 (
     channel_key  INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -138,6 +150,21 @@ CREATE TABLE crm_lead
 CREATE INDEX idx_lite_crm_lead_created_at ON crm_lead (created_at);
 CREATE INDEX idx_lite_crm_lead_source ON crm_lead (lead_source);
 CREATE INDEX idx_lite_crm_lead_converted_order ON crm_lead (converted_order_id);
+
+CREATE TABLE service_ticket
+(
+    ticket_id         TEXT NOT NULL PRIMARY KEY,
+    team_id           TEXT NOT NULL,
+    created_at        TEXT NOT NULL,
+    first_response_at TEXT,
+    resolved_at       TEXT,
+    priority          TEXT NOT NULL,
+    status            TEXT NOT NULL,
+    channel           TEXT NOT NULL
+);
+
+CREATE INDEX idx_lite_service_ticket_team_id ON service_ticket (team_id);
+CREATE INDEX idx_lite_service_ticket_created_at ON service_ticket (created_at);
 
 CREATE TABLE customer_order_lifecycle
 (

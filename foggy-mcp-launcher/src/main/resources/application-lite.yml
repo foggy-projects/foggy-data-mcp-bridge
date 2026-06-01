@@ -46,6 +46,7 @@ foggy:
         - FactOrderQueryModel
         - CrmLead
         - CustomerOrderLifecycleQueryModel
+        - ServiceTicketQueryModel
 
     # 关闭审计日志（需要 MongoDB）
     audit:
