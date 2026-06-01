@@ -53,6 +53,7 @@ These remain rejected or research-only unless a separate product requirement reo
 - `workitems/LLM-routing-replan-guard-java-mcp-20260527.md`
 - `workitems/P2-field-comparison-predicate-fixture-20260531.md`
 - `workitems/P2-query-trace-orderby-limit-observability-20260601.md`
+- `workitems/P2-order-sales-team-semantic-fixture-20260601.md`
 
 Upstream 9.0.0.beta references:
 

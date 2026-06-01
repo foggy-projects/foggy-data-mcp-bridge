@@ -2,7 +2,7 @@
  * 订单事实表模型定义
  *
  * @description 电商测试数据 - 订单事实表（订单头）
- *              包含日期、客户、门店、渠道、促销等维度关联
+ *              包含日期、客户、门店、销售团队、渠道、促销等维度关联
  */
 import { dicts } from '../dicts.fsscript';
 import { buildDateDim, buildCustomerDim, buildStoreDim, buildChannelDim, buildPromotionDim } from '../dimensions/common-dims.fsscript';
@@ -24,6 +24,22 @@ export const model = {
         }),
         buildCustomerDim({ caption: '客户', description: '下单客户信息', contextPrefix: '下单客户' }),
         buildStoreDim({ caption: '门店', description: '订单归属门店', contextPrefix: '订单', includeProperties: ['store_id', 'store_type', 'province', 'city', 'manager_name'] }),
+        {
+            name: 'salesTeam',
+            tableName: 'dim_sales_team',
+            foreignKey: 'sales_team_key',
+            primaryKey: 'sales_team_key',
+            captionColumn: 'team_name',
+            caption: '销售团队',
+            description: '订单归属销售团队；用于按销售团队统计销售额、订单数、客单价和待处理订单积压',
+            keyDescription: '销售团队代理键，自增整数',
+            properties: [
+                { column: 'team_id', caption: '销售团队ID', description: '销售团队业务编码', type: 'STRING' },
+                { column: 'team_region', caption: '团队区域', description: '销售团队负责的区域或组织范围', type: 'STRING' },
+                { column: 'manager_name', caption: '团队负责人', description: '销售团队负责人姓名', type: 'STRING' },
+                { column: 'status', caption: '团队状态', description: '销售团队启用状态', type: 'STRING' }
+            ]
+        },
         buildChannelDim({ caption: '渠道', description: '订单来源渠道', contextPrefix: '订单' }),
         buildPromotionDim({ caption: '促销活动', description: '订单参与的促销活动', contextPrefix: '订单' })
     ],

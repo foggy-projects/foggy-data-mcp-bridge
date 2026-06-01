@@ -46,9 +46,25 @@ class McpLauncherLiteProfileConfigurationTest {
 
         assertTrue(liteSchema.contains("ship_date"), "lite fact_order schema should expose ship_date");
         assertTrue(liteData.contains("ORD-LITE-0006"), "lite fixture should include a predicate-governance anomaly row");
-        assertTrue(liteData.contains("NULL, 2, 1, 1, 1, 199.00"), "lite fixture should include a customer-null branch");
+        assertTrue(liteData.contains("'ORD-LITE-0006', 20240104, NULL"), "lite fixture should include a customer-null branch");
         assertTrue(orderModel.contains("column: 'ship_date'"), "FactOrderModel should map ship_date");
         assertTrue(orderQueryModel.contains("{ ref: fo.shipDate }"), "FactOrderQueryModel should expose shipDate");
+    }
+
+    @Test
+    void liteOrderFixtureExposesSalesTeamForOrderSemanticCoverage() throws IOException {
+        String liteSchema = classpathText("db/lite-demo-schema.sql");
+        String liteData = classpathText("db/lite-demo-data.sql");
+        String orderModel = classpathText("foggy/templates/ecommerce/model/FactOrderModel.tm");
+        String orderQueryModel = classpathText("foggy/templates/ecommerce/query/FactOrderQueryModel.qm");
+
+        assertTrue(liteSchema.contains("CREATE TABLE dim_sales_team"), "lite schema should define sales team dimension");
+        assertTrue(liteSchema.contains("sales_team_key  INTEGER"), "lite fact_order schema should link sales team");
+        assertTrue(liteData.contains("INSERT INTO dim_sales_team"), "lite fixture should seed sales teams");
+        assertTrue(liteData.contains("East Direct Sales Team"), "lite fixture should include governed sales team captions");
+        assertTrue(orderModel.contains("name: 'salesTeam'"), "FactOrderModel should map salesTeam dimension");
+        assertTrue(orderQueryModel.contains("{ ref: fo.salesTeam }"), "FactOrderQueryModel should expose salesTeam");
+        assertTrue(orderQueryModel.contains("{ ref: fo.salesTeam$managerName }"), "FactOrderQueryModel should expose sales team owner");
     }
 
     private static Properties loadLiteProperties() {

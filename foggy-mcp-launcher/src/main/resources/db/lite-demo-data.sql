@@ -13,6 +13,11 @@ INSERT INTO dim_store (store_id, store_name, store_type, province, city, distric
 ('STR00002', 'Nanjing Xuanwu Store', 'DIRECT', 'Jiangsu', 'Nanjing', 'Xuanwu', 'No. 2 Xuanwu Road', 'Manager B', '2020-03-20', 420.00, 'ACTIVE'),
 ('STR00003', 'Shanghai Pudong Store', 'FRANCHISE', 'Shanghai', 'Shanghai', 'Pudong', 'No. 3 Pudong Road', 'Manager C', '2021-01-05', 500.00, 'ACTIVE');
 
+INSERT INTO dim_sales_team (team_id, team_name, team_region, manager_name, status) VALUES
+('TEAM001', 'East Direct Sales Team', 'East China', 'Team Manager A', 'ACTIVE'),
+('TEAM002', 'Central Retail Sales Team', 'Central China', 'Team Manager B', 'ACTIVE'),
+('TEAM003', 'Online Growth Sales Team', 'Online', 'Team Manager C', 'ACTIVE');
+
 INSERT INTO dim_customer (customer_id, customer_name, customer_type, gender, age_group, province, city, district, register_date, member_level, status) VALUES
 ('CUS000001', 'Customer 1', 'VIP', 'M', '25-34', 'Zhejiang', 'Hangzhou', 'Xihu', '2020-01-10', 'DIAMOND', 'ACTIVE'),
 ('CUS000002', 'Customer 2', 'VIP', 'F', '25-34', 'Jiangsu', 'Nanjing', 'Xuanwu', '2020-02-15', 'PLATINUM', 'ACTIVE'),
@@ -25,13 +30,13 @@ INSERT INTO dim_date (date_key, full_date, year, quarter, month, month_name, wee
 (20240103, '2024-01-03', 2024, 1, 1, 'January', 1, 3, 3, 'Wednesday', 0, 0, 2024, 1),
 (20240104, '2024-01-04', 2024, 1, 1, 'January', 1, 4, 4, 'Thursday', 0, 0, 2024, 1);
 
-INSERT INTO fact_order (order_id, date_key, customer_key, store_key, channel_key, promotion_key, total_quantity, total_amount, discount_amount, freight_amount, pay_amount, order_status, payment_status, order_time, ship_date) VALUES
-('ORD-LITE-0001', 20240101, 1, 1, 1, 2, 2, 10998.00, 1099.80, 0.00, 9898.20, 'COMPLETED', 'PAID', '2024-01-01 10:30:00', '2024-01-02'),
-('ORD-LITE-0002', 20240101, 2, 2, 2, 1, 1, 4599.00, 0.00, 0.00, 4599.00, 'COMPLETED', 'PAID', '2024-01-01 14:20:00', '2024-01-03'),
-('ORD-LITE-0003', 20240102, 3, 3, 1, 1, 3, 1298.00, 0.00, 0.00, 1298.00, 'PROCESSING', 'PARTIAL', '2024-01-02 09:15:00', '2024-01-04'),
-('ORD-LITE-0004', 20240103, 4, 1, 3, 3, 1, 1299.00, 155.88, 0.00, 1143.12, 'PENDING', 'UNPAID', '2024-01-03 15:30:00', '2024-01-05'),
-('ORD-LITE-0005', 20240104, 1, 2, 1, 1, 1, 19.90, 0.00, 10.00, 29.90, 'CANCELLED', 'UNPAID', '2024-01-04 09:00:00', '2024-01-04'),
-('ORD-LITE-0006', 20240104, NULL, 2, 1, 1, 1, 199.00, 0.00, 0.00, 199.00, 'COMPLETED', 'PAID', '2024-01-04 12:00:00', '2024-01-03');
+INSERT INTO fact_order (order_id, date_key, customer_key, store_key, sales_team_key, channel_key, promotion_key, total_quantity, total_amount, discount_amount, freight_amount, pay_amount, order_status, payment_status, order_time, ship_date) VALUES
+('ORD-LITE-0001', 20240101, 1, 1, 1, 1, 2, 2, 10998.00, 1099.80, 0.00, 9898.20, 'COMPLETED', 'PAID', '2024-01-01 10:30:00', '2024-01-02'),
+('ORD-LITE-0002', 20240101, 2, 2, 2, 2, 1, 1, 4599.00, 0.00, 0.00, 4599.00, 'COMPLETED', 'PAID', '2024-01-01 14:20:00', '2024-01-03'),
+('ORD-LITE-0003', 20240102, 3, 3, 3, 1, 1, 3, 1298.00, 0.00, 0.00, 1298.00, 'PROCESSING', 'PARTIAL', '2024-01-02 09:15:00', '2024-01-04'),
+('ORD-LITE-0004', 20240103, 4, 1, 1, 3, 3, 1, 1299.00, 155.88, 0.00, 1143.12, 'PENDING', 'UNPAID', '2024-01-03 15:30:00', '2024-01-05'),
+('ORD-LITE-0005', 20240104, 1, 2, 2, 1, 1, 1, 19.90, 0.00, 10.00, 29.90, 'CANCELLED', 'UNPAID', '2024-01-04 09:00:00', '2024-01-04'),
+('ORD-LITE-0006', 20240104, NULL, 2, 2, 1, 1, 1, 199.00, 0.00, 0.00, 199.00, 'COMPLETED', 'PAID', '2024-01-04 12:00:00', '2024-01-03');
 
 INSERT INTO crm_lead (lead_id, created_at, lead_source, converted_opportunity_id, converted_order_id) VALUES
 ('CRM-LITE-001', '2024-01-01 09:00:00', 'WEB', 'OPP-LITE-001', 'ORD-LITE-0001'),
