@@ -151,6 +151,78 @@ class QueryExpertServiceRoutingCalibrationTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    @DisplayName("ServiceTicket 首响 SLA 时间窗口冲突应在 LLM/工具链前澄清")
+    void serviceTicketConflictingTimeScope_shouldClarifyBeforeTools() {
+        DatasetNLQueryRequest request = DatasetNLQueryRequest.builder()
+                .query("本月按团队统计最近 30 天创建工单的首次响应 SLA 达成率，SLA 阈值 48 小时，分母为工单数。")
+                .build();
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-sla-conflicting-time", null);
+
+        assertEquals("clarify", response.getType());
+        assertEquals("SERVICE_TICKET_SLA_PARAMETER_CLARIFY", response.getCode());
+        Map<String, Object> detail = (Map<String, Object>) response.getDetail();
+        assertEquals("conflicting_time_scope", detail.get("boundary"));
+        assertEquals(false, detail.get("query_model_execution_allowed"));
+        verifyNoInteractions(chatClientBuilder, mcpToolDispatcher, toolCallbackFactory);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    @DisplayName("ServiceTicket 首响 SLA 字段混用应在 LLM/工具链前澄清")
+    void serviceTicketFirstResponseFieldMismatch_shouldClarifyBeforeTools() {
+        DatasetNLQueryRequest request = DatasetNLQueryRequest.builder()
+                .query("按团队统计本月创建工单的首次响应 SLA 达成率，用解决时间 resolvedAt 与 createdAt 的差值判断 48 小时是否达标。")
+                .build();
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-sla-field-mismatch", null);
+
+        assertEquals("clarify", response.getType());
+        assertEquals("SERVICE_TICKET_SLA_PARAMETER_CLARIFY", response.getCode());
+        Map<String, Object> detail = (Map<String, Object>) response.getDetail();
+        assertEquals("first_response_resolution_field_mismatch", detail.get("boundary"));
+        assertEquals(false, detail.get("query_model_execution_allowed"));
+        verifyNoInteractions(chatClientBuilder, mcpToolDispatcher, toolCallbackFactory);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    @DisplayName("ServiceTicket 未响应数差值公式应在 LLM/工具链前澄清")
+    void serviceTicketUnrespondedFormula_shouldClarifyBeforeTools() {
+        DatasetNLQueryRequest request = DatasetNLQueryRequest.builder()
+                .query("本月按团队统计首次响应 SLA 达成率，SLA 阈值 48 小时，并把未响应数直接按总工单数减去 SLA 达成工单数计算。")
+                .build();
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-sla-unresponded-formula", null);
+
+        assertEquals("clarify", response.getType());
+        assertEquals("SERVICE_TICKET_SLA_PARAMETER_CLARIFY", response.getCode());
+        Map<String, Object> detail = (Map<String, Object>) response.getDetail();
+        assertEquals("ambiguous_unresponded_count_formula", detail.get("boundary"));
+        assertEquals(false, detail.get("query_model_execution_allowed"));
+        verifyNoInteractions(chatClientBuilder, mcpToolDispatcher, toolCallbackFactory);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    @DisplayName("ServiceTicket SLA 阈值缺单位应在 LLM/工具链前澄清")
+    void serviceTicketThresholdUnit_shouldClarifyBeforeTools() {
+        DatasetNLQueryRequest request = DatasetNLQueryRequest.builder()
+                .query("按团队统计本月创建工单的首次响应 SLA 达成率，阈值为 48，分母为工单数，未响应不达标。")
+                .build();
+
+        DatasetNLQueryResponse response = queryExpertService.processQuery(request, "trace-sla-threshold-unit", null);
+
+        assertEquals("clarify", response.getType());
+        assertEquals("SERVICE_TICKET_SLA_PARAMETER_CLARIFY", response.getCode());
+        Map<String, Object> detail = (Map<String, Object>) response.getDetail();
+        assertEquals("missing_sla_threshold_unit", detail.get("boundary"));
+        assertEquals(false, detail.get("query_model_execution_allowed"));
+        verifyNoInteractions(chatClientBuilder, mcpToolDispatcher, toolCallbackFactory);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     @DisplayName("ServiceTicket 预测因果请求应在 LLM/工具链前拒绝")
     void serviceTicketPrediction_shouldRejectBeforeTools() {
         DatasetNLQueryRequest request = DatasetNLQueryRequest.builder()

@@ -11,7 +11,7 @@ signed_off_at: 2026-06-01
 reviewed_by: Codex acceptance reviewer
 blocking_items: []
 follow_up_required: yes
-evidence_count: 14
+evidence_count: 17
 ---
 
 # Feature Acceptance
@@ -37,7 +37,7 @@ The ServiceTicket SLA work adds a governed lite fixture, executable DSL_CTE brid
 | Runnable fixture data exists | accepted | `dim_team` and `service_ticket` rows cover June 2026 hit, miss, and NULL first-response cases. |
 | Positive `biz-024` SLA recipe executes | accepted | Three-model runtime replay reached `stable_gate_ok=3/3`. |
 | SLA holdout semantics execute | accepted | `holdout-005/006` reached `stable_gate_ok=6/6`. |
-| Negative runtime boundary is enforced | accepted | Missing threshold, unsupported SLA, physical SQL, and prediction/personnel advice fail closed. |
+| Negative runtime boundary is enforced | accepted | Missing threshold, threshold unit ambiguity, unsupported SLA, physical SQL, prediction/personnel advice, unresponded formula ambiguity, conflicting time windows, and first-response/resolution field mismatch fail closed. |
 | Unresponded-count canonicalization is enforced | accepted | `ticketCount - slaHitCount` remains a signed miss-count shape only for miss-count aliases; it is rejected when used as a requested unresponded-count field or explanation. |
 | Combined gate is stable | accepted | `make gate-v39-service-ticket-sla-stable-suite` reached `13/13`, residuals `0`. |
 | Unsupported variants stay out of scope | accepted-with-risks | Resolution SLA, contract calendar, custom work time, causality, and personnel recommendation are intentionally not executed. |
@@ -60,6 +60,9 @@ The ServiceTicket SLA work adds a governed lite fixture, executable DSL_CTE brid
 | `make -C experiments/spider-routing-eval gate-v39-semantic-promoted-offline-ci` after the 2026-06-02 unresponded-count hardening | passed: order `6/6`, ServiceTicket suite `13/13`, residuals `0`. |
 | `python3 experiments/spider-routing-eval/scripts/test_score_service_ticket_negative_gate.py` | passed. |
 | `python3 experiments/spider-routing-eval/scripts/test_build_service_ticket_sla_gate_suite_summary.py` | passed. |
+| `mvn -pl foggy-dataset-mcp -am -Dtest=QueryExpertServiceRoutingCalibrationTest -Dsurefire.failIfNoSpecifiedTests=false test -P'!multi-db'` after expanded negative boundaries | passed: `Tests run: 26, Failures: 0, Errors: 0, Skipped: 0`. |
+| `python3 experiments/spider-routing-eval/scripts/test_score_service_ticket_negative_gate.py` after expanded negative profiles | passed: configured negative profiles score `8/8`, residuals `0`. |
+| `make -C experiments/spider-routing-eval gate-v39-semantic-promoted-offline-ci` after expanded negative boundaries | passed: order `6/6`, ServiceTicket suite `17/17`, residuals `0`. |
 
 ## Failed Items
 
@@ -73,7 +76,7 @@ None blocking. The earlier negative baseline is retained as regression evidence 
 | Resolution SLA, contract calendar, business-hours calendar, prediction, and personnel advice are not supported. | Fail closed through preflight guard; add new recipe contracts only with samples and tests. |
 | Replay artifacts under `experiments/spider-routing-eval/output/` are ignored by git. | Gate scripts are committed; CI or release jobs must regenerate or publish evidence artifacts explicitly. |
 | Java launcher URL shape differs from Python replay scripts. | Documented: Java Spring AI base URL omits `/v1`; Python replay uses `/v1`. |
-| SLA miss count and unresponded count are easy for LLMs to conflate. | Accepted with guardrail: explicit cutoff/reference-time unresponded predicates are required; ambiguous difference arithmetic fails validation/scoring. |
+| SLA miss count and unresponded count are easy for LLMs to conflate. | Accepted with guardrail: explicit cutoff/reference-time unresponded predicates are required; ambiguous difference arithmetic fails validation/scoring and preflight clarification. |
 
 ## Final Decision
 

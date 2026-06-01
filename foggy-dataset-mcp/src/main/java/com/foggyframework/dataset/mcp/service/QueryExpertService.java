@@ -541,6 +541,42 @@ public class QueryExpertService {
                     List.of("请确认是否改为首次响应 SLA 统计，并给出 SLA 阈值小时数、分母和未响应处理口径。")
             );
         }
+        if (containsAny(query, "最近 30 天", "近 30 天", "最近30天", "近30天")
+                && containsAny(query, "本月", "这个月", "当月")) {
+            return ServiceTicketSlaBoundary.clarify(
+                    "conflicting_time_scope",
+                    "ServiceTicket SLA 查询同时出现本月和最近 30 天等冲突时间窗口，不能自动选择。",
+                    List.of("请保留一个创建时间窗口，例如本月或最近 30 天。")
+            );
+        }
+        if (containsAny(query, "首响", "首次响应")
+                && (containsAny(query, "解决时间", "解决时长", "解决耗时")
+                || containsAny(normalized, "resolvedat", "resolution"))) {
+            return ServiceTicketSlaBoundary.clarify(
+                    "first_response_resolution_field_mismatch",
+                    "首次响应 SLA 不能使用解决时间或解决时长字段计算。",
+                    List.of("请确认是否使用首次响应时间与创建时间计算首响 SLA，或改为单独的解决 SLA 模型。")
+            );
+        }
+        if (containsAny(query, "未响应数", "未回复数")
+                && (containsAny(query, "总工单数减去", "工单数减去", "减去 SLA 达成", "减去SLA达成")
+                || containsAny(normalized, "ticketcount -", "ticketcount-", "sla hit", "slahit"))) {
+            return ServiceTicketSlaBoundary.clarify(
+                    "ambiguous_unresponded_count_formula",
+                    "未响应数不能按总工单数减去 SLA 达成工单数推导；该差值包含已响应但超时的工单。",
+                    List.of("请确认未响应是否仅指首次响应时间为空且已超过 SLA 截止时间的工单。")
+            );
+        }
+        if (containsAny(query, "首响", "首次响应")
+                && containsAny(query, "达成率", "SLA")
+                && hasNumericSlaThreshold(query)
+                && !containsSlaThreshold(query)) {
+            return ServiceTicketSlaBoundary.clarify(
+                    "missing_sla_threshold_unit",
+                    "首次响应 SLA 阈值包含数字但缺少明确时间单位，不能默认按小时或天执行。",
+                    List.of("请补充 SLA 阈值单位，例如 48 小时。")
+            );
+        }
         if (containsAny(query, "首响", "首次响应")
                 && containsAny(query, "达成率", "SLA")
                 && !containsSlaThreshold(query)) {
@@ -557,8 +593,14 @@ public class QueryExpertService {
         return Pattern.compile("\\d+(?:\\.\\d+)?\\s*(?:小时|h|hour|hours)", Pattern.CASE_INSENSITIVE)
                 .matcher(query)
                 .find()
-                || containsAny(query, "阈值", "threshold")
-                && Pattern.compile("\\d+").matcher(query).find();
+                || Pattern.compile("(?:小时数|slaThresholdHours)\\s*(?:为|=|:)?\\s*\\d+(?:\\.\\d+)?", Pattern.CASE_INSENSITIVE)
+                .matcher(query)
+                .find();
+    }
+
+    private static boolean hasNumericSlaThreshold(String query) {
+        return containsAny(query, "阈值", "threshold", "slaThreshold")
+                && Pattern.compile("\\d+(?:\\.\\d+)?").matcher(query).find();
     }
 
     private static Map<String, Object> serviceTicketSlaBoundaryDetail(
