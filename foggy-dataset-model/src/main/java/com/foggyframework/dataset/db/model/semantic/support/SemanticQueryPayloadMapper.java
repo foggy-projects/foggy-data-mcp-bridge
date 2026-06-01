@@ -2,6 +2,7 @@ package com.foggyframework.dataset.db.model.semantic.support;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.foggyframework.core.ex.RX;
 import com.foggyframework.dataset.db.model.def.query.request.CalculatedFieldDef;
 import com.foggyframework.dataset.db.model.def.query.request.CondRequestDef;
 import com.foggyframework.dataset.db.model.def.query.request.SliceRequestDef;
@@ -26,6 +27,11 @@ import java.util.Set;
 @Component
 public class SemanticQueryPayloadMapper {
 
+    private static final String SLICE_CONTRACT_ERROR = "QUERY_MODEL_SLICE_CONTRACT_INVALID";
+    private static final String SLICE_CONTRACT_HINT =
+            "Use entries like {\"field\":\"fieldName\",\"op\":\"=\",\"value\":value} "
+                    + "or {\"$or\":[...]} objects; do not pass booleans, strings, or JSON-escaped keys.";
+
     private static final Set<String> RESERVED_SLICE_KEYS = Set.of(
             "$or", "$and", "field", "op", "value", "maxDepth", "$expr"
     );
@@ -45,9 +51,9 @@ public class SemanticQueryPayloadMapper {
 
         request.setColumns(optionalStringList(payload.get("columns")));
         request.setCalculatedFields(convertList(payload.get("calculatedFields"), CalculatedFieldDef.class));
-        request.setSlice(convertSliceItems(payload.get("slice")));
-        request.setHaving(convertSliceItems(payload.get("having")));
-        request.setPostSlice(convertSliceItems(payload.get("postSlice")));
+        request.setSlice(convertSliceItemsIfPresent(payload, "slice"));
+        request.setHaving(convertSliceItemsIfPresent(payload, "having"));
+        request.setPostSlice(convertSliceItemsIfPresent(payload, "postSlice"));
         request.setGroupBy(convertGroupBy(payload.get("groupBy")));
         request.setOrderBy(convertOrderBy(payload.get("orderBy")));
         request.setStart(intValue(payload.get("start")));
@@ -125,49 +131,78 @@ public class SemanticQueryPayloadMapper {
         return result.isEmpty() ? null : List.copyOf(result);
     }
 
-    @SuppressWarnings("unchecked")
     public List<SliceRequestDef> extractSystemSlice(Map<String, Object> options) {
         if (options == null) {
             return null;
         }
+        if (!options.containsKey("systemSlice")) {
+            return null;
+        }
         Object value = options.get("systemSlice");
-        if (!(value instanceof List<?> sliceList) || sliceList.isEmpty()) {
+        if (value == null) {
+            return null;
+        }
+        if (!(value instanceof List<?> sliceList)) {
+            throw invalidSlice("options.systemSlice", "must be an array of filter objects, got " + typeName(value));
+        }
+        if (sliceList.isEmpty()) {
             return null;
         }
         List<SliceRequestDef> result = new ArrayList<>();
-        for (Object entry : sliceList) {
-            if (entry instanceof Map<?, ?> map) {
-                result.add(convertToSliceRequestDef((Map<String, Object>) map));
+        for (int i = 0; i < sliceList.size(); i++) {
+            Object entry = sliceList.get(i);
+            if (!(entry instanceof Map<?, ?> map)) {
+                throw invalidSlice("options.systemSlice[" + i + "]",
+                        "must be an object, got " + typeName(entry));
             }
+            result.add(convertToSliceRequestDef(map, "options.systemSlice[" + i + "]"));
         }
         return result.isEmpty() ? null : List.copyOf(result);
     }
 
-    @SuppressWarnings("unchecked")
-    private List<SemanticQueryRequest.SliceItem> convertSliceItems(Object value) {
-        if (!(value instanceof List<?> list) || list.isEmpty()) {
+    private List<SemanticQueryRequest.SliceItem> convertSliceItemsIfPresent(Map<String, Object> payload, String key) {
+        if (!payload.containsKey(key)) {
             return null;
         }
-        List<SemanticQueryRequest.SliceItem> result = new ArrayList<>();
-        for (Object entry : list) {
-            if (entry instanceof Map<?, ?> map) {
-                result.add(convertToSliceItem((Map<String, Object>) map));
-            }
-        }
-        return result.isEmpty() ? null : result;
+        return convertSliceItems(payload.get(key), "payload." + key, true);
     }
 
-    @SuppressWarnings("unchecked")
-    private SemanticQueryRequest.SliceItem convertToSliceItem(Map<String, Object> map) {
+    private List<SemanticQueryRequest.SliceItem> convertSliceItems(Object value, String path, boolean allowEmptyList) {
+        if (!(value instanceof List<?> list)) {
+            throw invalidSlice(path, "must be an array of filter objects, got " + typeName(value));
+        }
+        if (list.isEmpty()) {
+            if (allowEmptyList) {
+                return null;
+            }
+            throw invalidSlice(path, "must be a non-empty array of filter objects");
+        }
+        List<SemanticQueryRequest.SliceItem> result = new ArrayList<>();
+        for (int i = 0; i < list.size(); i++) {
+            Object entry = list.get(i);
+            if (!(entry instanceof Map<?, ?> map)) {
+                throw invalidSlice(path + "[" + i + "]", "must be an object, got " + typeName(entry));
+            }
+            result.add(convertToSliceItem(map, path + "[" + i + "]"));
+        }
+        return result;
+    }
+
+    private List<SemanticQueryRequest.SliceItem> convertLogicalSliceItems(Object value, String path) {
+        return convertSliceItems(value, path, false);
+    }
+
+    private SemanticQueryRequest.SliceItem convertToSliceItem(Map<?, ?> map, String path) {
+        validateSliceMap(map, path);
         SemanticQueryRequest.SliceItem item = new SemanticQueryRequest.SliceItem();
         if (map.size() == 1) {
-            String key = map.keySet().iterator().next();
+            String key = firstSliceKey(map);
             if ("$or".equals(key)) {
-                item.setOr(convertSliceItems(map.get(key)));
+                item.setOr(convertLogicalSliceItems(map.get(key), path + ".$or"));
                 return item;
             }
             if ("$and".equals(key)) {
-                item.setAnd(convertSliceItems(map.get(key)));
+                item.setAnd(convertLogicalSliceItems(map.get(key), path + ".$and"));
                 return item;
             }
             if (!RESERVED_SLICE_KEYS.contains(key)) {
@@ -181,10 +216,10 @@ public class SemanticQueryPayloadMapper {
         item.setOp(stringOr(map.get("op"), "="));
         item.setValue(map.get("value"));
         if (map.containsKey("$or")) {
-            item.setOr(convertSliceItems(map.get("$or")));
+            item.setOr(convertLogicalSliceItems(map.get("$or"), path + ".$or"));
         }
         if (map.containsKey("$and")) {
-            item.setAnd(convertSliceItems(map.get("$and")));
+            item.setAnd(convertLogicalSliceItems(map.get("$and"), path + ".$and"));
         }
         return item;
     }
@@ -250,17 +285,17 @@ public class SemanticQueryPayloadMapper {
         return item;
     }
 
-    @SuppressWarnings("unchecked")
-    private SliceRequestDef convertToSliceRequestDef(Map<String, Object> map) {
+    private SliceRequestDef convertToSliceRequestDef(Map<?, ?> map, String path) {
+        validateSliceMap(map, path);
         SliceRequestDef item = new SliceRequestDef();
         if (map.size() == 1) {
-            String key = map.keySet().iterator().next();
+            String key = firstSliceKey(map);
             if ("$or".equals(key)) {
-                item.setOr(convertGroupConditions((List<Object>) map.get(key)));
+                item.setOr(convertGroupConditions(map.get(key), path + ".$or"));
                 return item;
             }
             if ("$and".equals(key)) {
-                item.setAnd(convertGroupConditions((List<Object>) map.get(key)));
+                item.setAnd(convertGroupConditions(map.get(key), path + ".$and"));
                 return item;
             }
             if (!RESERVED_SLICE_KEYS.contains(key)) {
@@ -280,26 +315,30 @@ public class SemanticQueryPayloadMapper {
             item.setExpr(stringValue(map.get("$expr")));
         }
         if (map.containsKey("$or")) {
-            item.setOr(convertGroupConditions((List<Object>) map.get("$or")));
+            item.setOr(convertGroupConditions(map.get("$or"), path + ".$or"));
         }
         if (map.containsKey("$and")) {
-            item.setAnd(convertGroupConditions((List<Object>) map.get("$and")));
+            item.setAnd(convertGroupConditions(map.get("$and"), path + ".$and"));
         }
         return item;
     }
 
-    @SuppressWarnings("unchecked")
-    private List<CondRequestDef> convertGroupConditions(List<Object> entries) {
-        if (entries == null || entries.isEmpty()) {
-            return null;
+    private List<CondRequestDef> convertGroupConditions(Object value, String path) {
+        if (!(value instanceof List<?> entries)) {
+            throw invalidSlice(path, "must be an array of filter objects, got " + typeName(value));
+        }
+        if (entries.isEmpty()) {
+            throw invalidSlice(path, "must be a non-empty array of filter objects");
         }
         List<CondRequestDef> result = new ArrayList<>();
-        for (Object entry : entries) {
-            if (entry instanceof Map<?, ?> map) {
-                result.add(convertToSliceRequestDef((Map<String, Object>) map));
+        for (int i = 0; i < entries.size(); i++) {
+            Object entry = entries.get(i);
+            if (!(entry instanceof Map<?, ?> map)) {
+                throw invalidSlice(path + "[" + i + "]", "must be an object, got " + typeName(entry));
             }
+            result.add(convertToSliceRequestDef(map, path + "[" + i + "]"));
         }
-        return result.isEmpty() ? null : result;
+        return result;
     }
 
     private <T> List<T> convertList(Object value, Class<T> itemClass) {
@@ -375,5 +414,58 @@ public class SemanticQueryPayloadMapper {
 
     private static boolean isBlank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private static void validateSliceMap(Map<?, ?> map, String path) {
+        if (map.isEmpty()) {
+            throw invalidSlice(path, "must not be empty");
+        }
+        for (Object rawKey : map.keySet()) {
+            if (!(rawKey instanceof String key) || isBlank(key)) {
+                throw invalidSlice(path, "keys must be non-empty strings");
+            }
+            validateSliceKey(key, path);
+        }
+    }
+
+    private static void validateSliceKey(String key, String path) {
+        if (!key.equals(key.trim())) {
+            throw invalidSlice(path, "contains invalid key '" + key + "'. Keys must not have surrounding whitespace");
+        }
+        if (key.indexOf('"') >= 0 || key.indexOf('\'') >= 0 || key.indexOf('\\') >= 0) {
+            throw invalidSlice(path,
+                    "contains invalid key '" + key + "'. Logic keys must be exactly $or or $and");
+        }
+    }
+
+    private static String firstSliceKey(Map<?, ?> map) {
+        return (String) map.keySet().iterator().next();
+    }
+
+    private static RuntimeException invalidSlice(String path, String detail) {
+        return RX.throwAUserTip(SLICE_CONTRACT_ERROR + ": " + path + " " + detail + ". "
+                + SLICE_CONTRACT_HINT);
+    }
+
+    private static String typeName(Object value) {
+        if (value == null) {
+            return "null";
+        }
+        if (value instanceof String) {
+            return "string";
+        }
+        if (value instanceof Boolean) {
+            return "boolean";
+        }
+        if (value instanceof Number) {
+            return "number";
+        }
+        if (value instanceof List<?>) {
+            return "array";
+        }
+        if (value instanceof Map<?, ?>) {
+            return "object";
+        }
+        return value.getClass().getSimpleName();
     }
 }

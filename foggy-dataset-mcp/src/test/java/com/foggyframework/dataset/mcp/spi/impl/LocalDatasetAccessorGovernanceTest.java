@@ -28,10 +28,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @DisplayName("LocalDatasetAccessor 治理契约测试")
@@ -311,6 +313,25 @@ class LocalDatasetAccessorGovernanceTest {
         assertEquals(1, item.getScale());
         assertEquals("HALF_UP", item.getMode());
         assertEquals("display_only", item.getScope());
+    }
+
+    @Test
+    @DisplayName("query payload 中非法 slice 项应 fail-closed")
+    void queryShouldFailClosedForInvalidSliceItem() {
+        RX<SemanticQueryResponse> result = accessor.queryModel(
+                "BadSliceModel",
+                Map.of("slice", List.of(Boolean.TRUE)),
+                "execute",
+                "trace-invalid-slice",
+                null,
+                null
+        );
+
+        assertNull(result.getData());
+        assertNotNull(result.getMsg());
+        assertTrue(result.getMsg().contains("QUERY_MODEL_SLICE_CONTRACT_INVALID"), result.getMsg());
+        assertTrue(result.getMsg().contains("payload.slice[0]"), result.getMsg());
+        verifyNoInteractions(semanticServiceResolver);
     }
 
     private McpProperties createMcpProperties() {

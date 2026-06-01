@@ -53,6 +53,10 @@ public class LocalDatasetAccessor implements DatasetAccessor {
 
     private static final String DENIED_COLUMNS_KEY = "deniedColumns";
     private static final String SYSTEM_SLICE_KEY = "systemSlice";
+    private static final String SLICE_CONTRACT_ERROR = "QUERY_MODEL_SLICE_CONTRACT_INVALID";
+    private static final String SLICE_CONTRACT_HINT =
+            "Use entries like {\"field\":\"fieldName\",\"op\":\"=\",\"value\":value} "
+                    + "or {\"$or\":[...]} objects; do not pass booleans, strings, or JSON-escaped keys.";
 
     private final SemanticServiceResolver semanticServiceResolver;
     private final McpProperties mcpProperties;
@@ -454,35 +458,13 @@ public class LocalDatasetAccessor implements DatasetAccessor {
 
         // slice (过滤条件) - 需要转换为 List<SliceItem>
         if (payload.containsKey("slice")) {
-            Object slice = payload.get("slice");
-            if (slice instanceof List) {
-                // slice 是 List<Map<String, Object>> 格式
-                List<Map<String, Object>> sliceList = (List<Map<String, Object>>) slice;
-                List<SemanticQueryRequest.SliceItem> sliceItems = sliceList.stream()
-                        .map(this::convertToSliceItem)
-                        .toList();
-                request.setSlice(sliceItems);
-            }
+            request.setSlice(convertSliceItems(payload.get("slice"), "payload.slice", true));
         }
         if (payload.containsKey("having")) {
-            Object having = payload.get("having");
-            if (having instanceof List) {
-                List<Map<String, Object>> havingList = (List<Map<String, Object>>) having;
-                List<SemanticQueryRequest.SliceItem> havingItems = havingList.stream()
-                        .map(this::convertToSliceItem)
-                        .toList();
-                request.setHaving(havingItems);
-            }
+            request.setHaving(convertSliceItems(payload.get("having"), "payload.having", true));
         }
         if (payload.containsKey("postSlice")) {
-            Object postSlice = payload.get("postSlice");
-            if (postSlice instanceof List) {
-                List<Map<String, Object>> postSliceList = (List<Map<String, Object>>) postSlice;
-                List<SemanticQueryRequest.SliceItem> postSliceItems = postSliceList.stream()
-                        .map(this::convertToSliceItem)
-                        .toList();
-                request.setPostSlice(postSliceItems);
-            }
+            request.setPostSlice(convertSliceItems(payload.get("postSlice"), "payload.postSlice", true));
         }
 
         // groupBy - 需要转换为 List<GroupByItem>
@@ -601,40 +583,51 @@ public class LocalDatasetAccessor implements DatasetAccessor {
      * 保留字段名（不作为简写格式的 key）
      */
     private static final Set<String> RESERVED_SLICE_KEYS = Set.of(
-            "$or", "$and", "field", "op", "value", "maxDepth"
+            "$or", "$and", "field", "op", "value", "maxDepth", "$expr"
     );
 
-    @SuppressWarnings("unchecked")
-    private SemanticQueryRequest.SliceItem convertToSliceItem(Map<String, Object> map) {
+    private List<SemanticQueryRequest.SliceItem> convertSliceItems(Object value, String path, boolean allowEmptyList) {
+        if (!(value instanceof List<?> list)) {
+            throw invalidSlice(path, "must be an array of filter objects, got " + typeName(value));
+        }
+        if (list.isEmpty()) {
+            if (allowEmptyList) {
+                return null;
+            }
+            throw invalidSlice(path, "must be a non-empty array of filter objects");
+        }
+        List<SemanticQueryRequest.SliceItem> result = new ArrayList<>();
+        for (int i = 0; i < list.size(); i++) {
+            Object entry = list.get(i);
+            if (!(entry instanceof Map<?, ?> map)) {
+                throw invalidSlice(path + "[" + i + "]", "must be an object, got " + typeName(entry));
+            }
+            result.add(convertToSliceItem(map, path + "[" + i + "]"));
+        }
+        return result;
+    }
+
+    private List<SemanticQueryRequest.SliceItem> convertLogicalSliceItems(Object value, String path) {
+        return convertSliceItems(value, path, false);
+    }
+
+    private SemanticQueryRequest.SliceItem convertToSliceItem(Map<?, ?> map, String path) {
+        validateSliceMap(map, path);
         SemanticQueryRequest.SliceItem item = new SemanticQueryRequest.SliceItem();
 
         // 判断是否为简写格式：map.size == 1 且 key 不是保留字
         if (map.size() == 1) {
-            String key = map.keySet().iterator().next();
+            String key = firstSliceKey(map);
 
             // $or 逻辑组
             if ("$or".equals(key)) {
-                Object orObj = map.get("$or");
-                if (orObj instanceof List) {
-                    List<Map<String, Object>> orList = (List<Map<String, Object>>) orObj;
-                    List<SemanticQueryRequest.SliceItem> orItems = orList.stream()
-                            .map(this::convertToSliceItem)
-                            .toList();
-                    item.setOr(orItems);
-                }
+                item.setOr(convertLogicalSliceItems(map.get("$or"), path + ".$or"));
                 return item;
             }
 
             // $and 逻辑组
             if ("$and".equals(key)) {
-                Object andObj = map.get("$and");
-                if (andObj instanceof List) {
-                    List<Map<String, Object>> andList = (List<Map<String, Object>>) andObj;
-                    List<SemanticQueryRequest.SliceItem> andItems = andList.stream()
-                            .map(this::convertToSliceItem)
-                            .toList();
-                    item.setAnd(andItems);
-                }
+                item.setAnd(convertLogicalSliceItems(map.get("$and"), path + ".$and"));
                 return item;
             }
 
@@ -648,35 +641,79 @@ public class LocalDatasetAccessor implements DatasetAccessor {
         }
 
         // 完整格式
-        item.setField((String) map.get("field"));
-        item.setOp((String) map.getOrDefault("op", "="));
+        item.setField(stringValue(map.get("field")));
+        item.setOp(stringOr(map.get("op"), "="));
         item.setValue(map.get("value"));
 
         // 处理 $or 条件组
         if (map.containsKey("$or")) {
-            Object orObj = map.get("$or");
-            if (orObj instanceof List) {
-                List<Map<String, Object>> orList = (List<Map<String, Object>>) orObj;
-                List<SemanticQueryRequest.SliceItem> orItems = orList.stream()
-                        .map(this::convertToSliceItem)
-                        .toList();
-                item.setOr(orItems);
-            }
+            item.setOr(convertLogicalSliceItems(map.get("$or"), path + ".$or"));
         }
 
         // 处理 $and 条件组
         if (map.containsKey("$and")) {
-            Object andObj = map.get("$and");
-            if (andObj instanceof List) {
-                List<Map<String, Object>> andList = (List<Map<String, Object>>) andObj;
-                List<SemanticQueryRequest.SliceItem> andItems = andList.stream()
-                        .map(this::convertToSliceItem)
-                        .toList();
-                item.setAnd(andItems);
-            }
+            item.setAnd(convertLogicalSliceItems(map.get("$and"), path + ".$and"));
         }
 
         return item;
+    }
+
+    private static String stringOr(Object value, String fallback) {
+        String text = stringValue(value);
+        return text == null || text.isBlank() ? fallback : text;
+    }
+
+    private static void validateSliceMap(Map<?, ?> map, String path) {
+        if (map.isEmpty()) {
+            throw invalidSlice(path, "must not be empty");
+        }
+        for (Object rawKey : map.keySet()) {
+            if (!(rawKey instanceof String key) || key.isBlank()) {
+                throw invalidSlice(path, "keys must be non-empty strings");
+            }
+            validateSliceKey(key, path);
+        }
+    }
+
+    private static void validateSliceKey(String key, String path) {
+        if (!key.equals(key.trim())) {
+            throw invalidSlice(path, "contains invalid key '" + key + "'. Keys must not have surrounding whitespace");
+        }
+        if (key.indexOf('"') >= 0 || key.indexOf('\'') >= 0 || key.indexOf('\\') >= 0) {
+            throw invalidSlice(path,
+                    "contains invalid key '" + key + "'. Logic keys must be exactly $or or $and");
+        }
+    }
+
+    private static String firstSliceKey(Map<?, ?> map) {
+        return (String) map.keySet().iterator().next();
+    }
+
+    private static RuntimeException invalidSlice(String path, String detail) {
+        return RX.throwAUserTip(SLICE_CONTRACT_ERROR + ": " + path + " " + detail + ". "
+                + SLICE_CONTRACT_HINT);
+    }
+
+    private static String typeName(Object value) {
+        if (value == null) {
+            return "null";
+        }
+        if (value instanceof String) {
+            return "string";
+        }
+        if (value instanceof Boolean) {
+            return "boolean";
+        }
+        if (value instanceof Number) {
+            return "number";
+        }
+        if (value instanceof List<?>) {
+            return "array";
+        }
+        if (value instanceof Map<?, ?>) {
+            return "object";
+        }
+        return value.getClass().getSimpleName();
     }
 
     private static Object firstPresent(Map<String, Object> map, String first, String second) {
