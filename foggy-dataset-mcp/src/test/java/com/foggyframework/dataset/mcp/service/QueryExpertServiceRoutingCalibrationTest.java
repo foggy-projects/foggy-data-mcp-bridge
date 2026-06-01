@@ -315,6 +315,10 @@ class QueryExpertServiceRoutingCalibrationTest {
                                                     )
                                             )
                                     ),
+                                    "orderBy", List.of(Map.of(
+                                            "field", "amount",
+                                            "dir", "DESC"
+                                    )),
                                     "limit", 20
                             )
                     ),
@@ -359,6 +363,8 @@ class QueryExpertServiceRoutingCalibrationTest {
         assertEquals(List.of("orderId"), arguments.get("payload_columns"));
         assertEquals(List.of("lateShipRisk"), arguments.get("payload_calculated_field_names"));
         assertEquals(List.of("if(shipDate > orderDate$id, 1, 0)"), arguments.get("payload_calculated_field_expressions"));
+        assertEquals(List.of("amount"), arguments.get("payload_order_by_fields"));
+        assertEquals(List.of("desc"), arguments.get("payload_order_by_dirs"));
         assertEquals(20, arguments.get("payload_limit"));
         assertEquals(List.of("amount", "customer$caption", "orderDate$caption"), arguments.get("payload_slice_fields"));
         assertEquals(List.of("is null", ">"), arguments.get("payload_slice_ops"));

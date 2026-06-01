@@ -1137,7 +1137,9 @@ public class QueryExpertService {
             summary.put("payload_keys", payloadMap.keySet().stream().map(String::valueOf).toList());
             copyPayloadValue(summary, payloadMap, "columns", "payload_columns");
             copyPayloadValue(summary, payloadMap, "groupBy", "payload_group_by");
+            copyPayloadValue(summary, payloadMap, "orderBy", "payload_order_by");
             copyPayloadValue(summary, payloadMap, "limit", "payload_limit");
+            addPayloadOrderBySummary(summary, payloadMap.get("orderBy"));
             addPayloadCalculatedFieldsSummary(summary, payloadMap.get("calculatedFields"));
             summary.put("payload_has_slice", payloadMap.containsKey("slice"));
             addPayloadSliceSummary(summary, payloadMap.get("slice"));
@@ -1157,6 +1159,37 @@ public class QueryExpertService {
         Object value = payloadMap.get(sourceKey);
         if (value != null) {
             summary.put(targetKey, value);
+        }
+    }
+
+    private static void addPayloadOrderBySummary(Map<String, Object> summary, Object orderBy) {
+        if (orderBy == null) {
+            return;
+        }
+        LinkedHashSet<String> fields = new LinkedHashSet<>();
+        LinkedHashSet<String> dirs = new LinkedHashSet<>();
+        collectPayloadOrderBySignals(orderBy, fields, dirs);
+        putSignalList(summary, "payload_order_by_fields", fields);
+        putSignalList(summary, "payload_order_by_dirs", dirs);
+    }
+
+    private static void collectPayloadOrderBySignals(
+            Object node,
+            LinkedHashSet<String> fields,
+            LinkedHashSet<String> dirs
+    ) {
+        if (node instanceof Map<?, ?> map) {
+            addStringSignal(fields, firstMapValue(map, "field", "name", "column", "alias"));
+            Object dir = firstMapValue(map, "dir", "direction", "order");
+            if (dir != null) {
+                addStringSignal(dirs, String.valueOf(dir).trim().toLowerCase(Locale.ROOT));
+            }
+            return;
+        }
+        if (node instanceof Iterable<?> iterable) {
+            for (Object item : iterable) {
+                collectPayloadOrderBySignals(item, fields, dirs);
+            }
         }
     }
 
