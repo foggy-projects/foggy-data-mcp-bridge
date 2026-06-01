@@ -1,7 +1,12 @@
 package com.foggyframework.dataset.db.model.semantic;
 
+import com.foggyframework.bundle.SystemBundlesContext;
+import com.foggyframework.dataset.db.model.def.query.request.DbQueryRequestDef;
+import com.foggyframework.dataset.db.model.def.query.request.GroupRequestDef;
 import com.foggyframework.dataset.db.model.ecommerce.EcommerceTestSupport;
+import com.foggyframework.dataset.db.model.engine.JdbcModelQueryEngine;
 import com.foggyframework.dataset.db.model.engine.compose.SqlGenerationResult;
+import com.foggyframework.dataset.db.model.engine.formula.SqlFormulaService;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticQueryRequest;
 import com.foggyframework.dataset.db.model.semantic.domain.SemanticRequestContext;
 import com.foggyframework.dataset.db.model.semantic.service.SemanticQueryServiceV3;
@@ -14,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.LinkedHashMap;
@@ -30,6 +36,12 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
 
     @Resource
     private SemanticQueryServiceV3 semanticQueryServiceV3;
+
+    @Resource
+    private SqlFormulaService sqlFormulaService;
+
+    @Resource
+    private SystemBundlesContext systemBundlesContext;
 
     @BeforeEach
     void resetFixture() {
@@ -333,6 +345,43 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
     }
 
     @Test
+    @DisplayName("CrmLead monthly funnel aggregate executes by createdAt$month")
+    void crmLeadMonthlyFunnelBridgeSqlMatchesManualBaseline() {
+        List<Map<String, Object>> manualRows = crmLeadMonthlyFunnelManualRows();
+
+        JdbcQueryModel queryModel = getQueryModel("CrmLead");
+        JdbcModelQueryEngine queryEngine = new JdbcModelQueryEngine(queryModel, sqlFormulaService);
+
+        DbQueryRequestDef queryRequest = new DbQueryRequestDef();
+        queryRequest.setQueryModel("CrmLead");
+        queryRequest.setColumns(Arrays.asList(
+                "createdAt$month",
+                "leadCount",
+                "count(convertedOpportunityId) as convertedOpportunityRows",
+                "count(convertedOrderId) as convertedOrderRows"
+        ));
+        GroupRequestDef monthGroup = new GroupRequestDef();
+        monthGroup.setField("createdAt$month");
+        queryRequest.setGroupBy(List.of(monthGroup));
+
+        queryEngine.analysisQueryRequest(systemBundlesContext, queryRequest);
+        String sql = queryEngine.getSql();
+
+        assertNotNull(sql);
+        assertTrue(sql.contains("created_at"), sql);
+        assertTrue(sql.contains("createdAt$month"), sql);
+
+        List<Map<String, Object>> rows = new ArrayList<>(jdbcTemplate.queryForList(
+                sql, queryEngine.getValues().toArray(new Object[0])));
+        rows.sort(Comparator.comparing(row -> ((Number) value(row, "createdAt$month")).intValue()));
+
+        assertEquals(manualRows.size(), rows.size());
+        for (int i = 0; i < manualRows.size(); i++) {
+            assertGeneratedCrmMonthlyFunnelRowMatchesManual(rows.get(i), manualRows.get(i));
+        }
+    }
+
+    @Test
     @DisplayName("DSL_CTE CRM lead funnel drop-off bridge executes and matches manual baseline")
     void crmLeadFunnelDropOffBridgeSqlMatchesManualBaseline() {
         assumeCommonTableExpressionsSupported();
@@ -408,6 +457,19 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
                 """));
         rows.sort(Comparator.comparing(row -> String.valueOf(row.get("leadSource"))));
         return rows;
+    }
+
+    private static List<Map<String, Object>> crmLeadMonthlyFunnelManualRows() {
+        return List.of(
+                m("createdAt$month", 4,
+                        "leadCount", 1,
+                        "convertedOpportunityRows", 1,
+                        "convertedOrderRows", 1),
+                m("createdAt$month", 5,
+                        "leadCount", 8,
+                        "convertedOpportunityRows", 5,
+                        "convertedOrderRows", 3)
+        );
     }
 
     private List<Map<String, Object>> crmLeadFunnelDropOffManualRows() {
@@ -784,6 +846,18 @@ class DslCteCrmFunnelFixtureIntegrationTest extends EcommerceTestSupport {
                 ((Number) value(generated, "opportunityDropOffCount")).intValue());
         assertClose(((Number) manual.get("opportunityToOrderDropOffRate")).doubleValue(),
                 ((Number) value(generated, "opportunityToOrderDropOffRate")).doubleValue());
+    }
+
+    private static void assertGeneratedCrmMonthlyFunnelRowMatchesManual(Map<String, Object> generated,
+                                                                        Map<String, Object> manual) {
+        assertEquals(((Number) manual.get("createdAt$month")).intValue(),
+                ((Number) value(generated, "createdAt$month")).intValue());
+        assertEquals(((Number) manual.get("leadCount")).intValue(),
+                ((Number) value(generated, "leadCount")).intValue());
+        assertEquals(((Number) manual.get("convertedOpportunityRows")).intValue(),
+                ((Number) value(generated, "convertedOpportunityRows")).intValue());
+        assertEquals(((Number) manual.get("convertedOrderRows")).intValue(),
+                ((Number) value(generated, "convertedOrderRows")).intValue());
     }
 
     private static void assertGeneratedCrossModelJoinAlignRowMatchesManual(Map<String, Object> generated,

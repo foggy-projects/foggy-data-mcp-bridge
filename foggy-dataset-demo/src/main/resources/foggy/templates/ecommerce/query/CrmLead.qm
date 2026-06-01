@@ -20,6 +20,9 @@ export const queryModel = {
             items: [
                 { ref: lead.leadId },
                 { ref: lead.createdAt },
+                { ref: lead.createdAt$year },
+                { ref: lead.createdAt$month },
+                { ref: lead.createdAt$yearMonth },
                 { ref: lead.leadSource },
                 { ref: lead.convertedOpportunityId },
                 { ref: lead.convertedOrderId }

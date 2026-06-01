@@ -1,6 +1,8 @@
 package com.foggyframework.dataset.db.model.ecommerce;
 
 import com.foggyframework.dataset.db.model.spi.JdbcQueryModel;
+import com.foggyframework.dataset.db.model.spi.DbColumn;
+import com.foggyframework.dataset.db.model.spi.DbDimension;
 import com.foggyframework.dataset.db.model.spi.TableModel;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.*;
@@ -247,9 +249,27 @@ class ModelLoadingTest extends EcommerceTestSupport {
     @Order(25)
     @DisplayName("加载CRM线索查询模型")
     void testLoadCrmLeadQueryModel() {
+        TableModel model = tableModelLoaderManager.load("CrmLeadModel");
+        assertNotNull(model, "CrmLeadModel 加载失败");
+
+        DbDimension createdAt = model.findJdbcDimensionByName("createdAt");
+        assertNotNull(createdAt, "createdAt 应作为 self DATETIME 维度加载");
+        assertNull(createdAt.getQueryObject(), "createdAt 是 self/tableless 维度，不应生成维表 QueryObject");
+        assertEquals("created_at", createdAt.getForeignKey());
+        assertNull(model.findJdbcPropertyByName("createdAt"), "createdAt 不应同时作为顶层普通属性注册");
+
+        DbColumn createdAtMonth = model.findJdbcColumnByName("createdAt$month");
+        assertNotNull(createdAtMonth, "createdAt$month 必须可解析");
+        assertTrue(createdAtMonth.getQueryObject().isRootEqual(model.getQueryObject()),
+                "createdAt$month 应绑定主表");
+        assertTrue(createdAtMonth.getDeclare(appCtx, model.getQueryObject().getAlias()).contains("created_at"),
+                "createdAt$month 表达式应引用主表 created_at");
+
         JdbcQueryModel queryModel = getQueryModel("CrmLead");
         assertNotNull(queryModel, "CrmLead 加载失败");
         assertEquals("CrmLead", queryModel.getName());
+        assertNotNull(queryModel.findJdbcQueryColumnByName("createdAt$month", true),
+                "CrmLead QM 应暴露 createdAt$month");
         assertNotNull(queryModel.getColumnGroups(), "列组定义为空");
         log.info("CrmLead 加载成功: 列组数={}", queryModel.getColumnGroups().size());
     }
